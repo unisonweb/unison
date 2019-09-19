@@ -57,7 +57,7 @@ data Stanza
   | Unfenced Text
 
 instance Show UcmCommand where
-  show (UcmCommand path txt) = show path <> "> " <> Text.unpack txt 
+  show (UcmCommand path txt) = show path <> ">" <> Text.unpack txt 
 
 instance Show Stanza where
   show s = case s of
@@ -69,7 +69,7 @@ instance Show Stanza where
     Unison _hide fname txt -> unlines [
       "```unison",
       case fname of
-        Nothing -> Text.unpack txt <> "\n```\n"
+        Nothing -> Text.unpack txt <> "```\n"
         Just fname -> unlines [
           "---",
           "title: " <> Text.unpack fname,
@@ -142,7 +142,7 @@ run dir stanzas codebase = do
             else case words (Text.unpack lineTxt) of
               [] -> awaitInput
               cmd:args -> do
-                output (show p <> "\n\n")
+                output ("\n" <> show p <> "\n")
                 case Map.lookup cmd patternMap of
                   Nothing -> awaitInput
                   Just pat -> case IP.parse pat args of
@@ -164,11 +164,13 @@ run dir stanzas codebase = do
                 Unison hide filename txt -> do
                   output $ show s
                   writeIORef hidden hide
-                  pure $ Left (UnisonFileChanged (fromMaybe "<interactive>" filename) txt)
+                  output $ "```ucm"
+                  atomically . Q.enqueue cmdQueue $ Nothing
+                  pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
                 Ucm hide cmds -> do
                   -- output $ show s
                   writeIORef hidden hide
-                  output $ "```ucm\n"
+                  output $ "```ucm"
                   traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
                   atomically . Q.enqueue cmdQueue $ Nothing
                   awaitInput
@@ -177,7 +179,7 @@ run dir stanzas codebase = do
       print o = do
         msg <- notifyUser dir o
         -- putPrettyNonempty msg
-        let rendered = P.toPlain 65 (P.indentN 2 msg)
+        let rendered = P.toPlain 65 msg -- (P.indentN 2 msg)
         output rendered
         pure ()
 
@@ -220,16 +222,20 @@ ucmCommand = do
 fenced :: P Stanza
 fenced = do
   fence
-  fenceType <- word "ucm" <|> word "unison" <|> untilSpace1
+  fenceType <- lineToken (word "ucm" <|> word "unison" <|> untilSpace1)
   stanza <-
     if fenceType == "ucm" then do
-      hideOutput <- hideOutput
+      hideOutput <- token hideOutput
       cmds <- many ucmCommand
       pure $ Ucm hideOutput cmds
     else if fenceType == "unison" then do
-      hideOutput <- hideOutput
+      -- todo: this has to be more interesting
+      -- ```unison:hide
+      -- ```unison
+      -- ```unison:hide scratch.u
+      hideOutput <- lineToken hideOutput
       fileName <- optional untilSpace1
-      blob <- untilFence
+      blob <- spaces *> untilFence
       pure $ Unison hideOutput fileName blob
     else UnprocessedFence fenceType <$> untilFence
   fence
@@ -270,10 +276,19 @@ word' txt = P.try $ do
   pure txt
 
 word :: Text -> P Text
-word txt = word' txt <* spaces
+word txt = word' txt
+
+token :: P a -> P a 
+token p = p <* spaces
+
+lineToken :: P a -> P a
+lineToken p = p <* nonNewlineSpaces
+
+nonNewlineSpaces :: P ()
+nonNewlineSpaces = void $ P.takeWhileP Nothing (\ch -> ch `elem` (" \t" :: String))
 
 hideOutput :: P HideOutput
-hideOutput = isJust <$> (optional (word ":hide") <* spaces)
+hideOutput = isJust <$> optional (word ":hide")
 
 untilSpace1 :: P Text
 untilSpace1 = P.takeWhile1P Nothing (not . Char.isSpace)

@@ -68,7 +68,7 @@ main = do
     args -> do
       (dir, theCodebase) <- FileCodebase.ensureCodebaseInitialized currentDir
       case args of 
-        args @ (_:_) -> do
+        args@(_:_) -> do
           for_ args $ \arg -> case arg of
             md | isMarkdown md -> do
               parsed <- TR.parseFile arg
@@ -77,7 +77,10 @@ main = do
                 Right stanzas -> do
                   (dir, theCodebase) <- FileCodebase.ensureCodebaseInitialized transcriptDir
                   mdOut <- TR.run dir stanzas theCodebase
-                  writeUtf8 (currentDir FP.</> (FP.addExtension (FP.dropExtension arg ++ ".output") md)) mdOut
+                  writeUtf8 (currentDir FP.</> 
+                             FP.addExtension (FP.dropExtension arg ++ ".output") 
+                                             (FP.takeExtension md)) 
+                            mdOut
             file | isDotU file -> undefined
             wat -> putStrLn $ "Unrecognized command, skipping: " <> wat
           when hasTranscript $ putStrLn $ unlines [ 

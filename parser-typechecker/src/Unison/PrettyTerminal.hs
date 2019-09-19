@@ -4,22 +4,28 @@ import           Unison.Util.Less              (less)
 import qualified Unison.Util.Pretty            as P
 import qualified Unison.Util.ColorText         as CT
 import qualified System.Console.Terminal.Size  as Terminal
+import Data.List (dropWhileEnd)
+import Data.Char (isSpace)
+
+stripSurroundingBlanks :: String -> String
+stripSurroundingBlanks s = unlines (dropWhile isBlank . dropWhileEnd isBlank $ lines s) where
+  isBlank line = all isSpace line
 
 -- like putPrettyLn' but prints a blank line before and after.
 putPrettyLn :: P.Pretty CT.ColorText -> IO ()
 putPrettyLn p = do
   width <- getAvailableWidth
-  less . P.toANSI width $ P.border 2 p
+  less . stripSurroundingBlanks . P.toANSI width $ P.border 2 p
 
 putPrettyLnUnpaged :: P.Pretty CT.ColorText -> IO ()
 putPrettyLnUnpaged p = do
   width <- getAvailableWidth
-  putStrLn . P.toANSI width $ P.border 2 p
+  putStrLn . stripSurroundingBlanks . P.toANSI width $ P.border 2 p
 
 putPrettyLn' :: P.Pretty CT.ColorText -> IO ()
 putPrettyLn' p = do
   width <- getAvailableWidth
-  less . P.toANSI width $ P.indentN 2 p
+  less . stripSurroundingBlanks . P.toANSI width $ P.indentN 2 p
 
 clearCurrentLine :: IO ()
 clearCurrentLine = do
