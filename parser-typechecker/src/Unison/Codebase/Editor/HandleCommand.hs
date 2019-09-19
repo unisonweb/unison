@@ -46,6 +46,7 @@ import qualified Unison.Var                    as Var
 import qualified Unison.Result as Result
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import qualified Unison.PrettyPrintEnv         as PPE
+import qualified Unison.ShortHash              as SH
 import Unison.Type (Type)
 
 typecheck
@@ -128,6 +129,8 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
     GetTermsOfType ty -> Codebase.termsOfType codebase ty
     GetTermsMentioningType ty -> Codebase.termsMentioningType codebase ty
     CodebaseHashLength -> Codebase.hashLength codebase
+    GetReferencesByShortHash sh ->
+      Codebase.referencesByPrefix codebase (SH.toText sh)
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
 

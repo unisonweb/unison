@@ -562,7 +562,7 @@ previewMergeLocal = InputPattern
 
 resolveEdit :: InputPattern
 resolveEdit = InputPattern
-  "resolve.edit"
+  "resolve.term"
   []
   [ (Required, exactDefinitionQueryArg)
   , (Required, exactDefinitionQueryArg)
@@ -574,8 +574,8 @@ resolveEdit = InputPattern
         <> "by globally replacing it with the term <to>."
       )
     , ( makeExample resolveEdit ["<from>", "<to>"]
-      , "Resolves edit conflicts in the default patch by replacing <from>"
-        <> " with <to>."
+      , "Resolves edit conflicts in the default patch by replacing the term "
+        <> "<from> with <to>."
       )
     ]
   )

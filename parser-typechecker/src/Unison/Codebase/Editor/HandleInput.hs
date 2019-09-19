@@ -792,32 +792,23 @@ loop = do
       ResolveEditI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
-        let fromRefs = BranchUtil.getTermByShortHash from (Branch.head root')
-            toRefs   = BranchUtil.getTermByShortHash to (Branch.head root')
-            toReference r =
-              maybe
-                  (  fail
-                  $  "The term "
-                  <> show r
-                  <> " is a data constructor, "
-                  <> "and I don't support patching those yet."
-                  )
-                  pure
-                $ Referent.toTermReference r
-            go :: Referent -> Referent -> Action m (Either Event Input) v ()
-            go f t = do
-              fr  <- toReference f
-              tr  <- toReference t
+        fromRefs <- eval $ GetReferencesByShortHash from
+        toRefs <- eval $ GetReferencesByShortHash to
+        let go :: Reference.Id -> Reference.Id -> Action m (Either Event Input) v ()
+            go fid tid = do
+              let fr = DerivedId fid
+                  tr = DerivedId tid
               mft <- eval $ LoadTypeOfTerm fr
               mtt <- eval $ LoadTypeOfTerm tr
-              ft  <- maybe (fail $ "Missing type for term " <> show f) pure mft
-              tt  <- maybe (fail $ "Missing type for term " <> show t) pure mtt
+              ft  <- maybe (fail $ "Missing type for term " <> show fr) pure mft
+              tt  <- maybe (fail $ "Missing type for term " <> show tr) pure mtt
               let typing | Typechecker.isEqual ft tt   = TermEdit.Same
                          | Typechecker.isSubtype ft tt = TermEdit.Subtype
                          | otherwise                   = TermEdit.Different
-              let patch' = over Patch.termEdits
-                                (R.deleteDom fr . R.insert fr (Replace tr typing))
-                                patch
+                  patch' =
+                    over Patch.termEdits
+                      (R.deleteDom fr . R.insert fr (Replace tr typing))
+                      patch
                   (patchPath'', patchName) = resolveSplit' patchPath'
               _stepAtM (patchPath'', Branch.modifyPatches patchName (const patch'))
               success
@@ -827,8 +818,10 @@ loop = do
           (\r -> zeroOneOrMore toRefs
                                (respond $ SearchTermsNotFound [HQ.HashOnly to])
                                (go r)
-                               (hashConflicted to))
-          (hashConflicted from)
+                               (hashConflicted to .
+                                 Set.map (Referent.Ref . DerivedId)))
+          (hashConflicted from .
+            Set.map (Referent.Ref . DerivedId))
 
       AddI hqs -> case uf of
         Nothing -> respond NoUnisonFile

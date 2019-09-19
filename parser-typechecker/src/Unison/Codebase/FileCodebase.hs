@@ -25,7 +25,7 @@ import           UnliftIO.Concurrent            ( forkIO
 import           UnliftIO.STM                   ( atomically )
 import qualified Data.Char                     as Char
 import qualified Data.Hex                      as Hex
-import           Data.List                      ( isSuffixOf )
+import           Data.List                      ( isSuffixOf, isPrefixOf )
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import           Data.Text.Encoding             ( encodeUtf8
@@ -46,7 +46,6 @@ import           System.FilePath                ( FilePath
                                                 , takeFileName
                                                 , (</>)
                                                 )
-import           System.FilePattern.Directory   ( getDirectoryFiles )
 import           System.Directory               ( copyFile )
 import           System.Path                    ( replaceRoot
                                                 , createDir
@@ -496,10 +495,10 @@ putWatch putV putA path k id e = liftIO $ S.putWithParentDirs
   e
 
 referencesByPrefix :: MonadIO m => Text -> m (Set Reference.Id)
-referencesByPrefix p = liftIO $
-  fmap (Set.fromList . join) . for [termsDir, typesDir] $ \f -> do
+referencesByPrefix p =
+  liftIO $ fmap (Set.fromList . join) . for [termsDir, typesDir] $ \f -> do
     let dir = f codebasePath
-    paths <- getDirectoryFiles dir [Text.unpack p <> "*"]
+    paths <- filter (isPrefixOf $ Text.unpack p) <$> listDirectory dir
     let refs = paths >>= (toList . componentIdFromString)
     pure refs
 

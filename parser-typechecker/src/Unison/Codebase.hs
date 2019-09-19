@@ -73,7 +73,7 @@ data Codebase m v a =
            , termsMentioningTypeImpl :: Reference -> m (Set Referent)
            -- number of base58 characters needed to distinguish any two references in the codebase
            , hashLength         :: m Int
-           , refsByPrefix :: Text -> m (Set Reference.Id)
+           , referencesByPrefix :: Text -> m (Set Reference.Id)
            }
 
 -- | Write all of the builtins types and IO types into the codebase
