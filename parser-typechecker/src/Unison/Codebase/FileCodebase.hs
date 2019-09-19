@@ -46,6 +46,7 @@ import           System.FilePath                ( FilePath
                                                 , takeFileName
                                                 , (</>)
                                                 )
+import           System.FilePattern.Directory   ( getDirectoryFiles )
 import           System.Directory               ( copyFile )
 import           System.Path                    ( replaceRoot
                                                 , createDir
@@ -247,14 +248,14 @@ initialize path =
 data BranchLoadMode = FailIfMissing | EmptyIfMissing deriving Eq
 
 branchFromFiles :: MonadIO m => BranchLoadMode -> FilePath -> Branch.Hash -> m (Branch m)
-branchFromFiles loadMode rootDir h@(RawHash h') = do 
+branchFromFiles loadMode rootDir h@(RawHash h') = do
   fileExists <- doesFileExist (branchPath rootDir h')
-  if fileExists || loadMode == FailIfMissing then 
+  if fileExists || loadMode == FailIfMissing then
     Branch.read (deserializeRawBranch rootDir)
                 (deserializeEdits rootDir)
                 h
   else
-    pure $ Branch.empty
+    pure Branch.empty
  where
   deserializeRawBranch
     :: MonadIO m => CodebasePath -> Causal.Deserialize m Branch.Raw Branch.Raw
@@ -381,7 +382,7 @@ writeAllTermsAndTypes
 writeAllTermsAndTypes fmtV fmtA codebase localPath branch = do
   b <- doesDirectoryExist localPath
   if b then do
-    code <- pure $ codebase1 fmtV fmtA localPath
+    let code = codebase1 fmtV fmtA localPath
     remoteRoot <- Codebase.getRootBranch code
     Branch.sync (hashExists localPath) serialize (serializeEdits localPath) branch
     merged <- Branch.merge branch remoteRoot
@@ -494,6 +495,14 @@ putWatch putV putA path k id e = liftIO $ S.putWithParentDirs
   (watchesDir path (Text.pack k) </> componentIdToString id <> ".ub")
   e
 
+referencesByPrefix :: MonadIO m => Text -> m (Set Reference.Id)
+referencesByPrefix p = liftIO $
+  fmap (Set.fromList . join) . for [termsDir, typesDir] $ \f -> do
+    let dir = f codebasePath
+    paths <- getDirectoryFiles dir [Text.unpack p <> "*"]
+    let refs = paths >>= (toList . componentIdFromString)
+    pure refs
+
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`
 codebase1
   :: forall m v a
@@ -523,6 +532,8 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path
                      getTermsMentioningType
    -- todo: maintain a trie of references to come up with this number
                      (pure 10)
+   -- The same trie can be used to make this lookup fast:
+                     referencesByPrefix
     in  c
  where
   getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)

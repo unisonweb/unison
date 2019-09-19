@@ -19,6 +19,7 @@ extra-deps:
 - guid-0.1.0
 - shellmet-0.0.1
 - fsutils-0.1.2
+- filepattern-0.1.1
 
 ghc-options:
  # All packages
