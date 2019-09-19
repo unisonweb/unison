@@ -76,6 +76,7 @@ prettyRaw n im p tp = go n im p tp
   go :: PrettyPrintEnv -> Imports -> Int -> Type v a -> Pretty SyntaxText
   go n im p tp = case stripIntroOuters tp of
     Var' v     -> fmt S.Var $ PP.text (Var.name v)
+    DD.TupleType' xs | length xs /= 1 -> PP.parenthesizeCommas $ map (go n im 0) xs
     -- Would be nice to use a different SyntaxHighlights color if the reference is an ability.
     Ref' r     -> styleHashQualified'' (fmt S.DataType) $ elideFQN im (PrettyPrintEnv.typeName n r)
     Cycle' _ _ -> fromString "error: TypeParser does not currently emit Cycle"
@@ -83,9 +84,6 @@ prettyRaw n im p tp = go n im p tp
     Ann' _ _   -> fromString "error: TypeParser does not currently emit Ann"
     App' (Ref' (Builtin "Sequence")) x ->
       PP.group $ (fmt S.DelimiterChar "[") <> go n im 0 x <> (fmt S.DelimiterChar "]")
-    DD.TupleType' [x] -> PP.parenthesizeIf (p >= 10) $ (fmt S.DataType "Pair") `PP.hang` PP.spaced
-      [go n im 10 x, (fmt S.DataType "()")]
-    DD.TupleType' xs  -> PP.parenthesizeCommas $ map (go n im 0) xs
     Apps' f xs -> PP.parenthesizeIf (p >= 10) $ go n im 9 f `PP.hang` PP.spaced
       (go n im 10 <$> xs)
     Effect1' e t ->

@@ -45,6 +45,9 @@ isRoot' = either isRoot (const False) . unPath'
 isRoot :: Absolute -> Bool
 isRoot = Seq.null . toSeq . unabsolute
 
+absoluteToPath' :: Absolute -> Path'
+absoluteToPath' abs = Path' (Left abs)
+
 instance Show Path' where
   show (Path' (Left abs)) = show abs
   show (Path' (Right rel)) = show rel
@@ -97,6 +100,7 @@ parsePath' p = case parsePath'Impl p of
 -- implementation detail of parsePath' and parseSplit'
 -- foo.bar.baz.34 becomes `Right (foo.bar.baz, "34")
 -- foo.bar.baz    becomes `Right (foo.bar, "baz")
+-- baz            becomes `Right (, "baz")
 -- foo.bar.baz#a8fj becomes `Left`; we don't hash-qualify paths.
 parsePath'Impl :: String -> Either String (Path', String)
 parsePath'Impl p = case p of
@@ -283,6 +287,14 @@ empty = Path mempty
 
 cons :: NameSegment -> Path -> Path
 cons ns (Path p) = Path (ns :<| p)
+
+cons' :: NameSegment -> Path' -> Path'
+cons' n (Path' e) = case e of
+  Left abs -> Path' (Left . Absolute $ cons n (unabsolute abs))
+  Right rel -> Path' (Right . Relative $ cons n (unrelative rel))
+
+consAbsolute :: NameSegment -> Absolute -> Absolute
+consAbsolute n a = Absolute . cons n $ unabsolute a
 
 instance Show Path where
   show = Text.unpack . toText

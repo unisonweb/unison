@@ -224,8 +224,10 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     t -> l "error: " <> l (show t)
  where
   specialCases term go = case (term, binaryOpsPred) of
-    (TupleTerm' [x], _) ->
-      paren (p >= 10) $ fmt S.Constructor "Pair" `PP.hang`
+    (TupleTerm' [x], _) -> let
+      pair = parenIfInfix name ic $ styleHashQualified'' (fmt S.Constructor) name
+        where name = elideFQN im $ PrettyPrintEnv.termName n (DD.pairCtorRef) in
+      paren (p >= 10) $ pair `PP.hang`
         PP.spaced [pretty0 n (ac 10 Normal im) x, fmt S.Constructor "()" ]
     (TupleTerm' xs, _) -> paren True $ commaList xs
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
@@ -272,7 +274,13 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     lhs = PP.group (fst (prettyPattern n (ac 0 Block im) (-1) vs pat) <> " ")
        <> printGuard guard
        <> (fmt S.ControlKeyword "->")
-    printGuard (Just g) = PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty0 n (ac 2 Normal im) g, ""]
+    printGuard (Just g0) = let
+      -- strip off any Abs-chain around the guard, guard variables are rendered
+      -- like any other variable, ex: case Foo x y | x < y -> ...
+      g = case g0 of
+        AbsN' _ g' -> g'
+        _ -> g0
+      in PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty0 n (ac 2 Normal im) g, ""]
     printGuard Nothing  = mempty
     (im', uses) = calcImports im body
   printCase _ = l "error"
@@ -338,11 +346,7 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   PatternP.Nat     _ u -> (fmt S.NumericLiteral $ l $ show u, vs)
   PatternP.Float   _ f -> (fmt S.NumericLiteral $ l $ show f, vs)
   PatternP.Text    _ t -> (fmt S.TextLiteral $ l $ show t, vs)
-  TuplePattern [pp] ->
-    let (printed, tail_vs) = prettyPattern n c 10 vs pp
-    in  ( paren (p >= 10) $ PP.sep " " [fmt S.Constructor "Pair", printed, fmt S.Constructor "()"]
-        , tail_vs )
-  TuplePattern pats ->
+  TuplePattern pats | length pats /= 1 ->
     let (pats_printed, tail_vs) = patterns vs pats
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
   PatternP.Constructor _ ref i [] ->

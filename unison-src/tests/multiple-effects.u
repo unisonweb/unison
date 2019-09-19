@@ -7,11 +7,11 @@ ability Console where
   write : Text -> {Console} ()
 
 namespace Console where
-  state : s -> Effect (State s) a -> a
+  state : s -> Request (State s) a -> a
   state s c = case c of
     {State.get -> k} -> handle state s in k s
     {State.set s' -> k} -> handle state s' in k ()
     {a} -> a
 
-multiHandler : s -> [w] -> Nat -> Effect {State s, Console} a -> ()
+multiHandler : s -> [w] -> Nat -> Request {State s, Console} a -> ()
 multiHandler _ _ _ _ = ()
