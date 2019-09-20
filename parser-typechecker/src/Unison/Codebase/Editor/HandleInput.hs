@@ -208,7 +208,6 @@ loop = do
         let (p, seg) = Path.toAbsoluteSplit currentPath' patchPath'
         b <- getAt p
         eval . Eval $ Branch.getPatch seg (Branch.head b)
-
       withFile ambient sourceName lexed@(text, tokens) k = do
         let
           getHQ = \case
@@ -805,13 +804,36 @@ loop = do
               let typing | Typechecker.isEqual ft tt   = TermEdit.Same
                          | Typechecker.isSubtype ft tt = TermEdit.Subtype
                          | otherwise                   = TermEdit.Different
+                  -- The modified patch
                   patch' =
                     over Patch.termEdits
-                      (R.deleteDom fr . R.insert fr (Replace tr typing))
+                      (R.insert fr (Replace tr typing) . R.deleteDom fr)
                       patch
                   (patchPath'', patchName) = resolveSplit' patchPath'
+              -- Save the modified patch
               _stepAtM (patchPath'', Branch.modifyPatches patchName (const patch'))
-              success
+              -- Apply the modified patch to the current path
+              -- since we might be able to propagate further.
+              void $ propagatePatch patch' currentPath'
+              -- Get all names for the conflicted edit targets and assign them
+              -- to the resolved target.
+              let names0 = Branch.toNames0 currentBranch0
+                  conflictedRefs =
+                    [ Referent.Ref ref
+                    | Replace ref _ <- Set.toList . R.lookupDom fr $
+                                         view Patch.termEdits patch]
+                  conflicted =
+                    conflictedRefs >>= \r ->
+                      (, r) <$>
+                        toList (Path.splitFromName $ Names.termName names0 r)
+              -- Delete the conflicted names.
+              stepManyAt (conflicted >>= \(n, r) ->
+                [ BranchUtil.makeDeleteTermName n r
+                , BranchUtil.makeAddTermName
+                   n
+                   (Referent.Ref tr)
+                   (BranchUtil.getTermMetadataAt n r root0)
+                ])
         zeroOneOrMore
           fromRefs
           (respond $ SearchTermsNotFound [HQ.HashOnly from])
