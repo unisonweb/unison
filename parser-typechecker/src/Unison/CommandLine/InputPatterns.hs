@@ -225,21 +225,24 @@ findShallow :: InputPattern
 findShallow = InputPattern
   "ls"
   ["find.shallow"]
-  []
-  mempty
---  (P.wrapColumn2
---    [ ("`find`", "lists all definitions in the current namespace.")
---    , ( "`find foo`"
---      , "lists all definitions with a name similar to 'foo' in the current "
---        <> "namespace."
---      )
---    , ( "`find foo bar`"
---      , "lists all definitions with a name similar to 'foo' or 'bar' in the "
---        <> "current namespace."
---      )
---    ]
---  )
-  (pure . const Input.FindShallow)
+  [(Optional, pathArg)]
+  (P.wrapColumn2
+    [ ("`ls`", "lists all definitions in the current namespace.")
+    , ( "`ls foo`"
+      , "lists all definitions in the 'foo' namespace."
+      )
+    , ( "`ls .foo`"
+      , "lists all definitions in the '.foo' namespace."
+      )
+    ]
+  )
+  (\case
+    [] -> pure $ Input.FindShallow Path.relativeEmpty'
+    [path] -> first fromString $ do
+      p <- Path.parsePath' path
+      pure $ Input.FindShallow p
+    _ -> Left (I.help findShallow)
+  )
 
 findVerbose :: InputPattern
 findVerbose = InputPattern

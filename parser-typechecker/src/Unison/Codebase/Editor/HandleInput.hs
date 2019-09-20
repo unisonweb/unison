@@ -740,12 +740,12 @@ loop = do
               , (seg, _) <- Map.toList (Branch._edits b) ]
         in respond $ ListOfPatches patches
 
-      FindShallow -> do
+      FindShallow pathArg -> do
         prettyPrintNames0 <- basicPrettyPrintNames0
         ppe <- prettyPrintEnv $ Names prettyPrintNames0 mempty
         hashLen <- eval CodebaseHashLength
+        b0 <- Branch.head <$> getAt (Path.toAbsolutePath currentPath' pathArg)
         let
-          b0 = currentBranch0
           hqTerm b0 ns r =
             let refs = Star3.lookupD1 ns . _terms $ b0
             in case length refs of
@@ -765,14 +765,14 @@ loop = do
           \(r, ns) -> do
             ot <- loadReferentType r
             pure $ ShallowTermEntry r (hqTerm b0 ns r) ot
-        let 
-          typeEntries = 
+        let
+          typeEntries =
             [ ShallowTypeEntry r (hqType b0 ns r)
             | (r, ns) <- R.toList . Star3.d1 $ _types b0 ]
-          branchEntries = 
+          branchEntries =
             [ ShallowBranchEntry ns (defnCount b)
             | (ns, b) <- Map.toList $ _children b0 ]
-          patchEntries = 
+          patchEntries =
             [ ShallowPatchEntry ns
             | (ns, (_h, mp)) <- Map.toList $ _edits b0 ]
         let

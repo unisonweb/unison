@@ -311,8 +311,8 @@ notifyUser dir o = case o of
         ((P.syntaxToColor . prettyName . NameSegment.toName) ns
         ,P.lit "(patch)")
     isBuiltin = \case
-      Reference.Builtin{} -> P.lit "(builtin)"
-      Reference.DerivedId{} -> mempty
+      Reference.Builtin{} -> P.lit "(builtin type)"
+      Reference.DerivedId{} -> P.lit "(type)"
 
   SlurpOutput input ppe s -> let
     isPast = case input of Input.AddI{} -> True
