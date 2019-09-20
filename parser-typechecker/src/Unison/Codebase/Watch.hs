@@ -27,10 +27,7 @@ import           Data.Time.Clock                ( UTCTime
                                                 )
 import           System.FSNotify                ( Event(Added, Modified)
                                                 , watchTree
-                                                , withManagerConf
-                                                , defaultConfig
-                                                , confDebounce
-                                                , Debounce (NoDebounce)
+                                                , withManager
                                                 )
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as TQueue
@@ -47,12 +44,11 @@ watchDirectory' d = do
           where doIt fp t = do
                   _ <- tryTakeMVar mvar
                   putMVar mvar (fp, t)
-        watchConfig = defaultConfig { confDebounce = NoDebounce }
     -- janky: used to store the cancellation action returned
     -- by `watchTree`, which is created asynchronously
     cleanupRef <- newEmptyMVar
     cancel <- forkIO $ withRunInIO $ \inIO ->
-      withManagerConf watchConfig $ \mgr -> do
+      withManager $ \mgr -> do
         cancelInner <- watchTree mgr d (const True) (inIO . handler) <|> (pure (pure ()))
         putMVar cleanupRef $ liftIO cancelInner
         forever $ threadDelay 1000000
