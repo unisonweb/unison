@@ -85,12 +85,14 @@ main = do
                              FP.addExtension (FP.dropExtension arg ++ ".output") 
                                              (FP.takeExtension md)
                   writeUtf8 out mdOut
-                  putStrLn $ "Wrote " <> out
+                  putStrLn $ "💾  Wrote " <> out
             file | isDotU file -> undefined
             "sandbox" -> pure ()
             wat -> putStrLn $ "Unrecognized command, skipping: " <> wat
           when hasTranscript $ putStrLn $ unlines [ 
-            "I've finished running the transcript(s) in this codebase:", "",
-            "  " <> transcriptDir, ""
+            "", "",
+            "🌸  I've finished running the transcript(s) in this codebase:", "",
+            "  " <> transcriptDir, "",
+            "You can run `ucm` in this directory to do more work on it."
             ]
         _ -> launch dir theCodebase

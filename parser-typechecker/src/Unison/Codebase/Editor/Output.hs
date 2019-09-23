@@ -188,7 +188,7 @@ isFailure o = case o of
   TypeNotFound{} -> True
   TermNotFound{} -> True
   TermNotFound'{} -> True
-  SearchTermsNotFound{} -> True
+  SearchTermsNotFound ts -> not (null ts)
   DeleteBranchConfirmation{} -> False
   CantDelete{} -> True
   DeleteEverythingConfirmation -> False

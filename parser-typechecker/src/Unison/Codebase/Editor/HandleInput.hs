@@ -727,7 +727,8 @@ loop = do
         do
           eval . Notify
             $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
-          eval . Notify . SearchTermsNotFound $ fmap fst misses
+          when (not $ null misses) $
+            eval . Notify . SearchTermsNotFound $ fmap fst misses
           -- We set latestFile to be programmatically generated, if we
           -- are viewing these definitions to a file - this will skip the
           -- next update for that file (which will happen immediately)
