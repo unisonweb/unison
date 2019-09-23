@@ -309,7 +309,7 @@ subst' replace v r t2@(Term fvs ann body)
     Cycle body -> cycle' ann (subst' replace v r body)
     Abs x _ | x == v -> t2 -- x shadows v; ignore subtree
     Abs x e -> abs' ann x' e'
-      where x' = fresh t2 (freshIn r x)
+      where x' = freshIn (fvs `Set.union` r) x
             -- rename x to something that cannot be captured by `r`
             e' = if x /= x' then subst' replace v r (rename x x' e)
                  else subst' replace v r e
