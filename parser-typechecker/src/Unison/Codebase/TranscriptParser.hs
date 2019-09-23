@@ -187,7 +187,7 @@ run dir stanzas codebase = do
         let rendered = P.toPlain 65 msg -- (P.indentN 2 msg)
         output rendered
         when (not errOk && Output.isFailure o) $ do
-          output "```\n\n"
+          output "\n```\n\n"
           die "Transcript failed due to message above."
         pure ()
 
