@@ -40,6 +40,7 @@ import qualified Unison.CommandLine.InputPattern as IP
 import qualified Unison.Runtime.Rt1IO as Rt1
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
+import qualified Unison.Codebase.Editor.Output as Output
 
 type ExpectingError = Bool
 type HideOutput = Bool
@@ -51,8 +52,8 @@ type FenceType = Text
 data UcmCommand = UcmCommand Path.Absolute Text
 
 data Stanza
-  = Ucm HideOutput [UcmCommand]
-  | Unison HideOutput (Maybe ScratchFileName) Text
+  = Ucm HideOutput ExpectingError [UcmCommand]
+  | Unison HideOutput ExpectingError (Maybe ScratchFileName) Text
   | UnprocessedFence FenceType Text
   | Unfenced Text
 
@@ -61,12 +62,12 @@ instance Show UcmCommand where
 
 instance Show Stanza where
   show s = case s of
-    Ucm _ cmds -> unlines [
+    Ucm _ _ cmds -> unlines [
       "```ucm",
       show cmds,
       "```"
       ]
-    Unison _hide fname txt -> unlines [
+    Unison _hide _ fname txt -> unlines [
       "```unison",
       case fname of
         Nothing -> Text.unpack txt <> "```\n"
@@ -112,6 +113,7 @@ run dir stanzas codebase = do
     cmdQueue                 <- Q.newIO
     out                      <- newIORef mempty
     hidden                   <- newIORef False
+    allowErrors              <- newIORef False
     (config, cancelConfig)   <-
       catchIOError (watchConfig $ dir </> ".unisonConfig") $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
@@ -152,6 +154,7 @@ run dir stanzas codebase = do
                     Right input -> pure $ Right input
           Nothing -> do
             writeIORef hidden False
+            writeIORef allowErrors False
             stanza <- atomically (Q.tryDequeue inputQueue)
             case stanza of
               Nothing -> pure $ Right QuitI
@@ -162,14 +165,16 @@ run dir stanzas codebase = do
                 UnprocessedFence _ _ -> do
                   output $ show s
                   awaitInput
-                Unison hide filename txt -> do
+                Unison hide errOk filename txt -> do
                   output $ show s
                   writeIORef hidden hide
+                  writeIORef allowErrors errOk
                   output "```ucm"
                   atomically . Q.enqueue cmdQueue $ Nothing
                   pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
-                Ucm hide cmds -> do
+                Ucm hide errOk cmds -> do
                   writeIORef hidden hide
+                  writeIORef allowErrors errOk
                   output $ "```ucm"
                   traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
                   atomically . Q.enqueue cmdQueue $ Nothing
@@ -178,9 +183,12 @@ run dir stanzas codebase = do
       cleanup = do Runtime.terminate runtime; cancelConfig
       print o = do
         msg <- notifyUser dir o
-        -- putPrettyNonempty msg
+        errOk <- readIORef allowErrors
         let rendered = P.toPlain 65 msg -- (P.indentN 2 msg)
         output rendered
+        when (not errOk && Output.isFailure o) $ do
+          output "```\n\n"
+          die "Transcript failed due to message above."
         pure ()
 
       loop state = do
@@ -225,18 +233,21 @@ fenced = do
   fenceType <- lineToken (word "ucm" <|> word "unison" <|> untilSpace1)
   stanza <-
     if fenceType == "ucm" then do
-      hideOutput <- token hideOutput
+      hideOutput <- hideOutput
+      err <- expectingError
+      _ <- spaces
       cmds <- many ucmCommand
-      pure $ Ucm hideOutput cmds
+      pure $ Ucm hideOutput err cmds
     else if fenceType == "unison" then do
       -- todo: this has to be more interesting
       -- ```unison:hide
       -- ```unison
       -- ```unison:hide scratch.u
       hideOutput <- lineToken hideOutput
+      err <- lineToken expectingError
       fileName <- optional untilSpace1
       blob <- spaces *> untilFence
-      pure $ Unison hideOutput fileName blob
+      pure $ Unison hideOutput err fileName blob
     else UnprocessedFence fenceType <$> untilFence
   fence
   pure stanza
@@ -278,8 +289,8 @@ word' txt = P.try $ do
 word :: Text -> P Text
 word txt = word' txt
 
-token :: P a -> P a 
-token p = p <* spaces
+-- token :: P a -> P a 
+-- token p = p <* spaces
 
 lineToken :: P a -> P a
 lineToken p = p <* nonNewlineSpaces
@@ -289,6 +300,9 @@ nonNewlineSpaces = void $ P.takeWhileP Nothing (\ch -> ch `elem` (" \t" :: Strin
 
 hideOutput :: P HideOutput
 hideOutput = isJust <$> optional (word ":hide")
+
+expectingError :: P ExpectingError
+expectingError = isJust <$> optional (word ":error")
 
 untilSpace1 :: P Text
 untilSpace1 = P.takeWhile1P Nothing (not . Char.isSpace)
