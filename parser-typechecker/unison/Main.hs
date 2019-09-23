@@ -50,6 +50,7 @@ main = do
   let hasTranscript = any isMarkdown args 
       allOk = all isOk args
       isOk arg = isMarkdown arg || isDotU arg
+              || isFlag "version" arg || isFlag "help" arg || isFlag "sandbox" arg
       isDotU file = FP.takeExtension file == ".u"
       isMarkdown md = case FP.takeExtension md of
         ".md" -> True
@@ -67,6 +68,7 @@ main = do
     [help] | isFlag "help" help -> putStrLn usage
     args -> do
       (dir, theCodebase) <- FileCodebase.ensureCodebaseInitialized currentDir
+      let sandboxed = take 1 args == ["sandbox"]
       case args of 
         args@(_:_) -> do
           for_ args $ \arg -> case arg of
@@ -75,13 +77,16 @@ main = do
               case parsed of
                 Left err -> putStrLn $ "Parse error: \n" <> show err
                 Right stanzas -> do
-                  (dir, theCodebase) <- FileCodebase.ensureCodebaseInitialized transcriptDir
+                  (dir, theCodebase) <- 
+                    if sandboxed then FileCodebase.ensureCodebaseInitialized transcriptDir
+                    else pure (dir, theCodebase)
                   mdOut <- TR.run dir stanzas theCodebase
                   writeUtf8 (currentDir FP.</> 
                              FP.addExtension (FP.dropExtension arg ++ ".output") 
                                              (FP.takeExtension md)) 
                             mdOut
             file | isDotU file -> undefined
+            "sandbox" -> pure ()
             wat -> putStrLn $ "Unrecognized command, skipping: " <> wat
           when hasTranscript $ putStrLn $ unlines [ 
             "I've finished running the transcript(s). You can do:\n",
