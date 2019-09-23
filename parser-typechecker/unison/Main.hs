@@ -81,16 +81,16 @@ main = do
                     if sandboxed then FileCodebase.ensureCodebaseInitialized transcriptDir
                     else pure (dir, theCodebase)
                   mdOut <- TR.run dir stanzas theCodebase
-                  writeUtf8 (currentDir FP.</> 
+                  let out = currentDir FP.</> 
                              FP.addExtension (FP.dropExtension arg ++ ".output") 
-                                             (FP.takeExtension md)) 
-                            mdOut
+                                             (FP.takeExtension md)
+                  writeUtf8 out mdOut
+                  putStrLn $ "Wrote " <> out
             file | isDotU file -> undefined
             "sandbox" -> pure ()
             wat -> putStrLn $ "Unrecognized command, skipping: " <> wat
           when hasTranscript $ putStrLn $ unlines [ 
-            "I've finished running the transcript(s). You can do:\n",
-            "  pull " <> transcriptDir <> " .somepath", "",
-            "from ucm to bring the resulting codebase into your local codebase."
+            "I've finished running the transcript(s) in this codebase:", "",
+            "  " <> transcriptDir, ""
             ]
         _ -> launch dir theCodebase
