@@ -45,7 +45,7 @@ import           Data.Configurator              ()
 import qualified Data.Graph as Graph
 import qualified Data.List                      as List
 import           Data.List                      ( partition, sortOn )
-import           Data.List.Extra                (nubOrd, intercalate)
+import           Data.List.Extra                (nubOrd, intercalate, sort)
 import           Data.Maybe                     ( fromJust
                                                 )
 import qualified Data.Map                      as Map
@@ -53,7 +53,7 @@ import qualified Data.Text                     as Text
 import qualified Data.Set                      as Set
 import           Data.Sequence                  ( Seq(..) )
 import qualified Unison.ABT                    as ABT
-import           Unison.Codebase.Branch         ( Branch
+import           Unison.Codebase.Branch         ( Branch(..)
                                                 , Branch0(..)
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
@@ -740,6 +740,50 @@ loop = do
               | (p, b) <- Branch.toList0 currentBranch0
               , (seg, _) <- Map.toList (Branch._edits b) ]
         in respond $ ListOfPatches patches
+
+      FindShallow pathArg -> do
+        prettyPrintNames0 <- basicPrettyPrintNames0
+        ppe <- prettyPrintEnv $ Names prettyPrintNames0 mempty
+        hashLen <- eval CodebaseHashLength
+        b0 <- Branch.head <$> getAt (Path.toAbsolutePath currentPath' pathArg)
+        let
+          hqTerm b0 ns r =
+            let refs = Star3.lookupD1 ns . _terms $ b0
+            in case length refs of
+              1 -> HQ'.fromName ns
+              _ -> HQ'.take hashLen $ HQ'.fromNamedReferent ns r
+          hqType b0 ns r =
+            let refs = Star3.lookupD1 ns . _types $ b0
+            in case length refs of
+              1 -> HQ'.fromName ns
+              _ -> HQ'.take hashLen $ HQ'.fromNamedReference ns r
+          defnCount b =
+            (length . R.ran . Star3.d1 . deepTerms $ Branch.head b) +
+            (length . R.ran . Star3.d1 . deepTypes $ Branch.head b)
+          patchCount b = (length . deepEdits $ Branch.head b)
+
+        termEntries <- for (R.toList . Star3.d1 $ _terms b0) $
+          \(r, ns) -> do
+            ot <- loadReferentType r
+            pure $ ShallowTermEntry r (hqTerm b0 ns r) ot
+        let
+          typeEntries =
+            [ ShallowTypeEntry r (hqType b0 ns r)
+            | (r, ns) <- R.toList . Star3.d1 $ _types b0 ]
+          branchEntries =
+            [ ShallowBranchEntry ns (defnCount b)
+            | (ns, b) <- Map.toList $ _children b0 ]
+          patchEntries =
+            [ ShallowPatchEntry ns
+            | (ns, (_h, mp)) <- Map.toList $ _edits b0 ]
+        let
+          entries :: [ShallowListEntry v Ann]
+          entries = sort $ termEntries ++ typeEntries ++ branchEntries
+        respond $ ListShallow ppe entries
+        where
+
+
+
 
       SearchByNameI isVerbose _showAll ws -> do
         prettyPrintNames0 <- basicPrettyPrintNames0

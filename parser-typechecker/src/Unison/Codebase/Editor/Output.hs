@@ -3,6 +3,7 @@
 module Unison.Codebase.Editor.Output
   ( Output(..)
   , ListDetailed
+  , ShallowListEntry(..)
   , HistoryTail(..)
   , TestReportStats(..)
   , UndoFailureReason(..)
@@ -31,6 +32,7 @@ import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Parser as Parser
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as Reference
@@ -41,9 +43,11 @@ import Unison.Codebase.Editor.DisplayThing (DisplayThing)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.Codebase.Editor.SearchResult' (SearchResult')
 import Unison.Type (Type)
-import Unison.HashQualified' as HQ'
 import qualified Unison.Names3 as Names
 import qualified Data.Set as Set
+import Unison.Codebase.NameSegment (NameSegment, HQSegment)
+import Unison.ShortHash (ShortHash)
+import Unison.Var (Var)
 
 type Term v a = Term.AnnotatedTerm v a
 type ListDetailed = Bool
@@ -97,6 +101,7 @@ data Output v
               [(Reference, Set HQ'.HashQualified)] -- type match, type names
   -- list of all the definitions within this branch
   | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
+  | ListShallow PPE.PrettyPrintEnv [ShallowListEntry v Ann]
   | ListOfPatches (Set Name)
   -- show the result of add/update
   | SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult v)
@@ -147,7 +152,32 @@ data Output v
   | NotImplemented
   | NoBranchWithHash Input Branch.Hash
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
-  deriving (Show)
+--  deriving (Show)
+
+data ShallowListEntry v a
+  = ShallowTermEntry Referent HQSegment (Maybe (Type v a))
+  | ShallowTypeEntry Reference HQSegment
+  | ShallowBranchEntry NameSegment Int -- number of child definitions
+  | ShallowPatchEntry NameSegment
+  deriving Eq
+
+-- requires Var v to derive Eq, which is required by Ord though not by `compare`
+instance Var v => Ord (ShallowListEntry v a) where
+   compare x y = case compare (toNS x) (toNS y) of
+     EQ -> compare (toHash x) (toHash y)
+     c  -> c
+     where
+     toNS = \case
+       ShallowTermEntry _ hq _ -> HQ'.toName hq
+       ShallowTypeEntry _ hq   -> HQ'.toName hq
+       ShallowBranchEntry ns _ -> ns
+       ShallowPatchEntry  ns   -> ns
+     toHash :: ShallowListEntry v a -> Maybe ShortHash
+     toHash = \case
+       ShallowTermEntry _ hq _ -> HQ'.toHash hq
+       ShallowTypeEntry _ hq   -> HQ'.toHash hq
+       ShallowBranchEntry _  _ -> Nothing
+       ShallowPatchEntry _     -> Nothing
 
 data HistoryTail = 
   EndOfLog Branch.Hash | 
@@ -228,7 +258,7 @@ isFailure o = case o of
   DumpBitBooster{} -> False
   NoBranchWithHash{} -> True
   NothingTodo{} -> False
-
+  ListShallow _ es -> null es
 
 
 

@@ -61,6 +61,7 @@ import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import           Unison.Name                   (Name)
 import qualified Unison.Name                   as Name
+import qualified Unison.Codebase.NameSegment   as NameSegment
 import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyName, prettyShortHash,
                                                 styleHashQualified,
@@ -288,7 +289,35 @@ notifyUser dir o = case o of
   --
   --   Term (with hash #asldfkjsdlfkjsdf): .util.frobnicate, foo, blarg.mcgee
   --   Types (with hash #hsdflkjsdfsldkfj): Optional, Maybe, foo
-
+  ListShallow ppe entries -> pure $
+    -- todo: make a version of prettyNumberedResult to support 3-columns
+    if null entries then P.lit "nothing to show"
+    else numberedEntries entries
+    where
+    numberedEntries :: [ShallowListEntry v a] -> P.Pretty P.ColorText
+    numberedEntries entries =
+      (P.column3 . fmap f) ([(1::Integer)..] `zip` fmap formatEntry entries)
+      where
+      f (i, (p1, p2)) = (P.hiBlack . fromString $ show i <> ".", p1, p2)
+    formatEntry :: ShallowListEntry v a -> (P.Pretty P.ColorText, P.Pretty P.ColorText)
+    formatEntry = \case
+      ShallowTermEntry r hq ot ->
+        (P.syntaxToColor . prettyHashQualified' . fmap NameSegment.toName $ hq
+        , P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) ot <> P.lit ")" )
+      ShallowTypeEntry r hq ->
+        (P.syntaxToColor . prettyHashQualified' . fmap NameSegment.toName $ hq
+        ,isBuiltin r)
+      ShallowBranchEntry ns count ->
+        ((P.syntaxToColor . prettyName . NameSegment.toName) ns <> "/"
+        ,case count of
+          1 -> P.lit ("(1 definition)")
+          n -> P.lit "(" <> P.shown count <> P.lit " definitions)")
+      ShallowPatchEntry ns ->
+        ((P.syntaxToColor . prettyName . NameSegment.toName) ns
+        ,P.lit "(patch)")
+    isBuiltin = \case
+      Reference.Builtin{} -> P.lit "(builtin type)"
+      Reference.DerivedId{} -> P.lit "(type)"
 
   SlurpOutput input ppe s -> let
     isPast = case input of Input.AddI{} -> True
