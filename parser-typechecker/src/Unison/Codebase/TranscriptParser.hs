@@ -191,14 +191,14 @@ run dir stanzas codebase = do
           die $ unlines [
             "\128721", "",
             "Transcript failed due to the message above.",
-            "Codebase as of the point of failure is in:",
+            "Codebase as of the point of failure is in:", "",
             "  " <> dir ]
         when (errOk && not (Output.isFailure o)) $ do
           output "\n```\n\n"
           die $ unlines [
             "\128721", "",
             "Transcript failed due to an unexpected success above.",
-            "Codebase as of the point of failure is in:",
+            "Codebase as of the point of failure is in:", "",
             "  " <> dir ]
         pure ()
 

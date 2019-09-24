@@ -725,8 +725,8 @@ loop = do
               FileLocation path  -> Just path
               LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
         do
-          eval . Notify
-            $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
+          when (not $ null loadedDisplayTypes && null loadedDisplayTerms) $ 
+            eval . Notify $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
           when (not $ null misses) $
             eval . Notify . SearchTermsNotFound $ fmap fst misses
           -- We set latestFile to be programmatically generated, if we

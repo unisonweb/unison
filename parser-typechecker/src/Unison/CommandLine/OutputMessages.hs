@@ -715,7 +715,7 @@ displayDefinitions :: Var v => Ord a1 =>
   -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
   -> IO Pretty
 displayDefinitions outputLoc ppe types terms | Map.null types && Map.null terms =
-  pure mempty
+  pure $ P.callout "😶" "No results to display."
 displayDefinitions outputLoc ppe types terms =
   maybe displayOnly scratchAndDisplay outputLoc
   where
