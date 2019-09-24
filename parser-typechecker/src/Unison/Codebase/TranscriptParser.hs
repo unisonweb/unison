@@ -169,7 +169,7 @@ run dir stanzas codebase = do
                   output $ show s
                   writeIORef hidden hide
                   writeIORef allowErrors errOk
-                  output "```ucm"
+                  output "```ucm\n"
                   atomically . Q.enqueue cmdQueue $ Nothing
                   pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
                 Ucm hide errOk cmds -> do
@@ -188,7 +188,10 @@ run dir stanzas codebase = do
         output rendered
         when (not errOk && Output.isFailure o) $ do
           output "\n```\n\n"
-          die "Transcript failed due to message above."
+          die "\128721  Transcript failed due to message above."
+        when (errOk && not (Output.isFailure o)) $ do
+          output "\n```\n\n"
+          die "\128721  Transcript failed due to an unexpected success above."
         pure ()
 
       loop state = do

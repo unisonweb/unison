@@ -239,7 +239,6 @@ loop = do
         then modifying latestFile (fmap (const False) <$>)
         else do
           let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
-          eval (Notify $ FileChangeEvent sourceName text)
           withFile [] sourceName (text, lexed) $ \unisonFile -> do
             sr <- toSlurpResult unisonFile <$> slurpResultNames0
             hnames <- makeShadowedPrintNamesFromLabeled

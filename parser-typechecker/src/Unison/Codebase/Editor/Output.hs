@@ -110,7 +110,6 @@ data Output v
               [(v, Term v ())]
               (Map v (Ann, UF.WatchKind, Term v (), Runtime.IsCacheHit))
   | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult v) (UF.TypecheckedUnisonFile v Ann)
-  | FileChangeEvent SourceName Text
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
                        PPE.PrettyPrintEnv
@@ -206,7 +205,6 @@ isFailure o = case o of
   EvaluationFailure{} -> True
   Evaluated{} -> False
   Typechecked{} -> False
-  FileChangeEvent{} -> False
   DisplayDefinitions{} -> False
   TodoOutput _ todo -> TO.todoScore todo /= 0
   TestIncrementalOutputStart{} -> False
