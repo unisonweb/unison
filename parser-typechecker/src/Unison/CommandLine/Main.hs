@@ -18,7 +18,7 @@ import System.IO.Error (catchIOError)
 import System.Exit (die)
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.Input (Input (..))
+import Unison.Codebase.Editor.Input (Input (..), Event)
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import Unison.Codebase.Runtime (Runtime)
@@ -121,11 +121,11 @@ main
   . Var v
   => FilePath
   -> Path.Absolute
-  -> Maybe FilePath
+  -> [Either Event Input]
   -> IO (Runtime v)
   -> Codebase IO v Ann
   -> IO ()
-main dir initialPath _initialFile startRuntime codebase = do
+main dir initialPath initialInputs startRuntime codebase = do
   dir' <- shortenDirectory dir
   putPrettyLn $ welcomeMessage dir'
   root <- Codebase.getRootBranch codebase
@@ -135,6 +135,7 @@ main dir initialPath _initialFile startRuntime codebase = do
     -- we watch for root branch tip changes, but want to ignore ones we expect.
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
+    initialInputsRef         <- newIORef initialInputs
     numberedArgsRef          <- newIORef []
     (config, cancelConfig)   <-
       catchIOError (watchConfig $ dir </> ".unisonConfig") $ \_ ->
@@ -154,11 +155,16 @@ main dir initialPath _initialFile startRuntime codebase = do
           numberedArgs <- readIORef numberedArgsRef
           getUserInput patternMap codebase root path numberedArgs
     let
-      awaitInput =
-        -- Race the user input and file watch.
-        Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
-          Left _ -> Left <$> atomically (Q.dequeue eventQueue)
-          x      -> pure x
+      awaitInput = do
+        -- use up buffered input before consulting external events
+        i <- readIORef initialInputsRef
+        case i of
+          h:t -> writeIORef initialInputsRef t >> pure h
+          [] -> 
+            -- Race the user input and file watch.
+            Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
+              Left _ -> Left <$> atomically (Q.dequeue eventQueue)
+              x      -> pure x
       cleanup = do
         Runtime.terminate runtime
         cancelConfig
