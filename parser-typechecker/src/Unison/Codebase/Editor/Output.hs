@@ -205,7 +205,7 @@ isFailure o = case o of
   EvaluationFailure{} -> True
   Evaluated{} -> False
   Typechecked{} -> False
-  DisplayDefinitions{} -> False
+  DisplayDefinitions _ _ m1 m2 -> null m1 && null m2
   TodoOutput _ todo -> TO.todoScore todo /= 0
   TestIncrementalOutputStart{} -> False
   TestIncrementalOutputEnd{} -> False

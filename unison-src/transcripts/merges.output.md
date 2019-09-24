@@ -1,0 +1,266 @@
+# Forking and merging namespaces in `ucm`
+
+The Unison namespace is a versioned tree of names that map to Unison definitions. You can change this namespace and fork and merge subtrees of it. Let's start by introducing a few definitions into a new namespace, `foo`:
+
+```unison
+x = 42
+```
+
+```ucm
+I found and typechecked these definitions in scratch.u. If you
+do an `add` or `update`, here's how your codebase would change:
+
+  ⍟ These new definitions are ok to `add`:
+  
+    x : builtin.Nat
+ 
+Now evaluating any watch expressions (lines starting with
+`>`)... Ctrl+C cancels.
+```
+```ucm
+.> add
+⍟ I've added these definitions:
+
+  x : builtin.Nat
+```
+Let's move `x` into a new namespace, `master`:
+
+```ucm
+.> rename.term x master.x
+Done.
+```
+If you want to do some experimental work in a namespace without disturbing anyone else, you can `fork` it (which is a shorthand for `copy.namespace`). This creates a copy of it, preserving its history.
+
+> __Note:__ these copies are very efficient to create as they just have pointers into the same underlying definitions. Create as many as you like.
+
+Let's go ahead and do this:
+
+```
+.> fork master feature1
+.> view master.x
+.> view feature1.x
+
+```
+
+Great! We can now do some further work in the `feature1` branch, then merge it back into `master` when we're ready.
+
+```unison
+y = "hello"
+```
+
+```ucm
+I found and typechecked these definitions in scratch.u. If you
+do an `add` or `update`, here's how your codebase would change:
+
+  ⍟ These new definitions are ok to `add`:
+  
+    y : builtin.Text
+ 
+Now evaluating any watch expressions (lines starting with
+`>`)... Ctrl+C cancels.
+```
+```ucm☝️  The namespace .feature1 is empty.
+.feature1> add
+⍟ I've added these definitions:
+
+  y : .builtin.Text
+.master> merge .feature1
+🆕
+
+Here's what's changed in the current namespace after the merge:
+
++ Adds / updates:
+
+  y
+
+Tip: You can always `undo` if this wasn't what you wanted.
+.master> view y
+y : .builtin.Text
+y = "hello"
+```
+> Note: `merge src`, with one argument, merges `src` into the current namespace. You can also do `merge src dest` to merge into any destination namespace.
+
+Notice that `master` now has the definition of `y` we wrote.
+
+We can also delete the fork if we're done with it. (Don't worry, it's still in the `history` and can be resurrected at any time.)
+
+```ucm
+.> delete.namespace .feature1
+🆕
+
+Here's what's changed after the delete:
+
+- Deletes:
+
+  .feature1.y
+
+Tip: You can always `undo` if this wasn't what you wanted.
+.> history
+Note: The most recent namespace hash is immediately below this
+      message.
+
+⊙ #cc91hvn07lr8031sf2jjtfkh9ahqvrl3d0i9s1pdkeerm31gcq7mggavgldi99613v8labva1dr4o9td8dg8bh0l2756df7du5jr83o
+
+  - Deletes:
+  
+    feature1.y
+
+⊙ #gvo5gua46buv0a3s3r2n1mrm2cq4nalfokk0mcf182f01a5tgp3s6l4ktdbn0l6eurnkcpusn2945nbr01hn0sm248rjmddfil6djng
+
+  + Adds / updates:
+  
+    master.y
+  
+  = Copies:
+  
+    Original name New name(s)
+    feature1.y    master.y
+
+⊙ #s6figr2tuqd0fnu2lshhu166bpumk3omoa6ufirrq4s8fjedrjq8oit5916upi0hiashkfu5rur6uhoog4in6tnhg0l8pl0q088fhh8
+
+  + Adds / updates:
+  
+    feature1.y
+
+⊙ #fp6bvfhq6tn61e6ahjvlc05a813seikigko3kk4pn1nrqdlo4tnnie9f501951qh52cvr4a85d4nefg644c9272n57gr64274emgiv0
+
+  > Moves:
+  
+    Original name New name
+    x             master.x
+
+⊙ #cnvvpmiqi42qhkrt9q81n0c3ccp0cneblqu3o253a52u0ql32u0n7433atcso7ndhf0cbmnvjm5tgpvq35ugbaom8tov3vb0b3qacfo
+
+  + Adds / updates:
+  
+    x
+
+This is the start of history. Later versions are listed below.
+
+□ #itm5ganb1oh60ccs5am06ldf4hjfqubalb9ljhj5tbmfr6ao8m9rpacsohpejg324dal4vpmnine546arq3fgl8vc1862mgfthqtobo
+
+```
+To resurrect an old version of a namespace, you can learn its hash via the `history` command, then use `fork #namespacehash .newname`.
+
+## Concurrent edits and merges
+
+In the above scenario the destination namespace (`master`) was strictly behind the source namespace, so the merge didn't have anything interesting to do (Git would call this a "fast forward" merge). In other cases, the source and destination namespaces will each have changes the other doesn't know about, and the merge needs to something more interesting. That's okay too, and Unison will merge those results, using a 3-way merge algorithm.
+
+> __Note:__ When merging nested namespaces, Unison actually uses a recursive 3-way merge, so it finds a different (and possibly closer) common ancestor at each level of the tree.
+
+Let's see how this works. We are going to create a copy of `master`, add and delete some definitions in `master` and in the fork, then merge.
+
+```ucm
+.> fork master feature2
+Done.
+```
+Here's one fork, we add `z` and delete `x`:
+
+```unison
+z = 99
+```
+
+```ucm
+I found and typechecked these definitions in scratch.u. If you
+do an `add` or `update`, here's how your codebase would change:
+
+  ⍟ These new definitions are ok to `add`:
+  
+    z : builtin.Nat
+ 
+Now evaluating any watch expressions (lines starting with
+`>`)... Ctrl+C cancels.
+```
+```ucm
+.feature2> add
+⍟ I've added these definitions:
+
+  z : .builtin.Nat
+.feature2> delete.term x
+
+```
+And here's the other fork, where we update `y` and add a new definition, `frobnicate`:
+
+```unison
+master.y = "updated y"
+master.frobnicate n = n + 1
+```
+
+```ucm
+I found and typechecked these definitions in scratch.u. If you
+do an `add` or `update`, here's how your codebase would change:
+
+  ⍟ These new definitions are ok to `add`:
+  
+    master.frobnicate : .builtin.Nat -> .builtin.Nat
+    master.y          : .builtin.Text
+ 
+Now evaluating any watch expressions (lines starting with
+`>`)... Ctrl+C cancels.
+```
+```ucm
+.> update
+⍟ I've added these definitions:
+
+  master.frobnicate : builtin.Nat -> builtin.Nat
+
+⍟ I've updated to these definitions:
+
+  master.y : builtin.Text✅
+
+No conflicts or edits in progress.
+.> view master.y
+feature2.y : builtin.Text
+feature2.y = "updated y"
+.> view master.frobnicate
+master.frobnicate : builtin.Nat -> builtin.Nat
+master.frobnicate n =
+  use builtin.Nat +
+  n + 1
+```
+At this point, `master` and `feature2` both have some changes the other doesn't know about. Let's merge them.
+
+```ucm
+.> merge feature2 master
+🆕
+
+Here's what's changed in master after the merge:
+
++ Adds / updates:
+
+  z
+
+- Deletes:
+
+  x
+
+Tip: You can always `undo` if this wasn't what you wanted.
+```
+Notice that `x` is deleted in the merged branch (it was deleted in `feature2` and untouched by `master`):
+
+```ucm
+.> view master.x
+⚠️
+
+The following names were not found in the codebase. Check your spelling.
+  master.x
+```
+And notice that `y` has the most recent value, and that `z` and `frobnicate` both exist as well:
+
+```ucm
+.> view master.y
+feature2.y : builtin.Text
+feature2.y = "updated y"
+.> view master.z
+feature2.z : builtin.Nat
+feature2.z = 99
+.> view master.frobnicate
+master.frobnicate : builtin.Nat -> builtin.Nat
+master.frobnicate n =
+  use builtin.Nat +
+  n + 1
+```
+## FAQ
+
+* What happens if namespace1 deletes a name that namespace2 has updated? A: ???
+* ...

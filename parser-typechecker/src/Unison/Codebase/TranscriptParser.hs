@@ -188,10 +188,18 @@ run dir stanzas codebase = do
         output rendered
         when (not errOk && Output.isFailure o) $ do
           output "\n```\n\n"
-          die "\128721  Transcript failed due to message above."
+          die $ unlines [
+            "\128721", "",
+            "Transcript failed due to the message above.",
+            "Codebase as of the point of failure is in:",
+            "  " <> dir ]
         when (errOk && not (Output.isFailure o)) $ do
           output "\n```\n\n"
-          die "\128721  Transcript failed due to an unexpected success above."
+          die $ unlines [
+            "\128721", "",
+            "Transcript failed due to an unexpected success above.",
+            "Codebase as of the point of failure is in:",
+            "  " <> dir ]
         pure ()
 
       loop state = do
