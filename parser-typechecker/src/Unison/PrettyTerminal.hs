@@ -13,19 +13,22 @@ stripSurroundingBlanks s = unlines (dropWhile isBlank . dropWhileEnd isBlank $ l
 
 -- like putPrettyLn' but prints a blank line before and after.
 putPrettyLn :: P.Pretty CT.ColorText -> IO ()
+putPrettyLn p | p == mempty = pure ()
 putPrettyLn p = do
   width <- getAvailableWidth
-  less . stripSurroundingBlanks . P.toANSI width $ P.border 2 p
+  less . P.toANSI width $ P.border 2 p
 
 putPrettyLnUnpaged :: P.Pretty CT.ColorText -> IO ()
+putPrettyLnUnpaged p | p == mempty = pure ()
 putPrettyLnUnpaged p = do
   width <- getAvailableWidth
-  putStrLn . stripSurroundingBlanks . P.toANSI width $ P.border 2 p
+  putStrLn . P.toANSI width $ P.border 2 p
 
 putPrettyLn' :: P.Pretty CT.ColorText -> IO ()
+putPrettyLn' p | p == mempty = pure ()
 putPrettyLn' p = do
   width <- getAvailableWidth
-  less . stripSurroundingBlanks . P.toANSI width $ P.indentN 2 p
+  less . P.toANSI width $ P.indentN 2 p
 
 clearCurrentLine :: IO ()
 clearCurrentLine = do
@@ -44,5 +47,5 @@ getAvailableWidth =
   maybe 80 (\s -> 100 `min` Terminal.width s) <$> Terminal.size
 
 putPrettyNonempty :: P.Pretty P.ColorText -> IO ()
-putPrettyNonempty msg =
+putPrettyNonempty msg = do
   if msg == mempty then pure () else putPrettyLn msg

@@ -253,7 +253,8 @@ loop = do
               Right (bindings, e) -> do
                 let e' = Map.map go e
                     go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-                eval . Notify $ Evaluated text ppe bindings e'
+                when (not $ null bindings) $
+                  eval . Notify $ Evaluated text ppe bindings e'
                 latestFile .= Just (Text.unpack sourceName, False)
                 latestTypecheckedFile .= Just unisonFile
     Right input ->
@@ -798,7 +799,7 @@ loop = do
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
       AddI hqs -> case uf of
-        Nothing -> respond NoUnisonFile
+        Nothing -> respond $ NoUnisonFile input
         Just uf -> do
           sr <- Slurp.disallowUpdates
               . applySelection hqs uf
@@ -815,7 +816,7 @@ loop = do
           respond $ SlurpOutput input ppe sr
 
       UpdateI maybePatchPath hqs -> case uf of
-        Nothing -> respond NoUnisonFile
+        Nothing -> respond $ NoUnisonFile input
         Just uf -> do
           let patchPath = fromMaybe defaultPatchPath maybePatchPath
           slurpCheckNames0 <- slurpResultNames0
@@ -983,19 +984,17 @@ loop = do
         updated <- propagatePatch patch (resolveToAbsolute scopePath)
         unless updated (respond $ NothingToPatch patchPath scopePath)
 
-      ExecuteI input ->
-        withFile [Type.ref External ioReference]
-                 "execute command"
-                 ("main_ = " <> Text.pack input,
-                  L.lexer "execute command" input) $
-                   \unisonFile -> do
-                     -- Begin voodoo
-                     ppe <- prettyPrintEnv =<<
-                       makeShadowedPrintNamesFromLabeled
-                         (UF.termSignatureExternalLabeledDependencies unisonFile)
-                         (UF.typecheckedToNames0 unisonFile)
-                     -- End voodoo
-                     eval $ Execute ppe unisonFile
+      ExecuteI args -> case uf of
+        Nothing -> respond $ NoUnisonFile input
+        Just uf -> case addRunMain args uf of
+          Nothing -> do
+            names0 <- basicPrettyPrintNames0
+            ppe <- prettyPrintEnv (Names3.Names names0 mempty)
+            respond $ NoMainFunction input ppe (mainTypes External)
+          Just unisonFile -> do
+            ppe <- executePPE unisonFile
+            eval $ Execute ppe unisonFile
+
       -- UpdateBuiltinsI -> do
       --   stepAt updateBuiltins
       --   checkTodo
@@ -2039,3 +2038,63 @@ basicNames0' = do
       -- pretty-printing should use local names where available
       prettyPrintNames00 = currentAndExternalNames0
   pure (parseNames00, prettyPrintNames00)
+
+-- {IO} ()
+ioUnit :: Ord v => a -> Type v a
+ioUnit a = Type.effect a [Type.ref a ioReference] (Type.ref a DD.unitRef)
+
+-- '{IO} ()
+nullaryMain :: Ord v => a -> Type v a
+nullaryMain a = Type.arrow a (Type.ref a DD.unitRef) (ioUnit a)
+
+-- [Text] ->{IO} ()
+argsMain :: Ord v => a -> Type v a
+argsMain a = Type.arrow a (Type.app a (Type.vector a) (Type.text a)) (ioUnit a)
+
+mainTypes :: Ord v => a -> [Type v a]
+mainTypes a = [argsMain a, nullaryMain a]
+
+-- Given a typechecked file with a binding `main : '{IO} ()`
+-- or `main : [Text] ->{IO} ()`, adds an extra binding which
+-- forces the `main` function.
+addRunMain
+  :: Var v
+  => [String]
+  -> TypecheckedUnisonFile v a
+  -> Maybe (TypecheckedUnisonFile v a)
+addRunMain args uf = let
+  components = join $ UF.topLevelComponents uf
+  mainComponent = filter ((\v -> Var.name v == "main") . view _1) components 
+  in case mainComponent of 
+    [(v, tm, ty)] -> let 
+      v2 = Var.freshIn (Set.fromList [v]) v 
+      a = ABT.annotation tm 
+      in
+      if Typechecker.isSubtype ty (nullaryMain a) then Just $ let 
+        runMain = Term.app a (Term.var a v) (Term.ref a DD.unitRef) 
+        in UF.typecheckedUnisonFile 
+             (UF.dataDeclarations' uf)
+             (UF.effectDeclarations' uf)
+             (UF.topLevelComponents' uf <> [[(v2, runMain, nullaryMain a)]])
+             (UF.watchComponents uf) 
+      else if Typechecker.isSubtype ty (argsMain a) then Just $ let
+        runMain = Term.app a (Term.var a v) (Term.seq a (Term.text a . Text.pack <$> args)) 
+        in UF.typecheckedUnisonFile 
+             (UF.dataDeclarations' uf)
+             (UF.effectDeclarations' uf)
+             (UF.topLevelComponents' uf <> [[(v2, runMain, argsMain a)]])
+             (UF.watchComponents uf) 
+      else
+        Nothing 
+    _ -> Nothing
+
+executePPE
+  :: (Var v, Monad m)
+  => TypecheckedUnisonFile v a
+  -> Action' m v PPE.PrettyPrintEnv
+executePPE unisonFile = 
+  -- voodoo 
+  prettyPrintEnv =<<
+    makeShadowedPrintNamesFromLabeled
+      (UF.termSignatureExternalLabeledDependencies unisonFile)
+      (UF.typecheckedToNames0 unisonFile)

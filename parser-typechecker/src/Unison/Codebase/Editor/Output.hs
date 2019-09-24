@@ -62,7 +62,9 @@ data Output v
   -- to vary based on the command the user submitted.
   = Success Input
   -- User did `add` or `update` before typechecking a file?
-  | NoUnisonFile
+  | NoUnisonFile Input
+  -- No main function, the [Type v Ann] are the allowed types for `main`
+  | NoMainFunction Input PPE.PrettyPrintEnv [Type v Ann]
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Input Path'
   | PatchAlreadyExists Input Path.Split'
@@ -170,7 +172,8 @@ type SourceFileContents = Text
 isFailure :: Ord v => Output v -> Bool
 isFailure o = case o of
   Success{} -> False
-  NoUnisonFile -> True
+  NoUnisonFile{} -> True
+  NoMainFunction{} -> True
   CreatedNewBranch{} -> False
   BranchAlreadyExists{} -> True
   PatchAlreadyExists{} -> True

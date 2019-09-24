@@ -209,7 +209,12 @@ notifyUser dir o = case o of
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
     CantUndoPastMerge -> pure . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
-  NoUnisonFile -> do
+  NoMainFunction _input ppe ts -> pure . P.callout "😶" $ P.lines [
+    P.wrap "If you'd like me to run this code, add a `main` function with one of these types:",
+    "",
+    P.indentN 2 $ P.lines [ "main : " <> TypePrinter.pretty ppe t | t <- ts ]
+    ]
+  NoUnisonFile _input -> do
     dir' <- canonicalizePath dir
     fileName <- renderFileName dir'
     pure . P.callout "😶" $ P.lines
@@ -349,7 +354,7 @@ notifyUser dir o = case o of
         ]
     -- TODO: Present conflicting TermEdits and TypeEdits
     -- if we ever allow users to edit hashes directly.
-  FileChangeEvent _sourceName _src -> pure "\n"
+  FileChangeEvent _sourceName _src -> pure mempty
   Typechecked sourceName ppe slurpResult uf -> do
     let fileStatusMsg = SlurpResult.pretty False ppe slurpResult
     if UF.nonEmpty uf then do
