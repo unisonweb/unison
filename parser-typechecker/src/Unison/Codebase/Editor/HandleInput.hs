@@ -2071,7 +2071,7 @@ addRunMain args uf = let
       a = ABT.annotation tm 
       in
       if Typechecker.isSubtype ty (nullaryMain a) then Just $ let 
-        runMain = Term.app a (Term.var a v) (Term.ref a DD.unitRef) 
+        runMain = DD.forceTerm a a (Term.var a v)
         in UF.typecheckedUnisonFile 
              (UF.dataDeclarations' uf)
              (UF.effectDeclarations' uf)
