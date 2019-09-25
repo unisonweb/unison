@@ -223,17 +223,13 @@ find = InputPattern
 
 findShallow :: InputPattern
 findShallow = InputPattern
-  "ls"
-  ["find.shallow"]
+  "list"
+  ["ls"]
   [(Optional, pathArg)]
   (P.wrapColumn2
-    [ ("`ls`", "lists all definitions in the current namespace.")
-    , ( "`ls foo`"
-      , "lists all definitions in the 'foo' namespace."
-      )
-    , ( "`ls .foo`"
-      , "lists all definitions in the '.foo' namespace."
-      )
+    [ ("`list`", "lists definitions and namespaces at the current level of the current namespace.")
+    , ( "`list foo`", "lists the 'foo' namespace." )
+    , ( "`list .foo`", "lists the '.foo' namespace." )
     ]
   )
   (\case

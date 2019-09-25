@@ -744,7 +744,8 @@ loop = do
         prettyPrintNames0 <- basicPrettyPrintNames0
         ppe <- prettyPrintEnv $ Names prettyPrintNames0 mempty
         hashLen <- eval CodebaseHashLength
-        b0 <- Branch.head <$> getAt (Path.toAbsolutePath currentPath' pathArg)
+        let pathArgAbs = Path.toAbsolutePath currentPath' pathArg
+        b0 <- Branch.head <$> getAt pathArgAbs
         let
           hqTerm b0 ns r =
             let refs = Star3.lookupD1 ns . _terms $ b0
@@ -778,11 +779,22 @@ loop = do
         let
           entries :: [ShallowListEntry v Ann]
           entries = sort $ termEntries ++ typeEntries ++ branchEntries
+          entryToHQString :: ShallowListEntry v Ann -> String
+          -- caching the result as an absolute path, for easier jumping around
+          entryToHQString e = fixup $ case e of
+            ShallowTypeEntry _ hq   -> HQ'.toString hq
+            ShallowTermEntry _ hq _ -> HQ'.toString hq
+            ShallowBranchEntry ns _ -> NameSegment.toString ns
+            ShallowPatchEntry ns    -> NameSegment.toString ns
+            where
+            fixup s =
+              if last pathArgStr == '.'
+              then pathArgStr ++ s
+              else pathArgStr ++ "." ++ s
+            pathArgStr = show pathArgAbs
+        numberedArgs .= fmap entryToHQString entries
         respond $ ListShallow ppe entries
         where
-
-
-
 
       SearchByNameI isVerbose _showAll ws -> do
         prettyPrintNames0 <- basicPrettyPrintNames0
