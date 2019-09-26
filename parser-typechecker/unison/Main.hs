@@ -21,10 +21,10 @@ main = do
           let widePrefix = "\\\\?\\"
           raw <- getCurrentDirectory
           pure $
-            if System.Info.os `elem` ["mingw32", "win32", "cygwin32"] && 
-               not (widePrefix `isPrefixOf` raw) 
+            if System.Info.os `elem` ["mingw32", "win32", "cygwin32"] &&
+               not (widePrefix `isPrefixOf` raw)
             then widePrefix ++ raw else raw
-        theCodebase <- FileCodebase.ensureCodebaseInitialized
+        theCodebase <- FileCodebase.ensureCodebaseInitialized dir
         CommandLine.main dir
                          initialPath
                          (headMay args)
