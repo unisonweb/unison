@@ -64,7 +64,7 @@ helpFor p = I.parse help [I.patternName p]
 
 mergeBuiltins :: InputPattern
 mergeBuiltins = InputPattern "builtins.merge" [] []
-  "Adds all the builtins to the current namespace."
+  "Adds all the builtins to `builtins.` in the current namespace."
   (const . pure $ Input.MergeBuiltinsI)
 
 updateBuiltins :: InputPattern
@@ -205,7 +205,7 @@ viewByPrefix
 find :: InputPattern
 find = InputPattern
   "find"
-  ["list", "ls"]
+  []
   [(ZeroPlus, fuzzyDefinitionQueryArg)]
   (P.wrapColumn2
     [ ("`find`", "lists all definitions in the current namespace.")
@@ -221,6 +221,25 @@ find = InputPattern
   )
   (pure . Input.SearchByNameI False False)
 
+findShallow :: InputPattern
+findShallow = InputPattern
+  "list"
+  ["ls"]
+  [(Optional, pathArg)]
+  (P.wrapColumn2
+    [ ("`list`", "lists definitions and namespaces at the current level of the current namespace.")
+    , ( "`list foo`", "lists the 'foo' namespace." )
+    , ( "`list .foo`", "lists the '.foo' namespace." )
+    ]
+  )
+  (\case
+    [] -> pure $ Input.FindShallow Path.relativeEmpty'
+    [path] -> first fromString $ do
+      p <- Path.parsePath' path
+      pure $ Input.FindShallow p
+    _ -> Left (I.help findShallow)
+  )
+
 findVerbose :: InputPattern
 findVerbose = InputPattern
   "find.verbose"
@@ -230,17 +249,6 @@ findVerbose = InputPattern
   <> "and aliases in the results."
   )
   (pure . Input.SearchByNameI True False)
-
-findAll :: InputPattern
-findAll = InputPattern
-  "find.all"
-  ["list.all", "ls.all"]
-  [(ZeroPlus, fuzzyDefinitionQueryArg)]
-  ("`find.all` searches for definitions like `find` and shows the full result "
-  <> "list."
-  )
-  (pure . Input.SearchByNameI False True)
-
 
 findPatch :: InputPattern
 findPatch = InputPattern
@@ -810,7 +818,7 @@ validInputs =
   , renamePatch
   , copyPatch
   , find
-  , findAll
+  , findShallow
   , findVerbose
   , view
   , findPatch
@@ -893,8 +901,9 @@ termCompletor filterQuery = pathCompletor filterQuery go where
   go = Set.map HQ'.toText . R.dom . Names.terms . Names.names0ToNames . Branch.toNames0
 
 patchArg :: ArgumentType
-patchArg = ArgumentType "patch" $
-  pathCompletor exactComplete (Set.map Name.toText . Branch.deepEdits)
+patchArg = ArgumentType "patch" $ pathCompletor
+  exactComplete
+  (Set.map Name.toText . Map.keysSet . Branch.deepEdits)
 
 bothCompletors
   :: (Monad m)

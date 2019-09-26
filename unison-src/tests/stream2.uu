@@ -11,7 +11,7 @@ namespace Stream where
 
   step :
     (a ->{e} b) ->
-    Effect {Emit a} r ->{e, Emit b} r
+    Request {Emit a} r ->{e, Emit b} r
   step f e = case e of
     {r} -> r
     {Emit.emit a -> k} ->

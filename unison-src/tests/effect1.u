@@ -1,5 +1,5 @@
 
-eff : forall a b . (a -> b) -> b -> Effect Abort a -> b
+eff : forall a b . (a -> b) -> b -> Request Abort a -> b
 eff f z e = case e of
   { Abort.Abort _ -> k } -> z
   { a } -> f a

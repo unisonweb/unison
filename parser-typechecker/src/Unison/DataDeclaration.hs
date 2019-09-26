@@ -29,6 +29,7 @@ import qualified Unison.Name                   as Name
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Reference.Util         as Reference.Util
+import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
 import           Unison.Term                    ( AnnotatedTerm
@@ -353,12 +354,16 @@ hashDecls decls = do
 unitRef, pairRef, optionalRef, testResultRef :: Reference
 (unitRef, pairRef, optionalRef, testResultRef) =
   let decls          = builtinDataDecls @Symbol
-      [(_, unit, _)] = filter (\(v, _, _) -> v == Var.named "()") decls
-      [(_, pair, _)] = filter (\(v, _, _) -> v == Var.named "Pair") decls
+      [(_, unit, _)] = filter (\(v, _, _) -> v == Var.named "Unit") decls
+      [(_, pair, _)] = filter (\(v, _, _) -> v == Var.named "Tuple") decls
       [(_, opt , _)] = filter (\(v, _, _) -> v == Var.named "Optional") decls
       [(_, testResult, _)] =
         filter (\(v, _, _) -> v == Var.named "Test.Result") decls
   in  (unit, pair, opt, testResult)
+
+pairCtorRef, unitCtorRef :: Referent
+pairCtorRef = Referent.Con pairRef 0 CT.Data
+unitCtorRef = Referent.Con unitRef 0 CT.Data
 
 constructorId :: Reference -> Text -> Maybe Int
 constructorId ref name = do
@@ -379,8 +384,8 @@ failResult ann msg =
 
 builtinDataDecls :: Var v => [(v, Reference, DataDeclaration' v ())]
 builtinDataDecls = case hashDecls $ Map.fromList
-  [ (v "()"             , unit)
-  , (v "Pair"           , pair)
+  [ (v "Unit"           , unit)
+  , (v "Tuple"          , tuple)
   , (v "Optional"       , opt)
   , (v "Test.Result"    , tr)
   ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
@@ -388,19 +393,19 @@ builtinDataDecls = case hashDecls $ Map.fromList
   v = Var.named
   var name = Type.var () (v name)
   arr  = Type.arrow'
-  -- see note on `hashDecls` above for why ctor must be called `().()`.
-  unit = DataDeclaration Structural () [] [((), v "().()", var "()")]
-  pair = DataDeclaration
+  -- see note on `hashDecls` above for why ctor must be called `Unit.Unit`.
+  unit = DataDeclaration Structural () [] [((), v "Unit.Unit", var "Unit")]
+  tuple = DataDeclaration
     Structural
     ()
     [v "a", v "b"]
     [ ( ()
-      , v "Pair.Pair"
+      , v "Tuple.Cons"
       , Type.foralls
         ()
         [v "a", v "b"]
         (     var "a"
-        `arr` (var "b" `arr` Type.apps' (var "Pair") [var "a", var "b"])
+        `arr` (var "b" `arr` Type.apps' (var "Tuple") [var "a", var "b"])
         )
       )
     ]

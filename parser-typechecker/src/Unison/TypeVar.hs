@@ -35,6 +35,4 @@ instance Var v => Var (TypeVar b v) where
   typed t = Universal (Var.typed t)
   typeOf v = Var.typeOf (underlying v)
   freshId v = Var.freshId (underlying v)
-  retype t (Universal v) = Universal $ Var.retype t v
-  retype t (Existential b v) = Existential b $ Var.retype t v
   freshenId id v = Var.freshenId id <$> v

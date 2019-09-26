@@ -35,6 +35,15 @@ dequeue (TQueue v _) = readTVar v >>= \case
   a :<| as -> writeTVar v as *> pure a
   _ -> retrySTM
 
+undequeue :: TQueue a -> a -> STM ()
+undequeue (TQueue v _) a = readTVar v >>= \
+  as -> writeTVar v (a :<| as)
+
+tryDequeue :: TQueue a -> STM (Maybe a)
+tryDequeue (TQueue v _) = readTVar v >>= \case
+  a :<| as -> writeTVar v as *> pure (Just a)
+  _ -> pure Nothing
+
 dequeueN :: TQueue a -> Int -> STM [a]
 dequeueN (TQueue v _) n = readTVar v >>= \s ->
   if length s >= n then writeTVar v (S.drop n s) $> toList (S.take n s)
