@@ -38,8 +38,6 @@ import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 , createDirectory
                                                 , removeFile
                                                 , doesPathExist
-                                                , getCurrentDirectory
-                                                -- , removeDirectoryRecursive
                                                 )
 import           System.FilePath                ( FilePath
                                                 , takeBaseName
@@ -101,9 +99,8 @@ data Err
 codebasePath :: FilePath
 codebasePath = ".unison" </> "v1"
 
-ensureCodebaseInitialized :: IO (FilePath, Codebase IO Symbol Ann)
-ensureCodebaseInitialized = do
-  dir <- getCurrentDirectory
+ensureCodebaseInitialized :: FilePath -> IO (Codebase IO Symbol Ann)
+ensureCodebaseInitialized dir = do
   codebasePath <- pure $ dir </> codebasePath
   let theCodebase = codebase1 V1.formatSymbol formatAnn codebasePath
   unlessM (exists codebasePath) $ do
@@ -114,7 +111,7 @@ ensureCodebaseInitialized = do
       <> P.string codebasePath
     initialize codebasePath
     Codebase.initializeCodebase theCodebase
-  pure (dir, theCodebase)
+  pure theCodebase
   where formatAnn = S.Format (pure External) (\_ -> pure ())
 
 termsDir, typesDir, branchesDir, branchHeadDir, editsDir

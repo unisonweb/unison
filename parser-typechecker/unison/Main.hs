@@ -1,7 +1,10 @@
 module Main where
 
+import           Data.List                      ( isPrefixOf )
 import           Safe                           ( headMay )
+import           System.Directory               ( getCurrentDirectory )
 import           System.Environment             ( getArgs )
+import qualified System.Info
 import qualified Unison.Codebase.FileCodebase  as FileCodebase
 import qualified Unison.CommandLine.Main       as CommandLine
 import qualified Unison.Runtime.Rt1IO          as Rt1
@@ -14,7 +17,14 @@ main = do
   args <- getArgs
   let initialPath = Path.absoluteEmpty
       launch = do
-        (dir, theCodebase) <- FileCodebase.ensureCodebaseInitialized
+        dir <- do
+          let widePrefix = "\\\\?\\"
+          raw <- getCurrentDirectory
+          pure $
+            if System.Info.os `elem` ["mingw32", "win32", "cygwin32"] && 
+               not (widePrefix `isPrefixOf` raw) 
+            then widePrefix ++ raw else raw
+        theCodebase <- FileCodebase.ensureCodebaseInitialized
         CommandLine.main dir
                          initialPath
                          (headMay args)
