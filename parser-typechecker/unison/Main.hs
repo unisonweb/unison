@@ -1,6 +1,7 @@
 module Main where
 
 import           Safe                           ( headMay )
+import           System.Directory               ( getCurrentDirectory )
 import           System.Environment             ( getArgs )
 import qualified Unison.Codebase.FileCodebase  as FileCodebase
 import qualified Unison.CommandLine.Main       as CommandLine
@@ -14,7 +15,8 @@ main = do
   args <- getArgs
   let initialPath = Path.absoluteEmpty
       launch = do
-        (dir, theCodebase) <- FileCodebase.ensureCodebaseInitialized
+        dir <- getCurrentDirectory
+        theCodebase <- FileCodebase.ensureCodebaseInitialized dir
         CommandLine.main dir
                          initialPath
                          (headMay args)
