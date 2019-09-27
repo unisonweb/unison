@@ -38,7 +38,6 @@ import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 , createDirectory
                                                 , removeFile
                                                 , doesPathExist
-                                                -- , removeDirectoryRecursive
                                                 )
 import           System.FilePath                ( FilePath
                                                 , takeBaseName
@@ -100,10 +99,10 @@ data Err
 codebasePath :: FilePath
 codebasePath = ".unison" </> "v1"
 
-ensureCodebaseInitialized :: FilePath -> IO (FilePath, Codebase IO Symbol Ann)
+ensureCodebaseInitialized :: FilePath -> IO (Codebase IO Symbol Ann)
 ensureCodebaseInitialized dir = do
   let path = dir </> codebasePath
-  let theCodebase = codebase1 V1.formatSymbol formatAnn codebasePath
+  let theCodebase = codebase1 V1.formatSymbol formatAnn path
   unlessM (exists path) $ do
     PT.putPrettyLn'
       .  P.callout "☝️"
@@ -112,7 +111,7 @@ ensureCodebaseInitialized dir = do
       <> P.string path
     initialize path
     Codebase.initializeCodebase theCodebase
-  pure (dir, theCodebase)
+  pure theCodebase
   where formatAnn = S.Format (pure External) (\_ -> pure ())
 
 termsDir, typesDir, branchesDir, branchHeadDir, editsDir
@@ -246,9 +245,9 @@ initialize path =
 data BranchLoadMode = FailIfMissing | EmptyIfMissing deriving Eq
 
 branchFromFiles :: MonadIO m => BranchLoadMode -> FilePath -> Branch.Hash -> m (Branch m)
-branchFromFiles loadMode rootDir h@(RawHash h') = do 
+branchFromFiles loadMode rootDir h@(RawHash h') = do
   fileExists <- doesFileExist (branchPath rootDir h')
-  if fileExists || loadMode == FailIfMissing then 
+  if fileExists || loadMode == FailIfMissing then
     Branch.read (deserializeRawBranch rootDir)
                 (deserializeEdits rootDir)
                 h
