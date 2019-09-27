@@ -673,7 +673,7 @@ unLetRecNamed
        , AnnotatedTerm2 vt at ap v a
        )
 unLetRecNamed (ABT.Cycle' vs (ABT.Tm' (LetRec isTop bs e)))
-  | length vs == length vs = Just (isTop, zip vs bs, e)
+  | length vs == length bs = Just (isTop, zip vs bs, e)
 unLetRecNamed _ = Nothing
 
 unLetRec
