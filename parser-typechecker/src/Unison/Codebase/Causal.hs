@@ -201,6 +201,8 @@ threeWayMerge combine diff patch = mergeInternal merge0
               traceM "Diff b: "
               traceM $ show db
               newHead <- patch (head ancestor) (da <> db)
+              traceM "Combined diff: "
+              traceM . show $ da <> db
               let h = hash (newHead, Map.keys m)
               pure . Merge (RawHash h) newHead $ Map.fromList
                 [(currentHash a, pure a), (currentHash b, pure b)]

@@ -93,7 +93,8 @@ instance Semigroup BranchDiff where
     , removedTerms   = removedTerms left <> removedTerms right
     , addedTypes     = addedTypes left <> addedTypes right
     , removedTypes   = removedTypes left <> removedTypes right
-    , changedPatches = changedPatches left <> changedPatches right
+    , changedPatches =
+        Map.unionWith (<>) (changedPatches left) (changedPatches right)
     }
 
 instance Monoid BranchDiff where
