@@ -230,10 +230,16 @@ merge (Branch x) (Branch y) =
     traceM $ show changedPatches
     patches <- sequenceA
       $ Map.differenceWith patchMerge (pure @m <$> _edits b0) changedPatches
+    let newPatches = makePatch <$> Map.difference changedPatches (_edits b0)
+        makePatch Patch.PatchDiff {..} =
+          let p = Patch.Patch _addedTermEdits _addedTypeEdits
+           in (H.accumulate' p, pure p)
     pure $ branch0 (Star3.difference (_terms b0) removedTerms <> addedTerms)
                    (Star3.difference (_types b0) removedTypes <> addedTypes)
                    (_children b0)
-                   patches
+                   -- TODO: Filter out patches that are empty.
+                   -- Idea: just match on the hash of the empty patch.
+                   (patches <> newPatches)
   patchMerge mhp d@Patch.PatchDiff {..} = Just $ do
     (_, mp) <- mhp
     p       <- mp
