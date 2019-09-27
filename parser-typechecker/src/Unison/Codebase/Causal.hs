@@ -174,7 +174,7 @@ children (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
 
 threeWayMerge
   :: forall m h e d
-   . (Monad m, Hashable e, Semigroup d)
+   . (Show d, Monad m, Hashable e, Semigroup d)
   => (e -> e -> m e)
   -> (e -> e -> m d)
   -> (e -> d -> m e)
@@ -190,10 +190,16 @@ threeWayMerge combine diff patch = mergeInternal merge0
           b           <- right
           mayAncestor <- lca a b
           case mayAncestor of
-            Nothing       -> mergeWithM combine a b
+            Nothing       -> do
+              traceM "No common ancestor."
+              mergeWithM combine a b
             Just ancestor -> do
               da      <- diff (head ancestor) (head a)
+              traceM "Diff a: "
+              traceM $ show da
               db      <- diff (head ancestor) (head b)
+              traceM "Diff b: "
+              traceM $ show db
               newHead <- patch (head ancestor) (da <> db)
               let h = hash (newHead, Map.keys m)
               pure . Merge (RawHash h) newHead $ Map.fromList
