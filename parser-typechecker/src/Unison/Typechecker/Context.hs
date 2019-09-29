@@ -43,6 +43,7 @@ where
 
 import Unison.Prelude
 
+import qualified Control.Monad.Fail            as MonadFail
 import           Control.Monad.Reader.Class
 import           Control.Monad.State            ( get
                                                 , put
@@ -1688,6 +1689,9 @@ instance Monad (M v loc) where
     go menv = do
       (a, env1) <- runM m menv
       runM (f a) (menv { env = env1 })
+
+instance MonadFail.MonadFail (M v loc) where
+  fail = error
 
 instance Applicative (M v loc) where
   pure = return

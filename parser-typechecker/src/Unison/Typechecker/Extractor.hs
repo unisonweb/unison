@@ -17,6 +17,7 @@ import qualified Unison.Blank                  as B
 import Unison.Var                              (Var)
 import qualified Unison.Var                    as Var
 import Unison.Type (Type)
+import Control.Monad.Fail (MonadFail, fail)
 
 type RedundantTypeAnnotation = Bool
 
@@ -305,8 +306,10 @@ instance Applicative (SubseqExtractor' n) where
   pure = return
   (<*>) = ap
 
-instance Monad (SubseqExtractor' n) where
+instance MonadFail (SubseqExtractor' n) where
   fail _ = mzero
+
+instance Monad (SubseqExtractor' n) where
   return a = SubseqExtractor' $ \_ -> [Pure a]
   xa >>= f = SubseqExtractor' $ \note ->
     let as = runSubseq xa note in do
