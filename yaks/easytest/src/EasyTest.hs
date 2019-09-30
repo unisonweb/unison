@@ -9,6 +9,8 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
+import Control.Monad.Fail (MonadFail)
+import qualified Control.Monad.Fail
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Data.List
@@ -363,7 +365,7 @@ instance MonadReader Env Test where
   reader f = Test (Just <$> reader f)
 
 instance Monad Test where
-  fail = crash
+  fail = Control.Monad.Fail.fail
   return a = Test $ do
     allow <- asks (null . allow)
     pure $ case allow of
@@ -374,6 +376,9 @@ instance Monad Test where
     case a of
       Nothing -> pure Nothing
       Just a -> let Test t = f a in t
+
+instance MonadFail Test where
+  fail = crash
 
 instance Functor Test where
   fmap = liftM
