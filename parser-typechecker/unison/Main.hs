@@ -5,7 +5,7 @@
 module Main where
 
 import Unison.Prelude
-import           System.Directory               ( getCurrentDirectory )
+import           System.Directory               ( getCurrentDirectory, getHomeDirectory )
 import           System.Environment             ( getArgs )
 import qualified Unison.Codebase.FileCodebase  as FileCodebase
 import qualified Unison.CommandLine.Main       as CommandLine
@@ -22,16 +22,19 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.PrettyTerminal as PT
 import qualified Data.Text as Text
 
-usage :: P.Pretty P.ColorText 
+usage :: P.Pretty P.ColorText
 usage = P.callout "🌻" $ P.lines [
   P.bold "Usage instructions for the Unison Codebase Manager",
   "You are running version: " <> P.string Version.gitDescribe,
   "",
   P.bold "ucm",
-  P.wrap "Starts Unison and listens for commands and file changes.",
+  P.wrap "Starts Unison interactively, using the codebase in the home directory.",
+  "",
+  P.bold "ucm -codebase path/to/codebase",
+  P.wrap "Starts Unison interactively, using the specified codebase. This flag can also be set for any of the below commands.",
   "",
   P.bold "ucm run .mylib.mymain",
-  P.wrap $ "Executes the definition `.mylib.mymain` from the codebase namespac, then exits.",
+  P.wrap $ "Executes the definition `.mylib.mymain` from the codebase, then exits.",
   "",
   P.bold "ucm run.file foo.u mymain",
   P.wrap $ "Executes the definition called `mymain` in `foo.u`, then exits.",
@@ -62,24 +65,26 @@ main :: IO ()
 main = do
   args               <- getArgs
   -- hSetBuffering stdout NoBuffering -- cool
-
+  (codepath, args) <- case args of
+    "-codebase" : codepath : args -> pure (codepath, args)
+    _ -> (,) <$> getHomeDirectory <*> pure args
   currentDir <- getCurrentDirectory
   case args of
     [] -> do
-      theCodebase <- FileCodebase.ensureCodebaseInitialized currentDir
+      theCodebase <- FileCodebase.ensureCodebaseInitialized codepath
       launch currentDir theCodebase []
     [version] | isFlag "version" version ->
       putStrLn $ "ucm version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn usage
     "run" : [mainName] -> do
-      theCodebase <- FileCodebase.ensureCodebaseInitialized currentDir
+      theCodebase <- FileCodebase.ensureCodebaseInitialized codepath
       launch currentDir theCodebase [Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "run.file" : file : [mainName] | isDotU file -> do
       e <- safeReadUtf8 file
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
         Right contents -> do
-          theCodebase <- FileCodebase.ensureCodebaseInitialized currentDir
+          theCodebase <- FileCodebase.ensureCodebaseInitialized codepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
           launch currentDir theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "run.pipe" : [mainName] -> do
@@ -87,21 +92,29 @@ main = do
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
-          theCodebase <- FileCodebase.ensureCodebaseInitialized currentDir
+          theCodebase <- FileCodebase.ensureCodebaseInitialized codepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch currentDir theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
-    "transcript" : args -> runTranscripts False args
-    "transcript.fork" : args -> runTranscripts True args
-    _ -> do 
+    "transcript" : args -> runTranscripts False codepath args
+    "transcript.fork" : args -> runTranscripts True codepath args
+    _ -> do
       PT.putPrettyLn usage
       Exit.exitWith (Exit.ExitFailure 1)
 
-runTranscripts :: Bool -> [String] -> IO ()
-runTranscripts inFork args = do
+runTranscripts :: Bool -> FilePath -> [String] -> IO ()
+runTranscripts inFork codepath args = do
   currentDir <- getCurrentDirectory
   transcriptDir <- do
     tmp <- Temp.createTempDirectory currentDir "transcript"
-    when inFork $ Path.copyDir (currentDir FP.</> ".unison") (tmp FP.</> ".unison")
+    when (not inFork) $
+      PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
+    when inFork $ do
+      let path = (codepath FP.</> ".unison")
+      PT.putPrettyLn $ P.lines [
+        P.wrap "Transcript will be run on a copy of the codebase at: ", "",
+        P.indentN 2 (P.string path)
+        ]
+      Path.copyDir (codepath FP.</> ".unison") (tmp FP.</> ".unison")
     pure tmp
   theCodebase <- FileCodebase.ensureCodebaseInitialized transcriptDir
   case args of
@@ -111,7 +124,7 @@ runTranscripts inFork args = do
           parsed <- TR.parseFile arg
           case parsed of
             Left err -> putStrLn $ "Parse error: \n" <> show err
-            Right stanzas -> do 
+            Right stanzas -> do
               mdOut <- TR.run currentDir stanzas theCodebase
               let out = currentDir FP.</>
                          FP.addExtension (FP.dropExtension arg ++ ".output")
@@ -133,7 +146,7 @@ initialPath :: Path.Absolute
 initialPath = Path.absoluteEmpty
 
 launch :: FilePath -> _ -> [Either Input.Event Input.Input] -> IO ()
-launch dir code inputs = 
+launch dir code inputs =
   CommandLine.main dir initialPath inputs (pure Rt1.runtime) code
 
 isMarkdown :: String -> Bool
