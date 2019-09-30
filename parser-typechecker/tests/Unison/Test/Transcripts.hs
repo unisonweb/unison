@@ -16,7 +16,7 @@ test = do
   files <- io $ listDirectory dir 
   let transcripts = filter (\f -> takeExtensions f == ".md") files 
       run t = scope t $ do  
-        io $ "stack" ["exec", "unison", "--", "sandbox", pack (dir </> t)]
+        io $ "stack" ["exec", "unison", "--", "transcript", pack (dir </> t)]
         ok
   tests (run <$> transcripts)
   -- Assuming everything passed, we now delete the transcript directories

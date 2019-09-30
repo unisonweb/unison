@@ -251,6 +251,7 @@ executable unison
     containers,
     directory,
     filepath,
+    fsutils,
     safe,
     shellmet,
     template-haskell,
