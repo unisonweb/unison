@@ -227,7 +227,6 @@ merge (Branch x) (Branch y) =
  where
   apply :: Branch0 m -> BranchDiff -> m (Branch0 m)
   apply b0 BranchDiff {..} = do
-    traceM $ show changedPatches
     patches <- sequenceA
       $ Map.differenceWith patchMerge (pure @m <$> _edits b0) changedPatches
     let newPatches = makePatch <$> Map.difference changedPatches (_edits b0)
@@ -238,7 +237,7 @@ merge (Branch x) (Branch y) =
                    (Star3.difference (_types b0) removedTypes <> addedTypes)
                    (_children b0)
                    (patches <> newPatches)
-  patchMerge mhp d@Patch.PatchDiff {..} = Just $ do
+  patchMerge mhp Patch.PatchDiff {..} = Just $ do
     (_, mp) <- mhp
     p       <- mp
     let np = Patch.Patch
@@ -247,12 +246,6 @@ merge (Branch x) (Branch y) =
           , _typeEdits = R.difference (Patch._typeEdits p) _removedTypeEdits
             <> _addedTypeEdits
           }
-    traceM "Old patch: "
-    traceM $ show p
-    traceM "Patch diff: "
-    traceM $ show d
-    traceM "New patch: "
-    traceM $ show np
     pure (H.accumulate' np, pure np)
 
 -- `before b1 b2` is true if `b2` incorporates all of `b1`

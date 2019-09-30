@@ -873,6 +873,8 @@ loop = do
               -- Apply the modified patch to the current path
               -- since we might be able to propagate further.
               void $ propagatePatch patch' currentPath'
+              -- Say something
+              success
         zeroOneOrMore
           fromRefs
           (respond $ SearchTermsNotFound [HQ.HashOnly from])
