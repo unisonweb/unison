@@ -20,7 +20,7 @@ before_install:
 
 install:
 - stack ghc -- --version
-- travis_wait stack --no-terminal build
+- stack --no-terminal build
 
 script:
 - stack --no-terminal exec tests

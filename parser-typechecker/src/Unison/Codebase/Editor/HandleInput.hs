@@ -45,7 +45,7 @@ import           Data.Configurator              ()
 import qualified Data.Graph as Graph
 import qualified Data.List                      as List
 import           Data.List                      ( partition, sortOn )
-import           Data.List.Extra                (nubOrd, intercalate)
+import           Data.List.Extra                (nubOrd, intercalate, sort)
 import           Data.Maybe                     ( fromJust
                                                 )
 import qualified Data.Map                      as Map
@@ -53,7 +53,7 @@ import qualified Data.Text                     as Text
 import qualified Data.Set                      as Set
 import           Data.Sequence                  ( Seq(..) )
 import qualified Unison.ABT                    as ABT
-import           Unison.Codebase.Branch         ( Branch
+import           Unison.Codebase.Branch         ( Branch(..)
                                                 , Branch0(..)
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
@@ -731,6 +731,62 @@ loop = do
               , (seg, _) <- Map.toList (Branch._edits b) ]
         in respond $ ListOfPatches patches
 
+      FindShallow pathArg -> do
+        prettyPrintNames0 <- basicPrettyPrintNames0
+        ppe <- prettyPrintEnv $ Names prettyPrintNames0 mempty
+        hashLen <- eval CodebaseHashLength
+        let pathArgAbs = Path.toAbsolutePath currentPath' pathArg
+        b0 <- Branch.head <$> getAt pathArgAbs
+        let
+          hqTerm b0 ns r =
+            let refs = Star3.lookupD1 ns . _terms $ b0
+            in case length refs of
+              1 -> HQ'.fromName ns
+              _ -> HQ'.take hashLen $ HQ'.fromNamedReferent ns r
+          hqType b0 ns r =
+            let refs = Star3.lookupD1 ns . _types $ b0
+            in case length refs of
+              1 -> HQ'.fromName ns
+              _ -> HQ'.take hashLen $ HQ'.fromNamedReference ns r
+          defnCount b =
+            (length . R.ran . Star3.d1 . deepTerms $ Branch.head b) +
+            (length . R.ran . Star3.d1 . deepTypes $ Branch.head b)
+          patchCount b = (length . deepEdits $ Branch.head b)
+
+        termEntries <- for (R.toList . Star3.d1 $ _terms b0) $
+          \(r, ns) -> do
+            ot <- loadReferentType r
+            pure $ ShallowTermEntry r (hqTerm b0 ns r) ot
+        let
+          typeEntries =
+            [ ShallowTypeEntry r (hqType b0 ns r)
+            | (r, ns) <- R.toList . Star3.d1 $ _types b0 ]
+          branchEntries =
+            [ ShallowBranchEntry ns (defnCount b)
+            | (ns, b) <- Map.toList $ _children b0 ]
+          patchEntries =
+            [ ShallowPatchEntry ns
+            | (ns, (_h, mp)) <- Map.toList $ _edits b0 ]
+        let
+          entries :: [ShallowListEntry v Ann]
+          entries = sort $ termEntries ++ typeEntries ++ branchEntries
+          entryToHQString :: ShallowListEntry v Ann -> String
+          -- caching the result as an absolute path, for easier jumping around
+          entryToHQString e = fixup $ case e of
+            ShallowTypeEntry _ hq   -> HQ'.toString hq
+            ShallowTermEntry _ hq _ -> HQ'.toString hq
+            ShallowBranchEntry ns _ -> NameSegment.toString ns
+            ShallowPatchEntry ns    -> NameSegment.toString ns
+            where
+            fixup s =
+              if last pathArgStr == '.'
+              then pathArgStr ++ s
+              else pathArgStr ++ "." ++ s
+            pathArgStr = show pathArgAbs
+        numberedArgs .= fmap entryToHQString entries
+        respond $ ListShallow ppe entries
+        where
+
       SearchByNameI isVerbose _showAll ws -> do
         prettyPrintNames0 <- basicPrettyPrintNames0
         -- results became an Either to accommodate `parseSearchType` returning an error
@@ -793,7 +849,9 @@ loop = do
         patch <- getPatchAt patchPath'
         fromRefs <- eval $ GetReferencesByShortHash from
         toRefs <- eval $ GetReferencesByShortHash to
-        let go :: Reference.Id -> Reference.Id -> Action m (Either Event Input) v ()
+        let go :: Reference.Id
+               -> Reference.Id
+               -> Action m (Either Event Input) v ()
             go fid tid = do
               let fr = DerivedId fid
                   tr = DerivedId tid
@@ -815,25 +873,6 @@ loop = do
               -- Apply the modified patch to the current path
               -- since we might be able to propagate further.
               void $ propagatePatch patch' currentPath'
-              -- Get all names for the conflicted edit targets and assign them
-              -- to the resolved target.
-              let names0 = Branch.toNames0 currentBranch0
-                  conflictedRefs =
-                    [ Referent.Ref ref
-                    | Replace ref _ <- Set.toList . R.lookupDom fr $
-                                         view Patch.termEdits patch]
-                  conflicted =
-                    conflictedRefs >>= \r ->
-                      (, r) <$>
-                        toList (Path.splitFromName $ Names.termName names0 r)
-              -- Delete the conflicted names.
-              stepManyAt (conflicted >>= \(n, r) ->
-                [ BranchUtil.makeDeleteTermName n r
-                , BranchUtil.makeAddTermName
-                   n
-                   (Referent.Ref tr)
-                   (BranchUtil.getTermMetadataAt n r root0)
-                ])
         zeroOneOrMore
           fromRefs
           (respond $ SearchTermsNotFound [HQ.HashOnly from])

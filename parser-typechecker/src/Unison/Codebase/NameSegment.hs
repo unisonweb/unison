@@ -26,6 +26,9 @@ isPrefixOf n1 n2 = Text.isPrefixOf (toText n1) (toText n2)
 toString :: NameSegment -> String
 toString = Text.unpack . toText
 
+toName :: NameSegment -> Name.Name
+toName = Name.Name . toText
+
 segments :: Name.Name -> [NameSegment]
 segments name = NameSegment <$> Text.splitOn "." (Name.toText name)
 

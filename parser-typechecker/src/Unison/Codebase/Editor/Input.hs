@@ -105,6 +105,7 @@ data Input
   | LinksI Path.HQSplit' (Maybe String)
   -- other
   | SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
+  | FindShallow Path'
   | FindPatchI
   | ShowDefinitionI OutputLocation [String]
   | ShowDefinitionByPrefixI OutputLocation [String]

@@ -18,7 +18,7 @@ import qualified Unison.ShortHash              as SH
 import qualified Unison.HashQualified          as HQ
 
 data HashQualified' n = NameOnly n | HashQualified n ShortHash
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Functor)
 
 type HashQualified = HashQualified' Name
 

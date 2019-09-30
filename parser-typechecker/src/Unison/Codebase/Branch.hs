@@ -237,8 +237,6 @@ merge (Branch x) (Branch y) =
     pure $ branch0 (Star3.difference (_terms b0) removedTerms <> addedTerms)
                    (Star3.difference (_types b0) removedTypes <> addedTypes)
                    (_children b0)
-                   -- TODO: Filter out patches that are empty.
-                   -- Idea: just match on the hash of the empty patch.
                    (patches <> newPatches)
   patchMerge mhp d@Patch.PatchDiff {..} = Just $ do
     (_, mp) <- mhp

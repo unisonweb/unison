@@ -210,7 +210,7 @@ viewByPrefix
 find :: InputPattern
 find = InputPattern
   "find"
-  ["list", "ls"]
+  []
   [(ZeroPlus, fuzzyDefinitionQueryArg)]
   (P.wrapColumn2
     [ ("`find`", "lists all definitions in the current namespace.")
@@ -225,6 +225,25 @@ find = InputPattern
     ]
   )
   (pure . Input.SearchByNameI False False)
+
+findShallow :: InputPattern
+findShallow = InputPattern
+  "list"
+  ["ls"]
+  [(Optional, pathArg)]
+  (P.wrapColumn2
+    [ ("`list`", "lists definitions and namespaces at the current level of the current namespace.")
+    , ( "`list foo`", "lists the 'foo' namespace." )
+    , ( "`list .foo`", "lists the '.foo' namespace." )
+    ]
+  )
+  (\case
+    [] -> pure $ Input.FindShallow Path.relativeEmpty'
+    [path] -> first fromString $ do
+      p <- Path.parsePath' path
+      pure $ Input.FindShallow p
+    _ -> Left (I.help findShallow)
+  )
 
 findVerbose :: InputPattern
 findVerbose = InputPattern
@@ -832,6 +851,7 @@ validInputs =
   , renamePatch
   , copyPatch
   , find
+  , findShallow
   , findVerbose
   , view
   , findPatch
