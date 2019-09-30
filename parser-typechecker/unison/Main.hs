@@ -30,18 +30,23 @@ main = do
         P.bold "ucm",
         P.wrap "Starts Unison and listens for commands and file changes.",
         "",
-        P.bold "ucm mymain.u arg1 arg2",
-        P.wrap $ "Executes the definition called `main` in `mymain.u`, passing"
-              <> "any optional arguments arg1, arg2, etc, then exits after completion.",
+        P.bold "ucm run .mylib.mymain",
+        P.wrap $ "Executes the definition `.mylib.mymain` from the codebase namespac, then exits.",
         "",
-        P.bold "ucm mytranscript.md",
+        P.bold "ucm run.file foo.u mymain",
+        P.wrap $ "Executes the definition called `mymain` in `foo.u`, then exits.",
+        "",
+        P.bold "ucm run.pipe mymain",
+        P.wrap $ "Executes the definition called `mymain` from a `.u` file read from standard in, then exits.",
+        "",
+        P.bold "ucm transcript mytranscript.md",
         P.wrap $ "Executes the `mytranscript.md` transcript and creates"
               <> "`mytranscript.output.md` if successful. Exits after completion."
               <> "Multiple transcript files may be provided; they are processed in sequence"
               <> "starting from the same codebase.",
         "",
-        P.bold "ucm sandbox mytranscript.md",
-        P.wrap $ "Executes the `mytranscript.md` transcript in a fresh codebase"
+        P.bold "ucm transcript.fork mytranscript.md",
+        P.wrap $ "Executes the `mytranscript.md` transcript in a copy of the current codebase"
               <> "and creates `mytranscript.output.md` if successful. Exits after completion."
               <> "Multiple transcript files may be provided; they are processed in sequence"
               <> "starting from the same codebase.",
@@ -81,14 +86,26 @@ main = do
     [version] | isFlag "version" version ->
       putStrLn $ "ucm version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn usage
-    (file:args) | isDotU file -> do
+    "run" : [mainName] -> do
+      putStrLn "asdlkfjasdlfkjasdflkj"
+      theCodebase <- FileCodebase.ensureCodebaseInitialized currentDir
+      launch currentDir theCodebase [Right $ Input.ExecuteI mainName, Right Input.QuitI]
+    "run.file" : file : [mainName] | isDotU file -> do
       e <- safeReadUtf8 file
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
         Right contents -> do
           theCodebase <- FileCodebase.ensureCodebaseInitialized currentDir
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-          launch currentDir theCodebase [Left fileEvent, Right $ Input.ExecuteI args, Right Input.QuitI]
+          launch currentDir theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+    "run.pipe" : [mainName] -> do
+      e <- safeReadUtf8StdIn
+      case e of
+        Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
+        Right contents -> do
+          theCodebase <- FileCodebase.ensureCodebaseInitialized currentDir
+          let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
+          launch currentDir theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     args -> do
       theCodebase <- FileCodebase.ensureCodebaseInitialized currentDir
       let sandboxed = take 1 args == ["sandbox"]

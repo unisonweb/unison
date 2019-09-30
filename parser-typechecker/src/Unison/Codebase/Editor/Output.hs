@@ -67,8 +67,8 @@ data Output v
   = Success Input
   -- User did `add` or `update` before typechecking a file?
   | NoUnisonFile Input
-  -- No main function, the [Type v Ann] are the allowed types for `main`
-  | NoMainFunction Input PPE.PrettyPrintEnv [Type v Ann]
+  -- No main function, the [Type v Ann] are the allowed types
+  | NoMainFunction Input String PPE.PrettyPrintEnv [Type v Ann]
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Input Path'
   | PatchAlreadyExists Input Path.Split'

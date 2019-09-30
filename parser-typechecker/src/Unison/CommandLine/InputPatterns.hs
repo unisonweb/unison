@@ -806,14 +806,14 @@ test = InputPattern "test" [] []
     (const $ pure $ Input.TestI True True)
 
 execute :: InputPattern
-execute = InputPattern "run" ["execute"] []
+execute = InputPattern "run" [] []
   (P.wrapColumn2 [
-    ("`run`", "Runs `!main` or `main []` using the `main` function from the" <> 
-              "most recently typechecked file."),
-    ("`run arg1 arg2`", "Runs `main [arg1, arg2]` using the `main` function" <>
-                        "from the most recently typechecked file.")
+    ("`run mymain`", "Runs `!mymain`, where `mymain` is searched for in the most recent" <>
+                     "typechecked file, or in the codebase.")
     ])
-  (\ws -> pure . Input.ExecuteI $ ws)
+  (\ws -> case ws of
+    [w] -> pure . Input.ExecuteI $ w
+    _ -> Left $ showPatternHelp execute)
 
 validInputs :: [InputPattern]
 validInputs =

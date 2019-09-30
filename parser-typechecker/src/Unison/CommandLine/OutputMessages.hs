@@ -210,10 +210,11 @@ notifyUser dir o = case o of
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
     CantUndoPastMerge -> pure . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
-  NoMainFunction _input ppe ts -> pure . P.callout "😶" $ P.lines [
-    P.wrap "If you'd like me to run this code, add a `main` function with one of these types:",
+  NoMainFunction _input main ppe ts -> pure . P.callout "😶" $ P.lines [
+    P.wrap $ "I looked for a function" <> P.backticked (P.string main) 
+          <> "in the most recently typechecked file and codebase but couldn't find one. It has to have the type:",
     "",
-    P.indentN 2 $ P.lines [ "main : " <> TypePrinter.pretty ppe t | t <- ts ]
+    P.indentN 2 $ P.lines [ P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts ]
     ]
   NoUnisonFile _input -> do
     dir' <- canonicalizePath dir

@@ -1039,16 +1039,14 @@ loop = do
         updated <- propagatePatch patch (resolveToAbsolute scopePath)
         unless updated (respond $ NothingToPatch patchPath scopePath)
 
-      ExecuteI args -> case uf of
-        Nothing -> respond $ NoUnisonFile input
-        Just uf -> case addRunMain args uf of
-          Nothing -> do
-            names0 <- basicPrettyPrintNames0
-            ppe <- prettyPrintEnv (Names3.Names names0 mempty)
-            respond $ NoMainFunction input ppe (mainTypes External)
-          Just unisonFile -> do
-            ppe <- executePPE unisonFile
-            eval $ Execute ppe unisonFile
+      ExecuteI main -> addRunMain main uf >>= \case
+        Nothing -> do
+          names0 <- basicPrettyPrintNames0
+          ppe <- prettyPrintEnv (Names3.Names names0 mempty)
+          respond $ NoMainFunction input main ppe (mainTypes External)
+        Just unisonFile -> do
+          ppe <- executePPE unisonFile
+          eval $ Execute ppe unisonFile
 
       -- UpdateBuiltinsI -> do
       --   stepAt updateBuiltins
@@ -2102,26 +2100,44 @@ ioUnit a = Type.effect a [Type.ref a ioReference] (Type.ref a DD.unitRef)
 nullaryMain :: Ord v => a -> Type v a
 nullaryMain a = Type.arrow a (Type.ref a DD.unitRef) (ioUnit a)
 
--- [Text] ->{IO} ()
-argsMain :: Ord v => a -> Type v a
-argsMain a = Type.arrow a (Type.app a (Type.vector a) (Type.text a)) (ioUnit a)
-
 mainTypes :: Ord v => a -> [Type v a]
-mainTypes a = [argsMain a, nullaryMain a]
+mainTypes a = [nullaryMain a]
 
--- Given a typechecked file with a binding `main : '{IO} ()`
--- or `main : [Text] ->{IO} ()`, adds an extra binding which
+-- Given a typechecked file with a main function called `mainName`
+-- of the type `'{IO} ()`, adds an extra binding which
 -- forces the `main` function.
+--
+-- If that function doesn't exist in the typechecked file, the
+-- codebase is consulted.
 addRunMain
-  :: Var v
-  => [String]
-  -> TypecheckedUnisonFile v a
-  -> Maybe (TypecheckedUnisonFile v a)
-addRunMain args uf = let
-  components = join $ UF.topLevelComponents uf
-  mainComponent = filter ((\v -> Var.name v == "main") . view _1) components 
-  in case mainComponent of 
-    [(v, tm, ty)] -> let 
+  :: (Monad m, Var v)
+  => String
+  -> Maybe (TypecheckedUnisonFile v Ann)
+  -> Action' m v (Maybe (TypecheckedUnisonFile v Ann))
+addRunMain mainName Nothing = do 
+  parseNames0 <- basicParseNames0
+  case HQ.fromString mainName of
+    Nothing -> pure Nothing
+    Just hq -> do
+      -- note: not allowing historical search
+      let refs = Names3.lookupHQTerm hq (Names3.Names parseNames0 mempty)
+      let a = External 
+      case toList refs of
+        [] -> pure Nothing
+        [Referent.Ref ref] -> do
+          typ <- eval $ LoadTypeOfTerm ref 
+          case typ of
+            Just typ | Typechecker.isSubtype typ (nullaryMain a) -> do
+              let runMain = DD.forceTerm a a (Term.ref a ref)
+              let v = Var.named (HQ.toText hq)
+              pure . Just $ UF.typecheckedUnisonFile mempty mempty [[(v, runMain, typ)]] mempty
+            _ -> pure Nothing
+        _ -> pure Nothing
+addRunMain mainName (Just uf) = do
+  let components = join $ UF.topLevelComponents uf
+  let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components 
+  case mainComponent of 
+    [(v, tm, ty)] -> pure $ let 
       v2 = Var.freshIn (Set.fromList [v]) v 
       a = ABT.annotation tm 
       in
@@ -2132,16 +2148,8 @@ addRunMain args uf = let
              (UF.effectDeclarations' uf)
              (UF.topLevelComponents' uf <> [[(v2, runMain, nullaryMain a)]])
              (UF.watchComponents uf) 
-      else if Typechecker.isSubtype ty (argsMain a) then Just $ let
-        runMain = Term.app a (Term.var a v) (Term.seq a (Term.text a . Text.pack <$> args)) 
-        in UF.typecheckedUnisonFile 
-             (UF.dataDeclarations' uf)
-             (UF.effectDeclarations' uf)
-             (UF.topLevelComponents' uf <> [[(v2, runMain, argsMain a)]])
-             (UF.watchComponents uf) 
-      else
-        Nothing 
-    _ -> Nothing
+      else Nothing 
+    _ -> addRunMain mainName Nothing 
 
 executePPE
   :: (Var v, Monad m)
