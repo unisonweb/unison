@@ -117,7 +117,7 @@ run dir stanzas codebase = do
     (config, cancelConfig)   <-
       catchIOError (watchConfig $ dir </> ".unisonConfig") $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
-    traverse_ (atomically . Q.enqueue inputQueue) stanzas
+    traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1..])
     let patternMap =
           Map.fromList
             $   validInputs
@@ -125,7 +125,6 @@ run dir stanzas codebase = do
     let
       output :: String -> IO ()
       output msg = do
-        putStr msg
         hide <- readIORef hidden
         when (not hide) $ modifyIORef' out (\acc -> acc <> pure msg)
 
@@ -155,30 +154,36 @@ run dir stanzas codebase = do
           Nothing -> do
             writeIORef hidden False
             writeIORef allowErrors False
-            stanza <- atomically (Q.tryDequeue inputQueue)
-            case stanza of
-              Nothing -> pure $ Right QuitI
-              Just s -> case s of
-                Unfenced _ -> do
-                  output $ show s
-                  awaitInput
-                UnprocessedFence _ _ -> do
-                  output $ show s
-                  awaitInput
-                Unison hide errOk filename txt -> do
-                  output $ show s
-                  writeIORef hidden hide
-                  writeIORef allowErrors errOk
-                  output "```ucm\n"
-                  atomically . Q.enqueue cmdQueue $ Nothing
-                  pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
-                Ucm hide errOk cmds -> do
-                  writeIORef hidden hide
-                  writeIORef allowErrors errOk
-                  output $ "```ucm"
-                  traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
-                  atomically . Q.enqueue cmdQueue $ Nothing
-                  awaitInput
+            maybeStanza <- atomically (Q.tryDequeue inputQueue)
+
+            case maybeStanza of
+              Nothing -> do
+                putStrLn ""
+                pure $ Right QuitI
+              Just (s,idx) -> do
+                putStr $ "\r⚙️   Processing stanza " ++ show idx ++ " of "
+                                              ++ show (length stanzas) ++ "."
+                case s of
+                  Unfenced _ -> do
+                    output $ show s
+                    awaitInput
+                  UnprocessedFence _ _ -> do
+                    output $ show s
+                    awaitInput
+                  Unison hide errOk filename txt -> do
+                    output $ show s
+                    writeIORef hidden hide
+                    writeIORef allowErrors errOk
+                    output "```ucm\n"
+                    atomically . Q.enqueue cmdQueue $ Nothing
+                    pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
+                  Ucm hide errOk cmds -> do
+                    writeIORef hidden hide
+                    writeIORef allowErrors errOk
+                    output $ "```ucm"
+                    traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
+                    atomically . Q.enqueue cmdQueue $ Nothing
+                    awaitInput
 
       cleanup = do Runtime.terminate runtime; cancelConfig
       print o = do

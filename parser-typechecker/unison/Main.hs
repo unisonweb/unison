@@ -1,6 +1,6 @@
 {-# Language OverloadedStrings #-}
 {-# Language PartialTypeSignatures #-}
-{-# OPTIONS_GHC -Wno-error=partial-type-signatures #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module Main where
 
@@ -40,7 +40,7 @@ usage = P.callout "🌻" $ P.lines [
   P.wrap $ "Executes the definition called `mymain` in `foo.u`, then exits.",
   "",
   P.bold "ucm run.pipe mymain",
-  P.wrap $ "Executes the definition called `mymain` from a `.u` file read from standard in, then exits.",
+  P.wrap $ "Executes the definition called `mymain` from a `.u` file read from the standard input, then exits.",
   "",
   P.bold "ucm transcript mytranscript.md",
   P.wrap $ "Executes the `mytranscript.md` transcript and creates"
@@ -137,7 +137,9 @@ runTranscripts inFork codepath args = do
           P.lines [
             "I've finished running the transcript(s) in this codebase:", "",
             P.indentN 2 (P.string transcriptDir), "",
-            "You can run `ucm` in this directory to do more work on it."])
+            P.wrap $ "You can run"
+                  <> P.backticked ("ucm -codebase " <> P.string transcriptDir)
+                  <> "to do more work with it."])
     [] -> do
       PT.putPrettyLn usage
       Exit.exitWith (Exit.ExitFailure 1)

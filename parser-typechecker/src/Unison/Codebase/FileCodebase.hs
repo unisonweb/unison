@@ -105,10 +105,10 @@ ensureCodebaseInitialized dir = do
   let theCodebase = codebase1 V1.formatSymbol formatAnn path
   unlessM (exists path) $ do
     PT.putPrettyLn'
-      .  P.callout "☝️"
+      .  P.warnCallout
       .  P.wrap
       $  "No codebase exists here so I'm initializing one in: "
-      <> P.string path
+      <> P.string dir
     initialize path
     Codebase.initializeCodebase theCodebase
   pure theCodebase
