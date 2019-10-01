@@ -8,6 +8,7 @@ import           System.IO
 import qualified Unison.Test.ABT as ABT
 import qualified Unison.Test.Codebase.Causal as Causal
 import qualified Unison.Test.Codebase.Path as Path
+import qualified Unison.Test.Codebase.Serialization as Serialization
 import qualified Unison.Test.ColorText as ColorText
 import qualified Unison.Test.DataDeclaration as DataDeclaration
 import qualified Unison.Test.FileParser as FileParser
@@ -42,6 +43,7 @@ test = tests
   , Referent.test
   , FileCodebase.test
   , ABT.test
+  , Serialization.test
  ]
 
 main :: IO ()
