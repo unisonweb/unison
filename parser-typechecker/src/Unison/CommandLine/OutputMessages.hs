@@ -210,7 +210,13 @@ notifyUser dir o = case o of
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
     CantUndoPastMerge -> pure . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
-  NoUnisonFile -> do
+  NoMainFunction _input main ppe ts -> pure . P.callout "😶" $ P.lines [
+    P.wrap $ "I looked for a function" <> P.backticked (P.string main) 
+          <> "in the most recently typechecked file and codebase but couldn't find one. It has to have the type:",
+    "",
+    P.indentN 2 $ P.lines [ P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts ]
+    ]
+  NoUnisonFile _input -> do
     dir' <- canonicalizePath dir
     fileName <- renderFileName dir'
     pure . P.callout "😶" $ P.lines
@@ -378,7 +384,6 @@ notifyUser dir o = case o of
         ]
     -- TODO: Present conflicting TermEdits and TypeEdits
     -- if we ever allow users to edit hashes directly.
-  FileChangeEvent _sourceName _src -> pure "\n"
   Typechecked sourceName ppe slurpResult uf -> do
     let fileStatusMsg = SlurpResult.pretty False ppe slurpResult
     if UF.nonEmpty uf then do
@@ -387,24 +392,25 @@ notifyUser dir o = case o of
         if fileStatusMsg == mempty then
           P.okCallout $ fileName <> " changed."
         else if  SlurpResult.isAllDuplicates slurpResult then
-          (P.newline <>) . P.okCallout . P.wrap $ "I found and"
+          P.wrap $ "I found and"
              <> P.bold "typechecked" <> "the definitions in "
              <> P.group (fileName <> ".")
              <> "This file " <> P.bold "has been previously added" <> "to the codebase."
         else
-          (P.newline <>) . P.linesSpaced $ [
-            P.okCallout . P.wrap $ "I found and"
+          P.linesSpaced $ [
+            P.wrap $ "I found and"
              <> P.bold "typechecked" <> "these definitions in "
              <> P.group (fileName <> ".")
              <> "If you do an "
              <> IP.makeExample' IP.add
              <> " or "
-             <> IP.makeExample' IP.update
-             <> ", here's how your codebase would"
+             <> P.group (IP.makeExample' IP.update <> ",")
+             <> "here's how your codebase would"
              <> "change:"
             , P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
             ]
           ,
+         " ",
          P.wrap $ "Now evaluating any watch expressions"
                <> "(lines starting with `>`)... "
                <> P.group (P.hiBlack "Ctrl+C cancels.")
@@ -739,7 +745,7 @@ displayDefinitions :: Var v => Ord a1 =>
   -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
   -> IO Pretty
 displayDefinitions outputLoc ppe types terms | Map.null types && Map.null terms =
-  pure mempty
+  pure $ P.callout "😶" "No results to display."
 displayDefinitions outputLoc ppe types terms =
   maybe displayOnly scratchAndDisplay outputLoc
   where

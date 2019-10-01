@@ -403,8 +403,8 @@ instance Alternative Test where
       let (rng1, rng2) = Random.split currentRng
       (,) <$> newTVar rng1 <*> newTVar rng2
     lift $ do
-      _ <- runWrap (env { rng = rng1 }) t1
-      runWrap (env { rng = rng2 }) t2
+      r1 <- runWrap (env { rng = rng1 }) t1
+      (<|> r1) <$> runWrap (env { rng = rng2 }) t2
 
 instance MonadPlus Test where
   mzero = empty

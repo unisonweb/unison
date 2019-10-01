@@ -22,4 +22,4 @@ extra-deps:
 
 ghc-options:
  # All packages
- "$locals": -Werror #-freverse-errors
+ "$locals": -Werror -Wno-type-defaults #-freverse-errors

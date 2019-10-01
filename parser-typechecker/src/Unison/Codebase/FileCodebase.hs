@@ -101,15 +101,15 @@ codebasePath = ".unison" </> "v1"
 
 ensureCodebaseInitialized :: FilePath -> IO (Codebase IO Symbol Ann)
 ensureCodebaseInitialized dir = do
-  codebasePath <- pure $ dir </> Unison.Codebase.FileCodebase.codebasePath
-  let theCodebase = codebase1 V1.formatSymbol formatAnn codebasePath
-  unlessM (exists codebasePath) $ do
+  let path = dir </> codebasePath
+  let theCodebase = codebase1 V1.formatSymbol formatAnn path
+  unlessM (exists path) $ do
     PT.putPrettyLn'
-      .  P.callout "☝️"
+      .  P.warnCallout
       .  P.wrap
       $  "No codebase exists here so I'm initializing one in: "
-      <> P.string codebasePath
-    initialize codebasePath
+      <> P.string dir
+    initialize path
     Codebase.initializeCodebase theCodebase
   pure theCodebase
   where formatAnn = S.Format (pure External) (\_ -> pure ())
@@ -245,9 +245,9 @@ initialize path =
 data BranchLoadMode = FailIfMissing | EmptyIfMissing deriving Eq
 
 branchFromFiles :: MonadIO m => BranchLoadMode -> FilePath -> Branch.Hash -> m (Branch m)
-branchFromFiles loadMode rootDir h@(RawHash h') = do 
+branchFromFiles loadMode rootDir h@(RawHash h') = do
   fileExists <- doesFileExist (branchPath rootDir h')
-  if fileExists || loadMode == FailIfMissing then 
+  if fileExists || loadMode == FailIfMissing then
     Branch.read (deserializeRawBranch rootDir)
                 (deserializeEdits rootDir)
                 h
