@@ -19,8 +19,8 @@ import qualified Unison.Test.TermParser as TermParser
 import qualified Unison.Test.TermPrinter as TermPrinter
 import qualified Unison.Test.Type as Type
 import qualified Unison.Test.TypePrinter as TypePrinter
-import qualified Unison.Test.Typechecker as Typechecker
 import qualified Unison.Test.Typechecker.TypeError as TypeError
+import qualified Unison.Test.UnisonSources as UnisonSources
 import qualified Unison.Test.Util.Bytes as Bytes
 import qualified Unison.Test.Codebase.FileCodebase as FileCodebase
 
@@ -31,9 +31,9 @@ test = tests
   , TermParser.test
   , TermPrinter.test
   , Type.test
-  , Typechecker.test
   , TypeError.test
   , TypePrinter.test
+  , UnisonSources.test
   , FileParser.test
   , DataDeclaration.test
   , Range.test

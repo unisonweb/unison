@@ -332,6 +332,10 @@ noteScoped msg = do
 ok :: Test ()
 ok = Test (Just <$> putResult (Passed 1))
 
+-- | Skip any tests depending on the return value.
+done :: Test a
+done = Test (pure Nothing)
+
 -- | Explicitly skip this test
 skip :: Test ()
 skip = Test (Nothing <$ putResult Skipped)
@@ -344,7 +348,7 @@ crash msg = do
   Test (Just <$> putResult Failed) >> noteScoped ("FAILURE " ++ msg') >> Test (pure Nothing)
 
 -- skips the test but makes a note of this fact
-pending :: Test a -> Test ()
+pending :: Test a -> Test a
 pending _ = Test (Nothing <$ putResult Pending)
 
 putResult :: Status -> ReaderT Env IO ()
