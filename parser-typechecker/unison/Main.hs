@@ -76,6 +76,7 @@ main = do
     [version] | isFlag "version" version ->
       putStrLn $ "ucm version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn usage
+    ["init"] -> FileCodebase.initCodebaseAndExit codepath
     "run" : [mainName] -> do
       theCodebase <- FileCodebase.ensureCodebaseInitialized codepath
       launch currentDir theCodebase [Right $ Input.ExecuteI mainName, Right Input.QuitI]

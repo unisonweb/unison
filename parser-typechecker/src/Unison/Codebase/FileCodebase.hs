@@ -13,6 +13,7 @@ module Unison.Codebase.FileCodebase
 , decodeFileName
 , encodeFileName
 , codebasePath
+, initCodebaseAndExit
 , ensureCodebaseInitialized
 , getHomeCodebaseOrExit
 , getNonHomeCodebaseOrExit
@@ -53,7 +54,7 @@ import           System.Path                    ( replaceRoot
                                                 , files
                                                 , dirPath
                                                 )
-import           System.Exit                    ( exitFailure )
+import           System.Exit                    ( exitFailure, exitSuccess )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase                ( Codebase(Codebase)
                                                 , BuiltinAnnotation
@@ -103,6 +104,29 @@ data Err
 codebasePath :: FilePath
 codebasePath = ".unison" </> "v1"
 
+formatAnn :: S.Format Ann
+formatAnn = S.Format (pure External) (\_ -> pure ())
+
+initCodebaseAndExit :: FilePath -> IO ()
+initCodebaseAndExit dir = do
+  let path = dir </> codebasePath
+  let theCodebase = codebase1 V1.formatSymbol formatAnn path
+  whenM (exists path) $
+    do PT.putPrettyLn'
+         .  P.warnCallout
+         .  P.wrap
+         $  "It looks like there's already a codebase in: "
+         <> P.string dir 
+       exitFailure
+  PT.putPrettyLn'
+    .  P.warnCallout
+    .  P.wrap
+    $  "Initializing a new codebase in: "
+    <> P.string dir
+  initialize path
+  Codebase.initializeCodebase theCodebase 
+  exitSuccess
+
 ensureCodebaseInitialized :: FilePath -> IO (Codebase IO Symbol Ann)
 ensureCodebaseInitialized dir = do
   let path = dir </> codebasePath
@@ -116,7 +140,6 @@ ensureCodebaseInitialized dir = do
     initialize path
     Codebase.initializeCodebase theCodebase
   pure theCodebase
-  where formatAnn = S.Format (pure External) (\_ -> pure ())
 
 getHomeCodebaseOrExit :: IO (Codebase IO Symbol Ann)
 getHomeCodebaseOrExit = do
@@ -126,7 +149,6 @@ getHomeCodebaseOrExit = do
             $  "No codebase exists at " <> P.string dir <> P.newline
             <> "Run `ucm init` to create one, then try again!"
   getCodebaseOrExit errMsg dir
-
 
 getNonHomeCodebaseOrExit :: FilePath -> IO (Codebase IO Symbol Ann)
 getNonHomeCodebaseOrExit dir = do
@@ -144,7 +166,6 @@ getCodebaseOrExit errMsg dir = do
     PT.putPrettyLn' errMsg
     exitFailure
   pure theCodebase
-  where formatAnn = S.Format (pure External) (\_ -> pure ())
 
 termsDir, typesDir, branchesDir, branchHeadDir, editsDir
   :: CodebasePath -> FilePath
