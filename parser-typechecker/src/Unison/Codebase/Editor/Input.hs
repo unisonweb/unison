@@ -93,7 +93,7 @@ data Input
   -- First `Maybe Int` is cap on number of results, if any
   -- Second `Maybe Int` is cap on diff elements shown, if any
   | HistoryI (Maybe Int) (Maybe Int) BranchId
-  -- execute an IO object with arguments
+  -- execute an IO thunk
   | ExecuteI String
   | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata

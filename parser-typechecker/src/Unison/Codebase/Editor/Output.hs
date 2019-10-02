@@ -9,6 +9,7 @@ module Unison.Codebase.Editor.Output
   , UndoFailureReason(..)
   , PushPull(..)
   , pushPull
+  , isFailure
   ) where
 
 import Unison.Prelude
@@ -26,6 +27,7 @@ import Unison.Referent  ( Referent )
 import Unison.DataDeclaration ( Decl )
 import Unison.Util.Relation (Relation)
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
@@ -38,10 +40,11 @@ import qualified Unison.Term as Term
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
 import Unison.Codebase.Editor.DisplayThing (DisplayThing)
-import Unison.Codebase.Editor.TodoOutput (TodoOutput(..))
+import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.Codebase.Editor.SearchResult' (SearchResult')
 import Unison.Type (Type)
 import qualified Unison.Names3 as Names
+import qualified Data.Set as Set
 import Unison.Codebase.NameSegment (NameSegment, HQSegment)
 import Unison.ShortHash (ShortHash)
 import Unison.Var (Var)
@@ -63,7 +66,9 @@ data Output v
   -- to vary based on the command the user submitted.
   = Success Input
   -- User did `add` or `update` before typechecking a file?
-  | NoUnisonFile
+  | NoUnisonFile Input
+  -- No main function, the [Type v Ann] are the allowed types
+  | NoMainFunction Input String PPE.PrettyPrintEnv [Type v Ann]
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Input Path'
   | PatchAlreadyExists Input Path.Split'
@@ -111,18 +116,18 @@ data Output v
               [(v, Term v ())]
               (Map v (Ann, UF.WatchKind, Term v (), Runtime.IsCacheHit))
   | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult v) (UF.TypecheckedUnisonFile v Ann)
-  | FileChangeEvent SourceName Text
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
                        PPE.PrettyPrintEnv
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
-  | TodoOutput PPE.PrettyPrintEnv (TodoOutput v Ann)
+  | TodoOutput PPE.PrettyPrintEnv (TO.TodoOutput v Ann)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
   | TestResults TestReportStats
       PPE.PrettyPrintEnv ShowSuccesses ShowFailures
-                [(Reference, Text)] [(Reference, Text)]
+                [(Reference, Text)] -- oks
+                [(Reference, Text)] -- fails
   | CantUndo UndoFailureReason
   | ListEdits Patch PPE.PrettyPrintEnv
 
@@ -193,3 +198,68 @@ type ShowFailures = Bool  -- whether to list results or just summarize
 data UndoFailureReason = CantUndoPastStart | CantUndoPastMerge deriving Show
 
 type SourceFileContents = Text
+
+isFailure :: Ord v => Output v -> Bool
+isFailure o = case o of
+  Success{} -> False
+  NoUnisonFile{} -> True
+  NoMainFunction{} -> True
+  CreatedNewBranch{} -> False
+  BranchAlreadyExists{} -> True
+  PatchAlreadyExists{} -> True
+  NoExactTypeMatches -> True
+  TypeAlreadyExists{} -> True
+  TypeParseError{} -> True
+  ParseResolutionFailures{} -> True
+  TypeHasFreeVars{} -> True
+  TermAlreadyExists{} -> True
+  TypeAmbiguous{} -> True
+  TermAmbiguous{} -> True
+  BadDestinationBranch{} -> True
+  BranchNotFound{} -> True
+  PatchNotFound{} -> True
+  TypeNotFound{} -> True
+  TermNotFound{} -> True
+  TermNotFound'{} -> True
+  SearchTermsNotFound ts -> not (null ts)
+  DeleteBranchConfirmation{} -> False
+  CantDelete{} -> True
+  DeleteEverythingConfirmation -> False
+  DeletedEverything -> False
+  ListNames tms tys -> null tms && null tys
+  ListOfDefinitions _ _ ds -> null ds
+  ListOfPatches s -> Set.null s
+  SlurpOutput _ _ sr -> not $ SR.isOk sr
+  ParseErrors{} -> True
+  TypeErrors{} -> True
+  DisplayConflicts{} -> False
+  EvaluationFailure{} -> True
+  Evaluated{} -> False
+  Typechecked{} -> False
+  DisplayDefinitions _ _ m1 m2 -> null m1 && null m2
+  TodoOutput _ todo -> TO.todoScore todo /= 0
+  TestIncrementalOutputStart{} -> False
+  TestIncrementalOutputEnd{} -> False
+  TestResults _ _ _ _ _ fails -> not (null fails)
+  CantUndo{} -> True
+  ListEdits{} -> False
+  GitError{} -> True
+  BustedBuiltins{} -> True
+  NoConfiguredGitUrl{} -> True
+  DisplayLinks{} -> False
+  LinkFailure{} -> True
+  PatchNeedsToBeConflictFree{} -> True
+  PatchInvolvesExternalDependents{} -> True
+  NothingToPatch{} -> False
+  WarnIncomingRootBranch{} -> False
+  History{} -> False
+  ShowDiff{} -> False
+  BranchDiff{} -> False
+  NotImplemented -> True
+  DumpBitBooster{} -> False
+  NoBranchWithHash{} -> True
+  NothingTodo{} -> False
+  ListShallow _ es -> null es
+
+
+

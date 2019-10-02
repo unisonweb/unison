@@ -252,9 +252,11 @@ executable unison
     containers,
     directory,
     filepath,
+    fsutils,
     safe,
     shellmet,
     template-haskell,
+    temporary,
     text,
     unison-parser-typechecker
 
@@ -309,4 +311,18 @@ executable tests
     raw-strings-qq,
     text,
     transformers,
+    unison-parser-typechecker
+
+executable transcripts
+  main-is:        Unison/Test/Transcripts.hs
+  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
+  hs-source-dirs: tests
+  other-modules:
+  build-depends:
+    base,
+    directory,
+    easytest,
+    filepath,
+    shellmet,
+    text,
     unison-parser-typechecker

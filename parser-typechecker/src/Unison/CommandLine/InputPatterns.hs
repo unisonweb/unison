@@ -833,6 +833,28 @@ debugBranchHistory = InputPattern "debug.history" []
   "Dump codebase history, compatible with bit-booster.com/graph.html"
   (const $ Right Input.DebugBranchHistoryI)
 
+test :: InputPattern
+test = InputPattern "test" [] []
+    "`test` runs unit tests for the current branch."
+    (const $ pure $ Input.TestI True True)
+
+execute :: InputPattern
+execute = InputPattern
+  "run"
+  []
+  []
+  (P.wrapColumn2
+    [ ( "`run mymain`"
+      , "Runs `!mymain`, where `mymain` is searched for in the most recent"
+        <> "typechecked file, or in the codebase."
+      )
+    ]
+  )
+  (\case
+    [w] -> pure . Input.ExecuteI $ w
+    _   -> Left $ showPatternHelp execute
+  )
+
 validInputs :: [InputPattern]
 validInputs =
   [ help
@@ -871,14 +893,8 @@ validInputs =
   , unlink
   , links
   , resolveEdit
-  , InputPattern "test" [] []
-    "`test` runs unit tests for the current branch."
-    (const $ pure $ Input.TestI True True)
-  , InputPattern "execute" [] []
-    "`execute foo` evaluates the Unison expression `foo` of type `()` with access to the `IO` ability."
-    (\ws -> if null ws
-               then Left $ warn "`execute` needs a Unison language expression."
-               else pure . Input.ExecuteI $ unwords ws)
+  , test
+  , execute
   , quit
   , updateBuiltins
   , mergeBuiltins

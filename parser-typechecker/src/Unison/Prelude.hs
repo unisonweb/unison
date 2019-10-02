@@ -1,9 +1,9 @@
 module Unison.Prelude
-  ( module X, readUtf8
+  ( module X, readUtf8, safeReadUtf8, safeReadUtf8StdIn, writeUtf8
   ) where
 
 import Control.Applicative as X
-import Control.Exception as X (Exception, SomeException)
+import Control.Exception as X (Exception, SomeException, IOException, try)
 import Control.Monad as X
 import Control.Monad.Extra as X (ifM, unlessM, whenM)
 import Control.Monad.IO.Class as X (MonadIO(liftIO))
@@ -34,3 +34,12 @@ import qualified Data.ByteString as BS
 -- Read an entire file strictly assuming UTF8
 readUtf8 :: FilePath -> IO Text
 readUtf8 p = decodeUtf8 <$> BS.readFile p
+
+safeReadUtf8 :: FilePath -> IO (Either IOException Text)
+safeReadUtf8 p = try (readUtf8 p)
+
+safeReadUtf8StdIn :: IO (Either IOException Text) 
+safeReadUtf8StdIn = try $ decodeUtf8 <$> BS.getContents
+
+writeUtf8 :: FilePath -> Text -> IO ()
+writeUtf8 p txt = BS.writeFile p (encodeUtf8 txt) 
