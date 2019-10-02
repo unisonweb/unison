@@ -63,29 +63,34 @@ usage = P.callout "🌻" $ P.lines [
 
 main :: IO ()
 main = do
-  args               <- getArgs
+  args <- getArgs
   -- hSetBuffering stdout NoBuffering -- cool
-  (codepath, args) <- case args of
-    "-codebase" : codepath : args -> pure (codepath, args)
-    _ -> (,) <$> getHomeDirectory <*> pure args
+
+  -- We need to know whether the program was invoked with -codebase for
+  -- certain messages. Therefore we keep a Maybe FilePath - mcodepath
+  -- rather than just deciding on whether to use the supplied path or
+  -- the home directory here and throwing away that bit of information
+  let (mcodepath, restargs) = case args of
+           "-codebase" : codepath : restargs -> (Just codepath, restargs)
+           _                                 -> (Nothing, args)
   currentDir <- getCurrentDirectory
-  case args of
+  case restargs of
     [] -> do
-      theCodebase <- FileCodebase.ensureCodebaseInitialized codepath
+      theCodebase <- FileCodebase.getCodebaseOrExit mcodepath
       launch currentDir theCodebase []
     [version] | isFlag "version" version ->
       putStrLn $ "ucm version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn usage
-    ["init"] -> FileCodebase.initCodebaseAndExit codepath
+    ["init"] -> FileCodebase.initCodebaseAndExit mcodepath
     "run" : [mainName] -> do
-      theCodebase <- FileCodebase.ensureCodebaseInitialized codepath
+      theCodebase <- FileCodebase.getCodebaseOrExit mcodepath
       launch currentDir theCodebase [Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "run.file" : file : [mainName] | isDotU file -> do
       e <- safeReadUtf8 file
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
         Right contents -> do
-          theCodebase <- FileCodebase.ensureCodebaseInitialized codepath
+          theCodebase <- FileCodebase.getCodebaseOrExit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
           launch currentDir theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "run.pipe" : [mainName] -> do
@@ -93,23 +98,26 @@ main = do
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
-          theCodebase <- FileCodebase.ensureCodebaseInitialized codepath
+          theCodebase <- FileCodebase.getCodebaseOrExit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch currentDir theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
-    "transcript" : args -> runTranscripts False codepath args
-    "transcript.fork" : args -> runTranscripts True codepath args
+    "transcript" : args -> runTranscripts False mcodepath args
+    "transcript.fork" : args -> runTranscripts True mcodepath args
     _ -> do
       PT.putPrettyLn usage
       Exit.exitWith (Exit.ExitFailure 1)
 
-runTranscripts :: Bool -> FilePath -> [String] -> IO ()
-runTranscripts inFork codepath args = do
+runTranscripts :: Bool -> Maybe FilePath -> [String] -> IO ()
+runTranscripts inFork mcodepath args = do
   currentDir <- getCurrentDirectory
   transcriptDir <- do
     tmp <- Temp.createTempDirectory currentDir "transcript"
     when (not inFork) $
       PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-    when inFork $ do
+    when inFork $ FileCodebase.getCodebaseOrExit mcodepath >> do
+      codepath <- case mcodepath of
+        Just codepath -> pure codepath
+        Nothing       -> getHomeDirectory
       let path = (codepath FP.</> ".unison")
       PT.putPrettyLn $ P.lines [
         P.wrap "Transcript will be run on a copy of the codebase at: ", "",
@@ -117,7 +125,7 @@ runTranscripts inFork codepath args = do
         ]
       Path.copyDir (codepath FP.</> ".unison") (tmp FP.</> ".unison")
     pure tmp
-  theCodebase <- FileCodebase.ensureCodebaseInitialized transcriptDir
+  theCodebase <- FileCodebase.getCodebaseOrExit $ Just transcriptDir
   case args of
     args@(_:_) -> do
       for_ args $ \arg -> case arg of

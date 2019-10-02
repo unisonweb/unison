@@ -14,9 +14,7 @@ module Unison.Codebase.FileCodebase
 , encodeFileName
 , codebasePath
 , initCodebaseAndExit
-, ensureCodebaseInitialized
-, getHomeCodebaseOrExit
-, getNonHomeCodebaseOrExit
+, getCodebaseOrExit
 ) where
 
 import Unison.Prelude
@@ -85,7 +83,6 @@ import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Star3             as Star3
-import qualified Unison.Util.ColorText         as CT
 import qualified Unison.Util.Pretty            as P
 import qualified Unison.PrettyTerminal         as PT
 import           Unison.Symbol                  ( Symbol )
@@ -107,8 +104,15 @@ codebasePath = ".unison" </> "v1"
 formatAnn :: S.Format Ann
 formatAnn = S.Format (pure External) (\_ -> pure ())
 
-initCodebaseAndExit :: FilePath -> IO ()
-initCodebaseAndExit dir = do
+initCodebaseAndExit :: Maybe FilePath -> IO ()
+initCodebaseAndExit mdir = do
+  dir <- case mdir of Just dir -> pure dir
+                      Nothing  -> getHomeDirectory
+  _ <- initCodebase dir
+  exitSuccess
+
+initCodebase :: FilePath -> IO (Codebase IO Symbol Ann)
+initCodebase dir = do
   let path = dir </> codebasePath
   let theCodebase = codebase1 V1.formatSymbol formatAnn path
   whenM (exists path) $
@@ -124,46 +128,31 @@ initCodebaseAndExit dir = do
     $  "Initializing a new codebase in: "
     <> P.string dir
   initialize path
-  Codebase.initializeCodebase theCodebase 
-  exitSuccess
-
-ensureCodebaseInitialized :: FilePath -> IO (Codebase IO Symbol Ann)
-ensureCodebaseInitialized dir = do
-  let path = dir </> codebasePath
-  let theCodebase = codebase1 V1.formatSymbol formatAnn path
-  unlessM (exists path) $ do
-    PT.putPrettyLn'
-      .  P.warnCallout
-      .  P.wrap
-      $  "No codebase exists here so I'm initializing one in: "
-      <> P.string dir
-    initialize path
-    Codebase.initializeCodebase theCodebase
+  Codebase.initializeCodebase theCodebase
   pure theCodebase
 
-getHomeCodebaseOrExit :: IO (Codebase IO Symbol Ann)
-getHomeCodebaseOrExit = do
-  dir <- getHomeDirectory
-  let errMsg = P.warnCallout
-            .  P.wrap
-            $  "No codebase exists at " <> P.string dir <> P.newline
-            <> "Run `ucm init` to create one, then try again!"
-  getCodebaseOrExit errMsg dir
+-- get the codebase in dir, or in the home directory if not provided.
+getCodebaseOrExit :: Maybe FilePath -> IO (Codebase IO Symbol Ann)
+getCodebaseOrExit mdir = do
+  (dir, errMsg) <- case mdir of
+    Just dir -> pure $
+      ( dir
+      , "No codebase exists at "
+          <> P.string dir
+          <> P.newline
+          <> "Run `ucm -codebase "
+          <> P.string dir
+          <> " init` to create one, then try again!" )
+    Nothing -> do
+      dir <- getHomeDirectory
+      let errMsg = P.lines [ "No codebase exists at " <> P.string dir
+                           , "Run `ucm init` to create one, then try again!" ]
+      pure (dir, errMsg)
 
-getNonHomeCodebaseOrExit :: FilePath -> IO (Codebase IO Symbol Ann)
-getNonHomeCodebaseOrExit dir = do
-  let errMsg = P.warnCallout
-            .  P.wrap
-            $  "No codebase exists at " <> P.string dir <> P.newline
-            <> "Run `ucm -codebase '" <> P.string dir <> "' init` to create one, then try again!"
-  getCodebaseOrExit errMsg dir
-
-getCodebaseOrExit :: P.Pretty CT.ColorText -> FilePath -> IO (Codebase IO Symbol Ann)
-getCodebaseOrExit errMsg dir = do
   let path = dir </> codebasePath
   let theCodebase = codebase1 V1.formatSymbol formatAnn path
   unlessM (exists path) $ do
-    PT.putPrettyLn' errMsg
+    PT.putPrettyLn'. P.warnCallout . P.wrap $ errMsg
     exitFailure
   pure theCodebase
 
