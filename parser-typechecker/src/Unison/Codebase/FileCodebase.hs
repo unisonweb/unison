@@ -14,6 +14,8 @@ module Unison.Codebase.FileCodebase
 , encodeFileName
 , codebasePath
 , ensureCodebaseInitialized
+, getHomeCodebaseOrExit
+, getNonHomeCodebaseOrExit
 ) where
 
 import Unison.Prelude
@@ -44,13 +46,14 @@ import           System.FilePath                ( FilePath
                                                 , takeFileName
                                                 , (</>)
                                                 )
-import           System.Directory               ( copyFile )
+import           System.Directory               ( copyFile, getHomeDirectory )
 import           System.Path                    ( replaceRoot
                                                 , createDir
                                                 , subDirs
                                                 , files
                                                 , dirPath
                                                 )
+import           System.Exit                    ( exitFailure )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase                ( Codebase(Codebase)
                                                 , BuiltinAnnotation
@@ -81,6 +84,7 @@ import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Star3             as Star3
+import qualified Unison.Util.ColorText         as CT
 import qualified Unison.Util.Pretty            as P
 import qualified Unison.PrettyTerminal         as PT
 import           Unison.Symbol                  ( Symbol )
@@ -111,6 +115,34 @@ ensureCodebaseInitialized dir = do
       <> P.string dir
     initialize path
     Codebase.initializeCodebase theCodebase
+  pure theCodebase
+  where formatAnn = S.Format (pure External) (\_ -> pure ())
+
+getHomeCodebaseOrExit :: IO (Codebase IO Symbol Ann)
+getHomeCodebaseOrExit = do
+  dir <- getHomeDirectory
+  let errMsg = P.warnCallout
+            .  P.wrap
+            $  "No codebase exists at " <> P.string dir <> P.newline
+            <> "Run `ucm init` to create one, then try again!"
+  getCodebaseOrExit errMsg dir
+
+
+getNonHomeCodebaseOrExit :: FilePath -> IO (Codebase IO Symbol Ann)
+getNonHomeCodebaseOrExit dir = do
+  let errMsg = P.warnCallout
+            .  P.wrap
+            $  "No codebase exists at " <> P.string dir <> P.newline
+            <> "Run `ucm -codebase '" <> P.string dir <> "' init` to create one, then try again!"
+  getCodebaseOrExit errMsg dir
+
+getCodebaseOrExit :: P.Pretty CT.ColorText -> FilePath -> IO (Codebase IO Symbol Ann)
+getCodebaseOrExit errMsg dir = do
+  let path = dir </> codebasePath
+  let theCodebase = codebase1 V1.formatSymbol formatAnn path
+  unlessM (exists path) $ do
+    PT.putPrettyLn' errMsg
+    exitFailure
   pure theCodebase
   where formatAnn = S.Format (pure External) (\_ -> pure ())
 
