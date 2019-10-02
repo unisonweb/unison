@@ -233,10 +233,10 @@ findShallow = InputPattern
     ]
   )
   (\case
-    [] -> pure $ Input.FindShallow Path.relativeEmpty'
+    [] -> pure $ Input.FindShallowl Path.relativeEmpty'
     [path] -> first fromString $ do
       p <- Path.parsePath' path
-      pure $ Input.FindShallow p
+      pure $ Input.FindShallowl p
     _ -> Left (I.help findShallow)
   )
 
