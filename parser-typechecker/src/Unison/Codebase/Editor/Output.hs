@@ -260,6 +260,7 @@ isFailure o = case o of
   NoBranchWithHash{} -> True
   NothingTodo{} -> False
   ListShallow _ es -> null es
+  HashAmbiguous{} -> True
 
 
 
