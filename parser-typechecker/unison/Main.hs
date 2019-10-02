@@ -112,18 +112,20 @@ runTranscripts inFork mcodepath args = do
   currentDir <- getCurrentDirectory
   transcriptDir <- do
     tmp <- Temp.createTempDirectory currentDir "transcript"
-    when (not inFork) $
+    when (not inFork) $ do
       PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
+      _ <- FileCodebase.initCodebase tmp
+      pure ()
     when inFork $ FileCodebase.getCodebaseOrExit mcodepath >> do
-      codepath <- case mcodepath of
+      origCodePath <- case mcodepath of
         Just codepath -> pure codepath
         Nothing       -> getHomeDirectory
-      let path = (codepath FP.</> ".unison")
+      let path = (origCodePath FP.</> FileCodebase.codebasePath)
       PT.putPrettyLn $ P.lines [
         P.wrap "Transcript will be run on a copy of the codebase at: ", "",
         P.indentN 2 (P.string path)
         ]
-      Path.copyDir (codepath FP.</> ".unison") (tmp FP.</> ".unison")
+      Path.copyDir path (tmp FP.</> FileCodebase.codebasePath)
     pure tmp
   theCodebase <- FileCodebase.getCodebaseOrExit $ Just transcriptDir
   case args of

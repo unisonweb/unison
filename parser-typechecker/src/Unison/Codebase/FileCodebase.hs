@@ -14,6 +14,7 @@ module Unison.Codebase.FileCodebase
 , encodeFileName
 , codebasePath
 , initCodebaseAndExit
+, initCodebase
 , getCodebaseOrExit
 ) where
 
@@ -137,7 +138,7 @@ getCodebaseOrExit mdir = do
   (dir, errMsg) <- case mdir of
     Just dir -> pure $
       ( dir
-      , "No codebase exists at "
+      , "No codebase exists in "
           <> P.string dir
           <> P.newline
           <> "Run `ucm -codebase "
@@ -145,7 +146,7 @@ getCodebaseOrExit mdir = do
           <> " init` to create one, then try again!" )
     Nothing -> do
       dir <- getHomeDirectory
-      let errMsg = P.lines [ "No codebase exists at " <> P.string dir
+      let errMsg = P.lines [ "No codebase exists in " <> P.string dir
                            , "Run `ucm init` to create one, then try again!" ]
       pure (dir, errMsg)
 
