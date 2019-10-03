@@ -16,9 +16,14 @@ import System.Console.Haskeline.Completion (Completion)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.RemoteRepo
-import Unison.CommandLine.InputPattern (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
+import Unison.CommandLine.InputPattern
+         ( ArgumentType(..)
+         , InputPattern(InputPattern)
+         , IsOptional(..)
+         )
 import Unison.CommandLine
 import Unison.Util.Monoid (intercalateMap)
+import Unison.ShortHash (ShortHash)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -427,7 +432,7 @@ history = InputPattern "history" []
     (\case
       [src] -> first fromString $ do
         p <- Input.parseBranchId src
-        pure $ Input.HistoryI (Just 10) (Just 10) p 
+        pure $ Input.HistoryI (Just 10) (Just 10) p
       [] -> pure $ Input.HistoryI (Just 10) (Just 10) (Right Path.currentPath)
       _ -> Left (I.help history)
     )
@@ -574,16 +579,44 @@ previewMergeLocal = InputPattern
     _ -> Left (I.help previewMergeLocal)
   )
 
--- replace,resolve :: InputPattern
---replace = InputPattern "replace" []
---          [ (Required, exactDefinitionQueryArg)
---          , (Required, exactDefinitionQueryArg) ]
---  (makeExample replace ["foo#abc", "foo#def"] <> "begins a refactor to replace" <> "uses of `foo#abc` with `foo#def`")
---  (const . Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
---
---resolve = InputPattern "resolve" [] [(Required, exactDefinitionQueryArg)]
---  (makeExample resolve ["foo#abc"] <> "sets `foo#abc` as the canonical `foo` in cases of conflict, and begins a refactor to replace references to all other `foo`s to `foo#abc`.")
---  (const . Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
+resolveEdit :: InputPattern
+resolveEdit = InputPattern
+  "resolve.term"
+  []
+  [ (Required, exactDefinitionQueryArg)
+  , (Required, exactDefinitionQueryArg)
+  , (Optional, patchArg)
+  ]
+  (P.wrapColumn2
+    [ ( makeExample resolveEdit ["<from>", "<to>", "<patch>"]
+      , "Resolves any edit conflict for the term <from> in the given patch "
+        <> "by globally replacing it with the term <to>."
+      )
+    , ( makeExample resolveEdit ["<from>", "<to>"]
+      , "Resolves edit conflicts in the default patch by replacing the term "
+        <> "<from> with <to>."
+      )
+    ]
+  )
+  (\case
+    source : target : patch -> first fromString $ do
+      src   <- Path.parseShortHashOrHQSplit' source
+      dest  <- Path.parseShortHashOrHQSplit' target
+      patch <- traverse (Path.parseSplit' Path.wordyNameSegment)
+        $ listToMaybe patch
+      sourceH <- maybe (Left (source <> " is not a valid hash."))
+                       Right
+                       (toHash src)
+      targetH <- maybe (Left (target <> " is not a valid hash."))
+                       Right
+                       (toHash dest)
+      pure $ Input.ResolveEditI sourceH targetH patch
+    _ -> Left (I.help resolveEdit)
+  )
+ where
+  toHash :: Either ShortHash Path.HQSplit' -> Maybe ShortHash
+  toHash (Left  h      ) = Just h
+  toHash (Right (_, hq)) = HQ'.toHash hq
 
 edit :: InputPattern
 edit = InputPattern
@@ -806,14 +839,21 @@ test = InputPattern "test" [] []
     (const $ pure $ Input.TestI True True)
 
 execute :: InputPattern
-execute = InputPattern "run" [] []
-  (P.wrapColumn2 [
-    ("`run mymain`", "Runs `!mymain`, where `mymain` is searched for in the most recent" <>
-                     "typechecked file, or in the codebase.")
-    ])
-  (\ws -> case ws of
+execute = InputPattern
+  "run"
+  []
+  []
+  (P.wrapColumn2
+    [ ( "`run mymain`"
+      , "Runs `!mymain`, where `mymain` is searched for in the most recent"
+        <> "typechecked file, or in the codebase."
+      )
+    ]
+  )
+  (\case
     [w] -> pure . Input.ExecuteI $ w
-    _ -> Left $ showPatternHelp execute)
+    _   -> Left $ showPatternHelp execute
+  )
 
 validInputs :: [InputPattern]
 validInputs =
@@ -852,6 +892,7 @@ validInputs =
   , link
   , unlink
   , links
+  , resolveEdit
   , test
   , execute
   , quit

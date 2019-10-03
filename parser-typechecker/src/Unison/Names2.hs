@@ -40,6 +40,7 @@ module Unison.Names2
   , typesNamed
   , unionLeft
   , unionLeftName
+  , namesForReference
   )
 where
 

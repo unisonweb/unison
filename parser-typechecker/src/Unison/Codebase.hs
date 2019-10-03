@@ -40,7 +40,6 @@ type EffectDeclaration v a = DD.EffectDeclaration' v a
 
 type Term v a = Term.AnnotatedTerm v a
 
-
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
            , getTypeOfTermImpl  :: Reference.Id -> m (Maybe (Type v a))
@@ -74,7 +73,7 @@ data Codebase m v a =
            , termsMentioningTypeImpl :: Reference -> m (Set Referent)
            -- number of base58 characters needed to distinguish any two references in the codebase
            , hashLength         :: m Int
-           -- , refsByPrefix :: Text -> m (Set Reference)
+           , referencesByPrefix :: Text -> m (Set Reference.Id)
            }
 
 -- | Write all of the builtins types and IO types into the codebase
@@ -121,10 +120,9 @@ getTypeOfConstructor _ r cid =
 typeLookupForDependencies
   :: (Monad m, Var v, BuiltinAnnotation a)
   => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
-typeLookupForDependencies codebase refs = foldM go mempty refs
+typeLookupForDependencies codebase = foldM go mempty
  where
---  go ::
-  go tl ref@(Reference.DerivedId id) = fmap (tl <>) $ do
+  go tl ref@(Reference.DerivedId id) = fmap (tl <>) $
     getTypeOfTerm codebase ref >>= \case
       Just typ -> pure $ TypeLookup (Map.singleton ref typ) mempty mempty
       Nothing  -> getTypeDeclaration codebase id >>= \case
@@ -192,9 +190,9 @@ makeSelfContained' code uf = do
     _ -> pure Nothing
   let
     unref :: Term v a -> Term v a
-    unref t = ABT.visitPure go t
+    unref = ABT.visitPure go
      where
-      go t@(Term.Ref' (r@(Reference.DerivedId _))) =
+      go t@(Term.Ref' r@(Reference.DerivedId _)) =
         Just (Term.var (ABT.annotation t) (refVar r))
       go _ = Nothing
     datas1 = Map.fromList
@@ -213,7 +211,7 @@ makeSelfContained' code uf = do
       (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList effects' ])
       (bindings ++ unrefb (UF.terms uf))
       (unrefb <$> UF.watches uf)
-  pure $ uf'
+  pure uf'
 
 getTypeOfTerm :: (Applicative m, Var v, BuiltinAnnotation a) =>
   Codebase m v a -> Reference -> m (Maybe (Type v a))

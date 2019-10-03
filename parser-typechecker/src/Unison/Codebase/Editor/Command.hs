@@ -33,6 +33,7 @@ import qualified Unison.Term                   as Term
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Lexer                  as L
 import qualified Unison.Parser                 as Parser
+import           Unison.ShortHash               ( ShortHash )
 import Unison.Type (Type)
 
 
@@ -61,6 +62,8 @@ data Command m i v a where
 
   -- the hash length needed to disambiguate any definition in the codebase
   CodebaseHashLength :: Command m i v Int
+
+  GetReferencesByShortHash :: ShortHash -> Command m i v (Set Reference.Id)
 
   ParseType :: Names -> LexedSource
             -> Command m i v (Either (Parser.Err v) (Type v Ann))
@@ -109,7 +112,7 @@ data Command m i v a where
   LoadLocalRootBranch :: Command m i v (Branch m)
 
   -- Like `LoadLocalRootBranch`.
-  LoadLocalBranch :: Branch.Hash -> Command m i v (Branch m) 
+  LoadLocalBranch :: Branch.Hash -> Command m i v (Branch m)
 
   LoadRemoteRootBranch ::
     RemoteRepo -> Command m i v (Either GitError (Branch m))

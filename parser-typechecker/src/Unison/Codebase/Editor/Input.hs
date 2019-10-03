@@ -16,8 +16,9 @@ import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.Reference (Reference)
 import qualified Unison.Hash as Hash
+import           Unison.ShortHash (ShortHash)
 import qualified Unison.Codebase.Causal as Causal
-import qualified Data.Text as Text 
+import qualified Data.Text as Text
 
 data Event
   = UnisonFileChanged SourceName Source
@@ -87,10 +88,11 @@ data Input
     | AddTypeReplacementI PatchPath Reference Reference
     | RemoveTermReplacementI PatchPath Reference Reference
     | RemoveTypeReplacementI PatchPath Reference Reference
+    | ResolveEditI ShortHash ShortHash (Maybe PatchPath)
   | UndoI
   -- First `Maybe Int` is cap on number of results, if any
   -- Second `Maybe Int` is cap on diff elements shown, if any
-  | HistoryI (Maybe Int) (Maybe Int) BranchId 
+  | HistoryI (Maybe Int) (Maybe Int) BranchId
   -- execute an IO thunk
   | ExecuteI String
   | TestI Bool Bool -- TestI showSuccesses showFailures

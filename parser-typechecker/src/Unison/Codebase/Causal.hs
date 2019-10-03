@@ -174,7 +174,7 @@ children (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
 
 threeWayMerge
   :: forall m h e d
-   . (Monad m, Hashable e, Semigroup d)
+   . (Show d, Monad m, Hashable e, Semigroup d)
   => (e -> e -> m e)
   -> (e -> e -> m d)
   -> (e -> d -> m e)

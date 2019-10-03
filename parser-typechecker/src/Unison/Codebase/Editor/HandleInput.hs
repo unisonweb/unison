@@ -98,7 +98,7 @@ import           Unison.Util.TransitiveClosure  (transitiveClosure)
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.TypeEdit as TypeEdit
-import Unison.Codebase.TermEdit (TermEdit)
+import Unison.Codebase.TermEdit (TermEdit(..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE
@@ -195,6 +195,8 @@ loop = do
         let (p, seg) = Path.toAbsoluteSplit currentPath' s
         b <- getAt p
         eval . Eval $ Branch.getMaybePatch seg (Branch.head b)
+      getHQ'TermsIncludingHistorical p =
+        getTermsIncludingHistorical (resolveSplit' p) root0
       getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
       getTypes :: Path.Split' -> Set Reference
@@ -206,7 +208,6 @@ loop = do
         let (p, seg) = Path.toAbsoluteSplit currentPath' patchPath'
         b <- getAt p
         eval . Eval $ Branch.getPatch seg (Branch.head b)
-
       withFile ambient sourceName lexed@(text, tokens) k = do
         let
           getHQ = \case
@@ -269,17 +270,18 @@ loop = do
         termNotFound = respond . TermNotFound input
         typeConflicted src = respond . TypeAmbiguous input src
         termConflicted src = respond . TermAmbiguous input src
+        hashConflicted src = respond . HashAmbiguous input src
         branchExists dest _x = respond $ BranchAlreadyExists input dest
         branchExistsSplit = branchExists . Path.unsplit'
         typeExists dest = respond . TypeAlreadyExists input dest
         termExists dest = respond . TermAlreadyExists input dest
       in case input of
       ForkLocalBranchI src0 dest0 -> do
-        let dest = Path.toAbsolutePath currentPath' $ dest0
+        let dest = Path.toAbsolutePath currentPath' dest0
         srcb <- case src0 of
           Left hash -> eval $ LoadLocalBranch hash
           Right path' -> getAt $ Path.toAbsolutePath currentPath' path'
-        if Branch.isEmpty srcb then 
+        if Branch.isEmpty srcb then
           let notfound = either (NoBranchWithHash input) (BranchNotFound input)
           in respond $ notfound src0
         else do
@@ -405,19 +407,19 @@ loop = do
           else doHistory 0 b []
         Right path' -> do
           path <- use $ currentPath . to (`Path.toAbsolutePath` path')
-          branch' <- getAt path 
+          branch' <- getAt path
           if Branch.isEmpty branch' then respond $ CreatedNewBranch path
           else doHistory 0 branch' []
         where
-          doHistory !n b acc = 
-            if maybe False (n >=) resultsCap then 
+          doHistory !n b acc =
+            if maybe False (n >=) resultsCap then
               respond $ History diffCap acc (PageEnd (Branch.headHash b) n)
             else case Branch._history b of
-              Causal.One{} -> 
+              Causal.One{} ->
                 respond $ History diffCap acc (EndOfLog $ Branch.headHash b)
-              Causal.Merge{..} -> 
-                respond $ History diffCap acc (MergeTail (Branch.headHash b) $ Map.keys tails) 
-              Causal.Cons{..} -> do 
+              Causal.Merge{..} ->
+                respond $ History diffCap acc (MergeTail (Branch.headHash b) $ Map.keys tails)
+              Causal.Cons{..} -> do
                 b' <- fmap Branch.Branch . eval . Eval $ snd tail
                 let elem = (Branch.headHash b, Branch.namesDiff b' b)
                 doHistory (n+1) b' (elem : acc)
@@ -655,17 +657,6 @@ loop = do
               makePrintNamesFromLabeled'
                 (foldMap SR'.labeledDependencies $ failed <> failedDependents)
             respond $ CantDelete input ppe failed failedDependents
---        goMany rs = do
---          let rootNames, toDelete :: Names0
---              rootNames = Branch.toNames0 root0
---              toDelete = Names.fromTerms ((name,) <$> toList rs)
---                where name = Path.toName . Path.unsplit $ resolvedPath
---          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
---          if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
---          else do
---            failed <- loadSearchResults $ Names.asSearchResults failed
---            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
---            respond $ CantDelete input rootNames failed failedDependents
 
       ShowDefinitionI outputLoc (fmap HQ.unsafeFromString -> hqs) -> do
         parseNames <- makeHistoricalParsingNames $ Set.fromList hqs
@@ -845,13 +836,56 @@ loop = do
           BranchUtil.makeDeleteTypeName (resolveSplit' (HQ'.toName <$> hq))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
-      ResolveTermNameI hq ->
-        zeroOneOrMore (getHQ'Terms hq) (termNotFound hq) go (termConflicted hq)
+      ResolveTermNameI hq -> do
+        refs <- getHQ'TermsIncludingHistorical hq
+        zeroOneOrMore refs (termNotFound hq) go (termConflicted hq)
         where
         conflicted = getHQ'Terms (fmap HQ'.toNameOnly hq)
         makeDelete =
           BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
+
+      ResolveEditI from to patchPath -> do
+        let patchPath' = fromMaybe defaultPatchPath patchPath
+        patch <- getPatchAt patchPath'
+        fromRefs <- eval $ GetReferencesByShortHash from
+        toRefs <- eval $ GetReferencesByShortHash to
+        let go :: Reference.Id
+               -> Reference.Id
+               -> Action m (Either Event Input) v ()
+            go fid tid = do
+              let fr = DerivedId fid
+                  tr = DerivedId tid
+              mft <- eval $ LoadTypeOfTerm fr
+              mtt <- eval $ LoadTypeOfTerm tr
+              ft  <- maybe (fail $ "Missing type for term " <> show fr) pure mft
+              tt  <- maybe (fail $ "Missing type for term " <> show tr) pure mtt
+              let typing | Typechecker.isEqual ft tt   = TermEdit.Same
+                         | Typechecker.isSubtype ft tt = TermEdit.Subtype
+                         | otherwise                   = TermEdit.Different
+                  -- The modified patch
+                  patch' =
+                    over Patch.termEdits
+                      (R.insert fr (Replace tr typing) . R.deleteDom fr)
+                      patch
+                  (patchPath'', patchName) = resolveSplit' patchPath'
+              -- Save the modified patch
+              _stepAtM (patchPath'', Branch.modifyPatches patchName (const patch'))
+              -- Apply the modified patch to the current path
+              -- since we might be able to propagate further.
+              void $ propagatePatch patch' currentPath'
+              -- Say something
+              success
+        zeroOneOrMore
+          fromRefs
+          (respond $ SearchTermsNotFound [HQ.HashOnly from])
+          (\r -> zeroOneOrMore toRefs
+                               (respond $ SearchTermsNotFound [HQ.HashOnly to])
+                               (go r)
+                               (hashConflicted to .
+                                 Set.map (Referent.Ref . DerivedId)))
+          (hashConflicted from .
+            Set.map (Referent.Ref . DerivedId))
 
       AddI hqs -> case uf of
         Nothing -> respond $ NoUnisonFile input
@@ -968,7 +1002,7 @@ loop = do
 
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
-        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        names <- makePrintNamesFromLabeled' $ Patch.labeledDependencies patch
         ppe <- prettyPrintEnv names
         branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
         let names0 = Branch.toNames0 (Branch.head branch)
@@ -1525,7 +1559,7 @@ toSlurpResult uf existingNames =
 
   -- the set of typerefs that are being updated by this file
   typesToUpdate :: Set Reference
-  typesToUpdate = Set.fromList $
+  typesToUpdate = Set.fromList
     [ r | (n,r') <- R.toList (Names.types fileNames0)
         , r <- toList (Names.typesNamed existingNames n)
         , r /= r' ]
@@ -1979,6 +2013,18 @@ makeShadowedPrintNamesFromLabeled deps shadowing = do
       shadowing
       (Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames))
 
+getTermsIncludingHistorical
+  :: Monad m => Path.HQSplit -> Branch0 m -> Action' m v (Set Referent)
+getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
+  [] -> case hq of
+    HQ'.HashQualified n hs -> do
+      names <- findHistoricalHQs
+        $ Set.fromList [HQ.HashQualified (Name (NameSegment.toText n)) hs]
+      pure . R.ran $ Names.terms names
+    _ -> pure Set.empty
+  _ -> pure refs
+  where refs = BranchUtil.getTerm (p, hq) b
+
 -- discards inputs that aren't hashqualified;
 -- I'd enforce it with finer-grained types if we had them.
 findHistoricalHQs :: Monad m => Set HQ.HashQualified -> Action' m v Names0
@@ -2015,11 +2061,14 @@ makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
       shadowing
       (Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames))
 
-makePrintNamesFromLabeled' :: Monad m => Set LabeledDependency -> Action' m v Names
+makePrintNamesFromLabeled'
+  :: Monad m => Set LabeledDependency -> Action' m v Names
 makePrintNamesFromLabeled' deps = do
-  root <- use root
-  currentPath <- use currentPath
-  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalRefs deps root
+  root                           <- use root
+  currentPath                    <- use currentPath
+  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalRefs
+    deps
+    root
   basicNames0 <- basicPrettyPrintNames0
   pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
 

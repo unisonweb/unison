@@ -177,6 +177,7 @@ library
     exceptions,
     extra,
     filepath,
+    filepattern,
     fingertree,
     free,
     fsnotify,
