@@ -741,7 +741,7 @@ loop = do
               , (seg, _) <- Map.toList (Branch._edits b) ]
         in respond $ ListOfPatches patches
 
-      FindShallowL pathArg -> do
+      FindShallowI pathArg -> do
         prettyPrintNames0 <- basicPrettyPrintNames0
         ppe <- prettyPrintEnv $ Names prettyPrintNames0 mempty
         hashLen <- eval CodebaseHashLength
