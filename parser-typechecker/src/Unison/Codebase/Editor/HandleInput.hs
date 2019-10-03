@@ -17,6 +17,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE EmptyCase #-}
 
 module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..), parseSearchType) where
 
@@ -66,6 +67,7 @@ import           Unison.Codebase.Path           ( Path
                                                 , Path'(..) )
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.NameSegment   as NameSegment
+import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.DataDeclaration        as DD
@@ -275,7 +277,78 @@ loop = do
         branchExistsSplit = branchExists . Path.unsplit'
         typeExists dest = respond . TypeAlreadyExists input dest
         termExists dest = respond . TermAlreadyExists input dest
+        inputDescription, inputDescription2 :: Text
+        inputDescription2 = inputDescription <> " (2/2)"
+        inputDescription = case input of
+          ForkLocalBranchI src dest -> "fork " <> hp' src <> " " <> p' dest
+          MergeLocalBranchI src dest -> "merge " <> p' src <> " " <> p' dest
+          AliasTermI src dest -> "alias.term " <> hqs' src <> " " <> ps' dest
+          AliasTypeI src dest -> "alias.type" <> hqs' src <> " " <> ps' dest
+          MoveTermI src dest -> "move.term " <> hqs' src <> " " <> ps' dest
+          MoveTypeI src dest -> "move.type " <> hqs' src <> " " <> ps' dest
+          MoveBranchI src dest -> "move.namespace " <> ops' src <> " " <> ps' dest
+          MovePatchI src dest -> "move.patch " <> ps' src <> " " <> ps' dest
+          CopyPatchI src dest -> "copy.patch " <> ps' src <> " " <> ps' dest
+          DeleteTermI def -> "delete.term " <> hqs' def
+          DeleteTypeI def -> "delete.type" <> hqs' def
+          DeleteBranchI opath -> "delete.namespace " <> ops' opath
+          DeletePatchI path -> "delete.patch " <> ps' path
+          ResolveEditI srcH targetH p ->
+            "resolve.term " <> SH.toText srcH <> " "
+                            <> SH.toText targetH <> " "
+                            <> opatch p
+          ResolveTermNameI path -> "resolve.termName " <> hqs' path
+          ResolveTypeNameI path -> "resolve.typeName " <> hqs' path
+          AddI _selection -> "add"
+          UpdateI p _selection -> "update " <> opatch p
+          PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
+          UndoI{} -> "undo"
+          ExecuteI s -> "execute " <> Text.pack s
+          LinkI from to -> "link " <> hqs' from <> " " <> hqs' to
+          UnlinkI from to -> "unlink " <> hqs' from <> " " <> hqs' to
+          UpdateBuiltinsI -> "builtins.update"
+          MergeBuiltinsI -> "builtins.merge"
+          PullRemoteBranchI orepo dest -> "pull " <> Text.pack (show orepo) <> " " <> p' dest 
+          PushRemoteBranchI{} -> wat
+          PreviewMergeLocalBranchI{} -> wat
+          SwitchBranchI{} -> wat
+          NamesI{} -> wat
+          TodoI{} -> wat
+          ListEditsI{} -> wat
+          HistoryI{} -> wat
+          TestI{} -> wat
+          LinksI{} -> wat
+          SearchByNameI{} -> wat
+          FindShallow{} -> wat
+          FindPatchI{} -> wat
+          ShowDefinitionI{} -> wat
+          ShowDefinitionByPrefixI{} -> wat
+          ShowReflogI{} -> wat
+          DebugBranchHistoryI{} -> wat
+          QuitI{} -> wat
+          DeprecateTermI{} -> undefined
+          DeprecateTypeI{} -> undefined
+          AddTermReplacementI{} -> undefined
+          AddTypeReplacementI{} -> undefined
+          RemoveTermReplacementI{} -> undefined
+          RemoveTypeReplacementI{} -> undefined
+          where
+          hp' = either (Text.pack . show) p'
+          p' = Text.pack . show . Path.toAbsolutePath currentPath'
+          ops' = maybe "." ps'
+          opatch = ps' . fromMaybe defaultPatchPath
+          wat = error $ show input ++ " is not expected to alter the branch"
+          hqs' (p, hq) = (if Path.isRoot' p then "." else p' p) <> Text.pack (show hq)
+          ps' = p' . Path.unsplit'
+        stepAt = Unison.Codebase.Editor.HandleInput.stepAt inputDescription
+        stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
+        stepManyAtM = Unison.Codebase.Editor.HandleInput.stepManyAtM inputDescription
+        updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
       in case input of
+      ShowReflogI -> do
+        entries <- fmap reverse $ eval LoadReflog
+        numberedArgs .= fmap (Text.unpack . Reflog.toText) entries
+        respond $ ShowReflog entries
       ForkLocalBranchI src0 dest0 -> do
         let dest = Path.toAbsolutePath currentPath' dest0
         srcb <- case src0 of
@@ -300,7 +373,7 @@ loop = do
           if b then do
             respond (ShowDiff input (Branch.namesDiff destb merged))
             patch <- getPatchAt defaultPatchPath
-            void $ propagatePatch patch dest
+            void $ propagatePatch inputDescription2 patch dest
           else respond (NothingTodo input)
 
       PreviewMergeLocalBranchI src0 dest0 -> do
@@ -431,8 +504,7 @@ loop = do
             respond . CantUndo $ if Branch.isOne root' then CantUndoPastStart
                                  else CantUndoPastMerge
           Just (_, prev) -> do
-            root .= prev
-            eval $ SyncLocalRootBranch prev
+            updateRoot root' prev "old-style undo" 
             respond $ ShowDiff input (Branch.namesDiff prev root')
 
       AliasTermI src dest -> case (toList (getHQ'Terms src), toList (getTerms dest)) of
@@ -870,10 +942,11 @@ loop = do
                       patch
                   (patchPath'', patchName) = resolveSplit' patchPath'
               -- Save the modified patch
-              _stepAtM (patchPath'', Branch.modifyPatches patchName (const patch'))
+              stepAtM (inputDescription <> " (1/2)")
+                      (patchPath'', Branch.modifyPatches patchName (const patch'))
               -- Apply the modified patch to the current path
               -- since we might be able to propagate further.
-              void $ propagatePatch patch' currentPath'
+              void $ propagatePatch inputDescription2 patch' currentPath'
               -- Say something
               success
         zeroOneOrMore
@@ -998,7 +1071,7 @@ loop = do
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
           -- propagatePatch prints TodoOutput
-          void $ propagatePatch (updatePatch ye'ol'Patch) currentPath'
+          void $ propagatePatch inputDescription2 (updatePatch ye'ol'Patch) currentPath'
 
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
@@ -1070,7 +1143,7 @@ loop = do
 
       PropagatePatchI patchPath scopePath -> do
         patch <- getPatchAt patchPath
-        updated <- propagatePatch patch (resolveToAbsolute scopePath)
+        updated <- propagatePatch inputDescription patch (resolveToAbsolute scopePath)
         unless updated (respond $ NothingToPatch patchPath scopePath)
 
       ExecuteI main -> addRunMain main uf >>= \case
@@ -1109,11 +1182,11 @@ loop = do
         let p = Path.toAbsolutePath currentPath' path
         case mayRepo of
           Just repo ->
-            loadRemoteBranchAt input repo p
+            loadRemoteBranchAt input inputDescription repo p
           Nothing -> do
             repoUrl <- eval . ConfigLookup $ "GitUrl" <> Text.pack (show p)
             case repoUrl of
-              Just url -> loadRemoteBranchAt input (GitRepo url "master") p
+              Just url -> loadRemoteBranchAt input inputDescription (GitRepo url "master") p
               Nothing ->
                 eval . Notify $ NoConfiguredGitUrl Pull path
 
@@ -1171,15 +1244,16 @@ loop = do
   -}
 
 -- Returns True if the operation changed the namespace, False otherwise.
-propagatePatch :: (Monad m, Var v) => Patch -> Path.Absolute -> Action' m v Bool
-propagatePatch patch scopePath = do
+propagatePatch :: (Monad m, Var v) =>
+  Text -> Patch -> Path.Absolute -> Action' m v Bool
+propagatePatch inputDescription patch scopePath = do
   changed <- do
     names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
     ppe <- prettyPrintEnv names
     -- arya: wait, what is this `ppe` here for again exactly?
     -- ppe is used for some output message that propagate can issue in error
     -- condition PatchInvolvesExternalDependencies
-    updateAtM scopePath (propagate ppe patch)
+    updateAtM inputDescription scopePath (propagate ppe patch)
   when changed $ do
     scope <- getAt scopePath
     let names0 = Branch.toNames0 (Branch.head scope)
@@ -1397,18 +1471,18 @@ respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
 loadRemoteBranchAt
-  :: Monad m => Var v => Input -> RemoteRepo -> Path.Absolute -> Action' m v ()
-loadRemoteBranchAt input repo p = do
+  :: Monad m => Var v => Input -> Text -> RemoteRepo -> Path.Absolute -> Action' m v ()
+loadRemoteBranchAt input inputDescription repo p = do
   b <- eval (LoadRemoteRootBranch repo)
   case b of
     Left  e -> eval . Notify $ GitError input e
     Right b -> do
-      changed <- updateAtM p (doMerge b)
+      changed <- updateAtM inputDescription p (doMerge b)
       when changed $ do
         merged <- getAt p
         patch <- eval . Eval $
           Branch.getPatch defaultPatchNameSegment (Branch.head merged)
-        void $ propagatePatch patch p
+        void $ propagatePatch (inputDescription <> " (2/2)") patch p
   where
   doMerge b b0 = do
     merged <- eval . Eval $ Branch.merge b b0
@@ -1427,43 +1501,51 @@ getAt (Path.Absolute p) =
 -- Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
 updateAtM :: Applicative m
-          => Path.Absolute
+          => Text
+          -> Path.Absolute
           -> (Branch m -> Action m i v (Branch m))
           -> Action m i v Bool
-updateAtM (Path.Absolute p) f = do
+updateAtM reason (Path.Absolute p) f = do
   b <- use root
   b' <- Branch.modifyAtM p f b
-  root .= b'
-  when (b /= b') $ eval $ SyncLocalRootBranch b'
+  updateRoot b b' reason
   pure $ b /= b'
 
 stepAt :: forall m i v. Applicative m
-       => (Path, Branch0 m -> Branch0 m)
+       => Text
+       -> (Path, Branch0 m -> Branch0 m)
        -> Action m i v ()
-stepAt = stepManyAt @m @[] . pure
+stepAt cause = stepManyAt @m @[] cause . pure
 
-_stepAtM :: forall m i v. Monad m
-        => (Path, Branch0 m -> m (Branch0 m))
+stepAtM :: forall m i v. Monad m
+        => Text
+        -> (Path, Branch0 m -> m (Branch0 m))
         -> Action m i v ()
-_stepAtM = stepManyAtM @m @[] . pure
+stepAtM cause = stepManyAtM @m @[] cause . pure
 
 stepManyAt :: (Applicative m, Foldable f)
-           => f (Path, Branch0 m -> Branch0 m)
+           => Text
+           -> f (Path, Branch0 m -> Branch0 m)
            -> Action m i v ()
-stepManyAt actions = do
+stepManyAt reason actions = do
     b <- use root
     let b' = Branch.stepManyAt actions b
-    root .= b'
-    when (b /= b') $ eval $ SyncLocalRootBranch b'
+    updateRoot b b' reason
 
 stepManyAtM :: (Monad m, Foldable f)
-           => f (Path, Branch0 m -> m (Branch0 m))
+           => Text
+           -> f (Path, Branch0 m -> m (Branch0 m))
            -> Action m i v ()
-stepManyAtM actions = do
+stepManyAtM reason actions = do
     b <- use root
     b' <- eval . Eval $ Branch.stepManyAtM actions b
-    root .= b'
-    when (b /= b') $ eval $ SyncLocalRootBranch b'
+    updateRoot b b' reason
+
+updateRoot :: Branch m -> Branch m -> Text -> Action m i v ()
+updateRoot old new reason = when (old /= new) $ do
+  root .= new
+  eval $ SyncLocalRootBranch new
+  eval $ AppendToReflog reason old new
 
 -- cata for 0, 1, or more elements of a Foldable
 -- tries to match as lazily as possible

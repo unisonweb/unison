@@ -618,6 +618,17 @@ resolveEdit = InputPattern
   toHash (Left  h      ) = Just h
   toHash (Right (_, hq)) = HQ'.toHash hq
 
+viewReflog :: InputPattern
+viewReflog = InputPattern
+  "reflog"
+  []
+  []
+  ("`reflog` lists the changes that have affected the root namespace")
+  (\case
+    [] -> pure Input.ShowReflogI
+    _  -> Left . warn . P.string
+              $ I.patternName viewReflog ++ " doesn't take any arguments.")
+
 edit :: InputPattern
 edit = InputPattern
   "edit"
@@ -895,6 +906,7 @@ validInputs =
   , resolveEdit
   , test
   , execute
+  , viewReflog
   , quit
   , updateBuiltins
   , mergeBuiltins

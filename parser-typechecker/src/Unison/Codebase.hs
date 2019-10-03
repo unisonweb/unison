@@ -11,6 +11,7 @@ import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.CodeLookup    as CL
+import qualified Unison.Codebase.Reflog        as Reflog
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Name                    ( Name(..) )
 import qualified Unison.Names2                 as Names
@@ -66,6 +67,9 @@ data Codebase m v a =
            , watches            :: UF.WatchKind -> m [Reference.Id]
            , getWatch           :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
            , putWatch           :: UF.WatchKind -> Reference.Id -> Term v a -> m ()
+           
+           , getReflog          :: m [Reflog.Entry]
+           , appendReflog       :: Text -> Branch m -> Branch m -> m ()
 
            -- list of terms of the given type
            , termsOfTypeImpl    :: Reference -> m (Set Referent)

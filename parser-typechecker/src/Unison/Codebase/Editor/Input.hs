@@ -109,6 +109,7 @@ data Input
   | FindPatchI
   | ShowDefinitionI OutputLocation [String]
   | ShowDefinitionByPrefixI OutputLocation [String]
+  | ShowReflogI
   | UpdateBuiltinsI
   | MergeBuiltinsI
   | DebugBranchHistoryI

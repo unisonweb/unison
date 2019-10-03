@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.FileCodebase
 ( getRootBranch -- used by Git module
@@ -21,6 +22,7 @@ module Unison.Codebase.FileCodebase
 import Unison.Prelude
 
 import           UnliftIO                       ( MonadUnliftIO )
+import           UnliftIO.Exception             ( catchIO )
 import           UnliftIO.Concurrent            ( forkIO
                                                 , killThread
                                                 )
@@ -30,6 +32,7 @@ import qualified Data.Hex                      as Hex
 import           Data.List                      ( isSuffixOf, isPrefixOf )
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
+import qualified Data.Text.IO                  as TextIO
 import           Data.Text.Encoding             ( encodeUtf8
                                                 , decodeUtf8
                                                 )
@@ -64,6 +67,7 @@ import           Unison.Codebase.Causal         ( Causal
 import qualified Unison.Codebase.Causal        as Causal
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.Reflog        as Reflog
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V1
                                                as V1
@@ -242,6 +246,9 @@ branchPath root h = branchesDir root </> hashToString h ++ ".ub"
 
 editsPath :: CodebasePath -> Hash.Hash -> FilePath
 editsPath root h = editsDir root </> hashToString h ++ ".up"
+
+reflogPath :: CodebasePath -> FilePath
+reflogPath root = root </> "reflog"
 
 touchIdFile :: Reference.Id -> FilePath -> IO ()
 touchIdFile id fp = do
@@ -550,80 +557,98 @@ codebase1
   => Var v
   => BuiltinAnnotation a
   => S.Format v -> S.Format a -> CodebasePath -> Codebase m v a
-codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path
-  = let c = Codebase getTerm
-                     getTypeOfTerm
-                     getDecl
-                     (putTerm putV putA path)
-                     (putDecl putV putA path)
-                     (getRootBranch path)
-                     (putRootBranch path)
-                     (branchHeadUpdates path)
-                     (branchFromFiles EmptyIfMissing path)
-                     dependents
-                     (copyFromGit path)
-                     -- This is fine as long as watat doesn't call
-                     -- syncToDirectory c
-                     (writeAllTermsAndTypes fmtV fmtA c)
-                     watches
-                     getWatch
-                     (putWatch putV putA path)
-                     getTermsOfType
-                     getTermsMentioningType
+codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
+  let c =
+        Codebase
+          getTerm
+          getTypeOfTerm
+          getDecl
+          (putTerm putV putA path)
+          (putDecl putV putA path)
+          (getRootBranch path)
+          (putRootBranch path)
+          (branchHeadUpdates path)
+          (branchFromFiles EmptyIfMissing path)
+          dependents
+          (copyFromGit path)
+          -- This is fine as long as watat doesn't call
+          -- syncToDirectory c
+          (writeAllTermsAndTypes fmtV fmtA c)
+          watches
+          getWatch
+          (putWatch putV putA path)
+          getReflog
+          appendReflog
+          getTermsOfType
+          getTermsMentioningType
    -- todo: maintain a trie of references to come up with this number
-                     (pure 10)
+          (pure 10)
    -- The same trie can be used to make this lookup fast:
-                     (referencesByPrefix path)
-    in  c
- where
-  getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)
-  getTypeOfTerm h = liftIO $ S.getFromFile (V1.getType getV getA) (typePath path h)
-  getDecl h = liftIO $ S.getFromFile
-    (V1.getEither (V1.getEffectDeclaration getV getA)
-                  (V1.getDataDeclaration getV getA)
-    )
-    (declPath path h)
-
-  dependents :: Reference -> m (Set Reference.Id)
-  dependents r = listDirAsIds (dependentsDir path r)
-
-  getTermsOfType :: Reference -> m (Set Referent)
-  getTermsOfType r = listDirAsReferents (typeIndexDir path r)
-
-  getTermsMentioningType :: Reference -> m (Set Referent)
-  getTermsMentioningType r = listDirAsReferents (typeMentionsIndexDir path r)
-
+          (referencesByPrefix path)
+   in c
+  where
+    getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)
+    getTypeOfTerm h = liftIO $ S.getFromFile (V1.getType getV getA) (typePath path h)
+    getDecl h =
+      liftIO $
+      S.getFromFile
+        (V1.getEither (V1.getEffectDeclaration getV getA) (V1.getDataDeclaration getV getA))
+        (declPath path h)
+    dependents :: Reference -> m (Set Reference.Id)
+    dependents r = listDirAsIds (dependentsDir path r)
+    getTermsOfType :: Reference -> m (Set Referent)
+    getTermsOfType r = listDirAsReferents (typeIndexDir path r)
+    getTermsMentioningType :: Reference -> m (Set Referent)
+    getTermsMentioningType r = listDirAsReferents (typeMentionsIndexDir path r)
   -- todo: revisit these
-  listDirAsIds :: FilePath -> m (Set Reference.Id)
-  listDirAsIds d = do
-    e <- doesDirectoryExist d
-    if e
-      then do
-        ls <- fmap decodeFileName <$> listDirectory d
-        pure . Set.fromList $ ls >>= (toList . componentIdFromString)
-      else pure Set.empty
-
-  listDirAsReferents :: FilePath -> m (Set Referent)
-  listDirAsReferents d = do
-    e <- doesDirectoryExist d
-    if e
-      then do
-        ls <- fmap decodeFileName <$> listDirectory d
-        pure . Set.fromList $ ls >>= (toList . referentFromString)
-      else pure Set.empty
-
-  watches :: UF.WatchKind -> m [Reference.Id]
-  watches k = liftIO $ do
-    let wp = watchesDir path (Text.pack k)
-    createDirectoryIfMissing True wp
-    ls <- listDirectory wp
-    pure $ ls >>= (toList . componentIdFromString . takeFileName)
-
-  getWatch :: UF.WatchKind -> Reference.Id -> m (Maybe (Codebase.Term v a))
-  getWatch k id = liftIO $ do
-    let wp = watchesDir path (Text.pack k)
-    createDirectoryIfMissing True wp
-    S.getFromFile (V1.getTerm getV getA) (wp </> componentIdToString id <> ".ub")
+    listDirAsIds :: FilePath -> m (Set Reference.Id)
+    listDirAsIds d = do
+      e <- doesDirectoryExist d
+      if e
+        then do
+          ls <- fmap decodeFileName <$> listDirectory d
+          pure . Set.fromList $ ls >>= (toList . componentIdFromString)
+        else pure Set.empty
+    listDirAsReferents :: FilePath -> m (Set Referent)
+    listDirAsReferents d = do
+      e <- doesDirectoryExist d
+      if e
+        then do
+          ls <- fmap decodeFileName <$> listDirectory d
+          pure . Set.fromList $ ls >>= (toList . referentFromString)
+        else pure Set.empty
+    watches :: UF.WatchKind -> m [Reference.Id]
+    watches k =
+      liftIO $ do
+        let wp = watchesDir path (Text.pack k)
+        createDirectoryIfMissing True wp
+        ls <- listDirectory wp
+        pure $ ls >>= (toList . componentIdFromString . takeFileName)
+    getWatch :: UF.WatchKind -> Reference.Id -> m (Maybe (Codebase.Term v a))
+    getWatch k id =
+      liftIO $ do
+        let wp = watchesDir path (Text.pack k)
+        createDirectoryIfMissing True wp
+        S.getFromFile (V1.getTerm getV getA) (wp </> componentIdToString id <> ".ub")
+    getReflog :: m [Reflog.Entry]
+    getReflog =
+      liftIO
+        (do contents <- TextIO.readFile (reflogPath path)
+            let lines = Text.lines contents
+            let entries = parseEntry <$> lines
+            pure entries) `catchIO`
+      const (pure [])
+      where
+        parseEntry t = fromMaybe (err t) (Reflog.fromText t)
+        err t = error $
+          "I couldn't understand this line in " ++ reflogPath path ++ "\n\n" ++
+          Text.unpack t
+    appendReflog :: Text -> Branch m -> Branch m -> m ()
+    appendReflog reason old new =
+      let
+        t = Reflog.toText $
+          Reflog.Entry (Branch.headHash old) (Branch.headHash new) reason
+      in liftIO $ TextIO.appendFile (reflogPath path) (t <> "\n")
 
 -- watches in `branchHeadDir root` for externally deposited heads;
 -- parse them, and return them

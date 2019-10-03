@@ -139,6 +139,8 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
 --      b0 <- Codebase.propagate codebase (Branch.head b)
 --      pure $ Branch.append b0 b
     Execute ppe uf -> void $ evalUnisonFile ppe uf
+    AppendToReflog reason old new -> Codebase.appendReflog codebase reason old new
+    LoadReflog -> Codebase.getReflog codebase    
 
   eval1 :: PPE.PrettyPrintEnv -> Term.AnnotatedTerm v Ann -> _
   eval1 ppe tm = do

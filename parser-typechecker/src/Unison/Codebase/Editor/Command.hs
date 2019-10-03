@@ -19,6 +19,7 @@ import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.GitError
+import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Names3                  ( Names, Names0 )
 import           Unison.Parser                  ( Ann )
 import           Unison.Referent                ( Referent )
@@ -121,6 +122,11 @@ data Command m i v a where
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
   SyncLocalRootBranch :: Branch m -> Command m i v ()
+
+  AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
+
+  -- load the reflog in file (chronological) order
+  LoadReflog :: Command m i v [Reflog.Entry]
 
   SyncRemoteRootBranch ::
     RemoteRepo -> Branch m -> Command m i v (Either GitError ())

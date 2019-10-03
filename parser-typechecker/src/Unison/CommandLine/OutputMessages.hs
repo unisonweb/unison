@@ -16,11 +16,11 @@ module Unison.CommandLine.OutputMessages where
 
 import Unison.Prelude hiding (unlessM)
 
-import Unison.Codebase.Editor.Output
-import qualified Unison.Codebase.Editor.Output       as E
+import           Unison.Codebase.Editor.Output
+import qualified Unison.Codebase.Editor.Output           as E
 import qualified Unison.Codebase.Editor.TodoOutput       as TO
-import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
-import qualified Unison.Codebase.Editor.SearchResult' as SR'
+import           Unison.Codebase.Editor.SlurpResult      (SlurpResult(..))
+import qualified Unison.Codebase.Editor.SearchResult'    as SR'
 
 
 import Control.Lens (over, _1)
@@ -44,6 +44,7 @@ import           Unison.Codebase.GitError
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Patch         (Patch(..))
+import qualified Unison.Codebase.Reflog        as Reflog
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.CommandLine             ( bigproblem
@@ -99,6 +100,7 @@ import           System.Directory               ( getHomeDirectory )
 import Unison.Codebase.Editor.DisplayThing (DisplayThing(MissingThing, BuiltinThing, RegularThing))
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Hash as Hash
+import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Util.List              as List
@@ -551,6 +553,19 @@ notifyUser dir o = case o of
   PatchNeedsToBeConflictFree -> pure "A patch needs to be conflict-free."
   PatchInvolvesExternalDependents _ _ ->
     pure "That patch involves external dependents."
+  ShowReflog [] ->  pure . P.warnCallout $ "The reflog appears to be empty!"
+  ShowReflog entries -> do
+    pure . P.numbered (\i -> P.hiBlack . fromString $ show i <> ".")
+         . fmap renderEntry
+         $ entries
+    where
+    renderEntry :: Reflog.Entry -> P.Pretty CT.ColorText
+    renderEntry (Reflog.Entry old new reason) = P.wrap $
+      phash new <> " : " <> P.text reason
+
+
+    -- data Entry = Entry { from :: Hash, to :: Hash, reason :: String }
+    
   History cap history tail -> pure $
     P.lines [
       note $ "The most recent namespace hash is immediately below this message.", "",
@@ -584,7 +599,6 @@ notifyUser dir o = case o of
       ]
     ex = "Use" <> IP.makeExample IP.history ["#som3n4m3space"]
                <> "to view history starting from a given namespace hash."
-    phash hash = ("#" <> P.shown hash)
   ShowDiff input diff -> pure $ case input of
     Input.UndoI -> P.callout "⏪" . P.lines $ [
       "Here's the changes I undid:", "",
@@ -696,6 +710,9 @@ prettyPath' p' =
   if Path.isCurrentPath p'
   then "the current namespace"
   else P.blue (P.shown p')
+
+phash :: Branch.Hash -> P.Pretty CT.ColorText
+phash hash = ("#" <> P.shown hash)
 
 formatMissingStuff :: (Show tm, Show typ) =>
   [(HQ.HashQualified, tm)] -> [(HQ.HashQualified, typ)] -> Pretty

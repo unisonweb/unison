@@ -46,6 +46,7 @@ import Unison.Type (Type)
 import qualified Unison.Names3 as Names
 import qualified Data.Set as Set
 import Unison.Codebase.NameSegment (NameSegment, HQSegment)
+import qualified Unison.Codebase.Reflog as Reflog
 import Unison.ShortHash (ShortHash)
 import Unison.Var (Var)
 
@@ -149,6 +150,7 @@ data Output v
   | WarnIncomingRootBranch (Set Branch.Hash)
   | ShowDiff Input Names.Diff
   | History (Maybe Int) [(Branch.Hash, Names.Diff)] HistoryTail
+  | ShowReflog [Reflog.Entry]
   | NothingTodo Input
   | NotImplemented
   | NoBranchWithHash Input Branch.Hash
@@ -261,6 +263,7 @@ isFailure o = case o of
   NothingTodo{} -> False
   ListShallow _ es -> null es
   HashAmbiguous{} -> True
+  ShowReflog{} -> False
 
 
 
