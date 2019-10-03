@@ -825,12 +825,13 @@ loop = do
           -- next update for that file (which will happen immediately)
           latestFile .= ((, True) <$> loc)
 
-      FindPatchI ->
-        let patches = Set.fromList
+      FindPatchI -> do
+        let patches =
               [ Path.toName $ Path.snoc p seg
               | (p, b) <- Branch.toList0 currentBranch0
               , (seg, _) <- Map.toList (Branch._edits b) ]
-        in respond $ ListOfPatches patches
+        respond $ ListOfPatches $ Set.fromList patches
+        numberedArgs .= fmap Name.toString patches
 
       FindShallowI pathArg -> do
         prettyPrintNames0 <- basicPrettyPrintNames0
