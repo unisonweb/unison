@@ -14,6 +14,7 @@ import qualified Unison.Test.FileParser as FileParser
 import qualified Unison.Test.Lexer as Lexer
 import qualified Unison.Test.Range as Range
 import qualified Unison.Test.Referent as Referent
+import qualified Unison.Test.Term as Term
 import qualified Unison.Test.TermParser as TermParser
 import qualified Unison.Test.TermPrinter as TermPrinter
 import qualified Unison.Test.Type as Type
@@ -26,6 +27,7 @@ import qualified Unison.Test.Codebase.FileCodebase as FileCodebase
 test :: Test ()
 test = tests
   [ Lexer.test
+  , Term.test
   , TermParser.test
   , TermPrinter.test
   , Type.test
