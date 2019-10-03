@@ -148,7 +148,7 @@ use as the new definition:
   The term foo#44954ulpdf was replaced with foo#8e68dvpr0a and
   foo#jdqoenu794
 ```
-We see that `#44954ulpdf` (the original hash of `a.foo`) got replaced with _both_ the `#8e68dvpr0a` and `#jdqoenu794`.
+We see that `#44954ulpdf` (the original hash of `a.foo`) got replaced with _both_ `#8e68dvpr0a` and `#jdqoenu794`.
 
 We can resolve this conflict by picking one of the terms as the "winner":
 
