@@ -121,7 +121,7 @@ initCodebase dir = do
          .  P.warnCallout
          .  P.wrap
          $  "It looks like there's already a codebase in: "
-         <> P.string dir 
+         <> P.string dir
        exitFailure
   PT.putPrettyLn'
     .  P.warnCallout
@@ -136,7 +136,7 @@ initCodebase dir = do
 getCodebaseOrExit :: Maybe FilePath -> IO (Codebase IO Symbol Ann)
 getCodebaseOrExit mdir = do
   (dir, errMsg) <- case mdir of
-    Just dir -> pure $
+    Just dir -> pure
       ( dir
       , "No codebase exists in "
           <> P.string dir
@@ -535,8 +535,8 @@ putWatch putV putA path k id e = liftIO $ S.putWithParentDirs
   (watchesDir path (Text.pack k) </> componentIdToString id <> ".ub")
   e
 
-referencesByPrefix :: MonadIO m => Text -> m (Set Reference.Id)
-referencesByPrefix p =
+referencesByPrefix :: MonadIO m => CodebasePath -> Text -> m (Set Reference.Id)
+referencesByPrefix codebasePath p =
   liftIO $ fmap (Set.fromList . join) . for [termsDir, typesDir] $ \f -> do
     let dir = f codebasePath
     paths <- filter (isPrefixOf $ Text.unpack p) <$> listDirectory dir
@@ -573,7 +573,7 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path
    -- todo: maintain a trie of references to come up with this number
                      (pure 10)
    -- The same trie can be used to make this lookup fast:
-                     referencesByPrefix
+                     (referencesByPrefix path)
     in  c
  where
   getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)
