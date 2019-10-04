@@ -523,9 +523,15 @@ notifyUser dir o = case o of
           , "You're missing:" `P.hang` P.lines (fmap (P.text . Reference.toText) new)
           , "I'm missing:" `P.hang` P.lines (fmap (P.text . Reference.toText) old)
           ]
-  ListOfPatches patches ->
-    -- todo: make this prettier
-    pure . P.lines . fmap prettyName $ toList patches
+  ListOfPatches patches -> pure $
+    if null patches then P.lit "nothing to show"
+    else numberedPatches patches
+    where
+    numberedPatches :: Set Name -> P.Pretty P.ColorText
+    numberedPatches patches =
+      (P.column2 . fmap format) ([(1::Integer)..] `zip` (toList patches))
+      where
+      format (i, p) = (P.hiBlack . fromString $ show i <> ".", prettyName p)
   NoConfiguredGitUrl pp p ->
     pure . P.fatalCallout . P.wrap $
       "I don't know where to " <>
