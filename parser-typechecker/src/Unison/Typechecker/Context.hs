@@ -367,19 +367,18 @@ markThenRetract0 markerHint body = () <$ markThenRetract markerHint body
 replace :: (Var v, Ord loc) => Element v loc -> Context v loc -> Context v loc -> Context v loc
 replace e focus ctx =
   case breakAt e ctx of
-    Just (l, _, r) -> l `mappend` focus `mappend` r
+    Just (l, _, r) -> l `mappend` focus `extendN` r
     Nothing -> ctx
 
 breakAt :: (Var v, Ord loc)
         => Element v loc
         -> Context v loc
-        -> Maybe (Context v loc, Element v loc, Context v loc)
+        -> Maybe (Context v loc, Element v loc, [Element v loc])
 breakAt m (Context xs) =
   case focusAt (\(e,_) -> e === m) xs of
     Just (r, m, l) ->
-      -- l is a suffix of xs and is already a valid context;
-      -- r needs to be rebuilt
-      Just (Context l, fst m, context . map fst $ r)
+      -- l is a suffix of xs and is already a valid context
+      Just (Context l, fst m, map fst r)
     Nothing -> Nothing
   where
     Existential _ v === Existential _ v2 | v == v2 = True
@@ -524,6 +523,10 @@ extend e c@(Context ctx) = Context ((e,i'):ctx) where
     -- MarkerCtx - note that since a Marker is always the first mention of a variable, suffices to
     -- just check that `v` is not previously mentioned
     Marker v -> Info es ses ues us uas (Set.insert v vs) pvs (ok && Set.notMember v vs)
+
+-- | Add the given elements onto the end of the given `Context`.
+extendN :: Var v => Context v loc -> [Element v loc] -> Context v loc
+extendN ctx es = foldl (flip extend) ctx es
 
 -- | doesn't combine notes
 orElse :: M v loc a -> M v loc a -> M v loc a
@@ -1467,7 +1470,7 @@ solve ctx v t
                 | otherwise = Nothing
 solve ctx v t = case breakAt (existential v) ctx of
   Just (ctxL, Existential blank v, ctxR) | wellformedType ctxL (Type.getPolytype t) ->
-    Just $ ctxL `mappend` context [Solved blank v t] `mappend` ctxR
+    Just $ ctxL `extendN` ((Solved blank v t) : ctxR)
   _ -> Nothing
 
 abilityCheck' :: forall v loc . (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
