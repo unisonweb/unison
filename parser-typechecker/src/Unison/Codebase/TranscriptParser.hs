@@ -58,7 +58,7 @@ data Stanza
   | Unfenced Text
 
 instance Show UcmCommand where
-  show (UcmCommand path txt) = show path <> ">" <> Text.unpack txt 
+  show (UcmCommand path txt) = show path <> ">" <> Text.unpack txt
 
 instance Show Stanza where
   show s = case s of
@@ -76,7 +76,7 @@ instance Show Stanza where
           "title: " <> Text.unpack fname,
           "---",
           Text.unpack txt,
-          "```", 
+          "```",
           "" ]
       ]
     UnprocessedFence typ txt -> unlines [
@@ -189,7 +189,7 @@ run dir stanzas codebase = do
       print o = do
         msg <- notifyUser dir o
         errOk <- readIORef allowErrors
-        let rendered = P.toPlain 65 msg -- (P.indentN 2 msg)
+        let rendered = P.toPlain 65 (P.border 2 msg)
         output rendered
         when (not errOk && Output.isFailure o) $ do
           output "\n```\n\n"
@@ -305,7 +305,7 @@ word' txt = P.try $ do
 word :: Text -> P Text
 word txt = word' txt
 
--- token :: P a -> P a 
+-- token :: P a -> P a
 -- token p = p <* spaces
 
 lineToken :: P a -> P a
@@ -323,7 +323,7 @@ expectingError = isJust <$> optional (word ":error")
 untilSpace1 :: P Text
 untilSpace1 = P.takeWhile1P Nothing (not . Char.isSpace)
 
-lineUntilSpace :: P Text 
+lineUntilSpace :: P Text
 lineUntilSpace = P.takeWhileP Nothing (\ch -> ch `elem` (" \t" :: String))
 
 spaces :: P ()

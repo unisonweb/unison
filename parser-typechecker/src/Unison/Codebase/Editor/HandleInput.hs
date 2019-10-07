@@ -253,7 +253,7 @@ loop = do
               Right (bindings, e) -> do
                 let e' = Map.map go e
                     go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-                when (not $ null bindings) $
+                when (not $ null e') $
                   eval . Notify $ Evaluated text ppe bindings e'
                 latestFile .= Just (Text.unpack sourceName, False)
                 latestTypecheckedFile .= Just unisonFile
