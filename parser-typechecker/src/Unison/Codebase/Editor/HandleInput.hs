@@ -518,7 +518,7 @@ loop = do
             respond . CantUndo $ if Branch.isOne root' then CantUndoPastStart
                                  else CantUndoPastMerge
           Just (_, prev) -> do
-            updateRoot root' prev "old-style undo" 
+            updateRoot root' prev "undo" 
             respond $ ShowDiff input (Branch.namesDiff prev root')
 
       AliasTermI src dest -> case (toList (getHQ'Terms src), toList (getTerms dest)) of

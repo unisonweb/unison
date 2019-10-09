@@ -560,10 +560,19 @@ notifyUser dir o = case o of
   PatchInvolvesExternalDependents _ _ ->
     pure "That patch involves external dependents."
   ShowReflog [] ->  pure . P.warnCallout $ "The reflog appears to be empty!"
-  ShowReflog entries -> do
-    pure . P.numbered (\i -> P.hiBlack . fromString $ show i <> ".")
+  ShowReflog entries -> pure $ 
+    P.lines [ 
+    P.wrap $ "Here is a log of the root namespace hashes, starting with the most recent."
+          <> "You can use something like" 
+          <> IP.makeExample IP.forkLocal ["2", ".old"]
+          <> "or"
+          <> IP.makeExample IP.forkLocal [prettySBH . Output.old $ head entries, ".old"]
+          <> "to make an old namespace accessible again.",
+         "", 
+    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".")
          . fmap renderEntry
          $ entries
+         ]
     where
     renderEntry :: Output.ReflogEntry -> P.Pretty CT.ColorText
     renderEntry (Output.ReflogEntry old new reason) = P.wrap $
