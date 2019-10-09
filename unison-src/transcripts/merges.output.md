@@ -99,13 +99,13 @@ Tip: You can always `undo` if this wasn't what you wanted.
 Note: The most recent namespace hash is immediately below this
       message.
 
-⊙ #cc91hvn07lr8031sf2jjtfkh9ahqvrl3d0i9s1pdkeerm31gcq7mggavgldi99613v8labva1dr4o9td8dg8bh0l2756df7du5jr83o
+⊙ #cc91hvn07l
 
   - Deletes:
   
     feature1.y
 
-⊙ #gvo5gua46buv0a3s3r2n1mrm2cq4nalfokk0mcf182f01a5tgp3s6l4ktdbn0l6eurnkcpusn2945nbr01hn0sm248rjmddfil6djng
+⊙ #gvo5gua46b
 
   + Adds / updates:
   
@@ -116,20 +116,20 @@ Note: The most recent namespace hash is immediately below this
     Original name New name(s)
     feature1.y    master.y
 
-⊙ #s6figr2tuqd0fnu2lshhu166bpumk3omoa6ufirrq4s8fjedrjq8oit5916upi0hiashkfu5rur6uhoog4in6tnhg0l8pl0q088fhh8
+⊙ #s6figr2tuq
 
   + Adds / updates:
   
     feature1.y
 
-⊙ #fp6bvfhq6tn61e6ahjvlc05a813seikigko3kk4pn1nrqdlo4tnnie9f501951qh52cvr4a85d4nefg644c9272n57gr64274emgiv0
+⊙ #fp6bvfhq6t
 
   > Moves:
   
     Original name New name
     x             master.x
 
-⊙ #cnvvpmiqi42qhkrt9q81n0c3ccp0cneblqu3o253a52u0ql32u0n7433atcso7ndhf0cbmnvjm5tgpvq35ugbaom8tov3vb0b3qacfo
+⊙ #cnvvpmiqi4
 
   + Adds / updates:
   
@@ -137,7 +137,7 @@ Note: The most recent namespace hash is immediately below this
 
 This is the start of history. Later versions are listed below.
 
-□ #itm5ganb1oh60ccs5am06ldf4hjfqubalb9ljhj5tbmfr6ao8m9rpacsohpejg324dal4vpmnine546arq3fgl8vc1862mgfthqtobo
+□ #itm5ganb1o
 
 ```
 To resurrect an old version of a namespace, you can learn its hash via the `history` command, then use `fork #namespacehash .newname`.
