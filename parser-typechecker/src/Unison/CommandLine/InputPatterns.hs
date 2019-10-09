@@ -268,7 +268,7 @@ findPatch = InputPattern
 renameTerm :: InputPattern
 renameTerm = InputPattern "move.term" ["rename.term"]
     [(Required, exactDefinitionTermQueryArg)
-    ,(Required, noCompletions)]
+    ,(Required, newNameArg)]
     "`move.term foo bar` renames `foo` to `bar`."
     (\case
       [oldName, newName] -> first fromString $ do
@@ -281,7 +281,7 @@ renameTerm = InputPattern "move.term" ["rename.term"]
 renameType :: InputPattern
 renameType = InputPattern "move.type" ["rename.type"]
     [(Required, exactDefinitionTypeQueryArg)
-    ,(Required, noCompletions)]
+    ,(Required, newNameArg)]
     "`move.type foo bar` renames `foo` to `bar`."
     (\case
       [oldName, newName] -> first fromString $ do
@@ -317,7 +317,7 @@ deleteType = InputPattern "delete.type" []
 
 aliasTerm :: InputPattern
 aliasTerm = InputPattern "alias.term" []
-    [(Required, exactDefinitionTermQueryArg), (Required, noCompletions)]
+    [(Required, exactDefinitionTermQueryArg), (Required, newNameArg)]
     "`alias.term foo bar` introduces `bar` with the same definition as `foo`."
     (\case
       [oldName, newName] -> first fromString $ do
@@ -330,7 +330,7 @@ aliasTerm = InputPattern "alias.term" []
 
 aliasType :: InputPattern
 aliasType = InputPattern "alias.type" []
-    [(Required, exactDefinitionTypeQueryArg), (Required, noCompletions)]
+    [(Required, exactDefinitionTypeQueryArg), (Required, newNameArg)]
     "`alias.type Foo Bar` introduces `Bar` with the same definition as `Foo`."
     (\case
       [oldName, newName] -> first fromString $ do
@@ -386,7 +386,7 @@ movePatch src dest = first fromString $ do
 copyPatch :: InputPattern
 copyPatch = InputPattern "copy.patch"
    []
-   [(Required, patchArg), (Required, patchArg)]
+   [(Required, patchArg), (Required, newNameArg)]
    "`copy.patch foo bar` copies the patch `bar` to `foo`."
     (\case
       [src, dest] -> movePatch src dest
@@ -396,7 +396,7 @@ copyPatch = InputPattern "copy.patch"
 renamePatch :: InputPattern
 renamePatch = InputPattern "move.patch"
    ["rename.patch"]
-   [(Required, patchArg), (Required, patchArg)]
+   [(Required, patchArg), (Required, newNameArg)]
    "`move.patch foo bar` renames the patch `bar` to `foo`."
     (\case
       [src, dest] -> movePatch src dest
@@ -406,7 +406,7 @@ renamePatch = InputPattern "move.patch"
 renameBranch :: InputPattern
 renameBranch = InputPattern "move.namespace"
    ["rename.namespace"]
-   [(Required, pathArg), (Required, pathArg)]
+   [(Required, pathArg), (Required, newNameArg)]
    "`move.namespace foo bar` renames the path `bar` to `foo`."
     (\case
       [".", dest] -> first fromString $ do
@@ -439,7 +439,7 @@ history = InputPattern "history" []
 
 forkLocal :: InputPattern
 forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
-                                   ,(Required, pathArg)]
+                                   ,(Required, newNameArg)]
     (makeExample forkLocal ["src", "dest"] <> "creates the namespace `dest` as a copy of `src`.")
     (\case
       [src, dest] -> first fromString $ do
@@ -990,6 +990,11 @@ pathCompletor filterQuery getNames query _code b p = let
 pathArg :: ArgumentType
 pathArg = ArgumentType "namespace" $
   pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths)
+
+newNameArg :: ArgumentType
+newNameArg = ArgumentType "new-name" $
+  pathCompletor prefixIncomplete
+    (Set.map ((<> ".") . Path.toText) . Branch.deepPaths)
 
 noCompletions :: ArgumentType
 noCompletions = ArgumentType "word" I.noSuggestions
