@@ -562,7 +562,7 @@ branchHashesByPrefix codebasePath p =
   where
     filenameToHash :: String -> Maybe Branch.Hash
     filenameToHash f = case Text.splitOn "." $ Text.pack f of
-      [h, ".ub"] -> Causal.RawHash <$> Hash.fromBase32Hex h
+      [h, "ub"] -> Causal.RawHash <$> Hash.fromBase32Hex h
       _ -> Nothing
 
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`

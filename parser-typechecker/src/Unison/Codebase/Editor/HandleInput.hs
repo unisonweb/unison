@@ -72,6 +72,7 @@ import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.DataDeclaration        as DD
+import qualified Unison.Hash                   as Hash
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
@@ -354,7 +355,8 @@ loop = do
       in case input of
       ShowReflogI -> do
         entries <- fmap reverse $ eval LoadReflog
-        numberedArgs .= fmap (Text.unpack . Reflog.toText) entries
+        numberedArgs .=
+          fmap (('#':) . Hash.base32Hexs . Causal.unRawHash . Reflog.to) entries
         respond . ShowReflog $ fmap (shortenReflogEntry sbhLength) entries
       ForkLocalBranchI src0 dest0 -> do        
         let tryUpdateDest srcb dest0 = do
