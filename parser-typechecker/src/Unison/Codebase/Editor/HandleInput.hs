@@ -70,6 +70,7 @@ import qualified Unison.Codebase.NameSegment   as NameSegment
 import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
+import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
@@ -109,6 +110,7 @@ import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
 import           Unison.Util.Monoid (foldMapM)
+import qualified Unison.Util.Monoid            as Monoid
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
@@ -121,6 +123,7 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.Type (Type)
 import qualified Unison.Builtin as Builtin
 import Unison.Codebase.NameSegment (NameSegment(..))
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
 --import Debug.Trace
 
@@ -179,7 +182,9 @@ loop = do
   currentBranch' <- getAt currentPath'
   e           <- eval Input
   hqLength    <- eval CodebaseHashLength
-  let
+  sbhLength   <- eval BranchHashLength
+  let 
+      sbh = SBH.fromHash sbhLength
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
       defaultPatchPath :: PatchPath
@@ -235,7 +240,8 @@ loop = do
           Just (Right uf) -> k uf
 
   case e of
-    Left (IncomingRootBranch hashes) -> respond $ WarnIncomingRootBranch hashes
+    Left (IncomingRootBranch hashes) ->
+      respond . WarnIncomingRootBranch $ Set.map (SBH.fromHash sbhLength) hashes
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
       if maybe False snd latestFile'
@@ -338,7 +344,8 @@ loop = do
           ops' = maybe "." ps'
           opatch = ps' . fromMaybe defaultPatchPath
           wat = error $ show input ++ " is not expected to alter the branch"
-          hqs' (p, hq) = (if Path.isRoot' p then "." else p' p) <> Text.pack (show hq)
+          hqs' (p, hq) =
+            Monoid.unlessM (Path.isRoot' p) (p' p) <> "." <> Text.pack (show hq)
           ps' = p' . Path.unsplit'
         stepAt = Unison.Codebase.Editor.HandleInput.stepAt inputDescription
         stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
@@ -348,20 +355,22 @@ loop = do
       ShowReflogI -> do
         entries <- fmap reverse $ eval LoadReflog
         numberedArgs .= fmap (Text.unpack . Reflog.toText) entries
-        respond $ ShowReflog entries
-      ForkLocalBranchI src0 dest0 -> do
-        let dest = Path.toAbsolutePath currentPath' dest0
-        srcb <- case src0 of
-          Left hash -> eval $ LoadLocalBranch hash
-          Right path' -> getAt $ Path.toAbsolutePath currentPath' path'
-        if Branch.isEmpty srcb then
-          let notfound = either (NoBranchWithHash input) (BranchNotFound input)
-          in respond $ notfound src0
-        else do
-          ok <- updateAtM dest $ \destb ->
-            pure (if Branch.isEmpty destb then srcb else destb)
-          if ok then success else respond $ BadDestinationBranch input dest0
-
+        respond . ShowReflog $ fmap (shortenReflogEntry sbhLength) entries
+      ForkLocalBranchI src0 dest0 -> do        
+        let tryUpdateDest srcb dest0 = do
+              let dest = Path.toAbsolutePath currentPath' dest0
+              -- if dest isn't empty: leave dest unchanged, and complain.
+              ok <- updateAtM dest $ \destb ->
+                pure (if Branch.isEmpty destb then srcb else destb)
+              if ok then success else respond $ BadDestinationBranch input dest0
+        case src0 of
+          Left hash -> resolveShortBranchHash input hash >>= \case
+            Left output -> respond output
+            Right srcb -> tryUpdateDest srcb dest0
+          Right path' -> do
+            srcb <- getAt $ Path.toAbsolutePath currentPath' path'
+            if Branch.isEmpty srcb then respond $ BranchNotFound input path'
+            else tryUpdateDest srcb dest0
       MergeLocalBranchI src0 dest0 -> do
         let [src, dest] = Path.toAbsolutePath currentPath' <$> [src0, dest0]
         srcb <- getAt src
@@ -474,27 +483,30 @@ loop = do
         when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
 
       HistoryI resultsCap diffCap from -> case from of
-        Left hash -> do
-          b <- eval $ LoadLocalBranch hash
-          if Branch.isEmpty b then respond $ NoBranchWithHash input hash
-          else doHistory 0 b []
+        Left hash -> resolveShortBranchHash input hash >>= \case
+          Left output -> respond output
+          Right b -> do
+            hashLen <- eval BranchHashLength
+            doHistory 0 b []
         Right path' -> do
           path <- use $ currentPath . to (`Path.toAbsolutePath` path')
           branch' <- getAt path
           if Branch.isEmpty branch' then respond $ CreatedNewBranch path
-          else doHistory 0 branch' []
+          else do
+            hashLen <- eval BranchHashLength
+            doHistory 0 branch' []
         where
           doHistory !n b acc =
             if maybe False (n >=) resultsCap then
-              respond $ History diffCap acc (PageEnd (Branch.headHash b) n)
+              respond $ History diffCap acc (PageEnd (sbh $ Branch.headHash b) n)
             else case Branch._history b of
               Causal.One{} ->
-                respond $ History diffCap acc (EndOfLog $ Branch.headHash b)
+                respond $ History diffCap acc (EndOfLog . sbh $ Branch.headHash b)
               Causal.Merge{..} ->
-                respond $ History diffCap acc (MergeTail (Branch.headHash b) $ Map.keys tails)
+                respond $ History diffCap acc (MergeTail (sbh $ Branch.headHash b) . map sbh $ Map.keys tails)
               Causal.Cons{..} -> do
                 b' <- fmap Branch.Branch . eval . Eval $ snd tail
-                let elem = (Branch.headHash b, Branch.namesDiff b' b)
+                let elem = (sbh $ Branch.headHash b, Branch.namesDiff b' b)
                 doHistory (n+1) b' (elem : acc)
 
       UndoI -> do
@@ -920,8 +932,8 @@ loop = do
       ResolveEditI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
-        fromRefs <- eval $ GetReferencesByShortHash from
-        toRefs <- eval $ GetReferencesByShortHash to
+        fromRefs <- eval $ ReferencesByShortHash from
+        toRefs <- eval $ ReferencesByShortHash to
         let go :: Reference.Id
                -> Reference.Id
                -> Action m (Either Event Input) v ()
@@ -1243,6 +1255,16 @@ loop = do
       <> "I tried to put it back, but couldn't. Everybody panic!"
   -}
 
+resolveShortBranchHash :: 
+  Input -> ShortBranchHash -> Action' m v (Either (Output v) (Branch m))
+resolveShortBranchHash input hash = do
+  hashSet <- eval $ BranchHashesByPrefix hash
+  len <- eval BranchHashLength
+  case Set.toList hashSet of
+    []  -> pure . Left $ NoBranchWithHash input hash
+    [h] -> fmap Right . eval $ LoadLocalBranch h 
+    _   -> pure . Left $ BranchHashAmbiguous input hash (Set.map (SBH.fromHash len) hashSet)
+
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch :: (Monad m, Var v) =>
   Text -> Patch -> Path.Absolute -> Action' m v Bool
@@ -1344,6 +1366,10 @@ searchResultToHQString = \case
 fuzzyNameDistance :: Name -> Name -> Maybe _ -- MatchArray
 fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
   Find.simpleFuzzyScore q n
+
+shortenReflogEntry :: Int -> Reflog.Entry -> Output.ReflogEntry
+shortenReflogEntry len (Reflog.Entry old new reason) =
+  Output.ReflogEntry (SBH.fromHash len old) (SBH.fromHash len new) reason
 
 -- return `name` and `name.<everything>...`
 _searchBranchPrefix :: Branch m -> Name -> [SearchResult]

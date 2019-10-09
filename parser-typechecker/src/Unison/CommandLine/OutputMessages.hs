@@ -18,6 +18,7 @@ import Unison.Prelude hiding (unlessM)
 
 import           Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output           as E
+import qualified Unison.Codebase.Editor.Output           as Output
 import qualified Unison.Codebase.Editor.TodoOutput       as TO
 import           Unison.Codebase.Editor.SlurpResult      (SlurpResult(..))
 import qualified Unison.Codebase.Editor.SearchResult'    as SR'
@@ -45,6 +46,7 @@ import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Patch         (Patch(..))
 import qualified Unison.Codebase.Reflog        as Reflog
+import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.CommandLine             ( bigproblem
@@ -105,6 +107,7 @@ import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Util.List              as List
 import Data.Tuple (swap)
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
 type Pretty = P.Pretty P.ColorText
 
@@ -542,6 +545,9 @@ notifyUser dir o = case o of
   HashAmbiguous _ h rs -> pure . P.fatalCallout . P.wrap $
     "The hash " <> prettyShortHash h <> " is ambiguous. It matches "
     <> P.oxfordCommas (P.shown <$> Set.toList rs) <> "."
+  BranchHashAmbiguous _ h rs -> pure . P.fatalCallout . P.wrap $
+    "The namespace hash " <> prettySBH h <> " is ambiguous. It matches "
+    <> P.oxfordCommas (prettySBH <$> Set.toList rs) <> "."
   BadDestinationBranch _ _ -> pure "That destination namespace is bad."
   TermNotFound' _ _ -> pure "That term was not found."
   BranchDiff _ _ -> pure "Those namespaces are different."
@@ -559,13 +565,9 @@ notifyUser dir o = case o of
          . fmap renderEntry
          $ entries
     where
-    renderEntry :: Reflog.Entry -> P.Pretty CT.ColorText
-    renderEntry (Reflog.Entry old new reason) = P.wrap $
-      phash new <> " : " <> P.text reason
-
-
-    -- data Entry = Entry { from :: Hash, to :: Hash, reason :: String }
-    
+    renderEntry :: Output.ReflogEntry -> P.Pretty CT.ColorText
+    renderEntry (Output.ReflogEntry old new reason) = P.wrap $
+      prettySBH new <> " : " <> P.text reason
   History cap history tail -> pure $
     P.lines [
       note $ "The most recent namespace hash is immediately below this message.", "",
@@ -576,24 +578,25 @@ notifyUser dir o = case o of
     tailMsg = case tail of
       E.EndOfLog h -> P.lines [
         P.wrap "This is the start of history. Later versions are listed below.", "",
-        "□ " <> phash h, ""
+        "□ " <> prettySBH h, ""
         ]
       E.MergeTail h hs -> P.lines [
         P.wrap $ "This segment of history starts with a merge." <> ex,
         "",
-        P.lines (phash <$> hs),
+        P.lines (prettySBH <$> hs),
         "⑂",
-        "⊙ " <> phash h <> (if null history then mempty else "\n")
+        "⊙ " <> prettySBH h
+             <> (if null history then mempty else "\n")
         ]
       E.PageEnd h n -> P.lines [
         P.wrap $ "There's more history before the versions shown here." <> ex, "",
         dots, "",
-        "⊙ " <> phash h,
+        "⊙ " <> prettySBH h,
         ""
         ]
     dots = "⠇"
     go hash diff = P.lines [
-      "⊙ " <> phash hash,
+      "⊙ " <> prettySBH hash,
       "",
       P.indentN 2 $ prettyDiff diff
       ]
@@ -711,8 +714,8 @@ prettyPath' p' =
   then "the current namespace"
   else P.blue (P.shown p')
 
-phash :: Branch.Hash -> P.Pretty CT.ColorText
-phash hash = ("#" <> P.shown hash)
+prettySBH :: ShortBranchHash -> P.Pretty CT.ColorText
+prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
 
 formatMissingStuff :: (Show tm, Show typ) =>
   [(HQ.HashQualified, tm)] -> [(HQ.HashQualified, typ)] -> Pretty

@@ -129,8 +129,10 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
     GetTermsOfType ty -> Codebase.termsOfType codebase ty
     GetTermsMentioningType ty -> Codebase.termsMentioningType codebase ty
     CodebaseHashLength -> Codebase.hashLength codebase
-    GetReferencesByShortHash sh ->
+    ReferencesByShortHash sh ->
       Codebase.referencesByPrefix codebase (SH.toText sh)
+    BranchHashLength -> Codebase.branchHashLength codebase
+    BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
 

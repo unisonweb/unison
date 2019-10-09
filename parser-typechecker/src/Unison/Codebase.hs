@@ -33,6 +33,7 @@ import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Codebase.BranchUtil as BranchUtil
 import Unison.DataDeclaration (Decl)
 import Unison.Type (Type)
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
 --import Debug.Trace
 
@@ -78,6 +79,9 @@ data Codebase m v a =
            -- number of base58 characters needed to distinguish any two references in the codebase
            , hashLength         :: m Int
            , referencesByPrefix :: Text -> m (Set Reference.Id)
+           
+           , branchHashLength   :: m Int
+           , branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.Hash)
            }
 
 -- | Write all of the builtins types and IO types into the codebase

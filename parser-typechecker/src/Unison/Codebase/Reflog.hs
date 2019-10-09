@@ -1,5 +1,4 @@
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Unison.Codebase.Reflog where
 

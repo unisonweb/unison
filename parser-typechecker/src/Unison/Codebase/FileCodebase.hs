@@ -91,6 +91,8 @@ import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
 import qualified Unison.PrettyTerminal         as PT
 import           Unison.Symbol                  ( Symbol )
+import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
+import qualified Unison.Codebase.ShortBranchHash as SBH
 
 type CodebasePath = FilePath
 
@@ -550,6 +552,19 @@ referencesByPrefix codebasePath p =
     let refs = paths >>= (toList . componentIdFromString)
     pure refs
 
+branchHashesByPrefix :: MonadIO m => CodebasePath -> ShortBranchHash -> m (Set Branch.Hash)
+branchHashesByPrefix codebasePath p =
+  liftIO $ fmap (Set.fromList . join) . for [branchesDir] $ \f -> do
+    let dir = f codebasePath
+    paths <- filter (isPrefixOf . Text.unpack . SBH.toText $ p) <$> listDirectory dir
+    let refs = paths >>= (toList . filenameToHash)
+    pure refs
+  where
+    filenameToHash :: String -> Maybe Branch.Hash
+    filenameToHash f = case Text.splitOn "." $ Text.pack f of
+      [h, ".ub"] -> Causal.RawHash <$> Hash.fromBase32Hex h
+      _ -> Nothing
+
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`
 codebase1
   :: forall m v a
@@ -585,6 +600,8 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
           (pure 10)
    -- The same trie can be used to make this lookup fast:
           (referencesByPrefix path)
+          (pure 10)
+          (branchHashesByPrefix path)
    in c
   where
     getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)

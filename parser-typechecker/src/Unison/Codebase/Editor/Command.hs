@@ -36,6 +36,7 @@ import qualified Unison.Lexer                  as L
 import qualified Unison.Parser                 as Parser
 import           Unison.ShortHash               ( ShortHash )
 import Unison.Type (Type)
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
 
 type AmbientAbilities v = [Type v Ann]
@@ -64,7 +65,12 @@ data Command m i v a where
   -- the hash length needed to disambiguate any definition in the codebase
   CodebaseHashLength :: Command m i v Int
 
-  GetReferencesByShortHash :: ShortHash -> Command m i v (Set Reference.Id)
+  ReferencesByShortHash :: ShortHash -> Command m i v (Set Reference.Id)
+  
+  -- the hash length needed to disambiguate any branch in the codebase
+  BranchHashLength :: Command m i v Int
+  
+  BranchHashesByPrefix :: ShortBranchHash -> Command m i v (Set Branch.Hash)
 
   ParseType :: Names -> LexedSource
             -> Command m i v (Either (Parser.Err v) (Type v Ann))
