@@ -322,6 +322,8 @@ test = scope "termprinter" . tests $
   , pending $ tc "case x of [a] -> a"     -- ditto
   , pending $ tc "case x of [] -> a"      -- ditto
   , tc "case x of Optional.Some (Optional.Some _) -> ()" -- Issue #695
+  -- need an actual effect constructor to test the following
+  , pending $ tc "case x of { SomeRequest (Optional.Some _) -> k } -> ()" 
   , tcBinding 50 "foo" (Just "Int") "3" "foo : Int\n\
                                          \foo = 3"
   , tcBinding 50 "foo" Nothing "3" "foo = 3"
