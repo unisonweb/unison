@@ -391,7 +391,8 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   l :: IsString s => String -> s
   l = fromString
   patterns vs (pat : pats) =
-    let (printed     , tail_vs      ) = prettyPattern n c (-1) vs pat
+    let (printed     , tail_vs      ) =
+          prettyPattern n c (if Pattern.application pat then 11 else -1) vs pat
         (rest_printed, eventual_tail) = patterns tail_vs pats
     in  (printed : rest_printed, eventual_tail)
   patterns vs [] = ([], vs)
