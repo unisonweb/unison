@@ -7,27 +7,34 @@ x = 42
 ```
 
 ```ucm
-I found and typechecked these definitions in scratch.u. If you
-do an `add` or `update`, here's how your codebase would change:
 
-  ⍟ These new definitions are ok to `add`:
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
   
-    x : builtin.Nat
- 
-Now evaluating any watch expressions (lines starting with
-`>`)... Ctrl+C cancels.
+    ⍟ These new definitions are ok to `add`:
+    
+      x : builtin.Nat
+   
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
 ```
 ```ucm
 .> add
-⍟ I've added these definitions:
 
-  x : builtin.Nat
+  ⍟ I've added these definitions:
+  
+    x : builtin.Nat
+
 ```
 Let's move `x` into a new namespace, `master`:
 
 ```ucm
 .> rename.term x master.x
-Done.
+
+  Done.
+
 ```
 If you want to do some experimental work in a namespace without disturbing anyone else, you can `fork` it (which is a shorthand for `copy.namespace`). This creates a copy of it, preserving its history.
 
@@ -49,34 +56,45 @@ y = "hello"
 ```
 
 ```ucm
-I found and typechecked these definitions in scratch.u. If you
-do an `add` or `update`, here's how your codebase would change:
 
-  ⍟ These new definitions are ok to `add`:
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
   
-    y : builtin.Text
- 
-Now evaluating any watch expressions (lines starting with
-`>`)... Ctrl+C cancels.
+    ⍟ These new definitions are ok to `add`:
+    
+      y : builtin.Text
+   
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
 ```
-```ucm☝️  The namespace .feature1 is empty.
+```ucm
+  ☝️  The namespace .feature1 is empty.
+
 .feature1> add
-⍟ I've added these definitions:
+
+  ⍟ I've added these definitions:
+  
+    y : .builtin.Text
+
+.master> merge .feature1
+
+  🆕
+  
+  Here's what's changed in the current namespace after the merge:
+  
+  + Adds / updates:
+  
+    y
+  
+  Tip: You can always `undo` if this wasn't what you wanted.
+
+.master> view y
 
   y : .builtin.Text
-.master> merge .feature1
-🆕
+  y = "hello"
 
-Here's what's changed in the current namespace after the merge:
-
-+ Adds / updates:
-
-  y
-
-Tip: You can always `undo` if this wasn't what you wanted.
-.master> view y
-y : .builtin.Text
-y = "hello"
 ```
 > Note: `merge src`, with one argument, merges `src` into the current namespace. You can also do `merge src dest` to merge into any destination namespace.
 
@@ -86,58 +104,62 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
 
 ```ucm
 .> delete.namespace .feature1
-🆕
 
-Here's what's changed after the delete:
-
-- Deletes:
-
-  .feature1.y
-
-Tip: You can always `undo` if this wasn't what you wanted.
-.> history
-Note: The most recent namespace hash is immediately below this
-      message.
-
-⊙ #cc91hvn07l
-
+  🆕
+  
+  Here's what's changed after the delete:
+  
   - Deletes:
   
-    feature1.y
-
-⊙ #gvo5gua46b
-
-  + Adds / updates:
+    .feature1.y
   
-    master.y
+  Tip: You can always `undo` if this wasn't what you wanted.
+
+.> history
+
+  Note: The most recent namespace hash is immediately below this
+        message.
   
-  = Copies:
+  ⊙ #cc91hvn07l
   
-    Original name New name(s)
-    feature1.y    master.y
-
-⊙ #s6figr2tuq
-
-  + Adds / updates:
+    - Deletes:
+    
+      feature1.y
   
-    feature1.y
-
-⊙ #fp6bvfhq6t
-
-  > Moves:
+  ⊙ #gvo5gua46b
   
-    Original name New name
-    x             master.x
-
-⊙ #cnvvpmiqi4
-
-  + Adds / updates:
+    + Adds / updates:
+    
+      master.y
+    
+    = Copies:
+    
+      Original name New name(s)
+      feature1.y    master.y
   
-    x
-
-This is the start of history. Later versions are listed below.
-
-□ #itm5ganb1o
+  ⊙ #s6figr2tuq
+  
+    + Adds / updates:
+    
+      feature1.y
+  
+  ⊙ #fp6bvfhq6t
+  
+    > Moves:
+    
+      Original name New name
+      x             master.x
+  
+  ⊙ #cnvvpmiqi4
+  
+    + Adds / updates:
+    
+      x
+  
+  This is the start of history. Later versions are listed below.
+  
+  □ #itm5ganb1o
+  
 
 ```
 To resurrect an old version of a namespace, you can learn its hash via the `history` command, then use `fork #namespacehash .newname`.
@@ -152,7 +174,9 @@ Let's see how this works. We are going to create a copy of `master`, add and del
 
 ```ucm
 .> fork master feature2
-Done.
+
+  Done.
+
 ```
 Here's one fork, we add `z` and delete `x`:
 
@@ -161,21 +185,26 @@ z = 99
 ```
 
 ```ucm
-I found and typechecked these definitions in scratch.u. If you
-do an `add` or `update`, here's how your codebase would change:
 
-  ⍟ These new definitions are ok to `add`:
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
   
-    z : builtin.Nat
- 
-Now evaluating any watch expressions (lines starting with
-`>`)... Ctrl+C cancels.
+    ⍟ These new definitions are ok to `add`:
+    
+      z : builtin.Nat
+   
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
 ```
 ```ucm
 .feature2> add
-⍟ I've added these definitions:
 
-  z : .builtin.Nat
+  ⍟ I've added these definitions:
+  
+    z : .builtin.Nat
+
 .feature2> delete.term x
 
 ```
@@ -187,78 +216,99 @@ master.frobnicate n = n + 1
 ```
 
 ```ucm
-I found and typechecked these definitions in scratch.u. If you
-do an `add` or `update`, here's how your codebase would change:
 
-  ⍟ These new definitions are ok to `add`:
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
   
-    master.frobnicate : .builtin.Nat -> .builtin.Nat
-    master.y          : .builtin.Text
- 
-Now evaluating any watch expressions (lines starting with
-`>`)... Ctrl+C cancels.
+    ⍟ These new definitions are ok to `add`:
+    
+      master.frobnicate : .builtin.Nat -> .builtin.Nat
+      master.y          : .builtin.Text
+   
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
 ```
 ```ucm
 .> update
-⍟ I've added these definitions:
+
+  ⍟ I've added these definitions:
+  
+    master.frobnicate : builtin.Nat -> builtin.Nat
+  
+  ⍟ I've updated to these definitions:
+  
+    master.y : builtin.Text
+
+  ✅
+  
+  No conflicts or edits in progress.
+
+.> view master.y
+
+  feature2.y : builtin.Text
+  feature2.y = "updated y"
+
+.> view master.frobnicate
 
   master.frobnicate : builtin.Nat -> builtin.Nat
+  master.frobnicate n =
+    use builtin.Nat +
+    n + 1
 
-⍟ I've updated to these definitions:
-
-  master.y : builtin.Text✅
-
-No conflicts or edits in progress.
-.> view master.y
-feature2.y : builtin.Text
-feature2.y = "updated y"
-.> view master.frobnicate
-master.frobnicate : builtin.Nat -> builtin.Nat
-master.frobnicate n =
-  use builtin.Nat +
-  n + 1
 ```
 At this point, `master` and `feature2` both have some changes the other doesn't know about. Let's merge them.
 
 ```ucm
 .> merge feature2 master
-🆕
 
-Here's what's changed in master after the merge:
+  🆕
+  
+  Here's what's changed in master after the merge:
+  
+  + Adds / updates:
+  
+    z
+  
+  - Deletes:
+  
+    x
+  
+  Tip: You can always `undo` if this wasn't what you wanted.
 
-+ Adds / updates:
-
-  z
-
-- Deletes:
-
-  x
-
-Tip: You can always `undo` if this wasn't what you wanted.
 ```
 Notice that `x` is deleted in the merged branch (it was deleted in `feature2` and untouched by `master`):
 
 ```ucm
 .> view master.x
-⚠️
 
-The following names were not found in the codebase. Check your spelling.
-  master.x
+  ⚠️
+  
+  The following names were not found in the codebase. Check your spelling.
+    master.x
+
 ```
 And notice that `y` has the most recent value, and that `z` and `frobnicate` both exist as well:
 
 ```ucm
 .> view master.y
-feature2.y : builtin.Text
-feature2.y = "updated y"
+
+  feature2.y : builtin.Text
+  feature2.y = "updated y"
+
 .> view master.z
-feature2.z : builtin.Nat
-feature2.z = 99
+
+  feature2.z : builtin.Nat
+  feature2.z = 99
+
 .> view master.frobnicate
-master.frobnicate : builtin.Nat -> builtin.Nat
-master.frobnicate n =
-  use builtin.Nat +
-  n + 1
+
+  master.frobnicate : builtin.Nat -> builtin.Nat
+  master.frobnicate n =
+    use builtin.Nat +
+    n + 1
+
 ```
 ## FAQ
 
