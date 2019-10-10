@@ -46,6 +46,7 @@ data Input
     | PreviewMergeLocalBranchI Path' Path'
     | PullRemoteBranchI (Maybe RemoteRepo) Path'
     | PushRemoteBranchI (Maybe RemoteRepo) Path'
+    | ResetRootI (Either ShortBranchHash Path')
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- change directory

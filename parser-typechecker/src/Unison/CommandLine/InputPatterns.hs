@@ -449,6 +449,22 @@ forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
       _ -> Left (I.help forkLocal)
     )
 
+resetRoot :: InputPattern
+resetRoot = InputPattern "reset-root" [] [(Required, pathArg)]
+  (P.wrapColumn2 [
+    (makeExample resetRoot [".foo"],
+      "Reset the root namespace (along with its history) to that of the `.foo` namespace."),
+    (makeExample resetRoot ["#9dndk3kbsk13nbpeu"],
+      "Reset the root namespace (along with its history) to that of the namespace with hash `#9dndk3kbsk13nbpeu`.")
+    ])
+  (\case
+    [src] -> first fromString $ do
+     src <- Input.parseBranchId src
+     pure $ Input.ResetRootI src
+    _ -> Left (I.help resetRoot))
+
+
+
 pull :: InputPattern
 pull = InputPattern
   "pull"
@@ -907,6 +923,7 @@ validInputs =
   , test
   , execute
   , viewReflog
+  , resetRoot
   , quit
   , updateBuiltins
   , mergeBuiltins

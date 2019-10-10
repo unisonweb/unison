@@ -542,12 +542,22 @@ notifyUser dir o = case o of
   BranchAlreadyExists _ _ -> pure "That namespace already exists."
   TypeAmbiguous _ _ _ -> pure "That type is ambiguous."
   TermAmbiguous _ _ _ -> pure "That term is ambiguous."
-  HashAmbiguous _ h rs -> pure . P.fatalCallout . P.wrap $
-    "The hash " <> prettyShortHash h <> " is ambiguous. It matches "
-    <> P.oxfordCommas (P.shown <$> Set.toList rs) <> "."
-  BranchHashAmbiguous _ h rs -> pure . P.fatalCallout . P.wrap $
-    "The namespace hash " <> prettySBH h <> " is ambiguous. It matches "
-    <> P.oxfordCommas (prettySBH <$> Set.toList rs) <> "."
+  HashAmbiguous _ h rs -> pure . P.callout "\129300" . P.lines $ [
+    P.wrap $ "The hash" <> prettyShortHash h <> "is ambiguous."
+           <> "Did you mean one of these hashes?",
+    "",
+    P.indentN 2 $ P.lines (P.shown <$> Set.toList rs),
+    "",
+    P.wrap "Try again with a few more hash characters to disambiguate."
+    ]
+  BranchHashAmbiguous _ h rs -> pure . P.callout "\129300" . P.lines $ [
+    P.wrap $ "The namespace hash" <> prettySBH h <> "is ambiguous."
+           <> "Did you mean one of these hashes?",
+    "",
+    P.indentN 2 $ P.lines (prettySBH <$> Set.toList rs),
+    "",
+    P.wrap "Try again with a few more hash characters to disambiguate."
+    ]
   BadDestinationBranch _ _ -> pure "That destination namespace is bad."
   TermNotFound' _ _ -> pure "That term was not found."
   BranchDiff _ _ -> pure "Those namespaces are different."
@@ -562,13 +572,23 @@ notifyUser dir o = case o of
   ShowReflog [] ->  pure . P.warnCallout $ "The reflog appears to be empty!"
   ShowReflog entries -> pure $ 
     P.lines [ 
-    P.wrap $ "Here is a log of the root namespace hashes, starting with the most recent."
-          <> "You can use something like" 
-          <> IP.makeExample IP.forkLocal ["2", ".old"]
-          <> "or"
-          <> IP.makeExample IP.forkLocal [prettySBH . Output.old $ head entries, ".old"]
-          <> "to make an old namespace accessible again.",
-         "", 
+    P.wrap $ "Here is a log of the root namespace hashes,"
+          <> "starting with the most recent,"
+          <> "along with the command that got us there."
+          <> "Try:",
+    "",
+    P.indentN 2 . P.wrapColumn2 $ [
+      (IP.makeExample IP.forkLocal ["2", ".old"],
+        ""),
+      (IP.makeExample IP.forkLocal [prettySBH . Output.old $ head entries
+                                   , ".old"],
+       "to make an old namespace accessible again,"),
+      (mempty,mempty),
+      (IP.makeExample IP.resetRoot [prettySBH . Output.old $ head entries],
+        "to reset the root namespace and its history to that of the specified"
+         <> "namespace.")
+    ],
+    "",
     P.numbered (\i -> P.hiBlack . fromString $ show i <> ".")
          . fmap renderEntry
          $ entries
@@ -576,7 +596,7 @@ notifyUser dir o = case o of
     where
     renderEntry :: Output.ReflogEntry -> P.Pretty CT.ColorText
     renderEntry (Output.ReflogEntry old new reason) = P.wrap $
-      prettySBH new <> " : " <> P.text reason
+      P.blue (prettySBH new) <> " : " <> P.text reason
   History cap history tail -> pure $
     P.lines [
       note $ "The most recent namespace hash is immediately below this message.", "",

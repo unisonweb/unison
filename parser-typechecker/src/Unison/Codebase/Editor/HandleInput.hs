@@ -289,6 +289,7 @@ loop = do
         inputDescription = case input of
           ForkLocalBranchI src dest -> "fork " <> hp' src <> " " <> p' dest
           MergeLocalBranchI src dest -> "merge " <> p' src <> " " <> p' dest
+          ResetRootI src -> "reset-root " <> hp' src
           AliasTermI src dest -> "alias.term " <> hqs' src <> " " <> ps' dest
           AliasTypeI src dest -> "alias.type" <> hqs' src <> " " <> ps' dest
           MoveTermI src dest -> "move.term " <> hqs' src <> " " <> ps' dest
@@ -358,6 +359,19 @@ loop = do
         numberedArgs .=
           fmap (('#':) . Hash.base32Hexs . Causal.unRawHash . Reflog.to) entries
         respond . ShowReflog $ fmap (shortenReflogEntry sbhLength) entries
+      ResetRootI src0 ->
+        case src0 of
+          Left hash -> resolveShortBranchHash input hash >>= \case
+            Left output -> respond output
+            Right newRoot -> do
+              updateRoot root' newRoot inputDescription
+              success
+          Right path' -> do
+            newRoot <- getAt $ Path.toAbsolutePath currentPath' path'
+            if Branch.isEmpty newRoot then respond $ BranchNotFound input path'
+            else do
+              updateRoot root' newRoot inputDescription
+              success
       ForkLocalBranchI src0 dest0 -> do        
         let tryUpdateDest srcb dest0 = do
               let dest = Path.toAbsolutePath currentPath' dest0
@@ -518,7 +532,7 @@ loop = do
             respond . CantUndo $ if Branch.isOne root' then CantUndoPastStart
                                  else CantUndoPastMerge
           Just (_, prev) -> do
-            updateRoot root' prev "undo" 
+            updateRoot root' prev inputDescription
             respond $ ShowDiff input (Branch.namesDiff prev root')
 
       AliasTermI src dest -> case (toList (getHQ'Terms src), toList (getTerms dest)) of
