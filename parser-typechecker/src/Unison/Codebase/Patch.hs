@@ -33,7 +33,7 @@ data PatchDiff = PatchDiff
   , _addedTypeEdits :: Relation Reference TypeEdit
   , _removedTermEdits :: Relation Reference TermEdit
   , _removedTypeEdits :: Relation Reference TypeEdit
-  }
+  } deriving (Eq, Ord, Show)
 
 makeLenses ''Patch
 makeLenses ''PatchDiff

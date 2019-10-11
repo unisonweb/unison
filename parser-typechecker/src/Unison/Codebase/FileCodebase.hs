@@ -13,7 +13,9 @@ module Unison.Codebase.FileCodebase
 , decodeFileName
 , encodeFileName
 , codebasePath
-, ensureCodebaseInitialized
+, initCodebaseAndExit
+, initCodebase
+, getCodebaseOrExit
 ) where
 
 import Unison.Prelude
@@ -25,7 +27,7 @@ import           UnliftIO.Concurrent            ( forkIO
 import           UnliftIO.STM                   ( atomically )
 import qualified Data.Char                     as Char
 import qualified Data.Hex                      as Hex
-import           Data.List                      ( isSuffixOf )
+import           Data.List                      ( isSuffixOf, isPrefixOf )
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import           Data.Text.Encoding             ( encodeUtf8
@@ -44,13 +46,14 @@ import           System.FilePath                ( FilePath
                                                 , takeFileName
                                                 , (</>)
                                                 )
-import           System.Directory               ( copyFile )
+import           System.Directory               ( copyFile, getHomeDirectory )
 import           System.Path                    ( replaceRoot
                                                 , createDir
                                                 , subDirs
                                                 , files
                                                 , dirPath
                                                 )
+import           System.Exit                    ( exitFailure, exitSuccess )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase                ( Codebase(Codebase)
                                                 , BuiltinAnnotation
@@ -99,20 +102,60 @@ data Err
 codebasePath :: FilePath
 codebasePath = ".unison" </> "v1"
 
-ensureCodebaseInitialized :: FilePath -> IO (Codebase IO Symbol Ann)
-ensureCodebaseInitialized dir = do
+formatAnn :: S.Format Ann
+formatAnn = S.Format (pure External) (\_ -> pure ())
+
+initCodebaseAndExit :: Maybe FilePath -> IO ()
+initCodebaseAndExit mdir = do
+  dir <- case mdir of Just dir -> pure dir
+                      Nothing  -> getHomeDirectory
+  _ <- initCodebase dir
+  exitSuccess
+
+initCodebase :: FilePath -> IO (Codebase IO Symbol Ann)
+initCodebase dir = do
+  let path = dir </> codebasePath
+  let theCodebase = codebase1 V1.formatSymbol formatAnn path
+  whenM (exists path) $
+    do PT.putPrettyLn'
+         .  P.warnCallout
+         .  P.wrap
+         $  "It looks like there's already a codebase in: "
+         <> P.string dir
+       exitFailure
+  PT.putPrettyLn'
+    .  P.warnCallout
+    .  P.wrap
+    $  "Initializing a new codebase in: "
+    <> P.string dir
+  initialize path
+  Codebase.initializeCodebase theCodebase
+  pure theCodebase
+
+-- get the codebase in dir, or in the home directory if not provided.
+getCodebaseOrExit :: Maybe FilePath -> IO (Codebase IO Symbol Ann)
+getCodebaseOrExit mdir = do
+  (dir, errMsg) <- case mdir of
+    Just dir -> pure
+      ( dir
+      , "No codebase exists in "
+          <> P.string dir
+          <> P.newline
+          <> "Run `ucm -codebase "
+          <> P.string dir
+          <> " init` to create one, then try again!" )
+    Nothing -> do
+      dir <- getHomeDirectory
+      let errMsg = P.lines [ "No codebase exists in " <> P.string dir
+                           , "Run `ucm init` to create one, then try again!" ]
+      pure (dir, errMsg)
+
   let path = dir </> codebasePath
   let theCodebase = codebase1 V1.formatSymbol formatAnn path
   unlessM (exists path) $ do
-    PT.putPrettyLn'
-      .  P.warnCallout
-      .  P.wrap
-      $  "No codebase exists here so I'm initializing one in: "
-      <> P.string dir
-    initialize path
-    Codebase.initializeCodebase theCodebase
+    PT.putPrettyLn'. P.warnCallout . P.wrap $ errMsg
+    exitFailure
   pure theCodebase
-  where formatAnn = S.Format (pure External) (\_ -> pure ())
 
 termsDir, typesDir, branchesDir, branchHeadDir, editsDir
   :: CodebasePath -> FilePath
@@ -252,7 +295,7 @@ branchFromFiles loadMode rootDir h@(RawHash h') = do
                 (deserializeEdits rootDir)
                 h
   else
-    pure $ Branch.empty
+    pure Branch.empty
  where
   deserializeRawBranch
     :: MonadIO m => CodebasePath -> Causal.Deserialize m Branch.Raw Branch.Raw
@@ -379,7 +422,7 @@ writeAllTermsAndTypes
 writeAllTermsAndTypes fmtV fmtA codebase localPath branch = do
   b <- doesDirectoryExist localPath
   if b then do
-    code <- pure $ codebase1 fmtV fmtA localPath
+    let code = codebase1 fmtV fmtA localPath
     remoteRoot <- Codebase.getRootBranch code
     Branch.sync (hashExists localPath) serialize (serializeEdits localPath) branch
     merged <- Branch.merge branch remoteRoot
@@ -492,6 +535,14 @@ putWatch putV putA path k id e = liftIO $ S.putWithParentDirs
   (watchesDir path (Text.pack k) </> componentIdToString id <> ".ub")
   e
 
+referencesByPrefix :: MonadIO m => CodebasePath -> Text -> m (Set Reference.Id)
+referencesByPrefix codebasePath p =
+  liftIO $ fmap (Set.fromList . join) . for [termsDir, typesDir] $ \f -> do
+    let dir = f codebasePath
+    paths <- filter (isPrefixOf $ Text.unpack p) <$> listDirectory dir
+    let refs = paths >>= (toList . componentIdFromString)
+    pure refs
+
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`
 codebase1
   :: forall m v a
@@ -521,6 +572,8 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path
                      getTermsMentioningType
    -- todo: maintain a trie of references to come up with this number
                      (pure 10)
+   -- The same trie can be used to make this lookup fast:
+                     (referencesByPrefix path)
     in  c
  where
   getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)

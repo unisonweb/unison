@@ -183,7 +183,7 @@ parsePattern =
         f patterns vs =
           let loc = foldl (<>) (ann tok) $ map ann patterns
           in (Pattern.Constructor loc ref cid patterns, vs)
-    unzipPatterns f <$> many leaf
+    unzipPatterns f <$> many (leaf <|> seqLiteral)
 
   seqLiteral = Parser.seq f leaf
     where f loc = unzipPatterns ((,) . Pattern.SequenceLiteral loc)

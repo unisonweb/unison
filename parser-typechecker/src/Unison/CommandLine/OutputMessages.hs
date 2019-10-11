@@ -211,7 +211,7 @@ notifyUser dir o = case o of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
     CantUndoPastMerge -> pure . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
   NoMainFunction _input main ppe ts -> pure . P.callout "😶" $ P.lines [
-    P.wrap $ "I looked for a function" <> P.backticked (P.string main) 
+    P.wrap $ "I looked for a function" <> P.backticked (P.string main)
           <> "in the most recently typechecked file and codebase but couldn't find one. It has to have the type:",
     "",
     P.indentN 2 $ P.lines [ P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts ]
@@ -537,6 +537,9 @@ notifyUser dir o = case o of
   BranchAlreadyExists _ _ -> pure "That namespace already exists."
   TypeAmbiguous _ _ _ -> pure "That type is ambiguous."
   TermAmbiguous _ _ _ -> pure "That term is ambiguous."
+  HashAmbiguous _ h rs -> pure . P.fatalCallout . P.wrap $
+    "The hash " <> prettyShortHash h <> " is ambiguous. It matches "
+    <> P.oxfordCommas (P.shown <$> Set.toList rs) <> "."
   BadDestinationBranch _ _ -> pure "That destination namespace is bad."
   TermNotFound' _ _ -> pure "That term was not found."
   BranchDiff _ _ -> pure "Those namespaces are different."

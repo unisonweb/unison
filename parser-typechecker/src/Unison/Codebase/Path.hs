@@ -20,7 +20,9 @@ import qualified Unison.Lexer                  as Lexer
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.ShortHash as SH
 
-import Unison.Codebase.NameSegment (NameSegment(NameSegment), HQSegment)
+import           Unison.Codebase.NameSegment    ( NameSegment(NameSegment)
+                                                , HQSegment
+                                                )
 import qualified Unison.Codebase.NameSegment as NameSegment
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]

@@ -31,26 +31,33 @@ x = 42
 
 
 ```ucm
-I found and typechecked these definitions in myfile.u. If you do
-an `add` or `update`, here's how your codebase would change:
 
-  ⍟ These new definitions are ok to `add`:
+  I found and typechecked these definitions in myfile.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
   
-    x : builtin.Nat
- 
-Now evaluating any watch expressions (lines starting with
-`>`)... Ctrl+C cancels.
+    ⍟ These new definitions are ok to `add`:
+    
+      x : builtin.Nat
+   
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
 ```
 Let's go ahead and add that to the codebase, then make sure it's there:
 
 ```ucm
 .> add
-⍟ I've added these definitions:
+
+  ⍟ I've added these definitions:
+  
+    x : builtin.Nat
+
+.> view x
 
   x : builtin.Nat
-.> view x
-x : builtin.Nat
-x = 42
+  x = 42
+
 ```
 If `view` returned no results, the transcript would fail at this point.
 
@@ -74,9 +81,11 @@ hmm = "Not, in fact, a number"
 ```
 
 ```ucm
-I found a value of type builtin.Text where I expected to find one of type builtin.Nat:
 
-    1 | hmm : .builtin.Nat
-    2 | hmm = "Not, in fact, a number"
+  I found a value of type builtin.Text where I expected to find one of type builtin.Nat:
+  
+      1 | hmm : .builtin.Nat
+      2 | hmm = "Not, in fact, a number"
+  
 
 ```

@@ -80,6 +80,7 @@ data Output v
   | TermAlreadyExists Input Path.Split' (Set Referent)
   | TypeAmbiguous Input Path.HQSplit' (Set Reference)
   | TermAmbiguous Input Path.HQSplit' (Set Referent)
+  | HashAmbiguous Input ShortHash (Set Referent)
   | BadDestinationBranch Input Path'
   | BranchNotFound Input Path'
   | PatchNotFound Input Path.Split'
@@ -179,12 +180,12 @@ instance Var v => Ord (ShallowListEntry v a) where
        ShallowBranchEntry _  _ -> Nothing
        ShallowPatchEntry _     -> Nothing
 
-data HistoryTail = 
-  EndOfLog Branch.Hash | 
-  MergeTail Branch.Hash [Branch.Hash] | 
-  PageEnd Branch.Hash Int -- PageEnd nextHash nextIndex 
+data HistoryTail =
+  EndOfLog Branch.Hash |
+  MergeTail Branch.Hash [Branch.Hash] |
+  PageEnd Branch.Hash Int -- PageEnd nextHash nextIndex
   deriving (Show)
-  
+
 data TestReportStats
   = CachedTests TotalCount CachedCount
   | NewlyComputed deriving Show
@@ -259,6 +260,7 @@ isFailure o = case o of
   NoBranchWithHash{} -> True
   NothingTodo{} -> False
   ListShallow _ es -> null es
+  HashAmbiguous{} -> True
 
 
 

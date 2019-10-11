@@ -846,7 +846,7 @@ synthesize e = scope (InSynthesize e) $
     -- handler only uses abilities in the current ambient set.
     ht <- synthesize h >>= applyM >>= ungeneralize
     ctx <- getContext
-    case ht of 
+    case ht of
       -- common case, like `h : Request {Remote} a -> b`, brings
       -- `Remote` into ambient when checking `body`
       Type.Arrow' (Type.Apps' (Type.Ref' ref) [et,i]) o | ref == Type.effectRef -> do
@@ -858,13 +858,13 @@ synthesize e = scope (InSynthesize e) $
         pure o'
       -- degenerate case, like `handle x -> 10 in ...`
       Type.Arrow' (i@(Type.Existential' _ v@(lookupSolved ctx -> Nothing))) o -> do
-        e <- extendExistential v 
-        withEffects [Type.existentialp (loc i) e] $ check body i 
+        e <- extendExistential v
+        withEffects [Type.existentialp (loc i) e] $ check body i
         o <- applyM o
         let (oes, o') = Type.stripEffect o
         abilityCheck oes
         pure o'
-      _ -> failWith $ HandlerOfUnexpectedType (loc h) ht 
+      _ -> failWith $ HandlerOfUnexpectedType (loc h) ht
   go _e = compilerCrash PatternMatchFailure
 
 checkCase :: forall v loc . (Var v, Ord loc)
@@ -1083,12 +1083,12 @@ annotateLetRecBindings isTop letrec =
     -- This will infer whatever type.  If it altogether fails to typecheck here
     -- then, ...(1)
     withoutAnnotations  <-
-      resetContextAfter Nothing $ (Just <$> annotateLetRecBindings' False)
+      resetContextAfter Nothing $ Just <$> annotateLetRecBindings' False
     -- convert from typechecker TypeVar back to regular `v` vars
     let unTypeVar (v, t) = (v, Type.generalizeAndUnTypeVar t)
     case withoutAnnotations of
       Just (_, vts') -> do
-        r <- all id <$> zipWithM isRedundant (fmap snd vts) (fmap snd vts')
+        r <- and <$> zipWithM isRedundant (fmap snd vts) (fmap snd vts')
         btw $ TopLevelComponent ((\(v,b) -> (Var.reset v, b,r)) . unTypeVar <$> vts)
       -- ...(1) we'll assume all the user-provided annotations were needed
       Nothing -> btw

@@ -85,7 +85,7 @@ data BranchDiff = BranchDiff
   , addedTypes :: Star Reference NameSegment
   , removedTypes :: Star Reference NameSegment
   , changedPatches :: Map NameSegment Patch.PatchDiff
-  }
+  } deriving (Eq, Ord, Show)
 
 instance Semigroup BranchDiff where
   left <> right = BranchDiff
@@ -93,7 +93,8 @@ instance Semigroup BranchDiff where
     , removedTerms   = removedTerms left <> removedTerms right
     , addedTypes     = addedTypes left <> addedTypes right
     , removedTypes   = removedTypes left <> removedTypes right
-    , changedPatches = changedPatches left <> changedPatches right
+    , changedPatches =
+        Map.unionWith (<>) (changedPatches left) (changedPatches right)
     }
 
 instance Monoid BranchDiff where
@@ -228,10 +229,14 @@ merge (Branch x) (Branch y) =
   apply b0 BranchDiff {..} = do
     patches <- sequenceA
       $ Map.differenceWith patchMerge (pure @m <$> _edits b0) changedPatches
+    let newPatches = makePatch <$> Map.difference changedPatches (_edits b0)
+        makePatch Patch.PatchDiff {..} =
+          let p = Patch.Patch _addedTermEdits _addedTypeEdits
+           in (H.accumulate' p, pure p)
     pure $ branch0 (Star3.difference (_terms b0) removedTerms <> addedTerms)
                    (Star3.difference (_types b0) removedTypes <> addedTypes)
                    (_children b0)
-                   patches
+                   (patches <> newPatches)
   patchMerge mhp Patch.PatchDiff {..} = Just $ do
     (_, mp) <- mhp
     p       <- mp
