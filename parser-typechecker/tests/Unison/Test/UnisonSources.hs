@@ -123,6 +123,7 @@ makePassingTest rt how filepath = scope (shortName filepath) $ do
   uf <- typecheckingTest how filepath
   resultTest rt uf filepath *> serializationTest uf
 
+shortName :: FilePath -> FilePath
 shortName = joinPath . drop 1 . splitPath
 
 typecheckingTest :: (EitherResult -> Test TFile) -> FilePath -> Test TFile
