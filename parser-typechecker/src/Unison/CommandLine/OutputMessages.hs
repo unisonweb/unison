@@ -16,11 +16,12 @@ module Unison.CommandLine.OutputMessages where
 
 import Unison.Prelude hiding (unlessM)
 
-import Unison.Codebase.Editor.Output
-import qualified Unison.Codebase.Editor.Output       as E
+import           Unison.Codebase.Editor.Output
+import qualified Unison.Codebase.Editor.Output           as E
+import qualified Unison.Codebase.Editor.Output           as Output
 import qualified Unison.Codebase.Editor.TodoOutput       as TO
-import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
-import qualified Unison.Codebase.Editor.SearchResult' as SR'
+import           Unison.Codebase.Editor.SlurpResult      (SlurpResult(..))
+import qualified Unison.Codebase.Editor.SearchResult'    as SR'
 
 
 import Control.Lens (over, _1)
@@ -44,6 +45,8 @@ import           Unison.Codebase.GitError
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Patch         (Patch(..))
+import qualified Unison.Codebase.Reflog        as Reflog
+import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.CommandLine             ( bigproblem
@@ -99,10 +102,12 @@ import           System.Directory               ( getHomeDirectory )
 import Unison.Codebase.Editor.DisplayThing (DisplayThing(MissingThing, BuiltinThing, RegularThing))
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Hash as Hash
+import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Util.List              as List
 import Data.Tuple (swap)
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
 type Pretty = P.Pretty P.ColorText
 
@@ -537,9 +542,22 @@ notifyUser dir o = case o of
   BranchAlreadyExists _ _ -> pure "That namespace already exists."
   TypeAmbiguous _ _ _ -> pure "That type is ambiguous."
   TermAmbiguous _ _ _ -> pure "That term is ambiguous."
-  HashAmbiguous _ h rs -> pure . P.fatalCallout . P.wrap $
-    "The hash " <> prettyShortHash h <> " is ambiguous. It matches "
-    <> P.oxfordCommas (P.shown <$> Set.toList rs) <> "."
+  HashAmbiguous _ h rs -> pure . P.callout "\129300" . P.lines $ [
+    P.wrap $ "The hash" <> prettyShortHash h <> "is ambiguous."
+           <> "Did you mean one of these hashes?",
+    "",
+    P.indentN 2 $ P.lines (P.shown <$> Set.toList rs),
+    "",
+    P.wrap "Try again with a few more hash characters to disambiguate."
+    ]
+  BranchHashAmbiguous _ h rs -> pure . P.callout "\129300" . P.lines $ [
+    P.wrap $ "The namespace hash" <> prettySBH h <> "is ambiguous."
+           <> "Did you mean one of these hashes?",
+    "",
+    P.indentN 2 $ P.lines (prettySBH <$> Set.toList rs),
+    "",
+    P.wrap "Try again with a few more hash characters to disambiguate."
+    ]
   BadDestinationBranch _ _ -> pure "That destination namespace is bad."
   TermNotFound' _ _ -> pure "That term was not found."
   BranchDiff _ _ -> pure "Those namespaces are different."
@@ -551,6 +569,34 @@ notifyUser dir o = case o of
   PatchNeedsToBeConflictFree -> pure "A patch needs to be conflict-free."
   PatchInvolvesExternalDependents _ _ ->
     pure "That patch involves external dependents."
+  ShowReflog [] ->  pure . P.warnCallout $ "The reflog appears to be empty!"
+  ShowReflog entries -> pure $ 
+    P.lines [ 
+    P.wrap $ "Here is a log of the root namespace hashes,"
+          <> "starting with the most recent,"
+          <> "along with the command that got us there."
+          <> "Try:",
+    "",
+    P.indentN 2 . P.wrapColumn2 $ [
+      (IP.makeExample IP.forkLocal ["2", ".old"],
+        ""),
+      (IP.makeExample IP.forkLocal [prettySBH . Output.old $ head entries
+                                   , ".old"],
+       "to make an old namespace accessible again,"),
+      (mempty,mempty),
+      (IP.makeExample IP.resetRoot [prettySBH . Output.old $ head entries],
+        "to reset the root namespace and its history to that of the specified"
+         <> "namespace.")
+    ],
+    "",
+    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".")
+         . fmap renderEntry
+         $ entries
+         ]
+    where
+    renderEntry :: Output.ReflogEntry -> P.Pretty CT.ColorText
+    renderEntry (Output.ReflogEntry old new reason) = P.wrap $
+      P.blue (prettySBH new) <> " : " <> P.text reason
   History cap history tail -> pure $
     P.lines [
       note $ "The most recent namespace hash is immediately below this message.", "",
@@ -561,30 +607,30 @@ notifyUser dir o = case o of
     tailMsg = case tail of
       E.EndOfLog h -> P.lines [
         P.wrap "This is the start of history. Later versions are listed below.", "",
-        "□ " <> phash h, ""
+        "□ " <> prettySBH h, ""
         ]
       E.MergeTail h hs -> P.lines [
         P.wrap $ "This segment of history starts with a merge." <> ex,
         "",
-        P.lines (phash <$> hs),
+        P.lines (prettySBH <$> hs),
         "⑂",
-        "⊙ " <> phash h <> (if null history then mempty else "\n")
+        "⊙ " <> prettySBH h
+             <> (if null history then mempty else "\n")
         ]
       E.PageEnd h n -> P.lines [
         P.wrap $ "There's more history before the versions shown here." <> ex, "",
         dots, "",
-        "⊙ " <> phash h,
+        "⊙ " <> prettySBH h,
         ""
         ]
     dots = "⠇"
     go hash diff = P.lines [
-      "⊙ " <> phash hash,
+      "⊙ " <> prettySBH hash,
       "",
       P.indentN 2 $ prettyDiff diff
       ]
     ex = "Use" <> IP.makeExample IP.history ["#som3n4m3space"]
                <> "to view history starting from a given namespace hash."
-    phash hash = ("#" <> P.shown hash)
   ShowDiff input diff -> pure $ case input of
     Input.UndoI -> P.callout "⏪" . P.lines $ [
       "Here's the changes I undid:", "",
@@ -696,6 +742,9 @@ prettyPath' p' =
   if Path.isCurrentPath p'
   then "the current namespace"
   else P.blue (P.shown p')
+
+prettySBH :: ShortBranchHash -> P.Pretty CT.ColorText
+prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
 
 formatMissingStuff :: (Show tm, Show typ) =>
   [(HQ.HashQualified, tm)] -> [(HQ.HashQualified, typ)] -> Pretty

@@ -129,8 +129,10 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
     GetTermsOfType ty -> Codebase.termsOfType codebase ty
     GetTermsMentioningType ty -> Codebase.termsMentioningType codebase ty
     CodebaseHashLength -> Codebase.hashLength codebase
-    GetReferencesByShortHash sh ->
+    ReferencesByShortHash sh ->
       Codebase.referencesByPrefix codebase (SH.toText sh)
+    BranchHashLength -> Codebase.branchHashLength codebase
+    BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
 
@@ -139,6 +141,8 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
 --      b0 <- Codebase.propagate codebase (Branch.head b)
 --      pure $ Branch.append b0 b
     Execute ppe uf -> void $ evalUnisonFile ppe uf
+    AppendToReflog reason old new -> Codebase.appendReflog codebase reason old new
+    LoadReflog -> Codebase.getReflog codebase    
 
   eval1 :: PPE.PrettyPrintEnv -> Term.AnnotatedTerm v Ann -> _
   eval1 ppe tm = do

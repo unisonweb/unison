@@ -17,6 +17,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE EmptyCase #-}
 
 module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..), parseSearchType) where
 
@@ -66,9 +67,12 @@ import           Unison.Codebase.Path           ( Path
                                                 , Path'(..) )
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.NameSegment   as NameSegment
+import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
+import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.DataDeclaration        as DD
+import qualified Unison.Hash                   as Hash
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
@@ -107,6 +111,7 @@ import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
 import           Unison.Util.Monoid (foldMapM)
+import qualified Unison.Util.Monoid            as Monoid
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
@@ -119,6 +124,7 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.Type (Type)
 import qualified Unison.Builtin as Builtin
 import Unison.Codebase.NameSegment (NameSegment(..))
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
 --import Debug.Trace
 
@@ -177,7 +183,9 @@ loop = do
   currentBranch' <- getAt currentPath'
   e           <- eval Input
   hqLength    <- eval CodebaseHashLength
-  let
+  sbhLength   <- eval BranchHashLength
+  let 
+      sbh = SBH.fromHash sbhLength
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
       defaultPatchPath :: PatchPath
@@ -233,7 +241,8 @@ loop = do
           Just (Right uf) -> k uf
 
   case e of
-    Left (IncomingRootBranch hashes) -> respond $ WarnIncomingRootBranch hashes
+    Left (IncomingRootBranch hashes) ->
+      respond . WarnIncomingRootBranch $ Set.map (SBH.fromHash sbhLength) hashes
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
       if maybe False snd latestFile'
@@ -275,20 +284,109 @@ loop = do
         branchExistsSplit = branchExists . Path.unsplit'
         typeExists dest = respond . TypeAlreadyExists input dest
         termExists dest = respond . TermAlreadyExists input dest
+        inputDescription, inputDescription2 :: Text
+        inputDescription2 = inputDescription <> " (2/2)"
+        inputDescription = case input of
+          ForkLocalBranchI src dest -> "fork " <> hp' src <> " " <> p' dest
+          MergeLocalBranchI src dest -> "merge " <> p' src <> " " <> p' dest
+          ResetRootI src -> "reset-root " <> hp' src
+          AliasTermI src dest -> "alias.term " <> hqs' src <> " " <> ps' dest
+          AliasTypeI src dest -> "alias.type" <> hqs' src <> " " <> ps' dest
+          MoveTermI src dest -> "move.term " <> hqs' src <> " " <> ps' dest
+          MoveTypeI src dest -> "move.type " <> hqs' src <> " " <> ps' dest
+          MoveBranchI src dest -> "move.namespace " <> ops' src <> " " <> ps' dest
+          MovePatchI src dest -> "move.patch " <> ps' src <> " " <> ps' dest
+          CopyPatchI src dest -> "copy.patch " <> ps' src <> " " <> ps' dest
+          DeleteTermI def -> "delete.term " <> hqs' def
+          DeleteTypeI def -> "delete.type" <> hqs' def
+          DeleteBranchI opath -> "delete.namespace " <> ops' opath
+          DeletePatchI path -> "delete.patch " <> ps' path
+          ResolveEditI srcH targetH p ->
+            "resolve.term " <> SH.toText srcH <> " "
+                            <> SH.toText targetH <> " "
+                            <> opatch p
+          ResolveTermNameI path -> "resolve.termName " <> hqs' path
+          ResolveTypeNameI path -> "resolve.typeName " <> hqs' path
+          AddI _selection -> "add"
+          UpdateI p _selection -> "update " <> opatch p
+          PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
+          UndoI{} -> "undo"
+          ExecuteI s -> "execute " <> Text.pack s
+          LinkI from to -> "link " <> hqs' from <> " " <> hqs' to
+          UnlinkI from to -> "unlink " <> hqs' from <> " " <> hqs' to
+          UpdateBuiltinsI -> "builtins.update"
+          MergeBuiltinsI -> "builtins.merge"
+          PullRemoteBranchI orepo dest -> "pull " <> Text.pack (show orepo) <> " " <> p' dest 
+          PushRemoteBranchI{} -> wat
+          PreviewMergeLocalBranchI{} -> wat
+          SwitchBranchI{} -> wat
+          NamesI{} -> wat
+          TodoI{} -> wat
+          ListEditsI{} -> wat
+          HistoryI{} -> wat
+          TestI{} -> wat
+          LinksI{} -> wat
+          SearchByNameI{} -> wat
+          FindShallow{} -> wat
+          FindPatchI{} -> wat
+          ShowDefinitionI{} -> wat
+          ShowDefinitionByPrefixI{} -> wat
+          ShowReflogI{} -> wat
+          DebugBranchHistoryI{} -> wat
+          QuitI{} -> wat
+          DeprecateTermI{} -> undefined
+          DeprecateTypeI{} -> undefined
+          AddTermReplacementI{} -> undefined
+          AddTypeReplacementI{} -> undefined
+          RemoveTermReplacementI{} -> undefined
+          RemoveTypeReplacementI{} -> undefined
+          where
+          hp' = either (Text.pack . show) p'
+          p' = Text.pack . show . Path.toAbsolutePath currentPath'
+          ops' = maybe "." ps'
+          opatch = ps' . fromMaybe defaultPatchPath
+          wat = error $ show input ++ " is not expected to alter the branch"
+          hqs' (p, hq) =
+            Monoid.unlessM (Path.isRoot' p) (p' p) <> "." <> Text.pack (show hq)
+          ps' = p' . Path.unsplit'
+        stepAt = Unison.Codebase.Editor.HandleInput.stepAt inputDescription
+        stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
+        stepManyAtM = Unison.Codebase.Editor.HandleInput.stepManyAtM inputDescription
+        updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
       in case input of
-      ForkLocalBranchI src0 dest0 -> do
-        let dest = Path.toAbsolutePath currentPath' dest0
-        srcb <- case src0 of
-          Left hash -> eval $ LoadLocalBranch hash
-          Right path' -> getAt $ Path.toAbsolutePath currentPath' path'
-        if Branch.isEmpty srcb then
-          let notfound = either (NoBranchWithHash input) (BranchNotFound input)
-          in respond $ notfound src0
-        else do
-          ok <- updateAtM dest $ \destb ->
-            pure (if Branch.isEmpty destb then srcb else destb)
-          if ok then success else respond $ BadDestinationBranch input dest0
-
+      ShowReflogI -> do
+        entries <- fmap reverse $ eval LoadReflog
+        numberedArgs .=
+          fmap (('#':) . Hash.base32Hexs . Causal.unRawHash . Reflog.to) entries
+        respond . ShowReflog $ fmap (shortenReflogEntry sbhLength) entries
+      ResetRootI src0 ->
+        case src0 of
+          Left hash -> resolveShortBranchHash input hash >>= \case
+            Left output -> respond output
+            Right newRoot -> do
+              updateRoot root' newRoot inputDescription
+              success
+          Right path' -> do
+            newRoot <- getAt $ Path.toAbsolutePath currentPath' path'
+            if Branch.isEmpty newRoot then respond $ BranchNotFound input path'
+            else do
+              updateRoot root' newRoot inputDescription
+              success
+      ForkLocalBranchI src0 dest0 -> do        
+        let tryUpdateDest srcb dest0 = do
+              let dest = Path.toAbsolutePath currentPath' dest0
+              -- if dest isn't empty: leave dest unchanged, and complain.
+              ok <- updateAtM dest $ \destb ->
+                pure (if Branch.isEmpty destb then srcb else destb)
+              if ok then success else respond $ BadDestinationBranch input dest0
+        case src0 of
+          Left hash -> resolveShortBranchHash input hash >>= \case
+            Left output -> respond output
+            Right srcb -> tryUpdateDest srcb dest0
+          Right path' -> do
+            srcb <- getAt $ Path.toAbsolutePath currentPath' path'
+            if Branch.isEmpty srcb then respond $ BranchNotFound input path'
+            else tryUpdateDest srcb dest0
       MergeLocalBranchI src0 dest0 -> do
         let [src, dest] = Path.toAbsolutePath currentPath' <$> [src0, dest0]
         srcb <- getAt src
@@ -300,7 +398,7 @@ loop = do
           if b then do
             respond (ShowDiff input (Branch.namesDiff destb merged))
             patch <- getPatchAt defaultPatchPath
-            void $ propagatePatch patch dest
+            void $ propagatePatch inputDescription2 patch dest
           else respond (NothingTodo input)
 
       PreviewMergeLocalBranchI src0 dest0 -> do
@@ -401,27 +499,30 @@ loop = do
         when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
 
       HistoryI resultsCap diffCap from -> case from of
-        Left hash -> do
-          b <- eval $ LoadLocalBranch hash
-          if Branch.isEmpty b then respond $ NoBranchWithHash input hash
-          else doHistory 0 b []
+        Left hash -> resolveShortBranchHash input hash >>= \case
+          Left output -> respond output
+          Right b -> do
+            hashLen <- eval BranchHashLength
+            doHistory 0 b []
         Right path' -> do
           path <- use $ currentPath . to (`Path.toAbsolutePath` path')
           branch' <- getAt path
           if Branch.isEmpty branch' then respond $ CreatedNewBranch path
-          else doHistory 0 branch' []
+          else do
+            hashLen <- eval BranchHashLength
+            doHistory 0 branch' []
         where
           doHistory !n b acc =
             if maybe False (n >=) resultsCap then
-              respond $ History diffCap acc (PageEnd (Branch.headHash b) n)
+              respond $ History diffCap acc (PageEnd (sbh $ Branch.headHash b) n)
             else case Branch._history b of
               Causal.One{} ->
-                respond $ History diffCap acc (EndOfLog $ Branch.headHash b)
+                respond $ History diffCap acc (EndOfLog . sbh $ Branch.headHash b)
               Causal.Merge{..} ->
-                respond $ History diffCap acc (MergeTail (Branch.headHash b) $ Map.keys tails)
+                respond $ History diffCap acc (MergeTail (sbh $ Branch.headHash b) . map sbh $ Map.keys tails)
               Causal.Cons{..} -> do
                 b' <- fmap Branch.Branch . eval . Eval $ snd tail
-                let elem = (Branch.headHash b, Branch.namesDiff b' b)
+                let elem = (sbh $ Branch.headHash b, Branch.namesDiff b' b)
                 doHistory (n+1) b' (elem : acc)
 
       UndoI -> do
@@ -431,8 +532,7 @@ loop = do
             respond . CantUndo $ if Branch.isOne root' then CantUndoPastStart
                                  else CantUndoPastMerge
           Just (_, prev) -> do
-            root .= prev
-            eval $ SyncLocalRootBranch prev
+            updateRoot root' prev inputDescription
             respond $ ShowDiff input (Branch.namesDiff prev root')
 
       AliasTermI src dest -> case (toList (getHQ'Terms src), toList (getTerms dest)) of
@@ -848,8 +948,8 @@ loop = do
       ResolveEditI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
-        fromRefs <- eval $ GetReferencesByShortHash from
-        toRefs <- eval $ GetReferencesByShortHash to
+        fromRefs <- eval $ ReferencesByShortHash from
+        toRefs <- eval $ ReferencesByShortHash to
         let go :: Reference.Id
                -> Reference.Id
                -> Action m (Either Event Input) v ()
@@ -870,10 +970,11 @@ loop = do
                       patch
                   (patchPath'', patchName) = resolveSplit' patchPath'
               -- Save the modified patch
-              _stepAtM (patchPath'', Branch.modifyPatches patchName (const patch'))
+              stepAtM (inputDescription <> " (1/2)")
+                      (patchPath'', Branch.modifyPatches patchName (const patch'))
               -- Apply the modified patch to the current path
               -- since we might be able to propagate further.
-              void $ propagatePatch patch' currentPath'
+              void $ propagatePatch inputDescription2 patch' currentPath'
               -- Say something
               success
         zeroOneOrMore
@@ -998,7 +1099,7 @@ loop = do
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
           -- propagatePatch prints TodoOutput
-          void $ propagatePatch (updatePatch ye'ol'Patch) currentPath'
+          void $ propagatePatch inputDescription2 (updatePatch ye'ol'Patch) currentPath'
 
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
@@ -1070,7 +1171,7 @@ loop = do
 
       PropagatePatchI patchPath scopePath -> do
         patch <- getPatchAt patchPath
-        updated <- propagatePatch patch (resolveToAbsolute scopePath)
+        updated <- propagatePatch inputDescription patch (resolveToAbsolute scopePath)
         unless updated (respond $ NothingToPatch patchPath scopePath)
 
       ExecuteI main -> addRunMain main uf >>= \case
@@ -1109,11 +1210,11 @@ loop = do
         let p = Path.toAbsolutePath currentPath' path
         case mayRepo of
           Just repo ->
-            loadRemoteBranchAt input repo p
+            loadRemoteBranchAt input inputDescription repo p
           Nothing -> do
             repoUrl <- eval . ConfigLookup $ "GitUrl" <> Text.pack (show p)
             case repoUrl of
-              Just url -> loadRemoteBranchAt input (GitRepo url "master") p
+              Just url -> loadRemoteBranchAt input inputDescription (GitRepo url "master") p
               Nothing ->
                 eval . Notify $ NoConfiguredGitUrl Pull path
 
@@ -1170,16 +1271,27 @@ loop = do
       <> "I tried to put it back, but couldn't. Everybody panic!"
   -}
 
+resolveShortBranchHash :: 
+  Input -> ShortBranchHash -> Action' m v (Either (Output v) (Branch m))
+resolveShortBranchHash input hash = do
+  hashSet <- eval $ BranchHashesByPrefix hash
+  len <- eval BranchHashLength
+  case Set.toList hashSet of
+    []  -> pure . Left $ NoBranchWithHash input hash
+    [h] -> fmap Right . eval $ LoadLocalBranch h 
+    _   -> pure . Left $ BranchHashAmbiguous input hash (Set.map (SBH.fromHash len) hashSet)
+
 -- Returns True if the operation changed the namespace, False otherwise.
-propagatePatch :: (Monad m, Var v) => Patch -> Path.Absolute -> Action' m v Bool
-propagatePatch patch scopePath = do
+propagatePatch :: (Monad m, Var v) =>
+  Text -> Patch -> Path.Absolute -> Action' m v Bool
+propagatePatch inputDescription patch scopePath = do
   changed <- do
     names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
     ppe <- prettyPrintEnv names
     -- arya: wait, what is this `ppe` here for again exactly?
     -- ppe is used for some output message that propagate can issue in error
     -- condition PatchInvolvesExternalDependencies
-    updateAtM scopePath (propagate ppe patch)
+    updateAtM inputDescription scopePath (propagate ppe patch)
   when changed $ do
     scope <- getAt scopePath
     let names0 = Branch.toNames0 (Branch.head scope)
@@ -1270,6 +1382,10 @@ searchResultToHQString = \case
 fuzzyNameDistance :: Name -> Name -> Maybe _ -- MatchArray
 fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
   Find.simpleFuzzyScore q n
+
+shortenReflogEntry :: Int -> Reflog.Entry -> Output.ReflogEntry
+shortenReflogEntry len (Reflog.Entry old new reason) =
+  Output.ReflogEntry (SBH.fromHash len old) (SBH.fromHash len new) reason
 
 -- return `name` and `name.<everything>...`
 _searchBranchPrefix :: Branch m -> Name -> [SearchResult]
@@ -1397,18 +1513,18 @@ respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
 loadRemoteBranchAt
-  :: Monad m => Var v => Input -> RemoteRepo -> Path.Absolute -> Action' m v ()
-loadRemoteBranchAt input repo p = do
+  :: Monad m => Var v => Input -> Text -> RemoteRepo -> Path.Absolute -> Action' m v ()
+loadRemoteBranchAt input inputDescription repo p = do
   b <- eval (LoadRemoteRootBranch repo)
   case b of
     Left  e -> eval . Notify $ GitError input e
     Right b -> do
-      changed <- updateAtM p (doMerge b)
+      changed <- updateAtM inputDescription p (doMerge b)
       when changed $ do
         merged <- getAt p
         patch <- eval . Eval $
           Branch.getPatch defaultPatchNameSegment (Branch.head merged)
-        void $ propagatePatch patch p
+        void $ propagatePatch (inputDescription <> " (2/2)") patch p
   where
   doMerge b b0 = do
     merged <- eval . Eval $ Branch.merge b b0
@@ -1427,43 +1543,51 @@ getAt (Path.Absolute p) =
 -- Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
 updateAtM :: Applicative m
-          => Path.Absolute
+          => Text
+          -> Path.Absolute
           -> (Branch m -> Action m i v (Branch m))
           -> Action m i v Bool
-updateAtM (Path.Absolute p) f = do
+updateAtM reason (Path.Absolute p) f = do
   b <- use root
   b' <- Branch.modifyAtM p f b
-  root .= b'
-  when (b /= b') $ eval $ SyncLocalRootBranch b'
+  updateRoot b b' reason
   pure $ b /= b'
 
 stepAt :: forall m i v. Applicative m
-       => (Path, Branch0 m -> Branch0 m)
+       => Text
+       -> (Path, Branch0 m -> Branch0 m)
        -> Action m i v ()
-stepAt = stepManyAt @m @[] . pure
+stepAt cause = stepManyAt @m @[] cause . pure
 
-_stepAtM :: forall m i v. Monad m
-        => (Path, Branch0 m -> m (Branch0 m))
+stepAtM :: forall m i v. Monad m
+        => Text
+        -> (Path, Branch0 m -> m (Branch0 m))
         -> Action m i v ()
-_stepAtM = stepManyAtM @m @[] . pure
+stepAtM cause = stepManyAtM @m @[] cause . pure
 
 stepManyAt :: (Applicative m, Foldable f)
-           => f (Path, Branch0 m -> Branch0 m)
+           => Text
+           -> f (Path, Branch0 m -> Branch0 m)
            -> Action m i v ()
-stepManyAt actions = do
+stepManyAt reason actions = do
     b <- use root
     let b' = Branch.stepManyAt actions b
-    root .= b'
-    when (b /= b') $ eval $ SyncLocalRootBranch b'
+    updateRoot b b' reason
 
 stepManyAtM :: (Monad m, Foldable f)
-           => f (Path, Branch0 m -> m (Branch0 m))
+           => Text
+           -> f (Path, Branch0 m -> m (Branch0 m))
            -> Action m i v ()
-stepManyAtM actions = do
+stepManyAtM reason actions = do
     b <- use root
     b' <- eval . Eval $ Branch.stepManyAtM actions b
-    root .= b'
-    when (b /= b') $ eval $ SyncLocalRootBranch b'
+    updateRoot b b' reason
+
+updateRoot :: Branch m -> Branch m -> Text -> Action m i v ()
+updateRoot old new reason = when (old /= new) $ do
+  root .= new
+  eval $ SyncLocalRootBranch new
+  eval $ AppendToReflog reason old new
 
 -- cata for 0, 1, or more elements of a Foldable
 -- tries to match as lazily as possible

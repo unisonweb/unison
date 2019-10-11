@@ -449,6 +449,22 @@ forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
       _ -> Left (I.help forkLocal)
     )
 
+resetRoot :: InputPattern
+resetRoot = InputPattern "reset-root" [] [(Required, pathArg)]
+  (P.wrapColumn2 [
+    (makeExample resetRoot [".foo"],
+      "Reset the root namespace (along with its history) to that of the `.foo` namespace."),
+    (makeExample resetRoot ["#9dndk3kbsk13nbpeu"],
+      "Reset the root namespace (along with its history) to that of the namespace with hash `#9dndk3kbsk13nbpeu`.")
+    ])
+  (\case
+    [src] -> first fromString $ do
+     src <- Input.parseBranchId src
+     pure $ Input.ResetRootI src
+    _ -> Left (I.help resetRoot))
+
+
+
 pull :: InputPattern
 pull = InputPattern
   "pull"
@@ -617,6 +633,17 @@ resolveEdit = InputPattern
   toHash :: Either ShortHash Path.HQSplit' -> Maybe ShortHash
   toHash (Left  h      ) = Just h
   toHash (Right (_, hq)) = HQ'.toHash hq
+
+viewReflog :: InputPattern
+viewReflog = InputPattern
+  "reflog"
+  []
+  []
+  ("`reflog` lists the changes that have affected the root namespace")
+  (\case
+    [] -> pure Input.ShowReflogI
+    _  -> Left . warn . P.string
+              $ I.patternName viewReflog ++ " doesn't take any arguments.")
 
 edit :: InputPattern
 edit = InputPattern
@@ -895,6 +922,8 @@ validInputs =
   , resolveEdit
   , test
   , execute
+  , viewReflog
+  , resetRoot
   , quit
   , updateBuiltins
   , mergeBuiltins

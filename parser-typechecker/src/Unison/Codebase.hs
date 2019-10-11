@@ -11,6 +11,7 @@ import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.CodeLookup    as CL
+import qualified Unison.Codebase.Reflog        as Reflog
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Name                    ( Name(..) )
 import qualified Unison.Names2                 as Names
@@ -32,6 +33,7 @@ import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Codebase.BranchUtil as BranchUtil
 import Unison.DataDeclaration (Decl)
 import Unison.Type (Type)
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
 --import Debug.Trace
 
@@ -66,6 +68,9 @@ data Codebase m v a =
            , watches            :: UF.WatchKind -> m [Reference.Id]
            , getWatch           :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
            , putWatch           :: UF.WatchKind -> Reference.Id -> Term v a -> m ()
+           
+           , getReflog          :: m [Reflog.Entry]
+           , appendReflog       :: Text -> Branch m -> Branch m -> m ()
 
            -- list of terms of the given type
            , termsOfTypeImpl    :: Reference -> m (Set Referent)
@@ -74,6 +79,9 @@ data Codebase m v a =
            -- number of base58 characters needed to distinguish any two references in the codebase
            , hashLength         :: m Int
            , referencesByPrefix :: Text -> m (Set Reference.Id)
+           
+           , branchHashLength   :: m Int
+           , branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.Hash)
            }
 
 -- | Write all of the builtins types and IO types into the codebase

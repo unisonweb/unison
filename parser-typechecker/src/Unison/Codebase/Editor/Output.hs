@@ -8,6 +8,7 @@ module Unison.Codebase.Editor.Output
   , TestReportStats(..)
   , UndoFailureReason(..)
   , PushPull(..)
+  , ReflogEntry(..)
   , pushPull
   , isFailure
   ) where
@@ -48,6 +49,7 @@ import qualified Data.Set as Set
 import Unison.Codebase.NameSegment (NameSegment, HQSegment)
 import Unison.ShortHash (ShortHash)
 import Unison.Var (Var)
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
 type Term v a = Term.AnnotatedTerm v a
 type ListDetailed = Bool
@@ -81,6 +83,7 @@ data Output v
   | TypeAmbiguous Input Path.HQSplit' (Set Reference)
   | TermAmbiguous Input Path.HQSplit' (Set Referent)
   | HashAmbiguous Input ShortHash (Set Referent)
+  | BranchHashAmbiguous Input ShortBranchHash (Set ShortBranchHash)
   | BadDestinationBranch Input Path'
   | BranchNotFound Input Path'
   | PatchNotFound Input Path.Split'
@@ -146,14 +149,18 @@ data Output v
   | NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
-  | WarnIncomingRootBranch (Set Branch.Hash)
+  | WarnIncomingRootBranch (Set ShortBranchHash)
   | ShowDiff Input Names.Diff
-  | History (Maybe Int) [(Branch.Hash, Names.Diff)] HistoryTail
+  | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
+  | ShowReflog [ReflogEntry]
   | NothingTodo Input
   | NotImplemented
-  | NoBranchWithHash Input Branch.Hash
+  | NoBranchWithHash Input ShortBranchHash
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
 --  deriving (Show)
+
+data ReflogEntry =
+  ReflogEntry { old :: ShortBranchHash, new :: ShortBranchHash, reason :: Text }
 
 data ShallowListEntry v a
   = ShallowTermEntry Referent HQSegment (Maybe (Type v a))
@@ -181,9 +188,9 @@ instance Var v => Ord (ShallowListEntry v a) where
        ShallowPatchEntry _     -> Nothing
 
 data HistoryTail =
-  EndOfLog Branch.Hash |
-  MergeTail Branch.Hash [Branch.Hash] |
-  PageEnd Branch.Hash Int -- PageEnd nextHash nextIndex
+  EndOfLog ShortBranchHash |
+  MergeTail ShortBranchHash [ShortBranchHash] |
+  PageEnd ShortBranchHash Int -- PageEnd nextHash nextIndex
   deriving (Show)
 
 data TestReportStats
@@ -215,6 +222,7 @@ isFailure o = case o of
   TermAlreadyExists{} -> True
   TypeAmbiguous{} -> True
   TermAmbiguous{} -> True
+  BranchHashAmbiguous{} -> True
   BadDestinationBranch{} -> True
   BranchNotFound{} -> True
   PatchNotFound{} -> True
@@ -261,6 +269,7 @@ isFailure o = case o of
   NothingTodo{} -> False
   ListShallow _ es -> null es
   HashAmbiguous{} -> True
+  ShowReflog{} -> False
 
 
 

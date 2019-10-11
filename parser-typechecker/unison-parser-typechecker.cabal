@@ -63,11 +63,13 @@ library
     Unison.Codebase.NameSegment
     Unison.Codebase.Path
     Unison.Codebase.Patch
+    Unison.Codebase.Reflog
     Unison.Codebase.Runtime
     Unison.Codebase.SearchResult
     Unison.Codebase.Serialization
     Unison.Codebase.Serialization.PutT
     Unison.Codebase.Serialization.V1
+    Unison.Codebase.ShortBranchHash
     Unison.Codebase.TermEdit
     Unison.Codebase.TranscriptParser
     Unison.Codebase.TypeEdit

@@ -15,9 +15,9 @@ import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.Reference (Reference)
-import qualified Unison.Hash as Hash
 import           Unison.ShortHash (ShortHash)
-import qualified Unison.Codebase.Causal as Causal
+import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Data.Text as Text
 
 data Event
@@ -27,12 +27,12 @@ data Event
 type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 type PatchPath = Path.Split'
-type BranchId = Either Branch.Hash Path'
+type BranchId = Either ShortBranchHash Path'
 
 parseBranchId :: String -> Either String BranchId
-parseBranchId ('#':s) = case Hash.fromBase32Hex (Text.pack s) of
+parseBranchId ('#':s) = case SBH.fromText (Text.pack s) of
   Nothing -> Left "Invalid hash, expected a base32hex string."
-  Just h -> pure . Left $ Causal.RawHash h
+  Just h -> pure $ Left h
 parseBranchId s = Right <$> Path.parsePath' s
 
 data Input
@@ -40,12 +40,13 @@ data Input
     -- directory ops
     -- `Link` must describe a repo and a source path within that repo.
     -- clone w/o merge, error if would clobber
-    = ForkLocalBranchI (Either Branch.Hash Path') Path'
+    = ForkLocalBranchI (Either ShortBranchHash Path') Path'
     -- merge first causal into destination
     | MergeLocalBranchI Path' Path'
     | PreviewMergeLocalBranchI Path' Path'
     | PullRemoteBranchI (Maybe RemoteRepo) Path'
     | PushRemoteBranchI (Maybe RemoteRepo) Path'
+    | ResetRootI (Either ShortBranchHash Path')
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- change directory
@@ -109,6 +110,7 @@ data Input
   | FindPatchI
   | ShowDefinitionI OutputLocation [String]
   | ShowDefinitionByPrefixI OutputLocation [String]
+  | ShowReflogI
   | UpdateBuiltinsI
   | MergeBuiltinsI
   | DebugBranchHistoryI
