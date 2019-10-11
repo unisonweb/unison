@@ -89,7 +89,7 @@ prettyRaw n im p tp = go n im p tp
     Effect1' e t ->
       PP.parenthesizeIf (p >= 10) $ go n im 9 e <> " " <> go n im 10 t
     Effects' es         -> effects (Just es)
-    ForallsNamed' vs body -> if (p < 0 && all Var.isLowercase vs)
+    ForallsNamed' vs body -> if (p < 0 && all Var.universallyQuantifyIfFree vs)
       then go n im p body
       else paren (p >= 0) $
         let vformatted = PP.sep " " (fmt S.Var . PP.text . Var.name <$> vs)
