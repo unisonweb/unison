@@ -286,13 +286,14 @@ executable tests
     Unison.Test.Lexer
     Unison.Test.Range
     Unison.Test.Referent
+    Unison.Test.Term
     Unison.Test.TermParser
     Unison.Test.TermPrinter
     Unison.Test.Type
     Unison.Test.TypePrinter
-    Unison.Test.Typechecker
     Unison.Test.Typechecker.Components
     Unison.Test.Typechecker.TypeError
+    Unison.Test.UnisonSources
     Unison.Test.Util.Bytes
 
   build-depends:
