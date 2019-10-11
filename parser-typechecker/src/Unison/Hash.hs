@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Hash (Hash, toBytes, base32Hex, base32Hexs, fromBase32Hex, fromBytes, unsafeFromBase32Hex, showBase32Hex) where
+module Unison.Hash (Hash, toBytes, base32Hex, base32Hexs, fromBase32Hex, fromBytes, unsafeFromBase32Hex, showBase32Hex, validBase32HexChars) where
 
 import Unison.Prelude
 
@@ -16,6 +16,7 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Unison.Hashable as H
 import qualified Codec.Binary.Base32Hex as Base32Hex
 import qualified Data.Text as Text
+import qualified Data.Set as Set
 
 -- | Hash which uniquely identifies a Unison type or term
 newtype Hash = Hash { toBytes :: ByteString } deriving (Eq,Ord,Generic)
@@ -59,8 +60,8 @@ base32Hex (Hash h) =
   Text.toLower . Text.dropWhileEnd (== '=') . decodeUtf8 $
   Base32Hex.encode h
 
-hashLength :: Int
-hashLength = 512
+validBase32HexChars :: Set Char
+validBase32HexChars = Set.fromList $ ['0' .. '9'] ++ ['a' .. 'v']
 
 -- | Produce a 'Hash' from a base32hex-encoded version of its binary representation
 fromBase32Hex :: Text -> Maybe Hash
@@ -70,9 +71,23 @@ fromBase32Hex txt = case Base32Hex.decode (encodeUtf8 $ Text.toUpper txt <> padd
   where
   -- The decoder we're using is a base32 uppercase decoder that expects padding,
   -- so we provide it with the appropriate number of padding characters for the
-  -- expected hash length. See https://tools.ietf.org/html/rfc4648#page-8
+  -- expected hash length.
+  --
+  -- The decoder requires 40 bit (8 5-bit characters) chunks, so if the number
+  -- of characters of the input is not a multiple of 8, we add '=' padding chars
+  -- until it is.
+  --
+  -- See https://tools.ietf.org/html/rfc4648#page-8
   paddingChars :: Text
-  paddingChars = case hashLength `mod` 40 of
+  paddingChars = case Text.length txt `mod` 8 of
+    0 -> ""
+    n -> Text.replicate (8 - n) "="
+
+  hashLength :: Int
+  hashLength = 512
+
+  _paddingChars :: Text
+  _paddingChars = case hashLength `mod` 40 of
     0  -> ""
     8  -> "======"
     16 -> "===="

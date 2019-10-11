@@ -673,7 +673,7 @@ unLetRecNamed
        , AnnotatedTerm2 vt at ap v a
        )
 unLetRecNamed (ABT.Cycle' vs (ABT.Tm' (LetRec isTop bs e)))
-  | length vs == length vs = Just (isTop, zip vs bs, e)
+  | length vs == length bs = Just (isTop, zip vs bs, e)
 unLetRecNamed _ = Nothing
 
 unLetRec
@@ -943,10 +943,10 @@ instance Var v => Hashable1 (F v a p) where
 
 -- mostly boring serialization code below ...
 
-instance (Eq a, Var v) => Eq1 (F v a p) where (==#) = (==)
-instance (Var v) => Show1 (F v a p) where showsPrec1 = showsPrec
+instance (Eq a, ABT.Var v) => Eq1 (F v a p) where (==#) = (==)
+instance (Show v) => Show1 (F v a p) where showsPrec1 = showsPrec
 
-instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
+instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Int x == Int y = x == y
   Nat x == Nat y = x == y
   Float x == Float y = x == y
@@ -971,7 +971,7 @@ instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   _ == _ = False
 
 
-instance (Var v, Show a) => Show (F v a0 p a) where
+instance (Show v, Show a) => Show (F v a0 p a) where
   showsPrec = go
    where
     showConstructor r n = shows r <> s "#" <> shows n

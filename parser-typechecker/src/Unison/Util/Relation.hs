@@ -372,7 +372,7 @@ deleteRan :: (Ord a, Ord b) => b -> Relation a b -> Relation a b
 deleteRan b r = foldl' (\r a -> delete a b r) r $ lookupRan b r
 
 deleteDom :: (Ord a, Ord b) => a -> Relation a b -> Relation a b
-deleteDom a r = foldl' (\r b -> delete a b r) r $ lookupDom a r
+deleteDom a r = foldl' (flip $ delete a) r $ lookupDom a r
 
 deleteRanWhere :: (Ord a, Ord b) => (b -> Bool) -> a -> Relation a b -> Relation a b
 deleteRanWhere f a r =

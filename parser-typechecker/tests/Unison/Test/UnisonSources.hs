@@ -2,7 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Unison.Test.Typechecker where
+module Unison.Test.UnisonSources where
 
 import           Control.Lens           ( view )
 import           Control.Lens.Tuple     ( _5 )
@@ -16,23 +16,32 @@ import           EasyTest
 import           System.FilePath        (joinPath, splitPath, replaceExtension)
 import           System.FilePath.Find   (always, extension, find, (==?))
 import           System.Directory       ( doesFileExist )
+import qualified Unison.ABT             as ABT
 import qualified Unison.Builtin         as Builtin
-import           Unison.Codebase.Runtime  ( Runtime, evaluateWatches )
+import           Unison.Codebase.Runtime          ( Runtime, evaluateWatches )
+import           Unison.Codebase.Serialization    ( getFromBytes, putBytes )
+import qualified Unison.Codebase.Serialization.V1 as V1
+import           Unison.DataDeclaration ( DataDeclaration
+                                        , DataDeclaration'
+                                        , EffectDeclaration
+                                        , EffectDeclaration'
+                                        )
 import           Unison.Parser          as Parser
 import qualified Unison.Parsers         as Parsers
 import qualified Unison.PrettyPrintEnv  as PPE
 import qualified Unison.PrintError      as PrintError
+import           Unison.Reference       ( Reference )
 import           Unison.Result          (pattern Result, Result)
 import qualified Unison.Result          as Result
 import qualified Unison.Runtime.Rt1IO   as RT
 import           Unison.Symbol          (Symbol)
 import qualified Unison.Term            as Term
-import           Unison.Term            ( amap )
+import           Unison.Term            ( AnnotatedTerm, Term, amap )
 import           Unison.Test.Common     (parseAndSynthesizeAsFile, parsingEnv)
+import           Unison.Type            ( Type )
 import qualified Unison.UnisonFile      as UF
 import           Unison.Util.Monoid     (intercalateMap)
-import qualified Unison.Var as Var
-import qualified Unison.Type as Type
+import qualified Unison.Var             as Var
 import qualified Unison.Test.Common as Common
 import qualified Unison.Names3
 
@@ -53,45 +62,21 @@ expectRight' :: Either String a -> Test a
 expectRight' (Left  e) = crash e
 expectRight' (Right a) = ok >> pure a
 
-good :: EitherResult -> Test ()
-good = void <$> expectRight'
+good :: EitherResult -> Test TFile
+good = expectRight'
 
-bad :: EitherResult -> Test ()
-bad = void <$> EasyTest.expectLeft
+bad :: EitherResult -> Test TFile
+bad r = EasyTest.expectLeft r >> done
 
 test :: Test ()
 test = do
   let rt = RT.runtime
-  scope "typechecker"
+  scope "unison-src"
     . tests
     $ [ go rt shouldPassNow   good
       , go rt shouldFailNow   bad
       , go rt shouldPassLater (pending . bad)
       , go rt shouldFailLater (pending . good)
-      , scope "Term.substTypeVar" $ do
-          -- check that capture avoidance works in substTypeVar
-          let v s = Var.nameds s :: Symbol
-              tv s = Type.var() (v s)
-              v1 s = Var.freshenId 1 (v s)
-              tm :: Term.Term Symbol
-              tm = Term.ann() (Term.ann()
-                                 (Term.nat() 42)
-                                 (Type.introOuter() (v "a") $
-                                   Type.arrow() (tv "a") (tv "x")))
-                              (Type.forall() (v "a") (tv "a"))
-              tm' = Term.substTypeVar (v "x") (tv "a") tm
-              expected =
-                Term.ann() (Term.ann()
-                              (Term.nat() 42)
-                              (Type.introOuter() (v1 "a") $
-                                Type.arrow() (Type.var() $ v1 "a") (tv "a")))
-                           (Type.forall() (v1 "a") (Type.var() $ v1 "a"))
-          note $ show tm'
-          note $ show expected
-          expect $ tm == tm
-          expect $ tm' == tm'
-          expect $ tm' == expected
-          ok
       ]
 
 shouldPassPath, shouldFailPath :: String
@@ -110,7 +95,7 @@ shouldPassLater = find always (extension ==? ".uu") shouldPassPath
 shouldFailLater :: IO [FilePath]
 shouldFailLater = find always (extension ==? ".uu") shouldFailPath
 
-go :: Runtime Symbol -> IO [FilePath] -> (EitherResult -> Test ()) -> Test ()
+go :: Runtime Symbol -> IO [FilePath] -> (EitherResult -> Test TFile) -> Test ()
 go rt files how = do
   files' <- liftIO files
   tests (makePassingTest rt how <$> files')
@@ -133,16 +118,28 @@ decodeResult _source (Result _notes (Just (Right uf))) =
   Right uf
 
 makePassingTest
-  :: Runtime Symbol -> (EitherResult -> Test ()) -> FilePath -> Test ()
-makePassingTest rt how filepath = scope shortName $ do
-  let valueFile = replaceExtension filepath "ur"
+  :: Runtime Symbol -> (EitherResult -> Test TFile) -> FilePath -> Test ()
+makePassingTest rt how filepath = scope (shortName filepath) $ do
+  uf <- typecheckingTest how filepath
+  resultTest rt uf filepath *> serializationTest uf
+
+shortName :: FilePath -> FilePath
+shortName = joinPath . drop 1 . splitPath
+
+typecheckingTest :: (EitherResult -> Test TFile) -> FilePath -> Test TFile
+typecheckingTest how filepath = scope "typecheck" $ do
   source <- io $ unpack <$> Data.Text.IO.readFile filepath
-  let r = decodeResult source $ parseAndSynthesizeAsFile [] shortName source
+  how . decodeResult source $ parseAndSynthesizeAsFile [] (shortName filepath) source
+
+resultTest
+  :: Runtime Symbol -> TFile -> FilePath -> Test ()
+resultTest rt uf filepath = do
+  let valueFile = replaceExtension filepath "ur"
   rFileExists <- io $ doesFileExist valueFile
-  case (rFileExists, r) of
-    (True, Right file) -> do
+  if rFileExists
+    then scope "result" $ do
       values <- io $ unpack <$> Data.Text.IO.readFile valueFile
-      let untypedFile = UF.discardTypes file
+      let untypedFile = UF.discardTypes uf
       let term        = Parsers.parseTerm values parsingEnv
       (bindings, watches) <- io $ either undefined id <$>
         evaluateWatches Builtin.codeLookup
@@ -159,6 +156,44 @@ makePassingTest rt how filepath = scope shortName $ do
           -- note . show $ amap (const ()) tm
           expect $ tm' == amap (const ()) tm
         Left e -> crash $ show e
-    _ -> pure ()
-  how r
-  where shortName = joinPath . drop 1 . splitPath $ filepath
+    else pure ()
+
+serializationTest :: TFile -> Test ()
+serializationTest uf = scope "serialization" . tests . concat $
+  [ map testDataDeclaration (Map.toList $ UF.dataDeclarations' uf)
+  , map testEffectDeclaration (Map.toList $ UF.effectDeclarations' uf)
+  , map testTerm (Map.toList $ UF.hashTerms uf)
+  ]
+  where
+    putUnit :: Monad m => () -> m ()
+    putUnit () = pure ()
+    getUnit :: Monad m => m ()
+    getUnit = pure ()
+    testDataDeclaration :: (Symbol, (Reference, DataDeclaration' Symbol Ann)) -> Test ()
+    testDataDeclaration (name, (_, decl)) = scope (Var.nameStr name) $
+      let decl' :: DataDeclaration Symbol
+          decl' = void decl
+          bytes = putBytes (V1.putDataDeclaration V1.putSymbol putUnit) decl'
+          decl'' = getFromBytes (V1.getDataDeclaration V1.getSymbol getUnit) bytes
+      in expectEqual decl'' (Just decl')
+    testEffectDeclaration :: (Symbol, (Reference, EffectDeclaration' Symbol Ann)) -> Test ()
+    testEffectDeclaration (name, (_, decl)) = scope (Var.nameStr name) $
+      let decl' :: EffectDeclaration Symbol
+          decl' = void decl
+          bytes = putBytes (V1.putEffectDeclaration V1.putSymbol putUnit) decl'
+          decl'' = getFromBytes (V1.getEffectDeclaration V1.getSymbol getUnit) bytes
+      in expectEqual decl'' (Just decl')
+    testTerm :: (Symbol, (Reference, AnnotatedTerm Symbol Ann, Type Symbol Ann)) -> Test ()
+    testTerm (name, (_, tm, tp)) = scope (Var.nameStr name) $
+      let tm' :: Term Symbol
+          tm' = Term.amap (const ()) tm
+          tp' :: Type Symbol ()
+          tp' = ABT.amap (const ()) tp
+          tmBytes = putBytes (V1.putTerm V1.putSymbol putUnit) tm'
+          tpBytes = putBytes (V1.putType V1.putSymbol putUnit) tp'
+          tm'' = getFromBytes (V1.getTerm V1.getSymbol getUnit) tmBytes
+          tp'' = getFromBytes (V1.getType V1.getSymbol getUnit) tpBytes
+      in tests
+        [ scope "type" $ expectEqual tp'' (Just tp')
+        , scope "term" $ expectEqual tm'' (Just tm')
+        ]
