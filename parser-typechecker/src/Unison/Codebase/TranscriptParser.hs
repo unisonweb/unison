@@ -137,10 +137,14 @@ run dir stanzas codebase = do
             awaitInput
           Just (Just p@(UcmCommand path lineTxt)) -> do
             curPath <- readIORef pathRef
+            numberedArgs <- readIORef numberedArgsRef
+            let expandNumber s = case readMay s of
+                  Just i -> fromMaybe (show i) . atMay numberedArgs $ i - 1
+                  Nothing -> s
             if (curPath /= path) then do
               atomically $ Q.undequeue cmdQueue (Just p)
               pure $ Right (SwitchBranchI (Path.absoluteToPath' path))
-            else case words (Text.unpack lineTxt) of
+            else case fmap expandNumber . words . Text.unpack $ lineTxt of
               [] -> awaitInput
               cmd:args -> do
                 output ("\n" <> show p <> "\n")

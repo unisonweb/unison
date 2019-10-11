@@ -78,7 +78,7 @@ y = 2
 ```
 If we `reset-root` to its previous value, `y` disappears.
 ```ucm
-.> reset-root #kih4ch6383
+.> reset-root 2
 
   Done.
 
