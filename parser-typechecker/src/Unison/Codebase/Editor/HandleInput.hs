@@ -327,7 +327,7 @@ loop = do
           TestI{} -> wat
           LinksI{} -> wat
           SearchByNameI{} -> wat
-          FindShallow{} -> wat
+          FindShallowI{} -> wat
           FindPatchI{} -> wat
           ShowDefinitionI{} -> wat
           ShowDefinitionByPrefixI{} -> wat
