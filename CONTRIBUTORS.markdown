@@ -27,3 +27,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Silvino Escalona (@sunrisem)
 * James Sully (@sullyj3)
 * Prat Tana (@pt2121)
+* Jonas De Vuyst (@jdevuyst)
