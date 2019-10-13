@@ -40,6 +40,8 @@ import qualified Unison.Var as Var
 
 import Unison.Reference (Reference)
 
+import Debug.Trace (traceShowId)
+
 watch :: Show a => String -> a -> a
 watch msg a = let !_ = trace (msg ++ ": " ++ show a) () in a
 
@@ -138,8 +140,8 @@ parsePattern =
     tok <- P.try (P.lookAhead hqPrefixId)
     names <- asks names
     case Names.lookupHQPattern (L.payload tok) names of
-      s | Set.null s     -> die tok s
-        | Set.size s > 1 -> die tok s
+      s | Set.null s     -> traceShow names $ die tok s
+        | Set.size s > 1 -> trace "Set of size 1" $ die tok s
         | otherwise      -> -- matched ctor name, consume the token
                             do anyToken; pure (Set.findMin s <$ tok)
     where
@@ -454,7 +456,9 @@ imports :: Var v => P v (Names, [(v,v)])
 imports = do
   let sem = P.try (semi <* P.lookAhead (reserved "use"))
   imported <- mconcat . reverse <$> sepBy sem importp
+  pure $ traceShowId imported
   ns' <- Names.importing imported <$> asks names
+  pure $ traceShowId ns'
   pure (ns', [(Name.toVar suffix, Name.toVar full) | (suffix,full) <- imported ])
 
 -- A key feature of imports is we want to be able to say:
