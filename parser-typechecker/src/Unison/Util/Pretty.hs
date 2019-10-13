@@ -307,7 +307,8 @@ parenthesizeIf False s = s
 parenthesizeIf True s = parenthesize s
 
 lines :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
-lines = intercalateMap newline id
+lines = intercalateMap (append newline) id where
+  append p = Pretty (delta p) (Append $ Seq.singleton p)
 
 linesNonEmpty :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 linesNonEmpty = lines . nonEmpty
