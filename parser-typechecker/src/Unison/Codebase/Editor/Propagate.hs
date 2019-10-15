@@ -5,22 +5,21 @@
 
 module Unison.Codebase.Editor.Propagate where
 
-import Unison.Prelude
-
-import Unison.Codebase.Editor.Command
-import Unison.Codebase.Editor.Output
-
 import           Control.Lens
-import           Data.Configurator              ()
-import qualified Data.Graph as Graph
+import           Data.Configurator              ( )
+import qualified Data.Graph                    as Graph
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import           Unison.Codebase.Branch         ( Branch(..)
                                                 , Branch0(..)
                                                 )
+import           Unison.Prelude
 import qualified Unison.Codebase.Branch        as Branch
+import           Unison.Codebase.Editor.Command
+import           Unison.Codebase.Editor.Output
 import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch         as Patch
+import           Unison.DataDeclaration         ( Decl )
 import           Unison.Names3                  ( Names0 )
 import qualified Unison.Names2                 as Names
 import           Unison.Parser                  ( Ann(..) )
@@ -28,20 +27,32 @@ import           Unison.Reference               ( Reference(..) )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
-import           Unison.Util.Free               ( Free, eval )
+import           Unison.Util.Free               ( Free
+                                                , eval
+                                                )
 import qualified Unison.Util.Relation          as R
-import           Unison.Util.TransitiveClosure  (transitiveClosure)
+import           Unison.Util.TransitiveClosure  ( transitiveClosure )
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
-import qualified Unison.Codebase.TypeEdit as TypeEdit
-import Unison.Codebase.TermEdit (TermEdit(..))
-import qualified Unison.Codebase.TermEdit as TermEdit
-import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.Codebase.TypeEdit      as TypeEdit
+import           Unison.Codebase.TermEdit       ( TermEdit(..) )
+import qualified Unison.Codebase.TermEdit      as TermEdit
+import           Unison.Codebase.TypeEdit       ( TypeEdit(..) )
+import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Util.Star3             as Star3
-import Unison.Type (Type)
+import           Unison.Type                    ( Type )
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
+
+data Edits v = Edits
+  { termEdits :: Map Reference TermEdit
+  , termReplacements :: Map Reference Reference
+  , newTerms :: Map Reference (Term v Ann, Type v Ann)
+  , typeEdits :: Map Reference TypeEdit
+  , typeReplacements :: Map Reference Reference
+  , newTypes :: Map Reference (Decl v Ann)
+  } deriving (Eq, Show)
 
 -- Description:
 ------------------
@@ -112,76 +123,76 @@ propagate errorPPE patch b = validatePatch patch >>= \case
             [ (i, r) | r <- toList rs, Just i <- [Map.lookup r order] ]
           collectEdits
             :: (Monad m, Var v)
-            => Map Reference TermEdit
-            -> Map Reference Reference
-            -> Map Reference (Term v _, Type v _)
+            => Edits v
             -> Set Reference
             -> Map Int Reference
-            -> F m i v
-                 ( Map Reference TermEdit
-                 , Map Reference Reference
-                 , Map Reference (Term v _, Type v _)
-                 )
+            -> F m i v (Edits v)
           -- `replacements` contains the TermEdit.Replace elements of `edits`.
-          collectEdits edits replacements newTerms seen todo =
-            case Map.minView todo of
-              Nothing        -> pure (edits, replacements, newTerms)
-              Just (r, todo) -> case r of
-                Reference.Builtin _ ->
-                  collectEdits edits replacements newTerms seen todo
-                Reference.DerivedId _ ->
-                  if Map.member r edits || Set.member r seen
-                    then collectEdits edits replacements newTerms seen todo
-                    else unhashComponent r >>= \case
-                      Nothing -> collectEdits edits
-                                              replacements
-                                              newTerms
-                                              (Set.insert r seen)
-                                              todo
-                      Just componentMap -> do
-                        let
-                          componentMap' =
-                            over _2 (Term.updateDependencies replacements)
-                              <$> componentMap
-                          hashedComponents' =
-                            Term.hashComponents (view _2 <$> componentMap')
-                          joinedStuff
-                            :: [(Reference, Reference, Term v _, Type v _)]
-                          joinedStuff =
-                            toList
-                              (Map.intersectionWith f
-                                                    componentMap'
-                                                    hashedComponents'
-                              )
-                          f (oldRef, _, oldType) (newRef, newTerm) =
-                            (oldRef, newRef, newTerm, newType)
-                            where newType = oldType
-                      -- collect the hashedComponents into edits/replacements/newterms/seen
-                          edits' =
-                            edits <> (Map.fromList . fmap toEdit) joinedStuff
-                          toEdit (r, r', _, _) =
-                            (r, TermEdit.Replace r' TermEdit.Same)
-                          replacements' = replacements
-                            <> (Map.fromList . fmap toReplacement) joinedStuff
-                          toReplacement (r, r', _, _) = (r, r')
-                          newTerms' = newTerms
-                            <> (Map.fromList . fmap toNewTerm) joinedStuff
-                          toNewTerm (_, r', tm, tp) = (r', (tm, tp))
-                          seen' =
-                            seen <> Set.fromList (view _1 <$> joinedStuff)
-                        -- plan to update the dependents of this component too
-                        dependents <-
-                          fmap Set.unions
-                          . traverse (eval . GetDependents)
-                          . toList
-                          . Reference.members
-                          $ Reference.componentFor r
-                        let todo' = todo <> getOrdered dependents
-                        collectEdits edits' replacements' newTerms' seen' todo'
-        (termEdits, _replacements, newTerms) <- collectEdits
-          initialEdits
-          (Map.mapMaybe TermEdit.toReference initialEdits)
-          mempty -- newTerms
+          collectEdits es@Edits {..} seen todo = case Map.minView todo of
+            Nothing        -> pure es
+            Just (r, todo) -> case r of
+              Reference.Builtin _ -> collectEdits es seen todo
+              Reference.DerivedId _ ->
+                if Map.member r termEdits || Set.member r seen
+                  then collectEdits es seen todo
+                  else unhashComponent r >>= \case
+                    Nothing -> collectEdits es (Set.insert r seen) todo
+                    Just componentMap -> do
+                      let
+                        componentMap' =
+                          over _2 (Term.updateDependencies termReplacements)
+                            <$> componentMap
+                        hashedComponents' =
+                          Term.hashComponents (view _2 <$> componentMap')
+                        joinedStuff
+                          :: [(Reference, Reference, Term v _, Type v _)]
+                        joinedStuff =
+                          toList
+                            (Map.intersectionWith f
+                                                  componentMap'
+                                                  hashedComponents'
+                            )
+                        f (oldRef, _, oldType) (newRef, newTerm) =
+                          (oldRef, newRef, newTerm, newType)
+                          where newType = oldType
+                    -- collect the hashedComponents into edits/replacements/newterms/seen
+                        termEdits' =
+                          termEdits <> (Map.fromList . fmap toEdit) joinedStuff
+                        toEdit (r, r', _, _) =
+                          (r, TermEdit.Replace r' TermEdit.Same)
+                        termReplacements' = termReplacements
+                          <> (Map.fromList . fmap toReplacement) joinedStuff
+                        toReplacement (r, r', _, _) = (r, r')
+                        newTerms' = newTerms
+                          <> (Map.fromList . fmap toNewTerm) joinedStuff
+                        toNewTerm (_, r', tm, tp) = (r', (tm, tp))
+                        seen' = seen <> Set.fromList (view _1 <$> joinedStuff)
+                      -- plan to update the dependents of this component too
+                      dependents <-
+                        fmap Set.unions
+                        . traverse (eval . GetDependents)
+                        . toList
+                        . Reference.members
+                        $ Reference.componentFor r
+                      let todo' = todo <> getOrdered dependents
+                      collectEdits
+                        (Edits termEdits'
+                               termReplacements'
+                               newTerms'
+                               mempty
+                               mempty
+                               mempty
+                        )
+                        seen'
+                        todo'
+        Edits termEdits _replacements newTerms _ _ _ <- collectEdits
+          (Edits initialEdits
+                 (Map.mapMaybe TermEdit.toReference initialEdits)
+                 mempty
+                 mempty
+                 mempty
+                 mempty
+          )
           mempty -- skip
           (getOrdered initialDirty)
         -- todo: can eliminate this filter if collectEdits doesn't leave temporary terms in the map!
@@ -256,8 +267,7 @@ propagate errorPPE patch b = validatePatch patch >>= \case
       then do
         let
           termInfo
-            :: Reference
-            -> F m i v (v, (Reference, Term v Ann, Type v Ann))
+            :: Reference -> F m i v (v, (Reference, Term v Ann, Type v Ann))
           termInfo termRef = do
             tpm <- eval $ LoadTypeOfTerm termRef
             tp  <- maybe (fail $ "Missing type for term " <> show termRef)
