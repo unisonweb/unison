@@ -116,6 +116,11 @@ welcomeMessage dir =
          , P.wrap ("Type " <> P.hiBlue "help" <> " to get help. 😎")
          ]
 
+hintFreshCodebase :: P.Pretty P.ColorText
+hintFreshCodebase =
+  P.wrap $ "Enter " <> P.hiBlue "pull https://github.com/unisonweb/base .base"
+    <> "to set up the default base library. 🏗"
+
 main
   :: forall v
   . Var v
@@ -127,8 +132,10 @@ main
   -> IO ()
 main dir initialPath initialInputs startRuntime codebase = do
   dir' <- shortenDirectory dir
-  putPrettyLn $ welcomeMessage dir'
   root <- Codebase.getRootBranch codebase
+  putPrettyLn $ if Branch.isOne root
+    then welcomeMessage dir' <> P.newline <> P.newline <> hintFreshCodebase
+    else welcomeMessage dir'
   eventQueue <- Q.newIO
   do
     runtime                  <- startRuntime
