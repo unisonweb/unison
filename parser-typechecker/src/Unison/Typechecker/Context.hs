@@ -404,6 +404,9 @@ ordered ctx v v2 = Set.member v (existentials (retract' (existential v2) ctx))
 debugEnabled :: Bool
 debugEnabled = False
 
+debugPatternsEnabled :: Bool
+debugPatternsEnabled = False
+
 _logContext :: (Ord loc, Var v) => String -> M v loc ()
 _logContext msg = when debugEnabled $ do
   ctx <- getContext
@@ -895,7 +898,7 @@ checkPattern
   => Type v loc
   -> Pattern loc
   -> StateT [v] (M v loc) [(v, v)]
-checkPattern tx ty | debugEnabled && traceShow ("checkPattern"::String, tx, ty) False = undefined
+checkPattern tx ty | (debugEnabled || debugPatternsEnabled) && traceShow ("checkPattern"::String, tx, ty) False = undefined
 checkPattern scrutineeType0 p =
   lift (ungeneralize scrutineeType0) >>= \scrutineeType -> case p of
     Pattern.Unbound _    -> pure []
