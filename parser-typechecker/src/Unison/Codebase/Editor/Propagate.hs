@@ -54,6 +54,21 @@ data Edits v = Edits
   , newTypes :: Map Reference (Decl v Ann)
   } deriving (Eq, Show)
 
+noEdits :: Edits v
+noEdits = Edits mempty mempty mempty mempty mempty mempty
+
+propagateAndApply
+  :: forall m i v
+   . (Applicative m, Var v)
+  => PPE.PrettyPrintEnv
+  -> Patch
+  -> Branch m
+  -> F m i v (Branch m)
+propagateAndApply env patch branch = do
+  edits <- propagate env patch branch
+  f     <- applyPropagate edits
+  pure $ Branch.step (f . applyDeprecations patch) branch
+
 -- Description:
 ------------------
 -- For any `Reference` in the frontier which has a type edit, do no propagation.
@@ -87,15 +102,15 @@ data Edits v = Edits
 --   referents that are outside of the
 propagate
   :: forall m i v
-   . (Monad m, Var v)
+   . (Applicative m, Var v)
   => PPE.PrettyPrintEnv
   -> Patch
   -> Branch m
-  -> F m i v (Branch m)
+  -> F m i v (Edits v)
 propagate errorPPE patch b = validatePatch patch >>= \case
   Nothing -> do
     eval $ Notify PatchNeedsToBeConflictFree
-    pure b
+    pure noEdits
   Just initialEdits -> do
     initialDirty <-
       R.dom <$> computeFrontier (eval . GetDependents) patch names0
@@ -111,7 +126,7 @@ propagate errorPPE patch b = validatePatch patch >>= \case
     if not $ Set.null missing
       then do
         eval . Notify $ PatchInvolvesExternalDependents errorPPE missing
-        pure b
+        pure noEdits
       else do
         order <- sortDependentsGraph initialDirty
         let
@@ -119,7 +134,7 @@ propagate errorPPE patch b = validatePatch patch >>= \case
           getOrdered rs = Map.fromList
             [ (i, r) | r <- toList rs, Just i <- [Map.lookup r order] ]
           collectEdits
-            :: (Monad m, Var v)
+            :: (Applicative m, Var v)
             => Edits v
             -> Set Reference
             -> Map Int Reference
@@ -181,7 +196,7 @@ propagate errorPPE patch b = validatePatch patch >>= \case
                         )
                         seen'
                         todo'
-        Edits termEdits _replacements newTerms _ _ _ <- collectEdits
+        collectEdits
           (Edits initialEdits
                  (Map.mapMaybe TermEdit.toReference initialEdits)
                  mempty
@@ -191,25 +206,6 @@ propagate errorPPE patch b = validatePatch patch >>= \case
           )
           mempty -- skip
           (getOrdered initialDirty)
-        -- todo: can eliminate this filter if collectEdits doesn't leave temporary terms in the map!
-        let termEditTargets =
-              Set.fromList . mapMaybe TermEdit.toReference $ toList termEdits
-        -- write the new terms to the codebase
-        (writeTerms . Map.toList) (Map.restrictKeys newTerms termEditTargets)
-        let
-          deprecatedTerms, deprecatedTypes :: Set Reference
-          deprecatedTerms =
-            Set.fromList [ r | (r, TermEdit.Deprecate) <- Map.toList termEdits ]
-          deprecatedTypes = Set.fromList
-            [ r | (r, TypeEdit.Deprecate) <- R.toList (Patch._typeEdits patch) ]
-        -- recursively update names and delete deprecated definitions
-        pure $ Branch.step
-          ( Branch.stepEverywhere
-              (updateNames (Map.mapMaybe TermEdit.toReference termEdits))
-          . deleteDeprecatedTerms deprecatedTerms
-          . deleteDeprecatedTypes deprecatedTypes
-          )
-          b
  where
   missingDependents :: Set Reference -> Set Reference -> _ (Set Reference)
   missingDependents dirty known = do
@@ -226,21 +222,6 @@ propagate errorPPE patch b = validatePatch patch >>= \case
       (zip (view _1 . getReference <$> Graph.topSort graph) [0 ..])
     -- vertex i precedes j whenever i has an edge to j and not vice versa.
     -- vertex i precedes j when j is a dependent of i.
-  updateNames :: Map Reference Reference -> Branch0 m -> Branch0 m
-  updateNames edits Branch0 {..} = Branch.branch0 terms _types _children _edits
-   where
-    terms = foldl' replace _terms (Map.toList edits)
-    replace s (r, r') = Star3.replaceFact (Referent.Ref r) (Referent.Ref r') s
-  deleteDeprecatedTerms, deleteDeprecatedTypes
-    :: Set Reference -> Branch0 m -> Branch0 m
-  deleteDeprecatedTerms rs =
-    over Branch.terms (Star3.deleteFact (Set.map Referent.Ref rs))
-  deleteDeprecatedTypes rs = over Branch.types (Star3.deleteFact rs)
-  -- typePreservingTermEdits :: Patch -> Patch
-  -- typePreservingTermEdits Patch {..} = Patch termEdits mempty
-  --   where termEdits = R.filterRan TermEdit.isTypePreserving _termEdits
-  writeTerms =
-    traverse_ (\(Reference.DerivedId id, (tm, tp)) -> eval $ PutTerm id tm tp)
   names0 = (Branch.toNames0 . Branch.head) b
   validatePatch :: Patch -> F m i v (Maybe (Map Reference TermEdit))
   validatePatch p = pure $ R.toMap (Patch._termEdits p)
@@ -252,7 +233,7 @@ propagate errorPPE patch b = validatePatch patch >>= \case
   -- Command would have to be made parametric in the annotation type too.
   unhashComponent
     :: forall m v
-     . (Monad m, Var v)
+     . (Applicative m, Var v)
     => Reference
     -> F m i v (Maybe (Map v (Reference, Term v _, Type v _)))
   unhashComponent ref = do
@@ -290,6 +271,57 @@ propagate errorPPE patch b = validatePatch patch >>= \case
       else if isType
         then pure Nothing
         else fail $ "Invalid reference: " <> show ref
+
+applyDeprecations :: Applicative m => Patch -> Branch0 m -> Branch0 m
+applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
+  . deleteDeprecatedTypes deprecatedTypes
+ where
+  deprecatedTerms, deprecatedTypes :: Set Reference
+  deprecatedTerms = Set.fromList
+    [ r | (r, TermEdit.Deprecate) <- R.toList (Patch._termEdits patch) ]
+  deprecatedTypes = Set.fromList
+    [ r | (r, TypeEdit.Deprecate) <- R.toList (Patch._typeEdits patch) ]
+  deleteDeprecatedTerms, deleteDeprecatedTypes
+    :: Set Reference -> Branch0 m -> Branch0 m
+  deleteDeprecatedTerms rs =
+    over Branch.terms (Star3.deleteFact (Set.map Referent.Ref rs))
+  deleteDeprecatedTypes rs = over Branch.types (Star3.deleteFact rs)
+
+applyPropagate :: Applicative m => Edits v -> F m i v (Branch0 m -> Branch0 m)
+applyPropagate Edits {..} = do
+  let termRefs        = Map.mapMaybe TermEdit.toReference termEdits
+      typeRefs        = Map.mapMaybe TypeEdit.toReference typeEdits
+      termEditTargets = Set.fromList $ toList termRefs
+      typeEditTargets = Set.fromList $ toList typeRefs
+  -- write the new terms to the codebase
+  (writeTerms . Map.toList) (Map.restrictKeys newTerms termEditTargets)
+  -- write the new types to the codebase
+  (writeTypes . Map.toList) (Map.restrictKeys newTypes typeEditTargets)
+  -- recursively update names and delete deprecated definitions
+  pure $ Branch.stepEverywhere (updateNames termRefs typeRefs)
+ where
+  updateNames
+    :: Map Reference Reference
+    -> Map Reference Reference
+    -> Branch0 m
+    -> Branch0 m
+  updateNames termEdits typeEdits Branch0 {..} = Branch.branch0 terms
+                                                                types
+                                                                _children
+                                                                _edits
+   where
+    terms = foldl' replaceTerm _terms (Map.toList termEdits)
+    types = foldl' replaceType _types (Map.toList typeEdits)
+    replaceTerm s (r, r') =
+      Star3.replaceFact (Referent.Ref r) (Referent.Ref r') s
+    replaceType s (r, r') = Star3.replaceFact r r' s
+  -- typePreservingTermEdits :: Patch -> Patch
+  -- typePreservingTermEdits Patch {..} = Patch termEdits mempty
+  --   where termEdits = R.filterRan TermEdit.isTypePreserving _termEdits
+  writeTerms =
+    traverse_ (\(Reference.DerivedId id, (tm, tp)) -> eval $ PutTerm id tm tp)
+  writeTypes =
+    traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
 
 -- (d, f) when d is "dirty" (needs update),
 --             f is in the frontier (an edited dependency of d),

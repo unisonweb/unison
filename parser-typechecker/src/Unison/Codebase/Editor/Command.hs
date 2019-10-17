@@ -66,10 +66,10 @@ data Command m i v a where
   CodebaseHashLength :: Command m i v Int
 
   ReferencesByShortHash :: ShortHash -> Command m i v (Set Reference.Id)
-  
+
   -- the hash length needed to disambiguate any branch in the codebase
   BranchHashLength :: Command m i v Int
-  
+
   BranchHashesByPrefix :: ShortBranchHash -> Command m i v (Set Branch.Hash)
 
   ParseType :: Names -> LexedSource
@@ -149,7 +149,10 @@ data Command m i v a where
 
   PutTerm :: Reference.Id -> Term v Ann -> Type v Ann -> Command m i v ()
 
-  -- todo: eliminate these hopefully (why, again? because we can know from the Reference?)
+  PutDecl :: Reference.Id -> Decl v Ann -> Command m i v ()
+
+  -- todo: eliminate these hopefully
+  -- (why, again? because we can know from the Reference?)
   IsTerm :: Reference -> Command m i v Bool
   IsType :: Reference -> Command m i v Bool
 

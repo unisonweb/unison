@@ -117,6 +117,7 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r
     PutTerm r tm tp -> Codebase.putTerm codebase r tm tp
+    PutDecl r decl -> Codebase.putTypeDeclaration codebase r decl
     PutWatch kind r e -> Codebase.putWatch codebase kind r e
     LoadWatches kind rs -> catMaybes <$> traverse go (toList rs) where
       go (Reference.Builtin _) = pure Nothing
@@ -142,7 +143,7 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
 --      pure $ Branch.append b0 b
     Execute ppe uf -> void $ evalUnisonFile ppe uf
     AppendToReflog reason old new -> Codebase.appendReflog codebase reason old new
-    LoadReflog -> Codebase.getReflog codebase    
+    LoadReflog -> Codebase.getReflog codebase
 
   eval1 :: PPE.PrettyPrintEnv -> Term.AnnotatedTerm v Ann -> _
   eval1 ppe tm = do
