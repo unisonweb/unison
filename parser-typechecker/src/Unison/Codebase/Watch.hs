@@ -72,7 +72,6 @@ collectUntilPause queue minPauseµsec = do
           else go
   go
 
--- TODO: Return a way of cancelling the watch
 watchDirectory :: forall m. MonadUnliftIO m
   => FilePath -> (FilePath -> Bool) -> m (m (), m (FilePath, Text))
 watchDirectory dir allow = do
