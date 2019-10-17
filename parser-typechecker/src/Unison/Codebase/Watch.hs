@@ -26,7 +26,7 @@ import           Data.Time.Clock                ( UTCTime
                                                 , diffUTCTime
                                                 )
 import           System.FSNotify                ( Event(Added, Modified)
-                                                , watchTree
+                                                , watchDir
                                                 , withManager
                                                 )
 import           Unison.Util.TQueue             ( TQueue )
@@ -45,11 +45,11 @@ watchDirectory' d = do
                   _ <- tryTakeMVar mvar
                   putMVar mvar (fp, t)
     -- janky: used to store the cancellation action returned
-    -- by `watchTree`, which is created asynchronously
+    -- by `watchDir`, which is created asynchronously
     cleanupRef <- newEmptyMVar
     cancel <- forkIO $ withRunInIO $ \inIO ->
       withManager $ \mgr -> do
-        cancelInner <- watchTree mgr d (const True) (inIO . handler) <|> (pure (pure ()))
+        cancelInner <- watchDir mgr d (const True) (inIO . handler) <|> (pure (pure ()))
         putMVar cleanupRef $ liftIO cancelInner
         forever $ threadDelay 1000000
     let cleanup :: m ()
