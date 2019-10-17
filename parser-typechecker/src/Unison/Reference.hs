@@ -149,8 +149,8 @@ groupByComponent refs = done $ foldl' insert Map.empty refs
       Map.unionWith (<>) m (Map.fromList [(Left r, [(k,r)])])
     done m = sortOn snd <$> toList m
 
-instance Show Id where show = show . SH.take 5 . toShortHash . DerivedId
-instance Show Reference where show = show . SH.take 5 . toShortHash
+instance Show Id where show = SH.toString . SH.take 5 . toShortHash . DerivedId
+instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
 
 instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]

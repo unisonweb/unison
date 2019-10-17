@@ -46,6 +46,7 @@ import qualified Unison.Var                    as Var
 import qualified Unison.Result as Result
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import qualified Unison.PrettyPrintEnv         as PPE
+import qualified Unison.ShortHash              as SH
 import Unison.Type (Type)
 
 typecheck
@@ -101,7 +102,7 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
     Evaluate ppe unisonFile        -> evalUnisonFile ppe unisonFile
     Evaluate1 ppe term             -> eval1 ppe term
     LoadLocalRootBranch        -> Codebase.getRootBranch codebase
-    LoadLocalBranch h          -> Codebase.getBranchForHash codebase h 
+    LoadLocalBranch h          -> Codebase.getBranchForHash codebase h
     SyncLocalRootBranch branch -> do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
@@ -128,6 +129,10 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
     GetTermsOfType ty -> Codebase.termsOfType codebase ty
     GetTermsMentioningType ty -> Codebase.termsMentioningType codebase ty
     CodebaseHashLength -> Codebase.hashLength codebase
+    ReferencesByShortHash sh ->
+      Codebase.referencesByPrefix codebase (SH.toText sh)
+    BranchHashLength -> Codebase.branchHashLength codebase
+    BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
 
@@ -136,14 +141,15 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
 --      b0 <- Codebase.propagate codebase (Branch.head b)
 --      pure $ Branch.append b0 b
     Execute ppe uf -> void $ evalUnisonFile ppe uf
+    AppendToReflog reason old new -> Codebase.appendReflog codebase reason old new
+    LoadReflog -> Codebase.getReflog codebase    
 
   eval1 :: PPE.PrettyPrintEnv -> Term.AnnotatedTerm v Ann -> _
   eval1 ppe tm = do
     let codeLookup = Codebase.toCodeLookup codebase
     let uf = UF.UnisonFile mempty mempty mempty
                (Map.singleton UF.RegularWatch [(Var.nameds "result", tm)])
-    selfContained <- Codebase.makeSelfContained' codeLookup uf
-    r <- Runtime.evaluateWatches codeLookup ppe Runtime.noCache rt selfContained
+    r <- Runtime.evaluateWatches codeLookup ppe Runtime.noCache rt uf
     pure $ r <&> \(_,map) ->
       let [(_loc, _kind, _hash, _src, value, _isHit)] = Map.elems map
       in Term.amap (const Parser.External) value
@@ -151,13 +157,12 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
   evalUnisonFile :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> _
   evalUnisonFile ppe (UF.discardTypes -> unisonFile) = do
     let codeLookup = Codebase.toCodeLookup codebase
-    selfContained <- Codebase.makeSelfContained' codeLookup unisonFile
     let watchCache (Reference.DerivedId h) = do
           m1 <- Codebase.getWatch codebase UF.RegularWatch h
           m2 <- maybe (Codebase.getWatch codebase UF.TestWatch h) (pure . Just) m1
           pure $ Term.amap (const ()) <$> m2
         watchCache _ = pure Nothing
-    r <- Runtime.evaluateWatches codeLookup ppe watchCache rt selfContained
+    r <- Runtime.evaluateWatches codeLookup ppe watchCache rt unisonFile
     case r of
       Left e -> pure (Left e)
       Right rs@(_,map) -> do

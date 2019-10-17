@@ -262,7 +262,7 @@ changeVars m t = case out t of
 
 -- | Produce a variable which is free in both terms
 freshInBoth :: Var v => Term f v a -> Term f v a -> v -> v
-freshInBoth t1 t2 = fresh t2 . fresh t1
+freshInBoth t1 t2 = freshIn $ Set.union (freeVars t1) (freeVars t2)
 
 fresh :: Var v => Term f v a -> v -> v
 fresh t = freshIn (freeVars t)
@@ -309,7 +309,7 @@ subst' replace v r t2@(Term fvs ann body)
     Cycle body -> cycle' ann (subst' replace v r body)
     Abs x _ | x == v -> t2 -- x shadows v; ignore subtree
     Abs x e -> abs' ann x' e'
-      where x' = fresh t2 (freshIn r x)
+      where x' = freshIn (fvs `Set.union` r) x
             -- rename x to something that cannot be captured by `r`
             e' = if x /= x' then subst' replace v r (rename x x' e)
                  else subst' replace v r e

@@ -98,8 +98,9 @@ matchCase = do
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
 parsePattern =
-  chainl1 (constructor <|> seqLiteral <|> leaf) patternInfixApp
+  chainl1 patternCandidates patternInfixApp
   where
+  patternCandidates = constructor <|> seqLiteral <|> leaf
   patternInfixApp :: P v ((Pattern Ann, [(Ann, v)])
                   -> (Pattern Ann, [(Ann, v)])
                   -> (Pattern Ann, [(Ann, v)]))
@@ -183,7 +184,7 @@ parsePattern =
         f patterns vs =
           let loc = foldl (<>) (ann tok) $ map ann patterns
           in (Pattern.Constructor loc ref cid patterns, vs)
-    unzipPatterns f <$> many leaf
+    unzipPatterns f <$> many patternCandidates
 
   seqLiteral = Parser.seq f leaf
     where f loc = unzipPatterns ((,) . Pattern.SequenceLiteral loc)

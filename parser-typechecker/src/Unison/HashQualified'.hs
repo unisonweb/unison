@@ -18,7 +18,7 @@ import qualified Unison.ShortHash              as SH
 import qualified Unison.HashQualified          as HQ
 
 data HashQualified' n = NameOnly n | HashQualified n ShortHash
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Functor)
 
 type HashQualified = HashQualified' Name
 
@@ -40,7 +40,7 @@ take i = \case
 toNameOnly :: HashQualified' n -> HashQualified' n
 toNameOnly = fromName . toName
 
-toHash :: HashQualified -> Maybe ShortHash
+toHash :: HashQualified' n -> Maybe ShortHash
 toHash = \case
   NameOnly _         -> Nothing
   HashQualified _ sh -> Just sh

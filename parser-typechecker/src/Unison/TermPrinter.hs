@@ -224,8 +224,10 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     t -> l "error: " <> l (show t)
  where
   specialCases term go = case (term, binaryOpsPred) of
-    (TupleTerm' [x], _) ->
-      paren (p >= 10) $ fmt S.Constructor "Pair" `PP.hang`
+    (TupleTerm' [x], _) -> let
+      pair = parenIfInfix name ic $ styleHashQualified'' (fmt S.Constructor) name
+        where name = elideFQN im $ PrettyPrintEnv.termName n (DD.pairCtorRef) in
+      paren (p >= 10) $ pair `PP.hang`
         PP.spaced [pretty0 n (ac 10 Normal im) x, fmt S.Constructor "()" ]
     (TupleTerm' xs, _) -> paren True $ commaList xs
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
@@ -272,7 +274,13 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     lhs = PP.group (fst (prettyPattern n (ac 0 Block im) (-1) vs pat) <> " ")
        <> printGuard guard
        <> (fmt S.ControlKeyword "->")
-    printGuard (Just g) = PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty0 n (ac 2 Normal im) g, ""]
+    printGuard (Just g0) = let
+      -- strip off any Abs-chain around the guard, guard variables are rendered
+      -- like any other variable, ex: case Foo x y | x < y -> ...
+      g = case g0 of
+        AbsN' _ g' -> g'
+        _ -> g0
+      in PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty0 n (ac 2 Normal im) g, ""]
     printGuard Nothing  = mempty
     (im', uses) = calcImports im body
   printCase _ = l "error"
@@ -338,17 +346,13 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   PatternP.Nat     _ u -> (fmt S.NumericLiteral $ l $ show u, vs)
   PatternP.Float   _ f -> (fmt S.NumericLiteral $ l $ show f, vs)
   PatternP.Text    _ t -> (fmt S.TextLiteral $ l $ show t, vs)
-  TuplePattern [pp] ->
-    let (printed, tail_vs) = prettyPattern n c 10 vs pp
-    in  ( paren (p >= 10) $ PP.sep " " [fmt S.Constructor "Pair", printed, fmt S.Constructor "()"]
-        , tail_vs )
-  TuplePattern pats ->
-    let (pats_printed, tail_vs) = patterns vs pats
+  TuplePattern pats | length pats /= 1 ->
+    let (pats_printed, tail_vs) = patterns (-1) vs pats
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
   PatternP.Constructor _ ref i [] ->
     (styleHashQualified'' (fmt S.Constructor) $ elideFQN im (PrettyPrintEnv.patternName n ref i), vs)
   PatternP.Constructor _ ref i pats ->
-    let (pats_printed, tail_vs) = patternsSep PP.softbreak vs pats
+    let (pats_printed, tail_vs) = patternsSep 10 PP.softbreak vs pats
     in  ( paren (p >= 10)
           $ styleHashQualified'' (fmt S.Constructor) (elideFQN im (PrettyPrintEnv.patternName n ref i))
             `PP.hang` pats_printed
@@ -361,7 +365,7 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
     let (printed, eventual_tail) = prettyPattern n c (-1) vs pat
     in  (PP.sep " " [fmt S.DelimiterChar "{", printed, fmt S.DelimiterChar "}"], eventual_tail)
   PatternP.EffectBind _ ref i pats k_pat ->
-    let (pats_printed , tail_vs      ) = patternsSep PP.softbreak vs pats
+    let (pats_printed , tail_vs      ) = patternsSep 10 PP.softbreak vs pats
         (k_pat_printed, eventual_tail) = prettyPattern n c 0 tail_vs k_pat
     in  ((fmt S.DelimiterChar "{" ) <>
           (PP.sep " " . PP.nonEmpty $ [
@@ -372,7 +376,7 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
          (fmt S.DelimiterChar "}")
         , eventual_tail)
   PatternP.SequenceLiteral _ pats ->
-    let (pats_printed, tail_vs) = patternsSep (fmt S.DelimiterChar ", ") vs pats
+    let (pats_printed, tail_vs) = patternsSep (-1) (fmt S.DelimiterChar ", ") vs pats
     in  ((fmt S.DelimiterChar "[") <> pats_printed <> (fmt S.DelimiterChar "]"), tail_vs)
   PatternP.SequenceOp _ l op r ->
     let (pl, lvs) = prettyPattern n c p vs l
@@ -386,12 +390,13 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
  where
   l :: IsString s => String -> s
   l = fromString
-  patterns vs (pat : pats) =
-    let (printed     , tail_vs      ) = prettyPattern n c (-1) vs pat
-        (rest_printed, eventual_tail) = patterns tail_vs pats
+  patterns p vs (pat : pats) =
+    let (printed     , tail_vs      ) =
+          prettyPattern n c p vs pat
+        (rest_printed, eventual_tail) = patterns p tail_vs pats
     in  (printed : rest_printed, eventual_tail)
-  patterns vs [] = ([], vs)
-  patternsSep sep vs pats = case patterns vs pats of
+  patterns _ vs [] = ([], vs)
+  patternsSep p sep vs pats = case patterns p vs pats of
     (printed, tail_vs) -> (PP.sep sep printed, tail_vs)
 
 {- Render a binding, producing output of the form

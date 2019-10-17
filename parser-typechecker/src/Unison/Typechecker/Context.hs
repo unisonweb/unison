@@ -43,6 +43,7 @@ where
 
 import Unison.Prelude
 
+import qualified Control.Monad.Fail            as MonadFail
 import           Control.Monad.Reader.Class
 import           Control.Monad.State            ( get
                                                 , put
@@ -402,6 +403,9 @@ ordered ctx v v2 = Set.member v (existentials (retract' (existential v2) ctx))
 
 debugEnabled :: Bool
 debugEnabled = False
+
+debugPatternsEnabled :: Bool
+debugPatternsEnabled = False
 
 _logContext :: (Ord loc, Var v) => String -> M v loc ()
 _logContext msg = when debugEnabled $ do
@@ -845,7 +849,7 @@ synthesize e = scope (InSynthesize e) $
     -- handler only uses abilities in the current ambient set.
     ht <- synthesize h >>= applyM >>= ungeneralize
     ctx <- getContext
-    case ht of 
+    case ht of
       -- common case, like `h : Request {Remote} a -> b`, brings
       -- `Remote` into ambient when checking `body`
       Type.Arrow' (Type.Apps' (Type.Ref' ref) [et,i]) o | ref == Type.effectRef -> do
@@ -857,13 +861,13 @@ synthesize e = scope (InSynthesize e) $
         pure o'
       -- degenerate case, like `handle x -> 10 in ...`
       Type.Arrow' (i@(Type.Existential' _ v@(lookupSolved ctx -> Nothing))) o -> do
-        e <- extendExistential v 
-        withEffects [Type.existentialp (loc i) e] $ check body i 
+        e <- extendExistential v
+        withEffects [Type.existentialp (loc i) e] $ check body i
         o <- applyM o
         let (oes, o') = Type.stripEffect o
         abilityCheck oes
         pure o'
-      _ -> failWith $ HandlerOfUnexpectedType (loc h) ht 
+      _ -> failWith $ HandlerOfUnexpectedType (loc h) ht
   go _e = compilerCrash PatternMatchFailure
 
 checkCase :: forall v loc . (Var v, Ord loc)
@@ -894,7 +898,7 @@ checkPattern
   => Type v loc
   -> Pattern loc
   -> StateT [v] (M v loc) [(v, v)]
-checkPattern tx ty | debugEnabled && traceShow ("checkPattern"::String, tx, ty) False = undefined
+checkPattern tx ty | (debugEnabled || debugPatternsEnabled) && traceShow ("checkPattern"::String, tx, ty) False = undefined
 checkPattern scrutineeType0 p =
   lift (ungeneralize scrutineeType0) >>= \scrutineeType -> case p of
     Pattern.Unbound _    -> pure []
@@ -1082,12 +1086,12 @@ annotateLetRecBindings isTop letrec =
     -- This will infer whatever type.  If it altogether fails to typecheck here
     -- then, ...(1)
     withoutAnnotations  <-
-      resetContextAfter Nothing $ (Just <$> annotateLetRecBindings' False)
+      resetContextAfter Nothing $ Just <$> annotateLetRecBindings' False
     -- convert from typechecker TypeVar back to regular `v` vars
     let unTypeVar (v, t) = (v, Type.generalizeAndUnTypeVar t)
     case withoutAnnotations of
       Just (_, vts') -> do
-        r <- all id <$> zipWithM isRedundant (fmap snd vts) (fmap snd vts')
+        r <- and <$> zipWithM isRedundant (fmap snd vts) (fmap snd vts')
         btw $ TopLevelComponent ((\(v,b) -> (Var.reset v, b,r)) . unTypeVar <$> vts)
       -- ...(1) we'll assume all the user-provided annotations were needed
       Nothing -> btw
@@ -1688,6 +1692,9 @@ instance Monad (M v loc) where
     go menv = do
       (a, env1) <- runM m menv
       runM (f a) (menv { env = env1 })
+
+instance MonadFail.MonadFail (M v loc) where
+  fail = error
 
 instance Applicative (M v loc) where
   pure = return
