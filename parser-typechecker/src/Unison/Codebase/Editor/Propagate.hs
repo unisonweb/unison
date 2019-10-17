@@ -107,11 +107,11 @@ propagate
   -> Patch
   -> Branch m
   -> F m i v (Edits v)
-propagate errorPPE patch b = validatePatch patch >>= \case
+propagate errorPPE patch b = case validatePatch patch of
   Nothing -> do
     eval $ Notify PatchNeedsToBeConflictFree
     pure noEdits
-  Just initialEdits -> do
+  Just (initialTermEdits, initialTypeEdits) -> do
     initialDirty <-
       R.dom <$> computeFrontier (eval . GetDependents) patch names0
     missing :: Set Reference <- missingDependents
@@ -144,9 +144,13 @@ propagate errorPPE patch b = validatePatch patch >>= \case
             Just (r, todo) -> case r of
               Reference.Builtin _ -> collectEdits es seen todo
               Reference.DerivedId _ ->
-                if Map.member r termEdits || Set.member r seen
-                  then collectEdits es seen todo
-                  else unhashComponent r >>= \case
+                if Map.member r termEdits
+                   || Map.member r typeEdits
+                   || Set.member r seen
+                then
+                  collectEdits es seen todo
+                else
+                  unhashTermComponent r >>= \case
                     Nothing -> collectEdits es (Set.insert r seen) todo
                     Just componentMap -> do
                       let
@@ -197,11 +201,11 @@ propagate errorPPE patch b = validatePatch patch >>= \case
                         seen'
                         todo'
         collectEdits
-          (Edits initialEdits
-                 (Map.mapMaybe TermEdit.toReference initialEdits)
+          (Edits initialTermEdits
+                 (Map.mapMaybe TermEdit.toReference initialTermEdits)
                  mempty
-                 mempty
-                 mempty
+                 initialTypeEdits
+                 (Map.mapMaybe TypeEdit.toReference initialTypeEdits)
                  mempty
           )
           mempty -- skip
@@ -223,54 +227,62 @@ propagate errorPPE patch b = validatePatch patch >>= \case
     -- vertex i precedes j whenever i has an edge to j and not vice versa.
     -- vertex i precedes j when j is a dependent of i.
   names0 = (Branch.toNames0 . Branch.head) b
-  validatePatch :: Patch -> F m i v (Maybe (Map Reference TermEdit))
-  validatePatch p = pure $ R.toMap (Patch._termEdits p)
+  validatePatch
+    :: Patch -> Maybe (Map Reference TermEdit, Map Reference TypeEdit)
+  validatePatch p =
+    (,) <$> R.toMap (Patch._termEdits p) <*> R.toMap (Patch._typeEdits p)
   -- Turns a cycle of references into a term with free vars that we can edit
   -- and hash again.
   -- todo: Maybe this an others can be moved to HandleCommand, in the
   --  Free (Command m i v) monad, passing in the actions that are needed.
   -- However, if we want this to be parametric in the annotation type, then
   -- Command would have to be made parametric in the annotation type too.
-  unhashComponent
+  unhashTermComponent
     :: forall m v
      . (Applicative m, Var v)
     => Reference
-    -> F m i v (Maybe (Map v (Reference, Term v _, Type v _)))
-  unhashComponent ref = do
-    let component = Reference.members $ Reference.componentFor ref
-    isTerm <- eval $ IsTerm ref
-    isType <- eval $ IsType ref
-    if isTerm
-      then do
-        let
-          termInfo
-            :: Reference -> F m i v (v, (Reference, Term v Ann, Type v Ann))
-          termInfo termRef = do
-            tpm <- eval $ LoadTypeOfTerm termRef
-            tp  <- maybe (fail $ "Missing type for term " <> show termRef)
+    -> F m i v (Map v (Reference, Term v _, Type v _))
+  unhashTermComponent ref = do
+    let
+      component = Reference.members $ Reference.componentFor ref
+      termInfo
+        :: Reference
+        -> F m i v (Maybe (v, (Reference, Term v Ann, Type v Ann)))
+      termInfo termRef = do
+        tpm <- eval $ LoadTypeOfTerm termRef
+        tp  <- maybe (fail $ "Missing type for term " <> show termRef) pure tpm
+        case termRef of
+          Reference.DerivedId id -> do
+            mtm <- eval $ LoadTerm id
+            tm  <- maybe (fail $ "Missing term with id " <> show id) pure mtm
+            pure $ Just (Var.typed (Var.RefNamed termRef), (termRef, tm, tp))
+          _ -> pure Nothing
+      unhash m =
+        let f (ref, _oldTm, oldTyp) (_ref, newTm) = (ref, newTm, oldTyp)
+            dropType (r, tm, _tp) = (r, tm)
+        in  Map.intersectionWith f m (Term.unhashComponent (dropType <$> m))
+    unhash . Map.fromList . catMaybes <$> traverse termInfo (toList component)
+  unhashTypeComponent
+    :: forall m v
+     . (Applicative m, Var v)
+    => Reference
+    -> F m i v (Map v (Reference, Decl v _))
+  unhashTypeComponent ref = do
+    let
+      component = Reference.members $ Reference.componentFor ref
+      typeInfo :: Reference -> F m i v (Maybe (v, (Reference, Decl v Ann)))
+      typeInfo typeRef = case typeRef of
+        Reference.DerivedId id -> do
+          declm <- eval $ LoadType typeRef
+          decl  <- maybe (fail $ "Missing type declaration " <> show typeRef)
                          pure
-                         tpm
-            case termRef of
-              Reference.DerivedId id -> do
-                mtm <- eval $ LoadTerm id
-                tm  <- maybe (fail $ "Missing term with id " <> show id)
-                             pure
-                             mtm
-                pure (Var.typed (Var.RefNamed termRef), (termRef, tm, tp))
-              _ ->
-                fail
-                  $  "Cannot unhashComponent for a builtin: "
-                  ++ show termRef
-          unhash m =
-            let f (ref, _oldTm, oldTyp) (_ref, newTm) = (ref, newTm, oldTyp)
-                dropType (r, tm, _tp) = (r, tm)
-            in  Map.intersectionWith f
-                                     m
-                                     (Term.unhashComponent (dropType <$> m))
-        Just . unhash . Map.fromList <$> traverse termInfo (toList component)
-      else if isType
-        then pure Nothing
-        else fail $ "Invalid reference: " <> show ref
+                         declm
+          pure $ Just (Var.RefNamed typeRef, (typeRef, decl))
+        _ -> pure Nothing
+      unhash m =
+        let f (ref, _oldDecl) (_ref, newDecl) = (ref, newDecl)
+        in  Map.intersectionWith f m (Decl.unhashComponent m)
+    unhash . Map.fromList . catMaybes <$> traverse typeInfo (toList component)
 
 applyDeprecations :: Applicative m => Patch -> Branch0 m -> Branch0 m
 applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
