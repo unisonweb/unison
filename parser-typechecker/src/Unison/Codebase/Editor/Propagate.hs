@@ -98,10 +98,7 @@ propagate errorPPE patch b = validatePatch patch >>= \case
     pure b
   Just initialEdits -> do
     initialDirty <-
-      R.dom
-        <$> computeFrontier (eval . GetDependents)
-                            (typePreservingTermEdits patch)
-                            names0
+      R.dom <$> computeFrontier (eval . GetDependents) patch names0
     missing :: Set Reference <- missingDependents
       initialDirty
       ( Set.fromList
@@ -127,7 +124,6 @@ propagate errorPPE patch b = validatePatch patch >>= \case
             -> Set Reference
             -> Map Int Reference
             -> F m i v (Edits v)
-          -- `replacements` contains the TermEdit.Replace elements of `edits`.
           collectEdits es@Edits {..} seen todo = case Map.minView todo of
             Nothing        -> pure es
             Just (r, todo) -> case r of
@@ -240,9 +236,9 @@ propagate errorPPE patch b = validatePatch patch >>= \case
   deleteDeprecatedTerms rs =
     over Branch.terms (Star3.deleteFact (Set.map Referent.Ref rs))
   deleteDeprecatedTypes rs = over Branch.types (Star3.deleteFact rs)
-  typePreservingTermEdits :: Patch -> Patch
-  typePreservingTermEdits Patch {..} = Patch termEdits mempty
-    where termEdits = R.filterRan TermEdit.isTypePreserving _termEdits
+  -- typePreservingTermEdits :: Patch -> Patch
+  -- typePreservingTermEdits Patch {..} = Patch termEdits mempty
+  --   where termEdits = R.filterRan TermEdit.isTypePreserving _termEdits
   writeTerms =
     traverse_ (\(Reference.DerivedId id, (tm, tp)) -> eval $ PutTerm id tm tp)
   names0 = (Branch.toNames0 . Branch.head) b
