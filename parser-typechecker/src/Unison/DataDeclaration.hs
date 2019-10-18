@@ -315,6 +315,9 @@ toABT dd = ABT.tm $ Modified (modifier dd) dd'
             (fst <$> constructors dd)
             (ABT.tm . Constructors $ ABT.transform Type <$> constructorTypes dd))
 
+updateDependencies :: Map Reference Reference -> Decl v a -> Decl v a
+updateDependencies = undefined
+
 -- This converts `Reference`s it finds that are in the input `Map`
 -- back to free variables
 unhashComponent

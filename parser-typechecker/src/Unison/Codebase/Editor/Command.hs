@@ -35,6 +35,7 @@ import qualified Unison.UnisonFile             as UF
 import qualified Unison.Lexer                  as L
 import qualified Unison.Parser                 as Parser
 import           Unison.ShortHash               ( ShortHash )
+import           Unison.Typechecker             ( Notes )
 import Unison.Type (Type)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
@@ -155,6 +156,10 @@ data Command m i v a where
   -- (why, again? because we can know from the Reference?)
   IsTerm :: Reference -> Command m i v Bool
   IsType :: Reference -> Command m i v Bool
+
+  TypecheckFile :: UF.UnisonFile v Ann
+                -> [Type v Ann]
+                -> Command m i v (Result (Notes v Ann) (Type v Ann))
 
   -- Get the immediate (not transitive) dependents of the given reference
   -- This might include historical definitions not in any current path; these

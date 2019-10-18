@@ -29,6 +29,7 @@ import qualified Unison.Hashable as Hashable
 import qualified Unison.Kind as K
 import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
+import qualified Unison.Reference.Util as ReferenceUtil
 import           Unison.TypeVar (TypeVar)
 import qualified Unison.TypeVar as TypeVar
 import           Unison.Var (Var)
@@ -83,7 +84,7 @@ bindNames keepFree ns t = let
                   else Left (pure (Names.TypeResolutionFailure v a rs))
   in List.validate ok rs <&> \es -> bindExternal es t
 
-data Monotype v a = Monotype { getPolytype :: Type v a } deriving Eq
+newtype Monotype v a = Monotype { getPolytype :: Type v a } deriving Eq
 
 instance (Show v) => Show (Monotype v a) where
   show = show . getPolytype
@@ -424,6 +425,12 @@ dependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] $> t
         f t = pure t
 
+updateDependencies :: Ord v => Map Reference Reference -> Type v a -> Type v a
+updateDependencies typeUpdates = ABT.rebuildUp go
+ where
+  go (Ref r) = Ref (Map.findWithDefault r r typeUpdates)
+  go f       = f
+
 usesEffects :: Ord v => Type v a -> Bool
 usesEffects t = getAny . getConst $ ABT.visit go t where
   go (Effect1' _ _) = Just (Const (Any True))
@@ -606,6 +613,10 @@ toReferenceMentions ty =
   let (vs, _) = unforall' ty
       gen ty = generalize (Set.toList (freeVars ty)) $ generalize vs ty
   in Set.fromList $ toReference . gen <$> ABT.subterms ty
+
+hashComponents
+  :: Var v => Map v (Type v a) -> Map v (Reference, Type v a)
+hashComponents = ReferenceUtil.hashComponents $ ref ()
 
 instance Hashable1 F where
   hash1 hashCycle hash e =

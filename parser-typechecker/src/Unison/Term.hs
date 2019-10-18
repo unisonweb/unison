@@ -802,13 +802,18 @@ labeledDependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t where
   goPat (MatchCase pat _ _)   = Writer.tell (toList (Pattern.labeledDependencies pat))
 
 updateDependencies
-  :: Ord v => Map Reference Reference -> AnnotatedTerm v a -> AnnotatedTerm v a
-updateDependencies u = ABT.rebuildUp go
+  :: Ord v
+  => Map Reference Reference
+  -> Map Reference Reference
+  -> AnnotatedTerm v a
+  -> AnnotatedTerm v a
+updateDependencies termUpdates typeUpdates = ABT.rebuildUp go
  where
   -- todo: this function might need tweaking if we ever allow type replacements
   -- would need to look inside pattern matching and constructor calls
-  go (Ref r) = Ref (Map.findWithDefault r r u)
-  go f       = f
+  go (Ref r    ) = Ref (Map.findWithDefault r r termUpdates)
+  go (Ann tm tp) = Ann tm $ Type.updateDependencies typeUpdates tp
+  go f           = f
 
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body

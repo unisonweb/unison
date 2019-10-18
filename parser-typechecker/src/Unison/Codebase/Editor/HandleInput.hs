@@ -1991,7 +1991,7 @@ propagate errorPPE patch b = validatePatch patch >>= \case
                       Just componentMap -> do
                         let
                           componentMap' =
-                            over _2 (Term.updateDependencies replacements)
+                            over _2 (Term.updateDependencies replacements mempty)
                               <$> componentMap
                           hashedComponents' =
                             Term.hashComponents (view _2 <$> componentMap')

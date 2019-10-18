@@ -20,12 +20,14 @@ import           Unison.Codebase.Editor.Output
 import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.DataDeclaration         ( Decl )
+import qualified Unison.DataDeclaration        as Decl
 import           Unison.Names3                  ( Names0 )
 import qualified Unison.Names2                 as Names
 import           Unison.Parser                  ( Ann(..) )
 import           Unison.Reference               ( Reference(..) )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
+import qualified Unison.Result                 as Result
 import qualified Unison.Term                   as Term
 import           Unison.Util.Free               ( Free
                                                 , eval
@@ -39,6 +41,7 @@ import           Unison.Codebase.TermEdit       ( TermEdit(..) )
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.TypeEdit       ( TypeEdit(..) )
 import qualified Unison.PrettyPrintEnv         as PPE
+import           Unison.UnisonFile              ( UnisonFile(..) )
 import qualified Unison.Util.Star3             as Star3
 import           Unison.Type                    ( Type )
 
@@ -71,35 +74,34 @@ propagateAndApply env patch branch = do
 
 -- Description:
 ------------------
--- For any `Reference` in the frontier which has a type edit, do no propagation.
--- (for now, until we have a richer type edit algebra).
---
--- For any `Reference` in the frontier which has an unconflicted, type-preserving
+-- For any `Reference` in the frontier which has an unconflicted
 -- term edit, `old -> new`, replace `old` with `new` in dependents of the
--- frontier, and call `propagate'` recursively on the new frontier.
+-- frontier, and call `propagate'` recursively on the new frontier if
+-- the dependents still typecheck.
 --
 -- If the term is `Typing.Same`, the dependents don't need to be typechecked.
 -- If the term is `Typing.Subtype`, and the dependent only has inferred type,
 -- it should be re-typechecked, and the new inferred type should be used.
 --
--- This will create a whole bunch of new terms in the codebase and move the
--- names onto those new terms. Uses `Term.updateDependencies` to perform
+-- This will create a whole bunch of new terms and types in the codebase and
+-- move the names onto those new terms. Uses `updateDependencies` to perform
 -- the substitutions.
 --
 -- Algorithm:
 ----------------
--- compute the frontier relation (dependencies of updated terms)
+-- compute the frontier relation (dependencies of updated terms and types)
 -- for each dirty definition d:
 --  for each member c of cycle(d):
---   construct c', an updated c incorporating all type-preserving edits
---   add an edit c -> c'
---   save c' to a `Map Reference Term`
-
--- propagate only deals with Terms
+--   construct c', an updated c incorporating all edits
+--   Add an edit c -> c'
+--     and save c' to a `Map Reference Term` or `Map Reference Type`
+--     as appropriate
+--   Collect all c' into a new cycle and typecheck (TODO: kindcheck) that cycle.
+--     If the cycle doesn't check, discard edits to that cycle.
+--
 -- "dirty" means in need of update
 -- "frontier" means updated definitions responsible for the "dirty"
--- errorPPE only needs to have external names, since we're using it to report
---   referents that are outside of the
+-- errorPPE only needs to have external names
 propagate
   :: forall m i v
    . (Applicative m, Var v)
@@ -142,46 +144,28 @@ propagate errorPPE patch b = case validatePatch patch of
           collectEdits es@Edits {..} seen todo = case Map.minView todo of
             Nothing        -> pure es
             Just (r, todo) -> case r of
-              Reference.Builtin _ -> collectEdits es seen todo
-              Reference.DerivedId _ ->
-                if Map.member r termEdits
-                   || Map.member r typeEdits
-                   || Set.member r seen
-                then
-                  collectEdits es seen todo
-                else
-                  unhashTermComponent r >>= \case
-                    Nothing -> collectEdits es (Set.insert r seen) todo
-                    Just componentMap -> do
-                      let
-                        componentMap' =
-                          over _2 (Term.updateDependencies termReplacements)
-                            <$> componentMap
-                        hashedComponents' =
-                          Term.hashComponents (view _2 <$> componentMap')
-                        joinedStuff
-                          :: [(Reference, Reference, Term v _, Type v _)]
-                        joinedStuff =
-                          toList
-                            (Map.intersectionWith f
-                                                  componentMap'
-                                                  hashedComponents'
-                            )
-                        f (oldRef, _, oldType) (newRef, newTerm) =
-                          (oldRef, newRef, newTerm, newType)
-                          where newType = oldType
-                    -- collect the hashedComponents into edits/replacements/newterms/seen
-                        termEdits' =
-                          termEdits <> (Map.fromList . fmap toEdit) joinedStuff
-                        toEdit (r, r', _, _) =
-                          (r, TermEdit.Replace r' TermEdit.Same)
-                        termReplacements' = termReplacements
-                          <> (Map.fromList . fmap toReplacement) joinedStuff
-                        toReplacement (r, r', _, _) = (r, r')
-                        newTerms' = newTerms
-                          <> (Map.fromList . fmap toNewTerm) joinedStuff
-                        toNewTerm (_, r', tm, tp) = (r', (tm, tp))
-                        seen' = seen <> Set.fromList (view _1 <$> joinedStuff)
+              Reference.Builtin   _ -> collectEdits es seen todo
+              Reference.DerivedId _ -> go r todo
+           where
+            go r todo =
+              if Map.member r termEdits
+                 || Map.member r typeEdits
+                 || Set.member r seen
+              then
+                collectEdits es seen todo
+              else
+                do
+                  haveType <- eval $ IsType r
+                  haveTerm <- eval $ IsTerm r
+                  let message =
+                        "This reference is not a term nor a type " <> show r
+                      mmayEdits | haveTerm  = doTerm r
+                                | haveType  = doType r
+                                | otherwise = fail message
+                  mayEdits <- mmayEdits
+                  case mayEdits of
+                    (Nothing    , seen') -> collectEdits es seen' todo
+                    (Just edits', seen') -> do
                       -- plan to update the dependents of this component too
                       dependents <-
                         fmap Set.unions
@@ -190,16 +174,102 @@ propagate errorPPE patch b = case validatePatch patch of
                         . Reference.members
                         $ Reference.componentFor r
                       let todo' = todo <> getOrdered dependents
-                      collectEdits
-                        (Edits termEdits'
-                               termReplacements'
-                               newTerms'
-                               mempty
-                               mempty
-                               mempty
-                        )
-                        seen'
-                        todo'
+                      collectEdits edits' seen' todo'
+            doType :: Reference -> F m i v (Maybe (Edits v), Set Reference)
+            doType r =
+              do
+                componentMap <- unhashTypeComponent r
+                let componentMap' =
+                      over _2 (Decl.updateDependencies typeReplacements)
+                      <$> componentMap
+                    declMap = over _2 (either Decl.toDataDecl id) <$> componentMap'
+                    -- TODO: kind-check the new components
+                    hashedDecls =
+                      Decl.hashDecls $ view _2 <$> declMap
+                hashedComponents' <-
+                  case hashedDecls of
+                    Left _ ->
+                      fail $ "Edit propagation failed because some of the dependencies of " <> show r <> " could not be resolved."
+                    Right c -> pure . Map.fromList $ (\(v,r,d) -> (v, (r,d))) <$> c
+                let joinedStuff :: [(v, (Reference, Reference, Decl.DataDeclaration' v _))]
+                    joinedStuff = Map.toList
+                      (Map.intersectionWith f declMap hashedComponents')
+                    f (oldRef, _) (newRef, newType) =
+                      (oldRef, newRef, newType)
+                    typeEdits' =
+                      typeEdits <> (Map.fromList . fmap toEdit) joinedStuff
+                    toEdit (_, (r, r', _)) =
+                      (r, TypeEdit.Replace r')
+                    typeReplacements' = typeReplacements
+                      <> (Map.fromList . fmap toReplacement) joinedStuff
+                    toReplacement (_, (r, r', _)) = (r, r')
+                    newTypes' =
+                      newTypes <> (Map.fromList . fmap toNewType) joinedStuff
+                    toNewType (v, (_, r', tp)) =
+                      (r', case Map.lookup v componentMap of
+                             Just (_, Left _) -> Left (Decl.EffectDeclaration tp)
+                             Just (_, Right _) -> Right tp
+                             _ -> error "It's not gone well!"
+                      )
+                    seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
+                  in
+                    pure ( Just $ Edits termEdits
+                                   termReplacements
+                                   newTerms
+                                   typeEdits'
+                                   typeReplacements'
+                                   newTypes'
+                    , seen'
+                    )
+            doTerm :: Reference -> F m i v (Maybe (Edits v), Set Reference)
+            doTerm r = do
+              componentMap <- unhashTermComponent r
+              let
+                componentMap' =
+                  over
+                      _2
+                      (Term.updateDependencies termReplacements typeReplacements
+                      )
+                    <$> componentMap
+                file = UnisonFile
+                  mempty
+                  mempty
+                  (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)
+                  mempty
+              typecheckResult <- eval $ TypecheckFile file []
+              pure $ if not (runIdentity $ Result.isSuccess typecheckResult)
+                then (Nothing, seen)
+                else
+                  let
+                    hashedComponents' =
+                      Term.hashComponents (view _2 <$> componentMap')
+                    joinedStuff :: [(Reference, Reference, Term v _, Type v _)]
+                    joinedStuff = toList
+                      (Map.intersectionWith f componentMap' hashedComponents')
+                    f (oldRef, _, oldType) (newRef, newTerm) =
+                      (oldRef, newRef, newTerm, newType)
+                      where newType = oldType
+                -- collect the hashedComponents into edits/replacements/newterms/seen
+                    termEdits' =
+                      termEdits <> (Map.fromList . fmap toEdit) joinedStuff
+                    toEdit (r, r', _, _) =
+                      (r, TermEdit.Replace r' TermEdit.Same)
+                    termReplacements' = termReplacements
+                      <> (Map.fromList . fmap toReplacement) joinedStuff
+                    toReplacement (r, r', _, _) = (r, r')
+                    newTerms' =
+                      newTerms <> (Map.fromList . fmap toNewTerm) joinedStuff
+                    toNewTerm (_, r', tm, tp) = (r', (tm, tp))
+                    seen' = seen <> Set.fromList (view _1 <$> joinedStuff)
+                  in
+                    ( Just $ Edits termEdits'
+                                   termReplacements'
+                                   newTerms'
+                                   typeEdits
+                                   typeReplacements
+                                   newTypes
+                    , seen'
+                    )
         collectEdits
           (Edits initialTermEdits
                  (Map.mapMaybe TermEdit.toReference initialTermEdits)
@@ -273,11 +343,11 @@ propagate errorPPE patch b = case validatePatch patch of
       typeInfo :: Reference -> F m i v (Maybe (v, (Reference, Decl v Ann)))
       typeInfo typeRef = case typeRef of
         Reference.DerivedId id -> do
-          declm <- eval $ LoadType typeRef
+          declm <- eval $ LoadType id
           decl  <- maybe (fail $ "Missing type declaration " <> show typeRef)
                          pure
                          declm
-          pure $ Just (Var.RefNamed typeRef, (typeRef, decl))
+          pure $ Just (Var.typed (Var.RefNamed typeRef), (typeRef, decl))
         _ -> pure Nothing
       unhash m =
         let f (ref, _oldDecl) (_ref, newDecl) = (ref, newDecl)
