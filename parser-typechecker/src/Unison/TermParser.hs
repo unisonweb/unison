@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ViewPatterns #-} {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
@@ -92,7 +91,7 @@ match = do
 matchCase :: Var v => P v (Term.MatchCase Ann (AnnotatedTerm v Ann))
 matchCase = do
   (p, boundVars) <- parsePattern
-  guard <- optional $ reserved "|" *> infixApp
+  guard <- optional $ reserved "|" *> (and <|> or <|> infixApp)
   t <- block "->"
   pure . Term.MatchCase p (fmap (ABT.absChain' boundVars) guard) $ ABT.absChain' boundVars t
 
