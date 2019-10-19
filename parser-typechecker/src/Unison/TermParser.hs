@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
-{-# LANGUAGE ViewPatterns #-} 
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
