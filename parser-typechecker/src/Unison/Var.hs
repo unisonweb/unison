@@ -144,18 +144,6 @@ joinDot prefix v2 =
 freshNamed :: Var v => Set v -> Text -> v
 freshNamed used n = ABT.freshIn used (named n)
 
-_syntheticVars :: Var v => Set v
-_syntheticVars = Set.fromList . fmap typed $ [
-  Inference Ability,
-  Inference Input,
-  Inference Output,
-  Inference PatternPureE,
-  Inference PatternPureV,
-  Inference PatternBindE,
-  Inference PatternBindV,
-  Inference TypeConstructor,
-  Inference TypeConstructorArg ]
-
 universallyQuantifyIfFree :: forall v . Var v => v -> Bool
 universallyQuantifyIfFree v =
   ok (name $ reset v) && unqualified v == v
