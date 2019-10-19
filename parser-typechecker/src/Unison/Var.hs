@@ -23,7 +23,6 @@ import qualified Unison.Reference as R
 --     `ABT.freshIn` does not alter the name
 class (Show v, ABT.Var v) => Var v where
   typed :: Type -> v
-  retype :: Type -> v -> v
   typeOf :: v -> Type
   freshId :: v -> Word64
   freshenId :: Word64 -> v -> v
@@ -145,8 +144,20 @@ joinDot prefix v2 =
 freshNamed :: Var v => Set v -> Text -> v
 freshNamed used n = ABT.freshIn used (named n)
 
-isLowercase :: forall v . Var v => v -> Bool
-isLowercase v =
-  ok (name v) && unqualified v == v
+_syntheticVars :: Var v => Set v
+_syntheticVars = Set.fromList . fmap typed $ [
+  Inference Ability,
+  Inference Input,
+  Inference Output,
+  Inference PatternPureE,
+  Inference PatternPureV,
+  Inference PatternBindE,
+  Inference PatternBindV,
+  Inference TypeConstructor,
+  Inference TypeConstructorArg ]
+
+universallyQuantifyIfFree :: forall v . Var v => v -> Bool
+universallyQuantifyIfFree v =
+  ok (name $ reset v) && unqualified v == v
   where
   ok n = (all isLower . take 1 . Text.unpack) n

@@ -46,6 +46,7 @@ import qualified Unison.Var                    as Var
 import qualified Unison.Result as Result
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import qualified Unison.PrettyPrintEnv         as PPE
+import qualified Unison.ShortHash              as SH
 import Unison.Type (Type)
 
 typecheck
@@ -101,7 +102,7 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
     Evaluate ppe unisonFile        -> evalUnisonFile ppe unisonFile
     Evaluate1 ppe term             -> eval1 ppe term
     LoadLocalRootBranch        -> Codebase.getRootBranch codebase
-    LoadLocalBranch h          -> Codebase.getBranchForHash codebase h 
+    LoadLocalBranch h          -> Codebase.getBranchForHash codebase h
     SyncLocalRootBranch branch -> do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
@@ -128,6 +129,10 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
     GetTermsOfType ty -> Codebase.termsOfType codebase ty
     GetTermsMentioningType ty -> Codebase.termsMentioningType codebase ty
     CodebaseHashLength -> Codebase.hashLength codebase
+    ReferencesByShortHash sh ->
+      Codebase.referencesByPrefix codebase (SH.toText sh)
+    BranchHashLength -> Codebase.branchHashLength codebase
+    BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
 
@@ -136,6 +141,8 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
 --      b0 <- Codebase.propagate codebase (Branch.head b)
 --      pure $ Branch.append b0 b
     Execute ppe uf -> void $ evalUnisonFile ppe uf
+    AppendToReflog reason old new -> Codebase.appendReflog codebase reason old new
+    LoadReflog -> Codebase.getReflog codebase    
 
   eval1 :: PPE.PrettyPrintEnv -> Term.AnnotatedTerm v Ann -> _
   eval1 ppe tm = do

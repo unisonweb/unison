@@ -74,6 +74,7 @@ module Unison.Util.Pretty (
    text,
    toANSI,
    toAnsiUnbroken,
+   toHTML,
    toPlain,
    toPlainUnbroken,
    withSyntax,
@@ -167,6 +168,9 @@ toAnsiUnbroken p = CT.toANSI (renderUnbroken p)
 
 toPlain :: Width -> Pretty CT.ColorText -> String
 toPlain avail p = CT.toPlain (render avail p)
+
+toHTML :: String -> Width -> Pretty CT.ColorText -> String
+toHTML cssPrefix avail p = CT.toHTML cssPrefix (render avail p)
 
 toPlainUnbroken :: Pretty ColorText -> String
 toPlainUnbroken p = CT.toPlain (renderUnbroken p)
@@ -303,7 +307,8 @@ parenthesizeIf False s = s
 parenthesizeIf True s = parenthesize s
 
 lines :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
-lines = intercalateMap newline id
+lines = intercalateMap (append newline) id where
+  append p = Pretty (delta p) (Append $ Seq.singleton p)
 
 linesNonEmpty :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 linesNonEmpty = lines . nonEmpty

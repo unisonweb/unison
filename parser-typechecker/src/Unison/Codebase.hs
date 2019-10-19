@@ -11,7 +11,10 @@ import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.CodeLookup    as CL
+import qualified Unison.Codebase.Reflog        as Reflog
 import qualified Unison.DataDeclaration        as DD
+import           Unison.Name                    ( Name(..) )
+import qualified Unison.Names2                 as Names
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent as Referent
@@ -30,6 +33,7 @@ import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Codebase.BranchUtil as BranchUtil
 import Unison.DataDeclaration (Decl)
 import Unison.Type (Type)
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
 --import Debug.Trace
 
@@ -37,7 +41,6 @@ type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
 
 type Term v a = Term.AnnotatedTerm v a
-
 
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
@@ -65,6 +68,9 @@ data Codebase m v a =
            , watches            :: UF.WatchKind -> m [Reference.Id]
            , getWatch           :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
            , putWatch           :: UF.WatchKind -> Reference.Id -> Term v a -> m ()
+           
+           , getReflog          :: m [Reflog.Entry]
+           , appendReflog       :: Text -> Branch m -> Branch m -> m ()
 
            -- list of terms of the given type
            , termsOfTypeImpl    :: Reference -> m (Set Referent)
@@ -72,7 +78,10 @@ data Codebase m v a =
            , termsMentioningTypeImpl :: Reference -> m (Set Referent)
            -- number of base58 characters needed to distinguish any two references in the codebase
            , hashLength         :: m Int
-           -- , refsByPrefix :: Text -> m (Set Reference)
+           , referencesByPrefix :: Text -> m (Set Reference.Id)
+           
+           , branchHashLength   :: m Int
+           , branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.Hash)
            }
 
 -- | Write all of the builtins types and IO types into the codebase
@@ -84,7 +93,9 @@ initializeCodebase c = do
                               mempty mempty)
   addDefsToCodebase c IOSource.typecheckedFile
   let names0 = Builtin.names0 <> UF.typecheckedToNames0 IOSource.typecheckedFile
-  let b0 = BranchUtil.addFromNames0 names0 Branch.empty0
+  let b0 = BranchUtil.addFromNames0
+            (Names.prefix0 (Name "builtin") names0)
+            Branch.empty0
   putRootBranch c (Branch.one b0)
 
 -- Feel free to refactor this to use some other type than TypecheckedUnisonFile
@@ -117,10 +128,9 @@ getTypeOfConstructor _ r cid =
 typeLookupForDependencies
   :: (Monad m, Var v, BuiltinAnnotation a)
   => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
-typeLookupForDependencies codebase refs = foldM go mempty refs
+typeLookupForDependencies codebase = foldM go mempty
  where
---  go ::
-  go tl ref@(Reference.DerivedId id) = fmap (tl <>) $ do
+  go tl ref@(Reference.DerivedId id) = fmap (tl <>) $
     getTypeOfTerm codebase ref >>= \case
       Just typ -> pure $ TypeLookup (Map.singleton ref typ) mempty mempty
       Nothing  -> getTypeDeclaration codebase id >>= \case
@@ -188,9 +198,9 @@ makeSelfContained' code uf = do
     _ -> pure Nothing
   let
     unref :: Term v a -> Term v a
-    unref t = ABT.visitPure go t
+    unref = ABT.visitPure go
      where
-      go t@(Term.Ref' (r@(Reference.DerivedId _))) =
+      go t@(Term.Ref' r@(Reference.DerivedId _)) =
         Just (Term.var (ABT.annotation t) (refVar r))
       go _ = Nothing
     datas1 = Map.fromList
@@ -209,7 +219,7 @@ makeSelfContained' code uf = do
       (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList effects' ])
       (bindings ++ unrefb (UF.terms uf))
       (unrefb <$> UF.watches uf)
-  pure $ uf'
+  pure uf'
 
 getTypeOfTerm :: (Applicative m, Var v, BuiltinAnnotation a) =>
   Codebase m v a -> Reference -> m (Maybe (Type v a))
