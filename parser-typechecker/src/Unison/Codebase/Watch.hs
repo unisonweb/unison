@@ -12,6 +12,9 @@ import           UnliftIO.Concurrent            ( forkIO
                                                 )
 import           UnliftIO                       ( MonadUnliftIO
                                                 , withRunInIO )
+import           UnliftIO.Directory             ( getModificationTime
+                                                , listDirectory
+                                                )
 import           UnliftIO.MVar                  ( newEmptyMVar, takeMVar
                                                 , tryTakeMVar, putMVar )
 import           UnliftIO.STM                   ( atomically )
@@ -20,6 +23,7 @@ import           UnliftIO.IORef                 ( newIORef
                                                 , readIORef
                                                 , writeIORef
                                                 )
+import           Data.List                      ( sortOn )
 import qualified Data.Map                      as Map
 import qualified Data.Text.IO
 import           Data.Time.Clock                ( UTCTime
@@ -31,6 +35,9 @@ import           System.FSNotify                ( Event(Added, Modified)
                                                 )
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as TQueue
+
+untilJust :: Monad m => m (Maybe a) -> m a
+untilJust act = act >>= maybe (untilJust act) return
 
 watchDirectory'
   :: forall m. MonadUnliftIO m => FilePath -> m (m (), m (FilePath, UTCTime))
@@ -78,17 +85,20 @@ watchDirectory dir allow = do
   previousFiles <- newIORef Map.empty
   (cancel, watcher) <- watchDirectory' dir
   let
-    await :: MonadIO m => m (FilePath, Text)
-    await = do
-      (file, t) <- watcher
+    existingFiles :: MonadIO m => m [(FilePath, UTCTime)]
+    existingFiles = do
+      files <- listDirectory dir
+      let withTime file = (file,) <$> getModificationTime file
+      sortOn snd <$> mapM withTime files
+    process :: MonadIO m => FilePath -> UTCTime -> m (Maybe (FilePath, Text))
+    process file t =
       if allow file then let
-        handle :: IOException -> m (FilePath, Text)
+        handle :: IOException -> m ()
         handle e = do
           liftIO $ putStrLn $ "‼  Got an exception while reading: " <> file
           liftIO $ print (e :: IOException)
-          await
-        go :: MonadUnliftIO m => m (FilePath, Text)
-        go = withRunInIO $ \inIO -> do
+        go :: MonadUnliftIO m => m (Maybe (FilePath, Text))
+        go = liftIO $ do
           contents <- Data.Text.IO.readFile file
           prevs    <- readIORef previousFiles
           case Map.lookup file prevs of
@@ -96,10 +106,18 @@ watchDirectory dir allow = do
             -- wait for the next update
             Just (contents0, t0)
               | contents == contents0 && (t `diffUTCTime` t0) < 1 ->
-                inIO await
+                return Nothing
             _ ->
-              (file, contents) <$
+              Just (file, contents) <$
                 writeIORef previousFiles (Map.insert file (contents, t) prevs)
-        in catch go handle
-      else await
+        in catch go (\e -> Nothing <$ handle e)
+      else return Nothing
+  pending <- newIORef =<< existingFiles
+  let
+    await :: MonadIO m => m (FilePath, Text)
+    await = untilJust $ readIORef pending >>= \case
+      [] -> uncurry process =<< watcher
+      ((file, t):rest) -> do
+        writeIORef pending rest
+        process file t
   pure (cancel, await)
