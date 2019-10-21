@@ -183,6 +183,7 @@ data CompilerBug v loc
   | UnannotatedReference Reference
   | MalformedPattern (Pattern loc)
   | UnknownTermReference Reference
+  | UnknownExistentialVariable v (Context v loc)
   deriving Show
 
 data PathElement v loc
@@ -1343,14 +1344,17 @@ subtype tx ty = scope (InSubtype tx ty) $ do
 -- in the process.
 instantiateL :: (Var v, Ord loc) => B.Blank loc -> v -> Type v loc -> M v loc ()
 instantiateL _ v t | debugEnabled && traceShow ("instantiateL"::String, v, t) False = undefined
-instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $ do
-  getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
-    Just ctx -> setContext ctx -- InstLSolve
-    Nothing | not (Set.member v (unsolvedExistentials.info $ ctx)) -> failWith $ TypeMismatch ctx
-    Nothing -> case t of
+instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $
+  getContext >>= \ctx -> case Type.monotype t of
+    Just t -> solve ctx v t >>= \case
+      Just ctx -> setContext ctx -- InstLSolve
+      Nothing -> go ctx
+    Nothing -> go ctx
+  where
+    go ctx = case t of
       Type.Existential' _ v2 | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
-        maybe (failWith $ TypeMismatch ctx) setContext $
-          solve ctx v2 (Type.Monotype (Type.existentialp (loc t) v))
+        solve ctx v2 (Type.Monotype (Type.existentialp (loc t) v)) >>=
+          maybe (failWith $ TypeMismatch ctx) setContext
       Type.Arrow' i o -> do -- InstLArr
         [i',o'] <- traverse freshenVar [nameFrom Var.inferInput i, nameFrom Var.inferOutput o]
         let s = Solved blank v (Type.Monotype (Type.arrow (loc t)
@@ -1405,13 +1409,16 @@ nameFrom ifNotVar _ = ifNotVar
 instantiateR :: (Var v, Ord loc) => Type v loc -> B.Blank loc -> v -> M v loc ()
 instantiateR t _ v | debugEnabled && traceShow ("instantiateR"::String, t, v) False = undefined
 instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
-  getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
-    Just ctx -> setContext ctx -- InstRSolve
-    Nothing | not (Set.member v (unsolvedExistentials.info $ ctx)) -> failWith $ TypeMismatch ctx
-    Nothing -> case t of
+  getContext >>= \ctx -> case Type.monotype t of
+    Just t -> solve ctx v t >>= \case
+      Just ctx -> setContext ctx -- InstRSolve
+      Nothing -> go ctx
+    Nothing -> go ctx
+  where
+    go ctx = case t of
       Type.Existential' _ v2 | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)
-        maybe (failWith $ TypeMismatch ctx) setContext $
-          solve ctx v2 (Type.Monotype (Type.existentialp (loc t) v))
+        solve ctx v2 (Type.Monotype (Type.existentialp (loc t) v)) >>=
+          maybe (failWith $ TypeMismatch ctx) setContext
       Type.Arrow' i o -> do -- InstRArrow
         [i', o'] <- traverse freshenVar [nameFrom Var.inferInput i, nameFrom Var.inferOutput o]
         let s = Solved blank v (Type.Monotype
@@ -1460,18 +1467,24 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
       _ -> failWith $ TypeMismatch ctx
 
 -- | solve (ΓL,α^,ΓR) α τ = (ΓL,α^ = τ,ΓR)
--- If the given existential variable exists in the context,
--- we solve it to the given monotype, otherwise return `Nothing`
-solve :: (Var v, Ord loc) => Context v loc -> v -> Monotype v loc -> Maybe (Context v loc)
-solve ctx v t
-  -- okay to solve something again if it's to an identical type
-  | Map.member v (solvedExistentials.info $ ctx) = same =<< lookupSolved ctx v
-  where same t2 | apply ctx (Type.getPolytype t) == apply ctx (Type.getPolytype t2) = Just ctx
-                | otherwise = Nothing
-solve ctx v t = case breakAt (existential v) ctx of
-  Just (ctxL, Existential blank v, ctxR) | wellformedType ctxL (Type.getPolytype t) ->
-    Just $ ctxL `extendN` ((Solved blank v t) : ctxR)
-  _ -> Nothing
+-- Solve the given existential variable to the given monotype.
+-- If the given monotype is not well-formed at the context location
+-- where the existential variable is introduced, return `Nothing`.
+-- Fail with type mismatch if the existential is already solved to something else.
+-- Fail with a compiler bug if the existential does not appear in the context at all.
+solve :: (Var v, Ord loc) => Context v loc -> v -> Monotype v loc -> M v loc (Maybe (Context v loc))
+solve ctx v t = case lookupSolved ctx v of
+  Just t2 ->
+    -- okay to solve something again if it's to an identical type
+    if same t t2 then pure (Just ctx)
+    else failWith $ TypeMismatch ctx
+   where same t1 t2 = apply ctx (Type.getPolytype t1) == apply ctx (Type.getPolytype t2)
+  Nothing -> case breakAt (existential v) ctx of
+    Just (ctxL, Existential blank v, ctxR) ->
+      if wellformedType ctxL (Type.getPolytype t)
+      then pure . Just $ ctxL `extendN` ((Solved blank v t) : ctxR)
+      else pure Nothing
+    _ -> compilerCrash $ UnknownExistentialVariable v ctx
 
 abilityCheck' :: forall v loc . (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' [] [] = pure ()
