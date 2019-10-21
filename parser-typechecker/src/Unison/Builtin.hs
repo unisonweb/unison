@@ -308,6 +308,8 @@ builtinsSrc =
   , B "Universal.<=" $ forall1 "a" (\a -> a --> a --> boolean)
 
   , B "Boolean.not" $ boolean --> boolean
+  , B "todo" $ forall1 "a" (\a -> text --> a)
+  , Alias "todo" "bug"
 
   , B "Text.empty" text
   , B "Text.++" $ text --> text --> text
