@@ -1064,6 +1064,7 @@ instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (Value e cont) where
   cyclicOrd _ _ (N x) (N y) = pure (x `compare` y)
   cyclicOrd _ _ (B x) (B y) = pure (x `compare` y)
   cyclicOrd _ _ (T x) (T y) = pure (x `compare` y)
+  cyclicOrd _ _ (C x) (C y) = pure (x `compare` y)
   cyclicOrd _ _ (Bs x) (Bs y) = pure (x `compare` y)
   cyclicOrd h1 h2 (Lam arity1 us _) (Lam arity2 us2 _) =
     COrd.bothOrd' h1 h2 arity1 arity2 us us2
