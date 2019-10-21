@@ -44,7 +44,9 @@ import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import qualified Unison.Result as Result
-import           Unison.FileParsers             ( parseAndSynthesizeFile )
+import           Unison.FileParsers             ( parseAndSynthesizeFile
+                                                , synthesizeFile'
+                                                )
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.ShortHash              as SH
 import Unison.Type (Type)
@@ -63,6 +65,18 @@ typecheck ambient codebase parsingEnv sourceName src =
     parsingEnv
     (Text.unpack sourceName)
     (fst src)
+
+typecheck'
+  :: Monad m
+  => Var v
+  => [Type v Ann]
+  -> Codebase m v Ann
+  -> UF.UnisonFile v Ann
+  -> m (TypecheckingResult v)
+typecheck' ambient codebase file = do
+  typeLookup <- (<> B.typeLookup)
+    <$> Codebase.typeLookupForDependencies codebase (UF.dependencies file)
+  pure . fmap Right $ synthesizeFile' ambient typeLookup file
 
 tempGitDir :: Text -> Text -> IO FilePath
 tempGitDir url commit =
@@ -99,6 +113,7 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
       namegen <- Parser.uniqueBase58Namegen
       let env = Parser.ParsingEnv namegen names
       typecheck ambient codebase env sourceName source
+    TypecheckFile file ambient     -> typecheck' ambient codebase file
     Evaluate ppe unisonFile        -> evalUnisonFile ppe unisonFile
     Evaluate1 ppe term             -> eval1 ppe term
     LoadLocalRootBranch        -> Codebase.getRootBranch codebase
