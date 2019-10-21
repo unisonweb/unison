@@ -46,7 +46,7 @@ import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Pattern                as Pattern
 import qualified Unison.ConstructorType as CT
 
-type ConstructorId = Int
+type ConstructorId = Term.ConstructorId
 
 type DataDeclaration v = DataDeclaration' v ()
 type Decl v a = Either (EffectDeclaration' v a) (DataDeclaration' v a)
@@ -315,8 +315,15 @@ toABT dd = ABT.tm $ Modified (modifier dd) dd'
             (fst <$> constructors dd)
             (ABT.tm . Constructors $ ABT.transform Type <$> constructorTypes dd))
 
-updateDependencies :: Map Reference Reference -> Decl v a -> Decl v a
-updateDependencies = undefined
+updateDependencies :: Ord v => Map Reference Reference -> Decl v a -> Decl v a
+updateDependencies typeUpdates decl = back $ dataDecl
+  { constructors' = over _3 (Type.updateDependencies typeUpdates)
+                      <$> constructors' dataDecl
+  }
+ where
+  dataDecl = either toDataDecl id decl
+  back     = either (const $ Left . EffectDeclaration) (const Right) decl
+
 
 -- This converts `Reference`s it finds that are in the input `Map`
 -- back to free variables

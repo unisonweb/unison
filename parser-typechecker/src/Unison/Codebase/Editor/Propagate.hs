@@ -189,9 +189,12 @@ propagate errorPPE patch b = case validatePatch patch of
                 hashedComponents' <-
                   case hashedDecls of
                     Left _ ->
-                      fail $ "Edit propagation failed because some of the dependencies of " <> show r <> " could not be resolved."
+                      fail $
+                        "Edit propagation failed because some of the dependencies of "
+                        <> show r <> " could not be resolved."
                     Right c -> pure . Map.fromList $ (\(v,r,d) -> (v, (r,d))) <$> c
-                let joinedStuff :: [(v, (Reference, Reference, Decl.DataDeclaration' v _))]
+                let joinedStuff
+                      :: [(v, (Reference, Reference, Decl.DataDeclaration' v _))]
                     joinedStuff = Map.toList
                       (Map.intersectionWith f declMap hashedComponents')
                     f (oldRef, _) (newRef, newType) =
@@ -224,21 +227,17 @@ propagate errorPPE patch b = case validatePatch patch of
             doTerm :: Reference -> F m i v (Maybe (Edits v), Set Reference)
             doTerm r = do
               componentMap <- unhashTermComponent r
-              let
-                componentMap' =
-                  over
-                      _2
-                      (Term.updateDependencies termReplacements typeReplacements
-                      )
-                    <$> componentMap
-                file = UnisonFile
-                  mempty
-                  mempty
-                  (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)
-                  mempty
-              typecheckResult <- eval $ TypecheckFile file []
-              pure $ if not (runIdentity $ Result.isSuccess typecheckResult)
-                then (Nothing, seen)
+              let componentMap' =
+                    over
+                        _2
+                        (Term.updateDependencies termReplacements
+                                                 typeReplacements
+                        )
+                      <$> componentMap
+                  seen' = seen <> Set.fromList (view _1 <$> Map.elems componentMap)
+              isOK <- verifyTermComponent componentMap' es
+              pure $ if not isOK
+                then (Nothing, seen')
                 else
                   let
                     hashedComponents' =
@@ -260,7 +259,6 @@ propagate errorPPE patch b = case validatePatch patch of
                     newTerms' =
                       newTerms <> (Map.fromList . fmap toNewTerm) joinedStuff
                     toNewTerm (_, r', tm, tp) = (r', (tm, tp))
-                    seen' = seen <> Set.fromList (view _1 <$> joinedStuff)
                   in
                     ( Just $ Edits termEdits'
                                    termReplacements'
@@ -353,6 +351,32 @@ propagate errorPPE patch b = case validatePatch patch of
         let f (ref, _oldDecl) (_ref, newDecl) = (ref, newDecl)
         in  Map.intersectionWith f m (Decl.unhashComponent m)
     unhash . Map.fromList . catMaybes <$> traverse typeInfo (toList component)
+  verifyTermComponent
+    :: Map v (Reference, Term v _, Type v _) -> Edits v -> F m i v Bool
+  verifyTermComponent componentMap Edits {..} = do
+    -- If the term contains references to old patterns, we can't update it.
+    -- If the term had a redunant type signature, it's discarded and a new type
+    -- is inferred. If it wasn't redunant, we have already substituted any updates
+    -- into it and we're going to check against that signature.
+    --
+    -- Note: This only works if the type update is kind-preserving.
+    let
+      -- See if the constructor dependencies of any element of the cycle
+      -- contains one of the old types.
+        terms    = Map.elems $ view _2 <$> componentMap
+        oldTypes = Map.keysSet typeEdits
+    if Set.null $ Set.intersection
+         (foldMap Term.constructorDependencies terms)
+         oldTypes
+      then pure False
+      else do
+        let file = UnisonFile
+              mempty
+              mempty
+              (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)
+              mempty
+        typecheckResult <- eval $ TypecheckFile file []
+        pure . runIdentity $ Result.isSuccess typecheckResult
 
 applyDeprecations :: Applicative m => Patch -> Branch0 m -> Branch0 m
 applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
