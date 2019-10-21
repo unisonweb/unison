@@ -372,6 +372,12 @@ lexer0 scope rem =
       '_' : (wordyId -> Right (id, rem)) ->
         let pos' = incBy id $ inc pos
         in Token (Blank id) pos pos' : goWhitespace l pos' rem
+      '&' : '&' : rem -> 
+        let end = incBy "&&" pos
+        in Token (Reserved "&&") pos end : goWhitespace l end rem
+      '|' : '|' : rem -> 
+        let end = incBy "||" pos
+        in Token (Reserved "||") pos end : goWhitespace l end rem
       '|' : c : rem | isSpace c || isAlphaNum c ->
         Token (Reserved "|") pos (inc pos) : goWhitespace l (inc pos) (c:rem)
       '=' : rem@(c : _) | isSpace c || isAlphaNum c ->
@@ -652,7 +658,7 @@ keywords = Set.fromList [
   "if", "then", "else", "forall", "∀",
   "handle", "in", "unique",
   "where", "use",
-  "and", "or", "true", "false",
+  "true", "false",
   "type", "ability", "alias",
   "let", "namespace", "case", "of"]
 
@@ -686,7 +692,7 @@ reserved :: Set Char
 reserved = Set.fromList "=:`\""
 
 reservedOperators :: Set String
-reservedOperators = Set.fromList ["->", ":"]
+reservedOperators = Set.fromList ["->", ":", "&&", "||"]
 
 inc :: Pos -> Pos
 inc (Pos line col) = Pos line (col + 1)

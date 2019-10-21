@@ -155,8 +155,8 @@ test1 = scope "termparser" . tests . map parses $
     "else\n" ++
     "  s = 0\n" ++
     "  s + 2\n"
-   , "and x y"
-   , "or x y"
+   , "x && y"
+   , "x || y"
    , [r|--let r1
    let r1 : Nat
        r1 = case Optional.Some 3 of

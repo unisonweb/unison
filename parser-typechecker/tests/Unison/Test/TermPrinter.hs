@@ -105,19 +105,19 @@ test = scope "termprinter" . tests $
   , tc "[2, 3, 4]"
   , tc "[2]"
   , tc "[]"
-  , tc "and true false"
-  , tc "or false false"
-  , tc "g (and (or true false) (f x y))"
+  , tc "true && false"
+  , tc "false || false"
+  , tc "g ((true || false) && (f x y))"
   , tc "if _something then _foo else _blah"
   , tc "3.14159"
   , tc "+0"
   , tc "\"some text\""
   , pending $ tc "\"they said \\\"hi\\\"\""  -- TODO lexer doesn't support strings with quotes in
   , tc "2 : Nat"
-  , tc "x -> and x false"
-  , tc "x y -> and x y"
-  , tc "x y z -> and x y"
-  , tc "x y y -> and x y"
+  , tc "x -> x && false"
+  , tc "x y -> x && y"
+  , tc "x y z -> x && y"
+  , tc "x y y -> x && y"
   , tc "()"
   , tc "Cons"
   , tc "foo"
@@ -231,7 +231,7 @@ test = scope "termprinter" . tests $
               \    else c"
   , tcDiffRtt True "if foo\n\
             \then\n\
-            \  and true true\n\
+            \  true && true\n\
             \  12\n\
             \else\n\
             \  namespace baz where\n\
@@ -239,14 +239,14 @@ test = scope "termprinter" . tests $
             \    f x = x\n\
             \  13"
             "if foo then\n\
-            \  and true true\n\
+            \  true && true\n\
             \  12\n\
             \else\n\
             \  baz.f : Int -> Int\n\
             \  baz.f x = x\n\
             \  13" 50
   , tcBreaks 50 "if foo then\n\
-                 \  and true true\n\
+                 \  true && true\n\
                  \  12\n\
                  \else\n\
                  \  baz.f : Int -> Int\n\

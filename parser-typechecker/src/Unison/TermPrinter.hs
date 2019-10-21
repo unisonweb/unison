@@ -206,14 +206,14 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
                    in uses $ [pretty0 n (ac 0 Block im') tm]
     And' x y ->
       paren (p >= 10) $ PP.spaced [
-        fmt S.ControlKeyword "and",
         pretty0 n (ac 10 Normal im) x,
+        fmt S.ControlKeyword "&&",
         pretty0 n (ac 10 Normal im) y
       ]
     Or' x y ->
       paren (p >= 10) $ PP.spaced [
-        fmt S.ControlKeyword "or",
         pretty0 n (ac 10 Normal im) x,
+        fmt S.ControlKeyword "||",
         pretty0 n (ac 10 Normal im) y
       ]
     LetRecNamed' bs e -> printLet bc bs e im' uses
