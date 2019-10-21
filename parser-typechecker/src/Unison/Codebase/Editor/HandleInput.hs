@@ -125,6 +125,7 @@ import Unison.Type (Type)
 import qualified Unison.Builtin as Builtin
 import Unison.Codebase.NameSegment (NameSegment(..))
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import qualified Unison.Codebase.Editor.Propagate as Propagate
 
 --import Debug.Trace
 
@@ -1291,7 +1292,9 @@ propagatePatch inputDescription patch scopePath = do
     -- arya: wait, what is this `ppe` here for again exactly?
     -- ppe is used for some output message that propagate can issue in error
     -- condition PatchInvolvesExternalDependencies
-    updateAtM inputDescription scopePath (propagate ppe patch)
+    updateAtM inputDescription
+              scopePath
+              (lift . lift . Propagate.propagateAndApply ppe patch)
   when changed $ do
     scope <- getAt scopePath
     let names0 = Branch.toNames0 (Branch.head scope)

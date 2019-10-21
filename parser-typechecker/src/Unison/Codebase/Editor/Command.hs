@@ -35,8 +35,9 @@ import qualified Unison.UnisonFile             as UF
 import qualified Unison.Lexer                  as L
 import qualified Unison.Parser                 as Parser
 import           Unison.ShortHash               ( ShortHash )
-import Unison.Type (Type)
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import           Unison.Type                    ( Type )
+import           Unison.Codebase.ShortBranchHash
+                                                ( ShortBranchHash )
 
 
 type AmbientAbilities v = [Type v Ann]
