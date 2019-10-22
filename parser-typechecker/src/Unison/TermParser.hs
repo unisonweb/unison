@@ -276,11 +276,11 @@ bang = P.label "bang" $ do
   e <- termLeaf
   pure $ DD.forceTerm (ann start <> ann e) (ann start) e
 
-and = label "and" $ f <$> reserved "and" <*> termLeaf <*> termLeaf
-  where f kw x y = Term.and (ann kw <> ann y) x y
+and = label "and" $ P.try (f <$>termLeaf <*> reserved "&&" <*> termLeaf)
+  where f x kw y = Term.and (ann kw <> ann y) x y
 
-or = label "or" $ f <$> reserved "or" <*> termLeaf <*> termLeaf
-  where f kw x y = Term.or (ann kw <> ann y) x y
+or = label "or" $ P.try (f <$> termLeaf <*> reserved "||" <*> termLeaf)
+  where f x kw y = Term.or (ann kw <> ann y) x y
 
 var :: Var v => L.Token v -> AnnotatedTerm v Ann
 var t = Term.var (ann t) (L.payload t)

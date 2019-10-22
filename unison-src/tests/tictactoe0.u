@@ -28,7 +28,7 @@ b = (Board X O X
 
 isWin board =
   same : P -> P -> P -> Optional P
-  same a b c = if and (and (a P.== b) (a P.== c)) (a P./= E)
+  same a b c = if ((a P.== b) && (a P.== c)) && (a P./= E)
                then Some a
                else None
   case board of

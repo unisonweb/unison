@@ -2,10 +2,10 @@ type Foo = Foo Boolean Boolean
 
 f : Foo -> Boolean
 f x = case x of
-  Foo.Foo a b | or a b -> true
+  Foo.Foo a b | a || b -> true
   _ -> false
 
 g : Foo -> Boolean
 g x = case x of
-  Foo.Foo a b | and a b -> true
+  Foo.Foo a b | a && b -> true
   _ -> false
