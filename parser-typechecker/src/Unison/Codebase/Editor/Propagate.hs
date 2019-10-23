@@ -242,22 +242,21 @@ propagate errorPPE patch b = case validatePatch patch of
                 Nothing -> (Nothing, seen')
                 Just componentMap'' ->
                   let
-                    joinedStuff :: [(Reference, Reference, Term v _, Type v _)]
                     joinedStuff = toList
                       (Map.intersectionWith f componentMap componentMap'')
-                    f (oldRef, _oldTerm, _oldType) (newRef, newTerm, newType) =
-                      (oldRef, newRef, newTerm, newType)
+                    f (oldRef, _oldTerm, oldType) (newRef, newTerm, newType) =
+                      (oldRef, newRef, newTerm, oldType, newType)
                 -- collect the hashedComponents into edits/replacements/newterms/seen
                     termEdits' =
                       termEdits <> (Map.fromList . fmap toEdit) joinedStuff
-                    toEdit (r, r', _, _) =
-                      (r, TermEdit.Replace r' TermEdit.Same) -- wrong!
+                    toEdit (r, r', _newTerm, oldType, newType) =
+                      (r, TermEdit.Replace r' $ TermEdit.typing newType oldType)
                     termReplacements' = termReplacements
                       <> (Map.fromList . fmap toReplacement) joinedStuff
-                    toReplacement (r, r', _, _) = (r, r')
+                    toReplacement (r, r', _, _, _) = (r, r')
                     newTerms' =
                       newTerms <> (Map.fromList . fmap toNewTerm) joinedStuff
-                    toNewTerm (_, r', tm, tp) = (r', (tm, tp))
+                    toNewTerm (_, r', tm, _, tp) = (r', (tm, tp))
                   in
                     ( Just $ Edits termEdits'
                                    termReplacements'
