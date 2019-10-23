@@ -46,6 +46,7 @@ import           Unison.UnisonFile              ( UnisonFile(..) )
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Star3             as Star3
 import           Unison.Type                    ( Type )
+import qualified Unison.Typechecker            as Typechecker
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
@@ -245,7 +246,11 @@ propagate errorPPE patch b = case validatePatch patch of
                     joinedStuff = toList
                       (Map.intersectionWith f componentMap componentMap'')
                     f (oldRef, _oldTerm, oldType) (newRef, newTerm, newType) =
-                      (oldRef, newRef, newTerm, oldType, newType)
+                      (oldRef, newRef, newTerm, oldType, newType')
+                        -- Don't replace the type if it hasn't changed.
+                        where newType'
+                               | Typechecker.isEqual oldType newType = oldType
+                               | otherwise = newType
                 -- collect the hashedComponents into edits/replacements/newterms/seen
                     termEdits' =
                       termEdits <> (Map.fromList . fmap toEdit) joinedStuff
