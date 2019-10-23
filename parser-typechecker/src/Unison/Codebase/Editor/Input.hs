@@ -89,7 +89,8 @@ data Input
     | AddTypeReplacementI PatchPath Reference Reference
     | RemoveTermReplacementI PatchPath Reference Reference
     | RemoveTypeReplacementI PatchPath Reference Reference
-    | ResolveEditI ShortHash ShortHash (Maybe PatchPath)
+    | ResolveTermI ShortHash ShortHash (Maybe PatchPath)
+    | ResolveTypeI ShortHash ShortHash (Maybe PatchPath)
   | UndoI
   -- First `Maybe Int` is cap on number of results, if any
   -- Second `Maybe Int` is cap on diff elements shown, if any

@@ -4,7 +4,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.FileCodebase
 ( getRootBranch -- used by Git module

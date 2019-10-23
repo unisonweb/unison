@@ -104,6 +104,7 @@ import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.Codebase.TermEdit (TermEdit(..))
 import qualified Unison.Codebase.TermEdit as TermEdit
+import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE
 import           Unison.Runtime.IOSource       ( isTest, ioReference )
@@ -302,8 +303,12 @@ loop = do
           DeleteTypeI def -> "delete.type" <> hqs' def
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
           DeletePatchI path -> "delete.patch " <> ps' path
-          ResolveEditI srcH targetH p ->
+          ResolveTermI srcH targetH p ->
             "resolve.term " <> SH.toText srcH <> " "
+                            <> SH.toText targetH <> " "
+                            <> opatch p
+          ResolveTypeI srcH targetH p ->
+            "resolve.type " <> SH.toText srcH <> " "
                             <> SH.toText targetH <> " "
                             <> opatch p
           ResolveTermNameI path -> "resolve.termName " <> hqs' path
@@ -946,7 +951,7 @@ loop = do
           BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
-      ResolveEditI from to patchPath -> do
+      ResolveTermI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
         fromRefs <- eval $ ReferencesByShortHash from
@@ -961,14 +966,48 @@ loop = do
               mtt <- eval $ LoadTypeOfTerm tr
               ft  <- maybe (fail $ "Missing type for term " <> show fr) pure mft
               tt  <- maybe (fail $ "Missing type for term " <> show tr) pure mtt
-              let typing | Typechecker.isEqual ft tt   = TermEdit.Same
-                         | Typechecker.isSubtype ft tt = TermEdit.Subtype
-                         | otherwise                   = TermEdit.Different
-                  -- The modified patch
+              let
                   patch' =
+                    -- The modified patch
                     over Patch.termEdits
-                      (R.insert fr (Replace tr typing) . R.deleteDom fr)
+                      (R.insert fr (Replace tr (TermEdit.typing tt ft))
+                       . R.deleteDom fr)
                       patch
+                  (patchPath'', patchName) = resolveSplit' patchPath'
+              -- Save the modified patch
+              stepAtM (inputDescription <> " (1/2)")
+                      (patchPath'', Branch.modifyPatches patchName (const patch'))
+              -- Apply the modified patch to the current path
+              -- since we might be able to propagate further.
+              void $ propagatePatch inputDescription2 patch' currentPath'
+              -- Say something
+              success
+        zeroOneOrMore
+          fromRefs
+          (respond $ SearchTermsNotFound [HQ.HashOnly from])
+          (\r -> zeroOneOrMore toRefs
+                               (respond $ SearchTermsNotFound [HQ.HashOnly to])
+                               (go r)
+                               (hashConflicted to .
+                                 Set.map (Referent.Ref . DerivedId)))
+          (hashConflicted from .
+            Set.map (Referent.Ref . DerivedId))
+
+      ResolveTypeI from to patchPath -> do
+        let patchPath' = fromMaybe defaultPatchPath patchPath
+        patch <- getPatchAt patchPath'
+        fromRefs <- eval $ ReferencesByShortHash from
+        toRefs <- eval $ ReferencesByShortHash to
+        let go :: Reference.Id
+               -> Reference.Id
+               -> Action m (Either Event Input) v ()
+            go fid tid = do
+              let fr = DerivedId fid
+                  tr = DerivedId tid
+                  patch' =
+                    -- The modified patch
+                    over Patch.typeEdits
+                      (R.insert fr (TypeEdit.Replace tr) . R.deleteDom fr) patch
                   (patchPath'', patchName) = resolveSplit' patchPath'
               -- Save the modified patch
               stepAtM (inputDescription <> " (1/2)")
