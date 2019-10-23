@@ -5,6 +5,7 @@
 
 module Unison.Codebase.Editor.Propagate where
 
+import           Control.Error.Util             ( hush )
 import           Control.Lens
 import           Data.Configurator              ( )
 import qualified Data.Graph                    as Graph
@@ -42,6 +43,7 @@ import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.TypeEdit       ( TypeEdit(..) )
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.UnisonFile              ( UnisonFile(..) )
+import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Star3             as Star3
 import           Unison.Type                    ( Type )
 
@@ -235,24 +237,21 @@ propagate errorPPE patch b = case validatePatch patch of
                         )
                       <$> componentMap
                   seen' = seen <> Set.fromList (view _1 <$> Map.elems componentMap)
-              isOK <- verifyTermComponent componentMap' es
-              pure $ if not isOK
-                then (Nothing, seen')
-                else
+              mayComponent <- verifyTermComponent componentMap' es
+              pure $ case mayComponent of
+                Nothing -> (Nothing, seen')
+                Just componentMap'' ->
                   let
-                    hashedComponents' =
-                      Term.hashComponents (view _2 <$> componentMap')
                     joinedStuff :: [(Reference, Reference, Term v _, Type v _)]
                     joinedStuff = toList
-                      (Map.intersectionWith f componentMap' hashedComponents')
-                    f (oldRef, _, oldType) (newRef, newTerm) =
+                      (Map.intersectionWith f componentMap componentMap'')
+                    f (oldRef, _oldTerm, _oldType) (newRef, newTerm, newType) =
                       (oldRef, newRef, newTerm, newType)
-                      where newType = oldType
                 -- collect the hashedComponents into edits/replacements/newterms/seen
                     termEdits' =
                       termEdits <> (Map.fromList . fmap toEdit) joinedStuff
                     toEdit (r, r', _, _) =
-                      (r, TermEdit.Replace r' TermEdit.Same)
+                      (r, TermEdit.Replace r' TermEdit.Same) -- wrong!
                     termReplacements' = termReplacements
                       <> (Map.fromList . fmap toReplacement) joinedStuff
                     toReplacement (r, r', _, _) = (r, r')
@@ -276,7 +275,7 @@ propagate errorPPE patch b = case validatePatch patch of
                  (Map.mapMaybe TypeEdit.toReference initialTypeEdits)
                  mempty
           )
-          mempty -- skip
+          mempty -- things to skip
           (getOrdered initialDirty)
  where
   missingDependents :: Set Reference -> Set Reference -> _ (Set Reference)
@@ -352,7 +351,9 @@ propagate errorPPE patch b = case validatePatch patch of
         in  Map.intersectionWith f m (Decl.unhashComponent m)
     unhash . Map.fromList . catMaybes <$> traverse typeInfo (toList component)
   verifyTermComponent
-    :: Map v (Reference, Term v _, Type v _) -> Edits v -> F m i v Bool
+    :: Map v (Reference, Term v _, a)
+    -> Edits v
+    -> F m i v (Maybe (Map v (Reference, Term v _, Type v _)))
   verifyTermComponent componentMap Edits {..} = do
     -- If the term contains references to old patterns, we can't update it.
     -- If the term had a redunant type signature, it's discarded and a new type
@@ -365,10 +366,10 @@ propagate errorPPE patch b = case validatePatch patch of
       -- contains one of the old types.
         terms    = Map.elems $ view _2 <$> componentMap
         oldTypes = Map.keysSet typeEdits
-    if Set.null $ Set.intersection
+    if not . Set.null $ Set.intersection
          (foldMap Term.constructorDependencies terms)
          oldTypes
-      then pure False
+      then pure Nothing
       else do
         let file = UnisonFile
               mempty
@@ -376,7 +377,8 @@ propagate errorPPE patch b = case validatePatch patch of
               (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)
               mempty
         typecheckResult <- eval $ TypecheckFile file []
-        pure . runIdentity $ Result.isSuccess typecheckResult
+        pure . fmap UF.hashTerms $ runIdentity (
+          Result.toMaybe typecheckResult) >>= hush
 
 applyDeprecations :: Applicative m => Patch -> Branch0 m -> Branch0 m
 applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
@@ -393,7 +395,8 @@ applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
     over Branch.terms (Star3.deleteFact (Set.map Referent.Ref rs))
   deleteDeprecatedTypes rs = over Branch.types (Star3.deleteFact rs)
 
-applyPropagate :: Applicative m => Edits v -> F m i v (Branch0 m -> Branch0 m)
+applyPropagate
+  :: Show v => Applicative m => Edits v -> F m i v (Branch0 m -> Branch0 m)
 applyPropagate Edits {..} = do
   let termRefs        = Map.mapMaybe TermEdit.toReference termEdits
       typeRefs        = Map.mapMaybe TypeEdit.toReference typeEdits
