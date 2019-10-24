@@ -29,3 +29,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Prat Tana (@pt2121)
 * Jonas De Vuyst (@jdevuyst)
 * George Marrows (@georgemarrows)
+* Florian Thurm (@0xflotus)
