@@ -309,7 +309,7 @@ builtinsSrc =
 
   , B "Boolean.not" $ boolean --> boolean
   , B "todo" $ forall1 "a" (\a -> text --> a)
-  , Alias "todo" "bug"
+  , B "bug" $ forall1 "a" (\a -> text --> a)
 
   , B "Text.empty" text
   , B "Text.++" $ text --> text --> text
