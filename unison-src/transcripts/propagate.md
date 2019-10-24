@@ -80,3 +80,40 @@ type of `otherTerm` should remain the same.
 .subpath.preserve> view someTerm
 .subpath.preserve> view otherTerm
 ```
+
+### Propagation only applies to the local branch
+
+```ucm
+.> delete.namespace subpath
+```
+
+```unison
+use .builtin
+
+someTerm : Optional foo -> Optional foo
+someTerm x = x
+
+otherTerm : Optional baz -> Optional baz
+otherTerm y = someTerm y
+```
+
+```ucm
+.subpath.one> add
+.subpath> fork one two
+```
+
+```unison
+use .builtin
+
+someTerm : Optional x -> Optional x
+someTerm _ = None
+```
+
+```ucm
+.subpath.one> update
+```
+
+```ucm
+.subpath.two> view someTerm
+```
+

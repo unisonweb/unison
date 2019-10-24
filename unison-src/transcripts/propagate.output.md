@@ -40,13 +40,13 @@ And then we add it.
 
 .subpath> find.verbose
 
-  1. -- #rh8gqhulifnkfja1sud8mr4djlcnpg4sqhbqd75ij6j4eibamfcf2hf7cuhqqusqttvbmhj41khd8p8m1jpjdcdla1ul8ved9jk94po
+  1. -- #4d0krm5ahna9i9t4rs8t9mnc62rrh49evl3e85lm0pcqv9plg3u11led2a2she433i2k7ap4ksaqovjn5j9d347hpeh41r250c7d678
      unique type Foo
      
-  2. -- #rh8gqhulifnkfja1sud8mr4djlcnpg4sqhbqd75ij6j4eibamfcf2hf7cuhqqusqttvbmhj41khd8p8m1jpjdcdla1ul8ved9jk94po#0
+  2. -- #4d0krm5ahna9i9t4rs8t9mnc62rrh49evl3e85lm0pcqv9plg3u11led2a2she433i2k7ap4ksaqovjn5j9d347hpeh41r250c7d678#0
      Foo.Foo : Foo
      
-  3. -- #fg2agohofnn72hd471knaui211ktq0p35oq9gi3f1gjcl2kog1vtqdkd8qmod562vbtrjh2nvnejj028blnmbj3ajh3askfo0uj4sbg
+  3. -- #okceomcnpl88n427c1st6sjdjkhr9h5khhqk8je7k83m2khj9h2i6iq109s2nu8726is3l72kv7ontkuo405mtqo1vfl3knpb982hj8
      fooToInt : Foo -> .builtin.Int
      
   
@@ -195,5 +195,103 @@ type of `otherTerm` should remain the same.
 
   otherTerm : .builtin.Optional baz -> .builtin.Optional baz
   otherTerm y = someTerm y
+
+```
+### Propagation only applies to the local branch
+
+```ucm
+.> delete.namespace subpath
+
+  🆕
+  
+  Here's what's changed after the delete:
+  
+  - Deletes:
+  
+    subpath.Foo subpath.Foo.Bar subpath.Foo.Foo subpath.fooToInt
+    subpath.preserve.otherTerm subpath.preserve.someTerm
+  
+  Tip: You can always `undo` if this wasn't what you wanted.
+
+```
+```unison
+use .builtin
+
+someTerm : Optional foo -> Optional foo
+someTerm x = x
+
+otherTerm : Optional baz -> Optional baz
+otherTerm y = someTerm y
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      otherTerm : builtin.Optional baz -> builtin.Optional baz
+      someTerm  : builtin.Optional foo -> builtin.Optional foo
+   
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+```
+```ucm
+  ☝️  The namespace .subpath.one is empty.
+
+.subpath.one> add
+
+  ⍟ I've added these definitions:
+  
+    otherTerm : .builtin.Optional baz -> .builtin.Optional baz
+    someTerm  : .builtin.Optional foo -> .builtin.Optional foo
+
+.subpath> fork one two
+
+  Done.
+
+```
+```unison
+use .builtin
+
+someTerm : Optional x -> Optional x
+someTerm _ = None
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      someTerm : .builtin.Optional x -> .builtin.Optional x
+   
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+```
+```ucm
+.subpath.one> update
+
+  ⍟ I've updated to these definitions:
+  
+    someTerm : .builtin.Optional x -> .builtin.Optional x
+
+  ✅
+  
+  No conflicts or edits in progress.
+
+```
+
+```ucm
+.subpath.two> view someTerm
+
+  someTerm : .builtin.Optional foo -> .builtin.Optional foo
+  someTerm x = x
 
 ```
