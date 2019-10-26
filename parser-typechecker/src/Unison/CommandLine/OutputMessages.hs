@@ -602,6 +602,7 @@ notifyUser dir o = case o of
     where
     renderEntry :: Output.ReflogEntry -> P.Pretty CT.ColorText
     renderEntry (Output.ReflogEntry old new reason) = P.wrap $
+      P.blue (prettySBH old) <> " -> " <>
       P.blue (prettySBH new) <> " : " <> P.text reason
   History cap history tail -> pure $
     P.lines [

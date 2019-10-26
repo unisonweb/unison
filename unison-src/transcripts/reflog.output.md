@@ -72,8 +72,8 @@ y = 2
                               its history to that of the
                               specified namespace.
   
-  1. #n23evntj7s : add
-  2. #kih4ch6383 : add
+  1. #kih4ch6383 -> #n23evntj7s : add
+  2. #itm5ganb1o -> #kih4ch6383 : add
 
 ```
 If we `reset-root` to its previous value, `y` disappears.
