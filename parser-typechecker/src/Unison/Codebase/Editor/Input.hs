@@ -110,7 +110,7 @@ data Input
   | FindPatchI
   | ShowDefinitionI OutputLocation [String]
   | ShowDefinitionByPrefixI OutputLocation [String]
-  | ShowReflogI
+  | ShowReflogI Bool
   | UpdateBuiltinsI
   | MergeBuiltinsI
   | DebugBranchHistoryI

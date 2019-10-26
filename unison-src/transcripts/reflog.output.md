@@ -72,8 +72,26 @@ y = 2
                               its history to that of the
                               specified namespace.
   
-  1. #kih4ch6383 -> #n23evntj7s : add
-  2. #itm5ganb1o -> #kih4ch6383 : add
+  Use `reflog.verbose` if you need the "old" hashes from before
+  one of the commands.
+  
+  1. #n23evntj7s : add
+  2. #kih4ch6383 : add
+
+.> reflog.verbose
+
+  Here is a log of the root namespace hashes, starting with the
+  most recent, along with the command that got us there. Try:
+  
+    `fork #kih4ch6383 .old`   to make an old namespace
+                              accessible again,
+                              
+    `reset-root #kih4ch6383`  to reset the root namespace and
+                              its history to that of the
+                              specified namespace.
+  
+  #kih4ch6383 -> #n23evntj7s : add
+  #itm5ganb1o -> #kih4ch6383 : add
 
 ```
 If we `reset-root` to its previous value, `y` disappears.

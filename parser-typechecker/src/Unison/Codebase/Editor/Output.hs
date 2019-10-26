@@ -152,7 +152,7 @@ data Output v
   | WarnIncomingRootBranch (Set ShortBranchHash)
   | ShowDiff Input Names.Diff
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
-  | ShowReflog [ReflogEntry]
+  | ShowReflog ListDetailed [ReflogEntry]
   | NothingTodo Input
   | NotImplemented
   | NoBranchWithHash Input ShortBranchHash

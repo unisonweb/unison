@@ -354,11 +354,11 @@ loop = do
         stepManyAtM = Unison.Codebase.Editor.HandleInput.stepManyAtM inputDescription
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
       in case input of
-      ShowReflogI -> do
-        entries <- fmap reverse $ eval LoadReflog
-        numberedArgs .=
+      ShowReflogI verbose -> do
+        entries <- fmap reverse $ eval LoadReflog        
+        unless verbose $ numberedArgs .=
           fmap (('#':) . Hash.base32Hexs . Causal.unRawHash . Reflog.to) entries
-        respond . ShowReflog $ fmap (shortenReflogEntry sbhLength) entries
+        respond . ShowReflog verbose $ fmap (shortenReflogEntry sbhLength) entries
       ResetRootI src0 ->
         case src0 of
           Left hash -> resolveShortBranchHash input hash >>= \case

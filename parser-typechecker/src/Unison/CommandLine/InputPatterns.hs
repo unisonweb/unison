@@ -639,9 +639,20 @@ viewReflog = InputPattern
   "reflog"
   []
   []
-  ("`reflog` lists the changes that have affected the root namespace")
+  ("`reflog` lists the root namespace hashes resulting from recent commands")
   (\case
-    [] -> pure Input.ShowReflogI
+    [] -> pure $ Input.ShowReflogI False
+    _  -> Left . warn . P.string
+              $ I.patternName viewReflog ++ " doesn't take any arguments.")
+
+viewReflogVerbose :: InputPattern
+viewReflogVerbose = InputPattern
+  "reflog.verbose"
+  []
+  []
+  ("`reflog.verbose` lists the root namespace hashes before and after recent commands")
+  (\case
+    [] -> pure $ Input.ShowReflogI True
     _  -> Left . warn . P.string
               $ I.patternName viewReflog ++ " doesn't take any arguments.")
 
@@ -923,6 +934,7 @@ validInputs =
   , test
   , execute
   , viewReflog
+  , viewReflogVerbose
   , resetRoot
   , quit
   , updateBuiltins

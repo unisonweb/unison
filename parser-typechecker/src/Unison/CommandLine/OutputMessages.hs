@@ -14,7 +14,7 @@
 
 module Unison.CommandLine.OutputMessages where
 
-import Unison.Prelude hiding (unlessM)
+import Unison.Prelude hiding (unlessM, whenM)
 
 import           Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output           as E
@@ -91,6 +91,7 @@ import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.TypePrinter            as TypePrinter
 import qualified Unison.Util.ColorText         as CT
 import           Unison.Util.Monoid             ( intercalateMap
+                                                , whenM
                                                 , unlessM
                                                 )
 import qualified Unison.Util.Pretty            as P
@@ -575,34 +576,42 @@ notifyUser dir o = case o of
   PatchNeedsToBeConflictFree -> pure "A patch needs to be conflict-free."
   PatchInvolvesExternalDependents _ _ ->
     pure "That patch involves external dependents."
-  ShowReflog [] ->  pure . P.warnCallout $ "The reflog appears to be empty!"
-  ShowReflog entries -> pure $ 
+  ShowReflog _ [] ->  pure . P.warnCallout $ "The reflog appears to be empty!"
+  ShowReflog verbose entries -> pure $
     P.lines [ 
-    P.wrap $ "Here is a log of the root namespace hashes,"
-          <> "starting with the most recent,"
-          <> "along with the command that got us there."
-          <> "Try:",
-    "",
-    P.indentN 2 . P.wrapColumn2 $ [
-      (IP.makeExample IP.forkLocal ["2", ".old"],
-        ""),
-      (IP.makeExample IP.forkLocal [prettySBH . Output.old $ head entries
-                                   , ".old"],
-       "to make an old namespace accessible again,"),
-      (mempty,mempty),
-      (IP.makeExample IP.resetRoot [prettySBH . Output.old $ head entries],
-        "to reset the root namespace and its history to that of the specified"
-         <> "namespace.")
-    ],
-    "",
-    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".")
-         . fmap renderEntry
+      P.wrap $ "Here is a log of the root namespace hashes,"
+            <> "starting with the most recent,"
+            <> "along with the command that got us there."
+            <> "Try:",
+      "",
+      P.indentN 2 . P.wrapColumn2 $
+        unlessM verbose [(IP.makeExample IP.forkLocal ["2", ".old"], "")] ++
+        [
+        (IP.makeExample IP.forkLocal
+          [prettySBH . Output.old $ head entries, ".old"],
+            "to make an old namespace accessible again,"),
+        (mempty,mempty),
+        (IP.makeExample IP.resetRoot [prettySBH . Output.old $ head entries],
+          "to reset the root namespace and its history to that of the specified"
+           <> "namespace.")
+      ],
+      P.lines $
+        "" : 
+        (unlessM verbose $ 
+        [ P.wrap $ "Use" <> IP.makeExample' IP.viewReflogVerbose
+          <> "if you need the \"old\" hashes from before one of the commands."
+        , ""
+        ]),
+      (if verbose
+       then P.lines
+       else P.numbered (\i -> P.hiBlack . fromString $ show i <> "."))
+         . fmap (renderEntry verbose)
          $ entries
-         ]
+    ]
     where
-    renderEntry :: Output.ReflogEntry -> P.Pretty CT.ColorText
-    renderEntry (Output.ReflogEntry old new reason) = P.wrap $
-      P.blue (prettySBH old) <> " -> " <>
+    renderEntry :: ListDetailed -> Output.ReflogEntry -> P.Pretty CT.ColorText
+    renderEntry verbose  (Output.ReflogEntry old new reason) = P.wrap $
+      whenM verbose (P.blue (prettySBH old) <> " -> ") <>
       P.blue (prettySBH new) <> " : " <> P.text reason
   History cap history tail -> pure $
     P.lines [

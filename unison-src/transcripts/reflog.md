@@ -16,6 +16,7 @@ y = 2
 ```
 ```ucm
 .> reflog
+.> reflog.verbose
 ```
 
 If we `reset-root` to its previous value, `y` disappears.
