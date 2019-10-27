@@ -500,11 +500,11 @@ extend' e c@(Context ctx) = Context . (:ctx) . (e,) <$> i' where
       -- UvarCtx - ensure no duplicates
       TypeVar.Universal v -> if Set.notMember v us
         then pure $ Info es ses (Set.insert v us) uas (Set.insert v vs) pvs
-        else crash "variable already defined in the context"
+        else crash $ "variable " <> show v <> " already defined in the context"
       -- EvarCtx - ensure no duplicates, and that this existential is not solved earlier in context
       TypeVar.Existential _ v -> if Set.notMember v es
         then pure $ Info (Set.insert v es) (Map.delete v ses) us uas (Set.insert v vs) pvs
-        else crash "variable already defined in the context"
+        else crash $ "variable " <> show v <> " already defined in the context"
     -- SolvedEvarCtx - ensure `v` is fresh, and the solution is well-formed wrt the context
     Solved _ v sa@(Type.getPolytype -> t)
       | Set.member v es          -> crash $ "variable " <> show v <> " already defined in the context"
@@ -522,7 +522,7 @@ extend' e c@(Context ctx) = Context . (:ctx) . (e,) <$> i' where
     -- just check that `v` is not previously mentioned
     Marker v -> if Set.notMember v vs
       then pure $ Info es ses us uas (Set.insert v vs) pvs
-      else crash "marker variable already defined in the context"
+      else crash $ "marker variable " <> show v <> " already defined in the context"
   crash reason = Left $ IllegalContextExtension c e reason
 
 extend :: Var v => Element v loc -> Context v loc -> M v loc (Context v loc)
@@ -661,7 +661,7 @@ apply' solvedExistentials t = go t where
     Type.Effects' es -> Type.effects a (map go es)
     Type.ForallNamed' v t' -> Type.forall a v (go t')
     Type.IntroOuterNamed' v t' -> Type.introOuter a v (go t')
-    _ -> error $ "Match error in Context.apply: " ++ show t
+    _ -> error $ "Match error in Context.apply': " ++ show t
     where a = ABT.annotation t
 
 loc :: ABT.Term f v loc -> loc
