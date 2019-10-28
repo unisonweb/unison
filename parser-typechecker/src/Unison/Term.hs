@@ -855,6 +855,8 @@ updateDependencies termUpdates typeUpdates = ABT.rebuildUp go
   -- todo: this function might need tweaking if we ever allow type replacements
   -- would need to look inside pattern matching and constructor calls
   go (Ref r    ) = Ref (Map.findWithDefault r r termUpdates)
+  go (TermLink r    ) = TermLink (Map.findWithDefault r r termUpdates)
+  go (TypeLink r    ) = TypeLink (Map.findWithDefault r r typeUpdates)
   go (Ann tm tp) = Ann tm $ Type.updateDependencies typeUpdates tp
   go f           = f
 
