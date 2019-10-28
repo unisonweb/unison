@@ -243,8 +243,8 @@ resolveHashQualified tok = do
         | otherwise      -> pure $ Term.fromReferent (ann tok) (Set.findMin s)
 
 termLeaf :: forall v . Var v => TermP v
-termLeaf = do
-  e <- asum
+termLeaf =
+  asum
     [ hashQualifiedPrefixTerm
     , text
     , char
@@ -256,13 +256,6 @@ termLeaf = do
     , delayQuote
     , bang
     ]
-  q <- optional (reserved "?")
-  case q of
-    Nothing -> pure e
-    Just q  -> pure $ Term.app
-      (ann q <> ann e)
-      (Term.var (ann e) (positionalVar q Var.askInfo))
-      e
 
 delayQuote :: Var v => TermP v
 delayQuote = P.label "quote" $ do
