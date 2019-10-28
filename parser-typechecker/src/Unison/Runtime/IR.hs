@@ -1003,6 +1003,8 @@ instance (CyclicEq e, CyclicEq cont) => CyclicEq (Value e cont) where
   cyclicEq _ _ (T x) (T y) = pure (x == y)
   cyclicEq _ _ (C x) (C y) = pure (x == y)
   cyclicEq _ _ (Bs x) (Bs y) = pure (x == y)
+  cyclicEq _ _ (TermLink x) (TermLink y) = pure (x == y)
+  cyclicEq _ _ (TypeLink x) (TypeLink y) = pure (x == y)
   cyclicEq h1 h2 (Lam arity1 us _) (Lam arity2 us2 _) =
     if arity1 == arity2 then cyclicEq h1 h2 us us2
     else pure False
@@ -1081,6 +1083,8 @@ instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (Value e cont) where
   cyclicOrd _ _ (T x) (T y) = pure (x `compare` y)
   cyclicOrd _ _ (C x) (C y) = pure (x `compare` y)
   cyclicOrd _ _ (Bs x) (Bs y) = pure (x `compare` y)
+  cyclicOrd _ _ (TermLink x) (TermLink y) = pure (x `compare` y)
+  cyclicOrd _ _ (TypeLink x) (TypeLink y) = pure (x `compare` y)
   cyclicOrd h1 h2 (Lam arity1 us _) (Lam arity2 us2 _) =
     COrd.bothOrd' h1 h2 arity1 arity2 us us2
   cyclicOrd h1 h2 (Data r1 c1 vs1) (Data r2 c2 vs2) =
