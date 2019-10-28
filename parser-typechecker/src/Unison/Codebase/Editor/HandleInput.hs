@@ -370,7 +370,7 @@ loop = do
         convertEntries Nothing acc entries@(Reflog.Entry old _ _ : _) =
           convertEntries
             (Just old)
-            (Output.ReflogEntry (SBH.fromHash sbhLength old) "(initial reflogged branch)" : acc)
+            (Output.ReflogEntry (SBH.fromHash sbhLength old) "(initial reflogged namespace)" : acc)
             entries
         convertEntries (Just lastHash) acc entries@(Reflog.Entry old new reason : rest) =
           if lastHash /= old then

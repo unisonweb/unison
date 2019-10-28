@@ -74,7 +74,7 @@ y = 2
   
   1. #n23evntj7s : add
   2. #kih4ch6383 : add
-  3. #itm5ganb1o : (initial reflogged branch)
+  3. #itm5ganb1o : (initial reflogged namespace)
 
 ```
 If we `reset-root` to its previous value, `y` disappears.
