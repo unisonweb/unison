@@ -192,6 +192,16 @@ serializeTerm x = do
         putWord8 20
         putWord64be $ fromIntegral $ fromEnum c
         incPosition
+      TermLink ref -> do
+        putTag
+        putWord8 21
+        serializeReference ref
+        incPosition
+      TypeLink ref -> do
+        putTag
+        putWord8 22
+        serializeReference ref
+        incPosition
 
 serializePattern :: MonadPut m => Pattern a -> m ()
 serializePattern p = case p of

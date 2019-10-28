@@ -94,6 +94,8 @@ data F typeVar typeAnn patternAnn a
   --     [ (Constructor 0 [Var], ABT.abs n rhs1)
   --     , (Constructor 1 [], rhs2) ]
   | Match a [MatchCase patternAnn a]
+  | TermLink Reference
+  | TypeLink Reference
   deriving (Foldable,Functor,Generic,Generic1,Traversable)
 
 type IsTop = Bool
@@ -252,6 +254,8 @@ extraMap vtf atf apf = \case
   LetRec x y z -> LetRec x y z
   Let x y z -> Let x y z
   Match tm l -> Match tm (map (matchCaseExtraMap apf) l)
+  TermLink r -> TermLink r
+  TypeLink r -> TypeLink r
 
 matchCaseExtraMap :: (loc -> loc') -> MatchCase loc a -> MatchCase loc' a
 matchCaseExtraMap f (MatchCase p x y) = MatchCase (fmap f p) x y
@@ -798,6 +802,7 @@ labeledDependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t where
   f t@(Request r cid) =
     Writer.tell [LD.typeRef r, LD.effectConstructor r cid] $> t
   f t@(Match _ cases)     = traverse_ goPat cases $> t
+  f t@(TermLink r) = Writer.tell [LD.termRef r] $> t
   f t                     = pure t
   goPat (MatchCase pat _ _)   = Writer.tell (toList (Pattern.labeledDependencies pat))
 
@@ -989,6 +994,8 @@ instance (Show v, Show a) => Show (F v a0 p a) where
       B.Recorded (B.Placeholder _ r) -> s ("_" ++ r)
       B.Recorded (B.Resolve     _ r) -> s r
     go _ (Ref r) = s "Ref(" <> shows r <> s ")"
+    go _ (TermLink r) = s "TermLink(" <> shows r <> s ")"
+    go _ (TypeLink r) = s "TypeLink(" <> shows r <> s ")"
     go _ (Let _ b body) =
       showParen True (s "let " <> shows b <> s " in " <> shows body)
     go _ (LetRec _ bs body) = showParen

@@ -524,6 +524,10 @@ putTerm putVar putA = putABT putVar putA go where
       -> putWord8 18 *> putChild s *> putFoldable (putMatchCase putA putChild) cases
     Term.Char c
       -> putWord8 19 *> putChar c
+    Term.TermLink r
+      -> putWord8 20 *> putReference r
+    Term.TypeLink r
+      -> putWord8 21 *> putReference r
 
   putMatchCase :: MonadPut m => (a -> m ()) -> (x -> m ()) -> Term.MatchCase a x -> m ()
   putMatchCase putA putChild (Term.MatchCase pat guard body) =
@@ -554,6 +558,8 @@ getTerm getVar getA = getABT getVar getA go where
     18 -> Term.Match <$> getChild
                      <*> getList (Term.MatchCase <$> getPattern getA <*> getMaybe getChild <*> getChild)
     19 -> Term.Char <$> getChar
+    20 -> Term.TermLink <$> getReference
+    21 -> Term.TypeLink <$> getReference
     _ -> unknownTag "getTerm" tag
 
 putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()
