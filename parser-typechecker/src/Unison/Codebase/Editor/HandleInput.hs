@@ -355,10 +355,35 @@ loop = do
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
       in case input of
       ShowReflogI -> do
-        entries <- fmap reverse $ eval LoadReflog
+        entries <- fmap (convertEntries Nothing []) $ eval LoadReflog
         numberedArgs .=
-          fmap (('#':) . Hash.base32Hexs . Causal.unRawHash . Reflog.to) entries
-        respond . ShowReflog $ fmap (shortenReflogEntry sbhLength) entries
+          fmap (('#':) . SBH.toString . Output.hash) entries
+        respond $ ShowReflog entries
+        where
+        -- reverses & formats entries, adds synthetic entries when there is a
+        -- discontinuity in the reflog.
+        convertEntries :: Maybe Branch.Hash
+                       -> [Output.ReflogEntry]
+                       -> [Reflog.Entry]
+                       -> [Output.ReflogEntry]
+        convertEntries _ acc [] = acc
+        convertEntries Nothing acc entries@(Reflog.Entry old _ _ : _) =
+          convertEntries
+            (Just old)
+            (Output.ReflogEntry (SBH.fromHash sbhLength old) "(initial reflogged branch)" : acc)
+            entries
+        convertEntries (Just lastHash) acc entries@(Reflog.Entry old new reason : rest) =
+          if lastHash /= old then
+            convertEntries
+              (Just old)
+              (Output.ReflogEntry (SBH.fromHash sbhLength old) "(external change)" : acc)
+              entries
+          else
+            convertEntries
+              (Just new)
+              (Output.ReflogEntry (SBH.fromHash sbhLength new) reason : acc)
+              rest
+
       ResetRootI src0 ->
         case src0 of
           Left hash -> resolveShortBranchHash input hash >>= \case
@@ -1383,10 +1408,6 @@ searchResultToHQString = \case
 fuzzyNameDistance :: Name -> Name -> Maybe _ -- MatchArray
 fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
   Find.simpleFuzzyScore q n
-
-shortenReflogEntry :: Int -> Reflog.Entry -> Output.ReflogEntry
-shortenReflogEntry len (Reflog.Entry old new reason) =
-  Output.ReflogEntry (SBH.fromHash len old) (SBH.fromHash len new) reason
 
 -- return `name` and `name.<everything>...`
 _searchBranchPrefix :: Branch m -> Name -> [SearchResult]
