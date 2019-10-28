@@ -96,7 +96,7 @@ data F typeVar typeAnn patternAnn a
   --     [ (Constructor 0 [Var], ABT.abs n rhs1)
   --     , (Constructor 1 [], rhs2) ]
   | Match a [MatchCase patternAnn a]
-  | TermLink Reference
+  | TermLink Referent
   | TypeLink Reference
   deriving (Foldable,Functor,Generic,Generic1,Traversable)
 
@@ -460,6 +460,12 @@ var' = var() . Var.named
 ref :: Ord v => a -> Reference -> AnnotatedTerm2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
 
+termLink :: Ord v => a -> Referent -> AnnotatedTerm2 vt at ap v a
+termLink a r = ABT.tm' a (TermLink r)
+
+typeLink :: Ord v => a -> Reference -> AnnotatedTerm2 vt at ap v a
+typeLink a r = ABT.tm' a (TypeLink r)
+
 builtin :: Ord v => a -> Text -> AnnotatedTerm2 vt at ap v a
 builtin a n = ref a (Reference.Builtin n)
 
@@ -815,7 +821,7 @@ generalizedDependencies
 generalizedDependencies termRef typeRef literalType dataConstructor dataType effectConstructor effectType
   = Set.fromList . Writer.execWriter . ABT.visit' f where
   f t@(Ref r) = Writer.tell [termRef r] $> t
-  f t@(TermLink r) = Writer.tell [termRef r] $> t
+  f t@(TermLink r) = Writer.tell [termRef $ Referent.toReference r] $> t
   f t@(TypeLink r) = Writer.tell [typeRef r] $> t
   f t@(Ann _ typ) =
     Writer.tell (map typeRef . toList $ Type.dependencies typ) $> t
@@ -855,8 +861,8 @@ updateDependencies termUpdates typeUpdates = ABT.rebuildUp go
   -- todo: this function might need tweaking if we ever allow type replacements
   -- would need to look inside pattern matching and constructor calls
   go (Ref r    ) = Ref (Map.findWithDefault r r termUpdates)
-  go (TermLink r    ) = TermLink (Map.findWithDefault r r termUpdates)
-  go (TypeLink r    ) = TypeLink (Map.findWithDefault r r typeUpdates)
+  go (TermLink (Referent.Ref r)) = TermLink (Referent.Ref $ Map.findWithDefault r r termUpdates)
+  go (TypeLink r) = TypeLink (Map.findWithDefault r r typeUpdates)
   go (Ann tm tp) = Ann tm $ Type.updateDependencies typeUpdates tp
   go f           = f
 

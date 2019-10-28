@@ -525,7 +525,7 @@ putTerm putVar putA = putABT putVar putA go where
     Term.Char c
       -> putWord8 19 *> putChar c
     Term.TermLink r
-      -> putWord8 20 *> putReference r
+      -> putWord8 20 *> putReferent r
     Term.TypeLink r
       -> putWord8 21 *> putReference r
 
@@ -558,7 +558,7 @@ getTerm getVar getA = getABT getVar getA go where
     18 -> Term.Match <$> getChild
                      <*> getList (Term.MatchCase <$> getPattern getA <*> getMaybe getChild <*> getChild)
     19 -> Term.Char <$> getChar
-    20 -> Term.TermLink <$> getReference
+    20 -> Term.TermLink <$> getReferent
     21 -> Term.TypeLink <$> getReference
     _ -> unknownTag "getTerm" tag
 
