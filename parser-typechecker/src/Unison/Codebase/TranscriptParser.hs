@@ -137,10 +137,14 @@ run dir stanzas codebase = do
             awaitInput
           Just (Just p@(UcmCommand path lineTxt)) -> do
             curPath <- readIORef pathRef
+            numberedArgs <- readIORef numberedArgsRef
+            let expandNumber s = case readMay s of
+                  Just i -> fromMaybe (show i) . atMay numberedArgs $ i - 1
+                  Nothing -> s
             if (curPath /= path) then do
               atomically $ Q.undequeue cmdQueue (Just p)
               pure $ Right (SwitchBranchI (Path.absoluteToPath' path))
-            else case words (Text.unpack lineTxt) of
+            else case fmap expandNumber . words . Text.unpack $ lineTxt of
               [] -> awaitInput
               cmd:args -> do
                 output ("\n" <> show p <> "\n")
@@ -193,19 +197,18 @@ run dir stanzas codebase = do
         output rendered
         when (not errOk && Output.isFailure o) $ do
           output "\n```\n\n"
-          die $ unlines [
+          transcriptFailure out $ Text.unlines [
             "\128721", "",
             "Transcript failed due to the message above.",
             "Codebase as of the point of failure is in:", "",
-            "  " <> dir ]
+            "  " <> Text.pack dir ]
         when (errOk && not (Output.isFailure o)) $ do
           output "\n```\n\n"
-          die $ unlines [
+          transcriptFailure out $ Text.unlines [
             "\128721", "",
             "Transcript failed due to an unexpected success above.",
             "Codebase as of the point of failure is in:", "",
-            "  " <> dir ]
-        pure ()
+            "  " <> Text.pack dir ]
 
       loop state = do
         writeIORef pathRef (HandleInput._currentPath state)
@@ -225,6 +228,15 @@ run dir stanzas codebase = do
             loop state'
     (`finally` cleanup)
       $ loop (HandleInput.loopState0 root initialPath)
+
+transcriptFailure :: IORef (Seq String) -> Text -> IO b
+transcriptFailure out msg = do
+  texts <- readIORef out
+  die
+    .  Text.unpack
+    $  Text.concat (Text.pack <$> toList (texts :: Seq String))
+    <> "\n\n"
+    <> msg
 
 type P = P.Parsec () Text
 

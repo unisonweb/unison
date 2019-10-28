@@ -478,7 +478,11 @@ compile0 env bound t =
     ABT.Abs1NA' _ body -> go body
     Term.If' cond ifT ifF -> If (toZ "cond" t cond) (go ifT) (go ifF)
     Term.Var' _ -> Leaf $ toZ "var" t t
-    Term.Ref' (toIR env -> Just ir) -> ir
+    Term.Ref' r -> case toIR env r of
+      Nothing -> error $ reportBug "B8920912182" msg where
+        msg = "The program being compiled referenced this definition " <> 
+               show r <> "\nbut the compilation environment has no compiled form for this reference."
+      Just ir -> ir
     Term.Sequence' vs -> MakeSequence . toList . fmap (toZ "sequence" t) $ vs
     _ -> error $ "TODO - don't know how to compile this term:\n"
               <> (CT.toPlain . P.render 80 . TP.pretty mempty $ void t)
@@ -1060,6 +1064,7 @@ instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (Value e cont) where
   cyclicOrd _ _ (N x) (N y) = pure (x `compare` y)
   cyclicOrd _ _ (B x) (B y) = pure (x `compare` y)
   cyclicOrd _ _ (T x) (T y) = pure (x `compare` y)
+  cyclicOrd _ _ (C x) (C y) = pure (x `compare` y)
   cyclicOrd _ _ (Bs x) (Bs y) = pure (x `compare` y)
   cyclicOrd h1 h2 (Lam arity1 us _) (Lam arity2 us2 _) =
     COrd.bothOrd' h1 h2 arity1 arity2 us us2

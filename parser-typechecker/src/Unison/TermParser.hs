@@ -63,7 +63,7 @@ term2 = lam term2 <|> term3
 
 term3 :: Var v => TermP v
 term3 = do
-  t <- and <|> or <|> infixApp
+  t <- infixAppOrBooleanOp
   ot <- optional (reserved ":" *> TypeParser.computationType)
   pure $ case ot of
     Nothing -> t
@@ -75,7 +75,7 @@ keywordBlock = letBlock <|> handle <|> ifthen <|> match
 -- We disallow type annotations and lambdas,
 -- just function application and operators
 blockTerm :: Var v => TermP v
-blockTerm = and <|> or <|> lam term <|> infixApp
+blockTerm = lam term <|> infixAppOrBooleanOp
 
 match :: Var v => TermP v
 match = do
@@ -92,14 +92,15 @@ match = do
 matchCase :: Var v => P v (Term.MatchCase Ann (AnnotatedTerm v Ann))
 matchCase = do
   (p, boundVars) <- parsePattern
-  guard <- optional $ reserved "|" *> infixApp
+  guard <- optional $ reserved "|" *> infixAppOrBooleanOp
   t <- block "->"
   pure . Term.MatchCase p (fmap (ABT.absChain' boundVars) guard) $ ABT.absChain' boundVars t
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
 parsePattern =
-  chainl1 (constructor <|> seqLiteral <|> leaf) patternInfixApp
+  chainl1 patternCandidates patternInfixApp
   where
+  patternCandidates = constructor <|> seqLiteral <|> leaf
   patternInfixApp :: P v ((Pattern Ann, [(Ann, v)])
                   -> (Pattern Ann, [(Ann, v)])
                   -> (Pattern Ann, [(Ann, v)]))
@@ -183,7 +184,7 @@ parsePattern =
         f patterns vs =
           let loc = foldl (<>) (ann tok) $ map ann patterns
           in (Pattern.Constructor loc ref cid patterns, vs)
-    unzipPatterns f <$> many (leaf <|> seqLiteral)
+    unzipPatterns f <$> many patternCandidates
 
   seqLiteral = Parser.seq f leaf
     where f loc = unzipPatterns ((,) . Pattern.SequenceLiteral loc)
@@ -193,7 +194,7 @@ lam p = label "lambda" $ mkLam <$> P.try (some prefixDefinitionName <* reserved 
   where
     mkLam vs b = Term.lam' (ann (head vs) <> ann b) (map L.payload vs) b
 
-letBlock, handle, ifthen, and, or, infixApp :: Var v => TermP v
+letBlock, handle, ifthen :: Var v => TermP v
 letBlock = label "let" $ block "let"
 
 handle = label "handle" $ do
@@ -275,12 +276,6 @@ bang = P.label "bang" $ do
   e <- termLeaf
   pure $ DD.forceTerm (ann start <> ann e) (ann start) e
 
-and = label "and" $ f <$> reserved "and" <*> termLeaf <*> termLeaf
-  where f kw x y = Term.and (ann kw <> ann y) x y
-
-or = label "or" $ f <$> reserved "or" <*> termLeaf <*> termLeaf
-  where f kw x y = Term.or (ann kw <> ann y) x y
-
 var :: Var v => L.Token v -> AnnotatedTerm v Ann
 var t = Term.var (ann t) (L.payload t)
 
@@ -297,9 +292,15 @@ term4 = f <$> some termLeaf
     f [] = error "'some' shouldn't produce an empty list"
 
 -- e.g. term4 + term4 - term4
-infixApp = label "infixApp"
-  $ chainl1 term4 (f <$> (hashQualifiedInfixTerm <* optional semi))
-  where f op lhs rhs = Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
+-- or term4 || term4 && term4
+infixAppOrBooleanOp :: Var v => TermP v
+infixAppOrBooleanOp = chainl1 term4 (or <|> and <|> infixApp)
+    where or = orf <$> label "or" (reserved "||")
+          orf op lhs rhs =  Term.or (ann op <> ann rhs) lhs rhs
+          and = andf <$> label "and" (reserved "&&")
+          andf op lhs rhs = Term.and (ann op <> ann rhs) lhs rhs
+          infixApp = infixAppf <$> label "infixApp" (hashQualifiedInfixTerm <* optional semi)
+          infixAppf op lhs rhs = Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
 
 typedecl :: Var v => P v (L.Token v, Type v Ann)
 typedecl =

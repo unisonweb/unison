@@ -766,7 +766,7 @@ help = InputPattern
       [isHelp -> Just msg] -> Left msg
       [cmd] -> case Map.lookup cmd commandsByName of
         Nothing  -> Left . warn $ "I don't know of that command. Try `help`."
-        Just pat -> Left $ I.help pat
+        Just pat -> Left $ showPatternHelp pat
       _ -> Left $ warn "Use `help <cmd>` or `help`.")
     where
       commandsByName = Map.fromList [

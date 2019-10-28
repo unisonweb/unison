@@ -957,6 +957,7 @@ instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Float x == Float y = x == y
   Boolean x == Boolean y = x == y
   Text x == Text y = x == y
+  Char x == Char y = x == y
   Blank b == Blank q = b == q
   Ref x == Ref y = x == y
   Constructor r cid == Constructor r2 cid2 = r == r2 && cid == cid2

@@ -1,5 +1,5 @@
 module Unison.Prelude
-  ( module X, readUtf8, safeReadUtf8, safeReadUtf8StdIn, writeUtf8
+  ( module X, readUtf8, safeReadUtf8, safeReadUtf8StdIn, writeUtf8, reportBug
   ) where
 
 import Control.Applicative as X
@@ -43,3 +43,19 @@ safeReadUtf8StdIn = try $ decodeUtf8 <$> BS.getContents
 
 writeUtf8 :: FilePath -> Text -> IO ()
 writeUtf8 p txt = BS.writeFile p (encodeUtf8 txt) 
+
+reportBug :: String -> String -> String
+reportBug bugId msg = unlines [
+  "🐞",
+  "",
+  msg,
+  "",
+  "This is a Unison bug and you can report it here:", "",
+     "https://github.com/unisonweb/unison/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aopen+" <> bugId <> "+",
+  "",
+  "Bug reference: " <> bugId, "",
+  "If there's already an issue with this reference, you can give a 👍",
+  "on the issue to let the team know you encountered it, and you can add",
+  "any additional details you know of to the issue."
+  ]
+
