@@ -790,6 +790,8 @@ synthesize e = scope (InSynthesize e) $
   go (Term.Boolean' _) = pure $ Type.boolean l
   go (Term.Text' _) = pure $ Type.text l
   go (Term.Char' _) = pure $ Type.char l
+  go (Term.TermLink' _) = pure $ Type.termLink l
+  go (Term.TypeLink' _) = pure $ Type.typeLink l
   go (Term.Apps' f args) = do -- ->EEEEE
     ft <- synthesize f
     ctx <- getContext
