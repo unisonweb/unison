@@ -996,8 +996,10 @@ instance Var v => Hashable1 (F v a p) where
                   Handle h b -> [tag 15, hashed $ hash h, hashed $ hash b]
                   And    x y -> [tag 16, hashed $ hash x, hashed $ hash y]
                   Or     x y -> [tag 17, hashed $ hash x, hashed $ hash y]
+                  TermLink r -> [tag 18, accumulateToken r]
+                  TypeLink r -> [tag 19, accumulateToken r]
                   _ ->
-                    error $ "unhandled case in show: " <> show (void e)
+                    error $ "unhandled case in hash: " <> show (void e)
 
 -- mostly boring serialization code below ...
 

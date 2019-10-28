@@ -109,6 +109,7 @@ defaultColors = \case
   ST.Request             -> Nothing
   ST.AbilityBraces       -> Just HiBlack
   ST.ControlKeyword      -> Just Bold
+  ST.LinkKeyword         -> Just HiBlack
   ST.TypeOperator        -> Just HiBlack
   ST.BindingEquals       -> Nothing
   ST.TypeAscriptionColon -> Just Blue

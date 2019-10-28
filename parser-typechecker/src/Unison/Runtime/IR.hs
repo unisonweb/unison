@@ -466,6 +466,8 @@ compile0 env bound t =
     Term.Boolean' n -> Leaf . Val . B $ n
     Term.Text' n -> Leaf . Val . T $ n
     Term.Char' n -> Leaf . Val . C $ n
+    Term.TermLink' r -> Leaf . Val . TermLink $ r 
+    Term.TypeLink' r -> Leaf . Val . TypeLink $ r 
     Term.And' x y -> And (toZ "and" t x) (go y)
     Term.LamsNamed' vs body -> Leaf . Val $
       Lam (length vs)

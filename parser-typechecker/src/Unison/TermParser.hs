@@ -75,18 +75,15 @@ keywordBlock = letBlock <|> handle <|> ifthen <|> match
 link :: Var v => TermP v
 link = termLink <|> typeLink 
   where
-  termKw = P.try $ do
-    s <- wordyIdString
-    guard $ L.payload s == "term"
   typeLink = do
-    P.try (reserved "@" >> reserved "type")
+    P.try (reserved "typeLink") -- type opens a block, gotta use something else
     id <- hqPrefixId
     ns <- asks names
     case Names.lookupHQType (L.payload id) ns of 
       s | Set.size s == 1 -> pure $ Term.typeLink (ann id) (Set.findMin s)
         | otherwise       -> customFailure $ UnknownType id s
   termLink = do
-    P.try (reserved "@" *> termKw)
+    P.try (reserved "termLink")
     id <- hqPrefixId
     ns <- asks names
     case Names.lookupHQTerm (L.payload id) ns of 

@@ -659,7 +659,7 @@ keywords = Set.fromList [
   "handle", "in", "unique",
   "where", "use",
   "true", "false",
-  "type", "ability", "alias",
+  "type", "ability", "alias", "typeLink", "termLink",
   "let", "namespace", "case", "of"]
 
 -- These keywords introduce a layout block
