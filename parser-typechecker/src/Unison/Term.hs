@@ -51,6 +51,8 @@ import qualified Unison.Name as Name
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 
+type ConstructorId = Pattern.ConstructorId
+
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
@@ -785,35 +787,76 @@ typeDependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Refere
 typeDependencies =
   Set.fromList . mapMaybe (LD.fold Just (const Nothing)) . toList . labeledDependencies
 
+-- Gets the types to which this term contains references via patterns and
+-- data constructors.
+constructorDependencies
+  :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
+constructorDependencies =
+  Set.unions
+    . generalizedDependencies (const mempty)
+                              (const mempty)
+                              Set.singleton
+                              (const . Set.singleton)
+                              Set.singleton
+                              (const . Set.singleton)
+                              Set.singleton
+
+generalizedDependencies
+  :: (Ord v, Ord vt, Ord r)
+  => (Reference -> r)
+  -> (Reference -> r)
+  -> (Reference -> r)
+  -> (Reference -> ConstructorId -> r)
+  -> (Reference -> r)
+  -> (Reference -> ConstructorId -> r)
+  -> (Reference -> r)
+  -> AnnotatedTerm2 vt at ap v a
+  -> Set r
+generalizedDependencies termRef typeRef literalType dataConstructor dataType effectConstructor effectType
+  = Set.fromList . Writer.execWriter . ABT.visit' f where
+  f t@(Ref r) = Writer.tell [termRef r] $> t
+  f t@(TermLink r) = Writer.tell [termRef r] $> t
+  f t@(TypeLink r) = Writer.tell [typeRef r] $> t
+  f t@(Ann _ typ) =
+    Writer.tell (map typeRef . toList $ Type.dependencies typ) $> t
+  f t@(Nat      _) = Writer.tell [literalType Type.natRef] $> t
+  f t@(Int      _) = Writer.tell [literalType Type.intRef] $> t
+  f t@(Float    _) = Writer.tell [literalType Type.floatRef] $> t
+  f t@(Boolean  _) = Writer.tell [literalType Type.booleanRef] $> t
+  f t@(Text     _) = Writer.tell [literalType Type.textRef] $> t
+  f t@(Sequence _) = Writer.tell [literalType Type.vectorRef] $> t
+  f t@(Constructor r cid) =
+    Writer.tell [dataType r, dataConstructor r cid] $> t
+  f t@(Request r cid) =
+    Writer.tell [effectType r, effectConstructor r cid] $> t
+  f t@(Match _ cases) = traverse_ goPat cases $> t
+  f t                 = pure t
+  goPat (MatchCase pat _ _) =
+    Writer.tell . toList $ Pattern.generalizedDependencies literalType
+                                                           dataConstructor
+                                                           dataType
+                                                           effectConstructor
+                                                           effectType
+                                                           pat
+
 labeledDependencies :: (Ord v, Ord vt)
                     => AnnotatedTerm2 vt at ap v a
                     -> Set LabeledDependency
-labeledDependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t where
-  f t@(Ref r    ) = Writer.tell [LD.termRef r] $> t
-  f t@(Ann _ typ) = Writer.tell (map LD.typeRef . toList $ Type.dependencies typ) $> t
-  f t@(Nat _)     = Writer.tell [LD.typeRef Type.natRef] $> t
-  f t@(Int _)     = Writer.tell [LD.typeRef Type.intRef] $> t
-  f t@(Float _)   = Writer.tell [LD.typeRef Type.floatRef] $> t
-  f t@(Boolean _) = Writer.tell [LD.typeRef Type.booleanRef] $> t
-  f t@(Text _)    = Writer.tell [LD.typeRef Type.textRef] $> t
-  f t@(Sequence _) = Writer.tell [LD.typeRef Type.vectorRef] $> t
-  f t@(Constructor r cid) =
-    Writer.tell [LD.typeRef r, LD.dataConstructor r cid] $> t
-  f t@(Request r cid) =
-    Writer.tell [LD.typeRef r, LD.effectConstructor r cid] $> t
-  f t@(Match _ cases)     = traverse_ goPat cases $> t
-  f t@(TermLink r) = Writer.tell [LD.termRef r] $> t
-  f t                     = pure t
-  goPat (MatchCase pat _ _)   = Writer.tell (toList (Pattern.labeledDependencies pat))
+labeledDependencies = generalizedDependencies LD.termRef LD.typeRef LD.typeRef LD.dataConstructor LD.typeRef LD.effectConstructor LD.typeRef
 
 updateDependencies
-  :: Ord v => Map Reference Reference -> AnnotatedTerm v a -> AnnotatedTerm v a
-updateDependencies u = ABT.rebuildUp go
+  :: Ord v
+  => Map Reference Reference
+  -> Map Reference Reference
+  -> AnnotatedTerm v a
+  -> AnnotatedTerm v a
+updateDependencies termUpdates typeUpdates = ABT.rebuildUp go
  where
   -- todo: this function might need tweaking if we ever allow type replacements
   -- would need to look inside pattern matching and constructor calls
-  go (Ref r) = Ref (Map.findWithDefault r r u)
-  go f       = f
+  go (Ref r    ) = Ref (Map.findWithDefault r r termUpdates)
+  go (Ann tm tp) = Ann tm $ Type.updateDependencies typeUpdates tp
+  go f           = f
 
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body
