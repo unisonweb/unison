@@ -63,12 +63,15 @@ library
     Unison.Codebase.NameSegment
     Unison.Codebase.Path
     Unison.Codebase.Patch
+    Unison.Codebase.Reflog
     Unison.Codebase.Runtime
     Unison.Codebase.SearchResult
     Unison.Codebase.Serialization
     Unison.Codebase.Serialization.PutT
     Unison.Codebase.Serialization.V1
+    Unison.Codebase.ShortBranchHash
     Unison.Codebase.TermEdit
+    Unison.Codebase.TranscriptParser
     Unison.Codebase.TypeEdit
     Unison.Codebase.Watch
     Unison.CommandLine
@@ -176,6 +179,7 @@ library
     exceptions,
     extra,
     filepath,
+    filepattern,
     fingertree,
     free,
     fsnotify,
@@ -250,9 +254,11 @@ executable unison
     containers,
     directory,
     filepath,
+    fsutils,
     safe,
     shellmet,
     template-haskell,
+    temporary,
     text,
     unison-parser-typechecker
 
@@ -271,6 +277,7 @@ executable tests
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests
   other-modules:
+    Unison.Test.ABT
     Unison.Test.Codebase.Causal
     Unison.Test.Codebase.FileCodebase
     Unison.Test.Codebase.Path
@@ -281,14 +288,16 @@ executable tests
     Unison.Test.Lexer
     Unison.Test.Range
     Unison.Test.Referent
+    Unison.Test.Term
     Unison.Test.TermParser
     Unison.Test.TermPrinter
     Unison.Test.Type
     Unison.Test.TypePrinter
-    Unison.Test.Typechecker
     Unison.Test.Typechecker.Components
     Unison.Test.Typechecker.TypeError
+    Unison.Test.UnisonSources
     Unison.Test.Util.Bytes
+    Unison.Test.Var
 
   build-depends:
     base,
@@ -306,4 +315,18 @@ executable tests
     raw-strings-qq,
     text,
     transformers,
+    unison-parser-typechecker
+
+executable transcripts
+  main-is:        Unison/Test/Transcripts.hs
+  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
+  hs-source-dirs: tests
+  other-modules:
+  build-depends:
+    base,
+    directory,
+    easytest,
+    filepath,
+    shellmet,
+    text,
     unison-parser-typechecker

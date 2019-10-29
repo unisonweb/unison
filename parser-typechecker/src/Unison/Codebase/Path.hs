@@ -20,7 +20,9 @@ import qualified Unison.Lexer                  as Lexer
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.ShortHash as SH
 
-import Unison.Codebase.NameSegment (NameSegment(NameSegment), HQSegment)
+import           Unison.Codebase.NameSegment    ( NameSegment(NameSegment)
+                                                , HQSegment
+                                                )
 import qualified Unison.Codebase.NameSegment as NameSegment
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
@@ -42,6 +44,9 @@ isRoot' = either isRoot (const False) . unPath'
 
 isRoot :: Absolute -> Bool
 isRoot = Seq.null . toSeq . unabsolute
+
+absoluteToPath' :: Absolute -> Path'
+absoluteToPath' abs = Path' (Left abs)
 
 instance Show Path' where
   show (Path' (Left abs)) = show abs

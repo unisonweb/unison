@@ -16,9 +16,14 @@ import System.Console.Haskeline.Completion (Completion)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.RemoteRepo
-import Unison.CommandLine.InputPattern (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
+import Unison.CommandLine.InputPattern
+         ( ArgumentType(..)
+         , InputPattern(InputPattern)
+         , IsOptional(..)
+         )
 import Unison.CommandLine
 import Unison.Util.Monoid (intercalateMap)
+import Unison.ShortHash (ShortHash)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -205,7 +210,7 @@ viewByPrefix
 find :: InputPattern
 find = InputPattern
   "find"
-  ["list", "ls"]
+  []
   [(ZeroPlus, fuzzyDefinitionQueryArg)]
   (P.wrapColumn2
     [ ("`find`", "lists all definitions in the current namespace.")
@@ -220,6 +225,25 @@ find = InputPattern
     ]
   )
   (pure . Input.SearchByNameI False False)
+
+findShallow :: InputPattern
+findShallow = InputPattern
+  "list"
+  ["ls"]
+  [(Optional, pathArg)]
+  (P.wrapColumn2
+    [ ("`list`", "lists definitions and namespaces at the current level of the current namespace.")
+    , ( "`list foo`", "lists the 'foo' namespace." )
+    , ( "`list .foo`", "lists the '.foo' namespace." )
+    ]
+  )
+  (\case
+    [] -> pure $ Input.FindShallowI Path.relativeEmpty'
+    [path] -> first fromString $ do
+      p <- Path.parsePath' path
+      pure $ Input.FindShallowI p
+    _ -> Left (I.help findShallow)
+  )
 
 findVerbose :: InputPattern
 findVerbose = InputPattern
@@ -244,7 +268,7 @@ findPatch = InputPattern
 renameTerm :: InputPattern
 renameTerm = InputPattern "move.term" ["rename.term"]
     [(Required, exactDefinitionTermQueryArg)
-    ,(Required, noCompletions)]
+    ,(Required, newNameArg)]
     "`move.term foo bar` renames `foo` to `bar`."
     (\case
       [oldName, newName] -> first fromString $ do
@@ -257,7 +281,7 @@ renameTerm = InputPattern "move.term" ["rename.term"]
 renameType :: InputPattern
 renameType = InputPattern "move.type" ["rename.type"]
     [(Required, exactDefinitionTypeQueryArg)
-    ,(Required, noCompletions)]
+    ,(Required, newNameArg)]
     "`move.type foo bar` renames `foo` to `bar`."
     (\case
       [oldName, newName] -> first fromString $ do
@@ -293,7 +317,7 @@ deleteType = InputPattern "delete.type" []
 
 aliasTerm :: InputPattern
 aliasTerm = InputPattern "alias.term" []
-    [(Required, exactDefinitionTermQueryArg), (Required, noCompletions)]
+    [(Required, exactDefinitionTermQueryArg), (Required, newNameArg)]
     "`alias.term foo bar` introduces `bar` with the same definition as `foo`."
     (\case
       [oldName, newName] -> first fromString $ do
@@ -306,7 +330,7 @@ aliasTerm = InputPattern "alias.term" []
 
 aliasType :: InputPattern
 aliasType = InputPattern "alias.type" []
-    [(Required, exactDefinitionTypeQueryArg), (Required, noCompletions)]
+    [(Required, exactDefinitionTypeQueryArg), (Required, newNameArg)]
     "`alias.type Foo Bar` introduces `Bar` with the same definition as `Foo`."
     (\case
       [oldName, newName] -> first fromString $ do
@@ -362,7 +386,7 @@ movePatch src dest = first fromString $ do
 copyPatch :: InputPattern
 copyPatch = InputPattern "copy.patch"
    []
-   [(Required, patchArg), (Required, patchArg)]
+   [(Required, patchArg), (Required, newNameArg)]
    "`copy.patch foo bar` copies the patch `bar` to `foo`."
     (\case
       [src, dest] -> movePatch src dest
@@ -372,7 +396,7 @@ copyPatch = InputPattern "copy.patch"
 renamePatch :: InputPattern
 renamePatch = InputPattern "move.patch"
    ["rename.patch"]
-   [(Required, patchArg), (Required, patchArg)]
+   [(Required, patchArg), (Required, newNameArg)]
    "`move.patch foo bar` renames the patch `bar` to `foo`."
     (\case
       [src, dest] -> movePatch src dest
@@ -382,7 +406,7 @@ renamePatch = InputPattern "move.patch"
 renameBranch :: InputPattern
 renameBranch = InputPattern "move.namespace"
    ["rename.namespace"]
-   [(Required, pathArg), (Required, pathArg)]
+   [(Required, pathArg), (Required, newNameArg)]
    "`move.namespace foo bar` renames the path `bar` to `foo`."
     (\case
       [".", dest] -> first fromString $ do
@@ -408,14 +432,14 @@ history = InputPattern "history" []
     (\case
       [src] -> first fromString $ do
         p <- Input.parseBranchId src
-        pure $ Input.HistoryI (Just 10) (Just 10) p 
+        pure $ Input.HistoryI (Just 10) (Just 10) p
       [] -> pure $ Input.HistoryI (Just 10) (Just 10) (Right Path.currentPath)
       _ -> Left (I.help history)
     )
 
 forkLocal :: InputPattern
 forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
-                                   ,(Required, pathArg)]
+                                   ,(Required, newNameArg)]
     (makeExample forkLocal ["src", "dest"] <> "creates the namespace `dest` as a copy of `src`.")
     (\case
       [src, dest] -> first fromString $ do
@@ -424,6 +448,22 @@ forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
         pure $ Input.ForkLocalBranchI src dest
       _ -> Left (I.help forkLocal)
     )
+
+resetRoot :: InputPattern
+resetRoot = InputPattern "reset-root" [] [(Required, pathArg)]
+  (P.wrapColumn2 [
+    (makeExample resetRoot [".foo"],
+      "Reset the root namespace (along with its history) to that of the `.foo` namespace."),
+    (makeExample resetRoot ["#9dndk3kbsk13nbpeu"],
+      "Reset the root namespace (along with its history) to that of the namespace with hash `#9dndk3kbsk13nbpeu`.")
+    ])
+  (\case
+    [src] -> first fromString $ do
+     src <- Input.parseBranchId src
+     pure $ Input.ResetRootI src
+    _ -> Left (I.help resetRoot))
+
+
 
 pull :: InputPattern
 pull = InputPattern
@@ -555,16 +595,55 @@ previewMergeLocal = InputPattern
     _ -> Left (I.help previewMergeLocal)
   )
 
--- replace,resolve :: InputPattern
---replace = InputPattern "replace" []
---          [ (Required, exactDefinitionQueryArg)
---          , (Required, exactDefinitionQueryArg) ]
---  (makeExample replace ["foo#abc", "foo#def"] <> "begins a refactor to replace" <> "uses of `foo#abc` with `foo#def`")
---  (const . Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
---
---resolve = InputPattern "resolve" [] [(Required, exactDefinitionQueryArg)]
---  (makeExample resolve ["foo#abc"] <> "sets `foo#abc` as the canonical `foo` in cases of conflict, and begins a refactor to replace references to all other `foo`s to `foo#abc`.")
---  (const . Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
+resolveEdit :: InputPattern
+resolveEdit = InputPattern
+  "resolve.term"
+  []
+  [ (Required, exactDefinitionQueryArg)
+  , (Required, exactDefinitionQueryArg)
+  , (Optional, patchArg)
+  ]
+  (P.wrapColumn2
+    [ ( makeExample resolveEdit ["<from>", "<to>", "<patch>"]
+      , "Resolves any edit conflict for the term <from> in the given patch "
+        <> "by globally replacing it with the term <to>."
+      )
+    , ( makeExample resolveEdit ["<from>", "<to>"]
+      , "Resolves edit conflicts in the default patch by replacing the term "
+        <> "<from> with <to>."
+      )
+    ]
+  )
+  (\case
+    source : target : patch -> first fromString $ do
+      src   <- Path.parseShortHashOrHQSplit' source
+      dest  <- Path.parseShortHashOrHQSplit' target
+      patch <- traverse (Path.parseSplit' Path.wordyNameSegment)
+        $ listToMaybe patch
+      sourceH <- maybe (Left (source <> " is not a valid hash."))
+                       Right
+                       (toHash src)
+      targetH <- maybe (Left (target <> " is not a valid hash."))
+                       Right
+                       (toHash dest)
+      pure $ Input.ResolveEditI sourceH targetH patch
+    _ -> Left (I.help resolveEdit)
+  )
+ where
+  toHash :: Either ShortHash Path.HQSplit' -> Maybe ShortHash
+  toHash (Left  h      ) = Just h
+  toHash (Right (_, hq)) = HQ'.toHash hq
+
+viewReflog :: InputPattern
+viewReflog = InputPattern
+  "reflog"
+  []
+  []
+  ("`reflog` lists the changes that have affected the root namespace")
+  (\case
+    [] -> pure Input.ShowReflogI
+    _  -> Left . warn . P.string
+              $ I.patternName viewReflog ++ " doesn't take any arguments.")
 
 edit :: InputPattern
 edit = InputPattern
@@ -687,7 +766,7 @@ help = InputPattern
       [isHelp -> Just msg] -> Left msg
       [cmd] -> case Map.lookup cmd commandsByName of
         Nothing  -> Left . warn $ "I don't know of that command. Try `help`."
-        Just pat -> Left $ I.help pat
+        Just pat -> Left $ showPatternHelp pat
       _ -> Left $ warn "Use `help <cmd>` or `help`.")
     where
       commandsByName = Map.fromList [
@@ -781,6 +860,28 @@ debugBranchHistory = InputPattern "debug.history" []
   "Dump codebase history, compatible with bit-booster.com/graph.html"
   (const $ Right Input.DebugBranchHistoryI)
 
+test :: InputPattern
+test = InputPattern "test" [] []
+    "`test` runs unit tests for the current branch."
+    (const $ pure $ Input.TestI True True)
+
+execute :: InputPattern
+execute = InputPattern
+  "run"
+  []
+  []
+  (P.wrapColumn2
+    [ ( "`run mymain`"
+      , "Runs `!mymain`, where `mymain` is searched for in the most recent"
+        <> "typechecked file, or in the codebase."
+      )
+    ]
+  )
+  (\case
+    [w] -> pure . Input.ExecuteI $ w
+    _   -> Left $ showPatternHelp execute
+  )
+
 validInputs :: [InputPattern]
 validInputs =
   [ help
@@ -799,6 +900,7 @@ validInputs =
   , renamePatch
   , copyPatch
   , find
+  , findShallow
   , findVerbose
   , view
   , findPatch
@@ -817,14 +919,11 @@ validInputs =
   , link
   , unlink
   , links
-  , InputPattern "test" [] []
-    "`test` runs unit tests for the current branch."
-    (const $ pure $ Input.TestI True True)
-  , InputPattern "execute" [] []
-    "`execute foo` evaluates the Unison expression `foo` of type `()` with access to the `IO` ability."
-    (\ws -> if null ws
-               then Left $ warn "`execute` needs a Unison language expression."
-               else pure . Input.ExecuteI $ unwords ws)
+  , resolveEdit
+  , test
+  , execute
+  , viewReflog
+  , resetRoot
   , quit
   , updateBuiltins
   , mergeBuiltins
@@ -920,6 +1019,11 @@ pathCompletor filterQuery getNames query _code b p = let
 pathArg :: ArgumentType
 pathArg = ArgumentType "namespace" $
   pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths)
+
+newNameArg :: ArgumentType
+newNameArg = ArgumentType "new-name" $
+  pathCompletor prefixIncomplete
+    (Set.map ((<> ".") . Path.toText) . Branch.deepPaths)
 
 noCompletions :: ArgumentType
 noCompletions = ArgumentType "word" I.noSuggestions

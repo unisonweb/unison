@@ -9,6 +9,8 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
+import Control.Monad.Fail (MonadFail)
+import qualified Control.Monad.Fail
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Data.List
@@ -330,6 +332,10 @@ noteScoped msg = do
 ok :: Test ()
 ok = Test (Just <$> putResult (Passed 1))
 
+-- | Skip any tests depending on the return value.
+done :: Test a
+done = Test (pure Nothing)
+
 -- | Explicitly skip this test
 skip :: Test ()
 skip = Test (Nothing <$ putResult Skipped)
@@ -342,7 +348,7 @@ crash msg = do
   Test (Just <$> putResult Failed) >> noteScoped ("FAILURE " ++ msg') >> Test (pure Nothing)
 
 -- skips the test but makes a note of this fact
-pending :: Test a -> Test ()
+pending :: Test a -> Test a
 pending _ = Test (Nothing <$ putResult Pending)
 
 putResult :: Status -> ReaderT Env IO ()
@@ -363,7 +369,7 @@ instance MonadReader Env Test where
   reader f = Test (Just <$> reader f)
 
 instance Monad Test where
-  fail = crash
+  fail = Control.Monad.Fail.fail
   return a = Test $ do
     allow <- asks (null . allow)
     pure $ case allow of
@@ -374,6 +380,9 @@ instance Monad Test where
     case a of
       Nothing -> pure Nothing
       Just a -> let Test t = f a in t
+
+instance MonadFail Test where
+  fail = crash
 
 instance Functor Test where
   fmap = liftM
@@ -398,8 +407,8 @@ instance Alternative Test where
       let (rng1, rng2) = Random.split currentRng
       (,) <$> newTVar rng1 <*> newTVar rng2
     lift $ do
-      _ <- runWrap (env { rng = rng1 }) t1
-      runWrap (env { rng = rng2 }) t2
+      r1 <- runWrap (env { rng = rng1 }) t1
+      (<|> r1) <$> runWrap (env { rng = rng2 }) t2
 
 instance MonadPlus Test where
   mzero = empty

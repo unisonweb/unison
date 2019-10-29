@@ -2,7 +2,7 @@
 {-# LANGUAGE PatternSynonyms            #-}
 
 module Unison.Util.ColorText (
-  ColorText, Color(..), style, toANSI, toPlain, defaultColors,
+  ColorText, Color(..), style, toANSI, toPlain, toHTML, defaultColors,
   black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold,
   module Unison.Util.AnnotatedText)
 where
@@ -42,6 +42,17 @@ bold = style Bold
 
 style :: Color -> ColorText -> ColorText
 style = annotate
+
+toHTML :: String -> ColorText -> String
+toHTML cssPrefix (AnnotatedText at) = toList at >>= \case
+  (s, color) -> wrap color (s >>= newlineToBreak)
+  where
+  newlineToBreak '\n' = "<br/>\n"
+  newlineToBreak ch   = [ch]
+  wrap Nothing s = "<code>" <> s <> "</code>"
+  wrap (Just c) s =
+    "<code class=" <> colorName c <> ">" <> s <> "</code>"
+  colorName c = "\"" <> cssPrefix <> "-" <> show c <> "\""
 
 -- Convert a `ColorText` to a `String`, ignoring colors
 toPlain :: ColorText -> String

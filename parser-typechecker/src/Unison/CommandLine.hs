@@ -141,6 +141,11 @@ exactComplete q ss = go <$> filter (isPrefixOf q) ss where
   go s = prettyCompletion'' (s == q)
            (s, P.hiBlack (P.string q) <> P.string (drop (length q) s))
 
+prefixIncomplete :: String -> [String] -> [Line.Completion]
+prefixIncomplete q ss = go <$> filter (isPrefixOf q) ss where
+  go s = prettyCompletion'' False
+           (s, P.hiBlack (P.string q) <> P.string (drop (length q) s))
+
 -- workaround for https://github.com/judah/haskeline/issues/100
 -- if the common prefix of all the completions is smaller than
 -- the query, we make all the replacements equal to the query,
@@ -185,4 +190,3 @@ plural items one other = case toList items of
 plural' :: Integral a => a -> b -> b -> b
 plural' 1 one _other = one
 plural' _ _one other = other
-

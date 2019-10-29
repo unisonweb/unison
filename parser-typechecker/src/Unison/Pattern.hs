@@ -68,13 +68,17 @@ instance Show (PatternP loc) where
   show (TextP   _ t) = "Text " <> show t
   show (CharP   _ c) = "Char " <> show c
   show (ConstructorP _ r i ps) =
-    "Constructor " <> intercalate " " [show r, show i, show ps]
+    "Constructor " <> unwords [show r, show i, show ps]
   show (AsP         _ p) = "As " <> show p
   show (EffectPureP _ k) = "EffectPure " <> show k
   show (EffectBindP _ r i ps k) =
-    "EffectBind " <> intercalate " " [show r, show i, show ps, show k]
+    "EffectBind " <> unwords [show r, show i, show ps, show k]
   show (SequenceLiteralP _ ps) = "Sequence " <> intercalate ", " (fmap show ps)
   show (SequenceOpP _ ph op pt) = "Sequence " <> show ph <> " " <> show op <> " " <> show pt
+
+application :: PatternP loc -> Bool
+application (ConstructorP _ _ _ (_ : _)) = True
+application _ = False
 
 loc :: PatternP loc -> loc
 loc p = head $ Foldable.toList p
@@ -171,7 +175,7 @@ labeledDependencies = Set.fromList . foldMap' (\case
                               LD.typeRef r,
                               LD.effectConstructor r cid]
   SequenceLiteralP _ _    -> [LD.typeRef Type.vectorRef]
-  SequenceOpP _ _ _ _     -> [LD.typeRef Type.vectorRef]
+  SequenceOpP {}          -> [LD.typeRef Type.vectorRef]
   BooleanP _ _            -> [LD.typeRef Type.booleanRef]
   IntP _ _                -> [LD.typeRef Type.intRef]
   NatP _ _                -> [LD.typeRef Type.natRef]

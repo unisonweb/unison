@@ -18,7 +18,7 @@ import System.IO.Error (catchIOError)
 import System.Exit (die)
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.Input (Input (..))
+import Unison.Codebase.Editor.Input (Input (..), Event)
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import Unison.Codebase.Runtime (Runtime)
@@ -77,8 +77,8 @@ getUserInput patterns codebase branch currentPath numberedArgs =
           pure $ suggestions argType word codebase branch currentPath
         _ -> pure []
 
-welcomeMessage :: FilePath -> P.Pretty P.ColorText
-welcomeMessage dir =
+asciiartUnison :: P.Pretty P.ColorText
+asciiartUnison =
   P.red " _____"
     <> P.hiYellow "     _             "
     <> P.newline
@@ -101,6 +101,10 @@ welcomeMessage dir =
     <> P.hiGreen "___"
     <> P.cyan "|___|"
     <> P.purple "_|_|"
+
+welcomeMessage :: FilePath -> P.Pretty P.ColorText
+welcomeMessage dir =
+  asciiartUnison
     <> P.newline
     <> P.newline
     <> P.linesSpaced
@@ -112,25 +116,33 @@ welcomeMessage dir =
          , P.wrap ("Type " <> P.hiBlue "help" <> " to get help. 😎")
          ]
 
+hintFreshCodebase :: P.Pretty P.ColorText
+hintFreshCodebase =
+  P.wrap $ "Enter " <> P.hiBlue "pull https://github.com/unisonweb/base .base"
+    <> "to set up the default base library. 🏗"
+
 main
   :: forall v
   . Var v
   => FilePath
   -> Path.Absolute
-  -> Maybe FilePath
+  -> [Either Event Input]
   -> IO (Runtime v)
   -> Codebase IO v Ann
   -> IO ()
-main dir initialPath _initialFile startRuntime codebase = do
+main dir initialPath initialInputs startRuntime codebase = do
   dir' <- shortenDirectory dir
-  putPrettyLn $ welcomeMessage dir'
   root <- Codebase.getRootBranch codebase
+  putPrettyLn $ if Branch.isOne root
+    then welcomeMessage dir' <> P.newline <> P.newline <> hintFreshCodebase
+    else welcomeMessage dir'
   eventQueue <- Q.newIO
   do
     runtime                  <- startRuntime
     -- we watch for root branch tip changes, but want to ignore ones we expect.
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
+    initialInputsRef         <- newIORef initialInputs
     numberedArgsRef          <- newIORef []
     (config, cancelConfig)   <-
       catchIOError (watchConfig $ dir </> ".unisonConfig") $ \_ ->
@@ -150,11 +162,16 @@ main dir initialPath _initialFile startRuntime codebase = do
           numberedArgs <- readIORef numberedArgsRef
           getUserInput patternMap codebase root path numberedArgs
     let
-      awaitInput =
-        -- Race the user input and file watch.
-        Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
-          Left _ -> Left <$> atomically (Q.dequeue eventQueue)
-          x      -> pure x
+      awaitInput = do
+        -- use up buffered input before consulting external events
+        i <- readIORef initialInputsRef
+        case i of
+          h:t -> writeIORef initialInputsRef t >> pure h
+          [] -> 
+            -- Race the user input and file watch.
+            Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
+              Left _ -> Left <$> atomically (Q.dequeue eventQueue)
+              x      -> pure x
       cleanup = do
         Runtime.terminate runtime
         cancelConfig
@@ -166,7 +183,7 @@ main dir initialPath _initialFile startRuntime codebase = do
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (writeIORef rootRef)
                                      runtime
-                                     (notifyUser dir)
+                                     (\out -> notifyUser dir out >>= putPrettyNonempty)
                                      codebase
                                      free
         case o of
@@ -176,3 +193,4 @@ main dir initialPath _initialFile startRuntime codebase = do
             loop state'
     (`finally` cleanup)
       $ loop (HandleInput.loopState0 root initialPath)
+

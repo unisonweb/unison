@@ -1,6 +1,7 @@
 # Unison
 .unison*/
 .unisonHistory
+test-output
 
 # Haskell
 dist
