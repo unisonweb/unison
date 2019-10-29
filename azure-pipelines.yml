@@ -36,7 +36,7 @@ jobs:
   # https://docs.microsoft.com/en-us/azure/devops/pipelines/yaml-schema#checkout
     submodules: true
 
-  - script: curl -sSL https://get.haskellstack.org/ | sh
+  - script: curl -sSL https://get.haskellstack.org/ | sh || stack --version
     displayName: Install stack
 
   # - task: CacheBeta@0
