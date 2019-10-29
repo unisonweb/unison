@@ -1015,6 +1015,8 @@ instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Char x == Char y = x == y
   Blank b == Blank q = b == q
   Ref x == Ref y = x == y
+  TermLink x == TermLink y = x == y
+  TypeLink x == TypeLink y = x == y
   Constructor r cid == Constructor r2 cid2 = r == r2 && cid == cid2
   Request r cid == Request r2 cid2 = r == r2 && cid == cid2
   Handle h b == Handle h2 b2 = h == h2 && b == b2
