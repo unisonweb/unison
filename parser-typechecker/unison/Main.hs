@@ -5,8 +5,11 @@
 module Main where
 
 import Unison.Prelude
+import           Control.Concurrent             ( mkWeakThreadId, myThreadId )
+import           Control.Exception              ( throwTo, AsyncException(UserInterrupt) )
 import           System.Directory               ( getCurrentDirectory, getHomeDirectory )
 import           System.Environment             ( getArgs )
+import           System.Mem.Weak                ( deRefWeak )
 import qualified Unison.Codebase.FileCodebase  as FileCodebase
 import qualified Unison.CommandLine.Main       as CommandLine
 import qualified Unison.Runtime.Rt1IO          as Rt1
@@ -14,6 +17,7 @@ import qualified Unison.Codebase.Path          as Path
 import qualified Version as Version
 import qualified Unison.Codebase.TranscriptParser as TR
 import qualified System.Path as Path
+import qualified System.Posix.Signals as Sig
 import qualified System.FilePath as FP
 import qualified System.IO.Temp as Temp
 import qualified System.Exit as Exit
@@ -61,11 +65,26 @@ usage = P.callout "🌻" $ P.lines [
   "Prints this help."
   ]
 
+installSignalHandlers :: IO ()
+installSignalHandlers = do
+  main_thread <- myThreadId
+  wtid <- mkWeakThreadId main_thread
+
+  let interrupt = do
+        r <- deRefWeak wtid
+        case r of
+          Nothing -> return ()
+          Just t  -> throwTo t UserInterrupt
+  _ <- Sig.installHandler Sig.sigQUIT  (Sig.Catch interrupt) Nothing
+  _ <- Sig.installHandler Sig.sigINT   (Sig.Catch interrupt) Nothing
+  return ()
+
 main :: IO ()
 main = do
   args <- getArgs
   -- hSetBuffering stdout NoBuffering -- cool
 
+  _ <- installSignalHandlers
   -- We need to know whether the program was invoked with -codebase for
   -- certain messages. Therefore we keep a Maybe FilePath - mcodepath
   -- rather than just deciding on whether to use the supplied path or

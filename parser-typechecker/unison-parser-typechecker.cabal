@@ -260,7 +260,8 @@ executable unison
     template-haskell,
     temporary,
     text,
-    unison-parser-typechecker
+    unison-parser-typechecker,
+    unix
 
 executable prettyprintdemo
   main-is: Main.hs
