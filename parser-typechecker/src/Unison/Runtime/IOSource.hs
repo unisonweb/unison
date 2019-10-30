@@ -81,7 +81,7 @@ isTestReference = typeNamed "IsTest"
 filePathReference = typeNamed "io.FilePath"
 
 isTest :: (R.Reference, R.Reference)
-isTest = (isTestReference, termNamed "links.isTest")
+isTest = (isTestReference, termNamed "metadata.isTest")
 
 eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId, bufferModeLineId, bufferModeBlockId, filePathId
   :: DD.ConstructorId
@@ -149,11 +149,27 @@ type Either a b = Left a | Right b
 
 type Optional a = None | Some a
 
+unique[ae0d4b38783931f4fa61bc042a715b85481d5c4e3b9664a5f61ca0258cd24371b7f70c3748eb2397e85ba5630ce0592] type Doc =
+  { segments : [Doc.Segment] }
+
+unique[bf3e1c6ac04eb51f2e7289bdfb41d2b999f42dd6695d2cce259b2f833f6c2be226c5fed249af6adff5615d9830fa71a] type Doc.Segment
+  = Blob Text
+  | Link Link            -- a link to a term or type
+  | Signature Link.Term  -- the signature of the term
+  | Transclude Link.Term -- a rendered version of the term
+  | Source Link          -- include the source
+  -- include both the source and the evaluated result
+  | Evaluate Link.Term
+
+unique[a5803524366ead2d7f3780871d48771e8142a3b48802f34a96120e230939c46bd5e182fcbe1fa64e9bff9bf741f3c04] type Link
+  = Term Link.Term
+  | Type Link.Type
+
 -- This is linked to definitions that are considered tests
 unique[e6dca08b40458b03ca1660cfbdaecaa7279b42d18257898b5fd1c34596aac36f] type
   IsTest = IsTest
 
-links.isTest = IsTest.IsTest
+metadata.isTest = IsTest.IsTest
 
 -- Handles are unique identifiers.
 -- The implementation of IO in the runtime will supply Haskell
