@@ -50,7 +50,6 @@ name v = case typeOf v of
   MissingResult -> "_" <> showid v
   Blank -> "_" <> showid v
   UnnamedWatch k guid -> fromString k <> "." <> guid <> showid v
-  AskInfo -> "?" <> showid v
   where
   showid (freshId -> 0) = ""
   showid (freshId -> n) = pack (show n)
@@ -60,11 +59,10 @@ uncapitalize v = nameds $ go (nameStr v) where
   go (c:rest) = toLower c : rest
   go n = n
 
-askInfo, missingResult, blank, inferInput, inferOutput, inferAbility,
+missingResult, blank, inferInput, inferOutput, inferAbility,
   inferPatternPureE, inferPatternPureV, inferPatternBindE, inferPatternBindV,
   inferTypeConstructor, inferTypeConstructorArg,
   inferOther :: Var v => v
-askInfo = typed AskInfo
 missingResult = typed MissingResult
 blank = typed Blank
 inferInput = typed (Inference Input)
@@ -90,8 +88,6 @@ data Type
   | RefNamed Reference
   -- Variables created to finish a block that doesn't end with an expression
   | MissingResult
-  -- Variables invented to query the typechecker for the type of subexpressions
-  | AskInfo
   -- Variables invented for placeholder values inserted by user or by TDNR
   | Blank
   -- An unnamed watch expression of the given kind, for instance:
