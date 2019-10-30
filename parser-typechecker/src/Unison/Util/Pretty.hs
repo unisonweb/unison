@@ -51,6 +51,7 @@ module Unison.Util.Pretty (
    numbered,
    orElse,
    orElses,
+   paragraphyText,
    parenthesize,
    parenthesizeCommas,
    parenthesizeIf,
@@ -98,6 +99,7 @@ import           Unison.Util.Monoid             ( intercalateMap )
 import qualified Data.ListLike                 as LL
 import qualified Data.Sequence                 as Seq
 import qualified Data.Text                     as Text
+import qualified Data.Char as Char
 
 type Width = Int
 type ColorText = CT.ColorText
@@ -139,6 +141,19 @@ wrapImpl (p:ps) = wrap_ . Seq.fromList $
 
 wrapString :: (LL.ListLike s Char, IsString s) => String -> Pretty s
 wrapString s = wrap (lit $ fromString s)
+
+-- 1. Convert multiple adjacent blank lines to a single blank line.
+-- 2. Combine adjacent non-blank lines into one line.
+-- 3. Wrap each remaining line.
+paragraphyText :: (LL.ListLike s Char, IsString s) => Text -> Pretty s
+paragraphyText t = lines . fmap (wrap . text) .  step2 . step1 $ Text.lines t where
+  step1 (line1:line2:rest) | isBlank line1 && isBlank line2 = step1 (line1:rest)
+  step1 (line:rest) = line : step1 rest
+  step1 [] = []
+  step2 (line:line2:rest) | not (isBlank line) || not (isBlank line2) = step2 $ (line <> " " <> line2) : rest 
+  step2 (line:rest) = line : step2 rest
+  step2 [] = []
+  isBlank line = Text.all Char.isSpace line
 
 wrap :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
 wrap p = wrapImpl (toLeaves [p]) where
