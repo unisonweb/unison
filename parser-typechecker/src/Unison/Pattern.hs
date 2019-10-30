@@ -15,6 +15,8 @@ import Unison.LabeledDependency (LabeledDependency)
 
 type Pattern = PatternP ()
 
+type ConstructorId = Int
+
 -- Pattern -> Pattern loc
 --   Or, `data Pattern` becomes `data PatternP loc`,
 --       and introduce `type Pattern = PatternP ()`
@@ -164,22 +166,38 @@ foldMap' f p = case p of
 -- instance Eq (PatternP loc) where
 --   (PatternP p) == (PatternP p2) = void p == void p2
 
+generalizedDependencies
+  :: Ord r
+  => (Reference -> r)
+  -> (Reference -> ConstructorId -> r)
+  -> (Reference -> r)
+  -> (Reference -> ConstructorId -> r)
+  -> (Reference -> r)
+  -> PatternP loc
+  -> Set r
+generalizedDependencies literalType dataConstructor dataType effectConstructor effectType
+  = Set.fromList . foldMap'
+    (\case
+      UnboundP _             -> mempty
+      VarP     _             -> mempty
+      AsP _ _                -> mempty
+      ConstructorP _ r cid _ -> [dataType r, dataConstructor r cid]
+      EffectPureP _ _        -> [effectType Type.effectRef]
+      EffectBindP _ r cid _ _ ->
+        [effectType Type.effectRef, effectType r, effectConstructor r cid]
+      SequenceLiteralP _ _ -> [literalType Type.vectorRef]
+      SequenceOpP{}        -> [literalType Type.vectorRef]
+      BooleanP _ _         -> [literalType Type.booleanRef]
+      IntP     _ _         -> [literalType Type.intRef]
+      NatP     _ _         -> [literalType Type.natRef]
+      FloatP   _ _         -> [literalType Type.floatRef]
+      TextP    _ _         -> [literalType Type.textRef]
+      CharP    _ _         -> [literalType Type.charRef]
+    )
+
 labeledDependencies :: PatternP loc -> Set LabeledDependency
-labeledDependencies = Set.fromList . foldMap' (\case
-  UnboundP _              -> mempty
-  VarP _                  -> mempty
-  AsP _ _                 -> mempty
-  ConstructorP _ r cid _  -> [LD.typeRef r, LD.dataConstructor r cid]
-  EffectPureP _ _         -> [LD.typeRef Type.effectRef]
-  EffectBindP _ r cid _ _ -> [LD.typeRef Type.effectRef,
-                              LD.typeRef r,
-                              LD.effectConstructor r cid]
-  SequenceLiteralP _ _    -> [LD.typeRef Type.vectorRef]
-  SequenceOpP {}          -> [LD.typeRef Type.vectorRef]
-  BooleanP _ _            -> [LD.typeRef Type.booleanRef]
-  IntP _ _                -> [LD.typeRef Type.intRef]
-  NatP _ _                -> [LD.typeRef Type.natRef]
-  FloatP _ _              -> [LD.typeRef Type.floatRef]
-  TextP _ _               -> [LD.typeRef Type.textRef]
-  CharP _ _               -> [LD.typeRef Type.charRef]
- )
+labeledDependencies = generalizedDependencies LD.typeRef
+                                              LD.dataConstructor
+                                              LD.typeRef
+                                              LD.effectConstructor
+                                              LD.typeRef

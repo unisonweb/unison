@@ -17,6 +17,8 @@ import qualified Unison.ShortHash       as SH
 import Unison.ConstructorType (ConstructorType)
 import qualified Unison.ConstructorType as CT
 
+-- Slightly odd naming. This is the "referent of term name in the codebase",
+-- rather than the target of a Reference.
 data Referent = Ref Reference | Con Reference Int ConstructorType
   deriving (Show, Ord, Eq)
 

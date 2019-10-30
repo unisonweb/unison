@@ -6,6 +6,7 @@ import Unison.Prelude
 
 import qualified Unison.Pattern as P
 import Unison.LabeledDependency (LabeledDependency)
+import Unison.Reference (Reference)
 
 type Pattern loc = P.PatternP loc
 
@@ -29,6 +30,8 @@ pattern Snoc = P.Snoc
 pattern Cons = P.Cons
 pattern Concat = P.Concat
 
+type ConstructorId = P.ConstructorId
+
 loc :: P.PatternP loc -> loc
 loc = P.loc
 
@@ -37,3 +40,14 @@ setLoc = P.setLoc
 
 labeledDependencies :: P.PatternP loc -> Set LabeledDependency
 labeledDependencies = P.labeledDependencies
+
+generalizedDependencies
+  :: Ord r
+  => (Reference -> r)
+  -> (Reference -> P.ConstructorId -> r)
+  -> (Reference -> r)
+  -> (Reference -> P.ConstructorId -> r)
+  -> (Reference -> r)
+  -> P.PatternP loc
+  -> Set r
+generalizedDependencies = P.generalizedDependencies

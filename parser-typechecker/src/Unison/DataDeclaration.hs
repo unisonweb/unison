@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# Language DeriveFoldable #-}
 {-# Language DeriveFunctor #-}
@@ -45,7 +46,7 @@ import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Pattern                as Pattern
 import qualified Unison.ConstructorType as CT
 
-type ConstructorId = Int
+type ConstructorId = Term.ConstructorId
 
 type DataDeclaration v = DataDeclaration' v ()
 type Decl v a = Either (EffectDeclaration' v a) (DataDeclaration' v a)
@@ -313,6 +314,37 @@ toABT dd = ABT.tm $ Modified (modifier dd) dd'
           (ABT.absChain
             (fst <$> constructors dd)
             (ABT.tm . Constructors $ ABT.transform Type <$> constructorTypes dd))
+
+updateDependencies :: Ord v => Map Reference Reference -> Decl v a -> Decl v a
+updateDependencies typeUpdates decl = back $ dataDecl
+  { constructors' = over _3 (Type.updateDependencies typeUpdates)
+                      <$> constructors' dataDecl
+  }
+ where
+  dataDecl = either toDataDecl id decl
+  back     = either (const $ Left . EffectDeclaration) (const Right) decl
+
+
+-- This converts `Reference`s it finds that are in the input `Map`
+-- back to free variables
+unhashComponent
+  :: Var v => Map v (Reference, Decl v a) -> Map v (Reference, Decl v a)
+unhashComponent m
+  = let
+      refToVar = Map.fromList [ (r, v) | (v, (r, _)) <- Map.toList m ]
+      unhash1  = ABT.rebuildUp' go
+       where
+        go e@(Type.Ref' r) = case Map.lookup r refToVar of
+          Nothing -> e
+          Just v  -> Type.var (ABT.annotation e) v
+        go e = e
+      unhash2 (Right dd@DataDeclaration{}) = Right $ unhash3 dd
+      unhash2 (Left (EffectDeclaration dd)) =
+        Left . EffectDeclaration $ unhash3 dd
+      unhash3 dd@DataDeclaration {..} =
+        dd { constructors' = fmap (over _3 unhash1) constructors' }
+    in
+      Map.fromList [ (v, (r, unhash2 e)) | (v, (r, e)) <- Map.toList m ]
 
 -- Implementation detail of `hashDecls`, works with unannotated data decls
 hashDecls0 :: (Eq v, Var v) => Map v (DataDeclaration' v ()) -> [(v, Reference)]

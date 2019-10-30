@@ -112,6 +112,16 @@ resolveNames typeLookupf preexistingNames uf = do
           let nr = Typechecker.NamedReference (Name.toText name) typ (Right r) ]
   pure (tm, fqnsByShortName, tl)
 
+synthesizeFile'
+  :: forall v
+   . Var v
+  => [Type v]
+  -> TL.TypeLookup v Ann
+  -> UnisonFile v
+  -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile v Ann)
+synthesizeFile' ambient tl uf =
+  synthesizeFile ambient tl mempty uf $ UF.typecheckingTerm uf
+
 synthesizeFile
   :: forall v
    . Var v
