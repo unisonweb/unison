@@ -72,6 +72,24 @@ term3 = do
 keywordBlock :: Var v => TermP v
 keywordBlock = letBlock <|> handle <|> ifthen <|> match
 
+link :: Var v => TermP v
+link = termLink <|> typeLink 
+  where
+  typeLink = do
+    P.try (reserved "typeLink") -- type opens a block, gotta use something else
+    id <- hqPrefixId
+    ns <- asks names
+    case Names.lookupHQType (L.payload id) ns of 
+      s | Set.size s == 1 -> pure $ Term.typeLink (ann id) (Set.findMin s)
+        | otherwise       -> customFailure $ UnknownType id s
+  termLink = do
+    P.try (reserved "termLink")
+    id <- hqPrefixId
+    ns <- asks names
+    case Names.lookupHQTerm (L.payload id) ns of 
+      s | Set.size s == 1 -> pure $ Term.termLink (ann id) (Set.findMin s)
+        | otherwise       -> customFailure $ UnknownTerm id s
+
 -- We disallow type annotations and lambdas,
 -- just function application and operators
 blockTerm :: Var v => TermP v
@@ -250,6 +268,7 @@ termLeaf =
     , char
     , number
     , boolean
+    , link
     , tupleOrParenthesizedTerm
     , keywordBlock
     , seq term

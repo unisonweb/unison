@@ -210,13 +210,19 @@ isArrow _ = False
 ref :: Ord v => a -> Reference -> Type v a
 ref a = ABT.tm' a . Ref
 
+termLink :: Ord v => a -> Type v a
+termLink a = ABT.tm' a . Ref $ termLinkRef
+
+typeLink :: Ord v => a -> Type v a
+typeLink a = ABT.tm' a . Ref $ typeLinkRef
+
 derivedBase32Hex :: Ord v => Reference -> a -> Type v a
 derivedBase32Hex r a = ref a r
 
 -- derivedBase58' :: Text -> Reference
 -- derivedBase58' base58 = Reference.derivedBase58 base58 0 1
 
-intRef, natRef, floatRef, booleanRef, textRef, charRef, vectorRef, bytesRef, effectRef :: Reference
+intRef, natRef, floatRef, booleanRef, textRef, charRef, vectorRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: Reference
 intRef = Reference.Builtin "Int"
 natRef = Reference.Builtin "Nat"
 floatRef = Reference.Builtin "Float"
@@ -226,6 +232,8 @@ charRef = Reference.Builtin "Char"
 vectorRef = Reference.Builtin "Sequence"
 bytesRef = Reference.Builtin "Bytes"
 effectRef = Reference.Builtin "Effect"
+termLinkRef = Reference.Builtin "Link.Term"
+typeLinkRef = Reference.Builtin "Link.Type"
 
 builtin :: Ord v => a -> Text -> Type v a
 builtin a = ref a . Reference.Builtin

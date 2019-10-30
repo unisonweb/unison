@@ -19,6 +19,7 @@ import Data.Bifunctor (first, second)
 import Data.IORef
 import Unison.Hash (Hash)
 import Unison.NamePrinter (prettyHashQualified0)
+import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import Unison.Util.CyclicEq (CyclicEq, cyclicEq)
@@ -26,8 +27,8 @@ import Unison.Util.CyclicOrd (CyclicOrd, cyclicOrd)
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Var (Var)
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import qualified Data.Sequence as Sequence
+import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Pattern as Pattern
@@ -77,6 +78,8 @@ type RefID = Int
 
 data Value e cont
   = I Int64 | F Double | N Word64 | B Bool | T Text | C Char | Bs Bytes.Bytes
+  | TermLink Referent
+  | TypeLink R.Reference
   | Lam Arity (UnderapplyStrategy e cont) (IR e cont)
   | Data R.Reference ConstructorId [Value e cont]
   | Sequence (Sequence.Seq (Value e cont))
@@ -101,6 +104,8 @@ instance (Eq cont, Eq e) => Eq (Value e cont) where
   Pure x == Pure y = x == y
   Requested r1 == Requested r2 = r1 == r2
   Cont k1 == Cont k2 = k1 == k2
+  TermLink r1 == TermLink r2 = r1 == r2
+  TypeLink r1 == TypeLink r2 = r1 == r2
   _ == _ = False
 
 instance (Eq cont, Eq e) => Eq (UnderapplyStrategy e cont) where
@@ -350,6 +355,10 @@ prettyValue ppe prettyE prettyCont = pv
     T t -> P.shown t
     C c -> P.shown c
     Bs bs -> P.shown bs
+    TermLink r -> P.parenthesize $
+      ("TermLink " <> prettyHashQualified0 (PPE.termName ppe r))
+    TypeLink r -> P.parenthesize $
+      ("TypeLink " <> prettyHashQualified0 (PPE.typeName ppe r))
     Lam arity _u b -> P.parenthesize $
       ("Lambda " <> P.string (show arity)) `P.hang`
         prettyIR ppe prettyE prettyCont b
@@ -457,6 +466,8 @@ compile0 env bound t =
     Term.Boolean' n -> Leaf . Val . B $ n
     Term.Text' n -> Leaf . Val . T $ n
     Term.Char' n -> Leaf . Val . C $ n
+    Term.TermLink' r -> Leaf . Val . TermLink $ r 
+    Term.TypeLink' r -> Leaf . Val . TypeLink $ r 
     Term.And' x y -> And (toZ "and" t x) (go y)
     Term.LamsNamed' vs body -> Leaf . Val $
       Lam (length vs)
@@ -621,6 +632,8 @@ decompileImpl v = case v of
       Term.apps' kt [Term.apps' (Term.request() r cid) vs]
   UninitializedLetRecSlot _b _bs _body ->
     error "unpossible - decompile UninitializedLetRecSlot"
+  TermLink r -> pure $ Term.termLink() r
+  TypeLink r -> pure $ Term.typeLink() r
   where
     idv = Var.named "x"
     id = Term.lam () idv (Term.var() idv)
@@ -948,6 +961,8 @@ instance (Show e, Show cont) => Show (Value e cont) where
   show (Data r cid vs) = "(Data " <> show r <> " " <> show cid <> " " <> show vs <> ")"
   show (Sequence vs) = "[" <> intercalateMap ", " show vs <> "]"
   show (Ref n s _) = "(Ref " <> show n <> " " <> show s <> ")"
+  show (TermLink r) = "(TermLink " <> show r <> ")"
+  show (TypeLink r) = "(TypeLink " <> show r <> ")"
   show (Pure v) = "(Pure " <> show v <> ")"
   show (Requested r) = "(Requested " <> show r <> ")"
   show (Cont ir) = "(Cont " <> show ir <> ")"
@@ -990,6 +1005,8 @@ instance (CyclicEq e, CyclicEq cont) => CyclicEq (Value e cont) where
   cyclicEq _ _ (T x) (T y) = pure (x == y)
   cyclicEq _ _ (C x) (C y) = pure (x == y)
   cyclicEq _ _ (Bs x) (Bs y) = pure (x == y)
+  cyclicEq _ _ (TermLink x) (TermLink y) = pure (x == y)
+  cyclicEq _ _ (TypeLink x) (TypeLink y) = pure (x == y)
   cyclicEq h1 h2 (Lam arity1 us _) (Lam arity2 us2 _) =
     if arity1 == arity2 then cyclicEq h1 h2 us us2
     else pure False
@@ -1037,6 +1054,8 @@ constructorId v = case v of
   Cont _ -> 12
   C _ -> 13
   UninitializedLetRecSlot{} -> 14
+  TermLink _ -> 15
+  TypeLink _ -> 16
 
 instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (UnderapplyStrategy e cont) where
   cyclicOrd h1 h2 (FormClosure hash1 _ vs1) (FormClosure hash2 _ vs2) =
@@ -1066,6 +1085,8 @@ instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (Value e cont) where
   cyclicOrd _ _ (T x) (T y) = pure (x `compare` y)
   cyclicOrd _ _ (C x) (C y) = pure (x `compare` y)
   cyclicOrd _ _ (Bs x) (Bs y) = pure (x `compare` y)
+  cyclicOrd _ _ (TermLink x) (TermLink y) = pure (x `compare` y)
+  cyclicOrd _ _ (TypeLink x) (TypeLink y) = pure (x `compare` y)
   cyclicOrd h1 h2 (Lam arity1 us _) (Lam arity2 us2 _) =
     COrd.bothOrd' h1 h2 arity1 arity2 us us2
   cyclicOrd h1 h2 (Data r1 c1 vs1) (Data r2 c2 vs2) =

@@ -147,6 +147,12 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
       where name = elideFQN im $ HQ.unsafeFromVar (Var.reset v)
     Ref' r -> parenIfInfix name ic $ styleHashQualified'' (fmt S.Reference) name
       where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
+    TermLink' r -> parenIfInfix name ic $ 
+      fmt S.LinkKeyword "termLink " <> styleHashQualified'' (fmt S.Reference) name
+      where name = elideFQN im $ PrettyPrintEnv.termName n r
+    TypeLink' r -> parenIfInfix name ic $ 
+      fmt S.LinkKeyword "typeLink " <> styleHashQualified'' (fmt S.Reference) name
+      where name = elideFQN im $ PrettyPrintEnv.typeName n r
     Ann' tm t ->
       paren (p >= 0)
         $  pretty0 n (ac 10 Normal im) tm

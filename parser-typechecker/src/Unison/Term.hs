@@ -96,6 +96,8 @@ data F typeVar typeAnn patternAnn a
   --     [ (Constructor 0 [Var], ABT.abs n rhs1)
   --     , (Constructor 1 [], rhs2) ]
   | Match a [MatchCase patternAnn a]
+  | TermLink Referent
+  | TypeLink Reference
   deriving (Foldable,Functor,Generic,Generic1,Traversable)
 
 type IsTop = Bool
@@ -254,6 +256,8 @@ extraMap vtf atf apf = \case
   LetRec x y z -> LetRec x y z
   Let x y z -> Let x y z
   Match tm l -> Match tm (map (matchCaseExtraMap apf) l)
+  TermLink r -> TermLink r
+  TypeLink r -> TypeLink r
 
 matchCaseExtraMap :: (loc -> loc') -> MatchCase loc a -> MatchCase loc' a
 matchCaseExtraMap f (MatchCase p x y) = MatchCase (fmap f p) x y
@@ -405,6 +409,8 @@ pattern Text' s <- (ABT.out -> ABT.Tm (Text s))
 pattern Char' c <- (ABT.out -> ABT.Tm (Char c))
 pattern Blank' b <- (ABT.out -> ABT.Tm (Blank b))
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
+pattern TermLink' r <- (ABT.out -> ABT.Tm (TermLink r))
+pattern TypeLink' r <- (ABT.out -> ABT.Tm (TypeLink r))
 pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Builtin r)))
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
 pattern Match' scrutinee branches <- (ABT.out -> ABT.Tm (Match scrutinee branches))
@@ -454,6 +460,12 @@ var' = var() . Var.named
 
 ref :: Ord v => a -> Reference -> AnnotatedTerm2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
+
+termLink :: Ord v => a -> Referent -> AnnotatedTerm2 vt at ap v a
+termLink a r = ABT.tm' a (TermLink r)
+
+typeLink :: Ord v => a -> Reference -> AnnotatedTerm2 vt at ap v a
+typeLink a r = ABT.tm' a (TypeLink r)
 
 builtin :: Ord v => a -> Text -> AnnotatedTerm2 vt at ap v a
 builtin a n = ref a (Reference.Builtin n)
@@ -800,6 +812,8 @@ generalizedDependencies
 generalizedDependencies termRef typeRef literalType dataConstructor dataType effectConstructor effectType
   = Set.fromList . Writer.execWriter . ABT.visit' f where
   f t@(Ref r) = Writer.tell [termRef r] $> t
+  f t@(TermLink r) = Writer.tell [termRef $ Referent.toReference r] $> t
+  f t@(TypeLink r) = Writer.tell [typeRef r] $> t
   f t@(Ann _ typ) =
     Writer.tell (map typeRef . toList $ Type.dependencies typ) $> t
   f t@(Nat      _) = Writer.tell [literalType Type.natRef] $> t
@@ -838,6 +852,8 @@ updateDependencies termUpdates typeUpdates = ABT.rebuildUp go
   -- todo: this function might need tweaking if we ever allow type replacements
   -- would need to look inside pattern matching and constructor calls
   go (Ref r    ) = Ref (Map.findWithDefault r r termUpdates)
+  go (TermLink (Referent.Ref r)) = TermLink (Referent.Ref $ Map.findWithDefault r r termUpdates)
+  go (TypeLink r) = TypeLink (Map.findWithDefault r r typeUpdates)
   go (Ann tm tp) = Ann tm $ Type.updateDependencies typeUpdates tp
   go f           = f
 
@@ -969,8 +985,10 @@ instance Var v => Hashable1 (F v a p) where
                   Handle h b -> [tag 15, hashed $ hash h, hashed $ hash b]
                   And    x y -> [tag 16, hashed $ hash x, hashed $ hash y]
                   Or     x y -> [tag 17, hashed $ hash x, hashed $ hash y]
+                  TermLink r -> [tag 18, accumulateToken r]
+                  TypeLink r -> [tag 19, accumulateToken r]
                   _ ->
-                    error $ "unhandled case in show: " <> show (void e)
+                    error $ "unhandled case in hash: " <> show (void e)
 
 -- mostly boring serialization code below ...
 
@@ -986,6 +1004,8 @@ instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Char x == Char y = x == y
   Blank b == Blank q = b == q
   Ref x == Ref y = x == y
+  TermLink x == TermLink y = x == y
+  TypeLink x == TypeLink y = x == y
   Constructor r cid == Constructor r2 cid2 = r == r2 && cid == cid2
   Request r cid == Request r2 cid2 = r == r2 && cid == cid2
   Handle h b == Handle h2 b2 = h == h2 && b == b2
@@ -1021,6 +1041,8 @@ instance (Show v, Show a) => Show (F v a0 p a) where
       B.Recorded (B.Placeholder _ r) -> s ("_" ++ r)
       B.Recorded (B.Resolve     _ r) -> s r
     go _ (Ref r) = s "Ref(" <> shows r <> s ")"
+    go _ (TermLink r) = s "TermLink(" <> shows r <> s ")"
+    go _ (TypeLink r) = s "TypeLink(" <> shows r <> s ")"
     go _ (Let _ b body) =
       showParen True (s "let " <> shows b <> s " in " <> shows body)
     go _ (LetRec _ bs body) = showParen

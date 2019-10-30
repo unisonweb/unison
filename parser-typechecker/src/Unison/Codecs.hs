@@ -22,6 +22,8 @@ import qualified Unison.Blank as Blank
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
 import           Unison.Reference (Reference, pattern Builtin, pattern Derived)
+import qualified Unison.Referent as Referent
+import qualified Unison.ConstructorType as ConstructorType 
 import           Unison.Term
 import qualified Unison.Typechecker.Components as Components
 import           Unison.UnisonFile (UnisonFile(..))
@@ -192,6 +194,16 @@ serializeTerm x = do
         putWord8 20
         putWord64be $ fromIntegral $ fromEnum c
         incPosition
+      TermLink ref -> do
+        putTag
+        putWord8 21
+        serializeReferent ref
+        incPosition
+      TypeLink ref -> do
+        putTag
+        putWord8 22
+        serializeReference ref
+        incPosition
 
 serializePattern :: MonadPut m => Pattern a -> m ()
 serializePattern p = case p of
@@ -278,6 +290,20 @@ serializeFoldable :: (MonadPut m, Foldable f) => (a -> m ()) -> f a -> m ()
 serializeFoldable f fa = do
   putLength $ length fa
   traverse_ f fa
+
+serializeReferent :: MonadPut m => Referent.Referent -> m ()
+serializeReferent r = case r of
+  Referent.Ref r -> putWord8 0 *> serializeReference r
+  Referent.Con r cid ct -> do
+    putWord8 1 
+    serializeReference r 
+    putLength cid
+    serializeConstructorType ct 
+
+serializeConstructorType :: MonadPut m => ConstructorType.ConstructorType -> m ()
+serializeConstructorType ct = case ct of
+  ConstructorType.Data -> putWord8 0
+  ConstructorType.Effect -> putWord8 1
 
 serializeReference :: MonadPut m => Reference -> m ()
 serializeReference ref = case ref of
