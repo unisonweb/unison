@@ -196,6 +196,11 @@ view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
       "`view foo` prints the definition of `foo`."
       (pure . Input.ShowDefinitionI Input.ConsoleLocation)
 
+display :: InputPattern
+display = InputPattern "display" ["show"] [(OnePlus, exactDefinitionQueryArg)]
+      "`display foo` prints the definition of `foo`."
+      (pure . Input.DisplayI)
+
 undo :: InputPattern
 undo = InputPattern "undo" [] []
       "`undo` reverts the most recent change to the codebase."
@@ -918,6 +923,7 @@ validInputs =
   , findShallow
   , findVerbose
   , view
+  , display
   , findPatch
   , viewPatch
   , undo
