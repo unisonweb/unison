@@ -565,7 +565,9 @@ notifyUser dir o = case o of
     P.wrap "Try again with a few more hash characters to disambiguate."
     ]
   BadDestinationBranch _ _ -> pure "That destination namespace is bad."
-  TermNotFound' _ _ -> pure "That term was not found."
+  TermNotFound' _ h ->
+    pure $ "I could't find a term with hash "
+         <> (prettyShortHash $ Reference.toShortHash (Reference.DerivedId h))
   BranchDiff _ _ -> pure "Those namespaces are different."
   NothingToPatch _patchPath dest -> pure $
     P.callout "😶" . P.wrap
@@ -576,21 +578,22 @@ notifyUser dir o = case o of
   PatchInvolvesExternalDependents _ _ ->
     pure "That patch involves external dependents."
   ShowReflog [] ->  pure . P.warnCallout $ "The reflog appears to be empty!"
-  ShowReflog entries -> pure $ 
-    P.lines [ 
+  ShowReflog entries -> pure $
+    P.lines [
     P.wrap $ "Here is a log of the root namespace hashes,"
           <> "starting with the most recent,"
           <> "along with the command that got us there."
           <> "Try:",
     "",
+    -- `head . tail` is safe: entries never has 1 entry, and [] is handled above
+    let e2 = head . tail $ entries in
     P.indentN 2 . P.wrapColumn2 $ [
       (IP.makeExample IP.forkLocal ["2", ".old"],
         ""),
-      (IP.makeExample IP.forkLocal [prettySBH . Output.old $ head entries
-                                   , ".old"],
+      (IP.makeExample IP.forkLocal [prettySBH . Output.hash $ e2, ".old"],
        "to make an old namespace accessible again,"),
       (mempty,mempty),
-      (IP.makeExample IP.resetRoot [prettySBH . Output.old $ head entries],
+      (IP.makeExample IP.resetRoot [prettySBH . Output.hash $ e2],
         "to reset the root namespace and its history to that of the specified"
          <> "namespace.")
     ],
@@ -601,8 +604,8 @@ notifyUser dir o = case o of
          ]
     where
     renderEntry :: Output.ReflogEntry -> P.Pretty CT.ColorText
-    renderEntry (Output.ReflogEntry old new reason) = P.wrap $
-      P.blue (prettySBH new) <> " : " <> P.text reason
+    renderEntry (Output.ReflogEntry hash reason) = P.wrap $
+      P.blue (prettySBH hash) <> " : " <> P.text reason
   History cap history tail -> pure $
     P.lines [
       note $ "The most recent namespace hash is immediately below this message.", "",

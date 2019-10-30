@@ -184,7 +184,6 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
         <> (fmt S.ControlKeyword "in" `PP.hang` uses [pretty0 n (ac 2 Block im') body])
     App' x (Constructor' DD.UnitRef 0) ->
       paren (p >= 11) $ (fmt S.DelayForceChar $ l "!") <> pretty0 n (ac 11 Normal im) x
-    AskInfo' x -> paren (p >= 11) $ pretty0 n (ac 11 Normal im) x <> (fmt S.DelimiterChar $ l "?")
     LamNamed' v x | (Var.name v) == "()" ->
       paren (p >= 11) $ (fmt S.DelayForceChar $ l "'") <> pretty0 n (ac 11 Normal im) x
     Sequence' xs -> PP.group $
@@ -239,7 +238,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
       binaryApps apps (pretty0 n (ac 3 Normal im) lastArg)
     _ -> case (term, nonForcePred) of
-      AppsPred' f args | not $ isVarKindInfo f ->
+      AppsPred' f args ->
         paren (p >= 10) $ pretty0 n (ac 10 Normal im) f `PP.hang`
           PP.spacedMap (pretty0 n (ac 10 Normal im)) args
       _ -> case (term, nonUnitArgPred) of

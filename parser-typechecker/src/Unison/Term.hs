@@ -446,7 +446,6 @@ pattern LetRecTop' top subst <- (unLetRec -> Just (top, subst))
 pattern LetRecNamedAnnotated' ann bs e <- (unLetRecNamedAnnotated -> Just (_, ann, bs,e))
 pattern LetRecNamedAnnotatedTop' top ann bs e <-
           (unLetRecNamedAnnotated -> Just (top, ann, bs,e))
-pattern AskInfo' arg <- (unAskInfo -> Just arg)
 
 fresh :: Var v => Term v -> v -> v
 fresh = ABT.fresh
@@ -776,16 +775,6 @@ unReqOrCtor :: AnnotatedTerm2 vt at ap v a -> Maybe (Reference, Int)
 unReqOrCtor (Constructor' r cid) = Just (r, cid)
 unReqOrCtor (Request' r cid)     = Just (r, cid)
 unReqOrCtor _                         = Nothing
-
-unAskInfo :: Var v => AnnotatedTerm2 vt at ap v a -> Maybe (AnnotatedTerm2 vt at ap v a)
-unAskInfo tm = case tm of
-  App' t arg | isVarKindInfo t -> Just arg
-  _ -> Nothing
-
-isVarKindInfo :: Var v => AnnotatedTerm2 vt at ap v a -> Bool
-isVarKindInfo t = case t of
-  Var' v | Var.typeOf v == Var.AskInfo -> True
-  _ -> False
 
 -- Dependencies including referenced data and effect decls
 dependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference

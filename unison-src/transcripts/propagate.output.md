@@ -5,7 +5,7 @@ We introduce a type `Foo` with a function dependent `fooToInt`.
 ```unison
 use .builtin
 
-unique type Foo = Foo
+unique [foo1] type Foo = Foo
 
 fooToInt : Foo -> Int
 fooToInt _ = +42
@@ -40,13 +40,13 @@ And then we add it.
 
 .subpath> find.verbose
 
-  1. -- #4d0krm5ahna9i9t4rs8t9mnc62rrh49evl3e85lm0pcqv9plg3u11led2a2she433i2k7ap4ksaqovjn5j9d347hpeh41r250c7d678
+  1. -- #6ccohugs0p0rkd8cgfecjgot1djob2v486rfkf6g2o1lr34nsk6r3dgtjv096sokend68h5ae7vojsvaajkulr4pipe4bjmu6du4mpo
      unique type Foo
      
-  2. -- #4d0krm5ahna9i9t4rs8t9mnc62rrh49evl3e85lm0pcqv9plg3u11led2a2she433i2k7ap4ksaqovjn5j9d347hpeh41r250c7d678#0
+  2. -- #6ccohugs0p0rkd8cgfecjgot1djob2v486rfkf6g2o1lr34nsk6r3dgtjv096sokend68h5ae7vojsvaajkulr4pipe4bjmu6du4mpo#0
      Foo.Foo : Foo
      
-  3. -- #okceomcnpl88n427c1st6sjdjkhr9h5khhqk8je7k83m2khj9h2i6iq109s2nu8726is3l72kv7ontkuo405mtqo1vfl3knpb982hj8
+  3. -- #o9q6anf4873hbnsaiifh5b46q8fdli18cu8cudu0ti8ort1gm253120uq8ijk24l52ecf62bm1rmq4tgnu7ip8apireh1oq97e042jg
      fooToInt : Foo -> .builtin.Int
      
   
@@ -60,7 +60,7 @@ And then we add it.
 Then if we change the type `Foo`...
 
 ```unison
-type Foo = Foo | Bar
+unique [foo2] type Foo = Foo | Bar
 ```
 
 ```ucm
@@ -72,7 +72,7 @@ type Foo = Foo | Bar
     ⍟ These new definitions will replace existing ones of the
       same name and are ok to `update`:
     
-      type Foo
+      unique type Foo
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -85,7 +85,7 @@ and update the codebase to use the new type `Foo`...
 
   ⍟ I've updated to these definitions:
   
-    type Foo
+    unique type Foo
 
   ✅
   
@@ -199,6 +199,8 @@ type of `otherTerm` should remain the same.
 ```
 ### Propagation only applies to the local branch
 
+Cleaning up a bit...
+
 ```ucm
 .> delete.namespace subpath
 
@@ -214,6 +216,8 @@ type of `otherTerm` should remain the same.
   Tip: You can always `undo` if this wasn't what you wanted.
 
 ```
+Now, we make two terms, where one depends on the other.
+
 ```unison
 use .builtin
 
@@ -239,6 +243,8 @@ otherTerm y = someTerm y
   `>`)... Ctrl+C cancels.
 
 ```
+We'll make two copies of this namespace.
+
 ```ucm
   ☝️  The namespace .subpath.one is empty.
 
@@ -254,6 +260,8 @@ otherTerm y = someTerm y
   Done.
 
 ```
+Now let's edit one of the terms...
+
 ```unison
 use .builtin
 
@@ -275,6 +283,8 @@ someTerm _ = None
   `>`)... Ctrl+C cancels.
 
 ```
+... in one of the namespaces...
+
 ```ucm
 .subpath.one> update
 
@@ -287,6 +297,7 @@ someTerm _ = None
   No conflicts or edits in progress.
 
 ```
+The other namespace should be left alone.
 
 ```ucm
 .subpath.two> view someTerm

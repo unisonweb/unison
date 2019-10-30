@@ -128,8 +128,6 @@ import Unison.Codebase.NameSegment (NameSegment(..))
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.Editor.Propagate as Propagate
 
---import Debug.Trace
-
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
 
@@ -361,10 +359,35 @@ loop = do
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
       in case input of
       ShowReflogI -> do
-        entries <- fmap reverse $ eval LoadReflog
+        entries <- fmap (convertEntries Nothing []) $ eval LoadReflog
         numberedArgs .=
-          fmap (('#':) . Hash.base32Hexs . Causal.unRawHash . Reflog.to) entries
-        respond . ShowReflog $ fmap (shortenReflogEntry sbhLength) entries
+          fmap (('#':) . SBH.toString . Output.hash) entries
+        respond $ ShowReflog entries
+        where
+        -- reverses & formats entries, adds synthetic entries when there is a
+        -- discontinuity in the reflog.
+        convertEntries :: Maybe Branch.Hash
+                       -> [Output.ReflogEntry]
+                       -> [Reflog.Entry]
+                       -> [Output.ReflogEntry]
+        convertEntries _ acc [] = acc
+        convertEntries Nothing acc entries@(Reflog.Entry old _ _ : _) =
+          convertEntries
+            (Just old)
+            (Output.ReflogEntry (SBH.fromHash sbhLength old) "(initial reflogged namespace)" : acc)
+            entries
+        convertEntries (Just lastHash) acc entries@(Reflog.Entry old new reason : rest) =
+          if lastHash /= old then
+            convertEntries
+              (Just old)
+              (Output.ReflogEntry (SBH.fromHash sbhLength old) "(external change)" : acc)
+              entries
+          else
+            convertEntries
+              (Just new)
+              (Output.ReflogEntry (SBH.fromHash sbhLength new) reason : acc)
+              rest
+
       ResetRootI src0 ->
         case src0 of
           Left hash -> resolveShortBranchHash input hash >>= \case
@@ -823,7 +846,8 @@ loop = do
               LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
         do
           when (not $ null loadedDisplayTypes && null loadedDisplayTerms) $
-            eval . Notify $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
+            eval . Notify $
+              DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
           when (not $ null misses) $
             eval . Notify . SearchTermsNotFound $ fmap fst misses
           -- We set latestFile to be programmatically generated, if we
@@ -831,12 +855,13 @@ loop = do
           -- next update for that file (which will happen immediately)
           latestFile .= ((, True) <$> loc)
 
-      FindPatchI ->
-        let patches = Set.fromList
+      FindPatchI -> do
+        let patches =
               [ Path.toName $ Path.snoc p seg
               | (p, b) <- Branch.toList0 currentBranch0
               , (seg, _) <- Map.toList (Branch._edits b) ]
-        in respond $ ListOfPatches patches
+        respond $ ListOfPatches $ Set.fromList patches
+        numberedArgs .= fmap Name.toString patches
 
       FindShallowI pathArg -> do
         prettyPrintNames0 <- basicPrettyPrintNames0
@@ -964,24 +989,27 @@ loop = do
                   tr = DerivedId tid
               mft <- eval $ LoadTypeOfTerm fr
               mtt <- eval $ LoadTypeOfTerm tr
-              ft  <- maybe (fail $ "Missing type for term " <> show fr) pure mft
-              tt  <- maybe (fail $ "Missing type for term " <> show tr) pure mtt
-              let
-                  patch' =
-                    -- The modified patch
-                    over Patch.termEdits
-                      (R.insert fr (Replace tr (TermEdit.typing tt ft))
-                       . R.deleteDom fr)
-                      patch
-                  (patchPath'', patchName) = resolveSplit' patchPath'
-              -- Save the modified patch
-              stepAtM (inputDescription <> " (1/2)")
-                      (patchPath'', Branch.modifyPatches patchName (const patch'))
-              -- Apply the modified patch to the current path
-              -- since we might be able to propagate further.
-              void $ propagatePatch inputDescription2 patch' currentPath'
-              -- Say something
-              success
+              case (mft, mtt) of
+                (Nothing, _) -> respond $ TermNotFound' input fid
+                (_, Nothing) -> respond $ TermNotFound' input tid
+                (Just ft, Just tt) -> do
+                  let
+                      patch' =
+                        -- The modified patch
+                        over Patch.termEdits
+                          (R.insert fr (Replace tr (TermEdit.typing tt ft))
+                           . R.deleteDom fr)
+                          patch
+                      (patchPath'', patchName) = resolveSplit' patchPath'
+                  -- Save the modified patch
+                  stepAtM (inputDescription <> " (1/2)")
+                          (patchPath'',
+                           Branch.modifyPatches patchName (const patch'))
+                  -- Apply the modified patch to the current path
+                  -- since we might be able to propagate further.
+                  void $ propagatePatch inputDescription2 patch' currentPath'
+                  -- Say something
+                  success
         zeroOneOrMore
           fromRefs
           (respond $ SearchTermsNotFound [HQ.HashOnly from])
@@ -1425,10 +1453,6 @@ fuzzyNameDistance :: Name -> Name -> Maybe _ -- MatchArray
 fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
   Find.simpleFuzzyScore q n
 
-shortenReflogEntry :: Int -> Reflog.Entry -> Output.ReflogEntry
-shortenReflogEntry len (Reflog.Entry old new reason) =
-  Output.ReflogEntry (SBH.fromHash len old) (SBH.fromHash len new) reason
-
 -- return `name` and `name.<everything>...`
 _searchBranchPrefix :: Branch m -> Name -> [SearchResult]
 _searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
@@ -1555,7 +1579,13 @@ respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
 loadRemoteBranchAt
-  :: Monad m => Var v => Input -> Text -> RemoteRepo -> Path.Absolute -> Action' m v ()
+  :: Var v
+  => Monad m
+  => Input
+  -> Text
+  -> RemoteRepo
+  -> Path.Absolute
+  -> Action' m v ()
 loadRemoteBranchAt input inputDescription repo p = do
   b <- eval (LoadRemoteRootBranch repo)
   case b of
@@ -1564,16 +1594,17 @@ loadRemoteBranchAt input inputDescription repo p = do
       changed <- updateAtM inputDescription p (doMerge b)
       when changed $ do
         merged <- getAt p
-        patch <- eval . Eval $
-          Branch.getPatch defaultPatchNameSegment (Branch.head merged)
+        patch  <- eval . Eval $ Branch.getPatch defaultPatchNameSegment
+                                                (Branch.head merged)
         void $ propagatePatch (inputDescription <> " (2/2)") patch p
-  where
+ where
   doMerge b b0 = do
     merged <- eval . Eval $ Branch.merge b b0
     respond $ ShowDiff input (Branch.namesDiff b0 merged)
     pure merged
 
-syncRemoteRootBranch :: Monad m => Input -> RemoteRepo -> Branch m -> Action m i v ()
+syncRemoteRootBranch
+  :: Var v => Monad m => Input -> RemoteRepo -> Branch m -> Action m i v ()
 syncRemoteRootBranch input repo b = do
   e <- eval $ SyncRemoteRootBranch repo b
   either (eval . Notify . GitError input) (const . respond $ Success input) e

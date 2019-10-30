@@ -367,8 +367,6 @@ test = scope "termprinter" . tests $
                  \  a = b\n\
                  \  a then foo else bar"   -- missing break before 'then', issue #518
   , tcBreaks 80 "Stream.foldLeft 0 (+) t"
-  , tcBreaks 80 "foo?"
-  , tcBreaks 80 "(foo a b)?"
   , tcDiffRtt False "let\n\
                       \  delay = 'isEven"
                       "let\n\
