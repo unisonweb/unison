@@ -128,8 +128,6 @@ import Unison.Codebase.NameSegment (NameSegment(..))
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.Editor.Propagate as Propagate
 
---import Debug.Trace
-
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
 
@@ -991,24 +989,27 @@ loop = do
                   tr = DerivedId tid
               mft <- eval $ LoadTypeOfTerm fr
               mtt <- eval $ LoadTypeOfTerm tr
-              ft  <- maybe (fail $ "Missing type for term " <> show fr) pure mft
-              tt  <- maybe (fail $ "Missing type for term " <> show tr) pure mtt
-              let
-                  patch' =
-                    -- The modified patch
-                    over Patch.termEdits
-                      (R.insert fr (Replace tr (TermEdit.typing tt ft))
-                       . R.deleteDom fr)
-                      patch
-                  (patchPath'', patchName) = resolveSplit' patchPath'
-              -- Save the modified patch
-              stepAtM (inputDescription <> " (1/2)")
-                      (patchPath'', Branch.modifyPatches patchName (const patch'))
-              -- Apply the modified patch to the current path
-              -- since we might be able to propagate further.
-              void $ propagatePatch inputDescription2 patch' currentPath'
-              -- Say something
-              success
+              case (mft, mtt) of
+                (Nothing, _) -> respond $ TermNotFound' input fid
+                (_, Nothing) -> respond $ TermNotFound' input tid
+                (Just ft, Just tt) -> do
+                  let
+                      patch' =
+                        -- The modified patch
+                        over Patch.termEdits
+                          (R.insert fr (Replace tr (TermEdit.typing tt ft))
+                           . R.deleteDom fr)
+                          patch
+                      (patchPath'', patchName) = resolveSplit' patchPath'
+                  -- Save the modified patch
+                  stepAtM (inputDescription <> " (1/2)")
+                          (patchPath'',
+                           Branch.modifyPatches patchName (const patch'))
+                  -- Apply the modified patch to the current path
+                  -- since we might be able to propagate further.
+                  void $ propagatePatch inputDescription2 patch' currentPath'
+                  -- Say something
+                  success
         zeroOneOrMore
           fromRefs
           (respond $ SearchTermsNotFound [HQ.HashOnly from])
@@ -1578,7 +1579,13 @@ respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
 loadRemoteBranchAt
-  :: Monad m => Var v => Input -> Text -> RemoteRepo -> Path.Absolute -> Action' m v ()
+  :: Var v
+  => Monad m
+  => Input
+  -> Text
+  -> RemoteRepo
+  -> Path.Absolute
+  -> Action' m v ()
 loadRemoteBranchAt input inputDescription repo p = do
   b <- eval (LoadRemoteRootBranch repo)
   case b of
@@ -1587,16 +1594,17 @@ loadRemoteBranchAt input inputDescription repo p = do
       changed <- updateAtM inputDescription p (doMerge b)
       when changed $ do
         merged <- getAt p
-        patch <- eval . Eval $
-          Branch.getPatch defaultPatchNameSegment (Branch.head merged)
+        patch  <- eval . Eval $ Branch.getPatch defaultPatchNameSegment
+                                                (Branch.head merged)
         void $ propagatePatch (inputDescription <> " (2/2)") patch p
-  where
+ where
   doMerge b b0 = do
     merged <- eval . Eval $ Branch.merge b b0
     respond $ ShowDiff input (Branch.namesDiff b0 merged)
     pure merged
 
-syncRemoteRootBranch :: Monad m => Input -> RemoteRepo -> Branch m -> Action m i v ()
+syncRemoteRootBranch
+  :: Var v => Monad m => Input -> RemoteRepo -> Branch m -> Action m i v ()
 syncRemoteRootBranch input repo b = do
   e <- eval $ SyncRemoteRootBranch repo b
   either (eval . Notify . GitError input) (const . respond $ Success input) e

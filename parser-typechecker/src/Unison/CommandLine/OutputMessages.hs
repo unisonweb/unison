@@ -565,7 +565,9 @@ notifyUser dir o = case o of
     P.wrap "Try again with a few more hash characters to disambiguate."
     ]
   BadDestinationBranch _ _ -> pure "That destination namespace is bad."
-  TermNotFound' _ _ -> pure "That term was not found."
+  TermNotFound' _ h ->
+    pure $ "I could't find a term with hash "
+         <> (prettyShortHash $ Reference.toShortHash (Reference.DerivedId h))
   BranchDiff _ _ -> pure "Those namespaces are different."
   NothingToPatch _patchPath dest -> pure $
     P.callout "😶" . P.wrap
@@ -576,7 +578,7 @@ notifyUser dir o = case o of
   PatchInvolvesExternalDependents _ _ ->
     pure "That patch involves external dependents."
   ShowReflog [] ->  pure . P.warnCallout $ "The reflog appears to be empty!"
-  ShowReflog entries -> pure $ 
+  ShowReflog entries -> pure $
     P.lines [
     P.wrap $ "Here is a log of the root namespace hashes,"
           <> "starting with the most recent,"

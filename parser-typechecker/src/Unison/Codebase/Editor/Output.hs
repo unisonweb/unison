@@ -157,17 +157,18 @@ data Output v
   | NotImplemented
   | NoBranchWithHash Input ShortBranchHash
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
---  deriving (Show)
+  deriving (Show)
 
 data ReflogEntry =
   ReflogEntry { hash :: ShortBranchHash, reason :: Text }
+  deriving (Show)
 
 data ShallowListEntry v a
   = ShallowTermEntry Referent HQSegment (Maybe (Type v a))
   | ShallowTypeEntry Reference HQSegment
   | ShallowBranchEntry NameSegment Int -- number of child definitions
   | ShallowPatchEntry NameSegment
-  deriving Eq
+  deriving (Eq, Show)
 
 -- requires Var v to derive Eq, which is required by Ord though not by `compare`
 instance Var v => Ord (ShallowListEntry v a) where
