@@ -5,7 +5,7 @@ We introduce a type `Foo` with a function dependent `fooToInt`.
 ```unison
 use .builtin
 
-unique type Foo = Foo
+unique [foo1] type Foo = Foo
 
 fooToInt : Foo -> Int
 fooToInt _ = +42
@@ -22,7 +22,7 @@ And then we add it.
 Then if we change the type `Foo`...
 
 ```unison
-type Foo = Foo | Bar
+unique [foo2] type Foo = Foo | Bar
 ```
 
 and update the codebase to use the new type `Foo`...
