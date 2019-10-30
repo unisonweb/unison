@@ -63,7 +63,7 @@ ioHash = R.unsafeId ioReference
 eitherHash = R.unsafeId eitherReference
 ioModeHash = R.unsafeId ioModeReference
 
-ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, filePathReference
+ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, filePathReference, docReference, docSegmentReference, linkReference
   :: R.Reference
 ioReference = abilityNamed "io.IO"
 bufferModeReference = typeNamed "io.BufferMode"
@@ -79,11 +79,14 @@ handleReference = typeNamed "io.Handle"
 epochTimeReference = typeNamed "io.EpochTime"
 isTestReference = typeNamed "IsTest"
 filePathReference = typeNamed "io.FilePath"
+docReference = typeNamed "Doc"
+docSegmentReference = typeNamed "Doc.Segment"
+linkReference = typeNamed "Link"
 
 isTest :: (R.Reference, R.Reference)
 isTest = (isTestReference, termNamed "metadata.isTest")
 
-eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId, bufferModeLineId, bufferModeBlockId, filePathId
+eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId, bufferModeLineId, bufferModeBlockId, filePathId, segmentBlobId, segmentLinkId, segmentSignatureId, segmentTranscludeId, segmentSourceId, segmentEvaluateId, linkTermId, linkTypeId
   :: DD.ConstructorId
 eitherLeftId = constructorNamed eitherReference "Either.Left"
 eitherRightId = constructorNamed eitherReference "Either.Right"
@@ -97,6 +100,14 @@ epochTimeId = constructorNamed epochTimeReference "io.EpochTime.EpochTime"
 bufferModeLineId = constructorNamed bufferModeReference "io.BufferMode.Line"
 bufferModeBlockId = constructorNamed bufferModeReference "io.BufferMode.Block"
 filePathId = constructorNamed filePathReference "io.FilePath.FilePath"
+segmentBlobId = constructorNamed docSegmentReference "Doc.Segment.Blob"
+segmentLinkId = constructorNamed docSegmentReference "Doc.Segment.Link"
+segmentSignatureId = constructorNamed docSegmentReference "Doc.Segment.Signature"
+segmentTranscludeId = constructorNamed docSegmentReference "Doc.Segment.Transclude"
+segmentSourceId = constructorNamed docSegmentReference "Doc.Segment.Source"
+segmentEvaluateId = constructorNamed docSegmentReference "Doc.Segment.Evaluate"
+linkTermId = constructorNamed linkReference "Link.Term"
+linkTypeId = constructorNamed linkReference "Link.Type"
 
 mkErrorType :: Text -> DD.ConstructorId
 mkErrorType = constructorNamed errorTypeReference
