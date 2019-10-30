@@ -83,9 +83,13 @@ type of `otherTerm` should remain the same.
 
 ### Propagation only applies to the local branch
 
+Cleaning up a bit...
+
 ```ucm
 .> delete.namespace subpath
 ```
+
+Now, we make two terms, where one depends on the other.
 
 ```unison
 use .builtin
@@ -97,10 +101,14 @@ otherTerm : Optional baz -> Optional baz
 otherTerm y = someTerm y
 ```
 
+We'll make two copies of this namespace.
+
 ```ucm
 .subpath.one> add
 .subpath> fork one two
 ```
+
+Now let's edit one of the terms...
 
 ```unison
 use .builtin
@@ -109,9 +117,13 @@ someTerm : Optional x -> Optional x
 someTerm _ = None
 ```
 
+... in one of the namespaces...
+
 ```ucm
 .subpath.one> update
 ```
+
+The other namespace should be left alone.
 
 ```ucm
 .subpath.two> view someTerm

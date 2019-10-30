@@ -40,13 +40,13 @@ And then we add it.
 
 .subpath> find.verbose
 
-  1. -- #4d0krm5ahna9i9t4rs8t9mnc62rrh49evl3e85lm0pcqv9plg3u11led2a2she433i2k7ap4ksaqovjn5j9d347hpeh41r250c7d678
+  1. -- #l1b44ejdpjhhhvvbhibat3f7natnvdhr9oum7a92u6furt37koob48r01camkqtscmg84mu1vi3oiu7f6a93a6316ghbsnmiekvdql8
      unique type Foo
      
-  2. -- #4d0krm5ahna9i9t4rs8t9mnc62rrh49evl3e85lm0pcqv9plg3u11led2a2she433i2k7ap4ksaqovjn5j9d347hpeh41r250c7d678#0
+  2. -- #l1b44ejdpjhhhvvbhibat3f7natnvdhr9oum7a92u6furt37koob48r01camkqtscmg84mu1vi3oiu7f6a93a6316ghbsnmiekvdql8#0
      Foo.Foo : Foo
      
-  3. -- #okceomcnpl88n427c1st6sjdjkhr9h5khhqk8je7k83m2khj9h2i6iq109s2nu8726is3l72kv7ontkuo405mtqo1vfl3knpb982hj8
+  3. -- #nn6tgkff0fks1d8kv7mon527qfvm902ooh0v5afjqj784qd0ncpp4slb4f47e7brm05p6esjds5ug5o53vfgkrtho0qbpehkfht7d18
      fooToInt : Foo -> .builtin.Int
      
   
@@ -199,6 +199,8 @@ type of `otherTerm` should remain the same.
 ```
 ### Propagation only applies to the local branch
 
+Cleaning up a bit...
+
 ```ucm
 .> delete.namespace subpath
 
@@ -214,6 +216,8 @@ type of `otherTerm` should remain the same.
   Tip: You can always `undo` if this wasn't what you wanted.
 
 ```
+Now, we make two terms, where one depends on the other.
+
 ```unison
 use .builtin
 
@@ -239,6 +243,8 @@ otherTerm y = someTerm y
   `>`)... Ctrl+C cancels.
 
 ```
+We'll make two copies of this namespace.
+
 ```ucm
   ☝️  The namespace .subpath.one is empty.
 
@@ -254,6 +260,8 @@ otherTerm y = someTerm y
   Done.
 
 ```
+Now let's edit one of the terms...
+
 ```unison
 use .builtin
 
@@ -275,6 +283,8 @@ someTerm _ = None
   `>`)... Ctrl+C cancels.
 
 ```
+... in one of the namespaces...
+
 ```ucm
 .subpath.one> update
 
@@ -287,6 +297,7 @@ someTerm _ = None
   No conflicts or edits in progress.
 
 ```
+The other namespace should be left alone.
 
 ```ucm
 .subpath.two> view someTerm

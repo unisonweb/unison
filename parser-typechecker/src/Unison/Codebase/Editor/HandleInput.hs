@@ -823,7 +823,8 @@ loop = do
               LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
         do
           when (not $ null loadedDisplayTypes && null loadedDisplayTerms) $
-            eval . Notify $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
+            eval . Notify $
+              DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
           when (not $ null misses) $
             eval . Notify . SearchTermsNotFound $ fmap fst misses
           -- We set latestFile to be programmatically generated, if we
@@ -831,12 +832,13 @@ loop = do
           -- next update for that file (which will happen immediately)
           latestFile .= ((, True) <$> loc)
 
-      FindPatchI ->
-        let patches = Set.fromList
+      FindPatchI -> do
+        let patches =
               [ Path.toName $ Path.snoc p seg
               | (p, b) <- Branch.toList0 currentBranch0
               , (seg, _) <- Map.toList (Branch._edits b) ]
-        in respond $ ListOfPatches patches
+        respond $ ListOfPatches $ Set.fromList patches
+        numberedArgs .= fmap Name.toString patches
 
       FindShallowI pathArg -> do
         prettyPrintNames0 <- basicPrettyPrintNames0
