@@ -1,3 +1,5 @@
+{-# Language ViewPatterns #-}
+{-# Language PatternSynonyms #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# Language QuasiQuotes #-}
 
@@ -24,6 +26,7 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Var as Var
 import qualified Unison.Names3 as Names
+import qualified Unison.Term as Term
 
 typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile = let
@@ -150,6 +153,26 @@ constructorName ref cid =
         $  "There's a bug in the Unison runtime. Couldn't find type "
         <> show ref
     Just decl -> genericIndex (DD.constructorNames $ TL.asDataDecl decl) cid
+
+-- some pattern synonyms to make pattern matching on some of these constants more pleasant 
+pattern DocReference <- ((== docReference) -> True) 
+pattern DocSegmentReference <- ((== docSegmentReference) -> True) 
+pattern Doc segs <- Term.App' (Term.Constructor' DocReference _) (Term.Sequence' segs)
+pattern SegmentBlob txt <- Term.App' (Term.Constructor' DocSegmentReference SegmentBlobId) (Term.Text' txt)
+pattern SegmentLink link <- Term.App' (Term.Constructor' DocSegmentReference SegmentLinkId) link
+pattern SegmentTransclude link <- Term.App' (Term.Constructor' DocSegmentReference SegmentTranscludeId) link
+pattern SegmentSource link <- Term.App' (Term.Constructor' DocSegmentReference SegmentSourceId) link
+pattern SegmentEvaluate link <- Term.App' (Term.Constructor' DocSegmentReference SegmentEvaluateId) link
+pattern SegmentBlobId <- ((== segmentBlobId) -> True)
+pattern SegmentLinkId <- ((== segmentLinkId) -> True)
+pattern SegmentTranscludeId <- ((== segmentTranscludeId) -> True)
+pattern SegmentSourceId <- ((== segmentSourceId) -> True)
+pattern SegmentEvaluateId <- ((== segmentEvaluateId) -> True)
+pattern LinkTermId <- ((== linkTermId) -> True)
+pattern LinkTypeId <- ((== linkTypeId) -> True)
+pattern LinkReference <- ((== linkReference) -> True)
+pattern LinkTerm tm <- Term.App' (Term.Constructor' LinkReference LinkTermId) tm 
+pattern LinkType ty <- Term.App' (Term.Constructor' LinkReference LinkTypeId) ty 
 
 -- .. todo - fill in the rest of these
 

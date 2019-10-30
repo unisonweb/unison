@@ -76,6 +76,7 @@ library
     Unison.Codebase.TypeEdit
     Unison.Codebase.Watch
     Unison.CommandLine
+    Unison.CommandLine.DisplayValues
     Unison.CommandLine.InputPattern
     Unison.CommandLine.InputPatterns
     Unison.CommandLine.Main
