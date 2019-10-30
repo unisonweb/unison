@@ -577,20 +577,21 @@ notifyUser dir o = case o of
     pure "That patch involves external dependents."
   ShowReflog [] ->  pure . P.warnCallout $ "The reflog appears to be empty!"
   ShowReflog entries -> pure $ 
-    P.lines [ 
+    P.lines [
     P.wrap $ "Here is a log of the root namespace hashes,"
           <> "starting with the most recent,"
           <> "along with the command that got us there."
           <> "Try:",
     "",
+    -- `head . tail` is safe: entries never has 1 entry, and [] is handled above
+    let e2 = head . tail $ entries in
     P.indentN 2 . P.wrapColumn2 $ [
       (IP.makeExample IP.forkLocal ["2", ".old"],
         ""),
-      (IP.makeExample IP.forkLocal [prettySBH . Output.old $ head entries
-                                   , ".old"],
+      (IP.makeExample IP.forkLocal [prettySBH . Output.hash $ e2, ".old"],
        "to make an old namespace accessible again,"),
       (mempty,mempty),
-      (IP.makeExample IP.resetRoot [prettySBH . Output.old $ head entries],
+      (IP.makeExample IP.resetRoot [prettySBH . Output.hash $ e2],
         "to reset the root namespace and its history to that of the specified"
          <> "namespace.")
     ],
@@ -601,8 +602,8 @@ notifyUser dir o = case o of
          ]
     where
     renderEntry :: Output.ReflogEntry -> P.Pretty CT.ColorText
-    renderEntry (Output.ReflogEntry old new reason) = P.wrap $
-      P.blue (prettySBH new) <> " : " <> P.text reason
+    renderEntry (Output.ReflogEntry hash reason) = P.wrap $
+      P.blue (prettySBH hash) <> " : " <> P.text reason
   History cap history tail -> pure $
     P.lines [
       note $ "The most recent namespace hash is immediately below this message.", "",

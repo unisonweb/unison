@@ -160,7 +160,7 @@ data Output v
 --  deriving (Show)
 
 data ReflogEntry =
-  ReflogEntry { old :: ShortBranchHash, new :: ShortBranchHash, reason :: Text }
+  ReflogEntry { hash :: ShortBranchHash, reason :: Text }
 
 data ShallowListEntry v a
   = ShallowTermEntry Referent HQSegment (Maybe (Type v a))

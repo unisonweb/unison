@@ -39,7 +39,7 @@ First, clone unison with `--recursive`:
 Next, a bit of orientation. Here's the directory structure:
 
 * `editor-support/` includes some very basic and probably incomplete text edit support (read: syntax highlighting)
-* `yaks/` has subprojects for various utilties not specific to Unison (the result of ["yak-shaving"](https://en.wiktionary.org/wiki/yak_shaving)). Once mature, each of these might be moved to independent projects and published on Hackage.
+* `yaks/` has subprojects for various utilities not specific to Unison (the result of ["yak-shaving"](https://en.wiktionary.org/wiki/yak_shaving)). Once mature, each of these might be moved to independent projects and published on Hackage.
 * `parser-typechecker/` has the meat: the Unison syntax tree, parser, typechecker, and runtime. Depends on `yaks/`
 
 Building using Stack
