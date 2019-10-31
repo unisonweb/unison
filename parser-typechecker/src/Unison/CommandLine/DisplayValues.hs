@@ -35,8 +35,8 @@ displayDoc ppe terms evaluated types t = go t
   go (B.DocLink (B.LinkType (Term.TypeLink' r))) = pure $ typeName r 
   go (B.DocSource (B.LinkTerm (Term.TermLink' r))) = prettyTerm terms r 
   go (B.DocSource (B.LinkType (Term.TypeLink' r))) = prettyType r
-  go (B.DocEvaluate (Term.TermLink' r)) = 
-    P.lines <$> sequence [ prettyTerm terms r, pure "🔽", prettyTerm evaluated r ]
+  go (B.DocEvaluate sep (Term.TermLink' r)) =
+    foldMap id <$> sequence [ prettyTerm terms r, go sep, prettyTerm evaluated r ]
   go tm = pure $ TP.pretty ppe tm
   prettyTerm terms r = case r of
     Referent.Ref ref -> terms ref >>= \case
