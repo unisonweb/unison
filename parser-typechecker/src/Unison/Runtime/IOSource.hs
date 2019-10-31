@@ -66,7 +66,7 @@ ioHash = R.unsafeId ioReference
 eitherHash = R.unsafeId eitherReference
 ioModeHash = R.unsafeId ioModeReference
 
-ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, filePathReference, docReference, docSegmentReference, linkReference
+ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, filePathReference, docReference, linkReference
   :: R.Reference
 ioReference = abilityNamed "io.IO"
 bufferModeReference = typeNamed "io.BufferMode"
@@ -83,13 +83,12 @@ epochTimeReference = typeNamed "io.EpochTime"
 isTestReference = typeNamed "IsTest"
 filePathReference = typeNamed "io.FilePath"
 docReference = typeNamed "Doc"
-docSegmentReference = typeNamed "Doc.Segment"
 linkReference = typeNamed "Link"
 
 isTest :: (R.Reference, R.Reference)
 isTest = (isTestReference, termNamed "metadata.isTest")
 
-eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId, bufferModeLineId, bufferModeBlockId, filePathId, segmentBlobId, segmentLinkId, segmentSignatureId, segmentTranscludeId, segmentSourceId, segmentEvaluateId, linkTermId, linkTypeId
+eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId, bufferModeLineId, bufferModeBlockId, filePathId, docBlobId, docLinkId, docSignatureId, docJoinId, docSourceId, docEvaluateId, linkTermId, linkTypeId
   :: DD.ConstructorId
 eitherLeftId = constructorNamed eitherReference "Either.Left"
 eitherRightId = constructorNamed eitherReference "Either.Right"
@@ -103,12 +102,12 @@ epochTimeId = constructorNamed epochTimeReference "io.EpochTime.EpochTime"
 bufferModeLineId = constructorNamed bufferModeReference "io.BufferMode.Line"
 bufferModeBlockId = constructorNamed bufferModeReference "io.BufferMode.Block"
 filePathId = constructorNamed filePathReference "io.FilePath.FilePath"
-segmentBlobId = constructorNamed docSegmentReference "Doc.Segment.Blob"
-segmentLinkId = constructorNamed docSegmentReference "Doc.Segment.Link"
-segmentSignatureId = constructorNamed docSegmentReference "Doc.Segment.Signature"
-segmentTranscludeId = constructorNamed docSegmentReference "Doc.Segment.Transclude"
-segmentSourceId = constructorNamed docSegmentReference "Doc.Segment.Source"
-segmentEvaluateId = constructorNamed docSegmentReference "Doc.Segment.Evaluate"
+docBlobId = constructorNamed docReference "Doc.Blob"
+docLinkId = constructorNamed docReference "Doc.Link"
+docSignatureId = constructorNamed docReference "Doc.Signature"
+docSourceId = constructorNamed docReference "Doc.Source"
+docEvaluateId = constructorNamed docReference "Doc.Evaluate"
+docJoinId = constructorNamed docReference "Doc.Join"
 linkTermId = constructorNamed linkReference "Link.Term"
 linkTypeId = constructorNamed linkReference "Link.Type"
 
@@ -156,18 +155,16 @@ constructorName ref cid =
 
 -- some pattern synonyms to make pattern matching on some of these constants more pleasant 
 pattern DocReference <- ((== docReference) -> True) 
-pattern DocSegmentReference <- ((== docSegmentReference) -> True) 
-pattern Doc segs <- Term.App' (Term.Constructor' DocReference _) (Term.Sequence' segs)
-pattern SegmentBlob txt <- Term.App' (Term.Constructor' DocSegmentReference SegmentBlobId) (Term.Text' txt)
-pattern SegmentLink link <- Term.App' (Term.Constructor' DocSegmentReference SegmentLinkId) link
-pattern SegmentTransclude link <- Term.App' (Term.Constructor' DocSegmentReference SegmentTranscludeId) link
-pattern SegmentSource link <- Term.App' (Term.Constructor' DocSegmentReference SegmentSourceId) link
-pattern SegmentEvaluate link <- Term.App' (Term.Constructor' DocSegmentReference SegmentEvaluateId) link
-pattern SegmentBlobId <- ((== segmentBlobId) -> True)
-pattern SegmentLinkId <- ((== segmentLinkId) -> True)
-pattern SegmentTranscludeId <- ((== segmentTranscludeId) -> True)
-pattern SegmentSourceId <- ((== segmentSourceId) -> True)
-pattern SegmentEvaluateId <- ((== segmentEvaluateId) -> True)
+pattern DocJoin segs <- Term.App' (Term.Constructor' DocReference DocJoinId) (Term.Sequence' segs)
+pattern DocBlob txt <- Term.App' (Term.Constructor' DocReference DocBlobId) (Term.Text' txt)
+pattern DocLink link <- Term.App' (Term.Constructor' DocReference DocLinkId) link
+pattern DocSource link <- Term.App' (Term.Constructor' DocReference DocSourceId) link
+pattern DocEvaluate link <- Term.App' (Term.Constructor' DocReference DocEvaluateId) link
+pattern DocBlobId <- ((== docBlobId) -> True)
+pattern DocLinkId <- ((== docLinkId) -> True)
+pattern DocSourceId <- ((== docSourceId) -> True)
+pattern DocEvaluateId <- ((== docEvaluateId) -> True)
+pattern DocJoinId <- ((== docJoinId) -> True)
 pattern LinkTermId <- ((== linkTermId) -> True)
 pattern LinkTypeId <- ((== linkTypeId) -> True)
 pattern LinkReference <- ((== linkReference) -> True)
@@ -183,17 +180,23 @@ type Either a b = Left a | Right b
 
 type Optional a = None | Some a
 
-unique[ae0d4b38783931f4fa61bc042a715b85481d5c4e3b9664a5f61ca0258cd24371b7f70c3748eb2397e85ba5630ce0592] type Doc =
-  { segments : [Doc.Segment] }
-
-unique[bf3e1c6ac04eb51f2e7289bdfb41d2b999f42dd6695d2cce259b2f833f6c2be226c5fed249af6adff5615d9830fa71a] type Doc.Segment
+unique[bf3e1c6ac04eb51f2e7289bdfb41d2b999f42dd6695d2cce259b2f833f6c2be226c5fed249af6adff5615d9830fa71a] type Doc
   = Blob Text
   | Link Link            -- a link to a term or type
   | Signature Link.Term  -- the signature of the term
-  | Transclude Link.Term -- a rendered version of the term
   | Source Link          -- include the source
   -- include both the source and the evaluated result
   | Evaluate Link.Term
+  | Join [Doc]
+
+(Doc.++) : Doc -> Doc -> Doc
+d1 Doc.++ d2 = 
+  use Doc 
+  case (d1,d2) of
+    (Join ds, Join ds2) -> Join (ds Sequence.++ ds2)
+    (Join ds, _) -> Join (ds `Sequence.snoc` d2)
+    (_, Join ds) -> Join (d1 `Sequence.cons` ds)
+    _ -> Join [d1,d2]
 
 unique[a5803524366ead2d7f3780871d48771e8142a3b48802f34a96120e230939c46bd5e182fcbe1fa64e9bff9bf741f3c04] type Link
   = Term Link.Term

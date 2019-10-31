@@ -27,23 +27,17 @@ displayDoc :: (Var v, Monad m)
            -> (Reference -> m (Maybe (DD.Decl v a)))
            -> AnnotatedTerm v a 
            -> m Pretty
-displayDoc ppe terms evaluated types t = case t of
-  B.Doc segs -> foldMap id <$> traverse prettySeg segs 
-  tm -> pure $ TP.pretty ppe tm
+displayDoc ppe terms evaluated types t = go t
   where
-  prettySeg (B.SegmentBlob txt) = pure $ P.paragraphyText txt
-  prettySeg (B.SegmentLink (B.LinkTerm (Term.TermLink' r))) = pure $ termName r 
-  prettySeg (B.SegmentLink (B.LinkType (Term.TypeLink' r))) = pure $ typeName r 
-  prettySeg (B.SegmentSource (B.LinkTerm (Term.TermLink' r))) = prettyTerm terms r 
-  prettySeg (B.SegmentSource (B.LinkType (Term.TypeLink' r))) = prettyType r
-  prettySeg (B.SegmentTransclude (Term.TermLink' r)) = case r of
-    Referent.Ref ref -> terms ref >>= \case
-      Nothing -> pure $ "😶  Missing term source for: " <> termName r
-      Just tm -> displayDoc ppe terms evaluated types tm
-    Referent.Con r _ _ -> prettyType r
-  prettySeg (B.SegmentEvaluate (Term.TermLink' r)) = 
+  go (B.DocJoin docs) = foldMap id <$> traverse go docs
+  go (B.DocBlob txt) = pure $ P.paragraphyText txt
+  go (B.DocLink (B.LinkTerm (Term.TermLink' r))) = pure $ termName r 
+  go (B.DocLink (B.LinkType (Term.TypeLink' r))) = pure $ typeName r 
+  go (B.DocSource (B.LinkTerm (Term.TermLink' r))) = prettyTerm terms r 
+  go (B.DocSource (B.LinkType (Term.TypeLink' r))) = prettyType r
+  go (B.DocEvaluate (Term.TermLink' r)) = 
     P.lines <$> sequence [ prettyTerm terms r, pure "🔽", prettyTerm evaluated r ]
-  prettySeg tm = pure $ TP.pretty ppe tm
+  go tm = pure $ TP.pretty ppe tm
   prettyTerm terms r = case r of
     Referent.Ref ref -> terms ref >>= \case
       Nothing -> pure $ "😶  Missing term source for: " <> termName r

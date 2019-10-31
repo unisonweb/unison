@@ -788,6 +788,8 @@ loop = do
                 (foldMap SR'.labeledDependencies $ failed <> failedDependents)
             respond $ CantDelete input ppe failed failedDependents
 
+      DisplayI _stuff -> error "todo - display command"
+
       ShowDefinitionI outputLoc (fmap HQ.unsafeFromString -> hqs) -> do
         parseNames <- makeHistoricalParsingNames $ Set.fromList hqs
         let resultss = searchBranchExact hqLength parseNames hqs
