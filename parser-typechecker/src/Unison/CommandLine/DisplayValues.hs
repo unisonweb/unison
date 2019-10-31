@@ -14,6 +14,7 @@ import qualified Unison.DeclPrinter as DP
 import qualified Unison.NamePrinter as NP
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Referent as Referent
+import qualified Unison.Reference as Reference
 import qualified Unison.Runtime.IOSource as B
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TP
@@ -54,13 +55,15 @@ displayDoc ppe terms typeOf evaluated types t = go t
   go (B.DocLink (B.LinkType (Term.TypeLink' r))) = pure $ typeName ppe r 
   go (B.DocSource (B.LinkTerm (Term.TermLink' r))) = prettyTerm terms r 
   go (B.DocSource (B.LinkType (Term.TypeLink' r))) = prettyType r
-  go (B.DocSignature (Term.TermLink' r)) = typeOf r >>= \case
-    Nothing -> pure $ termName ppe r 
-    Just typ -> pure $ TypePrinter.prettySignatures ppe [(PPE.termName ppe r, typ)]
+  go (B.DocSignature (Term.TermLink' r)) = prettySignature r
   go (B.DocEvaluate sep (Term.TermLink' r)) =
     foldMap id <$> sequence [ prettyTerm terms r, go sep, prettyTerm evaluated r ]
   go tm = pure $ TP.pretty ppe tm
+  prettySignature r = typeOf r >>= \case
+    Nothing -> pure $ termName ppe r 
+    Just typ -> pure $ TypePrinter.prettySignatures ppe [(PPE.termName ppe r, typ)]
   prettyTerm terms r = case r of
+    Referent.Ref (Reference.Builtin _) -> prettySignature r 
     Referent.Ref ref -> terms ref >>= \case
       Nothing -> pure $ "😶  Missing term source for: " <> termName ppe r
       Just tm -> pure . P.syntaxToColor $ TP.prettyBinding ppe (PPE.termName ppe r) tm
