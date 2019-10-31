@@ -146,6 +146,8 @@ notifyUser dir o = case o of
 
   DisplayDefinitions outputLoc ppe types terms ->
     displayDefinitions outputLoc ppe types terms
+  DisplayRendered outputLoc pp -> 
+    displayRendered outputLoc pp 
   DisplayLinks ppe md types terms ->
     if Map.null md then pure $ P.wrap "Nothing to show here. Use the "
       <> IP.makeExample' IP.link <> " command to add links from this definition."
@@ -798,6 +800,31 @@ displayDefinitions' ppe types terms = P.syntaxToColor $ P.sep "\n\n" (prettyType
     <> "which is missing from the codebase.")
     <> P.newline
     <> tip "You might need to repair the codebase manually."
+
+displayRendered :: Maybe FilePath -> Pretty -> IO Pretty
+displayRendered outputLoc pp = 
+  maybe (pure pp) scratchAndDisplay outputLoc
+  where
+  scratchAndDisplay path = do
+    path' <- canonicalizePath path
+    prependToFile pp path'
+    pure (message pp path')
+    where
+    prependToFile pp path = do
+      existingContents <- do
+        exists <- doesFileExist path
+        if exists then readFile path
+        else pure ""
+      writeFile path . Text.pack . P.toPlain 80 $
+        P.lines [ pp, ""
+                , "--- " <> "Anything below this line is ignored by Unison."
+                , "", P.text existingContents ]
+    message pp path =
+      P.callout "☝️" $ P.lines [
+        P.wrap $ "I added this to the top of " <> fromString path,
+        "",
+        P.indentN 2 pp
+      ]
 
 displayDefinitions :: Var v => Ord a1 =>
   Maybe FilePath

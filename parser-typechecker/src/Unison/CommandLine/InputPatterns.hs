@@ -197,9 +197,11 @@ view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
       (pure . Input.ShowDefinitionI Input.ConsoleLocation)
 
 display :: InputPattern
-display = InputPattern "display" ["show"] [(OnePlus, exactDefinitionQueryArg)]
-      "`display foo` prints the definition of `foo`."
-      (pure . Input.DisplayI)
+display = InputPattern "display" ["show"] [(Required, exactDefinitionQueryArg)]
+      "`display foo` prints a rendered version of the term `foo`."
+      (\case 
+        [s] -> pure (Input.DisplayI Input.ConsoleLocation s)
+        _ -> Left (I.help display))
 
 undo :: InputPattern
 undo = InputPattern "undo" [] []

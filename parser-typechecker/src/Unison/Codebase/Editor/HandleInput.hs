@@ -127,6 +127,8 @@ import qualified Unison.Builtin as Builtin
 import Unison.Codebase.NameSegment (NameSegment(..))
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.Editor.Propagate as Propagate
+import qualified Unison.CommandLine.DisplayValues as DisplayValues
+import qualified Control.Error.Util as ErrorUtil
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
@@ -278,7 +280,7 @@ loop = do
         typeNotFound = respond . TypeNotFound input
         termNotFound = respond . TermNotFound input
         typeConflicted src = respond . TypeAmbiguous input src
-        termConflicted src = respond . TermAmbiguous input src
+        termConflicted src = respond . TermAmbiguous input (Left src)
         hashConflicted src = respond . HashAmbiguous input src
         branchExists dest _x = respond $ BranchAlreadyExists input dest
         branchExistsSplit = branchExists . Path.unsplit'
@@ -788,7 +790,32 @@ loop = do
                 (foldMap SR'.labeledDependencies $ failed <> failedDependents)
             respond $ CantDelete input ppe failed failedDependents
 
-      DisplayI _stuff -> error "todo - display command"
+      DisplayI outputLoc s@(HQ.unsafeFromString -> hq) -> do 
+        parseNames <- makeHistoricalParsingNames $ Set.fromList [hq]
+        let results = resolveTermName parseNames hq
+        if Set.null results then 
+          respond $ SearchTermsNotFound $ [hq]
+        else if Set.size results > 1 then
+          respond $ TermAmbiguous input (Right hq) results
+        else do
+          let tm = Term.fromReferent External (Set.findMin results)
+          ppe <- prettyPrintEnv parseNames
+          let 
+            loc = case outputLoc of
+              ConsoleLocation    -> Nothing
+              FileLocation path  -> Just path
+              LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
+            evalTerm r = fmap ErrorUtil.hush . eval $ Evaluate1 ppe (Term.ref External r)
+            loadTerm (Reference.DerivedId r) = eval $ LoadTerm r
+            loadTerm r = pure Nothing
+            loadDecl (Reference.DerivedId r) = eval $ LoadType r
+            loadDecl _ = pure Nothing 
+          rendered <- DisplayValues.displayTerm ppe loadTerm evalTerm loadDecl tm 
+          respond $ DisplayRendered loc rendered
+          -- We set latestFile to be programmatically generated, if we
+          -- are viewing these definitions to a file - this will skip the
+          -- next update for that file (which will happen immediately)
+          latestFile .= ((, True) <$> loc)
 
       ShowDefinitionI outputLoc (fmap HQ.unsafeFromString -> hqs) -> do
         parseNames <- makeHistoricalParsingNames $ Set.fromList hqs
@@ -1536,20 +1563,10 @@ collateReferences (toList -> types) (toList -> terms) =
       types' = [ r | Referent.Con r _ _ <- terms ]
   in  (Set.fromList types' <> Set.fromList types, Set.fromList terms')
 
--- Foo#123
--- Foo#890
--- bar#567
--- blah#abc
--- cat#abc
--- and search for
 
--- Foo, want Foo#123 and Foo#890
--- Foo#1, want Foo#123
--- #567, want bar -- what goes in the SR.name?
--- blah, cat, want blah (with comment about cat)?
-
--- #567 :: Int
--- #567 = +3
+resolveTermName :: Names -> HQ.HashQualified -> Set Referent
+resolveTermName names query = 
+  Names3.lookupHQTerm query names
 
 -- | The output list (of lists) corresponds to the query list.
 searchBranchExact :: Int -> Names -> [HQ.HashQualified] -> [[SearchResult]]
