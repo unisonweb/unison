@@ -1282,7 +1282,7 @@ loop = do
           Nothing -> do
             repoUrl <- eval . ConfigLookup $ "GitUrl" <> Text.pack (show p)
             case repoUrl of
-              Just url -> loadRemoteBranchAt input inputDescription (GitRepo url "master") p
+              Just url -> loadRemoteBranchAt input inputDescription (GitRepo url Nothing) p
               Nothing ->
                 eval . Notify $ NoConfiguredGitUrl Pull path
 
@@ -1295,7 +1295,7 @@ loop = do
             repoUrl <-
               eval . ConfigLookup $ gitUrlKey p
             case repoUrl of
-              Just url -> syncRemoteRootBranch input (GitRepo url "master") b
+              Just url -> syncRemoteRootBranch input (GitRepo url Nothing) b
               Nothing ->
                 eval . Notify $ NoConfiguredGitUrl Push path
       DebugBranchHistoryI ->

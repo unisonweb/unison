@@ -496,15 +496,15 @@ pull = InputPattern
   (\case
     []    -> pure $ Input.PullRemoteBranchI Nothing Path.relativeEmpty'
     [url] -> pure $ Input.PullRemoteBranchI
-      (Just $ GitRepo (Text.pack url) "master")
+      (Just $ GitRepo (Text.pack url) Nothing)
       Path.relativeEmpty'
     [url, path] -> do
       p <- first fromString $ Path.parsePath' path
-      pure $ Input.PullRemoteBranchI (Just $ GitRepo (Text.pack url) "master") p
+      pure $ Input.PullRemoteBranchI (Just $ GitRepo (Text.pack url) Nothing) p
     [url, path, treeish] -> do
       p <- first fromString $ Path.parsePath' path
       pure $ Input.PullRemoteBranchI
-        (Just . GitRepo (Text.pack url) $ Text.pack treeish)
+        (Just . GitRepo (Text.pack url) $ (Just . Text.pack) treeish)
         p
     _ -> Left (I.help pull)
   )
@@ -540,15 +540,15 @@ push = InputPattern
   (\case
     []    -> pure $ Input.PushRemoteBranchI Nothing Path.relativeEmpty'
     [url] -> first fromString . pure $ Input.PushRemoteBranchI
-      (Just $ GitRepo (Text.pack url) "master")
+      (Just $ GitRepo (Text.pack url) Nothing)
       Path.relativeEmpty'
     [url, path] -> first fromString $ do
       p <- Path.parsePath' path
-      pure $ Input.PushRemoteBranchI (Just $ GitRepo (Text.pack url) "master") p
+      pure $ Input.PushRemoteBranchI (Just $ GitRepo (Text.pack url) Nothing) p
     [url, path, treeish] -> first fromString $ do
       p <- Path.parsePath' path
       pure $ Input.PushRemoteBranchI
-        (Just . GitRepo (Text.pack url) $ Text.pack treeish)
+        (Just . GitRepo (Text.pack url) $ (Just . Text.pack) treeish)
         p
     _ -> Left (I.help push)
   )
@@ -1044,6 +1044,7 @@ newNameArg = ArgumentType "new-name" $
 noCompletions :: ArgumentType
 noCompletions = ArgumentType "word" I.noSuggestions
 
+-- Arya: I could imagine completions coming from previous git pulls
 gitUrlArg :: ArgumentType
 gitUrlArg = noCompletions { I.typeName = "git-url" }
 

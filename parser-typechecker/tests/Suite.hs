@@ -24,6 +24,7 @@ import qualified Unison.Test.UnisonSources as UnisonSources
 import qualified Unison.Test.Util.Bytes as Bytes
 import qualified Unison.Test.Var as Var
 import qualified Unison.Test.Codebase.FileCodebase as FileCodebase
+import qualified Unison.Test.UriParser as UriParser
 
 test :: Test ()
 test = tests
@@ -46,6 +47,7 @@ test = tests
   , FileCodebase.test
   , ABT.test
   , Var.test
+  , UriParser.test
  ]
 
 main :: IO ()

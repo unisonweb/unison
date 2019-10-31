@@ -106,6 +106,7 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Util.List              as List
+import qualified Unison.Util.Monoid            as Monoid
 import Data.Tuple (swap)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
@@ -442,8 +443,8 @@ notifyUser dir o = case o of
       <> "Make sure there's a branch or commit with that name."
     PushDestinationHasNewStuff url treeish diff -> P.callout "⏸" . P.lines $ [
       P.wrap $ "The repository at" <> P.blue (P.text url)
-            <> (if Text.null treeish then ""
-                else "at revision" <> P.blue (P.text treeish))
+            <> (Monoid.fromMaybe $ treeish <&> \treeish -> 
+                  "at revision" <> P.blue (P.text treeish))
             <> "has some changes I don't know about:",
       "", P.indentN 2 (prettyDiff diff), "",
       P.wrap $ "If you want to " <> push <> "you can do:", "",
@@ -461,8 +462,10 @@ notifyUser dir o = case o of
           IP.patternName IP.pull,
           P.text (RemoteRepo.url r),
           P.shown p,
-          if RemoteRepo.commit r /= "master" then P.text (RemoteRepo.commit r)
-          else "" ]
+          case RemoteRepo.commit r of 
+            Just s -> P.text s
+            Nothing -> mempty 
+          ]
         _ -> "⁉️ Unison bug - push command expected"
     SomeOtherError msg -> P.callout "‼" . P.lines $ [
       P.wrap "I ran into an error:", "",
