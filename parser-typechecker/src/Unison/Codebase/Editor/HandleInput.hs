@@ -791,7 +791,8 @@ loop = do
             respond $ CantDelete input ppe failed failedDependents
 
       DisplayI outputLoc s@(HQ.unsafeFromString -> hq) -> do 
-        parseNames <- makeHistoricalParsingNames $ Set.fromList [hq]
+        -- parseNames <- makeHistoricalParsingNames $ Set.fromList [hq]
+        parseNames <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
         let results = resolveTermName parseNames hq
         if Set.null results then 
           respond $ SearchTermsNotFound $ [hq]
