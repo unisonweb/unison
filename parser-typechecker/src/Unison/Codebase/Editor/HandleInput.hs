@@ -810,7 +810,7 @@ loop = do
             loadTerm r = pure Nothing
             loadDecl (Reference.DerivedId r) = eval $ LoadType r
             loadDecl _ = pure Nothing 
-          rendered <- DisplayValues.displayTerm ppe loadTerm evalTerm loadDecl tm 
+          rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm evalTerm loadDecl tm 
           respond $ DisplayRendered loc rendered
           -- We set latestFile to be programmatically generated, if we
           -- are viewing these definitions to a file - this will skip the
@@ -2237,3 +2237,13 @@ executePPE unisonFile =
     makeShadowedPrintNamesFromLabeled
       (UF.termSignatureExternalLabeledDependencies unisonFile)
       (UF.typecheckedToNames0 unisonFile)
+
+loadTypeOfTerm :: Referent -> Action m i v (Maybe (Type v Ann))
+loadTypeOfTerm (Referent.Ref r) = eval $ LoadTypeOfTerm r 
+loadTypeOfTerm (Referent.Con (Reference.DerivedId r) cid _) = do
+  decl <- eval $ LoadType r
+  case decl of
+    Just (either DD.toDataDecl id -> dd) -> pure $ DD.typeOfConstructor dd cid
+    Nothing -> pure Nothing
+loadTypeOfTerm (Referent.Con r cid _) = error $
+  reportBug "924628772" "Attempt to load a type declaration which is a builtin!"

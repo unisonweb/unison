@@ -159,7 +159,9 @@ pattern DocJoin segs <- Term.App' (Term.Constructor' DocReference DocJoinId) (Te
 pattern DocBlob txt <- Term.App' (Term.Constructor' DocReference DocBlobId) (Term.Text' txt)
 pattern DocLink link <- Term.App' (Term.Constructor' DocReference DocLinkId) link
 pattern DocSource link <- Term.App' (Term.Constructor' DocReference DocSourceId) link
+pattern DocSignature link <- Term.App' (Term.Constructor' DocReference DocSignatureId) link
 pattern DocEvaluate sep link <- Term.Apps' (Term.Constructor' DocReference DocEvaluateId) [sep, link]
+pattern DocSignatureId <- ((== docSignatureId) -> True)
 pattern DocBlobId <- ((== docBlobId) -> True)
 pattern DocLinkId <- ((== docLinkId) -> True)
 pattern DocSourceId <- ((== docSourceId) -> True)
@@ -180,7 +182,7 @@ type Either a b = Left a | Right b
 
 type Optional a = None | Some a
 
-unique[bf3e1c6ac04eb51f2e7289bdfb41d2b999f42dd6695d2cce259b2f833f6c2be226c5fed249af6adff5615d9830fa71a] type Doc
+unique[c63a75b845e4f7d01107d852e4c2485c51a50aaaa94fc61995e71bbee983a2ac3713831264adb47fb6bd1e058d5f004] type Doc
   = Blob Text
   | Link Link            -- a link to a term or type
   | Signature Link.Term  -- the signature of the term
@@ -190,7 +192,6 @@ unique[bf3e1c6ac04eb51f2e7289bdfb41d2b999f42dd6695d2cce259b2f833f6c2be226c5fed24
   | Evaluate Doc Link.Term
   | Join [Doc]
 
-(Doc.++) : Doc -> Doc -> Doc
 d1 Doc.++ d2 = 
   use Doc 
   case (d1,d2) of

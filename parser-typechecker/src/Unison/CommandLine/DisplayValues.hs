@@ -7,6 +7,7 @@ module Unison.CommandLine.DisplayValues where
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Term (AnnotatedTerm)
+import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DP
@@ -16,6 +17,7 @@ import qualified Unison.Referent as Referent
 import qualified Unison.Runtime.IOSource as B
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TP
+import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.SyntaxText as S
 
@@ -24,25 +26,27 @@ type Pretty = P.Pretty P.ColorText
 displayTerm :: (Var v, Monad m)
            => PPE.PrettyPrintEnv 
            -> (Reference -> m (Maybe (AnnotatedTerm v a)))
+           -> (Referent -> m (Maybe (Type v a)))
            -> (Reference -> m (Maybe (AnnotatedTerm v a)))
            -> (Reference -> m (Maybe (DD.Decl v a)))
            -> AnnotatedTerm v a 
            -> m Pretty
-displayTerm ppe terms eval types tm = case tm of
+displayTerm ppe terms typeOf eval types tm = case tm of
   -- todo: can dispatch on other things with special rendering
   Term.Ref' r -> eval r >>= \case
     Nothing -> pure $ termName ppe (Referent.Ref r) 
-    Just tm -> displayDoc ppe terms eval types tm
-  _ -> displayDoc ppe terms eval types tm
+    Just tm -> displayDoc ppe terms typeOf eval types tm
+  _ -> displayDoc ppe terms typeOf eval types tm
 
 displayDoc :: (Var v, Monad m)
            => PPE.PrettyPrintEnv 
            -> (Reference -> m (Maybe (AnnotatedTerm v a)))
+           -> (Referent  -> m (Maybe (Type v a)))
            -> (Reference -> m (Maybe (AnnotatedTerm v a)))
            -> (Reference -> m (Maybe (DD.Decl v a)))
            -> AnnotatedTerm v a 
            -> m Pretty
-displayDoc ppe terms evaluated types t = go t
+displayDoc ppe terms typeOf evaluated types t = go t
   where
   go (B.DocJoin docs) = foldMap id <$> traverse go docs
   go (B.DocBlob txt) = pure $ P.paragraphyText txt
@@ -50,6 +54,9 @@ displayDoc ppe terms evaluated types t = go t
   go (B.DocLink (B.LinkType (Term.TypeLink' r))) = pure $ typeName ppe r 
   go (B.DocSource (B.LinkTerm (Term.TermLink' r))) = prettyTerm terms r 
   go (B.DocSource (B.LinkType (Term.TypeLink' r))) = prettyType r
+  go (B.DocSignature (Term.TermLink' r)) = typeOf r >>= \case
+    Nothing -> pure $ termName ppe r 
+    Just typ -> pure $ TypePrinter.prettySignatures ppe [(PPE.termName ppe r, typ)]
   go (B.DocEvaluate sep (Term.TermLink' r)) =
     foldMap id <$> sequence [ prettyTerm terms r, go sep, prettyTerm evaluated r ]
   go tm = pure $ TP.pretty ppe tm
