@@ -4,6 +4,10 @@ module Unison.Codebase where
 
 import Unison.Prelude
 
+import           Control.Category               ( (>>>) )
+import           Control.Lens                   ( _1, _2, (%=) )
+import           Control.Monad.State            ( State, evalState, get )
+import           Data.Bifunctor                 ( bimap )
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Unison.ABT                    as ABT
@@ -184,41 +188,47 @@ makeSelfContained'
   -> UF.UnisonFile v a
   -> m (UF.UnisonFile v a)
 makeSelfContained' code uf = do
-  let deps0 = Term.dependencies . snd <$> (UF.allWatches uf <> UF.terms uf)
+  let UF.UnisonFile ds0 es0 bs0 ws0 = uf
+      deps0 = Term.dependencies . snd <$> (UF.allWatches uf <> bs0)
   deps <- foldM (transitiveDependencies code) Set.empty (Set.unions deps0)
-  let refVar r = Var.refNamed r
---  let termName r = PPE.termName pp (Referent.Ref r)
---      typeName r = PPE.typeName pp r
   decls <- fmap catMaybes . forM (toList deps) $ \case
     r@(Reference.DerivedId rid) -> fmap (r, ) <$> CL.getTypeDeclaration code rid
     _                           -> pure Nothing
-  termsByRef <- fmap catMaybes . forM (toList deps) $ \case
+  let (es1, ds1) = partitionEithers [ bimap (r,) (r,) d | (r, d) <- decls ]
+  bs1 <- fmap catMaybes . forM (toList deps) $ \case
     r@(Reference.DerivedId rid) ->
-      fmap (r, refVar r, ) <$> CL.getTerm code rid
+      fmap (r, ) <$> CL.getTerm code rid
     _ -> pure Nothing
   let
-    unref :: Term v a -> Term v a
-    unref = ABT.visitPure go
-     where
+    allVars = Set.unions
+      [ UF.allVars uf
+      , Set.unions [ DD.allVars dd | (_, dd) <- ds1 ]
+      , Set.unions [ DD.allVars (DD.toDataDecl ed) | (_, ed) <- es1 ]
+      , Set.unions [ Term.allVars tm | (_, tm) <- bs1 ]
+      ]
+    refVar :: Reference -> State (Set v, Map Reference v) v
+    refVar r = (get >>=) $ snd >>> Map.lookup r >>> \case
+      Just v -> pure v
+      Nothing -> do
+        v <- ABT.freshenS' _1 (Var.refNamed r)
+        _2 %=  Map.insert r v
+        pure v
+    assignVars :: [(Reference, b)] -> State (Set v, Map Reference v) [(v, (Reference, b))]
+    assignVars es = traverse (\e@(r, _) -> (,e) <$> refVar r) es
+    unref :: Term v a -> State (Set v, Map Reference v) (Term v a)
+    unref = ABT.visit go where
       go t@(Term.Ref' r@(Reference.DerivedId _)) =
-        Just (Term.var (ABT.annotation t) (refVar r))
+        Just (Term.var (ABT.annotation t) <$> refVar r)
       go _ = Nothing
-    datas1 = Map.fromList
-      [ (r, (v, dd)) | (r, Right dd) <- decls, v <- [refVar r] ]
-    effects1 = Map.fromList
-      [ (r, (v, ed)) | (r, Left ed) <- decls, v <- [refVar r] ]
-    ds0 = Map.fromList [ (r, (v, dd)) | (v, (r, dd)) <-
-            Map.toList $ UF.dataDeclarations uf ]
-    es0 = Map.fromList [ (r, (v, ed)) | (v, (r, ed)) <-
-            Map.toList $ UF.effectDeclarations uf ]
-    bindings = [ (v, unref t) | (_, v, t) <- termsByRef ]
-    (datas', effects') = (Map.union ds0 datas1, Map.union es0 effects1)
-    unrefb bs = [ (v, unref b) | (v, b) <- bs ]
-    uf' = UF.UnisonFile
-      (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList datas' ])
-      (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList effects' ])
-      (bindings ++ unrefb (UF.terms uf))
-      (unrefb <$> UF.watches uf)
+    unrefb bs = traverse (\(v, tm) -> (v,) <$> unref tm) bs
+    pair = liftA2 (,)
+    uf' = flip evalState (allVars, Map.empty) $ do
+      datas' <- Map.union ds0 . Map.fromList <$> assignVars ds1
+      effects' <- Map.union es0 . Map.fromList <$> assignVars es1
+      bs0' <- unrefb bs0
+      ws0' <- traverse unrefb ws0
+      bs1' <- traverse (\(r, tm) -> refVar r `pair` unref tm) bs1
+      pure $ UF.UnisonFile datas' effects' (bs1' ++ bs0') ws0'
   pure uf'
 
 getTypeOfTerm :: (Applicative m, Var v, BuiltinAnnotation a) =>
