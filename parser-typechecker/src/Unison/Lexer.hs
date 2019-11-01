@@ -488,7 +488,7 @@ lexer0 scope rem =
         Token (Textual (reverse acc)) blobStart pos : 
         tok : 
         docBlob l pos' rem pos' []
-      '@' : (docType pos -> Just (typTok, pos', rem)) ->
+      '@' : (docType (inc pos) -> Just (typTok, pos', rem)) ->
         Token (Textual (reverse acc)) blobStart pos : case rem of
          (hqToken pos' -> Just (tok, rem)) -> 
            let pos'' = inc (end tok) in
@@ -504,7 +504,7 @@ lexer0 scope rem =
         (if null acc then id else (Token (Textual (reverse acc)) blobStart pos :)) $
           Token Close pos pos' : goWhitespace l pos' rem 
       [] -> recover l pos rem
-      ch : rem -> docBlob l (inc pos) rem blobStart (ch:acc)
+      ch : rem -> docBlob l (incBy [ch] pos) rem blobStart (ch:acc)
 
     docType :: Pos -> String -> Maybe (Token Lexeme, Pos, String) 
     docType pos rem = case rem of

@@ -300,9 +300,7 @@ docBlock = do
     s <- string
     pure $ Term.app (ann s) (Term.constructor (ann s) DD.docRef DD.docBlobId)
                             (Term.text (ann s) (L.payload s))
-  linky = do
-    _ <- reserved "@" 
-    asum [include, signature, evaluate, source, link]
+  linky = asum [include, signature, evaluate, source, link]
   include = do 
     _ <- P.try (reserved "include")
     hashQualifiedPrefixTerm
