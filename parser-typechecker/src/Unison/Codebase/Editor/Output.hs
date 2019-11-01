@@ -106,6 +106,7 @@ data Output v
               [(Reference, Set HQ'.HashQualified)] -- type match, type names
   -- list of all the definitions within this branch
   | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
+  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified, Maybe (Type v Ann))]
   | ListShallow PPE.PrettyPrintEnv [ShallowListEntry v Ann]
   | ListOfPatches (Set Name)
   -- show the result of add/update
@@ -238,6 +239,7 @@ isFailure o = case o of
   DeleteEverythingConfirmation -> False
   DeletedEverything -> False
   ListNames tms tys -> null tms && null tys
+  ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ ds -> null ds
   ListOfPatches s -> Set.null s
   SlurpOutput _ _ sr -> not $ SR.isOk sr

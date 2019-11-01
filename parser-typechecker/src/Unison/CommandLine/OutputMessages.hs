@@ -85,6 +85,7 @@ import qualified Unison.Referent               as Referent
 import qualified Unison.Result                 as Result
 import qualified Unison.Term                   as Term
 import           Unison.Term                   (AnnotatedTerm)
+import           Unison.Type                   (Type)
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker            as Typechecker
@@ -273,6 +274,8 @@ notifyUser dir o = case o of
     --   <> P.wrap "Please repeat the same command to confirm the deletion."
   ListOfDefinitions ppe detailed results ->
      listOfDefinitions ppe detailed results
+  ListOfLinks ppe results ->
+     listOfLinks ppe results
   ListNames [] [] -> pure . P.callout "😶" $
     P.wrap "I couldn't find anything by that name."
   ListNames terms types -> pure . P.sepNonEmpty "\n\n" $ [
@@ -1082,6 +1085,21 @@ listOfDefinitions ::
   Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
 listOfDefinitions ppe detailed results =
   pure $ listOfDefinitions' ppe detailed results
+
+listOfLinks ::
+  Var v => PPE.PrettyPrintEnv -> [(HQ.HashQualified, Maybe (Type v a))] -> IO Pretty
+listOfLinks _ [] = pure . P.callout "😶" . P.wrap $
+  "No results. Try using the " <> 
+  IP.makeExample IP.link [] <> 
+  "command to add outgoing links to a definition."
+listOfLinks ppe results = pure $ 
+  P.numberedColumn2 num [
+    (P.syntaxToColor $ prettyHashQualified hq, ": " <> prettyType typ) | (hq,typ) <- results
+    ]
+  where
+  num i = P.hiBlack $ P.shown i <> "."
+  prettyType Nothing = "❓ (missing a type for this definition)"
+  prettyType (Just t) = TypePrinter.pretty ppe t
 
 noResults :: Pretty
 noResults = P.callout "😶" $

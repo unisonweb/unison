@@ -49,6 +49,7 @@ module Unison.Util.Pretty (
    lineSkip,
    nonEmpty,
    numbered,
+   numberedColumn2,
    orElse,
    orElses,
    paragraphyText,
@@ -354,6 +355,13 @@ numbered
   -> f (Pretty s)
   -> Pretty s
 numbered num ps = column2 (fmap num [1 ..] `zip` toList ps)
+
+numberedColumn2
+  :: (Foldable f, LL.ListLike s Char, IsString s)
+  => (Int -> Pretty s)
+  -> f (Pretty s, Pretty s)
+  -> Pretty s
+numberedColumn2 num ps = numbered num (align $ toList ps)
 
 leftPad, rightPad :: IsString s => Int -> Pretty s -> Pretty s
 leftPad n p =

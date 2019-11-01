@@ -698,19 +698,16 @@ loop = do
           Right selection -> do
             let allMd' = Map.restrictKeys allMd selection
                 allRefs = toList (Set.unions (Map.elems allMd'))
-            termDisplays <- Map.fromList <$> do
-              terms <- filterM (eval . IsTerm) allRefs
-              traverse (\r -> (r,) <$> loadTermDisplayThing r) terms
-            --   typeDisplays <- Map.fromList <$> do
-            --     types <- filterM (eval . IsType) allRefs
-            --     traverse (\r -> (r,) <$> loadTypeDisplayThing r) types
-            ppe <- prettyPrintEnv =<< makePrintNamesFromLabeled' (deps termDisplays)
-            respond $ DisplayLinks ppe allMd' mempty termDisplays
-          where
-            deps :: Map Reference (DisplayThing (Term v Ann)) -> Set LabeledDependency
-            deps dts = Set.map LD.termRef (Map.keysSet dts)
-                    <> foldMap Term.labeledDependencies
-                               (mapMaybe DT.toMaybe $ Map.elems dts)
+                results :: Set Reference = Set.unions $ Map.elems allMd'
+            sigs <- for (toList results) $ 
+              \r -> loadTypeOfTerm (Referent.Ref r)
+            let deps = Set.map LD.termRef results <> 
+                       Set.unions [ Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs ]
+            ppe <- prettyPrintEnv =<< makePrintNamesFromLabeled' deps 
+            let sortedSigs = sortOn snd (toList results `zip` sigs)  
+            let out = [(PPE.termName ppe (Referent.Ref r), t) | (r, t) <- sortedSigs ] 
+            numberedArgs .= fmap (HQ.toString . fst) out
+            respond $ ListOfLinks ppe out
 
       MoveTermI src dest ->
         case (toList (getHQ'Terms src), toList (getTerms dest)) of
