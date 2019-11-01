@@ -345,6 +345,9 @@ lexer0 scope rem =
       '?' : c : rem ->
         let end = inc $ inc pos in
         Token (Character c) pos end : goWhitespace l end rem
+      '[' : ':' : rem -> 
+        let end = inc . inc $ pos in
+        Token (Open "[:") pos (inc . inc $ pos) : lexDoc l end rem
       -- '{' and '(' both introduce a block, which is closed by '}' and ')'
       -- The lexer doesn't distinguish among closing blocks: all the ways of
       -- closing a block emit the same sort of token, `Close`.
@@ -475,6 +478,40 @@ lexer0 scope rem =
           let end = incBy num pos in Token (Numeric num) pos end : goWhitespace l end rem
         Right Nothing -> Token (Err UnknownLexeme) pos pos : recover l pos rem
         Left e -> Token (Err e) pos pos : recover l pos rem
+
+    lexDoc l pos rem = case rem of
+      _ -> docBlob l pos rem pos []
+
+    docBlob l pos rem blobStart acc = case rem of
+      '@' : (hqToken (inc pos) -> Just (tok, rem)) -> 
+        let pos' = inc $ end tok in
+        Token (Textual (reverse acc)) blobStart pos : 
+        tok : 
+        docBlob l pos' rem pos' []
+      '\\' : '@' : (hqToken pos -> Just (tok, rem)) -> 
+        let pos' = (inc . inc $ end tok) in
+        Token (Textual (reverse acc)) blobStart pos : 
+        tok : 
+        docBlob l pos' rem pos' []
+      ':' : ']' : rem -> 
+        let pos' = inc . inc $ pos in 
+        Token Close pos pos' : goWhitespace l pos' rem 
+      [] -> recover l pos rem
+      ch : rem -> docBlob l (inc pos) rem blobStart (ch:acc)
+
+    hqToken :: Pos -> String -> Maybe (Token Lexeme, String) 
+    hqToken pos rem = case rem of
+      (shortHash -> Right (h, rem)) -> 
+        Just (Token (Hash h) pos (incBy (SH.toString h) pos), rem)
+      (wordyId -> Right (id, rem)) -> case rem of
+        (shortHash -> Right (h, rem)) -> 
+          Just (Token (WordyId id $ Just h) pos (incBy id . incBy (SH.toString h) $ pos), rem)
+        _ -> Just (Token (WordyId id Nothing) pos (incBy id pos), rem)
+      (symbolyId -> Right (id, rem)) -> case rem of
+        (shortHash -> Right (h, rem)) ->  
+          Just (Token (SymbolyId id $ Just h) pos (incBy id . incBy (SH.toString h) $ pos), rem)
+        _ -> Just (Token (SymbolyId id Nothing) pos (incBy id pos), rem)
+      _ -> Nothing
 
     recover _l _pos _rem = []
 
