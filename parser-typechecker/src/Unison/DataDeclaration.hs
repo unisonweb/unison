@@ -16,7 +16,6 @@ import Control.Lens (_3, over)
 import Data.Bifunctor (first)
 import qualified Unison.Util.Relation as Rel
 import           Data.List                      ( sortOn, elemIndex, find )
-import           Data.List.Extra                (firstJust)
 import           Unison.Hash                    ( Hash )
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
@@ -427,8 +426,11 @@ failResult ann msg =
                (Term.text ann msg)
 
 builtinDataDecls :: Var v => [(v, Reference, DataDeclaration' v ())]
-builtinDataDecls = rs
+builtinDataDecls = rs1 ++ rs
  where
+  rs1 = case hashDecls $ Map.fromList
+    [ (v "Link"           , link)
+    ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
   rs = case hashDecls $ Map.fromList
     [ (v "Unit"           , unit)
     , (v "Tuple"          , tuple)
@@ -437,7 +439,7 @@ builtinDataDecls = rs
     , (v "Link"           , link)
     , (v "Doc"            , doc)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
-  Just linkRef = firstJust (\(n,r,_) -> if v "Link" == n then Just r else Nothing) rs
+  [(_, linkRef, _)] = rs1 
   v = Var.named
   var name = Type.var () (v name)
   arr  = Type.arrow'
