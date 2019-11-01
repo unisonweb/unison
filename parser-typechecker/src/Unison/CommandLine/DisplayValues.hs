@@ -56,8 +56,7 @@ displayDoc ppe terms typeOf evaluated types t = go t
   go (B.DocSource (B.LinkTerm (Term.TermLink' r))) = prettyTerm terms r 
   go (B.DocSource (B.LinkType (Term.TypeLink' r))) = prettyType r
   go (B.DocSignature (Term.TermLink' r)) = prettySignature r
-  go (B.DocEvaluate sep (Term.TermLink' r)) =
-    foldMap id <$> sequence [ prettyTerm terms r, go sep, prettyTerm evaluated r ]
+  go (B.DocEvaluate (Term.TermLink' r)) = prettyTerm evaluated r
   go tm = pure $ TP.pretty ppe tm
   prettySignature r = typeOf r >>= \case
     Nothing -> pure $ termName ppe r 

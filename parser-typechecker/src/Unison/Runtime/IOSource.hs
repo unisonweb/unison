@@ -160,7 +160,7 @@ pattern DocBlob txt <- Term.App' (Term.Constructor' DocReference DocBlobId) (Ter
 pattern DocLink link <- Term.App' (Term.Constructor' DocReference DocLinkId) link
 pattern DocSource link <- Term.App' (Term.Constructor' DocReference DocSourceId) link
 pattern DocSignature link <- Term.App' (Term.Constructor' DocReference DocSignatureId) link
-pattern DocEvaluate sep link <- Term.Apps' (Term.Constructor' DocReference DocEvaluateId) [sep, link]
+pattern DocEvaluate link <- Term.App' (Term.Constructor' DocReference DocEvaluateId) link
 pattern DocSignatureId <- ((== docSignatureId) -> True)
 pattern DocBlobId <- ((== docBlobId) -> True)
 pattern DocLinkId <- ((== docLinkId) -> True)
@@ -187,9 +187,7 @@ unique[c63a75b845e4f7d01107d852e4c2485c51a50aaaa94fc61995e71bbee983a2ac371383126
   | Link Link            -- a link to a term or type
   | Signature Link.Term  -- the signature of the term
   | Source Link          -- include the source
-  -- include both the source and the evaluated result, separated
-  -- by the given `Doc` (might be `Blob "\n\n🔽\n\n"` or some such)
-  | Evaluate Doc Link.Term
+  | Evaluate Link.Term   -- include the evaluated result
   | Join [Doc]
 
 d1 Doc.++ d2 = 
