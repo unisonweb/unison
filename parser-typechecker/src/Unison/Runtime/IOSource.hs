@@ -26,7 +26,6 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Var as Var
 import qualified Unison.Names3 as Names
-import qualified Unison.Term as Term
 
 typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile = let
@@ -88,8 +87,7 @@ linkReference = typeNamed "Link"
 isTest :: (R.Reference, R.Reference)
 isTest = (isTestReference, termNamed "metadata.isTest")
 
-eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId, bufferModeLineId, bufferModeBlockId, filePathId, docBlobId, docLinkId, docSignatureId, docJoinId, docSourceId, docEvaluateId, linkTermId, linkTypeId
-  :: DD.ConstructorId
+eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId, bufferModeLineId, bufferModeBlockId, filePathId :: DD.ConstructorId
 eitherLeftId = constructorNamed eitherReference "Either.Left"
 eitherRightId = constructorNamed eitherReference "Either.Right"
 someId = constructorNamed optionReference "Optional.Some"
@@ -102,14 +100,6 @@ epochTimeId = constructorNamed epochTimeReference "io.EpochTime.EpochTime"
 bufferModeLineId = constructorNamed bufferModeReference "io.BufferMode.Line"
 bufferModeBlockId = constructorNamed bufferModeReference "io.BufferMode.Block"
 filePathId = constructorNamed filePathReference "io.FilePath.FilePath"
-docBlobId = constructorNamed docReference "Doc.Blob"
-docLinkId = constructorNamed docReference "Doc.Link"
-docSignatureId = constructorNamed docReference "Doc.Signature"
-docSourceId = constructorNamed docReference "Doc.Source"
-docEvaluateId = constructorNamed docReference "Doc.Evaluate"
-docJoinId = constructorNamed docReference "Doc.Join"
-linkTermId = constructorNamed linkReference "Link.Term"
-linkTypeId = constructorNamed linkReference "Link.Type"
 
 mkErrorType :: Text -> DD.ConstructorId
 mkErrorType = constructorNamed errorTypeReference
@@ -153,26 +143,6 @@ constructorName ref cid =
         <> show ref
     Just decl -> genericIndex (DD.constructorNames $ TL.asDataDecl decl) cid
 
--- some pattern synonyms to make pattern matching on some of these constants more pleasant 
-pattern DocReference <- ((== docReference) -> True) 
-pattern DocJoin segs <- Term.App' (Term.Constructor' DocReference DocJoinId) (Term.Sequence' segs)
-pattern DocBlob txt <- Term.App' (Term.Constructor' DocReference DocBlobId) (Term.Text' txt)
-pattern DocLink link <- Term.App' (Term.Constructor' DocReference DocLinkId) link
-pattern DocSource link <- Term.App' (Term.Constructor' DocReference DocSourceId) link
-pattern DocSignature link <- Term.App' (Term.Constructor' DocReference DocSignatureId) link
-pattern DocEvaluate link <- Term.App' (Term.Constructor' DocReference DocEvaluateId) link
-pattern DocSignatureId <- ((== docSignatureId) -> True)
-pattern DocBlobId <- ((== docBlobId) -> True)
-pattern DocLinkId <- ((== docLinkId) -> True)
-pattern DocSourceId <- ((== docSourceId) -> True)
-pattern DocEvaluateId <- ((== docEvaluateId) -> True)
-pattern DocJoinId <- ((== docJoinId) -> True)
-pattern LinkTermId <- ((== linkTermId) -> True)
-pattern LinkTypeId <- ((== linkTypeId) -> True)
-pattern LinkReference <- ((== linkReference) -> True)
-pattern LinkTerm tm <- Term.App' (Term.Constructor' LinkReference LinkTermId) tm 
-pattern LinkType ty <- Term.App' (Term.Constructor' LinkReference LinkTypeId) ty 
-
 -- .. todo - fill in the rest of these
 
 source :: Text
@@ -182,14 +152,6 @@ type Either a b = Left a | Right b
 
 type Optional a = None | Some a
 
-unique[c63a75b845e4f7d01107d852e4c2485c51a50aaaa94fc61995e71bbee983a2ac3713831264adb47fb6bd1e058d5f004] type Doc
-  = Blob Text
-  | Link Link            -- a link to a term or type
-  | Signature Link.Term  -- the signature of the term
-  | Source Link          -- include the source
-  | Evaluate Link.Term   -- include the evaluated result
-  | Join [Doc]
-
 d1 Doc.++ d2 = 
   use Doc 
   case (d1,d2) of
@@ -197,10 +159,6 @@ d1 Doc.++ d2 =
     (Join ds, _) -> Join (ds `Sequence.snoc` d2)
     (_, Join ds) -> Join (d1 `Sequence.cons` ds)
     _ -> Join [d1,d2]
-
-unique[a5803524366ead2d7f3780871d48771e8142a3b48802f34a96120e230939c46bd5e182fcbe1fa64e9bff9bf741f3c04] type Link
-  = Term Link.Term
-  | Type Link.Type
 
 -- This is linked to definitions that are considered tests
 unique[e6dca08b40458b03ca1660cfbdaecaa7279b42d18257898b5fd1c34596aac36f] type

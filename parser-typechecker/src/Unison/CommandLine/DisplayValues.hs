@@ -15,7 +15,6 @@ import qualified Unison.NamePrinter as NP
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Referent as Referent
 import qualified Unison.Reference as Reference
-import qualified Unison.Runtime.IOSource as B
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TP
 import qualified Unison.TypePrinter as TypePrinter
@@ -49,14 +48,14 @@ displayDoc :: (Var v, Monad m)
            -> m Pretty
 displayDoc ppe terms typeOf evaluated types t = go t
   where
-  go (B.DocJoin docs) = foldMap id <$> traverse go docs
-  go (B.DocBlob txt) = pure $ P.paragraphyText txt
-  go (B.DocLink (B.LinkTerm (Term.TermLink' r))) = pure $ termName ppe r 
-  go (B.DocLink (B.LinkType (Term.TypeLink' r))) = pure $ typeName ppe r 
-  go (B.DocSource (B.LinkTerm (Term.TermLink' r))) = prettyTerm terms r 
-  go (B.DocSource (B.LinkType (Term.TypeLink' r))) = prettyType r
-  go (B.DocSignature (Term.TermLink' r)) = prettySignature r
-  go (B.DocEvaluate (Term.TermLink' r)) = prettyTerm evaluated r
+  go (DD.DocJoin docs) = foldMap id <$> traverse go docs
+  go (DD.DocBlob txt) = pure $ P.paragraphyText txt
+  go (DD.DocLink (DD.LinkTerm (Term.TermLink' r))) = pure $ termName ppe r 
+  go (DD.DocLink (DD.LinkType (Term.TypeLink' r))) = pure $ typeName ppe r 
+  go (DD.DocSource (DD.LinkTerm (Term.TermLink' r))) = prettyTerm terms r 
+  go (DD.DocSource (DD.LinkType (Term.TypeLink' r))) = prettyType r
+  go (DD.DocSignature (Term.TermLink' r)) = prettySignature r
+  go (DD.DocEvaluate (Term.TermLink' r)) = prettyTerm evaluated r
   go tm = pure $ TP.pretty ppe tm
   prettySignature r = typeOf r >>= \case
     Nothing -> pure $ termName ppe r 
