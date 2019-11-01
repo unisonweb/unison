@@ -488,6 +488,12 @@ lexer0 scope rem =
         Token (Textual (reverse acc)) blobStart pos : 
         tok : 
         docBlob l pos' rem pos' []
+      '@' : (docType pos -> Just (typTok, pos', rem)) ->
+        Token (Textual (reverse acc)) blobStart pos : case rem of
+         (hqToken pos' -> Just (tok, rem)) -> 
+           let pos'' = inc (end tok) in
+           typTok : tok : docBlob l pos'' rem pos' []
+         _ -> recover l pos rem 
       '\\' : '@' : (hqToken pos -> Just (tok, rem)) -> 
         let pos' = (inc . inc $ end tok) in
         Token (Textual (reverse acc)) blobStart pos : 
@@ -498,6 +504,16 @@ lexer0 scope rem =
         Token Close pos pos' : goWhitespace l pos' rem 
       [] -> recover l pos rem
       ch : rem -> docBlob l (inc pos) rem blobStart (ch:acc)
+
+    docType :: Pos -> String -> Maybe (Token Lexeme, Pos, String) 
+    docType pos rem = case rem of
+      -- this crazy one liner parses [<stuff>]<whitespace>, as a pattern match
+      '[' : (span (/= ']') -> (typ, ']' : (span isSpace -> (spaces, rem)))) -> 
+         -- advance past [, <typ>, ], <whitespace>
+         let pos' = incBy typ . inc . incBy spaces . inc $ pos in
+         -- the reserved token doesn't include the `[]` chars
+         Just (Token (Reserved typ) (inc pos) (incBy typ . inc $ pos), pos', rem)
+      _ -> Nothing
 
     hqToken :: Pos -> String -> Maybe (Token Lexeme, String) 
     hqToken pos rem = case rem of
