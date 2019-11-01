@@ -840,7 +840,9 @@ links = InputPattern
   "links"
   []
   [(Required, exactDefinitionQueryArg), (Optional, exactDefinitionQueryArg)]
-  "`links src` shows all outgoing links from `src`. `link src <type>` shows all links for the given type."
+  (P.column2 [
+    (makeExample links ["src"], "shows all outgoing links from `src`."),
+    (makeExample links ["src", "<type>"], "shows all links for the given type.") ])
   (\case
     src : rest -> first fromString $ do
       src <- Path.parseHQSplit' src

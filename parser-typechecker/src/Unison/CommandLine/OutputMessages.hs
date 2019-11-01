@@ -1092,9 +1092,13 @@ listOfLinks _ [] = pure . P.callout "😶" . P.wrap $
   "No results. Try using the " <> 
   IP.makeExample IP.link [] <> 
   "command to add outgoing links to a definition."
-listOfLinks ppe results = pure $ 
-  P.numberedColumn2 num [
+listOfLinks ppe results = pure $ P.lines [
+    P.numberedColumn2 num [
     (P.syntaxToColor $ prettyHashQualified hq, ": " <> prettyType typ) | (hq,typ) <- results
+    ], "",
+    tip $ "Try using" <> IP.makeExample IP.display ["1"] 
+       <> "to display the first result or" 
+       <> IP.makeExample IP.view ["1"] <> "to view its source."
     ]
   where
   num i = P.hiBlack $ P.shown i <> "."
