@@ -501,7 +501,8 @@ lexer0 scope rem =
         docBlob l pos' rem pos' []
       ':' : ']' : rem -> 
         let pos' = inc . inc $ pos in 
-        Token Close pos pos' : goWhitespace l pos' rem 
+        (if null acc then id else (Token (Textual (reverse acc)) blobStart pos :)) $
+          Token Close pos pos' : goWhitespace l pos' rem 
       [] -> recover l pos rem
       ch : rem -> docBlob l (inc pos) rem blobStart (ch:acc)
 
