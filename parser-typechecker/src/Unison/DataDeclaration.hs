@@ -175,6 +175,17 @@ constructorVars dd = fst <$> constructors dd
 constructorNames :: Var v => DataDeclaration' v a -> [Text]
 constructorNames dd = Var.name <$> constructorVars dd
 
+-- | All variables mentioned in the given data declaration.
+-- Includes both term and type variables, both free and bound.
+allVars :: Ord v => DataDeclaration' v a -> Set v
+allVars (DataDeclaration _ _ bound ctors) = Set.unions $
+  Set.fromList bound : [ Set.insert v (Set.fromList $ ABT.allVars tp) | (_,v,tp) <- ctors ]
+
+-- | All variables mentioned in the given declaration.
+-- Includes both term and type variables, both free and bound.
+allVars' :: Ord v => Decl v a -> Set v
+allVars' = allVars . either toDataDecl id
+
 bindNames :: Var v
           => Set v
           -> Names0
