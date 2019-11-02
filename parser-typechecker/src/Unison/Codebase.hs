@@ -186,7 +186,7 @@ makeSelfContained'
 makeSelfContained' code uf = do
   let deps0 = Term.dependencies . snd <$> (UF.allWatches uf <> UF.terms uf)
   deps <- foldM (transitiveDependencies code) Set.empty (Set.unions deps0)
-  let refVar r = Var.typed (Var.RefNamed r)
+  let refVar r = Var.refNamed r
 --  let termName r = PPE.termName pp (Referent.Ref r)
 --      typeName r = PPE.typeName pp r
   decls <- fmap catMaybes . forM (toList deps) $ \case

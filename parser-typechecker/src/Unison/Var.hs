@@ -33,6 +33,9 @@ freshIn = ABT.freshIn
 named :: Var v => Text -> v
 named n = typed (User n)
 
+refNamed :: Var v => Reference -> v
+refNamed = typed . RefNamed
+
 name :: Var v => v -> Text
 name v = case typeOf v of
   User n -> n <> showid v

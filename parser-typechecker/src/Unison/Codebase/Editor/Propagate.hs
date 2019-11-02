@@ -326,7 +326,7 @@ propagate errorPPE patch b = case validatePatch patch of
           Reference.DerivedId id -> do
             mtm <- eval $ LoadTerm id
             tm  <- maybe (fail $ "Missing term with id " <> show id) pure mtm
-            pure $ Just (Var.typed (Var.RefNamed termRef), (termRef, tm, tp))
+            pure $ Just (Var.refNamed termRef, (termRef, tm, tp))
           _ -> pure Nothing
       unhash m =
         let f (ref, _oldTm, oldTyp) (_ref, newTm) = (ref, newTm, oldTyp)
@@ -348,7 +348,7 @@ propagate errorPPE patch b = case validatePatch patch of
           decl  <- maybe (fail $ "Missing type declaration " <> show typeRef)
                          pure
                          declm
-          pure $ Just (Var.typed (Var.RefNamed typeRef), (typeRef, decl))
+          pure $ Just (Var.refNamed typeRef, (typeRef, decl))
         _ -> pure Nothing
       unhash m =
         let f (ref, _oldDecl) (_ref, newDecl) = (ref, newDecl)
