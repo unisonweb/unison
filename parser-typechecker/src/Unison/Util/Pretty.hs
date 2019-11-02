@@ -142,12 +142,16 @@ wrapImpl (p:ps) = wrap_ . Seq.fromList $
 wrapString :: (LL.ListLike s Char, IsString s) => String -> Pretty s
 wrapString s = wrap (lit $ fromString s)
 
+-- 0. Preserve all leading and trailing spaces
 -- 1. Convert multiple adjacent blank lines to a single blank line.
 -- 2. Combine adjacent non-blank lines into one line.
 -- 3. Wrap each remaining line.
 paragraphyText :: (LL.ListLike s Char, IsString s) => Text -> Pretty s
-paragraphyText t = lines $ go mempty (Text.unpack t) where
-  go acc [] = [wrap acc]
+paragraphyText t = case span isSpace (Text.unpack t) of 
+  (sp,t) -> string sp <> lines (go mempty t)
+  where
+  trailingSp = Text.takeWhileEnd (== ' ') t
+  go acc [] = [wrap acc <> text trailingSp]
   go acc (span isSpace -> (sp, rest)) = 
     if length (filter (=='\n') sp) < 2 then munch acc
     else wrap acc : mempty : munch mempty
