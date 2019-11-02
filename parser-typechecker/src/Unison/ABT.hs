@@ -12,6 +12,7 @@ module Unison.ABT where
 
 import Unison.Prelude
 
+import Control.Monad.State (MonadState,evalState,get,put)
 import Data.Functor.Identity (runIdentity)
 import Data.List hiding (cycle)
 import Data.Vector ((!))
@@ -281,10 +282,16 @@ freshes :: Var v => Term f v a -> [v] -> [v]
 freshes = freshes' . freeVars
 
 freshes' :: Var v => Set v -> [v] -> [v]
-freshes' _ [] = []
-freshes' used (h:t) =
-  let h' = freshIn used h
-  in h' : freshes' (Set.insert h' used) t
+freshes' used vs = evalState (traverse freshenS vs) used
+
+-- | Freshens the given variable wrt. the set of used variables
+-- tracked by state. Adds the result to the set of used variables.
+freshenS :: (Var v, MonadState (Set v) m) => v -> m v
+freshenS v = do
+  used <- get
+  let v' = freshIn used v
+  put (Set.insert v' used)
+  pure v'
 
 -- | `subst v e body` substitutes `e` for `v` in `body`, avoiding capture by
 -- renaming abstractions in `body`
