@@ -13,6 +13,8 @@ module Unison.DataDeclaration where
 import Unison.Prelude
 
 import Control.Lens (_3, over)
+import Control.Monad.State (evalState)
+
 import Data.Bifunctor (first, second)
 import qualified Unison.Util.Relation as Rel
 import           Data.List                      ( sortOn, elemIndex, find )
@@ -342,9 +344,10 @@ unhashComponent
   :: forall v a. Var v => Map Reference (Decl v a) -> Map Reference (v, Decl v a)
 unhashComponent m
   = let
+      usedVars = foldMap allVars' m
       m' :: Map Reference (v, Decl v a)
-      m' = Map.mapWithKey assignVar m where
-        assignVar r d = (Var.refNamed r, d)
+      m' = evalState (Map.traverseWithKey assignVar m) usedVars where
+        assignVar r d = (,d) <$> ABT.freshenS (Var.refNamed r)
       unhash1  = ABT.rebuildUp' go
        where
         go e@(Type.Ref' r) = case Map.lookup r m' of
