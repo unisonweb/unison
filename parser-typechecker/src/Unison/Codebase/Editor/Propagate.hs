@@ -36,7 +36,6 @@ import           Unison.Util.Free               ( Free
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.TransitiveClosure  ( transitiveClosure )
 import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.Codebase.TermEdit       ( TermEdit(..) )
 import qualified Unison.Codebase.TermEdit      as TermEdit
@@ -341,18 +340,17 @@ propagate errorPPE patch b = case validatePatch patch of
   unhashTypeComponent ref = do
     let
       component = Reference.members $ Reference.componentFor ref
-      typeInfo :: Reference -> F m i v (Maybe (v, (Reference, Decl v Ann)))
+      typeInfo :: Reference -> F m i v (Maybe (Reference, Decl v Ann))
       typeInfo typeRef = case typeRef of
         Reference.DerivedId id -> do
           declm <- eval $ LoadType id
           decl  <- maybe (fail $ "Missing type declaration " <> show typeRef)
                          pure
                          declm
-          pure $ Just (Var.refNamed typeRef, (typeRef, decl))
+          pure $ Just (typeRef, decl)
         _ -> pure Nothing
-      unhash m =
-        let f (ref, _oldDecl) (_ref, newDecl) = (ref, newDecl)
-        in  Map.intersectionWith f m (Decl.unhashComponent m)
+      unhash = Map.fromList . map reshuffle . Map.toList . Decl.unhashComponent
+        where reshuffle (r, (v, decl)) = (v, (r, decl))
     unhash . Map.fromList . catMaybes <$> traverse typeInfo (toList component)
   verifyTermComponent
     :: Map v (Reference, Term v _, a)

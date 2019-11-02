@@ -13,7 +13,7 @@ module Unison.DataDeclaration where
 import Unison.Prelude
 
 import Control.Lens (_3, over)
-import Data.Bifunctor (first)
+import Data.Bifunctor (first, second)
 import qualified Unison.Util.Relation as Rel
 import           Data.List                      ( sortOn, elemIndex, find )
 import           Unison.Hash                    ( Hash )
@@ -339,15 +339,17 @@ updateDependencies typeUpdates decl = back $ dataDecl
 -- This converts `Reference`s it finds that are in the input `Map`
 -- back to free variables
 unhashComponent
-  :: Var v => Map v (Reference, Decl v a) -> Map v (Reference, Decl v a)
+  :: forall v a. Var v => Map Reference (Decl v a) -> Map Reference (v, Decl v a)
 unhashComponent m
   = let
-      refToVar = Map.fromList [ (r, v) | (v, (r, _)) <- Map.toList m ]
+      m' :: Map Reference (v, Decl v a)
+      m' = Map.mapWithKey assignVar m where
+        assignVar r d = (Var.refNamed r, d)
       unhash1  = ABT.rebuildUp' go
        where
-        go e@(Type.Ref' r) = case Map.lookup r refToVar of
+        go e@(Type.Ref' r) = case Map.lookup r m' of
           Nothing -> e
-          Just v  -> Type.var (ABT.annotation e) v
+          Just (v,_)  -> Type.var (ABT.annotation e) v
         go e = e
       unhash2 (Right dd@DataDeclaration{}) = Right $ unhash3 dd
       unhash2 (Left (EffectDeclaration dd)) =
@@ -355,7 +357,7 @@ unhashComponent m
       unhash3 dd@DataDeclaration {..} =
         dd { constructors' = fmap (over _3 unhash1) constructors' }
     in
-      Map.fromList [ (v, (r, unhash2 e)) | (v, (r, e)) <- Map.toList m ]
+      second unhash2 <$> m'
 
 -- Implementation detail of `hashDecls`, works with unannotated data decls
 hashDecls0 :: (Eq v, Var v) => Map v (DataDeclaration' v ()) -> [(v, Reference)]
