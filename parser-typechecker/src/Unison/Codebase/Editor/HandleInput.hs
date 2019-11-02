@@ -788,9 +788,8 @@ loop = do
             respond $ CantDelete input ppe failed failedDependents
 
       DisplayI outputLoc s@(HQ.unsafeFromString -> hq) -> do 
-        -- parseNames <- makeHistoricalParsingNames $ Set.fromList [hq]
         parseNames <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
-        let results = resolveTermName parseNames hq
+        let results = Names3.lookupHQTerm hq parseNames 
         if Set.null results then 
           respond $ SearchTermsNotFound $ [hq]
         else if Set.size results > 1 then
@@ -1560,11 +1559,6 @@ collateReferences (toList -> types) (toList -> terms) =
   let terms' = [ r | Referent.Ref r <- terms ]
       types' = [ r | Referent.Con r _ _ <- terms ]
   in  (Set.fromList types' <> Set.fromList types, Set.fromList terms')
-
-
-resolveTermName :: Names -> HQ.HashQualified -> Set Referent
-resolveTermName names query = 
-  Names3.lookupHQTerm query names
 
 -- | The output list (of lists) corresponds to the query list.
 searchBranchExact :: Int -> Names -> [HQ.HashQualified] -> [[SearchResult]]

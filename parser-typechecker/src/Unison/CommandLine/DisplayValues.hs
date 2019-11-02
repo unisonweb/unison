@@ -79,24 +79,3 @@ typeName :: PPE.PrettyPrintEnv -> Reference -> Pretty
 typeName ppe r = P.syntaxToColor $ 
   NP.styleHashQualified'' (NP.fmt S.Reference) name
   where name = PPE.typeName ppe r
-
-{-
-
-Hello, this is some documentation. 
-
-`foo` is a link. 
-
-``this is not a link``, just some backticked stuff
-
-```unison
-{{ Source @termLink foo }}
-```
-
-@ docs.List.map
-@ pchiusano
-@ licenses.MIT
-List.map f x = 
-  ...
-
--}
-
