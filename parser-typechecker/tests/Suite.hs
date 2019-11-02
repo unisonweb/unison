@@ -23,6 +23,7 @@ import qualified Unison.Test.Typechecker.TypeError as TypeError
 import qualified Unison.Test.UnisonSources as UnisonSources
 import qualified Unison.Test.Util.Bytes as Bytes
 import qualified Unison.Test.Var as Var
+import qualified Unison.Test.Codebase as Codebase
 import qualified Unison.Test.Codebase.FileCodebase as FileCodebase
 
 test :: Test ()
@@ -46,6 +47,7 @@ test = tests
   , FileCodebase.test
   , ABT.test
   , Var.test
+  , Codebase.test
  ]
 
 main :: IO ()

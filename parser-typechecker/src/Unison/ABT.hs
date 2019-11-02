@@ -12,7 +12,8 @@ module Unison.ABT where
 
 import Unison.Prelude
 
-import Control.Monad.State (MonadState,evalState,get,put)
+import Control.Lens (Lens', use, (.=))
+import Control.Monad.State (MonadState,evalState)
 import Data.Functor.Identity (runIdentity)
 import Data.List hiding (cycle)
 import Data.Vector ((!))
@@ -287,10 +288,15 @@ freshes' used vs = evalState (traverse freshenS vs) used
 -- | Freshens the given variable wrt. the set of used variables
 -- tracked by state. Adds the result to the set of used variables.
 freshenS :: (Var v, MonadState (Set v) m) => v -> m v
-freshenS v = do
-  used <- get
-  let v' = freshIn used v
-  put (Set.insert v' used)
+freshenS = freshenS' id
+
+-- | A more general version of `freshenS` that uses a lens
+-- to focus on used variables inside state.
+freshenS' :: (Var v, MonadState s m) => Lens' s (Set v) -> v -> m v
+freshenS' uvLens v = do
+  usedVars <- use uvLens
+  let v' = freshIn usedVars v
+  uvLens .= Set.insert v' usedVars
   pure v'
 
 -- | `subst v e body` substitutes `e` for `v` in `body`, avoiding capture by

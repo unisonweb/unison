@@ -286,6 +286,16 @@ unannotate = go
 wrapV :: Ord v => AnnotatedTerm v a -> AnnotatedTerm (ABT.V v) a
 wrapV = vmap ABT.Bound
 
+-- | All variables mentioned in the given term.
+-- Includes both term and type variables, both free and bound.
+allVars :: Ord v => AnnotatedTerm v a -> Set v
+allVars tm = Set.fromList $
+  ABT.allVars tm ++ [ v | tp <- allTypes tm, v <- ABT.allVars tp ]
+  where
+  allTypes tm = case tm of
+    Ann' e tp -> tp : allTypes e
+    _ -> foldMap allTypes $ ABT.out tm
+
 freeVars :: AnnotatedTerm' vt v a -> Set v
 freeVars = ABT.freeVars
 
