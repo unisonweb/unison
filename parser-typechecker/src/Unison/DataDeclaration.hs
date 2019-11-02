@@ -436,7 +436,6 @@ builtinDataDecls = rs1 ++ rs
     , (v "Tuple"          , tuple)
     , (v "Optional"       , opt)
     , (v "Test.Result"    , tr)
-    , (v "Link"           , link)
     , (v "Doc"            , doc)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
   [(_, linkRef, _)] = rs1 

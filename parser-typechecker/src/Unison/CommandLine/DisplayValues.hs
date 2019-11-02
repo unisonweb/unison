@@ -59,16 +59,16 @@ displayDoc ppe terms typeOf evaluated types t = go t
   go tm = pure $ TP.pretty ppe tm
   prettySignature r = typeOf r >>= \case
     Nothing -> pure $ termName ppe r 
-    Just typ -> pure $ TypePrinter.prettySignatures ppe [(PPE.termName ppe r, typ)]
+    Just typ -> pure $ P.group $ TypePrinter.prettySignatures ppe [(PPE.termName ppe r, typ)]
   prettyTerm terms r = case r of
     Referent.Ref (Reference.Builtin _) -> prettySignature r 
     Referent.Ref ref -> terms ref >>= \case
       Nothing -> pure $ "😶  Missing term source for: " <> termName ppe r
-      Just tm -> pure . P.syntaxToColor $ TP.prettyBinding ppe (PPE.termName ppe r) tm
+      Just tm -> pure . P.syntaxToColor $ P.group $ TP.prettyBinding ppe (PPE.termName ppe r) tm
     Referent.Con r _ _ -> prettyType r 
   prettyType r = types r >>= \case
     Nothing -> pure $ "😶  Missing type source for: " <> typeName ppe r
-    Just ty -> pure . P.syntaxToColor $ DP.prettyDecl ppe r (PPE.typeName ppe r) ty
+    Just ty -> pure . P.syntaxToColor $ P.group $ DP.prettyDecl ppe r (PPE.typeName ppe r) ty
 
 termName :: PPE.PrettyPrintEnv -> Referent -> Pretty
 termName ppe r = P.syntaxToColor $ 

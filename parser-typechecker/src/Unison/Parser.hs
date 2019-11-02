@@ -92,6 +92,7 @@ data Error v
   | UnknownDataConstructor (L.Token HQ.HashQualified) (Set (Reference, Int))
   | UnknownTerm (L.Token HQ.HashQualified) (Set Referent)
   | UnknownType (L.Token HQ.HashQualified) (Set Reference)
+  | UnknownId (L.Token HQ.HashQualified) (Set Referent) (Set Reference)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
   | EmptyWatch
   | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])

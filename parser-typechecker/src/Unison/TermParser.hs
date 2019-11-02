@@ -88,6 +88,15 @@ termLink' = do
     s | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
       | otherwise       -> customFailure $ UnknownTerm id s
       
+link' :: Var v => P v (Either (L.Token Reference) (L.Token Referent))
+link' = do
+  id <- hqPrefixId
+  ns <- asks names
+  case (Names.lookupHQTerm (L.payload id) ns, Names.lookupHQType (L.payload id) ns) of 
+    (s, s2) | Set.size s == 1 && Set.null s2 -> pure . Right $ const (Set.findMin s) <$> id
+    (s, s2) | Set.size s2 == 1 && Set.null s -> pure . Left $ const (Set.findMin s2) <$> id
+    (s, s2) -> customFailure $ UnknownId id s s2
+
 link :: Var v => TermP v
 link = termLink <|> typeLink 
   where
@@ -318,18 +327,18 @@ docBlock = do
                     (Term.termLink (ann tok) (L.payload tok))
   source = do
     _ <- P.try (reserved "source")
-    l <- link' 
+    l <- link'' 
     pure $ Term.app (ann l) 
                     (Term.constructor (ann l) DD.docRef DD.docSourceId)
                     l 
-  link' = asum [t <$> termLink', ty <$> typeLink' ] where
+  link'' = either ty t <$> link' where
     t tok = Term.app (ann tok) 
                      (Term.constructor (ann tok) DD.linkRef DD.linkTermId) 
                      (Term.termLink (ann tok) (L.payload tok))
     ty tok = Term.app (ann tok) 
                       (Term.constructor (ann tok) DD.linkRef DD.linkTypeId) 
                       (Term.typeLink (ann tok) (L.payload tok))
-  link = d <$> link' where
+  link = d <$> link'' where
     d tm = Term.app (ann tm) (Term.constructor (ann tm) DD.docRef DD.docLinkId) tm
   
 delayQuote :: Var v => TermP v
