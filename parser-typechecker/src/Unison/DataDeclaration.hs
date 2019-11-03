@@ -13,7 +13,9 @@ module Unison.DataDeclaration where
 import Unison.Prelude
 
 import Control.Lens (_3, over)
-import Data.Bifunctor (first)
+import Control.Monad.State (evalState)
+
+import Data.Bifunctor (first, second)
 import qualified Unison.Util.Relation as Rel
 import           Data.List                      ( sortOn, elemIndex, find )
 import           Unison.Hash                    ( Hash )
@@ -175,6 +177,17 @@ constructorVars dd = fst <$> constructors dd
 constructorNames :: Var v => DataDeclaration' v a -> [Text]
 constructorNames dd = Var.name <$> constructorVars dd
 
+-- | All variables mentioned in the given data declaration.
+-- Includes both term and type variables, both free and bound.
+allVars :: Ord v => DataDeclaration' v a -> Set v
+allVars (DataDeclaration _ _ bound ctors) = Set.unions $
+  Set.fromList bound : [ Set.insert v (Set.fromList $ ABT.allVars tp) | (_,v,tp) <- ctors ]
+
+-- | All variables mentioned in the given declaration.
+-- Includes both term and type variables, both free and bound.
+allVars' :: Ord v => Decl v a -> Set v
+allVars' = allVars . either toDataDecl id
+
 bindNames :: Var v
           => Set v
           -> Names0
@@ -328,15 +341,18 @@ updateDependencies typeUpdates decl = back $ dataDecl
 -- This converts `Reference`s it finds that are in the input `Map`
 -- back to free variables
 unhashComponent
-  :: Var v => Map v (Reference, Decl v a) -> Map v (Reference, Decl v a)
+  :: forall v a. Var v => Map Reference (Decl v a) -> Map Reference (v, Decl v a)
 unhashComponent m
   = let
-      refToVar = Map.fromList [ (r, v) | (v, (r, _)) <- Map.toList m ]
+      usedVars = foldMap allVars' m
+      m' :: Map Reference (v, Decl v a)
+      m' = evalState (Map.traverseWithKey assignVar m) usedVars where
+        assignVar r d = (,d) <$> ABT.freshenS (Var.refNamed r)
       unhash1  = ABT.rebuildUp' go
        where
-        go e@(Type.Ref' r) = case Map.lookup r refToVar of
+        go e@(Type.Ref' r) = case Map.lookup r m' of
           Nothing -> e
-          Just v  -> Type.var (ABT.annotation e) v
+          Just (v,_)  -> Type.var (ABT.annotation e) v
         go e = e
       unhash2 (Right dd@DataDeclaration{}) = Right $ unhash3 dd
       unhash2 (Left (EffectDeclaration dd)) =
@@ -344,7 +360,7 @@ unhashComponent m
       unhash3 dd@DataDeclaration {..} =
         dd { constructors' = fmap (over _3 unhash1) constructors' }
     in
-      Map.fromList [ (v, (r, unhash2 e)) | (v, (r, e)) <- Map.toList m ]
+      second unhash2 <$> m'
 
 -- Implementation detail of `hashDecls`, works with unannotated data decls
 hashDecls0 :: (Eq v, Var v) => Map v (DataDeclaration' v ()) -> [(v, Reference)]

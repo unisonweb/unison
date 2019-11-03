@@ -65,6 +65,11 @@ expectEqual :: (Eq a, Show a) => a -> a -> Test ()
 expectEqual expected actual = if expected == actual then ok
                   else crash $ unlines ["", (show actual), "** did not equal expected value **", (show expected)]
 
+expectNotEqual :: (Eq a, Show a) => a -> a -> Test ()
+expectNotEqual forbidden actual =
+  if forbidden /= actual then ok
+  else crash $ unlines ["", show actual, "** did equal the forbidden value **", show forbidden]
+
 expectJust :: HasCallStack => Maybe a -> Test a
 expectJust Nothing = crash "expected Just, got Nothing"
 expectJust (Just a) = ok >> pure a

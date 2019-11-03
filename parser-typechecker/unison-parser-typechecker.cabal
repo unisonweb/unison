@@ -279,6 +279,7 @@ executable tests
   hs-source-dirs: tests
   other-modules:
     Unison.Test.ABT
+    Unison.Test.Codebase
     Unison.Test.Codebase.Causal
     Unison.Test.Codebase.FileCodebase
     Unison.Test.Codebase.Path

@@ -36,7 +36,6 @@ import           Unison.Util.Free               ( Free
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.TransitiveClosure  ( transitiveClosure )
 import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.Codebase.TermEdit       ( TermEdit(..) )
 import qualified Unison.Codebase.TermEdit      as TermEdit
@@ -318,7 +317,7 @@ propagate errorPPE patch b = case validatePatch patch of
       component = Reference.members $ Reference.componentFor ref
       termInfo
         :: Reference
-        -> F m i v (Maybe (v, (Reference, Term v Ann, Type v Ann)))
+        -> F m i v (Maybe (Reference, (Term v Ann, Type v Ann)))
       termInfo termRef = do
         tpm <- eval $ LoadTypeOfTerm termRef
         tp  <- maybe (fail $ "Missing type for term " <> show termRef) pure tpm
@@ -326,12 +325,12 @@ propagate errorPPE patch b = case validatePatch patch of
           Reference.DerivedId id -> do
             mtm <- eval $ LoadTerm id
             tm  <- maybe (fail $ "Missing term with id " <> show id) pure mtm
-            pure $ Just (Var.typed (Var.RefNamed termRef), (termRef, tm, tp))
+            pure $ Just (termRef, (tm, tp))
           _ -> pure Nothing
       unhash m =
-        let f (ref, _oldTm, oldTyp) (_ref, newTm) = (ref, newTm, oldTyp)
-            dropType (r, tm, _tp) = (r, tm)
-        in  Map.intersectionWith f m (Term.unhashComponent (dropType <$> m))
+        let f (_oldTm,oldTyp) (v,newTm) = (v,newTm,oldTyp)
+            m' = Map.intersectionWith f m (Term.unhashComponent (fst <$> m))
+        in Map.fromList [ (v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m' ]
     unhash . Map.fromList . catMaybes <$> traverse termInfo (toList component)
   unhashTypeComponent
     :: forall m v
@@ -341,18 +340,17 @@ propagate errorPPE patch b = case validatePatch patch of
   unhashTypeComponent ref = do
     let
       component = Reference.members $ Reference.componentFor ref
-      typeInfo :: Reference -> F m i v (Maybe (v, (Reference, Decl v Ann)))
+      typeInfo :: Reference -> F m i v (Maybe (Reference, Decl v Ann))
       typeInfo typeRef = case typeRef of
         Reference.DerivedId id -> do
           declm <- eval $ LoadType id
           decl  <- maybe (fail $ "Missing type declaration " <> show typeRef)
                          pure
                          declm
-          pure $ Just (Var.typed (Var.RefNamed typeRef), (typeRef, decl))
+          pure $ Just (typeRef, decl)
         _ -> pure Nothing
-      unhash m =
-        let f (ref, _oldDecl) (_ref, newDecl) = (ref, newDecl)
-        in  Map.intersectionWith f m (Decl.unhashComponent m)
+      unhash = Map.fromList . map reshuffle . Map.toList . Decl.unhashComponent
+        where reshuffle (r, (v, decl)) = (v, (r, decl))
     unhash . Map.fromList . catMaybes <$> traverse typeInfo (toList component)
   verifyTermComponent
     :: Map v (Reference, Term v _, a)
