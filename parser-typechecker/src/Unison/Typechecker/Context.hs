@@ -467,6 +467,13 @@ universals = universalVars . info
 existentials :: Ord v => Context v loc -> Set v
 existentials = existentialVars . info
 
+-- | "Reserves" the given variables in this typechecking environment,
+-- i.e. ensures that they won't be returned from `freshenVar` as fresh.
+reserveAll :: (Var v, Foldable t) => t v -> M v loc ()
+reserveAll vs =
+  let maxId = foldr (max . Var.freshId) 0 vs
+  in modEnv (\e -> e { freshId = freshId e `max` maxId + 1})
+
 freshenVar :: Var v => v -> M v0 loc v
 freshenVar v = modEnv'
   (\e ->
@@ -1687,8 +1694,9 @@ succeeds m = do
 -- Check if `t1` is a subtype of `t2`. Doesn't update the typechecking context.
 isSubtype' :: (Var v, Ord loc) => Type v loc -> Type v loc -> M v loc Bool
 isSubtype' type1 type2 = do
-  let vars = Set.union (ABT.freeVars type1) (ABT.freeVars type2)
-  appendContext (Var <$> Set.toList vars)
+  let vars = Set.toList $ Set.union (ABT.freeVars type1) (ABT.freeVars type2)
+  reserveAll (TypeVar.underlying <$> vars)
+  appendContext (Var <$> vars)
   succeeds $ subtype type1 type2
 
 -- `isRedundant userType inferredType` returns `True` if the `userType`

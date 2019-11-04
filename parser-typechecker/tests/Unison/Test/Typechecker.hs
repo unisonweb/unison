@@ -14,7 +14,7 @@ test = scope "typechecker" $ tests
   ]
 
 isSubtypeTest :: Test ()
-isSubtypeTest = pending $
+isSubtypeTest =
   let
     symbol i n = Symbol i (Var.User n)
     forall v t = Type.forall () v t
@@ -25,8 +25,7 @@ isSubtypeTest = pending $
     lhs = forall a (var a) -- ∀a. a
     rhs_ i = var (a_ i)    -- a_i
   in
-    -- check that `∀a. a <: a_i`
-    -- (At the time of writing, the test fails for i = 2, 3.)
+    -- check that `∀a. a <: a_i` (used to fail for i = 2, 3)
     tests [ expectSubtype lhs (rhs_ i) | i <- [0 .. 5] ]
   where
     expectSubtype t1 t2 =
