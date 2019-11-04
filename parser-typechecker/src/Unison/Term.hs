@@ -15,7 +15,9 @@ module Unison.Term where
 import Unison.Prelude
 
 import Prelude hiding (and,or)
+import           Control.Monad.State (evalState)
 import qualified Control.Monad.Writer.Strict as Writer
+import           Data.Bifunctor (second)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -283,6 +285,16 @@ unannotate = go
 
 wrapV :: Ord v => AnnotatedTerm v a -> AnnotatedTerm (ABT.V v) a
 wrapV = vmap ABT.Bound
+
+-- | All variables mentioned in the given term.
+-- Includes both term and type variables, both free and bound.
+allVars :: Ord v => AnnotatedTerm v a -> Set v
+allVars tm = Set.fromList $
+  ABT.allVars tm ++ [ v | tp <- allTypes tm, v <- ABT.allVars tp ]
+  where
+  allTypes tm = case tm of
+    Ann' e tp -> tp : allTypes e
+    _ -> foldMap allTypes $ ABT.out tm
 
 freeVars :: AnnotatedTerm' vt v a -> Set v
 freeVars = ABT.freeVars
@@ -874,17 +886,20 @@ etaNormalForm t = t
 
 -- This converts `Reference`s it finds that are in the input `Map`
 -- back to free variables
-unhashComponent :: Var v
-                => Map v (Reference, AnnotatedTerm v a)
-                -> Map v (Reference, AnnotatedTerm v a)
+unhashComponent :: forall v a. Var v
+                => Map Reference (AnnotatedTerm v a)
+                -> Map Reference (v, AnnotatedTerm v a)
 unhashComponent m = let
-  refToVar = Map.fromList [ (r, v) | (v, (r,_)) <- Map.toList m ]
+  usedVars = foldMap (Set.fromList . ABT.allVars) m
+  m' :: Map Reference (v, AnnotatedTerm v a)
+  m' = evalState (Map.traverseWithKey assignVar m) usedVars where
+    assignVar r t = (,t) <$> ABT.freshenS (Var.refNamed r)
   unhash1 = ABT.rebuildUp' go where
-    go e@(Ref' r) = case Map.lookup r refToVar of
+    go e@(Ref' r) = case Map.lookup r m' of
       Nothing -> e
-      Just v -> var (ABT.annotation e) v
+      Just (v, _) -> var (ABT.annotation e) v
     go e = e
-  in Map.fromList [ (v, (r, unhash1 e)) | (v, (r,e)) <- Map.toList m ]
+  in second unhash1 <$> m'
 
 hashComponents
   :: Var v => Map v (AnnotatedTerm v a) -> Map v (Reference, AnnotatedTerm v a)
