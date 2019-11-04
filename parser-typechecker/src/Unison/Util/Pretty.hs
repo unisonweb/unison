@@ -79,6 +79,7 @@ module Unison.Util.Pretty (
    toHTML,
    toPlain,
    toPlainUnbroken,
+   underline,
    withSyntax,
    wrap,
    wrapColumn2,
@@ -532,7 +533,7 @@ preferredWidth p = col (delta p)
 preferredHeight :: Pretty s -> Width
 preferredHeight p = line (delta p)
 
-black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold
+black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold, underline
   :: Pretty CT.ColorText -> Pretty CT.ColorText
 black = map CT.black
 red = map CT.red
@@ -551,6 +552,7 @@ hiPurple = map CT.hiPurple
 hiCyan = map CT.hiCyan
 hiWhite = map CT.hiWhite
 bold = map CT.bold
+underline = map CT.underline
 
 plural :: Foldable f
        => f a -> Pretty ColorText -> Pretty ColorText
