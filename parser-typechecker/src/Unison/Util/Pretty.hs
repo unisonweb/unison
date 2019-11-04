@@ -79,6 +79,7 @@ module Unison.Util.Pretty (
    toHTML,
    toPlain,
    toPlainUnbroken,
+   underline,
    withSyntax,
    wrap,
    wrapColumn2,
@@ -147,10 +148,10 @@ wrapString s = wrap (lit $ fromString s)
 -- 2. Combine adjacent non-blank lines into one line.
 -- 3. Wrap each remaining line.
 paragraphyText :: (LL.ListLike s Char, IsString s) => Text -> Pretty s
-paragraphyText t = case span isSpace (Text.unpack t) of 
+paragraphyText t = case span isSpace (Text.unpack $ Text.dropWhileEnd isSpace t) of 
   (sp,t) -> string sp <> lines (go mempty t)
   where
-  trailingSp = Text.takeWhileEnd (== ' ') t
+  trailingSp = Text.takeWhileEnd isSpace t
   go acc [] = [wrap acc <> text trailingSp]
   go acc (span isSpace -> (sp, rest)) = 
     if length (filter (=='\n') sp) < 2 then munch acc
@@ -532,7 +533,7 @@ preferredWidth p = col (delta p)
 preferredHeight :: Pretty s -> Width
 preferredHeight p = line (delta p)
 
-black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold
+black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold, underline
   :: Pretty CT.ColorText -> Pretty CT.ColorText
 black = map CT.black
 red = map CT.red
@@ -551,6 +552,7 @@ hiPurple = map CT.hiPurple
 hiCyan = map CT.hiCyan
 hiWhite = map CT.hiWhite
 bold = map CT.bold
+underline = map CT.underline
 
 plural :: Foldable f
        => f a -> Pretty ColorText -> Pretty ColorText

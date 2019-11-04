@@ -479,8 +479,9 @@ lexer0 scope rem =
         Right Nothing -> Token (Err UnknownLexeme) pos pos : recover l pos rem
         Left e -> Token (Err e) pos pos : recover l pos rem
 
-    lexDoc l pos rem = case rem of
-      _ -> docBlob l pos rem pos []
+    lexDoc l pos rem = case span isSpace rem of
+      (spaces,rem) -> docBlob l pos' rem pos' []
+        where pos' = incBy spaces pos
 
     docBlob l pos rem blobStart acc = case rem of
       '@' : (hqToken (inc pos) -> Just (tok, rem)) -> 
@@ -501,7 +502,8 @@ lexer0 scope rem =
         docBlob l pos' rem pos' []
       ':' : ']' : rem -> 
         let pos' = inc . inc $ pos in 
-        (if null acc then id else (Token (Textual (reverse acc)) blobStart pos :)) $
+        (if null acc then id 
+         else (Token (Textual (reverse $ dropWhile isSpace acc)) blobStart pos :)) $
           Token Close pos pos' : goWhitespace l pos' rem 
       [] -> recover l pos rem
       ch : rem -> docBlob l (incBy [ch] pos) rem blobStart (ch:acc)
