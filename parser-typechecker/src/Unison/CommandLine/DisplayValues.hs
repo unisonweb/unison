@@ -50,8 +50,8 @@ displayDoc ppe terms typeOf evaluated types t = go t
   where
   go (DD.DocJoin docs) = foldMap id <$> traverse go docs
   go (DD.DocBlob txt) = pure $ P.paragraphyText txt
-  go (DD.DocLink (DD.LinkTerm (Term.TermLink' r))) = pure $ P.underline (termName ppe r)
-  go (DD.DocLink (DD.LinkType (Term.TypeLink' r))) = pure $ P.underline (typeName ppe r)
+  go (DD.DocLink (DD.LinkTerm (Term.TermLink' r))) = pure $ P.backticked (P.underline (termName ppe r))
+  go (DD.DocLink (DD.LinkType (Term.TypeLink' r))) = pure $ P.backticked (P.underline (typeName ppe r))
   go (DD.DocSource (DD.LinkTerm (Term.TermLink' r))) = prettyTerm terms r 
   go (DD.DocSource (DD.LinkType (Term.TypeLink' r))) = prettyType r
   go (DD.DocSignature (Term.TermLink' r)) = prettySignature r
