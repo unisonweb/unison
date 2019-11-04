@@ -4,7 +4,6 @@ module Unison.Codebase.Editor.UriParser where
 
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char.Lexer as L
-import Text.Megaparsec.Char (alphaNumChar, char, oneOf)
 import qualified Text.Megaparsec.Char as C
 import Data.Text as Text
 
@@ -20,6 +19,8 @@ import qualified Unison.Hash as Hash
 import qualified Unison.Lexer
 import Unison.Codebase.NameSegment (NameSegment(..))
 import Data.Sequence as Seq
+import Data.Char (isAlphaNum, isSpace, isDigit)
+import qualified Unison.Util.Monoid as Monoid
 
 type P = P.Parsec () Text
 
@@ -62,15 +63,48 @@ symbol :: Text -> P Text
 symbol = L.symbol (pure ())
 
 repoPath :: P (RemoteRepo, Maybe ShortBranchHash, Path)
-repoPath = P.label "generic git repo" $
-  fileRepo <|> urlRepo <|> localRepo <|> scpRepo
+repoPath = P.label "generic git repo" $ do
+  repoText <- fileRepo <|> urlRepo <|> localRepo <|> scpRepo
+  treeish <- P.optional treeishSuffix
+  let repo = GitRepo repoText treeish
+  nshashPath <- P.optional (C.char ':' *> namespaceHashPath)
+  case nshashPath of
+    Nothing -> pure (repo, Nothing, Path.empty)
+    Just (sbh, p) -> pure (repo, sbh, p)
+
   where
-  localRepo, fileRepo, urlRepo, scpRepo
-    :: P (RemoteRepo, Maybe ShortBranchHash, Path)
-  localRepo = error "todo"
-  fileRepo = error "todo"
-  urlRepo = error "todo"
-  scpRepo = error "todo" 
+  localRepo, fileRepo, urlRepo, scpRepo :: P Text
+  localRepo =
+    P.takeWhile1P (Just "repo path character")
+      (\c -> not (isSpace c || c == ':'))
+  fileRepo = do
+    void $ symbol "file://"
+    fmap (\p -> "file://" <> p) localRepo
+  urlRepo = do
+    void $ symbol "https://"
+    user <- P.optional userInfo
+    -- this doesn't support ipv6 because :
+    host <- parseHost
+    port <- P.optional $ do
+      void $ symbol ":"
+      P.takeWhile1P (Just "digits") isDigit
+    path <- P.takeWhile1P (Just "path character") (/= ':')
+    pure $ "https://" <> Monoid.fromMaybe user 
+                      <> host 
+                      <> Monoid.fromMaybe ((":"<>) <$> port) 
+                      <> path 
+  _sshRepo = error "todo"
+  scpRepo = do
+    user <- P.optional userInfo
+    host <- parseHost
+    void $ symbol ":"
+    path <- P.takeWhile1P (Just "path character") (/= ':')
+    pure $ Monoid.fromMaybe user <> host <> ":" <> path 
+  userInfo = error "todo"
+  parseHost = P.takeWhile1P (Just "host/ip character") 
+                (\c -> notElem @[] c ":/") 
+
+
 
 -- Local Protocol
 -- $ git clone /srv/git/project.git
@@ -98,11 +132,11 @@ namespaceHashPath :: P (Maybe ShortBranchHash, Path)
 namespaceHashPath = do
   sbh <- P.optional shortBranchHash
   p <- P.optional $ do
-    void $ char '.'
+    void $ C.char '.'
     P.sepBy1
       ((:) <$> C.satisfy Unison.Lexer.wordyIdStartChar
            <*> P.many (C.satisfy Unison.Lexer.wordyIdChar))
-      (char '.')
+      (C.char '.')
   case p of
     Nothing -> pure (sbh, Path.empty)
     Just p  -> pure (sbh, makePath p)
@@ -111,17 +145,17 @@ namespaceHashPath = do
 -- double-check me
 treeishSuffix :: P Text
 treeishSuffix = P.label "git treeish" . P.try $ do
-  void $ char ':'
+  void $ C.char ':'
   notdothash <- C.noneOf @[] ".#:"
-  rest <- (P.many . C.satisfy) (/= ':')
-  pure . Text.pack $ notdothash : rest
+  rest <- P.takeWhileP (Just "not colon") (/= ':')
+  pure $ Text.cons notdothash rest
 
 webRepoTreeish :: P EncodedRepo
 webRepoTreeish = P.label "hosted git repo + treeish" $ do
   svc <- service
-  void $ char ':'
+  void $ C.char ':'
   user <- gitwebUser
-  void $ char '/'
+  void $ C.char '/'
   repo <- gitwebSlug
   treeish <- P.optional treeishSuffix
   pure $ ER.UserSlugRepo svc user repo treeish
@@ -135,7 +169,8 @@ webRepoTreeish = P.label "hosted git repo + treeish" $ do
   gitwebUser:: P Text
   gitwebUser =
     -- permissive approximation
-    Text.pack <$> P.many (alphaNumChar <|> char '_' <|> char '-' <|> char '.')
+    P.takeWhile1P (Just "web username character")
+      (\c -> isAlphaNum c || elem @[] c "_-.")
 
   -- Gitlab: "Path can contain only letters, digits, '_', '-' and '.'.
   --          Cannot start with '-', end in '.git' or end in '.atom'"
@@ -146,6 +181,6 @@ webRepoTreeish = P.label "hosted git repo + treeish" $ do
 
 shortBranchHash :: P ShortBranchHash
 shortBranchHash = P.label "short branch hash" $ do
-  void $ char '#'
-  ShortBranchHash . Text.pack <$>
-    P.some (oneOf Hash.validBase32HexChars)
+  void $ C.char '#'
+  ShortBranchHash <$>
+    P.takeWhile1P (Just "base32hex chars") (`elem` Hash.validBase32HexChars)
