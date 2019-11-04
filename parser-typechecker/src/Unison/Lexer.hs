@@ -495,11 +495,7 @@ lexer0 scope rem =
            let pos'' = inc (end tok) in
            typTok : tok : docBlob l pos'' rem pos' []
          _ -> recover l pos rem 
-      '\\' : '@' : (hqToken pos -> Just (tok, rem)) -> 
-        let pos' = (inc . inc $ end tok) in
-        Token (Textual (reverse acc)) blobStart pos : 
-        tok : 
-        docBlob l pos' rem pos' []
+      '\\' : '@' : rem -> docBlob l (incBy "\\@" pos) rem blobStart ('@':acc)
       ':' : ']' : rem -> 
         let pos' = inc . inc $ pos in 
         (if null acc then id 
