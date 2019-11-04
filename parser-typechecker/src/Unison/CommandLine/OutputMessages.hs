@@ -819,9 +819,7 @@ displayRendered outputLoc pp =
         if exists then readFile path
         else pure ""
       writeFile path . Text.pack . P.toPlain 80 $
-        P.lines [ pp, ""
-                , "--- " <> "Anything below this line is ignored by Unison."
-                , "", P.text existingContents ]
+        P.lines [ pp, "", P.text existingContents ]
     message pp path =
       P.callout "☝️" $ P.lines [
         P.wrap $ "I added this to the top of " <> fromString path,
