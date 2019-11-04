@@ -58,6 +58,7 @@ import qualified Data.Foldable                 as Foldable
 import           Data.List
 import           Data.List.NonEmpty             ( NonEmpty )
 import qualified Data.Map                      as Map
+import qualified Data.Sequence                 as Seq
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Unison.ABT                    as ABT
@@ -498,16 +499,16 @@ extend' e c@(Context ctx) = Context . (:ctx) . (e,) <$> i' where
   i' = case e of
     Var v -> case v of
       -- UvarCtx - ensure no duplicates
-      TypeVar.Universal v -> if Set.notMember v us
+      TypeVar.Universal v -> if Set.notMember v vs
         then pure $ Info es ses (Set.insert v us) uas (Set.insert v vs) pvs
         else crash $ "variable " <> show v <> " already defined in the context"
       -- EvarCtx - ensure no duplicates, and that this existential is not solved earlier in context
-      TypeVar.Existential _ v -> if Set.notMember v es
-        then pure $ Info (Set.insert v es) (Map.delete v ses) us uas (Set.insert v vs) pvs
+      TypeVar.Existential _ v -> if Set.notMember v vs
+        then pure $ Info (Set.insert v es) ses us uas (Set.insert v vs) pvs
         else crash $ "variable " <> show v <> " already defined in the context"
     -- SolvedEvarCtx - ensure `v` is fresh, and the solution is well-formed wrt the context
     Solved _ v sa@(Type.getPolytype -> t)
-      | Set.member v es          -> crash $ "variable " <> show v <> " already defined in the context"
+      | Set.member v vs          -> crash $ "variable " <> show v <> " already defined in the context"
       | not (wellformedType c t) -> crash $ "type " <> show t <> " is not well-formed wrt the context"
       | otherwise                -> pure $
           Info (Set.insert v es) (Map.insert v sa ses) us uas (Set.insert v vs) pvs
@@ -1647,8 +1648,12 @@ synthesizeClosed' abilities term = do
 succeeds :: M v loc a -> M v loc Bool
 succeeds m = do
   e <- ask
-  let Result _ _ r = runM m e
-  pure $ isJust r
+  let Result es is r = runM m e
+      bugs = Seq.filter isBug es where
+        isBug = \case ErrorNote (CompilerBug _) _ -> True
+                      _                           -> False
+  if Seq.null bugs then pure $ isJust r
+  else liftResult (Result bugs is Nothing)
 
 -- Check if `t1` is a subtype of `t2`. Doesn't update the typechecking context.
 isSubtype' :: (Var v, Ord loc) => Type v loc -> Type v loc -> M v loc Bool
