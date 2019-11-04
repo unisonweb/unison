@@ -333,7 +333,7 @@ retract0 e (Context ctx) = case focusAt (\(e',_) -> e' == e) ctx of
 markThenRetract :: (Var v, Ord loc) => v -> M v loc a -> M v loc (a, [Element v loc])
 markThenRetract markerHint body = do
   v <- freshenVar markerHint
-  modifyContext $ extend (Marker v)
+  extendContext (Marker v)
   a <- body
   (a,) <$> doRetract (Marker v)
  where
@@ -430,7 +430,36 @@ modifyContext f = do
   setContext c
 
 appendContext :: (Var v, Ord loc) => [Element v loc] -> M v loc ()
-appendContext tl = modifyContext (`extendN` tl)
+appendContext = traverse_ extendContext
+
+extendContext :: Var v => Element v loc -> M v loc ()
+extendContext e = isReserved (varOf e) >>= \case
+  True -> modifyContext (extend e)
+  False -> getContext >>= \ctx -> compilerCrash $
+    IllegalContextExtension ctx e $
+      "Extending context with a variable that is not reserved by the typechecking environment." <>
+      " That means `freshenVar` is allowed to return it as a fresh variable, which would be wrong."
+
+replaceContext :: (Var v, Ord loc) => Element v loc -> [Element v loc] -> M v loc ()
+replaceContext elem replacement =
+  fromMEnv (\menv -> find (not . (`isReservedIn` env menv) . varOf) replacement) >>= \case
+    Nothing -> modifyContext (replace elem replacement)
+    Just e -> getContext >>= \ctx -> compilerCrash $
+      IllegalContextExtension ctx e $
+        "Extending context with a variable that is not reserved by the typechecking environment." <>
+        " That means `freshenVar` is allowed to return it as a fresh variable, which would be wrong."
+
+varOf :: Element v loc -> v
+varOf (Var tv) = TypeVar.underlying tv
+varOf (Solved _ v _) = v
+varOf (Ann v _) = v
+varOf (Marker v) = v
+
+isReserved :: Var v => v -> M v loc Bool
+isReserved v = fromMEnv $ (v `isReservedIn`) . env
+
+isReservedIn :: Var v => v -> Env v loc -> Bool
+isReservedIn v e = freshId e > Var.freshId v
 
 universals :: Ord v => Context v loc -> Set v
 universals = universalVars . info
@@ -621,13 +650,13 @@ getConstructorType' kind get r cid = do
 extendUniversal :: (Var v) => v -> M v loc v
 extendUniversal v = do
   v' <- freshenVar v
-  modifyContext (extend (Universal v'))
+  extendContext (Universal v')
   pure v'
 
 extendExistential :: (Var v) => v -> M v loc v
 extendExistential v = do
   v' <- freshenVar v
-  modifyContext (extend (Existential B.Blank v'))
+  extendContext (Existential B.Blank v')
   pure v'
 
 extendExistentialTV :: Var v => v -> M v loc (TypeVar v loc)
@@ -714,7 +743,7 @@ synthesizeApp (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argNum) 
                                          (Type.effect (loc ft) [et] ot))
         ctxMid = [existential o, existential e,
                   existential i, Solved b a soln]
-    modifyContext $ replace (existential a) ctxMid
+    replaceContext (existential a) ctxMid
     synthesizeApp (Type.getPolytype soln) argp
   go _ = getContext >>= \ctx -> failWith $ TypeMismatch ctx
 synthesizeApp _ _ = error "unpossible - Type.Effect'' pattern always succeeds"
@@ -1262,7 +1291,7 @@ check e0 t0 = scope (InCheck e0 t0) $ do
   go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
     x <- ABT.freshen body freshenVar
     markThenRetract0 x $ do
-      modifyContext (extend (Ann x i))
+      extendContext (Ann x i)
       let Type.Effect'' es ot = o
       body' <- pure $ ABT.bindInheritAnnotation body (Term.var() x)
       withEffects0 es $ check body' ot
@@ -1270,7 +1299,7 @@ check e0 t0 = scope (InCheck e0 t0) $ do
     v        <- ABT.freshen e freshenVar
     tbinding <- synthesize binding
     markThenRetract0 v $ do
-      modifyContext (extend (Ann v tbinding))
+      extendContext (Ann v tbinding)
       check (ABT.bindInheritAnnotation e (Term.var () v)) t
   go (Term.LetRecNamed' [] e) t = check e t
   go (Term.LetRecTop' isTop letrec) t =
@@ -1376,8 +1405,8 @@ instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $
         let s = Solved blank v (Type.Monotype (Type.arrow (loc t)
                                                  (Type.existentialp (loc i) i')
                                                  (Type.existentialp (loc o) o')))
-        modifyContext $ replace (existential v)
-                                 [existential o', existential i', s]
+        replaceContext (existential v)
+                       [existential o', existential i', s]
         instantiateR i B.Blank i' -- todo: not sure about this, could also be `blank`
         applyM o >>= instantiateL B.Blank o'
       Type.App' x y -> do -- analogue of InstLArr
@@ -1385,8 +1414,8 @@ instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $
         let s = Solved blank v (Type.Monotype (Type.app (loc t)
                                                   (Type.existentialp (loc x) x')
                                                   (Type.existentialp (loc y) y')))
-        modifyContext $ replace (existential v)
-                                 [existential y', existential x', s]
+        replaceContext (existential v)
+                       [existential y', existential x', s]
         applyM x >>= instantiateL B.Blank x'
         applyM y >>= instantiateL B.Blank y'
       Type.Effect1' es vt -> do
@@ -1395,8 +1424,8 @@ instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $
         let t' = Type.effect1 (loc t) (Type.existentialp (loc es) es')
                                       (Type.existentialp (loc vt) vt')
             s = Solved blank v (Type.Monotype t')
-        modifyContext $ replace (existential v)
-                         [existential es', existential vt', s]
+        replaceContext (existential v)
+                       [existential es', existential vt', s]
         applyM es >>= instantiateL B.Blank es'
         applyM vt >>= instantiateL B.Blank vt'
       Type.Effects' es -> do
@@ -1404,8 +1433,8 @@ instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $
         let locs = loc <$> es
             t' = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
             s = Solved blank v $ Type.Monotype t'
-        modifyContext $ replace (existential v)
-                                 ((existential <$> es') ++ [s])
+        replaceContext (existential v)
+                       ((existential <$> es') ++ [s])
         Foldable.for_ (es' `zip` es) $ \(e',e) ->
           applyM e >>= instantiateL B.Blank e'
       Type.Forall' body -> do -- InstLIIL
@@ -1441,8 +1470,8 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
                           (Type.arrow (loc t)
                             (Type.existentialp (loc i) i')
                             (Type.existentialp (loc o) o')))
-        modifyContext $ replace (existential v)
-                                 [existential o', existential i', s]
+        replaceContext (existential v)
+                       [existential o', existential i', s]
         ctx <- instantiateL B.Blank i' i >> getContext
         instantiateR (apply ctx o) B.Blank o'
       Type.App' x y -> do -- analogue of InstRArr
@@ -1452,7 +1481,7 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
         -- 3. recurse to refine the types of foo' and a'
         [x', y'] <- traverse freshenVar [nameFrom Var.inferTypeConstructor x, nameFrom Var.inferTypeConstructorArg y]
         let s = Solved blank v (Type.Monotype (Type.app (loc t) (Type.existentialp (loc x) x') (Type.existentialp (loc y) y')))
-        modifyContext $ replace (existential v) [existential y', existential x', s]
+        replaceContext (existential v) [existential y', existential x', s]
         applyM x >>= \x -> instantiateR x B.Blank x'
         applyM y >>= \y -> instantiateR y B.Blank y'
       Type.Effect1' es vt -> do
@@ -1461,8 +1490,8 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
         let t' = Type.effect1 (loc t) (Type.existentialp (loc es) es')
                                       (Type.existentialp (loc vt) vt')
             s = Solved blank v (Type.Monotype t')
-        modifyContext $ replace (existential v)
-                         [existential es', existential vt', s]
+        replaceContext (existential v)
+                       [existential es', existential vt', s]
         applyM es >>= \es -> instantiateR es B.Blank es'
         applyM vt >>= \vt -> instantiateR vt B.Blank vt'
       Type.Effects' es -> do
@@ -1470,8 +1499,8 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
         let locs = loc <$> es
             t' = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
             s = Solved blank v $ Type.Monotype t'
-        modifyContext $ replace (existential v)
-                                 ((existential <$> es') ++ [s])
+        replaceContext (existential v)
+                       ((existential <$> es') ++ [s])
         Foldable.for_ (es `zip` es') $ \(e, e') -> do
           ctx <- getContext
           instantiateR (apply ctx e) B.Blank e'
