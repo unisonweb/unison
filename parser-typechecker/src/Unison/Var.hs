@@ -33,6 +33,10 @@ freshIn = ABT.freshIn
 named :: Var v => Text -> v
 named n = typed (User n)
 
+-- | Variable whose name is derived from the given reference.
+refNamed :: Var v => Reference -> v
+refNamed ref = named ("ℍ" <> R.toText ref)
+
 name :: Var v => v -> Text
 name v = case typeOf v of
   User n -> n <> showid v
@@ -46,7 +50,6 @@ name v = case typeOf v of
   Inference PatternBindV -> "𝕧" <> showid v
   Inference TypeConstructor -> "𝕗" <> showid v
   Inference TypeConstructorArg -> "𝕦" <> showid v
-  RefNamed r -> "ℍ" <> R.toText r <> showid v
   MissingResult -> "_" <> showid v
   Blank -> "_" <> showid v
   UnnamedWatch k guid -> fromString k <> "." <> guid <> showid v
@@ -84,8 +87,6 @@ data Type
   = User Text
   -- Variables created during type inference
   | Inference InferenceType
-  -- Variables created in `makeSelfContained` for Evaluation
-  | RefNamed Reference
   -- Variables created to finish a block that doesn't end with an expression
   | MissingResult
   -- Variables invented for placeholder values inserted by user or by TDNR
