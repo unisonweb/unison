@@ -106,7 +106,7 @@ data Output v
               [(Reference, Set HQ'.HashQualified)] -- type match, type names
   -- list of all the definitions within this branch
   | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
-  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified, Maybe (Type v Ann))]
+  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified, Reference, Maybe (Type v Ann))]
   | ListShallow PPE.PrettyPrintEnv [ShallowListEntry v Ann]
   | ListOfPatches (Set Name)
   -- show the result of add/update

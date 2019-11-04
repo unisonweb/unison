@@ -203,6 +203,21 @@ display = InputPattern "display" ["show"] [(Required, exactDefinitionQueryArg)]
         [s] -> pure (Input.DisplayI Input.ConsoleLocation s)
         _ -> Left (I.help display))
 
+displayTo :: InputPattern
+displayTo = InputPattern "display.to" [] [(Required, noCompletions), (Required, exactDefinitionQueryArg)]
+      (P.wrap $ makeExample displayTo ["<filename>", "foo"] 
+             <> "prints a rendered version of the term `foo` to the given file.")
+      (\case 
+        [file,s] -> pure (Input.DisplayI (Input.FileLocation file) s)
+        _ -> Left (I.help displayTo))
+
+docs :: InputPattern 
+docs = InputPattern "docs" [] [(Required, exactDefinitionQueryArg)]
+      ("`docs foo` shows documentation for the definition `foo`.")
+      (\case 
+        [s] -> first fromString $ Input.DocsI <$> Path.parseHQSplit' s
+        _ -> Left (I.help docs))
+
 undo :: InputPattern
 undo = InputPattern "undo" [] []
       "`undo` reverts the most recent change to the codebase."
@@ -928,6 +943,8 @@ validInputs =
   , findVerbose
   , view
   , display
+  , displayTo
+  , docs
   , findPatch
   , viewPatch
   , undo

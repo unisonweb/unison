@@ -106,6 +106,7 @@ data Input
   -- links from <type>
   | LinksI Path.HQSplit' (Maybe String)
   | DisplayI OutputLocation String
+  | DocsI Path.HQSplit'
   -- other
   | SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
   | FindShallowI Path'

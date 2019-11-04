@@ -337,6 +337,7 @@ loop = do
           FindPatchI{} -> wat
           ShowDefinitionI{} -> wat
           DisplayI{} -> wat
+          DocsI{} -> wat
           ShowDefinitionByPrefixI{} -> wat
           ShowReflogI{} -> wat
           DebugBranchHistoryI{} -> wat
@@ -679,34 +680,20 @@ loop = do
       -- > links List.map (.Docs .English)
       -- > links List.map -- give me all the
       -- > links Optional License
-      LinksI src mdTypeStr -> do
-        let srcle = toList (getHQ'Terms src) -- list of matching src terms
-            srclt = toList (getHQ'Types src) -- list of matching src types
-            p = resolveSplit' src -- ex: the parent of `List.map` - `List`
-            mdTerms = foldl' Metadata.merge mempty [
-              BranchUtil.getTermMetadataUnder p r root0 | r <- srcle ]
-            mdTypes = foldl' Metadata.merge mempty [
-              BranchUtil.getTypeMetadataUnder p r root0 | r <- srclt ]
-            allMd = Metadata.merge mdTerms mdTypes
-        selection <- case mdTypeStr of
-          Nothing -> pure $ Right (Map.keysSet allMd)
-          Just mdTypeStr -> parseType input mdTypeStr <&> \case
-            Left e -> Left e
-            Right typ -> Right (Set.singleton (Type.toReference typ))
-        case selection of
-          Left e -> respond e
-          Right selection -> do
-            let allMd' = Map.restrictKeys allMd selection
-                allRefs = toList (Set.unions (Map.elems allMd'))
-                results :: Set Reference = Set.unions $ Map.elems allMd'
-            sigs <- for (toList results) $ 
-              \r -> loadTypeOfTerm (Referent.Ref r)
-            let deps = Set.map LD.termRef results <> 
-                       Set.unions [ Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs ]
-            ppe <- prettyPrintEnv =<< makePrintNamesFromLabeled' deps 
-            let sortedSigs = sortOn snd (toList results `zip` sigs)  
-            let out = [(PPE.termName ppe (Referent.Ref r), t) | (r, t) <- sortedSigs ] 
-            numberedArgs .= fmap (HQ.toString . fst) out
+      LinksI src mdTypeStr -> getLinks input src (Right mdTypeStr) >>= \case
+        Left e -> respond e
+        Right (ppe, out) -> do
+          numberedArgs .= fmap (HQ.toString . view _1) out
+          respond $ ListOfLinks ppe out
+
+      DocsI src -> getLinks input src (Left $ Set.singleton DD.docRef) >>= \case
+        Left e -> respond e
+        Right (ppe, out) -> case out of
+          [(name, ref, tm)] -> do
+            names <- basicPrettyPrintNames0
+            doDisplay ConsoleLocation (Names3.Names names mempty) (Referent.Ref ref)
+          out -> do 
+            numberedArgs .= fmap (HQ.toString . view _1) out
             respond $ ListOfLinks ppe out
 
       MoveTermI src dest ->
@@ -794,25 +781,7 @@ loop = do
           respond $ SearchTermsNotFound $ [hq]
         else if Set.size results > 1 then
           respond $ TermAmbiguous input (Right hq) results
-        else do
-          let tm = Term.fromReferent External (Set.findMin results)
-          ppe <- prettyPrintEnv parseNames
-          let 
-            loc = case outputLoc of
-              ConsoleLocation    -> Nothing
-              FileLocation path  -> Just path
-              LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
-            evalTerm r = fmap ErrorUtil.hush . eval $ Evaluate1 ppe (Term.ref External r)
-            loadTerm (Reference.DerivedId r) = eval $ LoadTerm r
-            loadTerm r = pure Nothing
-            loadDecl (Reference.DerivedId r) = eval $ LoadType r
-            loadDecl _ = pure Nothing 
-          rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm evalTerm loadDecl tm 
-          respond $ DisplayRendered loc rendered
-          -- We set latestFile to be programmatically generated, if we
-          -- are viewing these definitions to a file - this will skip the
-          -- next update for that file (which will happen immediately)
-          latestFile .= ((, True) <$> loc)
+        else doDisplay outputLoc parseNames (Set.findMin results)
 
       ShowDefinitionI outputLoc (fmap HQ.unsafeFromString -> hqs) -> do
         parseNames <- makeHistoricalParsingNames $ Set.fromList hqs
@@ -1366,6 +1335,70 @@ loop = do
       <> "I tried to put it back, but couldn't. Everybody panic!"
   -}
 
+doDisplay :: Var v => OutputLocation -> Names -> Referent -> Action' m v ()
+doDisplay outputLoc names r = do
+  let tm = Term.fromReferent External r 
+  ppe <- prettyPrintEnv names
+  latestFile' <- use latestFile
+  let 
+    loc = case outputLoc of
+      ConsoleLocation    -> Nothing
+      FileLocation path  -> Just path
+      LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
+    evalTerm r = fmap ErrorUtil.hush . eval $ Evaluate1 ppe (Term.ref External r)
+    loadTerm (Reference.DerivedId r) = eval $ LoadTerm r
+    loadTerm r = pure Nothing
+    loadDecl (Reference.DerivedId r) = eval $ LoadType r
+    loadDecl _ = pure Nothing 
+  rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm evalTerm loadDecl tm 
+  respond $ DisplayRendered loc rendered
+  -- We set latestFile to be programmatically generated, if we
+  -- are viewing these definitions to a file - this will skip the
+  -- next update for that file (which will happen immediately)
+  latestFile .= ((, True) <$> loc)
+
+getLinks :: (Var v, Monad m)
+         => Input
+         -> Path.HQSplit' 
+         -> Either (Set Reference) (Maybe String)
+         -> Action' m v (Either (Output v) 
+                                (PPE.PrettyPrintEnv, 
+                                 [(HQ.HashQualified, Reference, Maybe (Type v Ann))]))
+getLinks input src mdTypeStr = do
+  root0 <- Branch.head <$> use root
+  currentPath' <- use currentPath
+  let resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
+      getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
+      getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
+      srcle = toList (getHQ'Terms src) -- list of matching src terms
+      srclt = toList (getHQ'Types src) -- list of matching src types
+      p = resolveSplit' src -- ex: the parent of `List.map` - `List`
+      mdTerms = foldl' Metadata.merge mempty [
+        BranchUtil.getTermMetadataUnder p r root0 | r <- srcle ]
+      mdTypes = foldl' Metadata.merge mempty [
+        BranchUtil.getTypeMetadataUnder p r root0 | r <- srclt ]
+      allMd = Metadata.merge mdTerms mdTypes
+  selection <- case mdTypeStr of
+    Left s -> pure $ Right s
+    Right Nothing -> pure $ Right (Map.keysSet allMd)
+    Right (Just mdTypeStr) -> parseType input mdTypeStr <&> \case
+      Left e -> Left e
+      Right typ -> Right (Set.singleton (Type.toReference typ))
+  case selection of
+    Left e -> pure (Left e)
+    Right selection -> do
+      let allMd' = Map.restrictKeys allMd selection
+          allRefs = toList (Set.unions (Map.elems allMd'))
+          results :: Set Reference = Set.unions $ Map.elems allMd'
+      sigs <- for (toList results) $ 
+        \r -> loadTypeOfTerm (Referent.Ref r)
+      let deps = Set.map LD.termRef results <> 
+                 Set.unions [ Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs ]
+      ppe <- prettyPrintEnv =<< makePrintNamesFromLabeled' deps 
+      let sortedSigs = sortOn snd (toList results `zip` sigs)  
+      let out = [(PPE.termName ppe (Referent.Ref r), r, t) | (r, t) <- sortedSigs ] 
+      pure (Right (ppe, out))
+            
 resolveShortBranchHash ::
   Input -> ShortBranchHash -> Action' m v (Either (Output v) (Branch m))
 resolveShortBranchHash input hash = do

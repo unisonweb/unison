@@ -275,7 +275,7 @@ notifyUser dir o = case o of
   ListOfDefinitions ppe detailed results ->
      listOfDefinitions ppe detailed results
   ListOfLinks ppe results ->
-     listOfLinks ppe results
+     listOfLinks ppe [ (name,tm) | (name,_ref,tm) <- results ]
   ListNames [] [] -> pure . P.callout "😶" $
     P.wrap "I couldn't find anything by that name."
   ListNames terms types -> pure . P.sepNonEmpty "\n\n" $ [
