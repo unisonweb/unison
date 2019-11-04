@@ -13,19 +13,48 @@ Unison documentation is written in Unison. Documentation is a value of the follo
     | Signature builtin.Link.Term
     | Evaluate builtin.Link.Term
 
-.> find take
+```
+You can create these `Doc` values with ordinary code, or you can use the special syntax. A value of type `Doc` can be created via syntax like:
 
-  1. builtin.Bytes.take : builtin.Nat
-                          -> builtin.Bytes
-                          -> builtin.Bytes
-  2. builtin.List.take : builtin.Nat -> [a] -> [a]
-  3. builtin.Text.take : builtin.Nat
-                         -> builtin.Text
-                         -> builtin.Text
+```unison
+use .builtin
+
+doc1 = [: This is some documentation.
+
+It can span multiple lines.
+
+Can link to definitions like @List.drop or @List
+
+:]
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
   
+    ⍟ These new definitions are ok to `add`:
+    
+      doc1 : builtin.Doc
+   
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
 
 ```
-You can create these `Doc` values with ordinary code, or you can use the special syntax. We'll show the syntax here. We are going to document `List.take` using some verbiage and a few examples. First we have to add the examples to the codebase:
+Syntax:
+
+`[:` starts a documentation block; `:]` finishes it. Within the block:
+
+* Links to definitions are done with `@List`. `\@` if you want to escape.
+* `@[signature] List.take` expands to the type signature of `List.take`
+* `@[source] List.map` expands to the full source of `List.map`
+* `@[include] someOtherDoc`, inserts a value `someOtherDoc : Doc` here.
+* `@[evaluate] someDefinition` expands to the result of evaluating `someDefinition`, which must be a pre-existing definition in the codebase (can't be an arbitrary expression).
+
+### An example
+
+We are going to document `List.take` using some verbiage and a few examples. First we have to add the examples to the codebase:
 
 ```unison
 List.take.ex1 = take 0 [1,2,3,4,5]

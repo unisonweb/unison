@@ -4,10 +4,35 @@ Unison documentation is written in Unison. Documentation is a value of the follo
 
 ```ucm
 .> view builtin.Doc
-.> find take
 ```
 
-You can create these `Doc` values with ordinary code, or you can use the special syntax. We'll show the syntax here. We are going to document `List.take` using some verbiage and a few examples. First we have to add the examples to the codebase:
+You can create these `Doc` values with ordinary code, or you can use the special syntax. A value of type `Doc` can be created via syntax like:
+
+```unison
+use .builtin
+
+doc1 = [: This is some documentation.
+
+It can span multiple lines.
+
+Can link to definitions like @List.drop or @List
+
+:]
+```
+
+Syntax:
+
+`[:` starts a documentation block; `:]` finishes it. Within the block:
+
+* Links to definitions are done with `@List`. `\@` if you want to escape.
+* `@[signature] List.take` expands to the type signature of `List.take`
+* `@[source] List.map` expands to the full source of `List.map`
+* `@[include] someOtherDoc`, inserts a value `someOtherDoc : Doc` here.
+* `@[evaluate] someDefinition` expands to the result of evaluating `someDefinition`, which must be a pre-existing definition in the codebase (can't be an arbitrary expression).
+
+### An example
+
+We are going to document `List.take` using some verbiage and a few examples. First we have to add the examples to the codebase:
 
 ```unison
 List.take.ex1 = take 0 [1,2,3,4,5]
