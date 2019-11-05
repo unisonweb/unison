@@ -89,20 +89,20 @@ repoPath = P.label "generic git repo" $ do
       void $ symbol ":"
       P.takeWhile1P (Just "digits") isDigit
     path <- P.takeWhile1P (Just "path character") (/= ':')
-    pure $ "https://" <> Monoid.fromMaybe user 
-                      <> host 
-                      <> Monoid.fromMaybe ((":"<>) <$> port) 
-                      <> path 
+    pure $ "https://" <> Monoid.fromMaybe user
+                      <> host
+                      <> Monoid.fromMaybe ((":"<>) <$> port)
+                      <> path
   _sshRepo = error "todo"
   scpRepo = do
     user <- P.optional userInfo
     host <- parseHost
     void $ symbol ":"
     path <- P.takeWhile1P (Just "path character") (/= ':')
-    pure $ Monoid.fromMaybe user <> host <> ":" <> path 
+    pure $ Monoid.fromMaybe user <> host <> ":" <> path
   userInfo = error "todo"
-  parseHost = P.takeWhile1P (Just "host/ip character") 
-                (\c -> notElem @[] c ":/") 
+  parseHost = P.takeWhile1P (Just "host/ip character")
+                (\c -> notElem @[] c ":/")
 
 
 
