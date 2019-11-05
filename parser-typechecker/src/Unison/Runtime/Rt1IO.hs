@@ -495,7 +495,7 @@ toTermOrError ppe r = case r of
               <> "with the following message:"), "",
       P.indentN 2 $ P.wrapString msg,
       "",
-      P.wrap "This happens when calling one of the builtin error functions like `error` or `todo`.",
+      P.wrap "This happens when calling one of the builtin error functions like `bug` or `todo`.",
       "", sorryMsg
       ]
   Right (RT.RRequest (IR.Req r cid vs _)) -> do
