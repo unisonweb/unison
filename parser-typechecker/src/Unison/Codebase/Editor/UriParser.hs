@@ -105,7 +105,7 @@ type Host = Text -- no port
 
 -- doesn't currently handle passwords like https://user:pass@server.com
 -- (is that even a thing for any of these?)
--- or handle ipv6 addresses
+-- or handle ipv6 addresses (https://en.wikipedia.org/wiki/IPv6#Addressing)
 parseProtocol :: P GitProtocol
 parseProtocol = P.label "parseProtocol" $
   fileRepo <|> httpsRepo <|> sshRepo <|> scpRepo <|> localRepo
