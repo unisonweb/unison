@@ -364,8 +364,8 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
         (\x -> readMaybe x :: Maybe Double) . Text.unpack)
 
     , mk2 "Debug.watch" att at id (\t v -> putStrLn (Text.unpack t) *> pure v)
-    , mk1 "todo" att (error . show) id
-    , mk1 "bug" att (error . show) id
+    , mk1 "todo" at (error . show) id
+    , mk1 "bug" at (error . show) id
     ]
 
   builtinsMap :: Map R.Reference IR
