@@ -50,7 +50,7 @@ use .builtin
 
 docs.List.take = [:
 
-`@List.take n xs` returns the first `n` elements of `xs`
+`@List.take n xs` returns the first `n` elements of `xs`. (No need to add line breaks manually. The display command will do wrapping of text for you.)
 
 ## Examples:
 

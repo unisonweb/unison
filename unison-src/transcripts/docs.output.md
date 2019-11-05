@@ -92,7 +92,7 @@ use .builtin
 
 docs.List.take = [:
 
-`@List.take n xs` returns the first `n` elements of `xs`
+`@List.take n xs` returns the first `n` elements of `xs`. (No need to add line breaks manually. The display command will do wrapping of text for you.)
 
 ## Examples:
 
@@ -147,7 +147,9 @@ Now that documentation is linked to the definition. We can view it if we like:
 
 .> display 1
 
-  `builtin.List.take n xs` returns the first `n` elements of `xs`
+  `builtin.List.take n xs` returns the first `n` elements of
+  `xs`. (No need to add line breaks manually. The display
+  command will do wrapping of text for you.)
   
   ## Examples:
   
@@ -166,7 +168,9 @@ Or there's also a convenient function, `docs`, which shows the `Doc` values that
 ```ucm
 .> docs builtin.List.take
 
-  `builtin.List.take n xs` returns the first `n` elements of `xs`
+  `builtin.List.take n xs` returns the first `n` elements of
+  `xs`. (No need to add line breaks manually. The display
+  command will do wrapping of text for you.)
   
   ## Examples:
   
