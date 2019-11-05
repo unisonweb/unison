@@ -215,6 +215,9 @@ data IR' ann z
   -- Universals
   | EqU z z -- universal equality
   | CompareU z z -- universal ordering
+  -- Debugging/Utilities
+  | Todo z
+  | Bug z
   -- Control flow
 
   -- `Let` has an `ann` associated with it, e.g `ann = Set Int` which is the
@@ -295,6 +298,8 @@ prettyIR ppe prettyE prettyCont = pir
     EqF a b -> P.parenthesize $ "EqF" `P.hang` P.spaced [pz a, pz b]
     EqU a b -> P.parenthesize $ "EqU" `P.hang` P.spaced [pz a, pz b]
     CompareU a b -> P.parenthesize $ "CompareU" `P.hang` P.spaced [pz a, pz b]
+    Bug a -> P.parenthesize $ "Bug" `P.hang` P.spaced [pz a]
+    Todo a -> P.parenthesize $ "Todo" `P.hang` P.spaced [pz a]
     ir@Let{} ->
       P.group $ "let" `P.hang` P.lines (blockElem <$> block)
       where
@@ -675,6 +680,8 @@ boundVarsIR = \case
   EqF _ _ -> mempty
   EqU _ _ -> mempty
   CompareU _ _ -> mempty
+  Bug _ -> mempty
+  Todo _ -> mempty
   MakeSequence _ -> mempty
   Construct{} -> mempty
   Request{} -> mempty
@@ -725,6 +732,8 @@ decompileIR stack = \case
   EqF x y -> builtin "Float.==" [x,y]
   EqU x y -> builtin "Universal.==" [x,y]
   CompareU x y -> builtin "Universal.compare" [x,y]
+  Bug x -> builtin "bug" [x]
+  Todo x -> builtin "todo" [x]
   Let v b body _ -> do
     b' <- decompileIR stack b
     body' <- decompileIR (v:stack) body
@@ -912,6 +921,8 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Universal.<=", 2, let' var (CompareU (Slot 1) (Slot 0))
                                        (LtEqI (Slot 0) (Val (I 0))))
         , ("Boolean.not", 1, Not (Slot 0))
+        , ("bug", 1, Bug (Slot 0))
+        , ("todo", 1, Todo (Slot 0))
         ]]
 
 -- boring instances

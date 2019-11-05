@@ -211,6 +211,7 @@ data Result
   = RRequest Req
   | RMatchFail Size [Value] Value
   | RDone Value
+  | RError String
   deriving Show
 
 done :: Value -> IO Result
@@ -364,8 +365,6 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
         (\x -> readMaybe x :: Maybe Double) . Text.unpack)
 
     , mk2 "Debug.watch" att at id (\t v -> putStrLn (Text.unpack t) *> pure v)
-    , mk1 "todo" at (error . show) id
-    , mk1 "bug" at (error . show) id
     ]
 
   builtinsMap :: Map R.Reference IR
@@ -463,6 +462,7 @@ run ioHandler env ir = do
           -- traceM . P.render 80 $ P.shown var <> " =" `P.hang` pvalue v
           push size v m >>= \m -> go (size + 1) m body
         e@(RMatchFail _ _ _) -> pure e
+        e@(RError _) -> pure e
       LetRec bs body -> letrec size m bs body
       MakeSequence vs ->
         done . Sequence . Sequence.fromList =<< traverse (\i -> at size i m) vs
@@ -545,6 +545,8 @@ run ioHandler env ir = do
           EQ -> 0
           LT -> -1
           GT -> 1
+      Bug i -> (RError . show) <$> at size i m
+      Todo i -> (RError . show) <$> at size i m
 
     runHandler :: Size -> Stack -> Value -> IR -> IO Result
     runHandler size m handler body =

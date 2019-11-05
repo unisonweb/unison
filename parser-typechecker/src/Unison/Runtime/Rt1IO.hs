@@ -489,6 +489,15 @@ toTermOrError ppe r = case r of
       P.wrap "This happens when calling a function that doesn't handle all possible inputs.",
       "", sorryMsg
       ]
+  Right (RT.RError msg) ->
+    pure . Left . P.callout icon . P.lines $ [
+      P.wrap ("I've encountered a call to a" <> P.red "error function"
+              <> "with the following message:"), "",
+      P.indentN 2 $ P.wrapString msg,
+      "",
+      P.wrap "This happens when calling one of the builtin error functions like `error` or `todo`.",
+      "", sorryMsg
+      ]
   Right (RT.RRequest (IR.Req r cid vs _)) -> do
     vs <- traverse IR.decompile vs
     let tm = Term.apps' (Term.request() r cid) vs
