@@ -1047,13 +1047,14 @@ noCompletions = ArgumentType "word" I.noSuggestions
 -- Arya: I could imagine completions coming from previous git pulls
 gitUrlArg :: ArgumentType
 gitUrlArg = ArgumentType "git-url" $ \input _ _ _ -> case input of
-  "gh" -> pure [Completion "https://github.com/" "https://github.com/" False]
-  "gl" -> pure [Completion "https://gitlab.com/" "https://gitlab.com/" False]
-  "bb" -> pure [Completion "https://bitbucket.com/" "https://bitbucket.com/" False]
-  "ghs" -> pure [Completion "git@github.com:" "git@github.com:" False]
-  "gls" -> pure [Completion "git@gitlab.com:" "git@gitlab.com:" False]
-  "bbs" -> pure [Completion "git@bitbucket.com:" "git@bitbucket.com:" False]
+  "gh" -> complete "https://github.com/" 
+  "gl" -> complete "https://gitlab.com/"
+  "bb" -> complete "https://bitbucket.com/"
+  "ghs" -> complete "git@github.com:"
+  "gls" -> complete "git@gitlab.com:"
+  "bbs" -> complete "git@bitbucket.com:"
   _ -> pure []
+  where complete s = pure [Completion s s False]
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [ a | (Nothing, a) <- map f as `zip` as ]
