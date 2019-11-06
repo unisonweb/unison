@@ -530,6 +530,7 @@ pattern DocLink link <- Term.App' (Term.Constructor' DocRef DocLinkId) link
 pattern DocSource link <- Term.App' (Term.Constructor' DocRef DocSourceId) link
 pattern DocSignature link <- Term.App' (Term.Constructor' DocRef DocSignatureId) link
 pattern DocEvaluate link <- Term.App' (Term.Constructor' DocRef DocEvaluateId) link
+pattern Doc <- Term.App' (Term.Constructor' DocRef _) _ -- TODO use
 pattern DocSignatureId <- ((== docSignatureId) -> True)
 pattern DocBlobId <- ((== docBlobId) -> True)
 pattern DocLinkId <- ((== docLinkId) -> True)
