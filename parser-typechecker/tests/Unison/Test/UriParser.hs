@@ -56,8 +56,8 @@ testAugmented = scope "augmented" . tests $
 -- SSH Protocol
 -- $ git clone ssh://[user@]server/project.git[:treeish][:[#hash][.path]]
     scope "ssh-protocol" . tests . map parseAugmented $
-    [ ("ssh://git@github.com:222/user/project.git",
-      (GitRepo "ssh://git@github.com:222/user/project.git" Nothing, Nothing, Path.empty))
+    [ ("ssh://git@8.8.8.8:222/user/project.git",
+      (GitRepo "ssh://git@8.8.8.8:222/user/project.git" Nothing, Nothing, Path.empty))
     , ("ssh://git@github.com/user/project.git:abc:#def.hij.klm]",
       (GitRepo "ssh://git@github.com/user/project.git" (Just "abc"), sbh "def", path ["hij", "klm"]))
     , ("ssh://git@github.com/user/project.git:abc:#def.hij.klm]",

@@ -103,8 +103,8 @@ data HostInfo = HostInfo Text (Maybe Text)
 
 type Host = Text -- no port
 
--- doesn't currently handle passwords like https://user:pass@server.com
--- (is that even a thing for any of these?)
+-- doesn't yet handle basic authentication like https://user:pass@server.com
+-- (does anyone even want that?)
 -- or handle ipv6 addresses (https://en.wikipedia.org/wiki/IPv6#Addressing)
 parseProtocol :: P GitProtocol
 parseProtocol = P.label "parseProtocol" $
