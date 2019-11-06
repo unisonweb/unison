@@ -15,7 +15,6 @@ import qualified System.Console.Haskeline.Completion as Completion
 import System.Console.Haskeline.Completion (Completion(..))
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input)
-import Unison.Codebase.Editor.RemoteRepo
 import Unison.CommandLine.InputPattern
          ( ArgumentType(..)
          , InputPattern(InputPattern)
@@ -27,6 +26,7 @@ import Unison.ShortHash (ShortHash)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Text.Megaparsec as P
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Path as Path
@@ -39,6 +39,7 @@ import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Editor.SlurpResult as SR
+import qualified Unison.Codebase.Editor.UriParser as UriParser
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -479,33 +480,61 @@ pull = InputPattern
     , ( "`pull url`"
       , "pulls the contents of the git url `url` into the current namespace."
       )
+    , ( "`pull url:.baz`"
+      , "pulls the contents of the remote namespace `.baz`"
+        <> "at git url `url`"
+        <> "into the current namespace."
+      )
+    , ( "`pull url:#abc`"
+      , "pulls the contents of the remote namespace `#abc`"
+        <> "at git url `url`"
+        <> "into the current namespace."
+      )
+    , ( "`pull url:#abc.baz`"
+      , "pulls the contents of the remote namespace `.baz`"
+        <> "under the remote namespace `#abc`"
+        <> "at git url `url`"
+        <> "into the current namespace."
+      )
+    , ( "`pull url:bar:#abc.baz`"
+      , "pulls the contents of the remote namespace `.baz`"
+        <> "under the remote namespace `#abc`"
+        <> "in the git branch `bar`"
+        <> "at git url `url`"
+        <> "into the current namespace."
+      )
     , ( "`pull url foo.bar`"
       , "pulls the contents of the git url `url` into `foo.bar` relative "
         <> "to the current namespace."
+      )
+    , ( "`pull url:.baz foo.bar`"
+      , "pulls the contents of the remote namespace `.baz`"
+        <> "at git url `url`"
+        <> "into `foo.bar` relative to the current namespace."
       )
     , ( "`pull url .foo.bar`"
       , "pulls the contents of the git url `url` into into the absolute "
         <> "namespace `.foo.bar`."
       )
-    , ( "`pull url foo bar`"
+    , ( "`pull url:bar foo`"
       , "pulls the contents of the git branch or commit named `bar` from the "
         <> " git url `url` into the namespace `foo`."
       )
     ]
   )
   (\case
-    []    -> pure $ Input.PullRemoteBranchI Nothing Path.relativeEmpty'
-    [url] -> pure $ Input.PullRemoteBranchI
-      (Just $ GitRepo (Text.pack url) Nothing)
-      Path.relativeEmpty'
+    []    -> Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty'
+    [url] -> do
+      (repo, _sbh, _remotePath) <-
+        first (fromString . show)
+          (P.parse UriParser.repoPath "url" (Text.pack url))
+      Right $ Input.PullRemoteBranchI (Just repo) Path.relativeEmpty'
     [url, path] -> do
+      (repo, _sbh, _remotePath) <-
+        first (fromString . show)
+          (P.parse UriParser.repoPath "url" (Text.pack url))
       p <- first fromString $ Path.parsePath' path
-      pure $ Input.PullRemoteBranchI (Just $ GitRepo (Text.pack url) Nothing) p
-    [url, path, treeish] -> do
-      p <- first fromString $ Path.parsePath' path
-      pure $ Input.PullRemoteBranchI
-        (Just . GitRepo (Text.pack url) $ (Just . Text.pack) treeish)
-        p
+      pure $ Input.PullRemoteBranchI (Just repo) p
     _ -> Left (I.help pull)
   )
 
@@ -520,8 +549,8 @@ push = InputPattern
         <> "for that namespace."
       )
     , ( "`push url`"
-      , "pushes the contents of the current namespace to the git url given by "
-        <> "`url`."
+      , "pushes the contents of the current namespace"
+        <> "to the git url given by `url`."
       )
     , ( "`push url foo.bar`"
       , "pushes the contents of `foo.bar` relative to the current namespace "
@@ -531,25 +560,42 @@ push = InputPattern
       , "pushes the contents of the absolute namespace `.foo.bar` "
         <> "to the git url given by `url`."
       )
-    , ( "`push url foo bar`"
+    , ( "`push url:.baz .foo.bar`"
+      , "pushes the contents of the absolute namespace `.foo.bar` "
+        <> "to the git url given by `url`"
+        <> "under the remote namespace `.baz`."
+      )
+    , ( "`push url:bar foo`"
       , "pushes the contents of the namespace `foo` "
         <> "to the git branch `bar` at the git url `url`."
+      )
+    , ( "`push url:bar.baz foo`"
+      , "pushes the contents of the namespace `foo`"
+        <> "to the git branch `bar`"
+        <> "at the git url `url`"
+        <> "under the remote namespace `.baz`."
       )
     ]
   )
   (\case
-    []    -> pure $ Input.PushRemoteBranchI Nothing Path.relativeEmpty'
-    [url] -> first fromString . pure $ Input.PushRemoteBranchI
-      (Just $ GitRepo (Text.pack url) Nothing)
-      Path.relativeEmpty'
+    []    -> Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty'
+    [url] -> do
+      (repo, sbh, _remotePath) <-
+        first (fromString . show)
+          (P.parse UriParser.repoPath "url" (Text.pack url))
+      case sbh of
+        Just _ -> Left $ "Can't push to a particular remote namespace hash."
+        Nothing ->
+          Right $ Input.PushRemoteBranchI (Just repo) Path.relativeEmpty'
     [url, path] -> first fromString $ do
-      p <- Path.parsePath' path
-      pure $ Input.PushRemoteBranchI (Just $ GitRepo (Text.pack url) Nothing) p
-    [url, path, treeish] -> first fromString $ do
-      p <- Path.parsePath' path
-      pure $ Input.PushRemoteBranchI
-        (Just . GitRepo (Text.pack url) $ (Just . Text.pack) treeish)
-        p
+      (repo, sbh, _remotePath) <-
+        first (fromString . show)
+          (P.parse UriParser.repoPath "url" (Text.pack url))
+      case sbh of
+        Just _ -> Left $ "Can't push to a particular remote namespace hash."
+        Nothing -> do
+          p <- Path.parsePath' path
+          Right $ Input.PushRemoteBranchI (Just repo) p
     _ -> Left (I.help push)
   )
 
@@ -1047,7 +1093,7 @@ noCompletions = ArgumentType "word" I.noSuggestions
 -- Arya: I could imagine completions coming from previous git pulls
 gitUrlArg :: ArgumentType
 gitUrlArg = ArgumentType "git-url" $ \input _ _ _ -> case input of
-  "gh" -> complete "https://github.com/" 
+  "gh" -> complete "https://github.com/"
   "gl" -> complete "https://gitlab.com/"
   "bb" -> complete "https://bitbucket.com/"
   "ghs" -> complete "git@github.com:"
