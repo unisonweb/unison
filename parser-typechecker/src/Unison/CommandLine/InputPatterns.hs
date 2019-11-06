@@ -12,7 +12,7 @@ import Data.Bifunctor (first)
 import Data.List (intercalate, sortOn, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
 import qualified System.Console.Haskeline.Completion as Completion
-import System.Console.Haskeline.Completion (Completion)
+import System.Console.Haskeline.Completion (Completion(..))
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.RemoteRepo
@@ -1046,7 +1046,14 @@ noCompletions = ArgumentType "word" I.noSuggestions
 
 -- Arya: I could imagine completions coming from previous git pulls
 gitUrlArg :: ArgumentType
-gitUrlArg = noCompletions { I.typeName = "git-url" }
+gitUrlArg = ArgumentType "git-url" $ \input _ _ _ -> case input of
+  "gh" -> pure [Completion "https://github.com/" "https://github.com/" False]
+  "gl" -> pure [Completion "https://gitlab.com/" "https://gitlab.com/" False]
+  "bb" -> pure [Completion "https://bitbucket.com/" "https://bitbucket.com/" False]
+  "ghs" -> pure [Completion "git@github.com:" "git@github.com:" False]
+  "gls" -> pure [Completion "git@gitlab.com:" "git@gitlab.com:" False]
+  "bbs" -> pure [Completion "git@bitbucket.com:" "git@bitbucket.com:" False]
+  _ -> pure []
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [ a | (Nothing, a) <- map f as `zip` as ]
