@@ -598,7 +598,6 @@ renderTypeError e env src = case e of
       , "Type: "
       , renderType' env typ
       ]
-    C.CompilerBug c -> "CompilerBug: " <> fromString (show c)
     C.AbilityCheckFailure ambient requested c -> mconcat
       [ "AbilityCheckFailure: "
       , "ambient={"

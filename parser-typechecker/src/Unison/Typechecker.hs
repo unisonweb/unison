@@ -21,12 +21,14 @@ import           Control.Monad.State        (State, StateT, execState, get,
                                              modify)
 import           Control.Monad.Writer
 import qualified Data.Map                   as Map
+import           Data.Sequence.NonEmpty     (nonEmptySeqToSeq)
 import qualified Data.Text                  as Text
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as B
 import           Unison.Referent            (Referent)
 import           Unison.Result              (pattern Result, Result,
                                              ResultT, runResultT)
+import qualified Unison.Result              as Result
 import           Unison.Term                (AnnotatedTerm)
 import qualified Unison.Term                as Term
 import           Unison.Type                (Type)
@@ -43,18 +45,22 @@ type Name = Text
 type Term v loc = AnnotatedTerm v loc
 
 data Notes v loc = Notes {
+  bugs   :: Seq (Context.CompilerBug v loc),
   errors :: Seq (Context.ErrorNote v loc),
   infos  :: Seq (Context.InfoNote v loc)
 }
 
 instance Semigroup (Notes v loc) where
-  Notes es is <> Notes es' is' = Notes (es <> es') (is <> is')
+  Notes bs es is <> Notes bs' es' is' = Notes (bs <> bs') (es <> es') (is <> is')
 
 instance Monoid (Notes v loc) where
-  mempty = Notes mempty mempty
+  mempty = Notes mempty mempty mempty
 
 convertResult :: Context.Result v loc a -> Result (Notes v loc) a
-convertResult (Context.Result es is ma) = Result (Notes es is) ma
+convertResult = \case
+  Context.Success is a          -> Result (Notes mempty mempty is) (Just a)
+  Context.TypeError es is       -> Result (Notes mempty (nonEmptySeqToSeq es) is) Nothing
+  Context.CompilerBug bug es is -> Result (Notes [bug] es is) Nothing
 
 data NamedReference v loc =
   NamedReference { fqn :: Name, fqnType :: Type v loc
@@ -142,18 +148,17 @@ synthesize
   -> Term v loc
   -> ResultT (Notes v loc) f (Type v loc)
 synthesize env t = let
-  (Context.Result es is ot) = Context.synthesizeClosed
+  result = convertResult $ Context.synthesizeClosed
     (ABT.vmap TypeVar.Universal <$> view ambientAbilities env)
     (view typeLookup env)
     (Term.vtmap TypeVar.Universal t)
-  in tell (Notes es is) *> MaybeT (pure $ fmap lowerType ot)
+  in Result.hoist (pure . runIdentity) $ fmap lowerType result
 
 isSubtype :: Var v => Type v loc -> Type v loc -> Bool
 isSubtype t1 t2 =
   case Context.isSubtype (tvar $ void t1) (tvar $ void t2) of
-    Context.Result es _ ob -> fromMaybe
-      (error $ "some errors occurred during subtype checking " ++ show es)
-      ob
+    Left bug -> error $ "compiler bug encountered: " ++ show bug
+    Right b -> b
   where tvar = ABT.vmap TypeVar.Universal
 
 isEqual :: Var v => Type v loc -> Type v loc -> Bool
@@ -181,13 +186,18 @@ synthesizeAndResolve env = do
   (tp, notes) <- listen . lift $ synthesize env tm
   typeDirectedNameResolution notes tp env
 
+compilerBug :: Context.CompilerBug v loc -> Result (Notes v loc) ()
+compilerBug bug = do
+  tell $ Notes [bug] mempty mempty
+  Control.Monad.Fail.fail ""
+
 typeError :: Context.ErrorNote v loc -> Result (Notes v loc) ()
 typeError note = do
-  tell $ Notes [note] mempty
+  tell $ Notes mempty [note] mempty
   Control.Monad.Fail.fail ""
 
 btw :: Monad f => Context.InfoNote v loc -> ResultT (Notes v loc) f ()
-btw note = tell $ Notes mempty [note]
+btw note = tell $ Notes mempty mempty [note]
 
 liftResult :: Monad f => Result (Notes v loc) a -> TDNR f v loc a
 liftResult = lift . MaybeT . WriterT . pure . runIdentity . runResultT
@@ -287,19 +297,16 @@ typeDirectedNameResolution oldNotes oldType env = do
     -> Result (Notes v loc) [Context.Suggestion v loc]
   resolve inferredType (NamedReference fqn foundType replace) =
     -- We found a name that matches. See if the type matches too.
-    let Result subNotes subResult = convertResult
-          $ Context.isSubtype (Type.toTypeVar foundType) inferredType
-    in  case subResult of
-                  -- Something unexpected went wrong with the subtype check
-          Nothing -> const [] <$> traverse_ typeError (errors subNotes)
-          -- Suggest the import if the type matches.
-          Just b  -> pure
-            [ Context.Suggestion
-                fqn
-                (Type.toTypeVar foundType)
-                replace
-                (if b then Context.Exact else Context.WrongType)
-            ]
+    case Context.isSubtype (Type.toTypeVar foundType) inferredType of
+      Left bug -> const [] <$> compilerBug bug
+      -- Suggest the import if the type matches.
+      Right b  -> pure
+        [ Context.Suggestion
+            fqn
+            (Type.toTypeVar foundType)
+            replace
+            (if b then Context.Exact else Context.WrongType)
+        ]
 
 -- | Check whether a term matches a type, using a
 -- function to resolve the type of @Ref@ constructors
