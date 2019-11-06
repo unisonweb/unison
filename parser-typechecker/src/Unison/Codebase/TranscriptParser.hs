@@ -30,6 +30,7 @@ import Unison.CommandLine.Main (asciiartUnison)
 import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified System.IO as IO
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
@@ -167,6 +168,7 @@ run dir stanzas codebase = do
               Just (s,idx) -> do
                 putStr $ "\r⚙️   Processing stanza " ++ show idx ++ " of "
                                               ++ show (length stanzas) ++ "."
+                IO.hFlush IO.stdout
                 case s of
                   Unfenced _ -> do
                     output $ show s
