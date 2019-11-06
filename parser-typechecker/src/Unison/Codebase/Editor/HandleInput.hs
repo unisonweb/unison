@@ -1176,7 +1176,11 @@ loop = do
         branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
         let names0 = Branch.toNames0 (Branch.head branch)
         -- checkTodo only needs the local references to check for obsolete defs
-        respond . TodoOutput ppe =<< checkTodo patch names0
+        todo <- checkTodo patch names0
+        numberedArgs .=
+          (Text.unpack . Reference.toText . view _2 <$>
+             fst (TO.todoFrontierDependents todo))
+        respond $ TodoOutput ppe todo
 
       TestI showOk showFail -> do
         let
