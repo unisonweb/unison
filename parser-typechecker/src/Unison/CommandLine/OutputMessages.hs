@@ -620,8 +620,7 @@ notifyUser dir o = case o of
     where
     tailMsg = case tail of
       E.EndOfLog h -> P.lines [
-        P.wrap "This is the start of history. Later versions are listed below.", "",
-        "□ " <> prettySBH h, ""
+        "□ " <> prettySBH h <> " (start of history)"
         ]
       E.MergeTail h hs -> P.lines [
         P.wrap $ "This segment of history starts with a merge." <> ex,
