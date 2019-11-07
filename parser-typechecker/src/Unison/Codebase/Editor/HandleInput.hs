@@ -1303,10 +1303,10 @@ loop = do
      where
       notImplemented = eval $ Notify NotImplemented
       success = respond $ Success input
-      --| Takes a maybe (namespace address triple); returns it as-is if `Just`;
-      --  otherwise, tries to load a value from .unisonConfig, and complains
-      --  if needed.
       
+      -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
+      -- otherwise, tries to load a value from .unisonConfig, and complains
+      -- if needed.      
       resolveConfiguredGitUrl 
         :: PushPull
         -> Path'
