@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-} -- todo: delete
+--{-# OPTIONS_GHC -Wno-unused-imports #-} -- todo: delete
 {-# OPTIONS_GHC -Wno-unused-top-binds #-} -- todo: delete
 {-# OPTIONS_GHC -Wno-unused-local-binds #-} -- todo: delete
-{-# OPTIONS_GHC -Wno-unused-matches #-} -- todo: delete
+--{-# OPTIONS_GHC -Wno-unused-matches #-} -- todo: delete
 
 {-# LANGUAGE ApplicativeDo       #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -37,20 +37,17 @@ import Unison.Codebase.Editor.RemoteRepo
 
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
-import           Control.Monad.State            ( StateT
-                                                )
+import           Control.Monad.State            ( StateT )
 import           Control.Monad.Trans.Except     ( ExceptT(..), runExceptT)
 import           Data.Bifunctor                 ( second )
-import           Data.Configurator.Types        ( Config )
 import           Data.Configurator              ()
-import qualified Data.Graph as Graph
 import qualified Data.List                      as List
 import           Data.List                      ( partition, sortOn )
-import           Data.List.Extra                (nubOrd, intercalate, sort)
-import           Data.Maybe                     ( fromJust
-                                                )
+import           Data.List.Extra                ( nubOrd, sort )
+import           Data.Maybe                     ( fromJust )
 import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
+import qualified Text.Megaparsec               as P
 import qualified Data.Set                      as Set
 import           Data.Sequence                  ( Seq(..) )
 import qualified Unison.ABT                    as ABT
@@ -72,7 +69,6 @@ import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.DataDeclaration        as DD
-import qualified Unison.Hash                   as Hash
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
@@ -81,7 +77,6 @@ import           Unison.Names3                  ( Names(..), Names0
                                                 , pattern Names0 )
 import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names3
-import qualified Unison.Parsers                as Parsers
 import           Unison.Parser                  ( Ann(..) )
 import           Unison.Reference               ( Reference(..) )
 import qualified Unison.Reference              as Reference
@@ -104,19 +99,15 @@ import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.Codebase.TermEdit (TermEdit(..))
 import qualified Unison.Codebase.TermEdit as TermEdit
-import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE
 import           Unison.Runtime.IOSource       ( isTest, ioReference )
 import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
-import           Unison.Util.Monoid (foldMapM)
 import qualified Unison.Util.Monoid            as Monoid
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
-import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import Unison.ConstructorType (ConstructorType)
 import qualified Unison.Lexer as L
 import Unison.Codebase.Editor.SearchResult' (SearchResult')
 import qualified Unison.Codebase.Editor.SearchResult' as SR'
@@ -127,6 +118,7 @@ import qualified Unison.Builtin as Builtin
 import Unison.Codebase.NameSegment (NameSegment(..))
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.Editor.Propagate as Propagate
+import qualified Unison.Codebase.Editor.UriParser as UriParser
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
@@ -531,14 +523,12 @@ loop = do
         Left hash -> resolveShortBranchHash input hash >>= \case
           Left output -> respond output
           Right b -> do
-            hashLen <- eval BranchHashLength
             doHistory 0 b []
         Right path' -> do
           path <- use $ currentPath . to (`Path.toAbsolutePath` path')
           branch' <- getAt path
           if Branch.isEmpty branch' then respond $ CreatedNewBranch path
           else do
-            hashLen <- eval BranchHashLength
             doHistory 0 branch' []
         where
           doHistory !n b acc =
@@ -898,7 +888,7 @@ loop = do
             | (ns, b) <- Map.toList $ _children b0 ]
           patchEntries =
             [ ShallowPatchEntry ns
-            | (ns, (_h, mp)) <- Map.toList $ _edits b0 ]
+            | (ns, (_h, _mp)) <- Map.toList $ _edits b0 ]
         let
           entries :: [ShallowListEntry v Ann]
           entries = sort $ termEntries ++ typeEntries ++ branchEntries
@@ -1160,7 +1150,6 @@ loop = do
                , pure . doSlurpAdds (Slurp.updates sr <> Slurp.adds sr) uf)
               ,( Path.unabsolute p, updatePatches )]
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
-          let fileNames0 = UF.typecheckedToNames0 uf
           ppe <- prettyPrintEnv =<<
             makeShadowedPrintNamesFromLabeled
               (UF.termSignatureExternalLabeledDependencies uf)
@@ -1275,29 +1264,29 @@ loop = do
         respond $ ListEdits patch ppe
 
       PullRemoteBranchI mayRepo path -> do
-        let p = Path.toAbsolutePath currentPath' path
-        case mayRepo of
-          Just repo ->
-            loadRemoteBranchAt input inputDescription repo p
-          Nothing -> do
-            repoUrl <- eval . ConfigLookup $ "GitUrl" <> Text.pack (show p)
-            case repoUrl of
-              Just url -> loadRemoteBranchAt input inputDescription (GitRepo url Nothing) p
-              Nothing ->
-                eval . Notify $ NoConfiguredGitUrl Pull path
+        let destAbs = Path.toAbsolutePath currentPath' path
+        resolveConfiguredGitUrl Pull path mayRepo >>= \case
+          Left e -> eval . Notify $ e
+          Right ns -> loadRemoteBranchAt input inputDescription ns destAbs
 
       PushRemoteBranchI mayRepo path -> do
-        let p = Path.toAbsolutePath currentPath' path
-        b <- getAt p
-        case mayRepo of
-          Just repo -> syncRemoteRootBranch input repo b
-          Nothing -> do
-            repoUrl <-
-              eval . ConfigLookup $ gitUrlKey p
-            case repoUrl of
-              Just url -> syncRemoteRootBranch input (GitRepo url Nothing) b
-              Nothing ->
-                eval . Notify $ NoConfiguredGitUrl Push path
+        let srcAbs = Path.toAbsolutePath currentPath' path
+        srcb <- getAt srcAbs
+        let expandRepo (r, rp) = (r, Nothing, rp)
+        resolveConfiguredGitUrl Push path (fmap expandRepo mayRepo) >>= \case
+          Left e -> eval . Notify $ e
+          Right (repo, Nothing, remotePath) -> do
+              -- push from srcb to repo's remotePath
+              eval (LoadRemoteRootBranch repo) >>= \case
+                Left e -> eval . Notify $ GitError input e
+                Right remoteRoot -> do
+                  newRemoteRoot <- eval . Eval $
+                    Branch.modifyAtM remotePath (Branch.merge srcb) remoteRoot
+                  syncRemoteRootBranch input repo newRemoteRoot
+          Right (_, Just _, _) ->
+            error $ "impossible match, resolveConfiguredGitUrl shouldn't return"
+                <> " `Just` unless it was passed `Just`; and here it is passed"
+                <> " `Nothing` by `expandRepo`."
       DebugBranchHistoryI ->
         eval . Notify . DumpBitBooster (Branch.headHash currentBranch') =<<
           (eval . Eval $ Causal.hashToRaw (Branch._history currentBranch'))
@@ -1314,6 +1303,34 @@ loop = do
      where
       notImplemented = eval $ Notify NotImplemented
       success = respond $ Success input
+      --| Takes a maybe (namespace address triple); returns it as-is if `Just`;
+      --  otherwise, tries to load a value from .unisonConfig, and complains
+      --  if needed.
+      
+      resolveConfiguredGitUrl 
+        :: PushPull
+        -> Path'
+        -> Maybe (RemoteRepo, Maybe ShortBranchHash, Path) 
+        -> Action' m v (Either _ (RemoteRepo, Maybe ShortBranchHash, Path))  
+      resolveConfiguredGitUrl pushPull destPath' = \case
+        Just ns -> pure $ Right ns
+        Nothing -> do
+          let destPath = Path.toAbsolutePath currentPath' destPath'          
+          let configKey = gitUrlKey destPath
+          (eval . ConfigLookup) configKey >>= \case
+            Just url -> 
+              case P.parse UriParser.repoPath (Text.unpack configKey) url of
+                Left e -> 
+                  pure . Left $ 
+                    ConfiguredGitUrlParseError pushPull destPath' url (show e)
+                Right (repo, Just sbh, remotePath) ->
+                  pure . Left $ 
+                    ConfiguredGitUrlIncludesShortBranchHash pushPull repo sbh remotePath
+                Right ns ->
+                  pure . Right $ ns
+            Nothing ->
+              pure . Left $ NoConfiguredGitUrl pushPull destPath'
+                
       gitUrlKey p = Text.intercalate "." . toList $ "GitUrl" :<| fmap
         NameSegment.toText
         (Path.toSeq $ Path.unabsolute p)
@@ -1578,19 +1595,22 @@ searchBranchExact len names queries = let
 respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
+-- merges the specified remote branch into the specified local absolute path
 loadRemoteBranchAt
   :: Var v
   => Monad m
   => Input
   -> Text
-  -> RemoteRepo
+  -> (RemoteRepo, Maybe ShortBranchHash, Path)
   -> Path.Absolute
   -> Action' m v ()
-loadRemoteBranchAt input inputDescription repo p = do
-  b <- eval (LoadRemoteRootBranch repo)
+loadRemoteBranchAt input inputDescription (repo, sbh, remotePath) p = do
+  b <- eval $ maybe (LoadRemoteRootBranch repo)
+                    (LoadRemoteShortBranch repo) sbh
   case b of
     Left  e -> eval . Notify $ GitError input e
     Right b -> do
+      b <- pure $ Branch.getAt' remotePath b
       changed <- updateAtM inputDescription p (doMerge b)
       when changed $ do
         merged <- getAt p

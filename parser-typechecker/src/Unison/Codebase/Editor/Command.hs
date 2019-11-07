@@ -128,6 +128,9 @@ data Command m i v a where
 
   LoadRemoteRootBranch ::
     RemoteRepo -> Command m i v (Either GitError (Branch m))
+  
+  LoadRemoteShortBranch ::
+    RemoteRepo -> ShortBranchHash -> Command m i v (Either GitError (Branch m))
 
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
@@ -143,7 +146,7 @@ data Command m i v a where
     RemoteRepo -> Branch m -> Command m i v (Either GitError ())
   -- e.g.
   --   /Lib/Arya/Public/SuperML> push github:aryairani/superML
-  --   SynchRootBranch (Github "aryairani" "superML" "master")
+  --   SyncRootBranch (Github "aryairani" "superML" "master")
   --                   (Branch at /Lib/Arya/Public/SuperML)
 
   LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))

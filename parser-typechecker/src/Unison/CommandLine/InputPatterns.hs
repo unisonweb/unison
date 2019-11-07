@@ -464,8 +464,6 @@ resetRoot = InputPattern "reset-root" [] [(Required, pathArg)]
      pure $ Input.ResetRootI src
     _ -> Left (I.help resetRoot))
 
-
-
 pull :: InputPattern
 pull = InputPattern
   "pull"
@@ -525,16 +523,14 @@ pull = InputPattern
   (\case
     []    -> Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty'
     [url] -> do
-      (repo, _sbh, _remotePath) <-
-        first (fromString . show)
-          (P.parse UriParser.repoPath "url" (Text.pack url))
-      Right $ Input.PullRemoteBranchI (Just repo) Path.relativeEmpty'
+      ns <- first (fromString . show)
+              (P.parse UriParser.repoPath "url" (Text.pack url))
+      Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty'
     [url, path] -> do
-      (repo, _sbh, _remotePath) <-
-        first (fromString . show)
-          (P.parse UriParser.repoPath "url" (Text.pack url))
+      ns <- first (fromString . show)
+              (P.parse UriParser.repoPath "url" (Text.pack url))
       p <- first fromString $ Path.parsePath' path
-      pure $ Input.PullRemoteBranchI (Just repo) p
+      pure $ Input.PullRemoteBranchI (Just ns) p
     _ -> Left (I.help pull)
   )
 
@@ -579,24 +575,16 @@ push = InputPattern
   )
   (\case
     []    -> Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty'
-    [url] -> do
-      (repo, sbh, _remotePath) <-
-        first (fromString . show)
-          (P.parse UriParser.repoPath "url" (Text.pack url))
-      case sbh of
-        Just _ -> Left $ "Can't push to a particular remote namespace hash."
-        Nothing ->
-          Right $ Input.PushRemoteBranchI (Just repo) Path.relativeEmpty'
-    [url, path] -> first fromString $ do
-      (repo, sbh, _remotePath) <-
-        first (fromString . show)
-          (P.parse UriParser.repoPath "url" (Text.pack url))
-      case sbh of
-        Just _ -> Left $ "Can't push to a particular remote namespace hash."
-        Nothing -> do
-          p <- Path.parsePath' path
-          Right $ Input.PushRemoteBranchI (Just repo) p
-    _ -> Left (I.help push)
+    url : rest -> do
+      (repo, sbh, path) <- first (fromString . show)
+        (P.parse UriParser.repoPath "url" (Text.pack url))
+      when (isJust sbh)
+        $ Left "Can't push to a particular remote namespace hash."
+      p <- case rest of 
+        [] -> Right Path.relativeEmpty'
+        [path] -> first fromString $ Path.parsePath' path 
+        _ -> Left (I.help push) 
+      Right $ Input.PushRemoteBranchI (Just (repo, path)) p
   )
 
 mergeLocal :: InputPattern

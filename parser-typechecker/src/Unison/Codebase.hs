@@ -38,6 +38,7 @@ import qualified Unison.Codebase.BranchUtil as BranchUtil
 import Unison.DataDeclaration (Decl)
 import Unison.Type (Type)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.Path (Path)
 
 --import Debug.Trace
 
@@ -45,6 +46,8 @@ type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
 
 type Term v a = Term.AnnotatedTerm v a
+type RemotePath = Path
+type RemoteCodebaseFileP = FilePath
 
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
@@ -60,6 +63,8 @@ data Codebase m v a =
            , getBranchForHash   :: Branch.Hash -> m (Branch m)
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
+           -- This copies all codebase elements (except _head) from the 
+           -- specified FileCodebase path into the current one.
            , syncFromDirectory  :: FilePath -> m ()
            -- This returns the merged branch that results from
            -- merging the input branch with the root branch at the

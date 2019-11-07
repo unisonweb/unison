@@ -23,15 +23,14 @@ import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase                ( Codebase
                                                 , syncToDirectory
                                                 )
-import           Unison.Codebase.FileCodebase   ( getRootBranch
-                                                , codebasePath
-                                                )
+import           Unison.Codebase.FileCodebase  as FC
 import           Unison.Codebase.Branch         ( Branch
                                                 , headHash
                                                 )
 import qualified Unison.Util.Exception         as Ex
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Names3                 as Names
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
 -- Given a local path, a remote git repo url, and branch/commit hash,
 -- pulls the HEAD of that remote repo into the local path.
@@ -79,11 +78,31 @@ pullGitRootBranch
   -> Text
   -> Maybe Text
   -> ExceptT GitError m (Branch m)
-pullGitRootBranch localPath codebase url treeish = do
+pullGitRootBranch localPath codebase url treeish =
+  pullGitBranch localPath codebase url treeish Nothing
+
+-- pull repo & load arbitrary branch
+pullGitBranch
+  :: MonadIO m
+  => FilePath
+  -> Codebase m v a
+  -> Text
+  -> Maybe Text
+  -> Maybe ShortBranchHash
+  -> ExceptT GitError m (Branch m)
+pullGitBranch localPath codebase url treeish sbh = do
   pullFromGit localPath url treeish
-  branch <- lift $ getRootBranch (localPath </> codebasePath)
-  lift $ Codebase.syncFromDirectory codebase (localPath </> codebasePath)
-  lift $ Codebase.getBranchForHash codebase (headHash branch)
+  branch <- case sbh of
+    Nothing -> lift $ FC.getRootBranch (localPath </> codebasePath)
+    Just sbh -> do
+      branchCompletions <- lift $ FC.branchHashesByPrefix gitCodebasePath sbh
+      case toList branchCompletions of
+        [] -> throwError $ NoRemoteNamespaceWithHash url treeish sbh
+        [h] -> lift $ FC.branchFromFiles FC.FailIfMissing gitCodebasePath h
+        _ -> throwError $ RemoteNamespaceHashAmbiguous url treeish sbh branchCompletions
+  lift $ Codebase.syncFromDirectory codebase gitCodebasePath
+  pure branch
+  where gitCodebasePath = localPath </> codebasePath
 
 checkForGit :: MonadIO m => MonadError GitError m => m ()
 checkForGit = do

@@ -458,7 +458,7 @@ notifyUser dir o = case o of
       pull = case input of
         Input.PushRemoteBranchI Nothing p ->
           P.sep " " [IP.patternName IP.pull, P.shown p ]
-        Input.PushRemoteBranchI (Just r) p -> P.sepNonEmpty " " [
+        Input.PushRemoteBranchI (Just (r, _)) p -> P.sepNonEmpty " " [
           IP.patternName IP.pull,
           P.text (RemoteRepo.url r),
           P.shown p,
@@ -467,6 +467,26 @@ notifyUser dir o = case o of
             Nothing -> mempty 
           ]
         _ -> "⁉️ Unison bug - push command expected"
+    NoRemoteNamespaceWithHash url treeish sbh -> P.wrap
+      $ "The repository at" <> P.blue (P.text url)
+      <> (Monoid.fromMaybe $ treeish <&> \treeish ->
+          "at revision" <> P.blue (P.text treeish))
+      <> "doesn't contain a namespace with the hash prefix"
+      <> (P.blue . P.text . SBH.toText) sbh
+    RemoteNamespaceHashAmbiguous url treeish sbh hashes -> P.lines [
+      P.wrap $ "The namespace hash" <> prettySBH sbh
+            <> "at" <> P.blue (P.text url)
+            <> (Monoid.fromMaybe $ treeish <&> \treeish ->
+                "at revision" <> P.blue (P.text treeish))
+            <> "is ambiguous."
+            <> "Did you mean one of these hashes?",
+      "",
+      P.indentN 2 $ P.lines
+        (prettySBH . SBH.fromHash ((Text.length . SBH.toText) sbh * 2)
+          <$> Set.toList hashes),
+      "",
+      P.wrap "Try again with a few more hash characters to disambiguate."
+      ]
     SomeOtherError msg -> P.callout "‼" . P.lines $ [
       P.wrap "I ran into an error:", "",
       P.indentN 2 (P.text msg), "",
@@ -545,6 +565,37 @@ notifyUser dir o = case o of
           )
           <> "Type `help " <> pushPull "push" "pull" pp <>
           "` for more information."
+
+--  | ConfiguredGitUrlParseError PushPull Path' Text String
+  ConfiguredGitUrlParseError pp p url error ->
+    pure . P.fatalCallout . P.lines $
+      [ P.wrap $ "I couldn't understand the url set in .unisonConfig for"
+          <> prettyPath' p <> "."
+      , ""
+      , P.wrap $ "The value I found was" <> (P.backticked . P.text) url
+        <> "but I encountered the following error when trying to parse it:"
+      , ""
+      , P.string error
+      , ""
+      , P.wrap $ "Type" <> P.backticked ("help " <> pushPull "push" "pull" pp)
+        <> "for more information."
+      ]
+--  | ConfiguredGitUrlIncludesShortBranchHash ShortBranchHash
+  ConfiguredGitUrlIncludesShortBranchHash pp repo sbh remotePath -> 
+    pure . P.lines $
+    [ P.wrap $ "The current path has a `GitUrl.` entry set in .unisonConfig"
+    <> "that specifies the namespace hash" <> prettySBH sbh
+    <> "and I don't know what to do with that."
+    <> pushPull "I can't use that to push, because namespaces are immutable."
+                ("It doesn't make sense for repeated pulls;"
+                <>"you would just get the same immutable namespace each time.")
+                pp
+    , ""
+    , P.wrap $ "You could use" 
+    <> P.text (RemoteRepo.printNamespace repo Nothing remotePath)
+    <> "if you wanted to" <> pushPull "push onto" "pull from" pp
+    <> "the latest."
+    ]
   NoBranchWithHash _ h -> pure . P.callout "😶" $
     P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> pure $ P.wrap "That's not implemented yet. Sorry! 😬"

@@ -165,6 +165,9 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
       Codebase.referencesByPrefix codebase (SH.toText sh)
     BranchHashLength -> Codebase.branchHashLength codebase
     BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
+    LoadRemoteShortBranch GitRepo{..} sbh -> do
+      tmp <- tempGitDir url commit
+      runExceptT $ Git.pullGitBranch tmp codebase url commit (Just sbh)
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
 
