@@ -443,9 +443,6 @@ chainr1 p op = go1 where
 chainl1 :: Ord v => P v a -> P v (a -> a -> a) -> P v a
 chainl1 p op = foldl (flip ($)) <$> p <*> P.many (flip <$> op <*> p)
 
-attempt :: Ord v => P v a -> P v a
-attempt = P.try
-
 -- If `p` would succeed, this fails uncommitted.
 -- Otherwise, `failIfOk` used to produce the output
 failureIf :: Ord v => P v (P v b) -> P v a -> P v b
