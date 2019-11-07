@@ -39,6 +39,7 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.CommandLine.InputPattern as IP
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
+import Text.Regex.TDFA
 
 getUserInput
   :: (MonadIO m, Line.MonadException m)
@@ -56,14 +57,28 @@ getUserInput patterns codebase branch currentPath numberedArgs =
       P.toANSI 80 ((P.green . P.shown) currentPath <> fromString prompt)
     case line of
       Nothing -> pure QuitI
-      Just l -> case parseInput patterns . fmap expandNumber . words $ l of
+      Just l -> case parseInput patterns . (>>= expandNumber) . words $ l of
         Left msg -> do
           liftIO $ putPrettyLn msg
           go
         Right i -> pure i
-  expandNumber s = case readMay s of
-    Just i -> fromMaybe (show i) . atMay numberedArgs $ i - 1
-    Nothing -> s
+  expandNumber s =
+    maybe [s]
+          (map (\i -> fromMaybe (show i) . atMay numberedArgs $ i - 1))
+          expandedNumber
+   where
+    rangeRegex = "([0-9]+)-([0-9]+)" :: String
+    (junk,_,moreJunk, ns) =
+      s =~ rangeRegex :: (String, String, String, [String])
+    expandedNumber =
+      case readMay s of
+        Just i -> Just [i]
+        Nothing ->
+          -- check for a range
+          case (junk, moreJunk, ns) of
+            ("", "", [from, to]) ->
+              (\x y -> [x..y]) <$> readMay from <*> readMay to
+            _ -> Nothing
   settings    = Line.Settings tabComplete (Just ".unisonHistory") True
   tabComplete = Line.completeWordWithPrev Nothing " " $ \prev word ->
     -- User hasn't finished a command name, complete from command names
@@ -167,7 +182,7 @@ main dir initialPath initialInputs startRuntime codebase = do
         i <- readIORef initialInputsRef
         case i of
           h:t -> writeIORef initialInputsRef t >> pure h
-          [] -> 
+          [] ->
             -- Race the user input and file watch.
             Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
               Left _ -> Left <$> atomically (Q.dequeue eventQueue)
