@@ -469,55 +469,30 @@ pull = InputPattern
   "pull"
   []
   [(Optional, gitUrlArg), (Optional, pathArg)]
-  (P.wrapColumn2
-    [ ( "`pull`"
-      , "pulls the contents of the git url specified by `GitUrl.ns` in "
-      <> ".unisonConfig, where `ns` is the current namespace. "
-      <> "Not allowed for the root namespace."
-      )
-    , ( "`pull url`"
-      , "pulls the contents of the git url `url` into the current namespace."
-      )
-    , ( "`pull url:.baz`"
-      , "pulls the contents of the remote namespace `.baz`"
-        <> "at git url `url`"
-        <> "into the current namespace."
-      )
-    , ( "`pull url:#abc`"
-      , "pulls the contents of the remote namespace `#abc`"
-        <> "at git url `url`"
-        <> "into the current namespace."
-      )
-    , ( "`pull url:#abc.baz`"
-      , "pulls the contents of the remote namespace `.baz`"
-        <> "under the remote namespace `#abc`"
-        <> "at git url `url`"
-        <> "into the current namespace."
-      )
-    , ( "`pull url:bar:#abc.baz`"
-      , "pulls the contents of the remote namespace `.baz`"
-        <> "under the remote namespace `#abc`"
-        <> "in the git branch `bar`"
-        <> "at git url `url`"
-        <> "into the current namespace."
-      )
-    , ( "`pull url foo.bar`"
-      , "pulls the contents of the git url `url` into `foo.bar` relative "
-        <> "to the current namespace."
-      )
-    , ( "`pull url:.baz foo.bar`"
-      , "pulls the contents of the remote namespace `.baz`"
-        <> "at git url `url`"
-        <> "into `foo.bar` relative to the current namespace."
-      )
-    , ( "`pull url .foo.bar`"
-      , "pulls the contents of the git url `url` into into the absolute "
-        <> "namespace `.foo.bar`."
-      )
-    , ( "`pull url:bar foo`"
-      , "pulls the contents of the git branch or commit named `bar` from the "
-        <> " git url `url` into the namespace `foo`."
-      )
+  (P.lines
+    [ P.wrap
+      "The `pull` command merges a remote namespace into a local namespace."
+    , ""
+    , P.wrapColumn2
+      [ ( "`pull remote local`"
+        , "merges the remote namespace `remote`"
+        <>"into the local namespace `local`."
+        )
+      , ( "`pull remote`"
+        , "merges the remote namespace `remote`"
+        <>"into the current namespace")
+      , ( "`push`"
+        , "merges the remote namespace configured in `.unisonConfig`"
+        <> "with the key `GitUrl.ns` where `ns` is the current namespace,"
+        <> "into the current namespace")
+      ]
+    , ""
+    , P.wrap "where `remote` is a git repository, optionally followed by `:`"
+    <> "and an absolute remote path, such as:"
+    , P.indentN 2 . P.lines $
+      [P.backticked "https://github.com/org/repo"
+      ,P.backticked "https://github.com/org/repo:.some.remote.path"
+      ]
     ]
   )
   (\case
@@ -539,38 +514,29 @@ push = InputPattern
   "push"
   []
   [(Optional, gitUrlArg), (Optional, pathArg)]
-  (P.wrapColumn2
-    [ ( "`push`"
-      , "pushes the contents of the current namespaceto the git url specified by "
-        <> "for that namespace."
-      )
-    , ( "`push url`"
-      , "pushes the contents of the current namespace"
-        <> "to the git url given by `url`."
-      )
-    , ( "`push url foo.bar`"
-      , "pushes the contents of `foo.bar` relative to the current namespace "
-        <> "to the git url given by `url`."
-      )
-    , ( "`push url .foo.bar`"
-      , "pushes the contents of the absolute namespace `.foo.bar` "
-        <> "to the git url given by `url`."
-      )
-    , ( "`push url:.baz .foo.bar`"
-      , "pushes the contents of the absolute namespace `.foo.bar` "
-        <> "to the git url given by `url`"
-        <> "under the remote namespace `.baz`."
-      )
-    , ( "`push url:bar foo`"
-      , "pushes the contents of the namespace `foo` "
-        <> "to the git branch `bar` at the git url `url`."
-      )
-    , ( "`push url:bar.baz foo`"
-      , "pushes the contents of the namespace `foo`"
-        <> "to the git branch `bar`"
-        <> "at the git url `url`"
-        <> "under the remote namespace `.baz`."
-      )
+  (P.lines
+    [ P.wrap
+      "The `push` command merges a local namespace into a remote namespace."
+    , ""
+    , P.wrapColumn2
+      [ ( "`push remote local`"
+        , "merges the contents of the local namespace `local`"
+          <>  "into the remote namespace `remote`."
+        )
+      , ( "`push remote`"
+        , "publishes the current namespace into the remote namespace `remote`")
+      , ( "`push`"
+        , "publishes the current namespace"
+        <> "into the remote namespace configured in `.unisonConfig`"
+        <> "with the key `GitUrl.ns` where `ns` is the current namespace")
+      ]
+    , ""
+    , P.wrap "where `remote` is a git repository, optionally followed by `:`"
+    <> "and an absolute remote path, such as:"
+    , P.indentN 2 . P.lines $
+      [P.backticked "https://github.com/org/repo"
+      ,P.backticked "https://github.com/org/repo:.some.remote.path"
+      ]
     ]
   )
   (\case
