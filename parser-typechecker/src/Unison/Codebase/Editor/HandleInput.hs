@@ -284,8 +284,7 @@ loop = do
         branchExistsSplit = branchExists . Path.unsplit'
         typeExists dest = respond . TypeAlreadyExists input dest
         termExists dest = respond . TermAlreadyExists input dest
-        inputDescription, inputDescription2 :: Text
-        inputDescription2 = inputDescription <> " (2/2)"
+        inputDescription :: Text
         inputDescription = case input of
           ForkLocalBranchI src dest -> "fork " <> hp' src <> " " <> p' dest
           MergeLocalBranchI src dest -> "merge " <> p' src <> " " <> p' dest
@@ -427,7 +426,7 @@ loop = do
           if b then do
             respond (ShowDiff input (Branch.namesDiff destb merged))
             patch <- getPatchAt defaultPatchPath
-            void $ propagatePatch inputDescription2 patch dest
+            void $ propagatePatch inputDescription patch dest
           else respond (NothingTodo input)
 
       PreviewMergeLocalBranchI src0 dest0 -> do
@@ -1007,7 +1006,7 @@ loop = do
                            Branch.modifyPatches patchName (const patch'))
                   -- Apply the modified patch to the current path
                   -- since we might be able to propagate further.
-                  void $ propagatePatch inputDescription2 patch' currentPath'
+                  void $ propagatePatch inputDescription patch' currentPath'
                   -- Say something
                   success
         zeroOneOrMore
@@ -1042,7 +1041,7 @@ loop = do
                       (patchPath'', Branch.modifyPatches patchName (const patch'))
               -- Apply the modified patch to the current path
               -- since we might be able to propagate further.
-              void $ propagatePatch inputDescription2 patch' currentPath'
+              void $ propagatePatch inputDescription patch' currentPath'
               -- Say something
               success
         zeroOneOrMore
@@ -1167,7 +1166,7 @@ loop = do
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
           -- propagatePatch prints TodoOutput
-          void $ propagatePatch inputDescription2 (updatePatch ye'ol'Patch) currentPath'
+          void $ propagatePatch inputDescription (updatePatch ye'ol'Patch) currentPath'
 
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
@@ -1363,7 +1362,7 @@ propagatePatch inputDescription patch scopePath = do
     -- arya: wait, what is this `ppe` here for again exactly?
     -- ppe is used for some output message that propagate can issue in error
     -- condition PatchInvolvesExternalDependencies
-    updateAtM inputDescription
+    updateAtM (inputDescription <> " (patch propagation)")
               scopePath
               (lift . lift . Propagate.propagateAndApply ppe patch)
   when changed $ do
@@ -1600,7 +1599,7 @@ loadRemoteBranchAt input inputDescription repo p = do
         merged <- getAt p
         patch  <- eval . Eval $ Branch.getPatch defaultPatchNameSegment
                                                 (Branch.head merged)
-        void $ propagatePatch (inputDescription <> " (2/2)") patch p
+        void $ propagatePatch inputDescription patch p
  where
   doMerge b b0 = do
     merged <- eval . Eval $ Branch.merge b b0
