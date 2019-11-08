@@ -34,8 +34,6 @@ instance Var Symbol where
     Var.Inference Var.PatternBindV -> "𝕧" <> showid id
     Var.Inference Var.TypeConstructor -> "𝕗" <> showid id
     Var.Inference Var.TypeConstructorArg -> "𝕦" <> showid id
-    Var.MissingResult -> "_" <> showid id
-    Var.Blank -> "_" <> showid id
     Var.UnnamedWatch k guid -> fromString k <> "." <> guid <> showid id
     where
     showid 0 = ""

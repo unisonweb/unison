@@ -37,12 +37,10 @@ uncapitalize v = nameds $ go (nameStr v) where
   go (c:rest) = toLower c : rest
   go n = n
 
-missingResult, blank, inferInput, inferOutput, inferAbility,
+inferInput, inferOutput, inferAbility,
   inferPatternPureE, inferPatternPureV, inferPatternBindE, inferPatternBindV,
   inferTypeConstructor, inferTypeConstructorArg,
   inferOther :: Var v => v
-missingResult = typed MissingResult
-blank = typed Blank
 inferInput = typed (Inference Input)
 inferOutput = typed (Inference Output)
 inferAbility = typed (Inference Ability)
@@ -62,10 +60,6 @@ data Type
   = User Text
   -- Variables created during type inference
   | Inference InferenceType
-  -- Variables created to finish a block that doesn't end with an expression
-  | MissingResult
-  -- Variables invented for placeholder values inserted by user or by TDNR
-  | Blank
   -- An unnamed watch expression of the given kind, for instance:
   --
   --  test> Ok "oog"
