@@ -803,7 +803,7 @@ synthesize e = scope (InSynthesize e) $
     Nothing -> compilerCrash $ UndeclaredTermVariable v ctx
     Just t -> pure t
   go (Term.Blank' blank) = do
-    v <- freshenVar Var.blank
+    v <- freshenVar (Var.named "_")
     appendContext [Existential blank v]
     pure $ Type.existential' l blank v -- forall (TypeVar.Universal v) (Type.universal v)
   go (Term.Ann' (Term.Ref' _) t) = case ABT.freeVars t of
@@ -1558,8 +1558,8 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
         Type.Existential' b v -> do
           let et2 = Type.effects (loc r) ambient
           -- instantiate it to `{}` if can't cover all of ambient
-          instantiateR et2 b v 
-            `orElse` instantiateR (Type.effects (loc r) []) b v 
+          instantiateR et2 b v
+            `orElse` instantiateR (Type.effects (loc r) []) b v
             `orElse` die1
           go ambient rs
         _ -> -- find unsolved existential, 'e, that appears in ambient

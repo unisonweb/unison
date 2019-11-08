@@ -147,10 +147,10 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
       where name = elideFQN im $ HQ.unsafeFromVar (Var.reset v)
     Ref' r -> parenIfInfix name ic $ styleHashQualified'' (fmt S.Reference) name
       where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
-    TermLink' r -> parenIfInfix name ic $ 
+    TermLink' r -> parenIfInfix name ic $
       fmt S.LinkKeyword "termLink " <> styleHashQualified'' (fmt S.Reference) name
       where name = elideFQN im $ PrettyPrintEnv.termName n r
-    TypeLink' r -> parenIfInfix name ic $ 
+    TypeLink' r -> parenIfInfix name ic $
       fmt S.LinkKeyword "typeLink " <> styleHashQualified'' (fmt S.Reference) name
       where name = elideFQN im $ PrettyPrintEnv.typeName n r
     Ann' tm t ->
@@ -184,6 +184,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
         <> (fmt S.ControlKeyword "in" `PP.hang` uses [pretty0 n (ac 2 Block im') body])
     App' x (Constructor' DD.UnitRef 0) ->
       paren (p >= 11) $ (fmt S.DelayForceChar $ l "!") <> pretty0 n (ac 11 Normal im) x
+    MissingResult' -> l "_"
     LamNamed' v x | (Var.name v) == "()" ->
       paren (p >= 11) $ (fmt S.DelayForceChar $ l "'") <> pretty0 n (ac 11 Normal im) x
     Sequence' xs -> PP.group $
