@@ -1359,13 +1359,9 @@ propagatePatch :: (Monad m, Var v) =>
 propagatePatch inputDescription patch scopePath = do
   changed <- do
     names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-    ppe <- prettyPrintEnv names
-    -- arya: wait, what is this `ppe` here for again exactly?
-    -- ppe is used for some output message that propagate can issue in error
-    -- condition PatchInvolvesExternalDependencies
     updateAtM inputDescription
               scopePath
-              (lift . lift . Propagate.propagateAndApply ppe patch)
+              (lift . lift . Propagate.propagateAndApply patch)
   when changed $ do
     scope <- getAt scopePath
     let names0 = Branch.toNames0 (Branch.head scope)
