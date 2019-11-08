@@ -32,6 +32,17 @@ import qualified Unison.Util.Pretty            as P
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 
+prettyDecl
+  :: Var v
+  => PrettyPrintEnv
+  -> Reference
+  -> HashQualified
+  -> DD.Decl v a
+  -> Pretty SyntaxText
+prettyDecl ppe r hq d = case d of 
+  Left e -> prettyEffectDecl ppe r hq e
+  Right dd -> prettyDataDecl ppe r hq dd
+
 prettyEffectDecl
   :: Var v
   => PrettyPrintEnv
