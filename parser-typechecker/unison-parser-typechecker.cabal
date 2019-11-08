@@ -52,7 +52,6 @@ library
     Unison.Codebase.Editor.Input
     Unison.Codebase.Editor.Output
     Unison.Codebase.Editor.Propagate
-    Unison.Codebase.Editor.EncodedRepo
     Unison.Codebase.Editor.RemoteRepo
     Unison.Codebase.Editor.SearchResult'
     Unison.Codebase.Editor.SlurpResult
