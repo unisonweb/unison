@@ -49,9 +49,11 @@ module Unison.Util.Pretty (
    lineSkip,
    nonEmpty,
    numbered,
+   numberedColumn2,
    numberedList,
    orElse,
    orElses,
+   paragraphyText,
    parenthesize,
    parenthesizeCommas,
    parenthesizeIf,
@@ -78,6 +80,7 @@ module Unison.Util.Pretty (
    toHTML,
    toPlain,
    toPlainUnbroken,
+   underline,
    withSyntax,
    wrap,
    wrapColumn2,
@@ -140,6 +143,16 @@ wrapImpl (p:ps) = wrap_ . Seq.fromList $
 
 wrapString :: (LL.ListLike s Char, IsString s) => String -> Pretty s
 wrapString s = wrap (lit $ fromString s)
+
+-- 0. Preserve all leading and trailing whitespace 
+-- 1. Preserve all newlines
+-- 2. Wrap all text in between newlines
+paragraphyText :: (LL.ListLike s Char, IsString s) => Text -> Pretty s
+paragraphyText t = text start <> inner <> text end where
+  inner = sep "\n" . fmap (wrap . text) . Text.splitOn "\n" $ t'
+  (start, t0) = Text.span isSpace t
+  t' = Text.dropWhileEnd isSpace t0
+  end = Text.takeWhileEnd isSpace t0
 
 wrap :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
 wrap p = wrapImpl (toLeaves [p]) where
@@ -341,6 +354,13 @@ numbered
   -> Pretty s
 numbered num ps = column2 (fmap num [1 ..] `zip` toList ps)
 
+numberedColumn2
+  :: (Foldable f, LL.ListLike s Char, IsString s)
+  => (Int -> Pretty s)
+  -> f (Pretty s, Pretty s)
+  -> Pretty s
+numberedColumn2 num ps = numbered num (align $ toList ps)
+
 -- Opinionated `numbered` that uses bold numbers in front
 numberedList :: Foldable f => f (Pretty ColorText) -> Pretty ColorText
 numberedList = numbered (\i -> hiBlack . fromString $ show i <> ".")
@@ -511,7 +531,7 @@ preferredWidth p = col (delta p)
 preferredHeight :: Pretty s -> Width
 preferredHeight p = line (delta p)
 
-black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold
+black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold, underline
   :: Pretty CT.ColorText -> Pretty CT.ColorText
 black = map CT.black
 red = map CT.red
@@ -530,6 +550,7 @@ hiPurple = map CT.hiPurple
 hiCyan = map CT.hiCyan
 hiWhite = map CT.hiWhite
 bold = map CT.bold
+underline = map CT.underline
 
 plural :: Foldable f
        => f a -> Pretty ColorText -> Pretty ColorText

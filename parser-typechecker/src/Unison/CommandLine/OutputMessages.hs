@@ -85,6 +85,7 @@ import qualified Unison.Referent               as Referent
 import qualified Unison.Result                 as Result
 import qualified Unison.Term                   as Term
 import           Unison.Term                   (AnnotatedTerm)
+import           Unison.Type                   (Type)
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker            as Typechecker
@@ -146,6 +147,8 @@ notifyUser dir o = case o of
 
   DisplayDefinitions outputLoc ppe types terms ->
     displayDefinitions outputLoc ppe types terms
+  DisplayRendered outputLoc pp -> 
+    displayRendered outputLoc pp 
   DisplayLinks ppe md types terms ->
     if Map.null md then pure $ P.wrap "Nothing to show here. Use the "
       <> IP.makeExample' IP.link <> " command to add links from this definition."
@@ -271,6 +274,8 @@ notifyUser dir o = case o of
     --   <> P.wrap "Please repeat the same command to confirm the deletion."
   ListOfDefinitions ppe detailed results ->
      listOfDefinitions ppe detailed results
+  ListOfLinks ppe results ->
+     listOfLinks ppe [ (name,tm) | (name,_ref,tm) <- results ]
   ListNames [] [] -> pure . P.callout "😶" $
     P.wrap "I couldn't find anything by that name."
   ListNames terms types -> pure . P.sepNonEmpty "\n\n" $ [
@@ -613,8 +618,7 @@ notifyUser dir o = case o of
     where
     tailMsg = case tail of
       E.EndOfLog h -> P.lines [
-        P.wrap "This is the start of history. Later versions are listed below.", "",
-        "□ " <> prettySBH h, ""
+        "□ " <> prettySBH h <> " (start of history)"
         ]
       E.MergeTail h hs -> P.lines [
         P.wrap $ "This segment of history starts with a merge." <> ex,
@@ -796,6 +800,29 @@ displayDefinitions' ppe types terms = P.syntaxToColor $ P.sep "\n\n" (prettyType
     <> "which is missing from the codebase.")
     <> P.newline
     <> tip "You might need to repair the codebase manually."
+
+displayRendered :: Maybe FilePath -> Pretty -> IO Pretty
+displayRendered outputLoc pp = 
+  maybe (pure pp) scratchAndDisplay outputLoc
+  where
+  scratchAndDisplay path = do
+    path' <- canonicalizePath path
+    prependToFile pp path'
+    pure (message pp path')
+    where
+    prependToFile pp path = do
+      existingContents <- do
+        exists <- doesFileExist path
+        if exists then readFile path
+        else pure ""
+      writeFile path . Text.pack . P.toPlain 80 $
+        P.lines [ pp, "", P.text existingContents ]
+    message pp path =
+      P.callout "☝️" $ P.lines [
+        P.wrap $ "I added this to the top of " <> fromString path,
+        "",
+        P.indentN 2 pp
+      ]
 
 displayDefinitions :: Var v => Ord a1 =>
   Maybe FilePath
@@ -1053,6 +1080,25 @@ listOfDefinitions ::
   Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
 listOfDefinitions ppe detailed results =
   pure $ listOfDefinitions' ppe detailed results
+
+listOfLinks ::
+  Var v => PPE.PrettyPrintEnv -> [(HQ.HashQualified, Maybe (Type v a))] -> IO Pretty
+listOfLinks _ [] = pure . P.callout "😶" . P.wrap $
+  "No results. Try using the " <> 
+  IP.makeExample IP.link [] <> 
+  "command to add outgoing links to a definition."
+listOfLinks ppe results = pure $ P.lines [
+    P.numberedColumn2 num [
+    (P.syntaxToColor $ prettyHashQualified hq, ": " <> prettyType typ) | (hq,typ) <- results
+    ], "",
+    tip $ "Try using" <> IP.makeExample IP.display ["1"] 
+       <> "to display the first result or" 
+       <> IP.makeExample IP.view ["1"] <> "to view its source."
+    ]
+  where
+  num i = P.hiBlack $ P.shown i <> "."
+  prettyType Nothing = "❓ (missing a type for this definition)"
+  prettyType (Just t) = TypePrinter.pretty ppe t
 
 noResults :: Pretty
 noResults = P.callout "😶" $

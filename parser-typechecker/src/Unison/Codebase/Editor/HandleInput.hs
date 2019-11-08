@@ -127,6 +127,8 @@ import qualified Unison.Builtin as Builtin
 import Unison.Codebase.NameSegment (NameSegment(..))
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.Editor.Propagate as Propagate
+import qualified Unison.CommandLine.DisplayValues as DisplayValues
+import qualified Control.Error.Util as ErrorUtil
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
@@ -278,7 +280,7 @@ loop = do
         typeNotFound = respond . TypeNotFound input
         termNotFound = respond . TermNotFound input
         typeConflicted src = respond . TypeAmbiguous input src
-        termConflicted src = respond . TermAmbiguous input src
+        termConflicted src = respond . TermAmbiguous input (Left src)
         hashConflicted src = respond . HashAmbiguous input src
         branchExists dest _x = respond $ BranchAlreadyExists input dest
         branchExistsSplit = branchExists . Path.unsplit'
@@ -334,6 +336,8 @@ loop = do
           FindShallowI{} -> wat
           FindPatchI{} -> wat
           ShowDefinitionI{} -> wat
+          DisplayI{} -> wat
+          DocsI{} -> wat
           ShowDefinitionByPrefixI{} -> wat
           ShowReflogI{} -> wat
           DebugBranchHistoryI{} -> wat
@@ -676,38 +680,21 @@ loop = do
       -- > links List.map (.Docs .English)
       -- > links List.map -- give me all the
       -- > links Optional License
-      LinksI src mdTypeStr -> do
-        let srcle = toList (getHQ'Terms src) -- list of matching src terms
-            srclt = toList (getHQ'Types src) -- list of matching src types
-            p = resolveSplit' src -- ex: the parent of `List.map` - `List`
-            mdTerms = foldl' Metadata.merge mempty [
-              BranchUtil.getTermMetadataUnder p r root0 | r <- srcle ]
-            mdTypes = foldl' Metadata.merge mempty [
-              BranchUtil.getTypeMetadataUnder p r root0 | r <- srclt ]
-            allMd = Metadata.merge mdTerms mdTypes
-        selection <- case mdTypeStr of
-          Nothing -> pure $ Right (Map.keysSet allMd)
-          Just mdTypeStr -> parseType input mdTypeStr <&> \case
-            Left e -> Left e
-            Right typ -> Right (Set.singleton (Type.toReference typ))
-        case selection of
-          Left e -> respond e
-          Right selection -> do
-            let allMd' = Map.restrictKeys allMd selection
-                allRefs = toList (Set.unions (Map.elems allMd'))
-            termDisplays <- Map.fromList <$> do
-              terms <- filterM (eval . IsTerm) allRefs
-              traverse (\r -> (r,) <$> loadTermDisplayThing r) terms
-            --   typeDisplays <- Map.fromList <$> do
-            --     types <- filterM (eval . IsType) allRefs
-            --     traverse (\r -> (r,) <$> loadTypeDisplayThing r) types
-            ppe <- prettyPrintEnv =<< makePrintNamesFromLabeled' (deps termDisplays)
-            respond $ DisplayLinks ppe allMd' mempty termDisplays
-          where
-            deps :: Map Reference (DisplayThing (Term v Ann)) -> Set LabeledDependency
-            deps dts = Set.map LD.termRef (Map.keysSet dts)
-                    <> foldMap Term.labeledDependencies
-                               (mapMaybe DT.toMaybe $ Map.elems dts)
+      LinksI src mdTypeStr -> getLinks input src (Right mdTypeStr) >>= \case
+        Left e -> respond e
+        Right (ppe, out) -> do
+          numberedArgs .= fmap (HQ.toString . view _1) out
+          respond $ ListOfLinks ppe out
+
+      DocsI src -> getLinks input src (Left $ Set.singleton DD.docRef) >>= \case
+        Left e -> respond e
+        Right (ppe, out) -> case out of
+          [(name, ref, tm)] -> do
+            names <- basicPrettyPrintNames0
+            doDisplay ConsoleLocation (Names3.Names names mempty) (Referent.Ref ref)
+          out -> do 
+            numberedArgs .= fmap (HQ.toString . view _1) out
+            respond $ ListOfLinks ppe out
 
       MoveTermI src dest ->
         case (toList (getHQ'Terms src), toList (getTerms dest)) of
@@ -786,6 +773,15 @@ loop = do
               makePrintNamesFromLabeled'
                 (foldMap SR'.labeledDependencies $ failed <> failedDependents)
             respond $ CantDelete input ppe failed failedDependents
+
+      DisplayI outputLoc s@(HQ.unsafeFromString -> hq) -> do 
+        parseNames <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
+        let results = Names3.lookupHQTerm hq parseNames 
+        if Set.null results then 
+          respond $ SearchTermsNotFound $ [hq]
+        else if Set.size results > 1 then
+          respond $ TermAmbiguous input (Right hq) results
+        else doDisplay outputLoc parseNames (Set.findMin results)
 
       ShowDefinitionI outputLoc (fmap HQ.unsafeFromString -> hqs) -> do
         parseNames <- makeHistoricalParsingNames $ Set.fromList hqs
@@ -1340,6 +1336,70 @@ loop = do
       <> "I tried to put it back, but couldn't. Everybody panic!"
   -}
 
+doDisplay :: Var v => OutputLocation -> Names -> Referent -> Action' m v ()
+doDisplay outputLoc names r = do
+  let tm = Term.fromReferent External r 
+  ppe <- prettyPrintEnv names
+  latestFile' <- use latestFile
+  let 
+    loc = case outputLoc of
+      ConsoleLocation    -> Nothing
+      FileLocation path  -> Just path
+      LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
+    evalTerm r = fmap ErrorUtil.hush . eval $ Evaluate1 ppe (Term.ref External r)
+    loadTerm (Reference.DerivedId r) = eval $ LoadTerm r
+    loadTerm r = pure Nothing
+    loadDecl (Reference.DerivedId r) = eval $ LoadType r
+    loadDecl _ = pure Nothing 
+  rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm evalTerm loadDecl tm 
+  respond $ DisplayRendered loc rendered
+  -- We set latestFile to be programmatically generated, if we
+  -- are viewing these definitions to a file - this will skip the
+  -- next update for that file (which will happen immediately)
+  latestFile .= ((, True) <$> loc)
+
+getLinks :: (Var v, Monad m)
+         => Input
+         -> Path.HQSplit' 
+         -> Either (Set Reference) (Maybe String)
+         -> Action' m v (Either (Output v) 
+                                (PPE.PrettyPrintEnv, 
+                                 [(HQ.HashQualified, Reference, Maybe (Type v Ann))]))
+getLinks input src mdTypeStr = do
+  root0 <- Branch.head <$> use root
+  currentPath' <- use currentPath
+  let resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
+      getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
+      getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
+      srcle = toList (getHQ'Terms src) -- list of matching src terms
+      srclt = toList (getHQ'Types src) -- list of matching src types
+      p = resolveSplit' src -- ex: the parent of `List.map` - `List`
+      mdTerms = foldl' Metadata.merge mempty [
+        BranchUtil.getTermMetadataUnder p r root0 | r <- srcle ]
+      mdTypes = foldl' Metadata.merge mempty [
+        BranchUtil.getTypeMetadataUnder p r root0 | r <- srclt ]
+      allMd = Metadata.merge mdTerms mdTypes
+  selection <- case mdTypeStr of
+    Left s -> pure $ Right s
+    Right Nothing -> pure $ Right (Map.keysSet allMd)
+    Right (Just mdTypeStr) -> parseType input mdTypeStr <&> \case
+      Left e -> Left e
+      Right typ -> Right (Set.singleton (Type.toReference typ))
+  case selection of
+    Left e -> pure (Left e)
+    Right selection -> do
+      let allMd' = Map.restrictKeys allMd selection
+          allRefs = toList (Set.unions (Map.elems allMd'))
+          results :: Set Reference = Set.unions $ Map.elems allMd'
+      sigs <- for (toList results) $ 
+        \r -> loadTypeOfTerm (Referent.Ref r)
+      let deps = Set.map LD.termRef results <> 
+                 Set.unions [ Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs ]
+      ppe <- prettyPrintEnv =<< makePrintNamesFromLabeled' deps 
+      let sortedSigs = sortOn snd (toList results `zip` sigs)  
+      let out = [(PPE.termName ppe (Referent.Ref r), r, t) | (r, t) <- sortedSigs ] 
+      pure (Right (ppe, out))
+            
 resolveShortBranchHash ::
   Input -> ShortBranchHash -> Action' m v (Either (Output v) (Branch m))
 resolveShortBranchHash input hash = do
@@ -1537,21 +1597,6 @@ collateReferences (toList -> types) (toList -> terms) =
   let terms' = [ r | Referent.Ref r <- terms ]
       types' = [ r | Referent.Con r _ _ <- terms ]
   in  (Set.fromList types' <> Set.fromList types, Set.fromList terms')
-
--- Foo#123
--- Foo#890
--- bar#567
--- blah#abc
--- cat#abc
--- and search for
-
--- Foo, want Foo#123 and Foo#890
--- Foo#1, want Foo#123
--- #567, want bar -- what goes in the SR.name?
--- blah, cat, want blah (with comment about cat)?
-
--- #567 :: Int
--- #567 = +3
 
 -- | The output list (of lists) corresponds to the query list.
 searchBranchExact :: Int -> Names -> [HQ.HashQualified] -> [[SearchResult]]
@@ -2222,3 +2267,13 @@ executePPE unisonFile =
     makeShadowedPrintNamesFromLabeled
       (UF.termSignatureExternalLabeledDependencies unisonFile)
       (UF.typecheckedToNames0 unisonFile)
+
+loadTypeOfTerm :: Referent -> Action m i v (Maybe (Type v Ann))
+loadTypeOfTerm (Referent.Ref r) = eval $ LoadTypeOfTerm r 
+loadTypeOfTerm (Referent.Con (Reference.DerivedId r) cid _) = do
+  decl <- eval $ LoadType r
+  case decl of
+    Just (either DD.toDataDecl id -> dd) -> pure $ DD.typeOfConstructor dd cid
+    Nothing -> pure Nothing
+loadTypeOfTerm (Referent.Con r cid _) = error $
+  reportBug "924628772" "Attempt to load a type declaration which is a builtin!"
