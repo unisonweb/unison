@@ -1175,12 +1175,9 @@ loop = do
         ppe <- prettyPrintEnv names
         branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
         let names0 = Branch.toNames0 (Branch.head branch)
-        -- checkTodo only needs the local references to check for obsolete defs
-        todo <- checkTodo patch names0
-        numberedArgs .=
-          (Text.unpack . Reference.toText . view _2 <$>
-             fst (TO.todoFrontierDependents todo))
-        respond $ TodoOutput ppe todo
+        -- showTodoOutput only needs the local references
+        -- to check for obsolete defs
+        showTodoOutput ppe patch names0
 
       TestI showOk showFail -> do
         let
@@ -1368,8 +1365,16 @@ propagatePatch inputDescription patch scopePath = do
     -- this will be different AFTER the update succeeds
     names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
     ppe <- prettyPrintEnv names
-    respond . TodoOutput ppe =<< checkTodo patch names0
+    showTodoOutput ppe patch names0
   pure changed
+
+showTodoOutput :: PrettyPrintEnv -> Patch -> Names0 -> Action' m v ()
+showTodoOutput ppe patch names0 = do
+  todo <- checkTodo patch names0
+  numberedArgs .=
+    (Text.unpack . Reference.toText . view _2 <$>
+       fst (TO.todoFrontierDependents todo))
+  respond $ TodoOutput ppe todo
 
 checkTodo :: Patch -> Names0 -> Action m i v (TO.TodoOutput v Ann)
 checkTodo patch names0 = do
