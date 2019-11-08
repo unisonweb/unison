@@ -129,6 +129,8 @@ data Command m i v a where
   LoadRemoteRootBranch ::
     RemoteRepo -> Command m i v (Either GitError (Branch m))
   
+  -- returns NoRemoteNamespaceWithHash or RemoteNamespaceHashAmbiguous 
+  -- if no exact match.
   LoadRemoteShortBranch ::
     RemoteRepo -> ShortBranchHash -> Command m i v (Either GitError (Branch m))
 

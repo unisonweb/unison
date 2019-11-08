@@ -19,7 +19,6 @@ import qualified Unison.Builtin                as B
 
 import           Control.Monad.Except           ( runExceptT )
 import qualified Data.Configurator             as Config
---import qualified Data.Configurator.Types       as ConfigTypes
 import           Data.Configurator.Types        ( Config )
 import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
@@ -87,20 +86,6 @@ tempGitDir url commit =
     </> "gitfiles"
     </> Hash.showBase32Hex url
     </> Text.unpack (fromMaybe "HEAD" commit)
-    
---data RepoAccessMode = SshMode | HttpsMode
---githubAccessMode, gitlabAccessMode, bitbucketAccessMode ::
---  Config -> IO (Maybe RepoAccessMode)
---githubAccessMode c = Config.lookup c "githubMode"
---gitlabAccessMode c = Config.lookup c "gitlabMode"
---bitbucketAccessMode c = Config.lookup c "bitbucketMode"
---
---instance ConfigTypes.Configured RepoAccessMode where
---  convert (ConfigTypes.String s) = case Text.toLower s of
---    "ssh"   -> Just SshMode
---    "https" -> Just HttpsMode
---    _ -> Nothing
---  convert _ = Nothing
 
 commandLine
   :: forall i v a
