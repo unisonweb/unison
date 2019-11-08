@@ -1555,12 +1555,13 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
       -- 2b. If no:
       Nothing -> case r of
         -- It's an unsolved existential, instantiate it to all of ambient
-        Type.Existential' b v ->
+        Type.Existential' b v -> do
           let et2 = Type.effects (loc r) ambient
           -- instantiate it to `{}` if can't cover all of ambient
-          in instantiateR et2 b v `orElse`
-             instantiateR (Type.effects (loc r) []) b v `orElse`
-             die1
+          instantiateR et2 b v 
+            `orElse` instantiateR (Type.effects (loc r) []) b v 
+            `orElse` die1
+          go ambient rs
         _ -> -- find unsolved existential, 'e, that appears in ambient
           let unsolveds = (ambient >>= Type.flattenEffects >>= vars)
               vars (Type.Var' (TypeVar.Existential b v)) = [(b,v)]
