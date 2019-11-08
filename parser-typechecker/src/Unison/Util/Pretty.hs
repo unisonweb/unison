@@ -354,6 +354,11 @@ numbered
   -> Pretty s
 numbered num ps = column2 (fmap num [1 ..] `zip` toList ps)
 
+-- Like `column2` but with the lines numbered. For instance:
+--
+-- 1. one thing     : this is a thing
+-- 2. another thing : this is another thing
+-- 3. and another   : yet one more thing
 numberedColumn2
   :: (Foldable f, LL.ListLike s Char, IsString s)
   => (Int -> Pretty s)

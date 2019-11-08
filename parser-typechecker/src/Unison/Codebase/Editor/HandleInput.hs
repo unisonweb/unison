@@ -777,7 +777,7 @@ loop = do
         parseNames <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
         let results = Names3.lookupHQTerm hq parseNames 
         if Set.null results then 
-          respond $ SearchTermsNotFound $ [hq]
+          respond $ SearchTermsNotFound [hq]
         else if Set.size results > 1 then
           respond $ TermAmbiguous input (Right hq) results
         else doDisplay outputLoc parseNames (Set.findMin results)
