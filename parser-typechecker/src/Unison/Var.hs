@@ -51,7 +51,6 @@ name v = case typeOf v of
   Inference TypeConstructor -> "𝕗" <> showid v
   Inference TypeConstructorArg -> "𝕦" <> showid v
   MissingResult -> "_" <> showid v
-  Blank -> "_" <> showid v
   UnnamedWatch k guid -> fromString k <> "." <> guid <> showid v
   where
   showid (freshId -> 0) = ""
@@ -62,12 +61,11 @@ uncapitalize v = nameds $ go (nameStr v) where
   go (c:rest) = toLower c : rest
   go n = n
 
-missingResult, blank, inferInput, inferOutput, inferAbility,
+missingResult, inferInput, inferOutput, inferAbility,
   inferPatternPureE, inferPatternPureV, inferPatternBindE, inferPatternBindV,
   inferTypeConstructor, inferTypeConstructorArg,
   inferOther :: Var v => v
 missingResult = typed MissingResult
-blank = typed Blank
 inferInput = typed (Inference Input)
 inferOutput = typed (Inference Output)
 inferAbility = typed (Inference Ability)
@@ -89,8 +87,6 @@ data Type
   | Inference InferenceType
   -- Variables created to finish a block that doesn't end with an expression
   | MissingResult
-  -- Variables invented for placeholder values inserted by user or by TDNR
-  | Blank
   -- An unnamed watch expression of the given kind, for instance:
   --
   --  test> Ok "oog"
