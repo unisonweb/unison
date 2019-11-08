@@ -173,7 +173,7 @@ pushGitRootBranch localPath codebase branch url gitbranch = do
           ["commit", "-m", "Sync branch " <> Text.pack (show $ headHash branch)]
       -- Push our changes to the repo
       case gitbranch of
-        Nothing        -> "git" ["push", "--all", url]
-        Just gitbranch -> "git" ["push", url, gitbranch]
+        Nothing        -> gitIn localPath ["push", "--all", url]
+        Just gitbranch -> gitIn localPath ["push", url, gitbranch]
   liftIO push `onException` throwError (NoRemoteRepoAt url)
 
