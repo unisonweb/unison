@@ -572,7 +572,7 @@ notifyUser dir o = case o of
       [ P.wrap $ "I couldn't understand the url set in .unisonConfig for"
           <> prettyPath' p <> "."
       , ""
-      , P.wrap $ "The value I found was" <> (P.backticked . P.text) url
+      , P.wrap $ "The value I found was" <> (P.backticked . P.blue . P.text) url
         <> "but I encountered the following error when trying to parse it:"
       , ""
       , P.string error
@@ -581,19 +581,27 @@ notifyUser dir o = case o of
         <> "for more information."
       ]
 --  | ConfiguredGitUrlIncludesShortBranchHash ShortBranchHash
-  ConfiguredGitUrlIncludesShortBranchHash pp repo sbh remotePath -> 
+  ConfiguredGitUrlIncludesShortBranchHash pp repo sbh remotePath ->
     pure . P.lines $
-    [ P.wrap $ "The current path has a `GitUrl.` entry set in .unisonConfig"
-    <> "that specifies the namespace hash" <> prettySBH sbh
-    <> "and I don't know what to do with that."
-    <> pushPull "I can't use that to push, because namespaces are immutable."
-                ("It doesn't make sense for repeated pulls;"
-                <>"you would just get the same immutable namespace each time.")
-                pp
+    [ P.wrap
+    $ "The `GitUrl.` entry in .unisonConfig for the current path has the value"
+    <> (P.group . (<>",") . P.blue . P.text)
+        (RemoteRepo.printNamespace repo (Just sbh) remotePath)
+    <> "which specifies a namespace hash" 
+    <> P.group (P.blue (prettySBH sbh) <> ".")
     , ""
-    , P.wrap $ "You could use" 
-    <> P.text (RemoteRepo.printNamespace repo Nothing remotePath)
-    <> "if you wanted to" <> pushPull "push onto" "pull from" pp
+    , P.wrap $ 
+      pushPull "I can't push to a specific hash, because it's immutable."
+      ("It's no use for repeated pulls,"
+      <> "because you would just get the same immutable namespace each time.")
+      pp
+    , ""
+    , P.wrap $ "You can use"
+    <> P.backticked (
+        pushPull "push" "pull" pp
+        <> " " 
+        <> P.text (RemoteRepo.printNamespace repo Nothing remotePath))
+    <> "if you want to" <> pushPull "push onto" "pull from" pp
     <> "the latest."
     ]
   NoBranchWithHash _ h -> pure . P.callout "😶" $
