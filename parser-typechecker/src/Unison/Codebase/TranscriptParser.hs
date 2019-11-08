@@ -115,6 +115,7 @@ run dir stanzas codebase = do
     out                      <- newIORef mempty
     hidden                   <- newIORef False
     allowErrors              <- newIORef False
+    hasErrors                <- newIORef False
     (config, cancelConfig)   <-
       catchIOError (watchConfig $ dir </> ".unisonConfig") $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
@@ -155,6 +156,15 @@ run dir stanzas codebase = do
                       awaitInput
                     Right input -> pure $ Right input
           Nothing -> do
+            errOk <- readIORef allowErrors
+            hasErr <- readIORef hasErrors
+            when (errOk && not hasErr) $ do
+              output "\n```\n\n"
+              transcriptFailure out $ Text.unlines [
+                "\128721", "",
+                "Transcript failed due to an unexpected success above.",
+                "Codebase as of the point of failure is in:", "",
+                "  " <> Text.pack dir ]
             writeIORef hidden False
             writeIORef allowErrors False
             maybeStanza <- atomically (Q.tryDequeue inputQueue)
@@ -184,6 +194,7 @@ run dir stanzas codebase = do
                   Ucm hide errOk cmds -> do
                     writeIORef hidden hide
                     writeIORef allowErrors errOk
+                    writeIORef hasErrors False
                     output "```ucm"
                     traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
                     atomically . Q.enqueue cmdQueue $ Nothing
@@ -195,18 +206,13 @@ run dir stanzas codebase = do
         errOk <- readIORef allowErrors
         let rendered = P.toPlain 65 (P.border 2 msg)
         output rendered
+        when (errOk && Output.isFailure o) $ 
+          writeIORef hasErrors True
         when (not errOk && Output.isFailure o) $ do
           output "\n```\n\n"
           transcriptFailure out $ Text.unlines [
             "\128721", "",
             "Transcript failed due to the message above.",
-            "Codebase as of the point of failure is in:", "",
-            "  " <> Text.pack dir ]
-        when (errOk && not (Output.isFailure o)) $ do
-          output "\n```\n\n"
-          transcriptFailure out $ Text.unlines [
-            "\128721", "",
-            "Transcript failed due to an unexpected success above.",
             "Codebase as of the point of failure is in:", "",
             "  " <> Text.pack dir ]
 
