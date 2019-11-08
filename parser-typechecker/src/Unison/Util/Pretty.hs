@@ -50,6 +50,7 @@ module Unison.Util.Pretty (
    nonEmpty,
    numbered,
    numberedColumn2,
+   numberedList,
    orElse,
    orElses,
    paragraphyText,
@@ -359,6 +360,10 @@ numberedColumn2
   -> f (Pretty s, Pretty s)
   -> Pretty s
 numberedColumn2 num ps = numbered num (align $ toList ps)
+
+-- Opinionated `numbered` that uses bold numbers in front
+numberedList :: Foldable f => f (Pretty ColorText) -> Pretty ColorText
+numberedList = numbered (\i -> hiBlack . fromString $ show i <> ".")
 
 leftPad, rightPad :: IsString s => Int -> Pretty s -> Pretty s
 leftPad n p =

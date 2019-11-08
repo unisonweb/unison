@@ -603,10 +603,8 @@ notifyUser dir o = case o of
          <> "namespace.")
     ],
     "",
-    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".")
-         . fmap renderEntry
-         $ entries
-         ]
+    P.numberedList . fmap renderEntry $ entries
+    ]
     where
     renderEntry :: Output.ReflogEntry -> P.Pretty CT.ColorText
     renderEntry (Output.ReflogEntry hash reason) = P.wrap $
@@ -1069,7 +1067,7 @@ todoOutput ppe todo =
           TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
           )
       , P.wrap "I recommend working on them in the following order:"
-      , P.indentN 2 . P.lines $
+      , P.numberedList $
           let unscore (_score,a,b) = (a,b)
           in (prettyDeclPair ppe . unscore <$> toList dirtyTypes) ++
              TypePrinter.prettySignatures'
@@ -1125,8 +1123,7 @@ listOfDefinitions' ppe detailed results =
     ]
   where
   len = length results
-  prettyNumberedResults =
-    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".") prettyResults
+  prettyNumberedResults = P.numberedList prettyResults
   -- todo: group this by namespace
   prettyResults =
     map (SR'.foldResult' renderTerm renderType)
