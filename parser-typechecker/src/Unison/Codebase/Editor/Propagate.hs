@@ -72,6 +72,7 @@ propagateAndApply patch branch = do
   f     <- applyPropagate edits
   pure $ Branch.step (f . applyDeprecations patch) branch
 
+-- Note: this function adds definitions to the codebase as it propagates.
 -- Description:
 ------------------
 -- For any `Reference` in the frontier which has an unconflicted
@@ -211,15 +212,16 @@ propagate patch b = case validatePatch patch of
                              _ -> error "It's not gone well!"
                       )
                     seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
-                  in
-                    pure ( Just $ Edits termEdits
-                                   termReplacements
-                                   newTerms
-                                   typeEdits'
-                                   typeReplacements'
-                                   newTypes'
-                    , seen'
-                    )
+                    writeTypes =
+                      traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
+                writeTypes (Map.elems componentMap)
+                pure ( Just $ Edits termEdits
+                               termReplacements
+                               newTerms
+                               typeEdits'
+                               typeReplacements'
+                               newTypes'
+                     , seen')
             doTerm :: Reference -> F m i v (Maybe (Edits v), Set Reference)
             doTerm r = do
               componentMap <- unhashTermComponent r
@@ -232,9 +234,9 @@ propagate patch b = case validatePatch patch of
                       <$> componentMap
                   seen' = seen <> Set.fromList (view _1 <$> Map.elems componentMap)
               mayComponent <- verifyTermComponent componentMap' es
-              pure $ case mayComponent of
-                Nothing -> (Nothing, seen')
-                Just componentMap'' ->
+              case mayComponent of
+                Nothing -> pure (Nothing, seen')
+                Just componentMap'' -> do
                   let
                     joinedStuff = toList
                       (Map.intersectionWith f componentMap componentMap'')
@@ -255,7 +257,10 @@ propagate patch b = case validatePatch patch of
                     newTerms' =
                       newTerms <> (Map.fromList . fmap toNewTerm) joinedStuff
                     toNewTerm (_, r', tm, _, tp) = (r', (tm, tp))
-                  in
+                    writeTerms =
+                      traverse_ (\(Reference.DerivedId id, (tm, tp)) -> eval $ PutTerm id tm tp)
+                  writeTerms [ (r, (tm,ty)) | (_old,r,tm,_oldTy,ty) <- joinedStuff ]
+                  pure
                     ( Just $ Edits termEdits'
                                    termReplacements'
                                    newTerms'
@@ -396,12 +401,6 @@ applyPropagate
 applyPropagate Edits {..} = do
   let termRefs        = Map.mapMaybe TermEdit.toReference termEdits
       typeRefs        = Map.mapMaybe TypeEdit.toReference typeEdits
-      termEditTargets = Set.fromList $ toList termRefs
-      typeEditTargets = Set.fromList $ toList typeRefs
-  -- write the new terms to the codebase
-  (writeTerms . Map.toList) (Map.restrictKeys newTerms termEditTargets)
-  -- write the new types to the codebase
-  (writeTypes . Map.toList) (Map.restrictKeys newTypes typeEditTargets)
   -- recursively update names and delete deprecated definitions
   pure $ Branch.stepEverywhere (updateNames termRefs typeRefs)
  where
@@ -423,10 +422,6 @@ applyPropagate Edits {..} = do
   -- typePreservingTermEdits :: Patch -> Patch
   -- typePreservingTermEdits Patch {..} = Patch termEdits mempty
   --   where termEdits = R.filterRan TermEdit.isTypePreserving _termEdits
-  writeTerms =
-    traverse_ (\(Reference.DerivedId id, (tm, tp)) -> eval $ PutTerm id tm tp)
-  writeTypes =
-    traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
 
 -- (d, f) when d is "dirty" (needs update),
 --             f is in the frontier (an edited dependency of d),
