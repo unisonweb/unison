@@ -107,10 +107,9 @@ unqualified' :: Text -> Text
 unqualified' = last . Text.splitOn "."
 
 makeAbsolute :: Name -> Name
-makeAbsolute n =
-  if toText n == "." then Name ".."
-  else if Text.isPrefixOf "." (toText n) then n
-  else Name ("." <> toText n)
+makeAbsolute n | toText n == "."                = Name ".."
+               | Text.isPrefixOf "." (toText n) = n
+               | otherwise                      = Name ("." <> toText n)
 
 instance Show Name where
   show = toString
