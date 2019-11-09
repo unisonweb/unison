@@ -5,6 +5,7 @@ module Unison.Symbol where
 
 import Unison.Prelude
 
+import Data.Text (pack)
 import Unison.Var (Var(..))
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
@@ -19,9 +20,14 @@ instance ABT.Var Symbol where
 
 instance Var Symbol where
   typed t = Symbol 0 t
-  typeOf (Symbol _ t) = t
   freshId (Symbol id _) = id
   freshenId id (Symbol _ n) = Symbol id n
+  name (Symbol id t) = case t of
+    Var.User n -> n <> showid id
+    Var.UnnamedWatch k guid -> fromString k <> "." <> guid <> showid id
+    where
+    showid 0 = ""
+    showid n = pack (show n)
 
 instance Eq Symbol where
   Symbol id1 name1 == Symbol id2 name2 = id1 == id2 && name1 == name2

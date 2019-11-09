@@ -8,7 +8,6 @@ module Unison.Var where
 import Unison.Prelude
 
 import Data.Char (toLower, isLower)
-import Data.Text (pack)
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import Unison.Util.Monoid (intercalateMap)
@@ -16,14 +15,10 @@ import Unison.Reference (Reference)
 import qualified Unison.Reference as R
 
 -- | A class for variables. Variables may have auxiliary information which
--- may not form part of their identity according to `Eq` / `Ord`. Laws:
---
---   * `typeOf (typed n) == n`
---   * `typeOf (ABT.freshIn vs v) == typeOf v`:
---     `ABT.freshIn` does not alter the name
+-- may not form part of their identity according to `Eq` / `Ord`.
 class (Show v, ABT.Var v) => Var v where
   typed :: Type -> v
-  typeOf :: v -> Type
+  name :: v -> Text
   freshId :: v -> Word64
   freshenId :: Word64 -> v -> v
 
@@ -37,43 +32,26 @@ named n = typed (User n)
 refNamed :: Var v => Reference -> v
 refNamed ref = named ("ℍ" <> R.toText ref)
 
-name :: Var v => v -> Text
-name v = case typeOf v of
-  User n -> n <> showid v
-  Inference Ability -> "𝕖" <> showid v
-  Inference Input -> "𝕒" <> showid v
-  Inference Output -> "𝕣" <> showid v
-  Inference Other -> "𝕩" <> showid v
-  Inference PatternPureE -> "𝕞" <> showid v
-  Inference PatternPureV -> "𝕧" <> showid v
-  Inference PatternBindE -> "𝕞" <> showid v
-  Inference PatternBindV -> "𝕧" <> showid v
-  Inference TypeConstructor -> "𝕗" <> showid v
-  Inference TypeConstructorArg -> "𝕦" <> showid v
-  UnnamedWatch k guid -> fromString k <> "." <> guid <> showid v
-  where
-  showid (freshId -> 0) = ""
-  showid (freshId -> n) = pack (show n)
-
 uncapitalize :: Var v => v -> v
 uncapitalize v = nameds $ go (nameStr v) where
   go (c:rest) = toLower c : rest
   go n = n
 
+-- Variables created during type inference
 inferInput, inferOutput, inferAbility,
   inferPatternPureE, inferPatternPureV, inferPatternBindE, inferPatternBindV,
   inferTypeConstructor, inferTypeConstructorArg,
   inferOther :: Var v => v
-inferInput = typed (Inference Input)
-inferOutput = typed (Inference Output)
-inferAbility = typed (Inference Ability)
-inferPatternPureE = typed (Inference PatternPureE)
-inferPatternPureV = typed (Inference PatternPureV)
-inferPatternBindE = typed (Inference PatternBindE)
-inferPatternBindV = typed (Inference PatternBindV)
-inferTypeConstructor = typed (Inference TypeConstructor)
-inferTypeConstructorArg = typed (Inference TypeConstructorArg)
-inferOther = typed (Inference Other)
+inferInput = named "𝕒"
+inferOutput = named "𝕣"
+inferAbility = named "𝕖"
+inferPatternPureE = named "𝕞"
+inferPatternPureV = named "𝕧"
+inferPatternBindE = named "𝕞"
+inferPatternBindV = named "𝕧"
+inferTypeConstructor = named "𝕗"
+inferTypeConstructorArg = named "𝕦"
+inferOther = named "𝕩"
 
 unnamedTest :: Var v => Text -> v
 unnamedTest guid = typed (UnnamedWatch TestWatch guid)
@@ -81,8 +59,6 @@ unnamedTest guid = typed (UnnamedWatch TestWatch guid)
 data Type
   -- User provided variables, these should generally be left alone
   = User Text
-  -- Variables created during type inference
-  | Inference InferenceType
   -- An unnamed watch expression of the given kind, for instance:
   --
   --  test> Ok "oog"
@@ -97,21 +73,11 @@ type WatchKind = String
 pattern RegularWatch = ""
 pattern TestWatch = "test"
 
-data InferenceType =
-  Ability | Input | Output |
-  PatternPureE | PatternPureV |
-  PatternBindE | PatternBindV |
-  TypeConstructor | TypeConstructorArg |
-  Other
-  deriving (Eq,Ord,Show)
-
 reset :: Var v => v -> v
-reset v = typed (typeOf v)
+reset v = freshenId 0 v
 
-unqualified :: Var v => v -> v
-unqualified v = case typeOf v of
-  User _ -> named . unqualifiedName $ v
-  _ -> v
+isQualified :: Var v => v -> Bool
+isQualified v = Text.any (== '.') (name v)
 
 unqualifiedName :: Var v => v -> Text
 unqualifiedName = last . Text.splitOn "." . name
@@ -135,6 +101,6 @@ freshNamed used n = ABT.freshIn used (named n)
 
 universallyQuantifyIfFree :: forall v . Var v => v -> Bool
 universallyQuantifyIfFree v =
-  ok (name $ reset v) && unqualified v == v
+  ok (name $ reset v) && not (isQualified v)
   where
   ok n = (all isLower . take 1 . Text.unpack) n
