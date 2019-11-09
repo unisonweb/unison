@@ -20,7 +20,6 @@ instance ABT.Var Symbol where
 
 instance Var Symbol where
   named n = Symbol 0 n
-  freshId (Symbol id _) = id
   reset (Symbol _ n) = Symbol 0 n
   name (Symbol id n) = n <> showid id where
     showid 0 = ""

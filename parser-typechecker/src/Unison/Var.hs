@@ -19,7 +19,6 @@ import qualified Unison.Reference as R
 class (Show v, ABT.Var v) => Var v where
   named :: Text -> v
   name :: v -> Text
-  freshId :: v -> Word64
   reset :: v -> v
 
 freshIn :: ABT.Var v => Set v -> v -> v

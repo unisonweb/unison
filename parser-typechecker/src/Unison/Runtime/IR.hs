@@ -20,7 +20,7 @@ import Data.IORef
 import Unison.Hash (Hash)
 import Unison.NamePrinter (prettyHashQualified0)
 import Unison.Referent (Referent)
-import Unison.Symbol (Symbol, Symbol(..))
+import Unison.Symbol (Symbol(..))
 import Unison.Term (AnnotatedTerm)
 import Unison.Util.CyclicEq (CyclicEq, cyclicEq)
 import Unison.Util.CyclicOrd (CyclicOrd, cyclicOrd)
@@ -946,7 +946,6 @@ instance ABT.Var SymbolC where
 instance Var SymbolC where
   named s = SymbolC False (Var.named s)
   name (SymbolC _ s) = Var.name s
-  freshId (SymbolC _ s) = Var.freshId s
   reset (SymbolC i s) = SymbolC i (Var.reset s)
 
 instance (Show e, Show cont) => Show (Value e cont) where
