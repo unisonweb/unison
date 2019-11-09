@@ -410,43 +410,6 @@ renderTypeError e env src = case e of
       <> annotatedAsErrorSite src typeSite
     , "Make sure it's imported and spelled correctly."
     ]
-  UnknownTerm {..}
-    | Type.isArrow expectedType && Var.typeOf unknownTermV == Var.AskInfo
-    -> let Type.Arrow' i o = case expectedType of
-             Type.ForallsNamed' _ body -> body
-             _                         -> expectedType
-       in
-         mconcat
-           [ "Here's what I know about the expression at "
-           , annotatedToEnglish termSite
-           , ":\n\n"
-           , annotatedAsErrorSite src termSite
-           , "\n"
-           , "Its type is: "
-           , style ErrorSite (renderType' env i)
-           , ".\n\n"
-           , case o of
-             Type.Existential' _ _ ->
-               "It can be replaced with a value of any type.\n"
-             _ ->
-               "A well-typed replacement must conform to: "
-                 <> style Type2 (renderType' env o)
-                 <> ".\n"
-           ]
-  UnknownTerm {..} | Var.typeOf unknownTermV == Var.MissingResult -> mconcat
-    [ "I found a block that ends with a binding instead of an expression at "
-    , annotatedToEnglish termSite
-    , ":\n\n"
-    , annotatedAsErrorSite src termSite
-    , "\n"
-    , case expectedType of
-      Type.Existential' _ _ ->
-        "To complete the block, add an expression after this binding.\n\n"
-      _ ->
-        "Based on the context, I'm expecting an expression of type "
-          <> style Type1 (renderType' env expectedType)
-          <> " after this binding. \n\n"
-    ]
   UnknownTerm {..} ->
     let (correct, wrongTypes, wrongNames) =
           foldr sep id suggestions ([], [], [])
@@ -1073,16 +1036,41 @@ prettyParseError s = \case
     "I expected a non-empty watch expression and not just \">\""
   go (Parser.UnknownAbilityConstructor tok _referents) = unknownConstructor "ability" tok
   go (Parser.UnknownDataConstructor    tok _referents) = unknownConstructor "data" tok
-  go (Parser.UnknownTerm               tok _referents) = mconcat
-    [ "I couldn't find a term for "
+  go (Parser.UnknownId               tok referents references) = Pr.lines
+    [ if missing then 
+        "I couldn't resolve the reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
+      else
+        "The reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous."
+    , ""
     , tokenAsErrorSite s $ HQ.toString <$> tok
-    , ". Make sure it's spelled correctly and that you have the right hash."
+    , if missing then "Make sure it's spelled correctly."
+      else "Try hash-qualifying the term you meant to reference."
     ]
-  go (Parser.UnknownType               tok _referents) = mconcat
-    [ "I couldn't find a type for "
+    where missing = Set.null referents && Set.null references
+  go (Parser.UnknownTerm               tok referents) = Pr.lines
+    [ if Set.null referents then 
+        "I couldn't find a term for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
+      else
+        "The term reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous."
+    , ""
     , tokenAsErrorSite s $ HQ.toString <$> tok
-    , ". Make sure it's spelled correctly and that you have the right hash."
+    , if missing then "Make sure it's spelled correctly."
+      else "Try hash-qualifying the term you meant to reference."
     ]
+    where
+    missing = Set.null referents
+  go (Parser.UnknownType               tok referents) = Pr.lines
+    [ if Set.null referents then 
+        "I couldn't find a type for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
+      else
+        "The type reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous."
+    , ""
+    , tokenAsErrorSite s $ HQ.toString <$> tok
+    , if missing then "Make sure it's spelled correctly."
+      else "Try hash-qualifying the type you meant to reference."
+    ]
+    where
+    missing = Set.null referents
   go (Parser.ResolutionFailures        failures) =
     Pr.border 2 . prettyResolutionFailures s $ failures
   unknownConstructor

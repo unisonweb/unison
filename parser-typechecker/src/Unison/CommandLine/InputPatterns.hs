@@ -196,6 +196,28 @@ view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
       "`view foo` prints the definition of `foo`."
       (pure . Input.ShowDefinitionI Input.ConsoleLocation)
 
+display :: InputPattern
+display = InputPattern "display" ["show"] [(Required, exactDefinitionQueryArg)]
+      "`display foo` prints a rendered version of the term `foo`."
+      (\case 
+        [s] -> pure (Input.DisplayI Input.ConsoleLocation s)
+        _ -> Left (I.help display))
+
+displayTo :: InputPattern
+displayTo = InputPattern "display.to" [] [(Required, noCompletions), (Required, exactDefinitionQueryArg)]
+      (P.wrap $ makeExample displayTo ["<filename>", "foo"] 
+             <> "prints a rendered version of the term `foo` to the given file.")
+      (\case 
+        [file,s] -> pure (Input.DisplayI (Input.FileLocation file) s)
+        _ -> Left (I.help displayTo))
+
+docs :: InputPattern 
+docs = InputPattern "docs" [] [(Required, exactDefinitionQueryArg)]
+      ("`docs foo` shows documentation for the definition `foo`.")
+      (\case 
+        [s] -> first fromString $ Input.DocsI <$> Path.parseHQSplit' s
+        _ -> Left (I.help docs))
+
 undo :: InputPattern
 undo = InputPattern "undo" [] []
       "`undo` reverts the most recent change to the codebase."
@@ -595,51 +617,66 @@ previewMergeLocal = InputPattern
     _ -> Left (I.help previewMergeLocal)
   )
 
-resolveEdit :: InputPattern
-resolveEdit = InputPattern
-  "resolve.term"
-  []
-  [ (Required, exactDefinitionQueryArg)
-  , (Required, exactDefinitionQueryArg)
-  , (Optional, patchArg)
-  ]
-  (P.wrapColumn2
-    [ ( makeExample resolveEdit ["<from>", "<to>", "<patch>"]
-      , "Resolves any edit conflict for the term <from> in the given patch "
-        <> "by globally replacing it with the term <to>."
-      )
-    , ( makeExample resolveEdit ["<from>", "<to>"]
-      , "Resolves edit conflicts in the default patch by replacing the term "
-        <> "<from> with <to>."
-      )
-    ]
-  )
-  (\case
-    source : target : patch -> first fromString $ do
-      src   <- Path.parseShortHashOrHQSplit' source
-      dest  <- Path.parseShortHashOrHQSplit' target
-      patch <- traverse (Path.parseSplit' Path.wordyNameSegment)
-        $ listToMaybe patch
-      sourceH <- maybe (Left (source <> " is not a valid hash."))
-                       Right
-                       (toHash src)
-      targetH <- maybe (Left (target <> " is not a valid hash."))
-                       Right
-                       (toHash dest)
-      pure $ Input.ResolveEditI sourceH targetH patch
-    _ -> Left (I.help resolveEdit)
-  )
+resolveEdit
+  :: (ShortHash -> ShortHash -> Maybe Input.PatchPath -> Input)
+  -> String
+  -> InputPattern
+resolveEdit f s = self
  where
+  self = InputPattern
+    ("resolve." <> s)
+    []
+    [ (Required, exactDefinitionQueryArg)
+    , (Required, exactDefinitionQueryArg)
+    , (Optional, patchArg)
+    ]
+    (P.wrapColumn2
+      [ ( makeExample self ["<from>", "<to>", "<patch>"]
+        , "Resolves any edit conflict for the "
+        <> P.string s
+        <> " <from> in the given patch "
+        <> "by globally replacing it with the "
+        <> P.string s
+        <> " <to>."
+        )
+      , ( makeExample self ["<from>", "<to>"]
+        , "Resolves edit conflicts in the default patch by replacing the "
+        <> P.string s
+        <> "<from> with <to>."
+        )
+      ]
+    )
+    (\case
+      source : target : patch -> first fromString $ do
+        src   <- Path.parseShortHashOrHQSplit' source
+        dest  <- Path.parseShortHashOrHQSplit' target
+        patch <- traverse (Path.parseSplit' Path.wordyNameSegment)
+          $ listToMaybe patch
+        sourceH <- maybe (Left (source <> " is not a valid hash."))
+                         Right
+                         (toHash src)
+        targetH <- maybe (Left (target <> " is not a valid hash."))
+                         Right
+                         (toHash dest)
+        pure $ f sourceH targetH patch
+      _ -> Left $ I.help self
+    )
   toHash :: Either ShortHash Path.HQSplit' -> Maybe ShortHash
   toHash (Left  h      ) = Just h
   toHash (Right (_, hq)) = HQ'.toHash hq
+
+resolveType :: InputPattern
+resolveType = resolveEdit Input.ResolveTypeI "type"
+
+resolveTerm :: InputPattern
+resolveTerm = resolveEdit Input.ResolveTermI "term"
 
 viewReflog :: InputPattern
 viewReflog = InputPattern
   "reflog"
   []
   []
-  ("`reflog` lists the changes that have affected the root namespace")
+  "`reflog` lists the changes that have affected the root namespace"
   (\case
     [] -> pure Input.ShowReflogI
     _  -> Left . warn . P.string
@@ -818,7 +855,9 @@ links = InputPattern
   "links"
   []
   [(Required, exactDefinitionQueryArg), (Optional, exactDefinitionQueryArg)]
-  "`links src` shows all outgoing links from `src`. `link src <type>` shows all links for the given type."
+  (P.column2 [
+    (makeExample links ["src"], "shows all outgoing links from `src`."),
+    (makeExample links ["src", "<type>"], "shows all links for the given type.") ])
   (\case
     src : rest -> first fromString $ do
       src <- Path.parseHQSplit' src
@@ -903,6 +942,9 @@ validInputs =
   , findShallow
   , findVerbose
   , view
+  , display
+  , displayTo
+  , docs
   , findPatch
   , viewPatch
   , undo
@@ -919,7 +961,8 @@ validInputs =
   , link
   , unlink
   , links
-  , resolveEdit
+  , resolveTerm
+  , resolveType
   , test
   , execute
   , viewReflog

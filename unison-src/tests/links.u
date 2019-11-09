@@ -1,0 +1,13 @@
+
+
+natLink : Link.Type
+natLink = typeLink Nat
+
+takeLink : Link.Term
+takeLink = termLink List.take
+
+dropLink : Link.Term
+dropLink = termLink List.drop
+
+> (takeLink == dropLink, natLink == typeLink Nat)
+

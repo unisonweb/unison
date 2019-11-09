@@ -4,7 +4,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.FileCodebase
 ( getRootBranch -- used by Git module
@@ -158,6 +157,7 @@ getCodebaseOrExit mdir = do
 
   let path = dir </> codebasePath
   let theCodebase = codebase1 V1.formatSymbol formatAnn path
+  Codebase.initializeBuiltinCode theCodebase
   unlessM (exists path) $ do
     PT.putPrettyLn'. P.warnCallout . P.wrap $ errMsg
     exitFailure

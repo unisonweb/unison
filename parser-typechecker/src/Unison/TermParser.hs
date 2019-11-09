@@ -16,6 +16,8 @@ import           Control.Monad.Reader (asks, local)
 import           Prelude hiding (and, or, seq)
 import           Unison.Name (Name)
 import           Unison.Names3 (Names)
+import           Unison.Reference (Reference)
+import           Unison.Referent (Referent)
 import           Unison.Parser hiding (seq)
 import           Unison.PatternP (Pattern)
 import           Unison.Term (AnnotatedTerm, IsTop)
@@ -37,8 +39,6 @@ import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Var as Var
-
-import Unison.Reference (Reference)
 
 watch :: Show a => String -> a -> a
 watch msg a = let !_ = trace (msg ++ ": " ++ show a) () in a
@@ -63,7 +63,7 @@ term2 = lam term2 <|> term3
 
 term3 :: Var v => TermP v
 term3 = do
-  t <- and <|> or <|> infixApp
+  t <- infixAppOrBooleanOp
   ot <- optional (reserved ":" *> TypeParser.computationType)
   pure $ case ot of
     Nothing -> t
@@ -72,10 +72,47 @@ term3 = do
 keywordBlock :: Var v => TermP v
 keywordBlock = letBlock <|> handle <|> ifthen <|> match
 
+typeLink' :: Var v => P v (L.Token Reference)
+typeLink' = do
+  id <- hqPrefixId
+  ns <- asks names
+  case Names.lookupHQType (L.payload id) ns of 
+    s | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
+      | otherwise       -> customFailure $ UnknownType id s
+
+termLink' :: Var v => P v (L.Token Referent)
+termLink' = do
+  id <- hqPrefixId
+  ns <- asks names
+  case Names.lookupHQTerm (L.payload id) ns of 
+    s | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
+      | otherwise       -> customFailure $ UnknownTerm id s
+      
+link' :: Var v => P v (Either (L.Token Reference) (L.Token Referent))
+link' = do
+  id <- hqPrefixId
+  ns <- asks names
+  case (Names.lookupHQTerm (L.payload id) ns, Names.lookupHQType (L.payload id) ns) of 
+    (s, s2) | Set.size s == 1 && Set.null s2 -> pure . Right $ const (Set.findMin s) <$> id
+    (s, s2) | Set.size s2 == 1 && Set.null s -> pure . Left $ const (Set.findMin s2) <$> id
+    (s, s2) -> customFailure $ UnknownId id s s2
+
+link :: Var v => TermP v
+link = termLink <|> typeLink 
+  where
+  typeLink = do
+    P.try (reserved "typeLink") -- type opens a block, gotta use something else
+    tok <- typeLink' 
+    pure $ Term.typeLink (ann tok) (L.payload tok)
+  termLink = do
+    P.try (reserved "termLink")
+    tok <- termLink' 
+    pure $ Term.termLink (ann tok) (L.payload tok) 
+
 -- We disallow type annotations and lambdas,
 -- just function application and operators
 blockTerm :: Var v => TermP v
-blockTerm = and <|> or <|> lam term <|> infixApp
+blockTerm = lam term <|> infixAppOrBooleanOp
 
 match :: Var v => TermP v
 match = do
@@ -92,7 +129,7 @@ match = do
 matchCase :: Var v => P v (Term.MatchCase Ann (AnnotatedTerm v Ann))
 matchCase = do
   (p, boundVars) <- parsePattern
-  guard <- optional $ reserved "|" *> (and <|> or <|> infixApp)
+  guard <- optional $ reserved "|" *> infixAppOrBooleanOp
   t <- block "->"
   pure . Term.MatchCase p (fmap (ABT.absChain' boundVars) guard) $ ABT.absChain' boundVars t
 
@@ -194,7 +231,7 @@ lam p = label "lambda" $ mkLam <$> P.try (some prefixDefinitionName <* reserved 
   where
     mkLam vs b = Term.lam' (ann (head vs) <> ann b) (map L.payload vs) b
 
-letBlock, handle, ifthen, and, or, infixApp :: Var v => TermP v
+letBlock, handle, ifthen :: Var v => TermP v
 letBlock = label "let" $ block "let"
 
 handle = label "handle" $ do
@@ -243,27 +280,67 @@ resolveHashQualified tok = do
         | otherwise      -> pure $ Term.fromReferent (ann tok) (Set.findMin s)
 
 termLeaf :: forall v . Var v => TermP v
-termLeaf = do
-  e <- asum
+termLeaf =
+  asum
     [ hashQualifiedPrefixTerm
     , text
     , char
     , number
     , boolean
+    , link
     , tupleOrParenthesizedTerm
     , keywordBlock
     , seq term
     , delayQuote
     , bang
+    , docBlock
     ]
-  q <- optional (reserved "?")
-  case q of
-    Nothing -> pure e
-    Just q  -> pure $ Term.app
-      (ann q <> ann e)
-      (Term.var (ann e) (positionalVar q Var.askInfo))
-      e
 
+docBlock :: Var v => TermP v
+docBlock = do
+  openTok <- openBlockWith "[:"  
+  segs <- many segment  
+  closeTok <- closeBlock
+  let a = ann openTok <> ann closeTok
+  pure $ Term.app a (Term.constructor a DD.docRef DD.docJoinId) (Term.seq a segs)
+  where
+  segment = blob <|> linky
+  blob = do 
+    s <- string
+    pure $ Term.app (ann s) (Term.constructor (ann s) DD.docRef DD.docBlobId)
+                            (Term.text (ann s) (L.payload s))
+  linky = asum [include, signature, evaluate, source, link]
+  include = do 
+    _ <- P.try (reserved "include")
+    hashQualifiedPrefixTerm
+  signature = do
+    _ <- P.try (reserved "signature")
+    tok <- termLink' 
+    pure $ Term.app (ann tok) 
+                    (Term.constructor (ann tok) DD.docRef DD.docSignatureId) 
+                    (Term.termLink (ann tok) (L.payload tok))
+  evaluate = do
+    _ <- P.try (reserved "evaluate")
+    tok <- termLink' 
+    pure $ Term.app (ann tok) 
+                    (Term.constructor (ann tok) DD.docRef DD.docEvaluateId)
+                    (Term.termLink (ann tok) (L.payload tok))
+  source = do
+    _ <- P.try (reserved "source")
+    l <- link'' 
+    pure $ Term.app (ann l) 
+                    (Term.constructor (ann l) DD.docRef DD.docSourceId)
+                    l 
+  link'' = either ty t <$> link' where
+    t tok = Term.app (ann tok) 
+                     (Term.constructor (ann tok) DD.linkRef DD.linkTermId) 
+                     (Term.termLink (ann tok) (L.payload tok))
+    ty tok = Term.app (ann tok) 
+                      (Term.constructor (ann tok) DD.linkRef DD.linkTypeId) 
+                      (Term.typeLink (ann tok) (L.payload tok))
+  link = d <$> link'' where
+    d tm = Term.app (ann tm) (Term.constructor (ann tm) DD.docRef DD.docLinkId) tm
+  
 delayQuote :: Var v => TermP v
 delayQuote = P.label "quote" $ do
   start <- reserved "'"
@@ -275,12 +352,6 @@ bang = P.label "bang" $ do
   start <- reserved "!"
   e <- termLeaf
   pure $ DD.forceTerm (ann start <> ann e) (ann start) e
-
-and = label "and" $ f <$> reserved "and" <*> termLeaf <*> termLeaf
-  where f kw x y = Term.and (ann kw <> ann y) x y
-
-or = label "or" $ f <$> reserved "or" <*> termLeaf <*> termLeaf
-  where f kw x y = Term.or (ann kw <> ann y) x y
 
 var :: Var v => L.Token v -> AnnotatedTerm v Ann
 var t = Term.var (ann t) (L.payload t)
@@ -298,9 +369,15 @@ term4 = f <$> some termLeaf
     f [] = error "'some' shouldn't produce an empty list"
 
 -- e.g. term4 + term4 - term4
-infixApp = label "infixApp"
-  $ chainl1 term4 (f <$> (hashQualifiedInfixTerm <* optional semi))
-  where f op lhs rhs = Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
+-- or term4 || term4 && term4
+infixAppOrBooleanOp :: Var v => TermP v
+infixAppOrBooleanOp = chainl1 term4 (or <|> and <|> infixApp)
+    where or = orf <$> label "or" (reserved "||")
+          orf op lhs rhs =  Term.or (ann op <> ann rhs) lhs rhs
+          and = andf <$> label "and" (reserved "&&")
+          andf op lhs rhs = Term.and (ann op <> ann rhs) lhs rhs
+          infixApp = infixAppf <$> label "infixApp" (hashQualifiedInfixTerm <* optional semi)
+          infixAppf op lhs rhs = Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
 
 typedecl :: Var v => P v (L.Token v, Type v Ann)
 typedecl =

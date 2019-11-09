@@ -66,7 +66,7 @@ getResult :: Functor f => ResultT notes f a -> f (Result notes a)
 getResult r = uncurry (flip Result) <$> runResultT r
 
 toEither :: Functor f => ResultT notes f a -> ExceptT notes f a
-toEither r = ExceptT (fmap go $ runResultT r)
+toEither r = ExceptT (go <$> runResultT r)
   where go (may, notes) = note notes may
 
 tell1 :: Monad f => note -> ResultT (Seq note) f ()

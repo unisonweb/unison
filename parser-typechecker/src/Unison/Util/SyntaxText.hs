@@ -41,6 +41,7 @@ data Element = NumericLiteral
              | DelimiterChar
              -- ! '
              | Parenthesis
+             | LinkKeyword -- `typeLink` and `termLink`
              deriving (Eq, Ord, Bounded, Enum, Show, Read)
 
 syntax :: Element -> SyntaxText -> SyntaxText

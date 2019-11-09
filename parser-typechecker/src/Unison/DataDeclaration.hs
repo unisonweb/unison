@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# Language DeriveFoldable #-}
 {-# Language DeriveFunctor #-}
@@ -12,7 +13,9 @@ module Unison.DataDeclaration where
 import Unison.Prelude
 
 import Control.Lens (_3, over)
-import Data.Bifunctor (first)
+import Control.Monad.State (evalState)
+
+import Data.Bifunctor (first, second)
 import qualified Unison.Util.Relation as Rel
 import           Data.List                      ( sortOn, elemIndex, find )
 import           Unison.Hash                    ( Hash )
@@ -45,7 +48,7 @@ import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Pattern                as Pattern
 import qualified Unison.ConstructorType as CT
 
-type ConstructorId = Int
+type ConstructorId = Term.ConstructorId
 
 type DataDeclaration v = DataDeclaration' v ()
 type Decl v a = Either (EffectDeclaration' v a) (DataDeclaration' v a)
@@ -173,6 +176,17 @@ constructorVars dd = fst <$> constructors dd
 
 constructorNames :: Var v => DataDeclaration' v a -> [Text]
 constructorNames dd = Var.name <$> constructorVars dd
+
+-- | All variables mentioned in the given data declaration.
+-- Includes both term and type variables, both free and bound.
+allVars :: Ord v => DataDeclaration' v a -> Set v
+allVars (DataDeclaration _ _ bound ctors) = Set.unions $
+  Set.fromList bound : [ Set.insert v (Set.fromList $ ABT.allVars tp) | (_,v,tp) <- ctors ]
+
+-- | All variables mentioned in the given declaration.
+-- Includes both term and type variables, both free and bound.
+allVars' :: Ord v => Decl v a -> Set v
+allVars' = allVars . either toDataDecl id
 
 bindNames :: Var v
           => Set v
@@ -314,6 +328,40 @@ toABT dd = ABT.tm $ Modified (modifier dd) dd'
             (fst <$> constructors dd)
             (ABT.tm . Constructors $ ABT.transform Type <$> constructorTypes dd))
 
+updateDependencies :: Ord v => Map Reference Reference -> Decl v a -> Decl v a
+updateDependencies typeUpdates decl = back $ dataDecl
+  { constructors' = over _3 (Type.updateDependencies typeUpdates)
+                      <$> constructors' dataDecl
+  }
+ where
+  dataDecl = either toDataDecl id decl
+  back     = either (const $ Left . EffectDeclaration) (const Right) decl
+
+
+-- This converts `Reference`s it finds that are in the input `Map`
+-- back to free variables
+unhashComponent
+  :: forall v a. Var v => Map Reference (Decl v a) -> Map Reference (v, Decl v a)
+unhashComponent m
+  = let
+      usedVars = foldMap allVars' m
+      m' :: Map Reference (v, Decl v a)
+      m' = evalState (Map.traverseWithKey assignVar m) usedVars where
+        assignVar r d = (,d) <$> ABT.freshenS (Var.refNamed r)
+      unhash1  = ABT.rebuildUp' go
+       where
+        go e@(Type.Ref' r) = case Map.lookup r m' of
+          Nothing -> e
+          Just (v,_)  -> Type.var (ABT.annotation e) v
+        go e = e
+      unhash2 (Right dd@DataDeclaration{}) = Right $ unhash3 dd
+      unhash2 (Left (EffectDeclaration dd)) =
+        Left . EffectDeclaration $ unhash3 dd
+      unhash3 dd@DataDeclaration {..} =
+        dd { constructors' = fmap (over _3 unhash1) constructors' }
+    in
+      second unhash2 <$> m'
+
 -- Implementation detail of `hashDecls`, works with unannotated data decls
 hashDecls0 :: (Eq v, Var v) => Map v (DataDeclaration' v ()) -> [(v, Reference)]
 hashDecls0 decls =
@@ -351,15 +399,17 @@ hashDecls decls = do
   pure  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
 
 
-unitRef, pairRef, optionalRef, testResultRef :: Reference
-(unitRef, pairRef, optionalRef, testResultRef) =
+unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef :: Reference
+(unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef) =
   let decls          = builtinDataDecls @Symbol
       [(_, unit, _)] = filter (\(v, _, _) -> v == Var.named "Unit") decls
       [(_, pair, _)] = filter (\(v, _, _) -> v == Var.named "Tuple") decls
       [(_, opt , _)] = filter (\(v, _, _) -> v == Var.named "Optional") decls
       [(_, testResult, _)] =
         filter (\(v, _, _) -> v == Var.named "Test.Result") decls
-  in  (unit, pair, opt, testResult)
+      [(_, link , _)] = filter (\(v, _, _) -> v == Var.named "Link") decls
+      [(_, doc , _)] = filter (\(v, _, _) -> v == Var.named "Doc") decls
+  in  (unit, pair, opt, testResult, link, doc)
 
 pairCtorRef, unitCtorRef :: Referent
 pairCtorRef = Referent.Con pairRef 0 CT.Data
@@ -370,9 +420,18 @@ constructorId ref name = do
   (_,_,dd) <- find (\(_,r,_) -> r == ref) (builtinDataDecls @Symbol)
   elemIndex name $ constructorNames dd
 
-okConstructorId, failConstructorId :: Int
+okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId :: ConstructorId
 Just okConstructorId = constructorId testResultRef "Test.Result.Ok"
 Just failConstructorId = constructorId testResultRef "Test.Result.Fail"
+Just docBlobId = constructorId docRef "Doc.Blob"
+Just docLinkId = constructorId docRef "Doc.Link"
+Just docSignatureId = constructorId docRef "Doc.Signature"
+Just docSourceId = constructorId docRef "Doc.Source"
+Just docEvaluateId = constructorId docRef "Doc.Evaluate"
+Just docJoinId = constructorId docRef "Doc.Join"
+Just linkTermId = constructorId linkRef "Link.Term"
+Just linkTypeId = constructorId linkRef "Link.Type"
+
 okConstructorReferent, failConstructorReferent :: Referent.Referent
 okConstructorReferent = Referent.Con testResultRef okConstructorId CT.Data
 failConstructorReferent = Referent.Con testResultRef failConstructorId CT.Data
@@ -383,13 +442,19 @@ failResult ann msg =
                (Term.text ann msg)
 
 builtinDataDecls :: Var v => [(v, Reference, DataDeclaration' v ())]
-builtinDataDecls = case hashDecls $ Map.fromList
-  [ (v "Unit"           , unit)
-  , (v "Tuple"          , tuple)
-  , (v "Optional"       , opt)
-  , (v "Test.Result"    , tr)
-  ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
+builtinDataDecls = rs1 ++ rs
  where
+  rs1 = case hashDecls $ Map.fromList
+    [ (v "Link"           , link)
+    ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
+  rs = case hashDecls $ Map.fromList
+    [ (v "Unit"           , unit)
+    , (v "Tuple"          , tuple)
+    , (v "Optional"       , opt)
+    , (v "Test.Result"    , tr)
+    , (v "Doc"            , doc)
+    ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
+  [(_, linkRef, _)] = rs1 
   v = Var.named
   var name = Type.var () (v name)
   arr  = Type.arrow'
@@ -431,6 +496,24 @@ builtinDataDecls = case hashDecls $ Map.fromList
     [ ((), v "Test.Result.Fail", Type.text () `arr` var "Test.Result")
     , ((), v "Test.Result.Ok"  , Type.text () `arr` var "Test.Result")
     ]
+  doc = DataDeclaration
+    (Unique "c63a75b845e4f7d01107d852e4c2485c51a50aaaa94fc61995e71bbee983a2ac3713831264adb47fb6bd1e058d5f004")
+    ()
+    []
+    [ ((), v "Doc.Blob", Type.text () `arr` var "Doc")
+    , ((), v "Doc.Link", Type.ref() linkRef `arr` var "Doc")
+    , ((), v "Doc.Signature", Type.termLink() `arr` var "Doc")
+    , ((), v "Doc.Source", Type.ref() linkRef `arr` var "Doc")
+    , ((), v "Doc.Evaluate", Type.termLink() `arr` var "Doc")
+    , ((), v "Doc.Join", Type.app() (Type.vector()) (var "Doc") `arr` var "Doc")
+    ]
+  link = DataDeclaration
+    (Unique "a5803524366ead2d7f3780871d48771e8142a3b48802f34a96120e230939c46bd5e182fcbe1fa64e9bff9bf741f3c04")
+    ()
+    []
+    [ ((), v "Link.Term", Type.termLink () `arr` var "Link")
+    , ((), v "Link.Type", Type.typeLink () `arr` var "Link")
+    ]
 
 pattern UnitRef <- (unUnitRef -> True)
 pattern PairRef <- (unPairRef -> True)
@@ -438,6 +521,26 @@ pattern OptionalRef <- (unOptionalRef -> True)
 pattern TupleType' ts <- (unTupleType -> Just ts)
 pattern TupleTerm' xs <- (unTupleTerm -> Just xs)
 pattern TuplePattern ps <- (unTuplePattern -> Just ps)
+
+-- some pattern synonyms to make pattern matching on some of these constants more pleasant 
+pattern DocRef <- ((== docRef) -> True) 
+pattern DocJoin segs <- Term.App' (Term.Constructor' DocRef DocJoinId) (Term.Sequence' segs)
+pattern DocBlob txt <- Term.App' (Term.Constructor' DocRef DocBlobId) (Term.Text' txt)
+pattern DocLink link <- Term.App' (Term.Constructor' DocRef DocLinkId) link
+pattern DocSource link <- Term.App' (Term.Constructor' DocRef DocSourceId) link
+pattern DocSignature link <- Term.App' (Term.Constructor' DocRef DocSignatureId) link
+pattern DocEvaluate link <- Term.App' (Term.Constructor' DocRef DocEvaluateId) link
+pattern DocSignatureId <- ((== docSignatureId) -> True)
+pattern DocBlobId <- ((== docBlobId) -> True)
+pattern DocLinkId <- ((== docLinkId) -> True)
+pattern DocSourceId <- ((== docSourceId) -> True)
+pattern DocEvaluateId <- ((== docEvaluateId) -> True)
+pattern DocJoinId <- ((== docJoinId) -> True)
+pattern LinkTermId <- ((== linkTermId) -> True)
+pattern LinkTypeId <- ((== linkTypeId) -> True)
+pattern LinkRef <- ((== linkRef) -> True)
+pattern LinkTerm tm <- Term.App' (Term.Constructor' LinkRef LinkTermId) tm 
+pattern LinkType ty <- Term.App' (Term.Constructor' LinkRef LinkTypeId) ty 
 
 unitType, pairType, optionalType, testResultType
   :: Ord v => a -> Type v a

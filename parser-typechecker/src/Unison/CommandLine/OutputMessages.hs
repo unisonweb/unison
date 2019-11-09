@@ -85,6 +85,7 @@ import qualified Unison.Referent               as Referent
 import qualified Unison.Result                 as Result
 import qualified Unison.Term                   as Term
 import           Unison.Term                   (AnnotatedTerm)
+import           Unison.Type                   (Type)
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker            as Typechecker
@@ -146,6 +147,8 @@ notifyUser dir o = case o of
 
   DisplayDefinitions outputLoc ppe types terms ->
     displayDefinitions outputLoc ppe types terms
+  DisplayRendered outputLoc pp -> 
+    displayRendered outputLoc pp 
   DisplayLinks ppe md types terms ->
     if Map.null md then pure $ P.wrap "Nothing to show here. Use the "
       <> IP.makeExample' IP.link <> " command to add links from this definition."
@@ -271,6 +274,8 @@ notifyUser dir o = case o of
     --   <> P.wrap "Please repeat the same command to confirm the deletion."
   ListOfDefinitions ppe detailed results ->
      listOfDefinitions ppe detailed results
+  ListOfLinks ppe results ->
+     listOfLinks ppe [ (name,tm) | (name,_ref,tm) <- results ]
   ListNames [] [] -> pure . P.callout "😶" $
     P.wrap "I couldn't find anything by that name."
   ListNames terms types -> pure . P.sepNonEmpty "\n\n" $ [
@@ -565,7 +570,9 @@ notifyUser dir o = case o of
     P.wrap "Try again with a few more hash characters to disambiguate."
     ]
   BadDestinationBranch _ _ -> pure "That destination namespace is bad."
-  TermNotFound' _ _ -> pure "That term was not found."
+  TermNotFound' _ h ->
+    pure $ "I could't find a term with hash "
+         <> (prettyShortHash $ Reference.toShortHash (Reference.DerivedId h))
   BranchDiff _ _ -> pure "Those namespaces are different."
   NothingToPatch _patchPath dest -> pure $
     P.callout "😶" . P.wrap
@@ -576,33 +583,32 @@ notifyUser dir o = case o of
   PatchInvolvesExternalDependents _ _ ->
     pure "That patch involves external dependents."
   ShowReflog [] ->  pure . P.warnCallout $ "The reflog appears to be empty!"
-  ShowReflog entries -> pure $ 
-    P.lines [ 
+  ShowReflog entries -> pure $
+    P.lines [
     P.wrap $ "Here is a log of the root namespace hashes,"
           <> "starting with the most recent,"
           <> "along with the command that got us there."
           <> "Try:",
     "",
+    -- `head . tail` is safe: entries never has 1 entry, and [] is handled above
+    let e2 = head . tail $ entries in
     P.indentN 2 . P.wrapColumn2 $ [
       (IP.makeExample IP.forkLocal ["2", ".old"],
         ""),
-      (IP.makeExample IP.forkLocal [prettySBH . Output.old $ head entries
-                                   , ".old"],
+      (IP.makeExample IP.forkLocal [prettySBH . Output.hash $ e2, ".old"],
        "to make an old namespace accessible again,"),
       (mempty,mempty),
-      (IP.makeExample IP.resetRoot [prettySBH . Output.old $ head entries],
+      (IP.makeExample IP.resetRoot [prettySBH . Output.hash $ e2],
         "to reset the root namespace and its history to that of the specified"
          <> "namespace.")
     ],
     "",
-    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".")
-         . fmap renderEntry
-         $ entries
-         ]
+    P.numberedList . fmap renderEntry $ entries
+    ]
     where
     renderEntry :: Output.ReflogEntry -> P.Pretty CT.ColorText
-    renderEntry (Output.ReflogEntry old new reason) = P.wrap $
-      P.blue (prettySBH new) <> " : " <> P.text reason
+    renderEntry (Output.ReflogEntry hash reason) = P.wrap $
+      P.blue (prettySBH hash) <> " : " <> P.text reason
   History cap history tail -> pure $
     P.lines [
       note $ "The most recent namespace hash is immediately below this message.", "",
@@ -612,8 +618,7 @@ notifyUser dir o = case o of
     where
     tailMsg = case tail of
       E.EndOfLog h -> P.lines [
-        P.wrap "This is the start of history. Later versions are listed below.", "",
-        "□ " <> prettySBH h, ""
+        "□ " <> prettySBH h <> " (start of history)"
         ]
       E.MergeTail h hs -> P.lines [
         P.wrap $ "This segment of history starts with a merge." <> ex,
@@ -795,6 +800,29 @@ displayDefinitions' ppe types terms = P.syntaxToColor $ P.sep "\n\n" (prettyType
     <> "which is missing from the codebase.")
     <> P.newline
     <> tip "You might need to repair the codebase manually."
+
+displayRendered :: Maybe FilePath -> Pretty -> IO Pretty
+displayRendered outputLoc pp = 
+  maybe (pure pp) scratchAndDisplay outputLoc
+  where
+  scratchAndDisplay path = do
+    path' <- canonicalizePath path
+    prependToFile pp path'
+    pure (message pp path')
+    where
+    prependToFile pp path = do
+      existingContents <- do
+        exists <- doesFileExist path
+        if exists then readFile path
+        else pure ""
+      writeFile path . Text.pack . P.toPlain 80 $
+        P.lines [ pp, "", P.text existingContents ]
+    message pp path =
+      P.callout "☝️" $ P.lines [
+        P.wrap $ "I added this to the top of " <> fromString path,
+        "",
+        P.indentN 2 pp
+      ]
 
 displayDefinitions :: Var v => Ord a1 =>
   Maybe FilePath
@@ -1039,7 +1067,7 @@ todoOutput ppe todo =
           TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
           )
       , P.wrap "I recommend working on them in the following order:"
-      , P.indentN 2 . P.lines $
+      , P.numberedList $
           let unscore (_score,a,b) = (a,b)
           in (prettyDeclPair ppe . unscore <$> toList dirtyTypes) ++
              TypePrinter.prettySignatures'
@@ -1052,6 +1080,25 @@ listOfDefinitions ::
   Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
 listOfDefinitions ppe detailed results =
   pure $ listOfDefinitions' ppe detailed results
+
+listOfLinks ::
+  Var v => PPE.PrettyPrintEnv -> [(HQ.HashQualified, Maybe (Type v a))] -> IO Pretty
+listOfLinks _ [] = pure . P.callout "😶" . P.wrap $
+  "No results. Try using the " <> 
+  IP.makeExample IP.link [] <> 
+  "command to add outgoing links to a definition."
+listOfLinks ppe results = pure $ P.lines [
+    P.numberedColumn2 num [
+    (P.syntaxToColor $ prettyHashQualified hq, ": " <> prettyType typ) | (hq,typ) <- results
+    ], "",
+    tip $ "Try using" <> IP.makeExample IP.display ["1"] 
+       <> "to display the first result or" 
+       <> IP.makeExample IP.view ["1"] <> "to view its source."
+    ]
+  where
+  num i = P.hiBlack $ P.shown i <> "."
+  prettyType Nothing = "❓ (missing a type for this definition)"
+  prettyType (Just t) = TypePrinter.pretty ppe t
 
 noResults :: Pretty
 noResults = P.callout "😶" $
@@ -1076,8 +1123,7 @@ listOfDefinitions' ppe detailed results =
     ]
   where
   len = length results
-  prettyNumberedResults =
-    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".") prettyResults
+  prettyNumberedResults = P.numberedList prettyResults
   -- todo: group this by namespace
   prettyResults =
     map (SR'.foldResult' renderTerm renderType)

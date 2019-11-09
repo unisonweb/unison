@@ -104,6 +104,7 @@ import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.Codebase.TermEdit (TermEdit(..))
 import qualified Unison.Codebase.TermEdit as TermEdit
+import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE
 import           Unison.Runtime.IOSource       ( isTest, ioReference )
@@ -125,8 +126,9 @@ import Unison.Type (Type)
 import qualified Unison.Builtin as Builtin
 import Unison.Codebase.NameSegment (NameSegment(..))
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-
---import Debug.Trace
+import qualified Unison.Codebase.Editor.Propagate as Propagate
+import qualified Unison.CommandLine.DisplayValues as DisplayValues
+import qualified Control.Error.Util as ErrorUtil
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
@@ -184,7 +186,7 @@ loop = do
   e           <- eval Input
   hqLength    <- eval CodebaseHashLength
   sbhLength   <- eval BranchHashLength
-  let 
+  let
       sbh = SBH.fromHash sbhLength
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
@@ -278,14 +280,13 @@ loop = do
         typeNotFound = respond . TypeNotFound input
         termNotFound = respond . TermNotFound input
         typeConflicted src = respond . TypeAmbiguous input src
-        termConflicted src = respond . TermAmbiguous input src
+        termConflicted src = respond . TermAmbiguous input (Left src)
         hashConflicted src = respond . HashAmbiguous input src
         branchExists dest _x = respond $ BranchAlreadyExists input dest
         branchExistsSplit = branchExists . Path.unsplit'
         typeExists dest = respond . TypeAlreadyExists input dest
         termExists dest = respond . TermAlreadyExists input dest
-        inputDescription, inputDescription2 :: Text
-        inputDescription2 = inputDescription <> " (2/2)"
+        inputDescription :: Text
         inputDescription = case input of
           ForkLocalBranchI src dest -> "fork " <> hp' src <> " " <> p' dest
           MergeLocalBranchI src dest -> "merge " <> p' src <> " " <> p' dest
@@ -301,8 +302,12 @@ loop = do
           DeleteTypeI def -> "delete.type" <> hqs' def
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
           DeletePatchI path -> "delete.patch " <> ps' path
-          ResolveEditI srcH targetH p ->
+          ResolveTermI srcH targetH p ->
             "resolve.term " <> SH.toText srcH <> " "
+                            <> SH.toText targetH <> " "
+                            <> opatch p
+          ResolveTypeI srcH targetH p ->
+            "resolve.type " <> SH.toText srcH <> " "
                             <> SH.toText targetH <> " "
                             <> opatch p
           ResolveTermNameI path -> "resolve.termName " <> hqs' path
@@ -316,7 +321,7 @@ loop = do
           UnlinkI from to -> "unlink " <> hqs' from <> " " <> hqs' to
           UpdateBuiltinsI -> "builtins.update"
           MergeBuiltinsI -> "builtins.merge"
-          PullRemoteBranchI orepo dest -> "pull " <> Text.pack (show orepo) <> " " <> p' dest 
+          PullRemoteBranchI orepo dest -> "pull " <> Text.pack (show orepo) <> " " <> p' dest
           PushRemoteBranchI{} -> wat
           PreviewMergeLocalBranchI{} -> wat
           SwitchBranchI{} -> wat
@@ -330,6 +335,8 @@ loop = do
           FindShallowI{} -> wat
           FindPatchI{} -> wat
           ShowDefinitionI{} -> wat
+          DisplayI{} -> wat
+          DocsI{} -> wat
           ShowDefinitionByPrefixI{} -> wat
           ShowReflogI{} -> wat
           DebugBranchHistoryI{} -> wat
@@ -355,10 +362,35 @@ loop = do
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
       in case input of
       ShowReflogI -> do
-        entries <- fmap reverse $ eval LoadReflog
+        entries <- fmap (convertEntries Nothing []) $ eval LoadReflog
         numberedArgs .=
-          fmap (('#':) . Hash.base32Hexs . Causal.unRawHash . Reflog.to) entries
-        respond . ShowReflog $ fmap (shortenReflogEntry sbhLength) entries
+          fmap (('#':) . SBH.toString . Output.hash) entries
+        respond $ ShowReflog entries
+        where
+        -- reverses & formats entries, adds synthetic entries when there is a
+        -- discontinuity in the reflog.
+        convertEntries :: Maybe Branch.Hash
+                       -> [Output.ReflogEntry]
+                       -> [Reflog.Entry]
+                       -> [Output.ReflogEntry]
+        convertEntries _ acc [] = acc
+        convertEntries Nothing acc entries@(Reflog.Entry old _ _ : _) =
+          convertEntries
+            (Just old)
+            (Output.ReflogEntry (SBH.fromHash sbhLength old) "(initial reflogged namespace)" : acc)
+            entries
+        convertEntries (Just lastHash) acc entries@(Reflog.Entry old new reason : rest) =
+          if lastHash /= old then
+            convertEntries
+              (Just old)
+              (Output.ReflogEntry (SBH.fromHash sbhLength old) "(external change)" : acc)
+              entries
+          else
+            convertEntries
+              (Just new)
+              (Output.ReflogEntry (SBH.fromHash sbhLength new) reason : acc)
+              rest
+
       ResetRootI src0 ->
         case src0 of
           Left hash -> resolveShortBranchHash input hash >>= \case
@@ -372,7 +404,7 @@ loop = do
             else do
               updateRoot root' newRoot inputDescription
               success
-      ForkLocalBranchI src0 dest0 -> do        
+      ForkLocalBranchI src0 dest0 -> do
         let tryUpdateDest srcb dest0 = do
               let dest = Path.toAbsolutePath currentPath' dest0
               -- if dest isn't empty: leave dest unchanged, and complain.
@@ -398,7 +430,7 @@ loop = do
           if b then do
             respond (ShowDiff input (Branch.namesDiff destb merged))
             patch <- getPatchAt defaultPatchPath
-            void $ propagatePatch inputDescription2 patch dest
+            void $ propagatePatch inputDescription patch dest
           else respond (NothingTodo input)
 
       PreviewMergeLocalBranchI src0 dest0 -> do
@@ -647,38 +679,21 @@ loop = do
       -- > links List.map (.Docs .English)
       -- > links List.map -- give me all the
       -- > links Optional License
-      LinksI src mdTypeStr -> do
-        let srcle = toList (getHQ'Terms src) -- list of matching src terms
-            srclt = toList (getHQ'Types src) -- list of matching src types
-            p = resolveSplit' src -- ex: the parent of `List.map` - `List`
-            mdTerms = foldl' Metadata.merge mempty [
-              BranchUtil.getTermMetadataUnder p r root0 | r <- srcle ]
-            mdTypes = foldl' Metadata.merge mempty [
-              BranchUtil.getTypeMetadataUnder p r root0 | r <- srclt ]
-            allMd = Metadata.merge mdTerms mdTypes
-        selection <- case mdTypeStr of
-          Nothing -> pure $ Right (Map.keysSet allMd)
-          Just mdTypeStr -> parseType input mdTypeStr <&> \case
-            Left e -> Left e
-            Right typ -> Right (Set.singleton (Type.toReference typ))
-        case selection of
-          Left e -> respond e
-          Right selection -> do
-            let allMd' = Map.restrictKeys allMd selection
-                allRefs = toList (Set.unions (Map.elems allMd'))
-            termDisplays <- Map.fromList <$> do
-              terms <- filterM (eval . IsTerm) allRefs
-              traverse (\r -> (r,) <$> loadTermDisplayThing r) terms
-            --   typeDisplays <- Map.fromList <$> do
-            --     types <- filterM (eval . IsType) allRefs
-            --     traverse (\r -> (r,) <$> loadTypeDisplayThing r) types
-            ppe <- prettyPrintEnv =<< makePrintNamesFromLabeled' (deps termDisplays)
-            respond $ DisplayLinks ppe allMd' mempty termDisplays
-          where
-            deps :: Map Reference (DisplayThing (Term v Ann)) -> Set LabeledDependency
-            deps dts = Set.map LD.termRef (Map.keysSet dts)
-                    <> foldMap Term.labeledDependencies
-                               (mapMaybe DT.toMaybe $ Map.elems dts)
+      LinksI src mdTypeStr -> getLinks input src (Right mdTypeStr) >>= \case
+        Left e -> respond e
+        Right (ppe, out) -> do
+          numberedArgs .= fmap (HQ.toString . view _1) out
+          respond $ ListOfLinks ppe out
+
+      DocsI src -> getLinks input src (Left $ Set.singleton DD.docRef) >>= \case
+        Left e -> respond e
+        Right (ppe, out) -> case out of
+          [(name, ref, tm)] -> do
+            names <- basicPrettyPrintNames0
+            doDisplay ConsoleLocation (Names3.Names names mempty) (Referent.Ref ref)
+          out -> do 
+            numberedArgs .= fmap (HQ.toString . view _1) out
+            respond $ ListOfLinks ppe out
 
       MoveTermI src dest ->
         case (toList (getHQ'Terms src), toList (getTerms dest)) of
@@ -758,6 +773,15 @@ loop = do
                 (foldMap SR'.labeledDependencies $ failed <> failedDependents)
             respond $ CantDelete input ppe failed failedDependents
 
+      DisplayI outputLoc s@(HQ.unsafeFromString -> hq) -> do 
+        parseNames <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
+        let results = Names3.lookupHQTerm hq parseNames 
+        if Set.null results then 
+          respond $ SearchTermsNotFound [hq]
+        else if Set.size results > 1 then
+          respond $ TermAmbiguous input (Right hq) results
+        else doDisplay outputLoc parseNames (Set.findMin results)
+
       ShowDefinitionI outputLoc (fmap HQ.unsafeFromString -> hqs) -> do
         parseNames <- makeHistoricalParsingNames $ Set.fromList hqs
         let resultss = searchBranchExact hqLength parseNames hqs
@@ -816,8 +840,9 @@ loop = do
               FileLocation path  -> Just path
               LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
         do
-          when (not $ null loadedDisplayTypes && null loadedDisplayTerms) $ 
-            eval . Notify $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
+          when (not $ null loadedDisplayTypes && null loadedDisplayTerms) $
+            eval . Notify $
+              DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
           when (not $ null misses) $
             eval . Notify . SearchTermsNotFound $ fmap fst misses
           -- We set latestFile to be programmatically generated, if we
@@ -946,7 +971,7 @@ loop = do
           BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
-      ResolveEditI from to patchPath -> do
+      ResolveTermI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
         fromRefs <- eval $ ReferencesByShortHash from
@@ -959,23 +984,60 @@ loop = do
                   tr = DerivedId tid
               mft <- eval $ LoadTypeOfTerm fr
               mtt <- eval $ LoadTypeOfTerm tr
-              ft  <- maybe (fail $ "Missing type for term " <> show fr) pure mft
-              tt  <- maybe (fail $ "Missing type for term " <> show tr) pure mtt
-              let typing | Typechecker.isEqual ft tt   = TermEdit.Same
-                         | Typechecker.isSubtype ft tt = TermEdit.Subtype
-                         | otherwise                   = TermEdit.Different
-                  -- The modified patch
+              case (mft, mtt) of
+                (Nothing, _) -> respond $ TermNotFound' input fid
+                (_, Nothing) -> respond $ TermNotFound' input tid
+                (Just ft, Just tt) -> do
+                  let
+                      patch' =
+                        -- The modified patch
+                        over Patch.termEdits
+                          (R.insert fr (Replace tr (TermEdit.typing tt ft))
+                           . R.deleteDom fr)
+                          patch
+                      (patchPath'', patchName) = resolveSplit' patchPath'
+                  -- Save the modified patch
+                  stepAtM (inputDescription <> " (1/2)")
+                          (patchPath'',
+                           Branch.modifyPatches patchName (const patch'))
+                  -- Apply the modified patch to the current path
+                  -- since we might be able to propagate further.
+                  void $ propagatePatch inputDescription patch' currentPath'
+                  -- Say something
+                  success
+        zeroOneOrMore
+          fromRefs
+          (respond $ SearchTermsNotFound [HQ.HashOnly from])
+          (\r -> zeroOneOrMore toRefs
+                               (respond $ SearchTermsNotFound [HQ.HashOnly to])
+                               (go r)
+                               (hashConflicted to .
+                                 Set.map (Referent.Ref . DerivedId)))
+          (hashConflicted from .
+            Set.map (Referent.Ref . DerivedId))
+
+      ResolveTypeI from to patchPath -> do
+        let patchPath' = fromMaybe defaultPatchPath patchPath
+        patch <- getPatchAt patchPath'
+        fromRefs <- eval $ ReferencesByShortHash from
+        toRefs <- eval $ ReferencesByShortHash to
+        let go :: Reference.Id
+               -> Reference.Id
+               -> Action m (Either Event Input) v ()
+            go fid tid = do
+              let fr = DerivedId fid
+                  tr = DerivedId tid
                   patch' =
-                    over Patch.termEdits
-                      (R.insert fr (Replace tr typing) . R.deleteDom fr)
-                      patch
+                    -- The modified patch
+                    over Patch.typeEdits
+                      (R.insert fr (TypeEdit.Replace tr) . R.deleteDom fr) patch
                   (patchPath'', patchName) = resolveSplit' patchPath'
               -- Save the modified patch
               stepAtM (inputDescription <> " (1/2)")
                       (patchPath'', Branch.modifyPatches patchName (const patch'))
               -- Apply the modified patch to the current path
               -- since we might be able to propagate further.
-              void $ propagatePatch inputDescription2 patch' currentPath'
+              void $ propagatePatch inputDescription patch' currentPath'
               -- Say something
               success
         zeroOneOrMore
@@ -1100,7 +1162,7 @@ loop = do
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
           -- propagatePatch prints TodoOutput
-          void $ propagatePatch inputDescription2 (updatePatch ye'ol'Patch) currentPath'
+          void $ propagatePatch inputDescription (updatePatch ye'ol'Patch) currentPath'
 
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
@@ -1109,7 +1171,11 @@ loop = do
         branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
         let names0 = Branch.toNames0 (Branch.head branch)
         -- checkTodo only needs the local references to check for obsolete defs
-        respond . TodoOutput ppe =<< checkTodo patch names0
+        todo <- checkTodo patch names0
+        numberedArgs .=
+          (Text.unpack . Reference.toText . view _2 <$>
+             fst (TO.todoFrontierDependents todo))
+        respond $ TodoOutput ppe todo
 
       TestI showOk showFail -> do
         let
@@ -1272,14 +1338,78 @@ loop = do
       <> "I tried to put it back, but couldn't. Everybody panic!"
   -}
 
-resolveShortBranchHash :: 
+doDisplay :: Var v => OutputLocation -> Names -> Referent -> Action' m v ()
+doDisplay outputLoc names r = do
+  let tm = Term.fromReferent External r 
+  ppe <- prettyPrintEnv names
+  latestFile' <- use latestFile
+  let 
+    loc = case outputLoc of
+      ConsoleLocation    -> Nothing
+      FileLocation path  -> Just path
+      LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
+    evalTerm r = fmap ErrorUtil.hush . eval $ Evaluate1 ppe (Term.ref External r)
+    loadTerm (Reference.DerivedId r) = eval $ LoadTerm r
+    loadTerm r = pure Nothing
+    loadDecl (Reference.DerivedId r) = eval $ LoadType r
+    loadDecl _ = pure Nothing 
+  rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm evalTerm loadDecl tm 
+  respond $ DisplayRendered loc rendered
+  -- We set latestFile to be programmatically generated, if we
+  -- are viewing these definitions to a file - this will skip the
+  -- next update for that file (which will happen immediately)
+  latestFile .= ((, True) <$> loc)
+
+getLinks :: (Var v, Monad m)
+         => Input
+         -> Path.HQSplit' 
+         -> Either (Set Reference) (Maybe String)
+         -> Action' m v (Either (Output v) 
+                                (PPE.PrettyPrintEnv, 
+                                 [(HQ.HashQualified, Reference, Maybe (Type v Ann))]))
+getLinks input src mdTypeStr = do
+  root0 <- Branch.head <$> use root
+  currentPath' <- use currentPath
+  let resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
+      getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
+      getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
+      srcle = toList (getHQ'Terms src) -- list of matching src terms
+      srclt = toList (getHQ'Types src) -- list of matching src types
+      p = resolveSplit' src -- ex: the parent of `List.map` - `List`
+      mdTerms = foldl' Metadata.merge mempty [
+        BranchUtil.getTermMetadataUnder p r root0 | r <- srcle ]
+      mdTypes = foldl' Metadata.merge mempty [
+        BranchUtil.getTypeMetadataUnder p r root0 | r <- srclt ]
+      allMd = Metadata.merge mdTerms mdTypes
+  selection <- case mdTypeStr of
+    Left s -> pure $ Right s
+    Right Nothing -> pure $ Right (Map.keysSet allMd)
+    Right (Just mdTypeStr) -> parseType input mdTypeStr <&> \case
+      Left e -> Left e
+      Right typ -> Right (Set.singleton (Type.toReference typ))
+  case selection of
+    Left e -> pure (Left e)
+    Right selection -> do
+      let allMd' = Map.restrictKeys allMd selection
+          allRefs = toList (Set.unions (Map.elems allMd'))
+          results :: Set Reference = Set.unions $ Map.elems allMd'
+      sigs <- for (toList results) $ 
+        \r -> loadTypeOfTerm (Referent.Ref r)
+      let deps = Set.map LD.termRef results <> 
+                 Set.unions [ Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs ]
+      ppe <- prettyPrintEnv =<< makePrintNamesFromLabeled' deps 
+      let sortedSigs = sortOn snd (toList results `zip` sigs)  
+      let out = [(PPE.termName ppe (Referent.Ref r), r, t) | (r, t) <- sortedSigs ] 
+      pure (Right (ppe, out))
+            
+resolveShortBranchHash ::
   Input -> ShortBranchHash -> Action' m v (Either (Output v) (Branch m))
 resolveShortBranchHash input hash = do
   hashSet <- eval $ BranchHashesByPrefix hash
   len <- eval BranchHashLength
   case Set.toList hashSet of
     []  -> pure . Left $ NoBranchWithHash input hash
-    [h] -> fmap Right . eval $ LoadLocalBranch h 
+    [h] -> fmap Right . eval $ LoadLocalBranch h
     _   -> pure . Left $ BranchHashAmbiguous input hash (Set.map (SBH.fromHash len) hashSet)
 
 -- Returns True if the operation changed the namespace, False otherwise.
@@ -1292,7 +1422,9 @@ propagatePatch inputDescription patch scopePath = do
     -- arya: wait, what is this `ppe` here for again exactly?
     -- ppe is used for some output message that propagate can issue in error
     -- condition PatchInvolvesExternalDependencies
-    updateAtM inputDescription scopePath (propagate ppe patch)
+    updateAtM (inputDescription <> " (patch propagation)")
+              scopePath
+              (lift . lift . Propagate.propagateAndApply ppe patch)
   when changed $ do
     scope <- getAt scopePath
     let names0 = Branch.toNames0 (Branch.head scope)
@@ -1384,10 +1516,6 @@ fuzzyNameDistance :: Name -> Name -> Maybe _ -- MatchArray
 fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
   Find.simpleFuzzyScore q n
 
-shortenReflogEntry :: Int -> Reflog.Entry -> Output.ReflogEntry
-shortenReflogEntry len (Reflog.Entry old new reason) =
-  Output.ReflogEntry (SBH.fromHash len old) (SBH.fromHash len new) reason
-
 -- return `name` and `name.<everything>...`
 _searchBranchPrefix :: Branch m -> Name -> [SearchResult]
 _searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
@@ -1468,21 +1596,6 @@ collateReferences (toList -> types) (toList -> terms) =
       types' = [ r | Referent.Con r _ _ <- terms ]
   in  (Set.fromList types' <> Set.fromList types, Set.fromList terms')
 
--- Foo#123
--- Foo#890
--- bar#567
--- blah#abc
--- cat#abc
--- and search for
-
--- Foo, want Foo#123 and Foo#890
--- Foo#1, want Foo#123
--- #567, want bar -- what goes in the SR.name?
--- blah, cat, want blah (with comment about cat)?
-
--- #567 :: Int
--- #567 = +3
-
 -- | The output list (of lists) corresponds to the query list.
 searchBranchExact :: Int -> Names -> [HQ.HashQualified] -> [[SearchResult]]
 searchBranchExact len names queries = let
@@ -1514,7 +1627,13 @@ respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
 loadRemoteBranchAt
-  :: Monad m => Var v => Input -> Text -> RemoteRepo -> Path.Absolute -> Action' m v ()
+  :: Var v
+  => Monad m
+  => Input
+  -> Text
+  -> RemoteRepo
+  -> Path.Absolute
+  -> Action' m v ()
 loadRemoteBranchAt input inputDescription repo p = do
   b <- eval (LoadRemoteRootBranch repo)
   case b of
@@ -1523,16 +1642,17 @@ loadRemoteBranchAt input inputDescription repo p = do
       changed <- updateAtM inputDescription p (doMerge b)
       when changed $ do
         merged <- getAt p
-        patch <- eval . Eval $
-          Branch.getPatch defaultPatchNameSegment (Branch.head merged)
-        void $ propagatePatch (inputDescription <> " (2/2)") patch p
-  where
+        patch  <- eval . Eval $ Branch.getPatch defaultPatchNameSegment
+                                                (Branch.head merged)
+        void $ propagatePatch inputDescription patch p
+ where
   doMerge b b0 = do
     merged <- eval . Eval $ Branch.merge b b0
     respond $ ShowDiff input (Branch.namesDiff b0 merged)
     pure merged
 
-syncRemoteRootBranch :: Monad m => Input -> RemoteRepo -> Branch m -> Action m i v ()
+syncRemoteRootBranch
+  :: Var v => Monad m => Input -> RemoteRepo -> Branch m -> Action m i v ()
 syncRemoteRootBranch input repo b = do
   e <- eval $ SyncRemoteRootBranch repo b
   either (eval . Notify . GitError input) (const . respond $ Success input) e
@@ -1892,196 +2012,6 @@ loadTypeDisplayThing = \case
   Reference.DerivedId id ->
     maybe (MissingThing id) RegularThing <$> eval (LoadType id)
 
--- Description:
-------------------
--- For any `Reference` in the frontier which has a type edit, do no propagation.
--- (for now, until we have a richer type edit algebra).
---
--- For any `Reference` in the frontier which has an unconflicted, type-preserving
--- term edit, `old -> new`, replace `old` with `new` in dependents of the
--- frontier, and call `propagate'` recursively on the new frontier.
---
--- If the term is `Typing.Same`, the dependents don't need to be typechecked.
--- If the term is `Typing.Subtype`, and the dependent only has inferred type,
--- it should be re-typechecked, and the new inferred type should be used.
---
--- This will create a whole bunch of new terms in the codebase and move the
--- names onto those new terms. Uses `Term.updateDependencies` to perform
--- the substitutions.
---
--- Algorithm:
-----------------
--- compute the frontier relation (dependencies of updated terms)
--- for each dirty definition d:
---  for each member c of cycle(d):
---   construct c', an updated c incorporating all type-preserving edits
---   add an edit c -> c'
---   save c' to a `Map Reference Term`
-
--- propagate only deals with Terms
--- "dirty" means in need of update
--- "frontier" means updated definitions responsible for the "dirty"
--- errorPPE only needs to have external names, since we're using it to report
---   referents that are outside of the
-propagate :: forall m v. (Monad m, Var v)
-  => PPE.PrettyPrintEnv -> Patch -> Branch m -> Action' m v (Branch m)
-propagate errorPPE patch b = validatePatch patch >>= \case
-  Nothing -> do
-    respond PatchNeedsToBeConflictFree
-    pure b
-  Just initialEdits -> do
-    initialDirty <- R.dom <$> computeFrontier
-                              (eval . GetDependents)
-                              (typePreservingTermEdits patch)
-                              names0
-    missing :: Set Reference <-
-      missingDependents
-        initialDirty
-        (Set.fromList . mapMaybe Referent.toTermReference . toList
-                      . Branch.deepReferents . Branch.head $ b)
-    if not $ Set.null missing then do
-      respond (PatchInvolvesExternalDependents errorPPE missing)
-      pure b
-    else do
-      order <- sortDependentsGraph initialDirty
-      let getOrdered :: Set Reference -> Map Int Reference
-          getOrdered rs =
-            Map.fromList [ (i, r) | r <- toList rs, Just i <- [Map.lookup r order]]
-          collectEdits :: (Monad m, Var v)
-                       => Map Reference TermEdit
-                       -> Map Reference Reference
-                       -> Map Reference (Term v _, Type v _)
-                       -> Set Reference
-                       -> Map Int Reference
-                       -> Action' m v (Map Reference TermEdit,
-                                       Map Reference Reference,
-                                       Map Reference (Term v _, Type v _))
-          -- `replacements` contains the TermEdit.Replace elements of `edits`.
-          collectEdits edits replacements newTerms seen todo = case Map.minView todo of
-            Nothing -> pure (edits, replacements, newTerms)
-            Just (r, todo) -> case r of
-              Reference.Builtin _ -> collectEdits edits replacements newTerms seen todo
-              Reference.DerivedId _ ->
-                if Map.member r edits || Set.member r seen
-                then collectEdits edits replacements newTerms seen todo
-                else
-                  unhashComponent r >>= \case
-                    Nothing -> collectEdits edits replacements newTerms (Set.insert r seen) todo
-                    Just componentMap -> do
-                      let componentMap' = over _2 (Term.updateDependencies replacements) <$> componentMap
-                          hashedComponents' = Term.hashComponents (view _2 <$> componentMap')
-                          joinedStuff :: [(Reference, Reference, Term v _, Type v _)]
-                          joinedStuff = toList (Map.intersectionWith f componentMap' hashedComponents')
-                          f (oldRef, _, oldType) (newRef, newTerm) = (oldRef, newRef, newTerm, newType)
-                            where newType = oldType
-                      -- collect the hashedComponents into edits/replacements/newterms/seen
-                          edits' = edits <> (Map.fromList . fmap toEdit) joinedStuff
-                          toEdit (r, r', _, _) = (r, TermEdit.Replace r' TermEdit.Same)
-                          replacements' = replacements <> (Map.fromList . fmap toReplacement) joinedStuff
-                          toReplacement (r, r', _, _) = (r, r')
-                          newTerms' = newTerms <> (Map.fromList . fmap toNewTerm) joinedStuff
-                          toNewTerm (_, r', tm, tp) = (r', (tm, tp))
-                          seen' = seen <> Set.fromList (view _1 <$> joinedStuff)
-                      -- plan to update the dependents of this component too
-                      dependents <- fmap Set.unions . traverse (eval . GetDependents)
-                                  . toList
-                                  . Reference.members
-                                  $ Reference.componentFor r
-                      let todo' = todo <> getOrdered dependents
-                      collectEdits edits' replacements' newTerms' seen' todo'
-      (termEdits, _replacements, newTerms) <-
-          collectEdits initialEdits
-                       (Map.mapMaybe TermEdit.toReference initialEdits)
-                       mempty -- newTerms
-                       mempty -- skip
-                       (getOrdered initialDirty)
-
-      -- todo: can eliminate this filter if collectEdits doesn't leave temporary terms in the map!
-      let termEditTargets = Set.fromList . mapMaybe TermEdit.toReference
-                          $ toList termEdits
-      -- write the new terms to the codebase
-      (writeTerms . Map.toList) (Map.restrictKeys newTerms termEditTargets)
-
-      let deprecatedTerms, deprecatedTypes :: Set Reference
-          deprecatedTerms =
-            Set.fromList [r | (r, TermEdit.Deprecate) <- Map.toList termEdits]
-          deprecatedTypes =
-            Set.fromList [r | (r, TypeEdit.Deprecate) <-
-                                              R.toList (Patch._typeEdits patch)]
-
-      -- recursively update names and delete deprecated definitions
-      pure $ Branch.step
-          (Branch.stepEverywhere
-            (updateNames (Map.mapMaybe TermEdit.toReference termEdits))
-             . deleteDeprecatedTerms deprecatedTerms
-             . deleteDeprecatedTypes deprecatedTypes) b
-  where
-  missingDependents :: Set Reference -> Set Reference -> _ (Set Reference)
-  missingDependents dirty known = do
-    closure <- transitiveClosure (eval . GetDependents) dirty
-    pure $ Set.difference closure known
-  sortDependentsGraph :: Set Reference -> _ (Map Reference Int)
-  sortDependentsGraph rs = do
-    closure <- transitiveClosure (eval . GetDependents) rs
-    dependents <- traverse (\r -> (r,) <$> (eval . GetDependents) r) (toList closure)
-    let graphEdges = [(r, r, toList deps) | (r, deps) <- toList dependents]
-        (graph, getReference, _) = Graph.graphFromEdges graphEdges
-    pure $ Map.fromList (zip (view _1 . getReference <$> Graph.topSort graph) [0..])
-    -- vertex i precedes j whenever i has an edge to j and not vice versa.
-    -- vertex i precedes j when j is a dependent of i.
-
-  updateNames :: Map Reference Reference -> Branch0 m -> Branch0 m
-  updateNames edits Branch0{..} = Branch.branch0 terms _types _children _edits
-    where
-    terms = foldl' replace _terms (Map.toList edits)
-    replace s (r,r') = Star3.replaceFact (Referent.Ref r) (Referent.Ref r') s
-  deleteDeprecatedTerms, deleteDeprecatedTypes ::
-    Set Reference -> Branch0 m -> Branch0 m
-  deleteDeprecatedTerms rs =
-    over Branch.terms (Star3.deleteFact (Set.map Referent.Ref rs))
-  deleteDeprecatedTypes rs = over Branch.types (Star3.deleteFact rs)
-  typePreservingTermEdits :: Patch -> Patch
-  typePreservingTermEdits Patch{..} = Patch termEdits mempty where
-    termEdits = R.filterRan TermEdit.isTypePreserving _termEdits
-  writeTerms = traverse_ (\(Reference.DerivedId id, (tm, tp)) -> eval $ PutTerm id tm tp)
-  names0 = (Branch.toNames0 . Branch.head) b
-  validatePatch :: Patch -> Action' m v (Maybe (Map Reference TermEdit))
-  validatePatch p = pure $ R.toMap (Patch._termEdits p)
-
-  -- Turns a cycle of references into a term with free vars that we can edit
-  -- and hash again.
-  -- todo: Maybe this an others can be moved to HandleCommand, in the
-  --  Free (Command m i v) monad, passing in the actions that are needed.
-  -- However, if we want this to be parametric in the annotation type, then
-  -- Command would have to be made parametric in the annotation type too.
-  unhashComponent
-    :: forall m v . (Monad m, Var v)
-    => Reference
-    -> Action' m v (Maybe (Map v (Reference, Term v _, Type v _)))
-  unhashComponent ref = do
-    let component = Reference.members $ Reference.componentFor ref
-    isTerm <- eval $ IsTerm ref
-    isType <- eval $ IsType ref
-    if isTerm then do
-      let
-        termInfo :: Reference -> Action' m v (v, (Reference, Term v Ann, Type v Ann))
-        termInfo termRef = do
-          tpm <- eval $ LoadTypeOfTerm termRef
-          tp  <- maybe (fail $ "Missing type for term " <> show termRef) pure tpm
-          case termRef of
-            Reference.DerivedId id -> do
-              mtm <- eval $ LoadTerm id
-              tm <- maybe (fail $ "Missing term with id " <> show id) pure mtm
-              pure (Var.typed (Var.RefNamed termRef), (termRef, tm, tp))
-            _ -> fail $ "Cannot unhashComponent for a builtin: " ++ show termRef
-        unhash m =
-          let f (ref,_oldTm,oldTyp) (_ref,newTm) = (ref,newTm,oldTyp)
-              dropType (r,tm,_tp) = (r,tm)
-          in Map.intersectionWith f m (Term.unhashComponent (dropType <$> m))
-      Just . unhash . Map.fromList <$> traverse termInfo (toList component)
-    else if isType then pure Nothing
-    else fail $ "Invalid reference: " <> show ref
-
 lexedSource :: Monad m => SourceName -> Source -> Action' m v (Names, LexedSource)
 lexedSource name src = do
   let tokens = L.lexer (Text.unpack name) (Text.unpack src)
@@ -2288,18 +2218,18 @@ addRunMain
   => String
   -> Maybe (TypecheckedUnisonFile v Ann)
   -> Action' m v (Maybe (TypecheckedUnisonFile v Ann))
-addRunMain mainName Nothing = do 
+addRunMain mainName Nothing = do
   parseNames0 <- basicParseNames0
   case HQ.fromString mainName of
     Nothing -> pure Nothing
     Just hq -> do
       -- note: not allowing historical search
       let refs = Names3.lookupHQTerm hq (Names3.Names parseNames0 mempty)
-      let a = External 
+      let a = External
       case toList refs of
         [] -> pure Nothing
         [Referent.Ref ref] -> do
-          typ <- eval $ LoadTypeOfTerm ref 
+          typ <- eval $ LoadTypeOfTerm ref
           case typ of
             Just typ | Typechecker.isSubtype typ (nullaryMain a) -> do
               let runMain = DD.forceTerm a a (Term.ref a ref)
@@ -2309,29 +2239,39 @@ addRunMain mainName Nothing = do
         _ -> pure Nothing
 addRunMain mainName (Just uf) = do
   let components = join $ UF.topLevelComponents uf
-  let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components 
-  case mainComponent of 
-    [(v, tm, ty)] -> pure $ let 
-      v2 = Var.freshIn (Set.fromList [v]) v 
-      a = ABT.annotation tm 
+  let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
+  case mainComponent of
+    [(v, tm, ty)] -> pure $ let
+      v2 = Var.freshIn (Set.fromList [v]) v
+      a = ABT.annotation tm
       in
-      if Typechecker.isSubtype ty (nullaryMain a) then Just $ let 
+      if Typechecker.isSubtype ty (nullaryMain a) then Just $ let
         runMain = DD.forceTerm a a (Term.var a v)
-        in UF.typecheckedUnisonFile 
+        in UF.typecheckedUnisonFile
              (UF.dataDeclarations' uf)
              (UF.effectDeclarations' uf)
              (UF.topLevelComponents' uf <> [[(v2, runMain, nullaryMain a)]])
-             (UF.watchComponents uf) 
-      else Nothing 
-    _ -> addRunMain mainName Nothing 
+             (UF.watchComponents uf)
+      else Nothing
+    _ -> addRunMain mainName Nothing
 
 executePPE
   :: (Var v, Monad m)
   => TypecheckedUnisonFile v a
   -> Action' m v PPE.PrettyPrintEnv
-executePPE unisonFile = 
-  -- voodoo 
+executePPE unisonFile =
+  -- voodoo
   prettyPrintEnv =<<
     makeShadowedPrintNamesFromLabeled
       (UF.termSignatureExternalLabeledDependencies unisonFile)
       (UF.typecheckedToNames0 unisonFile)
+
+loadTypeOfTerm :: Referent -> Action m i v (Maybe (Type v Ann))
+loadTypeOfTerm (Referent.Ref r) = eval $ LoadTypeOfTerm r 
+loadTypeOfTerm (Referent.Con (Reference.DerivedId r) cid _) = do
+  decl <- eval $ LoadType r
+  case decl of
+    Just (either DD.toDataDecl id -> dd) -> pure $ DD.typeOfConstructor dd cid
+    Nothing -> pure Nothing
+loadTypeOfTerm (Referent.Con r cid _) = error $
+  reportBug "924628772" "Attempt to load a type declaration which is a builtin!"

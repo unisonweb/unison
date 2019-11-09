@@ -19,16 +19,16 @@ import qualified Unison.Test.Common as Common
 
 test :: Test ()
 test = scope "> extractor" . tests $
-  [ y "> and true 3" Err.and
-  , y "> or true 3" Err.or
+  [ y "> true && 3" Err.and
+  , y "> true || 3" Err.or
   , y "> if 3 then 1 else 2" Err.cond
   , y "> if true then 1 else \"surprise\"" Err.ifBody
   , y "> case 3 of 3 | 3 -> 3" Err.matchGuard
   , y "> case 3 of\n 3 -> 3\n 4 -> \"surprise\"" Err.matchBody
   -- , y "> case 3 of true -> true" Err.
   , y "> [1, +1]" Err.vectorBody
-  , n "> and true ((x -> x + 1) true)" Err.and
-  , n "> or true ((x -> x + 1) true)" Err.or
+  , n "> true && ((x -> x + 1) true)" Err.and
+  , n "> true || ((x -> x + 1) true)" Err.or
   , n "> if ((x -> x + 1) true) then 1 else 2" Err.cond
   , n "> case 3 of 3 | 3 -> 3" Err.matchBody
   , y "> 1 1" Err.applyingNonFunction

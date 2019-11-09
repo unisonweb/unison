@@ -85,8 +85,11 @@ isLeaf (Var' _) = True
 isLeaf (Int' _) = True
 isLeaf (Float' _) = True
 isLeaf (Nat' _) = True
+isLeaf (Text' _) = True
 isLeaf (Boolean' _) = True
 isLeaf (Constructor' _ _) = True
+isLeaf (TermLink' _) = True
+isLeaf (TypeLink' _) = True
 isLeaf _ = False
 
 minimizeCyclesOrCrash :: Var v => AnnotatedTerm v a -> AnnotatedTerm v a
@@ -158,6 +161,8 @@ fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
   go e@(Char' _) = e
   go e@(Blank' _) = e
   go e@(Ref' _) = e
+  go e@(TermLink' _) = e
+  go e@(TypeLink' _) = e
   go e@(RequestOrCtor' _ _) = e
   go e@(Lam' _) = e -- ANF conversion is shallow -
                      -- don't descend into closed lambdas

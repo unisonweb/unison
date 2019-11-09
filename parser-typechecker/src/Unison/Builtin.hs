@@ -153,6 +153,8 @@ builtinTypesSrc =
   , B' "Char"
   , B' "Effect", Rename' "Effect" "Request"
   , B' "Bytes"
+  , B' "Link.Term"
+  , B' "Link.Type"
   ]
 
 

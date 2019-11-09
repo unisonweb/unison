@@ -345,6 +345,9 @@ lexer0 scope rem =
       '?' : c : rem ->
         let end = inc $ inc pos in
         Token (Character c) pos end : goWhitespace l end rem
+      '[' : ':' : rem -> 
+        let end = inc . inc $ pos in
+        Token (Open "[:") pos (inc . inc $ pos) : lexDoc l end rem
       -- '{' and '(' both introduce a block, which is closed by '}' and ')'
       -- The lexer doesn't distinguish among closing blocks: all the ways of
       -- closing a block emit the same sort of token, `Close`.
@@ -372,6 +375,12 @@ lexer0 scope rem =
       '_' : (wordyId -> Right (id, rem)) ->
         let pos' = incBy id $ inc pos
         in Token (Blank id) pos pos' : goWhitespace l pos' rem
+      '&' : '&' : rem -> 
+        let end = incBy "&&" pos
+        in Token (Reserved "&&") pos end : goWhitespace l end rem
+      '|' : '|' : rem -> 
+        let end = incBy "||" pos
+        in Token (Reserved "||") pos end : goWhitespace l end rem
       '|' : c : rem | isSpace c || isAlphaNum c ->
         Token (Reserved "|") pos (inc pos) : goWhitespace l (inc pos) (c:rem)
       '=' : rem@(c : _) | isSpace c || isAlphaNum c ->
@@ -469,6 +478,55 @@ lexer0 scope rem =
           let end = incBy num pos in Token (Numeric num) pos end : goWhitespace l end rem
         Right Nothing -> Token (Err UnknownLexeme) pos pos : recover l pos rem
         Left e -> Token (Err e) pos pos : recover l pos rem
+
+    lexDoc l pos rem = case span isSpace rem of
+      (spaces,rem) -> docBlob l pos' rem pos' []
+        where pos' = incBy spaces pos
+
+    docBlob l pos rem blobStart acc = case rem of
+      '@' : (hqToken (inc pos) -> Just (tok, rem)) -> 
+        let pos' = inc $ end tok in
+        Token (Textual (reverse acc)) blobStart pos : 
+        tok : 
+        docBlob l pos' rem pos' []
+      '@' : (docType (inc pos) -> Just (typTok, pos', rem)) ->
+        Token (Textual (reverse acc)) blobStart pos : case rem of
+         (hqToken pos' -> Just (tok, rem)) -> 
+           let pos'' = inc (end tok) in
+           typTok : tok : docBlob l pos'' rem pos' []
+         _ -> recover l pos rem 
+      '\\' : '@' : rem -> docBlob l (incBy "\\@" pos) rem blobStart ('@':acc)
+      ':' : ']' : rem -> 
+        let pos' = inc . inc $ pos in 
+        (if null acc then id 
+         else (Token (Textual (reverse $ dropWhile isSpace acc)) blobStart pos :)) $
+          Token Close pos pos' : goWhitespace l pos' rem 
+      [] -> recover l pos rem
+      ch : rem -> docBlob l (incBy [ch] pos) rem blobStart (ch:acc)
+
+    docType :: Pos -> String -> Maybe (Token Lexeme, Pos, String) 
+    docType pos rem = case rem of
+      -- this crazy one liner parses [<stuff>]<whitespace>, as a pattern match
+      '[' : (span (/= ']') -> (typ, ']' : (span isSpace -> (spaces, rem)))) -> 
+         -- advance past [, <typ>, ], <whitespace>
+         let pos' = incBy typ . inc . incBy spaces . inc $ pos in
+         -- the reserved token doesn't include the `[]` chars
+         Just (Token (Reserved typ) (inc pos) (incBy typ . inc $ pos), pos', rem)
+      _ -> Nothing
+
+    hqToken :: Pos -> String -> Maybe (Token Lexeme, String) 
+    hqToken pos rem = case rem of
+      (shortHash -> Right (h, rem)) -> 
+        Just (Token (Hash h) pos (incBy (SH.toString h) pos), rem)
+      (wordyId -> Right (id, rem)) -> case rem of
+        (shortHash -> Right (h, rem)) -> 
+          Just (Token (WordyId id $ Just h) pos (incBy id . incBy (SH.toString h) $ pos), rem)
+        _ -> Just (Token (WordyId id Nothing) pos (incBy id pos), rem)
+      (symbolyId -> Right (id, rem)) -> case rem of
+        (shortHash -> Right (h, rem)) ->  
+          Just (Token (SymbolyId id $ Just h) pos (incBy id . incBy (SH.toString h) $ pos), rem)
+        _ -> Just (Token (SymbolyId id Nothing) pos (incBy id pos), rem)
+      _ -> Nothing
 
     recover _l _pos _rem = []
 
@@ -652,8 +710,8 @@ keywords = Set.fromList [
   "if", "then", "else", "forall", "∀",
   "handle", "in", "unique",
   "where", "use",
-  "and", "or", "true", "false",
-  "type", "ability", "alias",
+  "true", "false",
+  "type", "ability", "alias", "typeLink", "termLink",
   "let", "namespace", "case", "of"]
 
 -- These keywords introduce a layout block
@@ -686,7 +744,7 @@ reserved :: Set Char
 reserved = Set.fromList "=:`\""
 
 reservedOperators :: Set String
-reservedOperators = Set.fromList ["->", ":"]
+reservedOperators = Set.fromList ["->", ":", "&&", "||"]
 
 inc :: Pos -> Pos
 inc (Pos line col) = Pos line (col + 1)

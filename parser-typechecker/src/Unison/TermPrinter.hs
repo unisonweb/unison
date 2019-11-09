@@ -147,6 +147,12 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
       where name = elideFQN im $ HQ.unsafeFromVar (Var.reset v)
     Ref' r -> parenIfInfix name ic $ styleHashQualified'' (fmt S.Reference) name
       where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
+    TermLink' r -> parenIfInfix name ic $ 
+      fmt S.LinkKeyword "termLink " <> styleHashQualified'' (fmt S.Reference) name
+      where name = elideFQN im $ PrettyPrintEnv.termName n r
+    TypeLink' r -> parenIfInfix name ic $ 
+      fmt S.LinkKeyword "typeLink " <> styleHashQualified'' (fmt S.Reference) name
+      where name = elideFQN im $ PrettyPrintEnv.typeName n r
     Ann' tm t ->
       paren (p >= 0)
         $  pretty0 n (ac 10 Normal im) tm
@@ -178,7 +184,6 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
         <> (fmt S.ControlKeyword "in" `PP.hang` uses [pretty0 n (ac 2 Block im') body])
     App' x (Constructor' DD.UnitRef 0) ->
       paren (p >= 11) $ (fmt S.DelayForceChar $ l "!") <> pretty0 n (ac 11 Normal im) x
-    AskInfo' x -> paren (p >= 11) $ pretty0 n (ac 11 Normal im) x <> (fmt S.DelimiterChar $ l "?")
     LamNamed' v x | (Var.name v) == "()" ->
       paren (p >= 11) $ (fmt S.DelayForceChar $ l "'") <> pretty0 n (ac 11 Normal im) x
     Sequence' xs -> PP.group $
@@ -206,14 +211,14 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
                    in uses $ [pretty0 n (ac 0 Block im') tm]
     And' x y ->
       paren (p >= 10) $ PP.spaced [
-        fmt S.ControlKeyword "and",
         pretty0 n (ac 10 Normal im) x,
+        fmt S.ControlKeyword "&&",
         pretty0 n (ac 10 Normal im) y
       ]
     Or' x y ->
       paren (p >= 10) $ PP.spaced [
-        fmt S.ControlKeyword "or",
         pretty0 n (ac 10 Normal im) x,
+        fmt S.ControlKeyword "||",
         pretty0 n (ac 10 Normal im) y
       ]
     LetRecNamed' bs e -> printLet bc bs e im' uses
@@ -233,7 +238,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
       binaryApps apps (pretty0 n (ac 3 Normal im) lastArg)
     _ -> case (term, nonForcePred) of
-      AppsPred' f args | not $ isVarKindInfo f ->
+      AppsPred' f args ->
         paren (p >= 10) $ pretty0 n (ac 10 Normal im) f `PP.hang`
           PP.spacedMap (pretty0 n (ac 10 Normal im)) args
       _ -> case (term, nonUnitArgPred) of
