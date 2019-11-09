@@ -14,8 +14,11 @@ import Unison.Util.Monoid (intercalateMap)
 import Unison.Reference (Reference)
 import qualified Unison.Reference as R
 
--- | A class for variables. Variables may have auxiliary information which
--- may not form part of their identity according to `Eq` / `Ord`.
+-- | A class for variables. Laws:
+--
+--   * `name (named n) == n`
+--   * `reset . freshIn vs == reset`
+--   * `reset . named == named`
 class (Show v, ABT.Var v) => Var v where
   named :: Text -> v
   name :: v -> Text
