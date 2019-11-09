@@ -53,25 +53,11 @@ inferTypeConstructor = named "𝕗"
 inferTypeConstructorArg = named "𝕦"
 inferOther = named "𝕩"
 
-unnamedTest :: Var v => Text -> v
-unnamedTest guid = typed (UnnamedWatch TestWatch guid)
-
 data Type
   -- User provided variables, these should generally be left alone
   = User Text
-  -- An unnamed watch expression of the given kind, for instance:
-  --
-  --  test> Ok "oog"
-  --    has kind "test"
-  --  > 1 + 1
-  --    has kind ""
-  | UnnamedWatch WatchKind Text -- guid
   deriving (Eq,Ord,Show)
 
-type WatchKind = String
-
-pattern RegularWatch = ""
-pattern TestWatch = "test"
 
 reset :: Var v => v -> v
 reset v = freshenId 0 v

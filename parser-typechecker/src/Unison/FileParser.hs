@@ -64,7 +64,7 @@ file = do
           WatchBinding kind _ ((_, v), at) ->
             (terms, (kind,(v,Term.generalizeTypeSignatures at)) : watches)
           WatchExpression kind guid _ at ->
-            (terms, (kind, (Var.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
+            (terms, (kind, (UF.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
           Binding ((_, v), at) -> ((v,Term.generalizeTypeSignatures at) : terms, watches)
           Bindings bs -> ([(v,Term.generalizeTypeSignatures at) | ((_,v), at) <- bs ] ++ terms, watches)
     let (terms, watches) = (reverse termsr, reverse watchesr)
@@ -108,7 +108,7 @@ data Stanza v term
 getVars :: Var v => Stanza v term -> [v]
 getVars = \case
   WatchBinding _ _ ((_,v), _) -> [v]
-  WatchExpression _ guid _ _ -> [Var.unnamedTest guid]
+  WatchExpression _ guid _ _ -> [UF.unnamedTest guid]
   Binding ((_,v), _) -> [v]
   Bindings bs -> [ v | ((_,v), _) <- bs ]
 

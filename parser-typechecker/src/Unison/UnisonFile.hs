@@ -54,9 +54,12 @@ watchesOfOtherKinds kind uf =
 allWatches :: UnisonFile v a -> [(v, AnnotatedTerm v a)]
 allWatches = join . Map.elems . watches
 
-type WatchKind = Var.WatchKind
-pattern RegularWatch = Var.RegularWatch
-pattern TestWatch = Var.TestWatch
+type WatchKind = String
+pattern RegularWatch = ""
+pattern TestWatch = "test"
+
+unnamedTest :: Var v => Text -> v
+unnamedTest guid = Var.named (TestWatch <> "." <> guid)
 
 -- Converts a file to a single let rec with a body of `()`, for
 -- purposes of typechecking.

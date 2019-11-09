@@ -24,7 +24,6 @@ instance Var Symbol where
   freshenId id (Symbol _ n) = Symbol id n
   name (Symbol id t) = case t of
     Var.User n -> n <> showid id
-    Var.UnnamedWatch k guid -> fromString k <> "." <> guid <> showid id
     where
     showid 0 = ""
     showid n = pack (show n)
