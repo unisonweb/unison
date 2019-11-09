@@ -8,7 +8,7 @@ import qualified Data.Map         as Map
 import           Data.Map         ( (!) )
 import qualified Unison.Hash      as Hash
 import qualified Unison.Reference as R
-import           Unison.Symbol    ( Symbol )
+import           Unison.Symbol    ( Symbol(..) )
 import qualified Unison.Term      as Term
 import qualified Unison.Type      as Type
 import qualified Unison.Var       as Var
@@ -19,7 +19,7 @@ test = scope "term" $ tests
       -- check that capture avoidance works in substTypeVar
       let v s = Var.nameds s :: Symbol
           tv s = Type.var() (v s)
-          v1 s = Var.freshenId 1 (v s)
+          v1 s = Symbol 1 s
           tm :: Term.Term Symbol
           tm = Term.ann() (Term.ann()
                              (Term.nat() 42)

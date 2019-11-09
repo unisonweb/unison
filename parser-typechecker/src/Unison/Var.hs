@@ -20,7 +20,7 @@ class (Show v, ABT.Var v) => Var v where
   named :: Text -> v
   name :: v -> Text
   freshId :: v -> Word64
-  freshenId :: Word64 -> v -> v
+  reset :: v -> v
 
 freshIn :: ABT.Var v => Set v -> v -> v
 freshIn = ABT.freshIn
@@ -49,9 +49,6 @@ inferPatternBindV = named "𝕧"
 inferTypeConstructor = named "𝕗"
 inferTypeConstructorArg = named "𝕦"
 inferOther = named "𝕩"
-
-reset :: Var v => v -> v
-reset v = freshenId 0 v
 
 isQualified :: Var v => v -> Bool
 isQualified v = Text.any (== '.') (name v)

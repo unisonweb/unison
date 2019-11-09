@@ -21,7 +21,7 @@ instance ABT.Var Symbol where
 instance Var Symbol where
   named n = Symbol 0 n
   freshId (Symbol id _) = id
-  freshenId id (Symbol _ n) = Symbol id n
+  reset (Symbol _ n) = Symbol 0 n
   name (Symbol id n) = n <> showid id where
     showid 0 = ""
     showid n = pack (show n)

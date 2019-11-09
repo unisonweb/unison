@@ -20,7 +20,7 @@ import Data.IORef
 import Unison.Hash (Hash)
 import Unison.NamePrinter (prettyHashQualified0)
 import Unison.Referent (Referent)
-import Unison.Symbol (Symbol)
+import Unison.Symbol (Symbol, Symbol(..))
 import Unison.Term (AnnotatedTerm)
 import Unison.Util.CyclicEq (CyclicEq, cyclicEq)
 import Unison.Util.CyclicOrd (CyclicOrd, cyclicOrd)
@@ -607,9 +607,9 @@ decompileImpl v = case v of
     Term.apps' <$> pure (Term.constructor() r cid)
                <*> traverse decompileImpl (toList args)
   Sequence vs -> Term.seq' () <$> traverse decompileImpl vs
-  Ref id symbol ioref -> do
+  Ref id (Symbol _ n) ioref -> do
     seen <- gets snd
-    symbol <- pure $ Var.freshenId (fromIntegral id) symbol
+    symbol <- pure $ Symbol (fromIntegral id) n
     if Set.member id seen then
       pure $ Term.var () symbol
     else do
@@ -947,7 +947,7 @@ instance Var SymbolC where
   named s = SymbolC False (Var.named s)
   name (SymbolC _ s) = Var.name s
   freshId (SymbolC _ s) = Var.freshId s
-  freshenId n (SymbolC i s) = SymbolC i (Var.freshenId n s)
+  reset (SymbolC i s) = SymbolC i (Var.reset s)
 
 instance (Show e, Show cont) => Show (Value e cont) where
   show (I n) = show n

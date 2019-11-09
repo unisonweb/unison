@@ -7,12 +7,15 @@ module Unison.DeclPrinter where
 
 import Unison.Prelude
 
+import           Control.Monad.State            ( evalState )
 import           Data.List                      ( isPrefixOf )
 import qualified Data.Map                      as Map
+import qualified Data.Set                      as Set
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
                                                 , toDataDecl
                                                 )
+import qualified Unison.ABT                    as ABT
 import qualified Unison.DataDeclaration        as DD
 import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
@@ -125,8 +128,9 @@ fieldNames
   -> Maybe [HashQualified]
 fieldNames env r name dd = case DD.constructors dd of
   [(_, typ)] -> let
+    freshVar = ABT.freshenS (Var.named "_")
     vars :: [v]
-    vars = [ Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0..Type.arity typ - 1]]
+    vars = evalState (replicateM (Type.arity typ) freshVar) Set.empty
     accessors = DD.generateRecordAccessors (map (,()) vars) (HQ.toVar name) r
     hashes = Term.hashComponents (Map.fromList accessors)
     names = [ (r, HQ.toString . PPE.termName env . Referent.Ref $ r)

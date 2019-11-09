@@ -35,4 +35,4 @@ instance Var v => Var (TypeVar b v) where
   named n = Universal (Var.named n)
   name v = Var.name (underlying v)
   freshId v = Var.freshId (underlying v)
-  freshenId id v = Var.freshenId id <$> v
+  reset v = Var.reset <$> v
