@@ -33,7 +33,7 @@ import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import qualified Unison.Codebase.Editor.SlurpResult as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
-import Unison.Codebase.Editor.RemoteRepo
+import Unison.Codebase.Editor.RemoteRepo (RemoteRepo, printNamespace)
 
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
@@ -119,6 +119,7 @@ import Unison.Codebase.NameSegment (NameSegment(..))
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.Editor.Propagate as Propagate
 import qualified Unison.Codebase.Editor.UriParser as UriParser
+import Data.Tuple.Extra (uncurry3)
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
@@ -312,7 +313,12 @@ loop = do
           UnlinkI from to -> "unlink " <> hqs' from <> " " <> hqs' to
           UpdateBuiltinsI -> "builtins.update"
           MergeBuiltinsI -> "builtins.merge"
-          PullRemoteBranchI orepo dest -> "pull " <> Text.pack (show orepo) <> " " <> p' dest
+          PullRemoteBranchI orepo dest ->
+            "pull "
+              <> maybe "(remote namespace from .unisonConfig)"
+                       (uncurry3 printNamespace) orepo
+              <> " "
+              <> p' dest
           PushRemoteBranchI{} -> wat
           PreviewMergeLocalBranchI{} -> wat
           SwitchBranchI{} -> wat
