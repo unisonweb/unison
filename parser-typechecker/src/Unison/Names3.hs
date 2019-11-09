@@ -15,9 +15,11 @@ import Unison.Referent (Referent)
 import Unison.Referent as Referent
 import Unison.Util.Relation (Relation)
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 import qualified Unison.Name as Name
 import qualified Unison.Names2
 import qualified Unison.Names2 as Names
+import qualified Unison.Util.List as List
 import qualified Unison.Util.Relation as R
 import qualified Unison.ConstructorType as CT
 
@@ -32,6 +34,19 @@ data ResolutionFailure v a
   deriving (Eq,Ord,Show)
 
 type ResolutionResult v a r = Either (Seq (ResolutionFailure v a)) r
+
+-- For all names in `ns`, (ex: foo.bar.baz), generate the list of suffixes 
+-- of that name [[foo.bar.baz], [bar.baz], [baz]]. Insert these suffixes
+-- into a multimap map along with their corresponding refs. Any suffix
+-- which is unique is added as an entry to `ns`.
+suffixify :: Names0 -> Names0
+suffixify ns = ns <> suffixNs 
+  where
+  suffixNs = names0 (R.fromList uniqueTerms) (R.fromList uniqueTypes) 
+  terms = List.multimap [ (n,ref) | (n0,ref) <- R.toList (terms0 ns), n <- Name.suffixes n0 ]
+  types = List.multimap [ (n,ref) | (n0,ref) <- R.toList (types0 ns), n <- Name.suffixes n0 ]
+  uniqueTerms = [ (n,ref) | (n, [ref]) <- Map.toList terms ]
+  uniqueTypes = [ (n,ref) | (n, [ref]) <- Map.toList types ]
 
 filterTypes :: (Name -> Bool) -> Names0 -> Names0
 filterTypes = Unison.Names2.filterTypes
