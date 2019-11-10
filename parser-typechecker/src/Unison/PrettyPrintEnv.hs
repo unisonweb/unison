@@ -11,6 +11,7 @@ import           Unison.Names3                  ( Names )
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
 import           Unison.Util.List               (safeHead)
+import           Data.List                      (sortOn)
 import qualified Data.Map                      as Map
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.Name                   as Name
@@ -34,9 +35,13 @@ instance Show PrettyPrintEnv where
   show _ = "PrettyPrintEnv"
 
 fromNames :: Int -> Names -> PrettyPrintEnv
-fromNames length names = PrettyPrintEnv terms' types' where
-  terms' r = safeHead . Set.map HQ'.toHQ $ (Names.termName length r names)
-  types' r = safeHead . Set.map HQ'.toHQ $ (Names.typeName length r names)
+fromNames len names = PrettyPrintEnv terms' types' where
+  terms' r = shortestName . Set.map HQ'.toHQ $ (Names.termName len r names)
+  types' r = shortestName . Set.map HQ'.toHQ $ (Names.typeName len r names)
+  shortestName ns = 
+    trace ("picking among: " <> show ns) $
+    safeHead $ sortOn (length . HQ.toString) (toList ns)
+
 
 -- Left-biased union of environments
 unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
