@@ -38,9 +38,7 @@ fromNames :: Int -> Names -> PrettyPrintEnv
 fromNames len names = PrettyPrintEnv terms' types' where
   terms' r = shortestName . Set.map HQ'.toHQ $ (Names.termName len r names)
   types' r = shortestName . Set.map HQ'.toHQ $ (Names.typeName len r names)
-  shortestName ns = 
-    trace ("picking among: " <> show ns) $
-    safeHead $ sortOn (length . HQ.toString) (toList ns)
+  shortestName ns = safeHead $ sortOn (length . HQ.toString) (toList ns)
 
 
 -- Left-biased union of environments
