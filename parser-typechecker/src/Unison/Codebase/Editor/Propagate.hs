@@ -40,7 +40,6 @@ import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.Codebase.TermEdit       ( TermEdit(..) )
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.TypeEdit       ( TypeEdit(..) )
-import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.UnisonFile              ( UnisonFile(..) )
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Star3             as Star3
@@ -65,12 +64,11 @@ noEdits = Edits mempty mempty mempty mempty mempty mempty
 propagateAndApply
   :: forall m i v
    . (Applicative m, Var v)
-  => PPE.PrettyPrintEnv
-  -> Patch
+  => Patch
   -> Branch m
   -> F m i v (Branch m)
-propagateAndApply env patch branch = do
-  edits <- propagate env patch branch
+propagateAndApply patch branch = do
+  edits <- propagate patch branch
   f     <- applyPropagate edits
   pure $ Branch.step (f . applyDeprecations patch) branch
 
@@ -104,15 +102,13 @@ propagateAndApply env patch branch = do
 --
 -- "dirty" means in need of update
 -- "frontier" means updated definitions responsible for the "dirty"
--- errorPPE only needs to have external names
 propagate
   :: forall m i v
    . (Applicative m, Var v)
-  => PPE.PrettyPrintEnv
-  -> Patch
+  => Patch
   -> Branch m
   -> F m i v (Edits v)
-propagate errorPPE patch b = case validatePatch patch of
+propagate patch b = case validatePatch patch of
   Nothing -> do
     eval $ Notify PatchNeedsToBeConflictFree
     pure noEdits
@@ -129,9 +125,7 @@ propagate errorPPE patch b = case validatePatch patch of
       $ b
       )
     if not $ Set.null missing
-      then do
-        eval . Notify $ PatchInvolvesExternalDependents errorPPE missing
-        pure noEdits
+      then pure noEdits
       else do
         order <- sortDependentsGraph initialDirty
         let

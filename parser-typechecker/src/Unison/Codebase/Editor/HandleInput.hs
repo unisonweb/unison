@@ -691,7 +691,7 @@ loop = do
           [(name, ref, tm)] -> do
             names <- basicPrettyPrintNames0
             doDisplay ConsoleLocation (Names3.Names names mempty) (Referent.Ref ref)
-          out -> do 
+          out -> do
             numberedArgs .= fmap (HQ.toString . view _1) out
             respond $ ListOfLinks ppe out
 
@@ -773,10 +773,10 @@ loop = do
                 (foldMap SR'.labeledDependencies $ failed <> failedDependents)
             respond $ CantDelete input ppe failed failedDependents
 
-      DisplayI outputLoc s@(HQ.unsafeFromString -> hq) -> do 
+      DisplayI outputLoc s@(HQ.unsafeFromString -> hq) -> do
         parseNames <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
-        let results = Names3.lookupHQTerm hq parseNames 
-        if Set.null results then 
+        let results = Names3.lookupHQTerm hq parseNames
+        if Set.null results then
           respond $ SearchTermsNotFound [hq]
         else if Set.size results > 1 then
           respond $ TermAmbiguous input (Right hq) results
@@ -1170,12 +1170,9 @@ loop = do
         ppe <- prettyPrintEnv names
         branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
         let names0 = Branch.toNames0 (Branch.head branch)
-        -- checkTodo only needs the local references to check for obsolete defs
-        todo <- checkTodo patch names0
-        numberedArgs .=
-          (Text.unpack . Reference.toText . view _2 <$>
-             fst (TO.todoFrontierDependents todo))
-        respond $ TodoOutput ppe todo
+        -- showTodoOutput only needs the local references
+        -- to check for obsolete defs
+        showTodoOutput ppe patch names0
 
       TestI showOk showFail -> do
         let
@@ -1340,10 +1337,10 @@ loop = do
 
 doDisplay :: Var v => OutputLocation -> Names -> Referent -> Action' m v ()
 doDisplay outputLoc names r = do
-  let tm = Term.fromReferent External r 
+  let tm = Term.fromReferent External r
   ppe <- prettyPrintEnv names
   latestFile' <- use latestFile
-  let 
+  let
     loc = case outputLoc of
       ConsoleLocation    -> Nothing
       FileLocation path  -> Just path
@@ -1352,8 +1349,8 @@ doDisplay outputLoc names r = do
     loadTerm (Reference.DerivedId r) = eval $ LoadTerm r
     loadTerm r = pure Nothing
     loadDecl (Reference.DerivedId r) = eval $ LoadType r
-    loadDecl _ = pure Nothing 
-  rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm evalTerm loadDecl tm 
+    loadDecl _ = pure Nothing
+  rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm evalTerm loadDecl tm
   respond $ DisplayRendered loc rendered
   -- We set latestFile to be programmatically generated, if we
   -- are viewing these definitions to a file - this will skip the
@@ -1362,10 +1359,10 @@ doDisplay outputLoc names r = do
 
 getLinks :: (Var v, Monad m)
          => Input
-         -> Path.HQSplit' 
+         -> Path.HQSplit'
          -> Either (Set Reference) (Maybe String)
-         -> Action' m v (Either (Output v) 
-                                (PPE.PrettyPrintEnv, 
+         -> Action' m v (Either (Output v)
+                                (PPE.PrettyPrintEnv,
                                  [(HQ.HashQualified, Reference, Maybe (Type v Ann))]))
 getLinks input src mdTypeStr = do
   root0 <- Branch.head <$> use root
@@ -1393,15 +1390,15 @@ getLinks input src mdTypeStr = do
       let allMd' = Map.restrictKeys allMd selection
           allRefs = toList (Set.unions (Map.elems allMd'))
           results :: Set Reference = Set.unions $ Map.elems allMd'
-      sigs <- for (toList results) $ 
+      sigs <- for (toList results) $
         \r -> loadTypeOfTerm (Referent.Ref r)
-      let deps = Set.map LD.termRef results <> 
+      let deps = Set.map LD.termRef results <>
                  Set.unions [ Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs ]
-      ppe <- prettyPrintEnv =<< makePrintNamesFromLabeled' deps 
-      let sortedSigs = sortOn snd (toList results `zip` sigs)  
-      let out = [(PPE.termName ppe (Referent.Ref r), r, t) | (r, t) <- sortedSigs ] 
+      ppe <- prettyPrintEnv =<< makePrintNamesFromLabeled' deps
+      let sortedSigs = sortOn snd (toList results `zip` sigs)
+      let out = [(PPE.termName ppe (Referent.Ref r), r, t) | (r, t) <- sortedSigs ]
       pure (Right (ppe, out))
-            
+
 resolveShortBranchHash ::
   Input -> ShortBranchHash -> Action' m v (Either (Output v) (Branch m))
 resolveShortBranchHash input hash = do
@@ -1418,21 +1415,25 @@ propagatePatch :: (Monad m, Var v) =>
 propagatePatch inputDescription patch scopePath = do
   changed <- do
     names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-    ppe <- prettyPrintEnv names
-    -- arya: wait, what is this `ppe` here for again exactly?
-    -- ppe is used for some output message that propagate can issue in error
-    -- condition PatchInvolvesExternalDependencies
     updateAtM (inputDescription <> " (patch propagation)")
               scopePath
-              (lift . lift . Propagate.propagateAndApply ppe patch)
+              (lift . lift . Propagate.propagateAndApply patch)
   when changed $ do
     scope <- getAt scopePath
     let names0 = Branch.toNames0 (Branch.head scope)
     -- this will be different AFTER the update succeeds
     names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
     ppe <- prettyPrintEnv names
-    respond . TodoOutput ppe =<< checkTodo patch names0
+    showTodoOutput ppe patch names0
   pure changed
+
+showTodoOutput :: PrettyPrintEnv -> Patch -> Names0 -> Action' m v ()
+showTodoOutput ppe patch names0 = do
+  todo <- checkTodo patch names0
+  numberedArgs .=
+    (Text.unpack . Reference.toText . view _2 <$>
+       fst (TO.todoFrontierDependents todo))
+  respond $ TodoOutput ppe todo
 
 checkTodo :: Patch -> Names0 -> Action m i v (TO.TodoOutput v Ann)
 checkTodo patch names0 = do
@@ -2267,7 +2268,7 @@ executePPE unisonFile =
       (UF.typecheckedToNames0 unisonFile)
 
 loadTypeOfTerm :: Referent -> Action m i v (Maybe (Type v Ann))
-loadTypeOfTerm (Referent.Ref r) = eval $ LoadTypeOfTerm r 
+loadTypeOfTerm (Referent.Ref r) = eval $ LoadTypeOfTerm r
 loadTypeOfTerm (Referent.Con (Reference.DerivedId r) cid _) = do
   decl <- eval $ LoadType r
   case decl of
