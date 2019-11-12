@@ -1,10 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Names3 where
 
 import Unison.Prelude
 
+import Data.List.Extra (nubOrd)
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -45,8 +47,8 @@ suffixify ns = ns <> suffixNs
   suffixNs = names0 (R.fromList uniqueTerms) (R.fromList uniqueTypes) 
   terms = List.multimap [ (n,ref) | (n0,ref) <- R.toList (terms0 ns), n <- Name.suffixes n0 ]
   types = List.multimap [ (n,ref) | (n0,ref) <- R.toList (types0 ns), n <- Name.suffixes n0 ]
-  uniqueTerms = [ (n,ref) | (n, [ref]) <- Map.toList terms ]
-  uniqueTypes = [ (n,ref) | (n, [ref]) <- Map.toList types ]
+  uniqueTerms = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList terms ]
+  uniqueTypes = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList types ]
 
 filterTypes :: (Name -> Bool) -> Names0 -> Names0
 filterTypes = Unison.Names2.filterTypes
