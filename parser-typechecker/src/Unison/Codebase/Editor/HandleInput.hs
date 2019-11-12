@@ -253,10 +253,10 @@ loop = do
           let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
           withFile [] sourceName (text, lexed) $ \unisonFile -> do
             sr <- toSlurpResult unisonFile <$> slurpResultNames0
-            hnames <- makeShadowedPrintNamesFromLabeled
+            names <- makeShadowedPrintNamesFromLabeled
                         (UF.termSignatureExternalLabeledDependencies unisonFile)
                         (UF.typecheckedToNames0 unisonFile)
-            ppe <- prettyPrintEnv hnames
+            ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
             eval (Notify $ Typechecked sourceName ppe sr unisonFile)
             r <- eval . Evaluate ppe $ unisonFile
             case r of
@@ -591,7 +591,7 @@ loop = do
 
       NamesI thing -> do
         len <- eval CodebaseHashLength
-        parseNames0 <- basicParseNames0
+        parseNames0 <- Names3.suffixify0 <$> basicParseNames0
         let filtered = case thing of
               HQ.HashOnly shortHash ->
                 Names.filterBySHs (Set.singleton shortHash) parseNames0
@@ -834,7 +834,7 @@ loop = do
         -- We might like to make sure that the user search terms get used as
         -- the names in the pretty-printer, but the current implementation
         -- doesn't.
-        ppe <- prettyPrintEnv printNames
+        ppe <- prettyPrintEnvDecl printNames
         let loc = case outputLoc of
               ConsoleLocation    -> Nothing
               FileLocation path  -> Just path
@@ -949,7 +949,7 @@ loop = do
           Right results -> do
             numberedArgs .= fmap searchResultToHQString results
             results' <- loadSearchResults results
-            ppe <- prettyPrintEnv =<<
+            ppe <- prettyPrintEnv . Names3.suffixify =<<
               makePrintNamesFromLabeled'
                 (foldMap SR'.labeledDependencies results')
             respond $ ListOfDefinitions ppe isVerbose results'
@@ -1062,11 +1062,11 @@ loop = do
             stepAt ( Path.unabsolute currentPath'
                    , doSlurpAdds (Slurp.adds sr) uf)
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
-          ppe <- prettyPrintEnv =<<
+          ppe <- prettyPrintEnvDecl =<<
             makeShadowedPrintNamesFromLabeled
               (UF.termSignatureExternalLabeledDependencies uf)
               (UF.typecheckedToNames0 uf)
-          respond $ SlurpOutput input ppe sr
+          respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
 
       UpdateI maybePatchPath hqs -> case uf of
         Nothing -> respond $ NoUnisonFile input
@@ -1397,10 +1397,11 @@ getLinks input src mdTypeStr = do
         \r -> loadTypeOfTerm (Referent.Ref r)
       let deps = Set.map LD.termRef results <> 
                  Set.unions [ Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs ]
-      ppe <- prettyPrintEnv =<< makePrintNamesFromLabeled' deps 
+      ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled' deps 
+      let ppeDecl = PPE.declarationPPE ppe
       let sortedSigs = sortOn snd (toList results `zip` sigs)  
-      let out = [(PPE.termName ppe (Referent.Ref r), r, t) | (r, t) <- sortedSigs ] 
-      pure (Right (ppe, out))
+      let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs ] 
+      pure (Right (PPE.suffixifiedPPE ppe, out))
             
 resolveShortBranchHash ::
   Input -> ShortBranchHash -> Action' m v (Either (Output v) (Branch m))
@@ -2027,6 +2028,9 @@ lexedSource name src = do
 
 prettyPrintEnv :: Names -> Action' m v PPE.PrettyPrintEnv
 prettyPrintEnv ns = eval CodebaseHashLength <&> (`PPE.fromNames` ns)
+
+prettyPrintEnvDecl :: Names -> Action' m v PPE.PrettyPrintEnvDecl
+prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
 
 parseSearchType :: (Monad m, Var v)
   => Input -> String -> Action' m v (Either (Output v) (Type v Ann))

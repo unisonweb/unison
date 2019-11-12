@@ -43,6 +43,21 @@ fromNames len names = PrettyPrintEnv terms' types' where
 fromSuffixNames :: Int -> Names -> PrettyPrintEnv
 fromSuffixNames len names = fromNames len (Names.suffixify names)
 
+fromNamesDecl :: Int -> Names -> PrettyPrintEnvDecl
+fromNamesDecl len names = 
+  PrettyPrintEnvDecl (fromNames len names) (fromSuffixNames len names)
+
+-- A pair of PrettyPrintEnvs:
+--   - suffixifiedPPE uses the shortest unique suffix
+--   - declarationPPE uses the shortest full name
+--
+-- declarationPPE is used for the LHS of declarations, where
+-- we generally want to list the full name.
+data PrettyPrintEnvDecl = PrettyPrintEnvDecl {
+  declarationPPE :: PrettyPrintEnv,
+  suffixifiedPPE :: PrettyPrintEnv
+  } deriving Show
+  
 -- Left-biased union of environments
 unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
 unionLeft e1 e2 = PrettyPrintEnv

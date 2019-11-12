@@ -124,7 +124,7 @@ data Output v
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
-                       PPE.PrettyPrintEnv
+                       PPE.PrettyPrintEnvDecl
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
   | TodoOutput PPE.PrettyPrintEnv (TO.TodoOutput v Ann)
@@ -144,7 +144,7 @@ data Output v
   | BranchDiff Names Names
   | GitError Input GitError
   | NoConfiguredGitUrl PushPull Path'
-  | DisplayLinks PPE.PrettyPrintEnv Metadata.Metadata
+  | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
                (Map Reference (DisplayThing (Decl v Ann)))
                (Map Reference (DisplayThing (Term v Ann)))
   | LinkFailure Input
