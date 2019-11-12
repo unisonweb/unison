@@ -161,6 +161,7 @@ getCodebaseOrExit mdir = do
 
   let path = dir </> codebasePath
   let theCodebase = codebase1 V1.formatSymbol formatAnn path
+  Codebase.initializeBuiltinCode theCodebase
   unlessM (exists path) $ do
     PT.putPrettyLn'. P.warnCallout . P.wrap $ errMsg
     exitFailure

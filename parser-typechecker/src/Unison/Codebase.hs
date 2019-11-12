@@ -89,17 +89,28 @@ data Codebase m v a =
            , branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.Hash)
            }
 
--- | Write all of the builtins types and IO types into the codebase
+bootstrapNames :: Names.Names0 
+bootstrapNames = 
+  Builtin.names0 <> UF.typecheckedToNames0 IOSource.typecheckedFile
+
+-- | Write all of the builtins types and IO types into the codebase. Returns the names of builtins
+-- but DOES NOT add these names to the namespace.
+initializeBuiltinCode :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
+initializeBuiltinCode c = do
+  let uf = (UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
+                                     (Map.fromList Builtin.builtinEffectDecls)
+                                     mempty mempty)
+  addDefsToCodebase c uf
+  addDefsToCodebase c IOSource.typecheckedFile
+  pure ()
+
+-- | Write all of the builtins types and IO types into the codebase and put their
+-- names under .builtin
 initializeCodebase :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
 initializeCodebase c = do
-  addDefsToCodebase c
-    (UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
-                              (Map.fromList Builtin.builtinEffectDecls)
-                              mempty mempty)
-  addDefsToCodebase c IOSource.typecheckedFile
-  let names0 = Builtin.names0 <> UF.typecheckedToNames0 IOSource.typecheckedFile
+  initializeBuiltinCode c
   let b0 = BranchUtil.addFromNames0
-            (Names.prefix0 (Name "builtin") names0)
+            (Names.prefix0 (Name "builtin") bootstrapNames)
             Branch.empty0
   putRootBranch c (Branch.one b0)
 

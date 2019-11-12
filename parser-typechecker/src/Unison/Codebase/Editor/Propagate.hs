@@ -40,7 +40,6 @@ import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.Codebase.TermEdit       ( TermEdit(..) )
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.TypeEdit       ( TypeEdit(..) )
-import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.UnisonFile              ( UnisonFile(..) )
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Star3             as Star3
@@ -65,15 +64,15 @@ noEdits = Edits mempty mempty mempty mempty mempty mempty
 propagateAndApply
   :: forall m i v
    . (Applicative m, Var v)
-  => PPE.PrettyPrintEnv
-  -> Patch
+  => Patch
   -> Branch m
   -> F m i v (Branch m)
-propagateAndApply env patch branch = do
-  edits <- propagate env patch branch
+propagateAndApply patch branch = do
+  edits <- propagate patch branch
   f     <- applyPropagate edits
   pure $ Branch.step (f . applyDeprecations patch) branch
 
+-- Note: this function adds definitions to the codebase as it propagates.
 -- Description:
 ------------------
 -- For any `Reference` in the frontier which has an unconflicted
@@ -103,15 +102,13 @@ propagateAndApply env patch branch = do
 --
 -- "dirty" means in need of update
 -- "frontier" means updated definitions responsible for the "dirty"
--- errorPPE only needs to have external names
 propagate
   :: forall m i v
    . (Applicative m, Var v)
-  => PPE.PrettyPrintEnv
-  -> Patch
+  => Patch
   -> Branch m
   -> F m i v (Edits v)
-propagate errorPPE patch b = case validatePatch patch of
+propagate patch b = case validatePatch patch of
   Nothing -> do
     eval $ Notify PatchNeedsToBeConflictFree
     pure noEdits
@@ -128,9 +125,7 @@ propagate errorPPE patch b = case validatePatch patch of
       $ b
       )
     if not $ Set.null missing
-      then do
-        eval . Notify $ PatchInvolvesExternalDependents errorPPE missing
-        pure noEdits
+      then pure noEdits
       else do
         order <- sortDependentsGraph initialDirty
         let
@@ -217,15 +212,16 @@ propagate errorPPE patch b = case validatePatch patch of
                              _ -> error "It's not gone well!"
                       )
                     seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
-                  in
-                    pure ( Just $ Edits termEdits
-                                   termReplacements
-                                   newTerms
-                                   typeEdits'
-                                   typeReplacements'
-                                   newTypes'
-                    , seen'
-                    )
+                    writeTypes =
+                      traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
+                writeTypes (Map.elems componentMap)
+                pure ( Just $ Edits termEdits
+                               termReplacements
+                               newTerms
+                               typeEdits'
+                               typeReplacements'
+                               newTypes'
+                     , seen')
             doTerm :: Reference -> F m i v (Maybe (Edits v), Set Reference)
             doTerm r = do
               componentMap <- unhashTermComponent r
@@ -238,9 +234,9 @@ propagate errorPPE patch b = case validatePatch patch of
                       <$> componentMap
                   seen' = seen <> Set.fromList (view _1 <$> Map.elems componentMap)
               mayComponent <- verifyTermComponent componentMap' es
-              pure $ case mayComponent of
-                Nothing -> (Nothing, seen')
-                Just componentMap'' ->
+              case mayComponent of
+                Nothing -> pure (Nothing, seen')
+                Just componentMap'' -> do
                   let
                     joinedStuff = toList
                       (Map.intersectionWith f componentMap componentMap'')
@@ -261,7 +257,10 @@ propagate errorPPE patch b = case validatePatch patch of
                     newTerms' =
                       newTerms <> (Map.fromList . fmap toNewTerm) joinedStuff
                     toNewTerm (_, r', tm, _, tp) = (r', (tm, tp))
-                  in
+                    writeTerms =
+                      traverse_ (\(Reference.DerivedId id, (tm, tp)) -> eval $ PutTerm id tm tp)
+                  writeTerms [ (r, (tm,ty)) | (_old,r,tm,_oldTy,ty) <- joinedStuff ]
+                  pure
                     ( Just $ Edits termEdits'
                                    termReplacements'
                                    newTerms'
@@ -402,12 +401,6 @@ applyPropagate
 applyPropagate Edits {..} = do
   let termRefs        = Map.mapMaybe TermEdit.toReference termEdits
       typeRefs        = Map.mapMaybe TypeEdit.toReference typeEdits
-      termEditTargets = Set.fromList $ toList termRefs
-      typeEditTargets = Set.fromList $ toList typeRefs
-  -- write the new terms to the codebase
-  (writeTerms . Map.toList) (Map.restrictKeys newTerms termEditTargets)
-  -- write the new types to the codebase
-  (writeTypes . Map.toList) (Map.restrictKeys newTypes typeEditTargets)
   -- recursively update names and delete deprecated definitions
   pure $ Branch.stepEverywhere (updateNames termRefs typeRefs)
  where
@@ -429,10 +422,6 @@ applyPropagate Edits {..} = do
   -- typePreservingTermEdits :: Patch -> Patch
   -- typePreservingTermEdits Patch {..} = Patch termEdits mempty
   --   where termEdits = R.filterRan TermEdit.isTypePreserving _termEdits
-  writeTerms =
-    traverse_ (\(Reference.DerivedId id, (tm, tp)) -> eval $ PutTerm id tm tp)
-  writeTypes =
-    traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
 
 -- (d, f) when d is "dirty" (needs update),
 --             f is in the frontier (an edited dependency of d),

@@ -1036,6 +1036,17 @@ prettyParseError s = \case
     "I expected a non-empty watch expression and not just \">\""
   go (Parser.UnknownAbilityConstructor tok _referents) = unknownConstructor "ability" tok
   go (Parser.UnknownDataConstructor    tok _referents) = unknownConstructor "data" tok
+  go (Parser.UnknownId               tok referents references) = Pr.lines
+    [ if missing then 
+        "I couldn't resolve the reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
+      else
+        "The reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous."
+    , ""
+    , tokenAsErrorSite s $ HQ.toString <$> tok
+    , if missing then "Make sure it's spelled correctly."
+      else "Try hash-qualifying the term you meant to reference."
+    ]
+    where missing = Set.null referents && Set.null references
   go (Parser.UnknownTerm               tok referents) = Pr.lines
     [ if Set.null referents then 
         "I couldn't find a term for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."

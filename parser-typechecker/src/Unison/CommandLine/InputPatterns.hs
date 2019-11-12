@@ -12,7 +12,7 @@ import Data.Bifunctor (first)
 import Data.List (intercalate, sortOn, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
 import qualified System.Console.Haskeline.Completion as Completion
-import System.Console.Haskeline.Completion (Completion(..))
+import System.Console.Haskeline.Completion (Completion(Completion))
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.CommandLine.InputPattern
@@ -196,6 +196,28 @@ view :: InputPattern
 view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
       "`view foo` prints the definition of `foo`."
       (pure . Input.ShowDefinitionI Input.ConsoleLocation)
+
+display :: InputPattern
+display = InputPattern "display" ["show"] [(Required, exactDefinitionQueryArg)]
+      "`display foo` prints a rendered version of the term `foo`."
+      (\case 
+        [s] -> pure (Input.DisplayI Input.ConsoleLocation s)
+        _ -> Left (I.help display))
+
+displayTo :: InputPattern
+displayTo = InputPattern "display.to" [] [(Required, noCompletions), (Required, exactDefinitionQueryArg)]
+      (P.wrap $ makeExample displayTo ["<filename>", "foo"] 
+             <> "prints a rendered version of the term `foo` to the given file.")
+      (\case 
+        [file,s] -> pure (Input.DisplayI (Input.FileLocation file) s)
+        _ -> Left (I.help displayTo))
+
+docs :: InputPattern 
+docs = InputPattern "docs" [] [(Required, exactDefinitionQueryArg)]
+      ("`docs foo` shows documentation for the definition `foo`.")
+      (\case 
+        [s] -> first fromString $ Input.DocsI <$> Path.parseHQSplit' s
+        _ -> Left (I.help docs))
 
 undo :: InputPattern
 undo = InputPattern "undo" [] []
@@ -833,7 +855,9 @@ links = InputPattern
   "links"
   []
   [(Required, exactDefinitionQueryArg), (Optional, exactDefinitionQueryArg)]
-  "`links src` shows all outgoing links from `src`. `link src <type>` shows all links for the given type."
+  (P.column2 [
+    (makeExample links ["src"], "shows all outgoing links from `src`."),
+    (makeExample links ["src", "<type>"], "shows all links for the given type.") ])
   (\case
     src : rest -> first fromString $ do
       src <- Path.parseHQSplit' src
@@ -918,6 +942,9 @@ validInputs =
   , findShallow
   , findVerbose
   , view
+  , display
+  , displayTo
+  , docs
   , findPatch
   , viewPatch
   , undo

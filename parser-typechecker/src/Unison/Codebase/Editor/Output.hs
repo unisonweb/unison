@@ -40,6 +40,7 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
+import qualified Unison.Util.Pretty as P
 import Unison.Codebase.Editor.DisplayThing (DisplayThing)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.Codebase.Editor.SearchResult' (SearchResult')
@@ -82,7 +83,7 @@ data Output v
   | TypeHasFreeVars Input (Type v Ann)
   | TermAlreadyExists Input Path.Split' (Set Referent)
   | TypeAmbiguous Input Path.HQSplit' (Set Reference)
-  | TermAmbiguous Input Path.HQSplit' (Set Referent)
+  | TermAmbiguous Input (Either Path.HQSplit' HQ.HashQualified) (Set Referent)
   | HashAmbiguous Input ShortHash (Set Referent)
   | BranchHashAmbiguous Input ShortBranchHash (Set ShortBranchHash)
   | BadDestinationBranch Input Path'
@@ -106,6 +107,7 @@ data Output v
               [(Reference, Set HQ'.HashQualified)] -- type match, type names
   -- list of all the definitions within this branch
   | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
+  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified, Reference, Maybe (Type v Ann))]
   | ListShallow PPE.PrettyPrintEnv [ShallowListEntry v Ann]
   | ListOfPatches (Set Name)
   -- show the result of add/update
@@ -120,6 +122,7 @@ data Output v
               [(v, Term v ())]
               (Map v (Ann, UF.WatchKind, Term v (), Runtime.IsCacheHit))
   | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult v) (UF.TypecheckedUnisonFile v Ann)
+  | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
                        PPE.PrettyPrintEnv
@@ -239,6 +242,7 @@ isFailure o = case o of
   DeleteEverythingConfirmation -> False
   DeletedEverything -> False
   ListNames tms tys -> null tms && null tys
+  ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ ds -> null ds
   ListOfPatches s -> Set.null s
   SlurpOutput _ _ sr -> not $ SR.isOk sr
@@ -249,6 +253,7 @@ isFailure o = case o of
   Evaluated{} -> False
   Typechecked{} -> False
   DisplayDefinitions _ _ m1 m2 -> null m1 && null m2
+  DisplayRendered{} -> False
   TodoOutput _ todo -> TO.todoScore todo /= 0
   TestIncrementalOutputStart{} -> False
   TestIncrementalOutputEnd{} -> False
