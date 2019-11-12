@@ -16,6 +16,7 @@ import qualified Data.Map                      as Map
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.Name                   as Name
 import qualified Unison.Names3                 as Names
+import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
 import qualified Unison.ConstructorType as CT
 import qualified Unison.HashQualified' as HQ'
@@ -49,14 +50,28 @@ fromNamesDecl len names =
 
 -- A pair of PrettyPrintEnvs:
 --   - suffixifiedPPE uses the shortest unique suffix
---   - declarationPPE uses the shortest full name
---
--- declarationPPE is used for the LHS of declarations, where
--- we generally want to list the full name.
+--   - unsuffixifiedPPE uses the shortest full name
 data PrettyPrintEnvDecl = PrettyPrintEnvDecl {
-  declarationPPE :: PrettyPrintEnv,
+  unsuffixifiedPPE :: PrettyPrintEnv,
   suffixifiedPPE :: PrettyPrintEnv
   } deriving Show
+
+-- declarationPPE uses the full name for references that are
+-- part the same cycle as the input reference, used to ensures
+-- recursive definitions are printed properly, for instance:
+--
+-- foo.bar x = foo.bar x
+-- and not
+-- foo.bar x = bar x
+declarationPPE :: PrettyPrintEnvDecl -> Reference -> PrettyPrintEnv 
+declarationPPE ppe rd = PrettyPrintEnv tm ty where
+  comp = Reference.members (Reference.componentFor rd)
+  tm r0@(Referent.Ref r) = if Set.member r comp 
+                           then terms (unsuffixifiedPPE ppe) r0
+                           else terms (suffixifiedPPE ppe) r0
+  tm r = terms (suffixifiedPPE ppe) r
+  ty r = if Set.member r comp then types (unsuffixifiedPPE ppe) r
+         else types (suffixifiedPPE ppe) r
   
 -- Left-biased union of environments
 unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv

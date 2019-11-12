@@ -776,8 +776,8 @@ displayDefinitions' :: Var v => Ord a1
   -> Pretty
 displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
   where
-  ppeBody = PPE.suffixifiedPPE ppe0
-  ppeDecl = PPE.declarationPPE ppe0
+  ppeBody r = PPE.declarationPPE ppe0 r
+  ppeDecl = PPE.unsuffixifiedPPE ppe0
   prettyTerms = map go . Map.toList
              -- sort by name
              $ Map.mapKeys (first (PPE.termName ppeDecl . Referent.Ref) . dupe) terms
@@ -787,14 +787,14 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
     case dt of
       MissingThing r -> missing n r
       BuiltinThing -> builtin n
-      RegularThing tm -> TermPrinter.prettyBinding ppeBody n tm
+      RegularThing tm -> TermPrinter.prettyBinding (ppeBody r) n tm
   go2 ((n, r), dt) =
     case dt of
       MissingThing r -> missing n r
       BuiltinThing -> builtin n
       RegularThing decl -> case decl of
-        Left d  -> DeclPrinter.prettyEffectDecl ppeBody r n d
-        Right d -> DeclPrinter.prettyDataDecl ppeBody r n d
+        Left d  -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
+        Right d -> DeclPrinter.prettyDataDecl (ppeBody r) r n d
   builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
   missing n r = P.wrap (
     "-- The name " <> prettyHashQualified n <> " is assigned to the "

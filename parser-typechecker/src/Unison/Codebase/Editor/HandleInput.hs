@@ -1398,7 +1398,7 @@ getLinks input src mdTypeStr = do
       let deps = Set.map LD.termRef results <> 
                  Set.unions [ Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs ]
       ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled' deps 
-      let ppeDecl = PPE.declarationPPE ppe
+      let ppeDecl = PPE.unsuffixifiedPPE ppe
       let sortedSigs = sortOn snd (toList results `zip` sigs)  
       let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs ] 
       pure (Right (PPE.suffixifiedPPE ppe, out))
