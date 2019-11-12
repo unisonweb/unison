@@ -265,6 +265,10 @@ namespace io where
   setBuffering : Handle -> Optional BufferMode ->{IO} ()
   setBuffering h bm = rethrow (io.IO.setBuffering_ h bm)
 
+  -- Send any items buffered for output to the Operating system
+  flush : Handle ->{IO} ()
+  flush h = rethrow (io.IO.flush_ h)
+
   -- Get the path to a temporary directory managed by the operating system
   getTemporaryDirectory : '{IO} FilePath
   getTemporaryDirectory = '(rethrow (io.IO.getTemporaryDirectory_))
@@ -448,6 +452,7 @@ ability io.IO where
   -- File buffering
   getBuffering_ : io.Handle -> Either io.Error (Optional io.BufferMode)
   setBuffering_ : io.Handle -> Optional io.BufferMode -> (Either io.Error ())
+  flush_ : io.Handle -> (Either io.Error ())
 
   -- Should we expose mutable arrays for byte buffering?
   -- Inclined to say no, although that sounds a lot like
