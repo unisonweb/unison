@@ -9,6 +9,8 @@ import qualified Unison.Var as Var
 import qualified Unison.Typechecker as Typechecker
 
 infixr 1 --> 
+
+(-->) :: Ord v => Type v () -> Type v () -> Type v ()
 (-->) a b = arrow() a b
 
 test :: Test ()

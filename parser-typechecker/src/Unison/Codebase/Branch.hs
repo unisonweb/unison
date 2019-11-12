@@ -413,7 +413,7 @@ setAt path b = modifyAt path (const b)
 deleteAt :: Applicative m => Path -> Branch m -> Branch m
 deleteAt path = setAt path empty
 
--- returns `Nothing` if no Branch at `path`
+-- returns `Nothing` if no Branch at `path` or if Branch is empty at `path`
 getAt :: Path
       -> Branch m
       -> Maybe (Branch m)
