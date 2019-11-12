@@ -115,175 +115,160 @@ propagate patch b = case validatePatch patch of
   Just (initialTermEdits, initialTypeEdits) -> do
     initialDirty <-
       R.dom <$> computeFrontier (eval . GetDependents) patch names0
-    missing :: Set Reference <- missingDependents
-      initialDirty
-      ( Set.fromList
-      . mapMaybe Referent.toTermReference
-      . toList
-      . Branch.deepReferents
-      . Branch.head
-      $ b
-      )
-    if not $ Set.null missing
-      then pure noEdits
-      else do
-        order <- sortDependentsGraph initialDirty
-        let
-          getOrdered :: Set Reference -> Map Int Reference
-          getOrdered rs = Map.fromList
-            [ (i, r) | r <- toList rs, Just i <- [Map.lookup r order] ]
-          collectEdits
-            :: (Applicative m, Var v)
-            => Edits v
-            -> Set Reference
-            -> Map Int Reference
-            -> F m i v (Edits v)
-          collectEdits es@Edits {..} seen todo = case Map.minView todo of
-            Nothing        -> pure es
-            Just (r, todo) -> case r of
-              Reference.Builtin   _ -> collectEdits es seen todo
-              Reference.DerivedId _ -> go r todo
-           where
-            go r todo =
-              if Map.member r termEdits
-                 || Map.member r typeEdits
-                 || Set.member r seen
-              then
-                collectEdits es seen todo
-              else
-                do
-                  haveType <- eval $ IsType r
-                  haveTerm <- eval $ IsTerm r
-                  let message =
-                        "This reference is not a term nor a type " <> show r
-                      mmayEdits | haveTerm  = doTerm r
-                                | haveType  = doType r
-                                | otherwise = fail message
-                  mayEdits <- mmayEdits
-                  case mayEdits of
-                    (Nothing    , seen') -> collectEdits es seen' todo
-                    (Just edits', seen') -> do
-                      -- plan to update the dependents of this component too
-                      dependents <-
-                        fmap Set.unions
-                        . traverse (eval . GetDependents)
-                        . toList
-                        . Reference.members
-                        $ Reference.componentFor r
-                      let todo' = todo <> getOrdered dependents
-                      collectEdits edits' seen' todo'
-            doType :: Reference -> F m i v (Maybe (Edits v), Set Reference)
-            doType r =
-              do
-                componentMap <- unhashTypeComponent r
-                let componentMap' =
-                      over _2 (Decl.updateDependencies typeReplacements)
-                      <$> componentMap
-                    declMap = over _2 (either Decl.toDataDecl id) <$> componentMap'
-                    -- TODO: kind-check the new components
-                    hashedDecls =
-                      Decl.hashDecls $ view _2 <$> declMap
-                hashedComponents' <-
-                  case hashedDecls of
-                    Left _ ->
-                      fail $
-                        "Edit propagation failed because some of the dependencies of "
-                        <> show r <> " could not be resolved."
-                    Right c -> pure . Map.fromList $ (\(v,r,d) -> (v, (r,d))) <$> c
-                let joinedStuff
-                      :: [(v, (Reference, Reference, Decl.DataDeclaration' v _))]
-                    joinedStuff = Map.toList
-                      (Map.intersectionWith f declMap hashedComponents')
-                    f (oldRef, _) (newRef, newType) =
-                      (oldRef, newRef, newType)
-                    typeEdits' =
-                      typeEdits <> (Map.fromList . fmap toEdit) joinedStuff
-                    toEdit (_, (r, r', _)) =
-                      (r, TypeEdit.Replace r')
-                    typeReplacements' = typeReplacements
-                      <> (Map.fromList . fmap toReplacement) joinedStuff
-                    toReplacement (_, (r, r', _)) = (r, r')
-                    newTypes' =
-                      newTypes <> (Map.fromList . fmap toNewType) joinedStuff
-                    toNewType (v, (_, r', tp)) =
-                      (r', case Map.lookup v componentMap of
-                             Just (_, Left _) -> Left (Decl.EffectDeclaration tp)
-                             Just (_, Right _) -> Right tp
-                             _ -> error "It's not gone well!"
-                      )
-                    seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
-                    writeTypes =
-                      traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
-                writeTypes (Map.elems componentMap)
-                pure ( Just $ Edits termEdits
-                               termReplacements
-                               newTerms
-                               typeEdits'
-                               typeReplacements'
-                               newTypes'
-                     , seen')
-            doTerm :: Reference -> F m i v (Maybe (Edits v), Set Reference)
-            doTerm r = do
-              componentMap <- unhashTermComponent r
-              let componentMap' =
-                    over
-                        _2
-                        (Term.updateDependencies termReplacements
-                                                 typeReplacements
-                        )
-                      <$> componentMap
-                  seen' = seen <> Set.fromList (view _1 <$> Map.elems componentMap)
-              mayComponent <- verifyTermComponent componentMap' es
-              case mayComponent of
-                Nothing -> pure (Nothing, seen')
-                Just componentMap'' -> do
-                  let
-                    joinedStuff = toList
-                      (Map.intersectionWith f componentMap componentMap'')
-                    f (oldRef, _oldTerm, oldType) (newRef, newTerm, newType) =
-                      (oldRef, newRef, newTerm, oldType, newType')
-                        -- Don't replace the type if it hasn't changed.
-                        where newType'
-                               | Typechecker.isEqual oldType newType = oldType
-                               | otherwise = newType
-                -- collect the hashedComponents into edits/replacements/newterms/seen
-                    termEdits' =
-                      termEdits <> (Map.fromList . fmap toEdit) joinedStuff
-                    toEdit (r, r', _newTerm, oldType, newType) =
-                      (r, TermEdit.Replace r' $ TermEdit.typing newType oldType)
-                    termReplacements' = termReplacements
-                      <> (Map.fromList . fmap toReplacement) joinedStuff
-                    toReplacement (r, r', _, _, _) = (r, r')
-                    newTerms' =
-                      newTerms <> (Map.fromList . fmap toNewTerm) joinedStuff
-                    toNewTerm (_, r', tm, _, tp) = (r', (tm, tp))
-                    writeTerms =
-                      traverse_ (\(Reference.DerivedId id, (tm, tp)) -> eval $ PutTerm id tm tp)
-                  writeTerms [ (r, (tm,ty)) | (_old,r,tm,_oldTy,ty) <- joinedStuff ]
-                  pure
-                    ( Just $ Edits termEdits'
-                                   termReplacements'
-                                   newTerms'
-                                   typeEdits
-                                   typeReplacements
-                                   newTypes
-                    , seen'
+    order <- sortDependentsGraph initialDirty
+    let
+      getOrdered :: Set Reference -> Map Int Reference
+      getOrdered rs =
+        Map.fromList [ (i, r) | r <- toList rs, Just i <- [Map.lookup r order] ]
+      collectEdits
+        :: (Applicative m, Var v)
+        => Edits v
+        -> Set Reference
+        -> Map Int Reference
+        -> F m i v (Edits v)
+      collectEdits es@Edits {..} seen todo = case Map.minView todo of
+        Nothing        -> pure es
+        Just (r, todo) -> case r of
+          Reference.Builtin   _ -> collectEdits es seen todo
+          Reference.DerivedId _ -> go r todo
+       where
+        go r todo =
+          if Map.member r termEdits
+             || Map.member r typeEdits
+             || Set.member r seen
+          then
+            collectEdits es seen todo
+          else
+            do
+              haveType <- eval $ IsType r
+              haveTerm <- eval $ IsTerm r
+              let message =
+                    "This reference is not a term nor a type " <> show r
+                  mmayEdits | haveTerm  = doTerm r
+                            | haveType  = doType r
+                            | otherwise = fail message
+              mayEdits <- mmayEdits
+              case mayEdits of
+                (Nothing    , seen') -> collectEdits es seen' todo
+                (Just edits', seen') -> do
+                  -- plan to update the dependents of this component too
+                  dependents <-
+                    fmap Set.unions
+                    . traverse (eval . GetDependents)
+                    . toList
+                    . Reference.members
+                    $ Reference.componentFor r
+                  let todo' = todo <> getOrdered dependents
+                  collectEdits edits' seen' todo'
+        doType :: Reference -> F m i v (Maybe (Edits v), Set Reference)
+        doType r = do
+          componentMap <- unhashTypeComponent r
+          let componentMap' =
+                over _2 (Decl.updateDependencies typeReplacements)
+                  <$> componentMap
+              declMap = over _2 (either Decl.toDataDecl id) <$> componentMap'
+              -- TODO: kind-check the new components
+              hashedDecls = Decl.hashDecls $ view _2 <$> declMap
+          hashedComponents' <- case hashedDecls of
+            Left _ ->
+              fail
+                $ "Edit propagation failed because some of the dependencies of "
+                <> show r
+                <> " could not be resolved."
+            Right c -> pure . Map.fromList $ (\(v, r, d) -> (v, (r, d))) <$> c
+          let
+            joinedStuff
+              :: [(v, (Reference, Reference, Decl.DataDeclaration' v _))]
+            joinedStuff =
+              Map.toList (Map.intersectionWith f declMap hashedComponents')
+            f (oldRef, _) (newRef, newType) = (oldRef, newRef, newType)
+            typeEdits' = typeEdits <> (Map.fromList . fmap toEdit) joinedStuff
+            toEdit (_, (r, r', _)) = (r, TypeEdit.Replace r')
+            typeReplacements' = typeReplacements
+              <> (Map.fromList . fmap toReplacement) joinedStuff
+            toReplacement (_, (r, r', _)) = (r, r')
+            newTypes' = newTypes <> (Map.fromList . fmap toNewType) joinedStuff
+            toNewType (v, (_, r', tp)) =
+              ( r'
+              , case Map.lookup v componentMap of
+                Just (_, Left _ ) -> Left (Decl.EffectDeclaration tp)
+                Just (_, Right _) -> Right tp
+                _                 -> error "It's not gone well!"
+              )
+            seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
+            writeTypes =
+              traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
+          writeTypes (Map.elems componentMap)
+          pure
+            ( Just $ Edits termEdits
+                           termReplacements
+                           newTerms
+                           typeEdits'
+                           typeReplacements'
+                           newTypes'
+            , seen'
+            )
+        doTerm :: Reference -> F m i v (Maybe (Edits v), Set Reference)
+        doTerm r = do
+          componentMap <- unhashTermComponent r
+          let componentMap' =
+                over
+                    _2
+                    (Term.updateDependencies termReplacements typeReplacements)
+                  <$> componentMap
+              seen' = seen <> Set.fromList (view _1 <$> Map.elems componentMap)
+          mayComponent <- verifyTermComponent componentMap' es
+          case mayComponent of
+            Nothing             -> pure (Nothing, seen')
+            Just componentMap'' -> do
+              let
+                joinedStuff =
+                  toList (Map.intersectionWith f componentMap componentMap'')
+                f (oldRef, _oldTerm, oldType) (newRef, newTerm, newType) =
+                  (oldRef, newRef, newTerm, oldType, newType')
+                    -- Don't replace the type if it hasn't changed.
+
+                 where
+                  newType' | Typechecker.isEqual oldType newType = oldType
+                           | otherwise                           = newType
+            -- collect the hashedComponents into edits/replacements/newterms/seen
+                termEdits' =
+                  termEdits <> (Map.fromList . fmap toEdit) joinedStuff
+                toEdit (r, r', _newTerm, oldType, newType) =
+                  (r, TermEdit.Replace r' $ TermEdit.typing newType oldType)
+                termReplacements' = termReplacements
+                  <> (Map.fromList . fmap toReplacement) joinedStuff
+                toReplacement (r, r', _, _, _) = (r, r')
+                newTerms' =
+                  newTerms <> (Map.fromList . fmap toNewTerm) joinedStuff
+                toNewTerm (_, r', tm, _, tp) = (r', (tm, tp))
+                writeTerms =
+                  traverse_
+                    (\(Reference.DerivedId id, (tm, tp)) ->
+                      eval $ PutTerm id tm tp
                     )
-        collectEdits
-          (Edits initialTermEdits
-                 (Map.mapMaybe TermEdit.toReference initialTermEdits)
-                 mempty
-                 initialTypeEdits
-                 (Map.mapMaybe TypeEdit.toReference initialTypeEdits)
-                 mempty
-          )
-          mempty -- things to skip
-          (getOrdered initialDirty)
+              writeTerms
+                [ (r, (tm, ty)) | (_old, r, tm, _oldTy, ty) <- joinedStuff ]
+              pure
+                ( Just $ Edits termEdits'
+                               termReplacements'
+                               newTerms'
+                               typeEdits
+                               typeReplacements
+                               newTypes
+                , seen'
+                )
+    collectEdits
+      (Edits initialTermEdits
+             (Map.mapMaybe TermEdit.toReference initialTermEdits)
+             mempty
+             initialTypeEdits
+             (Map.mapMaybe TypeEdit.toReference initialTypeEdits)
+             mempty
+      )
+      mempty -- things to skip
+      (getOrdered initialDirty)
  where
-  missingDependents :: Set Reference -> Set Reference -> _ (Set Reference)
-  missingDependents dirty known = do
-    closure <- transitiveClosure (eval . GetDependents) dirty
-    pure $ Set.difference closure known
   sortDependentsGraph :: Set Reference -> _ (Map Reference Int)
   sortDependentsGraph rs = do
     closure    <- transitiveClosure (eval . GetDependents) rs
@@ -312,24 +297,25 @@ propagate patch b = case validatePatch patch of
     => Reference
     -> F m i v (Map v (Reference, Term v _, Type v _))
   unhashTermComponent ref = do
-    let
-      component = Reference.members $ Reference.componentFor ref
-      termInfo
-        :: Reference
-        -> F m i v (Maybe (Reference, (Term v Ann, Type v Ann)))
-      termInfo termRef = do
-        tpm <- eval $ LoadTypeOfTerm termRef
-        tp  <- maybe (fail $ "Missing type for term " <> show termRef) pure tpm
-        case termRef of
-          Reference.DerivedId id -> do
-            mtm <- eval $ LoadTerm id
-            tm  <- maybe (fail $ "Missing term with id " <> show id) pure mtm
-            pure $ Just (termRef, (tm, tp))
-          _ -> pure Nothing
-      unhash m =
-        let f (_oldTm,oldTyp) (v,newTm) = (v,newTm,oldTyp)
-            m' = Map.intersectionWith f m (Term.unhashComponent (fst <$> m))
-        in Map.fromList [ (v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m' ]
+    let component = Reference.members $ Reference.componentFor ref
+        termInfo
+          :: Reference -> F m i v (Maybe (Reference, (Term v Ann, Type v Ann)))
+        termInfo termRef = do
+          tpm <- eval $ LoadTypeOfTerm termRef
+          tp  <- maybe (fail $ "Missing type for term " <> show termRef)
+                       pure
+                       tpm
+          case termRef of
+            Reference.DerivedId id -> do
+              mtm <- eval $ LoadTerm id
+              tm  <- maybe (fail $ "Missing term with id " <> show id) pure mtm
+              pure $ Just (termRef, (tm, tp))
+            _ -> pure Nothing
+        unhash m =
+          let f (_oldTm, oldTyp) (v, newTm) = (v, newTm, oldTyp)
+              m' = Map.intersectionWith f m (Term.unhashComponent (fst <$> m))
+          in  Map.fromList
+                [ (v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m' ]
     unhash . Map.fromList . catMaybes <$> traverse termInfo (toList component)
   unhashTypeComponent
     :: forall m v
@@ -348,7 +334,8 @@ propagate patch b = case validatePatch patch of
                          declm
           pure $ Just (typeRef, decl)
         _ -> pure Nothing
-      unhash = Map.fromList . map reshuffle . Map.toList . Decl.unhashComponent
+      unhash =
+        Map.fromList . map reshuffle . Map.toList . Decl.unhashComponent
         where reshuffle (r, (v, decl)) = (v, (r, decl))
     unhash . Map.fromList . catMaybes <$> traverse typeInfo (toList component)
   verifyTermComponent
@@ -378,8 +365,10 @@ propagate patch b = case validatePatch patch of
               (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)
               mempty
         typecheckResult <- eval $ TypecheckFile file []
-        pure . fmap UF.hashTerms $ runIdentity (
-          Result.toMaybe typecheckResult) >>= hush
+        pure
+          .   fmap UF.hashTerms
+          $   runIdentity (Result.toMaybe typecheckResult)
+          >>= hush
 
 applyDeprecations :: Applicative m => Patch -> Branch0 m -> Branch0 m
 applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
