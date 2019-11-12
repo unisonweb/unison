@@ -113,9 +113,15 @@ propagate patch b = case validatePatch patch of
     eval $ Notify PatchNeedsToBeConflictFree
     pure noEdits
   Just (initialTermEdits, initialTypeEdits) -> do
+    let
+      entireBranch = Set.union
+        (Branch.deepTypeReferences $ Branch.head b)
+        (Set.fromList
+          [ r | Referent.Ref r <- Set.toList . Branch.deepReferents $ Branch.head b ]
+        )
     initialDirty <-
       R.dom <$> computeFrontier (eval . GetDependents) patch names0
-    order <- sortDependentsGraph initialDirty
+    order <- sortDependentsGraph initialDirty entireBranch
     let
       getOrdered :: Set Reference -> Map Int Reference
       getOrdered rs =
@@ -269,9 +275,11 @@ propagate patch b = case validatePatch patch of
       mempty -- things to skip
       (getOrdered initialDirty)
  where
-  sortDependentsGraph :: Set Reference -> _ (Map Reference Int)
-  sortDependentsGraph rs = do
-    closure    <- transitiveClosure (eval . GetDependents) rs
+  sortDependentsGraph :: Set Reference -> Set Reference -> _ (Map Reference Int)
+  sortDependentsGraph dependencies restrictTo = do
+    closure <- transitiveClosure
+      (fmap (Set.intersection restrictTo) . eval . GetDependents)
+      dependencies
     dependents <- traverse (\r -> (r, ) <$> (eval . GetDependents) r)
                            (toList closure)
     let graphEdges = [ (r, r, toList deps) | (r, deps) <- toList dependents ]
