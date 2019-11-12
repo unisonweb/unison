@@ -575,6 +575,13 @@ push = InputPattern
       Right $ Input.PushRemoteBranchI (Just (repo, path)) p
   )
 
+createPullRequest :: InputPattern
+createPullRequest = InputPattern "pr.create" ["request-pull"]
+  [(Required, pathArg), (Required, pathArg)]
+  (P.wrap $ makeExample createPullRequest ["base", "updated"]
+    <> "will generate a request to merge `updated` into `base`.")
+  (Left . fromString . show)
+
 mergeLocal :: InputPattern
 mergeLocal = InputPattern "merge" [] [(Required, pathArg)
                                      ,(Optional, pathArg)]
@@ -932,6 +939,7 @@ validInputs =
   , names
   , push
   , pull
+  , createPullRequest
   , cd
   , deleteBranch
   , renameBranch
