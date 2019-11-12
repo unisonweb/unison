@@ -41,14 +41,17 @@ type ResolutionResult v a r = Either (Seq (ResolutionFailure v a)) r
 -- of that name [[foo.bar.baz], [bar.baz], [baz]]. Insert these suffixes
 -- into a multimap map along with their corresponding refs. Any suffix
 -- which is unique is added as an entry to `ns`.
-suffixify :: Names0 -> Names0
-suffixify ns = ns <> suffixNs 
+suffixify0 :: Names0 -> Names0
+suffixify0 ns = ns <> suffixNs 
   where
   suffixNs = names0 (R.fromList uniqueTerms) (R.fromList uniqueTypes) 
   terms = List.multimap [ (n,ref) | (n0,ref) <- R.toList (terms0 ns), n <- Name.suffixes n0 ]
   types = List.multimap [ (n,ref) | (n0,ref) <- R.toList (types0 ns), n <- Name.suffixes n0 ]
   uniqueTerms = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList terms ]
   uniqueTypes = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList types ]
+
+suffixify :: Names -> Names
+suffixify ns = Names (suffixify0 (currentNames ns)) (oldNames ns)
 
 filterTypes :: (Name -> Bool) -> Names0 -> Names0
 filterTypes = Unison.Names2.filterTypes

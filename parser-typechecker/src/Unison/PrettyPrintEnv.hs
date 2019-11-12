@@ -41,9 +41,7 @@ fromNames len names = PrettyPrintEnv terms' types' where
   shortestName ns = safeHead $ sortOn (length . HQ.toString) (toList ns)
 
 fromSuffixNames :: Int -> Names -> PrettyPrintEnv
-fromSuffixNames len names = fromNames len names' where
-  names' = Names.Names (Names.suffixify (Names.currentNames names))
-                       (Names.oldNames names)
+fromSuffixNames len names = fromNames len (Names.suffixify names)
 
 -- Left-biased union of environments
 unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
