@@ -12,10 +12,9 @@ import Data.Bifunctor (first)
 import Data.List (intercalate, sortOn, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
 import qualified System.Console.Haskeline.Completion as Completion
-import System.Console.Haskeline.Completion (Completion)
+import System.Console.Haskeline.Completion (Completion(Completion))
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input)
-import Unison.Codebase.Editor.RemoteRepo
 import Unison.CommandLine.InputPattern
          ( ArgumentType(..)
          , InputPattern(InputPattern)
@@ -27,6 +26,7 @@ import Unison.ShortHash (ShortHash)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Text.Megaparsec as P
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Path as Path
@@ -39,6 +39,7 @@ import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Editor.SlurpResult as SR
+import qualified Unison.Codebase.Editor.UriParser as UriParser
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -485,49 +486,48 @@ resetRoot = InputPattern "reset-root" [] [(Required, pathArg)]
      pure $ Input.ResetRootI src
     _ -> Left (I.help resetRoot))
 
-
-
 pull :: InputPattern
 pull = InputPattern
   "pull"
   []
   [(Optional, gitUrlArg), (Optional, pathArg)]
-  (P.wrapColumn2
-    [ ( "`pull`"
-      , "pulls the contents of the git url specified by `GitUrl.ns` in "
-      <> ".unisonConfig, where `ns` is the current namespace. "
-      <> "Not allowed for the root namespace."
-      )
-    , ( "`pull url`"
-      , "pulls the contents of the git url `url` into the current namespace."
-      )
-    , ( "`pull url foo.bar`"
-      , "pulls the contents of the git url `url` into `foo.bar` relative "
-        <> "to the current namespace."
-      )
-    , ( "`pull url .foo.bar`"
-      , "pulls the contents of the git url `url` into into the absolute "
-        <> "namespace `.foo.bar`."
-      )
-    , ( "`pull url foo bar`"
-      , "pulls the contents of the git branch or commit named `bar` from the "
-        <> " git url `url` into the namespace `foo`."
-      )
+  (P.lines
+    [ P.wrap
+      "The `pull` command merges a remote namespace into a local namespace."
+    , ""
+    , P.wrapColumn2
+      [ ( "`pull remote local`"
+        , "merges the remote namespace `remote`"
+        <>"into the local namespace `local`."
+        )
+      , ( "`pull remote`"
+        , "merges the remote namespace `remote`"
+        <>"into the current namespace")
+      , ( "`push`"
+        , "merges the remote namespace configured in `.unisonConfig`"
+        <> "with the key `GitUrl.ns` where `ns` is the current namespace,"
+        <> "into the current namespace")
+      ]
+    , ""
+    , P.wrap "where `remote` is a git repository, optionally followed by `:`"
+    <> "and an absolute remote path, such as:"
+    , P.indentN 2 . P.lines $
+      [P.backticked "https://github.com/org/repo"
+      ,P.backticked "https://github.com/org/repo:.some.remote.path"
+      ]
     ]
   )
   (\case
-    []    -> pure $ Input.PullRemoteBranchI Nothing Path.relativeEmpty'
-    [url] -> pure $ Input.PullRemoteBranchI
-      (Just $ GitRepo (Text.pack url) "master")
-      Path.relativeEmpty'
+    []    -> Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty'
+    [url] -> do
+      ns <- first (fromString . show)
+              (P.parse UriParser.repoPath "url" (Text.pack url))
+      Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty'
     [url, path] -> do
+      ns <- first (fromString . show)
+              (P.parse UriParser.repoPath "url" (Text.pack url))
       p <- first fromString $ Path.parsePath' path
-      pure $ Input.PullRemoteBranchI (Just $ GitRepo (Text.pack url) "master") p
-    [url, path, treeish] -> do
-      p <- first fromString $ Path.parsePath' path
-      pure $ Input.PullRemoteBranchI
-        (Just . GitRepo (Text.pack url) $ Text.pack treeish)
-        p
+      pure $ Input.PullRemoteBranchI (Just ns) p
     _ -> Left (I.help pull)
   )
 
@@ -536,43 +536,43 @@ push = InputPattern
   "push"
   []
   [(Optional, gitUrlArg), (Optional, pathArg)]
-  (P.wrapColumn2
-    [ ( "`push`"
-      , "pushes the contents of the current namespaceto the git url specified by "
-        <> "for that namespace."
-      )
-    , ( "`push url`"
-      , "pushes the contents of the current namespace to the git url given by "
-        <> "`url`."
-      )
-    , ( "`push url foo.bar`"
-      , "pushes the contents of `foo.bar` relative to the current namespace "
-        <> "to the git url given by `url`."
-      )
-    , ( "`push url .foo.bar`"
-      , "pushes the contents of the absolute namespace `.foo.bar` "
-        <> "to the git url given by `url`."
-      )
-    , ( "`push url foo bar`"
-      , "pushes the contents of the namespace `foo` "
-        <> "to the git branch `bar` at the git url `url`."
-      )
+  (P.lines
+    [ P.wrap
+      "The `push` command merges a local namespace into a remote namespace."
+    , ""
+    , P.wrapColumn2
+      [ ( "`push remote local`"
+        , "merges the contents of the local namespace `local`"
+          <>  "into the remote namespace `remote`."
+        )
+      , ( "`push remote`"
+        , "publishes the current namespace into the remote namespace `remote`")
+      , ( "`push`"
+        , "publishes the current namespace"
+        <> "into the remote namespace configured in `.unisonConfig`"
+        <> "with the key `GitUrl.ns` where `ns` is the current namespace")
+      ]
+    , ""
+    , P.wrap "where `remote` is a git repository, optionally followed by `:`"
+    <> "and an absolute remote path, such as:"
+    , P.indentN 2 . P.lines $
+      [P.backticked "https://github.com/org/repo"
+      ,P.backticked "https://github.com/org/repo:.some.remote.path"
+      ]
     ]
   )
   (\case
-    []    -> pure $ Input.PushRemoteBranchI Nothing Path.relativeEmpty'
-    [url] -> first fromString . pure $ Input.PushRemoteBranchI
-      (Just $ GitRepo (Text.pack url) "master")
-      Path.relativeEmpty'
-    [url, path] -> first fromString $ do
-      p <- Path.parsePath' path
-      pure $ Input.PushRemoteBranchI (Just $ GitRepo (Text.pack url) "master") p
-    [url, path, treeish] -> first fromString $ do
-      p <- Path.parsePath' path
-      pure $ Input.PushRemoteBranchI
-        (Just . GitRepo (Text.pack url) $ Text.pack treeish)
-        p
-    _ -> Left (I.help push)
+    []    -> Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty'
+    url : rest -> do
+      (repo, sbh, path) <- first (fromString . show)
+        (P.parse UriParser.repoPath "url" (Text.pack url))
+      when (isJust sbh)
+        $ Left "Can't push to a particular remote namespace hash."
+      p <- case rest of 
+        [] -> Right Path.relativeEmpty'
+        [path] -> first fromString $ Path.parsePath' path 
+        _ -> Left (I.help push) 
+      Right $ Input.PushRemoteBranchI (Just (repo, path)) p
   )
 
 mergeLocal :: InputPattern
@@ -1071,8 +1071,17 @@ newNameArg = ArgumentType "new-name" $
 noCompletions :: ArgumentType
 noCompletions = ArgumentType "word" I.noSuggestions
 
+-- Arya: I could imagine completions coming from previous git pulls
 gitUrlArg :: ArgumentType
-gitUrlArg = noCompletions { I.typeName = "git-url" }
+gitUrlArg = ArgumentType "git-url" $ \input _ _ _ -> case input of
+  "gh" -> complete "https://github.com/"
+  "gl" -> complete "https://gitlab.com/"
+  "bb" -> complete "https://bitbucket.com/"
+  "ghs" -> complete "git@github.com:"
+  "gls" -> complete "git@gitlab.com:"
+  "bbs" -> complete "git@bitbucket.com:"
+  _ -> pure []
+  where complete s = pure [Completion s s False]
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [ a | (Nothing, a) <- map f as `zip` as ]

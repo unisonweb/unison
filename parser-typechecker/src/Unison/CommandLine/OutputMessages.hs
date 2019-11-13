@@ -107,6 +107,7 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Util.List              as List
+import qualified Unison.Util.Monoid            as Monoid
 import Data.Tuple (swap)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
@@ -447,8 +448,8 @@ notifyUser dir o = case o of
       <> "Make sure there's a branch or commit with that name."
     PushDestinationHasNewStuff url treeish diff -> P.callout "⏸" . P.lines $ [
       P.wrap $ "The repository at" <> P.blue (P.text url)
-            <> (if Text.null treeish then ""
-                else "at revision" <> P.blue (P.text treeish))
+            <> (Monoid.fromMaybe $ treeish <&> \treeish -> 
+                  "at revision" <> P.blue (P.text treeish))
             <> "has some changes I don't know about:",
       "", P.indentN 2 (prettyDiff diff), "",
       P.wrap $ "If you want to " <> push <> "you can do:", "",
@@ -462,13 +463,35 @@ notifyUser dir o = case o of
       pull = case input of
         Input.PushRemoteBranchI Nothing p ->
           P.sep " " [IP.patternName IP.pull, P.shown p ]
-        Input.PushRemoteBranchI (Just r) p -> P.sepNonEmpty " " [
+        Input.PushRemoteBranchI (Just (r, _)) p -> P.sepNonEmpty " " [
           IP.patternName IP.pull,
           P.text (RemoteRepo.url r),
           P.shown p,
-          if RemoteRepo.commit r /= "master" then P.text (RemoteRepo.commit r)
-          else "" ]
+          case RemoteRepo.commit r of 
+            Just s -> P.text s
+            Nothing -> mempty 
+          ]
         _ -> "⁉️ Unison bug - push command expected"
+    NoRemoteNamespaceWithHash url treeish sbh -> P.wrap
+      $ "The repository at" <> P.blue (P.text url)
+      <> (Monoid.fromMaybe $ treeish <&> \treeish ->
+          "at revision" <> P.blue (P.text treeish))
+      <> "doesn't contain a namespace with the hash prefix"
+      <> (P.blue . P.text . SBH.toText) sbh
+    RemoteNamespaceHashAmbiguous url treeish sbh hashes -> P.lines [
+      P.wrap $ "The namespace hash" <> prettySBH sbh
+            <> "at" <> P.blue (P.text url)
+            <> (Monoid.fromMaybe $ treeish <&> \treeish ->
+                "at revision" <> P.blue (P.text treeish))
+            <> "is ambiguous."
+            <> "Did you mean one of these hashes?",
+      "",
+      P.indentN 2 $ P.lines
+        (prettySBH . SBH.fromHash ((Text.length . SBH.toText) sbh * 2)
+          <$> Set.toList hashes),
+      "",
+      P.wrap "Try again with a few more hash characters to disambiguate."
+      ]
     SomeOtherError msg -> P.callout "‼" . P.lines $ [
       P.wrap "I ran into an error:", "",
       P.indentN 2 (P.text msg), "",
@@ -547,6 +570,45 @@ notifyUser dir o = case o of
           )
           <> "Type `help " <> pushPull "push" "pull" pp <>
           "` for more information."
+
+--  | ConfiguredGitUrlParseError PushPull Path' Text String
+  ConfiguredGitUrlParseError pp p url error ->
+    pure . P.fatalCallout . P.lines $
+      [ P.wrap $ "I couldn't understand the url set in .unisonConfig for"
+          <> prettyPath' p <> "."
+      , ""
+      , P.wrap $ "The value I found was" <> (P.backticked . P.blue . P.text) url
+        <> "but I encountered the following error when trying to parse it:"
+      , ""
+      , P.string error
+      , ""
+      , P.wrap $ "Type" <> P.backticked ("help " <> pushPull "push" "pull" pp)
+        <> "for more information."
+      ]
+--  | ConfiguredGitUrlIncludesShortBranchHash ShortBranchHash
+  ConfiguredGitUrlIncludesShortBranchHash pp repo sbh remotePath ->
+    pure . P.lines $
+    [ P.wrap
+    $ "The `GitUrl.` entry in .unisonConfig for the current path has the value"
+    <> (P.group . (<>",") . P.blue . P.text)
+        (RemoteRepo.printNamespace repo (Just sbh) remotePath)
+    <> "which specifies a namespace hash" 
+    <> P.group (P.blue (prettySBH sbh) <> ".")
+    , ""
+    , P.wrap $ 
+      pushPull "I can't push to a specific hash, because it's immutable."
+      ("It's no use for repeated pulls,"
+      <> "because you would just get the same immutable namespace each time.")
+      pp
+    , ""
+    , P.wrap $ "You can use"
+    <> P.backticked (
+        pushPull "push" "pull" pp
+        <> " " 
+        <> P.text (RemoteRepo.printNamespace repo Nothing remotePath))
+    <> "if you want to" <> pushPull "push onto" "pull from" pp
+    <> "the latest."
+    ]
   NoBranchWithHash _ h -> pure . P.callout "😶" $
     P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> pure $ P.wrap "That's not implemented yet. Sorry! 😬"

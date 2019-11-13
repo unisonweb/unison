@@ -43,7 +43,6 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
-
 type Term v a = Term.AnnotatedTerm v a
 
 data Codebase m v a =
@@ -60,6 +59,8 @@ data Codebase m v a =
            , getBranchForHash   :: Branch.Hash -> m (Branch m)
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
+           -- This copies all codebase elements (except _head) from the
+           -- specified FileCodebase path into the current one.
            , syncFromDirectory  :: FilePath -> m ()
            -- This returns the merged branch that results from
            -- merging the input branch with the root branch at the
@@ -72,7 +73,7 @@ data Codebase m v a =
            , watches            :: UF.WatchKind -> m [Reference.Id]
            , getWatch           :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
            , putWatch           :: UF.WatchKind -> Reference.Id -> Term v a -> m ()
-           
+
            , getReflog          :: m [Reflog.Entry]
            , appendReflog       :: Text -> Branch m -> Branch m -> m ()
 
@@ -83,7 +84,7 @@ data Codebase m v a =
            -- number of base58 characters needed to distinguish any two references in the codebase
            , hashLength         :: m Int
            , referencesByPrefix :: Text -> m (Set Reference.Id)
-           
+
            , branchHashLength   :: m Int
            , branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.Hash)
            }
