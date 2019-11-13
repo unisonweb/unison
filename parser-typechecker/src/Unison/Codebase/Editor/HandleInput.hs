@@ -1360,7 +1360,7 @@ loop = do
 doDisplay :: Var v => OutputLocation -> Names -> Referent -> Action' m v ()
 doDisplay outputLoc names r = do
   let tm = Term.fromReferent External r
-  ppe <- prettyPrintEnv names
+  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
   latestFile' <- use latestFile
   let
     loc = case outputLoc of
