@@ -2065,7 +2065,10 @@ parseType :: (Monad m, Var v)
   => Input -> String -> Action' m v (Either (Output v) (Type v Ann))
 parseType input src = do
   -- `show Input` is the name of the "file" being lexed
-  (names, lexed) <- lexedSource (Text.pack $ show input) (Text.pack src)
+  (names0, lexed) <- lexedSource (Text.pack $ show input) (Text.pack src)
+  parseNames <- Names3.suffixify0 <$> basicParseNames0
+  let names = Names3.push (Names3.currentNames names0) 
+                          (Names3.Names parseNames (Names3.oldNames names0)) 
   e <- eval $ ParseType names lexed
   pure $ case e of
     Left err -> Left $ TypeParseError input src err

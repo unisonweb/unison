@@ -13,7 +13,7 @@ x = 1
   
     ⍟ These new definitions are ok to `add`:
     
-      x : builtin.Nat
+      x : Nat
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -24,7 +24,7 @@ x = 1
 
   ⍟ I've added these definitions:
   
-    x : builtin.Nat
+    x : Nat
 
 ```
 ```unison
@@ -39,7 +39,7 @@ y = 2
   
     ⍟ These new definitions are ok to `add`:
     
-      y : builtin.Nat
+      y : Nat
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -50,11 +50,11 @@ y = 2
 
   ⍟ I've added these definitions:
   
-    y : builtin.Nat
+    y : Nat
 
 .> view y
 
-  y : builtin.Nat
+  y : Nat
   y = 2
 
 ```
