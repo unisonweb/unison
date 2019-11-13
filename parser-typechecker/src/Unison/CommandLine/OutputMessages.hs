@@ -1007,7 +1007,7 @@ renderEditConflicts ppe Patch{..} =
       P.oxfordCommas [ termName r | TermEdit.Replace r _ <- es ]
     formatConflict = either formatTypeEdits formatTermEdits
 
-todoOutput :: Var v => PPE.PrettyPrintEnv -> TO.TodoOutput v a -> IO Pretty
+todoOutput :: Var v => PPE.PrettyPrintEnvDecl -> TO.TodoOutput v a -> IO Pretty
 todoOutput ppe todo =
   if noConflicts && noEdits
   then pure $ P.okCallout "No conflicts or edits in progress."
@@ -1016,16 +1016,18 @@ todoOutput ppe todo =
   noConflicts = TO.nameConflicts todo == mempty
              && TO.editConflicts todo == Patch.empty
   noEdits = TO.todoScore todo == 0
+  ppeu = PPE.unsuffixifiedPPE ppe
+  ppes = PPE.suffixifiedPPE ppe
   (frontierTerms, frontierTypes) = TO.todoFrontier todo
   (dirtyTerms, dirtyTypes) = TO.todoFrontierDependents todo
   corruptTerms =
-    [ (PPE.termName ppe (Referent.Ref r), r) | (r, Nothing) <- frontierTerms ]
+    [ (PPE.termName ppeu (Referent.Ref r), r) | (r, Nothing) <- frontierTerms ]
   corruptTypes =
-    [ (PPE.typeName ppe r, r) | (r, MissingThing _) <- frontierTypes ]
+    [ (PPE.typeName ppeu r, r) | (r, MissingThing _) <- frontierTypes ]
   goodTerms ts =
-    [ (PPE.termName ppe (Referent.Ref r), typ) | (r, Just typ) <- ts ]
+    [ (PPE.termName ppeu (Referent.Ref r), typ) | (r, Just typ) <- ts ]
   todoConflicts = if noConflicts then mempty else P.lines . P.nonEmpty $
-    [ renderEditConflicts ppe (TO.editConflicts todo)
+    [ renderEditConflicts ppeu (TO.editConflicts todo)
     , renderNameConflicts conflictedTypeNames conflictedTermNames ]
     where
     -- If a conflict is both an edit and a name conflict, we show it in the edit
@@ -1065,15 +1067,15 @@ todoOutput ppe todo =
               <> "transitive dependent(s) left to upgrade."
               <> "Your edit frontier is the dependents of these definitions:")
       , P.indentN 2 . P.lines $ (
-          (prettyDeclPair ppe <$> toList frontierTypes) ++
-          TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
+          (prettyDeclPair ppeu <$> toList frontierTypes) ++
+          TypePrinter.prettySignatures' ppes (goodTerms frontierTerms)
           )
       , P.wrap "I recommend working on them in the following order:"
       , P.numberedList $
           let unscore (_score,a,b) = (a,b)
-          in (prettyDeclPair ppe . unscore <$> toList dirtyTypes) ++
+          in (prettyDeclPair ppeu . unscore <$> toList dirtyTypes) ++
              TypePrinter.prettySignatures'
-                ppe
+                ppes
                 (goodTerms $ unscore <$> dirtyTerms)
       , formatMissingStuff corruptTerms corruptTypes
       ]

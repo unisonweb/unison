@@ -860,7 +860,7 @@ loop = do
 
       FindShallowI pathArg -> do
         prettyPrintNames0 <- basicPrettyPrintNames0
-        ppe <- prettyPrintEnv $ Names prettyPrintNames0 mempty
+        ppe <- fmap PPE.suffixifiedPPE . prettyPrintEnvDecl $ Names prettyPrintNames0 mempty
         hashLen <- eval CodebaseHashLength
         let pathArgAbs = Path.toAbsolutePath currentPath' pathArg
         b0 <- Branch.head <$> getAt pathArgAbs
@@ -1167,7 +1167,7 @@ loop = do
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
         names <- makePrintNamesFromLabeled' $ Patch.labeledDependencies patch
-        ppe <- prettyPrintEnv names
+        ppe <- prettyPrintEnvDecl names
         branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
         let names0 = Branch.toNames0 (Branch.head branch)
         -- showTodoOutput only needs the local references
@@ -1424,11 +1424,11 @@ propagatePatch inputDescription patch scopePath = do
     let names0 = Branch.toNames0 (Branch.head scope)
     -- this will be different AFTER the update succeeds
     names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-    ppe <- prettyPrintEnv names
+    ppe <- prettyPrintEnvDecl names
     showTodoOutput ppe patch names0
   pure changed
 
-showTodoOutput :: PrettyPrintEnv -> Patch -> Names0 -> Action' m v ()
+showTodoOutput :: PPE.PrettyPrintEnvDecl -> Patch -> Names0 -> Action' m v ()
 showTodoOutput ppe patch names0 = do
   todo <- checkTodo patch names0
   numberedArgs .=
