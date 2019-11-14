@@ -38,6 +38,8 @@ module Unison.Typechecker.Context
   , Suggestion(..)
   , SuggestionMatch(..)
   , isExact
+  , typeErrors
+  , infoNotes
   )
 where
 
@@ -137,6 +139,12 @@ instance Monad (Result v loc) where
 
 btw' :: InfoNote v loc -> Result v loc ()
 btw' note = Success (Seq.singleton note) ()
+
+typeError :: Cause v loc -> Result v loc a
+typeError cause = TypeError (pure $ ErrorNote cause mempty) mempty
+
+compilerBug :: CompilerBug v loc -> Result v loc a
+compilerBug bug = CompilerBug bug mempty mempty
 
 typeErrors :: Result v loc a -> Seq (ErrorNote v loc)
 typeErrors = \case
@@ -616,11 +624,10 @@ shouldPerformAbilityCheck t = do
   pure $ all (/= t) skip
 
 compilerCrash :: CompilerBug v loc -> M v loc a
-compilerCrash bug = liftResult $ CompilerBug bug mempty mempty
+compilerCrash bug = liftResult $ compilerBug bug
 
 failWith :: Cause v loc -> M v loc a
-failWith cause =
-  liftResult $ TypeError (pure $ ErrorNote cause mempty) mempty
+failWith cause = liftResult $ typeError cause
 
 compilerCrashResult :: CompilerBug v loc -> Result v loc a
 compilerCrashResult bug = CompilerBug bug mempty mempty
@@ -1608,7 +1615,7 @@ abilityCheck requested = do
   abilityCheck' (apply ctx <$> ambient >>= Type.flattenEffects)
                 (apply ctx <$> requested' >>= Type.flattenEffects)
 
-verifyDataDeclarations :: (Var v, Ord loc) => DataDeclarations v loc -> M v loc ()
+verifyDataDeclarations :: (Var v, Ord loc) => DataDeclarations v loc -> Result v loc ()
 verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
   let ctors = DD.constructors decl
   forM_ ctors $ \(_ctorName,typ) -> verifyClosed typ id
@@ -1628,25 +1635,25 @@ synthesizeClosed abilities lookupType term0 = let
     Left missingRef ->
       compilerCrashResult (UnknownTermReference missingRef)
     Right term -> run [] datas effects $ do
-      verifyDataDeclarations datas
-      verifyDataDeclarations (DD.toDataDecl <$> effects)
-      verifyClosedTerm term
+      liftResult $  verifyDataDeclarations datas
+                 *> verifyDataDeclarations (DD.toDataDecl <$> effects)
+                 *> verifyClosedTerm term
       synthesizeClosed' abilities term
 
-verifyClosedTerm :: forall v loc . Ord v => Term v loc -> M v loc ()
+verifyClosedTerm :: forall v loc . Ord v => Term v loc -> Result v loc ()
 verifyClosedTerm t = do
   ok1 <- verifyClosed t id
   let freeTypeVars = Map.toList $ Term.freeTypeVarAnnotations t
       reportError (v, locs) = for_ locs $ \loc ->
-        failWith (UnknownSymbol loc (TypeVar.underlying v))
+        typeError (UnknownSymbol loc (TypeVar.underlying v))
   for_ freeTypeVars reportError
-  when (not ok1 || (not . null) freeTypeVars) $ compilerCrash (OtherBug "impossible")
+  when (not ok1 || (not . null) freeTypeVars) $ compilerBug (OtherBug "impossible")
 
-verifyClosed :: (Traversable f, Ord v) => ABT.Term f v a -> (v -> v2) -> M v2 a Bool
+verifyClosed :: (Traversable f, Ord v) => ABT.Term f v a -> (v -> v2) -> Result v2 a Bool
 verifyClosed t toV2 =
   let isBoundIn v t = Set.member v (snd (ABT.annotation t))
       loc t = fst (ABT.annotation t)
-      go t@(ABT.Var' v) | not (isBoundIn v t) = failWith (UnknownSymbol (loc t) $ toV2 v)
+      go t@(ABT.Var' v) | not (isBoundIn v t) = typeError (UnknownSymbol (loc t) $ toV2 v)
       go _ = pure True
   in all id <$> ABT.foreachSubterm go (ABT.annotateBound t)
 
