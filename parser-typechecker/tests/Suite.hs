@@ -27,6 +27,7 @@ import qualified Unison.Test.Util.Bytes as Bytes
 import qualified Unison.Test.Var as Var
 import qualified Unison.Test.Codebase as Codebase
 import qualified Unison.Test.Codebase.FileCodebase as FileCodebase
+import qualified Unison.Test.UriParser as UriParser
 
 test :: Test ()
 test = tests
@@ -51,6 +52,7 @@ test = tests
   , Var.test
   , Codebase.test
   , Typechecker.test
+  , UriParser.test
   , Context.test
  ]
 
