@@ -4,13 +4,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.FileCodebase
-( getRootBranch -- used by Git module
-, codebase1 -- used by Main
-, exists -- used by Main
+( getRootBranch        -- used by Git module
+, branchHashesByPrefix -- used by Git module
+, branchFromFiles      -- used by Git module
+, BranchLoadMode(..)   -- used by Git module
+, codebase1  -- used by Main
+, exists     -- used by Main
 , initialize -- used by Main
+-- todo: where are these used?
 , decodeFileName
 , encodeFileName
 , codebasePath
@@ -158,6 +161,7 @@ getCodebaseOrExit mdir = do
 
   let path = dir </> codebasePath
   let theCodebase = codebase1 V1.formatSymbol formatAnn path
+  Codebase.initializeBuiltinCode theCodebase
   unlessM (exists path) $ do
     PT.putPrettyLn'. P.warnCallout . P.wrap $ errMsg
     exitFailure
@@ -585,6 +589,7 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
           (branchHeadUpdates path)
           (branchFromFiles EmptyIfMissing path)
           dependents
+          -- Just copies all the files from a to-be-supplied path to `path`.
           (copyFromGit path)
           -- This is fine as long as watat doesn't call
           -- syncToDirectory c

@@ -1,3 +1,5 @@
+{-# Language ViewPatterns #-}
+{-# Language PatternSynonyms #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# Language QuasiQuotes #-}
 
@@ -63,7 +65,7 @@ ioHash = R.unsafeId ioReference
 eitherHash = R.unsafeId eitherReference
 ioModeHash = R.unsafeId ioModeReference
 
-ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, filePathReference
+ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, filePathReference, docReference, linkReference
   :: R.Reference
 ioReference = abilityNamed "io.IO"
 bufferModeReference = typeNamed "io.BufferMode"
@@ -79,12 +81,13 @@ handleReference = typeNamed "io.Handle"
 epochTimeReference = typeNamed "io.EpochTime"
 isTestReference = typeNamed "IsTest"
 filePathReference = typeNamed "io.FilePath"
+docReference = typeNamed "Doc"
+linkReference = typeNamed "Link"
 
 isTest :: (R.Reference, R.Reference)
-isTest = (isTestReference, termNamed "links.isTest")
+isTest = (isTestReference, termNamed "metadata.isTest")
 
-eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId, bufferModeLineId, bufferModeBlockId, filePathId
-  :: DD.ConstructorId
+eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId, bufferModeLineId, bufferModeBlockId, filePathId :: DD.ConstructorId
 eitherLeftId = constructorNamed eitherReference "Either.Left"
 eitherRightId = constructorNamed eitherReference "Either.Right"
 someId = constructorNamed optionReference "Optional.Some"
@@ -149,11 +152,19 @@ type Either a b = Left a | Right b
 
 type Optional a = None | Some a
 
+d1 Doc.++ d2 = 
+  use Doc 
+  case (d1,d2) of
+    (Join ds, Join ds2) -> Join (ds Sequence.++ ds2)
+    (Join ds, _) -> Join (ds `Sequence.snoc` d2)
+    (_, Join ds) -> Join (d1 `Sequence.cons` ds)
+    _ -> Join [d1,d2]
+
 -- This is linked to definitions that are considered tests
 unique[e6dca08b40458b03ca1660cfbdaecaa7279b42d18257898b5fd1c34596aac36f] type
   IsTest = IsTest
 
-links.isTest = IsTest.IsTest
+metadata.isTest = IsTest.IsTest
 
 -- Handles are unique identifiers.
 -- The implementation of IO in the runtime will supply Haskell

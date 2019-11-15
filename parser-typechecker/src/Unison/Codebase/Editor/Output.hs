@@ -18,7 +18,7 @@ import Unison.Prelude
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import Unison.Codebase.GitError
-import Unison.Codebase.Path (Path')
+import Unison.Codebase.Path (Path', Path)
 import Unison.Codebase.Patch (Patch)
 import Unison.Name ( Name )
 import Unison.Names2 ( Names )
@@ -40,6 +40,7 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
+import qualified Unison.Util.Pretty as P
 import Unison.Codebase.Editor.DisplayThing (DisplayThing)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.Codebase.Editor.SearchResult' (SearchResult')
@@ -50,6 +51,7 @@ import Unison.Codebase.NameSegment (NameSegment, HQSegment)
 import Unison.ShortHash (ShortHash)
 import Unison.Var (Var)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 
 type Term v a = Term.AnnotatedTerm v a
 type ListDetailed = Bool
@@ -81,7 +83,7 @@ data Output v
   | TypeHasFreeVars Input (Type v Ann)
   | TermAlreadyExists Input Path.Split' (Set Referent)
   | TypeAmbiguous Input Path.HQSplit' (Set Reference)
-  | TermAmbiguous Input Path.HQSplit' (Set Referent)
+  | TermAmbiguous Input (Either Path.HQSplit' HQ.HashQualified) (Set Referent)
   | HashAmbiguous Input ShortHash (Set Referent)
   | BranchHashAmbiguous Input ShortBranchHash (Set ShortBranchHash)
   | BadDestinationBranch Input Path'
@@ -105,6 +107,7 @@ data Output v
               [(Reference, Set HQ'.HashQualified)] -- type match, type names
   -- list of all the definitions within this branch
   | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
+  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified, Reference, Maybe (Type v Ann))]
   | ListShallow PPE.PrettyPrintEnv [ShallowListEntry v Ann]
   | ListOfPatches (Set Name)
   -- show the result of add/update
@@ -119,6 +122,7 @@ data Output v
               [(v, Term v ())]
               (Map v (Ann, UF.WatchKind, Term v (), Runtime.IsCacheHit))
   | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult v) (UF.TypecheckedUnisonFile v Ann)
+  | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
                        PPE.PrettyPrintEnv
@@ -141,6 +145,8 @@ data Output v
   | BranchDiff Names Names
   | GitError Input GitError
   | NoConfiguredGitUrl PushPull Path'
+  | ConfiguredGitUrlParseError PushPull Path' Text String
+  | ConfiguredGitUrlIncludesShortBranchHash PushPull RemoteRepo ShortBranchHash Path
   | DisplayLinks PPE.PrettyPrintEnv Metadata.Metadata
                (Map Reference (DisplayThing (Decl v Ann)))
                (Map Reference (DisplayThing (Term v Ann)))
@@ -157,17 +163,18 @@ data Output v
   | NotImplemented
   | NoBranchWithHash Input ShortBranchHash
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
---  deriving (Show)
+  deriving (Show)
 
 data ReflogEntry =
   ReflogEntry { hash :: ShortBranchHash, reason :: Text }
+  deriving (Show)
 
 data ShallowListEntry v a
   = ShallowTermEntry Referent HQSegment (Maybe (Type v a))
   | ShallowTypeEntry Reference HQSegment
   | ShallowBranchEntry NameSegment Int -- number of child definitions
   | ShallowPatchEntry NameSegment
-  deriving Eq
+  deriving (Eq, Show)
 
 -- requires Var v to derive Eq, which is required by Ord though not by `compare`
 instance Var v => Ord (ShallowListEntry v a) where
@@ -235,6 +242,7 @@ isFailure o = case o of
   DeleteEverythingConfirmation -> False
   DeletedEverything -> False
   ListNames tms tys -> null tms && null tys
+  ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ ds -> null ds
   ListOfPatches s -> Set.null s
   SlurpOutput _ _ sr -> not $ SR.isOk sr
@@ -245,6 +253,7 @@ isFailure o = case o of
   Evaluated{} -> False
   Typechecked{} -> False
   DisplayDefinitions _ _ m1 m2 -> null m1 && null m2
+  DisplayRendered{} -> False
   TodoOutput _ todo -> TO.todoScore todo /= 0
   TestIncrementalOutputStart{} -> False
   TestIncrementalOutputEnd{} -> False
@@ -254,6 +263,8 @@ isFailure o = case o of
   GitError{} -> True
   BustedBuiltins{} -> True
   NoConfiguredGitUrl{} -> True
+  ConfiguredGitUrlParseError{} -> True
+  ConfiguredGitUrlIncludesShortBranchHash{} -> True
   DisplayLinks{} -> False
   LinkFailure{} -> True
   PatchNeedsToBeConflictFree{} -> True

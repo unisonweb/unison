@@ -26,10 +26,11 @@ import Unison.Parser (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
 import Unison.Symbol (Symbol)
-import Unison.CommandLine.Main (asciiartUnison)
+import Unison.CommandLine.Main (asciiartUnison, expandNumber)
 import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified System.IO as IO
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
@@ -114,6 +115,7 @@ run dir stanzas codebase = do
     out                      <- newIORef mempty
     hidden                   <- newIORef False
     allowErrors              <- newIORef False
+    hasErrors                <- newIORef False
     (config, cancelConfig)   <-
       catchIOError (watchConfig $ dir </> ".unisonConfig") $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
@@ -126,7 +128,7 @@ run dir stanzas codebase = do
       output :: String -> IO ()
       output msg = do
         hide <- readIORef hidden
-        when (not hide) $ modifyIORef' out (\acc -> acc <> pure msg)
+        unless hide $ modifyIORef' out (\acc -> acc <> pure msg)
 
       awaitInput = do
         cmd <- atomically (Q.tryDequeue cmdQueue)
@@ -138,13 +140,11 @@ run dir stanzas codebase = do
           Just (Just p@(UcmCommand path lineTxt)) -> do
             curPath <- readIORef pathRef
             numberedArgs <- readIORef numberedArgsRef
-            let expandNumber s = case readMay s of
-                  Just i -> fromMaybe (show i) . atMay numberedArgs $ i - 1
-                  Nothing -> s
-            if (curPath /= path) then do
+            if curPath /= path then do
               atomically $ Q.undequeue cmdQueue (Just p)
               pure $ Right (SwitchBranchI (Path.absoluteToPath' path))
-            else case fmap expandNumber . words . Text.unpack $ lineTxt of
+            else case (>>= expandNumber numberedArgs)
+                       . words . Text.unpack $ lineTxt of
               [] -> awaitInput
               cmd:args -> do
                 output ("\n" <> show p <> "\n")
@@ -156,6 +156,15 @@ run dir stanzas codebase = do
                       awaitInput
                     Right input -> pure $ Right input
           Nothing -> do
+            errOk <- readIORef allowErrors
+            hasErr <- readIORef hasErrors
+            when (errOk && not hasErr) $ do
+              output "\n```\n\n"
+              transcriptFailure out $ Text.unlines [
+                "\128721", "",
+                "Transcript failed due to an unexpected success above.",
+                "Codebase as of the point of failure is in:", "",
+                "  " <> Text.pack dir ]
             writeIORef hidden False
             writeIORef allowErrors False
             maybeStanza <- atomically (Q.tryDequeue inputQueue)
@@ -167,6 +176,7 @@ run dir stanzas codebase = do
               Just (s,idx) -> do
                 putStr $ "\r⚙️   Processing stanza " ++ show idx ++ " of "
                                               ++ show (length stanzas) ++ "."
+                IO.hFlush IO.stdout
                 case s of
                   Unfenced _ -> do
                     output $ show s
@@ -184,7 +194,8 @@ run dir stanzas codebase = do
                   Ucm hide errOk cmds -> do
                     writeIORef hidden hide
                     writeIORef allowErrors errOk
-                    output $ "```ucm"
+                    writeIORef hasErrors False
+                    output "```ucm"
                     traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
                     atomically . Q.enqueue cmdQueue $ Nothing
                     awaitInput
@@ -195,18 +206,13 @@ run dir stanzas codebase = do
         errOk <- readIORef allowErrors
         let rendered = P.toPlain 65 (P.border 2 msg)
         output rendered
+        when (errOk && Output.isFailure o) $ 
+          writeIORef hasErrors True
         when (not errOk && Output.isFailure o) $ do
           output "\n```\n\n"
           transcriptFailure out $ Text.unlines [
             "\128721", "",
             "Transcript failed due to the message above.",
-            "Codebase as of the point of failure is in:", "",
-            "  " <> Text.pack dir ]
-        when (errOk && not (Output.isFailure o)) $ do
-          output "\n```\n\n"
-          transcriptFailure out $ Text.unlines [
-            "\128721", "",
-            "Transcript failed due to an unexpected success above.",
             "Codebase as of the point of failure is in:", "",
             "  " <> Text.pack dir ]
 
@@ -304,9 +310,9 @@ untilFence = do
         txt <- P.takeWhileP (Just "unfenced") (/= '`')
         eof <- P.lookAhead (P.optional P.eof)
         case eof of
-          Just _ -> pure $ foldMap id (acc <> pure txt)
+          Just _ -> pure $ fold (acc <> pure txt)
           Nothing -> go (acc <> pure start <> pure txt)
-      Just _ -> pure $ foldMap id acc
+      Just _ -> pure $ fold acc
 
 word' :: Text -> P Text
 word' txt = P.try $ do
@@ -315,7 +321,7 @@ word' txt = P.try $ do
   pure txt
 
 word :: Text -> P Text
-word txt = word' txt
+word = word'
 
 -- token :: P a -> P a
 -- token p = p <* spaces

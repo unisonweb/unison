@@ -5,6 +5,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Codebase.Editor.HandleCommand where
 
@@ -44,7 +45,9 @@ import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import qualified Unison.Result as Result
-import           Unison.FileParsers             ( parseAndSynthesizeFile )
+import           Unison.FileParsers             ( parseAndSynthesizeFile
+                                                , synthesizeFile'
+                                                )
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.ShortHash              as SH
 import Unison.Type (Type)
@@ -64,13 +67,25 @@ typecheck ambient codebase parsingEnv sourceName src =
     (Text.unpack sourceName)
     (fst src)
 
-tempGitDir :: Text -> Text -> IO FilePath
+typecheck'
+  :: Monad m
+  => Var v
+  => [Type v Ann]
+  -> Codebase m v Ann
+  -> UF.UnisonFile v Ann
+  -> m (TypecheckingResult v)
+typecheck' ambient codebase file = do
+  typeLookup <- (<> B.typeLookup)
+    <$> Codebase.typeLookupForDependencies codebase (UF.dependencies file)
+  pure . fmap Right $ synthesizeFile' ambient typeLookup file
+
+tempGitDir :: Text -> Maybe Text -> IO FilePath
 tempGitDir url commit =
   getXdgDirectory XdgCache
     $   "unisonlanguage"
     </> "gitfiles"
     </> Hash.showBase32Hex url
-    </> Text.unpack commit
+    </> Text.unpack (fromMaybe "HEAD" commit)
 
 commandLine
   :: forall i v a
@@ -99,6 +114,7 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
       namegen <- Parser.uniqueBase58Namegen
       let env = Parser.ParsingEnv namegen names
       typecheck ambient codebase env sourceName source
+    TypecheckFile file ambient     -> typecheck' ambient codebase file
     Evaluate ppe unisonFile        -> evalUnisonFile ppe unisonFile
     Evaluate1 ppe term             -> eval1 ppe term
     LoadLocalRootBranch        -> Codebase.getRootBranch codebase
@@ -117,6 +133,7 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r
     PutTerm r tm tp -> Codebase.putTerm codebase r tm tp
+    PutDecl r decl -> Codebase.putTypeDeclaration codebase r decl
     PutWatch kind r e -> Codebase.putWatch codebase kind r e
     LoadWatches kind rs -> catMaybes <$> traverse go (toList rs) where
       go (Reference.Builtin _) = pure Nothing
@@ -133,6 +150,9 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
       Codebase.referencesByPrefix codebase (SH.toText sh)
     BranchHashLength -> Codebase.branchHashLength codebase
     BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
+    LoadRemoteShortBranch GitRepo{..} sbh -> do
+      tmp <- tempGitDir url commit
+      runExceptT $ Git.pullGitBranch tmp codebase url commit (Just sbh)
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
 
@@ -142,7 +162,7 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
 --      pure $ Branch.append b0 b
     Execute ppe uf -> void $ evalUnisonFile ppe uf
     AppendToReflog reason old new -> Codebase.appendReflog codebase reason old new
-    LoadReflog -> Codebase.getReflog codebase    
+    LoadReflog -> Codebase.getReflog codebase
 
   eval1 :: PPE.PrettyPrintEnv -> Term.AnnotatedTerm v Ann -> _
   eval1 ppe tm = do

@@ -51,11 +51,13 @@ library
     Unison.Codebase.Editor.HandleCommand
     Unison.Codebase.Editor.Input
     Unison.Codebase.Editor.Output
+    Unison.Codebase.Editor.Propagate
     Unison.Codebase.Editor.RemoteRepo
     Unison.Codebase.Editor.SearchResult'
     Unison.Codebase.Editor.SlurpResult
     Unison.Codebase.Editor.SlurpComponent
     Unison.Codebase.Editor.TodoOutput
+    Unison.Codebase.Editor.UriParser
     Unison.Codebase.FileCodebase
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
@@ -75,6 +77,7 @@ library
     Unison.Codebase.TypeEdit
     Unison.Codebase.Watch
     Unison.CommandLine
+    Unison.CommandLine.DisplayValues
     Unison.CommandLine.InputPattern
     Unison.CommandLine.InputPatterns
     Unison.CommandLine.Main
@@ -278,6 +281,7 @@ executable tests
   hs-source-dirs: tests
   other-modules:
     Unison.Test.ABT
+    Unison.Test.Codebase
     Unison.Test.Codebase.Causal
     Unison.Test.Codebase.FileCodebase
     Unison.Test.Codebase.Path
@@ -293,9 +297,11 @@ executable tests
     Unison.Test.TermPrinter
     Unison.Test.Type
     Unison.Test.TypePrinter
+    Unison.Test.Typechecker
     Unison.Test.Typechecker.Components
     Unison.Test.Typechecker.TypeError
     Unison.Test.UnisonSources
+    Unison.Test.UriParser
     Unison.Test.Util.Bytes
     Unison.Test.Var
 

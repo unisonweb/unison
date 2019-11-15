@@ -92,6 +92,7 @@ data Error v
   | UnknownDataConstructor (L.Token HQ.HashQualified) (Set (Reference, Int))
   | UnknownTerm (L.Token HQ.HashQualified) (Set Referent)
   | UnknownType (L.Token HQ.HashQualified) (Set Reference)
+  | UnknownId (L.Token HQ.HashQualified) (Set Referent) (Set Reference)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
   | EmptyWatch
   | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
@@ -441,9 +442,6 @@ chainr1 p op = go1 where
 -- Parse `p` 1+ times, combining with `op`
 chainl1 :: Ord v => P v a -> P v (a -> a -> a) -> P v a
 chainl1 p op = foldl (flip ($)) <$> p <*> P.many (flip <$> op <*> p)
-
-attempt :: Ord v => P v a -> P v a
-attempt = P.try
 
 -- If `p` would succeed, this fails uncommitted.
 -- Otherwise, `failIfOk` used to produce the output
