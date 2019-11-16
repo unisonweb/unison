@@ -25,4 +25,5 @@ install:
 script:
 - stack --no-terminal exec tests
 - stack --no-terminal exec transcripts
-- bash -c '[[ -z $(git status -uno --porcelain) ]]' # look for modified files, e.g. altered transcript output
+- git status-uno --porcelain
+- bash -c '[[ -z $(git status -uno --porcelain) ]]'
