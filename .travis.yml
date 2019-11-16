@@ -25,5 +25,5 @@ install:
 script:
 - stack --no-terminal exec tests
 - stack --no-terminal exec transcripts
-- git status-uno --porcelain
+- git status -uno --porcelain
 - bash -c '[[ -z $(git status -uno --porcelain) ]]'
