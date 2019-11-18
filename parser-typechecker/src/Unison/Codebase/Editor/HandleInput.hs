@@ -1,8 +1,6 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
---{-# OPTIONS_GHC -Wno-unused-imports #-} -- todo: delete
 {-# OPTIONS_GHC -Wno-unused-top-binds #-} -- todo: delete
 {-# OPTIONS_GHC -Wno-unused-local-binds #-} -- todo: delete
---{-# OPTIONS_GHC -Wno-unused-matches #-} -- todo: delete
 
 {-# LANGUAGE ApplicativeDo       #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -54,6 +52,7 @@ import           Unison.Codebase.Branch         ( Branch(..)
                                                 , Branch0(..)
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
+import           Unison.Codebase.BranchLoadMode ( BranchLoadMode(FailIfMissing, EmptyIfMissing) )
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
 import qualified Unison.Codebase.Causal        as Causal
 import qualified Unison.Codebase.Metadata      as Metadata
@@ -1278,7 +1277,7 @@ loop = do
           Left e -> eval . Notify $ e
           Right (repo, Nothing, remotePath) -> do
               -- push from srcb to repo's remotePath
-              eval (LoadRemoteRootBranch repo) >>= \case
+              eval (LoadRemoteRootBranch EmptyIfMissing repo) >>= \case
                 Left e -> eval . Notify $ GitError input e
                 Right remoteRoot -> do
                   newRemoteRoot <- eval . Eval $
@@ -1648,7 +1647,8 @@ searchBranchExact len names queries = let
 respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
--- merges the specified remote branch into the specified local absolute path
+-- Merges the specified remote branch into the specified local absolute path.
+-- Implementation detail of PullRemoteBranchI
 loadRemoteBranchAt
   :: Var v
   => Monad m
@@ -1658,7 +1658,7 @@ loadRemoteBranchAt
   -> Path.Absolute
   -> Action' m v ()
 loadRemoteBranchAt input inputDescription (repo, sbh, remotePath) p = do
-  b <- eval $ maybe (LoadRemoteRootBranch repo)
+  b <- eval $ maybe (LoadRemoteRootBranch FailIfMissing repo)
                     (LoadRemoteShortBranch repo) sbh
   case b of
     Left  e -> eval . Notify $ GitError input e
