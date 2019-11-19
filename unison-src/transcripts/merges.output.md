@@ -244,8 +244,8 @@ master.frobnicate n = n + 1
 
 .> view master.y
 
-  master.y : Text
-  master.y = "updated y"
+  feature2.y : Text
+  feature2.y = "updated y"
 
 .> view master.frobnicate
 
@@ -291,13 +291,13 @@ And notice that `y` has the most recent value, and that `z` and `frobnicate` bot
 ```ucm
 .> view master.y
 
-  master.y : Text
-  master.y = "updated y"
+  feature2.y : Text
+  feature2.y = "updated y"
 
 .> view master.z
 
-  master.z : Nat
-  master.z = 99
+  feature2.z : Nat
+  feature2.z = 99
 
 .> view master.frobnicate
 

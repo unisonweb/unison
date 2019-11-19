@@ -1360,14 +1360,15 @@ loop = do
 doDisplay :: Var v => OutputLocation -> Names -> Referent -> Action' m v ()
 doDisplay outputLoc names r = do
   let tm = Term.fromReferent External r
-  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
+  ppe <- prettyPrintEnvDecl names
   latestFile' <- use latestFile
   let
     loc = case outputLoc of
       ConsoleLocation    -> Nothing
       FileLocation path  -> Just path
       LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
-    evalTerm r = fmap ErrorUtil.hush . eval $ Evaluate1 ppe (Term.ref External r)
+    evalTerm r = fmap ErrorUtil.hush . eval $ 
+      Evaluate1 (PPE.suffixifiedPPE ppe) (Term.ref External r)
     loadTerm (Reference.DerivedId r) = eval $ LoadTerm r
     loadTerm _ = pure Nothing
     loadDecl (Reference.DerivedId r) = eval $ LoadType r

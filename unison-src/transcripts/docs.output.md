@@ -153,14 +153,14 @@ Now that documentation is linked to the definition. We can view it if we like:
   
   ## Examples:
   
-  ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
+  List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
   🔽
-  ex1 = []
+  List.take.ex1 = []
   
   
-  ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
+  List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
   🔽
-  ex2 = [1, 2]
+  List.take.ex2 = [1, 2]
 
 ```
 Or there's also a convenient function, `docs`, which shows the `Doc` values that are linked to a definition. It's implemented in terms of `links` and `display`:
@@ -174,13 +174,13 @@ Or there's also a convenient function, `docs`, which shows the `Doc` values that
   
   ## Examples:
   
-  ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
+  List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
   🔽
-  ex1 = []
+  List.take.ex1 = []
   
   
-  ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
+  List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
   🔽
-  ex2 = [1, 2]
+  List.take.ex2 = [1, 2]
 
 ```

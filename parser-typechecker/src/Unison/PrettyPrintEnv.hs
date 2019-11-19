@@ -11,7 +11,6 @@ import           Unison.Names3                  ( Names )
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
 import           Unison.Util.List               (safeHead)
-import           Data.List                      (sortOn)
 import qualified Data.Map                      as Map
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.Name                   as Name
@@ -39,7 +38,7 @@ fromNames :: Int -> Names -> PrettyPrintEnv
 fromNames len names = PrettyPrintEnv terms' types' where
   terms' r = shortestName . Set.map HQ'.toHQ $ (Names.termName len r names)
   types' r = shortestName . Set.map HQ'.toHQ $ (Names.typeName len r names)
-  shortestName ns = safeHead $ sortOn (length . HQ.toString) (toList ns)
+  shortestName ns = safeHead . traceShowId $ HQ.sortByLength (toList ns)
 
 fromSuffixNames :: Int -> Names -> PrettyPrintEnv
 fromSuffixNames len names = fromNames len (Names.suffixify names)
@@ -51,6 +50,11 @@ fromNamesDecl len names =
 -- A pair of PrettyPrintEnvs:
 --   - suffixifiedPPE uses the shortest unique suffix
 --   - unsuffixifiedPPE uses the shortest full name
+--
+-- Generally, we want declarations LHS (the `x` in `x = 23`) to use the 
+-- unsuffixified names, so the LHS is an accurate description of where in the 
+-- namespace the definition lives. For everywhere else, we can use the
+-- suffixified version.
 data PrettyPrintEnvDecl = PrettyPrintEnvDecl {
   unsuffixifiedPPE :: PrettyPrintEnv,
   suffixifiedPPE :: PrettyPrintEnv
