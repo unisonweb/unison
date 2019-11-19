@@ -4,6 +4,7 @@ module Unison.HashQualified where
 
 import Unison.Prelude hiding (fromString)
 
+import           Data.List                      ( sortOn )
 import           Data.Maybe                     ( fromJust
                                                 )
 import qualified Data.Text                     as Text
@@ -39,6 +40,21 @@ toName = \case
   NameOnly name        -> Just name
   HashQualified name _ -> Just name
   HashOnly _           -> Nothing
+
+-- Sort the list of names by length of segments: smaller number of 
+-- segments is listed first. NameOnly < Hash qualified < Hash only
+--
+-- Examples:
+--   [foo.bar.baz, bar.baz] -> [bar.baz, foo.bar.baz]
+--   [#a29dj2k91, foo.bar.baz] -> [foo.bar.baz, #a29dj2k91]
+--   [foo.bar#abc, foo.bar] -> [foo.bar, foo.bar#abc]
+--   [.foo.bar, foo.bar] -> [foo.bar, .foo.bar]
+sortByLength :: [HashQualified' Name] -> [HashQualified' Name]
+sortByLength hs = sortOn f hs where
+  f (NameOnly n) = (countDots n, 0, Left n)
+  f (HashQualified n _h) = (countDots n, 1, Left n)
+  f (HashOnly h) = (maxBound, 0, Right h)
+  countDots n = Text.count "." (Text.dropEnd 1 (Name.toText n))
 
 hasName, hasHash :: HashQualified -> Bool
 hasName = isJust . toName

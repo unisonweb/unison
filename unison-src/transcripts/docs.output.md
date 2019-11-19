@@ -6,12 +6,12 @@ Unison documentation is written in Unison. Documentation is a value of the follo
 .> view builtin.Doc
 
   unique type builtin.Doc
-    = Link builtin.Link
-    | Source builtin.Link
-    | Blob builtin.Text
+    = Link Link
+    | Source Link
+    | Blob Text
     | Join [builtin.Doc]
-    | Signature builtin.Link.Term
-    | Evaluate builtin.Link.Term
+    | Signature Term
+    | Evaluate Term
 
 ```
 You can create these `Doc` values with ordinary code, or you can use the special syntax. A value of type `Doc` can be created via syntax like:
@@ -36,7 +36,7 @@ Can link to definitions like @List.drop or @List
   
     ⍟ These new definitions are ok to `add`:
     
-      doc1 : builtin.Doc
+      doc1 : Doc
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -69,8 +69,8 @@ List.take.ex2 = take 2 [1,2,3,4,5]
   
     ⍟ These new definitions are ok to `add`:
     
-      List.take.ex1 : [builtin.Nat]
-      List.take.ex2 : [builtin.Nat]
+      List.take.ex1 : [Nat]
+      List.take.ex2 : [Nat]
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -81,8 +81,8 @@ List.take.ex2 = take 2 [1,2,3,4,5]
 
   ⍟ I've added these definitions:
   
-    List.take.ex1 : [builtin.Nat]
-    List.take.ex2 : [builtin.Nat]
+    List.take.ex1 : [Nat]
+    List.take.ex2 : [Nat]
 
 ```
 And now let's write our docs and reference these examples:
@@ -115,7 +115,7 @@ docs.List.take = [:
   
     ⍟ These new definitions are ok to `add`:
     
-      docs.List.take : builtin.Doc
+      docs.List.take : Doc
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -128,7 +128,7 @@ Let's add it to the codebase, and link it to the definition:
 
   ⍟ I've added these definitions:
   
-    docs.List.take : builtin.Doc
+    docs.List.take : Doc
 
 .> link builtin.List.take docs.List.take
 
@@ -140,7 +140,7 @@ Now that documentation is linked to the definition. We can view it if we like:
 ```ucm
 .> links builtin.List.take builtin.Doc
 
-  1. docs.List.take : builtin.Doc
+  1. docs.List.take : Doc
   
   Tip: Try using `display 1` to display the first result or
        `view 1` to view its source.
