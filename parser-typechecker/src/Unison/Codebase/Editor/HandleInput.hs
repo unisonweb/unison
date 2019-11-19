@@ -107,8 +107,8 @@ import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE
-import           Unison.Runtime.IOSource       ( isTest, ioReference )
-import qualified Unison.Runtime.IOSource as IOSource
+import           Unison.Runtime.IOSources.IOSource ( isTest )
+import qualified Unison.Runtime.IOSources.IOSource as IOSource
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
 import           Unison.Util.Monoid (foldMapM)
@@ -1253,7 +1253,7 @@ loop = do
 
       MergeBuiltinsI -> do
           let names0 = Builtin.names0
-                       <> UF.typecheckedToNames0 IOSource.typecheckedFile
+                       <> foldMap UF.typecheckedToNames0 IOSource.ioSourceFiles
           let b0 = BranchUtil.addFromNames0 names0 Branch.empty0
           let srcb = Branch.one b0
           _ <- updateAtM (Path.consAbsolute "builtin" currentPath') $ \destb ->
@@ -2198,15 +2198,16 @@ basicNames0' = do
   pure (parseNames00, prettyPrintNames00)
 
 -- {IO} ()
-ioUnit :: Ord v => a -> Type v a
-ioUnit a = Type.effect a [Type.ref a ioReference] (Type.ref a DD.unitRef)
+ioUnit :: Ord v => a -> IOSource.SourceFile -> Type v a
+ioUnit a src =
+  Type.effect a [Type.ref a $ IOSource.ioReference src] (Type.ref a DD.unitRef)
 
 -- '{IO} ()
-nullaryMain :: Ord v => a -> Type v a
-nullaryMain a = Type.arrow a (Type.ref a DD.unitRef) (ioUnit a)
+nullaryMain :: Ord v => a -> IOSource.SourceFile -> Type v a
+nullaryMain a src = Type.arrow a (Type.ref a DD.unitRef) (ioUnit a src)
 
 mainTypes :: Ord v => a -> [Type v a]
-mainTypes a = [nullaryMain a]
+mainTypes a = nullaryMain a <$> IOSource.ioSourceFiles
 
 -- Given a typechecked file with a main function called `mainName`
 -- of the type `'{IO} ()`, adds an extra binding which
@@ -2226,34 +2227,45 @@ addRunMain mainName Nothing = do
     Just hq -> do
       -- note: not allowing historical search
       let refs = Names3.lookupHQTerm hq (Names3.Names parseNames0 mempty)
-      let a = External
+      let a    = External
       case toList refs of
-        [] -> pure Nothing
+        []                 -> pure Nothing
         [Referent.Ref ref] -> do
           typ <- eval $ LoadTypeOfTerm ref
           case typ of
-            Just typ | Typechecker.isSubtype typ (nullaryMain a) -> do
+            Just typ | any (Typechecker.isSubtype typ) (mainTypes a) -> do
               let runMain = DD.forceTerm a a (Term.ref a ref)
-              let v = Var.named (HQ.toText hq)
-              pure . Just $ UF.typecheckedUnisonFile mempty mempty [[(v, runMain, typ)]] mempty
+              let v       = Var.named (HQ.toText hq)
+              pure . Just $ UF.typecheckedUnisonFile mempty
+                                                     mempty
+                                                     [[(v, runMain, typ)]]
+                                                     mempty
             _ -> pure Nothing
         _ -> pure Nothing
 addRunMain mainName (Just uf) = do
   let components = join $ UF.topLevelComponents uf
-  let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
+  let mainComponent =
+        filter ((\v -> Var.nameStr v == mainName) . view _1) components
   case mainComponent of
-    [(v, tm, ty)] -> pure $ let
-      v2 = Var.freshIn (Set.fromList [v]) v
-      a = ABT.annotation tm
-      in
-      if Typechecker.isSubtype ty (nullaryMain a) then Just $ let
-        runMain = DD.forceTerm a a (Term.var a v)
-        in UF.typecheckedUnisonFile
-             (UF.dataDeclarations' uf)
-             (UF.effectDeclarations' uf)
-             (UF.topLevelComponents' uf <> [[(v2, runMain, nullaryMain a)]])
-             (UF.watchComponents uf)
-      else Nothing
+    [(v, tm, ty)] ->
+      pure
+        $ let
+            v2 = Var.freshIn (Set.fromList [v]) v
+            a  = ABT.annotation tm
+          in
+            if any (Typechecker.isSubtype ty) (mainTypes a)
+              then
+                Just
+                  $ let runMain = DD.forceTerm a a (Term.var a v)
+                    in
+                      UF.typecheckedUnisonFile
+                        (UF.dataDeclarations' uf)
+                        (UF.effectDeclarations' uf)
+                        (  UF.topLevelComponents' uf
+                        <> [(v2, runMain, ) <$> mainTypes a]
+                        )
+                        (UF.watchComponents uf)
+              else Nothing
     _ -> addRunMain mainName Nothing
 
 executePPE

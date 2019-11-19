@@ -115,7 +115,9 @@ library
     Unison.Runtime.IR
     Unison.Runtime.Rt1
     Unison.Runtime.Rt1IO
-    Unison.Runtime.IOSource
+    Unison.Runtime.IOSources.IOSource
+    Unison.Runtime.IOSources.IO1
+    Unison.Runtime.IOSources.IO2
     Unison.Runtime.Vector
     Unison.Runtime.SparseVector
     Unison.Settings

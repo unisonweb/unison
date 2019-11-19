@@ -1,149 +1,27 @@
-{-# Language ViewPatterns #-}
-{-# Language PatternSynonyms #-}
-{-# LANGUAGE OverloadedStrings #-}
+-- This contains the Unison source for the built-in `IO` ability, as well as
+-- a bridge to the `Rt1IO` runtime.
+--
+-- You should not modify this module. Instead, do the following:
+--
+-- 1. Add a new module with your changes. Call it e.g. `IOSourceN.hs` where `N`
+--    is some version number.
+-- 2. Modify `Rt1IO` to support your version in addition to the ones already
+--    supported. The runtime needs to recognise and support every version of
+--    `IO` simultaneously. Support for old versions is crucial so old `IO` code
+--    continues to work.
+-- 3. Also make your changes in `.base.io.IO` in your Unison codebase, and
+--    publish to https://github.com/unisonweb/base. Make sure these changes are
+--    identical by comparing the hashes.
+--
+-- We will improve this process later when the Unison runtime is more than
+-- just a Haskell-hosted interpreter.{-# Language PatternSynonyms #-}
 {-# Language QuasiQuotes #-}
 
-module Unison.Runtime.IOSource where
+module Unison.Runtime.IOSources.IO2 where
 
 import Unison.Prelude
 
-import Control.Lens (view, _1)
-import Control.Monad.Identity (runIdentity, Identity)
-import Data.List (elemIndex, genericIndex)
 import Text.RawString.QQ (r)
-import Unison.Codebase.CodeLookup (CodeLookup(..))
-import Unison.FileParsers (parseAndSynthesizeFile)
-import Unison.Parser (Ann(..))
-import Unison.Symbol (Symbol)
-import qualified Data.Map as Map
-import qualified Unison.Builtin as Builtin
-import qualified Unison.Codebase.CodeLookup as CL
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Parser as Parser
-import qualified Unison.Reference as R
-import qualified Unison.Result as Result
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.UnisonFile as UF
-import qualified Unison.Var as Var
-import qualified Unison.Names3 as Names
-
-typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
-typecheckedFile = let
-  tl :: a -> Identity (TL.TypeLookup Symbol Ann)
-  tl = const $ pure (External <$ Builtin.typeLookup)
-  env = Parser.ParsingEnv mempty (Names.Names Builtin.names0 mempty)
-  r = parseAndSynthesizeFile [] tl env "<IO.u builtin>" source
-  in case runIdentity $ Result.runResultT r of
-    (Nothing, notes) -> error $ "parsing failed: " <> show notes
-    (Just Left{}, notes) -> error $ "typechecking failed" <> show notes
-    (Just (Right file), _) -> file
-
-typecheckedFileTerms :: Map.Map Symbol R.Reference
-typecheckedFileTerms = view _1 <$> UF.hashTerms typecheckedFile
-
-termNamed :: String -> R.Reference
-termNamed s = fromMaybe (error $ "No builtin term called: " <> s)
-  $ Map.lookup (Var.nameds s) typecheckedFileTerms
-
-codeLookup :: CodeLookup Symbol Identity Ann
-codeLookup = CL.fromUnisonFile $ UF.discardTypes typecheckedFile
-
-typeNamed :: String -> R.Reference
-typeNamed s =
-  case Map.lookup (Var.nameds s) (UF.dataDeclarations' typecheckedFile) of
-    Nothing -> error $ "No builtin type called: " <> s
-    Just (r, _) -> r
-
-abilityNamed :: String -> R.Reference
-abilityNamed s =
-  case Map.lookup (Var.nameds s) (UF.effectDeclarations' typecheckedFile) of
-    Nothing -> error $ "No builtin ability called: " <> s
-    Just (r, _) -> r
-
-ioHash, eitherHash, ioModeHash :: R.Id
-ioHash = R.unsafeId ioReference
-eitherHash = R.unsafeId eitherReference
-ioModeHash = R.unsafeId ioModeReference
-
-ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, filePathReference, docReference, linkReference
-  :: R.Reference
-ioReference = abilityNamed "io.IO"
-bufferModeReference = typeNamed "io.BufferMode"
-eitherReference = typeNamed "Either"
-ioModeReference = typeNamed "io.Mode"
-optionReference = typeNamed "Optional"
-errorReference = typeNamed "io.Error"
-errorTypeReference = typeNamed "io.ErrorType"
-seekModeReference = typeNamed "io.SeekMode"
-threadIdReference = typeNamed "io.ThreadId"
-socketReference = typeNamed "io.Socket"
-handleReference = typeNamed "io.Handle"
-epochTimeReference = typeNamed "io.EpochTime"
-isTestReference = typeNamed "IsTest"
-filePathReference = typeNamed "io.FilePath"
-docReference = typeNamed "Doc"
-linkReference = typeNamed "Link"
-
-isTest :: (R.Reference, R.Reference)
-isTest = (isTestReference, termNamed "metadata.isTest")
-
-eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId, bufferModeLineId, bufferModeBlockId, filePathId :: DD.ConstructorId
-eitherLeftId = constructorNamed eitherReference "Either.Left"
-eitherRightId = constructorNamed eitherReference "Either.Right"
-someId = constructorNamed optionReference "Optional.Some"
-noneId = constructorNamed optionReference "Optional.None"
-ioErrorId = constructorNamed errorReference "io.Error.Error"
-handleId = constructorNamed handleReference "io.Handle.Handle"
-socketId = constructorNamed socketReference "io.Socket.Socket"
-threadIdId = constructorNamed threadIdReference "io.ThreadId.ThreadId"
-epochTimeId = constructorNamed epochTimeReference "io.EpochTime.EpochTime"
-bufferModeLineId = constructorNamed bufferModeReference "io.BufferMode.Line"
-bufferModeBlockId = constructorNamed bufferModeReference "io.BufferMode.Block"
-filePathId = constructorNamed filePathReference "io.FilePath.FilePath"
-
-mkErrorType :: Text -> DD.ConstructorId
-mkErrorType = constructorNamed errorTypeReference
-
-alreadyExistsId, noSuchThingId, resourceBusyId, resourceExhaustedId, eofId, illegalOperationId, permissionDeniedId, userErrorId
-  :: DD.ConstructorId
-alreadyExistsId = mkErrorType "io.ErrorType.AlreadyExists"
-noSuchThingId = mkErrorType "io.ErrorType.NoSuchThing"
-resourceBusyId = mkErrorType "io.ErrorType.ResourceBusy"
-resourceExhaustedId = mkErrorType "io.ErrorType.ResourceExhausted"
-eofId = mkErrorType "io.ErrorType.EOF"
-illegalOperationId = mkErrorType "io.ErrorType.IllegalOperation"
-permissionDeniedId = mkErrorType "io.ErrorType.PermissionDenied"
-userErrorId = mkErrorType "io.ErrorType.UserError"
-
-constructorNamed :: R.Reference -> Text -> DD.ConstructorId
-constructorNamed ref name =
-  case runIdentity . getTypeDeclaration codeLookup $ R.unsafeId ref of
-    Nothing ->
-      error
-        $  "There's a bug in the Unison runtime. Couldn't find type "
-        <> show ref
-    Just decl ->
-      fromMaybe
-          (  error
-          $  "Unison runtime bug. The type "
-          <> show ref
-          <> " has no constructor named "
-          <> show name
-          )
-        . elemIndex name
-        . DD.constructorNames
-        $ TL.asDataDecl decl
-
-constructorName :: R.Reference -> DD.ConstructorId -> Text
-constructorName ref cid =
-  case runIdentity . getTypeDeclaration codeLookup $ R.unsafeId ref of
-    Nothing ->
-      error
-        $  "There's a bug in the Unison runtime. Couldn't find type "
-        <> show ref
-    Just decl -> genericIndex (DD.constructorNames $ TL.asDataDecl decl) cid
-
--- .. todo - fill in the rest of these
 
 source :: Text
 source = fromString [r|
@@ -152,8 +30,8 @@ type Either a b = Left a | Right b
 
 type Optional a = None | Some a
 
-d1 Doc.++ d2 = 
-  use Doc 
+d1 Doc.++ d2 =
+  use Doc
   case (d1,d2) of
     (Join ds, Join ds2) -> Join (ds Sequence.++ ds2)
     (Join ds, _) -> Join (ds `Sequence.snoc` d2)
@@ -373,7 +251,8 @@ namespace io where
   --   handle k in c
 
 -- IO Modes from the Haskell API
-type io.Mode = Read | Write | Append | ReadWrite
+unique[e1608ed106d1c8bf8498eb92ab447a99ec7c382e09e6330e222cf8cd0732f8a2] type
+  io.Mode = Read | Write | Append | ReadWrite
 
 -- IO error types from the Haskell API
 unique[bb57f367a3740d4a1608b9e0eee14fd744ec9e368f1529550cb436ef56c0b268] type
@@ -523,3 +402,4 @@ ability io.IO where
   bracket_ : '{io.IO} a -> (a ->{io.IO} b) -> (a ->{io.IO} c) ->{io.IO} (Either io.Error c)
 
 |]
+

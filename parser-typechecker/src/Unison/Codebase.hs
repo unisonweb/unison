@@ -32,7 +32,7 @@ import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Relation          as Rel
 import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
-import qualified Unison.Runtime.IOSource       as IOSource
+import qualified Unison.Runtime.IOSources.IOSource as IOSource
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Codebase.BranchUtil as BranchUtil
 import Unison.DataDeclaration (Decl)
@@ -72,7 +72,7 @@ data Codebase m v a =
            , watches            :: UF.WatchKind -> m [Reference.Id]
            , getWatch           :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
            , putWatch           :: UF.WatchKind -> Reference.Id -> Term v a -> m ()
-           
+
            , getReflog          :: m [Reflog.Entry]
            , appendReflog       :: Text -> Branch m -> Branch m -> m ()
 
@@ -83,24 +83,27 @@ data Codebase m v a =
            -- number of base58 characters needed to distinguish any two references in the codebase
            , hashLength         :: m Int
            , referencesByPrefix :: Text -> m (Set Reference.Id)
-           
+
            , branchHashLength   :: m Int
            , branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.Hash)
            }
 
-bootstrapNames :: Names.Names0 
-bootstrapNames = 
-  Builtin.names0 <> UF.typecheckedToNames0 IOSource.typecheckedFile
+latestIOSourceFile :: UF.TypecheckedUnisonFile Symbol Parser.Ann
+latestIOSourceFile = last IOSource.ioSourceFiles
+
+bootstrapNames :: Names.Names0
+bootstrapNames =
+  Builtin.names0 <> UF.typecheckedToNames0 latestIOSourceFile
 
 -- | Write all of the builtins types and IO types into the codebase. Returns the names of builtins
 -- but DOES NOT add these names to the namespace.
 initializeBuiltinCode :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
 initializeBuiltinCode c = do
-  let uf = (UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
-                                     (Map.fromList Builtin.builtinEffectDecls)
-                                     mempty mempty)
+  let uf = UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
+                                    (Map.fromList Builtin.builtinEffectDecls)
+                                    mempty mempty
   addDefsToCodebase c uf
-  addDefsToCodebase c IOSource.typecheckedFile
+  addDefsToCodebase c latestIOSourceFile
   pure ()
 
 -- | Write all of the builtins types and IO types into the codebase and put their
@@ -224,14 +227,15 @@ makeSelfContained' code uf = do
         v <- ABT.freshenS' _1 (Var.refNamed r)
         _2 %=  Map.insert r v
         pure v
-    assignVars :: [(Reference, b)] -> State (Set v, Map Reference v) [(v, (Reference, b))]
-    assignVars es = traverse (\e@(r, _) -> (,e) <$> refVar r) es
+    assignVars
+      :: [(Reference, b)] -> State (Set v, Map Reference v) [(v, (Reference, b))]
+    assignVars = traverse (\e@(r, _) -> (,e) <$> refVar r)
     unref :: Term v a -> State (Set v, Map Reference v) (Term v a)
     unref = ABT.visit go where
       go t@(Term.Ref' r@(Reference.DerivedId _)) =
         Just (Term.var (ABT.annotation t) <$> refVar r)
       go _ = Nothing
-    unrefb bs = traverse (\(v, tm) -> (v,) <$> unref tm) bs
+    unrefb = traverse $ \(v, tm) -> (v,) <$> unref tm
     pair = liftA2 (,)
     uf' = flip evalState (allVars, Map.empty) $ do
       datas' <- Map.union ds0 . Map.fromList <$> assignVars ds1

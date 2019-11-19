@@ -43,6 +43,7 @@ import           Data.GUID                      ( genText )
 import qualified Data.Map                      as Map
 import qualified Data.Sequence as Seq
 import           Data.Text                     as Text
+import qualified Data.Set                      as Set
 import           Data.Time.Clock.POSIX         as Time
 import qualified Network.Simple.TCP            as Net
 import qualified Network.Socket                as Sock
@@ -92,7 +93,7 @@ import qualified Unison.Term                   as Term
 -- import qualified Unison.Util.Pretty            as Pretty
 -- import           Unison.TermPrinter             ( pretty )
 import           Unison.Codebase.Runtime        ( Runtime(Runtime) )
-import qualified Unison.Runtime.IOSource       as IOSrc
+import qualified Unison.Runtime.IOSources.IOSource as IOSrc
 import qualified Unison.Util.Bytes             as Bytes
 import qualified Unison.Var                    as Var
 import qualified Unison.Util.Pretty as P
@@ -129,21 +130,25 @@ haskellMode mode = case mode of
   "io.Mode.Write"     -> WriteMode
   "io.Mode.Append"    -> AppendMode
   "io.Mode.ReadWrite" -> ReadWriteMode
-  _                  -> error . Text.unpack $ "Unknown IO mode " <> mode
+  _                   -> error . Text.unpack $ "Unknown IO mode " <> mode
 
-newUnisonHandle :: Handle -> UIO RT.Value
-newUnisonHandle h = do
+newUnisonHandle :: Handle -> IOSrc.SourceFile -> UIO RT.Value
+newUnisonHandle h ioSource = do
   t <- liftIO genText
   m <- view ioState
   liftIO . modifyMVar_ m $ pure . over handleMap (Map.insert t h)
-  pure $ IR.Data IOSrc.handleReference IOSrc.handleId [IR.T t]
+  pure $ IR.Data (IOSrc.handleReference ioSource)
+                 (IOSrc.handleId ioSource)
+                 [IR.T t]
 
-newUnisonSocket :: Net.Socket -> UIO RT.Value
-newUnisonSocket s = do
+newUnisonSocket :: Net.Socket -> IOSrc.SourceFile -> UIO RT.Value
+newUnisonSocket s ioSource = do
   t <- liftIO genText
   m <- view ioState
   liftIO . modifyMVar_ m $ pure . over socketMap (Map.insert t s)
-  pure $ IR.Data IOSrc.socketReference IOSrc.socketId [IR.T t]
+  pure $ IR.Data (IOSrc.socketReference ioSource)
+                 (IOSrc.socketId ioSource)
+                 [IR.T t]
 
 deleteUnisonHandle :: Text -> UIO ()
 deleteUnisonHandle h = do
@@ -168,19 +173,22 @@ getHaskellSocket s = do
 getHaskellSocketOrThrow :: Text -> UIO Net.Socket
 getHaskellSocketOrThrow s = getHaskellSocket s >>= maybe throwSocketClosed pure
 
-constructLeft :: RT.Value -> RT.Value
-constructLeft v = IR.Data IOSrc.eitherReference IOSrc.eitherLeftId [v]
+constructLeft :: RT.Value -> IOSrc.SourceFile -> RT.Value
+constructLeft v =
+  IR.Data <$> IOSrc.eitherReference <*> IOSrc.eitherLeftId <*> pure [v]
 
-constructRight :: RT.Value -> RT.Value
-constructRight v = IR.Data IOSrc.eitherReference IOSrc.eitherRightId [v]
+constructRight :: RT.Value -> IOSrc.SourceFile -> RT.Value
+constructRight v =
+  IR.Data <$> IOSrc.eitherReference <*> IOSrc.eitherRightId <*> pure [v]
 
-constructSome :: RT.Value -> RT.Value
-constructSome v = IR.Data IOSrc.optionReference IOSrc.someId [v]
+constructSome :: RT.Value -> IOSrc.SourceFile -> RT.Value
+constructSome v =
+  IR.Data <$> IOSrc.optionReference <*> IOSrc.someId <*> pure [v]
 
-constructNone :: RT.Value
-constructNone = IR.Data IOSrc.optionReference IOSrc.noneId []
+constructNone :: IOSrc.SourceFile -> RT.Value
+constructNone = IR.Data <$> IOSrc.optionReference <*> IOSrc.noneId <*> pure []
 
-convertMaybe :: Maybe RT.Value -> RT.Value
+convertMaybe :: Maybe RT.Value -> IOSrc.SourceFile -> RT.Value
 convertMaybe Nothing  = constructNone
 convertMaybe (Just v) = constructSome v
 
@@ -196,7 +204,7 @@ convertOptional v =
 constructPair :: RT.Value -> RT.Value -> RT.Value
 constructPair a b = IR.Data DD.pairRef 0 [a, b]
 
-convertErrorType :: IOError -> IR.ConstructorId
+convertErrorType :: IOError -> IOSrc.SourceFile -> IR.ConstructorId
 convertErrorType (SysError.ioeGetErrorType -> e)
   | SysError.isAlreadyExistsErrorType e    = IOSrc.alreadyExistsId
   | SysError.isDoesNotExistErrorType e     = IOSrc.noSuchThingId
@@ -223,22 +231,27 @@ haskellBufferMode mode = case mode of
     BlockBuffering (Just $ fromIntegral n)
   _ -> error $ "Unknown buffer mode " <> show mode
 
-unisonBufferMode :: BufferMode -> RT.Value
+unisonBufferMode :: BufferMode -> IOSrc.SourceFile -> RT.Value
 unisonBufferMode mode = case mode of
-  NoBuffering -> constructNone
-  LineBuffering ->
-    constructSome (IR.Data IOSrc.bufferModeReference IOSrc.bufferModeLineId [])
-  BlockBuffering Nothing -> constructSome
-    (IR.Data IOSrc.bufferModeReference IOSrc.bufferModeBlockId [constructNone])
-  BlockBuffering (Just size) -> constructSome
-    (IR.Data IOSrc.bufferModeReference
-             IOSrc.bufferModeBlockId
-             [constructSome . IR.N $ fromIntegral size]
-    )
+  NoBuffering   -> constructNone
+  LineBuffering -> do
+    bmr <- IOSrc.bufferModeReference
+    lid <- IOSrc.bufferModeLineId
+    constructSome (IR.Data bmr lid [])
+  BlockBuffering Nothing -> do
+    bmr <- IOSrc.bufferModeReference
+    bid <- IOSrc.bufferModeBlockId
+    IR.Data bmr bid . pure <$> constructNone
+  BlockBuffering (Just size) -> do
+    bmr <- IOSrc.bufferModeReference
+    bid <- IOSrc.bufferModeBlockId
+    som <- constructSome (IR.N $ fromIntegral size)
+    pure $ IR.Data bmr bid [som]
 
-unisonFilePath :: FilePath -> RT.Value
-unisonFilePath fp =
-  IR.Data IOSrc.filePathReference IOSrc.filePathId [IR.T $ Text.pack fp]
+unisonFilePath :: FilePath -> IOSrc.SourceFile -> RT.Value
+unisonFilePath fp src = IR.Data (IOSrc.filePathReference src)
+                                (IOSrc.filePathId src)
+                                [IR.T $ Text.pack fp]
 
 hostPreference :: [RT.Value] -> Net.HostPreference
 hostPreference []                        = Net.HostAny
@@ -246,11 +259,11 @@ hostPreference [IR.Data _ _ [IR.T host]] = Net.Host $ Text.unpack host
 hostPreference x =
   error $ "Runtime bug! Not a valid host preference: " <> show x
 
-constructIoError :: IOError -> RT.Value
-constructIoError e = IR.Data
-  IOSrc.errorReference
-  IOSrc.ioErrorId
-  [ IR.Data IOSrc.errorTypeReference (convertErrorType e) []
+constructIoError :: IOError -> IOSrc.SourceFile -> RT.Value
+constructIoError e src = IR.Data
+  (IOSrc.errorReference src)
+  (IOSrc.ioErrorId src)
+  [ IR.Data (IOSrc.errorTypeReference src) (convertErrorType e src) []
   , IR.T . Text.pack $ show e
   ]
 
@@ -262,11 +275,19 @@ handleIO'
   -> [RT.Value]
   -> IO RT.Result
 handleIO' cenv s rid cid vs = case rid of
-  R.DerivedId x | x == IOSrc.ioHash -> flip runReaderT s $ do
-    ev <- runExceptT $ handleIO cenv cid vs
-    case ev of
-      Left  e -> pure . RT.RDone . constructLeft $ constructIoError e
-      Right v -> pure . RT.RDone $ constructRight v
+  R.DerivedId x | Set.member x IOSrc.ioHashes -> flip runReaderT s $ case src of
+    Nothing ->
+      fail
+        $  "Runtime bug: I couldn't find the source code for the builtin IO "
+        <> "type with hash "
+        <> show x
+    Just src -> do
+      ev <- runExceptT $ handleIO src cenv rid cid vs
+      case ev of
+        Left e ->
+          pure . RT.RDone . flip constructLeft src $ constructIoError e src
+        Right v -> pure . RT.RDone $ constructRight v src
+    where src = Map.lookup x IOSrc.ioSources
   _ -> RT.RRequest . IR.Req rid cid vs <$> RT.idContinuation
 
 reraiseIO :: IO a -> UIO a
@@ -282,13 +303,19 @@ illegalOperation :: String -> IOError
 illegalOperation msg =
   SysError.mkIOError SysError.illegalOperationErrorType msg Nothing Nothing
 
-handleIO :: RT.CompilationEnv -> IR.ConstructorId -> [RT.Value] -> UIO RT.Value
-handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
+handleIO
+  :: IOSrc.SourceFile
+  -> RT.CompilationEnv
+  -> R.Reference
+  -> IR.ConstructorId
+  -> [RT.Value]
+  -> UIO RT.Value
+handleIO ioSource cenv rid cid = go (IOSrc.constructorName rid cid)
  where
-  go "io.IO.openFile_" [IR.Data _ 0 [IR.T filePath], IR.Data _ mode _] = do
-    let n = IOSrc.constructorName IOSrc.ioModeReference mode
+  go "io.IO.openFile_" [IR.Data _ 0 [IR.T filePath], IR.Data r mode _] = do
+    let n = IOSrc.constructorName r mode
     h <- reraiseIO . openFile (Text.unpack filePath) $ haskellMode n
-    newUnisonHandle h
+    newUnisonHandle h ioSource
   go "io.IO.closeFile_" [IR.Data _ 0 [IR.T handle]] = do
     hh <- getHaskellHandle handle
     reraiseIO $ maybe (pure ()) hClose hh
@@ -318,10 +345,10 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
     hh       <- getHaskellHandleOrThrow handle
     seekable <- reraiseIO $ hIsSeekable hh
     pure $ IR.B seekable
-  go "io.IO.seek_" [IR.Data _ 0 [IR.T handle], IR.Data _ seekMode [], IR.I int]
+  go "io.IO.seek_" [IR.Data _ 0 [IR.T handle], IR.Data r seekMode [], IR.I int]
     = do
       hh <- getHaskellHandleOrThrow handle
-      let mode = IOSrc.constructorName IOSrc.seekModeReference seekMode
+      let mode = IOSrc.constructorName r seekMode
       reraiseIO . hSeek hh (haskellSeekMode mode) $ fromIntegral int
       pure IR.unit
   go "io.IO.position_" [IR.Data _ 0 [IR.T handle]] = do
@@ -331,18 +358,20 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
   go "io.IO.getBuffering_" [IR.Data _ 0 [IR.T handle]] = do
     hh      <- getHaskellHandleOrThrow handle
     bufMode <- reraiseIO $ hGetBuffering hh
-    pure $ unisonBufferMode bufMode
+    pure $ unisonBufferMode bufMode ioSource
   go "io.IO.setBuffering_" [IR.Data _ 0 [IR.T handle], o] = do
     hh <- getHaskellHandleOrThrow handle
     reraiseIO . hSetBuffering hh $ haskellBufferMode o
     pure IR.unit
   go "io.IO.systemTime_" [] = do
     t <- reraiseIO $ fmap round Time.getPOSIXTime
-    pure $ IR.Data IOSrc.epochTimeReference IOSrc.epochTimeId [IR.N t]
+    pure $ IR.Data (IOSrc.epochTimeReference ioSource)
+                   (IOSrc.epochTimeId ioSource)
+                   [IR.N t]
   go "io.IO.getTemporaryDirectory_" [] =
-    reraiseIO $ unisonFilePath <$> getTemporaryDirectory
+    reraiseIO $ flip unisonFilePath ioSource <$> getTemporaryDirectory
   go "io.IO.getCurrentDirectory_" [] =
-    reraiseIO $ unisonFilePath <$> getCurrentDirectory
+    reraiseIO $ flip unisonFilePath ioSource <$> getCurrentDirectory
   go "io.IO.setCurrentDirectory_" [IR.Data _ _ [IR.T dir]] = do
     reraiseIO . setCurrentDirectory $ Text.unpack dir
     pure IR.unit
@@ -350,7 +379,7 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
     reraiseIO
       $   IR.Sequence
       .   Seq.fromList
-      .   fmap unisonFilePath
+      .   fmap (`unisonFilePath` ioSource)
       <$> getDirectoryContents (Text.unpack dir)
   go "io.IO.fileExists_" [IR.Data _ _ [IR.T dir]] =
     reraiseIO $ IR.B <$> doesPathExist (Text.unpack dir)
@@ -374,15 +403,15 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
     pure IR.unit
   go "io.IO.getFileTimestamp_" [IR.Data _ _ [IR.T file]] = do
     t <- reraiseIO $ getModificationTime (Text.unpack file)
-    pure $ IR.Data IOSrc.epochTimeReference
-                   IOSrc.epochTimeId
+    pure $ IR.Data (IOSrc.epochTimeReference ioSource)
+                   (IOSrc.epochTimeId ioSource)
                    [IR.N . round $ Time.utcTimeToPOSIXSeconds t]
   go "io.IO.getFileSize_" [IR.Data _ _ [IR.T file]] =
     reraiseIO $ IR.N . fromIntegral <$> getFileSize (Text.unpack file)
   go "io.IO.serverSocket_" [IR.Data _ _ mayHost, IR.Data _ _ [IR.T port]] = do
     (s, _) <- reraiseIO
       $ Net.bindSock (hostPreference mayHost) (Text.unpack port)
-    newUnisonSocket s
+    newUnisonSocket s ioSource
   go "io.IO.listen_" [IR.Data _ _ [IR.T socket]] = do
     hs <- getHaskellSocketOrThrow socket
     reraiseIO $ Net.listenSock hs 2048
@@ -391,7 +420,7 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
     do
       (s, _) <- reraiseIO . Net.connectSock (Text.unpack host) $ Text.unpack
         port
-      newUnisonSocket s
+      newUnisonSocket s ioSource
   go "io.IO.closeSocket_" [IR.Data _ _ [IR.T socket]] = do
     hs <- getHaskellSocket socket
     reraiseIO $ traverse_ Net.closeSock hs
@@ -399,7 +428,7 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
   go "io.IO.accept_" [IR.Data _ _ [IR.T socket]] = do
     hs   <- getHaskellSocketOrThrow socket
     conn <- reraiseIO $ Sock.accept hs
-    newUnisonSocket $ fst conn
+    newUnisonSocket (fst conn) ioSource
   go "io.IO.send_" [IR.Data _ _ [IR.T socket], IR.Bs bs] = do
     hs <- getHaskellSocketOrThrow socket
     reraiseIO . Net.send hs $ Bytes.toByteString bs
@@ -407,7 +436,7 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
   go "io.IO.receive_" [IR.Data _ _ [IR.T socket], IR.N n] = do
     hs <- getHaskellSocketOrThrow socket
     bs <- reraiseIO . Net.recv hs $ fromIntegral n
-    pure . convertMaybe $ IR.Bs . Bytes.fromByteString <$> bs
+    pure . flip convertMaybe ioSource $ IR.Bs . Bytes.fromByteString <$> bs
   go "io.IO.fork_" [IR.Lam _ _ ir] = do
     s    <- ask
     t    <- liftIO genText
@@ -419,7 +448,9 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
         `finally` modifyMVar_ m (pure . over threadMap (Map.delete t))
     liftIO . modifyMVar_ m $ pure . over threadMap (Map.insert t id)
     liftIO $ putMVar lock ()
-    pure $ IR.Data IOSrc.threadIdReference IOSrc.threadIdId [IR.T t]
+    pure $ IR.Data (IOSrc.threadIdReference ioSource)
+                   (IOSrc.threadIdId ioSource)
+                   [IR.T t]
   go "io.IO.kill_" [IR.Data _ _ [IR.T thread]] = do
     m   <- view ioState
     map <- liftIO $ view threadMap <$> readMVar m
@@ -453,7 +484,12 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
 forceThunk :: RT.CompilationEnv -> S -> RT.IR -> IO RT.Result
 forceThunk cenv s ir = lamToHask cenv s ir IR.unit
 
-lamToHask :: RT.CompilationEnv -> S -> RT.IR -> RT.Value -> IO RT.Result
+lamToHask
+  :: RT.CompilationEnv
+  -> S
+  -> RT.IR
+  -> RT.Value
+  -> IO RT.Result
 lamToHask cenv s ir val = RT.run (handleIO' cenv s) cenv $ task val
   where task x = IR.Let (Var.named "_") (IR.Leaf (IR.Val x)) ir mempty
 
@@ -463,7 +499,7 @@ runtime = Runtime terminate eval
   terminate :: IO ()
   terminate = pure ()
   eval cl' ppe term = do
-    let cl = void (hoist (pure . runIdentity) IOSrc.codeLookup) <> cl'
+    let cl = void (hoist (pure . runIdentity) IOSrc.allCodeLookup) <> cl'
     -- traceM $ Pretty.render 80 (pretty mempty term)
     cenv <- RT.compilationEnv cl term -- in `m`
     mmap <- newMVar $ IOState
