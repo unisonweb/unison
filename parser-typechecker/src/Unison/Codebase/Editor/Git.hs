@@ -126,9 +126,7 @@ clone uri localPath = "git" ["clone", uri, Text.pack localPath]
   `onError` throwError (NoRemoteRepoAt uri)
 
 pull :: MonadError GitError m => MonadIO m => FilePath -> Text -> Maybe Text -> m ()
-pull localPath uri treeish = do
-  gitIn localPath (["fetch", uri] ++ toList treeish)
-    `onError` throwError (NoRemoteRepoAt uri)
+pull localPath _uri treeish = do
   for_ treeish $ \treeish ->
     liftIO $ gitIn localPath ["checkout", treeish]
 

@@ -16,30 +16,48 @@ create_bare_local_repo () {
 }
 
 create_nonbare_local_repo () {
-  git init --bare "$1"
-  git clone "$1" "$1.co"
-  pushd "$1.co"
-  git commit --allow-empty -m"nonbare"
-  git push
-  popd
-  rm -rf "$1.co"
+  if
+    git init --bare "$1" && \
+    git clone "$1" "$1.co" && \
+    pushd "$1.co" && \
+    git commit --allow-empty -m"nonbare" && \
+    git push && \
+    popd && \
+    rm -rf "$1.co"
+  then
+    return 0
+  else
+    echo "couldn't create repo '$1'"
+    return 1
+  fi
 }
 
 delete_local_repo () {
   rm -rf $1
 }
 
-test_nonbare () {
-  if create_nonbare_local_repo "$1"; then
-    if stack exec unison -- transcript `dirname $0`/test-git.md; then
-      delete_local_repo "$1"
-    else
-      echo "transcript failed; I'm preserving repo '$1' for inspection."
-    fi
+# run_transcript <repo-to-cleanup> <transcript-to-run>
+run_transcript_and_delete () {
+  if stack exec unison -- transcript `dirname $0`/"$2"; then
+    delete_local_repo "$1"
   else
-    echo "couldn't create repo '$1'"
+    echo "transcript failed; I'm preserving repo '$1' for inspection."
     exit 1
   fi
 }
 
-test_nonbare "/tmp/test1.git"
+repo="/tmp/test1.git"
+if
+  create_nonbare_local_repo "$repo" && \
+  run_transcript_and_delete "$repo" "test-git.md"
+then
+  echo "non-bare test passed"
+fi
+
+
+if
+  create_bare_local_repo "$repo" && \
+  run_transcript_and_delete "$repo" "test-git.md"
+then
+  echo "bare test passed"
+fi
