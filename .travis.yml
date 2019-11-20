@@ -23,9 +23,12 @@ install:
 - stack --no-terminal build
 
 script:
-- echo -en 'travis_fold:start:tests\\r'
-- stack --no-terminal exec tests
-- echo -en 'travis_fold:end:tests\\r'
-- echo -en 'travis_fold:start:transcripts\\r'
-- stack --no-terminal exec transcripts
-- echo -en 'travis_fold:end:transcripts\\r'
+- travis_fold () {
+    name=$1 && \
+    shift && \
+    echo -en "travis_fold:start:$name\r" && \
+    $* && \
+    echo -en "travis_fold:end:$name\r"
+  }
+- travis_fold tests       stack --no-terminal exec tests
+- travis_fold transcripts stack --no-terminal exec transcripts
