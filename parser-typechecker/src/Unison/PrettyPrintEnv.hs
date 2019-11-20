@@ -38,7 +38,7 @@ fromNames :: Int -> Names -> PrettyPrintEnv
 fromNames len names = PrettyPrintEnv terms' types' where
   terms' r = shortestName . Set.map HQ'.toHQ $ (Names.termName len r names)
   types' r = shortestName . Set.map HQ'.toHQ $ (Names.typeName len r names)
-  shortestName ns = safeHead . traceShowId $ HQ.sortByLength (toList ns)
+  shortestName ns = safeHead $ HQ.sortByLength (toList ns)
 
 fromSuffixNames :: Int -> Names -> PrettyPrintEnv
 fromSuffixNames len names = fromNames len (Names.suffixify names)

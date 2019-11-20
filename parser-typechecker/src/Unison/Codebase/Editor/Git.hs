@@ -74,27 +74,30 @@ shallowPullFromGit localPath url gitBranch = do
 pullGitRootBranch
   :: MonadIO m
   => FilePath
+  -> BranchLoadMode
   -> Codebase m v a
   -> Text
   -> Maybe Text
   -> ExceptT GitError m (Branch m)
-pullGitRootBranch localPath codebase url treeish =
-  pullGitBranch localPath codebase url treeish Nothing
+pullGitRootBranch localPath loadMode codebase url treeish =
+  pullGitBranch localPath codebase url treeish (Left loadMode)
 
 -- pull repo & load arbitrary branch
+-- if `loadInfo` is Left, we try to load the root branch;
+-- if Right, we try to load the specified hash
 pullGitBranch
   :: MonadIO m
   => FilePath
   -> Codebase m v a
   -> Text
   -> Maybe Text
-  -> Maybe ShortBranchHash
+  -> Either BranchLoadMode ShortBranchHash
   -> ExceptT GitError m (Branch m)
-pullGitBranch localPath codebase url treeish sbh = do
+pullGitBranch localPath codebase url treeish loadInfo = do
   pullFromGit localPath url treeish
-  branch <- case sbh of
-    Nothing -> lift $ FC.getRootBranch (localPath </> codebasePath)
-    Just sbh -> do
+  branch <- case loadInfo of
+    Left loadMode -> lift $ FC.getRootBranch loadMode gitCodebasePath
+    Right sbh -> do
       branchCompletions <- lift $ FC.branchHashesByPrefix gitCodebasePath sbh
       case toList branchCompletions of
         [] -> throwError $ NoRemoteNamespaceWithHash url treeish sbh
@@ -122,15 +125,8 @@ clone :: MonadError GitError m => MonadIO m => Text -> FilePath -> m ()
 clone uri localPath = "git" ["clone", uri, Text.pack localPath]
   `onError` throwError (NoRemoteRepoAt uri)
 
-shallowClone :: MonadError GitError m => MonadIO m => Text -> FilePath -> m ()
-shallowClone uri localPath =
-  "git" ["clone", "--depth=1", uri, Text.pack localPath]
-    `onError` throwError (NoRemoteRepoAt uri)
-
 pull :: MonadError GitError m => MonadIO m => FilePath -> Text -> Maybe Text -> m ()
-pull localPath uri treeish = do
-  gitIn localPath (["fetch", uri] ++ toList treeish)
-    `onError` throwError (NoRemoteRepoAt uri)
+pull localPath _uri treeish = do
   for_ treeish $ \treeish ->
     liftIO $ gitIn localPath ["checkout", treeish]
 
