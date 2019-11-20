@@ -21,7 +21,5 @@ before_install:
 install:
 - stack ghc -- --version
 - stack --no-terminal build
-
-script:
 - stack --no-terminal exec tests
 - stack --no-terminal exec transcripts
