@@ -23,7 +23,8 @@ install:
 - stack --no-terminal build
 
 script:
-- travis_fold () {
+- |
+  travis_fold () {
     name=$1 && \
     shift && \
     echo -en "travis_fold:start:$name\r" && \
