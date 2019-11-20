@@ -24,7 +24,7 @@ a.foo = 42
   
     ⍟ These new definitions are ok to `add`:
     
-      a.foo : .builtin.Nat
+      a.foo : Nat
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -35,7 +35,7 @@ a.foo = 42
 
   ⍟ I've added these definitions:
   
-    a.foo : .builtin.Nat
+    a.foo : Nat
 
 ```
 We'll fork the namespace `a` into a new namespace `b`, so we can edit the two concurrently.
@@ -73,7 +73,7 @@ foo = 43
     ⍟ These new definitions will replace existing ones of the
       same name and are ok to `update`:
     
-      foo : .builtin.Nat
+      foo : Nat
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -106,7 +106,7 @@ foo = 44
     ⍟ These new definitions will replace existing ones of the
       same name and are ok to `update`:
     
-      foo : .builtin.Nat
+      foo : Nat
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.

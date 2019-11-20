@@ -38,6 +38,7 @@ import           Unison.ShortHash               ( ShortHash )
 import           Unison.Type                    ( Type )
 import           Unison.Codebase.ShortBranchHash
                                                 ( ShortBranchHash )
+import Unison.Codebase.BranchLoadMode (BranchLoadMode)
 
 
 type AmbientAbilities v = [Type v Ann]
@@ -127,7 +128,7 @@ data Command m i v a where
   LoadLocalBranch :: Branch.Hash -> Command m i v (Branch m)
 
   LoadRemoteRootBranch ::
-    RemoteRepo -> Command m i v (Either GitError (Branch m))
+    BranchLoadMode -> RemoteRepo -> Command m i v (Either GitError (Branch m))
   
   -- returns NoRemoteNamespaceWithHash or RemoteNamespaceHashAmbiguous 
   -- if no exact match.

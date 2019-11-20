@@ -40,6 +40,7 @@ library
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase.Branch
+    Unison.Codebase.BranchLoadMode
     Unison.Codebase.BranchUtil
     Unison.Codebase.Causal
     Unison.Codebase.Classes
@@ -290,6 +291,7 @@ executable tests
     Unison.Test.Common
     Unison.Test.DataDeclaration
     Unison.Test.FileParser
+    Unison.Test.Git
     Unison.Test.Lexer
     Unison.Test.Range
     Unison.Test.Referent
@@ -317,10 +319,13 @@ executable tests
     extra,
     filepath,
     filemanip,
+    here,
     lens,
     megaparsec,
     mtl,
     raw-strings-qq,
+    shellmet,
+    temporary,
     text,
     transformers,
     unison-parser-typechecker

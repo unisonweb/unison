@@ -28,6 +28,7 @@ import qualified Unison.Test.Var as Var
 import qualified Unison.Test.Codebase as Codebase
 import qualified Unison.Test.Codebase.FileCodebase as FileCodebase
 import qualified Unison.Test.UriParser as UriParser
+import qualified Unison.Test.Git as Git
 
 test :: Test ()
 test = tests
@@ -54,6 +55,7 @@ test = tests
   , Typechecker.test
   , UriParser.test
   , Context.test
+  , Git.test
  ]
 
 main :: IO ()

@@ -14,7 +14,7 @@ x = 42
   
     ⍟ These new definitions are ok to `add`:
     
-      x : builtin.Nat
+      x : Nat
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -25,7 +25,7 @@ x = 42
 
   ⍟ I've added these definitions:
   
-    x : builtin.Nat
+    x : Nat
 
 ```
 Let's move `x` into a new namespace, `master`:
@@ -63,7 +63,7 @@ y = "hello"
   
     ⍟ These new definitions are ok to `add`:
     
-      y : builtin.Text
+      y : Text
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -76,7 +76,7 @@ y = "hello"
 
   ⍟ I've added these definitions:
   
-    y : .builtin.Text
+    y : Text
 
 .master> merge .feature1
 
@@ -92,7 +92,7 @@ y = "hello"
 
 .master> view y
 
-  y : .builtin.Text
+  y : Text
   y = "hello"
 
 ```
@@ -189,7 +189,7 @@ z = 99
   
     ⍟ These new definitions are ok to `add`:
     
-      z : builtin.Nat
+      z : Nat
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -200,7 +200,7 @@ z = 99
 
   ⍟ I've added these definitions:
   
-    z : .builtin.Nat
+    z : Nat
 
 .feature2> delete.term x
 
@@ -220,8 +220,8 @@ master.frobnicate n = n + 1
   
     ⍟ These new definitions are ok to `add`:
     
-      master.frobnicate : .builtin.Nat -> .builtin.Nat
-      master.y          : .builtin.Text
+      master.frobnicate : Nat -> Nat
+      master.y          : Text
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -244,14 +244,14 @@ master.frobnicate n = n + 1
 
 .> view master.y
 
-  feature2.y : builtin.Text
+  feature2.y : Text
   feature2.y = "updated y"
 
 .> view master.frobnicate
 
-  master.frobnicate : builtin.Nat -> builtin.Nat
+  master.frobnicate : Nat -> Nat
   master.frobnicate n =
-    use builtin.Nat +
+    use Nat +
     n + 1
 
 ```
@@ -291,19 +291,19 @@ And notice that `y` has the most recent value, and that `z` and `frobnicate` bot
 ```ucm
 .> view master.y
 
-  feature2.y : builtin.Text
+  feature2.y : Text
   feature2.y = "updated y"
 
 .> view master.z
 
-  feature2.z : builtin.Nat
+  feature2.z : Nat
   feature2.z = 99
 
 .> view master.frobnicate
 
-  master.frobnicate : builtin.Nat -> builtin.Nat
+  master.frobnicate : Nat -> Nat
   master.frobnicate n =
-    use builtin.Nat +
+    use Nat +
     n + 1
 
 ```
