@@ -40,6 +40,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
+import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -577,10 +578,26 @@ push = InputPattern
 
 createPullRequest :: InputPattern
 createPullRequest = InputPattern "pr.create" ["request-pull"]
-  [(Required, pathArg), (Required, pathArg)]
+  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
   (P.wrap $ makeExample createPullRequest ["base", "updated"]
     <> "will generate a request to merge `updated` into `base`.")
-  (Left . fromString . show)
+  (\case
+    [baseUrl, headUrl] -> first fromString $ do
+      baseRepo <- parseUri "baseUrl" baseUrl
+      headRepo <- parseUri "headUrl" headUrl
+      pure $ Input.CreatePullRequestI baseRepo headRepo Nothing
+    [baseUrl, headUrl, headPath] -> first fromString $ do
+      baseRepo <- parseUri "baseUrl" baseUrl
+      headRepo <- parseUri "headUrl" headUrl
+      src <- Path.parsePath' headPath
+      pure $ Input.CreatePullRequestI baseRepo headRepo (Just src) 
+    _ -> Left (I.help createPullRequest)
+  )
+  
+parseUri :: IsString b => String -> String -> Either b RemoteNamespace
+parseUri label input = 
+  first (fromString . show) 
+    (P.parse UriParser.repoPath label (Text.pack input))
 
 mergeLocal :: InputPattern
 mergeLocal = InputPattern "merge" [] [(Required, pathArg)

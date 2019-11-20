@@ -32,7 +32,7 @@ import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import qualified Unison.Codebase.Editor.SlurpResult as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
-import Unison.Codebase.Editor.RemoteRepo (RemoteRepo, printNamespace)
+import Unison.Codebase.Editor.RemoteRepo (RemoteRepo, printNamespace, RemoteNamespace)
 
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
@@ -121,6 +121,7 @@ import qualified Unison.Codebase.Editor.UriParser as UriParser
 import Data.Tuple.Extra (uncurry3)
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
 import qualified Control.Error.Util as ErrorUtil
+import Unison.Codebase.GitError (GitError)
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
@@ -319,6 +320,7 @@ loop = do
                        (uncurry3 printNamespace) orepo
               <> " "
               <> p' dest
+          CreatePullRequestI{} -> wat
           PushRemoteBranchI{} -> wat
           PreviewMergeLocalBranchI{} -> wat
           SwitchBranchI{} -> wat
@@ -439,6 +441,28 @@ loop = do
           merged <- eval . Eval $ Branch.merge srcb destb
           if merged == destb then respond (NothingTodo input)
           else respond $ ShowDiff input (Branch.namesDiff destb merged)
+
+      CreatePullRequestI baseRepo headRepo Nothing -> do
+        baseBranch <- loadRemoteBranch baseRepo
+        headBranch <- loadRemoteBranch headRepo
+        case (baseBranch, headBranch) of
+          (Left e1, Left e2) -> gitError e1 >> gitError e2
+          (Left e, _) -> gitError e
+          (_, Left e) -> gitError e
+          (Right baseBranch, Right headBranch) -> do
+            merged <- eval . Eval $ Branch.merge baseBranch headBranch
+            if merged == baseBranch then respond (NothingTodo input)
+            else respond $ ShowDiff input (Branch.namesDiff baseBranch merged)
+        where
+        gitError = eval . Notify . GitError input
+
+      CreatePullRequestI _ _ _ -> error "todo"
+--        let [base, head] = Path.toAbsolutePath currentPath' <$> [base0, head0]
+--        baseb <- getAt base
+--        headb <- getAt head
+--        merged <- eval . Eval $ Branch.merge baseb headb
+--        if merged == baseb then respond (NothingTodo input)
+--        else respond $ ShowDiff input (Branch.namesDiff destb merged)
 
       -- move the root to a sub-branch
       MoveBranchI Nothing dest -> do
@@ -1268,7 +1292,7 @@ loop = do
         let destAbs = Path.toAbsolutePath currentPath' path
         resolveConfiguredGitUrl Pull path mayRepo >>= \case
           Left e -> eval . Notify $ e
-          Right ns -> loadRemoteBranchAt input inputDescription ns destAbs
+          Right ns -> loadRemoteBranchInto input inputDescription ns destAbs
 
       PushRemoteBranchI mayRepo path -> do
         let srcAbs = Path.toAbsolutePath currentPath' path
@@ -1311,8 +1335,8 @@ loop = do
       resolveConfiguredGitUrl
         :: PushPull
         -> Path'
-        -> Maybe (RemoteRepo, Maybe ShortBranchHash, Path)
-        -> Action' m v (Either _ (RemoteRepo, Maybe ShortBranchHash, Path))
+        -> Maybe RemoteNamespace
+        -> Action' m v (Either _ RemoteNamespace)
       resolveConfiguredGitUrl pushPull destPath' = \case
         Just ns -> pure $ Right ns
         Nothing -> do
@@ -1649,21 +1673,18 @@ respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
 -- merges the specified remote branch into the specified local absolute path
-loadRemoteBranchAt
+loadRemoteBranchInto
   :: Var v
   => Monad m
   => Input
   -> Text
-  -> (RemoteRepo, Maybe ShortBranchHash, Path)
+  -> RemoteNamespace
   -> Path.Absolute
   -> Action' m v ()
-loadRemoteBranchAt input inputDescription (repo, sbh, remotePath) p = do
-  b <- eval $ maybe (LoadRemoteRootBranch repo)
-                    (LoadRemoteShortBranch repo) sbh
-  case b of
+loadRemoteBranchInto input inputDescription ns p = do
+  loadRemoteBranch ns >>= \case
     Left  e -> eval . Notify $ GitError input e
     Right b -> do
-      b <- pure $ Branch.getAt' remotePath b
       changed <- updateAtM inputDescription p (doMerge b)
       when changed $ do
         merged <- getAt p
@@ -1675,6 +1696,13 @@ loadRemoteBranchAt input inputDescription (repo, sbh, remotePath) p = do
     merged <- eval . Eval $ Branch.merge b b0
     respond $ ShowDiff input (Branch.namesDiff b0 merged)
     pure merged
+
+loadRemoteBranch :: RemoteNamespace -> Action' m v (Either GitError (Branch m))
+loadRemoteBranch (repo, sbh, remotePath) = do
+  eroot <-  eval (maybe (LoadRemoteRootBranch repo)
+                        (LoadRemoteShortBranch repo) sbh)
+  pure $ Branch.getAt' remotePath <$> eroot
+
 
 syncRemoteRootBranch
   :: Var v => Monad m => Input -> RemoteRepo -> Branch m -> Action m i v ()

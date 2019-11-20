@@ -11,7 +11,7 @@ import Unison.Prelude
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
-import           Unison.Codebase.Path           ( Path', Path )
+import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.Reference (Reference)
@@ -44,8 +44,9 @@ data Input
     -- merge first causal into destination
     | MergeLocalBranchI Path' Path'
     | PreviewMergeLocalBranchI Path' Path'
-    | PullRemoteBranchI (Maybe (RemoteRepo, Maybe ShortBranchHash, Path)) Path'
-    | PushRemoteBranchI (Maybe (RemoteRepo, Path)) Path'
+    | PullRemoteBranchI (Maybe RemoteNamespace) Path'
+    | PushRemoteBranchI (Maybe RemoteHead) Path'
+    | CreatePullRequestI RemoteNamespace RemoteNamespace (Maybe Path')
     | ResetRootI (Either ShortBranchHash Path')
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
