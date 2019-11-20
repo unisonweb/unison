@@ -25,4 +25,3 @@ install:
 script:
 - stack --no-terminal exec tests
 - stack --no-terminal exec transcripts
-- ./scripts/test-git.bash
