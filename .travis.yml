@@ -25,5 +25,6 @@ install:
 script:
 - stack --no-terminal exec tests
 - stack --no-terminal exec transcripts
-- git status -uno --porcelain # did running transcripts modify any versioned files?
-- bash -c '[[ -z $(git status -uno --porcelain) ]]' # abort if it did
+# fail if running transcripts modified any versioned files
+- x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo $x; false; fi' 
+
