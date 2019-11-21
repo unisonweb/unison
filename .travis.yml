@@ -27,4 +27,3 @@ script:
 - stack --no-terminal exec transcripts
 # fail if running transcripts modified any versioned files
 - x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo $x; false; fi' 
-
