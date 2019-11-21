@@ -293,11 +293,11 @@ loop = do
           DeleteTypeI def -> "delete.type" <> hqs' def
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
           DeletePatchI path -> "delete.patch " <> ps' path
-          ResolveTermI srcH targetH p ->
+          ReplaceTermI srcH targetH p ->
             "resolve.term " <> SH.toText srcH <> " "
                             <> SH.toText targetH <> " "
                             <> opatch p
-          ResolveTypeI srcH targetH p ->
+          ReplaceTypeI srcH targetH p ->
             "resolve.type " <> SH.toText srcH <> " "
                             <> SH.toText targetH <> " "
                             <> opatch p
@@ -965,7 +965,7 @@ loop = do
           BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
-      ResolveTermI from to patchPath -> do
+      ReplaceTermI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
         fromRefs <- eval $ ReferencesByShortHash from
@@ -1010,7 +1010,7 @@ loop = do
           (hashConflicted from .
             Set.map (Referent.Ref . DerivedId))
 
-      ResolveTypeI from to patchPath -> do
+      ReplaceTypeI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
         fromRefs <- eval $ ReferencesByShortHash from

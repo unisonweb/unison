@@ -148,12 +148,14 @@ run dir stanzas codebase = do
               [] -> awaitInput
               cmd:args -> do
                 output ("\n" <> show p <> "\n")
+                -- invalid command is treated as a failure
                 case Map.lookup cmd patternMap of
-                  Nothing -> awaitInput
+                  Nothing -> 
+                    die
                   Just pat -> case IP.parse pat args of
                     Left msg -> do
                       output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
-                      awaitInput
+                      die 
                     Right input -> pure $ Right input
           Nothing -> do
             errOk <- readIORef allowErrors
@@ -208,13 +210,16 @@ run dir stanzas codebase = do
         output rendered
         when (errOk && Output.isFailure o) $ 
           writeIORef hasErrors True
-        when (not errOk && Output.isFailure o) $ do
-          output "\n```\n\n"
-          transcriptFailure out $ Text.unlines [
-            "\128721", "",
-            "Transcript failed due to the message above.",
-            "Codebase as of the point of failure is in:", "",
-            "  " <> Text.pack dir ]
+        when (not errOk && Output.isFailure o) 
+          die
+
+      die = do 
+        output "\n```\n\n"
+        transcriptFailure out $ Text.unlines [
+          "\128721", "",
+          "Transcript failed due to the message above.",
+          "Codebase as of the point of failure is in:", "",
+          "  " <> Text.pack dir ]
 
       loop state = do
         writeIORef pathRef (HandleInput._currentPath state)
