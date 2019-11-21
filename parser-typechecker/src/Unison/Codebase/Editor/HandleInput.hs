@@ -294,11 +294,11 @@ loop = do
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
           DeletePatchI path -> "delete.patch " <> ps' path
           ReplaceTermI srcH targetH p ->
-            "resolve.term " <> SH.toText srcH <> " "
+            "replace.term " <> SH.toText srcH <> " "
                             <> SH.toText targetH <> " "
                             <> opatch p
           ReplaceTypeI srcH targetH p ->
-            "resolve.type " <> SH.toText srcH <> " "
+            "replace.type " <> SH.toText srcH <> " "
                             <> SH.toText targetH <> " "
                             <> opatch p
           ResolveTermNameI path -> "resolve.termName " <> hqs' path
