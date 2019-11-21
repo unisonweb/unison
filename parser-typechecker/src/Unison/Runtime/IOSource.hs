@@ -1,4 +1,3 @@
-{-# Language ViewPatterns #-}
 {-# Language PatternSynonyms #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# Language QuasiQuotes #-}
@@ -152,8 +151,8 @@ type Either a b = Left a | Right b
 
 type Optional a = None | Some a
 
-d1 Doc.++ d2 = 
-  use Doc 
+d1 Doc.++ d2 =
+  use Doc
   case (d1,d2) of
     (Join ds, Join ds2) -> Join (ds Sequence.++ ds2)
     (Join ds, _) -> Join (ds `Sequence.snoc` d2)
@@ -363,6 +362,10 @@ namespace io where
   bracket : '{IO} a -> (a ->{IO} b) -> (a ->{IO} c) -> {IO} c
   bracket acquire release what = rethrow (io.IO.bracket_ acquire release what)
 
+  -- Send any items buffered for output to the Operating system
+  flush : Handle ->{IO} ()
+  flush h = rethrow (io.IO.flush_ h)
+
   -- Run the given computation, and if it throws an error
   -- handle the error with the given handler.
   -- catch : '{IO} a -> (io.Error ->{IO} a) ->{IO} a
@@ -373,7 +376,8 @@ namespace io where
   --   handle k in c
 
 -- IO Modes from the Haskell API
-type io.Mode = Read | Write | Append | ReadWrite
+unique[e1608ed106d1c8bf8498eb92ab447a99ec7c382e09e6330e222cf8cd0732f8a2] type
+  io.Mode = Read | Write | Append | ReadWrite
 
 -- IO error types from the Haskell API
 unique[bb57f367a3740d4a1608b9e0eee14fd744ec9e368f1529550cb436ef56c0b268] type
@@ -448,6 +452,7 @@ ability io.IO where
   -- File buffering
   getBuffering_ : io.Handle -> Either io.Error (Optional io.BufferMode)
   setBuffering_ : io.Handle -> Optional io.BufferMode -> (Either io.Error ())
+  flush_ : io.Handle -> (Either io.Error ())
 
   -- Should we expose mutable arrays for byte buffering?
   -- Inclined to say no, although that sounds a lot like
