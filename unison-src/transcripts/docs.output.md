@@ -189,7 +189,7 @@ Note that if we view the source of the documentation, the various references are
 ```ucm
 .> view docs.List.take
 
-  docs.List.take : builtin.Doc
+  docs.List.take : Doc
   docs.List.take =
     [:
     `@builtin.List.take n xs` returns the first `n` elements of
@@ -198,14 +198,14 @@ Note that if we view the source of the documentation, the various references are
     
     ## Examples:
     
-    @[source] List.take.ex1
+    @[source] ex1
     🔽
-    @[evaluate] List.take.ex1
+    @[evaluate] ex1
     
     
-    @[source] List.take.ex2
+    @[source] ex2
     🔽
-    @[evaluate] List.take.ex2
+    @[evaluate] ex2
     :]
 
 ```
