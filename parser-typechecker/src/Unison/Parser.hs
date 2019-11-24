@@ -240,12 +240,13 @@ rootFile :: Ord v => P v a -> P v a
 rootFile p = p <* P.eof
 
 run' :: Ord v => P v a -> String -> String -> ParsingEnv -> Either (Err v) a
-run' p s name =
+run' p s name env =
   let lex = if debug
             then L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
             else L.lexer name s
       pTraced = traceRemainingTokens "parser receives" *> p
-  in runParserT pTraced name (Input lex)
+      env' = env { names = Names.suffixify (names env) } 
+  in runParserT pTraced name (Input lex) env'
 
 run :: Ord v => P v a -> String -> ParsingEnv -> Either (Err v) a
 run p s = run' p s ""
@@ -442,9 +443,6 @@ chainr1 p op = go1 where
 -- Parse `p` 1+ times, combining with `op`
 chainl1 :: Ord v => P v a -> P v (a -> a -> a) -> P v a
 chainl1 p op = foldl (flip ($)) <$> p <*> P.many (flip <$> op <*> p)
-
-attempt :: Ord v => P v a -> P v a
-attempt = P.try
 
 -- If `p` would succeed, this fails uncommitted.
 -- Otherwise, `failIfOk` used to produce the output

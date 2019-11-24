@@ -11,6 +11,7 @@ module Unison.Name
   , sortNamed
   , stripNamePrefix
   , stripPrefixes
+  , suffixes
   , toString
   , toVar
   , unqualified
@@ -29,7 +30,7 @@ import qualified Unison.Hashable               as H
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import qualified Data.RFC5051                  as RFC5051
-import           Data.List                      ( sortBy )
+import           Data.List                      ( sortBy, tails )
 
 newtype Name = Name { toText :: Text } deriving (Eq, Ord)
 
@@ -103,14 +104,19 @@ parent (Name txt) = case unsnoc (Text.splitOn "." txt) of
   Just ([],_) -> Nothing
   Just (init,_) -> Just $ Name (Text.intercalate "." init)
 
+suffixes :: Name -> [Name]
+suffixes (Name n) = 
+  fmap up . tails . dropWhile (== "") $ Text.splitOn "." n
+  where
+  up ns = Name (Text.intercalate "." ns)
+
 unqualified' :: Text -> Text
 unqualified' = last . Text.splitOn "."
 
 makeAbsolute :: Name -> Name
-makeAbsolute n =
-  if toText n == "." then Name ".."
-  else if Text.isPrefixOf "." (toText n) then n
-  else Name ("." <> toText n)
+makeAbsolute n | toText n == "."                = Name ".."
+               | Text.isPrefixOf "." (toText n) = n
+               | otherwise                      = Name ("." <> toText n)
 
 instance Show Name where
   show = toString

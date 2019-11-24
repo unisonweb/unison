@@ -20,7 +20,7 @@ fooToInt _ = +42
     ⍟ These new definitions are ok to `add`:
     
       unique type Foo
-      fooToInt : Foo -> builtin.Int
+      fooToInt : Foo -> Int
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -36,7 +36,7 @@ And then we add it.
   ⍟ I've added these definitions:
   
     unique type Foo
-    fooToInt : Foo -> .builtin.Int
+    fooToInt : Foo -> Int
 
 .subpath> find.verbose
 
@@ -47,13 +47,13 @@ And then we add it.
      Foo.Foo : Foo
      
   3. -- #o9q6anf4873hbnsaiifh5b46q8fdli18cu8cudu0ti8ort1gm253120uq8ijk24l52ecf62bm1rmq4tgnu7ip8apireh1oq97e042jg
-     fooToInt : Foo -> .builtin.Int
+     fooToInt : Foo -> Int
      
   
 
 .subpath> view fooToInt
 
-  fooToInt : Foo -> .builtin.Int
+  fooToInt : Foo -> Int
   fooToInt _ = +42
 
 ```
@@ -97,7 +97,7 @@ and update the codebase to use the new type `Foo`...
 ```ucm
 .subpath> view fooToInt
 
-  fooToInt : Foo -> .builtin.Int
+  fooToInt : Foo -> Int
   fooToInt _ = +42
 
 ```
@@ -124,8 +124,8 @@ otherTerm y = someTerm y
   
     ⍟ These new definitions are ok to `add`:
     
-      otherTerm : .builtin.Optional baz -> .builtin.Optional baz
-      someTerm  : .builtin.Optional foo -> .builtin.Optional foo
+      otherTerm : Optional baz -> Optional baz
+      someTerm  : Optional foo -> Optional foo
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -140,8 +140,8 @@ Add that to the codebase:
 
   ⍟ I've added these definitions:
   
-    otherTerm : .builtin.Optional baz -> .builtin.Optional baz
-    someTerm  : .builtin.Optional foo -> .builtin.Optional foo
+    otherTerm : Optional baz -> Optional baz
+    someTerm  : Optional foo -> Optional foo
 
 ```
 Let's now edit the dependency:
@@ -162,7 +162,7 @@ someTerm _ = None
     ⍟ These new definitions will replace existing ones of the
       same name and are ok to `update`:
     
-      someTerm : .builtin.Optional x -> .builtin.Optional x
+      someTerm : Optional x -> Optional x
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -188,12 +188,12 @@ type of `otherTerm` should remain the same.
 ```ucm
 .subpath.preserve> view someTerm
 
-  someTerm : .builtin.Optional x -> .builtin.Optional x
-  someTerm _ = .builtin.Optional.None
+  someTerm : Optional x -> Optional x
+  someTerm _ = None
 
 .subpath.preserve> view otherTerm
 
-  otherTerm : .builtin.Optional baz -> .builtin.Optional baz
+  otherTerm : Optional baz -> Optional baz
   otherTerm y = someTerm y
 
 ```
@@ -236,8 +236,8 @@ otherTerm y = someTerm y
   
     ⍟ These new definitions are ok to `add`:
     
-      otherTerm : builtin.Optional baz -> builtin.Optional baz
-      someTerm  : builtin.Optional foo -> builtin.Optional foo
+      otherTerm : Optional baz -> Optional baz
+      someTerm  : Optional foo -> Optional foo
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -252,8 +252,8 @@ We'll make two copies of this namespace.
 
   ⍟ I've added these definitions:
   
-    otherTerm : .builtin.Optional baz -> .builtin.Optional baz
-    someTerm  : .builtin.Optional foo -> .builtin.Optional foo
+    otherTerm : Optional baz -> Optional baz
+    someTerm  : Optional foo -> Optional foo
 
 .subpath> fork one two
 
@@ -277,7 +277,7 @@ someTerm _ = None
   
     ⍟ These new definitions are ok to `add`:
     
-      someTerm : .builtin.Optional x -> .builtin.Optional x
+      someTerm : Optional x -> Optional x
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -302,7 +302,7 @@ The other namespace should be left alone.
 ```ucm
 .subpath.two> view someTerm
 
-  someTerm : .builtin.Optional foo -> .builtin.Optional foo
+  someTerm : Optional foo -> Optional foo
   someTerm x = x
 
 ```

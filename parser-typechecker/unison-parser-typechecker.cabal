@@ -40,6 +40,7 @@ library
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase.Branch
+    Unison.Codebase.BranchLoadMode
     Unison.Codebase.BranchUtil
     Unison.Codebase.Causal
     Unison.Codebase.Classes
@@ -57,6 +58,7 @@ library
     Unison.Codebase.Editor.SlurpResult
     Unison.Codebase.Editor.SlurpComponent
     Unison.Codebase.Editor.TodoOutput
+    Unison.Codebase.Editor.UriParser
     Unison.Codebase.FileCodebase
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
@@ -288,6 +290,7 @@ executable tests
     Unison.Test.Common
     Unison.Test.DataDeclaration
     Unison.Test.FileParser
+    Unison.Test.Git
     Unison.Test.Lexer
     Unison.Test.Range
     Unison.Test.Referent
@@ -296,9 +299,11 @@ executable tests
     Unison.Test.TermPrinter
     Unison.Test.Type
     Unison.Test.TypePrinter
+    Unison.Test.Typechecker
     Unison.Test.Typechecker.Components
     Unison.Test.Typechecker.TypeError
     Unison.Test.UnisonSources
+    Unison.Test.UriParser
     Unison.Test.Util.Bytes
     Unison.Test.Var
 
@@ -312,10 +317,13 @@ executable tests
     extra,
     filepath,
     filemanip,
+    here,
     lens,
     megaparsec,
     mtl,
     raw-strings-qq,
+    shellmet,
+    temporary,
     text,
     transformers,
     unison-parser-typechecker

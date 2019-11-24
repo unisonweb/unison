@@ -6,10 +6,14 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Codebase.FileCodebase
-( getRootBranch -- used by Git module
-, codebase1 -- used by Main
-, exists -- used by Main
+( getRootBranch        -- used by Git module
+, branchHashesByPrefix -- used by Git module
+, branchFromFiles      -- used by Git module
+, BranchLoadMode(..)   -- used by Git module
+, codebase1  -- used by Main
+, exists     -- used by Main
 , initialize -- used by Main
+-- todo: where are these used?
 , decodeFileName
 , encodeFileName
 , codebasePath
@@ -66,6 +70,7 @@ import           Unison.Codebase.Causal         ( Causal
 import qualified Unison.Codebase.Causal        as Causal
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
+import           Unison.Codebase.BranchLoadMode ( BranchLoadMode(FailIfMissing, EmptyIfMissing) )
 import qualified Unison.Codebase.Reflog        as Reflog
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V1
@@ -270,16 +275,10 @@ touchReferentFile id fp = do
 
 -- checks if `path` looks like a unison codebase
 minimalCodebaseStructure :: CodebasePath -> [FilePath]
-minimalCodebaseStructure root =
-  [ termsDir root
-  , typesDir root
-  , branchesDir root
-  , branchHeadDir root
-  , editsDir root
-  ]
+minimalCodebaseStructure root = [ branchHeadDir root ]
 
 -- checks if a minimal codebase structure exists at `path`
-exists :: CodebasePath -> IO Bool
+exists :: MonadIO m => CodebasePath -> m Bool
 exists root =
   and <$> traverse doesDirectoryExist (minimalCodebaseStructure root)
 
@@ -287,14 +286,6 @@ exists root =
 initialize :: CodebasePath -> IO ()
 initialize path =
   traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
-
--- When loading a nonexistent branch, what should happen?
--- Could bomb (`FailIfMissing`) or return the empty branch (`EmptyIfMissing`).
---
--- `EmptyIfMissing` mode is used when attempting to load a user-specified
--- branch. `FailIfMissing` is used when loading the root branch - if the root
--- does not exist, that's a serious problem.
-data BranchLoadMode = FailIfMissing | EmptyIfMissing deriving Eq
 
 branchFromFiles :: MonadIO m => BranchLoadMode -> FilePath -> Branch.Hash -> m (Branch m)
 branchFromFiles loadMode rootDir h@(RawHash h') = do
@@ -320,20 +311,26 @@ branchFromFiles loadMode rootDir h@(RawHash h') = do
           Left  err   -> failWith $ InvalidEditsFile file err
           Right edits -> pure edits
 
-getRootBranch :: MonadIO m => CodebasePath -> m (Branch m)
-getRootBranch root = do
-  unlessM (doesDirectoryExist $ branchHeadDir root)
-          (failWith . NoBranchHead $ branchHeadDir root)
-  liftIO (listDirectory $ branchHeadDir root) >>= \case
-    []       -> failWith . NoBranchHead $ branchHeadDir root
-    [single] -> go single
-    conflict -> traverse go conflict >>= \case
-      x : xs -> foldM Branch.merge x xs
-      []     -> failWith . NoBranchHead $ branchHeadDir root
+-- returns Nothing if `root` has no root branch (in `branchHeadDir root`)
+getRootBranch :: 
+  MonadIO m => BranchLoadMode -> CodebasePath -> m (Branch m)
+getRootBranch loadMode root = do
+  ifM (exists root)
+    (liftIO (listDirectory $ branchHeadDir root) >>= \case
+      []       -> missing
+      [single] -> go single
+      conflict -> traverse go conflict >>= \case
+        x : xs -> foldM Branch.merge x xs
+        []     -> missing
+    ) 
+    missing
  where
   go single = case hashFromString single of
     Nothing -> failWith $ CantParseBranchHead single
     Just h  -> branchFromFiles FailIfMissing root (RawHash h)
+  missing = case loadMode of
+    FailIfMissing -> failWith . NoBranchHead $ branchHeadDir root
+    EmptyIfMissing -> pure $ Branch.empty
 
 putRootBranch :: MonadIO m => CodebasePath -> Branch m -> m ()
 putRootBranch root b = do
@@ -405,6 +402,9 @@ referentToString = Text.unpack . Referent.toText
 copyDir :: (FilePath -> Bool) -> FilePath -> FilePath -> IO ()
 copyDir predicate from to = do
   createDirectoryIfMissing True to
+  -- createDir doesn't create a new directory on disk, 
+  -- it creates a description of an existing directory,
+  -- and it crashes if `from` doesn't exist.
   d <- createDir from
   when (predicate $ dirPath d) $ do
     forM_ (subDirs d)
@@ -414,10 +414,13 @@ copyDir predicate from to = do
       unless exists . copyFile path $ replaceRoot from to path
 
 copyFromGit :: MonadIO m => FilePath -> FilePath -> m ()
-copyFromGit = (liftIO .) . flip
-  (copyDir (\x -> not ((".git" `isSuffixOf` x) || ("_head" `isSuffixOf` x))))
+copyFromGit to from = liftIO . whenM (doesDirectoryExist from) $ 
+  copyDir (\x -> not ((".git" `isSuffixOf` x) || ("_head" `isSuffixOf` x))) 
+          from to
 
-writeAllTermsAndTypes
+-- Create a codebase structure at `localPath` if none exists, and
+-- copy (merge) all codebase elements from the current codebase into it.
+syncToDirectory
   :: forall m v a
    . (MonadUnliftIO m)
   => Var v
@@ -428,8 +431,8 @@ writeAllTermsAndTypes
   -> FilePath
   -> Branch m
   -> m (Branch m)
-writeAllTermsAndTypes fmtV fmtA codebase localPath branch = do
-  b <- doesDirectoryExist localPath
+syncToDirectory fmtV fmtA codebase localPath branch = do
+  b <- (liftIO . exists) localPath
   if b then do
     let code = codebase1 fmtV fmtA localPath
     remoteRoot <- Codebase.getRootBranch code
@@ -580,15 +583,16 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
           getDecl
           (putTerm putV putA path)
           (putDecl putV putA path)
-          (getRootBranch path)
+          (getRootBranch FailIfMissing path)
           (putRootBranch path)
           (branchHeadUpdates path)
           (branchFromFiles EmptyIfMissing path)
           dependents
+          -- Just copies all the files from a to-be-supplied path to `path`.
           (copyFromGit path)
           -- This is fine as long as watat doesn't call
           -- syncToDirectory c
-          (writeAllTermsAndTypes fmtV fmtA c)
+          (syncToDirectory fmtV fmtA c)
           watches
           getWatch
           (putWatch putV putA path)

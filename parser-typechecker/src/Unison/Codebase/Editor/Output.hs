@@ -18,7 +18,7 @@ import Unison.Prelude
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import Unison.Codebase.GitError
-import Unison.Codebase.Path (Path')
+import Unison.Codebase.Path (Path', Path)
 import Unison.Codebase.Patch (Patch)
 import Unison.Name ( Name )
 import Unison.Names2 ( Names )
@@ -51,6 +51,7 @@ import Unison.Codebase.NameSegment (NameSegment, HQSegment)
 import Unison.ShortHash (ShortHash)
 import Unison.Var (Var)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 
 type Term v a = Term.AnnotatedTerm v a
 type ListDetailed = Bool
@@ -124,10 +125,10 @@ data Output v
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
-                       PPE.PrettyPrintEnv
+                       PPE.PrettyPrintEnvDecl
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
-  | TodoOutput PPE.PrettyPrintEnv (TO.TodoOutput v Ann)
+  | TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
   | TestResults TestReportStats
@@ -144,7 +145,9 @@ data Output v
   | BranchDiff Names Names
   | GitError Input GitError
   | NoConfiguredGitUrl PushPull Path'
-  | DisplayLinks PPE.PrettyPrintEnv Metadata.Metadata
+  | ConfiguredGitUrlParseError PushPull Path' Text String
+  | ConfiguredGitUrlIncludesShortBranchHash PushPull RemoteRepo ShortBranchHash Path
+  | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
                (Map Reference (DisplayThing (Decl v Ann)))
                (Map Reference (DisplayThing (Term v Ann)))
   | LinkFailure Input
@@ -260,6 +263,8 @@ isFailure o = case o of
   GitError{} -> True
   BustedBuiltins{} -> True
   NoConfiguredGitUrl{} -> True
+  ConfiguredGitUrlParseError{} -> True
+  ConfiguredGitUrlIncludesShortBranchHash{} -> True
   DisplayLinks{} -> False
   LinkFailure{} -> True
   PatchNeedsToBeConflictFree{} -> True
