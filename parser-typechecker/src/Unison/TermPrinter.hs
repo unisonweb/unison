@@ -190,10 +190,6 @@ pretty0
                                             Just c -> "?\\" ++ [c]
                                             Nothing -> '?': [c]
     Blank'   id -> fmt S.Blank $ l "_" <> l (fromMaybe "" (Blank.nameb id))
-    Constructor' DD.DocRef _ | doc == Maybe -> -- TODO replace with DD.Doc
-      if isDocLiteral term
-      then prettyDoc term
-      else pretty0 n (a {docContext = No}) term
     Constructor' ref i -> styleHashQualified'' (fmt S.Constructor) $
       elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Data)
     Request' ref i -> styleHashQualified'' (fmt S.Request) $
@@ -249,7 +245,11 @@ pretty0
       where bs = PP.lines (map printCase branches)
     t -> l "error: " <> l (show t)
  where
-  specialCases term go = case (term, binaryOpsPred) of
+  specialCases term go = case (term, binaryOpsPred) of 
+    (DD.Doc, _) | doc == Maybe -> 
+      if isDocLiteral term
+      then prettyDoc n im term
+      else pretty0 n (a {docContext = No}) term
     (TupleTerm' [x], _) -> let
       pair = parenIfInfix name ic $ styleHashQualified'' (fmt S.Constructor) name
         where name = elideFQN im $ PrettyPrintEnv.termName n (DD.pairCtorRef) in
@@ -487,16 +487,48 @@ prettyBinding0 env a@(AmbientContext { imports = im, docContext = doc }) v term 
 
 isDocLiteral :: AnnotatedTerm3 v PrintAnnotation -> Bool
 isDocLiteral term = case term of 
-  Constructor' DD.DocRef _ -> True -- TODO
-  _ -> error "todo"
-  -- need to get the App passed into this function, see nonForcePred
-  --DD.DocJoin docs = all isEvaluatedDoc docs
-  -- term and type links, refs, sequence constructors
+  DD.DocJoin segs -> all isDocLiteral segs
+  DD.DocBlob _ -> True
+  DD.DocLink (DD.LinkTerm (TermLink' _)) -> True
+  DD.DocLink (DD.LinkType (TypeLink' _)) -> True
+  DD.DocSource (DD.LinkTerm (TermLink' _)) -> True
+  DD.DocSource (DD.LinkTerm (TypeLink' _)) -> True
+  DD.DocSignature (TermLink' _) -> True
+  DD.DocEvaluate (TermLink' _) -> True
+  Ref' _ -> True  -- @[include]
+  _ -> False
 
-prettyDoc :: AnnotatedTerm3 v PrintAnnotation -> Pretty SyntaxText
-prettyDoc = error "todo"
--- same structure as DisplayValues.displayDoc
-
+-- Similar to DisplayValues.displayDoc, but does not follow and expand references.
+prettyDoc :: Var v => PrettyPrintEnv -> Imports -> AnnotatedTerm3 v a -> Pretty SyntaxText
+prettyDoc n im term = PP.spaced [ fmt S.DocDelimiter $ l "[:"
+                                , go term
+                                , fmt S.DocDelimiter $ l ":]"]
+  where
+  go (DD.DocJoin segs) = foldMap go segs
+  go (DD.DocBlob txt) = PP.paragraphyText (escaped txt) 
+  go (DD.DocLink (DD.LinkTerm (TermLink' r))) = 
+    (fmt S.DocDelimiter $ l "@") <> (fmt S.Reference $ fmtTerm r)
+  go (DD.DocLink (DD.LinkType (TypeLink' r))) = 
+    (fmt S.DocDelimiter $ l "@") <> (fmt S.Reference $ fmtType r)
+  go (DD.DocSource (DD.LinkTerm (TermLink' r))) = 
+    atKeyword "source" <> fmtTerm r
+  go (DD.DocSource (DD.LinkType (TypeLink' r))) = 
+    atKeyword "source" <> fmtType r
+  go (DD.DocSignature (TermLink' r)) = 
+    atKeyword "signature" <> fmtTerm r
+  go (DD.DocEvaluate (TermLink' r)) = 
+    atKeyword "evaluate" <> fmtTerm r
+  go (Ref' r) = atKeyword "include" <> fmtTerm (Referent.Ref r)
+  go _ = l $ "(invalid doc literal: " ++ show term ++ ")"
+  fmtName s = styleHashQualified'' (fmt S.Reference) $ elideFQN im s
+  fmtTerm r = fmtName $ PrettyPrintEnv.termName n r
+  fmtType r = fmtName $ PrettyPrintEnv.typeName n r
+  atKeyword w = 
+    (fmt S.DocDelimiter $ l "@[") <> 
+    (fmt S.DocKeyword $ l w) <> 
+    (fmt S.DocDelimiter $ l "] ") 
+  escaped = Text.replace "@" "\\@"
+    
 paren :: Bool -> Pretty SyntaxText -> Pretty SyntaxText
 paren True  s = PP.group $ ( fmt S.Parenthesis "(" ) <> s <> ( fmt S.Parenthesis ")" )
 paren False s = PP.group s
@@ -743,8 +775,17 @@ dotConcat = Text.concat . (intersperse ".")
 -- Don't do `use () ()` or `use Pair Pair`.  Tuple syntax generates ().() and Pair.Pair
 -- under the covers anyway.  This does mean that if someone is using Pair.Pair directly,
 -- then they'll miss out on FQN elision for that.
+--
+-- Don't do `use builtin.Doc Blob`, `use builtin.Link Term`, or similar.  That avoids 
+-- unnecessary use statements above Doc literals and termLink/typeLink.  
 noImportRefs :: Reference -> Bool
-noImportRefs r = r == DD.pairRef || r == DD.unitRef
+noImportRefs r = 
+  elem r 
+    [ DD.pairRef
+    , DD.unitRef
+    , DD.docRef
+    , DD.linkRef
+    ]
 
 infixl 0 |>
 (|>) :: a -> (a -> b) -> b
@@ -826,12 +867,13 @@ calcImports im tm = (im', render $ getUses result)
     getUses m = Map.elems m |> map (\(p, s, _) -> (p, Set.singleton s))
                             |> Map.fromListWith Set.union
     render :: Map Prefix (Set Suffix) -> [Pretty SyntaxText] -> Pretty SyntaxText
-    render m rest = let uses = Map.mapWithKey (\p ss -> (fmt S.UseKeyword $ l"use ") <>
-                                   (fmt S.UsePrefix (intercalateMap (l".") (l . unpack) p)) <> l" " <>
-                                   (fmt S.UseSuffix (intercalateMap (l" ") (l . unpack) (Set.toList ss)))) m
-                                 |> Map.toList
-                                 |> map snd
-                    in PP.lines (uses ++ rest)
+    render m rest = 
+      let uses = Map.mapWithKey (\p ss -> (fmt S.UseKeyword $ l"use ") <>
+                     (fmt S.UsePrefix (intercalateMap (l".") (l . unpack) p)) <> l" " <>
+                     (fmt S.UseSuffix (intercalateMap (l" ") (l . unpack) (Set.toList ss)))) m
+                   |> Map.toList
+                   |> map snd
+      in PP.lines (uses ++ rest)
 
 -- Given a block term and a name (Prefix, Suffix) of interest, is there a strictly smaller
 -- block term within it, containing all usages of that name?  ABT.find does the heavy lifting.

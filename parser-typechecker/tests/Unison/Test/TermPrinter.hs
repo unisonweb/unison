@@ -377,14 +377,9 @@ test = scope "termprinter" . tests $
                  \  b = ()\n\
                  \  c = (1, 2)\n\
                  \  ()"
-  , pending $ tcBreaks 20 "let\n\ 
-                \  a = [: hi\n\
-                \Lorem ipsum dolor sit amet, consectetur adipiscing \
-                \elit, sed do eiusmod tempor incididunt ut labore et \
-                \dolore magna aliqua. Ut enim ad minim veniam, quis \
-                \nostrud exercitation ullamco laboris nisi ut aliquip:]\n\
-                \  ()" -- TODO, any useful testing possible here?
-                       -- fallback to non-sugar; wrap
+  , tcBreaks 80 "let\n\ 
+                \  a = [: escaped: \\@ :]\n\
+                \  ()"
 
 -- FQN elision tests
   , tcBreaks 12 "if foo then\n\

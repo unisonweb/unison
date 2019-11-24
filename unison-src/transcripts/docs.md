@@ -84,3 +84,9 @@ Or there's also a convenient function, `docs`, which shows the `Doc` values that
 ```ucm
 .> docs builtin.List.take
 ```
+
+Note that if we view the source of the documentation, the various references are *not* expanded.
+
+```ucm
+.> view docs.List.take
+```

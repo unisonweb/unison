@@ -184,3 +184,28 @@ Or there's also a convenient function, `docs`, which shows the `Doc` values that
   List.take.ex2 = [1, 2]
 
 ```
+Note that if we view the source of the documentation, the various references are *not* expanded.
+
+```ucm
+.> view docs.List.take
+
+  docs.List.take : builtin.Doc
+  docs.List.take =
+    [:
+    `@builtin.List.take n xs` returns the first `n` elements of
+    `xs`. (No need to add line breaks manually. The display
+    command will do wrapping of text for you.)
+    
+    ## Examples:
+    
+    @[source] List.take.ex1
+    🔽
+    @[evaluate] List.take.ex1
+    
+    
+    @[source] List.take.ex2
+    🔽
+    @[evaluate] List.take.ex2
+    :]
+
+```
