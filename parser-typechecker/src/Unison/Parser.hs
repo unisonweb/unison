@@ -240,12 +240,13 @@ rootFile :: Ord v => P v a -> P v a
 rootFile p = p <* P.eof
 
 run' :: Ord v => P v a -> String -> String -> ParsingEnv -> Either (Err v) a
-run' p s name =
+run' p s name env =
   let lex = if debug
             then L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
             else L.lexer name s
       pTraced = traceRemainingTokens "parser receives" *> p
-  in runParserT pTraced name (Input lex)
+      env' = env { names = Names.suffixify (names env) } 
+  in runParserT pTraced name (Input lex) env'
 
 run :: Ord v => P v a -> String -> ParsingEnv -> Either (Err v) a
 run p s = run' p s ""

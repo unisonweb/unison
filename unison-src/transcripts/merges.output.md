@@ -14,7 +14,7 @@ x = 42
   
     ⍟ These new definitions are ok to `add`:
     
-      x : builtin.Nat
+      x : Nat
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -25,7 +25,7 @@ x = 42
 
   ⍟ I've added these definitions:
   
-    x : builtin.Nat
+    x : Nat
 
 ```
 Let's move `x` into a new namespace, `master`:
@@ -63,7 +63,7 @@ y = "hello"
   
     ⍟ These new definitions are ok to `add`:
     
-      y : builtin.Text
+      y : Text
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -76,7 +76,7 @@ y = "hello"
 
   ⍟ I've added these definitions:
   
-    y : .builtin.Text
+    y : Text
 
 .master> merge .feature1
 
@@ -92,7 +92,7 @@ y = "hello"
 
 .master> view y
 
-  y : .builtin.Text
+  y : Text
   y = "hello"
 
 ```
@@ -120,13 +120,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #lrd0l1skem
+  ⊙ #qb1es1ffsc
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #ni0r7l9i1p
+  ⊙ #0qp14skcvq
   
     + Adds / updates:
     
@@ -137,29 +137,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #ibeouhoekv
+  ⊙ #o81qo9djak
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #r1l6oehmef
+  ⊙ #hpi3khm1pc
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #1mv4pd90uk
+  ⊙ #hnr66i7ott
   
     + Adds / updates:
     
       x
   
-  This is the start of history. Later versions are listed below.
-  
-  □ #ruf07f2h54
-  
+  □ #ms0tsudte1 (start of history)
 
 ```
 To resurrect an old version of a namespace, you can learn its hash via the `history` command, then use `fork #namespacehash .newname`.
@@ -192,7 +189,7 @@ z = 99
   
     ⍟ These new definitions are ok to `add`:
     
-      z : builtin.Nat
+      z : Nat
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -203,7 +200,7 @@ z = 99
 
   ⍟ I've added these definitions:
   
-    z : .builtin.Nat
+    z : Nat
 
 .feature2> delete.term x
 
@@ -223,8 +220,8 @@ master.frobnicate n = n + 1
   
     ⍟ These new definitions are ok to `add`:
     
-      master.frobnicate : .builtin.Nat -> .builtin.Nat
-      master.y          : .builtin.Text
+      master.frobnicate : Nat -> Nat
+      master.y          : Text
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -247,14 +244,14 @@ master.frobnicate n = n + 1
 
 .> view master.y
 
-  feature2.y : builtin.Text
+  feature2.y : Text
   feature2.y = "updated y"
 
 .> view master.frobnicate
 
-  master.frobnicate : builtin.Nat -> builtin.Nat
+  master.frobnicate : Nat -> Nat
   master.frobnicate n =
-    use builtin.Nat +
+    use Nat +
     n + 1
 
 ```
@@ -294,19 +291,19 @@ And notice that `y` has the most recent value, and that `z` and `frobnicate` bot
 ```ucm
 .> view master.y
 
-  feature2.y : builtin.Text
+  feature2.y : Text
   feature2.y = "updated y"
 
 .> view master.z
 
-  feature2.z : builtin.Nat
+  feature2.z : Nat
   feature2.z = 99
 
 .> view master.frobnicate
 
-  master.frobnicate : builtin.Nat -> builtin.Nat
+  master.frobnicate : Nat -> Nat
   master.frobnicate n =
-    use builtin.Nat +
+    use Nat +
     n + 1
 
 ```
