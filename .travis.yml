@@ -21,7 +21,7 @@ before_install:
 install:
 - stack ghc -- --version
 - stack --no-terminal build
-
-script:
 - stack --no-terminal exec tests
 - stack --no-terminal exec transcripts
+# fail if running transcripts modified any versioned files
+- x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi' 

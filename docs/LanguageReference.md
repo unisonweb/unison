@@ -779,7 +779,7 @@ ability Store v where
   put : v -> ()
 ```
 
-This results in a new ability type constructor `Store` which takes a type argument `v`. It also create two value-level constructors named `get` and `put`. The idea is that `get` provides the ability to "get" a value of type `v` from somewhere, and `put` allows "putting" a value of type `v` somewhere. Where exactly these values of type `v` will be kept depends on the handler.
+This results in a new ability type constructor `Store` which takes a type argument `v`. It also creates two value-level constructors named `get` and `put`. The idea is that `get` provides the ability to "get" a value of type `v` from somewhere, and `put` allows "putting" a value of type `v` somewhere. Where exactly these values of type `v` will be kept depends on the handler.
 
 The `Store` constructors `get` and `put` have the following types:
 

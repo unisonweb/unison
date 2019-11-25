@@ -38,6 +38,8 @@ module Unison.Typechecker.Context
   , Suggestion(..)
   , SuggestionMatch(..)
   , isExact
+  , typeErrors
+  , infoNotes
   )
 where
 
@@ -50,7 +52,6 @@ import           Control.Monad.State            ( get
                                                 , StateT
                                                 , runStateT
                                                 )
-import           Control.Monad.Writer           ( MonadWriter(..) )
 import           Data.Bifunctor                 ( first
                                                 , second
                                                 )
@@ -59,6 +60,10 @@ import           Data.List
 import           Data.List.NonEmpty             ( NonEmpty )
 import qualified Data.Map                      as Map
 import qualified Data.Sequence                 as Seq
+import           Data.Sequence.NonEmpty         ( NonEmptySeq
+                                                , appendSeq
+                                                , nonEmptySeqToSeq
+                                                )
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Unison.ABT                    as ABT
@@ -115,51 +120,71 @@ data Env v loc = Env
 type DataDeclarations v loc = Map Reference (DataDeclaration' v loc)
 type EffectDeclarations v loc = Map Reference (EffectDeclaration' v loc)
 
-data Result v loc a = Result { errors :: Seq (ErrorNote v loc)
-                             , infos :: Seq (InfoNote v loc)
-                             , resultValue :: Maybe a
-                             } deriving (Functor)
+data Result v loc a = Success (Seq (InfoNote v loc)) a
+                    | TypeError (NonEmptySeq (ErrorNote v loc)) (Seq (InfoNote v loc))
+                    | CompilerBug (CompilerBug v loc)
+                                  (Seq (ErrorNote v loc)) -- type errors before hitting the bug
+                                  (Seq (InfoNote v loc))  -- info notes before hitting the bug
+                    deriving (Functor)
 
 instance Applicative (Result v loc) where
-  pure = Result mempty mempty . Just
-  Result es is a <*> Result es' is' a' =
-    Result (es <> es') (is <> is') (a <*> a')
-
-instance Alternative (Result v loc) where
-  empty = Result mempty mempty Nothing
-  a <|> b = if isJust $ resultValue a then a else b
+  pure = Success mempty
+  CompilerBug bug es is <*> _                       = CompilerBug bug es is
+  r                     <*> CompilerBug bug es' is' = CompilerBug bug (typeErrors r <> es') (infoNotes r <> is')
+  TypeError es is       <*> r'                      = TypeError (appendSeq es (typeErrors r')) (is <> infoNotes r')
+  Success is _          <*> TypeError es' is'       = TypeError es' (is <> is')
+  Success is f          <*> Success is' a           = Success (is <> is') (f a)
 
 instance Monad (Result v loc) where
-  Result es is a >>= f =
-    let Result es' is' b = traverse f a
-     in joinMaybe $ Result (es <> es') (is <> is') b
-
-instance MonadWriter
-           (Seq (ErrorNote v loc), Seq (InfoNote v loc))
-           (Result v loc)
-  where
-    tell (es, is) = Result es is (Just ())
-    listen (Result es is ma) = Result es is ((, (es, is)) <$> ma)
-    pass (Result es is maf) =
-      joinMaybe $ traverse (\(a, f) -> tell (f (es, is)) *> pure a) maf
-
-joinMaybe :: Result v loc (Maybe a) -> Result v loc a
-joinMaybe (Result v loc ma) = Result v loc (join ma)
-
--- Emit an errorNote without failing
--- errorNote' :: Cause v loc -> Result v loc ()
--- errorNote' cause = tell (pure (ErrorNote cause mempty), mempty)
+  s@(Success _ a)       >>= f = s *> f a
+  TypeError es is       >>= _ = TypeError es is
+  CompilerBug bug es is >>= _ = CompilerBug bug es is
 
 btw' :: InfoNote v loc -> Result v loc ()
-btw' note = tell (mempty, pure note)
+btw' note = Success (Seq.singleton note) ()
 
--- | Typechecking monad
-newtype M v loc a = M {
-  runM :: MEnv v loc -> Result v loc (a, Env v loc)
+typeError :: Cause v loc -> Result v loc a
+typeError cause = TypeError (pure $ ErrorNote cause mempty) mempty
+
+compilerBug :: CompilerBug v loc -> Result v loc a
+compilerBug bug = CompilerBug bug mempty mempty
+
+typeErrors :: Result v loc a -> Seq (ErrorNote v loc)
+typeErrors = \case
+  TypeError es _     -> nonEmptySeqToSeq es
+  CompilerBug _ es _ -> es
+  Success _ _        -> mempty
+
+infoNotes :: Result v loc a -> Seq (InfoNote v loc)
+infoNotes = \case
+  TypeError _ is     -> is
+  CompilerBug _ _ is -> is
+  Success is _       -> is
+
+mapErrors :: (ErrorNote v loc -> ErrorNote v loc) -> Result v loc a -> Result v loc a
+mapErrors f r = case r of
+  TypeError es is -> TypeError (f <$> es) is
+  CompilerBug bug es is -> CompilerBug bug (f <$> es) is
+  s@(Success _ _) -> s
+
+newtype MT v loc f a = MT {
+  runM :: MEnv v loc -> f (a, Env v loc)
 }
 
+-- | Typechecking monad
+type M v loc = MT v loc (Result v loc)
+
+-- | Typechecking computation that, unless it crashes
+-- with a compiler bug, always produces a value.
+type TotalM v loc = MT v loc (Either (CompilerBug v loc))
+
 liftResult :: Result v loc a -> M v loc a
-liftResult r = M (\m -> (, env m) <$> r)
+liftResult r = MT (\m -> (, env m) <$> r)
+
+liftTotalM :: TotalM v loc a -> M v loc a
+liftTotalM (MT m) = MT $ \menv -> case m menv of
+  Left bug -> CompilerBug bug mempty mempty
+  Right a  -> Success mempty a
 
 -- errorNote :: Cause v loc -> M v loc ()
 -- errorNote = liftResult . errorNote
@@ -171,7 +196,7 @@ modEnv :: (Env v loc -> Env v loc) -> M v loc ()
 modEnv f = modEnv' $ ((), ) . f
 
 modEnv' :: (Env v loc -> (a, Env v loc)) -> M v loc a
-modEnv' f = M (\menv -> pure . f $ env menv)
+modEnv' f = MT (\menv -> pure . f $ env menv)
 
 data Unknown = Data | Effect deriving Show
 
@@ -191,6 +216,7 @@ data CompilerBug v loc
   -- `IllegalContextExtension ctx elem msg`
   --     extending `ctx` with `elem` would make `ctx` ill-formed, as explained by `msg`
   | IllegalContextExtension (Context v loc) (Element v loc) String
+  | OtherBug String
   deriving Show
 
 data PathElement v loc
@@ -247,7 +273,6 @@ data Cause v loc
   | IllFormedType (Context v loc)
   | UnknownSymbol loc v
   | UnknownTerm loc v [Suggestion v loc] (Type v loc)
-  | CompilerBug (CompilerBug v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] (Context v loc) -- ambient, requested
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
   | MalformedEffectBind (Type v loc) (Type v loc) [Type v loc] -- type of ctor, type of ctor result
@@ -280,11 +305,7 @@ scope' p (ErrorNote cause path) = ErrorNote cause (path `mappend` pure p)
 
 -- Add `p` onto the end of the `path` of any `ErrorNote`s emitted by the action
 scope :: PathElement v loc -> M v loc a -> M v loc a
-scope p (M m) = M go
- where
-  go menv =
-    let (Result errors infos r) = m menv
-    in  Result (scope' p <$> errors) infos r
+scope p (MT m) = MT (mapErrors (scope' p) . m)
 
 -- | The typechecking environment
 data MEnv v loc = MEnv {
@@ -571,16 +592,13 @@ extendN ctx es = foldM (flip extend) ctx es
 
 -- | doesn't combine notes
 orElse :: M v loc a -> M v loc a -> M v loc a
-orElse m1 m2 = M go where
+orElse m1 m2 = MT go where
   go menv = runM m1 menv <|> runM m2 menv
-
--- If the action fails, preserve all the notes it emitted and then return the
--- provided `a`; if the action succeeds, we're good, just use its result
-recover :: a -> M v loc a -> M v loc a
-recover ifFail (M action) = M go where
-  go menv = case action menv of
-    Result es is Nothing -> Result es is $ Just (ifFail, env menv)
-    r -> r
+  s@(Success _ _)         <|> _ = s
+  TypeError _ _           <|> r = r
+  CompilerBug _ _ _       <|> r = r -- swallowing bugs for now: when checking whether a type annotation
+                                    -- is redundant, typechecking without that annotation might result in
+                                    -- a CompilerBug that we want `orElse` to recover from
 
 -- getMaybe :: Result v loc a -> Result v loc (Maybe a)
 -- getMaybe = hoistMaybe Just
@@ -605,18 +623,13 @@ shouldPerformAbilityCheck t = do
   pure $ all (/= t) skip
 
 compilerCrash :: CompilerBug v loc -> M v loc a
-compilerCrash bug = failWith $ CompilerBug bug
+compilerCrash bug = liftResult $ compilerBug bug
 
 failWith :: Cause v loc -> M v loc a
-failWith cause =
-  M (const $ Result (pure $ ErrorNote cause mempty) mempty Nothing)
+failWith cause = liftResult $ typeError cause
 
 compilerCrashResult :: CompilerBug v loc -> Result v loc a
-compilerCrashResult bug =
-  Result (pure $ ErrorNote (CompilerBug bug) mempty) mempty Nothing
-
-failSecretlyAndDangerously :: M v loc a
-failSecretlyAndDangerously = empty
+compilerCrashResult bug = CompilerBug bug mempty mempty
 
 getDataDeclaration :: Reference -> M v loc (DataDeclaration' v loc)
 getDataDeclaration r = do
@@ -706,12 +719,12 @@ loc = ABT.annotation
 -- Prepends the provided abilities onto the existing ambient for duration of `m`
 withEffects :: [Type v loc] -> M v loc a -> M v loc a
 withEffects abilities' m =
-  M (\menv -> runM m (menv { abilities = abilities' ++ abilities menv }))
+  MT (\menv -> runM m (menv { abilities = abilities' ++ abilities menv }))
 
 -- Replaces the ambient abilities with the provided for duration of `m`
 withEffects0 :: [Type v loc] -> M v loc a -> M v loc a
 withEffects0 abilities' m =
-  M (\menv -> runM m (menv { abilities = abilities' }))
+  MT (\menv -> runM m (menv { abilities = abilities' }))
 
 
 synthesizeApps :: (Foldable f, Var v, Ord loc) => Type v loc -> f (Term v loc) -> M v loc (Type v loc)
@@ -1601,7 +1614,7 @@ abilityCheck requested = do
   abilityCheck' (apply ctx <$> ambient >>= Type.flattenEffects)
                 (apply ctx <$> requested' >>= Type.flattenEffects)
 
-verifyDataDeclarations :: (Var v, Ord loc) => DataDeclarations v loc -> M v loc ()
+verifyDataDeclarations :: (Var v, Ord loc) => DataDeclarations v loc -> Result v loc ()
 verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
   let ctors = DD.constructors decl
   forM_ ctors $ \(_ctorName,typ) -> verifyClosed typ id
@@ -1621,25 +1634,25 @@ synthesizeClosed abilities lookupType term0 = let
     Left missingRef ->
       compilerCrashResult (UnknownTermReference missingRef)
     Right term -> run [] datas effects $ do
-      verifyDataDeclarations datas
-      verifyDataDeclarations (DD.toDataDecl <$> effects)
-      verifyClosedTerm term
+      liftResult $  verifyDataDeclarations datas
+                 *> verifyDataDeclarations (DD.toDataDecl <$> effects)
+                 *> verifyClosedTerm term
       synthesizeClosed' abilities term
 
-verifyClosedTerm :: forall v loc . Ord v => Term v loc -> M v loc ()
+verifyClosedTerm :: forall v loc . Ord v => Term v loc -> Result v loc ()
 verifyClosedTerm t = do
   ok1 <- verifyClosed t id
   let freeTypeVars = Map.toList $ Term.freeTypeVarAnnotations t
       reportError (v, locs) = for_ locs $ \loc ->
-        recover () (failWith (UnknownSymbol loc (TypeVar.underlying v)))
+        typeError (UnknownSymbol loc (TypeVar.underlying v))
   for_ freeTypeVars reportError
-  when (not ok1 || (not . null) freeTypeVars) $ failSecretlyAndDangerously
+  when (not ok1 || (not . null) freeTypeVars) $ compilerBug (OtherBug "impossible")
 
-verifyClosed :: (Traversable f, Ord v) => ABT.Term f v a -> (v -> v2) -> M v2 a Bool
+verifyClosed :: (Traversable f, Ord v) => ABT.Term f v a -> (v -> v2) -> Result v2 a Bool
 verifyClosed t toV2 =
   let isBoundIn v t = Set.member v (snd (ABT.annotation t))
       loc t = fst (ABT.annotation t)
-      go t@(ABT.Var' v) | not (isBoundIn v t) = recover False $ failWith (UnknownSymbol (loc t) $ toV2 v)
+      go t@(ABT.Var' v) | not (isBoundIn v t) = typeError (UnknownSymbol (loc t) $ toV2 v)
       go _ = pure True
   in all id <$> ABT.foreachSubterm go (ABT.annotateBound t)
 
@@ -1654,12 +1667,12 @@ annotateRefs synth = ABT.visit f where
   f _ = Nothing
 
 run
-  :: (Var v, Ord loc)
+  :: (Var v, Ord loc, Functor f)
   => [Type v loc]
   -> DataDeclarations v loc
   -> EffectDeclarations v loc
-  -> M v loc a
-  -> Result v loc a
+  -> MT v loc f a
+  -> f a
 run ambient datas effects m =
   fmap fst
     . runM m
@@ -1680,24 +1693,22 @@ synthesizeClosed' abilities term = do
   setContext ctx0 -- restore the initial context
   pure $ generalizeExistentials ctx t
 
--- Check if the given typechecking action succeeds
-succeeds :: M v loc a -> M v loc Bool
+-- Check if the given typechecking action succeeds.
+succeeds :: M v loc a -> TotalM v loc Bool
 succeeds m = do
   e <- ask
-  let Result es is r = runM m e
-      bugs = Seq.filter isBug es where
-        isBug = \case ErrorNote (CompilerBug _) _ -> True
-                      _                           -> False
-  if Seq.null bugs then pure $ isJust r
-  else liftResult (Result bugs is Nothing)
+  case runM m e of
+    Success _ _ -> pure True
+    TypeError _ _ -> pure False
+    CompilerBug bug _ _ -> MT (\_ -> Left bug)
 
 -- Check if `t1` is a subtype of `t2`. Doesn't update the typechecking context.
-isSubtype' :: (Var v, Ord loc) => Type v loc -> Type v loc -> M v loc Bool
-isSubtype' type1 type2 = do
+isSubtype' :: (Var v, Ord loc) => Type v loc -> Type v loc -> TotalM v loc Bool
+isSubtype' type1 type2 = succeeds $ do
   let vars = Set.toList $ Set.union (ABT.freeVars type1) (ABT.freeVars type2)
   reserveAll (TypeVar.underlying <$> vars)
   appendContext (Var <$> vars)
-  succeeds $ subtype type1 type2
+  subtype type1 type2
 
 -- `isRedundant userType inferredType` returns `True` if the `userType`
 -- is equal "up to inferred abilities" to `inferredType`.
@@ -1726,16 +1737,16 @@ isRedundant userType0 inferredType0 = do
   -- type would have caused the program not to typecheck! Ex: if user writes
   -- `: Nat -> Nat` when it has an inferred type of `a -> a`. So we only
   -- need to check the other direction to determine redundancy.
-  isSubtype' userType inferredType <* setContext ctx0
+  (liftTotalM $ isSubtype' userType inferredType) <* setContext ctx0
 
 -- Public interface to `isSubtype`
 isSubtype
-  :: (Var v, Ord loc) => Type v loc -> Type v loc -> Result v loc Bool
+  :: (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
 isSubtype t1 t2 =
   run [] Map.empty Map.empty (isSubtype' t1 t2)
 
 isEqual
-  :: (Var v, Ord loc) => Type v loc -> Type v loc -> Result v loc Bool
+  :: (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
 isEqual t1 t2 =
   (&&) <$> isSubtype t1 t2 <*> isSubtype t2 t1
 
@@ -1759,27 +1770,23 @@ instance (Ord loc, Var v) => Show (Context v loc) where
     showElem _ (Marker v) = "|"++Text.unpack (Var.name v)++"|"
 
 -- MEnv v loc -> (Seq (ErrorNote v loc), (a, Env v loc))
-instance Monad (M v loc) where
-  return a = M (\menv -> pure (a, env menv))
-  m >>= f = M go where
+instance Monad f => Monad (MT v loc f) where
+  return a = MT (\menv -> pure (a, env menv))
+  m >>= f = MT go where
     go menv = do
       (a, env1) <- runM m menv
       runM (f a) (menv { env = env1 })
 
-instance MonadFail.MonadFail (M v loc) where
+instance Monad f => MonadFail.MonadFail (MT v loc f) where
   fail = error
 
-instance Applicative (M v loc) where
-  pure = return
+instance Monad f => Applicative (MT v loc f) where
+  pure a = MT (\menv -> pure (a, env menv))
   (<*>) = ap
 
-instance Functor (M v loc) where
-  fmap = liftM
+instance Functor f => Functor (MT v loc f) where
+  fmap f (MT m) = MT (\menv -> fmap (first f) (m menv))
 
-instance MonadReader (MEnv v loc) (M v loc) where
-  ask = M (\e -> pure (e, env e))
-  local f m = M $ runM m . f
-
-instance Alternative (M v loc) where
-  empty = liftResult empty
-  a <|> b = a `orElse` b
+instance Monad f => MonadReader (MEnv v loc) (MT v loc f) where
+  ask = MT (\e -> pure (e, env e))
+  local f m = MT $ runM m . f

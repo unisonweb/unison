@@ -5,6 +5,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Codebase.Editor.HandleCommand where
 
@@ -78,13 +79,13 @@ typecheck' ambient codebase file = do
     <$> Codebase.typeLookupForDependencies codebase (UF.dependencies file)
   pure . fmap Right $ synthesizeFile' ambient typeLookup file
 
-tempGitDir :: Text -> Text -> IO FilePath
+tempGitDir :: Text -> Maybe Text -> IO FilePath
 tempGitDir url commit =
   getXdgDirectory XdgCache
     $   "unisonlanguage"
     </> "gitfiles"
     </> Hash.showBase32Hex url
-    </> Text.unpack commit
+    </> Text.unpack (fromMaybe "HEAD" commit)
 
 commandLine
   :: forall i v a
@@ -121,9 +122,9 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
     SyncLocalRootBranch branch -> do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
-    LoadRemoteRootBranch GitRepo {..} -> do
+    LoadRemoteRootBranch loadMode GitRepo {..} -> do
       tmp <- tempGitDir url commit
-      runExceptT $ Git.pullGitRootBranch tmp codebase url commit
+      runExceptT $ Git.pullGitRootBranch tmp loadMode codebase url commit
     SyncRemoteRootBranch GitRepo {..} branch -> do
       tmp <- tempGitDir url commit
       runExceptT
@@ -149,6 +150,9 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
       Codebase.referencesByPrefix codebase (SH.toText sh)
     BranchHashLength -> Codebase.branchHashLength codebase
     BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
+    LoadRemoteShortBranch GitRepo{..} sbh -> do
+      tmp <- tempGitDir url commit
+      runExceptT $ Git.pullGitBranch tmp codebase url commit (Right sbh)
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
 

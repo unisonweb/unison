@@ -107,6 +107,7 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Util.List              as List
+import qualified Unison.Util.Monoid            as Monoid
 import Data.Tuple (swap)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
@@ -447,8 +448,8 @@ notifyUser dir o = case o of
       <> "Make sure there's a branch or commit with that name."
     PushDestinationHasNewStuff url treeish diff -> P.callout "⏸" . P.lines $ [
       P.wrap $ "The repository at" <> P.blue (P.text url)
-            <> (if Text.null treeish then ""
-                else "at revision" <> P.blue (P.text treeish))
+            <> (Monoid.fromMaybe $ treeish <&> \treeish -> 
+                  "at revision" <> P.blue (P.text treeish))
             <> "has some changes I don't know about:",
       "", P.indentN 2 (prettyDiff diff), "",
       P.wrap $ "If you want to " <> push <> "you can do:", "",
@@ -462,13 +463,35 @@ notifyUser dir o = case o of
       pull = case input of
         Input.PushRemoteBranchI Nothing p ->
           P.sep " " [IP.patternName IP.pull, P.shown p ]
-        Input.PushRemoteBranchI (Just r) p -> P.sepNonEmpty " " [
+        Input.PushRemoteBranchI (Just (r, _)) p -> P.sepNonEmpty " " [
           IP.patternName IP.pull,
           P.text (RemoteRepo.url r),
           P.shown p,
-          if RemoteRepo.commit r /= "master" then P.text (RemoteRepo.commit r)
-          else "" ]
+          case RemoteRepo.commit r of 
+            Just s -> P.text s
+            Nothing -> mempty 
+          ]
         _ -> "⁉️ Unison bug - push command expected"
+    NoRemoteNamespaceWithHash url treeish sbh -> P.wrap
+      $ "The repository at" <> P.blue (P.text url)
+      <> (Monoid.fromMaybe $ treeish <&> \treeish ->
+          "at revision" <> P.blue (P.text treeish))
+      <> "doesn't contain a namespace with the hash prefix"
+      <> (P.blue . P.text . SBH.toText) sbh
+    RemoteNamespaceHashAmbiguous url treeish sbh hashes -> P.lines [
+      P.wrap $ "The namespace hash" <> prettySBH sbh
+            <> "at" <> P.blue (P.text url)
+            <> (Monoid.fromMaybe $ treeish <&> \treeish ->
+                "at revision" <> P.blue (P.text treeish))
+            <> "is ambiguous."
+            <> "Did you mean one of these hashes?",
+      "",
+      P.indentN 2 $ P.lines
+        (prettySBH . SBH.fromHash ((Text.length . SBH.toText) sbh * 2)
+          <$> Set.toList hashes),
+      "",
+      P.wrap "Try again with a few more hash characters to disambiguate."
+      ]
     SomeOtherError msg -> P.callout "‼" . P.lines $ [
       P.wrap "I ran into an error:", "",
       P.indentN 2 (P.text msg), "",
@@ -547,6 +570,45 @@ notifyUser dir o = case o of
           )
           <> "Type `help " <> pushPull "push" "pull" pp <>
           "` for more information."
+
+--  | ConfiguredGitUrlParseError PushPull Path' Text String
+  ConfiguredGitUrlParseError pp p url error ->
+    pure . P.fatalCallout . P.lines $
+      [ P.wrap $ "I couldn't understand the url set in .unisonConfig for"
+          <> prettyPath' p <> "."
+      , ""
+      , P.wrap $ "The value I found was" <> (P.backticked . P.blue . P.text) url
+        <> "but I encountered the following error when trying to parse it:"
+      , ""
+      , P.string error
+      , ""
+      , P.wrap $ "Type" <> P.backticked ("help " <> pushPull "push" "pull" pp)
+        <> "for more information."
+      ]
+--  | ConfiguredGitUrlIncludesShortBranchHash ShortBranchHash
+  ConfiguredGitUrlIncludesShortBranchHash pp repo sbh remotePath ->
+    pure . P.lines $
+    [ P.wrap
+    $ "The `GitUrl.` entry in .unisonConfig for the current path has the value"
+    <> (P.group . (<>",") . P.blue . P.text)
+        (RemoteRepo.printNamespace repo (Just sbh) remotePath)
+    <> "which specifies a namespace hash" 
+    <> P.group (P.blue (prettySBH sbh) <> ".")
+    , ""
+    , P.wrap $ 
+      pushPull "I can't push to a specific hash, because it's immutable."
+      ("It's no use for repeated pulls,"
+      <> "because you would just get the same immutable namespace each time.")
+      pp
+    , ""
+    , P.wrap $ "You can use"
+    <> P.backticked (
+        pushPull "push" "pull" pp
+        <> " " 
+        <> P.text (RemoteRepo.printNamespace repo Nothing remotePath))
+    <> "if you want to" <> pushPull "push onto" "pull from" pp
+    <> "the latest."
+    ]
   NoBranchWithHash _ h -> pure . P.callout "😶" $
     P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> pure $ P.wrap "That's not implemented yet. Sorry! 😬"
@@ -770,29 +832,31 @@ formatMissingStuff terms types =
     <> P.column2 [ (P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
 
 displayDefinitions' :: Var v => Ord a1
-  => PPE.PrettyPrintEnv
+  => PPE.PrettyPrintEnvDecl
   -> Map Reference.Reference (DisplayThing (DD.Decl v a1))
   -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
   -> Pretty
-displayDefinitions' ppe types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
+displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
   where
+  ppeBody r = PPE.declarationPPE ppe0 r
+  ppeDecl = PPE.unsuffixifiedPPE ppe0
   prettyTerms = map go . Map.toList
              -- sort by name
-             $ Map.mapKeys (first (PPE.termName ppe . Referent.Ref) . dupe) terms
+             $ Map.mapKeys (first (PPE.termName ppeDecl . Referent.Ref) . dupe) terms
   prettyTypes = map go2 . Map.toList
-              $ Map.mapKeys (first (PPE.typeName ppe) . dupe) types
+              $ Map.mapKeys (first (PPE.typeName ppeDecl) . dupe) types
   go ((n, r), dt) =
     case dt of
       MissingThing r -> missing n r
       BuiltinThing -> builtin n
-      RegularThing tm -> TermPrinter.prettyBinding ppe n tm
+      RegularThing tm -> TermPrinter.prettyBinding (ppeBody r) n tm
   go2 ((n, r), dt) =
     case dt of
       MissingThing r -> missing n r
       BuiltinThing -> builtin n
       RegularThing decl -> case decl of
-        Left d  -> DeclPrinter.prettyEffectDecl ppe r n d
-        Right d -> DeclPrinter.prettyDataDecl ppe r n d
+        Left d  -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
+        Right d -> DeclPrinter.prettyDataDecl (ppeBody r) r n d
   builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
   missing n r = P.wrap (
     "-- The name " <> prettyHashQualified n <> " is assigned to the "
@@ -826,7 +890,7 @@ displayRendered outputLoc pp =
 
 displayDefinitions :: Var v => Ord a1 =>
   Maybe FilePath
-  -> PPE.PrettyPrintEnv
+  -> PPE.PrettyPrintEnvDecl
   -> Map Reference.Reference (DisplayThing (DD.Decl v a1))
   -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
   -> IO Pretty
@@ -1005,7 +1069,7 @@ renderEditConflicts ppe Patch{..} =
       P.oxfordCommas [ termName r | TermEdit.Replace r _ <- es ]
     formatConflict = either formatTypeEdits formatTermEdits
 
-todoOutput :: Var v => PPE.PrettyPrintEnv -> TO.TodoOutput v a -> IO Pretty
+todoOutput :: Var v => PPE.PrettyPrintEnvDecl -> TO.TodoOutput v a -> IO Pretty
 todoOutput ppe todo =
   if noConflicts && noEdits
   then pure $ P.okCallout "No conflicts or edits in progress."
@@ -1014,16 +1078,18 @@ todoOutput ppe todo =
   noConflicts = TO.nameConflicts todo == mempty
              && TO.editConflicts todo == Patch.empty
   noEdits = TO.todoScore todo == 0
+  ppeu = PPE.unsuffixifiedPPE ppe
+  ppes = PPE.suffixifiedPPE ppe
   (frontierTerms, frontierTypes) = TO.todoFrontier todo
   (dirtyTerms, dirtyTypes) = TO.todoFrontierDependents todo
   corruptTerms =
-    [ (PPE.termName ppe (Referent.Ref r), r) | (r, Nothing) <- frontierTerms ]
+    [ (PPE.termName ppeu (Referent.Ref r), r) | (r, Nothing) <- frontierTerms ]
   corruptTypes =
-    [ (PPE.typeName ppe r, r) | (r, MissingThing _) <- frontierTypes ]
+    [ (PPE.typeName ppeu r, r) | (r, MissingThing _) <- frontierTypes ]
   goodTerms ts =
-    [ (PPE.termName ppe (Referent.Ref r), typ) | (r, Just typ) <- ts ]
+    [ (PPE.termName ppeu (Referent.Ref r), typ) | (r, Just typ) <- ts ]
   todoConflicts = if noConflicts then mempty else P.lines . P.nonEmpty $
-    [ renderEditConflicts ppe (TO.editConflicts todo)
+    [ renderEditConflicts ppeu (TO.editConflicts todo)
     , renderNameConflicts conflictedTypeNames conflictedTermNames ]
     where
     -- If a conflict is both an edit and a name conflict, we show it in the edit
@@ -1063,15 +1129,15 @@ todoOutput ppe todo =
               <> "transitive dependent(s) left to upgrade."
               <> "Your edit frontier is the dependents of these definitions:")
       , P.indentN 2 . P.lines $ (
-          (prettyDeclPair ppe <$> toList frontierTypes) ++
-          TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
+          (prettyDeclPair ppeu <$> toList frontierTypes) ++
+          TypePrinter.prettySignatures' ppes (goodTerms frontierTerms)
           )
       , P.wrap "I recommend working on them in the following order:"
       , P.numberedList $
           let unscore (_score,a,b) = (a,b)
-          in (prettyDeclPair ppe . unscore <$> toList dirtyTypes) ++
+          in (prettyDeclPair ppeu . unscore <$> toList dirtyTypes) ++
              TypePrinter.prettySignatures'
-                ppe
+                ppes
                 (goodTerms $ unscore <$> dirtyTerms)
       , formatMissingStuff corruptTerms corruptTypes
       ]
