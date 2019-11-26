@@ -277,21 +277,21 @@ notifyUser dir o = case o of
      listOfDefinitions ppe detailed results
   ListOfLinks ppe results ->
      listOfLinks ppe [ (name,tm) | (name,_ref,tm) <- results ]
-  ListNames [] [] -> pure . P.callout "😶" $
+  ListNames _len [] [] -> pure . P.callout "😶" $
     P.wrap "I couldn't find anything by that name."
-  ListNames terms types -> pure . P.sepNonEmpty "\n\n" $ [
+  ListNames len terms types -> pure . P.sepNonEmpty "\n\n" $ [
     formatTerms terms, formatTypes types ]
     where
     formatTerms tms =
       P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : (go <$> tms) where
       go (ref, hqs) = P.column2
-        [ ("Hash:", P.syntaxToColor $ prettyHashQualified (HQ.fromReferent ref))
+        [ ("Hash:", P.syntaxToColor . prettyHashQualified . HQ.take len $ HQ.fromReferent ref)
         , ("Names: ", P.group (P.spaced (P.bold . P.syntaxToColor . prettyHashQualified' <$> toList hqs)))
         ]
     formatTypes types =
       P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : (go <$> types) where
       go (ref, hqs) = P.column2
-        [ ("Hash:", P.syntaxToColor $ prettyHashQualified (HQ.fromReference ref))
+        [ ("Hash:", P.syntaxToColor . prettyHashQualified . HQ.take len $ HQ.fromReference ref)
         , ("Names:", P.group (P.spaced (P.bold . P.syntaxToColor . prettyHashQualified' <$> toList hqs)))
         ]
   -- > names foo
