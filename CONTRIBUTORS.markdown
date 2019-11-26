@@ -31,3 +31,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * George Marrows (@georgemarrows)
 * Florian Thurm (@0xflotus)
 * Mat Ess (@matthewess)
+* Evan Burchard (@evanburchard)

@@ -138,7 +138,7 @@ component h ks = let
   in [ (k, DerivedId (Id h i size)) | (k, i) <- ks `zip` [0..]]
 
 components :: [(H.Hash, [k])] -> [(k, Reference)]
-components sccs = join $ uncurry component <$> sccs
+components sccs = uncurry component =<< sccs
 
 groupByComponent :: [(k, Reference)] -> [[(k, Reference)]]
 groupByComponent refs = done $ foldl' insert Map.empty refs

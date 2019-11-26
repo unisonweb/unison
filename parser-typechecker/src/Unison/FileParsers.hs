@@ -28,7 +28,7 @@ import           Unison.Parser              (Ann)
 import qualified Unison.Parsers             as Parsers
 import qualified Unison.Referent            as Referent
 import           Unison.Reference           (Reference)
-import           Unison.Result              (Note (..), Result, pattern Result, ResultT)
+import           Unison.Result              (Note (..), Result, pattern Result, ResultT, CompilerBug(..))
 import qualified Unison.Result              as Result
 import           Unison.Term                (AnnotatedTerm)
 import qualified Unison.Term                as Term
@@ -52,8 +52,8 @@ type NamedReference v = Typechecker.NamedReference v Ann
 type Result' v = Result (Seq (Note v Ann))
 
 convertNotes :: Ord v => Typechecker.Notes v ann -> Seq (Note v ann)
-convertNotes (Typechecker.Notes es is) =
-  (TypeError <$> es) <> (TypeInfo <$> Seq.fromList is') where
+convertNotes (Typechecker.Notes bugs es is) =
+  (CompilerBug . TypecheckerBug <$> bugs) <> (TypeError <$> es) <> (TypeInfo <$> Seq.fromList is') where
   is' = snd <$> List.uniqueBy' f ([(1::Word)..] `zip` Foldable.toList is)
   f (_, Context.TopLevelComponent cs) = Right [ v | (v,_,_) <- cs ]
   f (i, _) = Left i
@@ -111,6 +111,16 @@ resolveNames typeLookupf preexistingNames uf = do
           let shortname = Name.toText $ Name.unqualified name,
           let nr = Typechecker.NamedReference (Name.toText name) typ (Right r) ]
   pure (tm, fqnsByShortName, tl)
+
+synthesizeFile'
+  :: forall v
+   . Var v
+  => [Type v]
+  -> TL.TypeLookup v Ann
+  -> UnisonFile v
+  -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile v Ann)
+synthesizeFile' ambient tl uf =
+  synthesizeFile ambient tl mempty uf $ UF.typecheckingTerm uf
 
 synthesizeFile
   :: forall v

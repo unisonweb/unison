@@ -38,6 +38,8 @@ module Unison.Typechecker.Context
   , Suggestion(..)
   , SuggestionMatch(..)
   , isExact
+  , typeErrors
+  , infoNotes
   )
 where
 
@@ -50,7 +52,6 @@ import           Control.Monad.State            ( get
                                                 , StateT
                                                 , runStateT
                                                 )
-import           Control.Monad.Writer           ( MonadWriter(..) )
 import           Data.Bifunctor                 ( first
                                                 , second
                                                 )
@@ -58,6 +59,11 @@ import qualified Data.Foldable                 as Foldable
 import           Data.List
 import           Data.List.NonEmpty             ( NonEmpty )
 import qualified Data.Map                      as Map
+import qualified Data.Sequence                 as Seq
+import           Data.Sequence.NonEmpty         ( NonEmptySeq
+                                                , appendSeq
+                                                , nonEmptySeqToSeq
+                                                )
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Unison.ABT                    as ABT
@@ -111,51 +117,71 @@ data Env v loc = Env { freshId :: Word64, ctx :: Context v loc }
 type DataDeclarations v loc = Map Reference (DataDeclaration' v loc)
 type EffectDeclarations v loc = Map Reference (EffectDeclaration' v loc)
 
-data Result v loc a = Result { errors :: Seq (ErrorNote v loc)
-                             , infos :: Seq (InfoNote v loc)
-                             , resultValue :: Maybe a
-                             } deriving (Functor)
+data Result v loc a = Success (Seq (InfoNote v loc)) a
+                    | TypeError (NonEmptySeq (ErrorNote v loc)) (Seq (InfoNote v loc))
+                    | CompilerBug (CompilerBug v loc)
+                                  (Seq (ErrorNote v loc)) -- type errors before hitting the bug
+                                  (Seq (InfoNote v loc))  -- info notes before hitting the bug
+                    deriving (Functor)
 
 instance Applicative (Result v loc) where
-  pure = Result mempty mempty . Just
-  Result es is a <*> Result es' is' a' =
-    Result (es <> es') (is <> is') (a <*> a')
-
-instance Alternative (Result v loc) where
-  empty = Result mempty mempty Nothing
-  a <|> b = if isJust $ resultValue a then a else b
+  pure = Success mempty
+  CompilerBug bug es is <*> _                       = CompilerBug bug es is
+  r                     <*> CompilerBug bug es' is' = CompilerBug bug (typeErrors r <> es') (infoNotes r <> is')
+  TypeError es is       <*> r'                      = TypeError (appendSeq es (typeErrors r')) (is <> infoNotes r')
+  Success is _          <*> TypeError es' is'       = TypeError es' (is <> is')
+  Success is f          <*> Success is' a           = Success (is <> is') (f a)
 
 instance Monad (Result v loc) where
-  Result es is a >>= f =
-    let Result es' is' b = traverse f a
-     in joinMaybe $ Result (es <> es') (is <> is') b
-
-instance MonadWriter
-           (Seq (ErrorNote v loc), Seq (InfoNote v loc))
-           (Result v loc)
-  where
-    tell (es, is) = Result es is (Just ())
-    listen (Result es is ma) = Result es is ((, (es, is)) <$> ma)
-    pass (Result es is maf) =
-      joinMaybe $ traverse (\(a, f) -> tell (f (es, is)) *> pure a) maf
-
-joinMaybe :: Result v loc (Maybe a) -> Result v loc a
-joinMaybe (Result v loc ma) = Result v loc (join ma)
-
--- Emit an errorNote without failing
--- errorNote' :: Cause v loc -> Result v loc ()
--- errorNote' cause = tell (pure (ErrorNote cause mempty), mempty)
+  s@(Success _ a)       >>= f = s *> f a
+  TypeError es is       >>= _ = TypeError es is
+  CompilerBug bug es is >>= _ = CompilerBug bug es is
 
 btw' :: InfoNote v loc -> Result v loc ()
-btw' note = tell (mempty, pure note)
+btw' note = Success (Seq.singleton note) ()
 
--- | Typechecking monad
-newtype M v loc a = M {
-  runM :: MEnv v loc -> Result v loc (a, Env v loc)
+typeError :: Cause v loc -> Result v loc a
+typeError cause = TypeError (pure $ ErrorNote cause mempty) mempty
+
+compilerBug :: CompilerBug v loc -> Result v loc a
+compilerBug bug = CompilerBug bug mempty mempty
+
+typeErrors :: Result v loc a -> Seq (ErrorNote v loc)
+typeErrors = \case
+  TypeError es _     -> nonEmptySeqToSeq es
+  CompilerBug _ es _ -> es
+  Success _ _        -> mempty
+
+infoNotes :: Result v loc a -> Seq (InfoNote v loc)
+infoNotes = \case
+  TypeError _ is     -> is
+  CompilerBug _ _ is -> is
+  Success is _       -> is
+
+mapErrors :: (ErrorNote v loc -> ErrorNote v loc) -> Result v loc a -> Result v loc a
+mapErrors f r = case r of
+  TypeError es is -> TypeError (f <$> es) is
+  CompilerBug bug es is -> CompilerBug bug (f <$> es) is
+  s@(Success _ _) -> s
+
+newtype MT v loc f a = MT {
+  runM :: MEnv v loc -> f (a, Env v loc)
 }
 
+-- | Typechecking monad
+type M v loc = MT v loc (Result v loc)
+
+-- | Typechecking computation that, unless it crashes
+-- with a compiler bug, always produces a value.
+type TotalM v loc = MT v loc (Either (CompilerBug v loc))
+
 liftResult :: Result v loc a -> M v loc a
-liftResult r = M (\m -> (, env m) <$> r)
+liftResult r = MT (\m -> (, env m) <$> r)
+
+liftTotalM :: TotalM v loc a -> M v loc a
+liftTotalM (MT m) = MT $ \menv -> case m menv of
+  Left bug -> CompilerBug bug mempty mempty
+  Right a  -> Success mempty a
 
 -- errorNote :: Cause v loc -> M v loc ()
 -- errorNote = liftResult . errorNote
@@ -167,7 +193,7 @@ modEnv :: (Env v loc -> Env v loc) -> M v loc ()
 modEnv f = modEnv' $ ((), ) . f
 
 modEnv' :: (Env v loc -> (a, Env v loc)) -> M v loc a
-modEnv' f = M (\menv -> pure . f $ env menv)
+modEnv' f = MT (\menv -> pure . f $ env menv)
 
 data Unknown = Data | Effect deriving Show
 
@@ -187,6 +213,7 @@ data CompilerBug v loc
   -- `IllegalContextExtension ctx elem msg`
   --     extending `ctx` with `elem` would make `ctx` ill-formed, as explained by `msg`
   | IllegalContextExtension (Context v loc) (Element v loc) String
+  | OtherBug String
   deriving Show
 
 data PathElement v loc
@@ -243,7 +270,6 @@ data Cause v loc
   | IllFormedType (Context v loc)
   | UnknownSymbol loc v
   | UnknownTerm loc v [Suggestion v loc] (Type v loc)
-  | CompilerBug (CompilerBug v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] (Context v loc) -- ambient, requested
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
   | MalformedEffectBind (Type v loc) (Type v loc) [Type v loc] -- type of ctor, type of ctor result
@@ -276,11 +302,7 @@ scope' p (ErrorNote cause path) = ErrorNote cause (path `mappend` pure p)
 
 -- Add `p` onto the end of the `path` of any `ErrorNote`s emitted by the action
 scope :: PathElement v loc -> M v loc a -> M v loc a
-scope p (M m) = M go
- where
-  go menv =
-    let (Result errors infos r) = m menv
-    in  Result (scope' p <$> errors) infos r
+scope p (MT m) = MT (mapErrors (scope' p) . m)
 
 -- | The typechecking environment
 data MEnv v loc = MEnv {
@@ -332,7 +354,7 @@ retract0 e (Context ctx) = case focusAt (\(e',_) -> e' == e) ctx of
 markThenRetract :: (Var v, Ord loc) => v -> M v loc a -> M v loc (a, [Element v loc])
 markThenRetract markerHint body = do
   v <- freshenVar markerHint
-  modifyContext $ extend (Marker v)
+  extendContext (Marker v)
   a <- body
   (a,) <$> doRetract (Marker v)
  where
@@ -429,13 +451,49 @@ modifyContext f = do
   setContext c
 
 appendContext :: (Var v, Ord loc) => [Element v loc] -> M v loc ()
-appendContext tl = modifyContext (`extendN` tl)
+appendContext = traverse_ extendContext
+
+extendContext :: Var v => Element v loc -> M v loc ()
+extendContext e = isReserved (varOf e) >>= \case
+  True -> modifyContext (extend e)
+  False -> getContext >>= \ctx -> compilerCrash $
+    IllegalContextExtension ctx e $
+      "Extending context with a variable that is not reserved by the typechecking environment." <>
+      " That means `freshenVar` is allowed to return it as a fresh variable, which would be wrong."
+
+replaceContext :: (Var v, Ord loc) => Element v loc -> [Element v loc] -> M v loc ()
+replaceContext elem replacement =
+  fromMEnv (\menv -> find (not . (`isReservedIn` env menv) . varOf) replacement) >>= \case
+    Nothing -> modifyContext (replace elem replacement)
+    Just e -> getContext >>= \ctx -> compilerCrash $
+      IllegalContextExtension ctx e $
+        "Extending context with a variable that is not reserved by the typechecking environment." <>
+        " That means `freshenVar` is allowed to return it as a fresh variable, which would be wrong."
+
+varOf :: Element v loc -> v
+varOf (Var tv) = TypeVar.underlying tv
+varOf (Solved _ v _) = v
+varOf (Ann v _) = v
+varOf (Marker v) = v
+
+isReserved :: Var v => v -> M v loc Bool
+isReserved v = fromMEnv $ (v `isReservedIn`) . env
+
+isReservedIn :: Var v => v -> Env v loc -> Bool
+isReservedIn v e = freshId e > Var.freshId v
 
 universals :: Ord v => Context v loc -> Set v
 universals = universalVars . info
 
 existentials :: Ord v => Context v loc -> Set v
 existentials = existentialVars . info
+
+-- | "Reserves" the given variables in this typechecking environment,
+-- i.e. ensures that they won't be returned from `freshenVar` as fresh.
+reserveAll :: (Var v, Foldable t) => t v -> M v loc ()
+reserveAll vs =
+  let maxId = foldr (max . Var.freshId) 0 vs
+  in modEnv (\e -> e { freshId = freshId e `max` maxId + 1})
 
 freshenVar :: Var v => v -> M v0 loc v
 freshenVar v = modEnv'
@@ -498,16 +556,16 @@ extend' e c@(Context ctx) = Context . (:ctx) . (e,) <$> i' where
   i' = case e of
     Var v -> case v of
       -- UvarCtx - ensure no duplicates
-      TypeVar.Universal v -> if Set.notMember v us
+      TypeVar.Universal v -> if Set.notMember v vs
         then pure $ Info es ses (Set.insert v us) uas (Set.insert v vs) pvs
         else crash $ "variable " <> show v <> " already defined in the context"
       -- EvarCtx - ensure no duplicates, and that this existential is not solved earlier in context
-      TypeVar.Existential _ v -> if Set.notMember v es
-        then pure $ Info (Set.insert v es) (Map.delete v ses) us uas (Set.insert v vs) pvs
+      TypeVar.Existential _ v -> if Set.notMember v vs
+        then pure $ Info (Set.insert v es) ses us uas (Set.insert v vs) pvs
         else crash $ "variable " <> show v <> " already defined in the context"
     -- SolvedEvarCtx - ensure `v` is fresh, and the solution is well-formed wrt the context
     Solved _ v sa@(Type.getPolytype -> t)
-      | Set.member v es          -> crash $ "variable " <> show v <> " already defined in the context"
+      | Set.member v vs          -> crash $ "variable " <> show v <> " already defined in the context"
       | not (wellformedType c t) -> crash $ "type " <> show t <> " is not well-formed wrt the context"
       | otherwise                -> pure $
           Info (Set.insert v es) (Map.insert v sa ses) us uas (Set.insert v vs) pvs
@@ -535,16 +593,13 @@ extendN ctx es = foldM (flip extend) ctx es
 
 -- | doesn't combine notes
 orElse :: M v loc a -> M v loc a -> M v loc a
-orElse m1 m2 = M go where
+orElse m1 m2 = MT go where
   go menv = runM m1 menv <|> runM m2 menv
-
--- If the action fails, preserve all the notes it emitted and then return the
--- provided `a`; if the action succeeds, we're good, just use its result
-recover :: a -> M v loc a -> M v loc a
-recover ifFail (M action) = M go where
-  go menv = case action menv of
-    Result es is Nothing -> Result es is $ Just (ifFail, env menv)
-    r -> r
+  s@(Success _ _)         <|> _ = s
+  TypeError _ _           <|> r = r
+  CompilerBug _ _ _       <|> r = r -- swallowing bugs for now: when checking whether a type annotation
+                                    -- is redundant, typechecking without that annotation might result in
+                                    -- a CompilerBug that we want `orElse` to recover from
 
 -- getMaybe :: Result v loc a -> Result v loc (Maybe a)
 -- getMaybe = hoistMaybe Just
@@ -569,18 +624,13 @@ shouldPerformAbilityCheck t = do
   pure $ all (/= t) skip
 
 compilerCrash :: CompilerBug v loc -> M v loc a
-compilerCrash bug = failWith $ CompilerBug bug
+compilerCrash bug = liftResult $ compilerBug bug
 
 failWith :: Cause v loc -> M v loc a
-failWith cause =
-  M (const $ Result (pure $ ErrorNote cause mempty) mempty Nothing)
+failWith cause = liftResult $ typeError cause
 
 compilerCrashResult :: CompilerBug v loc -> Result v loc a
-compilerCrashResult bug =
-  Result (pure $ ErrorNote (CompilerBug bug) mempty) mempty Nothing
-
-failSecretlyAndDangerously :: M v loc a
-failSecretlyAndDangerously = empty
+compilerCrashResult bug = CompilerBug bug mempty mempty
 
 getDataDeclaration :: Reference -> M v loc (DataDeclaration' v loc)
 getDataDeclaration r = do
@@ -620,13 +670,13 @@ getConstructorType' kind get r cid = do
 extendUniversal :: (Var v) => v -> M v loc v
 extendUniversal v = do
   v' <- freshenVar v
-  modifyContext (extend (Universal v'))
+  extendContext (Universal v')
   pure v'
 
 extendExistential :: (Var v) => v -> M v loc v
 extendExistential v = do
   v' <- freshenVar v
-  modifyContext (extend (Existential B.Blank v'))
+  extendContext (Existential B.Blank v')
   pure v'
 
 extendExistentialTV :: Var v => v -> M v loc (TypeVar v loc)
@@ -670,12 +720,12 @@ loc = ABT.annotation
 -- Prepends the provided abilities onto the existing ambient for duration of `m`
 withEffects :: [Type v loc] -> M v loc a -> M v loc a
 withEffects abilities' m =
-  M (\menv -> runM m (menv { abilities = abilities' ++ abilities menv }))
+  MT (\menv -> runM m (menv { abilities = abilities' ++ abilities menv }))
 
 -- Replaces the ambient abilities with the provided for duration of `m`
 withEffects0 :: [Type v loc] -> M v loc a -> M v loc a
 withEffects0 abilities' m =
-  M (\menv -> runM m (menv { abilities = abilities' }))
+  MT (\menv -> runM m (menv { abilities = abilities' }))
 
 
 synthesizeApps :: (Foldable f, Var v, Ord loc) => Type v loc -> f (Term v loc) -> M v loc (Type v loc)
@@ -713,7 +763,7 @@ synthesizeApp (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argNum) 
                                          (Type.effect (loc ft) [et] ot))
         ctxMid = [existential o, existential e,
                   existential i, Solved b a soln]
-    modifyContext $ replace (existential a) ctxMid
+    replaceContext (existential a) ctxMid
     synthesizeApp (Type.getPolytype soln) argp
   go _ = getContext >>= \ctx -> failWith $ TypeMismatch ctx
 synthesizeApp _ _ = error "unpossible - Type.Effect'' pattern always succeeds"
@@ -790,6 +840,8 @@ synthesize e = scope (InSynthesize e) $
   go (Term.Boolean' _) = pure $ Type.boolean l
   go (Term.Text' _) = pure $ Type.text l
   go (Term.Char' _) = pure $ Type.char l
+  go (Term.TermLink' _) = pure $ Type.termLink l
+  go (Term.TypeLink' _) = pure $ Type.typeLink l
   go (Term.Apps' f args) = do -- ->EEEEE
     ft <- synthesize f
     ctx <- getContext
@@ -1259,7 +1311,7 @@ check e0 t0 = scope (InCheck e0 t0) $ do
   go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
     x <- ABT.freshen body freshenVar
     markThenRetract0 x $ do
-      modifyContext (extend (Ann x i))
+      extendContext (Ann x i)
       let Type.Effect'' es ot = o
       body' <- pure $ ABT.bindInheritAnnotation body (Term.var() x)
       withEffects0 es $ check body' ot
@@ -1267,7 +1319,7 @@ check e0 t0 = scope (InCheck e0 t0) $ do
     v        <- ABT.freshen e freshenVar
     tbinding <- synthesize binding
     markThenRetract0 v $ do
-      modifyContext (extend (Ann v tbinding))
+      extendContext (Ann v tbinding)
       check (ABT.bindInheritAnnotation e (Term.var () v)) t
   go (Term.LetRecNamed' [] e) t = check e t
   go (Term.LetRecTop' isTop letrec) t =
@@ -1373,8 +1425,8 @@ instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $
         let s = Solved blank v (Type.Monotype (Type.arrow (loc t)
                                                  (Type.existentialp (loc i) i')
                                                  (Type.existentialp (loc o) o')))
-        modifyContext $ replace (existential v)
-                                 [existential o', existential i', s]
+        replaceContext (existential v)
+                       [existential o', existential i', s]
         instantiateR i B.Blank i' -- todo: not sure about this, could also be `blank`
         applyM o >>= instantiateL B.Blank o'
       Type.App' x y -> do -- analogue of InstLArr
@@ -1382,8 +1434,8 @@ instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $
         let s = Solved blank v (Type.Monotype (Type.app (loc t)
                                                   (Type.existentialp (loc x) x')
                                                   (Type.existentialp (loc y) y')))
-        modifyContext $ replace (existential v)
-                                 [existential y', existential x', s]
+        replaceContext (existential v)
+                       [existential y', existential x', s]
         applyM x >>= instantiateL B.Blank x'
         applyM y >>= instantiateL B.Blank y'
       Type.Effect1' es vt -> do
@@ -1392,8 +1444,8 @@ instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $
         let t' = Type.effect1 (loc t) (Type.existentialp (loc es) es')
                                       (Type.existentialp (loc vt) vt')
             s = Solved blank v (Type.Monotype t')
-        modifyContext $ replace (existential v)
-                         [existential es', existential vt', s]
+        replaceContext (existential v)
+                       [existential es', existential vt', s]
         applyM es >>= instantiateL B.Blank es'
         applyM vt >>= instantiateL B.Blank vt'
       Type.Effects' es -> do
@@ -1401,8 +1453,8 @@ instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $
         let locs = loc <$> es
             t' = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
             s = Solved blank v $ Type.Monotype t'
-        modifyContext $ replace (existential v)
-                                 ((existential <$> es') ++ [s])
+        replaceContext (existential v)
+                       ((existential <$> es') ++ [s])
         Foldable.for_ (es' `zip` es) $ \(e',e) ->
           applyM e >>= instantiateL B.Blank e'
       Type.Forall' body -> do -- InstLIIL
@@ -1438,8 +1490,8 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
                           (Type.arrow (loc t)
                             (Type.existentialp (loc i) i')
                             (Type.existentialp (loc o) o')))
-        modifyContext $ replace (existential v)
-                                 [existential o', existential i', s]
+        replaceContext (existential v)
+                       [existential o', existential i', s]
         ctx <- instantiateL B.Blank i' i >> getContext
         instantiateR (apply ctx o) B.Blank o'
       Type.App' x y -> do -- analogue of InstRArr
@@ -1449,7 +1501,7 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
         -- 3. recurse to refine the types of foo' and a'
         [x', y'] <- traverse freshenVar [nameFrom Var.inferTypeConstructor x, nameFrom Var.inferTypeConstructorArg y]
         let s = Solved blank v (Type.Monotype (Type.app (loc t) (Type.existentialp (loc x) x') (Type.existentialp (loc y) y')))
-        modifyContext $ replace (existential v) [existential y', existential x', s]
+        replaceContext (existential v) [existential y', existential x', s]
         applyM x >>= \x -> instantiateR x B.Blank x'
         applyM y >>= \y -> instantiateR y B.Blank y'
       Type.Effect1' es vt -> do
@@ -1458,8 +1510,8 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
         let t' = Type.effect1 (loc t) (Type.existentialp (loc es) es')
                                       (Type.existentialp (loc vt) vt')
             s = Solved blank v (Type.Monotype t')
-        modifyContext $ replace (existential v)
-                         [existential es', existential vt', s]
+        replaceContext (existential v)
+                       [existential es', existential vt', s]
         applyM es >>= \es -> instantiateR es B.Blank es'
         applyM vt >>= \vt -> instantiateR vt B.Blank vt'
       Type.Effects' es -> do
@@ -1467,8 +1519,8 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
         let locs = loc <$> es
             t' = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
             s = Solved blank v $ Type.Monotype t'
-        modifyContext $ replace (existential v)
-                                 ((existential <$> es') ++ [s])
+        replaceContext (existential v)
+                       ((existential <$> es') ++ [s])
         Foldable.for_ (es `zip` es') $ \(e, e') -> do
           ctx <- getContext
           instantiateR (apply ctx e) B.Blank e'
@@ -1516,12 +1568,13 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
       -- 2b. If no:
       Nothing -> case r of
         -- It's an unsolved existential, instantiate it to all of ambient
-        Type.Existential' b v ->
+        Type.Existential' b v -> do
           let et2 = Type.effects (loc r) ambient
           -- instantiate it to `{}` if can't cover all of ambient
-          in instantiateR et2 b v `orElse`
-             instantiateR (Type.effects (loc r) []) b v `orElse`
-             die1
+          instantiateR et2 b v 
+            `orElse` instantiateR (Type.effects (loc r) []) b v 
+            `orElse` die1
+          go ambient rs
         _ -> -- find unsolved existential, 'e, that appears in ambient
           let unsolveds = (ambient >>= Type.flattenEffects >>= vars)
               vars (Type.Var' (TypeVar.Existential b v)) = [(b,v)]
@@ -1562,7 +1615,7 @@ abilityCheck requested = do
   abilityCheck' (apply ctx <$> ambient >>= Type.flattenEffects)
                 (apply ctx <$> requested' >>= Type.flattenEffects)
 
-verifyDataDeclarations :: (Var v, Ord loc) => DataDeclarations v loc -> M v loc ()
+verifyDataDeclarations :: (Var v, Ord loc) => DataDeclarations v loc -> Result v loc ()
 verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
   let ctors = DD.constructors decl
   forM_ ctors $ \(_ctorName,typ) -> verifyClosed typ id
@@ -1582,25 +1635,25 @@ synthesizeClosed abilities lookupType term0 = let
     Left missingRef ->
       compilerCrashResult (UnknownTermReference missingRef)
     Right term -> run [] datas effects $ do
-      verifyDataDeclarations datas
-      verifyDataDeclarations (DD.toDataDecl <$> effects)
-      verifyClosedTerm term
+      liftResult $  verifyDataDeclarations datas
+                 *> verifyDataDeclarations (DD.toDataDecl <$> effects)
+                 *> verifyClosedTerm term
       synthesizeClosed' abilities term
 
-verifyClosedTerm :: forall v loc . Ord v => Term v loc -> M v loc ()
+verifyClosedTerm :: forall v loc . Ord v => Term v loc -> Result v loc ()
 verifyClosedTerm t = do
   ok1 <- verifyClosed t id
   let freeTypeVars = Map.toList $ Term.freeTypeVarAnnotations t
       reportError (v, locs) = for_ locs $ \loc ->
-        recover () (failWith (UnknownSymbol loc (TypeVar.underlying v)))
+        typeError (UnknownSymbol loc (TypeVar.underlying v))
   for_ freeTypeVars reportError
-  when (not ok1 || (not . null) freeTypeVars) $ failSecretlyAndDangerously
+  when (not ok1 || (not . null) freeTypeVars) $ compilerBug (OtherBug "impossible")
 
-verifyClosed :: (Traversable f, Ord v) => ABT.Term f v a -> (v -> v2) -> M v2 a Bool
+verifyClosed :: (Traversable f, Ord v) => ABT.Term f v a -> (v -> v2) -> Result v2 a Bool
 verifyClosed t toV2 =
   let isBoundIn v t = Set.member v (snd (ABT.annotation t))
       loc t = fst (ABT.annotation t)
-      go t@(ABT.Var' v) | not (isBoundIn v t) = recover False $ failWith (UnknownSymbol (loc t) $ toV2 v)
+      go t@(ABT.Var' v) | not (isBoundIn v t) = typeError (UnknownSymbol (loc t) $ toV2 v)
       go _ = pure True
   in all id <$> ABT.foreachSubterm go (ABT.annotateBound t)
 
@@ -1615,12 +1668,12 @@ annotateRefs synth = ABT.visit f where
   f _ = Nothing
 
 run
-  :: (Var v, Ord loc)
+  :: (Var v, Ord loc, Functor f)
   => [Type v loc]
   -> DataDeclarations v loc
   -> EffectDeclarations v loc
-  -> M v loc a
-  -> Result v loc a
+  -> MT v loc f a
+  -> f a
 run ambient datas effects m =
   fmap fst
     . runM m
@@ -1641,19 +1694,22 @@ synthesizeClosed' abilities term = do
   setContext ctx0 -- restore the initial context
   pure $ generalizeExistentials ctx t
 
--- Check if the given typechecking action succeeds
-succeeds :: M v loc a -> M v loc Bool
+-- Check if the given typechecking action succeeds.
+succeeds :: M v loc a -> TotalM v loc Bool
 succeeds m = do
   e <- ask
-  let Result _ _ r = runM m e
-  pure $ isJust r
+  case runM m e of
+    Success _ _ -> pure True
+    TypeError _ _ -> pure False
+    CompilerBug bug _ _ -> MT (\_ -> Left bug)
 
 -- Check if `t1` is a subtype of `t2`. Doesn't update the typechecking context.
-isSubtype' :: (Var v, Ord loc) => Type v loc -> Type v loc -> M v loc Bool
-isSubtype' type1 type2 = do
-  let vars = Set.union (ABT.freeVars type1) (ABT.freeVars type2)
-  appendContext (Var <$> Set.toList vars)
-  succeeds $ subtype type1 type2
+isSubtype' :: (Var v, Ord loc) => Type v loc -> Type v loc -> TotalM v loc Bool
+isSubtype' type1 type2 = succeeds $ do
+  let vars = Set.toList $ Set.union (ABT.freeVars type1) (ABT.freeVars type2)
+  reserveAll (TypeVar.underlying <$> vars)
+  appendContext (Var <$> vars)
+  subtype type1 type2
 
 -- `isRedundant userType inferredType` returns `True` if the `userType`
 -- is equal "up to inferred abilities" to `inferredType`.
@@ -1682,16 +1738,16 @@ isRedundant userType0 inferredType0 = do
   -- type would have caused the program not to typecheck! Ex: if user writes
   -- `: Nat -> Nat` when it has an inferred type of `a -> a`. So we only
   -- need to check the other direction to determine redundancy.
-  isSubtype' userType inferredType <* setContext ctx0
+  (liftTotalM $ isSubtype' userType inferredType) <* setContext ctx0
 
 -- Public interface to `isSubtype`
 isSubtype
-  :: (Var v, Ord loc) => Type v loc -> Type v loc -> Result v loc Bool
+  :: (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
 isSubtype t1 t2 =
   run [] Map.empty Map.empty (isSubtype' t1 t2)
 
 isEqual
-  :: (Var v, Ord loc) => Type v loc -> Type v loc -> Result v loc Bool
+  :: (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
 isEqual t1 t2 =
   (&&) <$> isSubtype t1 t2 <*> isSubtype t2 t1
 
@@ -1715,27 +1771,23 @@ instance (Ord loc, Var v) => Show (Context v loc) where
     showElem _ (Marker v) = "|"++Text.unpack (Var.name v)++"|"
 
 -- MEnv v loc -> (Seq (ErrorNote v loc), (a, Env v loc))
-instance Monad (M v loc) where
-  return a = M (\menv -> pure (a, env menv))
-  m >>= f = M go where
+instance Monad f => Monad (MT v loc f) where
+  return a = MT (\menv -> pure (a, env menv))
+  m >>= f = MT go where
     go menv = do
       (a, env1) <- runM m menv
       runM (f a) (menv { env = env1 })
 
-instance MonadFail.MonadFail (M v loc) where
+instance Monad f => MonadFail.MonadFail (MT v loc f) where
   fail = error
 
-instance Applicative (M v loc) where
-  pure = return
+instance Monad f => Applicative (MT v loc f) where
+  pure a = MT (\menv -> pure (a, env menv))
   (<*>) = ap
 
-instance Functor (M v loc) where
-  fmap = liftM
+instance Functor f => Functor (MT v loc f) where
+  fmap f (MT m) = MT (\menv -> fmap (first f) (m menv))
 
-instance MonadReader (MEnv v loc) (M v loc) where
-  ask = M (\e -> pure (e, env e))
-  local f m = M $ runM m . f
-
-instance Alternative (M v loc) where
-  empty = liftResult empty
-  a <|> b = a `orElse` b
+instance Monad f => MonadReader (MEnv v loc) (MT v loc f) where
+  ask = MT (\e -> pure (e, env e))
+  local f m = MT $ runM m . f

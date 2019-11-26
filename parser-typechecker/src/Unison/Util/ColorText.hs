@@ -3,7 +3,7 @@
 
 module Unison.Util.ColorText (
   ColorText, Color(..), style, toANSI, toPlain, toHTML, defaultColors,
-  black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold,
+  black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold, underline,
   module Unison.Util.AnnotatedText)
 where
 
@@ -18,10 +18,10 @@ type ColorText = AnnotatedText Color
 data Color
   =  Black | Red | Green | Yellow | Blue | Purple | Cyan | White
   | HiBlack| HiRed | HiGreen | HiYellow | HiBlue | HiPurple | HiCyan | HiWhite
-  | Bold
+  | Bold | Underline
   deriving (Eq, Ord, Bounded, Enum, Show, Read)
 
-black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold :: ColorText -> ColorText
+black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold, underline :: ColorText -> ColorText
 black = style Black
 red = style Red
 green = style Green
@@ -39,6 +39,7 @@ hiPurple = style HiPurple
 hiCyan = style HiCyan
 hiWhite = style HiWhite
 bold = style Bold
+underline = style Underline 
 
 style :: Color -> ColorText -> ColorText
 style = annotate
@@ -95,6 +96,7 @@ toANSI (AnnotatedText chunks) =
     HiCyan   -> [ANSI.SetColor ANSI.Foreground ANSI.Vivid ANSI.Cyan]
     HiWhite  -> [ANSI.SetColor ANSI.Foreground ANSI.Vivid ANSI.White]
     Bold     -> [ANSI.SetConsoleIntensity ANSI.BoldIntensity]
+    Underline -> [ANSI.SetUnderlining ANSI.SingleUnderline]
 
 defaultColors :: ST.Element -> Maybe Color
 defaultColors = \case
@@ -109,6 +111,7 @@ defaultColors = \case
   ST.Request             -> Nothing
   ST.AbilityBraces       -> Just HiBlack
   ST.ControlKeyword      -> Just Bold
+  ST.LinkKeyword         -> Just HiBlack
   ST.TypeOperator        -> Just HiBlack
   ST.BindingEquals       -> Nothing
   ST.TypeAscriptionColon -> Just Blue

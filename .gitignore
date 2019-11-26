@@ -29,6 +29,7 @@ out
 
 # Stack
 .stack-work
+stack.yaml.lock
 
 # IntelliJ
 .idea

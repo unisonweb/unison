@@ -14,7 +14,7 @@ import qualified Unison.Codebase.FileCodebase  as FileCodebase
 import qualified Unison.CommandLine.Main       as CommandLine
 import qualified Unison.Runtime.Rt1IO          as Rt1
 import qualified Unison.Codebase.Path          as Path
-import qualified Version as Version
+import qualified Version
 import qualified Unison.Codebase.TranscriptParser as TR
 import qualified System.Path as Path
 import qualified System.Posix.Signals as Sig
@@ -38,13 +38,13 @@ usage = P.callout "🌻" $ P.lines [
   P.wrap "Starts Unison interactively, using the specified codebase. This flag can also be set for any of the below commands.",
   "",
   P.bold "ucm run .mylib.mymain",
-  P.wrap $ "Executes the definition `.mylib.mymain` from the codebase, then exits.",
+  P.wrap "Executes the definition `.mylib.mymain` from the codebase, then exits.",
   "",
   P.bold "ucm run.file foo.u mymain",
-  P.wrap $ "Executes the definition called `mymain` in `foo.u`, then exits.",
+  P.wrap "Executes the definition called `mymain` in `foo.u`, then exits.",
   "",
   P.bold "ucm run.pipe mymain",
-  P.wrap $ "Executes the definition called `mymain` from a `.u` file read from the standard input, then exits.",
+  P.wrap "Executes the definition called `mymain` from a `.u` file read from the standard input, then exits.",
   "",
   P.bold "ucm transcript mytranscript.md",
   P.wrap $ "Executes the `mytranscript.md` transcript and creates"
