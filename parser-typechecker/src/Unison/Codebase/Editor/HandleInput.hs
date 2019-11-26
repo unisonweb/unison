@@ -1,8 +1,6 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
---{-# OPTIONS_GHC -Wno-unused-imports #-} -- todo: delete
 {-# OPTIONS_GHC -Wno-unused-top-binds #-} -- todo: delete
 {-# OPTIONS_GHC -Wno-unused-local-binds #-} -- todo: delete
---{-# OPTIONS_GHC -Wno-unused-matches #-} -- todo: delete
 
 {-# LANGUAGE ApplicativeDo       #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -54,6 +52,7 @@ import           Unison.Codebase.Branch         ( Branch(..)
                                                 , Branch0(..)
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
+import           Unison.Codebase.BranchLoadMode ( BranchLoadMode(FailIfMissing, EmptyIfMissing) )
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
 import qualified Unison.Codebase.Causal        as Causal
 import qualified Unison.Codebase.Metadata      as Metadata
@@ -245,10 +244,10 @@ loop = do
           let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
           withFile [] sourceName (text, lexed) $ \unisonFile -> do
             sr <- toSlurpResult unisonFile <$> slurpResultNames0
-            hnames <- makeShadowedPrintNamesFromLabeled
+            names <- makeShadowedPrintNamesFromLabeled
                         (UF.termSignatureExternalLabeledDependencies unisonFile)
                         (UF.typecheckedToNames0 unisonFile)
-            ppe <- prettyPrintEnv hnames
+            ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
             eval (Notify $ Typechecked sourceName ppe sr unisonFile)
             r <- eval . Evaluate ppe $ unisonFile
             case r of
@@ -294,12 +293,12 @@ loop = do
           DeleteTypeI def -> "delete.type" <> hqs' def
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
           DeletePatchI path -> "delete.patch " <> ps' path
-          ResolveTermI srcH targetH p ->
-            "resolve.term " <> SH.toText srcH <> " "
+          ReplaceTermI srcH targetH p ->
+            "replace.term " <> SH.toText srcH <> " "
                             <> SH.toText targetH <> " "
                             <> opatch p
-          ResolveTypeI srcH targetH p ->
-            "resolve.type " <> SH.toText srcH <> " "
+          ReplaceTypeI srcH targetH p ->
+            "replace.type " <> SH.toText srcH <> " "
                             <> SH.toText targetH <> " "
                             <> opatch p
           ResolveTermNameI path -> "resolve.termName " <> hqs' path
@@ -586,7 +585,7 @@ loop = do
 
       NamesI thing -> do
         len <- eval CodebaseHashLength
-        parseNames0 <- basicParseNames0
+        parseNames0 <- Names3.suffixify0 <$> basicParseNames0
         let filtered = case thing of
               HQ.HashOnly shortHash ->
                 Names.filterBySHs (Set.singleton shortHash) parseNames0
@@ -829,7 +828,7 @@ loop = do
         -- We might like to make sure that the user search terms get used as
         -- the names in the pretty-printer, but the current implementation
         -- doesn't.
-        ppe <- prettyPrintEnv printNames
+        ppe <- prettyPrintEnvDecl printNames
         let loc = case outputLoc of
               ConsoleLocation    -> Nothing
               FileLocation path  -> Just path
@@ -855,7 +854,7 @@ loop = do
 
       FindShallowI pathArg -> do
         prettyPrintNames0 <- basicPrettyPrintNames0
-        ppe <- prettyPrintEnv $ Names prettyPrintNames0 mempty
+        ppe <- fmap PPE.suffixifiedPPE . prettyPrintEnvDecl $ Names prettyPrintNames0 mempty
         hashLen <- eval CodebaseHashLength
         let pathArgAbs = Path.toAbsolutePath currentPath' pathArg
         b0 <- Branch.head <$> getAt pathArgAbs
@@ -944,7 +943,7 @@ loop = do
           Right results -> do
             numberedArgs .= fmap searchResultToHQString results
             results' <- loadSearchResults results
-            ppe <- prettyPrintEnv =<<
+            ppe <- prettyPrintEnv . Names3.suffixify =<<
               makePrintNamesFromLabeled'
                 (foldMap SR'.labeledDependencies results')
             respond $ ListOfDefinitions ppe isVerbose results'
@@ -966,7 +965,7 @@ loop = do
           BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
-      ResolveTermI from to patchPath -> do
+      ReplaceTermI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
         fromRefs <- eval $ ReferencesByShortHash from
@@ -1011,7 +1010,7 @@ loop = do
           (hashConflicted from .
             Set.map (Referent.Ref . DerivedId))
 
-      ResolveTypeI from to patchPath -> do
+      ReplaceTypeI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
         fromRefs <- eval $ ReferencesByShortHash from
@@ -1057,11 +1056,11 @@ loop = do
             stepAt ( Path.unabsolute currentPath'
                    , doSlurpAdds (Slurp.adds sr) uf)
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
-          ppe <- prettyPrintEnv =<<
+          ppe <- prettyPrintEnvDecl =<<
             makeShadowedPrintNamesFromLabeled
               (UF.termSignatureExternalLabeledDependencies uf)
               (UF.typecheckedToNames0 uf)
-          respond $ SlurpOutput input ppe sr
+          respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
 
       UpdateI maybePatchPath hqs -> case uf of
         Nothing -> respond $ NoUnisonFile input
@@ -1161,7 +1160,7 @@ loop = do
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
         names <- makePrintNamesFromLabeled' $ Patch.labeledDependencies patch
-        ppe <- prettyPrintEnv names
+        ppe <- prettyPrintEnvDecl names
         branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
         let names0 = Branch.toNames0 (Branch.head branch)
         -- showTodoOutput only needs the local references
@@ -1278,7 +1277,7 @@ loop = do
           Left e -> eval . Notify $ e
           Right (repo, Nothing, remotePath) -> do
               -- push from srcb to repo's remotePath
-              eval (LoadRemoteRootBranch repo) >>= \case
+              eval (LoadRemoteRootBranch EmptyIfMissing repo) >>= \case
                 Left e -> eval . Notify $ GitError input e
                 Right remoteRoot -> do
                   newRemoteRoot <- eval . Eval $
@@ -1360,14 +1359,15 @@ loop = do
 doDisplay :: Var v => OutputLocation -> Names -> Referent -> Action' m v ()
 doDisplay outputLoc names r = do
   let tm = Term.fromReferent External r
-  ppe <- prettyPrintEnv names
+  ppe <- prettyPrintEnvDecl names
   latestFile' <- use latestFile
   let
     loc = case outputLoc of
       ConsoleLocation    -> Nothing
       FileLocation path  -> Just path
       LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
-    evalTerm r = fmap ErrorUtil.hush . eval $ Evaluate1 ppe (Term.ref External r)
+    evalTerm r = fmap ErrorUtil.hush . eval $ 
+      Evaluate1 (PPE.suffixifiedPPE ppe) (Term.ref External r)
     loadTerm (Reference.DerivedId r) = eval $ LoadTerm r
     loadTerm _ = pure Nothing
     loadDecl (Reference.DerivedId r) = eval $ LoadType r
@@ -1416,10 +1416,11 @@ getLinks input src mdTypeStr = do
         \r -> loadTypeOfTerm (Referent.Ref r)
       let deps = Set.map LD.termRef results <>
                  Set.unions [ Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs ]
-      ppe <- prettyPrintEnv =<< makePrintNamesFromLabeled' deps
-      let sortedSigs = sortOn snd (toList results `zip` sigs)
-      let out = [(PPE.termName ppe (Referent.Ref r), r, t) | (r, t) <- sortedSigs ]
-      pure (Right (ppe, out))
+      ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled' deps 
+      let ppeDecl = PPE.unsuffixifiedPPE ppe
+      let sortedSigs = sortOn snd (toList results `zip` sigs)  
+      let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs ] 
+      pure (Right (PPE.suffixifiedPPE ppe, out))
 
 resolveShortBranchHash ::
   Input -> ShortBranchHash -> Action' m v (Either (Output v) (Branch m))
@@ -1444,11 +1445,11 @@ propagatePatch inputDescription patch scopePath = do
     let names0 = Branch.toNames0 (Branch.head scope)
     -- this will be different AFTER the update succeeds
     names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-    ppe <- prettyPrintEnv names
+    ppe <- prettyPrintEnvDecl names
     showTodoOutput ppe patch names0
   pure changed
 
-showTodoOutput :: PPE.PrettyPrintEnv -> Patch -> Names0 -> Action' m v ()
+showTodoOutput :: PPE.PrettyPrintEnvDecl -> Patch -> Names0 -> Action' m v ()
 showTodoOutput ppe patch names0 = do
   todo <- checkTodo patch names0
   numberedArgs .=
@@ -1648,7 +1649,8 @@ searchBranchExact len names queries = let
 respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
--- merges the specified remote branch into the specified local absolute path
+-- Merges the specified remote branch into the specified local absolute path.
+-- Implementation detail of PullRemoteBranchI
 loadRemoteBranchAt
   :: Var v
   => Monad m
@@ -1658,7 +1660,7 @@ loadRemoteBranchAt
   -> Path.Absolute
   -> Action' m v ()
 loadRemoteBranchAt input inputDescription (repo, sbh, remotePath) p = do
-  b <- eval $ maybe (LoadRemoteRootBranch repo)
+  b <- eval $ maybe (LoadRemoteRootBranch FailIfMissing repo)
                     (LoadRemoteShortBranch repo) sbh
   case b of
     Left  e -> eval . Notify $ GitError input e
@@ -2053,6 +2055,9 @@ lexedSource name src = do
 prettyPrintEnv :: Names -> Action' m v PPE.PrettyPrintEnv
 prettyPrintEnv ns = eval CodebaseHashLength <&> (`PPE.fromNames` ns)
 
+prettyPrintEnvDecl :: Names -> Action' m v PPE.PrettyPrintEnvDecl
+prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
+
 parseSearchType :: (Monad m, Var v)
   => Input -> String -> Action' m v (Either (Output v) (Type v Ann))
 parseSearchType input typ = fmap Type.removeAllEffectVars <$> parseType input typ
@@ -2061,7 +2066,10 @@ parseType :: (Monad m, Var v)
   => Input -> String -> Action' m v (Either (Output v) (Type v Ann))
 parseType input src = do
   -- `show Input` is the name of the "file" being lexed
-  (names, lexed) <- lexedSource (Text.pack $ show input) (Text.pack src)
+  (names0, lexed) <- lexedSource (Text.pack $ show input) (Text.pack src)
+  parseNames <- Names3.suffixify0 <$> basicParseNames0
+  let names = Names3.push (Names3.currentNames names0) 
+                          (Names3.Names parseNames (Names3.oldNames names0)) 
   e <- eval $ ParseType names lexed
   pure $ case e of
     Left err -> Left $ TypeParseError input src err

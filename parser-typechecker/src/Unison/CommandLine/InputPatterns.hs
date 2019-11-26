@@ -617,14 +617,14 @@ previewMergeLocal = InputPattern
     _ -> Left (I.help previewMergeLocal)
   )
 
-resolveEdit
+replaceEdit
   :: (ShortHash -> ShortHash -> Maybe Input.PatchPath -> Input)
   -> String
   -> InputPattern
-resolveEdit f s = self
+replaceEdit f s = self
  where
   self = InputPattern
-    ("resolve." <> s)
+    ("replace." <> s)
     []
     [ (Required, exactDefinitionQueryArg)
     , (Required, exactDefinitionQueryArg)
@@ -632,17 +632,17 @@ resolveEdit f s = self
     ]
     (P.wrapColumn2
       [ ( makeExample self ["<from>", "<to>", "<patch>"]
-        , "Resolves any edit conflict for the "
+        , "Replace the "
         <> P.string s
         <> " <from> in the given patch "
-        <> "by globally replacing it with the "
+        <> "with the "
         <> P.string s
         <> " <to>."
         )
       , ( makeExample self ["<from>", "<to>"]
-        , "Resolves edit conflicts in the default patch by replacing the "
+        , "Replace the "
         <> P.string s
-        <> "<from> with <to>."
+        <> "<from> with <to> in the default patch."
         )
       ]
     )
@@ -665,11 +665,11 @@ resolveEdit f s = self
   toHash (Left  h      ) = Just h
   toHash (Right (_, hq)) = HQ'.toHash hq
 
-resolveType :: InputPattern
-resolveType = resolveEdit Input.ResolveTypeI "type"
+replaceType :: InputPattern
+replaceType = replaceEdit Input.ReplaceTypeI "type"
 
-resolveTerm :: InputPattern
-resolveTerm = resolveEdit Input.ResolveTermI "term"
+replaceTerm :: InputPattern
+replaceTerm = replaceEdit Input.ReplaceTermI "term"
 
 viewReflog :: InputPattern
 viewReflog = InputPattern
@@ -961,8 +961,8 @@ validInputs =
   , link
   , unlink
   , links
-  , resolveTerm
-  , resolveType
+  , replaceTerm
+  , replaceType
   , test
   , execute
   , viewReflog

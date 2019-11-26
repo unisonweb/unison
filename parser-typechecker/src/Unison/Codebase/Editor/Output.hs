@@ -125,10 +125,10 @@ data Output v
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
-                       PPE.PrettyPrintEnv
+                       PPE.PrettyPrintEnvDecl
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
-  | TodoOutput PPE.PrettyPrintEnv (TO.TodoOutput v Ann)
+  | TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
   | TestResults TestReportStats
@@ -147,7 +147,7 @@ data Output v
   | NoConfiguredGitUrl PushPull Path'
   | ConfiguredGitUrlParseError PushPull Path' Text String
   | ConfiguredGitUrlIncludesShortBranchHash PushPull RemoteRepo ShortBranchHash Path
-  | DisplayLinks PPE.PrettyPrintEnv Metadata.Metadata
+  | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
                (Map Reference (DisplayThing (Decl v Ann)))
                (Map Reference (DisplayThing (Term v Ann)))
   | LinkFailure Input

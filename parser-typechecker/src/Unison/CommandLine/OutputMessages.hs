@@ -832,29 +832,31 @@ formatMissingStuff terms types =
     <> P.column2 [ (P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
 
 displayDefinitions' :: Var v => Ord a1
-  => PPE.PrettyPrintEnv
+  => PPE.PrettyPrintEnvDecl
   -> Map Reference.Reference (DisplayThing (DD.Decl v a1))
   -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
   -> Pretty
-displayDefinitions' ppe types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
+displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
   where
+  ppeBody r = PPE.declarationPPE ppe0 r
+  ppeDecl = PPE.unsuffixifiedPPE ppe0
   prettyTerms = map go . Map.toList
              -- sort by name
-             $ Map.mapKeys (first (PPE.termName ppe . Referent.Ref) . dupe) terms
+             $ Map.mapKeys (first (PPE.termName ppeDecl . Referent.Ref) . dupe) terms
   prettyTypes = map go2 . Map.toList
-              $ Map.mapKeys (first (PPE.typeName ppe) . dupe) types
+              $ Map.mapKeys (first (PPE.typeName ppeDecl) . dupe) types
   go ((n, r), dt) =
     case dt of
       MissingThing r -> missing n r
       BuiltinThing -> builtin n
-      RegularThing tm -> TermPrinter.prettyBinding ppe n tm
+      RegularThing tm -> TermPrinter.prettyBinding (ppeBody r) n tm
   go2 ((n, r), dt) =
     case dt of
       MissingThing r -> missing n r
       BuiltinThing -> builtin n
       RegularThing decl -> case decl of
-        Left d  -> DeclPrinter.prettyEffectDecl ppe r n d
-        Right d -> DeclPrinter.prettyDataDecl ppe r n d
+        Left d  -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
+        Right d -> DeclPrinter.prettyDataDecl (ppeBody r) r n d
   builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
   missing n r = P.wrap (
     "-- The name " <> prettyHashQualified n <> " is assigned to the "
@@ -888,7 +890,7 @@ displayRendered outputLoc pp =
 
 displayDefinitions :: Var v => Ord a1 =>
   Maybe FilePath
-  -> PPE.PrettyPrintEnv
+  -> PPE.PrettyPrintEnvDecl
   -> Map Reference.Reference (DisplayThing (DD.Decl v a1))
   -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
   -> IO Pretty
@@ -1067,7 +1069,7 @@ renderEditConflicts ppe Patch{..} =
       P.oxfordCommas [ termName r | TermEdit.Replace r _ <- es ]
     formatConflict = either formatTypeEdits formatTermEdits
 
-todoOutput :: Var v => PPE.PrettyPrintEnv -> TO.TodoOutput v a -> IO Pretty
+todoOutput :: Var v => PPE.PrettyPrintEnvDecl -> TO.TodoOutput v a -> IO Pretty
 todoOutput ppe todo =
   if noConflicts && noEdits
   then pure $ P.okCallout "No conflicts or edits in progress."
@@ -1076,16 +1078,18 @@ todoOutput ppe todo =
   noConflicts = TO.nameConflicts todo == mempty
              && TO.editConflicts todo == Patch.empty
   noEdits = TO.todoScore todo == 0
+  ppeu = PPE.unsuffixifiedPPE ppe
+  ppes = PPE.suffixifiedPPE ppe
   (frontierTerms, frontierTypes) = TO.todoFrontier todo
   (dirtyTerms, dirtyTypes) = TO.todoFrontierDependents todo
   corruptTerms =
-    [ (PPE.termName ppe (Referent.Ref r), r) | (r, Nothing) <- frontierTerms ]
+    [ (PPE.termName ppeu (Referent.Ref r), r) | (r, Nothing) <- frontierTerms ]
   corruptTypes =
-    [ (PPE.typeName ppe r, r) | (r, MissingThing _) <- frontierTypes ]
+    [ (PPE.typeName ppeu r, r) | (r, MissingThing _) <- frontierTypes ]
   goodTerms ts =
-    [ (PPE.termName ppe (Referent.Ref r), typ) | (r, Just typ) <- ts ]
+    [ (PPE.termName ppeu (Referent.Ref r), typ) | (r, Just typ) <- ts ]
   todoConflicts = if noConflicts then mempty else P.lines . P.nonEmpty $
-    [ renderEditConflicts ppe (TO.editConflicts todo)
+    [ renderEditConflicts ppeu (TO.editConflicts todo)
     , renderNameConflicts conflictedTypeNames conflictedTermNames ]
     where
     -- If a conflict is both an edit and a name conflict, we show it in the edit
@@ -1125,15 +1129,15 @@ todoOutput ppe todo =
               <> "transitive dependent(s) left to upgrade."
               <> "Your edit frontier is the dependents of these definitions:")
       , P.indentN 2 . P.lines $ (
-          (prettyDeclPair ppe <$> toList frontierTypes) ++
-          TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
+          (prettyDeclPair ppeu <$> toList frontierTypes) ++
+          TypePrinter.prettySignatures' ppes (goodTerms frontierTerms)
           )
       , P.wrap "I recommend working on them in the following order:"
       , P.numberedList $
           let unscore (_score,a,b) = (a,b)
-          in (prettyDeclPair ppe . unscore <$> toList dirtyTypes) ++
+          in (prettyDeclPair ppeu . unscore <$> toList dirtyTypes) ++
              TypePrinter.prettySignatures'
-                ppe
+                ppes
                 (goodTerms $ unscore <$> dirtyTerms)
       , formatMissingStuff corruptTerms corruptTypes
       ]

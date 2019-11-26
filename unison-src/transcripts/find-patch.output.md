@@ -16,7 +16,7 @@ hey = "yello"
   
     ⍟ These new definitions are ok to `add`:
     
-      hey : builtin.Text
+      hey : Text
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -27,7 +27,7 @@ hey = "yello"
 
   ⍟ I've added these definitions:
   
-    hey : builtin.Text
+    hey : Text
 
 ```
 Update
@@ -49,7 +49,7 @@ hey = "hello"
     ⍟ These new definitions will replace existing ones of the
       same name and are ok to `update`:
     
-      hey : builtin.Text
+      hey : Text
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
