@@ -236,8 +236,6 @@ propagate patch b = case validatePatch patch of
             constructorMapping =
               constructorReplacements
                 <> generateConstructorMapping componentMap hashedComponents'
-          traceM $ "Better not be empty: " <> show constructorMapping
-          traceM $ "Better not be empty either: " <> show hashedComponents'
           writeTypes $ Map.toList newNewTypes
           pure
             ( Just $ Edits termEdits
@@ -436,7 +434,6 @@ applyPropagate Edits {..} = do
   let termRefs = Map.mapMaybe TermEdit.toReference termEdits
       typeRefs = Map.mapMaybe TypeEdit.toReference typeEdits
   -- recursively update names and delete deprecated definitions
-  traceM $ "Constructor map: " <> show constructorReplacements
   pure $ Branch.stepEverywhere (updateNames termRefs typeRefs)
  where
   updateNames
