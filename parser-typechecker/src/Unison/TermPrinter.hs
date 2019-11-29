@@ -344,6 +344,9 @@ prettyPattern
 -- tail of variables it doesn't use.  This tail is the second component of
 -- the return value.
 prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
+  PatternP.Char    _ c -> (fmt S.CharLiteral $ l $ case showEscapeChar c of
+    Just c -> "?\\" ++ [c]
+    Nothing -> '?': [c], vs)
   PatternP.Unbound _   -> (fmt S.DelimiterChar $ l "_", vs)
   PatternP.Var     _   -> let (v : tail_vs) = vs in (fmt S.Var $ l $ Var.nameStr v, tail_vs)
   PatternP.Boolean _ b -> (fmt S.BooleanLiteral $ if b then l "true" else l "false", vs)
