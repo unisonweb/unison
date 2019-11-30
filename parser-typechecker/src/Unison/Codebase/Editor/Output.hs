@@ -103,7 +103,8 @@ data Output v
   | CantDelete Input PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
   | DeleteEverythingConfirmation
   | DeletedEverything
-  | ListNames [(Referent, Set HQ'.HashQualified)] -- term match, term names
+  | ListNames Int -- hq length to print References
+              [(Referent, Set HQ'.HashQualified)] -- term match, term names
               [(Reference, Set HQ'.HashQualified)] -- type match, type names
   -- list of all the definitions within this branch
   | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
@@ -241,7 +242,7 @@ isFailure o = case o of
   CantDelete{} -> True
   DeleteEverythingConfirmation -> False
   DeletedEverything -> False
-  ListNames tms tys -> null tms && null tys
+  ListNames _ tms tys -> null tms && null tys
   ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ ds -> null ds
   ListOfPatches s -> Set.null s

@@ -164,10 +164,10 @@ pretty0
       where name = elideFQN im $ HQ.unsafeFromVar (Var.reset v)
     Ref' r -> parenIfInfix name ic $ styleHashQualified'' (fmt S.Reference) name
       where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
-    TermLink' r -> parenIfInfix name ic $ 
+    TermLink' r -> parenIfInfix name ic $
       fmt S.LinkKeyword "termLink " <> styleHashQualified'' (fmt S.Reference) name
       where name = elideFQN im $ PrettyPrintEnv.termName n r
-    TypeLink' r -> parenIfInfix name ic $ 
+    TypeLink' r -> parenIfInfix name ic $
       fmt S.LinkKeyword "typeLink " <> styleHashQualified'' (fmt S.Reference) name
       where name = elideFQN im $ PrettyPrintEnv.typeName n r
     Ann' tm t ->
@@ -366,6 +366,9 @@ prettyPattern
 -- tail of variables it doesn't use.  This tail is the second component of
 -- the return value.
 prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
+  PatternP.Char    _ c -> (fmt S.CharLiteral $ l $ case showEscapeChar c of
+    Just c -> "?\\" ++ [c]
+    Nothing -> '?': [c], vs)
   PatternP.Unbound _   -> (fmt S.DelimiterChar $ l "_", vs)
   PatternP.Var     _   -> let (v : tail_vs) = vs in (fmt S.Var $ l $ Var.nameStr v, tail_vs)
   PatternP.Boolean _ b -> (fmt S.BooleanLiteral $ if b then l "true" else l "false", vs)
@@ -440,50 +443,68 @@ Binary functions with symbolic names are output infix, as follows:
 a + b = ...
 
 -}
-prettyBinding ::
-  Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm2 v at ap v a -> Pretty SyntaxText
-prettyBinding n hq t = prettyBinding0 n (ac (-1) Block Map.empty Maybe) hq t
+prettyBinding
+  :: Var v
+  => PrettyPrintEnv
+  -> HQ.HashQualified
+  -> AnnotatedTerm2 v at ap v a
+  -> Pretty SyntaxText
+prettyBinding n = prettyBinding0 n $ ac (-1) Block Map.empty Maybe
 
 prettyBinding' ::
   Var v => Int -> PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> ColorText
 prettyBinding' width n v t = PP.render width $ PP.syntaxToColor $ prettyBinding n v t
 
-prettyBinding0 ::
-  Var v => PrettyPrintEnv -> AmbientContext -> HQ.HashQualified -> AnnotatedTerm2 v at ap v a -> Pretty SyntaxText
-prettyBinding0 env a@(AmbientContext { imports = im, docContext = doc }) v term = go (symbolic && isBinary term) term where
+prettyBinding0
+  :: Var v
+  => PrettyPrintEnv
+  -> AmbientContext
+  -> HQ.HashQualified
+  -> AnnotatedTerm2 v at ap v a
+  -> Pretty SyntaxText
+prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = go
+  (symbolic && isBinary term)
+  term
+ where
   go infix' = \case
-    Ann' tm tp -> PP.lines [
-      PP.group (renderName v <> PP.hang (fmt S.TypeAscriptionColon " :") (TypePrinter.pretty0 env im (-1) tp)),
-      PP.group (prettyBinding0 env a v tm) ]
-    LamsNamedOpt' vs body ->
-      let
-        (im', uses) = calcImports im body'
-        -- In the case where we're being called from inside `pretty0`, this call to
-        -- printAnnotate is unfortunately repeating work we've already done.
-        body' = printAnnotate env body
-      in PP.group $
-        PP.group (defnLhs v vs <> (fmt S.BindingEquals " =")) `PP.hang`
-        (uses [pretty0 env (ac (-1) Block im' doc) body'])
+    Ann' tm tp -> PP.lines
+      [ PP.group
+        (renderName v <> PP.hang (fmt S.TypeAscriptionColon " :")
+                                 (TypePrinter.pretty0 env im (-1) tp)
+        )
+      , PP.group (prettyBinding0 env a v tm)
+      ]
+    LamsNamedOrDelay' vs body ->
+      let (im', uses) = calcImports im body'
+          -- In the case where we're being called from inside `pretty0`, this
+          -- call to printAnnotate is unfortunately repeating work we've already
+          -- done.
+          body'       = printAnnotate env body
+      in  PP.group
+            $         PP.group (defnLhs v vs <> fmt S.BindingEquals " =")
+            `PP.hang` uses [pretty0 env (ac (-1) Block im' doc) body']
     t -> l "error: " <> l (show t)
    where
-    defnLhs v vs = if infix'
-      then case vs of
-        x : y : _ ->
-          PP.sep " " [fmt S.Var $ PP.text (Var.name x),
-                      styleHashQualified'' (fmt S.Reference) $ elideFQN im v,
-                      fmt S.Var $ PP.text (Var.name y)]
+    defnLhs v vs
+      | infix' = case vs of
+        x : y : _ -> PP.sep
+          " "
+          [ fmt S.Var $ PP.text (Var.name x)
+          , styleHashQualified'' (fmt S.Reference) $ elideFQN im v
+          , fmt S.Var $ PP.text (Var.name y)
+          ]
         _ -> l "error"
-      else if null vs then renderName v
-      else renderName v `PP.hang` args vs
-    args vs = PP.spacedMap ((fmt S.Var) . PP.text . Var.name) vs
-    renderName n = let n' = elideFQN im n
-                   in parenIfInfix n' NonInfix $ styleHashQualified'' (fmt S.Reference) n'
-
+      | null vs = renderName v
+      | otherwise = renderName v `PP.hang` args vs
+    args = PP.spacedMap $ fmt S.Var . PP.text . Var.name
+    renderName n =
+      let n' = elideFQN im n
+      in  parenIfInfix n' NonInfix $ styleHashQualified'' (fmt S.Reference) n'
   symbolic = isSymbolic v
   isBinary = \case
-    Ann'          tm _ -> isBinary tm
-    LamsNamedOpt' vs _ -> length vs == 2
-    _                  -> False -- unhittable
+    Ann'              tm _ -> isBinary tm
+    LamsNamedOrDelay' vs _ -> length vs == 2
+    _                      -> False -- unhittable
 
 isDocLiteral :: AnnotatedTerm3 v PrintAnnotation -> Bool
 isDocLiteral term = case term of 
@@ -530,7 +551,7 @@ prettyDoc n im term = PP.spaced [ fmt S.DocDelimiter $ l "[:"
   escaped = Text.replace "@" "\\@"
     
 paren :: Bool -> Pretty SyntaxText -> Pretty SyntaxText
-paren True  s = PP.group $ ( fmt S.Parenthesis "(" ) <> s <> ( fmt S.Parenthesis ")" )
+paren True  s = PP.group $ fmt S.Parenthesis "(" <> s <> fmt S.Parenthesis ")"
 paren False s = PP.group s
 
 parenIfInfix
