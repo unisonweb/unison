@@ -24,7 +24,7 @@ Syntax:
 
 `[:` starts a documentation block; `:]` finishes it. Within the block:
 
-* Links to definitions are done with `@List`. `\@` if you want to escape.
+* Links to definitions are done with `@List`. `\@` (and `\:]`) if you want to escape.
 * `@[signature] List.take` expands to the type signature of `List.take`
 * `@[source] List.map` expands to the full source of `List.map`
 * `@[include] someOtherDoc`, inserts a value `someOtherDoc : Doc` here.

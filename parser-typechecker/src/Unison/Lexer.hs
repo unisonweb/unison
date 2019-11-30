@@ -496,6 +496,7 @@ lexer0 scope rem =
            typTok : tok : docBlob l pos'' rem pos' []
          _ -> recover l pos rem 
       '\\' : '@' : rem -> docBlob l (incBy "\\@" pos) rem blobStart ('@':acc)
+      '\\' : ':' : ']' : rem -> docBlob l (incBy "\\:]" pos) rem blobStart (']':':':acc)
       ':' : ']' : rem -> 
         let pos' = inc . inc $ pos in 
         (if null acc then id 

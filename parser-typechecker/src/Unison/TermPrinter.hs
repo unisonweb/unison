@@ -47,11 +47,11 @@ import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
 import qualified Unison.ConstructorType as CT
 
 pretty :: Var v => PrettyPrintEnv -> AnnotatedTerm v a -> Pretty ColorText
-pretty env tm = PP.syntaxToColor $ pretty0 env (ac (-1) Normal Map.empty Maybe) (printAnnotate env tm)
+pretty env tm = PP.syntaxToColor $ pretty0 env (ac (-1) Normal Map.empty MaybeDoc) (printAnnotate env tm)
 
 pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> ColorText
-pretty' (Just width) n t = PP.render width $ PP.syntaxToColor $ pretty0 n (ac (-1) Normal Map.empty Maybe) (printAnnotate n t)
-pretty' Nothing      n t = PP.renderUnbroken $ PP.syntaxToColor $ pretty0 n (ac (-1) Normal Map.empty Maybe) (printAnnotate n t)
+pretty' (Just width) n t = PP.render width $ PP.syntaxToColor $ pretty0 n (ac (-1) Normal Map.empty MaybeDoc) (printAnnotate n t)
+pretty' Nothing      n t = PP.renderUnbroken $ PP.syntaxToColor $ pretty0 n (ac (-1) Normal Map.empty MaybeDoc) (printAnnotate n t)
 
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
@@ -83,9 +83,9 @@ data InfixContext
 
 data DocLiteralContext
   -- We won't try and render this ABT node or anything under it as a [: @Doc literal :]
-  = No
+  = NoDoc
   -- We'll keep checking as we recurse down
-  | Maybe
+  | MaybeDoc
   deriving (Eq)
 
 {- Explanation of precedence handling
@@ -246,10 +246,10 @@ pretty0
     t -> l "error: " <> l (show t)
  where
   specialCases term go = case (term, binaryOpsPred) of 
-    (DD.Doc, _) | doc == Maybe -> 
+    (DD.Doc, _) | doc == MaybeDoc -> 
       if isDocLiteral term
       then prettyDoc n im term
-      else pretty0 n (a {docContext = No}) term
+      else pretty0 n (a {docContext = NoDoc}) term
     (TupleTerm' [x], _) -> let
       pair = parenIfInfix name ic $ styleHashQualified'' (fmt S.Constructor) name
         where name = elideFQN im $ PrettyPrintEnv.termName n (DD.pairCtorRef) in
@@ -322,7 +322,7 @@ pretty0
     _ -> False
 
   nonForcePred :: AnnotatedTerm3 v PrintAnnotation -> Bool
-  nonForcePred = \case  -- rename
+  nonForcePred = \case
     Constructor' DD.UnitRef 0 -> False
     Constructor' DD.DocRef _  -> False
     _                         -> True
@@ -449,7 +449,7 @@ prettyBinding
   -> HQ.HashQualified
   -> AnnotatedTerm2 v at ap v a
   -> Pretty SyntaxText
-prettyBinding n = prettyBinding0 n $ ac (-1) Block Map.empty Maybe
+prettyBinding n = prettyBinding0 n $ ac (-1) Block Map.empty MaybeDoc
 
 prettyBinding' ::
   Var v => Int -> PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> ColorText
@@ -548,7 +548,7 @@ prettyDoc n im term = PP.spaced [ fmt S.DocDelimiter $ l "[:"
     (fmt S.DocDelimiter $ l "@[") <> 
     (fmt S.DocKeyword $ l w) <> 
     (fmt S.DocDelimiter $ l "] ") 
-  escaped = Text.replace "@" "\\@"
+  escaped = Text.replace "@" "\\@" . Text.replace ":]" "\\:]"
     
 paren :: Bool -> Pretty SyntaxText -> Pretty SyntaxText
 paren True  s = PP.group $ fmt S.Parenthesis "(" <> s <> fmt S.Parenthesis ")"
