@@ -320,6 +320,7 @@ loop = do
               <> p' dest
           PushRemoteBranchI{} -> wat
           PreviewMergeLocalBranchI{} -> wat
+          DiffNamespaceI{} -> wat
           SwitchBranchI{} -> wat
           NamesI{} -> wat
           TodoI{} -> wat
@@ -438,6 +439,8 @@ loop = do
           merged <- eval . Eval $ Branch.merge srcb destb
           if merged == destb then respond (NothingTodo input)
           else respond $ ShowDiff input (Branch.namesDiff destb merged)
+
+      DiffNamespaceI _before _after _patch -> error "todo"
 
       -- move the root to a sub-branch
       MoveBranchI Nothing dest -> do

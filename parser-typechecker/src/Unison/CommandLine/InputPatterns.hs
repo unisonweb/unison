@@ -592,6 +592,37 @@ mergeLocal = InputPattern "merge" [] [(Required, pathArg)
       _ -> Left (I.help mergeLocal)
  )
 
+diffNamespace :: InputPattern
+diffNamespace = InputPattern
+  "diff.namespace"
+  []
+  [(Required, pathArg), (Required, pathArg), (Optional, patchArg)]
+  (P.column2
+    [ ( "`diff.namespace before after patch`"
+      , P.wrap
+        "shows how the namespace `after` differs from the namespace `before`,"
+        <> "given additional context provided by the patch `patch`."
+      )
+    , ( "`diff.namespace before after`"
+      , P.wrap
+        "shows how the namespace `after` differs from the namespace `before`,"
+        <> "without the additional context provided by a patch."
+      )
+    ]
+  )
+  (\case
+    [before, after] -> first fromString $ do
+      before <- Path.parsePath' before
+      after <- Path.parsePath' after
+      pure $ Input.DiffNamespaceI before after Nothing
+    [before, after, patch] -> first fromString $ do
+      before <- Path.parsePath' before
+      after <- Path.parsePath' after
+      patch <- Path.parsePath' patch
+      pure $ Input.DiffNamespaceI before after (Just patch)
+    _ -> Left $ I.help diffNamespace
+  )
+
 previewMergeLocal :: InputPattern
 previewMergeLocal = InputPattern
   "merge.preview"

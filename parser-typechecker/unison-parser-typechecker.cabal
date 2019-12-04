@@ -40,6 +40,7 @@ library
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase.Branch
+    Unison.Codebase.BranchDiff
     Unison.Codebase.BranchLoadMode
     Unison.Codebase.BranchUtil
     Unison.Codebase.Causal

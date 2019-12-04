@@ -77,6 +77,7 @@ data Branch0 m = Branch0
   , deepEdits :: Map Name EditHash
   }
 
+-- Represents a shallow diff of a Branch0.
 -- Each of these `Star`s contain metadata as well, so an entry in
 -- `added` or `removed` could be an update to the metadata.
 data BranchDiff = BranchDiff
@@ -220,6 +221,25 @@ head (Branch c) = Causal.head c
 
 headHash :: Branch m -> Hash
 headHash (Branch c) = Causal.currentHash c
+
+deepEdits' :: Branch0 m -> Map Name (EditHash, m Patch)
+deepEdits' b = go id b where
+  -- can change this to an actual prefix once Name is a [NameSegment]
+  go :: (Name -> Name) -> Branch0 m -> Map Name (EditHash, m Patch)
+  go addPrefix Branch0{..} =
+    Map.mapKeysMonotonic (addPrefix . NameSegment.toName) _edits
+      <> foldMap f (Map.toList _children)
+    where
+    f :: (NameSegment, Branch m) -> Map Name (EditHash, m Patch)
+    f (c, b) =  go (addPrefix . Name.joinDot (NameSegment.toName c)) (head b)
+
+--  go2 :: Seq NameSegment -> Branch0 m -> Map Name (EditHash, m Patch)
+--  go2 prefix Branch0{..} =
+--    Map.mapKeysMonotonic (NameSegment.toName' . (prefix Seq.|>)) _edits
+--      <> foldMap f (Map.toList _children)
+--    where
+--    f :: (NameSegment, Branch m) -> Map Name (EditHash, m Patch)
+--    f (c, b) =  go2 (prefix Seq.|> c) (head b)
 
 merge :: forall m . Monad m => Branch m -> Branch m -> m (Branch m)
 merge (Branch x) (Branch y) =
