@@ -964,6 +964,14 @@ prettyParseError s = \case
     showDup (v, locs) =
       "I found multiple types with the name " <> errorVar v <> ":\n\n" <>
       annotatedsStartingLineAsStyle ErrorSite s locs
+  go (Parser.DuplicateTermNames ts) = 
+    Pr.fatalCallout $ intercalateMap "\n\n" showDup ts 
+    where
+    showDup (v, locs) = Pr.lines [
+      Pr.wrap $ 
+        "I found multiple bindings with the name " <> Pr.group (errorVar v <> ":"),
+      annotatedsStartingLineAsStyle ErrorSite s locs
+      ]
   go (Parser.TypeDeclarationErrors es) = let
     unknownTypes = [ (v, a) | UF.UnknownType v a <- es ]
     dupDataAndAbilities = [ (v, a, a2) | UF.DupDataAndAbility v a a2 <- es ]

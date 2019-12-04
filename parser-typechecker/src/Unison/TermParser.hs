@@ -37,6 +37,7 @@ import qualified Unison.Parser as Parser (seq)
 import qualified Unison.PatternP as Pattern
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
+import qualified Unison.Typechecker.Components as Components
 import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Var as Var
 
@@ -569,21 +570,24 @@ block' isTop s openBlock closeBlock = do
       = let
           startAnnotation = (fst . fst . head $ toBindings bs)
           endAnnotation   = (fst . fst . last $ toBindings bs)
+          finish tm = case Components.minimize' tm of
+            Left dups -> customFailure $ DuplicateTermNames (toList dups)  
+            Right tm -> pure tm
         in
           case reverse bs of
-            Namespace _v _ : _ -> pure $ Term.letRec
+            Namespace _v _ : _ -> finish $ Term.letRec
               isTop
               (startAnnotation <> endAnnotation)
               (toBindings bs)
               (Term.var endAnnotation
                         (positionalVar endAnnotation Var.missingResult)
               )
-            Binding ((a, _v), _) : _ -> pure $ Term.letRec
+            Binding ((a, _v), _) : _ -> finish $ Term.letRec
               isTop
               (startAnnotation <> endAnnotation)
               (toBindings bs)
               (Term.var a (positionalVar endAnnotation Var.missingResult))
-            Action e : bs -> pure $ Term.letRec
+            Action e : bs -> finish $ Term.letRec
               isTop
               (startAnnotation <> ann e)
               (toBindings $ reverse bs)

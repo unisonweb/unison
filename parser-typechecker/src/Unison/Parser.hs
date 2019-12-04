@@ -101,6 +101,7 @@ data Error v
   | TypeDeclarationErrors [UF.Error v Ann]
   | ResolutionFailures [Names.ResolutionFailure v Ann]
   | DuplicateTypeNames [(v, [Ann])]
+  | DuplicateTermNames [(v, [Ann])]
   deriving (Show, Eq, Ord)
 
 data Ann

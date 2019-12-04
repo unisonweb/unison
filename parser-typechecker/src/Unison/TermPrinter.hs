@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.TermPrinter where
 
@@ -221,8 +222,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
         fmt S.ControlKeyword "||",
         pretty0 n (ac 10 Normal im) y
       ]
-    LetRecNamed' bs e -> printLet bc bs e im' uses
-    Lets' bs e -> printLet bc (map (\(_, v, binding) -> (v, binding)) bs) e im' uses
+    LetBlock bs e -> printLet bc bs e im' uses
     Match' scrutinee branches -> paren (p >= 2) $
       ((fmt S.ControlKeyword "case ") <> pretty0 n (ac 2 Normal im) scrutinee <> (fmt S.ControlKeyword " of")) `PP.hang` bs
       where bs = PP.lines (map printCase branches)
@@ -873,3 +873,33 @@ immediateChildBlockTerms = \case
                                       then []
                                       else [body]
     doLet t = error (show t) []
+
+pattern LetBlock bindings body <- (unLetBlock -> Just (bindings, body)) 
+
+-- Collects nested let/let rec blocks into one minimally nested block.
+-- Handy because `let` and `let rec` blocks get rendered the same way.
+-- We preserve nesting when the inner block shadows definitions in the
+-- outer block.
+unLetBlock 
+  :: Ord v
+  => AnnotatedTerm2 vt at ap v a
+  -> Maybe ([(v, AnnotatedTerm2 vt at ap v a)], AnnotatedTerm2 vt at ap v a)
+unLetBlock t = rec t where
+  dontIntersect v1s v2s = 
+    all (`Set.notMember` v2set) (fst <$> v1s) where
+    v2set = Set.fromList (fst <$> v2s)
+  rec t = case unLetRecNamed t of
+    Nothing -> nonrec t
+    Just (_isTop, bindings, body) -> case rec body of
+      Just (innerBindings, innerBody) | dontIntersect bindings innerBindings -> 
+        Just (bindings ++ innerBindings, innerBody)
+      _ -> Just (bindings, body)
+  nonrec t = case unLet t of
+    Nothing -> Nothing
+    Just (bindings0, body) -> 
+      let bindings = [ (v,b) | (_,v,b) <- bindings0 ] in 
+      case rec body of
+        Just (innerBindings, innerBody) | dontIntersect bindings innerBindings -> 
+          Just (bindings ++ innerBindings, innerBody)
+        _ -> Just (bindings, body) 
+
