@@ -48,6 +48,7 @@ import qualified Text.Megaparsec               as P
 import qualified Data.Set                      as Set
 import           Data.Sequence                  ( Seq(..) )
 import qualified Unison.ABT                    as ABT
+import qualified Unison.Codebase.BranchDiff    as BranchDiff
 import           Unison.Codebase.Branch         ( Branch(..)
                                                 , Branch0(..)
                                                 )
@@ -441,13 +442,16 @@ loop = do
           else respond $ ShowDiff input (Branch.namesDiff destb merged)
 
       DiffNamespaceI before0 after0 patch0 -> do
-        let [before, after] = 
+        let [beforep, afterp] = 
               Path.toAbsolutePath currentPath' <$> [before0, after0]
-        beforeBranch <- getAt before
-        afterBranch <- getAt after
+        before <- getAt beforep
+        after <- getAt afterp
         patch <- case patch0 of 
           Nothing -> pure Nothing
           Just patchPath -> getPatchAtSplit' patchPath
+        diff <- eval . Eval $ 
+          BranchDiff.diff0 (Branch.head before) (Branch.head after) 
+        --- diff0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m BranchDiff
         undefined
 
       -- move the root to a sub-branch

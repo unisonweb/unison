@@ -51,6 +51,7 @@ library
     Unison.Codebase.Editor.HandleCommand
     Unison.Codebase.Editor.Input
     Unison.Codebase.Editor.Output
+    Unison.Codebase.Editor.Output.BranchDiff
     Unison.Codebase.Editor.Propagate
     Unison.Codebase.Editor.RemoteRepo
     Unison.Codebase.Editor.SearchResult'
