@@ -618,7 +618,7 @@ diffNamespace = InputPattern
     [before, after, patch] -> first fromString $ do
       before <- Path.parsePath' before
       after <- Path.parsePath' after
-      patch <- Path.parsePath' patch
+      patch <- Path.parseSplit' Path.wordyNameSegment patch
       pure $ Input.DiffNamespaceI before after (Just patch)
     _ -> Left $ I.help diffNamespace
   )

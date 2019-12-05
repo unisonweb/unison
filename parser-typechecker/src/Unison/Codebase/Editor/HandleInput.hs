@@ -440,7 +440,15 @@ loop = do
           if merged == destb then respond (NothingTodo input)
           else respond $ ShowDiff input (Branch.namesDiff destb merged)
 
-      DiffNamespaceI _before _after _patch -> error "todo"
+      DiffNamespaceI before0 after0 patch0 -> do
+        let [before, after] = 
+              Path.toAbsolutePath currentPath' <$> [before0, after0]
+        beforeBranch <- getAt before
+        afterBranch <- getAt after
+        patch <- case patch0 of 
+          Nothing -> pure Nothing
+          Just patchPath -> getPatchAtSplit' patchPath
+        undefined
 
       -- move the root to a sub-branch
       MoveBranchI Nothing dest -> do
