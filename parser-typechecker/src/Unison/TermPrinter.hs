@@ -861,8 +861,7 @@ immediateChildBlockTerms :: (Var vt, Var v) => AnnotatedTerm2 vt at ap v a -> [A
 immediateChildBlockTerms = \case
     Handle' _ body -> [body]
     If' _ t f -> [t, f]
-    tm@(LetRecNamed' bs _) -> [tm] ++ (concat $ map doLet bs)
-    tm@(Lets' bs _)        -> [tm] ++ (concat $ map doLet ((map (\(_, v, binding) -> (v, binding)) bs)))
+    tm@(LetBlock bs _) -> [tm] ++ (concat $ map doLet bs)
     Match' _ branches -> concat $ map doCase branches
     _ -> []
   where
