@@ -604,7 +604,7 @@ loop = do
             types' :: Set (Reference, Set HQ'.HashQualified)
             types' = (`Set.map` Names.typeReferences filtered) $
                         \r -> (r, Names3.typeName len r printNames)
-        respond $ ListNames (toList terms') (toList types')
+        respond $ ListNames len (toList terms') (toList types')
 --          let (p, hq) = p0
 --              namePortion = HQ'.toName hq
 --          case hq of
@@ -1369,7 +1369,7 @@ doDisplay outputLoc names r = do
       ConsoleLocation    -> Nothing
       FileLocation path  -> Just path
       LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
-    evalTerm r = fmap ErrorUtil.hush . eval $ 
+    evalTerm r = fmap ErrorUtil.hush . eval $
       Evaluate1 (PPE.suffixifiedPPE ppe) (Term.ref External r)
     loadTerm (Reference.DerivedId r) = eval $ LoadTerm r
     loadTerm _ = pure Nothing
@@ -1419,10 +1419,10 @@ getLinks input src mdTypeStr = do
         \r -> loadTypeOfTerm (Referent.Ref r)
       let deps = Set.map LD.termRef results <>
                  Set.unions [ Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs ]
-      ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled' deps 
+      ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled' deps
       let ppeDecl = PPE.unsuffixifiedPPE ppe
-      let sortedSigs = sortOn snd (toList results `zip` sigs)  
-      let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs ] 
+      let sortedSigs = sortOn snd (toList results `zip` sigs)
+      let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs ]
       pure (Right (PPE.suffixifiedPPE ppe, out))
 
 resolveShortBranchHash ::
@@ -2071,8 +2071,8 @@ parseType input src = do
   -- `show Input` is the name of the "file" being lexed
   (names0, lexed) <- lexedSource (Text.pack $ show input) (Text.pack src)
   parseNames <- Names3.suffixify0 <$> basicParseNames0
-  let names = Names3.push (Names3.currentNames names0) 
-                          (Names3.Names parseNames (Names3.oldNames names0)) 
+  let names = Names3.push (Names3.currentNames names0)
+                          (Names3.Names parseNames (Names3.oldNames names0))
   e <- eval $ ParseType names lexed
   pure $ case e of
     Left err -> Left $ TypeParseError input src err
