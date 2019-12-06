@@ -1,5 +1,6 @@
 {-# Language DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 
 module Unison.Codebase.Editor.Output.BranchDiff where
 
@@ -24,6 +25,8 @@ import qualified Unison.Referent as Referent
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Data.Set as Set
+import qualified Data.Map as Map
+import Data.Set (Set)
 
 data Thing tm ty patch = Term tm | Type ty | Patch patch deriving (Ord,Eq)
 
@@ -49,7 +52,7 @@ data BranchDiffOutput tm ty patch = BranchDiffOutput {
   -- MetadataDiff is metadata on new - metadata on old
   updates           :: [(Thing (tm,tm) (ty,ty) (Name,patch,patch), MetadataDiff tm)],
   propagatedUpdates :: Int,
-  adds              :: [(Thing tm ty patch, MetadataDiff tm)],
+  adds              :: [(Thing tm ty patch, [tm])],
   removes           :: [Thing tm ty patch],
   moves             :: [(Name, Name, Thing tm ty patch)],
                     --   ^old  ^new
@@ -60,6 +63,9 @@ toOutput :: B.BranchDiff
          -> BranchDiffOutput Reference Reference P.Patch
 toOutput b p = BranchDiffOutput updates propagatedUpdates adds removes moves copies
   where
+  -- references for definitions that were updated
+
+
   updates = patchUpdates <> namespaceUpdates
   --1. updates specified in the patch, where
         --data Patch = Patch
@@ -74,25 +80,39 @@ toOutput b p = BranchDiffOutput updates propagatedUpdates adds removes moves cop
       (old, TypeEdit.Replace new) <- R.toList $ P._typeEdits p ]
 
   --2. updates detected in the namespace (a name has been both added and removed)
-  namespaceUpdates =
+  namespaceUpdates = namespaceUpdates' (not.automatic)
+  namespaceUpdates' include =
     [ (Term (old, new), metadataDiff old new) |
       ((Referent.Ref old, Referent.Ref new), _name) <-
         R.toList $ R.joinRan (Star3.d1 $ B.removedTerms b) (Star3.d1 $ B.addedTerms b)
-    , not (automatic new)
+    , include new
     ] <>
     [ (Type (old, new), metadataDiff old new) |
       ((old, new), _name) <-
         R.toList $ R.joinRan (Star3.d1 $ B.removedTypes b) (Star3.d1 $ B.addedTypes b)
-    , not (automatic new)
+    , include new
     ]
 
-  propagatedUpdates = undefined
+  propagatedUpdates = length (namespaceUpdates' automatic)
+
   automatic :: Reference -> Bool
   automatic new =
     Metadata.hasMetadata (Referent.Ref new) propType propValue (B.addedTerms b) ||
     Metadata.hasMetadata new propType propValue (B.addedTypes b)
     where (propType, propValue) = IOSource.isPropagated
-  adds = undefined
+
+  -- adds are addedTerms that aren't update new-terms
+  adds :: [(Thing Reference Reference _, [Reference])]
+  adds = [ (Term added, snd <$> Set.toList md)
+         | (Referent.Ref added, md) <- Map.toList . R.toMultimap . Star3.d3 $ B.addedTerms b
+         , Set.notMember added updateNewTerms ]
+     <>  [ (Type added, snd <$> Set.toList md)
+         | (added, md) <- Map.toList . R.toMultimap . Star3.d3 $ B.addedTypes b
+         , Set.notMember added updateNewTerms ]
+
+  updateNewTerms :: Set Reference
+  updateNewTerms = undefined
+
   removes = undefined
   moves = undefined
   copies = undefined
