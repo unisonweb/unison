@@ -95,6 +95,19 @@ intersection r s
   | size r > size s = intersection s r
   | otherwise       = filter (\(a, b) -> member a b s) r
 
+joinDom :: (Ord a, Ord b, Ord c) => Relation a b -> Relation a c -> Relation a (b,c)
+joinDom b c = swap $ joinRan (swap b) (swap c)
+
+-- joinRan [(1, 'x'), (2, 'x'), (3, 'z')] [(true, 'x'), (true, 'y'), (false, 'z')]
+--      == [((1,true), 'x'), ((2,true), 'x'), ((3,false), 'z')]
+joinRan :: (Ord a, Ord b, Ord c) => Relation a c -> Relation b c -> Relation (a,b) c
+joinRan a b = fromList
+  [ ((a,b), c)
+  | c <- S.toList $ ran a `S.intersection` ran b
+  , a <- S.toList $ lookupRan c a
+  , b <- S.toList $ lookupRan c b
+  ]
+
 ---------------------------------------------------------------
 -- |
 -- This fragment provided by:

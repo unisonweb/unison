@@ -8,6 +8,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.Util.Star3 as Star3
 import Unison.Util.Relation (Relation)
+import qualified Unison.Util.Relation as R
 
 type Type = Reference
 type Value = Reference
@@ -20,6 +21,9 @@ type Metadata = Map Type (Set Value)
 -- `Type` is the type of metadata. Duplicate info to speed up certain queries.
 -- `(Type, Value)` is the metadata value itself along with its type.
 type Star a n = Star3 a n Type (Type, Value)
+
+hasMetadata :: Ord a => a -> Type -> Value -> Star a n -> Bool
+hasMetadata a t v = Set.member (t, v) . R.lookupDom a . Star3.d3
 
 inserts :: (Ord a, Ord n) => [(a, Type, Value)] -> Star a n -> Star a n
 inserts tups s = foldl' (flip insert) s tups
