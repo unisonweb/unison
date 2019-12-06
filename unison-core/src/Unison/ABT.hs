@@ -558,6 +558,24 @@ instance (Foldable f, Functor f, Ord1 f, Var v) => Ord (Term f v a) where
 components :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
 components = Components.components freeVars
 
+-- Converts to strongly connected components, preserving order of the input.
+-- Satisfies `join (orderedComponents vs) == vs`. Algorithm works by 
+-- repeatedly collecting smallest cycle of definitions from remainder of list. 
+orderedComponents :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
+orderedComponents tms = go [] Set.empty tms 
+  where
+  go [] _ [] = []
+  go [] deps (hd:rem) = go [hd] (deps <> freeVars (snd hd)) rem
+  go cur deps rem = case findIndex isDep rem of
+    Nothing -> reverse cur : let (hd,tl) = splitAt 1 rem
+                             in go hd (depsFor hd) tl
+    Just i  -> go (reverse newMembers ++ cur) deps' (drop (i+1) rem) 
+               where deps' = deps <> depsFor newMembers
+                     newMembers = take (i+1) rem
+    where
+    depsFor = foldMap (freeVars . snd)
+    isDep (v, _) = Set.member v deps
+
 -- Hash a strongly connected component and sort its definitions into a canonical order.
 hashComponent ::
   (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Var v, Ord h, Accumulate h)

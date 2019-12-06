@@ -21,7 +21,7 @@ import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Term as Term
 import qualified Unison.Var as Var
-import Unison.Typechecker.Components (minimize')
+import Unison.Typechecker.Components (minimizeOrdered')
 -- import Debug.Trace
 -- import qualified Unison.TermPrinter as TP
 -- import qualified Unison.Util.Pretty as P
@@ -93,7 +93,7 @@ isLeaf (TypeLink' _) = True
 isLeaf _ = False
 
 minimizeCyclesOrCrash :: Var v => AnnotatedTerm v a -> AnnotatedTerm v a
-minimizeCyclesOrCrash t = case minimize' t of
+minimizeCyclesOrCrash t = case minimizeOrdered' t of
   Right t -> t
   Left e -> error $ "tried to minimize let rec with duplicate definitions: "
                  ++ show (fst <$> toList e)

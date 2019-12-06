@@ -570,7 +570,7 @@ block' isTop s openBlock closeBlock = do
       = let
           startAnnotation = (fst . fst . head $ toBindings bs)
           endAnnotation   = (fst . fst . last $ toBindings bs)
-          finish tm = case Components.minimize' tm of
+          finish tm = case Components.minimizeOrdered' tm of
             Left dups -> customFailure $ DuplicateTermNames (toList dups)  
             Right tm -> pure tm
         in

@@ -36,6 +36,7 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import Unison.Names3 (Names0)
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
+import qualified Unison.Typechecker.Components as Components
 
 data UnisonFile v a = UnisonFile {
   dataDeclarations   :: Map v (Reference, DataDeclaration' v a),
