@@ -134,7 +134,7 @@ constructorNamed ref name =
           )
         . elemIndex name
         . DD.constructorNames
-        $ TL.asDataDecl decl
+        $ DD.asDataDecl decl
 
 constructorName :: R.Reference -> DD.ConstructorId -> Text
 constructorName ref cid =
@@ -143,7 +143,7 @@ constructorName ref cid =
       error
         $  "There's a bug in the Unison runtime. Couldn't find type "
         <> show ref
-    Just decl -> genericIndex (DD.constructorNames $ TL.asDataDecl decl) cid
+    Just decl -> genericIndex (DD.constructorNames $ DD.asDataDecl decl) cid
 
 -- .. todo - fill in the rest of these
 

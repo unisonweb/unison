@@ -244,7 +244,7 @@ loop = do
         else do
           let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
           withFile [] sourceName (text, lexed) $ \unisonFile -> do
-            sr <- toSlurpResult unisonFile <$> slurpResultNames0
+            sr <- toSlurpResult currentPath' unisonFile <$> slurpResultNames0
             names <- makeShadowedPrintNamesFromLabeled
                         (UF.termSignatureExternalLabeledDependencies unisonFile)
                         (UF.typecheckedToNames0 unisonFile)
@@ -1065,7 +1065,7 @@ loop = do
         Just uf -> do
           sr <- Slurp.disallowUpdates
               . applySelection hqs uf
-              . toSlurpResult uf
+              . toSlurpResult currentPath' uf
              <$> slurpResultNames0
           when (Slurp.isNonempty sr) $ do
             stepAt ( Path.unabsolute currentPath'
@@ -1084,7 +1084,7 @@ loop = do
           slurpCheckNames0 <- slurpResultNames0
           currentPathNames0 <- currentPathNames0
           let sr = applySelection hqs uf
-                 . toSlurpResult uf
+                 . toSlurpResult currentPath' uf
                  $ slurpCheckNames0
           let fileNames0 = UF.typecheckedToNames0 uf
               -- todo: display some error if typeEdits or termEdits itself contains a loop
@@ -1811,12 +1811,27 @@ applySelection hqs file = \sr@SlurpResult{..} ->
 var :: Var v => Name -> v
 var name = Var.named (Name.toText name)
 
-toSlurpResult :: forall v. Var v => UF.TypecheckedUnisonFile v Ann -> Names0 -> SlurpResult v
-toSlurpResult uf existingNames =
-  Slurp.subtractComponent (conflicts <> ctorCollisions) $
-  SlurpResult uf mempty adds dups mempty conflicts updates
-              termCtorCollisions ctorTermCollisions termAliases typeAliases
-              mempty
+toSlurpResult
+  :: forall v
+   . Var v
+  => Path.Absolute
+  -> UF.TypecheckedUnisonFile v Ann
+  -> Names0
+  -> SlurpResult v
+toSlurpResult currentPath uf existingNames =
+  Slurp.subtractComponent (conflicts <> ctorCollisions) $ SlurpResult
+    uf
+    mempty
+    adds
+    dups
+    mempty
+    conflicts
+    updates
+    termCtorCollisions
+    ctorTermCollisions
+    termAliases
+    typeAliases
+    mempty
   where
   fileNames0 = UF.typecheckedToNames0 uf
 
@@ -1827,40 +1842,47 @@ toSlurpResult uf existingNames =
   -- conflict (n,r) if n is conflicted in names0
   conflicts :: SlurpComponent v
   conflicts = sc terms types where
-    terms = R.filterDom (conflicted . Names.termsNamed existingNames) (Names.terms fileNames0)
-    types = R.filterDom (conflicted . Names.typesNamed existingNames) (Names.types fileNames0)
+    terms = R.filterDom (conflicted . Names.termsNamed existingNames)
+                        (Names.terms fileNames0)
+    types = R.filterDom (conflicted . Names.typesNamed existingNames)
+                        (Names.types fileNames0)
     conflicted s = Set.size s > 1
 
   ctorCollisions :: SlurpComponent v
   ctorCollisions =
     mempty { SC.terms = termCtorCollisions <> ctorTermCollisions }
 
-  -- termCtorCollision (n,r) if (n, r' /= r) exists in existingNames and r is Ref and r' is Con
+  -- termCtorCollision (n,r) if (n, r' /= r) exists in existingNames and
+  -- r is Ref and r' is Con
   termCtorCollisions :: Set v
   termCtorCollisions = Set.fromList
-    [ var n | (n, Referent.Ref{}) <- R.toList (Names.terms fileNames0)
-            , [r@Referent.Con{}] <- [toList $ Names.termsNamed existingNames n]
-            -- ignore collisions w/ ctors of types being updated
-            , Set.notMember (Referent.toReference r) typesToUpdate
-            ]
+    [ var n
+    | (n, Referent.Ref{}) <- R.toList (Names.terms fileNames0)
+    , [r@Referent.Con{}]  <- [toList $ Names.termsNamed existingNames n]
+    -- ignore collisions w/ ctors of types being updated
+    , Set.notMember (Referent.toReference r) typesToUpdate
+    ]
 
   -- the set of typerefs that are being updated by this file
   typesToUpdate :: Set Reference
   typesToUpdate = Set.fromList
-    [ r | (n,r') <- R.toList (Names.types fileNames0)
-        , r <- toList (Names.typesNamed existingNames n)
-        , r /= r' ]
+    [ r
+    | (n, r') <- R.toList (Names.types fileNames0)
+    , r       <- toList (Names.typesNamed existingNames n)
+    , r /= r'
+    ]
 
-  -- ctorTermCollisions (n,r) if (n, r' /= r) exists in names0 and r is Con and r' is Ref
-  -- except we relaxed it to where r' can be Con or Ref
+  -- ctorTermCollisions (n,r) if (n, r' /= r) exists in names0 and r is Con
+  -- and r' is Ref except we relaxed it to where r' can be Con or Ref
   -- what if (n,r) and (n,r' /= r) exists in names and r, r' are Con
   ctorTermCollisions :: Set v
   ctorTermCollisions = Set.fromList
-    [ var n | (n, Referent.Con{}) <- R.toList (Names.terms fileNames0)
-            , r <- toList $ Names.termsNamed existingNames n
-            -- ignore collisions w/ ctors of types being updated
-            , Set.notMember (Referent.toReference r) typesToUpdate
-            ]
+    [ var n
+    | (n, Referent.Con{}) <- R.toList (Names.terms fileNames0)
+    , r                   <- toList $ Names.termsNamed existingNames n
+    -- ignore collisions w/ ctors of types being updated
+    , Set.notMember (Referent.toReference r) typesToUpdate
+    ]
 
   -- duplicate (n,r) if (n,r) exists in names0
   dups :: SlurpComponent v
@@ -1871,19 +1893,29 @@ toSlurpResult uf existingNames =
   -- update (n,r) if (n,r' /= r) exists in names0 and r, r' are Ref
   updates :: SlurpComponent v
   updates = SlurpComponent (Set.fromList types) (Set.fromList terms) where
-    terms = [ var n | (n,r'@Referent.Ref{}) <- R.toList (Names.terms fileNames0)
-                    , [r@Referent.Ref{}] <- [toList $ Names.termsNamed existingNames n]
-                    , r' /= r ]
-    types = [ var n | (n,r') <- R.toList (Names.types fileNames0)
-                    , [r] <- [toList $ Names.typesNamed existingNames n]
-                    , r' /= r ]
+    terms =
+      [ var n
+      | (n, r'@Referent.Ref{}) <- R.toList (Names.terms fileNames0)
+      , [r@Referent.Ref{}]     <- [toList $ Names.termsNamed existingNames n]
+      , r' /= r
+      ]
+    types =
+      [ var n
+      | (n, r') <- R.toList (Names.types fileNames0)
+      , [r]     <- [toList $ Names.typesNamed existingNames n]
+      , r' /= r
+      ]
 
   -- alias (n, r) if (n' /= n, r) exists in names0
   termAliases :: Map v (Set Name)
   termAliases = Map.fromList
     [ (var n, aliases)
     | (n, r@Referent.Ref{}) <- R.toList $ Names.terms fileNames0
-    , aliases <- [Set.delete n $ R.lookupRan r (Names.terms existingNames)]
+    , aliases               <-
+      [ Set.map (Path.unprefixName currentPath) . Set.delete n $ R.lookupRan
+          r
+          (Names.terms existingNames)
+      ]
     , not (null aliases)
     , let v = var n
     , Set.notMember v (SC.terms dups)
@@ -1893,7 +1925,11 @@ toSlurpResult uf existingNames =
   typeAliases = Map.fromList
     [ (v, aliases)
     | (n, r) <- R.toList $ Names.types fileNames0
-    , aliases <- [Set.delete n $ R.lookupRan r (Names.types existingNames)]
+    , aliases <-
+      [ Set.map (Path.unprefixName currentPath) . Set.delete n $ R.lookupRan
+          r
+          (Names.types existingNames)
+      ]
     , not (null aliases)
     , let v = var n
     , Set.notMember v (SC.types dups)
