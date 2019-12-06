@@ -20,6 +20,16 @@ data MetadataDiff tm =
   MetadataDiff { addedMetadata :: [tm]
                , removedMetadata :: [tm] } 
                deriving (Ord,Eq,Functor,Foldable,Traversable)
+hydrateOutput :: Monad m 
+              => (R.Reference -> m (Type v a))
+              -> (R.Reference -> m ConstructorType)
+              -> PPE.PrettyPrintEnv 
+              -> BranchDiffOutput R.Reference R.Reference P.Patch 
+              -> m (BranchDiffOutput 
+                      (HashQualified, Type v a)
+                      HashQualified
+                      (Name, P.PatchDiff))
+hydrateOutput typeOf ctorType ppe diff = undefined
 
 data BranchDiffOutput tm ty patch = BranchDiffOutput {
   updates           :: [(Thing (tm,tm) (ty,ty) (Name,patch,patch), MetadataDiff tm)],
@@ -35,17 +45,6 @@ toOutput :: B.BranchDiff
          -> BranchDiffOutput R.Reference R.Reference P.Patch
 toOutput b p = undefined
 
-hydrateOutput :: Monad m 
-              => (R.Reference -> m (Type v a))
-              -> (R.Reference -> m ConstructorType)
-              -> PPE.PrettyPrintEnv 
-              -> BranchDiffOutput R.Reference R.Reference P.Patch 
-              -> m (BranchDiffOutput 
-                      (HashQualified, Type v a)
-                      HashQualified
-                      (Name, P.PatchDiff))
-hydrateOutput typeOf ctorType ppe diff = undefined
-
 -- two ways of computing updates
 --   the stuff in the patch is a primary update
 --   if the hash associated with a name has changed and it's not a primary
@@ -53,6 +52,24 @@ hydrateOutput typeOf ctorType ppe diff = undefined
 --
 -- stuff that's added but not in updates is treated as an add
 -- stuff that's removed but not in updates is treated as a remove
+
+-- Idea A: basically redo propagation in-memory and compare to the diff updates
+--  * May give unexpected results if your propagation algorithm is different
+--    from the one that made the changes
+--
+-- Idea B: Anything explicitly in the patch is listed in one section,
+--         anything not explicitly in the patch is listed separately,
+--         e.g. with an additional command
+--
+-- Idea C: Structurally compare the old and new defns; if they have the 
+--         "same structure", put them in the second list.
+--
+-- Idea D: Record metadata about human vs automatic replacements during 
+--         `update`/`patch`.       
+--         When doing an update or propagate, add this metadata to each name
+--         that receives an update.         
+--
+
 
 {-
 
@@ -63,6 +80,8 @@ data Patch = Patch
 
 Updates:
 
+  In the patch:
+  
 	1. foo#abc : Nat -> Nat -> Poop
 	 ↳ foo#def : Nat -> Nat -> Poop
 	
@@ -80,7 +99,11 @@ Updates:
 
 	5. patch p (added 3 updates, deleted 1)
 
-	& 26 auto-propagated updates
+  Other updates (from the namespace - hash associated w/ foo hash changed):
+  
+  <same format as above>
+  
+	& 26 auto-propagated updates (based on isPropagated link)
 
 Adds:
 	
