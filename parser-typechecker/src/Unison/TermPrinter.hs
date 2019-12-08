@@ -801,7 +801,7 @@ calcImports im tm = (im', render $ getUses result)
                                  Just s  -> (Text.length s') < (Text.length s)
                                  Nothing -> True
     -- Is there a strictly smaller block term underneath this one, containing all the usages
-    -- of some of the names?  Skip omitting `use` statements for those, so we can do it
+    -- of some of the names?  Skip emitting `use` statements for those, so we can do it
     -- further down, closer to the use sites.
     narrowestPossible :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)
     narrowestPossible m = m |> Map.filter (\(p, s, i) -> not $ allInSubBlock tm p s i)
@@ -821,10 +821,15 @@ calcImports im tm = (im', render $ getUses result)
                     in PP.lines (uses ++ rest)
 
 -- Given a block term and a name (Prefix, Suffix) of interest, is there a strictly smaller
--- block term within it, containing all usages of that name?  ABT.find does the heavy lifting.
--- Things are complicated by the fact that you can't always tell if a term is a blockterm just
+-- blockterm within it, containing all usages of that name?  A blockterm is a place
+-- where the syntax lets us put a use statement, like the branches of an if/then/else.
+-- We traverse the block terms by traversing the whole subtree with ABT.find, and paying
+-- attention to those subterms that look like a blockterm.  This is complicated
+-- by the fact that you can't always tell if a term is a blockterm just
 -- by looking at it: in some cases you can only tell when you can see it in the context of
--- the wider term that contains it.  Hence `immediateChildBlockTerms`.
+-- the wider term that contains it.  So actually we traverse the tree, at each term
+-- looking for child terms that are block terms, and see if any of those contain
+-- all the usages of the name.  
 -- Cut out the occurrences of "const id $" to get tracing.
 allInSubBlock :: (Var v, Ord v) => AnnotatedTerm3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
 allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
@@ -861,7 +866,7 @@ immediateChildBlockTerms :: (Var vt, Var v) => AnnotatedTerm2 vt at ap v a -> [A
 immediateChildBlockTerms = \case
     Handle' _ body -> [body]
     If' _ t f -> [t, f]
-    tm@(LetBlock bs _) -> [tm] ++ (concat $ map doLet bs)
+    LetBlock bs _ -> concat $ map doLet bs
     Match' _ branches -> concat $ map doCase branches
     _ -> []
   where
