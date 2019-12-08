@@ -1791,7 +1791,7 @@ applySelection hqs file = \sr@SlurpResult{..} ->
   closed = SC.closeWithDependencies file selection
   selectedTypes, selectedTerms :: Set v
   selectedTypes = Set.map var $ R.dom (Names.types selectedNames0)
-  selectedTerms = Set.map var $ R.dom (Names.types selectedNames0)
+  selectedTerms = Set.map var $ R.dom (Names.terms selectedNames0)
 
 var :: Var v => Name -> v
 var name = Var.named (Name.toText name)
