@@ -98,6 +98,7 @@ import qualified Unison.Var                    as Var
 import qualified Unison.Util.Pretty as P
 import qualified Unison.TermPrinter as TermPrinter
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.Typechecker.Components as Components
 
 -- TODO: Make this exception more structured?
 newtype UnisonRuntimeException = UnisonRuntimeException Text
@@ -470,6 +471,10 @@ runtime = Runtime terminate eval
       (Map.fromList [("stdin", stdin), ("stdout", stdout), ("stderr", stderr)])
       Map.empty
       Map.empty
+    term <- case Components.minimizeUnordered' term of
+      Left es -> fail $ reportBug "B23784210" $ 
+                 "Term contains duplicate definitions: " <> show (fst <$> es)  
+      Right term -> pure term 
     r <- try $ RT.run (handleIO' cenv $ S mmap)
                  cenv
                  (IR.compile cenv $ Term.amap (const ()) term)
