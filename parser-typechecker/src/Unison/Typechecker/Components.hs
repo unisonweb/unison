@@ -1,4 +1,4 @@
-module Unison.Typechecker.Components (minimize, minimize',minimizeOrdered,minimizeUnordered,minimizeOrdered',minimizeUnordered',ordered,unordered) where
+module Unison.Typechecker.Components (minimize, minimize') where
 
 import Unison.Prelude
 
@@ -16,23 +16,11 @@ import           Unison.Term (AnnotatedTerm')
 import qualified Unison.Term as Term
 import           Unison.Var (Var)
 
-type Components vt v a = [(v,AnnotatedTerm' vt v a)] -> [[(v,AnnotatedTerm' vt v a)]]
-
 unordered :: Var v => [(v,AnnotatedTerm' vt v a)] -> [[(v,AnnotatedTerm' vt v a)]]
 unordered = ABT.components 
 
 ordered :: Var v => [(v,AnnotatedTerm' vt v a)] -> [[(v,AnnotatedTerm' vt v a)]]
 ordered = ABT.orderedComponents 
-
-minimizeOrdered, minimizeUnordered :: 
-   Var v => AnnotatedTerm' vt v a -> Either (NonEmpty (v, [a])) (Maybe (AnnotatedTerm' vt v a))
-minimizeOrdered = minimize ordered
-minimizeUnordered = minimize unordered
-
-minimizeOrdered', minimizeUnordered' :: 
-   Var v => AnnotatedTerm' vt v a -> Either (NonEmpty (v, [a])) (AnnotatedTerm' vt v a)
-minimizeOrdered' = minimize' ordered
-minimizeUnordered' = minimize' unordered
 
 -- | Algorithm for minimizing cycles of a `let rec`. This can
 -- improve generalization during typechecking and may also be more
@@ -50,10 +38,9 @@ minimizeUnordered' = minimize' unordered
 -- Fails on the left if there are duplicate definitions.
 minimize
   :: Var v
-  => Components vt v a
-  -> AnnotatedTerm' vt v a
+  => AnnotatedTerm' vt v a
   -> Either (NonEmpty (v, [a])) (Maybe (AnnotatedTerm' vt v a))
-minimize components (Term.LetRecNamedAnnotatedTop' isTop ann bs e) =
+minimize (Term.LetRecNamedAnnotatedTop' isTop ann bs e) =
   let bindings = first snd <$> bs
       group    = map (fst . head &&& map (ABT.annotation . snd)) . groupBy ((==) `on` fst) . sortBy
         (compare `on` fst)
@@ -62,7 +49,7 @@ minimize components (Term.LetRecNamedAnnotatedTop' isTop ann bs e) =
   in  if not $ null dupes
         then Left $ Nel.fromList dupes
         else
-          let cs0            = components bindings
+          let cs0 = if isTop then unordered bindings else ordered bindings
               -- within a cycle, we put the lambdas first, so
               -- unguarded definitions can refer to these lambdas, example:
               --
@@ -94,8 +81,8 @@ minimize components (Term.LetRecNamedAnnotatedTop' isTop ann bs e) =
             -- sure to preserve it, whereas the annotations at intermediate Abs
             -- nodes aren't necessarily meaningful
               Right . Just . ABT.annotate ann . foldr mklet e $ cs
-minimize _ _ = Right Nothing
+minimize _ = Right Nothing
 
 minimize'
-  :: Var v => Components vt v a -> AnnotatedTerm' vt v a -> Either (NonEmpty (v,[a])) (AnnotatedTerm' vt v a)
-minimize' cs term = fromMaybe term <$> minimize cs term
+  :: Var v => AnnotatedTerm' vt v a -> Either (NonEmpty (v,[a])) (AnnotatedTerm' vt v a)
+minimize' term = fromMaybe term <$> minimize term

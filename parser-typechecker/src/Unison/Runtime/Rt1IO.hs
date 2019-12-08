@@ -471,8 +471,8 @@ runtime = Runtime terminate eval
       (Map.fromList [("stdin", stdin), ("stdout", stdout), ("stderr", stderr)])
       Map.empty
       Map.empty
-    term <- case Components.minimizeUnordered' term of
-      Left es -> fail $ reportBug "B23784210" $ 
+    term <- case Components.minimize' term of
+      Left es -> fail . reportBug "B23784210" $
                  "Term contains duplicate definitions: " <> show (fst <$> es)  
       Right term -> pure term 
     r <- try $ RT.run (handleIO' cenv $ S mmap)

@@ -79,7 +79,7 @@ import           Unison.Referent                ( Referent )
 import           Unison.Term                    ( AnnotatedTerm' )
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
-import           Unison.Typechecker.Components  ( minimizeOrdered' )
+import           Unison.Typechecker.Components  ( minimize' )
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.TypeVar                as TypeVar
 import           Unison.Var                     ( Var )
@@ -803,7 +803,7 @@ noteTopLevelType e binding typ = case binding of
 synthesize :: forall v loc . (Var v, Ord loc) => Term v loc -> M v loc (Type v loc)
 synthesize e | debugEnabled && traceShow ("synthesize"::String, e) False = undefined
 synthesize e = scope (InSynthesize e) $
-  case minimizeOrdered' e of
+  case minimize' e of
     Left es -> failWith (DuplicateDefinitions es)
     Right e -> do
       Type.Effect'' es t <- go e
@@ -1291,7 +1291,7 @@ check e t | debugEnabled && traceShow ("check" :: String, e, t) False = undefine
 check e0 t0 = scope (InCheck e0 t0) $ do
   ctx <- getContext
   let Type.Effect'' es t = t0
-  let e                  = minimizeOrdered' e0
+  let e                  = minimize' e0
   case e of
     Left e -> failWith $ DuplicateDefinitions e
     Right e ->
