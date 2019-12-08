@@ -48,6 +48,8 @@ data Reference
 
 pattern Derived h i n = DerivedId (Id h i n)
 
+{-# COMPLETE Builtin, Derived #-}
+
 -- A good idea, but causes a weird problem with view patterns in PatternP.hs in ghc 8.4.3
 --{-# COMPLETE Builtin, Derived #-}
 
@@ -67,7 +69,6 @@ toShortHash (Derived h i n) = SH.ShortHash (H.base32Hex h) index Nothing
   where
     -- todo: remove `n` parameter; must also update readSuffix
     index = Just $ showSuffix i n
-toShortHash (DerivedId _) = error "this should be covered above"
 
 -- (3,10) encoded as "3c10"
 -- (0,93) encoded as "0c93"
