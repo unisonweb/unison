@@ -82,9 +82,10 @@ data Output v
   | ParseResolutionFailures Input String [Names.ResolutionFailure v Ann]
   | TypeHasFreeVars Input (Type v Ann)
   | TermAlreadyExists Input Path.Split' (Set Referent)
-  | NameAmbiguous Input Path.HQSplit' (Set Referent) (Set Reference)
-  | TypeAmbiguous Input Path.HQSplit' (Set Reference)
-  | TermAmbiguous Input (Either Path.HQSplit' HQ.HashQualified) (Set Referent)
+  | NameAmbiguous
+      Int -- codebase hash length
+      Input Path.HQSplit' (Set Referent) (Set Reference)
+  | TermAmbiguous Input HQ.HashQualified (Set Referent)
   | HashAmbiguous Input ShortHash (Set Referent)
   | BranchHashAmbiguous Input ShortBranchHash (Set ShortBranchHash)
   | BadDestinationBranch Input Path'
@@ -231,7 +232,6 @@ isFailure o = case o of
   TypeHasFreeVars{} -> True
   TermAlreadyExists{} -> True
   NameAmbiguous{} -> True
-  TypeAmbiguous{} -> True
   TermAmbiguous{} -> True
   BranchHashAmbiguous{} -> True
   BadDestinationBranch{} -> True

@@ -270,8 +270,9 @@ loop = do
         patchExists s = respond $ PatchAlreadyExists input s
         typeNotFound = respond . TypeNotFound input
         termNotFound = respond . TermNotFound input
-        typeConflicted src = respond . TypeAmbiguous input src
-        termConflicted src = respond . TermAmbiguous input (Left src)
+        nameConflicted src tms tys = respond (NameAmbiguous hqLength input src tms tys)
+        typeConflicted src = nameConflicted src Set.empty
+        termConflicted src tms = nameConflicted src tms Set.empty
         hashConflicted src = respond . HashAmbiguous input src
         branchExists dest _x = respond $ BranchAlreadyExists input dest
         branchExistsSplit = branchExists . Path.unsplit'
@@ -372,7 +373,7 @@ loop = do
             -- delete one type
             ([], [r]) -> goMany Set.empty (Set.singleton r)
             (Set.fromList -> tms, Set.fromList -> tys) ->
-              ifConfirmed (goMany tms tys) (respond (NameAmbiguous input hq tms tys))
+              ifConfirmed (goMany tms tys) (nameConflicted hq tms tys)
           where
           resolvedPath = resolveSplit' (HQ'.toName <$> hq)
           goMany tms tys = do
@@ -624,7 +625,6 @@ loop = do
         oldMD r = BranchUtil.getTypeMetadataAt p r root0
 
       NamesI thing -> do
-        len <- eval CodebaseHashLength
         parseNames0 <- Names3.suffixify0 <$> basicParseNames0
         let filtered = case thing of
               HQ.HashOnly shortHash ->
@@ -637,11 +637,11 @@ loop = do
         let printNames = Names printNames0 mempty
         let terms' ::Set (Referent, Set HQ'.HashQualified)
             terms' = (`Set.map` Names.termReferents filtered) $
-                        \r -> (r, Names3.termName len r printNames)
+                        \r -> (r, Names3.termName hqLength r printNames)
             types' :: Set (Reference, Set HQ'.HashQualified)
             types' = (`Set.map` Names.typeReferences filtered) $
-                        \r -> (r, Names3.typeName len r printNames)
-        respond $ ListNames len (toList terms') (toList types')
+                        \r -> (r, Names3.typeName hqLength r printNames)
+        respond $ ListNames hqLength (toList terms') (toList types')
 --          let (p, hq) = p0
 --              namePortion = HQ'.toName hq
 --          case hq of
@@ -766,7 +766,7 @@ loop = do
         if Set.null results then
           respond $ SearchTermsNotFound [hq]
         else if Set.size results > 1 then
-          respond $ TermAmbiguous input (Right hq) results
+          respond $ TermAmbiguous input hq results
         else doDisplay outputLoc parseNames (Set.findMin results)
 
       ShowDefinitionI outputLoc (fmap HQ.unsafeFromString -> hqs) -> do
@@ -848,7 +848,6 @@ loop = do
       FindShallowI pathArg -> do
         prettyPrintNames0 <- basicPrettyPrintNames0
         ppe <- fmap PPE.suffixifiedPPE . prettyPrintEnvDecl $ Names prettyPrintNames0 mempty
-        hashLen <- eval CodebaseHashLength
         let pathArgAbs = Path.toAbsolutePath currentPath' pathArg
         b0 <- Branch.head <$> getAt pathArgAbs
         let
@@ -856,12 +855,12 @@ loop = do
             let refs = Star3.lookupD1 ns . _terms $ b0
             in case length refs of
               1 -> HQ'.fromName ns
-              _ -> HQ'.take hashLen $ HQ'.fromNamedReferent ns r
+              _ -> HQ'.take hqLength $ HQ'.fromNamedReferent ns r
           hqType b0 ns r =
             let refs = Star3.lookupD1 ns . _types $ b0
             in case length refs of
               1 -> HQ'.fromName ns
-              _ -> HQ'.take hashLen $ HQ'.fromNamedReference ns r
+              _ -> HQ'.take hqLength $ HQ'.fromNamedReference ns r
           defnCount b =
             (length . R.ran . Star3.d1 . deepTerms $ Branch.head b) +
             (length . R.ran . Star3.d1 . deepTypes $ Branch.head b)
