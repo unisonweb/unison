@@ -20,6 +20,7 @@ module Unison.Codebase.FileCodebase
 , initCodebaseAndExit
 , initCodebase
 , getCodebaseOrExit
+, getCodebaseDir
 ) where
 
 import Unison.Prelude
@@ -117,8 +118,7 @@ formatAnn = S.Format (pure External) (\_ -> pure ())
 
 initCodebaseAndExit :: Maybe FilePath -> IO ()
 initCodebaseAndExit mdir = do
-  dir <- case mdir of Just dir -> pure dir
-                      Nothing  -> getHomeDirectory
+  dir <- getCodebaseDir mdir
   _ <- initCodebase dir
   exitSuccess
 
@@ -167,6 +167,11 @@ getCodebaseOrExit mdir = do
     PT.putPrettyLn'. P.warnCallout . P.wrap $ errMsg
     exitFailure
   pure theCodebase
+
+getCodebaseDir :: Maybe FilePath -> IO FilePath
+getCodebaseDir mdir =
+  case mdir of Just dir -> pure dir
+               Nothing  -> getHomeDirectory
 
 termsDir, typesDir, branchesDir, branchHeadDir, editsDir
   :: CodebasePath -> FilePath
