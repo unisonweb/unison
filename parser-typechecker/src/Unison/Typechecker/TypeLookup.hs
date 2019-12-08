@@ -20,9 +20,6 @@ data TypeLookup v a =
              , effectDecls :: Map Reference (EffectDeclaration v a) }
   deriving Show
 
-asDataDecl :: DD.Decl v a -> DataDeclaration v a
-asDataDecl = either DD.toDataDecl id
-
 typeOfReferent :: TypeLookup v a -> Referent -> Maybe (Type v a)
 typeOfReferent tl r = case r of
   Referent.Ref r -> typeOfTerm tl r

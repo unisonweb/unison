@@ -79,11 +79,14 @@ getUserInput patterns codebase branch currentPath numberedArgs =
     case line of
       Nothing -> pure QuitI
       Just l ->
-        case parseInput patterns . (>>= expandNumber numberedArgs) . words $ l of
-          Left msg -> do
-            liftIO $ putPrettyLn msg
-            go
-          Right i -> pure i
+        case words l of
+          [] -> go
+          ws ->
+            case parseInput patterns . (>>= expandNumber numberedArgs) $ ws  of
+              Left msg -> do
+                liftIO $ putPrettyLn msg
+                go
+              Right i -> pure i
   settings    = Line.Settings tabComplete (Just ".unisonHistory") True
   tabComplete = Line.completeWordWithPrev Nothing " " $ \prev word ->
     -- User hasn't finished a command name, complete from command names

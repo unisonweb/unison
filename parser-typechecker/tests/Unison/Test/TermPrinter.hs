@@ -323,7 +323,7 @@ test = scope "termprinter" . tests $
   , pending $ tc "case x of [] -> a"      -- ditto
   , tc "case x of Optional.Some (Optional.Some _) -> ()" -- Issue #695
   -- need an actual effect constructor to test the following
-  , pending $ tc "case x of { SomeRequest (Optional.Some _) -> k } -> ()" 
+  , pending $ tc "case x of { SomeRequest (Optional.Some _) -> k } -> ()"
   , tcBinding 50 "foo" (Just "Int") "3" "foo : Int\n\
                                          \foo = 3"
   , tcBinding 50 "foo" Nothing "3" "foo = 3"
@@ -367,11 +367,9 @@ test = scope "termprinter" . tests $
                  \  a = b\n\
                  \  a then foo else bar"   -- missing break before 'then', issue #518
   , tcBreaks 80 "Stream.foldLeft 0 (+) t"
-  , tcDiffRtt False "let\n\
-                      \  delay = 'isEven"
-                      "let\n\
-                      \  delay () = isEven\n\
-                      \  _" 80 -- TODO the latter doesn't parse - can't handle the () on the LHS
+  , tcBreaks 80 "let\n\
+                 \  delay = 'isEven\n\
+                 \  ()"
   , tcBreaks 80 "let\n\
                  \  a = ()\n\
                  \  b = ()\n\
