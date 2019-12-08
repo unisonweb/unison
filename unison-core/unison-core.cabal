@@ -36,7 +36,6 @@ library
   exposed-modules:
     Unison.ABT
     Unison.Blank
-    Unison.Codebase.SearchResult
     Unison.ConstructorType
     Unison.DataDeclaration
     Unison.Hash

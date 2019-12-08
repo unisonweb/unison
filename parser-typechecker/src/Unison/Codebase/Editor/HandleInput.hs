@@ -382,9 +382,9 @@ loop = do
             if failed == mempty then stepManyAt . fmap (makeDelete resolvedPath) . toList $ rs
             else do
               failed <-
-                loadSearchResults $ Names.asSearchResults failed
+                loadSearchResults $ SR.fromNames failed
               failedDependents <-
-                loadSearchResults $ Names.asSearchResults failedDependents
+                loadSearchResults $ SR.fromNames failedDependents
               ppe <- prettyPrintEnv =<<
                 makePrintNamesFromLabeled'
                   (foldMap SR'.labeledDependencies $ failed <> failedDependents)
@@ -546,8 +546,8 @@ loop = do
                 diff = Names3.diff0 deletedNames mempty
             respond $ ShowDiff input diff
           else do
-            failed <- loadSearchResults $ Names.asSearchResults failed
-            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
+            failed <- loadSearchResults $ SR.fromNames failed
+            failedDependents <- loadSearchResults $ SR.fromNames failedDependents
             ppe <- prettyPrintEnv =<<
               makePrintNamesFromLabeled'
                 (foldMap SR'.labeledDependencies $ failed <> failedDependents)
@@ -1525,7 +1525,7 @@ confirmedCommand i = do
 
 listBranch :: Branch0 m -> [SearchResult]
 listBranch (Branch.toNames0 -> b) =
-  List.sortOn (\s -> (SR.name s, s)) (Names.asSearchResults b)
+  List.sortOn (\s -> (SR.name s, s)) (SR.fromNames b)
 
 -- | restores the full hash to these search results, for _numberedArgs purposes
 searchResultToHQString :: SearchResult -> String
@@ -1545,7 +1545,7 @@ _searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
   Nothing -> []
   Just (init, last) -> case Branch.getAt init b of
     Nothing -> []
-    Just b -> Names.asSearchResults . Names.prefix0 n $ names0
+    Just b -> SR.fromNames . Names.prefix0 n $ names0
       where
       lastName = Path.toName (Path.singleton last)
       subnames = Branch.toNames0 . Branch.head $
@@ -1557,8 +1557,8 @@ _searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
 
 searchResultsFor :: Names0 -> [Referent] -> [Reference] -> [SearchResult]
 searchResultsFor ns terms types =
-  [ Names.termSearchResult ns (Names.termName ns ref) ref | ref <- terms ] <>
-  [ Names.typeSearchResult ns (Names.typeName ns ref) ref | ref <- types ]
+  [ SR.termSearchResult ns (Names.termName ns ref) ref | ref <- terms ] <>
+  [ SR.typeSearchResult ns (Names.typeName ns ref) ref | ref <- types ]
 
 searchBranchScored :: forall score. (Ord score)
               => Names0
@@ -1582,7 +1582,7 @@ searchBranchScored names0 score queries =
         Set.singleton (Nothing, result)
       _ -> mempty
       where
-      result = Names.termSearchResult names0 name ref
+      result = SR.termSearchResult names0 name ref
       pair qn = case score qn name of
         Just score -> Set.singleton (Just score, result)
         Nothing -> mempty
@@ -1600,7 +1600,7 @@ searchBranchScored names0 score queries =
         Set.singleton (Nothing, result)
       _ -> mempty
       where
-      result = Names.typeSearchResult names0 name ref
+      result = SR.typeSearchResult names0 name ref
       pair qn = case score qn name of
         Just score -> Set.singleton (Just score, result)
         Nothing -> mempty

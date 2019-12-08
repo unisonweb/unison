@@ -11,7 +11,6 @@ module Unison.Names2
   , addTerm
   , addType
   , allReferences
-  , asSearchResults
   , conflicts
   , contains
   , difference
@@ -34,8 +33,6 @@ module Unison.Names2
   , termReferences
   , termReferents
   , typeReferences
-  , termSearchResult
-  , typeSearchResult
   , termsNamed
   , typesNamed
   , unionLeft
@@ -48,8 +45,6 @@ import Unison.Prelude
 
 import qualified Data.Set                     as Set
 import           Prelude                      hiding (filter)
-import           Unison.Codebase.SearchResult (SearchResult)
-import qualified Unison.Codebase.SearchResult as SR
 import           Unison.HashQualified'        (HashQualified)
 import qualified Unison.HashQualified'        as HQ
 import           Unison.Name                  (Name)
@@ -256,20 +251,6 @@ fromTerms ts = Names (R.fromList ts) mempty
 fromTypes :: Ord n => [(n, Reference)] -> Names' n
 fromTypes ts = Names mempty (R.fromList ts)
 
--- | You may want to sort this list differently afterward.
-asSearchResults :: Names0 -> [SearchResult]
-asSearchResults b =
-  map (uncurry (typeSearchResult b)) (R.toList . types $ b) <>
-  map (uncurry (termSearchResult b)) (R.toList . terms $ b)
-
-termSearchResult :: Names0 -> Name -> Referent -> SearchResult
-termSearchResult b n r =
-  SR.termResult (hqTermName b n r) r (hqTermAliases b n r)
-
-typeSearchResult :: Names0 -> Name -> Reference -> SearchResult
-typeSearchResult b n r =
-  SR.typeResult (hqTypeName b n r) r (hqTypeAliases b n r)
-
 prefix0 :: Name -> Names0 -> Names0
 prefix0 n (Names terms types) = Names terms' types' where
   terms' = R.mapDom (Name.joinDot n) terms
@@ -292,15 +273,6 @@ filterBySHs shs Names{..} = Names terms' types' where
   types' = R.filter g types
   f (_n, r) = any (`SH.isPrefixOf` Referent.toShortHash r) shs
   g (_n, r) = any (`SH.isPrefixOf` Reference.toShortHash r) shs
-
-_toSearchResults :: Names0 -> [SearchResult]
-_toSearchResults n0@(Names terms types) = typeResults <> termResults where
-  typeResults =
-    [ SR.typeResult (hqTypeName n0 name r) r (hqTypeAliases n0 name r)
-    | (name, r) <- R.toList types ]
-  termResults =
-    [ SR.termResult (hqTermName n0 name r) r (hqTermAliases n0 name r)
-    | (name, r) <- R.toList terms]
 
 filterTypes :: Ord n => (n -> Bool) -> Names' n -> Names' n
 filterTypes f (Names terms types) = Names terms (R.filterDom f types)
