@@ -89,8 +89,8 @@ data Codebase m v a =
            , branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.Hash)
            }
 
-bootstrapNames :: Names.Names0 
-bootstrapNames = 
+bootstrapNames :: Names.Names0
+bootstrapNames =
   Builtin.names0 <> UF.typecheckedToNames0 IOSource.typecheckedFile
 
 -- | Write all of the builtins types and IO types into the codebase. Returns the names of builtins
@@ -129,7 +129,7 @@ addDefsToCodebase c uf = do
     goType :: (t -> Decl v a) -> (Reference.Reference, t) -> m ()
     goType f (ref, decl) = case ref of
       Reference.DerivedId id -> putTypeDeclaration c id (f decl)
-      _                      -> pure ()
+      Reference.Builtin{}    -> pure ()
 
 getTypeOfConstructor ::
   (Monad m, Ord v) => Codebase m v a -> Reference -> Int -> m (Maybe (Type v a))
@@ -155,7 +155,7 @@ typeLookupForDependencies codebase = foldM go mempty
         Just (Right dd) ->
           pure $ TypeLookup mempty (Map.singleton ref dd) mempty
         Nothing -> pure mempty
-  go tl _builtin = pure tl -- codebase isn't consulted for builtins
+  go tl Reference.Builtin{} = pure tl -- codebase isn't consulted for builtins
 
 -- todo: can this be implemented in terms of TransitiveClosure.transitiveClosure?
 -- todo: add some tests on this guy?
@@ -186,7 +186,7 @@ transitiveDependencies code seen0 r = if Set.member r seen0
                 Just (Right dd) -> foldM (transitiveDependencies code)
                                          seen
                                          (DD.dependencies dd)
-        _ -> pure seen
+        Reference.Builtin{} -> pure seen
 
 toCodeLookup :: Codebase m v a -> CL.CodeLookup v m a
 toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
@@ -205,12 +205,12 @@ makeSelfContained' code uf = do
   deps <- foldM (transitiveDependencies code) Set.empty (Set.unions deps0)
   decls <- fmap catMaybes . forM (toList deps) $ \case
     r@(Reference.DerivedId rid) -> fmap (r, ) <$> CL.getTypeDeclaration code rid
-    _                           -> pure Nothing
+    Reference.Builtin{}         -> pure Nothing
   let (es1, ds1) = partitionEithers [ bimap (r,) (r,) d | (r, d) <- decls ]
   bs1 <- fmap catMaybes . forM (toList deps) $ \case
     r@(Reference.DerivedId rid) ->
       fmap (r, ) <$> CL.getTerm code rid
-    _ -> pure Nothing
+    Reference.Builtin{} -> pure Nothing
   let
     allVars = Set.unions
       [ UF.allVars uf

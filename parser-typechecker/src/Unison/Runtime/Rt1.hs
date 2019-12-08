@@ -239,7 +239,7 @@ compilationEnv env t = do
         Just (Right dd) -> pure $
           let arities = DD.constructorArities dd
           in [ ((r, i), arity) | (arity, i) <- arities `zip` [0..] ]
-    _ -> pure []
+    R.Builtin{} -> pure []
   let cenv = CompilationEnv mempty arityMap
 
     -- deps = Term.dependencies t

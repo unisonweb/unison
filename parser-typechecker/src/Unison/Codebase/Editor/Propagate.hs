@@ -353,7 +353,7 @@ propagate patch b = case validatePatch patch of
               mtm <- eval $ LoadTerm id
               tm  <- maybe (fail $ "Missing term with id " <> show id) pure mtm
               pure $ Just (termRef, (tm, tp))
-            _ -> pure Nothing
+            Reference.Builtin{} -> pure Nothing
         unhash m =
           let f (_oldTm, oldTyp) (v, newTm) = (v, newTm, oldTyp)
               m' = Map.intersectionWith f m (Term.unhashComponent (fst <$> m))
@@ -376,7 +376,7 @@ propagate patch b = case validatePatch patch of
                          pure
                          declm
           pure $ Just (typeRef, decl)
-        _ -> pure Nothing
+        Reference.Builtin{} -> pure Nothing
       unhash =
         Map.fromList . map reshuffle . Map.toList . Decl.unhashComponent
         where reshuffle (r, (v, decl)) = (v, (r, decl))
