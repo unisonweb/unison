@@ -312,7 +312,7 @@ branchFromFiles loadMode rootDir h@(RawHash h') = do
           Right edits -> pure edits
 
 -- returns Nothing if `root` has no root branch (in `branchHeadDir root`)
-getRootBranch :: 
+getRootBranch ::
   MonadIO m => BranchLoadMode -> CodebasePath -> m (Branch m)
 getRootBranch loadMode root = do
   ifM (exists root)
@@ -322,7 +322,7 @@ getRootBranch loadMode root = do
       conflict -> traverse go conflict >>= \case
         x : xs -> foldM Branch.merge x xs
         []     -> missing
-    ) 
+    )
     missing
  where
   go single = case hashFromString single of
@@ -402,7 +402,7 @@ referentToString = Text.unpack . Referent.toText
 copyDir :: (FilePath -> Bool) -> FilePath -> FilePath -> IO ()
 copyDir predicate from to = do
   createDirectoryIfMissing True to
-  -- createDir doesn't create a new directory on disk, 
+  -- createDir doesn't create a new directory on disk,
   -- it creates a description of an existing directory,
   -- and it crashes if `from` doesn't exist.
   d <- createDir from
@@ -414,8 +414,8 @@ copyDir predicate from to = do
       unless exists . copyFile path $ replaceRoot from to path
 
 copyFromGit :: MonadIO m => FilePath -> FilePath -> m ()
-copyFromGit to from = liftIO . whenM (doesDirectoryExist from) $ 
-  copyDir (\x -> not ((".git" `isSuffixOf` x) || ("_head" `isSuffixOf` x))) 
+copyFromGit to from = liftIO . whenM (doesDirectoryExist from) $
+  copyDir (\x -> not ((".git" `isSuffixOf` x) || ("_head" `isSuffixOf` x)))
           from to
 
 -- Create a codebase structure at `localPath` if none exists, and
@@ -462,7 +462,7 @@ syncToDirectory fmtV fmtA codebase localPath branch = do
         unless alreadyExists $ do
           mayDecl <- Codebase.getTypeDeclaration codebase i
           maybe (calamity i) (putDecl (S.put fmtV) (S.put fmtA) localPath i) mayDecl
-      _ -> pure ()
+      Reference.Builtin{} -> pure ()
     -- Write all terms
     for_ (toList $ Star3.fact terms) $ \case
       Ref r@(Reference.DerivedId i) -> do
@@ -475,7 +475,8 @@ syncToDirectory fmtV fmtA codebase localPath branch = do
           -- If the term is a test, write the cached value too.
           mayTest <- Codebase.getWatch codebase UF.TestWatch i
           maybe (pure ()) (putWatch (S.put fmtV) (S.put fmtA) localPath UF.TestWatch i) mayTest
-      _ -> pure ()
+      Ref Reference.Builtin{} -> pure ()
+      Con{} -> pure ()
 
 putTerm
   :: MonadIO m

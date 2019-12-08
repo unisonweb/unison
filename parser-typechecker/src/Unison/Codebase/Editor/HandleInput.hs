@@ -794,11 +794,11 @@ loop = do
         loadedDerivedTerms <-
           fmap (Map.fromList . catMaybes) . for (toList collatedTerms) $ \case
             Reference.DerivedId i -> fmap (i,) <$> eval (LoadTerm i)
-            _ -> pure Nothing
+            Reference.Builtin{} -> pure Nothing
         loadedDerivedTypes <-
           fmap (Map.fromList . catMaybes) . for (toList collatedTypes) $ \case
             Reference.DerivedId i -> fmap (i,) <$> eval (LoadType i)
-            _ -> pure Nothing
+            Reference.Builtin{} -> pure Nothing
         -- Populate DisplayThings for the search results, in anticipation of
         -- displaying the definitions.
         loadedDisplayTerms :: Map Reference (DisplayThing (Term v Ann)) <-
