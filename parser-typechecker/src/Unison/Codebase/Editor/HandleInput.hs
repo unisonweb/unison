@@ -356,6 +356,39 @@ loop = do
         stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
         stepManyAtM = Unison.Codebase.Editor.HandleInput.stepManyAtM inputDescription
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
+        delete
+          :: forall ref.
+             Ord ref
+          => (Path.HQSplit' -> Set ref)
+          -> (Path.HQSplit' -> Action' m v ())
+          -> (Path.HQSplit' -> Set ref -> Action' m v ())
+          -> (Path.Split -> ref -> (Path, Branch0 m -> Branch0 m))
+          -> ((Set ref -> R.Relation Name ref) -> Set ref -> Names0)
+          -> Path.HQSplit'
+          -> Action' m v ()
+        delete getHQ notFound conflicted makeDelete makeNames hq = case toList (getHQ hq) of
+          [] -> notFound hq
+          [r] -> goMany (Set.singleton r)
+          (Set.fromList -> rs) -> ifConfirmed (goMany rs) (conflicted hq rs)
+          where
+          resolvedPath = resolveSplit' (HQ'.toName <$> hq)
+          goMany rs = do
+            let rootNames = Branch.toNames0 root0
+                -- these names are relative to the root
+                toDelete = makeNames (R.fromList . fmap (name,) . toList) rs
+                  where name = Path.toName . Path.unsplit $ resolvedPath
+            (failed, failedDependents) <-
+              getEndangeredDependents (eval . GetDependents) toDelete rootNames
+            if failed == mempty then stepManyAt . fmap (makeDelete resolvedPath) . toList $ rs
+            else do
+              failed <-
+                loadSearchResults $ Names.asSearchResults failed
+              failedDependents <-
+                loadSearchResults $ Names.asSearchResults failedDependents
+              ppe <- prettyPrintEnv =<<
+                makePrintNamesFromLabeled'
+                  (foldMap SR'.labeledDependencies $ failed <> failedDependents)
+              respond $ CantDelete input ppe failed failedDependents
       in case input of
       ShowReflogI -> do
         entries <- fmap (convertEntries Nothing []) $ eval LoadReflog
@@ -716,56 +749,23 @@ loop = do
         p = resolveSplit' (HQ'.toName <$> src)
         mdSrc r = BranchUtil.getTypeMetadataAt p r root0
 
-      DeleteTypeI hq -> case toList (getHQ'Types hq) of
-        [] -> typeNotFound hq
-        [r] -> goMany (Set.singleton r)
-        (Set.fromList -> rs) -> ifConfirmed (goMany rs) (typeConflicted hq rs)
-        where
-        resolvedPath = resolveSplit' (HQ'.toName <$> hq)
-        makeDelete = BranchUtil.makeDeleteTypeName resolvedPath
-        goMany rs = do
-          let rootNames = Branch.toNames0 root0
-              -- these names are relative to the root
-              toDelete = Names0 mempty (R.fromList . fmap (name,) $ toList rs)
-                where name = Path.toName . Path.unsplit $ resolvedPath
-          (failed, failedDependents) <-
-            getEndangeredDependents (eval . GetDependents) toDelete rootNames
-          if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
-          else do
-            failed <-
-              loadSearchResults $ Names.asSearchResults failed
-            failedDependents <-
-              loadSearchResults $ Names.asSearchResults failedDependents
-            ppe <- prettyPrintEnv =<<
-              makePrintNamesFromLabeled'
-                (foldMap SR'.labeledDependencies $ failed <> failedDependents)
-            respond $ CantDelete input ppe failed failedDependents
+      DeleteTypeI hq ->
+        delete
+          getHQ'Types
+          typeNotFound
+          typeConflicted
+          BranchUtil.makeDeleteTypeName
+          (\f rs -> Names0 mempty (f rs))
+          hq
 
-      -- like the previous
-      DeleteTermI hq -> case toList (getHQ'Terms hq) of
-        [] -> termNotFound hq
-        [r] -> goMany (Set.singleton r)
-        (Set.fromList -> rs) -> ifConfirmed (goMany rs) (termConflicted hq rs)
-        where
-        resolvedPath = resolveSplit' (HQ'.toName <$> hq)
-        makeDelete = BranchUtil.makeDeleteTermName resolvedPath
-        goMany rs = do
-          let rootNames = Branch.toNames0 root0
-              -- these names are relative to the root
-              toDelete = Names0 (R.fromList . fmap (name,) $ toList rs) mempty
-                where name = Path.toName . Path.unsplit $ resolvedPath
-          (failed, failedDependents) <-
-            getEndangeredDependents (eval . GetDependents) toDelete rootNames
-          if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
-          else do
-            failed <-
-              loadSearchResults $ Names.asSearchResults failed
-            failedDependents <-
-              loadSearchResults $ Names.asSearchResults failedDependents
-            ppe <- prettyPrintEnv =<<
-              makePrintNamesFromLabeled'
-                (foldMap SR'.labeledDependencies $ failed <> failedDependents)
-            respond $ CantDelete input ppe failed failedDependents
+      DeleteTermI hq ->
+        delete
+          getHQ'Terms
+          termNotFound
+          termConflicted
+          BranchUtil.makeDeleteTermName
+          (\f rs -> Names0 (f rs) mempty)
+          hq
 
       DisplayI outputLoc (HQ.unsafeFromString -> hq) -> do
         parseNames <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
