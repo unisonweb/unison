@@ -289,6 +289,7 @@ loop = do
           MoveBranchI src dest -> "move.namespace " <> ops' src <> " " <> ps' dest
           MovePatchI src dest -> "move.patch " <> ps' src <> " " <> ps' dest
           CopyPatchI src dest -> "copy.patch " <> ps' src <> " " <> ps' dest
+          DeleteI thing -> "delete" <> hqs' thing
           DeleteTermI def -> "delete.term " <> hqs' def
           DeleteTypeI def -> "delete.type" <> hqs' def
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
@@ -357,29 +358,35 @@ loop = do
         stepManyAtM = Unison.Codebase.Editor.HandleInput.stepManyAtM inputDescription
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
         delete
-          :: forall ref.
-             Ord ref
-          => (Path.HQSplit' -> Set ref)
-          -> (Path.HQSplit' -> Action' m v ())
-          -> (Path.HQSplit' -> Set ref -> Action' m v ())
-          -> (Path.Split -> ref -> (Path, Branch0 m -> Branch0 m))
-          -> ((Set ref -> R.Relation Name ref) -> Set ref -> Names0)
+          :: (Path.HQSplit' -> Set Referent) -- compute matching terms
+          -> (Path.HQSplit' -> Set Reference) -- compute matching types
           -> Path.HQSplit'
           -> Action' m v ()
-        delete getHQ notFound conflicted makeDelete makeNames hq = case toList (getHQ hq) of
-          [] -> notFound hq
-          [r] -> goMany (Set.singleton r)
-          (Set.fromList -> rs) -> ifConfirmed (goMany rs) (conflicted hq rs)
+        delete getHQ'Terms getHQ'Types hq = do
+          let matchingTerms = toList (getHQ'Terms hq)
+          let matchingTypes = toList (getHQ'Types hq)
+          case (matchingTerms, matchingTypes) of
+            ([], []) -> respond (NameNotFound input hq)
+            -- delete one term
+            ([r], []) -> goMany (Set.singleton r) Set.empty
+            -- delete one type
+            ([], [r]) -> goMany Set.empty (Set.singleton r)
+            (Set.fromList -> tms, Set.fromList -> tys) ->
+              ifConfirmed (goMany tms tys) (respond (NameAmbiguous input hq tms tys))
           where
           resolvedPath = resolveSplit' (HQ'.toName <$> hq)
-          goMany rs = do
+          goMany tms tys = do
             let rootNames = Branch.toNames0 root0
+                name = Path.toName (Path.unsplit resolvedPath)
+                toRel :: Ord ref => Set ref -> R.Relation Name ref
+                toRel = R.fromList . fmap (name,) . toList
                 -- these names are relative to the root
-                toDelete = makeNames (R.fromList . fmap (name,) . toList) rs
-                  where name = Path.toName . Path.unsplit $ resolvedPath
+                toDelete = Names0 (toRel tms) (toRel tys)
             (failed, failedDependents) <-
               getEndangeredDependents (eval . GetDependents) toDelete rootNames
-            if failed == mempty then stepManyAt . fmap (makeDelete resolvedPath) . toList $ rs
+            if failed == mempty then do
+              stepManyAt . fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
+              stepManyAt . fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
             else do
               failed <-
                 loadSearchResults $ SR.fromNames failed
@@ -749,23 +756,9 @@ loop = do
         p = resolveSplit' (HQ'.toName <$> src)
         mdSrc r = BranchUtil.getTypeMetadataAt p r root0
 
-      DeleteTypeI hq ->
-        delete
-          getHQ'Types
-          typeNotFound
-          typeConflicted
-          BranchUtil.makeDeleteTypeName
-          (\f rs -> Names0 mempty (f rs))
-          hq
-
-      DeleteTermI hq ->
-        delete
-          getHQ'Terms
-          termNotFound
-          termConflicted
-          BranchUtil.makeDeleteTermName
-          (\f rs -> Names0 (f rs) mempty)
-          hq
+      DeleteI     hq -> delete getHQ'Terms       getHQ'Types       hq
+      DeleteTypeI hq -> delete (const Set.empty) getHQ'Types       hq
+      DeleteTermI hq -> delete getHQ'Terms       (const Set.empty) hq
 
       DisplayI outputLoc (HQ.unsafeFromString -> hq) -> do
         parseNames <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0

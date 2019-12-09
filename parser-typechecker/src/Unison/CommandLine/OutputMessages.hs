@@ -198,6 +198,8 @@ notifyUser dir o = case o of
       <> (P.syntaxToColor $ P.indent "  " (P.lines (prettyHashQualified <$> hqs)))
   PatchNotFound input _ ->
     pure . P.warnCallout $ "I don't know about that patch."
+  NameNotFound _ _ ->
+    pure . P.warnCallout $ "I don't know about that name."
   TermNotFound input _ ->
     pure . P.warnCallout $ "I don't know about that term."
   TypeNotFound input _ ->
@@ -613,6 +615,7 @@ notifyUser dir o = case o of
     P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> pure $ P.wrap "That's not implemented yet. Sorry! 😬"
   BranchAlreadyExists _ _ -> pure "That namespace already exists."
+  NameAmbiguous _ _ _ _ -> pure "That name is ambiguous."
   TypeAmbiguous _ _ _ -> pure "That type is ambiguous."
   TermAmbiguous _ _ _ -> pure "That term is ambiguous."
   HashAmbiguous _ h rs -> pure . P.callout "\129300" . P.lines $ [
