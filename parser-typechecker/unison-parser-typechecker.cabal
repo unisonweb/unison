@@ -89,7 +89,6 @@ library
     Unison.Parser
     Unison.Parsers
     Unison.Path
-    Unison.Paths
     Unison.PrettyPrintEnv
     Unison.PrettyTerminal
     Unison.PrintError
