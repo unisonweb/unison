@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -224,6 +225,9 @@ fromList = Path . Seq.fromList
 splitFromName :: Name -> Maybe Split
 splitFromName = unsnoc . fromName
 
+unprefixName :: Absolute -> Name -> Name
+unprefixName prefix = toName . unprefix prefix . fromName'
+
 singleton :: NameSegment -> Path
 singleton n = fromList [n]
 
@@ -262,6 +266,15 @@ uncons p = case p of
 --       identifiers called Function.(.)
 fromName :: Name -> Path
 fromName = fromList . fmap NameSegment . Text.splitOn "." . Name.toText
+
+fromName' :: Name -> Path'
+fromName' n = case first of
+  [NameSegment ""] -> Path' . Left . Absolute . Path $ Seq.drop 1 seq
+  _    -> Path' . Right $ Relative path
+ where
+  path  = fromName n
+  seq   = toSeq path
+  first = Seq.take 1 seq
 
 toName :: Path -> Name
 toName = Name.unsafeFromText . toText

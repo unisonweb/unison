@@ -74,17 +74,18 @@ main = do
            "-codebase" : codepath : restargs -> (Just codepath, restargs)
            _                                 -> (Nothing, args)
   currentDir <- getCurrentDirectory
+  configFilePath <- getConfigFilePath mcodepath
   case restargs of
     [] -> do
       theCodebase <- FileCodebase.getCodebaseOrExit mcodepath
-      launch currentDir theCodebase []
+      launch currentDir configFilePath theCodebase []
     [version] | isFlag "version" version ->
       putStrLn $ "ucm version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn usage
     ["init"] -> FileCodebase.initCodebaseAndExit mcodepath
     "run" : [mainName] -> do
       theCodebase <- FileCodebase.getCodebaseOrExit mcodepath
-      launch currentDir theCodebase [Right $ Input.ExecuteI mainName, Right Input.QuitI]
+      launch currentDir configFilePath theCodebase [Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "run.file" : file : [mainName] | isDotU file -> do
       e <- safeReadUtf8 file
       case e of
@@ -92,7 +93,7 @@ main = do
         Right contents -> do
           theCodebase <- FileCodebase.getCodebaseOrExit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-          launch currentDir theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+          launch currentDir configFilePath theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "run.pipe" : [mainName] -> do
       e <- safeReadUtf8StdIn
       case e of
@@ -100,7 +101,7 @@ main = do
         Right contents -> do
           theCodebase <- FileCodebase.getCodebaseOrExit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
-          launch currentDir theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+          launch currentDir configFilePath theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "transcript" : args -> runTranscripts False mcodepath args
     "transcript.fork" : args -> runTranscripts True mcodepath args
     _ -> do
@@ -136,7 +137,8 @@ runTranscripts inFork mcodepath args = do
           case parsed of
             Left err -> putStrLn $ "Parse error: \n" <> show err
             Right stanzas -> do
-              mdOut <- TR.run currentDir stanzas theCodebase
+              configFilePath <- getConfigFilePath mcodepath
+              mdOut <- TR.run currentDir configFilePath stanzas theCodebase
               let out = currentDir FP.</>
                          FP.addExtension (FP.dropExtension arg ++ ".output")
                                          (FP.takeExtension md)
@@ -158,9 +160,9 @@ runTranscripts inFork mcodepath args = do
 initialPath :: Path.Absolute
 initialPath = Path.absoluteEmpty
 
-launch :: FilePath -> _ -> [Either Input.Event Input.Input] -> IO ()
-launch dir code inputs =
-  CommandLine.main dir initialPath inputs (pure Rt1.runtime) code
+launch :: FilePath -> FilePath -> _ -> [Either Input.Event Input.Input] -> IO ()
+launch dir configFile code inputs =
+  CommandLine.main dir initialPath configFile inputs (pure Rt1.runtime) code
 
 isMarkdown :: String -> Bool
 isMarkdown md = case FP.takeExtension md of
@@ -175,3 +177,6 @@ isDotU file = FP.takeExtension file == ".u"
 -- having to remember which one is supported)
 isFlag :: String -> String -> Bool
 isFlag f arg = arg == f || arg == "-" ++ f || arg == "--" ++ f
+
+getConfigFilePath :: Maybe FilePath -> IO FilePath
+getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> FileCodebase.getCodebaseDir mcodepath

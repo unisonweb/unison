@@ -66,6 +66,7 @@ library
     Unison.Codebase.Patch
     Unison.Codebase.Reflog
     Unison.Codebase.Runtime
+    Unison.Codebase.SearchResult
     Unison.Codebase.Serialization
     Unison.Codebase.Serialization.PutT
     Unison.Codebase.Serialization.V1
@@ -88,7 +89,6 @@ library
     Unison.Parser
     Unison.Parsers
     Unison.Path
-    Unison.Paths
     Unison.PrettyPrintEnv
     Unison.PrettyTerminal
     Unison.PrintError

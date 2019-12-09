@@ -13,7 +13,6 @@ import Control.Exception (finally)
 import Control.Monad.State (runStateT)
 import Data.IORef
 import Prelude hiding (readFile, writeFile)
-import System.FilePath ((</>))
 import System.IO.Error (catchIOError)
 import System.Exit (die)
 import Unison.Codebase.Branch (Branch)
@@ -78,11 +77,14 @@ getUserInput patterns codebase branch currentPath numberedArgs =
     case line of
       Nothing -> pure QuitI
       Just l ->
-        case parseInput patterns . (>>= expandNumber numberedArgs) . words $ l of
-          Left msg -> do
-            liftIO $ putPrettyLn msg
-            go
-          Right i -> pure i
+        case words l of
+          [] -> go
+          ws ->
+            case parseInput patterns . (>>= expandNumber numberedArgs) $ ws  of
+              Left msg -> do
+                liftIO $ putPrettyLn msg
+                go
+              Right i -> pure i
   settings    = Line.Settings tabComplete (Just ".unisonHistory") True
   tabComplete = Line.completeWordWithPrev Nothing " " $ \prev word ->
     -- User hasn't finished a command name, complete from command names
@@ -145,11 +147,12 @@ main
   . Var v
   => FilePath
   -> Path.Absolute
+  -> FilePath
   -> [Either Event Input]
   -> IO (Runtime v)
   -> Codebase IO v Ann
   -> IO ()
-main dir initialPath initialInputs startRuntime codebase = do
+main dir initialPath configFile initialInputs startRuntime codebase = do
   dir' <- shortenDirectory dir
   root <- Codebase.getRootBranch codebase
   putPrettyLn $ if Branch.isOne root
@@ -164,7 +167,7 @@ main dir initialPath initialInputs startRuntime codebase = do
     initialInputsRef         <- newIORef initialInputs
     numberedArgsRef          <- newIORef []
     (config, cancelConfig)   <-
-      catchIOError (watchConfig $ dir </> ".unisonConfig") $ \_ ->
+      catchIOError (watchConfig configFile) $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
     cancelWatchBranchUpdates <- watchBranchUpdates (Branch.headHash <$>
