@@ -8,7 +8,9 @@ packages:
 - yaks/easytest
 - yaks/haskeline
 - parser-typechecker
+- parser-typechecker-test
 - unison-core
+- unison-core-test
 
 #compiler-check: match-exact
 resolver: lts-14.7
