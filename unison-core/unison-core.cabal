@@ -47,6 +47,7 @@ library
     Unison.Name
     Unison.Names2
     Unison.Names3
+    Unison.Paths
     Unison.Pattern
     Unison.PatternP
     Unison.Prelude
