@@ -20,15 +20,13 @@ import qualified Data.Sequence              as Seq
 import           Data.Text                  (unpack)
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as Blank
-import           Unison.DataDeclaration     (DataDeclaration',
-                                             EffectDeclaration')
 import qualified Unison.Name                as Name
 import qualified Unison.Names3              as Names
 import           Unison.Parser              (Ann)
 import qualified Unison.Parsers             as Parsers
 import qualified Unison.Referent            as Referent
 import           Unison.Reference           (Reference)
-import           Unison.Result              (Note (..), Result, pattern Result, ResultT)
+import           Unison.Result              (Note (..), Result, pattern Result, ResultT, CompilerBug(..))
 import qualified Unison.Result              as Result
 import           Unison.Term                (AnnotatedTerm)
 import qualified Unison.Term                as Term
@@ -45,15 +43,12 @@ import Unison.Names3 (Names0)
 
 type Term v = AnnotatedTerm v Ann
 type Type v = Unison.Type.Type v Ann
-type DataDeclaration v = DataDeclaration' v Ann
-type EffectDeclaration v = EffectDeclaration' v Ann
 type UnisonFile v = UF.UnisonFile v Ann
-type NamedReference v = Typechecker.NamedReference v Ann
 type Result' v = Result (Seq (Note v Ann))
 
 convertNotes :: Ord v => Typechecker.Notes v ann -> Seq (Note v ann)
-convertNotes (Typechecker.Notes es is) =
-  (TypeError <$> es) <> (TypeInfo <$> Seq.fromList is') where
+convertNotes (Typechecker.Notes bugs es is) =
+  (CompilerBug . TypecheckerBug <$> bugs) <> (TypeError <$> es) <> (TypeInfo <$> Seq.fromList is') where
   is' = snd <$> List.uniqueBy' f ([(1::Word)..] `zip` Foldable.toList is)
   f (_, Context.TopLevelComponent cs) = Right [ v | (v,_,_) <- cs ]
   f (i, _) = Left i
