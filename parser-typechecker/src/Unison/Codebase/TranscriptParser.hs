@@ -14,7 +14,6 @@ import Control.Monad.State (runStateT)
 import Data.IORef
 import Prelude hiding (readFile, writeFile)
 import System.Exit (die)
-import System.FilePath ((</>))
 import System.IO.Error (catchIOError)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input (..), Event(UnisonFileChanged))
@@ -96,8 +95,8 @@ parse srcName txt = case P.parse (stanzas <* P.eof) srcName txt of
   Right a -> Right a
   Left e -> Left (show e)
 
-run :: FilePath -> [Stanza] -> Codebase IO Symbol Ann -> IO Text
-run dir stanzas codebase = do
+run :: FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> IO Text
+run dir configFile stanzas codebase = do
   let initialPath = Path.absoluteEmpty
   let startRuntime = pure Rt1.runtime
   putPrettyLn $ P.lines [
@@ -117,7 +116,7 @@ run dir stanzas codebase = do
     allowErrors              <- newIORef False
     hasErrors                <- newIORef False
     (config, cancelConfig)   <-
-      catchIOError (watchConfig $ dir </> ".unisonConfig") $ \_ ->
+      catchIOError (watchConfig configFile) $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
     traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1..])
     let patternMap =

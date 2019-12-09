@@ -290,6 +290,7 @@ loop = do
           MoveBranchI src dest -> "move.namespace " <> ops' src <> " " <> ps' dest
           MovePatchI src dest -> "move.patch " <> ps' src <> " " <> ps' dest
           CopyPatchI src dest -> "copy.patch " <> ps' src <> " " <> ps' dest
+          DeleteI thing -> "delete" <> hqs' thing
           DeleteTermI def -> "delete.term " <> hqs' def
           DeleteTypeI def -> "delete.type" <> hqs' def
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
@@ -358,6 +359,45 @@ loop = do
         stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
         stepManyAtM = Unison.Codebase.Editor.HandleInput.stepManyAtM inputDescription
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
+        delete
+          :: (Path.HQSplit' -> Set Referent) -- compute matching terms
+          -> (Path.HQSplit' -> Set Reference) -- compute matching types
+          -> Path.HQSplit'
+          -> Action' m v ()
+        delete getHQ'Terms getHQ'Types hq = do
+          let matchingTerms = toList (getHQ'Terms hq)
+          let matchingTypes = toList (getHQ'Types hq)
+          case (matchingTerms, matchingTypes) of
+            ([], []) -> respond (NameNotFound input hq)
+            -- delete one term
+            ([r], []) -> goMany (Set.singleton r) Set.empty
+            -- delete one type
+            ([], [r]) -> goMany Set.empty (Set.singleton r)
+            (Set.fromList -> tms, Set.fromList -> tys) ->
+              ifConfirmed (goMany tms tys) (respond (NameAmbiguous input hq tms tys))
+          where
+          resolvedPath = resolveSplit' (HQ'.toName <$> hq)
+          goMany tms tys = do
+            let rootNames = Branch.toNames0 root0
+                name = Path.toName (Path.unsplit resolvedPath)
+                toRel :: Ord ref => Set ref -> R.Relation Name ref
+                toRel = R.fromList . fmap (name,) . toList
+                -- these names are relative to the root
+                toDelete = Names0 (toRel tms) (toRel tys)
+            (failed, failedDependents) <-
+              getEndangeredDependents (eval . GetDependents) toDelete rootNames
+            if failed == mempty then do
+              stepManyAt . fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
+              stepManyAt . fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
+            else do
+              failed <-
+                loadSearchResults $ SR.fromNames failed
+              failedDependents <-
+                loadSearchResults $ SR.fromNames failedDependents
+              ppe <- prettyPrintEnv =<<
+                makePrintNamesFromLabeled'
+                  (foldMap SR'.labeledDependencies $ failed <> failedDependents)
+              respond $ CantDelete input ppe failed failedDependents
       in case input of
       ShowReflogI -> do
         entries <- fmap (convertEntries Nothing []) $ eval LoadReflog
@@ -528,8 +568,8 @@ loop = do
                 diff = Names3.diff0 deletedNames mempty
             respond $ ShowDiff input diff
           else do
-            failed <- loadSearchResults $ Names.asSearchResults failed
-            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
+            failed <- loadSearchResults $ SR.fromNames failed
+            failedDependents <- loadSearchResults $ SR.fromNames failedDependents
             ppe <- prettyPrintEnv =<<
               makePrintNamesFromLabeled'
                 (foldMap SR'.labeledDependencies $ failed <> failedDependents)
@@ -731,56 +771,9 @@ loop = do
         p = resolveSplit' (HQ'.toName <$> src)
         mdSrc r = BranchUtil.getTypeMetadataAt p r root0
 
-      DeleteTypeI hq -> case toList (getHQ'Types hq) of
-        [] -> typeNotFound hq
-        [r] -> goMany (Set.singleton r)
-        (Set.fromList -> rs) -> ifConfirmed (goMany rs) (typeConflicted hq rs)
-        where
-        resolvedPath = resolveSplit' (HQ'.toName <$> hq)
-        makeDelete = BranchUtil.makeDeleteTypeName resolvedPath
-        goMany rs = do
-          let rootNames = Branch.toNames0 root0
-              -- these names are relative to the root
-              toDelete = Names0 mempty (R.fromList . fmap (name,) $ toList rs)
-                where name = Path.toName . Path.unsplit $ resolvedPath
-          (failed, failedDependents) <-
-            getEndangeredDependents (eval . GetDependents) toDelete rootNames
-          if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
-          else do
-            failed <-
-              loadSearchResults $ Names.asSearchResults failed
-            failedDependents <-
-              loadSearchResults $ Names.asSearchResults failedDependents
-            ppe <- prettyPrintEnv =<<
-              makePrintNamesFromLabeled'
-                (foldMap SR'.labeledDependencies $ failed <> failedDependents)
-            respond $ CantDelete input ppe failed failedDependents
-
-      -- like the previous
-      DeleteTermI hq -> case toList (getHQ'Terms hq) of
-        [] -> termNotFound hq
-        [r] -> goMany (Set.singleton r)
-        (Set.fromList -> rs) -> ifConfirmed (goMany rs) (termConflicted hq rs)
-        where
-        resolvedPath = resolveSplit' (HQ'.toName <$> hq)
-        makeDelete = BranchUtil.makeDeleteTermName resolvedPath
-        goMany rs = do
-          let rootNames = Branch.toNames0 root0
-              -- these names are relative to the root
-              toDelete = Names0 (R.fromList . fmap (name,) $ toList rs) mempty
-                where name = Path.toName . Path.unsplit $ resolvedPath
-          (failed, failedDependents) <-
-            getEndangeredDependents (eval . GetDependents) toDelete rootNames
-          if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
-          else do
-            failed <-
-              loadSearchResults $ Names.asSearchResults failed
-            failedDependents <-
-              loadSearchResults $ Names.asSearchResults failedDependents
-            ppe <- prettyPrintEnv =<<
-              makePrintNamesFromLabeled'
-                (foldMap SR'.labeledDependencies $ failed <> failedDependents)
-            respond $ CantDelete input ppe failed failedDependents
+      DeleteI     hq -> delete getHQ'Terms       getHQ'Types       hq
+      DeleteTypeI hq -> delete (const Set.empty) getHQ'Types       hq
+      DeleteTermI hq -> delete getHQ'Terms       (const Set.empty) hq
 
       DisplayI outputLoc (HQ.unsafeFromString -> hq) -> do
         parseNames <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
@@ -809,11 +802,11 @@ loop = do
         loadedDerivedTerms <-
           fmap (Map.fromList . catMaybes) . for (toList collatedTerms) $ \case
             Reference.DerivedId i -> fmap (i,) <$> eval (LoadTerm i)
-            _ -> pure Nothing
+            Reference.Builtin{} -> pure Nothing
         loadedDerivedTypes <-
           fmap (Map.fromList . catMaybes) . for (toList collatedTypes) $ \case
             Reference.DerivedId i -> fmap (i,) <$> eval (LoadType i)
-            _ -> pure Nothing
+            Reference.Builtin{} -> pure Nothing
         -- Populate DisplayThings for the search results, in anticipation of
         -- displaying the definitions.
         loadedDisplayTerms :: Map Reference (DisplayThing (Term v Ann)) <-
@@ -1540,7 +1533,7 @@ confirmedCommand i = do
 
 listBranch :: Branch0 m -> [SearchResult]
 listBranch (Branch.toNames0 -> b) =
-  List.sortOn (\s -> (SR.name s, s)) (Names.asSearchResults b)
+  List.sortOn (\s -> (SR.name s, s)) (SR.fromNames b)
 
 -- | restores the full hash to these search results, for _numberedArgs purposes
 searchResultToHQString :: SearchResult -> String
@@ -1560,7 +1553,7 @@ _searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
   Nothing -> []
   Just (init, last) -> case Branch.getAt init b of
     Nothing -> []
-    Just b -> Names.asSearchResults . Names.prefix0 n $ names0
+    Just b -> SR.fromNames . Names.prefix0 n $ names0
       where
       lastName = Path.toName (Path.singleton last)
       subnames = Branch.toNames0 . Branch.head $
@@ -1572,8 +1565,8 @@ _searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
 
 searchResultsFor :: Names0 -> [Referent] -> [Reference] -> [SearchResult]
 searchResultsFor ns terms types =
-  [ Names.termSearchResult ns (Names.termName ns ref) ref | ref <- terms ] <>
-  [ Names.typeSearchResult ns (Names.typeName ns ref) ref | ref <- types ]
+  [ SR.termSearchResult ns (Names.termName ns ref) ref | ref <- terms ] <>
+  [ SR.typeSearchResult ns (Names.typeName ns ref) ref | ref <- types ]
 
 searchBranchScored :: forall score. (Ord score)
               => Names0
@@ -1597,7 +1590,7 @@ searchBranchScored names0 score queries =
         Set.singleton (Nothing, result)
       _ -> mempty
       where
-      result = Names.termSearchResult names0 name ref
+      result = SR.termSearchResult names0 name ref
       pair qn = case score qn name of
         Just score -> Set.singleton (Just score, result)
         Nothing -> mempty
@@ -1615,7 +1608,7 @@ searchBranchScored names0 score queries =
         Set.singleton (Nothing, result)
       _ -> mempty
       where
-      result = Names.typeSearchResult names0 name ref
+      result = SR.typeSearchResult names0 name ref
       pair qn = case score qn name of
         Just score -> Set.singleton (Just score, result)
         Nothing -> mempty
@@ -1806,7 +1799,7 @@ applySelection hqs file = \sr@SlurpResult{..} ->
   closed = SC.closeWithDependencies file selection
   selectedTypes, selectedTerms :: Set v
   selectedTypes = Set.map var $ R.dom (Names.types selectedNames0)
-  selectedTerms = Set.map var $ R.dom (Names.types selectedNames0)
+  selectedTerms = Set.map var $ R.dom (Names.terms selectedNames0)
 
 var :: Var v => Name -> v
 var name = Var.named (Name.toText name)
