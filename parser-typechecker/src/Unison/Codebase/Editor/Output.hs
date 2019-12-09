@@ -18,7 +18,7 @@ import Unison.Prelude
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import Unison.Codebase.GitError
-import Unison.Codebase.Path (Path')
+import Unison.Codebase.Path (Path', Path)
 import Unison.Codebase.Patch (Patch)
 import Unison.Name ( Name )
 import Unison.Names2 ( Names )
@@ -40,6 +40,7 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
+import qualified Unison.Util.Pretty as P
 import Unison.Codebase.Editor.DisplayThing (DisplayThing)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.Codebase.Editor.SearchResult' (SearchResult')
@@ -50,6 +51,7 @@ import Unison.Codebase.NameSegment (NameSegment, HQSegment)
 import Unison.ShortHash (ShortHash)
 import Unison.Var (Var)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 
 type Term v a = Term.AnnotatedTerm v a
 type ListDetailed = Bool
@@ -80,12 +82,14 @@ data Output v
   | ParseResolutionFailures Input String [Names.ResolutionFailure v Ann]
   | TypeHasFreeVars Input (Type v Ann)
   | TermAlreadyExists Input Path.Split' (Set Referent)
+  | NameAmbiguous Input Path.HQSplit' (Set Referent) (Set Reference)
   | TypeAmbiguous Input Path.HQSplit' (Set Reference)
-  | TermAmbiguous Input Path.HQSplit' (Set Referent)
+  | TermAmbiguous Input (Either Path.HQSplit' HQ.HashQualified) (Set Referent)
   | HashAmbiguous Input ShortHash (Set Referent)
   | BranchHashAmbiguous Input ShortBranchHash (Set ShortBranchHash)
   | BadDestinationBranch Input Path'
   | BranchNotFound Input Path'
+  | NameNotFound Input Path.HQSplit'
   | PatchNotFound Input Path.Split'
   | TypeNotFound Input Path.HQSplit'
   | TermNotFound Input Path.HQSplit'
@@ -101,10 +105,12 @@ data Output v
   | CantDelete Input PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
   | DeleteEverythingConfirmation
   | DeletedEverything
-  | ListNames [(Referent, Set HQ'.HashQualified)] -- term match, term names
+  | ListNames Int -- hq length to print References
+              [(Referent, Set HQ'.HashQualified)] -- term match, term names
               [(Reference, Set HQ'.HashQualified)] -- type match, type names
   -- list of all the definitions within this branch
   | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
+  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified, Reference, Maybe (Type v Ann))]
   | ListShallow PPE.PrettyPrintEnv [ShallowListEntry v Ann]
   | ListOfPatches (Set Name)
   -- show the result of add/update
@@ -119,12 +125,13 @@ data Output v
               [(v, Term v ())]
               (Map v (Ann, UF.WatchKind, Term v (), Runtime.IsCacheHit))
   | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult v) (UF.TypecheckedUnisonFile v Ann)
+  | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
-                       PPE.PrettyPrintEnv
+                       PPE.PrettyPrintEnvDecl
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
-  | TodoOutput PPE.PrettyPrintEnv (TO.TodoOutput v Ann)
+  | TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
   | TestResults TestReportStats
@@ -141,7 +148,9 @@ data Output v
   | BranchDiff Names Names
   | GitError Input GitError
   | NoConfiguredGitUrl PushPull Path'
-  | DisplayLinks PPE.PrettyPrintEnv Metadata.Metadata
+  | ConfiguredGitUrlParseError PushPull Path' Text String
+  | ConfiguredGitUrlIncludesShortBranchHash PushPull RemoteRepo ShortBranchHash Path
+  | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
                (Map Reference (DisplayThing (Decl v Ann)))
                (Map Reference (DisplayThing (Term v Ann)))
   | LinkFailure Input
@@ -221,11 +230,13 @@ isFailure o = case o of
   ParseResolutionFailures{} -> True
   TypeHasFreeVars{} -> True
   TermAlreadyExists{} -> True
+  NameAmbiguous{} -> True
   TypeAmbiguous{} -> True
   TermAmbiguous{} -> True
   BranchHashAmbiguous{} -> True
   BadDestinationBranch{} -> True
   BranchNotFound{} -> True
+  NameNotFound{} -> True
   PatchNotFound{} -> True
   TypeNotFound{} -> True
   TermNotFound{} -> True
@@ -235,7 +246,8 @@ isFailure o = case o of
   CantDelete{} -> True
   DeleteEverythingConfirmation -> False
   DeletedEverything -> False
-  ListNames tms tys -> null tms && null tys
+  ListNames _ tms tys -> null tms && null tys
+  ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ ds -> null ds
   ListOfPatches s -> Set.null s
   SlurpOutput _ _ sr -> not $ SR.isOk sr
@@ -246,6 +258,7 @@ isFailure o = case o of
   Evaluated{} -> False
   Typechecked{} -> False
   DisplayDefinitions _ _ m1 m2 -> null m1 && null m2
+  DisplayRendered{} -> False
   TodoOutput _ todo -> TO.todoScore todo /= 0
   TestIncrementalOutputStart{} -> False
   TestIncrementalOutputEnd{} -> False
@@ -255,6 +268,8 @@ isFailure o = case o of
   GitError{} -> True
   BustedBuiltins{} -> True
   NoConfiguredGitUrl{} -> True
+  ConfiguredGitUrlParseError{} -> True
+  ConfiguredGitUrlIncludesShortBranchHash{} -> True
   DisplayLinks{} -> False
   LinkFailure{} -> True
   PatchNeedsToBeConflictFree{} -> True

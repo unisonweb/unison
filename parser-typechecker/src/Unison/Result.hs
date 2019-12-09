@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE Rank2Types #-}
 
 module Unison.Result where
 
@@ -10,6 +11,7 @@ import Unison.Prelude
 import           Control.Monad.Except           ( ExceptT(..) )
 import           Data.Functor.Identity
 import qualified Control.Monad.Fail            as Fail
+import qualified Control.Monad.Morph           as Morph
 import           Control.Monad.Writer           ( WriterT(..)
                                                 , runWriterT
                                                 , MonadWriter(..)
@@ -41,6 +43,7 @@ data Note v loc
 data CompilerBug v loc
   = TopLevelComponentNotFound v (Term v loc)
   | ResolvedNameNotFound v loc Name
+  | TypecheckerBug (Context.CompilerBug v loc)
   deriving Show
 
 result :: Result notes a -> Maybe a
@@ -84,3 +87,9 @@ tellAndFail note = tell1 note *> Fail.fail "Elegantly and responsibly"
 
 compilerBug :: Monad f => CompilerBug v loc -> ResultT (Seq (Note v loc)) f a
 compilerBug = tellAndFail . CompilerBug
+
+hoist
+  :: (Monad f, Monoid notes)
+  => (forall a. f a -> g a)
+  -> ResultT notes f b -> ResultT notes g b
+hoist morph = Morph.hoist (Morph.hoist morph)
