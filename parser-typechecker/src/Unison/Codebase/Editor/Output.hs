@@ -82,12 +82,14 @@ data Output v
   | ParseResolutionFailures Input String [Names.ResolutionFailure v Ann]
   | TypeHasFreeVars Input (Type v Ann)
   | TermAlreadyExists Input Path.Split' (Set Referent)
+  | NameAmbiguous Input Path.HQSplit' (Set Referent) (Set Reference)
   | TypeAmbiguous Input Path.HQSplit' (Set Reference)
   | TermAmbiguous Input (Either Path.HQSplit' HQ.HashQualified) (Set Referent)
   | HashAmbiguous Input ShortHash (Set Referent)
   | BranchHashAmbiguous Input ShortBranchHash (Set ShortBranchHash)
   | BadDestinationBranch Input Path'
   | BranchNotFound Input Path'
+  | NameNotFound Input Path.HQSplit'
   | PatchNotFound Input Path.Split'
   | TypeNotFound Input Path.HQSplit'
   | TermNotFound Input Path.HQSplit'
@@ -103,7 +105,8 @@ data Output v
   | CantDelete Input PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
   | DeleteEverythingConfirmation
   | DeletedEverything
-  | ListNames [(Referent, Set HQ'.HashQualified)] -- term match, term names
+  | ListNames Int -- hq length to print References
+              [(Referent, Set HQ'.HashQualified)] -- term match, term names
               [(Reference, Set HQ'.HashQualified)] -- type match, type names
   -- list of all the definitions within this branch
   | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
@@ -227,11 +230,13 @@ isFailure o = case o of
   ParseResolutionFailures{} -> True
   TypeHasFreeVars{} -> True
   TermAlreadyExists{} -> True
+  NameAmbiguous{} -> True
   TypeAmbiguous{} -> True
   TermAmbiguous{} -> True
   BranchHashAmbiguous{} -> True
   BadDestinationBranch{} -> True
   BranchNotFound{} -> True
+  NameNotFound{} -> True
   PatchNotFound{} -> True
   TypeNotFound{} -> True
   TermNotFound{} -> True
@@ -241,7 +246,7 @@ isFailure o = case o of
   CantDelete{} -> True
   DeleteEverythingConfirmation -> False
   DeletedEverything -> False
-  ListNames tms tys -> null tms && null tys
+  ListNames _ tms tys -> null tms && null tys
   ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ ds -> null ds
   ListOfPatches s -> Set.null s
