@@ -14,7 +14,6 @@ import Control.Monad.State (runStateT)
 import Data.IORef
 import Prelude hiding (readFile, writeFile)
 import System.Exit (die)
-import System.FilePath ((</>))
 import System.IO.Error (catchIOError)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input (..), Event(UnisonFileChanged))
@@ -30,6 +29,7 @@ import Unison.CommandLine.Main (asciiartUnison, expandNumber)
 import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified System.IO as IO
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
@@ -95,8 +95,8 @@ parse srcName txt = case P.parse (stanzas <* P.eof) srcName txt of
   Right a -> Right a
   Left e -> Left (show e)
 
-run :: FilePath -> [Stanza] -> Codebase IO Symbol Ann -> IO Text
-run dir stanzas codebase = do
+run :: FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> IO Text
+run dir configFile stanzas codebase = do
   let initialPath = Path.absoluteEmpty
   let startRuntime = pure Rt1.runtime
   putPrettyLn $ P.lines [
@@ -114,8 +114,9 @@ run dir stanzas codebase = do
     out                      <- newIORef mempty
     hidden                   <- newIORef False
     allowErrors              <- newIORef False
+    hasErrors                <- newIORef False
     (config, cancelConfig)   <-
-      catchIOError (watchConfig $ dir </> ".unisonConfig") $ \_ ->
+      catchIOError (watchConfig configFile) $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
     traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1..])
     let patternMap =
@@ -146,14 +147,25 @@ run dir stanzas codebase = do
               [] -> awaitInput
               cmd:args -> do
                 output ("\n" <> show p <> "\n")
+                -- invalid command is treated as a failure
                 case Map.lookup cmd patternMap of
-                  Nothing -> awaitInput
+                  Nothing -> 
+                    die
                   Just pat -> case IP.parse pat args of
                     Left msg -> do
                       output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
-                      awaitInput
+                      die 
                     Right input -> pure $ Right input
           Nothing -> do
+            errOk <- readIORef allowErrors
+            hasErr <- readIORef hasErrors
+            when (errOk && not hasErr) $ do
+              output "\n```\n\n"
+              transcriptFailure out $ Text.unlines [
+                "\128721", "",
+                "Transcript failed due to an unexpected success above.",
+                "Codebase as of the point of failure is in:", "",
+                "  " <> Text.pack dir ]
             writeIORef hidden False
             writeIORef allowErrors False
             maybeStanza <- atomically (Q.tryDequeue inputQueue)
@@ -165,6 +177,7 @@ run dir stanzas codebase = do
               Just (s,idx) -> do
                 putStr $ "\r⚙️   Processing stanza " ++ show idx ++ " of "
                                               ++ show (length stanzas) ++ "."
+                IO.hFlush IO.stdout
                 case s of
                   Unfenced _ -> do
                     output $ show s
@@ -182,6 +195,7 @@ run dir stanzas codebase = do
                   Ucm hide errOk cmds -> do
                     writeIORef hidden hide
                     writeIORef allowErrors errOk
+                    writeIORef hasErrors False
                     output "```ucm"
                     traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
                     atomically . Q.enqueue cmdQueue $ Nothing
@@ -193,20 +207,18 @@ run dir stanzas codebase = do
         errOk <- readIORef allowErrors
         let rendered = P.toPlain 65 (P.border 2 msg)
         output rendered
-        when (not errOk && Output.isFailure o) $ do
-          output "\n```\n\n"
-          transcriptFailure out $ Text.unlines [
-            "\128721", "",
-            "Transcript failed due to the message above.",
-            "Codebase as of the point of failure is in:", "",
-            "  " <> Text.pack dir ]
-        when (errOk && not (Output.isFailure o)) $ do
-          output "\n```\n\n"
-          transcriptFailure out $ Text.unlines [
-            "\128721", "",
-            "Transcript failed due to an unexpected success above.",
-            "Codebase as of the point of failure is in:", "",
-            "  " <> Text.pack dir ]
+        when (errOk && Output.isFailure o) $ 
+          writeIORef hasErrors True
+        when (not errOk && Output.isFailure o) 
+          die
+
+      die = do 
+        output "\n```\n\n"
+        transcriptFailure out $ Text.unlines [
+          "\128721", "",
+          "Transcript failed due to the message above.",
+          "Codebase as of the point of failure is in:", "",
+          "  " <> Text.pack dir ]
 
       loop state = do
         writeIORef pathRef (HandleInput._currentPath state)

@@ -13,7 +13,7 @@ x = 1
   
     ⍟ These new definitions are ok to `add`:
     
-      x : builtin.Nat
+      x : Nat
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -24,7 +24,7 @@ x = 1
 
   ⍟ I've added these definitions:
   
-    x : builtin.Nat
+    x : Nat
 
 ```
 ```unison
@@ -39,7 +39,7 @@ y = 2
   
     ⍟ These new definitions are ok to `add`:
     
-      y : builtin.Nat
+      y : Nat
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -50,11 +50,11 @@ y = 2
 
   ⍟ I've added these definitions:
   
-    y : builtin.Nat
+    y : Nat
 
 .> view y
 
-  y : builtin.Nat
+  y : Nat
   y = 2
 
 ```
@@ -65,16 +65,16 @@ y = 2
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #v4q504aibl .old`   to make an old namespace
+    `fork #p04bbq2kjg .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #v4q504aibl`  to reset the root namespace and
+    `reset-root #p04bbq2kjg`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #4ic0tv5m4s : add
-  2. #v4q504aibl : add
-  3. #ruf07f2h54 : (initial reflogged namespace)
+  1. #ber9s7652s : add
+  2. #p04bbq2kjg : add
+  3. #ms0tsudte1 : (initial reflogged namespace)
 
 ```
 If we `reset-root` to its previous value, `y` disappears.

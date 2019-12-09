@@ -345,6 +345,9 @@ lexer0 scope rem =
       '?' : c : rem ->
         let end = inc $ inc pos in
         Token (Character c) pos end : goWhitespace l end rem
+      '[' : ':' : rem ->
+        let end = inc . inc $ pos in
+        Token (Open "[:") pos (inc . inc $ pos) : lexDoc l end rem
       -- '{' and '(' both introduce a block, which is closed by '}' and ')'
       -- The lexer doesn't distinguish among closing blocks: all the ways of
       -- closing a block emit the same sort of token, `Close`.
@@ -372,10 +375,10 @@ lexer0 scope rem =
       '_' : (wordyId -> Right (id, rem)) ->
         let pos' = incBy id $ inc pos
         in Token (Blank id) pos pos' : goWhitespace l pos' rem
-      '&' : '&' : rem -> 
+      '&' : '&' : rem ->
         let end = incBy "&&" pos
         in Token (Reserved "&&") pos end : goWhitespace l end rem
-      '|' : '|' : rem -> 
+      '|' : '|' : rem ->
         let end = incBy "||" pos
         in Token (Reserved "||") pos end : goWhitespace l end rem
       '|' : c : rem | isSpace c || isAlphaNum c ->
@@ -476,6 +479,55 @@ lexer0 scope rem =
         Right Nothing -> Token (Err UnknownLexeme) pos pos : recover l pos rem
         Left e -> Token (Err e) pos pos : recover l pos rem
 
+    lexDoc l pos rem = case span isSpace rem of
+      (spaces,rem) -> docBlob l pos' rem pos' []
+        where pos' = incBy spaces pos
+
+    docBlob l pos rem blobStart acc = case rem of
+      '@' : (hqToken (inc pos) -> Just (tok, rem)) ->
+        let pos' = inc $ end tok in
+        Token (Textual (reverse acc)) blobStart pos :
+        tok :
+        docBlob l pos' rem pos' []
+      '@' : (docType (inc pos) -> Just (typTok, pos', rem)) ->
+        Token (Textual (reverse acc)) blobStart pos : case rem of
+         (hqToken pos' -> Just (tok, rem)) ->
+           let pos'' = inc (end tok) in
+           typTok : tok : docBlob l pos'' rem pos' []
+         _ -> recover l pos rem
+      '\\' : '@' : rem -> docBlob l (incBy "\\@" pos) rem blobStart ('@':acc)
+      ':' : ']' : rem ->
+        let pos' = inc . inc $ pos in
+        (if null acc then id
+         else (Token (Textual (reverse $ dropWhile isSpace acc)) blobStart pos :)) $
+          Token Close pos pos' : goWhitespace l pos' rem
+      [] -> recover l pos rem
+      ch : rem -> docBlob l (incBy [ch] pos) rem blobStart (ch:acc)
+
+    docType :: Pos -> String -> Maybe (Token Lexeme, Pos, String)
+    docType pos rem = case rem of
+      -- this crazy one liner parses [<stuff>]<whitespace>, as a pattern match
+      '[' : (span (/= ']') -> (typ, ']' : (span isSpace -> (spaces, rem)))) ->
+         -- advance past [, <typ>, ], <whitespace>
+         let pos' = incBy typ . inc . incBy spaces . inc $ pos in
+         -- the reserved token doesn't include the `[]` chars
+         Just (Token (Reserved typ) (inc pos) (incBy typ . inc $ pos), pos', rem)
+      _ -> Nothing
+
+    hqToken :: Pos -> String -> Maybe (Token Lexeme, String)
+    hqToken pos rem = case rem of
+      (shortHash -> Right (h, rem)) ->
+        Just (Token (Hash h) pos (incBy (SH.toString h) pos), rem)
+      (wordyId -> Right (id, rem)) -> case rem of
+        (shortHash -> Right (h, rem)) ->
+          Just (Token (WordyId id $ Just h) pos (incBy id . incBy (SH.toString h) $ pos), rem)
+        _ -> Just (Token (WordyId id Nothing) pos (incBy id pos), rem)
+      (symbolyId -> Right (id, rem)) -> case rem of
+        (shortHash -> Right (h, rem)) ->
+          Just (Token (SymbolyId id $ Just h) pos (incBy id . incBy (SH.toString h) $ pos), rem)
+        _ -> Just (Token (SymbolyId id Nothing) pos (incBy id pos), rem)
+      _ -> Nothing
+
     recover _l _pos _rem = []
 
 isDelayOrForce :: Char -> Bool
@@ -501,9 +553,6 @@ splitStringLit = go (inc mempty) "" where
   go !n !acc ('"':rem)    = Right (inc n, reverse acc, rem)
   go !n !acc (x:rem)      = go (inc n) (x:acc) rem
   go _ _ []               = Left $ TextLiteralMissingClosingQuote ""
-
-appendFst :: Char -> (String, a) -> (String, a)
-appendFst c (s, r) = (c : s, r)
 
 -- Mapping between characters and their escape codes. Use parse/showEscapeChar
 -- to convert.
@@ -589,11 +638,6 @@ wordyIdChar ch =
 isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F300' && c <= '\x1FAFF'
 
-splitOn :: Char -> String -> [String]
-splitOn c = unfoldr step where
-  step [] = Nothing
-  step s = Just (case break (== c) s of (l,r) -> (l, drop 1 r))
-
 symbolyId :: String -> Either Err (String, String)
 symbolyId r@('.':ch:_) | isSpace ch || isDelimeter ch
                        = symbolyId0 r -- lone dot treated as an operator
@@ -628,18 +672,6 @@ shortHash s = case SH.fromString potentialHash of
   Nothing -> Left (InvalidShortHash potentialHash)
   Just x  -> Right (x, rem)
   where (potentialHash, rem) = break ((||) <$> isSpace <*> (== '`')) s
-
--- Strips off qualified name, ex: `Int.inc -> `(Int, inc)`
-splitWordy :: String -> (String, String)
-splitWordy s =
-  let qn = reverse . drop 1 . dropWhile wordyIdChar . reverse $ s
-  in (qn, if null qn then s else drop (length qn + 1) s)
-
--- Strips off qualified name, ex: `Int.+` -> `(Int, +)`
-splitSymboly :: String -> (String,String)
-splitSymboly s =
-  let qn = reverse . dropWhile symbolyIdChar . reverse $ s
-  in (qn, if null qn then s else drop (length qn + 1) s)
 
 -- Returns either an error or an id and a remainder
 symbolyId0 :: String -> Either Err (String, String)
@@ -688,9 +720,6 @@ delimiters = Set.fromList "()[]{},?;"
 isDelimeter :: Char -> Bool
 isDelimeter ch = Set.member ch delimiters
 
-reserved :: Set Char
-reserved = Set.fromList "=:`\""
-
 reservedOperators :: Set String
 reservedOperators = Set.fromList ["->", ":", "&&", "||"]
 
@@ -706,9 +735,6 @@ incBy rem pos@(Pos line col) = case rem of
 
 debugLex'' :: [Token Lexeme] -> String
 debugLex'' = show . fmap payload . tree
-
-debugLex :: String -> String -> IO ()
-debugLex scope = putStrLn . debugLex'' . lexer scope
 
 debugLex' :: String -> String
 debugLex' =  debugLex'' . lexer "debugLex"
