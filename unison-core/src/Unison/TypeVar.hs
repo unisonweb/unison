@@ -33,6 +33,6 @@ instance ABT.Var v => ABT.Var (TypeVar b v) where
 
 instance Var v => Var (TypeVar b v) where
   typed t = Universal (Var.typed t)
-  typeOf v = Var.typeOf (underlying v)
+  name v = Var.name (underlying v)
   freshId v = Var.freshId (underlying v)
   freshenId id v = Var.freshenId id <$> v
