@@ -239,7 +239,7 @@ compilationEnv env t = do
         Just (Right dd) -> pure $
           let arities = DD.constructorArities dd
           in [ ((r, i), arity) | (arity, i) <- arities `zip` [0..] ]
-    _ -> pure []
+    R.Builtin{} -> pure []
   let cenv = CompilationEnv mempty arityMap
 
     -- deps = Term.dependencies t
@@ -347,6 +347,7 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Nat.toText" atn (pure . T) (Text.pack . show)
     , mk1 "Nat.fromText" att (pure . IR.maybeToOptional . fmap N) (
         (\x -> readMaybe x :: Maybe Word64) . Text.unpack)
+    , mk1 "Nat.toFloat" atn (pure . F) fromIntegral
 
     , mk1 "Int.toText" ati (pure . T)
           (Text.pack . (\x -> if x >= 0 then ("+" <> show x) else show x))

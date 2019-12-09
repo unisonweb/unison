@@ -10,7 +10,6 @@ module Unison.FileParser where
 import Unison.Prelude
 
 import qualified Unison.ABT as ABT
-import qualified Data.Set as Set
 import Control.Lens
 import           Control.Monad.Reader (local, asks)
 import qualified Data.Map as Map
@@ -33,10 +32,6 @@ import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.Names3 as Names
 import qualified Unison.Name as Name
-
--- push names onto the stack ahead of existing names
-pushNames0 :: Names.Names0 -> P v a -> P v a
-pushNames0 ns = local (\e -> e { names = Names.push ns (names e) })
 
 resolutionFailures :: Ord v => [Names.ResolutionFailure v Ann] -> P v x
 resolutionFailures es = P.customFailure (ResolutionFailures es)
@@ -145,12 +140,6 @@ closed = P.try $ do
   op <- optional (L.payload <$> P.lookAhead closeBlock)
   case op of Just () -> P.customFailure EmptyWatch
              _ -> pure ()
-
-terminateTerm :: Var v => AnnotatedTerm v Ann -> AnnotatedTerm v Ann
-terminateTerm e@(Term.LetRecNamedAnnotatedTop' top a bs body@(Term.Var' v))
-  | Set.member v (ABT.freeVars e) = Term.letRec top a bs (DD.unitTerm (ABT.annotation body))
-  | otherwise = e
-terminateTerm e = e
 
 -- The parsed form of record accessors, as in:
 --

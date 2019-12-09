@@ -76,7 +76,7 @@ typeLink' :: Var v => P v (L.Token Reference)
 typeLink' = do
   id <- hqPrefixId
   ns <- asks names
-  case Names.lookupHQType (L.payload id) ns of 
+  case Names.lookupHQType (L.payload id) ns of
     s | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
       | otherwise       -> customFailure $ UnknownType id s
 
@@ -84,30 +84,30 @@ termLink' :: Var v => P v (L.Token Referent)
 termLink' = do
   id <- hqPrefixId
   ns <- asks names
-  case Names.lookupHQTerm (L.payload id) ns of 
+  case Names.lookupHQTerm (L.payload id) ns of
     s | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
       | otherwise       -> customFailure $ UnknownTerm id s
-      
+
 link' :: Var v => P v (Either (L.Token Reference) (L.Token Referent))
 link' = do
   id <- hqPrefixId
   ns <- asks names
-  case (Names.lookupHQTerm (L.payload id) ns, Names.lookupHQType (L.payload id) ns) of 
+  case (Names.lookupHQTerm (L.payload id) ns, Names.lookupHQType (L.payload id) ns) of
     (s, s2) | Set.size s == 1 && Set.null s2 -> pure . Right $ const (Set.findMin s) <$> id
     (s, s2) | Set.size s2 == 1 && Set.null s -> pure . Left $ const (Set.findMin s2) <$> id
     (s, s2) -> customFailure $ UnknownId id s s2
 
 link :: Var v => TermP v
-link = termLink <|> typeLink 
+link = termLink <|> typeLink
   where
   typeLink = do
     P.try (reserved "typeLink") -- type opens a block, gotta use something else
-    tok <- typeLink' 
+    tok <- typeLink'
     pure $ Term.typeLink (ann tok) (L.payload tok)
   termLink = do
     P.try (reserved "termLink")
-    tok <- termLink' 
-    pure $ Term.termLink (ann tok) (L.payload tok) 
+    tok <- termLink'
+    pure $ Term.termLink (ann tok) (L.payload tok)
 
 -- We disallow type annotations and lambdas,
 -- just function application and operators
@@ -298,49 +298,49 @@ termLeaf =
 
 docBlock :: Var v => TermP v
 docBlock = do
-  openTok <- openBlockWith "[:"  
-  segs <- many segment  
+  openTok <- openBlockWith "[:"
+  segs <- many segment
   closeTok <- closeBlock
   let a = ann openTok <> ann closeTok
   pure $ Term.app a (Term.constructor a DD.docRef DD.docJoinId) (Term.seq a segs)
   where
   segment = blob <|> linky
-  blob = do 
+  blob = do
     s <- string
     pure $ Term.app (ann s) (Term.constructor (ann s) DD.docRef DD.docBlobId)
                             (Term.text (ann s) (L.payload s))
   linky = asum [include, signature, evaluate, source, link]
-  include = do 
+  include = do
     _ <- P.try (reserved "include")
     hashQualifiedPrefixTerm
   signature = do
     _ <- P.try (reserved "signature")
-    tok <- termLink' 
-    pure $ Term.app (ann tok) 
-                    (Term.constructor (ann tok) DD.docRef DD.docSignatureId) 
+    tok <- termLink'
+    pure $ Term.app (ann tok)
+                    (Term.constructor (ann tok) DD.docRef DD.docSignatureId)
                     (Term.termLink (ann tok) (L.payload tok))
   evaluate = do
     _ <- P.try (reserved "evaluate")
-    tok <- termLink' 
-    pure $ Term.app (ann tok) 
+    tok <- termLink'
+    pure $ Term.app (ann tok)
                     (Term.constructor (ann tok) DD.docRef DD.docEvaluateId)
                     (Term.termLink (ann tok) (L.payload tok))
   source = do
     _ <- P.try (reserved "source")
-    l <- link'' 
-    pure $ Term.app (ann l) 
+    l <- link''
+    pure $ Term.app (ann l)
                     (Term.constructor (ann l) DD.docRef DD.docSourceId)
-                    l 
+                    l
   link'' = either ty t <$> link' where
-    t tok = Term.app (ann tok) 
-                     (Term.constructor (ann tok) DD.linkRef DD.linkTermId) 
+    t tok = Term.app (ann tok)
+                     (Term.constructor (ann tok) DD.linkRef DD.linkTermId)
                      (Term.termLink (ann tok) (L.payload tok))
-    ty tok = Term.app (ann tok) 
-                      (Term.constructor (ann tok) DD.linkRef DD.linkTypeId) 
+    ty tok = Term.app (ann tok)
+                      (Term.constructor (ann tok) DD.linkRef DD.linkTypeId)
                       (Term.typeLink (ann tok) (L.payload tok))
   link = d <$> link'' where
     d tm = Term.app (ann tm) (Term.constructor (ann tm) DD.docRef DD.docLinkId) tm
-  
+
 delayQuote :: Var v => TermP v
 delayQuote = P.label "quote" $ do
   start <- reserved "'"
@@ -520,10 +520,6 @@ toBindings b = let
     sub = ABT.substsInheritAnnotation substs
     in [ ((a, v'), sub e) | (((a,_),e), v') <- bs `zip` vs' ]
   in finishBindings (expand =<< b)
-
-topLevelBlock
-  :: forall v b . Var v => String -> P v (L.Token ()) -> P v b -> TermP v
-topLevelBlock = block' True
 
 -- subst
 -- use Foo.Bar + blah

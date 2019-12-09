@@ -1,5 +1,4 @@
 {-# Language OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.PrettyPrintEnv where
 
@@ -36,23 +35,23 @@ instance Show PrettyPrintEnv where
 
 fromNames :: Int -> Names -> PrettyPrintEnv
 fromNames len names = PrettyPrintEnv terms' types' where
-  terms' r = shortestName . Set.map HQ'.toHQ $ (Names.termName len r names)
-  types' r = shortestName . Set.map HQ'.toHQ $ (Names.typeName len r names)
+  terms' r = shortestName . Set.map HQ'.toHQ $ Names.termName len r names
+  types' r = shortestName . Set.map HQ'.toHQ $ Names.typeName len r names
   shortestName ns = safeHead $ HQ.sortByLength (toList ns)
 
 fromSuffixNames :: Int -> Names -> PrettyPrintEnv
 fromSuffixNames len names = fromNames len (Names.suffixify names)
 
 fromNamesDecl :: Int -> Names -> PrettyPrintEnvDecl
-fromNamesDecl len names = 
+fromNamesDecl len names =
   PrettyPrintEnvDecl (fromNames len names) (fromSuffixNames len names)
 
 -- A pair of PrettyPrintEnvs:
 --   - suffixifiedPPE uses the shortest unique suffix
 --   - unsuffixifiedPPE uses the shortest full name
 --
--- Generally, we want declarations LHS (the `x` in `x = 23`) to use the 
--- unsuffixified names, so the LHS is an accurate description of where in the 
+-- Generally, we want declarations LHS (the `x` in `x = 23`) to use the
+-- unsuffixified names, so the LHS is an accurate description of where in the
 -- namespace the definition lives. For everywhere else, we can use the
 -- suffixified version.
 data PrettyPrintEnvDecl = PrettyPrintEnvDecl {
@@ -67,16 +66,16 @@ data PrettyPrintEnvDecl = PrettyPrintEnvDecl {
 -- foo.bar x = foo.bar x
 -- and not
 -- foo.bar x = bar x
-declarationPPE :: PrettyPrintEnvDecl -> Reference -> PrettyPrintEnv 
+declarationPPE :: PrettyPrintEnvDecl -> Reference -> PrettyPrintEnv
 declarationPPE ppe rd = PrettyPrintEnv tm ty where
   comp = Reference.members (Reference.componentFor rd)
-  tm r0@(Referent.Ref r) = if Set.member r comp 
+  tm r0@(Referent.Ref r) = if Set.member r comp
                            then terms (unsuffixifiedPPE ppe) r0
                            else terms (suffixifiedPPE ppe) r0
   tm r = terms (suffixifiedPPE ppe) r
   ty r = if Set.member r comp then types (unsuffixifiedPPE ppe) r
          else types (suffixifiedPPE ppe) r
-  
+
 -- Left-biased union of environments
 unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
 unionLeft e1 e2 = PrettyPrintEnv
