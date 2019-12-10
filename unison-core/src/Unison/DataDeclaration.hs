@@ -53,6 +53,9 @@ type ConstructorId = Term.ConstructorId
 type DataDeclaration v = DataDeclaration' v ()
 type Decl v a = Either (EffectDeclaration' v a) (DataDeclaration' v a)
 
+asDataDecl :: Decl v a -> DataDeclaration' v a
+asDataDecl = either toDataDecl id
+
 declDependencies :: Ord v => Decl v a -> Set Reference
 declDependencies = either (dependencies . toDataDecl) dependencies
 
@@ -454,7 +457,7 @@ builtinDataDecls = rs1 ++ rs
     , (v "Test.Result"    , tr)
     , (v "Doc"            , doc)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
-  [(_, linkRef, _)] = rs1 
+  [(_, linkRef, _)] = rs1
   v = Var.named
   var name = Type.var () (v name)
   arr  = Type.arrow'
@@ -522,8 +525,8 @@ pattern TupleType' ts <- (unTupleType -> Just ts)
 pattern TupleTerm' xs <- (unTupleTerm -> Just xs)
 pattern TuplePattern ps <- (unTuplePattern -> Just ps)
 
--- some pattern synonyms to make pattern matching on some of these constants more pleasant 
-pattern DocRef <- ((== docRef) -> True) 
+-- some pattern synonyms to make pattern matching on some of these constants more pleasant
+pattern DocRef <- ((== docRef) -> True)
 pattern DocJoin segs <- Term.App' (Term.Constructor' DocRef DocJoinId) (Term.Sequence' segs)
 pattern DocBlob txt <- Term.App' (Term.Constructor' DocRef DocBlobId) (Term.Text' txt)
 pattern DocLink link <- Term.App' (Term.Constructor' DocRef DocLinkId) link
@@ -539,8 +542,8 @@ pattern DocJoinId <- ((== docJoinId) -> True)
 pattern LinkTermId <- ((== linkTermId) -> True)
 pattern LinkTypeId <- ((== linkTypeId) -> True)
 pattern LinkRef <- ((== linkRef) -> True)
-pattern LinkTerm tm <- Term.App' (Term.Constructor' LinkRef LinkTermId) tm 
-pattern LinkType ty <- Term.App' (Term.Constructor' LinkRef LinkTypeId) ty 
+pattern LinkTerm tm <- Term.App' (Term.Constructor' LinkRef LinkTermId) tm
+pattern LinkType ty <- Term.App' (Term.Constructor' LinkRef LinkTypeId) ty
 
 unitType, pairType, optionalType, testResultType
   :: Ord v => a -> Type v a

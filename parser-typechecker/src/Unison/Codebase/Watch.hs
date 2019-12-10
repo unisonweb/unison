@@ -6,17 +6,19 @@ module Unison.Codebase.Watch where
 
 import Unison.Prelude
 
+import qualified UnliftIO                       as UnliftIO
 import           UnliftIO.Concurrent            ( forkIO
                                                 , threadDelay
                                                 , killThread
                                                 )
 import           UnliftIO                       ( MonadUnliftIO
-                                                , withRunInIO )
+                                                , withRunInIO
+                                                , unliftIO )
 import           UnliftIO.Directory             ( getModificationTime
                                                 , listDirectory
                                                 )
 import           UnliftIO.MVar                  ( newEmptyMVar, takeMVar
-                                                , tryTakeMVar, putMVar )
+                                                , tryTakeMVar, tryPutMVar, putMVar )
 import           UnliftIO.STM                   ( atomically )
 import           UnliftIO.Exception             ( catch, IOException)
 import           UnliftIO.IORef                 ( newIORef
@@ -29,12 +31,11 @@ import qualified Data.Text.IO
 import           Data.Time.Clock                ( UTCTime
                                                 , diffUTCTime
                                                 )
-import           System.FSNotify                ( Event(Added, Modified)
-                                                , watchDir
-                                                , withManager
-                                                )
+import           System.FSNotify                ( Event(Added, Modified))
+import qualified System.FSNotify               as FSNotify
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as TQueue
+import qualified Control.Concurrent.STM        as STM
 
 untilJust :: Monad m => m (Maybe a) -> m a
 untilJust act = act >>= maybe (untilJust act) return
@@ -54,9 +55,12 @@ watchDirectory' d = do
     -- janky: used to store the cancellation action returned
     -- by `watchDir`, which is created asynchronously
     cleanupRef <- newEmptyMVar
+    -- we don't like FSNotify's debouncing (it seems to drop later events) 
+    -- so we will be doing our own instead
+    let config = FSNotify.defaultConfig { FSNotify.confDebounce = FSNotify.NoDebounce } 
     cancel <- forkIO $ withRunInIO $ \inIO ->
-      withManager $ \mgr -> do
-        cancelInner <- watchDir mgr d (const True) (inIO . handler) <|> (pure (pure ()))
+      FSNotify.withManagerConf config $ \mgr -> do
+        cancelInner <- FSNotify.watchDir mgr d (const True) (inIO . handler) <|> (pure (pure ()))
         putMVar cleanupRef $ liftIO cancelInner
         forever $ threadDelay 1000000
     let cleanup :: m ()
@@ -83,7 +87,7 @@ watchDirectory :: forall m. MonadUnliftIO m
   => FilePath -> (FilePath -> Bool) -> m (m (), m (FilePath, Text))
 watchDirectory dir allow = do
   previousFiles <- newIORef Map.empty
-  (cancel, watcher) <- watchDirectory' dir
+  (cancelWatch, watcher) <- watchDirectory' dir
   let
     existingFiles :: MonadIO m => m [(FilePath, UTCTime)]
     existingFiles = do
@@ -102,22 +106,46 @@ watchDirectory dir allow = do
           contents <- Data.Text.IO.readFile file
           prevs    <- readIORef previousFiles
           case Map.lookup file prevs of
-            -- if the file's content's haven't changed and less than a second has passed,
-            -- wait for the next update
+            -- if the file's content's haven't changed and less than .5s
+            -- have elapsed, wait for the next update
             Just (contents0, t0)
-              | contents == contents0 && (t `diffUTCTime` t0) < 1 ->
+              | contents == contents0 && (t `diffUTCTime` t0) < 0.5 ->
                 return Nothing
             _ ->
               Just (file, contents) <$
                 writeIORef previousFiles (Map.insert file (contents, t) prevs)
         in catch go (\e -> Nothing <$ handle e)
       else return Nothing
+  queue <- TQueue.newIO
+  gate <- liftIO newEmptyMVar
+  ctx <- UnliftIO.askUnliftIO
+  -- We spawn a separate thread to siphon the file change events
+  -- into a queue, which can be debounced using `collectUntilPause`
+  enqueuer <- liftIO . forkIO $ do 
+    takeMVar gate -- wait until gate open before starting
+    forever $ do
+      event@(file, _) <- UnliftIO.unliftIO ctx watcher
+      when (allow file) $
+        STM.atomically $ TQueue.enqueue queue event
   pending <- newIORef =<< existingFiles
   let
     await :: MonadIO m => m (FilePath, Text)
     await = untilJust $ readIORef pending >>= \case
-      [] -> uncurry process =<< watcher
+      [] -> do
+        -- open the gate
+        tryPutMVar gate ()
+        -- this debounces the events, waits for 50ms pause
+        -- in file change events
+        events <- collectUntilPause queue 50000
+        -- traceM $ "Collected file change events" <> show events
+        case events of
+          [] -> pure Nothing 
+          -- we pick the last of the events within the 50ms window 
+          -- TODO: consider enqueing other events if there are 
+          -- multiple events for different files
+          _ -> uncurry process $ last events
       ((file, t):rest) -> do
         writeIORef pending rest
         process file t
+    cancel = cancelWatch >> killThread enqueuer
   pure (cancel, await)

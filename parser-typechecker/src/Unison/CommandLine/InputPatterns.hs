@@ -314,6 +314,18 @@ renameType = InputPattern "move.type" ["rename.type"]
       _ -> Left . P.warnCallout $ P.wrap
         "`rename.type` takes two arguments, like `rename.type oldname newname`.")
 
+delete :: InputPattern
+delete = InputPattern "delete" []
+    [(OnePlus, exactDefinitionTermQueryArg)]
+    "`delete foo` removes the term or type name `foo` from the namespace."
+    (\case
+      [query] -> first fromString $ do
+        p <- Path.parseHQSplit' query
+        pure $ Input.DeleteI p
+      _ -> Left . P.warnCallout $ P.wrap
+        "`delete` takes an argument, like `delete name`."
+    )
+
 deleteTerm :: InputPattern
 deleteTerm = InputPattern "delete.term" []
     [(OnePlus, exactDefinitionTermQueryArg)]
@@ -323,7 +335,7 @@ deleteTerm = InputPattern "delete.term" []
         p <- Path.parseHQSplit' query
         pure $ Input.DeleteTermI p
       _ -> Left . P.warnCallout $ P.wrap
-        "`delete.term` takes one or more arguments, like `delete.term name`."
+        "`delete.term` takes an argument, like `delete.term name`."
     )
 
 deleteType :: InputPattern
@@ -335,7 +347,7 @@ deleteType = InputPattern "delete.type" []
         p <- Path.parseHQSplit' query
         pure $ Input.DeleteTypeI p
       _ -> Left . P.warnCallout $ P.wrap
-        "`delete.type` takes one or more arguments, like `delete.type name`."
+        "`delete.type` takes an argument, like `delete.type name`."
     )
 
 aliasTerm :: InputPattern
@@ -926,6 +938,7 @@ validInputs =
   [ help
   , add
   , update
+  , delete
   , forkLocal
   , mergeLocal
   , previewMergeLocal

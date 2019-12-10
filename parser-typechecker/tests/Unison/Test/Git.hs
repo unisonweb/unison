@@ -31,12 +31,14 @@ testBareRepo = scope "testBareRepo" $ do
     let codebase = tmp </> "codebase"
     FC.initCodebase codebase
 
+    let configFile = tmp </> ".unisonConfig"
+
     case TR.parse "transcript" transcript of
       Left err -> error $ "Parse error: \n" <> show err
       Right stanzas -> void $ do
         currentDir <- getCurrentDirectory
         theCodebase <- FC.getCodebaseOrExit $ Just codebase
-        TR.run currentDir stanzas theCodebase
+        TR.run currentDir configFile stanzas theCodebase
   ok
 
 makeTranscript :: FilePath -> Text

@@ -66,6 +66,9 @@ import           Unison.Name                   (Name)
 import qualified Unison.Name                   as Name
 import qualified Unison.Codebase.NameSegment   as NameSegment
 import           Unison.NamePrinter            (prettyHashQualified,
+                                                prettyReference, prettyReferent,
+                                                prettyNamedReference,
+                                                prettyNamedReferent,
                                                 prettyName, prettyShortHash,
                                                 styleHashQualified,
                                                 styleHashQualified', prettyHashQualified')
@@ -82,6 +85,7 @@ import           Unison.PrintError              ( prettyParseError
 import qualified Unison.Reference              as Reference
 import           Unison.Reference              ( Reference )
 import qualified Unison.Referent               as Referent
+import           Unison.Referent               ( Referent )
 import qualified Unison.Result                 as Result
 import qualified Unison.Term                   as Term
 import           Unison.Term                   (AnnotatedTerm)
@@ -148,8 +152,8 @@ notifyUser dir o = case o of
 
   DisplayDefinitions outputLoc ppe types terms ->
     displayDefinitions outputLoc ppe types terms
-  DisplayRendered outputLoc pp -> 
-    displayRendered outputLoc pp 
+  DisplayRendered outputLoc pp ->
+    displayRendered outputLoc pp
   DisplayLinks ppe md types terms ->
     if Map.null md then pure $ P.wrap "Nothing to show here. Use the "
       <> IP.makeExample' IP.link <> " command to add links from this definition."
@@ -198,6 +202,8 @@ notifyUser dir o = case o of
       <> (P.syntaxToColor $ P.indent "  " (P.lines (prettyHashQualified <$> hqs)))
   PatchNotFound input _ ->
     pure . P.warnCallout $ "I don't know about that patch."
+  NameNotFound _ _ ->
+    pure . P.warnCallout $ "I don't know about that name."
   TermNotFound input _ ->
     pure . P.warnCallout $ "I don't know about that term."
   TypeNotFound input _ ->
@@ -285,13 +291,13 @@ notifyUser dir o = case o of
     formatTerms tms =
       P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : (go <$> tms) where
       go (ref, hqs) = P.column2
-        [ ("Hash:", P.syntaxToColor . prettyHashQualified . HQ.take len $ HQ.fromReferent ref)
+        [ ("Hash:", P.syntaxToColor (prettyReferent len ref))
         , ("Names: ", P.group (P.spaced (P.bold . P.syntaxToColor . prettyHashQualified' <$> toList hqs)))
         ]
     formatTypes types =
       P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : (go <$> types) where
       go (ref, hqs) = P.column2
-        [ ("Hash:", P.syntaxToColor . prettyHashQualified . HQ.take len $ HQ.fromReference ref)
+        [ ("Hash:", P.syntaxToColor (prettyReference len ref))
         , ("Names:", P.group (P.spaced (P.bold . P.syntaxToColor . prettyHashQualified' <$> toList hqs)))
         ]
   -- > names foo
@@ -448,7 +454,7 @@ notifyUser dir o = case o of
       <> "Make sure there's a branch or commit with that name."
     PushDestinationHasNewStuff url treeish diff -> P.callout "⏸" . P.lines $ [
       P.wrap $ "The repository at" <> P.blue (P.text url)
-            <> (Monoid.fromMaybe $ treeish <&> \treeish -> 
+            <> (Monoid.fromMaybe $ treeish <&> \treeish ->
                   "at revision" <> P.blue (P.text treeish))
             <> "has some changes I don't know about:",
       "", P.indentN 2 (prettyDiff diff), "",
@@ -467,9 +473,9 @@ notifyUser dir o = case o of
           IP.patternName IP.pull,
           P.text (RemoteRepo.url r),
           P.shown p,
-          case RemoteRepo.commit r of 
+          case RemoteRepo.commit r of
             Just s -> P.text s
-            Nothing -> mempty 
+            Nothing -> mempty
           ]
         _ -> "⁉️ Unison bug - push command expected"
     NoRemoteNamespaceWithHash url treeish sbh -> P.wrap
@@ -592,10 +598,10 @@ notifyUser dir o = case o of
     $ "The `GitUrl.` entry in .unisonConfig for the current path has the value"
     <> (P.group . (<>",") . P.blue . P.text)
         (RemoteRepo.printNamespace repo (Just sbh) remotePath)
-    <> "which specifies a namespace hash" 
+    <> "which specifies a namespace hash"
     <> P.group (P.blue (prettySBH sbh) <> ".")
     , ""
-    , P.wrap $ 
+    , P.wrap $
       pushPull "I can't push to a specific hash, because it's immutable."
       ("It's no use for repeated pulls,"
       <> "because you would just get the same immutable namespace each time.")
@@ -604,7 +610,7 @@ notifyUser dir o = case o of
     , P.wrap $ "You can use"
     <> P.backticked (
         pushPull "push" "pull" pp
-        <> " " 
+        <> " "
         <> P.text (RemoteRepo.printNamespace repo Nothing remotePath))
     <> "if you want to" <> pushPull "push onto" "pull from" pp
     <> "the latest."
@@ -613,7 +619,26 @@ notifyUser dir o = case o of
     P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> pure $ P.wrap "That's not implemented yet. Sorry! 😬"
   BranchAlreadyExists _ _ -> pure "That namespace already exists."
-  TypeAmbiguous _ _ _ -> pure "That type is ambiguous."
+  NameAmbiguous hashLen _ p tms tys ->
+    pure . P.callout "\129300" . P.lines $ [
+      P.wrap "That name is ambiguous. It could refer to any of the following definitions:"
+    , ""
+    , P.indentN 2 (P.lines (map qualifyTerm (Set.toList tms) ++ map qualifyType (Set.toList tys)))
+    , ""
+    , P.wrap "You may:"
+    , ""
+    , P.indentN 2 . P.bulleted $
+        [ P.wrap "Delete one by an unambiguous name, given above."
+        , P.wrap "Delete them all by re-issuing the previous command."
+        ]
+    ]
+    where
+      name :: Name
+      name = Path.toName' (HQ'.toName (Path.unsplitHQ' p))
+      qualifyTerm :: Referent -> P.Pretty P.ColorText
+      qualifyTerm = P.syntaxToColor . prettyNamedReferent hashLen name
+      qualifyType :: Reference -> P.Pretty P.ColorText
+      qualifyType = P.syntaxToColor . prettyNamedReference hashLen name
   TermAmbiguous _ _ _ -> pure "That term is ambiguous."
   HashAmbiguous _ h rs -> pure . P.callout "\129300" . P.lines $ [
     P.wrap $ "The hash" <> prettyShortHash h <> "is ambiguous."
@@ -866,7 +891,7 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
     <> tip "You might need to repair the codebase manually."
 
 displayRendered :: Maybe FilePath -> Pretty -> IO Pretty
-displayRendered outputLoc pp = 
+displayRendered outputLoc pp =
   maybe (pure pp) scratchAndDisplay outputLoc
   where
   scratchAndDisplay path = do
@@ -1150,15 +1175,15 @@ listOfDefinitions ppe detailed results =
 listOfLinks ::
   Var v => PPE.PrettyPrintEnv -> [(HQ.HashQualified, Maybe (Type v a))] -> IO Pretty
 listOfLinks _ [] = pure . P.callout "😶" . P.wrap $
-  "No results. Try using the " <> 
-  IP.makeExample IP.link [] <> 
+  "No results. Try using the " <>
+  IP.makeExample IP.link [] <>
   "command to add outgoing links to a definition."
 listOfLinks ppe results = pure $ P.lines [
     P.numberedColumn2 num [
     (P.syntaxToColor $ prettyHashQualified hq, ": " <> prettyType typ) | (hq,typ) <- results
     ], "",
-    tip $ "Try using" <> IP.makeExample IP.display ["1"] 
-       <> "to display the first result or" 
+    tip $ "Try using" <> IP.makeExample IP.display ["1"]
+       <> "to display the first result or"
        <> IP.makeExample IP.view ["1"] <> "to view its source."
     ]
   where
