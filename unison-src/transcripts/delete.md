@@ -15,7 +15,7 @@ unambiguous type.
 
 ```unison
 foo = 1
-unique type Foo = Foo Nat
+type Foo = Foo Nat
 ```
 
 ```ucm
@@ -57,7 +57,7 @@ I can force my delete through by re-issuing the command.
 Let's repeat all that on a type, for completeness.
 
 ```unison
-unique type Foo = Foo Nat
+type Foo = Foo Nat
 ```
 
 ```ucm
@@ -65,7 +65,7 @@ unique type Foo = Foo Nat
 ```
 
 ```unison
-unique type Foo = Foo Nat
+type Foo = Foo Boolean
 ```
 
 ```ucm
@@ -93,7 +93,7 @@ Finally, let's try to delete a term and a type with the same name.
 
 ```unison
 foo = 1
-unique type foo = Foo Nat
+type foo = Foo Nat
 ```
 
 ```ucm

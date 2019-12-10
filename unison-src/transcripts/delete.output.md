@@ -19,7 +19,7 @@ unambiguous type.
 
 ```unison
 foo = 1
-unique type Foo = Foo Nat
+type Foo = Foo Nat
 ```
 
 ```ucm
@@ -30,7 +30,7 @@ unique type Foo = Foo Nat
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
       foo : Nat
    
   Now evaluating any watch expressions (lines starting with
@@ -42,7 +42,7 @@ unique type Foo = Foo Nat
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
     foo : Nat
 
 .> delete foo
@@ -126,7 +126,18 @@ foo = 2
 ```ucm
 .a> delete foo
 
-  That name is ambiguous.
+  🤔
+  
+  That name is ambiguous. It could refer to any of the following
+  definitions:
+  
+    foo#0ja1qfpej6
+    foo#jk19sm5bf8
+  
+  You may:
+  
+    * Delete one by an unambiguous name, given above.
+    * Delete them all by re-issuing the previous command.
 
 ```
 I can force my delete through by re-issuing the command.
@@ -138,7 +149,7 @@ I can force my delete through by re-issuing the command.
 Let's repeat all that on a type, for completeness.
 
 ```unison
-unique type Foo = Foo Nat
+type Foo = Foo Nat
 ```
 
 ```ucm
@@ -149,7 +160,7 @@ unique type Foo = Foo Nat
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -160,11 +171,11 @@ unique type Foo = Foo Nat
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
 
 ```
 ```unison
-unique type Foo = Foo Nat
+type Foo = Foo Boolean
 ```
 
 ```ucm
@@ -176,7 +187,7 @@ unique type Foo = Foo Nat
     ⍟ These new definitions will replace existing ones of the
       same name and are ok to `update`:
     
-      unique type Foo
+      type Foo
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -187,7 +198,7 @@ unique type Foo = Foo Nat
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
 
 .a> merge .b
 
@@ -205,7 +216,18 @@ unique type Foo = Foo Nat
 ```ucm
 .a> delete Foo
 
-  That name is ambiguous.
+  🤔
+  
+  That name is ambiguous. It could refer to any of the following
+  definitions:
+  
+    Foo#d97e0jhkmd
+    Foo#gq9inhvg9h
+  
+  You may:
+  
+    * Delete one by an unambiguous name, given above.
+    * Delete them all by re-issuing the previous command.
 
 ```
 ```ucm
@@ -215,7 +237,18 @@ unique type Foo = Foo Nat
 ```ucm
 .a> delete Foo.Foo
 
-  That name is ambiguous.
+  🤔
+  
+  That name is ambiguous. It could refer to any of the following
+  definitions:
+  
+    Foo.Foo#d97e0jhkmd#0
+    Foo.Foo#gq9inhvg9h#0
+  
+  You may:
+  
+    * Delete one by an unambiguous name, given above.
+    * Delete them all by re-issuing the previous command.
 
 ```
 ```ucm
@@ -226,7 +259,7 @@ Finally, let's try to delete a term and a type with the same name.
 
 ```unison
 foo = 1
-unique type foo = Foo Nat
+type foo = Foo Nat
 ```
 
 ```ucm
@@ -237,7 +270,7 @@ unique type foo = Foo Nat
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type foo
+      type foo
     
     ⍟ These new definitions will replace existing ones of the
       same name and are ok to `update`:
@@ -253,14 +286,25 @@ unique type foo = Foo Nat
 
   ⍟ I've added these definitions:
   
-    unique type foo
+    type foo
     foo : Nat
 
 ```
 ```ucm
 .> delete foo
 
-  That name is ambiguous.
+  🤔
+  
+  That name is ambiguous. It could refer to any of the following
+  definitions:
+  
+    foo#jk19sm5bf8
+    foo#d97e0jhkmd
+  
+  You may:
+  
+    * Delete one by an unambiguous name, given above.
+    * Delete them all by re-issuing the previous command.
 
 ```
 ```ucm
