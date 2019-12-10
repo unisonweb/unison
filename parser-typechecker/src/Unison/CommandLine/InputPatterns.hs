@@ -200,22 +200,22 @@ view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
 display :: InputPattern
 display = InputPattern "display" ["show"] [(Required, exactDefinitionQueryArg)]
       "`display foo` prints a rendered version of the term `foo`."
-      (\case 
+      (\case
         [s] -> pure (Input.DisplayI Input.ConsoleLocation s)
         _ -> Left (I.help display))
 
 displayTo :: InputPattern
 displayTo = InputPattern "display.to" [] [(Required, noCompletions), (Required, exactDefinitionQueryArg)]
-      (P.wrap $ makeExample displayTo ["<filename>", "foo"] 
+      (P.wrap $ makeExample displayTo ["<filename>", "foo"]
              <> "prints a rendered version of the term `foo` to the given file.")
-      (\case 
+      (\case
         [file,s] -> pure (Input.DisplayI (Input.FileLocation file) s)
         _ -> Left (I.help displayTo))
 
-docs :: InputPattern 
+docs :: InputPattern
 docs = InputPattern "docs" [] [(Required, exactDefinitionQueryArg)]
       ("`docs foo` shows documentation for the definition `foo`.")
-      (\case 
+      (\case
         [s] -> first fromString $ Input.DocsI <$> Path.parseHQSplit' s
         _ -> Left (I.help docs))
 
@@ -568,10 +568,10 @@ push = InputPattern
         (P.parse UriParser.repoPath "url" (Text.pack url))
       when (isJust sbh)
         $ Left "Can't push to a particular remote namespace hash."
-      p <- case rest of 
+      p <- case rest of
         [] -> Right Path.relativeEmpty'
-        [path] -> first fromString $ Path.parsePath' path 
-        _ -> Left (I.help push) 
+        [path] -> first fromString $ Path.parsePath' path
+        _ -> Left (I.help push)
       Right $ Input.PushRemoteBranchI (Just (repo, path)) p
   )
 
