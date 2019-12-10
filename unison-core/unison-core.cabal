@@ -59,7 +59,6 @@ library
     Unison.Symbol
     Unison.Term
     Unison.Type
-    Unison.TypeVar
     Unison.Util.Components
     Unison.Util.List
     Unison.Util.Monoid

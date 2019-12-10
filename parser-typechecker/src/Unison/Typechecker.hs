@@ -32,9 +32,8 @@ import qualified Unison.Result              as Result
 import           Unison.Term                (AnnotatedTerm)
 import qualified Unison.Term                as Term
 import           Unison.Type                (Type)
-import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as Context
-import qualified Unison.TypeVar             as TypeVar
+import qualified Unison.Typechecker.TypeVar as TypeVar
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
 import qualified Unison.Typechecker.TypeLookup as TL
@@ -149,17 +148,17 @@ synthesize
   -> ResultT (Notes v loc) f (Type v loc)
 synthesize env t = let
   result = convertResult $ Context.synthesizeClosed
-    (ABT.vmap TypeVar.Universal <$> view ambientAbilities env)
+    (TypeVar.liftType <$> view ambientAbilities env)
     (view typeLookup env)
-    (Term.vtmap TypeVar.Universal t)
-  in Result.hoist (pure . runIdentity) $ fmap lowerType result
+    (TypeVar.liftTerm t)
+  in Result.hoist (pure . runIdentity) $ fmap TypeVar.lowerType result
 
 isSubtype :: Var v => Type v loc -> Type v loc -> Bool
 isSubtype t1 t2 =
   case Context.isSubtype (tvar $ void t1) (tvar $ void t2) of
     Left bug -> error $ "compiler bug encountered: " ++ show bug
     Right b -> b
-  where tvar = ABT.vmap TypeVar.Universal
+  where tvar = TypeVar.liftType
 
 isEqual :: Var v => Type v loc -> Type v loc -> Bool
 isEqual t1 t2 = isSubtype t1 t2 && isSubtype t2 t1
@@ -173,9 +172,6 @@ data Resolution v loc =
              , resolvedLoc  :: loc
              , suggestions  :: [Context.Suggestion v loc]
              }
-
-lowerType :: Ord v => Context.Type v loc -> Type v loc
-lowerType = ABT.vmap TypeVar.underlying
 
 -- | Infer the type of a 'Unison.Term', using type-directed name resolution
 -- to attempt to resolve unknown symbols.
@@ -297,13 +293,13 @@ typeDirectedNameResolution oldNotes oldType env = do
     -> Result (Notes v loc) [Context.Suggestion v loc]
   resolve inferredType (NamedReference fqn foundType replace) =
     -- We found a name that matches. See if the type matches too.
-    case Context.isSubtype (Type.toTypeVar foundType) inferredType of
+    case Context.isSubtype (TypeVar.liftType foundType) inferredType of
       Left bug -> const [] <$> compilerBug bug
       -- Suggest the import if the type matches.
       Right b  -> pure
         [ Context.Suggestion
             fqn
-            (Type.toTypeVar foundType)
+            (TypeVar.liftType foundType)
             replace
             (if b then Context.Exact else Context.WrongType)
         ]

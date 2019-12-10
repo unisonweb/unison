@@ -110,6 +110,7 @@ library
     Unison.Typechecker.Extractor
     Unison.Typechecker.TypeError
     Unison.Typechecker.TypeLookup
+    Unison.Typechecker.TypeVar
     Unison.UnisonFile
     Unison.Util.AnnotatedText
     Unison.Util.Bytes
