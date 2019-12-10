@@ -40,11 +40,9 @@ import           Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Util.Relation as Rel
 import qualified Unison.ConstructorType as CT
 import Unison.Util.List (multimap, validate)
-import Unison.TypeVar (TypeVar)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import           Unsafe.Coerce
@@ -264,9 +262,6 @@ extraMap vtf atf apf = \case
 matchCaseExtraMap :: (loc -> loc') -> MatchCase loc a -> MatchCase loc' a
 matchCaseExtraMap f (MatchCase p x y) = MatchCase (fmap f p) x y
 
-unTypeVar :: Ord v => AnnotatedTerm' (TypeVar b v) v a -> AnnotatedTerm v a
-unTypeVar = typeMap (ABT.vmap TypeVar.underlying)
-
 unannotate
   :: forall vt at ap v a . Ord v => AnnotatedTerm2 vt at ap v a -> Term' vt v
 unannotate = go
@@ -447,6 +442,7 @@ pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v bod
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
 pattern LamsNamedOpt' vs body <- (unLamsOpt' -> Just (vs, body))
 pattern LamsNamedPred' vs body <- (unLamsPred' -> Just (vs, body))
+pattern LamsNamedOrDelay' vs body <- (unLamsUntilDelay' -> Just (vs, body))
 pattern Let1' b subst <- (unLet1 -> Just (_, b, subst))
 pattern Let1Top' top b subst <- (unLet1 -> Just (top, b, subst))
 pattern Let1Named' v b e <- (ABT.Tm' (Let _ b (ABT.out -> ABT.Abs v e)))
@@ -772,6 +768,16 @@ unLams' t = unLamsPred' (t, const True)
 -- lambda extraction.
 unLamsOpt' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
 unLamsOpt' t = case unLams' t of
+  r@(Just _) -> r
+  Nothing    -> Just ([], t)
+
+-- Same as unLams', but stops at any variable named `()`, which indicates a
+-- delay (`'`) annotation which we want to preserve.
+unLamsUntilDelay'
+  :: Var v
+  => AnnotatedTerm2 vt at ap v a
+  -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
+unLamsUntilDelay' t = case unLamsPred' (t, (/=) $ Var.named "()") of
   r@(Just _) -> r
   Nothing    -> Just ([], t)
 

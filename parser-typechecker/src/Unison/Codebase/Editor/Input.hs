@@ -11,7 +11,7 @@ import Unison.Prelude
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
-import           Unison.Codebase.Path           ( Path' )
+import           Unison.Codebase.Path           ( Path', Path )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.Reference (Reference)
@@ -44,8 +44,8 @@ data Input
     -- merge first causal into destination
     | MergeLocalBranchI Path' Path'
     | PreviewMergeLocalBranchI Path' Path'
-    | PullRemoteBranchI (Maybe RemoteRepo) Path'
-    | PushRemoteBranchI (Maybe RemoteRepo) Path'
+    | PullRemoteBranchI (Maybe (RemoteRepo, Maybe ShortBranchHash, Path)) Path'
+    | PushRemoteBranchI (Maybe (RemoteRepo, Path)) Path'
     | ResetRootI (Either ShortBranchHash Path')
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
@@ -66,7 +66,7 @@ data Input
     | MovePatchI Path.Split' Path.Split'
     | CopyPatchI Path.Split' Path.Split'
     -- delete = unname
-    -- | DeleteDefnI [Path.HQSplit']
+    | DeleteI Path.HQSplit'
     | DeleteTermI Path.HQSplit'
     | DeleteTypeI Path.HQSplit'
     | DeleteBranchI (Maybe Path.Split')
@@ -89,8 +89,8 @@ data Input
     | AddTypeReplacementI PatchPath Reference Reference
     | RemoveTermReplacementI PatchPath Reference Reference
     | RemoveTypeReplacementI PatchPath Reference Reference
-    | ResolveTermI ShortHash ShortHash (Maybe PatchPath)
-    | ResolveTypeI ShortHash ShortHash (Maybe PatchPath)
+    | ReplaceTermI ShortHash ShortHash (Maybe PatchPath)
+    | ReplaceTypeI ShortHash ShortHash (Maybe PatchPath)
   | UndoI
   -- First `Maybe Int` is cap on number of results, if any
   -- Second `Maybe Int` is cap on diff elements shown, if any
