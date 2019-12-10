@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 module Unison.Util.Relation where
 
 import Unison.Prelude hiding (empty, toList)
@@ -444,3 +445,11 @@ instance (Ord a, Ord b) => Semigroup (Relation a b) where
 
 instance (H.Hashable a, H.Hashable b) => H.Hashable (Relation a b) where
   tokens = H.tokens . toList
+
+toUnzippedMultimap ::
+  Ord a => Ord b => Ord c => Relation a (b,c) -> Map a (Set b, Set c)
+toUnzippedMultimap r = (\s -> (S.map fst s, S.map snd s)) <$> toMultimap r
+
+collectRan :: Ord a => Ord c =>
+              (b -> Maybe c) -> Relation a b -> Relation a c
+collectRan f r = fromList [ (a, c) | (a, f -> Just c) <- toList r ]
