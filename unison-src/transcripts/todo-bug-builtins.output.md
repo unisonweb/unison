@@ -20,7 +20,7 @@
   I've encountered a call to builtin.todo with the following
   value:
   
-    true
+    "implement me later"
   
   I'm sorry this message doesn't have more detail about the
   location of the failure. My makers plan to fix this in a
@@ -46,7 +46,7 @@
   I've encountered a call to builtin.bug with the following
   value:
   
-    5
+    "there's a bug in my code"
   
   I'm sorry this message doesn't have more detail about the
   location of the failure. My makers plan to fix this in a
@@ -89,7 +89,7 @@ test = case true of
   
     ⍟ These new definitions are ok to `add`:
     
-      test : builtin.Text
+      test : Text
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
