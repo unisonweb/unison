@@ -122,9 +122,9 @@ thingThing oldTerms newTerms p = undefined where
 
   removedMetadata :: Ord r => ThingIn r -> ThingIn r -> R.Relation r (Name, Metadata.Value)
   removedMetadata old new =
-    R.collectRan matchMdName 
+    R.collectRan matchMdName
       (names old `R.joinDom` (metadata old `R.difference` metadata new))
-    
+
   matchMdName (n1, p@(n2, _)) = if n1 == n2 then Just p else Nothing
 
 --toOutput :: ThingIn
@@ -184,102 +184,6 @@ thingThing oldTerms newTerms p = undefined where
 --allUpdates(old, new) :-
 --  tm.patchUpdates(old, new).
 
-{-
-
-  updates = patchUpdates <> namespaceUpdates
-  --1. updates specified in the patch, where
-        --data Patch = Patch
-        --  { _termEdits :: Relation Reference TermEdit
-        --  , _typeEdits :: Relation Reference TypeEdit
-        --  } deriving (Eq, Ord, Show)
-  patchUpdates, namespaceUpdates :: [(Thing (Reference, Reference) (Reference, Reference) (Name, P.Patch, P.Patch), MetadataDiff Reference)]
-  patchUpdates =
-    [ (Term (old, new), metadataDiff old new) |
-      (old, TermEdit.Replace new _typing) <- R.toList $ P._termEdits p ] <>
-    [ (Type (old, new), metadataDiff old new) |
-      (old, TypeEdit.Replace new) <- R.toList $ P._typeEdits p ]
-
-  --2. updates detected in the namespace (a name has been both added and removed)
-  namespaceUpdates = namespaceUpdates' (not.automatic)
-  namespaceUpdates' include =
-    [ (Term (old, new), metadataDiff old new) |
-      ((Referent.Ref old, Referent.Ref new), _name) <-
-        R.toList $ R.joinRan (Star3.d1 $ B.removedTerms b) (Star3.d1 $ B.addedTerms b)
-    , include new
-    ] <>
-    [ (Type (old, new), metadataDiff old new) |
-      ((old, new), _name) <-
-        R.toList $ R.joinRan (Star3.d1 $ B.removedTypes b) (Star3.d1 $ B.addedTypes b)
-    , include new
-    ]
-
-  propagatedUpdates = length (namespaceUpdates' automatic)
-
-  automatic :: Reference -> Bool
-  automatic new =
-    Metadata.hasMetadata (Referent.Ref new) propType propValue (B.addedTerms b) ||
-    Metadata.hasMetadata new propType propValue (B.addedTypes b)
-    where (propType, propValue) = IOSource.isPropagated
-
-  -- A definition has an `old` set of names and a `new` set of names.
-  -- If old ⊃ new, then names were deleted.
-  -- If old ⊂ new, then names have been added
-  -- If new == empty, then definition was deleted (or maybe updated)
-  -- If old == empty, then definition was added (or maybe the result of an update)
-  -- If old `symmetricDifference` new /= empty then there have been moves/aliases
-
-
-  moves = undefined
-  copies = undefined
-
-  -- adds are addedTerms that aren't update new-terms
-  adds, removes :: [(Thing Reference Reference _, [Reference])]
-  adds = [ (Term added, snd <$> Set.toList md)
-         | (Referent.Ref added, md) <- Map.toList . R.toMultimap . Star3.d3 $ B.addedTerms b
-         , Set.notMember added newDefnsConsideredUpdates ]
-     <>  [ (Type added, snd <$> Set.toList md)
-         | (added, md) <- Map.toList . R.toMultimap . Star3.d3 $ B.addedTypes b
-         , Set.notMember added newDefnsConsideredUpdates ]
-
-  -- the `new` terms in an `old -> new` update.
-  newDefnsConsideredUpdates :: Set Reference
-  newDefnsConsideredUpdates = Set.fromList $
-    [ new | (Term (_old, new), _mdd) <- updates ] <>
-    [ new | (Type (_old, new), _mdd) <- updates ]
-
-  oldDefnsConsideredUpdates :: Set Reference
-  oldDefnsConsideredUpdates = Set.fromList $
-    [ old | (Term (old, _new), _mdd) <- updates ] <>
-    [ old | (Type (old, _new), _mdd) <- updates ]
-
-  removes =
-    [ (Term r, snd <$> Set.toList md)
-    | (Referent.Ref r, md) <- Map.toList . R.toMultimap . Star3.d3 $ B.removedTerms b
-    , Set.notMember r oldDefnsConsideredUpdates ] <>
-    [ (Type r, snd <$> Set.toList md)
-    | (r, md) <- Map.toList . R.toMultimap . Star3.d3 $ B.removedTypes b
-    , Set.notMember r oldDefnsConsideredUpdates
-    ]
-
-
-  metadataDiff :: Reference -> Reference -> MetadataDiff Reference
-  metadataDiff old new = MetadataDiff added removed where
-    added =
-      (fmap snd . Set.toList $
-        R.lookupDom (Referent.Ref new) (Star3.d3 . B.addedTerms $ b)) <>
-      (fmap snd . Set.toList $ R.lookupDom new (Star3.d3 . B.addedTypes $ b))
-    removed =
-      (fmap snd . Set.toList $
-        R.lookupDom (Referent.Ref new) (Star3.d3 . B.removedTerms $ b)) <>
-      (fmap snd . Set.toList $ R.lookupDom new (Star3.d3 . B.removedTypes $ b))
-
-
-  --2b. updates tagged as Automatic (a name has been both added and removed,
-  --                                 and new reference has Automatic metadata)
-
---  termUpdateStar :: Star Referent Name
---  termUpdateStar = undefined
-
 
 -- two ways of computing updates
 --   the stuff in the patch is a primary update
@@ -293,6 +197,7 @@ thingThing oldTerms newTerms p = undefined where
 --  * May give unexpected results if your propagation algorithm is different
 --    from the one that made the changes
 --
+-- vvv currently doing vvv
 -- Idea B: Anything explicitly in the patch is listed in one section,
 --         anything not explicitly in the patch is listed separately,
 --         e.g. with an additional command
@@ -300,12 +205,14 @@ thingThing oldTerms newTerms p = undefined where
 -- Idea C: Structurally compare the old and new defns; if they have the
 --         "same structure", put them in the second list.
 --
+-- vvv going to do vvv
 -- Idea D: Record metadata about human vs automatic replacements during
 --         `update`/`patch`.
 --         When doing an update or propagate, add this metadata to each name
 --         that receives an update.
---
--}
+--  two versions of "namespaceUpdates":
+--    - machine said it did it
+--    - machine didn't say it did it
 
 {-
 
