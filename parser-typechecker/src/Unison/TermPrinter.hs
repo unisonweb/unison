@@ -148,15 +148,15 @@ pretty0
   -> AmbientContext
   -> AnnotatedTerm3 v PrintAnnotation
   -> Pretty SyntaxText
-pretty0 
-  n 
-  a@AmbientContext 
+pretty0
+  n
+  a@AmbientContext
   { precedence = p
   , blockContext = bc
   , infixContext = ic
   , imports = im
-  , docContext = doc 
-  } 
+  , docContext = doc
+  }
   term
   = specialCases term $ \case
     Var' v -> parenIfInfix name ic $ styleHashQualified'' (fmt S.Var) name
@@ -245,8 +245,8 @@ pretty0
       where bs = PP.lines (map printCase branches)
     t -> l "error: " <> l (show t)
  where
-  specialCases term go = case (term, binaryOpsPred) of 
-    (DD.Doc, _) | doc == MaybeDoc -> 
+  specialCases term go = case (term, binaryOpsPred) of
+    (DD.Doc, _) | doc == MaybeDoc ->
       if isDocLiteral term
       then prettyDoc n im term
       else pretty0 n (a {docContext = NoDoc}) term
@@ -507,13 +507,13 @@ prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = 
     _                      -> False -- unhittable
 
 isDocLiteral :: AnnotatedTerm3 v PrintAnnotation -> Bool
-isDocLiteral term = case term of 
+isDocLiteral term = case term of
   DD.DocJoin segs -> all isDocLiteral segs
   DD.DocBlob _ -> True
   DD.DocLink (DD.LinkTerm (TermLink' _)) -> True
   DD.DocLink (DD.LinkType (TypeLink' _)) -> True
   DD.DocSource (DD.LinkTerm (TermLink' _)) -> True
-  DD.DocSource (DD.LinkTerm (TypeLink' _)) -> True
+  DD.DocSource (DD.LinkType (TypeLink' _)) -> True
   DD.DocSignature (TermLink' _) -> True
   DD.DocEvaluate (TermLink' _) -> True
   Ref' _ -> True  -- @[include]
@@ -526,30 +526,30 @@ prettyDoc n im term = PP.spaced [ fmt S.DocDelimiter $ l "[:"
                                 , fmt S.DocDelimiter $ l ":]"]
   where
   go (DD.DocJoin segs) = foldMap go segs
-  go (DD.DocBlob txt) = PP.paragraphyText (escaped txt) 
-  go (DD.DocLink (DD.LinkTerm (TermLink' r))) = 
+  go (DD.DocBlob txt) = PP.paragraphyText (escaped txt)
+  go (DD.DocLink (DD.LinkTerm (TermLink' r))) =
     (fmt S.DocDelimiter $ l "@") <> (fmt S.Reference $ fmtTerm r)
-  go (DD.DocLink (DD.LinkType (TypeLink' r))) = 
+  go (DD.DocLink (DD.LinkType (TypeLink' r))) =
     (fmt S.DocDelimiter $ l "@") <> (fmt S.Reference $ fmtType r)
-  go (DD.DocSource (DD.LinkTerm (TermLink' r))) = 
+  go (DD.DocSource (DD.LinkTerm (TermLink' r))) =
     atKeyword "source" <> fmtTerm r
-  go (DD.DocSource (DD.LinkType (TypeLink' r))) = 
+  go (DD.DocSource (DD.LinkType (TypeLink' r))) =
     atKeyword "source" <> fmtType r
-  go (DD.DocSignature (TermLink' r)) = 
+  go (DD.DocSignature (TermLink' r)) =
     atKeyword "signature" <> fmtTerm r
-  go (DD.DocEvaluate (TermLink' r)) = 
+  go (DD.DocEvaluate (TermLink' r)) =
     atKeyword "evaluate" <> fmtTerm r
   go (Ref' r) = atKeyword "include" <> fmtTerm (Referent.Ref r)
   go _ = l $ "(invalid doc literal: " ++ show term ++ ")"
   fmtName s = styleHashQualified'' (fmt S.Reference) $ elideFQN im s
   fmtTerm r = fmtName $ PrettyPrintEnv.termName n r
   fmtType r = fmtName $ PrettyPrintEnv.typeName n r
-  atKeyword w = 
-    (fmt S.DocDelimiter $ l "@[") <> 
-    (fmt S.DocKeyword $ l w) <> 
-    (fmt S.DocDelimiter $ l "] ") 
+  atKeyword w =
+    (fmt S.DocDelimiter $ l "@[") <>
+    (fmt S.DocKeyword $ l w) <>
+    (fmt S.DocDelimiter $ l "] ")
   escaped = Text.replace "@" "\\@" . Text.replace ":]" "\\:]"
-    
+
 paren :: Bool -> Pretty SyntaxText -> Pretty SyntaxText
 paren True  s = PP.group $ fmt S.Parenthesis "(" <> s <> fmt S.Parenthesis ")"
 paren False s = PP.group s
@@ -797,11 +797,11 @@ dotConcat = Text.concat . (intersperse ".")
 -- under the covers anyway.  This does mean that if someone is using Pair.Pair directly,
 -- then they'll miss out on FQN elision for that.
 --
--- Don't do `use builtin.Doc Blob`, `use builtin.Link Term`, or similar.  That avoids 
--- unnecessary use statements above Doc literals and termLink/typeLink.  
+-- Don't do `use builtin.Doc Blob`, `use builtin.Link Term`, or similar.  That avoids
+-- unnecessary use statements above Doc literals and termLink/typeLink.
 noImportRefs :: Reference -> Bool
-noImportRefs r = 
-  elem r 
+noImportRefs r =
+  elem r
     [ DD.pairRef
     , DD.unitRef
     , DD.docRef
@@ -888,7 +888,7 @@ calcImports im tm = (im', render $ getUses result)
     getUses m = Map.elems m |> map (\(p, s, _) -> (p, Set.singleton s))
                             |> Map.fromListWith Set.union
     render :: Map Prefix (Set Suffix) -> [Pretty SyntaxText] -> Pretty SyntaxText
-    render m rest = 
+    render m rest =
       let uses = Map.mapWithKey (\p ss -> (fmt S.UseKeyword $ l"use ") <>
                      (fmt S.UsePrefix (intercalateMap (l".") (l . unpack) p)) <> l" " <>
                      (fmt S.UseSuffix (intercalateMap (l" ") (l . unpack) (Set.toList ss)))) m
