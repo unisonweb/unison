@@ -53,5 +53,5 @@ empty = mempty
 singleton :: Type -> Value -> Metadata
 singleton ty v = Map.singleton ty (Set.singleton v)
 
-toRelation :: Star a n -> Relation a n
+toRelation :: Star3 a n x y -> Relation a n
 toRelation = Star3.d1

@@ -489,8 +489,8 @@ loop = do
         patch <- case patch0 of 
           Nothing -> pure Nothing
           Just patchPath -> getPatchAtSplit' patchPath
-        diff <- eval . Eval $ 
-          BranchDiff.diff0 (Branch.head before) (Branch.head after) 
+--        diff <- eval . Eval $
+--          BranchDiff.diff0 (Branch.head before) (Branch.head after)
         --- diff0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m BranchDiff
         undefined
 
