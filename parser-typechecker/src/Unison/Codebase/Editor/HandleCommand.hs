@@ -183,7 +183,7 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
           m1 <- Codebase.getWatch codebase UF.RegularWatch h
           m2 <- maybe (Codebase.getWatch codebase UF.TestWatch h) (pure . Just) m1
           pure $ Term.amap (const ()) <$> m2
-        watchCache _ = pure Nothing
+        watchCache Reference.Builtin{} = pure Nothing
     r <- Runtime.evaluateWatches codeLookup ppe watchCache rt selfContained
     case r of
       Left e -> pure (Left e)
@@ -194,7 +194,7 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
             Reference.DerivedId h -> do
               let value' = Term.amap (const Parser.External) value
               Codebase.putWatch codebase kind h value'
-            _ -> pure ()
+            Reference.Builtin{} -> pure ()
         pure $ Right rs
 
 -- doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)

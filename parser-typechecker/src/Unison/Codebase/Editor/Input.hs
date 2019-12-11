@@ -66,7 +66,7 @@ data Input
     | MovePatchI Path.Split' Path.Split'
     | CopyPatchI Path.Split' Path.Split'
     -- delete = unname
-    -- | DeleteDefnI [Path.HQSplit']
+    | DeleteI Path.HQSplit'
     | DeleteTermI Path.HQSplit'
     | DeleteTypeI Path.HQSplit'
     | DeleteBranchI (Maybe Path.Split')
