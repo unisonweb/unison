@@ -9,7 +9,7 @@
 ```
 
 ## Todo
-`todo` is usefull if you want to come back to a piece of code later but you want your project to compile.
+`todo` is useful if you want to come back to a piece of code later but you want your project to compile.
 ```unison
 complicatedMathStuff x = todo "Come back and to something with x here"
 ```
