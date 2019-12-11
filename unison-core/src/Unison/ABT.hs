@@ -558,11 +558,10 @@ instance (Foldable f, Functor f, Ord1 f, Var v) => Ord (Term f v a) where
 components :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
 components = Components.components freeVars
 
--- Converts to strongly connected components, preserving order of the input.
--- Satisfies `join (orderedComponents vs) == vs`. Algorithm works by 
--- repeatedly collecting smallest cycle of definitions from remainder of list. 
-orderedComponents :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
-orderedComponents tms = go [] Set.empty tms 
+-- Converts to strongly connected components while preserving the
+-- order of definitions. Satisfies `join (orderedComponents bs) == bs`. 
+orderedComponents' :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
+orderedComponents' tms = go [] Set.empty tms 
   where
   go [] _ [] = []
   go [] deps (hd:rem) = go [hd] (deps <> freeVars (snd hd)) rem
@@ -575,6 +574,26 @@ orderedComponents tms = go [] Set.empty tms
     where
     depsFor = foldMap (freeVars . snd)
     isDep (v, _) = Set.member v deps
+
+-- Like `orderedComponents'`, but further break up cycles and move
+-- cyclic subcycles before other components in the same cycle. 
+-- Tweak suggested by @aryairani.
+--
+-- Example: given `[[x],[ping,r,s,pong]]`, where `ping` and `pong`
+-- are mutually recursive but `r` and `s` are uninvolved, this produces:
+-- `[[x], [ping,pong], [r], [s]]`.
+orderedComponents :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
+orderedComponents bs0 = tweak =<< orderedComponents' bs0 where
+  tweak :: Var v => [(v,Term f v a)] -> [[(v,Term f v a)]]
+  tweak bs@(_:_:_) = case takeWhile isCyclic (components bs) of
+    [] -> [bs]
+    cycles -> cycles <> orderedComponents rest 
+      where
+      rest = [ (v,b) | (v,b) <- bs, Set.notMember v cycleVars ]
+      cycleVars = Set.fromList (fst <$> join cycles)
+  tweak bs = [bs] -- any cycle with < 2 bindings is left alone
+  isCyclic [(v,b)] = Set.member v (freeVars b)
+  isCyclic bs      = length bs > 1
 
 -- Hash a strongly connected component and sort its definitions into a canonical order.
 hashComponent ::
