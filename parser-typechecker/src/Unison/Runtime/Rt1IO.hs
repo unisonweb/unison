@@ -65,6 +65,7 @@ import           System.IO                      ( Handle
                                                 , hTell
                                                 , hGetBuffering
                                                 , hSetBuffering
+                                                , hFlush
                                                 )
 import           System.Directory               ( getCurrentDirectory
                                                 , setCurrentDirectory
@@ -335,6 +336,10 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
   go "io.IO.setBuffering_" [IR.Data _ 0 [IR.T handle], o] = do
     hh <- getHaskellHandleOrThrow handle
     reraiseIO . hSetBuffering hh $ haskellBufferMode o
+    pure IR.unit
+  go "io.IO.flush_" [IR.Data _ 0 [IR.T handle]] = do
+    hh <- getHaskellHandleOrThrow handle
+    reraiseIO $ hFlush hh
     pure IR.unit
   go "io.IO.systemTime_" [] = do
     t <- reraiseIO $ fmap round Time.getPOSIXTime
