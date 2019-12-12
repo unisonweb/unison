@@ -1,0 +1,86 @@
+name:          unison-parser-typechecker-test
+category:      Compiler
+version:       0.1
+license:       MIT
+cabal-version: >= 1.8
+license-file:  LICENSE
+author:        Unison Computing, public benefit corp
+maintainer:    Paul Chiusano <paul.chiusano@gmail.com>, Runar Bjarnason <runarorama@gmail.com>, Arya Irani <arya.irani@gmail.com>
+stability:     provisional
+homepage:      http://unisonweb.org
+bug-reports:   https://github.com/unisonweb/unison/issues
+copyright:     Copyright (C) 2013-2018 Unison Computing, PBC and contributors
+synopsis:      Parser and typechecker for the Unison language
+description:
+
+build-type:    Simple
+extra-source-files:
+data-files:
+
+source-repository head
+  type: git
+  location: git://github.com/unisonweb/unison.git
+
+
+executable tests
+  main-is:        Suite.hs
+  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
+  hs-source-dirs: src
+  other-modules:
+    Unison.Test.Codebase
+    Unison.Test.Codebase.Causal
+    Unison.Test.Codebase.FileCodebase
+    Unison.Test.Codebase.Path
+    Unison.Test.ColorText
+    Unison.Test.FileParser
+    Unison.Test.Git
+    Unison.Test.Lexer
+    Unison.Test.Range
+    Unison.Test.TermParser
+    Unison.Test.TermPrinter
+    Unison.Test.TypePrinter
+    Unison.Test.Typechecker
+    Unison.Test.Typechecker.Components
+    Unison.Test.Typechecker.Context
+    Unison.Test.Typechecker.TypeError
+    Unison.Test.UnisonSources
+    Unison.Test.UriParser
+    Unison.Test.Util.Bytes
+
+  build-depends:
+    base,
+    bytestring,
+    containers,
+    directory,
+    easytest,
+    errors,
+    extra,
+    filepath,
+    filemanip,
+    here,
+    lens,
+    megaparsec,
+    mtl,
+    raw-strings-qq,
+    shellmet,
+    temporary,
+    text,
+    transformers,
+    unison-core,
+    unison-core-test,
+    unison-parser-typechecker
+
+executable transcripts
+  main-is:        Unison/Test/Transcripts.hs
+  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
+  hs-source-dirs: src
+  other-modules:
+  build-depends:
+    base,
+    directory,
+    easytest,
+    filepath,
+    shellmet,
+    text,
+    unison-core,
+    unison-parser-typechecker
