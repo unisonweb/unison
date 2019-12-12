@@ -32,3 +32,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Florian Thurm (@0xflotus)
 * Evan Burchard (@evanburchard)
 * Alvaro Carrasco (@alvaroc1)
+* Vladislav Zavialov (@int-index)

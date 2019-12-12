@@ -21,6 +21,8 @@ module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..), pars
 
 import Unison.Prelude
 
+import Unison.Codebase.MainTerm ( nullaryMain, mainTypes, getMainTerm )
+import qualified Unison.Codebase.MainTerm as MainTerm
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
@@ -99,7 +101,7 @@ import Unison.Codebase.TermEdit (TermEdit(..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE
-import           Unison.Runtime.IOSource       ( isTest, ioReference )
+import           Unison.Runtime.IOSource       ( isTest )
 import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
@@ -2257,17 +2259,6 @@ basicNames0' = do
       prettyPrintNames00 = currentAndExternalNames0
   pure (parseNames00, prettyPrintNames00)
 
--- {IO} ()
-ioUnit :: Ord v => a -> Type v a
-ioUnit a = Type.effect a [Type.ref a ioReference] (Type.ref a DD.unitRef)
-
--- '{IO} ()
-nullaryMain :: Ord v => a -> Type v a
-nullaryMain a = Type.arrow a (Type.ref a DD.unitRef) (ioUnit a)
-
-mainTypes :: Ord v => a -> [Type v a]
-mainTypes a = [nullaryMain a]
-
 -- Given a typechecked file with a main function called `mainName`
 -- of the type `'{IO} ()`, adds an extra binding which
 -- forces the `main` function.
@@ -2281,23 +2272,15 @@ addRunMain
   -> Action' m v (Maybe (TypecheckedUnisonFile v Ann))
 addRunMain mainName Nothing = do
   parseNames0 <- basicParseNames0
-  case HQ.fromString mainName of
-    Nothing -> pure Nothing
-    Just hq -> do
-      -- note: not allowing historical search
-      let refs = Names3.lookupHQTerm hq (Names3.Names parseNames0 mempty)
-      let a = External
-      case toList refs of
-        [] -> pure Nothing
-        [Referent.Ref ref] -> do
-          typ <- eval $ LoadTypeOfTerm ref
-          case typ of
-            Just typ | Typechecker.isSubtype typ (nullaryMain a) -> do
-              let runMain = DD.forceTerm a a (Term.ref a ref)
-              let v = Var.named (HQ.toText hq)
-              pure . Just $ UF.typecheckedUnisonFile mempty mempty [[(v, runMain, typ)]] mempty
-            _ -> pure Nothing
-        _ -> pure Nothing
+  let loadTypeOfTerm ref = eval $ LoadTypeOfTerm ref
+  mainToFile <$> getMainTerm loadTypeOfTerm parseNames0 mainName
+  where
+    mainToFile (MainTerm.NotAFunctionName _) = Nothing
+    mainToFile (MainTerm.NotFound _) = Nothing
+    mainToFile (MainTerm.BadType _) = Nothing
+    mainToFile (MainTerm.Success hq tm typ) = Just $
+      let v = Var.named (HQ.toText hq) in
+      UF.typecheckedUnisonFile mempty mempty [[(v, tm, typ)]] mempty
 addRunMain mainName (Just uf) = do
   let components = join $ UF.topLevelComponents uf
   let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components

@@ -43,7 +43,6 @@ import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
 import qualified Unison.Result as Result
 import           Unison.FileParsers             ( parseAndSynthesizeFile
                                                 , synthesizeFile'
@@ -167,13 +166,8 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
   eval1 :: PPE.PrettyPrintEnv -> Term.AnnotatedTerm v Ann -> _
   eval1 ppe tm = do
     let codeLookup = Codebase.toCodeLookup codebase
-    let uf = UF.UnisonFile mempty mempty mempty
-               (Map.singleton UF.RegularWatch [(Var.nameds "result", tm)])
-    selfContained <- Codebase.makeSelfContained' codeLookup uf
-    r <- Runtime.evaluateWatches codeLookup ppe Runtime.noCache rt selfContained
-    pure $ r <&> \(_,map) ->
-      let [(_loc, _kind, _hash, _src, value, _isHit)] = Map.elems map
-      in Term.amap (const Parser.External) value
+    r <- Runtime.evaluateTerm codeLookup ppe rt tm
+    pure $ r <&> Term.amap (const Parser.External)
 
   evalUnisonFile :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> _
   evalUnisonFile ppe (UF.discardTypes -> unisonFile) = do

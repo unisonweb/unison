@@ -7,6 +7,7 @@ module Main where
 import Unison.Prelude
 import           System.Directory               ( getCurrentDirectory, getHomeDirectory )
 import           System.Environment             ( getArgs )
+import           Unison.Codebase.Execute        ( execute )
 import qualified Unison.Codebase.FileCodebase  as FileCodebase
 import qualified Unison.CommandLine.Main       as CommandLine
 import qualified Unison.Runtime.Rt1IO          as Rt1
@@ -85,7 +86,7 @@ main = do
     ["init"] -> FileCodebase.initCodebaseAndExit mcodepath
     "run" : [mainName] -> do
       theCodebase <- FileCodebase.getCodebaseOrExit mcodepath
-      launch currentDir configFilePath theCodebase [Right $ Input.ExecuteI mainName, Right Input.QuitI]
+      execute theCodebase Rt1.runtime mainName
     "run.file" : file : [mainName] | isDotU file -> do
       e <- safeReadUtf8 file
       case e of
