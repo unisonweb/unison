@@ -25,7 +25,6 @@ import           Unison.Reference (Reference, pattern Builtin, pattern Derived)
 import qualified Unison.Referent as Referent
 import qualified Unison.ConstructorType as ConstructorType 
 import           Unison.Term
-import qualified Unison.Typechecker.Components as Components
 import           Unison.UnisonFile (UnisonFile(..))
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
@@ -337,19 +336,6 @@ serializeFile uf@(UnisonFile dataDecls effectDecls _ _) tm = do
   serializeFoldable (uncurry serializeConstructorArities) effectDecls'
   -- NB: we rewrite the term to minimize away let rec cycles, as let rec
   -- blocks aren't allowed to have effects
-  pos <- serializeTerm
-    (ABT.rebuildUp'
-      ( either
-          (\e ->
-            error
-              (  "The Unison file is malformed. It has duplicate bindings "
-              ++ show (void <$> e)
-              )
-          )
-          id
-      . Components.minimize'
-      )
-      body
-    )
+  pos <- serializeTerm body
   putWord8 0
   putBackref pos

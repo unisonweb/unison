@@ -16,6 +16,12 @@ import           Unison.Term (AnnotatedTerm')
 import qualified Unison.Term as Term
 import           Unison.Var (Var)
 
+unordered :: Var v => [(v,AnnotatedTerm' vt v a)] -> [[(v,AnnotatedTerm' vt v a)]]
+unordered = ABT.components 
+
+ordered :: Var v => [(v,AnnotatedTerm' vt v a)] -> [[(v,AnnotatedTerm' vt v a)]]
+ordered = ABT.orderedComponents 
+
 -- | Algorithm for minimizing cycles of a `let rec`. This can
 -- improve generalization during typechecking and may also be more
 -- efficient for execution.
@@ -43,7 +49,7 @@ minimize (Term.LetRecNamedAnnotatedTop' isTop ann bs e) =
   in  if not $ null dupes
         then Left $ Nel.fromList dupes
         else
-          let cs0            = ABT.components bindings
+          let cs0 = if isTop then unordered bindings else ordered bindings
               -- within a cycle, we put the lambdas first, so
               -- unguarded definitions can refer to these lambdas, example:
               --

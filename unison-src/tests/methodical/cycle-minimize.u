@@ -1,0 +1,11 @@
+
+ability SpaceAttack where
+  launchMissiles : Text -> ()
+
+-- should typecheck fine, as the `launchMissiles "saturn"`
+-- gets moved out of the `ping` / `pong` cycle
+ex x =
+  ping x = pong (x + 1)
+  launchMissiles "saturn"
+  pong x = ping (x `Nat.drop` 1)
+  launchMissiles "neptune"
