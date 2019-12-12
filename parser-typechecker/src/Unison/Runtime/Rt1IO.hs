@@ -489,6 +489,17 @@ toTermOrError ppe r = case r of
       P.wrap "This happens when calling a function that doesn't handle all possible inputs.",
       "", sorryMsg
       ]
+  Right (RT.RError t val) -> do
+    msg <- IR.decompile val
+    let errorType = case t of 
+                      RT.ErrorTypeTodo -> "builtin.todo" 
+                      RT.ErrorTypeBug -> "builtin.bug"
+    pure . Left . P.callout icon . P.lines $ [
+      P.wrap ("I've encountered a call to" <> P.red errorType
+              <> "with the following value:"), "",
+      P.indentN 2 $ TermPrinter.pretty ppe msg,
+      "", sorryMsg
+      ]
   Right (RT.RRequest (IR.Req r cid vs _)) -> do
     vs <- traverse IR.decompile vs
     let tm = Term.apps' (Term.request() r cid) vs
