@@ -111,6 +111,8 @@ data Input
   | SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
   | FindShallowI Path'
   | FindPatchI
+  | DependentsI String
+  | DependenciesI String
   | ShowDefinitionI OutputLocation [String]
   | ShowDefinitionByPrefixI OutputLocation [String]
   | ShowReflogI

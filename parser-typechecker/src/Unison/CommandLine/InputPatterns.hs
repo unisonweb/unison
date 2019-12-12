@@ -230,6 +230,22 @@ viewByPrefix
     "`view.recursive Foo` prints the definitions of `Foo` and `Foo.blah`."
     (pure . Input.ShowDefinitionByPrefixI Input.ConsoleLocation)
 
+dependents :: InputPattern
+dependents
+  = InputPattern "dependents" ["usages"] [(Required, exactDefinitionQueryArg)]
+    (P.wrap $ makeExample dependents ["foo"] <> "lists the terms (and/or types) that directly use `foo`.")
+    (\case
+       [s] -> pure $ Input.DependentsI s
+       _ -> Left (I.help dependencies))
+
+dependencies :: InputPattern
+dependencies
+  = InputPattern "dependencies" [] [(Required, exactDefinitionQueryArg)]
+    (P.wrap $ makeExample dependencies ["foo"] <> "lists the terms (and/or types) that directly use `foo`.")
+    (\case
+       [s] -> pure $ Input.DependenciesI s
+       _ -> Left (I.help dependencies))
+
 find :: InputPattern
 find = InputPattern
   "find"
@@ -974,6 +990,8 @@ validInputs =
   , link
   , unlink
   , links
+  , dependents
+  , dependencies
   , replaceTerm
   , replaceType
   , test
