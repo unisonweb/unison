@@ -38,7 +38,7 @@ import qualified Unison.Term                  as Term
 import qualified Unison.Type                  as Type
 import qualified Unison.Typechecker.Context   as C
 import           Unison.Typechecker.TypeError
-import qualified Unison.TypeVar               as TypeVar
+import qualified Unison.Typechecker.TypeVar   as TypeVar
 import qualified Unison.UnisonFile            as UF
 import           Unison.Util.AnnotatedText    (AnnotatedText)
 import qualified Unison.Util.AnnotatedText    as AT
@@ -426,7 +426,7 @@ renderTypeError e env src = case e of
           , "\n\n"
           , annotatedAsErrorSite src termSite
           , case expectedType of
-            Type.Existential' _ _ -> "\nThere are no constraints on its type."
+            Type.Var' (TypeVar.Existential _ _) -> "\nThere are no constraints on its type."
             _ ->
               "\nWhatever it is, it has a type that conforms to "
                 <> style Type1 (renderType' env expectedType)
@@ -678,7 +678,7 @@ renderContext env ctx@(C.Context es) = "  Γ\n    "
 
 renderTerm :: (IsString s, Var v) => Env -> C.Term v loc -> s
 renderTerm env e =
-  let s = Color.toPlain $ TermPrinter.pretty' (Just 80) env (Term.unTypeVar e)
+  let s = Color.toPlain $ TermPrinter.pretty' (Just 80) env (TypeVar.lowerTerm e)
   in if length s > Settings.renderTermMaxLength
      then fromString (take Settings.renderTermMaxLength s <> "...")
      else fromString s
@@ -1044,7 +1044,7 @@ prettyParseError s = \case
   go (Parser.UnknownAbilityConstructor tok _referents) = unknownConstructor "ability" tok
   go (Parser.UnknownDataConstructor    tok _referents) = unknownConstructor "data" tok
   go (Parser.UnknownId               tok referents references) = Pr.lines
-    [ if missing then 
+    [ if missing then
         "I couldn't resolve the reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
       else
         "The reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous."
@@ -1055,7 +1055,7 @@ prettyParseError s = \case
     ]
     where missing = Set.null referents && Set.null references
   go (Parser.UnknownTerm               tok referents) = Pr.lines
-    [ if Set.null referents then 
+    [ if Set.null referents then
         "I couldn't find a term for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
       else
         "The term reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous."
@@ -1067,7 +1067,7 @@ prettyParseError s = \case
     where
     missing = Set.null referents
   go (Parser.UnknownType               tok referents) = Pr.lines
-    [ if Set.null referents then 
+    [ if Set.null referents then
         "I couldn't find a type for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
       else
         "The type reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous."

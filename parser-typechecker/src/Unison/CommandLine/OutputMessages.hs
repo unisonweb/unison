@@ -66,6 +66,9 @@ import           Unison.Name                   (Name)
 import qualified Unison.Name                   as Name
 import qualified Unison.Codebase.NameSegment   as NameSegment
 import           Unison.NamePrinter            (prettyHashQualified,
+                                                prettyReference, prettyReferent,
+                                                prettyNamedReference,
+                                                prettyNamedReferent,
                                                 prettyName, prettyShortHash,
                                                 styleHashQualified,
                                                 styleHashQualified', prettyHashQualified')
@@ -82,6 +85,7 @@ import           Unison.PrintError              ( prettyParseError
 import qualified Unison.Reference              as Reference
 import           Unison.Reference              ( Reference )
 import qualified Unison.Referent               as Referent
+import           Unison.Referent               ( Referent )
 import qualified Unison.Result                 as Result
 import qualified Unison.Term                   as Term
 import           Unison.Term                   (AnnotatedTerm)
@@ -287,13 +291,13 @@ notifyUser dir o = case o of
     formatTerms tms =
       P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : (go <$> tms) where
       go (ref, hqs) = P.column2
-        [ ("Hash:", P.syntaxToColor . prettyHashQualified . HQ.take len $ HQ.fromReferent ref)
+        [ ("Hash:", P.syntaxToColor (prettyReferent len ref))
         , ("Names: ", P.group (P.spaced (P.bold . P.syntaxToColor . prettyHashQualified' <$> toList hqs)))
         ]
     formatTypes types =
       P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : (go <$> types) where
       go (ref, hqs) = P.column2
-        [ ("Hash:", P.syntaxToColor . prettyHashQualified . HQ.take len $ HQ.fromReference ref)
+        [ ("Hash:", P.syntaxToColor (prettyReference len ref))
         , ("Names:", P.group (P.spaced (P.bold . P.syntaxToColor . prettyHashQualified' <$> toList hqs)))
         ]
   -- > names foo
@@ -615,8 +619,26 @@ notifyUser dir o = case o of
     P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> pure $ P.wrap "That's not implemented yet. Sorry! 😬"
   BranchAlreadyExists _ _ -> pure "That namespace already exists."
-  NameAmbiguous _ _ _ _ -> pure "That name is ambiguous."
-  TypeAmbiguous _ _ _ -> pure "That type is ambiguous."
+  NameAmbiguous hashLen _ p tms tys ->
+    pure . P.callout "\129300" . P.lines $ [
+      P.wrap "That name is ambiguous. It could refer to any of the following definitions:"
+    , ""
+    , P.indentN 2 (P.lines (map qualifyTerm (Set.toList tms) ++ map qualifyType (Set.toList tys)))
+    , ""
+    , P.wrap "You may:"
+    , ""
+    , P.indentN 2 . P.bulleted $
+        [ P.wrap "Delete one by an unambiguous name, given above."
+        , P.wrap "Delete them all by re-issuing the previous command."
+        ]
+    ]
+    where
+      name :: Name
+      name = Path.toName' (HQ'.toName (Path.unsplitHQ' p))
+      qualifyTerm :: Referent -> P.Pretty P.ColorText
+      qualifyTerm = P.syntaxToColor . prettyNamedReferent hashLen name
+      qualifyType :: Reference -> P.Pretty P.ColorText
+      qualifyType = P.syntaxToColor . prettyNamedReference hashLen name
   TermAmbiguous _ _ _ -> pure "That term is ambiguous."
   HashAmbiguous _ h rs -> pure . P.callout "\129300" . P.lines $ [
     P.wrap $ "The hash" <> prettyShortHash h <> "is ambiguous."
