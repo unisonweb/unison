@@ -14,8 +14,11 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Util.Relation as R
+import Unison.Util.Relation4 (Relation4)
 
 data DiffType a = Create a | Delete a | Modify a
+
+-- todo: maybe simplify this file using Relation3?
 
 data NamespaceSlice r = NamespaceSlice {
   names :: R.Relation r Name,
@@ -43,16 +46,16 @@ diff0 :: forall m. Monad m => Branch0 m -> Branch0 m -> P.Patch -> BranchDiff
 diff0 old new patch = BranchDiff terms types where
   (terms, types) =
     computeSlices
-      (starToSlice (Branch.deepTerms old))
-      (starToSlice (Branch.deepTerms new))
-      (starToSlice (Branch.deepTypes old))
-      (starToSlice (Branch.deepTypes new))
+      (deepr4ToSlice (Branch.deepTerms old))
+      (deepr4ToSlice (Branch.deepTerms new))
+      (deepr4ToSlice (Branch.deepTypes old))
+      (deepr4ToSlice (Branch.deepTypes new))
       patch
 
 --unpackMetadata :: Branch0 m ->
 
-starToSlice :: Star r Name -> NamespaceSlice r
-starToSlice = undefined -- NamespaceSlice (Star3.d1 s) (unpackMetadata s) where
+deepr4ToSlice :: Relation4 r Name Metadata.Type Metadata.Value -> NamespaceSlice r
+deepr4ToSlice = undefined -- NamespaceSlice (Star3.d1 s) (unpackMetadata s) where
 
 computeSlices :: NamespaceSlice Referent
               -> NamespaceSlice Referent

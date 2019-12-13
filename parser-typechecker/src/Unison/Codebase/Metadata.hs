@@ -9,6 +9,8 @@ import qualified Data.Set as Set
 import qualified Unison.Util.Star3 as Star3
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as R
+import Unison.Util.Relation4 (Relation4)
+import qualified Unison.Util.Relation4 as R4
 
 type Type = Reference
 type Value = Reference
@@ -21,6 +23,10 @@ type Metadata = Map Type (Set Value)
 -- `Type` is the type of metadata. Duplicate info to speed up certain queries.
 -- `(Type, Value)` is the metadata value itself along with its type.
 type Star a n = Star3 a n Type (Type, Value)
+
+-- starToR4 not needed if https://github.com/unisonweb/unison/issues/1060
+starToR4 :: (Ord r, Ord n) => Star r n -> Relation4 r n Type Value
+starToR4 = R4.fromList . fmap (\(r,n,_,(t,v)) -> (r,n,t,v)) . Star3.toList
 
 hasMetadata :: Ord a => a -> Type -> Value -> Star a n -> Bool
 hasMetadata a t v = Set.member (t, v) . R.lookupDom a . Star3.d3

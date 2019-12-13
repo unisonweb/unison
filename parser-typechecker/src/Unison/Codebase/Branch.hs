@@ -43,11 +43,13 @@ import qualified Unison.Names3                 as Names
 import           Unison.Names2                  ( Names'(Names), Names0 )
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
-import qualified Unison.Referent              as Referent
+import qualified Unison.Referent               as Referent
 import qualified Unison.Reference              as Reference
 
-import qualified Unison.Util.Relation         as R
-import           Unison.Util.Relation           ( Relation )
+import qualified Unison.Util.Relation          as R
+import          Unison.Util.Relation            ( Relation )
+import qualified Unison.Util.Relation4         as R4
+import          Unison.Util.Relation4           ( Relation4 )
 import qualified Unison.Util.Star3             as Star3
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
@@ -71,8 +73,9 @@ data Branch0 m = Branch0
   , _children :: Map NameSegment (Branch m)
   , _edits :: Map NameSegment (EditHash, m Patch)
   -- names and metadata for this branch and its children
-  , deepTerms :: Star Referent Name
-  , deepTypes :: Star Reference Name
+  -- (ref, (name, value)) iff ref has metadata `value` at name `name`
+  , deepTerms :: Relation4 Referent Name Metadata.Type Metadata.Value
+  , deepTypes :: Relation4 Reference Name Metadata.Type Metadata.Value
   , deepPaths :: Set Path
   , deepEdits :: Map Name EditHash
   }
@@ -115,8 +118,8 @@ makeLensesFor [("_edits", "edits")] ''Branch0
 makeLenses ''Raw
 
 toNames0 :: Branch0 m -> Names0
-toNames0 b = Names (R.swap . Star3.d1 . deepTerms $ b)
-                   (R.swap . Star3.d1 . deepTypes $ b)
+toNames0 b = Names (R.swap . R4.d12 . deepTerms $ b)
+                   (R.swap . R4.d12 . deepTypes $ b)
 
 -- This stops searching for a given ShortHash once it encounters
 -- any term or type in any Branch0 that satisfies that ShortHash.
@@ -164,18 +167,18 @@ findInHistory termMatches typeMatches queries b =
     findQ :: (Set q, Names0) -> q -> (Set q, Names0)
     findQ acc sh =
       foldl' (doType sh) (foldl' (doTerm sh) acc
-                            (R.toList . Metadata.toRelation $ deepTerms b0))
-                          (R.toList . Metadata.toRelation $ deepTypes b0)
+                            (R.toList . R4.d12 $ deepTerms b0))
+                            (R.toList . R4.d12 $ deepTypes b0)
     doTerm q acc@(remainingSHs, names0) (r, n) = if termMatches q r n
       then (Set.delete q remainingSHs, Names.addTerm n r names0) else acc
     doType q acc@(remainingSHs, names0) (r, n) = if typeMatches q r n
       then (Set.delete q remainingSHs, Names.addType n r names0) else acc
 
 deepReferents :: Branch0 m -> Set Referent
-deepReferents = Star3.fact . deepTerms
+deepReferents = R4.d1set . deepTerms
 
 deepTypeReferences :: Branch0 m -> Set Reference
-deepTypeReferences = Star3.fact . deepTypes
+deepTypeReferences = R4.d1set . deepTypes
 
 terms :: Lens' (Branch0 m) (Star Referent NameSegment)
 terms = lens _terms (\Branch0{..} x -> branch0 x _types _children _edits)
@@ -197,16 +200,16 @@ branch0 terms types children edits =
           deepTerms' deepTypes' deepPaths' deepEdits'
   where
   nameSegToName = Name . NameSegment.toText
-  deepTerms' = Star3.mapD1 nameSegToName terms
+  deepTerms' = R4.mapD2 nameSegToName (Metadata.starToR4 terms)
     <> foldMap go (Map.toList children)
    where
     go (nameSegToName -> n, b) =
-      Star3.mapD1 (Name.joinDot n) (deepTerms $ head b)
-  deepTypes' = Star3.mapD1 nameSegToName types
+      R4.mapD2 (Name.joinDot n) (deepTerms $ head b)
+  deepTypes' = R4.mapD2 nameSegToName (Metadata.starToR4 types)
     <> foldMap go (Map.toList children)
    where
     go (nameSegToName -> n, b) =
-      Star3.mapD1 (Name.joinDot n) (deepTypes $ head b)
+      R4.mapD2 (Name.joinDot n) (deepTypes $ head b)
   deepPaths' = Set.map Path.singleton (Map.keysSet children)
     <> foldMap go (Map.toList children)
     where go (nameSeg, b) = Set.map (Path.cons nameSeg) (deepPaths $ head b)

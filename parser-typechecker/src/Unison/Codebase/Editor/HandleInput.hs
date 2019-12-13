@@ -92,6 +92,7 @@ import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Util.List               ( uniqueBy )
 import qualified Unison.Util.Relation          as R
+import qualified Unison.Util.Relation4          as R4
 import           Unison.Util.TransitiveClosure  (transitiveClosure)
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
@@ -878,8 +879,8 @@ loop = do
               1 -> HQ'.fromName ns
               _ -> HQ'.take hashLen $ HQ'.fromNamedReference ns r
           defnCount b =
-            (length . R.ran . Star3.d1 . deepTerms $ Branch.head b) +
-            (length . R.ran . Star3.d1 . deepTypes $ Branch.head b)
+            (R4.size . deepTerms $ Branch.head b) +
+            (R4.size . deepTypes $ Branch.head b)
           patchCount b = (length . deepEdits $ Branch.head b)
 
         termEntries <- for (R.toList . Star3.d1 $ _terms b0) $
@@ -1177,7 +1178,7 @@ loop = do
 
       TestI showOk showFail -> do
         let
-          testTerms = Star3.fact . Star3.select1D3 isTest
+          testTerms = Map.keys . R4.d1 . (uncurry R4.selectD34) isTest
                     . Branch.deepTerms $ currentBranch0
           testRefs = Set.fromList [ r | Referent.Ref r <- toList testTerms ]
           oks results =
@@ -1393,42 +1394,58 @@ getLinks :: (Var v, Monad m)
          -> Either (Set Reference) (Maybe String)
          -> Action' m v (Either (Output v)
                                 (PPE.PrettyPrintEnv,
+                                --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
                                  [(HQ.HashQualified, Reference, Maybe (Type v Ann))]))
 getLinks input src mdTypeStr = do
+  let go = fmap Right . getLinks' input src
+  case mdTypeStr of
+    Left s -> go (Just s)
+    Right Nothing -> go Nothing
+    Right (Just mdTypeStr) -> parseType input mdTypeStr >>= \case
+      Left e -> pure $ Left e
+      Right typ -> go . Just . Set.singleton $ Type.toReference typ
+
+getLinks' :: (Var v, Monad m)
+         => Input
+         -> Path.HQSplit'         -- definition to print metadata of
+         -> Maybe (Set Reference) -- return all metadata if empty
+         -> Action' m v ((PPE.PrettyPrintEnv,
+                          --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
+                         [(HQ.HashQualified, Reference, Maybe (Type v Ann))]))
+getLinks' input src selection0 = do
   root0 <- Branch.head <$> use root
   currentPath' <- use currentPath
   let resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
       getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
+      srcle :: [Referent]
       srcle = toList (getHQ'Terms src) -- list of matching src terms
+      srclt :: [Reference]
       srclt = toList (getHQ'Types src) -- list of matching src types
       p = resolveSplit' src -- ex: the parent of `List.map` - `List`
+      mdTerms, mdTypes, allMd :: Metadata.Metadata
       mdTerms = foldl' Metadata.merge mempty [
-        BranchUtil.getTermMetadataUnder p r root0 | r <- srcle ]
+        BranchUtil.getTermMetadataAt p r root0 | r <- srcle ]
       mdTypes = foldl' Metadata.merge mempty [
-        BranchUtil.getTypeMetadataUnder p r root0 | r <- srclt ]
+        BranchUtil.getTypeMetadataAt p r root0 | r <- srclt ]
+      -- all metadata (type+value) associated with name `src`
       allMd = Metadata.merge mdTerms mdTypes
-  selection <- case mdTypeStr of
-    Left s -> pure $ Right s
-    Right Nothing -> pure $ Right (Map.keysSet allMd)
-    Right (Just mdTypeStr) -> parseType input mdTypeStr <&> \case
-      Left e -> Left e
-      Right typ -> Right (Set.singleton (Type.toReference typ))
-  case selection of
-    Left e -> pure (Left e)
-    Right selection -> do
-      let allMd' = Map.restrictKeys allMd selection
-          allRefs = toList (Set.unions (Map.elems allMd'))
-          results :: Set Reference = Set.unions $ Map.elems allMd'
-      sigs <- for (toList results) $
-        \r -> loadTypeOfTerm (Referent.Ref r)
-      let deps = Set.map LD.termRef results <>
-                 Set.unions [ Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs ]
-      ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled' deps
-      let ppeDecl = PPE.unsuffixifiedPPE ppe
-      let sortedSigs = sortOn snd (toList results `zip` sigs)
-      let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs ]
-      pure (Right (PPE.suffixifiedPPE ppe, out))
+          -- filter allMd according to the specified metadataTypes (if mdTypeStr is empty)
+      allMd' = case selection0 of
+        Nothing -> allMd
+        Just s -> Map.restrictKeys allMd s
+  let
+      -- then list the values after filtering by type
+      allRefs :: Set Reference = Set.unions $ Map.elems allMd'
+  sigs <- for (toList allRefs) $
+    \r -> loadTypeOfTerm (Referent.Ref r)
+  let deps = Set.map LD.termRef allRefs <>
+             Set.unions [ Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs ]
+  ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled' deps
+  let ppeDecl = PPE.unsuffixifiedPPE ppe
+  let sortedSigs = sortOn snd (toList allRefs `zip` sigs)
+  let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs ]
+  pure (PPE.suffixifiedPPE ppe, out)
 
 resolveShortBranchHash ::
   Input -> ShortBranchHash -> Action' m v (Either (Output v) (Branch m))
