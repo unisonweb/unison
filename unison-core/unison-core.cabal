@@ -47,6 +47,7 @@ library
     Unison.Name
     Unison.Names2
     Unison.Names3
+    Unison.Paths
     Unison.Pattern
     Unison.PatternP
     Unison.Prelude
@@ -58,7 +59,6 @@ library
     Unison.Symbol
     Unison.Term
     Unison.Type
-    Unison.TypeVar
     Unison.Util.Components
     Unison.Util.List
     Unison.Util.Monoid

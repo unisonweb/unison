@@ -21,6 +21,8 @@ module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..), pars
 
 import Unison.Prelude
 
+import Unison.Codebase.MainTerm ( nullaryMain, mainTypes, getMainTerm )
+import qualified Unison.Codebase.MainTerm as MainTerm
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
@@ -99,7 +101,7 @@ import Unison.Codebase.TermEdit (TermEdit(..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE
-import           Unison.Runtime.IOSource       ( isTest, ioReference )
+import           Unison.Runtime.IOSource       ( isTest )
 import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
@@ -270,8 +272,9 @@ loop = do
         patchExists s = respond $ PatchAlreadyExists input s
         typeNotFound = respond . TypeNotFound input
         termNotFound = respond . TermNotFound input
-        typeConflicted src = respond . TypeAmbiguous input src
-        termConflicted src = respond . TermAmbiguous input (Left src)
+        nameConflicted src tms tys = respond (NameAmbiguous hqLength input src tms tys)
+        typeConflicted src = nameConflicted src Set.empty
+        termConflicted src tms = nameConflicted src tms Set.empty
         hashConflicted src = respond . HashAmbiguous input src
         branchExists dest _x = respond $ BranchAlreadyExists input dest
         branchExistsSplit = branchExists . Path.unsplit'
@@ -289,6 +292,7 @@ loop = do
           MoveBranchI src dest -> "move.namespace " <> ops' src <> " " <> ps' dest
           MovePatchI src dest -> "move.patch " <> ps' src <> " " <> ps' dest
           CopyPatchI src dest -> "copy.patch " <> ps' src <> " " <> ps' dest
+          DeleteI thing -> "delete" <> hqs' thing
           DeleteTermI def -> "delete.term " <> hqs' def
           DeleteTypeI def -> "delete.type" <> hqs' def
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
@@ -357,29 +361,35 @@ loop = do
         stepManyAtM = Unison.Codebase.Editor.HandleInput.stepManyAtM inputDescription
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
         delete
-          :: forall ref.
-             Ord ref
-          => (Path.HQSplit' -> Set ref)
-          -> (Path.HQSplit' -> Action' m v ())
-          -> (Path.HQSplit' -> Set ref -> Action' m v ())
-          -> (Path.Split -> ref -> (Path, Branch0 m -> Branch0 m))
-          -> ((Set ref -> R.Relation Name ref) -> Set ref -> Names0)
+          :: (Path.HQSplit' -> Set Referent) -- compute matching terms
+          -> (Path.HQSplit' -> Set Reference) -- compute matching types
           -> Path.HQSplit'
           -> Action' m v ()
-        delete getHQ notFound conflicted makeDelete makeNames hq = case toList (getHQ hq) of
-          [] -> notFound hq
-          [r] -> goMany (Set.singleton r)
-          (Set.fromList -> rs) -> ifConfirmed (goMany rs) (conflicted hq rs)
+        delete getHQ'Terms getHQ'Types hq = do
+          let matchingTerms = toList (getHQ'Terms hq)
+          let matchingTypes = toList (getHQ'Types hq)
+          case (matchingTerms, matchingTypes) of
+            ([], []) -> respond (NameNotFound input hq)
+            -- delete one term
+            ([r], []) -> goMany (Set.singleton r) Set.empty
+            -- delete one type
+            ([], [r]) -> goMany Set.empty (Set.singleton r)
+            (Set.fromList -> tms, Set.fromList -> tys) ->
+              ifConfirmed (goMany tms tys) (nameConflicted hq tms tys)
           where
           resolvedPath = resolveSplit' (HQ'.toName <$> hq)
-          goMany rs = do
+          goMany tms tys = do
             let rootNames = Branch.toNames0 root0
+                name = Path.toName (Path.unsplit resolvedPath)
+                toRel :: Ord ref => Set ref -> R.Relation Name ref
+                toRel = R.fromList . fmap (name,) . toList
                 -- these names are relative to the root
-                toDelete = makeNames (R.fromList . fmap (name,) . toList) rs
-                  where name = Path.toName . Path.unsplit $ resolvedPath
+                toDelete = Names0 (toRel tms) (toRel tys)
             (failed, failedDependents) <-
               getEndangeredDependents (eval . GetDependents) toDelete rootNames
-            if failed == mempty then stepManyAt . fmap (makeDelete resolvedPath) . toList $ rs
+            if failed == mempty then do
+              stepManyAt . fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
+              stepManyAt . fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
             else do
               failed <-
                 loadSearchResults $ SR.fromNames failed
@@ -617,7 +627,6 @@ loop = do
         oldMD r = BranchUtil.getTypeMetadataAt p r root0
 
       NamesI thing -> do
-        len <- eval CodebaseHashLength
         parseNames0 <- Names3.suffixify0 <$> basicParseNames0
         let filtered = case thing of
               HQ.HashOnly shortHash ->
@@ -630,11 +639,11 @@ loop = do
         let printNames = Names printNames0 mempty
         let terms' ::Set (Referent, Set HQ'.HashQualified)
             terms' = (`Set.map` Names.termReferents filtered) $
-                        \r -> (r, Names3.termName len r printNames)
+                        \r -> (r, Names3.termName hqLength r printNames)
             types' :: Set (Reference, Set HQ'.HashQualified)
             types' = (`Set.map` Names.typeReferences filtered) $
-                        \r -> (r, Names3.typeName len r printNames)
-        respond $ ListNames len (toList terms') (toList types')
+                        \r -> (r, Names3.typeName hqLength r printNames)
+        respond $ ListNames hqLength (toList terms') (toList types')
 --          let (p, hq) = p0
 --              namePortion = HQ'.toName hq
 --          case hq of
@@ -749,23 +758,9 @@ loop = do
         p = resolveSplit' (HQ'.toName <$> src)
         mdSrc r = BranchUtil.getTypeMetadataAt p r root0
 
-      DeleteTypeI hq ->
-        delete
-          getHQ'Types
-          typeNotFound
-          typeConflicted
-          BranchUtil.makeDeleteTypeName
-          (\f rs -> Names0 mempty (f rs))
-          hq
-
-      DeleteTermI hq ->
-        delete
-          getHQ'Terms
-          termNotFound
-          termConflicted
-          BranchUtil.makeDeleteTermName
-          (\f rs -> Names0 (f rs) mempty)
-          hq
+      DeleteI     hq -> delete getHQ'Terms       getHQ'Types       hq
+      DeleteTypeI hq -> delete (const Set.empty) getHQ'Types       hq
+      DeleteTermI hq -> delete getHQ'Terms       (const Set.empty) hq
 
       DisplayI outputLoc (HQ.unsafeFromString -> hq) -> do
         parseNames <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
@@ -773,7 +768,7 @@ loop = do
         if Set.null results then
           respond $ SearchTermsNotFound [hq]
         else if Set.size results > 1 then
-          respond $ TermAmbiguous input (Right hq) results
+          respond $ TermAmbiguous input hq results
         else doDisplay outputLoc parseNames (Set.findMin results)
 
       ShowDefinitionI outputLoc (fmap HQ.unsafeFromString -> hqs) -> do
@@ -794,11 +789,11 @@ loop = do
         loadedDerivedTerms <-
           fmap (Map.fromList . catMaybes) . for (toList collatedTerms) $ \case
             Reference.DerivedId i -> fmap (i,) <$> eval (LoadTerm i)
-            _ -> pure Nothing
+            Reference.Builtin{} -> pure Nothing
         loadedDerivedTypes <-
           fmap (Map.fromList . catMaybes) . for (toList collatedTypes) $ \case
             Reference.DerivedId i -> fmap (i,) <$> eval (LoadType i)
-            _ -> pure Nothing
+            Reference.Builtin{} -> pure Nothing
         -- Populate DisplayThings for the search results, in anticipation of
         -- displaying the definitions.
         loadedDisplayTerms :: Map Reference (DisplayThing (Term v Ann)) <-
@@ -855,7 +850,6 @@ loop = do
       FindShallowI pathArg -> do
         prettyPrintNames0 <- basicPrettyPrintNames0
         ppe <- fmap PPE.suffixifiedPPE . prettyPrintEnvDecl $ Names prettyPrintNames0 mempty
-        hashLen <- eval CodebaseHashLength
         let pathArgAbs = Path.toAbsolutePath currentPath' pathArg
         b0 <- Branch.head <$> getAt pathArgAbs
         let
@@ -863,12 +857,12 @@ loop = do
             let refs = Star3.lookupD1 ns . _terms $ b0
             in case length refs of
               1 -> HQ'.fromName ns
-              _ -> HQ'.take hashLen $ HQ'.fromNamedReferent ns r
+              _ -> HQ'.take hqLength $ HQ'.fromNamedReferent ns r
           hqType b0 ns r =
             let refs = Star3.lookupD1 ns . _types $ b0
             in case length refs of
               1 -> HQ'.fromName ns
-              _ -> HQ'.take hashLen $ HQ'.fromNamedReference ns r
+              _ -> HQ'.take hqLength $ HQ'.fromNamedReference ns r
           defnCount b =
             (length . R.ran . Star3.d1 . deepTerms $ Branch.head b) +
             (length . R.ran . Star3.d1 . deepTypes $ Branch.head b)
@@ -2265,17 +2259,6 @@ basicNames0' = do
       prettyPrintNames00 = currentAndExternalNames0
   pure (parseNames00, prettyPrintNames00)
 
--- {IO} ()
-ioUnit :: Ord v => a -> Type v a
-ioUnit a = Type.effect a [Type.ref a ioReference] (Type.ref a DD.unitRef)
-
--- '{IO} ()
-nullaryMain :: Ord v => a -> Type v a
-nullaryMain a = Type.arrow a (Type.ref a DD.unitRef) (ioUnit a)
-
-mainTypes :: Ord v => a -> [Type v a]
-mainTypes a = [nullaryMain a]
-
 -- Given a typechecked file with a main function called `mainName`
 -- of the type `'{IO} ()`, adds an extra binding which
 -- forces the `main` function.
@@ -2289,23 +2272,15 @@ addRunMain
   -> Action' m v (Maybe (TypecheckedUnisonFile v Ann))
 addRunMain mainName Nothing = do
   parseNames0 <- basicParseNames0
-  case HQ.fromString mainName of
-    Nothing -> pure Nothing
-    Just hq -> do
-      -- note: not allowing historical search
-      let refs = Names3.lookupHQTerm hq (Names3.Names parseNames0 mempty)
-      let a = External
-      case toList refs of
-        [] -> pure Nothing
-        [Referent.Ref ref] -> do
-          typ <- eval $ LoadTypeOfTerm ref
-          case typ of
-            Just typ | Typechecker.isSubtype typ (nullaryMain a) -> do
-              let runMain = DD.forceTerm a a (Term.ref a ref)
-              let v = Var.named (HQ.toText hq)
-              pure . Just $ UF.typecheckedUnisonFile mempty mempty [[(v, runMain, typ)]] mempty
-            _ -> pure Nothing
-        _ -> pure Nothing
+  let loadTypeOfTerm ref = eval $ LoadTypeOfTerm ref
+  mainToFile <$> getMainTerm loadTypeOfTerm parseNames0 mainName
+  where
+    mainToFile (MainTerm.NotAFunctionName _) = Nothing
+    mainToFile (MainTerm.NotFound _) = Nothing
+    mainToFile (MainTerm.BadType _) = Nothing
+    mainToFile (MainTerm.Success hq tm typ) = Just $
+      let v = Var.named (HQ.toText hq) in
+      UF.typecheckedUnisonFile mempty mempty [[(v, tm, typ)]] mempty
 addRunMain mainName (Just uf) = do
   let components = join $ UF.topLevelComponents uf
   let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components

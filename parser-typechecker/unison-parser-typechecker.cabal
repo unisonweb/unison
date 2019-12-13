@@ -75,6 +75,8 @@ library
     Unison.Codebase.TranscriptParser
     Unison.Codebase.TypeEdit
     Unison.Codebase.Watch
+    Unison.Codebase.Execute
+    Unison.Codebase.MainTerm
     Unison.CommandLine
     Unison.CommandLine.DisplayValues
     Unison.CommandLine.InputPattern
@@ -89,7 +91,6 @@ library
     Unison.Parser
     Unison.Parsers
     Unison.Path
-    Unison.Paths
     Unison.PrettyPrintEnv
     Unison.PrettyTerminal
     Unison.PrintError
@@ -111,6 +112,7 @@ library
     Unison.Typechecker.Extractor
     Unison.Typechecker.TypeError
     Unison.Typechecker.TypeLookup
+    Unison.Typechecker.TypeVar
     Unison.UnisonFile
     Unison.Util.AnnotatedText
     Unison.Util.Bytes

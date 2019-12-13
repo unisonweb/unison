@@ -207,10 +207,13 @@ force :: Value -> IO Value
 force (Ref _ _ r) = readIORef r >>= force
 force v = pure v
 
+data ErrorType = ErrorTypeTodo | ErrorTypeBug deriving Show
+
 data Result
   = RRequest Req
   | RMatchFail Size [Value] Value
   | RDone Value
+  | RError ErrorType Value
   deriving Show
 
 done :: Value -> IO Result
@@ -239,7 +242,7 @@ compilationEnv env t = do
         Just (Right dd) -> pure $
           let arities = DD.constructorArities dd
           in [ ((r, i), arity) | (arity, i) <- arities `zip` [0..] ]
-    _ -> pure []
+    R.Builtin{} -> pure []
   let cenv = CompilationEnv mempty arityMap
 
     -- deps = Term.dependencies t
@@ -462,6 +465,7 @@ run ioHandler env ir = do
           -- traceM . P.render 80 $ P.shown var <> " =" `P.hang` pvalue v
           push size v m >>= \m -> go (size + 1) m body
         e@(RMatchFail _ _ _) -> pure e
+        e@(RError _ _) -> pure e
       LetRec bs body -> letrec size m bs body
       MakeSequence vs ->
         done . Sequence . Sequence.fromList =<< traverse (\i -> at size i m) vs
@@ -544,6 +548,8 @@ run ioHandler env ir = do
           EQ -> 0
           LT -> -1
           GT -> 1
+      Bug i -> RError ErrorTypeBug <$> at size i m
+      Todo i -> RError ErrorTypeTodo <$> at size i m
 
     runHandler :: Size -> Stack -> Value -> IR -> IO Result
     runHandler size m handler body =
