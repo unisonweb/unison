@@ -49,7 +49,6 @@ import qualified Unison.Reference              as Reference
 import qualified Unison.Util.Relation          as R
 import          Unison.Util.Relation            ( Relation )
 import qualified Unison.Util.Relation4         as R4
-import          Unison.Util.Relation4           ( Relation4 )
 import qualified Unison.Util.Star3             as Star3
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
@@ -74,8 +73,8 @@ data Branch0 m = Branch0
   , _edits :: Map NameSegment (EditHash, m Patch)
   -- names and metadata for this branch and its children
   -- (ref, (name, value)) iff ref has metadata `value` at name `name`
-  , deepTerms :: Relation4 Referent Name Metadata.Type Metadata.Value
-  , deepTypes :: Relation4 Reference Name Metadata.Type Metadata.Value
+  , deepTerms :: Metadata.R4 Referent Name
+  , deepTypes :: Metadata.R4 Reference Name
   , deepPaths :: Set Path
   , deepEdits :: Map Name EditHash
   }

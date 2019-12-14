@@ -6,7 +6,6 @@ import Unison.Prelude
 
 import Unison.Util.Relation (Relation)
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import qualified Unison.Hashable as H
 import qualified Unison.Util.Relation as R
 import Data.Semigroup (Sum(Sum, getSum))

@@ -3,30 +3,14 @@
 
 module Unison.Codebase.Editor.Output.BranchDiff where
 
-import qualified Unison.Util.Relation as R
 import Unison.ConstructorType (ConstructorType)
 import Unison.HashQualified (HashQualified)
 import Unison.Name (Name)
-import Unison.Parser (Ann)
-import Unison.Symbol (Symbol)
 import Unison.Type (Type)
-import qualified Unison.Codebase.BranchDiff as B
 import qualified Unison.Codebase.Patch as P
 import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.Util.Star3 as Star3
-import qualified Unison.Codebase.Metadata as Metadata
-import qualified Unison.Runtime.IOSource as IOSource
 
-import Unison.Codebase.Metadata (Star)
 import Unison.Reference (Reference)
-import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Codebase.TermEdit as TermEdit
-import qualified Unison.Codebase.TypeEdit as TypeEdit
-import qualified Data.Set as Set
-import qualified Data.Map as Map
-import Data.Set (Set)
-import Data.Map (Map)
 
 data Thing tm ty patch = Term tm | Type ty | Patch patch deriving (Ord,Eq)
 
@@ -44,7 +28,7 @@ hydrateOutput :: Monad m
                       (HashQualified, Type v a)
                       HashQualified
                       (Name, P.PatchDiff))
-hydrateOutput typeOf ctorType ppe diff = undefined
+hydrateOutput _typeOf _ctorType _ppe _diff = undefined
 
 data BranchDiffOutput tm ty patch = BranchDiffOutput {
   -- if fst pair /= snd pair, then the definition was replaced;

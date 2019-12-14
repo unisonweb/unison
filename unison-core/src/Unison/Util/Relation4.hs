@@ -3,7 +3,7 @@
 module Unison.Util.Relation4 where
 
 import Unison.Prelude hiding (toList, empty)
-
+import Prelude
 import qualified Data.Map as Map
 --import qualified Data.Set as Set
 import qualified Unison.Hashable as H
@@ -41,6 +41,9 @@ empty = mempty
 fromList :: (Ord a, Ord b, Ord c, Ord d) => [(a,b,c,d)] -> Relation4 a b c d
 fromList xs = insertAll xs empty
 
+filter :: (Ord a, Ord b, Ord c, Ord d) => ((a,b,c,d) -> Bool) -> Relation4 a b c d -> Relation4 a b c d
+filter f = fromList . Prelude.filter f . toList
+
 selectD3 :: (Ord a, Ord b, Ord c, Ord d) 
   => c -> Relation4 a b c d -> Relation4 a b c d
 selectD3 c r = 
@@ -59,6 +62,9 @@ d1set = Map.keysSet . d1
 
 d12 :: (Ord a, Ord b) => Relation4 a b c d -> Relation a b
 d12 = R.fromMultimap . fmap (Map.keysSet . R3.d1) . d1
+
+d34 :: (Ord c, Ord d) => Relation4 a b c d -> Relation c d
+d34 = R.fromMultimap . fmap (Map.keysSet . R3.d3) . d3
 
 -- todo: make me faster
 d12s :: (Ord a, Ord b) => Relation4 a b c d -> [(a,b)]

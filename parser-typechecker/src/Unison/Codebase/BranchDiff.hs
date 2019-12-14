@@ -4,7 +4,6 @@ import Data.Map (Map)
 import Data.Set (Set)
 import Unison.Codebase.Branch (Branch0(..))
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Metadata (Star)
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Patch as P
 import qualified Unison.Codebase.TermEdit as TermEdit
@@ -14,7 +13,6 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Util.Relation as R
-import Unison.Util.Relation4 (Relation4)
 
 data DiffType a = Create a | Delete a | Modify a
 
@@ -54,7 +52,7 @@ diff0 old new patch = BranchDiff terms types where
 
 --unpackMetadata :: Branch0 m ->
 
-deepr4ToSlice :: Relation4 r Name Metadata.Type Metadata.Value -> NamespaceSlice r
+deepr4ToSlice :: Metadata.R4 r Name -> NamespaceSlice r
 deepr4ToSlice = undefined -- NamespaceSlice (Star3.d1 s) (unpackMetadata s) where
 
 computeSlices :: NamespaceSlice Referent

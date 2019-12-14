@@ -23,6 +23,7 @@ type Metadata = Map Type (Set Value)
 -- `Type` is the type of metadata. Duplicate info to speed up certain queries.
 -- `(Type, Value)` is the metadata value itself along with its type.
 type Star a n = Star3 a n Type (Type, Value)
+type R4 a n = R4.Relation4 a n Type Value 
 
 -- starToR4 not needed if https://github.com/unisonweb/unison/issues/1060
 starToR4 :: (Ord r, Ord n) => Star r n -> Relation4 r n Type Value

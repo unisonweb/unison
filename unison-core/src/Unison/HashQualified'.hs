@@ -78,12 +78,12 @@ fromNamedReference n r = HashQualified n (Reference.toShortHash r)
 fromName :: n -> HashQualified' n
 fromName = NameOnly
 
-matchesNamedReferent :: Name -> Referent -> HashQualified -> Bool
+matchesNamedReferent :: Eq n => n -> Referent -> HashQualified' n -> Bool
 matchesNamedReferent n r = \case
   NameOnly n' -> n' == n
   HashQualified n' sh -> n' == n && sh `SH.isPrefixOf` Referent.toShortHash r
 
-matchesNamedReference :: Name -> Reference -> HashQualified -> Bool
+matchesNamedReference :: Eq n => n -> Reference -> HashQualified' n -> Bool
 matchesNamedReference n r = \case
   NameOnly n' -> n' == n
   HashQualified n' sh -> n' == n && sh `SH.isPrefixOf` Reference.toShortHash r

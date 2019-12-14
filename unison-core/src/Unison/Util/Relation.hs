@@ -315,7 +315,8 @@ compactSet = S.fold (S.union . fromMaybe S.empty) S.empty
 
 
 -- | Domain restriction for a relation. Modeled on z.
-(<|) :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
+(<|), restrictDom :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
+restrictDom = (<|)
 s <| r = fromList
   $ concatMap (\(x, y) -> zip (repeat x) (S.toList y)) (M.toList domain')
  where
@@ -324,7 +325,8 @@ s <| r = fromList
   dr = domain r  -- just to memoize the value
 
 -- | Range restriction for a relation. Modeled on z.
-(|>) :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
+(|>), restrictRan :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
+restrictRan = (|>)
 r |> t = fromList
   $ concatMap (\(x, y) -> zip (S.toList y) (repeat x)) (M.toList range')
  where

@@ -485,15 +485,14 @@ loop = do
       DiffNamespaceI before0 after0 patch0 -> do
         let [beforep, afterp] = 
               Path.toAbsolutePath currentPath' <$> [before0, after0]
-        before <- getAt beforep
-        after <- getAt afterp
-        patch <- case patch0 of 
+        before <- Branch.head <$> getAt beforep
+        after <- Branch.head <$> getAt afterp
+        patch <- fromMaybe mempty <$> case patch0 of
           Nothing -> pure Nothing
           Just patchPath -> getPatchAtSplit' patchPath
---        diff <- eval . Eval $
---          BranchDiff.diff0 (Branch.head before) (Branch.head after)
+        diff <- eval . Eval . undefined $ BranchDiff.diff0 before after patch
         --- diff0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m BranchDiff
-        undefined
+        undefined diff
 
       -- move the root to a sub-branch
       MoveBranchI Nothing dest -> do
@@ -1397,7 +1396,7 @@ getLinks :: (Var v, Monad m)
                                 --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
                                  [(HQ.HashQualified, Reference, Maybe (Type v Ann))]))
 getLinks input src mdTypeStr = do
-  let go = fmap Right . getLinks' input src
+  let go = fmap Right . getLinks' src
   case mdTypeStr of
     Left s -> go (Just s)
     Right Nothing -> go Nothing
@@ -1406,39 +1405,23 @@ getLinks input src mdTypeStr = do
       Right typ -> go . Just . Set.singleton $ Type.toReference typ
 
 getLinks' :: (Var v, Monad m)
-         => Input
-         -> Path.HQSplit'         -- definition to print metadata of
+         => Path.HQSplit'         -- definition to print metadata of
          -> Maybe (Set Reference) -- return all metadata if empty
          -> Action' m v ((PPE.PrettyPrintEnv,
                           --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
                          [(HQ.HashQualified, Reference, Maybe (Type v Ann))]))
-getLinks' input src selection0 = do
+getLinks' src selection0 = do
   root0 <- Branch.head <$> use root
   currentPath' <- use currentPath
   let resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
-      getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
-      getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
-      srcle :: [Referent]
-      srcle = toList (getHQ'Terms src) -- list of matching src terms
-      srclt :: [Reference]
-      srclt = toList (getHQ'Types src) -- list of matching src types
-      p = resolveSplit' src -- ex: the parent of `List.map` - `List`
-      mdTerms, mdTypes, allMd :: Metadata.Metadata
-      mdTerms = foldl' Metadata.merge mempty [
-        BranchUtil.getTermMetadataAt p r root0 | r <- srcle ]
-      mdTypes = foldl' Metadata.merge mempty [
-        BranchUtil.getTypeMetadataAt p r root0 | r <- srclt ]
+      p = resolveSplit' src -- ex: the (parent,hqsegment) of `List.map` - `List`
       -- all metadata (type+value) associated with name `src`
-      allMd = Metadata.merge mdTerms mdTypes
-          -- filter allMd according to the specified metadataTypes (if mdTypeStr is empty)
-      allMd' = case selection0 of
-        Nothing -> allMd
-        Just s -> Map.restrictKeys allMd s
-  let
+      allMd = R4.d34 (BranchUtil.getTermMetadataHQNamed p root0)
+           <> R4.d34 (BranchUtil.getTypeMetadataHQNamed p root0)
+      allMd' = maybe allMd (`R.restrictDom` allMd) selection0
       -- then list the values after filtering by type
-      allRefs :: Set Reference = Set.unions $ Map.elems allMd'
-  sigs <- for (toList allRefs) $
-    \r -> loadTypeOfTerm (Referent.Ref r)
+      allRefs :: Set Reference = R.ran allMd'
+  sigs <- for (toList allRefs) (loadTypeOfTerm . Referent.Ref)
   let deps = Set.map LD.termRef allRefs <>
              Set.unions [ Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs ]
   ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled' deps
