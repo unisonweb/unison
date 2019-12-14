@@ -45,7 +45,7 @@ import Unison.Prelude
 
 import qualified Data.Set                     as Set
 import           Prelude                      hiding (filter)
-import           Unison.HashQualified'        (HashQualified)
+import           Unison.HashQualified'        (HashQualified, HashQualified')
 import qualified Unison.HashQualified'        as HQ
 import           Unison.Name                  (Name)
 import qualified Unison.Name                  as Name
@@ -70,7 +70,7 @@ data Names' n = Names
 type Names = Names' HashQualified
 type Names0 = Names' Name
 
-names0ToNames :: Names0 -> Names
+names0ToNames :: Ord n => Names' n -> Names' (HashQualified' n)
 names0ToNames names0 = Names terms' types' where
   terms' = R.map doTerm (terms names0)
   types' = R.map doType (types names0)
