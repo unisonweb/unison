@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 
 module Unison.Name
-  ( Name(..)
+  ( Name
   , fromString
   , isPrefixOf
   , joinDot
@@ -13,6 +13,7 @@ module Unison.Name
   , stripPrefixes
   , suffixes
   , toString
+  , toText
   , toVar
   , unqualified
   , unqualified'
@@ -105,7 +106,7 @@ parent (Name txt) = case unsnoc (Text.splitOn "." txt) of
   Just (init,_) -> Just $ Name (Text.intercalate "." init)
 
 suffixes :: Name -> [Name]
-suffixes (Name n) = 
+suffixes (Name n) =
   fmap up . tails . dropWhile (== "") $ Text.splitOn "." n
   where
   up ns = Name (Text.intercalate "." ns)
