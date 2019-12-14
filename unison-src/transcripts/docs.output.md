@@ -153,13 +153,9 @@ Now that documentation is linked to the definition. We can view it if we like:
   
   ## Examples:
   
-  List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
-  🔽
-  List.take.ex1 = []
-  
-  
-  List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
-  🔽
+  List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5] 🔽
+  List.take.ex1 = []   List.take.ex2 =
+    builtin.List.take 2 [1, 2, 3, 4, 5] 🔽
   List.take.ex2 = [1, 2]
 
 ```
@@ -174,13 +170,9 @@ Or there's also a convenient function, `docs`, which shows the `Doc` values that
   
   ## Examples:
   
-  List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
-  🔽
-  List.take.ex1 = []
-  
-  
-  List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
-  🔽
+  List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5] 🔽
+  List.take.ex1 = []   List.take.ex2 =
+    builtin.List.take 2 [1, 2, 3, 4, 5] 🔽
   List.take.ex2 = [1, 2]
 
 ```
@@ -198,13 +190,8 @@ Note that if we view the source of the documentation, the various references are
     
     ## Examples:
     
-    @[source] ex1
-    🔽
-    @[evaluate] ex1
-    
-    
-    @[source] ex2
-    🔽
+    @[source] ex1 🔽
+    @[evaluate] ex1   @[source] ex2 🔽
     @[evaluate] ex2
     :]
 

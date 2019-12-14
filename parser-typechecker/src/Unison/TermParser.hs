@@ -13,6 +13,7 @@ module Unison.TermParser where
 import Unison.Prelude
 
 import           Control.Monad.Reader (asks, local)
+import           Data.Sequence (Seq ((:<|)))
 import           Prelude hiding (and, or, seq)
 import           Unison.Name (Name)
 import           Unison.Names3 (Names)
@@ -26,6 +27,7 @@ import           Unison.Var (Var)
 import qualified Data.Char as Char
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Data.Sequence as Sequence
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import qualified Unison.DataDeclaration as DD
@@ -302,7 +304,7 @@ docBlock = do
   segs <- many segment
   closeTok <- closeBlock
   let a = ann openTok <> ann closeTok
-  pure $ Term.app a (Term.constructor a DD.docRef DD.docJoinId) (Term.seq a segs)
+  pure . docUnIndent $ Term.app a (Term.constructor a DD.docRef DD.docJoinId) (Term.seq a segs)
   where
   segment = blob <|> linky
   blob = do
@@ -340,6 +342,61 @@ docBlock = do
                       (Term.typeLink (ann tok) (L.payload tok))
   link = d <$> link'' where
     d tm = Term.app (ann tm) (Term.constructor (ann tm) DD.docRef DD.docLinkId) tm
+
+-- Operates on the text of the Blobs within a doc (as parsed by docBlock):
+-- - trims any initial leading spaces
+-- - reduces the whitespace after all newlines so that at least one of the
+--   non-initial lines has zero indent.
+-- The pretty-printer will add indentation when rendering - we undo that here.
+-- The special case for the first line comes from that line sharing with the
+-- `[:` that introduces the doc.  See the doc-formatting.md transcript for examples.
+
+docUnIndent :: (Ord v, Show v) => AnnotatedTerm v a -> AnnotatedTerm v a
+docUnIndent tm = case tm of
+  -- This pattern is just `DD.DocJoin (DD.DocBlob txt1 : rest)`
+  -- but exploded in order to grab the annotations.
+  -- The aim is just to map Text.stripStart over the opening
+  -- text blob, and 'go' over the rest of the doc.
+  a@(Term.App' c@(Term.Constructor' DD.DocRef DD.DocJoinId)
+               s@(Term.Sequence'
+                 (ba@(Term.App' bc@(Term.Constructor' DD.DocRef DD.DocBlobId)
+                                bt@(Term.Text' txt1))
+                 :<| rest)))
+    -> join (ABT.annotation a) (ABT.annotation c) (ABT.annotation s)
+         ((blob (ABT.annotation ba) (ABT.annotation bc) (ABT.annotation bt)
+            $ Text.stripStart txt1) :<| go txt1 rest)
+  -- This pattern is just `DD.DocJoin rest`.  Again, we're just mapping `go` over it.
+  a@(Term.App' c@(Term.Constructor' DD.DocRef DD.DocJoinId) s@(Term.Sequence' rest))
+    -> join (ABT.annotation a) (ABT.annotation c) (ABT.annotation s) (go "" rest)
+  _ -> error $ "unexpected doc structure: " ++ show tm
+  where
+  blob aa ac at txt = Term.app aa
+    (Term.constructor ac DD.docRef DD.docBlobId)
+    (Term.text at txt)
+  join aa ac as segs = Term.app aa
+    (Term.constructor ac DD.docRef DD.docJoinId)
+    (Term.seq' as segs)
+  go :: Ord v => Text -> Sequence.Seq (AnnotatedTerm v a) -> Sequence.Seq (AnnotatedTerm v a)
+  go t tms = (fmap $ mapBlob $ (reduceIndent minIndent)) tms where
+    concatenatedBlobs :: Text
+    concatenatedBlobs = t `mappend` mconcat (toList (fmap getBlob tms))
+    getBlob (DD.DocBlob txt) = txt
+    getBlob _ = "."
+    -- note we exclude the first line
+    lines = drop 1 $ Text.lines concatenatedBlobs
+    minIndent = minimum $ map (Text.length . (Text.takeWhile Char.isSpace)) lines
+    mapBlob :: Ord v => (Text -> Text) -> AnnotatedTerm v a -> AnnotatedTerm v a
+    -- this pattern is just `DD.DocBlob txt` but exploded to capture the annotations as well
+    mapBlob f (aa@(Term.App' ac@(Term.Constructor' DD.DocRef DD.DocBlobId)
+                             at@(Term.Text' txt)))
+      = blob (ABT.annotation aa) (ABT.annotation ac) (ABT.annotation at) (f txt)
+    mapBlob _ t = t
+    reduceIndent :: Int -> Text -> Text
+    reduceIndent n t = result where
+      currentIndent = Text.length $ (Text.takeWhile Char.isSpace) t
+      remainder = (Text.dropWhile Char.isSpace) t
+      newIndent = maximum [0, currentIndent - n]
+      result = Text.replicate newIndent " " `mappend` remainder
 
 delayQuote :: Var v => TermP v
 delayQuote = P.label "quote" $ do
