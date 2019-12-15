@@ -72,7 +72,7 @@ import qualified Unison.DataDeclaration        as DD
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
-import           Unison.Name                    ( Name(Name) )
+import           Unison.Name                    ( Name )
 import           Unison.Names3                  ( Names(..), Names0
                                                 , pattern Names0 )
 import qualified Unison.Names2                 as Names
@@ -2140,7 +2140,7 @@ getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
   [] -> case hq of
     HQ'.HashQualified n hs -> do
       names <- findHistoricalHQs
-        $ Set.fromList [HQ.HashQualified (Name (NameSegment.toText n)) hs]
+        $ Set.fromList [HQ.HashQualified (Name.unsafeFromText (NameSegment.toText n)) hs]
       pure . R.ran $ Names.terms names
     _ -> pure Set.empty
   _ -> pure refs
@@ -2159,9 +2159,9 @@ findHistoricalHQs lexedHQs0 = do
     -- Anyway, this function takes a name, tries to determine whether it is
     -- relative or absolute, and tries to return the corresponding name that is
     -- /relative/ to the root.
-    preprocess n@(Name (Text.unpack -> t)) = case t of
+    preprocess n = case Name.toString n of
       -- some absolute name that isn't just "."
-      '.' : t@(_:_)  -> Name . Text.pack $ t
+      '.' : t@(_:_)  -> Name.unsafeFromString t
       -- something in current path
       _ ->  if Path.isRoot currentPath then n
             else Name.joinDot (Path.toName . Path.unabsolute $ currentPath) n
@@ -2250,7 +2250,7 @@ basicNames0' = do
       -- all names, but with local names in their relative form only, rather
       -- than absolute; external names appear as absolute
       currentAndExternalNames0 = currentPathNames0 `Names3.unionLeft0` absDot externalNames where
-        absDot = Names.prefix0 (Name.Name "")
+        absDot = Names.prefix0 (Name.unsafeFromText "")
         externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
         rootNames = Branch.toNames0 root0
         pathPrefixed = case Path.unabsolute currentPath' of

@@ -195,7 +195,7 @@ branch0 terms types children edits =
   Branch0 terms types children edits
           deepTerms' deepTypes' deepPaths' deepEdits'
   where
-  nameSegToName = Name . NameSegment.toText
+  nameSegToName = Name.unsafeFromText . NameSegment.toText
   deepTerms' = Star3.mapD1 nameSegToName terms
     <> foldMap go (Map.toList children)
    where
