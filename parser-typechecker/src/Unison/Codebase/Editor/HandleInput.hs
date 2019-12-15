@@ -388,8 +388,11 @@ loop = do
             (failed, failedDependents) <-
               getEndangeredDependents (eval . GetDependents) toDelete rootNames
             if failed == mempty then do
-              stepManyAt . fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
-              stepManyAt . fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
+              let makeDeleteTermNames = fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
+              let makeDeleteTypeNames = fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
+              stepManyAt (makeDeleteTermNames ++ makeDeleteTypeNames)
+              root'' <- use root
+              respond $ ShowDiff input (Branch.namesDiff root' root'')
             else do
               failed <-
                 loadSearchResults $ SR.fromNames failed
