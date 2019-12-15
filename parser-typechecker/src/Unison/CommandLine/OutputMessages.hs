@@ -759,15 +759,21 @@ notifyUser dir o = case o of
           , ""
           , prettyDiff diff
           ]
-    Input.DeleteBranchI _ -> P.callout "🆕" . P.lines $
-      [ P.wrap $
-          "Here's what's changed after the delete:"
-      , ""
-      , prettyDiff diff
-      , ""
-      , tip "You can always `undo` if this wasn't what you wanted."
-      ]
+    Input.DeleteBranchI{} -> deleteDiff
+    Input.DeleteI{}       -> deleteDiff
+    Input.DeleteTermI{}   -> deleteDiff
+    Input.DeleteTypeI{}   -> deleteDiff
     _ -> prettyDiff diff
+    where
+      deleteDiff =
+        P.callout "🆕" . P.lines $
+          [ P.wrap $
+              "Here's what's changed after the delete:"
+          , ""
+          , prettyDiff diff
+          , ""
+          , tip "You can always `undo` if this wasn't what you wanted."
+          ]
   NothingTodo input -> pure . P.callout "😶" $ case input of
     Input.MergeLocalBranchI src dest ->
       P.wrap $ "The merge had no effect, since the destination"

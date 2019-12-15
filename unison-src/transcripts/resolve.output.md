@@ -217,6 +217,16 @@ We can resolve the name conflict by deleting one of the names.
 ```ucm
 .example.resolve.c> delete.term foo#jdqoenu794
 
+  🆕
+  
+  Here's what's changed after the delete:
+  
+  - Deletes:
+  
+    example.resolve.c.foo
+  
+  Tip: You can always `undo` if this wasn't what you wanted.
+
 ```
 And that's how you resolve edit conflicts with UCM.
 

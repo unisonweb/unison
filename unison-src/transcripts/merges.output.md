@@ -204,6 +204,16 @@ z = 99
 
 .feature2> delete.term x
 
+  🆕
+  
+  Here's what's changed after the delete:
+  
+  - Deletes:
+  
+    feature2.x
+  
+  Tip: You can always `undo` if this wasn't what you wanted.
+
 ```
 And here's the other fork, where we update `y` and add a new definition, `frobnicate`:
 
