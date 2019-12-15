@@ -7,7 +7,7 @@ pull_request_rules:
     actions:
       merge:
         method: merge
-  - name: delete head branch after merge
-    conditions: []
-    actions:
-      delete_head_branch: {}
+#   - name: delete head branch after merge
+#     conditions: []
+#     actions:
+#       delete_head_branch: {}
