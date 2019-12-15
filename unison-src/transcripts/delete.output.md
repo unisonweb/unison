@@ -181,7 +181,7 @@ I can force my delete through by re-issuing the command.
   
   - Deletes:
   
-    a.foo
+    a.foo#0ja a.foo#jk1
   
   Tip: You can always `undo` if this wasn't what you wanted.
 
@@ -279,7 +279,7 @@ type Foo = Foo Boolean
   
   - Deletes:
   
-    a.Foo
+    a.Foo#d97 a.Foo#gq9
   
   Tip: You can always `undo` if this wasn't what you wanted.
 
@@ -310,7 +310,7 @@ type Foo = Foo Boolean
   
   - Deletes:
   
-    a.Foo.Foo
+    a.Foo.Foo#d97#0 a.Foo.Foo#gq9#0
   
   Tip: You can always `undo` if this wasn't what you wanted.
 
@@ -376,7 +376,7 @@ type foo = Foo Nat
   
   - Deletes:
   
-    foo
+    foo#d97 foo#jk1
   
   Tip: You can always `undo` if this wasn't what you wanted.
 
