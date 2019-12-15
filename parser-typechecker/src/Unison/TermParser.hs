@@ -13,7 +13,6 @@ module Unison.TermParser where
 import Unison.Prelude
 
 import           Control.Monad.Reader (asks, local)
-import           Data.Sequence (Seq ((:<|)))
 import           Prelude hiding (and, or, seq)
 import           Unison.Name (Name)
 import           Unison.Names3 (Names)
@@ -344,30 +343,15 @@ docBlock = do
     d tm = Term.app (ann tm) (Term.constructor (ann tm) DD.docRef DD.docLinkId) tm
 
 -- Operates on the text of the Blobs within a doc (as parsed by docBlock):
--- - trims any initial leading spaces
 -- - reduces the whitespace after all newlines so that at least one of the
 --   non-initial lines has zero indent.
--- The pretty-printer will add indentation when rendering - we undo that here.
--- The special case for the first line comes from that line sharing with the
--- `[:` that introduces the doc.  See the doc-formatting.md transcript for examples.
-
+-- The pretty-printer will add indentation when rendering - we're undoing that here.
 docUnIndent :: (Ord v, Show v) => AnnotatedTerm v a -> AnnotatedTerm v a
 docUnIndent tm = case tm of
-  -- This pattern is just `DD.DocJoin (DD.DocBlob txt1 : rest)`
-  -- but exploded in order to grab the annotations.
-  -- The aim is just to map Text.stripStart over the opening
-  -- text blob, and 'go' over the rest of the doc.
-  a@(Term.App' c@(Term.Constructor' DD.DocRef DD.DocJoinId)
-               s@(Term.Sequence'
-                 (ba@(Term.App' bc@(Term.Constructor' DD.DocRef DD.DocBlobId)
-                                bt@(Term.Text' txt1))
-                 :<| rest)))
-    -> join (ABT.annotation a) (ABT.annotation c) (ABT.annotation s)
-         ((blob (ABT.annotation ba) (ABT.annotation bc) (ABT.annotation bt)
-            $ Text.stripStart txt1) :<| go txt1 rest)
-  -- This pattern is just `DD.DocJoin rest`.  Again, we're just mapping `go` over it.
-  a@(Term.App' c@(Term.Constructor' DD.DocRef DD.DocJoinId) s@(Term.Sequence' rest))
-    -> join (ABT.annotation a) (ABT.annotation c) (ABT.annotation s) (go "" rest)
+  -- This pattern is just `DD.DocJoin seqs`, but exploded in order to grab
+  -- the annotations.  The aim is just to map `go` over it.
+  a@(Term.App' c@(Term.Constructor' DD.DocRef DD.DocJoinId) s@(Term.Sequence' seqs))
+    -> join (ABT.annotation a) (ABT.annotation c) (ABT.annotation s) (go seqs) where
   _ -> error $ "unexpected doc structure: " ++ show tm
   where
   blob aa ac at txt = Term.app aa
@@ -376,15 +360,18 @@ docUnIndent tm = case tm of
   join aa ac as segs = Term.app aa
     (Term.constructor ac DD.docRef DD.docJoinId)
     (Term.seq' as segs)
-  go :: Ord v => Text -> Sequence.Seq (AnnotatedTerm v a) -> Sequence.Seq (AnnotatedTerm v a)
-  go t tms = (fmap $ mapBlob $ (reduceIndent minIndent)) tms where
+  go :: Ord v => Sequence.Seq (AnnotatedTerm v a) -> Sequence.Seq (AnnotatedTerm v a)
+  go tms = (fmap $ mapBlob $ (reduceIndent minIndent)) tms where
     concatenatedBlobs :: Text
-    concatenatedBlobs = t `mappend` mconcat (toList (fmap getBlob tms))
+    concatenatedBlobs = mconcat (toList (fmap getBlob tms))
     getBlob (DD.DocBlob txt) = txt
     getBlob _ = "."
-    -- note we exclude the first line
-    lines = drop 1 $ Text.lines concatenatedBlobs
-    minIndent = minimum $ map (Text.length . (Text.takeWhile Char.isSpace)) lines
+    -- Note we exclude the first line when calculating the minimum indent - the lexer
+    -- already stripped leading spaces from it, and anyway it would have been sharing
+    -- its line with the [: and maybe other stuff.
+    nonInitialLines = drop 1 $ Text.lines concatenatedBlobs
+    minIndent = minimumOrZero $ map (Text.length . (Text.takeWhile Char.isSpace)) nonInitialLines
+    minimumOrZero xs = if length xs == 0 then 0 else minimum xs
     mapBlob :: Ord v => (Text -> Text) -> AnnotatedTerm v a -> AnnotatedTerm v a
     -- this pattern is just `DD.DocBlob txt` but exploded to capture the annotations as well
     mapBlob f (aa@(Term.App' ac@(Term.Constructor' DD.DocRef DD.DocBlobId)
@@ -392,11 +379,16 @@ docUnIndent tm = case tm of
       = blob (ABT.annotation aa) (ABT.annotation ac) (ABT.annotation at) (f txt)
     mapBlob _ t = t
     reduceIndent :: Int -> Text -> Text
-    reduceIndent n t = result where
-      currentIndent = Text.length $ (Text.takeWhile Char.isSpace) t
-      remainder = (Text.dropWhile Char.isSpace) t
-      newIndent = maximum [0, currentIndent - n]
-      result = Text.replicate newIndent " " `mappend` remainder
+    reduceIndent n t = fixup $ Text.unlines $ map reduceLineIndent $ Text.lines t where
+      reduceLineIndent l = result where
+        currentIndent = Text.length $ (Text.takeWhile Char.isSpace) l
+        remainder = (Text.dropWhile Char.isSpace) l
+        newIndent = maximum [0, currentIndent - n]
+        result = Text.replicate newIndent " " `mappend` remainder
+      -- unlines . lines adds a trailing newline if one was not present: undo that.
+      fixup = if Text.takeEnd 1 t == "\n"
+              then id
+              else Text.dropEnd 1
 
 delayQuote :: Var v => TermP v
 delayQuote = P.label "quote" $ do
