@@ -1,3 +1,6 @@
+
+
+
 # Documenting Unison code
 
 Unison documentation is written in Unison. Documentation is a value of the following type:
@@ -50,7 +53,7 @@ use .builtin
 
 docs.List.take = [:
 
-`@List.take n xs` returns the first `n` elements of `xs`. (No need to add line breaks manually. The display command will do wrapping of text for you.)
+`@List.take n xs` returns the first `n` elements of `xs`. (No need to add line breaks manually. The display command will do wrapping of text for you.  Indent any lines where you don't want it to do this.)
 
 ## Examples:
 

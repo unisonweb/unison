@@ -303,7 +303,7 @@ docBlock = do
   segs <- many segment
   closeTok <- closeBlock
   let a = ann openTok <> ann closeTok
-  pure . docUnIndent $ Term.app a (Term.constructor a DD.docRef DD.docJoinId) (Term.seq a segs)
+  pure . docNormalize $ Term.app a (Term.constructor a DD.docRef DD.docJoinId) (Term.seq a segs)
   where
   segment = blob <|> linky
   blob = do
@@ -344,10 +344,17 @@ docBlock = do
 
 -- Operates on the text of the Blobs within a doc (as parsed by docBlock):
 -- - reduces the whitespace after all newlines so that at least one of the
---   non-initial lines has zero indent.
--- The pretty-printer will add indentation when rendering - we're undoing that here.
-docUnIndent :: (Ord v, Show v) => AnnotatedTerm v a -> AnnotatedTerm v a
-docUnIndent tm = case tm of
+--   non-initial lines has zero indent (important because the pretty-printer adds
+--   indenting every time the doc passes through it)
+-- TODO implement the following
+-- - remove trailing whitespace from each line
+-- - remove newlines between any sequence of non-empty zero-indent lines
+--   (i.e. undo manual line-breaking within paragraphs.)
+-- Should be understood in tandem with Util.Pretty.paragraphyText, which
+-- outputs doc text for display/edit/view.
+-- See also unison-src/transcripts/doc-formatting.md.
+docNormalize :: (Ord v, Show v) => AnnotatedTerm v a -> AnnotatedTerm v a
+docNormalize tm = case tm of
   -- This pattern is just `DD.DocJoin seqs`, but exploded in order to grab
   -- the annotations.  The aim is just to map `go` over it.
   a@(Term.App' c@(Term.Constructor' DD.DocRef DD.DocJoinId) s@(Term.Sequence' seqs))

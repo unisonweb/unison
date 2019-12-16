@@ -144,9 +144,15 @@ wrapImpl (p:ps) = wrap_ . Seq.fromList $
 wrapString :: (LL.ListLike s Char, IsString s) => String -> Pretty s
 wrapString s = wrap (lit $ fromString s)
 
--- 0. Preserve all leading and trailing whitespace 
+-- TODO - replace this spec...
+-- 0. Preserve all leading and trailing whitespace
 -- 1. Preserve all newlines
 -- 2. Wrap all text in between newlines
+-- TODO ... with this one:
+-- Wrap all text on lines that don't start with a space.
+-- Preserve other whitespace.
+-- Should be understood in tandem with TermParser.docNormalize.
+-- See also unison-src/transcripts/doc-formatting.md.
 paragraphyText :: (LL.ListLike s Char, IsString s) => Text -> Pretty s
 paragraphyText t = text start <> inner <> text end where
   inner = sep "\n" . fmap (wrap . text) . Text.splitOn "\n" $ t'
