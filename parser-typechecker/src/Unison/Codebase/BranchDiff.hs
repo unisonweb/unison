@@ -1,11 +1,16 @@
 module Unison.Codebase.BranchDiff where
 
+import Unison.Prelude
 import Data.Map (Map)
 import Data.Set (Set)
+import qualified Data.Set as Set
+import qualified Data.Map as Map
 import Unison.Codebase.Branch (Branch0(..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Metadata as Metadata
+import qualified Unison.Codebase.Patch as Patch
 import qualified Unison.Codebase.Patch as P
+import Unison.Codebase.Patch (Patch, PatchDiff)
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.Name (Name)
@@ -18,7 +23,6 @@ import qualified Unison.Util.Relation4 as R4
 data DiffType a = Create a | Delete a | Modify a
 
 -- todo: maybe simplify this file using Relation3?
-
 data NamespaceSlice r = NamespaceSlice {
   names :: R.Relation r Name,
   metadata :: R.Relation r (Name, Metadata.Value)
@@ -38,18 +42,40 @@ data DiffSlice r = DiffSlice {
 data BranchDiff = BranchDiff
   { termsDiff :: DiffSlice Referent
   , typesDiff :: DiffSlice Reference
-  -- todo: patchesDiff :: Map Name (DiffType Patch.PatchDiff)  
+  , patchesDiff :: Map Name (DiffType PatchDiff)
   }
 
-diff0 :: forall m. Monad m => Branch0 m -> Branch0 m -> P.Patch -> BranchDiff
-diff0 old new patch = BranchDiff terms types where
-  (terms, types) = undefined
+diff0 :: forall m. Monad m => Branch0 m -> Branch0 m -> P.Patch -> m BranchDiff
+diff0 old new patch = BranchDiff terms types <$> patchDiff old new where
+  (terms, types) =
     computeSlices
       (deepr4ToSlice (Branch.deepTerms old) (Branch.deepTermMetadata old))
       (deepr4ToSlice (Branch.deepTerms new) (Branch.deepTermMetadata new))
       (deepr4ToSlice (Branch.deepTypes old) (Branch.deepTypeMetadata old))
       (deepr4ToSlice (Branch.deepTypes new) (Branch.deepTypeMetadata new))
       patch
+
+patchDiff :: forall m. Monad m => Branch0 m -> Branch0 m -> m (Map Name (DiffType PatchDiff))
+patchDiff old new = do
+  let oldDeepEdits, newDeepEdits :: Map Name (Branch.EditHash, m Patch)
+      oldDeepEdits = Branch.deepEdits' old
+      newDeepEdits = Branch.deepEdits' new
+  added <- do
+    addedPatches :: Map Name Patch <-
+      traverse snd $ Map.difference newDeepEdits oldDeepEdits
+    pure $ fmap (\p -> Create (Patch.diff p mempty)) addedPatches
+  removed <- do
+    removedPatches :: Map Name Patch <-
+      traverse snd $ Map.difference oldDeepEdits newDeepEdits
+    pure $ fmap (\p -> Delete (Patch.diff mempty p)) removedPatches
+
+  let f acc k = case (Map.lookup k oldDeepEdits, Map.lookup k newDeepEdits) of
+        (Just (h1,p1), Just (h2,p2)) ->
+          if h1 == h2 then pure acc
+          else Map.singleton k . Modify <$> (Patch.diff <$> p2 <*> p1)
+        _ -> error "we've done something very wrong"
+  modified <- foldM f mempty (Set.intersection (Map.keysSet oldDeepEdits) (Map.keysSet newDeepEdits))
+  pure $ added <> removed <> modified
 
 deepr4ToSlice :: Ord r
               => R.Relation r Name
@@ -157,11 +183,4 @@ computeSlices oldTerms newTerms oldTypes newTypes p = (termsOut, typesOut) where
 --          _ -> error "we've done something very wrong"
 --    modified <- foldM f mempty (Set.intersection (Map.keysSet oldDeepEdits) (Map.keysSet newDeepEdits))
 --    pure $ added <> removed <> modified
---
---  pure $ BranchDiff
---    { addedTerms = Star3.difference (Branch.deepTerms new) (Branch.deepTerms old)
---    , removedTerms = Star3.difference (Branch.deepTerms old) (Branch.deepTerms new)
---    , addedTypes = Star3.difference (Branch.deepTypes new) (Branch.deepTypes old)
---    , removedTypes = Star3.difference (Branch.deepTypes old) (Branch.deepTypes new)
---    , changedPatches = diffEdits
---    }
+
