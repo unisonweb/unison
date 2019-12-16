@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.TermPrinter where
 
@@ -221,8 +222,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
         fmt S.ControlKeyword "||",
         pretty0 n (ac 10 Normal im) y
       ]
-    LetRecNamed' bs e -> printLet bc bs e im' uses
-    Lets' bs e -> printLet bc (map (\(_, v, binding) -> (v, binding)) bs) e im' uses
+    LetBlock bs e -> printLet bc bs e im' uses
     Match' scrutinee branches -> paren (p >= 2) $
       ((fmt S.ControlKeyword "case ") <> pretty0 n (ac 2 Normal im) scrutinee <> (fmt S.ControlKeyword " of")) `PP.hang` bs
       where bs = PP.lines (map printCase branches)
@@ -801,7 +801,7 @@ calcImports im tm = (im', render $ getUses result)
                                  Just s  -> (Text.length s') < (Text.length s)
                                  Nothing -> True
     -- Is there a strictly smaller block term underneath this one, containing all the usages
-    -- of some of the names?  Skip omitting `use` statements for those, so we can do it
+    -- of some of the names?  Skip emitting `use` statements for those, so we can do it
     -- further down, closer to the use sites.
     narrowestPossible :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)
     narrowestPossible m = m |> Map.filter (\(p, s, i) -> not $ allInSubBlock tm p s i)
@@ -821,10 +821,15 @@ calcImports im tm = (im', render $ getUses result)
                     in PP.lines (uses ++ rest)
 
 -- Given a block term and a name (Prefix, Suffix) of interest, is there a strictly smaller
--- block term within it, containing all usages of that name?  ABT.find does the heavy lifting.
--- Things are complicated by the fact that you can't always tell if a term is a blockterm just
+-- blockterm within it, containing all usages of that name?  A blockterm is a place
+-- where the syntax lets us put a use statement, like the branches of an if/then/else.
+-- We traverse the block terms by traversing the whole subtree with ABT.find, and paying
+-- attention to those subterms that look like a blockterm.  This is complicated
+-- by the fact that you can't always tell if a term is a blockterm just
 -- by looking at it: in some cases you can only tell when you can see it in the context of
--- the wider term that contains it.  Hence `immediateChildBlockTerms`.
+-- the wider term that contains it.  So actually we traverse the tree, at each term
+-- looking for child terms that are block terms, and see if any of those contain
+-- all the usages of the name.  
 -- Cut out the occurrences of "const id $" to get tracing.
 allInSubBlock :: (Var v, Ord v) => AnnotatedTerm3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
 allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
@@ -861,8 +866,7 @@ immediateChildBlockTerms :: (Var vt, Var v) => AnnotatedTerm2 vt at ap v a -> [A
 immediateChildBlockTerms = \case
     Handle' _ body -> [body]
     If' _ t f -> [t, f]
-    tm@(LetRecNamed' bs _) -> [tm] ++ (concat $ map doLet bs)
-    tm@(Lets' bs _)        -> [tm] ++ (concat $ map doLet ((map (\(_, v, binding) -> (v, binding)) bs)))
+    LetBlock bs _ -> concat $ map doLet bs
     Match' _ branches -> concat $ map doCase branches
     _ -> []
   where
@@ -873,3 +877,33 @@ immediateChildBlockTerms = \case
                                       then []
                                       else [body]
     doLet t = error (show t) []
+
+pattern LetBlock bindings body <- (unLetBlock -> Just (bindings, body)) 
+
+-- Collects nested let/let rec blocks into one minimally nested block.
+-- Handy because `let` and `let rec` blocks get rendered the same way.
+-- We preserve nesting when the inner block shadows definitions in the
+-- outer block.
+unLetBlock 
+  :: Ord v
+  => AnnotatedTerm2 vt at ap v a
+  -> Maybe ([(v, AnnotatedTerm2 vt at ap v a)], AnnotatedTerm2 vt at ap v a)
+unLetBlock t = rec t where
+  dontIntersect v1s v2s = 
+    all (`Set.notMember` v2set) (fst <$> v1s) where
+    v2set = Set.fromList (fst <$> v2s)
+  rec t = case unLetRecNamed t of
+    Nothing -> nonrec t
+    Just (_isTop, bindings, body) -> case rec body of
+      Just (innerBindings, innerBody) | dontIntersect bindings innerBindings -> 
+        Just (bindings ++ innerBindings, innerBody)
+      _ -> Just (bindings, body)
+  nonrec t = case unLet t of
+    Nothing -> Nothing
+    Just (bindings0, body) -> 
+      let bindings = [ (v,b) | (_,v,b) <- bindings0 ] in 
+      case rec body of
+        Just (innerBindings, innerBody) | dontIntersect bindings innerBindings -> 
+          Just (bindings ++ innerBindings, innerBody)
+        _ -> Just (bindings, body) 
+

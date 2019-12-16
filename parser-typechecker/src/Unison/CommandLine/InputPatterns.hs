@@ -316,7 +316,7 @@ renameType = InputPattern "move.type" ["rename.type"]
 
 delete :: InputPattern
 delete = InputPattern "delete" []
-    [(OnePlus, exactDefinitionTermQueryArg)]
+    [(OnePlus, exactDefinitionQueryArg)]
     "`delete foo` removes the term or type name `foo` from the namespace."
     (\case
       [query] -> first fromString $ do

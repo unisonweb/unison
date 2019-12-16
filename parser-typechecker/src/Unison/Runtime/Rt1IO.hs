@@ -98,6 +98,7 @@ import qualified Unison.Var                    as Var
 import qualified Unison.Util.Pretty as P
 import qualified Unison.TermPrinter as TermPrinter
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.Typechecker.Components as Components
 
 -- TODO: Make this exception more structured?
 newtype UnisonRuntimeException = UnisonRuntimeException Text
@@ -470,6 +471,10 @@ runtime = Runtime terminate eval
       (Map.fromList [("stdin", stdin), ("stdout", stdout), ("stderr", stderr)])
       Map.empty
       Map.empty
+    term <- case Components.minimize' term of
+      Left es -> fail . reportBug "B23784210" $
+                 "Term contains duplicate definitions: " <> show (fst <$> es)  
+      Right term -> pure term 
     r <- try $ RT.run (handleIO' cenv $ S mmap)
                  cenv
                  (IR.compile cenv $ Term.amap (const ()) term)
@@ -487,6 +492,17 @@ toTermOrError ppe r = case r of
       P.indentN 2 $ TermPrinter.pretty ppe scrute,
       "",
       P.wrap "This happens when calling a function that doesn't handle all possible inputs.",
+      "", sorryMsg
+      ]
+  Right (RT.RError t val) -> do
+    msg <- IR.decompile val
+    let errorType = case t of 
+                      RT.ErrorTypeTodo -> "builtin.todo" 
+                      RT.ErrorTypeBug -> "builtin.bug"
+    pure . Left . P.callout icon . P.lines $ [
+      P.wrap ("I've encountered a call to" <> P.red errorType
+              <> "with the following value:"), "",
+      P.indentN 2 $ TermPrinter.pretty ppe msg,
       "", sorryMsg
       ]
   Right (RT.RRequest (IR.Req r cid vs _)) -> do

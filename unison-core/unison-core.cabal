@@ -36,6 +36,7 @@ library
   exposed-modules:
     Unison.ABT
     Unison.Blank
+    Unison.Codebase.NameSegment
     Unison.ConstructorType
     Unison.DataDeclaration
     Unison.Hash
@@ -59,7 +60,6 @@ library
     Unison.Symbol
     Unison.Term
     Unison.Type
-    Unison.TypeVar
     Unison.Util.Components
     Unison.Util.List
     Unison.Util.Monoid

@@ -27,7 +27,7 @@ toString :: NameSegment -> String
 toString = Text.unpack . toText
 
 toName :: NameSegment -> Name.Name
-toName = Name.Name . toText
+toName = Name.unsafeFromText . toText
 
 segments :: Name.Name -> [NameSegment]
 segments name = NameSegment <$> Text.splitOn "." (Name.toText name)

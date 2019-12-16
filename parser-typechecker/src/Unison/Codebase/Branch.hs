@@ -202,7 +202,7 @@ branch0 terms types children edits =
           deepTermMetadata' deepTypeMetadata'
           deepPaths' deepEdits'
   where
-  nameSegToName = Name . NameSegment.toText
+  nameSegToName = Name.unsafeFromText . NameSegment.toText
   deepTerms' = (R.mapRan nameSegToName . Star3.d1) terms
     <> foldMap go (Map.toList children)
    where

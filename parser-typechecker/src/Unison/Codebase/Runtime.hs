@@ -10,12 +10,14 @@ import qualified Unison.ABT                    as ABT
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Unison.Codebase.CodeLookup    as CL
+import qualified Unison.Codebase               as Codebase
 import           Unison.UnisonFile              ( UnisonFile )
 import qualified Unison.Term                   as Term
 import           Unison.Term                    ( Term
                                                 , AnnotatedTerm
                                                 )
 import           Unison.Var                     ( Var )
+import qualified Unison.Var                    as Var
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.UnisonFile             as UF
@@ -110,3 +112,19 @@ evaluateWatches code ppe evaluationCache rt uf = do
       Nothing -> Nothing
       Just v  -> Just (Term.var (ABT.annotation t) v)
     go _ = Nothing
+
+evaluateTerm
+  :: (Var v, Monoid a)
+  => CL.CodeLookup v IO a
+  -> PPE.PrettyPrintEnv
+  -> Runtime v
+  -> Term.AnnotatedTerm v a
+  -> IO (Either Error (ABT.Term (Term.F v () ()) v ()))
+evaluateTerm codeLookup ppe rt tm = do
+  let uf = UF.UnisonFile mempty mempty mempty
+             (Map.singleton UF.RegularWatch [(Var.nameds "result", tm)])
+  selfContained <- Codebase.makeSelfContained' codeLookup uf
+  r <- evaluateWatches codeLookup ppe noCache rt selfContained
+  pure $ r <&> \(_,map) ->
+    let [(_loc, _kind, _hash, _src, value, _isHit)] = Map.elems map
+    in value

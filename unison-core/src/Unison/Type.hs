@@ -23,15 +23,12 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Prelude.Extras (Eq1(..),Show1(..),Ord1(..))
 import qualified Unison.ABT as ABT
-import           Unison.Blank
 import           Unison.Hashable (Hashable1)
 import qualified Unison.Hashable as Hashable
 import qualified Unison.Kind as K
 import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Reference.Util as ReferenceUtil
-import           Unison.TypeVar (TypeVar)
-import qualified Unison.TypeVar as TypeVar
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.Settings as Settings
@@ -125,8 +122,6 @@ pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 pattern Var' v <- ABT.Var' v
 pattern Cycle' xs t <- ABT.Cycle' xs t
 pattern Abs' subst <- ABT.Abs' subst
-pattern Existential' b v <- ABT.Var' (TypeVar.Existential b v)
-pattern Universal' v <- ABT.Var' (TypeVar.Universal v)
 
 unPure :: Ord v => Type v a -> Maybe (Type v a)
 unPure (Effect'' [] t) = Just t
@@ -187,14 +182,6 @@ unEffect0 t              = ([], t)
 unEffects1 :: Ord v => Type v a -> Maybe ([Type v a], Type v a)
 unEffects1 (Effect1' (Effects' es) a) = Just (es, a)
 unEffects1 _                          = Nothing
-
-matchExistential :: Eq v => v -> Type (TypeVar b v) () -> Bool
-matchExistential v (Existential' _ x) = x == v
-matchExistential _ _ = False
-
-matchUniversal :: Eq v => v -> Type (TypeVar b v) () -> Bool
-matchUniversal v (Universal' x) = x == v
-matchUniversal _ _ = False
 
 -- | True if the given type is a function, possibly quantified
 isArrow :: ABT.Var v => Type v a -> Bool
@@ -323,21 +310,6 @@ andor' a = arrows (f <$> [boolean a, boolean a]) $ boolean a
 var :: Ord v => a -> v -> Type v a
 var = ABT.annotatedVar
 
-existential :: Ord v => Blank loc -> v -> Type (TypeVar (Blank loc) v) ()
-existential blank v = ABT.var (TypeVar.Existential blank v)
-
-universal :: Ord v => v -> Type (TypeVar b v) ()
-universal v = ABT.var (TypeVar.Universal v)
-
-existentialp :: Ord v => a -> v -> Type (TypeVar (Blank x) v) a
-existentialp a = existential' a Blank
-
-existential' :: Ord v => a -> Blank x -> v -> Type (TypeVar (Blank x) v) a
-existential' a blank v = ABT.annotatedVar a (TypeVar.Existential blank v)
-
-universal' :: Ord v => a -> v -> Type (TypeVar b v) a
-universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
-
 v' :: Var v => Text -> Type v ()
 v' s = ABT.var (Var.named s)
 
@@ -405,14 +377,6 @@ generalize vs t = foldr f t vs
   f v t =
     if Set.member v (ABT.freeVars t) then forall (ABT.annotation t) v t else t
 
-generalizeExistentials
-  :: Ord v => Type (TypeVar b v) a -> Type (TypeVar b v) a
-generalizeExistentials t =
-  generalize (filter isExistential . Set.toList $ freeVars t) t
-  where
-  isExistential (TypeVar.Existential _ _) = True
-  isExistential _ = False
-
 unforall :: Type v a -> Type v a
 unforall (ForallsNamed' _ t) = t
 unforall t = t
@@ -420,13 +384,6 @@ unforall t = t
 unforall' :: Type v a -> ([v], Type v a)
 unforall' (ForallsNamed' vs t) = (vs, t)
 unforall' t = ([], t)
-
-generalizeAndUnTypeVar :: Var v => Type (TypeVar b v) a -> Type v a
-generalizeAndUnTypeVar t =
-  cleanup . ABT.vmap TypeVar.underlying . generalize (Set.toList $ ABT.freeVars t) $ t
-
-toTypeVar :: Ord v => Type v a -> Type (TypeVar b v) a
-toTypeVar = ABT.vmap TypeVar.Universal
 
 dependencies :: Ord v => Type v a -> Set Reference
 dependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t

@@ -6,16 +6,18 @@ This markdown file is also a Unison transcript file. Transcript files are an eas
 The format is just a regular markdown file with some fenced code blocks that are typechecked and elaborated by `ucm`. For example, you can call this transcript via:
 
 ```
-$ ucm hello.md
+$ ucm transcript hello.md
 
 ```
 
-> Alternately `ucm sandbox hello.md` runs the transcript on a freshly generated temporary codebase. Do `ucm help` to learn more about usage.
+This runs it on a freshly generated empty codebase. Alternately `ucm transcript.fork -codebase /path/to/code hello.md` runs the transcript on a freshly generated copy of the provided codebase. Do `ucm help` to learn more about usage.
 
 Fenced code blocks of type `unison` and `ucm` are treated specially:
 
 * `ucm` blocks are executed, and the output is interleaved into the output markdown file after each command, replacing the original `ucm` block.
 * `unison` blocks are typechecked, and a `ucm` block with the output of typechecking and execution of the file is inserted immediately afterwards.
+
+Take a look at [the elaborated output](hello.output.md) to see what this file looks like after passing through the transcript runner.
 
 ## Let's try it out!!
 
