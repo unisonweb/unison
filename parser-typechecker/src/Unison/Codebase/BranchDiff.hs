@@ -3,7 +3,7 @@ module Unison.Codebase.BranchDiff where
 import Data.Map (Map)
 import Data.Set (Set)
 import Unison.Codebase.Branch (Branch0(..))
---import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Patch as P
 import qualified Unison.Codebase.TermEdit as TermEdit
@@ -13,6 +13,7 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Util.Relation as R
+import qualified Unison.Util.Relation4 as R4
 
 data DiffType a = Create a | Delete a | Modify a
 
@@ -37,23 +38,27 @@ data DiffSlice r = DiffSlice {
 data BranchDiff = BranchDiff
   { termsDiff :: DiffSlice Referent
   , typesDiff :: DiffSlice Reference
-  -- patchesDiff :: Map Name (DiffType Patch.PatchDiff)
+  -- todo: patchesDiff :: Map Name (DiffType Patch.PatchDiff)  
   }
 
 diff0 :: forall m. Monad m => Branch0 m -> Branch0 m -> P.Patch -> BranchDiff
-diff0 _old _new _patch = BranchDiff terms types where
+diff0 old new patch = BranchDiff terms types where
   (terms, types) = undefined
---    computeSlices
---      (deepr4ToSlice (Branch.deepTerms old))
---      (deepr4ToSlice (Branch.deepTerms new))
---      (deepr4ToSlice (Branch.deepTypes old))
---      (deepr4ToSlice (Branch.deepTypes new))
---      patch
+    computeSlices
+      (deepr4ToSlice (Branch.deepTerms old) (Branch.deepTermMetadata old))
+      (deepr4ToSlice (Branch.deepTerms new) (Branch.deepTermMetadata new))
+      (deepr4ToSlice (Branch.deepTypes old) (Branch.deepTypeMetadata old))
+      (deepr4ToSlice (Branch.deepTypes new) (Branch.deepTypeMetadata new))
+      patch
 
---unpackMetadata :: Branch0 m ->
-
-deepr4ToSlice :: Metadata.R4 r Name -> NamespaceSlice r
-deepr4ToSlice = undefined -- NamespaceSlice (Star3.d1 s) (unpackMetadata s) where
+deepr4ToSlice :: Ord r
+              => R.Relation r Name
+              -> Metadata.R4 r Name
+              -> NamespaceSlice r
+deepr4ToSlice deepNames deepMetadata =
+  NamespaceSlice deepNames (unpackMetadata deepMetadata)
+  where
+   unpackMetadata = R.fromList . fmap (\(r,n,_t,v) -> (r, (n,v))) . R4.toList
 
 computeSlices :: NamespaceSlice Referent
               -> NamespaceSlice Referent
