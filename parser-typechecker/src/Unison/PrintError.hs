@@ -444,20 +444,37 @@ renderTypeError e env src = case e of
               , intercalateMap "\n" formatSuggestion suggs
               ]
           ]
-  Other (C.cause -> C.HandlerOfUnexpectedType loc typ) ->   
+  DuplicateDefinitions {..} ->
+    mconcat
+      [ Pr.wrap $ mconcat
+          [ "I found"
+          , Pr.shown (length defns)
+          , names
+          , "with multiple definitions:"
+          ]
+      , Pr.lineSkip
+      , Pr.spaced ((\(v, _locs) -> renderVar v) <$> defns)
+      , debugSummary note
+      ]
+    where
+      names =
+        case defns of
+          _ Nel.:| [] -> "name"
+          _           -> "names"
+  Other (C.cause -> C.HandlerOfUnexpectedType loc typ) ->
     Pr.lines [
       Pr.wrap "The handler used here", "",
-      annotatedAsErrorSite src loc, 
+      annotatedAsErrorSite src loc,
       Pr.wrap $
         "has type " <> stylePretty ErrorSite (Pr.group (renderType' env typ))
-        <> "but I'm expecting a function of the form" 
+        <> "but I'm expecting a function of the form"
         <> Pr.group (Pr.blue (renderType' env exHandler) <> ".")
-     ] 
+     ]
     where
     exHandler :: C.Type v loc
     exHandler = fmap (const loc) $
-      Type.arrow () 
-        (Type.apps' (Type.ref () Type.effectRef) 
+      Type.arrow ()
+        (Type.apps' (Type.ref () Type.effectRef)
            [Type.var () (Var.named "e"), Type.var () (Var.named "a") ])
         (Type.var () (Var.named "o"))
 
@@ -964,11 +981,11 @@ prettyParseError s = \case
     showDup (v, locs) =
       "I found multiple types with the name " <> errorVar v <> ":\n\n" <>
       annotatedsStartingLineAsStyle ErrorSite s locs
-  go (Parser.DuplicateTermNames ts) = 
-    Pr.fatalCallout $ intercalateMap "\n\n" showDup ts 
+  go (Parser.DuplicateTermNames ts) =
+    Pr.fatalCallout $ intercalateMap "\n\n" showDup ts
     where
     showDup (v, locs) = Pr.lines [
-      Pr.wrap $ 
+      Pr.wrap $
         "I found multiple bindings with the name " <> Pr.group (errorVar v <> ":"),
       annotatedsStartingLineAsStyle ErrorSite s locs
       ]

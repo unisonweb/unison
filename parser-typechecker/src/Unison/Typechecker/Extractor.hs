@@ -8,6 +8,7 @@ import Unison.Prelude hiding (whenM)
 import           Control.Monad.Fail             ( MonadFail, fail )
 import           Control.Monad.Reader
 import qualified Data.List                     as List
+import           Data.List.NonEmpty            ( NonEmpty )
 import qualified Data.Set                      as Set
 import           Unison.Reference               ( Reference )
 import qualified Unison.Term                   as Term
@@ -222,6 +223,11 @@ inIfBody = asPathExtractor $ \case
 -- Causes --
 cause :: ErrorExtractor v loc (C.Cause v loc)
 cause = extractor $ pure . C.cause
+
+duplicateDefinitions :: ErrorExtractor v loc (NonEmpty (v, [loc]))
+duplicateDefinitions = cause >>= \case
+  C.DuplicateDefinitions vs -> pure vs
+  _                         -> mzero
 
 typeMismatch :: ErrorExtractor v loc (C.Context v loc)
 typeMismatch = cause >>= \case
