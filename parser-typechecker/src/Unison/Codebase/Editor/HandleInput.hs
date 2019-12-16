@@ -483,7 +483,7 @@ loop = do
           else respond $ ShowDiff input (Branch.namesDiff destb merged)
 
       DiffNamespaceI before0 after0 patch0 -> do
-        let [beforep, afterp] = 
+        let [beforep, afterp] =
               Path.toAbsolutePath currentPath' <$> [before0, after0]
         before <- Branch.head <$> getAt beforep
         after <- Branch.head <$> getAt afterp
@@ -878,8 +878,8 @@ loop = do
               1 -> HQ'.fromName ns
               _ -> HQ'.take hashLen $ HQ'.fromNamedReference ns r
           defnCount b =
-            (R4.size . deepTerms $ Branch.head b) +
-            (R4.size . deepTypes $ Branch.head b)
+            (R.size . deepTerms $ Branch.head b) +
+            (R.size . deepTypes $ Branch.head b)
           patchCount b = (length . deepEdits $ Branch.head b)
 
         termEntries <- for (R.toList . Star3.d1 $ _terms b0) $
@@ -1178,7 +1178,7 @@ loop = do
       TestI showOk showFail -> do
         let
           testTerms = Map.keys . R4.d1 . (uncurry R4.selectD34) isTest
-                    . Branch.deepTerms $ currentBranch0
+                    . Branch.deepTermMetadata $ currentBranch0
           testRefs = Set.fromList [ r | Referent.Ref r <- toList testTerms ]
           oks results =
             [ (r, msg)

@@ -23,6 +23,9 @@ data Relation4 a b c d
   , d4 :: Map d (Relation3 a b c)
   } deriving (Eq,Ord)
 
+instance (Show a, Show b, Show c, Show d) => Show (Relation4 a b c d) where
+  show = show . toList
+
 size :: (Ord a, Ord b, Ord c, Ord d) => Relation4 a b c d -> Int
 size = getSum . foldMap (Sum . R3.size) . d1
 
@@ -44,18 +47,18 @@ fromList xs = insertAll xs empty
 filter :: (Ord a, Ord b, Ord c, Ord d) => ((a,b,c,d) -> Bool) -> Relation4 a b c d -> Relation4 a b c d
 filter f = fromList . Prelude.filter f . toList
 
-selectD3 :: (Ord a, Ord b, Ord c, Ord d) 
+selectD3 :: (Ord a, Ord b, Ord c, Ord d)
   => c -> Relation4 a b c d -> Relation4 a b c d
-selectD3 c r = 
-  fromList [ (a,b,c,d) | (a,b,d) <- maybe [] R3.toList $ Map.lookup c (d3 r) ] 
+selectD3 c r =
+  fromList [ (a,b,c,d) | (a,b,d) <- maybe [] R3.toList $ Map.lookup c (d3 r) ]
 
-selectD34 :: (Ord a, Ord b, Ord c, Ord d) 
+selectD34 :: (Ord a, Ord b, Ord c, Ord d)
   => c -> d -> Relation4 a b c d -> Relation4 a b c d
-selectD34 c d r = 
-  fromList [ (a,b,c,d) 
-           | (a,b) <- maybe [] (maybe [] R.toList . Map.lookup d . R3.d3) 
+selectD34 c d r =
+  fromList [ (a,b,c,d)
+           | (a,b) <- maybe [] (maybe [] R.toList . Map.lookup d . R3.d3)
                                (Map.lookup c (d3 r))
-           ] 
+           ]
 
 d1set :: Ord a => Relation4 a b c d -> Set a
 d1set = Map.keysSet . d1
@@ -76,17 +79,24 @@ insert, delete
   => a -> b -> c -> d -> Relation4 a b c d -> Relation4 a b c d
 insert a b c d Relation4{..} =
   Relation4
-    (Map.update (Just . R3.insert b c d) a d1)
-    (Map.update (Just . R3.insert a c d) b d2)
-    (Map.update (Just . R3.insert a b d) c d3)
-    (Map.update (Just . R3.insert a b c) d d4)
+    (Map.alter (ins b c d) a d1)
+    (Map.alter (ins a c d) b d2)
+    (Map.alter (ins a b d) c d3)
+    (Map.alter (ins a b c) d d4)
+  where
+    ins x y z = Just . R3.insert x y z . fromMaybe mempty
 
 delete a b c d Relation4{..} =
   Relation4
-    (Map.update (Just . R3.delete b c d) a d1)
-    (Map.update (Just . R3.delete a c d) b d2)
-    (Map.update (Just . R3.delete a b d) c d3)
-    (Map.update (Just . R3.delete a b c) d d4)
+    (Map.alter (del b c d) a d1)
+    (Map.alter (del a c d) b d2)
+    (Map.alter (del a b d) c d3)
+    (Map.alter (del a b c) d d4)
+  where
+    del _ _ _ Nothing = Nothing
+    del x y z (Just r) =
+      let r' = R3.delete x y z r
+      in if r' == mempty then Nothing else Just r'
 
 mapD2 :: (Ord a, Ord b, Ord b', Ord c, Ord d)
       => (b -> b') -> Relation4 a b c d -> Relation4 a b' c d

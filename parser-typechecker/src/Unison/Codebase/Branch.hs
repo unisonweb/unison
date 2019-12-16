@@ -73,8 +73,10 @@ data Branch0 m = Branch0
   , _edits :: Map NameSegment (EditHash, m Patch)
   -- names and metadata for this branch and its children
   -- (ref, (name, value)) iff ref has metadata `value` at name `name`
-  , deepTerms :: Metadata.R4 Referent Name
-  , deepTypes :: Metadata.R4 Reference Name
+  , deepTerms :: Relation Referent Name
+  , deepTypes :: Relation Reference Name
+  , deepTermMetadata :: Metadata.R4 Referent Name
+  , deepTypeMetadata :: Metadata.R4 Reference Name
   , deepPaths :: Set Path
   , deepEdits :: Map Name EditHash
   }
@@ -117,8 +119,8 @@ makeLensesFor [("_edits", "edits")] ''Branch0
 makeLenses ''Raw
 
 toNames0 :: Branch0 m -> Names0
-toNames0 b = Names (R.swap . R4.d12 . deepTerms $ b)
-                   (R.swap . R4.d12 . deepTypes $ b)
+toNames0 b = Names (R.swap . deepTerms $ b)
+                   (R.swap . deepTypes $ b)
 
 -- This stops searching for a given ShortHash once it encounters
 -- any term or type in any Branch0 that satisfies that ShortHash.
@@ -166,18 +168,18 @@ findInHistory termMatches typeMatches queries b =
     findQ :: (Set q, Names0) -> q -> (Set q, Names0)
     findQ acc sh =
       foldl' (doType sh) (foldl' (doTerm sh) acc
-                            (R.toList . R4.d12 $ deepTerms b0))
-                            (R.toList . R4.d12 $ deepTypes b0)
+                            (R.toList $ deepTerms b0))
+                            (R.toList $ deepTypes b0)
     doTerm q acc@(remainingSHs, names0) (r, n) = if termMatches q r n
       then (Set.delete q remainingSHs, Names.addTerm n r names0) else acc
     doType q acc@(remainingSHs, names0) (r, n) = if typeMatches q r n
       then (Set.delete q remainingSHs, Names.addType n r names0) else acc
 
 deepReferents :: Branch0 m -> Set Referent
-deepReferents = R4.d1set . deepTerms
+deepReferents = R.dom . deepTerms
 
 deepTypeReferences :: Branch0 m -> Set Reference
-deepTypeReferences = R4.d1set . deepTypes
+deepTypeReferences = R.dom . deepTypes
 
 terms :: Lens' (Branch0 m) (Star Referent NameSegment)
 terms = lens _terms (\Branch0{..} x -> branch0 x _types _children _edits)
@@ -196,19 +198,31 @@ branch0 :: Metadata.Star Referent NameSegment
         -> Branch0 m
 branch0 terms types children edits =
   Branch0 terms types children edits
-          deepTerms' deepTypes' deepPaths' deepEdits'
+          deepTerms' deepTypes'
+          deepTermMetadata' deepTypeMetadata'
+          deepPaths' deepEdits'
   where
   nameSegToName = Name . NameSegment.toText
-  deepTerms' = R4.mapD2 nameSegToName (Metadata.starToR4 terms)
+  deepTerms' = (R.mapRan nameSegToName . Star3.d1) terms
     <> foldMap go (Map.toList children)
    where
     go (nameSegToName -> n, b) =
-      R4.mapD2 (Name.joinDot n) (deepTerms $ head b)
-  deepTypes' = R4.mapD2 nameSegToName (Metadata.starToR4 types)
+      R.mapRan (Name.joinDot n) (deepTerms $ head b) -- could use mapKeysMonotonic
+  deepTypes' = (R.mapRan nameSegToName . Star3.d1) types
     <> foldMap go (Map.toList children)
    where
     go (nameSegToName -> n, b) =
-      R4.mapD2 (Name.joinDot n) (deepTypes $ head b)
+      R.mapRan (Name.joinDot n) (deepTypes $ head b) -- could use mapKeysMonotonic
+  deepTermMetadata' = R4.mapD2 nameSegToName (Metadata.starToR4 terms)
+    <> foldMap go (Map.toList children)
+   where
+    go (nameSegToName -> n, b) =
+      R4.mapD2 (Name.joinDot n) (deepTermMetadata $ head b)
+  deepTypeMetadata' = R4.mapD2 nameSegToName (Metadata.starToR4 types)
+    <> foldMap go (Map.toList children)
+   where
+    go (nameSegToName -> n, b) =
+      R4.mapD2 (Name.joinDot n) (deepTypeMetadata $ head b)
   deepPaths' = Set.map Path.singleton (Map.keysSet children)
     <> foldMap go (Map.toList children)
     where go (nameSeg, b) = Set.map (Path.cons nameSeg) (deepPaths $ head b)
@@ -462,7 +476,8 @@ one :: Branch0 m -> Branch m
 one = Branch . Causal.one
 
 empty0 :: Branch0 m
-empty0 = Branch0 mempty mempty mempty mempty mempty mempty mempty mempty
+empty0 =
+  Branch0 mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
 
 isEmpty0 :: Branch0 m -> Bool
 isEmpty0 = (== empty0)

@@ -10,13 +10,14 @@ import qualified Unison.Hashable as H
 import qualified Unison.Util.Relation as R
 
 -- Represents a set of (fact, d1, d2, d3), but indexed using a star schema so
--- it can be efficiently quried from any of the dimensions.
+-- it can be efficiently queried from any of the dimensions.
 data Star3 fact d1 d2 d3
   = Star3 { fact :: Set fact
           , d1 :: Relation fact d1
           , d2 :: Relation fact d2
           , d3 :: Relation fact d3 } deriving (Eq,Ord,Show)
 
+-- use this function, lol
 toList :: (Ord fact, Ord d1, Ord d2, Ord d3)
        => Star3 fact d1 d2 d3
        -> [(fact, d1, d2, d3)]

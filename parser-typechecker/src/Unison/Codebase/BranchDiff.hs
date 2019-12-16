@@ -3,7 +3,7 @@ module Unison.Codebase.BranchDiff where
 import Data.Map (Map)
 import Data.Set (Set)
 import Unison.Codebase.Branch (Branch0(..))
-import qualified Unison.Codebase.Branch as Branch
+--import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Patch as P
 import qualified Unison.Codebase.TermEdit as TermEdit
@@ -41,14 +41,14 @@ data BranchDiff = BranchDiff
   }
 
 diff0 :: forall m. Monad m => Branch0 m -> Branch0 m -> P.Patch -> BranchDiff
-diff0 old new patch = BranchDiff terms types where
-  (terms, types) =
-    computeSlices
-      (deepr4ToSlice (Branch.deepTerms old))
-      (deepr4ToSlice (Branch.deepTerms new))
-      (deepr4ToSlice (Branch.deepTypes old))
-      (deepr4ToSlice (Branch.deepTypes new))
-      patch
+diff0 _old _new _patch = BranchDiff terms types where
+  (terms, types) = undefined
+--    computeSlices
+--      (deepr4ToSlice (Branch.deepTerms old))
+--      (deepr4ToSlice (Branch.deepTerms new))
+--      (deepr4ToSlice (Branch.deepTypes old))
+--      (deepr4ToSlice (Branch.deepTypes new))
+--      patch
 
 --unpackMetadata :: Branch0 m ->
 
