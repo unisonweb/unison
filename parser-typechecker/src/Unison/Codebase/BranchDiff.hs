@@ -160,27 +160,3 @@ computeSlices oldTerms newTerms oldTypes newTypes p = (termsOut, typesOut) where
       (names old `R.joinDom` (metadata old `R.difference` metadata new))
 
   matchMdName (n1, p@(n2, _)) = if n1 == n2 then Just p else Nothing
-
---diff0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m BranchDiff
---diff0 old new = do
---  let oldDeepEdits, newDeepEdits :: Map Name (EditHash, m Patch)
---      oldDeepEdits = Branch.deepEdits' old
---      newDeepEdits = Branch.deepEdits' new
---  diffEdits :: Map Name (DiffType Patch.PatchDiff) <- do
---    added <- do
---      addedPatches :: Map Name Patch <-
---        traverse snd $ Map.difference newDeepEdits oldDeepEdits
---      pure $ fmap (\p -> Create (Patch.diff p mempty)) addedPatches
---    removed <- do
---      removedPatches :: Map Name Patch <-
---        traverse snd $ Map.difference oldDeepEdits newDeepEdits
---      pure $ fmap (\p -> Delete (Patch.diff mempty p)) removedPatches
---
---    let f acc k = case (Map.lookup k oldDeepEdits, Map.lookup k newDeepEdits) of
---          (Just (h1,p1), Just (h2,p2)) ->
---            if h1 == h2 then pure acc
---            else Map.singleton k . Modify <$> (Patch.diff <$> p2 <*> p1)
---          _ -> error "we've done something very wrong"
---    modified <- foldM f mempty (Set.intersection (Map.keysSet oldDeepEdits) (Map.keysSet newDeepEdits))
---    pure $ added <> removed <> modified
-
