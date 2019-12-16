@@ -61,7 +61,6 @@ library
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
     Unison.Codebase.NameEdit
-    Unison.Codebase.NameSegment
     Unison.Codebase.Path
     Unison.Codebase.Patch
     Unison.Codebase.Reflog
