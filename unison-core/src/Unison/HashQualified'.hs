@@ -27,6 +27,15 @@ toHQ = \case
   NameOnly n -> HQ.NameOnly n
   HashQualified n sh -> HQ.HashQualified n sh
 
+fromHQ :: HQ.HashQualified' n -> Maybe (HashQualified' n)
+fromHQ = \case
+  HQ.NameOnly n -> Just $ NameOnly n
+  HQ.HashQualified n sh -> Just $ HashQualified n sh
+  HQ.HashOnly{} -> Nothing
+
+unsafeFromHQ :: HQ.HashQualified' n -> HashQualified' n
+unsafeFromHQ = fromJust . fromHQ 
+
 toName :: HashQualified' n -> n
 toName = \case
   NameOnly name        ->  name

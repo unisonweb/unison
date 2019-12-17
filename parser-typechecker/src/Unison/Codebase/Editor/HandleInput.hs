@@ -496,8 +496,7 @@ loop = do
         patch <- fromMaybe mempty <$> case patch0 of
           Nothing -> pure Nothing
           Just patchPath -> getPatchAtSplit' patchPath
-        diff <- eval . Eval . undefined $ BranchDiff.diff0 before after patch
-        --- diff0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m BranchDiff
+        diff :: BranchDiff.BranchDiff <- eval . Eval $ BranchDiff.diff0 before after patch
         undefined diff
 
       -- move the root to a sub-branch
