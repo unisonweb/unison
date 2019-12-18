@@ -53,6 +53,9 @@ type ConstructorId = Term.ConstructorId
 type DataDeclaration v = DataDeclaration' v ()
 type Decl v a = Either (EffectDeclaration' v a) (DataDeclaration' v a)
 
+data DeclOrBuiltin v a = 
+  Builtin CT.ConstructorType | Decl (Decl v a)
+
 asDataDecl :: Decl v a -> DataDeclaration' v a
 asDataDecl = either toDataDecl id
 

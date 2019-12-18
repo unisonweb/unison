@@ -139,10 +139,12 @@ adds, removes :: Ord r => DiffSlice r -> Relation r Name
 adds s = R.subtractDom (R3.d2s (tallnamespaceUpdates s)) (talladds s)
 removes s = R.subtractDom (R3.d1s (tallnamespaceUpdates s)) (tallremoves s)
 
-namespaceUpdates, propagatedNamespaceUpdates :: Ord r => DiffSlice r -> Relation3 r r Name
+namespaceUpdates :: Ord r => DiffSlice r -> Map Name (Set r, Set r)
 namespaceUpdates s =
+  R.toUnzippedMultimap . R.swap . R3.nestD12 $
   tallnamespaceUpdates s `R3.difference` propagatedNamespaceUpdates s
 
+propagatedNamespaceUpdates :: Ord r => DiffSlice r -> Relation3 r r Name
 propagatedNamespaceUpdates s =
   R3.filter f (tallnamespaceUpdates s)
   where f (_rold, rnew, name) = R3.member rnew name isPropagatedValue (taddedMetadata s)

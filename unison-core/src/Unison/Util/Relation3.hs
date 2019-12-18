@@ -2,7 +2,7 @@
 
 module Unison.Util.Relation3 where
 
-import Unison.Prelude hiding (empty)
+import Unison.Prelude hiding (empty, toList)
 
 import Unison.Util.Relation (Relation)
 import qualified Data.Map as Map
@@ -26,9 +26,12 @@ d1s = Map.keysSet . d1
 d2s :: Relation3 a b c -> Set b
 d2s = Map.keysSet . d2
 
+d3s :: Relation3 a b c -> Set c
+d3s = Map.keysSet . d3
+
 filter :: (Ord a, Ord b, Ord c)
        => ((a,b,c) -> Bool) -> Relation3 a b c -> Relation3 a b c
-filter f = fromList . Prelude.filter f . Unison.Util.Relation3.toList
+filter f = fromList . Prelude.filter f . toList
 
 member :: (Ord a, Ord b, Ord c) => a -> b -> c -> Relation3 a b c -> Bool
 member a b c = R.member b c . lookupD1 a
@@ -49,6 +52,9 @@ toNestedList :: Relation3 a b c -> [(a,(b,c))]
 toNestedList r3 =
   [ (a,bc) | (a,r2) <- Map.toList $ d1 r3
            , bc <- R.toList r2 ]
+
+nestD12 :: (Ord a, Ord b, Ord c) => Relation3 a b c -> Relation (a,b) c
+nestD12 r = R.fromList [ ((a,b),c) | (a,b,c) <- toList r ]
 
 fromNestedDom :: (Ord a, Ord b, Ord c) => Relation (a,b) c -> Relation3 a b c
 fromNestedDom = fromList . fmap (\((a,b),c) -> (a,b,c)) . R.toList
