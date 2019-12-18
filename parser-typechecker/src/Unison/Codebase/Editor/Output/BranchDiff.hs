@@ -164,12 +164,10 @@ toOutput typeOf ctorType hqLen names1 names2 diff = do
   fillMetadata ppe = traverse $ -- metadata values are all terms
     \(Referent.Ref -> mdRef) -> (HQ'.unsafeFromHQ $ PPE.termName ppe mdRef,) <$> typeOf mdRef
   getMetadata :: Ord r => r -> Name -> BranchDiff.DiffSlice r -> [Metadata.Value]
-  -- do something nicer with Relation3 here?
   getMetadata r n slice
-    = fmap snd
-    . filter (\(n',_v) -> n == n')
-    . Set.toList
-    . R.lookupDom r
+    = Set.toList
+    . R.lookupDom n
+    . R3.lookupD1 r
     $ BranchDiff.taddedMetadata slice
 
 -- references for definitions that were updated

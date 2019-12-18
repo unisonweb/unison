@@ -18,25 +18,28 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Util.Relation as R
+import qualified Unison.Util.Relation3 as R3
 import qualified Unison.Util.Relation4 as R4
+import Unison.Util.Relation (Relation)
+import Unison.Util.Relation3 (Relation3)
 
 data DiffType a = Create a | Delete a | Modify a
 
 -- todo: maybe simplify this file using Relation3?
 data NamespaceSlice r = NamespaceSlice {
-  names :: R.Relation r Name,
-  metadata :: R.Relation r (Name, Metadata.Value)
+  names :: Relation r Name,
+  metadata :: Relation3 r Name Metadata.Value
 }
 
 data DiffSlice r = DiffSlice {
-  tpatchUpdates :: R.Relation r r, -- old new
-  tnamespaceUpdates :: R.Relation (r, r) Name,
-  tadds :: R.Relation r Name,
-  tremoves :: R.Relation r Name,
+  tpatchUpdates :: Relation r r, -- old new
+  tnamespaceUpdates :: Relation (r, r) Name,
+  tadds :: Relation r Name,
+  tremoves :: Relation r Name,
   tcopies :: Map r (Set Name, Set Name), -- ref (old, new)
   tmoves :: Map r (Set Name, Set Name), -- ref (old, new)
-  taddedMetadata :: R.Relation r (Name, Metadata.Value),
-  tremovedMetadata :: R.Relation r (Name, Metadata.Value)
+  taddedMetadata :: Relation3 r Name Metadata.Value,
+  tremovedMetadata :: Relation3 r Name Metadata.Value
 }
 
 data BranchDiff = BranchDiff
@@ -84,7 +87,7 @@ deepr4ToSlice :: Ord r
 deepr4ToSlice deepNames deepMetadata =
   NamespaceSlice deepNames (unpackMetadata deepMetadata)
   where
-   unpackMetadata = R.fromList . fmap (\(r,n,_t,v) -> (r, (n,v))) . R4.toList
+   unpackMetadata = R3.fromList . fmap (\(r,n,_t,v) -> (r,n,v)) . R4.toList
 
 computeSlices :: NamespaceSlice Referent
               -> NamespaceSlice Referent
@@ -149,14 +152,8 @@ computeSlices oldTerms newTerms oldTypes newTypes p = (termsOut, typesOut) where
     R.filterDom f (names old `R.joinRan` names new)
     where f (old, new) = old /= new && R.notMember old new edits
 
-  addedMetadata :: Ord r => NamespaceSlice r -> NamespaceSlice r -> R.Relation r (Name, Metadata.Value)
-  addedMetadata old new =
-    R.collectRan matchMdName
-      (names new `R.joinDom` (metadata new `R.difference` metadata old))
+  addedMetadata :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Relation3 r Name Metadata.Value
+  addedMetadata old new = metadata new `R3.difference` metadata old
 
-  removedMetadata :: Ord r => NamespaceSlice r -> NamespaceSlice r -> R.Relation r (Name, Metadata.Value)
-  removedMetadata old new =
-    R.collectRan matchMdName
-      (names old `R.joinDom` (metadata old `R.difference` metadata new))
-
-  matchMdName (n1, p@(n2, _)) = if n1 == n2 then Just p else Nothing
+  removedMetadata :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Relation3 r Name Metadata.Value
+  removedMetadata old new = metadata old `R3.difference` metadata new
