@@ -610,15 +610,9 @@ diffNamespace = InputPattern
   []
   [(Required, pathArg), (Required, pathArg), (Optional, patchArg)]
   (P.column2
-    [ ( "`diff.namespace before after patch`"
+    [ ( "`diff.namespace before after`"
       , P.wrap
-        "shows how the namespace `after` differs from the namespace `before`,"
-        <> "given additional context provided by the patch `patch`."
-      )
-    , ( "`diff.namespace before after`"
-      , P.wrap
-        "shows how the namespace `after` differs from the namespace `before`,"
-        <> "without the additional context provided by a patch."
+        "shows how the namespace `after` differs from the namespace `before`"
       )
     ]
   )
@@ -626,12 +620,7 @@ diffNamespace = InputPattern
     [before, after] -> first fromString $ do
       before <- Path.parsePath' before
       after <- Path.parsePath' after
-      pure $ Input.DiffNamespaceI before after Nothing
-    [before, after, patch] -> first fromString $ do
-      before <- Path.parsePath' before
-      after <- Path.parsePath' after
-      patch <- Path.parseSplit' Path.wordyNameSegment patch
-      pure $ Input.DiffNamespaceI before after (Just patch)
+      pure $ Input.DiffNamespaceI before after
     _ -> Left $ I.help diffNamespace
   )
 

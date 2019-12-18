@@ -44,7 +44,7 @@ data Input
     -- merge first causal into destination
     | MergeLocalBranchI Path' Path'
     | PreviewMergeLocalBranchI Path' Path'
-    | DiffNamespaceI Path' Path' (Maybe Path.Split') -- old new patch-path
+    | DiffNamespaceI Path' Path' -- old new
     | PullRemoteBranchI (Maybe (RemoteRepo, Maybe ShortBranchHash, Path)) Path'
     | PushRemoteBranchI (Maybe (RemoteRepo, Path)) Path'
     | ResetRootI (Either ShortBranchHash Path')

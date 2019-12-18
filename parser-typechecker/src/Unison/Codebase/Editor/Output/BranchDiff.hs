@@ -1,6 +1,5 @@
 {-# Language DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.Editor.Output.BranchDiff where
@@ -10,6 +9,7 @@ import qualified Unison.Codebase.Patch as P
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Codebase.BranchDiff as BranchDiff
 import qualified Unison.Util.Relation as R
+import qualified Unison.Util.Relation3 as R3
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Data.Set as Set
 import qualified Data.Map as Map
@@ -83,8 +83,17 @@ toOutput :: forall m v a
 toOutput typeOf ctorType hqLen names1 names2 diff = do
   let ppe1 = PPE.fromNames hqLen names1
       ppe2 = PPE.fromNames hqLen names2
-  -- "Propagated" metadata should be present on new, propagated updates.
-  -- What if it's "Propagated" *and* in the patch?  Report as part of the patch.
+--  -- "Propagated" metadata should be present on new, propagated updates.
+--  -- What if it's "Propagated" *and* in the patch?  Report as part of the patch.
+--  let _propagatedTypes :: Relation Reference Name =
+--        R3.lookupD3 isPropagatedValue
+--        . BranchDiff.taddedMetadata
+--        $ BranchDiff.typesDiff diff
+--      _propagatedTerms :: Relation Referent Name =
+--        R3.lookupD3 isPropagatedValue
+--        . BranchDiff.taddedMetadata
+--        $ BranchDiff.termsDiff diff
+
   updatedTypes :: [TypeDisplay v a] <- undefined
 
   updatedTerms :: [TermDisplay v a] <- undefined
@@ -98,7 +107,7 @@ toOutput typeOf ctorType hqLen names1 names2 diff = do
   addedTypes :: [TypeDisplay v a] <-
     let typeAdds :: [(Reference, [Metadata.Value])] =
           [ (r, getMetadata r n (BranchDiff.typesDiff diff) )
-          | (r, n) <- (R.toList . BranchDiff.tadds . BranchDiff.typesDiff) diff ]
+          | (r, n) <- R.toList . BranchDiff.adds $ BranchDiff.typesDiff diff ]
     in for typeAdds $ \(r, mdRefs) ->
       (,,) <$> pure (HQ'.unsafeFromHQ $ PPE.typeName ppe2 r)
            <*> ctorType r
@@ -107,7 +116,7 @@ toOutput typeOf ctorType hqLen names1 names2 diff = do
   addedTerms :: [TermDisplay v a] <-
     let termAdds :: [(Referent, [Metadata.Value])]=
           [ (r, getMetadata r n (BranchDiff.termsDiff diff) )
-          | (r, n) <- (R.toList . BranchDiff.tadds . BranchDiff.termsDiff) diff ]
+          | (r, n) <- R.toList . BranchDiff.adds $ BranchDiff.termsDiff diff ]
     in for termAdds $ \(r, mdRefs) ->
       (,,) <$> pure (HQ'.unsafeFromHQ $ PPE.termName ppe2 r)
            <*> typeOf r
@@ -120,7 +129,7 @@ toOutput typeOf ctorType hqLen names1 names2 diff = do
   removedTypes :: [TypeDisplay v a] <-
     let typeRemoves :: [(Reference, [Metadata.Value])] =
           [ (r, getMetadata r n (BranchDiff.typesDiff diff) )
-          | (r, n) <- (R.toList . BranchDiff.tremoves . BranchDiff.typesDiff) diff ]
+          | (r, n) <- R.toList . BranchDiff.removes $ BranchDiff.typesDiff diff ]
     in for typeRemoves $ \(r, mdRefs) ->
       (,,) <$> pure (HQ'.unsafeFromHQ $ PPE.typeName ppe1 r)
            <*> ctorType r
@@ -129,7 +138,7 @@ toOutput typeOf ctorType hqLen names1 names2 diff = do
   removedTerms :: [TermDisplay v a] <-
     let termRemoves :: [(Referent, [Metadata.Value])]=
           [ (r, getMetadata r n (BranchDiff.termsDiff diff) )
-          | (r, n) <- (R.toList . BranchDiff.tremoves . BranchDiff.termsDiff) diff ]
+          | (r, n) <- R.toList . BranchDiff.removes $ BranchDiff.termsDiff diff ]
     in for termRemoves $ \(r, mdRefs) ->
       (,,) <$> pure (HQ'.unsafeFromHQ $ PPE.termName ppe1 r)
            <*> typeOf r

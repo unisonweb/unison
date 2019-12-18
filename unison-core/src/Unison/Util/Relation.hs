@@ -336,9 +336,11 @@ r |> t = fromList
 
 
 -- Restrict the range to not include these `b`s
-(||>), subtractRan :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
+(||>) :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
 r ||> t = fromList [ (a,b) | (a,b) <- toList r, not (b `S.member` t)]
-subtractRan = (||>)
+
+subtractRan :: (Ord a, Ord b) => Set b -> Relation a b -> Relation a b
+subtractRan = flip (||>)
 
 -- Restrict the domain to not include these `a`
 (<||), subtractDom :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b

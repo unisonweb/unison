@@ -20,6 +20,19 @@ data Relation3 a b c
   , d3 :: Map c (Relation a b)
   } deriving (Eq,Ord,Show)
 
+d1s :: Relation3 a b c -> Set a
+d1s = Map.keysSet . d1
+
+d2s :: Relation3 a b c -> Set b
+d2s = Map.keysSet . d2
+
+filter :: (Ord a, Ord b, Ord c)
+       => ((a,b,c) -> Bool) -> Relation3 a b c -> Relation3 a b c
+filter f = fromList . Prelude.filter f . Unison.Util.Relation3.toList
+
+member :: (Ord a, Ord b, Ord c) => a -> b -> c -> Relation3 a b c -> Bool
+member a b c = R.member b c . lookupD1 a
+
 lookupD1 :: (Ord a, Ord b, Ord c) => a -> Relation3 a b c -> Relation b c
 lookupD1 a = fromMaybe mempty . Map.lookup a . d1
 
@@ -36,6 +49,11 @@ toNestedList :: Relation3 a b c -> [(a,(b,c))]
 toNestedList r3 =
   [ (a,bc) | (a,r2) <- Map.toList $ d1 r3
            , bc <- R.toList r2 ]
+
+fromNestedDom :: (Ord a, Ord b, Ord c) => Relation (a,b) c -> Relation3 a b c
+fromNestedDom = fromList . fmap (\((a,b),c) -> (a,b,c)) . R.toList
+fromNestedRan :: (Ord a, Ord b, Ord c) => Relation a (b,c) -> Relation3 a b c
+fromNestedRan = fromList . fmap (\(a,(b,c)) -> (a,b,c)) . R.toList
 
 fromList :: (Ord a, Ord b, Ord c) => [(a,b,c)] -> Relation3 a b c
 fromList xs = insertAll xs empty

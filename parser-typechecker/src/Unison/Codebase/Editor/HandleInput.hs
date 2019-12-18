@@ -488,15 +488,12 @@ loop = do
           if merged == destb then respond (NothingTodo input)
           else respond $ ShowDiff input (Branch.namesDiff destb merged)
 
-      DiffNamespaceI before0 after0 patch0 -> do
+      DiffNamespaceI before0 after0 -> do
         let [beforep, afterp] =
               Path.toAbsolutePath currentPath' <$> [before0, after0]
         before <- Branch.head <$> getAt beforep
         after <- Branch.head <$> getAt afterp
-        patch <- fromMaybe mempty <$> case patch0 of
-          Nothing -> pure Nothing
-          Just patchPath -> getPatchAtSplit' patchPath
-        diff :: BranchDiff.BranchDiff <- eval . Eval $ BranchDiff.diff0 before after patch
+        diff :: BranchDiff.BranchDiff <- eval . Eval $ BranchDiff.diff0 before after
         undefined diff
 
       -- move the root to a sub-branch

@@ -86,8 +86,8 @@ filePathReference = typeNamed "io.FilePath"
 isTest :: (R.Reference, R.Reference)
 isTest = (isTestReference, termNamed "metadata.isTest")
 
-isPropagated :: (R.Reference, R.Reference)
-isPropagated = (isPropagatedReference, termNamed "metadata.isPropagated")
+isPropagatedValue :: R.Reference
+isPropagatedValue = termNamed "metadata.isPropagated"
 
 eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId, bufferModeLineId, bufferModeBlockId, filePathId :: DD.ConstructorId
 eitherLeftId = constructorNamed eitherReference "Either.Left"
