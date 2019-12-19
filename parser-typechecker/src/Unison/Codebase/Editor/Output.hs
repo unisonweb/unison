@@ -52,6 +52,7 @@ import Unison.ShortHash (ShortHash)
 import Unison.Var (Var)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Editor.RemoteRepo as RemoteRepo
+import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
 
 type Term v a = Term.AnnotatedTerm v a
 type ListDetailed = Bool
@@ -161,6 +162,7 @@ data Output v
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch (Set ShortBranchHash)
   | ShowDiff Input Names.Diff
+  | ShowDiffNamespace Input PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
   | NothingTodo Input

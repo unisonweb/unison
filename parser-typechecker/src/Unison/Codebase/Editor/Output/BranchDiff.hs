@@ -33,7 +33,7 @@ import Unison.Runtime.IOSource (isPropagatedValue)
 data MetadataDiff tm =
   MetadataDiff { addedMetadata :: [tm]
                , removedMetadata :: [tm] }
-               deriving (Ord,Eq,Functor,Foldable,Traversable)
+               deriving (Ord,Eq,Functor,Foldable,Traversable,Show)
 
 instance Semigroup (MetadataDiff tm) where
   a <> b = MetadataDiff (addedMetadata a <> addedMetadata b)
@@ -58,29 +58,29 @@ data BranchDiffOutput v a = BranchDiffOutput {
   movedTerms        :: [RenameTermDisplay v a],
   copiedTypes       :: [RenameTypeDisplay v a],
   copiedTerms       :: [RenameTermDisplay v a]
- }
+ } deriving Show
 
 -- Need to be able to turn a (Name,Reference) into a HashQualified relative to... what.
 -- the new namespace?
 
-type TermDisplay v a = (HashQualified, Type v a, MetadataDiff (MetadataDisplay v a))
-type TypeDisplay v a = (HashQualified, DeclOrBuiltin v a, MetadataDiff (MetadataDisplay v a))
+type TermDisplay v a = (HashQualified, Maybe (Type v a), MetadataDiff (MetadataDisplay v a))
+type TypeDisplay v a = (HashQualified, Maybe (DeclOrBuiltin v a), MetadataDiff (MetadataDisplay v a))
 
-type SimpleTermDisplay v a = (HashQualified, Type v a)
-type SimpleTypeDisplay v a = (HashQualified, DeclOrBuiltin v a)
+type SimpleTermDisplay v a = (HashQualified, Maybe (Type v a))
+type SimpleTypeDisplay v a = (HashQualified, Maybe (DeclOrBuiltin v a))
 
 type UpdateTermDisplay v a = (Maybe [SimpleTermDisplay v a], [TermDisplay v a])
 type UpdateTypeDisplay v a = (Maybe [SimpleTypeDisplay v a], [TypeDisplay v a])
 
 type MetadataDisplay v a = SimpleTermDisplay v a
-type RenameTermDisplay v a = (Referent, Type v a, Set HashQualified, Set HashQualified)
-type RenameTypeDisplay v a = (Reference, DeclOrBuiltin v a, Set HashQualified, Set HashQualified)
+type RenameTermDisplay v a = (Referent, Maybe (Type v a), Set HashQualified, Set HashQualified)
+type RenameTypeDisplay v a = (Reference, Maybe (DeclOrBuiltin v a), Set HashQualified, Set HashQualified)
 type PatchDisplay = (Name, P.PatchDiff)
 
 toOutput :: forall m v a
           . Monad m
-         => (Referent -> m (Type v a))
-         -> (Reference -> m (DeclOrBuiltin v a))
+         => (Referent -> m (Maybe (Type v a)))
+         -> (Reference -> m (Maybe (DeclOrBuiltin v a)))
          -> Int
          -> Names0
          -> Names0
@@ -156,7 +156,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
       (,) <$> (Just <$> for (toList rs_old) (loadOld n))
           <*> for (toList rs_new) (loadNew n rs_old)
     in for (sortOn fst . uniqueBy fst $ nsUpdates <> metadataUpdates) loadEntry
-    
+
   let propagatedUpdates :: Int =
         (Set.size . R3.d2s . BranchDiff.propagatedNamespaceUpdates) typesDiff +
         (Set.size . R3.d2s . BranchDiff.propagatedNamespaceUpdates) termsDiff
@@ -209,7 +209,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
         | (name, BranchDiff.Delete diff) <- Map.toList patchesDiff ]
 
   let movedOrCopiedTerm :: Map Referent (Set Name, Set Name) -> m [RenameTermDisplay v a]
-      movedOrCopiedTerm copiesOrMoves = 
+      movedOrCopiedTerm copiesOrMoves =
         for (Map.toList copiesOrMoves) $ \(r, (ol'names, new'names)) ->
           (,,,) <$> pure r
                 <*> typeOf r
@@ -217,7 +217,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
                 <*> pure (Set.map (\n -> Names2.hqTermName hqLen names2 n r) new'names)
 
   let movedOrCopiedType :: Map Reference (Set Name, Set Name) -> m [RenameTypeDisplay v a]
-      movedOrCopiedType copiesOrMoves = 
+      movedOrCopiedType copiesOrMoves =
         for (Map.toList copiesOrMoves) $ \(r, (ol'names, new'names)) ->
           (,,,) <$> pure r
                 <*> declOrBuiltin r

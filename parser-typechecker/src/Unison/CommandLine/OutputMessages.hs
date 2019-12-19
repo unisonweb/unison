@@ -20,15 +20,12 @@ import           Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output           as E
 import qualified Unison.Codebase.Editor.Output           as Output
 import qualified Unison.Codebase.Editor.TodoOutput       as TO
-import           Unison.Codebase.Editor.SlurpResult      (SlurpResult(..))
 import qualified Unison.Codebase.Editor.SearchResult'    as SR'
 
 
-import Control.Lens (over, _1)
 import           Data.Bifunctor                (bimap, first)
 import           Data.List                     (sortOn, stripPrefix)
 import           Data.List.Extra               (nubOrdOn, nubOrd)
-import qualified Data.ListLike                 as LL
 import           Data.ListLike                 (ListLike)
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
@@ -36,7 +33,6 @@ import qualified Data.Text                     as Text
 import           Data.Text.IO                  (readFile, writeFile)
 import           Data.Tuple.Extra              (dupe)
 import           Prelude                       hiding (readFile, writeFile)
-import qualified System.Console.ANSI           as Console
 import           System.Directory              (canonicalizePath, doesFileExist)
 import qualified Unison.ABT                    as ABT
 import qualified Unison.UnisonFile             as UF
@@ -45,7 +41,6 @@ import           Unison.Codebase.GitError
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Patch         (Patch(..))
-import qualified Unison.Codebase.Reflog        as Reflog
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
@@ -72,7 +67,7 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyName, prettyShortHash,
                                                 styleHashQualified,
                                                 styleHashQualified', prettyHashQualified')
-import           Unison.Names2                 (Names'(..), Names, Names0)
+import           Unison.Names2                 (Names'(..), Names0)
 import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names
 import           Unison.Parser                 (Ann, startingLine)
@@ -91,8 +86,6 @@ import qualified Unison.Term                   as Term
 import           Unison.Term                   (AnnotatedTerm)
 import           Unison.Type                   (Type)
 import qualified Unison.TermPrinter            as TermPrinter
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.TypePrinter            as TypePrinter
 import qualified Unison.Util.ColorText         as CT
 import           Unison.Util.Monoid             ( intercalateMap
@@ -107,7 +100,6 @@ import           System.Directory               ( getHomeDirectory )
 import Unison.Codebase.Editor.DisplayThing (DisplayThing(MissingThing, BuiltinThing, RegularThing))
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Hash as Hash
-import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Util.List              as List

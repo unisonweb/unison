@@ -51,6 +51,7 @@ import qualified Data.Set                      as Set
 import           Data.Sequence                  ( Seq(..) )
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Codebase.BranchDiff    as BranchDiff
+import qualified Unison.Codebase.Editor.Output.BranchDiff as OBranchDiff
 import           Unison.Codebase.Branch         ( Branch(..)
                                                 , Branch0(..)
                                                 )
@@ -493,8 +494,19 @@ loop = do
               Path.toAbsolutePath currentPath' <$> [before0, after0]
         before <- Branch.head <$> getAt beforep
         after <- Branch.head <$> getAt afterp
-        diff :: BranchDiff.BranchDiff <- eval . Eval $ BranchDiff.diff0 before after
-        undefined diff
+        diff <- eval . Eval $ BranchDiff.diff0 before after
+        names0 <- basicPrettyPrintNames0
+        ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (Names names0 mempty)
+        outputDiff <- OBranchDiff.toOutput
+                        loadTypeOfTerm
+                        declOrBuiltin
+                        hqLength
+                        (Branch.toNames0 before)
+                        (Branch.toNames0 after)
+                        ppe
+                        diff
+        -- todo: populate the numberedArgs 😭😭😭
+        respond $ ShowDiffNamespace input ppe outputDiff
 
       -- move the root to a sub-branch
       MoveBranchI Nothing dest -> do
@@ -2333,3 +2345,10 @@ loadTypeOfTerm (Referent.Con (Reference.DerivedId r) cid _) = do
     Nothing -> pure Nothing
 loadTypeOfTerm Referent.Con{} = error $
   reportBug "924628772" "Attempt to load a type declaration which is a builtin!"
+
+declOrBuiltin :: Reference -> Action m i v (Maybe (DD.DeclOrBuiltin v Ann))
+declOrBuiltin r = case r of
+  Reference.Builtin{} ->
+    pure . fmap DD.Builtin $ Map.lookup r Builtin.builtinConstructorType
+  Reference.DerivedId id ->
+    fmap DD.Decl <$> eval (LoadType id)

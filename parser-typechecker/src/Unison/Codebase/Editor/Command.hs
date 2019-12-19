@@ -154,6 +154,7 @@ data Command m i v a where
 
   LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
 
+  -- todo: change this to take Reference and return DeclOrBuiltin
   LoadType :: Reference.Id -> Command m i v (Maybe (Decl v Ann))
 
   LoadTypeOfTerm :: Reference -> Command m i v (Maybe (Type v Ann))
