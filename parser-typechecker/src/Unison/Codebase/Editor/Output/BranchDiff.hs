@@ -24,7 +24,8 @@ import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Referent as Referent
 import Unison.Referent (Referent)
 import Data.Set (Set)
-import Unison.Names3 (Names)
+import qualified Unison.Names2 as Names2
+import Unison.Names3 (Names0)
 import Unison.DataDeclaration (DeclOrBuiltin)
 
 data MetadataDiff tm =
@@ -63,10 +64,13 @@ data BranchDiffOutput v a = BranchDiffOutput {
 type TermDisplay v a = (HashQualified, Type v a, MetadataDiff (MetadataDisplay v a))
 type TypeDisplay v a = (HashQualified, DeclOrBuiltin v a, MetadataDiff (MetadataDisplay v a))
 
-type UpdateTermDisplay v a = ([TermDisplay v a], Maybe [TermDisplay v a])
-type UpdateTypeDisplay v a = ([TypeDisplay v a], Maybe [TypeDisplay v a])
+type SimpleTermDisplay v a = (HashQualified, Type v a)
+type SimpleTypeDisplay v a = (HashQualified, DeclOrBuiltin v a)
 
-type MetadataDisplay v a = (HashQualified, Type v a)
+type UpdateTermDisplay v a = (Maybe [SimpleTermDisplay v a], [TermDisplay v a])
+type UpdateTypeDisplay v a = (Maybe [SimpleTypeDisplay v a], [TypeDisplay v a])
+
+type MetadataDisplay v a = SimpleTermDisplay v a
 type RenameTermDisplay v a = (Referent, Type v a, Set HashQualified, Set HashQualified)
 type RenameTypeDisplay v a = (Referent, DeclOrBuiltin v a, Set HashQualified, Set HashQualified)
 type PatchDisplay = (Name, P.PatchDiff)
@@ -76,14 +80,14 @@ toOutput :: forall m v a
          => (Referent -> m (Type v a))
          -> (Reference -> m (DeclOrBuiltin v a))
          -> Int
-         -> Names
-         -> Names
+         -> Names0
+         -> Names0
+         -> PPE.PrettyPrintEnv
          -> BranchDiff.BranchDiff
          -> m (BranchDiffOutput v a)
-toOutput typeOf declOrBuiltin hqLen names1 names2 
+toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
             (BranchDiff termsDiff typesDiff patchesDiff) = do
-  let ppe1 = PPE.fromNames hqLen names1
-      ppe2 = PPE.fromNames hqLen names2
+  let 
 --  -- "Propagated" metadata should be present on new, propagated updates.
 --  -- What if it's "Propagated" *and* in the patch?  Report as part of the patch.
 --  let _propagatedTypes :: Relation Reference Name =
@@ -101,29 +105,23 @@ toOutput typeOf declOrBuiltin hqLen names1 names2
     let nsUpdates :: [(Name, (Set Reference, Set Reference))] =
           Map.toList $ BranchDiff.namespaceUpdates typesDiff
         -- | Given a set of old references associated with a name and a new reference
-        -- associated with the name, choose the MetadataDiff that should be displayed
+        -- associated with the name, choose the MetadataDiff that should be displayed (conceptually)
         -- alongside the new HashQualified name for (n,r_new) in the diff output
         getNewMetadataDiff :: Name -> Set Reference -> Reference -> MetadataDiff Reference
         getNewMetadataDiff n rs_old r_new = undefined n rs_old r_new
-        -- | Given an old reference associated with a name and a set of new references
-        -- associated with the name, choose the MetadataDiff that should be displayed
-        -- alongside the old HashQualified name for (n,r_old) in the diff output
-        getOldMetadataDiff :: Name -> Reference -> Set Reference -> MetadataDiff Reference
-        getOldMetadataDiff n r_old rs_new = undefined n r_old rs_new
-        loadOld :: Name -> Set Reference -> Reference -> m (TypeDisplay v a)
-        loadOld n rs_new r_old =
-          (,,) <$> pure (HQ'.unsafeFromHQ $ PPE.typeName ppe1 r_old)
-               <*> declOrBuiltin r_old
-               <*> fillMetadata ppe1 (getOldMetadataDiff n r_old rs_new)
+        loadOld :: Name -> Reference -> m (SimpleTypeDisplay v a)
+        loadOld n r_old =
+          (,) <$> pure (Names2.hqTypeName hqLen names1 n r_old)
+              <*> declOrBuiltin r_old
         loadNew :: Name -> Set Reference -> Reference -> m (TypeDisplay v a)
         loadNew n rs_old r_new =
-          (,,) <$> pure (HQ'.unsafeFromHQ $ PPE.typeName ppe2 r_new)
+          (,,) <$> pure (Names2.hqTypeName hqLen names2 n r_new)
                <*> declOrBuiltin r_new
-               <*> fillMetadata ppe1 (getNewMetadataDiff n rs_old r_new)
+               <*> fillMetadata ppe (getNewMetadataDiff n rs_old r_new)
         loadEntry :: (Name, (Set Reference, Set Reference)) -> m (UpdateTypeDisplay v a)
         loadEntry (n, (rs_old, rs_new)) =
-          (,) <$> for (toList rs_old) (loadOld n rs_new)
-              <*> (Just <$> for (toList rs_new) (loadNew n rs_old))
+          (,) <$> (Just <$> for (toList rs_old) (loadOld n))
+              <*> for (toList rs_new) (loadNew n rs_old)
     in for nsUpdates loadEntry
 
   -- types that have been "updated" just by virtue of having their metadata altered
@@ -139,44 +137,44 @@ toOutput typeOf declOrBuiltin hqLen names1 names2
         [(name, diff) | (name, BranchDiff.Modify diff) <- Map.toList patchesDiff]
 
   addedTypes :: [TypeDisplay v a] <-
-    let typeAdds :: [(Reference, [Metadata.Value])] =
-          [ (r, toList $ getAddedMetadata r n typesDiff )
+    let typeAdds :: [(Reference, Name, [Metadata.Value])] =
+          [ (r, n, toList $ getAddedMetadata r n typesDiff )
           | (r, n) <- R.toList . BranchDiff.adds $ typesDiff ]
-    in for typeAdds $ \(r, mdRefs) ->
-      (,,) <$> pure (HQ'.unsafeFromHQ $ PPE.typeName ppe2 r)
+    in for typeAdds $ \(r, n, mdRefs) ->
+      (,,) <$> pure (Names2.hqTypeName hqLen names2 n r)
            <*> declOrBuiltin r
-           <*> fillMetadata ppe2 (mempty { addedMetadata = mdRefs })
+           <*> fillMetadata ppe (mempty { addedMetadata = mdRefs })
 
   addedTerms :: [TermDisplay v a] <-
-    let termAdds :: [(Referent, [Metadata.Value])]=
-          [ (r, toList $ getAddedMetadata r n termsDiff )
+    let termAdds :: [(Referent, Name, [Metadata.Value])]=
+          [ (r, n, toList $ getAddedMetadata r n termsDiff )
           | (r, n) <- R.toList . BranchDiff.adds $ termsDiff ]
-    in for termAdds $ \(r, mdRefs) ->
-      (,,) <$> pure (HQ'.unsafeFromHQ $ PPE.termName ppe2 r)
+    in for termAdds $ \(r, n, mdRefs) ->
+      (,,) <$> pure (Names2.hqTermName hqLen names2 n r)
            <*> typeOf r
-           <*> fillMetadata ppe2 (mempty { addedMetadata = mdRefs })
+           <*> fillMetadata ppe (mempty { addedMetadata = mdRefs })
 
   let addedPatches :: [PatchDisplay] =
         [ (name, diff)
         | (name, BranchDiff.Create diff) <- Map.toList patchesDiff ]
 
   removedTypes :: [TypeDisplay v a] <-
-    let typeRemoves :: [(Reference, [Metadata.Value])] =
-          [ (r, toList $ getRemovedMetadata r n typesDiff )
+    let typeRemoves :: [(Reference, Name, [Metadata.Value])] =
+          [ (r, n, toList $ getRemovedMetadata r n typesDiff )
           | (r, n) <- R.toList . BranchDiff.removes $ typesDiff ]
-    in for typeRemoves $ \(r, mdRefs) ->
-      (,,) <$> pure (HQ'.unsafeFromHQ $ PPE.typeName ppe1 r)
+    in for typeRemoves $ \(r, n, mdRefs) ->
+      (,,) <$> pure (Names2.hqTypeName hqLen names1 n r)
            <*> declOrBuiltin r
-           <*> fillMetadata ppe1 (mempty { removedMetadata = mdRefs })
+           <*> fillMetadata ppe (mempty { removedMetadata = mdRefs })
 
   removedTerms :: [TermDisplay v a] <-
-    let termRemoves :: [(Referent, [Metadata.Value])]=
-          [ (r, toList $ getRemovedMetadata r n termsDiff )
+    let termRemoves :: [(Referent, Name, [Metadata.Value])] =
+          [ (r, n, toList $ getRemovedMetadata r n termsDiff )
           | (r, n) <- R.toList . BranchDiff.removes $ termsDiff ]
-    in for termRemoves $ \(r, mdRefs) ->
-      (,,) <$> pure (HQ'.unsafeFromHQ $ PPE.termName ppe1 r)
+    in for termRemoves $ \(r, n, mdRefs) ->
+      (,,) <$> pure (Names2.hqTermName hqLen names1 n r)
            <*> typeOf r
-           <*> fillMetadata ppe1 (mempty { removedMetadata = mdRefs })
+           <*> fillMetadata ppe (mempty { removedMetadata = mdRefs })
 
   let removedPatches :: [PatchDisplay] =
         [ (name, diff)
