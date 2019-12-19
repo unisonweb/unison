@@ -10,7 +10,7 @@ import Unison.Name (Name)
 import qualified Unison.Codebase.Patch as P
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Codebase.BranchDiff as BranchDiff
-import Unison.Codebase.BranchDiff (BranchDiff(BranchDiff))
+import Unison.Codebase.BranchDiff (BranchDiff(BranchDiff), DiffSlice)
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation3 as R3
 import qualified Unison.Codebase.Metadata as Metadata
@@ -28,6 +28,7 @@ import Data.Set (Set)
 import qualified Unison.Names2 as Names2
 import Unison.Names3 (Names0)
 import Unison.DataDeclaration (DeclOrBuiltin)
+import Unison.Runtime.IOSource (isPropagatedValue)
 
 data MetadataDiff tm =
   MetadataDiff { addedMetadata :: [tm]
@@ -105,21 +106,26 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
     --         any of the old references associated with the name
     --   removes: not-attached metadata that had been attached to any of
     --         the old references associated with the name
-    getNewMetadataDiff :: Name -> Set Reference -> Reference -> MetadataDiff Reference
-    getNewMetadataDiff n rs_old r_new =
+    getNewMetadataDiff :: Ord r => DiffSlice r -> Name -> Set r -> r -> MetadataDiff Metadata.Value
+    getNewMetadataDiff s n rs_old r_new =
       let old_metadatas :: [(Set Metadata.Value)] =
             toList . R.toMultimap . R.restrictDom rs_old . R3.lookupD2 n $
-              BranchDiff.tremovedMetadata typesDiff
+              BranchDiff.tremovedMetadata s
           old_intersection :: Set Metadata.Value =
             foldl1' Set.intersection old_metadatas
           old_union :: Set Metadata.Value =
             foldl1' Set.union old_metadatas
           new_metadata :: Set Metadata.Value =
-            R.lookupDom n . R3.lookupD1 r_new $ BranchDiff.taddedMetadata typesDiff
+            R.lookupDom n . R3.lookupD1 r_new $ BranchDiff.taddedMetadata s
       in MetadataDiff
           { addedMetadata = toList $ new_metadata `Set.difference` old_intersection
           , removedMetadata = toList $ old_union `Set.difference` new_metadata
           }
+    getMetadataUpdates s =
+      [ (n, (Set.singleton r, Set.singleton r)) 
+      | (r,n,v) <- R3.toList $ BranchDiff.taddedMetadata s <>
+                               BranchDiff.tremovedMetadata s
+      , v /= isPropagatedValue ]
 
   updatedTypes :: [UpdateTypeDisplay v a] <-
     let -- things where what the name pointed to changed
@@ -127,10 +133,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
           Map.toList $ BranchDiff.namespaceUpdates typesDiff
         -- things where the metadata changed (`uniqueBy` below removes these
         -- if they were already included in `nsUpdates)
-        metadataUpdates :: [(Name, (Set Reference, Set Reference))] =
-          fmap (\(r,n,_v) -> (n, (Set.singleton r, Set.singleton r))) . R3.toList $
-            BranchDiff.taddedMetadata typesDiff <>
-            BranchDiff.tremovedMetadata typesDiff
+        metadataUpdates = getMetadataUpdates typesDiff
         loadOld :: Name -> Reference -> m (SimpleTypeDisplay v a)
         loadOld n r_old =
           (,) <$> pure (Names2.hqTypeName hqLen names1 n r_old)
@@ -139,16 +142,35 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
         loadNew n rs_old r_new =
           (,,) <$> pure (Names2.hqTypeName hqLen names2 n r_new)
                <*> declOrBuiltin r_new
-               <*> fillMetadata ppe (getNewMetadataDiff n rs_old r_new)
+               <*> fillMetadata ppe (getNewMetadataDiff typesDiff n rs_old r_new)
         loadEntry :: (Name, (Set Reference, Set Reference)) -> m (UpdateTypeDisplay v a)
         loadEntry (n, (rs_old, rs_new)) =
           (,) <$> (Just <$> for (toList rs_old) (loadOld n))
               <*> for (toList rs_new) (loadNew n rs_old)
     in for (sortOn fst . uniqueBy fst $ nsUpdates <> metadataUpdates) loadEntry
 
-  updatedTerms :: [UpdateTermDisplay v a] <- undefined
-
-  propagatedUpdates :: Int <- undefined
+  updatedTerms :: [UpdateTermDisplay v a] <-
+    let -- things where what the name pointed to changed
+        nsUpdates =
+          Map.toList $ BranchDiff.namespaceUpdates termsDiff
+        -- things where the metadata changed (`uniqueBy` below removes these
+        -- if they were already included in `nsUpdates)
+        metadataUpdates = getMetadataUpdates termsDiff
+        loadOld n r_old =
+          (,) <$> pure (Names2.hqTermName hqLen names1 n r_old)
+              <*> typeOf r_old
+        loadNew n rs_old r_new =
+          (,,) <$> pure (Names2.hqTermName hqLen names2 n r_new)
+               <*> typeOf r_new
+               <*> fillMetadata ppe (getNewMetadataDiff termsDiff n rs_old r_new)
+        loadEntry (n, (rs_old, rs_new)) =
+          (,) <$> (Just <$> for (toList rs_old) (loadOld n))
+              <*> for (toList rs_new) (loadNew n rs_old)
+    in for (sortOn fst . uniqueBy fst $ nsUpdates <> metadataUpdates) loadEntry
+  
+  let propagatedUpdates :: Int = 
+        (Set.size . R3.d2s . BranchDiff.propagatedNamespaceUpdates) typesDiff +
+        (Set.size . R3.d2s . BranchDiff.propagatedNamespaceUpdates) termsDiff
 
   let updatedPatches :: [PatchDisplay] =
         [(name, diff) | (name, BranchDiff.Modify diff) <- Map.toList patchesDiff]
