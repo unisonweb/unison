@@ -14,8 +14,9 @@ import Unison.Codebase.BranchDiff (BranchDiff(BranchDiff))
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation3 as R3
 import qualified Unison.Codebase.Metadata as Metadata
---import qualified Data.Set as Set
+import qualified Data.Set as Set
 import qualified Data.Map as Map
+import Unison.Util.List (uniqueBy)
 
 import Unison.Reference (Reference)
 import Unison.Type (Type)
@@ -99,16 +100,37 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
 --        . BranchDiff.taddedMetadata
 --        $ BranchDiff.termsDiff diff
 
-  -- types that have been "updated" by virtue of being `updated` in the
-  -- namespace. (contrast with `metadataUpdatedTypes`)
-  updatedUpdatedTypes :: [UpdateTypeDisplay v a] <-
-    let nsUpdates :: [(Name, (Set Reference, Set Reference))] =
+    -- | This calculates the new reference's metadata as:
+    --   adds: now-attached metadata that was missing from
+    --         any of the old references associated with the name
+    --   removes: not-attached metadata that had been attached to any of
+    --         the old references associated with the name
+    getNewMetadataDiff :: Name -> Set Reference -> Reference -> MetadataDiff Reference
+    getNewMetadataDiff n rs_old r_new =
+      let old_metadatas :: [(Set Metadata.Value)] =
+            toList . R.toMultimap . R.restrictDom rs_old . R3.lookupD2 n $
+              BranchDiff.tremovedMetadata typesDiff
+          old_intersection :: Set Metadata.Value =
+            foldl1' Set.intersection old_metadatas
+          old_union :: Set Metadata.Value =
+            foldl1' Set.union old_metadatas
+          new_metadata :: Set Metadata.Value =
+            R.lookupDom n . R3.lookupD1 r_new $ BranchDiff.taddedMetadata typesDiff
+      in MetadataDiff
+          { addedMetadata = toList $ new_metadata `Set.difference` old_intersection
+          , removedMetadata = toList $ old_union `Set.difference` new_metadata
+          }
+
+  updatedTypes :: [UpdateTypeDisplay v a] <-
+    let -- things where what the name pointed to changed
+        nsUpdates :: [(Name, (Set Reference, Set Reference))] =
           Map.toList $ BranchDiff.namespaceUpdates typesDiff
-        -- | Given a set of old references associated with a name and a new reference
-        -- associated with the name, choose the MetadataDiff that should be displayed (conceptually)
-        -- alongside the new HashQualified name for (n,r_new) in the diff output
-        getNewMetadataDiff :: Name -> Set Reference -> Reference -> MetadataDiff Reference
-        getNewMetadataDiff n rs_old r_new = undefined n rs_old r_new
+        -- things where the metadata changed (`uniqueBy` below removes these
+        -- if they were already included in `nsUpdates)
+        metadataUpdates :: [(Name, (Set Reference, Set Reference))] =
+          fmap (\(r,n,_v) -> (n, (Set.singleton r, Set.singleton r))) . R3.toList $
+            BranchDiff.taddedMetadata typesDiff <>
+            BranchDiff.tremovedMetadata typesDiff
         loadOld :: Name -> Reference -> m (SimpleTypeDisplay v a)
         loadOld n r_old =
           (,) <$> pure (Names2.hqTypeName hqLen names1 n r_old)
@@ -122,12 +144,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
         loadEntry (n, (rs_old, rs_new)) =
           (,) <$> (Just <$> for (toList rs_old) (loadOld n))
               <*> for (toList rs_new) (loadNew n rs_old)
-    in for nsUpdates loadEntry
-
-  -- types that have been "updated" just by virtue of having their metadata altered
-  metadataUpdatedTypes :: [UpdateTypeDisplay v a] <- undefined
-
-  let updatedTypes = updatedUpdatedTypes <> metadataUpdatedTypes -- possibly re-sorted by Name
+    in for (sortOn fst . uniqueBy fst $ nsUpdates <> metadataUpdates) loadEntry
 
   updatedTerms :: [UpdateTermDisplay v a] <- undefined
 

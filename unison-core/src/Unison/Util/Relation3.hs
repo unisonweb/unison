@@ -39,6 +39,9 @@ member a b c = R.member b c . lookupD1 a
 lookupD1 :: (Ord a, Ord b, Ord c) => a -> Relation3 a b c -> Relation b c
 lookupD1 a = fromMaybe mempty . Map.lookup a . d1
 
+lookupD2 :: (Ord a, Ord b, Ord c) => b -> Relation3 a b c -> Relation a c
+lookupD2 b = fromMaybe mempty . Map.lookup b . d2
+
 lookupD3 :: (Ord a, Ord b, Ord c) => c -> Relation3 a b c -> Relation a b
 lookupD3 c = fromMaybe mempty . Map.lookup c . d3
 
