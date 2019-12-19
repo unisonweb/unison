@@ -93,8 +93,8 @@ commented = [:
   commented =
     [: example:
     
-    -- a comment
-    f x = x + 1 :]
+      -- a comment
+      f x = x + 1 :]
 
 ```
 ### Indenting, and paragraph reflow
@@ -160,8 +160,8 @@ doc2 = [: hello
   doc2 : Doc
   doc2 =
     [: hello
-    - foo
-    - bar
+      - foo
+      - bar
     and the rest. :]
 
 ```
@@ -200,23 +200,23 @@ Note that because of the special treatment of the first line mentioned above, wh
   doc3 : Doc
   doc3 =
     [:
-    When Unison identifies a paragraph, it removes any newlines
-    from it before storing it, and then reflows the paragraph
-    text to fit the display window on display/view/edit.
+    When Unison identifies a paragraph, it removes any newlines from
+    it before storing it, and then reflows the paragraph text to
+    fit the display window on display/view/edit.
     
     For these purposes, a paragraph is any sequence of non-empty
     lines that have zero indent (after the unindenting mentioned
     above.)
     
-    - So this is not a paragraph, even
-    though you might want it to be.
+     - So this is not a paragraph, even
+       though you might want it to be.
     
-    And this text | as a paragraph
-    is not treated | either.
+       And this text  | as a paragraph
+       is not treated | either.
     
     Note that because of the special treatment of the first line
-    mentioned above, where its leading space is removed, it is
-    always treated as a paragraph.
+    mentioned above, where its leading space is removed, it is always
+    treated as a paragraph.
     :]
 
 ```
@@ -249,9 +249,9 @@ doc4 = [: Here's another example of some paragraphs.
   doc4 =
     [: Here's another example of some paragraphs.
     
-    All these lines have zero indent.
+              All these lines have zero indent.
     
-    - Apart from this one. :]
+                - Apart from this one. :]
 
 ```
 ```unison
@@ -284,7 +284,7 @@ doc5 = [:   - foo
   doc5 : Doc
   doc5 =
     [: - foo
-    - bar
+      - bar
     and the rest. :]
 
 ```
