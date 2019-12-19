@@ -21,8 +21,10 @@ module Unison.Names2
   , hqName
   , hqTermName
   , hqTypeName
-  , hqTermAliases
-  , hqTypeAliases
+  , _hqTermName
+  , _hqTypeName
+  , _hqTermAliases
+  , _hqTypeAliases
   , names0ToNames
   , prefix0
   , restrictReferences
@@ -168,6 +170,7 @@ unionLeft' p a b = Names terms' types'
   go acc (n, r) = if p n r acc then acc else R.insert n r acc
 
 -- could move this to a read-only field in Names
+-- todo: kill this function and pass thru an Int from the codebase, I suppose
 numHashChars :: Names' n -> Int
 numHashChars b = lenFor hashes
   where lenFor _hashes = 3
@@ -232,38 +235,56 @@ addTerm n r = (<> fromTerms [(n, r)])
 -- other is a type.
 hqName :: Ord n => Names' n -> n -> Either Reference Referent -> HQ.HashQualified' n
 hqName b n = \case
-  Left r  -> if ambiguous then hqTypeName' b n r else HQ.fromName n
-  Right r -> if ambiguous then hqTermName' b n r else HQ.fromName n
+  Left r  -> if ambiguous then _hqTypeName' b n r else HQ.fromName n
+  Right r -> if ambiguous then _hqTermName' b n r else HQ.fromName n
   where
     ambiguous = Set.size (termsNamed b n) + Set.size (typesNamed b n) > 1
 
 -- Conditionally apply hash qualifier to term name.
 -- Should be the same as the input name if the Names0 is unconflicted.
-hqTermName :: Ord n => Names' n -> n -> Referent -> HQ.HashQualified' n
-hqTermName b n r = if Set.size (termsNamed b n) > 1
-  then hqTermName' b n r
+hqTermName :: Ord n => Int -> Names' n -> n -> Referent -> HQ.HashQualified' n
+hqTermName hqLen b n r = if Set.size (termsNamed b n) > 1
+  then hqTermName' hqLen n r
   else HQ.fromName n
 
-hqTypeName :: Ord n => Names' n -> n -> Reference -> HQ.HashQualified' n
-hqTypeName b n r = if Set.size (typesNamed b n) > 1
-  then hqTypeName' b n r
+hqTypeName :: Ord n => Int -> Names' n -> n -> Reference -> HQ.HashQualified' n
+hqTypeName hqLen b n r = if Set.size (typesNamed b n) > 1
+  then hqTypeName' hqLen n r
   else HQ.fromName n
 
-hqTypeAliases ::
+_hqTermName :: Ord n => Names' n -> n -> Referent -> HQ.HashQualified' n
+_hqTermName b n r = if Set.size (termsNamed b n) > 1
+  then _hqTermName' b n r
+  else HQ.fromName n
+
+_hqTypeName :: Ord n => Names' n -> n -> Reference -> HQ.HashQualified' n
+_hqTypeName b n r = if Set.size (typesNamed b n) > 1
+  then _hqTypeName' b n r
+  else HQ.fromName n
+
+_hqTypeAliases ::
   Ord n => Names' n -> n -> Reference -> Set (HQ.HashQualified' n)
-hqTypeAliases b n r = Set.map (flip (hqTypeName b) r) (typeAliases b n r)
+_hqTypeAliases b n r = Set.map (flip (_hqTypeName b) r) (typeAliases b n r)
 
-hqTermAliases :: Ord n => Names' n -> n -> Referent -> Set (HQ.HashQualified' n)
-hqTermAliases b n r = Set.map (flip (hqTermName b) r) (termAliases b n r)
+_hqTermAliases :: Ord n => Names' n -> n -> Referent -> Set (HQ.HashQualified' n)
+_hqTermAliases b n r = Set.map (flip (_hqTermName b) r) (termAliases b n r)
 
 -- Unconditionally apply hash qualifier long enough to distinguish all the
 -- References in this Names0.
-hqTermName' :: Names' n -> n -> Referent -> HQ.HashQualified' n
-hqTermName' b n r =
+hqTermName' :: Int -> n -> Referent -> HQ.HashQualified' n
+hqTermName' hqLen n r =
+  HQ.take hqLen $ HQ.fromNamedReferent n r
+
+hqTypeName' :: Int -> n -> Reference -> HQ.HashQualified' n
+hqTypeName' hqLen n r =
+  HQ.take hqLen $ HQ.fromNamedReference n r
+
+_hqTermName' :: Names' n -> n -> Referent -> HQ.HashQualified' n
+_hqTermName' b n r =
   HQ.take (numHashChars b) $ HQ.fromNamedReferent n r
 
-hqTypeName' :: Names' n -> n -> Reference -> HQ.HashQualified' n
-hqTypeName' b n r =
+_hqTypeName' :: Names' n -> n -> Reference -> HQ.HashQualified' n
+_hqTypeName' b n r =
   HQ.take (numHashChars b) $ HQ.fromNamedReference n r
 
 fromTerms :: Ord n => [(n, Referent)] -> Names' n
