@@ -53,3 +53,11 @@ labeledDependencies TodoOutput{..} = Set.fromList (
   Set.map LD.referent (R.ran (Names.terms0 nameConflicts)) <>
   Set.map LD.typeRef (R.ran (Names.types0 nameConflicts)) <>
   Patch.labeledDependencies editConflicts
+
+noConflicts :: TodoOutput v a -> Bool
+noConflicts todo =
+  nameConflicts todo == mempty && editConflicts todo == Patch.empty
+
+noEdits :: TodoOutput v a -> Bool
+noEdits todo =
+  todoScore todo == 0
