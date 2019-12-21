@@ -759,15 +759,21 @@ notifyUser dir o = case o of
           , ""
           , prettyDiff diff
           ]
-    Input.DeleteBranchI _ -> P.callout "🆕" . P.lines $
-      [ P.wrap $
-          "Here's what's changed after the delete:"
-      , ""
-      , prettyDiff diff
-      , ""
-      , tip "You can always `undo` if this wasn't what you wanted."
-      ]
+    Input.DeleteBranchI{} -> deleteDiff
+    Input.DeleteI{}       -> deleteDiff
+    Input.DeleteTermI{}   -> deleteDiff
+    Input.DeleteTypeI{}   -> deleteDiff
     _ -> prettyDiff diff
+    where
+      deleteDiff =
+        P.callout "🆕" . P.lines $
+          [ P.wrap $
+              "Here's what's changed after the delete:"
+          , ""
+          , prettyDiff diff
+          , ""
+          , tip "You can always `undo` if this wasn't what you wanted."
+          ]
   NothingTodo input -> pure . P.callout "😶" $ case input of
     Input.MergeLocalBranchI src dest ->
       P.wrap $ "The merge had no effect, since the destination"
@@ -1297,21 +1303,28 @@ prettyDiff diff = let
   orig = Names.originalNames diff
   adds = Names.addedNames diff
   removes = Names.removedNames diff
-  addedTerms = [ n | (n,r) <- R.toList (Names.terms0 adds)
-                   , not $ R.memberRan r (Names.terms0 removes) ]
-  addedTypes = [ n | (n,r) <- R.toList (Names.types0 adds)
-                   , not $ R.memberRan r (Names.types0 removes) ]
-  added = Name.sortNames . nubOrd $ (addedTerms <> addedTypes)
 
-  removedTerms = [ n | (n,r) <- R.toList (Names.terms0 removes)
-                     , not $ R.memberRan r (Names.terms0 adds)
-                     , Set.notMember n addedTermsSet ] where
-    addedTermsSet = Set.fromList addedTerms
-  removedTypes = [ n | (n,r) <- R.toList (Names.types0 removes)
-                     , not $ R.memberRan r (Names.types0 adds)
-                     , Set.notMember n addedTypesSet ] where
-    addedTypesSet = Set.fromList addedTypes
-  removed = Name.sortNames . nubOrd $ (removedTerms <> removedTypes)
+  addedTerms = [ (n,r) | (n,r) <- R.toList (Names.terms0 adds)
+                       , not $ R.memberRan r (Names.terms0 removes) ]
+  addedTypes = [ (n,r) | (n,r) <- R.toList (Names.types0 adds)
+                       , not $ R.memberRan r (Names.types0 removes) ]
+  added = HQ'.sort (hqTerms ++ hqTypes)
+    where
+      hqTerms = [ Names.hqName adds n (Right r) | (n, r) <- addedTerms ]
+      hqTypes = [ Names.hqName adds n (Left r)  | (n, r) <- addedTypes ]
+
+  removedTerms = [ (n,r) | (n,r) <- R.toList (Names.terms0 removes)
+                         , not $ R.memberRan r (Names.terms0 adds)
+                         , Set.notMember n addedTermsSet ] where
+    addedTermsSet = Set.fromList (map fst addedTerms)
+  removedTypes = [ (n,r) | (n,r) <- R.toList (Names.types0 removes)
+                         , not $ R.memberRan r (Names.types0 adds)
+                         , Set.notMember n addedTypesSet ] where
+    addedTypesSet = Set.fromList (map fst addedTypes)
+  removed = HQ'.sort (hqTerms ++ hqTypes)
+    where
+      hqTerms = [ Names.hqName removes n (Right r) | (n, r) <- removedTerms ]
+      hqTypes = [ Names.hqName removes n (Left r)  | (n, r) <- removedTypes ]
 
   movedTerms = [ (n,n2) | (n,r) <- R.toList (Names.terms0 removes)
                         , n2 <- toList (R.lookupRan r (Names.terms adds)) ]
@@ -1336,14 +1349,14 @@ prettyDiff diff = let
          -- todo: split out updates
          P.green "+ Adds / updates:", "",
          P.indentN 2 . P.wrap $
-           P.sep " " (prettyName <$> added)
+           P.sep " " (P.syntaxToColor . prettyHashQualified' <$> added)
        ]
      else mempty,
      if not $ null removed then
        P.lines [
          P.hiBlack "- Deletes:", "",
          P.indentN 2 . P.wrap $
-           P.sep " " (prettyName <$> removed)
+           P.sep " " (P.syntaxToColor . prettyHashQualified' <$> removed)
        ]
      else mempty,
      if not $ null moved then

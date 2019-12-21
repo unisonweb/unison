@@ -61,7 +61,6 @@ library
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
     Unison.Codebase.NameEdit
-    Unison.Codebase.NameSegment
     Unison.Codebase.Path
     Unison.Codebase.Patch
     Unison.Codebase.Reflog
@@ -75,6 +74,8 @@ library
     Unison.Codebase.TranscriptParser
     Unison.Codebase.TypeEdit
     Unison.Codebase.Watch
+    Unison.Codebase.Execute
+    Unison.Codebase.MainTerm
     Unison.CommandLine
     Unison.CommandLine.DisplayValues
     Unison.CommandLine.InputPattern
@@ -233,7 +234,8 @@ executable unison
     temporary,
     text,
     unison-core,
-    unison-parser-typechecker
+    unison-parser-typechecker,
+    unix
 
 executable prettyprintdemo
   main-is: Main.hs

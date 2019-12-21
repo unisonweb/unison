@@ -149,12 +149,12 @@ run dir configFile stanzas codebase = do
                 output ("\n" <> show p <> "\n")
                 -- invalid command is treated as a failure
                 case Map.lookup cmd patternMap of
-                  Nothing -> 
+                  Nothing ->
                     die
                   Just pat -> case IP.parse pat args of
                     Left msg -> do
                       output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
-                      die 
+                      die
                     Right input -> pure $ Right input
           Nothing -> do
             errOk <- readIORef allowErrors
@@ -207,12 +207,12 @@ run dir configFile stanzas codebase = do
         errOk <- readIORef allowErrors
         let rendered = P.toPlain 65 (P.border 2 msg)
         output rendered
-        when (errOk && Output.isFailure o) $ 
+        when (errOk && Output.isFailure o) $
           writeIORef hasErrors True
-        when (not errOk && Output.isFailure o) 
+        when (not errOk && Output.isFailure o)
           die
 
-      die = do 
+      die = do
         output "\n```\n\n"
         transcriptFailure out $ Text.unlines [
           "\128721", "",
@@ -226,6 +226,7 @@ run dir configFile stanzas codebase = do
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (const $ pure ())
                                      runtime
+                                     print
                                      print
                                      codebase
                                      free

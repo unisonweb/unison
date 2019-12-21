@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 
 module Unison.Name
-  ( Name(..)
+  ( Name
   , fromString
   , isPrefixOf
   , joinDot
@@ -9,10 +9,12 @@ module Unison.Name
   , parent
   , sortNames
   , sortNamed
+  , sortNamed'
   , stripNamePrefix
   , stripPrefixes
   , suffixes
   , toString
+  , toText
   , toVar
   , unqualified
   , unqualified'
@@ -41,6 +43,14 @@ sortNamed :: (a -> Name) -> [a] -> [a]
 sortNamed by as = let
   as' = [ (a, Text.unpack (toText (by a))) | a <- as ]
   comp (_,s) (_,s2) = RFC5051.compareUnicode s s2
+  in fst <$> sortBy comp as'
+
+-- | Like sortNamed, but takes an additional backup comparison function if two
+-- names are equal.
+sortNamed' :: (a -> Name) -> (a -> a -> Ordering) -> [a] -> [a]
+sortNamed' by by2 as = let
+  as' = [ (a, Text.unpack (toText (by a))) | a <- as ]
+  comp (a,s) (a2,s2) = RFC5051.compareUnicode s s2 <> by2 a a2
   in fst <$> sortBy comp as'
 
 unsafeFromText :: Text -> Name
@@ -105,7 +115,7 @@ parent (Name txt) = case unsnoc (Text.splitOn "." txt) of
   Just (init,_) -> Just $ Name (Text.intercalate "." init)
 
 suffixes :: Name -> [Name]
-suffixes (Name n) = 
+suffixes (Name n) =
   fmap up . tails . dropWhile (== "") $ Text.splitOn "." n
   where
   up ns = Name (Text.intercalate "." ns)

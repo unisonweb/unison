@@ -61,6 +61,9 @@ data Command m i v a where
   -- Presents some output to the user
   Notify :: Output v -> Command m i v ()
 
+  -- Presents some output to the user without any paging
+  NotifyUnpaged :: Output v -> Command m i v ()
+
   -- literally just write some terms and types .unison/{terms,types}
   AddDefsToCodebase :: UF.TypecheckedUnisonFile v Ann -> Command m i v ()
 
@@ -129,8 +132,8 @@ data Command m i v a where
 
   LoadRemoteRootBranch ::
     BranchLoadMode -> RemoteRepo -> Command m i v (Either GitError (Branch m))
-  
-  -- returns NoRemoteNamespaceWithHash or RemoteNamespaceHashAmbiguous 
+
+  -- returns NoRemoteNamespaceWithHash or RemoteNamespaceHashAmbiguous
   -- if no exact match.
   LoadRemoteShortBranch ::
     RemoteRepo -> ShortBranchHash -> Command m i v (Either GitError (Branch m))

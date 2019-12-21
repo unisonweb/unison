@@ -18,6 +18,7 @@ module Unison.Names2
   , filterByHQs
   , filterBySHs
   , filterTypes
+  , hqName
   , hqTermName
   , hqTypeName
   , hqTermAliases
@@ -215,6 +216,26 @@ addType n r = (<> fromTypes [(n, r)])
 
 addTerm :: Ord n => n -> Referent -> Names' n -> Names' n
 addTerm n r = (<> fromTerms [(n, r)])
+
+-- | Like hqTermName and hqTypeName, but considers term and type names to
+-- conflict with each other (so will hash-qualify if there is e.g. both a term
+-- and a type named "foo").
+--
+-- This is useful in contexts such as printing branch diffs. Example:
+--
+--     - Deletes:
+--
+--       foo
+--       foo
+--
+-- We want to append the hash regardless of whether or not one is a term and the
+-- other is a type.
+hqName :: Ord n => Names' n -> n -> Either Reference Referent -> HQ.HashQualified' n
+hqName b n = \case
+  Left r  -> if ambiguous then hqTypeName' b n r else HQ.fromName n
+  Right r -> if ambiguous then hqTermName' b n r else HQ.fromName n
+  where
+    ambiguous = Set.size (termsNamed b n) + Set.size (typesNamed b n) > 1
 
 -- Conditionally apply hash qualifier to term name.
 -- Should be the same as the input name if the Names0 is unconflicted.

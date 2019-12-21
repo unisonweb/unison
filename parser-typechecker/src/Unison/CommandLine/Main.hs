@@ -3,13 +3,14 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Unison.CommandLine.Main where
 
 import Unison.Prelude
 
 import Control.Concurrent.STM (atomically)
-import Control.Exception (finally)
+import Control.Exception (finally, catch, AsyncException(UserInterrupt), asyncExceptionFromException)
 import Control.Monad.State (runStateT)
 import Data.IORef
 import Prelude hiding (readFile, writeFile)
@@ -187,13 +188,15 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
       awaitInput = do
         -- use up buffered input before consulting external events
         i <- readIORef initialInputsRef
-        case i of
+        (case i of
           h:t -> writeIORef initialInputsRef t >> pure h
           [] ->
             -- Race the user input and file watch.
             Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
               Left _ -> Left <$> atomically (Q.dequeue eventQueue)
-              x      -> pure x
+              x      -> pure x) `catch` interruptHandler
+      interruptHandler (asyncExceptionFromException -> Just UserInterrupt) = awaitInput
+      interruptHandler _ = pure $ Right QuitI
       cleanup = do
         Runtime.terminate runtime
         cancelConfig
@@ -206,6 +209,7 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
                                      (writeIORef rootRef)
                                      runtime
                                      (notifyUser dir >=> putPrettyNonempty)
+                                     (notifyUser dir >=> putPrettyLnUnpaged)
                                      codebase
                                      free
         case o of
@@ -215,4 +219,3 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
             loop state'
     (`finally` cleanup)
       $ loop (HandleInput.loopState0 root initialPath)
-

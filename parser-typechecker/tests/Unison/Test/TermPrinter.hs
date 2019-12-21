@@ -43,7 +43,7 @@ tcDiffRtt rtt s expected width
             note $ "expected:\n" ++ expected
             note $ "actual:\n" ++ actual
             note $ "show(input)  : " ++ show inputTerm
-            note $ "prettyprint  : " ++ show prettied
+            -- note $ "prettyprint  : " ++ show prettied
             crash "actual != expected"
         , if not rtt || (inputTerm == actualReparsed)
           then ok
@@ -136,10 +136,6 @@ test = scope "termprinter" . tests $
                  \  x = 1\n\
                  \  y = 2\n\
                  \  f x y"
-  , tcBreaks 50 "let\n\
-                 \  x = 1\n\
-                 \  x = 2\n\
-                 \  f x x"
   , pending $ tc "case x of Pair t 0 -> foo t" -- TODO hitting UnknownDataConstructor when parsing pattern
   , pending $ tc "case x of Pair t 0 | pred t -> foo t" -- ditto
   , pending $ tc "case x of Pair t 0 | pred t -> foo t; Pair t 0 -> foo' t; Pair t u -> bar;" -- ditto

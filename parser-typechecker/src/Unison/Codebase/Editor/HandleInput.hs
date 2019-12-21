@@ -21,6 +21,8 @@ module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..), pars
 
 import Unison.Prelude
 
+import Unison.Codebase.MainTerm ( nullaryMain, mainTypes, getMainTerm )
+import qualified Unison.Codebase.MainTerm as MainTerm
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
@@ -70,7 +72,7 @@ import qualified Unison.DataDeclaration        as DD
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
-import           Unison.Name                    ( Name(Name) )
+import           Unison.Name                    ( Name )
 import           Unison.Names3                  ( Names(..), Names0
                                                 , pattern Names0 )
 import qualified Unison.Names2                 as Names
@@ -99,7 +101,7 @@ import Unison.Codebase.TermEdit (TermEdit(..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE
-import           Unison.Runtime.IOSource       ( isTest, ioReference )
+import           Unison.Runtime.IOSource       ( isTest )
 import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
@@ -235,7 +237,7 @@ loop = do
 
   case e of
     Left (IncomingRootBranch hashes) ->
-      respond . WarnIncomingRootBranch $ Set.map (SBH.fromHash sbhLength) hashes
+      eval . NotifyUnpaged . WarnIncomingRootBranch $ Set.map (SBH.fromHash sbhLength) hashes
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
       if maybe False snd latestFile'
@@ -248,15 +250,15 @@ loop = do
                         (UF.termSignatureExternalLabeledDependencies unisonFile)
                         (UF.typecheckedToNames0 unisonFile)
             ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
-            eval (Notify $ Typechecked sourceName ppe sr unisonFile)
+            eval . NotifyUnpaged $ Typechecked sourceName ppe sr unisonFile
             r <- eval . Evaluate ppe $ unisonFile
             case r of
-              Left e -> respond $ EvaluationFailure e
+              Left e -> eval . NotifyUnpaged $ EvaluationFailure e
               Right (bindings, e) -> do
                 let e' = Map.map go e
                     go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
                 when (not $ null e') $
-                  eval . Notify $ Evaluated text ppe bindings e'
+                  eval . NotifyUnpaged $ Evaluated text ppe bindings e'
                 latestFile .= Just (Text.unpack sourceName, False)
                 latestTypecheckedFile .= Just unisonFile
     Right input ->
@@ -386,8 +388,11 @@ loop = do
             (failed, failedDependents) <-
               getEndangeredDependents (eval . GetDependents) toDelete rootNames
             if failed == mempty then do
-              stepManyAt . fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
-              stepManyAt . fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
+              let makeDeleteTermNames = fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
+              let makeDeleteTypeNames = fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
+              stepManyAt (makeDeleteTermNames ++ makeDeleteTypeNames)
+              root'' <- use root
+              respond $ ShowDiff input (Branch.namesDiff root' root'')
             else do
               failed <-
                 loadSearchResults $ SR.fromNames failed
@@ -2135,7 +2140,7 @@ getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
   [] -> case hq of
     HQ'.HashQualified n hs -> do
       names <- findHistoricalHQs
-        $ Set.fromList [HQ.HashQualified (Name (NameSegment.toText n)) hs]
+        $ Set.fromList [HQ.HashQualified (Name.unsafeFromText (NameSegment.toText n)) hs]
       pure . R.ran $ Names.terms names
     _ -> pure Set.empty
   _ -> pure refs
@@ -2154,9 +2159,9 @@ findHistoricalHQs lexedHQs0 = do
     -- Anyway, this function takes a name, tries to determine whether it is
     -- relative or absolute, and tries to return the corresponding name that is
     -- /relative/ to the root.
-    preprocess n@(Name (Text.unpack -> t)) = case t of
+    preprocess n = case Name.toString n of
       -- some absolute name that isn't just "."
-      '.' : t@(_:_)  -> Name . Text.pack $ t
+      '.' : t@(_:_)  -> Name.unsafeFromString t
       -- something in current path
       _ ->  if Path.isRoot currentPath then n
             else Name.joinDot (Path.toName . Path.unabsolute $ currentPath) n
@@ -2245,7 +2250,7 @@ basicNames0' = do
       -- all names, but with local names in their relative form only, rather
       -- than absolute; external names appear as absolute
       currentAndExternalNames0 = currentPathNames0 `Names3.unionLeft0` absDot externalNames where
-        absDot = Names.prefix0 (Name.Name "")
+        absDot = Names.prefix0 (Name.unsafeFromText "")
         externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
         rootNames = Branch.toNames0 root0
         pathPrefixed = case Path.unabsolute currentPath' of
@@ -2256,17 +2261,6 @@ basicNames0' = do
       -- pretty-printing should use local names where available
       prettyPrintNames00 = currentAndExternalNames0
   pure (parseNames00, prettyPrintNames00)
-
--- {IO} ()
-ioUnit :: Ord v => a -> Type v a
-ioUnit a = Type.effect a [Type.ref a ioReference] (Type.ref a DD.unitRef)
-
--- '{IO} ()
-nullaryMain :: Ord v => a -> Type v a
-nullaryMain a = Type.arrow a (Type.ref a DD.unitRef) (ioUnit a)
-
-mainTypes :: Ord v => a -> [Type v a]
-mainTypes a = [nullaryMain a]
 
 -- Given a typechecked file with a main function called `mainName`
 -- of the type `'{IO} ()`, adds an extra binding which
@@ -2281,23 +2275,15 @@ addRunMain
   -> Action' m v (Maybe (TypecheckedUnisonFile v Ann))
 addRunMain mainName Nothing = do
   parseNames0 <- basicParseNames0
-  case HQ.fromString mainName of
-    Nothing -> pure Nothing
-    Just hq -> do
-      -- note: not allowing historical search
-      let refs = Names3.lookupHQTerm hq (Names3.Names parseNames0 mempty)
-      let a = External
-      case toList refs of
-        [] -> pure Nothing
-        [Referent.Ref ref] -> do
-          typ <- eval $ LoadTypeOfTerm ref
-          case typ of
-            Just typ | Typechecker.isSubtype typ (nullaryMain a) -> do
-              let runMain = DD.forceTerm a a (Term.ref a ref)
-              let v = Var.named (HQ.toText hq)
-              pure . Just $ UF.typecheckedUnisonFile mempty mempty [[(v, runMain, typ)]] mempty
-            _ -> pure Nothing
-        _ -> pure Nothing
+  let loadTypeOfTerm ref = eval $ LoadTypeOfTerm ref
+  mainToFile <$> getMainTerm loadTypeOfTerm parseNames0 mainName
+  where
+    mainToFile (MainTerm.NotAFunctionName _) = Nothing
+    mainToFile (MainTerm.NotFound _) = Nothing
+    mainToFile (MainTerm.BadType _) = Nothing
+    mainToFile (MainTerm.Success hq tm typ) = Just $
+      let v = Var.named (HQ.toText hq) in
+      UF.typecheckedUnisonFile mempty mempty [[(v, tm, typ)]] mempty
 addRunMain mainName (Just uf) = do
   let components = join $ UF.topLevelComponents uf
   let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components

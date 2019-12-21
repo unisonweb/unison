@@ -94,6 +94,16 @@ requalify hq r = case hq of
   NameOnly n        -> fromNamedReferent n r
   HashQualified n _ -> fromNamedReferent n r
 
+-- | Sort a list of hash-qualified names first by name, then if those match, by
+-- hash.
+sort :: [HashQualified] -> [HashQualified]
+sort =
+  Name.sortNamed' toName $ \hq1 hq2 ->
+    case (hq1, hq2) of
+      (NameOnly{}, HashQualified{}) -> LT
+      (NameOnly{}, NameOnly{}) -> EQ
+      (HashQualified{}, NameOnly{}) -> GT
+      (HashQualified _ h1, HashQualified _ h2) -> compare h1 h2
 
 instance IsString HashQualified where
   fromString = unsafeFromText . Text.pack

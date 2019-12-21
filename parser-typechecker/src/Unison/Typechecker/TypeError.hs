@@ -7,6 +7,7 @@ module Unison.Typechecker.TypeError where
 import Unison.Prelude hiding (whenM)
 
 import           Data.Bifunctor                (second)
+import           Data.List.NonEmpty            (NonEmpty)
 import           Prelude                       hiding (all, and, or)
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Type                   as Type
@@ -74,6 +75,9 @@ data TypeError v loc
                 , expectedType :: C.Type v loc
                 , note         :: C.ErrorNote v loc
                 }
+  | DuplicateDefinitions { defns :: NonEmpty (v, [loc])
+                         , note  :: C.ErrorNote v loc
+                         }
   | Other (C.ErrorNote v loc)
   deriving (Show)
 
@@ -115,6 +119,7 @@ allErrors = asum
   , unguardedCycle
   , unknownType
   , unknownTerm
+  , duplicateDefinitions
   ]
 
 topLevelComponent :: Ex.InfoExtractor v a (TypeInfo v a)
@@ -128,6 +133,12 @@ abilityCheckFailure = do
   e <- Ex.innermostTerm
   n <- Ex.errorNote
   pure $ AbilityCheckFailure ambient requested (ABT.annotation e) n
+
+duplicateDefinitions :: Ex.ErrorExtractor v a (TypeError v a)
+duplicateDefinitions = do
+  vs <- Ex.duplicateDefinitions
+  n <- Ex.errorNote
+  pure $ DuplicateDefinitions vs n
 
 unknownType :: Ex.ErrorExtractor v loc (TypeError v loc)
 unknownType = do

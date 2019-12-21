@@ -47,9 +47,39 @@ type Foo = Foo Nat
 
 .> delete foo
 
+  🆕
+  
+  Here's what's changed after the delete:
+  
+  - Deletes:
+  
+    foo
+  
+  Tip: You can always `undo` if this wasn't what you wanted.
+
 .> delete Foo
 
+  🆕
+  
+  Here's what's changed after the delete:
+  
+  - Deletes:
+  
+    Foo
+  
+  Tip: You can always `undo` if this wasn't what you wanted.
+
 .> delete Foo.Foo
+
+  🆕
+  
+  Here's what's changed after the delete:
+  
+  - Deletes:
+  
+    Foo.Foo
+  
+  Tip: You can always `undo` if this wasn't what you wanted.
 
 ```
 How about an ambiguous term?
@@ -145,6 +175,16 @@ I can force my delete through by re-issuing the command.
 ```ucm
 .a> delete foo
 
+  🆕
+  
+  Here's what's changed after the delete:
+  
+  - Deletes:
+  
+    a.foo#0ja a.foo#jk1
+  
+  Tip: You can always `undo` if this wasn't what you wanted.
+
 ```
 Let's repeat all that on a type, for completeness.
 
@@ -233,6 +273,16 @@ type Foo = Foo Boolean
 ```ucm
 .a> delete Foo
 
+  🆕
+  
+  Here's what's changed after the delete:
+  
+  - Deletes:
+  
+    a.Foo#d97 a.Foo#gq9
+  
+  Tip: You can always `undo` if this wasn't what you wanted.
+
 ```
 ```ucm
 .a> delete Foo.Foo
@@ -253,6 +303,16 @@ type Foo = Foo Boolean
 ```
 ```ucm
 .a> delete Foo.Foo
+
+  🆕
+  
+  Here's what's changed after the delete:
+  
+  - Deletes:
+  
+    a.Foo.Foo#d97#0 a.Foo.Foo#gq9#0
+  
+  Tip: You can always `undo` if this wasn't what you wanted.
 
 ```
 Finally, let's try to delete a term and a type with the same name.
@@ -309,5 +369,15 @@ type foo = Foo Nat
 ```
 ```ucm
 .> delete foo
+
+  🆕
+  
+  Here's what's changed after the delete:
+  
+  - Deletes:
+  
+    foo#d97 foo#jk1
+  
+  Tip: You can always `undo` if this wasn't what you wanted.
 
 ```
