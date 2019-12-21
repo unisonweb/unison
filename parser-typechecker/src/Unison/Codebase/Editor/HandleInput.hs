@@ -237,7 +237,7 @@ loop = do
 
   case e of
     Left (IncomingRootBranch hashes) ->
-      respond . WarnIncomingRootBranch $ Set.map (SBH.fromHash sbhLength) hashes
+      eval . NotifyUnpaged . WarnIncomingRootBranch $ Set.map (SBH.fromHash sbhLength) hashes
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
       if maybe False snd latestFile'
@@ -250,15 +250,15 @@ loop = do
                         (UF.termSignatureExternalLabeledDependencies unisonFile)
                         (UF.typecheckedToNames0 unisonFile)
             ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
-            eval (Notify $ Typechecked sourceName ppe sr unisonFile)
+            eval . NotifyUnpaged $ Typechecked sourceName ppe sr unisonFile
             r <- eval . Evaluate ppe $ unisonFile
             case r of
-              Left e -> respond $ EvaluationFailure e
+              Left e -> eval . NotifyUnpaged $ EvaluationFailure e
               Right (bindings, e) -> do
                 let e' = Map.map go e
                     go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
                 when (not $ null e') $
-                  eval . Notify $ Evaluated text ppe bindings e'
+                  eval . NotifyUnpaged $ Evaluated text ppe bindings e'
                 latestFile .= Just (Text.unpack sourceName, False)
                 latestTypecheckedFile .= Just unisonFile
     Right input ->

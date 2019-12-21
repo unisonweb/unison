@@ -209,6 +209,7 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
                                      (writeIORef rootRef)
                                      runtime
                                      (notifyUser dir >=> putPrettyNonempty)
+                                     (notifyUser dir >=> putPrettyLnUnpaged)
                                      codebase
                                      free
         case o of
@@ -218,4 +219,3 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
             loop state'
     (`finally` cleanup)
       $ loop (HandleInput.loopState0 root initialPath)
-
