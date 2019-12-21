@@ -156,21 +156,11 @@ wrapImplPreserveSpaces = \case
 wrapString :: (LL.ListLike s Char, IsString s) => String -> Pretty s
 wrapString s = wrap (lit $ fromString s)
 
--- TODO - replace this spec...
--- 0. Preserve all leading and trailing whitespace
--- 1. Preserve all newlines
--- 2. Wrap all text in between newlines
--- TODO ... with this one:
--- Wrap all text on lines that don't start with a space. << confirm necessary by example
--- Preserve other whitespace.       << DONE
+-- Wrap text, preserving whitespace (apart from at the wrap points.)
 -- Should be understood in tandem with TermParser.docNormalize.
 -- See also unison-src/transcripts/doc-formatting.md.
 paragraphyText :: (LL.ListLike s Char, IsString s) => Text -> Pretty s
-paragraphyText t = text start <> inner <> text end where
-  inner = sep "\n" . fmap (wrapPreserveSpaces . text) . Text.splitOn "\n" $ t'
-  (start, t0) = Text.span isSpace t
-  t' = Text.dropWhileEnd isSpace t0
-  end = Text.takeWhileEnd isSpace t0
+paragraphyText = sep "\n" . fmap (wrapPreserveSpaces . text) . Text.splitOn "\n"
 
 wrap :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
 wrap p = wrapImpl (toLeaves [p]) where

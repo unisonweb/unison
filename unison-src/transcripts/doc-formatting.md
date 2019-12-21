@@ -154,3 +154,15 @@ TODO
 ```
 .> view doc6
 ```
+
+TODO
+```
+-- You can do the following to avoid that problem.
+empty = [::]
+```
+```
+.> add
+```
+```
+.> view empty
+```

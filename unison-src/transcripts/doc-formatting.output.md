@@ -29,7 +29,8 @@ foo n =
   foo : Nat -> Nat
   foo n =
     use Nat +
-    [: do the thing :]
+    [: 
+    do the thing :]
     n + 1
 
 ```
@@ -57,7 +58,9 @@ escaping = [: Docs look [: like \@this \:] :]
 .> view escaping
 
   escaping : Doc
-  escaping = [: Docs look [: like \@this \:] :]
+  escaping =
+    [: 
+    Docs look [: like \@this \:] :]
 
 ```
 (Alas you can't have `\@` or `\:]` in your doc, as there's currently no way to 'unescape' them.)
@@ -91,7 +94,8 @@ commented = [:
 
   commented : Doc
   commented =
-    [: example:
+    [: 
+    example:
     
       -- a comment
       f x = x + 1 :]
@@ -126,7 +130,9 @@ doc1 = [:   hi   :]
 .> view doc1
 
   doc1 : Doc
-  doc1 = [: hi :]
+  doc1 =
+    [: 
+    hi :]
 
 ```
 ```unison
@@ -159,7 +165,7 @@ doc2 = [: hello
 
   doc2 : Doc
   doc2 =
-    [: hello
+    [:  hello
       - foo
       - bar
     and the rest. :]
@@ -200,9 +206,9 @@ Note that because of the special treatment of the first line mentioned above, wh
   doc3 : Doc
   doc3 =
     [:
-    When Unison identifies a paragraph, it removes any newlines from
-    it before storing it, and then reflows the paragraph text to
-    fit the display window on display/view/edit.
+     When Unison identifies a paragraph, it removes any newlines
+    from it before storing it, and then reflows the paragraph text
+    to fit the display window on display/view/edit.
     
     For these purposes, a paragraph is any sequence of non-empty
     lines that have zero indent (after the unindenting mentioned
@@ -247,7 +253,8 @@ doc4 = [: Here's another example of some paragraphs.
 
   doc4 : Doc
   doc4 =
-    [: Here's another example of some paragraphs.
+    [: 
+    Here's another example of some paragraphs.
     
               All these lines have zero indent.
     
@@ -283,7 +290,7 @@ doc5 = [:   - foo
 
   doc5 : Doc
   doc5 =
-    [: - foo
+    [:  - foo
       - bar
     and the rest. :]
 
@@ -308,6 +315,23 @@ TODO
 TODO
 ```
 .> view doc6
+
+```
+
+TODO
+```
+-- You can do the following to avoid that problem.
+empty = [::]
+
+```
+
+```
+.> add
+
+```
+
+```
+.> view empty
 
 ```
 

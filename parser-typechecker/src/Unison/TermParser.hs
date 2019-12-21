@@ -24,6 +24,8 @@ import           Unison.Term (AnnotatedTerm, IsTop)
 import           Unison.Type (Type)
 import           Unison.Var (Var)
 import qualified Data.Char as Char
+import qualified Data.List as List
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Sequence as Sequence
@@ -342,33 +344,49 @@ docBlock = do
   link = d <$> link'' where
     d tm = Term.app (ann tm) (Term.constructor (ann tm) DD.docRef DD.docLinkId) tm
 
+-- Used by unbreakParas within docNormalize.
+data UnbreakCase =
+    -- Finishes with a newline and hence does not determine whether the next
+    -- line starts with whitespace.
+      LineEnds
+    -- Ends with "\n something", i.e. introduces an indented line.
+    | StartsIndented
+    -- Ends with "\nsomething", i.e. introduces an unindented line.
+    | StartsUnindented deriving (Eq)
+
 -- Operates on the text of the Blobs within a doc (as parsed by docBlock):
 -- - reduces the whitespace after all newlines so that at least one of the
 --   non-initial lines has zero indent (important because the pretty-printer adds
---   indenting every time the doc passes through it)
--- TODO implement the following
+--   indenting when displaying doc literals)
 -- - remove trailing whitespace from each line
 -- - remove newlines between any sequence of non-empty zero-indent lines
---   (i.e. undo manual line-breaking within paragraphs.)
+--   (i.e. undo line-breaking within paragraphs.)
 -- Should be understood in tandem with Util.Pretty.paragraphyText, which
 -- outputs doc text for display/edit/view.
 -- See also unison-src/transcripts/doc-formatting.md.
 docNormalize :: (Ord v, Show v) => AnnotatedTerm v a -> AnnotatedTerm v a
 docNormalize tm = case tm of
   -- This pattern is just `DD.DocJoin seqs`, but exploded in order to grab
-  -- the annotations.  The aim is just to map `go` over it.
+  -- the annotations.  The aim is just to map `normalize` over it.
   a@(Term.App' c@(Term.Constructor' DD.DocRef DD.DocJoinId) s@(Term.Sequence' seqs))
-    -> join (ABT.annotation a) (ABT.annotation c) (ABT.annotation s) (go seqs) where
+    -> join (ABT.annotation a) (ABT.annotation c) (ABT.annotation s) (normalize seqs) where
   _ -> error $ "unexpected doc structure: " ++ show tm
   where
+  normalize = unbreakParas . unIndent
   blob aa ac at txt = Term.app aa
     (Term.constructor ac DD.docRef DD.docBlobId)
     (Term.text at txt)
   join aa ac as segs = Term.app aa
     (Term.constructor ac DD.docRef DD.docJoinId)
     (Term.seq' as segs)
-  go :: Ord v => Sequence.Seq (AnnotatedTerm v a) -> Sequence.Seq (AnnotatedTerm v a)
-  go tms = (fmap $ mapBlob $ (reduceIndent minIndent)) tms where
+  mapBlob :: Ord v => (Text -> Text) -> AnnotatedTerm v a -> AnnotatedTerm v a
+  -- this pattern is just `DD.DocBlob txt` but exploded to capture the annotations as well
+  mapBlob f (aa@(Term.App' ac@(Term.Constructor' DD.DocRef DD.DocBlobId)
+                           at@(Term.Text' txt)))
+    = blob (ABT.annotation aa) (ABT.annotation ac) (ABT.annotation at) (f txt)
+  mapBlob _ t = t
+  unIndent :: Ord v => Sequence.Seq (AnnotatedTerm v a) -> Sequence.Seq (AnnotatedTerm v a)
+  unIndent tms = (fmap $ mapBlob $ (reduceIndent minIndent)) tms where
     concatenatedBlobs :: Text
     concatenatedBlobs = mconcat (toList (fmap getBlob tms))
     getBlob (DD.DocBlob txt) = txt
@@ -379,12 +397,6 @@ docNormalize tm = case tm of
     nonInitialLines = drop 1 $ Text.lines concatenatedBlobs
     minIndent = minimumOrZero $ map (Text.length . (Text.takeWhile Char.isSpace)) nonInitialLines
     minimumOrZero xs = if length xs == 0 then 0 else minimum xs
-    mapBlob :: Ord v => (Text -> Text) -> AnnotatedTerm v a -> AnnotatedTerm v a
-    -- this pattern is just `DD.DocBlob txt` but exploded to capture the annotations as well
-    mapBlob f (aa@(Term.App' ac@(Term.Constructor' DD.DocRef DD.DocBlobId)
-                             at@(Term.Text' txt)))
-      = blob (ABT.annotation aa) (ABT.annotation ac) (ABT.annotation at) (f txt)
-    mapBlob _ t = t
     reduceIndent :: Int -> Text -> Text
     reduceIndent n t = fixup $ Text.unlines $ map reduceLineIndent $ Text.lines t where
       reduceLineIndent l = result where
@@ -396,6 +408,97 @@ docNormalize tm = case tm of
       fixup = if Text.takeEnd 1 t == "\n"
               then id
               else Text.dropEnd 1
+  -- Remove newlines between any sequence of non-empty zero-indent lines.
+  -- This is made more complicated by Doc elements (e.g. links) which break up a
+  -- blob but don't break a line of output text.  We sometimes need to refer back to the
+  -- previous blob to see whether a newline is between two zero-indented lines.
+  -- For example...
+  -- "This link to @foo makes it harder to see\n
+  --  that the newline should be removed."
+  unbreakParas :: Ord v => Sequence.Seq (AnnotatedTerm v a) -> Sequence.Seq (AnnotatedTerm v a)
+  unbreakParas tms = Sequence.fromList result where
+    -- A list whose entries match those of tms.  `Nothing` is used for elements
+    -- which just continue a line, and so need to be ignored when looking back
+    -- for how the last line started.
+    lastLines :: [Maybe UnbreakCase]
+    lastLines = (flip fmap) (toList tms) $ \case
+      DD.DocBlob txt -> unbreakCase txt
+      DD.DocLink _ -> Nothing
+      DD.DocSource _ -> Just LineEnds
+      DD.DocSignature _ -> Just LineEnds
+      DD.DocEvaluate _ -> Just LineEnds
+      _ -> error ("unexpected doc element" ++ show tm)
+    unbreakCase :: Text -> Maybe UnbreakCase
+    unbreakCase txt = let
+      (startAndNewline, afterNewline) = Text.breakOnEnd "\n" txt
+      in if Text.null startAndNewline then Nothing
+      else if Text.null afterNewline
+           then Just LineEnds
+           else if Char.isSpace (Text.head afterNewline)
+                then Just StartsIndented
+                else Just StartsUnindented
+    -- A list whose entries match those of tms.  The UnbreakCase of the previous
+    -- entry that included a newline.
+    previousLines :: [UnbreakCase]
+    previousLines = xs'' where
+      -- Make sure there's a Just at the start of the list so we always find
+      -- one when searching back.
+      -- Example: xs = [J1,N2,J3]
+      xs :: [Maybe UnbreakCase]
+      xs = Just LineEnds : lastLines
+      -- Example: xss = [[J1],[J1,N2],[J1,N2,J3]]
+      xss :: [[Maybe UnbreakCase]]
+      xss = drop 1 $ List.inits xs
+      -- Example: after each step of the map...
+      --            [[J1],[N2,J1],[J3,N2,J1]]   -- after reverse
+      --            [Just J1, Just J1, Just J3] -- after find
+      --            ...
+      --   result = [1,1,3]
+      xs' = map (Maybe.fromJust . Maybe.fromJust . (List.find isJust) . reverse) xss
+      -- The first element doesn't correspond to one from the input list,
+      -- because we added a Just LineEnds at the start.
+      xs'' = drop 1 xs'
+    result = map processElement $ zip3 (toList tms) previousLines followingLines
+    -- For each element, can it be a line-continuation of a preceding blob?
+    continuesLine :: [Bool]
+    continuesLine = (flip fmap) (toList tms) $ \case
+      DD.DocBlob _ -> False -- value doesn't matter - you don't get adjacent blobs
+      DD.DocLink _ -> True
+      DD.DocSource _ -> False
+      DD.DocSignature _ -> False
+      DD.DocEvaluate _ -> False
+      _ -> error ("unexpected doc element" ++ show tm)
+    followingLines = drop 1 (continuesLine ++ [False])
+    processElement :: Ord v => (AnnotatedTerm v a, UnbreakCase, Bool) -> AnnotatedTerm v a
+    processElement (b, previous, nextIsCandidate) = mapBlob go b where
+      go txt = resultTrim where
+        -- remove trailing whitespace
+        ls = map Text.stripEnd $ Text.lines txt
+        previousIsCandidate = previous == StartsUnindented
+        -- Work out which lines are candidates to be joined as part of a paragraph.
+        candidates = [previousIsCandidate] ++
+                     (map (\l -> not (Text.null l || (Char.isSpace (Text.head l)))) ls) ++
+                     [nextIsCandidate]
+        result = mconcat $ intercalate (zip ([""] ++ ls ++ [""]) candidates) sep fst
+        sep (_, candidate1) (_, candidate2) =
+          if candidate1 && candidate2 then " " else "\n"
+        -- Text.lines's result is not affected by whether there is a trailing newline.
+        -- If there wasn't one, we don't want to add one.
+        resultTrim = if (Text.takeEnd 1 txt /= "\n" && Text.takeEnd 1 result == "\n")
+                     then Text.dropEnd 1 result
+                     else result
+
+-- Intercalate a list with separators determined by inspecting each
+-- adjacent pair.
+intercalate :: [a] -> (a -> a -> b) -> (a -> b) -> [b]
+intercalate xs sep f = result where
+  xs' = map f xs
+  pairs = filter (\p -> length p == 2) $ map (take 2) $ List.tails xs
+  seps = (flip map) pairs $ \case
+    x1:x2:_ -> sep x1 x2
+    _ -> error "bad list length in intercalate"
+  paired = zipWith (\sep x -> [sep, x]) seps (drop 1 xs')
+  result = (take 1 xs') ++ mconcat paired
 
 delayQuote :: Var v => TermP v
 delayQuote = P.label "quote" $ do
