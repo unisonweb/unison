@@ -785,8 +785,12 @@ notifyUser dir o = case o of
         P.wrap $ "The merge will have no effect, since the destination"
               <> P.shown dest <> "is at or ahead of the source"
               <> P.group (P.shown src <> ".")
-    Input.TodoI{} -> pure (P.okCallout "No conflicts or edits in progress.")
+    Input.TodoI{} -> noConflictsOrEdits
+    Input.UpdateI{} -> noConflictsOrEdits
     _ -> pure "Nothing to do."
+    where
+      noConflictsOrEdits =
+        pure (P.okCallout "No conflicts or edits in progress.")
   DumpBitBooster head map -> let
     go output []          = output
     go output (head : queue) = case Map.lookup head map of
