@@ -1450,7 +1450,7 @@ propagatePatch input inputDescription patch scopePath = do
 
 -- | Show todo output if there are any conflicts or edits.
 showTodoOutput
-  :: _
+  :: Input
   -> Action' m v PPE.PrettyPrintEnvDecl
      -- ^ Action that fetches the pretty print env. It's expensive because it
      -- involves looking up historical names, so only call it if necessary.
