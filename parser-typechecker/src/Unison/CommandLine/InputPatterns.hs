@@ -198,7 +198,7 @@ view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
       (pure . Input.ShowDefinitionI Input.ConsoleLocation)
 
 display :: InputPattern
-display = InputPattern "display" ["show"] [(Required, exactDefinitionQueryArg)]
+display = InputPattern "display" [] [(Required, exactDefinitionQueryArg)]
       "`display foo` prints a rendered version of the term `foo`."
       (\case
         [s] -> pure (Input.DisplayI Input.ConsoleLocation s)
