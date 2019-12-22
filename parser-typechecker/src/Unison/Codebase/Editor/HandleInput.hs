@@ -472,7 +472,7 @@ loop = do
           if b then do
             respond (ShowDiff input (Branch.namesDiff destb merged))
             patch <- getPatchAt defaultPatchPath
-            void $ propagatePatch input inputDescription patch dest
+            void $ propagatePatch inputDescription patch dest
           else respond (NothingTodo input)
 
       PreviewMergeLocalBranchI src0 dest0 -> do
@@ -993,7 +993,7 @@ loop = do
                            Branch.modifyPatches patchName (const patch'))
                   -- Apply the modified patch to the current path
                   -- since we might be able to propagate further.
-                  void $ propagatePatch input inputDescription patch' currentPath'
+                  void $ propagatePatch inputDescription patch' currentPath'
                   -- Say something
                   success
         zeroOneOrMore
@@ -1028,7 +1028,7 @@ loop = do
                       (patchPath'', Branch.modifyPatches patchName (const patch'))
               -- Apply the modified patch to the current path
               -- since we might be able to propagate further.
-              void $ propagatePatch input inputDescription patch' currentPath'
+              void $ propagatePatch inputDescription patch' currentPath'
               -- Say something
               success
         zeroOneOrMore
@@ -1152,7 +1152,7 @@ loop = do
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
           -- propagatePatch prints TodoOutput
-          void $ propagatePatch input inputDescription (updatePatch ye'ol'Patch) currentPath'
+          void $ propagatePatch inputDescription (updatePatch ye'ol'Patch) currentPath'
 
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
@@ -1163,7 +1163,7 @@ loop = do
         let getPpe = do
               names <- makePrintNamesFromLabeled' $ Patch.labeledDependencies patch
               prettyPrintEnvDecl names
-        showTodoOutput input getPpe patch names0
+        showTodoOutput getPpe patch names0
 
       TestI showOk showFail -> do
         let
@@ -1226,7 +1226,7 @@ loop = do
 
       PropagatePatchI patchPath scopePath -> do
         patch <- getPatchAt patchPath
-        updated <- propagatePatch input inputDescription patch (resolveToAbsolute scopePath)
+        updated <- propagatePatch inputDescription patch (resolveToAbsolute scopePath)
         unless updated (respond $ NothingToPatch patchPath scopePath)
 
       ExecuteI main -> addRunMain main uf >>= \case
@@ -1432,8 +1432,8 @@ resolveShortBranchHash input hash = do
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch :: (Monad m, Var v) =>
-  Input -> Text -> Patch -> Path.Absolute -> Action' m v Bool
-propagatePatch input inputDescription patch scopePath = do
+  Text -> Patch -> Path.Absolute -> Action' m v Bool
+propagatePatch inputDescription patch scopePath = do
   changed <- do
     updateAtM (inputDescription <> " (patch propagation)")
               scopePath
@@ -1445,22 +1445,21 @@ propagatePatch input inputDescription patch scopePath = do
     let getPpe = do
           names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
           prettyPrintEnvDecl names
-    showTodoOutput input getPpe patch names0
+    showTodoOutput getPpe patch names0
   pure changed
 
 -- | Show todo output if there are any conflicts or edits.
 showTodoOutput
-  :: Input
-  -> Action' m v PPE.PrettyPrintEnvDecl
+  :: Action' m v PPE.PrettyPrintEnvDecl
      -- ^ Action that fetches the pretty print env. It's expensive because it
      -- involves looking up historical names, so only call it if necessary.
   -> Patch
   -> Names0
   -> Action' m v ()
-showTodoOutput input getPpe patch names0 = do
+showTodoOutput getPpe patch names0 = do
   todo <- checkTodo patch names0
   if TO.noConflicts todo && TO.noEdits todo
-    then respond (NothingTodo input)
+    then respond NoConflictsOrEdits
     else do
       numberedArgs .=
         (Text.unpack . Reference.toText . view _2 <$>
@@ -1682,7 +1681,7 @@ loadRemoteBranchAt input inputDescription (repo, sbh, remotePath) p = do
         merged <- getAt p
         patch  <- eval . Eval $ Branch.getPatch defaultPatchNameSegment
                                                 (Branch.head merged)
-        void $ propagatePatch input inputDescription patch p
+        void $ propagatePatch inputDescription patch p
  where
   doMerge b b0 = do
     merged <- eval . Eval $ Branch.merge b b0

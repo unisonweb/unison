@@ -774,23 +774,18 @@ notifyUser dir o = case o of
           , ""
           , tip "You can always `undo` if this wasn't what you wanted."
           ]
-  NothingTodo input -> case input of
+  NothingTodo input -> pure . P.callout "😶" $ case input of
     Input.MergeLocalBranchI src dest ->
-      pure . P.callout "😶" $
-        P.wrap $ "The merge had no effect, since the destination"
-              <> P.shown dest <> "is at or ahead of the source"
-              <> P.group (P.shown src <> ".")
+      P.wrap $ "The merge had no effect, since the destination"
+            <> P.shown dest <> "is at or ahead of the source"
+            <> P.group (P.shown src <> ".")
     Input.PreviewMergeLocalBranchI src dest ->
-      pure . P.callout "😶" $
-        P.wrap $ "The merge will have no effect, since the destination"
-              <> P.shown dest <> "is at or ahead of the source"
-              <> P.group (P.shown src <> ".")
-    Input.TodoI{} -> noConflictsOrEdits
-    Input.UpdateI{} -> noConflictsOrEdits
-    _ -> pure "Nothing to do."
-    where
-      noConflictsOrEdits =
-        pure (P.okCallout "No conflicts or edits in progress.")
+      P.wrap $ "The merge will have no effect, since the destination"
+            <> P.shown dest <> "is at or ahead of the source"
+            <> P.group (P.shown src <> ".")
+    _ -> "Nothing to do."
+  NoConflictsOrEdits ->
+    pure (P.okCallout "No conflicts or edits in progress.")
   DumpBitBooster head map -> let
     go output []          = output
     go output (head : queue) = case Map.lookup head map of
