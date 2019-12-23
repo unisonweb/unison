@@ -10,6 +10,7 @@ module Unison.Util.Pretty (
    ColorText,
    align,
    backticked,
+   boxLeft,
    bulleted,
    bracket,
    -- breakable
@@ -579,6 +580,18 @@ callout header p = header <> "\n\n" <> p
 
 bracket :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
 bracket = indent "  "
+
+boxLeft :: forall s . (LL.ListLike s Char, IsString s) => [Pretty s] -> [Pretty s]
+boxLeft ps = go ps where
+  go [] = []
+  go [p] = [decorate singleton p]
+  go (Seq.fromList -> a Seq.:<| (mid Seq.:|> b)) = 
+    [decorate first a] ++ toList (decorate middle <$> mid) ++ [decorate last b]
+  decorate (first, mid) p = first <> indentAfterNewline mid p
+  first     = ("┌", "│")
+  middle    = ("├", "|")
+  last      = ("└", " ")
+  singleton = ("[", " ")
 
 warnCallout, blockedCallout, fatalCallout, okCallout
   :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s

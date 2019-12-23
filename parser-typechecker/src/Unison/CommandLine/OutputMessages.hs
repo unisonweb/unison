@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
-{-# OPTIONS_GHC -Wno-unused-local-binds #-}
+-- {-# OPTIONS_GHC -Wno-unused-local-binds #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
@@ -1080,7 +1080,6 @@ renderEditConflicts ppe Patch{..} =
     editConflicts =
       (fmap Left . Map.toList . R.toMultimap . R.filterManyDom $ _typeEdits) <>
       (fmap Right . Map.toList . R.toMultimap . R.filterManyDom $ _termEdits)
-    name = either (typeName . fst) (termName . fst)
     typeName r = styleHashQualified P.bold (PPE.typeName ppe r)
     termName r = styleHashQualified P.bold (PPE.termName ppe (Referent.Ref r))
     formatTypeEdits (r, toList -> es) = P.wrap $
@@ -1207,7 +1206,7 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
     else pure mempty
   ]
   where
-  updateIndicator = " └─ "
+  -- updateIndicator = " └─ "
 
   prettyUpdateType :: OBD.UpdateTypeDisplay v Ann -> _ Pretty
   {- 
@@ -1219,40 +1218,41 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
         6. + MIT     : License
   -}
   prettyUpdateType (Nothing, mdUps) = 
-    fmap P.linesNonEmpty $ traverse mdLine mdUps
+    fmap P.linesNonEmpty $ traverse mdTypeLine mdUps
   {- 
-     1. ability Foo#pqr x y
-     2. ability Foo#xyz a b
-        ↓
-     4. ability Foo#abc
-        5. - apiDocs : Doc
-        6. + MIT     : License
-  -}
-  {- 
-     1. ability Foo#pqr x y
-     2. ability Foo#xyz a b
-        ↓
-     4. ability Foo#abc
-        5. - apiDocs : License
-        6. + MIT     : License
-     7. ability Foo#abc
-        8. - apiDocs : License
-        6. + MIT     : License
+      1. ┌ ability Foo#pqr x y
+      2. └ ability Foo#xyz a b
+         ⧩ replaced with
+      4. ┌ ability Foo#abc
+         │  5. - apiDocs : Doc
+         │  6. + MIT     : License
+      7. └ ability Foo#def
+            8. - apiDocs : Doc
+            9. + MIT     : License
+
+      1. ┌ foo#abc : Nat -> Nat -> Poop
+      2. └ foo#xyz : Nat
+         ⧩ replaced with
+      4. [ foo	 : Poop
+           5. + foo.docs : Doc
   -}
   prettyUpdateType (Just olds, news) =
     fmap P.linesNonEmpty $ do
-      olds <- traverse mdLine [ (name,decl,mempty) | (name,decl) <- olds ]
-      news <- traverse mdLine news
+      olds <- P.boxLeft <$> 
+        traverse mdTypeLine [ (name,decl,mempty) | (name,decl) <- olds ]
+      news <- P.boxLeft <$> 
+        traverse mdTypeLine news
       pure $ olds <> [downArrow] <> news
 
-  downArrow = P.bold "↓"
-  mdLine (hq, otype, mddiff) = do
+  downArrow = P.bold "⧩ replaced with"
+  mdTypeLine (hq, otype, mddiff) = do
     n <- num 
     fmap P.linesNonEmpty . sequence $ 
       [ pure $ n <> prettyDecl hq otype
       , P.indentN leftNumsWidth <$> prettyMetadataDiff mddiff ]
     
-  prettyUpdateTerm hmm = undefined 
+  prettyUpdateTerm (Nothing, terms) = undefined 
+
   prettyMetadataDiff OBD.MetadataDiff{..} = P.column2M $
     map (elem " - ") removedMetadata <>
     map (elem " + ") addedMetadata
@@ -1300,7 +1300,6 @@ listOfDefinitions' ppe detailed results =
                                 (P.text . Referent.toText)) missingBuiltins)
     ]
   where
-  len = length results
   prettyNumberedResults = P.numberedList prettyResults
   -- todo: group this by namespace
   prettyResults =
