@@ -1208,23 +1208,58 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
   ]
   where
   updateIndicator = " └─ "
+
   prettyUpdateType :: OBD.UpdateTypeDisplay v Ann -> _ Pretty
+  {- 
+     1. ability Foo#pqr x y
+        2. - AllRightsReserved : License
+        3. + MIT               : License
+     4. ability Foo#abc
+        5. - apiDocs : License
+        6. + MIT     : License
+  -}
   prettyUpdateType (Nothing, mdUps) = 
-    fmap P.linesNonEmpty $ traverse justMd mdUps
-    where
-    justMd (hq, otype, mddiff) = do
-      n <- num 
-      fmap P.linesNonEmpty . sequence $ 
-        [ pure $ n <> prettyDecl hq otype, prettyMetadataDiff mddiff ]
+    fmap P.linesNonEmpty $ traverse mdLine mdUps
+  {- 
+     1. ability Foo#pqr x y
+     2. ability Foo#xyz a b
+        ↓
+     4. ability Foo#abc
+        5. - apiDocs : Doc
+        6. + MIT     : License
+  -}
+  {- 
+     1. ability Foo#pqr x y
+     2. ability Foo#xyz a b
+        ↓
+     4. ability Foo#abc
+        5. - apiDocs : License
+        6. + MIT     : License
+     7. ability Foo#abc
+        8. - apiDocs : License
+        6. + MIT     : License
+  -}
+  prettyUpdateType (Just olds, news) =
+    fmap P.linesNonEmpty $ do
+      olds <- traverse mdLine [ (name,decl,mempty) | (name,decl) <- olds ]
+      news <- traverse mdLine news
+      pure $ olds <> [downArrow] <> news
+
+  downArrow = P.bold "↓"
+  mdLine (hq, otype, mddiff) = do
+    n <- num 
+    fmap P.linesNonEmpty . sequence $ 
+      [ pure $ n <> prettyDecl hq otype
+      , P.indentN leftNumsWidth <$> prettyMetadataDiff mddiff ]
     
   prettyUpdateTerm hmm = undefined 
   prettyMetadataDiff OBD.MetadataDiff{..} = P.column2M $
-    map (elem " + ") addedMetadata <>
-    map (elem " - ") removedMetadata
+    map (elem " - ") removedMetadata <>
+    map (elem " + ") addedMetadata
     where 
     elem x (hq, otype) = do
       num <- num
-      pure (num <> x <> phq' hq, " : " <> prettyType otype)
+      pure (x <> num <> phq' hq, " : " <> prettyType otype)
 
   prettyType = maybe (P.red "type not found") (TypePrinter.pretty ppe) 
   prettyDecl hq =
@@ -1240,7 +1275,7 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
     pure $ padNumber n
 
   padNumber :: Int -> Pretty
-  padNumber n = P.rightPad leftNumsWidth $ P.shown n <> ". "
+  padNumber n = P.hiBlack . P.rightPad leftNumsWidth $ P.shown n <> ". "
   leftNumsWidth = 4 -- length (show . max d) + length ". "
   
 noResults :: Pretty
