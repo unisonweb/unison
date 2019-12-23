@@ -20,6 +20,7 @@ module Unison.Util.Pretty (
    excerptColumn2Headed,
    warnCallout, blockedCallout, fatalCallout, okCallout,
    column2,
+   column2M,
    column3,
    column3sep,
    commas,
@@ -405,7 +406,7 @@ column2
 column2 rows = lines (group <$> align rows)
 
 column2M :: (Applicative m, LL.ListLike s Char, IsString s) => [m (Pretty s, Pretty s)] -> m (Pretty s)
-column2M = undefined
+column2M = fmap column2 . sequenceA
 
 column3
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s, Pretty s)] -> Pretty s

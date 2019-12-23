@@ -2,14 +2,16 @@
 {-# OPTIONS_GHC -Wno-unused-local-binds #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
+{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 -- {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE RecordWildCards     #-}
 
 
 module Unison.CommandLine.OutputMessages where
@@ -24,6 +26,7 @@ import qualified Unison.Codebase.Editor.SearchResult'    as SR'
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 
 
+import qualified Control.Monad.State.Strict    as State
 import           Data.Bifunctor                (bimap, first)
 import           Data.List                     (sortOn, stripPrefix)
 import           Data.List.Extra               (nubOrdOn, nubOrd)
@@ -1191,47 +1194,39 @@ listOfLinks ppe results = pure $ P.lines [
   prettyType Nothing = "❓ (missing a type for this definition)"
   prettyType (Just t) = TypePrinter.pretty ppe t
 
-showNamespaceDiff :: PPE.PrettyPrintEnv -> OBD.BranchDiffOutput v Ann -> Pretty
-showNamespaceDiff ppe d@OBD.BranchDiffOutput{..} =
-  P.sepNonEmpty "\n\n" . evalState . sequence $ [
-   if (not . null) updatedTypes || (not . null) updatedTerms then do
-     prettyUpdatedTypes :: [Pretty] <- traverse prettyUpdateType updatedTypes
-     prettyUpdatedTerms :: [Pretty] <- traverse prettyUpdateTerm updatedTerms
-     pure $ P.sepNonEmpty "\n\n" [
+showDiffNamespace :: PPE.PrettyPrintEnv -> OBD.BranchDiffOutput v Ann -> Pretty
+showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
+  P.sepNonEmpty "\n\n" . (`State.evalState` (0::Int)) . sequence $ [
+    if (not . null) updatedTypes || (not . null) updatedTerms then do
+      prettyUpdatedTypes <- traverse prettyUpdateType updatedTypes
+      prettyUpdatedTerms <- traverse prettyUpdateTerm updatedTerms
+      pure $ P.sepNonEmpty "\n\n" [
         P.bold "Updates:",
-        "",
-        P.linesNonEmpty (prettyUpdatedTypes <> prettyUpdatedTerms)
-      ]
-     P.lines [
-       -- todo: split out updates
-       P.bold "Updates:",
-       "",
-       P.indentN 2 . P.wrap $
-         P.numberedColumn2 updatedTypesNum
-          [ (,) | (maybeOld, ) <- updatedTypes
-          ]
-         P.sep " " (P.syntaxToColor . prettyHashQualified' <$> added)
-     ]
-   else pure mempty
+        P.indentN 2 . P.linesNonEmpty $ prettyUpdatedTypes <> prettyUpdatedTerms
+       ]
+    else pure mempty
   ]
   where
   updateIndicator = " └─ "
-  prettyUpdateType (Nothing, [(hq, otype, mddiff)]) = do
-  
-  prettyMetadataDiff :: MetadataDiff (MetadataDisplay v a) -> _ Pretty
-  prettyMetadataDiff MetadataDiff{..} = do
-    traverse_ (foo " + ") addedMetadata
-    traverse_ (foo " - ") removedMetadata
+  prettyUpdateType (Nothing, [(hq, otype, mddiff)]) =
+    undefined
+  prettyUpdateTerm hmm = undefined 
+  prettyMetadataDiff :: Var v => OBD.MetadataDiff (OBD.MetadataDisplay v a) -> _ Pretty
+  prettyMetadataDiff OBD.MetadataDiff{..} = P.column2M $
+    map (elem " + ") addedMetadata <>
+    map (elem " - ") removedMetadata
     where 
-    foo x (hq, otype) = do
+    elem x (hq, otype) = do
       num <- num
-      pure $ num <> x <> phq' hq <> " : " 
-                 <> maybe (P.red "type not found") (TypePrinter.pretty ppe) 
-    phq' = P.syntaxToColor . prettyHashQualified'
-      
-           
-    
+      pure (num <> x <> phq' hq, 
+            " : " <> maybe (P.red "type not found") 
+                           (TypePrinter.pretty ppe) 
+                           otype)
+
+  phq' = P.syntaxToColor . prettyHashQualified'
+  --
   -- DeclPrinter.prettyDeclHeader : HQ -> Either
+  num :: State.State Int Pretty
   num = do
     n <- State.get
     State.put (n+1)

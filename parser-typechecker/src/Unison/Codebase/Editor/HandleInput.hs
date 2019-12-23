@@ -507,7 +507,7 @@ loop = do
                         diff
         -- todo: populate the numberedArgs 😭😭😭
         numberedArgs .= numberOutputDiff outputDiff
-        respond $ ShowDiffNamespace input ppe outputDiff
+        respond $ ShowDiffNamespace ppe outputDiff
 
       -- move the root to a sub-branch
       MoveBranchI Nothing dest -> do
