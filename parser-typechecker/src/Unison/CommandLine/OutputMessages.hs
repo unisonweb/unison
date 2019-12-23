@@ -21,6 +21,7 @@ import qualified Unison.Codebase.Editor.Output           as E
 import qualified Unison.Codebase.Editor.Output           as Output
 import qualified Unison.Codebase.Editor.TodoOutput       as TO
 import qualified Unison.Codebase.Editor.SearchResult'    as SR'
+import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 
 
 import           Data.Bifunctor                (bimap, first)
@@ -776,6 +777,7 @@ notifyUser dir o = case o of
             <> P.shown dest <> "is at or ahead of the source"
             <> P.group (P.shown src <> ".")
     _ -> "Nothing to do."
+  ShowDiffNamespace ppe diffOutput -> pure $ showDiffNamespace ppe diffOutput
   DumpBitBooster head map -> let
     go output []          = output
     go output (head : queue) = case Map.lookup head map of
@@ -1189,6 +1191,56 @@ listOfLinks ppe results = pure $ P.lines [
   prettyType Nothing = "❓ (missing a type for this definition)"
   prettyType (Just t) = TypePrinter.pretty ppe t
 
+showNamespaceDiff :: PPE.PrettyPrintEnv -> OBD.BranchDiffOutput v Ann -> Pretty
+showNamespaceDiff ppe d@OBD.BranchDiffOutput{..} =
+  P.sepNonEmpty "\n\n" . evalState . sequence $ [
+   if (not . null) updatedTypes || (not . null) updatedTerms then do
+     prettyUpdatedTypes :: [Pretty] <- traverse prettyUpdateType updatedTypes
+     prettyUpdatedTerms :: [Pretty] <- traverse prettyUpdateTerm updatedTerms
+     pure $ P.sepNonEmpty "\n\n" [
+        P.bold "Updates:",
+        "",
+        P.linesNonEmpty (prettyUpdatedTypes <> prettyUpdatedTerms)
+      ]
+     P.lines [
+       -- todo: split out updates
+       P.bold "Updates:",
+       "",
+       P.indentN 2 . P.wrap $
+         P.numberedColumn2 updatedTypesNum
+          [ (,) | (maybeOld, ) <- updatedTypes
+          ]
+         P.sep " " (P.syntaxToColor . prettyHashQualified' <$> added)
+     ]
+   else pure mempty
+  ]
+  where
+  updateIndicator = " └─ "
+  prettyUpdateType (Nothing, [(hq, otype, mddiff)]) = do
+  
+  prettyMetadataDiff :: MetadataDiff (MetadataDisplay v a) -> _ Pretty
+  prettyMetadataDiff MetadataDiff{..} = do
+    traverse_ (foo " + ") addedMetadata
+    traverse_ (foo " - ") removedMetadata
+    where 
+    foo x (hq, otype) = do
+      num <- num
+      pure $ num <> x <> phq' hq <> " : " 
+                 <> maybe (P.red "type not found") (TypePrinter.pretty ppe) 
+    phq' = P.syntaxToColor . prettyHashQualified'
+      
+           
+    
+  -- DeclPrinter.prettyDeclHeader : HQ -> Either
+  num = do
+    n <- State.get
+    State.put (n+1)
+    pure $ padNumber n
+
+  padNumber :: Int -> Pretty
+  padNumber n = P.rightPad leftNumsWidth $ P.shown n <> ". "
+  leftNumsWidth = 4 -- length (show . max d) + length ". "
+  
 noResults :: Pretty
 noResults = P.callout "😶" $
     P.wrap $ "No results. Check your spelling, or try using tab completion "

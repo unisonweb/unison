@@ -506,6 +506,7 @@ loop = do
                         ppe
                         diff
         -- todo: populate the numberedArgs 😭😭😭
+        numberedArgs .= numberOutputDiff outputDiff
         respond $ ShowDiffNamespace input ppe outputDiff
 
       -- move the root to a sub-branch
@@ -2352,3 +2353,35 @@ declOrBuiltin r = case r of
     pure . fmap DD.Builtin $ Map.lookup r Builtin.builtinConstructorType
   Reference.DerivedId id ->
     fmap DD.Decl <$> eval (LoadType id)
+
+numberOutputDiff :: OBranchDiff.BranchDiffOutput v a -> [String]
+numberOutputDiff OBranchDiff.BranchDiffOutput{..} = undefined
+--numberOutputDiff OBranchDiff.BranchDiffOutput{..} = execWriter $ do
+--  traverse_ updateTypeDisplay updatedTypes
+--  traverse_ updateTermDisplay updatedTerms
+--  traverse_ patchDisplay updatedPatches
+--  traverse_ typeDisplay addedTypes
+--  traverse_ termDisplay addedTerms
+--  traverse_ patchDisplay addedPatches
+--  traverse_ typeDisplay removedTypes
+--  traverse_ termDisplay removedTerms
+--  traverse_ patchDisplay removedPatches
+--  traverse_ renameTypeDisplay movedTypes
+--  traverse_ renameTermDisplay movedTerms
+--  traverse_ renameTypeDisplay copiedTypes
+--  traverse_ renameTermDisplay copiedTerms
+--  where
+--  -- crap; usually I like to enrich the `numberedArgs` (e.g. full hash, and/or
+--  -- absolute names) but we the BranchDiffOutput doesn't currently contain
+--  -- enough info to do that.
+--  -- todo: put in the references + pass in the old and new absolute paths, and
+--  -- carefully prepend them to the respective HQs?
+--  updateTypeDisplay = undefined
+--  updateTermDisplay = undefined
+--  patchDisplay = undefined
+--  typeDisplay = undefined
+--  termDisplay = undefined
+--  renameTypeDisplay = undefined
+--  renameTermDisplay = undefined
+--  simpleTypeDisplay = undefined
+--  simpleTermDisplay = undefined

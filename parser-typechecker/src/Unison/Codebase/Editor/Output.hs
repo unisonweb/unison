@@ -162,7 +162,7 @@ data Output v
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch (Set ShortBranchHash)
   | ShowDiff Input Names.Diff
-  | ShowDiffNamespace Input PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
   | NothingTodo Input
@@ -288,6 +288,7 @@ isFailure o = case o of
   ListShallow _ es -> null es
   HashAmbiguous{} -> True
   ShowReflog{} -> False
+  ShowDiffNamespace{} -> False
 
 
 

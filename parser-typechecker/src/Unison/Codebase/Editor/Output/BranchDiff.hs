@@ -33,7 +33,7 @@ import Unison.Runtime.IOSource (isPropagatedValue)
 data MetadataDiff tm =
   MetadataDiff { addedMetadata :: [tm]
                , removedMetadata :: [tm] }
-               deriving (Ord,Eq,Functor,Foldable,Traversable,Show)
+  deriving (Ord,Eq,Functor,Foldable,Traversable,Show)
 
 instance Semigroup (MetadataDiff tm) where
   a <> b = MetadataDiff (addedMetadata a <> addedMetadata b)

@@ -404,6 +404,9 @@ column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
 column2 rows = lines (group <$> align rows)
 
+column2M :: (Applicative m, LL.ListLike s Char, IsString s) => [m (Pretty s, Pretty s)] -> m (Pretty s)
+column2M = undefined
+
 column3
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s, Pretty s)] -> Pretty s
 column3 = column3sep ""
