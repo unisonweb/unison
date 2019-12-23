@@ -34,12 +34,15 @@ fromHQ = \case
   HQ.HashOnly{} -> Nothing
 
 unsafeFromHQ :: HQ.HashQualified' n -> HashQualified' n
-unsafeFromHQ = fromJust . fromHQ 
+unsafeFromHQ = fromJust . fromHQ
 
 toName :: HashQualified' n -> n
 toName = \case
   NameOnly name        ->  name
   HashQualified name _ ->  name
+
+nameLength :: HashQualified' Name -> Int
+nameLength = Text.length . Name.toText . toName
 
 take :: Int -> HashQualified' n -> HashQualified' n
 take i = \case

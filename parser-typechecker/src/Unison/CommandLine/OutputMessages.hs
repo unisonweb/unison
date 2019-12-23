@@ -110,6 +110,7 @@ import qualified Unison.Util.List              as List
 import qualified Unison.Util.Monoid            as Monoid
 import Data.Tuple (swap)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Control.Lens (view, _1)
 
 type Pretty = P.Pretty P.ColorText
 
@@ -1209,7 +1210,7 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
   -- updateIndicator = " └─ "
 
   prettyUpdateType :: OBD.UpdateTypeDisplay v Ann -> _ Pretty
-  {- 
+  {-
      1. ability Foo#pqr x y
         2. - AllRightsReserved : License
         3. + MIT               : License
@@ -1217,9 +1218,9 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
         5. - apiDocs : License
         6. + MIT     : License
   -}
-  prettyUpdateType (Nothing, mdUps) = 
+  prettyUpdateType (Nothing, mdUps) =
     fmap P.linesNonEmpty $ traverse mdTypeLine mdUps
-  {- 
+  {-
       1. ┌ ability Foo#pqr x y
       2. └ ability Foo#xyz a b
          ⧩ replaced with
@@ -1238,32 +1239,50 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
   -}
   prettyUpdateType (Just olds, news) =
     fmap P.linesNonEmpty $ do
-      olds <- P.boxLeft <$> 
+      olds <- P.boxLeft <$>
         traverse mdTypeLine [ (name,decl,mempty) | (name,decl) <- olds ]
-      news <- P.boxLeft <$> 
+      news <- P.boxLeft <$>
         traverse mdTypeLine news
       pure $ olds <> [downArrow] <> news
 
   downArrow = P.bold "⧩ replaced with"
   mdTypeLine (hq, otype, mddiff) = do
-    n <- num 
-    fmap P.linesNonEmpty . sequence $ 
+    n <- num
+    fmap P.linesNonEmpty . sequence $
       [ pure $ n <> prettyDecl hq otype
       , P.indentN leftNumsWidth <$> prettyMetadataDiff mddiff ]
-    
-  prettyUpdateTerm (Nothing, terms) = undefined 
+  mdTermLine namesWidth (hq, otype, mddiff) = do
+    n <- num
+    fmap P.linesNonEmpty . sequence $
+      [ pure $ P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
+      , P.indentN leftNumsWidth <$> prettyMetadataDiff mddiff ]
+
+  prettyUpdateTerm (Nothing, newTerms) =
+    if null newTerms then error "Super invalid UpdateTermDisplay" else
+    fmap P.linesNonEmpty $ traverse (mdTermLine namesWidth) newTerms
+    where namesWidth = foldl1' max $ fmap (HQ'.nameLength . view _1) newTerms
+  prettyUpdateTerm (Just olds, news) =
+    fmap P.linesNonEmpty $ do
+      olds <- P.boxLeft <$>
+        traverse (mdTermLine namesWidth) [ (name,typ,mempty) | (name,typ) <- olds ]
+      news <- P.boxLeft <$>
+        traverse (mdTermLine namesWidth) news
+      pure $ olds <> [downArrow] <> news
+    where namesWidth = foldl1' max $ fmap (HQ'.nameLength . view _1) news
+                                   <> fmap (HQ'.nameLength . view _1) olds
+
 
   prettyMetadataDiff OBD.MetadataDiff{..} = P.column2M $
     map (elem " - ") removedMetadata <>
     map (elem " + ") addedMetadata
-    where 
+    where
     elem x (hq, otype) = do
       num <- num
       pure (x <> num <> phq' hq, " : " <> prettyType otype)
 
-  prettyType = maybe (P.red "type not found") (TypePrinter.pretty ppe) 
+  prettyType = maybe (P.red "type not found") (TypePrinter.pretty ppe)
   prettyDecl hq =
-    maybe (P.red "type not found") 
+    maybe (P.red "type not found")
           (P.syntaxToColor . DeclPrinter.prettyDeclOrBuiltinHeader (HQ'.toHQ hq))
   phq' = P.syntaxToColor . prettyHashQualified'
   --
@@ -1277,7 +1296,7 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
   padNumber :: Int -> Pretty
   padNumber n = P.hiBlack . P.rightPad leftNumsWidth $ P.shown n <> ". "
   leftNumsWidth = 4 -- length (show . max d) + length ". "
-  
+
 noResults :: Pretty
 noResults = P.callout "😶" $
     P.wrap $ "No results. Check your spelling, or try using tab completion "

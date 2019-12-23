@@ -146,7 +146,7 @@ wrapImpl (p:ps) = wrap_ . Seq.fromList $
 wrapString :: (LL.ListLike s Char, IsString s) => String -> Pretty s
 wrapString s = wrap (lit $ fromString s)
 
--- 0. Preserve all leading and trailing whitespace 
+-- 0. Preserve all leading and trailing whitespace
 -- 1. Preserve all newlines
 -- 2. Wrap all text in between newlines
 paragraphyText :: (LL.ListLike s Char, IsString s) => Text -> Pretty s
@@ -582,10 +582,10 @@ bracket :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
 bracket = indent "  "
 
 boxLeft :: forall s . (LL.ListLike s Char, IsString s) => [Pretty s] -> [Pretty s]
-boxLeft ps = go ps where
-  go [] = []
-  go [p] = [decorate singleton p]
-  go (Seq.fromList -> a Seq.:<| (mid Seq.:|> b)) = 
+boxLeft ps = go (Seq.fromList ps) where
+  go Seq.Empty = []
+  go (p Seq.:<| Seq.Empty) = [decorate singleton p]
+  go (a Seq.:<| (mid Seq.:|> b)) =
     [decorate first a] ++ toList (decorate middle <$> mid) ++ [decorate last b]
   decorate (first, mid) p = first <> indentAfterNewline mid p
   first     = ("┌", "│")
