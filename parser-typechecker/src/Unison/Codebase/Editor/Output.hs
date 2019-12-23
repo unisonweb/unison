@@ -132,6 +132,7 @@ data Output v
                        PPE.PrettyPrintEnvDecl
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
+  -- | Invariant: there's at least one conflict or edit in the TodoOutput.
   | TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
@@ -164,6 +165,8 @@ data Output v
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
   | NothingTodo Input
+  -- | No conflicts or edits remain for the current patch.
+  | NoConflictsOrEdits
   | NotImplemented
   | NoBranchWithHash Input ShortBranchHash
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
@@ -283,6 +286,7 @@ isFailure o = case o of
   DumpBitBooster{} -> False
   NoBranchWithHash{} -> True
   NothingTodo{} -> False
+  NoConflictsOrEdits{} -> False
   ListShallow _ es -> null es
   HashAmbiguous{} -> True
   ShowReflog{} -> False

@@ -1156,13 +1156,14 @@ loop = do
 
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
-        names <- makePrintNamesFromLabeled' $ Patch.labeledDependencies patch
-        ppe <- prettyPrintEnvDecl names
         branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
         let names0 = Branch.toNames0 (Branch.head branch)
         -- showTodoOutput only needs the local references
         -- to check for obsolete defs
-        showTodoOutput ppe patch names0
+        let getPpe = do
+              names <- makePrintNamesFromLabeled' $ Patch.labeledDependencies patch
+              prettyPrintEnvDecl names
+        showTodoOutput getPpe patch names0
 
       TestI showOk showFail -> do
         let
@@ -1441,18 +1442,30 @@ propagatePatch inputDescription patch scopePath = do
     scope <- getAt scopePath
     let names0 = Branch.toNames0 (Branch.head scope)
     -- this will be different AFTER the update succeeds
-    names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-    ppe <- prettyPrintEnvDecl names
-    showTodoOutput ppe patch names0
+    let getPpe = do
+          names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+          prettyPrintEnvDecl names
+    showTodoOutput getPpe patch names0
   pure changed
 
-showTodoOutput :: PPE.PrettyPrintEnvDecl -> Patch -> Names0 -> Action' m v ()
-showTodoOutput ppe patch names0 = do
+-- | Show todo output if there are any conflicts or edits.
+showTodoOutput
+  :: Action' m v PPE.PrettyPrintEnvDecl
+     -- ^ Action that fetches the pretty print env. It's expensive because it
+     -- involves looking up historical names, so only call it if necessary.
+  -> Patch
+  -> Names0
+  -> Action' m v ()
+showTodoOutput getPpe patch names0 = do
   todo <- checkTodo patch names0
-  numberedArgs .=
-    (Text.unpack . Reference.toText . view _2 <$>
-       fst (TO.todoFrontierDependents todo))
-  respond $ TodoOutput ppe todo
+  if TO.noConflicts todo && TO.noEdits todo
+    then respond NoConflictsOrEdits
+    else do
+      numberedArgs .=
+        (Text.unpack . Reference.toText . view _2 <$>
+          fst (TO.todoFrontierDependents todo))
+      ppe <- getPpe
+      respond $ TodoOutput ppe todo
 
 checkTodo :: Patch -> Names0 -> Action m i v (TO.TodoOutput v Ann)
 checkTodo patch names0 = do
