@@ -1194,12 +1194,12 @@ listOfLinks ppe results = pure $ P.lines [
   prettyType Nothing = "❓ (missing a type for this definition)"
   prettyType (Just t) = TypePrinter.pretty ppe t
 
-showDiffNamespace :: PPE.PrettyPrintEnv -> OBD.BranchDiffOutput v Ann -> Pretty
+showDiffNamespace :: forall v . Var v => PPE.PrettyPrintEnv -> OBD.BranchDiffOutput v Ann -> Pretty
 showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
   P.sepNonEmpty "\n\n" . (`State.evalState` (0::Int)) . sequence $ [
     if (not . null) updatedTypes || (not . null) updatedTerms then do
-      prettyUpdatedTypes <- traverse prettyUpdateType updatedTypes
-      prettyUpdatedTerms <- traverse prettyUpdateTerm updatedTerms
+      prettyUpdatedTypes :: [Pretty] <- traverse prettyUpdateType updatedTypes
+      prettyUpdatedTerms :: [Pretty] <- traverse prettyUpdateTerm updatedTerms
       pure $ P.sepNonEmpty "\n\n" [
         P.bold "Updates:",
         P.indentN 2 . P.linesNonEmpty $ prettyUpdatedTypes <> prettyUpdatedTerms
@@ -1208,21 +1208,28 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
   ]
   where
   updateIndicator = " └─ "
-  prettyUpdateType (Nothing, [(hq, otype, mddiff)]) =
-    undefined
+  prettyUpdateType :: OBD.UpdateTypeDisplay v Ann -> _ Pretty
+  prettyUpdateType (Nothing, mdUps) = 
+    fmap P.linesNonEmpty $ traverse justMd mdUps
+    where
+    justMd (hq, otype, mddiff) = do
+      n <- num 
+      fmap P.linesNonEmpty . sequence $ 
+        [ pure $ n <> prettyDecl hq otype, prettyMetadataDiff mddiff ]
+    
   prettyUpdateTerm hmm = undefined 
-  prettyMetadataDiff :: Var v => OBD.MetadataDiff (OBD.MetadataDisplay v a) -> _ Pretty
   prettyMetadataDiff OBD.MetadataDiff{..} = P.column2M $
     map (elem " + ") addedMetadata <>
     map (elem " - ") removedMetadata
     where 
     elem x (hq, otype) = do
       num <- num
-      pure (num <> x <> phq' hq, 
-            " : " <> maybe (P.red "type not found") 
-                           (TypePrinter.pretty ppe) 
-                           otype)
+      pure (num <> x <> phq' hq, " : " <> prettyType otype)
 
+  prettyType = maybe (P.red "type not found") (TypePrinter.pretty ppe) 
+  prettyDecl hq =
+    maybe (P.red "type not found") 
+          (P.syntaxToColor . DeclPrinter.prettyDeclOrBuiltinHeader (HQ'.toHQ hq))
   phq' = P.syntaxToColor . prettyHashQualified'
   --
   -- DeclPrinter.prettyDeclHeader : HQ -> Either
