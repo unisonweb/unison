@@ -541,7 +541,7 @@ updateChildren ::NameSegment
                -> Map NameSegment (Branch m)
                -> Map NameSegment (Branch m)
 updateChildren seg updatedChild =
-  if isEmpty updatedChild
+  if isEmpty0 (head updatedChild)
   then Map.delete seg
   else Map.insert seg updatedChild
 
