@@ -1197,18 +1197,40 @@ listOfLinks ppe results = pure $ P.lines [
 showDiffNamespace :: forall v . Var v => PPE.PrettyPrintEnv -> OBD.BranchDiffOutput v Ann -> Pretty
 showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
   P.sepNonEmpty "\n\n" . (`State.evalState` (0::Int)) . sequence $ [
-    if (not . null) updatedTypes || (not . null) updatedTerms then do
+    if (not . null) updatedTypes 
+    || (not . null) updatedTerms 
+    || propagatedUpdates > 0
+    || (not . null) updatedPatches
+    then do
       prettyUpdatedTypes :: [Pretty] <- traverse prettyUpdateType updatedTypes
       prettyUpdatedTerms :: [Pretty] <- traverse prettyUpdateTerm updatedTerms
+      prettyUpdatedPatches :: [Pretty] <- error "todo"
       pure $ P.sepNonEmpty "\n\n" [
         P.bold "Updates:",
-        P.indentN 2 . P.linesNonEmpty $ prettyUpdatedTypes <> prettyUpdatedTerms
+        P.indentN 2 . P.linesNonEmpty $ prettyUpdatedTypes <> prettyUpdatedTerms,
+        if propagatedUpdates > 0 
+        then P.indentN 2 
+                $ P.wrap ("& " <> P.shown propagatedUpdates 
+                               <> "auto-propagated updates")
+        else mempty        
        ]
     else pure mempty
+  , if (not . null) addedTypes 
+    || (not . null) addedTerms 
+    || (not . null) addedPatches 
+    then error "todo" else pure mempty
+  , if (not . null) removedTypes 
+    || (not . null) removedTerms 
+    || (not . null) removedPatches 
+    then error "todo" else pure mempty
+  , if (not . null) movedTypes 
+    || (not . null) movedTerms 
+    then error "todo" else pure mempty
+  , if (not . null) copiedTypes 
+    || (not . null) copiedTerms 
+    then error "todo" else pure mempty
   ]
   where
-  -- updateIndicator = " └─ "
-
   prettyUpdateType :: OBD.UpdateTypeDisplay v Ann -> _ Pretty
   {-
      1. ability Foo#pqr x y
@@ -1270,7 +1292,6 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
       pure $ olds <> [downArrow] <> news
     where namesWidth = foldl1' max $ fmap (HQ'.nameLength . view _1) news
                                    <> fmap (HQ'.nameLength . view _1) olds
-
 
   prettyMetadataDiff OBD.MetadataDiff{..} = P.column2M $
     map (elem " - ") removedMetadata <>
