@@ -20,6 +20,7 @@ import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import Unison.Codebase.GitError
 import Unison.Codebase.Path (Path', Path)
 import Unison.Codebase.Patch (Patch)
+import Unison.HashQualified' (HQSegment)
 import Unison.Name ( Name )
 import Unison.Names2 ( Names )
 import Unison.Parser ( Ann )
@@ -47,7 +48,7 @@ import Unison.Codebase.Editor.SearchResult' (SearchResult')
 import Unison.Type (Type)
 import qualified Unison.Names3 as Names
 import qualified Data.Set as Set
-import Unison.Codebase.NameSegment (NameSegment, HQSegment)
+import Unison.Codebase.NameSegment (NameSegment)
 import Unison.ShortHash (ShortHash)
 import Unison.Var (Var)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)

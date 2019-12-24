@@ -320,18 +320,18 @@ notifyUser dir o = case o of
     formatEntry :: ShallowListEntry v a -> (P.Pretty P.ColorText, P.Pretty P.ColorText)
     formatEntry = \case
       ShallowTermEntry r hq ot ->
-        (P.syntaxToColor . prettyHashQualified' . fmap NameSegment.toName $ hq
+        (P.syntaxToColor . prettyHashQualified' . fmap Name.fromNameSegment $ hq
         , P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) ot <> P.lit ")" )
       ShallowTypeEntry r hq ->
-        (P.syntaxToColor . prettyHashQualified' . fmap NameSegment.toName $ hq
+        (P.syntaxToColor . prettyHashQualified' . fmap Name.fromNameSegment $ hq
         ,isBuiltin r)
       ShallowBranchEntry ns count ->
-        ((P.syntaxToColor . prettyName . NameSegment.toName) ns <> "/"
+        ((P.syntaxToColor . prettyName . Name.fromNameSegment) ns <> "/"
         ,case count of
           1 -> P.lit ("(1 definition)")
           n -> P.lit "(" <> P.shown count <> P.lit " definitions)")
       ShallowPatchEntry ns ->
-        ((P.syntaxToColor . prettyName . NameSegment.toName) ns
+        ((P.syntaxToColor . prettyName . Name.fromNameSegment) ns
         ,P.lit "(patch)")
     isBuiltin = \case
       Reference.Builtin{} -> P.lit "(builtin type)"
