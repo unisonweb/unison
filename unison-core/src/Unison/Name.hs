@@ -3,10 +3,12 @@
 module Unison.Name
   ( Name
   , fromString
+  , fromNameSegment
   , isPrefixOf
   , joinDot
   , makeAbsolute
   , parent
+  , segments
   , sortNames
   , sortNamed
   , sortNamed'
@@ -28,6 +30,8 @@ import Unison.Prelude
 
 import           Control.Lens                   ( unsnoc )
 import qualified Data.Text                     as Text
+import           Unison.Codebase.NameSegment    ( NameSegment(NameSegment) )
+import qualified Unison.Codebase.NameSegment   as NameSegment
 import qualified Unison.Hashable               as H
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
@@ -35,6 +39,12 @@ import qualified Data.RFC5051                  as RFC5051
 import           Data.List                      ( sortBy, tails )
 
 newtype Name = Name { toText :: Text } deriving (Eq, Ord)
+
+fromNameSegment :: NameSegment -> Name
+fromNameSegment = unsafeFromText . NameSegment.toText
+
+segments :: Name -> [NameSegment]
+segments name = NameSegment <$> Text.splitOn "." (toText name)
 
 sortNames :: [Name] -> [Name]
 sortNames = sortNamed id

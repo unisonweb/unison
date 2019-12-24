@@ -18,11 +18,11 @@ import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Lexer                  as Lexer
+import           Unison.HashQualified'          ( HQSegment )
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.ShortHash as SH
 
 import           Unison.Codebase.NameSegment    ( NameSegment(NameSegment)
-                                                , HQSegment
                                                 )
 import qualified Unison.Codebase.NameSegment as NameSegment
 

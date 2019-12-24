@@ -7,6 +7,7 @@ import Unison.Prelude
 import           Data.Maybe                     ( fromJust )
 import qualified Data.Text                     as Text
 import           Prelude                 hiding ( take )
+import           Unison.Codebase.NameSegment    ( NameSegment )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import           Unison.Reference               ( Reference )
@@ -21,6 +22,7 @@ data HashQualified' n = NameOnly n | HashQualified n ShortHash
   deriving (Eq, Ord, Functor)
 
 type HashQualified = HashQualified' Name
+type HQSegment = HashQualified' NameSegment
 
 toHQ :: HashQualified' n -> HQ.HashQualified' n
 toHQ = \case
