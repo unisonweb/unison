@@ -29,6 +29,7 @@ where
 import Unison.Prelude
 
 import           Control.Lens                   ( unsnoc )
+import           Data.List.NonEmpty             ( NonEmpty )
 import qualified Data.Text                     as Text
 import           Unison.Codebase.NameSegment    ( NameSegment(NameSegment) )
 import qualified Unison.Codebase.NameSegment   as NameSegment
@@ -38,7 +39,13 @@ import qualified Unison.Var                    as Var
 import qualified Data.RFC5051                  as RFC5051
 import           Data.List                      ( sortBy, tails )
 
-newtype Name = Name { toText :: Text } deriving (Eq, Ord)
+data Name
+  = Name Text
+  | Name' (NonEmpty NameSegment)
+  deriving (Eq, Ord)
+
+toText :: Name -> Text
+toText (Name name) = name
 
 fromNameSegment :: NameSegment -> Name
 fromNameSegment = unsafeFromText . NameSegment.toText
