@@ -48,8 +48,8 @@ data BranchDiffOutput v a = BranchDiffOutput {
   updatedTerms      :: [UpdateTermDisplay v a],
   propagatedUpdates :: Int,
   updatedPatches    :: [PatchDisplay],
-  addedTypes        :: [TypeDisplay v a],
-  addedTerms        :: [TermDisplay v a],
+  addedTypes        :: [AliasedTypeDisplay v a],
+  addedTerms        :: [AliasedTermDisplay v a],
   addedPatches      :: [PatchDisplay],
   removedTypes      :: [TypeDisplay v a],
   removedTerms      :: [TermDisplay v a],
@@ -63,11 +63,14 @@ data BranchDiffOutput v a = BranchDiffOutput {
 -- Need to be able to turn a (Name,Reference) into a HashQualified relative to... what.
 -- the new namespace?
 
-type TermDisplay v a = (HashQualified, Maybe (Type v a), MetadataDiff (MetadataDisplay v a))
-type TypeDisplay v a = (HashQualified, Maybe (DeclOrBuiltin v a), MetadataDiff (MetadataDisplay v a))
+type TermDisplay v a = (HashQualified, Referent, Maybe (Type v a), MetadataDiff (MetadataDisplay v a))
+type TypeDisplay v a = (HashQualified, Reference, Maybe (DeclOrBuiltin v a), MetadataDiff (MetadataDisplay v a))
 
-type SimpleTermDisplay v a = (HashQualified, Maybe (Type v a))
-type SimpleTypeDisplay v a = (HashQualified, Maybe (DeclOrBuiltin v a))
+type AliasedTermDisplay v a = ([(HashQualified, [MetadataDisplay v a])], Referent, Maybe (Type v a))
+type AliasedTypeDisplay v a = ([(HashQualified, [MetadataDisplay v a])], Reference, Maybe (DeclOrBuiltin v a))
+
+type SimpleTermDisplay v a = (HashQualified, Referent, Maybe (Type v a))
+type SimpleTypeDisplay v a = (HashQualified, Reference, Maybe (DeclOrBuiltin v a))
 
 type UpdateTermDisplay v a = (Maybe [SimpleTermDisplay v a], [TermDisplay v a])
 type UpdateTypeDisplay v a = (Maybe [SimpleTypeDisplay v a], [TypeDisplay v a])
@@ -125,13 +128,15 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
     metadataUpdates = getMetadataUpdates typesDiff
     loadOld :: Name -> Reference -> m (SimpleTypeDisplay v a)
     loadOld n r_old =
-      (,) <$> pure (Names2.hqTypeName hqLen names1 n r_old)
-          <*> declOrBuiltin r_old
+      (,,) <$> pure (Names2.hqTypeName hqLen names1 n r_old)
+           <*> pure r_old
+           <*> declOrBuiltin r_old
     loadNew :: Name -> Set Reference -> Reference -> m (TypeDisplay v a)
     loadNew n rs_old r_new =
-      (,,) <$> pure (Names2.hqTypeName hqLen names2 n r_new)
-           <*> declOrBuiltin r_new
-           <*> fillMetadata ppe (getNewMetadataDiff typesDiff n rs_old r_new)
+      (,,,) <$> pure (Names2.hqTypeName hqLen names2 n r_new)
+            <*> pure r_new
+            <*> declOrBuiltin r_new
+            <*> fillMetadata ppe (getNewMetadataDiff typesDiff n rs_old r_new)
     loadEntry :: (Name, (Set Reference, Set Reference)) -> m (UpdateTypeDisplay v a)
     loadEntry (n, (rs_old, rs_new)) =
       (,) <$> (Just <$> for (toList rs_old) (loadOld n))
@@ -146,12 +151,14 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
     -- if they were already included in `nsUpdates)
     metadataUpdates = getMetadataUpdates termsDiff
     loadOld n r_old =
-      (,) <$> pure (Names2.hqTermName hqLen names1 n r_old)
-          <*> typeOf r_old
+      (,,) <$> pure (Names2.hqTermName hqLen names1 n r_old)
+           <*> pure r_old
+           <*> typeOf r_old
     loadNew n rs_old r_new =
-      (,,) <$> pure (Names2.hqTermName hqLen names2 n r_new)
-           <*> typeOf r_new
-           <*> fillMetadata ppe (getNewMetadataDiff termsDiff n rs_old r_new)
+      (,,,) <$> pure (Names2.hqTermName hqLen names2 n r_new)
+            <*> pure r_new
+            <*> typeOf r_new
+            <*> fillMetadata ppe (getNewMetadataDiff termsDiff n rs_old r_new)
     loadEntry (n, (rs_old, rs_new)) =
       (,) <$> (Just <$> for (toList rs_old) (loadOld n))
           <*> for (toList rs_new) (loadNew n rs_old)
@@ -164,23 +171,32 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
   let updatedPatches :: [PatchDisplay] =
         [(name, diff) | (name, BranchDiff.Modify diff) <- Map.toList patchesDiff]
 
-  addedTypes :: [TypeDisplay v a] <- let
-    typeAdds :: [(Reference, Name, [Metadata.Value])] =
-      [ (r, n, toList $ getAddedMetadata r n typesDiff )
-      | (r, n) <- R.toList . BranchDiff.adds $ typesDiff ]
-    in for typeAdds $ \(r, n, mdRefs) ->
-      (,,) <$> pure (Names2.hqTypeName hqLen names2 n r)
-           <*> declOrBuiltin r
-           <*> fillMetadata ppe (mempty { addedMetadata = mdRefs })
+  addedTypes :: [AliasedTypeDisplay v a] <- do
+    let typeAdds :: [(Reference, [(Name, [Metadata.Value])])] =
+         [ (r, nsmd)
+         | (r, ns) <- Map.toList . R.toMultimap . BranchDiff.adds $ typesDiff
+         , let nsmd = [ (n, toList $ getAddedMetadata r n typesDiff)
+                      | n <- toList ns ]
+         ]
+    for typeAdds $ \(r, nsmd) -> do
+      hqmds :: [(HashQualified, [MetadataDisplay v a])] <-
+        for nsmd $ \(n, mdRefs) ->
+          (,) <$> pure (Names2.hqTypeName hqLen names2 n r)
+              <*> fillMetadata ppe mdRefs
+      (hqmds, r, ) <$> declOrBuiltin r
 
-  addedTerms :: [TermDisplay v a] <- let
-    termAdds :: [(Referent, Name, [Metadata.Value])]=
-      [ (r, n, toList $ getAddedMetadata r n termsDiff )
-      | (r, n) <- R.toList . BranchDiff.adds $ termsDiff ]
-    in for termAdds $ \(r, n, mdRefs) ->
-      (,,) <$> pure (Names2.hqTermName hqLen names2 n r)
-           <*> typeOf r
-           <*> fillMetadata ppe (mempty { addedMetadata = mdRefs })
+  addedTerms :: [AliasedTermDisplay v a] <- do
+    let termAdds :: [(Referent, [(Name, [Metadata.Value])])] =
+          [ (r, nsmd)
+          | (r, ns) <- Map.toList . R.toMultimap. BranchDiff.adds $ termsDiff
+          , let nsmd = [ (n, toList $ getAddedMetadata r n termsDiff)
+                       | n <- toList ns ]
+          ]
+    for termAdds $ \(r, nsmd) -> do
+      hqmds <- for nsmd $ \(n, mdRefs) ->
+        (,) <$> pure (Names2.hqTermName hqLen names2 n r)
+            <*> fillMetadata ppe mdRefs
+      (hqmds, r, ) <$> typeOf r
 
   let addedPatches :: [PatchDisplay] =
         [ (name, diff)
@@ -191,18 +207,20 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
       [ (r, n, toList $ getRemovedMetadata r n typesDiff )
       | (r, n) <- R.toList . BranchDiff.removes $ typesDiff ]
     in for typeRemoves $ \(r, n, mdRefs) ->
-      (,,) <$> pure (Names2.hqTypeName hqLen names1 n r)
-           <*> declOrBuiltin r
-           <*> fillMetadata ppe (mempty { removedMetadata = mdRefs })
+      (,,,) <$> pure (Names2.hqTypeName hqLen names1 n r)
+            <*> pure r
+            <*> declOrBuiltin r
+            <*> fillMetadata ppe (mempty { removedMetadata = mdRefs })
 
   removedTerms :: [TermDisplay v a] <- let
     termRemoves :: [(Referent, Name, [Metadata.Value])] =
       [ (r, n, toList $ getRemovedMetadata r n termsDiff )
       | (r, n) <- R.toList . BranchDiff.removes $ termsDiff ]
     in for termRemoves $ \(r, n, mdRefs) ->
-      (,,) <$> pure (Names2.hqTermName hqLen names1 n r)
-           <*> typeOf r
-           <*> fillMetadata ppe (mempty { removedMetadata = mdRefs })
+      (,,,) <$> pure (Names2.hqTermName hqLen names1 n r)
+            <*> pure r
+            <*> typeOf r
+            <*> fillMetadata ppe (mempty { removedMetadata = mdRefs })
 
   let removedPatches :: [PatchDisplay] =
         [ (name, diff)
@@ -245,9 +263,9 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
     copiedTypes
     copiedTerms
   where
-  fillMetadata :: PPE.PrettyPrintEnv -> MetadataDiff Metadata.Value -> m (MetadataDiff (MetadataDisplay v a))
+  fillMetadata :: Traversable t => PPE.PrettyPrintEnv -> t Metadata.Value -> m (t (MetadataDisplay v a))
   fillMetadata ppe = traverse $ -- metadata values are all terms
-    \(Referent.Ref -> mdRef) -> (HQ'.unsafeFromHQ $ PPE.termName ppe mdRef,) <$> typeOf mdRef
+    \(Referent.Ref -> mdRef) -> (HQ'.unsafeFromHQ $ PPE.termName ppe mdRef, mdRef, ) <$> typeOf mdRef
   _getMetadata :: Ord r => r -> Name -> R3.Relation3 r Name Metadata.Value -> Set Metadata.Value
   _getMetadata r n r3 = R.lookupDom n . R3.lookupD1 r $ r3
 
@@ -334,7 +352,7 @@ Adds:
 	14. └ability copies.Yyz  (+2 metadata)
 	15. ┌ Baz.docs : Doc
 	16. └ Frazz.docs : Doc
-	17. cat : Nat -> Nat -> Poop  (3 metadata)
+	17. cat : Nat -> Nat -> Poop  (+3 metadata)
 	18. patch q
 
 Removes:

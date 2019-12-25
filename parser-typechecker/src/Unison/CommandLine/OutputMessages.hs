@@ -27,7 +27,7 @@ import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 
 
 import qualified Control.Monad.State.Strict    as State
-import           Data.Bifunctor                (bimap, first)
+import           Data.Bifunctor                (bimap, first, second)
 import           Data.List                     (sortOn, stripPrefix)
 import           Data.List.Extra               (nubOrdOn, nubOrd)
 import           Data.ListLike                 (ListLike)
@@ -1197,41 +1197,56 @@ listOfLinks ppe results = pure $ P.lines [
 showDiffNamespace :: forall v . Var v => PPE.PrettyPrintEnv -> OBD.BranchDiffOutput v Ann -> Pretty
 showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
   P.sepNonEmpty "\n\n" . (`State.evalState` (0::Int)) . sequence $ [
-    if (not . null) updatedTypes 
-    || (not . null) updatedTerms 
+    if (not . null) updatedTypes
+    || (not . null) updatedTerms
     || propagatedUpdates > 0
     || (not . null) updatedPatches
     then do
       prettyUpdatedTypes :: [Pretty] <- traverse prettyUpdateType updatedTypes
       prettyUpdatedTerms :: [Pretty] <- traverse prettyUpdateTerm updatedTerms
       prettyUpdatedPatches :: [Pretty] <- error "todo"
-      pure $ P.sepNonEmpty "\n\n" [
-        P.bold "Updates:",
-        P.indentN 2 . P.linesNonEmpty $ prettyUpdatedTypes <> prettyUpdatedTerms,
-        if propagatedUpdates > 0 
-        then P.indentN 2 
-                $ P.wrap ("& " <> P.shown propagatedUpdates 
+      pure $ P.sepNonEmpty "\n\n"
+        [ P.bold "Updates:"
+        , P.indentN 2 . P.linesNonEmpty $ prettyUpdatedTypes <> prettyUpdatedTerms
+        , if propagatedUpdates > 0
+          then P.indentN 2
+                $ P.wrap ("& " <> P.shown propagatedUpdates
                                <> "auto-propagated updates")
-        else mempty        
-       ]
+          else mempty
+        , P.indentN 2 . P.linesNonEmpty $ prettyUpdatedPatches
+        ]
     else pure mempty
-  , if (not . null) addedTypes 
-    || (not . null) addedTerms 
-    || (not . null) addedPatches 
+  , if (not . null) addedTypes
+    || (not . null) addedTerms
+    || (not . null) addedPatches
+    then do
+      prettyAddedTypes :: Pretty <- prettyTypes addedTypes
+      prettyAddedTerms :: Pretty <- prettyTerms addedTerms
+      prettyAddedPatches :: Pretty <- error "todo"
+      pure $ P.sepNonEmpty "\n\n"
+        [ P.bold "Adds:"
+        , P.indentN 2 $ P.linesNonEmpty [prettyAddedTypes, prettyAddedTerms]
+        , if propagatedUpdates > 0
+          then P.indentN 2
+                $ P.wrap ("& " <> P.shown propagatedUpdates
+                               <> "auto-propagated updates")
+          else mempty
+        , P.indentN 2 prettyAddedPatches
+        ]
+    else pure mempty
+  , if (not . null) removedTypes
+    || (not . null) removedTerms
+    || (not . null) removedPatches
     then error "todo" else pure mempty
-  , if (not . null) removedTypes 
-    || (not . null) removedTerms 
-    || (not . null) removedPatches 
+  , if (not . null) movedTypes
+    || (not . null) movedTerms
     then error "todo" else pure mempty
-  , if (not . null) movedTypes 
-    || (not . null) movedTerms 
-    then error "todo" else pure mempty
-  , if (not . null) copiedTypes 
-    || (not . null) copiedTerms 
+  , if (not . null) copiedTypes
+    || (not . null) copiedTerms
     then error "todo" else pure mempty
   ]
   where
-  prettyUpdateType :: OBD.UpdateTypeDisplay v Ann -> _ Pretty
+  prettyUpdateType :: OBD.UpdateTypeDisplay v a -> State.State Int Pretty
   {-
      1. ability Foo#pqr x y
         2. - AllRightsReserved : License
@@ -1240,8 +1255,7 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
         5. - apiDocs : License
         6. + MIT     : License
   -}
-  prettyUpdateType (Nothing, mdUps) =
-    fmap P.linesNonEmpty $ traverse mdTypeLine mdUps
+  prettyUpdateType (Nothing, mdUps) = P.column2 <$> traverse mdTypeLine mdUps
   {-
       1. ┌ ability Foo#pqr x y
       2. └ ability Foo#xyz a b
@@ -1260,44 +1274,82 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
            5. + foo.docs : Doc
   -}
   prettyUpdateType (Just olds, news) =
-    fmap P.linesNonEmpty $ do
-      olds <- P.boxLeft <$>
-        traverse mdTypeLine [ (name,decl,mempty) | (name,decl) <- olds ]
-      news <- P.boxLeft <$>
-        traverse mdTypeLine news
-      pure $ olds <> [downArrow] <> news
+    do
+      olds <- traverse mdTypeLine [ (name,r,decl,mempty) | (name,r,decl) <- olds ]
+      news <- traverse mdTypeLine news
+      let (oldnums, olddatas) = unzip olds
+      let (newnums, newdatas) = unzip news
+      pure . P.column2 $
+        zip (oldnums <> [""] <> newnums)
+            (P.boxLeft olddatas <> [downArrow] <> P.boxLeft newdatas)
+
+  {-
+  13. ┌ability Yyz         (+1 metadata)
+  14. └ability copies.Yyz  (+2 metadata)
+  -}
+  prettyTypes :: [OBD.AliasedTypeDisplay v a] -> State.State Int Pretty
+  prettyTypes = fmap P.lines . traverse prettyGroup where
+    prettyGroup :: OBD.AliasedTypeDisplay v a -> State.State Int Pretty
+    prettyGroup (hqmds, _r, odecl) = do
+      pairs <- traverse (prettyLine odecl) hqmds
+      let (nums, decls) = unzip pairs
+      let boxLeft = case hqmds of _:_:_ -> P.boxLeft; _ -> id
+      pure . P.column2 $ zip nums (boxLeft decls)
+    prettyLine :: Maybe (DD.DeclOrBuiltin v a) -> (HQ'.HashQualified, [OBD.MetadataDisplay v a]) -> State.State Int (Pretty, Pretty)
+    prettyLine odecl (hq, mds) = do
+      n <- num
+      pure . (n,) $ prettyDecl hq odecl <> case length mds of
+        0 -> mempty
+        c -> "(+" <> P.shown c <> " metadata)"
+
+  prettyTerms :: [OBD.AliasedTermDisplay v a] -> State.State Int Pretty
+  prettyTerms = fmap (P.column3 . mconcat) . traverse prettyGroup where
+    prettyGroup :: OBD.AliasedTermDisplay v a -> State.State Int [(Pretty, Pretty, Pretty)]
+    prettyGroup (hqmds, _r, otype) = do
+      pairs <- traverse (prettyLine otype) hqmds
+      let (nums, names, decls) = unzip3 pairs
+          boxLeft = case hqmds of _:_:_ -> P.boxLeft; _ -> id
+      pure $ zip3 nums names (boxLeft decls)
+    prettyLine otype (hq, mds) = do
+      n <- num
+      pure . (n, phq' hq, ) $ " : " <> prettyType otype
 
   downArrow = P.bold "⧩ replaced with"
-  mdTypeLine (hq, otype, mddiff) = do
+  mdTypeLine :: OBD.TypeDisplay v a -> State.State Int (Pretty, Pretty)
+  mdTypeLine (hq, _r, odecl, mddiff) = do
     n <- num
-    fmap P.linesNonEmpty . sequence $
-      [ pure $ n <> prettyDecl hq otype
+    fmap ((n,) . P.linesNonEmpty) . sequence $
+      [ pure $ prettyDecl hq odecl
       , P.indentN leftNumsWidth <$> prettyMetadataDiff mddiff ]
-  mdTermLine namesWidth (hq, otype, mddiff) = do
+  mdTermLine :: Int -> OBD.TermDisplay v a -> State.State Int (Pretty, Pretty)
+  mdTermLine namesWidth (hq, _r, otype, mddiff) = do
     n <- num
-    fmap P.linesNonEmpty . sequence $
+    fmap ((n,) . P.linesNonEmpty) . sequence $
       [ pure $ P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
       , P.indentN leftNumsWidth <$> prettyMetadataDiff mddiff ]
 
+  prettyUpdateTerm :: OBD.UpdateTermDisplay v a -> State.State Int Pretty
   prettyUpdateTerm (Nothing, newTerms) =
     if null newTerms then error "Super invalid UpdateTermDisplay" else
-    fmap P.linesNonEmpty $ traverse (mdTermLine namesWidth) newTerms
+    fmap P.column2 $ traverse (mdTermLine namesWidth) newTerms
     where namesWidth = foldl1' max $ fmap (HQ'.nameLength . view _1) newTerms
   prettyUpdateTerm (Just olds, news) =
-    fmap P.linesNonEmpty $ do
-      olds <- P.boxLeft <$>
-        traverse (mdTermLine namesWidth) [ (name,typ,mempty) | (name,typ) <- olds ]
-      news <- P.boxLeft <$>
-        traverse (mdTermLine namesWidth) news
-      pure $ olds <> [downArrow] <> news
+    fmap P.column2 $ do
+      olds <- traverse (mdTermLine namesWidth) [ (name,r,typ,mempty) | (name,r,typ) <- olds ]
+      news <- traverse (mdTermLine namesWidth) news
+      let (oldnums, olddatas) = unzip olds
+      let (newnums, newdatas) = unzip news
+      pure $ zip (oldnums <> [""] <> newnums)
+                 (P.boxLeft olddatas <> [downArrow] <> P.boxLeft newdatas)
     where namesWidth = foldl1' max $ fmap (HQ'.nameLength . view _1) news
                                    <> fmap (HQ'.nameLength . view _1) olds
 
+  prettyMetadataDiff :: OBD.MetadataDiff (OBD.MetadataDisplay v a) -> State.State Int Pretty
   prettyMetadataDiff OBD.MetadataDiff{..} = P.column2M $
     map (elem " - ") removedMetadata <>
     map (elem " + ") addedMetadata
     where
-    elem x (hq, otype) = do
+    elem x (hq, _r, otype) = do
       num <- num
       pure (x <> num <> phq' hq, " : " <> prettyType otype)
 
