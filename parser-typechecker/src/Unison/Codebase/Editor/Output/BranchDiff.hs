@@ -48,8 +48,8 @@ data BranchDiffOutput v a = BranchDiffOutput {
   updatedTerms      :: [UpdateTermDisplay v a],
   propagatedUpdates :: Int,
   updatedPatches    :: [PatchDisplay],
-  addedTypes        :: [AliasedTypeDisplay v a],
-  addedTerms        :: [AliasedTermDisplay v a],
+  addedTypes        :: [AddedTypeDisplay v a],
+  addedTerms        :: [AddedTermDisplay v a],
   addedPatches      :: [PatchDisplay],
   removedTypes      :: [TypeDisplay v a],
   removedTerms      :: [TermDisplay v a],
@@ -66,8 +66,8 @@ data BranchDiffOutput v a = BranchDiffOutput {
 type TermDisplay v a = (HashQualified, Referent, Maybe (Type v a), MetadataDiff (MetadataDisplay v a))
 type TypeDisplay v a = (HashQualified, Reference, Maybe (DeclOrBuiltin v a), MetadataDiff (MetadataDisplay v a))
 
-type AliasedTermDisplay v a = ([(HashQualified, [MetadataDisplay v a])], Referent, Maybe (Type v a))
-type AliasedTypeDisplay v a = ([(HashQualified, [MetadataDisplay v a])], Reference, Maybe (DeclOrBuiltin v a))
+type AddedTermDisplay v a = ([(HashQualified, [MetadataDisplay v a])], Referent, Maybe (Type v a))
+type AddedTypeDisplay v a = ([(HashQualified, [MetadataDisplay v a])], Reference, Maybe (DeclOrBuiltin v a))
 
 type SimpleTermDisplay v a = (HashQualified, Referent, Maybe (Type v a))
 type SimpleTypeDisplay v a = (HashQualified, Reference, Maybe (DeclOrBuiltin v a))
@@ -171,7 +171,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
   let updatedPatches :: [PatchDisplay] =
         [(name, diff) | (name, BranchDiff.Modify diff) <- Map.toList patchesDiff]
 
-  addedTypes :: [AliasedTypeDisplay v a] <- do
+  addedTypes :: [AddedTypeDisplay v a] <- do
     let typeAdds :: [(Reference, [(Name, [Metadata.Value])])] =
          [ (r, nsmd)
          | (r, ns) <- Map.toList . R.toMultimap . BranchDiff.adds $ typesDiff
@@ -185,7 +185,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
               <*> fillMetadata ppe mdRefs
       (hqmds, r, ) <$> declOrBuiltin r
 
-  addedTerms :: [AliasedTermDisplay v a] <- do
+  addedTerms :: [AddedTermDisplay v a] <- do
     let termAdds :: [(Referent, [(Name, [Metadata.Value])])] =
           [ (r, nsmd)
           | (r, ns) <- Map.toList . R.toMultimap. BranchDiff.adds $ termsDiff

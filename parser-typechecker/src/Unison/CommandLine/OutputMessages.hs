@@ -1220,8 +1220,8 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
     || (not . null) addedTerms
     || (not . null) addedPatches
     then do
-      prettyAddedTypes :: Pretty <- prettyTypes addedTypes
-      prettyAddedTerms :: Pretty <- prettyTerms addedTerms
+      prettyAddedTypes :: Pretty <- prettyAddTypes addedTypes
+      prettyAddedTerms :: Pretty <- prettyAddTerms addedTerms
       prettyAddedPatches :: Pretty <- error "todo"
       pure $ P.sepNonEmpty "\n\n"
         [ P.bold "Adds:"
@@ -1237,7 +1237,15 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
   , if (not . null) removedTypes
     || (not . null) removedTerms
     || (not . null) removedPatches
-    then error "todo" else pure mempty
+    then do
+      prettyRemovedTypes :: Pretty <- prettyRemoveTypes removedTypes
+      prettyRemovedTerms :: Pretty <- prettyRemoveTerms removedTerms
+      prettyRemovedPatches :: Pretty <- error "todo"
+      pure $ P.sepNonEmpty "\n\n"
+       [ P.bold "Removes:"
+       , P.indentN 2 $ P.linesNonEmpty [prettyRemovedTypes, prettyRemovedTerms, prettyRemovedPatches]
+       ]
+    else pure mempty
   , if (not . null) movedTypes
     || (not . null) movedTerms
     then error "todo" else pure mempty
@@ -1287,9 +1295,9 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
   13. ┌ability Yyz         (+1 metadata)
   14. └ability copies.Yyz  (+2 metadata)
   -}
-  prettyTypes :: [OBD.AliasedTypeDisplay v a] -> State.State Int Pretty
-  prettyTypes = fmap P.lines . traverse prettyGroup where
-    prettyGroup :: OBD.AliasedTypeDisplay v a -> State.State Int Pretty
+  prettyAddTypes :: [OBD.AddedTypeDisplay v a] -> State.State Int Pretty
+  prettyAddTypes = fmap P.lines . traverse prettyGroup where
+    prettyGroup :: OBD.AddedTypeDisplay v a -> State.State Int Pretty
     prettyGroup (hqmds, _r, odecl) = do
       pairs <- traverse (prettyLine odecl) hqmds
       let (nums, decls) = unzip pairs
@@ -1302,9 +1310,9 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
         0 -> mempty
         c -> "(+" <> P.shown c <> " metadata)"
 
-  prettyTerms :: [OBD.AliasedTermDisplay v a] -> State.State Int Pretty
-  prettyTerms = fmap (P.column3 . mconcat) . traverse prettyGroup where
-    prettyGroup :: OBD.AliasedTermDisplay v a -> State.State Int [(Pretty, Pretty, Pretty)]
+  prettyAddTerms :: [OBD.AddedTermDisplay v a] -> State.State Int Pretty
+  prettyAddTerms = fmap (P.column3 . mconcat) . traverse prettyGroup where
+    prettyGroup :: OBD.AddedTermDisplay v a -> State.State Int [(Pretty, Pretty, Pretty)]
     prettyGroup (hqmds, _r, otype) = do
       pairs <- traverse (prettyLine otype) hqmds
       let (nums, names, decls) = unzip3 pairs
@@ -1313,6 +1321,17 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
     prettyLine otype (hq, mds) = do
       n <- num
       pure . (n, phq' hq, ) $ " : " <> prettyType otype
+
+  prettyRemoveTypes :: [OBD.TypeDisplay v a] -> State.State Int Pretty
+  prettyRemoveTypes types = fmap P.lines . for types $ \(hq, _, odecl, _) -> do
+    n <- num
+    pure $ n <> prettyDecl hq odecl
+
+  prettyRemoveTerms :: [OBD.TermDisplay v a] -> State.State Int Pretty
+  prettyRemoveTerms terms = fmap P.lines . for terms $ \(hq, _, otype, _) -> do
+    n <- num
+    pure $ n <> P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
+    where namesWidth = foldl1' max $ fmap (HQ'.nameLength . view _1) terms
 
   downArrow = P.bold "⧩ replaced with"
   mdTypeLine :: OBD.TypeDisplay v a -> State.State Int (Pretty, Pretty)
