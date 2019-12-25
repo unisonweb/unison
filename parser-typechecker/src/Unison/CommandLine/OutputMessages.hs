@@ -1204,7 +1204,7 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
     then do
       prettyUpdatedTypes :: [Pretty] <- traverse prettyUpdateType updatedTypes
       prettyUpdatedTerms :: [Pretty] <- traverse prettyUpdateTerm updatedTerms
-      prettyUpdatedPatches :: [Pretty] <- error "todo"
+      prettyUpdatedPatches :: [Pretty] <- traverse prettySummarizePatch updatedPatches
       pure $ P.sepNonEmpty "\n\n"
         [ P.bold "Updates:"
         , P.indentN 2 . P.linesNonEmpty $ prettyUpdatedTypes <> prettyUpdatedTerms
@@ -1222,7 +1222,7 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
     then do
       prettyAddedTypes :: Pretty <- prettyAddTypes addedTypes
       prettyAddedTerms :: Pretty <- prettyAddTerms addedTerms
-      prettyAddedPatches :: Pretty <- error "todo"
+      prettyAddedPatches :: [Pretty] <- traverse prettySummarizePatch addedPatches
       pure $ P.sepNonEmpty "\n\n"
         [ P.bold "Adds:"
         , P.indentN 2 $ P.linesNonEmpty [prettyAddedTypes, prettyAddedTerms]
@@ -1231,7 +1231,7 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
                 $ P.wrap ("& " <> P.shown propagatedUpdates
                                <> "auto-propagated updates")
           else mempty
-        , P.indentN 2 prettyAddedPatches
+        , P.indentN 2 $ P.lines prettyAddedPatches
         ]
     else pure mempty
   , if (not . null) removedTypes
@@ -1240,10 +1240,12 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
     then do
       prettyRemovedTypes :: Pretty <- prettyRemoveTypes removedTypes
       prettyRemovedTerms :: Pretty <- prettyRemoveTerms removedTerms
-      prettyRemovedPatches :: Pretty <- error "todo"
+      prettyRemovedPatches :: [Pretty] <- traverse prettyNamePatch removedPatches
       pure $ P.sepNonEmpty "\n\n"
        [ P.bold "Removes:"
-       , P.indentN 2 $ P.linesNonEmpty [prettyRemovedTypes, prettyRemovedTerms, prettyRemovedPatches]
+       , P.indentN 2 $ P.linesNonEmpty [ prettyRemovedTypes
+                                       , prettyRemovedTerms
+                                       , P.linesNonEmpty prettyRemovedPatches ]
        ]
     else pure mempty
   , if (not . null) movedTypes
@@ -1322,6 +1324,36 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
       n <- num
       pure . (n, phq' hq, ) $ " : " <> prettyType otype
 
+  prettySummarizePatch, prettyNamePatch :: OBD.PatchDisplay -> State.State Int Pretty
+  --  12. patch p (added 3 updates, deleted 1)
+  prettySummarizePatch (name, patchDiff) = do
+    n <- num
+    let addCount = (R.size . view Patch.addedTermEdits) patchDiff +
+                   (R.size . view Patch.addedTypeEdits) patchDiff
+        delCount = (R.size . view Patch.removedTermEdits) patchDiff +
+                   (R.size . view Patch.removedTypeEdits) patchDiff
+        messages =
+          (if addCount > 0 then ["added " <> P.shown addCount] else []) ++
+          (if delCount > 0 then ["deleted " <> P.shown addCount] else [])
+        message = case messages of
+          [] -> mempty
+          x : ys -> " (" <> P.commas (x <> " updates" : ys) <> ")"
+    pure $ n <> "patch " <> prettyName name <> message
+  --	18. patch q
+  prettyNamePatch (name, patchDiff) = do
+    n <- num
+    pure $ n <> "patch " <> prettyName name
+
+
+
+
+  {-
+  Removes:
+
+    10.  oldn'busted : Nat -> Nat -> Poop
+    11.  ability BadType
+    12.  patch defunctThingy
+	-}
   prettyRemoveTypes :: [OBD.TypeDisplay v a] -> State.State Int Pretty
   prettyRemoveTypes types = fmap P.lines . for types $ \(hq, _, odecl, _) -> do
     n <- num
