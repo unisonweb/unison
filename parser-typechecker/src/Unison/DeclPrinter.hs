@@ -5,7 +5,7 @@
 
 module Unison.DeclPrinter where
 
-import Unison.Prelude
+-- import Unison.Prelude
 
 import           Data.List                      ( isPrefixOf )
 import qualified Data.Map                      as Map
@@ -16,7 +16,6 @@ import           Unison.DataDeclaration         ( DataDeclaration'
 import qualified Unison.DataDeclaration        as DD
 import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
-import qualified Unison.Name                   as Name
 import           Unison.NamePrinter             ( styleHashQualified'' )
 import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
 import qualified Unison.PrettyPrintEnv         as PPE
@@ -39,7 +38,7 @@ prettyDecl
   -> HashQualified
   -> DD.Decl v a
   -> Pretty SyntaxText
-prettyDecl ppe r hq d = case d of 
+prettyDecl ppe r hq d = case d of
   Left e -> prettyEffectDecl ppe r hq e
   Right dd -> prettyDataDecl ppe r hq dd
 
@@ -72,7 +71,7 @@ prettyGADT env r name dd = P.hang header . P.lines $ constructor <$> zip
 prettyPattern
   :: PrettyPrintEnv -> Reference -> HashQualified -> Int -> Pretty SyntaxText
 prettyPattern env r namespace n = styleHashQualified'' (fmt S.Constructor)
-  ( HQ.stripNamespace (fromMaybe "" $ Name.toText <$> HQ.toName namespace)
+  ( maybe id HQ.stripNamespace (HQ.toName namespace)
   $ PPE.patternName env r n
   )
 
