@@ -237,7 +237,7 @@ loop = do
 
   case e of
     Left (IncomingRootBranch hashes) ->
-      eval . NotifyUnpaged . WarnIncomingRootBranch $ Set.map (SBH.fromHash sbhLength) hashes
+      eval . Notify . WarnIncomingRootBranch $ Set.map (SBH.fromHash sbhLength) hashes
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
       if maybe False snd latestFile'
@@ -250,15 +250,15 @@ loop = do
                         (UF.termSignatureExternalLabeledDependencies unisonFile)
                         (UF.typecheckedToNames0 unisonFile)
             ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
-            eval . NotifyUnpaged $ Typechecked sourceName ppe sr unisonFile
+            eval . Notify $ Typechecked sourceName ppe sr unisonFile
             r <- eval . Evaluate ppe $ unisonFile
             case r of
-              Left e -> eval . NotifyUnpaged $ EvaluationFailure e
+              Left e -> eval . Notify $ EvaluationFailure e
               Right (bindings, e) -> do
                 let e' = Map.map go e
                     go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
                 when (not $ null e') $
-                  eval . NotifyUnpaged $ Evaluated text ppe bindings e'
+                  eval . Notify $ Evaluated text ppe bindings e'
                 latestFile .= Just (Text.unpack sourceName, False)
                 latestTypecheckedFile .= Just unisonFile
     Right input ->
@@ -307,6 +307,7 @@ loop = do
                             <> opatch p
           ResolveTermNameI path -> "resolve.termName " <> hqs' path
           ResolveTypeNameI path -> "resolve.typeName " <> hqs' path
+          LoadI path -> "load " <> maybe "" (Text.pack . show) path
           AddI _selection -> "add"
           UpdateI p _selection -> "update " <> opatch p
           PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
@@ -1041,6 +1042,16 @@ loop = do
                                  Set.map (Referent.Ref . DerivedId)))
           (hashConflicted from .
             Set.map (Referent.Ref . DerivedId))
+
+      LoadI maybePath ->
+        let maybePath' = if isJust maybePath
+                         then maybePath
+                         else fst <$> latestFile'
+        in case maybePath' of
+          Nothing   -> respond $ NoUnisonFile input
+          Just path -> do
+            res <- eval . LoadSource . Text.pack $ path
+            if isLeft res then respond $ InvalidSourceName path else pure ()
 
       AddI hqs -> case uf of
         Nothing -> respond $ NoUnisonFile input

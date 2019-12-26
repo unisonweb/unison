@@ -10,7 +10,7 @@ module Unison.CommandLine.Main where
 import Unison.Prelude
 
 import Control.Concurrent.STM (atomically)
-import Control.Exception (finally, catch, AsyncException(UserInterrupt), asyncExceptionFromException)
+import Control.Exception (finally, catch, tryJust, AsyncException(UserInterrupt), asyncExceptionFromException)
 import Control.Monad.State (runStateT)
 import Data.IORef
 import Prelude hiding (readFile, writeFile)
@@ -21,6 +21,7 @@ import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Input (Input (..), Event)
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
+import Unison.Codebase.Editor.Command (InvalidSourceNameError)
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Codebase (Codebase)
 import Unison.CommandLine
@@ -32,7 +33,9 @@ import Unison.Parser (Ann)
 import Unison.Var (Var)
 import qualified Control.Concurrent.Async as Async
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 import qualified System.Console.Haskeline as Line
+import System.IO.Error (isDoesNotExistError, isPermissionError)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase as Codebase
@@ -167,6 +170,8 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
     pathRef                  <- newIORef initialPath
     initialInputsRef         <- newIORef initialInputs
     numberedArgsRef          <- newIORef []
+    pageOutput               <- newIORef True
+    justTouchedSourceFile    <- newIORef False
     (config, cancelConfig)   <-
       catchIOError (watchConfig configFile) $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
@@ -184,6 +189,19 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
           path <- readIORef pathRef
           numberedArgs <- readIORef numberedArgsRef
           getUserInput patternMap codebase root path numberedArgs
+        touchSourceFile :: Text -> IO (Either InvalidSourceNameError ())
+        touchSourceFile fname = do
+          if allow $ Text.unpack fname
+            then do
+              -- res :: Either error ()
+              res <- tryJust (guard . (\e -> isDoesNotExistError e || isPermissionError e)) $ touchFile $ Text.unpack fname
+              when (isRight res) $ writeIORef justTouchedSourceFile True
+              return $ mapLeft (const fname) res
+            else return $ Left fname
+        notify = notifyUser dir >=> (\o -> do
+          ifM (readIORef pageOutput)
+              (putPrettyNonempty o)
+              (putPrettyLnUnpaged o))
     let
       awaitInput = do
         -- use up buffered input before consulting external events
@@ -193,8 +211,16 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
           [] ->
             -- Race the user input and file watch.
             Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
-              Left _ -> Left <$> atomically (Q.dequeue eventQueue)
-              x      -> pure x) `catch` interruptHandler
+              Left _ -> do
+                let e = Left <$> atomically (Q.dequeue eventQueue)
+                ifM (readIORef justTouchedSourceFile)
+                    (writeIORef pageOutput True)
+                    (writeIORef pageOutput False)
+                writeIORef justTouchedSourceFile False
+                e
+              x      -> do
+                writeIORef pageOutput True
+                pure x) `catch` interruptHandler
       interruptHandler (asyncExceptionFromException -> Just UserInterrupt) = awaitInput
       interruptHandler _ = pure $ Right QuitI
       cleanup = do
@@ -208,8 +234,8 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (writeIORef rootRef)
                                      runtime
-                                     (notifyUser dir >=> putPrettyNonempty)
-                                     (notifyUser dir >=> putPrettyLnUnpaged)
+                                     notify
+                                     touchSourceFile
                                      codebase
                                      free
         case o of

@@ -113,6 +113,26 @@ todo = InputPattern
     [] -> Right $ Input.TodoI Nothing Path.relativeEmpty'
   )
 
+load :: InputPattern
+load = InputPattern
+  "load"
+  []
+  [(Optional, noCompletions)]
+  (P.wrapColumn2
+    [ ( makeExample' load
+      , "parses, typechecks, and evaluates the most recent scratch file."
+      )
+    , (makeExample load ["<scratch file>"]
+      , "parses, typechecks, and evaluates the given scratch file."
+      )
+    ]
+  )
+  (\case
+    [] -> pure $ Input.LoadI Nothing
+    [file] -> pure $ Input.LoadI . Just $ file
+    _ -> Left (I.help load))
+
+
 add :: InputPattern
 add =
   InputPattern
@@ -936,6 +956,7 @@ execute = InputPattern
 validInputs :: [InputPattern]
 validInputs =
   [ help
+  , load
   , add
   , update
   , delete

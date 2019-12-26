@@ -77,6 +77,7 @@ data Input
     | ResolveTermNameI Path.HQSplit'
     | ResolveTypeNameI Path.HQSplit'
   -- edits stuff:
+    | LoadI (Maybe FilePath)
     | AddI [HQ'.HashQualified]
     | UpdateI (Maybe PatchPath) [HQ'.HashQualified]
     | TodoI (Maybe PatchPath) Path'

@@ -21,7 +21,9 @@ import qualified Data.Set                        as Set
 import qualified Data.Text                       as Text
 import           Prelude                         hiding (readFile, writeFile)
 import qualified System.Console.Haskeline        as Line
+--import           System.Directory                ( setAccessTime, setModificationTime )
 import           System.FilePath                 ( takeFileName )
+import qualified System.Posix                    as Posix ( touchFile )
 import           Unison.Codebase                 (Codebase)
 import qualified Unison.Codebase                 as Codebase
 import qualified Unison.Codebase.Branch          as Branch
@@ -42,6 +44,12 @@ allow p =
   -- ignore Emacs .# prefixed files, see https://github.com/unisonweb/unison/issues/457
   not (".#" `isPrefixOf` takeFileName p) &&
   (isSuffixOf ".u" p || isSuffixOf ".uu" p)
+
+touchFile :: FilePath -> IO ()
+touchFile f = Posix.touchFile f
+  --t <- getCurrentTime
+  --setAccessTime f t
+  --setModificationTime f t
 
 watchConfig :: FilePath -> IO (Config, IO ())
 watchConfig path = do

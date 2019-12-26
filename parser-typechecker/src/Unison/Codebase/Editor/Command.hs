@@ -6,7 +6,8 @@ module Unison.Codebase.Editor.Command (
   LexedSource,
   Source,
   SourceName,
-  TypecheckingResult
+  TypecheckingResult,
+  InvalidSourceNameError
   ) where
 
 import Unison.Prelude
@@ -47,6 +48,8 @@ type Source = Text
 type LexedSource = (Text, [L.Token L.Lexeme])
 type Term v a = Term.AnnotatedTerm v a
 
+type InvalidSourceNameError = Text
+
 type TypecheckingResult v =
   Result (Seq (Note v Ann))
          (Either Names0 (UF.TypecheckedUnisonFile v Ann))
@@ -60,9 +63,6 @@ data Command m i v a where
 
   -- Presents some output to the user
   Notify :: Output v -> Command m i v ()
-
-  -- Presents some output to the user without any paging
-  NotifyUnpaged :: Output v -> Command m i v ()
 
   -- literally just write some terms and types .unison/{terms,types}
   AddDefsToCodebase :: UF.TypecheckedUnisonFile v Ann -> Command m i v ()
@@ -79,6 +79,8 @@ data Command m i v a where
 
   ParseType :: Names -> LexedSource
             -> Command m i v (Either (Parser.Err v) (Type v Ann))
+
+  LoadSource :: SourceName -> Command m i v (Either InvalidSourceNameError ())
 
   Typecheck :: AmbientAbilities v
             -> Names
