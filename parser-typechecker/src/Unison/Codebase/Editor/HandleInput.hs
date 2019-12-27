@@ -309,7 +309,9 @@ loop = do
           ResolveTypeNameI path -> "resolve.typeName " <> hqs' path
           LoadI path -> "load " <> maybe "" (Text.pack . show) path
           AddI _selection -> "add"
+          PreviewAddI _selection -> "add.preview"
           UpdateI p _selection -> "update " <> opatch p
+          PreviewUpdateI _selection -> "update.preview"
           PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
           UndoI{} -> "undo"
           ExecuteI s -> "execute " <> Text.pack s
@@ -1070,6 +1072,19 @@ loop = do
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
 
+      PreviewAddI hqs -> case (latestFile', uf) of
+        (Just (sourceName, _), Just uf) -> do
+          sr <-  Slurp.disallowUpdates
+                    .  applySelection hqs uf
+                    .  toSlurpResult currentPath' uf
+                   <$> slurpResultNames0
+          names <- makeShadowedPrintNamesFromLabeled
+                      (UF.termSignatureExternalLabeledDependencies uf)
+                      (UF.typecheckedToNames0 uf)
+          ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
+          respond $ Typechecked (Text.pack sourceName) ppe sr uf
+        _ -> respond $ NoUnisonFile input
+
       UpdateI maybePatchPath hqs -> case uf of
         Nothing -> respond $ NoUnisonFile input
         Just uf -> do
@@ -1164,6 +1179,18 @@ loop = do
           respond $ SlurpOutput input ppe sr
           -- propagatePatch prints TodoOutput
           void $ propagatePatch inputDescription (updatePatch ye'ol'Patch) currentPath'
+
+      PreviewUpdateI hqs -> case (latestFile', uf) of
+        (Just (sourceName, _), Just uf) -> do
+          sr <-  applySelection hqs uf
+                    .  toSlurpResult currentPath' uf
+                   <$> slurpResultNames0
+          names <- makeShadowedPrintNamesFromLabeled
+                      (UF.termSignatureExternalLabeledDependencies uf)
+                      (UF.typecheckedToNames0 uf)
+          ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
+          respond $ Typechecked (Text.pack sourceName) ppe sr uf
+        _ -> respond $ NoUnisonFile input
 
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)

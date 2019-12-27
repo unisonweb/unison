@@ -152,6 +152,27 @@ add =
             . ("I don't know what these refer to:\n" :)
             $ collectNothings HQ'.fromString ws
 
+previewAdd :: InputPattern
+previewAdd =
+  InputPattern
+      "add.preview"
+      []
+      [(ZeroPlus, noCompletions)]
+      ("`add.preview` previews additions to the codebase from the most recently "
+      <> "typechecked file. This command only displays cached typechecking "
+      <> "results. Use `load` to reparse & typecheck the file if the context "
+      <> "has changed."
+      )
+    $ \ws -> case traverse HQ'.fromString ws of
+        Just ws -> pure $ Input.PreviewAddI ws
+        Nothing ->
+          Left
+            . warn
+            . P.lines
+            . fmap fromString
+            . ("I don't know what these refer to:\n" :)
+            $ collectNothings HQ'.fromString ws
+
 update :: InputPattern
 update = InputPattern "update"
   []
@@ -186,6 +207,27 @@ update = InputPattern "update"
                 ("I don't know what these refer to:\n" :) $
                 collectNothings HQ'.fromString ws
     [] -> Right $ Input.UpdateI Nothing [] )
+
+previewUpdate :: InputPattern
+previewUpdate =
+  InputPattern
+      "update.preview"
+      []
+      [(ZeroPlus, noCompletions)]
+      ("`update.preview` previews updates to the codebase from the most "
+      <> "recently typechecked file. This command only displays cached "
+      <> "typechecking results. Use `load` to reparse & typecheck the file if "
+      <> "the context has changed."
+      )
+    $ \ws -> case traverse HQ'.fromString ws of
+        Just ws -> pure $ Input.PreviewUpdateI ws
+        Nothing ->
+          Left
+            . warn
+            . P.lines
+            . fmap fromString
+            . ("I don't know what these refer to:\n" :)
+            $ collectNothings HQ'.fromString ws
 
 patch :: InputPattern
 patch = InputPattern
@@ -958,7 +1000,9 @@ validInputs =
   [ help
   , load
   , add
+  , previewAdd
   , update
+  , previewUpdate
   , delete
   , forkLocal
   , mergeLocal
