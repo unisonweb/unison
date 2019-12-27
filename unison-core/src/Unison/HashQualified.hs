@@ -26,14 +26,14 @@ data HashQualified' n
 
 type HashQualified = HashQualified' Name
 
-stripNamespace :: Text -> HashQualified -> HashQualified
+stripNamespace :: Name -> HashQualified -> HashQualified
 stripNamespace namespace hq = case hq of
   NameOnly name         -> NameOnly $ strip name
   HashQualified name sh -> HashQualified (strip name) sh
   ho                    -> ho
  where
   strip name =
-    fromMaybe name $ Name.stripNamePrefix (Name.unsafeFromText namespace) name
+    fromMaybe name $ Name.stripNamePrefix namespace name
 
 toName :: HashQualified' n -> Maybe n
 toName = \case
