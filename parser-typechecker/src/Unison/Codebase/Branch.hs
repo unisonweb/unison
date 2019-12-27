@@ -36,7 +36,7 @@ import qualified Unison.Codebase.Metadata      as Metadata
 import qualified Unison.Hash                   as Hash
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
-import           Unison.Name                    ( Name(..) )
+import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names
