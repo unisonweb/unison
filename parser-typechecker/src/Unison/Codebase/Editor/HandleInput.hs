@@ -1800,11 +1800,8 @@ applySelection hqs file = \sr@SlurpResult{..} ->
   selection = SlurpComponent selectedTypes selectedTerms
   closed = SC.closeWithDependencies file selection
   selectedTypes, selectedTerms :: Set v
-  selectedTypes = Set.map var $ R.dom (Names.types selectedNames0)
-  selectedTerms = Set.map var $ R.dom (Names.terms selectedNames0)
-
-var :: Var v => Name -> v
-var name = Var.named (Name.toText name)
+  selectedTypes = Set.map Name.toVar $ R.dom (Names.types selectedNames0)
+  selectedTerms = Set.map Name.toVar $ R.dom (Names.terms selectedNames0)
 
 toSlurpResult
   :: forall v
@@ -1831,8 +1828,8 @@ toSlurpResult currentPath uf existingNames =
   fileNames0 = UF.typecheckedToNames0 uf
 
   sc :: R.Relation Name Referent -> R.Relation Name Reference -> SlurpComponent v
-  sc terms types = SlurpComponent { terms = Set.map var (R.dom terms)
-                                  , types = Set.map var (R.dom types) }
+  sc terms types = SlurpComponent { terms = Set.map Name.toVar (R.dom terms)
+                                  , types = Set.map Name.toVar (R.dom types) }
 
   -- conflict (n,r) if n is conflicted in names0
   conflicts :: SlurpComponent v
@@ -1851,7 +1848,7 @@ toSlurpResult currentPath uf existingNames =
   -- r is Ref and r' is Con
   termCtorCollisions :: Set v
   termCtorCollisions = Set.fromList
-    [ var n
+    [ Name.toVar n
     | (n, Referent.Ref{}) <- R.toList (Names.terms fileNames0)
     , [r@Referent.Con{}]  <- [toList $ Names.termsNamed existingNames n]
     -- ignore collisions w/ ctors of types being updated
@@ -1872,7 +1869,7 @@ toSlurpResult currentPath uf existingNames =
   -- what if (n,r) and (n,r' /= r) exists in names and r, r' are Con
   ctorTermCollisions :: Set v
   ctorTermCollisions = Set.fromList
-    [ var n
+    [ Name.toVar n
     | (n, Referent.Con{}) <- R.toList (Names.terms fileNames0)
     , r                   <- toList $ Names.termsNamed existingNames n
     -- ignore collisions w/ ctors of types being updated
@@ -1889,13 +1886,13 @@ toSlurpResult currentPath uf existingNames =
   updates :: SlurpComponent v
   updates = SlurpComponent (Set.fromList types) (Set.fromList terms) where
     terms =
-      [ var n
+      [ Name.toVar n
       | (n, r'@Referent.Ref{}) <- R.toList (Names.terms fileNames0)
       , [r@Referent.Ref{}]     <- [toList $ Names.termsNamed existingNames n]
       , r' /= r
       ]
     types =
-      [ var n
+      [ Name.toVar n
       | (n, r') <- R.toList (Names.types fileNames0)
       , [r]     <- [toList $ Names.typesNamed existingNames n]
       , r' /= r
@@ -1904,7 +1901,7 @@ toSlurpResult currentPath uf existingNames =
   -- alias (n, r) if (n' /= n, r) exists in names0
   termAliases :: Map v (Set Name)
   termAliases = Map.fromList
-    [ (var n, aliases)
+    [ (Name.toVar n, aliases)
     | (n, r@Referent.Ref{}) <- R.toList $ Names.terms fileNames0
     , aliases               <-
       [ Set.map (Path.unprefixName currentPath) . Set.delete n $ R.lookupRan
@@ -1912,7 +1909,7 @@ toSlurpResult currentPath uf existingNames =
           (Names.terms existingNames)
       ]
     , not (null aliases)
-    , let v = var n
+    , let v = Name.toVar n
     , Set.notMember v (SC.terms dups)
     ]
 
@@ -1926,7 +1923,7 @@ toSlurpResult currentPath uf existingNames =
           (Names.types existingNames)
       ]
     , not (null aliases)
-    , let v = var n
+    , let v = Name.toVar n
     , Set.notMember v (SC.types dups)
     ]
 

@@ -51,10 +51,9 @@ toName = \case
 --   [.foo.bar, foo.bar] -> [foo.bar, .foo.bar]
 sortByLength :: [HashQualified' Name] -> [HashQualified' Name]
 sortByLength hs = sortOn f hs where
-  f (NameOnly n) = (countDots n, 0, Left n)
-  f (HashQualified n _h) = (countDots n, 1, Left n)
+  f (NameOnly n) = (Name.countDots n, 0, Left n)
+  f (HashQualified n _h) = (Name.countDots n, 1, Left n)
   f (HashOnly h) = (maxBound, 0, Right h)
-  countDots n = Text.count "." (Text.dropEnd 1 (Name.toText n))
 
 hasName, hasHash :: HashQualified -> Bool
 hasName = isJust . toName

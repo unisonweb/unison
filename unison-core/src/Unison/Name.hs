@@ -22,17 +22,27 @@ module Unison.Name
   , unsafeFromText
   , unsafeFromString
   , fromVar
+  , countDots
+  , segments
+  , isLower
+  , isAbsolute
+  , splits
+  , oldSplits
   )
 where
 
 import Unison.Prelude
 
+import           Control.Arrow                  ( (***) )
 import           Control.Lens                   ( unsnoc )
+import qualified Data.Char                     as Char
+import           Data.List                      ( inits, intersperse )
 import qualified Data.List                     as List
+import           Data.List.Extra                ( dropEnd )
 import           Data.List.NonEmpty             ( NonEmpty((:|)) )
 import qualified Data.List.NonEmpty            as NonEmpty
 import qualified Data.Text                     as Text
-import           Unison.Codebase.NameSegment    ( NameSegment )
+import           Unison.Codebase.NameSegment    ( NameSegment(NameSegment) )
 import qualified Unison.Codebase.NameSegment   as NameSegment
 import qualified Unison.Hashable               as H
 import           Unison.Var                     ( Var )
@@ -134,9 +144,33 @@ suffixes (Name' names) =
   map (Name' . NonEmpty.fromList) (NonEmpty.init (NonEmpty.tails names))
 
 makeAbsolute :: Name -> Name
-makeAbsolute n | toText n == "."                = Name ".."
-               | Text.isPrefixOf "." (toText n) = n
-               | otherwise                      = Name ("." <> toText n)
+makeAbsolute n | toText n == "." = Name ".."
+               | isAbsolute n    = n
+               | otherwise       = Name ("." <> toText n)
+
+countDots :: Name -> Int
+countDots = Text.count "." . Text.dropEnd 1 . toText
+
+segments :: Name -> [NameSegment]
+segments (Name name) = fmap NameSegment (Text.splitOn "." name)
+
+isLower :: Name -> Bool
+isLower = Text.all Char.isLower . Text.take 1 . toText
+
+isAbsolute :: Name -> Bool
+isAbsolute (Name name) = Text.isPrefixOf "." name && name /= "."
+
+splits :: Name -> [([NameSegment], Name)]
+splits =
+  map (map NameSegment *** unsafeFromText) . oldSplits
+
+-- > oldSplits "x" == [([], "x")]
+-- > oldSplits "A.x" == [(["A"], "x")]
+-- > oldSplits "A.B.x" == [(["A"], "B.x"), (["A.B"], "x")]
+oldSplits :: Name -> [([Text], Text)]
+oldSplits (Name n) = let ns = Text.splitOn "." n
+                     in dropEnd 1 (inits ns `zip` (map dotConcat $ tails ns))
+  where dotConcat = Text.concat . intersperse "."
 
 instance Show Name where
   show = toString

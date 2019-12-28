@@ -271,7 +271,7 @@ uncons p = case p of
 -- todo: fromName needs to be a little more complicated if we want to allow
 --       identifiers called Function.(.)
 fromName :: Name -> Path
-fromName = fromList . fmap NameSegment . Text.splitOn "." . Name.toText
+fromName = fromList . Name.segments
 
 fromName' :: Name -> Path'
 fromName' n = case first of
