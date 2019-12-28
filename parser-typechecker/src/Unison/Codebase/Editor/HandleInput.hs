@@ -2121,14 +2121,6 @@ parseType input src = do
       Left es -> Left $ ParseResolutionFailures input src (toList es)
       Right typ -> Right typ
 
--- todo: likely broken when dealing with definitions with `.` in the name;
--- we don't have a spec for it yet.
-resolveHQName :: Path.Absolute -> Name -> Name
-resolveHQName (Path.unabsolute -> p) n =
-  if p == Path.empty then n else case Name.toString n of
-    '.' : _ : _ -> n
-    _ -> Name.joinDot (Path.toName p) n
-
 makeShadowedPrintNamesFromLabeled ::
   Monad m => Set LabeledDependency -> Names0 -> Action' m v Names
 makeShadowedPrintNamesFromLabeled deps shadowing = do
@@ -2163,20 +2155,7 @@ findHistoricalHQs lexedHQs0 = do
   root <- use root
   currentPath <- use currentPath
   let
-    -- omg this nightmare name-to-path parsing code is littered everywhere.
-    -- We need to refactor so that the absolute-ness of a name isn't represented
-    -- by magical text combinations.
-    -- Anyway, this function takes a name, tries to determine whether it is
-    -- relative or absolute, and tries to return the corresponding name that is
-    -- /relative/ to the root.
-    preprocess n = case Name.toString n of
-      -- some absolute name that isn't just "."
-      '.' : t@(_:_)  -> Name.unsafeFromString t
-      -- something in current path
-      _ ->  if Path.isRoot currentPath then n
-            else Name.joinDot (Path.toName . Path.unabsolute $ currentPath) n
-
-    lexedHQs = Set.map (fmap preprocess) . Set.filter HQ.hasHash $ lexedHQs0
+    lexedHQs = Set.map (fmap (Path.qualifyName currentPath)) . Set.filter HQ.hasHash $ lexedHQs0
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
   pure rawHistoricalNames
 

@@ -325,3 +325,16 @@ toText' :: Path' -> Text
 toText' = \case
   Path' (Left (Absolute path)) -> Text.cons '.' (toText path)
   Path' (Right (Relative path)) -> toText path
+
+-- | Given a path (naming context), fully qualify a name.
+--
+-- > qualifyName ["foo"] "bar" = "foo.bar"
+-- > qualifyName []      "bar" = "bar"
+qualifyName :: Absolute -> Name -> Name
+qualifyName path name =
+  if Name.isAbsolute name then
+    Name.asRelative name
+  else if isRoot path then
+    name
+  else
+    Name.joinDot (toName . unabsolute $ path) name
