@@ -23,6 +23,7 @@ module Unison.Names2
   , hqTypeName
   , hqTermAliases
   , hqTypeAliases
+  , mapName
   , names0ToNames
   , prefix0
   , restrictReferences
@@ -46,7 +47,7 @@ import Unison.Prelude
 
 import qualified Data.Set                     as Set
 import           Prelude                      hiding (filter)
-import           Unison.HashQualified'        (HashQualified)
+import           Unison.HashQualified'        (HashQualified, HashQualified')
 import qualified Unison.HashQualified'        as HQ
 import           Unison.Name                  (Name)
 import qualified Unison.Name                  as Name
@@ -281,7 +282,7 @@ filter :: Ord n => (n -> Bool) -> Names' n -> Names' n
 filter f (Names terms types) = Names (R.filterDom f terms) (R.filterDom f types)
 
 -- currently used for filtering before a conditional `add`
-filterByHQs :: Set HashQualified -> Names0 -> Names0
+filterByHQs :: Ord n => Set (HashQualified' n) -> Names' n -> Names' n
 filterByHQs hqs Names{..} = Names terms' types' where
   terms' = R.filter f terms
   types' = R.filter g types
@@ -311,6 +312,9 @@ contains names r =
 -- | filters out everything from the domain except what's conflicted
 conflicts :: Ord n => Names' n -> Names' n
 conflicts Names{..} = Names (R.filterManyDom terms) (R.filterManyDom types)
+
+mapName :: (Ord n, Ord m) => (n -> m) -> Names' n -> Names' m
+mapName f (Names types terms) = Names (R.mapDom f types) (R.mapDom f terms)
 
 instance Ord n => Semigroup (Names' n) where (<>) = mappend
 

@@ -49,7 +49,7 @@ toName = \case
 --   [#a29dj2k91, foo.bar.baz] -> [foo.bar.baz, #a29dj2k91]
 --   [foo.bar#abc, foo.bar] -> [foo.bar, foo.bar#abc]
 --   [.foo.bar, foo.bar] -> [foo.bar, .foo.bar]
-sortByLength :: [HashQualified' Name] -> [HashQualified' Name]
+sortByLength :: [HashQualified] -> [HashQualified]
 sortByLength hs = sortOn f hs where
   f (NameOnly n) = (Name.countDots n, 0, Left n)
   f (HashQualified n _h) = (Name.countDots n, 1, Left n)
@@ -59,7 +59,7 @@ hasName, hasHash :: HashQualified -> Bool
 hasName = isJust . toName
 hasHash = isJust . toHash
 
-toHash :: HashQualified -> Maybe ShortHash
+toHash :: HashQualified' n -> Maybe ShortHash
 toHash = \case
   NameOnly _         -> Nothing
   HashQualified _ sh -> Just sh
