@@ -1,7 +1,14 @@
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Codebase.NameSegment where
+module Unison.Codebase.NameSegment
+  ( NameSegment
+  , unsafeFromText
+  , isEmpty
+  , isPrefixOf
+  , toString
+  , toText
+  ) where
 
 import Unison.Prelude
 
@@ -13,6 +20,9 @@ newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord)
 
 instance H.Hashable NameSegment where
   tokens s = [H.Text (toText s)]
+
+unsafeFromText :: Text -> NameSegment
+unsafeFromText = NameSegment
 
 isEmpty :: NameSegment -> Bool
 isEmpty ns = toText ns == mempty

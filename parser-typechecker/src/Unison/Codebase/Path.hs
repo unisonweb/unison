@@ -22,8 +22,7 @@ import           Unison.HashQualified'          ( HQSegment )
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.ShortHash as SH
 
-import           Unison.Codebase.NameSegment    ( NameSegment(NameSegment)
-                                                )
+import           Unison.Codebase.NameSegment    ( NameSegment )
 import qualified Unison.Codebase.NameSegment as NameSegment
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
@@ -99,7 +98,7 @@ parsePath' p = case parsePath'Impl p of
   Right (p, "") -> Right p
   Right (p, rem) -> case Lexer.wordyId0 rem of
     Right (seg, "") ->
-      Right (unsplit' (p, NameSegment . Text.pack $ seg))
+      Right (unsplit' (p, NameSegment.unsafeFromText . Text.pack $ seg))
     Right (_, rem) ->
       Left ("extra characters after " <> show p <> ": " ++ show rem)
     Left e -> Left (show e)
@@ -120,29 +119,25 @@ parsePath'Impl p = case p of
     Right (a, "") -> case Lens.unsnoc (Text.splitOn "." $ Text.pack a) of
       Nothing -> Left "empty path"
       Just (segs, last) ->
-        Right (NameSegment <$> segs, Text.unpack last)
+        Right (NameSegment.unsafeFromText <$> segs, Text.unpack last)
     Right (segs, '.':rem) ->
       let segs' = Text.splitOn "." (Text.pack segs)
-      in Right (NameSegment <$> segs', rem)
+      in Right (NameSegment.unsafeFromText <$> segs', rem)
     Right (segs, rem) ->
       Left $ "extra characters after " <> segs <> ": " <> show rem
 
 wordyNameSegment, definitionNameSegment :: String -> Either String NameSegment
 wordyNameSegment s = case Lexer.wordyId0 s of
   Left e -> Left (show e)
-  Right (a, "") -> Right (NameSegment (Text.pack a))
+  Right (a, "") -> Right (NameSegment.unsafeFromText (Text.pack a))
   Right (a, rem) ->
     Left $ "trailing characters after " <> show a <> ": " <> show rem
-
-optionalWordyNameSegment :: String -> Either String NameSegment
-optionalWordyNameSegment "" = Right (NameSegment (Text.pack ""))
-optionalWordyNameSegment s = wordyNameSegment s
 
 definitionNameSegment s = wordyNameSegment s <> symbolyNameSegment s
   where
   symbolyNameSegment s = case Lexer.symbolyId0 s of
     Left e -> Left (show e)
-    Right (a, "") -> Right (NameSegment (Text.pack a))
+    Right (a, "") -> Right (NameSegment.unsafeFromText (Text.pack a))
     Right (a, rem) ->
       Left $ "trailing characters after " <> show a <> ": " <> show rem
 
@@ -219,7 +214,7 @@ toAbsolutePath (Absolute cur) (Path' p) = case p of
 
 toPath' :: Path -> Path'
 toPath' = \case
-  Path (NameSegment "" :<| tail) -> Path' . Left . Absolute . Path $ tail
+  Path ((NameSegment.toText -> "") :<| tail) -> Path' . Left . Absolute . Path $ tail
   p -> Path' . Right . Relative $ p
 
 toList :: Path -> [NameSegment]
@@ -275,7 +270,7 @@ fromName = fromList . Name.segments
 
 fromName' :: Name -> Path'
 fromName' n = case first of
-  [NameSegment ""] -> Path' . Left . Absolute . Path $ Seq.drop 1 seq
+  [NameSegment.toText -> ""] -> Path' . Left . Absolute . Path $ Seq.drop 1 seq
   _    -> Path' . Right $ Relative path
  where
   path  = fromName n
@@ -299,7 +294,8 @@ relativeToAncestor (Path a) (Path b) = case (a, b) of
   -- nothing in common
   _ -> (empty, Path a, Path b)
 
-pattern Parent h t = Path (NameSegment h :<| t)
+pattern Parent h t <- Path ((NameSegment.toText -> h) :<| t) where
+  Parent h t = Path (NameSegment.unsafeFromText h <| t)
 
 empty :: Path
 empty = Path mempty

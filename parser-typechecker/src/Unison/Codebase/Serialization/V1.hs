@@ -680,7 +680,7 @@ putNameSegment :: MonadPut m => NameSegment -> m ()
 putNameSegment = putText . NameSegment.toText
 
 getNameSegment :: MonadGet m => m NameSegment
-getNameSegment = NameSegment <$> getText
+getNameSegment = NameSegment.unsafeFromText <$> getText
 
 putRawBranch :: MonadPut m => Branch.Raw -> m ()
 putRawBranch (Branch.Raw terms types children edits) = do

@@ -16,7 +16,8 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
 import Unison.Prelude
 import qualified Unison.Hash as Hash
 import qualified Unison.Lexer
-import Unison.Codebase.NameSegment (NameSegment(..))
+import Unison.Codebase.NameSegment (NameSegment)
+import qualified Unison.Codebase.NameSegment as NameSegment
 import Data.Sequence as Seq
 import Data.Char (isAlphaNum, isSpace, isDigit)
 
@@ -152,7 +153,7 @@ namespaceHashPath = do
   case p of
     Nothing -> pure (sbh, Path.empty)
     Just p  -> pure (sbh, makePath p)
-  where makePath = Path . Seq.fromList . fmap (NameSegment . Text.pack)
+  where makePath = Path . Seq.fromList . fmap (NameSegment.unsafeFromText . Text.pack)
 
 treeishSuffix :: P Text
 treeishSuffix = P.label "git treeish" . P.try $ do
