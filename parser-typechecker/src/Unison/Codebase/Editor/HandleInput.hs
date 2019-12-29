@@ -215,11 +215,11 @@ loop = do
         let
           getHQ = \case
             L.Backticks s (Just sh) ->
-              Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+              Just (HQ.HashQualified (Name.unsafeFromText (Text.pack s)) sh)
             L.WordyId s (Just sh) ->
-              Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+              Just (HQ.HashQualified (Name.unsafeFromText (Text.pack s)) sh)
             L.SymbolyId s (Just sh) ->
-              Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+              Just (HQ.HashQualified (Name.unsafeFromText (Text.pack s)) sh)
             L.Hash sh -> Just (HQ.HashOnly sh)
             _         -> Nothing
           hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
@@ -2089,9 +2089,9 @@ lexedSource :: Monad m => SourceName -> Source -> Action' m v (Names, LexedSourc
 lexedSource name src = do
   let tokens = L.lexer (Text.unpack name) (Text.unpack src)
       getHQ = \case
-        L.Backticks s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-        L.WordyId   s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-        L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+        L.Backticks s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromText (Text.pack s)) sh)
+        L.WordyId   s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromText (Text.pack s)) sh)
+        L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromText (Text.pack s)) sh)
         L.Hash      sh          -> Just (HQ.HashOnly sh)
         _                       -> Nothing
       hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens

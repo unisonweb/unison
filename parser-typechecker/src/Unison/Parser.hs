@@ -266,7 +266,7 @@ matchToken x = P.satisfy ((==) x . L.payload)
 -- The package name that refers to the root, literally just `.`
 importDotId :: Ord v => P v (L.Token Name)
 importDotId = queryToken go where
-  go (L.SymbolyId "." Nothing) = Just (Name.fromString ".")
+  go (L.SymbolyId "." Nothing) = Just (Name.unsafeFromText ".")
   go _ = Nothing
 
 -- Consume a virtual semicolon
@@ -302,19 +302,27 @@ wordyIdString = queryToken $ \case
   L.WordyId s Nothing -> Just s
   _                   -> Nothing
 
+-- Parse a wordyId as a Text, rejecting any hash
+wordyIdText :: Ord v => P v (L.Token Text)
+wordyIdText = (fmap . fmap) Text.pack wordyIdString
+
 -- Parse a wordyId as a Name, rejecting any hash
 importWordyId :: Ord v => P v (L.Token Name)
-importWordyId = (fmap . fmap) Name.fromString wordyIdString
+importWordyId = (fmap . fmap) Name.unsafeFromText wordyIdText
 
 -- The `+` in: use Foo.bar + as a Name
 importSymbolyId :: Ord v => P v (L.Token Name)
-importSymbolyId = (fmap . fmap) Name.fromString symbolyIdString
+importSymbolyId = (fmap . fmap) Name.unsafeFromText symbolyIdText
 
 -- Parse a symbolyId as a String, rejecting any hash
 symbolyIdString :: Ord v => P v (L.Token String)
 symbolyIdString = queryToken $ \case
   L.SymbolyId s Nothing -> Just s
   _                     -> Nothing
+
+-- Parse a symbolyId as a Text, rejecting any hash
+symbolyIdText :: Ord v => P v (L.Token Text)
+symbolyIdText = (fmap . fmap) Text.pack symbolyIdString
 
 -- Parse an infix id e.g. + or `cons`, discarding any hash
 infixDefinitionName :: Var v => P v (L.Token v)
@@ -341,25 +349,25 @@ hqInfixId = hqSymbolyId_ <|> hqBacktickedId_
 hqWordyId_ :: Ord v => P v (L.Token HQ.HashQualified)
 hqWordyId_ = queryToken $ \case
   L.WordyId "" (Just h) -> Just $ HQ.HashOnly h
-  L.WordyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
-  L.WordyId s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
+  L.WordyId s  (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromText (Text.pack s)) h
+  L.WordyId s  Nothing  -> Just $ HQ.NameOnly (Name.unsafeFromText (Text.pack s))
   L.Hash h              -> Just $ HQ.HashOnly h
-  L.Blank s | not (null s) -> Just $ HQ.NameOnly (Name.fromString ("_" <> s))
+  L.Blank s | not (null s) -> Just $ HQ.NameOnly (Name.unsafeFromText (Text.pack ("_" <> s)))
   _ -> Nothing
 
 -- Parse a hash-qualified symboly ID like >>=#foo or &&
 hqSymbolyId_ :: Ord v => P v (L.Token HQ.HashQualified)
 hqSymbolyId_ = queryToken $ \case
   L.SymbolyId "" (Just h) -> Just $ HQ.HashOnly h
-  L.SymbolyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
-  L.SymbolyId s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
+  L.SymbolyId s  (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromText (Text.pack s)) h
+  L.SymbolyId s  Nothing  -> Just $ HQ.NameOnly (Name.unsafeFromText (Text.pack s))
   _ -> Nothing
 
 hqBacktickedId_ :: Ord v => P v (L.Token HQ.HashQualified)
 hqBacktickedId_ = queryToken $ \case
   L.Backticks "" (Just h) -> Just $ HQ.HashOnly h
-  L.Backticks s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
-  L.Backticks s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
+  L.Backticks s  (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromText (Text.pack s)) h
+  L.Backticks s  Nothing  -> Just $ HQ.NameOnly (Name.unsafeFromText (Text.pack s))
   _ -> Nothing
 
 -- Parse a reserved word
