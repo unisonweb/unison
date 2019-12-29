@@ -1270,12 +1270,12 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
   ]
   where
 
-{-
-  13. peach  ┐  =>   ┌  14. moved.peach
-  15. peach' ┘       │  16. ooga.booga
-                     └  17. ooga.booga2
-  18. blah      =>   19. blah2
--}
+  {-
+    13. peach  ┐  =>   ┌  14. moved.peach
+    15. peach' ┘       │  16. ooga.booga
+                       └  17. ooga.booga2
+    18. blah      =>   19. blah2
+  -}
   prettyRenameGroups :: [OBD.RenameTypeDisplay v a]
                      -> [OBD.RenameTermDisplay v a]
                      -> Numbered [Pretty]
@@ -1286,19 +1286,23 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
         leftNamePad :: Int = foldl1' max $
           map (foldl1' max . map HQ'.nameLength . toList . view _3) terms <>
           map (foldl1' max . map HQ'.nameLength . toList . view _3) types
-        prettyGroup :: (a, b, Set HQ'.HashQualified, Set HQ'.HashQualified) -> Numbered Pretty
+        prettyGroup :: (a, b, Set HQ'.HashQualified, Set HQ'.HashQualified)
+                    -> Numbered Pretty
         prettyGroup (_, _, olds, news) = let
           -- [ "peach  ┐"
           -- , "peach' ┘"]
           olds' :: [Numbered Pretty] =
             map (\old -> num <&> (\n -> n <> old))
-              . P.boxRight' . map (P.rightPad leftNamePad . phq') $ toList olds
+              . P.boxRight' P.rBoxStyle2
+              . map (P.rightPad leftNamePad . phq')
+              $ toList olds
           -- [  "┌  14. moved.peach"
           -- ,  "│  16. ooga.booga"
           -- ,  "└  17. ooga.booga2" ]
           news' :: [Numbered Pretty] =
-            P.boxLeftM' . map (\new -> num <&> (\n -> n <> phq' new))
-                        $ toList news
+            P.boxLeftM' P.lBoxStyle2
+              . map (\new -> num <&> (\n -> n <> phq' new))
+              $ toList news
           buildTable lefts rights = go arrow lefts rights where
             go :: Monad m => String -> [m Pretty] -> [m Pretty] -> m [Pretty]
             go separator lefts rights = case (lefts, rights) of

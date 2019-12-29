@@ -41,6 +41,8 @@ module Unison.Util.Pretty (
    indentAfterNewline,
    indentN,
    indentNAfterNewline,
+   lBoxStyle1,
+   lBoxStyle2,
    leftPad,
    lines,
    linesNonEmpty,
@@ -63,6 +65,7 @@ module Unison.Util.Pretty (
    parenthesizeIf,
    preferredWidth,
    preferredHeight,
+   rBoxStyle2,
    render,
    renderUnbroken,
    rightPad,
@@ -106,6 +109,7 @@ import           Unison.Util.Monoid             ( intercalateMap )
 import qualified Data.ListLike                 as LL
 import qualified Data.Sequence                 as Seq
 import qualified Data.Text                     as Text
+import Control.Monad.Identity (runIdentity, Identity(..))
 
 type Width = Int
 type ColorText = CT.ColorText
@@ -583,26 +587,57 @@ callout header p = header <> "\n\n" <> p
 bracket :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
 bracket = indent "  "
 
-boxLeft, boxRight' :: forall s . (LL.ListLike s Char, IsString s) => [Pretty s] -> [Pretty s]
-boxLeft ps = go (Seq.fromList ps) where
+boxLeft :: forall s . (LL.ListLike s Char, IsString s) => [Pretty s] -> [Pretty s]
+boxLeft ps = fmap runIdentity . boxLeftM' lBoxStyle1 $ fmap Identity ps
+
+type BoxStyle s =
+  ( (Pretty s, Pretty s) -- first (start, continue)
+  , (Pretty s, Pretty s) -- middle
+  , (Pretty s, Pretty s) -- last
+  , (Pretty s, Pretty s) -- singleton
+  )
+lBoxStyle1, lBoxStyle2, rBoxStyle2 :: IsString s => BoxStyle s
+lBoxStyle1 = (("┌", "│") -- first
+             ,("├", "│") -- middle
+             ,("└", " ") -- last
+             ,("[", " ")) -- singleton
+lBoxStyle2 = (("┌"," ")
+             ,("│"," ")
+             ,("└"," ")
+             ,(" "," "))
+rBoxStyle2 = (("┐", "│")
+             ,("│", "│")
+             ,("┘", " ")
+             ,(" ", " "))
+
+boxLeftM' :: forall m s . (Monad m, LL.ListLike s Char, IsString s)
+          => BoxStyle s -> [m (Pretty s)] -> [m (Pretty s)]
+boxLeftM' (first, middle, last, singleton) ps = go (Seq.fromList ps) where
   go Seq.Empty = []
-  go (p Seq.:<| Seq.Empty) = [decorate singleton p]
+  go (p Seq.:<| Seq.Empty) = [decorate singleton <$> p]
   go (a Seq.:<| (mid Seq.:|> b)) =
-    [decorate first a] ++ toList (decorate middle <$> mid) ++ [decorate last b]
+    [decorate first <$> a]
+      ++ toList (fmap (decorate middle) <$> mid)
+      ++ [decorate last <$> b]
   decorate (first, mid) p = first <> indentAfterNewline mid p
-  first     = ("┌", "│")
-  middle    = ("├", "│")
-  last      = ("└", " ")
-  singleton = ("[", " ")
-  
-boxLeftM' :: forall m s . (Monad m, LL.ListLike s Char, IsString s) => [m (Pretty s)] -> [m (Pretty s)]
-boxLeftM' = error "todo"
-  
-boxRight' ps = error "todo" first middle last singleton ps where
-  first     = ("┐", "│")
-  middle    = ("│", "│")
-  last      = ("┘", " ")
-  singleton = (" ", " ")
+
+-- this implementation doesn't work for multi-line inputs,
+-- because i dunno how to inspect multi-line inputs
+boxRight' :: forall s . (LL.ListLike s Char, IsString s)
+          => BoxStyle s -> [Pretty s] -> [Pretty s]
+boxRight' style = fmap runIdentity . boxRightM' style . fmap Identity
+
+boxRightM' :: forall m s. (Monad m, LL.ListLike s Char, IsString s)
+           => BoxStyle s -> [m (Pretty s)] -> [m (Pretty s)]
+boxRightM' (first, middle, last, singleton) ps = go (Seq.fromList ps) where
+  go :: Seq.Seq (m (Pretty s)) -> [m (Pretty s)]
+  go Seq.Empty = []
+  go (p Seq.:<| Seq.Empty) = [decorate singleton <$> p]
+  go (a Seq.:<| (mid Seq.:|> b)) =
+    [decorate first <$> a]
+      ++ toList (fmap (decorate middle) <$> mid)
+      ++ [decorate last <$> b]
+  decorate (first, _mid) p = p <> first
 
 warnCallout, blockedCallout, fatalCallout, okCallout
   :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s

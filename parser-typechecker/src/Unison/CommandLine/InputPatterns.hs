@@ -608,7 +608,7 @@ diffNamespace :: InputPattern
 diffNamespace = InputPattern
   "diff.namespace"
   []
-  [(Required, pathArg), (Required, pathArg), (Optional, patchArg)]
+  [(Required, pathArg), (Required, pathArg)]
   (P.column2
     [ ( "`diff.namespace before after`"
       , P.wrap
@@ -962,6 +962,7 @@ validInputs =
   , forkLocal
   , mergeLocal
   , previewMergeLocal
+  , diffNamespace
   , names
   , push
   , pull
