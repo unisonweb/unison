@@ -11,6 +11,8 @@ module Unison.Util.Pretty (
    align,
    backticked,
    boxLeft,
+   boxLeftM',
+   boxRight',
    bulleted,
    bracket,
    -- breakable
@@ -581,7 +583,7 @@ callout header p = header <> "\n\n" <> p
 bracket :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
 bracket = indent "  "
 
-boxLeft :: forall s . (LL.ListLike s Char, IsString s) => [Pretty s] -> [Pretty s]
+boxLeft, boxRight' :: forall s . (LL.ListLike s Char, IsString s) => [Pretty s] -> [Pretty s]
 boxLeft ps = go (Seq.fromList ps) where
   go Seq.Empty = []
   go (p Seq.:<| Seq.Empty) = [decorate singleton p]
@@ -589,9 +591,18 @@ boxLeft ps = go (Seq.fromList ps) where
     [decorate first a] ++ toList (decorate middle <$> mid) ++ [decorate last b]
   decorate (first, mid) p = first <> indentAfterNewline mid p
   first     = ("┌", "│")
-  middle    = ("├", "|")
+  middle    = ("├", "│")
   last      = ("└", " ")
   singleton = ("[", " ")
+  
+boxLeftM' :: forall m s . (Monad m, LL.ListLike s Char, IsString s) => [m (Pretty s)] -> [m (Pretty s)]
+boxLeftM' = error "todo"
+  
+boxRight' ps = error "todo" first middle last singleton ps where
+  first     = ("┐", "│")
+  middle    = ("│", "│")
+  last      = ("┘", " ")
+  singleton = (" ", " ")
 
 warnCallout, blockedCallout, fatalCallout, okCallout
   :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
