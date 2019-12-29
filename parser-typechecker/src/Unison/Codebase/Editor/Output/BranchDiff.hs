@@ -104,9 +104,9 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
         toList . R.toMultimap . R.restrictDom rs_old . R3.lookupD2 n $
           BranchDiff.tremovedMetadata s
       old_intersection :: Set Metadata.Value =
-        foldl1' Set.intersection old_metadatas
+        foldl' Set.intersection mempty old_metadatas
       old_union :: Set Metadata.Value =
-        foldl1' Set.union old_metadatas
+        foldl' Set.union mempty old_metadatas
       new_metadata :: Set Metadata.Value =
         R.lookupDom n . R3.lookupD1 r_new $ BranchDiff.taddedMetadata s
       in MetadataDiff
