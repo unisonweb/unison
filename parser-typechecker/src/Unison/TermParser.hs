@@ -23,7 +23,6 @@ import           Unison.PatternP (Pattern)
 import           Unison.Term (AnnotatedTerm, IsTop)
 import           Unison.Type (Type)
 import           Unison.Var (Var)
-import qualified Data.Char as Char
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
@@ -182,12 +181,11 @@ parsePattern =
         | otherwise      -> -- matched ctor name, consume the token
                             do anyToken; pure (Set.findMin s <$ tok)
     where
-    isLower = Text.all Char.isLower . Text.take 1 . Name.toText
     die hq s = case L.payload hq of
       -- if token not hash qualified or uppercase,
       -- fail w/out consuming it to allow backtracking
       HQ.NameOnly n | Set.null s &&
-                      isLower n -> fail $ "not a constructor name: " <> show n
+                      Name.isLower n -> fail $ "not a constructor name: " <> show n
       -- it was hash qualified, and wasn't found in the env, that's a failure!
       _ -> failCommitted $ err hq s
 
@@ -400,8 +398,7 @@ verifyRelativeName name = do
 
 verifyRelativeName' :: Ord v => L.Token Name -> P v ()
 verifyRelativeName' name = do
-  let txt = Name.toText . L.payload $ name
-  when (Text.isPrefixOf "." txt && txt /= ".") $
+  when (Name.isAbsolute (L.payload name)) $
     failCommitted (DisallowedAbsoluteName name)
 
 binding :: forall v. Var v => P v ((Ann, v), AnnotatedTerm v Ann)
@@ -567,7 +564,7 @@ block' isTop s openBlock closeBlock = do
           startAnnotation = (fst . fst . head $ toBindings bs)
           endAnnotation   = (fst . fst . last $ toBindings bs)
           finish tm = case Components.minimize' tm of
-            Left dups -> customFailure $ DuplicateTermNames (toList dups)  
+            Left dups -> customFailure $ DuplicateTermNames (toList dups)
             Right tm -> pure tm
         in
           case reverse bs of

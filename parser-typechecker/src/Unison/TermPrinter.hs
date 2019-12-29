@@ -9,12 +9,11 @@ module Unison.TermPrinter where
 import Unison.Prelude
 
 import           Data.List
-import           Data.List.Extra                ( dropEnd )
 import qualified Data.Map                      as Map
 import           Data.Maybe                     ( fromJust
                                                 )
 import qualified Data.Set                      as Set
-import           Data.Text                      ( splitOn, unpack )
+import           Data.Text                      ( unpack )
 import qualified Data.Text                     as Text
 import           Data.Vector                    ( )
 import           Unison.ABT                     ( pattern AbsN', reannotateUp, annotation )
@@ -709,14 +708,7 @@ countHQ hq = fold $ fmap countName (HQ.toName $ hq)
 
 countName :: Name -> PrintAnnotation
 countName n = let f = \(p, s) -> (s, Map.singleton p 1)
-              in PrintAnnotation { usages = Map.fromList $ map f $ splitName n}
-
-splitName :: Name -> [(Prefix, Suffix)]
-splitName n = let ns = splitOn "." (Name.toText n)
-              in dropEnd 1 ((inits ns) `zip` (map dotConcat $ tails ns))
--- > splitName "x" == [([], "x")]
--- > splitName "A.x" == [(["A"], "x")]
--- > splitName "A.B.x" == [(["A"], "B.x"), (["A.B"], "x")]
+              in PrintAnnotation { usages = Map.fromList $ map f $ Name.oldSplits n}
 
 joinName :: Prefix -> Suffix -> Name
 joinName p s = Name.unsafeFromText $ dotConcat $ p ++ [s]
@@ -829,7 +821,7 @@ calcImports im tm = (im', render $ getUses result)
 -- by looking at it: in some cases you can only tell when you can see it in the context of
 -- the wider term that contains it.  So actually we traverse the tree, at each term
 -- looking for child terms that are block terms, and see if any of those contain
--- all the usages of the name.  
+-- all the usages of the name.
 -- Cut out the occurrences of "const id $" to get tracing.
 allInSubBlock :: (Var v, Ord v) => AnnotatedTerm3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
 allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
@@ -878,32 +870,32 @@ immediateChildBlockTerms = \case
                                       else [body]
     doLet t = error (show t) []
 
-pattern LetBlock bindings body <- (unLetBlock -> Just (bindings, body)) 
+pattern LetBlock bindings body <- (unLetBlock -> Just (bindings, body))
 
 -- Collects nested let/let rec blocks into one minimally nested block.
 -- Handy because `let` and `let rec` blocks get rendered the same way.
 -- We preserve nesting when the inner block shadows definitions in the
 -- outer block.
-unLetBlock 
+unLetBlock
   :: Ord v
   => AnnotatedTerm2 vt at ap v a
   -> Maybe ([(v, AnnotatedTerm2 vt at ap v a)], AnnotatedTerm2 vt at ap v a)
 unLetBlock t = rec t where
-  dontIntersect v1s v2s = 
+  dontIntersect v1s v2s =
     all (`Set.notMember` v2set) (fst <$> v1s) where
     v2set = Set.fromList (fst <$> v2s)
   rec t = case unLetRecNamed t of
     Nothing -> nonrec t
     Just (_isTop, bindings, body) -> case rec body of
-      Just (innerBindings, innerBody) | dontIntersect bindings innerBindings -> 
+      Just (innerBindings, innerBody) | dontIntersect bindings innerBindings ->
         Just (bindings ++ innerBindings, innerBody)
       _ -> Just (bindings, body)
   nonrec t = case unLet t of
     Nothing -> Nothing
-    Just (bindings0, body) -> 
-      let bindings = [ (v,b) | (_,v,b) <- bindings0 ] in 
+    Just (bindings0, body) ->
+      let bindings = [ (v,b) | (_,v,b) <- bindings0 ] in
       case rec body of
-        Just (innerBindings, innerBody) | dontIntersect bindings innerBindings -> 
+        Just (innerBindings, innerBody) | dontIntersect bindings innerBindings ->
           Just (bindings ++ innerBindings, innerBody)
-        _ -> Just (bindings, body) 
+        _ -> Just (bindings, body)
 
