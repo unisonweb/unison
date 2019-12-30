@@ -455,7 +455,7 @@ block s = block' False s (openBlockWith s) closeBlock
 -- names in the environment prefixed by `foo`
 --
 -- todo: doesn't support use Foo.bar ++#abc, which lets you use `++` unqualified to refer to `Foo.bar.++#abc`
-importp :: Ord v => P v [(Name, Name)]
+importp :: Var v => P v [(Name, Name)]
 importp = do
   kw      <- reserved "use"
   -- we allow symbolyId here and parse the suffix optionaly, so we can generate
@@ -469,10 +469,10 @@ importp = do
     (Just prefix@(Left _), _) -> P.customFailure $ UseInvalidPrefixSuffix prefix suffixes
     (Just (Right prefix), Nothing) -> do -- `wildcard import`
       names <- asks names
-      pure $ Names.expandWildcardImport (L.payload prefix) (Names.currentNames names)
+      pure $ Names.expandWildcardImport (Name.fromVar (L.payload prefix)) (Names.currentNames names)
     (Just (Right prefix), Just suffixes) -> pure $ do
-      suffix <- L.payload <$> suffixes
-      pure (suffix, Name.joinDot (L.payload prefix) suffix)
+      suffix <- Name.fromVar . L.payload <$> suffixes
+      pure (suffix, Name.joinDot (Name.fromVar (L.payload prefix)) suffix)
 
 --module Monoid where
 --  -- we replace all the binding names with Monoid.op, and
@@ -489,12 +489,12 @@ namespaceBlock :: Var v => P v (BlockElement v)
 namespaceBlock = do
   _ <- reserved "namespace"
   -- need a version of verifyRelativeName that takes a `Token Name`
-  name <- verifyRelativeName importWordyId
+  name <- verifyRelativeVarName importWordyId
   let statement = (Binding <$> binding) <|> namespaceBlock
   _ <- openBlockWith "where"
   elems <- sepBy semi statement
   _ <- closeBlock
-  pure $ Namespace (Name.toString $ L.payload name) elems
+  pure $ Namespace (Text.unpack . Var.name $ L.payload name) elems
 
 toBindings :: forall v . Var v => [BlockElement v] -> [((Ann,v), AnnotatedTerm v Ann)]
 toBindings b = let

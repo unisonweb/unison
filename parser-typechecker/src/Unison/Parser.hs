@@ -95,7 +95,7 @@ data Error v
   | UnknownId (L.Token (HQ.HashQualified' v)) (Set Referent) (Set Reference)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
   | EmptyWatch
-  | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
+  | UseInvalidPrefixSuffix (Either (L.Token v) (L.Token v)) (Maybe [L.Token v])
   | UseEmpty (L.Token String) -- an empty `use` statement
   | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
   | TypeDeclarationErrors [UF.Error v Ann]
@@ -264,9 +264,9 @@ matchToken :: Ord v => L.Lexeme -> P v (L.Token L.Lexeme)
 matchToken x = P.satisfy ((==) x . L.payload)
 
 -- The package name that refers to the root, literally just `.`
-importDotId :: Ord v => P v (L.Token Name)
+importDotId :: Var v => P v (L.Token v)
 importDotId = queryToken go where
-  go (L.SymbolyId "." Nothing) = Just (Name.unsafeFromText ".")
+  go (L.SymbolyId "." Nothing) = Just (Var.named ".")
   go _ = Nothing
 
 -- Consume a virtual semicolon
@@ -306,13 +306,13 @@ wordyIdString = queryToken $ \case
 wordyIdText :: Ord v => P v (L.Token Text)
 wordyIdText = (fmap . fmap) Text.pack wordyIdString
 
--- Parse a wordyId as a Name, rejecting any hash
-importWordyId :: Ord v => P v (L.Token Name)
-importWordyId = (fmap . fmap) Name.unsafeFromText wordyIdText
+-- Parse a wordyId as a var
+importWordyId :: Var v => P v (L.Token v)
+importWordyId = (fmap . fmap) Var.named wordyIdText
 
--- The `+` in: use Foo.bar + as a Name
-importSymbolyId :: Ord v => P v (L.Token Name)
-importSymbolyId = (fmap . fmap) Name.unsafeFromText symbolyIdText
+-- The `+` in: use Foo.bar + as a var
+importSymbolyId :: Var v => P v (L.Token v)
+importSymbolyId = (fmap . fmap) Var.named symbolyIdText
 
 -- Parse a symbolyId as a String, rejecting any hash
 symbolyIdString :: Ord v => P v (L.Token String)

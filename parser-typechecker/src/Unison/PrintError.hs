@@ -952,14 +952,14 @@ prettyParseError s = \case
       (tok0, Nothing) -> let tok = either id id tok0 in [
         Pr.wrap $ "I was expecting something after " <> Pr.hiRed "here:", "",
         tokenAsErrorSite s tok,
-        case Name.parent (L.payload tok) of
+        case Name.parent (Name.fromVar (L.payload tok)) of
           Nothing -> useExamples
           Just parent -> Pr.wrap $
             "You can write" <>
             Pr.group (Pr.blue $ "use " <> Pr.text (Name.toText parent) <> " "
-                                       <> Pr.text (Name.toText (Name.unqualified (L.payload tok)))) <>
-            "to introduce " <> Pr.backticked (Pr.text (Name.toText (Name.unqualified (L.payload tok)))) <>
-            "as a local alias for " <> Pr.backticked (Pr.text (Name.toText (L.payload tok)))
+                                       <> Pr.text (Name.toText (Name.unqualified (Name.fromVar (L.payload tok))))) <>
+            "to introduce " <> Pr.backticked (Pr.text (Name.toText (Name.unqualified (Name.fromVar (L.payload tok))))) <>
+            "as a local alias for " <> Pr.backticked (Pr.text (Name.toText (Name.fromVar (L.payload tok))))
         ]
       (Right tok, _) -> [ -- this is unpossible but rather than bomb, nice msg
         "You found a Unison bug 🐞  here:", "",
