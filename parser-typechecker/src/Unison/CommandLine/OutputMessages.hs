@@ -1381,7 +1381,7 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
       pairs <- traverse (prettyLine otype) hqmds
       let (nums, names, decls) = unzip3 pairs
           boxLeft = case hqmds of _:_:_ -> P.boxLeft; _ -> id
-      pure $ zip3 nums names (boxLeft decls)
+      pure $ zip3 nums (boxLeft names) decls
     prettyLine otype (hq, mds) = do
       n <- num
       pure . (n, phq' hq, ) $ " : " <> prettyType otype
