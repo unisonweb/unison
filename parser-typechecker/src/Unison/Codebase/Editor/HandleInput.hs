@@ -1794,14 +1794,17 @@ applySelection hqs file = \sr@SlurpResult{..} ->
      , extraDefinitions = closed `SC.difference` selection
      }
   where
+  selectedNames0 :: Names.Names' v
   selectedNames0 =
-    Names.filterByHQs (Set.fromList hqs) (UF.typecheckedToNames0 file)
+    Names.filterByHQs
+      (Set.fromList (map (fmap Name.toVar) hqs))
+      (UF.typecheckedToNames file)
   selection, closed :: SlurpComponent v
   selection = SlurpComponent selectedTypes selectedTerms
   closed = SC.closeWithDependencies file selection
   selectedTypes, selectedTerms :: Set v
-  selectedTypes = Set.map Name.toVar $ R.dom (Names.types selectedNames0)
-  selectedTerms = Set.map Name.toVar $ R.dom (Names.terms selectedNames0)
+  selectedTypes = R.dom (Names.types selectedNames0)
+  selectedTerms = R.dom (Names.terms selectedNames0)
 
 toSlurpResult
   :: forall v
@@ -1968,14 +1971,14 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   typeActions = map doType . toList $ SC.types slurp
   termActions = map doTerm . toList $
     SC.terms slurp <> Slurp.constructorsFor (SC.types slurp) uf
-  names = UF.typecheckedToNames0 uf
+  names = UF.typecheckedToNames uf
   tests = Set.fromList $ fst <$> UF.watchesOfKind UF.TestWatch (UF.discardTypes uf)
   (isTestType, isTestValue) = isTest
   md v =
     if Set.member v tests then Metadata.singleton isTestType isTestValue
     else Metadata.empty
   doTerm :: v -> (Path, Branch0 m -> Branch0 m)
-  doTerm v = case toList (Names.termsNamed names (Name.fromVar v)) of
+  doTerm v = case toList (Names.termsNamed names v) of
     [] -> errorMissingVar v
     [r] -> case Path.splitFromName (Name.fromVar v) of
       Nothing -> errorEmptyVar
@@ -1983,7 +1986,7 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
     wha -> error $ "Unison bug, typechecked file w/ multiple terms named "
                 <> Var.nameStr v <> ": " <> show wha
   doType :: v -> (Path, Branch0 m -> Branch0 m)
-  doType v = case toList (Names.typesNamed names (Name.fromVar v)) of
+  doType v = case toList (Names.typesNamed names v) of
     [] -> errorMissingVar v
     [r] -> case Path.splitFromName (Name.fromVar v) of
       Nothing -> errorEmptyVar

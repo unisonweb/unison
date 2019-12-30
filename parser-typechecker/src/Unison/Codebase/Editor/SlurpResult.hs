@@ -16,7 +16,6 @@ import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.HashQualified as HQ
-import qualified Unison.Name as Name
 import qualified Unison.Names2 as Names
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Referent as Referent
@@ -60,17 +59,17 @@ data SlurpResult v = SlurpResult {
 -- Returns the set of constructor names for type names in the given `Set`.
 constructorsFor :: Var v => Set v -> UF.TypecheckedUnisonFile v Ann -> Set v
 constructorsFor types uf = let
-  names = UF.typecheckedToNames0 uf
-  typesRefs = Set.unions $ Names.typesNamed names . Name.fromVar <$> toList types
+  names = UF.typecheckedToNames uf
+  typesRefs = Set.unions $ Names.typesNamed names <$> toList types
   ctorNames = R.filterRan isOkCtor (Names.terms names)
   isOkCtor (Referent.Con r _ _) | Set.member r typesRefs = True
   isOkCtor _ = False
-  in Set.map Name.toVar $ R.dom ctorNames
+  in R.dom ctorNames
 
 -- Remove `removed` from the slurp result, and move any defns with transitive
 -- dependencies on the removed component into `defsWithBlockedDependencies`.
 -- Also removes `removed` from `extraDefinitions`.
-subtractComponent :: forall v. Var v => SlurpComponent v -> SlurpResult v -> SlurpResult v
+subtractComponent :: forall v. Ord v => SlurpComponent v -> SlurpResult v -> SlurpResult v
 subtractComponent removed sr =
   sr { adds = SC.difference (adds sr) (removed <> blocked)
      , updates = SC.difference (updates sr) (removed <> blocked)
@@ -105,7 +104,7 @@ subtractComponent removed sr =
 
 -- Move `updates` to `collisions`, and move any dependents of those updates to `*WithBlockedDependencies`.
 -- Subtract stuff from `extraDefinitions` that isn't in `adds` or `updates`
-disallowUpdates :: forall v. Var v => SlurpResult v -> SlurpResult v
+disallowUpdates :: forall v. Ord v => SlurpResult v -> SlurpResult v
 disallowUpdates sr =
   let sr2 = subtractComponent (updates sr) sr
   in sr2 { collisions = collisions sr2 <> updates sr }

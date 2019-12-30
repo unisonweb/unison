@@ -19,6 +19,7 @@ import           Unison.DataDeclaration (EffectDeclaration' (..))
 import           Unison.DataDeclaration (hashDecls, toDataDecl)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Name            as Name
+import qualified Unison.Names2          as Names2
 import qualified Unison.Names3          as Names
 import           Unison.Reference       (Reference)
 import           Unison.Referent        (Referent)
@@ -190,16 +191,19 @@ toNames (UnisonFile {..}) = datas <> effects
     datas = foldMap DD.dataDeclToNames' (Map.toList dataDeclarations)
     effects = foldMap DD.effectDeclToNames' (Map.toList effectDeclarations)
 
-typecheckedToNames0 :: Var v => TypecheckedUnisonFile v a -> Names0
-typecheckedToNames0 uf = Names.names0 (terms <> ctors) types where
+typecheckedToNames :: Ord v => TypecheckedUnisonFile v a -> Names2.Names' v
+typecheckedToNames uf = Names2.Names (terms <> ctors) types where
   terms = Relation.fromList
-    [ (Name.fromVar v, Referent.Ref r)
+    [ (v, Referent.Ref r)
     | (v, (r, _, _)) <- Map.toList $ hashTerms uf ]
   types = Relation.fromList
-    [ (Name.fromVar v, r)
+    [ (v, r)
     | (v, r) <- Map.toList $ fmap fst (dataDeclarations' uf)
                           <> fmap fst (effectDeclarations' uf) ]
-  ctors = Relation.fromMap . Map.mapKeys Name.fromVar . hashConstructors $ uf
+  ctors = Relation.fromMap . hashConstructors $ uf
+
+typecheckedToNames0 :: Var v => TypecheckedUnisonFile v a -> Names0
+typecheckedToNames0 = Names2.mapName Name.fromVar . typecheckedToNames
 
 typecheckedUnisonFile0 :: Ord v => TypecheckedUnisonFile v a
 typecheckedUnisonFile0 = TypecheckedUnisonFile Map.empty Map.empty mempty mempty mempty
