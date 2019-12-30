@@ -244,7 +244,7 @@ bindNames names (UnisonFile d e ts ws) = do
   --    so that you don't weirdly have free vars to tiptoe around.
   --    The free vars should just be the things that need to be bound externally.
   let termVars = (fst <$> ts) ++ (Map.elems ws >>= map fst)
-      termVarsSet = Set.fromList termVars
+      termVarsSet = Set.fromList (map Name.fromVar termVars)
   -- todo: can we clean up this lambda using something like `second`
   ts' <- traverse (\(v,t) -> (v,) <$> Term.bindNames termVarsSet names t) ts
   ws' <- traverse (traverse (\(v,t) -> (v,) <$> Term.bindNames termVarsSet names t)) ws
@@ -308,7 +308,7 @@ environmentFor names dataDecls0 effectDecls0 = do
     okVars = Map.keysSet allDecls0
     unknownTypeRefs = Map.elems allDecls0 >>= \dd ->
       let cts = DD.constructorTypes dd
-      in cts >>= \ct -> [ UnknownType v a | (v,a) <- ABT.freeVarOccurrences mempty ct
+      in cts >>= \ct -> [ UnknownType v a | (v,a) <- ABT.freeVarOccurrences (const False) ct
                                           , not (Set.member v okVars) ]
   pure $
     if null overlaps && null unknownTypeRefs

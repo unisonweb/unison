@@ -29,6 +29,7 @@ import qualified Unison.Blank as B
 import qualified Unison.Hash as Hash
 import           Unison.Hashable (Hashable1, accumulateToken)
 import qualified Unison.Hashable as Hashable
+import           Unison.Name (Name)
 import           Unison.Names3 ( Names0 )
 import qualified Unison.Names3 as Names
 import           Unison.PatternP (Pattern)
@@ -132,14 +133,14 @@ type Term' vt v = AnnotatedTerm' vt v ()
 --   g = ABT.substsInheritAnnotation termBuiltins
 bindNames
   :: forall v a . Var v
-  => Set v
+  => Set Name
   -> Names0
   -> AnnotatedTerm v a
   -> Names.ResolutionResult v a (AnnotatedTerm v a)
 -- bindNames keepFreeTerms _ _ | trace "Keep free terms:" False
 --                            || traceShow keepFreeTerms False = undefined
 bindNames keepFreeTerms ns e = do
-  let freeTmVars = [ (v,a) | (v,a) <- ABT.freeVarOccurrences keepFreeTerms e ]
+  let freeTmVars = [ (v,a) | (v,a) <- ABT.freeVarOccurrences ((`elem` keepFreeTerms) . Name.fromVar) e ]
       -- !_ = trace "free term vars: " ()
       -- !_ = traceShow $ fst <$> freeTmVars
       freeTyVars = [ (v, a) | (v,as) <- Map.toList (freeTypeVarAnnotations e)
@@ -171,8 +172,8 @@ bindSomeNames
 --                   || traceShow e False
 --                   = undefined
 bindSomeNames ns e = bindNames keepFree ns e where
-  keepFree = Set.difference (freeVars e)
-                            (Set.map Name.toVar $ Rel.dom (Names.terms0 ns))
+  keepFree = Set.difference (Set.map Name.fromVar (freeVars e))
+                            (Rel.dom (Names.terms0 ns))
 
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR
@@ -304,7 +305,7 @@ freeTypeVarAnnotations e = multimap $ go Set.empty e where
     Ann' e (Type.stripIntroOuters -> t1) -> let
       bound' = case t1 of Type.ForallsNamed' vs _ -> bound <> Set.fromList vs
                           _                       -> bound
-      in go bound' e <> ABT.freeVarOccurrences bound t1
+      in go bound' e <> ABT.freeVarOccurrences (`elem` bound) t1
     ABT.Tm' f -> foldMap (go bound) f
     (ABT.out -> ABT.Abs _ body) -> go bound body
     (ABT.out -> ABT.Cycle body) -> go bound body
