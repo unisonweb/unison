@@ -28,6 +28,7 @@ module Unison.Name
   , isAbsolute
   , splits
   , oldSplits
+  , asRelative
   )
 where
 
@@ -171,6 +172,14 @@ oldSplits :: Name -> [([Text], Text)]
 oldSplits (Name n) = let ns = Text.splitOn "." n
                      in dropEnd 1 (inits ns `zip` (map dotConcat $ tails ns))
   where dotConcat = Text.concat . intersperse "."
+
+-- | Drop the leading '.' from a name if it's an absolute name.
+asRelative :: Name -> Name
+asRelative name =
+  if isAbsolute name then
+    Name (Text.drop 1 (toText name))
+  else
+    name
 
 instance Show Name where
   show = toString

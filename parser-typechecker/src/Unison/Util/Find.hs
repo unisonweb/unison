@@ -116,14 +116,12 @@ fuzzyFindMatchArray query items render =
 prefixFindInBranch ::
   Names0 -> HashQualified -> [(SearchResult, P.Pretty P.ColorText)]
 prefixFindInBranch b hq = fmap getName $
-  case HQ.toName hq of
-    -- query string includes a name component, so do a prefix find on that
-    (Name.toString -> n) ->
-      filter (filterName n) (candidates b hq)
+  -- query string includes a name component, so do a prefix find on that
+  filter (filterName (HQ.toName hq)) (candidates b hq)
   where
   filterName n sr =
     -- fromJust is safe here because entries from the namespace will have names.
-    fromString n `Name.isPrefixOf` (HQ.toName . SR.name) sr
+    n `Name.isPrefixOf` (HQ.toName . SR.name) sr
 
 -- only search before the # before the # and after the # after the #
 fuzzyFindInBranch :: Names0
