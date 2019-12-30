@@ -212,11 +212,11 @@ importing :: [(Name, Name)] -> Names -> Names
 importing shortToLongName ns =
   ns { currentNames = importing0 shortToLongName (currentNames ns) }
 
-importing0 :: [(Name, Name)] -> Names0 -> Names0
+importing0 :: Ord n => [(n, n)] -> Names.Names' n -> Names.Names' n
 importing0 shortToLongName ns =
   Names.Names
-    (foldl' go (terms0 ns) shortToLongName)
-    (foldl' go (types0 ns) shortToLongName)
+    (foldl' go (Names.terms ns) shortToLongName)
+    (foldl' go (Names.types ns) shortToLongName)
   where
   go :: (Ord a, Ord b) => Relation a b -> (a, a) -> Relation a b
   go m (shortname, qname) = case R.lookupDom qname m of

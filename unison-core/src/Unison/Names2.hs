@@ -16,6 +16,7 @@ module Unison.Names2
   , difference
   , filter
   , filterByHQs
+  , filterByHQsOn
   , filterBySHs
   , filterTypes
   , hqName
@@ -283,13 +284,21 @@ filter f (Names terms types) = Names (R.filterDom f terms) (R.filterDom f types)
 
 -- currently used for filtering before a conditional `add`
 filterByHQs :: Ord n => Set (HashQualified' n) -> Names' n -> Names' n
-filterByHQs hqs Names{..} = Names terms' types' where
+filterByHQs = filterByHQsOn id
+
+filterByHQsOn
+  :: (Ord m, Eq n)
+  => (m -> n)
+  -> Set (HashQualified' n)
+  -> Names' m
+  -> Names' m
+filterByHQsOn p hqs Names{..} = Names terms' types' where
   terms' = R.filter f terms
   types' = R.filter g types
-  f (n, r) = any (HQ.matchesNamedReferent n r) hqs
-  g (n, r) = any (HQ.matchesNamedReference n r) hqs
+  f (n, r) = any (HQ.matchesNamedReferent (p n) r) hqs
+  g (n, r) = any (HQ.matchesNamedReference (p n) r) hqs
 
-filterBySHs :: Set ShortHash -> Names0 -> Names0
+filterBySHs :: Ord n => Set ShortHash -> Names' n -> Names' n
 filterBySHs shs Names{..} = Names terms' types' where
   terms' = R.filter f terms
   types' = R.filter g types
