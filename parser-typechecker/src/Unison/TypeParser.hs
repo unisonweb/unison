@@ -39,10 +39,10 @@ valueTypeLeaf =
 -- Examples: Optional, Optional#abc, woot, #abc
 typeAtom :: Var v => TypeP v
 typeAtom = hqPrefixId >>= \tok -> case L.payload tok of
-  HQ.NameOnly n -> pure $ Type.var (ann tok) (Name.toVar n)
+  HQ.NameOnly n -> pure $ Type.var (ann tok) n
   hq -> do
     names <- asks names
-    let matches = Names.lookupHQType hq names
+    let matches = Names.lookupHQType (Name.fromVar <$> hq) names
     if Set.size matches /= 1
     then P.customFailure (UnknownType tok matches)
     else pure $ Type.ref (ann tok) (Set.findMin matches)

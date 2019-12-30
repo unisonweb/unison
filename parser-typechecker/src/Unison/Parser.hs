@@ -88,11 +88,11 @@ data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
   | DisallowedAbsoluteName (L.Token Name)
   | EmptyBlock (L.Token String)
-  | UnknownAbilityConstructor (L.Token HQ.HashQualified) (Set (Reference, Int))
-  | UnknownDataConstructor (L.Token HQ.HashQualified) (Set (Reference, Int))
-  | UnknownTerm (L.Token HQ.HashQualified) (Set Referent)
-  | UnknownType (L.Token HQ.HashQualified) (Set Reference)
-  | UnknownId (L.Token HQ.HashQualified) (Set Referent) (Set Reference)
+  | UnknownAbilityConstructor (L.Token (HQ.HashQualified' v)) (Set (Reference, Int))
+  | UnknownDataConstructor (L.Token (HQ.HashQualified' v)) (Set (Reference, Int))
+  | UnknownTerm (L.Token (HQ.HashQualified' v)) (Set Referent)
+  | UnknownType (L.Token (HQ.HashQualified' v)) (Set Reference)
+  | UnknownId (L.Token (HQ.HashQualified' v)) (Set Referent) (Set Reference)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
   | EmptyWatch
   | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
@@ -341,33 +341,33 @@ symbolyDefinitionName = queryToken $ \case
 parenthesize :: Ord v => P v a -> P v a
 parenthesize p = P.try (openBlockWith "(" *> p) <* closeBlock
 
-hqPrefixId, hqInfixId :: Ord v => P v (L.Token HQ.HashQualified)
+hqPrefixId, hqInfixId :: Var v => P v (L.Token (HQ.HashQualified' v))
 hqPrefixId = hqWordyId_ <|> parenthesize hqSymbolyId_
-hqInfixId = hqSymbolyId_ <|> hqBacktickedId_
+hqInfixId= hqSymbolyId_ <|> hqBacktickedId_
 
 -- Parse a hash-qualified alphanumeric identifier
-hqWordyId_ :: Ord v => P v (L.Token HQ.HashQualified)
+hqWordyId_ :: Var v => P v (L.Token (HQ.HashQualified' v))
 hqWordyId_ = queryToken $ \case
   L.WordyId "" (Just h) -> Just $ HQ.HashOnly h
-  L.WordyId s  (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromText (Text.pack s)) h
-  L.WordyId s  Nothing  -> Just $ HQ.NameOnly (Name.unsafeFromText (Text.pack s))
+  L.WordyId s  (Just h) -> Just $ HQ.HashQualified (Var.named (Text.pack s)) h
+  L.WordyId s  Nothing  -> Just $ HQ.NameOnly (Var.named (Text.pack s))
   L.Hash h              -> Just $ HQ.HashOnly h
-  L.Blank s | not (null s) -> Just $ HQ.NameOnly (Name.unsafeFromText (Text.pack ("_" <> s)))
+  L.Blank s | not (null s) -> Just $ HQ.NameOnly (Var.named (Text.pack ("_" <> s)))
   _ -> Nothing
 
 -- Parse a hash-qualified symboly ID like >>=#foo or &&
-hqSymbolyId_ :: Ord v => P v (L.Token HQ.HashQualified)
+hqSymbolyId_ :: Var v => P v (L.Token (HQ.HashQualified' v))
 hqSymbolyId_ = queryToken $ \case
   L.SymbolyId "" (Just h) -> Just $ HQ.HashOnly h
-  L.SymbolyId s  (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromText (Text.pack s)) h
-  L.SymbolyId s  Nothing  -> Just $ HQ.NameOnly (Name.unsafeFromText (Text.pack s))
+  L.SymbolyId s  (Just h) -> Just $ HQ.HashQualified (Var.named (Text.pack s)) h
+  L.SymbolyId s  Nothing  -> Just $ HQ.NameOnly (Var.named (Text.pack s))
   _ -> Nothing
 
-hqBacktickedId_ :: Ord v => P v (L.Token HQ.HashQualified)
+hqBacktickedId_ :: Var v => P v (L.Token (HQ.HashQualified' v))
 hqBacktickedId_ = queryToken $ \case
   L.Backticks "" (Just h) -> Just $ HQ.HashOnly h
-  L.Backticks s  (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromText (Text.pack s)) h
-  L.Backticks s  Nothing  -> Just $ HQ.NameOnly (Name.unsafeFromText (Text.pack s))
+  L.Backticks s  (Just h) -> Just $ HQ.HashQualified (Var.named (Text.pack s)) h
+  L.Backticks s  Nothing  -> Just $ HQ.NameOnly (Var.named (Text.pack s))
   _ -> Nothing
 
 -- Parse a reserved word
