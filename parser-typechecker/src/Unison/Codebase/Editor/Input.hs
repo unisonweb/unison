@@ -117,6 +117,7 @@ data Input
   | ShowReflogI
   | UpdateBuiltinsI
   | MergeBuiltinsI
+  | DebugNumberedArgsI
   | DebugBranchHistoryI
   | QuitI
   deriving (Eq, Show)
