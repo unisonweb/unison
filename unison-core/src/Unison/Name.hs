@@ -43,7 +43,7 @@ import           Data.List.Extra                ( dropEnd )
 import           Data.List.NonEmpty             ( NonEmpty((:|)) )
 import qualified Data.List.NonEmpty            as NonEmpty
 import qualified Data.Text                     as Text
-import           Unison.Codebase.NameSegment    ( NameSegment(NameSegment) )
+import           Unison.Codebase.NameSegment    ( NameSegment )
 import qualified Unison.Codebase.NameSegment   as NameSegment
 import qualified Unison.Hashable               as H
 import           Unison.Var                     ( Var )
@@ -153,7 +153,7 @@ countDots :: Name -> Int
 countDots = Text.count "." . Text.dropEnd 1 . toText
 
 segments :: Name -> [NameSegment]
-segments (Name name) = fmap NameSegment (Text.splitOn "." name)
+segments (Name name) = fmap NameSegment.unsafeFromText (Text.splitOn "." name)
 
 isLower :: Name -> Bool
 isLower = Text.all Char.isLower . Text.take 1 . toText
@@ -163,7 +163,7 @@ isAbsolute (Name name) = Text.isPrefixOf "." name && name /= "."
 
 splits :: Name -> [([NameSegment], Name)]
 splits =
-  map (map NameSegment *** unsafeFromText) . oldSplits
+  map (map NameSegment.unsafeFromText *** unsafeFromText) . oldSplits
 
 -- > oldSplits "x" == [([], "x")]
 -- > oldSplits "A.x" == [(["A"], "x")]

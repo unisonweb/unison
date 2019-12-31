@@ -6,8 +6,8 @@ import EasyTest
 import Unison.Codebase.Path
 import Data.Sequence
 import Data.Text
-import Unison.Codebase.NameSegment
 import Data.Either
+import qualified Unison.Codebase.NameSegment as NameSegment
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.ShortHash as SH
 
@@ -25,7 +25,7 @@ test = scope "path" . tests $
   , scope "parseSplit'" . tests $
     [ scope "wordyNameSegment" . tests $
       [ let s = "foo.bar.baz" in scope s . expect $
-        parseSplit' wordyNameSegment s == Right (relative ["foo", "bar"], NameSegment "baz")
+        parseSplit' wordyNameSegment s == Right (relative ["foo", "bar"], NameSegment.unsafeFromText "baz")
 
       , let s = "foo.bar.baz#abc" in scope s . expect $ isLeft $ parseSplit' wordyNameSegment s
 
@@ -35,19 +35,19 @@ test = scope "path" . tests $
 
     , scope "definitionNameSegment" . tests $
       [ let s = "foo.bar.+" in scope s . expect $
-        parseSplit' definitionNameSegment s == Right (relative ["foo", "bar"], NameSegment "+")
+        parseSplit' definitionNameSegment s == Right (relative ["foo", "bar"], NameSegment.unsafeFromText "+")
       ]
     ]
   , scope "parseShortHashOrHQSplit'" . tests $
     [ let s = "foo.bar#34" in scope s . expect $
       parseShortHashOrHQSplit' s ==
         (Right . Right)
-          (relative ["foo"], HQ'.HashQualified (NameSegment "bar") (SH.unsafeFromText "#34"))
+          (relative ["foo"], HQ'.HashQualified (NameSegment.unsafeFromText "bar") (SH.unsafeFromText "#34"))
 
     , let s = "foo.bar.+" in scope s . expect $
       parseShortHashOrHQSplit' s ==
         (Right . Right)
-          (relative ["foo", "bar"], HQ'.NameOnly (NameSegment "+"))
+          (relative ["foo", "bar"], HQ'.NameOnly (NameSegment.unsafeFromText "+"))
 
     , let s = "#123" in scope s . expect $
       parseShortHashOrHQSplit' s ==
@@ -55,13 +55,13 @@ test = scope "path" . tests $
     ]
   , scope "parseHQ'Split'" . tests $
     [ let s = "foo.bar#34" in scope s . expect $
-      parseHQSplit' s == Right (relative ["foo"], HQ'.HashQualified (NameSegment "bar") (SH.unsafeFromText "#34"))
+      parseHQSplit' s == Right (relative ["foo"], HQ'.HashQualified (NameSegment.unsafeFromText "bar") (SH.unsafeFromText "#34"))
     , let s = "foo.bar.+" in scope s . expect $
-      parseHQSplit' s == Right (relative ["foo", "bar"], HQ'.NameOnly (NameSegment "+"))
+      parseHQSplit' s == Right (relative ["foo", "bar"], HQ'.NameOnly (NameSegment.unsafeFromText "+"))
     , let s = "#123" in scope s . expect $ isLeft $ parseHQSplit' s
     ]
   ]
 
 
 relative :: Seq Text -> Path'
-relative = Path' . Right . Relative . Path . fmap NameSegment
+relative = Path' . Right . Relative . Path . fmap NameSegment.unsafeFromText

@@ -11,7 +11,7 @@ import qualified Unison.Codebase.Editor.UriParser as UriParser
 import qualified Data.Sequence as Seq
 import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
 import Data.Text (Text)
-import Unison.Codebase.NameSegment (NameSegment(..))
+import qualified Unison.Codebase.NameSegment as NameSegment
 import qualified Data.Text as Text
 
 test :: Test ()
@@ -78,7 +78,7 @@ parseAugmented (s, r) = scope (Text.unpack s) $
     Right x -> expectEqual x r
 
 path :: [Text] -> Path
-path = Path . Seq.fromList . fmap NameSegment
+path = Path . Seq.fromList . fmap NameSegment.unsafeFromText
 
 sbh :: Text -> Maybe ShortBranchHash
 sbh = Just . ShortBranchHash
