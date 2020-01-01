@@ -147,11 +147,14 @@ wrapImplPreserveSpaces = \case
   [] -> mempty
   (p:ps) -> wrap_ . Seq.fromList $ p : fmap f ps
   where
-  space p = case out p of
-    (Lit s) -> fromMaybe False (fmap (isSpace . fst) $ LL.uncons s)
+  startsWithSpace p = case out p of
+    (Lit s) -> fromMaybe False (fmap (isSpaceNotNewline . fst) $ LL.uncons s)
     _ -> False
-  f p | space p = p `orElse` newline
+  f p | startsWithSpace p = p `orElse` newline
   f p = p
+
+isSpaceNotNewline :: Char -> Bool
+isSpaceNotNewline c = isSpace c && not (c == '\n')
 
 wrapString :: (LL.ListLike s Char, IsString s) => String -> Pretty s
 wrapString s = wrap (lit $ fromString s)
@@ -183,7 +186,7 @@ wrapPreserveSpaces p = wrapImplPreserveSpaces (toLeaves [p]) where
   toLeaves [] = []
   toLeaves (hd:tl) = case out hd of
     Empty -> toLeaves tl
-    Lit s -> (fmap lit $ alternations isSpace s) ++ toLeaves tl
+    Lit s -> (fmap lit $ alternations isSpaceNotNewline s) ++ toLeaves tl
     Group _ -> hd : toLeaves tl
     OrElse a _ -> toLeaves (a:tl)
     Wrap _ -> hd : toLeaves tl

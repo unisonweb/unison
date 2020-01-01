@@ -521,10 +521,11 @@ isDocLiteral term = case term of
 
 -- Similar to DisplayValues.displayDoc, but does not follow and expand references.
 prettyDoc :: Var v => PrettyPrintEnv -> Imports -> AnnotatedTerm3 v a -> Pretty SyntaxText
-prettyDoc n im term = PP.spaced [ fmt S.DocDelimiter $ l "[:"
-                                , go term
-                                , fmt S.DocDelimiter $ l ":]"]
+prettyDoc n im term = tr $ mconcat [ fmt S.DocDelimiter $ l "[: "  -- TODO trace
+                                   , go term
+                                   , fmt S.DocDelimiter $ l " :]"] -- TODO replace this space
   where
+  tr x = trace ("prettyDoc: " ++ (show x) ++ "\n\n") x
   go (DD.DocJoin segs) = foldMap go segs
   go (DD.DocBlob txt) = PP.paragraphyText (escaped txt)
   go (DD.DocLink (DD.LinkTerm (TermLink' r))) =
@@ -905,7 +906,7 @@ calcImports im tm = (im', render $ getUses result)
 -- by looking at it: in some cases you can only tell when you can see it in the context of
 -- the wider term that contains it.  So actually we traverse the tree, at each term
 -- looking for child terms that are block terms, and see if any of those contain
--- all the usages of the name.  
+-- all the usages of the name.
 -- Cut out the occurrences of "const id $" to get tracing.
 allInSubBlock :: (Var v, Ord v) => AnnotatedTerm3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
 allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
@@ -954,32 +955,32 @@ immediateChildBlockTerms = \case
                                       else [body]
     doLet t = error (show t) []
 
-pattern LetBlock bindings body <- (unLetBlock -> Just (bindings, body)) 
+pattern LetBlock bindings body <- (unLetBlock -> Just (bindings, body))
 
 -- Collects nested let/let rec blocks into one minimally nested block.
 -- Handy because `let` and `let rec` blocks get rendered the same way.
 -- We preserve nesting when the inner block shadows definitions in the
 -- outer block.
-unLetBlock 
+unLetBlock
   :: Ord v
   => AnnotatedTerm2 vt at ap v a
   -> Maybe ([(v, AnnotatedTerm2 vt at ap v a)], AnnotatedTerm2 vt at ap v a)
 unLetBlock t = rec t where
-  dontIntersect v1s v2s = 
+  dontIntersect v1s v2s =
     all (`Set.notMember` v2set) (fst <$> v1s) where
     v2set = Set.fromList (fst <$> v2s)
   rec t = case unLetRecNamed t of
     Nothing -> nonrec t
     Just (_isTop, bindings, body) -> case rec body of
-      Just (innerBindings, innerBody) | dontIntersect bindings innerBindings -> 
+      Just (innerBindings, innerBody) | dontIntersect bindings innerBindings ->
         Just (bindings ++ innerBindings, innerBody)
       _ -> Just (bindings, body)
   nonrec t = case unLet t of
     Nothing -> Nothing
-    Just (bindings0, body) -> 
-      let bindings = [ (v,b) | (_,v,b) <- bindings0 ] in 
+    Just (bindings0, body) ->
+      let bindings = [ (v,b) | (_,v,b) <- bindings0 ] in
       case rec body of
-        Just (innerBindings, innerBody) | dontIntersect bindings innerBindings -> 
+        Just (innerBindings, innerBody) | dontIntersect bindings innerBindings ->
           Just (bindings ++ innerBindings, innerBody)
-        _ -> Just (bindings, body) 
+        _ -> Just (bindings, body)
 

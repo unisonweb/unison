@@ -41,7 +41,7 @@ import Unison.Referent (Referent)
 import Unison.Reference (Reference)
 
 debug :: Bool
-debug = False
+debug = True -- TODO
 
 type P v = P.ParsecT (Error v) Input ((->) ParsingEnv)
 type Token s = P.Token s
