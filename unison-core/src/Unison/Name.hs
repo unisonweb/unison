@@ -5,7 +5,6 @@
 
 module Unison.Name
   ( Name
-  , fromString
   , fromNameSegment
   , isPrefixOf
   , joinDot
@@ -20,7 +19,6 @@ module Unison.Name
   , toVar
   , unqualified
   , unsafeFromText
-  , unsafeFromString
   , fromVar
   , countDots
   , segments
@@ -81,9 +79,6 @@ sortNamed' by by2 as = let
 unsafeFromText :: Text -> Name
 unsafeFromText t =
   if Text.any (== '#') t then error $ "not a name: " <> show t else Name t
-
-unsafeFromString :: String -> Name
-unsafeFromString = unsafeFromText . Text.pack
 
 toVar :: Var v => Name -> v
 toVar (Name t) = Var.named t
@@ -183,9 +178,6 @@ asRelative name =
 
 instance Show Name where
   show = toString
-
-instance IsString Name where
-  fromString = unsafeFromText . Text.pack
 
 instance H.Hashable Name where
   tokens s = [H.Text (toText s)]
