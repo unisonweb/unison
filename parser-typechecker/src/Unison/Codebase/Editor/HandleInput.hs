@@ -158,7 +158,7 @@ data LoopState m v
       -- A 1-indexed list of strings that can be referenced by index at the
       -- CLI prompt.  e.g. Given ["Foo.bat", "Foo.cat"],
       -- `rename 2 Foo.foo` will rename `Foo.cat` to `Foo.foo`.
-      , _numberedArgs :: [String]
+      , _numberedArgs :: NumberedArgs
       }
 
 type SkipNextUpdate = Bool
@@ -507,8 +507,7 @@ loop = do
                         (Branch.toNames0 after)
                         ppe
                         diff
-        numberedArgs .= numberOutputDiff outputDiff
-        respond $ ShowDiffNamespace ppe outputDiff
+        respondNumbered $ ShowDiffNamespace ppe beforep afterp outputDiff
 
       -- move the root to a sub-branch
       MoveBranchI Nothing dest -> do
@@ -1671,6 +1670,11 @@ searchBranchExact len names queries = let
 
 respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
+
+respondNumbered :: NumberedOutput v -> Action m i v ()
+respondNumbered output = do
+  args <- eval $ NotifyNumbered output
+  numberedArgs .= toList args
 
 -- Merges the specified remote branch into the specified local absolute path.
 -- Implementation detail of PullRemoteBranchI

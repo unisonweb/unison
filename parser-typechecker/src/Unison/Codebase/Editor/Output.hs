@@ -2,6 +2,8 @@
 
 module Unison.Codebase.Editor.Output
   ( Output(..)
+  , NumberedOutput(..)
+  , NumberedArgs
   , ListDetailed
   , ShallowListEntry(..)
   , HistoryTail(..)
@@ -11,6 +13,7 @@ module Unison.Codebase.Editor.Output
   , ReflogEntry(..)
   , pushPull
   , isFailure
+  , isNumberedFailure
   ) where
 
 import Unison.Prelude
@@ -57,6 +60,7 @@ import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
 type Term v a = Term.AnnotatedTerm v a
 type ListDetailed = Bool
 type SourceName = Text
+type NumberedArgs = [String]
 
 data PushPull = Push | Pull deriving (Eq, Ord, Show)
 
@@ -64,6 +68,9 @@ pushPull :: a -> a -> PushPull -> a
 pushPull push pull p = case p of
   Push -> push
   Pull -> pull
+
+data NumberedOutput v
+  = ShowDiffNamespace PPE.PrettyPrintEnv Path.Absolute Path.Absolute (BranchDiffOutput v Ann)
 
 data Output v
   -- Generic Success response; we might consider deleting this.
@@ -162,7 +169,6 @@ data Output v
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch (Set ShortBranchHash)
   | ShowDiff Input Names.Diff
-  | ShowDiffNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
   | NothingTodo Input
@@ -288,7 +294,8 @@ isFailure o = case o of
   ListShallow _ es -> null es
   HashAmbiguous{} -> True
   ShowReflog{} -> False
+
+isNumberedFailure :: NumberedOutput v -> Bool
+isNumberedFailure = \case
   ShowDiffNamespace{} -> False
-
-
 
