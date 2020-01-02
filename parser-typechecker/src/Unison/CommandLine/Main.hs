@@ -209,8 +209,8 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
                                      (writeIORef rootRef)
                                      runtime
                                      (notifyUser dir >=> putPrettyNonempty)
-                                     (\o -> let (p, args) = notifyNumbered o in 
-                                      putPrettyNonempty p >> pure args)
+                                     (\o -> let (p, args) = notifyNumbered o in
+                                      putPrettyNonempty p $> args)
                                      codebase
                                      free
         case o of

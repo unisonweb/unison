@@ -1216,7 +1216,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
     then do
       prettyUpdatedTypes :: [Pretty] <- traverse prettyUpdateType updatedTypes
       prettyUpdatedTerms :: [Pretty] <- traverse prettyUpdateTerm updatedTerms
-      prettyUpdatedPatches :: [Pretty] <- traverse prettySummarizePatch updatedPatches
+      prettyUpdatedPatches :: [Pretty] <- traverse (prettySummarizePatch newPath) updatedPatches
       pure $ P.sepNonEmpty "\n\n"
         [ P.bold "Updates:"
         , P.indentN 2 . P.linesNonEmpty $ prettyUpdatedTypes <> prettyUpdatedTerms
@@ -1234,7 +1234,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
     then do
       prettyAddedTypes :: Pretty <- prettyAddTypes addedTypes
       prettyAddedTerms :: Pretty <- prettyAddTerms addedTerms
-      prettyAddedPatches :: [Pretty] <- traverse prettySummarizePatch addedPatches
+      prettyAddedPatches :: [Pretty] <- traverse (prettySummarizePatch newPath) addedPatches
       pure $ P.sepNonEmpty "\n\n"
         [ P.bold "Adds:"
         , P.indentN 2 $ P.linesNonEmpty [prettyAddedTypes, prettyAddedTerms]
@@ -1252,7 +1252,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
     then do
       prettyRemovedTypes :: Pretty <- prettyRemoveTypes removedTypes
       prettyRemovedTerms :: Pretty <- prettyRemoveTerms removedTerms
-      prettyRemovedPatches :: [Pretty] <- traverse prettyNamePatch removedPatches
+      prettyRemovedPatches :: [Pretty] <- traverse (prettyNamePatch oldPath) removedPatches
       pure $ P.sepNonEmpty "\n\n"
        [ P.bold "Removes:"
        , P.indentN 2 $ P.linesNonEmpty [ prettyRemovedTypes
@@ -1401,10 +1401,10 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
         0 -> mempty
         c -> " (+" <> P.shown c <> " metadata)"
 
-  prettySummarizePatch, prettyNamePatch :: OBD.PatchDisplay -> Numbered Pretty
+  prettySummarizePatch, prettyNamePatch :: Path.Absolute -> OBD.PatchDisplay -> Numbered Pretty
   --  12. patch p (added 3 updates, deleted 1)
-  prettySummarizePatch (name, patchDiff) = do
-    n <- numPatch name
+  prettySummarizePatch prefix (name, patchDiff) = do
+    n <- numPatch prefix name
     let addCount = (R.size . view Patch.addedTermEdits) patchDiff +
                    (R.size . view Patch.addedTypeEdits) patchDiff
         delCount = (R.size . view Patch.removedTermEdits) patchDiff +
@@ -1417,8 +1417,8 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
           x : ys -> " (" <> P.commas (x <> " updates" : ys) <> ")"
     pure $ n <> "patch " <> prettyName name <> message
   --	18. patch q
-  prettyNamePatch (name, _patchDiff) = do
-    n <- numPatch name
+  prettyNamePatch prefix (name, _patchDiff) = do
+    n <- numPatch prefix name
     pure $ n <> "patch " <> prettyName name
 
   {-
@@ -1485,19 +1485,19 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
   phq' :: _ -> Pretty = P.syntaxToColor . prettyHashQualified'
   --
   -- DeclPrinter.prettyDeclHeader : HQ -> Either
-  numPatch :: Name -> Numbered Pretty
-  numPatch name = do
+  numPatch :: Path.Absolute -> Name -> Numbered Pretty
+  numPatch prefix name = do
     (n, args) <- State.get
-    State.put (n+1, args Seq.|> Name.toString name)
+    State.put (n+1, args Seq.|> Name.toString (Path.prefixName prefix name))
     pure $ padNumber n
 
   numHQ :: Path.Absolute -> HQ'.HashQualified -> Referent -> Numbered Pretty
-  numHQ path hq r = do
+  numHQ prefix hq r = do
     (n,args) <- State.get
     State.put (n+1, args Seq.|> HQ'.toString hq')
     pure $ padNumber n
     where
-    hq' = HQ'.requalify (fmap (Path.prefixName path) hq) r
+    hq' = HQ'.requalify (fmap (Path.prefixName prefix) hq) r
 
   padNumber :: Int -> Pretty
   padNumber n = P.hiBlack . P.rightPad leftNumsWidth $ P.shown n <> ". "
