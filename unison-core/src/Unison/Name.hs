@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments      #-}
+{-# LANGUAGE DerivingStrategies  #-}
 {-# LANGUAGE OverloadedStrings   #-}
 
 {-# OPTIONS_GHC -Wwarn #-} -- temporary
@@ -51,13 +52,23 @@ import           Data.List                      ( sortBy, tails )
 
 data Name
   = Name Text
-  | Name' (NonEmpty NameSegment)
+  | Name' Placement (NonEmpty NameSegment)
   deriving (Eq, Ord)
+
+data Placement
+  = Absolute
+  | Relative
+  deriving stock (Eq, Ord)
 
 toText :: Name -> Text
 toText (Name name) = name
-toText (Name' names) =
-  Text.intercalate "." (map NameSegment.toText (toList names))
+toText (Name' placement names) =
+  f (Text.intercalate "." (map NameSegment.toText (toList names)))
+  where
+    f =
+      case placement of
+        Absolute -> Text.cons '.'
+        Relative -> id
 
 fromNameSegment :: NameSegment -> Name
 fromNameSegment = unsafeFromText . NameSegment.toText
@@ -89,9 +100,13 @@ fromVar = unsafeFromText . Var.name
 toString :: Name -> String
 toString = Text.unpack . toText
 
-isPrefixOf :: Name -> Name -> Bool
+isPrefixOf :: HasCallStack => Name -> Name -> Bool
 Name a `isPrefixOf` Name b = a `Text.isPrefixOf` b
-Name' a `isPrefixOf` Name' b = toList a `NonEmpty.isPrefixOf` b
+n1@(Name' pa a) `isPrefixOf` n2@(Name' pb b) =
+  if pa == pb then
+    toList a `NonEmpty.isPrefixOf` b
+  else
+    error ("isPrefixOf (" ++ show n1 ++ ") (" ++ show n2 ++ ")")
 
 -- stripNamePrefix a.b  a.b.c = Just c
 -- stripNamePrefix a.b. a.b.c = undefined, "a.b." isn't a valid name IMO
@@ -103,20 +118,26 @@ stripNamePrefix prefix@Name{} name@Name{} =
   Name <$> Text.stripPrefix (toText prefix <> mid) (toText name)
   where
   mid = if toText prefix == "." then "" else "."
-stripNamePrefix (Name' prefix) (Name' name) =
-  fmap Name' do
-    suffix <- List.stripPrefix (toList prefix) (toList name)
-    NonEmpty.nonEmpty suffix
+stripNamePrefix n1@(Name' p1 prefix) n2@(Name' p2 name) =
+  if p1 == p2 then
+    fmap (Name' Relative) do
+      suffix <- List.stripPrefix (toList prefix) (toList name)
+      NonEmpty.nonEmpty suffix
+  else
+    error ("stripNamePrefix (" ++ show n1 ++ ") (" ++ show n2 ++ ")")
 
 joinDot :: Name -> Name -> Name
 joinDot prefix@Name{} suffix@Name{} =
   if toText prefix == "." then Name (toText prefix <> toText suffix)
   else Name (toText prefix <> "." <> toText suffix)
-joinDot (Name' prefix) (Name' suffix) = Name' (prefix <> suffix)
+joinDot n1@(Name' p1 prefix) n2@(Name' p2 suffix) =
+  case p2 of
+    Absolute -> error ("joinDot (" ++ show n1 ++ ") (" ++ show n2 ++ ")")
+    Relative -> Name' p1 (prefix <> suffix)
 
 unqualified :: Name -> Name
 unqualified (Name name) = unsafeFromText (last (Text.splitOn "." name))
-unqualified (Name' names) = Name' (NonEmpty.last names :| [])
+unqualified (Name' _ names) = Name' Relative (NonEmpty.last names :| [])
 
 -- parent . -> Nothing
 -- parent + -> Nothing
@@ -128,16 +149,18 @@ parent (Name txt) = case unsnoc (Text.splitOn "." txt) of
   Nothing -> Nothing
   Just ([],_) -> Nothing
   Just (init,_) -> Just $ Name (Text.intercalate "." init)
-parent (Name' names) =
-  Name' <$> NonEmpty.nonEmpty (NonEmpty.init names)
+parent (Name' p names) =
+  Name' p <$> NonEmpty.nonEmpty (NonEmpty.init names)
 
 suffixes :: Name -> [Name]
 suffixes (Name n) =
   fmap up . tails . dropWhile (== "") $ Text.splitOn "." n
   where
   up ns = Name (Text.intercalate "." ns)
-suffixes (Name' names) =
-  map (Name' . NonEmpty.fromList) (NonEmpty.init (NonEmpty.tails names))
+suffixes name@(Name' p names) =
+  case p of
+    Absolute -> error ("suffixes (" ++ show name ++ ")")
+    Relative -> map (Name' p . NonEmpty.fromList) (NonEmpty.init (NonEmpty.tails names))
 
 makeAbsolute :: Name -> Name
 makeAbsolute n | toText n == "." = Name ".."
