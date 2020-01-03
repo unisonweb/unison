@@ -19,7 +19,7 @@ import qualified Unison.ShortHash              as SH
 import qualified Unison.HashQualified          as HQ
 
 data HashQualified' n = NameOnly n | HashQualified n ShortHash
-  deriving (Eq, Ord, Functor)
+  deriving (Eq, Ord, Functor, Show)
 
 type HashQualified = HashQualified' Name
 type HQSegment = HashQualified' NameSegment
@@ -47,8 +47,11 @@ toHash = \case
   NameOnly _         -> Nothing
   HashQualified _ sh -> Just sh
 
-toString :: Show n => HashQualified' n -> String
-toString = Text.unpack . toText
+toString :: HashQualified -> String
+toString = toString' Name.toText
+
+toString' :: (n -> Text) -> HashQualified' n -> String
+toString' f = Text.unpack . toText' f
 
 -- Parses possibly-hash-qualified into structured type.
 fromText :: Text -> Maybe HashQualified
@@ -64,10 +67,13 @@ unsafeFromText = fromJust . fromText
 fromString :: String -> Maybe HashQualified
 fromString = fromText . Text.pack
 
-toText :: Show n => HashQualified' n -> Text
-toText = \case
-  NameOnly name           -> Text.pack (show name)
-  HashQualified name hash -> Text.pack (show name) <> SH.toText hash
+toText :: HashQualified -> Text
+toText = toText' Name.toText
+
+toText' :: (n -> Text) -> HashQualified' n -> Text
+toText' f = \case
+  NameOnly name           -> f name
+  HashQualified name hash -> f name <> SH.toText hash
 
 -- Returns the full referent in the hash.  Use HQ.take to just get a prefix
 fromNamedReferent :: n -> Referent -> HashQualified' n
@@ -109,7 +115,3 @@ sort =
 
 instance IsString HashQualified where
   fromString = unsafeFromText . Text.pack
-
-
-instance Show n => Show (HashQualified' n) where
-  show = Text.unpack . toText

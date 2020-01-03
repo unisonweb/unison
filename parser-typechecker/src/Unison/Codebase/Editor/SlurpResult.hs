@@ -16,6 +16,7 @@ import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.HashQualified as HQ
+import qualified Unison.Name as Name
 import qualified Unison.Names2 as Names
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Referent as Referent
@@ -169,7 +170,7 @@ pretty isPast ppe sr = let
         aliases = case Map.lookup v (typeAlias sr) of
           Nothing -> ""
           Just ns ->
-            P.hiBlack "  (existing " <> P.plural ns "name" <> ": " <> P.sep ", " (P.shown <$> toList ns)
+            P.hiBlack "  (existing " <> P.plural ns "name" <> ": " <> P.sep ", " (P.text . Name.toText <$> toList ns)
             <> ")"
     Nothing -> P.bold (prettyVar v) <> P.red " (Unison bug, unknown type)"
   okTerm v = case Map.lookup v tms of
@@ -178,7 +179,7 @@ pretty isPast ppe sr = let
       (plus <> lhs, ": " <> P.indentNAfterNewline 2 (TP.pretty ppe ty)) where
       lhs = case Map.lookup v (termAlias sr) of
         Nothing -> P.bold (prettyVar v)
-        Just ns -> P.sep ", " $ P.bold (prettyVar v) : (P.shown <$> toList ns)
+        Just ns -> P.sep ", " $ P.bold (prettyVar v) : (P.text . Name.toText <$> toList ns)
   oks _past _present sc | SC.isEmpty sc = mempty
   oks past present sc = let
     header = goodIcon <> P.indentNAfterNewline 2 (P.wrap (if isPast then past else present))
@@ -199,7 +200,7 @@ pretty isPast ppe sr = let
       where
        aliases = case Map.lookup v (typeAlias sr) of
          Nothing -> ""
-         Just ns -> "(existing " <> P.plural ns "name" <> ": " <> P.sep ", " (P.shown <$> toList ns)
+         Just ns -> "(existing " <> P.plural ns "name" <> ": " <> P.sep ", " (P.text . Name.toText <$> toList ns)
            <> ")"
     typeMsgs = P.column3sep "  " $
       (typeLineFor Alias <$> typeAlias') ++
@@ -212,7 +213,7 @@ pretty isPast ppe sr = let
        where
        lhs = case Map.lookup v (termAlias sr) of
           Nothing -> P.bold (P.text $ Var.name v)
-          Just ns -> P.sep ", " (P.bold (prettyVar v) : (P.shown <$> toList ns))
+          Just ns -> P.sep ", " (P.bold (prettyVar v) : (P.text . Name.toText <$> toList ns))
       Nothing ->
         (prettyStatus status, P.text (Var.name v), "")
     termMsgs = P.column3sep "  "

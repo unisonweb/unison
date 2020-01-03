@@ -354,7 +354,7 @@ loop = do
           opatch = ps' . fromMaybe defaultPatchPath
           wat = error $ show input ++ " is not expected to alter the branch"
           hqs' (p, hq) =
-            Monoid.unlessM (Path.isRoot' p) (p' p) <> "." <> Text.pack (show hq)
+            Monoid.unlessM (Path.isRoot' p) (p' p) <> "." <> HQ'.toText' NameSegment.toText hq
           ps' = p' . Path.unsplit'
         stepAt = Unison.Codebase.Editor.HandleInput.stepAt inputDescription
         stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
@@ -891,8 +891,8 @@ loop = do
           entryToHQString :: ShallowListEntry v Ann -> String
           -- caching the result as an absolute path, for easier jumping around
           entryToHQString e = fixup $ case e of
-            ShallowTypeEntry _ hq   -> HQ'.toString hq
-            ShallowTermEntry _ hq _ -> HQ'.toString hq
+            ShallowTypeEntry _ hq   -> HQ'.toString' NameSegment.toText hq
+            ShallowTermEntry _ hq _ -> HQ'.toString' NameSegment.toText hq
             ShallowBranchEntry ns _ -> NameSegment.toString ns
             ShallowPatchEntry ns    -> NameSegment.toString ns
             where
@@ -2111,8 +2111,8 @@ parseSearchType input typ = fmap Type.removeAllEffectVars <$> parseType input ty
 parseType :: (Monad m, Var v)
   => Input -> String -> Action' m v (Either (Output v) (Type v Ann))
 parseType input src = do
-  -- `show Input` is the name of the "file" being lexed
-  (names0, lexed) <- lexedSource (Text.pack $ show input) (Text.pack src)
+  -- `inputName input` is the name of the "file" being lexed
+  (names0, lexed) <- lexedSource (inputName input) (Text.pack src)
   parseNames <- Names3.suffixify0 <$> basicParseNames0
   let names = Names3.push (Names3.currentNames names0)
                           (Names3.Names parseNames (Names3.oldNames names0))

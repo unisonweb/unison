@@ -1,5 +1,8 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Unison.Codebase.Editor.Input
   ( Input(..)
+  , inputName
   , Event(..)
   , OutputLocation(..)
   , PatchPath
@@ -119,6 +122,63 @@ data Input
   | DebugBranchHistoryI
   | QuitI
   deriving (Eq, Show)
+
+inputName :: Input -> Text
+inputName = \case
+  ForkLocalBranchI{} -> "ForkLocalBranchI"
+  MergeLocalBranchI{} -> "MergeLocalBranchI"
+  PreviewMergeLocalBranchI{} -> "PreviewMergeLocalBranchI"
+  PullRemoteBranchI{} -> "PullRemoteBranchI"
+  PushRemoteBranchI{} -> "PushRemoteBranchI"
+  ResetRootI{} -> "ResetRootI"
+  SwitchBranchI{} -> "SwitchBranchI"
+  NamesI{} -> "NamesI"
+  AliasTermI{} -> "AliasTermI"
+  AliasTypeI{} -> "AliasTypeI"
+  MoveTermI{} -> "MoveTermI"
+  MoveTypeI{} -> "MoveTypeI"
+  MoveBranchI{} -> "MoveBranchI"
+  MovePatchI{} -> "MovePatchI"
+  CopyPatchI{} -> "CopyPatchI"
+  DeleteI{} -> "DeleteI"
+  DeleteTermI{} -> "DeleteTermI"
+  DeleteTypeI{} -> "DeleteTypeI"
+  DeleteBranchI{} -> "DeleteBranchI"
+  DeletePatchI{} -> "DeletePatchI"
+  ResolveTermNameI{} -> "ResolveTermNameI"
+  ResolveTypeNameI{} -> "ResolveTypeNameI"
+  AddI{} -> "AddI"
+  UpdateI{} -> "UpdateI"
+  TodoI{} -> "TodoI"
+  PropagatePatchI{} -> "PropagatePatchI"
+  ListEditsI{} -> "ListEditsI"
+  DeprecateTermI{} -> "DeprecateTermI"
+  DeprecateTypeI{} -> "DeprecateTypeI"
+  AddTermReplacementI{} -> "AddTermReplacementI"
+  AddTypeReplacementI{} -> "AddTypeReplacementI"
+  RemoveTermReplacementI{} -> "RemoveTermReplacementI"
+  RemoveTypeReplacementI{} -> "RemoveTypeReplacementI"
+  ReplaceTermI{} -> "ReplaceTermI"
+  ReplaceTypeI{} -> "ReplaceTypeI"
+  UndoI{} -> "UndoI"
+  HistoryI{} -> "HistoryI"
+  ExecuteI{} -> "ExecuteI"
+  TestI{} -> "TestI"
+  LinkI{} -> "LinkI"
+  UnlinkI{} -> "UnlinkI"
+  LinksI{} -> "LinksI"
+  DisplayI{} -> "DisplayI"
+  DocsI{} -> "DocsI"
+  SearchByNameI{} -> "SearchByNameI"
+  FindShallowI{} -> "FindShallowI"
+  FindPatchI{} -> "FindPatchI"
+  ShowDefinitionI{} -> "ShowDefinitionI"
+  ShowDefinitionByPrefixI{} -> "ShowDefinitionByPrefixI"
+  ShowReflogI{} -> "ShowReflogI"
+  UpdateBuiltinsI{} -> "UpdateBuiltinsI"
+  MergeBuiltinsI{} -> "MergeBuiltinsI"
+  DebugBranchHistoryI{} -> "DebugBranchHistoryI"
+  QuitI{} -> "QuitI"
 
 -- Some commands, like `view`, can dump output to either console or a file.
 data OutputLocation

@@ -955,10 +955,10 @@ prettyParseError s = \case
           Nothing -> useExamples
           Just parent -> Pr.wrap $
             "You can write" <>
-            Pr.group (Pr.blue $ "use " <> Pr.shown parent <> " "
-                                       <> Pr.shown (Name.unqualified (L.payload tok))) <>
-            "to introduce " <> Pr.backticked (Pr.shown (Name.unqualified (L.payload tok))) <>
-            "as a local alias for " <> Pr.backticked (Pr.shown (L.payload tok))
+            Pr.group (Pr.blue $ "use " <> Pr.text (Name.toText parent) <> " "
+                                       <> Pr.text (Name.toText (Name.unqualified (L.payload tok)))) <>
+            "to introduce " <> Pr.backticked (Pr.text (Name.toText (Name.unqualified (L.payload tok)))) <>
+            "as a local alias for " <> Pr.backticked (Pr.text (Name.toText (L.payload tok)))
         ]
       (Right tok, _) -> [ -- this is unpossible but rather than bomb, nice msg
         "You found a Unison bug 🐞  here:", "",
