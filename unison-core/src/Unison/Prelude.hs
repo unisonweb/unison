@@ -10,6 +10,7 @@ import Control.Monad.IO.Class as X (MonadIO(liftIO))
 import Control.Monad.Trans as X (MonadTrans(lift))
 import Control.Monad.Trans.Maybe as X (MaybeT(MaybeT, runMaybeT))
 import Data.ByteString as X (ByteString)
+import Data.Coerce as X (coerce)
 import Data.Either as X
 import Data.Either.Combinators as X (mapLeft, maybeToRight)
 import Data.Foldable as X (asum, fold, foldl', for_, forM_, toList, traverse_)

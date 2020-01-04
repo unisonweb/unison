@@ -2205,7 +2205,7 @@ fixupNamesRelative :: Path.Absolute -> Names0 -> Names0
 fixupNamesRelative currentPath' = Names3.map0 fixName where
   prefix = Path.toName (Path.unabsolute currentPath')
   fixName n = if currentPath' == Path.absoluteEmpty then n else
-    fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
+    fromMaybe (Name.asAbsolute n) (Name.stripNamePrefix prefix n)
 
 makeHistoricalParsingNames ::
   Monad m => Set HQ.HashQualified -> Action' m v Names

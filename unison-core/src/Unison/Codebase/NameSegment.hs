@@ -5,6 +5,7 @@ module Unison.Codebase.NameSegment
   ( NameSegment
   , unsafeFromText
   , isEmpty
+  , isLower
   , isPrefixOf
   , toString
   , toText
@@ -12,6 +13,7 @@ module Unison.Codebase.NameSegment
 
 import Unison.Prelude
 
+import qualified Data.Char                     as Char
 import qualified Data.Text                     as Text
 import qualified Unison.Hashable               as H
 
@@ -26,6 +28,10 @@ unsafeFromText = NameSegment
 
 isEmpty :: NameSegment -> Bool
 isEmpty ns = toText ns == mempty
+
+-- | Does this name segment contain only lowercase letters?
+isLower :: NameSegment -> Bool
+isLower = coerce (Text.all Char.isLower)
 
 isPrefixOf :: NameSegment -> NameSegment -> Bool
 isPrefixOf n1 n2 = Text.isPrefixOf (toText n1) (toText n2)
