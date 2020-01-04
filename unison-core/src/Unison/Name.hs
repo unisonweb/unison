@@ -152,15 +152,19 @@ parent (Name txt) = case unsnoc (Text.splitOn "." txt) of
 parent (Name' p names) =
   Name' p <$> NonEmpty.nonEmpty (NonEmpty.init names)
 
+-- | Return the relative suffixes of a name.
+--
+-- @
+-- suffixes .foo.bar = [foo.bar, bar]
+-- suffixes  foo.bar = [foo.bar, bar]
+-- @
 suffixes :: Name -> [Name]
 suffixes (Name n) =
   fmap up . tails . dropWhile (== "") $ Text.splitOn "." n
   where
   up ns = Name (Text.intercalate "." ns)
-suffixes name@(Name' p names) =
-  case p of
-    Absolute -> error ("suffixes (" ++ show name ++ ")")
-    Relative -> map (Name' p . NonEmpty.fromList) (NonEmpty.init (NonEmpty.tails names))
+suffixes (Name' _ names) =
+  map (Name' Relative . NonEmpty.fromList) (NonEmpty.init (NonEmpty.tails names))
 
 makeAbsolute :: Name -> Name
 makeAbsolute n | toText n == "." = Name ".."
