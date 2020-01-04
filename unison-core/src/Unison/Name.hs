@@ -6,28 +6,32 @@
 
 module Unison.Name
   ( Name
+    -- * Conversion functions
+    -- ** To name
   , fromNameSegment
-  , isPrefixOf
-  , joinDot
-  , makeAbsolute
-  , parent
-  , sortNamed
-  , sortNamed'
-  , stripNamePrefix
-  , suffixes
+  , fromVar
+  , unsafeFromText
+    -- ** From name
   , toString
   , toText
   , toVar
-  , unqualified
-  , unsafeFromText
-  , fromVar
-  , countDots
-  , segments
-  , isLower
-  , isAbsolute
-  , splits
-  , oldSplits
+    -- * Name API
   , asRelative
+  , countDots
+  , isAbsolute
+  , isLower
+  , isPrefixOf
+  , joinDot
+  , makeAbsolute
+  , oldSplits
+  , parent
+  , segments
+  , sortNamed
+  , sortNamed'
+  , splits
+  , stripNamePrefix
+  , suffixes
+  , unqualified
   )
 where
 
