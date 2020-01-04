@@ -2111,8 +2111,8 @@ parseSearchType input typ = fmap Type.removeAllEffectVars <$> parseType input ty
 parseType :: (Monad m, Var v)
   => Input -> String -> Action' m v (Either (Output v) (Type v Ann))
 parseType input src = do
-  -- `inputName input` is the name of the "file" being lexed
-  (names0, lexed) <- lexedSource (inputName input) (Text.pack src)
+  -- `show Input` is the name of the "file" being lexed
+  (names0, lexed) <- lexedSource (Text.pack $ show input) (Text.pack src)
   parseNames <- Names3.suffixify0 <$> basicParseNames0
   let names = Names3.push (Names3.currentNames names0)
                           (Names3.Names parseNames (Names3.oldNames names0))
