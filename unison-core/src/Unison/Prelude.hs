@@ -26,6 +26,7 @@ import Data.Traversable as X (for)
 import Data.Word as X
 import Debug.Trace as X
 import GHC.Generics as X (Generic, Generic1)
+import GHC.Stack as X (HasCallStack)
 import Safe as X (atMay, headMay, lastMay, readMay)
 import Text.Read as X (readMaybe)
 
@@ -38,11 +39,11 @@ readUtf8 p = decodeUtf8 <$> BS.readFile p
 safeReadUtf8 :: FilePath -> IO (Either IOException Text)
 safeReadUtf8 p = try (readUtf8 p)
 
-safeReadUtf8StdIn :: IO (Either IOException Text) 
+safeReadUtf8StdIn :: IO (Either IOException Text)
 safeReadUtf8StdIn = try $ decodeUtf8 <$> BS.getContents
 
 writeUtf8 :: FilePath -> Text -> IO ()
-writeUtf8 p txt = BS.writeFile p (encodeUtf8 txt) 
+writeUtf8 p txt = BS.writeFile p (encodeUtf8 txt)
 
 reportBug :: String -> String -> String
 reportBug bugId msg = unlines [
