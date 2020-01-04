@@ -17,7 +17,6 @@ module Unison.Name
   , toVar
     -- * Name API
   , asRelative
-  , countDots
   , isAbsolute
   , isLower
   , isPrefixOf
@@ -174,9 +173,6 @@ makeAbsolute :: Name -> Name
 makeAbsolute n | toText n == "." = Name ".."
                | isAbsolute n    = n
                | otherwise       = Name ("." <> toText n)
-
-countDots :: Name -> Int
-countDots = Text.count "." . Text.dropEnd 1 . toText
 
 segments :: Name -> [NameSegment]
 segments (Name name) = fmap NameSegment.unsafeFromText (Text.splitOn "." name)
