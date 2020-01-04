@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Unison.Codebase.Editor.Input
   ( Input(..)
   , Event(..)

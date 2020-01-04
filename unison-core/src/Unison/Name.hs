@@ -52,7 +52,7 @@ import           Data.List                      ( sortBy, tails )
 data Name
   = Name Text
   | Name' (NonEmpty NameSegment)
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 toText :: Name -> Text
 toText (Name name) = name
@@ -175,9 +175,6 @@ asRelative name =
     Name (Text.drop 1 (toText name))
   else
     name
-
-instance Show Name where
-  show = toString
 
 instance H.Hashable Name where
   tokens s = [H.Text (toText s)]

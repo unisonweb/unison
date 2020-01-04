@@ -354,7 +354,7 @@ loop = do
           opatch = ps' . fromMaybe defaultPatchPath
           wat = error $ show input ++ " is not expected to alter the branch"
           hqs' (p, hq) =
-            Monoid.unlessM (Path.isRoot' p) (p' p) <> "." <> Text.pack (show hq)
+            Monoid.unlessM (Path.isRoot' p) (p' p) <> "." <> HQ'.toText' NameSegment.toText hq
           ps' = p' . Path.unsplit'
         stepAt = Unison.Codebase.Editor.HandleInput.stepAt inputDescription
         stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
@@ -891,8 +891,8 @@ loop = do
           entryToHQString :: ShallowListEntry v Ann -> String
           -- caching the result as an absolute path, for easier jumping around
           entryToHQString e = fixup $ case e of
-            ShallowTypeEntry _ hq   -> HQ'.toString hq
-            ShallowTermEntry _ hq _ -> HQ'.toString hq
+            ShallowTypeEntry _ hq   -> HQ'.toString' NameSegment.toText hq
+            ShallowTermEntry _ hq _ -> HQ'.toString' NameSegment.toText hq
             ShallowBranchEntry ns _ -> NameSegment.toString ns
             ShallowPatchEntry ns    -> NameSegment.toString ns
             where

@@ -185,7 +185,7 @@ parsePattern =
       -- if token not hash qualified or uppercase,
       -- fail w/out consuming it to allow backtracking
       HQ.NameOnly n | Set.null s &&
-                      Name.isLower n -> fail $ "not a constructor name: " <> show n
+                      Name.isLower n -> fail $ "not a constructor name: " <> Name.toString n
       -- it was hash qualified, and wasn't found in the env, that's a failure!
       _ -> failCommitted $ err hq s
 
