@@ -27,8 +27,6 @@ module Unison.Names2
   , prefix0
   , restrictReferences
   , refTermsNamed
-  , termName
-  , typeName
   , terms
   , types
   , termReferences
@@ -39,6 +37,7 @@ module Unison.Names2
   , unionLeft
   , unionLeftName
   , namesForReference
+  , namesForReferent
   )
 where
 
@@ -174,20 +173,6 @@ numHashChars b = lenFor hashes
         hashes = foldl' f (foldl' g mempty (R.ran $ types b)) (R.ran $ terms b)
         g s r = Set.insert r s
         f s r = Set.insert (Referent.toReference r) s
-
-typeName :: Ord n => Names' n -> Reference -> n
-typeName names r =
-  case toList $ R.lookupRan r (types names) of
-    hq : _ -> hq
-    _ -> error
-      ("Names construction should have included something for " <> show r)
-
-termName :: Ord n => Names' n -> Referent -> n
-termName names r =
-  case toList $ R.lookupRan r (terms names) of
-    hq : _ -> hq
-    _ -> error
-      ("Names construction should have included something for " <> show r)
 
 termsNamed :: Ord n => Names' n -> n -> Set Referent
 termsNamed = flip R.lookupDom . terms

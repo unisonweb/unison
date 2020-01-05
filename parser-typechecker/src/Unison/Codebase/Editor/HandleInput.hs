@@ -1567,8 +1567,14 @@ _searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
 
 searchResultsFor :: Names0 -> [Referent] -> [Reference] -> [SearchResult]
 searchResultsFor ns terms types =
-  [ SR.termSearchResult ns (Names.termName ns ref) ref | ref <- terms ] <>
-  [ SR.typeSearchResult ns (Names.typeName ns ref) ref | ref <- types ]
+  [ SR.termSearchResult ns name ref
+  | ref <- terms
+  , name <- toList (Names.namesForReferent ns ref)
+  ] <>
+  [ SR.typeSearchResult ns name ref
+  | ref <- types
+  , name <- toList (Names.namesForReference ns ref)
+  ]
 
 searchBranchScored :: forall score. (Ord score)
               => Names0
