@@ -72,6 +72,7 @@ module Unison.Util.Pretty (
    spacedMap,
    spacesIfBreak,
    string,
+   endSentence,
    surroundCommas,
    syntaxToColor,
    text,
@@ -447,6 +448,9 @@ num n = fromString (show n)
 
 string :: IsString s => String -> Pretty s
 string = fromString
+
+endSentence :: IsString s => String -> Pretty s
+endSentence str = fromString (str ++ ".")
 
 shown :: (Show a, IsString s) => a -> Pretty s
 shown = fromString . show

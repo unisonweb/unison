@@ -131,13 +131,13 @@ initCodebase dir = do
          .  P.warnCallout
          .  P.wrap
          $  "It looks like there's already a codebase in: "
-         <> P.string dir
+         <> P.endSentence dir
        exitFailure
   PT.putPrettyLn'
     .  P.warnCallout
     .  P.wrap
     $  "Initializing a new codebase in: "
-    <> P.string dir
+    <> P.endSentence dir
   initialize path
   Codebase.initializeCodebase theCodebase
   pure theCodebase
@@ -149,14 +149,14 @@ getCodebaseOrExit mdir = do
     Just dir -> pure
       ( dir
       , "No codebase exists in "
-          <> P.string dir
+          <> P.endSentence dir
           <> P.newline
           <> "Run `ucm -codebase "
           <> P.string dir
           <> " init` to create one, then try again!" )
     Nothing -> do
       dir <- getHomeDirectory
-      let errMsg = P.lines [ "No codebase exists in " <> P.string dir
+      let errMsg = P.lines [ "No codebase exists in " <> P.endSentence dir
                            , "Run `ucm init` to create one, then try again!" ]
       pure (dir, errMsg)
 
