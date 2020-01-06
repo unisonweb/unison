@@ -450,7 +450,7 @@ string :: IsString s => String -> Pretty s
 string = fromString
 
 endSentence :: IsString s => String -> Pretty s
-endSentence str = fromString (str ++ ".")
+endSentence p = group (fromString p <> ".")
 
 shown :: (Show a, IsString s) => a -> Pretty s
 shown = fromString . show
