@@ -410,20 +410,20 @@ deleteAt path = setAt path empty
 getAt :: Path
       -> Branch m
       -> Maybe (Branch m)
-getAt path root = case Path.toList path of
-  [] -> if isEmpty root then Nothing else Just root
-  seg : path -> case Map.lookup seg (_children $ head root) of
-    Just b -> getAt (Path.fromList path) b
+getAt path root = case Path.uncons path of
+  Nothing -> if isEmpty root then Nothing else Just root
+  Just (seg, path) -> case Map.lookup seg (_children $ head root) of
+    Just b -> getAt path b
     Nothing -> Nothing
 
 getAt' :: Path -> Branch m -> Branch m
 getAt' p b = fromMaybe empty $ getAt p b
 
 getAt0 :: Path -> Branch0 m -> Branch0 m
-getAt0 p b = case Path.toList p of
-  [] -> b
-  seg : path -> case Map.lookup seg (_children b) of
-    Just c -> getAt0 (Path.fromList path) (head c)
+getAt0 p b = case Path.uncons p of
+  Nothing -> b
+  Just (seg, path) -> case Map.lookup seg (_children b) of
+    Just c -> getAt0 path (head c)
     Nothing -> empty0
 
 empty :: Branch m
@@ -554,11 +554,11 @@ modifyAtM
   -> (Branch m -> n (Branch m))
   -> Branch m
   -> n (Branch m)
-modifyAtM path f b = case Path.toList path of
-  [] -> f b
-  seg : path -> do -- Functor
+modifyAtM path f b = case Path.uncons path of
+  Nothing -> f b
+  Just (seg, path) -> do -- Functor
     let child = getChildBranch seg (head b)
-    child' <- modifyAtM (Path.fromList path) f child
+    child' <- modifyAtM path f child
     -- step the branch by updating its children according to fixup
     pure $ step (setChildBranch seg child') b
 
