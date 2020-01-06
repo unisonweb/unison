@@ -27,12 +27,13 @@ import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 
 
 import qualified Control.Monad.State.Strict    as State
-import           Data.Bifunctor                (bimap, first, second)
+import           Data.Bifunctor                (bimap, first)
 import           Data.List                     (sortOn, stripPrefix)
 import           Data.List.Extra               (nubOrdOn, nubOrd)
 import           Data.ListLike                 (ListLike)
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
+import qualified Data.Sequence                 as Seq
 import qualified Data.Text                     as Text
 import           Data.Text.IO                  (readFile, writeFile)
 import           Data.Tuple.Extra              (dupe)
@@ -110,7 +111,7 @@ import qualified Unison.Util.List              as List
 import qualified Unison.Util.Monoid            as Monoid
 import Data.Tuple (swap)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import Control.Lens (view, _1, _3)
+import Control.Lens (view, over, _1, _3)
 
 type Pretty = P.Pretty P.ColorText
 
@@ -123,6 +124,11 @@ shortenDirectory dir = do
 
 renderFileName :: FilePath -> IO (Pretty)
 renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
+
+notifyNumbered :: Var v => NumberedOutput v -> (Pretty, NumberedArgs)
+notifyNumbered o = case o of
+  ShowDiffNamespace ppe oldPath rightPath diffOutput ->
+    showDiffNamespace ppe oldPath rightPath diffOutput
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
@@ -781,7 +787,6 @@ notifyUser dir o = case o of
             <> P.shown dest <> "is at or ahead of the source"
             <> P.group (P.shown src <> ".")
     _ -> "Nothing to do."
-  ShowDiffNamespace ppe diffOutput -> pure $ showDiffNamespace ppe diffOutput
   DumpBitBooster head map -> let
     go output []          = output
     go output (head : queue) = case Map.lookup head map of
@@ -1097,7 +1102,7 @@ renderEditConflicts ppe Patch{..} =
       P.oxfordCommas [ termName r | TermEdit.Replace r _ <- es ]
     formatConflict = either formatTypeEdits formatTermEdits
 
-type Numbered a = State.State Int a
+type Numbered a = State.State (Int, Seq.Seq String) a
 todoOutput :: Var v => PPE.PrettyPrintEnvDecl -> TO.TodoOutput v a -> IO Pretty
 todoOutput ppe todo =
   if noConflicts && noEdits
@@ -1195,9 +1200,15 @@ listOfLinks ppe results = pure $ P.lines [
   prettyType Nothing = "❓ (missing a type for this definition)"
   prettyType (Just t) = TypePrinter.pretty ppe t
 
-showDiffNamespace :: forall v . Var v => PPE.PrettyPrintEnv -> OBD.BranchDiffOutput v Ann -> Pretty
-showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
-  P.sepNonEmpty "\n\n" . (`State.evalState` (0::Int)) . sequence $ [
+showDiffNamespace :: forall v . Var v
+                  => PPE.PrettyPrintEnv
+                  -> Path.Absolute
+                  -> Path.Absolute
+                  -> OBD.BranchDiffOutput v Ann
+                  -> (Pretty, NumberedArgs)
+showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
+  let wrangleResult (p,(_n,args)) = (P.sepNonEmpty "\n\n" p, toList args) in
+  wrangleResult . (`State.runState` (1::Int, Seq.empty)) . sequence $ [
     if (not . null) updatedTypes
     || (not . null) updatedTerms
     || propagatedUpdates > 0
@@ -1205,7 +1216,7 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
     then do
       prettyUpdatedTypes :: [Pretty] <- traverse prettyUpdateType updatedTypes
       prettyUpdatedTerms :: [Pretty] <- traverse prettyUpdateTerm updatedTerms
-      prettyUpdatedPatches :: [Pretty] <- traverse prettySummarizePatch updatedPatches
+      prettyUpdatedPatches :: [Pretty] <- traverse (prettySummarizePatch newPath) updatedPatches
       pure $ P.sepNonEmpty "\n\n"
         [ P.bold "Updates:"
         , P.indentN 2 . P.linesNonEmpty $ prettyUpdatedTypes <> prettyUpdatedTerms
@@ -1223,7 +1234,7 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
     then do
       prettyAddedTypes :: Pretty <- prettyAddTypes addedTypes
       prettyAddedTerms :: Pretty <- prettyAddTerms addedTerms
-      prettyAddedPatches :: [Pretty] <- traverse prettySummarizePatch addedPatches
+      prettyAddedPatches :: [Pretty] <- traverse (prettySummarizePatch newPath) addedPatches
       pure $ P.sepNonEmpty "\n\n"
         [ P.bold "Adds:"
         , P.indentN 2 $ P.linesNonEmpty [prettyAddedTypes, prettyAddedTerms]
@@ -1241,7 +1252,7 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
     then do
       prettyRemovedTypes :: Pretty <- prettyRemoveTypes removedTypes
       prettyRemovedTerms :: Pretty <- prettyRemoveTerms removedTerms
-      prettyRemovedPatches :: [Pretty] <- traverse prettyNamePatch removedPatches
+      prettyRemovedPatches :: [Pretty] <- traverse (prettyNamePatch oldPath) removedPatches
       pure $ P.sepNonEmpty "\n\n"
        [ P.bold "Removes:"
        , P.indentN 2 $ P.linesNonEmpty [ prettyRemovedTypes
@@ -1280,20 +1291,21 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
                      -> [OBD.RenameTermDisplay v a]
                      -> Numbered [Pretty]
   prettyRenameGroups types terms =
-    (<>) <$> traverse prettyGroup types
+    (<>) <$> traverse (prettyGroup . (over _1 Referent.Ref)) types
          <*> traverse prettyGroup terms
     where
         leftNamePad :: Int = foldl1' max $
           map (foldl1' max . map HQ'.nameLength . toList . view _3) terms <>
           map (foldl1' max . map HQ'.nameLength . toList . view _3) types
-        prettyGroup :: (a, b, Set HQ'.HashQualified, Set HQ'.HashQualified)
+        prettyGroup :: (Referent, b, Set HQ'.HashQualified, Set HQ'.HashQualified)
                     -> Numbered Pretty
-        prettyGroup (_, _, olds, news) = let
+        prettyGroup (r, _, olds, news) = let
           -- [ "peach  ┐"
           -- , "peach' ┘"]
           olds' :: [Numbered Pretty] =
-            map (\old -> num <&> (\n -> n <> old))
-              . P.boxRight' P.rBoxStyle2
+            map (\(oldhq, oldp) -> numHQ oldPath oldhq r <&> (\n -> n <> oldp))
+              . (zip (toList olds))
+              . (P.boxRight' P.rBoxStyle2)
               . map (P.rightPad leftNamePad . phq')
               $ toList olds
           -- [  "┌  14. moved.peach"
@@ -1301,7 +1313,7 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
           -- ,  "└  17. ooga.booga2" ]
           news' :: [Numbered Pretty] =
             P.boxLeftM' P.lBoxStyle2
-              . map (\new -> num <&> (\n -> n <> phq' new))
+              . map (\new -> numHQ newPath new r <&> (\n -> n <> phq' new))
               $ toList news
           buildTable lefts rights = go arrow lefts rights where
             go :: Monad m => String -> [m Pretty] -> [m Pretty] -> m [Pretty]
@@ -1327,7 +1339,8 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
         5. - apiDocs : License
         6. + MIT     : License
   -}
-  prettyUpdateType (Nothing, mdUps) = P.column2 <$> traverse mdTypeLine mdUps
+  prettyUpdateType (Nothing, mdUps) =
+    P.column2 <$> traverse (mdTypeLine newPath) mdUps
   {-
       1. ┌ ability Foo#pqr x y
       2. └ ability Foo#xyz a b
@@ -1347,8 +1360,8 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
   -}
   prettyUpdateType (Just olds, news) =
     do
-      olds <- traverse mdTypeLine [ (name,r,decl,mempty) | (name,r,decl) <- olds ]
-      news <- traverse mdTypeLine news
+      olds <- traverse (mdTypeLine oldPath) [ (name,r,decl,mempty) | (name,r,decl) <- olds ]
+      news <- traverse (mdTypeLine newPath) news
       let (oldnums, olddatas) = unzip olds
       let (newnums, newdatas) = unzip news
       pure . P.column2 $
@@ -1362,34 +1375,36 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
   prettyAddTypes :: [OBD.AddedTypeDisplay v a] -> Numbered Pretty
   prettyAddTypes = fmap P.lines . traverse prettyGroup where
     prettyGroup :: OBD.AddedTypeDisplay v a -> Numbered Pretty
-    prettyGroup (hqmds, _r, odecl) = do
-      pairs <- traverse (prettyLine odecl) hqmds
+    prettyGroup (hqmds, r, odecl) = do
+      pairs <- traverse (prettyLine r odecl) hqmds
       let (nums, decls) = unzip pairs
       let boxLeft = case hqmds of _:_:_ -> P.boxLeft; _ -> id
       pure . P.column2 $ zip nums (boxLeft decls)
-    prettyLine :: Maybe (DD.DeclOrBuiltin v a) -> (HQ'.HashQualified, [OBD.MetadataDisplay v a]) -> Numbered (Pretty, Pretty)
-    prettyLine odecl (hq, mds) = do
-      n <- num
+    prettyLine :: Reference -> Maybe (DD.DeclOrBuiltin v a) -> (HQ'.HashQualified, [OBD.MetadataDisplay v a]) -> Numbered (Pretty, Pretty)
+    prettyLine r odecl (hq, mds) = do
+      n <- numHQ newPath hq (Referent.Ref r)
       pure . (n,) $ prettyDecl hq odecl <> case length mds of
         0 -> mempty
-        c -> "(+" <> P.shown c <> " metadata)"
+        c -> " (+" <> P.shown c <> " metadata)"
 
   prettyAddTerms :: [OBD.AddedTermDisplay v a] -> Numbered Pretty
   prettyAddTerms = fmap (P.column3 . mconcat) . traverse prettyGroup where
     prettyGroup :: OBD.AddedTermDisplay v a -> Numbered [(Pretty, Pretty, Pretty)]
-    prettyGroup (hqmds, _r, otype) = do
-      pairs <- traverse (prettyLine otype) hqmds
+    prettyGroup (hqmds, r, otype) = do
+      pairs <- traverse (prettyLine r otype) hqmds
       let (nums, names, decls) = unzip3 pairs
           boxLeft = case hqmds of _:_:_ -> P.boxLeft; _ -> id
       pure $ zip3 nums (boxLeft names) decls
-    prettyLine otype (hq, mds) = do
-      n <- num
-      pure . (n, phq' hq, ) $ " : " <> prettyType otype
+    prettyLine r otype (hq, mds) = do
+      n <- numHQ newPath hq r
+      pure . (n, phq' hq, ) $ " : " <> prettyType otype <> case length mds of
+        0 -> mempty
+        c -> " (+" <> P.shown c <> " metadata)"
 
-  prettySummarizePatch, prettyNamePatch :: OBD.PatchDisplay -> Numbered Pretty
+  prettySummarizePatch, prettyNamePatch :: Path.Absolute -> OBD.PatchDisplay -> Numbered Pretty
   --  12. patch p (added 3 updates, deleted 1)
-  prettySummarizePatch (name, patchDiff) = do
-    n <- num
+  prettySummarizePatch prefix (name, patchDiff) = do
+    n <- numPatch prefix name
     let addCount = (R.size . view Patch.addedTermEdits) patchDiff +
                    (R.size . view Patch.addedTypeEdits) patchDiff
         delCount = (R.size . view Patch.removedTermEdits) patchDiff +
@@ -1402,8 +1417,8 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
           x : ys -> " (" <> P.commas (x <> " updates" : ys) <> ")"
     pure $ n <> "patch " <> prettyName name <> message
   --	18. patch q
-  prettyNamePatch (name, patchDiff) = do
-    n <- num
+  prettyNamePatch prefix (name, _patchDiff) = do
+    n <- numPatch prefix name
     pure $ n <> "patch " <> prettyName name
 
   {-
@@ -1414,26 +1429,26 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
     12.  patch defunctThingy
 	-}
   prettyRemoveTypes :: [OBD.TypeDisplay v a] -> Numbered Pretty
-  prettyRemoveTypes types = fmap P.lines . for types $ \(hq, _, odecl, _) -> do
-    n <- num
+  prettyRemoveTypes types = fmap P.lines . for types $ \(hq, r, odecl, _) -> do
+    n <- numHQ oldPath hq (Referent.Ref r)
     pure $ n <> prettyDecl hq odecl
 
   prettyRemoveTerms :: [OBD.TermDisplay v a] -> Numbered Pretty
-  prettyRemoveTerms terms = fmap P.lines . for terms $ \(hq, _, otype, _) -> do
-    n <- num
+  prettyRemoveTerms terms = fmap P.lines . for terms $ \(hq, r, otype, _) -> do
+    n <- numHQ oldPath hq r
     pure $ n <> P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
     where namesWidth = foldl1' max $ fmap (HQ'.nameLength . view _1) terms
 
   downArrow = P.bold "⧩ replaced with"
-  mdTypeLine :: OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)
-  mdTypeLine (hq, _r, odecl, mddiff) = do
-    n <- num
+  mdTypeLine :: Path.Absolute -> OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)
+  mdTypeLine p (hq, r, odecl, mddiff) = do
+    n <- numHQ p hq (Referent.Ref r)
     fmap ((n,) . P.linesNonEmpty) . sequence $
       [ pure $ prettyDecl hq odecl
       , P.indentN leftNumsWidth <$> prettyMetadataDiff mddiff ]
-  mdTermLine :: Int -> OBD.TermDisplay v a -> Numbered (Pretty, Pretty)
-  mdTermLine namesWidth (hq, _r, otype, mddiff) = do
-    n <- num
+  mdTermLine :: Path.Absolute -> Int -> OBD.TermDisplay v a -> Numbered (Pretty, Pretty)
+  mdTermLine p namesWidth (hq, r, otype, mddiff) = do
+    n <- numHQ p hq r
     fmap ((n,) . P.linesNonEmpty) . sequence $
       [ pure $ P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
       , P.indentN leftNumsWidth <$> prettyMetadataDiff mddiff ]
@@ -1441,12 +1456,12 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
   prettyUpdateTerm :: OBD.UpdateTermDisplay v a -> Numbered Pretty
   prettyUpdateTerm (Nothing, newTerms) =
     if null newTerms then error "Super invalid UpdateTermDisplay" else
-    fmap P.column2 $ traverse (mdTermLine namesWidth) newTerms
+    fmap P.column2 $ traverse (mdTermLine newPath namesWidth) newTerms
     where namesWidth = foldl1' max $ fmap (HQ'.nameLength . view _1) newTerms
   prettyUpdateTerm (Just olds, news) =
     fmap P.column2 $ do
-      olds <- traverse (mdTermLine namesWidth) [ (name,r,typ,mempty) | (name,r,typ) <- olds ]
-      news <- traverse (mdTermLine namesWidth) news
+      olds <- traverse (mdTermLine oldPath namesWidth) [ (name,r,typ,mempty) | (name,r,typ) <- olds ]
+      news <- traverse (mdTermLine newPath namesWidth) news
       let (oldnums, olddatas) = unzip olds
       let (newnums, newdatas) = unzip news
       pure $ zip (oldnums <> [""] <> newnums)
@@ -1456,11 +1471,11 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
 
   prettyMetadataDiff :: OBD.MetadataDiff (OBD.MetadataDisplay v a) -> Numbered Pretty
   prettyMetadataDiff OBD.MetadataDiff{..} = P.column2M $
-    map (elem " - ") removedMetadata <>
-    map (elem " + ") addedMetadata
+    map (elem oldPath " - ") removedMetadata <>
+    map (elem newPath " + ") addedMetadata
     where
-    elem x (hq, _r, otype) = do
-      num <- num
+    elem p x (hq, r, otype) = do
+      num <- numHQ p hq r
       pure (x <> num <> phq' hq, " : " <> prettyType otype)
 
   prettyType = maybe (P.red "type not found") (TypePrinter.pretty ppe)
@@ -1470,11 +1485,19 @@ showDiffNamespace ppe d@OBD.BranchDiffOutput{..} =
   phq' :: _ -> Pretty = P.syntaxToColor . prettyHashQualified'
   --
   -- DeclPrinter.prettyDeclHeader : HQ -> Either
-  num :: Numbered Pretty
-  num = do
-    n <- State.get
-    State.put (n+1)
+  numPatch :: Path.Absolute -> Name -> Numbered Pretty
+  numPatch prefix name = do
+    (n, args) <- State.get
+    State.put (n+1, args Seq.|> Name.toString (Path.prefixName prefix name))
     pure $ padNumber n
+
+  numHQ :: Path.Absolute -> HQ'.HashQualified -> Referent -> Numbered Pretty
+  numHQ prefix hq r = do
+    (n,args) <- State.get
+    State.put (n+1, args Seq.|> HQ'.toString hq')
+    pure $ padNumber n
+    where
+    hq' = HQ'.requalify (fmap (Path.prefixName prefix) hq) r
 
   padNumber :: Int -> Pretty
   padNumber n = P.hiBlack . P.rightPad leftNumsWidth $ P.shown n <> ". "

@@ -60,6 +60,7 @@ data Command m i v a where
 
   -- Presents some output to the user
   Notify :: Output v -> Command m i v ()
+  NotifyNumbered :: NumberedOutput v -> Command m i v NumberedArgs
 
   -- literally just write some terms and types .unison/{terms,types}
   AddDefsToCodebase :: UF.TypecheckedUnisonFile v Ann -> Command m i v ()
