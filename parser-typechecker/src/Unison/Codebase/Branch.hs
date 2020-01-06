@@ -1,21 +1,107 @@
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Unison.Codebase.Branch where
+module Unison.Codebase.Branch
+  ( -- * Branch types
+    Branch(..)
+  , Branch0(..)
+  , Raw(..)
+  , Star
+  , Hash
+  , EditHash
+  , pattern Hash
+
+    -- * Branch construction
+  , empty
+  , empty0
+  , branch0
+  , one
+
+    -- * Branch history
+    -- ** History queries
+  , isEmpty
+  , isOne
+  , head
+  , headHash
+  , before
+  , findHistoricalHQs
+  , findHistoricalRefs
+  , namesDiff
+    -- ** History updates
+  , step
+  , stepEverywhere
+  , uncons
+  , merge
+
+    -- * Branch children
+    -- ** Children lenses
+  , children
+    -- ** Children queries
+  , toList0
+  , getAt
+  , getAt'
+  , getAt0
+    -- ** Children updates
+  , setChildBranch
+  , stepManyAt
+  , stepManyAt0
+  , stepManyAtM
+  , modifyAtM
+
+    -- * Branch terms/types
+    -- ** Term/type lenses
+  , terms
+  , types
+    -- ** Term/type queries
+  , deepReferents
+  , deepTypeReferences
+  , toNames0
+    -- ** Term/type updates
+  , addTermName
+  , addTypeName
+  , deleteTermName
+  , deleteTypeName
+
+    -- * Branch patches
+    -- ** Patch queries
+  , getPatch
+  , getMaybePatch
+    -- ** Patch updates
+  , replacePatch
+  , deletePatch
+  , modifyPatches
+
+    -- * Branch serialization
+  , read
+  , sync
+
+    -- * Unused
+  , childrenR
+  , debugPaths
+  , editedPatchRemoved
+  , editsR
+  , findHistoricalSHs
+  , fork
+  , lca
+  , move
+  , numHashChars
+  , printDebugPaths
+  , removedPatchEdited
+  , stepAt
+  , stepAtM
+  , termsR
+  , typesR
+  ) where
 
 import Unison.Prelude hiding (empty)
 
 import           Prelude                  hiding (head,read,subtract)
 
-import           Control.Lens            hiding ( children, cons, transform )
+import           Control.Lens            hiding ( children, cons, transform, uncons )
 import qualified Control.Monad                 as Monad
 import qualified Data.Map                      as Map
 import qualified Data.Map.Merge.Lazy           as Map
