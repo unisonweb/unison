@@ -1307,9 +1307,7 @@ loop = do
             error $ "impossible match, resolveConfiguredGitUrl shouldn't return"
                 <> " `Just` unless it was passed `Just`; and here it is passed"
                 <> " `Nothing` by `expandRepo`."
-      DebugNumberedArgsI -> do
-        args <- use numberedArgs
-        for_ (zip [1..] args) $ \(n, arg) -> traceM $ show n ++ ". " ++ arg
+      DebugNumberedArgsI -> use numberedArgs >>= respond . DumpNumberedArgs
       DebugBranchHistoryI ->
         eval . Notify . DumpBitBooster (Branch.headHash currentBranch') =<<
           (eval . Eval $ Causal.hashToRaw (Branch._history currentBranch'))

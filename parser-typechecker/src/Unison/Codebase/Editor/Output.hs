@@ -174,6 +174,7 @@ data Output v
   | NothingTodo Input
   | NotImplemented
   | NoBranchWithHash Input ShortBranchHash
+  | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   deriving (Show)
 
@@ -288,6 +289,7 @@ isFailure o = case o of
   ShowDiff{} -> False
   BranchDiff{} -> False
   NotImplemented -> True
+  DumpNumberedArgs{} -> False
   DumpBitBooster{} -> False
   NoBranchWithHash{} -> True
   NothingTodo{} -> False

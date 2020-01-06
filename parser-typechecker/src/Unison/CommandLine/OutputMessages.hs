@@ -787,6 +787,7 @@ notifyUser dir o = case o of
             <> P.shown dest <> "is at or ahead of the source"
             <> P.group (P.shown src <> ".")
     _ -> "Nothing to do."
+  DumpNumberedArgs args -> pure . P.numberedList $ fmap P.string args
   DumpBitBooster head map -> let
     go output []          = output
     go output (head : queue) = case Map.lookup head map of
