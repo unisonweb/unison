@@ -1489,7 +1489,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
   numPatch :: Path.Absolute -> Name -> Numbered Pretty
   numPatch prefix name = do
     (n, args) <- State.get
-    State.put (n+1, args Seq.|> Name.toString (Path.prefixName prefix name))
+    State.put (n+1, args Seq.|> (Name.toString . Name.makeAbsolute $ Path.prefixName prefix name))
     pure $ padNumber n
 
   numHQ :: Path.Absolute -> HQ'.HashQualified -> Referent -> Numbered Pretty
@@ -1498,7 +1498,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
     State.put (n+1, args Seq.|> HQ'.toString hq')
     pure $ padNumber n
     where
-    hq' = HQ'.requalify (fmap (Path.prefixName prefix) hq) r
+    hq' = HQ'.requalify (fmap (Name.makeAbsolute . Path.prefixName prefix) hq) r
 
   padNumber :: Int -> Pretty
   padNumber n = P.hiBlack . P.rightPad leftNumsWidth $ P.shown n <> ". "
