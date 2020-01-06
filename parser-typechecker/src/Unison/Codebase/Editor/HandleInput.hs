@@ -125,7 +125,6 @@ import qualified Unison.Codebase.Editor.UriParser as UriParser
 import Data.Tuple.Extra (uncurry3)
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
 import qualified Control.Error.Util as ErrorUtil
-import Control.Monad.Writer (Writer, tell, execWriter)
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
@@ -1308,7 +1307,9 @@ loop = do
             error $ "impossible match, resolveConfiguredGitUrl shouldn't return"
                 <> " `Just` unless it was passed `Just`; and here it is passed"
                 <> " `Nothing` by `expandRepo`."
-      DebugNumberedArgsI -> use numberedArgs >>= traceShowM
+      DebugNumberedArgsI -> do
+        args <- use numberedArgs
+        for_ (zip [1..] args) $ \(n, arg) -> traceM $ show n ++ ". " ++ arg
       DebugBranchHistoryI ->
         eval . Notify . DumpBitBooster (Branch.headHash currentBranch') =<<
           (eval . Eval $ Causal.hashToRaw (Branch._history currentBranch'))
@@ -2359,60 +2360,3 @@ declOrBuiltin r = case r of
     pure . fmap DD.Builtin $ Map.lookup r Builtin.builtinConstructorType
   Reference.DerivedId id ->
     fmap DD.Decl <$> eval (LoadType id)
-
--- consider moving numberedArgs logic to OutputMessages, where
--- Command.Notify returns type NumberedArgs = [String]
--- Probably super helpful for complicated outputs like this,
--- but a hassle for simple ones (especially those that are already done).
---
--- Could have a separate Notify command that produces numbers, and just
--- use it where desired, or have the already implemented ones just return []
--- and ignore their output. -- No, this would require each implementation to be partial?
---
--- Bottom line though, it seems like a pain to keep these in sync if the output
--- changes.
-numberOutputDiff :: OBranchDiff.BranchDiffOutput v a -> [String]
-numberOutputDiff OBranchDiff.BranchDiffOutput{..} = map (either id HQ'.toString) . execWriter $ do
- traverse_ updateTypeDisplay updatedTypes
- traverse_ updateTermDisplay updatedTerms
- traverse_ patchDisplay updatedPatches
- traverse_ addedTypeDisplay addedTypes
- traverse_ addedTermDisplay addedTerms
- traverse_ patchDisplay addedPatches
- traverse_ removedTypeDisplay removedTypes
- traverse_ removedTermDisplay removedTerms
- traverse_ patchDisplay removedPatches
- traverse_ renameTypeDisplay movedTypes
- traverse_ renameTermDisplay movedTerms
- traverse_ renameTypeDisplay copiedTypes
- traverse_ renameTermDisplay copiedTerms
- where
- tpr = tell . pure . Right
- hqType12 :: (Field1 p p HQ'.HashQualified HQ'.HashQualified, Field2 p p Reference Reference) => p -> HQ'.HashQualified
- hqType12 = ap (HQ'.requalify . view _1) (Referent.Ref . view _2)
- hqTerm12 :: (Field1 p p HQ'.HashQualified HQ'.HashQualified, Field2 p p Referent Referent) => p -> HQ'.HashQualified
- hqTerm12 = ap (HQ'.requalify . view _1) (view _2)
- updateTypeDisplay :: OBranchDiff.UpdateTypeDisplay v a -> Writer [Either String HQ'.HashQualified] ()
- updateTypeDisplay (old, new) = do
-  maybe (pure ()) (traverse_ (tpr . hqType12)) old
-  traverse_ (tpr . hqType12) new
- updateTermDisplay (old, new) = do
-  maybe (pure ()) (traverse_ (tpr . hqTerm12)) old
-  traverse_ (tell . pure  . Right . hqTerm12) new
- patchDisplay = tell . pure . Left . Name.toString . fst
- addedTypeDisplay (hqmds, r, _t) = tell (hqmds <&> Right . \(hq, _mds) -> HQ'.requalify hq (Referent.Ref r))
- addedTermDisplay (hqmds, r, _t) = tell (hqmds <&> Right . \(hq, _mds) -> HQ'.requalify hq r)
- removedTypeDisplay = tpr . hqType12
- removedTermDisplay = tpr . hqTerm12
- renameTypeDisplay (r, _t, olds, news) = alternate (f olds) (f news) where
-  f hqs = [ Right $ HQ'.requalify hq (Referent.Ref r) | hq <- toList hqs ]
- renameTermDisplay (r, _d, olds, news) = alternate (f olds) (f news) where
-   f hqs = [ Right $ HQ'.requalify hq r | hq <- toList hqs ]
- simpleTypeDisplay = undefined
- simpleTermDisplay = undefined
- alternate :: [a] -> [a] -> Writer [a] ()
- alternate = curry $ \case
-   (a:as, b:bs) -> tell [a] >> tell [b] >> alternate as bs
-   (as,   []  ) -> tell as
-   ([],   bs  ) -> tell bs
-
