@@ -7,7 +7,7 @@ module Unison.Codebase.Editor.Command (
   Source,
   SourceName,
   TypecheckingResult,
-  InvalidSourceNameError
+  LoadSourceResult(..)
   ) where
 
 import Unison.Prelude
@@ -48,7 +48,9 @@ type Source = Text
 type LexedSource = (Text, [L.Token L.Lexeme])
 type Term v a = Term.AnnotatedTerm v a
 
-type InvalidSourceNameError = Text
+data LoadSourceResult = InvalidSourceNameError
+                      | LoadError
+                      | LoadSuccess Text
 
 type TypecheckingResult v =
   Result (Seq (Note v Ann))
@@ -80,7 +82,7 @@ data Command m i v a where
   ParseType :: Names -> LexedSource
             -> Command m i v (Either (Parser.Err v) (Type v Ann))
 
-  LoadSource :: SourceName -> Command m i v (Either InvalidSourceNameError ())
+  LoadSource :: SourceName -> Command m i v LoadSourceResult
 
   Typecheck :: AmbientAbilities v
             -> Names

@@ -16,6 +16,7 @@ import Prelude hiding (readFile, writeFile)
 import System.Exit (die)
 import System.IO.Error (catchIOError)
 import Unison.Codebase (Codebase)
+import Unison.Codebase.Editor.Command (LoadSourceResult (..))
 import Unison.Codebase.Editor.Input (Input (..), Event(UnisonFileChanged))
 import Unison.CommandLine
 import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
@@ -133,15 +134,15 @@ run dir configFile stanzas codebase = do
       awaitInput = do
         cmd <- atomically (Q.tryDequeue cmdQueue)
         case cmd of
-          Just (Right Nothing) -> do
+          Just Nothing -> do
             output "\n```\n" -- this ends the ucm block
             writeIORef hidden False
             awaitInput
-          Just (Right (Just p@(UcmCommand path lineTxt))) -> do
+          Just (Just p@(UcmCommand path lineTxt)) -> do
             curPath <- readIORef pathRef
             numberedArgs <- readIORef numberedArgsRef
             if curPath /= path then do
-              atomically $ Q.undequeue cmdQueue (Right $ Just p)
+              atomically $ Q.undequeue cmdQueue (Just p)
               pure $ Right (SwitchBranchI (Path.absoluteToPath' path))
             else case (>>= expandNumber numberedArgs)
                        . words . Text.unpack $ lineTxt of
@@ -157,9 +158,6 @@ run dir configFile stanzas codebase = do
                       output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
                       die
                     Right input -> pure $ Right input
-          Just (Left event) ->
-            pure $ Left event
-
           Nothing -> do
             errOk <- readIORef allowErrors
             hasErr <- readIORef hasErrors
@@ -194,7 +192,7 @@ run dir configFile stanzas codebase = do
                     writeIORef hidden hide
                     writeIORef allowErrors errOk
                     output "```ucm\n"
-                    atomically . Q.enqueue cmdQueue $ Right Nothing
+                    atomically . Q.enqueue cmdQueue $ Nothing
                     modifyIORef' unisonFiles (Map.insert (fromMaybe "scratch.u" filename) txt)
                     pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
                   Ucm hide errOk cmds -> do
@@ -202,18 +200,17 @@ run dir configFile stanzas codebase = do
                     writeIORef allowErrors errOk
                     writeIORef hasErrors False
                     output "```ucm"
-                    traverse_ (atomically . Q.enqueue cmdQueue . Right . Just) cmds
-                    atomically . Q.enqueue cmdQueue $ Right Nothing
+                    traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
+                    atomically . Q.enqueue cmdQueue $ Nothing
                     awaitInput
 
       loadPreviousUnisonBlock name = do
         ufs <- readIORef unisonFiles
         case Map.lookup name ufs of
           Just uf -> do
-            atomically . Q.enqueue cmdQueue . Left $ UnisonFileChanged name uf
-            return $ Right ()
+            return $ LoadSuccess uf
           Nothing ->
-            return $ Left name
+            return $ InvalidSourceNameError
 
       cleanup = do Runtime.terminate runtime; cancelConfig
       print o = do

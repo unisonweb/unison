@@ -249,6 +249,10 @@ notifyUser dir o = case o of
     pure . P.callout "😶" $ P.wrap $  "The file "
                                    <> P.blue (P.shown name)
                                    <> " does not exist or is not a valid source file."
+  SourceLoadFailed name ->
+    pure . P.callout "😶" $ P.wrap $  "The file "
+                                   <> P.blue (P.shown name)
+                                   <> " could not be loaded."
   BranchNotFound _ b ->
     pure . P.warnCallout $ "The namespace " <> P.blue (P.shown b) <> " doesn't exist."
   CreatedNewBranch path -> pure $

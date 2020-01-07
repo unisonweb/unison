@@ -190,8 +190,6 @@ library
     time,
     transformers,
     unison-core,
-    -- unix needed for System.Posix.touchFile
-    unix,
     unliftio,
     util,
     vector

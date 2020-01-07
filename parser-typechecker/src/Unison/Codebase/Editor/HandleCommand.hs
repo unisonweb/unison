@@ -94,7 +94,7 @@ commandLine
   -> (Branch IO -> IO ())
   -> Runtime v
   -> (Output v -> IO ())
-  -> (SourceName -> IO (Either InvalidSourceNameError ()))
+  -> (SourceName -> IO LoadSourceResult)
   -> Codebase IO v Ann
   -> Free (Command IO i v) a
   -> IO a
