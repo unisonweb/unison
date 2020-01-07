@@ -308,11 +308,8 @@ loop = do
                             <> opatch p
           ResolveTermNameI path -> "resolve.termName " <> hqs' path
           ResolveTypeNameI path -> "resolve.typeName " <> hqs' path
-          LoadI path -> "load " <> maybe "" (Text.pack . show) path
           AddI _selection -> "add"
-          PreviewAddI _selection -> "add.preview"
           UpdateI p _selection -> "update " <> opatch p
-          PreviewUpdateI _selection -> "update.preview"
           PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
           UndoI{} -> "undo"
           ExecuteI s -> "execute " <> Text.pack s
@@ -326,6 +323,9 @@ loop = do
                        (uncurry3 printNamespace) orepo
               <> " "
               <> p' dest
+          LoadI{} -> wat
+          PreviewAddI{} -> wat
+          PreviewUpdateI{} -> wat
           PushRemoteBranchI{} -> wat
           PreviewMergeLocalBranchI{} -> wat
           SwitchBranchI{} -> wat
