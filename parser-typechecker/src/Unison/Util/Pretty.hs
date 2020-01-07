@@ -449,8 +449,8 @@ num n = fromString (show n)
 string :: IsString s => String -> Pretty s
 string = fromString
 
-endSentence :: IsString s => String -> Pretty s
-endSentence p = group (fromString p <> ".")
+endSentence :: IsString s => Pretty s -> Pretty s
+endSentence p = group (p <> ".")
 
 shown :: (Show a, IsString s) => a -> Pretty s
 shown = fromString . show
