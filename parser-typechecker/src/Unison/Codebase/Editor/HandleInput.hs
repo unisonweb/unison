@@ -1047,10 +1047,7 @@ loop = do
             Set.map (Referent.Ref . DerivedId))
 
       LoadI maybePath ->
-        let maybePath' = if isJust maybePath
-                         then maybePath
-                         else fst <$> latestFile'
-        in case maybePath' of
+        case maybePath <|> (fst <$> latestFile') of
           Nothing   -> respond $ NoUnisonFile input
           Just path -> do
             res <- eval . LoadSource . Text.pack $ path
