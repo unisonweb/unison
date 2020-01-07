@@ -71,6 +71,8 @@ data Output v
   = Success Input
   -- User did `add` or `update` before typechecking a file?
   | NoUnisonFile Input
+  | InvalidSourceName String
+  | SourceLoadFailed String
   -- No main function, the [Type v Ann] are the allowed types
   | NoMainFunction Input String PPE.PrettyPrintEnv [Type v Ann]
   | CreatedNewBranch Path.Absolute
@@ -224,6 +226,8 @@ isFailure :: Ord v => Output v -> Bool
 isFailure o = case o of
   Success{} -> False
   NoUnisonFile{} -> True
+  InvalidSourceName{} -> True
+  SourceLoadFailed{} -> True
   NoMainFunction{} -> True
   CreatedNewBranch{} -> False
   BranchAlreadyExists{} -> True
@@ -290,6 +294,3 @@ isFailure o = case o of
   ListShallow _ es -> null es
   HashAmbiguous{} -> True
   ShowReflog{} -> False
-
-
-

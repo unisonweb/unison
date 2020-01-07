@@ -245,6 +245,14 @@ notifyUser dir o = case o of
       <> "directory. Make sure you've updated something there before using the"
       <> makeExample' IP.add <> "or" <> makeExample' IP.update
       <> "commands."
+  InvalidSourceName name ->
+    pure . P.callout "😶" $ P.wrap $  "The file "
+                                   <> P.blue (P.shown name)
+                                   <> " does not exist or is not a valid source file."
+  SourceLoadFailed name ->
+    pure . P.callout "😶" $ P.wrap $  "The file "
+                                   <> P.blue (P.shown name)
+                                   <> " could not be loaded."
   BranchNotFound _ b ->
     pure . P.warnCallout $ "The namespace " <> P.blue (P.shown b) <> " doesn't exist."
   CreatedNewBranch path -> pure $

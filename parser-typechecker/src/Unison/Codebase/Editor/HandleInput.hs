@@ -234,33 +234,34 @@ loop = do
             respond $
               TypeErrors text ppe [ err | Result.TypeError err <- toList notes ]
           Just (Right uf) -> k uf
+      loadUnisonFile sourceName text = do
+        let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
+        withFile [] sourceName (text, lexed) $ \unisonFile -> do
+          sr <- toSlurpResult currentPath' unisonFile <$> slurpResultNames0
+          names <- makeShadowedPrintNamesFromLabeled
+                      (UF.termSignatureExternalLabeledDependencies unisonFile)
+                      (UF.typecheckedToNames0 unisonFile)
+          ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
+          eval . Notify $ Typechecked sourceName ppe sr unisonFile
+          r <- eval . Evaluate ppe $ unisonFile
+          case r of
+            Left e -> eval . Notify $ EvaluationFailure e
+            Right (bindings, e) -> do
+              let e' = Map.map go e
+                  go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
+              when (not $ null e') $
+                eval . Notify $ Evaluated text ppe bindings e'
+              latestFile .= Just (Text.unpack sourceName, False)
+              latestTypecheckedFile .= Just unisonFile
 
   case e of
     Left (IncomingRootBranch hashes) ->
-      eval . NotifyUnpaged . WarnIncomingRootBranch $ Set.map (SBH.fromHash sbhLength) hashes
+      eval . Notify . WarnIncomingRootBranch $ Set.map (SBH.fromHash sbhLength) hashes
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
       if maybe False snd latestFile'
         then modifying latestFile (fmap (const False) <$>)
-        else do
-          let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
-          withFile [] sourceName (text, lexed) $ \unisonFile -> do
-            sr <- toSlurpResult currentPath' unisonFile <$> slurpResultNames0
-            names <- makeShadowedPrintNamesFromLabeled
-                        (UF.termSignatureExternalLabeledDependencies unisonFile)
-                        (UF.typecheckedToNames0 unisonFile)
-            ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
-            eval . NotifyUnpaged $ Typechecked sourceName ppe sr unisonFile
-            r <- eval . Evaluate ppe $ unisonFile
-            case r of
-              Left e -> eval . NotifyUnpaged $ EvaluationFailure e
-              Right (bindings, e) -> do
-                let e' = Map.map go e
-                    go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-                when (not $ null e') $
-                  eval . NotifyUnpaged $ Evaluated text ppe bindings e'
-                latestFile .= Just (Text.unpack sourceName, False)
-                latestTypecheckedFile .= Just unisonFile
+        else loadUnisonFile sourceName text
     Right input ->
       let
         ifConfirmed = ifM (confirmedCommand input)
@@ -322,6 +323,9 @@ loop = do
                        (uncurry3 printNamespace) orepo
               <> " "
               <> p' dest
+          LoadI{} -> wat
+          PreviewAddI{} -> wat
+          PreviewUpdateI{} -> wat
           PushRemoteBranchI{} -> wat
           PreviewMergeLocalBranchI{} -> wat
           SwitchBranchI{} -> wat
@@ -1042,6 +1046,16 @@ loop = do
           (hashConflicted from .
             Set.map (Referent.Ref . DerivedId))
 
+      LoadI maybePath ->
+        case maybePath <|> (fst <$> latestFile') of
+          Nothing   -> respond $ NoUnisonFile input
+          Just path -> do
+            res <- eval . LoadSource . Text.pack $ path
+            case res of
+              InvalidSourceNameError -> respond $ InvalidSourceName path
+              LoadError -> respond $ SourceLoadFailed path
+              LoadSuccess contents -> loadUnisonFile (Text.pack path) contents
+
       AddI hqs -> case uf of
         Nothing -> respond $ NoUnisonFile input
         Just uf -> do
@@ -1058,6 +1072,19 @@ loop = do
               (UF.termSignatureExternalLabeledDependencies uf)
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+
+      PreviewAddI hqs -> case (latestFile', uf) of
+        (Just (sourceName, _), Just uf) -> do
+          sr <-  Slurp.disallowUpdates
+                    .  applySelection hqs uf
+                    .  toSlurpResult currentPath' uf
+                   <$> slurpResultNames0
+          names <- makeShadowedPrintNamesFromLabeled
+                      (UF.termSignatureExternalLabeledDependencies uf)
+                      (UF.typecheckedToNames0 uf)
+          ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
+          respond $ Typechecked (Text.pack sourceName) ppe sr uf
+        _ -> respond $ NoUnisonFile input
 
       UpdateI maybePatchPath hqs -> case uf of
         Nothing -> respond $ NoUnisonFile input
@@ -1153,6 +1180,18 @@ loop = do
           respond $ SlurpOutput input ppe sr
           -- propagatePatch prints TodoOutput
           void $ propagatePatch inputDescription (updatePatch ye'ol'Patch) currentPath'
+
+      PreviewUpdateI hqs -> case (latestFile', uf) of
+        (Just (sourceName, _), Just uf) -> do
+          sr <-  applySelection hqs uf
+                    .  toSlurpResult currentPath' uf
+                   <$> slurpResultNames0
+          names <- makeShadowedPrintNamesFromLabeled
+                      (UF.termSignatureExternalLabeledDependencies uf)
+                      (UF.typecheckedToNames0 uf)
+          ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
+          respond $ Typechecked (Text.pack sourceName) ppe sr uf
+        _ -> respond $ NoUnisonFile input
 
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
