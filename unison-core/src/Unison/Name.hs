@@ -45,6 +45,8 @@ import           Data.List.Extra                ( dropEnd )
 import           Data.List.NonEmpty             ( NonEmpty((:|)) )
 import qualified Data.List.NonEmpty            as NonEmpty
 import qualified Data.Text                     as Text
+import           System.IO.Unsafe               ( unsafePerformIO )
+import           System.Environment             ( lookupEnv )
 import           Unison.Codebase.NameSegment    ( NameSegment )
 import qualified Unison.Codebase.NameSegment   as NameSegment
 import qualified Unison.Hashable               as H
@@ -52,6 +54,11 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import qualified Data.RFC5051                  as RFC5051
 import           Data.List                      ( sortBy, tails )
+
+-- | Use the new name when constructing names?
+useNewName :: Bool
+useNewName = unsafePerformIO (isJust <$> lookupEnv "NEW_NAME")
+{-# NOINLINE useNewName #-}
 
 data Name
   = Name Text
@@ -74,7 +81,11 @@ toText (Name' placement names) =
         Relative -> id
 
 fromNameSegment :: NameSegment -> Name
-fromNameSegment = unsafeFromText . NameSegment.toText
+fromNameSegment =
+  if useNewName then
+    undefined
+  else
+    unsafeFromText . NameSegment.toText
 
 sortNamed :: (a -> Name) -> [a] -> [a]
 sortNamed by as = let
@@ -92,7 +103,10 @@ sortNamed' by by2 as = let
 
 unsafeFromText :: Text -> Name
 unsafeFromText t =
-  if Text.any (== '#') t then error $ "not a name: " <> show t else Name t
+  if useNewName then
+    undefined
+  else
+    if Text.any (== '#') t then error $ "not a name: " <> show t else Name t
 
 toVar :: Var v => Name -> v
 toVar (Name t) = Var.named t
