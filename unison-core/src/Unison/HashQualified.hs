@@ -9,6 +9,7 @@ import           Data.Maybe                     ( fromJust
                                                 )
 import qualified Data.Text                     as Text
 import           Prelude                 hiding ( take )
+import           Unison.Codebase.NameSegment    ( NameSegment )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import           Unison.Reference               ( Reference )
@@ -51,9 +52,16 @@ toName = \case
 --   [.foo.bar, foo.bar] -> [foo.bar, .foo.bar]
 sortByLength :: [HashQualified] -> [HashQualified]
 sortByLength hs = sortOn f hs where
-  f (NameOnly n) = (Name.countDots n, 0, Left n)
-  f (HashQualified n _h) = (Name.countDots n, 1, Left n)
-  f (HashOnly h) = (maxBound, 0, Right h)
+  -- comparator: (num segments, is hash qualified, is absolute, name itself)
+  f :: HashQualified -> Either (Int, Bool, Bool, [NameSegment]) ShortHash
+  f = \case
+    NameOnly n -> Left (length ns, False, Name.isAbsolute n, ns)
+      where ns = Name.segments n
+    HashQualified n _h ->
+      Left (length ns, True, Name.isAbsolute n, ns)
+      where ns = Name.segments n
+    HashOnly h ->
+      Right h
 
 hasName, hasHash :: HashQualified -> Bool
 hasName = isJust . toName
