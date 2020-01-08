@@ -34,3 +34,5 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Evan Burchard (@evanburchard)
 * Alvaro Carrasco (@alvaroc1)
 * Vladislav Zavialov (@int-index)
+* Aaron Novstrup (@anovstrup)
+* Pete Tsamouris (@pete-ts)

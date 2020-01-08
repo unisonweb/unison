@@ -95,10 +95,11 @@ commandLine
   -> Runtime v
   -> (Output v -> IO ())
   -> (NumberedOutput v -> IO NumberedArgs)
+  -> (SourceName -> IO LoadSourceResult)
   -> Codebase IO v Ann
   -> Free (Command IO i v) a
   -> IO a
-commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered codebase =
+commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase =
  Free.fold go
  where
   go :: forall x . Command IO i v x -> IO x
@@ -109,6 +110,8 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered codebase
     Notify output -> notifyUser output
     NotifyNumbered output -> notifyNumbered output
     ConfigLookup name -> Config.lookup config name
+    LoadSource sourcePath -> loadSource sourcePath
+
     Typecheck ambient names sourceName source -> do
       -- todo: if guids are being shown to users,
       -- not ideal to generate new guid every time

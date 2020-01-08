@@ -16,6 +16,7 @@ import Prelude hiding (readFile, writeFile)
 import System.Exit (die)
 import System.IO.Error (catchIOError)
 import Unison.Codebase (Codebase)
+import Unison.Codebase.Editor.Command (LoadSourceResult (..))
 import Unison.Codebase.Editor.Input (Input (..), Event(UnisonFileChanged))
 import Unison.CommandLine
 import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
@@ -111,6 +112,7 @@ run dir configFile stanzas codebase = do
     numberedArgsRef          <- newIORef []
     inputQueue               <- Q.newIO
     cmdQueue                 <- Q.newIO
+    unisonFiles              <- newIORef Map.empty
     out                      <- newIORef mempty
     hidden                   <- newIORef False
     allowErrors              <- newIORef False
@@ -149,12 +151,12 @@ run dir configFile stanzas codebase = do
                 output ("\n" <> show p <> "\n")
                 -- invalid command is treated as a failure
                 case Map.lookup cmd patternMap of
-                  Nothing -> 
+                  Nothing ->
                     die
                   Just pat -> case IP.parse pat args of
                     Left msg -> do
                       output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
-                      die 
+                      die
                     Right input -> pure $ Right input
           Nothing -> do
             errOk <- readIORef allowErrors
@@ -191,6 +193,7 @@ run dir configFile stanzas codebase = do
                     writeIORef allowErrors errOk
                     output "```ucm\n"
                     atomically . Q.enqueue cmdQueue $ Nothing
+                    modifyIORef' unisonFiles (Map.insert (fromMaybe "scratch.u" filename) txt)
                     pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
                   Ucm hide errOk cmds -> do
                     writeIORef hidden hide
@@ -200,6 +203,14 @@ run dir configFile stanzas codebase = do
                     traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
                     atomically . Q.enqueue cmdQueue $ Nothing
                     awaitInput
+
+      loadPreviousUnisonBlock name = do
+        ufs <- readIORef unisonFiles
+        case Map.lookup name ufs of
+          Just uf -> do
+            return $ LoadSuccess uf
+          Nothing ->
+            return $ InvalidSourceNameError
 
       cleanup = do Runtime.terminate runtime; cancelConfig
       print o = do
@@ -221,7 +232,7 @@ run dir configFile stanzas codebase = do
           else die
         pure numberedArgs
 
-      die = do 
+      die = do
         output "\n```\n\n"
         transcriptFailure out $ Text.unlines [
           "\128721", "",
@@ -237,6 +248,7 @@ run dir configFile stanzas codebase = do
                                      runtime
                                      print
                                      printNumbered
+                                     loadPreviousUnisonBlock
                                      codebase
                                      free
         case o of

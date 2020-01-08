@@ -237,33 +237,34 @@ loop = do
             respond $
               TypeErrors text ppe [ err | Result.TypeError err <- toList notes ]
           Just (Right uf) -> k uf
+      loadUnisonFile sourceName text = do
+        let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
+        withFile [] sourceName (text, lexed) $ \unisonFile -> do
+          sr <- toSlurpResult currentPath' unisonFile <$> slurpResultNames0
+          names <- makeShadowedPrintNamesFromLabeled
+                      (UF.termSignatureExternalLabeledDependencies unisonFile)
+                      (UF.typecheckedToNames0 unisonFile)
+          ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
+          eval . Notify $ Typechecked sourceName ppe sr unisonFile
+          r <- eval . Evaluate ppe $ unisonFile
+          case r of
+            Left e -> eval . Notify $ EvaluationFailure e
+            Right (bindings, e) -> do
+              let e' = Map.map go e
+                  go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
+              when (not $ null e') $
+                eval . Notify $ Evaluated text ppe bindings e'
+              latestFile .= Just (Text.unpack sourceName, False)
+              latestTypecheckedFile .= Just unisonFile
 
   case e of
     Left (IncomingRootBranch hashes) ->
-      respond . WarnIncomingRootBranch $ Set.map (SBH.fromHash sbhLength) hashes
+      eval . Notify . WarnIncomingRootBranch $ Set.map (SBH.fromHash sbhLength) hashes
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
       if maybe False snd latestFile'
         then modifying latestFile (fmap (const False) <$>)
-        else do
-          let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
-          withFile [] sourceName (text, lexed) $ \unisonFile -> do
-            sr <- toSlurpResult currentPath' unisonFile <$> slurpResultNames0
-            names <- makeShadowedPrintNamesFromLabeled
-                        (UF.termSignatureExternalLabeledDependencies unisonFile)
-                        (UF.typecheckedToNames0 unisonFile)
-            ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
-            eval (Notify $ Typechecked sourceName ppe sr unisonFile)
-            r <- eval . Evaluate ppe $ unisonFile
-            case r of
-              Left e -> respond $ EvaluationFailure e
-              Right (bindings, e) -> do
-                let e' = Map.map go e
-                    go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-                when (not $ null e') $
-                  eval . Notify $ Evaluated text ppe bindings e'
-                latestFile .= Just (Text.unpack sourceName, False)
-                latestTypecheckedFile .= Just unisonFile
+        else loadUnisonFile sourceName text
     Right input ->
       let
         ifConfirmed = ifM (confirmedCommand input)
@@ -325,6 +326,9 @@ loop = do
                        (uncurry3 printNamespace) orepo
               <> " "
               <> p' dest
+          LoadI{} -> wat
+          PreviewAddI{} -> wat
+          PreviewUpdateI{} -> wat
           PushRemoteBranchI{} -> wat
           PreviewMergeLocalBranchI{} -> wat
           DiffNamespaceI{} -> wat
@@ -1065,6 +1069,16 @@ loop = do
           (hashConflicted from .
             Set.map (Referent.Ref . DerivedId))
 
+      LoadI maybePath ->
+        case maybePath <|> (fst <$> latestFile') of
+          Nothing   -> respond $ NoUnisonFile input
+          Just path -> do
+            res <- eval . LoadSource . Text.pack $ path
+            case res of
+              InvalidSourceNameError -> respond $ InvalidSourceName path
+              LoadError -> respond $ SourceLoadFailed path
+              LoadSuccess contents -> loadUnisonFile (Text.pack path) contents
+
       AddI hqs -> case uf of
         Nothing -> respond $ NoUnisonFile input
         Just uf -> do
@@ -1081,6 +1095,19 @@ loop = do
               (UF.termSignatureExternalLabeledDependencies uf)
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+
+      PreviewAddI hqs -> case (latestFile', uf) of
+        (Just (sourceName, _), Just uf) -> do
+          sr <-  Slurp.disallowUpdates
+                    .  applySelection hqs uf
+                    .  toSlurpResult currentPath' uf
+                   <$> slurpResultNames0
+          names <- makeShadowedPrintNamesFromLabeled
+                      (UF.termSignatureExternalLabeledDependencies uf)
+                      (UF.typecheckedToNames0 uf)
+          ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
+          respond $ Typechecked (Text.pack sourceName) ppe sr uf
+        _ -> respond $ NoUnisonFile input
 
       UpdateI maybePatchPath hqs -> case uf of
         Nothing -> respond $ NoUnisonFile input
@@ -1177,15 +1204,28 @@ loop = do
           -- propagatePatch prints TodoOutput
           void $ propagatePatch inputDescription (updatePatch ye'ol'Patch) currentPath'
 
+      PreviewUpdateI hqs -> case (latestFile', uf) of
+        (Just (sourceName, _), Just uf) -> do
+          sr <-  applySelection hqs uf
+                    .  toSlurpResult currentPath' uf
+                   <$> slurpResultNames0
+          names <- makeShadowedPrintNamesFromLabeled
+                      (UF.termSignatureExternalLabeledDependencies uf)
+                      (UF.typecheckedToNames0 uf)
+          ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
+          respond $ Typechecked (Text.pack sourceName) ppe sr uf
+        _ -> respond $ NoUnisonFile input
+
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
-        names <- makePrintNamesFromLabeled' $ Patch.labeledDependencies patch
-        ppe <- prettyPrintEnvDecl names
         branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
         let names0 = Branch.toNames0 (Branch.head branch)
         -- showTodoOutput only needs the local references
         -- to check for obsolete defs
-        showTodoOutput ppe patch names0
+        let getPpe = do
+              names <- makePrintNamesFromLabeled' $ Patch.labeledDependencies patch
+              prettyPrintEnvDecl names
+        showTodoOutput getPpe patch names0
 
       TestI showOk showFail -> do
         let
@@ -1465,18 +1505,30 @@ propagatePatch inputDescription patch scopePath = do
     scope <- getAt scopePath
     let names0 = Branch.toNames0 (Branch.head scope)
     -- this will be different AFTER the update succeeds
-    names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-    ppe <- prettyPrintEnvDecl names
-    showTodoOutput ppe patch names0
+    let getPpe = do
+          names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+          prettyPrintEnvDecl names
+    showTodoOutput getPpe patch names0
   pure changed
 
-showTodoOutput :: PPE.PrettyPrintEnvDecl -> Patch -> Names0 -> Action' m v ()
-showTodoOutput ppe patch names0 = do
+-- | Show todo output if there are any conflicts or edits.
+showTodoOutput
+  :: Action' m v PPE.PrettyPrintEnvDecl
+     -- ^ Action that fetches the pretty print env. It's expensive because it
+     -- involves looking up historical names, so only call it if necessary.
+  -> Patch
+  -> Names0
+  -> Action' m v ()
+showTodoOutput getPpe patch names0 = do
   todo <- checkTodo patch names0
-  numberedArgs .=
-    (Text.unpack . Reference.toText . view _2 <$>
-       fst (TO.todoFrontierDependents todo))
-  respond $ TodoOutput ppe todo
+  if TO.noConflicts todo && TO.noEdits todo
+    then respond NoConflictsOrEdits
+    else do
+      numberedArgs .=
+        (Text.unpack . Reference.toText . view _2 <$>
+          fst (TO.todoFrontierDependents todo))
+      ppe <- getPpe
+      respond $ TodoOutput ppe todo
 
 checkTodo :: Patch -> Names0 -> Action m i v (TO.TodoOutput v Ann)
 checkTodo patch names0 = do
@@ -1578,8 +1630,14 @@ _searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
 
 searchResultsFor :: Names0 -> [Referent] -> [Reference] -> [SearchResult]
 searchResultsFor ns terms types =
-  [ SR.termSearchResult ns (Names.termName ns ref) ref | ref <- terms ] <>
-  [ SR.typeSearchResult ns (Names.typeName ns ref) ref | ref <- types ]
+  [ SR.termSearchResult ns name ref
+  | ref <- terms
+  , name <- toList (Names.namesForReferent ns ref)
+  ] <>
+  [ SR.typeSearchResult ns name ref
+  | ref <- types
+  , name <- toList (Names.namesForReference ns ref)
+  ]
 
 searchBranchScored :: forall score. (Ord score)
               => Names0

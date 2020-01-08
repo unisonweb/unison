@@ -123,6 +123,7 @@ library
     Unison.Util.Find
     Unison.Util.Less
     Unison.Util.Logger
+    Unison.Util.Map
     Unison.Util.Menu
     Unison.Util.Pretty
     Unison.Util.Range

@@ -248,6 +248,14 @@ notifyUser dir o = case o of
       <> "directory. Make sure you've updated something there before using the"
       <> makeExample' IP.add <> "or" <> makeExample' IP.update
       <> "commands."
+  InvalidSourceName name ->
+    pure . P.callout "😶" $ P.wrap $  "The file "
+                                   <> P.blue (P.shown name)
+                                   <> " does not exist or is not a valid source file."
+  SourceLoadFailed name ->
+    pure . P.callout "😶" $ P.wrap $  "The file "
+                                   <> P.blue (P.shown name)
+                                   <> " could not be loaded."
   BranchNotFound _ b ->
     pure . P.warnCallout $ "The namespace " <> P.blue (P.shown b) <> " doesn't exist."
   CreatedNewBranch path -> pure $
@@ -439,7 +447,7 @@ notifyUser dir o = case o of
       "I loaded " <> P.text sourceName <> " and didn't find anything."
     else pure mempty
 
-  TodoOutput names todo -> todoOutput names todo
+  TodoOutput names todo -> pure (todoOutput names todo)
   GitError input e -> pure $ case e of
     NoGit -> P.wrap $
       "I couldn't find git. Make sure it's installed and on your path."
@@ -788,6 +796,8 @@ notifyUser dir o = case o of
             <> P.group (P.shown src <> ".")
     _ -> "Nothing to do."
   DumpNumberedArgs args -> pure . P.numberedList $ fmap P.string args
+  NoConflictsOrEdits ->
+    pure (P.okCallout "No conflicts or edits in progress.")
   DumpBitBooster head map -> let
     go output []          = output
     go output (head : queue) = case Map.lookup head map of
@@ -1104,15 +1114,11 @@ renderEditConflicts ppe Patch{..} =
     formatConflict = either formatTypeEdits formatTermEdits
 
 type Numbered a = State.State (Int, Seq.Seq String) a
-todoOutput :: Var v => PPE.PrettyPrintEnvDecl -> TO.TodoOutput v a -> IO Pretty
+
+todoOutput :: Var v => PPE.PrettyPrintEnvDecl -> TO.TodoOutput v a -> Pretty
 todoOutput ppe todo =
-  if noConflicts && noEdits
-  then pure $ P.okCallout "No conflicts or edits in progress."
-  else pure (todoConflicts <> todoEdits)
+  todoConflicts <> todoEdits
   where
-  noConflicts = TO.nameConflicts todo == mempty
-             && TO.editConflicts todo == Patch.empty
-  noEdits = TO.todoScore todo == 0
   ppeu = PPE.unsuffixifiedPPE ppe
   ppes = PPE.suffixifiedPPE ppe
   (frontierTerms, frontierTypes) = TO.todoFrontier todo
@@ -1123,7 +1129,7 @@ todoOutput ppe todo =
     [ (PPE.typeName ppeu r, r) | (r, MissingThing _) <- frontierTypes ]
   goodTerms ts =
     [ (PPE.termName ppeu (Referent.Ref r), typ) | (r, Just typ) <- ts ]
-  todoConflicts = if noConflicts then mempty else P.lines . P.nonEmpty $
+  todoConflicts = if TO.noConflicts todo then mempty else P.lines . P.nonEmpty $
     [ renderEditConflicts ppeu (TO.editConflicts todo)
     , renderNameConflicts conflictedTypeNames conflictedTermNames ]
     where
@@ -1159,7 +1165,7 @@ todoOutput ppe todo =
       termEditConflicts = R.filterDom (`R.manyDom` _termEdits) _termEdits
 
 
-  todoEdits = unlessM noEdits . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
+  todoEdits = unlessM (TO.noEdits todo) . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
       [ P.wrap ("The namespace has" <> fromString (show (TO.todoScore todo))
               <> "transitive dependent(s) left to upgrade."
               <> "Your edit frontier is the dependents of these definitions:")
