@@ -40,6 +40,7 @@ module Unison.Util.Pretty (
    indent,
    indentAfterNewline,
    indentN,
+   indentNonEmptyN,
    indentNAfterNewline,
    lBoxStyle1,
    lBoxStyle2,
@@ -501,6 +502,10 @@ indent by p = by <> indentAfterNewline by p
 
 indentN :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
 indentN by = indent (fromString $ replicate by ' ')
+
+indentNonEmptyN :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
+indentNonEmptyN _ (out -> Empty) = mempty
+indentNonEmptyN by p = indentN by p
 
 indentNAfterNewline
   :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s

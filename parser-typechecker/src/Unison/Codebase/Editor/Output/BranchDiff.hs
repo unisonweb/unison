@@ -1,6 +1,7 @@
 {-# Language DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Unison.Codebase.Editor.Output.BranchDiff where
 
@@ -59,6 +60,15 @@ data BranchDiffOutput v a = BranchDiffOutput {
   copiedTypes       :: [RenameTypeDisplay v a],
   copiedTerms       :: [RenameTermDisplay v a]
  } deriving Show
+
+isEmpty :: BranchDiffOutput v a -> Bool
+isEmpty BranchDiffOutput{..} =
+  null updatedTypes && null updatedTerms &&
+  null addedTypes && null addedTerms && null addedPatches &&
+  null removedTypes && null removedTerms && null removedPatches &&
+  null movedTypes && null movedTerms &&
+  null copiedTypes && null copiedTerms &&
+  propagatedUpdates == 0
 
 -- Need to be able to turn a (Name,Reference) into a HashQualified relative to... what.
 -- the new namespace?

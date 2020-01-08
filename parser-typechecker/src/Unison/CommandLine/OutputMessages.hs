@@ -1213,6 +1213,8 @@ showDiffNamespace :: forall v . Var v
                   -> Path.Absolute
                   -> OBD.BranchDiffOutput v Ann
                   -> (Pretty, NumberedArgs)
+showDiffNamespace _ _ _ diffOutput | OBD.isEmpty diffOutput =
+  ("The namespaces are identical.", mempty)
 showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
   let wrangleResult (p,(_n,args)) = (P.sepNonEmpty "\n\n" p, toList args) in
   wrangleResult . (`State.runState` (1::Int, Seq.empty)) . sequence $ [
@@ -1250,7 +1252,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
                 $ P.wrap ("& " <> P.shown propagatedUpdates
                                <> "auto-propagated updates")
           else mempty
-        , P.indentN 2 $ P.lines prettyAddedPatches
+        , P.indentNonEmptyN 2 $ P.lines prettyAddedPatches
         ]
     else pure mempty
   , if (not . null) removedTypes
