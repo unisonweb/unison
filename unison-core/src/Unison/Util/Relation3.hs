@@ -11,14 +11,15 @@ import qualified Unison.Util.Relation as R
 import Data.Semigroup (Sum(Sum, getSum))
 import Data.Tuple.Extra (uncurry3)
 
--- Represents a set of (fact, d1, d2, d3), but indexed using a star schema so
--- it can be efficiently quried from any of the dimensions.
 data Relation3 a b c
   = Relation3
   { d1 :: Map a (Relation b c)
   , d2 :: Map b (Relation a c)
   , d3 :: Map c (Relation a b)
-  } deriving (Eq,Ord,Show)
+  } deriving (Eq,Ord)
+
+instance (Show a, Show b, Show c) => Show (Relation3 a b c) where
+  show = show . toList
 
 d1s :: Relation3 a b c -> Set a
 d1s = Map.keysSet . d1

@@ -102,6 +102,8 @@ toOutput :: forall m v a
          -> m (BranchDiffOutput v a)
 toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
             (BranchDiff termsDiff typesDiff patchesDiff) = do
+  traceM "termsDiff"
+  traceShowM termsDiff
   let
     -- | This calculates the new reference's metadata as:
     --   adds: now-attached metadata that was missing from
@@ -123,10 +125,13 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
           { addedMetadata = toList $ new_metadata `Set.difference` old_intersection
           , removedMetadata = toList $ old_union `Set.difference` new_metadata
           }
-    getMetadataUpdates s =
-      [ (n, (Set.singleton r, Set.singleton r))
+    -- For the metadata on a definition to have changed, the name
+    -- and the reference must have existed before
+    getMetadataUpdates s = traceShowId $
+      [ (n, (Set.singleton r, Set.singleton r)) -- the reference is unchanged
       | (r,n,v) <- R3.toList $ BranchDiff.taddedMetadata s <>
                                BranchDiff.tremovedMetadata s
+      , R.notMember r n (BranchDiff.talladds s)
       , v /= isPropagatedValue ]
 
   updatedTypes :: [UpdateTypeDisplay v a] <- let
@@ -148,6 +153,8 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
             <*> declOrBuiltin r_new
             <*> fillMetadata ppe (getNewMetadataDiff typesDiff n rs_old r_new)
     loadEntry :: (Name, (Set Reference, Set Reference)) -> m (UpdateTypeDisplay v a)
+    loadEntry (n, (Set.toList -> [rold], Set.toList -> [rnew])) | rold == rnew =
+      (Nothing,) <$> for [rnew] (loadNew n (Set.singleton rold))
     loadEntry (n, (rs_old, rs_new)) =
       (,) <$> (Just <$> for (toList rs_old) (loadOld n))
           <*> for (toList rs_new) (loadNew n rs_old)
@@ -169,10 +176,13 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
             <*> pure r_new
             <*> typeOf r_new
             <*> fillMetadata ppe (getNewMetadataDiff termsDiff n rs_old r_new)
+    loadEntry (n, (Set.toList -> [rold], Set.toList -> [rnew])) | rold == rnew =
+      (Nothing,) <$> for [rnew] (loadNew n (Set.singleton rold))
     loadEntry (n, (rs_old, rs_new)) =
       (,) <$> (Just <$> for (toList rs_old) (loadOld n))
           <*> for (toList rs_new) (loadNew n rs_old)
     in for (sortOn fst . uniqueBy fst $ nsUpdates <> metadataUpdates) loadEntry
+    -- in for (sortOn fst . uniqueBy fst $ nsUpdates <> metadataUpdates) loadEntry
 
   let propagatedUpdates :: Int =
         (Set.size . R3.d2s . BranchDiff.propagatedNamespaceUpdates) typesDiff +

@@ -1218,7 +1218,7 @@ showDiffNamespace _ _ _ diffOutput | OBD.isEmpty diffOutput =
 showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
-  (p, (menuSize, args)) = (`State.runState` (1::Int, Seq.empty)) $ sequence [
+  (p, (menuSize, args)) = (`State.runState` (0::Int, Seq.empty)) $ sequence [
     if (not . null) updatedTypes
     || (not . null) updatedTerms
     || propagatedUpdates > 0
@@ -1235,7 +1235,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
                 $ P.wrap ("& " <> P.shown propagatedUpdates
                                <> "auto-propagated updates")
           else mempty
-        , P.indentN 2 . P.linesNonEmpty $ prettyUpdatedPatches
+        , P.indentNonEmptyN 2 . P.linesNonEmpty $ prettyUpdatedPatches
         ]
     else pure mempty
    ,if (not . null) addedTypes
@@ -1312,7 +1312,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
           -- [ "peach  ┐"
           -- , "peach' ┘"]
           olds' :: [Numbered Pretty] =
-            map (\(oldhq, oldp) -> numHQ oldPath oldhq r <&> (\n -> n <> oldp))
+            map (\(oldhq, oldp) -> numHQ oldPath oldhq r <&> (\n -> n <> " " <> oldp))
               . (zip (toList olds))
               . (P.boxRight' P.rBoxStyle2)
               . map (P.rightPad leftNamePad . phq')
@@ -1322,7 +1322,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
           -- ,  "└  17. ooga.booga2" ]
           news' :: [Numbered Pretty] =
             P.boxLeftM' P.lBoxStyle2
-              . map (\new -> numHQ newPath new r <&> (\n -> n <> phq' new))
+              . map (\new -> numHQ newPath new r <&> (\n -> n <> " " <> phq' new))
               $ toList news
           buildTable lefts rights = go arrow lefts rights where
             go :: Monad m => String -> [m Pretty] -> [m Pretty] -> m [Pretty]
@@ -1406,7 +1406,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
       pure $ zip3 nums (boxLeft names) decls
     prettyLine r otype (hq, mds) = do
       n <- numHQ newPath hq r
-      pure . (n, phq' hq, ) $ " : " <> prettyType otype <> case length mds of
+      pure . (n, phq' hq, ) $ ": " <> prettyType otype <> case length mds of
         0 -> mempty
         c -> " (+" <> P.shown c <> " metadata)"
 
@@ -1455,12 +1455,16 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
     fmap ((n,) . P.linesNonEmpty) . sequence $
       [ pure $ prettyDecl hq odecl
       , P.indentN leftNumsWidth <$> prettyMetadataDiff mddiff ]
+
+  -- + 2. MIT               : License
+  -- - 3. AllRightsReserved : License
   mdTermLine :: Path.Absolute -> Int -> OBD.TermDisplay v a -> Numbered (Pretty, Pretty)
   mdTermLine p namesWidth (hq, r, otype, mddiff) = do
     n <- numHQ p hq r
     fmap ((n,) . P.linesNonEmpty) . sequence $
       [ pure $ P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
-      , P.indentN leftNumsWidth <$> prettyMetadataDiff mddiff ]
+      , prettyMetadataDiff mddiff ]
+      -- , P.indentN 2 <$> prettyMetadataDiff mddiff ]
 
   prettyUpdateTerm :: OBD.UpdateTermDisplay v a -> Numbered Pretty
   prettyUpdateTerm (Nothing, newTerms) =
@@ -1480,12 +1484,12 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
 
   prettyMetadataDiff :: OBD.MetadataDiff (OBD.MetadataDisplay v a) -> Numbered Pretty
   prettyMetadataDiff OBD.MetadataDiff{..} = P.column2M $
-    map (elem oldPath " - ") removedMetadata <>
-    map (elem newPath " + ") addedMetadata
+    map (elem oldPath "- ") removedMetadata <>
+    map (elem newPath "+ ") addedMetadata
     where
     elem p x (hq, r, otype) = do
       num <- numHQ p hq r
-      pure (x <> num <> phq' hq, " : " <> prettyType otype)
+      pure (x <> num <> phq' hq, ": " <> prettyType otype)
 
   prettyType = maybe (P.red "type not found") (TypePrinter.pretty ppe)
   prettyDecl hq =
@@ -1510,9 +1514,9 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
     pure $ padNumber (n+1)
 
   padNumber :: Int -> Pretty
-  padNumber n = P.hiBlack . P.rightPad leftNumsWidth $ P.shown n <> ". "
+  padNumber n = P.hiBlack . P.rightPad leftNumsWidth $ P.shown n <> "."
 
-  leftNumsWidth = traceShowId $ length (show menuSize) + length (". "  :: String)
+  leftNumsWidth = traceShowId $ length (show menuSize) + length ("."  :: String)
 
 noResults :: Pretty
 noResults = P.callout "😶" $

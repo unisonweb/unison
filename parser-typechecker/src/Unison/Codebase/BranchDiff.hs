@@ -20,13 +20,13 @@ import Unison.Util.Relation (Relation)
 import Unison.Util.Relation3 (Relation3)
 import Unison.Runtime.IOSource (isPropagatedValue)
 
-data DiffType a = Create a | Delete a | Modify a
+data DiffType a = Create a | Delete a | Modify a deriving Show
 
 -- todo: maybe simplify this file using Relation3?
 data NamespaceSlice r = NamespaceSlice {
   names :: Relation r Name,
   metadata :: Relation3 r Name Metadata.Value
-}
+} deriving Show
 
 data DiffSlice r = DiffSlice {
 --  tpatchUpdates :: Relation r r, -- old new
@@ -37,13 +37,13 @@ data DiffSlice r = DiffSlice {
   tmoves :: Map r (Set Name, Set Name), -- ref (old, new)
   taddedMetadata :: Relation3 r Name Metadata.Value,
   tremovedMetadata :: Relation3 r Name Metadata.Value
-}
+} deriving Show
 
 data BranchDiff = BranchDiff
   { termsDiff :: DiffSlice Referent
   , typesDiff :: DiffSlice Reference
   , patchesDiff :: Map Name (DiffType PatchDiff)
-  }
+  } deriving Show
 
 diff0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m BranchDiff
 diff0 old new = BranchDiff terms types <$> patchDiff old new where
