@@ -1216,8 +1216,9 @@ showDiffNamespace :: forall v . Var v
 showDiffNamespace _ _ _ diffOutput | OBD.isEmpty diffOutput =
   ("The namespaces are identical.", mempty)
 showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
-  let wrangleResult (p,(_n,args)) = (P.sepNonEmpty "\n\n" p, toList args) in
-  wrangleResult . (`State.runState` (1::Int, Seq.empty)) . sequence $ [
+  (P.sepNonEmpty "\n\n" p, toList args)
+  where
+  (p, (menuSize, args)) = (`State.runState` (1::Int, Seq.empty)) $ sequence [
     if (not . null) updatedTypes
     || (not . null) updatedTerms
     || propagatedUpdates > 0
@@ -1237,7 +1238,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
         , P.indentN 2 . P.linesNonEmpty $ prettyUpdatedPatches
         ]
     else pure mempty
-  , if (not . null) addedTypes
+   ,if (not . null) addedTypes
     || (not . null) addedTerms
     || (not . null) addedPatches
     then do
@@ -1255,7 +1256,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
         , P.indentNonEmptyN 2 $ P.lines prettyAddedPatches
         ]
     else pure mempty
-  , if (not . null) removedTypes
+   ,if (not . null) removedTypes
     || (not . null) removedTerms
     || (not . null) removedPatches
     then do
@@ -1269,7 +1270,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
                                        , P.linesNonEmpty prettyRemovedPatches ]
        ]
     else pure mempty
-  , if (not . null) movedTypes
+   ,if (not . null) movedTypes
     || (not . null) movedTerms
     then do
       results <- prettyRenameGroups movedTypes movedTerms
@@ -1278,7 +1279,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
         , P.indentN 2 . P.sepNonEmpty "\n\n" $ results
         ]
     else pure mempty
-  , if (not . null) copiedTypes
+   ,if (not . null) copiedTypes
     || (not . null) copiedTerms
     then do
       results <- prettyRenameGroups copiedTypes copiedTerms
@@ -1287,8 +1288,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
         , P.indentN 2 . P.sepNonEmpty "\n\n" $ results
         ]
     else pure mempty
-  ]
-  where
+   ]
 
   {-
     13. peach  ┐  =>   ┌  14. moved.peach
@@ -1495,22 +1495,24 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
   --
   -- DeclPrinter.prettyDeclHeader : HQ -> Either
   numPatch :: Path.Absolute -> Name -> Numbered Pretty
-  numPatch prefix name = do
-    (n, args) <- State.get
-    State.put (n+1, args Seq.|> (Name.toString . Name.makeAbsolute $ Path.prefixName prefix name))
-    pure $ padNumber n
+  numPatch prefix name =
+    addNumberedArg . Name.toString . Name.makeAbsolute $ Path.prefixName prefix name
 
   numHQ :: Path.Absolute -> HQ'.HashQualified -> Referent -> Numbered Pretty
-  numHQ prefix hq r = do
-    (n,args) <- State.get
-    State.put (n+1, args Seq.|> HQ'.toString hq')
-    pure $ padNumber n
+  numHQ prefix hq r = addNumberedArg (HQ'.toString hq')
     where
     hq' = HQ'.requalify (fmap (Name.makeAbsolute . Path.prefixName prefix) hq) r
 
+  addNumberedArg :: String -> Numbered Pretty
+  addNumberedArg s = do
+    (n, args) <- State.get
+    State.put (n+1, args Seq.|> s)
+    pure $ padNumber (n+1)
+
   padNumber :: Int -> Pretty
   padNumber n = P.hiBlack . P.rightPad leftNumsWidth $ P.shown n <> ". "
-  leftNumsWidth = 4 -- length (show . max d) + length ". "
+
+  leftNumsWidth = traceShowId $ length (show menuSize) + length (". "  :: String)
 
 noResults :: Pretty
 noResults = P.callout "😶" $
