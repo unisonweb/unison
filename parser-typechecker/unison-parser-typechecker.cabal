@@ -96,11 +96,14 @@ library
     Unison.Result
     Unison.Runtime.ANF
     Unison.Runtime.IR
+    Unison.Runtime.IR2
     Unison.Runtime.Rt1
+    Unison.Runtime.Rt2
     Unison.Runtime.Rt1IO
     Unison.Runtime.IOSource
     Unison.Runtime.Vector
     Unison.Runtime.SparseVector
+    Unison.Runtime.Stack
     Unison.TermParser
     Unison.TermPrinter
     Unison.TypeParser
@@ -177,6 +180,7 @@ library
     network-simple,
     non-empty-sequence,
     process,
+    primitive,
     random,
     raw-strings-qq,
     regex-base,
@@ -212,7 +216,7 @@ library
     -- ViewPatterns
 
   if flag(optimized)
-    ghc-options: -funbox-strict-fields
+    ghc-options: -funbox-strict-fields -O2
 
   if flag(quiet)
     ghc-options: -v0
@@ -314,5 +318,16 @@ executable transcripts
     filepath,
     shellmet,
     text,
+    unison-core,
+    unison-parser-typechecker
+
+benchmark runtime
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  ghc-options: -O2
+  hs-source-dirs: benchmarks/runtime
+  build-depends:
+    base,
+    criterion,
     unison-core,
     unison-parser-typechecker
