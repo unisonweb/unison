@@ -1113,7 +1113,7 @@ renderEditConflicts ppe Patch{..} =
       P.oxfordCommas [ termName r | TermEdit.Replace r _ <- es ]
     formatConflict = either formatTypeEdits formatTermEdits
 
-type Numbered a = State.State (Int, Seq.Seq String) a
+type Numbered = State.State (Int, Seq.Seq String)
 
 todoOutput :: Var v => PPE.PrettyPrintEnvDecl -> TO.TodoOutput v a -> Pretty
 todoOutput ppe todo =
@@ -1229,7 +1229,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
       prettyUpdatedPatches :: [Pretty] <- traverse (prettySummarizePatch newPath) updatedPatches
       pure $ P.sepNonEmpty "\n\n"
         [ P.bold "Updates:"
-        , P.indentN 2 . P.linesNonEmpty $ prettyUpdatedTypes <> prettyUpdatedTerms
+        , P.indentN 2 . P.sepNonEmpty "\n\n" $ prettyUpdatedTypes <> prettyUpdatedTerms
         , if propagatedUpdates > 0
           then P.indentN 2
                 $ P.wrap ("& " <> P.shown propagatedUpdates
@@ -1278,6 +1278,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
         [ P.bold "Moves:"
         , P.indentN 2 . P.sepNonEmpty "\n\n" $ results
         ]
+        -- todo: change separator to just '\n' here if all the results are 1 to 1
     else pure mempty
    ,if (not . null) copiedTypes
     || (not . null) copiedTerms
@@ -1286,6 +1287,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
       pure $ P.sepNonEmpty "\n\n"
         [ P.bold "Copies:"
         , P.indentN 2 . P.sepNonEmpty "\n\n" $ results
+        -- todo: change separator to just '\n' here if all the results are 1 to 1
         ]
     else pure mempty
    ]
@@ -1324,20 +1326,12 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
             P.boxLeftM' P.lBoxStyle2
               . map (\new -> numHQ newPath new r <&> (\n -> n <> " " <> phq' new))
               $ toList news
-          buildTable lefts rights = go arrow lefts rights where
-            go :: Monad m => String -> [m Pretty] -> [m Pretty] -> m [Pretty]
-            go separator lefts rights = case (lefts, rights) of
-              (l:ls, r:rs) -> do
-                l <- l
-                r <- r
-                rest <- go noArrow ls rs
-                pure $ (l <> P.string separator <> r) : rest
-              ([], []) -> pure []
-              (ls, []) -> go separator ls [pure ""]
-              ([], rs) -> go separator [pure ""] rs
-            arrow = " => "
-            noArrow = replicate (length arrow) ' '
-          in P.lines <$> buildTable olds' news'
+          buildTable :: [Numbered Pretty] -> [Numbered Pretty] -> Numbered Pretty
+          buildTable lefts rights =
+            P.column3UnzippedM @Numbered mempty lefts [pure arrow] rights
+            where
+            arrow = "  =>  "
+          in buildTable olds' news'
 
   prettyUpdateType :: OBD.UpdateTypeDisplay v a -> Numbered Pretty
   {-
@@ -1353,7 +1347,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
   {-
       1. ┌ ability Foo#pqr x y
       2. └ ability Foo#xyz a b
-         ⧩ replaced with
+         ⧩
       4. ┌ ability Foo#abc
          │  5. - apiDocs : Doc
          │  6. + MIT     : License
@@ -1363,8 +1357,8 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
 
       1. ┌ foo#abc : Nat -> Nat -> Poop
       2. └ foo#xyz : Nat
-         ⧩ replaced with
-      4. [ foo	 : Poop
+         ↓
+      4. foo	 : Poop
            5. + foo.docs : Doc
   -}
   prettyUpdateType (Just olds, news) =
@@ -1424,11 +1418,11 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
         message = case messages of
           [] -> mempty
           x : ys -> " (" <> P.commas (x <> " updates" : ys) <> ")"
-    pure $ n <> "patch " <> prettyName name <> message
+    pure $ n <> P.bold " patch " <> prettyName name <> message
   --	18. patch q
   prettyNamePatch prefix (name, _patchDiff) = do
     n <- numPatch prefix name
-    pure $ n <> "patch " <> prettyName name
+    pure $ n <> P.bold " patch " <> prettyName name
 
   {-
   Removes:
@@ -1440,15 +1434,15 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
   prettyRemoveTypes :: [OBD.TypeDisplay v a] -> Numbered Pretty
   prettyRemoveTypes types = fmap P.lines . for types $ \(hq, r, odecl, _) -> do
     n <- numHQ oldPath hq (Referent.Ref r)
-    pure $ n <> prettyDecl hq odecl
+    pure $ n <> " " <> prettyDecl hq odecl
 
   prettyRemoveTerms :: [OBD.TermDisplay v a] -> Numbered Pretty
   prettyRemoveTerms terms = fmap P.lines . for terms $ \(hq, r, otype, _) -> do
     n <- numHQ oldPath hq r
-    pure $ n <> P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
+    pure $ n <> " " <> P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
     where namesWidth = foldl1' max $ fmap (HQ'.nameLength . view _1) terms
 
-  downArrow = P.bold "⧩ replaced with"
+  downArrow = P.bold "⧩"
   mdTypeLine :: Path.Absolute -> OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)
   mdTypeLine p (hq, r, odecl, mddiff) = do
     n <- numHQ p hq (Referent.Ref r)

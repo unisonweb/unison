@@ -12,8 +12,9 @@ Things we want to test:
 * With and without propagated updates
 
 ```unison
-a = 1
+fromJust = 1
 b = 2
+bdependent = b
 c = 3
 
 type A a = A Nat
@@ -22,14 +23,27 @@ ability X a1 a2 where x : Nat
 
 ```ucm
 .ns1> add
-.ns1> link a b
+.ns1> alias.term fromJust fromJust'
+.ns1> names b
+.ns1> names bdependent
+.ns1> link fromJust b
 .ns1> fork .ns1 .ns2
 .ns1> cd .
 .> diff.namespace ns1 ns2
 ```
 
 ```unison
-a = 99
+fromJust = "asldkfjasldkfj"
+```
+
+```ucm
+.ns1b> add
+.> merge ns1b ns1
+```
+
+```unison
+fromJust = 99
+b = "oog"
 d = 4
 e = 5
 f = 6
@@ -44,9 +58,12 @@ unique type Y a b = Y a b
 .> alias.type ns2.X ns2.X'
 .> diff.namespace ns1 ns2
 .> view 2
-.> link ns2.f ns1.a
+.> link ns2.f ns1.c
 .> diff.namespace ns1 ns2
-.> unlink ns2.a ns2.b
+.> unlink ns2.fromJust ns2.b
+.> diff.namespace ns1 ns2
+.> alias.type ns1.X ns1.X2
+.> alias.type ns2.A' ns2.A''
 .> diff.namespace ns1 ns2
 ```
 
@@ -57,23 +74,12 @@ unique type Y a b = Y a b
 ## Display issues to fixup
 
 - [x] An add with new metadata is getting characterized as an update
-- [ ] 12.patch patch needs a space
-- [ ] This looks like garbage
-  Updates:
-
-    1. [f : Nat
-
-       ⧩ replaced with
-    2. [f : Nat
-            + 3.a  : Nat
-
-
-    Things busted:
-      [x] Get rid of blank line before replaced with
-      [x] Missing a space after the metadata 3. number
-      3. Square brackets look bad, that was a bad idea and we
-         should feel bad.
-      [x] Metadata is indented waaay too far. Just be 1 level.
-
-- [ ] Try deleting blank line in between copies / renames entries
+- [x] 12.patch patch needs a space
+- [x] This looks like garbage
 - [x] Extra 2 blank lines at the end of the add section
+- [x] Fix alignment issues with buildTable, convert to column3M (to be written)
+- [ ] Delete blank line in between copies / renames entries if all entries are 1 to 1
+      see todo in the code
+- [ ] Things look screwy when the type signature doesn't fit and has to get broken
+      up into multiple lines. Maybe just disallow that?
+

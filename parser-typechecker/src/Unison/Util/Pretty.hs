@@ -25,6 +25,8 @@ module Unison.Util.Pretty (
    column2,
    column2M,
    column3,
+   column3M,
+   column3UnzippedM,
    column3sep,
    commas,
    commented,
@@ -421,6 +423,26 @@ column3
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s, Pretty s)] -> Pretty s
 column3 = column3sep ""
 
+column3M
+  :: (LL.ListLike s Char, IsString s, Monad m)
+  => [m (Pretty s, Pretty s, Pretty s)]
+  -> m (Pretty s)
+column3M = fmap column3 . sequence
+
+column3UnzippedM
+  :: forall m s . (LL.ListLike s Char, IsString s, Monad m)
+  => Pretty s
+  -> [m (Pretty s)]
+  -> [m (Pretty s)]
+  -> [m (Pretty s)]
+  -> m (Pretty s)
+column3UnzippedM bottomPadding left mid right = let
+  rowCount = maximum (fmap length [left, mid, right])
+  pad :: [m (Pretty s)] -> [m (Pretty s)]
+  pad a = a ++ replicate (rowCount - length a) (pure bottomPadding)
+  (pleft, pmid, pright) = (pad left, pad mid, pad right)
+  in column3M $ zipWith3 (liftA3 (,,)) pleft pmid pright
+
 column3sep
   :: (LL.ListLike s Char, IsString s) => Pretty s -> [(Pretty s, Pretty s, Pretty s)] -> Pretty s
 column3sep sep rows = let
@@ -606,18 +628,18 @@ type BoxStyle s =
   , (Pretty s, Pretty s) -- singleton
   )
 lBoxStyle1, lBoxStyle2, rBoxStyle2 :: IsString s => BoxStyle s
-lBoxStyle1 = (("┌", "│") -- first
-             ,("├", "│") -- middle
-             ,("└", " ") -- last
-             ,("[", " ")) -- singleton
-lBoxStyle2 = (("┌"," ")
-             ,("│"," ")
-             ,("└"," ")
-             ,(" "," "))
-rBoxStyle2 = (("┐", "│")
-             ,("│", "│")
-             ,("┘", " ")
-             ,(" ", " "))
+lBoxStyle1 = (("┌ ", "│ ") -- first
+             ,("├ ", "│ ") -- middle
+             ,("└ ", "  ") -- last
+             ,("", "")) -- singleton
+lBoxStyle2 = (("┌ ","  ")
+             ,("│ ","  ")
+             ,("└ ","  ")
+             ,("  ","  "))
+rBoxStyle2 = ((" ┐", " │")
+             ,(" │", " │")
+             ,(" ┘", "  ")
+             ,("  ", "  "))
 
 boxLeftM' :: forall m s . (Monad m, LL.ListLike s Char, IsString s)
           => BoxStyle s -> [m (Pretty s)] -> [m (Pretty s)]
