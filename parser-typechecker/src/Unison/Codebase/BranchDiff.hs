@@ -91,7 +91,7 @@ computeSlices :: NamespaceSlice Referent
               -> (DiffSlice Referent, DiffSlice Reference)
 computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut) where
   termsOut =
-    let nc = allNameChanges oldTerms newTerms in
+    let nc = allNames oldTerms newTerms in
     DiffSlice
       (allNamespaceUpdates oldTerms newTerms)
       (allAdds nc)
@@ -100,7 +100,7 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut) where
       (addedMetadata oldTerms newTerms)
       (removedMetadata oldTerms newTerms)
   typesOut =
-    let nc = allNameChanges oldTypes newTypes in
+    let nc = allNames oldTypes newTypes in
     DiffSlice
       (allNamespaceUpdates oldTypes newTypes)
       (allAdds nc)
@@ -109,8 +109,8 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut) where
       (addedMetadata oldTypes newTypes)
       (removedMetadata oldTypes newTypes)
 
-  allNameChanges :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Map r (Set Name, Set Name)
-  allNameChanges old new = R.outerJoinDomMultimaps (names old) (names new)
+  allNames :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Map r (Set Name, Set Name)
+  allNames old new = R.outerJoinDomMultimaps (names old) (names new)
 
   allAdds, allRemoves :: forall r. Ord r
                       => Map r (Set Name, Set Name) -> Relation r Name
@@ -120,7 +120,7 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut) where
   remainingNameChanges :: forall r. Ord r
                        => Map r (Set Name, Set Name) -> Map r (Set Name, Set Name)
   remainingNameChanges =
-    Map.filter (\(old, new) -> not (null old) && not (null new))
+    Map.filter (\(old, new) -> not (null old) && not (null new) && old /= new)
 
   allNamespaceUpdates :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Relation3 r r Name
   allNamespaceUpdates old new =

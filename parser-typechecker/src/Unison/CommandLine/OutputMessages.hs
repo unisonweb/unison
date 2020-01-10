@@ -1282,11 +1282,9 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
     else pure mempty
    ]
 
-  {-
-    13. peach  ┐  =>   ┌  14. moved.peach
-    15. peach' ┘       │  16. ooga.booga
-                       └  17. ooga.booga2
-    18. blah      =>   19. blah2
+  {- new implementation
+    23. X  ┐  =>  (added)   24. X'
+    25. X2 ┘      (removed) 26. X2
   -}
   prettyRenameGroups :: [OBD.RenameTypeDisplay v a]
                      -> [OBD.RenameTermDisplay v a]
@@ -1309,13 +1307,22 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
               . P.boxRight
               . map (P.rightPad leftNamePad . phq')
               $ toList olds
-          -- [  "┌  14. moved.peach"
-          -- ,  "│  16. ooga.booga"
-          -- ,  "└  17. ooga.booga2" ]
+
+          added' = toList $ Set.difference news olds
+          removed' = toList $ Set.difference olds news
+          -- [ "(added)   24. X'"
+          -- , "(removed) 26. X2"
+          -- ]
+
           news' :: [Numbered Pretty] =
-            P.boxLeftM
-              . map (\new -> numHQ newPath new r <&> (\n -> n <> " " <> phq' new))
-              $ toList news
+            map (number addedLabel) added' ++ map (number removedLabel) removed'
+            where
+            addedLabel   = "(added)  "
+            removedLabel = "(removed)"
+            number label name =
+              numHQ newPath name r <&>
+                (\num -> label <> " " <> num <> " " <> phq' name)
+
           buildTable :: [Numbered Pretty] -> [Numbered Pretty] -> Numbered Pretty
           buildTable lefts rights =
             P.column3UnzippedM @Numbered mempty lefts [pure arrow] rights

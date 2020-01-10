@@ -638,11 +638,11 @@ lBoxStyle1, lBoxStyle2, rBoxStyle2 :: IsString s => BoxStyle s
 lBoxStyle1 = (("┌ ", "│ ") -- first
              ,("├ ", "│ ") -- middle
              ,("└ ", "  ") -- last
-             ,("", "")) -- singleton
+             ,(""  , "" )) -- singleton
 lBoxStyle2 = (("┌ ","  ")
              ,("│ ","  ")
              ,("└ ","  ")
-             ,("  ","  "))
+             ,(""  ,""  ))
 rBoxStyle2 = ((" ┐", " │")
              ,(" │", " │")
              ,(" ┘", "  ")
