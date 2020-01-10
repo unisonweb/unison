@@ -26,6 +26,7 @@ import qualified Unison.Codebase.Editor.SearchResult'    as SR'
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 
 
+import           Control.Lens
 import qualified Control.Monad.State.Strict    as State
 import           Data.Bifunctor                (bimap, first)
 import           Data.List                     (sortOn, stripPrefix)
@@ -1391,7 +1392,8 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
         c -> " (+" <> P.shown c <> " metadata)"
 
   prettyAddTerms :: [OBD.AddedTermDisplay v a] -> Numbered Pretty
-  prettyAddTerms = fmap (P.column3 . mconcat) . traverse prettyGroup where
+  prettyAddTerms = fmap (P.column3 . mconcat) . traverse prettyGroup . reorderTerms where
+    reorderTerms = sortOn (not . Referent.isConstructor . view _2)
     prettyGroup :: OBD.AddedTermDisplay v a -> Numbered [(Pretty, Pretty, Pretty)]
     prettyGroup (hqmds, r, otype) = do
       pairs <- traverse (prettyLine r otype) hqmds
@@ -1445,7 +1447,8 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
       pure (n, prettyDecl hq odecl)
 
   prettyRemoveTerms :: [OBD.RemovedTermDisplay v a] -> Numbered Pretty
-  prettyRemoveTerms = fmap (P.column3 . mconcat) . traverse prettyGroup where
+  prettyRemoveTerms = fmap (P.column3 . mconcat) . traverse prettyGroup . reorderTerms where
+    reorderTerms = sortOn (not . Referent.isConstructor . view _2)
     prettyGroup :: OBD.RemovedTermDisplay v a -> Numbered [(Pretty, Pretty, Pretty)]
     prettyGroup ([], r, _) =
       error $ "trying to remove " <> show r <> " without any names."

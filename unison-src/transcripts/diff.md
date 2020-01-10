@@ -72,9 +72,10 @@ unique type Y a b = Y a b
 - [ ] Things look screwy when the type signature doesn't fit and has to get broken
       up into multiple lines. Maybe just disallow that?
 - [ ] add tagging of propagated updates to test propagated updates output
-- [ ] Make a decision about how we want to show constructors in the diff
 - [ ] Delete blank line in between copies / renames entries if all entries are 1 to 1
       see todo in the code
+- [ ] Maybe group and/or add headings to the types, constructors, terms
+- [x] Make a decision about how we want to show constructors in the diff
 - [x] When you delete a name with metadata, it also shows up in updates section
       with the deleted metadata.
 - [x] An add with new metadata is getting characterized as an update
