@@ -101,11 +101,78 @@ unique type Y a b = Y a b
 
   what about:
 
-    Renames:
+    Name changes:
 
-      23. X  ┐  =>  + 24. X'
-      25. X2 ┘      - 26. X2
+      23. X  ┐  =>  (added)   24. X'
+      25. X2 ┘      (removed) 26. X2
+
+      23. X was removed
+
+      23. X  ┐  =>  24. X'
+      25. X2 ┘
+
+      24. A     =>   ┌ 25. A'
+                     └ 26. A''
+
+
+  {A,A',B}, {A,A',B}
+
+    No change to {A,A',B}
+
+  {A,A',B}, {A,A'}
+
+    B => {} (B was deleted)
+
+  {A,A',B}, {A,A',B,C}
+
+    {A,A',B} => {C} (C was added as a name)
+
+  Proposal:
+
+    Just have one section for all name changes (removes, moves, copies combined)
+    Each item is showing a pair of sets (old names, new names)
+    The old names are just shown in their entirety
+    The added names are new names - old names
+    The removed names are old names - new names
+    Added and removed names are shown on the right, tagged as added or removed
+
+      23. X  ┐  =>  (added)   24. X'
+      25. X2 ┘      (removed) 26. X2
+
+
+    Removes:
+
+      11. unique type Y a b
+      12. ┌ d  : Nat
+      13. └ d'
+      12. unique type {Frobnicate,Y} a b
+      14. e    : Nat
+      15. f    : Nat (+1 metadata)
+      16. Y.Y  : a -> b -> Y a b
+
+      -- no special case
+      23. X     =>  (removed) 24. X
+
+      -- special case removal (when RHS is empty set)
+      23. X     =>  (removed)
+
+      23. X  ┐  =>  (removed)
+      25. X2 ┘
+
+      23. X     =>  (removed)
+      23. X was removed
+
+      23. X (removed)  ┐
+      25. X2 (removed) ┘
+
+
+
 
   and then "Removes" would mean: the reference no longer exists in the namespace
 
 - [ ] some overlapping cases between Moves and Copies^
+- [ ] Make a decision about how we want to show constructors in the diff
+- [ ] Maybe don't list the type signature twice for aliases?
+
+      12. ┌ d  : Nat
+      13. └ d'
