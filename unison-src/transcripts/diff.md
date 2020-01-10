@@ -69,108 +69,21 @@ unique type Y a b = Y a b
 ```
 
 ## Display issues to fixup
+- [ ] Things look screwy when the type signature doesn't fit and has to get broken
+      up into multiple lines. Maybe just disallow that?
+- [ ] add tagging of propagated updates to test propagated updates output
+- [ ] Make a decision about how we want to show constructors in the diff
+- [ ] Delete blank line in between copies / renames entries if all entries are 1 to 1
+      see todo in the code
+- [x] When you delete a name with metadata, it also shows up in updates section
+      with the deleted metadata.
 - [x] An add with new metadata is getting characterized as an update
 - [x] can there be a metadata-only update where it's not a singleton old and new reference
 - [x] 12.patch patch needs a space
 - [x] This looks like garbage
 - [x] Extra 2 blank lines at the end of the add section
 - [x] Fix alignment issues with buildTable, convert to column3M (to be written)
-- [ ] Delete blank line in between copies / renames entries if all entries are 1 to 1
-      see todo in the code
-- [ ] Things look screwy when the type signature doesn't fit and has to get broken
-      up into multiple lines. Maybe just disallow that?
-- [ ] add tagging of propagated updates to test propagated updates output
 - [x] adding an alias is showing up as an Add and a Copy; should just show as Copy
-- [ ] removing one of multiple aliases appears in removes + moves + copies section
-  - maybe: anything that's the target of a Move should be filtered out of Removes
-
-      Removes:
-
-        22. ability X2 a1 a2
-
-      Moves:
-
-        23. X2     =>     24. X'
-
-      Copies:
-
-        25. X  ┐   =>     26. X'
-        27. X2 ┘
-
-  what about:
-
-    Name changes:
-
-      23. X  ┐  =>  (added)   24. X'
-      25. X2 ┘      (removed) 26. X2
-
-      23. X was removed
-
-      23. X  ┐  =>  24. X'
-      25. X2 ┘
-
-      24. A     =>   ┌ 25. A'
-                     └ 26. A''
-
-
-  {A,A',B}, {A,A',B}
-
-    No change to {A,A',B}
-
-  {A,A',B}, {A,A'}
-
-    B => {} (B was deleted)
-
-  {A,A',B}, {A,A',B,C}
-
-    {A,A',B} => {C} (C was added as a name)
-
-  Proposal:
-
-    Just have one section for all name changes (removes, moves, copies combined)
-    Each item is showing a pair of sets (old names, new names)
-    The old names are just shown in their entirety
-    The added names are new names - old names
-    The removed names are old names - new names
-    Added and removed names are shown on the right, tagged as added or removed
-
-      23. X  ┐  =>  (added)   24. X'
-      25. X2 ┘      (removed) 26. X2
-
-
-    Removes:
-
-      11. unique type Y a b
-      12. ┌ d  : Nat
-      13. └ d'
-      12. unique type {Frobnicate,Y} a b
-      14. e    : Nat
-      15. f    : Nat (+1 metadata)
-      16. Y.Y  : a -> b -> Y a b
-
-      -- no special case
-      23. X     =>  (removed) 24. X
-
-      -- special case removal (when RHS is empty set)
-      23. X     =>  (removed)
-
-      23. X  ┐  =>  (removed)
-      25. X2 ┘
-
-      23. X     =>  (removed)
-      23. X was removed
-
-      23. X (removed)  ┐
-      25. X2 (removed) ┘
-
-
-
-
-  and then "Removes" would mean: the reference no longer exists in the namespace
-
-- [ ] some overlapping cases between Moves and Copies^
-- [ ] Make a decision about how we want to show constructors in the diff
-- [ ] Maybe don't list the type signature twice for aliases?
-
-      12. ┌ d  : Nat
-      13. └ d'
+- [x] removing one of multiple aliases appears in removes + moves + copies section
+- [x] some overlapping cases between Moves and Copies^
+- [x] Maybe don't list the type signature twice for aliases?

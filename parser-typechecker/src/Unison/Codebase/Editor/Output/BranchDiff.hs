@@ -126,12 +126,14 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
           , removedMetadata = toList $ old_union `Set.difference` new_metadata
           }
     -- For the metadata on a definition to have changed, the name
-    -- and the reference must have existed before
+    -- and the reference must have existed before and the reference
+    -- must not have been removed
     getMetadataUpdates s = traceShowId $
       [ (n, (Set.singleton r, Set.singleton r)) -- the reference is unchanged
       | (r,n,v) <- R3.toList $ BranchDiff.taddedMetadata s <>
                                BranchDiff.tremovedMetadata s
       , R.notMember r n (BranchDiff.talladds s)
+      , R.notMember r n (BranchDiff.tallremoves s)
       , v /= isPropagatedValue ]
 
   updatedTypes :: [UpdateTypeDisplay v a] <- let
