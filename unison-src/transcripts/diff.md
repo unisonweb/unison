@@ -68,6 +68,7 @@ unique type Y a b = Y a b
 .> alias.type ns2.A' ns2.A''
 .> delete.term ns2.fromJust'
 .> diff.namespace ns1 ns2
+.> diff.namespace ns2 nsempty
 ```
 
 ## Display issues to fixup

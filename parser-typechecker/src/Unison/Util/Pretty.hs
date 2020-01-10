@@ -10,9 +10,11 @@ module Unison.Util.Pretty (
    ColorText,
    align,
    backticked,
+   boxForkLeft,
    boxLeft,
-   boxLeftM',
-   boxRight',
+   boxLeftM,
+   boxRight,
+   boxRightM,
    bulleted,
    bracket,
    -- breakable
@@ -44,8 +46,6 @@ module Unison.Util.Pretty (
    indentN,
    indentNonEmptyN,
    indentNAfterNewline,
-   lBoxStyle1,
-   lBoxStyle2,
    leftPad,
    lines,
    linesNonEmpty,
@@ -68,7 +68,6 @@ module Unison.Util.Pretty (
    parenthesizeIf,
    preferredWidth,
    preferredHeight,
-   rBoxStyle2,
    render,
    renderUnbroken,
    rightPad,
@@ -618,8 +617,16 @@ callout header p = header <> "\n\n" <> p
 bracket :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
 bracket = indent "  "
 
-boxLeft :: forall s . (LL.ListLike s Char, IsString s) => [Pretty s] -> [Pretty s]
-boxLeft ps = fmap runIdentity . boxLeftM' lBoxStyle1 $ fmap Identity ps
+boxForkLeft, boxLeft, boxRight ::
+  forall s . (LL.ListLike s Char, IsString s) => [Pretty s] -> [Pretty s]
+boxForkLeft = boxLeft' lBoxStyle1
+boxLeft = boxLeft' lBoxStyle2
+boxRight = boxRight' rBoxStyle2
+
+boxLeft', boxRight' :: (LL.ListLike s Char, IsString s)
+         => BoxStyle s -> [Pretty s] -> [Pretty s]
+boxLeft' style = fmap runIdentity . boxLeftM' style . fmap Identity
+boxRight' style = fmap runIdentity . boxRightM' style . fmap Identity
 
 type BoxStyle s =
   ( (Pretty s, Pretty s) -- first (start, continue)
@@ -641,6 +648,11 @@ rBoxStyle2 = ((" ┐", " │")
              ,(" ┘", "  ")
              ,("  ", "  "))
 
+boxLeftM, boxRightM :: forall m s . (Monad m, LL.ListLike s Char, IsString s)
+         => [m (Pretty s)] -> [m (Pretty s)]
+boxLeftM = boxLeftM' lBoxStyle2
+boxRightM = boxRightM' rBoxStyle2
+
 boxLeftM' :: forall m s . (Monad m, LL.ListLike s Char, IsString s)
           => BoxStyle s -> [m (Pretty s)] -> [m (Pretty s)]
 boxLeftM' (first, middle, last, singleton) ps = go (Seq.fromList ps) where
@@ -654,9 +666,7 @@ boxLeftM' (first, middle, last, singleton) ps = go (Seq.fromList ps) where
 
 -- this implementation doesn't work for multi-line inputs,
 -- because i dunno how to inspect multi-line inputs
-boxRight' :: forall s . (LL.ListLike s Char, IsString s)
-          => BoxStyle s -> [Pretty s] -> [Pretty s]
-boxRight' style = fmap runIdentity . boxRightM' style . fmap Identity
+
 
 boxRightM' :: forall m s. (Monad m, LL.ListLike s Char, IsString s)
            => BoxStyle s -> [m (Pretty s)] -> [m (Pretty s)]

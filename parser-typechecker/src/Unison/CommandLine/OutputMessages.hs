@@ -1316,14 +1316,14 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
           olds' :: [Numbered Pretty] =
             map (\(oldhq, oldp) -> numHQ oldPath oldhq r <&> (\n -> n <> " " <> oldp))
               . (zip (toList olds))
-              . (P.boxRight' P.rBoxStyle2)
+              . P.boxRight
               . map (P.rightPad leftNamePad . phq')
               $ toList olds
           -- [  "┌  14. moved.peach"
           -- ,  "│  16. ooga.booga"
           -- ,  "└  17. ooga.booga2" ]
           news' :: [Numbered Pretty] =
-            P.boxLeftM' P.lBoxStyle2
+            P.boxLeftM
               . map (\new -> numHQ newPath new r <&> (\n -> n <> " " <> phq' new))
               $ toList news
           buildTable :: [Numbered Pretty] -> [Numbered Pretty] -> Numbered Pretty
@@ -1427,20 +1427,40 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
   {-
   Removes:
 
-    10.  oldn'busted : Nat -> Nat -> Poop
-    11.  ability BadType
-    12.  patch defunctThingy
+    10. ┌ oldn'busted : Nat -> Nat -> Poop
+    11. └ oldn'busted'
+    12.  ability BadType
+    13.  patch defunctThingy
 	-}
-  prettyRemoveTypes :: [OBD.TypeDisplay v a] -> Numbered Pretty
-  prettyRemoveTypes types = fmap P.lines . for types $ \(hq, r, odecl, _) -> do
-    n <- numHQ oldPath hq (Referent.Ref r)
-    pure $ n <> " " <> prettyDecl hq odecl
+  prettyRemoveTypes :: [OBD.RemovedTypeDisplay v a] -> Numbered Pretty
+  prettyRemoveTypes = fmap P.lines . traverse prettyGroup where
+    prettyGroup :: OBD.RemovedTypeDisplay v a -> Numbered Pretty
+    prettyGroup (hqs, r, odecl) = do
+      lines <- traverse (prettyLine r odecl) hqs
+      let (nums, decls) = unzip lines
+          boxLeft = case hqs of _:_:_ -> P.boxLeft; _ -> id
+      pure . P.column2 $ zip nums (boxLeft decls)
+    prettyLine r odecl hq = do
+      n <- numHQ newPath hq (Referent.Ref r)
+      pure (n, prettyDecl hq odecl)
 
-  prettyRemoveTerms :: [OBD.TermDisplay v a] -> Numbered Pretty
-  prettyRemoveTerms terms = fmap P.lines . for terms $ \(hq, r, otype, _) -> do
-    n <- numHQ oldPath hq r
-    pure $ n <> " " <> P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
-    where namesWidth = foldl1' max $ fmap (HQ'.nameLength . view _1) terms
+  prettyRemoveTerms :: [OBD.RemovedTermDisplay v a] -> Numbered Pretty
+  prettyRemoveTerms = fmap (P.column3 . mconcat) . traverse prettyGroup where
+    prettyGroup :: OBD.RemovedTermDisplay v a -> Numbered [(Pretty, Pretty, Pretty)]
+    prettyGroup ([], r, _) =
+      error $ "trying to remove " <> show r <> " without any names."
+    prettyGroup (hq1:hqs, r, otype) = do
+      line1 <- prettyLine1 r otype hq1
+      lines <- traverse (prettyLine r) hqs
+      let (nums, names, decls) = unzip3 (line1:lines)
+          boxLeft = case hqs of _:_ -> P.boxLeft; _ -> id
+      pure $ zip3 nums (boxLeft names) decls
+    prettyLine1 r otype hq = do
+      n <- numHQ newPath hq r
+      pure (n, phq' hq, ": " <> prettyType otype)
+    prettyLine r hq = do
+      n <- numHQ newPath hq r
+      pure (n, phq' hq, mempty)
 
   downArrow = P.bold "↓"
   mdTypeLine :: Path.Absolute -> OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)

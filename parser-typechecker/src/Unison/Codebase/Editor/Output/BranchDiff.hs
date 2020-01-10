@@ -52,8 +52,8 @@ data BranchDiffOutput v a = BranchDiffOutput {
   addedTypes        :: [AddedTypeDisplay v a],
   addedTerms        :: [AddedTermDisplay v a],
   addedPatches      :: [PatchDisplay],
-  removedTypes      :: [TypeDisplay v a],
-  removedTerms      :: [TermDisplay v a],
+  removedTypes      :: [RemovedTypeDisplay v a],
+  removedTerms      :: [RemovedTermDisplay v a],
   removedPatches    :: [PatchDisplay],
   movedTypes        :: [RenameTypeDisplay v a],
   movedTerms        :: [RenameTermDisplay v a],
@@ -78,6 +78,9 @@ type TypeDisplay v a = (HashQualified, Reference, Maybe (DeclOrBuiltin v a), Met
 
 type AddedTermDisplay v a = ([(HashQualified, [MetadataDisplay v a])], Referent, Maybe (Type v a))
 type AddedTypeDisplay v a = ([(HashQualified, [MetadataDisplay v a])], Reference, Maybe (DeclOrBuiltin v a))
+
+type RemovedTermDisplay v a = ([HashQualified], Referent, Maybe (Type v a))
+type RemovedTypeDisplay v a = ([HashQualified], Reference, Maybe (DeclOrBuiltin v a))
 
 type SimpleTermDisplay v a = (HashQualified, Referent, Maybe (Type v a))
 type SimpleTypeDisplay v a = (HashQualified, Reference, Maybe (DeclOrBuiltin v a))
@@ -223,25 +226,21 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
         [ (name, diff)
         | (name, BranchDiff.Create diff) <- Map.toList patchesDiff ]
 
-  removedTypes :: [TypeDisplay v a] <- let
-    typeRemoves :: [(Reference, Name, [Metadata.Value])] =
-      [ (r, n, toList $ getRemovedMetadata r n typesDiff )
-      | (r, n) <- R.toList . BranchDiff.removes $ typesDiff ]
-    in for typeRemoves $ \(r, n, mdRefs) ->
-      (,,,) <$> pure (Names2.hqTypeName hqLen names1 n r)
-            <*> pure r
-            <*> declOrBuiltin r
-            <*> fillMetadata ppe (mempty { removedMetadata = mdRefs })
+  removedTypes :: [RemovedTypeDisplay v a] <- let
+    typeRemoves :: [(Reference, [Name])] =
+      Map.toList . fmap toList . R.toMultimap . BranchDiff.removes $ typesDiff
+    in for typeRemoves $ \(r, ns) ->
+      (,,) <$> pure ((\n -> Names2.hqTypeName hqLen names1 n r) <$> ns)
+           <*> pure r
+           <*> declOrBuiltin r
 
-  removedTerms :: [TermDisplay v a] <- let
-    termRemoves :: [(Referent, Name, [Metadata.Value])] =
-      [ (r, n, toList $ getRemovedMetadata r n termsDiff )
-      | (r, n) <- R.toList . BranchDiff.removes $ termsDiff ]
-    in for termRemoves $ \(r, n, mdRefs) ->
-      (,,,) <$> pure (Names2.hqTermName hqLen names1 n r)
-            <*> pure r
-            <*> typeOf r
-            <*> fillMetadata ppe (mempty { removedMetadata = mdRefs })
+  removedTerms :: [RemovedTermDisplay v a] <- let
+    termRemoves :: [(Referent, [Name])] =
+      Map.toList . fmap toList . R.toMultimap . BranchDiff.removes $ termsDiff
+    in for termRemoves $ \(r, ns) ->
+      (,,) <$> pure ((\n -> Names2.hqTermName hqLen names1 n r) <$> ns)
+           <*> pure r
+           <*> typeOf r
 
   let removedPatches :: [PatchDisplay] =
         [ (name, diff)
@@ -290,9 +289,8 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
   _getMetadata :: Ord r => r -> Name -> R3.Relation3 r Name Metadata.Value -> Set Metadata.Value
   _getMetadata r n r3 = R.lookupDom n . R3.lookupD1 r $ r3
 
-  getAddedMetadata, getRemovedMetadata :: Ord r => r -> Name -> BranchDiff.DiffSlice r -> Set Metadata.Value
+  getAddedMetadata :: Ord r => r -> Name -> BranchDiff.DiffSlice r -> Set Metadata.Value
   getAddedMetadata r n slice = _getMetadata r n $ BranchDiff.taddedMetadata slice
-  getRemovedMetadata r n slice = _getMetadata r n $ BranchDiff.tremovedMetadata slice
 
 -- references for definitions that were updated
 
