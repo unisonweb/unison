@@ -11,7 +11,7 @@ Things we want to test:
 * New patches, modified patches, deleted patches, moved patches
 * With and without propagated updates
 
-```unison
+```unison:hide
 fromJust = 1
 b = 2
 bdependent = b
@@ -26,15 +26,13 @@ ability X a1 a2 where x : Nat
 .ns1> add
 .ns1> alias.term fromJust fromJust'
 .ns1> alias.term helloWorld helloWorld2
-.ns1> names b
-.ns1> names bdependent
 .ns1> link fromJust b
 .ns1> fork .ns1 .ns2
 .ns1> cd .
 .> diff.namespace ns1 ns2
 ```
 
-```unison
+```unison:hide
 fromJust = "asldkfjasldkfj"
 ```
 
@@ -43,7 +41,7 @@ fromJust = "asldkfjasldkfj"
 .> merge ns1b ns1
 ```
 
-```unison
+```unison:hide
 fromJust = 99
 b = "oog"
 d = 4
@@ -59,7 +57,6 @@ unique type Y a b = Y a b
 .> alias.type ns2.A ns2.A'
 .> alias.type ns2.X ns2.X'
 .> diff.namespace ns1 ns2
-.> view 2
 .> link ns2.f ns1.c
 .> diff.namespace ns1 ns2
 .> unlink ns2.fromJust ns2.b

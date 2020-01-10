@@ -26,6 +26,7 @@ module Unison.Util.Pretty (
    warnCallout, blockedCallout, fatalCallout, okCallout,
    column2,
    column2M,
+   column2UnzippedM,
    column3,
    column3M,
    column3UnzippedM,
@@ -441,6 +442,21 @@ column3UnzippedM bottomPadding left mid right = let
   pad a = a ++ replicate (rowCount - length a) (pure bottomPadding)
   (pleft, pmid, pright) = (pad left, pad mid, pad right)
   in column3M $ zipWith3 (liftA3 (,,)) pleft pmid pright
+
+column2UnzippedM
+  :: forall m s . (LL.ListLike s Char, IsString s, Monad m)
+  => Pretty s
+  -> [m (Pretty s)]
+  -> [m (Pretty s)]
+  -> m (Pretty s)
+column2UnzippedM bottomPadding left right = let
+  rowCount = length left `max` length right
+  pad :: [m (Pretty s)] -> [m (Pretty s)]
+  pad a = a ++ replicate (rowCount - length a) (pure bottomPadding)
+  sep :: [m (Pretty s)] -> [m (Pretty s)]
+  sep = fmap (fmap (" " <>))
+  (pleft, pright) = (pad left, sep $ pad right)
+  in column2M $ zipWith (liftA2 (,)) pleft pright
 
 column3sep
   :: (LL.ListLike s Char, IsString s) => Pretty s -> [(Pretty s, Pretty s, Pretty s)] -> Pretty s

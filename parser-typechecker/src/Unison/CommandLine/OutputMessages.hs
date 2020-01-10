@@ -1290,15 +1290,16 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
                      -> [OBD.RenameTermDisplay v a]
                      -> Numbered [Pretty]
   prettyRenameGroups types terms =
-    (<>) <$> traverse (prettyGroup . (over _1 Referent.Ref)) types
-         <*> traverse prettyGroup terms
+    (<>) <$> traverse (prettyGroup . (over (_1._1) Referent.Ref))
+                      (types `zip` [0..])
+         <*> traverse prettyGroup (terms `zip` [length types ..])
     where
         leftNamePad :: Int = foldl1' max $
           map (foldl1' max . map HQ'.nameLength . toList . view _3) terms <>
           map (foldl1' max . map HQ'.nameLength . toList . view _3) types
-        prettyGroup :: (Referent, b, Set HQ'.HashQualified, Set HQ'.HashQualified)
+        prettyGroup :: ((Referent, b, Set HQ'.HashQualified, Set HQ'.HashQualified), Int)
                     -> Numbered Pretty
-        prettyGroup (r, _, olds, news) = let
+        prettyGroup ((r, _, olds, news),i) = let
           -- [ "peach  ┐"
           -- , "peach' ┘"]
           olds' :: [Numbered Pretty] =
@@ -1317,17 +1318,19 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
           news' :: [Numbered Pretty] =
             map (number addedLabel) added' ++ map (number removedLabel) removed'
             where
-            addedLabel   = "(added)  "
+            addedLabel   = "(added)"
             removedLabel = "(removed)"
             number label name =
               numHQ newPath name r <&>
-                (\num -> label <> " " <> num <> " " <> phq' name)
+                (\num -> num <> " " <> phq' name <> " " <> label)
 
           buildTable :: [Numbered Pretty] -> [Numbered Pretty] -> Numbered Pretty
-          buildTable lefts rights =
-            P.column3UnzippedM @Numbered mempty lefts [pure arrow] rights
-            where
-            arrow = "  =>  "
+          buildTable lefts rights = let
+            hlefts = if i == 0 then pure (P.bold "Original") : lefts
+                               else lefts
+            hrights = if i == 0 then pure (P.bold "Changes") : rights else rights
+            in P.column2UnzippedM @Numbered mempty hlefts hrights
+
           in buildTable olds' news'
 
   prettyUpdateType :: OBD.UpdateTypeDisplay v a -> Numbered Pretty
