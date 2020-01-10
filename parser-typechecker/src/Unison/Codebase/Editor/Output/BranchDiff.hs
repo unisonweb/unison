@@ -55,10 +55,8 @@ data BranchDiffOutput v a = BranchDiffOutput {
   removedTypes      :: [RemovedTypeDisplay v a],
   removedTerms      :: [RemovedTermDisplay v a],
   removedPatches    :: [PatchDisplay],
-  movedTypes        :: [RenameTypeDisplay v a],
-  movedTerms        :: [RenameTermDisplay v a],
-  copiedTypes       :: [RenameTypeDisplay v a],
-  copiedTerms       :: [RenameTermDisplay v a]
+  renamedTypes      :: [RenameTypeDisplay v a],
+  renamedTerms      :: [RenameTermDisplay v a]
  } deriving Show
 
 isEmpty :: BranchDiffOutput v a -> Bool
@@ -66,8 +64,7 @@ isEmpty BranchDiffOutput{..} =
   null updatedTypes && null updatedTerms &&
   null addedTypes && null addedTerms && null addedPatches &&
   null removedTypes && null removedTerms && null removedPatches &&
-  null movedTypes && null movedTerms &&
-  null copiedTypes && null copiedTerms &&
+  null renamedTypes && null renamedTerms &&
   propagatedUpdates == 0
 
 -- Need to be able to turn a (Name,Reference) into a HashQualified relative to... what.
@@ -246,26 +243,24 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
         [ (name, diff)
         | (name, BranchDiff.Delete diff) <- Map.toList patchesDiff ]
 
-  let movedOrCopiedTerm :: Map Referent (Set Name, Set Name) -> m [RenameTermDisplay v a]
-      movedOrCopiedTerm copiesOrMoves =
-        for (Map.toList copiesOrMoves) $ \(r, (ol'names, new'names)) ->
+  let renamedTerm :: Map Referent (Set Name, Set Name) -> m [RenameTermDisplay v a]
+      renamedTerm renames =
+        for (Map.toList renames) $ \(r, (ol'names, new'names)) ->
           (,,,) <$> pure r
                 <*> typeOf r
                 <*> pure (Set.map (\n -> Names2.hqTermName hqLen names1 n r) ol'names)
                 <*> pure (Set.map (\n -> Names2.hqTermName hqLen names2 n r) new'names)
 
-  let movedOrCopiedType :: Map Reference (Set Name, Set Name) -> m [RenameTypeDisplay v a]
-      movedOrCopiedType copiesOrMoves =
-        for (Map.toList copiesOrMoves) $ \(r, (ol'names, new'names)) ->
+  let renamedType :: Map Reference (Set Name, Set Name) -> m [RenameTypeDisplay v a]
+      renamedType renames =
+        for (Map.toList renames) $ \(r, (ol'names, new'names)) ->
           (,,,) <$> pure r
                 <*> declOrBuiltin r
                 <*> pure (Set.map (\n -> Names2.hqTypeName hqLen names1 n r) ol'names)
                 <*> pure (Set.map (\n -> Names2.hqTypeName hqLen names2 n r) new'names)
 
-  movedTypes :: [RenameTypeDisplay v a] <- movedOrCopiedType (BranchDiff.tmoves typesDiff)
-  movedTerms :: [RenameTermDisplay v a] <- movedOrCopiedTerm (BranchDiff.tmoves termsDiff)
-  copiedTypes :: [RenameTypeDisplay v a] <- movedOrCopiedType (BranchDiff.tcopies typesDiff)
-  copiedTerms :: [RenameTermDisplay v a] <- movedOrCopiedTerm (BranchDiff.tcopies termsDiff)
+  renamedTypes :: [RenameTypeDisplay v a] <- renamedType (BranchDiff.trenames typesDiff)
+  renamedTerms :: [RenameTermDisplay v a] <- renamedTerm (BranchDiff.trenames termsDiff)
 
   pure $ BranchDiffOutput
     updatedTypes
@@ -278,19 +273,17 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
     removedTypes
     removedTerms
     removedPatches
-    movedTypes
-    movedTerms
-    copiedTypes
-    copiedTerms
+    renamedTypes
+    renamedTerms
   where
   fillMetadata :: Traversable t => PPE.PrettyPrintEnv -> t Metadata.Value -> m (t (MetadataDisplay v a))
   fillMetadata ppe = traverse $ -- metadata values are all terms
     \(Referent.Ref -> mdRef) -> (HQ'.unsafeFromHQ $ PPE.termName ppe mdRef, mdRef, ) <$> typeOf mdRef
-  _getMetadata :: Ord r => r -> Name -> R3.Relation3 r Name Metadata.Value -> Set Metadata.Value
-  _getMetadata r n r3 = R.lookupDom n . R3.lookupD1 r $ r3
+  getMetadata :: Ord r => r -> Name -> R3.Relation3 r Name Metadata.Value -> Set Metadata.Value
+  getMetadata r n r3 = R.lookupDom n . R3.lookupD1 r $ r3
 
   getAddedMetadata :: Ord r => r -> Name -> BranchDiff.DiffSlice r -> Set Metadata.Value
-  getAddedMetadata r n slice = _getMetadata r n $ BranchDiff.taddedMetadata slice
+  getAddedMetadata r n slice = getMetadata r n $ BranchDiff.taddedMetadata slice
 
 -- references for definitions that were updated
 

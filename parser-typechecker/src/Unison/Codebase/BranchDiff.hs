@@ -33,8 +33,7 @@ data DiffSlice r = DiffSlice {
   tallnamespaceUpdates :: Relation3 r r Name,
   talladds :: Relation r Name,
   tallremoves :: Relation r Name,
-  tcopies :: Map r (Set Name, Set Name), -- ref (old, new)
-  tmoves :: Map r (Set Name, Set Name), -- ref (old, new)
+  trenames :: Map r (Set Name, Set Name), -- ref (old, new)
   taddedMetadata :: Relation3 r Name Metadata.Value,
   tremovedMetadata :: Relation3 r Name Metadata.Value
 } deriving Show
@@ -92,51 +91,36 @@ computeSlices :: NamespaceSlice Referent
               -> (DiffSlice Referent, DiffSlice Reference)
 computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut) where
   termsOut =
-    let copies' = copies oldTerms newTerms in
+    let nc = allNameChanges oldTerms newTerms in
     DiffSlice
-    (allNamespaceUpdates oldTerms newTerms)
-    (allAdds oldTerms newTerms copies')
-    (allRemoves oldTerms newTerms)
-    copies'
-    (moves oldTerms newTerms)
-    (addedMetadata oldTerms newTerms)
-    (removedMetadata oldTerms newTerms)
-  typesOut = let
-    copies' = copies oldTypes newTypes in
+      (allNamespaceUpdates oldTerms newTerms)
+      (allAdds nc)
+      (allRemoves nc)
+      (remainingNameChanges nc)
+      (addedMetadata oldTerms newTerms)
+      (removedMetadata oldTerms newTerms)
+  typesOut =
+    let nc = allNameChanges oldTypes newTypes in
     DiffSlice
-    (allNamespaceUpdates oldTypes newTypes)
-    (allAdds oldTypes newTypes copies')
-    (allRemoves oldTypes newTypes)
-    copies'
-    (moves oldTypes newTypes)
-    (addedMetadata oldTypes newTypes)
-    (removedMetadata oldTypes newTypes)
+      (allNamespaceUpdates oldTypes newTypes)
+      (allAdds nc)
+      (allRemoves nc)
+      (remainingNameChanges nc)
+      (addedMetadata oldTypes newTypes)
+      (removedMetadata oldTypes newTypes)
 
-  copies :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Map r (Set Name, Set Name)
-  copies old new =
-    -- pair the set of old names with the set of names that are only new
-    R.toUnzippedMultimap $
-      names old `R.joinDom` (names new `R.difference` names old)
+  allNameChanges :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Map r (Set Name, Set Name)
+  allNameChanges old new = R.outerJoinDomMultimaps (names old) (names new)
 
-  moves :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Map r (Set Name, Set Name)
-  moves old new =
-    R.toUnzippedMultimap $
-      (names old `R.difference` names new)
-        `R.joinDom` (names new `R.difference` names old)
+  allAdds, allRemoves :: forall r. Ord r
+                      => Map r (Set Name, Set Name) -> Relation r Name
+  allAdds    = R.fromMultimap . fmap snd . Map.filter (null . fst)
+  allRemoves = R.fromMultimap . fmap fst . Map.filter (null . snd)
 
-  allAdds :: forall r. Ord r
-          => NamespaceSlice r
-          -> NamespaceSlice r
-          -> Map r (Set Name, Set Name)
-          -> R.Relation r Name
-  allAdds old new copies =
-    names new `R.difference` names old `R.difference` copies'
-    where
-    copies' :: Relation r Name
-    copies' = R.fromMultimap $ snd <$> copies
-
-  allRemoves :: Ord r => NamespaceSlice r -> NamespaceSlice r -> R.Relation r Name
-  allRemoves old new = names old `R.difference` names new
+  remainingNameChanges :: forall r. Ord r
+                       => Map r (Set Name, Set Name) -> Map r (Set Name, Set Name)
+  remainingNameChanges =
+    Map.filter (\(old, new) -> not (null old) && not (null new))
 
   allNamespaceUpdates :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Relation3 r r Name
   allNamespaceUpdates old new =

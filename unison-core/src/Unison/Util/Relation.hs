@@ -96,6 +96,20 @@ intersection r s
   | size r > size s = intersection s r
   | otherwise       = filter (\(a, b) -> member a b s) r
 
+outerJoinDomMultimaps :: (Ord a, Ord b, Ord c)
+                      => Relation a b
+                      -> Relation a c
+                      -> Map a (Set b, Set c)
+outerJoinDomMultimaps b c =
+  Map.fromList
+    [ (a, (lookupDom a b, lookupDom a c)) | a <- S.toList (dom b <> dom c) ]
+
+outerJoinRanMultimaps :: (Ord a, Ord b, Ord c)
+                      => Relation a c
+                      -> Relation b c
+                      -> Map c (Set a, Set b)
+outerJoinRanMultimaps a b = outerJoinDomMultimaps (swap a) (swap b)
+
 joinDom :: (Ord a, Ord b, Ord c) => Relation a b -> Relation a c -> Relation a (b,c)
 joinDom b c = swap $ joinRan (swap b) (swap c)
 

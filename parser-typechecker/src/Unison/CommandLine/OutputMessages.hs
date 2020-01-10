@@ -1270,25 +1270,15 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
                                        , P.linesNonEmpty prettyRemovedPatches ]
        ]
     else pure mempty
-   ,if (not . null) movedTypes
-    || (not . null) movedTerms
+   ,if (not . null) renamedTypes
+    || (not . null) renamedTerms
     then do
-      results <- prettyRenameGroups movedTypes movedTerms
+      results <- prettyRenameGroups renamedTypes renamedTerms
       pure $ P.sepNonEmpty "\n\n"
-        [ P.bold "Moves:"
+        [ P.bold "Name changes:"
         , P.indentN 2 . P.sepNonEmpty "\n\n" $ results
         ]
         -- todo: change separator to just '\n' here if all the results are 1 to 1
-    else pure mempty
-   ,if (not . null) copiedTypes
-    || (not . null) copiedTerms
-    then do
-      results <- prettyRenameGroups copiedTypes copiedTerms
-      pure $ P.sepNonEmpty "\n\n"
-        [ P.bold "Copies:"
-        , P.indentN 2 . P.sepNonEmpty "\n\n" $ results
-        -- todo: change separator to just '\n' here if all the results are 1 to 1
-        ]
     else pure mempty
    ]
 
