@@ -78,3 +78,12 @@ In the `parser-typechecker/` project:
 * `Unison.Term` and `Unison.Type` have the syntax trees for terms and types. In both `Term` and `Type`, the same pattern is used. Each defines a 'base functor' type, `F a`, which is nonrecursive, and the actual thing we use is an _abstract binding tree_ over this base functor, an `ABT F`. `ABT` (for 'abstract binding tree') is defined in `Unison.ABT`. If you aren't familiar with abstract binding trees, [here is a nice blog post explaining one formulation of the idea](http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html), which inspired the `Unison.ABT` module. A lot of operations on terms and types just delegate to generic `ABT` operations.
 * `Unison.Parsers` has the main entry point for the parser.
 * `Unison.Typechecker.Context` is the implementation of the typechecker, and `Unison.Typechecker` has the "public interface to the typechecker" and some convenience functions. There isn't a lot of code here (about 700 LOC presently), since the typechecking algorithm is pretty simple. Unlike a unification-based typechecker, where the typechecking state is an unordered bag of unification constraints and higher-rank polymorphism is usually bolted on awkwardly later, [Dunfield and Krishnaswami's algorithm](http://www.mpi-sws.org/~neelk/bidir.pdf) keeps the typechecking state as a nicely tidy _ordered context_, represented as a regular list manipulated in a stack-like fashion, and the algorithm handles higher-rank polymorphism very cleanly. They've also [extended this work to include features like GADTs](http://semantic-domain.blogspot.com/2015/03/new-draft-sound-and-complete.html), though this new algorithm hasn't been incorporated into Unison yet.
+
+Unison libraries under development
+-----
+
+Unison is currently in public alpha and not quite ready for production use. Nonetheless, some awesome community members are hard at work building the ecosystem's first libraries! Here are some of the ongoing projects that we're aware of:
+
+* unison-parsers -- https://github.com/zenhack/unison-parsers -- a parser combinator library
+
+Note: if you're currently working on a Unison library and would like it added to this list, we'd love to hear about it! Please submit a pull request, adding your project to this list in the README.md file.
