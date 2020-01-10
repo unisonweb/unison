@@ -150,8 +150,8 @@ type Either a b = Left a | Right b
 
 type Optional a = None | Some a
 
-d1 Doc.++ d2 = 
-  use Doc 
+d1 Doc.++ d2 =
+  use Doc
   case (d1,d2) of
     (Join ds, Join ds2) -> Join (ds Sequence.++ ds2)
     (Join ds, _) -> Join (ds `Sequence.snoc` d2)
@@ -205,6 +205,10 @@ namespace io where
     putText stdout t
     putText stdout "\n"
 
+  -- Read a char from the standard input
+  readChar : '{IO} Char
+  readChar = '(getChar stdin)
+
   -- Read a line from the standard input
   readLine : '{IO} Text
   readLine = '(getLine stdin)
@@ -226,6 +230,10 @@ namespace io where
   -- Check whether a file handle is open
   isFileOpen : Handle ->{IO} Boolean
   isFileOpen h = rethrow (io.IO.isFileOpen_ h)
+
+  -- Get a char from a text file handle
+  getChar : Handle ->{IO} Char
+  getChar h = rethrow (io.IO.getChar_ h)
 
   -- Get a line of text from a text file handle
   getLine : Handle ->{IO} Text
@@ -428,7 +436,9 @@ ability io.IO where
 
   -- Text input and output
 
-  --getChar : io.Handle -> Char
+  -- Get the next character from a handle as a Char
+  getChar_ : io.Handle -> (Either io.Error Char)
+  -- Get the content of a line as text
   getLine_ : io.Handle -> (Either io.Error Text)
   -- Get the entire contents of the file as text
   getText_ : io.Handle -> (Either io.Error Text)
