@@ -91,19 +91,23 @@ computeSlices :: NamespaceSlice Referent
               -> NamespaceSlice Reference
               -> (DiffSlice Referent, DiffSlice Reference)
 computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut) where
-  termsOut = DiffSlice
+  termsOut =
+    let copies' = copies oldTerms newTerms in
+    DiffSlice
     (allNamespaceUpdates oldTerms newTerms)
-    (allAdds oldTerms newTerms)
+    (allAdds oldTerms newTerms copies')
     (allRemoves oldTerms newTerms)
-    (copies oldTerms newTerms)
+    copies'
     (moves oldTerms newTerms)
     (addedMetadata oldTerms newTerms)
     (removedMetadata oldTerms newTerms)
-  typesOut = DiffSlice
+  typesOut = let
+    copies' = copies oldTypes newTypes in
+    DiffSlice
     (allNamespaceUpdates oldTypes newTypes)
-    (allAdds oldTypes newTypes)
+    (allAdds oldTypes newTypes copies')
     (allRemoves oldTypes newTypes)
-    (copies oldTypes newTypes)
+    copies'
     (moves oldTypes newTypes)
     (addedMetadata oldTypes newTypes)
     (removedMetadata oldTypes newTypes)
@@ -120,8 +124,18 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut) where
       (names old `R.difference` names new)
         `R.joinDom` (names new `R.difference` names old)
 
-  allAdds, allRemoves :: Ord r => NamespaceSlice r -> NamespaceSlice r -> R.Relation r Name
-  allAdds old new = names new `R.difference` names old
+  allAdds :: forall r. Ord r
+          => NamespaceSlice r
+          -> NamespaceSlice r
+          -> Map r (Set Name, Set Name)
+          -> R.Relation r Name
+  allAdds old new copies =
+    names new `R.difference` names old `R.difference` copies'
+    where
+    copies' :: Relation r Name
+    copies' = R.fromMultimap $ snd <$> copies
+
+  allRemoves :: Ord r => NamespaceSlice r -> NamespaceSlice r -> R.Relation r Name
   allRemoves old new = names old `R.difference` names new
 
   allNamespaceUpdates :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Relation3 r r Name

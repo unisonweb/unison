@@ -176,11 +176,12 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
             <*> pure r_new
             <*> typeOf r_new
             <*> fillMetadata ppe (getNewMetadataDiff termsDiff n rs_old r_new)
-    loadEntry (n, (Set.toList -> [rold], Set.toList -> [rnew])) | rold == rnew =
-      (Nothing,) <$> for [rnew] (loadNew n (Set.singleton rold))
-    loadEntry (n, (rs_old, rs_new)) =
-      (,) <$> (Just <$> for (toList rs_old) (loadOld n))
-          <*> for (toList rs_new) (loadNew n rs_old)
+    loadEntry (n, (rs_old, rs_new))
+      -- if the references haven't changed, it's code for: only the metadata has changed
+      -- and we can ignore the old references in the output.
+      | rs_old == rs_new = (Nothing,) <$> for (toList rs_new) (loadNew n rs_old)
+      | otherwise        = (,) <$> (Just <$> for (toList rs_old) (loadOld n))
+                               <*> for (toList rs_new) (loadNew n rs_old)
     in for (sortOn fst . uniqueBy fst $ nsUpdates <> metadataUpdates) loadEntry
     -- in for (sortOn fst . uniqueBy fst $ nsUpdates <> metadataUpdates) loadEntry
 

@@ -1442,7 +1442,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
     pure $ n <> " " <> P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
     where namesWidth = foldl1' max $ fmap (HQ'.nameLength . view _1) terms
 
-  downArrow = P.bold "⧩"
+  downArrow = P.bold "↓"
   mdTypeLine :: Path.Absolute -> OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)
   mdTypeLine p (hq, r, odecl, mddiff) = do
     n <- numHQ p hq (Referent.Ref r)
@@ -1483,7 +1483,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
     where
     elem p x (hq, r, otype) = do
       num <- numHQ p hq r
-      pure (x <> num <> phq' hq, ": " <> prettyType otype)
+      pure (x <> num <> " " <> phq' hq, ": " <> prettyType otype)
 
   prettyType = maybe (P.red "type not found") (TypePrinter.pretty ppe)
   prettyDecl hq =

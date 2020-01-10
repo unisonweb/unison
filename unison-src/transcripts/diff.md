@@ -16,6 +16,7 @@ fromJust = 1
 b = 2
 bdependent = b
 c = 3
+helloWorld = '(printLine "Hello, world!")
 
 type A a = A Nat
 ability X a1 a2 where x : Nat
@@ -24,6 +25,7 @@ ability X a1 a2 where x : Nat
 ```ucm
 .ns1> add
 .ns1> alias.term fromJust fromJust'
+.ns1> alias.term helloWorld helloWorld2
 .ns1> names b
 .ns1> names bdependent
 .ns1> link fromJust b
@@ -64,16 +66,13 @@ unique type Y a b = Y a b
 .> diff.namespace ns1 ns2
 .> alias.type ns1.X ns1.X2
 .> alias.type ns2.A' ns2.A''
+.> delete.term ns2.fromJust'
 .> diff.namespace ns1 ns2
 ```
 
-
-
-
-
 ## Display issues to fixup
-
 - [x] An add with new metadata is getting characterized as an update
+- [x] can there be a metadata-only update where it's not a singleton old and new reference
 - [x] 12.patch patch needs a space
 - [x] This looks like garbage
 - [x] Extra 2 blank lines at the end of the add section
@@ -82,4 +81,31 @@ unique type Y a b = Y a b
       see todo in the code
 - [ ] Things look screwy when the type signature doesn't fit and has to get broken
       up into multiple lines. Maybe just disallow that?
+- [ ] add tagging of propagated updates to test propagated updates output
+- [x] adding an alias is showing up as an Add and a Copy; should just show as Copy
+- [ ] removing one of multiple aliases appears in removes + moves + copies section
+  - maybe: anything that's the target of a Move should be filtered out of Removes
 
+      Removes:
+
+        22. ability X2 a1 a2
+
+      Moves:
+
+        23. X2     =>     24. X'
+
+      Copies:
+
+        25. X  ┐   =>     26. X'
+        27. X2 ┘
+
+  what about:
+
+    Renames:
+
+      23. X  ┐  =>  + 24. X'
+      25. X2 ┘      - 26. X2
+
+  and then "Removes" would mean: the reference no longer exists in the namespace
+
+- [ ] some overlapping cases between Moves and Copies^
