@@ -224,6 +224,8 @@ loop = do
             _         -> Nothing
           hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
         parseNames :: Names <- makeHistoricalParsingNames hqs
+        latestFile .= Just (Text.unpack sourceName, False)
+        latestTypecheckedFile .= Nothing
         Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
         case r of
           -- Parsing failed
@@ -251,7 +253,6 @@ loop = do
                   go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
               when (not $ null e') $
                 eval . Notify $ Evaluated text ppe bindings e'
-              latestFile .= Just (Text.unpack sourceName, False)
               latestTypecheckedFile .= Just unisonFile
 
   case e of
