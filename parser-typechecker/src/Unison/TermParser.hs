@@ -29,6 +29,7 @@ import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Data.Tuple.Extra as TupleE
 import qualified Data.Sequence as Sequence
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
@@ -374,40 +375,40 @@ docNormalize tm = case tm of
     -> join (ABT.annotation a) (ABT.annotation c) (ABT.annotation s) (normalize seqs) where
   _ -> error $ "unexpected doc structure: " ++ show tm
   where
-  normalize = (tracing "after unbreakParas") . unbreakParas .
+  normalize = Sequence.fromList . (map TupleE.fst3) .
+              (tracing "after unbreakParas") . unbreakParas .
+              (tracing "after full preprocess") . preProcess .
               (tracing "after unindent") . unIndent .
-              (tracing "initial parse") -- TODO trace
-  tracing :: Show a => [Char] -> a -> a
-  tracing when x = trace ("at " ++ when ++ ": " ++ (show x) ++ "\n") x
-  blob aa ac at txt = Term.app aa
-    (Term.constructor ac DD.docRef DD.docBlobId)
-    (Term.text at txt)
-  join aa ac as segs = Term.app aa
-    (Term.constructor ac DD.docRef DD.docJoinId)
-    (Term.seq' as segs)
-  mapBlob :: Ord v => (Text -> Text) -> AnnotatedTerm v a -> AnnotatedTerm v a
-  -- this pattern is just `DD.DocBlob txt` but exploded to capture the annotations as well
-  mapBlob f (aa@(Term.App' ac@(Term.Constructor' DD.DocRef DD.DocBlobId)
-                           at@(Term.Text' txt)))
-    = blob (ABT.annotation aa) (ABT.annotation ac) (ABT.annotation at) (f txt)
-  mapBlob _ t = t
-  unIndent :: Ord v => Sequence.Seq (AnnotatedTerm v a) -> Sequence.Seq (AnnotatedTerm v a)
-  unIndent tms = (fmap $ mapBlob $ (reduceIndent minIndent)) tms where
+              (tracing "initial parse") . miniPreProcess
+  preProcess xs =
+    zip3 seqs (previousLines $ Sequence.fromList seqs) (followingLines $ Sequence.fromList seqs) where
+    seqs = map fst xs
+  miniPreProcess seqs = zip (toList seqs) (previousLines seqs)
+  unIndent :: Ord v => [(AnnotatedTerm v a, UnbreakCase)] -> [(AnnotatedTerm v a, UnbreakCase)]
+  unIndent tms = map go tms where
+    go :: Ord v => (AnnotatedTerm v a, UnbreakCase) -> (AnnotatedTerm v a, UnbreakCase)
+    go (b, previous) =
+      ((mapBlob $ (reduceIndent includeFirst minIndent)) b, previous) where
+      -- Since previous was calculated before unindenting, it will often by wrongly
+      -- StartsIndented instead of StartsUnindented - but that's OK just for the test
+      -- below.  And we'll recalculate it later in preProcess.
+      includeFirst = previous == LineEnds
     concatenatedBlobs :: Text
-    concatenatedBlobs = mconcat (toList (fmap getBlob tms))
+    concatenatedBlobs = mconcat (toList (fmap (getBlob . fst) tms))
     getBlob (DD.DocBlob txt) = txt
-    getBlob _ = "."  -- TODO fix for multiline non-blobs
+    getBlob _ = "."
     -- Note we exclude the first line when calculating the minimum indent - the lexer
     -- already stripped leading spaces from it, and anyway it would have been sharing
     -- its line with the [: and maybe other stuff.
     nonInitialNonEmptyLines =
-      let v = filter (not . Text.null) $ map Text.stripEnd $ drop 1 $ Text.lines concatenatedBlobs
-      in trace ("nonInitialLines = \n" ++ show v ++ "\n\n") v -- TODO trace
+      filter (not . Text.null) $ map Text.stripEnd $ drop 1 $ Text.lines concatenatedBlobs
     minIndent = let v = map (Text.length . (Text.takeWhile Char.isSpace)) nonInitialNonEmptyLines
                 in trace ("line indents = " ++ show v ++ "\n\n") (minimumOrZero $ v)
     minimumOrZero xs = if length xs == 0 then 0 else minimum xs
-    reduceIndent :: Int -> Text -> Text
-    reduceIndent n t = fixup $ Text.unlines $ map reduceLineIndent $ Text.lines t where
+    reduceIndent :: Bool -> Int -> Text -> Text
+    reduceIndent includeFirst n t =
+      fixup $ Text.unlines $ mapExceptFirst reduceLineIndent onFirst $ Text.lines t where
+      onFirst = if includeFirst then reduceLineIndent else id
       reduceLineIndent l = result where
         currentIndent = Text.length $ (Text.takeWhile Char.isSpace) l
         remainder = (Text.dropWhile Char.isSpace) l
@@ -424,70 +425,10 @@ docNormalize tm = case tm of
   -- For example...
   -- "This link to @foo makes it harder to see\n
   --  that the newline should be removed."
-  unbreakParas :: (Show v, Ord v) => Sequence.Seq (AnnotatedTerm v a) -> Sequence.Seq (AnnotatedTerm v a)
-  unbreakParas tms = Sequence.fromList result where
-    result = tr out where
-      tr = trace $ "\nzipped = " ++ (show zipped) ++
-                   "\n\nafter processElement: " ++ (show out) ++ "\n\n" ++
-                   "lastLines = " ++ (show lastLines) ++
-                   ", previousLines = " ++ (show previousLines) ++
-                   ", continuesLine = " ++ (show continuesLine) ++ "\n\n"
-      out = map processElement $ zipped
-      zipped = zip3 (toList tms) previousLines followingLines
-    -- A list whose entries match those of tms.  `Nothing` is used for elements
-    -- which just continue a line, and so need to be ignored when looking back
-    -- for how the last line started.
-    lastLines :: [Maybe UnbreakCase]
-    lastLines = (flip fmap) (toList tms) $ \case
-      DD.DocBlob txt -> unbreakCase txt
-      DD.DocLink _ -> Nothing
-      DD.DocSource _ -> Just LineEnds
-      DD.DocSignature _ -> Just LineEnds
-      DD.DocEvaluate _ -> Just LineEnds
-      _ -> error ("unexpected doc element" ++ show tm)
-    unbreakCase :: Text -> Maybe UnbreakCase
-    unbreakCase txt = let
-      (startAndNewline, afterNewline) = Text.breakOnEnd "\n" txt
-      in if Text.null startAndNewline then Nothing
-      else if Text.null afterNewline
-           then Just LineEnds
-           else if Char.isSpace (Text.head afterNewline)
-                then Just StartsIndented
-                else Just StartsUnindented
-    -- A list whose entries match those of tms.  The UnbreakCase of the previous
-    -- entry that included a newline.
-    previousLines :: [UnbreakCase]
-    previousLines = tr xs'' where
-      tr = trace $ "previousLines: xs = " ++ (show xs) ++
-                   ", xss = " ++ (show xss) ++ ", xs' = " ++ (show xs') ++
-                   ", xs'' = " ++ (show xs'') ++ "\n\n"
-      -- Make sure there's a Just at the start of the list so we always find
-      -- one when searching back.
-      -- Example: xs = [J1,N2,J3]
-      xs :: [Maybe UnbreakCase]
-      xs = Just LineEnds : lastLines
-      -- Example: xss = [[J1],[J1,N2],[J1,N2,J3]]
-      xss :: [[Maybe UnbreakCase]]
-      xss = drop 1 $ List.inits xs
-      -- Example: after each step of the map...
-      --            [[J1],[N2,J1],[J3,N2,J1]]   -- after reverse
-      --            [Just J1, Just J1, Just J3] -- after find
-      --            ...
-      --   result = [1,1,3]
-      xs' = map (Maybe.fromJust . Maybe.fromJust . (List.find isJust) . reverse) xss
-      xs'' = List.Extra.dropEnd 1 xs'
-    -- For each element, can it be a line-continuation of a preceding blob?
-    continuesLine :: [Bool]
-    continuesLine = (flip fmap) (toList tms) $ \case
-      DD.DocBlob _ -> False -- value doesn't matter - you don't get adjacent blobs
-      DD.DocLink _ -> True
-      DD.DocSource _ -> False
-      DD.DocSignature _ -> False
-      DD.DocEvaluate _ -> False
-      _ -> error ("unexpected doc element" ++ show tm)
-    followingLines = drop 1 (continuesLine ++ [False])
-    processElement :: Ord v => (AnnotatedTerm v a, UnbreakCase, Bool) -> AnnotatedTerm v a
-    processElement (b, previous, nextIsCandidate) = mapBlob go b where
+  unbreakParas :: (Show v, Ord v) => [(AnnotatedTerm v a, UnbreakCase, Bool)] -> [(AnnotatedTerm v a, UnbreakCase, Bool)]
+  unbreakParas = map go where
+    go :: Ord v => (AnnotatedTerm v a, UnbreakCase, Bool) -> (AnnotatedTerm v a, UnbreakCase, Bool)
+    go (b, previous, nextIsCandidate) = (mapBlob go b, previous, nextIsCandidate) where
       go txt = if Text.null txt then txt else tr result' where
         tr = trace $ "\nprocessElement on blob " ++ (show txt) ++ ", result' = " ++
                      (show result') ++ ", lines: " ++ (show ls) ++
@@ -496,7 +437,10 @@ docNormalize tm = case tm of
                      ", firstIsCandidate = " ++ (show firstIsCandidate) ++ "\n\n"
         -- remove trailing whitespace
         -- ls is non-empty thanks to the Text.null check above
-        ls = map Text.stripEnd $ Text.lines txt
+        -- Don't cut the last line's trailing whitespace if it's followed by something
+        -- which will put more text on the same line.
+        ls = mapExceptLast Text.stripEnd onLast $ Text.lines txt where
+          onLast = if nextIsCandidate then id else Text.stripEnd
         -- Work out which lines are candidates to be joined as part of a paragraph, i.e.
         -- are not indented.
         candidate l = case Text.uncons l of
@@ -520,6 +464,81 @@ docNormalize tm = case tm of
                        then result `Text.append` " "
                        else result `Text.append` "\n"
                   else result
+  -- A list whose entries match those of tms.  `Nothing` is used for elements
+  -- which just continue a line, and so need to be ignored when looking back
+  -- for how the last line started.
+  -- Here we're guessing whether an element will be rendered on one line or
+  -- several, which we can't do perfectly, and which varies depending on
+  -- whether the doc is viewed or displayed.  This can cause some glitches
+  -- cutting out whitespace immediately following @[source] and @[evaluate].
+  lastLines :: Sequence.Seq (AnnotatedTerm v a) -> [Maybe UnbreakCase]
+  lastLines tms = (flip fmap) (toList tms) $ \case
+    DD.DocBlob txt -> unbreakCase txt
+    DD.DocLink _ -> Nothing
+    DD.DocSource _ -> Just LineEnds
+    DD.DocSignature _ -> Nothing
+    DD.DocEvaluate _ -> Just LineEnds
+    _ -> error ("unexpected doc element" ++ show tm)
+  unbreakCase :: Text -> Maybe UnbreakCase
+  unbreakCase txt = let
+    (startAndNewline, afterNewline) = Text.breakOnEnd "\n" txt
+    in if Text.null startAndNewline then Nothing
+    else if Text.null afterNewline
+         then Just LineEnds
+         else if Char.isSpace (Text.head afterNewline)
+              then Just StartsIndented
+              else Just StartsUnindented
+  -- A list whose entries match those of tms.  The UnbreakCase of the previous
+  -- entry that included a newline.
+  previousLines :: Sequence.Seq (AnnotatedTerm v a) -> [UnbreakCase]
+  previousLines tms = tr xs'' where
+    tr = trace $ "previousLines: xs = " ++ (show xs) ++
+                 ", xss = " ++ (show xss) ++ ", xs' = " ++ (show xs') ++
+                 ", xs'' = " ++ (show xs'') ++ "\n\n"
+    -- Make sure there's a Just at the start of the list so we always find
+    -- one when searching back.
+    -- Example: xs = [J1,N2,J3]
+    xs :: [Maybe UnbreakCase]
+    xs = Just LineEnds : (lastLines tms)
+    -- Example: xss = [[J1],[J1,N2],[J1,N2,J3]]
+    xss :: [[Maybe UnbreakCase]]
+    xss = drop 1 $ List.inits xs
+    -- Example: after each step of the map...
+    --            [[J1],[N2,J1],[J3,N2,J1]]   -- after reverse
+    --            [Just J1, Just J1, Just J3] -- after find
+    --            ...
+    --   result = [1,1,3]
+    xs' = map (Maybe.fromJust . Maybe.fromJust . (List.find isJust) . reverse) xss
+    xs'' = List.Extra.dropEnd 1 xs'
+  -- For each element, can it be a line-continuation of a preceding blob?
+  continuesLine :: Sequence.Seq (AnnotatedTerm v a) -> [Bool]
+  continuesLine tms = (flip fmap) (toList tms) $ \case
+    DD.DocBlob _ -> False -- value doesn't matter - you don't get adjacent blobs
+    DD.DocLink _ -> True
+    DD.DocSource _ -> False
+    DD.DocSignature _ -> False
+    DD.DocEvaluate _ -> False
+    _ -> error ("unexpected doc element" ++ show tm)
+  followingLines tms = drop 1 ((continuesLine tms) ++ [False])
+  mapExceptFirst :: (a -> b) -> (a -> b) -> [a] -> [b]
+  mapExceptFirst fRest fFirst = \case
+    [] -> []
+    x : rest -> (fFirst x) : (map fRest rest)
+  mapExceptLast fRest fLast = reverse . (mapExceptFirst fRest fLast) . reverse
+  tracing :: Show a => [Char] -> a -> a
+  tracing when x = (const id $ trace ("at " ++ when ++ ": " ++ (show x) ++ "\n")) x
+  blob aa ac at txt = Term.app aa
+    (Term.constructor ac DD.docRef DD.docBlobId)
+    (Term.text at txt)
+  join aa ac as segs = Term.app aa
+    (Term.constructor ac DD.docRef DD.docJoinId)
+    (Term.seq' as segs)
+  mapBlob :: Ord v => (Text -> Text) -> AnnotatedTerm v a -> AnnotatedTerm v a
+  -- this pattern is just `DD.DocBlob txt` but exploded to capture the annotations as well
+  mapBlob f (aa@(Term.App' ac@(Term.Constructor' DD.DocRef DD.DocBlobId)
+                           at@(Term.Text' txt)))
+    = blob (ABT.annotation aa) (ABT.annotation ac) (ABT.annotation at) (f txt)
+  mapBlob _ t = t
 
 -- Intercalate a list with separators determined by inspecting each
 -- adjacent pair.
