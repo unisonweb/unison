@@ -521,11 +521,10 @@ isDocLiteral term = case term of
 
 -- Similar to DisplayValues.displayDoc, but does not follow and expand references.
 prettyDoc :: Var v => PrettyPrintEnv -> Imports -> AnnotatedTerm3 v a -> Pretty SyntaxText
-prettyDoc n im term = tr $ mconcat [ fmt S.DocDelimiter $ l "[: "  -- TODO trace
-                                   , go term
-                                   , fmt S.DocDelimiter $ l " :]"] -- TODO replace this space
+prettyDoc n im term = mconcat [ fmt S.DocDelimiter $ l "[: "
+                              , go term
+                              , fmt S.DocDelimiter $ l " :]"] -- TODO replace this space
   where
-  tr x = trace ("prettyDoc: " ++ (show x) ++ "\n\n") x
   go (DD.DocJoin segs) = foldMap go segs
   go (DD.DocBlob txt) = PP.paragraphyText (escaped txt)
   go (DD.DocLink (DD.LinkTerm (TermLink' r))) =
