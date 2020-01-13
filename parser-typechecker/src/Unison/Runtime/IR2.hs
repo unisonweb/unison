@@ -3,7 +3,7 @@
 
 module Unison.Runtime.IR2 where
 
-import qualified Data.Vector.Unboxed as UI
+import Data.Primitive.PrimArray
 
 -- This outlines some of the ideas/features in this core
 -- language, and how they may be used to implement features of
@@ -120,22 +120,30 @@ import qualified Data.Vector.Unboxed as UI
 -- situational optimization, rather than a universal calling
 -- convention.
 
-data Args
-  = Arg0
-  | Arg1 !Int
+data Args'
+  = Arg1 !Int
   | Arg2 !Int !Int
   -- frame index of each argument to the function
-  | ArgN {-# unpack #-} !(UI.Vector Int)
+  | ArgN {-# unpack #-} !(PrimArray Int)
+  | ArgR !Int !Int
 
+data Args
+  = ZArgs
+  | UArg1 !Int
+  | UArg2 !Int !Int
+  | BArg1 !Int
+  | BArg2 !Int !Int
+  | DArg2 !Int !Int
+  | UArgR !Int !Int
+  | BArgR !Int !Int
+  | DArgR !Int !Int !Int !Int
 
-data Prim1 = Dec
-data Prim2 = Add
+data Prim1 = Dec | Inc
+data Prim2 = Add | Sub
 
 -- Instruction tree representation for the machine.
 data IR
-  = App !Int      -- number of arguments to remove from the unboxed stack
-        !Int      -- number of arguments to remove from the boxed stack
-        !Ref      -- function to apply
+  = App !Ref      -- function to apply
         !Args     -- additional arguments
   | Reset !Int    -- prompt tag
           !IR     -- delimited computation
@@ -144,15 +152,23 @@ data IR
   | Let !IR !IR
   | Prim1 !Prim1 !Int !IR
   | Prim2 !Prim2 !Int !Int !IR
+  | Pack !Int !Args !IR
   | Unpack !Int !IR
   | Match !Int !Branch
-  | Con !Int !Int !Int !Args
-  | Select !Int !Int !Int
+  | Yield !Args
   | Print !Int !IR
   | Lit !Int !IR
 
-data Ref = Box !Int | Unb !Int | Env !Int
+data Comb
+  = Lam !Int -- Number of unboxed arguments
+        !Int -- Number of boxed arguments
+        !Int -- Maximum needed unboxed frame size
+        !Int -- Maximum needed boxed frame size
+        !IR  -- Code
+
+data Ref = Stk !Int | Env !Int
 
 data Branch
   = Prod !IR -- only one branch
-  | TestEq !Int !IR !IR -- if tag == n then t else f
+  | Test1 !Int !IR !IR -- if tag == n then t else f
+  | Test2 !Int !IR !Int !IR !IR
