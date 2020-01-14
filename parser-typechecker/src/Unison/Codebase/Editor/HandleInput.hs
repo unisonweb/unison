@@ -402,7 +402,7 @@ loop = do
               stepManyAt (makeDeleteTermNames ++ makeDeleteTypeNames)
               root'' <- use root
               diffHelper (Branch.head root') (Branch.head root'') >>=
-                respondNumbered . uncurry ShowDiffAfterDelete
+                respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
             else do
               failed <-
                 loadSearchResults $ SR.fromNames failed
@@ -481,7 +481,7 @@ loop = do
           b <- updateAtM dest $ const (pure merged)
           if b then do
             diffHelper (Branch.head destb) (Branch.head merged) >>=
-              respondNumbered . uncurry (ShowDiffAfterMerge dest)
+              respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
             patch <- getPatchAt defaultPatchPath
             void $ propagatePatch inputDescription patch dest
           else respond (NothingTodo input)
@@ -496,7 +496,7 @@ loop = do
           if merged == destb then respond (NothingTodo input)
           else
             diffHelper (Branch.head destb) (Branch.head merged) >>=
-              respondNumbered . uncurry (ShowDiffAfterMergePreview dest)
+              respondNumbered . uncurry (ShowDiffAfterMergePreview dest0 dest)
 
       DiffNamespaceI before0 after0 -> do
         let [beforep, afterp] =
@@ -578,7 +578,10 @@ loop = do
                     (Path.toName' (Path.unsplit' p))
                     (Branch.toNames0 b)
                 diff = Names3.diff0 deletedNames mempty
-            respond $ ShowDiff input diff
+            diffHelper b Branch.empty0 >>=
+              respondNumbered 
+                . uncurry (ShowDiffAfterDeleteBranch 
+                            $ resolveToAbsolute (Path.unsplit' p))
           else do
             failed <- loadSearchResults $ SR.fromNames failed
             failedDependents <- loadSearchResults $ SR.fromNames failedDependents
@@ -1322,7 +1325,7 @@ loop = do
         let destAbs = Path.toAbsolutePath currentPath' path
         resolveConfiguredGitUrl Pull path mayRepo >>= \case
           Left e -> eval . Notify $ e
-          Right ns -> loadRemoteBranchAt input inputDescription ns destAbs
+          Right ns -> pullRemoteBranchAt path input inputDescription ns destAbs
 
       PushRemoteBranchI mayRepo path -> do
         let srcAbs = Path.toAbsolutePath currentPath' path
@@ -1730,15 +1733,16 @@ respondNumbered output = do
 
 -- Merges the specified remote branch into the specified local absolute path.
 -- Implementation detail of PullRemoteBranchI
-loadRemoteBranchAt
+pullRemoteBranchAt
   :: Var v
   => Monad m
-  => Input
+  => Path.Path'
+  -> Input
   -> Text
   -> (RemoteRepo, Maybe ShortBranchHash, Path)
   -> Path.Absolute
   -> Action' m v ()
-loadRemoteBranchAt input inputDescription (repo, sbh, remotePath) p = do
+pullRemoteBranchAt p' input inputDescription (repo, sbh, remotePath) p = do
   b <- eval $ maybe (LoadRemoteRootBranch FailIfMissing repo)
                     (LoadRemoteShortBranch repo) sbh
   case b of
@@ -1755,7 +1759,7 @@ loadRemoteBranchAt input inputDescription (repo, sbh, remotePath) p = do
   doMerge b b0 = do
     merged <- eval . Eval $ Branch.merge b b0
     diffHelper (Branch.head b0) (Branch.head merged) >>=
-      respondNumbered . uncurry ShowDiffAfterPull
+      respondNumbered . uncurry (ShowDiffAfterPull p' p)
     pure merged
 
 syncRemoteRootBranch

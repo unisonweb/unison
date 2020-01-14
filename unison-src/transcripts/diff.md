@@ -66,15 +66,37 @@ unique type Y a b = Y a b
 .> delete.term ns2.fromJust'
 .> diff.namespace ns1 ns2
 .> diff.namespace ns2 nsempty
+.> delete.namespace ns2
 ```
 
 ## Display issues to fixup
+- [ ] delete.term has some bonkers output
+    .> delete.term ns2.fromJust'
+
+      Here's what I deleted:
+
+      Updates:
+
+        1. ns1.fromJust#hs2i9lcgkd : Text
+        2. ns1.fromJust#jk19sm5bf8 : Nat
+
+        3. ns2.fromJust' : Nat
+           - 4. ns1.b : Nat
+
+      Name changes: -- this is ok vvv
+
+        Original            Changes
+        5. ns2.fromJust  ┐  6. ns2.fromJust' (removed)
+        7. ns2.fromJust' ┘  
+
+      Tip: You can always `undo` if this wasn't what you wanted.
+
 - [ ] Things look screwy when the type signature doesn't fit and has to get broken
       up into multiple lines. Maybe just disallow that?
 - [ ] add tagging of propagated updates to test propagated updates output
 - [ ] Delete blank line in between copies / renames entries if all entries are 1 to 1
       see todo in the code
-- [ ] Maybe group and/or add headings to the types, constructors, terms
+- [ ] ~~Maybe group and/or add headings to the types, constructors, terms~~
 - [x] Make a decision about how we want to show constructors in the diff
 - [x] When you delete a name with metadata, it also shows up in updates section
       with the deleted metadata.

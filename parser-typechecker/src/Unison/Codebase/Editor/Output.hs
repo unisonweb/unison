@@ -71,12 +71,13 @@ pushPull push pull p = case p of
 
 data NumberedOutput v
   = ShowDiffNamespace Path.Absolute Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterDelete PPE.PrettyPrintEnv (BranchDiffOutput v Ann) -- path is Path.absoluteEmpty
-  | ShowDiffAfterMerge Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterMergePreview Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterPull PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  
+  | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterMerge Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+
 --  | ShowDiff
 
 data Output v
@@ -311,4 +312,11 @@ isFailure o = case o of
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case
   ShowDiffNamespace{} -> False
+  ShowDiffAfterDeleteDefinitions{} -> False
+  ShowDiffAfterDeleteBranch{} -> False
+  ShowDiffAfterMerge{} -> False
+  ShowDiffAfterMergePreview{} -> False
+  ShowDiffAfterUndo{} -> False
+  ShowDiffAfterPull{} -> False
+
 

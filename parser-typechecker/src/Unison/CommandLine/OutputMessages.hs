@@ -128,8 +128,60 @@ renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
 
 notifyNumbered :: Var v => NumberedOutput v -> (Pretty, NumberedArgs)
 notifyNumbered o = case o of
-  ShowDiffNamespace oldPath rightPath ppe diffOutput ->
-    showDiffNamespace ppe oldPath rightPath diffOutput
+  ShowDiffNamespace oldPrefix newPrefix ppe diffOutput ->
+    showDiffNamespace ppe oldPrefix newPrefix diffOutput
+
+  ShowDiffAfterDeleteDefinitions ppe diff ->
+    first (\p -> P.lines
+      [ p
+      , ""
+      , undoTip
+      ]) (showDiffNamespace ppe e e diff)
+
+  ShowDiffAfterDeleteBranch bAbs ppe diff ->
+    first (\p -> P.lines
+      [ p
+      , ""
+      , undoTip
+      ]) (showDiffNamespace ppe bAbs bAbs diff)
+
+  ShowDiffAfterMerge dest' destAbs ppe diffOutput ->
+    first (\p -> P.lines [
+      P.wrap $ "Here's the changed in " <> prettyPath' dest' <> "after the merge:"
+      , ""
+      , p
+      , ""
+      , tip $ "You can use " <> IP.makeExample' IP.todo
+           <> "to see if this generated any work to do in this branch"
+           <> "and " <> IP.makeExample' IP.test <> "to run the tests."
+           <> "You can always" <> IP.makeExample' IP.undo <> "to undo the results of this merge."
+      ]) (showDiffNamespace ppe destAbs destAbs diffOutput)
+
+  ShowDiffAfterMergePreview dest' destAbs ppe diffOutput ->
+    first (\p -> P.lines [
+      P.wrap $ "Here's what would change in " <> prettyPath' dest' <> "after the merge:"
+      , ""
+      , p
+      ]) (showDiffNamespace ppe destAbs destAbs diffOutput)
+
+  ShowDiffAfterUndo ppe diffOutput ->
+    first (\p -> P.lines ["Here's the changes I undid", "", p ])
+      (showDiffNamespace ppe e e diffOutput)
+
+  ShowDiffAfterPull dest' destAbs ppe diff ->
+    if OBD.isEmpty diff then
+      ("✅  Looks like " <> prettyPath' dest' <> " is up to date.", mempty)
+    else
+      first (\p -> P.lines $ [
+          P.wrap $ "Here's what's changed in " <> prettyPath' dest' <> "after the pull:", "",
+          p, "",
+          undoTip
+        ])
+        (showDiffNamespace ppe destAbs destAbs diff)
+  where e = Path.absoluteEmpty
+        undoTip = tip $ "You can always" <> IP.makeExample' IP.undo
+                        <> "if this wasn't what you wanted."
+
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
