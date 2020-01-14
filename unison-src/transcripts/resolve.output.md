@@ -139,27 +139,48 @@ Let's now merge these namespaces into `c`:
 ```ucm
 .example.resolve> merge a c
 
-  🆕
+  Here's the changed in c after the merge:
   
-  Here's what's changed in c after the merge:
+  Updates:
   
-  + Adds / updates:
+    1. foo : Nat
+       ↓
+    2. foo : Nat
   
-    foo
+  Adds:
   
-  Tip: You can always `undo` if this wasn't what you wanted.
+    3. foo : Nat
+  
+    4. patch patch (added 1 updates)
+  
+  Removes:
+  
+    5. foo : Nat
+  
+  Tip: You can use `todo` to see if this generated any work to
+       do in this branch and `test` to run the tests. Or you can
+       use `undo` or `reflog` to undo the results of this merge.
 
 .example.resolve> merge b c
 
-  🆕
+  Here's the changed in c after the merge:
   
-  Here's what's changed in c after the merge:
+  Updates:
   
-  + Adds / updates:
+    1. foo : Nat
+       ↓
+    2. ┌ foo#8e68dvpr0a : Nat
+    3. └ foo#jdqoenu794 : Nat
   
-    foo
+    4. patch patch (added 1 updates)
   
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Adds:
+  
+    5. foo#8e68dvpr0a : Nat
+  
+  Tip: You can use `todo` to see if this generated any work to
+       do in this branch and `test` to run the tests. Or you can
+       use `undo` or `reflog` to undo the results of this merge.
 
 ```
 The namespace `c` now has an edit conflict, since the term `foo` was edited in two different ways.

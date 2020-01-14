@@ -80,15 +80,15 @@ y = "hello"
 
 .master> merge .feature1
 
-  🆕
+  Here's the changed in the current namespace after the merge:
   
-  Here's what's changed in the current namespace after the merge:
+  Adds:
   
-  + Adds / updates:
+    1. y : Text
   
-    y
-  
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Tip: You can use `todo` to see if this generated any work to
+       do in this branch and `test` to run the tests. Or you can
+       use `undo` or `reflog` to undo the results of this merge.
 
 .master> view y
 
@@ -105,15 +105,11 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
 ```ucm
 .> delete.namespace .feature1
 
-  🆕
+  Removes:
   
-  Here's what's changed after the delete:
+    1. y : Text
   
-  - Deletes:
-  
-    .feature1.y
-  
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 .> history
 
@@ -204,15 +200,13 @@ z = 99
 
 .feature2> delete.term x
 
-  🆕
+  Name changes:
   
-  Here's what's changed after the delete:
+    Original         Changes
+    1. feature2.x ┐  2. feature2.x (removed)
+    3. master.x   ┘  
   
-  - Deletes:
-  
-    feature2.x
-  
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
 And here's the other fork, where we update `y` and add a new definition, `frobnicate`:
@@ -270,19 +264,19 @@ At this point, `master` and `feature2` both have some changes the other doesn't 
 ```ucm
 .> merge feature2 master
 
-  🆕
+  Here's the changed in master after the merge:
   
-  Here's what's changed in master after the merge:
+  Adds:
   
-  + Adds / updates:
+    1. z : Nat
   
-    z
+  Removes:
   
-  - Deletes:
+    2. x : Nat
   
-    x
-  
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Tip: You can use `todo` to see if this generated any work to
+       do in this branch and `test` to run the tests. Or you can
+       use `undo` or `reflog` to undo the results of this merge.
 
 ```
 Notice that `x` is deleted in the merged branch (it was deleted in `feature2` and untouched by `master`):

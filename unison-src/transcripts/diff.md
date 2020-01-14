@@ -63,34 +63,42 @@ unique type Y a b = Y a b
 .> diff.namespace ns1 ns2
 .> alias.type ns1.X ns1.X2
 .> alias.type ns2.A' ns2.A''
+.> view.patch ns2.patch
+.> fork ns2 ns3
+.> alias.term ns2.fromJust' ns2.yoohoo
 .> delete.term ns2.fromJust'
-.> diff.namespace ns1 ns2
-.> diff.namespace ns2 nsempty
-.> delete.namespace ns2
+.> diff.namespace ns3 ns2
 ```
 
 ## Display issues to fixup
-- [ ] delete.term has some bonkers output
-    .> delete.term ns2.fromJust'
+- [ ] if a name is updated to a not-yet-named reference, it's shown as both an update and an add
+- [ ] similarly, if a conflicted name is resolved by deleting the last name to
+      a reference, I (arya) suspect it will show up as a Remove
+- [ ] might want unqualified names to be qualified sometimes:
 
-      Here's what I deleted:
+    .a> merge .b
 
       Updates:
 
-        1. ns1.fromJust#hs2i9lcgkd : Text
-        2. ns1.fromJust#jk19sm5bf8 : Nat
+        1. foo : Nat  - here?
+           ↓
+        2. ┌ foo#0ja1qfpej6 : Nat
+        3. └ foo#jk19sm5bf8 : Nat
 
-        3. ns2.fromJust' : Nat
-           - 4. ns1.b : Nat
+      Adds:
 
-      Name changes: -- this is ok vvv
+        4. foo#0ja1qfpej6 : Nat
 
-        Original            Changes
-        5. ns2.fromJust  ┐  6. ns2.fromJust' (removed)
-        7. ns2.fromJust' ┘  
+    maybe if all of the old (n,r) are still present, but some new (n,r') has
+    been added, just show it under adds:
 
-      Tip: You can always `undo` if this wasn't what you wanted.
+      Adds:
 
+        1. foo#0ja1qfpej6 : Nat  -- and the hash indicates that it has become conflicted?
+
+- [ ] two different auto-propagated changes creating a name conflict should show
+      up somewhere besides the auto-propagate count
+- [x] delete.term has some bonkers output
 - [ ] Things look screwy when the type signature doesn't fit and has to get broken
       up into multiple lines. Maybe just disallow that?
 - [ ] add tagging of propagated updates to test propagated updates output

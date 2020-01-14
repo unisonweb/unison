@@ -204,16 +204,18 @@ Cleaning up a bit...
 ```ucm
 .> delete.namespace subpath
 
-  🆕
+  Removes:
   
-  Here's what's changed after the delete:
+    1. unique type Foo
+    2. Foo.Foo            : #o4dd8v5jef
+    3. Foo.Bar            : #o4dd8v5jef
+    4. preserve.someTerm  : Optional x -> Optional x
+    5. fooToInt           : #o4dd8v5jef -> Int
+    6. preserve.otherTerm : Optional baz -> Optional baz
+    7. patch patch
+    8. patch preserve.patch
   
-  - Deletes:
-  
-    subpath.Foo subpath.Foo.Bar subpath.Foo.Foo subpath.fooToInt
-    subpath.preserve.otherTerm subpath.preserve.someTerm
-  
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
 Now, we make two terms, where one depends on the other.

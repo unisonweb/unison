@@ -18,6 +18,7 @@ import qualified Unison.Codebase.Metadata as Metadata
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Unison.Util.List (uniqueBy)
+import Unison.Util.Set (symmetricDifference)
 
 import Unison.Reference (Reference)
 import Unison.Type (Type)
@@ -102,7 +103,7 @@ toOutput :: forall m v a
          -> m (BranchDiffOutput v a)
 toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
             (BranchDiff termsDiff typesDiff patchesDiff) = do
-  traceM "termsDiff"
+  traceM "\ntermsDiff"
   traceShowM termsDiff
   let
     -- | This calculates the new reference's metadata as:
@@ -127,14 +128,22 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
           }
     -- For the metadata on a definition to have changed, the name
     -- and the reference must have existed before and the reference
-    -- must not have been removed
-    getMetadataUpdates s = traceShowId $
+    -- must not have been removed and the name must not have been removed or added
+    -- "getMetadataUpdates" = a defn has been updated via change of metadata
+    getMetadataUpdates :: (Ord r, Show r) => DiffSlice r -> [(Name, (Set r, Set r))]
+    getMetadataUpdates s = t
       [ (n, (Set.singleton r, Set.singleton r)) -- the reference is unchanged
       | (r,n,v) <- R3.toList $ BranchDiff.taddedMetadata s <>
                                BranchDiff.tremovedMetadata s
       , R.notMember r n (BranchDiff.talladds s)
       , R.notMember r n (BranchDiff.tallremoves s)
+--  trenames :: Map r (Set Name, Set Name), -- ref (old, new)
+      , case Map.lookup r (BranchDiff.trenames s) of
+          Nothing -> True
+          Just (olds, news) ->
+            Set.notMember n (symmetricDifference olds news)
       , v /= isPropagatedValue ]
+      where t u = trace ("getMetadataUpdates = " <> show u) u
 
   updatedTypes :: [UpdateTypeDisplay v a] <- let
     -- things where what the name pointed to changed
@@ -188,8 +197,9 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
     -- in for (sortOn fst . uniqueBy fst $ nsUpdates <> metadataUpdates) loadEntry
 
   let propagatedUpdates :: Int =
-        (Set.size . R3.d2s . BranchDiff.propagatedNamespaceUpdates) typesDiff +
-        (Set.size . R3.d2s . BranchDiff.propagatedNamespaceUpdates) termsDiff
+      -- counting the number of named auto-propagated definitions
+        (Set.size . Set.unions . toList . BranchDiff.propagatedUpdates) typesDiff +
+        (Set.size . Set.unions . toList . BranchDiff.propagatedUpdates) termsDiff
 
   let updatedPatches :: [PatchDisplay] =
         [(name, diff) | (name, BranchDiff.Modify diff) <- Map.toList patchesDiff]
@@ -197,7 +207,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
   addedTypes :: [AddedTypeDisplay v a] <- do
     let typeAdds :: [(Reference, [(Name, [Metadata.Value])])] =
          [ (r, nsmd)
-         | (r, ns) <- Map.toList . R.toMultimap . BranchDiff.adds $ typesDiff
+         | (r, ns) <- Map.toList . R.toMultimap . BranchDiff.talladds $ typesDiff
          , let nsmd = [ (n, toList $ getAddedMetadata r n typesDiff)
                       | n <- toList ns ]
          ]
@@ -211,7 +221,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
   addedTerms :: [AddedTermDisplay v a] <- do
     let termAdds :: [(Referent, [(Name, [Metadata.Value])])] =
           [ (r, nsmd)
-          | (r, ns) <- Map.toList . R.toMultimap. BranchDiff.adds $ termsDiff
+          | (r, ns) <- Map.toList . R.toMultimap . BranchDiff.talladds $ termsDiff
           , let nsmd = [ (n, toList $ getAddedMetadata r n termsDiff)
                        | n <- toList ns ]
           ]
@@ -227,7 +237,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
 
   removedTypes :: [RemovedTypeDisplay v a] <- let
     typeRemoves :: [(Reference, [Name])] =
-      Map.toList . fmap toList . R.toMultimap . BranchDiff.removes $ typesDiff
+      Map.toList . fmap toList . R.toMultimap . BranchDiff.tallremoves $ typesDiff
     in for typeRemoves $ \(r, ns) ->
       (,,) <$> pure ((\n -> Names2.hqTypeName hqLen names1 n r) <$> ns)
            <*> pure r
@@ -235,7 +245,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
 
   removedTerms :: [RemovedTermDisplay v a] <- let
     termRemoves :: [(Referent, [Name])] =
-      Map.toList . fmap toList . R.toMultimap . BranchDiff.removes $ termsDiff
+      Map.toList . fmap toList . R.toMultimap . BranchDiff.tallremoves $ termsDiff
     in for termRemoves $ \(r, ns) ->
       (,,) <$> pure ((\n -> Names2.hqTermName hqLen names1 n r) <$> ns)
            <*> pure r

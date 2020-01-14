@@ -30,7 +30,7 @@ data NamespaceSlice r = NamespaceSlice {
 
 data DiffSlice r = DiffSlice {
 --  tpatchUpdates :: Relation r r, -- old new
-  tallnamespaceUpdates :: Relation3 r r Name,
+  tallnamespaceUpdates :: Map Name (Set r, Set r),
   talladds :: Relation r Name,
   tallremoves :: Relation r Name,
   trenames :: Map r (Set Name, Set Name), -- ref (old, new)
@@ -122,9 +122,9 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut) where
   remainingNameChanges =
     Map.filter (\(old, new) -> not (null old) && not (null new) && old /= new)
 
-  allNamespaceUpdates :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Relation3 r r Name
+  allNamespaceUpdates :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Map Name (Set r, Set r)
   allNamespaceUpdates old new =
-    R3.fromNestedDom $ R.filterDom f (names old `R.joinRan` names new)
+    Map.filter f $ R.innerJoinRanMultimaps (names old) (names new)
     where f (old, new) = old /= new
 
   addedMetadata :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Relation3 r Name Metadata.Value
@@ -133,16 +133,20 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut) where
   removedMetadata :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Relation3 r Name Metadata.Value
   removedMetadata old new = metadata old `R3.difference` metadata new
 
-adds, removes :: Ord r => DiffSlice r -> Relation r Name
-adds s = R.subtractDom (R3.d2s (tallnamespaceUpdates s)) (talladds s)
-removes s = R.subtractDom (R3.d1s (tallnamespaceUpdates s)) (tallremoves s)
-
+-- the namespace updates that aren't propagated
 namespaceUpdates :: Ord r => DiffSlice r -> Map Name (Set r, Set r)
-namespaceUpdates s =
-  R.toUnzippedMultimap . R.swap . R3.nestD12 $
-  tallnamespaceUpdates s `R3.difference` propagatedNamespaceUpdates s
+namespaceUpdates s = Map.mapMaybeWithKey f (tallnamespaceUpdates s)
+  where
+  f name (olds, news) = let
+    news' = Set.difference news (Map.findWithDefault mempty name propagated)
+    in if null news' then Nothing else Just (olds, news')
+  propagated = propagatedUpdates s
 
-propagatedNamespaceUpdates :: Ord r => DiffSlice r -> Relation3 r r Name
-propagatedNamespaceUpdates s =
-  R3.filter f (tallnamespaceUpdates s)
-  where f (_rold, rnew, name) = R3.member rnew name isPropagatedValue (taddedMetadata s)
+propagatedUpdates :: Ord r => DiffSlice r -> Map Name (Set r)
+propagatedUpdates s = Map.fromList
+  [ (name, news)
+  | (name, (_olds0, news0)) <- Map.toList $ tallnamespaceUpdates s
+  , let news = Set.filter propagated news0
+        propagated rnew = R3.member rnew name isPropagatedValue (taddedMetadata s)
+  , not (null news)
+  ]

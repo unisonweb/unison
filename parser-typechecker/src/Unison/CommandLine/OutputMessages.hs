@@ -147,14 +147,15 @@ notifyNumbered o = case o of
 
   ShowDiffAfterMerge dest' destAbs ppe diffOutput ->
     first (\p -> P.lines [
-      P.wrap $ "Here's the changed in " <> prettyPath' dest' <> "after the merge:"
+      P.wrap $ "Here's what's changed in " <> prettyPath' dest' <> "after the merge:"
       , ""
       , p
       , ""
       , tip $ "You can use " <> IP.makeExample' IP.todo
-           <> "to see if this generated any work to do in this branch"
+           <> "to see if this generated any work to do in this namespace"
            <> "and " <> IP.makeExample' IP.test <> "to run the tests."
-           <> "You can always" <> IP.makeExample' IP.undo <> "to undo the results of this merge."
+           <> "Or you can use" <> IP.makeExample' IP.undo <> " or"
+           <> IP.makeExample' IP.viewReflog <> " to undo the results of this merge."
       ]) (showDiffNamespace ppe destAbs destAbs diffOutput)
 
   ShowDiffAfterMergePreview dest' destAbs ppe diffOutput ->
@@ -179,9 +180,9 @@ notifyNumbered o = case o of
         ])
         (showDiffNamespace ppe destAbs destAbs diff)
   where e = Path.absoluteEmpty
-        undoTip = tip $ "You can always" <> IP.makeExample' IP.undo
-                        <> "if this wasn't what you wanted."
-
+        undoTip = tip $ "You can use" <> IP.makeExample' IP.undo
+                     <> "or" <> IP.makeExample' IP.viewReflog
+                     <> "to undo this change."
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of

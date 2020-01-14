@@ -66,6 +66,7 @@ library
     Unison.Util.Relation
     Unison.Util.Relation3
     Unison.Util.Relation4
+    Unison.Util.Set
     Unison.Var
 
   build-depends:
