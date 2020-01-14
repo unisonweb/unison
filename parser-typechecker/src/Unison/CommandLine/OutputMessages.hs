@@ -128,7 +128,7 @@ renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
 
 notifyNumbered :: Var v => NumberedOutput v -> (Pretty, NumberedArgs)
 notifyNumbered o = case o of
-  ShowDiffNamespace ppe oldPath rightPath diffOutput ->
+  ShowDiffNamespace oldPath rightPath ppe diffOutput ->
     showDiffNamespace ppe oldPath rightPath diffOutput
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
@@ -672,7 +672,6 @@ notifyUser dir o = case o of
   TermNotFound' _ h ->
     pure $ "I could't find a term with hash "
          <> (prettyShortHash $ Reference.toShortHash (Reference.DerivedId h))
-  BranchDiff _ _ -> pure "Those namespaces are different."
   NothingToPatch _patchPath dest -> pure $
     P.callout "😶" . P.wrap
        $ "This had no effect. Perhaps the patch has already been applied"
@@ -741,51 +740,7 @@ notifyUser dir o = case o of
       ]
     ex = "Use" <> IP.makeExample IP.history ["#som3n4m3space"]
                <> "to view history starting from a given namespace hash."
-  ShowDiff input diff -> pure $ case input of
-    Input.UndoI -> P.callout "⏪" . P.lines $ [
-      "Here's the changes I undid:", "",
-      prettyDiff diff
-      ]
-    Input.MergeLocalBranchI src dest -> P.callout "🆕" . P.lines $
-      [ P.wrap $
-          "Here's what's changed in " <> prettyPath' dest <> "after the merge:"
-      , ""
-      , prettyDiff diff
-      , ""
-      , tip "You can always `undo` if this wasn't what you wanted."
-      ]
-    Input.PullRemoteBranchI _ dest ->
-      if Names.isEmptyDiff diff then
-        "✅  Looks like " <> prettyPath' dest <> " is up to date."
-      else P.callout "🆕" . P.lines $ [
-        P.wrap $ "Here's what's changed in " <> prettyPath' dest <> "after the pull:", "",
-        prettyDiff diff, "",
-        tip "You can always `undo` if this wasn't what you wanted." ]
-    Input.PreviewMergeLocalBranchI src dest ->
-      P.callout "🔎"
-        . P.lines
-        $ [ P.wrap
-          $  "Here's what would change in "
-          <> prettyPath' dest
-          <> "after the merge:"
-          , ""
-          , prettyDiff diff
-          ]
-    Input.DeleteBranchI{} -> deleteDiff
-    Input.DeleteI{}       -> deleteDiff
-    Input.DeleteTermI{}   -> deleteDiff
-    Input.DeleteTypeI{}   -> deleteDiff
-    _ -> prettyDiff diff
-    where
-      deleteDiff =
-        P.callout "🆕" . P.lines $
-          [ P.wrap $
-              "Here's what's changed after the delete:"
-          , ""
-          , prettyDiff diff
-          , ""
-          , tip "You can always `undo` if this wasn't what you wanted."
-          ]
+
   NothingTodo input -> pure . P.callout "😶" $ case input of
     Input.MergeLocalBranchI src dest ->
       P.wrap $ "The merge had no effect, since the destination"
@@ -1208,6 +1163,52 @@ listOfLinks ppe results = pure $ P.lines [
   prettyType Nothing = "❓ (missing a type for this definition)"
   prettyType (Just t) = TypePrinter.pretty ppe t
 
+
+--  ShowDiff input diff -> pure $ case input of
+--    Input.UndoI -> P.callout "⏪" . P.lines $ [
+--      "Here's the changes I undid:", "",
+--      prettyDiff diff
+--      ]
+--    Input.MergeLocalBranchI src dest -> P.callout "🆕" . P.lines $
+--      [ P.wrap $
+--          "Here's what's changed in " <> prettyPath' dest <> "after the merge:"
+--      , ""
+--      , prettyDiff diff
+--      , ""
+--      , tip "You can always `undo` if this wasn't what you wanted."
+--      ]
+--    Input.PullRemoteBranchI _ dest ->
+--      if Names.isEmptyDiff diff then
+--        "✅  Looks like " <> prettyPath' dest <> " is up to date."
+--      else P.callout "🆕" . P.lines $ [
+--        P.wrap $ "Here's what's changed in " <> prettyPath' dest <> "after the pull:", "",
+--        prettyDiff diff, "",
+--        tip "You can always `undo` if this wasn't what you wanted." ]
+--    Input.PreviewMergeLocalBranchI src dest ->
+--      P.callout "🔎"
+--        . P.lines
+--        $ [ P.wrap
+--          $  "Here's what would change in "
+--          <> prettyPath' dest
+--          <> "after the merge:"
+--          , ""
+--          , prettyDiff diff
+--          ]
+--    Input.DeleteBranchI{} -> deleteDiff
+--    Input.DeleteI{}       -> deleteDiff
+--    Input.DeleteTermI{}   -> deleteDiff
+--    Input.DeleteTypeI{}   -> deleteDiff
+--    _ -> prettyDiff diff
+--    where
+--      deleteDiff =
+--        P.callout "🆕" . P.lines $
+--          [ P.wrap $
+--              "Here's what's changed after the delete:"
+--          , ""
+--          , prettyDiff diff
+--          , ""
+--          , tip "You can always `undo` if this wasn't what you wanted."
+--          ]
 showDiffNamespace :: forall v . Var v
                   => PPE.PrettyPrintEnv
                   -> Path.Absolute

@@ -70,7 +70,14 @@ pushPull push pull p = case p of
   Pull -> pull
 
 data NumberedOutput v
-  = ShowDiffNamespace PPE.PrettyPrintEnv Path.Absolute Path.Absolute (BranchDiffOutput v Ann)
+  = ShowDiffNamespace Path.Absolute Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterDelete PPE.PrettyPrintEnv (BranchDiffOutput v Ann) -- path is Path.absoluteEmpty
+  | ShowDiffAfterMerge Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterMergePreview Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterPull PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  
+--  | ShowDiff
 
 data Output v
   -- Generic Success response; we might consider deleting this.
@@ -157,7 +164,6 @@ data Output v
   -- todo: eventually replace these sets with [SearchResult' v Ann]
   -- and a nicer render.
   | BustedBuiltins (Set Reference) (Set Reference)
-  | BranchDiff Names Names
   | GitError Input GitError
   | NoConfiguredGitUrl PushPull Path'
   | ConfiguredGitUrlParseError PushPull Path' Text String
@@ -171,7 +177,6 @@ data Output v
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch (Set ShortBranchHash)
-  | ShowDiff Input Names.Diff
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
   | NothingTodo Input
@@ -293,8 +298,6 @@ isFailure o = case o of
   NothingToPatch{} -> False
   WarnIncomingRootBranch{} -> False
   History{} -> False
-  ShowDiff{} -> False
-  BranchDiff{} -> False
   NotImplemented -> True
   DumpNumberedArgs{} -> False
   DumpBitBooster{} -> False

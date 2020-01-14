@@ -401,7 +401,8 @@ loop = do
               let makeDeleteTypeNames = fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
               stepManyAt (makeDeleteTermNames ++ makeDeleteTypeNames)
               root'' <- use root
-              respond $ ShowDiff input (Branch.namesDiff root' root'')
+              diffHelper (Branch.head root') (Branch.head root'') >>=
+                respondNumbered . uncurry ShowDiffAfterDelete
             else do
               failed <-
                 loadSearchResults $ SR.fromNames failed
@@ -479,7 +480,8 @@ loop = do
           merged <- eval . Eval $ Branch.merge srcb destb
           b <- updateAtM dest $ const (pure merged)
           if b then do
-            respond (ShowDiff input (Branch.namesDiff destb merged))
+            diffHelper (Branch.head destb) (Branch.head merged) >>=
+              respondNumbered . uncurry (ShowDiffAfterMerge dest)
             patch <- getPatchAt defaultPatchPath
             void $ propagatePatch inputDescription patch dest
           else respond (NothingTodo input)
@@ -492,25 +494,17 @@ loop = do
           destb <- getAt dest
           merged <- eval . Eval $ Branch.merge srcb destb
           if merged == destb then respond (NothingTodo input)
-          else respond $ ShowDiff input (Branch.namesDiff destb merged)
+          else
+            diffHelper (Branch.head destb) (Branch.head merged) >>=
+              respondNumbered . uncurry (ShowDiffAfterMergePreview dest)
 
       DiffNamespaceI before0 after0 -> do
         let [beforep, afterp] =
               Path.toAbsolutePath currentPath' <$> [before0, after0]
         before <- Branch.head <$> getAt beforep
         after <- Branch.head <$> getAt afterp
-        diff <- eval . Eval $ BranchDiff.diff0 before after
-        names0 <- basicPrettyPrintNames0
-        ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (Names names0 mempty)
-        outputDiff <- OBranchDiff.toOutput
-                        loadTypeOfTerm
-                        declOrBuiltin
-                        hqLength
-                        (Branch.toNames0 before)
-                        (Branch.toNames0 after)
-                        ppe
-                        diff
-        respondNumbered $ ShowDiffNamespace ppe beforep afterp outputDiff
+        (ppe, outputDiff) <- diffHelper before after
+        respondNumbered $ ShowDiffNamespace beforep afterp ppe outputDiff
 
       -- move the root to a sub-branch
       MoveBranchI Nothing dest -> do
@@ -573,7 +567,7 @@ loop = do
           (failed, failedDependents) <-
             let rootNames = Branch.toNames0 root0
                 toDelete = Names.prefix0
-                  (Path.toName . Path.unsplit . resolveSplit' $ p)
+                  (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
                   (Branch.toNames0 b)
             in getEndangeredDependents (eval . GetDependents) toDelete rootNames
           if failed == mempty then do
@@ -632,7 +626,8 @@ loop = do
                                  else CantUndoPastMerge
           Just (_, prev) -> do
             updateRoot root' prev inputDescription
-            respond $ ShowDiff input (Branch.namesDiff prev root')
+            diffHelper (Branch.head prev) (Branch.head root') >>=
+              respondNumbered . uncurry Output.ShowDiffAfterUndo
 
       AliasTermI src dest -> case (toList (getHQ'Terms src), toList (getTerms dest)) of
         ([r],       []) -> do
@@ -1759,7 +1754,8 @@ loadRemoteBranchAt input inputDescription (repo, sbh, remotePath) p = do
  where
   doMerge b b0 = do
     merged <- eval . Eval $ Branch.merge b b0
-    respond $ ShowDiff input (Branch.namesDiff b0 merged)
+    diffHelper (Branch.head b0) (Branch.head merged) >>=
+      respondNumbered . uncurry ShowDiffAfterPull
     pure merged
 
 syncRemoteRootBranch
@@ -2399,6 +2395,25 @@ executePPE unisonFile =
     makeShadowedPrintNamesFromLabeled
       (UF.termSignatureExternalLabeledDependencies unisonFile)
       (UF.typecheckedToNames0 unisonFile)
+
+diffHelper :: Monad m
+  => Branch0 m
+  -> Branch0 m
+  -> Action' m v (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput v Ann)
+diffHelper before after = do
+  hqLength <- eval CodebaseHashLength
+  diff     <- eval . Eval $ BranchDiff.diff0 before after
+  names0 <- basicPrettyPrintNames0
+  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (Names names0 mempty)
+  (ppe,) <$>
+    OBranchDiff.toOutput
+      loadTypeOfTerm
+      declOrBuiltin
+      hqLength
+      (Branch.toNames0 before)
+      (Branch.toNames0 after)
+      ppe
+      diff
 
 loadTypeOfTerm :: Referent -> Action m i v (Maybe (Type v Ann))
 loadTypeOfTerm (Referent.Ref r) = eval $ LoadTypeOfTerm r
