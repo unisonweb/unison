@@ -95,6 +95,24 @@ unique type Y a b = Y a b
       Adds:
 
         1. foo#0ja1qfpej6 : Nat  -- and the hash indicates that it has become conflicted?
+- [ ] incorrectly calculated bracket alignment on hashqualified "Name changes"  (delete.output.md)
+
+    Original                               Changes
+    4. example.resolve.a.foo ┐             5. example.resolve.c.foo#jdqoenu794 (removed)
+    6. example.resolve.c.foo#jdqoenu794 ┘  
+
+- [ ] missing old names in deletion ppe (delete.output.md), need to compute the
+      set of type names that are needed, and search for old names. :(
+
+      Removes:
+
+        1. a.Foo.Foo#d97e0jhkmd#0 : Nat -> #d97e0jhkmd
+
+      Name changes:
+
+        Original                     Changes
+        2. b.Foo.Foo ┐               3. a.Foo.Foo#gq9inhvg9h#0 (removed)
+        4. a.Foo.Foo#gq9inhvg9h#0 ┘  
 
 - [ ] two different auto-propagated changes creating a name conflict should show
       up somewhere besides the auto-propagate count
