@@ -71,6 +71,7 @@ unique type Y a b = Y a b
 ```
 
 ## Display issues to fixup
+
 - [ ] if a name is updated to a not-yet-named reference, it's shown as both an update and an add
 - [ ] similarly, if a conflicted name is resolved by deleting the last name to
       a reference, I (arya) suspect it will show up as a Remove
@@ -95,34 +96,23 @@ unique type Y a b = Y a b
       Adds:
 
         1. foo#0ja1qfpej6 : Nat  -- and the hash indicates that it has become conflicted?
+
 - [ ] incorrectly calculated bracket alignment on hashqualified "Name changes"  (delete.output.md)
 
     Original                               Changes
     4. example.resolve.a.foo ┐             5. example.resolve.c.foo#jdqoenu794 (removed)
     6. example.resolve.c.foo#jdqoenu794 ┘  
 
-- [ ] missing old names in deletion ppe (delete.output.md), need to compute the
-      set of type names that are needed, and search for old names. :(
-
-      Removes:
-
-        1. a.Foo.Foo#d97e0jhkmd#0 : Nat -> #d97e0jhkmd
-
-      Name changes:
-
-        Original                     Changes
-        2. b.Foo.Foo ┐               3. a.Foo.Foo#gq9inhvg9h#0 (removed)
-        4. a.Foo.Foo#gq9inhvg9h#0 ┘  
-
 - [ ] two different auto-propagated changes creating a name conflict should show
       up somewhere besides the auto-propagate count
-- [x] delete.term has some bonkers output
 - [ ] Things look screwy when the type signature doesn't fit and has to get broken
       up into multiple lines. Maybe just disallow that?
 - [ ] add tagging of propagated updates to test propagated updates output
 - [ ] Delete blank line in between copies / renames entries if all entries are 1 to 1
       see todo in the code
 - [ ] ~~Maybe group and/or add headings to the types, constructors, terms~~
+- [x] missing old names in deletion ppe (delete.output.md)  (superseded by \#1143)
+- [x] delete.term has some bonkers output
 - [x] Make a decision about how we want to show constructors in the diff
 - [x] When you delete a name with metadata, it also shows up in updates section
       with the deleted metadata.
