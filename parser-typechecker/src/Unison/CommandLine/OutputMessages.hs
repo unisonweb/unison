@@ -1303,11 +1303,6 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
       pure $ P.sepNonEmpty "\n\n"
         [ P.bold "Adds:"
         , P.indentN 2 $ P.linesNonEmpty [prettyAddedTypes, prettyAddedTerms]
-        , if propagatedUpdates > 0
-          then P.indentN 2
-                $ P.wrap ("& " <> P.shown propagatedUpdates
-                               <> "auto-propagated updates")
-          else mempty
         , P.indentNonEmptyN 2 $ P.lines prettyAddedPatches
         ]
     else pure mempty

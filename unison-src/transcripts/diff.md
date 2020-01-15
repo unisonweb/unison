@@ -52,6 +52,7 @@ unique type Y a b = Y a b
 
 ```ucm
 .ns2> update
+.ns2> links fromJust
 .> diff.namespace ns1 ns2
 .> alias.term ns2.d ns2.d'
 .> alias.type ns2.A ns2.A'
@@ -72,6 +73,7 @@ unique type Y a b = Y a b
 
 ## Display issues to fixup
 
+- [ ] just handle deletion of isPropagated in propagate function, leave HandleInput alone (assuming this does the trick)
 - [ ] if a name is updated to a not-yet-named reference, it's shown as both an update and an add
 - [ ] similarly, if a conflicted name is resolved by deleting the last name to
       a reference, I (arya) suspect it will show up as a Remove
@@ -107,10 +109,10 @@ unique type Y a b = Y a b
       up somewhere besides the auto-propagate count
 - [ ] Things look screwy when the type signature doesn't fit and has to get broken
       up into multiple lines. Maybe just disallow that?
-- [ ] add tagging of propagated updates to test propagated updates output
 - [ ] Delete blank line in between copies / renames entries if all entries are 1 to 1
       see todo in the code
 - [ ] ~~Maybe group and/or add headings to the types, constructors, terms~~
+- [x] add tagging of propagated updates to test propagated updates output
 - [x] missing old names in deletion ppe (delete.output.md)  (superseded by \#1143)
 - [x] delete.term has some bonkers output
 - [x] Make a decision about how we want to show constructors in the diff

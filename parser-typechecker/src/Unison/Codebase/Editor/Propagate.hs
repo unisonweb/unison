@@ -463,7 +463,7 @@ applyPropagate patch Edits {..} = do
     replaceTerm s (r, r') =
       (if isPropagated r'
        then Metadata.insert (propagatedMd (Referent.Ref r'))
-       else id) .
+       else Metadata.delete (propagatedMd (Referent.Ref r'))) .
       Star3.replaceFact (Referent.Ref r) (Referent.Ref r') $ s
 
     replaceConstructor s ((oldr, oldc, oldt), (newr, newc, newt)) =
@@ -473,7 +473,8 @@ applyPropagate patch Edits {..} = do
       where
       con' = Referent.Con newr newc newt
     replaceType s (r, r') =
-      (if isPropagated r' then Metadata.insert (propagatedMd r') else id) .
+      (if isPropagated r' then Metadata.insert (propagatedMd r')
+       else Metadata.delete (propagatedMd r')) .
       Star3.replaceFact r r' $ s
 
   -- typePreservingTermEdits :: Patch -> Patch

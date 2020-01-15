@@ -2095,13 +2095,17 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
     Just split -> [ BranchUtil.makeDeleteTypeName split old
                   , BranchUtil.makeAddTypeName split new oldMd ]
       where
-      oldMd = BranchUtil.getTypeMetadataAt split old b0
+      -- we remove any IsPropagated metadata from updates
+      oldMd = Map.delete IOSource.isPropagatedReference
+            $ BranchUtil.getTypeMetadataAt split old b0
   doTerm (n, (old, new)) = case Path.splitFromName n of
     Nothing -> errorEmptyVar
     Just split -> [ BranchUtil.makeDeleteTermName split (Referent.Ref old)
                   , BranchUtil.makeAddTermName split (Referent.Ref new) oldMd ]
       where
-      oldMd = BranchUtil.getTermMetadataAt split (Referent.Ref old) b0
+      -- we remove any IsPropagated metadata from updates
+      oldMd = Map.delete IOSource.isPropagatedReference
+            $ BranchUtil.getTermMetadataAt split (Referent.Ref old) b0
   errorEmptyVar = error "encountered an empty var name"
 
 loadSearchResults :: Ord v => [SR.SearchResult] -> Action m i v [SearchResult' v Ann]
