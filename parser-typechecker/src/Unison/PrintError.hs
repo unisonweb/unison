@@ -54,7 +54,7 @@ import qualified Unison.Util.Pretty as Pr
 import Unison.Util.Pretty (Pretty, ColorText)
 import qualified Unison.Names3 as Names
 import qualified Unison.Name as Name
-import Unison.HashQualified (HashQualified)
+import Unison.HashQualified (HashQualified')
 import Unison.Type (Type)
 import Unison.NamePrinter (prettyHashQualified0)
 
@@ -931,6 +931,7 @@ prettyParseError s = \case
     , ").\n"
     ]
   go' (P.ErrorCustom e) = go e
+  errorVar :: v -> Pretty ColorText
   errorVar v = style ErrorSite . fromString . Text.unpack $ Var.name v
   go :: Parser.Error v -> Pretty ColorText
   -- | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
@@ -948,17 +949,20 @@ prettyParseError s = \case
         tokenAsErrorSite s tok,
         useExamples
         ]
-      (tok0, Nothing) -> let tok = either id id tok0 in [
+      (tok0, Nothing) -> let tok = either id id tok0 in
+                         let n = Name.fromVar (L.payload tok) in [
         Pr.wrap $ "I was expecting something after " <> Pr.hiRed "here:", "",
         tokenAsErrorSite s tok,
-        case Name.parent (L.payload tok) of
+        case Name.parent n of
           Nothing -> useExamples
+          -- This is an error message for when you say "use Nat.++"; it suggests
+          -- "use Nat ++"
           Just parent -> Pr.wrap $
             "You can write" <>
             Pr.group (Pr.blue $ "use " <> Pr.text (Name.toText parent) <> " "
-                                       <> Pr.text (Name.toText (Name.unqualified (L.payload tok)))) <>
-            "to introduce " <> Pr.backticked (Pr.text (Name.toText (Name.unqualified (L.payload tok)))) <>
-            "as a local alias for " <> Pr.backticked (Pr.text (Name.toText (L.payload tok)))
+                                       <> Pr.text (Name.toText (Name.unqualified n))) <>
+            "to introduce " <> Pr.backticked (Pr.text (Name.toText (Name.unqualified n))) <>
+            "as a local alias for " <> Pr.backticked (Pr.text (Name.toText n))
         ]
       (Right tok, _) -> [ -- this is unpossible but rather than bomb, nice msg
         "You found a Unison bug 🐞  here:", "",
@@ -1062,22 +1066,22 @@ prettyParseError s = \case
   go (Parser.UnknownDataConstructor    tok _referents) = unknownConstructor "data" tok
   go (Parser.UnknownId               tok referents references) = Pr.lines
     [ if missing then
-        "I couldn't resolve the reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
+        "I couldn't resolve the reference " <> style ErrorSite (HQ.toString (Name.fromVar <$> L.payload tok)) <> "."
       else
-        "The reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous."
+        "The reference " <> style ErrorSite (HQ.toString (Name.fromVar <$> L.payload tok)) <> " was ambiguous."
     , ""
-    , tokenAsErrorSite s $ HQ.toString <$> tok
+    , tokenAsErrorSite s $ HQ.toString . fmap Name.fromVar <$> tok
     , if missing then "Make sure it's spelled correctly."
       else "Try hash-qualifying the term you meant to reference."
     ]
     where missing = Set.null referents && Set.null references
   go (Parser.UnknownTerm               tok referents) = Pr.lines
     [ if Set.null referents then
-        "I couldn't find a term for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
+        "I couldn't find a term for " <> style ErrorSite (HQ.toString (Name.fromVar <$> L.payload tok)) <> "."
       else
-        "The term reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous."
+        "The term reference " <> style ErrorSite (HQ.toString (Name.fromVar <$> L.payload tok)) <> " was ambiguous."
     , ""
-    , tokenAsErrorSite s $ HQ.toString <$> tok
+    , tokenAsErrorSite s $ HQ.toString . fmap Name.fromVar <$> tok
     , if missing then "Make sure it's spelled correctly."
       else "Try hash-qualifying the term you meant to reference."
     ]
@@ -1085,11 +1089,11 @@ prettyParseError s = \case
     missing = Set.null referents
   go (Parser.UnknownType               tok referents) = Pr.lines
     [ if Set.null referents then
-        "I couldn't find a type for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
+        "I couldn't find a type for " <> style ErrorSite (HQ.toString (Name.fromVar <$> L.payload tok)) <> "."
       else
-        "The type reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous."
+        "The type reference " <> style ErrorSite (HQ.toString (Name.fromVar <$> L.payload tok)) <> " was ambiguous."
     , ""
-    , tokenAsErrorSite s $ HQ.toString <$> tok
+    , tokenAsErrorSite s $ HQ.toString . fmap Name.fromVar <$> tok
     , if missing then "Make sure it's spelled correctly."
       else "Try hash-qualifying the type you meant to reference."
     ]
@@ -1098,13 +1102,13 @@ prettyParseError s = \case
   go (Parser.ResolutionFailures        failures) =
     Pr.border 2 . prettyResolutionFailures s $ failures
   unknownConstructor
-    :: String -> L.Token HashQualified -> Pretty ColorText
+    :: String -> L.Token (HashQualified' v) -> Pretty ColorText
   unknownConstructor ctorType tok = Pr.lines [
     (Pr.wrap . mconcat) [ "I don't know about any "
     , fromString ctorType
     , " constructor named "
     , Pr.group (
-        stylePretty ErrorSite (prettyHashQualified0 (L.payload tok)) <>
+        stylePretty ErrorSite (prettyHashQualified0 (Name.fromVar <$> L.payload tok)) <>
         "."
       )
     , "Maybe make sure it's correctly spelled and that you've imported it:"

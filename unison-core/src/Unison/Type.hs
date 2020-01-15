@@ -75,7 +75,7 @@ bindNames
   -> Type v a
   -> Names.ResolutionResult v a (Type v a)
 bindNames keepFree ns t = let
-  fvs = ABT.freeVarOccurrences keepFree t
+  fvs = ABT.freeVarOccurrences (`elem` keepFree) t
   rs = [(v, a, R.lookupDom (Name.fromVar v) (Names.types0 ns)) | (v,a) <- fvs ]
   ok (v, a, rs) = if Set.size rs == 1 then pure (v, Set.findMin rs)
                   else Left (pure (Names.TypeResolutionFailure v a rs))

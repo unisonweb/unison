@@ -76,7 +76,7 @@ typeLink' :: Var v => P v (L.Token Reference)
 typeLink' = do
   id <- hqPrefixId
   ns <- asks names
-  case Names.lookupHQType (L.payload id) ns of
+  case Names.lookupHQType (Name.fromVar <$> L.payload id) ns of
     s | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
       | otherwise       -> customFailure $ UnknownType id s
 
@@ -84,7 +84,7 @@ termLink' :: Var v => P v (L.Token Referent)
 termLink' = do
   id <- hqPrefixId
   ns <- asks names
-  case Names.lookupHQTerm (L.payload id) ns of
+  case Names.lookupHQTerm (Name.fromVar <$> L.payload id) ns of
     s | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
       | otherwise       -> customFailure $ UnknownTerm id s
 
@@ -92,7 +92,7 @@ link' :: Var v => P v (Either (L.Token Reference) (L.Token Referent))
 link' = do
   id <- hqPrefixId
   ns <- asks names
-  case (Names.lookupHQTerm (L.payload id) ns, Names.lookupHQType (L.payload id) ns) of
+  case (Names.lookupHQTerm (Name.fromVar <$> L.payload id) ns, Names.lookupHQType (Name.fromVar <$> L.payload id) ns) of
     (s, s2) | Set.size s == 1 && Set.null s2 -> pure . Right $ const (Set.findMin s) <$> id
     (s, s2) | Set.size s2 == 1 && Set.null s -> pure . Left $ const (Set.findMin s2) <$> id
     (s, s2) -> customFailure $ UnknownId id s s2
@@ -175,7 +175,7 @@ parsePattern =
     -- this might be a var, so we avoid consuming it at first
     tok <- P.try (P.lookAhead hqPrefixId)
     names <- asks names
-    case Names.lookupHQPattern (L.payload tok) names of
+    case Names.lookupHQPattern (Name.fromVar <$> L.payload tok) names of
       s | Set.null s     -> die tok s
         | Set.size s > 1 -> die tok s
         | otherwise      -> -- matched ctor name, consume the token
@@ -185,7 +185,7 @@ parsePattern =
       -- if token not hash qualified or uppercase,
       -- fail w/out consuming it to allow backtracking
       HQ.NameOnly n | Set.null s &&
-                      Name.isLower n -> fail $ "not a constructor name: " <> Name.toString n
+                      Name.isLower (Name.fromVar n) -> fail $ "not a constructor name: " <> Name.toString (Name.fromVar n)
       -- it was hash qualified, and wasn't found in the env, that's a failure!
       _ -> failCommitted $ err hq s
 
@@ -268,12 +268,12 @@ hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
 -- If the hash qualified is name only, it is treated as a var, if it
 -- has a short hash, we resolve that short hash immediately and fail
 -- committed if that short hash can't be found in the current environment
-resolveHashQualified :: Var v => L.Token HQ.HashQualified -> TermP v
+resolveHashQualified :: Var v => L.Token (HQ.HashQualified' v) -> TermP v
 resolveHashQualified tok = do
   names <- asks names
   case L.payload tok of
-    HQ.NameOnly n -> pure $ Term.var (ann tok) (Name.toVar n)
-    _ -> case Names.lookupHQTerm (L.payload tok) names of
+    HQ.NameOnly n -> pure $ Term.var (ann tok) n
+    _ -> case Names.lookupHQTerm (Name.fromVar <$> L.payload tok) names of
       s | Set.null s     -> failCommitted $ UnknownTerm tok s
         | Set.size s > 1 -> failCommitted $ UnknownTerm tok s
         | otherwise      -> pure $ Term.fromReferent (ann tok) (Set.findMin s)
@@ -455,7 +455,7 @@ block s = block' False s (openBlockWith s) closeBlock
 -- names in the environment prefixed by `foo`
 --
 -- todo: doesn't support use Foo.bar ++#abc, which lets you use `++` unqualified to refer to `Foo.bar.++#abc`
-importp :: Ord v => P v [(Name, Name)]
+importp :: Var v => P v [(Name, Name)]
 importp = do
   kw      <- reserved "use"
   -- we allow symbolyId here and parse the suffix optionaly, so we can generate
@@ -469,10 +469,10 @@ importp = do
     (Just prefix@(Left _), _) -> P.customFailure $ UseInvalidPrefixSuffix prefix suffixes
     (Just (Right prefix), Nothing) -> do -- `wildcard import`
       names <- asks names
-      pure $ Names.expandWildcardImport (L.payload prefix) (Names.currentNames names)
+      pure $ Names.expandWildcardImport (Name.fromVar (L.payload prefix)) (Names.currentNames names)
     (Just (Right prefix), Just suffixes) -> pure $ do
-      suffix <- L.payload <$> suffixes
-      pure (suffix, Name.joinDot (L.payload prefix) suffix)
+      suffix <- Name.fromVar . L.payload <$> suffixes
+      pure (suffix, Name.joinDot (Name.fromVar (L.payload prefix)) suffix)
 
 --module Monoid where
 --  -- we replace all the binding names with Monoid.op, and
@@ -489,12 +489,12 @@ namespaceBlock :: Var v => P v (BlockElement v)
 namespaceBlock = do
   _ <- reserved "namespace"
   -- need a version of verifyRelativeName that takes a `Token Name`
-  name <- verifyRelativeName importWordyId
+  name <- verifyRelativeVarName importWordyId
   let statement = (Binding <$> binding) <|> namespaceBlock
   _ <- openBlockWith "where"
   elems <- sepBy semi statement
   _ <- closeBlock
-  pure $ Namespace (Name.toString $ L.payload name) elems
+  pure $ Namespace (Text.unpack . Var.name $ L.payload name) elems
 
 toBindings :: forall v . Var v => [BlockElement v] -> [((Ann,v), AnnotatedTerm v Ann)]
 toBindings b = let

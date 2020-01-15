@@ -88,14 +88,14 @@ data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
   | DisallowedAbsoluteName (L.Token Name)
   | EmptyBlock (L.Token String)
-  | UnknownAbilityConstructor (L.Token HQ.HashQualified) (Set (Reference, Int))
-  | UnknownDataConstructor (L.Token HQ.HashQualified) (Set (Reference, Int))
-  | UnknownTerm (L.Token HQ.HashQualified) (Set Referent)
-  | UnknownType (L.Token HQ.HashQualified) (Set Reference)
-  | UnknownId (L.Token HQ.HashQualified) (Set Referent) (Set Reference)
+  | UnknownAbilityConstructor (L.Token (HQ.HashQualified' v)) (Set (Reference, Int))
+  | UnknownDataConstructor (L.Token (HQ.HashQualified' v)) (Set (Reference, Int))
+  | UnknownTerm (L.Token (HQ.HashQualified' v)) (Set Referent)
+  | UnknownType (L.Token (HQ.HashQualified' v)) (Set Reference)
+  | UnknownId (L.Token (HQ.HashQualified' v)) (Set Referent) (Set Reference)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
   | EmptyWatch
-  | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
+  | UseInvalidPrefixSuffix (Either (L.Token v) (L.Token v)) (Maybe [L.Token v])
   | UseEmpty (L.Token String) -- an empty `use` statement
   | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
   | TypeDeclarationErrors [UF.Error v Ann]
@@ -264,9 +264,9 @@ matchToken :: Ord v => L.Lexeme -> P v (L.Token L.Lexeme)
 matchToken x = P.satisfy ((==) x . L.payload)
 
 -- The package name that refers to the root, literally just `.`
-importDotId :: Ord v => P v (L.Token Name)
+importDotId :: Var v => P v (L.Token v)
 importDotId = queryToken go where
-  go (L.SymbolyId "." Nothing) = Just (Name.unsafeFromText ".")
+  go (L.SymbolyId "." Nothing) = Just (Var.named ".")
   go _ = Nothing
 
 -- Consume a virtual semicolon
@@ -306,13 +306,13 @@ wordyIdString = queryToken $ \case
 wordyIdText :: Ord v => P v (L.Token Text)
 wordyIdText = (fmap . fmap) Text.pack wordyIdString
 
--- Parse a wordyId as a Name, rejecting any hash
-importWordyId :: Ord v => P v (L.Token Name)
-importWordyId = (fmap . fmap) Name.unsafeFromText wordyIdText
+-- Parse a wordyId as a var
+importWordyId :: Var v => P v (L.Token v)
+importWordyId = (fmap . fmap) Var.named wordyIdText
 
--- The `+` in: use Foo.bar + as a Name
-importSymbolyId :: Ord v => P v (L.Token Name)
-importSymbolyId = (fmap . fmap) Name.unsafeFromText symbolyIdText
+-- The `+` in: use Foo.bar + as a var
+importSymbolyId :: Var v => P v (L.Token v)
+importSymbolyId = (fmap . fmap) Var.named symbolyIdText
 
 -- Parse a symbolyId as a String, rejecting any hash
 symbolyIdString :: Ord v => P v (L.Token String)
@@ -341,33 +341,33 @@ symbolyDefinitionName = queryToken $ \case
 parenthesize :: Ord v => P v a -> P v a
 parenthesize p = P.try (openBlockWith "(" *> p) <* closeBlock
 
-hqPrefixId, hqInfixId :: Ord v => P v (L.Token HQ.HashQualified)
+hqPrefixId, hqInfixId :: Var v => P v (L.Token (HQ.HashQualified' v))
 hqPrefixId = hqWordyId_ <|> parenthesize hqSymbolyId_
-hqInfixId = hqSymbolyId_ <|> hqBacktickedId_
+hqInfixId= hqSymbolyId_ <|> hqBacktickedId_
 
 -- Parse a hash-qualified alphanumeric identifier
-hqWordyId_ :: Ord v => P v (L.Token HQ.HashQualified)
+hqWordyId_ :: Var v => P v (L.Token (HQ.HashQualified' v))
 hqWordyId_ = queryToken $ \case
   L.WordyId "" (Just h) -> Just $ HQ.HashOnly h
-  L.WordyId s  (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromText (Text.pack s)) h
-  L.WordyId s  Nothing  -> Just $ HQ.NameOnly (Name.unsafeFromText (Text.pack s))
+  L.WordyId s  (Just h) -> Just $ HQ.HashQualified (Var.named (Text.pack s)) h
+  L.WordyId s  Nothing  -> Just $ HQ.NameOnly (Var.named (Text.pack s))
   L.Hash h              -> Just $ HQ.HashOnly h
-  L.Blank s | not (null s) -> Just $ HQ.NameOnly (Name.unsafeFromText (Text.pack ("_" <> s)))
+  L.Blank s | not (null s) -> Just $ HQ.NameOnly (Var.named (Text.pack ("_" <> s)))
   _ -> Nothing
 
 -- Parse a hash-qualified symboly ID like >>=#foo or &&
-hqSymbolyId_ :: Ord v => P v (L.Token HQ.HashQualified)
+hqSymbolyId_ :: Var v => P v (L.Token (HQ.HashQualified' v))
 hqSymbolyId_ = queryToken $ \case
   L.SymbolyId "" (Just h) -> Just $ HQ.HashOnly h
-  L.SymbolyId s  (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromText (Text.pack s)) h
-  L.SymbolyId s  Nothing  -> Just $ HQ.NameOnly (Name.unsafeFromText (Text.pack s))
+  L.SymbolyId s  (Just h) -> Just $ HQ.HashQualified (Var.named (Text.pack s)) h
+  L.SymbolyId s  Nothing  -> Just $ HQ.NameOnly (Var.named (Text.pack s))
   _ -> Nothing
 
-hqBacktickedId_ :: Ord v => P v (L.Token HQ.HashQualified)
+hqBacktickedId_ :: Var v => P v (L.Token (HQ.HashQualified' v))
 hqBacktickedId_ = queryToken $ \case
   L.Backticks "" (Just h) -> Just $ HQ.HashOnly h
-  L.Backticks s  (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromText (Text.pack s)) h
-  L.Backticks s  Nothing  -> Just $ HQ.NameOnly (Name.unsafeFromText (Text.pack s))
+  L.Backticks s  (Just h) -> Just $ HQ.HashQualified (Var.named (Text.pack s)) h
+  L.Backticks s  Nothing  -> Just $ HQ.NameOnly (Var.named (Text.pack s))
   _ -> Nothing
 
 -- Parse a reserved word
