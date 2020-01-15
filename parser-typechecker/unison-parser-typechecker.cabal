@@ -85,7 +85,6 @@ library
     Unison.DeclPrinter
     Unison.FileParser
     Unison.FileParsers
-    Unison.Lexer
     Unison.NamePrinter
     Unison.Parser
     Unison.Parsers
@@ -166,6 +165,7 @@ library
     io-streams,
     lens,
     ListLike,
+    -- todo remove
     megaparsec >= 5.0.0 && < 7.0.0,
     memory,
     mmorph,
@@ -191,6 +191,7 @@ library
     time,
     transformers,
     unison-core,
+    unison-syntax,
     unliftio,
     util,
     vector
@@ -300,7 +301,8 @@ executable tests
     text,
     transformers,
     unison-core,
-    unison-parser-typechecker
+    unison-parser-typechecker,
+    unison-syntax
 
 executable transcripts
   main-is:        Unison/Test/Transcripts.hs

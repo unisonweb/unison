@@ -9,6 +9,7 @@ packages:
 - yaks/haskeline
 - parser-typechecker
 - unison-core
+- unison-syntax
 
 #compiler-check: match-exact
 resolver: lts-14.7
