@@ -36,6 +36,7 @@ import           Unison.Util.Free               ( Free
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.TransitiveClosure  ( transitiveClosure )
 import           Unison.Var                     ( Var )
+import qualified Unison.Codebase.Metadata      as Metadata
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.Codebase.TermEdit       ( TermEdit(..) )
 import qualified Unison.Codebase.TermEdit      as TermEdit
@@ -46,12 +47,14 @@ import qualified Unison.Util.Star3             as Star3
 import           Unison.Type                    ( Type )
 import qualified Unison.Typechecker            as Typechecker
 import           Unison.ConstructorType         ( ConstructorType )
+import qualified Unison.Runtime.IOSource       as IOSource
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
 
 data Edits v = Edits
   { termEdits :: Map Reference TermEdit
+  -- same info as `termEdits` but in more efficient form for calling `Term.updateDependencies`
   , termReplacements :: Map Reference Reference
   , newTerms :: Map Reference (Term v Ann, Type v Ann)
   , typeEdits :: Map Reference TypeEdit
@@ -72,7 +75,7 @@ propagateAndApply
   -> F m i v (Branch m)
 propagateAndApply patch branch = do
   edits <- propagate patch branch
-  f     <- applyPropagate edits
+  f     <- applyPropagate patch edits
   pure $ Branch.step (f . applyDeprecations patch) branch
 
 -- Creates a mapping from old data constructors to new data constructors
@@ -428,35 +431,50 @@ applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
     over Branch.terms (Star3.deleteFact (Set.map Referent.Ref rs))
   deleteDeprecatedTypes rs = over Branch.types (Star3.deleteFact rs)
 
+-- | Things in the patch are not marked as propagated changes, but every other
+-- definition that is created by the `Edits` which is passed in is marked as
+-- a propagated change.
 applyPropagate
-  :: Show v => Applicative m => Edits v -> F m i v (Branch0 m -> Branch0 m)
-applyPropagate Edits {..} = do
+  :: Show v => Applicative m => Patch -> Edits v -> F m i v (Branch0 m -> Branch0 m)
+applyPropagate patch Edits {..} = do
   let termRefs = Map.mapMaybe TermEdit.toReference termEdits
       typeRefs = Map.mapMaybe TypeEdit.toReference typeEdits
   -- recursively update names and delete deprecated definitions
-  pure $ Branch.stepEverywhere (updateNames termRefs typeRefs)
+  pure $ Branch.stepEverywhere (updateLevel termRefs typeRefs)
  where
-  updateNames
+  updateLevel
     :: Map Reference Reference
     -> Map Reference Reference
     -> Branch0 m
     -> Branch0 m
-  updateNames termEdits typeEdits Branch0 {..} = Branch.branch0 termsWithCons
-                                                                types
-                                                                _children
-                                                                _edits
+  updateLevel termEdits typeEdits Branch0 {..} =
+    Branch.branch0 termsWithCons types _children _edits
    where
+    isPropagated = (`Set.notMember` allPatchTargets) where
+      allPatchTargets = Patch.allReferenceTargets patch
+
     terms = foldl' replaceTerm _terms (Map.toList termEdits)
     types = foldl' replaceType _types (Map.toList typeEdits)
+
+    propagatedMd :: r -> (r, Metadata.Type, Metadata.Value)
+    propagatedMd r = (r, IOSource.isPropagatedReference, IOSource.isPropagatedValue)
     termsWithCons =
       foldl' replaceConstructor terms (Map.toList constructorReplacements)
     replaceTerm s (r, r') =
-      Star3.replaceFact (Referent.Ref r) (Referent.Ref r') s
+      (if isPropagated r'
+       then Metadata.insert (propagatedMd (Referent.Ref r'))
+       else id) .
+      Star3.replaceFact (Referent.Ref r) (Referent.Ref r') $ s
+
     replaceConstructor s ((oldr, oldc, oldt), (newr, newc, newt)) =
-      Star3.replaceFact (Referent.Con oldr oldc oldt)
-                        (Referent.Con newr newc newt)
-                        s
-    replaceType s (r, r') = Star3.replaceFact r r' s
+      -- always insert the metadata since patches can't contain ctor mappings (yet)
+      (Metadata.insert (propagatedMd con')) .
+      Star3.replaceFact (Referent.Con oldr oldc oldt) con' $ s
+      where
+      con' = Referent.Con newr newc newt
+    replaceType s (r, r') =
+      (if isPropagated r' then Metadata.insert (propagatedMd r') else id) .
+      Star3.replaceFact r r' $ s
 
   -- typePreservingTermEdits :: Patch -> Patch
   -- typePreservingTermEdits Patch {..} = Patch termEdits mempty
