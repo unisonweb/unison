@@ -16,6 +16,7 @@ import           UnliftIO                       ( MonadUnliftIO
                                                 , unliftIO )
 import           UnliftIO.Directory             ( getModificationTime
                                                 , listDirectory
+                                                , doesPathExist
                                                 )
 import           UnliftIO.MVar                  ( newEmptyMVar, takeMVar
                                                 , tryTakeMVar, tryPutMVar, putMVar )
@@ -92,8 +93,9 @@ watchDirectory dir allow = do
     existingFiles :: MonadIO m => m [(FilePath, UTCTime)]
     existingFiles = do
       files <- listDirectory dir
+      filtered <- filterM doesPathExist files
       let withTime file = (file,) <$> getModificationTime file
-      sortOn snd <$> mapM withTime files
+      sortOn snd <$> mapM withTime filtered
     process :: MonadIO m => FilePath -> UTCTime -> m (Maybe (FilePath, Text))
     process file t =
       if allow file then let
