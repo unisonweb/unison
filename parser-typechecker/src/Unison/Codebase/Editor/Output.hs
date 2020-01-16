@@ -68,7 +68,7 @@ data Output v
   -- Generic Success response; we might consider deleting this.
   = Success
   -- User did `add` or `update` before typechecking a file?
-  | NoUnisonFile Input
+  | NoUnisonFile
   | InvalidSourceName String
   | SourceLoadFailed String
   -- No main function, the [Type v Ann] are the allowed types

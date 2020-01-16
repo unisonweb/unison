@@ -231,7 +231,7 @@ notifyUser dir o = case o of
     "",
     P.indentN 2 $ P.lines [ P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts ]
     ]
-  NoUnisonFile _input -> do
+  NoUnisonFile -> do
     dir' <- canonicalizePath dir
     fileName <- renderFileName dir'
     pure . P.callout "😶" $ P.lines
