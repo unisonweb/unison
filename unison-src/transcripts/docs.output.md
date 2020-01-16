@@ -1,6 +1,3 @@
-
-
-
 # Documenting Unison code
 
 Unison documentation is written in Unison. Documentation is a value of the following type:
@@ -94,7 +91,6 @@ And now let's write our docs and reference these examples:
 use .builtin
 
 docs.List.take = [:
-
 `@List.take n xs` returns the first `n` elements of `xs`. (No need to add line breaks manually. The display command will do wrapping of text for you.  Indent any lines where you don't want it to do this.)
 
 ## Examples:
@@ -151,7 +147,6 @@ Now that documentation is linked to the definition. We can view it if we like:
 .> display 1
 
   
-  
   `builtin.List.take n xs` returns the first `n` elements of `xs`.
   (No need to add line breaks manually. The display command will
   do wrapping of text for you.  Indent any lines where you don't
@@ -175,7 +170,6 @@ Or there's also a convenient function, `docs`, which shows the `Doc` values that
 ```ucm
 .> docs builtin.List.take
 
-  
   
   `builtin.List.take n xs` returns the first `n` elements of `xs`.
   (No need to add line breaks manually. The display command will
@@ -203,7 +197,6 @@ Note that if we view the source of the documentation, the various references are
   docs.List.take : Doc
   docs.List.take =
     [: 
-    
     `@builtin.List.take n xs` returns the first `n` elements of `xs`.
     (No need to add line breaks manually. The display command will
     do wrapping of text for you.  Indent any lines where you don't

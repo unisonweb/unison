@@ -160,6 +160,7 @@ wrapString :: (LL.ListLike s Char, IsString s) => String -> Pretty s
 wrapString s = wrap (lit $ fromString s)
 
 -- Wrap text, preserving whitespace (apart from at the wrap points.)
+-- Used in particular for viewing/displaying doc literals.
 -- Should be understood in tandem with TermParser.docNormalize.
 -- See also unison-src/transcripts/doc-formatting.md.
 paragraphyText :: (LL.ListLike s Char, IsString s) => Text -> Pretty s
@@ -181,6 +182,9 @@ wrap p = wrapImpl (toLeaves [p]) where
 
 -- Does not insert spaces where none were present, and does not collapse
 -- sequences of spaces into one.
+-- It'd be a bit painful to just replace wrap with the following version, because
+-- lots of OutputMessages code depends on wrap's behaviour of sometimes adding
+-- extra spaces.
 wrapPreserveSpaces :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
 wrapPreserveSpaces p = wrapImplPreserveSpaces (toLeaves [p]) where
   toLeaves [] = []

@@ -347,7 +347,8 @@ docBlock = do
   link = d <$> link'' where
     d tm = Term.app (ann tm) (Term.constructor (ann tm) DD.docRef DD.docLinkId) tm
 
--- Used by unbreakParas within docNormalize.
+-- Used by unbreakParas within docNormalize.  Doc literals are a joined sequence
+-- segments.  This type describes a property of a segment.
 data UnbreakCase =
     -- Finishes with a newline and hence does not determine whether the next
     -- line starts with whitespace.
@@ -357,16 +358,36 @@ data UnbreakCase =
     -- Ends with "\nsomething", i.e. introduces an unindented line.
     | StartsUnindented deriving (Eq, Show)
 
+-- Doc literal normalization
+--
 -- Operates on the text of the Blobs within a doc (as parsed by docBlock):
 -- - reduces the whitespace after all newlines so that at least one of the
 --   non-initial lines has zero indent (important because the pretty-printer adds
 --   indenting when displaying doc literals)
--- - remove trailing whitespace from each line
--- - remove newlines between any sequence of non-empty zero-indent lines
+-- - removes trailing whitespace from each line
+-- - removes newlines between any sequence of non-empty zero-indent lines
 --   (i.e. undo line-breaking within paragraphs).
+--
+-- This normalization allows the pretty-printer and doc display code to do
+-- indenting, and to do line-wrap of paragraphs, but without the inserted
+-- newlines being then frozen into the text for ever more over subsequent
+-- edit/update cycles.
+--
 -- Should be understood in tandem with Util.Pretty.paragraphyText, which
 -- outputs doc text for display/edit/view.
 -- See also unison-src/transcripts/doc-formatting.md.
+--
+-- There is some heuristic/approximate logic in here - see the comment flagged
+-- with ** below.
+--
+-- This function is a bit painful - it's trying to act on a sequence of lines,
+-- but that sequence is split up between the various blobs in the doc, which
+-- are separated by the elements tracking things like @[source] etc.  It
+-- would be simplified if the doc representation was something like
+-- [Either Char EnrichedElement].
+--
+-- This function has some tracing which you can enable by deleting some calls to
+-- 'const id' below.
 docNormalize :: (Ord v, Show v) => AnnotatedTerm v a -> AnnotatedTerm v a
 docNormalize tm = case tm of
   -- This pattern is just `DD.DocJoin seqs`, but exploded in order to grab
@@ -394,10 +415,6 @@ docNormalize tm = case tm of
     => [(AnnotatedTerm v a, UnbreakCase)]
     -> [(AnnotatedTerm v a, UnbreakCase)]
   unIndent tms = map go tms   where
-    go
-      :: Ord v
-      => (AnnotatedTerm v a, UnbreakCase)
-      -> (AnnotatedTerm v a, UnbreakCase)
     go (b, previous) =
       ((mapBlob $ (reduceIndent includeFirst minIndent)) b, previous)
       where
@@ -415,11 +432,8 @@ docNormalize tm = case tm of
     nonInitialNonEmptyLines =
       filter (not . Text.null) $ map Text.stripEnd $ drop 1 $ Text.lines
         concatenatedBlobs
-    minIndent =
-      let
-        v = map (Text.length . (Text.takeWhile Char.isSpace))
-                nonInitialNonEmptyLines
-      in minimumOrZero $ v
+    minIndent = minimumOrZero $ map (Text.length . (Text.takeWhile Char.isSpace))
+                  nonInitialNonEmptyLines
     minimumOrZero xs = if length xs == 0 then 0 else minimum xs
     reduceIndent :: Bool -> Int -> Text -> Text
     reduceIndent includeFirst n t =
@@ -437,20 +451,24 @@ docNormalize tm = case tm of
       fixup = if Text.takeEnd 1 t == "\n" then id else Text.dropEnd 1
   -- Remove newlines between any sequence of non-empty zero-indent lines.
   -- This is made more complicated by Doc elements (e.g. links) which break up a
-  -- blob but don't break a line of output text.  We sometimes need to refer back to the
+  -- blob but don't break a line of output text**.  We sometimes need to refer back to the
   -- previous blob to see whether a newline is between two zero-indented lines.
   -- For example...
   -- "This link to @foo makes it harder to see\n
   --  that the newline should be removed."
+  -- ** Whether an element does this (breaks a blob but not a line of output text) really
+  -- depends on some things we don't know here: does an @[include] target doc occupy
+  -- just one line or several; whether this doc is going to be viewed or displayed.
+  -- So we'll get it wrong sometimes.  The impact of this is that we may sometimes
+  -- misjudge whether a newline is separating two non-indented lines, and should therefore
+  -- be removed.
   unbreakParas
     :: (Show v, Ord v)
     => [(AnnotatedTerm v a, UnbreakCase, Bool)]
     -> [(AnnotatedTerm v a, UnbreakCase, Bool)]
   unbreakParas = map go   where
-    go
-      :: Ord v
-      => (AnnotatedTerm v a, UnbreakCase, Bool)
-      -> (AnnotatedTerm v a, UnbreakCase, Bool)
+    -- 'candidate' means 'candidate to be joined with an adjacent line as part of a
+    -- paragraph'.
     go (b, previous, nextIsCandidate) =
       (mapBlob go b, previous, nextIsCandidate)     where
       go txt = if Text.null txt then txt else tr result'       where
@@ -504,6 +522,8 @@ docNormalize tm = case tm of
     DD.DocEvaluate  _   -> Just LineEnds
     Term.Var' _         -> Just LineEnds  -- @[include]
     e@_                 -> error ("unexpected doc element: " ++ show e)
+  -- Work out whether the last line of this blob is indented (or else is
+  -- terminated by a newline.)
   unbreakCase :: Text -> Maybe UnbreakCase
   unbreakCase txt =
     let (startAndNewline, afterNewline) = Text.breakOnEnd "\n" txt
@@ -516,6 +536,10 @@ docNormalize tm = case tm of
               else Just StartsUnindented
   -- A list whose entries match those of tms.  The UnbreakCase of the previous
   -- entry that included a newline.
+  -- Really there's a function of type (a -> Bool) -> a -> [a] -> [a] in here
+  -- fighting to break free - overwriting elements that are 'shadowed' by
+  -- a preceding element for which the predicate is true, with a copy of
+  -- that element.
   previousLines :: Show v => Sequence.Seq (AnnotatedTerm v a) -> [UnbreakCase]
   previousLines tms = tr xs''   where
     tr = const id $
@@ -548,6 +572,8 @@ docNormalize tm = case tm of
     DD.DocEvaluate  _ -> False
     Term.Var' _       -> False  -- @[include]
     _                 -> error ("unexpected doc element" ++ show tm)
+  -- A list whose entries match those of tms.  Can the subsequent entry by a
+  -- line continuation of this one?
   followingLines tms = drop 1 ((continuesLine tms) ++ [False])
   mapExceptFirst :: (a -> b) -> (a -> b) -> [a] -> [b]
   mapExceptFirst fRest fFirst = \case
@@ -568,7 +594,7 @@ docNormalize tm = case tm of
   mapBlob _ t = t
 
 -- Intercalate a list with separators determined by inspecting each
--- adjacent pair.
+-- adjacent pair.  Assumes even-length input.
 intercalate :: [a] -> (a -> a -> b) -> (a -> b) -> [b]
 intercalate xs sep f = result where
   xs'   = map f xs
