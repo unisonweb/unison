@@ -188,7 +188,11 @@ runTranscripts' mcodepath transcriptDir args = do
         md | isMarkdown md -> do
           parsed <- TR.parseFile arg
           case parsed of
-            Left err -> putStrLn $ "Parse error: \n" <> show err
+            Left err ->
+              PT.putPrettyLn $ P.callout "❓" (
+                P.lines [
+                  P.indentN 2 "A parsing error occurred while reading a file:", "",
+                  P.indentN 2 $ P.string err])
             Right stanzas -> do
               configFilePath <- getConfigFilePath mcodepath
               mdOut <- TR.run currentDir configFilePath stanzas theCodebase
@@ -197,7 +201,11 @@ runTranscripts' mcodepath transcriptDir args = do
                                          (FP.takeExtension md)
               writeUtf8 out mdOut
               putStrLn $ "💾  Wrote " <> out
-        wat -> putStrLn $ "Unrecognized command, skipping: " <> wat
+        wat -> 
+              PT.putPrettyLn $ P.callout "❓" (
+                P.lines [
+                  P.indentN 2 "Unrecognized command, skipping:", "",
+                  P.indentN 2 $ P.string wat])
       pure True
     [] -> 
       pure False
