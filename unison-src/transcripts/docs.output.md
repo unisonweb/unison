@@ -151,24 +151,23 @@ Now that documentation is linked to the definition. We can view it if we like:
 .> display 1
 
   
-  ` builtin.List.take
-   n xs` returns the first `n` elements of `xs`. (No need to add
-  line breaks manually. The display command will do wrapping of text
-  for you.  Indent any lines where you don't want it to do this.)
+  
+  `builtin.List.take n xs` returns the first `n` elements of `xs`.
+  (No need to add line breaks manually. The display command will
+  do wrapping of text for you.  Indent any lines where you don't
+  want it to do this.)
   
   ## Examples:
   
   List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
-  
   🔽
   List.take.ex1 = []
   
   
-  
   List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
-  
   🔽
   List.take.ex2 = [1, 2]
+  
 
 ```
 Or there's also a convenient function, `docs`, which shows the `Doc` values that are linked to a definition. It's implemented in terms of `links` and `display`:
@@ -177,24 +176,23 @@ Or there's also a convenient function, `docs`, which shows the `Doc` values that
 .> docs builtin.List.take
 
   
-  ` builtin.List.take
-   n xs` returns the first `n` elements of `xs`. (No need to add
-  line breaks manually. The display command will do wrapping of text
-  for you.  Indent any lines where you don't want it to do this.)
+  
+  `builtin.List.take n xs` returns the first `n` elements of `xs`.
+  (No need to add line breaks manually. The display command will
+  do wrapping of text for you.  Indent any lines where you don't
+  want it to do this.)
   
   ## Examples:
   
   List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
-  
   🔽
   List.take.ex1 = []
   
   
-  
   List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
-  
   🔽
   List.take.ex2 = [1, 2]
+  
 
 ```
 Note that if we view the source of the documentation, the various references are *not* expanded.
@@ -204,25 +202,21 @@ Note that if we view the source of the documentation, the various references are
 
   docs.List.take : Doc
   docs.List.take =
-    [:
+    [: 
     
-    ` @builtin.List.take
-     n xs` returns the first `n` elements of `xs`. (No need to add
-    line breaks manually. The display command will do wrapping of
-    text for you.  Indent any lines where you don't want it to do
-    this.)
+    `@builtin.List.take n xs` returns the first `n` elements of `xs`.
+    (No need to add line breaks manually. The display command will
+    do wrapping of text for you.  Indent any lines where you don't
+    want it to do this.)
     
     ## Examples:
     
     @[source] ex1
-    
     🔽
     @[evaluate] ex1
     
     
-    
     @[source] ex2
-    
     🔽
     @[evaluate] ex2
     :]

@@ -419,7 +419,7 @@ docNormalize tm = case tm of
       let
         v = map (Text.length . (Text.takeWhile Char.isSpace))
                 nonInitialNonEmptyLines
-      in  trace ("line indents = " ++ show v ++ "\n\n") (minimumOrZero $ v)
+      in minimumOrZero $ v
     minimumOrZero xs = if length xs == 0 then 0 else minimum xs
     reduceIndent :: Bool -> Int -> Text -> Text
     reduceIndent includeFirst n t =
@@ -454,8 +454,8 @@ docNormalize tm = case tm of
     go (b, previous, nextIsCandidate) =
       (mapBlob go b, previous, nextIsCandidate)     where
       go txt = if Text.null txt then txt else tr result'       where
-        tr =
-          trace $  "\nprocessElement on blob " ++ (show txt) ++ ", result' = "
+        tr = const id $ trace $
+               "\nprocessElement on blob " ++ (show txt) ++ ", result' = "
             ++ (show result') ++ ", lines: " ++ (show ls) ++ ", candidates = "
             ++ (show candidates) ++ ", previous = " ++ (show previous)
             ++ ", firstIsCandidate = " ++ (show firstIsCandidate) ++ "\n\n"
@@ -495,14 +495,15 @@ docNormalize tm = case tm of
   -- several, which we can't do perfectly, and which varies depending on
   -- whether the doc is viewed or displayed.  This can cause some glitches
   -- cutting out whitespace immediately following @[source] and @[evaluate].
-  lastLines :: Sequence.Seq (AnnotatedTerm v a) -> [Maybe UnbreakCase]
+  lastLines :: Show v => Sequence.Seq (AnnotatedTerm v a) -> [Maybe UnbreakCase]
   lastLines tms = (flip fmap) (toList tms) $ \case
     DD.DocBlob      txt -> unbreakCase txt
     DD.DocLink      _   -> Nothing
     DD.DocSource    _   -> Just LineEnds
     DD.DocSignature _   -> Nothing
     DD.DocEvaluate  _   -> Just LineEnds
-    _                   -> error ("unexpected doc element" ++ show tm)
+    Term.Var' _         -> Just LineEnds  -- @[include]
+    e@_                 -> error ("unexpected doc element: " ++ show e)
   unbreakCase :: Text -> Maybe UnbreakCase
   unbreakCase txt =
     let (startAndNewline, afterNewline) = Text.breakOnEnd "\n" txt
@@ -515,9 +516,9 @@ docNormalize tm = case tm of
               else Just StartsUnindented
   -- A list whose entries match those of tms.  The UnbreakCase of the previous
   -- entry that included a newline.
-  previousLines :: Sequence.Seq (AnnotatedTerm v a) -> [UnbreakCase]
+  previousLines :: Show v => Sequence.Seq (AnnotatedTerm v a) -> [UnbreakCase]
   previousLines tms = tr xs''   where
-    tr =
+    tr = const id $
       trace $ "previousLines: xs = " ++ (show xs) ++ ", xss = "
         ++ (show xss) ++ ", xs' = " ++ (show xs') ++ ", xs'' = "
         ++ (show xs'') ++ "\n\n"
@@ -545,6 +546,7 @@ docNormalize tm = case tm of
     DD.DocSource    _ -> False
     DD.DocSignature _ -> False
     DD.DocEvaluate  _ -> False
+    Term.Var' _       -> False  -- @[include]
     _                 -> error ("unexpected doc element" ++ show tm)
   followingLines tms = drop 1 ((continuesLine tms) ++ [False])
   mapExceptFirst :: (a -> b) -> (a -> b) -> [a] -> [b]

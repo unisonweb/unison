@@ -1,4 +1,4 @@
-This transcript explains a few minor details about doc parsing and pretty-printing, both from a user point of view and with some implementation notes.  (The ucm `add` commands and their output are hidden for brevity.)
+This transcript explains a few minor details about doc parsing and pretty-printing, both from a user point of view and with some implementation notes.  The later stuff is meant more as unit testing than for human consumption.  (The ucm `add` commands and their output are hidden for brevity.)
 
 Docs can be used as inline code comments.
 
@@ -132,7 +132,8 @@ doc1 = [:   hi   :]
 
 ```
 ```unison
--- Lines (apart from the first line) are unindented until at least one of
+-- Lines (apart from the first line, i.e. the bit between the [: and the
+-- first newline) are unindented until at least one of
 -- them hits the left margin (by a post-processing step in the parser).
 -- You may not notice this because the pretty-printer indents them again on
 -- view/edit.
@@ -289,43 +290,180 @@ doc5 = [:   - foo
     and the rest. :]
 
 ```
-TODO fence
-```
+```unison
 -- You can do the following to avoid that problem.
 doc6 = [:
             - foo
             - bar
           and the rest.
        :]
-
 ```
 
-TODO
-```
-.> add
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      doc6 : Doc
+   
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
 
 ```
-
-TODO
-```
+```ucm
 .> view doc6
 
-```
+  doc6 : Doc
+  doc6 =
+    [: 
+      - foo
+      - bar
+    and the rest.
+     :]
 
-TODO
 ```
--- You can do the following to avoid that problem.
+### More testing
+
+```unison
+-- Check empty doc works.
 empty = [::]
 
+expr = foo 1
 ```
 
-```
-.> add
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      empty : Doc
+      expr  : Nat
+   
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
 
 ```
-
-```
+```ucm
 .> view empty
 
+  empty : Doc
+  empty = [:  :]
+
+```
+```unison
+test1 = [:
+The internal logic starts to get hairy when you use the \@ features, for example referencing a name like @List.take.  Internally, the text between each such usage is its own blob (blob ends here --> @List.take), so paragraph reflow has to be aware of multiple blobs to do paragraph reflow (or, more accurately, to do the normalization step where newlines with a paragraph are removed.)
+
+Para to reflow: lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor ending in ref @List.take
+
+@List.take starting para lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor.
+
+Middle of para: lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor @List.take lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor.
+
+  - non-para line (@List.take) with ref @List.take
+  Another non-para line
+  @List.take starting non-para line
+
+  - non-para line with ref @List.take
+before a para-line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor.
+
+  - non-para line followed by a para line starting with ref
+@List.take lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor.
+
+a para-line ending with ref lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor @List.take
+  - non-para line
+
+para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor
+  @List.take followed by non-para line starting with ref.
+
+@[signature] List.take
+
+@[source] foo
+
+@[evaluate] expr
+
+@[include] doc1
+
+:]
 ```
 
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      test1 : Doc
+   
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+```
+```ucm
+.> view test1
+
+  test1 : Doc
+  test1 =
+    [: 
+    The internal logic starts to get hairy when you use the \@ features,
+    for example referencing a name like @List.take.  Internally,
+    the text between each such usage is its own blob (blob ends here
+    --> @List.take), so paragraph reflow has to be aware of multiple
+    blobs to do paragraph reflow (or, more accurately, to do the
+    normalization step where newlines with a paragraph are removed.)
+    
+    Para to reflow: lorem ipsum dolor lorem ipsum dolor lorem ipsum
+    dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem
+    ipsum dolor ending in ref @List.take
+    
+    @List.take starting para lorem ipsum dolor lorem ipsum dolor
+    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum
+    dolor lorem ipsum dolor.
+    
+    Middle of para: lorem ipsum dolor lorem ipsum dolor lorem ipsum
+    dolor @List.take lorem ipsum dolor lorem ipsum dolor lorem ipsum
+    dolor lorem ipsum dolor.
+    
+      - non-para line (@List.take) with ref @List.take
+      Another non-para line
+      @List.take starting non-para line
+    
+      - non-para line with ref @List.take
+    before a para-line lorem ipsum dolor lorem ipsum dolor lorem
+    ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor
+    lorem ipsum dolor lorem ipsum dolor.
+    
+      - non-para line followed by a para line starting with ref
+    @List.take lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor
+    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum
+    dolor lorem ipsum dolor.
+    
+    a para-line ending with ref lorem ipsum dolor lorem ipsum dolor
+    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum
+    dolor lorem ipsum dolor lorem ipsum dolor @List.take
+      - non-para line
+    
+    para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor
+    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum
+    dolor lorem ipsum dolor
+      @List.take followed by non-para line starting with ref.
+    
+    @[signature] List.take
+    
+    @[source] foo
+    
+    @[evaluate] expr
+    
+    @[include] doc1
+    
+    :]
+
+```
