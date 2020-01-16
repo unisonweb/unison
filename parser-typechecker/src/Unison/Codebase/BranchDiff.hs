@@ -91,20 +91,22 @@ computeSlices :: NamespaceSlice Referent
               -> (DiffSlice Referent, DiffSlice Reference)
 computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut) where
   termsOut =
-    let nc = allNames oldTerms newTerms in
+    let nc = allNames oldTerms newTerms
+        nu = allNamespaceUpdates oldTerms newTerms in
     DiffSlice
-      (allNamespaceUpdates oldTerms newTerms)
-      (allAdds nc)
-      (allRemoves nc)
+      nu
+      (allAdds nc nu)
+      (allRemoves nc nu)
       (remainingNameChanges nc)
       (addedMetadata oldTerms newTerms)
       (removedMetadata oldTerms newTerms)
   typesOut =
-    let nc = allNames oldTypes newTypes in
+    let nc = allNames oldTypes newTypes
+        nu = allNamespaceUpdates oldTypes newTypes in
     DiffSlice
-      (allNamespaceUpdates oldTypes newTypes)
-      (allAdds nc)
-      (allRemoves nc)
+      nu
+      (allAdds nc nu)
+      (allRemoves nc nu)
       (remainingNameChanges nc)
       (addedMetadata oldTypes newTypes)
       (removedMetadata oldTypes newTypes)
@@ -113,10 +115,24 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut) where
   allNames old new = R.outerJoinDomMultimaps (names old) (names new)
 
   allAdds, allRemoves :: forall r. Ord r
-                      => Map r (Set Name, Set Name) -> Relation r Name
-  allAdds    = R.fromMultimap . fmap snd . Map.filter (null . fst)
-  allRemoves = R.fromMultimap . fmap fst . Map.filter (null . snd)
+                      => Map r (Set Name, Set Name)
+                      -> Map Name (Set r, Set r)
+                      -> Relation r Name
+  allAdds    nc nu = R.fromMultimap . fmap snd . Map.filterWithKey f $ nc where
+    f r (oldNames, newNames) = null oldNames && any (notInUpdates r) newNames
+    -- if an add matches RHS of an update, we exclude it from "Adds"
+    notInUpdates r name = case Map.lookup name nu of
+      Nothing -> True
+      Just (_, rs_new) -> Set.notMember r rs_new
 
+  allRemoves nc nu = R.fromMultimap . fmap fst . Map.filterWithKey f $ nc where
+    f r (oldNames, newNames) = null newNames && any (notInUpdates r) oldNames
+    -- if a remove matches LHS of an update, we exclude it from "Removes"
+    notInUpdates r name = case Map.lookup name nu of
+      Nothing -> True
+      Just (rs_old, _) -> Set.notMember r rs_old
+
+  -- renames and stuff, name changes without a reference change
   remainingNameChanges :: forall r. Ord r
                        => Map r (Set Name, Set Name) -> Map r (Set Name, Set Name)
   remainingNameChanges =

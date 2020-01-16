@@ -47,39 +47,27 @@ type Foo = Foo Nat
 
 .> delete foo
 
-  🆕
+  Removes:
   
-  Here's what's changed after the delete:
+    1. foo : Nat
   
-  - Deletes:
-  
-    foo
-  
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 .> delete Foo
 
-  🆕
+  Removes:
   
-  Here's what's changed after the delete:
+    1. type Foo
   
-  - Deletes:
-  
-    Foo
-  
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 .> delete Foo.Foo
 
-  🆕
+  Removes:
   
-  Here's what's changed after the delete:
+    1. Foo.Foo : Nat -> #d97e0jhkmd
   
-  - Deletes:
-  
-    Foo.Foo
-  
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
 How about an ambiguous term?
@@ -142,15 +130,22 @@ foo = 2
 
 .a> merge .b
 
-  🆕
+  Here's the changed in the current namespace after the merge:
   
-  Here's what's changed in the current namespace after the merge:
+  Updates:
   
-  + Adds / updates:
+    1. foo : Nat
+       ↓
+    2. ┌ foo#0ja1qfpej6 : Nat
+    3. └ foo#jk19sm5bf8 : Nat
   
-    foo
+  Adds:
   
-  Tip: You can always `undo` if this wasn't what you wanted.
+    4. foo#0ja1qfpej6 : Nat
+  
+  Tip: You can use `todo` to see if this generated any work to
+       do in this branch and `test` to run the tests. Or you can
+       use `undo` or `reflog` to undo the results of this merge.
 
 ```
 ```ucm
@@ -175,15 +170,17 @@ I can force my delete through by re-issuing the command.
 ```ucm
 .a> delete foo
 
-  🆕
+  Removes:
   
-  Here's what's changed after the delete:
+    1. a.foo#jk19sm5bf8 : Nat
   
-  - Deletes:
+  Name changes:
   
-    a.foo#0ja a.foo#jk1
+    Original               Changes
+    2. b.foo ┐             3. a.foo#0ja1qfpej6 (removed)
+    4. a.foo#0ja1qfpej6 ┘  
   
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
 Let's repeat all that on a type, for completeness.
@@ -242,15 +239,32 @@ type Foo = Foo Boolean
 
 .a> merge .b
 
-  🆕
+  Here's the changed in the current namespace after the merge:
   
-  Here's what's changed in the current namespace after the merge:
+  Updates:
   
-  + Adds / updates:
+    1. type Foo
+         
+       ↓
+    2. ┌ type Foo#d97e0jhkmd
+           
+    3. └ type Foo#gq9inhvg9h
+           
+    
+    4. Foo.Foo : Nat -> Foo#d97e0jhkmd
+       ↓
+    5. ┌ Foo.Foo#d97e0jhkmd#0 : Nat -> Foo#d97e0jhkmd
+    6. └ Foo.Foo#gq9inhvg9h#0 : Boolean -> Foo#gq9inhvg9h
   
-    Foo foo Foo.Foo
+  Adds:
   
-  Tip: You can always `undo` if this wasn't what you wanted.
+    7. type Foo#gq9inhvg9h
+    8. Foo.Foo#gq9inhvg9h#0 : Boolean -> Foo#gq9inhvg9h
+    9. foo                  : Nat
+  
+  Tip: You can use `todo` to see if this generated any work to
+       do in this branch and `test` to run the tests. Or you can
+       use `undo` or `reflog` to undo the results of this merge.
 
 ```
 ```ucm
@@ -273,15 +287,17 @@ type Foo = Foo Boolean
 ```ucm
 .a> delete Foo
 
-  🆕
+  Removes:
   
-  Here's what's changed after the delete:
+    1. type a.Foo#d97e0jhkmd
   
-  - Deletes:
+  Name changes:
   
-    a.Foo#d97 a.Foo#gq9
+    Original               Changes
+    2. b.Foo ┐             3. a.Foo#gq9inhvg9h (removed)
+    4. a.Foo#gq9inhvg9h ┘  
   
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
 ```ucm
@@ -304,15 +320,17 @@ type Foo = Foo Boolean
 ```ucm
 .a> delete Foo.Foo
 
-  🆕
+  Removes:
   
-  Here's what's changed after the delete:
+    1. a.Foo.Foo#d97e0jhkmd#0 : Nat -> #d97e0jhkmd
   
-  - Deletes:
+  Name changes:
   
-    a.Foo.Foo#d97#0 a.Foo.Foo#gq9#0
+    Original                     Changes
+    2. b.Foo.Foo ┐               3. a.Foo.Foo#gq9inhvg9h#0 (removed)
+    4. a.Foo.Foo#gq9inhvg9h#0 ┘  
   
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
 Finally, let's try to delete a term and a type with the same name.
@@ -370,14 +388,11 @@ type foo = Foo Nat
 ```ucm
 .> delete foo
 
-  🆕
+  Removes:
   
-  Here's what's changed after the delete:
+    1. type foo
+    2. foo : Nat
   
-  - Deletes:
-  
-    foo#d97 foo#jk1
-  
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
