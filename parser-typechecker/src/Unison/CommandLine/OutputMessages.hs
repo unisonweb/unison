@@ -1603,7 +1603,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
   padNumber :: Int -> Pretty
   padNumber n = P.hiBlack . P.rightPad leftNumsWidth $ P.shown n <> "."
 
-  leftNumsWidth = traceShowId $ length (show menuSize) + length ("."  :: String)
+  leftNumsWidth = length (show menuSize) + length ("."  :: String)
 
 noResults :: Pretty
 noResults = P.callout "😶" $

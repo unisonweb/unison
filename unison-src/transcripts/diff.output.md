@@ -42,7 +42,12 @@ fslkdjflskdjflksjdf = 663
 
   Here's what's changed in b1 after the merge:
   
-  The namespaces are identical.
+  New name conflicts:
+  
+    1. fslkdjflskdjflksjdf#4kipsv2tm6 : Nat
+       ↓
+    2. ┌ fslkdjflskdjflksjdf#4kipsv2tm6 : Nat
+    3. └ fslkdjflskdjflksjdf#s5tu4n7rlb : Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -163,7 +168,12 @@ fromJust = "asldkfjasldkfj"
 
   Here's what's changed in ns1 after the merge:
   
-  The namespaces are identical.
+  New name conflicts:
+  
+    1. fromJust#jk19sm5bf8 : Nat
+       ↓
+    2. ┌ fromJust#hs2i9lcgkd : Text
+    3. └ fromJust#jk19sm5bf8 : Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -650,25 +660,20 @@ Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has on
 
 ## Display issues to fixup
 
-- [ ] Do we want to surface new edit conflicts in patches?
-- [ ] incorrectly calculated bracket alignment on hashqualified "Name changes"  (delete.output.md)
-
-    Original                               Changes
-    4. example.resolve.a.foo ┐             5. example.resolve.c.foo#jdqoenu794 (removed)
-    6. example.resolve.c.foo#jdqoenu794 ┘  
-
-- [ ] two different auto-propagated changes creating a name conflict should show
+- [d] Do we want to surface new edit conflicts in patches?
+- [t] two different auto-propagated changes creating a name conflict should show
       up somewhere besides the auto-propagate count
-- [ ] Things look screwy when the type signature doesn't fit and has to get broken
+- [t] Things look screwy when the type signature doesn't fit and has to get broken
       up into multiple lines. Maybe just disallow that?
-- [ ] Delete blank line in between copies / renames entries if all entries are 1 to 1
+- [d] Delete blank line in between copies / renames entries if all entries are 1 to 1
       see todo in the code
+- [x] incorrectly calculated bracket alignment on hashqualified "Name changes"  (delete.output.md)
 - [x] just handle deletion of isPropagated in propagate function, leave HandleInput alone (assuming this does the trick)
 - [x] might want unqualified names to be qualified sometimes:
 - [x] if a name is updated to a not-yet-named reference, it's shown as both an update and an add
 - [x] similarly, if a conflicted name is resolved by deleting the last name to
       a reference, I (arya) suspect it will show up as a Remove
-- [ ] ~~Maybe group and/or add headings to the types, constructors, terms~~
+- [d] Maybe group and/or add headings to the types, constructors, terms
 - [x] check whether creating a name conflict + adding metadata puts the update
       in both categories; if it does, then filter out metadataUpdates from the
       other categories

@@ -80,15 +80,17 @@ y = "hello"
 
 .master> merge .feature1
 
-  Here's the changed in the current namespace after the merge:
+  Here's what's changed in the current namespace after the
+  merge:
   
-  Adds:
+  Added definitions:
   
     1. y : Text
   
   Tip: You can use `todo` to see if this generated any work to
-       do in this branch and `test` to run the tests. Or you can
-       use `undo` or `reflog` to undo the results of this merge.
+       do in this namespace and `test` to run the tests. Or you
+       can use `undo` or `reflog` to undo the results of this
+       merge.
 
 .master> view y
 
@@ -105,7 +107,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
 ```ucm
 .> delete.namespace .feature1
 
-  Removes:
+  Removed definitions:
   
     1. y : Text
   
@@ -264,19 +266,20 @@ At this point, `master` and `feature2` both have some changes the other doesn't 
 ```ucm
 .> merge feature2 master
 
-  Here's the changed in master after the merge:
+  Here's what's changed in master after the merge:
   
-  Adds:
+  Added definitions:
   
     1. z : Nat
   
-  Removes:
+  Removed definitions:
   
     2. x : Nat
   
   Tip: You can use `todo` to see if this generated any work to
-       do in this branch and `test` to run the tests. Or you can
-       use `undo` or `reflog` to undo the results of this merge.
+       do in this namespace and `test` to run the tests. Or you
+       can use `undo` or `reflog` to undo the results of this
+       merge.
 
 ```
 Notice that `x` is deleted in the merged branch (it was deleted in `feature2` and untouched by `master`):

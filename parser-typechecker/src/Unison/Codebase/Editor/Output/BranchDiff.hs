@@ -66,9 +66,11 @@ data BranchDiffOutput v a = BranchDiffOutput {
 isEmpty :: BranchDiffOutput v a -> Bool
 isEmpty BranchDiffOutput{..} =
   null updatedTypes && null updatedTerms &&
+  null newTypeConflicts && null newTermConflicts &&
+  null resolvedTypeConflicts && null resolvedTermConflicts &&
   null addedTypes && null addedTerms && null addedPatches &&
   null removedTypes && null removedTerms && null removedPatches &&
-  null renamedTypes && null renamedTerms &&
+  null renamedTypes && null renamedTerms && null updatedPatches &&
   propagatedUpdates == 0
 
 -- Need to be able to turn a (Name,Reference) into a HashQualified relative to... what.
@@ -106,8 +108,6 @@ toOutput :: forall m v a
          -> m (BranchDiffOutput v a)
 toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
             (BranchDiff termsDiff typesDiff patchesDiff) = do
-  traceM "\ntermsDiff"
-  traceShowM termsDiff
   let
     -- | This calculates the new reference's metadata as:
     --   adds: now-attached metadata that was missing from

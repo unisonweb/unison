@@ -139,7 +139,7 @@ Let's now merge these namespaces into `c`:
 ```ucm
 .example.resolve> merge a c
 
-  Here's the changed in c after the merge:
+  Here's what's changed in c after the merge:
   
   Updates:
   
@@ -147,40 +147,34 @@ Let's now merge these namespaces into `c`:
        ↓
     2. foo : Nat
   
-  Adds:
+  Added definitions:
   
-    3. foo : Nat
-  
-    4. patch patch (added 1 updates)
-  
-  Removes:
-  
-    5. foo : Nat
+    3. patch patch (added 1 updates)
   
   Tip: You can use `todo` to see if this generated any work to
-       do in this branch and `test` to run the tests. Or you can
-       use `undo` or `reflog` to undo the results of this merge.
+       do in this namespace and `test` to run the tests. Or you
+       can use `undo` or `reflog` to undo the results of this
+       merge.
 
 .example.resolve> merge b c
 
-  Here's the changed in c after the merge:
+  Here's what's changed in c after the merge:
   
-  Updates:
+  New name conflicts:
   
-    1. foo : Nat
+    1. foo#jdqoenu794 : Nat
        ↓
     2. ┌ foo#8e68dvpr0a : Nat
     3. └ foo#jdqoenu794 : Nat
   
+  Updates:
+  
     4. patch patch (added 1 updates)
   
-  Adds:
-  
-    5. foo#8e68dvpr0a : Nat
-  
   Tip: You can use `todo` to see if this generated any work to
-       do in this branch and `test` to run the tests. Or you can
-       use `undo` or `reflog` to undo the results of this merge.
+       do in this namespace and `test` to run the tests. Or you
+       can use `undo` or `reflog` to undo the results of this
+       merge.
 
 ```
 The namespace `c` now has an edit conflict, since the term `foo` was edited in two different ways.
@@ -238,15 +232,20 @@ We can resolve the name conflict by deleting one of the names.
 ```ucm
 .example.resolve.c> delete.term foo#jdqoenu794
 
-  🆕
+  Resolved name conflicts:
   
-  Here's what's changed after the delete:
+    1. ┌ example.resolve.c.foo#8e68dvpr0a : Nat
+    2. └ example.resolve.c.foo#jdqoenu794 : Nat
+       ↓
+    3. example.resolve.c.foo#8e68dvpr0a : Nat
   
-  - Deletes:
+  Name changes:
   
-    example.resolve.c.foo
+    Original                               Changes
+    4. example.resolve.a.foo            ┐  5. example.resolve.c.foo#jdqoenu794 (removed)
+    6. example.resolve.c.foo#jdqoenu794 ┘  
   
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
 And that's how you resolve edit conflicts with UCM.

@@ -23,21 +23,6 @@ type Foo = Foo Nat
 ```
 
 ```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      type Foo
-      foo : Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
-
-```
-```ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -47,7 +32,7 @@ type Foo = Foo Nat
 
 .> delete foo
 
-  Removes:
+  Removed definitions:
   
     1. foo : Nat
   
@@ -55,7 +40,7 @@ type Foo = Foo Nat
 
 .> delete Foo
 
-  Removes:
+  Removed definitions:
   
     1. type Foo
   
@@ -63,7 +48,7 @@ type Foo = Foo Nat
 
 .> delete Foo.Foo
 
-  Removes:
+  Removed definitions:
   
     1. Foo.Foo : Nat -> #d97e0jhkmd
   
@@ -76,20 +61,6 @@ How about an ambiguous term?
 foo = 1
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foo : Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
-
-```
 ```ucm
   ☝️  The namespace .a is empty.
 
@@ -105,21 +76,6 @@ foo = 2
 ```
 
 ```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions will replace existing ones of the
-      same name and are ok to `update`:
-    
-      foo : Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
-
-```
-```ucm
   ☝️  The namespace .b is empty.
 
 .b> add
@@ -130,22 +86,20 @@ foo = 2
 
 .a> merge .b
 
-  Here's the changed in the current namespace after the merge:
+  Here's what's changed in the current namespace after the
+  merge:
   
-  Updates:
+  New name conflicts:
   
-    1. foo : Nat
+    1. foo#jk19sm5bf8 : Nat
        ↓
     2. ┌ foo#0ja1qfpej6 : Nat
     3. └ foo#jk19sm5bf8 : Nat
   
-  Adds:
-  
-    4. foo#0ja1qfpej6 : Nat
-  
   Tip: You can use `todo` to see if this generated any work to
-       do in this branch and `test` to run the tests. Or you can
-       use `undo` or `reflog` to undo the results of this merge.
+       do in this namespace and `test` to run the tests. Or you
+       can use `undo` or `reflog` to undo the results of this
+       merge.
 
 ```
 ```ucm
@@ -170,14 +124,14 @@ I can force my delete through by re-issuing the command.
 ```ucm
 .a> delete foo
 
-  Removes:
+  Removed definitions:
   
     1. a.foo#jk19sm5bf8 : Nat
   
   Name changes:
   
     Original               Changes
-    2. b.foo ┐             3. a.foo#0ja1qfpej6 (removed)
+    2. b.foo            ┐  3. a.foo#0ja1qfpej6 (removed)
     4. a.foo#0ja1qfpej6 ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
@@ -189,20 +143,6 @@ Let's repeat all that on a type, for completeness.
 type Foo = Foo Nat
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      type Foo
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
-
-```
 ```ucm
 .a> add
 
@@ -216,21 +156,6 @@ type Foo = Foo Boolean
 ```
 
 ```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions will replace existing ones of the
-      same name and are ok to `update`:
-    
-      type Foo
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
-
-```
-```ucm
 .b> add
 
   ⍟ I've added these definitions:
@@ -239,11 +164,12 @@ type Foo = Foo Boolean
 
 .a> merge .b
 
-  Here's the changed in the current namespace after the merge:
+  Here's what's changed in the current namespace after the
+  merge:
   
-  Updates:
+  New name conflicts:
   
-    1. type Foo
+    1. type Foo#d97e0jhkmd
          
        ↓
     2. ┌ type Foo#d97e0jhkmd
@@ -251,20 +177,19 @@ type Foo = Foo Boolean
     3. └ type Foo#gq9inhvg9h
            
     
-    4. Foo.Foo : Nat -> Foo#d97e0jhkmd
+    4. Foo.Foo#d97e0jhkmd#0 : Nat -> Foo#d97e0jhkmd
        ↓
     5. ┌ Foo.Foo#d97e0jhkmd#0 : Nat -> Foo#d97e0jhkmd
     6. └ Foo.Foo#gq9inhvg9h#0 : Boolean -> Foo#gq9inhvg9h
   
-  Adds:
+  Added definitions:
   
-    7. type Foo#gq9inhvg9h
-    8. Foo.Foo#gq9inhvg9h#0 : Boolean -> Foo#gq9inhvg9h
-    9. foo                  : Nat
+    7. foo : Nat
   
   Tip: You can use `todo` to see if this generated any work to
-       do in this branch and `test` to run the tests. Or you can
-       use `undo` or `reflog` to undo the results of this merge.
+       do in this namespace and `test` to run the tests. Or you
+       can use `undo` or `reflog` to undo the results of this
+       merge.
 
 ```
 ```ucm
@@ -287,14 +212,14 @@ type Foo = Foo Boolean
 ```ucm
 .a> delete Foo
 
-  Removes:
+  Removed definitions:
   
     1. type a.Foo#d97e0jhkmd
   
   Name changes:
   
     Original               Changes
-    2. b.Foo ┐             3. a.Foo#gq9inhvg9h (removed)
+    2. b.Foo            ┐  3. a.Foo#gq9inhvg9h (removed)
     4. a.Foo#gq9inhvg9h ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
@@ -320,14 +245,14 @@ type Foo = Foo Boolean
 ```ucm
 .a> delete Foo.Foo
 
-  Removes:
+  Removed definitions:
   
     1. a.Foo.Foo#d97e0jhkmd#0 : Nat -> #d97e0jhkmd
   
   Name changes:
   
     Original                     Changes
-    2. b.Foo.Foo ┐               3. a.Foo.Foo#gq9inhvg9h#0 (removed)
+    2. b.Foo.Foo              ┐  3. a.Foo.Foo#gq9inhvg9h#0 (removed)
     4. a.Foo.Foo#gq9inhvg9h#0 ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
@@ -340,25 +265,6 @@ foo = 1
 type foo = Foo Nat
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      type foo
-    
-    ⍟ These new definitions will replace existing ones of the
-      same name and are ok to `update`:
-    
-      foo : Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
-
-```
 ```ucm
 .> add
 
@@ -388,7 +294,7 @@ type foo = Foo Nat
 ```ucm
 .> delete foo
 
-  Removes:
+  Removed definitions:
   
     1. type foo
     2. foo : Nat

@@ -204,7 +204,7 @@ Cleaning up a bit...
 ```ucm
 .> delete.namespace subpath
 
-  Removes:
+  Removed definitions:
   
     1. unique type Foo
     2. Foo.Foo            : #o4dd8v5jef
