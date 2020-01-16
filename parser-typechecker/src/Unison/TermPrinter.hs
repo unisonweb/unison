@@ -523,7 +523,8 @@ isDocLiteral term = case term of
 prettyDoc :: Var v => PrettyPrintEnv -> Imports -> AnnotatedTerm3 v a -> Pretty SyntaxText
 prettyDoc n im term = mconcat [ fmt S.DocDelimiter $ l "[: "
                               , go term
-                              , fmt S.DocDelimiter $ l " :]"] -- TODO replace this space
+                              , spaceUnlessBroken
+                              , fmt S.DocDelimiter $ l ":]"]
   where
   go (DD.DocJoin segs) = foldMap go segs
   go (DD.DocBlob txt) = PP.paragraphyText (escaped txt)
@@ -549,6 +550,7 @@ prettyDoc n im term = mconcat [ fmt S.DocDelimiter $ l "[: "
     (fmt S.DocKeyword $ l w) <>
     (fmt S.DocDelimiter $ l "] ")
   escaped = Text.replace "@" "\\@" . Text.replace ":]" "\\:]"
+  spaceUnlessBroken = PP.orElse " " ""
 
 paren :: Bool -> Pretty SyntaxText -> Pretty SyntaxText
 paren True  s = PP.group $ fmt S.Parenthesis "(" <> s <> fmt S.Parenthesis ")"

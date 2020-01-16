@@ -36,8 +36,8 @@ escaping = [: Docs look [: like \@this \:] :]
 commented = [:
   example:
 
-  -- a comment
-  f x = x + 1
+    -- a comment
+    f x = x + 1
 :]
 ```
 
