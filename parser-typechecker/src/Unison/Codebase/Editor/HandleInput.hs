@@ -1273,7 +1273,7 @@ loop = do
         Nothing -> do
           names0 <- basicPrettyPrintNames0
           ppe <- prettyPrintEnv (Names3.Names names0 mempty)
-          respond $ NoMainFunction input main ppe (mainTypes External)
+          respond $ NoMainFunction main ppe (mainTypes External)
         Just unisonFile -> do
           ppe <- executePPE unisonFile
           eval $ Execute ppe unisonFile
