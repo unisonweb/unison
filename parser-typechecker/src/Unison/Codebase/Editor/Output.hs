@@ -76,7 +76,7 @@ data Output v
   -- No main function, the [Type v Ann] are the allowed types
   | NoMainFunction Input String PPE.PrettyPrintEnv [Type v Ann]
   | CreatedNewBranch Path.Absolute
-  | BranchAlreadyExists Input Path'
+  | BranchAlreadyExists Path'
   | PatchAlreadyExists Input Path.Split'
   | NoExactTypeMatches
   | TypeAlreadyExists Input Path.Split' (Set Reference)
