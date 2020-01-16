@@ -301,7 +301,7 @@ notifyUser dir o = case o of
       <> dir
       <> "directory. Make sure you've updated something there before using the"
       <> makeExample' IP.add <> "or" <> makeExample' IP.update
-      <> "commands."
+      <> "commands, or use" <> makeExample' IP.load <> "to load a file explicitly."
   InvalidSourceName name ->
     pure . P.callout "😶" $ P.wrap $  "The file "
                                    <> P.blue (P.shown name)
