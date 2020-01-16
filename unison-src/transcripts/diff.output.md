@@ -151,29 +151,26 @@ unique type Y a b = Y a b
   
   Updates:
   
-    5.  b : Nat
+    5.  b#0ja1qfpej6 : Nat
         ↓
-    6.  b : Text
+    6.  b#ao6k44sjr0 : Text
     
-    7.  fromJust : Nat
-        - 8.  ns1.b : Nat
-    
-    9.  fromJust' : Nat
+    7.  fromJust'#jk19sm5bf8 : Nat
         ↓
-    10. fromJust' : Nat
-        + 11. ns1.b : Nat
+    8.  fromJust'#1o1iq26cq7 : Nat
+        + 9.  ns1.b : Nat
   
     & 1 auto-propagated updates
   
   Added definitions:
   
-    12. unique type Y a b
-    13. Y.Y : a -> b -> Y a b
-    14. d   : Nat
-    15. e   : Nat
-    16. f   : Nat
+    10. unique type Y a b
+    11. Y.Y : a -> b -> Y a b
+    12. d   : Nat
+    13. e   : Nat
+    14. f   : Nat
   
-    17. patch patch (added 2 updates)
+    15. patch patch (added 2 updates)
 
 .> alias.term ns2.d ns2.d'
 
@@ -199,37 +196,34 @@ unique type Y a b = Y a b
   
   Updates:
   
-    5.  b : Nat
+    5.  b#0ja1qfpej6 : Nat
         ↓
-    6.  b : Text
+    6.  b#ao6k44sjr0 : Text
     
-    7.  fromJust : Nat
-        - 8.  ns1.b : Nat
-    
-    9.  fromJust' : Nat
+    7.  fromJust'#jk19sm5bf8 : Nat
         ↓
-    10. fromJust' : Nat
-        + 11. ns1.b : Nat
+    8.  fromJust'#1o1iq26cq7 : Nat
+        + 9.  ns1.b : Nat
   
     & 1 auto-propagated updates
   
   Added definitions:
   
-    12. unique type Y a b
-    13. Y.Y  : a -> b -> Y a b
-    14. ┌ d  : Nat
-    15. └ d' : Nat
-    16. e    : Nat
-    17. f    : Nat
+    10. unique type Y a b
+    11. Y.Y  : a -> b -> Y a b
+    12. ┌ d  : Nat
+    13. └ d' : Nat
+    14. e    : Nat
+    15. f    : Nat
   
-    18. patch patch (added 2 updates)
+    16. patch patch (added 2 updates)
   
   Name changes:
   
     Original  Changes
-    19. X     20. X' (added)
+    17. X     18. X' (added)
     
-    21. A    22. A' (added)
+    19. A    20. A' (added)
 
 .> link ns2.f ns1.c
 
@@ -251,40 +245,37 @@ unique type Y a b = Y a b
   
   Updates:
   
-    5.  b : Nat
+    5.  b#0ja1qfpej6 : Nat
         ↓
-    6.  b : Text
+    6.  b#ao6k44sjr0 : Text
     
-    7.  c : Nat
+    7.  c#msp7bv40rv : Nat
         + 8.  c : Nat
     
-    9.  fromJust : Nat
-        - 10. ns1.b : Nat
-    
-    11. fromJust' : Nat
+    9.  fromJust'#jk19sm5bf8 : Nat
         ↓
-    12. fromJust' : Nat
-        + 13. ns1.b : Nat
+    10. fromJust'#1o1iq26cq7 : Nat
+        + 11. ns1.b : Nat
   
     & 1 auto-propagated updates
   
   Added definitions:
   
-    14. unique type Y a b
-    15. Y.Y  : a -> b -> Y a b
-    16. ┌ d  : Nat
-    17. └ d' : Nat
-    18. e    : Nat
-    19. f    : Nat (+1 metadata)
+    12. unique type Y a b
+    13. Y.Y  : a -> b -> Y a b
+    14. ┌ d  : Nat
+    15. └ d' : Nat
+    16. e    : Nat
+    17. f    : Nat (+1 metadata)
   
-    20. patch patch (added 2 updates)
+    18. patch patch (added 2 updates)
   
   Name changes:
   
     Original  Changes
-    21. X     22. X' (added)
+    19. X     20. X' (added)
     
-    23. A    24. A' (added)
+    21. A    22. A' (added)
 
 .> unlink ns2.fromJust ns2.b
 
@@ -302,40 +293,37 @@ unique type Y a b = Y a b
   
   Updates:
   
-    5.  b : Nat
+    5.  b#0ja1qfpej6 : Nat
         ↓
-    6.  b : Text
+    6.  b#ao6k44sjr0 : Text
     
-    7.  c : Nat
+    7.  c#msp7bv40rv : Nat
         + 8.  c : Nat
     
-    9.  fromJust : Nat
-        - 10. ns1.b : Nat
-    
-    11. fromJust' : Nat
+    9.  fromJust'#jk19sm5bf8 : Nat
         ↓
-    12. fromJust' : Nat
-        + 13. ns1.b : Nat
+    10. fromJust'#1o1iq26cq7 : Nat
+        + 11. ns1.b : Nat
   
     & 1 auto-propagated updates
   
   Added definitions:
   
-    14. unique type Y a b
-    15. Y.Y  : a -> b -> Y a b
-    16. ┌ d  : Nat
-    17. └ d' : Nat
-    18. e    : Nat
-    19. f    : Nat (+1 metadata)
+    12. unique type Y a b
+    13. Y.Y  : a -> b -> Y a b
+    14. ┌ d  : Nat
+    15. └ d' : Nat
+    16. e    : Nat
+    17. f    : Nat (+1 metadata)
   
-    20. patch patch (added 2 updates)
+    18. patch patch (added 2 updates)
   
   Name changes:
   
     Original  Changes
-    21. X     22. X' (added)
+    19. X     20. X' (added)
     
-    23. A    24. A' (added)
+    21. A    22. A' (added)
 
 .> alias.type ns1.X ns1.X2
 

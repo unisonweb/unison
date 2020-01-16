@@ -132,6 +132,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
     -- For the metadata on a definition to have changed, the name
     -- and the reference must have existed before and the reference
     -- must not have been removed and the name must not have been removed or added
+    -- or updated 😅
     -- "getMetadataUpdates" = a defn has been updated via change of metadata
     getMetadataUpdates :: Ord r => DiffSlice r -> Map Name (Set r, Set r)
     getMetadataUpdates s = Map.fromList
@@ -140,6 +141,10 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
                                BranchDiff.tremovedMetadata s
       , R.notMember r n (BranchDiff.talladds s)
       , R.notMember r n (BranchDiff.tallremoves s)
+      -- don't count it as a metadata update if it already's already a regular update
+      , let (oldRefs, newRefs) =
+             Map.findWithDefault mempty n (BranchDiff.tallnamespaceUpdates s)
+        in Set.notMember r oldRefs && Set.notMember r newRefs
 --  trenames :: Map r (Set Name, Set Name), -- ref (old, new)
       , case Map.lookup r (BranchDiff.trenames s) of
           Nothing -> True
