@@ -5,8 +5,8 @@
 
 module Unison.Codebase.Editor.Output.BranchDiff where
 
+import Control.Lens (_1,view)
 import Unison.Prelude
-
 import Unison.Name (Name)
 import qualified Unison.Codebase.Patch as P
 import qualified Unison.PrettyPrintEnv as PPE
@@ -114,8 +114,8 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
     --         any of the old references associated with the name
     --   removes: not-attached metadata that had been attached to any of
     --         the old references associated with the name
-    getNewMetadataDiff :: Ord r => DiffSlice r -> Name -> Set r -> r -> MetadataDiff Metadata.Value
-    getNewMetadataDiff s n rs_old r_new = let
+    getNewMetadataDiff :: Ord r => Bool -> DiffSlice r -> Name -> Set r -> r -> MetadataDiff Metadata.Value
+    getNewMetadataDiff hidePropagatedMd s n rs_old r_new = let
       old_metadatas :: [Set Metadata.Value] =
         toList . R.toMultimap . R.restrictDom rs_old . R3.lookupD2 n $
           BranchDiff.tremovedMetadata s
@@ -125,9 +125,10 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
         foldl' Set.union mempty old_metadatas
       new_metadata :: Set Metadata.Value =
         R.lookupDom n . R3.lookupD1 r_new $ BranchDiff.taddedMetadata s
+      toDelete = if hidePropagatedMd then Set.singleton isPropagatedValue else mempty
       in MetadataDiff
-          { addedMetadata = toList $ new_metadata `Set.difference` old_intersection
-          , removedMetadata = toList $ old_union `Set.difference` new_metadata
+          { addedMetadata = toList $ new_metadata `Set.difference` old_intersection `Set.difference` toDelete
+          , removedMetadata = toList $ old_union `Set.difference` new_metadata `Set.difference` toDelete
           }
     -- For the metadata on a definition to have changed, the name
     -- and the reference must have existed before and the reference
@@ -173,25 +174,27 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
                      else Names2.hqTypeName hqLen names1 n r_old)
            <*> pure r_old
            <*> declOrBuiltin r_old
-    loadNew :: Bool -> Name -> Set Reference -> Reference -> m (TypeDisplay v a)
-    loadNew forceHQ n rs_old r_new =
+    loadNew :: Bool -> Bool -> Name -> Set Reference -> Reference -> m (TypeDisplay v a)
+    loadNew hidePropagatedMd forceHQ n rs_old r_new =
       (,,,) <$> pure (if forceHQ
                       then Names2.hqTypeName' hqLen n r_new
                       else Names2.hqTypeName hqLen names2 n r_new)
             <*> pure r_new
             <*> declOrBuiltin r_new
-            <*> fillMetadata ppe (getNewMetadataDiff typesDiff n rs_old r_new)
-    loadEntry :: (Name, (Set Reference, Set Reference)) -> m (UpdateTypeDisplay v a)
-    loadEntry (n, (Set.toList -> [rold], Set.toList -> [rnew])) | rold == rnew =
-      (Nothing,) <$> for [rnew] (loadNew False n (Set.singleton rold))
-    loadEntry (n, (rs_old, rs_new)) =
+            <*> fillMetadata ppe (getNewMetadataDiff hidePropagatedMd typesDiff n rs_old r_new)
+    loadEntry :: Bool -> (Name, (Set Reference, Set Reference)) -> m (UpdateTypeDisplay v a)
+    loadEntry hidePropagatedMd (n, (Set.toList -> [rold], Set.toList -> [rnew])) | rold == rnew =
+      (Nothing,) <$> for [rnew] (loadNew hidePropagatedMd False n (Set.singleton rold))
+    loadEntry hidePropagatedMd (n, (rs_old, rs_new)) =
       let forceHQ = Set.size rs_old > 1 || Set.size rs_new > 1 in
       (,) <$> (Just <$> for (toList rs_old) (loadOld forceHQ n))
-          <*> for (toList rs_new) (loadNew forceHQ n rs_old)
+          <*> for (toList rs_new) (loadNew hidePropagatedMd forceHQ n rs_old)
     in liftA3 (,,)
-        (for (Map.toList $ Map.filter isSimpleUpdate nsUpdates <> metadataUpdates) loadEntry)
-        (for (Map.toList $ Map.filter isNewConflict nsUpdates) loadEntry)
-        (for (Map.toList $ Map.filter isResolvedConflict nsUpdates) loadEntry)
+        (sortOn (view _1 . head . snd) <$> liftA2 (<>)
+          (for (Map.toList $ Map.filter isSimpleUpdate nsUpdates) (loadEntry True))
+          (for (Map.toList metadataUpdates) (loadEntry False)))
+        (for (Map.toList $ Map.filter isNewConflict nsUpdates) (loadEntry True))
+        (for (Map.toList $ Map.filter isResolvedConflict nsUpdates) (loadEntry True))
 
   (updatedTerms :: [UpdateTermDisplay v a],
    newTermConflicts :: [UpdateTermDisplay v a],
@@ -206,23 +209,27 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
                      else Names2.hqTermName hqLen names1 n r_old)
            <*> pure r_old
            <*> typeOf r_old
-    loadNew forceHQ n rs_old r_new =
+    loadNew hidePropagatedMd forceHQ n rs_old r_new =
       (,,,) <$> pure (if forceHQ then Names2.hqTermName' hqLen n r_new
                       else Names2.hqTermName hqLen names2 n r_new)
             <*> pure r_new
             <*> typeOf r_new
-            <*> fillMetadata ppe (getNewMetadataDiff termsDiff n rs_old r_new)
-    loadEntry (n, (rs_old, rs_new))
+            <*> fillMetadata ppe (getNewMetadataDiff hidePropagatedMd termsDiff n rs_old r_new)
+    loadEntry hidePropagatedMd (n, (rs_old, rs_new))
       -- if the references haven't changed, it's code for: only the metadata has changed
       -- and we can ignore the old references in the output.
-      | rs_old == rs_new = (Nothing,) <$> for (toList rs_new) (loadNew False n rs_old)
+      | rs_old == rs_new = (Nothing,) <$> for (toList rs_new) (loadNew hidePropagatedMd False n rs_old)
       | otherwise        = let forceHQ = Set.size rs_old > 1 || Set.size rs_new > 1 in
                            (,) <$> (Just <$> for (toList rs_old) (loadOld forceHQ n))
-                               <*> for (toList rs_new) (loadNew forceHQ n rs_old)
+                               <*> for (toList rs_new) (loadNew hidePropagatedMd forceHQ n rs_old)
     in liftA3 (,,)
-      (for (Map.toList $ Map.filter isSimpleUpdate nsUpdates <> metadataUpdates) loadEntry)
-      (for (Map.toList $ Map.filter isNewConflict nsUpdates) loadEntry)
-      (for (Map.toList $ Map.filter isResolvedConflict nsUpdates) loadEntry)
+        -- this is sorting the Update section back into alphabetical Name order
+        -- after calling loadEntry on the two halves.
+        (sortOn (view _1 . head . snd) <$> liftA2 (<>)
+          (for (Map.toList $ Map.filter isSimpleUpdate nsUpdates) (loadEntry True))
+          (for (Map.toList metadataUpdates) (loadEntry False)))
+        (for (Map.toList $ Map.filter isNewConflict nsUpdates) (loadEntry True))
+        (for (Map.toList $ Map.filter isResolvedConflict nsUpdates) (loadEntry True))
 
   let propagatedUpdates :: Int =
       -- counting the number of named auto-propagated definitions

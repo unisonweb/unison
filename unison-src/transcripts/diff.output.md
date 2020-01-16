@@ -151,13 +151,13 @@ unique type Y a b = Y a b
   
   Updates:
   
-    5.  b#0ja1qfpej6 : Nat
+    5.  b : Nat
         ↓
-    6.  b#ao6k44sjr0 : Text
+    6.  b : Text
     
-    7.  fromJust'#jk19sm5bf8 : Nat
+    7.  fromJust' : Nat
         ↓
-    8.  fromJust'#1o1iq26cq7 : Nat
+    8.  fromJust' : Nat
         + 9.  ns1.b : Nat
   
     & 1 auto-propagated updates
@@ -196,13 +196,13 @@ unique type Y a b = Y a b
   
   Updates:
   
-    5.  b#0ja1qfpej6 : Nat
+    5.  b : Nat
         ↓
-    6.  b#ao6k44sjr0 : Text
+    6.  b : Text
     
-    7.  fromJust'#jk19sm5bf8 : Nat
+    7.  fromJust' : Nat
         ↓
-    8.  fromJust'#1o1iq26cq7 : Nat
+    8.  fromJust' : Nat
         + 9.  ns1.b : Nat
   
     & 1 auto-propagated updates
@@ -245,16 +245,16 @@ unique type Y a b = Y a b
   
   Updates:
   
-    5.  b#0ja1qfpej6 : Nat
+    5.  b : Nat
         ↓
-    6.  b#ao6k44sjr0 : Text
+    6.  b : Text
     
-    7.  c#msp7bv40rv : Nat
+    7.  c : Nat
         + 8.  c : Nat
     
-    9.  fromJust'#jk19sm5bf8 : Nat
+    9.  fromJust' : Nat
         ↓
-    10. fromJust'#1o1iq26cq7 : Nat
+    10. fromJust' : Nat
         + 11. ns1.b : Nat
   
     & 1 auto-propagated updates
@@ -293,16 +293,16 @@ unique type Y a b = Y a b
   
   Updates:
   
-    5.  b#0ja1qfpej6 : Nat
+    5.  b : Nat
         ↓
-    6.  b#ao6k44sjr0 : Text
+    6.  b : Text
     
-    7.  c#msp7bv40rv : Nat
+    7.  c : Nat
         + 8.  c : Nat
     
-    9.  fromJust'#jk19sm5bf8 : Nat
+    9.  fromJust' : Nat
         ↓
-    10. fromJust'#1o1iq26cq7 : Nat
+    10. fromJust' : Nat
         + 11. ns1.b : Nat
   
     & 1 auto-propagated updates
@@ -369,6 +369,52 @@ unique type Y a b = Y a b
     3. fromJust' ┘  4. fromJust' (removed)
 
 ```
+```unison
+bdependent = "banana"
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bdependent : Text
+   
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+```
+```ucm
+.ns3> update
+
+  ⍟ I've updated to these definitions:
+  
+    bdependent : .builtin.Text
+
+  ✅
+  
+  No conflicts or edits in progress.
+
+.> diff.namespace ns2 ns3
+
+  Updates:
+  
+    1. bdependent : Text
+       ↓
+    2. bdependent : Text
+  
+    3. patch patch (added 1 updates)
+  
+  Name changes:
+  
+    Original       Changes
+    4. fromJust ┐  5. fromJust' (added)
+    6. yoohoo   ┘  7. yoohoo (removed)
+
+```
 ##
 
 Updates:  -- 1 to 1
@@ -389,35 +435,7 @@ Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has on
 
 ## Display issues to fixup
 
-- [ ] check whether creating a name conflict + adding metadata puts the update
-      in both categories; if it does, then filter out metadataUpdates from the
-      other categories
 - [ ] just handle deletion of isPropagated in propagate function, leave HandleInput alone (assuming this does the trick)
-- [ ] if a name is updated to a not-yet-named reference, it's shown as both an update and an add
-- [ ] similarly, if a conflicted name is resolved by deleting the last name to
-      a reference, I (arya) suspect it will show up as a Remove
-- [ ] might want unqualified names to be qualified sometimes:
-
-    .a> merge .b
-
-      Updates:
-
-        1. foo : Nat  - here?
-           ↓
-        2. ┌ foo#0ja1qfpej6 : Nat
-        3. └ foo#jk19sm5bf8 : Nat
-
-      Adds:
-
-        4. foo#0ja1qfpej6 : Nat
-
-    maybe if all of the old (n,r) are still present, but some new (n,r') has
-    been added, just show it under adds:
-
-      Adds:
-
-        1. foo#0ja1qfpej6 : Nat  -- and the hash indicates that it has become conflicted?
-
 - [ ] Do we want to surface new edit conflicts in patches?
 - [ ] incorrectly calculated bracket alignment on hashqualified "Name changes"  (delete.output.md)
 
@@ -431,7 +449,14 @@ Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has on
       up into multiple lines. Maybe just disallow that?
 - [ ] Delete blank line in between copies / renames entries if all entries are 1 to 1
       see todo in the code
+- [x] might want unqualified names to be qualified sometimes:
+- [x] if a name is updated to a not-yet-named reference, it's shown as both an update and an add
+- [x] similarly, if a conflicted name is resolved by deleting the last name to
+      a reference, I (arya) suspect it will show up as a Remove
 - [ ] ~~Maybe group and/or add headings to the types, constructors, terms~~
+- [x] check whether creating a name conflict + adding metadata puts the update
+      in both categories; if it does, then filter out metadataUpdates from the
+      other categories
 - [x] add tagging of propagated updates to test propagated updates output
 - [x] missing old names in deletion ppe (delete.output.md)  (superseded by \#1143)
 - [x] delete.term has some bonkers output

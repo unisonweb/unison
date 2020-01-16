@@ -75,6 +75,13 @@ unique type Y a b = Y a b
 .> delete.term ns2.fromJust'
 .> diff.namespace ns3 ns2
 ```
+```unison
+bdependent = "banana"
+```
+```ucm
+.ns3> update
+.> diff.namespace ns2 ns3
+```
 ##
 
 Updates:  -- 1 to 1
@@ -95,35 +102,7 @@ Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has on
 
 ## Display issues to fixup
 
-- [ ] check whether creating a name conflict + adding metadata puts the update
-      in both categories; if it does, then filter out metadataUpdates from the
-      other categories
 - [ ] just handle deletion of isPropagated in propagate function, leave HandleInput alone (assuming this does the trick)
-- [ ] if a name is updated to a not-yet-named reference, it's shown as both an update and an add
-- [ ] similarly, if a conflicted name is resolved by deleting the last name to
-      a reference, I (arya) suspect it will show up as a Remove
-- [ ] might want unqualified names to be qualified sometimes:
-
-    .a> merge .b
-
-      Updates:
-
-        1. foo : Nat  - here?
-           ↓
-        2. ┌ foo#0ja1qfpej6 : Nat
-        3. └ foo#jk19sm5bf8 : Nat
-
-      Adds:
-
-        4. foo#0ja1qfpej6 : Nat
-
-    maybe if all of the old (n,r) are still present, but some new (n,r') has
-    been added, just show it under adds:
-
-      Adds:
-
-        1. foo#0ja1qfpej6 : Nat  -- and the hash indicates that it has become conflicted?
-
 - [ ] Do we want to surface new edit conflicts in patches?
 - [ ] incorrectly calculated bracket alignment on hashqualified "Name changes"  (delete.output.md)
 
@@ -137,7 +116,14 @@ Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has on
       up into multiple lines. Maybe just disallow that?
 - [ ] Delete blank line in between copies / renames entries if all entries are 1 to 1
       see todo in the code
+- [x] might want unqualified names to be qualified sometimes:
+- [x] if a name is updated to a not-yet-named reference, it's shown as both an update and an add
+- [x] similarly, if a conflicted name is resolved by deleting the last name to
+      a reference, I (arya) suspect it will show up as a Remove
 - [ ] ~~Maybe group and/or add headings to the types, constructors, terms~~
+- [x] check whether creating a name conflict + adding metadata puts the update
+      in both categories; if it does, then filter out metadataUpdates from the
+      other categories
 - [x] add tagging of propagated updates to test propagated updates output
 - [x] missing old names in deletion ppe (delete.output.md)  (superseded by \#1143)
 - [x] delete.term has some bonkers output
