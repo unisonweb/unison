@@ -1049,7 +1049,7 @@ loop = do
 
       LoadI maybePath ->
         case maybePath <|> (fst <$> latestFile') of
-          Nothing   -> respond $ NoUnisonFile input
+          Nothing   -> respond NoUnisonFile
           Just path -> do
             res <- eval . LoadSource . Text.pack $ path
             case res of
@@ -1058,7 +1058,7 @@ loop = do
               LoadSuccess contents -> loadUnisonFile (Text.pack path) contents
 
       AddI hqs -> case uf of
-        Nothing -> respond $ NoUnisonFile input
+        Nothing -> respond NoUnisonFile
         Just uf -> do
           sr <- Slurp.disallowUpdates
               . applySelection hqs uf
@@ -1085,10 +1085,10 @@ loop = do
                       (UF.typecheckedToNames0 uf)
           ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
           respond $ Typechecked (Text.pack sourceName) ppe sr uf
-        _ -> respond $ NoUnisonFile input
+        _ -> respond NoUnisonFile
 
       UpdateI maybePatchPath hqs -> case uf of
-        Nothing -> respond $ NoUnisonFile input
+        Nothing -> respond NoUnisonFile
         Just uf -> do
           let patchPath = fromMaybe defaultPatchPath maybePatchPath
           slurpCheckNames0 <- slurpResultNames0
@@ -1192,7 +1192,7 @@ loop = do
                       (UF.typecheckedToNames0 uf)
           ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
           respond $ Typechecked (Text.pack sourceName) ppe sr uf
-        _ -> respond $ NoUnisonFile input
+        _ -> respond NoUnisonFile
 
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)

@@ -70,7 +70,7 @@ data Output v
   -- to vary based on the command the user submitted.
   = Success Input
   -- User did `add` or `update` before typechecking a file?
-  | NoUnisonFile Input
+  | NoUnisonFile
   | InvalidSourceName String
   | SourceLoadFailed String
   -- No main function, the [Type v Ann] are the allowed types
