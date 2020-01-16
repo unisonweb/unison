@@ -66,9 +66,7 @@ pushPull push pull p = case p of
 
 data Output v
   -- Generic Success response; we might consider deleting this.
-  -- I had put the `Input` field here in case we wanted the success message
-  -- to vary based on the command the user submitted.
-  = Success Input
+  = Success
   -- User did `add` or `update` before typechecking a file?
   | NoUnisonFile Input
   | InvalidSourceName String
