@@ -626,7 +626,7 @@ notifyUser dir o = case o of
   NoBranchWithHash _ h -> pure . P.callout "😶" $
     P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> pure $ P.wrap "That's not implemented yet. Sorry! 😬"
-  BranchAlreadyExists _ _ -> pure "That namespace already exists."
+  BranchAlreadyExists _ -> pure "That namespace already exists."
   NameAmbiguous hashLen _ p tms tys ->
     pure . P.callout "\129300" . P.lines $ [
       P.wrap "That name is ambiguous. It could refer to any of the following definitions:"
