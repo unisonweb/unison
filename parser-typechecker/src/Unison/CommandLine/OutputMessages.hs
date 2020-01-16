@@ -129,7 +129,7 @@ renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
-  Success _    -> pure $ P.bold "Done."
+  Success     -> pure $ P.bold "Done."
   WarnIncomingRootBranch hashes -> mempty
   -- todo: resurrect this code once it's not triggered by update+propagate
 --  WarnIncomingRootBranch hashes -> putPrettyLn $

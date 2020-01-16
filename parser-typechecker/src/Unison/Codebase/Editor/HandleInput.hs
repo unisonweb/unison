@@ -1340,7 +1340,7 @@ loop = do
       QuitI -> MaybeT $ pure Nothing
      where
       notImplemented = eval $ Notify NotImplemented
-      success = respond $ Success input
+      success = respond Success
 
       -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
       -- otherwise, tries to load a value from .unisonConfig, and complains
@@ -1738,7 +1738,7 @@ syncRemoteRootBranch
   :: Var v => Monad m => Input -> RemoteRepo -> Branch m -> Action m i v ()
 syncRemoteRootBranch input repo b = do
   e <- eval $ SyncRemoteRootBranch repo b
-  either (eval . Notify . GitError input) (const . respond $ Success input) e
+  either (eval . Notify . GitError input) (const $ respond Success) e
 
 getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =
