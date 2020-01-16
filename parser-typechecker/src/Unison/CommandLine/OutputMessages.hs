@@ -225,7 +225,7 @@ notifyUser dir o = case o of
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
     CantUndoPastMerge -> pure . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
-  NoMainFunction _input main ppe ts -> pure . P.callout "😶" $ P.lines [
+  NoMainFunction main ppe ts -> pure . P.callout "😶" $ P.lines [
     P.wrap $ "I looked for a function" <> P.backticked (P.string main)
           <> "in the most recently typechecked file and codebase but couldn't find one. It has to have the type:",
     "",

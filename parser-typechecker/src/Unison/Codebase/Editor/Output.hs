@@ -72,7 +72,7 @@ data Output v
   | InvalidSourceName String
   | SourceLoadFailed String
   -- No main function, the [Type v Ann] are the allowed types
-  | NoMainFunction Input String PPE.PrettyPrintEnv [Type v Ann]
+  | NoMainFunction String PPE.PrettyPrintEnv [Type v Ann]
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Input Path'
   | PatchAlreadyExists Input Path.Split'
