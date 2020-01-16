@@ -1274,7 +1274,27 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
   (p, (menuSize, args)) = (`State.runState` (0::Int, Seq.empty)) $ sequence [
-    if (not . null) updatedTypes
+    if (not . null) newTypeConflicts
+    || (not . null) newTermConflicts
+    then do
+      prettyUpdatedTypes :: [Pretty] <- traverse prettyUpdateType newTypeConflicts
+      prettyUpdatedTerms :: [Pretty] <- traverse prettyUpdateTerm newTermConflicts
+      pure $ P.sepNonEmpty "\n\n"
+        [ P.red "New name conflicts:"
+        , P.indentN 2 . P.sepNonEmpty "\n\n" $ prettyUpdatedTypes <> prettyUpdatedTerms
+        ]
+    else pure mempty
+   ,if (not . null) resolvedTypeConflicts
+    || (not . null) resolvedTermConflicts
+    then do
+      prettyUpdatedTypes :: [Pretty] <- traverse prettyUpdateType resolvedTypeConflicts
+      prettyUpdatedTerms :: [Pretty] <- traverse prettyUpdateTerm resolvedTermConflicts
+      pure $ P.sepNonEmpty "\n\n"
+        [ P.bold "Resolved name conflicts:"
+        , P.indentN 2 . P.sepNonEmpty "\n\n" $ prettyUpdatedTypes <> prettyUpdatedTerms
+        ]
+    else pure mempty
+   ,if (not . null) updatedTypes
     || (not . null) updatedTerms
     || propagatedUpdates > 0
     || (not . null) updatedPatches
@@ -1301,7 +1321,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
       prettyAddedTerms :: Pretty <- prettyAddTerms addedTerms
       prettyAddedPatches :: [Pretty] <- traverse (prettySummarizePatch newPath) addedPatches
       pure $ P.sepNonEmpty "\n\n"
-        [ P.bold "Adds:"
+        [ P.bold "Added definitions:"
         , P.indentN 2 $ P.linesNonEmpty [prettyAddedTypes, prettyAddedTerms]
         , P.indentNonEmptyN 2 $ P.lines prettyAddedPatches
         ]
@@ -1314,7 +1334,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
       prettyRemovedTerms :: Pretty <- prettyRemoveTerms removedTerms
       prettyRemovedPatches :: [Pretty] <- traverse (prettyNamePatch oldPath) removedPatches
       pure $ P.sepNonEmpty "\n\n"
-       [ P.bold "Removes:"
+       [ P.bold "Removed definitions:"
        , P.indentN 2 $ P.linesNonEmpty [ prettyRemovedTypes
                                        , prettyRemovedTerms
                                        , P.linesNonEmpty prettyRemovedPatches ]

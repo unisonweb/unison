@@ -29,6 +29,10 @@ ability X a1 a2 where x : Nat
 .ns1> link fromJust b
 .ns1> fork .ns1 .ns2
 .ns1> cd .
+```
+Here's what we've done so far:
+```ucm
+.> diff.namespace nothing ns1
 .> diff.namespace ns1 ns2
 ```
 
@@ -59,6 +63,7 @@ unique type Y a b = Y a b
 .> alias.type ns2.X ns2.X'
 .> diff.namespace ns1 ns2
 .> link ns2.f ns1.c
+.> link ns2.c ns2.c
 .> diff.namespace ns1 ns2
 .> unlink ns2.fromJust ns2.b
 .> diff.namespace ns1 ns2
@@ -70,9 +75,29 @@ unique type Y a b = Y a b
 .> delete.term ns2.fromJust'
 .> diff.namespace ns3 ns2
 ```
+##
+
+Updates:  -- 1 to 1
+
+New name conflicts: -- updates where RHS has multiple hashes (excluding when RHS=LHS)
+
+  1. foo#jk19sm5bf8 : Nat - do we want to force a hashqualified? Arya thinks so
+     ↓
+  2. ┌ foo#0ja1qfpej6 : Nat
+  3. └ foo#jk19sm5bf8 : Nat  
+
+Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has one
+
+  4. ┌ bar#0ja1qfpej6 : Nat
+  5. └ bar#jk19sm5bf8 : Nat  
+     ↓
+  6. bar#jk19sm5bf8 : Nat  
 
 ## Display issues to fixup
 
+- [ ] check whether creating a name conflict + adding metadata puts the update
+      in both categories; if it does, then filter out metadataUpdates from the
+      other categories
 - [ ] just handle deletion of isPropagated in propagate function, leave HandleInput alone (assuming this does the trick)
 - [ ] if a name is updated to a not-yet-named reference, it's shown as both an update and an add
 - [ ] similarly, if a conflicted name is resolved by deleting the last name to
@@ -99,6 +124,7 @@ unique type Y a b = Y a b
 
         1. foo#0ja1qfpej6 : Nat  -- and the hash indicates that it has become conflicted?
 
+- [ ] Do we want to surface new edit conflicts in patches?
 - [ ] incorrectly calculated bracket alignment on hashqualified "Name changes"  (delete.output.md)
 
     Original                               Changes

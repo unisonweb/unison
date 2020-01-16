@@ -17,7 +17,6 @@ import qualified Unison.Util.Relation3 as R3
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import Unison.Util.List (uniqueBy)
 import Unison.Util.Set (symmetricDifference)
 
 import Unison.Reference (Reference)
@@ -48,6 +47,10 @@ instance Monoid (MetadataDiff tm) where
 data BranchDiffOutput v a = BranchDiffOutput {
   updatedTypes      :: [UpdateTypeDisplay v a],
   updatedTerms      :: [UpdateTermDisplay v a],
+  newTypeConflicts      :: [UpdateTypeDisplay v a],
+  newTermConflicts      :: [UpdateTermDisplay v a],
+  resolvedTypeConflicts :: [UpdateTypeDisplay v a],
+  resolvedTermConflicts :: [UpdateTermDisplay v a],
   propagatedUpdates :: Int,
   updatedPatches    :: [PatchDisplay],
   addedTypes        :: [AddedTypeDisplay v a],
@@ -130,8 +133,8 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
     -- and the reference must have existed before and the reference
     -- must not have been removed and the name must not have been removed or added
     -- "getMetadataUpdates" = a defn has been updated via change of metadata
-    getMetadataUpdates :: (Ord r, Show r) => DiffSlice r -> [(Name, (Set r, Set r))]
-    getMetadataUpdates s = t
+    getMetadataUpdates :: Ord r => DiffSlice r -> Map Name (Set r, Set r)
+    getMetadataUpdates s = Map.fromList
       [ (n, (Set.singleton r, Set.singleton r)) -- the reference is unchanged
       | (r,n,v) <- R3.toList $ BranchDiff.taddedMetadata s <>
                                BranchDiff.tremovedMetadata s
@@ -143,58 +146,78 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
           Just (olds, news) ->
             Set.notMember n (symmetricDifference olds news)
       , v /= isPropagatedValue ]
-      where t u = trace ("getMetadataUpdates = " <> show u) u
 
-  updatedTypes :: [UpdateTypeDisplay v a] <- let
+  let isSimpleUpdate, isNewConflict, isResolvedConflict :: Eq r => (Set r, Set r) -> Bool
+      isSimpleUpdate (old, new) = Set.size old == 1 && Set.size new == 1
+      isNewConflict (_old, new) = Set.size new > 1 -- should already be the case that old /= new
+      isResolvedConflict (old, new) = Set.size old > 1 && Set.size new == 1
+
+  (updatedTypes :: [UpdateTypeDisplay v a],
+   newTypeConflicts :: [UpdateTypeDisplay v a],
+   resolvedTypeConflicts :: [UpdateTypeDisplay v a]) <- let
     -- things where what the name pointed to changed
-    nsUpdates :: [(Name, (Set Reference, Set Reference))] =
-      Map.toList $ BranchDiff.namespaceUpdates typesDiff
+    nsUpdates :: Map Name (Set Reference, Set Reference) =
+      BranchDiff.namespaceUpdates typesDiff
     -- things where the metadata changed (`uniqueBy` below removes these
     -- if they were already included in `nsUpdates)
     metadataUpdates = getMetadataUpdates typesDiff
-    loadOld :: Name -> Reference -> m (SimpleTypeDisplay v a)
-    loadOld n r_old =
-      (,,) <$> pure (Names2.hqTypeName hqLen names1 n r_old)
+    loadOld :: Bool -> Name -> Reference -> m (SimpleTypeDisplay v a)
+    loadOld forceHQ n r_old =
+      (,,) <$> pure (if forceHQ
+                     then Names2.hqTypeName' hqLen n r_old
+                     else Names2.hqTypeName hqLen names1 n r_old)
            <*> pure r_old
            <*> declOrBuiltin r_old
-    loadNew :: Name -> Set Reference -> Reference -> m (TypeDisplay v a)
-    loadNew n rs_old r_new =
-      (,,,) <$> pure (Names2.hqTypeName hqLen names2 n r_new)
+    loadNew :: Bool -> Name -> Set Reference -> Reference -> m (TypeDisplay v a)
+    loadNew forceHQ n rs_old r_new =
+      (,,,) <$> pure (if forceHQ
+                      then Names2.hqTypeName' hqLen n r_new
+                      else Names2.hqTypeName hqLen names2 n r_new)
             <*> pure r_new
             <*> declOrBuiltin r_new
             <*> fillMetadata ppe (getNewMetadataDiff typesDiff n rs_old r_new)
     loadEntry :: (Name, (Set Reference, Set Reference)) -> m (UpdateTypeDisplay v a)
     loadEntry (n, (Set.toList -> [rold], Set.toList -> [rnew])) | rold == rnew =
-      (Nothing,) <$> for [rnew] (loadNew n (Set.singleton rold))
+      (Nothing,) <$> for [rnew] (loadNew False n (Set.singleton rold))
     loadEntry (n, (rs_old, rs_new)) =
-      (,) <$> (Just <$> for (toList rs_old) (loadOld n))
-          <*> for (toList rs_new) (loadNew n rs_old)
-    in for (sortOn fst . uniqueBy fst $ nsUpdates <> metadataUpdates) loadEntry
+      let forceHQ = Set.size rs_old > 1 || Set.size rs_new > 1 in
+      (,) <$> (Just <$> for (toList rs_old) (loadOld forceHQ n))
+          <*> for (toList rs_new) (loadNew forceHQ n rs_old)
+    in liftA3 (,,)
+        (for (Map.toList $ Map.filter isSimpleUpdate nsUpdates <> metadataUpdates) loadEntry)
+        (for (Map.toList $ Map.filter isNewConflict nsUpdates) loadEntry)
+        (for (Map.toList $ Map.filter isResolvedConflict nsUpdates) loadEntry)
 
-  updatedTerms :: [UpdateTermDisplay v a] <- let
+  (updatedTerms :: [UpdateTermDisplay v a],
+   newTermConflicts :: [UpdateTermDisplay v a],
+   resolvedTermConflicts :: [UpdateTermDisplay v a]) <- let
     -- things where what the name pointed to changed
-    nsUpdates =
-      Map.toList $ BranchDiff.namespaceUpdates termsDiff
+    nsUpdates = BranchDiff.namespaceUpdates termsDiff
     -- things where the metadata changed (`uniqueBy` below removes these
     -- if they were already included in `nsUpdates)
     metadataUpdates = getMetadataUpdates termsDiff
-    loadOld n r_old =
-      (,,) <$> pure (Names2.hqTermName hqLen names1 n r_old)
+    loadOld forceHQ n r_old =
+      (,,) <$> pure (if forceHQ then Names2.hqTermName' hqLen n r_old
+                     else Names2.hqTermName hqLen names1 n r_old)
            <*> pure r_old
            <*> typeOf r_old
-    loadNew n rs_old r_new =
-      (,,,) <$> pure (Names2.hqTermName hqLen names2 n r_new)
+    loadNew forceHQ n rs_old r_new =
+      (,,,) <$> pure (if forceHQ then Names2.hqTermName' hqLen n r_new
+                      else Names2.hqTermName hqLen names2 n r_new)
             <*> pure r_new
             <*> typeOf r_new
             <*> fillMetadata ppe (getNewMetadataDiff termsDiff n rs_old r_new)
     loadEntry (n, (rs_old, rs_new))
       -- if the references haven't changed, it's code for: only the metadata has changed
       -- and we can ignore the old references in the output.
-      | rs_old == rs_new = (Nothing,) <$> for (toList rs_new) (loadNew n rs_old)
-      | otherwise        = (,) <$> (Just <$> for (toList rs_old) (loadOld n))
-                               <*> for (toList rs_new) (loadNew n rs_old)
-    in for (sortOn fst . uniqueBy fst $ nsUpdates <> metadataUpdates) loadEntry
-    -- in for (sortOn fst . uniqueBy fst $ nsUpdates <> metadataUpdates) loadEntry
+      | rs_old == rs_new = (Nothing,) <$> for (toList rs_new) (loadNew False n rs_old)
+      | otherwise        = let forceHQ = Set.size rs_old > 1 || Set.size rs_new > 1 in
+                           (,) <$> (Just <$> for (toList rs_old) (loadOld forceHQ n))
+                               <*> for (toList rs_new) (loadNew forceHQ n rs_old)
+    in liftA3 (,,)
+      (for (Map.toList $ Map.filter isSimpleUpdate nsUpdates <> metadataUpdates) loadEntry)
+      (for (Map.toList $ Map.filter isNewConflict nsUpdates) loadEntry)
+      (for (Map.toList $ Map.filter isResolvedConflict nsUpdates) loadEntry)
 
   let propagatedUpdates :: Int =
       -- counting the number of named auto-propagated definitions
@@ -277,6 +300,10 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
   pure $ BranchDiffOutput
     updatedTypes
     updatedTerms
+    newTypeConflicts
+    newTermConflicts
+    resolvedTypeConflicts
+    resolvedTermConflicts
     propagatedUpdates
     updatedPatches
     addedTypes

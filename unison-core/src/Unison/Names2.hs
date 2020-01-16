@@ -21,6 +21,8 @@ module Unison.Names2
   , hqName
   , hqTermName
   , hqTypeName
+  , hqTermName'
+  , hqTypeName'
   , _hqTermName
   , _hqTypeName
   , _hqTermAliases
