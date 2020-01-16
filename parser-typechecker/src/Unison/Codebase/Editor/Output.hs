@@ -71,6 +71,8 @@ data Output v
   = Success Input
   -- User did `add` or `update` before typechecking a file?
   | NoUnisonFile Input
+  | InvalidSourceName String
+  | SourceLoadFailed String
   -- No main function, the [Type v Ann] are the allowed types
   | NoMainFunction Input String PPE.PrettyPrintEnv [Type v Ann]
   | CreatedNewBranch Path.Absolute
@@ -132,6 +134,7 @@ data Output v
                        PPE.PrettyPrintEnvDecl
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
+  -- | Invariant: there's at least one conflict or edit in the TodoOutput.
   | TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
@@ -164,6 +167,8 @@ data Output v
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
   | NothingTodo Input
+  -- | No conflicts or edits remain for the current patch.
+  | NoConflictsOrEdits
   | NotImplemented
   | NoBranchWithHash Input ShortBranchHash
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
@@ -221,6 +226,8 @@ isFailure :: Ord v => Output v -> Bool
 isFailure o = case o of
   Success{} -> False
   NoUnisonFile{} -> True
+  InvalidSourceName{} -> True
+  SourceLoadFailed{} -> True
   NoMainFunction{} -> True
   CreatedNewBranch{} -> False
   BranchAlreadyExists{} -> True
@@ -283,9 +290,7 @@ isFailure o = case o of
   DumpBitBooster{} -> False
   NoBranchWithHash{} -> True
   NothingTodo{} -> False
+  NoConflictsOrEdits{} -> False
   ListShallow _ es -> null es
   HashAmbiguous{} -> True
   ShowReflog{} -> False
-
-
-

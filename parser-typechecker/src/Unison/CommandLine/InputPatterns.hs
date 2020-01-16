@@ -113,6 +113,26 @@ todo = InputPattern
     [] -> Right $ Input.TodoI Nothing Path.relativeEmpty'
   )
 
+load :: InputPattern
+load = InputPattern
+  "load"
+  []
+  [(Optional, noCompletions)]
+  (P.wrapColumn2
+    [ ( makeExample' load
+      , "parses, typechecks, and evaluates the most recent scratch file."
+      )
+    , (makeExample load ["<scratch file>"]
+      , "parses, typechecks, and evaluates the given scratch file."
+      )
+    ]
+  )
+  (\case
+    [] -> pure $ Input.LoadI Nothing
+    [file] -> pure $ Input.LoadI . Just $ file
+    _ -> Left (I.help load))
+
+
 add :: InputPattern
 add =
   InputPattern
@@ -124,6 +144,27 @@ add =
       )
     $ \ws -> case traverse HQ'.fromString ws of
         Just ws -> pure $ Input.AddI ws
+        Nothing ->
+          Left
+            . warn
+            . P.lines
+            . fmap fromString
+            . ("I don't know what these refer to:\n" :)
+            $ collectNothings HQ'.fromString ws
+
+previewAdd :: InputPattern
+previewAdd =
+  InputPattern
+      "add.preview"
+      []
+      [(ZeroPlus, noCompletions)]
+      ("`add.preview` previews additions to the codebase from the most recently "
+      <> "typechecked file. This command only displays cached typechecking "
+      <> "results. Use `load` to reparse & typecheck the file if the context "
+      <> "has changed."
+      )
+    $ \ws -> case traverse HQ'.fromString ws of
+        Just ws -> pure $ Input.PreviewAddI ws
         Nothing ->
           Left
             . warn
@@ -166,6 +207,27 @@ update = InputPattern "update"
                 ("I don't know what these refer to:\n" :) $
                 collectNothings HQ'.fromString ws
     [] -> Right $ Input.UpdateI Nothing [] )
+
+previewUpdate :: InputPattern
+previewUpdate =
+  InputPattern
+      "update.preview"
+      []
+      [(ZeroPlus, noCompletions)]
+      ("`update.preview` previews updates to the codebase from the most "
+      <> "recently typechecked file. This command only displays cached "
+      <> "typechecking results. Use `load` to reparse & typecheck the file if "
+      <> "the context has changed."
+      )
+    $ \ws -> case traverse HQ'.fromString ws of
+        Just ws -> pure $ Input.PreviewUpdateI ws
+        Nothing ->
+          Left
+            . warn
+            . P.lines
+            . fmap fromString
+            . ("I don't know what these refer to:\n" :)
+            $ collectNothings HQ'.fromString ws
 
 patch :: InputPattern
 patch = InputPattern
@@ -936,8 +998,11 @@ execute = InputPattern
 validInputs :: [InputPattern]
 validInputs =
   [ help
+  , load
   , add
+  , previewAdd
   , update
+  , previewUpdate
   , delete
   , forkLocal
   , mergeLocal

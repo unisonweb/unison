@@ -21,6 +21,7 @@ import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Input (Input (..), Event)
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
+import Unison.Codebase.Editor.Command (LoadSourceResult(..))
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Codebase (Codebase)
 import Unison.CommandLine
@@ -32,7 +33,10 @@ import Unison.Parser (Ann)
 import Unison.Var (Var)
 import qualified Control.Concurrent.Async as Async
 import qualified Data.Map as Map
+import qualified Data.Text as Text
+import qualified Data.Text.IO
 import qualified System.Console.Haskeline as Line
+import System.IO.Error (isDoesNotExistError)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase as Codebase
@@ -167,6 +171,7 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
     pathRef                  <- newIORef initialPath
     initialInputsRef         <- newIORef initialInputs
     numberedArgsRef          <- newIORef []
+    pageOutput               <- newIORef True
     (config, cancelConfig)   <-
       catchIOError (watchConfig configFile) $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
@@ -184,6 +189,24 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
           path <- readIORef pathRef
           numberedArgs <- readIORef numberedArgsRef
           getUserInput patternMap codebase root path numberedArgs
+        loadSourceFile :: Text -> IO LoadSourceResult
+        loadSourceFile fname = do
+          if allow $ Text.unpack fname
+            then
+              let handle :: IOException -> IO LoadSourceResult
+                  handle e = do
+                    case e of
+                      _ | isDoesNotExistError e -> return InvalidSourceNameError
+                      _ -> return LoadError
+                  go = do
+                    contents <- Data.Text.IO.readFile $ Text.unpack fname
+                    return $ LoadSuccess contents
+                  in catch go handle
+            else return InvalidSourceNameError
+        notify = notifyUser dir >=> (\o -> do
+          ifM (readIORef pageOutput)
+              (putPrettyNonempty o)
+              (putPrettyLnUnpaged o))
     let
       awaitInput = do
         -- use up buffered input before consulting external events
@@ -193,8 +216,13 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
           [] ->
             -- Race the user input and file watch.
             Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
-              Left _ -> Left <$> atomically (Q.dequeue eventQueue)
-              x      -> pure x) `catch` interruptHandler
+              Left _ -> do
+                let e = Left <$> atomically (Q.dequeue eventQueue)
+                writeIORef pageOutput False
+                e
+              x      -> do
+                writeIORef pageOutput True
+                pure x) `catch` interruptHandler
       interruptHandler (asyncExceptionFromException -> Just UserInterrupt) = awaitInput
       interruptHandler _ = pure $ Right QuitI
       cleanup = do
@@ -208,8 +236,8 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (writeIORef rootRef)
                                      runtime
-                                     (notifyUser dir >=> putPrettyNonempty)
-                                     (notifyUser dir >=> putPrettyLnUnpaged)
+                                     notify
+                                     loadSourceFile
                                      codebase
                                      free
         case o of

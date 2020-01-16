@@ -1,21 +1,107 @@
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Unison.Codebase.Branch where
+module Unison.Codebase.Branch
+  ( -- * Branch types
+    Branch(..)
+  , Branch0(..)
+  , Raw(..)
+  , Star
+  , Hash
+  , EditHash
+  , pattern Hash
+
+    -- * Branch construction
+  , empty
+  , empty0
+  , branch0
+  , one
+
+    -- * Branch history
+    -- ** History queries
+  , isEmpty
+  , isOne
+  , head
+  , headHash
+  , before
+  , findHistoricalHQs
+  , findHistoricalRefs
+  , namesDiff
+    -- ** History updates
+  , step
+  , stepEverywhere
+  , uncons
+  , merge
+
+    -- * Branch children
+    -- ** Children lenses
+  , children
+    -- ** Children queries
+  , toList0
+  , getAt
+  , getAt'
+  , getAt0
+    -- ** Children updates
+  , setChildBranch
+  , stepManyAt
+  , stepManyAt0
+  , stepManyAtM
+  , modifyAtM
+
+    -- * Branch terms/types
+    -- ** Term/type lenses
+  , terms
+  , types
+    -- ** Term/type queries
+  , deepReferents
+  , deepTypeReferences
+  , toNames0
+    -- ** Term/type updates
+  , addTermName
+  , addTypeName
+  , deleteTermName
+  , deleteTypeName
+
+    -- * Branch patches
+    -- ** Patch queries
+  , getPatch
+  , getMaybePatch
+    -- ** Patch updates
+  , replacePatch
+  , deletePatch
+  , modifyPatches
+
+    -- * Branch serialization
+  , read
+  , sync
+
+    -- * Unused
+  , childrenR
+  , debugPaths
+  , editedPatchRemoved
+  , editsR
+  , findHistoricalSHs
+  , fork
+  , lca
+  , move
+  , numHashChars
+  , printDebugPaths
+  , removedPatchEdited
+  , stepAt
+  , stepAtM
+  , termsR
+  , typesR
+  ) where
 
 import Unison.Prelude hiding (empty)
 
 import           Prelude                  hiding (head,read,subtract)
 
-import           Control.Lens            hiding ( children, cons, transform )
+import           Control.Lens            hiding ( children, cons, transform, uncons )
 import qualified Control.Monad                 as Monad
 import qualified Data.Map                      as Map
 import qualified Data.Map.Merge.Lazy           as Map
@@ -46,6 +132,7 @@ import           Unison.Referent                ( Referent )
 import qualified Unison.Referent              as Referent
 import qualified Unison.Reference              as Reference
 
+import           Unison.Util.Map                ( unionWithM )
 import qualified Unison.Util.Relation         as R
 import           Unison.Util.Relation           ( Relation )
 import qualified Unison.Util.Star3             as Star3
@@ -269,14 +356,6 @@ merge0 b1 b2 = do
     let e3 = e1 <> e2
     pure (H.accumulate' e3, pure e3)
 
-unionWithM :: forall m k a.
-  (Monad m, Ord k) => (a -> a -> m a) -> Map k a -> Map k a -> m (Map k a)
-unionWithM f m1 m2 = Monad.foldM go m1 $ Map.toList m2 where
-  go :: Map k a -> (k, a) -> m (Map k a)
-  go m1 (k, a2) = case Map.lookup k m1 of
-    Just a1 -> do a <- f a1 a2; pure $ Map.insert k a m1
-    Nothing -> pure $ Map.insert k a2 m1
-
 pattern Hash h = Causal.RawHash h
 
 toList0 :: Branch0 m -> [(Path, Branch0 m)]
@@ -417,20 +496,20 @@ deleteAt path = setAt path empty
 getAt :: Path
       -> Branch m
       -> Maybe (Branch m)
-getAt path root = case Path.toList path of
-  [] -> if isEmpty root then Nothing else Just root
-  seg : path -> case Map.lookup seg (_children $ head root) of
-    Just b -> getAt (Path.fromList path) b
+getAt path root = case Path.uncons path of
+  Nothing -> if isEmpty root then Nothing else Just root
+  Just (seg, path) -> case Map.lookup seg (_children $ head root) of
+    Just b -> getAt path b
     Nothing -> Nothing
 
 getAt' :: Path -> Branch m -> Branch m
 getAt' p b = fromMaybe empty $ getAt p b
 
 getAt0 :: Path -> Branch0 m -> Branch0 m
-getAt0 p b = case Path.toList p of
-  [] -> b
-  seg : path -> case Map.lookup seg (_children b) of
-    Just c -> getAt0 (Path.fromList path) (head c)
+getAt0 p b = case Path.uncons p of
+  Nothing -> b
+  Just (seg, path) -> case Map.lookup seg (_children b) of
+    Just c -> getAt0 path (head c)
     Nothing -> empty0
 
 empty :: Branch m
@@ -541,7 +620,7 @@ updateChildren ::NameSegment
                -> Map NameSegment (Branch m)
                -> Map NameSegment (Branch m)
 updateChildren seg updatedChild =
-  if isEmpty updatedChild
+  if isEmpty0 (head updatedChild)
   then Map.delete seg
   else Map.insert seg updatedChild
 
@@ -561,11 +640,11 @@ modifyAtM
   -> (Branch m -> n (Branch m))
   -> Branch m
   -> n (Branch m)
-modifyAtM path f b = case Path.toList path of
-  [] -> f b
-  seg : path -> do -- Functor
+modifyAtM path f b = case Path.uncons path of
+  Nothing -> f b
+  Just (seg, path) -> do -- Functor
     let child = getChildBranch seg (head b)
-    child' <- modifyAtM (Path.fromList path) f child
+    child' <- modifyAtM path f child
     -- step the branch by updating its children according to fixup
     pure $ step (setChildBranch seg child') b
 
