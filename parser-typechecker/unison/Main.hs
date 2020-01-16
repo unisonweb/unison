@@ -7,7 +7,7 @@ module Main where
 import Unison.Prelude
 import           Control.Concurrent             ( mkWeakThreadId, myThreadId )
 import           Control.Exception              ( throwTo, AsyncException(UserInterrupt) )
-import           System.Directory               ( getCurrentDirectory, getHomeDirectory )
+import           System.Directory               ( getCurrentDirectory, removeDirectoryRecursive )
 import           System.Environment             ( getArgs )
 import           System.Mem.Weak                ( deRefWeak )
 import           Unison.Codebase.Execute        ( execute )
@@ -49,13 +49,28 @@ usage = P.callout "🌻" $ P.lines [
   "",
   P.bold "ucm transcript mytranscript.md",
   P.wrap $ "Executes the `mytranscript.md` transcript and creates"
-        <> "`mytranscript.output.md` if successful. Exits after completion."
+        <> "`mytranscript.output.md` if successful. Exits after completion, and deletes"
+        <> "the temporary directory created."
+        <> "Multiple transcript files may be provided; they are processed in sequence"
+        <> "starting from the same codebase.",
+  "",
+  P.bold "ucm transcript -preserve mytranscript.md",
+  P.wrap $ "Executes the `mytranscript.md` transcript and creates"
+        <> "`mytranscript.output.md` if successful. Exits after completion, and maintains"
+        <> "the temporary directory created."
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
   P.bold "ucm transcript.fork mytranscript.md",
   P.wrap $ "Executes the `mytranscript.md` transcript in a copy of the current codebase"
         <> "and creates `mytranscript.output.md` if successful. Exits after completion."
+        <> "Multiple transcript files may be provided; they are processed in sequence"
+        <> "starting from the same codebase.",
+  "",
+  P.bold "ucm transcript.fork -preserve mytranscript.md",
+  P.wrap $ "Executes the `mytranscript.md` transcript in a copy of the current codebase"
+        <> "and creates `mytranscript.output.md` if successful. Exits after completion,"
+        <> "and maintains the temporary directory created."  
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
@@ -122,32 +137,50 @@ main = do
           theCodebase <- FileCodebase.getCodebaseOrExit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch currentDir configFilePath theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
-    "transcript" : args -> runTranscripts False mcodepath args
-    "transcript.fork" : args -> runTranscripts True mcodepath args
+    "transcript" : args' -> 
+      case args' of
+      "-preserve" : transcripts -> runTranscripts False True mcodepath transcripts
+      _                         -> runTranscripts False False mcodepath args'
+    "transcript.fork" : args' -> 
+      case args' of
+      "-preserve" : transcripts -> runTranscripts True True mcodepath transcripts
+      _                         -> runTranscripts True False mcodepath args'
     _ -> do
       PT.putPrettyLn usage
       Exit.exitWith (Exit.ExitFailure 1)
 
-runTranscripts :: Bool -> Maybe FilePath -> [String] -> IO ()
-runTranscripts inFork mcodepath args = do
+prepareTranscriptDir :: Bool -> Maybe FilePath -> IO FilePath
+prepareTranscriptDir inFork mcodepath = do
   currentDir <- getCurrentDirectory
-  transcriptDir <- do
-    tmp <- Temp.createTempDirectory currentDir "transcript"
-    when (not inFork) $ do
-      PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-      _ <- FileCodebase.initCodebase tmp
-      pure ()
-    when inFork $ FileCodebase.getCodebaseOrExit mcodepath >> do
-      origCodePath <- case mcodepath of
-        Just codepath -> pure codepath
-        Nothing       -> getHomeDirectory
-      let path = (origCodePath FP.</> FileCodebase.codebasePath)
-      PT.putPrettyLn $ P.lines [
-        P.wrap "Transcript will be run on a copy of the codebase at: ", "",
-        P.indentN 2 (P.string path)
-        ]
-      Path.copyDir path (tmp FP.</> FileCodebase.codebasePath)
-    pure tmp
+  tmp <- Temp.createTempDirectory currentDir "transcript"
+
+  unless inFork $ do 
+    PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
+    _ <- FileCodebase.initCodebase tmp
+    pure()
+
+  when inFork $ FileCodebase.getCodebaseOrExit mcodepath >> do
+    origCodePath <- FileCodebase.getCodebaseDir mcodepath
+    let path = origCodePath FP.</> FileCodebase.codebasePath
+    PT.putPrettyLn $ P.lines [
+      P.wrap "Transcript will be run on a copy of the codebase at: ", "",
+      P.indentN 2 (P.string path)
+      ]
+    Path.copyDir path (tmp FP.</> FileCodebase.codebasePath)
+
+  pure tmp
+
+cleanup :: FilePath -> IO ()
+cleanup transcriptDir = do
+  PT.putPrettyLn $ P.lines [
+    P.wrap "Deleting temporary directory: ", "",
+    P.indentN 2 (P.string transcriptDir)
+    ]
+  removeDirectoryRecursive transcriptDir
+
+runTranscripts' :: Maybe FilePath -> FilePath -> [String] -> IO Bool
+runTranscripts' mcodepath transcriptDir args = do
+  currentDir <- getCurrentDirectory
   theCodebase <- FileCodebase.getCodebaseOrExit $ Just transcriptDir
   case args of
     args@(_:_) -> do
@@ -165,7 +198,17 @@ runTranscripts inFork mcodepath args = do
               writeUtf8 out mdOut
               putStrLn $ "💾  Wrote " <> out
         wat -> putStrLn $ "Unrecognized command, skipping: " <> wat
-      PT.putPrettyLn $
+      pure True
+    [] -> 
+      pure False
+
+runTranscripts :: Bool -> Bool -> Maybe FilePath -> [String] -> IO ()
+runTranscripts inFork keepTemp mcodepath args = do
+  transcriptDir <- prepareTranscriptDir inFork mcodepath
+  completed <- runTranscripts' mcodepath transcriptDir args
+  when completed $ do
+    unless keepTemp $ cleanup transcriptDir
+    when keepTemp $ PT.putPrettyLn $
         P.callout "🌸" (
           P.lines [
             "I've finished running the transcript(s) in this codebase:", "",
@@ -173,7 +216,9 @@ runTranscripts inFork mcodepath args = do
             P.wrap $ "You can run"
                   <> P.backticked ("ucm -codebase " <> P.string transcriptDir)
                   <> "to do more work with it."])
-    [] -> do
+
+  unless completed $ do 
+      unless keepTemp $ cleanup transcriptDir
       PT.putPrettyLn usage
       Exit.exitWith (Exit.ExitFailure 1)
 
