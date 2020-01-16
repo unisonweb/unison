@@ -42,7 +42,7 @@ toName = \case
   HashQualified name _ ->  name
 
 nameLength :: HashQualified' Name -> Int
-nameLength = Text.length . Name.toText . toName
+nameLength = Text.length . toText
 
 take :: Int -> HashQualified' n -> HashQualified' n
 take i = \case

@@ -1,4 +1,22 @@
 
+```unison:hide
+x = 23
+```
+
+```ucm
+.b1> add
+.b1> alias.term x fslkdjflskdjflksjdf
+.> fork b1 b2
+.b2> alias.term x abc
+```
+```unison:hide
+fslkdjflskdjflksjdf = 663
+```
+```ucm
+.b0> add
+.> merge b0 b1
+.> diff.namespace b1 b2
+```
 Things we want to test:
 
 * Diffing identical namespaces
@@ -75,13 +93,52 @@ unique type Y a b = Y a b
 .> delete.term ns2.fromJust'
 .> diff.namespace ns3 ns2
 ```
-```unison
+```unison:hide
 bdependent = "banana"
 ```
 ```ucm
 .ns3> update
 .> diff.namespace ns2 ns3
 ```
+
+
+## Two different auto-propagated changes creating a name conflict
+Currently, the auto-propagated name-conflicted definitions are not explicitly
+shown, only their also-conflicted dependency is shown.
+```unison:hide
+a = 333
+b = a + 1
+```
+```ucm
+.nsx> add
+.> fork nsx nsy
+.> fork nsx nsz
+```
+```unison:hide
+a = 444
+```
+```ucm
+.nsy> update
+```
+```unison:hide
+a = 555
+```
+```ucm
+.nsz> update
+.> merge nsy nsw
+.> merge nsz nsw
+.> diff.namespace nsx nsw
+.nsw> view a b
+```
+```unison
+a = 777
+```
+
+```-ucm
+.nsw> update
+nsw> view a b
+```
+
 ##
 
 Updates:  -- 1 to 1
@@ -102,25 +159,20 @@ Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has on
 
 ## Display issues to fixup
 
-- [ ] just handle deletion of isPropagated in propagate function, leave HandleInput alone (assuming this does the trick)
-- [ ] Do we want to surface new edit conflicts in patches?
-- [ ] incorrectly calculated bracket alignment on hashqualified "Name changes"  (delete.output.md)
-
-    Original                               Changes
-    4. example.resolve.a.foo ┐             5. example.resolve.c.foo#jdqoenu794 (removed)
-    6. example.resolve.c.foo#jdqoenu794 ┘  
-
-- [ ] two different auto-propagated changes creating a name conflict should show
+- [d] Do we want to surface new edit conflicts in patches?
+- [t] two different auto-propagated changes creating a name conflict should show
       up somewhere besides the auto-propagate count
-- [ ] Things look screwy when the type signature doesn't fit and has to get broken
+- [t] Things look screwy when the type signature doesn't fit and has to get broken
       up into multiple lines. Maybe just disallow that?
-- [ ] Delete blank line in between copies / renames entries if all entries are 1 to 1
+- [d] Delete blank line in between copies / renames entries if all entries are 1 to 1
       see todo in the code
+- [x] incorrectly calculated bracket alignment on hashqualified "Name changes"  (delete.output.md)
+- [x] just handle deletion of isPropagated in propagate function, leave HandleInput alone (assuming this does the trick)
 - [x] might want unqualified names to be qualified sometimes:
 - [x] if a name is updated to a not-yet-named reference, it's shown as both an update and an add
 - [x] similarly, if a conflicted name is resolved by deleting the last name to
       a reference, I (arya) suspect it will show up as a Remove
-- [ ] ~~Maybe group and/or add headings to the types, constructors, terms~~
+- [d] Maybe group and/or add headings to the types, constructors, terms
 - [x] check whether creating a name conflict + adding metadata puts the update
       in both categories; if it does, then filter out metadataUpdates from the
       other categories

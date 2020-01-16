@@ -1,4 +1,71 @@
 
+```unison
+x = 23
+```
+
+```ucm
+  ☝️  The namespace .b1 is empty.
+
+.b1> add
+
+  ⍟ I've added these definitions:
+  
+    x : Nat
+
+.b1> alias.term x fslkdjflskdjflksjdf
+
+  Done.
+
+.> fork b1 b2
+
+  Done.
+
+.b2> alias.term x abc
+
+  Done.
+
+```
+```unison
+fslkdjflskdjflksjdf = 663
+```
+
+```ucm
+  ☝️  The namespace .b0 is empty.
+
+.b0> add
+
+  ⍟ I've added these definitions:
+  
+    fslkdjflskdjflksjdf : Nat
+
+.> merge b0 b1
+
+  Here's what's changed in b1 after the merge:
+  
+  The namespaces are identical.
+  
+  Tip: You can use `todo` to see if this generated any work to
+       do in this namespace and `test` to run the tests. Or you
+       can use `undo` or `reflog` to undo the results of this
+       merge.
+
+.> diff.namespace b1 b2
+
+  Resolved name conflicts:
+  
+    1. ┌ fslkdjflskdjflksjdf#4kipsv2tm6 : Nat
+    2. └ fslkdjflskdjflksjdf#s5tu4n7rlb : Nat
+       ↓
+    3. fslkdjflskdjflksjdf#4kipsv2tm6 : Nat
+  
+  Name changes:
+  
+    Original                             Changes
+    4. x                              ┐  5. abc (added)
+    6. fslkdjflskdjflksjdf#4kipsv2tm6 ┘  7. fslkdjflskdjflksjdf (added)
+                                         8. fslkdjflskdjflksjdf#4kipsv2tm6 (removed)
+
+```
 Things we want to test:
 
 * Diffing identical namespaces
@@ -160,7 +227,7 @@ unique type Y a b = Y a b
     8.  fromJust' : Nat
         + 9.  ns1.b : Nat
   
-    & 1 auto-propagated updates
+    There were 1 auto-propagated updates.
   
   Added definitions:
   
@@ -205,7 +272,7 @@ unique type Y a b = Y a b
     8.  fromJust' : Nat
         + 9.  ns1.b : Nat
   
-    & 1 auto-propagated updates
+    There were 1 auto-propagated updates.
   
   Added definitions:
   
@@ -257,7 +324,7 @@ unique type Y a b = Y a b
     10. fromJust' : Nat
         + 11. ns1.b : Nat
   
-    & 1 auto-propagated updates
+    There were 1 auto-propagated updates.
   
   Added definitions:
   
@@ -305,7 +372,7 @@ unique type Y a b = Y a b
     10. fromJust' : Nat
         + 11. ns1.b : Nat
   
-    & 1 auto-propagated updates
+    There were 1 auto-propagated updates.
   
   Added definitions:
   
@@ -374,20 +441,6 @@ bdependent = "banana"
 ```
 
 ```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      bdependent : Text
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
-
-```
-```ucm
 .ns3> update
 
   ⍟ I've updated to these definitions:
@@ -415,6 +468,168 @@ bdependent = "banana"
     6. yoohoo   ┘  7. yoohoo (removed)
 
 ```
+## Two different auto-propagated changes creating a name conflict
+Currently, the auto-propagated name-conflicted definitions are not explicitly
+shown, only their also-conflicted dependency is shown.
+```unison
+a = 333
+b = a + 1
+```
+
+```ucm
+  ☝️  The namespace .nsx is empty.
+
+.nsx> add
+
+  ⍟ I've added these definitions:
+  
+    a : Nat
+    b : Nat
+
+.> fork nsx nsy
+
+  Done.
+
+.> fork nsx nsz
+
+  Done.
+
+```
+```unison
+a = 444
+```
+
+```ucm
+.nsy> update
+
+  ⍟ I've updated to these definitions:
+  
+    a : .builtin.Nat
+
+  ✅
+  
+  No conflicts or edits in progress.
+
+```
+```unison
+a = 555
+```
+
+```ucm
+.nsz> update
+
+  ⍟ I've updated to these definitions:
+  
+    a : .builtin.Nat
+
+  ✅
+  
+  No conflicts or edits in progress.
+
+.> merge nsy nsw
+
+  Here's what's changed in nsw after the merge:
+  
+  Added definitions:
+  
+    1. b : Nat (+1 metadata)
+    2. a : Nat
+  
+    3. patch patch (added 1 updates)
+  
+  Tip: You can use `todo` to see if this generated any work to
+       do in this namespace and `test` to run the tests. Or you
+       can use `undo` or `reflog` to undo the results of this
+       merge.
+
+.> merge nsz nsw
+
+  Here's what's changed in nsw after the merge:
+  
+  New name conflicts:
+  
+    1. a#ekguc9h648 : Nat
+       ↓
+    2. ┌ a#5f8uodgrtf : Nat
+    3. └ a#ekguc9h648 : Nat
+  
+  Updates:
+  
+    4. b#be9a2abbbg : Nat
+  
+    There were 1 auto-propagated updates.
+  
+    5. patch patch (added 1 updates)
+  
+  Tip: You can use `todo` to see if this generated any work to
+       do in this namespace and `test` to run the tests. Or you
+       can use `undo` or `reflog` to undo the results of this
+       merge.
+
+.> diff.namespace nsx nsw
+
+  New name conflicts:
+  
+    1. a#8ss2r9gqe7 : Nat
+       ↓
+    2. ┌ a#5f8uodgrtf : Nat
+    3. └ a#ekguc9h648 : Nat
+  
+  Updates:
+  
+    There were 2 auto-propagated updates.
+  
+  Added definitions:
+  
+    4. patch patch (added 2 updates)
+
+.nsw> view a b
+
+  a#5f8uodgrtf : Nat
+  a#5f8uodgrtf = 555
+  
+  a#ekguc9h648 : Nat
+  a#ekguc9h648 = 444
+  
+  b#be9a2abbbg : Nat
+  b#be9a2abbbg =
+    use Nat +
+    a#ekguc9h648 + 1
+  
+  b#kut4vstim7 : Nat
+  b#kut4vstim7 =
+    use Nat +
+    a#5f8uodgrtf + 1
+
+```
+```unison
+a = 777
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    x These definitions would fail on `add` or `update`:
+    
+      Reason
+      conflicted   a   : Nat
+    
+      Tip: Use `help filestatus` to learn more.
+   
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+```
+```
+-ucm
+.nsw> update
+nsw> view a b
+
+```
+
 ##
 
 Updates:  -- 1 to 1
@@ -435,7 +650,6 @@ Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has on
 
 ## Display issues to fixup
 
-- [ ] just handle deletion of isPropagated in propagate function, leave HandleInput alone (assuming this does the trick)
 - [ ] Do we want to surface new edit conflicts in patches?
 - [ ] incorrectly calculated bracket alignment on hashqualified "Name changes"  (delete.output.md)
 
@@ -449,6 +663,7 @@ Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has on
       up into multiple lines. Maybe just disallow that?
 - [ ] Delete blank line in between copies / renames entries if all entries are 1 to 1
       see todo in the code
+- [x] just handle deletion of isPropagated in propagate function, leave HandleInput alone (assuming this does the trick)
 - [x] might want unqualified names to be qualified sometimes:
 - [x] if a name is updated to a not-yet-named reference, it's shown as both an update and an add
 - [x] similarly, if a conflicted name is resolved by deleting the last name to

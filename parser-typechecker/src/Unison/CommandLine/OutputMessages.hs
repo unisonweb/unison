@@ -1304,11 +1304,12 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
       prettyUpdatedPatches :: [Pretty] <- traverse (prettySummarizePatch newPath) updatedPatches
       pure $ P.sepNonEmpty "\n\n"
         [ P.bold "Updates:"
-        , P.indentN 2 . P.sepNonEmpty "\n\n" $ prettyUpdatedTypes <> prettyUpdatedTerms
+        , P.indentNonEmptyN 2 . P.sepNonEmpty "\n\n" $ prettyUpdatedTypes <> prettyUpdatedTerms
         , if propagatedUpdates > 0
           then P.indentN 2
-                $ P.wrap ("& " <> P.shown propagatedUpdates
-                               <> "auto-propagated updates")
+                $ P.wrap (P.hiBlack $ "There were "
+                                   <> P.shown propagatedUpdates
+                                   <> "auto-propagated updates.")
           else mempty
         , P.indentNonEmptyN 2 . P.linesNonEmpty $ prettyUpdatedPatches
         ]
@@ -1322,7 +1323,7 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
       prettyAddedPatches :: [Pretty] <- traverse (prettySummarizePatch newPath) addedPatches
       pure $ P.sepNonEmpty "\n\n"
         [ P.bold "Added definitions:"
-        , P.indentN 2 $ P.linesNonEmpty [prettyAddedTypes, prettyAddedTerms]
+        , P.indentNonEmptyN 2 $ P.linesNonEmpty [prettyAddedTypes, prettyAddedTerms]
         , P.indentNonEmptyN 2 $ P.lines prettyAddedPatches
         ]
     else pure mempty
