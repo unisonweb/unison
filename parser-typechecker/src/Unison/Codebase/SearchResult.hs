@@ -38,14 +38,14 @@ termResult hq r as = Tm (TermResult hq r as)
 
 termSearchResult :: Names0 -> Name -> Referent -> SearchResult
 termSearchResult b n r =
-  termResult (Names.hqTermName b n r) r (Names.hqTermAliases b n r)
+  termResult (Names._hqTermName b n r) r (Names._hqTermAliases b n r)
 
 typeResult :: HashQualified -> Reference -> Set HashQualified -> SearchResult
 typeResult hq r as = Tp (TypeResult hq r as)
 
 typeSearchResult :: Names0 -> Name -> Reference -> SearchResult
 typeSearchResult b n r =
-  typeResult (Names.hqTypeName b n r) r (Names.hqTypeAliases b n r)
+  typeResult (Names._hqTypeName b n r) r (Names._hqTypeAliases b n r)
 
 name :: SearchResult -> HashQualified
 name = \case
@@ -76,8 +76,8 @@ fromNames b =
 _fromNames :: Names0 -> [SearchResult]
 _fromNames n0@(Names terms types) = typeResults <> termResults where
   typeResults =
-    [ typeResult (Names.hqTypeName n0 name r) r (Names.hqTypeAliases n0 name r)
+    [ typeResult (Names._hqTypeName n0 name r) r (Names._hqTypeAliases n0 name r)
     | (name, r) <- R.toList types ]
   termResults =
-    [ termResult (Names.hqTermName n0 name r) r (Names.hqTermAliases n0 name r)
+    [ termResult (Names._hqTermName n0 name r) r (Names._hqTermAliases n0 name r)
     | (name, r) <- R.toList terms]

@@ -11,6 +11,7 @@ module Unison.Builtin
   ,names0
   ,builtinDataDecls
   ,builtinEffectDecls
+  ,builtinConstructorType
   ,builtinTypeDependents
   ,builtinTermsByType
   ,builtinTermsByTypeMention
@@ -75,7 +76,8 @@ typeLookup =
     (Map.fromList $ map snd builtinEffectDecls)
 
 constructorType :: R.Reference -> Maybe CT.ConstructorType
-constructorType = TL.constructorType (typeLookup @Symbol)
+constructorType r = TL.constructorType (typeLookup @Symbol) r
+                <|> Map.lookup r builtinConstructorType
 
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
@@ -122,7 +124,7 @@ builtinTypes :: [(Name, R.Reference)]
 builtinTypes = Map.toList . Map.mapKeys Name.unsafeFromText
                           $ foldl' go mempty builtinTypesSrc where
   go m = \case
-    B' r -> Map.insert r (R.Builtin r) m
+    B' r _ -> Map.insert r (R.Builtin r) m
     D' r -> Map.insert r (R.Builtin r) m
     Rename' r name -> case Map.lookup name m of
       Just _ -> error . Text.unpack $
@@ -144,21 +146,23 @@ builtinTypes = Map.toList . Map.mapKeys Name.unsafeFromText
 -- WARNING: Don't delete any of these lines, only add corrections.
 builtinTypesSrc :: [BuiltinTypeDSL]
 builtinTypesSrc =
-  [ B' "Int"
-  , B' "Nat"
-  , B' "Float"
-  , B' "Boolean"
-  , B' "Sequence", Rename' "Sequence" "List"
-  , B' "Text"
-  , B' "Char"
-  , B' "Effect", Rename' "Effect" "Request"
-  , B' "Bytes"
-  , B' "Link.Term"
-  , B' "Link.Type"
+  [ B' "Int" CT.Data
+  , B' "Nat" CT.Data
+  , B' "Float" CT.Data
+  , B' "Boolean" CT.Data
+  , B' "Sequence" CT.Data, Rename' "Sequence" "List"
+  , B' "Text" CT.Data
+  , B' "Char" CT.Data
+  , B' "Effect" CT.Data, Rename' "Effect" "Request"
+  , B' "Bytes" CT.Data
+  , B' "Link.Term" CT.Data
+  , B' "Link.Type" CT.Data
   ]
 
+builtinConstructorType :: Map R.Reference CT.ConstructorType
+builtinConstructorType = Map.fromList [ (R.Builtin r, ct) | B' r ct <- builtinTypesSrc ]
 
-data BuiltinTypeDSL = B' Text | D' Text | Rename' Text Text | Alias' Text Text
+data BuiltinTypeDSL = B' Text CT.ConstructorType | D' Text | Rename' Text Text | Alias' Text Text
 
 
 data BuiltinDSL v

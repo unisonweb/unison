@@ -666,6 +666,26 @@ mergeLocal = InputPattern "merge" [] [(Required, pathArg)
       _ -> Left (I.help mergeLocal)
  )
 
+diffNamespace :: InputPattern
+diffNamespace = InputPattern
+  "diff.namespace"
+  []
+  [(Required, pathArg), (Required, pathArg)]
+  (P.column2
+    [ ( "`diff.namespace before after`"
+      , P.wrap
+        "shows how the namespace `after` differs from the namespace `before`"
+      )
+    ]
+  )
+  (\case
+    [before, after] -> first fromString $ do
+      before <- Path.parsePath' before
+      after <- Path.parsePath' after
+      pure $ Input.DiffNamespaceI before after
+    _ -> Left $ I.help diffNamespace
+  )
+
 previewMergeLocal :: InputPattern
 previewMergeLocal = InputPattern
   "merge.preview"
@@ -967,6 +987,11 @@ names = InputPattern "names" []
     _ -> Left (I.help names)
   )
 
+debugNumberedArgs :: InputPattern 
+debugNumberedArgs = InputPattern "debug.numberedArgs" [] []
+  "Dump the contents of the numbered args state."
+  (const $ Right Input.DebugNumberedArgsI)
+
 debugBranchHistory :: InputPattern
 debugBranchHistory = InputPattern "debug.history" []
   [(Optional, noCompletions)]
@@ -1007,6 +1032,7 @@ validInputs =
   , forkLocal
   , mergeLocal
   , previewMergeLocal
+  , diffNamespace
   , names
   , push
   , pull
@@ -1048,6 +1074,7 @@ validInputs =
   , quit
   , updateBuiltins
   , mergeBuiltins
+  , debugNumberedArgs
   , debugBranchHistory
   ]
 

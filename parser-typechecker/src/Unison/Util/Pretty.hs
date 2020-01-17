@@ -11,6 +11,11 @@ module Unison.Util.Pretty (
    align,
    alternations,
    backticked,
+   boxForkLeft,
+   boxLeft,
+   boxLeftM,
+   boxRight,
+   boxRightM,
    bulleted,
    bracket,
    -- breakable
@@ -21,7 +26,11 @@ module Unison.Util.Pretty (
    excerptColumn2Headed,
    warnCallout, blockedCallout, fatalCallout, okCallout,
    column2,
+   column2M,
+   column2UnzippedM,
    column3,
+   column3M,
+   column3UnzippedM,
    column3sep,
    commas,
    commented,
@@ -37,6 +46,7 @@ module Unison.Util.Pretty (
    indent,
    indentAfterNewline,
    indentN,
+   indentNonEmptyN,
    indentNAfterNewline,
    leftPad,
    lines,
@@ -104,6 +114,7 @@ import           Unison.Util.Monoid             ( intercalateMap )
 import qualified Data.ListLike                 as LL
 import qualified Data.Sequence                 as Seq
 import qualified Data.Text                     as Text
+import Control.Monad.Identity (runIdentity, Identity(..))
 
 type Width = Int
 type ColorText = CT.ColorText
@@ -443,9 +454,47 @@ column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
 column2 rows = lines (group <$> align rows)
 
+column2M :: (Applicative m, LL.ListLike s Char, IsString s) => [m (Pretty s, Pretty s)] -> m (Pretty s)
+column2M = fmap column2 . sequenceA
+
 column3
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s, Pretty s)] -> Pretty s
 column3 = column3sep ""
+
+column3M
+  :: (LL.ListLike s Char, IsString s, Monad m)
+  => [m (Pretty s, Pretty s, Pretty s)]
+  -> m (Pretty s)
+column3M = fmap column3 . sequence
+
+column3UnzippedM
+  :: forall m s . (LL.ListLike s Char, IsString s, Monad m)
+  => Pretty s
+  -> [m (Pretty s)]
+  -> [m (Pretty s)]
+  -> [m (Pretty s)]
+  -> m (Pretty s)
+column3UnzippedM bottomPadding left mid right = let
+  rowCount = maximum (fmap length [left, mid, right])
+  pad :: [m (Pretty s)] -> [m (Pretty s)]
+  pad a = a ++ replicate (rowCount - length a) (pure bottomPadding)
+  (pleft, pmid, pright) = (pad left, pad mid, pad right)
+  in column3M $ zipWith3 (liftA3 (,,)) pleft pmid pright
+
+column2UnzippedM
+  :: forall m s . (LL.ListLike s Char, IsString s, Monad m)
+  => Pretty s
+  -> [m (Pretty s)]
+  -> [m (Pretty s)]
+  -> m (Pretty s)
+column2UnzippedM bottomPadding left right = let
+  rowCount = length left `max` length right
+  pad :: [m (Pretty s)] -> [m (Pretty s)]
+  pad a = a ++ replicate (rowCount - length a) (pure bottomPadding)
+  sep :: [m (Pretty s)] -> [m (Pretty s)]
+  sep = fmap (fmap (" " <>))
+  (pleft, pright) = (pad left, sep $ pad right)
+  in column2M $ zipWith (liftA2 (,)) pleft pright
 
 column3sep
   :: (LL.ListLike s Char, IsString s) => Pretty s -> [(Pretty s, Pretty s, Pretty s)] -> Pretty s
@@ -528,6 +577,10 @@ indent by p = by <> indentAfterNewline by p
 
 indentN :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
 indentN by = indent (fromString $ replicate by ' ')
+
+indentNonEmptyN :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
+indentNonEmptyN _ (out -> Empty) = mempty
+indentNonEmptyN by p = indentN by p
 
 indentNAfterNewline
   :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
@@ -617,6 +670,69 @@ callout header p = header <> "\n\n" <> p
 
 bracket :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
 bracket = indent "  "
+
+boxForkLeft, boxLeft, boxRight ::
+  forall s . (LL.ListLike s Char, IsString s) => [Pretty s] -> [Pretty s]
+boxForkLeft = boxLeft' lBoxStyle1
+boxLeft = boxLeft' lBoxStyle2
+boxRight = boxRight' rBoxStyle2
+
+boxLeft', boxRight' :: (LL.ListLike s Char, IsString s)
+         => BoxStyle s -> [Pretty s] -> [Pretty s]
+boxLeft' style = fmap runIdentity . boxLeftM' style . fmap Identity
+boxRight' style = fmap runIdentity . boxRightM' style . fmap Identity
+
+type BoxStyle s =
+  ( (Pretty s, Pretty s) -- first (start, continue)
+  , (Pretty s, Pretty s) -- middle
+  , (Pretty s, Pretty s) -- last
+  , (Pretty s, Pretty s) -- singleton
+  )
+lBoxStyle1, lBoxStyle2, rBoxStyle2 :: IsString s => BoxStyle s
+lBoxStyle1 = (("┌ ", "│ ") -- first
+             ,("├ ", "│ ") -- middle
+             ,("└ ", "  ") -- last
+             ,(""  , "" )) -- singleton
+lBoxStyle2 = (("┌ ","  ")
+             ,("│ ","  ")
+             ,("└ ","  ")
+             ,(""  ,""  ))
+rBoxStyle2 = ((" ┐", " │")
+             ,(" │", " │")
+             ,(" ┘", "  ")
+             ,("  ", "  "))
+
+boxLeftM, boxRightM :: forall m s . (Monad m, LL.ListLike s Char, IsString s)
+         => [m (Pretty s)] -> [m (Pretty s)]
+boxLeftM = boxLeftM' lBoxStyle2
+boxRightM = boxRightM' rBoxStyle2
+
+boxLeftM' :: forall m s . (Monad m, LL.ListLike s Char, IsString s)
+          => BoxStyle s -> [m (Pretty s)] -> [m (Pretty s)]
+boxLeftM' (first, middle, last, singleton) ps = go (Seq.fromList ps) where
+  go Seq.Empty = []
+  go (p Seq.:<| Seq.Empty) = [decorate singleton <$> p]
+  go (a Seq.:<| (mid Seq.:|> b)) =
+    [decorate first <$> a]
+      ++ toList (fmap (decorate middle) <$> mid)
+      ++ [decorate last <$> b]
+  decorate (first, mid) p = first <> indentAfterNewline mid p
+
+-- this implementation doesn't work for multi-line inputs,
+-- because i dunno how to inspect multi-line inputs
+
+
+boxRightM' :: forall m s. (Monad m, LL.ListLike s Char, IsString s)
+           => BoxStyle s -> [m (Pretty s)] -> [m (Pretty s)]
+boxRightM' (first, middle, last, singleton) ps = go (Seq.fromList ps) where
+  go :: Seq.Seq (m (Pretty s)) -> [m (Pretty s)]
+  go Seq.Empty = []
+  go (p Seq.:<| Seq.Empty) = [decorate singleton <$> p]
+  go (a Seq.:<| (mid Seq.:|> b)) =
+    [decorate first <$> a]
+      ++ toList (fmap (decorate middle) <$> mid)
+      ++ [decorate last <$> b]
+  decorate (first, _mid) p = p <> first
 
 warnCallout, blockedCallout, fatalCallout, okCallout
   :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s

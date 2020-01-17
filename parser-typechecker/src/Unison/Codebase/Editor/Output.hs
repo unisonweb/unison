@@ -2,6 +2,8 @@
 
 module Unison.Codebase.Editor.Output
   ( Output(..)
+  , NumberedOutput(..)
+  , NumberedArgs
   , ListDetailed
   , ShallowListEntry(..)
   , HistoryTail(..)
@@ -11,6 +13,7 @@ module Unison.Codebase.Editor.Output
   , ReflogEntry(..)
   , pushPull
   , isFailure
+  , isNumberedFailure
   ) where
 
 import Unison.Prelude
@@ -52,10 +55,12 @@ import Unison.ShortHash (ShortHash)
 import Unison.Var (Var)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Editor.RemoteRepo as RemoteRepo
+import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
 
 type Term v a = Term.AnnotatedTerm v a
 type ListDetailed = Bool
 type SourceName = Text
+type NumberedArgs = [String]
 
 data PushPull = Push | Pull deriving (Eq, Ord, Show)
 
@@ -63,6 +68,17 @@ pushPull :: a -> a -> PushPull -> a
 pushPull push pull p = case p of
   Push -> push
   Pull -> pull
+
+data NumberedOutput v
+  = ShowDiffNamespace Path.Absolute Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterMerge Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+
+--  | ShowDiff
 
 data Output v
   -- Generic Success response; we might consider deleting this.
@@ -149,7 +165,6 @@ data Output v
   -- todo: eventually replace these sets with [SearchResult' v Ann]
   -- and a nicer render.
   | BustedBuiltins (Set Reference) (Set Reference)
-  | BranchDiff Names Names
   | GitError Input GitError
   | NoConfiguredGitUrl PushPull Path'
   | ConfiguredGitUrlParseError PushPull Path' Text String
@@ -163,7 +178,6 @@ data Output v
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch (Set ShortBranchHash)
-  | ShowDiff Input Names.Diff
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
   | NothingTodo Input
@@ -171,6 +185,7 @@ data Output v
   | NoConflictsOrEdits
   | NotImplemented
   | NoBranchWithHash Input ShortBranchHash
+  | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   deriving (Show)
 
@@ -284,9 +299,8 @@ isFailure o = case o of
   NothingToPatch{} -> False
   WarnIncomingRootBranch{} -> False
   History{} -> False
-  ShowDiff{} -> False
-  BranchDiff{} -> False
   NotImplemented -> True
+  DumpNumberedArgs{} -> False
   DumpBitBooster{} -> False
   NoBranchWithHash{} -> True
   NothingTodo{} -> False
@@ -294,3 +308,15 @@ isFailure o = case o of
   ListShallow _ es -> null es
   HashAmbiguous{} -> True
   ShowReflog{} -> False
+
+isNumberedFailure :: NumberedOutput v -> Bool
+isNumberedFailure = \case
+  ShowDiffNamespace{} -> False
+  ShowDiffAfterDeleteDefinitions{} -> False
+  ShowDiffAfterDeleteBranch{} -> False
+  ShowDiffAfterMerge{} -> False
+  ShowDiffAfterMergePreview{} -> False
+  ShowDiffAfterUndo{} -> False
+  ShowDiffAfterPull{} -> False
+
+

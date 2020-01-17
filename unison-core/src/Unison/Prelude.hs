@@ -15,6 +15,7 @@ import Data.Either.Combinators as X (mapLeft, maybeToRight)
 import Data.Foldable as X (asum, fold, foldl', for_, forM_, toList, traverse_)
 import Data.Functor as X
 import Data.Int as X
+import Data.List as X (foldl1', sortOn)
 import Data.Map as X (Map)
 import Data.Maybe as X (catMaybes, fromMaybe, isJust, isNothing, listToMaybe, mapMaybe, maybeToList)
 import Data.Sequence as X (Seq)

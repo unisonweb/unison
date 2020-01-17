@@ -21,7 +21,7 @@ import Unison.Codebase.Editor.Input (Input (..), Event(UnisonFileChanged))
 import Unison.CommandLine
 import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
-import Unison.CommandLine.OutputMessages (notifyUser)
+import Unison.CommandLine.OutputMessages (notifyUser, notifyNumbered)
 import Unison.Parser (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
@@ -218,10 +218,19 @@ run dir configFile stanzas codebase = do
         errOk <- readIORef allowErrors
         let rendered = P.toPlain 65 (P.border 2 msg)
         output rendered
-        when (errOk && Output.isFailure o) $
-          writeIORef hasErrors True
-        when (not errOk && Output.isFailure o)
-          die
+        when (Output.isFailure o) $
+          if errOk then writeIORef hasErrors True
+          else die
+          
+      printNumbered o = do
+        let (msg, numberedArgs) = notifyNumbered o
+        errOk <- readIORef allowErrors
+        let rendered = P.toPlain 65 (P.border 2 msg)
+        output rendered
+        when (Output.isNumberedFailure o) $ 
+          if errOk then writeIORef hasErrors True
+          else die
+        pure numberedArgs
 
       die = do
         output "\n```\n\n"
@@ -238,6 +247,7 @@ run dir configFile stanzas codebase = do
                                      (const $ pure ())
                                      runtime
                                      print
+                                     printNumbered
                                      loadPreviousUnisonBlock
                                      codebase
                                      free
