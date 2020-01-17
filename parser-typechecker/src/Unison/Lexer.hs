@@ -690,7 +690,7 @@ symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:"
 keywords :: Set String
 keywords = Set.fromList [
   "if", "then", "else", "forall", "∀",
-  "handle", "in", "unique",
+  "handle", "in", "with", "unique",
   "where", "use",
   "true", "false",
   "type", "ability", "alias", "typeLink", "termLink",
@@ -700,7 +700,7 @@ keywords = Set.fromList [
 layoutKeywords :: Set String
 layoutKeywords =
   Set.fromList [
-    "if", "in", "let", "where", "of"
+    "if", "in", "let", "where", "of", "with"
   ]
 
 -- These keywords end a layout block and begin another layout block

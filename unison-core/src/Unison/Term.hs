@@ -1071,7 +1071,7 @@ instance (Show v, Show a) => Show (F v a0 p a) where
       (s "let rec" <> shows bs <> s " in " <> shows body)
     go _ (Handle b body) = showParen
       True
-      (s "handle " <> shows b <> s " in " <> shows body)
+      (s "handle " <> shows b <> s " with " <> shows body)
     go _ (Constructor r         n    ) = showConstructor r n
     go _ (Match       scrutinee cases) = showParen
       True
@@ -1093,4 +1093,3 @@ instance (Show v, Show a) => Show (F v a0 p a) where
       showParen (p > 0) $ s "or " <> shows x <> s " " <> shows y
     (<>) = (.)
     s    = showString
-
