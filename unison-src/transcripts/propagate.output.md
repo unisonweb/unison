@@ -207,11 +207,11 @@ Cleaning up a bit...
   Removed definitions:
   
     1. unique type Foo
-    2. Foo.Foo            : #o4dd8v5jef
-    3. Foo.Bar            : #o4dd8v5jef
-    4. preserve.someTerm  : Optional x -> Optional x
-    5. fooToInt           : #o4dd8v5jef -> Int
-    6. preserve.otherTerm : Optional baz -> Optional baz
+    2. Foo.Bar            : #o4dd8v5jef
+    3. Foo.Foo            : #o4dd8v5jef
+    4. fooToInt           : #o4dd8v5jef -> Int
+    5. preserve.otherTerm : Optional baz -> Optional baz
+    6. preserve.someTerm  : Optional x -> Optional x
     7. patch patch
     8. patch preserve.patch
   

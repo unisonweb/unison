@@ -134,17 +134,17 @@ Here's what we've done so far:
 
   Added definitions:
   
-    1.  ability X a1 a2
-    2.  type A a
-    3.  X.x           : {X a1 a2} Nat
-    4.  A.A           : Nat -> A a
+    1.  type A a
+    2.  ability X a1 a2
+    3.  A.A           : Nat -> A a
+    4.  X.x           : {X a1 a2} Nat
     5.  b             : Nat
     6.  bdependent    : Nat
-    7.  ┌ fromJust    : Nat (+1 metadata)
-    8.  └ fromJust'   : Nat (+1 metadata)
-    9.  ┌ helloWorld  : ∀ (). () ->{IO} ()
-    10. └ helloWorld2 : ∀ (). () ->{IO} ()
-    11. c             : Nat
+    7.  c             : Nat
+    8.  ┌ fromJust    : Nat (+1 metadata)
+    9.  └ fromJust'   : Nat (+1 metadata)
+    10. ┌ helloWorld  : ∀ (). () ->{IO} ()
+    11. └ helloWorld2 : ∀ (). () ->{IO} ()
 
 .> diff.namespace ns1 ns2
 
@@ -298,9 +298,9 @@ unique type Y a b = Y a b
   Name changes:
   
     Original  Changes
-    17. X     18. X' (added)
+    17. A     18. A' (added)
     
-    19. A    20. A' (added)
+    19. X    20. X' (added)
 
 .> link ns2.f ns1.c
 
@@ -350,9 +350,9 @@ unique type Y a b = Y a b
   Name changes:
   
     Original  Changes
-    19. X     20. X' (added)
+    19. A     20. A' (added)
     
-    21. A    22. A' (added)
+    21. X    22. X' (added)
 
 .> unlink ns2.fromJust ns2.b
 
@@ -398,9 +398,9 @@ unique type Y a b = Y a b
   Name changes:
   
     Original  Changes
-    19. X     20. X' (added)
+    19. A     20. A' (added)
     
-    21. A    22. A' (added)
+    21. X    22. X' (added)
 
 .> alias.type ns1.X ns1.X2
 
@@ -542,8 +542,8 @@ a = 555
   
   Added definitions:
   
-    1. b : Nat (+1 metadata)
-    2. a : Nat
+    1. a : Nat
+    2. b : Nat (+1 metadata)
   
     3. patch patch (added 1 updates)
   
