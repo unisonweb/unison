@@ -17,7 +17,7 @@ data Star3 fact d1 d2 d3
           , d2 :: Relation fact d2
           , d3 :: Relation fact d3 } deriving (Eq,Ord,Show)
 
--- use this function, lol
+-- Produce the cross-product across all the dimensions
 toList :: (Ord fact, Ord d1, Ord d2, Ord d3)
        => Star3 fact d1 d2 d3
        -> [(fact, d1, d2, d3)]
