@@ -126,3 +126,5 @@ defaultColors = \case
   ST.DelayForceChar      -> Just Yellow
   ST.DelimiterChar       -> Nothing
   ST.Parenthesis         -> Nothing
+  ST.DocDelimiter        -> Just Green
+  ST.DocKeyword          -> Just Bold

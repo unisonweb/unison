@@ -371,6 +371,9 @@ test = scope "termprinter" . tests $
                  \  b = ()\n\
                  \  c = (1, 2)\n\
                  \  ()"
+  , tcBreaks 80 "let\n\
+                \  a = [: escaped: \\@ :]\n\
+                \  ()"
 
 -- FQN elision tests
   , tcBreaks 12 "if foo then\n\
