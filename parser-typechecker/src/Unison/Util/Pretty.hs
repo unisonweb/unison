@@ -9,6 +9,7 @@ module Unison.Util.Pretty (
    Pretty,
    ColorText,
    align,
+   alternations,
    backticked,
    boxForkLeft,
    boxLeft,
@@ -153,18 +154,29 @@ wrapImpl [] = mempty
 wrapImpl (p:ps) = wrap_ . Seq.fromList $
   p : fmap (\p -> (" " <> p) `orElse` (newline <> p)) ps
 
+wrapImplPreserveSpaces :: (LL.ListLike s Char, IsString s) => [Pretty s] -> Pretty s
+wrapImplPreserveSpaces = \case
+  [] -> mempty
+  (p:ps) -> wrap_ . Seq.fromList $ p : fmap f ps
+  where
+  startsWithSpace p = case out p of
+    (Lit s) -> fromMaybe False (fmap (isSpaceNotNewline . fst) $ LL.uncons s)
+    _ -> False
+  f p | startsWithSpace p = p `orElse` newline
+  f p = p
+
+isSpaceNotNewline :: Char -> Bool
+isSpaceNotNewline c = isSpace c && not (c == '\n')
+
 wrapString :: (LL.ListLike s Char, IsString s) => String -> Pretty s
 wrapString s = wrap (lit $ fromString s)
 
--- 0. Preserve all leading and trailing whitespace
--- 1. Preserve all newlines
--- 2. Wrap all text in between newlines
+-- Wrap text, preserving whitespace (apart from at the wrap points.)
+-- Used in particular for viewing/displaying doc literals.
+-- Should be understood in tandem with TermParser.docNormalize.
+-- See also unison-src/transcripts/doc-formatting.md.
 paragraphyText :: (LL.ListLike s Char, IsString s) => Text -> Pretty s
-paragraphyText t = text start <> inner <> text end where
-  inner = sep "\n" . fmap (wrap . text) . Text.splitOn "\n" $ t'
-  (start, t0) = Text.span isSpace t
-  t' = Text.dropWhileEnd isSpace t0
-  end = Text.takeWhileEnd isSpace t0
+paragraphyText = sep "\n" . fmap (wrapPreserveSpaces . text) . Text.splitOn "\n"
 
 wrap :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
 wrap p = wrapImpl (toLeaves [p]) where
@@ -179,6 +191,32 @@ wrap p = wrapImpl (toLeaves [p]) where
   wordify s0 = let s = LL.dropWhile isSpace s0 in
     if LL.null s then []
     else case LL.break isSpace s of (word1, s) -> lit word1 : wordify s
+
+-- Does not insert spaces where none were present, and does not collapse
+-- sequences of spaces into one.
+-- It'd be a bit painful to just replace wrap with the following version, because
+-- lots of OutputMessages code depends on wrap's behaviour of sometimes adding
+-- extra spaces.
+wrapPreserveSpaces :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
+wrapPreserveSpaces p = wrapImplPreserveSpaces (toLeaves [p]) where
+  toLeaves [] = []
+  toLeaves (hd:tl) = case out hd of
+    Empty -> toLeaves tl
+    Lit s -> (fmap lit $ alternations isSpaceNotNewline s) ++ toLeaves tl
+    Group _ -> hd : toLeaves tl
+    OrElse a _ -> toLeaves (a:tl)
+    Wrap _ -> hd : toLeaves tl
+    Append hds -> toLeaves (toList hds ++ tl)
+
+-- Cut a list every time a predicate changes.  Produces a list of
+-- non-empty lists.
+alternations :: (LL.ListLike s c) => (c -> Bool) -> s -> [s]
+alternations p s = reverse $ go True s [] where
+  go _ s acc | LL.null s = acc
+  go w s acc = go (not w) rest acc' where
+    (t, rest) = LL.span p' s
+    p' = if w then p else (\x -> not (p x))
+    acc' = if (LL.null t) then acc else t : acc
 
 wrap_ :: Seq (Pretty s) -> Pretty s
 wrap_ ps = Pretty (foldMap delta ps) (Wrap ps)
