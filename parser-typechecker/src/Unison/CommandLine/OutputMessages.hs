@@ -200,21 +200,21 @@ notifyUser dir o = case o of
       $  P.warnCallout "The following names were not found in the codebase. Check your spelling."
       <> P.newline
       <> (P.syntaxToColor $ P.indent "  " (P.lines (prettyHashQualified <$> hqs)))
-  PatchNotFound input _ ->
+  PatchNotFound _ ->
     pure . P.warnCallout $ "I don't know about that patch."
-  NameNotFound _ _ ->
+  NameNotFound _ ->
     pure . P.warnCallout $ "I don't know about that name."
-  TermNotFound input _ ->
+  TermNotFound _ ->
     pure . P.warnCallout $ "I don't know about that term."
-  TypeNotFound input _ ->
+  TypeNotFound _ ->
     pure . P.warnCallout $ "I don't know about that type."
-  TermAlreadyExists input _ _ ->
+  TermAlreadyExists _ _ ->
     pure . P.warnCallout $ "A term by that name already exists."
-  TypeAlreadyExists input _ _ ->
+  TypeAlreadyExists _ _ ->
     pure . P.warnCallout $ "A type by that name already exists."
-  PatchAlreadyExists input _ ->
+  PatchAlreadyExists _ ->
     pure . P.warnCallout $ "A patch by that name already exists."
-  CantDelete input ppe failed failedDependents -> pure . P.warnCallout $
+  CantDelete ppe failed failedDependents -> pure . P.warnCallout $
     P.lines [
       P.wrap "I couldn't delete ",
       "", P.indentN 2 $ listOfDefinitions' ppe False failed,
@@ -253,7 +253,7 @@ notifyUser dir o = case o of
     pure . P.callout "😶" $ P.wrap $  "The file "
                                    <> P.blue (P.shown name)
                                    <> " could not be loaded."
-  BranchNotFound _ b ->
+  BranchNotFound b ->
     pure . P.warnCallout $ "The namespace " <> P.blue (P.shown b) <> " doesn't exist."
   CreatedNewBranch path -> pure $
     "☝️  The namespace " <> P.blue (P.shown path) <> " is empty."
@@ -353,15 +353,15 @@ notifyUser dir o = case o of
 
   NoExactTypeMatches ->
     pure . P.callout "☝️" $ P.wrap "I couldn't find exact type matches, resorting to fuzzy matching..."
-  TypeParseError input src e ->
+  TypeParseError src e ->
     pure . P.fatalCallout $ P.lines [
       P.wrap "I couldn't parse the type you supplied:",
       "",
       prettyParseError src e
     ]
-  ParseResolutionFailures input src es -> pure $
+  ParseResolutionFailures src es -> pure $
     prettyResolutionFailures src es
-  TypeHasFreeVars input typ ->
+  TypeHasFreeVars typ ->
     pure . P.warnCallout $ P.lines [
       P.wrap "The type uses these names, but I'm not sure what they are:",
       P.sep ", " (map (P.text . Var.name) . toList $ ABT.freeVars typ)
@@ -623,11 +623,11 @@ notifyUser dir o = case o of
     <> "if you want to" <> pushPull "push onto" "pull from" pp
     <> "the latest."
     ]
-  NoBranchWithHash _ h -> pure . P.callout "😶" $
+  NoBranchWithHash h -> pure . P.callout "😶" $
     P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> pure $ P.wrap "That's not implemented yet. Sorry! 😬"
   BranchAlreadyExists _ -> pure "That namespace already exists."
-  NameAmbiguous hashLen _ p tms tys ->
+  NameAmbiguous hashLen p tms tys ->
     pure . P.callout "\129300" . P.lines $ [
       P.wrap "That name is ambiguous. It could refer to any of the following definitions:"
     , ""
@@ -647,8 +647,8 @@ notifyUser dir o = case o of
       qualifyTerm = P.syntaxToColor . prettyNamedReferent hashLen name
       qualifyType :: Reference -> P.Pretty P.ColorText
       qualifyType = P.syntaxToColor . prettyNamedReference hashLen name
-  TermAmbiguous _ _ _ -> pure "That term is ambiguous."
-  HashAmbiguous _ h rs -> pure . P.callout "\129300" . P.lines $ [
+  TermAmbiguous _ _ -> pure "That term is ambiguous."
+  HashAmbiguous h rs -> pure . P.callout "\129300" . P.lines $ [
     P.wrap $ "The hash" <> prettyShortHash h <> "is ambiguous."
            <> "Did you mean one of these hashes?",
     "",
@@ -656,7 +656,7 @@ notifyUser dir o = case o of
     "",
     P.wrap "Try again with a few more hash characters to disambiguate."
     ]
-  BranchHashAmbiguous _ h rs -> pure . P.callout "\129300" . P.lines $ [
+  BranchHashAmbiguous h rs -> pure . P.callout "\129300" . P.lines $ [
     P.wrap $ "The namespace hash" <> prettySBH h <> "is ambiguous."
            <> "Did you mean one of these hashes?",
     "",
@@ -664,8 +664,8 @@ notifyUser dir o = case o of
     "",
     P.wrap "Try again with a few more hash characters to disambiguate."
     ]
-  BadDestinationBranch _ _ -> pure "That destination namespace is bad."
-  TermNotFound' _ h ->
+  BadDestinationBranch _ -> pure "That destination namespace is bad."
+  TermNotFound' h ->
     pure $ "I could't find a term with hash "
          <> (prettyShortHash $ Reference.toShortHash (Reference.DerivedId h))
   BranchDiff _ _ -> pure "Those namespaces are different."
