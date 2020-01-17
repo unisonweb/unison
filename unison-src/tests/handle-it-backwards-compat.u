@@ -1,0 +1,21 @@
+testA x = case x of
+  {a} -> a
+
+testB x = case x of
+  {b} -> b
+
+-- check in & with work nested
+a = handle testA in
+  x = handle testB with
+      x = 1
+      x
+  x
+
+-- and the other way around
+b = handle testA with
+  x = handle testB in
+      x = 2
+      x
+  x
+
+> (a, b)

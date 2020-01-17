@@ -243,7 +243,7 @@ letBlock = label "let" $ block "let"
 handle = label "handle" $ do
   t <- reserved "handle"
   handler <- term
-  b <- block "with"
+  b <- block "in" <|> block "with"
   pure $ Term.handle (ann t <> ann b) handler b
 
 ifthen = label "if" $ do
