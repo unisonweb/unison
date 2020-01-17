@@ -24,7 +24,7 @@ Syntax:
 
 `[:` starts a documentation block; `:]` finishes it. Within the block:
 
-* Links to definitions are done with `@List`. `\@` if you want to escape.
+* Links to definitions are done with `@List`. `\@` (and `\:]`) if you want to escape.
 * `@[signature] List.take` expands to the type signature of `List.take`
 * `@[source] List.map` expands to the full source of `List.map`
 * `@[include] someOtherDoc`, inserts a value `someOtherDoc : Doc` here.
@@ -49,8 +49,7 @@ And now let's write our docs and reference these examples:
 use .builtin
 
 docs.List.take = [:
-
-`@List.take n xs` returns the first `n` elements of `xs`. (No need to add line breaks manually. The display command will do wrapping of text for you.)
+`@List.take n xs` returns the first `n` elements of `xs`. (No need to add line breaks manually. The display command will do wrapping of text for you.  Indent any lines where you don't want it to do this.)
 
 ## Examples:
 
@@ -83,4 +82,10 @@ Or there's also a convenient function, `docs`, which shows the `Doc` values that
 
 ```ucm
 .> docs builtin.List.take
+```
+
+Note that if we view the source of the documentation, the various references are *not* expanded.
+
+```ucm
+.> view docs.List.take
 ```
