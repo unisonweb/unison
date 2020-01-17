@@ -4,11 +4,11 @@ ability State s where
 
 state : s -> Request (State s) a -> a
 state s eff = case eff of
-  { State.put snew -> k } -> handle (state snew) in k ()
+  { State.put snew -> k } -> handle (state snew) with k ()
   { a } -> a
 
 ex : Text
-ex = handle (state 10) in
+ex = handle (state 10) with
   State.put (11 + 1)
   State.put (5 + 5)
   "hello"

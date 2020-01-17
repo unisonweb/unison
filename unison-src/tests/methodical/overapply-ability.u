@@ -1,4 +1,3 @@
-
 -- A corner case in the runtime is when a function is being overapplied and
 -- the exactly applied function requests an ability (and returns a new function)
 
@@ -8,31 +7,31 @@ ability Zing where
 
 unzing z = case z of
   {a} -> a
-  {Zing.zing n -> k} -> handle unzing in k (x -> x `drop` n)
-  {Zing.zing2 n1 n2 -> k} -> handle unzing in k (n3 n4 -> [n1, n2, n3, n4])
+  {Zing.zing n -> k} -> handle unzing with k (x -> x `drop` n)
+  {Zing.zing2 n1 n2 -> k} -> handle unzing with k (n3 n4 -> [n1, n2, n3, n4])
 
-exacth = handle unzing in
+exacth = handle unzing with
   f = Zing.zing 3
   f 20 + 1
 
-overapplyh = handle unzing in
+overapplyh = handle unzing with
   Zing.zing 3 20 + 1
 
 -- SEQUENCES with abilities
 
-sequence1 = handle unzing in [Zing.zing 1 4]
-sequence2 = handle unzing in [Zing.zing 1 4, Zing.zing 1 4]
-sequence3 = handle unzing in [Zing.zing 1 4, Zing.zing 2 4, Zing.zing 3 4, Zing.zing 4 4]
+sequence1 = handle unzing with [Zing.zing 1 4]
+sequence2 = handle unzing with [Zing.zing 1 4, Zing.zing 1 4]
+sequence3 = handle unzing with [Zing.zing 1 4, Zing.zing 2 4, Zing.zing 3 4, Zing.zing 4 4]
 
 -- Overapply of requests
 
-overapplyh2 = handle unzing in Zing.zing2 1 2 3 4
+overapplyh2 = handle unzing with Zing.zing2 1 2 3 4
 
-overapplyh3a = handle unzing in Zing.zing2 1 2 3 4 ++ [5]
+overapplyh3a = handle unzing with Zing.zing2 1 2 3 4 ++ [5]
 
-overapplyh3b = handle unzing in Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 8]
+overapplyh3b = handle unzing with Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 8]
 
-overapplyh3c = handle unzing in Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 7 + 1]
+overapplyh3c = handle unzing with Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 7 + 1]
 
 > (exacth,
    overapplyh,

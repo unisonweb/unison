@@ -199,7 +199,7 @@ pretty0
       paren (p >= 2)
         $ (fmt S.ControlKeyword "handle" `PP.hang` pretty0 n (ac 2 Normal im doc) h)
         <> PP.softbreak
-        <> (fmt S.ControlKeyword "in" `PP.hang` uses [pretty0 n (ac 2 Block im' doc) body])
+        <> (fmt S.ControlKeyword "with" `PP.hang` uses [pretty0 n (ac 2 Block im' doc) body])
     App' x (Constructor' DD.UnitRef 0) ->
       paren (p >= 11) $ (fmt S.DelayForceChar $ l "!") <> pretty0 n (ac 11 Normal im doc) x
     LamNamed' v x | (Var.name v) == "()" ->
@@ -984,4 +984,3 @@ unLetBlock t = rec t where
         Just (innerBindings, innerBody) | dontIntersect bindings innerBindings ->
           Just (bindings ++ innerBindings, innerBody)
         _ -> Just (bindings, body)
-

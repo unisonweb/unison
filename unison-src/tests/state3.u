@@ -5,24 +5,24 @@ ability State se2 where
 
 state : ∀ s a . s -> Request (State s) a -> (s, a)
 state woot eff = case eff of
-  { State.get () -> k } -> handle (state woot) in (k woot)
-  { State.put snew -> k } -> handle (state snew) in (k ())
+  { State.get () -> k } -> handle (state woot) with (k woot)
+  { State.put snew -> k } -> handle (state snew) with (k ())
   { a } -> (woot, a)
 
 ex1 : (Nat, Nat)
-ex1 = handle (state 42) in State.get ()
+ex1 = handle (state 42) with State.get ()
 
 ex1a : (Nat, Nat)
-ex1a = handle (state 42) in 49
+ex1a = handle (state 42) with 49
 
-ex1b = handle (x -> 10) in 0
+ex1b = handle (x -> 10) with 0
 
 ex1c : Nat
-ex1c = handle (x -> 10) in 0
+ex1c = handle (x -> 10) with 0
 
-ex1d = handle (state 42) in 49
+ex1d = handle (state 42) with 49
 
-ex2 = handle (state 42) in State.get ()
+ex2 = handle (state 42) with State.get ()
 
 ex3 : (Nat, Nat)
 ex3 = ex2

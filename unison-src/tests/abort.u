@@ -6,8 +6,8 @@ eff f z e = case e of
   { Abort.Abort _ -> k } -> z
   { a } -> f a
 -- heff : Nat
-heff = handle eff (x -> x Nat.+ 2) 1 in Abort.Abort ()
+heff = handle eff (x -> x Nat.+ 2) 1 with Abort.Abort ()
 hudy : Nat
-hudy = handle eff (x -> x Nat.+ 2) 1 in 42
+hudy = handle eff (x -> x Nat.+ 2) 1 with 42
 bork : () -> {Abort} Nat
 bork = u -> 1 Nat.+ (Abort.Abort ())
