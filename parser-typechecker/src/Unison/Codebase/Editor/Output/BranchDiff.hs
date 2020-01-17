@@ -240,7 +240,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
         [(name, diff) | (name, BranchDiff.Modify diff) <- Map.toList patchesDiff]
 
   addedTypes :: [AddedTypeDisplay v a] <- do
-    let typeAdds :: [(Reference, [(Name, [Metadata.Value])])] =
+    let typeAdds :: [(Reference, [(Name, [Metadata.Value])])] = sortOn snd
          [ (r, nsmd)
          | (r, ns) <- Map.toList . R.toMultimap . BranchDiff.talladds $ typesDiff
          , let nsmd = [ (n, toList $ getAddedMetadata r n typesDiff)
@@ -254,7 +254,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
       (hqmds, r, ) <$> declOrBuiltin r
 
   addedTerms :: [AddedTermDisplay v a] <- do
-    let termAdds :: [(Referent, [(Name, [Metadata.Value])])] =
+    let termAdds :: [(Referent, [(Name, [Metadata.Value])])] = sortOn snd
           [ (r, nsmd)
           | (r, ns) <- Map.toList . R.toMultimap . BranchDiff.talladds $ termsDiff
           , let nsmd = [ (n, toList $ getAddedMetadata r n termsDiff)
@@ -271,7 +271,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
         | (name, BranchDiff.Create diff) <- Map.toList patchesDiff ]
 
   removedTypes :: [RemovedTypeDisplay v a] <- let
-    typeRemoves :: [(Reference, [Name])] =
+    typeRemoves :: [(Reference, [Name])] = sortOn snd $
       Map.toList . fmap toList . R.toMultimap . BranchDiff.tallremoves $ typesDiff
     in for typeRemoves $ \(r, ns) ->
       (,,) <$> pure ((\n -> Names2.hqTypeName hqLen names1 n r) <$> ns)
@@ -279,7 +279,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
            <*> declOrBuiltin r
 
   removedTerms :: [RemovedTermDisplay v a] <- let
-    termRemoves :: [(Referent, [Name])] =
+    termRemoves :: [(Referent, [Name])] = sortOn snd $
       Map.toList . fmap toList . R.toMultimap . BranchDiff.tallremoves $ termsDiff
     in for termRemoves $ \(r, ns) ->
       (,,) <$> pure ((\n -> Names2.hqTermName hqLen names1 n r) <$> ns)
@@ -292,7 +292,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
 
   let renamedTerm :: Map Referent (Set Name, Set Name) -> m [RenameTermDisplay v a]
       renamedTerm renames =
-        for (Map.toList renames) $ \(r, (ol'names, new'names)) ->
+        for (sortOn snd $ Map.toList renames) $ \(r, (ol'names, new'names)) ->
           (,,,) <$> pure r
                 <*> typeOf r
                 <*> pure (Set.map (\n -> Names2.hqTermName hqLen names1 n r) ol'names)
@@ -300,7 +300,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
 
   let renamedType :: Map Reference (Set Name, Set Name) -> m [RenameTypeDisplay v a]
       renamedType renames =
-        for (Map.toList renames) $ \(r, (ol'names, new'names)) ->
+        for (sortOn snd $ Map.toList renames) $ \(r, (ol'names, new'names)) ->
           (,,,) <$> pure r
                 <*> declOrBuiltin r
                 <*> pure (Set.map (\n -> Names2.hqTypeName hqLen names1 n r) ol'names)
