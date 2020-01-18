@@ -54,10 +54,10 @@ usage = P.callout "🌻" $ P.lines [
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
-  P.bold "ucm transcript -preserve mytranscript.md",
+  P.bold "ucm transcript -save-codebase mytranscript.md",
   P.wrap $ "Executes the `mytranscript.md` transcript and creates"
-        <> "`mytranscript.output.md` if successful. Exits after completion, and maintains"
-        <> "the temporary directory created."
+        <> "`mytranscript.output.md` if successful. Exits after completion, and saves"
+        <> "the resulting codebase to a new directory on disk."
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
@@ -67,10 +67,10 @@ usage = P.callout "🌻" $ P.lines [
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
-  P.bold "ucm transcript.fork -preserve mytranscript.md",
+  P.bold "ucm transcript.fork -save-codebase mytranscript.md",
   P.wrap $ "Executes the `mytranscript.md` transcript in a copy of the current codebase"
         <> "and creates `mytranscript.output.md` if successful. Exits after completion,"
-        <> "and maintains the temporary directory created."  
+        <> "and saves the resulting codebase to a new directory on disk."  
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
@@ -139,12 +139,12 @@ main = do
           launch currentDir configFilePath theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "transcript" : args' -> 
       case args' of
-      "-preserve" : transcripts -> runTranscripts False True mcodepath transcripts
-      _                         -> runTranscripts False False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts False True mcodepath transcripts
+      _                              -> runTranscripts False False mcodepath args'
     "transcript.fork" : args' -> 
       case args' of
-      "-preserve" : transcripts -> runTranscripts True True mcodepath transcripts
-      _                         -> runTranscripts True False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts True True mcodepath transcripts
+      _                              -> runTranscripts True False mcodepath args'
     _ -> do
       PT.putPrettyLn usage
       Exit.exitWith (Exit.ExitFailure 1)
