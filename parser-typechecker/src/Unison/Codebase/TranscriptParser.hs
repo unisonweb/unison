@@ -232,9 +232,8 @@ run dir configFile stanzas codebase = do
         output "\n```\n\n"
         transcriptFailure out $ Text.unlines [
           "\128721", "",
-          "Transcript failed due to the message above.",
-          "Codebase as of the point of failure is in:", "",
-          "  " <> Text.pack dir ]
+          "Transcript failed due to the message above.", "",
+          "Run `ucm -codebase" <> Text.pack dir <> "` " <> "to do more work with it."]
 
       loop state = do
         writeIORef pathRef (HandleInput._currentPath state)
