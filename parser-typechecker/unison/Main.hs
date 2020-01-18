@@ -170,14 +170,6 @@ prepareTranscriptDir inFork mcodepath = do
 
   pure tmp
 
-cleanup :: FilePath -> IO ()
-cleanup transcriptDir = do
-  PT.putPrettyLn $ P.lines [
-    P.wrap "Deleting temporary directory: ", "",
-    P.indentN 2 (P.string transcriptDir)
-    ]
-  removeDirectoryRecursive transcriptDir
-
 runTranscripts' :: Maybe FilePath -> FilePath -> [String] -> IO Bool
 runTranscripts' mcodepath transcriptDir args = do
   currentDir <- getCurrentDirectory
@@ -215,7 +207,7 @@ runTranscripts inFork keepTemp mcodepath args = do
   transcriptDir <- prepareTranscriptDir inFork mcodepath
   completed <- runTranscripts' mcodepath transcriptDir args
   when completed $ do
-    unless keepTemp $ cleanup transcriptDir
+    unless keepTemp $ removeDirectoryRecursive transcriptDir
     when keepTemp $ PT.putPrettyLn $
         P.callout "🌸" (
           P.lines [
@@ -226,7 +218,7 @@ runTranscripts inFork keepTemp mcodepath args = do
                   <> "to do more work with it."])
 
   unless completed $ do 
-      unless keepTemp $ cleanup transcriptDir
+      unless keepTemp $ removeDirectoryRecursive transcriptDir
       PT.putPrettyLn usage
       Exit.exitWith (Exit.ExitFailure 1)
 
