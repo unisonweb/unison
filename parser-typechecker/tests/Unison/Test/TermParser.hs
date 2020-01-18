@@ -82,13 +82,15 @@ test1 = scope "termparser" . tests . map parses $
     "  x + 1 )"
   --
   -- Handlers
-  ,"handle foo in \n" ++
+  , "handle\n" ++
     "  x = 23 + 42\n" ++
-    "  x + foo 8 102.0 +4"
-  , "handle foo in \n" ++
+    "  x + foo 8 102.0 +4\n" ++
+    "with foo"
+  , "handle\n" ++
     "  x = 1\n" ++
-    "  x"
-  , "handle foo in x"
+    "  x\n" ++
+    "with foo"
+  , "handle x with foo"
 
   -- Patterns
   , "case x of x -> x"
