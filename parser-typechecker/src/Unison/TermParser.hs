@@ -241,10 +241,10 @@ letBlock, handle, ifthen :: Var v => TermP v
 letBlock = label "let" $ block "let"
 
 handle = label "handle" $ do
-  t <- reserved "handle"
-  handler <- term
-  b <- block "in"
-  pure $ Term.handle (ann t <> ann b) handler b
+  b <- block "handle"
+  handler <- block "with"
+  pure $ Term.handle (ann b) handler b
+
 
 ifthen = label "if" $ do
   start <- peekAny
