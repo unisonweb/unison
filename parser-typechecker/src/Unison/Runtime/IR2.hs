@@ -138,6 +138,24 @@ data Args
   | BArgR !Int !Int
   | DArgR !Int !Int !Int !Int
 
+ucount, bcount :: Args -> Int
+
+ucount (UArg1 _) = 1
+ucount (UArg2 _ _) = 2
+ucount (DArg2 _ _) = 1
+ucount (UArgR _ l) = l
+ucount (DArgR _ l _ _) = l
+ucount _ = 0
+{-# inline ucount #-}
+
+bcount (BArg1 _) = 1
+bcount (BArg2 _ _) = 2
+bcount (DArg2 _ _) = 1
+bcount (BArgR _ l) = l
+bcount (DArgR _ _ _ l) = l
+bcount _ = 0
+{-# inline bcount #-}
+
 data Prim1 = Dec | Inc
 data Prim2 = Add | Sub
 

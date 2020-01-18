@@ -1,3 +1,4 @@
+{-# language DataKinds #-}
 {-# language BangPatterns #-}
 
 module Unison.Runtime.Rt2 where
@@ -11,16 +12,13 @@ type Env = Int -> Comb
 
 eval0 :: Env -> IR -> IO ()
 eval0 !env !co = do
-  ustk <- ualloc
-  bstk <- balloc
+  ustk <- alloc
+  bstk <- alloc
   eval env ustk bstk KE co
 
-eval :: Env -> UStk -> BStk -> K -> IR -> IO ()
-eval !env !ustk !bstk !k (App r args) = do
-  Lam _  _  uf _ fun <- resolve env ustk bstk r
-  ustk <- uensure ustk uf
-  (ustk, bstk) <- moveArgs ustk bstk args
-  eval env ustk bstk k fun
+eval :: Env -> Stack 'UN -> Stack 'BX -> K -> IR -> IO ()
+eval !env !ustk !bstk !k (App r args) =
+  resolve env ustk bstk r >>= apply env ustk bstk k args
 eval !env !ustk !bstk !k (Reset p nx) =
   eval env ustk bstk (Mark p k) nx
 eval !env !ustk !bstk !k (Capture p nx) = do
@@ -28,7 +26,7 @@ eval !env !ustk !bstk !k (Capture p nx) = do
   -- TODO: boxed stuff; right now this just discards continuations
   eval env ustk bstk k' nx
 eval !env !ustk !bstk !k (Let e nx) = do
-  (ustk, usz) <- uframe ustk
+  (ustk, usz) <- frame ustk
   eval env ustk bstk (Push usz nx k) e
 eval !env !ustk !bstk !k (Prim1 op i nx) =
   prim1 env ustk bstk k op i nx
@@ -41,84 +39,95 @@ eval !env !ustk !bstk !k (Unpack _ nx) = do
   _ <- error "eval Unpack"
   eval env ustk bstk k nx
 eval !env !ustk !bstk !k (Match i br) = do
-  t <- upeekOff ustk i
+  t <- peekOff ustk i
   eval env ustk bstk k $ selectBranch t br
 eval !env !ustk !bstk !k (Print i nx) = do
-  m <- upeekOff ustk i
+  m <- peekOff ustk i
   print m
   eval env ustk bstk k nx
 eval !env !ustk !bstk !k (Lit n nx) = do
-  ustk <- ubump ustk
-  upoke ustk n
+  ustk <- bump ustk
+  poke ustk n
   eval env ustk bstk k nx
 eval !env !ustk !bstk !k (Yield args) = do
   (ustk, bstk) <- moveArgs ustk bstk args
   yield env ustk bstk k
 
-moveArgs :: UStk -> BStk -> Args -> IO (UStk, BStk)
+apply :: Env -> Stack 'UN -> Stack 'BX -> K -> Args -> Comb -> IO ()
+apply !env !ustk !bstk !k !args (Lam ua ba uf bf fun) = do
+  ustk <- ensure ustk uf
+  bstk <- ensure bstk bf
+  (ustk, bstk) <- moveArgs ustk bstk args
+  eval env ustk bstk k fun
+ where
+ _ = avail ustk + ucount args - ua
+ _ = avail bstk + bcount args - ba
+{-# inline apply #-}
+
+moveArgs :: Stack 'UN -> Stack 'BX -> Args -> IO (Stack 'UN, Stack 'BX)
 moveArgs !ustk !bstk ZArgs = pure (ustk, bstk)
 moveArgs !ustk !bstk (UArg1 i) = do
-  ustk <- uargs ustk (Arg1 i)
+  ustk <- margs ustk (Arg1 i)
   pure (ustk, bstk)
 moveArgs !ustk !bstk (UArg2 i j) = do
-  ustk <- uargs ustk (Arg2 i j)
+  ustk <- margs ustk (Arg2 i j)
   pure (ustk, bstk)
 moveArgs !ustk !bstk (UArgR i l) = do
-  ustk <- uargs ustk (ArgR i l)
+  ustk <- margs ustk (ArgR i l)
   pure (ustk, bstk)
 moveArgs !ustk !bstk (BArg1 i) = do
-  bstk <- bargs bstk (Arg1 i)
+  bstk <- margs bstk (Arg1 i)
   pure (ustk, bstk)
 moveArgs !ustk !bstk (BArg2 i j) = do
-  bstk <- bargs bstk (Arg2 i j)
+  bstk <- margs bstk (Arg2 i j)
   pure (ustk, bstk)
 moveArgs !ustk !bstk (BArgR i l) = do
-  bstk <- bargs bstk (ArgR i l)
+  bstk <- margs bstk (ArgR i l)
   pure (ustk, bstk)
 moveArgs !ustk !bstk (DArg2 i j) = do
-  ustk <- uargs ustk (Arg1 i)
-  bstk <- bargs bstk (Arg1 j)
+  ustk <- margs ustk (Arg1 i)
+  bstk <- margs bstk (Arg1 j)
   pure (ustk, bstk)
 moveArgs !ustk !bstk (DArgR ui ul bi bl) = do
-  ustk <- uargs ustk (ArgR ui ul)
-  bstk <- bargs bstk (ArgR bi bl)
+  ustk <- margs ustk (ArgR ui ul)
+  bstk <- margs bstk (ArgR bi bl)
   pure (ustk, bstk)
 {-# inline moveArgs #-}
 
-prim1 :: Env -> UStk -> BStk -> K -> Prim1 -> Int -> IR -> IO ()
+prim1 :: Env -> Stack 'UN -> Stack 'BX -> K -> Prim1 -> Int -> IR -> IO ()
 prim1 !env !ustk !bstk !k Dec !i !nx = do
-  m <- upeekOff ustk i
-  ustk <- ubump ustk
-  upoke ustk (m-1)
+  m <- peekOff ustk i
+  ustk <- bump ustk
+  poke ustk (m-1)
   eval env ustk bstk k nx
 prim1 !env !ustk !bstk !k Inc !i !nx = do
-  m <- upeekOff ustk i
-  ustk <- ubump ustk
-  upoke ustk (m+1)
+  m <- peekOff ustk i
+  ustk <- bump ustk
+  poke ustk (m+1)
   eval env ustk bstk k nx
 {-# inline prim1 #-}
 
-prim2 :: Env -> UStk -> BStk -> K -> Prim2 -> Int -> Int -> IR -> IO ()
+prim2 :: Env -> Stack 'UN -> Stack 'BX -> K -> Prim2 -> Int -> Int -> IR -> IO ()
 prim2 !env !ustk !bstk !k Add !i !j !nx = do
-  m <- upeekOff ustk i
-  n <- upeekOff ustk j
-  ustk <- ubump ustk
-  upoke ustk (m+n)
+  m <- peekOff ustk i
+  n <- peekOff ustk j
+  ustk <- bump ustk
+  poke ustk (m+n)
   eval env ustk bstk k nx
 prim2 !env !ustk !bstk !k Sub !i !j !nx = do
-  m <- upeekOff ustk i
-  n <- upeekOff ustk j
-  ustk <- ubump ustk
-  upoke ustk (m-n)
+  m <- peekOff ustk i
+  n <- peekOff ustk j
+  ustk <- bump ustk
+  poke ustk (m-n)
   eval env ustk bstk k nx
 {-# inline prim2 #-}
 
-yield :: Env -> UStk -> BStk -> K -> IO ()
+yield :: Env -> Stack 'UN -> Stack 'BX -> K -> IO ()
 yield !env !ustk !bstk !k = leap k
  where
  leap (Mark _ k) = leap k
  leap (Push sz nx k) = do
-   ustk <- urestore ustk sz
+   ustk <- restore ustk sz
    eval env ustk bstk k nx
  leap KE = pure ()
 {-# inline yield #-}
@@ -134,26 +143,26 @@ selectBranch t (Test2 u cu v cv e)
   | otherwise = e
 {-# inline selectBranch #-}
 
-splitCont :: UStk -> BStk -> K -> Int -> IO (K, UStk, BStk, USeg, K)
+splitCont :: Stack 'UN -> Stack 'BX -> K -> Int -> IO (K, Stack 'UN, Stack 'BX, Seg 'UN, K)
 splitCont !ustk !bstk !k !p = walk 0 KE k
 -- splitCont !ustk !k !p = walk 0 KE k
  where
- walk :: Int -> K -> K -> IO (K, UStk, BStk, USeg, K)
+ walk :: Int -> K -> K -> IO (K, Stack 'UN, Stack 'BX, Seg 'UN, K)
  walk !sz !ck KE = finish sz ck KE
  walk !sz !ck (Mark q k)
    | p == q    = finish sz ck k
    | otherwise = walk sz (Mark q ck) k
  walk !sz !ck (Push n br k) = walk (sz+n) (Push n br ck) k
 
- finish :: Int -> K -> K -> IO (K, UStk, BStk, USeg, K)
+ finish :: Int -> K -> K -> IO (K, Stack 'UN, Stack 'BX, Seg 'UN, K)
  finish !sz !ck !k = do
-   (seg, ustk) <- ugrab ustk sz
+   (seg, ustk) <- grab ustk sz
    return (ck, ustk, bstk, seg, k)
 {-# inline splitCont #-}
 
-resolve :: Env -> UStk -> BStk -> Ref -> IO Comb
+resolve :: Env -> Stack 'UN -> Stack 'BX -> Ref -> IO Comb
 resolve env _ _ (Env i) = return (env i)
 resolve _ _ bstk (Stk i) = do
-  _ <- bpeekOff bstk i
+  _ <- peekOff bstk i
   error "huh"
 -- resolve _   _ _ _ = error "TODO: resolve"
