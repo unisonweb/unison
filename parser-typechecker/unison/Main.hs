@@ -187,7 +187,7 @@ runTranscripts' mcodepath transcriptDir args = do
                   P.indentN 2 $ P.string err])
             Right stanzas -> do
               configFilePath <- getConfigFilePath mcodepath
-              mdOut <- TR.run currentDir configFilePath stanzas theCodebase
+              mdOut <- TR.run transcriptDir configFilePath stanzas theCodebase
               let out = currentDir FP.</>
                          FP.addExtension (FP.dropExtension arg ++ ".output")
                                          (FP.takeExtension md)
