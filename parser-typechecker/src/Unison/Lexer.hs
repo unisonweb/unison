@@ -690,7 +690,7 @@ symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:"
 keywords :: Set String
 keywords = Set.fromList [
   "if", "then", "else", "forall", "∀",
-  "handle", "in", "unique",
+  "handle", "with", "unique",
   "where", "use",
   "true", "false",
   "type", "ability", "alias", "typeLink", "termLink",
@@ -700,16 +700,17 @@ keywords = Set.fromList [
 layoutKeywords :: Set String
 layoutKeywords =
   Set.fromList [
-    "if", "in", "let", "where", "of"
+    "if", "handle", "let", "where", "of"
   ]
 
 -- These keywords end a layout block and begin another layout block
 layoutCloseAndOpenKeywords :: Set String
-layoutCloseAndOpenKeywords = Set.fromList ["then", "else"]
+layoutCloseAndOpenKeywords = Set.fromList ["then", "else", "with"]
 
 openingKeyword :: String -> String
 openingKeyword "then" = "if"
 openingKeyword "else" = "then"
+openingKeyword "with" = "handle"
 openingKeyword kw = error $ "Not sure what the opening keyword is for: " <> kw
 
 -- These keywords end a layout block

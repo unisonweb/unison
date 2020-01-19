@@ -195,11 +195,22 @@ pretty0
       elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Data)
     Request' ref i -> styleHashQualified'' (fmt S.Request) $
       elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Effect)
-    Handle' h body -> let (im', uses) = calcImports im body in
-      paren (p >= 2)
-        $ (fmt S.ControlKeyword "handle" `PP.hang` pretty0 n (ac 2 Normal im doc) h)
-        <> PP.softbreak
-        <> (fmt S.ControlKeyword "in" `PP.hang` uses [pretty0 n (ac 2 Block im' doc) body])
+    Handle' h body -> paren (p >= 2) $
+      if height > 0 then PP.lines [
+        (fmt S.ControlKeyword "handle") `PP.hang` pb,
+        (fmt S.ControlKeyword "with") `PP.hang` ph
+       ]
+      else PP.spaced [
+        (fmt S.ControlKeyword "handle") `PP.hang` pb
+          <> PP.softbreak
+          <> (fmt S.ControlKeyword "with") `PP.hang` ph
+      ]
+      where
+        height = PP.preferredHeight pb `max` PP.preferredHeight ph
+        pb = pblock body
+        ph = pblock h
+        pblock tm = let (im', uses) = calcImports im tm
+                    in uses $ [pretty0 n (ac 0 Block im' doc) tm]
     App' x (Constructor' DD.UnitRef 0) ->
       paren (p >= 11) $ (fmt S.DelayForceChar $ l "!") <> pretty0 n (ac 11 Normal im doc) x
     LamNamed' v x | (Var.name v) == "()" ->
