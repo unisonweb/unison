@@ -5,7 +5,10 @@
 {-# OPTIONS_GHC -Wwarn #-} -- temporary
 
 module Unison.Name
-  ( Name
+  ( -- * Name
+    Name
+  , makeAbsolute
+  , makeRelative
     -- * Conversion functions
     -- ** To name
   , fromNameSegment
@@ -16,12 +19,12 @@ module Unison.Name
   , toText
   , toVar
     -- * Name API
+  , asAbsolute
   , asRelative
   , isAbsolute
   , isLower
   , isPrefixOf
   , joinDot
-  , makeAbsolute
   , oldSplits
   , parent
   , segments
@@ -37,7 +40,7 @@ where
 import Unison.Prelude
 
 import           Control.Arrow                  ( (***) )
-import           Control.Lens                   ( unsnoc )
+import           Control.Lens                   ( over, mapped, unsnoc, _1 )
 import qualified Data.Char                     as Char
 import           Data.List                      ( inits, intersperse )
 import qualified Data.List                     as List
@@ -60,6 +63,7 @@ useNewName :: Bool
 useNewName = unsafePerformIO (isJust <$> lookupEnv "NEW_NAME")
 {-# NOINLINE useNewName #-}
 
+-- | A name is a an absolute or relative non-empty list of name segments.
 data Name
   = Name Text
   | Name' Placement (NonEmpty NameSegment)
@@ -70,6 +74,17 @@ data Placement
   | Relative
   deriving stock (Eq, Ord, Show)
 
+-- | Construct an absolute name from a non-empty list of name segments.
+makeAbsolute :: NonEmpty NameSegment -> Name
+makeAbsolute = Name' Absolute
+
+-- | Construct a relative name from a non-empty list of name segments.
+makeRelative :: NonEmpty NameSegment -> Name
+makeRelative = Name' Relative
+
+-- | Render a name as text.
+--
+-- FIXME Syntax-specific.
 toText :: Name -> Text
 toText (Name name) = name
 toText (Name' placement names) =
@@ -80,10 +95,11 @@ toText (Name' placement names) =
         Absolute -> Text.cons '.'
         Relative -> id
 
+-- | Convert a name segment to a relative name.
 fromNameSegment :: NameSegment -> Name
 fromNameSegment =
   if useNewName then
-    undefined
+    makeRelative . pure
   else
     unsafeFromText . NameSegment.toText
 
@@ -101,6 +117,9 @@ sortNamed' by by2 as = let
   comp (a,s) (a2,s2) = RFC5051.compareUnicode s s2 <> by2 a a2
   in fst <$> sortBy comp as'
 
+-- | Construct a name from text.
+--
+-- FIXME Syntax-specific.
 unsafeFromText :: Text -> Name
 unsafeFromText t =
   if useNewName then
@@ -108,12 +127,15 @@ unsafeFromText t =
   else
     if Text.any (== '#') t then error $ "not a name: " <> show t else Name t
 
+-- | FIXME Syntax-specific.
 toVar :: Var v => Name -> v
 toVar (Name t) = Var.named t
 
+-- | FIXME Syntax-specific.
 fromVar :: Var v => v -> Name
 fromVar = unsafeFromText . Var.name
 
+-- | FIXME Syntax-specific.
 toString :: Name -> String
 toString = Text.unpack . toText
 
@@ -183,23 +205,47 @@ suffixes (Name n) =
 suffixes (Name' _ names) =
   map (Name' Relative . NonEmpty.fromList) (NonEmpty.init (NonEmpty.tails names))
 
-makeAbsolute :: Name -> Name
-makeAbsolute n | toText n == "." = Name ".."
-               | isAbsolute n    = n
-               | otherwise       = Name ("." <> toText n)
+asAbsolute :: Name -> Name
+asAbsolute n@Name{} | toText n == "." = Name ".."
+                    | isAbsolute n    = n
+                    | otherwise       = Name ("." <> toText n)
+asAbsolute (Name' _ names) = Name' Absolute names
 
 segments :: Name -> [NameSegment]
 segments (Name name) = fmap NameSegment.unsafeFromText (Text.splitOn "." name)
+segments (Name' _ names) = toList names
 
 isLower :: Name -> Bool
-isLower = Text.all Char.isLower . Text.take 1 . toText
+isLower = \case
+  Name name -> Text.all Char.isLower (Text.take 1 name)
+  Name' _ names -> all NameSegment.isLower names
 
 isAbsolute :: Name -> Bool
 isAbsolute (Name name) = Text.isPrefixOf "." name && name /= "."
+isAbsolute (Name' Absolute _) = True
+isAbsolute (Name' Relative _) = False
 
+-- | Compute all ways to split a relative name into a (possibly empty) prefix
+-- and suffix.
+--
+-- @
+-- splits foo.bar.baz = [([], foo.bar.baz), ([foo], bar.baz), ([foo, bar], baz)]
+-- @
 splits :: Name -> [([NameSegment], Name)]
-splits =
-  map (map NameSegment.unsafeFromText *** unsafeFromText) . oldSplits
+splits = \case
+  name@Name{} ->
+    (map (map NameSegment.unsafeFromText *** unsafeFromText) . oldSplits) name
+  name@(Name' Absolute _) ->
+    error ("splits: " ++ show name)
+  Name' Relative names0 ->
+    go (toList names0)
+    where
+      go :: [NameSegment] -> [([NameSegment], Name)]
+      go = \case
+        [] -> []
+        name : names ->
+          ([], makeRelative (name :| names)) :
+            over (mapped . _1) (name:) (go names)
 
 -- > oldSplits "x" == [([], "x")]
 -- > oldSplits "A.x" == [(["A"], "x")]

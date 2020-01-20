@@ -122,7 +122,7 @@ shadowing prio (Names current old) =
   Names (prio `unionLeftName0` current) (current <> old)
 
 makeAbsolute0:: Names0 -> Names0
-makeAbsolute0 = map0 Name.makeAbsolute
+makeAbsolute0 = map0 Name.asAbsolute
 
 -- do a prefix match on currentNames and, if no match, then check oldNames.
 lookupHQType :: HashQualified -> Names -> Set Reference
