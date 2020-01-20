@@ -192,6 +192,7 @@ run dir configFile stanzas codebase = do
                     output $ show s
                     awaitInput
                   Unison hide errOk filename txt -> do
+                    -- TODO note the order of the next two lines
                     output $ show s
                     writeIORef hidden hide
                     writeIORef allowErrors errOk
@@ -225,13 +226,13 @@ run dir configFile stanzas codebase = do
         when (Output.isFailure o) $
           if errOk then writeIORef hasErrors True
           else die
-          
+
       printNumbered o = do
         let (msg, numberedArgs) = notifyNumbered o
         errOk <- readIORef allowErrors
         let rendered = P.toPlain 65 (P.border 2 msg)
         output rendered
-        when (Output.isNumberedFailure o) $ 
+        when (Output.isNumberedFailure o) $
           if errOk then writeIORef hasErrors True
           else die
         pure numberedArgs
