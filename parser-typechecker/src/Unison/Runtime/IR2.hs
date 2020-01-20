@@ -161,7 +161,9 @@ data Prim2 = Add | Sub
 
 -- Instruction tree representation for the machine.
 data IR
-  = App !Ref      -- function to apply
+  = App !Int      -- unboxed args to throw away
+        !Int      -- boxed args to throw away
+        !Ref      -- function to apply
         !Args     -- additional arguments
   | Reset !Int    -- prompt tag
           !IR     -- delimited computation
@@ -173,7 +175,7 @@ data IR
   | Pack !Int !Args !IR
   | Unpack !Int !IR
   | Match !Int !Branch
-  | Yield !Args
+  | Yield !Int !Int !Args
   | Print !Int !IR
   | Lit !Int !IR
 

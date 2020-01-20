@@ -17,8 +17,8 @@ eval0 !env !co = do
   eval env ustk bstk KE co
 
 eval :: Env -> Stack 'UN -> Stack 'BX -> K -> IR -> IO ()
-eval !env !ustk !bstk !k (App r args) =
-  resolve env ustk bstk r >>= apply env ustk bstk k args
+eval !env !ustk !bstk !k (App up bp r args) =
+  resolve env ustk bstk r >>= apply env ustk bstk k up bp args
 eval !env !ustk !bstk !k (Reset p nx) =
   eval env ustk bstk (Mark p k) nx
 eval !env !ustk !bstk !k (Capture p nx) = do
@@ -32,11 +32,17 @@ eval !env !ustk !bstk !k (Prim1 op i nx) =
   prim1 env ustk bstk k op i nx
 eval !env !ustk !bstk !k (Prim2 op i j nx) =
   prim2 env ustk bstk k op i j nx
-eval !env !ustk !bstk !k (Pack _ _    nx) = do
-  _ <- error "eval Pack"
+eval !env !ustk !bstk !k (Pack t args nx) = do
+  (useg, bseg) <- closeArgs ustk bstk unull bnull args
+  bstk <- bump bstk
+  poke bstk $ Boxed t useg bseg
   eval env ustk bstk k nx
-eval !env !ustk !bstk !k (Unpack _ nx) = do
-  _ <- error "eval Unpack"
+eval !env !ustk !bstk !k (Unpack i nx) = do
+  Boxed t useg bseg <- peekOff bstk i
+  ustk <- dumpSeg ustk useg
+  bstk <- dumpSeg bstk bseg
+  ustk <- bump ustk
+  poke ustk t
   eval env ustk bstk k nx
 eval !env !ustk !bstk !k (Match i br) = do
   t <- peekOff ustk i
@@ -49,50 +55,104 @@ eval !env !ustk !bstk !k (Lit n nx) = do
   ustk <- bump ustk
   poke ustk n
   eval env ustk bstk k nx
-eval !env !ustk !bstk !k (Yield args) = do
-  (ustk, bstk) <- moveArgs ustk bstk args
+eval !env !ustk !bstk !k (Yield u b args) = do
+  (ustk, bstk) <- moveArgs ustk bstk u b args
   yield env ustk bstk k
 
-apply :: Env -> Stack 'UN -> Stack 'BX -> K -> Args -> Comb -> IO ()
-apply !env !ustk !bstk !k !args (Lam ua ba uf bf fun) = do
-  ustk <- ensure ustk uf
-  bstk <- ensure bstk bf
-  (ustk, bstk) <- moveArgs ustk bstk args
-  eval env ustk bstk k fun
+apply
+  :: Env -> Stack 'UN -> Stack 'BX -> K
+  -> Int -> Int -> Args -> Comb -> IO ()
+apply !env !ustk !bstk !k !up !bp !args (Lam ua ba uf bf fun)
+  | ua <= uac && ba <= bac = do
+    ustk <- ensure ustk uf
+    bstk <- ensure bstk bf
+    (ustk, bstk) <- moveArgs ustk bstk up bp args
+    eval env ustk bstk k fun
+  | otherwise = do
+    (useg, bseg) <- closeArgs ustk bstk unull bnull args
+    useg `seq` bseg `seq` error "TODO"
  where
- _ = avail ustk + ucount args - ua
- _ = avail bstk + bcount args - ba
+ uac = fsize ustk + ucount args - up
+ bac = fsize bstk + bcount args - bp
 {-# inline apply #-}
 
-moveArgs :: Stack 'UN -> Stack 'BX -> Args -> IO (Stack 'UN, Stack 'BX)
-moveArgs !ustk !bstk ZArgs = pure (ustk, bstk)
-moveArgs !ustk !bstk (UArg1 i) = do
-  ustk <- margs ustk (Arg1 i)
+moveArgs
+  :: Stack 'UN -> Stack 'BX
+  -> Int -> Int
+  -> Args -> IO (Stack 'UN, Stack 'BX)
+moveArgs !ustk !bstk !up !bp ZArgs = do
+  ustk <- free ustk up
+  bstk <- free bstk bp
   pure (ustk, bstk)
-moveArgs !ustk !bstk (UArg2 i j) = do
-  ustk <- margs ustk (Arg2 i j)
+moveArgs !ustk !bstk !up !bp (UArg1 i) = do
+  ustk <- margs ustk up (Arg1 i)
+  bstk <- free bstk bp
   pure (ustk, bstk)
-moveArgs !ustk !bstk (UArgR i l) = do
-  ustk <- margs ustk (ArgR i l)
+moveArgs !ustk !bstk !up !bp (UArg2 i j) = do
+  ustk <- margs ustk up (Arg2 i j)
+  bstk <- free bstk bp
   pure (ustk, bstk)
-moveArgs !ustk !bstk (BArg1 i) = do
-  bstk <- margs bstk (Arg1 i)
+moveArgs !ustk !bstk !up !bp (UArgR i l) = do
+  ustk <- margs ustk up (ArgR i l)
+  bstk <- free bstk bp
   pure (ustk, bstk)
-moveArgs !ustk !bstk (BArg2 i j) = do
-  bstk <- margs bstk (Arg2 i j)
+moveArgs !ustk !bstk !up !bp (BArg1 i) = do
+  ustk <- free ustk up
+  bstk <- margs bstk bp (Arg1 i)
   pure (ustk, bstk)
-moveArgs !ustk !bstk (BArgR i l) = do
-  bstk <- margs bstk (ArgR i l)
+moveArgs !ustk !bstk !up !bp (BArg2 i j) = do
+  ustk <- free ustk up
+  bstk <- margs bstk bp (Arg2 i j)
   pure (ustk, bstk)
-moveArgs !ustk !bstk (DArg2 i j) = do
-  ustk <- margs ustk (Arg1 i)
-  bstk <- margs bstk (Arg1 j)
+moveArgs !ustk !bstk !up !bp (BArgR i l) = do
+  ustk <- free ustk up
+  bstk <- margs bstk bp (ArgR i l)
   pure (ustk, bstk)
-moveArgs !ustk !bstk (DArgR ui ul bi bl) = do
-  ustk <- margs ustk (ArgR ui ul)
-  bstk <- margs bstk (ArgR bi bl)
+moveArgs !ustk !bstk !up !bp (DArg2 i j) = do
+  ustk <- margs ustk up (Arg1 i)
+  bstk <- margs bstk bp (Arg1 j)
+  pure (ustk, bstk)
+moveArgs !ustk !bstk !up !bp (DArgR ui ul bi bl) = do
+  ustk <- margs ustk up (ArgR ui ul)
+  bstk <- margs bstk bp (ArgR bi bl)
   pure (ustk, bstk)
 {-# inline moveArgs #-}
+
+-- Note: although the representation allows it, it is impossible
+-- to under-apply one sort of argument while over-applying the
+-- other. Thus, it is unnecessary to worry about doing tricks to
+-- only grab a certain number of arguments.
+closeArgs
+  :: Stack 'UN -> Stack 'BX
+  -> Seg 'UN -> Seg 'BX
+  -> Args -> IO (Seg 'UN, Seg 'BX)
+closeArgs !_    !_    !useg !bseg ZArgs = pure (useg, bseg)
+closeArgs !ustk !_    !useg !bseg (UArg1 i) = do
+  useg <- augSeg ustk useg (Arg1 i)
+  pure (useg, bseg)
+closeArgs !ustk !_    !useg !bseg (UArg2 i j) = do
+  useg <- augSeg ustk useg (Arg2 i j)
+  pure (useg, bseg)
+closeArgs !ustk !_    !useg !bseg (UArgR i l) = do
+  useg <- augSeg ustk useg (ArgR i l)
+  pure (useg, bseg)
+closeArgs !_    !bstk !useg !bseg (BArg1 i) = do
+  bseg <- augSeg bstk bseg (Arg1 i)
+  pure (useg, bseg)
+closeArgs !_    !bstk !useg !bseg (BArg2 i j) = do
+  bseg <- augSeg bstk bseg (Arg2 i j)
+  pure (useg, bseg)
+closeArgs !_    !bstk !useg !bseg (BArgR i l) = do
+  bseg <- augSeg bstk bseg (ArgR i l)
+  pure (useg, bseg)
+closeArgs !ustk !bstk !useg !bseg (DArg2 i j) = do
+  useg <- augSeg ustk useg (Arg1 i)
+  bseg <- augSeg bstk bseg (Arg1 j)
+  pure (useg, bseg)
+closeArgs !ustk !bstk !useg !bseg (DArgR ui ul bi bl) = do
+  useg <- augSeg ustk useg (ArgR ui ul)
+  bseg <- augSeg bstk bseg (ArgR bi bl)
+  pure (useg, bseg)
 
 prim1 :: Env -> Stack 'UN -> Stack 'BX -> K -> Prim1 -> Int -> IR -> IO ()
 prim1 !env !ustk !bstk !k Dec !i !nx = do

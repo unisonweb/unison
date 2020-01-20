@@ -3,9 +3,11 @@
 
 module Unison.Runtime.Stack where
 
+import Prelude hiding (words)
+
 import Control.Monad.Primitive
 import Data.Primitive.ByteArray
--- import Data.Primitive.PrimArray
+import Data.Primitive.PrimArray
 import Data.Primitive.Array
 
 import Unison.Runtime.IR2
@@ -31,6 +33,76 @@ type Off = Int
 type SZ = Int
 type FP = Int
 
+type UA = MutableByteArray (PrimState IO)
+type BA = MutableArray (PrimState IO) Closure
+
+words :: Int -> Int
+words n = n `div` 8
+
+bytes :: Int -> Int
+bytes n = n * 8
+
+uargOnto :: UA -> Off -> UA -> Off -> Args' -> IO Int
+uargOnto stk sp cop cp0 (Arg1 i) = do
+  (x :: Int) <- readByteArray stk (sp-i)
+  writeByteArray cop cp x
+  pure cp
+ where cp = cp0+1
+uargOnto stk sp cop cp0 (Arg2 i j) = do
+  (x :: Int) <- readByteArray stk (sp-i)
+  (y :: Int) <- readByteArray stk (sp-j)
+  writeByteArray cop cp x
+  writeByteArray cop (cp-1) y
+  pure cp
+ where cp = cp0+2
+uargOnto stk sp cop cp0 (ArgN v) = do
+  let loop i
+        | i < 0     = return ()
+        | otherwise = do
+            (x :: Int) <- readByteArray stk (sp-indexPrimArray v i)
+            writeByteArray cop (cp-i) x
+            loop $ i-1
+  loop $ sz-1
+  pure cp
+ where
+ cp = cp0+sz
+ sz = sizeofPrimArray v
+uargOnto stk sp cop cp0 (ArgR i l) = do
+  moveByteArray cop cbp stk sbp (bytes l)
+  pure $ cp0+l
+ where
+ cbp = bytes cp0
+ sbp = bytes $ sp-i-l
+
+bargOnto :: BA -> Off -> BA -> Off -> Args' -> IO Int
+bargOnto stk sp cop cp0 (Arg1 i) = do
+  x <- readArray stk (sp-i)
+  writeArray cop cp x
+  pure cp
+ where cp = cp0+1
+bargOnto stk sp cop cp0 (Arg2 i j) = do
+  x <- readArray stk (sp-i)
+  y <- readArray stk (sp-j)
+  writeArray cop cp x
+  writeArray cop (cp-1) y
+  pure cp
+ where cp = cp0+2
+bargOnto stk sp cop cp0 (ArgN v) = do
+  let loop i
+        | i < 0     = return ()
+        | otherwise = do
+            x <- readArray stk (sp-indexPrimArray v i)
+            writeArray cop (cp-i) x
+            loop $ i-1
+  loop $ sz-1
+  pure cp
+ where
+ cp = cp0+sz
+ sz = sizeofPrimArray v
+bargOnto stk sp cop cp0 (ArgR i l) = do
+  copyMutableArray cop cp0 stk (sp-i-l) l
+  pure $ cp0+l
+
 class MEM (b :: Mem) where
   data Stack b :: *
   type Elem b :: *
@@ -47,8 +119,10 @@ class MEM (b :: Mem) where
   free :: Stack b -> SZ -> IO (Stack b)
   frame :: Stack b -> IO (Stack b, SZ)
   restore :: Stack b -> SZ -> IO (Stack b)
-  margs :: Stack b -> Args' -> IO (Stack b)
-  avail :: Stack b -> SZ
+  margs :: Stack b -> Int -> Args' -> IO (Stack b)
+  augSeg :: Stack b -> Seg b -> Args' -> IO (Seg b)
+  dumpSeg :: Stack b -> Seg b -> IO (Stack b)
+  fsize :: Stack b -> SZ
 
 instance MEM 'UN where
   data Stack 'UN
@@ -75,13 +149,13 @@ instance MEM 'UN where
     seg <- unsafeFreezeByteArray mut
     pure (seg, US fp (sp-sz) stk)
    where
-   sz = sze*8
-   bp = sp*8
+   sz = bytes sze
+   bp = bytes sp
   {-# inline grab #-}
 
   ensure stki@(US fp sp stk) sze
-    | sze <= 0 = pure stki
-    | (sp+sze+1)*8 < ssz = pure stki
+    | sze <= 0
+    || bytes (sp+sze+1) < ssz = pure stki
     | otherwise = do
       stk' <- resizeMutableByteArray stk (ssz+10240)
       pure $ US fp sp stk'
@@ -125,36 +199,54 @@ instance MEM 'UN where
     pure $ US (fp-sz) sp stk
   {-# inline restore #-}
 
-  margs (US fp sp stk) (Arg1 i) = do
-    (x :: Int) <- readByteArray stk (sp-i)
-    let sp' = fp+1
-    writeByteArray stk sp' x
-    pure $ US fp sp' stk
-  margs (US fp sp stk) (Arg2 i j) = do
-    (x :: Int) <- readByteArray stk (sp-i)
-    (y :: Int) <- readByteArray stk (sp-j)
-    let sp' = fp+2
-    writeByteArray stk sp' x
-    writeByteArray stk (sp'-1) y
-    pure $ US fp sp' stk
-  margs _ (ArgN _) = error "uargs N"
-  margs istk@(US fp sp _  ) (ArgR i l)
-    | i == 0 && l == sz = pure istk
-    | otherwise = error "uargs range"
-   where
-   sz = sp-fp
+  margs istk pop (ArgR i l)
+    | i == 0
+   && pop == l = pure istk
+  margs (US fp sp stk) pop args = do
+    sp <- uargOnto stk sp stk (sp-pop) args
+    pure $ US fp sp stk
   {-# inline margs #-}
 
-  avail (US fp sp _) = sp-fp
-  {-# inline avail #-}
+  augSeg (US _ sp stk) seg args = do
+    cop <- newByteArray $ ssz+asz
+    copyByteArray cop 0 seg 0 ssz
+    _ <- uargOnto stk sp cop (sz-1) args
+    unsafeFreezeByteArray cop
+   where
+   ssz = sizeofByteArray seg
+   sz = words ssz
+   asz = case args of
+          Arg1 _   -> 8
+          Arg2 _ _ -> 16
+          ArgN v   -> bytes $ sizeofPrimArray v
+          ArgR _ l -> bytes l
+  {-# inline augSeg #-}
+
+  dumpSeg (US fp sp stk) seg = do
+    copyByteArray stk bsp seg 0 ssz
+    pure $ US fp (sp+sz) stk
+   where
+   bsp = bytes $ sp+1
+   ssz = sizeofByteArray seg
+   sz = words ssz
+  {-# inline dumpSeg #-}
+
+  fsize (US fp sp _) = sp-fp
+  {-# inline fsize #-}
+
+unull :: Seg 'UN
+unull = byteArrayFromListN 0 ([] :: [Int])
+
+bnull :: Seg 'BX
+bnull = fromListN 0 []
 
 sentinel :: a
 sentinel = error "bad stack access"
 
 instance MEM 'BX where
   data Stack 'BX
-    = BS { bsp :: !Int
-         , bfp :: !Int
+    = BS { bfp :: !Int
+         , bsp :: !Int
          , bstk :: {-# unpack #-} !(MutableArray (PrimState IO) Closure)
          }
   type Elem 'BX = Closure
@@ -182,10 +274,10 @@ instance MEM 'BX where
 
   ensure stki@(BS fp sp stk) sz
     | sz <= 0 = pure stki
-    | sp+sz+1 < sz = pure stki
+    | sp+sz+1 < ssz = pure stki
     | otherwise = do
       stk' <- newArray (ssz+1280) sentinel
-      copyMutableArray stk' 0 stk 0 sp
+      copyMutableArray stk' 0 stk 0 (sp+1)
       pure $ BS fp sp stk'
     where ssz = sizeofMutableArray stk
   {-# inline ensure #-}
@@ -226,8 +318,34 @@ instance MEM 'BX where
     pure $ BS (fp-sz) sp stk
   {-# inline restore #-}
 
-  margs _ _ = error "bargs"
+  margs istk pop (ArgR i l)
+    | i == 0
+   && pop == l = pure istk
+  margs (BS fp sp stk) pop args = do
+    sp <- bargOnto stk sp stk (sp-pop) args
+    pure $ BS fp sp stk
   {-# inline margs #-}
 
-  avail (BS fp sp _) = sp-fp
-  {-# inline avail #-}
+  augSeg (BS _ sp stk) seg args = do
+    cop <- newArray (ssz+asz) sentinel
+    copyArray cop 0 seg 0 ssz
+    _ <- bargOnto stk sp cop (ssz-1) args
+    unsafeFreezeArray cop
+   where
+   ssz = sizeofArray seg
+   asz = case args of
+          Arg1 _   -> 1
+          Arg2 _ _ -> 2
+          ArgN v   -> sizeofPrimArray v
+          ArgR _ l -> l
+  {-# inline augSeg #-}
+
+  dumpSeg (BS fp sp stk) seg = do
+    copyArray stk (sp+1) seg 0 sz
+    pure $ BS fp (sp+sz) stk
+   where
+   sz = sizeofArray seg
+  {-# inline dumpSeg #-}
+
+  fsize (BS fp sp _) = sp-fp
+  {-# inline fsize #-}
