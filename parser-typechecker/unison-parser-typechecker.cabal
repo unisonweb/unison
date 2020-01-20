@@ -34,12 +34,11 @@ library
   hs-source-dirs: src
 
   exposed-modules:
-    Unison.ABT
-    Unison.Blank
     Unison.Builtin
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase.Branch
+    Unison.Codebase.BranchDiff
     Unison.Codebase.BranchLoadMode
     Unison.Codebase.BranchUtil
     Unison.Codebase.Causal
@@ -52,6 +51,7 @@ library
     Unison.Codebase.Editor.HandleCommand
     Unison.Codebase.Editor.Input
     Unison.Codebase.Editor.Output
+    Unison.Codebase.Editor.Output.BranchDiff
     Unison.Codebase.Editor.Propagate
     Unison.Codebase.Editor.RemoteRepo
     Unison.Codebase.Editor.SearchResult'
@@ -63,7 +63,6 @@ library
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
     Unison.Codebase.NameEdit
-    Unison.Codebase.NameSegment
     Unison.Codebase.Path
     Unison.Codebase.Patch
     Unison.Codebase.Reflog
@@ -77,41 +76,25 @@ library
     Unison.Codebase.TranscriptParser
     Unison.Codebase.TypeEdit
     Unison.Codebase.Watch
+    Unison.Codebase.Execute
+    Unison.Codebase.MainTerm
     Unison.CommandLine
     Unison.CommandLine.DisplayValues
     Unison.CommandLine.InputPattern
     Unison.CommandLine.InputPatterns
     Unison.CommandLine.Main
     Unison.CommandLine.OutputMessages
-    Unison.ConstructorType
-    Unison.DataDeclaration
     Unison.DeclPrinter
     Unison.FileParser
     Unison.FileParsers
-    Unison.Hash
-    Unison.Hashable
-    Unison.HashQualified
-    Unison.HashQualified'
-    Unison.Kind
-    Unison.LabeledDependency
     Unison.Lexer
-    Unison.Name
-    Unison.Names2
-    Unison.Names3
     Unison.NamePrinter
     Unison.Parser
     Unison.Parsers
     Unison.Path
-    Unison.Paths
-    Unison.Pattern
-    Unison.PatternP
-    Unison.Prelude
     Unison.PrettyPrintEnv
     Unison.PrettyTerminal
     Unison.PrintError
-    Unison.Reference
-    Unison.Reference.Util
-    Unison.Referent
     Unison.Result
     Unison.Runtime.ANF
     Unison.Runtime.IR
@@ -120,38 +103,30 @@ library
     Unison.Runtime.IOSource
     Unison.Runtime.Vector
     Unison.Runtime.SparseVector
-    Unison.Settings
-    Unison.ShortHash
-    Unison.Symbol
-    Unison.Term
     Unison.TermParser
     Unison.TermPrinter
-    Unison.Type
     Unison.TypeParser
     Unison.TypePrinter
-    Unison.TypeVar
     Unison.Typechecker
     Unison.Typechecker.Components
     Unison.Typechecker.Context
     Unison.Typechecker.Extractor
     Unison.Typechecker.TypeError
     Unison.Typechecker.TypeLookup
+    Unison.Typechecker.TypeVar
     Unison.UnisonFile
     Unison.Util.AnnotatedText
     Unison.Util.Bytes
     Unison.Util.ColorText
-    Unison.Util.Components
     Unison.Util.Exception
     Unison.Util.Free
     Unison.Util.Find
     Unison.Util.Less
     Unison.Util.Logger
-    Unison.Util.List
+    Unison.Util.Map
     Unison.Util.Menu
-    Unison.Util.Monoid
     Unison.Util.Pretty
     Unison.Util.Range
-    Unison.Util.Relation
     Unison.Util.Star3
     Unison.Util.SyntaxText
     Unison.Util.TQueue
@@ -159,7 +134,6 @@ library
     Unison.Util.CycleTable
     Unison.Util.CyclicEq
     Unison.Util.CyclicOrd
-    Unison.Var
 
   build-depends:
     ansi-terminal,
@@ -178,7 +152,6 @@ library
     guid,
     data-memocombinators,
     edit-distance,
-    either,
     errors,
     exceptions,
     extra,
@@ -206,14 +179,11 @@ library
     network-simple,
     non-empty-sequence,
     process,
-    prelude-extras,
     random,
     raw-strings-qq,
-    rfc5051,
     regex-base,
     regex-tdfa,
     safe,
-    sandi,
     shellmet,
     split,
     stm,
@@ -222,6 +192,7 @@ library
     text,
     time,
     transformers,
+    unison-core,
     unliftio,
     util,
     vector
@@ -265,7 +236,9 @@ executable unison
     template-haskell,
     temporary,
     text,
-    unison-parser-typechecker
+    unison-core,
+    unison-parser-typechecker,
+    unix
 
 executable prettyprintdemo
   main-is: Main.hs
@@ -328,6 +301,7 @@ executable tests
     temporary,
     text,
     transformers,
+    unison-core,
     unison-parser-typechecker
 
 executable transcripts
@@ -342,4 +316,5 @@ executable transcripts
     filepath,
     shellmet,
     text,
+    unison-core,
     unison-parser-typechecker

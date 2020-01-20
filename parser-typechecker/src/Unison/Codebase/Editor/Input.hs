@@ -44,6 +44,7 @@ data Input
     -- merge first causal into destination
     | MergeLocalBranchI Path' Path'
     | PreviewMergeLocalBranchI Path' Path'
+    | DiffNamespaceI Path' Path' -- old new
     | PullRemoteBranchI (Maybe (RemoteRepo, Maybe ShortBranchHash, Path)) Path'
     | PushRemoteBranchI (Maybe (RemoteRepo, Path)) Path'
     | ResetRootI (Either ShortBranchHash Path')
@@ -66,7 +67,7 @@ data Input
     | MovePatchI Path.Split' Path.Split'
     | CopyPatchI Path.Split' Path.Split'
     -- delete = unname
-    -- | DeleteDefnI [Path.HQSplit']
+    | DeleteI Path.HQSplit'
     | DeleteTermI Path.HQSplit'
     | DeleteTypeI Path.HQSplit'
     | DeleteBranchI (Maybe Path.Split')
@@ -77,8 +78,11 @@ data Input
     | ResolveTermNameI Path.HQSplit'
     | ResolveTypeNameI Path.HQSplit'
   -- edits stuff:
+    | LoadI (Maybe FilePath)
     | AddI [HQ'.HashQualified]
+    | PreviewAddI [HQ'.HashQualified]
     | UpdateI (Maybe PatchPath) [HQ'.HashQualified]
+    | PreviewUpdateI [HQ'.HashQualified]
     | TodoI (Maybe PatchPath) Path'
     | PropagatePatchI PatchPath Path'
     | ListEditsI (Maybe PatchPath)
@@ -116,6 +120,7 @@ data Input
   | ShowReflogI
   | UpdateBuiltinsI
   | MergeBuiltinsI
+  | DebugNumberedArgsI
   | DebugBranchHistoryI
   | QuitI
   deriving (Eq, Show)

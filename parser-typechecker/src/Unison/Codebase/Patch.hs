@@ -70,6 +70,13 @@ allReferences p = typeReferences p <> termReferences p where
     [ r | (old, TermEdit.Replace new _) <- R.toList (_termEdits p)
         , r <- [old, new] ]
 
+-- | Returns the set of references which are the target of an arrow in the patch
+allReferenceTargets :: Patch -> Set Reference
+allReferenceTargets p = typeReferences p <> termReferences p where
+  typeReferences p = Set.fromList
+    [ new | (_, TypeEdit.Replace new) <- R.toList (_typeEdits p) ]
+  termReferences p = Set.fromList
+    [ new | (_, TermEdit.Replace new _) <- R.toList (_termEdits p) ]
 
 updateTerm :: (Reference -> Reference -> Typing)
            -> Reference -> TermEdit -> Patch -> Patch

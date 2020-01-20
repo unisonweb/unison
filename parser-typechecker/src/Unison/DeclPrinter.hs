@@ -14,6 +14,7 @@ import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , toDataDecl
                                                 )
 import qualified Unison.DataDeclaration        as DD
+import qualified Unison.ConstructorType        as CT
 import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.Name                   as Name
@@ -174,6 +175,16 @@ prettyDeclHeader
   -> Pretty SyntaxText
 prettyDeclHeader name (Left e) = prettyEffectHeader name e
 prettyDeclHeader name (Right d) = prettyDataHeader name d
+
+prettyDeclOrBuiltinHeader
+  :: Var v
+  => HashQualified
+  -> DD.DeclOrBuiltin v a
+  -> Pretty SyntaxText
+prettyDeclOrBuiltinHeader name (DD.Builtin ctype) = case ctype of
+  CT.Data -> fmt S.DataTypeKeyword "builtin type " <> styleHashQualified'' (fmt S.DataType) name 
+  CT.Effect -> fmt S.DataTypeKeyword "builtin ability " <> styleHashQualified'' (fmt S.DataType) name
+prettyDeclOrBuiltinHeader name (DD.Decl e) = prettyDeclHeader name e
 
 fmt :: S.Element -> Pretty S.SyntaxText -> Pretty S.SyntaxText
 fmt = P.withSyntax

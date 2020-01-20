@@ -1,9 +1,11 @@
 use State get put
 use Writer tell
 
-> handle stateHandler "hello" in
-  handle writerHandler [] in
-  replicate 5 main
+> handle
+    handle replicate 5 main
+    with writerHandler []
+  with stateHandler "hello"
+
 
 main = '(tell get)
 
@@ -22,11 +24,11 @@ ability Writer w where
 
 stateHandler : s -> Request {State s} a -> (s, a)
 stateHandler s x = case x of
-  { State.get -> k } -> handle stateHandler s in k s
-  { State.put s -> k } -> handle stateHandler s in k ()
+  { State.get -> k } -> handle k s with stateHandler s
+  { State.put s -> k } -> handle k () with stateHandler s
   { a } -> (s, a)
 
 writerHandler : [w] -> Request {Writer w} a -> ([w], a)
 writerHandler ww x = case x of
-  { Writer.tell w -> k } -> handle writerHandler (ww `snoc` w) in k ()
+  { Writer.tell w -> k } -> handle k () with writerHandler (ww `snoc` w)
   { a } -> (ww, a)

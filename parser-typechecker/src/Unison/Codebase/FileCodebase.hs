@@ -20,6 +20,7 @@ module Unison.Codebase.FileCodebase
 , initCodebaseAndExit
 , initCodebase
 , getCodebaseOrExit
+, getCodebaseDir
 ) where
 
 import Unison.Prelude
@@ -117,8 +118,7 @@ formatAnn = S.Format (pure External) (\_ -> pure ())
 
 initCodebaseAndExit :: Maybe FilePath -> IO ()
 initCodebaseAndExit mdir = do
-  dir <- case mdir of Just dir -> pure dir
-                      Nothing  -> getHomeDirectory
+  dir <- getCodebaseDir mdir
   _ <- initCodebase dir
   exitSuccess
 
@@ -126,18 +126,19 @@ initCodebase :: FilePath -> IO (Codebase IO Symbol Ann)
 initCodebase dir = do
   let path = dir </> codebasePath
   let theCodebase = codebase1 V1.formatSymbol formatAnn path
+  let prettyDir = P.endSentence . P.string $ dir
   whenM (exists path) $
     do PT.putPrettyLn'
          .  P.warnCallout
          .  P.wrap
          $  "It looks like there's already a codebase in: "
-         <> P.string dir
+         <> prettyDir
        exitFailure
   PT.putPrettyLn'
     .  P.warnCallout
     .  P.wrap
     $  "Initializing a new codebase in: "
-    <> P.string dir
+    <> prettyDir
   initialize path
   Codebase.initializeCodebase theCodebase
   pure theCodebase
@@ -149,14 +150,14 @@ getCodebaseOrExit mdir = do
     Just dir -> pure
       ( dir
       , "No codebase exists in "
-          <> P.string dir
+          <> (P.endSentence . P.string $ dir)
           <> P.newline
           <> "Run `ucm -codebase "
           <> P.string dir
           <> " init` to create one, then try again!" )
     Nothing -> do
       dir <- getHomeDirectory
-      let errMsg = P.lines [ "No codebase exists in " <> P.string dir
+      let errMsg = P.lines [ "No codebase exists in " <> (P.endSentence . P.string $ dir)
                            , "Run `ucm init` to create one, then try again!" ]
       pure (dir, errMsg)
 
@@ -167,6 +168,11 @@ getCodebaseOrExit mdir = do
     PT.putPrettyLn'. P.warnCallout . P.wrap $ errMsg
     exitFailure
   pure theCodebase
+
+getCodebaseDir :: Maybe FilePath -> IO FilePath
+getCodebaseDir mdir =
+  case mdir of Just dir -> pure dir
+               Nothing  -> getHomeDirectory
 
 termsDir, typesDir, branchesDir, branchHeadDir, editsDir
   :: CodebasePath -> FilePath
@@ -312,7 +318,7 @@ branchFromFiles loadMode rootDir h@(RawHash h') = do
           Right edits -> pure edits
 
 -- returns Nothing if `root` has no root branch (in `branchHeadDir root`)
-getRootBranch :: 
+getRootBranch ::
   MonadIO m => BranchLoadMode -> CodebasePath -> m (Branch m)
 getRootBranch loadMode root = do
   ifM (exists root)
@@ -322,7 +328,7 @@ getRootBranch loadMode root = do
       conflict -> traverse go conflict >>= \case
         x : xs -> foldM Branch.merge x xs
         []     -> missing
-    ) 
+    )
     missing
  where
   go single = case hashFromString single of
@@ -402,7 +408,7 @@ referentToString = Text.unpack . Referent.toText
 copyDir :: (FilePath -> Bool) -> FilePath -> FilePath -> IO ()
 copyDir predicate from to = do
   createDirectoryIfMissing True to
-  -- createDir doesn't create a new directory on disk, 
+  -- createDir doesn't create a new directory on disk,
   -- it creates a description of an existing directory,
   -- and it crashes if `from` doesn't exist.
   d <- createDir from
@@ -414,8 +420,8 @@ copyDir predicate from to = do
       unless exists . copyFile path $ replaceRoot from to path
 
 copyFromGit :: MonadIO m => FilePath -> FilePath -> m ()
-copyFromGit to from = liftIO . whenM (doesDirectoryExist from) $ 
-  copyDir (\x -> not ((".git" `isSuffixOf` x) || ("_head" `isSuffixOf` x))) 
+copyFromGit to from = liftIO . whenM (doesDirectoryExist from) $
+  copyDir (\x -> not ((".git" `isSuffixOf` x) || ("_head" `isSuffixOf` x)))
           from to
 
 -- Create a codebase structure at `localPath` if none exists, and
@@ -462,7 +468,7 @@ syncToDirectory fmtV fmtA codebase localPath branch = do
         unless alreadyExists $ do
           mayDecl <- Codebase.getTypeDeclaration codebase i
           maybe (calamity i) (putDecl (S.put fmtV) (S.put fmtA) localPath i) mayDecl
-      _ -> pure ()
+      Reference.Builtin{} -> pure ()
     -- Write all terms
     for_ (toList $ Star3.fact terms) $ \case
       Ref r@(Reference.DerivedId i) -> do
@@ -475,7 +481,8 @@ syncToDirectory fmtV fmtA codebase localPath branch = do
           -- If the term is a test, write the cached value too.
           mayTest <- Codebase.getWatch codebase UF.TestWatch i
           maybe (pure ()) (putWatch (S.put fmtV) (S.put fmtA) localPath UF.TestWatch i) mayTest
-      _ -> pure ()
+      Ref Reference.Builtin{} -> pure ()
+      Con{} -> pure ()
 
 putTerm
   :: MonadIO m

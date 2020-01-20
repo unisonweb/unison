@@ -80,15 +80,17 @@ y = "hello"
 
 .master> merge .feature1
 
-  🆕
+  Here's what's changed in the current namespace after the
+  merge:
   
-  Here's what's changed in the current namespace after the merge:
+  Added definitions:
   
-  + Adds / updates:
+    1. y : Text
   
-    y
-  
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Tip: You can use `todo` to see if this generated any work to
+       do in this namespace and `test` to run the tests. Or you
+       can use `undo` or `reflog` to undo the results of this
+       merge.
 
 .master> view y
 
@@ -105,28 +107,24 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
 ```ucm
 .> delete.namespace .feature1
 
-  🆕
+  Removed definitions:
   
-  Here's what's changed after the delete:
+    1. y : Text
   
-  - Deletes:
-  
-    .feature1.y
-  
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 .> history
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #qb1es1ffsc
+  ⊙ #3t7g2qvipn
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #0qp14skcvq
+  ⊙ #apvlpvcp3d
   
     + Adds / updates:
     
@@ -137,26 +135,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #o81qo9djak
+  ⊙ #ghtqs97inl
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #hpi3khm1pc
+  ⊙ #4gdo81ai0g
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #hnr66i7ott
+  ⊙ #93rrghj9g3
   
     + Adds / updates:
     
       x
   
-  □ #ms0tsudte1 (start of history)
+  □ #vhfguc9tkp (start of history)
 
 ```
 To resurrect an old version of a namespace, you can learn its hash via the `history` command, then use `fork #namespacehash .newname`.
@@ -203,6 +201,14 @@ z = 99
     z : Nat
 
 .feature2> delete.term x
+
+  Name changes:
+  
+    Original         Changes
+    1. feature2.x ┐  2. feature2.x (removed)
+    3. master.x   ┘  
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
 And here's the other fork, where we update `y` and add a new definition, `frobnicate`:
@@ -260,19 +266,20 @@ At this point, `master` and `feature2` both have some changes the other doesn't 
 ```ucm
 .> merge feature2 master
 
-  🆕
-  
   Here's what's changed in master after the merge:
   
-  + Adds / updates:
+  Added definitions:
   
-    z
+    1. z : Nat
   
-  - Deletes:
+  Removed definitions:
   
-    x
+    2. x : Nat
   
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Tip: You can use `todo` to see if this generated any work to
+       do in this namespace and `test` to run the tests. Or you
+       can use `undo` or `reflog` to undo the results of this
+       merge.
 
 ```
 Notice that `x` is deleted in the merged branch (it was deleted in `feature2` and untouched by `master`):

@@ -269,7 +269,7 @@ isOk SlurpResult {..} =
   SC.isEmpty defsWithBlockedDependencies
 
 isAllDuplicates :: Ord v => SlurpResult v -> Bool
-isAllDuplicates (SlurpResult {..}) =
+isAllDuplicates SlurpResult {..} =
   SC.isEmpty adds &&
   SC.isEmpty updates &&
   SC.isEmpty extraDefinitions &&

@@ -6,7 +6,8 @@ module Unison.Codebase.Editor.Command (
   LexedSource,
   Source,
   SourceName,
-  TypecheckingResult
+  TypecheckingResult,
+  LoadSourceResult(..)
   ) where
 
 import Unison.Prelude
@@ -47,6 +48,10 @@ type Source = Text
 type LexedSource = (Text, [L.Token L.Lexeme])
 type Term v a = Term.AnnotatedTerm v a
 
+data LoadSourceResult = InvalidSourceNameError
+                      | LoadError
+                      | LoadSuccess Text
+
 type TypecheckingResult v =
   Result (Seq (Note v Ann))
          (Either Names0 (UF.TypecheckedUnisonFile v Ann))
@@ -60,6 +65,7 @@ data Command m i v a where
 
   -- Presents some output to the user
   Notify :: Output v -> Command m i v ()
+  NotifyNumbered :: NumberedOutput v -> Command m i v NumberedArgs
 
   -- literally just write some terms and types .unison/{terms,types}
   AddDefsToCodebase :: UF.TypecheckedUnisonFile v Ann -> Command m i v ()
@@ -76,6 +82,8 @@ data Command m i v a where
 
   ParseType :: Names -> LexedSource
             -> Command m i v (Either (Parser.Err v) (Type v Ann))
+
+  LoadSource :: SourceName -> Command m i v LoadSourceResult
 
   Typecheck :: AmbientAbilities v
             -> Names
@@ -129,8 +137,8 @@ data Command m i v a where
 
   LoadRemoteRootBranch ::
     BranchLoadMode -> RemoteRepo -> Command m i v (Either GitError (Branch m))
-  
-  -- returns NoRemoteNamespaceWithHash or RemoteNamespaceHashAmbiguous 
+
+  -- returns NoRemoteNamespaceWithHash or RemoteNamespaceHashAmbiguous
   -- if no exact match.
   LoadRemoteShortBranch ::
     RemoteRepo -> ShortBranchHash -> Command m i v (Either GitError (Branch m))
@@ -154,6 +162,7 @@ data Command m i v a where
 
   LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
 
+  -- todo: change this to take Reference and return DeclOrBuiltin
   LoadType :: Reference.Id -> Command m i v (Maybe (Decl v Ann))
 
   LoadTypeOfTerm :: Reference -> Command m i v (Maybe (Type v Ann))

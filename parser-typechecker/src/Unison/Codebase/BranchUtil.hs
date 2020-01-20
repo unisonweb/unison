@@ -15,13 +15,16 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import Unison.Reference (Reference)
 import Unison.HashQualified' (HashQualified'(NameOnly, HashQualified))
+import qualified Unison.HashQualified' as HQ'
 import qualified Unison.ShortHash as SH
 import qualified Unison.Util.Relation as R
+import qualified Unison.Util.Relation4 as R4
 import qualified Unison.Util.Star3 as Star3
 import Unison.Codebase.Metadata (Metadata)
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Util.List as List
 import Unison.Codebase.Patch (Patch)
+import Unison.Codebase.NameSegment (HQSegment, NameSegment)
 
 addFromNames0 :: Applicative m => Names0 -> Branch0 m -> Branch0 m
 addFromNames0 names0 = Branch.stepManyAt0 (typeActions <> termActions)
@@ -51,6 +54,17 @@ getTermByShortHash sh b = filter sh $ Branch.deepReferents b
   where
   filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Referent.toShortHash r)
 
+getTermMetadataHQNamed :: (Path.Path, HQSegment) -> Branch0 m -> Metadata.R4 Referent NameSegment
+getTermMetadataHQNamed (path, hqseg) b =
+  R4.filter (\(r,n,_t,_v) -> HQ'.matchesNamedReferent n r hqseg) terms
+  where terms = Metadata.starToR4 . Branch._terms $ Branch.getAt0 path b
+
+getTypeMetadataHQNamed :: (Path.Path, HQSegment) -> Branch0 m -> Metadata.R4 Reference NameSegment
+getTypeMetadataHQNamed (path, hqseg) b =
+  R4.filter (\(r,n,_t,_v) -> HQ'.matchesNamedReference n r hqseg) types
+  where types = Metadata.starToR4 . Branch._types $ Branch.getAt0 path b
+
+-- todo: audit usages and maybe eliminate!
 -- Only returns metadata for the term at the exact level given
 getTermMetadataAt :: (Path.Path, a) -> Referent -> Branch0 m -> Metadata
 getTermMetadataAt (path,_) r b = Set.fromList <$> List.multimap mdList
@@ -58,14 +72,6 @@ getTermMetadataAt (path,_) r b = Set.fromList <$> List.multimap mdList
   mdList :: [(Metadata.Type, Metadata.Value)]
   mdList = Set.toList . R.ran . Star3.d3 . Star3.selectFact (Set.singleton r) $ terms
   terms = Branch._terms $ Branch.getAt0 path b
-
--- Returns metadata at or below the exact level given
-getTermMetadataUnder :: (Path.Path, a) -> Referent -> Branch0 m -> Metadata
-getTermMetadataUnder (path,_) r b = Set.fromList <$> List.multimap mdList
-  where
-  mdList :: [(Metadata.Type, Metadata.Value)]
-  mdList = Set.toList . R.ran . Star3.d3 . Star3.selectFact (Set.singleton r) $ terms
-  terms = Branch.deepTerms $ Branch.getAt0 path b
 
 getType :: Path.HQSplit -> Branch0 m -> Set Reference
 getType (p, hq) b = case hq of
@@ -86,13 +92,6 @@ getTypeMetadataAt (path,_) r b = Set.fromList <$> List.multimap mdList
   mdList :: [(Metadata.Type, Metadata.Value)]
   mdList = Set.toList . R.ran . Star3.d3 . Star3.selectFact (Set.singleton r) $ types
   types = Branch._types $ Branch.getAt0 path b
-
-getTypeMetadataUnder :: (Path.Path, a) -> Reference -> Branch0 m -> Metadata
-getTypeMetadataUnder (path,_) r b = Set.fromList <$> List.multimap mdList
-  where
-  mdList :: [(Metadata.Type, Metadata.Value)]
-  mdList = Set.toList . R.ran . Star3.d3 . Star3.selectFact (Set.singleton r) $ types
-  types = Branch.deepTypes $ Branch.getAt0 path b
 
 getBranch :: Path.Split -> Branch0 m -> Maybe (Branch m)
 getBranch (p, seg) b = case Path.toList p of

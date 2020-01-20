@@ -3,17 +3,17 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Unison.CommandLine.Main where
 
 import Unison.Prelude
 
 import Control.Concurrent.STM (atomically)
-import Control.Exception (finally)
+import Control.Exception (finally, catch, AsyncException(UserInterrupt), asyncExceptionFromException)
 import Control.Monad.State (runStateT)
 import Data.IORef
 import Prelude hiding (readFile, writeFile)
-import System.FilePath ((</>))
 import System.IO.Error (catchIOError)
 import System.Exit (die)
 import Unison.Codebase.Branch (Branch)
@@ -21,18 +21,22 @@ import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Input (Input (..), Event)
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
+import Unison.Codebase.Editor.Command (LoadSourceResult(..))
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Codebase (Codebase)
 import Unison.CommandLine
 import Unison.PrettyTerminal
 import Unison.CommandLine.InputPattern (ArgumentType (suggestions), InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
-import Unison.CommandLine.OutputMessages (notifyUser, shortenDirectory)
+import Unison.CommandLine.OutputMessages (notifyUser, notifyNumbered, shortenDirectory)
 import Unison.Parser (Ann)
 import Unison.Var (Var)
 import qualified Control.Concurrent.Async as Async
 import qualified Data.Map as Map
+import qualified Data.Text as Text
+import qualified Data.Text.IO
 import qualified System.Console.Haskeline as Line
+import System.IO.Error (isDoesNotExistError)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase as Codebase
@@ -78,11 +82,14 @@ getUserInput patterns codebase branch currentPath numberedArgs =
     case line of
       Nothing -> pure QuitI
       Just l ->
-        case parseInput patterns . (>>= expandNumber numberedArgs) . words $ l of
-          Left msg -> do
-            liftIO $ putPrettyLn msg
-            go
-          Right i -> pure i
+        case words l of
+          [] -> go
+          ws ->
+            case parseInput patterns . (>>= expandNumber numberedArgs) $ ws  of
+              Left msg -> do
+                liftIO $ putPrettyLn msg
+                go
+              Right i -> pure i
   settings    = Line.Settings tabComplete (Just ".unisonHistory") True
   tabComplete = Line.completeWordWithPrev Nothing " " $ \prev word ->
     -- User hasn't finished a command name, complete from command names
@@ -145,11 +152,12 @@ main
   . Var v
   => FilePath
   -> Path.Absolute
+  -> FilePath
   -> [Either Event Input]
   -> IO (Runtime v)
   -> Codebase IO v Ann
   -> IO ()
-main dir initialPath initialInputs startRuntime codebase = do
+main dir initialPath configFile initialInputs startRuntime codebase = do
   dir' <- shortenDirectory dir
   root <- Codebase.getRootBranch codebase
   putPrettyLn $ if Branch.isOne root
@@ -163,8 +171,9 @@ main dir initialPath initialInputs startRuntime codebase = do
     pathRef                  <- newIORef initialPath
     initialInputsRef         <- newIORef initialInputs
     numberedArgsRef          <- newIORef []
+    pageOutput               <- newIORef True
     (config, cancelConfig)   <-
-      catchIOError (watchConfig $ dir </> ".unisonConfig") $ \_ ->
+      catchIOError (watchConfig configFile) $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
     cancelWatchBranchUpdates <- watchBranchUpdates (Branch.headHash <$>
@@ -180,17 +189,42 @@ main dir initialPath initialInputs startRuntime codebase = do
           path <- readIORef pathRef
           numberedArgs <- readIORef numberedArgsRef
           getUserInput patternMap codebase root path numberedArgs
+        loadSourceFile :: Text -> IO LoadSourceResult
+        loadSourceFile fname = do
+          if allow $ Text.unpack fname
+            then
+              let handle :: IOException -> IO LoadSourceResult
+                  handle e = do
+                    case e of
+                      _ | isDoesNotExistError e -> return InvalidSourceNameError
+                      _ -> return LoadError
+                  go = do
+                    contents <- Data.Text.IO.readFile $ Text.unpack fname
+                    return $ LoadSuccess contents
+                  in catch go handle
+            else return InvalidSourceNameError
+        notify = notifyUser dir >=> (\o -> do
+          ifM (readIORef pageOutput)
+              (putPrettyNonempty o)
+              (putPrettyLnUnpaged o))
     let
       awaitInput = do
         -- use up buffered input before consulting external events
         i <- readIORef initialInputsRef
-        case i of
+        (case i of
           h:t -> writeIORef initialInputsRef t >> pure h
           [] ->
             -- Race the user input and file watch.
             Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
-              Left _ -> Left <$> atomically (Q.dequeue eventQueue)
-              x      -> pure x
+              Left _ -> do
+                let e = Left <$> atomically (Q.dequeue eventQueue)
+                writeIORef pageOutput False
+                e
+              x      -> do
+                writeIORef pageOutput True
+                pure x) `catch` interruptHandler
+      interruptHandler (asyncExceptionFromException -> Just UserInterrupt) = awaitInput
+      interruptHandler _ = pure $ Right QuitI
       cleanup = do
         Runtime.terminate runtime
         cancelConfig
@@ -202,7 +236,10 @@ main dir initialPath initialInputs startRuntime codebase = do
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (writeIORef rootRef)
                                      runtime
-                                     (notifyUser dir >=> putPrettyNonempty)
+                                     notify
+                                     (\o -> let (p, args) = notifyNumbered o in
+                                      putPrettyNonempty p $> args)
+                                     loadSourceFile
                                      codebase
                                      free
         case o of
@@ -212,4 +249,3 @@ main dir initialPath initialInputs startRuntime codebase = do
             loop state'
     (`finally` cleanup)
       $ loop (HandleInput.loopState0 root initialPath)
-

@@ -101,6 +101,7 @@ data Error v
   | TypeDeclarationErrors [UF.Error v Ann]
   | ResolutionFailures [Names.ResolutionFailure v Ann]
   | DuplicateTypeNames [(v, [Ann])]
+  | DuplicateTermNames [(v, [Ann])]
   deriving (Show, Eq, Ord)
 
 data Ann
@@ -112,10 +113,6 @@ data Ann
 startingLine :: Ann -> Maybe L.Line
 startingLine (Ann (L.line -> line) _) = Just line
 startingLine _ = Nothing
-
-endingLine :: Ann -> Maybe L.Line
-endingLine (Ann _ (L.line -> line)) = Just line
-endingLine _ = Nothing
 
 instance Monoid Ann where
   mempty = External
@@ -207,11 +204,6 @@ traceRemainingTokens label = do
 mkAnn :: (Annotated a, Annotated b) => a -> b -> Ann
 mkAnn x y = ann x <> ann y
 
-showLineCol :: Annotated a => a -> String
-showLineCol a =
-  let L.Pos line col = start $ ann a
-  in "Line " ++ show line ++ ", column " ++ show col
-
 tok :: (Ann -> a -> b) -> L.Token a -> b
 tok f (L.Token a start end) = f (Ann start end) a
 
@@ -245,7 +237,7 @@ run' p s name env =
             then L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
             else L.lexer name s
       pTraced = traceRemainingTokens "parser receives" *> p
-      env' = env { names = Names.suffixify (names env) } 
+      env' = env { names = Names.suffixify (names env) }
   in runParserT pTraced name (Input lex) env'
 
 run :: Ord v => P v a -> String -> ParsingEnv -> Either (Err v) a
@@ -256,14 +248,6 @@ queryToken :: Ord v => (L.Lexeme -> Maybe a) -> P v (L.Token a)
 queryToken f = P.token go Nothing
   where go t@(f . L.payload -> Just s) = Right $ fmap (const s) t
         go x = Left (pure (P.Tokens (x:|[])), Set.empty)
-
-currentLine :: Ord v => P v (Int, String)
-currentLine = P.lookAhead $ do
-  tok0 <- P.satisfy (const True)
-  let line0 = L.line (L.start tok0)
-  toks <- many $ P.satisfy (\t -> L.line (L.start t) == line0)
-  let lineToks = tok0 Data.List.NonEmpty.:|  toks
-  pure (line0, P.showTokens lineToks)
 
 -- Consume a block opening and return the string that opens the block.
 openBlock :: Ord v => P v (L.Token String)
@@ -278,9 +262,6 @@ openBlockWith s = void <$> P.satisfy ((L.Open s ==) . L.payload)
 -- Match a particular lexeme exactly, and consume it.
 matchToken :: Ord v => L.Lexeme -> P v (L.Token L.Lexeme)
 matchToken x = P.satisfy ((==) x . L.payload)
-
-dot :: Ord v => P v (L.Token L.Lexeme)
-dot = matchToken (L.SymbolyId "." Nothing)
 
 -- The package name that refers to the root, literally just `.`
 importDotId :: Ord v => P v (L.Token Name)
@@ -397,9 +378,6 @@ numeric :: Ord v => P v (L.Token String)
 numeric = queryToken getNumeric
   where getNumeric (L.Numeric s) = Just s
         getNumeric _             = Nothing
-
-sepComma :: Ord v => P v a -> P v [a]
-sepComma = sepBy (reserved ",")
 
 sepBy :: Ord v => P v a -> P v b -> P v [b]
 sepBy sep pb = P.sepBy pb sep

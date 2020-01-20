@@ -1,0 +1,106 @@
+name:          unison-core
+category:      Compiler
+version:       0.1
+license:       MIT
+cabal-version: >= 1.8
+license-file:  LICENSE
+author:        Unison Computing, public benefit corp
+maintainer:    Paul Chiusano <paul.chiusano@gmail.com>, Runar Bjarnason <runarorama@gmail.com>, Arya Irani <arya.irani@gmail.com>
+stability:     provisional
+homepage:      http://unisonweb.org
+bug-reports:   https://github.com/unisonweb/unison/issues
+copyright:     Copyright (C) 2013-2018 Unison Computing, PBC and contributors
+synopsis:      Parser and typechecker for the Unison language
+description:
+
+build-type:    Simple
+extra-source-files:
+data-files:
+
+source-repository head
+  type: git
+  location: git://github.com/unisonweb/unison.git
+
+-- `cabal install -foptimized` enables optimizations
+flag optimized
+  manual: True
+  default: False
+
+flag quiet
+  manual: True
+  default: False
+
+library
+  hs-source-dirs: src
+
+  exposed-modules:
+    Unison.ABT
+    Unison.Blank
+    Unison.Codebase.NameSegment
+    Unison.ConstructorType
+    Unison.DataDeclaration
+    Unison.Hash
+    Unison.HashQualified
+    Unison.HashQualified'
+    Unison.Hashable
+    Unison.Kind
+    Unison.LabeledDependency
+    Unison.Name
+    Unison.Names2
+    Unison.Names3
+    Unison.Paths
+    Unison.Pattern
+    Unison.PatternP
+    Unison.Prelude
+    Unison.Reference
+    Unison.Reference.Util
+    Unison.Referent
+    Unison.Settings
+    Unison.ShortHash
+    Unison.Symbol
+    Unison.Term
+    Unison.Type
+    Unison.Util.Components
+    Unison.Util.List
+    Unison.Util.Monoid
+    Unison.Util.Relation
+    Unison.Util.Relation3
+    Unison.Util.Relation4
+    Unison.Util.Set
+    Unison.Var
+
+  build-depends:
+    base,
+    bytestring,
+    containers,
+    cryptonite,
+    either,
+    extra,
+    lens,
+    prelude-extras,
+    memory,
+    mtl,
+    rfc5051,
+    safe,
+    sandi,
+    text,
+    transformers,
+    util,
+    vector
+
+  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+
+  default-extensions:
+    DeriveFunctor
+    FlexibleContexts
+    FlexibleInstances
+    LambdaCase
+    ScopedTypeVariables
+    TupleSections
+    TypeSynonymInstances
+
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields
+
+  if flag(quiet)
+    ghc-options: -v0

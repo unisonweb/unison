@@ -13,15 +13,16 @@ import Control.Exception (finally)
 import Control.Monad.State (runStateT)
 import Data.IORef
 import Prelude hiding (readFile, writeFile)
+import System.Directory ( doesFileExist )
 import System.Exit (die)
-import System.FilePath ((</>))
 import System.IO.Error (catchIOError)
 import Unison.Codebase (Codebase)
+import Unison.Codebase.Editor.Command (LoadSourceResult (..))
 import Unison.Codebase.Editor.Input (Input (..), Event(UnisonFileChanged))
 import Unison.CommandLine
 import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
-import Unison.CommandLine.OutputMessages (notifyUser)
+import Unison.CommandLine.OutputMessages (notifyUser, notifyNumbered)
 import Unison.Parser (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
@@ -88,16 +89,20 @@ instance Show Stanza where
 
 parseFile :: FilePath -> IO (Either Err [Stanza])
 parseFile filePath = do
-  txt <- readUtf8 filePath
-  pure $ parse filePath txt
+  exists <- doesFileExist filePath
+  if exists then do
+    txt <- readUtf8 filePath
+    pure $ parse filePath txt
+  else
+    pure $ Left $ show filePath ++ " does not exist"
 
 parse :: String -> Text -> Either Err [Stanza]
 parse srcName txt = case P.parse (stanzas <* P.eof) srcName txt of
   Right a -> Right a
   Left e -> Left (show e)
 
-run :: FilePath -> [Stanza] -> Codebase IO Symbol Ann -> IO Text
-run dir stanzas codebase = do
+run :: FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> IO Text
+run dir configFile stanzas codebase = do
   let initialPath = Path.absoluteEmpty
   let startRuntime = pure Rt1.runtime
   putPrettyLn $ P.lines [
@@ -112,12 +117,13 @@ run dir stanzas codebase = do
     numberedArgsRef          <- newIORef []
     inputQueue               <- Q.newIO
     cmdQueue                 <- Q.newIO
+    unisonFiles              <- newIORef Map.empty
     out                      <- newIORef mempty
     hidden                   <- newIORef False
     allowErrors              <- newIORef False
     hasErrors                <- newIORef False
     (config, cancelConfig)   <-
-      catchIOError (watchConfig $ dir </> ".unisonConfig") $ \_ ->
+      catchIOError (watchConfig configFile) $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
     traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1..])
     let patternMap =
@@ -150,12 +156,12 @@ run dir stanzas codebase = do
                 output ("\n" <> show p <> "\n")
                 -- invalid command is treated as a failure
                 case Map.lookup cmd patternMap of
-                  Nothing -> 
+                  Nothing ->
                     die
                   Just pat -> case IP.parse pat args of
                     Left msg -> do
                       output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
-                      die 
+                      die
                     Right input -> pure $ Right input
           Nothing -> do
             errOk <- readIORef allowErrors
@@ -192,6 +198,7 @@ run dir stanzas codebase = do
                     writeIORef allowErrors errOk
                     output "```ucm\n"
                     atomically . Q.enqueue cmdQueue $ Nothing
+                    modifyIORef' unisonFiles (Map.insert (fromMaybe "scratch.u" filename) txt)
                     pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
                   Ucm hide errOk cmds -> do
                     writeIORef hidden hide
@@ -202,24 +209,40 @@ run dir stanzas codebase = do
                     atomically . Q.enqueue cmdQueue $ Nothing
                     awaitInput
 
+      loadPreviousUnisonBlock name = do
+        ufs <- readIORef unisonFiles
+        case Map.lookup name ufs of
+          Just uf -> do
+            return $ LoadSuccess uf
+          Nothing ->
+            return $ InvalidSourceNameError
+
       cleanup = do Runtime.terminate runtime; cancelConfig
       print o = do
         msg <- notifyUser dir o
         errOk <- readIORef allowErrors
         let rendered = P.toPlain 65 (P.border 2 msg)
         output rendered
-        when (errOk && Output.isFailure o) $ 
-          writeIORef hasErrors True
-        when (not errOk && Output.isFailure o) 
-          die
+        when (Output.isFailure o) $
+          if errOk then writeIORef hasErrors True
+          else die
+          
+      printNumbered o = do
+        let (msg, numberedArgs) = notifyNumbered o
+        errOk <- readIORef allowErrors
+        let rendered = P.toPlain 65 (P.border 2 msg)
+        output rendered
+        when (Output.isNumberedFailure o) $ 
+          if errOk then writeIORef hasErrors True
+          else die
+        pure numberedArgs
 
-      die = do 
+      die = do
         output "\n```\n\n"
         transcriptFailure out $ Text.unlines [
           "\128721", "",
-          "Transcript failed due to the message above.",
-          "Codebase as of the point of failure is in:", "",
-          "  " <> Text.pack dir ]
+          "Transcript failed due to the message above.", "",
+          "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       loop state = do
         writeIORef pathRef (HandleInput._currentPath state)
@@ -228,6 +251,8 @@ run dir stanzas codebase = do
                                      (const $ pure ())
                                      runtime
                                      print
+                                     printNumbered
+                                     loadPreviousUnisonBlock
                                      codebase
                                      free
         case o of

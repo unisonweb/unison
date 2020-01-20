@@ -9,7 +9,7 @@ import           Data.Maybe                     ( fromJust
                                                 )
 import qualified Data.Text                     as Text
 import           Prelude                 hiding ( take )
-import           Unison.Name                    ( Name(Name) )
+import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
@@ -33,7 +33,7 @@ stripNamespace namespace hq = case hq of
   ho                    -> ho
  where
   strip name =
-    fromMaybe name $ Name.stripNamePrefix (Name namespace) name
+    fromMaybe name $ Name.stripNamePrefix (Name.unsafeFromText namespace) name
 
 toName :: HashQualified' n -> Maybe n
 toName = \case
@@ -41,7 +41,7 @@ toName = \case
   HashQualified name _ -> Just name
   HashOnly _           -> Nothing
 
--- Sort the list of names by length of segments: smaller number of 
+-- Sort the list of names by length of segments: smaller number of
 -- segments is listed first. NameOnly < Hash qualified < Hash only
 --
 -- Examples:

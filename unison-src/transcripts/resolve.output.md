@@ -139,27 +139,42 @@ Let's now merge these namespaces into `c`:
 ```ucm
 .example.resolve> merge a c
 
-  🆕
-  
   Here's what's changed in c after the merge:
   
-  + Adds / updates:
+  Updates:
   
-    foo
+    1. foo : Nat
+       ↓
+    2. foo : Nat
   
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Added definitions:
+  
+    3. patch patch (added 1 updates)
+  
+  Tip: You can use `todo` to see if this generated any work to
+       do in this namespace and `test` to run the tests. Or you
+       can use `undo` or `reflog` to undo the results of this
+       merge.
 
 .example.resolve> merge b c
 
-  🆕
-  
   Here's what's changed in c after the merge:
   
-  + Adds / updates:
+  New name conflicts:
   
-    foo
+    1. foo#jdqoenu794 : Nat
+       ↓
+    2. ┌ foo#8e68dvpr0a : Nat
+    3. └ foo#jdqoenu794 : Nat
   
-  Tip: You can always `undo` if this wasn't what you wanted.
+  Updates:
+  
+    4. patch patch (added 1 updates)
+  
+  Tip: You can use `todo` to see if this generated any work to
+       do in this namespace and `test` to run the tests. Or you
+       can use `undo` or `reflog` to undo the results of this
+       merge.
 
 ```
 The namespace `c` now has an edit conflict, since the term `foo` was edited in two different ways.
@@ -216,6 +231,21 @@ We can resolve the name conflict by deleting one of the names.
 
 ```ucm
 .example.resolve.c> delete.term foo#jdqoenu794
+
+  Resolved name conflicts:
+  
+    1. ┌ example.resolve.c.foo#8e68dvpr0a : Nat
+    2. └ example.resolve.c.foo#jdqoenu794 : Nat
+       ↓
+    3. example.resolve.c.foo#8e68dvpr0a : Nat
+  
+  Name changes:
+  
+    Original                               Changes
+    4. example.resolve.a.foo            ┐  5. example.resolve.c.foo#jdqoenu794 (removed)
+    6. example.resolve.c.foo#jdqoenu794 ┘  
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
 And that's how you resolve edit conflicts with UCM.

@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -62,8 +63,14 @@ unsplit' :: Split' -> Path'
 unsplit' (Path' (Left (Absolute p)), seg) = Path' (Left (Absolute (unsplit (p, seg))))
 unsplit' (Path' (Right (Relative p)), seg) = Path' (Right (Relative (unsplit (p, seg))))
 
-unsplit :: (Path, NameSegment) -> Path
+unsplit :: Split -> Path
 unsplit (Path p, a) = Path (p :|> a)
+
+unsplitHQ :: HQSplit -> HQ'.HashQualified' Path
+unsplitHQ (p, a) = fmap (snoc p) a
+
+unsplitHQ' :: HQSplit' -> HQ'.HashQualified' Path'
+unsplitHQ' (p, a) = fmap (snoc' p) a
 
 type Split = (Path, NameSegment)
 type HQSplit = (Path, HQSegment)
@@ -81,6 +88,12 @@ unprefix :: Absolute -> Path' -> Path
 unprefix (Absolute prefix) (Path' p) = case p of
   Left abs -> unabsolute abs
   Right (unrelative -> rel) -> fromList $ dropPrefix (toList prefix) (toList rel)
+  
+-- too many types
+prefix :: Absolute -> Path' -> Path
+prefix (Absolute (Path prefix)) (Path' p) = case p of
+  Left (unabsolute -> abs) -> abs
+  Right (unrelative -> rel) -> Path $ prefix <> toSeq rel  
 
 -- .libs.blah.poo is Absolute
 -- libs.blah.poo is Relative
@@ -224,6 +237,12 @@ fromList = Path . Seq.fromList
 splitFromName :: Name -> Maybe Split
 splitFromName = unsnoc . fromName
 
+unprefixName :: Absolute -> Name -> Name
+unprefixName prefix = toName . unprefix prefix . fromName'
+
+prefixName :: Absolute -> Name -> Name
+prefixName p = toName . prefix p . fromName'
+
 singleton :: NameSegment -> Path
 singleton n = fromList [n]
 
@@ -262,6 +281,15 @@ uncons p = case p of
 --       identifiers called Function.(.)
 fromName :: Name -> Path
 fromName = fromList . fmap NameSegment . Text.splitOn "." . Name.toText
+
+fromName' :: Name -> Path'
+fromName' n = case first of
+  [NameSegment ""] -> Path' . Left . Absolute . Path $ Seq.drop 1 seq
+  _    -> Path' . Right $ Relative path
+ where
+  path  = fromName n
+  seq   = toSeq path
+  first = Seq.take 1 seq
 
 toName :: Path -> Name
 toName = Name.unsafeFromText . toText

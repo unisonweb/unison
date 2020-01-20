@@ -113,6 +113,26 @@ todo = InputPattern
     [] -> Right $ Input.TodoI Nothing Path.relativeEmpty'
   )
 
+load :: InputPattern
+load = InputPattern
+  "load"
+  []
+  [(Optional, noCompletions)]
+  (P.wrapColumn2
+    [ ( makeExample' load
+      , "parses, typechecks, and evaluates the most recent scratch file."
+      )
+    , (makeExample load ["<scratch file>"]
+      , "parses, typechecks, and evaluates the given scratch file."
+      )
+    ]
+  )
+  (\case
+    [] -> pure $ Input.LoadI Nothing
+    [file] -> pure $ Input.LoadI . Just $ file
+    _ -> Left (I.help load))
+
+
 add :: InputPattern
 add =
   InputPattern
@@ -124,6 +144,27 @@ add =
       )
     $ \ws -> case traverse HQ'.fromString ws of
         Just ws -> pure $ Input.AddI ws
+        Nothing ->
+          Left
+            . warn
+            . P.lines
+            . fmap fromString
+            . ("I don't know what these refer to:\n" :)
+            $ collectNothings HQ'.fromString ws
+
+previewAdd :: InputPattern
+previewAdd =
+  InputPattern
+      "add.preview"
+      []
+      [(ZeroPlus, noCompletions)]
+      ("`add.preview` previews additions to the codebase from the most recently "
+      <> "typechecked file. This command only displays cached typechecking "
+      <> "results. Use `load` to reparse & typecheck the file if the context "
+      <> "has changed."
+      )
+    $ \ws -> case traverse HQ'.fromString ws of
+        Just ws -> pure $ Input.PreviewAddI ws
         Nothing ->
           Left
             . warn
@@ -167,6 +208,27 @@ update = InputPattern "update"
                 collectNothings HQ'.fromString ws
     [] -> Right $ Input.UpdateI Nothing [] )
 
+previewUpdate :: InputPattern
+previewUpdate =
+  InputPattern
+      "update.preview"
+      []
+      [(ZeroPlus, noCompletions)]
+      ("`update.preview` previews updates to the codebase from the most "
+      <> "recently typechecked file. This command only displays cached "
+      <> "typechecking results. Use `load` to reparse & typecheck the file if "
+      <> "the context has changed."
+      )
+    $ \ws -> case traverse HQ'.fromString ws of
+        Just ws -> pure $ Input.PreviewUpdateI ws
+        Nothing ->
+          Left
+            . warn
+            . P.lines
+            . fmap fromString
+            . ("I don't know what these refer to:\n" :)
+            $ collectNothings HQ'.fromString ws
+
 patch :: InputPattern
 patch = InputPattern
   "patch"
@@ -198,24 +260,24 @@ view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
       (pure . Input.ShowDefinitionI Input.ConsoleLocation)
 
 display :: InputPattern
-display = InputPattern "display" ["show"] [(Required, exactDefinitionQueryArg)]
+display = InputPattern "display" [] [(Required, exactDefinitionQueryArg)]
       "`display foo` prints a rendered version of the term `foo`."
-      (\case 
+      (\case
         [s] -> pure (Input.DisplayI Input.ConsoleLocation s)
         _ -> Left (I.help display))
 
 displayTo :: InputPattern
 displayTo = InputPattern "display.to" [] [(Required, noCompletions), (Required, exactDefinitionQueryArg)]
-      (P.wrap $ makeExample displayTo ["<filename>", "foo"] 
+      (P.wrap $ makeExample displayTo ["<filename>", "foo"]
              <> "prints a rendered version of the term `foo` to the given file.")
-      (\case 
+      (\case
         [file,s] -> pure (Input.DisplayI (Input.FileLocation file) s)
         _ -> Left (I.help displayTo))
 
-docs :: InputPattern 
+docs :: InputPattern
 docs = InputPattern "docs" [] [(Required, exactDefinitionQueryArg)]
       ("`docs foo` shows documentation for the definition `foo`.")
-      (\case 
+      (\case
         [s] -> first fromString $ Input.DocsI <$> Path.parseHQSplit' s
         _ -> Left (I.help docs))
 
@@ -314,6 +376,18 @@ renameType = InputPattern "move.type" ["rename.type"]
       _ -> Left . P.warnCallout $ P.wrap
         "`rename.type` takes two arguments, like `rename.type oldname newname`.")
 
+delete :: InputPattern
+delete = InputPattern "delete" []
+    [(OnePlus, exactDefinitionQueryArg)]
+    "`delete foo` removes the term or type name `foo` from the namespace."
+    (\case
+      [query] -> first fromString $ do
+        p <- Path.parseHQSplit' query
+        pure $ Input.DeleteI p
+      _ -> Left . P.warnCallout $ P.wrap
+        "`delete` takes an argument, like `delete name`."
+    )
+
 deleteTerm :: InputPattern
 deleteTerm = InputPattern "delete.term" []
     [(OnePlus, exactDefinitionTermQueryArg)]
@@ -323,7 +397,7 @@ deleteTerm = InputPattern "delete.term" []
         p <- Path.parseHQSplit' query
         pure $ Input.DeleteTermI p
       _ -> Left . P.warnCallout $ P.wrap
-        "`delete.term` takes one or more arguments, like `delete.term name`."
+        "`delete.term` takes an argument, like `delete.term name`."
     )
 
 deleteType :: InputPattern
@@ -335,7 +409,7 @@ deleteType = InputPattern "delete.type" []
         p <- Path.parseHQSplit' query
         pure $ Input.DeleteTypeI p
       _ -> Left . P.warnCallout $ P.wrap
-        "`delete.type` takes one or more arguments, like `delete.type name`."
+        "`delete.type` takes an argument, like `delete.type name`."
     )
 
 aliasTerm :: InputPattern
@@ -568,10 +642,10 @@ push = InputPattern
         (P.parse UriParser.repoPath "url" (Text.pack url))
       when (isJust sbh)
         $ Left "Can't push to a particular remote namespace hash."
-      p <- case rest of 
+      p <- case rest of
         [] -> Right Path.relativeEmpty'
-        [path] -> first fromString $ Path.parsePath' path 
-        _ -> Left (I.help push) 
+        [path] -> first fromString $ Path.parsePath' path
+        _ -> Left (I.help push)
       Right $ Input.PushRemoteBranchI (Just (repo, path)) p
   )
 
@@ -591,6 +665,26 @@ mergeLocal = InputPattern "merge" [] [(Required, pathArg)
         pure $ Input.MergeLocalBranchI src dest
       _ -> Left (I.help mergeLocal)
  )
+
+diffNamespace :: InputPattern
+diffNamespace = InputPattern
+  "diff.namespace"
+  []
+  [(Required, pathArg), (Required, pathArg)]
+  (P.column2
+    [ ( "`diff.namespace before after`"
+      , P.wrap
+        "shows how the namespace `after` differs from the namespace `before`"
+      )
+    ]
+  )
+  (\case
+    [before, after] -> first fromString $ do
+      before <- Path.parsePath' before
+      after <- Path.parsePath' after
+      pure $ Input.DiffNamespaceI before after
+    _ -> Left $ I.help diffNamespace
+  )
 
 previewMergeLocal :: InputPattern
 previewMergeLocal = InputPattern
@@ -893,6 +987,11 @@ names = InputPattern "names" []
     _ -> Left (I.help names)
   )
 
+debugNumberedArgs :: InputPattern 
+debugNumberedArgs = InputPattern "debug.numberedArgs" [] []
+  "Dump the contents of the numbered args state."
+  (const $ Right Input.DebugNumberedArgsI)
+
 debugBranchHistory :: InputPattern
 debugBranchHistory = InputPattern "debug.history" []
   [(Optional, noCompletions)]
@@ -924,11 +1023,16 @@ execute = InputPattern
 validInputs :: [InputPattern]
 validInputs =
   [ help
+  , load
   , add
+  , previewAdd
   , update
+  , previewUpdate
+  , delete
   , forkLocal
   , mergeLocal
   , previewMergeLocal
+  , diffNamespace
   , names
   , push
   , pull
@@ -970,6 +1074,7 @@ validInputs =
   , quit
   , updateBuiltins
   , mergeBuiltins
+  , debugNumberedArgs
   , debugBranchHistory
   ]
 

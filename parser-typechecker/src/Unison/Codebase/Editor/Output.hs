@@ -2,6 +2,8 @@
 
 module Unison.Codebase.Editor.Output
   ( Output(..)
+  , NumberedOutput(..)
+  , NumberedArgs
   , ListDetailed
   , ShallowListEntry(..)
   , HistoryTail(..)
@@ -11,6 +13,7 @@ module Unison.Codebase.Editor.Output
   , ReflogEntry(..)
   , pushPull
   , isFailure
+  , isNumberedFailure
   ) where
 
 import Unison.Prelude
@@ -52,10 +55,12 @@ import Unison.ShortHash (ShortHash)
 import Unison.Var (Var)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Editor.RemoteRepo as RemoteRepo
+import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
 
 type Term v a = Term.AnnotatedTerm v a
 type ListDetailed = Bool
 type SourceName = Text
+type NumberedArgs = [String]
 
 data PushPull = Push | Pull deriving (Eq, Ord, Show)
 
@@ -64,6 +69,17 @@ pushPull push pull p = case p of
   Push -> push
   Pull -> pull
 
+data NumberedOutput v
+  = ShowDiffNamespace Path.Absolute Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterMerge Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+
+--  | ShowDiff
+
 data Output v
   -- Generic Success response; we might consider deleting this.
   -- I had put the `Input` field here in case we wanted the success message
@@ -71,6 +87,8 @@ data Output v
   = Success Input
   -- User did `add` or `update` before typechecking a file?
   | NoUnisonFile Input
+  | InvalidSourceName String
+  | SourceLoadFailed String
   -- No main function, the [Type v Ann] are the allowed types
   | NoMainFunction Input String PPE.PrettyPrintEnv [Type v Ann]
   | CreatedNewBranch Path.Absolute
@@ -82,12 +100,15 @@ data Output v
   | ParseResolutionFailures Input String [Names.ResolutionFailure v Ann]
   | TypeHasFreeVars Input (Type v Ann)
   | TermAlreadyExists Input Path.Split' (Set Referent)
-  | TypeAmbiguous Input Path.HQSplit' (Set Reference)
-  | TermAmbiguous Input (Either Path.HQSplit' HQ.HashQualified) (Set Referent)
+  | NameAmbiguous
+      Int -- codebase hash length
+      Input Path.HQSplit' (Set Referent) (Set Reference)
+  | TermAmbiguous Input HQ.HashQualified (Set Referent)
   | HashAmbiguous Input ShortHash (Set Referent)
   | BranchHashAmbiguous Input ShortBranchHash (Set ShortBranchHash)
   | BadDestinationBranch Input Path'
   | BranchNotFound Input Path'
+  | NameNotFound Input Path.HQSplit'
   | PatchNotFound Input Path.Split'
   | TypeNotFound Input Path.HQSplit'
   | TermNotFound Input Path.HQSplit'
@@ -103,7 +124,8 @@ data Output v
   | CantDelete Input PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
   | DeleteEverythingConfirmation
   | DeletedEverything
-  | ListNames [(Referent, Set HQ'.HashQualified)] -- term match, term names
+  | ListNames Int -- hq length to print References
+              [(Referent, Set HQ'.HashQualified)] -- term match, term names
               [(Reference, Set HQ'.HashQualified)] -- type match, type names
   -- list of all the definitions within this branch
   | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
@@ -128,6 +150,7 @@ data Output v
                        PPE.PrettyPrintEnvDecl
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
+  -- | Invariant: there's at least one conflict or edit in the TodoOutput.
   | TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
@@ -142,7 +165,6 @@ data Output v
   -- todo: eventually replace these sets with [SearchResult' v Ann]
   -- and a nicer render.
   | BustedBuiltins (Set Reference) (Set Reference)
-  | BranchDiff Names Names
   | GitError Input GitError
   | NoConfiguredGitUrl PushPull Path'
   | ConfiguredGitUrlParseError PushPull Path' Text String
@@ -156,12 +178,14 @@ data Output v
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch (Set ShortBranchHash)
-  | ShowDiff Input Names.Diff
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
   | NothingTodo Input
+  -- | No conflicts or edits remain for the current patch.
+  | NoConflictsOrEdits
   | NotImplemented
   | NoBranchWithHash Input ShortBranchHash
+  | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   deriving (Show)
 
@@ -217,6 +241,8 @@ isFailure :: Ord v => Output v -> Bool
 isFailure o = case o of
   Success{} -> False
   NoUnisonFile{} -> True
+  InvalidSourceName{} -> True
+  SourceLoadFailed{} -> True
   NoMainFunction{} -> True
   CreatedNewBranch{} -> False
   BranchAlreadyExists{} -> True
@@ -227,11 +253,12 @@ isFailure o = case o of
   ParseResolutionFailures{} -> True
   TypeHasFreeVars{} -> True
   TermAlreadyExists{} -> True
-  TypeAmbiguous{} -> True
+  NameAmbiguous{} -> True
   TermAmbiguous{} -> True
   BranchHashAmbiguous{} -> True
   BadDestinationBranch{} -> True
   BranchNotFound{} -> True
+  NameNotFound{} -> True
   PatchNotFound{} -> True
   TypeNotFound{} -> True
   TermNotFound{} -> True
@@ -241,7 +268,7 @@ isFailure o = case o of
   CantDelete{} -> True
   DeleteEverythingConfirmation -> False
   DeletedEverything -> False
-  ListNames tms tys -> null tms && null tys
+  ListNames _ tms tys -> null tms && null tys
   ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ ds -> null ds
   ListOfPatches s -> Set.null s
@@ -272,15 +299,24 @@ isFailure o = case o of
   NothingToPatch{} -> False
   WarnIncomingRootBranch{} -> False
   History{} -> False
-  ShowDiff{} -> False
-  BranchDiff{} -> False
   NotImplemented -> True
+  DumpNumberedArgs{} -> False
   DumpBitBooster{} -> False
   NoBranchWithHash{} -> True
   NothingTodo{} -> False
+  NoConflictsOrEdits{} -> False
   ListShallow _ es -> null es
   HashAmbiguous{} -> True
   ShowReflog{} -> False
 
+isNumberedFailure :: NumberedOutput v -> Bool
+isNumberedFailure = \case
+  ShowDiffNamespace{} -> False
+  ShowDiffAfterDeleteDefinitions{} -> False
+  ShowDiffAfterDeleteBranch{} -> False
+  ShowDiffAfterMerge{} -> False
+  ShowDiffAfterMergePreview{} -> False
+  ShowDiffAfterUndo{} -> False
+  ShowDiffAfterPull{} -> False
 
 

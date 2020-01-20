@@ -11,7 +11,6 @@ module Unison.Names2
   , addTerm
   , addType
   , allReferences
-  , asSearchResults
   , conflicts
   , contains
   , difference
@@ -19,28 +18,30 @@ module Unison.Names2
   , filterByHQs
   , filterBySHs
   , filterTypes
+  , hqName
   , hqTermName
   , hqTypeName
-  , hqTermAliases
-  , hqTypeAliases
+  , hqTermName'
+  , hqTypeName'
+  , _hqTermName
+  , _hqTypeName
+  , _hqTermAliases
+  , _hqTypeAliases
   , names0ToNames
   , prefix0
   , restrictReferences
   , refTermsNamed
-  , termName
-  , typeName
   , terms
   , types
   , termReferences
   , termReferents
   , typeReferences
-  , termSearchResult
-  , typeSearchResult
   , termsNamed
   , typesNamed
   , unionLeft
   , unionLeftName
   , namesForReference
+  , namesForReferent
   )
 where
 
@@ -48,8 +49,6 @@ import Unison.Prelude
 
 import qualified Data.Set                     as Set
 import           Prelude                      hiding (filter)
-import           Unison.Codebase.SearchResult (SearchResult)
-import qualified Unison.Codebase.SearchResult as SR
 import           Unison.HashQualified'        (HashQualified)
 import qualified Unison.HashQualified'        as HQ
 import           Unison.Name                  (Name)
@@ -172,26 +171,13 @@ unionLeft' p a b = Names terms' types'
   go acc (n, r) = if p n r acc then acc else R.insert n r acc
 
 -- could move this to a read-only field in Names
+-- todo: kill this function and pass thru an Int from the codebase, I suppose
 numHashChars :: Names' n -> Int
 numHashChars b = lenFor hashes
   where lenFor _hashes = 3
         hashes = foldl' f (foldl' g mempty (R.ran $ types b)) (R.ran $ terms b)
         g s r = Set.insert r s
         f s r = Set.insert (Referent.toReference r) s
-
-typeName :: Ord n => Names' n -> Reference -> n
-typeName names r =
-  case toList $ R.lookupRan r (types names) of
-    hq : _ -> hq
-    _ -> error
-      ("Names construction should have included something for " <> show r)
-
-termName :: Ord n => Names' n -> Referent -> n
-termName names r =
-  case toList $ R.lookupRan r (terms names) of
-    hq : _ -> hq
-    _ -> error
-      ("Names construction should have included something for " <> show r)
 
 termsNamed :: Ord n => Names' n -> n -> Set Referent
 termsNamed = flip R.lookupDom . terms
@@ -221,33 +207,71 @@ addType n r = (<> fromTypes [(n, r)])
 addTerm :: Ord n => n -> Referent -> Names' n -> Names' n
 addTerm n r = (<> fromTerms [(n, r)])
 
+-- | Like hqTermName and hqTypeName, but considers term and type names to
+-- conflict with each other (so will hash-qualify if there is e.g. both a term
+-- and a type named "foo").
+--
+-- This is useful in contexts such as printing branch diffs. Example:
+--
+--     - Deletes:
+--
+--       foo
+--       foo
+--
+-- We want to append the hash regardless of whether or not one is a term and the
+-- other is a type.
+hqName :: Ord n => Names' n -> n -> Either Reference Referent -> HQ.HashQualified' n
+hqName b n = \case
+  Left r  -> if ambiguous then _hqTypeName' b n r else HQ.fromName n
+  Right r -> if ambiguous then _hqTermName' b n r else HQ.fromName n
+  where
+    ambiguous = Set.size (termsNamed b n) + Set.size (typesNamed b n) > 1
+
 -- Conditionally apply hash qualifier to term name.
 -- Should be the same as the input name if the Names0 is unconflicted.
-hqTermName :: Ord n => Names' n -> n -> Referent -> HQ.HashQualified' n
-hqTermName b n r = if Set.size (termsNamed b n) > 1
-  then hqTermName' b n r
+hqTermName :: Ord n => Int -> Names' n -> n -> Referent -> HQ.HashQualified' n
+hqTermName hqLen b n r = if Set.size (termsNamed b n) > 1
+  then hqTermName' hqLen n r
   else HQ.fromName n
 
-hqTypeName :: Ord n => Names' n -> n -> Reference -> HQ.HashQualified' n
-hqTypeName b n r = if Set.size (typesNamed b n) > 1
-  then hqTypeName' b n r
+hqTypeName :: Ord n => Int -> Names' n -> n -> Reference -> HQ.HashQualified' n
+hqTypeName hqLen b n r = if Set.size (typesNamed b n) > 1
+  then hqTypeName' hqLen n r
   else HQ.fromName n
 
-hqTypeAliases ::
+_hqTermName :: Ord n => Names' n -> n -> Referent -> HQ.HashQualified' n
+_hqTermName b n r = if Set.size (termsNamed b n) > 1
+  then _hqTermName' b n r
+  else HQ.fromName n
+
+_hqTypeName :: Ord n => Names' n -> n -> Reference -> HQ.HashQualified' n
+_hqTypeName b n r = if Set.size (typesNamed b n) > 1
+  then _hqTypeName' b n r
+  else HQ.fromName n
+
+_hqTypeAliases ::
   Ord n => Names' n -> n -> Reference -> Set (HQ.HashQualified' n)
-hqTypeAliases b n r = Set.map (flip (hqTypeName b) r) (typeAliases b n r)
+_hqTypeAliases b n r = Set.map (flip (_hqTypeName b) r) (typeAliases b n r)
 
-hqTermAliases :: Ord n => Names' n -> n -> Referent -> Set (HQ.HashQualified' n)
-hqTermAliases b n r = Set.map (flip (hqTermName b) r) (termAliases b n r)
+_hqTermAliases :: Ord n => Names' n -> n -> Referent -> Set (HQ.HashQualified' n)
+_hqTermAliases b n r = Set.map (flip (_hqTermName b) r) (termAliases b n r)
 
 -- Unconditionally apply hash qualifier long enough to distinguish all the
 -- References in this Names0.
-hqTermName' :: Names' n -> n -> Referent -> HQ.HashQualified' n
-hqTermName' b n r =
+hqTermName' :: Int -> n -> Referent -> HQ.HashQualified' n
+hqTermName' hqLen n r =
+  HQ.take hqLen $ HQ.fromNamedReferent n r
+
+hqTypeName' :: Int -> n -> Reference -> HQ.HashQualified' n
+hqTypeName' hqLen n r =
+  HQ.take hqLen $ HQ.fromNamedReference n r
+
+_hqTermName' :: Names' n -> n -> Referent -> HQ.HashQualified' n
+_hqTermName' b n r =
   HQ.take (numHashChars b) $ HQ.fromNamedReferent n r
 
-hqTypeName' :: Names' n -> n -> Reference -> HQ.HashQualified' n
-hqTypeName' b n r =
+_hqTypeName' :: Names' n -> n -> Reference -> HQ.HashQualified' n
+_hqTypeName' b n r =
   HQ.take (numHashChars b) $ HQ.fromNamedReference n r
 
 fromTerms :: Ord n => [(n, Referent)] -> Names' n
@@ -255,20 +279,6 @@ fromTerms ts = Names (R.fromList ts) mempty
 
 fromTypes :: Ord n => [(n, Reference)] -> Names' n
 fromTypes ts = Names mempty (R.fromList ts)
-
--- | You may want to sort this list differently afterward.
-asSearchResults :: Names0 -> [SearchResult]
-asSearchResults b =
-  map (uncurry (typeSearchResult b)) (R.toList . types $ b) <>
-  map (uncurry (termSearchResult b)) (R.toList . terms $ b)
-
-termSearchResult :: Names0 -> Name -> Referent -> SearchResult
-termSearchResult b n r =
-  SR.termResult (hqTermName b n r) r (hqTermAliases b n r)
-
-typeSearchResult :: Names0 -> Name -> Reference -> SearchResult
-typeSearchResult b n r =
-  SR.typeResult (hqTypeName b n r) r (hqTypeAliases b n r)
 
 prefix0 :: Name -> Names0 -> Names0
 prefix0 n (Names terms types) = Names terms' types' where
@@ -292,15 +302,6 @@ filterBySHs shs Names{..} = Names terms' types' where
   types' = R.filter g types
   f (_n, r) = any (`SH.isPrefixOf` Referent.toShortHash r) shs
   g (_n, r) = any (`SH.isPrefixOf` Reference.toShortHash r) shs
-
-_toSearchResults :: Names0 -> [SearchResult]
-_toSearchResults n0@(Names terms types) = typeResults <> termResults where
-  typeResults =
-    [ SR.typeResult (hqTypeName n0 name r) r (hqTypeAliases n0 name r)
-    | (name, r) <- R.toList types ]
-  termResults =
-    [ SR.termResult (hqTermName n0 name r) r (hqTermAliases n0 name r)
-    | (name, r) <- R.toList terms]
 
 filterTypes :: Ord n => (n -> Bool) -> Names' n -> Names' n
 filterTypes f (Names terms types) = Names terms (R.filterDom f types)

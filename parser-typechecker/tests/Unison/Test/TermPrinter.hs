@@ -43,7 +43,7 @@ tcDiffRtt rtt s expected width
             note $ "expected:\n" ++ expected
             note $ "actual:\n" ++ actual
             note $ "show(input)  : " ++ show inputTerm
-            note $ "prettyprint  : " ++ show prettied
+            -- note $ "prettyprint  : " ++ show prettied
             crash "actual != expected"
         , if not rtt || (inputTerm == actualReparsed)
           then ok
@@ -124,7 +124,7 @@ test = scope "termprinter" . tests $
   , tc "List.empty"
   , tc "None"
   , tc "Optional.None"
-  , tc "handle foo in bar"
+  , tc "handle foo with bar"
   , tc "Cons 1 1"
   , tc "let\n\
        \  x = 1\n\
@@ -136,10 +136,6 @@ test = scope "termprinter" . tests $
                  \  x = 1\n\
                  \  y = 2\n\
                  \  f x y"
-  , tcBreaks 50 "let\n\
-                 \  x = 1\n\
-                 \  x = 2\n\
-                 \  f x x"
   , pending $ tc "case x of Pair t 0 -> foo t" -- TODO hitting UnknownDataConstructor when parsing pattern
   , pending $ tc "case x of Pair t 0 | pred t -> foo t" -- ditto
   , pending $ tc "case x of Pair t 0 | pred t -> foo t; Pair t 0 -> foo' t; Pair t u -> bar;" -- ditto
@@ -164,13 +160,13 @@ test = scope "termprinter" . tests $
   , pending $ tc "case e of { () -> k } -> z" -- TODO doesn't parse since 'many leaf' expected before the "-> k"
                                               -- need an actual effect constructor to test this with
   , tc "if a then if b then c else d else e"
-  , tc "handle foo in (handle bar in baz)"
+  , tc "handle handle foo with bar with baz"
   , tcBreaks 16 "case (if a then\n\
                  \  b\n\
                  \else c) of\n\
                  \  112 -> x"        -- dodgy layout.  note #517 and #518
-  , tc "handle Pair 1 1 in bar"
-  , tc "handle x -> foo in bar"
+  , tc "handle bar with Pair 1 1"
+  , tc "handle bar with x -> foo"
   , tcDiffRtt True "let\n\
                      \  x = (1 : Int)\n\
                      \  (x : Int)"
@@ -252,12 +248,13 @@ test = scope "termprinter" . tests $
                  \  baz.f : Int -> Int\n\
                  \  baz.f x = x\n\
                  \  13"
-  , pending $ tcBreaks 90 "handle foo in\n\
+  , tcBreaks 90 "handle\n\
                  \  a = 5\n\
                  \  b =\n\
                  \    c = 3\n\
                  \    true\n\
-                 \  false"  -- TODO comes back out with line breaks around foo
+                 \  false\n\
+                 \with foo"
   , tcBreaks 50 "case x of\n\
                  \  true ->\n\
                  \    d = 1\n\
@@ -323,7 +320,7 @@ test = scope "termprinter" . tests $
   , pending $ tc "case x of [] -> a"      -- ditto
   , tc "case x of Optional.Some (Optional.Some _) -> ()" -- Issue #695
   -- need an actual effect constructor to test the following
-  , pending $ tc "case x of { SomeRequest (Optional.Some _) -> k } -> ()" 
+  , pending $ tc "case x of { SomeRequest (Optional.Some _) -> k } -> ()"
   , tcBinding 50 "foo" (Just "Int") "3" "foo : Int\n\
                                          \foo = 3"
   , tcBinding 50 "foo" Nothing "3" "foo = 3"
@@ -367,16 +364,17 @@ test = scope "termprinter" . tests $
                  \  a = b\n\
                  \  a then foo else bar"   -- missing break before 'then', issue #518
   , tcBreaks 80 "Stream.foldLeft 0 (+) t"
-  , tcDiffRtt False "let\n\
-                      \  delay = 'isEven"
-                      "let\n\
-                      \  delay () = isEven\n\
-                      \  _" 80 -- TODO the latter doesn't parse - can't handle the () on the LHS
+  , tcBreaks 80 "let\n\
+                 \  delay = 'isEven\n\
+                 \  ()"
   , tcBreaks 80 "let\n\
                  \  a = ()\n\
                  \  b = ()\n\
                  \  c = (1, 2)\n\
                  \  ()"
+  , tcBreaks 80 "let\n\
+                \  a = [: escaped: \\@ :]\n\
+                \  ()"
 
 -- FQN elision tests
   , tcBreaks 12 "if foo then\n\
@@ -422,28 +420,24 @@ test = scope "termprinter" . tests $
                  \else\n\
                  \  use A X.c YY.c\n\
                  \  g X.c X.c YY.c YY.c"
-  , tcBreaks 20 "handle bar in\n\
-                 \  (if foo then\n\
+  , tcBreaks 20 "handle\n\
+                 \  if foo then\n\
                  \    use A.X c\n\
                  \    f c c\n\
                  \  else\n\
                  \    use A.Y c\n\
-                 \    g c c)"  -- questionable parentheses, issue #517
+                 \    g c c\n\
+                 \with bar"
   , tcBreaks 28 "if foo then\n\
                  \  f (x : (∀ t. Pair t t))\n\
                  \else\n\
                  \  f (x : (∀ t. Pair t t))"
-  , tcDiffRtt False "handle foo in\n\
-                      \  use A x\n\
-                      \  (if f x x then\n\
-                      \    x\n\
-                      \  else y)"  -- missing break before 'then', issue #518; surplus parentheses #517
-                      "handle foo\n\
-                      \in\n\
-                      \  use A x\n\
-                      \  (if f x x then\n\
-                      \    x\n\
-                      \  else y)" 15  -- parser doesn't like 'in' beginning a line
+  , tcBreaks 15 "handle\n\
+                \  use A x\n\
+                \  if f x x then\n\
+                \    x\n\
+                \  else y\n\
+                \with foo"  -- missing break before 'then', issue #518
   , tcBreaks 20 "case x of\n\
                  \  () ->\n\
                  \    use A y\n\
@@ -453,9 +447,10 @@ test = scope "termprinter" . tests $
                  \  f x x\n\
                  \  c = g x x\n\
                  \  h x x"
-  , tcBreaks 15 "handle foo in\n\
+  , tcBreaks 15 "handle\n\
                  \  use A x\n\
-                 \  f x x"
+                 \  f x x\n\
+                 \with foo"
   , tcBreaks 15 "let\n\
                  \  c =\n\
                  \    use A x\n\
@@ -469,11 +464,12 @@ test = scope "termprinter" . tests $
                  \    a =\n\
                  \      use A B.x\n\
                  \      f B.x B.x\n\
-                 \      handle foo in\n\
+                 \      handle\n\
                  \        q =\n\
                  \          use A.B.D x\n\
                  \          h x x\n\
                  \        foo\n\
+                 \      with foo\n\
                  \    bar\n\
                  \  _ ->\n\
                  \    b =\n\
@@ -482,9 +478,10 @@ test = scope "termprinter" . tests $
                  \    bar"
   , tcBreaks 20 "let\n\
                  \  a =\n\
-                 \    handle foo in\n\
+                 \    handle\n\
                  \      use A x\n\
                  \      f x x\n\
+                 \    with foo\n\
                  \  bar"
   , tcBreaks 16 "let\n\
                  \  a =\n\

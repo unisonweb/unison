@@ -152,10 +152,10 @@ candidates b hq = typeCandidates <> termCandidates
   filterTypes = case HQ.toHash hq of
     Just sh -> List.filter $ SH.isPrefixOf sh . Reference.toShortHash. snd
     Nothing -> id
-  typeResult (n, r) = SR.typeResult (Names.hqTypeName b n r) r
-                                    (Names.hqTypeAliases b n r)
-  termResult (n, r) = SR.termResult (Names.hqTermName b n r) r
-                                    (Names.hqTermAliases b n r)
+  typeResult (n, r) = SR.typeResult (Names._hqTypeName b n r) r
+                                    (Names._hqTypeAliases b n r)
+  termResult (n, r) = SR.termResult (Names._hqTermName b n r) r
+                                    (Names._hqTermAliases b n r)
 
 type Pos = Int
 type Len = Int
