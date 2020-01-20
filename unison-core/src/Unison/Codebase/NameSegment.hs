@@ -31,7 +31,7 @@ isEmpty ns = toText ns == mempty
 
 -- | Does this name segment contain only lowercase letters?
 isLower :: NameSegment -> Bool
-isLower = coerce (Text.all Char.isLower)
+isLower = Text.all Char.isLower . toText
 
 isPrefixOf :: NameSegment -> NameSegment -> Bool
 isPrefixOf n1 n2 = Text.isPrefixOf (toText n1) (toText n2)
