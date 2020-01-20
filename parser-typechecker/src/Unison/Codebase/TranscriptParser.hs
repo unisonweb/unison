@@ -171,8 +171,7 @@ run dir configFile stanzas codebase = do
               transcriptFailure out $ Text.unlines [
                 "\128721", "",
                 "Transcript failed due to an unexpected success above.",
-                "Codebase as of the point of failure is in:", "",
-                "  " <> Text.pack dir ]
+                "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
             writeIORef hidden False
             writeIORef allowErrors False
             maybeStanza <- atomically (Q.tryDequeue inputQueue)
