@@ -22,6 +22,7 @@ import           Unison.Parser hiding (seq)
 import           Unison.PatternP (Pattern)
 import           Unison.Term (AnnotatedTerm, IsTop)
 import           Unison.Type (Type)
+import           Unison.Util.List (intercalateMapWith)
 import           Unison.Var (Var)
 import qualified Data.List.Extra as List.Extra
 import qualified Data.Char as Char
@@ -496,7 +497,7 @@ docNormalize tm = case tm of
           StartsIndented   -> False
           StartsUnindented -> True
         candidates = firstIsCandidate : (tail (map candidate ls))
-        result     = mconcat $ intercalate (zip ls candidates) sep fst
+        result     = mconcat $ intercalateMapWith sep fst (zip ls candidates)
         sep (_, candidate1) (_, candidate2) =
           if candidate1 && candidate2 then " " else "\n"
         -- Text.lines forgets whether there was a trailing newline.
@@ -592,18 +593,6 @@ docNormalize tm = case tm of
   mapBlob f (aa@(Term.App' ac@(Term.Constructor' DD.DocRef DD.DocBlobId) at@(Term.Text' txt)))
     = blob (ABT.annotation aa) (ABT.annotation ac) (ABT.annotation at) (f txt)
   mapBlob _ t = t
-
--- Intercalate a list with separators determined by inspecting each
--- adjacent pair.  Assumes even-length input.
-intercalate :: [a] -> (a -> a -> b) -> (a -> b) -> [b]
-intercalate xs sep f = result where
-  xs'   = map f xs
-  pairs = filter (\p -> length p == 2) $ map (take 2) $ List.tails xs
-  seps  = (flip map) pairs $ \case
-    x1 : x2 : _ -> sep x1 x2
-    _           -> error "bad list length in intercalate"
-  paired = zipWith (\sep x -> [sep, x]) seps (drop 1 xs')
-  result = (take 1 xs') ++ mconcat paired
 
 delayQuote :: Var v => TermP v
 delayQuote = P.label "quote" $ do
