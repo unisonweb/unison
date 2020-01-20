@@ -13,6 +13,7 @@ import Control.Exception (finally)
 import Control.Monad.State (runStateT)
 import Data.IORef
 import Prelude hiding (readFile, writeFile)
+import System.Directory ( doesFileExist )
 import System.Exit (die)
 import System.IO.Error (catchIOError)
 import Unison.Codebase (Codebase)
@@ -88,8 +89,12 @@ instance Show Stanza where
 
 parseFile :: FilePath -> IO (Either Err [Stanza])
 parseFile filePath = do
-  txt <- readUtf8 filePath
-  pure $ parse filePath txt
+  exists <- doesFileExist filePath
+  if exists then do
+    txt <- readUtf8 filePath
+    pure $ parse filePath txt
+  else
+    pure $ Left $ show filePath ++ " does not exist"
 
 parse :: String -> Text -> Either Err [Stanza]
 parse srcName txt = case P.parse (stanzas <* P.eof) srcName txt of
@@ -236,9 +241,8 @@ run dir configFile stanzas codebase = do
         output "\n```\n\n"
         transcriptFailure out $ Text.unlines [
           "\128721", "",
-          "Transcript failed due to the message above.",
-          "Codebase as of the point of failure is in:", "",
-          "  " <> Text.pack dir ]
+          "Transcript failed due to the message above.", "",
+          "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       loop state = do
         writeIORef pathRef (HandleInput._currentPath state)
