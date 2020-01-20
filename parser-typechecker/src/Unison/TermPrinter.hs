@@ -121,7 +121,7 @@ data DocLiteralContext
 
      >=2
        if 0a then 0b else 0c
-       handle 2h in 2b
+       handle 0b with 0h
        case 2x of
          a | 2g -> 0b
 
