@@ -159,6 +159,9 @@ pretty0
   , docContext = doc
   }
   term
+  -- Note: the set of places in this function that call calcImports has to be kept in sync
+  -- with the definition of immediateChildBlockTerms, otherwise `use` statements get
+  -- inserted at the wrong scope.
   = specialCases term $ \case
     Var' v -> parenIfInfix name ic $ styleHashQualified'' (fmt S.Var) name
       -- OK since all term vars are user specified, any freshening was just added during typechecking
@@ -950,10 +953,12 @@ allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
   hit t = (getUsages t) == i
 
 -- Return any blockterms at or immediately under this term.  Has to match the places in the
--- syntax that get a call to `calcImports` in `pretty0`.
+-- syntax that get a call to `calcImports` in `pretty0`.  AST nodes that do a calcImports in
+-- pretty0, in order to try and emit a `use` statement, need to be emitted also by this
+-- function, otherwise the `use` statement may come out at an enclosing scope instead.
 immediateChildBlockTerms :: (Var vt, Var v) => AnnotatedTerm2 vt at ap v a -> [AnnotatedTerm2 vt at ap v a]
 immediateChildBlockTerms = \case
-    Handle' _ body -> [body]
+    Handle' handler body -> [handler, body]
     If' _ t f -> [t, f]
     LetBlock bs _ -> concat $ map doLet bs
     Match' _ branches -> concat $ map doCase branches
