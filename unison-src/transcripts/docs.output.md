@@ -131,7 +131,10 @@ Let's add it to the codebase, and link it to the definition:
 
 .> link builtin.List.take docs.List.take
 
-  Done.
+  Updates:
+  
+    1. take : Nat -> [a] -> [a]
+       + 2. docs.List.take : Doc
 
 ```
 Now that documentation is linked to the definition. We can view it if we like:

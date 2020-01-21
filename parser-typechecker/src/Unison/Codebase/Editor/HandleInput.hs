@@ -580,8 +580,8 @@ loop = do
                     (Branch.toNames0 b)
                 diff = Names3.diff0 deletedNames mempty
             diffHelper b Branch.empty0 >>=
-              respondNumbered 
-                . uncurry (ShowDiffAfterDeleteBranch 
+              respondNumbered
+                . uncurry (ShowDiffAfterDeleteBranch
                             $ resolveToAbsolute (Path.unsplit' p))
           else do
             failed <- loadSearchResults $ SR.fromNames failed
@@ -698,7 +698,6 @@ loop = do
       LinkI src mdValue -> do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)
-            (parent, _last) = resolveSplit' src
             mdValuel = toList (getHQ'Terms mdValue)
         case (srcle, srclt, mdValuel) of
           (srcle, srclt, [Referent.Ref mdValue])
@@ -707,8 +706,13 @@ loop = do
               case mdType of
                 Nothing -> respond $ LinkFailure input
                 Just ty -> do
-                  stepAt (parent, step (Type.toReference ty))
-                  success
+                  let parent = Path.toAbsolutePath currentPath' (fst src)
+                  let get = Branch.head <$> getAt parent
+                  before <- get
+                  stepAt (Path.unabsolute parent, step (Type.toReference ty))
+                  after <- get
+                  (ppe, outputDiff) <- diffHelper before after
+                  respondNumbered $ ShowDiffNamespace parent parent ppe outputDiff
                 where
                 step mdType b0 = let
                   tmUpdates terms = foldl' go terms srcle where
