@@ -428,6 +428,14 @@ test = scope "termprinter" . tests $
                  \    use A.Y c\n\
                  \    g c c\n\
                  \with bar"
+  , tcBreaks 20 "let\n\
+                 \  a = 2\n\
+                 \  handle baz\n\
+                 \  with\n\
+                 \    use A.X c\n\
+                 \    if foo then\n\
+                 \      f c c\n\
+                 \    else g c c"
   , tcBreaks 28 "if foo then\n\
                  \  f (x : (∀ t. Pair t t))\n\
                  \else\n\
