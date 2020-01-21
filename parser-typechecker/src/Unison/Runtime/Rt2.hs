@@ -33,16 +33,12 @@ eval !env !ustk !bstk !k (Prim1 op i nx) =
 eval !env !ustk !bstk !k (Prim2 op i j nx) =
   prim2 env ustk bstk k op i j nx
 eval !env !ustk !bstk !k (Pack t args nx) = do
-  (useg, bseg) <- closeArgs ustk bstk unull bnull args
+  clo <- buildData ustk bstk t args
   bstk <- bump bstk
-  poke bstk $ Boxed t useg bseg
+  poke bstk clo
   eval env ustk bstk k nx
 eval !env !ustk !bstk !k (Unpack i nx) = do
-  Boxed t useg bseg <- peekOff bstk i
-  ustk <- dumpSeg ustk useg
-  bstk <- dumpSeg bstk bseg
-  ustk <- bump ustk
-  poke ustk t
+  (ustk, bstk) <- dumpData ustk bstk =<< peekOff bstk i
   eval env ustk bstk k nx
 eval !env !ustk !bstk !k (Match i br) = do
   t <- peekOff ustk i
@@ -117,6 +113,85 @@ moveArgs !ustk !bstk !up !bp (DArgR ui ul bi bl) = do
   bstk <- margs bstk bp (ArgR bi bl)
   pure (ustk, bstk)
 {-# inline moveArgs #-}
+
+buildData
+  :: Stack 'UN -> Stack 'BX -> Tag -> Args -> IO Closure
+buildData !_    !_    !t ZArgs = pure $ Enum t
+buildData !ustk !_    !t (UArg1 i) = do
+  x <- peekOff ustk i
+  pure $ DataU1 t x
+buildData !ustk !_    !t (UArg2 i j) = do
+  x <- peekOff ustk i
+  y <- peekOff ustk j
+  pure $ DataU2 t x y
+buildData !_    !bstk !t (BArg1 i) = do
+  x <- peekOff bstk i
+  pure $ DataB1 t x
+buildData !_    !bstk !t (BArg2 i j) = do
+  x <- peekOff bstk i
+  y <- peekOff bstk j
+  pure $ DataB2 t x y
+buildData !ustk !bstk !t (DArg2 i j) = do
+  x <- peekOff ustk i
+  y <- peekOff bstk j
+  pure $ DataUB t x y
+buildData !ustk !_    !t (UArgR i l) = do
+  useg <- augSeg ustk unull (ArgR i l)
+  pure $ DataG t useg bnull
+buildData !_    !bstk !t (BArgR i l) = do
+  bseg <- augSeg bstk bnull (ArgR i l)
+  pure $ DataG t unull bseg
+buildData !ustk !bstk !t (DArgR ui ul bi bl) = do
+  useg <- augSeg ustk unull (ArgR ui ul)
+  bseg <- augSeg bstk bnull (ArgR bi bl)
+  pure $ DataG t useg bseg
+{-# inline buildData #-}
+
+dumpData
+  :: Stack 'UN -> Stack 'BX -> Closure -> IO (Stack 'UN, Stack 'BX)
+dumpData !ustk !bstk (Enum t) = do
+  ustk <- bump ustk
+  poke ustk t
+  pure (ustk, bstk)
+dumpData !ustk !bstk (DataU1 t x) = do
+  ustk <- bumpn ustk 2
+  pokeOff ustk 1 x
+  poke ustk t
+  pure (ustk, bstk)
+dumpData !ustk !bstk (DataU2 t x y) = do
+  ustk <- bumpn ustk 3
+  pokeOff ustk 2 y
+  pokeOff ustk 1 x
+  poke ustk t
+  pure (ustk, bstk)
+dumpData !ustk !bstk (DataB1 t x) = do
+  ustk <- bump ustk
+  bstk <- bump bstk
+  poke bstk x
+  poke ustk t
+  pure (ustk, bstk)
+dumpData !ustk !bstk (DataB2 t x y) = do
+  ustk <- bump ustk
+  bstk <- bumpn bstk 2
+  pokeOff bstk 1 y
+  poke bstk x
+  poke ustk t
+  pure (ustk, bstk)
+dumpData !ustk !bstk (DataUB t x y) = do
+  ustk <- bumpn ustk 2
+  bstk <- bump bstk
+  pokeOff ustk 1 x
+  poke bstk y
+  poke ustk t
+  pure (ustk, bstk)
+dumpData !ustk !bstk (DataG t us bs) = do
+  ustk <- dumpSeg ustk us
+  bstk <- dumpSeg bstk bs
+  ustk <- bump ustk
+  poke ustk t
+  pure (ustk, bstk)
+dumpData !_    !_  _ = error "dumpData: bad closure"
+{-# inline dumpData #-}
 
 -- Note: although the representation allows it, it is impossible
 -- to under-apply one sort of argument while over-applying the

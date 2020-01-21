@@ -26,7 +26,13 @@ data Closure
   = PAp                !IR   -- code
         {-# unpack #-} !(Seg 'UN) -- unboxed args
   | Bx !Int
-  | Boxed !Int !(Seg 'UN) !(Seg 'BX)
+  | Enum !Int
+  | DataU1 !Int !Int
+  | DataU2 !Int !Int !Int
+  | DataB1 !Int !Closure
+  | DataB2 !Int !Closure !Closure
+  | DataUB !Int !Int !Closure
+  | DataG !Int !(Seg 'UN) !(Seg 'BX)
   | Captured !K {-# unpack #-} !(Seg 'UN) !(Seg 'BX)
 
 type Off = Int
