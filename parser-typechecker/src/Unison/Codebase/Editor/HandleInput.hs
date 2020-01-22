@@ -1,6 +1,5 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-} -- todo: delete
-{-# OPTIONS_GHC -Wno-unused-local-binds #-} -- todo: delete
 
 {-# LANGUAGE ApplicativeDo       #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -574,11 +573,6 @@ loop = do
           if failed == mempty then do
             stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty
             -- Looks similar to the 'toDelete' above... investigate me! ;)
-            let deletedNames =
-                  Names.prefix0
-                    (Path.toName' (Path.unsplit' p))
-                    (Branch.toNames0 b)
-                diff = Names3.diff0 deletedNames mempty
             diffHelper b Branch.empty0 >>=
               respondNumbered
                 . uncurry (ShowDiffAfterDeleteBranch
@@ -899,7 +893,6 @@ loop = do
           defnCount b =
             (R.size . deepTerms $ Branch.head b) +
             (R.size . deepTypes $ Branch.head b)
-          patchCount b = (length . deepEdits $ Branch.head b)
 
         termEntries <- for (R.toList . Star3.d1 $ _terms b0) $
           \(r, ns) -> do
@@ -917,7 +910,7 @@ loop = do
             | (ns, (_h, _mp)) <- Map.toList $ _edits b0 ]
         let
           entries :: [ShallowListEntry v Ann]
-          entries = sort $ termEntries ++ typeEntries ++ branchEntries
+          entries = sort $ termEntries ++ typeEntries ++ branchEntries ++ patchEntries
           entryToHQString :: ShallowListEntry v Ann -> String
           -- caching the result as an absolute path, for easier jumping around
           entryToHQString e = fixup $ case e of
