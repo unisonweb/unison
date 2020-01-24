@@ -29,8 +29,13 @@ x = 1
 
 ```
 ```unison
+---
+title: :scratch.u
+---
 z
+
 ```
+
 
 ```ucm
 .> delete foo
@@ -40,22 +45,30 @@ z
   I don't know about that name.
 
 ```
-However handling of blocks of other languages should be supported.
+```ucm
+.> delete lineToken.call
+
+  ⚠️
+  
+  I don't know about that name.
 
 ```
-python
+However handling of blocks of other languages should be supported.
+
+```python
+
 some python code
 
 ```
 
-```
-c_cpp
+```c_cpp
+
 some C++ code
 
 ```
 
-```
-c9search
+```c9search
+
 some cloud9 code
 
 ```

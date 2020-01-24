@@ -10,12 +10,16 @@ x = 1
 .> add
 ```
 
-```unison:hide:error
+```unison:hide:error:scratch.u
 z
 ```
 
 ```ucm:error
 .> delete foo
+```
+
+```ucm :error
+.> delete lineToken.call
 ```
 
 However handling of blocks of other languages should be supported.
