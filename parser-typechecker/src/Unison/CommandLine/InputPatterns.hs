@@ -40,6 +40,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
+import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -649,6 +650,24 @@ push = InputPattern
       Right $ Input.PushRemoteBranchI (Just (repo, path)) p
   )
 
+createPullRequest :: InputPattern
+createPullRequest = InputPattern "pr.create" ["request-pull"]
+  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
+  (P.wrap $ makeExample createPullRequest ["baseRepo", "topicRepo"]
+    <> "will generate a request to merge `topicRepo` into `baseRepo`.")
+  (\case
+    [baseUrl, headUrl] -> first fromString $ do
+      baseRepo <- parseUri "baseRepo" baseUrl
+      headRepo <- parseUri "topicRepo" headUrl
+      pure $ Input.CreatePullRequestI baseRepo headRepo
+    _ -> Left (I.help createPullRequest)
+  )
+
+parseUri :: IsString b => String -> String -> Either b RemoteNamespace
+parseUri label input =
+  first (fromString . show)
+    (P.parse UriParser.repoPath label (Text.pack input))
+
 mergeLocal :: InputPattern
 mergeLocal = InputPattern "merge" [] [(Required, pathArg)
                                      ,(Optional, pathArg)]
@@ -1036,6 +1055,7 @@ validInputs =
   , names
   , push
   , pull
+  , createPullRequest
   , cd
   , deleteBranch
   , renameBranch

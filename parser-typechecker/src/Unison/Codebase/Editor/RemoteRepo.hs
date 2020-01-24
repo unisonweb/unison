@@ -24,3 +24,6 @@ printNamespace repo sbh path =
     Just sbh -> ":#" <> SBH.toText sbh <>
       if path == Path.empty then mempty
       else "." <> Path.toText path
+
+type RemoteNamespace = (RemoteRepo, Maybe ShortBranchHash, Path)
+type RemoteHead = (RemoteRepo, Path)
