@@ -36,3 +36,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Vladislav Zavialov (@int-index)
 * Aaron Novstrup (@anovstrup)
 * Pete Tsamouris (@pete-ts)
+* Ian Davidson (@bontaq)

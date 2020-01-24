@@ -641,9 +641,11 @@ isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F300' && c <= '\x1FAFF'
 
 symbolyId :: String -> Either Err (String, String)
-symbolyId r@('.':ch:_) | isSpace ch || isDelimeter ch
-                       = symbolyId0 r -- lone dot treated as an operator
-symbolyId ('.':s) = (\(s,rem) -> ('.':s,rem)) <$> symbolyId' s
+symbolyId r@('.':s)
+  | s == ""              = symbolyId0 r --
+  | isSpace (head s)     = symbolyId0 r -- lone dot treated as an operator
+  | isDelimeter (head s) = symbolyId0 r --
+  | otherwise            = (\(s, rem) -> ('.':s, rem)) <$> symbolyId' s
 symbolyId s = symbolyId' s
 
 -- Is a '.' delimited list of wordyId, with a final segment of `symbolyId0`
