@@ -331,6 +331,11 @@ loop = do
           PreviewAddI{} -> wat
           PreviewUpdateI{} -> wat
           CreatePullRequestI{} -> wat
+          LoadPullRequestI base head ->
+            "pr.load "
+              <> (uncurry3 printNamespace) base
+              <> " "
+              <> (uncurry3 printNamespace) head
           PushRemoteBranchI{} -> wat
           PreviewMergeLocalBranchI{} -> wat
           DiffNamespaceI{} -> wat
@@ -508,7 +513,7 @@ loop = do
         (ppe, outputDiff) <- diffHelper before after
         respondNumbered $ ShowDiffNamespace beforep afterp ppe outputDiff
 
-      CreatePullRequestI baseRepo headRepo Nothing -> do
+      CreatePullRequestI baseRepo headRepo -> do
         baseBranch <- loadRemoteBranch baseRepo
         headBranch <- loadRemoteBranch headRepo
         case (baseBranch, headBranch) of
@@ -517,10 +522,12 @@ loop = do
           (_, Left e) -> gitError e
           (Right baseBranch, Right headBranch) -> do
             merged <- eval . Eval $ Branch.merge baseBranch headBranch
-            if merged == baseBranch then respond (NothingTodo input)
-            else respond $ ShowDiff input (Branch.namesDiff baseBranch merged)
+            (ppe, diff) <- diffHelper (Branch.head baseBranch) (Branch.head merged)
+            respondNumbered $ ShowDiffAfterCreatePR baseRepo headRepo ppe diff
         where
         gitError = eval . Notify . GitError input
+
+      LoadPullRequestI baseRepo headRepo -> error "todo: LoadPullRequestI" baseRepo headRepo
 
       -- move the root to a sub-branch
       MoveBranchI Nothing dest -> do
@@ -1756,10 +1763,8 @@ pullRemoteBranchAt
   -> RemoteNamespace
   -> Path.Absolute
   -> Action' m v ()
-pullRemoteBranchAt p' input inputDescription (repo, sbh, remotePath) p = do
-  b <- eval $ maybe (LoadRemoteRootBranch FailIfMissing repo)
-                    (LoadRemoteShortBranch repo) sbh
-  case b of
+pullRemoteBranchAt p' input inputDescription ns p = do
+  loadRemoteBranch ns >>= \case
     Left  e -> eval . Notify $ GitError input e
     Right b -> do
       changed <- updateAtM inputDescription p (doMerge b)
@@ -1777,7 +1782,7 @@ pullRemoteBranchAt p' input inputDescription (repo, sbh, remotePath) p = do
 
 loadRemoteBranch :: RemoteNamespace -> Action' m v (Either GitError (Branch m))
 loadRemoteBranch (repo, sbh, remotePath) = do
-  eroot <-  eval (maybe (LoadRemoteRootBranch repo)
+  eroot <-  eval (maybe (LoadRemoteRootBranch FailIfMissing repo)
                         (LoadRemoteShortBranch repo) sbh)
   pure $ Branch.getAt' remotePath <$> eroot
 

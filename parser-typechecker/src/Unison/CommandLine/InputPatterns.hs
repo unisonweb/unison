@@ -651,18 +651,30 @@ push = InputPattern
   )
 
 createPullRequest :: InputPattern
-createPullRequest = InputPattern "pr.create" ["request-pull"]
+createPullRequest = InputPattern "pr.create" []
   [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
-  (P.wrap $ makeExample createPullRequest ["baseRepo", "topicRepo"]
-    <> "will generate a request to merge `topicRepo` into `baseRepo`.")
+  (P.wrap $ makeExample createPullRequest ["baseRepo", "headRepo"]
+    <> "will generate a request to merge `headRepo` into `baseRepo`.")
   (\case
     [baseUrl, headUrl] -> first fromString $ do
       baseRepo <- parseUri "baseRepo" baseUrl
-      headRepo <- parseUri "topicRepo" headUrl
+      headRepo <- parseUri "headRepo" headUrl
       pure $ Input.CreatePullRequestI baseRepo headRepo
     _ -> Left (I.help createPullRequest)
   )
 
+loadPullRequest :: InputPattern
+loadPullRequest = InputPattern "pr.load" []
+  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
+  (P.wrap $ makeExample loadPullRequest ["baseRepo", "headRepo"]
+    <> "will load a pull request for merging `headRepo` into `baseRepo`.")
+  (\case
+    [baseUrl, headUrl] -> first fromString $ do
+      baseRepo <- parseUri "baseRepo" baseUrl
+      headRepo <- parseUri "topicRepo" headUrl
+      pure $ Input.LoadPullRequestI baseRepo headRepo
+    _ -> Left (I.help loadPullRequest)
+  )
 parseUri :: IsString b => String -> String -> Either b RemoteNamespace
 parseUri label input =
   first (fromString . show)
@@ -1056,6 +1068,7 @@ validInputs =
   , push
   , pull
   , createPullRequest
+  , loadPullRequest
   , cd
   , deleteBranch
   , renameBranch

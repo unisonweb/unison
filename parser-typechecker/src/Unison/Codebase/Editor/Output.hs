@@ -77,6 +77,7 @@ data NumberedOutput v
   | ShowDiffAfterMerge Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterCreatePR RemoteNamespace RemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
 
 --  | ShowDiff
 
@@ -318,5 +319,6 @@ isNumberedFailure = \case
   ShowDiffAfterMergePreview{} -> False
   ShowDiffAfterUndo{} -> False
   ShowDiffAfterPull{} -> False
+  ShowDiffAfterCreatePR{} -> False
 
 

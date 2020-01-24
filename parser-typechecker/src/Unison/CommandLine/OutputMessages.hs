@@ -36,7 +36,7 @@ import qualified Data.Set                      as Set
 import qualified Data.Sequence                 as Seq
 import qualified Data.Text                     as Text
 import           Data.Text.IO                  (readFile, writeFile)
-import           Data.Tuple.Extra              (dupe)
+import           Data.Tuple.Extra              (dupe, uncurry3)
 import           Prelude                       hiding (readFile, writeFile)
 import           System.Directory              (canonicalizePath, doesFileExist)
 import qualified Unison.ABT                    as ABT
@@ -178,10 +178,34 @@ notifyNumbered o = case o of
           undoTip
         ])
         (showDiffNamespace ppe destAbs destAbs diff)
-  where e = Path.absoluteEmpty
-        undoTip = tip $ "You can use" <> IP.makeExample' IP.undo
-                     <> "or" <> IP.makeExample' IP.viewReflog
-                     <> "to undo this change."
+  ShowDiffAfterCreatePR baseRepo headRepo ppe diff ->
+    if OBD.isEmpty diff then
+      (P.wrap $ "Looks like there's no difference between "
+            <> prettyRemoteNamespace baseRepo
+            <> "and"
+            <> prettyRemoteNamespace headRepo <> "."
+      ,mempty)
+    else first (\p ->
+      (P.lines
+        [P.wrap $ "The changes summarized below are available for you to review,"
+                 <> "using the following command:"
+        ,""
+        ,P.indentN 2 $
+          IP.makeExample IP.loadPullRequest [(prettyRemoteNamespace baseRepo)
+                                            ,(prettyRemoteNamespace headRepo)]
+        ,""
+        ,p])) (showDiffNamespace ppe e e diff)
+        -- todo: these numbers aren't going to work,
+        --  since the content isn't necessarily here.
+        -- Should we have a mode with no numbers? :P
+
+  where
+    e = Path.absoluteEmpty
+    prettyRemoteNamespace =
+              P.group . P.text . uncurry3 RemoteRepo.printNamespace
+    undoTip = tip $ "You can use" <> IP.makeExample' IP.undo
+                 <> "or" <> IP.makeExample' IP.viewReflog
+                 <> "to undo this change."
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
