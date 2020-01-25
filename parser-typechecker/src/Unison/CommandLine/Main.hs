@@ -28,7 +28,7 @@ import Unison.CommandLine
 import Unison.PrettyTerminal
 import Unison.CommandLine.InputPattern (ArgumentType (suggestions), InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
-import Unison.CommandLine.OutputMessages (notifyUser, shortenDirectory)
+import Unison.CommandLine.OutputMessages (notifyUser, notifyNumbered, shortenDirectory)
 import Unison.Parser (Ann)
 import Unison.Var (Var)
 import qualified Control.Concurrent.Async as Async
@@ -237,6 +237,8 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
                                      (writeIORef rootRef)
                                      runtime
                                      notify
+                                     (\o -> let (p, args) = notifyNumbered o in
+                                      putPrettyNonempty p $> args)
                                      loadSourceFile
                                      codebase
                                      free

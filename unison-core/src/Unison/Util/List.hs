@@ -2,6 +2,7 @@ module Unison.Util.List where
 
 import Unison.Prelude
 
+import qualified Data.List as List
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
@@ -39,3 +40,15 @@ validate :: (Semigroup e, Foldable f) => (a -> Either e b) -> f a -> Either e [b
 validate f as = case partitionEithers (f <$> toList as) of
   ([], bs) -> Right bs
   (e:es, _) -> Left (foldl' (<>) e es)
+
+-- Intercalate a list with separators determined by inspecting each
+-- adjacent pair.
+intercalateMapWith :: (a -> a -> b) -> (a -> b) -> [a] -> [b]
+intercalateMapWith sep f xs  = result where
+  xs'   = map f xs
+  pairs = filter (\p -> length p == 2) $ map (take 2) $ List.tails xs
+  seps  = (flip map) pairs $ \case
+    x1 : x2 : _ -> sep x1 x2
+    _           -> error "bad list length"
+  paired = zipWith (\sep x -> [sep, x]) seps (drop 1 xs')
+  result = (take 1 xs') ++ mconcat paired

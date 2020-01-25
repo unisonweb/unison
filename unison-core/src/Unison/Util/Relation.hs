@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 module Unison.Util.Relation where
 
 import Unison.Prelude hiding (empty, toList)
@@ -94,6 +95,48 @@ intersection :: (Ord a, Ord b) => Relation a b -> Relation a b -> Relation a b
 intersection r s
   | size r > size s = intersection s r
   | otherwise       = filter (\(a, b) -> member a b s) r
+
+outerJoinDomMultimaps :: (Ord a, Ord b, Ord c)
+                      => Relation a b
+                      -> Relation a c
+                      -> Map a (Set b, Set c)
+outerJoinDomMultimaps b c =
+  Map.fromList
+    [ (a, (lookupDom a b, lookupDom a c)) | a <- S.toList (dom b <> dom c) ]
+
+outerJoinRanMultimaps :: (Ord a, Ord b, Ord c)
+                      => Relation a c
+                      -> Relation b c
+                      -> Map c (Set a, Set b)
+outerJoinRanMultimaps a b = outerJoinDomMultimaps (swap a) (swap b)
+
+innerJoinDomMultimaps :: (Ord a, Ord b, Ord c)
+                      => Relation a b
+                      -> Relation a c
+                      -> Map a (Set b, Set c)
+innerJoinDomMultimaps b c =
+  Map.fromList
+    [ (a, (lookupDom a b, lookupDom a c)) 
+    | a <- S.toList $ dom b `S.intersection` dom c ]
+
+innerJoinRanMultimaps :: (Ord a, Ord b, Ord c)
+                      => Relation a c
+                      -> Relation b c
+                      -> Map c (Set a, Set b)
+innerJoinRanMultimaps a b = innerJoinDomMultimaps (swap a) (swap b)                                            
+
+joinDom :: (Ord a, Ord b, Ord c) => Relation a b -> Relation a c -> Relation a (b,c)
+joinDom b c = swap $ joinRan (swap b) (swap c)
+
+-- joinRan [(1, 'x'), (2, 'x'), (3, 'z')] [(true, 'x'), (true, 'y'), (false, 'z')]
+--      == [((1,true), 'x'), ((2,true), 'x'), ((3,false), 'z')]
+joinRan :: (Ord a, Ord b, Ord c) => Relation a c -> Relation b c -> Relation (a,b) c
+joinRan a b = fromList
+  [ ((a,b), c)
+  | c <- S.toList $ ran a `S.intersection` ran b
+  , a <- S.toList $ lookupRan c a
+  , b <- S.toList $ lookupRan c b
+  ]
 
 ---------------------------------------------------------------
 -- |
@@ -301,7 +344,8 @@ compactSet = S.fold (S.union . fromMaybe S.empty) S.empty
 
 
 -- | Domain restriction for a relation. Modeled on z.
-(<|) :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
+(<|), restrictDom :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
+restrictDom = (<|)
 s <| r = fromList
   $ concatMap (\(x, y) -> zip (repeat x) (S.toList y)) (M.toList domain')
  where
@@ -310,7 +354,8 @@ s <| r = fromList
   dr = domain r  -- just to memoize the value
 
 -- | Range restriction for a relation. Modeled on z.
-(|>) :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
+(|>), restrictRan :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
+restrictRan = (|>)
 r |> t = fromList
   $ concatMap (\(x, y) -> zip (S.toList y) (repeat x)) (M.toList range')
  where
@@ -320,9 +365,11 @@ r |> t = fromList
 
 
 -- Restrict the range to not include these `b`s
-(||>), subtractRan :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
+(||>) :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
 r ||> t = fromList [ (a,b) | (a,b) <- toList r, not (b `S.member` t)]
-subtractRan = (||>)
+
+subtractRan :: (Ord a, Ord b) => Set b -> Relation a b -> Relation a b
+subtractRan = flip (||>)
 
 -- Restrict the domain to not include these `a`
 (<||), subtractDom :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
@@ -431,3 +478,11 @@ instance (Ord a, Ord b) => Semigroup (Relation a b) where
 
 instance (H.Hashable a, H.Hashable b) => H.Hashable (Relation a b) where
   tokens = H.tokens . toList
+
+toUnzippedMultimap ::
+  Ord a => Ord b => Ord c => Relation a (b,c) -> Map a (Set b, Set c)
+toUnzippedMultimap r = (\s -> (S.map fst s, S.map snd s)) <$> toMultimap r
+
+collectRan :: Ord a => Ord c =>
+              (b -> Maybe c) -> Relation a b -> Relation a c
+collectRan f r = fromList [ (a, c) | (a, f -> Just c) <- toList r ]

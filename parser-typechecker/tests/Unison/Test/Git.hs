@@ -28,8 +28,8 @@ testBareRepo = scope "testBareRepo" $ do
     let transcript = makeTranscript repo
 
     -- initialize an fresh codebase
-    let codebase = tmp </> "codebase"
-    FC.initCodebase codebase
+    let codebaseDir = tmp </> "codebase"
+    _codebase <- FC.initCodebase codebaseDir
 
     let configFile = tmp </> ".unisonConfig"
 
@@ -37,7 +37,7 @@ testBareRepo = scope "testBareRepo" $ do
       Left err -> error $ "Parse error: \n" <> show err
       Right stanzas -> void $ do
         currentDir <- getCurrentDirectory
-        theCodebase <- FC.getCodebaseOrExit $ Just codebase
+        theCodebase <- FC.getCodebaseOrExit $ Just codebaseDir
         TR.run currentDir configFile stanzas theCodebase
   ok
 
