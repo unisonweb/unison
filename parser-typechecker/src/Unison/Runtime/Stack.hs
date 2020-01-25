@@ -25,7 +25,6 @@ data K
 data Closure
   = PAp                !IR   -- code
         {-# unpack #-} !(Seg 'UN) -- unboxed args
-  | Bx !Int
   | Enum !Int
   | DataU1 !Int !Int
   | DataU2 !Int !Int !Int
