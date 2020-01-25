@@ -169,15 +169,29 @@ data IR
           !IR     -- delimited computation
   | Capture !Int  -- prompt tag
             !IR   -- following computation
-  | Let !IR !IR
-  | Prim1 !Prim1 !Int !IR
-  | Prim2 !Prim2 !Int !Int !IR
-  | Pack !Int !Args !IR
-  | Unpack !Int !IR
-  | Match !Int !Branch
-  | Yield !Int !Int !Args
-  | Print !Int !IR
-  | Lit !Int !IR
+  | Let !IR       -- do this
+        !IR       -- then continue
+  | Prim1 !Prim1  -- prim op instruction
+          !Int    -- index of prim argument
+          !IR     -- after
+  | Prim2 !Prim2  -- prim op insruction
+          !Int    -- index of first argument
+          !Int    -- index of second argument
+          !IR     -- after
+  | Pack !Int     -- tag
+         !Args    -- arguments to pack
+         !IR      -- after
+  | Unpack !Int   -- index of data to unpack
+           !IR    -- after
+  | Match !Int    -- index of unboxed item to match
+          !Branch -- continuations
+  | Yield !Int    -- unboxed args to throw away
+          !Int    -- boxed args to throw away
+          !Args   -- values to yield
+  | Print !Int    -- index of unboxed value to print
+          !IR     -- after
+  | Lit !Int      -- value to push on the unboxed stack
+        !IR       -- after
 
 data Comb
   = Lam !Int -- Number of unboxed arguments
@@ -191,4 +205,6 @@ data Ref = Stk !Int | Env !Int
 data Branch
   = Prod !IR -- only one branch
   | Test1 !Int !IR !IR -- if tag == n then t else f
-  | Test2 !Int !IR !Int !IR !IR
+  | Test2 !Int !IR     -- if tag == m then ...
+          !Int !IR     -- else if tag == n then ...
+          !IR          -- else ...
