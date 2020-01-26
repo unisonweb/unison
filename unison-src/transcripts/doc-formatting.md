@@ -204,6 +204,9 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 
 @[include] doc1
 
+-- note the leading space below
+  @[signature] List.take
+
 :]
 ```
 ```ucm:hide
