@@ -766,15 +766,20 @@ run ioHandler env ir = do
       go size' m body
 
     -- Garbage collect the elements of the stack that are more than `maxSlot`
-    -- below the top - this is done just by copying to a fresh stack.
+    -- from the top - this is done just by copying to a fresh stack.
+    -- Cornercase: if nothing should be garbage collected returns the stack unchanged.
     gc :: Size -> Stack -> Int -> IO (Size, Stack)
     gc size m maxSlot = do
       when (maxSlot < 0) $ fail $ "invalid max slot for garbage collection: " <> show maxSlot
-      let size2 = maxSlot + 1
-          m2 = MV.slice (size - maxSlot - 1) size2 m
-      m <- MV.clone m2
-      m <- MV.grow m 256
-      pure (size2, m)
+      if (size == maxSlot)
+        then pure (size, m)
+        else do
+          let start = size - maxSlot - 1
+              length = maxSlot + 1
+          m <- MV.clone $ MV.slice start length m
+          m <- MV.grow m 256
+          pure (length, m)
+
     loop (RRequest (Req ref cid vs k)) = do
       ioResult <- ioHandler ref cid vs
       case ioResult of
