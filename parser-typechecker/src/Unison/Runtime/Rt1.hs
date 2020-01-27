@@ -775,10 +775,10 @@ run ioHandler env ir = do
         then pure (size, m)
         else do
           let start = size - maxSlot - 1
-              length = maxSlot + 1
-          m <- MV.clone $ MV.slice start length m
+              len = maxSlot + 1
+          m <- MV.clone $ MV.slice start len m
           m <- MV.grow m 256
-          pure (length, m)
+          pure (len, m)
 
     loop (RRequest (Req ref cid vs k)) = do
       ioResult <- ioHandler ref cid vs
