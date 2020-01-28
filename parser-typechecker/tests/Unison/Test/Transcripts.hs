@@ -2,34 +2,45 @@
 
 module Main where
 
-import Unison.Prelude
-import EasyTest
-import Shellmet ()
-import System.Directory
-import System.FilePath ( (</>), takeExtensions )
-import Data.Text (pack)
-import Data.List
+import           Unison.Prelude
+import           EasyTest
+import           Shellmet                       ( )
+import           System.Directory
+import           System.FilePath                ( (</>)
+                                                , takeExtensions
+                                                )
+import           Data.Text                      ( pack )
+import           Data.List
+
+buildTest :: FilePath -> String -> Test ()
+buildTest dir transcript = scope transcript $ do
+  io $ "stack" ["exec", "unison", "--", "transcript", pack (dir </> transcript)]
+  ok
 
 test :: Test ()
 test = do
+
+  -- each transcript becomes a test case and all tests reduced into one
   let dir = "unison-src" </> "transcripts"
   files <- io $ listDirectory dir
   let transcripts = filter (\f -> takeExtensions f == ".md") files
-      run t = scope t $ do
-        io $ "stack" ["exec", "unison", "--", "transcript", pack (dir </> t)]
-        ok
-  tests (run <$> transcripts)
-  -- Assuming everything passed, we now delete the transcript directories
-  -- If the above fails, this won't be run, so you can inspect the codebase
-  -- that resulted from any failures.
+  tests (buildTest dir <$> transcripts)
+
+  -- the output of failed transcripts is preserved in the . dir
   files' <- io $ listDirectory "."
-  let dirs = filter (\f -> "transcript-" `isPrefixOf` f) files'
-  io $ createDirectoryIfMissing True "test-output"
-  io $ for_ dirs (\d -> renameDirectory d ("test-output" </> d))
-  io . putStrLn . unlines $ [
-    "NOTE: All transcript codebases have been moved into",
-    "the `test-output` directory. Feel free to delete it."
-    ]
+  let dirs = filter ("transcript-" `isPrefixOf`) files'
+
+  -- if any such codebases remain they are moved under test-output
+  unless (null dirs) $ do
+    io $ createDirectoryIfMissing True "test-output"
+    io $ for_ dirs (\d -> renameDirectory d ("test-output" </> d))
+    io
+      . putStrLn
+      . unlines
+      $ [ ""
+        , "NOTE: All transcript codebases have been moved into"
+        , "the `test-output` directory. Feel free to delete it."
+        ]
 
 main :: IO ()
 main = run test
