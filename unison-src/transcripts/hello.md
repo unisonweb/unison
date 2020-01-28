@@ -37,7 +37,7 @@ If `view` returned no results, the transcript would fail at this point.
 
 ## Hiding output
 
-You may not always want to view the output of typechecking and evaluaion every time, in which case, you can add `:hide` to the block. For instance:
+You may not always want to view the output of typechecking and evaluation every time, in which case, you can add `:hide` to the block. For instance:
 
 ```unison:hide
 y = 99
@@ -47,6 +47,12 @@ This works for `ucm` blocks as well.
 
 ```ucm:hide
 .> rename.term x answerToUltimateQuestionOfLife
+```
+
+Doing `unison:hide:all` hides the block altogether, both input and output - this is useful for doing behind-the-scenes control of `ucm`'s state.
+
+```unison:hide:all
+> [: you won't see me :]
 ```
 
 ## Expecting failures
