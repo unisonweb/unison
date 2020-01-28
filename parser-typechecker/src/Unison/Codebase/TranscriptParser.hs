@@ -302,7 +302,7 @@ ucmCommand = do
 fenced :: P Stanza
 fenced = do
   fence
-  fenceType <- lineToken (word "ucm" <|> word "unison" <|> lineUntilSpace)
+  fenceType <- lineToken(word "ucm" <|> word "unison" <|> language)
   stanza <-
     if fenceType == "ucm" then do
       hide <- hidden
@@ -381,8 +381,8 @@ expectingError = isJust <$> optional (word ":error")
 untilSpace1 :: P Text
 untilSpace1 = P.takeWhile1P Nothing (not . Char.isSpace)
 
-lineUntilSpace :: P Text
-lineUntilSpace = P.takeWhileP Nothing (\ch -> ch `elem` (" \t" :: String))
+language :: P Text
+language = P.takeWhileP Nothing (\ch -> Char.isDigit ch || Char.isLower ch || ch == '_' )
 
 spaces :: P ()
 spaces = void $ P.takeWhileP (Just "spaces") Char.isSpace
