@@ -197,8 +197,7 @@ pushManyZ size zs m = do
 ensureSize :: Size -> Stack -> IO Stack
 ensureSize size m =
   if (size > MV.length m) then
-    traceShow ("growing stack to " ++ show size) $
-    MV.grow m (size - MV.length m)
+    MV.grow m size
   else pure m
 
 force :: Value -> IO Value
@@ -423,8 +422,7 @@ run ioHandler env ir = do
   -- traceM $ "Running this program"
   -- traceM $ P.render 80 (pir ir)
   supply <- newIORef 0
-  m0 <- MV.new 1
-  MV.set m0 (T "uninitialized")
+  m0 <- MV.new 256
   let
     fresh :: IO Int
     fresh = atomicModifyIORef' supply (\n -> (n + 1, n))
@@ -450,15 +448,27 @@ run ioHandler env ir = do
         True -> done (B True)
         False -> go size m j
       Not i -> atb size i m >>= (done . B . not)
-      Let var b body freeInBody -> traceShow ir $ go size m b >>= \case
+      Let var b body freeInBody -> go size m b >>= \case
         RRequest req ->
           let needed = if Set.null freeInBody then 0 else Set.findMax freeInBody
           in pure $ RRequest (appendCont var req $ One needed size m body)
         RDone v -> do
           -- Garbage collect the stack occasionally
           (size, m) <-
-            if size > MV.length m `div` 2
-            then gc size m (if Set.null freeInBody then -1 else Set.findMax freeInBody)
+            if size >= MV.length m
+            -- freeInBody just the set of de bruijn indices referenced in `body`
+            -- Examples:
+            --   a) let x = 1 in x, freeInBody = {0}
+            --   b) let x = 1 in 42, freeInBody = {}
+            --   We don't need anything from old stack in either of the above
+            --
+            --   c) let x = 1 in (let y = 2 in x + y), freeInBody = {0,1}
+            --   We need the top element of the old stack to be preserved
+            then let
+              maxSlot =
+                if Set.null freeInBody then -1
+                else Set.findMax freeInBody - 1
+              in gc size m maxSlot
             else pure (size, m)
           -- traceM . P.render 80 $ P.shown var <> " =" `P.hang` pvalue v
           push size v m >>= \m -> go (size + 1) m body
@@ -765,14 +775,12 @@ run ioHandler env ir = do
 
     -- Garbage collect the elements of the stack that are more than `maxSlot`
     -- from the top - this is done just by copying to a fresh stack.
-    -- Cornercase: if nothing should be garbage collected returns the stack unchanged.
     gc :: Size -> Stack -> Int -> IO (Size, Stack)
-    gc size _ maxSlot | trace ("gc size=" ++ show size ++ " maxSlot=" ++ show maxSlot) False = undefined
+    -- when maxSlot = -1, nothing from the old stack is needed.
+    gc _ _ _maxSlot@(-1) = do m <- MV.new 256; pure (0, m)
     gc size m maxSlot = do
       let start = size - maxSlot - 1
           len = maxSlot + 1
-      traceShowM $ "shrinking the stack from " ++ show size ++ "/" ++ show (MV.length m) ++ " to " ++ show len
-      traceM $ "MV.slice start=" ++ show start ++ " len=" ++ show len
       m <- MV.clone $ MV.slice start len m
       pure (len, m)
 
