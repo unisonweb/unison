@@ -3,10 +3,8 @@
 Big lists have been observed to crash, while in the garbage collection step.
 
 ```unison
-unique type Direction = U | D | L | R
-
 a = 0
-x = [a+1]
+x = 1 + a
 ```
 
 ```ucm
@@ -17,9 +15,8 @@ x = [a+1]
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Direction
       a : Nat
-      x : [Nat]
+      x : Nat
    
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
