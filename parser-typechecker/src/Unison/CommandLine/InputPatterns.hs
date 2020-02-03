@@ -653,8 +653,13 @@ push = InputPattern
 createPullRequest :: InputPattern
 createPullRequest = InputPattern "pr.create" []
   [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
-  (P.wrap $ makeExample createPullRequest ["baseRepo", "headRepo"]
-    <> "will generate a request to merge `headRepo` into `baseRepo`.")
+  (P.group $ P.lines
+    [ P.wrap $ makeExample createPullRequest ["baseRepo", "headRepo"]
+        <> "will generate a request to merge the git repo `headRepo`"
+        <> "into the git repo `baseRepo`."
+    , ""
+    , "example: pr.create https://github.com/unisonweb/base https://github.com/me/base"
+    ])
   (\case
     [baseUrl, headUrl] -> first fromString $ do
       baseRepo <- parseUri "baseRepo" baseUrl
