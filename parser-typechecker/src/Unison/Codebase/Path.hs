@@ -88,12 +88,12 @@ unprefix :: Absolute -> Path' -> Path
 unprefix (Absolute prefix) (Path' p) = case p of
   Left abs -> unabsolute abs
   Right (unrelative -> rel) -> fromList $ dropPrefix (toList prefix) (toList rel)
-  
+
 -- too many types
 prefix :: Absolute -> Path' -> Path
 prefix (Absolute (Path prefix)) (Path' p) = case p of
   Left (unabsolute -> abs) -> abs
-  Right (unrelative -> rel) -> Path $ prefix <> toSeq rel  
+  Right (unrelative -> rel) -> Path $ prefix <> toSeq rel
 
 -- .libs.blah.poo is Absolute
 -- libs.blah.poo is Relative
