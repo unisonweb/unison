@@ -1023,7 +1023,7 @@ names = InputPattern "names" []
     _ -> Left (I.help names)
   )
 
-debugNumberedArgs :: InputPattern 
+debugNumberedArgs :: InputPattern
 debugNumberedArgs = InputPattern "debug.numberedArgs" [] []
   "Dump the contents of the numbered args state."
   (const $ Right Input.DebugNumberedArgsI)
