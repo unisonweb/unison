@@ -365,7 +365,7 @@ loop = do
           RemoveTypeReplacementI{} -> undefined
           where
           hp' = either (Text.pack . show) p'
-          p' = Text.pack . show . Path.toAbsolutePath currentPath'
+          p' = Text.pack . show . resolveToAbsolute
           ops' = maybe "." ps'
           opatch = ps' . fromMaybe defaultPatchPath
           wat = error $ show input ++ " is not expected to alter the branch"
@@ -458,14 +458,14 @@ loop = do
               updateRoot root' newRoot inputDescription
               success
           Right path' -> do
-            newRoot <- getAt $ Path.toAbsolutePath currentPath' path'
+            newRoot <- getAt $ resolveToAbsolute path'
             if Branch.isEmpty newRoot then respond $ BranchNotFound input path'
             else do
               updateRoot root' newRoot inputDescription
               success
       ForkLocalBranchI src0 dest0 -> do
         let tryUpdateDest srcb dest0 = do
-              let dest = Path.toAbsolutePath currentPath' dest0
+              let dest = resolveToAbsolute dest0
               -- if dest isn't empty: leave dest unchanged, and complain.
               ok <- updateAtM dest $ \destb ->
                 pure (if Branch.isEmpty destb then srcb else destb)
@@ -475,11 +475,11 @@ loop = do
             Left output -> respond output
             Right srcb -> tryUpdateDest srcb dest0
           Right path' -> do
-            srcb <- getAt $ Path.toAbsolutePath currentPath' path'
+            srcb <- getAt $ resolveToAbsolute path'
             if Branch.isEmpty srcb then respond $ BranchNotFound input path'
             else tryUpdateDest srcb dest0
       MergeLocalBranchI src0 dest0 -> do
-        let [src, dest] = Path.toAbsolutePath currentPath' <$> [src0, dest0]
+        let [src, dest] = resolveToAbsolute <$> [src0, dest0]
         srcb <- getAt src
         if Branch.isEmpty srcb then branchNotFound src0
         else do
@@ -494,7 +494,7 @@ loop = do
           else respond (NothingTodo input)
 
       PreviewMergeLocalBranchI src0 dest0 -> do
-        let [src, dest] = Path.toAbsolutePath currentPath' <$> [src0, dest0]
+        let [src, dest] = resolveToAbsolute <$> [src0, dest0]
         srcb <- getAt src
         if Branch.isEmpty srcb then branchNotFound src0
         else do
@@ -507,7 +507,7 @@ loop = do
 
       DiffNamespaceI before0 after0 -> do
         let [beforep, afterp] =
-              Path.toAbsolutePath currentPath' <$> [before0, after0]
+              resolveToAbsolute <$> [before0, after0]
         before <- Branch.head <$> getAt beforep
         after <- Branch.head <$> getAt afterp
         (ppe, outputDiff) <- diffHelper before after
