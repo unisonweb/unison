@@ -644,7 +644,7 @@ symbolyId :: String -> Either Err (String, String)
 symbolyId r@('.':s)
   | s == ""              = symbolyId0 r --
   | isSpace (head s)     = symbolyId0 r -- lone dot treated as an operator
-  | isDelimeter (head s) = symbolyId0 r --
+  | isDelimiter (head s) = symbolyId0 r --
   | otherwise            = (\(s, rem) -> ('.':s, rem)) <$> symbolyId' s
 symbolyId s = symbolyId' s
 
@@ -722,8 +722,8 @@ layoutCloseOnlyKeywords = Set.fromList ["}"]
 delimiters :: Set Char
 delimiters = Set.fromList "()[]{},?;"
 
-isDelimeter :: Char -> Bool
-isDelimeter ch = Set.member ch delimiters
+isDelimiter :: Char -> Bool
+isDelimiter ch = Set.member ch delimiters
 
 reservedOperators :: Set String
 reservedOperators = Set.fromList ["->", ":", "&&", "||"]

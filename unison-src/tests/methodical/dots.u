@@ -7,7 +7,7 @@ id x = x
 
 id2 = id . id
 
--- You need a space or delimeter char after the dot,
+-- You need a space or delimiter char after the dot,
 -- otherwise Unison assumes it's a rooted name - this will look for
 -- a term called `zonk` in the root:
 --
