@@ -24,6 +24,7 @@ module Unison.Codebase.Branch
     -- * Branch history
     -- ** History queries
   , isEmpty
+  , isEmpty0
   , isOne
   , head
   , headHash

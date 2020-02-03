@@ -654,11 +654,11 @@ createPullRequest :: InputPattern
 createPullRequest = InputPattern "pr.create" []
   [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
   (P.group $ P.lines
-    [ P.wrap $ makeExample createPullRequest ["baseRepo", "headRepo"]
-        <> "will generate a request to merge the git repo `headRepo`"
-        <> "into the git repo `baseRepo`."
+    [ P.wrap $ makeExample createPullRequest ["base", "head"]
+        <> "will generate a request to merge the remote repo `head`"
+        <> "into the remote repo `base`."
     , ""
-    , "example: pr.create https://github.com/unisonweb/base https://github.com/me/base"
+    , "example: pr.create https://github.com/unisonweb/base https://github.com/me/unison:.libs.pr.base"
     ])
   (\case
     [baseUrl, headUrl] -> first fromString $ do
@@ -671,8 +671,10 @@ createPullRequest = InputPattern "pr.create" []
 loadPullRequest :: InputPattern
 loadPullRequest = InputPattern "pr.load" []
   [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
-  (P.wrap $ makeExample loadPullRequest ["baseRepo", "headRepo"]
-    <> "will load a pull request for merging `headRepo` into `baseRepo`.")
+  (P.wrap $ makeExample loadPullRequest ["base", "head"]
+    <> "will load a pull request for merging the remote repo `head` into the"
+    <> "remote repo `base`, staging each in the current namespace"
+    <> "(so make yourself a clean spot to work first).")
   (\case
     [baseUrl, headUrl] -> first fromString $ do
       baseRepo <- parseUri "baseRepo" baseUrl

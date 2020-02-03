@@ -229,6 +229,8 @@ notifyUser dir o = case o of
 --          <> "from `.unison/v1/branches/head/`, but please make a backup first."
 --          <> "There will be a better way of handling this in the future. 😅"
 --      ]
+  LoadPullRequest{} -> error "todo"
+    -- RemoteNamespace RemoteNamespace Path.Relative Path.Relative Path.Relative
 
   DisplayDefinitions outputLoc ppe types terms ->
     displayDefinitions outputLoc ppe types terms
@@ -294,6 +296,9 @@ notifyUser dir o = case o of
     pure . P.warnCallout $ "A type by that name already exists."
   PatchAlreadyExists input _ ->
     pure . P.warnCallout $ "A patch by that name already exists."
+  BranchNotEmpty path ->
+    pure . P.warnCallout $ "I was expecting the namespace " <> prettyPath' path
+      <> " to be empty for this operation, but it isn't."
   CantDelete input ppe failed failedDependents -> pure . P.warnCallout $
     P.lines [
       P.wrap "I couldn't delete ",

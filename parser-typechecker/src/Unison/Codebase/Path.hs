@@ -219,9 +219,11 @@ relativeEmpty' :: Path'
 relativeEmpty' = Path' (Right (Relative empty))
 
 toAbsolutePath :: Absolute -> Path' -> Absolute
-toAbsolutePath (Absolute cur) (Path' p) = case p of
-  Left a -> a
-  Right (Relative rel) -> Absolute (Path $ toSeq cur <> toSeq rel)
+toAbsolutePath cur (Path' p) = either id (relativeToAbsolutePath cur) p
+
+relativeToAbsolutePath :: Absolute -> Relative -> Absolute
+relativeToAbsolutePath (Absolute cur) (Relative rel) =
+  Absolute (Path $ toSeq cur <> toSeq rel)
 
 toPath' :: Path -> Path'
 toPath' = \case

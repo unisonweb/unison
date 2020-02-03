@@ -92,6 +92,8 @@ data Output v
   | SourceLoadFailed String
   -- No main function, the [Type v Ann] are the allowed types
   | NoMainFunction Input String PPE.PrettyPrintEnv [Type v Ann]
+  | BranchNotEmpty Path.Path'
+  | LoadPullRequest RemoteNamespace RemoteNamespace Path.Relative Path.Relative Path.Relative
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Input Path'
   | PatchAlreadyExists Input Path.Split'
@@ -249,6 +251,7 @@ isFailure o = case o of
   BranchAlreadyExists{} -> True
   PatchAlreadyExists{} -> True
   NoExactTypeMatches -> True
+  BranchNotEmpty{} -> True
   TypeAlreadyExists{} -> True
   TypeParseError{} -> True
   ParseResolutionFailures{} -> True
@@ -309,6 +312,7 @@ isFailure o = case o of
   ListShallow _ es -> null es
   HashAmbiguous{} -> True
   ShowReflog{} -> False
+  LoadPullRequest{} -> False
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case

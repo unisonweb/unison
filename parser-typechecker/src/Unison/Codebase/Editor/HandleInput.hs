@@ -47,6 +47,7 @@ import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
 import qualified Text.Megaparsec               as P
 import qualified Data.Set                      as Set
+import qualified Data.Sequence                 as Seq
 import           Data.Sequence                  ( Seq(..) )
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Codebase.BranchDiff    as BranchDiff
@@ -527,7 +528,28 @@ loop = do
         where
         gitError = eval . Notify . GitError input
 
-      LoadPullRequestI baseRepo headRepo -> error "todo: LoadPullRequestI" baseRepo headRepo
+      LoadPullRequestI baseRepo headRepo ->
+        if Branch.isEmpty0 currentBranch0 then do
+          let textToRelative = 
+                Path.Relative . Path.Path . Seq.singleton . NameSegment.NameSegment
+              base = textToRelative "base"
+              head = textToRelative "head"
+              merged = textToRelative "merged"
+              abs = resolveToAbsolute . Path.Path' . Right
+          -- 1. pull baseRepo into `base`
+          -- 2. pull headRepo into `head`
+          pullRemoteBranchAt Nothing input inputDescription baseRepo (abs base)
+          pullRemoteBranchAt Nothing input inputDescription headRepo (abs head)
+          -- 3. fork `base` into `merged` and merge `head` into `merged`
+          baseb <- getAt (abs base)
+          headb <- getAt (abs head)
+          mergedb <- eval . Eval $ Branch.merge baseb headb
+          updateAtM (abs merged) $ const (pure mergedb)
+          -- 5. print output message
+          respond $ LoadPullRequest baseRepo headRepo base head merged
+        else
+          respond . BranchNotEmpty . Path.Path' . Left $ currentPath'
+
 
       -- move the root to a sub-branch
       MoveBranchI Nothing dest -> do
@@ -1346,7 +1368,7 @@ loop = do
         let destAbs = Path.toAbsolutePath currentPath' path
         resolveConfiguredGitUrl Pull path mayRepo >>= \case
           Left e -> eval . Notify $ e
-          Right ns -> pullRemoteBranchAt path input inputDescription ns destAbs
+          Right ns -> pullRemoteBranchAt (Just path) input inputDescription ns destAbs
 
       PushRemoteBranchI mayRepo path -> do
         let srcAbs = Path.toAbsolutePath currentPath' path
@@ -1757,7 +1779,7 @@ respondNumbered output = do
 pullRemoteBranchAt
   :: Var v
   => Monad m
-  => Path.Path'
+  => Maybe Path.Path'
   -> Input
   -> Text
   -> RemoteNamespace
@@ -1776,8 +1798,9 @@ pullRemoteBranchAt p' input inputDescription ns p = do
  where
   doMerge b b0 = do
     merged <- eval . Eval $ Branch.merge b b0
-    diffHelper (Branch.head b0) (Branch.head merged) >>=
-      respondNumbered . uncurry (ShowDiffAfterPull p' p)
+    for p' $ \p' ->
+      diffHelper (Branch.head b0) (Branch.head merged) >>=
+        respondNumbered . uncurry (ShowDiffAfterPull p' p)
     pure merged
 
 loadRemoteBranch :: RemoteNamespace -> Action' m v (Either GitError (Branch m))
