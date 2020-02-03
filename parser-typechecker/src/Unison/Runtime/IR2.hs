@@ -169,6 +169,10 @@ data IR
           !IR     -- delimited computation
   | Capture !Int  -- prompt tag
             !IR   -- following computation
+  | Jump !Int     -- unboxed args to throw away
+         !Int     -- boxed args to throw away
+         !Int     -- index of captured continuation
+         !Args    -- Arguments to send to continuation
   | Let !IR       -- do this
         !IR       -- then continue
   | Prim1 !Prim1  -- prim op instruction

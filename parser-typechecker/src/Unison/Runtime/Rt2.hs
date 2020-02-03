@@ -19,15 +19,19 @@ eval0 !env !co = do
 eval :: Env -> Stack 'UN -> Stack 'BX -> K -> IR -> IO ()
 eval !env !ustk !bstk !k (App up bp r args) =
   resolve env ustk bstk r >>= apply env ustk bstk k up bp args
+eval !env !ustk !bstk !k (Jump up bp i args) =
+  peekOff bstk i >>= jump env ustk bstk k up bp args
 eval !env !ustk !bstk !k (Reset p nx) =
   eval env ustk bstk (Mark p k) nx
 eval !env !ustk !bstk !k (Capture p nx) = do
-  (_ , ustk, bstk, _  , k') <- splitCont ustk bstk k p
-  -- TODO: boxed stuff; right now this just discards continuations
+  (sk , ustk, bstk, useg, bseg, k') <- splitCont ustk bstk k p
+  bstk <- bump bstk
+  poke bstk $ Captured sk useg bseg
   eval env ustk bstk k' nx
 eval !env !ustk !bstk !k (Let e nx) = do
   (ustk, usz) <- frame ustk
-  eval env ustk bstk (Push usz nx k) e
+  (bstk, bsz) <- frame bstk
+  eval env ustk bstk (Push usz bsz nx k) e
 eval !env !ustk !bstk !k (Prim1 op i nx) =
   prim1 env ustk bstk k op i nx
 eval !env !ustk !bstk !k (Prim2 op i j nx) =
@@ -57,20 +61,43 @@ eval !env !ustk !bstk !k (Yield u b args) = do
 
 apply
   :: Env -> Stack 'UN -> Stack 'BX -> K
-  -> Int -> Int -> Args -> Comb -> IO ()
-apply !env !ustk !bstk !k !up !bp !args (Lam ua ba uf bf fun)
+  -> Int -> Int -> Args -> Closure -> IO ()
+apply !env !ustk !bstk !k !up !bp !args
+      (PAp comb@(Lam ua ba uf bf fun) useg bseg)
   | ua <= uac && ba <= bac = do
     ustk <- ensure ustk uf
     bstk <- ensure bstk bf
     (ustk, bstk) <- moveArgs ustk bstk up bp args
     eval env ustk bstk k fun
   | otherwise = do
-    (useg, bseg) <- closeArgs ustk bstk unull bnull args
-    useg `seq` bseg `seq` error "TODO"
+    (useg, bseg) <- closeArgs ustk bstk useg bseg args
+    ustk <- free ustk up
+    bstk <- free bstk bp
+    bstk <- bump bstk
+    poke bstk $ PAp comb useg bseg
+    yield env ustk bstk k
  where
- uac = fsize ustk + ucount args - up
- bac = fsize bstk + bcount args - bp
+ uac = fsize ustk - up + ucount args + uscount useg
+ bac = fsize bstk - bp + bcount args + bscount bseg
+apply _ _ _ _ _ _ _ _ = error "applying non-function"
 {-# inline apply #-}
+
+jump
+  :: Env -> Stack 'UN -> Stack 'BX -> K
+  -> Int -> Int -> Args -> Closure -> IO ()
+jump !env !ustk !bstk !k !up !bp !args (Captured sk useg bseg) = do
+  (useg, bseg) <- closeArgs ustk bstk useg bseg args
+  ustk <- free ustk up
+  bstk <- free bstk bp
+  ustk <- dumpSeg ustk useg
+  bstk <- dumpSeg bstk bseg
+  yield env ustk bstk $ repush sk k
+ where
+ repush KE k = k
+ repush (Mark p sk) k = repush sk $ Mark p k
+ repush (Push un bn nx sk) k = repush sk $ Push un bn nx k
+jump !_ !_ !_ !_ !_ !_ !_ !_ = error "jump: non-cont"
+{-# inline jump #-}
 
 moveArgs
   :: Stack 'UN -> Stack 'BX
@@ -261,8 +288,9 @@ yield :: Env -> Stack 'UN -> Stack 'BX -> K -> IO ()
 yield !env !ustk !bstk !k = leap k
  where
  leap (Mark _ k) = leap k
- leap (Push sz nx k) = do
-   ustk <- restore ustk sz
+ leap (Push usz bsz nx k) = do
+   ustk <- restore ustk usz
+   bstk <- restore bstk bsz
    eval env ustk bstk k nx
  leap KE = pure ()
 {-# inline yield #-}
@@ -278,26 +306,26 @@ selectBranch t (Test2 u cu v cv e)
   | otherwise = e
 {-# inline selectBranch #-}
 
-splitCont :: Stack 'UN -> Stack 'BX -> K -> Int -> IO (K, Stack 'UN, Stack 'BX, Seg 'UN, K)
-splitCont !ustk !bstk !k !p = walk 0 KE k
--- splitCont !ustk !k !p = walk 0 KE k
+splitCont
+  :: Stack 'UN -> Stack 'BX
+  -> K -> Int
+  -> IO (K, Stack 'UN, Stack 'BX, Seg 'UN, Seg 'BX, K)
+splitCont !ustk !bstk !k !p = walk 0 0 KE k
  where
- walk :: Int -> K -> K -> IO (K, Stack 'UN, Stack 'BX, Seg 'UN, K)
- walk !sz !ck KE = finish sz ck KE
- walk !sz !ck (Mark q k)
-   | p == q    = finish sz ck k
-   | otherwise = walk sz (Mark q ck) k
- walk !sz !ck (Push n br k) = walk (sz+n) (Push n br ck) k
+ walk !usz !bsz !ck KE = error "fell off stack" >> finish usz bsz ck KE
+ walk !usz !bsz !ck (Mark q k)
+   | p == q    = finish usz bsz ck k
+   | otherwise = walk usz bsz (Mark q ck) k
+ walk !usz !bsz !ck (Push un bn br k)
+   = walk (usz+un) (bsz+bn) (Push un bn br ck) k
 
- finish :: Int -> K -> K -> IO (K, Stack 'UN, Stack 'BX, Seg 'UN, K)
- finish !sz !ck !k = do
-   (seg, ustk) <- grab ustk sz
-   return (ck, ustk, bstk, seg, k)
+ finish !usz !bsz !ck !k = do
+   (useg, ustk) <- grab ustk usz
+   (bseg, bstk) <- grab bstk bsz
+   return (ck, ustk, bstk, useg, bseg, k)
 {-# inline splitCont #-}
 
-resolve :: Env -> Stack 'UN -> Stack 'BX -> Ref -> IO Comb
-resolve env _ _ (Env i) = return (env i)
-resolve _ _ bstk (Stk i) = do
-  _ <- peekOff bstk i
-  error "huh"
+resolve :: Env -> Stack 'UN -> Stack 'BX -> Ref -> IO Closure
+resolve env _ _ (Env i) = return $ PAp (env i) unull bnull
+resolve _ _ bstk (Stk i) = peekOff bstk i
 -- resolve _   _ _ _ = error "TODO: resolve"

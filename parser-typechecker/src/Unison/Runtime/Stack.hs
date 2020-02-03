@@ -18,13 +18,15 @@ data Mem = UN | BX
 data K
   = KE
   | Mark !Int !K -- mark continuation with a prompt
-  | Push !Int -- frame size
+  | Push !Int -- unboxed frame size
+         !Int -- boxed frame size
          !IR  -- code
          !K
 
 data Closure
-  = PAp                !IR   -- code
+  = PAp                !Comb      -- code
         {-# unpack #-} !(Seg 'UN) -- unboxed args
+        {-  unpack  -} !(Seg 'BX) -- boxed args
   | Enum !Int
   | DataU1 !Int !Int
   | DataU2 !Int !Int !Int
@@ -152,10 +154,12 @@ instance MEM 'UN where
     mut <- newByteArray sz
     copyMutableByteArray mut 0 stk (bp-sz) sz
     seg <- unsafeFreezeByteArray mut
-    pure (seg, US fp (sp-sz) stk)
+    moveByteArray stk (bytes $ fp-sze) stk (bytes fp) fsz
+    pure (seg, US (fp-sze) (sp-sze) stk)
    where
    sz = bytes sze
    bp = bytes sp
+   fsz = bytes $ sp-fp
   {-# inline grab #-}
 
   ensure stki@(US fp sp stk) sze
@@ -273,8 +277,10 @@ instance MEM 'BX where
   {-# inline pokeOff #-}
 
   grab (BS fp sp stk) sz = do
-    seg <- unsafeFreezeArray =<< cloneMutableArray stk (sp-sz) sz
-    pure (seg, BS fp (sp-sz) stk)
+    seg <- unsafeFreezeArray =<< cloneMutableArray stk (fp-sz) sz
+    copyMutableArray stk (fp-sz) stk fp fsz
+    pure (seg, BS (fp-sz) (sp-sz) stk)
+   where fsz = sp-fp
   {-# inline grab #-}
 
   ensure stki@(BS fp sp stk) sz
@@ -354,3 +360,10 @@ instance MEM 'BX where
 
   fsize (BS fp sp _) = sp-fp
   {-# inline fsize #-}
+
+uscount :: Seg 'UN -> Int
+uscount seg = words $ sizeofByteArray seg
+
+bscount :: Seg 'BX -> Int
+bscount seg = sizeofArray seg
+
