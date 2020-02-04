@@ -334,9 +334,9 @@ loop = do
           CreatePullRequestI{} -> wat
           LoadPullRequestI base head ->
             "pr.load "
-              <> (uncurry3 printNamespace) base
+              <> uncurry3 printNamespace base
               <> " "
-              <> (uncurry3 printNamespace) head
+              <> uncurry3 printNamespace head
           PushRemoteBranchI{} -> wat
           PreviewMergeLocalBranchI{} -> wat
           DiffNamespaceI{} -> wat
