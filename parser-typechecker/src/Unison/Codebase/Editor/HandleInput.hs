@@ -530,11 +530,9 @@ loop = do
 
       LoadPullRequestI baseRepo headRepo ->
         if Branch.isEmpty0 currentBranch0 then do
-          let textToRelative = 
-                Path.Relative . Path.Path . Seq.singleton . NameSegment.NameSegment
-              base = textToRelative "base"
-              head = textToRelative "head"
-              merged = textToRelative "merged"
+          let base = Path.relativeSingleton "base"
+              head = Path.relativeSingleton "head"
+              merged = Path.relativeSingleton "merged"
               abs = resolveToAbsolute . Path.Path' . Right
           -- 1. pull baseRepo into `base`
           -- 2. pull headRepo into `head`

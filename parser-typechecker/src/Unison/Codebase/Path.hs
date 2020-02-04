@@ -218,6 +218,9 @@ absoluteEmpty = Absolute empty
 relativeEmpty' :: Path'
 relativeEmpty' = Path' (Right (Relative empty))
 
+relativeSingleton :: NameSegment -> Relative
+relativeSingleton = Relative . Path . Seq.singleton
+
 toAbsolutePath :: Absolute -> Path' -> Absolute
 toAbsolutePath cur (Path' p) = either id (relativeToAbsolutePath cur) p
 
