@@ -270,22 +270,22 @@ loop = do
     Right input ->
       let
         ifConfirmed = ifM (confirmedCommand input)
-        branchNotFound = respond . BranchNotFound input
-        branchNotFound' = respond . BranchNotFound input . Path.unsplit'
+        branchNotFound = respond . BranchNotFound
+        branchNotFound' = respond . BranchNotFound . Path.unsplit'
         patchNotFound :: Path.Split' -> _
-        patchNotFound s = respond $ PatchNotFound input s
+        patchNotFound s = respond $ PatchNotFound s
         patchExists :: Path.Split' -> _
-        patchExists s = respond $ PatchAlreadyExists input s
-        typeNotFound = respond . TypeNotFound input
-        termNotFound = respond . TermNotFound input
-        nameConflicted src tms tys = respond (NameAmbiguous hqLength input src tms tys)
+        patchExists s = respond $ PatchAlreadyExists s
+        typeNotFound = respond . TypeNotFound
+        termNotFound = respond . TermNotFound
+        nameConflicted src tms tys = respond (NameAmbiguous hqLength src tms tys)
         typeConflicted src = nameConflicted src Set.empty
         termConflicted src tms = nameConflicted src tms Set.empty
-        hashConflicted src = respond . HashAmbiguous input src
-        branchExists dest _x = respond $ BranchAlreadyExists input dest
+        hashConflicted src = respond . HashAmbiguous src
+        branchExists dest _x = respond $ BranchAlreadyExists dest
         branchExistsSplit = branchExists . Path.unsplit'
-        typeExists dest = respond . TypeAlreadyExists input dest
-        termExists dest = respond . TermAlreadyExists input dest
+        typeExists dest = respond . TypeAlreadyExists dest
+        termExists dest = respond . TermAlreadyExists dest
         inputDescription :: Text
         inputDescription = case input of
           ForkLocalBranchI src dest -> "fork " <> hp' src <> " " <> p' dest
@@ -386,7 +386,7 @@ loop = do
           let matchingTerms = toList (getHQ'Terms hq)
           let matchingTypes = toList (getHQ'Types hq)
           case (matchingTerms, matchingTypes) of
-            ([], []) -> respond (NameNotFound input hq)
+            ([], []) -> respond (NameNotFound hq)
             -- delete one term
             ([r], []) -> goMany (Set.singleton r) Set.empty
             -- delete one type
@@ -419,7 +419,7 @@ loop = do
               ppe <- prettyPrintEnv =<<
                 makePrintNamesFromLabeled'
                   (foldMap SR'.labeledDependencies $ failed <> failedDependents)
-              respond $ CantDelete input ppe failed failedDependents
+              respond $ CantDelete ppe failed failedDependents
       in case input of
       ShowReflogI -> do
         entries <- fmap (convertEntries Nothing []) $ eval LoadReflog
@@ -453,14 +453,14 @@ loop = do
 
       ResetRootI src0 ->
         case src0 of
-          Left hash -> resolveShortBranchHash input hash >>= \case
+          Left hash -> resolveShortBranchHash hash >>= \case
             Left output -> respond output
             Right newRoot -> do
               updateRoot root' newRoot inputDescription
               success
           Right path' -> do
             newRoot <- getAt $ resolveToAbsolute path'
-            if Branch.isEmpty newRoot then respond $ BranchNotFound input path'
+            if Branch.isEmpty newRoot then respond $ BranchNotFound path'
             else do
               updateRoot root' newRoot inputDescription
               success
@@ -470,14 +470,14 @@ loop = do
               -- if dest isn't empty: leave dest unchanged, and complain.
               ok <- updateAtM dest $ \destb ->
                 pure (if Branch.isEmpty destb then srcb else destb)
-              if ok then success else respond $ BadDestinationBranch input dest0
+              if ok then success else respond $ BadDestinationBranch dest0
         case src0 of
-          Left hash -> resolveShortBranchHash input hash >>= \case
+          Left hash -> resolveShortBranchHash hash >>= \case
             Left output -> respond output
             Right srcb -> tryUpdateDest srcb dest0
           Right path' -> do
             srcb <- getAt $ resolveToAbsolute path'
-            if Branch.isEmpty srcb then respond $ BranchNotFound input path'
+            if Branch.isEmpty srcb then respond $ BranchNotFound path'
             else tryUpdateDest srcb dest0
       MergeLocalBranchI src0 dest0 -> do
         let [src, dest] = resolveToAbsolute <$> [src0, dest0]
@@ -628,7 +628,7 @@ loop = do
             ppe <- prettyPrintEnv =<<
               makePrintNamesFromLabeled'
                 (foldMap SR'.labeledDependencies $ failed <> failedDependents)
-            respond $ CantDelete input ppe failed failedDependents
+            respond $ CantDelete ppe failed failedDependents
 
       SwitchBranchI path' -> do
         path <- use $ currentPath . to (`Path.toAbsolutePath` path')
@@ -637,7 +637,7 @@ loop = do
         when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
 
       HistoryI resultsCap diffCap from -> case from of
-        Left hash -> resolveShortBranchHash input hash >>= \case
+        Left hash -> resolveShortBranchHash hash >>= \case
           Left output -> respond output
           Right b -> do
             doHistory 0 b []
@@ -840,7 +840,7 @@ loop = do
         if Set.null results then
           respond $ SearchTermsNotFound [hq]
         else if Set.size results > 1 then
-          respond $ TermAmbiguous input hq results
+          respond $ TermAmbiguous hq results
         else doDisplay outputLoc parseNames (Set.findMin results)
 
       ShowDefinitionI outputLoc (fmap HQ.unsafeFromString -> hqs) -> do
@@ -1044,8 +1044,8 @@ loop = do
               mft <- eval $ LoadTypeOfTerm fr
               mtt <- eval $ LoadTypeOfTerm tr
               case (mft, mtt) of
-                (Nothing, _) -> respond $ TermNotFound' input fid
-                (_, Nothing) -> respond $ TermNotFound' input tid
+                (Nothing, _) -> respond $ TermNotFound' fid
+                (_, Nothing) -> respond $ TermNotFound' tid
                 (Just ft, Just tt) -> do
                   let
                       patch' =
@@ -1112,7 +1112,7 @@ loop = do
 
       LoadI maybePath ->
         case maybePath <|> (fst <$> latestFile') of
-          Nothing   -> respond $ NoUnisonFile input
+          Nothing   -> respond NoUnisonFile
           Just path -> do
             res <- eval . LoadSource . Text.pack $ path
             case res of
@@ -1121,7 +1121,7 @@ loop = do
               LoadSuccess contents -> loadUnisonFile (Text.pack path) contents
 
       AddI hqs -> case uf of
-        Nothing -> respond $ NoUnisonFile input
+        Nothing -> respond NoUnisonFile
         Just uf -> do
           sr <- Slurp.disallowUpdates
               . applySelection hqs uf
@@ -1148,10 +1148,10 @@ loop = do
                       (UF.typecheckedToNames0 uf)
           ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
           respond $ Typechecked (Text.pack sourceName) ppe sr uf
-        _ -> respond $ NoUnisonFile input
+        _ -> respond NoUnisonFile
 
       UpdateI maybePatchPath hqs -> case uf of
-        Nothing -> respond $ NoUnisonFile input
+        Nothing -> respond NoUnisonFile
         Just uf -> do
           let patchPath = fromMaybe defaultPatchPath maybePatchPath
           slurpCheckNames0 <- slurpResultNames0
@@ -1255,7 +1255,7 @@ loop = do
                       (UF.typecheckedToNames0 uf)
           ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
           respond $ Typechecked (Text.pack sourceName) ppe sr uf
-        _ -> respond $ NoUnisonFile input
+        _ -> respond NoUnisonFile
 
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
@@ -1299,7 +1299,7 @@ loop = do
               Reference.DerivedId rid -> do
                 tm <- eval $ LoadTerm rid
                 case tm of
-                  Nothing -> [] <$ respond (TermNotFound' input rid)
+                  Nothing -> [] <$ respond (TermNotFound' rid)
                   Just tm -> do
                     respond $ TestIncrementalOutputStart ppe (n,total) r tm
                     tm' <- eval (Evaluate1 ppe tm) <&> \case
@@ -1336,7 +1336,7 @@ loop = do
         Nothing -> do
           names0 <- basicPrettyPrintNames0
           ppe <- prettyPrintEnv (Names3.Names names0 mempty)
-          respond $ NoMainFunction input main ppe (mainTypes External)
+          respond $ NoMainFunction main ppe (mainTypes External)
         Just unisonFile -> do
           ppe <- executePPE unisonFile
           eval $ Execute ppe unisonFile
@@ -1404,7 +1404,7 @@ loop = do
       QuitI -> MaybeT $ pure Nothing
      where
       notImplemented = eval $ Notify NotImplemented
-      success = respond $ Success input
+      success = respond Success
 
       -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
       -- otherwise, tries to load a value from .unisonConfig, and complains
@@ -1525,14 +1525,14 @@ getLinks' src selection0 = do
   pure (PPE.suffixifiedPPE ppe, out)
 
 resolveShortBranchHash ::
-  Input -> ShortBranchHash -> Action' m v (Either (Output v) (Branch m))
-resolveShortBranchHash input hash = do
+  ShortBranchHash -> Action' m v (Either (Output v) (Branch m))
+resolveShortBranchHash hash = do
   hashSet <- eval $ BranchHashesByPrefix hash
   len <- eval BranchHashLength
   case Set.toList hashSet of
-    []  -> pure . Left $ NoBranchWithHash input hash
+    []  -> pure . Left $ NoBranchWithHash hash
     [h] -> fmap Right . eval $ LoadLocalBranch h
-    _   -> pure . Left $ BranchHashAmbiguous input hash (Set.map (SBH.fromHash len) hashSet)
+    _   -> pure . Left $ BranchHashAmbiguous hash (Set.map (SBH.fromHash len) hashSet)
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch :: (Monad m, Var v) =>
@@ -1814,7 +1814,7 @@ syncRemoteRootBranch
   :: Var v => Monad m => Input -> RemoteRepo -> Branch m -> Action m i v ()
 syncRemoteRootBranch input repo b = do
   e <- eval $ SyncRemoteRootBranch repo b
-  either (eval . Notify . GitError input) (const . respond $ Success input) e
+  either (eval . Notify . GitError input) (const $ respond Success) e
 
 getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =
@@ -2240,10 +2240,10 @@ parseType input src = do
                           (Names3.Names parseNames (Names3.oldNames names0))
   e <- eval $ ParseType names lexed
   pure $ case e of
-    Left err -> Left $ TypeParseError input src err
+    Left err -> Left $ TypeParseError src err
     Right typ -> case Type.bindNames mempty (Names3.currentNames names)
                     $ Type.generalizeLowercase mempty typ of
-      Left es -> Left $ ParseResolutionFailures input src (toList es)
+      Left es -> Left $ ParseResolutionFailures src (toList es)
       Right typ -> Right typ
 
 -- todo: likely broken when dealing with definitions with `.` in the name;
