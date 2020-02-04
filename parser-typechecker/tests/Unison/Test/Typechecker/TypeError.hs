@@ -40,7 +40,7 @@ test = scope "> extractor" . tests $
         "xyz default abort = case abort of\n" ++
         "  {a} -> 3\n" ++
         "  {Abort.abort -> k} ->\n" ++
-        "    handle xyz default in k 100\n"
+        "    handle k 100 with xyz default\n"
       ) Err.matchBody
   ]
   where y, n :: String -> ErrorExtractor Symbol Ann a -> Test ()

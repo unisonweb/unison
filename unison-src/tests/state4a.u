@@ -4,8 +4,8 @@ ability State s where
 
 state : s -> Request (State s) a -> s
 state s eff = case eff of
-  { State.get -> k } -> handle (state s) in k s
-  { State.put snew -> k } -> handle (state snew) in k ()
+  { State.get -> k } -> handle k s with state s
+  { State.put snew -> k } -> handle k () with state snew
   { a } -> s
 
 modify : (s ->{} s) -> {State s} ()
@@ -15,11 +15,12 @@ increment : '{State Nat} ()
 increment = '(modify ((+) 1))
 
 ex : Nat
-ex = handle (state 10) in
+ex = handle
   State.put (11 + 1)
   -- !increment
   -- !increment
   -- !increment
   State.get -- should be 15, amirite??
+  with state 10
 
 > ex

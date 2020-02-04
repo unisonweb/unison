@@ -162,18 +162,13 @@ atd size i m = at size i m >>= \case
   Data r id vs -> pure (r, id, vs)
   v -> fail $ "type error, expecting Data, got " <> show v
 
+-- | `push` doesn't return the new stack size (is it for efficiency?),
+--   so make sure that you add +1 to it yourself, after this call.
 push :: Size -> Value -> Stack -> IO Stack
-push size v s0 = do
-  s1 <-
-    if size >= MV.length s0
-    then do
-      -- increase the size to fit
-      s1 <- MV.grow s0 (size `max` 128)
-      -- traceM $ "Grew stack size to: " <> show (MV.length s1)
-      pure s1
-    else pure s0
-  MV.write s1 size v
-  pure s1
+push size v m = do
+  m <- ensureSize (size + 1) m
+  MV.write m size v
+  pure m
 
 -- Values passed to pushMany* are already in stack order:
 -- the first Value is deeper on the resulting stack than the final Value
@@ -198,9 +193,11 @@ pushManyZ size zs m = do
   size2 <- foldM pushArg size zs
   pure (size2, m)
 
+-- | Grow the physical stack to at least `size` slots
 ensureSize :: Size -> Stack -> IO Stack
 ensureSize size m =
-  if (size >= MV.length m) then MV.grow m size
+  if (size > MV.length m) then
+    MV.grow m size
   else pure m
 
 force :: Value -> IO Value
@@ -426,7 +423,6 @@ run ioHandler env ir = do
   -- traceM $ P.render 80 (pir ir)
   supply <- newIORef 0
   m0 <- MV.new 256
-  MV.set m0 (T "uninitialized")
   let
     fresh :: IO Int
     fresh = atomicModifyIORef' supply (\n -> (n + 1, n))
@@ -459,8 +455,20 @@ run ioHandler env ir = do
         RDone v -> do
           -- Garbage collect the stack occasionally
           (size, m) <-
-            if size > MV.length m `div` 2
-            then gc size m (if Set.null freeInBody then 0 else Set.findMax freeInBody)
+            if size >= MV.length m
+            -- freeInBody just the set of de bruijn indices referenced in `body`
+            -- Examples:
+            --   a) let x = 1 in x, freeInBody = {0}
+            --   b) let x = 1 in 42, freeInBody = {}
+            --   We don't need anything from old stack in either of the above
+            --
+            --   c) let x = 1 in (let y = 2 in x + y), freeInBody = {0,1}
+            --   We need the top element of the old stack to be preserved
+            then let
+              maxSlot =
+                if Set.null freeInBody then -1
+                else Set.findMax freeInBody - 1
+              in gc size m maxSlot
             else pure (size, m)
           -- traceM . P.render 80 $ P.shown var <> " =" `P.hang` pvalue v
           push size v m >>= \m -> go (size + 1) m body
@@ -766,15 +774,16 @@ run ioHandler env ir = do
       go size' m body
 
     -- Garbage collect the elements of the stack that are more than `maxSlot`
-    -- below the top - this is done just by copying to a fresh stack.
+    -- from the top - this is done just by copying to a fresh stack.
     gc :: Size -> Stack -> Int -> IO (Size, Stack)
+    -- when maxSlot = -1, nothing from the old stack is needed.
+    gc _ _ _maxSlot@(-1) = do m <- MV.new 256; pure (0, m)
     gc size m maxSlot = do
-      when (maxSlot < 0) $ fail $ "invalid max slot for garbage collection: " <> show maxSlot
-      let size2 = maxSlot + 1
-          m2 = MV.slice (size - maxSlot - 1) size2 m
-      m <- MV.clone m2
-      m <- MV.grow m 256
-      pure (size2, m)
+      let start = size - maxSlot - 1
+          len = maxSlot + 1
+      m <- MV.clone $ MV.slice start len m
+      pure (len, m)
+
     loop (RRequest (Req ref cid vs k)) = do
       ioResult <- ioHandler ref cid vs
       case ioResult of

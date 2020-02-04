@@ -66,8 +66,10 @@ module Unison.Codebase.Branch
   , deleteTermName
   , deleteTypeName
 
+
     -- * Branch patches
     -- ** Patch queries
+  , deepEdits'
   , getPatch
   , getMaybePatch
     -- ** Patch updates
@@ -129,12 +131,13 @@ import qualified Unison.Names3                 as Names
 import           Unison.Names2                  ( Names'(Names), Names0 )
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
-import qualified Unison.Referent              as Referent
+import qualified Unison.Referent               as Referent
 import qualified Unison.Reference              as Reference
 
+import qualified Unison.Util.Relation          as R
+import           Unison.Util.Relation            ( Relation )
+import qualified Unison.Util.Relation4         as R4
 import           Unison.Util.Map                ( unionWithM )
-import qualified Unison.Util.Relation         as R
-import           Unison.Util.Relation           ( Relation )
 import qualified Unison.Util.Star3             as Star3
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
@@ -158,12 +161,16 @@ data Branch0 m = Branch0
   , _children :: Map NameSegment (Branch m)
   , _edits :: Map NameSegment (EditHash, m Patch)
   -- names and metadata for this branch and its children
-  , deepTerms :: Star Referent Name
-  , deepTypes :: Star Reference Name
+  -- (ref, (name, value)) iff ref has metadata `value` at name `name`
+  , deepTerms :: Relation Referent Name
+  , deepTypes :: Relation Reference Name
+  , deepTermMetadata :: Metadata.R4 Referent Name
+  , deepTypeMetadata :: Metadata.R4 Reference Name
   , deepPaths :: Set Path
   , deepEdits :: Map Name EditHash
   }
 
+-- Represents a shallow diff of a Branch0.
 -- Each of these `Star`s contain metadata as well, so an entry in
 -- `added` or `removed` could be an update to the metadata.
 data BranchDiff = BranchDiff
@@ -201,8 +208,8 @@ makeLensesFor [("_edits", "edits")] ''Branch0
 makeLenses ''Raw
 
 toNames0 :: Branch0 m -> Names0
-toNames0 b = Names (R.swap . Star3.d1 . deepTerms $ b)
-                   (R.swap . Star3.d1 . deepTypes $ b)
+toNames0 b = Names (R.swap . deepTerms $ b)
+                   (R.swap . deepTypes $ b)
 
 -- This stops searching for a given ShortHash once it encounters
 -- any term or type in any Branch0 that satisfies that ShortHash.
@@ -250,18 +257,18 @@ findInHistory termMatches typeMatches queries b =
     findQ :: (Set q, Names0) -> q -> (Set q, Names0)
     findQ acc sh =
       foldl' (doType sh) (foldl' (doTerm sh) acc
-                            (R.toList . Metadata.toRelation $ deepTerms b0))
-                          (R.toList . Metadata.toRelation $ deepTypes b0)
+                            (R.toList $ deepTerms b0))
+                            (R.toList $ deepTypes b0)
     doTerm q acc@(remainingSHs, names0) (r, n) = if termMatches q r n
       then (Set.delete q remainingSHs, Names.addTerm n r names0) else acc
     doType q acc@(remainingSHs, names0) (r, n) = if typeMatches q r n
       then (Set.delete q remainingSHs, Names.addType n r names0) else acc
 
 deepReferents :: Branch0 m -> Set Referent
-deepReferents = Star3.fact . deepTerms
+deepReferents = R.dom . deepTerms
 
 deepTypeReferences :: Branch0 m -> Set Reference
-deepTypeReferences = Star3.fact . deepTypes
+deepTypeReferences = R.dom . deepTypes
 
 terms :: Lens' (Branch0 m) (Star Referent NameSegment)
 terms = lens _terms (\Branch0{..} x -> branch0 x _types _children _edits)
@@ -280,19 +287,31 @@ branch0 :: Metadata.Star Referent NameSegment
         -> Branch0 m
 branch0 terms types children edits =
   Branch0 terms types children edits
-          deepTerms' deepTypes' deepPaths' deepEdits'
+          deepTerms' deepTypes'
+          deepTermMetadata' deepTypeMetadata'
+          deepPaths' deepEdits'
   where
   nameSegToName = Name.unsafeFromText . NameSegment.toText
-  deepTerms' = Star3.mapD1 nameSegToName terms
+  deepTerms' = (R.mapRan nameSegToName . Star3.d1) terms
     <> foldMap go (Map.toList children)
    where
     go (nameSegToName -> n, b) =
-      Star3.mapD1 (Name.joinDot n) (deepTerms $ head b)
-  deepTypes' = Star3.mapD1 nameSegToName types
+      R.mapRan (Name.joinDot n) (deepTerms $ head b) -- could use mapKeysMonotonic
+  deepTypes' = (R.mapRan nameSegToName . Star3.d1) types
     <> foldMap go (Map.toList children)
    where
     go (nameSegToName -> n, b) =
-      Star3.mapD1 (Name.joinDot n) (deepTypes $ head b)
+      R.mapRan (Name.joinDot n) (deepTypes $ head b) -- could use mapKeysMonotonic
+  deepTermMetadata' = R4.mapD2 nameSegToName (Metadata.starToR4 terms)
+    <> foldMap go (Map.toList children)
+   where
+    go (nameSegToName -> n, b) =
+      R4.mapD2 (Name.joinDot n) (deepTermMetadata $ head b)
+  deepTypeMetadata' = R4.mapD2 nameSegToName (Metadata.starToR4 types)
+    <> foldMap go (Map.toList children)
+   where
+    go (nameSegToName -> n, b) =
+      R4.mapD2 (Name.joinDot n) (deepTypeMetadata $ head b)
   deepPaths' = Set.map Path.singleton (Map.keysSet children)
     <> foldMap go (Map.toList children)
     where go (nameSeg, b) = Set.map (Path.cons nameSeg) (deepPaths $ head b)
@@ -307,6 +326,17 @@ head (Branch c) = Causal.head c
 
 headHash :: Branch m -> Hash
 headHash (Branch c) = Causal.currentHash c
+
+deepEdits' :: Branch0 m -> Map Name (EditHash, m Patch)
+deepEdits' b = go id b where
+  -- can change this to an actual prefix once Name is a [NameSegment]
+  go :: (Name -> Name) -> Branch0 m -> Map Name (EditHash, m Patch)
+  go addPrefix Branch0{..} =
+    Map.mapKeysMonotonic (addPrefix . NameSegment.toName) _edits
+      <> foldMap f (Map.toList _children)
+    where
+    f :: (NameSegment, Branch m) -> Map Name (EditHash, m Patch)
+    f (c, b) =  go (addPrefix . Name.joinDot (NameSegment.toName c)) (head b)
 
 merge :: forall m . Monad m => Branch m -> Branch m -> m (Branch m)
 merge (Branch x) (Branch y) =
@@ -519,7 +549,8 @@ one :: Branch0 m -> Branch m
 one = Branch . Causal.one
 
 empty0 :: Branch0 m
-empty0 = Branch0 mempty mempty mempty mempty mempty mempty mempty mempty
+empty0 =
+  Branch0 mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
 
 isEmpty0 :: Branch0 m -> Bool
 isEmpty0 = (== empty0)

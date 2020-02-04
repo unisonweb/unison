@@ -53,6 +53,10 @@ type ConstructorId = Term.ConstructorId
 type DataDeclaration v = DataDeclaration' v ()
 type Decl v a = Either (EffectDeclaration' v a) (DataDeclaration' v a)
 
+data DeclOrBuiltin v a =
+  Builtin CT.ConstructorType | Decl (Decl v a)
+  deriving (Eq, Show)
+
 asDataDecl :: Decl v a -> DataDeclaration' v a
 asDataDecl = either toDataDecl id
 
@@ -533,6 +537,7 @@ pattern DocLink link <- Term.App' (Term.Constructor' DocRef DocLinkId) link
 pattern DocSource link <- Term.App' (Term.Constructor' DocRef DocSourceId) link
 pattern DocSignature link <- Term.App' (Term.Constructor' DocRef DocSignatureId) link
 pattern DocEvaluate link <- Term.App' (Term.Constructor' DocRef DocEvaluateId) link
+pattern Doc <- Term.App' (Term.Constructor' DocRef _) _
 pattern DocSignatureId <- ((== docSignatureId) -> True)
 pattern DocBlobId <- ((== docBlobId) -> True)
 pattern DocLinkId <- ((== docLinkId) -> True)

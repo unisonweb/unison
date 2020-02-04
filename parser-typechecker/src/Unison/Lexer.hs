@@ -479,7 +479,7 @@ lexer0 scope rem =
         Right Nothing -> Token (Err UnknownLexeme) pos pos : recover l pos rem
         Left e -> Token (Err e) pos pos : recover l pos rem
 
-    lexDoc l pos rem = case span isSpace rem of
+    lexDoc l pos rem = case span (\c -> isSpace c && not (c == '\n')) rem of
       (spaces,rem) -> docBlob l pos' rem pos' []
         where pos' = incBy spaces pos
 
@@ -496,10 +496,12 @@ lexer0 scope rem =
            typTok : tok : docBlob l pos'' rem pos' []
          _ -> recover l pos rem
       '\\' : '@' : rem -> docBlob l (incBy "\\@" pos) rem blobStart ('@':acc)
+      '\\' : ':' : ']' : rem -> docBlob l (incBy "\\:]" pos) rem blobStart (']':':':acc)
       ':' : ']' : rem ->
         let pos' = inc . inc $ pos in
         (if null acc then id
-         else (Token (Textual (reverse $ dropWhile isSpace acc)) blobStart pos :)) $
+         else (Token (Textual (reverse
+          $ dropWhile (\c -> isSpace c && not (c == '\n')) acc)) blobStart pos :)) $
           Token Close pos pos' : goWhitespace l pos' rem
       [] -> recover l pos rem
       ch : rem -> docBlob l (incBy [ch] pos) rem blobStart (ch:acc)
@@ -639,9 +641,11 @@ isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F300' && c <= '\x1FAFF'
 
 symbolyId :: String -> Either Err (String, String)
-symbolyId r@('.':ch:_) | isSpace ch || isDelimeter ch
-                       = symbolyId0 r -- lone dot treated as an operator
-symbolyId ('.':s) = (\(s,rem) -> ('.':s,rem)) <$> symbolyId' s
+symbolyId r@('.':s)
+  | s == ""              = symbolyId0 r --
+  | isSpace (head s)     = symbolyId0 r -- lone dot treated as an operator
+  | isDelimiter (head s) = symbolyId0 r --
+  | otherwise            = (\(s, rem) -> ('.':s, rem)) <$> symbolyId' s
 symbolyId s = symbolyId' s
 
 -- Is a '.' delimited list of wordyId, with a final segment of `symbolyId0`
@@ -688,7 +692,7 @@ symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:"
 keywords :: Set String
 keywords = Set.fromList [
   "if", "then", "else", "forall", "∀",
-  "handle", "in", "unique",
+  "handle", "with", "unique",
   "where", "use",
   "true", "false",
   "type", "ability", "alias", "typeLink", "termLink",
@@ -698,16 +702,17 @@ keywords = Set.fromList [
 layoutKeywords :: Set String
 layoutKeywords =
   Set.fromList [
-    "if", "in", "let", "where", "of"
+    "if", "handle", "let", "where", "of"
   ]
 
 -- These keywords end a layout block and begin another layout block
 layoutCloseAndOpenKeywords :: Set String
-layoutCloseAndOpenKeywords = Set.fromList ["then", "else"]
+layoutCloseAndOpenKeywords = Set.fromList ["then", "else", "with"]
 
 openingKeyword :: String -> String
 openingKeyword "then" = "if"
 openingKeyword "else" = "then"
+openingKeyword "with" = "handle"
 openingKeyword kw = error $ "Not sure what the opening keyword is for: " <> kw
 
 -- These keywords end a layout block
@@ -717,8 +722,8 @@ layoutCloseOnlyKeywords = Set.fromList ["}"]
 delimiters :: Set Char
 delimiters = Set.fromList "()[]{},?;"
 
-isDelimeter :: Char -> Bool
-isDelimeter ch = Set.member ch delimiters
+isDelimiter :: Char -> Bool
+isDelimiter ch = Set.member ch delimiters
 
 reservedOperators :: Set String
 reservedOperators = Set.fromList ["->", ":", "&&", "||"]

@@ -42,6 +42,10 @@ data Element = NumericLiteral
              -- ! '
              | Parenthesis
              | LinkKeyword -- `typeLink` and `termLink`
+             -- [: :] @[]
+             | DocDelimiter
+             -- the 'include' in @[include], etc
+             | DocKeyword
              deriving (Eq, Ord, Bounded, Enum, Show, Read)
 
 syntax :: Element -> SyntaxText -> SyntaxText

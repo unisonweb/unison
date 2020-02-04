@@ -27,7 +27,6 @@ module Unison.Reference
 
 import Unison.Prelude
 
-import           Data.List hiding (isPrefixOf)
 import qualified Data.Map        as Map
 import           Data.Maybe      (fromJust)
 import qualified Data.Set        as Set

@@ -9,7 +9,13 @@ module Unison.Util.Pretty (
    Pretty,
    ColorText,
    align,
+   alternations,
    backticked,
+   boxForkLeft,
+   boxLeft,
+   boxLeftM,
+   boxRight,
+   boxRightM,
    bulleted,
    bracket,
    -- breakable
@@ -20,7 +26,11 @@ module Unison.Util.Pretty (
    excerptColumn2Headed,
    warnCallout, blockedCallout, fatalCallout, okCallout,
    column2,
+   column2M,
+   column2UnzippedM,
    column3,
+   column3M,
+   column3UnzippedM,
    column3sep,
    commas,
    commented,
@@ -36,6 +46,7 @@ module Unison.Util.Pretty (
    indent,
    indentAfterNewline,
    indentN,
+   indentNonEmptyN,
    indentNAfterNewline,
    leftPad,
    lines,
@@ -103,6 +114,7 @@ import           Unison.Util.Monoid             ( intercalateMap )
 import qualified Data.ListLike                 as LL
 import qualified Data.Sequence                 as Seq
 import qualified Data.Text                     as Text
+import Control.Monad.Identity (runIdentity, Identity(..))
 
 type Width = Int
 type ColorText = CT.ColorText
@@ -142,18 +154,29 @@ wrapImpl [] = mempty
 wrapImpl (p:ps) = wrap_ . Seq.fromList $
   p : fmap (\p -> (" " <> p) `orElse` (newline <> p)) ps
 
+wrapImplPreserveSpaces :: (LL.ListLike s Char, IsString s) => [Pretty s] -> Pretty s
+wrapImplPreserveSpaces = \case
+  [] -> mempty
+  (p:ps) -> wrap_ . Seq.fromList $ p : fmap f ps
+  where
+  startsWithSpace p = case out p of
+    (Lit s) -> fromMaybe False (fmap (isSpaceNotNewline . fst) $ LL.uncons s)
+    _ -> False
+  f p | startsWithSpace p = p `orElse` newline
+  f p = p
+
+isSpaceNotNewline :: Char -> Bool
+isSpaceNotNewline c = isSpace c && not (c == '\n')
+
 wrapString :: (LL.ListLike s Char, IsString s) => String -> Pretty s
 wrapString s = wrap (lit $ fromString s)
 
--- 0. Preserve all leading and trailing whitespace 
--- 1. Preserve all newlines
--- 2. Wrap all text in between newlines
+-- Wrap text, preserving whitespace (apart from at the wrap points.)
+-- Used in particular for viewing/displaying doc literals.
+-- Should be understood in tandem with TermParser.docNormalize.
+-- See also unison-src/transcripts/doc-formatting.md.
 paragraphyText :: (LL.ListLike s Char, IsString s) => Text -> Pretty s
-paragraphyText t = text start <> inner <> text end where
-  inner = sep "\n" . fmap (wrap . text) . Text.splitOn "\n" $ t'
-  (start, t0) = Text.span isSpace t
-  t' = Text.dropWhileEnd isSpace t0
-  end = Text.takeWhileEnd isSpace t0
+paragraphyText = sep "\n" . fmap (wrapPreserveSpaces . text) . Text.splitOn "\n"
 
 wrap :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
 wrap p = wrapImpl (toLeaves [p]) where
@@ -168,6 +191,32 @@ wrap p = wrapImpl (toLeaves [p]) where
   wordify s0 = let s = LL.dropWhile isSpace s0 in
     if LL.null s then []
     else case LL.break isSpace s of (word1, s) -> lit word1 : wordify s
+
+-- Does not insert spaces where none were present, and does not collapse
+-- sequences of spaces into one.
+-- It'd be a bit painful to just replace wrap with the following version, because
+-- lots of OutputMessages code depends on wrap's behaviour of sometimes adding
+-- extra spaces.
+wrapPreserveSpaces :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
+wrapPreserveSpaces p = wrapImplPreserveSpaces (toLeaves [p]) where
+  toLeaves [] = []
+  toLeaves (hd:tl) = case out hd of
+    Empty -> toLeaves tl
+    Lit s -> (fmap lit $ alternations isSpaceNotNewline s) ++ toLeaves tl
+    Group _ -> hd : toLeaves tl
+    OrElse a _ -> toLeaves (a:tl)
+    Wrap _ -> hd : toLeaves tl
+    Append hds -> toLeaves (toList hds ++ tl)
+
+-- Cut a list every time a predicate changes.  Produces a list of
+-- non-empty lists.
+alternations :: (LL.ListLike s c) => (c -> Bool) -> s -> [s]
+alternations p s = reverse $ go True s [] where
+  go _ s acc | LL.null s = acc
+  go w s acc = go (not w) rest acc' where
+    (t, rest) = LL.span p' s
+    p' = if w then p else (\x -> not (p x))
+    acc' = if (LL.null t) then acc else t : acc
 
 wrap_ :: Seq (Pretty s) -> Pretty s
 wrap_ ps = Pretty (foldMap delta ps) (Wrap ps)
@@ -405,9 +454,47 @@ column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
 column2 rows = lines (group <$> align rows)
 
+column2M :: (Applicative m, LL.ListLike s Char, IsString s) => [m (Pretty s, Pretty s)] -> m (Pretty s)
+column2M = fmap column2 . sequenceA
+
 column3
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s, Pretty s)] -> Pretty s
 column3 = column3sep ""
+
+column3M
+  :: (LL.ListLike s Char, IsString s, Monad m)
+  => [m (Pretty s, Pretty s, Pretty s)]
+  -> m (Pretty s)
+column3M = fmap column3 . sequence
+
+column3UnzippedM
+  :: forall m s . (LL.ListLike s Char, IsString s, Monad m)
+  => Pretty s
+  -> [m (Pretty s)]
+  -> [m (Pretty s)]
+  -> [m (Pretty s)]
+  -> m (Pretty s)
+column3UnzippedM bottomPadding left mid right = let
+  rowCount = maximum (fmap length [left, mid, right])
+  pad :: [m (Pretty s)] -> [m (Pretty s)]
+  pad a = a ++ replicate (rowCount - length a) (pure bottomPadding)
+  (pleft, pmid, pright) = (pad left, pad mid, pad right)
+  in column3M $ zipWith3 (liftA3 (,,)) pleft pmid pright
+
+column2UnzippedM
+  :: forall m s . (LL.ListLike s Char, IsString s, Monad m)
+  => Pretty s
+  -> [m (Pretty s)]
+  -> [m (Pretty s)]
+  -> m (Pretty s)
+column2UnzippedM bottomPadding left right = let
+  rowCount = length left `max` length right
+  pad :: [m (Pretty s)] -> [m (Pretty s)]
+  pad a = a ++ replicate (rowCount - length a) (pure bottomPadding)
+  sep :: [m (Pretty s)] -> [m (Pretty s)]
+  sep = fmap (fmap (" " <>))
+  (pleft, pright) = (pad left, sep $ pad right)
+  in column2M $ zipWith (liftA2 (,)) pleft pright
 
 column3sep
   :: (LL.ListLike s Char, IsString s) => Pretty s -> [(Pretty s, Pretty s, Pretty s)] -> Pretty s
@@ -490,6 +577,10 @@ indent by p = by <> indentAfterNewline by p
 
 indentN :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
 indentN by = indent (fromString $ replicate by ' ')
+
+indentNonEmptyN :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
+indentNonEmptyN _ (out -> Empty) = mempty
+indentNonEmptyN by p = indentN by p
 
 indentNAfterNewline
   :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
@@ -579,6 +670,69 @@ callout header p = header <> "\n\n" <> p
 
 bracket :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
 bracket = indent "  "
+
+boxForkLeft, boxLeft, boxRight ::
+  forall s . (LL.ListLike s Char, IsString s) => [Pretty s] -> [Pretty s]
+boxForkLeft = boxLeft' lBoxStyle1
+boxLeft = boxLeft' lBoxStyle2
+boxRight = boxRight' rBoxStyle2
+
+boxLeft', boxRight' :: (LL.ListLike s Char, IsString s)
+         => BoxStyle s -> [Pretty s] -> [Pretty s]
+boxLeft' style = fmap runIdentity . boxLeftM' style . fmap Identity
+boxRight' style = fmap runIdentity . boxRightM' style . fmap Identity
+
+type BoxStyle s =
+  ( (Pretty s, Pretty s) -- first (start, continue)
+  , (Pretty s, Pretty s) -- middle
+  , (Pretty s, Pretty s) -- last
+  , (Pretty s, Pretty s) -- singleton
+  )
+lBoxStyle1, lBoxStyle2, rBoxStyle2 :: IsString s => BoxStyle s
+lBoxStyle1 = (("┌ ", "│ ") -- first
+             ,("├ ", "│ ") -- middle
+             ,("└ ", "  ") -- last
+             ,(""  , "" )) -- singleton
+lBoxStyle2 = (("┌ ","  ")
+             ,("│ ","  ")
+             ,("└ ","  ")
+             ,(""  ,""  ))
+rBoxStyle2 = ((" ┐", " │")
+             ,(" │", " │")
+             ,(" ┘", "  ")
+             ,("  ", "  "))
+
+boxLeftM, boxRightM :: forall m s . (Monad m, LL.ListLike s Char, IsString s)
+         => [m (Pretty s)] -> [m (Pretty s)]
+boxLeftM = boxLeftM' lBoxStyle2
+boxRightM = boxRightM' rBoxStyle2
+
+boxLeftM' :: forall m s . (Monad m, LL.ListLike s Char, IsString s)
+          => BoxStyle s -> [m (Pretty s)] -> [m (Pretty s)]
+boxLeftM' (first, middle, last, singleton) ps = go (Seq.fromList ps) where
+  go Seq.Empty = []
+  go (p Seq.:<| Seq.Empty) = [decorate singleton <$> p]
+  go (a Seq.:<| (mid Seq.:|> b)) =
+    [decorate first <$> a]
+      ++ toList (fmap (decorate middle) <$> mid)
+      ++ [decorate last <$> b]
+  decorate (first, mid) p = first <> indentAfterNewline mid p
+
+-- this implementation doesn't work for multi-line inputs,
+-- because i dunno how to inspect multi-line inputs
+
+
+boxRightM' :: forall m s. (Monad m, LL.ListLike s Char, IsString s)
+           => BoxStyle s -> [m (Pretty s)] -> [m (Pretty s)]
+boxRightM' (first, middle, last, singleton) ps = go (Seq.fromList ps) where
+  go :: Seq.Seq (m (Pretty s)) -> [m (Pretty s)]
+  go Seq.Empty = []
+  go (p Seq.:<| Seq.Empty) = [decorate singleton <$> p]
+  go (a Seq.:<| (mid Seq.:|> b)) =
+    [decorate first <$> a]
+      ++ toList (fmap (decorate middle) <$> mid)
+      ++ [decorate last <$> b]
+  decorate (first, _mid) p = p <> first
 
 warnCallout, blockedCallout, fatalCallout, okCallout
   :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s

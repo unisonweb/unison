@@ -9,8 +9,8 @@ ability Console where
 namespace Console where
   state : s -> Request (State s) a -> a
   state s c = case c of
-    {State.get -> k} -> handle state s in k s
-    {State.set s' -> k} -> handle state s' in k ()
+    {State.get -> k} -> handle k s with state s
+    {State.set s' -> k} -> handle k () with state s'
     {a} -> a
 
 multiHandler : s -> [w] -> Nat -> Request {State s, Console} a -> ()

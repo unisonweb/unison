@@ -28,7 +28,7 @@ import Unison.CommandLine
 import Unison.PrettyTerminal
 import Unison.CommandLine.InputPattern (ArgumentType (suggestions), InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
-import Unison.CommandLine.OutputMessages (notifyUser, shortenDirectory)
+import Unison.CommandLine.OutputMessages (notifyUser, notifyNumbered, shortenDirectory)
 import Unison.Parser (Ann)
 import Unison.Var (Var)
 import qualified Control.Concurrent.Async as Async
@@ -190,11 +190,11 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
           numberedArgs <- readIORef numberedArgsRef
           getUserInput patternMap codebase root path numberedArgs
         loadSourceFile :: Text -> IO LoadSourceResult
-        loadSourceFile fname = do
+        loadSourceFile fname =
           if allow $ Text.unpack fname
             then
               let handle :: IOException -> IO LoadSourceResult
-                  handle e = do
+                  handle e =
                     case e of
                       _ | isDoesNotExistError e -> return InvalidSourceNameError
                       _ -> return LoadError
@@ -203,7 +203,7 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
                     return $ LoadSuccess contents
                   in catch go handle
             else return InvalidSourceNameError
-        notify = notifyUser dir >=> (\o -> do
+        notify = notifyUser dir >=> (\o ->
           ifM (readIORef pageOutput)
               (putPrettyNonempty o)
               (putPrettyLnUnpaged o))
@@ -237,6 +237,8 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
                                      (writeIORef rootRef)
                                      runtime
                                      notify
+                                     (\o -> let (p, args) = notifyNumbered o in
+                                      putPrettyNonempty p $> args)
                                      loadSourceFile
                                      codebase
                                      free

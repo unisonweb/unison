@@ -6,13 +6,13 @@ ability A where
 
 unA w = case w of
   {a} -> a
-  {A.woot -> k} -> handle unA in k 10
+  {A.woot -> k} -> handle k 10 with unA
 
 -- This verifies that the continuation captures local variables
-a1 = handle unA in
-  x = 42
-  y = A.woot
-  x
+a1 = handle
+    x = 42
+    y = A.woot
+    x
+  with unA
 
 > a1 -- should be 42
-

@@ -27,10 +27,22 @@ toHQ = \case
   NameOnly n -> HQ.NameOnly n
   HashQualified n sh -> HQ.HashQualified n sh
 
+fromHQ :: HQ.HashQualified' n -> Maybe (HashQualified' n)
+fromHQ = \case
+  HQ.NameOnly n -> Just $ NameOnly n
+  HQ.HashQualified n sh -> Just $ HashQualified n sh
+  HQ.HashOnly{} -> Nothing
+
+unsafeFromHQ :: HQ.HashQualified' n -> HashQualified' n
+unsafeFromHQ = fromJust . fromHQ
+
 toName :: HashQualified' n -> n
 toName = \case
   NameOnly name        ->  name
   HashQualified name _ ->  name
+
+nameLength :: HashQualified' Name -> Int
+nameLength = Text.length . toText
 
 take :: Int -> HashQualified' n -> HashQualified' n
 take i = \case
@@ -78,12 +90,12 @@ fromNamedReference n r = HashQualified n (Reference.toShortHash r)
 fromName :: n -> HashQualified' n
 fromName = NameOnly
 
-matchesNamedReferent :: Name -> Referent -> HashQualified -> Bool
+matchesNamedReferent :: Eq n => n -> Referent -> HashQualified' n -> Bool
 matchesNamedReferent n r = \case
   NameOnly n' -> n' == n
   HashQualified n' sh -> n' == n && sh `SH.isPrefixOf` Referent.toShortHash r
 
-matchesNamedReference :: Name -> Reference -> HashQualified -> Bool
+matchesNamedReference :: Eq n => n -> Reference -> HashQualified' n -> Bool
 matchesNamedReference n r = \case
   NameOnly n' -> n' == n
   HashQualified n' sh -> n' == n && sh `SH.isPrefixOf` Reference.toShortHash r

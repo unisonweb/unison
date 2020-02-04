@@ -65,7 +65,7 @@ ioHash = R.unsafeId ioReference
 eitherHash = R.unsafeId eitherReference
 ioModeHash = R.unsafeId ioModeReference
 
-ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, filePathReference
+ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, isPropagatedReference, filePathReference
   :: R.Reference
 ioReference = abilityNamed "io.IO"
 bufferModeReference = typeNamed "io.BufferMode"
@@ -80,10 +80,14 @@ socketReference = typeNamed "io.Socket"
 handleReference = typeNamed "io.Handle"
 epochTimeReference = typeNamed "io.EpochTime"
 isTestReference = typeNamed "IsTest"
+isPropagatedReference = typeNamed "IsPropagated"
 filePathReference = typeNamed "io.FilePath"
 
 isTest :: (R.Reference, R.Reference)
 isTest = (isTestReference, termNamed "metadata.isTest")
+
+isPropagatedValue :: R.Reference
+isPropagatedValue = termNamed "metadata.isPropagated"
 
 eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId, bufferModeLineId, bufferModeBlockId, filePathId :: DD.ConstructorId
 eitherLeftId = constructorNamed eitherReference "Either.Left"
@@ -150,8 +154,11 @@ type Either a b = Left a | Right b
 
 type Optional a = None | Some a
 
-d1 Doc.++ d2 = 
-  use Doc 
+unique[b28d929d0a73d2c18eac86341a3bb9399f8550c11b5f35eabb2751e6803ccc20] type
+  IsPropagated = IsPropagated
+
+d1 Doc.++ d2 =
+  use Doc
   case (d1,d2) of
     (Join ds, Join ds2) -> Join (ds Sequence.++ ds2)
     (Join ds, _) -> Join (ds `Sequence.snoc` d2)
@@ -162,7 +169,10 @@ d1 Doc.++ d2 =
 unique[e6dca08b40458b03ca1660cfbdaecaa7279b42d18257898b5fd1c34596aac36f] type
   IsTest = IsTest
 
+-- Create references for these that can be used as metadata.
+-- (Reminder: Metadata is references, not values.)
 metadata.isTest = IsTest.IsTest
+metadata.isPropagated = IsPropagated.IsPropagated
 
 -- Handles are unique identifiers.
 -- The implementation of IO in the runtime will supply Haskell

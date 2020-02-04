@@ -94,11 +94,12 @@ commandLine
   -> (Branch IO -> IO ())
   -> Runtime v
   -> (Output v -> IO ())
+  -> (NumberedOutput v -> IO NumberedArgs)
   -> (SourceName -> IO LoadSourceResult)
   -> Codebase IO v Ann
   -> Free (Command IO i v) a
   -> IO a
-commandLine config awaitInput setBranchRef rt notifyUser loadSource codebase =
+commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase =
  Free.fold go
  where
   go :: forall x . Command IO i v x -> IO x
@@ -107,6 +108,7 @@ commandLine config awaitInput setBranchRef rt notifyUser loadSource codebase =
     Eval m        -> m
     Input         -> awaitInput
     Notify output -> notifyUser output
+    NotifyNumbered output -> notifyNumbered output
     ConfigLookup name -> Config.lookup config name
     LoadSource sourcePath -> loadSource sourcePath
 

@@ -13,7 +13,7 @@ exist.
 Now for some easy cases. Deleting an unambiguous term, then deleting an
 unambiguous type.
 
-```unison
+```unison:hide
 foo = 1
 type Foo = Foo Nat
 ```
@@ -27,7 +27,7 @@ type Foo = Foo Nat
 
 How about an ambiguous term?
 
-```unison
+```unison:hide
 foo = 1
 ```
 
@@ -35,7 +35,7 @@ foo = 1
 .a> add
 ```
 
-```unison
+```unison:hide
 foo = 2
 ```
 
@@ -56,7 +56,7 @@ I can force my delete through by re-issuing the command.
 
 Let's repeat all that on a type, for completeness.
 
-```unison
+```unison:hide
 type Foo = Foo Nat
 ```
 
@@ -64,7 +64,7 @@ type Foo = Foo Nat
 .a> add
 ```
 
-```unison
+```unison:hide
 type Foo = Foo Boolean
 ```
 
@@ -91,7 +91,7 @@ type Foo = Foo Boolean
 
 Finally, let's try to delete a term and a type with the same name.
 
-```unison
+```unison:hide
 foo = 1
 type foo = Foo Nat
 ```

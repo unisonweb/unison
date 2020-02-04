@@ -8,8 +8,8 @@ ability State s where
 
 state : s -> Request (State s) a -> (s, a)
 state s eff = case eff of
-  { State.get -> k } -> handle (state s) in k s
-  { State.put snew -> k } -> handle (state snew) in k ()
+  { State.get -> k } -> handle k s with state s
+  { State.put snew -> k } -> handle k () with state snew
   { a } -> (s, a)
 
 modify : (s ->{} s) -> {State s} ()
@@ -26,14 +26,14 @@ first p = case p of (a,_) -> a
 
 ex : Nat
 ex =
-  result = handle (state 10) in
+  result = handle
     State.put (11 + 1)
     State.put (5 + 15)
     ()
+    with state 10
 
   first result
 
 -- should return `20`, but actually returns `12`
 -- seems like only one `put` is actually being run
 > ex
-

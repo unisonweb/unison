@@ -666,6 +666,26 @@ mergeLocal = InputPattern "merge" [] [(Required, pathArg)
       _ -> Left (I.help mergeLocal)
  )
 
+diffNamespace :: InputPattern
+diffNamespace = InputPattern
+  "diff.namespace"
+  []
+  [(Required, pathArg), (Required, pathArg)]
+  (P.column2
+    [ ( "`diff.namespace before after`"
+      , P.wrap
+        "shows how the namespace `after` differs from the namespace `before`"
+      )
+    ]
+  )
+  (\case
+    [before, after] -> first fromString $ do
+      before <- Path.parsePath' before
+      after <- Path.parsePath' after
+      pure $ Input.DiffNamespaceI before after
+    _ -> Left $ I.help diffNamespace
+  )
+
 previewMergeLocal :: InputPattern
 previewMergeLocal = InputPattern
   "merge.preview"
@@ -766,22 +786,40 @@ edit = InputPattern
   )
   (pure . Input.ShowDefinitionI Input.LatestFileLocation)
 
-helpTopics :: Map String (P.Pretty P.ColorText)
-helpTopics = Map.fromList [
+topicNameArg :: ArgumentType
+topicNameArg =
+  ArgumentType "topic" $ \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap)
+
+helpTopics :: InputPattern
+helpTopics = InputPattern
+  "help-topics"
+  ["help-topic"]
+  [(Optional, topicNameArg)]
+  ( "`help-topics` lists all topics and `help-topics <topic>` shows an explanation of that topic." )
+  (\case
+    [] -> Left topics
+    [topic] -> case Map.lookup topic helpTopicsMap of
+       Nothing -> Left . warn $ "I don't know of that topic. Try `help-topics`."
+       Just t -> Left t
+    _ -> Left $ warn "Use `help-topics <topic>` or `help-topics`."
+  )
+  where
+    topics = P.callout "🌻" $ P.lines [
+      "Here's a list of topics I can tell you more about: ",
+      "",
+      P.indentN 2 $ P.sep "\n" (P.string <$> Map.keys helpTopicsMap),
+      "",
+      aside "Example" "use `help filestatus` to learn more about that topic."
+      ]
+
+helpTopicsMap :: Map String (P.Pretty P.ColorText)
+helpTopicsMap = Map.fromList [
   ("testcache", testCacheMsg),
   ("filestatus", fileStatusMsg),
-  ("topics", topics),
   ("messages.disallowedAbsolute", disallowedAbsoluteMsg),
   ("namespaces", pathnamesMsg)
   ]
   where
-  topics = P.callout "🌻" $ P.lines [
-    "Here's a list of topics I can tell you more about: ",
-    "",
-    P.indentN 2 $ P.sep "\n" (P.string <$> Map.keys helpTopics),
-    "",
-    aside "Example" "use `help filestatus` to learn more about that topic."
-    ]
   blankline = ("","")
   fileStatusMsg = P.callout "📓" . P.lines $ [
     P.wrap $ "Here's a list of possible status messages you might see"
@@ -882,7 +920,7 @@ help = InputPattern
     where
       commandsByName = Map.fromList [
         (n, i) | i <- validInputs, n <- I.patternName i : I.aliases i ]
-      isHelp s = Map.lookup s helpTopics
+      isHelp s = Map.lookup s helpTopicsMap
 
 quit :: InputPattern
 quit = InputPattern "quit" ["exit", ":q"] []
@@ -967,6 +1005,11 @@ names = InputPattern "names" []
     _ -> Left (I.help names)
   )
 
+debugNumberedArgs :: InputPattern 
+debugNumberedArgs = InputPattern "debug.numberedArgs" [] []
+  "Dump the contents of the numbered args state."
+  (const $ Right Input.DebugNumberedArgsI)
+
 debugBranchHistory :: InputPattern
 debugBranchHistory = InputPattern "debug.history" []
   [(Optional, noCompletions)]
@@ -998,6 +1041,7 @@ execute = InputPattern
 validInputs :: [InputPattern]
 validInputs =
   [ help
+  , helpTopics
   , load
   , add
   , previewAdd
@@ -1007,6 +1051,7 @@ validInputs =
   , forkLocal
   , mergeLocal
   , previewMergeLocal
+  , diffNamespace
   , names
   , push
   , pull
@@ -1048,6 +1093,7 @@ validInputs =
   , quit
   , updateBuiltins
   , mergeBuiltins
+  , debugNumberedArgs
   , debugBranchHistory
   ]
 
@@ -1056,7 +1102,7 @@ commandNames = validInputs >>= \i -> I.patternName i : I.aliases i
 
 commandNameArg :: ArgumentType
 commandNameArg =
-  ArgumentType "command" $ \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopics))
+  ArgumentType "command" $ \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap))
 
 fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
