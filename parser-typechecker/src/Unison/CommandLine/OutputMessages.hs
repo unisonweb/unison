@@ -36,7 +36,7 @@ import qualified Data.Set                      as Set
 import qualified Data.Sequence                 as Seq
 import qualified Data.Text                     as Text
 import           Data.Text.IO                  (readFile, writeFile)
-import           Data.Tuple.Extra              (dupe)
+import           Data.Tuple.Extra              (dupe, uncurry3)
 import           Prelude                       hiding (readFile, writeFile)
 import           System.Directory              (canonicalizePath, doesFileExist)
 import qualified Unison.ABT                    as ABT
@@ -178,10 +178,38 @@ notifyNumbered o = case o of
           undoTip
         ])
         (showDiffNamespace ppe destAbs destAbs diff)
-  where e = Path.absoluteEmpty
-        undoTip = tip $ "You can use" <> IP.makeExample' IP.undo
-                     <> "or" <> IP.makeExample' IP.viewReflog
-                     <> "to undo this change."
+  ShowDiffAfterCreatePR baseRepo headRepo ppe diff ->
+    if OBD.isEmpty diff then
+      (P.wrap $ "Looks like there's no difference between "
+            <> prettyRemoteNamespace baseRepo
+            <> "and"
+            <> prettyRemoteNamespace headRepo <> "."
+      ,mempty)
+    else first (\p ->
+      (P.lines
+        [P.wrap $ "The changes summarized below are available for you to review,"
+                 <> "using the following command:"
+        ,""
+        ,P.indentN 2 $
+          IP.makeExample IP.loadPullRequest [(prettyRemoteNamespace baseRepo)
+                                            ,(prettyRemoteNamespace headRepo)]
+        ,""
+        ,p])) (showDiffNamespace ppe e e diff)
+        -- todo: these numbers aren't going to work,
+        --  since the content isn't necessarily here.
+        -- Should we have a mode with no numbers? :P
+
+  where
+    e = Path.absoluteEmpty
+    undoTip = tip $ "You can use" <> IP.makeExample' IP.undo
+                 <> "or" <> IP.makeExample' IP.viewReflog
+                 <> "to undo this change."
+
+prettyRemoteNamespace :: (RemoteRepo.RemoteRepo,
+                          Maybe ShortBranchHash, Path.Path)
+                         -> P.Pretty P.ColorText
+prettyRemoteNamespace =
+          P.group . P.text . uncurry3 RemoteRepo.printNamespace
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
@@ -205,6 +233,25 @@ notifyUser dir o = case o of
 --          <> "from `.unison/v1/branches/head/`, but please make a backup first."
 --          <> "There will be a better way of handling this in the future. 😅"
 --      ]
+  LoadPullRequest baseNS headNS basePath headPath mergedPath -> pure $ P.lines
+    [ P.wrap $ "I checked out" <> prettyRemoteNamespace baseNS <> "to" <> P.group (prettyRelative basePath <> ".")
+    , P.wrap $ "I checked out" <> prettyRemoteNamespace headNS <> "to" <> P.group (prettyRelative headPath <> ".")
+    , ""
+    , P.wrap $ "The merged result is in" <> P.group (prettyRelative mergedPath <> ".")
+    , P.wrap $ "Use" <>
+        IP.makeExample IP.diffNamespace
+          [prettyRelative basePath, prettyRelative mergedPath]
+      <> "to see what's been updated."
+    , P.wrap $ "Use" <>
+        IP.makeExample IP.todo
+          [ prettyRelative (Path.snocRelative mergedPath "patch")
+          , prettyRelative mergedPath ]
+        <> "to see what work is remaining for the merge."
+    , P.wrap $ "Use" <>
+        IP.makeExample IP.push
+          [prettyRemoteNamespace baseNS, prettyRelative mergedPath]
+        <> "to push the changes."
+    ]
 
   DisplayDefinitions outputLoc ppe types terms ->
     displayDefinitions outputLoc ppe types terms
@@ -270,6 +317,9 @@ notifyUser dir o = case o of
     pure . P.warnCallout $ "A type by that name already exists."
   PatchAlreadyExists _ ->
     pure . P.warnCallout $ "A patch by that name already exists."
+  BranchNotEmpty path ->
+    pure . P.warnCallout $ "I was expecting the namespace " <> prettyPath' path
+      <> " to be empty for this operation, but it isn't."
   CantDelete ppe failed failedDependents -> pure . P.warnCallout $
     P.lines [
       P.wrap "I couldn't delete ",
@@ -868,6 +918,9 @@ prettyPath' p' =
   if Path.isCurrentPath p'
   then "the current namespace"
   else P.blue (P.shown p')
+
+prettyRelative :: Path.Relative -> Pretty
+prettyRelative = P.blue . P.shown
 
 prettySBH :: ShortBranchHash -> P.Pretty CT.ColorText
 prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)

@@ -88,12 +88,12 @@ unprefix :: Absolute -> Path' -> Path
 unprefix (Absolute prefix) (Path' p) = case p of
   Left abs -> unabsolute abs
   Right (unrelative -> rel) -> fromList $ dropPrefix (toList prefix) (toList rel)
-  
+
 -- too many types
 prefix :: Absolute -> Path' -> Path
 prefix (Absolute (Path prefix)) (Path' p) = case p of
   Left (unabsolute -> abs) -> abs
-  Right (unrelative -> rel) -> Path $ prefix <> toSeq rel  
+  Right (unrelative -> rel) -> Path $ prefix <> toSeq rel
 
 -- .libs.blah.poo is Absolute
 -- libs.blah.poo is Relative
@@ -218,10 +218,15 @@ absoluteEmpty = Absolute empty
 relativeEmpty' :: Path'
 relativeEmpty' = Path' (Right (Relative empty))
 
+relativeSingleton :: NameSegment -> Relative
+relativeSingleton = Relative . Path . Seq.singleton
+
 toAbsolutePath :: Absolute -> Path' -> Absolute
-toAbsolutePath (Absolute cur) (Path' p) = case p of
-  Left a -> a
-  Right (Relative rel) -> Absolute (Path $ toSeq cur <> toSeq rel)
+toAbsolutePath cur (Path' p) = either id (relativeToAbsolutePath cur) p
+
+relativeToAbsolutePath :: Absolute -> Relative -> Absolute
+relativeToAbsolutePath (Absolute cur) (Relative rel) =
+  Absolute (Path $ toSeq cur <> toSeq rel)
 
 toPath' :: Path -> Path'
 toPath' = \case
@@ -323,6 +328,9 @@ cons' n (Path' e) = case e of
 
 consAbsolute :: NameSegment -> Absolute -> Absolute
 consAbsolute n a = Absolute . cons n $ unabsolute a
+
+snocRelative :: Relative -> NameSegment -> Relative
+snocRelative r n = Relative . (`snoc` n) $ unrelative r
 
 instance Show Path where
   show = Text.unpack . toText

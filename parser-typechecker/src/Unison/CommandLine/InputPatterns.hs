@@ -40,6 +40,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
+import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -649,6 +650,43 @@ push = InputPattern
       Right $ Input.PushRemoteBranchI (Just (repo, path)) p
   )
 
+createPullRequest :: InputPattern
+createPullRequest = InputPattern "pr.create" []
+  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
+  (P.group $ P.lines
+    [ P.wrap $ makeExample createPullRequest ["base", "head"]
+        <> "will generate a request to merge the remote repo `head`"
+        <> "into the remote repo `base`."
+    , ""
+    , "example: pr.create https://github.com/unisonweb/base https://github.com/me/unison:.libs.pr.base"
+    ])
+  (\case
+    [baseUrl, headUrl] -> first fromString $ do
+      baseRepo <- parseUri "baseRepo" baseUrl
+      headRepo <- parseUri "headRepo" headUrl
+      pure $ Input.CreatePullRequestI baseRepo headRepo
+    _ -> Left (I.help createPullRequest)
+  )
+
+loadPullRequest :: InputPattern
+loadPullRequest = InputPattern "pr.load" []
+  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
+  (P.wrap $ makeExample loadPullRequest ["base", "head"]
+    <> "will load a pull request for merging the remote repo `head` into the"
+    <> "remote repo `base`, staging each in the current namespace"
+    <> "(so make yourself a clean spot to work first).")
+  (\case
+    [baseUrl, headUrl] -> first fromString $ do
+      baseRepo <- parseUri "baseRepo" baseUrl
+      headRepo <- parseUri "topicRepo" headUrl
+      pure $ Input.LoadPullRequestI baseRepo headRepo
+    _ -> Left (I.help loadPullRequest)
+  )
+parseUri :: IsString b => String -> String -> Either b RemoteNamespace
+parseUri label input =
+  first (fromString . show)
+    (P.parse UriParser.repoPath label (Text.pack input))
+
 mergeLocal :: InputPattern
 mergeLocal = InputPattern "merge" [] [(Required, pathArg)
                                      ,(Optional, pathArg)]
@@ -1005,7 +1043,7 @@ names = InputPattern "names" []
     _ -> Left (I.help names)
   )
 
-debugNumberedArgs :: InputPattern 
+debugNumberedArgs :: InputPattern
 debugNumberedArgs = InputPattern "debug.numberedArgs" [] []
   "Dump the contents of the numbered args state."
   (const $ Right Input.DebugNumberedArgsI)
@@ -1055,6 +1093,8 @@ validInputs =
   , names
   , push
   , pull
+  , createPullRequest
+  , loadPullRequest
   , cd
   , deleteBranch
   , renameBranch
