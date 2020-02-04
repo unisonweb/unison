@@ -234,10 +234,10 @@ notifyUser dir o = case o of
 --          <> "There will be a better way of handling this in the future. 😅"
 --      ]
   LoadPullRequest baseNS headNS basePath headPath mergedPath -> pure $ P.lines
-    [ P.wrap $ "I checked out" <> prettyRemoteNamespace baseNS <> "to" <> prettyRelative basePath <> "."
-    , P.wrap $ "I checked out" <> prettyRemoteNamespace headNS <> "to" <> prettyRelative headPath <> "."
+    [ P.wrap $ "I checked out" <> prettyRemoteNamespace baseNS <> "to" <> P.group (prettyRelative basePath <> ".")
+    , P.wrap $ "I checked out" <> prettyRemoteNamespace headNS <> "to" <> P.group (prettyRelative headPath <> ".")
     , ""
-    , P.wrap $ "The merged result is in" <> prettyRelative mergedPath <> "."
+    , P.wrap $ "The merged result is in" <> P.group (prettyRelative mergedPath <> ".")
     , P.wrap $ "Use" <>
         IP.makeExample IP.diffNamespace
           [prettyRelative basePath, prettyRelative mergedPath]
