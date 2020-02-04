@@ -47,7 +47,6 @@ import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
 import qualified Text.Megaparsec               as P
 import qualified Data.Set                      as Set
-import qualified Data.Sequence                 as Seq
 import           Data.Sequence                  ( Seq(..) )
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Codebase.BranchDiff    as BranchDiff
