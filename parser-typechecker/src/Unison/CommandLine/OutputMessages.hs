@@ -201,11 +201,15 @@ notifyNumbered o = case o of
 
   where
     e = Path.absoluteEmpty
-    prettyRemoteNamespace =
-              P.group . P.text . uncurry3 RemoteRepo.printNamespace
     undoTip = tip $ "You can use" <> IP.makeExample' IP.undo
                  <> "or" <> IP.makeExample' IP.viewReflog
                  <> "to undo this change."
+
+prettyRemoteNamespace :: (RemoteRepo.RemoteRepo,
+                          Maybe ShortBranchHash, Path.Path)
+                         -> P.Pretty P.ColorText
+prettyRemoteNamespace =
+          P.group . P.text . uncurry3 RemoteRepo.printNamespace
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
@@ -229,8 +233,14 @@ notifyUser dir o = case o of
 --          <> "from `.unison/v1/branches/head/`, but please make a backup first."
 --          <> "There will be a better way of handling this in the future. 😅"
 --      ]
-  LoadPullRequest{} -> error "todo"
-    -- RemoteNamespace RemoteNamespace Path.Relative Path.Relative Path.Relative
+  LoadPullRequest baseNS headNS basePath headPath mergedPath -> pure $ P.lines
+    [ P.wrap $ "I checked out" <> prettyRemoteNamespace baseNS <> "to" <> prettyRelative basePath <> "."
+    , P.wrap $ "I checked out" <> prettyRemoteNamespace headNS <> "to" <> prettyRelative headPath <> "."
+    , ""
+    , P.wrap $ "The merged result is in" <> prettyRelative mergedPath <> "."
+    , P.wrap $ "Use" <> IP.makeExample IP.diffNamespace [prettyRelative basePath, prettyRelative mergedPath]
+      <> "for details."
+    ]
 
   DisplayDefinitions outputLoc ppe types terms ->
     displayDefinitions outputLoc ppe types terms
@@ -897,6 +907,9 @@ prettyPath' p' =
   if Path.isCurrentPath p'
   then "the current namespace"
   else P.blue (P.shown p')
+
+prettyRelative :: Path.Relative -> Pretty
+prettyRelative = P.blue . P.shown
 
 prettySBH :: ShortBranchHash -> P.Pretty CT.ColorText
 prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
