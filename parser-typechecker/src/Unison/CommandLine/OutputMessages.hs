@@ -238,8 +238,19 @@ notifyUser dir o = case o of
     , P.wrap $ "I checked out" <> prettyRemoteNamespace headNS <> "to" <> prettyRelative headPath <> "."
     , ""
     , P.wrap $ "The merged result is in" <> prettyRelative mergedPath <> "."
-    , P.wrap $ "Use" <> IP.makeExample IP.diffNamespace [prettyRelative basePath, prettyRelative mergedPath]
-      <> "for details."
+    , P.wrap $ "Use" <>
+        IP.makeExample IP.diffNamespace
+          [prettyRelative basePath, prettyRelative mergedPath]
+      <> "to see what's been updated."
+    , P.wrap $ "Use" <>
+        IP.makeExample IP.todo
+          [ prettyRelative (Path.snocRelative mergedPath "patch")
+          , prettyRelative mergedPath ]
+        <> "to see what work is remaining for the merge."
+    , P.wrap $ "Use" <>
+        IP.makeExample IP.push
+          [prettyRemoteNamespace baseNS, prettyRelative mergedPath]
+        <> "to push the changes."
     ]
 
   DisplayDefinitions outputLoc ppe types terms ->

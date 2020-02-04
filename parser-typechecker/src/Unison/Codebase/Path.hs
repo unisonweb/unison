@@ -326,6 +326,9 @@ cons' n (Path' e) = case e of
 consAbsolute :: NameSegment -> Absolute -> Absolute
 consAbsolute n a = Absolute . cons n $ unabsolute a
 
+snocRelative :: Relative -> NameSegment -> Relative
+snocRelative r n = Relative . (`snoc` n) $ unrelative r
+
 instance Show Path where
   show = Text.unpack . toText
 
