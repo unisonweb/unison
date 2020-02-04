@@ -336,6 +336,7 @@ test = scope "termprinter" . tests $
                                                                              \(+) a b c = foo a b c"
   , tcBinding 50 "+" Nothing "a b -> foo a b" "a + b = foo a b"
   , tcBinding 50 "+" Nothing "a b c -> foo a b c" "(+) a b c = foo a b c"
+  , tcBinding 50 "." Nothing "f g x -> f (g x)" "(.) f g x = f (g x)"
   , tcBreaks 32 "let\n\
                  \  go acc a b =\n\
                  \    case List.at 0 a of\n\
@@ -428,6 +429,14 @@ test = scope "termprinter" . tests $
                  \    use A.Y c\n\
                  \    g c c\n\
                  \with bar"
+  , tcBreaks 20 "let\n\
+                 \  a = 2\n\
+                 \  handle baz\n\
+                 \  with\n\
+                 \    use A.X c\n\
+                 \    if foo then\n\
+                 \      f c c\n\
+                 \    else g c c"
   , tcBreaks 28 "if foo then\n\
                  \  f (x : (∀ t. Pair t t))\n\
                  \else\n\

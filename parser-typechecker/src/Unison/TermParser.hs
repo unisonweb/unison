@@ -480,10 +480,9 @@ docNormalize tm = case tm of
             ++ ", firstIsCandidate = " ++ (show firstIsCandidate) ++ "\n\n"
         -- remove trailing whitespace
         -- ls is non-empty thanks to the Text.null check above
-        -- Don't cut the last line's trailing whitespace if it's followed by something
-        -- which will put more text on the same line.
-        ls = mapExceptLast Text.stripEnd onLast $ Text.lines txt
-          where onLast = if nextIsCandidate then id else Text.stripEnd
+        -- Don't cut the last line's trailing whitespace - there's an assumption here
+        -- that it's followed by something which will put more text on the same line.
+        ls = mapExceptLast Text.stripEnd id $ Text.lines txt
         -- Work out which lines are candidates to be joined as part of a paragraph, i.e.
         -- are not indented.
         candidate l = case Text.uncons l of
