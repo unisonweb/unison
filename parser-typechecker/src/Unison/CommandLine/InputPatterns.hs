@@ -10,7 +10,7 @@ import Unison.Prelude
 
 import Data.Bifunctor (first)
 import Data.List (intercalate, sortOn, isPrefixOf)
-import Data.List.Extra (nubOrdOn)
+import Data.List.Extra (nubOrdOn, unsnoc)
 import qualified System.Console.Haskeline.Completion as Completion
 import System.Console.Haskeline.Completion (Completion(Completion))
 import Unison.Codebase (Codebase)
@@ -932,17 +932,25 @@ viewPatch = InputPattern "view.patch" [] [(Required, patchArg)]
    )
 
 link :: InputPattern
-link = InputPattern "link" []
-  [(Required, exactDefinitionQueryArg),
-   (Required, exactDefinitionQueryArg) ]
-  "`link src dest` creates a link from `src` to `dest`. Use `links src` or `links src <type>` to view outgoing links, and `unlink src dest` to remove a link."
+link = InputPattern
+  "link"
+  []
+  [(OneOrNumbers, exactDefinitionQueryArg), (Required, exactDefinitionQueryArg)]
+  (fromString $ concat
+    [ "`link src dest` creates a link from `src` to `dest`. "
+    , "Use `links src` or `links src <type>` to view outgoing links, "
+    , "and `unlink src dest` to remove a link. The `src` can be either the "
+    , "name of a term or type, or a range like `1-4` for a range of "
+    , "definitions listed by a prior `find` command."
+    ]
+  )
   (\case
-    [src, dest] -> first fromString $ do
-      src <- Path.parseHQSplit' src
+    (unsnoc -> Just (srcs, dest)) -> first fromString $ do
+      srcs <- traverse Path.parseHQSplit' srcs
       dest <- Path.parseHQSplit' dest
-      Right $ Input.LinkI src dest
+      Right $ Input.LinkI srcs dest
     _ -> Left (I.help link)
-   )
+  )
 
 links :: InputPattern
 links = InputPattern
@@ -963,17 +971,18 @@ links = InputPattern
   )
 
 unlink :: InputPattern
-unlink = InputPattern "unlink" ["delete.link"]
-  [(Required, exactDefinitionQueryArg),
-   (Required, exactDefinitionQueryArg) ]
+unlink = InputPattern
+  "unlink"
+  ["delete.link"]
+  [(OneOrNumbers, exactDefinitionQueryArg), (Required, exactDefinitionQueryArg)]
   "`unlink src dest` removes a link from `src` to `dest`."
   (\case
-    [src, dest] -> first fromString $ do
-      src <- Path.parseHQSplit' src
+    (unsnoc -> Just (srcs, dest)) -> first fromString $ do
+      srcs <- traverse Path.parseHQSplit' srcs
       dest <- Path.parseHQSplit' dest
-      Right $ Input.UnlinkI src dest
+      Right $ Input.UnlinkI srcs dest
     _ -> Left (I.help unlink)
-   )
+  )
 
 names :: InputPattern
 names = InputPattern "names" []
@@ -987,7 +996,7 @@ names = InputPattern "names" []
     _ -> Left (I.help names)
   )
 
-debugNumberedArgs :: InputPattern 
+debugNumberedArgs :: InputPattern
 debugNumberedArgs = InputPattern "debug.numberedArgs" [] []
   "Dump the contents of the numbered args state."
   (const $ Right Input.DebugNumberedArgsI)

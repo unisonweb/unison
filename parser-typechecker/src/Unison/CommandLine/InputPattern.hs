@@ -23,6 +23,7 @@ data IsOptional
   | Optional -- 0 or 1, at the end
   | ZeroPlus -- 0 or more, at the end
   | OnePlus -- 1 or more, at the end
+  | OneOrNumbers -- 1 argument, or a range of arguments like 3-6, in the middle
   deriving Show
 
 data InputPattern = InputPattern
