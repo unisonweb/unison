@@ -120,6 +120,48 @@ import Data.Primitive.PrimArray
 -- situational optimization, rather than a universal calling
 -- convention.
 
+-------------------------------
+-- Delimited Dynamic Binding --
+-------------------------------
+
+-- There is a final component to the implementation of ability
+-- handlers in this runtime system, and that is dynamically
+-- scoped variables associated to each prompt. Each prompt
+-- corresponds to an ability signature, and `reset` to a handler
+-- for said signature, but we need storage space for the code
+-- installed by said handler. It is possible to implement
+-- dynamically scoped variables entirely with delimited
+-- continuations, but it is more efficient to keep track of the
+-- storage directly when manipulating the continuations.
+
+-- The dynamic scoping---and how it interacts with
+-- continuations---corresponds to the nested structure of
+-- handlers. Installing a handler establishes a variable scope,
+-- shadowing outer scopes for the same prompt. Shifting, however,
+-- can exit these scopes dynamically. So, for instance, if we
+-- have a structure like:
+
+--    reset 0 $ ...
+--      reset 1 $ ...
+--        reset 0 $ ...
+--          shift 1 <E>
+
+-- We have nested scopes 0>1>0, with the second 0 shadowing the
+-- first. However, when we shift to 1, the inner 0 scope is
+-- captured into the continuation, and uses of the 0 ability in
+-- <E> will be handled by the outer handler until it is shadowed
+-- again (and the captured continuation will re-establish the
+-- shadowing).
+
+-- Mutation of the variables is possible, but mutation only
+-- affects the current scope. Essentially, the dynamic scoping is
+-- of mutable references, and when scope changes, we switch
+-- between different references, and the mutation of each
+-- reference does not affect the others. The purpose of the
+-- mutation is to enable more efficient implementation of
+-- certain recursive, 'deep' handlers, since those can operate
+-- more like stateful code than control operators.
+
 data Args'
   = Arg1 !Int
   | Arg2 !Int !Int
