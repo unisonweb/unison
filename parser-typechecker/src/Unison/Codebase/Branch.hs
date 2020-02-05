@@ -37,6 +37,7 @@ module Unison.Codebase.Branch
   , stepEverywhere
   , uncons
   , merge
+  , adjustHeadMN
 
     -- * Branch children
     -- ** Children lenses
@@ -211,6 +212,13 @@ makeLenses ''Raw
 toNames0 :: Branch0 m -> Names0
 toNames0 b = Names (R.swap . deepTerms $ b)
                    (R.swap . deepTypes $ b)
+
+adjustHeadMN :: (Monad m, Monad n)
+  => (Branch0 m -> n (Branch0 m))
+  -> (forall a. m a -> n a)
+  -> Branch m
+  -> n (Maybe (Branch m))
+adjustHeadMN f g = (fmap . fmap) Branch . Causal.adjustHeadMN f g . _history
 
 -- This stops searching for a given ShortHash once it encounters
 -- any term or type in any Branch0 that satisfies that ShortHash.
@@ -562,7 +570,7 @@ isEmpty = (== empty)
 step :: Applicative m => (Branch0 m -> Branch0 m) -> Branch m -> Branch m
 step f = over history (Causal.stepDistinct f)
 
-stepM :: Monad m => (Branch0 m -> m (Branch0 m)) -> Branch m -> m (Branch m)
+stepM :: (Monad m, Monad n) => (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepM f = mapMOf history (Causal.stepDistinctM f)
 
 cons :: Applicative m => Branch0 m -> Branch m -> Branch m
@@ -600,8 +608,8 @@ stepAtM p f = modifyAtM p g where
     b0' <- f (Causal.head b)
     pure $ Branch . Causal.consDistinct b0' $ b
 
-stepManyAtM :: (Monad m, Foldable f)
-            => f (Path, Branch0 m -> m (Branch0 m)) -> Branch m -> m (Branch m)
+stepManyAtM :: (Monad m, Monad n, Foldable f)
+            => f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepManyAtM actions = stepM (stepManyAt0M actions)
 
 -- starting at the leaves, apply `f` to every level of the branch.
@@ -691,9 +699,9 @@ stepManyAt0 :: (Applicative m, Foldable f)
            -> Branch0 m -> Branch0 m
 stepManyAt0 actions b = foldl' (\b (p, f) -> stepAt0 p f b) b actions
 
-stepManyAt0M :: (Monad m, Foldable f)
-             => f (Path, Branch0 m -> m (Branch0 m))
-             -> Branch0 m -> m (Branch0 m)
+stepManyAt0M :: (Monad m, Monad n, Foldable f)
+             => f (Path, Branch0 m -> n (Branch0 m))
+             -> Branch0 m -> n (Branch0 m)
 stepManyAt0M actions b = Monad.foldM (\b (p, f) -> stepAt0M p f b) b actions
 
 stepAt0M :: forall n m. (Functor n, Applicative m)

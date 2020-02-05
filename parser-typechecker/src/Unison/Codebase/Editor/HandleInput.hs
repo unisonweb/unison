@@ -214,6 +214,11 @@ loop = do
         let (p, seg) = Path.toAbsoluteSplit currentPath' patchPath'
         b <- getAt p
         eval . Eval $ Branch.getPatch seg (Branch.head b)
+      getPatchAt' :: Path.Split' -> Branch0 m -> Action' m v Patch
+      getPatchAt' patchPath' b = do
+        let (p, seg) = Path.toAbsoluteSplit currentPath' patchPath'
+            b' = Branch.getAt0 (Path.unabsolute p) b
+        eval . Eval $ Branch.getPatch seg b'
       withFile ambient sourceName lexed@(text, tokens) k = do
         let
           getHQ = \case
@@ -485,12 +490,17 @@ loop = do
         else do
           destb <- getAt dest
           merged <- eval . Eval $ Branch.merge srcb destb
-          b <- updateAtM dest $ const (pure merged)
-          if b then do
-            diffHelper (Branch.head destb) (Branch.head merged) >>=
+          let merged0 = Branch.head merged
+          patch <- getPatchAt' defaultPatchPath merged0
+          if (merged /= destb) then do
+            let (applyPatch, printMsg) = propagatePatch' @m @v patch dest
+            merged' <-
+              -- fromJust is safe as long as Branch.merge doesn't produce a Causal.One! 
+              fromJust <$> Branch.adjustHeadMN applyPatch (eval . Eval) merged
+            updateAtM dest $ const (pure merged')
+            diffHelper (Branch.head destb) (Branch.head merged') >>=
               respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
-            patch <- getPatchAt defaultPatchPath
-            void $ propagatePatch inputDescription patch dest
+            when (merged' /= merged) printMsg
           else respond (NothingTodo input)
 
       PreviewMergeLocalBranchI src0 dest0 -> do
@@ -979,7 +989,7 @@ loop = do
 
           -- type query
           ":" : ws -> ExceptT (parseSearchType input (unwords ws)) >>= \typ -> ExceptT $ do
-            let named = Branch.deepReferents (Branch.head root')
+            let named = Branch.deepReferents root0
             matches <- fmap toList . eval $ GetTermsOfType typ
             matches <- filter (`Set.member` named) <$>
               if null matches then do
@@ -1535,11 +1545,25 @@ resolveShortBranchHash hash = do
 propagatePatch :: (Monad m, Var v) =>
   Text -> Patch -> Path.Absolute -> Action' m v Bool
 propagatePatch inputDescription patch scopePath = do
-  changed <- do
-    updateAtM (inputDescription <> " (patch propagation)")
-              scopePath
-              (lift . lift . Propagate.propagateAndApply patch)
-  when changed $ do
+  let (f, msg) = propagatePatch' patch scopePath
+  changed <- stepAtM' (inputDescription <> " (patch propagation)")
+                      (Path.unabsolute scopePath, f)
+  when changed msg
+  pure changed
+
+-- Returns a function that updates a Branch0 according to the patch,
+-- and a an action that prints todo output, suitable for running if the branch
+--  was updated
+propagatePatch' :: forall m v. (Monad m, Var v)
+  => Patch
+  -> Path.Absolute
+  -> ( Branch0 m -> Action' m v (Branch0 m)
+     , Action' m v () )
+propagatePatch' patch scopePath =
+  let applyPatch :: Branch0 m -> Action' m v (Branch0 m)
+      applyPatch = lift . lift . Propagate.propagateAndApply patch in
+  ( applyPatch
+  , do
     scope <- getAt scopePath
     let names0 = Branch.toNames0 (Branch.head scope)
     -- this will be different AFTER the update succeeds
@@ -1547,7 +1571,7 @@ propagatePatch inputDescription patch scopePath = do
           names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
           prettyPrintEnvDecl names
     showTodoOutput getPpe patch names0
-  pure changed
+  )
 
 -- | Show todo output if there are any conflicts or edits.
 showTodoOutput
@@ -1842,6 +1866,12 @@ stepAtM :: forall m i v. Monad m
         -> Action m i v ()
 stepAtM cause = stepManyAtM @m @[] cause . pure
 
+stepAtM' :: forall m i v. Monad m
+        => Text
+        -> (Path, Branch0 m -> Action m i v (Branch0 m))
+        -> Action m i v Bool
+stepAtM' cause = stepManyAtM' @m @[] cause . pure
+
 stepManyAt :: (Applicative m, Foldable f)
            => Text
            -> f (Path, Branch0 m -> Branch0 m)
@@ -1859,6 +1889,16 @@ stepManyAtM reason actions = do
     b <- use root
     b' <- eval . Eval $ Branch.stepManyAtM actions b
     updateRoot b b' reason
+
+stepManyAtM' :: (Monad m, Foldable f)
+           => Text
+           -> f (Path, Branch0 m -> Action m i v (Branch0 m))
+           -> Action m i v Bool
+stepManyAtM' reason actions = do
+    b <- use root
+    b' <- Branch.stepManyAtM actions b
+    updateRoot b b' reason
+    pure (b /= b')
 
 updateRoot :: Branch m -> Branch m -> Text -> Action m i v ()
 updateRoot old new reason = when (old /= new) $ do

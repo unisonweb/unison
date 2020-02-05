@@ -172,6 +172,20 @@ children (One _ _         ) = Seq.empty
 children (Cons  _ _ (_, t)) = Seq.singleton t
 children (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
 
+adjustHeadMN :: (Monad m, Monad n, Hashable e)
+  => (e -> n e)
+  -> (forall a. m a -> n a)
+  -> Causal m h e
+  -> n (Maybe (Causal m h e))
+adjustHeadMN f g = \case
+  One{} -> pure Nothing
+  Cons _ e (_, tl) ->
+    fmap Just . cons <$> f e <*> g tl
+  Merge _ e tails -> do
+    e' <- f e
+    let h' = RawHash $ hash (e', Map.keys tails)
+    pure . Just $ Merge h' e' tails
+
 threeWayMerge
   :: forall m h e d
    . (Show d, Monad m, Hashable e, Semigroup d)
@@ -279,7 +293,8 @@ stepM
 stepM f c = (`cons` c) <$> f (head c)
 
 stepDistinctM
-  :: (Applicative m, Eq e, Hashable e) => (e -> m e) -> Causal m h e -> m (Causal m h e)
+  :: (Applicative m, Functor n, Eq e, Hashable e)
+  => (e -> n e) -> Causal m h e -> n (Causal m h e)
 stepDistinctM f c = (`consDistinct` c) <$> f (head c)
 
 one :: Hashable e => e -> Causal m h e
