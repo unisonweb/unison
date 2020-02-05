@@ -1,5 +1,6 @@
-{-# language TypeFamilies #-}
 {-# language DataKinds #-}
+{-# language TypeFamilies #-}
+{-# language PatternGuards #-}
 
 module Unison.Runtime.Stack where
 
@@ -20,6 +21,8 @@ data K
   | Mark !Int !K -- mark continuation with a prompt
   | Push !Int -- unboxed frame size
          !Int -- boxed frame size
+         !Int -- pending unboxed args
+         !Int -- pending boxed args
          !IR  -- code
          !K
 
@@ -110,6 +113,8 @@ bargOnto stk sp cop cp0 (ArgR i l) = do
   copyMutableArray cop cp0 stk (sp-i-l) l
   pure $ cp0+l
 
+data Dump = A | F Int | S
+
 class MEM (b :: Mem) where
   data Stack b :: *
   type Elem b :: *
@@ -123,100 +128,92 @@ class MEM (b :: Mem) where
   ensure :: Stack b -> SZ -> IO (Stack b)
   bump :: Stack b -> IO (Stack b)
   bumpn :: Stack b -> SZ -> IO (Stack b)
-  free :: Stack b -> SZ -> IO (Stack b)
-  frame :: Stack b -> IO (Stack b, SZ)
-  restore :: Stack b -> SZ -> IO (Stack b)
-  margs :: Stack b -> Int -> Args' -> IO (Stack b)
+  discardFrame :: Stack b -> IO (Stack b)
+  saveFrame :: Stack b -> IO (Stack b, SZ, SZ)
+  restoreFrame :: Stack b -> SZ -> SZ -> IO (Stack b)
+  prepareArgs :: Stack b -> Args' -> IO (Stack b)
+  acceptArgs :: Stack b -> Int -> IO (Stack b)
+  frameArgs :: Stack b -> IO (Stack b)
   augSeg :: Stack b -> Seg b -> Args' -> IO (Seg b)
-  dumpSeg :: Stack b -> Seg b -> IO (Stack b)
+  dumpSeg :: Stack b -> Seg b -> Dump -> IO (Stack b)
   fsize :: Stack b -> SZ
+  asize :: Stack b -> SZ
 
 instance MEM 'UN where
   data Stack 'UN
-    = US { ufp  :: !Int -- frame pointer
+    -- Note: uap <= ufp <= usp
+    = US { uap  :: !Int -- arg pointer
+         , ufp  :: !Int -- frame pointer
          , usp  :: !Int -- stack pointer
          , ustk :: {-# unpack #-} !(MutableByteArray (PrimState IO))
          }
   type Elem 'UN = Int
   type Seg 'UN = ByteArray
-  alloc = US (-1) (-1) <$> newByteArray 4096
+  alloc = US (-1) (-1) (-1) <$> newByteArray 4096
   {-# inline alloc #-}
-  peek (US _ sp stk) = readByteArray stk sp
+  peek (US _ _ sp stk) = readByteArray stk sp
   {-# inline peek #-}
-  peekOff (US _ sp stk) i = readByteArray stk (sp-i)
+  peekOff (US _ _ sp stk) i = readByteArray stk (sp-i)
   {-# inline peekOff #-}
-  poke (US _ sp stk) n = writeByteArray stk sp n
+  poke (US _ _ sp stk) n = writeByteArray stk sp n
   {-# inline poke #-}
-  pokeOff (US _ sp stk) i n = writeByteArray stk (sp-i) n
+  pokeOff (US _ _ sp stk) i n = writeByteArray stk (sp-i) n
   {-# inline pokeOff #-}
 
-  grab (US fp sp stk) sze = do
+  -- Eats up arguments
+  grab (US _ fp sp stk) sze = do
     mut <- newByteArray sz
-    copyMutableByteArray mut 0 stk (bp-sz) sz
+    copyMutableByteArray mut 0 stk (bfp-sz) sz
     seg <- unsafeFreezeByteArray mut
-    moveByteArray stk (bytes $ fp-sze) stk (bytes fp) fsz
-    pure (seg, US (fp-sze) (sp-sze) stk)
+    moveByteArray stk (bfp-sz) stk bfp fsz
+    pure (seg, US (fp-sze) (fp-sze) (sp-sze) stk)
    where
    sz = bytes sze
-   bp = bytes sp
+   bfp = bytes $ fp+1
    fsz = bytes $ sp-fp
   {-# inline grab #-}
 
-  ensure stki@(US fp sp stk) sze
+  ensure stki@(US ap fp sp stk) sze
     | sze <= 0
     || bytes (sp+sze+1) < ssz = pure stki
     | otherwise = do
       stk' <- resizeMutableByteArray stk (ssz+10240)
-      pure $ US fp sp stk'
+      pure $ US ap fp sp stk'
    where
    ssz = sizeofMutableByteArray stk
   {-# inline ensure #-}
 
-  bump (US fp sp stk) = pure $ US fp (sp+1) stk
+  bump (US ap fp sp stk) = pure $ US ap fp (sp+1) stk
   {-# inline bump #-}
 
-  bumpn (US fp sp stk) n = pure $ US fp (sp+n) stk
+  bumpn (US ap fp sp stk) n = pure $ US ap fp (sp+n) stk
   {-# inline bumpn #-}
 
-  free (US fp sp stk) sz = pure $ US fp (sp-sz) stk
-  {-# inline free #-}
+  discardFrame (US ap fp _ stk) = pure $ US ap fp fp stk
+  {-# inline discardFrame #-}
 
--- ureturn :: UStk -> SZ -> Args -> IO UStk
--- ureturn (US fp _  stk) sz Arg0 = pure $ US (fp-sz) fp stk
--- ureturn (US fp sp stk) sz (Arg1 i) = do
---   (x :: Int) <- readByteArray stk (sp-i)
---   let sp' = fp+1
---   writeByteArray stk sp' x
---   pure $ US (fp-sz) sp' stk
--- ureturn (US fp sp stk) sz (Arg2 i j) = do
---   (x :: Int) <- readByteArray stk (sp-i)
---   (y :: Int) <- readByteArray stk (sp-j)
---   let sp' = fp+2
---   writeByteArray stk sp' x
---   writeByteArray stk (sp'-1) y
---   pure $ US (fp-sz) sp' stk
--- ureturn (US fp _  stk) sz (ArgN v) = do
---   let sp' = fp + sizeofPrimArray v
---   pure $ US (fp-sz) sp' stk
--- {-# inline ureturn #-}
+  saveFrame (US ap fp sp stk) = pure (US sp sp sp stk, sp-fp, fp-ap)
+  {-# inline saveFrame #-}
 
-  frame (US fp sp stk) =
-    pure (US sp sp stk, sp-fp)
-  {-# inline frame #-}
+  restoreFrame (US _ fp0 sp stk) fsz asz = pure $ US ap fp sp stk
+   where fp = fp0-fsz
+         ap = fp-asz
+  {-# inline restoreFrame #-}
 
-  restore (US fp sp stk) sz =
-    pure $ US (fp-sz) sp stk
-  {-# inline restore #-}
+  prepareArgs (US ap fp sp stk) (ArgR i l)
+    | fp+l+i == sp = pure $ US ap (sp-i) (sp-i) stk
+  prepareArgs (US ap fp sp stk) args = do
+    sp <- uargOnto stk sp stk fp args
+    pure $ US ap sp sp stk
+  {-# inline prepareArgs #-}
 
-  margs istk pop (ArgR i l)
-    | i == 0
-   && pop == l = pure istk
-  margs (US fp sp stk) pop args = do
-    sp <- uargOnto stk sp stk (sp-pop) args
-    pure $ US fp sp stk
-  {-# inline margs #-}
+  acceptArgs (US ap fp sp stk) n = pure $ US ap (fp-n) sp stk
+  {-# inline acceptArgs #-}
 
-  augSeg (US _ sp stk) seg args = do
+  frameArgs (US ap _ sp stk) = pure $ US ap ap sp stk
+  {-# inline frameArgs #-}
+
+  augSeg (US _ _ sp stk) seg args = do
     cop <- newByteArray $ ssz+asz
     copyByteArray cop 0 seg 0 ssz
     _ <- uargOnto stk sp cop (sz-1) args
@@ -231,17 +228,27 @@ instance MEM 'UN where
           ArgR _ l -> bytes l
   {-# inline augSeg #-}
 
-  dumpSeg (US fp sp stk) seg = do
+  dumpSeg (US ap fp sp stk) seg mode = do
     copyByteArray stk bsp seg 0 ssz
-    pure $ US fp (sp+sz) stk
+    pure $ US ap' fp' sp' stk
    where
    bsp = bytes $ sp+1
    ssz = sizeofByteArray seg
    sz = words ssz
+   sp' = sp+sz
+   fp' = case mode of
+     S -> fp
+     F n -> fp+sz-n
+     A -> fp+sz
+   ap' | F _ <- mode = fp'
+       | otherwise   = ap
   {-# inline dumpSeg #-}
 
-  fsize (US fp sp _) = sp-fp
+  fsize (US _ fp sp _) = sp-fp
   {-# inline fsize #-}
+
+  asize (US ap fp _ _) = fp-ap
+  {-# inline asize #-}
 
 unull :: Seg 'UN
 unull = byteArrayFromListN 0 ([] :: [Int])
@@ -252,92 +259,94 @@ bnull = fromListN 0 []
 sentinel :: a
 sentinel = error "bad stack access"
 
+instance Show (Stack 'BX) where
+  show (BS ap fp sp _)
+    = "BS " ++ show ap ++ " " ++ show fp ++ " " ++ show sp
+instance Show (Stack 'UN) where
+  show (US ap fp sp _)
+    = "US " ++ show ap ++ " " ++ show fp ++ " " ++ show sp
+instance Show K where
+  show k = "[" ++ go "" k
+    where
+    go _ KE = "]"
+    go com (Push uf bf ua ba _ k)
+      = com ++ show (uf,bf,ua,ba) ++ go "," k
+    go com (Mark p k) = com ++ "M" ++ show p ++ go "," k
+
 instance MEM 'BX where
   data Stack 'BX
-    = BS { bfp :: !Int
+    = BS { bap :: !Int
+         , bfp :: !Int
          , bsp :: !Int
          , bstk :: {-# unpack #-} !(MutableArray (PrimState IO) Closure)
          }
   type Elem 'BX = Closure
   type Seg 'BX = Array Closure
 
-  alloc = BS (-1) (-1) <$> newArray 512 sentinel
+  alloc = BS (-1) (-1) (-1) <$> newArray 512 sentinel
   {-# inline alloc #-}
 
-  peek (BS _ sp stk) = readArray stk sp
+  peek (BS _ _ sp stk) = readArray stk sp
   {-# inline peek #-}
 
-  peekOff (BS _ sp stk) i = readArray stk (sp-i)
+  peekOff (BS _ _ sp stk) i = readArray stk (sp-i)
   {-# inline peekOff #-}
 
-  poke (BS _ sp stk) x = writeArray stk sp x
+  poke (BS _ _ sp stk) x = writeArray stk sp x
   {-# inline poke #-}
 
-  pokeOff (BS _ sp stk) i x = writeArray stk (sp-i) x
+  pokeOff (BS _ _ sp stk) i x = writeArray stk (sp-i) x
   {-# inline pokeOff #-}
 
-  grab (BS fp sp stk) sz = do
-    seg <- unsafeFreezeArray =<< cloneMutableArray stk (fp-sz) sz
-    copyMutableArray stk (fp-sz) stk fp fsz
-    pure (seg, BS (fp-sz) (sp-sz) stk)
+  grab (BS _ fp sp stk) sz = do
+    seg <- unsafeFreezeArray =<< cloneMutableArray stk (fp+1-sz) sz
+    copyMutableArray stk (fp+1-sz) stk (fp+1) fsz
+    pure (seg, BS (fp-sz) (fp-sz) (sp-sz) stk)
    where fsz = sp-fp
   {-# inline grab #-}
 
-  ensure stki@(BS fp sp stk) sz
+  ensure stki@(BS ap fp sp stk) sz
     | sz <= 0 = pure stki
     | sp+sz+1 < ssz = pure stki
     | otherwise = do
       stk' <- newArray (ssz+1280) sentinel
       copyMutableArray stk' 0 stk 0 (sp+1)
-      pure $ BS fp sp stk'
+      pure $ BS ap fp sp stk'
     where ssz = sizeofMutableArray stk
   {-# inline ensure #-}
 
-  bump (BS fp sp stk) = pure $ BS fp (sp+1) stk
+  bump (BS ap fp sp stk) = pure $ BS ap fp (sp+1) stk
   {-# inline bump #-}
 
-  bumpn (BS fp sp stk) n = pure $ BS fp (sp+n) stk
+  bumpn (BS ap fp sp stk) n = pure $ BS ap fp (sp+n) stk
   {-# inline bumpn #-}
 
-  free (BS fp sp stk) sz = pure $ BS fp (sp-sz) stk
-  {-# inline free #-}
+  discardFrame (BS ap fp _ stk) = pure $ BS ap fp fp stk
+  {-# inline discardFrame #-}
 
--- breturn :: BStk -> SZ -> Args -> IO BStk
--- breturn (BS fp _  stk) sz Arg0 = pure $ BS (fp-sz) fp stk
--- breturn (BS fp sp stk) sz (Arg1 i) = do
---   x <- readArray stk (sp-i)
---   let sp' = fp+1
---   writeArray stk sp' x
---   pure $ BS (fp-sz) sp' stk
--- breturn (BS fp sp stk) sz (Arg2 i j) = do
---   x <- readArray stk (sp-i)
---   y <- readArray stk (sp-j)
---   let sp' = fp+2
---   writeArray stk sp' x
---   writeArray stk (sp'-1) y
---   pure $ BS (fp-sz) sp' stk
--- breturn (BS fp _  stk) sz (ArgN v) = do
---   let sp' = fp + sizeofPrimArray v
---   pure $ BS (fp-sz) sp' stk
--- {-# inline breturn #-}
+  saveFrame (BS ap fp sp stk) = pure (BS sp sp sp stk, sp-fp, fp-ap)
+  {-# inline saveFrame #-}
 
-  frame (BS fp sp stk) =
-    pure (BS sp sp stk, sp-fp)
-  {-# inline frame #-}
+  restoreFrame (BS _ fp0 sp stk) fsz asz = pure $ BS ap fp sp stk
+   where
+   fp = fp0-fsz
+   ap = fp-asz
+  {-# inline restoreFrame #-}
 
-  restore (BS fp sp stk) sz =
-    pure $ BS (fp-sz) sp stk
-  {-# inline restore #-}
+  prepareArgs (BS ap fp sp stk) (ArgR i l)
+    | fp+l+i == sp = pure $ BS ap sp sp stk
+  prepareArgs (BS ap fp sp stk) args = do
+    sp <- bargOnto stk sp stk fp args
+    pure $ BS ap sp sp stk
+  {-# inline prepareArgs #-}
 
-  margs istk pop (ArgR i l)
-    | i == 0
-   && pop == l = pure istk
-  margs (BS fp sp stk) pop args = do
-    sp <- bargOnto stk sp stk (sp-pop) args
-    pure $ BS fp sp stk
-  {-# inline margs #-}
+  acceptArgs (BS ap fp sp stk) n = pure $ BS ap (fp-n) sp stk
+  {-# inline acceptArgs #-}
 
-  augSeg (BS _ sp stk) seg args = do
+  frameArgs (BS ap _ sp stk) = pure $ BS ap ap sp stk
+  {-# inline frameArgs #-}
+
+  augSeg (BS _ _ sp stk) seg args = do
     cop <- newArray (ssz+asz) sentinel
     copyArray cop 0 seg 0 ssz
     _ <- bargOnto stk sp cop (ssz-1) args
@@ -351,15 +360,24 @@ instance MEM 'BX where
           ArgR _ l -> l
   {-# inline augSeg #-}
 
-  dumpSeg (BS fp sp stk) seg = do
+  dumpSeg (BS ap fp sp stk) seg mode = do
     copyArray stk (sp+1) seg 0 sz
-    pure $ BS fp (sp+sz) stk
+    pure $ BS ap' fp' sp' stk
    where
    sz = sizeofArray seg
+   sp' = sp+sz
+   fp' = case mode of
+     S -> fp
+     F n -> fp+sz-n
+     A -> fp+sz
+   ap' | F _ <- mode = fp'
+       | otherwise = ap
   {-# inline dumpSeg #-}
 
-  fsize (BS fp sp _) = sp-fp
+  fsize (BS _ fp sp _) = sp-fp
   {-# inline fsize #-}
+
+  asize (BS ap fp _ _) = fp-ap
 
 uscount :: Seg 'UN -> Int
 uscount seg = words $ sizeofByteArray seg

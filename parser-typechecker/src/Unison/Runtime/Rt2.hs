@@ -10,6 +10,11 @@ import Unison.Runtime.IR2
 type Tag = Int
 type Env = Int -> Comb
 
+info :: Show a => String -> a -> IO ()
+info ctx x = infos ctx (show x)
+infos :: String -> String -> IO ()
+infos ctx s = putStrLn $ ctx ++ ": " ++ s
+
 eval0 :: Env -> IR -> IO ()
 eval0 !env !co = do
   ustk <- alloc
@@ -17,10 +22,15 @@ eval0 !env !co = do
   eval env ustk bstk KE co
 
 eval :: Env -> Stack 'UN -> Stack 'BX -> K -> IR -> IO ()
-eval !env !ustk !bstk !k (App up bp r args) =
-  resolve env ustk bstk r >>= apply env ustk bstk k up bp args
-eval !env !ustk !bstk !k (Jump up bp i args) =
-  peekOff bstk i >>= jump env ustk bstk k up bp args
+eval !env !ustk !bstk !k (Info tx nx) = do
+  info tx ustk
+  info tx bstk
+  info tx k
+  eval env ustk bstk k nx
+eval !env !ustk !bstk !k (App r args) =
+  resolve env ustk bstk r >>= apply env ustk bstk k args
+eval !env !ustk !bstk !k (Jump i args) =
+  peekOff bstk i >>= jump env ustk bstk k args
 eval !env !ustk !bstk !k (Reset p nx) =
   eval env ustk bstk (Mark p k) nx
 eval !env !ustk !bstk !k (Capture p nx) = do
@@ -29,9 +39,9 @@ eval !env !ustk !bstk !k (Capture p nx) = do
   poke bstk $ Captured sk useg bseg
   eval env ustk bstk k' nx
 eval !env !ustk !bstk !k (Let e nx) = do
-  (ustk, usz) <- frame ustk
-  (bstk, bsz) <- frame bstk
-  eval env ustk bstk (Push usz bsz nx k) e
+  (ustk, ufsz, uasz) <- saveFrame ustk
+  (bstk, bfsz, basz) <- saveFrame bstk
+  eval env ustk bstk (Push ufsz bfsz uasz basz nx k) e
 eval !env !ustk !bstk !k (Prim1 op i nx) =
   prim1 env ustk bstk k op i nx
 eval !env !ustk !bstk !k (Prim2 op i j nx) =
@@ -55,89 +65,94 @@ eval !env !ustk !bstk !k (Lit n nx) = do
   ustk <- bump ustk
   poke ustk n
   eval env ustk bstk k nx
-eval !env !ustk !bstk !k (Yield u b args) = do
-  (ustk, bstk) <- moveArgs ustk bstk u b args
+eval !env !ustk !bstk !k (Yield args) = do
+  (ustk, bstk) <- moveArgs ustk bstk args
+  ustk <- frameArgs ustk
+  bstk <- frameArgs bstk
   yield env ustk bstk k
 
 apply
   :: Env -> Stack 'UN -> Stack 'BX -> K
-  -> Int -> Int -> Args -> Closure -> IO ()
-apply !env !ustk !bstk !k !up !bp !args
+  -> Args -> Closure -> IO ()
+apply !env !ustk !bstk !k !args
       (PAp comb@(Lam ua ba uf bf fun) useg bseg)
   | ua <= uac && ba <= bac = do
     ustk <- ensure ustk uf
     bstk <- ensure bstk bf
-    (ustk, bstk) <- moveArgs ustk bstk up bp args
+    (ustk, bstk) <- moveArgs ustk bstk args
+    ustk <- dumpSeg ustk useg A
+    bstk <- dumpSeg bstk bseg A
+    ustk <- acceptArgs ustk ua
+    bstk <- acceptArgs bstk ba
     eval env ustk bstk k fun
   | otherwise = do
     (useg, bseg) <- closeArgs ustk bstk useg bseg args
-    ustk <- free ustk up
-    bstk <- free bstk bp
+    ustk <- discardFrame ustk
+    bstk <- discardFrame bstk
     bstk <- bump bstk
     poke bstk $ PAp comb useg bseg
     yield env ustk bstk k
  where
- uac = fsize ustk - up + ucount args + uscount useg
- bac = fsize bstk - bp + bcount args + bscount bseg
-apply _ _ _ _ _ _ _ _ = error "applying non-function"
+ uac = asize ustk + ucount args + uscount useg
+ bac = asize bstk + bcount args + bscount bseg
+apply _ _ _ _ _ _ = error "applying non-function"
 {-# inline apply #-}
 
 jump
   :: Env -> Stack 'UN -> Stack 'BX -> K
-  -> Int -> Int -> Args -> Closure -> IO ()
-jump !env !ustk !bstk !k !up !bp !args (Captured sk useg bseg) = do
+  -> Args -> Closure -> IO ()
+jump !env !ustk !bstk !k !args (Captured sk useg bseg) = do
   (useg, bseg) <- closeArgs ustk bstk useg bseg args
-  ustk <- free ustk up
-  bstk <- free bstk bp
-  ustk <- dumpSeg ustk useg
-  bstk <- dumpSeg bstk bseg
+  ustk <- discardFrame ustk
+  bstk <- discardFrame bstk
+  ustk <- dumpSeg ustk useg . F $ ucount args
+  bstk <- dumpSeg bstk bseg . F $ bcount args
   yield env ustk bstk $ repush sk k
  where
  repush KE k = k
  repush (Mark p sk) k = repush sk $ Mark p k
- repush (Push un bn nx sk) k = repush sk $ Push un bn nx k
-jump !_ !_ !_ !_ !_ !_ !_ !_ = error "jump: non-cont"
+ repush (Push un bn ua ba nx sk) k = repush sk $ Push un bn ua ba nx k
+jump !_ !_ !_ !_ !_ !_ = error "jump: non-cont"
 {-# inline jump #-}
 
 moveArgs
   :: Stack 'UN -> Stack 'BX
-  -> Int -> Int
   -> Args -> IO (Stack 'UN, Stack 'BX)
-moveArgs !ustk !bstk !up !bp ZArgs = do
-  ustk <- free ustk up
-  bstk <- free bstk bp
+moveArgs !ustk !bstk ZArgs = do
+  ustk <- discardFrame ustk
+  bstk <- discardFrame bstk
   pure (ustk, bstk)
-moveArgs !ustk !bstk !up !bp (UArg1 i) = do
-  ustk <- margs ustk up (Arg1 i)
-  bstk <- free bstk bp
+moveArgs !ustk !bstk (UArg1 i) = do
+  ustk <- prepareArgs ustk (Arg1 i)
+  bstk <- discardFrame bstk
   pure (ustk, bstk)
-moveArgs !ustk !bstk !up !bp (UArg2 i j) = do
-  ustk <- margs ustk up (Arg2 i j)
-  bstk <- free bstk bp
+moveArgs !ustk !bstk (UArg2 i j) = do
+  ustk <- prepareArgs ustk (Arg2 i j)
+  bstk <- discardFrame bstk
   pure (ustk, bstk)
-moveArgs !ustk !bstk !up !bp (UArgR i l) = do
-  ustk <- margs ustk up (ArgR i l)
-  bstk <- free bstk bp
+moveArgs !ustk !bstk (UArgR i l) = do
+  ustk <- prepareArgs ustk (ArgR i l)
+  bstk <- discardFrame bstk
   pure (ustk, bstk)
-moveArgs !ustk !bstk !up !bp (BArg1 i) = do
-  ustk <- free ustk up
-  bstk <- margs bstk bp (Arg1 i)
+moveArgs !ustk !bstk (BArg1 i) = do
+  ustk <- discardFrame ustk
+  bstk <- prepareArgs bstk (Arg1 i)
   pure (ustk, bstk)
-moveArgs !ustk !bstk !up !bp (BArg2 i j) = do
-  ustk <- free ustk up
-  bstk <- margs bstk bp (Arg2 i j)
+moveArgs !ustk !bstk (BArg2 i j) = do
+  ustk <- discardFrame ustk
+  bstk <- prepareArgs bstk (Arg2 i j)
   pure (ustk, bstk)
-moveArgs !ustk !bstk !up !bp (BArgR i l) = do
-  ustk <- free ustk up
-  bstk <- margs bstk bp (ArgR i l)
+moveArgs !ustk !bstk (BArgR i l) = do
+  ustk <- discardFrame ustk
+  bstk <- prepareArgs bstk (ArgR i l)
   pure (ustk, bstk)
-moveArgs !ustk !bstk !up !bp (DArg2 i j) = do
-  ustk <- margs ustk up (Arg1 i)
-  bstk <- margs bstk bp (Arg1 j)
+moveArgs !ustk !bstk (DArg2 i j) = do
+  ustk <- prepareArgs ustk (Arg1 i)
+  bstk <- prepareArgs bstk (Arg1 j)
   pure (ustk, bstk)
-moveArgs !ustk !bstk !up !bp (DArgR ui ul bi bl) = do
-  ustk <- margs ustk up (ArgR ui ul)
-  bstk <- margs bstk bp (ArgR bi bl)
+moveArgs !ustk !bstk (DArgR ui ul bi bl) = do
+  ustk <- prepareArgs ustk (ArgR ui ul)
+  bstk <- prepareArgs bstk (ArgR bi bl)
   pure (ustk, bstk)
 {-# inline moveArgs #-}
 
@@ -212,8 +227,8 @@ dumpData !ustk !bstk (DataUB t x y) = do
   poke ustk t
   pure (ustk, bstk)
 dumpData !ustk !bstk (DataG t us bs) = do
-  ustk <- dumpSeg ustk us
-  bstk <- dumpSeg bstk bs
+  ustk <- dumpSeg ustk us S
+  bstk <- dumpSeg bstk bs S
   ustk <- bump ustk
   poke ustk t
   pure (ustk, bstk)
@@ -288,9 +303,9 @@ yield :: Env -> Stack 'UN -> Stack 'BX -> K -> IO ()
 yield !env !ustk !bstk !k = leap k
  where
  leap (Mark _ k) = leap k
- leap (Push usz bsz nx k) = do
-   ustk <- restore ustk usz
-   bstk <- restore bstk bsz
+ leap (Push ufsz bfsz uasz basz nx k) = do
+   ustk <- restoreFrame ustk ufsz uasz
+   bstk <- restoreFrame bstk bfsz basz
    eval env ustk bstk k nx
  leap KE = pure ()
 {-# inline yield #-}
@@ -310,14 +325,14 @@ splitCont
   :: Stack 'UN -> Stack 'BX
   -> K -> Int
   -> IO (K, Stack 'UN, Stack 'BX, Seg 'UN, Seg 'BX, K)
-splitCont !ustk !bstk !k !p = walk 0 0 KE k
+splitCont !ustk !bstk !k !p = walk (asize ustk) (asize bstk) KE k
  where
  walk !usz !bsz !ck KE = error "fell off stack" >> finish usz bsz ck KE
  walk !usz !bsz !ck (Mark q k)
    | p == q    = finish usz bsz ck k
    | otherwise = walk usz bsz (Mark q ck) k
- walk !usz !bsz !ck (Push un bn br k)
-   = walk (usz+un) (bsz+bn) (Push un bn br ck) k
+ walk !usz !bsz !ck (Push un bn ua ba br k)
+   = walk (usz+un+ua) (bsz+bn+ba) (Push un bn ua ba br ck) k
 
  finish !usz !bsz !ck !k = do
    (useg, ustk) <- grab ustk usz
