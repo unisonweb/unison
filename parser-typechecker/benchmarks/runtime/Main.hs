@@ -27,6 +27,27 @@ sloop = Unpack 1 . Unpack 0 $ body
        $ Pack 0 (UArg1 0)
        $ App (Env 1) (BArg2 0 1)
 
+-- loop with fast path optimization
+oloop :: IR
+oloop = Match 0 $ Test1 0 (Yield $ UArg1 1) rec
+  where
+  rec = Prim2 Add 0 1
+      $ Prim1 Dec 1
+      $ Call False 7 (UArg2 0 1)
+
+-- sloop with fast path optimization
+soloop :: IR
+soloop = Unpack 1 . Unpack 0 $ body
+  where
+  body = Match 1 $ Test1
+           0 (Pack 0 (UArg1 3) $ Yield (BArg1 0))
+           {-else-} rec
+  rec = Prim2 Add 1 3
+      $ Prim1 Dec 2
+      $ Pack 0 (UArg1 1)
+      $ Pack 0 (UArg1 0)
+      $ Call False 8 (BArg2 0 1)
+
 konst :: IR
 konst = Yield (BArg1 0)
 
@@ -97,6 +118,18 @@ fib = Match 0 $ Test2
       $ Let (App (Env 2) (UArg1 1))
       $ Prim2 Add 0 1 $ Yield (UArg1 0)
 
+ofib :: IR
+ofib = Match 0 $ Test2
+         0 (Lit 0 . Yield $ UArg1 0)
+         1 (Lit 1 . Yield $ UArg1 0)
+         {-else-} rec
+  where
+  rec = Prim1 Dec 0
+      $ Prim1 Dec 0
+      $ Let (Call True 9 (UArg1 1))
+      $ Let (Call True 9 (UArg1 1))
+      $ Prim2 Add 0 1 $ Yield (UArg1 0)
+
 stackEater :: IR
 stackEater
   = Match 0 $ Test1
@@ -110,6 +143,9 @@ testEnv 2 = Lam 1 0 6 0 fib
 testEnv 4 = Lam 1 0 1 0 stackEater
 testEnv 5 = Lam 1 0 2 3 kloopb
 testEnv 6 = Lam 2 0 2 2 kloop
+testEnv 7 = Lam 2 0 4 0 oloop
+testEnv 8 = Lam 0 2 6 4 soloop
+testEnv 9 = Lam 1 0 6 0 ofib
 testEnv 10 = Lam 0 2 0 2 konst
 testEnv 11 = Lam 0 2 5 3 add
 testEnv 12 = Lam 0 2 0 2 diag
@@ -141,12 +177,26 @@ main = defaultMain
       , benchEv "100000"  $ setupu2 0 0 100000
       , benchEv "1000000" $ setupu2 0 0 1000000
       ]
+  , bgroup "oloop"
+      [ benchEv "2500"    $ setupu2 7 0 2500
+      , benchEv "5000"    $ setupu2 7 0 5000
+      , benchEv "10000"   $ setupu2 7 0 10000
+      , benchEv "100000"  $ setupu2 7 0 100000
+      , benchEv "1000000" $ setupu2 7 0 1000000
+      ]
   , bgroup "sloop"
       [ benchEv "2500"    $ setupb2 1 0 2500
       , benchEv "5000"    $ setupb2 1 0 5000
       , benchEv "10000"   $ setupb2 1 0 10000
       , benchEv "100000"  $ setupb2 1 0 100000
       , benchEv "1000000" $ setupb2 1 0 1000000
+      ]
+  , bgroup "soloop"
+      [ benchEv "2500"    $ setupb2 8 0 2500
+      , benchEv "5000"    $ setupb2 8 0 5000
+      , benchEv "10000"   $ setupb2 8 0 10000
+      , benchEv "100000"  $ setupb2 8 0 100000
+      , benchEv "1000000" $ setupb2 8 0 1000000
       ]
   , bgroup "kloop"
       [ benchEv "2500"    $ setupu2 6 0 2500
@@ -161,6 +211,13 @@ main = defaultMain
       , benchEv "20" $ setupu1 2 20
       , benchEv "25" $ setupu1 2 25
       , benchEv "30" $ setupu1 2 30
+      ]
+  , bgroup "ofib"
+      [ benchEv "10" $ setupu1 9 10
+      , benchEv "15" $ setupu1 9 15
+      , benchEv "20" $ setupu1 9 20
+      , benchEv "25" $ setupu1 9 25
+      , benchEv "30" $ setupu1 9 30
       ]
   , bgroup "stackEater"
       [ benchEv "100"    $ setupu1 4 100

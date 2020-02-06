@@ -209,6 +209,16 @@ data IR
   = App !Ref      -- function to apply
         !Args     -- additional arguments
 
+  -- This is the 'fast path', for when we statically know we're
+  -- making an exactly saturated call to a statically known
+  -- function. This allows skipping various checks that can cost
+  -- time in very tight loops. This also allows skipping the
+  -- stack check if we know that the current stack allowance is
+  -- sufficient for where we're jumping to.
+  | Call !Bool    -- skip stack check
+         !Int     -- function to apply
+         !Args    -- arguments
+
   -- Dump some debugging information about the machine state to
   -- the screen.
   | Info !String  -- prefix for info output

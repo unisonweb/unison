@@ -29,6 +29,8 @@ eval !env !ustk !bstk !k (Info tx nx) = do
   eval env ustk bstk k nx
 eval !env !ustk !bstk !k (App r args) =
   resolve env ustk bstk r >>= apply env ustk bstk k args
+eval !env !ustk !bstk !k (Call ck n args) =
+  enter env ustk bstk k ck args (env n)
 eval !env !ustk !bstk !k (Jump i args) =
   peekOff bstk i >>= jump env ustk bstk k args
 eval !env !ustk !bstk !k (Reset p nx) =
@@ -71,6 +73,20 @@ eval !env !ustk !bstk !k (Yield args) = do
   bstk <- frameArgs bstk
   yield env ustk bstk k
 
+-- fast path application
+enter
+  :: Env -> Stack 'UN -> Stack 'BX -> K
+  -> Bool -> Args -> Comb -> IO ()
+enter !env !ustk !bstk !k !ck !args (Lam ua ba uf bf fun) = do
+  ustk <- if ck then ensure ustk uf else pure ustk
+  bstk <- if ck then ensure bstk bf else pure bstk
+  (ustk, bstk) <- moveArgs ustk bstk args
+  ustk <- acceptArgs ustk ua
+  bstk <- acceptArgs bstk ba
+  eval env ustk bstk k fun
+{-# inline enter #-}
+
+-- slow path application
 apply
   :: Env -> Stack 'UN -> Stack 'BX -> K
   -> Args -> Closure -> IO ()
