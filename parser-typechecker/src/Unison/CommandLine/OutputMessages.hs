@@ -251,22 +251,22 @@ notifyUser dir o = case o of
 --          <> "There will be a better way of handling this in the future. 😅"
 --      ]
   LoadPullRequest baseNS headNS basePath headPath mergedPath -> pure $ P.lines
-    [ P.wrap $ "I checked out" <> prettyRemoteNamespace baseNS <> "to" <> P.group (prettyRelative basePath <> ".")
-    , P.wrap $ "I checked out" <> prettyRemoteNamespace headNS <> "to" <> P.group (prettyRelative headPath <> ".")
+    [ P.wrap $ "I checked out" <> prettyRemoteNamespace baseNS <> "to" <> P.group (prettyPath' basePath <> ".")
+    , P.wrap $ "I checked out" <> prettyRemoteNamespace headNS <> "to" <> P.group (prettyPath' headPath <> ".")
     , ""
-    , P.wrap $ "The merged result is in" <> P.group (prettyRelative mergedPath <> ".")
+    , P.wrap $ "The merged result is in" <> P.group (prettyPath' mergedPath <> ".")
     , P.wrap $ "Use" <>
         IP.makeExample IP.diffNamespace
-          [prettyRelative basePath, prettyRelative mergedPath]
+          [prettyPath' basePath, prettyPath' mergedPath]
       <> "to see what's been updated."
     , P.wrap $ "Use" <>
         IP.makeExample IP.todo
-          [ prettyRelative (snoc mergedPath "patch")
-          , prettyRelative mergedPath ]
+          [ prettyPath' (snoc mergedPath "patch")
+          , prettyPath' mergedPath ]
         <> "to see what work is remaining for the merge."
     , P.wrap $ "Use" <>
         IP.makeExample IP.push
-          [prettyRemoteNamespace baseNS, prettyRelative mergedPath]
+          [prettyRemoteNamespace baseNS, prettyPath' mergedPath]
         <> "to push the changes."
     ]
 
@@ -796,7 +796,10 @@ notifyUser dir o = case o of
        $ "This had no effect. Perhaps the patch has already been applied"
       <> "or it doesn't intersect with the definitions in"
       <> P.group (prettyPath' dest <> ".")
-  PatchNeedsToBeConflictFree -> pure "A patch needs to be conflict-free."
+  PatchNeedsToBeConflictFree ->
+    pure . P.wrap $
+      "I tried to auto-apply the patch, but couldn't because it contained"
+      <> "contradictory entries."
   PatchInvolvesExternalDependents _ _ ->
     pure "That patch involves external dependents."
   ShowReflog [] ->  pure . P.warnCallout $ "The reflog appears to be empty!"
@@ -860,14 +863,16 @@ notifyUser dir o = case o of
     ex = "Use" <> IP.makeExample IP.history ["#som3n4m3space"]
                <> "to view history starting from a given namespace hash."
 
-  NothingTodo input -> pure . P.callout "😶" $ case input of
-    Input.MergeLocalBranchI src dest ->
-      P.wrap $ prettyPath' dest <> "was already up-to-date with"
-            <> P.group (prettyPath' src <> ".")
-    Input.PreviewMergeLocalBranchI src dest ->
-      P.wrap $ prettyPath' dest <> "is already up-to-date with"
-            <> P.group (prettyPath' src <> ".")
-    _ -> "Nothing to do."
+  PullAlreadyUpToDate ns dest -> pure . P.callout "😶" $
+    P.wrap $ prettyPath' dest <> "was already up-to-date with"
+          <> P.group (prettyRemoteNamespace ns <> ".")
+
+  MergeAlreadyUpToDate src dest -> pure . P.callout "😶" $
+    P.wrap $ prettyPath' dest <> "was already up-to-date with"
+          <> P.group (prettyPath' src <> ".")
+  PreviewMergeAlreadyUpToDate src dest -> pure . P.callout "😶" $
+    P.wrap $ prettyPath' dest <> "is already up-to-date with"
+          <> P.group (prettyPath' src <> ".")
   DumpNumberedArgs args -> pure . P.numberedList $ fmap P.string args
   NoConflictsOrEdits ->
     pure (P.okCallout "No conflicts or edits in progress.")

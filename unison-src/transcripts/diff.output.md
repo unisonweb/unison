@@ -574,7 +574,8 @@ a = 555
        can use `undo` or `reflog` to undo the results of this
        merge.
 
-  A patch needs to be conflict-free.
+  I tried to auto-apply the patch, but couldn't because it
+  contained contradictory entries.
 
 ```
 ```ucm
@@ -645,7 +646,8 @@ a = 777
   
     Tip: Use `help filestatus` to learn more.
 
-  A patch needs to be conflict-free.
+  I tried to auto-apply the patch, but couldn't because it
+  contained contradictory entries.
 
 .nsw> view a b
 

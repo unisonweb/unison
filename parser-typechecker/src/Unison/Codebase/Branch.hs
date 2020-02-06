@@ -37,7 +37,6 @@ module Unison.Codebase.Branch
   , stepEverywhere
   , uncons
   , merge
-  , adjustHeadMN
 
     -- * Branch children
     -- ** Children lenses
@@ -212,13 +211,6 @@ makeLenses ''Raw
 toNames0 :: Branch0 m -> Names0
 toNames0 b = Names (R.swap . deepTerms $ b)
                    (R.swap . deepTypes $ b)
-
-adjustHeadMN :: (Monad m, Monad n)
-  => (Branch0 m -> n (Branch0 m))
-  -> (forall a. m a -> n a)
-  -> Branch m
-  -> n (Maybe (Branch m))
-adjustHeadMN f g = (fmap . fmap) Branch . Causal.adjustHeadMN f g . _history
 
 -- This stops searching for a given ShortHash once it encounters
 -- any term or type in any Branch0 that satisfies that ShortHash.

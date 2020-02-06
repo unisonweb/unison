@@ -671,15 +671,25 @@ createPullRequest = InputPattern "pr.create" []
 loadPullRequest :: InputPattern
 loadPullRequest = InputPattern "pr.load" []
   [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
-  (P.wrap $ makeExample loadPullRequest ["base", "head"]
+  (P.lines 
+   [P.wrap $ makeExample loadPullRequest ["base", "head"]
     <> "will load a pull request for merging the remote repo `head` into the"
     <> "remote repo `base`, staging each in the current namespace"
-    <> "(so make yourself a clean spot to work first).")
+    <> "(so make yourself a clean spot to work first)."
+   ,P.wrap $ makeExample loadPullRequest ["base", "head", "dest"]
+     <> "will load a pull request for merging the remote repo `head` into the"
+     <> "remote repo `base`, staging each in `dest`, which must be empty."
+   ])
   (\case
     [baseUrl, headUrl] -> first fromString $ do
       baseRepo <- parseUri "baseRepo" baseUrl
       headRepo <- parseUri "topicRepo" headUrl
-      pure $ Input.LoadPullRequestI baseRepo headRepo
+      pure $ Input.LoadPullRequestI baseRepo headRepo Path.relativeEmpty'
+    [baseUrl, headUrl, dest] -> first fromString $ do
+      baseRepo <- parseUri "baseRepo" baseUrl
+      headRepo <- parseUri "topicRepo" headUrl
+      destPath <- Path.parsePath' dest
+      pure $ Input.LoadPullRequestI baseRepo headRepo destPath
     _ -> Left (I.help loadPullRequest)
   )
 parseUri :: IsString b => String -> String -> Either b RemoteNamespace

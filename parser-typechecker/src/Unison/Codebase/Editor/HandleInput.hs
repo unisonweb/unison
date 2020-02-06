@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
-{-# OPTIONS_GHC -Wno-unused-top-binds #-} -- todo: delete
 
 {-# LANGUAGE ApplicativeDo       #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -161,6 +160,7 @@ data LoopState m v
       }
 
 type SkipNextUpdate = Bool
+type InputDescription = Text
 
 makeLenses ''LoopState
 
@@ -214,11 +214,6 @@ loop = do
         let (p, seg) = Path.toAbsoluteSplit currentPath' patchPath'
         b <- getAt p
         eval . Eval $ Branch.getPatch seg (Branch.head b)
-      getPatchAt' :: Path.Split' -> Branch0 m -> Action' m v Patch
-      getPatchAt' patchPath' b = do
-        let (p, seg) = Path.toAbsoluteSplit currentPath' patchPath'
-            b' = Branch.getAt0 (Path.unabsolute p) b
-        eval . Eval $ Branch.getPatch seg b'
       withFile ambient sourceName lexed@(text, tokens) k = do
         let
           getHQ = \case
@@ -290,7 +285,7 @@ loop = do
         branchExistsSplit = branchExists . Path.unsplit'
         typeExists dest = respond . TypeAlreadyExists dest
         termExists dest = respond . TermAlreadyExists dest
-        inputDescription :: Text
+        inputDescription :: InputDescription
         inputDescription = case input of
           ForkLocalBranchI src dest -> "fork " <> hp' src <> " " <> p' dest
           MergeLocalBranchI src dest -> "merge " <> p' src <> " " <> p' dest
@@ -336,11 +331,13 @@ loop = do
           PreviewAddI{} -> wat
           PreviewUpdateI{} -> wat
           CreatePullRequestI{} -> wat
-          LoadPullRequestI base head ->
+          LoadPullRequestI base head dest ->
             "pr.load "
               <> uncurry3 printNamespace base
               <> " "
               <> uncurry3 printNamespace head
+              <> " "
+              <> p' dest
           PushRemoteBranchI{} -> wat
           PreviewMergeLocalBranchI{} -> wat
           DiffNamespaceI{} -> wat
@@ -488,20 +485,8 @@ loop = do
         srcb <- getAt src
         if Branch.isEmpty srcb then branchNotFound src0
         else do
-          destb <- getAt dest
-          merged <- eval . Eval $ Branch.merge srcb destb
-          diffHelper (Branch.head destb) (Branch.head merged) >>=
-            respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
-          mergeDidChange <- updateAtM dest $ const (pure merged)
-          if mergeDidChange then do
-            patch <- getPatchAt' defaultPatchPath (Branch.head merged)
-            patchDidChange <- propagatePatch inputDescription patch dest
-            when patchDidChange $ do
-              patched <- getAt dest
-              let patchPath = Path.resolve dest0 defaultPatchPath
-              diffHelper (Branch.head destb) (Branch.head patched) >>=
-                respondNumbered . uncurry (ShowDiffAfterMergePropagate dest0 dest patchPath)
-          else respond (NothingTodo input)
+          let err = Just $ MergeAlreadyUpToDate src0 dest0
+          mergeBranchAndPropagateDefaultPatch inputDescription err srcb (Just dest0) dest
 
       PreviewMergeLocalBranchI src0 dest0 -> do
         let [src, dest] = resolveToAbsolute <$> [src0, dest0]
@@ -510,7 +495,8 @@ loop = do
         else do
           destb <- getAt dest
           merged <- eval . Eval $ Branch.merge srcb destb
-          if merged == destb then respond (NothingTodo input)
+          if merged == destb
+          then respond (PreviewMergeAlreadyUpToDate src0 dest0)
           else
             diffHelper (Branch.head destb) (Branch.head merged) >>=
               respondNumbered . uncurry (ShowDiffAfterMergePreview dest0 dest)
@@ -537,23 +523,30 @@ loop = do
         where
         gitError = eval . Notify . GitError input
 
-      LoadPullRequestI baseRepo headRepo ->
-        if Branch.isEmpty0 currentBranch0 then do
-          let base = Path.relativeSingleton "base"
-              head = Path.relativeSingleton "head"
-              merged = Path.relativeSingleton "merged"
-              abs = resolveToAbsolute . Path.Path' . Right
-          -- 1. pull baseRepo into `base`
-          -- 2. pull headRepo into `head`
-          pullRemoteBranchAt Nothing input inputDescription baseRepo (abs base)
-          pullRemoteBranchAt Nothing input inputDescription headRepo (abs head)
-          -- 3. fork `base` into `merged` and merge `head` into `merged`
-          baseb <- getAt (abs base)
-          headb <- getAt (abs head)
-          mergedb <- eval . Eval $ Branch.merge baseb headb
-          updateAtM (abs merged) $ const (pure mergedb)
-          -- 5. print output message
-          respond $ LoadPullRequest baseRepo headRepo base head merged
+      LoadPullRequestI baseRepo headRepo dest0 -> do
+        let desta = resolveToAbsolute dest0
+        let dest = Path.unabsolute desta
+        destb <- getAt desta
+        if Branch.isEmpty0 (Branch.head destb) then do
+          loadRemoteBranch baseRepo >>= \case
+            Left e -> respond $ GitError input e
+            Right baseb -> loadRemoteBranch headRepo >>= \case
+              Left e -> respond $ GitError input e
+              Right headb -> do
+                mergedb <- eval . Eval $ Branch.merge baseb headb
+                stepManyAt
+                  [BranchUtil.makeSetBranch (dest, "base") baseb
+                  ,BranchUtil.makeSetBranch (dest, "head") headb
+                  ,BranchUtil.makeSetBranch (dest, "merged") mergedb]
+                let base = snoc dest0 "base"
+                    head = snoc dest0 "head"
+                    merged = snoc dest0 "merged"
+                respond $ LoadPullRequest baseRepo headRepo base head merged
+                loadPropagateDiffDefaultPatch
+                  inputDescription
+                  (Just merged)
+                  (snoc desta "merged")
+
         else
           respond . BranchNotEmpty . Path.Path' . Left $ currentPath'
 
@@ -1266,14 +1259,7 @@ loop = do
 
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
-        branch <- getAt $ resolveToAbsolute branchPath'
-        let names0 = Branch.toNames0 (Branch.head branch)
-        -- showTodoOutput only needs the local references
-        -- to check for obsolete defs
-        let getPpe = do
-              names <- makePrintNamesFromLabeled' $ Patch.labeledDependencies patch
-              prettyPrintEnvDecl names
-        showTodoOutput getPpe patch names0
+        doShowTodoOutput patch $ resolveToAbsolute branchPath'
 
       TestI showOk showFail -> do
         let
@@ -1543,7 +1529,7 @@ resolveShortBranchHash hash = do
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch :: (Monad m, Var v) =>
-  Text -> Patch -> Path.Absolute -> Action' m v Bool
+  InputDescription -> Patch -> Path.Absolute -> Action' m v Bool
 propagatePatch inputDescription patch scopePath =
   stepAtM' (inputDescription <> " (applying patch)")
            (Path.unabsolute scopePath, applyPatch' patch)
@@ -1560,7 +1546,7 @@ doShowTodoOutput :: Monad m => Patch -> Path.Absolute -> Action' m v ()
 doShowTodoOutput patch scopePath = do
   scope <- getAt scopePath
   let names0 = Branch.toNames0 (Branch.head scope)
-  -- this will be different AFTER the update succeeds
+  -- only needs the local references to check for obsolete defs
   let getPpe = do
         names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
         prettyPrintEnvDecl names
@@ -1790,12 +1776,14 @@ respondNumbered output = do
 
 -- Merges the specified remote branch into the specified local absolute path.
 -- Implementation detail of PullRemoteBranchI
+-- `p'` (user-supplied version of `p`) is needed if you want to print a diff
+-- after the pull.
 pullRemoteBranchAt
   :: Var v
   => Monad m
   => Maybe Path.Path'
   -> Input
-  -> Text
+  -> InputDescription
   -> RemoteNamespace
   -> Path.Absolute
   -> Action' m v ()
@@ -1803,19 +1791,40 @@ pullRemoteBranchAt p' input inputDescription ns p = do
   loadRemoteBranch ns >>= \case
     Left  e -> eval . Notify $ GitError input e
     Right b -> do
-      changed <- updateAtM inputDescription p (doMerge b)
-      when changed $ do
-        merged <- getAt p
-        patch  <- eval . Eval $ Branch.getPatch defaultPatchNameSegment
-                                                (Branch.head merged)
-        void $ propagatePatch inputDescription patch p
- where
-  doMerge b b0 = do
-    merged <- eval . Eval $ Branch.merge b b0
-    for p' $ \p' ->
-      diffHelper (Branch.head b0) (Branch.head merged) >>=
-        respondNumbered . uncurry (ShowDiffAfterPull p' p)
-    pure merged
+      let msg = p' <&> \p' -> PullAlreadyUpToDate ns p'
+      mergeBranchAndPropagateDefaultPatch inputDescription msg b p' p
+
+-- | supply `dest0` if you want to print diff messages
+--   supply unchangedMessage if you want to display it if merge had no effect
+mergeBranchAndPropagateDefaultPatch :: (Monad m, Var v) =>
+  InputDescription -> Maybe (Output v) -> Branch m -> Maybe Path.Path' -> Path.Absolute -> Action' m v ()
+mergeBranchAndPropagateDefaultPatch inputDescription unchangedMessage srcb dest0 dest = do
+  mergeDidChange <- mergeBranch inputDescription srcb dest0 dest
+  if mergeDidChange then
+    loadPropagateDiffDefaultPatch inputDescription dest0 dest
+  else for_ unchangedMessage respond
+  where
+  mergeBranch :: (Monad m, Var v) =>
+    InputDescription -> Branch m -> Maybe Path.Path' -> Path.Absolute -> Action' m v Bool
+  mergeBranch inputDescription srcb dest0 dest = do
+    destb <- getAt dest
+    merged <- eval . Eval $ Branch.merge srcb destb
+    for_ dest0 $ \dest0 ->
+      diffHelper (Branch.head destb) (Branch.head merged) >>=
+        respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
+    updateAtM inputDescription dest (const $ pure merged)
+
+loadPropagateDiffDefaultPatch :: (Monad m, Var v) =>
+  InputDescription -> Maybe Path.Path' -> Path.Absolute -> Action' m v ()
+loadPropagateDiffDefaultPatch inputDescription dest0 dest = do
+    original <- getAt dest
+    patch <- eval . Eval $ Branch.getPatch defaultPatchNameSegment (Branch.head original)
+    patchDidChange <- propagatePatch inputDescription patch dest
+    when patchDidChange . for_ dest0 $ \dest0 -> do
+      patched <- getAt dest
+      let patchPath = snoc dest0 defaultPatchNameSegment
+      diffHelper (Branch.head original) (Branch.head patched) >>=
+        respondNumbered . uncurry (ShowDiffAfterMergePropagate dest0 dest patchPath)
 
 loadRemoteBranch :: RemoteNamespace -> Action' m v (Either GitError (Branch m))
 loadRemoteBranch (repo, sbh, remotePath) = do
@@ -1837,7 +1846,7 @@ getAt (Path.Absolute p) =
 -- Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
 updateAtM :: Applicative m
-          => Text
+          => InputDescription
           -> Path.Absolute
           -> (Branch m -> Action m i v (Branch m))
           -> Action m i v Bool
@@ -1848,25 +1857,25 @@ updateAtM reason (Path.Absolute p) f = do
   pure $ b /= b'
 
 stepAt :: forall m i v. Applicative m
-       => Text
+       => InputDescription
        -> (Path, Branch0 m -> Branch0 m)
        -> Action m i v ()
 stepAt cause = stepManyAt @m @[] cause . pure
 
 stepAtM :: forall m i v. Monad m
-        => Text
+        => InputDescription
         -> (Path, Branch0 m -> m (Branch0 m))
         -> Action m i v ()
 stepAtM cause = stepManyAtM @m @[] cause . pure
 
 stepAtM' :: forall m i v. Monad m
-        => Text
+        => InputDescription
         -> (Path, Branch0 m -> Action m i v (Branch0 m))
         -> Action m i v Bool
 stepAtM' cause = stepManyAtM' @m @[] cause . pure
 
 stepManyAt :: (Applicative m, Foldable f)
-           => Text
+           => InputDescription
            -> f (Path, Branch0 m -> Branch0 m)
            -> Action m i v ()
 stepManyAt reason actions = do
@@ -1875,7 +1884,7 @@ stepManyAt reason actions = do
     updateRoot b b' reason
 
 stepManyAtM :: (Monad m, Foldable f)
-           => Text
+           => InputDescription
            -> f (Path, Branch0 m -> m (Branch0 m))
            -> Action m i v ()
 stepManyAtM reason actions = do
@@ -1884,7 +1893,7 @@ stepManyAtM reason actions = do
     updateRoot b b' reason
 
 stepManyAtM' :: (Monad m, Foldable f)
-           => Text
+           => InputDescription
            -> f (Path, Branch0 m -> Action m i v (Branch0 m))
            -> Action m i v Bool
 stepManyAtM' reason actions = do
@@ -1893,7 +1902,7 @@ stepManyAtM' reason actions = do
     updateRoot b b' reason
     pure (b /= b')
 
-updateRoot :: Branch m -> Branch m -> Text -> Action m i v ()
+updateRoot :: Branch m -> Branch m -> InputDescription -> Action m i v ()
 updateRoot old new reason = when (old /= new) $ do
   root .= new
   eval $ SyncLocalRootBranch new
@@ -2217,20 +2226,6 @@ loadReferentType = \case
   getTypeOfConstructor r cid =
     error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
 
-loadTermDisplayThing :: Ord v => Reference -> _ (DisplayThing (Term v _))
-loadTermDisplayThing r = case r of
-  Reference.Builtin _ -> pure BuiltinThing
-  Reference.DerivedId id -> do
-    tm <- eval (LoadTerm id)
-    case tm of
-      Nothing -> pure $ MissingThing id
-      Just tm@(Term.Ann' _ _) -> pure $ RegularThing tm
-      Just tm -> do
-        ty <- eval $ LoadTypeOfTerm r
-        case ty of
-          Nothing -> pure $ MissingThing id
-          Just ty -> pure $ RegularThing (Term.ann (ABT.annotation tm) tm ty)
-
 loadTypeDisplayThing :: Reference -> _ (DisplayThing (DD.Decl _ _))
 loadTypeDisplayThing = \case
   Reference.Builtin _ -> pure BuiltinThing
@@ -2275,14 +2270,6 @@ parseType input src = do
                     $ Type.generalizeLowercase mempty typ of
       Left es -> Left $ ParseResolutionFailures src (toList es)
       Right typ -> Right typ
-
--- todo: likely broken when dealing with definitions with `.` in the name;
--- we don't have a spec for it yet.
-resolveHQName :: Path.Absolute -> Name -> Name
-resolveHQName (Path.unabsolute -> p) n =
-  if p == Path.empty then n else case Name.toString n of
-    '.' : _ : _ -> n
-    _ -> Name.joinDot (Path.toName p) n
 
 makeShadowedPrintNamesFromLabeled ::
   Monad m => Set LabeledDependency -> Names0 -> Action' m v Names
@@ -2357,15 +2344,6 @@ makePrintNamesFromLabeled' deps = do
     root
   basicNames0 <- basicPrettyPrintNames0
   pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
-
--- a version of makeHistoricalPrintNames for printing errors for a file that didn't hash
-makePrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Action' m v Names
-makePrintNamesFromHQ lexedHQs = do
-  rawHistoricalNames <- findHistoricalHQs lexedHQs
-  basicNames0 <- basicPrettyPrintNames0
-  currentPath <- use currentPath
-  pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
-
 
 -- Any absolute names in the input which have `currentPath` as a prefix
 -- are converted to names relative to current path. All other names are
