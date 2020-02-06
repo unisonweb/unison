@@ -144,6 +144,8 @@ notifyNumbered o = case o of
       , undoTip
       ]) (showDiffNamespace ppe bAbs bAbs diff)
 
+  ShowDiffAfterMerge _ _ _ (OBD.isEmpty -> True) ->
+    (P.wrap $ "Nothing changed as a result of the merge.", mempty)
   ShowDiffAfterMerge dest' destAbs ppe diffOutput ->
     first (\p -> P.lines [
       P.wrap $ "Here's what's changed in " <> prettyPath' dest' <> "after the merge:"
@@ -151,6 +153,21 @@ notifyNumbered o = case o of
       , p
       , ""
       , tip $ "You can use " <> IP.makeExample' IP.todo
+           <> "to see if this generated any work to do in this namespace"
+           <> "and " <> IP.makeExample' IP.test <> "to run the tests."
+           <> "Or you can use" <> IP.makeExample' IP.undo <> " or"
+           <> IP.makeExample' IP.viewReflog <> " to undo the results of this merge."
+      ]) (showDiffNamespace ppe destAbs destAbs diffOutput)
+
+  ShowDiffAfterMergePropagate dest' destAbs patchPath' ppe diffOutput ->
+    first (\p -> P.lines [
+      P.wrap $ "Here's what's changed in " <> prettyPath' dest'
+        <> "after applying the patch at " <> P.group (prettyPath' patchPath' <> ":")
+      , ""
+      , p
+      , ""
+      , tip $ "You can use "
+           <> IP.makeExample IP.todo [prettyPath' patchPath', prettyPath' dest']
            <> "to see if this generated any work to do in this namespace"
            <> "and " <> IP.makeExample' IP.test <> "to run the tests."
            <> "Or you can use" <> IP.makeExample' IP.undo <> " or"
@@ -244,7 +261,7 @@ notifyUser dir o = case o of
       <> "to see what's been updated."
     , P.wrap $ "Use" <>
         IP.makeExample IP.todo
-          [ prettyRelative (Path.snocRelative mergedPath "patch")
+          [ prettyRelative (snoc mergedPath "patch")
           , prettyRelative mergedPath ]
         <> "to see what work is remaining for the merge."
     , P.wrap $ "Use" <>
@@ -845,13 +862,11 @@ notifyUser dir o = case o of
 
   NothingTodo input -> pure . P.callout "😶" $ case input of
     Input.MergeLocalBranchI src dest ->
-      P.wrap $ "The merge had no effect, since the destination"
-            <> P.shown dest <> "is at or ahead of the source"
-            <> P.group (P.shown src <> ".")
+      P.wrap $ prettyPath' dest <> "was already up-to-date with"
+            <> P.group (prettyPath' src <> ".")
     Input.PreviewMergeLocalBranchI src dest ->
-      P.wrap $ "The merge will have no effect, since the destination"
-            <> P.shown dest <> "is at or ahead of the source"
-            <> P.group (P.shown src <> ".")
+      P.wrap $ prettyPath' dest <> "is already up-to-date with"
+            <> P.group (prettyPath' src <> ".")
     _ -> "Nothing to do."
   DumpNumberedArgs args -> pure . P.numberedList $ fmap P.string args
   NoConflictsOrEdits ->

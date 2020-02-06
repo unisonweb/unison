@@ -211,10 +211,6 @@ unique type Y a b = Y a b
     b        : .builtin.Text
     fromJust : .builtin.Nat
 
-  ✅
-  
-  No conflicts or edits in progress.
-
 .ns2> links fromJust
 
   1. .ns1.b : Nat
@@ -469,10 +465,6 @@ bdependent = "banana"
   
     bdependent : .builtin.Text
 
-  ✅
-  
-  No conflicts or edits in progress.
-
 .> diff.namespace ns2 ns3
 
   Updates:
@@ -528,10 +520,6 @@ a = 444
   
     a : .builtin.Nat
 
-  ✅
-  
-  No conflicts or edits in progress.
-
 ```
 ```unison
 a = 555
@@ -543,10 +531,6 @@ a = 555
   ⍟ I've updated to these definitions:
   
     a : .builtin.Nat
-
-  ✅
-  
-  No conflicts or edits in progress.
 
 .> merge nsy nsw
 
@@ -564,6 +548,8 @@ a = 555
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+```
+```ucm
 .> merge nsz nsw
 
   Here's what's changed in nsw after the merge:
@@ -588,6 +574,10 @@ a = 555
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  A patch needs to be conflict-free.
+
+```
+```ucm
 .> diff.namespace nsx nsw
 
   New name conflicts:
@@ -645,13 +635,37 @@ a = 777
   `>`)... Ctrl+C cancels.
 
 ```
-```
--ucm
+```ucm
 .nsw> update
-nsw> view a b
+
+  x These definitions failed:
+  
+    Reason
+    conflicted   a   : .builtin.Nat
+  
+    Tip: Use `help filestatus` to learn more.
+
+  A patch needs to be conflict-free.
+
+.nsw> view a b
+
+  a#5f8uodgrtf : Nat
+  a#5f8uodgrtf = 555
+  
+  a#ekguc9h648 : Nat
+  a#ekguc9h648 = 444
+  
+  b#be9a2abbbg : Nat
+  b#be9a2abbbg =
+    use Nat +
+    a#ekguc9h648 + 1
+  
+  b#kut4vstim7 : Nat
+  b#kut4vstim7 =
+    use Nat +
+    a#5f8uodgrtf + 1
 
 ```
-
 ##
 
 Updates:  -- 1 to 1

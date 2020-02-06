@@ -191,7 +191,7 @@ loop = do
       resolveSplit' :: (Path', a) -> (Path, a)
       resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
       resolveToAbsolute :: Path' -> Path.Absolute
-      resolveToAbsolute = Path.toAbsolutePath currentPath'
+      resolveToAbsolute = Path.resolve currentPath'
       getAtSplit :: Path.Split -> Maybe (Branch m)
       getAtSplit p = BranchUtil.getBranch p root0
       getAtSplit' :: Path.Split' -> Maybe (Branch m)
@@ -490,17 +490,17 @@ loop = do
         else do
           destb <- getAt dest
           merged <- eval . Eval $ Branch.merge srcb destb
-          let merged0 = Branch.head merged
-          patch <- getPatchAt' defaultPatchPath merged0
-          if (merged /= destb) then do
-            let (applyPatch, printMsg) = propagatePatch' @m @v patch dest
-            merged' <-
-              -- fromJust is safe as long as Branch.merge doesn't produce a Causal.One! 
-              fromJust <$> Branch.adjustHeadMN applyPatch (eval . Eval) merged
-            updateAtM dest $ const (pure merged')
-            diffHelper (Branch.head destb) (Branch.head merged') >>=
-              respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
-            when (merged' /= merged) printMsg
+          diffHelper (Branch.head destb) (Branch.head merged) >>=
+            respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
+          mergeDidChange <- updateAtM dest $ const (pure merged)
+          if mergeDidChange then do
+            patch <- getPatchAt' defaultPatchPath (Branch.head merged)
+            patchDidChange <- propagatePatch inputDescription patch dest
+            when patchDidChange $ do
+              patched <- getAt dest
+              let patchPath = Path.resolve dest0 defaultPatchPath
+              diffHelper (Branch.head destb) (Branch.head patched) >>=
+                respondNumbered . uncurry (ShowDiffAfterMergePropagate dest0 dest patchPath)
           else respond (NothingTodo input)
 
       PreviewMergeLocalBranchI src0 dest0 -> do
@@ -638,7 +638,7 @@ loop = do
             respond $ CantDelete ppe failed failedDependents
 
       SwitchBranchI path' -> do
-        path <- use $ currentPath . to (`Path.toAbsolutePath` path')
+        let path = resolveToAbsolute path'
         currentPath .= path
         branch' <- getAt path
         when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
@@ -649,7 +649,7 @@ loop = do
           Right b -> do
             doHistory 0 b []
         Right path' -> do
-          path <- use $ currentPath . to (`Path.toAbsolutePath` path')
+          let path = resolveToAbsolute path'
           branch' <- getAt path
           if Branch.isEmpty branch' then respond $ CreatedNewBranch path
           else do
@@ -752,7 +752,7 @@ loop = do
               case mdType of
                 Nothing -> respond $ LinkFailure input
                 Just ty -> do
-                  let parent = Path.toAbsolutePath currentPath' (fst src)
+                  let parent = resolveToAbsolute (fst src)
                   let get = Branch.head <$> getAt parent
                   before <- get
                   stepAt (Path.unabsolute parent, step (Type.toReference ty))
@@ -929,7 +929,7 @@ loop = do
       FindShallowI pathArg -> do
         prettyPrintNames0 <- basicPrettyPrintNames0
         ppe <- fmap PPE.suffixifiedPPE . prettyPrintEnvDecl $ Names prettyPrintNames0 mempty
-        let pathArgAbs = Path.toAbsolutePath currentPath' pathArg
+        let pathArgAbs = resolveToAbsolute pathArg
         b0 <- Branch.head <$> getAt pathArgAbs
         let
           hqTerm b0 ns r =
@@ -1266,7 +1266,7 @@ loop = do
 
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
-        branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
+        branch <- getAt $ resolveToAbsolute branchPath'
         let names0 = Branch.toNames0 (Branch.head branch)
         -- showTodoOutput only needs the local references
         -- to check for obsolete defs
@@ -1357,7 +1357,7 @@ loop = do
                        <> UF.typecheckedToNames0 IOSource.typecheckedFile
           let b0 = BranchUtil.addFromNames0 names0 Branch.empty0
           let srcb = Branch.one b0
-          _ <- updateAtM (Path.snocAbsolute currentPath' "builtin") $ \destb ->
+          _ <- updateAtM (currentPath' `snoc` "builtin") $ \destb ->
                  eval . Eval $ Branch.merge srcb destb
           success
 
@@ -1372,13 +1372,13 @@ loop = do
         respond $ ListEdits patch ppe
 
       PullRemoteBranchI mayRepo path -> do
-        let destAbs = Path.toAbsolutePath currentPath' path
+        let destAbs = resolveToAbsolute path
         resolveConfiguredGitUrl Pull path mayRepo >>= \case
           Left e -> eval . Notify $ e
           Right ns -> pullRemoteBranchAt (Just path) input inputDescription ns destAbs
 
       PushRemoteBranchI mayRepo path -> do
-        let srcAbs = Path.toAbsolutePath currentPath' path
+        let srcAbs = resolveToAbsolute path
         srcb <- getAt srcAbs
         let expandRepo (r, rp) = (r, Nothing, rp)
         resolveConfiguredGitUrl Push path (fmap expandRepo mayRepo) >>= \case
@@ -1424,7 +1424,7 @@ loop = do
       resolveConfiguredGitUrl pushPull destPath' = \case
         Just ns -> pure $ Right ns
         Nothing -> do
-          let destPath = Path.toAbsolutePath currentPath' destPath'
+          let destPath = resolveToAbsolute destPath'
           let configKey = gitUrlKey destPath
           (eval . ConfigLookup) configKey >>= \case
             Just url ->
@@ -1544,34 +1544,27 @@ resolveShortBranchHash hash = do
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch :: (Monad m, Var v) =>
   Text -> Patch -> Path.Absolute -> Action' m v Bool
-propagatePatch inputDescription patch scopePath = do
-  let (f, msg) = propagatePatch' patch scopePath
-  changed <- stepAtM' (inputDescription <> " (patch propagation)")
-                      (Path.unabsolute scopePath, f)
-  when changed msg
-  pure changed
+propagatePatch inputDescription patch scopePath =
+  stepAtM' (inputDescription <> " (applying patch)")
+           (Path.unabsolute scopePath, applyPatch' patch)
 
 -- Returns a function that updates a Branch0 according to the patch,
 -- and a an action that prints todo output, suitable for running if the branch
 --  was updated
-propagatePatch' :: forall m v. (Monad m, Var v)
-  => Patch
-  -> Path.Absolute
-  -> ( Branch0 m -> Action' m v (Branch0 m)
-     , Action' m v () )
-propagatePatch' patch scopePath =
-  let applyPatch :: Branch0 m -> Action' m v (Branch0 m)
-      applyPatch = lift . lift . Propagate.propagateAndApply patch in
-  ( applyPatch
-  , do
-    scope <- getAt scopePath
-    let names0 = Branch.toNames0 (Branch.head scope)
-    -- this will be different AFTER the update succeeds
-    let getPpe = do
-          names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-          prettyPrintEnvDecl names
-    showTodoOutput getPpe patch names0
-  )
+applyPatch' :: forall m v. (Monad m, Var v)
+  => Patch -> Branch0 m -> Action' m v (Branch0 m)
+applyPatch' patch = lift . lift . Propagate.propagateAndApply patch
+
+-- | Create the args needed for showTodoOutput and call it
+doShowTodoOutput :: Monad m => Patch -> Path.Absolute -> Action' m v ()
+doShowTodoOutput patch scopePath = do
+  scope <- getAt scopePath
+  let names0 = Branch.toNames0 (Branch.head scope)
+  -- this will be different AFTER the update succeeds
+  let getPpe = do
+        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        prettyPrintEnvDecl names
+  showTodoOutput getPpe patch names0
 
 -- | Show todo output if there are any conflicts or edits.
 showTodoOutput

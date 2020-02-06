@@ -177,10 +177,10 @@ type Foo = Foo Boolean
     3. └ type Foo#gq9inhvg9h
            
     
-    4. Foo.Foo#d97e0jhkmd#0 : Nat -> Foo#d97e0jhkmd
+    4. Foo.Foo#d97e0jhkmd#0 : Nat -> Foo
        ↓
-    5. ┌ Foo.Foo#d97e0jhkmd#0 : Nat -> Foo#d97e0jhkmd
-    6. └ Foo.Foo#gq9inhvg9h#0 : Boolean -> Foo#gq9inhvg9h
+    5. ┌ Foo.Foo#d97e0jhkmd#0 : Nat -> Foo
+    6. └ Foo.Foo#gq9inhvg9h#0 : Boolean -> b.Foo
   
   Added definitions:
   
