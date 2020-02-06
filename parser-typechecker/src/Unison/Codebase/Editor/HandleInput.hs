@@ -1532,14 +1532,8 @@ propagatePatch :: (Monad m, Var v) =>
   InputDescription -> Patch -> Path.Absolute -> Action' m v Bool
 propagatePatch inputDescription patch scopePath =
   stepAtM' (inputDescription <> " (applying patch)")
-           (Path.unabsolute scopePath, applyPatch' patch)
-
--- Returns a function that updates a Branch0 according to the patch,
--- and a an action that prints todo output, suitable for running if the branch
---  was updated
-applyPatch' :: forall m v. (Monad m, Var v)
-  => Patch -> Branch0 m -> Action' m v (Branch0 m)
-applyPatch' patch = lift . lift . Propagate.propagateAndApply patch
+           (Path.unabsolute scopePath,
+              lift . lift . Propagate.propagateAndApply patch)
 
 -- | Create the args needed for showTodoOutput and call it
 doShowTodoOutput :: Monad m => Patch -> Path.Absolute -> Action' m v ()
