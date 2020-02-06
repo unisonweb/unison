@@ -64,10 +64,6 @@ Update
   
     hey : builtin.Text
 
-  ✅
-  
-  No conflicts or edits in progress.
-
 .> find.patch
 
   1. patch

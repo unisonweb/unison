@@ -75,6 +75,7 @@ data NumberedOutput v
   | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterMerge Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterMergePropagate Path.Path' Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterCreatePR RemoteNamespace RemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
@@ -90,8 +91,8 @@ data Output v
   | SourceLoadFailed String
   -- No main function, the [Type v Ann] are the allowed types
   | NoMainFunction String PPE.PrettyPrintEnv [Type v Ann]
-  | BranchNotEmpty Path.Path'
-  | LoadPullRequest RemoteNamespace RemoteNamespace Path.Relative Path.Relative Path.Relative
+  | BranchNotEmpty Path'
+  | LoadPullRequest RemoteNamespace RemoteNamespace Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
   | PatchAlreadyExists Path.Split'
@@ -181,7 +182,9 @@ data Output v
   | WarnIncomingRootBranch (Set ShortBranchHash)
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
-  | NothingTodo Input
+  | PullAlreadyUpToDate RemoteNamespace Path'
+  | MergeAlreadyUpToDate Path' Path'
+  | PreviewMergeAlreadyUpToDate Path' Path'
   -- | No conflicts or edits remain for the current patch.
   | NoConflictsOrEdits
   | NotImplemented
@@ -305,7 +308,9 @@ isFailure o = case o of
   DumpNumberedArgs{} -> False
   DumpBitBooster{} -> False
   NoBranchWithHash{} -> True
-  NothingTodo{} -> False
+  PullAlreadyUpToDate{} -> False
+  MergeAlreadyUpToDate{} -> False
+  PreviewMergeAlreadyUpToDate{} -> False
   NoConflictsOrEdits{} -> False
   ListShallow _ es -> null es
   HashAmbiguous{} -> True
@@ -318,6 +323,7 @@ isNumberedFailure = \case
   ShowDiffAfterDeleteDefinitions{} -> False
   ShowDiffAfterDeleteBranch{} -> False
   ShowDiffAfterMerge{} -> False
+  ShowDiffAfterMergePropagate{} -> False
   ShowDiffAfterMergePreview{} -> False
   ShowDiffAfterUndo{} -> False
   ShowDiffAfterPull{} -> False

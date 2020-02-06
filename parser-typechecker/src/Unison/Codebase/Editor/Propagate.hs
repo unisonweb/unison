@@ -11,9 +11,7 @@ import           Data.Configurator              ( )
 import qualified Data.Graph                    as Graph
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
-import           Unison.Codebase.Branch         ( Branch(..)
-                                                , Branch0(..)
-                                                )
+import           Unison.Codebase.Branch         ( Branch0(..) )
 import           Unison.Prelude
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.Editor.Command
@@ -71,12 +69,13 @@ propagateAndApply
   :: forall m i v
    . (Applicative m, Var v)
   => Patch
-  -> Branch m
-  -> F m i v (Branch m)
+  -> Branch0 m
+  -> F m i v (Branch0 m)
 propagateAndApply patch branch = do
   edits <- propagate patch branch
   f     <- applyPropagate patch edits
-  pure $ Branch.step (f . applyDeprecations patch) branch
+  (pure . f . applyDeprecations patch) branch
+
 
 -- Creates a mapping from old data constructors to new data constructors
 -- by looking at the original names for the data constructors which are
@@ -133,7 +132,7 @@ propagate
   :: forall m i v
    . (Applicative m, Var v)
   => Patch
-  -> Branch m
+  -> Branch0 m
   -> F m i v (Edits v)
 propagate patch b = case validatePatch patch of
   Nothing -> do
@@ -142,9 +141,9 @@ propagate patch b = case validatePatch patch of
   Just (initialTermEdits, initialTypeEdits) -> do
     let
       entireBranch = Set.union
-        (Branch.deepTypeReferences $ Branch.head b)
+        (Branch.deepTypeReferences b)
         (Set.fromList
-          [ r | Referent.Ref r <- Set.toList . Branch.deepReferents $ Branch.head b ]
+          [ r | Referent.Ref r <- Set.toList $ Branch.deepReferents b ]
         )
     initialDirty <-
       R.dom <$> computeFrontier (eval . GetDependents) patch names0
@@ -326,7 +325,7 @@ propagate patch b = case validatePatch patch of
       (zip (view _1 . getReference <$> Graph.topSort graph) [0 ..])
     -- vertex i precedes j whenever i has an edge to j and not vice versa.
     -- vertex i precedes j when j is a dependent of i.
-  names0 = (Branch.toNames0 . Branch.head) b
+  names0 = Branch.toNames0 b
   validatePatch
     :: Patch -> Maybe (Map Reference TermEdit, Map Reference TypeEdit)
   validatePatch p =

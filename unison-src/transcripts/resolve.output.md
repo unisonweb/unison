@@ -156,6 +156,8 @@ Let's now merge these namespaces into `c`:
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+```
+```ucm
 .example.resolve> merge b c
 
   Here's what's changed in c after the merge:
@@ -175,6 +177,9 @@ Let's now merge these namespaces into `c`:
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  I tried to auto-apply the patch, but couldn't because it
+  contained contradictory entries.
 
 ```
 The namespace `c` now has an edit conflict, since the term `foo` was edited in two different ways.
@@ -249,4 +254,3 @@ We can resolve the name conflict by deleting one of the names.
 
 ```
 And that's how you resolve edit conflicts with UCM.
-
