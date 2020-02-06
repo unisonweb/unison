@@ -203,34 +203,66 @@ data Prim2 = Add | Sub
 
 -- Instruction tree representation for the machine.
 data IR
+  -- Apply a function to arguments. This is the 'slow path', and
+  -- handles applying functions from arbitrary sources. This
+  -- requires checks to determine what exactly should happen.
   = App !Ref      -- function to apply
         !Args     -- additional arguments
-  | Info !String !IR
+
+  -- Dump some debugging information about the machine state to
+  -- the screen.
+  | Info !String  -- prefix for info output
+         !IR      -- after
+
+  -- Delimit a computation with a given marker.
   | Reset !Int    -- prompt tag
           !IR     -- delimited computation
+
+  -- Capture the continuation up to a given marker.
   | Capture !Int  -- prompt tag
             !IR   -- following computation
+
+  -- Jump to a captured continuation value.
   | Jump !Int     -- index of captured continuation
          !Args    -- Arguments to send to continuation
+
+  -- Sequence two pieces of computation
   | Let !IR       -- do this
         !IR       -- then continue
+
+  -- 1-argument primitive operations
   | Prim1 !Prim1  -- prim op instruction
           !Int    -- index of prim argument
           !IR     -- after
+
+  -- 2-argument primitive operations
   | Prim2 !Prim2  -- prim op insruction
           !Int    -- index of first argument
           !Int    -- index of second argument
           !IR     -- after
+
+  -- Pack a data type value into a closure and place it
+  -- on the stack.
   | Pack !Int     -- tag
          !Args    -- arguments to pack
          !IR      -- after
+
+  -- Unpack the contents of a data type onto the stack
   | Unpack !Int   -- index of data to unpack
            !IR    -- after
+
+  -- Branch on the value in the unboxed data stack
   | Match !Int    -- index of unboxed item to match
           !Branch -- continuations
+
+  -- Yield control to the current continuation, with arguments
   | Yield !Args   -- values to yield
+
+  -- Print a value on the unboxed stack
   | Print !Int    -- index of unboxed value to print
           !IR     -- after
+
+  -- Push a particular value onto the unboxed stack
   | Lit !Int      -- value to push on the unboxed stack
         !IR       -- after
 
