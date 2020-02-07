@@ -19,7 +19,7 @@ ability Remote where
 type Node = Node Nat -- more realistic would be perhaps a (Hostname, PublicKey) pair
 
 force : Future a ->{Remote} a
-force f = case f of Future.Future r -> !r
+force f = match f with Future.Future r -> !r
 
 Future.fromThunk : '{Remote} a -> Future a
 Future.fromThunk = Future.Future
@@ -30,7 +30,7 @@ Future.fromThunk = Future.Future
 
 Remote.runLocal : '{Remote} a -> a
 Remote.runLocal r =
-  step nid r = case r of
+  step nid r = match r with
     {a} -> a
     {Remote.fork t -> k} -> handle k (Future.fromThunk t) with step nid
     {Remote.spawn -> k} -> handle k nid with step (Node.increment nid)
@@ -46,25 +46,25 @@ use List ++
 
 List.map : (a ->{e} b) -> [a] ->{e} [b]
 List.map f as =
-  go f acc as i = case List.at i as of
+  go f acc as i = match List.at i as with
     None -> acc
     Some a -> go f (acc `snoc` f a) as (i + 1)
   go f [] as 0
 
 type Monoid a = Monoid (a -> a -> a) a
 
-Monoid.zero m = case m of Monoid.Monoid op z -> z
-Monoid.op   m = case m of Monoid.Monoid op z -> op
+Monoid.zero m = match m with Monoid.Monoid op z -> z
+Monoid.op   m = match m with Monoid.Monoid op z -> op
 
-Monoid.orElse m a = case a of
+Monoid.orElse m a = match a with
   None -> Monoid.zero m
   Some a -> a
 
 merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]
 merge lte a b =
-  go acc a b = case List.at 0 a of
+  go acc a b = match List.at 0 a with
     None -> acc ++ b
-    Some hd1 -> case at 0 b of
+    Some hd1 -> match at 0 b with
       None -> acc ++ a
       Some hd2 ->
         if hd1 `lte` hd2 then go (acc `snoc` hd1) (drop 1 a) b
@@ -102,7 +102,7 @@ sort lte a =
 Node.increment : Node -> Node
 Node.increment n =
   use Node Node -- the constructor
-  case n of Node n -> Node (n + 1)
+  match n with Node n -> Node (n + 1)
 
 > Remote.runLocal '(dsort (<) [3,2,1,1,2,3,9182,1,2,34,1,23])
 

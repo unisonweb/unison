@@ -1,65 +1,65 @@
 use Optional None Some
 
 optionToList : Optional a -> [a]
-optionToList o = case o of
+optionToList o = match o with
   Some a -> [a]
   None   -> []
 
 lenLit : [a] -> Nat
-lenLit l = case l of
+lenLit l = match l with
   [] -> 0
   [_] -> 1
   [_, _] -> 2
   [_, _, _] -> 3
 
 lenCons : [a] -> Nat
-lenCons l = case l of
+lenCons l = match l with
   [] -> 0
   _ +: t -> 1 + lenCons t
   _ +: (_ +: t) -> 2 + lenCons t
 
 lenSnoc : [a] -> Nat
-lenSnoc l = case l of
+lenSnoc l = match l with
   [] -> 0
   t :+ _ -> 1 + lenSnoc t
 
 lenConcat1 : [a] -> Nat
-lenConcat1 l = case l of
+lenConcat1 l = match l with
   [] -> 0
   [_] ++ tail -> 1 + lenConcat1 tail
 
 lenConcat2 : [a] -> Nat
-lenConcat2 l = case l of
+lenConcat2 l = match l with
   [] -> 0
   prefix ++ [_] -> 1 + lenConcat2 prefix
 
 head : [a] -> Optional a
-head l = case l of
+head l = match l with
   h +: _ -> Some h
   _ -> None
 
 firstTwo : [a] -> Optional (a, a)
-firstTwo l = case l of
+firstTwo l = match l with
   x +: (y +: _) -> Some (x, y)
   _ -> None
 
 lastTwo : [a] -> Optional (a, a)
-lastTwo l = case l of
+lastTwo l = match l with
   _ :+ x :+ y -> Some (x, y)
   _ -> None
 
 middle : [a] -> Optional [a]
-middle l = case l of
+middle l = match l with
   [_] ++ m ++ [_] -> Some m
   _ -> None
 
 middleNel : [a] -> Optional (a, [a])
-middleNel l = case l of
+middleNel l = match l with
   [_] ++ (h +: t) ++ [_] -> Some (h, t)
   _ -> None
 
 splitAtFour : [a] -> ([a], [a])
-splitAtFour l = case l of
+splitAtFour l = match l with
   [a] ++ x@(b +: (c +: y@([] :+ d))) ++ tail -> ([a, b, c, d], tail)
   _ -> (l, [])
 

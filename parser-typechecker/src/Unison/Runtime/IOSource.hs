@@ -159,7 +159,7 @@ unique[b28d929d0a73d2c18eac86341a3bb9399f8550c11b5f35eabb2751e6803ccc20] type
 
 d1 Doc.++ d2 =
   use Doc
-  case (d1,d2) of
+  match (d1,d2) with
     (Join ds, Join ds2) -> Join (ds Sequence.++ ds2)
     (Join ds, _) -> Join (ds `Sequence.snoc` d2)
     (_, Join ds) -> Join (d1 `Sequence.cons` ds)
@@ -205,7 +205,7 @@ namespace io where
 
   -- Throw an I/O error on the left as an effect in `IO`
   rethrow : (Either io.Error a) -> {IO} a
-  rethrow x = case x of
+  rethrow x = match x with
     Either.Left e -> io.IO.throw e
     Either.Right a -> a
 
@@ -375,7 +375,7 @@ namespace io where
   -- handle the error with the given handler.
   -- catch : '{IO} a -> (io.Error ->{IO} a) ->{IO} a
   -- catch c h =
-  --   k io = case io of
+  --   k io = match io with
   --            { IO.throw e } -> h e
   --            x -> x
   --   handle k in c

@@ -1,2 +1,2 @@
-> case at 0 [100] of
+> match at 0 [100] with
   Optional.Some _ -> "Hooray!"

@@ -17,6 +17,6 @@ use Nat drop *
 use Nat drop
 -- use Int + -- this would cause type error below!
 
-> case Some (100 + 200 / 3 * 2) of
+> match Some (100 + 200 / 3 * 2) with
     Optional.None -> 19
     Some 200 -> 20

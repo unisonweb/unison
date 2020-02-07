@@ -6,21 +6,21 @@ ability Console where
   read : {Console} (Optional Text)
   write : Text -> {Console} ()
 
-fst x = case x of Tuple.Cons a _ -> a
+fst x = match x with Tuple.Cons a _ -> a
 
 --TODO type is wrongly being inferred (or at least displayed) as `Tuple a (Tuple a b) ->{} a`
-snd x = case x of Tuple.Cons _ (Tuple.Cons b _) -> b
+snd x = match x with Tuple.Cons _ (Tuple.Cons b _) -> b
 
 namespace Console where
 
   state : s -> Request (State s) a -> a
-  state s c = case c of
+  state s c = match c with
     {State.get -> k} -> handle k s with state s
     {State.set s' -> k} -> handle k () with state s'
     {a} -> a
 
   simulate : Request Console d -> {State ([Text], [Text])} d
-  simulate c = case c of
+  simulate c = match c with
     {Console.read -> k} ->
       io = State.get
       ins = fst io
@@ -45,7 +45,7 @@ x = handle
         use Console read write
         use Optional Some None
         write "What's your name?"
-        case read of
+        match read with
           Some name -> write ("Hello" ++ name)
           None -> write "Fine, be that way."
       with Console.simulate

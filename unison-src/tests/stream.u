@@ -11,16 +11,16 @@ namespace Stream where
 
   -- unfold : s -> (s ->{} Optional (a, s)) -> Stream e a ()
   unfold s f =
-    step s = case f s of
+    step s = match f s with
       None        -> ()
       Some (a, s) -> emit a
                      step s
     Stream '(step s)
 
   run : Stream e a r ->{e, Emit a} r
-  run s = case s of Stream c -> !c
+  run s = match s with Stream c -> !c
 
-  run' s = case s of Stream s -> s
+  run' s = match s with Stream s -> s
 
   (++) : Stream {e} a r -> Stream {e} a r -> Stream {e} a r
   s1 ++ s2 = Stream '(forceBoth (run' s1) (run' s2))
@@ -30,7 +30,7 @@ namespace Stream where
 
   -- take : Nat -> Stream {} a () -> Stream {} a ()
   take n s =
-    step n e = case e of
+    step n e = match e with
       {Emit.emit a -> k} ->
         if n Nat.== 0 then ()
         else
@@ -41,7 +41,7 @@ namespace Stream where
 
   -- map : (a -> b) -> Stream {e} a r -> Stream {e} b r
   map f s =
-    step e = case e of
+    step e = match e with
       {r} -> r
       {Emit.emit a -> k} ->
         Emit.emit (f a)
@@ -50,14 +50,14 @@ namespace Stream where
 
   -- toSeq : Stream {e} a r ->{e} [a]
   toSeq s =
-    step acc e = case e of
+    step acc e = match e with
       {Emit.emit a -> k} -> handle k () with step (acc `snoc` a)
       {_} -> acc
     handle run s with step []
 
   fromSeq : [a] -> Stream e a ()
   fromSeq a =
-    step a = case List.at 0 a of
+    step a = match List.at 0 a with
       None -> None
       Some h -> Some (h, drop 1 a)
     unfold a step

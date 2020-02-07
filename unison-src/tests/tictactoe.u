@@ -8,7 +8,7 @@ use P O X E
 use Optional Some None
 
 orElse a b =
-  case a of
+  match a with
     None -> b
     a -> a
 
@@ -16,7 +16,7 @@ namespace P where
   (/=) : P -> P -> Boolean
   a /= b = not (a == b)
   (==) : P -> P -> Boolean
-  a == b = case (a,b) of
+  a == b = match (a,b) with
     (X,X) -> true
     (O,O) -> true
     _ -> false
@@ -27,7 +27,7 @@ isWin board =
   same a b c = if ((a P.== b) && (a P.== c)) && (a P./= E)
                then Some a
                else None
-  case board of
+  match board with
     -- vertical top/center/bottom
     -- horizontal left/center/right
     -- diagonal rising/falling

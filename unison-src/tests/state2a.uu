@@ -7,7 +7,7 @@ ability State s where
   get : {State s} s
 
 state : s -> Request (State s) a -> (s, a)
-state s eff = case eff of
+state s eff = match eff with
   { State.get -> k } -> handle (state s) in k s
   { State.put snew -> k } -> handle (state snew) in k ()
   { a } -> (s, a)
@@ -18,7 +18,7 @@ modify3 f =
   s2 = f s
   State.put s2
 
---- 
+---
 
 limitation here is that inferred ability vars can't refer to universal vars in
 the same type signature

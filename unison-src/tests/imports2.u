@@ -5,7 +5,7 @@
 use Optional Some None orElse
 
 Optional.orElse a b =
-  case a of
+  match a with
     None -> b
     a -> a
 
