@@ -10,7 +10,7 @@ import Unison.Prelude
 
 import Data.Bifunctor (first)
 import Data.List (intercalate, sortOn, isPrefixOf)
-import Data.List.Extra (nubOrdOn, unsnoc)
+import Data.List.Extra (nubOrdOn)
 import qualified System.Console.Haskeline.Completion as Completion
 import System.Console.Haskeline.Completion (Completion(Completion))
 import Unison.Codebase (Codebase)
@@ -935,17 +935,17 @@ link :: InputPattern
 link = InputPattern
   "link"
   []
-  [(OneOrNumbers, exactDefinitionQueryArg), (Required, exactDefinitionQueryArg)]
+  [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionQueryArg)]
   (fromString $ concat
-    [ "`link src dest` creates a link from `src` to `dest`. "
+    [ "`link dest src` creates a link to `dest` from `src`. "
     , "Use `links src` or `links src <type>` to view outgoing links, "
-    , "and `unlink src dest` to remove a link. The `src` can be either the "
-    , "name of a term or type, or a range like `1-4` for a range of "
-    , "definitions listed by a prior `find` command."
+    , "and `unlink dest src` to remove a link. The `src` can be either the "
+    , "name of a term or type, multiple such names, or a range like `1-4` "
+    , "for a range of definitions listed by a prior `find` command."
     ]
   )
   (\case
-    (unsnoc -> Just (srcs, dest)) -> first fromString $ do
+    dest : srcs -> first fromString $ do
       srcs <- traverse Path.parseHQSplit' srcs
       dest <- Path.parseHQSplit' dest
       Right $ Input.LinkI srcs dest
@@ -974,10 +974,10 @@ unlink :: InputPattern
 unlink = InputPattern
   "unlink"
   ["delete.link"]
-  [(OneOrNumbers, exactDefinitionQueryArg), (Required, exactDefinitionQueryArg)]
-  "`unlink src dest` removes a link from `src` to `dest`."
+  [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionQueryArg)]
+  "`unlink dest src` removes a link to `dest` from `src`."
   (\case
-    (unsnoc -> Just (srcs, dest)) -> first fromString $ do
+    dest : srcs -> first fromString $ do
       srcs <- traverse Path.parseHQSplit' srcs
       dest <- Path.parseHQSplit' dest
       Right $ Input.UnlinkI srcs dest

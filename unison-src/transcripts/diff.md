@@ -44,7 +44,7 @@ ability X a1 a2 where x : Nat
 .ns1> add
 .ns1> alias.term fromJust fromJust'
 .ns1> alias.term helloWorld helloWorld2
-.ns1> link fromJust b
+.ns1> link b fromJust
 .ns1> fork .ns1 .ns2
 .ns1> cd .
 ```
@@ -80,10 +80,10 @@ unique type Y a b = Y a b
 .> alias.type ns2.A ns2.A'
 .> alias.type ns2.X ns2.X'
 .> diff.namespace ns1 ns2
-.> link ns2.f ns1.c
+.> link ns1.c ns2.f
 .> link ns2.c ns2.c
 .> diff.namespace ns1 ns2
-.> unlink ns2.fromJust ns2.b
+.> unlink ns2.b ns2.fromJust 
 .> diff.namespace ns1 ns2
 .> alias.type ns1.X ns1.X2
 .> alias.type ns2.A' ns2.A''

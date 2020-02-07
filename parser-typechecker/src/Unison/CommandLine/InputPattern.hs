@@ -23,7 +23,6 @@ data IsOptional
   | Optional -- 0 or 1, at the end
   | ZeroPlus -- 0 or more, at the end
   | OnePlus -- 1 or more, at the end
-  | OneOrNumbers -- 1 argument, or a range of arguments like 3-6, in the middle
   deriving Show
 
 data InputPattern = InputPattern
@@ -64,7 +63,6 @@ argType ip i = go (i, args ip) where
   go (_, [(Optional, _)]) = Nothing
   -- If requesting a later parameter, decrement and drop one.
   go (n, (Required, _) : args) = go (n - 1, args)
-  go (n, (OneOrNumbers, _) : args) = go (n - 1, args)
   -- The argument list spec is invalid if something follows optional or vararg
   go _ = error $ "Input pattern " <> show (patternName ip)
     <> " has an invalid argument list: " <> (show . fmap fst) (args ip)

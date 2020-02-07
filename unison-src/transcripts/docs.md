@@ -68,7 +68,7 @@ Let's add it to the codebase, and link it to the definition:
 
 ```ucm
 .> add
-.> link builtin.List.take docs.List.take
+.> link docs.List.take builtin.List.take
 ```
 
 Now that documentation is linked to the definition. We can view it if we like:
