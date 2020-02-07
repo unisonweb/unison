@@ -74,7 +74,7 @@ complicatedMathStuff x = todo "Come back and to something with x here"
 ## Bug
 `bug` is used to indicate that a particular branch is not expected to execute.
 ```unison
-test = case true of
+test = match true with
     true -> "Yay"
     false -> bug "Wow, that's unexpected"
 ```
