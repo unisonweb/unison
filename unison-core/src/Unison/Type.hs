@@ -509,8 +509,9 @@ functionResult = go False
 generalizeLowercase :: Var v => Set v -> Type v a -> Type v a
 generalizeLowercase except t = foldr (forall (ABT.annotation t)) t vars
  where
+  excluded = Set.toList except
   vars =
-    [ v | v <- Set.toList (freeVars t `Set.difference` except), Var.universallyQuantifyIfFree v ]
+    [ v | v <- filter (`notElem` excluded) (ABT.orderedFreeVars t), Var.universallyQuantifyIfFree v ]
 
 -- Convert all free variables in `allowed` to variables bound by an `introOuter`.
 freeVarsToOuters :: Ord v => Set v -> Type v a -> Type v a
