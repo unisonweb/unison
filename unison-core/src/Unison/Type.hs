@@ -250,7 +250,7 @@ bytes :: Ord v => a -> Type v a
 bytes a = ref a bytesRef
 
 effectType :: Ord v => a -> Type v a
-effectType a = ref a $ effectRef
+effectType a = ref a effectRef
 
 app :: Ord v => a -> Type v a -> Type v a -> Type v a
 app a f arg = ABT.tm' a (App f arg)
@@ -375,7 +375,7 @@ generalize :: Ord v => [v] -> Type v a -> Type v a
 generalize vs t = foldr f t vs
  where
   f v t =
-    if Set.member v (ABT.freeVars t) then forall (ABT.annotation t) v t else t
+    if Set.member v (freeVars t) then forall (ABT.annotation t) v t else t
 
 unforall :: Type v a -> Type v a
 unforall (ForallsNamed' _ t) = t
@@ -468,7 +468,7 @@ removePureEffects t | not Settings.removePureEffects = t
   generalize vs $ removeEffectVars (Set.filter isPure fvs) tu
   where
     (vs, tu) = unforall' t
-    fvs = freeEffectVars tu `Set.difference` ABT.freeVars t
+    fvs = freeEffectVars tu `Set.difference` freeVars t
     -- If an effect variable is mentioned only once, it is on
     -- an arrow `a ->{e} b`. Generalizing this to
     -- `∀ e . a ->{e} b` gives us the pure arrow `a -> b`.
@@ -510,12 +510,12 @@ generalizeLowercase :: Var v => Set v -> Type v a -> Type v a
 generalizeLowercase except t = foldr (forall (ABT.annotation t)) t vars
  where
   vars =
-    [ v | v <- Set.toList (ABT.freeVars t `Set.difference` except), Var.universallyQuantifyIfFree v ]
+    [ v | v <- Set.toList (freeVars t `Set.difference` except), Var.universallyQuantifyIfFree v ]
 
 -- Convert all free variables in `allowed` to variables bound by an `introOuter`.
 freeVarsToOuters :: Ord v => Set v -> Type v a -> Type v a
 freeVarsToOuters allowed t = foldr (introOuter (ABT.annotation t)) t vars
-  where vars = Set.toList $ ABT.freeVars t `Set.intersection` allowed
+  where vars = Set.toList $ freeVars t `Set.intersection` allowed
 
 -- | This function removes all variable shadowing from the types and reduces
 -- fresh ids to the minimum possible to avoid ambiguity. Useful when showing
@@ -570,7 +570,7 @@ cleanup t = cleanupVars1 . cleanupAbilityLists $ t
 toReference :: (ABT.Var v, Show v) => Type v a -> Reference
 toReference (Ref' r) = r
 -- a bit of normalization - any unused type parameters aren't part of the hash
-toReference (ForallNamed' v body) | not (Set.member v (ABT.freeVars body)) = toReference body
+toReference (ForallNamed' v body) | not (Set.member v (freeVars body)) = toReference body
 toReference t = Reference.Derived (ABT.hash t) 0 1
 
 toReferenceMentions :: (ABT.Var v, Show v) => Type v a -> Set Reference

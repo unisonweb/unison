@@ -145,4 +145,4 @@ universallyQuantifyIfFree :: forall v . Var v => v -> Bool
 universallyQuantifyIfFree v =
   ok (name $ reset v) && unqualified v == v
   where
-  ok n = (all isLower . take 1 . Text.unpack) n
+  ok = all isLower . take 1 . Text.unpack
