@@ -219,6 +219,14 @@ data IR
          !Int     -- function to apply
          !Args    -- arguments
 
+  -- This is essentially the opposite of `Call`. Pack a given
+  -- statically known function into a closure with arguments.
+  -- No stack is necessary, because no nested evaluation happens,
+  -- so the instruction directly takes a follow-up.
+  | Name !Int     -- global function to apply
+         !Args    -- arguments to close over
+         !IR      -- what to do after
+
   -- Dump some debugging information about the machine state to
   -- the screen.
   | Info !String  -- prefix for info output

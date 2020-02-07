@@ -31,6 +31,9 @@ eval !env !ustk !bstk !k (App r args) =
   resolve env ustk bstk r >>= apply env ustk bstk k args
 eval !env !ustk !bstk !k (Call ck n args) =
   enter env ustk bstk k ck args (env n)
+eval !env !ustk !bstk !k (Name n args nx) = do
+  bstk <- name ustk bstk args (env n)
+  eval env ustk bstk k nx
 eval !env !ustk !bstk !k (Jump i args) =
   peekOff bstk i >>= jump env ustk bstk k args
 eval !env !ustk !bstk !k (Reset p nx) =
@@ -85,6 +88,15 @@ enter !env !ustk !bstk !k !ck !args (Lam ua ba uf bf fun) = do
   bstk <- acceptArgs bstk ba
   eval env ustk bstk k fun
 {-# inline enter #-}
+
+-- fast path by-name delaying
+name :: Stack 'UN -> Stack 'BX -> Args -> Comb -> IO (Stack 'BX)
+name !ustk !bstk !args !comb = do
+  (useg, bseg) <- closeArgs ustk bstk unull bnull args
+  bstk <- bump bstk
+  poke bstk $ PAp comb useg bseg
+  pure bstk
+{-# inline name #-}
 
 -- slow path application
 apply
