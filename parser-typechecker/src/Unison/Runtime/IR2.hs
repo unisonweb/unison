@@ -206,7 +206,8 @@ data IR
   -- Apply a function to arguments. This is the 'slow path', and
   -- handles applying functions from arbitrary sources. This
   -- requires checks to determine what exactly should happen.
-  = App !Ref      -- function to apply
+  = App !Bool     -- skip argument check for known calling convention
+        !Ref      -- function to apply
         !Args     -- additional arguments
 
   -- This is the 'fast path', for when we statically know we're
@@ -235,6 +236,10 @@ data IR
   -- Delimit a computation with a given marker.
   | Reset !Int    -- prompt tag
           !IR     -- delimited computation
+
+  | SetDyn !Int   -- prompt tag
+           !Int   -- stack index of closure to store
+           !IR    -- after
 
   -- Capture the continuation up to a given marker.
   | Capture !Int  -- prompt tag
@@ -291,7 +296,10 @@ data Comb
         !Int -- Maximum needed boxed frame size
         !IR  -- Code
 
-data Ref = Stk !Int | Env !Int
+data Ref
+  = Stk !Int -- stack reference to a closure
+  | Env !Int -- global environment reference to a combinator
+  | Dyn !Int -- dynamic scope reference to a closure
 
 data Branch
   = Prod !IR -- only one branch

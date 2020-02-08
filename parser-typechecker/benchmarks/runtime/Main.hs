@@ -11,7 +11,7 @@ loop = Match 0 $ Test1 0 (Yield $ UArg1 1) rec
   where
   rec = Prim2 Add 0 1
       $ Prim1 Dec 1
-      $ App (Env 0) (UArg2 0 1)
+      $ App False (Env 0) (UArg2 0 1)
 
 -- Boxed version of loop to see how fast we are without
 -- worker/wrapper.
@@ -25,7 +25,7 @@ sloop = Unpack 1 . Unpack 0 $ body
        $ Prim1 Dec 2
        $ Pack 0 (UArg1 1)
        $ Pack 0 (UArg1 0)
-       $ App (Env 1) (BArg2 0 1)
+       $ App False (Env 1) (BArg2 0 1)
 
 -- loop with fast path optimization
 oloop :: IR
@@ -69,42 +69,78 @@ add = Unpack 1
 -- k s => (k s) s -- k continuation
 diag :: IR
 diag = Let (Reset 0 $ Jump 0 (BArg1 1))
-     $ App (Stk 0) (BArg1 2)
+     $ App False (Stk 0) (BArg1 2)
 
 -- => shift k. diag k
 get :: IR
 get = Capture 0
-    $ App (Env 12) (BArg1 0)
+    $ App False (Env 12) (BArg1 0)
 
 -- k s _ => (k) s
 kid :: IR
 kid = Let (Reset 0 $ Jump 0 ZArgs)
-    $ App (Stk 0) (BArg1 2)
+    $ App False (Stk 0) (BArg1 2)
 
 -- s => shift k. kid k s
 put :: IR
 put = Capture 0
-    $ App (Env 15) (BArg2 0 1)
+    $ App False (Env 15) (BArg2 0 1)
 
 -- m => ...
 kloopb :: IR
 kloopb
   = Match 0 $ Test1
-      0 (Let (App (Env 13) ZArgs) $ App (Env 10) (BArg1 0))
+      0 (Let (App False (Env 13) ZArgs) $ App False (Env 10) (BArg1 0))
       {-else-} rec
  where
- rec = Let (App (Env 13) ZArgs) -- get
+ rec = Let (App False (Env 13) ZArgs) -- get
      $ Pack 0 (UArg1 0)
-     $ Let (App (Env 11) (BArg2 0 1)) -- add
-     $ Let (App (Env 14) (BArg1 0)) -- put
+     $ Let (App False (Env 11) (BArg2 0 1)) -- add
+     $ Let (App False (Env 14) (BArg1 0)) -- put
      $ Prim1 Dec 0
-     $ App (Env 5) (UArg1 0)
+     $ App False (Env 5) (UArg1 0)
 
 -- m a => f = reset (kloopb m) ; y = f (I# a) ; print y
 kloop :: IR
-kloop = Let (Reset 0 $ App (Env 5) (UArg1 0))
+kloop = Let (Reset 0 $ App False (Env 5) (UArg1 0))
       $ Pack 0 (UArg1 1)
-      $ App (Stk 1) (BArg1 0)
+      $ App False (Stk 1) (BArg1 0)
+
+-- s0 0 => s0
+-- s0 1 s => tinst s setDyn 0 (teff s)
+teff :: IR
+teff
+  = Match 0 $ Test1
+      0 (Yield $ BArg1 0)
+    $ {-else-} Call True 21 ZArgs
+
+-- s => setDyn 0 (teff s)
+tinst :: IR
+tinst
+  = Name 20 (BArg1 0)
+  $ SetDyn 0 0
+  $ Yield ZArgs
+
+-- m => ...
+tloopb :: IR
+tloopb
+  = Match 0 $ Test1
+      0 (Lit 0 $ App True (Dyn 0) (UArg1 0)) -- get
+      {-else-} rec
+  where
+  rec = Let (Lit 0 $ App False (Dyn 0) (UArg1 0)) -- get
+      $ Pack 0 (UArg1 0) -- I# m
+      $ Let (App False (Env 11) (BArg2 0 1)) -- add
+      $ Let (Lit 1 $ App False (Dyn 0) (UArg1 0)) -- put
+      $ Prim1 Dec 0
+      $ Call False 25 (UArg1 0)
+
+-- m s => reset (tinst (I# s) ; tloopb m)
+tloop :: IR
+tloop = Reset 0
+  $ Pack 0 (UArg1 1)
+  $ Let (Call True 21 $ BArg1 0)
+  $ Call True 25 $ UArg1 0
 
 fib :: IR
 fib = Match 0 $ Test2
@@ -114,8 +150,8 @@ fib = Match 0 $ Test2
   where
   rec = Prim1 Dec 0
       $ Prim1 Dec 0
-      $ Let (App (Env 2) (UArg1 1))
-      $ Let (App (Env 2) (UArg1 1))
+      $ Let (App False (Env 2) (UArg1 1))
+      $ Let (App False (Env 2) (UArg1 1))
       $ Prim2 Add 0 1 $ Yield (UArg1 0)
 
 ofib :: IR
@@ -134,7 +170,7 @@ stackEater :: IR
 stackEater
   = Match 0 $ Test1
       0 (Yield ZArgs)
-    $ Prim1 Dec 0 $ Let (App (Env 4) $ UArg1 0) (Yield ZArgs)
+    $ Prim1 Dec 0 $ Let (App False (Env 4) $ UArg1 0) (Yield ZArgs)
 
 testEnv :: Int -> Comb
 testEnv 0 = Lam 2 0 4 0 loop
@@ -152,19 +188,23 @@ testEnv 12 = Lam 0 2 0 2 diag
 testEnv 13 = Lam 0 0 0 1 get
 testEnv 14 = Lam 0 1 0 2 put
 testEnv 15 = Lam 0 3 0 3 kid
+testEnv 20 = Lam 1 1 1 2 teff
+testEnv 21 = Lam 0 1 0 2 tinst
+testEnv 25 = Lam 1 0 4 3 tloopb
+testEnv 26 = Lam 1 0 4 3 tloop
 testEnv _ = error "testEnv"
 
 setupu1 :: Int -> Int -> IR
-setupu1 f n = Lit n $ App (Env f) (UArg1 0)
+setupu1 f n = Lit n $ App False (Env f) (UArg1 0)
 
 setupu2 :: Int -> Int -> Int -> IR
-setupu2 f m n = Lit m $ Lit n $ App (Env f) (UArg2 0 1)
+setupu2 f m n = Lit m $ Lit n $ App False (Env f) (UArg2 0 1)
 
 setupb2 :: Int -> Int -> Int -> IR
 setupb2 f m n
   = Lit m $ Pack 0 (UArg1 0)
   $ Lit n $ Pack 0 (UArg1 0)
-  $ App (Env f) (BArgR 0 2)
+  $ App False (Env f) (BArgR 0 2)
 
 benchEv :: String -> IR -> Benchmark
 benchEv str code = bench str . whnfIO . eval0 testEnv $ code
@@ -204,6 +244,13 @@ main = defaultMain
       , benchEv "10000"   $ setupu2 6 0 10000
       , benchEv "100000"  $ setupu2 6 0 100000
       , benchEv "1000000" $ setupu2 6 0 1000000
+      ]
+  , bgroup "tloop"
+      [ benchEv "2500"    $ setupu2 26 0 2500
+      , benchEv "5000"    $ setupu2 26 0 5000
+      , benchEv "10000"   $ setupu2 26 0 10000
+      , benchEv "100000"  $ setupu2 26 0 100000
+      , benchEv "1000000" $ setupu2 26 0 1000000
       ]
   , bgroup "fib"
       [ benchEv "10" $ setupu1 2 10

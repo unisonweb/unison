@@ -18,7 +18,11 @@ data Mem = UN | BX
 -- Evaluation stack
 data K
   = KE
-  | Mark !Int !K -- mark continuation with a prompt
+  -- mark continuation with a prompt
+  | Mark !Int     -- prompt
+         !Closure -- shadowed dynamic storage
+         !K
+  -- save information about a frame for later resumption
   | Push !Int -- unboxed frame size
          !Int -- boxed frame size
          !Int -- pending unboxed args
@@ -38,6 +42,7 @@ data Closure
   | DataUB !Int !Int !Closure
   | DataG !Int !(Seg 'UN) !(Seg 'BX)
   | Captured !K {-# unpack #-} !(Seg 'UN) !(Seg 'BX)
+  | BlackHole
 
 type Off = Int
 type SZ = Int
@@ -271,7 +276,7 @@ instance Show K where
     go _ KE = "]"
     go com (Push uf bf ua ba _ k)
       = com ++ show (uf,bf,ua,ba) ++ go "," k
-    go com (Mark p k) = com ++ "M" ++ show p ++ go "," k
+    go com (Mark p _ k) = com ++ "M" ++ show p ++ go "," k
 
 instance MEM 'BX where
   data Stack 'BX
