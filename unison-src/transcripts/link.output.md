@@ -151,8 +151,8 @@ We can look at the links we have:
 .> links coolFunction
 
   1. alice                : Author
-  2. coolFunction.doc     : Doc
-  3. coolFunction.license : License
+  2. coolFunction.license : License
+  3. coolFunction.doc     : Doc
   
   Tip: Try using `display 1` to display the first result or
        `view 1` to view its source.
