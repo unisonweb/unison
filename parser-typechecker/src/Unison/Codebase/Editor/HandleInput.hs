@@ -125,6 +125,7 @@ import Data.Tuple.Extra (uncurry3)
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
 import qualified Control.Error.Util as ErrorUtil
 import Unison.Codebase.GitError (GitError)
+import Unison.Util.Monoid (intercalateMap)
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
@@ -286,6 +287,7 @@ loop = do
         branchExistsSplit = branchExists . Path.unsplit'
         typeExists dest = respond . TypeAlreadyExists dest
         termExists dest = respond . TermAlreadyExists dest
+        -- | try to get these as close as possible to the command that caused the change
         inputDescription :: InputDescription
         inputDescription = case input of
           ForkLocalBranchI src dest -> "fork " <> hp' src <> " " <> p' dest
@@ -319,9 +321,9 @@ loop = do
           UndoI{} -> "undo"
           ExecuteI s -> "execute " <> Text.pack s
           LinkI froms to ->
-            "link " <> hqs' to <> " " <> Text.pack (show $ hqs' <$> froms)
+            "link " <> hqs' to <> " " <> intercalateMap " " hqs' froms
           UnlinkI froms to ->
-            "unlink " <> hqs' to <> " " <> Text.pack (show $ hqs' <$> froms)
+            "unlink " <> hqs' to <> " " <> intercalateMap " " hqs' froms
           UpdateBuiltinsI -> "builtins.update"
           MergeBuiltinsI -> "builtins.merge"
           PullRemoteBranchI orepo dest ->
