@@ -292,15 +292,15 @@ loop = do
           MergeLocalBranchI src dest -> "merge " <> p' src <> " " <> p' dest
           ResetRootI src -> "reset-root " <> hp' src
           AliasTermI src dest -> "alias.term " <> hqs' src <> " " <> ps' dest
-          AliasTypeI src dest -> "alias.type" <> hqs' src <> " " <> ps' dest
+          AliasTypeI src dest -> "alias.type " <> hqs' src <> " " <> ps' dest
           MoveTermI src dest -> "move.term " <> hqs' src <> " " <> ps' dest
           MoveTypeI src dest -> "move.type " <> hqs' src <> " " <> ps' dest
           MoveBranchI src dest -> "move.namespace " <> ops' src <> " " <> ps' dest
           MovePatchI src dest -> "move.patch " <> ps' src <> " " <> ps' dest
           CopyPatchI src dest -> "copy.patch " <> ps' src <> " " <> ps' dest
-          DeleteI thing -> "delete" <> hqs' thing
+          DeleteI thing -> "delete " <> hqs' thing
           DeleteTermI def -> "delete.term " <> hqs' def
-          DeleteTypeI def -> "delete.type" <> hqs' def
+          DeleteTypeI def -> "delete.type " <> hqs' def
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
           DeletePatchI path -> "delete.patch " <> ps' path
           ReplaceTermI srcH targetH p ->
