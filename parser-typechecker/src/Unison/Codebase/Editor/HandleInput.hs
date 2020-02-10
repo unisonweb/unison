@@ -319,9 +319,9 @@ loop = do
           UndoI{} -> "undo"
           ExecuteI s -> "execute " <> Text.pack s
           LinkI froms to ->
-            "link " <> Text.pack (hqs' to) <> " " <> (show $ hqs' <$> froms)
+            "link " <> hqs' to <> " " <> Text.pack (show $ hqs' <$> froms)
           UnlinkI froms to ->
-            "unlink " <> Text.pack (hqs' to) <> " " <> (show $ hqs' <$> froms)
+            "unlink " <> hqs' to <> " " <> Text.pack (show $ hqs' <$> froms)
           UpdateBuiltinsI -> "builtins.update"
           MergeBuiltinsI -> "builtins.merge"
           PullRemoteBranchI orepo dest ->
