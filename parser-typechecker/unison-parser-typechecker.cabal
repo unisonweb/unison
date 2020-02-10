@@ -280,6 +280,7 @@ executable tests
     Unison.Test.UnisonSources
     Unison.Test.UriParser
     Unison.Test.Util.Bytes
+    Unison.Test.Util.TMap
     Unison.Test.Var
 
   build-depends:

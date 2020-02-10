@@ -24,6 +24,7 @@ import qualified Unison.Test.Typechecker.Context as Context
 import qualified Unison.Test.Typechecker.TypeError as TypeError
 import qualified Unison.Test.UnisonSources as UnisonSources
 import qualified Unison.Test.Util.Bytes as Bytes
+import qualified Unison.Test.Util.TMap as TMap
 import qualified Unison.Test.Var as Var
 import qualified Unison.Test.Codebase as Codebase
 import qualified Unison.Test.Codebase.FileCodebase as FileCodebase
@@ -45,6 +46,7 @@ test = tests
   , Range.test
   , ColorText.test
   , Bytes.test
+  , TMap.test
   , Path.test
   , Causal.test
   , Referent.test

@@ -67,6 +67,11 @@ library
     Unison.Util.Relation3
     Unison.Util.Relation4
     Unison.Util.Set
+    Unison.Util.TMap.Hidden
+    Unison.Util.TMap.Internal
+    Unison.Util.TSet.Hidden
+    Unison.Util.TSet.Internal
+    Unison.Util.TrieMap
     Unison.Var
 
   build-depends:
@@ -86,7 +91,8 @@ library
     text,
     transformers,
     util,
-    vector
+    vector,
+    deepseq
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 

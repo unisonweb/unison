@@ -98,6 +98,7 @@ import qualified Unison.PrettyTerminal         as PT
 import           Unison.Symbol                  ( Symbol )
 import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Util.TrieMap as TMap
 
 type CodebasePath = FilePath
 
@@ -554,6 +555,26 @@ putWatch putV putA path k id e = liftIO $ S.putWithParentDirs
   (watchesDir path (Text.pack k) </> componentIdToString id <> ".ub")
   e
 
+
+shortestUniquePrefixLengthTerms :: forall m. MonadIO m => CodebasePath -> m Int
+shortestUniquePrefixLengthTerms codebasePath = liftIO $ do
+    allHashes <- getAllTermHashes
+    pure $ TMap.minUniquePrefix allHashes
+  where 
+    getAllTermIDs :: IO [Reference.Id]
+    getAllTermIDs = (fmap join) . for [termsDir, typesDir] $ \f -> do
+      let dir = f codebasePath
+      paths <- listDirectory dir
+      let refs = paths >>= (toList . componentIdFromString)
+      pure refs
+    getAllTermHashes = do
+      allIds <- getAllTermIDs
+      let hashInfo = fmap (\ref@(Reference.Id hash _ _) -> (Text.unpack $ Hash.base32Hex hash, ref)) allIds
+          hashMap = TMap.fromList hashInfo
+      pure hashMap
+      
+
+
 referencesByPrefix :: MonadIO m => CodebasePath -> Text -> m (Set Reference.Id)
 referencesByPrefix codebasePath p =
   liftIO $ fmap (Set.fromList . join) . for [termsDir, typesDir] $ \f -> do
@@ -608,7 +629,7 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
           getTermsOfType
           getTermsMentioningType
    -- todo: maintain a trie of references to come up with this number
-          (pure 10)
+          (shortestUniquePrefixLengthTerms path)
    -- The same trie can be used to make this lookup fast:
           (referencesByPrefix path)
           (pure 10)
