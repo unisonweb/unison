@@ -70,6 +70,8 @@ Let's now merge these namespaces into `c`:
 
 ```ucm
 .example.resolve> merge a c
+```
+```ucm:error
 .example.resolve> merge b c
 ```
 
@@ -107,4 +109,3 @@ We can resolve the name conflict by deleting one of the names.
 ```
 
 And that's how you resolve edit conflicts with UCM.
-

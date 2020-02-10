@@ -40,6 +40,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
+import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -649,6 +650,53 @@ push = InputPattern
       Right $ Input.PushRemoteBranchI (Just (repo, path)) p
   )
 
+createPullRequest :: InputPattern
+createPullRequest = InputPattern "pr.create" []
+  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
+  (P.group $ P.lines
+    [ P.wrap $ makeExample createPullRequest ["base", "head"]
+        <> "will generate a request to merge the remote repo `head`"
+        <> "into the remote repo `base`."
+    , ""
+    , "example: pr.create https://github.com/unisonweb/base https://github.com/me/unison:.libs.pr.base"
+    ])
+  (\case
+    [baseUrl, headUrl] -> first fromString $ do
+      baseRepo <- parseUri "baseRepo" baseUrl
+      headRepo <- parseUri "headRepo" headUrl
+      pure $ Input.CreatePullRequestI baseRepo headRepo
+    _ -> Left (I.help createPullRequest)
+  )
+
+loadPullRequest :: InputPattern
+loadPullRequest = InputPattern "pr.load" []
+  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
+  (P.lines
+   [P.wrap $ makeExample loadPullRequest ["base", "head"]
+    <> "will load a pull request for merging the remote repo `head` into the"
+    <> "remote repo `base`, staging each in the current namespace"
+    <> "(so make yourself a clean spot to work first)."
+   ,P.wrap $ makeExample loadPullRequest ["base", "head", "dest"]
+     <> "will load a pull request for merging the remote repo `head` into the"
+     <> "remote repo `base`, staging each in `dest`, which must be empty."
+   ])
+  (\case
+    [baseUrl, headUrl] -> first fromString $ do
+      baseRepo <- parseUri "baseRepo" baseUrl
+      headRepo <- parseUri "topicRepo" headUrl
+      pure $ Input.LoadPullRequestI baseRepo headRepo Path.relativeEmpty'
+    [baseUrl, headUrl, dest] -> first fromString $ do
+      baseRepo <- parseUri "baseRepo" baseUrl
+      headRepo <- parseUri "topicRepo" headUrl
+      destPath <- Path.parsePath' dest
+      pure $ Input.LoadPullRequestI baseRepo headRepo destPath
+    _ -> Left (I.help loadPullRequest)
+  )
+parseUri :: IsString b => String -> String -> Either b RemoteNamespace
+parseUri label input =
+  first (fromString . show)
+    (P.parse UriParser.repoPath label (Text.pack input))
+
 mergeLocal :: InputPattern
 mergeLocal = InputPattern "merge" [] [(Required, pathArg)
                                      ,(Optional, pathArg)]
@@ -786,22 +834,40 @@ edit = InputPattern
   )
   (pure . Input.ShowDefinitionI Input.LatestFileLocation)
 
-helpTopics :: Map String (P.Pretty P.ColorText)
-helpTopics = Map.fromList [
+topicNameArg :: ArgumentType
+topicNameArg =
+  ArgumentType "topic" $ \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap)
+
+helpTopics :: InputPattern
+helpTopics = InputPattern
+  "help-topics"
+  ["help-topic"]
+  [(Optional, topicNameArg)]
+  ( "`help-topics` lists all topics and `help-topics <topic>` shows an explanation of that topic." )
+  (\case
+    [] -> Left topics
+    [topic] -> case Map.lookup topic helpTopicsMap of
+       Nothing -> Left . warn $ "I don't know of that topic. Try `help-topics`."
+       Just t -> Left t
+    _ -> Left $ warn "Use `help-topics <topic>` or `help-topics`."
+  )
+  where
+    topics = P.callout "🌻" $ P.lines [
+      "Here's a list of topics I can tell you more about: ",
+      "",
+      P.indentN 2 $ P.sep "\n" (P.string <$> Map.keys helpTopicsMap),
+      "",
+      aside "Example" "use `help filestatus` to learn more about that topic."
+      ]
+
+helpTopicsMap :: Map String (P.Pretty P.ColorText)
+helpTopicsMap = Map.fromList [
   ("testcache", testCacheMsg),
   ("filestatus", fileStatusMsg),
-  ("topics", topics),
   ("messages.disallowedAbsolute", disallowedAbsoluteMsg),
   ("namespaces", pathnamesMsg)
   ]
   where
-  topics = P.callout "🌻" $ P.lines [
-    "Here's a list of topics I can tell you more about: ",
-    "",
-    P.indentN 2 $ P.sep "\n" (P.string <$> Map.keys helpTopics),
-    "",
-    aside "Example" "use `help filestatus` to learn more about that topic."
-    ]
   blankline = ("","")
   fileStatusMsg = P.callout "📓" . P.lines $ [
     P.wrap $ "Here's a list of possible status messages you might see"
@@ -902,7 +968,7 @@ help = InputPattern
     where
       commandsByName = Map.fromList [
         (n, i) | i <- validInputs, n <- I.patternName i : I.aliases i ]
-      isHelp s = Map.lookup s helpTopics
+      isHelp s = Map.lookup s helpTopicsMap
 
 quit :: InputPattern
 quit = InputPattern "quit" ["exit", ":q"] []
@@ -937,9 +1003,9 @@ link = InputPattern
   []
   [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionQueryArg)]
   (fromString $ concat
-    [ "`link dest src` creates a link to `dest` from `src`. "
-    , "Use `links src` or `links src <type>` to view outgoing links, "
-    , "and `unlink dest src` to remove a link. The `src` can be either the "
+    [ "`link metadata defn` creates a link to `metadata` from `defn`. "
+    , "Use `links defn` or `links defn <type>` to view outgoing links, "
+    , "and `unlink metadata defn` to remove a link. The `defn` can be either the "
     , "name of a term or type, multiple such names, or a range like `1-4` "
     , "for a range of definitions listed by a prior `find` command."
     ]
@@ -958,8 +1024,8 @@ links = InputPattern
   []
   [(Required, exactDefinitionQueryArg), (Optional, exactDefinitionQueryArg)]
   (P.column2 [
-    (makeExample links ["src"], "shows all outgoing links from `src`."),
-    (makeExample links ["src", "<type>"], "shows all links for the given type.") ])
+    (makeExample links ["defn"], "shows all outgoing links from `defn`."),
+    (makeExample links ["defn", "<type>"], "shows all links of the given type.") ])
   (\case
     src : rest -> first fromString $ do
       src <- Path.parseHQSplit' src
@@ -975,7 +1041,12 @@ unlink = InputPattern
   "unlink"
   ["delete.link"]
   [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionQueryArg)]
-  "`unlink dest src` removes a link to `dest` from `src`."
+  (fromString $ concat
+    [ "`unlink metadata defn` removes a link to `detadata` from `defn`."
+    , "The `defn` can be either the "
+    , "name of a term or type, multiple such names, or a range like `1-4` "
+    , "for a range of definitions listed by a prior `find` command."
+    ])
   (\case
     dest : srcs -> first fromString $ do
       srcs <- traverse Path.parseHQSplit' srcs
@@ -1032,6 +1103,7 @@ execute = InputPattern
 validInputs :: [InputPattern]
 validInputs =
   [ help
+  , helpTopics
   , load
   , add
   , previewAdd
@@ -1045,6 +1117,8 @@ validInputs =
   , names
   , push
   , pull
+  , createPullRequest
+  , loadPullRequest
   , cd
   , deleteBranch
   , renameBranch
@@ -1092,7 +1166,7 @@ commandNames = validInputs >>= \i -> I.patternName i : I.aliases i
 
 commandNameArg :: ArgumentType
 commandNameArg =
-  ArgumentType "command" $ \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopics))
+  ArgumentType "command" $ \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap))
 
 fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =

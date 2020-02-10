@@ -126,7 +126,11 @@ a = 555
 ```ucm
 .nsz> update
 .> merge nsy nsw
+```
+```ucm:error
 .> merge nsz nsw
+```
+```ucm
 .> diff.namespace nsx nsw
 .nsw> view a b
 ```
@@ -134,9 +138,9 @@ a = 555
 a = 777
 ```
 
-```-ucm
+```ucm:error
 .nsw> update
-nsw> view a b
+.nsw> view a b
 ```
 
 ##

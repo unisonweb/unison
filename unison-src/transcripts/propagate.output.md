@@ -87,10 +87,6 @@ and update the codebase to use the new type `Foo`...
   
     unique type Foo
 
-  ✅
-  
-  No conflicts or edits in progress.
-
 ```
 ... it should automatically propagate the type to `fooToInt`.
 
@@ -176,10 +172,6 @@ Update...
   ⍟ I've updated to these definitions:
   
     someTerm : .builtin.Optional x -> .builtin.Optional x
-
-  ✅
-  
-  No conflicts or edits in progress.
 
 ```
 Now the type of `someTerm` should be `Optional x -> Optional x` and the 
@@ -293,10 +285,6 @@ someTerm _ = None
   ⍟ I've updated to these definitions:
   
     someTerm : .builtin.Optional x -> .builtin.Optional x
-
-  ✅
-  
-  No conflicts or edits in progress.
 
 ```
 The other namespace should be left alone.
