@@ -117,14 +117,14 @@ ability X a1 a2 where x : Nat
 
   Done.
 
-.ns1> link fromJust b
+.ns1> link b fromJust
 
   Updates:
   
-    1. fromJust : Nat
+    1. ns1.fromJust : Nat
        + 2. b : Nat
     
-    3. fromJust' : Nat
+    3. ns1.fromJust' : Nat
        + 4. b : Nat
 
 .ns1> fork .ns1 .ns2
@@ -304,18 +304,18 @@ unique type Y a b = Y a b
     
     19. X    20. X' (added)
 
-.> link ns2.f ns1.c
+.> link ns1.c ns2.f
 
   Updates:
   
-    1. f : Nat
+    1. ns2.f : Nat
        + 2. c : Nat
 
 .> link ns2.c ns2.c
 
   Updates:
   
-    1. c : Nat
+    1. ns2.c : Nat
        + 2. c : Nat
 
 .> diff.namespace ns1 ns2
@@ -362,9 +362,9 @@ unique type Y a b = Y a b
     
     21. X    22. X' (added)
 
-.> unlink ns2.fromJust ns2.b
+.> unlink ns2.b ns2.fromJust 
 
-  Done.
+  The namespaces are identical.
 
 .> diff.namespace ns1 ns2
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 {-# LANGUAGE ApplicativeDo       #-}
@@ -36,7 +37,7 @@ import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
 import           Control.Monad.State            ( StateT )
 import           Control.Monad.Trans.Except     ( ExceptT(..), runExceptT)
-import           Data.Bifunctor                 ( second )
+import           Data.Bifunctor                 ( second, first )
 import           Data.Configurator              ()
 import qualified Data.List                      as List
 import           Data.List                      ( partition, sortOn )
@@ -317,8 +318,10 @@ loop = do
           PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
           UndoI{} -> "undo"
           ExecuteI s -> "execute " <> Text.pack s
-          LinkI from to -> "link " <> hqs' from <> " " <> hqs' to
-          UnlinkI from to -> "unlink " <> hqs' from <> " " <> hqs' to
+          LinkI froms to ->
+            "link " <> hqs' to <> " " <> Text.pack (show $ hqs' <$> froms)
+          UnlinkI froms to ->
+            "unlink " <> hqs' to <> " " <> Text.pack (show $ hqs' <$> froms)
           UpdateBuiltinsI -> "builtins.update"
           MergeBuiltinsI -> "builtins.merge"
           PullRemoteBranchI orepo dest ->
@@ -378,6 +381,44 @@ loop = do
         stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
         stepManyAtM = Unison.Codebase.Editor.HandleInput.stepManyAtM inputDescription
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
+        manageLinks :: Var v0
+                    => [(Path', NameSegment.HQSegment)]
+                    -> (Path', NameSegment.HQSegment)
+                    -> (forall r. Ord r
+                        => (r, Reference, Reference)
+                        ->  Branch.Star r NameSegment
+                        ->  Branch.Star r NameSegment)
+                    -> MaybeT (StateT (LoopState m v0) (F m (Either Event Input) v0)) ()
+        manageLinks srcs mdValue op = do
+          let srcle = toList . getHQ'Terms =<< srcs
+              srclt = toList . getHQ'Types =<< srcs
+              mdValuel = toList (getHQ'Terms mdValue)
+          case (srcle, srclt, mdValuel) of
+            (srcle, srclt, [Referent.Ref mdValue]) -> do
+              mdType <- eval $ LoadTypeOfTerm mdValue
+              case mdType of
+                Nothing -> respond $ LinkFailure input
+                Just ty -> do
+                  let steps =
+                        second (const . step $ Type.toReference ty)
+                        . first (Path.unabsolute .  resolveToAbsolute) <$> srcs
+                  let get = Branch.head <$> use root
+                  before <- get
+                  stepManyAt steps
+                  after <- get
+                  (ppe, outputDiff) <- diffHelper before after
+                  respondNumbered $ ShowDiffNamespace
+                      Path.absoluteEmpty Path.absoluteEmpty ppe outputDiff
+                where
+                step mdType b0 = let
+                  tmUpdates terms = foldl' go terms srcle
+                    where
+                    go terms src = op (src, mdType, mdValue) terms
+                  tyUpdates types = foldl' go types srclt
+                    where
+                    go types src = op (src, mdType, mdValue) types
+                  in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
+            _ -> respond $ LinkFailure input
         delete
           :: (Path.HQSplit' -> Set Referent) -- compute matching terms
           -> (Path.HQSplit' -> Set Reference) -- compute matching types
@@ -734,55 +775,11 @@ loop = do
 --                      | r <- toList $ Names.typesNamed ns name ]
 --              in (terms, types)
 
-      LinkI src mdValue -> do
-        let srcle = toList (getHQ'Terms src)
-            srclt = toList (getHQ'Types src)
-            mdValuel = toList (getHQ'Terms mdValue)
-        case (srcle, srclt, mdValuel) of
-          (srcle, srclt, [Referent.Ref mdValue])
-            | length srcle < 2 && length srclt < 2 -> do
-              mdType <- eval $ LoadTypeOfTerm mdValue
-              case mdType of
-                Nothing -> respond $ LinkFailure input
-                Just ty -> do
-                  let parent = resolveToAbsolute (fst src)
-                  let get = Branch.head <$> getAt parent
-                  before <- get
-                  stepAt (Path.unabsolute parent, step (Type.toReference ty))
-                  after <- get
-                  (ppe, outputDiff) <- diffHelper before after
-                  respondNumbered $ ShowDiffNamespace parent parent ppe outputDiff
-                where
-                step mdType b0 = let
-                  tmUpdates terms = foldl' go terms srcle where
-                    go terms src = Metadata.insert (src, mdType, mdValue) terms
-                  tyUpdates types = foldl' go types srclt where
-                    go types src = Metadata.insert (src, mdType, mdValue) types
-                  in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
-          _ -> respond $ LinkFailure input
+      LinkI srcs mdValue ->
+        manageLinks srcs mdValue Metadata.insert
 
-      UnlinkI src mdValue -> do
-        let srcle = toList (getHQ'Terms src)
-            srclt = toList (getHQ'Types src)
-            (parent, _last) = resolveSplit' src
-            mdValuel = toList (getHQ'Terms mdValue)
-        case (srcle, srclt, mdValuel) of
-          (srcle, srclt, [Referent.Ref mdValue])
-            | length srcle < 2 && length srclt < 2 -> do
-              mdType <- eval $ LoadTypeOfTerm mdValue
-              case mdType of
-                Nothing -> respond $ LinkFailure input
-                Just ty -> do
-                  stepAt (parent, step (Type.toReference ty))
-                  success
-                where
-                step mdType b0 = let
-                  tmUpdates terms = foldl' go terms srcle where
-                    go terms src = Metadata.delete (src, mdType, mdValue) terms
-                  tyUpdates types = foldl' go types srclt where
-                    go types src = Metadata.delete (src, mdType, mdValue) types
-                  in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
-          _ -> respond $ LinkFailure input
+      UnlinkI srcs mdValue ->
+        manageLinks srcs mdValue Metadata.delete
 
       -- > links List.map (.Docs .English)
       -- > links List.map -- give me all the

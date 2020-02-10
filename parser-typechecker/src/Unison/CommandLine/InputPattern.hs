@@ -55,14 +55,14 @@ argType ip i = go (i, args ip) where
   go (_, []) = Nothing
   -- If requesting the 0th of >=1 arguments, return it.
   go (0, (_, t) : _) = Just t
-  -- If requesting a later parameter, decrement and drop one.
-  go (n, (Required, _) : args) = go (n - 1, args)
   -- Vararg parameters should appear at the end of the arg list, and work for
   -- any later argument number.
   go (_, [(ZeroPlus, t)]) = Just t
   go (_, [(OnePlus, t)]) = Just t
   -- Optional parameters only work at position 0, under this countdown scheme.
   go (_, [(Optional, _)]) = Nothing
+  -- If requesting a later parameter, decrement and drop one.
+  go (n, (Required, _) : args) = go (n - 1, args)
   -- The argument list spec is invalid if something follows optional or vararg
   go _ = error $ "Input pattern " <> show (patternName ip)
     <> " has an invalid argument list: " <> (show . fmap fst) (args ip)
