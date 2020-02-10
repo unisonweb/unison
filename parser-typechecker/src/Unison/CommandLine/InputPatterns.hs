@@ -671,15 +671,25 @@ createPullRequest = InputPattern "pr.create" []
 loadPullRequest :: InputPattern
 loadPullRequest = InputPattern "pr.load" []
   [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
-  (P.wrap $ makeExample loadPullRequest ["base", "head"]
+  (P.lines
+   [P.wrap $ makeExample loadPullRequest ["base", "head"]
     <> "will load a pull request for merging the remote repo `head` into the"
     <> "remote repo `base`, staging each in the current namespace"
-    <> "(so make yourself a clean spot to work first).")
+    <> "(so make yourself a clean spot to work first)."
+   ,P.wrap $ makeExample loadPullRequest ["base", "head", "dest"]
+     <> "will load a pull request for merging the remote repo `head` into the"
+     <> "remote repo `base`, staging each in `dest`, which must be empty."
+   ])
   (\case
     [baseUrl, headUrl] -> first fromString $ do
       baseRepo <- parseUri "baseRepo" baseUrl
       headRepo <- parseUri "topicRepo" headUrl
-      pure $ Input.LoadPullRequestI baseRepo headRepo
+      pure $ Input.LoadPullRequestI baseRepo headRepo Path.relativeEmpty'
+    [baseUrl, headUrl, dest] -> first fromString $ do
+      baseRepo <- parseUri "baseRepo" baseUrl
+      headRepo <- parseUri "topicRepo" headUrl
+      destPath <- Path.parsePath' dest
+      pure $ Input.LoadPullRequestI baseRepo headRepo destPath
     _ -> Left (I.help loadPullRequest)
   )
 parseUri :: IsString b => String -> String -> Either b RemoteNamespace
@@ -988,17 +998,25 @@ viewPatch = InputPattern "view.patch" [] [(Required, patchArg)]
    )
 
 link :: InputPattern
-link = InputPattern "link" []
-  [(Required, exactDefinitionQueryArg),
-   (Required, exactDefinitionQueryArg) ]
-  "`link src dest` creates a link from `src` to `dest`. Use `links src` or `links src <type>` to view outgoing links, and `unlink src dest` to remove a link."
+link = InputPattern
+  "link"
+  []
+  [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionQueryArg)]
+  (fromString $ concat
+    [ "`link metadata defn` creates a link to `metadata` from `defn`. "
+    , "Use `links defn` or `links defn <type>` to view outgoing links, "
+    , "and `unlink metadata defn` to remove a link. The `defn` can be either the "
+    , "name of a term or type, multiple such names, or a range like `1-4` "
+    , "for a range of definitions listed by a prior `find` command."
+    ]
+  )
   (\case
-    [src, dest] -> first fromString $ do
-      src <- Path.parseHQSplit' src
+    dest : srcs -> first fromString $ do
+      srcs <- traverse Path.parseHQSplit' srcs
       dest <- Path.parseHQSplit' dest
-      Right $ Input.LinkI src dest
+      Right $ Input.LinkI srcs dest
     _ -> Left (I.help link)
-   )
+  )
 
 links :: InputPattern
 links = InputPattern
@@ -1006,8 +1024,8 @@ links = InputPattern
   []
   [(Required, exactDefinitionQueryArg), (Optional, exactDefinitionQueryArg)]
   (P.column2 [
-    (makeExample links ["src"], "shows all outgoing links from `src`."),
-    (makeExample links ["src", "<type>"], "shows all links for the given type.") ])
+    (makeExample links ["defn"], "shows all outgoing links from `defn`."),
+    (makeExample links ["defn", "<type>"], "shows all links of the given type.") ])
   (\case
     src : rest -> first fromString $ do
       src <- Path.parseHQSplit' src
@@ -1019,17 +1037,23 @@ links = InputPattern
   )
 
 unlink :: InputPattern
-unlink = InputPattern "unlink" ["delete.link"]
-  [(Required, exactDefinitionQueryArg),
-   (Required, exactDefinitionQueryArg) ]
-  "`unlink src dest` removes a link from `src` to `dest`."
+unlink = InputPattern
+  "unlink"
+  ["delete.link"]
+  [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionQueryArg)]
+  (fromString $ concat
+    [ "`unlink metadata defn` removes a link to `detadata` from `defn`."
+    , "The `defn` can be either the "
+    , "name of a term or type, multiple such names, or a range like `1-4` "
+    , "for a range of definitions listed by a prior `find` command."
+    ])
   (\case
-    [src, dest] -> first fromString $ do
-      src <- Path.parseHQSplit' src
+    dest : srcs -> first fromString $ do
+      srcs <- traverse Path.parseHQSplit' srcs
       dest <- Path.parseHQSplit' dest
-      Right $ Input.UnlinkI src dest
+      Right $ Input.UnlinkI srcs dest
     _ -> Left (I.help unlink)
-   )
+  )
 
 names :: InputPattern
 names = InputPattern "names" []

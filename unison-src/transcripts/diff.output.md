@@ -117,14 +117,14 @@ ability X a1 a2 where x : Nat
 
   Done.
 
-.ns1> link fromJust b
+.ns1> link b fromJust
 
   Updates:
   
-    1. fromJust : Nat
+    1. ns1.fromJust : Nat
        + 2. b : Nat
     
-    3. fromJust' : Nat
+    3. ns1.fromJust' : Nat
        + 4. b : Nat
 
 .ns1> fork .ns1 .ns2
@@ -210,10 +210,6 @@ unique type Y a b = Y a b
   
     b        : .builtin.Text
     fromJust : .builtin.Nat
-
-  ✅
-  
-  No conflicts or edits in progress.
 
 .ns2> links fromJust
 
@@ -308,18 +304,18 @@ unique type Y a b = Y a b
     
     19. X    20. X' (added)
 
-.> link ns2.f ns1.c
+.> link ns1.c ns2.f
 
   Updates:
   
-    1. f : Nat
+    1. ns2.f : Nat
        + 2. c : Nat
 
 .> link ns2.c ns2.c
 
   Updates:
   
-    1. c : Nat
+    1. ns2.c : Nat
        + 2. c : Nat
 
 .> diff.namespace ns1 ns2
@@ -366,9 +362,9 @@ unique type Y a b = Y a b
     
     21. X    22. X' (added)
 
-.> unlink ns2.fromJust ns2.b
+.> unlink ns2.b ns2.fromJust 
 
-  Done.
+  The namespaces are identical.
 
 .> diff.namespace ns1 ns2
 
@@ -469,10 +465,6 @@ bdependent = "banana"
   
     bdependent : .builtin.Text
 
-  ✅
-  
-  No conflicts or edits in progress.
-
 .> diff.namespace ns2 ns3
 
   Updates:
@@ -528,10 +520,6 @@ a = 444
   
     a : .builtin.Nat
 
-  ✅
-  
-  No conflicts or edits in progress.
-
 ```
 ```unison
 a = 555
@@ -543,10 +531,6 @@ a = 555
   ⍟ I've updated to these definitions:
   
     a : .builtin.Nat
-
-  ✅
-  
-  No conflicts or edits in progress.
 
 .> merge nsy nsw
 
@@ -564,6 +548,8 @@ a = 555
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+```
+```ucm
 .> merge nsz nsw
 
   Here's what's changed in nsw after the merge:
@@ -588,6 +574,11 @@ a = 555
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  I tried to auto-apply the patch, but couldn't because it
+  contained contradictory entries.
+
+```
+```ucm
 .> diff.namespace nsx nsw
 
   New name conflicts:
@@ -645,13 +636,38 @@ a = 777
   `>`)... Ctrl+C cancels.
 
 ```
-```
--ucm
+```ucm
 .nsw> update
-nsw> view a b
+
+  x These definitions failed:
+  
+    Reason
+    conflicted   a   : .builtin.Nat
+  
+    Tip: Use `help filestatus` to learn more.
+
+  I tried to auto-apply the patch, but couldn't because it
+  contained contradictory entries.
+
+.nsw> view a b
+
+  a#5f8uodgrtf : Nat
+  a#5f8uodgrtf = 555
+  
+  a#ekguc9h648 : Nat
+  a#ekguc9h648 = 444
+  
+  b#be9a2abbbg : Nat
+  b#be9a2abbbg =
+    use Nat +
+    a#ekguc9h648 + 1
+  
+  b#kut4vstim7 : Nat
+  b#kut4vstim7 =
+    use Nat +
+    a#5f8uodgrtf + 1
 
 ```
-
 ##
 
 Updates:  -- 1 to 1

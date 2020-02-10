@@ -279,7 +279,8 @@ stepM
 stepM f c = (`cons` c) <$> f (head c)
 
 stepDistinctM
-  :: (Applicative m, Eq e, Hashable e) => (e -> m e) -> Causal m h e -> m (Causal m h e)
+  :: (Applicative m, Functor n, Eq e, Hashable e)
+  => (e -> n e) -> Causal m h e -> n (Causal m h e)
 stepDistinctM f c = (`consDistinct` c) <$> f (head c)
 
 one :: Hashable e => e -> Causal m h e

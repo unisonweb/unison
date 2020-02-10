@@ -244,10 +244,6 @@ master.frobnicate n = n + 1
   
     master.y : builtin.Text
 
-  ✅
-  
-  No conflicts or edits in progress.
-
 .> view master.y
 
   feature2.y : Text

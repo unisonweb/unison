@@ -48,7 +48,7 @@ data Input
     | PullRemoteBranchI (Maybe RemoteNamespace) Path'
     | PushRemoteBranchI (Maybe RemoteHead) Path'
     | CreatePullRequestI RemoteNamespace RemoteNamespace
-    | LoadPullRequestI RemoteNamespace RemoteNamespace
+    | LoadPullRequestI RemoteNamespace RemoteNamespace Path'
     | ResetRootI (Either ShortBranchHash Path')
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
@@ -106,9 +106,9 @@ data Input
   | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
   -- link from to
-  | LinkI Path.HQSplit' Path.HQSplit'
+  | LinkI [Path.HQSplit'] Path.HQSplit'
   -- unlink from to
-  | UnlinkI Path.HQSplit' Path.HQSplit'
+  | UnlinkI [Path.HQSplit'] Path.HQSplit'
   -- links from <type>
   | LinksI Path.HQSplit' (Maybe String)
   | DisplayI OutputLocation String

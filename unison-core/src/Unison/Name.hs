@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 
 module Unison.Name
-  ( Name
+  ( Name(Name)
   , fromString
   , isPrefixOf
   , joinDot
