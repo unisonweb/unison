@@ -71,6 +71,6 @@ myLibrary.h x = x + 3
 .myLibrary> links f
 .myLibrary> links g
 .myLibrary> links h
+.myLibrary> history
 ```
-
 
