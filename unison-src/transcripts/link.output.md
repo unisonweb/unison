@@ -150,8 +150,8 @@ We can look at the links we have:
 ```ucm
 .> links coolFunction
 
-  1. coolFunction.license : License
-  2. alice                : Author
+  1. alice                : Author
+  2. coolFunction.license : License
   3. coolFunction.doc     : Doc
   
   Tip: Try using `display 1` to display the first result or
@@ -239,7 +239,7 @@ myLibrary.h x = x + 3
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #uno7m7g1e7
+  ⊙ #u9119mh3q5
   
     
   
