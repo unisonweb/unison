@@ -229,12 +229,11 @@ instance MEM 'UN where
 
   augSeg (US _ _ sp stk) seg args = do
     cop <- newByteArray $ ssz+asz
-    copyByteArray cop 0 seg 0 ssz
-    _ <- uargOnto stk sp cop (sz-1) args
+    copyByteArray cop asz seg 0 ssz
+    _ <- uargOnto stk sp cop (-1) args
     unsafeFreezeByteArray cop
    where
    ssz = sizeofByteArray seg
-   sz = words ssz
    asz = case args of
           Arg1 _   -> 8
           Arg2 _ _ -> 16
@@ -358,8 +357,8 @@ instance MEM 'BX where
 
   augSeg (BS _ _ sp stk) seg args = do
     cop <- newArray (ssz+asz) sentinel
-    copyArray cop 0 seg 0 ssz
-    _ <- bargOnto stk sp cop (ssz-1) args
+    copyArray cop asz seg 0 ssz
+    _ <- bargOnto stk sp cop (-1) args
     unsafeFreezeArray cop
    where
    ssz = sizeofArray seg
