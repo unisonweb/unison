@@ -70,10 +70,10 @@ Update
 
 .> view.patch patch
 
-  Edited Terms: hey#8e79ctircj -> hey
+  Edited Terms: hey#8e79 -> hey
 
 .> view.patch 1
 
-  Edited Terms: hey#8e79ctircj -> hey
+  Edited Terms: hey#8e79 -> hey
 
 ```

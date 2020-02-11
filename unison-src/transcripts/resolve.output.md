@@ -164,10 +164,10 @@ Let's now merge these namespaces into `c`:
   
   New name conflicts:
   
-    1. foo#jdqoenu794 : Nat
+    1. foo#jdqo : Nat
        ↓
-    2. ┌ foo#8e68dvpr0a : Nat
-    3. └ foo#jdqoenu794 : Nat
+    2. ┌ foo#8e68 : Nat
+    3. └ foo#jdqo : Nat
   
   Updates:
   
@@ -195,8 +195,7 @@ The namespace `c` now has an edit conflict, since the term `foo` was edited in t
   have been merged into this one. You'll have to tell me what to
   use as the new definition:
   
-    The term foo#44954ulpdf was replaced with foo#8e68dvpr0a and
-    foo#jdqoenu794
+    The term foo#4495 was replaced with foo#8e68 and foo#jdqo
 
 ```
 We see that `#44954ulpdf` (the original hash of `a.foo`) got replaced with _both_ the `#8e68dvpr0a` and `#jdqoenu794`.
@@ -214,7 +213,7 @@ This changes the merged `c.patch` so that only the edit from #44954ulpdf to  #8e
 ```ucm
 .example.resolve.c> view.patch
 
-  Edited Terms: foo#44954ulpdf -> foo#8e68dvpr0a
+  Edited Terms: foo#4495 -> foo#8e68
 
 ```
 We still have a remaining _name conflict_ since it just so happened that both of the definitions in the edits were named `foo`.
@@ -239,16 +238,16 @@ We can resolve the name conflict by deleting one of the names.
 
   Resolved name conflicts:
   
-    1. ┌ example.resolve.c.foo#8e68dvpr0a : Nat
-    2. └ example.resolve.c.foo#jdqoenu794 : Nat
+    1. ┌ example.resolve.c.foo#8e68 : Nat
+    2. └ example.resolve.c.foo#jdqo : Nat
        ↓
-    3. example.resolve.c.foo#8e68dvpr0a : Nat
+    3. example.resolve.c.foo#8e68 : Nat
   
   Name changes:
   
-    Original                               Changes
-    4. example.resolve.a.foo            ┐  5. example.resolve.c.foo#jdqoenu794 (removed)
-    6. example.resolve.c.foo#jdqoenu794 ┘  
+    Original                         Changes
+    4. example.resolve.a.foo      ┐  5. example.resolve.c.foo#jdqo (removed)
+    6. example.resolve.c.foo#jdqo ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 

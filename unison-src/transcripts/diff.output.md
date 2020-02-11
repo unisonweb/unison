@@ -44,10 +44,10 @@ fslkdjflskdjflksjdf = 663
   
   New name conflicts:
   
-    1. fslkdjflskdjflksjdf#4kipsv2tm6 : Nat
+    1. fslkdjflskdjflksjdf#4kip : Nat
        ↓
-    2. ┌ fslkdjflskdjflksjdf#4kipsv2tm6 : Nat
-    3. └ fslkdjflskdjflksjdf#s5tu4n7rlb : Nat
+    2. ┌ fslkdjflskdjflksjdf#4kip : Nat
+    3. └ fslkdjflskdjflksjdf#s5tu : Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -58,17 +58,17 @@ fslkdjflskdjflksjdf = 663
 
   Resolved name conflicts:
   
-    1. ┌ fslkdjflskdjflksjdf#4kipsv2tm6 : Nat
-    2. └ fslkdjflskdjflksjdf#s5tu4n7rlb : Nat
+    1. ┌ fslkdjflskdjflksjdf#4kip : Nat
+    2. └ fslkdjflskdjflksjdf#s5tu : Nat
        ↓
-    3. fslkdjflskdjflksjdf#4kipsv2tm6 : Nat
+    3. fslkdjflskdjflksjdf#4kip : Nat
   
   Name changes:
   
-    Original                             Changes
-    4. x                              ┐  5. abc (added)
-    6. fslkdjflskdjflksjdf#4kipsv2tm6 ┘  7. fslkdjflskdjflksjdf (added)
-                                         8. fslkdjflskdjflksjdf#4kipsv2tm6 (removed)
+    Original                       Changes
+    4. x                        ┐  5. abc (added)
+    6. fslkdjflskdjflksjdf#4kip ┘  7. fslkdjflskdjflksjdf (added)
+                                   8. fslkdjflskdjflksjdf#4kip (removed)
 
 ```
 Things we want to test:
@@ -176,10 +176,10 @@ fromJust = "asldkfjasldkfj"
   
   New name conflicts:
   
-    1. fromJust#jk19sm5bf8 : Nat
+    1. fromJust#jk19 : Nat
        ↓
-    2. ┌ fromJust#hs2i9lcgkd : Text
-    3. └ fromJust#jk19sm5bf8 : Nat
+    2. ┌ fromJust#hs2i : Text
+    3. └ fromJust#jk19 : Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -222,10 +222,10 @@ unique type Y a b = Y a b
 
   Resolved name conflicts:
   
-    1.  ┌ fromJust#hs2i9lcgkd : Text
-    2.  └ fromJust#jk19sm5bf8 : Nat
+    1.  ┌ fromJust#hs2i : Text
+    2.  └ fromJust#jk19 : Nat
         ↓
-    3.  fromJust#1o1iq26cq7 : Nat
+    3.  fromJust#1o1i : Nat
         + 4.  ns1.b : Nat
   
   Updates:
@@ -267,10 +267,10 @@ unique type Y a b = Y a b
 
   Resolved name conflicts:
   
-    1.  ┌ fromJust#hs2i9lcgkd : Text
-    2.  └ fromJust#jk19sm5bf8 : Nat
+    1.  ┌ fromJust#hs2i : Text
+    2.  └ fromJust#jk19 : Nat
         ↓
-    3.  fromJust#1o1iq26cq7 : Nat
+    3.  fromJust#1o1i : Nat
         + 4.  ns1.b : Nat
   
   Updates:
@@ -322,10 +322,10 @@ unique type Y a b = Y a b
 
   Resolved name conflicts:
   
-    1.  ┌ fromJust#hs2i9lcgkd : Text
-    2.  └ fromJust#jk19sm5bf8 : Nat
+    1.  ┌ fromJust#hs2i : Text
+    2.  └ fromJust#jk19 : Nat
         ↓
-    3.  fromJust#1o1iq26cq7 : Nat
+    3.  fromJust#1o1i : Nat
         + 4.  ns1.b : Nat
   
   Updates:
@@ -370,10 +370,10 @@ unique type Y a b = Y a b
 
   Resolved name conflicts:
   
-    1.  ┌ fromJust#hs2i9lcgkd : Text
-    2.  └ fromJust#jk19sm5bf8 : Nat
+    1.  ┌ fromJust#hs2i : Text
+    2.  └ fromJust#jk19 : Nat
         ↓
-    3.  fromJust#1o1iq26cq7 : Nat
+    3.  fromJust#1o1i : Nat
         + 4.  ns1.b : Nat
   
   Updates:
@@ -556,14 +556,14 @@ a = 555
   
   New name conflicts:
   
-    1. a#ekguc9h648 : Nat
+    1. a#ekgu : Nat
        ↓
-    2. ┌ a#5f8uodgrtf : Nat
-    3. └ a#ekguc9h648 : Nat
+    2. ┌ a#5f8u : Nat
+    3. └ a#ekgu : Nat
   
   Updates:
   
-    4. b#be9a2abbbg : Nat
+    4. b#be9a : Nat
   
     There were 1 auto-propagated updates.
   
@@ -583,10 +583,10 @@ a = 555
 
   New name conflicts:
   
-    1. a#8ss2r9gqe7 : Nat
+    1. a#8ss2 : Nat
        ↓
-    2. ┌ a#5f8uodgrtf : Nat
-    3. └ a#ekguc9h648 : Nat
+    2. ┌ a#5f8u : Nat
+    3. └ a#ekgu : Nat
   
   Updates:
   
@@ -598,21 +598,21 @@ a = 555
 
 .nsw> view a b
 
-  a#5f8uodgrtf : Nat
-  a#5f8uodgrtf = 555
+  a#5f8u : Nat
+  a#5f8u = 555
   
-  a#ekguc9h648 : Nat
-  a#ekguc9h648 = 444
+  a#ekgu : Nat
+  a#ekgu = 444
   
-  b#be9a2abbbg : Nat
-  b#be9a2abbbg =
+  b#be9a : Nat
+  b#be9a =
     use Nat +
-    a#ekguc9h648 + 1
+    a#ekgu + 1
   
-  b#kut4vstim7 : Nat
-  b#kut4vstim7 =
+  b#kut4 : Nat
+  b#kut4 =
     use Nat +
-    a#5f8uodgrtf + 1
+    a#5f8u + 1
 
 ```
 ```unison
@@ -651,21 +651,21 @@ a = 777
 
 .nsw> view a b
 
-  a#5f8uodgrtf : Nat
-  a#5f8uodgrtf = 555
+  a#5f8u : Nat
+  a#5f8u = 555
   
-  a#ekguc9h648 : Nat
-  a#ekguc9h648 = 444
+  a#ekgu : Nat
+  a#ekgu = 444
   
-  b#be9a2abbbg : Nat
-  b#be9a2abbbg =
+  b#be9a : Nat
+  b#be9a =
     use Nat +
-    a#ekguc9h648 + 1
+    a#ekgu + 1
   
-  b#kut4vstim7 : Nat
-  b#kut4vstim7 =
+  b#kut4 : Nat
+  b#kut4 =
     use Nat +
-    a#5f8uodgrtf + 1
+    a#5f8u + 1
 
 ```
 ##

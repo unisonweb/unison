@@ -559,7 +559,9 @@ putWatch putV putA path k id e = liftIO $ S.putWithParentDirs
 shortestUniquePrefixLengthTerms :: forall m. MonadIO m => CodebasePath -> m Int
 shortestUniquePrefixLengthTerms codebasePath = liftIO $ do
     allHashes <- getAllTermHashes
-    pure $ TMap.minUniquePrefix allHashes
+    -- We add a little bit of buffer in how many characters we want to show.
+    -- Up for debate how necessary it is, but it should prevent a lot of accidental hash collisions
+    pure $ (TMap.minUniquePrefix allHashes + 1) `min` 4 
   where 
     getAllTermIDs :: IO [Reference.Id]
     getAllTermIDs = (fmap join) . for [termsDir, typesDir] $ \f -> do

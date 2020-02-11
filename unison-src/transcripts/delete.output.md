@@ -91,10 +91,10 @@ foo = 2
   
   New name conflicts:
   
-    1. foo#jk19sm5bf8 : Nat
+    1. foo#jk19 : Nat
        ↓
-    2. ┌ foo#0ja1qfpej6 : Nat
-    3. └ foo#jk19sm5bf8 : Nat
+    2. ┌ foo#0ja1 : Nat
+    3. └ foo#jk19 : Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -110,8 +110,8 @@ foo = 2
   That name is ambiguous. It could refer to any of the following
   definitions:
   
-    foo#0ja1qfpej6
-    foo#jk19sm5bf8
+    foo#0ja1
+    foo#jk19
   
   You may:
   
@@ -126,13 +126,13 @@ I can force my delete through by re-issuing the command.
 
   Removed definitions:
   
-    1. a.foo#jk19sm5bf8 : Nat
+    1. a.foo#jk19 : Nat
   
   Name changes:
   
-    Original               Changes
-    2. b.foo            ┐  3. a.foo#0ja1qfpej6 (removed)
-    4. a.foo#0ja1qfpej6 ┘  
+    Original         Changes
+    2. b.foo      ┐  3. a.foo#0ja1 (removed)
+    4. a.foo#0ja1 ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -169,18 +169,18 @@ type Foo = Foo Boolean
   
   New name conflicts:
   
-    1. type Foo#d97e0jhkmd
+    1. type Foo#d97e
          
        ↓
-    2. ┌ type Foo#d97e0jhkmd
+    2. ┌ type Foo#d97e
            
-    3. └ type Foo#gq9inhvg9h
+    3. └ type Foo#gq9i
            
     
-    4. Foo.Foo#d97e0jhkmd#0 : Nat -> Foo
+    4. Foo.Foo#d97e#0 : Nat -> Foo
        ↓
-    5. ┌ Foo.Foo#d97e0jhkmd#0 : Nat -> Foo
-    6. └ Foo.Foo#gq9inhvg9h#0 : Boolean -> b.Foo
+    5. ┌ Foo.Foo#d97e#0 : Nat -> Foo
+    6. └ Foo.Foo#gq9i#0 : Boolean -> b.Foo
   
   Added definitions:
   
@@ -200,8 +200,8 @@ type Foo = Foo Boolean
   That name is ambiguous. It could refer to any of the following
   definitions:
   
-    Foo#d97e0jhkmd
-    Foo#gq9inhvg9h
+    Foo#d97e
+    Foo#gq9i
   
   You may:
   
@@ -214,13 +214,13 @@ type Foo = Foo Boolean
 
   Removed definitions:
   
-    1. type a.Foo#d97e0jhkmd
+    1. type a.Foo#d97e
   
   Name changes:
   
-    Original               Changes
-    2. b.Foo            ┐  3. a.Foo#gq9inhvg9h (removed)
-    4. a.Foo#gq9inhvg9h ┘  
+    Original         Changes
+    2. b.Foo      ┐  3. a.Foo#gq9i (removed)
+    4. a.Foo#gq9i ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -233,8 +233,8 @@ type Foo = Foo Boolean
   That name is ambiguous. It could refer to any of the following
   definitions:
   
-    Foo.Foo#d97e0jhkmd#0
-    Foo.Foo#gq9inhvg9h#0
+    Foo.Foo#d97e#0
+    Foo.Foo#gq9i#0
   
   You may:
   
@@ -247,13 +247,13 @@ type Foo = Foo Boolean
 
   Removed definitions:
   
-    1. a.Foo.Foo#d97e0jhkmd#0 : Nat -> #d97e0jhkmd
+    1. a.Foo.Foo#d97e#0 : Nat -> #d97e0jhkmd
   
   Name changes:
   
-    Original                     Changes
-    2. b.Foo.Foo              ┐  3. a.Foo.Foo#gq9inhvg9h#0 (removed)
-    4. a.Foo.Foo#gq9inhvg9h#0 ┘  
+    Original               Changes
+    2. b.Foo.Foo        ┐  3. a.Foo.Foo#gq9i#0 (removed)
+    4. a.Foo.Foo#gq9i#0 ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -282,8 +282,8 @@ type foo = Foo Nat
   That name is ambiguous. It could refer to any of the following
   definitions:
   
-    foo#jk19sm5bf8
-    foo#d97e0jhkmd
+    foo#jk19
+    foo#d97e
   
   You may:
   
