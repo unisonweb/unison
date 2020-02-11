@@ -555,7 +555,7 @@ maxDepth (TMap (Node _ m)) = case Map.elems m of
 minUniquePrefix :: TMap c a -> Int
 minUniquePrefix = plumb 0 0
   where
-    plumb lastBranch currentDepth (TMap (Node _ m)) = case Map.elems m of 
+    plumb lastBranch currentDepth (TMap (Node v m)) = case Map.elems m of 
       []     -> lastBranch
-      [elem] -> plumb lastBranch (currentDepth + 1) elem 
-      elems  -> maximum $ fmap (plumb currentDepth (currentDepth + 1)) elems
+      [elem] -> plumb (if isJust v then currentDepth + 1 else lastBranch) (currentDepth + 1) elem 
+      elems  -> maximum $ fmap (plumb (currentDepth + 1) (currentDepth + 1)) elems
