@@ -120,6 +120,15 @@ bargOnto stk sp cop cp0 (ArgR i l) = do
 
 data Dump = A | F Int | S
 
+dumpAP :: Int -> Int -> Int -> Dump -> Int
+dumpAP _  fp sz d@(F _) = dumpFP fp sz d
+dumpAP ap _  _  _     = ap
+
+dumpFP :: Int -> Int -> Dump -> Int
+dumpFP fp _  S = fp
+dumpFP fp sz A = fp+sz
+dumpFP fp sz (F n) = fp+sz-n
+
 class MEM (b :: Mem) where
   data Stack b :: *
   type Elem b :: *
@@ -241,12 +250,8 @@ instance MEM 'UN where
    ssz = sizeofByteArray seg
    sz = words ssz
    sp' = sp+sz
-   fp' = case mode of
-     S -> fp
-     F n -> fp+sz-n
-     A -> fp+sz
-   ap' | F _ <- mode = fp'
-       | otherwise   = ap
+   fp' = dumpFP fp sz mode
+   ap' = dumpAP ap fp sz mode
   {-# inline dumpSeg #-}
 
   fsize (US _ fp sp _) = sp-fp
@@ -371,12 +376,8 @@ instance MEM 'BX where
    where
    sz = sizeofArray seg
    sp' = sp+sz
-   fp' = case mode of
-     S -> fp
-     F n -> fp+sz-n
-     A -> fp+sz
-   ap' | F _ <- mode = fp'
-       | otherwise = ap
+   fp' = dumpFP fp sz mode
+   ap' = dumpAP ap fp sz mode
   {-# inline dumpSeg #-}
 
   fsize (BS _ fp sp _) = sp-fp
