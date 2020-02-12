@@ -123,11 +123,12 @@ blockTerm = lam term <|> infixAppOrBooleanOp
 
 match :: Var v => TermP v
 match = do
-  start <- reserved "case"
+  start <- openBlockWith "match"
   scrutinee <- term
-  _ <- P.try (openBlockWith "of") <|> do
+  _ <- closeBlock
+  _ <- P.try (openBlockWith "with") <|> do
          t <- anyToken
-         P.customFailure (ExpectedBlockOpen "of" t)
+         P.customFailure (ExpectedBlockOpen "with" t)
   cases <- sepBy1 semi matchCase
   -- TODO: Add error for empty match list
   _ <- closeBlock

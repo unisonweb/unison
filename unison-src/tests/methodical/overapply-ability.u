@@ -6,7 +6,7 @@ ability Zing where
   zing : Nat -> {Zing} (Nat -> Nat)
   zing2 : Nat -> Nat ->{Zing} (Nat -> Nat -> [Nat])
 
-unzing z = case z of
+unzing z = match z with
   {a} -> a
   {Zing.zing n -> k} -> handle k (x -> x `drop` n) with unzing
   {Zing.zing2 n1 n2 -> k} -> handle k (n3 n4 -> [n1, n2, n3, n4]) with unzing
@@ -34,7 +34,7 @@ overapplyh3a = handle Zing.zing2 1 2 3 4 ++ [5] with unzing
 
 overapplyh3b = handle Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 8] with unzing
 
-overapplyh3c = handle Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 7 + 1] with unzing 
+overapplyh3c = handle Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 7 + 1] with unzing
 
 > (exacth,
    overapplyh,

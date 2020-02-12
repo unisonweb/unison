@@ -2,7 +2,7 @@ type Value = String Text
            | Bool Boolean
 
 f : Value -> Nat
-f v = case v of
+f v = match v with
   Value.Bool true -> 3
   _ -> 4
 

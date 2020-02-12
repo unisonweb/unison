@@ -14,9 +14,9 @@ merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]
 merge lte a b =
   use List ++
   use Optional None Some
-  go acc a b = case at 0 a of
+  go acc a b = match at 0 a with
     None -> acc ++ b
-    Some hd1 -> case at 0 b of
+    Some hd1 -> match at 0 b with
       None -> acc ++ a
       Some hd2 ->
         if hd1 `lte` hd2 then

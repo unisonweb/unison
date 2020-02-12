@@ -1,6 +1,6 @@
 go =
   a = 1
-  case "" of
+  match "" with
     pos | false  -> a
     _            -> a
 

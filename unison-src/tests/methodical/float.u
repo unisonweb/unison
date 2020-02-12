@@ -2,7 +2,7 @@ use Float abs max min toText fromText
 use Optional Some None
 
 withDefault : Optional a -> a -> a
-withDefault opt d = case opt of
+withDefault opt d = match opt with
                       Some x -> x
                       None   -> d
 

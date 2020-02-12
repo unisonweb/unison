@@ -1,4 +1,4 @@
 (+) = (Nat.+)
 
-> case (1,2,3,4) of
+> match (1,2,3,4) with
     (a,b,c,d) -> (a + b, c + d)

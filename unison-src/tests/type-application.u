@@ -5,7 +5,7 @@ ability Foo where
 type Wrap a = Wrap Nat
 
 blah : Wrap {Foo} -> Nat
-blah w = case w of
+blah w = match w with
   Wrap.Wrap n -> n + 1
 
 > blah (Wrap 99)
