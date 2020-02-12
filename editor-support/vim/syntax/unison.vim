@@ -66,7 +66,7 @@ syn match uModule		"\<module\>"
 syn match uImport		"\<use\>"
 syn match uInfix		"\<\(infix\|infixl\|infixr\)\>"
 syn match uTypedef		"\<\(∀\|forall\)\>"
-syn match uStatement		"\<\(unique\|ability\|type\|where\|case\|of\|;\|let\|with\|handle\)\>"
+syn match uStatement		"\<\(unique\|ability\|type\|where\|match\|;\|let\|with\|handle\)\>"
 syn match uConditional		"\<\(if\|else\|then\)\>"
 
 " Not real keywords, but close.

@@ -22,7 +22,7 @@ coolFunction.doc = [: This is a cool function. :]
 You can use arbitrary Unison values and link them as metadata to definitions:
 
 ```unison
-toCopyrightHolder author = case author of
+toCopyrightHolder author = match author with
   Author guid name -> CopyrightHolder guid name
 
 alice = Author (GUID Bytes.empty) "Alice Coder"

@@ -255,8 +255,15 @@ pretty0
       ]
     LetBlock bs e -> printLet bc bs e im' uses
     Match' scrutinee branches -> paren (p >= 2) $
-      ((fmt S.ControlKeyword "case ") <> pretty0 n (ac 2 Normal im doc) scrutinee <> (fmt S.ControlKeyword " of")) `PP.hang` bs
-      where bs = PP.lines (map printCase branches)
+      if height > 0 then PP.lines [
+        (fmt S.ControlKeyword "match ") `PP.hang` ps,
+        (fmt S.ControlKeyword " with") `PP.hang` pbs
+       ]
+      else ((fmt S.ControlKeyword "match ") <> ps <> (fmt S.ControlKeyword " with")) `PP.hang` pbs
+      where height = PP.preferredHeight ps
+            ps = pretty0 n (ac 2 Normal im doc) scrutinee
+            pbs = PP.lines (map printCase branches)
+
     t -> l "error: " <> l (show t)
  where
   specialCases term go = case (term, binaryOpsPred) of

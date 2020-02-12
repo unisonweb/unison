@@ -12,7 +12,7 @@ namespace Stream where
   step :
     (a ->{e} b) ->
     Request {Emit a} r ->{e, Emit b} r
-  step f e = case e of
+  step f e = match e with
     {r} -> r
     {Emit.emit a -> k} ->
       Emit.emit (f a)
@@ -25,10 +25,10 @@ namespace Stream where
   --     -> Stream {e} b r
   -- 0. this gets a weird type
   map f s = Stream ' handle step f in run s
-   
+
   -- 1. inferred type of `map` required an `o -> o` for some reason
-  map1 f s = 
-    step f e = case e of
+  map1 f s =
+    step f e = match e with
       {r} -> r
       {Emit.emit a -> k} ->
         Emit.emit (f a)
@@ -36,11 +36,11 @@ namespace Stream where
     Stream ' handle step f in run s
 
   -- 2. gets the same weird type
-  map2 f s = 
+  map2 f s =
     step :
       (a ->{e} b) ->
       Request {Emit a} r ->{e, Emit b} r
-    step f e = case e of
+    step f e = match e with
       {r} -> r
       {Emit.emit a -> k} ->
         Emit.emit (f a)
@@ -48,7 +48,7 @@ namespace Stream where
     Stream ' handle step f in run s
 
   run : Stream e a r ->{e, Emit a} r
-  run s = case s of Stream c -> !c
+  run s = match s with Stream c -> !c
 
 ability Abort where
   abort : {Abort} a

@@ -9,7 +9,7 @@
 use Universal ==
 
 f blah =
-  case blah of
+  match blah with
     x | x == "woot" -> false
     y | y == "foo" -> true
 
