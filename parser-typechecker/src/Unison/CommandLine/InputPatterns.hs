@@ -8,6 +8,7 @@ module Unison.CommandLine.InputPatterns where
 
 import Unison.Prelude
 
+import qualified Control.Lens.Cons as Cons
 import Data.Bifunctor (first)
 import Data.List (intercalate, sortOn, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
@@ -438,6 +439,20 @@ aliasType = InputPattern "alias.type" []
       _ -> Left . warn $ P.wrap
         "`alias.type` takes two arguments, like `alias.type oldname newname`."
     )
+
+aliasMany :: InputPattern
+aliasMany = InputPattern "alias.many" ["copy"]
+  [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionOrPathArg)]
+  (P.group (makeExample aliasMany ["foo.foo", "bar.bar", "quux"]) 
+           <> "creates aliases `quux.foo.foo` and `quux.bar.bar`.")
+  (\case
+    srcs@(_:_) Cons.:> dest -> first fromString $ do
+      sourceDefinitions <- traverse Path.parseHQSplit srcs
+      destNamespace <- Path.parsePath' dest
+      pure $ Input.AliasManyI sourceDefinitions destNamespace
+    _ -> Left (I.help aliasMany) 
+  )
+  
 
 cd :: InputPattern
 cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
@@ -1174,6 +1189,15 @@ fuzzyDefinitionQueryArg =
   ArgumentType "fuzzy definition query" $
     bothCompletors (termCompletor fuzzyComplete)
                    (typeCompletor fuzzyComplete)
+
+exactDefinitionOrPathArg :: ArgumentType
+exactDefinitionOrPathArg =
+  ArgumentType "definition or path" $
+    bothCompletors
+      (bothCompletors
+        (termCompletor exactComplete)
+        (typeCompletor exactComplete))
+      (pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths))
 
 -- todo: support absolute paths?
 exactDefinitionQueryArg :: ArgumentType

@@ -125,6 +125,7 @@ import Data.Tuple.Extra (uncurry3)
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
 import qualified Control.Error.Util as ErrorUtil
 import Unison.Codebase.GitError (GitError)
+import Unison.Util.Monoid (intercalateMap)
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
@@ -293,6 +294,8 @@ loop = do
           ResetRootI src -> "reset-root " <> hp' src
           AliasTermI src dest -> "alias.term " <> hqs' src <> " " <> ps' dest
           AliasTypeI src dest -> "alias.type" <> hqs' src <> " " <> ps' dest
+          AliasManyI srcs dest ->
+            "alias.many " <> intercalateMap " " hqs srcs <> " " <> p' dest
           MoveTermI src dest -> "move.term " <> hqs' src <> " " <> ps' dest
           MoveTypeI src dest -> "move.type " <> hqs' src <> " " <> ps' dest
           MoveBranchI src dest -> "move.namespace " <> ops' src <> " " <> ps' dest
@@ -376,6 +379,7 @@ loop = do
           wat = error $ show input ++ " is not expected to alter the branch"
           hqs' (p, hq) =
             Monoid.unlessM (Path.isRoot' p) (p' p) <> "." <> Text.pack (show hq)
+          hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
           ps' = p' . Path.unsplit'
         stepAt = Unison.Codebase.Editor.HandleInput.stepAt inputDescription
         stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
@@ -734,6 +738,19 @@ loop = do
         where
         p = resolveSplit' src
         oldMD r = BranchUtil.getTypeMetadataAt p r root0
+
+      AliasManyI srcs dest' -> do
+        (unknown, actions) <- foldM go mempty srcs
+        if null unknown then stepManyAt actions 
+        else respond . SearchTermsNotFound . fmap fixupOutput $ unknown
+        where
+        go :: ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)]) 
+           -> Path.HQSplit 
+           -> Action' m v ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
+        go = error "todo" dest'
+        fixupOutput :: Path.HQSplit -> HQ.HashQualified
+        fixupOutput = error "todo"
+
 
       NamesI thing -> do
         parseNames0 <- Names3.suffixify0 <$> basicParseNames0

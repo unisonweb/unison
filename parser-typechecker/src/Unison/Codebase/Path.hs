@@ -184,11 +184,18 @@ parseShortHashOrHQSplit' s =
   where
   shError s = "couldn't parse shorthash from " <> s
 
+parseHQSplit :: String -> Either String HQSplit
+parseHQSplit s = case parseHQSplit' s of
+  Right (Path' (Right (Relative p)), hqseg) -> Right (p, hqseg)
+  Right (Path' Left{}, _) -> 
+    Left $ "Sorry, you can't use an absolute name like " <> s <> " here." 
+  Left e -> Left e
+
 parseHQSplit' :: String -> Either String HQSplit'
 parseHQSplit' s =
   case Text.breakOn "#" $ Text.pack s of
     ("","") -> error $ "encountered empty string parsing '" <> s <> "'"
-    ("", _) -> Left "HQSplit' doesn't have a hash-only option."
+    ("", _) -> Left "Sorry, you can't use a hash-only reference here."
     (n, "") -> do
       (p, rem) <- parsePath'Impl (Text.unpack n)
       seg <- definitionNameSegment rem
