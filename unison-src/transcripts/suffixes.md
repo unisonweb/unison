@@ -1,5 +1,9 @@
 # Suffix-based resolution of names
 
+```ucm:hide
+.> builtins.merge
+```
+
 Any unique name suffix can be used to refer to a definition. For instance:
 
 ```unison

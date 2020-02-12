@@ -17,7 +17,6 @@ import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.Codebase.Reflog        as Reflog
 import qualified Unison.DataDeclaration        as DD
-import qualified Unison.Name                   as Name
 import qualified Unison.Names2                 as Names
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
@@ -34,7 +33,6 @@ import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
 import qualified Unison.Runtime.IOSource       as IOSource
 import           Unison.Symbol                  ( Symbol )
-import qualified Unison.Codebase.BranchUtil as BranchUtil
 import Unison.DataDeclaration (Decl)
 import Unison.Type (Type)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -109,10 +107,7 @@ initializeBuiltinCode c = do
 initializeCodebase :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
 initializeCodebase c = do
   initializeBuiltinCode c
-  let b0 = BranchUtil.addFromNames0
-            (Names.prefix0 (Name.unsafeFromText "builtin") bootstrapNames)
-            Branch.empty0
-  putRootBranch c (Branch.one b0)
+  putRootBranch c (Branch.one Branch.empty0)
 
 -- Feel free to refactor this to use some other type than TypecheckedUnisonFile
 -- if it makes sense to later.

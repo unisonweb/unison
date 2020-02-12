@@ -1,4 +1,3 @@
-
 ```unison
 x = 23
 ```
@@ -362,7 +361,7 @@ unique type Y a b = Y a b
     
     21. X    22. X' (added)
 
-.> unlink ns2.b ns2.fromJust 
+.> unlink ns2.b ns2.fromJust
 
   The namespaces are identical.
 
@@ -677,14 +676,14 @@ New name conflicts: -- updates where RHS has multiple hashes (excluding when RHS
   1. foo#jk19sm5bf8 : Nat - do we want to force a hashqualified? Arya thinks so
      ↓
   2. ┌ foo#0ja1qfpej6 : Nat
-  3. └ foo#jk19sm5bf8 : Nat  
+  3. └ foo#jk19sm5bf8 : Nat
 
 Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has one
 
   4. ┌ bar#0ja1qfpej6 : Nat
-  5. └ bar#jk19sm5bf8 : Nat  
+  5. └ bar#jk19sm5bf8 : Nat
      ↓
-  6. bar#jk19sm5bf8 : Nat  
+  6. bar#jk19sm5bf8 : Nat
 
 ## Display issues to fixup
 

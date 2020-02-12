@@ -1,5 +1,9 @@
 # find.patch Test
 
+```ucm:hide
+.> builtins.merge
+```
+
 ```unison test.u
 hey = "yello"
 ```
