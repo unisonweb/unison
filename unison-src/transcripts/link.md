@@ -21,11 +21,11 @@ You can use arbitrary Unison values and link them as metadata to definitions:
 ```unison
 use .builtin 
 
-unique type License = { licenseText : Text }
+unique [License] type License = { licenseText : Text }
 
-unique type Author = { authorName : Text }
+unique [Author] type Author = { authorName : Text }
 
-unique type Year = { toInt : Int }
+unique [Year] type Year = { toInt : Int }
 
 alice = Author "Alice Coder"
 
@@ -71,6 +71,6 @@ myLibrary.h x = x + 3
 .myLibrary> links f
 .myLibrary> links g
 .myLibrary> links h
+.myLibrary> history
 ```
-
 
