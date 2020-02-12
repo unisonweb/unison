@@ -66,8 +66,8 @@ fslkdjflskdjflksjdf = 663
   Name changes:
   
     Original                             Changes
-    4. x                              ┐  5. abc (added)
-    6. fslkdjflskdjflksjdf#4kipsv2tm6 ┘  7. fslkdjflskdjflksjdf (added)
+    4. fslkdjflskdjflksjdf#4kipsv2tm6 ┐  5. abc (added)
+    6. x                              ┘  7. fslkdjflskdjflksjdf (added)
                                          8. fslkdjflskdjflksjdf#4kipsv2tm6 (removed)
 
 ```
