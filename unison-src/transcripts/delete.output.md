@@ -131,8 +131,8 @@ I can force my delete through by re-issuing the command.
   Name changes:
   
     Original               Changes
-    2. b.foo            ┐  3. a.foo#0ja1qfpej6 (removed)
-    4. a.foo#0ja1qfpej6 ┘  
+    2. a.foo#0ja1qfpej6 ┐  3. a.foo#0ja1qfpej6 (removed)
+    4. b.foo            ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -219,8 +219,8 @@ type Foo = Foo Boolean
   Name changes:
   
     Original               Changes
-    2. b.Foo            ┐  3. a.Foo#gq9inhvg9h (removed)
-    4. a.Foo#gq9inhvg9h ┘  
+    2. a.Foo#gq9inhvg9h ┐  3. a.Foo#gq9inhvg9h (removed)
+    4. b.Foo            ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -252,8 +252,8 @@ type Foo = Foo Boolean
   Name changes:
   
     Original                     Changes
-    2. b.Foo.Foo              ┐  3. a.Foo.Foo#gq9inhvg9h#0 (removed)
-    4. a.Foo.Foo#gq9inhvg9h#0 ┘  
+    2. a.Foo.Foo#gq9inhvg9h#0 ┐  3. a.Foo.Foo#gq9inhvg9h#0 (removed)
+    4. b.Foo.Foo              ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
