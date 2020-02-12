@@ -115,7 +115,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     Typecheck ambient names sourceName source -> do
       -- todo: if guids are being shown to users,
       -- not ideal to generate new guid every time
-      namegen <- Parser.uniqueBase58Namegen
+      namegen <- Parser.uniqueBase32NamegenRandom
       let env = Parser.ParsingEnv namegen names
       typecheck ambient codebase env sourceName source
     TypecheckFile file ambient     -> typecheck' ambient codebase file

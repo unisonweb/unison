@@ -10,6 +10,8 @@ import Unison.Prelude
 import           Data.Bytes.Put                 (runPutS)
 import           Data.Bytes.Serial              ( serialize )
 import           Data.Bytes.VarInt              ( VarInt(..) )
+import           Data.Bits
+import qualified Data.ByteString      as  ByteString
 import           Data.Bifunctor       (bimap)
 import qualified Data.Char            as Char
 import           Data.List.NonEmpty   (NonEmpty (..))
@@ -60,13 +62,28 @@ instance Monoid UniqueName where
   mappend (UniqueName f) (UniqueName g) =
     UniqueName $ \pos len -> f pos len <|> g pos len
 
-uniqueBase58Namegen :: IO UniqueName
-uniqueBase58Namegen = do
-  rng <- Random.getSystemDRG
-  pure . UniqueName $ \pos lenInBase32Hex -> go pos lenInBase32Hex rng
+-- Should be used when we actually do want the result to be different every time
+-- (most cases)
+-- But we actually want it to be deterministic when running transcripts, 
+-- in which case we need to be able to control the random seed. If that is the case you should use 
+-- `uniqueBase32NamegenDeterministic`
+
+bitsToNum :: (Integral b, FiniteBits b) => [b] -> Integer
+bitsToNum = foldr (.|.) zeroBits . zipWith (\i w -> fromIntegral w `shiftL` (i * finiteBitSize w)) [0..]
+
+uniqueBase32NamegenRandom :: IO UniqueName
+uniqueBase32NamegenRandom = snd <$> (uniqueBase32NamegenDeterministic <$> Random.getSystemDRG)
+
+uniqueBase32NamegenDeterministic :: forall gen. Random.DRG gen => gen -> (gen, UniqueName)
+uniqueBase32NamegenDeterministic rng0 =
+    let (bytes :: ByteString,rng) = Random.randomBytesGenerate (5 * 8 * 8) rng0
+        i = bitsToNum (ByteString.unpack bytes :: [Word8])
+        newRNG = Random.drgNewSeed (Random.seedFromInteger i)
+    in (rng, UniqueName $ \pos lenInBase32Hex -> go pos lenInBase32Hex newRNG)
   where
   -- if the identifier starts with a number, try again, since
   -- we want the name to work as a valid wordyId
+  go :: L.Pos -> Int -> Random.ChaChaDRG -> Maybe Text
   go pos lenInBase32Hex rng0 = let
     (bytes,rng) = Random.randomBytesGenerate 32 rng0
     posBytes = runPutS $ do
