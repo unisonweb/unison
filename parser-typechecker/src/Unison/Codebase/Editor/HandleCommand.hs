@@ -26,6 +26,7 @@ import           System.Directory               ( getXdgDirectory
                                                 , XdgDirectory(..)
                                                 )
 import           System.FilePath                ( (</>) )
+import qualified System.Random                 as Random              
 
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
@@ -87,8 +88,8 @@ tempGitDir url commit =
     </> Text.unpack (fromMaybe "HEAD" commit)
 
 commandLine
-  :: forall i v a
-   . Var v
+  :: forall i v a gen
+   . (Var v, Random.RandomGen gen)
   => Config
   -> IO i
   -> (Branch IO -> IO ())
@@ -97,9 +98,10 @@ commandLine
   -> (NumberedOutput v -> IO NumberedArgs)
   -> (SourceName -> IO LoadSourceResult)
   -> Codebase IO v Ann
+  -> gen
   -> Free (Command IO i v) a
   -> IO a
-commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase =
+commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase rng =
  Free.fold go
  where
   go :: forall x . Command IO i v x -> IO x
@@ -115,8 +117,8 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     Typecheck ambient names sourceName source -> do
       -- todo: if guids are being shown to users,
       -- not ideal to generate new guid every time
-      namegen <- Parser.uniqueBase32NamegenRandom
-      let env = Parser.ParsingEnv namegen names
+      let (_, namegen) = Parser.uniqueBase32Namegen rng
+          env = Parser.ParsingEnv namegen names
       typecheck ambient codebase env sourceName source
     TypecheckFile file ambient     -> typecheck' ambient codebase file
     Evaluate ppe unisonFile        -> evalUnisonFile ppe unisonFile

@@ -32,6 +32,7 @@ import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified System.IO as IO
+import qualified System.Random as Random
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
@@ -255,6 +256,7 @@ run dir configFile stanzas codebase = do
       loop state = do
         writeIORef pathRef (HandleInput._currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
+            rng = Random.mkStdGen 4 -- chosen by fair dice roll; guaranteed to be random 
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (const $ pure ())
                                      runtime
@@ -262,6 +264,7 @@ run dir configFile stanzas codebase = do
                                      printNumbered
                                      loadPreviousUnisonBlock
                                      codebase
+                                     rng
                                      free
         case o of
           Nothing -> do

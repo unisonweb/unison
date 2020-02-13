@@ -142,6 +142,7 @@ library
     bifunctors,
     bytes,
     bytestring,
+    random,
     cereal,
     containers,
     comonad,

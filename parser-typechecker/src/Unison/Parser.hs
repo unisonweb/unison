@@ -10,8 +10,6 @@ import Unison.Prelude
 import           Data.Bytes.Put                 (runPutS)
 import           Data.Bytes.Serial              ( serialize )
 import           Data.Bytes.VarInt              ( VarInt(..) )
-import           Data.Bits
-import qualified Data.ByteString      as  ByteString
 import           Data.Bifunctor       (bimap)
 import qualified Data.Char            as Char
 import           Data.List.NonEmpty   (NonEmpty (..))
@@ -37,7 +35,7 @@ import Unison.Name as Name
 import Unison.Names3 (Names)
 import qualified Unison.Names3 as Names
 import Control.Monad.Reader.Class (asks)
-import qualified Crypto.Random as Random
+import qualified System.Random        as Random    
 import qualified Unison.Hashable as Hashable
 import Unison.Referent (Referent)
 import Unison.Reference (Reference)
@@ -66,30 +64,22 @@ instance Monoid UniqueName where
 -- (most cases)
 -- But we actually want it to be deterministic when running transcripts, 
 -- in which case we need to be able to control the random seed. If that is the case you should use 
--- `uniqueBase32NamegenDeterministic`
+-- `uniqueBase32Namegen`
 
-bitsToNum :: (Integral b, FiniteBits b) => [b] -> Integer
-bitsToNum = foldr (.|.) zeroBits . zipWith (\i w -> fromIntegral w `shiftL` (i * finiteBitSize w)) [0..]
-
-uniqueBase32NamegenRandom :: IO UniqueName
-uniqueBase32NamegenRandom = snd <$> (uniqueBase32NamegenDeterministic <$> Random.getSystemDRG)
-
-uniqueBase32NamegenDeterministic :: forall gen. Random.DRG gen => gen -> (gen, UniqueName)
-uniqueBase32NamegenDeterministic rng0 =
-    let (bytes :: ByteString,rng) = Random.randomBytesGenerate (5 * 8 * 8) rng0
-        i = bitsToNum (ByteString.unpack bytes :: [Word8])
-        newRNG = Random.drgNewSeed (Random.seedFromInteger i)
-    in (rng, UniqueName $ \pos lenInBase32Hex -> go pos lenInBase32Hex newRNG)
+uniqueBase32Namegen :: forall gen. Random.RandomGen gen => gen -> (gen, UniqueName)
+uniqueBase32Namegen rng0 =
+    let (rng, newRng) = Random.split rng0
+    in (rng, UniqueName $ \pos lenInBase32Hex -> go pos lenInBase32Hex newRng)
   where
   -- if the identifier starts with a number, try again, since
   -- we want the name to work as a valid wordyId
-  go :: L.Pos -> Int -> Random.ChaChaDRG -> Maybe Text
+  go :: L.Pos -> Int -> gen -> Maybe Text
   go pos lenInBase32Hex rng0 = let
-    (bytes,rng) = Random.randomBytesGenerate 32 rng0
+    (i :: Int64, rng) = Random.random rng0
     posBytes = runPutS $ do
       serialize $ VarInt (L.line pos)
       serialize $ VarInt (L.column pos)
-    h = Hashable.accumulate' $ bytes <> posBytes
+    h = Hashable.accumulate' (i, posBytes)
     b58 = Hash.base32Hex h
     in if Char.isDigit (Text.head b58) then go pos lenInBase32Hex rng
        else Just . Text.take lenInBase32Hex $ b58
