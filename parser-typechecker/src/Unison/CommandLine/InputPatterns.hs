@@ -443,16 +443,16 @@ aliasType = InputPattern "alias.type" []
 aliasMany :: InputPattern
 aliasMany = InputPattern "alias.many" ["copy"]
   [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionOrPathArg)]
-  (P.group (makeExample aliasMany ["foo.foo", "bar.bar", "quux"]) 
+  (P.group (makeExample aliasMany ["foo.foo", "bar.bar", "quux"])
            <> "creates aliases `quux.foo.foo` and `quux.bar.bar`.")
   (\case
     srcs@(_:_) Cons.:> dest -> first fromString $ do
       sourceDefinitions <- traverse Path.parseHQSplit srcs
       destNamespace <- Path.parsePath' dest
       pure $ Input.AliasManyI sourceDefinitions destNamespace
-    _ -> Left (I.help aliasMany) 
+    _ -> Left (I.help aliasMany)
   )
-  
+
 
 cd :: InputPattern
 cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
@@ -1158,6 +1158,7 @@ validInputs =
   , renameType
   , deleteType
   , aliasType
+  , aliasMany
   , todo
   , patch
   , link

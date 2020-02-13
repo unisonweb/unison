@@ -79,6 +79,7 @@ type Split' = (Path', NameSegment)
 type HQSplit' = (Path', HQSegment)
 
 type SplitAbsolute = (Absolute, NameSegment)
+type HQSplitAbsolute = (Absolute, HQSegment)
 
 -- examples:
 --   unprefix .foo.bar .blah == .blah (absolute paths left alone)
@@ -373,26 +374,32 @@ instance Snoc Path' Path' NameSegment NameSegment where
       Right rel -> Path' (Right . Relative $ Lens.snoc (unrelative rel) n)
 
 
-class Resolve l r where
-  resolve :: l -> r -> l
+class Resolve l r o where
+  resolve :: l -> r -> o
 
-instance Resolve Path Path where
+instance Resolve Path Path Path where
   resolve (Path l) (Path r) = Path (l <> r)
 
-instance Resolve Relative Relative where
+instance Resolve Relative Relative Relative where
   resolve (Relative (Path l)) (Relative (Path r)) = Relative (Path (l <> r))
 
-instance Resolve Absolute Relative where
+instance Resolve Absolute Relative Absolute where
   resolve (Absolute l) (Relative r) = Absolute (resolve l r)
 
-instance Resolve Path' Path' where
+instance Resolve Path' Path' Path' where
   resolve _ a@(Path' Left{}) = a
   resolve (Path' (Left a)) (Path' (Right r)) = Path' (Left (resolve a r))
   resolve (Path' (Right r1)) (Path' (Right r2)) = Path' (Right (resolve r1 r2))
 
-instance Resolve Path' Split' where
+instance Resolve Path' Split' Path' where
   resolve l r = resolve l (unsplit' r)
 
-instance Resolve Absolute Path' where
+instance Resolve Path' Split' Split' where
+  resolve l (r, ns) = (resolve l r, ns)
+
+instance Resolve Absolute HQSplit HQSplitAbsolute where
+  resolve l (r, hq) = (resolve l (Relative r), hq)
+
+instance Resolve Absolute Path' Absolute where
   resolve _ (Path' (Left a)) = a
   resolve a (Path' (Right r)) = resolve a r

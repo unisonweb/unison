@@ -739,18 +739,61 @@ loop = do
         p = resolveSplit' src
         oldMD r = BranchUtil.getTypeMetadataAt p r root0
 
+      -- this implementation will happily produce name conflicts,
+      -- but will surface them in a normal diff at the end of the operation.
       AliasManyI srcs dest' -> do
-        (unknown, actions) <- foldM go mempty srcs
-        if null unknown then stepManyAt actions 
-        else respond . SearchTermsNotFound . fmap fixupOutput $ unknown
+        let destAbs = resolveToAbsolute dest'
+        old <- getAt destAbs
+        let (unknown, actions) = foldl' go mempty srcs
+        stepManyAt actions
+        new <- getAt destAbs
+        diffHelper (Branch.head old) (Branch.head new) >>=
+            respondNumbered . uncurry (ShowDiffAfterModifyBranch dest' destAbs)
+        unless (null unknown) $
+          respond . SearchTermsNotFound . fmap fixupOutput $ unknown
         where
-        go :: ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)]) 
+        -- a list of missing sources (if any) and the actions that do the work
+        go :: ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
            -> Path.HQSplit 
-           -> Action' m v ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
-        go = error "todo" dest'
-        fixupOutput :: Path.HQSplit -> HQ.HashQualified
-        fixupOutput = error "todo"
+           -> ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
+        go (missingSrcs, actions) hqsrc =
+          let
+            src :: Path.Split
+            src = second HQ'.toName hqsrc
+            proposedDest :: Path.Split
+            proposedDest = second HQ'.toName hqProposedDest
+            hqProposedDest :: Path.HQSplit
+            hqProposedDest = first Path.unabsolute $
+                              Path.resolve (resolveToAbsolute dest') hqsrc
+            -- `Nothing` if src doesn't exist
+            doType :: Maybe [(Path, Branch0 m -> Branch0 m)]
+            doType = case ( BranchUtil.getType hqsrc currentBranch0
+                          , BranchUtil.getType hqProposedDest root0
+                          ) of
+              (null -> True, _) -> Nothing -- missing src
+              (rsrcs, existing) -> -- happy path
+                Just . map addAlias . toList $ Set.difference rsrcs existing
+                where
+                addAlias r = BranchUtil.makeAddTypeName proposedDest r (oldMD r)
+                oldMD r = BranchUtil.getTypeMetadataAt src r currentBranch0
+            doTerm :: Maybe [(Path, Branch0 m -> Branch0 m)]
+            doTerm = case ( BranchUtil.getTerm hqsrc currentBranch0
+                          , BranchUtil.getTerm hqProposedDest root0
+                          ) of
+              (null -> True, _) -> Nothing -- missing src
+              (rsrcs, existing) ->
+                Just . map addAlias . toList $ Set.difference rsrcs existing
+                where
+                addAlias r = BranchUtil.makeAddTermName proposedDest r (oldMD r)
+                oldMD r = BranchUtil.getTermMetadataAt src r currentBranch0
+          in case (doType, doTerm) of
+            (Nothing, Nothing) -> (missingSrcs :> hqsrc, actions)
+            (Just as, Nothing) -> (missingSrcs, actions ++ as)
+            (Nothing, Just as) -> (missingSrcs, actions ++ as)
+            (Just as1, Just as2) -> (missingSrcs, actions ++ as1 ++ as2)
 
+        fixupOutput :: Path.HQSplit -> HQ.HashQualified
+        fixupOutput = fmap Path.toName . HQ'.toHQ . Path.unsplitHQ
 
       NamesI thing -> do
         parseNames0 <- Names3.suffixify0 <$> basicParseNames0
