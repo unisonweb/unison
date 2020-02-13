@@ -1,5 +1,9 @@
 # The `todo` and `bug` builtin
 
+```ucm:hide
+.> builtins.merge
+```
+
 `todo` and `bug` have type `a -> b`. They take a message or a value of type `a` and crash during runtime displaying `a` in ucm.
 ```unison:error
 > todo "implement me later"
