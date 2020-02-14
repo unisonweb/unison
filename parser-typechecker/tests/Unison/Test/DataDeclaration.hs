@@ -60,7 +60,7 @@ type Ling' a = Ling' a (Long' a)
 
 -- faketest = scope "termparser" . tests . map parses $
 --   ["x"
---   , "case x of\n" ++
+--   , "match x with\n" ++
 --     "  {Pair x y} -> 1\n" ++
 --     "  {State.set 42 -> k} -> k 42\n"
 --   ]
