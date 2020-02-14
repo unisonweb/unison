@@ -5,27 +5,27 @@
 List.adjacentPairs : [a] -> [(a, a)]
 List.adjacentPairs as =
   go xs acc =
-    case xs of
+      match xs with
       [x, y] ++ t -> go t (acc :+ (x, y))
       _ -> acc
   go as []
 
 List.all : (a -> Boolean) -> [a] -> Boolean
 List.all p xs =
-  case xs of
+  match xs with
     [] -> true
     x +: xs -> (p x) && (List.all p xs)
 
 List.any : (a -> Boolean) -> [a] -> Boolean
 List.any p xs =
-  case xs of
+  match xs with
     [] -> false
     x +: xs -> (p x) || (List.any p xs)
 
 List.chunk : Nat -> [a] -> [[a]]
 List.chunk n as =
   go acc rest =
-    case splitAt n rest of
+    match splitAt n rest with
       (c, []) -> acc :+ c
       (c, cs) -> go (acc :+ c) cs
   go [] as
@@ -34,14 +34,14 @@ List.chunksOf : Nat -> [a] -> [[a]]
 List.chunksOf n text =
   go acc text =
     p = splitAt n text
-    case p of
+    match p with
       ([], _) -> acc
       (a, b) -> go (acc :+ a) b
   go [] text
 
 List.dropWhile : (a -> Boolean) -> [a] -> [a]
 List.dropWhile p xs =
-  case xs of
+  match xs with
     i +: l -> if p i then List.dropWhile p l else xs
     _ -> []
 
@@ -50,14 +50,14 @@ List.first a = List.at 0 a
 
 List.init : [a] -> Optional [a]
 List.init as =
-  case as of
+  match as with
     [] -> None
     as :+ _ -> Some as
 
 List.intersperse : a -> [a] -> [a]
 List.intersperse a as =
   go acc as =
-    case as of
+    match as with
       [] -> acc
       [x] -> acc :+ x
       x +: xs -> go (acc :+ x :+ a) xs
@@ -68,7 +68,7 @@ List.isEmpty as = List.size as == 0
 
 List.last : [a] -> Optional a
 List.last as =
-  case as of
+  match as with
     [] -> None
     _ :+ a -> Some a
 
@@ -82,14 +82,14 @@ List.splitAt n as = (List.take n as, List.drop n as)
 
 List.tail : [a] -> Optional [a]
 List.tail as =
-  case as of
+  match as with
     [] -> None
     _ +: as -> Some as
 
 List.takeWhile : (a ->{𝕖} Boolean) -> [a] ->{𝕖} [a]
 List.takeWhile p xs =
   go xs acc =
-    case xs of
+    match xs with
       x +: xs -> if p x then go xs (acc :+ x) else acc
       _ -> acc
   go xs []
