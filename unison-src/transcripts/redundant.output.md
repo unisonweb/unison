@@ -2,7 +2,7 @@ The same kind of thing happens with `map`. Are we saying this is incorrect behav
 
 ```unison
 map : (a -> b) -> [a] -> [b]
-map f xs = case xs of 
+map f xs = match xs with
   x +: xs -> f x +: map f xs
   [] -> []
 ```
@@ -12,11 +12,11 @@ map f xs = case xs of
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
-    
+
       map : (a ->{𝕖} b) ->{𝕖} [a] ->{𝕖} [b]
-   
+
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
@@ -25,14 +25,14 @@ map f xs = case xs of
 .> add
 
   ⍟ I've added these definitions:
-  
+
     map : (a ->{𝕖} b) ->{𝕖} [a] ->{𝕖} [b]
 
 .> view map
 
   map : (a -> b) -> [a] -> [b]
   map f xs =
-    case xs of
+    match xs with
       x +: xs ->
         use builtin.List +:
         f x +: map f xs
@@ -41,6 +41,6 @@ map f xs = case xs of
 .> find map
 
   1. map : (a ->{𝕖} b) ->{𝕖} [a] ->{𝕖} [b]
-  
+
 
 ```

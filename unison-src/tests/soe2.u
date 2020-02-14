@@ -2,13 +2,13 @@ use Universal == <
 use Optional None Some
 
 uncons : [a] -> Optional (a, [a])
-uncons a = case at 0 a of
+uncons a = match at 0 a with
   None -> None
   Some hd -> Some (hd, drop 1 a)
 
 merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]
 merge lte a b =
-  go acc a b = case (uncons a, uncons b) of
+  go acc a b = match (uncons a, uncons b) with
     (None, _) -> acc ++ b
     (_, None) -> acc ++ a
     (Some (h1,t1), Some (h2,t2)) ->
@@ -28,7 +28,7 @@ halve as =
   else Some (take (size as / 2) as, drop (size as / 2) as)
 
 sort : (a -> a -> Boolean) -> [a] -> [a]
-sort lte as = if size as < 2 then as else case halve as of
+sort lte as = if size as < 2 then as else match halve as with
   None -> as
   Some (left, right) ->
     l = sort lte left

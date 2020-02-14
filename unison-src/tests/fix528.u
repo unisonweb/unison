@@ -6,7 +6,7 @@ ex1 = "bob" |> (Text.++) "hi, "
 
 type Woot = Woot Text Int Nat
 
-ex2 = case 0 |> Woot "Zonk" +10 of
+ex2 = match 0 |> Woot "Zonk" +10 with
   Woot.Woot _ i _ -> i
 
 > (ex1, ex2)

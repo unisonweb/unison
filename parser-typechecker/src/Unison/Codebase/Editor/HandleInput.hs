@@ -287,13 +287,14 @@ loop = do
         branchExistsSplit = branchExists . Path.unsplit'
         typeExists dest = respond . TypeAlreadyExists dest
         termExists dest = respond . TermAlreadyExists dest
+        -- | try to get these as close as possible to the command that caused the change
         inputDescription :: InputDescription
         inputDescription = case input of
           ForkLocalBranchI src dest -> "fork " <> hp' src <> " " <> p' dest
           MergeLocalBranchI src dest -> "merge " <> p' src <> " " <> p' dest
           ResetRootI src -> "reset-root " <> hp' src
           AliasTermI src dest -> "alias.term " <> hqs' src <> " " <> ps' dest
-          AliasTypeI src dest -> "alias.type" <> hqs' src <> " " <> ps' dest
+          AliasTypeI src dest -> "alias.type " <> hqs' src <> " " <> ps' dest
           AliasManyI srcs dest ->
             "alias.many " <> intercalateMap " " hqs srcs <> " " <> p' dest
           MoveTermI src dest -> "move.term " <> hqs' src <> " " <> ps' dest
@@ -301,9 +302,9 @@ loop = do
           MoveBranchI src dest -> "move.namespace " <> ops' src <> " " <> ps' dest
           MovePatchI src dest -> "move.patch " <> ps' src <> " " <> ps' dest
           CopyPatchI src dest -> "copy.patch " <> ps' src <> " " <> ps' dest
-          DeleteI thing -> "delete" <> hqs' thing
+          DeleteI thing -> "delete " <> hqs' thing
           DeleteTermI def -> "delete.term " <> hqs' def
-          DeleteTypeI def -> "delete.type" <> hqs' def
+          DeleteTypeI def -> "delete.type " <> hqs' def
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
           DeletePatchI path -> "delete.patch " <> ps' path
           ReplaceTermI srcH targetH p ->
@@ -322,9 +323,9 @@ loop = do
           UndoI{} -> "undo"
           ExecuteI s -> "execute " <> Text.pack s
           LinkI froms to ->
-            "link " <> hqs' to <> " " <> Text.pack (show $ hqs' <$> froms)
+            "link " <> hqs' to <> " " <> intercalateMap " " hqs' froms
           UnlinkI froms to ->
-            "unlink " <> hqs' to <> " " <> Text.pack (show $ hqs' <$> froms)
+            "unlink " <> hqs' to <> " " <> intercalateMap " " hqs' froms
           UpdateBuiltinsI -> "builtins.update"
           MergeBuiltinsI -> "builtins.merge"
           PullRemoteBranchI orepo dest ->

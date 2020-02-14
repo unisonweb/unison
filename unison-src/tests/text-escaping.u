@@ -3,7 +3,7 @@ id x = x
 x = id ("\n")
 
 find : Text -> Text
-find s = case (Text.take 1 s) of
+find s = match (Text.take 1 s) with
   "\n" -> "found"
   _   -> "not found"
 

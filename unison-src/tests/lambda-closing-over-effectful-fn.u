@@ -2,7 +2,7 @@ use Optional None Some
 
 unfold : s -> (s ->{z} Optional (a, s)) ->{z} [a]
 unfold s f =
-  go s acc = case f s of
+  go s acc = match f s with
     None -> acc
     Some (hd, s) -> go s (acc `List.snoc` hd)
   go s []

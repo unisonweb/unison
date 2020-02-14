@@ -1,5 +1,5 @@
 r5 : Float
-r5 = case 2.2 of
+r5 = match 2.2 with
   2.2 -> 3.0
   _ -> 1.0
 

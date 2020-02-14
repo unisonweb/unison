@@ -1,5 +1,9 @@
 # Suffix-based resolution of names
 
+```ucm:hide
+.> builtins.merge
+```
+
 Any unique name suffix can be used to refer to a definition. For instance:
 
 ```unison
@@ -8,7 +12,7 @@ foo.bar.a : Int
 foo.bar.a = +99
 
 -- No imports needed even though FQN is `builtin.Optional.{None,Some}`
-optional.isNone o = case o of
+optional.isNone o = match o with
   None -> true
   Some _ -> false
 ```

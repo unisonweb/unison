@@ -1,5 +1,5 @@
--- Hits all the syntactic elements listed in SyntaxHighlights.hs.  
--- Use the 'view' command to see this in colour.  
+-- Hits all the syntactic elements listed in SyntaxHighlights.hs.
+-- Use the 'view' command to see this in colour.
 
 rainbow : Int ->{Ask Int} Int
 rainbow x =
@@ -17,14 +17,14 @@ rainbow x =
   force = !delay +2
   a = if isEven x then Either.Left 0 else Either.Right 0
   b = if isEven x then 1 else 0
-  c = case x of _ -> 3
+  c = match x with _ -> 3
   d = (Ask.ask : Int)
   +42
 
 ability Ask a where
   ask : {Ask a} a
 
-type Either a b = Left a | Right b  
+type Either a b = Left a | Right b
 
 unique ability Zang where
   zang : {Zang} Nat

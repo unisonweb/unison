@@ -8,7 +8,7 @@ ability Console where
 
 namespace Console where
   state : s -> Request (State s) a -> a
-  state s c = case c of
+  state s c = match c with
     {State.get -> k} -> handle k s with state s
     {State.set s' -> k} -> handle k () with state s'
     {a} -> a

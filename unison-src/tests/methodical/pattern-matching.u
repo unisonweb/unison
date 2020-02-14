@@ -3,19 +3,19 @@ use Universal ==
 
 -- PATTERN MATCHING
 
-pat1 x y p = case p of x0 -> (x0, x, y, p)
+pat1 x y p = match p with x0 -> (x0, x, y, p)
 
-pat2 x y p = case p of _ -> (x, y, p)
+pat2 x y p = match p with _ -> (x, y, p)
 
-pat3 x y p = case p of (x, y) -> (y, x)
+pat3 x y p = match p with (x, y) -> (y, x)
 
-pat4 x y p = case p of (p1, _) -> (x, y, p1)
+pat4 x y p = match p with (p1, _) -> (x, y, p1)
 
-pat5 x y p = case p of (_, p2) -> (x, y, p2)
+pat5 x y p = match p with (_, p2) -> (x, y, p2)
 
-pat6 x y p = case p of (p1, _) -> (x + y : Nat, p1)
+pat6 x y p = match p with (p1, _) -> (x + y : Nat, p1)
 
-pat7 x y p = case p of
+pat7 x y p = match p with
   (p1, _) | p1 == 9 -> (x + y : Nat, p1)
   (p1, _) | true    -> (0, p1)
 

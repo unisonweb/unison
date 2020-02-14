@@ -28,7 +28,7 @@ import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 import           Control.Lens
 import qualified Control.Monad.State.Strict    as State
 import           Data.Bifunctor                (bimap, first)
-import           Data.List                     (sortOn, stripPrefix)
+import           Data.List                     (sort, sortOn, stripPrefix)
 import           Data.List.Extra               (nubOrdOn, nubOrd)
 import           Data.ListLike                 (ListLike)
 import qualified Data.Map                      as Map
@@ -1132,13 +1132,6 @@ prettyTypeResultHeaderFull' (SR'.TypeResult' (HQ'.toHQ -> name) dt r (Set.map HQ
            (name : toList aliases)
     where greyHash = styleHashQualified' id P.hiBlack
 
-
--- todo: maybe delete this
-prettyAliases ::
-  (Foldable t, ListLike s Char, IsString s) => t HQ.HashQualified -> P.Pretty s
-prettyAliases aliases = if length aliases < 2 then mempty else error "todo"
-  -- (P.commented . (:[]) . P.wrap . P.commas . fmap prettyHashQualified' . toList) aliases <> P.newline
-
 prettyDeclTriple :: Var v =>
   (HQ.HashQualified, Reference.Reference, DisplayThing (DD.Decl v a))
   -> Pretty
@@ -1755,7 +1748,7 @@ prettyDiff diff = let
                        , not $ R.memberRan r (Names.terms0 removes) ]
   addedTypes = [ (n,r) | (n,r) <- R.toList (Names.types0 adds)
                        , not $ R.memberRan r (Names.types0 removes) ]
-  added = HQ'.sort (hqTerms ++ hqTypes)
+  added = sort (hqTerms ++ hqTypes)
     where
       hqTerms = [ Names.hqName adds n (Right r) | (n, r) <- addedTerms ]
       hqTypes = [ Names.hqName adds n (Left r)  | (n, r) <- addedTypes ]
@@ -1768,7 +1761,7 @@ prettyDiff diff = let
                          , not $ R.memberRan r (Names.types0 adds)
                          , Set.notMember n addedTypesSet ] where
     addedTypesSet = Set.fromList (map fst addedTypes)
-  removed = HQ'.sort (hqTerms ++ hqTypes)
+  removed = sort (hqTerms ++ hqTypes)
     where
       hqTerms = [ Names.hqName removes n (Right r) | (n, r) <- removedTerms ]
       hqTypes = [ Names.hqName removes n (Left r)  | (n, r) <- removedTypes ]

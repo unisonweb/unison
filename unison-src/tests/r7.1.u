@@ -1,5 +1,5 @@
 r7 : Nat
-r7 = case () of
+r7 = match () with
   x@() -> 1
 
 

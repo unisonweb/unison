@@ -1,5 +1,9 @@
 # Propagating type edits
 
+```ucm:hide
+.> builtins.merge
+```
+
 We introduce a type `Foo` with a function dependent `fooToInt`.
 
 ```unison
@@ -73,7 +77,7 @@ Update...
 .subpath.preserve> update
 ```
 
-Now the type of `someTerm` should be `Optional x -> Optional x` and the 
+Now the type of `someTerm` should be `Optional x -> Optional x` and the
 type of `otherTerm` should remain the same.
 
 ```ucm

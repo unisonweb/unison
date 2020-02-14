@@ -1,3 +1,7 @@
+```ucm:hide
+.> builtins.merge
+```
+
 First we make two changes to the codebase, so that there's more than one line
 for the `reflog` command to display:
 

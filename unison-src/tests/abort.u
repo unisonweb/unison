@@ -2,7 +2,7 @@
 ability Abort where
   Abort : forall a . () -> {Abort} a
 eff : forall a b . (a -> b) -> b -> Request Abort a -> b
-eff f z e = case e of
+eff f z e = match e with
   { Abort.Abort _ -> k } -> z
   { a } -> f a
 -- heff : Nat

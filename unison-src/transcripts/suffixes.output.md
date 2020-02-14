@@ -8,7 +8,7 @@ foo.bar.a : Int
 foo.bar.a = +99
 
 -- No imports needed even though FQN is `builtin.Optional.{None,Some}`
-optional.isNone o = case o of
+optional.isNone o = match o with
   None -> true
   Some _ -> false
 ```
