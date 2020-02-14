@@ -17,6 +17,7 @@ import Unison.Codebase.Editor.RemoteRepo
 
 import qualified Unison.Builtin                as B
 
+import qualified Crypto.Random                 as Random 
 import           Control.Monad.Except           ( runExceptT )
 import qualified Data.Configurator             as Config
 import           Data.Configurator.Types        ( Config )
@@ -25,8 +26,7 @@ import qualified Data.Text                     as Text
 import           System.Directory               ( getXdgDirectory
                                                 , XdgDirectory(..)
                                                 )
-import           System.FilePath                ( (</>) )
-import qualified System.Random                 as Random              
+import           System.FilePath                ( (</>) )           
 
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
@@ -89,7 +89,7 @@ tempGitDir url commit =
 
 commandLine
   :: forall i v a gen
-   . (Var v, Random.RandomGen gen)
+   . (Var v, Random.DRG gen)
   => Config
   -> IO i
   -> (Branch IO -> IO ())
@@ -117,7 +117,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     Typecheck ambient names sourceName source -> do
       -- todo: if guids are being shown to users,
       -- not ideal to generate new guid every time
-      let (_, namegen) = Parser.uniqueBase32Namegen rng
+      let namegen = Parser.uniqueBase32Namegen rng
           env = Parser.ParsingEnv namegen names
       typecheck ambient codebase env sourceName source
     TypecheckFile file ambient     -> typecheck' ambient codebase file
