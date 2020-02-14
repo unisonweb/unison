@@ -99,7 +99,7 @@ List.takeWhile p xs =
 ```
 
 The `alias.many` command can be used to copy definitions from the current namespace into your curated one.
-The names that will be copied over are the names relative to the current namespace:
+The names that will be used in the target namespace are the names you specify, relative to the current namespace:
 
 ```
 .> help alias.many
