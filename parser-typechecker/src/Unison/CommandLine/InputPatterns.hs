@@ -443,8 +443,12 @@ aliasType = InputPattern "alias.type" []
 aliasMany :: InputPattern
 aliasMany = InputPattern "alias.many" ["copy"]
   [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionOrPathArg)]
-  (P.group (makeExample aliasMany ["foo.foo", "bar.bar", "quux"])
-           <> "creates aliases `quux.foo.foo` and `quux.bar.bar`.")
+  (P.group . P.lines $
+    [ P.wrap $ P.group (makeExample aliasMany ["<relative1>", "[relative2...]", "<namespace>"])
+      <> "creates aliases `relative1`, `relative2`, ... in the namespace `namespace`."
+    , P.wrap $ P.group (makeExample aliasMany ["foo.foo", "bar.bar", ".quux"])
+      <> "creates aliases `.quux.foo.foo` and `.quux.bar.bar`."
+    ])
   (\case
     srcs@(_:_) Cons.:> dest -> first fromString $ do
       sourceDefinitions <- traverse Path.parseHQSplit srcs

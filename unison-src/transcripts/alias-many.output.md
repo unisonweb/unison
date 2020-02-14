@@ -3,9 +3,11 @@ The names that will be used in the target namespace are the names you specify, r
 
 ```
 .> help alias.many
+
   alias.many (or copy)
-  `alias.many foo.foo bar.bar quux` creates aliases
-  `quux.foo.foo` and `quux.bar.bar`.
+  `alias.many <relative1> [relative2...] <namespace>` creates aliases `relative1`, `relative2`, ...
+  in the namespace `namespace`.
+  `alias.many foo.foo bar.bar .quux` creates aliases `.quux.foo.foo` and `.quux.bar.bar`.
 
 ```
 
