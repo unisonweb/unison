@@ -36,7 +36,7 @@ import qualified Unison.Codebase.Metadata      as Metadata
 import qualified Unison.Hash                   as Hash
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
-import           Unison.Name                    ( Name )
+import           Unison.Name                    ( Name, RelName )
 import qualified Unison.Name                   as Name
 import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names
@@ -112,6 +112,20 @@ data Raw = Raw
 makeLenses ''Branch
 makeLensesFor [("_edits", "edits")] ''Branch0
 makeLenses ''Raw
+
+-- | Like @deepTerms@, but returns relative names instead.
+--
+-- FIXME This should replace @deepTerms@ eventually, since they are all
+-- relative.
+relDeepTerms :: Branch0 m -> Star Referent RelName
+relDeepTerms = Star3.mapD1 Name.unsafeAsRelName . deepTerms
+
+-- | Like @deepTypes@, but returns relative names instead.
+--
+-- FIXME This should replace @deepTypes@ eventually, since they are all
+-- relative.
+relDeepTypes :: Branch0 m -> Star Reference RelName
+relDeepTypes = Star3.mapD1 Name.unsafeAsRelName . deepTypes
 
 toNames0 :: Branch0 m -> Names0
 toNames0 b = Names (R.swap . Star3.d1 . deepTerms $ b)
