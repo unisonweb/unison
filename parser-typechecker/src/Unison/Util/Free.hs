@@ -43,6 +43,15 @@ free = go . sequence
   where go (Pure fa) = Bind fa Pure
         go (Bind fi f) = Bind fi (go . f)
 
+
+foldWithIndex :: forall f m a . Monad m => (forall x. Int -> f x -> m x) -> Free f a -> m a
+foldWithIndex f m = go 0 f m
+  where go :: Int -> (forall x. Int -> f x -> m x) -> Free f a -> m a
+        go starting f m = case m of
+                            Pure a -> pure a
+                            Bind x k -> (f starting x) >>= (go $ starting + 1) f . k
+
+
 instance Functor (Free f) where
   fmap = liftM
 
@@ -50,6 +59,7 @@ instance Monad (Free f) where
   return = Pure
   Pure a >>= f = f a
   Bind fx f >>= g = Bind fx (f >=> g)
+  
 
 instance Applicative (Free f) where
   pure = Pure

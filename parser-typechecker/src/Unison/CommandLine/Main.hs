@@ -234,7 +234,7 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
       loop state = do
         writeIORef pathRef (HandleInput._currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
-        rng <- Random.getSystemDRG  
+        
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (writeIORef rootRef)
                                      runtime
@@ -243,7 +243,7 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
                                       putPrettyNonempty p $> args)
                                      loadSourceFile
                                      codebase
-                                     rng
+                                     (const Random.getSystemDRG)
                                      free
         case o of
           Nothing -> pure ()

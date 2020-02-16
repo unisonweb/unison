@@ -26,7 +26,7 @@ import qualified Data.Text                     as Text
 import           System.Directory               ( getXdgDirectory
                                                 , XdgDirectory(..)
                                                 )
-import           System.FilePath                ( (</>) )           
+import           System.FilePath                ( (</>) )
 
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
@@ -98,14 +98,14 @@ commandLine
   -> (NumberedOutput v -> IO NumberedArgs)
   -> (SourceName -> IO LoadSourceResult)
   -> Codebase IO v Ann
-  -> gen
+  -> (Int -> IO gen)
   -> Free (Command IO i v) a
   -> IO a
-commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase rng =
- Free.fold go
+commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase rngGen =
+ Free.foldWithIndex go
  where
-  go :: forall x . Command IO i v x -> IO x
-  go = \case
+  go :: forall x . Int -> Command IO i v x -> IO x
+  go i x = case x of 
     -- Wait until we get either user input or a unison file update
     Eval m        -> m
     Input         -> awaitInput
@@ -117,6 +117,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     Typecheck ambient names sourceName source -> do
       -- todo: if guids are being shown to users,
       -- not ideal to generate new guid every time
+      rng <- rngGen i
       let namegen = Parser.uniqueBase32Namegen rng
           env = Parser.ParsingEnv namegen names
       typecheck ambient codebase env sourceName source

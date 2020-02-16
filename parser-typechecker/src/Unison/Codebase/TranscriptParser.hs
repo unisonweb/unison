@@ -256,7 +256,7 @@ run dir configFile stanzas codebase = do
       loop state = do
         writeIORef pathRef (HandleInput._currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
-            rng = Random.drgNewSeed (Random.seedFromInteger 4) -- chosen by fair dice roll; guaranteed to be random 
+            rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)) 
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (const $ pure ())
                                      runtime

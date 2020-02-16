@@ -60,11 +60,6 @@ instance Monoid UniqueName where
   mappend (UniqueName f) (UniqueName g) =
     UniqueName $ \pos len -> f pos len <|> g pos len
 
--- Should be used when we actually do want the result to be different every time
--- (most cases)
--- But we actually want it to be deterministic when running transcripts, 
--- in which case we need to be able to control the random seed. If that is the case you should use 
--- `uniqueBase32Namegen`
 
 uniqueBase32Namegen :: forall gen. Random.DRG gen => gen -> UniqueName
 uniqueBase32Namegen rng =
