@@ -284,6 +284,9 @@ pretty0
         paren (p >= 10) $ pretty0 n (ac 10 Normal im doc) f `PP.hang`
           PP.spacedMap (pretty0 n (ac 10 Normal im doc)) args
       _ -> case (term, nonUnitArgPred) of
+        (LamsNamedMatch' [] branches, _) ->
+          paren (p >= 3) $
+            PP.group (fmt S.ControlKeyword "cases") `PP.hang` PP.lines (map printCase branches)
         LamsNamedPred' vs body ->
           paren (p >= 3) $
             PP.group (varList vs <> fmt S.ControlKeyword " ->") `PP.hang` pretty0 n (ac 2 Block im doc) body
@@ -545,6 +548,7 @@ prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = 
   symbolic = isSymbolic v
   isBinary = \case
     Ann'              tm _ -> isBinary tm
+    LamsNamedMatch'   vs _ -> length vs == 1
     LamsNamedOrDelay' vs _ -> length vs == 2
     _                      -> False -- unhittable
 

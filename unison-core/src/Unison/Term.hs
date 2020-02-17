@@ -782,6 +782,8 @@ unLamsUntilDelay' t = case unLamsPred' (t, (/=) $ Var.named "()") of
   r@(Just _) -> r
   Nothing    -> Just ([], t)
 
+-- Same as unLamsUntilDelay', but only matches if the lambda body is a match
+-- expression, where the scrutinee is also the last argument of the lambda
 unLamsMatch'
   :: Var v
   => AnnotatedTerm2 vt at ap v a
