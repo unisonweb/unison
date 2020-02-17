@@ -7,6 +7,7 @@ module Unison.Parser where
 
 import Unison.Prelude
 
+import qualified Crypto.Random        as Random 
 import           Data.Bytes.Put                 (runPutS)
 import           Data.Bytes.Serial              ( serialize )
 import           Data.Bytes.VarInt              ( VarInt(..) )
@@ -35,7 +36,6 @@ import Unison.Name as Name
 import Unison.Names3 (Names)
 import qualified Unison.Names3 as Names
 import Control.Monad.Reader.Class (asks)
-import qualified Crypto.Random as Random
 import qualified Unison.Hashable as Hashable
 import Unison.Referent (Referent)
 import Unison.Reference (Reference)
@@ -60,13 +60,14 @@ instance Monoid UniqueName where
   mappend (UniqueName f) (UniqueName g) =
     UniqueName $ \pos len -> f pos len <|> g pos len
 
-uniqueBase58Namegen :: IO UniqueName
-uniqueBase58Namegen = do
-  rng <- Random.getSystemDRG
-  pure . UniqueName $ \pos lenInBase32Hex -> go pos lenInBase32Hex rng
+
+uniqueBase32Namegen :: forall gen. Random.DRG gen => gen -> UniqueName
+uniqueBase32Namegen rng =
+  UniqueName $ \pos lenInBase32Hex -> go pos lenInBase32Hex rng
   where
   -- if the identifier starts with a number, try again, since
   -- we want the name to work as a valid wordyId
+  go :: L.Pos -> Int -> gen -> Maybe Text
   go pos lenInBase32Hex rng0 = let
     (bytes,rng) = Random.randomBytesGenerate 32 rng0
     posBytes = runPutS $ do
@@ -76,6 +77,7 @@ uniqueBase58Namegen = do
     b58 = Hash.base32Hex h
     in if Char.isDigit (Text.head b58) then go pos lenInBase32Hex rng
        else Just . Text.take lenInBase32Hex $ b58
+
 
 uniqueName :: Var v => Int -> P v Text
 uniqueName lenInBase32Hex = do
