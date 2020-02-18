@@ -168,11 +168,6 @@ pretty
 pretty isPast ppe sr =
   let
     tms      = UF.hashTerms (originalFile sr)
-    --termAlias', typeAlias' :: [v]
-    --termAlias' =
-    --filter (`Set.notMember` (terms $ duplicates sr)) (Map.keys (termAlias sr))
-    --typeAlias' =
-    --  filter (`Set.notMember` (types $ duplicates sr)) (Map.keys (typeAlias sr))
     goodIcon = P.green "⍟ "
     badIcon  = P.red "x "
     plus     = P.green "  "
@@ -183,7 +178,7 @@ pretty isPast ppe sr =
         P.syntaxToColor (DeclPrinter.prettyDeclHeader (HQ.unsafeFromVar v) dd)
           <> aliases       where
         aliases = case Map.lookup v (typeAlias sr) of
-          Nothing -> ""
+          Nothing      -> ""
           Just (_, ns) -> P.newline <> P.indentN
             2
             (P.wrap
@@ -253,7 +248,7 @@ pretty isPast ppe sr =
            where
             lhs = case Map.lookup v (termAlias sr) of
               Nothing -> P.bold (P.text $ Var.name v)
-              Just ns ->
+              Just (_, ns) ->
                 P.sep ", " (P.bold (prettyVar v) : (P.shown <$> toList ns))
           Nothing -> (prettyStatus status, P.text (Var.name v), "")
         termMsgs =
@@ -302,23 +297,16 @@ pretty isPast ppe sr =
                                          " "
                                          (P.hiBlack . prettyVar <$> dups)
                  )
-      , oks
-        (P.green "I've added these definitions:")
-        (P.green "These new definitions are ok to `add`:")
-        (  adds sr
-        <> aliasToTermComponent (NameExists False) (termAlias sr)
-        <> aliasToTypeComponent (NameExists False) (typeAlias sr)
-        )
+      , oks (P.green "I've added these definitions:")
+            (P.green "These new definitions are ok to `add`:")
+            (adds sr)
       , oks
         (P.green "I've updated to these definitions:")
         (P.green
         $ "These new definitions will replace existing ones of the same name and "
         <> "are ok to `update`:"
         )
-        (  updates sr
-        <> aliasToTermComponent (NameExists True) (termAlias sr)
-        <> aliasToTypeComponent (NameExists True) (typeAlias sr)
-        )
+        (updates sr)
       , notOks
         (P.red "These definitions failed:")
         (P.wrap $ P.red "These definitions would fail on `add` or `update`:")

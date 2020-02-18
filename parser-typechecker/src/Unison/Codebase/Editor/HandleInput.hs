@@ -2103,15 +2103,13 @@ toSlurpResult currentPath uf existingNames =
   updates = SlurpComponent (Set.fromList types) (Set.fromList terms) where
     terms =
       [ var n
-      | (n, r'@Referent.Ref{}) <- R.toList (Names.terms fileNames0)
-      , [r@Referent.Ref{}]     <- [toList $ Names.termsNamed existingNames n]
-      , r' /= r
+      | (n, Referent.Ref{}) <- R.toList (Names.terms fileNames0)
+      , [Referent.Ref{}]     <- [toList $ Names.termsNamed existingNames n]
       ]
     types =
       [ var n
-      | (n, r') <- R.toList (Names.types fileNames0)
-      , [r]     <- [toList $ Names.typesNamed existingNames n]
-      , r' /= r
+      | (n, _) <- R.toList (Names.types fileNames0)
+      , [_]    <- [toList $ Names.typesNamed existingNames n]
       ]
 
   -- alias (n, r) if (n' /= n, r) exists in names0
@@ -2152,14 +2150,10 @@ toSlurpResult currentPath uf existingNames =
     terms = addTerms (Names.terms existingNames) (Names.terms fileNames0)
     types = addTypes (Names.types existingNames) (Names.types fileNames0)
     addTerms existingNames = R.filter go where
-      go (n, r@Referent.Ref{}) = (not . R.memberDom n) existingNames
-                              && (not . R.memberRan r) existingNames
+      go (n, Referent.Ref{}) = (not . R.memberDom n) existingNames
       go _ = False
     addTypes existingNames = R.filter go where
-      go (n, r) = (not . R.memberDom n) existingNames
-               && (not . R.memberRan r) existingNames
-
-
+      go (n, _) = (not . R.memberDom n) existingNames
 
 filterBySlurpResult :: Ord v
            => SlurpResult v
