@@ -74,6 +74,7 @@ data NumberedOutput v
   | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterMerge Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterMergePropagate Path.Path' Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
@@ -322,6 +323,7 @@ isNumberedFailure = \case
   ShowDiffNamespace{} -> False
   ShowDiffAfterDeleteDefinitions{} -> False
   ShowDiffAfterDeleteBranch{} -> False
+  ShowDiffAfterModifyBranch{} -> False
   ShowDiffAfterMerge{} -> False
   ShowDiffAfterMergePropagate{} -> False
   ShowDiffAfterMergePreview{} -> False

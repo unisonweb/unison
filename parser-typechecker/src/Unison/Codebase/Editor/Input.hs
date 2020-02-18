@@ -62,6 +62,7 @@ data Input
     | NamesI HQ.HashQualified
     | AliasTermI Path.HQSplit' Path.Split'
     | AliasTypeI Path.HQSplit' Path.Split'
+    | AliasManyI [Path.HQSplit] Path'
     -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
     | MoveTermI Path.HQSplit' Path.Split'
     | MoveTypeI Path.HQSplit' Path.Split'
