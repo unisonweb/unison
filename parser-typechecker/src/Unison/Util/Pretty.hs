@@ -54,6 +54,7 @@ module Unison.Util.Pretty (
    linesSpaced,
    lit,
    map,
+   mayColumn2,
    nest,
    num,
    newline,
@@ -104,6 +105,7 @@ module Unison.Util.Pretty (
 
 import Unison.Prelude
 
+import           Data.Bifunctor                 ( second )
 import           Data.Char                      ( isSpace )
 import           Data.List                      ( foldr1, intersperse )
 import           Prelude                 hiding ( lines , map )
@@ -452,13 +454,24 @@ excerptColumn2 max cols = case max of
 
 column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
-column2 rows = lines (group <$> align rows)
+column2 = lines . (group <$>) . align
 
-column2M :: (Applicative m, LL.ListLike s Char, IsString s) => [m (Pretty s, Pretty s)] -> m (Pretty s)
+column2M
+  :: (Applicative m, LL.ListLike s Char, IsString s)
+  => [m (Pretty s, Pretty s)]
+  -> m (Pretty s)
 column2M = fmap column2 . sequenceA
 
+mayColumn2
+  :: (LL.ListLike s Char, IsString s)
+  => [(Pretty s, Maybe (Pretty s))]
+  -> Pretty s
+mayColumn2 = lines . (group <$>) . align'
+
 column3
-  :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s, Pretty s)] -> Pretty s
+  :: (LL.ListLike s Char, IsString s)
+  => [(Pretty s, Pretty s, Pretty s)]
+  -> Pretty s
 column3 = column3sep ""
 
 column3M
@@ -510,20 +523,30 @@ wrapColumn2 rows = lines (align rows) where
     in [ group (rightPad lwidth l <> indentNAfterNewline lwidth (wrap r))
        | (l, r) <- rows]
 
-align :: (LL.ListLike s Char, IsString s)
-  => [(Pretty s, Pretty s)]
-  -> [Pretty s]
-align rows = uncurry (<>) <$> align' rows
+align
+  :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> [Pretty s]
+align rows = align' (second Just <$> rows)
 
+-- [("foo", Just "bar")
+-- ,("barabaz", Nothing)
+-- ,("qux","quux")]
+--
+-- results in:
+--
+-- foo bar
+-- barabaz
+-- qux quux
 align'
   :: (LL.ListLike s Char, IsString s)
-  => [(Pretty s, Pretty s)]
-  -> [(Pretty s, Pretty s)]
+  => [(Pretty s, Maybe (Pretty s))]
+  -> [Pretty s]
 align' rows = alignedRows
  where
-  maxWidth = foldl' max 0 (preferredWidth . fst <$> rows) + 1
+  col0Width = foldl' max 0 [ preferredWidth col1 | (col1, Just _) <- rows ] + 1
   alignedRows =
-    [ (rightPad maxWidth col0, indentNAfterNewline maxWidth col1)
+    [ case col1 of
+        Just s  -> rightPad col0Width col0 <> indentNAfterNewline col0Width s
+        Nothing -> col0
     | (col0, col1) <- rows
     ]
 

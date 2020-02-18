@@ -27,7 +27,7 @@ import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.DisplayThing
 import qualified Unison.Codebase.Editor.Output as Output
-import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
+import Unison.Codebase.Editor.SlurpResult (SlurpResult(..), NameExists(..))
 import qualified Unison.Codebase.Editor.SlurpResult as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
@@ -755,7 +755,7 @@ loop = do
         where
         -- a list of missing sources (if any) and the actions that do the work
         go :: ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
-           -> Path.HQSplit 
+           -> Path.HQSplit
            -> ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
         go (missingSrcs, actions) hqsrc =
           let
@@ -2115,9 +2115,9 @@ toSlurpResult currentPath uf existingNames =
       ]
 
   -- alias (n, r) if (n' /= n, r) exists in names0
-  termAliases :: Map v (Set Name)
+  termAliases :: Map v (NameExists, Set Name)
   termAliases = Map.fromList
-    [ (var n, aliases)
+    [ (var n, (isExistingName, aliases))
     | (n, r@Referent.Ref{}) <- R.toList $ Names.terms fileNames0
     , aliases               <-
       [ Set.map (Path.unprefixName currentPath) . Set.delete n $ R.lookupRan
@@ -2126,12 +2126,14 @@ toSlurpResult currentPath uf existingNames =
       ]
     , not (null aliases)
     , let v = var n
+    , let isExistingName =
+            NameExists . R.memberDom n $ Names.terms existingNames
     , Set.notMember v (SC.terms dups)
     ]
 
-  typeAliases :: Map v (Set Name)
+  typeAliases :: Map v (NameExists, Set Name)
   typeAliases = Map.fromList
-    [ (v, aliases)
+    [ (v, (isExistingName, aliases))
     | (n, r) <- R.toList $ Names.types fileNames0
     , aliases <-
       [ Set.map (Path.unprefixName currentPath) . Set.delete n $ R.lookupRan
@@ -2140,6 +2142,8 @@ toSlurpResult currentPath uf existingNames =
       ]
     , not (null aliases)
     , let v = var n
+    , let isExistingName =
+            NameExists . R.memberDom n $ Names.types existingNames
     , Set.notMember v (SC.types dups)
     ]
 

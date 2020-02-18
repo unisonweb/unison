@@ -52,10 +52,22 @@ data SlurpResult v = SlurpResult {
   , termExistingConstructorCollisions :: Set v
   , constructorExistingTermCollisions :: Set v
   -- -- Already defined in the branch, but with a different name.
-  , termAlias :: Map v (Set Name)
-  , typeAlias :: Map v (Set Name)
+  , termAlias :: Map v (NameExists, Set Name)
+  , typeAlias :: Map v (NameExists, Set Name)
   , defsWithBlockedDependencies :: SlurpComponent v
   } deriving (Show)
+
+newtype NameExists = NameExists { doesItExist :: Bool } deriving (Eq, Ord, Show)
+
+aliasToTypeComponent
+  :: Ord v => NameExists -> Map v (NameExists, Set Name) -> SlurpComponent v
+aliasToTypeComponent e m =
+  SlurpComponent (Map.keysSet $ Map.filter ((== e) . fst) m) mempty
+
+aliasToTermComponent
+  :: Ord v => NameExists -> Map v (NameExists, Set Name) -> SlurpComponent v
+aliasToTermComponent e m =
+  SlurpComponent mempty (Map.keysSet $ Map.filter ((== e) . fst) m)
 
 -- Returns the set of constructor names for type names in the given `Set`.
 constructorsFor :: Var v => Set v -> UF.TypecheckedUnisonFile v Ann -> Set v
@@ -155,7 +167,7 @@ pretty
   -> P.Pretty P.ColorText
 pretty isPast ppe sr =
   let
-    tms = UF.hashTerms (originalFile sr)
+    tms      = UF.hashTerms (originalFile sr)
     --termAlias', typeAlias' :: [v]
     --termAlias' =
     --filter (`Set.notMember` (terms $ duplicates sr)) (Map.keys (termAlias sr))
@@ -164,35 +176,50 @@ pretty isPast ppe sr =
     goodIcon = P.green "⍟ "
     badIcon  = P.red "x "
     plus     = P.green "  "
+    -- TODO: This is not rendering the way we want or expect.
+    -- Indentation doesn't work correctly in columns. Suspect a bug in Pretty.
     okType v = (plus <>) $ case UF.lookupDecl v (originalFile sr) of
       Just (_, dd) ->
         P.syntaxToColor (DeclPrinter.prettyDeclHeader (HQ.unsafeFromVar v) dd)
           <> aliases       where
         aliases = case Map.lookup v (typeAlias sr) of
           Nothing -> ""
-          Just ns ->
-            P.hiBlack "  (existing "
-              <> P.plural ns "name"
-              <> ": "
-              <> P.sep ", " (P.shown <$> toList ns)
-              <> ")"
+          Just (_, ns) -> P.newline <> P.indentN
+            2
+            (P.wrap
+              (  P.hiBlack "(also named "
+              <> P.oxfordCommas (P.shown <$> toList ns)
+              <> P.hiBlack ")"
+              )
+            )
       Nothing -> P.bold (prettyVar v) <> P.red " (Unison bug, unknown type)"
+    okTerm :: v -> [(P.Pretty P.ColorText, Maybe (P.Pretty P.ColorText))]
     okTerm v = case Map.lookup v tms of
-      Nothing -> (P.bold (prettyVar v), P.red "(Unison bug, unknown term)")
+      Nothing ->
+        [(P.bold (prettyVar v), Just $ P.red "(Unison bug, unknown term)")]
       Just (_, _, ty) ->
-        (plus <> lhs, ": " <> P.indentNAfterNewline 2 (TP.pretty ppe ty))
+        ( plus <> P.bold (prettyVar v)
+          , Just $ ": " <> P.indentNAfterNewline 2 (TP.pretty ppe ty)
+          )
+          : aliases
        where
-        lhs = case Map.lookup v (termAlias sr) of
-          Nothing -> P.bold (prettyVar v)
-          Just ns ->
-            P.sep ", " $ P.bold (prettyVar v) : (P.shown <$> toList ns)
+        aliases = case Map.lookup v (termAlias sr) of
+          Nothing -> []
+          Just (_, ns) ->
+            [ ( P.indentN 2
+                $  P.hiBlack "(also named "
+                <> P.oxfordCommas (P.shown <$> toList ns)
+                <> P.hiBlack ")"
+              , Nothing
+              )
+            ]
     oks _past _present sc | SC.isEmpty sc = mempty
     oks past present sc =
       let header = goodIcon <> P.indentNAfterNewline
             2
             (P.wrap (if isPast then past else present))
           addedTypes = P.lines $ okType <$> toList (SC.types sc)
-          addedTerms = P.column2 . fmap okTerm . Set.toList $ SC.terms sc
+          addedTerms = P.mayColumn2 . (=<<) okTerm . Set.toList $ SC.terms sc
       in  header <> "\n\n" <> P.linesNonEmpty [addedTypes, addedTerms]
     notOks _past _present sr | isOk sr = mempty
     notOks past present sr =
@@ -275,16 +302,23 @@ pretty isPast ppe sr =
                                          " "
                                          (P.hiBlack . prettyVar <$> dups)
                  )
-      , oks (P.green "I've added these definitions:")
-            (P.green "These new definitions are ok to `add`:")
-            (adds sr)
+      , oks
+        (P.green "I've added these definitions:")
+        (P.green "These new definitions are ok to `add`:")
+        (  adds sr
+        <> aliasToTermComponent (NameExists False) (termAlias sr)
+        <> aliasToTypeComponent (NameExists False) (typeAlias sr)
+        )
       , oks
         (P.green "I've updated to these definitions:")
         (P.green
         $ "These new definitions will replace existing ones of the same name and "
         <> "are ok to `update`:"
         )
-        (updates sr)
+        (  updates sr
+        <> aliasToTermComponent (NameExists True) (termAlias sr)
+        <> aliasToTypeComponent (NameExists True) (typeAlias sr)
+        )
       , notOks
         (P.red "These definitions failed:")
         (P.wrap $ P.red "These definitions would fail on `add` or `update`:")
