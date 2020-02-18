@@ -51,4 +51,4 @@ instance Lens.Snoc Name Name NameSegment NameSegment where
     unsnoc n@(Name (Text.splitOn "." -> ns)) = case Lens.unsnoc ns of
       Nothing -> Left n
       Just ([],_) -> Left n
-      Just (init, last) -> Right $ (Name (Text.intercalate "." init), NameSegment last)
+      Just (init, last) -> Right (Name (Text.intercalate "." init), NameSegment last)

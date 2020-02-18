@@ -3,7 +3,6 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
--- {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -140,6 +139,17 @@ notifyNumbered o = case o of
   ShowDiffAfterDeleteBranch bAbs ppe diff ->
     first (\p -> P.lines
       [ p
+      , ""
+      , undoTip
+      ]) (showDiffNamespace ppe bAbs bAbs diff)
+
+  ShowDiffAfterModifyBranch b' _ _ (OBD.isEmpty -> True) ->
+    (P.wrap $ "Nothing changed in" <> prettyPath' b' <> ".", mempty)
+  ShowDiffAfterModifyBranch b' bAbs ppe diff ->
+    first (\p -> P.lines
+      [ P.wrap $ "Here's what changed in" <> prettyPath' b' <> ":"
+      , ""
+      , p
       , ""
       , undoTip
       ]) (showDiffNamespace ppe bAbs bAbs diff)
@@ -1281,6 +1291,9 @@ listOfLinks ppe results = pure $ P.lines [
   prettyType Nothing = "❓ (missing a type for this definition)"
   prettyType (Just t) = TypePrinter.pretty ppe t
 
+-- | `ppe` is just for rendering type signatures
+--   `oldPath, newPath :: Path.Absolute` are just for producing fully-qualified
+--                                       numbered args
 showDiffNamespace :: forall v . Var v
                   => PPE.PrettyPrintEnv
                   -> Path.Absolute

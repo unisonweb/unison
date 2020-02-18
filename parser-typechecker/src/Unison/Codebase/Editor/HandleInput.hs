@@ -295,6 +295,8 @@ loop = do
           ResetRootI src -> "reset-root " <> hp' src
           AliasTermI src dest -> "alias.term " <> hqs' src <> " " <> ps' dest
           AliasTypeI src dest -> "alias.type " <> hqs' src <> " " <> ps' dest
+          AliasManyI srcs dest ->
+            "alias.many " <> intercalateMap " " hqs srcs <> " " <> p' dest
           MoveTermI src dest -> "move.term " <> hqs' src <> " " <> ps' dest
           MoveTypeI src dest -> "move.type " <> hqs' src <> " " <> ps' dest
           MoveBranchI src dest -> "move.namespace " <> ops' src <> " " <> ps' dest
@@ -378,6 +380,7 @@ loop = do
           wat = error $ show input ++ " is not expected to alter the branch"
           hqs' (p, hq) =
             Monoid.unlessM (Path.isRoot' p) (p' p) <> "." <> Text.pack (show hq)
+          hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
           ps' = p' . Path.unsplit'
         stepAt = Unison.Codebase.Editor.HandleInput.stepAt inputDescription
         stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
@@ -736,6 +739,62 @@ loop = do
         where
         p = resolveSplit' src
         oldMD r = BranchUtil.getTypeMetadataAt p r root0
+
+      -- this implementation will happily produce name conflicts,
+      -- but will surface them in a normal diff at the end of the operation.
+      AliasManyI srcs dest' -> do
+        let destAbs = resolveToAbsolute dest'
+        old <- getAt destAbs
+        let (unknown, actions) = foldl' go mempty srcs
+        stepManyAt actions
+        new <- getAt destAbs
+        diffHelper (Branch.head old) (Branch.head new) >>=
+            respondNumbered . uncurry (ShowDiffAfterModifyBranch dest' destAbs)
+        unless (null unknown) $
+          respond . SearchTermsNotFound . fmap fixupOutput $ unknown
+        where
+        -- a list of missing sources (if any) and the actions that do the work
+        go :: ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
+           -> Path.HQSplit 
+           -> ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
+        go (missingSrcs, actions) hqsrc =
+          let
+            src :: Path.Split
+            src = second HQ'.toName hqsrc
+            proposedDest :: Path.Split
+            proposedDest = second HQ'.toName hqProposedDest
+            hqProposedDest :: Path.HQSplit
+            hqProposedDest = first Path.unabsolute $
+                              Path.resolve (resolveToAbsolute dest') hqsrc
+            -- `Nothing` if src doesn't exist
+            doType :: Maybe [(Path, Branch0 m -> Branch0 m)]
+            doType = case ( BranchUtil.getType hqsrc currentBranch0
+                          , BranchUtil.getType hqProposedDest root0
+                          ) of
+              (null -> True, _) -> Nothing -- missing src
+              (rsrcs, existing) -> -- happy path
+                Just . map addAlias . toList $ Set.difference rsrcs existing
+                where
+                addAlias r = BranchUtil.makeAddTypeName proposedDest r (oldMD r)
+                oldMD r = BranchUtil.getTypeMetadataAt src r currentBranch0
+            doTerm :: Maybe [(Path, Branch0 m -> Branch0 m)]
+            doTerm = case ( BranchUtil.getTerm hqsrc currentBranch0
+                          , BranchUtil.getTerm hqProposedDest root0
+                          ) of
+              (null -> True, _) -> Nothing -- missing src
+              (rsrcs, existing) ->
+                Just . map addAlias . toList $ Set.difference rsrcs existing
+                where
+                addAlias r = BranchUtil.makeAddTermName proposedDest r (oldMD r)
+                oldMD r = BranchUtil.getTermMetadataAt src r currentBranch0
+          in case (doType, doTerm) of
+            (Nothing, Nothing) -> (missingSrcs :> hqsrc, actions)
+            (Just as, Nothing) -> (missingSrcs, actions ++ as)
+            (Nothing, Just as) -> (missingSrcs, actions ++ as)
+            (Just as1, Just as2) -> (missingSrcs, actions ++ as1 ++ as2)
+
+        fixupOutput :: Path.HQSplit -> HQ.HashQualified
+        fixupOutput = fmap Path.toName . HQ'.toHQ . Path.unsplitHQ
 
       NamesI thing -> do
         parseNames0 <- Names3.suffixify0 <$> basicParseNames0
