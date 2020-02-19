@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -178,15 +179,20 @@ pretty isPast ppe sr =
         P.syntaxToColor (DeclPrinter.prettyDeclHeader (HQ.unsafeFromVar v) dd)
           <> aliases       where
         aliases = case Map.lookup v (typeAlias sr) of
-          Nothing      -> ""
-          Just (_, ns) -> P.newline <> P.indentN
-            2
-            (P.wrap
-              (  P.hiBlack "(also named "
-              <> P.oxfordCommas (P.shown <$> toList ns)
-              <> P.hiBlack ")"
+          Nothing -> ""
+          Just (_, splitAt 5 . toList -> (shown, rest)) ->
+            P.newline <> P.indentN
+              2
+              (P.wrap
+                (  P.hiBlack "(also named "
+                <> P.oxfordCommas
+                     ((P.shown <$> shown) ++ map
+                       (const (P.shown (length rest) <> " more"))
+                       (take 1 rest)
+                     )
+                <> P.hiBlack ")"
+                )
               )
-            )
       Nothing -> P.bold (prettyVar v) <> P.red " (Unison bug, unknown type)"
     okTerm :: v -> [(P.Pretty P.ColorText, Maybe (P.Pretty P.ColorText))]
     okTerm v = case Map.lookup v tms of
@@ -200,10 +206,14 @@ pretty isPast ppe sr =
        where
         aliases = case Map.lookup v (termAlias sr) of
           Nothing -> []
-          Just (_, ns) ->
+          Just (_, splitAt 5 . toList -> (shown, rest)) ->
             [ ( P.indentN 2
                 $  P.hiBlack "(also named "
-                <> P.oxfordCommas (P.shown <$> toList ns)
+                <> P.oxfordCommas
+                     ((P.shown <$> shown) ++ map
+                       (const (P.shown (length rest) <> " more"))
+                       (take 1 rest)
+                     )
                 <> P.hiBlack ")"
               , Nothing
               )

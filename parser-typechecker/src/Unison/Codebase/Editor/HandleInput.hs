@@ -2112,7 +2112,8 @@ toSlurpResult currentPath uf existingNames =
       , [_]    <- [toList $ Names.typesNamed existingNames n]
       ]
 
-  -- alias (n, r) if (n' /= n, r) exists in names0
+  -- alias (n, r) if (n', r) exists in names0
+  -- the `NameExists` field is True if `n == n'`
   termAliases :: Map v (NameExists, Set Name)
   termAliases = Map.fromList
     [ (var n, (isExistingName, aliases))
