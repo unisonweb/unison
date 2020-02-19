@@ -2103,17 +2103,17 @@ toSlurpResult currentPath uf existingNames =
   updates = SlurpComponent (Set.fromList types) (Set.fromList terms) where
     terms =
       [ var n
-      | (n, Referent.Ref{}) <- R.toList (Names.terms fileNames0)
-      , [Referent.Ref{}]     <- [toList $ Names.termsNamed existingNames n]
+      | (n, r'@Referent.Ref{}) <- R.toList (Names.terms fileNames0)
+      , [r@Referent.Ref{}]     <- [toList $ Names.termsNamed existingNames n]
+      , r' /= r
       ]
     types =
       [ var n
-      | (n, _) <- R.toList (Names.types fileNames0)
-      , [_]    <- [toList $ Names.typesNamed existingNames n]
+      | (n, r') <- R.toList (Names.types fileNames0)
+      , [r]     <- [toList $ Names.typesNamed existingNames n]
+      , r' /= r
       ]
 
-  -- alias (n, r) if (n', r) exists in names0
-  -- the `NameExists` field is True if `n == n'`
   termAliases :: Map v (NameExists, Set Name)
   termAliases = Map.fromList
     [ (var n, (isExistingName, aliases))
