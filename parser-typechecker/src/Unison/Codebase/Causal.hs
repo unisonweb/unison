@@ -173,15 +173,13 @@ children (Cons  _ _ (_, t)) = Seq.singleton t
 children (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
 
 threeWayMerge
-  :: forall m h e d
-   . (Show d, Monad m, Hashable e, Semigroup d)
-  => (e -> e -> m e)
-  -> (e -> e -> m d)
-  -> (e -> d -> m e)
+  :: forall m h e
+   . (Monad m, Hashable e)
+  => (Maybe e -> e -> e -> m e)
   -> Causal m h e
   -> Causal m h e
   -> m (Causal m h e)
-threeWayMerge combine diff patch = mergeInternal merge0
+threeWayMerge combine = mergeInternal merge0
  where
   merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
   merge0 m =
@@ -189,15 +187,10 @@ threeWayMerge combine diff patch = mergeInternal merge0
           a           <- left
           b           <- right
           mayAncestor <- lca a b
-          case mayAncestor of
-            Nothing       -> mergeWithM combine a b
-            Just ancestor -> do
-              da      <- diff (head ancestor) (head a)
-              db      <- diff (head ancestor) (head b)
-              newHead <- patch (head ancestor) (da <> db)
-              let h = hash (newHead, Map.keys m)
-              pure . Merge (RawHash h) newHead $ Map.fromList
-                [(currentHash a, pure a), (currentHash b, pure b)]
+          newHead <- combine (head <$> mayAncestor) (head a) (head b)
+          let h = hash (newHead, Map.keys m)
+          pure . Merge (RawHash h) newHead $ Map.fromList
+            [(currentHash a, pure a), (currentHash b, pure b)]
     in  if Map.null m
           then error "Causal.threeWayMerge empty map"
           else foldl1' k $ Map.elems m

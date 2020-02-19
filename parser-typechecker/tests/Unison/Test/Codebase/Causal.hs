@@ -120,7 +120,7 @@ twoRemoved = foldr Causal.cons
 
 testThreeWay :: Causal Identity Hash (Set Int64)
 testThreeWay = runIdentity
-  $ Causal.threeWayMerge setCombine setDiff setPatch oneRemoved twoRemoved
+  $ threeWayMerge' oneRemoved twoRemoved
 
 setCombine :: Applicative m => Ord a => Set a -> Set a -> m (Set a)
 setCombine a b = pure $ a <> b
@@ -134,7 +134,7 @@ setPatch s (added, removed) = pure (added <> Set.difference s removed)
 -- merge x x == x, should not add a new head, and also the value at the head should be the same of course
 testIdempotent :: Causal Identity Hash (Set Int64) -> Bool -- Causal Identity Hash (Set Int64)
 testIdempotent causal = 
-     runIdentity (Causal.threeWayMerge setCombine setDiff setPatch causal causal) 
+     runIdentity (threeWayMerge' causal causal) 
   == causal
 
 -- prop_mergeIdempotent :: Bool
@@ -146,19 +146,33 @@ oneCausal = Causal.one (Set.fromList [1])
 -- generateRandomCausals :: Causal Identity Hash (Set Int64)
 -- generateRandomCausals = undefined
 
+easyCombine
+  :: (Monad m, Semigroup d)
+  => (e -> e -> m e)
+  -> (e -> e -> m d)
+  -> (e -> d -> m e)
+  -> (Maybe e -> e -> e -> m e)
+easyCombine comb _    _    Nothing l r = comb l r
+easyCombine _    diff appl (Just ca) l r = do
+  dl <- diff ca l
+  dr <- diff ca r
+  appl ca (dl <> dr)
+
+threeWayMerge' = Causal.threeWayMerge (easyCombine setCombine setDiff setPatch)
+
 -- merge x mempty == x, merge mempty x == x
 testIdentity :: Causal Identity Hash (Set Int64) -> Causal Identity Hash (Set Int64) -> Bool
 testIdentity causal mempty = 
-     (Causal.threeWayMerge setCombine setDiff setPatch causal mempty) 
-  == (Causal.threeWayMerge setCombine setDiff setPatch mempty causal)
+     (threeWayMerge' causal mempty) 
+  == (threeWayMerge' mempty causal)
 
 emptyCausal :: Causal Identity Hash (Set Int64)
 emptyCausal = one (Set.empty)
 
 -- merge (cons hd tl) tl == cons hd tl, merge tl (cons hd tl) == cons hd tl
 testCommutative :: Set Int64 -> Causal Identity Hash (Set Int64) -> Bool
-testCommutative hd tl = (Causal.threeWayMerge setCombine setDiff setPatch (Causal.cons hd tl) tl)
-  == (Causal.threeWayMerge setCombine setDiff setPatch tl (Causal.cons hd tl))
+testCommutative hd tl = (threeWayMerge' (Causal.cons hd tl) tl)
+  == (threeWayMerge' tl (Causal.cons hd tl))
 
 
 {-
