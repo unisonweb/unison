@@ -135,37 +135,24 @@ lca a b =
   go Set.empty Set.empty (Seq.singleton $ pure a) . Seq.singleton $ pure b
  where
   go seenLeft seenRight remainingLeft remainingRight =
-    case (Seq.viewl remainingLeft, Seq.viewl remainingRight) of
-      (Seq.EmptyL, _         ) -> pure Nothing
-      (_         , Seq.EmptyL) -> pure Nothing
-      (a :< as   , b :< bs   ) -> do
+    case Seq.viewl remainingLeft of
+      Seq.EmptyL -> search seenLeft remainingRight
+      a :< as -> do
         left <- a
-        -- Have we seen the left node before on the right?
         if Set.member (currentHash left) seenRight
           then pure $ Just left
-          else do
-            right <- b
-            -- Have we seen the right node before on the left?
-            if Set.member (currentHash right) seenLeft
-              then pure $ Just right
-              -- Are these two previously unseen nodes the same?
-              else if currentHash left == currentHash right
-                then pure $ Just left
-                -- Descend in to the children
-                else case (left, right) of
-                  (One h _, _) ->
-                    go (Set.insert h seenLeft) seenRight as remainingRight
-                  (_, One h _) ->
-                    go seenLeft (Set.insert h seenRight) remainingLeft bs
-                  _ -> descend (currentHash left)
-                               (currentHash right)
-                               (children left)
-                               (children right)
-       where
-        descend h1 h2 r1 r2 = go (Set.insert h1 seenLeft)
-                                 (Set.insert h2 seenRight)
-                                 (as <> r1)
-                                 (bs <> r2)
+          -- Note: swapping position of left and right when we recurse so that
+          -- we search each side equally. This avoids having to case on both
+          -- arguments, and the order shouldn't really matter.
+          else go seenRight (Set.insert (currentHash left) seenLeft) remainingRight (as <> children left)
+  search seen remaining =
+    case Seq.viewl remaining of
+      Seq.EmptyL -> pure Nothing
+      a :< as -> do
+        current <- a
+        if Set.member (currentHash current) seen
+          then pure $ Just current
+          else search seen (as <> children current)
 
 children :: Causal m h e -> Seq (m (Causal m h e))
 children (One _ _         ) = Seq.empty
