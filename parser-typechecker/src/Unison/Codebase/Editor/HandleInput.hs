@@ -2118,15 +2118,13 @@ toSlurpResult currentPath uf existingNames =
   termAliases = Map.fromList
     [ (var n, (isExistingName, aliases))
     | (n, r@Referent.Ref{}) <- R.toList $ Names.terms fileNames0
-    , aliases               <-
-      [ Set.map (Path.unprefixName currentPath) . Set.delete n $ R.lookupRan
-          r
-          (Names.terms existingNames)
-      ]
+    , let aliases =
+            Set.map (Path.unprefixName currentPath) . Set.delete n $ R.lookupRan
+              r
+              (Names.terms existingNames)
     , not (null aliases)
-    , let v = var n
-    , let isExistingName =
-            NameExists . R.memberDom n $ Names.terms existingNames
+    , let v              = var n
+    , let isExistingName = NameExists . R.memberDom n $ Names.terms existingNames
     , Set.notMember v (SC.terms dups)
     ]
 
@@ -2422,8 +2420,8 @@ makeHistoricalParsingNames lexedHQs = do
 basicParseNames0, basicPrettyPrintNames0, slurpResultNames0 :: Functor m => Action' m v Names0
 basicParseNames0 = fst <$> basicNames0'
 basicPrettyPrintNames0 = snd <$> basicNames0'
--- we check the file against everything we can reference during parsing
-slurpResultNames0 = basicParseNames0
+-- we check the file against everything in the current path
+slurpResultNames0 = currentPathNames0
 
 currentPathNames0 :: Functor m => Action' m v Names0
 currentPathNames0 = do

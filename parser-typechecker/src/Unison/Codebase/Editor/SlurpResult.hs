@@ -186,10 +186,10 @@ pretty isPast ppe sr =
               (P.wrap
                 (  P.hiBlack "(also named "
                 <> P.oxfordCommas
-                     ((P.shown <$> shown) ++ map
-                       (const (P.shown (length rest) <> " more"))
-                       (take 1 rest)
-                     )
+                     ((P.shown <$> shown) ++
+                       case length rest of
+                         0 -> []
+                         n -> [P.shown n <> " more"])
                 <> P.hiBlack ")"
                 )
               )
@@ -313,7 +313,7 @@ pretty isPast ppe sr =
       , oks
         (P.green "I've updated to these definitions:")
         (P.green
-        $ "These new definitions will replace existing ones of the same name and "
+        $ "These names will be redefined to match "
         <> "are ok to `update`:"
         )
         (updates sr)
