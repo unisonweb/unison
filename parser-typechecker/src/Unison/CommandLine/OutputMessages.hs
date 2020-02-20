@@ -218,8 +218,9 @@ notifyNumbered o = case o of
                  <> "using the following command:"
         ,""
         ,P.indentN 2 $
-          IP.makeExample IP.loadPullRequest [(prettyRemoteNamespace baseRepo)
-                                            ,(prettyRemoteNamespace headRepo)]
+          IP.makeExampleNoBackticks
+            IP.loadPullRequest [(prettyRemoteNamespace baseRepo)
+                               ,(prettyRemoteNamespace headRepo)]
         ,""
         ,p])) (showDiffNamespace ppe e e diff)
         -- todo: these numbers aren't going to work,
