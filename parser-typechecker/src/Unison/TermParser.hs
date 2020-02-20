@@ -39,7 +39,7 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
 import qualified Unison.Name as Name
 import qualified Unison.Names3 as Names
-import qualified Unison.Parser as Parser (seq)
+import qualified Unison.Parser as Parser (seq, uniqueName)
 import qualified Unison.PatternP as Pattern
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
@@ -77,7 +77,7 @@ term3 = do
     Just y -> Term.ann (mkAnn t y) t y
 
 keywordBlock :: Var v => TermP v
-keywordBlock = letBlock <|> handle <|> ifthen <|> match
+keywordBlock = letBlock <|> handle <|> ifthen <|> match <|> lamCase
 
 typeLink' :: Var v => P v (L.Token Reference)
 typeLink' = do
@@ -239,13 +239,23 @@ lam p = label "lambda" $ mkLam <$> P.try (some prefixDefinitionName <* reserved 
   where
     mkLam vs b = Term.lam' (ann (head vs) <> ann b) (map L.payload vs) b
 
-letBlock, handle, ifthen :: Var v => TermP v
+letBlock, handle, lamCase, ifthen :: Var v => TermP v
 letBlock = label "let" $ block "let"
 
 handle = label "handle" $ do
   b <- block "handle"
   handler <- block "with"
   pure $ Term.handle (ann b) handler b
+
+lamCase = do
+  start <- openBlockWith "cases"
+  cases <- sepBy1 semi matchCase
+  -- TODO: Add error for empty match list
+  _ <- closeBlock
+  lamvar <- Parser.uniqueName 10
+  let lamvarTerm = Term.var (ann start) (Var.named lamvar)
+      matchTerm = Term.match (ann start <> ann (last cases)) lamvarTerm cases
+  pure $ Term.lam (ann start <> ann (last cases)) (Var.named lamvar) matchTerm
 
 
 ifthen = label "if" $ do

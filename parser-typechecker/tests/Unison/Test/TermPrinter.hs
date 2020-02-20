@@ -136,6 +136,21 @@ test = scope "termprinter" . tests $
                  \  x = 1\n\
                  \  y = 2\n\
                  \  f x y"
+  , tc "let\n\
+        \  f = cases\n\
+        \    0 -> 0\n\
+        \    x -> x\n\
+        \  f y"
+  , tc "let\n\
+        \  f z = cases\n\
+        \    0 -> z\n\
+        \    y -> g y\n\
+        \  f \"\" 1"
+  , tc "let\n\
+        \  f _ = cases\n\
+        \    0 -> 0\n\
+        \    x -> x\n\
+        \  !f 1"
   , pending $ tc "match x with Pair t 0 -> foo t" -- TODO hitting UnknownDataConstructor when parsing pattern
   , pending $ tc "match x with Pair t 0 | pred t -> foo t" -- ditto
   , pending $ tc "match x with Pair t 0 | pred t -> foo t; Pair t 0 -> foo' t; Pair t u -> bar;" -- ditto
@@ -159,6 +174,11 @@ test = scope "termprinter" . tests $
   , tc "match e with { a } -> z"
   , pending $ tc "match e with { () -> k } -> z" -- TODO doesn't parse since 'many leaf' expected before the "-> k"
                                                  -- need an actual effect constructor to test this with
+  , tc "cases x -> x"
+  , tc "cases\n\
+        \  [] -> 0\n\
+        \  [x] -> 1\n\
+        \  _ -> 2"
   , tc "if a then if b then c else d else e"
   , tc "handle handle foo with bar with baz"
   , tcBreaks 16 "match (if a then\n\

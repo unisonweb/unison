@@ -284,6 +284,9 @@ pretty0
         paren (p >= 10) $ pretty0 n (ac 10 Normal im doc) f `PP.hang`
           PP.spacedMap (pretty0 n (ac 10 Normal im doc)) args
       _ -> case (term, nonUnitArgPred) of
+        (LamsNamedMatch' [] branches, _) ->
+          paren (p >= 3) $
+            PP.group (fmt S.ControlKeyword "cases") `PP.hang` PP.lines (map printCase branches)
         LamsNamedPred' vs body ->
           paren (p >= 3) $
             PP.group (varList vs <> fmt S.ControlKeyword " ->") `PP.hang` pretty0 n (ac 2 Block im doc) body
@@ -495,6 +498,10 @@ prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = 
         )
       , PP.group (prettyBinding0 env a v tm)
       ]
+    (printAnnotate env -> LamsNamedMatch' vs branches) ->
+      PP.group
+            $         PP.group (defnLhs v vs <> fmt S.BindingEquals " =" <> " " <> fmt S.ControlKeyword "cases")
+            `PP.hang` PP.lines (map printCase branches)
     LamsNamedOrDelay' vs body ->
       let (im', uses) = calcImports im body'
           -- In the case where we're being called from inside `pretty0`, this
@@ -506,6 +513,23 @@ prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = 
             `PP.hang` uses [pretty0 env (ac (-1) Block im' doc) body']
     t -> l "error: " <> l (show t)
    where
+    printCase :: Var v => MatchCase () (AnnotatedTerm3 v PrintAnnotation) -> Pretty SyntaxText
+    printCase (MatchCase pat guard (AbsN' vs body)) =
+      PP.group $ lhs `PP.hang` (uses [pretty0 env (ac 0 Block im' doc) body])
+      where
+      lhs = PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat) <> " ")
+         <> printGuard guard
+         <> (fmt S.ControlKeyword "->")
+      printGuard (Just g0) = let
+        -- strip off any Abs-chain around the guard, guard variables are rendered
+        -- like any other variable, ex: case Foo x y | x < y -> ...
+        g = case g0 of
+          AbsN' _ g' -> g'
+          _ -> g0
+        in PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty0 env (ac 2 Normal im doc) g, ""]
+      printGuard Nothing  = mempty
+      (im', uses) = calcImports im body
+    printCase _ = l "error"
     defnLhs v vs
       | infix' = case vs of
         x : y : _ -> PP.sep
@@ -524,6 +548,7 @@ prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = 
   symbolic = isSymbolic v
   isBinary = \case
     Ann'              tm _ -> isBinary tm
+    LamsNamedMatch'   vs _ -> length vs == 1
     LamsNamedOrDelay' vs _ -> length vs == 2
     _                      -> False -- unhittable
 
@@ -1007,4 +1032,3 @@ unLetBlock t = rec t where
         Just (innerBindings, innerBody) | dontIntersect bindings innerBindings ->
           Just (bindings ++ innerBindings, innerBody)
         _ -> Just (bindings, body)
-
