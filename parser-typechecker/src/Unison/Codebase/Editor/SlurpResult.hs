@@ -313,7 +313,7 @@ pretty isPast ppe sr =
       , oks
         (P.green "I've updated to these definitions:")
         (P.green
-        $ "These names will be redefined to match "
+        $ "These new definitions will replace existing ones of the same name and "
         <> "are ok to `update`:"
         )
         (updates sr)
