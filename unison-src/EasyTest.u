@@ -9,7 +9,7 @@ use List flatMap
 
 type Test.Success = Passed Nat | Proved
 
-type Test.Status = Failed 
+type Test.Status = Failed
                  | Expected Test.Success
                  | Unexpected Test.Success
                  | Pending
@@ -22,29 +22,29 @@ type Test.Test = Test (Test.Scope -> Test.Report)
 unique type Test.Scope = Scope [Text]
 
 foldSuccess : (Nat -> r) -> r -> Success -> r
-foldSuccess passed proved s = case s of
+foldSuccess passed proved = cases
   Passed n -> passed n
   Proved -> proved
 
 foldStatus : r -> (Success -> r) -> (Success -> r) -> r -> Status -> r
-foldStatus failed expected unexpected pending status = case status of 
+foldStatus failed expected unexpected pending = cases
   Failed -> failed
   Expected s -> expected s
   Unexpected s -> unexpected s
   Pending -> pending
-    
+
 foldReport : (Trie Text Test.Status -> r) -> Report -> r
 foldReport k r = case r of Report t -> k t
 
 foldScope : ([Text] -> r) -> Scope -> r
-foldScope k s = case s of Scope ss -> k ss
+foldScope k = cases Scope ss -> k ss
 
 Scope.cons : Text -> Scope -> Scope
 Scope.cons n = foldScope (Scope . List.cons n)
 
 -- Basic building blocks of tests
 Test.finished : Status -> Test
-Test.finished st = 
+Test.finished st =
   Test (Report . foldScope (sc -> Trie.singleton sc st))
 
 Test.failed : Test
@@ -65,20 +65,20 @@ Test.provedUnexpectedly = finished <| Unexpected Proved
 -- Basic test combinators
 
 Test.modifyStatus : (Status -> Status) -> Test -> Test
-Test.modifyStatus f t =
-  case t of Test k -> Test (foldReport (Report . map f) . k)
+Test.modifyStatus f =
+  cases Test k -> Test (foldReport (Report . map f) . k)
 
 Test.label : Text -> Test -> Test
-Test.label n t = case t of
+Test.label n = cases
   Test.Test.Test k -> Test (scope -> k <| Scope.cons n scope)
 
 use Test.Report combine
 
 (Test.&&) : Test -> Test -> Test
-(Test.&&) a b = case (a,b) of
+(Test.&&) a b = match (a,b) with
   (Test k1, Test k2) ->
     Test (
-      scope -> 
+      scope ->
         let r1 = k1 scope
             r2 = k2 scope
             combine r1 r2)
@@ -95,7 +95,7 @@ Test.failedWith m = Test.label m Test.failed
 -- Report combinators
 
 Test.Report.combine : Report -> Report -> Report
-Test.Report.combine r1 r2 = case (r1, r2) of
+Test.Report.combine r1 r2 = match (r1, r2) with
   (Test.Report.Report t1, Test.Report.Report t2) ->
     Report <| Trie.unionWith Status.combine t1 t2
 
@@ -104,26 +104,26 @@ Test.Report.empty = Report empty
 
 Test.Report.toCLIResult : Report -> [Test.Result]
 Test.Report.toCLIResult r =
-  descend scope p = case p of (k, t) -> 
+  descend scope = cases (k, t) ->
     go ((if scope != "" then (scope ++ ".") else "") ++ k) t
   convert : Text -> Test.Status -> Test.Result
-  convert scope s = case s of 
+  convert scope = cases
     Test.Status.Failed -> Test.Result.Fail scope
     Test.Status.Expected (Test.Success.Passed n) ->
       Test.Result.Ok (scope ++ " : Passed " ++ Nat.toText n ++ " tests.")
     Test.Status.Expected (Test.Success.Proved) ->
       Test.Result.Ok (scope ++ " : Proved.")
   go : Text -> Trie Text Test.Status -> [Test.Result]
-  go scope t = 
+  go scope t =
     rest = flatMap (descend scope) (Map.toList (tail t))
-    case head t of
-      Optional.Some status -> 
+    match head t with
+      Optional.Some status ->
         cons (convert scope status) rest
       Optional.None -> rest
-  case r of Test.Report.Report t -> go "" t
+  match r with Test.Report.Report t -> go "" t
 
 Test.report : Test -> Report
-Test.report t = case t of Test k -> k (Scope [])
+Test.report = cases Test k -> k (Scope [])
 
 -- Running tests
 
@@ -136,7 +136,7 @@ Test.runAll = flatMap Test.run
 -- Status combinators
 
 Status.combine : Test.Status -> Test.Status -> Test.Status
-Status.combine s1 s2 = case (s1, s2) of
+Status.combine s1 s2 = match (s1, s2) with
   (_, Pending) -> Pending
   (Pending, _) -> Pending
   (Failed, _) -> Failed
@@ -148,7 +148,7 @@ Status.combine s1 s2 = case (s1, s2) of
 
 
 Status.pending : Test.Status -> Test.Status
-Status.pending s = case s of
+Status.pending = cases
   Failed -> Pending
   Expected s -> Unexpected s
   Unexpected s -> Pending
@@ -156,12 +156,12 @@ Status.pending s = case s of
 
 -- Make a test pending
 Test.pending : Test -> Test
-Test.pending = modifyStatus Status.pending 
+Test.pending = modifyStatus Status.pending
 
 Test.modifyScope : (Scope -> Scope) -> Test -> Test
-Test.modifyScope f t = case t of Test k -> Test (k . f)
+Test.modifyScope f = cases Test k -> Test (k . f)
 
-Success.combine s1 s2 = case (s1, s2) of
+Success.combine s1 s2 = match (s1, s2) with
   (Passed n, Passed m) -> Passed (n + m)
   (Passed n, Proved) -> Passed n
   (Proved, Passed n) -> Passed n
@@ -181,10 +181,10 @@ Domain.nats = Large Weighted.nats
 -- The domain of all integers
 Domain.ints : Domain Int
 Domain.ints = let
-  go n = yield n <|> weight 1 
+  go n = yield n <|> weight 1
           '(go (if n > +0 then negate n else increment (negate n)))
   Large (List.foldl (a n -> a <|> yield n)
-                    Weighted.Fail 
+                    Weighted.Fail
                     [+0, +1, -1, maxInt, minInt] <|> go +2)
 
 use Universal == < >
@@ -200,8 +200,8 @@ namespace Domain where
 
   -- The domain of lists of arbitrary data is large
   listsOf : Domain a -> Domain [a]
-  listsOf d = 
-    Large (Weighted.lists case d of
+  listsOf d =
+    Large (Weighted.lists match d with
       Domain.Small as -> Weighted.fromList as
       Domain.Large w -> w)
 
@@ -209,13 +209,12 @@ namespace Domain where
   lists = Domain.listsOf (Small [()])
 
   sample : Nat -> Domain a -> [a]
-  sample n d =
-    case d of 
-      Domain.Large w -> Weighted.sample n w
-      Domain.Small xs -> take n xs
+  sample n = cases
+    Domain.Large w -> Weighted.sample n w
+    Domain.Small xs -> take n xs
 
   map : (a -> b) -> Domain a -> Domain b
-  map f d = case d of
+  map f = cases
     Domain.Large w -> Domain.Large (Weighted.map f w)
     Domain.Small as -> Domain.Small (List.map f as)
 
@@ -230,27 +229,27 @@ namespace Domain where
     wa = weighted da
     wb = weighted db
     wc = mergeWith (a1 a2 -> f a1 a2) wa wb
-    case (da, db) of
+    match (da, db) with
       (Domain.Small as, Domain.Small bs) | size as + size bs < smallSize ->
         Small (Weighted.sample smallSize wc)
       _ -> Large wc
 
   weighted : Domain a -> Weighted a
-  weighted d = case d of 
+  weighted = cases
     Domain.Small as -> Weighted.fromList as
     Domain.Large w -> w
 
 -- Test a property for a given domain up to a maximum size
 Test.forAll' : Nat -> Domain a -> (a -> Boolean) -> Test
 Test.forAll' maxSize domain property =
-  check xs s = 
+  check xs s =
     List.map (
-      a -> case a of (c, i) ->
+      cases (c, i) ->
              if property c then finished (Expected s)
              else label ("test case " ++ Nat.toText i) (finished Failed)
                  ) (indexed xs)
-  List.foldb id (Test.&&) proved <| 
-    case domain of 
+  List.foldb id (Test.&&) proved <|
+    match domain with
       Domain.Small xs -> check (take maxSize xs) Proved
       Domain.Large _ -> check (sample maxSize domain) (Passed 1)
 

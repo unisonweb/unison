@@ -1,11 +1,11 @@
 type Foo = Foo Boolean Boolean
 
 f : Foo -> Boolean
-f x = match x with
+f = cases
   Foo.Foo a b | a || b -> true
   _ -> false
 
 g : Foo -> Boolean
-g x = match x with
+g = cases
   Foo.Foo a b | a && b -> true
   _ -> false

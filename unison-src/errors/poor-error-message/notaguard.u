@@ -14,9 +14,8 @@ ability Ask a where
   ask : {Ask a} a
 
 supply : Text -> Request (Ask Text) a -> a
-supply t e = case e of
+supply t = cases
   {a} -> "foo" -- a
   {Ask.ask -> k} -> handle supply t in k ()
 
 ()
-

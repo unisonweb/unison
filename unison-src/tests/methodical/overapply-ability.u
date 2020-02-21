@@ -6,7 +6,7 @@ ability Zing where
   zing : Nat -> {Zing} (Nat -> Nat)
   zing2 : Nat -> Nat ->{Zing} (Nat -> Nat -> [Nat])
 
-unzing z = match z with
+unzing = cases
   {a} -> a
   {Zing.zing n -> k} -> handle k (x -> x `drop` n) with unzing
   {Zing.zing2 n1 n2 -> k} -> handle k (n3 n4 -> [n1, n2, n3, n4]) with unzing

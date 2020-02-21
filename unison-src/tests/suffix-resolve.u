@@ -7,12 +7,12 @@ foo : Int
 foo = +1
 
 -- no imports needed here, even though FQNs are builtin.Optional.{None,Some}
-ex1 o = match o with
+ex1 = cases
   None -> 0
   Some a -> a + 1
 
 -- you can still use the
-ex2 o = match o with
+ex2 = cases
   Optional.None -> 99
   Optional.Some _ -> 0
 

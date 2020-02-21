@@ -12,7 +12,7 @@ namespace Stream where
   step :
     (a ->{e} b) ->
     Request {Emit a} r ->{e, Emit b} r
-  step f e = match e with
+  step f = cases
     {r} -> r
     {Emit.emit a -> k} ->
       Emit.emit (f a)
@@ -28,7 +28,7 @@ namespace Stream where
 
   -- 1. inferred type of `map` required an `o -> o` for some reason
   map1 f s =
-    step f e = match e with
+    step f = cases
       {r} -> r
       {Emit.emit a -> k} ->
         Emit.emit (f a)
@@ -40,7 +40,7 @@ namespace Stream where
     step :
       (a ->{e} b) ->
       Request {Emit a} r ->{e, Emit b} r
-    step f e = match e with
+    step f = cases
       {r} -> r
       {Emit.emit a -> k} ->
         Emit.emit (f a)
@@ -48,7 +48,7 @@ namespace Stream where
     Stream ' handle step f in run s
 
   run : Stream e a r ->{e, Emit a} r
-  run s = match s with Stream c -> !c
+  run = cases Stream c -> !c
 
 ability Abort where
   abort : {Abort} a

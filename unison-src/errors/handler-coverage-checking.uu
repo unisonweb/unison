@@ -4,7 +4,7 @@ ability State se2 where
   get : ∀ se . () -> {State se} se
 
 state : ∀ s a . s -> Request (State s) a -> (s, a)
-state woot eff = case eff of
+state woot = cases
   { State.get () -> k } -> handle (state woot) in (k woot)
   { State.put snew -> k } -> handle (state snew) in (k ())
 

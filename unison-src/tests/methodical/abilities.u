@@ -4,7 +4,7 @@
 ability A where
   woot : {A} Nat
 
-unA w = match w with
+unA = cases
   {a} -> a
   {A.woot -> k} -> handle k 10 with unA
 
