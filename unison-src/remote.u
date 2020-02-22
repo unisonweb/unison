@@ -34,10 +34,10 @@ Remote.runLocal : '{Remote} a -> a
 Remote.runLocal r =
   step nid = cases
     {a} -> a
-    {Remote.fork t -> k} -> handle (step nid) in k t
-    {Remote.spawn -> k} -> handle (step (Node.increment nid)) in k nid
-    {Remote.at _ t -> k} -> handle (step nid) in k !t
-  handle (step (Node.Node 0)) in !r
+    {Remote.fork t -> k} -> handle k t with step nid
+    {Remote.spawn -> k} -> handle k nid with step (Node.increment nid)
+    {Remote.at _ t -> k} -> handle k !t with step nid
+  handle !r with step (Node.Node 0)
 
 -- Q: where do these nodes come from? that depends on the handler -
 -- you might have a handler like this, or a handler backed by an autoscaling EC2 pool...

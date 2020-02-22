@@ -76,10 +76,10 @@ Node.increment n =
 Remote.runLocal : '{Remote} a -> a
 Remote.runLocal r =
   step nid = cases
-    {Remote.spawn -> k} -> handle (step (Node.increment nid)) in k nid
-    {Remote.at _ t -> k} -> handle (step nid) in k (Future t)
+    {Remote.spawn -> k} -> handle k nid with step (Node.increment nid)
+    {Remote.at _ t -> k} -> handle k (Future t) with step nid
     {a} -> a -- the pure case
-  handle (step (Node.Node 0)) in !r
+  handle !r with step (Node.Node 0)
 
 merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]
 merge lte a b =

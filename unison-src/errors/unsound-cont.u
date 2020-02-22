@@ -7,6 +7,6 @@ supply t = cases
   {a} -> a
   -- `k` should be of type `Text -> Request Ask a`,
   -- so calling it with `()` here should be a type error
-  {Ask.ask -> k} -> handle supply t in k ()
+  {Ask.ask -> k} -> handle k () with supply t
 
 ()

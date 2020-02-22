@@ -8,8 +8,8 @@ ability State s where
 
 state : s -> Request (State s) a -> (s, a)
 state s = cases
-  { State.get -> k } -> handle (state s) in k s
-  { State.put snew -> k } -> handle (state snew) in k ()
+  { State.get -> k } -> handle k s with state s
+  { State.put snew -> k } -> handle k () with state snew
   { a } -> (s, a)
 
 modify3 : (s -> s) -> ()

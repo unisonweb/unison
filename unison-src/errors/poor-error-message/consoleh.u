@@ -20,8 +20,8 @@ namespace Console where
 
   state : s -> Request (State s) a -> a
   state s = cases
-    {State.get -> k} -> handle state s in k s
-    {State.set s' -> k} -> handle state s' in k ()
+    {State.get -> k} -> handle k s with state s
+    {State.set s' -> k} -> handle k () with state s'
     {a} -> a
 
   simulate : Request Console d -> {State ([Text], [Text])} d
@@ -34,24 +34,24 @@ namespace Console where
       -- this really should typecheck but doesn't for some reason
       -- error is that `simulate` doesn't check against `Request Console c -> r`,
       -- but seems like that `r` should get instantiated as `{State (..)} c`.
-      handle simulate in k (at 0 ins)
+      handle k (at 0 ins) with simulate
     {Console.write t -> k} ->
       io = State.get
       ins = fst io
       outs = snd io
       -- same deal here
-      handle simulate in k (State.set (ins, cons t outs))
+      handle k (State.set (ins, cons t outs)) with simulate
     {a} -> a
 
 (++) = concatenate
 
 handle
-  handle Console.simulate in
+  handle
     use Console read write
     use Optional Some None
     write "What's your name?"
     match read with
       Some name -> write ("Hello" ++ name)
       None -> write "Fine, be that way."
-
+  with Console.simulate
 ()

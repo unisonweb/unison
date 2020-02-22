@@ -81,11 +81,11 @@ Remote.runLocal r =
   step : Nat -> Request (Remote Nat) a -> a
   step nid = cases
     {a} -> a
-    {Remote.fork t -> k} -> handle (step nid) in k t
-    {Remote.spawn -> k} -> handle (step (nid + 1)) in k nid
-    {Remote.at _ t -> k} -> handle (step (nid + 1)) in k !t
+    {Remote.fork t -> k} -> handle k t with step nid
+    {Remote.spawn -> k} -> handle k nid with step (nid + 1)
+    {Remote.at _ t -> k} -> handle k !t with step (nid + 1)
 
-  handle (step 0) in !r
+  handle !r with step 0
 
 uno : '{e} a -> '{e} a -> {e} a
 uno a a2 = !a

@@ -58,12 +58,12 @@ type UnitLoc e = UnitLoc
 --       cancel = ()
 --       status = Finished
 --       keepalive d = ()
---       handle step in k (Future ('join, 'cancel, 'status, keepalive))
+--       handle k (Future ('join, 'cancel, 'status, keepalive)) with step
 --   err : Request {Error e} a -> Either e a
 --   err = cases
 --     {a} -> Right a
---     {Error.error t -> k} ->handle err in k (Left t)
---   handle err in handle step in !r
+--     {Error.error t -> k} ->handle k (Left t) with err
+--   handle handle !r with step with err
 
 -- > Remote.runSequential
 
