@@ -86,6 +86,8 @@ and `quux` namespaces.
 .P0> view foo.x foo.y foo.z bar.y quux.y
 ```
 
+These test that things we expect to be deleted are still deleted.
+
 ```ucm:error
 .P0> view foo.w
 ```

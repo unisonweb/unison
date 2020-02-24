@@ -196,6 +196,8 @@ and `quux` namespaces.
   quux.y = 333
 
 ```
+These test that things we expect to be deleted are still deleted.
+
 ```ucm
 .P0> view foo.w
 
