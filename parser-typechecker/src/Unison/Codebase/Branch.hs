@@ -350,16 +350,20 @@ merge (Branch x) (Branch y) =
     dr <- diff0 ca r
     head0 <- apply ca (dl <> dr)
     children <- Map.mergeA
-                  (Map.traverseMissing $ combineMissing ca)
-                  (Map.traverseMissing $ combineMissing ca)
+                  (Map.traverseMaybeMissing $ combineMissing ca)
+                  (Map.traverseMaybeMissing $ combineMissing ca)
                   (Map.zipWithAMatched $ const merge)
                   (_children l) (_children r)
     pure $ branch0 (_terms head0) (_types head0) children (_edits head0)
 
   combineMissing ca k cur =
     case Map.lookup k (_children ca) of
-      Nothing -> pure cur
-      Just old -> merge (cons empty0 old) cur
+      Nothing -> pure $ Just cur
+      Just old -> do
+        nw <- merge (cons empty0 old) cur
+        if isEmpty0 $ head nw
+        then pure Nothing
+        else pure $ Just nw
 
   apply :: Branch0 m -> BranchDiff -> m (Branch0 m)
   apply b0 BranchDiff {..} = do
