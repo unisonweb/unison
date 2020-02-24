@@ -106,7 +106,50 @@ test =
         .  expect
         $  testCommonAncestor
         -- $  prop_mergeCommonAncestor --}
+      , scope "lca.hasLca" lcaPairTest
+      , scope "lca.noLca" noLcaPairTest
       ]
+
+int64 :: Test Int64
+int64 = random
+
+extend
+  :: Int
+  -> Causal Identity Hash Int64
+  -> Test (Causal Identity Hash Int64)
+extend 0 ca = pure ca
+extend n ca = do
+  i <- int64
+  extend (n-1) (Causal.cons i ca)
+
+lcaPair :: Test (Causal Identity Hash Int64, Causal Identity Hash Int64)
+lcaPair = do
+  base <- one <$> int64
+  ll <- int' 0 20
+  lr <- int' 0 20
+  (,) <$> extend ll base <*> extend lr base
+
+lcaPairTest :: Test ()
+lcaPairTest = do
+  (cl, cr) <- lcaPair
+  _ <- expectJust . runIdentity $ Causal.lca cl cr
+  pure ()
+
+noLcaPair
+  :: Test (Causal Identity Hash Int64, Causal Identity Hash Int64)
+noLcaPair = do
+  basel <- one <$> int64
+  baser <- one <$> int64
+  ll <- int' 0 20
+  lr <- int' 0 20
+  (,) <$> extend ll basel <*> extend lr baser
+
+noLcaPairTest :: Test ()
+noLcaPairTest = do
+  (cl, cr) <- noLcaPair
+  case runIdentity $ Causal.lca cl cr of
+    Nothing -> ok
+    Just _ -> crash "expected no lca"
 
 oneRemoved :: Causal Identity Hash (Set Int64)
 oneRemoved = foldr Causal.cons
