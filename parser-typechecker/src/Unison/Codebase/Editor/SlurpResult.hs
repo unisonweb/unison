@@ -68,18 +68,6 @@ data SlurpResult v = SlurpResult {
   , defsWithBlockedDependencies :: SlurpComponent v
   } deriving (Show)
 
-newtype NameExists = NameExists { doesItExist :: Bool } deriving (Eq, Ord, Show)
-
-aliasToTypeComponent
-  :: Ord v => NameExists -> Map v (NameExists, Set Name) -> SlurpComponent v
-aliasToTypeComponent e m =
-  SlurpComponent (Map.keysSet $ Map.filter ((== e) . fst) m) mempty
-
-aliasToTermComponent
-  :: Ord v => NameExists -> Map v (NameExists, Set Name) -> SlurpComponent v
-aliasToTermComponent e m =
-  SlurpComponent mempty (Map.keysSet $ Map.filter ((== e) . fst) m)
-
 -- Returns the set of constructor names for type names in the given `Set`.
 constructorsFor :: Var v => Set v -> UF.TypecheckedUnisonFile v Ann -> Set v
 constructorsFor types uf = let
@@ -194,23 +182,24 @@ pretty isPast ppe sr =
     okType v = (plus <>) $ case UF.lookupDecl v (originalFile sr) of
       Just (_, dd) ->
         P.syntaxToColor (DeclPrinter.prettyDeclHeader (HQ.unsafeFromVar v) dd)
-          <> aliases   where
-        aliases = aliasesMessage . Map.lookup v $ typeAlias sr
+          <> P.lines aliases
+        where
+          aliases = aliasesMessage . Map.lookup v $ typeAlias sr
       Nothing -> P.bold (prettyVar v) <> P.red " (Unison bug, unknown type)"
 
     aliasesMessage aliases = case aliases of
-      Nothing -> ""
+      Nothing -> []
       Just (AddAliases (splitAt aliasesToShow . toList -> (shown, rest))) ->
-        P.newline <> P.indentN
+        [P.indentN
           2
           (P.wrap $ P.hiBlack "(also named " <> oxfordAliases shown
                                                               rest
                                                               (P.hiBlack ")")
-          )
+          )]
       Just (UpdateAliases oldNames newNames) ->
         let oldMessage =
                 let (shown, rest) = splitAt aliasesToShow $ toList oldNames
-                in  P.newline <> P.indentN
+                in  P.indentN
                       2
                       (  P.wrap
                       $  P.hiBlack "(The old definition was also named "
@@ -219,29 +208,16 @@ pretty isPast ppe sr =
                       )
             newMessage =
                 let (shown, rest) = splitAt aliasesToShow $ toList newNames
-                in  P.newline <> P.indentN
+                in  P.indentN
                       2
                       (  P.wrap
                       $  P.hiBlack "(The new definition is also named "
                       <> oxfordAliases shown rest "."
                       )
-        in  (if null oldNames then mempty else oldMessage)
-              <> (if null newNames then mempty else newMessage)
+        in  (if null oldNames then mempty else [oldMessage])
+              ++ (if null newNames then mempty else [newMessage])
 
-    -- The Bool is True if it's "past tense", the message for having already
-    -- updated the term.
-    updatedTerm :: Bool -> v -> [(P.Pretty P.ColorText, Maybe (P.Pretty P.ColorText))]
-    updatedTerm past v = case Map.lookup v tms of
-      Nothing ->
-        [(P.bold (prettyVar v), Just $ P.red "(Unison bug, unknown term)")]
-      Just (ref, _tm, ty) ->
-        ( plus <> P.bold (prettyVar v)
-          , Just $ ": " <> P.indentNAfterNewline 2 (TP.pretty ppe ty)
-          ) : (oldType ++ aliases)
-       where
-         aliases = aliasMessage . Map.lookup v $ termAlias sr
-         oldType = "SOMETHING"
-
+    -- The second field in the result is an optional second column.
     okTerm :: v -> [(P.Pretty P.ColorText, Maybe (P.Pretty P.ColorText))]
     okTerm v = case Map.lookup v tms of
       Nothing ->
@@ -249,19 +225,10 @@ pretty isPast ppe sr =
       Just (_, _, ty) ->
         ( plus <> P.bold (prettyVar v)
           , Just $ ": " <> P.indentNAfterNewline 2 (TP.pretty ppe ty)
-          )
-          : aliases
+          ) : ((,Nothing) <$> aliases)
        where
-        aliases = case Map.lookup v (termAlias sr) of
-          Nothing -> []
-          Just (_, splitAt 5 . toList -> (shown, rest)) ->
-            [ ( P.indentN 2
-                $  P.hiBlack "(also named "
-                <> oxfordAliases shown rest
-                <> P.hiBlack ")"
-              , Nothing
-              )
-            ]
+         aliases = aliasesMessage . Map.lookup v $ termAlias sr
+
     okToAdd sc | SC.isEmpty sc = mempty
     okToAdd sc =
       let past = P.green "I've added these definitions:"
@@ -279,9 +246,9 @@ pretty isPast ppe sr =
               "to your new definition:"
           header = goodIcon <>
             P.indentNAfterNewline 2 (P.wrap (if isPast then past else present))
-          updatedTypes = P.lines $ updatedType <$> toList (SC.types sc)
-          updatedTerms = P.mayColumn2 . (=<<) updatedTerm . Set.toList $ SC.terms sc
-       in header <> "\n\n" <> P.linesNonEmpty []
+          updatedTypes = P.lines $ okType <$> toList (SC.types sc)
+          updatedTerms = P.mayColumn2 . (=<<) okTerm . Set.toList $ SC.terms sc
+       in header <> "\n\n" <> P.linesNonEmpty [updatedTypes, updatedTerms]
     notOks _past _present sr | isOk sr = mempty
     notOks past present sr =
       let
@@ -306,16 +273,11 @@ pretty isPast ppe sr =
                <$> toList (types (defsWithBlockedDependencies sr))
                )
         termLineFor status v = case Map.lookup v tms of
-          Just (_, _, ty) ->
+          Just (_ref, _tm, ty) ->
             ( prettyStatus status
-            , lhs
+            , P.bold (P.text $ Var.name v)
             , ": " <> P.indentNAfterNewline 6 (TP.pretty ppe ty)
             )
-           where
-            lhs = case Map.lookup v (termAlias sr) of
-              Nothing -> P.bold (P.text $ Var.name v)
-              Just (_, ns) ->
-                P.sep ", " (P.bold (prettyVar v) : (P.shown <$> toList ns))
           Nothing -> (prettyStatus status, P.text (Var.name v), "")
         termMsgs =
           P.column3sep "  "
@@ -364,13 +326,7 @@ pretty isPast ppe sr =
                                          (P.hiBlack . prettyVar <$> dups)
                  )
       , okToAdd (adds sr)
-      , okToUpdate
-          (P.green "I've updated to these definitions:")
-          (P.green
-          $ "These new definitions will replace existing ones of the same name and "
-          <> "are ok to `update`:"
-          )
-          (updates sr)
+      , okToUpdate (updates sr)
       , notOks
         (P.red "These definitions failed:")
         (P.wrap $ P.red "These definitions would fail on `add` or `update`:")

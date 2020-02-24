@@ -27,7 +27,7 @@ import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.DisplayThing
 import qualified Unison.Codebase.Editor.Output as Output
-import Unison.Codebase.Editor.SlurpResult (SlurpResult(..), NameExists(..))
+import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import qualified Unison.Codebase.Editor.SlurpResult as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
@@ -2114,35 +2114,42 @@ toSlurpResult currentPath uf existingNames =
       , r' /= r
       ]
 
-  termAliases :: Map v (NameExists, Set Name)
-  termAliases = Map.fromList
-    [ (var n, (isExistingName, aliases))
-    | (n, r@Referent.Ref{}) <- R.toList $ Names.terms fileNames0
-    , let aliases =
-            Set.map (Path.unprefixName currentPath) . Set.delete n $ R.lookupRan
-              r
-              (Names.terms existingNames)
-    , not (null aliases)
-    , let v              = var n
-    , let isExistingName = NameExists . R.memberDom n $ Names.terms existingNames
-    , Set.notMember v (SC.terms dups)
+  buildAliases
+    :: R.Relation Name Referent
+    -> R.Relation Name Referent
+    -> Set v
+    -> Map v Slurp.Aliases
+  buildAliases existingNames namesFromFile duplicates = Map.fromList
+    [ ( var n
+      , if null aliasesOfOld
+        then Slurp.AddAliases aliasesOfNew
+        else Slurp.UpdateAliases aliasesOfOld aliasesOfNew
+      )
+    | (n, r@Referent.Ref{}) <- R.toList namesFromFile
+  -- All the refs whose names include `n`, and are not `r`
+    , let
+      refs = Set.delete r $ R.lookupDom n existingNames
+      aliasesOfNew =
+        Set.map (Path.unprefixName currentPath) . Set.delete n $ R.lookupRan
+          r
+          existingNames
+      aliasesOfOld =
+        Set.map (Path.unprefixName currentPath) . R.dom $ R.restrictRan
+          existingNames
+          refs
+    , not (null aliasesOfNew)
+    , Set.notMember (var n) duplicates
     ]
 
-  typeAliases :: Map v (NameExists, Set Name)
-  typeAliases = Map.fromList
-    [ (v, (isExistingName, aliases))
-    | (n, r) <- R.toList $ Names.types fileNames0
-    , aliases <-
-      [ Set.map (Path.unprefixName currentPath) . Set.delete n $ R.lookupRan
-          r
-          (Names.types existingNames)
-      ]
-    , not (null aliases)
-    , let v = var n
-    , let isExistingName =
-            NameExists . R.memberDom n $ Names.types existingNames
-    , Set.notMember v (SC.types dups)
-    ]
+  termAliases :: Map v Slurp.Aliases
+  termAliases = buildAliases (Names.terms existingNames)
+                             (Names.terms fileNames0)
+                             (SC.terms dups)
+
+  typeAliases :: Map v Slurp.Aliases
+  typeAliases = buildAliases (R.mapRan (Referent.Ref) $ Names.types existingNames)
+                             (R.mapRan (Referent.Ref) $ Names.types fileNames0)
+                             (SC.types dups)
 
   -- add (n,r) if n doesn't exist and r doesn't exist in names0
   adds = sc terms types where
