@@ -35,6 +35,7 @@ module Unison.Util.Pretty (
    commas,
    commented,
    oxfordCommas,
+   oxfordCommasWith,
    plural,
    dashed,
    flatMap,
@@ -304,7 +305,13 @@ commas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 commas = intercalateMap ("," <> softbreak) id
 
 oxfordCommas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
-oxfordCommas xs = case toList xs of
+oxfordCommas = oxfordCommasWith ""
+
+-- Like `oxfordCommas`, but attaches `end` at the end (without a space).
+-- For example, `oxfordCommasWith "."` will attach a period.
+oxfordCommasWith
+  :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
+oxfordCommasWith end xs = case toList xs of
   []     -> ""
   [x]    -> x
   [x, y] -> x <> " and " <> y
@@ -314,7 +321,7 @@ oxfordCommas xs = case toList xs of
       <> softbreak
       <> "and"
       <> softbreak
-      <> last xs
+      <> group (last xs <> end)
 
 parenthesizeCommas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 parenthesizeCommas = surroundCommas "(" ")"

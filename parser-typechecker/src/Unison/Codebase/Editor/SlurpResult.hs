@@ -28,6 +28,16 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import qualified Unison.Var as Var
 
+-- `oldRefNames` are the previously existing names for the old reference
+--   (these names will all be pointed to a new reference)
+-- `newRefNames` are the previously existing names for the new reference
+--   (the reference that all the old names will point to after the update)
+data Aliases
+  = AddAliases (Set Name)
+  | UpdateAliases { oldRefNames :: Set Name
+                  , newRefNames :: Set Name }
+  deriving (Show, Eq, Ord)
+
 data SlurpResult v = SlurpResult {
   -- The file that we tried to add from
     originalFile :: UF.TypecheckedUnisonFile v Ann
@@ -53,8 +63,8 @@ data SlurpResult v = SlurpResult {
   , termExistingConstructorCollisions :: Set v
   , constructorExistingTermCollisions :: Set v
   -- -- Already defined in the branch, but with a different name.
-  , termAlias :: Map v (NameExists, Set Name)
-  , typeAlias :: Map v (NameExists, Set Name)
+  , termAlias :: Map v Aliases
+  , typeAlias :: Map v Aliases
   , defsWithBlockedDependencies :: SlurpComponent v
   } deriving (Show)
 
@@ -159,6 +169,9 @@ type IsPastTense = Bool
 prettyVar :: Var v => v -> P.Pretty P.ColorText
 prettyVar = P.text . Var.name
 
+aliasesToShow :: Int
+aliasesToShow = 5
+
 pretty
   :: forall v
    . Var v
@@ -172,28 +185,63 @@ pretty isPast ppe sr =
     goodIcon = P.green "⍟ "
     badIcon  = P.red "x "
     plus     = P.green "  "
+    oxfordAliases shown rest end = P.oxfordCommasWith end $
+      (P.shown <$> shown) ++ case length rest of
+        0 -> []
+        n -> [P.shown n <> " more"]
     -- TODO: This is not rendering the way we want or expect.
     -- Indentation doesn't work correctly in columns. Suspect a bug in Pretty.
     okType v = (plus <>) $ case UF.lookupDecl v (originalFile sr) of
       Just (_, dd) ->
         P.syntaxToColor (DeclPrinter.prettyDeclHeader (HQ.unsafeFromVar v) dd)
-          <> aliases       where
-        aliases = case Map.lookup v (typeAlias sr) of
-          Nothing -> ""
-          Just (_, splitAt 5 . toList -> (shown, rest)) ->
-            P.newline <> P.indentN
-              2
-              (P.wrap
-                (  P.hiBlack "(also named "
-                <> P.oxfordCommas
-                     ((P.shown <$> shown) ++
-                       case length rest of
-                         0 -> []
-                         n -> [P.shown n <> " more"])
-                <> P.hiBlack ")"
-                )
-              )
+          <> aliases   where
+        aliases = aliasesMessage . Map.lookup v $ typeAlias sr
       Nothing -> P.bold (prettyVar v) <> P.red " (Unison bug, unknown type)"
+
+    aliasesMessage aliases = case aliases of
+      Nothing -> ""
+      Just (AddAliases (splitAt aliasesToShow . toList -> (shown, rest))) ->
+        P.newline <> P.indentN
+          2
+          (P.wrap $ P.hiBlack "(also named " <> oxfordAliases shown
+                                                              rest
+                                                              (P.hiBlack ")")
+          )
+      Just (UpdateAliases oldNames newNames) ->
+        let oldMessage =
+                let (shown, rest) = splitAt aliasesToShow $ toList oldNames
+                in  P.newline <> P.indentN
+                      2
+                      (  P.wrap
+                      $  P.hiBlack "(The old definition was also named "
+                      <> oxfordAliases shown rest "."
+                      <> P.hiBlack "These will all be updated.)"
+                      )
+            newMessage =
+                let (shown, rest) = splitAt aliasesToShow $ toList newNames
+                in  P.newline <> P.indentN
+                      2
+                      (  P.wrap
+                      $  P.hiBlack "(The new definition is also named "
+                      <> oxfordAliases shown rest "."
+                      )
+        in  (if null oldNames then mempty else oldMessage)
+              <> (if null newNames then mempty else newMessage)
+
+    -- The Bool is True if it's "past tense", the message for having already
+    -- updated the term.
+    updatedTerm :: Bool -> v -> [(P.Pretty P.ColorText, Maybe (P.Pretty P.ColorText))]
+    updatedTerm past v = case Map.lookup v tms of
+      Nothing ->
+        [(P.bold (prettyVar v), Just $ P.red "(Unison bug, unknown term)")]
+      Just (ref, _tm, ty) ->
+        ( plus <> P.bold (prettyVar v)
+          , Just $ ": " <> P.indentNAfterNewline 2 (TP.pretty ppe ty)
+          ) : (oldType ++ aliases)
+       where
+         aliases = aliasMessage . Map.lookup v $ termAlias sr
+         oldType = "SOMETHING"
+
     okTerm :: v -> [(P.Pretty P.ColorText, Maybe (P.Pretty P.ColorText))]
     okTerm v = case Map.lookup v tms of
       Nothing ->
@@ -209,23 +257,31 @@ pretty isPast ppe sr =
           Just (_, splitAt 5 . toList -> (shown, rest)) ->
             [ ( P.indentN 2
                 $  P.hiBlack "(also named "
-                <> P.oxfordCommas
-                     ((P.shown <$> shown) ++ map
-                       (const (P.shown (length rest) <> " more"))
-                       (take 1 rest)
-                     )
+                <> oxfordAliases shown rest
                 <> P.hiBlack ")"
               , Nothing
               )
             ]
-    oks _past _present sc | SC.isEmpty sc = mempty
-    oks past present sc =
-      let header = goodIcon <> P.indentNAfterNewline
-            2
-            (P.wrap (if isPast then past else present))
+    okToAdd sc | SC.isEmpty sc = mempty
+    okToAdd sc =
+      let past = P.green "I've added these definitions:"
+          present = P.green "These new definitions are ok to `add`:"
+          header = goodIcon <>
+            P.indentNAfterNewline 2 (P.wrap (if isPast then past else present))
           addedTypes = P.lines $ okType <$> toList (SC.types sc)
           addedTerms = P.mayColumn2 . (=<<) okTerm . Set.toList $ SC.terms sc
       in  header <> "\n\n" <> P.linesNonEmpty [addedTypes, addedTerms]
+    okToUpdate sc | SC.isEmpty sc = mempty
+    okToUpdate sc =
+      let past = P.green "I've updated these names to your new definition:"
+          present =
+            P.green $ "These names already exist. You can `update` them " <>
+              "to your new definition:"
+          header = goodIcon <>
+            P.indentNAfterNewline 2 (P.wrap (if isPast then past else present))
+          updatedTypes = P.lines $ updatedType <$> toList (SC.types sc)
+          updatedTerms = P.mayColumn2 . (=<<) updatedTerm . Set.toList $ SC.terms sc
+       in header <> "\n\n" <> P.linesNonEmpty []
     notOks _past _present sr | isOk sr = mempty
     notOks past present sr =
       let
@@ -307,16 +363,14 @@ pretty isPast ppe sr =
                                          " "
                                          (P.hiBlack . prettyVar <$> dups)
                  )
-      , oks (P.green "I've added these definitions:")
-            (P.green "These new definitions are ok to `add`:")
-            (adds sr)
-      , oks
-        (P.green "I've updated to these definitions:")
-        (P.green
-        $ "These new definitions will replace existing ones of the same name and "
-        <> "are ok to `update`:"
-        )
-        (updates sr)
+      , okToAdd (adds sr)
+      , okToUpdate
+          (P.green "I've updated to these definitions:")
+          (P.green
+          $ "These new definitions will replace existing ones of the same name and "
+          <> "are ok to `update`:"
+          )
+          (updates sr)
       , notOks
         (P.red "These definitions failed:")
         (P.wrap $ P.red "These definitions would fail on `add` or `update`:")
