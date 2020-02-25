@@ -23,13 +23,13 @@ w = match Foo3.Foo3 1 2 "bye" with
   Foo3.Foo3 1 2 x -> x Text.++ "bye"
   _ -> ""
 
-w2 foo = match foo with
+w2 = cases
   Foo3.Foo3 1 4 x -> x Text.++ "bye"
   Foo3.Foo3 x y z -> z Text.++ z
   _ -> "hi"
 
 len : List a -> Nat
-len l = match l with
+len = cases
   List.Nil -> 0
   List.Cons _ t -> len t + 1
 

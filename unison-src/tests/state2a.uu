@@ -7,9 +7,9 @@ ability State s where
   get : {State s} s
 
 state : s -> Request (State s) a -> (s, a)
-state s eff = match eff with
-  { State.get -> k } -> handle (state s) in k s
-  { State.put snew -> k } -> handle (state snew) in k ()
+state s = cases
+  { State.get -> k } -> handle k s with state s
+  { State.put snew -> k } -> handle k () with state snew
   { a } -> (s, a)
 
 modify3 : (s -> s) -> ()
@@ -28,4 +28,3 @@ they can't bind to the universals nor does that really make sense
 
 would need some nondeterminism or multiple phases in the typechecking process to
 do better
-

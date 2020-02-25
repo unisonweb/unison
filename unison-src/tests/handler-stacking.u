@@ -23,12 +23,12 @@ ability Writer w where
   tell : w -> {Writer w} ()
 
 stateHandler : s -> Request {State s} a -> (s, a)
-stateHandler s x = match x with
+stateHandler s = cases
   { State.get -> k } -> handle k s with stateHandler s
   { State.put s -> k } -> handle k () with stateHandler s
   { a } -> (s, a)
 
 writerHandler : [w] -> Request {Writer w} a -> ([w], a)
-writerHandler ww x = match x with
+writerHandler ww = cases
   { Writer.tell w -> k } -> handle k () with writerHandler (ww `snoc` w)
   { a } -> (ww, a)

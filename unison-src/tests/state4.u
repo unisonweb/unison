@@ -3,7 +3,7 @@ ability State s where
   get : {State s} s
 
 state : s -> Request (State s) a -> s
-state s eff = match eff with
+state s = cases
   { State.get -> k } -> handle k s with state s
   { State.put snew -> k } -> handle k () with state snew
   { a } -> s

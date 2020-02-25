@@ -8,7 +8,7 @@ ability Noop2 where
 type List a = Nil | Cons a (List a)
 
 map : (a -> b) -> List a -> List b
-map f as = match as with
+map f = cases
   List.Nil -> List.Nil
   List.Cons h t -> List.Cons (f h) (map f t)
 
@@ -30,6 +30,3 @@ zappy = 'let map (zap -> Noop.noop (zap Nat.+ 1)) ex
 zappy2 : '{Noop, Noop2} (List Nat)
 zappy2 = 'let
   map (zap -> Noop.noop (zap Nat.+ Noop2.noop2 2 7)) ex
-
-
-

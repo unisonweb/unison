@@ -20,7 +20,7 @@ ability Remote where
 type Node = Node Nat -- more realistic would be perhaps a (Hostname, PublicKey) pair
 
 force : Future a ->{Remote} a
-force f = match f with Future.Future r -> !r
+force = cases Future.Future r -> !r
 
 -- Let's test out this beast! do we need to deploy our code to some EC2 instances??
 -- Gak, no not yet, we just want to test locally, let's write a handler
@@ -29,7 +29,7 @@ force f = match f with Future.Future r -> !r
 Remote.runLocal : '{Remote} a -> a
 Remote.runLocal r =
   use Future Future
-  step nid r = match r with
+  step nid = cases
     {a} -> a
     {Remote.fork t -> k} -> handle k (Future t) with step nid
     {Remote.spawn -> k} -> handle k nid with step (Node.increment nid)
@@ -52,10 +52,10 @@ List.map f as =
 
 type Monoid a = Monoid (a -> a -> a) a
 
-Monoid.zero m = match m with Monoid.Monoid op z -> z
-Monoid.op   m = match m with Monoid.Monoid op z -> op
+Monoid.zero = cases Monoid.Monoid op z -> z
+Monoid.op   = cases Monoid.Monoid op z -> op
 
-Monoid.orElse m a = match a with
+Monoid.orElse m = cases
   None -> Monoid.zero m
   Some a -> a
 

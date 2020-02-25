@@ -19,7 +19,7 @@ ability Remote where
 type Node = Node Nat -- more realistic would be perhaps a (Hostname, PublicKey) pair
 
 force : Future a ->{Remote} a
-force f = match f with Future.Future r -> !r
+force = cases Future.Future r -> !r
 
 Future.fromThunk : '{Remote} a -> Future a
 Future.fromThunk = Future.Future
@@ -30,7 +30,7 @@ Future.fromThunk = Future.Future
 
 Remote.runLocal : '{Remote} a -> a
 Remote.runLocal r =
-  step nid r = match r with
+  step nid = cases
     {a} -> a
     {Remote.fork t -> k} -> handle k (Future.fromThunk t) with step nid
     {Remote.spawn -> k} -> handle k nid with step (Node.increment nid)
@@ -53,10 +53,10 @@ List.map f as =
 
 type Monoid a = Monoid (a -> a -> a) a
 
-Monoid.zero m = match m with Monoid.Monoid op z -> z
-Monoid.op   m = match m with Monoid.Monoid op z -> op
+Monoid.zero = cases Monoid.Monoid op z -> z
+Monoid.op   = cases Monoid.Monoid op z -> op
 
-Monoid.orElse m a = match a with
+Monoid.orElse m = cases
   None -> Monoid.zero m
   Some a -> a
 

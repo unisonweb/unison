@@ -2,7 +2,7 @@ The same kind of thing happens with `map`. Are we saying this is incorrect behav
 
 ```unison
 map : (a -> b) -> [a] -> [b]
-map f xs = match xs with
+map f = cases
   x +: xs -> f x +: map f xs
   [] -> []
 ```
@@ -31,12 +31,11 @@ map f xs = match xs with
 .> view map
 
   map : (a -> b) -> [a] -> [b]
-  map f xs =
-    match xs with
-      x +: xs ->
-        use builtin.List +:
-        f x +: map f xs
-      [] -> []
+  map f = cases
+    x +: xs ->
+      use builtin.List +:
+      f x +: map f xs
+    [] -> []
 
 .> find map
 

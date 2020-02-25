@@ -5,7 +5,7 @@
 type Woot = Woot Nat Nat Nat Nat
 
 toSeq : Woot -> [Nat]
-toSeq w = match w with
+toSeq = cases
   Woot a b c d -> [a,b,c,d]
 
 use Woot Woot
@@ -27,5 +27,3 @@ underapply2t =
   f 4
 
 > (toSeq exactt, toSeq underapply0t, toSeq underapply1t, toSeq underapply2t)
-
-

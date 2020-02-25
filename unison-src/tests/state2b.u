@@ -7,7 +7,7 @@ ability State s where
   get : {State s} s
 
 state : s -> Request (State s) a -> (s, a)
-state s eff = match eff with
+state s = cases
   { State.get -> k } -> handle k s with state s
   { State.put snew -> k } -> handle k () with state snew
   { a } -> (s, a)
@@ -19,10 +19,10 @@ increment : '{State Nat} ()
 increment = '(modify ((+) 1))
 
 second : (a, b) -> b
-second p = match p with (_,b) -> b
+second = cases (_,b) -> b
 
 first : (a, b) -> a
-first p = match p with (a,_) -> a
+first = cases (a,_) -> a
 
 ex : Nat
 ex =
