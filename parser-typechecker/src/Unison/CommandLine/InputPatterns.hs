@@ -912,11 +912,6 @@ helpTopicsMap = Map.fromList [
        "same as an existing term. Rename that term or your constructor" <>
        "before trying again to `add` or `update`."),
       blankline,
-      (P.bold $ SR.prettyStatus SR.Alias,
-       "A definition in the file already has another name." <>
-       "You can use the `alias.term` or `alias.type` commands" <>
-       "to create new names for existing definitions."),
-      blankline,
       (P.bold $ SR.prettyStatus SR.BlockedDependency,
        "This definition was blocked because it dependended on " <>
        "a definition with a failed status."),

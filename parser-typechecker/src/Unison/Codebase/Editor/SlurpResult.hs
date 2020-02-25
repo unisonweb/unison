@@ -125,7 +125,7 @@ isNonempty :: Ord v => SlurpResult v -> Bool
 isNonempty s = Monoid.nonEmpty (adds s) || Monoid.nonEmpty (updates s)
 
 data Status =
-  Add | Update | Duplicate | Alias | Collision | Conflicted |
+  Add | Update | Duplicate | Collision | Conflicted |
   TermExistingConstructorCollision | ConstructorExistingTermCollision |
   ExtraDefinition | BlockedDependency
   deriving (Ord,Eq,Show)
@@ -150,7 +150,6 @@ prettyStatus s = case s of
   ConstructorExistingTermCollision -> "ctor/term collision"
   BlockedDependency                -> "blocked"
   ExtraDefinition                  -> "extra dependency"
-  Alias                            -> "created alias"
 
 type IsPastTense = Bool
 
