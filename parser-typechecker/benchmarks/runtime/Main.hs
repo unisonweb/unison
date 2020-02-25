@@ -1,3 +1,4 @@
+{-# language PatternSynonyms #-}
 
 module Main(main) where
 
@@ -6,57 +7,72 @@ import Criterion.Main
 import Unison.Runtime.IR2
 import Unison.Runtime.Rt2
 
-loop :: IR
-loop = Match 0 $ Test1 0 (Yield $ UArg1 1) rec
+pattern App b r a = Appl (-1) Nothing (Unknown b r a)
+pattern LApp b r a ret = Appl (-1) (Just ret) (Unknown b r a)
+pattern Call b i a = Appl (-1) Nothing (Known b i a)
+pattern LCall b i a ret = Appl (-1) (Just ret) (Known b i a)
+
+infixr 0 $<, $$, ><
+($<) :: Instr -> Flow -> Section
+i $< f = Section (i :< NL) f
+($$) :: Instr -> Section -> Section
+i $$ (Section is fl) = Section (i :< is) fl
+esn :: Flow -> Section
+esn = Section NL
+(><) :: (Section -> a) -> Flow -> a
+h >< fl = h $ esn fl
+
+loop :: Section
+loop = esn $ Match 0 $ Test1 0 (esn . Yield $ UArg1 1) rec
   where
   rec = Prim2 Add 0 1
-      $ Prim1 Dec 1
-      $ App False (Env 0) (UArg2 0 1)
+     $$ Prim1 Dec 1
+     $< App False (Env 0) (UArg2 0 1)
 
 -- Boxed version of loop to see how fast we are without
 -- worker/wrapper.
-sloop :: IR
-sloop = Unpack 1 . Unpack 0 $ body
+sloop :: Section
+sloop = Unpack 1 $$ Unpack 0 $< body
   where
   body = Match 1 $ Test1
-           0 (Pack 0 (UArg1 3) $ Yield (BArg1 0))
+           0 (Pack 0 (UArg1 3) $< Yield (BArg1 0))
            {-else-} rec
   rec  = Prim2 Add 1 3
-       $ Prim1 Dec 2
-       $ Pack 0 (UArg1 1)
-       $ Pack 0 (UArg1 0)
-       $ App False (Env 1) (BArg2 0 1)
+      $$ Prim1 Dec 2
+      $$ Pack 0 (UArg1 1)
+      $$ Pack 0 (UArg1 0)
+      $< App False (Env 1) (BArg2 0 1)
 
 -- loop with fast path optimization
-oloop :: IR
-oloop = Match 0 $ Test1 0 (Yield $ UArg1 1) rec
+oloop :: Section
+oloop = esn $ Match 0 $ Test1 0 (esn . Yield $ UArg1 1) rec
   where
   rec = Prim2 Add 0 1
-      $ Prim1 Dec 1
-      $ Call False 7 (UArg2 0 1)
+     $$ Prim1 Dec 1
+     $< Call False 7 (UArg2 0 1)
 
 -- sloop with fast path optimization
-soloop :: IR
-soloop = Unpack 1 . Unpack 0 $ body
+soloop :: Section
+soloop = Unpack 1 $$ Unpack 0 $< body
   where
   body = Match 1 $ Test1
-           0 (Pack 0 (UArg1 3) $ Yield (BArg1 0))
+           0 (Pack 0 (UArg1 3) $< Yield (BArg1 0))
            {-else-} rec
   rec = Prim2 Add 1 3
-      $ Prim1 Dec 2
-      $ Pack 0 (UArg1 1)
-      $ Pack 0 (UArg1 0)
-      $ Call False 8 (BArg2 0 1)
+     $$ Prim1 Dec 2
+     $$ Pack 0 (UArg1 1)
+     $$ Pack 0 (UArg1 0)
+     $< Call False 8 (BArg2 0 1)
 
-konst :: IR
-konst = Yield (BArg1 0)
+konst :: Section
+konst = esn $ Yield (BArg1 0)
 
-add :: IR
+add :: Section
 add = Unpack 1
-    $ Unpack 0
-    $ Prim2 Add 1 3
-    $ Pack 0 (UArg1 0)
-    $ Yield (BArg1 0)
+   $$ Unpack 0
+   $$ Prim2 Add 1 3
+   $$ Pack 0 (UArg1 0)
+   $< Yield (BArg1 0)
 
 -- get = shift $ \k s -> k s s
 -- put s = shift $ \k _ -> k () s
@@ -67,110 +83,121 @@ add = Unpack 1
 --          | otherwise = x = get ; put (x+m) ; body (m-1)
 
 -- k s => (k s) s -- k continuation
-diag :: IR
-diag = Let (Reset 0 $ Jump 0 (BArg1 1))
-     $ App False (Stk 0) (BArg1 2)
+diag :: Section
+diag = esn $ Appl 0 resume (Jump 0 (BArg1 1))
+ where resume = Just >< App False (Stk 0) (BArg1 2)
 
 -- => shift k. diag k
-get :: IR
+get :: Section
 get = Capture 0
-    $ App False (Env 12) (BArg1 0)
+   $< App False (Env 12) (BArg1 0)
 
 -- k s _ => (k) s
-kid :: IR
-kid = Let (Reset 0 $ Jump 0 ZArgs)
-    $ App False (Stk 0) (BArg1 2)
+kid :: Section
+kid = esn $ Appl 0 resume (Jump 0 ZArgs)
+ where resume = Just >< App False (Stk 0) (BArg1 2)
 
 -- s => shift k. kid k s
-put :: IR
+put :: Section
 put = Capture 0
-    $ App False (Env 15) (BArg2 0 1)
+   $< App False (Env 15) (BArg2 0 1)
 
 -- m => ...
-kloopb :: IR
-kloopb
-  = Match 0 $ Test1
-      0 (Let (App False (Env 13) ZArgs) $ App False (Env 10) (BArg1 0))
-      {-else-} rec
+kloopb :: Section
+kloopb = esn $
+    Match 0 $ Test1
+      0 (esn $ LApp False (Env 13) ZArgs >< App False (Env 10) (BArg1 0))
+      {-else-} $ esn rec
  where
- rec = Let (App False (Env 13) ZArgs) -- get
+ rec = LApp False (Env 13) ZArgs -- get
      $ Pack 0 (UArg1 0)
-     $ Let (App False (Env 11) (BArg2 0 1)) -- add
-     $ Let (App False (Env 14) (BArg1 0)) -- put
+    $< LApp False (Env 11) (BArg2 0 1) -- add
+    >< LApp False (Env 14) (BArg1 0) -- put
      $ Prim1 Dec 0
-     $ App False (Env 5) (UArg1 0)
+    $< App False (Env 5) (UArg1 0)
 
 -- m a => f = reset (kloopb m) ; y = f (I# a) ; print y
-kloop :: IR
-kloop = Let (Reset 0 $ App False (Env 5) (UArg1 0))
-      $ Pack 0 (UArg1 1)
-      $ App False (Stk 1) (BArg1 0)
+kloop :: Section
+kloop = esn $ Appl 0 resume (Unknown False (Env 5) (UArg1 0))
+ where
+ resume = Just $ Pack 0 (UArg1 1) $< App False (Stk 1) (BArg1 0)
 
 -- s0 0 => s0
 -- s0 1 s => tinst s setDyn 0 (teff s)
-teff :: IR
+teff :: Section
 teff
-  = Match 0 $ Test1
-      0 (Yield $ BArg1 0)
-    $ {-else-} Call True 21 ZArgs
+  = esn $ Match 0 $ Test1
+      0 (esn . Yield $ BArg1 0)
+   >< {-else-} Call True 21 ZArgs
 
 -- s => setDyn 0 (teff s)
-tinst :: IR
+tinst :: Section
 tinst
   = Name 20 (BArg1 0)
-  $ SetDyn 0 0
-  $ Yield ZArgs
+ $$ SetDyn 0 0
+ $< Yield ZArgs
 
 -- m => ...
-tloopb :: IR
-tloopb
-  = Match 0 $ Test1
-      0 (Lit 0 $ App True (Dyn 0) (UArg1 0)) -- get
+tloopb :: Section
+tloopb = esn $
+    Match 0 $ Test1
+      0 (Lit 0 $< App True (Dyn 0) (UArg1 0)) -- get
       {-else-} rec
   where
-  rec = Let (Lit 0 $ App False (Dyn 0) (UArg1 0)) -- get
-      $ Pack 0 (UArg1 0) -- I# m
-      $ Let (App False (Env 11) (BArg2 0 1)) -- add
-      $ Let (Lit 1 $ App False (Dyn 0) (UArg1 0)) -- put
-      $ Prim1 Dec 0
-      $ Call False 25 (UArg1 0)
+  -- rec = Let (Lit 0 $ App False (Dyn 0) (UArg1 0)) -- get
+  --    $$ Pack 0 (UArg1 0) -- I# m
+  --    $$ Let (App False (Env 11) (BArg2 0 1)) -- add
+  --    $$ Let (Lit 1 $ App False (Dyn 0) (UArg1 0)) -- put
+  --    $$ Prim1 Dec 0
+  --    $< Call False 25 (UArg1 0)
+  rec = Lit 0 $< LApp False (Dyn 0) (UArg1 0) -- get
+      $ Pack 0 (UArg1 1) -- I# m
+     $< LApp False (Env 11) (BArg2 0 1) -- add
+      $ Lit 1 $< LApp False (Dyn 0) (UArg1 0) -- put
+      $ Prim1 Dec 2
+     $< Call False 25 (UArg1 0)
 
 -- m s => reset (tinst (I# s) ; tloopb m)
-tloop :: IR
-tloop = Reset 0
-  $ Pack 0 (UArg1 1)
-  $ Let (Call True 21 $ BArg1 0)
-  $ Call True 25 $ UArg1 0
+tloop :: Section
+-- tloop = Reset 0
+--   $$ Pack 0 (UArg1 1)
+--   $$ Let (Call True 21 $ BArg1 0)
+--   $< Call True 25 $ UArg1 0
+tloop = Pack 0 (UArg1 1)
+     $< Appl 0 ret (Known True 21 $ BArg1 0)
+ where ret = Just >< Call True 25 $ UArg1 0
 
-fib :: IR
-fib = Match 0 $ Test2
-        0 (Lit 0 . Yield $ UArg1 0)
-        1 (Lit 1 . Yield $ UArg1 0)
+fib :: Section
+fib = esn $ Match 0 $ Test2
+        0 (Lit 0 $< Yield $ UArg1 0)
+        1 (Lit 1 $< Yield $ UArg1 0)
         {-else-} rec
   where
   rec = Prim1 Dec 0
-      $ Prim1 Dec 0
-      $ Let (App False (Env 2) (UArg1 1))
-      $ Let (App False (Env 2) (UArg1 1))
-      $ Prim2 Add 0 1 $ Yield (UArg1 0)
+     $$ Prim1 Dec 0
+     $< LApp False (Env 2) (UArg1 1)
+     >< LApp False (Env 2) (UArg1 1)
+      $ Prim2 Add 0 1 $< Yield (UArg1 0)
 
-ofib :: IR
-ofib = Match 0 $ Test2
-         0 (Lit 0 . Yield $ UArg1 0)
-         1 (Lit 1 . Yield $ UArg1 0)
+ofib :: Section
+ofib = esn $ Match 0 $ Test2
+         0 (Lit 0 $< Yield $ UArg1 0)
+         1 (Lit 1 $< Yield $ UArg1 0)
          {-else-} rec
   where
   rec = Prim1 Dec 0
-      $ Prim1 Dec 0
-      $ Let (Call True 9 (UArg1 1))
-      $ Let (Call True 9 (UArg1 1))
-      $ Prim2 Add 0 1 $ Yield (UArg1 0)
+     $$ Prim1 Dec 0
+     $< LCall True 9 (UArg1 1)
+     >< LCall True 9 (UArg1 1)
+      $ Prim2 Add 0 1 $< Yield (UArg1 0)
 
-stackEater :: IR
+stackEater :: Section
 stackEater
-  = Match 0 $ Test1
-      0 (Yield ZArgs)
-    $ Prim1 Dec 0 $ Let (App False (Env 4) $ UArg1 0) (Yield ZArgs)
+  = esn $ Match 0 $ Test1
+      0 (esn $ Yield ZArgs)
+    $ Prim1 Dec 0
+   $< LApp False (Env 4) (UArg1 0)
+   >< (Yield ZArgs)
 
 testEnv :: Int -> Comb
 testEnv 0 = Lam 2 0 4 0 loop
@@ -194,19 +221,19 @@ testEnv 25 = Lam 1 0 4 3 tloopb
 testEnv 26 = Lam 1 0 4 3 tloop
 testEnv _ = error "testEnv"
 
-setupu1 :: Int -> Int -> IR
-setupu1 f n = Lit n $ App False (Env f) (UArg1 0)
+setupu1 :: Int -> Int -> Section
+setupu1 f n = Lit n $< App False (Env f) (UArg1 0)
 
-setupu2 :: Int -> Int -> Int -> IR
-setupu2 f m n = Lit m $ Lit n $ App False (Env f) (UArg2 0 1)
+setupu2 :: Int -> Int -> Int -> Section
+setupu2 f m n = Lit m $$ Lit n $< App False (Env f) (UArg2 0 1)
 
-setupb2 :: Int -> Int -> Int -> IR
+setupb2 :: Int -> Int -> Int -> Section
 setupb2 f m n
-  = Lit m $ Pack 0 (UArg1 0)
-  $ Lit n $ Pack 0 (UArg1 0)
-  $ App False (Env f) (BArgR 0 2)
+  = Lit m $$ Pack 0 (UArg1 0)
+ $$ Lit n $$ Pack 0 (UArg1 0)
+ $< App False (Env f) (BArgR 0 2)
 
-benchEv :: String -> IR -> Benchmark
+benchEv :: String -> Section -> Benchmark
 benchEv str code = bench str . whnfIO . eval0 testEnv $ code
 
 main = defaultMain

@@ -201,14 +201,61 @@ bcount _ = 0
 data Prim1 = Dec | Inc
 data Prim2 = Add | Sub
 
--- Instruction tree representation for the machine.
-data IR
+-- Strict lists
+data SL a = NL | !a :< !(SL a)
+
+-- Instructions for manipulating the data stack in the main portion of
+-- a block
+data Instr
+  -- 1-argument primitive operations
+  = Prim1 !Prim1 -- primitive instruction
+          !Int   -- index of prim argument
+
+  -- 2-argument primitive operations
+  | Prim2 !Prim2 -- primitive instruction
+          !Int   -- index of first prim argument
+          !Int   -- index of second prim argument
+
+  -- Set the value of a dynamic reference
+  | SetDyn !Int -- the prompt tag of the reference
+           !Int -- the stack index of the closure to store
+
+  -- Capture the continuation up to a given marker.
+  | Capture !Int -- the prompt tag
+
+  -- This is essentially the opposite of `Call`. Pack a given
+  -- statically known function into a closure with arguments.
+  -- No stack is necessary, because no nested evaluation happens,
+  -- so the instruction directly takes a follow-up.
+  | Name !Int Args
+
+  -- Dump some debugging information about the machine state to
+  -- the screen.
+  | Info !String -- prefix for output
+
+  -- Pack a data type value into a closure and place it
+  -- on the stack.
+  | Pack !Int  -- tag
+         !Args -- arguments to pack
+
+  -- Unpack the contents of a data type onto the stack
+  | Unpack !Int -- stack index of data to unpack
+
+  -- Push a particular value onto the unboxed stack
+  | Lit !Int -- value to push onto the stack
+
+  -- Print a value on the unboxed stack
+  | Print !Int -- index of the primitive value to print
+
+-- Control flow types for making 'calls' of various sorts.
+data Call
   -- Apply a function to arguments. This is the 'slow path', and
   -- handles applying functions from arbitrary sources. This
   -- requires checks to determine what exactly should happen.
-  = App !Bool     -- skip argument check for known calling convention
-        !Ref      -- function to apply
-        !Args     -- additional arguments
+  = Unknown
+      !Bool -- skip argument check for known calling convention
+      !Ref  -- function to call
+      !Args -- arguments
 
   -- This is the 'fast path', for when we statically know we're
   -- making an exactly saturated call to a statically known
@@ -216,85 +263,41 @@ data IR
   -- time in very tight loops. This also allows skipping the
   -- stack check if we know that the current stack allowance is
   -- sufficient for where we're jumping to.
-  | Call !Bool    -- skip stack check
-         !Int     -- function to apply
-         !Args    -- arguments
-
-  -- This is essentially the opposite of `Call`. Pack a given
-  -- statically known function into a closure with arguments.
-  -- No stack is necessary, because no nested evaluation happens,
-  -- so the instruction directly takes a follow-up.
-  | Name !Int     -- global function to apply
-         !Args    -- arguments to close over
-         !IR      -- what to do after
-
-  -- Dump some debugging information about the machine state to
-  -- the screen.
-  | Info !String  -- prefix for info output
-         !IR      -- after
-
-  -- Delimit a computation with a given marker.
-  | Reset !Int    -- prompt tag
-          !IR     -- delimited computation
-
-  | SetDyn !Int   -- prompt tag
-           !Int   -- stack index of closure to store
-           !IR    -- after
-
-  -- Capture the continuation up to a given marker.
-  | Capture !Int  -- prompt tag
-            !IR   -- following computation
+  | Known
+      !Bool -- skip stack check
+      !Int  -- global function reference
+      !Args -- arguments
 
   -- Jump to a captured continuation value.
-  | Jump !Int     -- index of captured continuation
-         !Args    -- Arguments to send to continuation
+  | Jump
+      !Int  -- index of captured continuation
+      !Args -- arguments to send to continuation
 
-  -- Sequence two pieces of computation
-  | Let !IR       -- do this
-        !IR       -- then continue
-
-  -- 1-argument primitive operations
-  | Prim1 !Prim1  -- prim op instruction
-          !Int    -- index of prim argument
-          !IR     -- after
-
-  -- 2-argument primitive operations
-  | Prim2 !Prim2  -- prim op insruction
-          !Int    -- index of first argument
-          !Int    -- index of second argument
-          !IR     -- after
-
-  -- Pack a data type value into a closure and place it
-  -- on the stack.
-  | Pack !Int     -- tag
-         !Args    -- arguments to pack
-         !IR      -- after
-
-  -- Unpack the contents of a data type onto the stack
-  | Unpack !Int   -- index of data to unpack
-           !IR    -- after
+-- Control flow options at the end of a code section
+data Flow
+  -- Apply one of the possible call forms
+  = Appl !Int             -- delimiter
+         !(Maybe Section) -- non-tail return
+         !Call            -- call structure
 
   -- Branch on the value in the unboxed data stack
-  | Match !Int    -- index of unboxed item to match
-          !Branch -- continuations
+  | Match !Int    -- index of unboxed item to match on
+          !Branch -- branches
 
   -- Yield control to the current continuation, with arguments
-  | Yield !Args   -- values to yield
+  | Yield !Args -- values to yield
 
-  -- Print a value on the unboxed stack
-  | Print !Int    -- index of unboxed value to print
-          !IR     -- after
-
-  -- Push a particular value onto the unboxed stack
-  | Lit !Int      -- value to push on the unboxed stack
-        !IR       -- after
+data Section = Section
+  { body :: !(SL Instr)
+  , next :: !Flow
+  }
 
 data Comb
   = Lam !Int -- Number of unboxed arguments
         !Int -- Number of boxed arguments
         !Int -- Maximum needed unboxed frame size
         !Int -- Maximum needed boxed frame size
-        !IR  -- Code
+        !Section -- Code
 
 data Ref
   = Stk !Int -- stack reference to a closure
@@ -302,8 +305,10 @@ data Ref
   | Dyn !Int -- dynamic scope reference to a closure
 
 data Branch
-  = Prod !IR -- only one branch
-  | Test1 !Int !IR !IR -- if tag == n then t else f
-  | Test2 !Int !IR     -- if tag == m then ...
-          !Int !IR     -- else if tag == n then ...
-          !IR          -- else ...
+  -- if tag == n then t else f
+  = Test1 !Int
+          !Section
+          !Section
+  | Test2 !Int !Section    -- if tag == m then ...
+          !Int !Section    -- else if tag == n then ...
+          !Section         -- else ...

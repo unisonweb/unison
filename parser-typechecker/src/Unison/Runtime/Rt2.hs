@@ -20,7 +20,7 @@ info ctx x = infos ctx (show x)
 infos :: String -> String -> IO ()
 infos ctx s = putStrLn $ ctx ++ ": " ++ s
 
-eval0 :: Env -> IR -> IO ()
+eval0 :: Env -> Section -> IO ()
 eval0 !env !co = do
   ustk <- alloc
   bstk <- alloc
@@ -29,65 +29,103 @@ eval0 !env !co = do
 lookupDenv :: Int -> DEnv -> Closure
 lookupDenv p denv = fromMaybe BlackHole $ M.lookup p denv
 
-eval :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> IR -> IO ()
-eval !env !denv !ustk !bstk !k (Info tx nx) = do
+exec
+  :: Env -> DEnv
+  -> Stack 'UN -> Stack 'BX -> K
+  -> Instr
+  -> IO (DEnv, Stack 'UN, Stack 'BX, K)
+exec !_   !denv !ustk !bstk !k (Info tx) = do
   info tx ustk
   info tx bstk
   info tx k
-  eval env denv ustk bstk k nx
-eval !env !denv !ustk !bstk !k (App ck r args) =
-  resolve env denv ustk bstk r >>= apply env denv ustk bstk k ck args
-eval !env !denv !ustk !bstk !k (Call ck n args) = do
-  enter env denv ustk bstk k ck args $ env n
-eval !env !denv !ustk !bstk !k (Name n args nx) = do
+  pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (Name n args) = do
   bstk <- name ustk bstk args (env n)
-  eval env denv ustk bstk k nx
-eval !env !denv !ustk !bstk !k (Jump i args) =
-  peekOff bstk i >>= jump env denv ustk bstk k args
-eval !env !denv !ustk !bstk !k (Reset p nx) =
-  eval env denv ustk bstk (Mark p clo k) nx
- where
- clo = lookupDenv p denv
-eval !env !denv !ustk !bstk !k (SetDyn p i nx) = do
+  pure (denv, ustk, bstk, k)
+exec !_   !denv !ustk !bstk !k (SetDyn p i) = do
   clo <- peekOff bstk i
-  eval env (M.insert p clo denv) ustk bstk k nx
-eval !env !denv !ustk !bstk !k (Capture p nx) = do
-  (sk,denv,ustk,bstk,useg,bseg,k') <- splitCont denv ustk bstk k p
+  pure (M.insert p clo denv, ustk, bstk, k)
+exec !_   !denv !ustk !bstk !k (Capture p) = do
+  (sk,denv,ustk,bstk,useg,bseg,k) <- splitCont denv ustk bstk k p
   bstk <- bump bstk
   poke bstk $ Captured sk useg bseg
-  eval env denv ustk bstk k' nx
-eval !env !denv !ustk !bstk !k (Let e nx) = do
-  (ustk, ufsz, uasz) <- saveFrame ustk
-  (bstk, bfsz, basz) <- saveFrame bstk
-  eval env denv ustk bstk (Push ufsz bfsz uasz basz nx k) e
-eval !env !denv !ustk !bstk !k (Prim1 op i nx) =
-  prim1 env denv ustk bstk k op i nx
-eval !env !denv !ustk !bstk !k (Prim2 op i j nx) =
-  prim2 env denv ustk bstk k op i j nx
-eval !env !denv !ustk !bstk !k (Pack t args nx) = do
+  pure (denv, ustk, bstk, k)
+exec !_   !denv !ustk !bstk !k (Prim1 op i) = do
+  ustk <- prim1 ustk op i
+  pure (denv, ustk, bstk, k)
+exec !_   !denv !ustk !bstk !k (Prim2 op i j) = do
+  ustk <- prim2 ustk op i j
+  pure (denv, ustk, bstk, k)
+exec !_   !denv !ustk !bstk !k (Pack t args) = do
   clo <- buildData ustk bstk t args
   bstk <- bump bstk
   poke bstk clo
-  eval env denv ustk bstk k nx
-eval !env !denv !ustk !bstk !k (Unpack i nx) = do
+  pure (denv, ustk, bstk, k)
+exec !_   !denv !ustk !bstk !k (Unpack i) = do
   (ustk, bstk) <- dumpData ustk bstk =<< peekOff bstk i
-  eval env denv ustk bstk k nx
-eval !env !denv !ustk !bstk !k (Match i br) = do
-  t <- peekOff ustk i
-  eval env denv ustk bstk k $ selectBranch t br
-eval !env !denv !ustk !bstk !k (Print i nx) = do
+  pure (denv, ustk, bstk, k)
+exec !_   !denv !ustk !bstk !k (Print i) = do
   m <- peekOff ustk i
   print m
-  eval env denv ustk bstk k nx
-eval !env !denv !ustk !bstk !k (Lit n nx) = do
+  pure (denv, ustk, bstk, k)
+exec !_   !denv !ustk !bstk !k (Lit n) = do
   ustk <- bump ustk
   poke ustk n
-  eval env denv ustk bstk k nx
-eval !env !denv !ustk !bstk !k (Yield args) = do
+  pure (denv, ustk, bstk, k)
+{-# inline exec #-}
+
+flow :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> Flow -> IO ()
+flow !env !denv !ustk !bstk !k (Match i br) = do
+  t <- peekOff ustk i
+  eval env denv ustk bstk k $ selectBranch t br
+flow !env !denv !ustk !bstk !k (Yield args) = do
   (ustk, bstk) <- moveArgs ustk bstk args
   ustk <- frameArgs ustk
   bstk <- frameArgs bstk
   yield env denv ustk bstk k
+flow !env !denv !ustk !bstk !k (Appl p tc call) = do
+  (ustk, bstk, k) <- tailManip ustk bstk k tc
+  k <- delimit denv p k
+  case call of
+    Unknown ck r args ->
+      resolve env denv ustk bstk r
+        >>= apply env denv ustk bstk k ck args
+    Known ck n args ->
+      enter env denv ustk bstk k ck args $ env n
+    Jump i args ->
+      peekOff bstk i >>= jump env denv ustk bstk k args
+
+tailManip
+  :: Stack 'UN -> Stack 'BX -> K -> Maybe Section
+  -> IO (Stack 'UN, Stack 'BX, K)
+tailManip !ustk !bstk !k Nothing = pure (ustk, bstk, k)
+tailManip !ustk !bstk !k (Just nx) = do
+  (ustk, ufsz, uasz) <- saveFrame ustk
+  (bstk, bfsz, basz) <- saveFrame bstk
+  pure (ustk, bstk, Push ufsz bfsz uasz basz nx k)
+{-# inline tailManip #-}
+
+delimit :: DEnv -> Int -> K -> IO K
+delimit !denv !p !k
+  | p < 0     = pure k
+  | otherwise = pure $ Mark p clo k
+ where
+ clo = lookupDenv p denv
+{-# inline delimit #-}
+
+eval :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> Section -> IO ()
+eval !env !denv !ustk !bstk !k (Section body flow)
+  = execs env denv ustk bstk k body flow
+{-# inline eval #-}
+
+execs
+  :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K
+  -> SL Instr -> Flow -> IO ()
+execs !env !denv !ustk !bstk !k NL final
+  = flow env denv ustk bstk k final
+execs !env !denv !ustk !bstk !k (i :< is) final = do
+  (denv, ustk, bstk, k) <- exec env denv ustk bstk k i
+  execs env denv ustk bstk k is final
 
 -- fast path application
 enter
@@ -320,36 +358,32 @@ closeArgs !ustk !bstk !useg !bseg (DArgR ui ul bi bl) = do
   bseg <- augSeg bstk bseg (ArgR bi bl)
   pure (useg, bseg)
 
-prim1
-  :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K
-  -> Prim1 -> Int -> IR -> IO ()
-prim1 !env !denv !ustk !bstk !k Dec !i !nx = do
+prim1 :: Stack 'UN -> Prim1 -> Int -> IO (Stack 'UN)
+prim1 !ustk Dec !i = do
   m <- peekOff ustk i
   ustk <- bump ustk
   poke ustk (m-1)
-  eval env denv ustk bstk k nx
-prim1 !env !denv !ustk !bstk !k Inc !i !nx = do
+  pure ustk
+prim1 !ustk Inc !i = do
   m <- peekOff ustk i
   ustk <- bump ustk
   poke ustk (m+1)
-  eval env denv ustk bstk k nx
+  pure ustk
 {-# inline prim1 #-}
 
-prim2
-  :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K
-  -> Prim2 -> Int -> Int -> IR -> IO ()
-prim2 !env !denv !ustk !bstk !k Add !i !j !nx = do
+prim2 :: Stack 'UN -> Prim2 -> Int -> Int -> IO (Stack 'UN)
+prim2 !ustk Add !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   poke ustk (m+n)
-  eval env denv ustk bstk k nx
-prim2 !env !denv !ustk !bstk !k Sub !i !j !nx = do
+  pure ustk
+prim2 !ustk Sub !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   poke ustk (m-n)
-  eval env denv ustk bstk k nx
+  pure ustk
 {-# inline prim2 #-}
 
 yield :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> IO ()
@@ -363,8 +397,7 @@ yield !env !denv !ustk !bstk !k = leap denv k
  leap _ KE = pure ()
 {-# inline yield #-}
 
-selectBranch :: Tag -> Branch -> IR
-selectBranch _ (Prod nx) = nx
+selectBranch :: Tag -> Branch -> Section
 selectBranch t (Test1 u y n)
   | t == u    = y
   | otherwise = n

@@ -27,7 +27,7 @@ data K
          !Int -- boxed frame size
          !Int -- pending unboxed args
          !Int -- pending boxed args
-         !IR  -- code
+         !Section -- code
          !K
 
 data Closure
