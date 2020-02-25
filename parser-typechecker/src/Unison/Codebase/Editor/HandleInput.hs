@@ -2098,7 +2098,7 @@ toSlurpResult currentPath uf existingNames =
     terms = R.intersection (Names.terms existingNames) (Names.terms fileNames0)
     types = R.intersection (Names.types existingNames) (Names.types fileNames0)
 
-  -- update (n,r) if (n,r' /= r) exists in names0 and r, r' are Ref
+  -- update (n,r) if (n,r' /= r) exists in existingNames and r, r' are Ref
   updates :: SlurpComponent v
   updates = SlurpComponent (Set.fromList types) (Set.fromList terms) where
     terms =
@@ -2149,7 +2149,7 @@ toSlurpResult currentPath uf existingNames =
                              (R.mapRan (Referent.Ref) $ Names.types fileNames0)
                              (SC.types dups)
 
-  -- add (n,r) if n doesn't exist and r doesn't exist in names0
+  -- (n,r) is in `adds` if n isn't in existingNames
   adds = sc terms types where
     terms = addTerms (Names.terms existingNames) (Names.terms fileNames0)
     types = addTypes (Names.types existingNames) (Names.types fileNames0)
