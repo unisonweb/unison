@@ -70,8 +70,8 @@ foo = 43
   do an `add` or `update`, here's how your codebase would
   change:
   
-    ⍟ These new definitions will replace existing ones of the
-      same name and are ok to `update`:
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
     
       foo : Nat
    
@@ -82,7 +82,7 @@ foo = 43
 ```ucm
 .example.resolve.a> update
 
-  ⍟ I've updated to these definitions:
+  ⍟ I've updated these names to your new definition:
   
     foo : .builtin.Nat
 
@@ -103,8 +103,8 @@ foo = 44
   do an `add` or `update`, here's how your codebase would
   change:
   
-    ⍟ These new definitions will replace existing ones of the
-      same name and are ok to `update`:
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
     
       foo : Nat
    
@@ -115,7 +115,7 @@ foo = 44
 ```ucm
 .example.resolve.b> update
 
-  ⍟ I've updated to these definitions:
+  ⍟ I've updated these names to your new definition:
   
     foo : .builtin.Nat
 

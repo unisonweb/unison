@@ -209,6 +209,8 @@ unique type Y a b = Y a b
   
     b        : .builtin.Text
     fromJust : .builtin.Nat
+      (The old definition was also named fromJust'. I updated
+      this name too.)
 
 .ns2> links fromJust
 

@@ -46,8 +46,8 @@ hey = "hello"
   I found and typechecked these definitions in test.u. If you do
   an `add` or `update`, here's how your codebase would change:
   
-    ⍟ These new definitions will replace existing ones of the
-      same name and are ok to `update`:
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
     
       hey : Text
    
@@ -60,7 +60,7 @@ Update
 ```ucm
 .> update
 
-  ⍟ I've updated to these definitions:
+  ⍟ I've updated these names to your new definition:
   
     hey : builtin.Text
 
