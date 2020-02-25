@@ -55,9 +55,11 @@ patternName :: InputPattern -> P.Pretty P.ColorText
 patternName = fromString . I.patternName
 
 -- `example list ["foo", "bar"]` (haskell) becomes `list foo bar` (pretty)
-makeExample :: InputPattern -> [P.Pretty CT.ColorText] -> P.Pretty CT.ColorText
-makeExample p args = P.group $
-  backtick (intercalateMap " " id (P.nonEmpty $ fromString (I.patternName p) : args))
+makeExample, makeExampleNoBackticks :: InputPattern -> [P.Pretty CT.ColorText] -> P.Pretty CT.ColorText
+makeExample p args = P.group . backtick $ makeExampleNoBackticks p args
+
+makeExampleNoBackticks p args =
+  P.group $ intercalateMap " " id (P.nonEmpty $ fromString (I.patternName p) : args)
 
 makeExample' :: InputPattern -> P.Pretty CT.ColorText
 makeExample' p = makeExample p []

@@ -405,6 +405,8 @@ lexer0 scope rem =
           in case topBlockName l of
               Just "match-with" -> -- `->` opens a block when pattern-matching only
                 Token (Open "->") pos end : pushLayout "->" l end rem
+              Just "cases" -> -- `->` opens a block when pattern-matching only
+                Token (Open "->") pos end : pushLayout "->" l end rem
               Just _ -> Token (Reserved "->") pos end : goWhitespace l end rem
               Nothing -> Token (Err LayoutError) pos pos : recover l pos rem
 
@@ -704,13 +706,13 @@ keywords = Set.fromList [
   "where", "use",
   "true", "false",
   "type", "ability", "alias", "typeLink", "termLink",
-  "let", "namespace", "match"]
+  "let", "namespace", "match", "cases"]
 
 -- These keywords introduce a layout block
 layoutKeywords :: Set String
 layoutKeywords =
   Set.fromList [
-    "if", "handle", "let", "where", "match"
+    "if", "handle", "let", "where", "match", "cases"
   ]
 
 -- These keywords end a layout block and begin another layout block

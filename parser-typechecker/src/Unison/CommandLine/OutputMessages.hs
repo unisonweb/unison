@@ -127,21 +127,21 @@ renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
 notifyNumbered :: Var v => NumberedOutput v -> (Pretty, NumberedArgs)
 notifyNumbered o = case o of
   ShowDiffNamespace oldPrefix newPrefix ppe diffOutput ->
-    showDiffNamespace ppe oldPrefix newPrefix diffOutput
+    showDiffNamespace ShowNumbers ppe oldPrefix newPrefix diffOutput
 
   ShowDiffAfterDeleteDefinitions ppe diff ->
     first (\p -> P.lines
       [ p
       , ""
       , undoTip
-      ]) (showDiffNamespace ppe e e diff)
+      ]) (showDiffNamespace ShowNumbers ppe e e diff)
 
   ShowDiffAfterDeleteBranch bAbs ppe diff ->
     first (\p -> P.lines
       [ p
       , ""
       , undoTip
-      ]) (showDiffNamespace ppe bAbs bAbs diff)
+      ]) (showDiffNamespace ShowNumbers ppe bAbs bAbs diff)
 
   ShowDiffAfterModifyBranch b' _ _ (OBD.isEmpty -> True) ->
     (P.wrap $ "Nothing changed in" <> prettyPath' b' <> ".", mempty)
@@ -152,7 +152,7 @@ notifyNumbered o = case o of
       , p
       , ""
       , undoTip
-      ]) (showDiffNamespace ppe bAbs bAbs diff)
+      ]) (showDiffNamespace ShowNumbers ppe bAbs bAbs diff)
 
   ShowDiffAfterMerge _ _ _ (OBD.isEmpty -> True) ->
     (P.wrap $ "Nothing changed as a result of the merge.", mempty)
@@ -167,7 +167,7 @@ notifyNumbered o = case o of
            <> "and " <> IP.makeExample' IP.test <> "to run the tests."
            <> "Or you can use" <> IP.makeExample' IP.undo <> " or"
            <> IP.makeExample' IP.viewReflog <> " to undo the results of this merge."
-      ]) (showDiffNamespace ppe destAbs destAbs diffOutput)
+      ]) (showDiffNamespace ShowNumbers ppe destAbs destAbs diffOutput)
 
   ShowDiffAfterMergePropagate dest' destAbs patchPath' ppe diffOutput ->
     first (\p -> P.lines [
@@ -182,18 +182,18 @@ notifyNumbered o = case o of
            <> "and " <> IP.makeExample' IP.test <> "to run the tests."
            <> "Or you can use" <> IP.makeExample' IP.undo <> " or"
            <> IP.makeExample' IP.viewReflog <> " to undo the results of this merge."
-      ]) (showDiffNamespace ppe destAbs destAbs diffOutput)
+      ]) (showDiffNamespace ShowNumbers ppe destAbs destAbs diffOutput)
 
   ShowDiffAfterMergePreview dest' destAbs ppe diffOutput ->
     first (\p -> P.lines [
       P.wrap $ "Here's what would change in " <> prettyPath' dest' <> "after the merge:"
       , ""
       , p
-      ]) (showDiffNamespace ppe destAbs destAbs diffOutput)
+      ]) (showDiffNamespace ShowNumbers ppe destAbs destAbs diffOutput)
 
   ShowDiffAfterUndo ppe diffOutput ->
     first (\p -> P.lines ["Here's the changes I undid", "", p ])
-      (showDiffNamespace ppe e e diffOutput)
+      (showDiffNamespace ShowNumbers ppe e e diffOutput)
 
   ShowDiffAfterPull dest' destAbs ppe diff ->
     if OBD.isEmpty diff then
@@ -204,7 +204,7 @@ notifyNumbered o = case o of
           p, "",
           undoTip
         ])
-        (showDiffNamespace ppe destAbs destAbs diff)
+        (showDiffNamespace ShowNumbers ppe destAbs destAbs diff)
   ShowDiffAfterCreatePR baseRepo headRepo ppe diff ->
     if OBD.isEmpty diff then
       (P.wrap $ "Looks like there's no difference between "
@@ -218,10 +218,11 @@ notifyNumbered o = case o of
                  <> "using the following command:"
         ,""
         ,P.indentN 2 $
-          IP.makeExample IP.loadPullRequest [(prettyRemoteNamespace baseRepo)
-                                            ,(prettyRemoteNamespace headRepo)]
+          IP.makeExampleNoBackticks
+            IP.loadPullRequest [(prettyRemoteNamespace baseRepo)
+                               ,(prettyRemoteNamespace headRepo)]
         ,""
-        ,p])) (showDiffNamespace ppe e e diff)
+        ,p])) (showDiffNamespace HideNumbers ppe e e diff)
         -- todo: these numbers aren't going to work,
         --  since the content isn't necessarily here.
         -- Should we have a mode with no numbers? :P
@@ -1291,18 +1292,20 @@ listOfLinks ppe results = pure $ P.lines [
   prettyType Nothing = "❓ (missing a type for this definition)"
   prettyType (Just t) = TypePrinter.pretty ppe t
 
+data ShowNumbers = ShowNumbers | HideNumbers
 -- | `ppe` is just for rendering type signatures
 --   `oldPath, newPath :: Path.Absolute` are just for producing fully-qualified
 --                                       numbered args
 showDiffNamespace :: forall v . Var v
-                  => PPE.PrettyPrintEnv
+                  => ShowNumbers
+                  -> PPE.PrettyPrintEnv
                   -> Path.Absolute
                   -> Path.Absolute
                   -> OBD.BranchDiffOutput v Ann
                   -> (Pretty, NumberedArgs)
-showDiffNamespace _ _ _ diffOutput | OBD.isEmpty diffOutput =
+showDiffNamespace _ _ _ _ diffOutput | OBD.isEmpty diffOutput =
   ("The namespaces are identical.", mempty)
-showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
+showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
   (P.sepNonEmpty "\n\n" p, toList args)
   where
   (p, (menuSize, args)) = (`State.runState` (0::Int, Seq.empty)) $ sequence [
@@ -1627,10 +1630,12 @@ showDiffNamespace ppe oldPath newPath OBD.BranchDiffOutput{..} =
     hq' = HQ'.requalify (fmap (Name.makeAbsolute . Path.prefixName prefix) hq) r
 
   addNumberedArg :: String -> Numbered Pretty
-  addNumberedArg s = do
+  addNumberedArg s = case sn of
+   ShowNumbers -> do
     (n, args) <- State.get
     State.put (n+1, args Seq.|> s)
     pure $ padNumber (n+1)
+   HideNumbers -> pure mempty
 
   padNumber :: Int -> Pretty
   padNumber n = P.hiBlack . P.rightPad leftNumsWidth $ P.shown n <> "."

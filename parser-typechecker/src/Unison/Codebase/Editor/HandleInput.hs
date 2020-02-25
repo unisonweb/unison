@@ -1824,7 +1824,8 @@ respond output = eval $ Notify output
 respondNumbered :: NumberedOutput v -> Action m i v ()
 respondNumbered output = do
   args <- eval $ NotifyNumbered output
-  numberedArgs .= toList args
+  unless (null args) $
+    numberedArgs .= toList args
 
 -- Merges the specified remote branch into the specified local absolute path.
 -- Implementation detail of PullRemoteBranchI

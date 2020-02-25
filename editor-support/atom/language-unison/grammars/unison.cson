@@ -41,7 +41,7 @@ repository:
       1: {name: 'keyword.other.forall.unison'}
       2: {name: 'keyword.other.arrow.unison'}
   match_with:
-    match: '(\\s|^)(match|with|->)(?=\\s|$)'
+    match: '(\\s|^)(match|with|->|cases)(?=\\s|$)'
     captures:
       2: {name: 'keyword.control.match.unison'}
   unsorted_keywords:

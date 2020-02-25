@@ -341,8 +341,30 @@ deepEdits' b = go id b where
 
 merge :: forall m . Monad m => Branch m -> Branch m -> m (Branch m)
 merge (Branch x) (Branch y) =
-  Branch <$> Causal.threeWayMerge merge0 diff0 apply x y
+  Branch <$> Causal.threeWayMerge combine x y
  where
+  combine :: Maybe (Branch0 m) -> Branch0 m -> Branch0 m -> m (Branch0 m)
+  combine Nothing l r = merge0 l r
+  combine (Just ca) l r = do
+    dl <- diff0 ca l
+    dr <- diff0 ca r
+    head0 <- apply ca (dl <> dr)
+    children <- Map.mergeA
+                  (Map.traverseMaybeMissing $ combineMissing ca)
+                  (Map.traverseMaybeMissing $ combineMissing ca)
+                  (Map.zipWithAMatched $ const merge)
+                  (_children l) (_children r)
+    pure $ branch0 (_terms head0) (_types head0) children (_edits head0)
+
+  combineMissing ca k cur =
+    case Map.lookup k (_children ca) of
+      Nothing -> pure $ Just cur
+      Just old -> do
+        nw <- merge (cons empty0 old) cur
+        if isEmpty0 $ head nw
+        then pure Nothing
+        else pure $ Just nw
+
   apply :: Branch0 m -> BranchDiff -> m (Branch0 m)
   apply b0 BranchDiff {..} = do
     patches <- sequenceA

@@ -91,6 +91,8 @@ test1 = scope "termparser" . tests . map parses $
     "  x\n" ++
     "with foo"
   , "handle x with foo"
+  , "handle foo with cases\n" ++
+    " { x } -> x"
 
   -- Patterns
   , "match x with x -> x"
@@ -122,6 +124,15 @@ test1 = scope "termparser" . tests . map parses $
     " [4] ++ _ -> 4\n" ++
     " _ ++ [5] -> 5\n" ++
     " _ -> -1"
+  , "cases x -> x"
+  , "cases\n" ++
+    " [] -> 0\n" ++
+    " [x] -> 1\n" ++
+    " _ -> 2"
+  , "cases\n" ++
+    " 0 ->\n" ++
+    "   z = 0\n" ++
+    "   z"
 
   -- Conditionals
   , "if x then y else z"
