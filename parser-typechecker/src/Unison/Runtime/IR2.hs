@@ -201,9 +201,6 @@ bcount _ = 0
 data Prim1 = Dec | Inc
 data Prim2 = Add | Sub
 
--- Strict lists
-data SL a = NL | !a :< !(SL a)
-
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
 data Instr
@@ -273,24 +270,17 @@ data Call
       !Int  -- index of captured continuation
       !Args -- arguments to send to continuation
 
--- Control flow options at the end of a code section
-data Flow
+data Section
   -- Apply one of the possible call forms
   = Appl !Int             -- delimiter
          !(Maybe Section) -- non-tail return
          !Call            -- call structure
-
   -- Branch on the value in the unboxed data stack
   | Match !Int    -- index of unboxed item to match on
           !Branch -- branches
-
   -- Yield control to the current continuation, with arguments
   | Yield !Args -- values to yield
-
-data Section = Section
-  { body :: !(SL Instr)
-  , next :: !Flow
-  }
+  | Ins !Instr !Section
 
 data Comb
   = Lam !Int -- Number of unboxed arguments

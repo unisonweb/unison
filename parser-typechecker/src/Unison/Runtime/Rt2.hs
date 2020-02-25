@@ -74,27 +74,6 @@ exec !_   !denv !ustk !bstk !k (Lit n) = do
   pure (denv, ustk, bstk, k)
 {-# inline exec #-}
 
-flow :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> Flow -> IO ()
-flow !env !denv !ustk !bstk !k (Match i br) = do
-  t <- peekOff ustk i
-  eval env denv ustk bstk k $ selectBranch t br
-flow !env !denv !ustk !bstk !k (Yield args) = do
-  (ustk, bstk) <- moveArgs ustk bstk args
-  ustk <- frameArgs ustk
-  bstk <- frameArgs bstk
-  yield env denv ustk bstk k
-flow !env !denv !ustk !bstk !k (Appl p tc call) = do
-  (ustk, bstk, k) <- tailManip ustk bstk k tc
-  k <- delimit denv p k
-  case call of
-    Unknown ck r args ->
-      resolve env denv ustk bstk r
-        >>= apply env denv ustk bstk k ck args
-    Known ck n args ->
-      enter env denv ustk bstk k ck args $ env n
-    Jump i args ->
-      peekOff bstk i >>= jump env denv ustk bstk k args
-
 tailManip
   :: Stack 'UN -> Stack 'BX -> K -> Maybe Section
   -> IO (Stack 'UN, Stack 'BX, K)
@@ -114,18 +93,28 @@ delimit !denv !p !k
 {-# inline delimit #-}
 
 eval :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> Section -> IO ()
-eval !env !denv !ustk !bstk !k (Section body flow)
-  = execs env denv ustk bstk k body flow
-{-# inline eval #-}
-
-execs
-  :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K
-  -> SL Instr -> Flow -> IO ()
-execs !env !denv !ustk !bstk !k NL final
-  = flow env denv ustk bstk k final
-execs !env !denv !ustk !bstk !k (i :< is) final = do
+eval !env !denv !ustk !bstk !k (Match i br) = do
+  t <- peekOff ustk i
+  eval env denv ustk bstk k $ selectBranch t br
+eval !env !denv !ustk !bstk !k (Yield args) = do
+  (ustk, bstk) <- moveArgs ustk bstk args
+  ustk <- frameArgs ustk
+  bstk <- frameArgs bstk
+  yield env denv ustk bstk k
+eval !env !denv !ustk !bstk !k (Appl p tc call) = do
+  (ustk, bstk, k) <- tailManip ustk bstk k tc
+  k <- delimit denv p k
+  case call of
+    Unknown ck r args ->
+      resolve env denv ustk bstk r
+        >>= apply env denv ustk bstk k ck args
+    Known ck n args ->
+      enter env denv ustk bstk k ck args $ env n
+    Jump i args ->
+      peekOff bstk i >>= jump env denv ustk bstk k args
+eval !env !denv !ustk !bstk !k (Ins i nx) = do
   (denv, ustk, bstk, k) <- exec env denv ustk bstk k i
-  execs env denv ustk bstk k is final
+  eval env denv ustk bstk k nx
 
 -- fast path application
 enter
