@@ -313,8 +313,8 @@ oxfordCommasWith
   :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
 oxfordCommasWith end xs = case toList xs of
   []     -> ""
-  [x]    -> x
-  [x, y] -> x <> " and " <> y
+  [x]    -> group (x <> end)
+  [x, y] -> x <> " and " <> group (y <> end)
   xs ->
     intercalateMap ("," <> softbreak) id (init xs)
       <> ","

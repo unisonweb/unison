@@ -205,7 +205,7 @@ unique type Y a b = Y a b
     e : .builtin.Nat
     f : .builtin.Nat
   
-  ⍟ I've updated to these definitions:
+  ⍟ I've updated these names to your new definition:
   
     b        : .builtin.Text
     fromJust : .builtin.Nat
@@ -460,7 +460,7 @@ bdependent = "banana"
 ```ucm
 .ns3> update
 
-  ⍟ I've updated to these definitions:
+  ⍟ I've updated these names to your new definition:
   
     bdependent : .builtin.Text
 
@@ -515,7 +515,7 @@ a = 444
 ```ucm
 .nsy> update
 
-  ⍟ I've updated to these definitions:
+  ⍟ I've updated these names to your new definition:
   
     a : .builtin.Nat
 
@@ -527,7 +527,7 @@ a = 555
 ```ucm
 .nsz> update
 
-  ⍟ I've updated to these definitions:
+  ⍟ I've updated these names to your new definition:
   
     a : .builtin.Nat
 

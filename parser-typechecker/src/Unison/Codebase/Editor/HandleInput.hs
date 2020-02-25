@@ -2130,14 +2130,12 @@ toSlurpResult currentPath uf existingNames =
     , let
       refs = Set.delete r $ R.lookupDom n existingNames
       aliasesOfNew =
-        Set.map (Path.unprefixName currentPath) . Set.delete n $ R.lookupRan
-          r
-          existingNames
+        Set.map (Path.unprefixName currentPath) . Set.delete n $
+          R.lookupRan r existingNames
       aliasesOfOld =
-        Set.map (Path.unprefixName currentPath) . R.dom $ R.restrictRan
-          existingNames
-          refs
-    , not (null aliasesOfNew)
+        Set.map (Path.unprefixName currentPath) . Set.delete n . R.dom $
+          R.restrictRan existingNames refs
+    , not (null aliasesOfNew && null aliasesOfOld)
     , Set.notMember (var n) duplicates
     ]
 

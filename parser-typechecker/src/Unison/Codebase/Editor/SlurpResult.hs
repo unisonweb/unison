@@ -173,8 +173,8 @@ pretty isPast ppe sr =
     goodIcon = P.green "⍟ "
     badIcon  = P.red "x "
     plus     = P.green "  "
-    oxfordAliases shown rest end = P.oxfordCommasWith end $
-      (P.shown <$> shown) ++ case length rest of
+    oxfordAliases shown sz end =
+      P.oxfordCommasWith end $ (P.shown <$> shown) ++ case sz of
         0 -> []
         n -> [P.shown n <> " more"]
     -- TODO: This is not rendering the way we want or expect.
@@ -182,37 +182,50 @@ pretty isPast ppe sr =
     okType v = (plus <>) $ case UF.lookupDecl v (originalFile sr) of
       Just (_, dd) ->
         P.syntaxToColor (DeclPrinter.prettyDeclHeader (HQ.unsafeFromVar v) dd)
-          <> P.lines aliases
-        where
-          aliases = aliasesMessage . Map.lookup v $ typeAlias sr
+          <> if null aliases
+               then mempty
+               else P.newline <> P.indentN 2 (P.lines aliases)
+        where aliases = aliasesMessage . Map.lookup v $ typeAlias sr
       Nothing -> P.bold (prettyVar v) <> P.red " (Unison bug, unknown type)"
 
     aliasesMessage aliases = case aliases of
       Nothing -> []
       Just (AddAliases (splitAt aliasesToShow . toList -> (shown, rest))) ->
-        [P.indentN
-          2
-          (P.wrap $ P.hiBlack "(also named " <> oxfordAliases shown
-                                                              rest
-                                                              (P.hiBlack ")")
-          )]
+        [ P.indentN 2 . P.wrap $
+            P.hiBlack "(also named " <> oxfordAliases
+              shown
+              (length rest)
+              (P.hiBlack ")")
+        ]
       Just (UpdateAliases oldNames newNames) ->
         let oldMessage =
                 let (shown, rest) = splitAt aliasesToShow $ toList oldNames
+                    sz            = length oldNames
                 in  P.indentN
                       2
                       (  P.wrap
-                      $  P.hiBlack "(The old definition was also named "
-                      <> oxfordAliases shown rest "."
-                      <> P.hiBlack "These will all be updated.)"
+                      $  P.hiBlack
+                           (  "(The old definition "
+                           <> (if isPast then "was" else "is")
+                           <> " also named "
+                           )
+                      <> oxfordAliases shown (length rest) (P.hiBlack ".")
+                      <> P.hiBlack
+                           (case (sz, isPast) of
+                             (1, True ) -> "I updated this name too.)"
+                             (1, False) -> "I'll update this name too.)"
+                             (_, True ) -> "I updated these names too.)"
+                             (_, False) -> "I'll update these names too.)"
+                           )
                       )
             newMessage =
                 let (shown, rest) = splitAt aliasesToShow $ toList newNames
+                    sz            = length rest
                 in  P.indentN
                       2
                       (  P.wrap
-                      $  P.hiBlack "(The new definition is also named "
-                      <> oxfordAliases shown rest "."
+                      $  P.hiBlack "(The new definition is already named "
+                      <> oxfordAliases shown sz (P.hiBlack " as well.)")
                       )
         in  (if null oldNames then mempty else [oldMessage])
               ++ (if null newNames then mempty else [newMessage])
@@ -225,30 +238,26 @@ pretty isPast ppe sr =
       Just (_, _, ty) ->
         ( plus <> P.bold (prettyVar v)
           , Just $ ": " <> P.indentNAfterNewline 2 (TP.pretty ppe ty)
-          ) : ((,Nothing) <$> aliases)
+          )
+          : ((, Nothing) <$> aliases)
        where
-         aliases = aliasesMessage . Map.lookup v $ termAlias sr
-
-    okToAdd sc | SC.isEmpty sc = mempty
-    okToAdd sc =
-      let past = P.green "I've added these definitions:"
-          present = P.green "These new definitions are ok to `add`:"
-          header = goodIcon <>
-            P.indentNAfterNewline 2 (P.wrap (if isPast then past else present))
-          addedTypes = P.lines $ okType <$> toList (SC.types sc)
-          addedTerms = P.mayColumn2 . (=<<) okTerm . Set.toList $ SC.terms sc
-      in  header <> "\n\n" <> P.linesNonEmpty [addedTypes, addedTerms]
-    okToUpdate sc | SC.isEmpty sc = mempty
-    okToUpdate sc =
-      let past = P.green "I've updated these names to your new definition:"
-          present =
-            P.green $ "These names already exist. You can `update` them " <>
-              "to your new definition:"
-          header = goodIcon <>
-            P.indentNAfterNewline 2 (P.wrap (if isPast then past else present))
+        aliases = fmap (P.indentN 2) . aliasesMessage . Map.lookup v $ termAlias sr
+    ok _ _ sc | SC.isEmpty sc = mempty
+    ok past present sc =
+      let header = goodIcon <> P.indentNAfterNewline
+            2
+            (P.wrap (if isPast then past else present))
           updatedTypes = P.lines $ okType <$> toList (SC.types sc)
           updatedTerms = P.mayColumn2 . (=<<) okTerm . Set.toList $ SC.terms sc
-       in header <> "\n\n" <> P.linesNonEmpty [updatedTypes, updatedTerms]
+      in  header <> "\n\n" <> P.linesNonEmpty [updatedTypes, updatedTerms]
+    okToUpdate = ok
+      (P.green "I've updated these names to your new definition:")
+      (  P.green
+      $  "These names already exist. You can `update` them "
+      <> "to your new definition:"
+      )
+    okToAdd = ok (P.green "I've added these definitions:")
+                 (P.green "These new definitions are ok to `add`:")
     notOks _past _present sr | isOk sr = mempty
     notOks past present sr =
       let

@@ -69,8 +69,8 @@ unique type Foo = Foo | Bar
   do an `add` or `update`, here's how your codebase would
   change:
   
-    ⍟ These new definitions will replace existing ones of the
-      same name and are ok to `update`:
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
     
       unique type Foo
    
@@ -83,7 +83,7 @@ and update the codebase to use the new type `Foo`...
 ```ucm
 .subpath> update
 
-  ⍟ I've updated to these definitions:
+  ⍟ I've updated these names to your new definition:
   
     unique type Foo
 
@@ -155,8 +155,8 @@ someTerm _ = None
   do an `add` or `update`, here's how your codebase would
   change:
   
-    ⍟ These new definitions will replace existing ones of the
-      same name and are ok to `update`:
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
     
       someTerm : Optional x -> Optional x
    
@@ -169,7 +169,7 @@ Update...
 ```ucm
 .subpath.preserve> update
 
-  ⍟ I've updated to these definitions:
+  ⍟ I've updated these names to your new definition:
   
     someTerm : .builtin.Optional x -> .builtin.Optional x
 
@@ -282,7 +282,7 @@ someTerm _ = None
 ```ucm
 .subpath.one> update
 
-  ⍟ I've updated to these definitions:
+  ⍟ I've updated these names to your new definition:
   
     someTerm : .builtin.Optional x -> .builtin.Optional x
 
