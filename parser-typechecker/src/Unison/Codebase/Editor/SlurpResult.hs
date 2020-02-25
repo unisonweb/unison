@@ -177,8 +177,6 @@ pretty isPast ppe sr =
       P.oxfordCommasWith end $ (P.shown <$> shown) ++ case sz of
         0 -> []
         n -> [P.shown n <> " more"]
-    -- TODO: This is not rendering the way we want or expect.
-    -- Indentation doesn't work correctly in columns. Suspect a bug in Pretty.
     okType v = (plus <>) $ case UF.lookupDecl v (originalFile sr) of
       Just (_, dd) ->
         P.syntaxToColor (DeclPrinter.prettyDeclHeader (HQ.unsafeFromVar v) dd)
