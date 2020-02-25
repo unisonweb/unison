@@ -1,7 +1,7 @@
 type Optional a = None | Some a
 
 Optional.isEmpty : Optional a -> Boolean
-Optional.isEmpty o = match o with
+Optional.isEmpty = cases
   Optional.None -> true
   Optional.Some _ -> false
 

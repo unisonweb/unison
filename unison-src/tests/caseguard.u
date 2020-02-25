@@ -8,9 +8,8 @@
 
 use Universal ==
 
-f blah =
-  match blah with
-    x | x == "woot" -> false
-    y | y == "foo" -> true
+f = cases
+  x | x == "woot" -> false
+  y | y == "foo" -> true
 
 -- > f "woot"

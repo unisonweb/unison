@@ -34,16 +34,16 @@ type Future.Error = UnknownFuture | UnreachableLocation | UnresponsiveLocation |
 -- Remote.server computation =
 
 Future.join : Future loc a ->{Remote loc, Error Future.Error} a
-Future.join f = case f of Future.Future (b, c, s, j) -> !j
+Future.join = cases Future.Future (b, c, s, j) -> !j
 
 Future.cancel : Future loc a ->{Remote loc} ()
-Future.cancel f = case f of Future.Future (b, c, s, j) -> !c
+Future.cancel = cases Future.Future (b, c, s, j) -> !c
 
 Future.status : Future loc a ->{Remote loc} Status
-Future.status f = case f of Future.Future (b, c, s, j) -> !s
+Future.status = cases Future.Future (b, c, s, j) -> !s
 
 Future.begin : Future loc a ->{Remote loc} ()
-Future.begin f = case f of Future.Future (b, c, s, j) -> !b
+Future.begin = cases Future.Future (b, c, s, j) -> !b
 
 
 type UnitLoc e = UnitLoc
@@ -51,26 +51,26 @@ type UnitLoc e = UnitLoc
 -- Remote.runSequential : '{Remote UnitLoc, Error e} a -> Either e a
 -- Remote.runSequential r =
 --   step : Request {Remote UnitLoc} a -> a
---   step r = case r of
+--   step = cases
 --     {a} -> a
 --     {Remote.fork loc t -> k} ->
 --       join = Right !t
 --       cancel = ()
 --       status = Finished
 --       keepalive d = ()
---       handle step in k (Future ('join, 'cancel, 'status, keepalive))
+--       handle k (Future ('join, 'cancel, 'status, keepalive)) with step
 --   err : Request {Error e} a -> Either e a
---   err e = case e of
+--   err = cases
 --     {a} -> Right a
---     {Error.error t -> k} ->handle err in k (Left t)
---   handle err in handle step in !r
+--     {Error.error t -> k} ->handle k (Left t) with err
+--   handle handle !r with step with err
 
 -- > Remote.runSequential
 
 -- use Optional Some None
 -- use Either Left Right
 -- Either.join : Either a (Either a b) -> Either a b
--- Either.join e = case e of
+-- Either.join = cases
 --   Left a -> Left a
 --   Right e -> e
 --
@@ -80,7 +80,7 @@ type UnitLoc e = UnitLoc
 --   merge z l r =
 --     l0 = at 0 l
 --     r0 = at 0 r
---     case (l0, r0) of
+--     match (l0, r0) with
 --       (None, _) -> z ++ r
 --       (_, None) -> z ++ l
 --       (Some l0, Some r0) ->

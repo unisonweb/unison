@@ -12,11 +12,11 @@ namespace Stream where
   step :
     (a ->{e} b) ->
     Request {Emit a} r ->{e, Emit b} r
-  step f e = match e with
+  step f = cases
     {r} -> r
     {Emit.emit a -> k} ->
       Emit.emit (f a)
-      handle step f in k ()
+      handle k () with step f
 
 
   -- map : (a -> b) -> Stream {e} a r -> Stream {e} b r
@@ -24,31 +24,31 @@ namespace Stream where
   --     -> Stream {e} a r
   --     -> Stream {e} b r
   -- 0. this gets a weird type
-  map f s = Stream ' handle step f in run s
+  map f s = Stream ' handle run s with step f
 
   -- 1. inferred type of `map` required an `o -> o` for some reason
   map1 f s =
-    step f e = match e with
+    step f = cases
       {r} -> r
       {Emit.emit a -> k} ->
         Emit.emit (f a)
-        handle step f in k ()
-    Stream ' handle step f in run s
+        handle k () with step f
+    Stream ' handle run s with step f
 
   -- 2. gets the same weird type
   map2 f s =
     step :
       (a ->{e} b) ->
       Request {Emit a} r ->{e, Emit b} r
-    step f e = match e with
+    step f = cases
       {r} -> r
       {Emit.emit a -> k} ->
         Emit.emit (f a)
-        handle step f in k ()
-    Stream ' handle step f in run s
+        handle k () with step f
+    Stream ' handle run s with step f
 
   run : Stream e a r ->{e, Emit a} r
-  run s = match s with Stream c -> !c
+  run = cases Stream c -> !c
 
 ability Abort where
   abort : {Abort} a
@@ -64,7 +64,7 @@ x = Stream 'let
 I found a value of type Var User "a"-94 where I expected to find one of type b96:
 
    24 |      -> Stream {e} b r
-   25 |   map f s = Stream ' handle step f in run s
+   25 |   map f s = Stream ' handle run s with step f
 
   from right here:
 

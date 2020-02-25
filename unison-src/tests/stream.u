@@ -18,9 +18,9 @@ namespace Stream where
     Stream '(step s)
 
   run : Stream e a r ->{e, Emit a} r
-  run s = match s with Stream c -> !c
+  run = cases Stream c -> !c
 
-  run' s = match s with Stream s -> s
+  run' = cases Stream s -> s
 
   (++) : Stream {e} a r -> Stream {e} a r -> Stream {e} a r
   s1 ++ s2 = Stream '(forceBoth (run' s1) (run' s2))
@@ -30,7 +30,7 @@ namespace Stream where
 
   -- take : Nat -> Stream {} a () -> Stream {} a ()
   take n s =
-    step n e = match e with
+    step n = cases
       {Emit.emit a -> k} ->
         if n Nat.== 0 then ()
         else
@@ -41,7 +41,7 @@ namespace Stream where
 
   -- map : (a -> b) -> Stream {e} a r -> Stream {e} b r
   map f s =
-    step e = match e with
+    step = cases
       {r} -> r
       {Emit.emit a -> k} ->
         Emit.emit (f a)
@@ -50,7 +50,7 @@ namespace Stream where
 
   -- toSeq : Stream {e} a r ->{e} [a]
   toSeq s =
-    step acc e = match e with
+    step acc = cases
       {Emit.emit a -> k} -> handle k () with step (acc `snoc` a)
       {_} -> acc
     handle run s with step []
@@ -70,4 +70,3 @@ namespace Stream where
 forceBoth a b =
   !a
   !b
-

@@ -12,26 +12,26 @@ namespace Stream where
   step :
     (a ->{e} b) ->
     Request {Emit a} r ->{e, Emit b} r
-  step f e = match e with
+  step f = cases
     {r} -> r
     {Emit.emit a -> k} ->
       Emit.emit (f a)
-      handle step f in k ()
+      handle k () with step f
 
   -- map : (a -> b) -> Stream {e} a r -> Stream {e} b r
   map : (a ->{e} b)
      -> Stream {e} a r
      -> Stream {e} b r
-  map f s = Stream ' handle step f in run s
+  map f s = Stream ' handle run s with step f
 
   run : Stream e a r ->{e, Emit a} r
-  run s = match s with Stream c -> !c
+  run = cases Stream c -> !c
 
   ---
-  -- run' s = match s with Stream s -> s
+  -- run' = cases Stream s -> s
   -- unfold : s -> (s ->{} Optional (a, s)) -> Stream e a ()
   unfold s f =
-    step s = match f s with
+    step = cases
       None        -> ()
       Some (a, s) -> emit a
                      step s
@@ -46,23 +46,23 @@ namespace Stream where
 
   -- take : Nat -> Stream {} a () -> Stream {} a ()
   take n s =
-    step n e = match e with
+    step n = cases
       {Emit.emit a -> k} ->
         if n Nat.== 0 then ()
         else
           Emit.emit a
-          handle step (n `drop` 1) in k ()
+          handle k () with step (n `drop` 1)
       {r} -> ()
-    Stream ' handle step n in run s
+    Stream ' handle run s with step n
 
 
 ---
   -- toSeq : Stream {e} a r ->{e} [a]
   toSeq s =
-    step acc e = match e with
-      {Emit.emit a -> k} -> handle step (acc `snoc` a) in k ()
+    step acc = cases
+      {Emit.emit a -> k} -> handle k () with step (acc `snoc` a)
       {_} -> acc
-    handle step [] in run s
+    handle run s with step []
 
   fromSeq : [a] -> Stream e a ()
   fromSeq a =
@@ -79,4 +79,3 @@ namespace Stream where
 a !! b =
   !a
   !b
-

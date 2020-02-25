@@ -4,7 +4,7 @@ type Functor f = Functor (forall a b. (a ->{} b) -> f a ->{} f b)
 
 use Functor Functor
 fmap : Functor f -> (a -> b) -> f a -> f b
-fmap fn f = case fn of 
+fmap fn f = match fn with
   Functor map -> map f
 
 use Cofree Cofree
@@ -12,10 +12,9 @@ use Cofree Cofree
 namespace Cofree where
 
   extract : Cofree f a -> a
-  extract c = case c of
+  extract = cases
     Cofree a _ -> a
 
   duplicate : Functor f -> Cofree f a -> Cofree f (Cofree f a)
-  duplicate f c = case c of
+  duplicate f c = match c with
     Cofree a p -> Cofree c (fmap f (duplicate f) p)
-

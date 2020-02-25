@@ -1,4 +1,4 @@
-foo x = match x with
+foo = cases
   "xyz" -> false
   "abc" -> true
   _ -> false

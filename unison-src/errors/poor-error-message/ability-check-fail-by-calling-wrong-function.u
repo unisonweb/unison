@@ -1,5 +1,5 @@
 reduce2 : a -> (a -> a -> a) -> Sequence a -> a
-reduce2 a0 f s = case at 0 s of
+reduce2 a0 f s = match at 0 s with
   Optional.None -> a0
   Optional.Some a1 -> reduce (f a0 a1) f (drop 1 s)
 

@@ -13,7 +13,7 @@ ability Remote where
 type Node = Node Nat -- more realistic would be perhaps a (Hostname, PublicKey) pair
 
 force : Future a ->{Remote} a
-force f = case f of Future.Future r -> !r
+force = cases Future.Future r -> !r
 
 -- Let's test out this beast! do we need to deploy our code to some EC2 instances??
 -- Gak, no not yet, we just want to test locally, let's write a handler
@@ -27,22 +27,22 @@ use Universal <
 
 List.map : (a ->{e} b) -> [a] ->{e} [b]
 List.map f as =
-  go f acc as i = case at i as of
+  go f acc as i = match at i as with
     None -> acc
     Some a -> go f (acc `snoc` f a) as (i + 1)
   go f [] as 0
 
 type Monoid a = Monoid (a -> a -> a) a
 
-Monoid.zero m = case m of Monoid.Monoid op z -> z
-Monoid.op   m = case m of Monoid.Monoid op z -> op
+Monoid.zero = cases Monoid.Monoid op z -> z
+Monoid.op   = cases Monoid.Monoid op z -> op
 
-Monoid.orElse m a = case a of
+Monoid.orElse m = cases
   None -> Monoid.zero m
   Some a -> a
 
 uncons : [a] -> Optional (a, [a])
-uncons as = case at 0 as of
+uncons as = match at 0 as with
   None -> None
   Some hd -> Some (hd, drop 1 as)
 
@@ -71,19 +71,19 @@ splitAt n as = (take n as, drop n as)
 Node.increment : Node -> Node
 Node.increment n =
   use Node.Node -- the constructor
-  case n of Node n -> Node (n + 1)
+  match n with Node n -> Node (n + 1)
 
 Remote.runLocal : '{Remote} a -> a
 Remote.runLocal r =
-  step nid r = case r of
-    {Remote.spawn -> k} -> handle (step (Node.increment nid)) in k nid
-    {Remote.at _ t -> k} -> handle (step nid) in k (Future t)
+  step nid = cases
+    {Remote.spawn -> k} -> handle k nid with step (Node.increment nid)
+    {Remote.at _ t -> k} -> handle k (Future t) with step nid
     {a} -> a -- the pure case
-  handle (step (Node.Node 0)) in !r
+  handle !r with step (Node.Node 0)
 
 merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]
 merge lte a b =
-  go out a b = case (uncons a, uncons b) of
+  go out a b = match (uncons a, uncons b) with
     (None,_) -> out ++ b
     (_,None) -> out ++ a
     (Some (hA, tA), Some (hB, tB)) ->
@@ -96,7 +96,7 @@ merge lte a b =
 sort : (a -> a -> Boolean) -> [a] -> [a]
 sort lte as =
   if size as < 2 then as
-  else case halve as of (left, right) ->
+  else match halve as with (left, right) ->
     l = sort lte left
     r = sort lte right
     merge lte l r
@@ -105,7 +105,7 @@ dsort : (a -> a -> Boolean) -> [a] ->{Remote} [a]
 dsort lte as =
   use Remote at spawn
   if size as < 2 then as
-  else case halve as of (left, right) ->
+  else match halve as with (left, right) ->
     r1 = at spawn '(dsort lte left)
     r2 = at spawn '(dsort lte right)
     merge lte (force r1) (force r2)
@@ -113,4 +113,3 @@ dsort lte as =
 > sort (<) [1,2,3,234,6,2,4,66,2,33,4,2,57]
 
 > Remote.runLocal '(dsort (<) [1,2,3,234,6,2,4,66,2,33,4,2,57])
-

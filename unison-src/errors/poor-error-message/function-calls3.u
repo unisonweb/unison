@@ -9,7 +9,7 @@ id5 a b c d e = (a, b, c, d, e)
 
 id5 1 +2 3 4 5
 
--- (case true of
+-- (match true with
 --   true -> first
 --   false -> second) 1 +2
 
