@@ -1,4 +1,5 @@
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Unison.Test.Codebase.Causal where
 
@@ -14,6 +15,7 @@ import Control.Monad.Trans.State (State, state, put)
 import Data.Int (Int64)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Control.Monad (replicateM_)
 import Control.Monad.Extra (ifM)
 import Control.Applicative (liftA2)
 import Data.List (foldl1')
@@ -130,10 +132,11 @@ lcaPair = do
   (,) <$> extend ll base <*> extend lr base
 
 lcaPairTest :: Test ()
-lcaPairTest = do
-  (cl, cr) <- lcaPair
-  _ <- expectJust . runIdentity $ Causal.lca cl cr
-  pure ()
+lcaPairTest = replicateM_ 50 test >> ok
+  where
+  test = runIdentity . uncurry Causal.lca <$> lcaPair >>= \case
+    Just _  -> pure ()
+    Nothing -> crash "expected lca"
 
 noLcaPair
   :: Test (Causal Identity Hash Int64, Causal Identity Hash Int64)
@@ -145,10 +148,10 @@ noLcaPair = do
   (,) <$> extend ll basel <*> extend lr baser
 
 noLcaPairTest :: Test ()
-noLcaPairTest = do
-  (cl, cr) <- noLcaPair
-  case runIdentity $ Causal.lca cl cr of
-    Nothing -> ok
+noLcaPairTest = replicateM_ 50 test >> ok
+  where
+  test = runIdentity . uncurry Causal.lca <$> noLcaPair >>= \case
+    Nothing -> pure ()
     Just _ -> crash "expected no lca"
 
 oneRemoved :: Causal Identity Hash (Set Int64)
