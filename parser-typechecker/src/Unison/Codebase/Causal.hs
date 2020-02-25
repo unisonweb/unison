@@ -135,37 +135,24 @@ lca a b =
   go Set.empty Set.empty (Seq.singleton $ pure a) . Seq.singleton $ pure b
  where
   go seenLeft seenRight remainingLeft remainingRight =
-    case (Seq.viewl remainingLeft, Seq.viewl remainingRight) of
-      (Seq.EmptyL, _         ) -> pure Nothing
-      (_         , Seq.EmptyL) -> pure Nothing
-      (a :< as   , b :< bs   ) -> do
+    case Seq.viewl remainingLeft of
+      Seq.EmptyL -> search seenLeft remainingRight
+      a :< as -> do
         left <- a
-        -- Have we seen the left node before on the right?
         if Set.member (currentHash left) seenRight
           then pure $ Just left
-          else do
-            right <- b
-            -- Have we seen the right node before on the left?
-            if Set.member (currentHash right) seenLeft
-              then pure $ Just right
-              -- Are these two previously unseen nodes the same?
-              else if currentHash left == currentHash right
-                then pure $ Just left
-                -- Descend in to the children
-                else case (left, right) of
-                  (One h _, _) ->
-                    go (Set.insert h seenLeft) seenRight as remainingRight
-                  (_, One h _) ->
-                    go seenLeft (Set.insert h seenRight) remainingLeft bs
-                  _ -> descend (currentHash left)
-                               (currentHash right)
-                               (children left)
-                               (children right)
-       where
-        descend h1 h2 r1 r2 = go (Set.insert h1 seenLeft)
-                                 (Set.insert h2 seenRight)
-                                 (as <> r1)
-                                 (bs <> r2)
+          -- Note: swapping position of left and right when we recurse so that
+          -- we search each side equally. This avoids having to case on both
+          -- arguments, and the order shouldn't really matter.
+          else go seenRight (Set.insert (currentHash left) seenLeft) remainingRight (as <> children left)
+  search seen remaining =
+    case Seq.viewl remaining of
+      Seq.EmptyL -> pure Nothing
+      a :< as -> do
+        current <- a
+        if Set.member (currentHash current) seen
+          then pure $ Just current
+          else search seen (as <> children current)
 
 children :: Causal m h e -> Seq (m (Causal m h e))
 children (One _ _         ) = Seq.empty
@@ -173,15 +160,13 @@ children (Cons  _ _ (_, t)) = Seq.singleton t
 children (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
 
 threeWayMerge
-  :: forall m h e d
-   . (Show d, Monad m, Hashable e, Semigroup d)
-  => (e -> e -> m e)
-  -> (e -> e -> m d)
-  -> (e -> d -> m e)
+  :: forall m h e
+   . (Monad m, Hashable e)
+  => (Maybe e -> e -> e -> m e)
   -> Causal m h e
   -> Causal m h e
   -> m (Causal m h e)
-threeWayMerge combine diff patch = mergeInternal merge0
+threeWayMerge combine = mergeInternal merge0
  where
   merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
   merge0 m =
@@ -189,15 +174,10 @@ threeWayMerge combine diff patch = mergeInternal merge0
           a           <- left
           b           <- right
           mayAncestor <- lca a b
-          case mayAncestor of
-            Nothing       -> mergeWithM combine a b
-            Just ancestor -> do
-              da      <- diff (head ancestor) (head a)
-              db      <- diff (head ancestor) (head b)
-              newHead <- patch (head ancestor) (da <> db)
-              let h = hash (newHead, Map.keys m)
-              pure . Merge (RawHash h) newHead $ Map.fromList
-                [(currentHash a, pure a), (currentHash b, pure b)]
+          newHead <- combine (head <$> mayAncestor) (head a) (head b)
+          let h = hash (newHead, Map.keys m)
+          pure . Merge (RawHash h) newHead $ Map.fromList
+            [(currentHash a, pure a), (currentHash b, pure b)]
     in  if Map.null m
           then error "Causal.threeWayMerge empty map"
           else foldl1' k $ Map.elems m
