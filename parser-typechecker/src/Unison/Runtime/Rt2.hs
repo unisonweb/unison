@@ -72,25 +72,14 @@ exec !_   !denv !ustk !bstk !k (Lit n) = do
   ustk <- bump ustk
   poke ustk n
   pure (denv, ustk, bstk, k)
-{-# inline exec #-}
-
-tailManip
-  :: Stack 'UN -> Stack 'BX -> K -> Maybe Section
-  -> IO (Stack 'UN, Stack 'BX, K)
-tailManip !ustk !bstk !k Nothing = pure (ustk, bstk, k)
-tailManip !ustk !bstk !k (Just nx) = do
+exec !_   !denv !ustk !bstk !k (Reset p) = do
+  pure (denv, ustk, bstk, Mark p clo k)
+ where clo = lookupDenv p denv
+exec !_   !denv !ustk !bstk !k (Return nx) = do
   (ustk, ufsz, uasz) <- saveFrame ustk
   (bstk, bfsz, basz) <- saveFrame bstk
-  pure (ustk, bstk, Push ufsz bfsz uasz basz nx k)
-{-# inline tailManip #-}
-
-delimit :: DEnv -> Int -> K -> IO K
-delimit !denv !p !k
-  | p < 0     = pure k
-  | otherwise = pure $ Mark p clo k
- where
- clo = lookupDenv p denv
-{-# inline delimit #-}
+  pure (denv, ustk, bstk, Push ufsz bfsz uasz basz nx k)
+{-# inline exec #-}
 
 eval :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> Section -> IO ()
 eval !env !denv !ustk !bstk !k (Match i br) = do
@@ -101,17 +90,12 @@ eval !env !denv !ustk !bstk !k (Yield args) = do
   ustk <- frameArgs ustk
   bstk <- frameArgs bstk
   yield env denv ustk bstk k
-eval !env !denv !ustk !bstk !k (Appl p tc call) = do
-  (ustk, bstk, k) <- tailManip ustk bstk k tc
-  k <- delimit denv p k
-  case call of
-    Unknown ck r args ->
-      resolve env denv ustk bstk r
-        >>= apply env denv ustk bstk k ck args
-    Known ck n args ->
-      enter env denv ustk bstk k ck args $ env n
-    Jump i args ->
-      peekOff bstk i >>= jump env denv ustk bstk k args
+eval !env !denv !ustk !bstk !k (App ck r args) =
+  resolve env denv ustk bstk r >>= apply env denv ustk bstk k ck args
+eval !env !denv !ustk !bstk !k (Call ck n args) =
+  enter env denv ustk bstk k ck args $ env n
+eval !env !denv !ustk !bstk !k (Jump i args) =
+  peekOff bstk i >>= jump env denv ustk bstk k args
 eval !env !denv !ustk !bstk !k (Ins i nx) = do
   (denv, ustk, bstk, k) <- exec env denv ustk bstk k i
   eval env denv ustk bstk k nx

@@ -7,10 +7,8 @@ import Criterion.Main
 import Unison.Runtime.IR2
 import Unison.Runtime.Rt2
 
-pattern App b r a = Appl (-1) Nothing (Unknown b r a)
-pattern LApp b r a ret = Appl (-1) (Just ret) (Unknown b r a)
-pattern Call b i a = Appl (-1) Nothing (Known b i a)
-pattern LCall b i a ret = Appl (-1) (Just ret) (Known b i a)
+pattern LApp b n a nx = Ins (Return nx) (App b n a)
+pattern LCall b n a nx = Ins (Return nx) (Call b n a)
 
 infixr 0 $$
 ($$) :: Instr -> Section -> Section
@@ -78,8 +76,8 @@ add = Unpack 1
 
 -- k s => (k s) s -- k continuation
 diag :: Section
-diag = Appl 0 resume (Jump 0 (BArg1 1))
- where resume = Just $ App False (Stk 0) (BArg1 2)
+diag = Return resume $$ Reset 0 $$ Jump 0 (BArg1 1)
+ where resume = App False (Stk 0) (BArg1 2)
 
 -- => shift k. diag k
 get :: Section
@@ -88,8 +86,8 @@ get = Capture 0
 
 -- k s _ => (k) s
 kid :: Section
-kid = Appl 0 resume (Jump 0 ZArgs)
- where resume = Just $ App False (Stk 0) (BArg1 2)
+kid = Return resume $$ Reset 0 $$ Jump 0 ZArgs
+ where resume = App False (Stk 0) (BArg1 2)
 
 -- s => shift k. kid k s
 put :: Section
@@ -112,9 +110,9 @@ kloopb =
 
 -- m a => f = reset (kloopb m) ; y = f (I# a) ; print y
 kloop :: Section
-kloop = Appl 0 resume (Unknown False (Env 5) (UArg1 0))
+kloop = Return resume $$ Reset 0 $$ App False (Env 5) (UArg1 0)
  where
- resume = Just $ Pack 0 (UArg1 1) $$ App False (Stk 1) (BArg1 0)
+ resume = Pack 0 (UArg1 1) $$ App False (Stk 1) (BArg1 0)
 
 -- s0 0 => s0
 -- s0 1 s => tinst s setDyn 0 (teff s)
@@ -153,13 +151,9 @@ tloopb =
 
 -- m s => reset (tinst (I# s) ; tloopb m)
 tloop :: Section
--- tloop = Reset 0
---   $$ Pack 0 (UArg1 1)
---   $$ Let (Call True 21 $ BArg1 0)
---   $$ Call True 25 $ UArg1 0
 tloop = Pack 0 (UArg1 1)
-     $$ Appl 0 ret (Known True 21 $ BArg1 0)
- where ret = Just $ Call True 25 $ UArg1 0
+     $$ Reset 0 $$ Return ret $$ Call True 21 $ BArg1 0
+ where ret = Call True 25 $ UArg1 0
 
 fib :: Section
 fib = Match 0 $ Test2

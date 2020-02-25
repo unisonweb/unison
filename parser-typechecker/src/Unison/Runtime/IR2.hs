@@ -244,12 +244,17 @@ data Instr
   -- Print a value on the unboxed stack
   | Print !Int -- index of the primitive value to print
 
--- Control flow types for making 'calls' of various sorts.
-data Call
+  -- Put a delimiter on the continuation
+  | Reset !Int -- prompt id
+
+  -- Push a return point onto the continuation
+  | Return !Section
+
+data Section
   -- Apply a function to arguments. This is the 'slow path', and
   -- handles applying functions from arbitrary sources. This
   -- requires checks to determine what exactly should happen.
-  = Unknown
+  = App
       !Bool -- skip argument check for known calling convention
       !Ref  -- function to call
       !Args -- arguments
@@ -260,7 +265,7 @@ data Call
   -- time in very tight loops. This also allows skipping the
   -- stack check if we know that the current stack allowance is
   -- sufficient for where we're jumping to.
-  | Known
+  | Call
       !Bool -- skip stack check
       !Int  -- global function reference
       !Args -- arguments
@@ -270,16 +275,13 @@ data Call
       !Int  -- index of captured continuation
       !Args -- arguments to send to continuation
 
-data Section
-  -- Apply one of the possible call forms
-  = Appl !Int             -- delimiter
-         !(Maybe Section) -- non-tail return
-         !Call            -- call structure
   -- Branch on the value in the unboxed data stack
   | Match !Int    -- index of unboxed item to match on
           !Branch -- branches
   -- Yield control to the current continuation, with arguments
   | Yield !Args -- values to yield
+
+  -- Prefix an instruction onto a section
   | Ins !Instr !Section
 
 data Comb
