@@ -105,19 +105,20 @@ sync
   :: Monad m => (RawHash h -> m Bool) -> Serialize m h e -> Causal m h e -> m ()
 sync exists serialize c = do
   b <- exists (currentHash c)
-  unless b $ go c
+  unless b $ go mempty c
  where
-  go c = case c of
-    One currentHash head -> serialize currentHash $ RawOne head
+  go queued c = when (Set.notMember (currentHash c) queued) $ case c of
+    One currentHash head -> do
+      serialize currentHash $ RawOne head
     Cons currentHash head (tailHash, tailm) -> do
       -- write out the tail first, so what's on disk is always valid
       b <- exists tailHash
-      unless b $ go =<< tailm
+      unless b $ go (Set.insert currentHash queued) =<< tailm
       serialize currentHash (RawCons head tailHash)
     Merge currentHash head tails -> do
       for_ (Map.toList tails) $ \(hash, cm) -> do
         b <- exists hash
-        unless b $ go =<< cm
+        unless b $ go (Set.insert currentHash queued) =<< cm
       serialize currentHash (RawMerge head (Map.keysSet tails))
 
 instance Eq (Causal m h a) where
