@@ -75,10 +75,6 @@ exec !_   !denv !ustk !bstk !k (Lit n) = do
 exec !_   !denv !ustk !bstk !k (Reset p) = do
   pure (denv, ustk, bstk, Mark p clo k)
  where clo = lookupDenv p denv
-exec !_   !denv !ustk !bstk !k (Return nx) = do
-  (ustk, ufsz, uasz) <- saveFrame ustk
-  (bstk, bfsz, basz) <- saveFrame bstk
-  pure (denv, ustk, bstk, Push ufsz bfsz uasz basz nx k)
 {-# inline exec #-}
 
 eval :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> Section -> IO ()
@@ -96,9 +92,14 @@ eval !env !denv !ustk !bstk !k (Call ck n args) =
   enter env denv ustk bstk k ck args $ env n
 eval !env !denv !ustk !bstk !k (Jump i args) =
   peekOff bstk i >>= jump env denv ustk bstk k args
+eval !env !denv !ustk !bstk !k (Let nw nx) = do
+  (ustk, ufsz, uasz) <- saveFrame ustk
+  (bstk, bfsz, basz) <- saveFrame bstk
+  eval env denv ustk bstk (Push ufsz bfsz uasz basz nx k) nw
 eval !env !denv !ustk !bstk !k (Ins i nx) = do
   (denv, ustk, bstk, k) <- exec env denv ustk bstk k i
   eval env denv ustk bstk k nx
+{-# noinline eval #-}
 
 -- fast path application
 enter
@@ -174,6 +175,7 @@ repush !env !ustk !bstk = go
   c' = lookupDenv p denv
  go !denv (Push un bn ua ba nx sk) !k
    = go denv sk $ Push un bn ua ba nx k
+{-# inline repush #-}
 
 moveArgs
   :: Stack 'UN -> Stack 'BX

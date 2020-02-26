@@ -247,9 +247,6 @@ data Instr
   -- Put a delimiter on the continuation
   | Reset !Int -- prompt id
 
-  -- Push a return point onto the continuation
-  | Return !Section
-
 data Section
   -- Apply a function to arguments. This is the 'slow path', and
   -- handles applying functions from arbitrary sources. This
@@ -283,6 +280,11 @@ data Section
 
   -- Prefix an instruction onto a section
   | Ins !Instr !Section
+
+  -- Sequence two sections. The second is pushed as a return
+  -- point for the results of the first. Stack modifications in
+  -- the first are lost on return to the second.
+  | Let !Section !Section
 
 data Comb
   = Lam !Int -- Number of unboxed arguments
