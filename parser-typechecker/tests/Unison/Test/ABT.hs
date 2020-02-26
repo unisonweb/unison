@@ -1,7 +1,12 @@
 {-# Language OverloadedStrings #-}
+{-# language DeriveFunctor #-}
+{-# language DeriveFoldable #-}
+{-# language DeriveTraversable #-}
 
 module Unison.Test.ABT where
 
+import Prelude hiding (abs)
+import Prelude.Extras (Eq1(..))
 import Data.Set as Set
 import EasyTest
 import Unison.ABT as ABT
@@ -21,4 +26,21 @@ test = scope "abt" $ tests [
       [ scope "first"  $ expect (not $ Set.member fresh (ABT.freeVars t1))
       , scope "second" $ expect (not $ Set.member fresh (ABT.freeVars t2))
       ]
+  , scope "capture" capture
   ]
+
+data P a = Z | T a a deriving (Functor, Foldable, Traversable, Eq, Ord)
+
+instance Eq1 P where
+  x ==# y = x == y
+
+capture :: Test ()
+capture = expect (subst u (var x0) tm1 == subst u (var x0) tm2)
+ where
+ tm1 = abs x0 $ abs x1 $ tm $ T (var x0) (var u)
+ tm2 = abs x0 $ abs x2 $ tm $ T (var x0) (var u)
+
+ u  = Symbol 0 (Var.User "u")
+ x0 = Symbol 0 (Var.User "x")
+ x1 = Symbol 1 (Var.User "x")
+ x2 = Symbol 2 (Var.User "x")

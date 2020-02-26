@@ -296,6 +296,7 @@ executable tests
     lens,
     megaparsec,
     mtl,
+    prelude-extras,
     raw-strings-qq,
     shellmet,
     temporary,
