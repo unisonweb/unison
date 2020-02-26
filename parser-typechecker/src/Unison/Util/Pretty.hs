@@ -9,6 +9,7 @@ module Unison.Util.Pretty (
    Pretty,
    ColorText,
    align,
+   align',
    alternations,
    backticked,
    boxForkLeft,
@@ -473,7 +474,7 @@ mayColumn2
   :: (LL.ListLike s Char, IsString s)
   => [(Pretty s, Maybe (Pretty s))]
   -> Pretty s
-mayColumn2 = lines . (group <$>) . align'
+mayColumn2 = lines . (group <$>) . ((uncurry (<>)) <$>) . align'
 
 column3
   :: (LL.ListLike s Char, IsString s)
@@ -532,7 +533,7 @@ wrapColumn2 rows = lines (align rows) where
 
 align
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> [Pretty s]
-align rows = align' (second Just <$> rows)
+align rows = (((uncurry (<>)) <$>) . align') (second Just <$> rows)
 
 -- [("foo", Just "bar")
 -- ,("barabaz", Nothing)
@@ -540,20 +541,25 @@ align rows = align' (second Just <$> rows)
 --
 -- results in:
 --
--- foo bar
--- barabaz
--- qux quux
+-- [("foo ", "bar"),
+-- [("barabaz", ""),
+-- [("qux ", "quuxbill")]
+--
+-- The first component has padding added, sufficient to align the second
+-- component.  The second component has whitespace added after its
+-- newlines, again sufficient to line it up in a second column.
 align'
   :: (LL.ListLike s Char, IsString s)
   => [(Pretty s, Maybe (Pretty s))]
-  -> [Pretty s]
+  -> [(Pretty s, Pretty s)]
 align' rows = alignedRows
  where
   col0Width = foldl' max 0 [ preferredWidth col1 | (col1, Just _) <- rows ] + 1
   alignedRows =
     [ case col1 of
-        Just s  -> rightPad col0Width col0 <> indentNAfterNewline col0Width s
-        Nothing -> col0
+        Just s  ->
+          (rightPad col0Width col0, indentNAfterNewline col0Width s)
+        Nothing -> (col0, mempty)
     | (col0, col1) <- rows
     ]
 
