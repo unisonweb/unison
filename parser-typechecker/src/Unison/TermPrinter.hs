@@ -262,7 +262,7 @@ pretty0
       else ((fmt S.ControlKeyword "match ") <> ps <> (fmt S.ControlKeyword " with")) `PP.hang` pbs
       where height = PP.preferredHeight ps
             ps = pretty0 n (ac 2 Normal im doc) scrutinee
-            pbs = PP.lines (map printCase branches)
+            pbs = printCase n im doc branches
 
     t -> l "error: " <> l (show t)
  where
@@ -286,7 +286,7 @@ pretty0
       _ -> case (term, nonUnitArgPred) of
         (LamsNamedMatch' [] branches, _) ->
           paren (p >= 3) $
-            PP.group (fmt S.ControlKeyword "cases") `PP.hang` PP.lines (map printCase branches)
+            PP.group (fmt S.ControlKeyword "cases") `PP.hang` printCase n im doc branches
         LamsNamedPred' vs body ->
           paren (p >= 3) $
             PP.group (varList vs <> fmt S.ControlKeyword " ->") `PP.hang` pretty0 n (ac 2 Block im doc) body
@@ -316,24 +316,6 @@ pretty0
     letIntro = case sc of
       Block  -> id
       Normal -> \x -> (fmt S.ControlKeyword "let") `PP.hang` x
-
-  printCase :: Var v => MatchCase () (AnnotatedTerm3 v PrintAnnotation) -> Pretty SyntaxText
-  printCase (MatchCase pat guard (AbsN' vs body)) =
-    PP.group $ lhs `PP.hang` (uses [pretty0 n (ac 0 Block im' doc) body])
-    where
-    lhs = PP.group (fst (prettyPattern n (ac 0 Block im doc) (-1) vs pat) <> " ")
-       <> printGuard guard
-       <> (fmt S.ControlKeyword "->")
-    printGuard (Just g0) = let
-      -- strip off any Abs-chain around the guard, guard variables are rendered
-      -- like any other variable, ex: case Foo x y | x < y -> ...
-      g = case g0 of
-        AbsN' _ g' -> g'
-        _ -> g0
-      in PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty0 n (ac 2 Normal im doc) g, ""]
-    printGuard Nothing  = mempty
-    (im', uses) = calcImports im body
-  printCase _ = l "error"
 
   -- This predicate controls which binary functions we render as infix
   -- operators.  At the moment the policy is just to render symbolic
@@ -453,6 +435,36 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   patternsSep p sep vs pats = case patterns p vs pats of
     (printed, tail_vs) -> (PP.sep sep printed, tail_vs)
 
+printCase
+  :: Var v
+  => PrettyPrintEnv
+  -> Imports
+  -> DocLiteralContext
+  -> [MatchCase () (AnnotatedTerm3 v PrintAnnotation)]
+  -> Pretty SyntaxText
+printCase env im doc ms = PP.lines $ map each gridArrowsAligned where
+  each (lhs, arrow, body) = PP.group $ (lhs <> arrow) `PP.hang` body
+  grid = go <$> ms
+  gridArrowsAligned = tidy <$> zip (PP.align' (f <$> grid)) grid where
+    f (a, b, _) = (a, Just b)
+    tidy ((a', b'), (_, _, c)) = (a', b', c)
+  go (MatchCase pat guard (AbsN' vs body)) =
+    (lhs, arrow, (uses [pretty0 env (ac 0 Block im' doc) body]))
+    where
+    lhs = PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
+       <> printGuard guard
+    arrow = fmt S.ControlKeyword "->"
+    printGuard (Just g0) = let
+      -- strip off any Abs-chain around the guard, guard variables are rendered
+      -- like any other variable, ex: case Foo x y | x < y -> ...
+      g = case g0 of
+        AbsN' _ g' -> g'
+        _ -> g0
+      in PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 env (ac 2 Normal im doc) g]
+    printGuard Nothing  = mempty
+    (im', uses) = calcImports im body
+  go _ = (l "error", mempty, mempty)
+
 {- Render a binding, producing output of the form
 
 foo : t -> u
@@ -501,7 +513,7 @@ prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = 
     (printAnnotate env -> LamsNamedMatch' vs branches) ->
       PP.group
             $         PP.group (defnLhs v vs <> fmt S.BindingEquals " =" <> " " <> fmt S.ControlKeyword "cases")
-            `PP.hang` PP.lines (map printCase branches)
+            `PP.hang` printCase env im doc branches
     LamsNamedOrDelay' vs body ->
       let (im', uses) = calcImports im body'
           -- In the case where we're being called from inside `pretty0`, this
@@ -513,23 +525,6 @@ prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = 
             `PP.hang` uses [pretty0 env (ac (-1) Block im' doc) body']
     t -> l "error: " <> l (show t)
    where
-    printCase :: Var v => MatchCase () (AnnotatedTerm3 v PrintAnnotation) -> Pretty SyntaxText
-    printCase (MatchCase pat guard (AbsN' vs body)) =
-      PP.group $ lhs `PP.hang` (uses [pretty0 env (ac 0 Block im' doc) body])
-      where
-      lhs = PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat) <> " ")
-         <> printGuard guard
-         <> (fmt S.ControlKeyword "->")
-      printGuard (Just g0) = let
-        -- strip off any Abs-chain around the guard, guard variables are rendered
-        -- like any other variable, ex: case Foo x y | x < y -> ...
-        g = case g0 of
-          AbsN' _ g' -> g'
-          _ -> g0
-        in PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty0 env (ac 2 Normal im doc) g, ""]
-      printGuard Nothing  = mempty
-      (im', uses) = calcImports im body
-    printCase _ = l "error"
     defnLhs v vs
       | infix' = case vs of
         x : y : _ -> PP.sep
