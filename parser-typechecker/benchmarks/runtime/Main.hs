@@ -4,7 +4,7 @@ module Main(main) where
 
 import Criterion.Main
 
-import Unison.Runtime.IR2
+import Unison.Runtime.MCode
 import Unison.Runtime.Rt2
 
 infixr 0 $$

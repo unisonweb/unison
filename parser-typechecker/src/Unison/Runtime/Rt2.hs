@@ -9,7 +9,7 @@ import qualified Data.IntMap.Strict as M
 
 import Unison.Runtime.Stack
 
-import Unison.Runtime.IR2
+import Unison.Runtime.MCode
 
 type Tag = Int
 type Env = Int -> Comb

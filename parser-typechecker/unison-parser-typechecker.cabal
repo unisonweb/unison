@@ -98,7 +98,7 @@ library
     Unison.Result
     Unison.Runtime.ANF
     Unison.Runtime.IR
-    Unison.Runtime.IR2
+    Unison.Runtime.MCode
     Unison.Runtime.Rt1
     Unison.Runtime.Rt2
     Unison.Runtime.Rt1IO

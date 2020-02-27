@@ -11,7 +11,7 @@ import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
 import Data.Primitive.Array
 
-import Unison.Runtime.IR2
+import Unison.Runtime.MCode
 
 data Mem = UN | BX
 

@@ -1,7 +1,7 @@
 {-# language GADTs #-}
 {-# language EmptyDataDecls #-}
 
-module Unison.Runtime.IR2 where
+module Unison.Runtime.MCode where
 
 import Data.Primitive.PrimArray
 
