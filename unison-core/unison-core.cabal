@@ -35,6 +35,7 @@ library
 
   exposed-modules:
     Unison.ABT
+    Unison.ABT.Normalized
     Unison.Blank
     Unison.Codebase.NameSegment
     Unison.ConstructorType
