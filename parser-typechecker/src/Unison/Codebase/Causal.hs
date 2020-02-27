@@ -11,6 +11,8 @@ import           Prelude                 hiding ( head
                                                 )
 import           Control.Lens                   ( (<&>) )
 import           Control.Monad.Loops            ( anyM )
+import qualified Control.Monad.State           as State
+import           Control.Monad.State            ( StateT )
 import           Data.List                      ( foldl1' )
 import           Data.Sequence                  ( ViewL(..) )
 import qualified Data.Sequence                 as Seq
@@ -102,24 +104,33 @@ type Serialize m h e = RawHash h -> Raw h e -> m ()
 -- Sync a causal to some persistent store, stopping when hitting a Hash which
 -- has already been written, according to the `exists` function provided.
 sync
-  :: Monad m => (RawHash h -> m Bool) -> Serialize m h e -> Causal m h e -> m ()
+  :: forall m h e
+   . Monad m
+  => (RawHash h -> m Bool)
+  -> Serialize (StateT (Set (RawHash h)) m) h e
+  -> Causal m h e
+  -> StateT (Set (RawHash h)) m ()
 sync exists serialize c = do
-  b <- exists (currentHash c)
-  unless b $ go mempty c
+  b <- lift $ exists (currentHash c)
+  unless b $ go c
  where
-  go queued c = when (Set.notMember (currentHash c) queued) $ case c of
-    One currentHash head -> do
-      serialize currentHash $ RawOne head
-    Cons currentHash head (tailHash, tailm) -> do
-      -- write out the tail first, so what's on disk is always valid
-      b <- exists tailHash
-      unless b $ go (Set.insert currentHash queued) =<< tailm
-      serialize currentHash (RawCons head tailHash)
-    Merge currentHash head tails -> do
-      for_ (Map.toList tails) $ \(hash, cm) -> do
-        b <- exists hash
-        unless b $ go (Set.insert currentHash queued) =<< cm
-      serialize currentHash (RawMerge head (Map.keysSet tails))
+  go :: Causal m h e -> StateT (Set (RawHash h)) m ()
+  go c = do
+    queued <- State.get
+    when (Set.notMember (currentHash c) queued) $ case c of
+      One currentHash head -> serialize currentHash $ RawOne head
+      Cons currentHash head (tailHash, tailm) -> do
+        State.modify (Set.insert currentHash)
+        -- write out the tail first, so what's on disk is always valid
+        b <- lift $ exists tailHash
+        unless b $ go =<< lift tailm
+        serialize currentHash (RawCons head tailHash)
+      Merge currentHash head tails -> do
+        State.modify (Set.insert currentHash)
+        for_ (Map.toList tails) $ \(hash, cm) -> do
+          b <- lift $ exists hash
+          unless b $ go =<< lift cm
+        serialize currentHash (RawMerge head (Map.keysSet tails))
 
 instance Eq (Causal m h a) where
   a == b = currentHash a == currentHash b
