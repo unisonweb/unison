@@ -71,6 +71,26 @@ data Causal m h e
           , tails :: Map (RawHash h) (m (Causal m h e))
           }
 
+toGraph
+  :: Monad m
+  => Set (RawHash h)
+  -> Causal m h e
+  -> m (Seq (RawHash h, RawHash h))
+toGraph seen c = case c of
+  One _ _           -> pure Seq.empty
+  Cons h1 _ (h2, m) -> if Set.notMember h1 seen
+    then do
+      tail <- m
+      g    <- toGraph (Set.insert h1 seen) tail
+      pure $ (h1, h2) Seq.<| g
+    else pure Seq.empty
+  Merge h _ ts -> if Set.notMember h seen
+    then do
+      tails <- sequence $ Map.elems ts
+      gs    <- Seq.fromList <$> traverse (toGraph (Set.insert h seen)) tails
+      pure $ Seq.fromList ((h, ) <$> Set.toList (Map.keysSet ts)) <> join gs
+    else pure Seq.empty
+
 -- A serializer `Causal m h e`. Nonrecursive -- only responsible for
 -- writing a single node of the causal structure.
 data Raw h e
@@ -111,7 +131,7 @@ sync
   -> Causal m h e
   -> StateT (Set (RawHash h)) m ()
 sync exists serialize c = do
-  b <- lift $ exists (currentHash c)
+  b <- lift . exists $ currentHash c
   unless b $ go c
  where
   go :: Causal m h e -> StateT (Set (RawHash h)) m ()
@@ -144,27 +164,38 @@ instance Hashable (RawHash h) where
 -- Find the lowest common ancestor of two causals.
 lca :: Monad m => Causal m h e -> Causal m h e -> m (Maybe (Causal m h e))
 lca a b =
-  go Set.empty Set.empty (Seq.singleton $ pure a) . Seq.singleton $ pure b
- where
+  lca' (Seq.singleton $ pure a) . Seq.singleton $ pure b
+
+-- Find the lowest common ancestor of two causal-forests.
+-- The convention is that the causals in a forest are the ancestors of some
+-- other Causal.
+lca'
+  :: Monad m
+  => Seq (m (Causal m h e))
+  -> Seq (m (Causal m h e))
+  -> m (Maybe (Causal m h e))
+lca' = go Set.empty Set.empty where
   go seenLeft seenRight remainingLeft remainingRight =
     case Seq.viewl remainingLeft of
       Seq.EmptyL -> search seenLeft remainingRight
-      a :< as -> do
+      a :< as    -> do
         left <- a
         if Set.member (currentHash left) seenRight
           then pure $ Just left
           -- Note: swapping position of left and right when we recurse so that
           -- we search each side equally. This avoids having to case on both
           -- arguments, and the order shouldn't really matter.
-          else go seenRight (Set.insert (currentHash left) seenLeft) remainingRight (as <> children left)
-  search seen remaining =
-    case Seq.viewl remaining of
-      Seq.EmptyL -> pure Nothing
-      a :< as -> do
-        current <- a
-        if Set.member (currentHash current) seen
-          then pure $ Just current
-          else search seen (as <> children current)
+          else go seenRight
+                  (Set.insert (currentHash left) seenLeft)
+                  remainingRight
+                  (as <> children left)
+  search seen remaining = case Seq.viewl remaining of
+    Seq.EmptyL -> pure Nothing
+    a :< as    -> do
+      current <- a
+      if Set.member (currentHash current) seen
+        then pure $ Just current
+        else search seen (as <> children current)
 
 children :: Causal m h e -> Seq (m (Causal m h e))
 children (One _ _         ) = Seq.empty
@@ -182,17 +213,17 @@ threeWayMerge combine = mergeInternal merge0
  where
   merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
   merge0 m =
-    let k left right = do
-          a           <- left
-          b           <- right
-          mayAncestor <- lca a b
-          newHead <- combine (head <$> mayAncestor) (head a) (head b)
-          let h = hash (newHead, Map.keys m)
-          pure . Merge (RawHash h) newHead $ Map.fromList
-            [(currentHash a, pure a), (currentHash b, pure b)]
-    in  if Map.null m
-          then error "Causal.threeWayMerge empty map"
-          else foldl1' k $ Map.elems m
+    let k (e, acc) new = do
+          n           <- new
+          mayAncestor <- lca' acc (Seq.singleton (pure n))
+          newHead     <- combine (head <$> mayAncestor) e (head n)
+          pure (newHead, pure n Seq.<| acc)
+    in  case Map.elems m of
+          []       -> error "Causal.threeWayMerge empty map"
+          me : mes -> do
+            e            <- me
+            (newHead, _) <- foldM k (head e, Seq.singleton (pure e)) mes
+            pure $ Merge (RawHash (hash (newHead, Map.keys m))) newHead m
 
 mergeInternal
   :: forall m h e
