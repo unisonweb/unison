@@ -2,6 +2,8 @@
 
 What does this change accomplish and why?
 
+If relevant, which Github issues does it close? (See [closing-issues-using-keywords](https://help.github.com/en/enterprise/2.16/user/github/managing-your-work-on-github/closing-issues-using-keywords).)
+
 ## Implementation notes
 
 How does it accomplish it, in broad strokes?
