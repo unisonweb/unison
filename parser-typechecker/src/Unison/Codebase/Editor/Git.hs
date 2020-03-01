@@ -48,7 +48,7 @@ pullBranch localPath uri treeish = do
   case e of
     Left e -> throwError (SomeOtherError (Text.pack (show e)))
     Right _ -> pure ()
-  "git" (["clone"] ++ ["--depth", "1"]
+  "git" (["clone", "--quiet"] ++ ["--depth", "1"]
      ++ maybe [] (\t -> ["--branch", t]) treeish
      ++ [uri, Text.pack localPath])
     `onError` throwError (NoRemoteRepoAt uri)
@@ -144,10 +144,10 @@ pushGitRootBranch localPath codebase branch url gitbranch = do
       unless (Text.null status) $ do
         gitIn localPath ["add", "--all", "."]
         gitIn localPath
-          ["commit", "-m", "Sync branch " <> Text.pack (show $ headHash branch)]
-      -- Push our changes to the repo
-      case gitbranch of
-        Nothing        -> gitIn localPath ["push", "--all", url]
-        Just gitbranch -> gitIn localPath ["push", url, gitbranch]
+          ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ headHash branch)]
+        -- Push our changes to the repo
+        case gitbranch of
+          Nothing        -> gitIn localPath ["push", "--quiet", "--all", url]
+          Just gitbranch -> gitIn localPath ["push", "--quiet", url, gitbranch]
   liftIO push `onException` throwError (NoRemoteRepoAt url)
 
