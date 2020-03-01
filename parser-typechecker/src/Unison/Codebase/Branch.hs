@@ -106,6 +106,8 @@ import           Prelude                  hiding (head,read,subtract)
 
 import           Control.Lens            hiding ( children, cons, transform, uncons )
 import qualified Control.Monad                 as Monad
+import qualified Control.Monad.State           as State
+import           Control.Monad.State            ( StateT )
 import qualified Data.Map                      as Map
 import qualified Data.Map.Merge.Lazy           as Map
 import qualified Data.Set                      as Set
@@ -465,36 +467,51 @@ read deserializeRaw deserializeEdits h = Branch <$> Causal.read d h
     RawCons  raw h  -> flip RawCons h <$> fromRaw raw
     RawMerge raw hs -> flip RawMerge hs <$> fromRaw raw
 
+sync
+  :: Monad m
+  => (Hash -> m Bool)
+  -> Causal.Serialize m Raw Raw
+  -> (EditHash -> m Patch -> m ())
+  -> Branch m
+  -> m ()
+sync exists serializeRaw serializeEdits b =
+  State.evalStateT (sync' exists serializeRaw serializeEdits b) mempty
 
 -- serialize a `Branch m` indexed by the hash of its corresponding Raw
-sync :: forall m. Monad m
-     => (Hash -> m Bool)
-     -> Causal.Serialize m Raw Raw
-     -> (EditHash -> m Patch -> m ())
-     -> Branch m
-     -> m ()
-sync exists serializeRaw serializeEdits b =
-  Causal.sync exists serialize0 (view history b)
-  where
+sync'
+  :: forall m
+   . Monad m
+  => (Hash -> m Bool)
+  -> Causal.Serialize m Raw Raw
+  -> (EditHash -> m Patch -> m ())
+  -> Branch m
+  -> StateT (Set Hash) m ()
+sync' exists serializeRaw serializeEdits b = Causal.sync exists
+                                                         serialize0
+                                                         (view history b)
+ where
   toRaw :: Branch0 m -> Raw
-  toRaw Branch0{..} =
+  toRaw Branch0 {..} =
     Raw _terms _types (headHash <$> _children) (fst <$> _edits)
-  serialize0 :: Causal.Serialize m Raw (Branch0 m)
-  serialize0 h b0 =
-    case b0 of
-      RawOne b0 -> do
-        writeB0 b0
-        serializeRaw h $ RawOne (toRaw b0)
-      RawCons b0 ht -> do
-        writeB0 b0
-        serializeRaw h $ RawCons (toRaw b0) ht
-      RawMerge b0 hs -> do
-        writeB0 b0
-        serializeRaw h $ RawMerge (toRaw b0) hs
-    where
-      writeB0 b0 = do
-        for_ (view children b0) (sync exists serializeRaw serializeEdits)
-        for_ (view edits b0) (uncurry serializeEdits)
+  serialize0 :: Causal.Serialize (StateT (Set Hash) m) Raw (Branch0 m)
+  serialize0 h b0 = case b0 of
+    RawOne b0 -> do
+      writeB0 b0
+      lift $ serializeRaw h $ RawOne (toRaw b0)
+    RawCons b0 ht -> do
+      writeB0 b0
+      lift $ serializeRaw h $ RawCons (toRaw b0) ht
+    RawMerge b0 hs -> do
+      writeB0 b0
+      lift $ serializeRaw h $ RawMerge (toRaw b0) hs
+   where
+    writeB0 :: Branch0 m -> StateT (Set Hash) m ()
+    writeB0 b0 = do
+      for_ (view children b0) $ \c -> do
+        queued <- State.get
+        when (Set.notMember (headHash c) queued)
+          $ sync' exists serializeRaw serializeEdits c
+      for_ (view edits b0) (lift . uncurry serializeEdits)
 
   -- this has to serialize the branch0 and its descendants in the tree,
   -- and then serialize the rest of the history of the branch as well
