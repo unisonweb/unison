@@ -265,21 +265,27 @@ reflogPath root = root </> "reflog"
 
 touchIdFile :: Reference.Id -> FilePath -> IO ()
 touchIdFile id fp = do
-  createDirectoryIfMissing True fp
+  createDirectoryIfMissing' True fp
   -- note: contents of the file are equal to the name, rather than empty, to
   -- hopefully avoid git getting clever about treating deletions as renames
   let n = componentIdToString id
-  writeFile
+  writeFile'
     (fp </> encodeFileName n) ""
+  where
+  createDirectoryIfMissing' create_parents path0 = createDirectoryIfMissing create_parents path0
+  writeFile' f txt = writeFile f txt
 
 touchReferentFile :: Referent -> FilePath -> IO ()
 touchReferentFile id fp = do
-  createDirectoryIfMissing True fp
+  createDirectoryIfMissing' True fp
   -- note: contents of the file are equal to the name, rather than empty, to
   -- hopefully avoid git getting clever about treating deletions as renames
   let n = referentToString id
-  writeFile
+  writeFile'
     (fp </> encodeFileName n) ""
+  where
+  createDirectoryIfMissing' create_parents path0 = createDirectoryIfMissing create_parents path0
+  writeFile' f txt = writeFile f txt
 
 -- checks if `path` looks like a unison codebase
 minimalCodebaseStructure :: CodebasePath -> [FilePath]
@@ -506,8 +512,10 @@ putTerm putV putA path h e typ = liftIO $ do
   let r = Referent.Ref (Reference.DerivedId h)
   let deps = deleteComponent h $ Term.dependencies e <> Type.dependencies typ
   traverse_ (touchIdFile h . dependentsDir path) deps
-  traverse_ (touchReferentFile r . typeMentionsIndexDir path) typeMentions
+  traverse_ (touchReferentFile' r . typeMentionsIndexDir path) typeMentions
   touchReferentFile r (typeIndexDir path rootTypeHash)
+  where
+  touchReferentFile' id fp = touchReferentFile id fp
 
 putDecl
   :: MonadIO m
@@ -535,7 +543,8 @@ putDecl putV putA path h decl = liftIO $ do
     let rootHash     = Type.toReference typ
         typeMentions = Type.toReferenceMentions typ
     touchReferentFile r (typeIndexDir path rootHash)
-    traverse_ (touchReferentFile r . typeMentionsIndexDir path) typeMentions
+    traverse_ (touchReferentFile' r . typeMentionsIndexDir path) typeMentions
+  touchReferentFile' id fp = touchReferentFile id fp
   ct = DD.constructorType decl
   ctors =
     [ (Referent.Con r i ct, Type.removeAllEffectVars t)
