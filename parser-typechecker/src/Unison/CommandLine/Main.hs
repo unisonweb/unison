@@ -45,6 +45,7 @@ import qualified Unison.CommandLine.InputPattern as IP
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import Text.Regex.TDFA
+import Control.Lens (view)
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
@@ -232,7 +233,7 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
         cancelFileSystemWatch
         cancelWatchBranchUpdates
       loop state = do
-        writeIORef pathRef (HandleInput._currentPath state)
+        writeIORef pathRef (view HandleInput.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
         
         (o, state') <- HandleCommand.commandLine config awaitInput

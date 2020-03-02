@@ -16,7 +16,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE EmptyCase #-}
 
-module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..), parseSearchType) where
+module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..), currentPath, parseSearchType) where
 
 import Unison.Prelude
 
@@ -126,6 +126,8 @@ import qualified Unison.CommandLine.DisplayValues as DisplayValues
 import qualified Control.Error.Util as ErrorUtil
 import Unison.Codebase.GitError (GitError)
 import Unison.Util.Monoid (intercalateMap)
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as Nel
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
@@ -140,7 +142,7 @@ data LoopState m v
   = LoopState
       { _root :: Branch m
       -- the current position in the namespace
-      , _currentPath :: Path.Absolute
+      , _currentPathStack :: NonEmpty Path.Absolute
 
       -- TBD
       -- , _activeEdits :: Set Branch.EditGuid
@@ -166,8 +168,12 @@ type InputDescription = Text
 
 makeLenses ''LoopState
 
+-- replacing the old read/write scalar Lens with "peek" Getter for the NonEmpty
+currentPath :: Getter (LoopState m v) Path.Absolute
+currentPath = currentPathStack . to Nel.head
+
 loopState0 :: Branch m -> Path.Absolute -> LoopState m v
-loopState0 b p = LoopState b p Nothing Nothing Nothing []
+loopState0 b p = LoopState b (pure p) Nothing Nothing Nothing []
 
 type Action' m v = Action m (Either Event Input) v
 
@@ -349,6 +355,7 @@ loop = do
           PreviewMergeLocalBranchI{} -> wat
           DiffNamespaceI{} -> wat
           SwitchBranchI{} -> wat
+          PopBranchI{} -> wat
           NamesI{} -> wat
           TodoI{} -> wat
           ListEditsI{} -> wat
@@ -678,9 +685,13 @@ loop = do
 
       SwitchBranchI path' -> do
         let path = resolveToAbsolute path'
-        currentPath .= path
+        currentPathStack %= Nel.cons path
         branch' <- getAt path
         when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
+
+      PopBranchI -> use (currentPathStack . to Nel.uncons) >>= \case
+        (_, Nothing) -> respond StartOfCurrentPathHistory
+        (_, Just t) -> currentPathStack .= t
 
       HistoryI resultsCap diffCap from -> case from of
         Left hash -> resolveShortBranchHash hash >>= \case
