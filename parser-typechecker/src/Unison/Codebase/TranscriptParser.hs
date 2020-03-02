@@ -44,6 +44,7 @@ import qualified Unison.Runtime.Rt1IO as Rt1
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import qualified Unison.Codebase.Editor.Output as Output
+import Control.Lens (view)
 
 type ExpectingError = Bool
 data Hidden = Shown | HideOutput | HideAll
@@ -254,7 +255,7 @@ run dir configFile stanzas codebase = do
           "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       loop state = do
-        writeIORef pathRef (HandleInput._currentPath state)
+        writeIORef pathRef (view HandleInput.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
             rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)) 
         (o, state') <- HandleCommand.commandLine config awaitInput

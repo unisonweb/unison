@@ -873,7 +873,8 @@ notifyUser dir o = case o of
       ]
     ex = "Use" <> IP.makeExample IP.history ["#som3n4m3space"]
                <> "to view history starting from a given namespace hash."
-
+  StartOfCurrentPathHistory -> pure $
+    P.wrap "You're already at the very beginning! 🙂"
   PullAlreadyUpToDate ns dest -> pure . P.callout "😶" $
     P.wrap $ prettyPath' dest <> "was already up-to-date with"
           <> P.group (prettyRemoteNamespace ns <> ".")
