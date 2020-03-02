@@ -71,6 +71,7 @@ data Causal m h e
           , tails :: Map (RawHash h) (m (Causal m h e))
           }
 
+-- Convert the Causal to an adjacency matrix for debugging purposes.
 toGraph
   :: Monad m
   => Set (RawHash h)
@@ -164,11 +165,11 @@ instance Hashable (RawHash h) where
 -- Find the lowest common ancestor of two causals.
 lca :: Monad m => Causal m h e -> Causal m h e -> m (Maybe (Causal m h e))
 lca a b =
-  lca' (Seq.singleton $ pure a) . Seq.singleton $ pure b
+  lca' (Seq.singleton $ pure a) (Seq.singleton $ pure b)
 
--- Find the lowest common ancestor of two causal-forests.
--- The convention is that the causals in a forest are the ancestors of some
--- other Causal.
+-- `lca' xs ys` finds the lowest common ancestor of any element of `xs` and any
+-- element of `ys`.
+-- This is a breadth-first search used in the implementation of `lca a b`.
 lca'
   :: Monad m
   => Seq (m (Causal m h e))
@@ -212,18 +213,21 @@ threeWayMerge
 threeWayMerge combine = mergeInternal merge0
  where
   merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
-  merge0 m =
-    let k (e, acc) new = do
-          n           <- new
-          mayAncestor <- lca' acc (Seq.singleton (pure n))
-          newHead     <- combine (head <$> mayAncestor) e (head n)
-          pure (newHead, pure n Seq.<| acc)
-    in  case Map.elems m of
-          []       -> error "Causal.threeWayMerge empty map"
-          me : mes -> do
-            e            <- me
-            (newHead, _) <- foldM k (head e, Seq.singleton (pure e)) mes
-            pure $ Merge (RawHash (hash (newHead, Map.keys m))) newHead m
+  merge0 m = case Map.elems m of
+    []       -> error "Causal.threeWayMerge empty map"
+    me : mes -> do
+      e            <- me
+      (newHead, _) <- foldM k (head e, Seq.singleton (pure e)) mes
+      pure $ Merge (RawHash (hash (newHead, Map.keys m))) newHead m
+   where
+    k (e, acc) new = do
+      n           <- new
+      -- We call `lca'` here since we don't want to merge using the n-way LCA of
+      -- all children. Note for example that some of the children might have
+      -- totally unrelated histories. We want the LCA of any two children.
+      mayAncestor <- lca' acc (Seq.singleton (pure n))
+      newHead     <- combine (head <$> mayAncestor) e (head n)
+      pure (newHead, pure n Seq.<| acc)
 
 mergeInternal
   :: forall m h e
