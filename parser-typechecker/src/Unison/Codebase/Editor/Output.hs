@@ -181,6 +181,7 @@ data Output v
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch (Set ShortBranchHash)
+  | StartOfCurrentPathHistory
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
   | PullAlreadyUpToDate RemoteNamespace Path'
@@ -305,6 +306,7 @@ isFailure o = case o of
   NothingToPatch{} -> False
   WarnIncomingRootBranch{} -> False
   History{} -> False
+  StartOfCurrentPathHistory -> True
   NotImplemented -> True
   DumpNumberedArgs{} -> False
   DumpBitBooster{} -> False

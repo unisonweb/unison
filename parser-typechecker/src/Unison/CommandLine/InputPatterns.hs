@@ -474,6 +474,17 @@ cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
       _ -> Left (I.help cd)
     )
 
+back :: InputPattern
+back = InputPattern "back" ["popd"] []
+    (P.wrapColumn2
+      [ (makeExample back [],
+          "undoes the last" <> makeExample' cd <> "command.")
+      ])
+    (\case
+      [] -> pure Input.PopBranchI
+      _ -> Left (I.help cd)
+    )
+
 deleteBranch :: InputPattern
 deleteBranch = InputPattern "delete.namespace" [] [(Required, pathArg)]
   "`delete.namespace <foo>` deletes the namespace `foo`"
@@ -1136,6 +1147,7 @@ validInputs =
   , createPullRequest
   , loadPullRequest
   , cd
+  , back
   , deleteBranch
   , renameBranch
   , deletePatch
