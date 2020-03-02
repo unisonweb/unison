@@ -169,10 +169,10 @@ type InputDescription = Text
 makeLenses ''LoopState
 
 -- replacing the old read/write scalar lens with peek/push lens
-peekPushNel :: Lens (NonEmpty Path.Absolute) (NonEmpty Path.Absolute) Path.Absolute Path.Absolute
-peekPushNel = lens Nel.head (flip Nel.cons)
 currentPath :: Lens (LoopState m v) (LoopState m v) Path.Absolute Path.Absolute
-currentPath = currentPathStack . peekPushNel
+currentPath = currentPathStack . peekPushNel where
+  peekPushNel :: Lens (NonEmpty a) (NonEmpty a) a a
+  peekPushNel = lens Nel.head (flip Nel.cons)
 
 loopState0 :: Branch m -> Path.Absolute -> LoopState m v
 loopState0 b p = LoopState b (pure p) Nothing Nothing Nothing []
