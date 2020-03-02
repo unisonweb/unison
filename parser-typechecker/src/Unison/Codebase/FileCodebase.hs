@@ -269,7 +269,8 @@ touchIdFile id fp = do
   -- note: contents of the file are equal to the name, rather than empty, to
   -- hopefully avoid git getting clever about treating deletions as renames
   let n = componentIdToString id
-  writeFile (fp </> encodeFileName n) n
+  writeFile
+    (fp </> encodeFileName n) ""
 
 touchReferentFile :: Referent -> FilePath -> IO ()
 touchReferentFile id fp = do
@@ -277,7 +278,8 @@ touchReferentFile id fp = do
   -- note: contents of the file are equal to the name, rather than empty, to
   -- hopefully avoid git getting clever about treating deletions as renames
   let n = referentToString id
-  writeFile (fp </> encodeFileName n) n
+  writeFile
+    (fp </> encodeFileName n) ""
 
 -- checks if `path` looks like a unison codebase
 minimalCodebaseStructure :: CodebasePath -> [FilePath]
@@ -371,7 +373,7 @@ updateCausalHead headDir c = do
   -- write new head
   exists <- doesDirectoryExist headDir
   unless exists $ createDirectory headDir
-  liftIO $ writeFile (headDir </> hs) hs
+  liftIO $ writeFile (headDir </> hs) ""
   -- delete existing heads
   liftIO $ fmap (filter (/= hs)) (listDirectory headDir)
        >>= traverse_ (removeFile . (headDir </>))
