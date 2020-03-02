@@ -179,8 +179,8 @@ setPatch s (added, removed) = pure (added <> Set.difference s removed)
 
 -- merge x x == x, should not add a new head, and also the value at the head should be the same of course
 testIdempotent :: Causal Identity Hash (Set Int64) -> Bool -- Causal Identity Hash (Set Int64)
-testIdempotent causal = 
-     runIdentity (threeWayMerge' causal causal) 
+testIdempotent causal =
+     runIdentity (threeWayMerge' causal causal)
   == causal
 
 -- prop_mergeIdempotent :: Bool
@@ -204,12 +204,16 @@ easyCombine _    diff appl (Just ca) l r = do
   dr <- diff ca r
   appl ca (dl <> dr)
 
+threeWayMerge'
+  :: Causal Identity Hash (Set Int64)
+  -> Causal Identity Hash (Set Int64)
+  -> Identity (Causal Identity Hash (Set Int64))
 threeWayMerge' = Causal.threeWayMerge (easyCombine setCombine setDiff setPatch)
 
 -- merge x mempty == x, merge mempty x == x
 testIdentity :: Causal Identity Hash (Set Int64) -> Causal Identity Hash (Set Int64) -> Bool
-testIdentity causal mempty = 
-     (threeWayMerge' causal mempty) 
+testIdentity causal mempty =
+     (threeWayMerge' causal mempty)
   == (threeWayMerge' mempty causal)
 
 emptyCausal :: Causal Identity Hash (Set Int64)
@@ -222,8 +226,8 @@ testCommutative hd tl = (threeWayMerge' (Causal.cons hd tl) tl)
 
 
 {-
-testCommonAncestor :: 
-testCommonAncestor = 
+testCommonAncestor ::
+testCommonAncestor =
 -}
 
 
