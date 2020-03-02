@@ -17,3 +17,24 @@ We're still working out what a nice codebase layout might be (feel free to write
 > .pullrequests.runarorama.base_3.merged
 > .temp
 
+```ucm
+.> cd arya.base
+
+.arya.base> find Boolean
+
+  1. builtin type Boolean
+  2. Boolean.not : Boolean -> Boolean
+  
+
+```
+blah blah blah more stuff about project management and patches and the value of working from the appropriate namespace, and what that is in any given case
+
+We can pop back to the previous namespace with the `back` command.
+
+```ucm
+.> back
+
+  You're already at the very beginning! 🙂
+
+```
+😬 Right, ok.

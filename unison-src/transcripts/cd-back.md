@@ -25,17 +25,19 @@ We're still working out what a nice codebase layout might be (feel free to write
 ```ucm
 .> cd arya.base
 .arya.base> find Boolean
-.arya.base> cd arya.myproject
+```
+```ucm:hide
+.arya.base> cd .arya.myproject
 ```
 
 blah blah blah more stuff about project management and patches and the value of working from the appropriate namespace, and what that is in any given case
 
 We can pop back to the previous namespace with the `back` command.
 
-```ucm
+```ucm:hide
 .arya.myproject> back
 ```
-```ucm
+```ucm:hide
 .arya.base> back
 ```
 ```ucm:error
