@@ -71,6 +71,7 @@ data Causal m h e
           , tails :: Map (RawHash h) (m (Causal m h e))
           }
 
+-- Convert the Causal to an adjacency matrix for debugging purposes.
 toGraph
   :: Monad m
   => Set (RawHash h)
