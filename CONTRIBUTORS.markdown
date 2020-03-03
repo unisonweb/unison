@@ -37,3 +37,5 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Aaron Novstrup (@anovstrup)
 * Pete Tsamouris (@pete-ts)
 * Ian Davidson (@bontaq)
+* Moses Alexander (@moses-alexander)
+* Andre Popovitch (@anchpop)

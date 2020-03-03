@@ -1,5 +1,5 @@
 r10 : Nat
-r10 = case 1 of
+r10 = match 1 with
   1 | true -> 3
   _ -> 4
 

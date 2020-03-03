@@ -1,5 +1,9 @@
 # Delete
 
+```ucm:hide
+.> builtins.merge
+```
+
 The delete command can delete both terms and types, as long as it's given an
 unambiguous name.
 

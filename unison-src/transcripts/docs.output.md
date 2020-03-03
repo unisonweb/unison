@@ -129,11 +129,11 @@ Let's add it to the codebase, and link it to the definition:
   
     docs.List.take : Doc
 
-.> link builtin.List.take docs.List.take
+.> link docs.List.take builtin.List.take
 
   Updates:
   
-    1. take : Nat -> [a] -> [a]
+    1. builtin.List.take : Nat -> [a] -> [a]
        + 2. docs.List.take : Doc
 
 ```

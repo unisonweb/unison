@@ -1,5 +1,5 @@
 r9 : Nat
-r9 = case 1 of
+r9 = match 1 with
   9 -> 9
   8 -> 8
   7 -> 7

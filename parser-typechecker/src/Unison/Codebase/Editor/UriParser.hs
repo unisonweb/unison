@@ -11,7 +11,7 @@ import Data.Text as Text
 import Data.Text (Text)
 import Unison.Codebase.Path (Path(..))
 import qualified Unison.Codebase.Path as Path
-import Unison.Codebase.Editor.RemoteRepo (RemoteRepo(..))
+import Unison.Codebase.Editor.RemoteRepo (RemoteRepo(..), RemoteNamespace)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
 import Unison.Prelude
 import qualified Unison.Hash as Hash
@@ -34,7 +34,7 @@ type P = P.Parsec () Text
 -- $ git clone ssh://[user@]server/project.git[:treeish][:[#hash][.path]]
 -- $ git clone [user@]server:project.git[:treeish][:[#hash][.path]]
 -- Git Protocol (obsolete)
-repoPath :: P (RemoteRepo, Maybe ShortBranchHash, Path)
+repoPath :: P RemoteNamespace
 repoPath = P.label "generic git repo" $ do
   protocol <- parseProtocol
   treeish <- P.optional treeishSuffix

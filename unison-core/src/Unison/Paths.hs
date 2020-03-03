@@ -7,7 +7,6 @@ import Unison.Prelude
 
 import Data.List
 import Unison.ABT (V)
-import Unison.Term (Term)
 import Unison.Var (Var)
 import qualified Data.Sequence as Sequence
 import qualified Unison.ABT as ABT
@@ -15,6 +14,7 @@ import qualified Unison.Term as E
 import qualified Unison.Type as T
 
 type Type v = T.Type v ()
+type Term v = E.Term v ()
 
 data Target v
   = Term (Term v)

@@ -1,7 +1,7 @@
 type Choice = First | Second
 type Wrapper = Wrapper Choice
 
-broken = case Wrapper.Wrapper Choice.Second of
+broken = match Wrapper.Wrapper Choice.Second with
     Wrapper.Wrapper Choice.First -> true
     _ -> false
 

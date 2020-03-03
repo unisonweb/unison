@@ -91,30 +91,32 @@ test1 = scope "termparser" . tests . map parses $
     "  x\n" ++
     "with foo"
   , "handle x with foo"
+  , "handle foo with cases\n" ++
+    " { x } -> x"
 
   -- Patterns
-  , "case x of x -> x"
-  , "case x of 0 -> 1"
-  , "case x of\n" ++
+  , "match x with x -> x"
+  , "match x with 0 -> 1"
+  , "match x with\n" ++
     "  0 -> 1"
-  , "case +0 of\n" ++
+  , "match +0 with\n" ++
     "  +0 -> -1"
-  , "case x of\n" ++
+  , "match x with\n" ++
     "  x -> 1\n" ++
     "  2 -> 7\n" ++
     "  _ -> 3\n" ++
     "  Tuple.Cons x y -> x + y\n" ++
     "  Tuple.Cons (Tuple.Cons x y) _ -> x + y \n"
-  , "case x of\n" ++
+  , "match x with\n" ++
     "  {Tuple.Cons x y} -> 1\n" ++
     "  {Optional.Some 42 -> k} -> k 42\n"
-  , "case x of\n" ++
+  , "match x with\n" ++
     "  0 ->\n" ++
     "    z = 0\n" ++
     "    z"
-  , "case x of\n" ++
+  , "match x with\n" ++
     " 0 | 1 == 2 -> 123"
-  , "case x of\n" ++
+  , "match x with\n" ++
     " [] -> 0\n" ++
     " [1] -> 1\n" ++
     " 2 +: _ -> 2\n" ++
@@ -122,6 +124,15 @@ test1 = scope "termparser" . tests . map parses $
     " [4] ++ _ -> 4\n" ++
     " _ ++ [5] -> 5\n" ++
     " _ -> -1"
+  , "cases x -> x"
+  , "cases\n" ++
+    " [] -> 0\n" ++
+    " [x] -> 1\n" ++
+    " _ -> 2"
+  , "cases\n" ++
+    " 0 ->\n" ++
+    "   z = 0\n" ++
+    "   z"
 
   -- Conditionals
   , "if x then y else z"
@@ -161,7 +172,7 @@ test1 = scope "termparser" . tests . map parses $
    , "x || y"
    , [r|--let r1
    let r1 : Nat
-       r1 = case Optional.Some 3 of
+       r1 = match Optional.Some 3 with
          x -> 1
        42 |]
    , [r|let

@@ -6,7 +6,8 @@ import EasyTest
 import qualified Data.Text as Text
 import Unison.ABT (annotation)
 import qualified Unison.HashQualified as HQ
-import Unison.Term
+import Unison.Term (Term)
+import qualified Unison.Term as Term
 import Unison.TermPrinter
 import qualified Unison.Type as Type
 import Unison.Symbol (Symbol, symbol)
@@ -29,7 +30,7 @@ getNames = PPE.fromNames Common.hqLength Unison.Builtin.names
 tcDiffRtt :: Bool -> String -> String -> Int -> Test ()
 tcDiffRtt rtt s expected width
   = let
-      inputTerm = tm s :: Unison.Term.AnnotatedTerm Symbol Ann
+      inputTerm = tm s :: Term Symbol Ann
       prettied  = CT.toPlain <$> pretty getNames inputTerm
       actual    = if width == 0
         then PP.renderUnbroken prettied
@@ -75,9 +76,9 @@ tcBinding :: Int -> String -> Maybe String -> String -> String -> Test ()
 tcBinding width v mtp tm expected
   = let
       baseTerm =
-        Unison.Test.Common.tm tm :: Unison.Term.AnnotatedTerm Symbol Ann
+        Unison.Test.Common.tm tm :: Term Symbol Ann
       inputType = fmap Unison.Test.Common.t mtp :: Maybe (Type.Type Symbol Ann)
-      inputTerm (Just tp) = ann (annotation tp) baseTerm tp
+      inputTerm (Just tp) = Term.ann (annotation tp) baseTerm tp
       inputTerm Nothing   = baseTerm
       varV     = symbol $ Text.pack v
       prettied = fmap CT.toPlain $ PP.syntaxToColor $ prettyBinding
@@ -136,34 +137,57 @@ test = scope "termprinter" . tests $
                  \  x = 1\n\
                  \  y = 2\n\
                  \  f x y"
-  , pending $ tc "case x of Pair t 0 -> foo t" -- TODO hitting UnknownDataConstructor when parsing pattern
-  , pending $ tc "case x of Pair t 0 | pred t -> foo t" -- ditto
-  , pending $ tc "case x of Pair t 0 | pred t -> foo t; Pair t 0 -> foo' t; Pair t u -> bar;" -- ditto
-  , tc "case x of () -> foo"
-  , tc "case x of _ -> foo"
-  , tc "case x of y -> y"
-  , tc "case x of 1 -> foo"
-  , tc "case x of +1 -> foo"
-  , tc "case x of -1 -> foo"
-  , tc "case x of 3.14159 -> foo"
-  , tcDiffRtt False "case x of\n\
-                      \  true -> foo\n\
+  , tc "let\n\
+        \  f = cases\n\
+        \    0 -> 0\n\
+        \    x -> x\n\
+        \  f y"
+  , tc "let\n\
+        \  f z = cases\n\
+        \    0 -> z\n\
+        \    y -> g y\n\
+        \  f \"\" 1"
+  , tc "let\n\
+        \  f _ = cases\n\
+        \    0 -> 0\n\
+        \    x -> x\n\
+        \  !f 1"
+  , pending $ tc "match x with Pair t 0 -> foo t" -- TODO hitting UnknownDataConstructor when parsing pattern
+  , pending $ tc "match x with Pair t 0 | pred t -> foo t" -- ditto
+  , pending $ tc "match x with Pair t 0 | pred t -> foo t; Pair t 0 -> foo' t; Pair t u -> bar;" -- ditto
+  , tc "match x with () -> foo"
+  , tc "match x with _ -> foo"
+  , tc "match x with y -> y"
+  , tc "match x with 1 -> foo"
+  , tc "match x with +1 -> foo"
+  , tc "match x with -1 -> foo"
+  , tc "match x with 3.14159 -> foo"
+  , tcDiffRtt False "match x with\n\
+                      \  true  -> foo\n\
                       \  false -> bar"
-                      "case x of\n  true -> foo\n  false -> bar" 0
-  , tcBreaks 50 "case x of\n\
-                 \  true -> foo\n\
+                      "match x with\n\
+                      \  true  -> foo\n\
+                      \  false -> bar"
+                      0
+  , tcBreaks 50 "match x with\n\
+                 \  true  -> foo\n\
                  \  false -> bar"
-  , tc "case x of false -> foo"
-  , tc "case x of y@() -> y"
-  , tc "case x of a@(b@(c@())) -> c"
-  , tc "case e of { a } -> z"
-  , pending $ tc "case e of { () -> k } -> z" -- TODO doesn't parse since 'many leaf' expected before the "-> k"
-                                              -- need an actual effect constructor to test this with
+  , tc "match x with false -> foo"
+  , tc "match x with y@() -> y"
+  , tc "match x with a@(b@(c@())) -> c"
+  , tc "match e with { a } -> z"
+  , pending $ tc "match e with { () -> k } -> z" -- TODO doesn't parse since 'many leaf' expected before the "-> k"
+                                                 -- need an actual effect constructor to test this with
+  , tc "cases x -> x"
+  , tc "cases\n\
+        \  []  -> 0\n\
+        \  [x] -> 1\n\
+        \  _   -> 2"
   , tc "if a then if b then c else d else e"
   , tc "handle handle foo with bar with baz"
-  , tcBreaks 16 "case (if a then\n\
+  , tcBreaks 16 "match (if a then\n\
                  \  b\n\
-                 \else c) of\n\
+                 \else c) with\n\
                  \  112 -> x"        -- dodgy layout.  note #517 and #518
   , tc "handle bar with Pair 1 1"
   , tc "handle bar with x -> foo"
@@ -174,36 +198,36 @@ test = scope "termprinter" . tests $
                      \  x : Int\n\
                      \  x = 1\n\
                      \  (x : Int)" 50
-  , tc "case x of 12 -> (y : Int)"
+  , tc "match x with 12 -> (y : Int)"
   , tc "if a then (b : Int) else (c : Int)"
-  , tc "case x of 12 -> if a then b else c"
-  , tc "case x of 12 -> x -> f x"
-  , tcDiff "case x of (12) -> x" "case x of 12 -> x"
-  , tcDiff "case (x) of 12 -> x" "case x of 12 -> x"
-  , tc "case x of 12 -> x"
-  , tcDiffRtt True "case x of\n\
+  , tc "match x with 12 -> if a then b else c"
+  , tc "match x with 12 -> x -> f x"
+  , tcDiff "match x with (12) -> x" "match x with 12 -> x"
+  , tcDiff "match (x) with 12 -> x" "match x with 12 -> x"
+  , tc "match x with 12 -> x"
+  , tcDiffRtt True "match x with\n\
                      \  12 -> x"
-                     "case x of 12 -> x" 50
-  , tcBreaks 15 "case x of\n\
+                     "match x with 12 -> x" 50
+  , tcBreaks 15 "match x with\n\
                  \  12 -> x\n\
                  \  13 -> y\n\
                  \  14 -> z"
-  , tcBreaks 21 "case x of\n\
-                 \  12 | p x -> x\n\
-                 \  13 | q x -> y\n\
+  , tcBreaks 21 "match x with\n\
+                 \  12 | p x   -> x\n\
+                 \  13 | q x   -> y\n\
                  \  14 | r x y -> z"
-  , tcBreaks 9 "case x of\n\
+  , tcBreaks 9 "match x with\n\
                 \  112 ->\n\
                 \    x\n\
                 \  113 ->\n\
                 \    y\n\
                 \  114 ->\n\
                 \    z"
-  , pending $ tcBreaks 19 "case\n\
+  , pending $ tcBreaks 19 "match\n\
                            \  myFunction\n\
                            \    argument1\n\
                            \    argument2\n\
-                           \of\n\
+                           \with\n\
                            \  112 -> x"          -- TODO, 'unexpected semi' before 'of' - should the parser accept this?
   , tc "if c then x -> f x else x -> g x"
   , tc "(f x) : Int"
@@ -220,8 +244,8 @@ test = scope "termprinter" . tests $
   , tc "0.0"
   , tc "-0.0"
   , pending $ tcDiff "+0.0" "0.0"  -- TODO parser throws "Prelude.read: no parse" - should it?  Note +0 works for UInt.
-  , tcBreaksDiff 21 "case x of 12 -> if a then b else c"
-              "case x of\n\
+  , tcBreaksDiff 21 "match x with 12 -> if a then b else c"
+              "match x with\n\
               \  12 ->\n\
               \    if a then b\n\
               \    else c"
@@ -255,8 +279,8 @@ test = scope "termprinter" . tests $
                  \    true\n\
                  \  false\n\
                  \with foo"
-  , tcBreaks 50 "case x of\n\
-                 \  true ->\n\
+  , tcBreaks 50 "match x with\n\
+                 \  true  ->\n\
                  \    d = 1\n\
                  \    false\n\
                  \  false ->\n\
@@ -313,14 +337,14 @@ test = scope "termprinter" . tests $
                                                      -- parser can't distinguish between a constructor
                                                      -- called 'Pair' and a function called 'Pair'.
   , pending $ tc "Pair 2 ()"  -- unary tuple; fails for same reason as above
-  , tc "case x of (a, b) -> a"
-  , tc "case x of () -> foo"
-  , pending $ tc "case x of [a, b] -> a"  -- issue #266
-  , pending $ tc "case x of [a] -> a"     -- ditto
-  , pending $ tc "case x of [] -> a"      -- ditto
-  , tc "case x of Optional.Some (Optional.Some _) -> ()" -- Issue #695
+  , tc "match x with (a, b) -> a"
+  , tc "match x with () -> foo"
+  , pending $ tc "match x with [a, b] -> a"  -- issue #266
+  , pending $ tc "match x with [a] -> a"     -- ditto
+  , pending $ tc "match x with [] -> a"      -- ditto
+  , tc "match x with Optional.Some (Optional.Some _) -> ()" -- Issue #695
   -- need an actual effect constructor to test the following
-  , pending $ tc "case x of { SomeRequest (Optional.Some _) -> k } -> ()"
+  , pending $ tc "match x with { SomeRequest (Optional.Some _) -> k } -> ()"
   , tcBinding 50 "foo" (Just "Int") "3" "foo : Int\n\
                                          \foo = 3"
   , tcBinding 50 "foo" Nothing "3" "foo = 3"
@@ -339,14 +363,14 @@ test = scope "termprinter" . tests $
   , tcBinding 50 "." Nothing "f g x -> f (g x)" "(.) f g x = f (g x)"
   , tcBreaks 32 "let\n\
                  \  go acc a b =\n\
-                 \    case List.at 0 a of\n\
-                 \      Optional.None -> 0\n\
+                 \    match List.at 0 a with\n\
+                 \      Optional.None     -> 0\n\
                  \      Optional.Some hd1 -> 0\n\
                  \  go [] a b"
-  , tcBreaks 30 "case x of\n\
+  , tcBreaks 30 "match x with\n\
                  \  (Optional.None, _) -> foo"
-  , tcBreaks 50 "if true then case x of 12 -> x else x"
-  , tcBreaks 50 "if true then x else case x of 12 -> x"
+  , tcBreaks 50 "if true then match x with 12 -> x else x"
+  , tcBreaks 50 "if true then x else match x with 12 -> x"
   , pending $ tcBreaks 80 "x -> (if c then t else f)"  -- TODO 'unexpected )', surplus parens
   , tcBreaks 80 "'let\n\
                  \  foo = bar\n\
@@ -447,7 +471,7 @@ test = scope "termprinter" . tests $
                 \    x\n\
                 \  else y\n\
                 \with foo"  -- missing break before 'then', issue #518
-  , tcBreaks 20 "case x of\n\
+  , tcBreaks 20 "match x with\n\
                  \  () ->\n\
                  \    use A y\n\
                  \    f y y"
@@ -468,7 +492,7 @@ test = scope "termprinter" . tests $
   , tcBreaks 20 "if foo then\n\
                  \  f x x A.x A.x\n\
                  \else g"
-  , tcBreaks 27 "case t of\n\
+  , tcBreaks 27 "match t with\n\
                  \  () ->\n\
                  \    a =\n\
                  \      use A B.x\n\
@@ -480,7 +504,7 @@ test = scope "termprinter" . tests $
                  \        foo\n\
                  \      with foo\n\
                  \    bar\n\
-                 \  _ ->\n\
+                 \  _  ->\n\
                  \    b =\n\
                  \      use A.C x\n\
                  \      g x x\n\
@@ -501,7 +525,7 @@ test = scope "termprinter" . tests $
                  \  bar"
   , tcBreaks 20 "let\n\
                  \  a =\n\
-                 \    case x of\n\
+                 \    match x with\n\
                  \      () ->\n\
                  \        use A x\n\
                  \        f x x\n\

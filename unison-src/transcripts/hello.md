@@ -1,6 +1,10 @@
 
 # Hello!
 
+```ucm:hide
+.> builtins.merge
+```
+
 This markdown file is also a Unison transcript file. Transcript files are an easy way to create self-documenting Unison programs, libraries, and tutorials.
 
 The format is just a regular markdown file with some fenced code blocks that are typechecked and elaborated by `ucm`. For example, you can call this transcript via:

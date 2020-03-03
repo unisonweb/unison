@@ -12,9 +12,9 @@ ability State s where
   get : {State s} s
 
 state : s -> Request (State s) a -> (s, a)
-state woot eff = case eff of
-  { State.get -> k } -> handle (state woot) in (k woot)
-  { State.put snew -> k } -> handle (state snew) in (k ())
+state woot = cases
+  { State.get -> k } -> handle k woot with state woot
+  { State.put snew -> k } -> handle k () with state snew
   { a } -> (woot, a)
 
 modify : (s -> s) -> {State s} ()
@@ -24,7 +24,7 @@ increment : '{State Nat} ()
 increment = '(modify ((+) 1))
 
 first : (a, b) -> a
-first p = case p of (a,_) -> a
+first = cases (a,_) -> a
 
 ex : Nat
 ex =
@@ -38,5 +38,3 @@ ex =
   first result
 
 ()
-
-

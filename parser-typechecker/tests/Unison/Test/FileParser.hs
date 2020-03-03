@@ -102,7 +102,7 @@ module Unison.Test.FileParser where
 
   expectedBlockOpenTest :: Test ()
   expectedBlockOpenTest = scope "expectedBlockOpenTest" $
-    expectFileParseFailure "f a b = case a b" expectation
+    expectFileParseFailure "f a b = match a b" expectation
       where
         expectation :: Var e => P.Error e -> Test ()
         expectation e = case e of
@@ -111,7 +111,7 @@ module Unison.Test.FileParser where
 
   unknownDataConstructorTest :: Test ()
   unknownDataConstructorTest = scope "unknownDataConstructorTest" $
-    expectFileParseFailure "m a = case a of A -> 1" expectation
+    expectFileParseFailure "m a = match a with A -> 1" expectation
       where
         expectation :: Var e => P.Error e -> Test ()
         expectation e = case e of
@@ -120,7 +120,7 @@ module Unison.Test.FileParser where
 
   unknownAbilityConstructorTest :: Test ()
   unknownAbilityConstructorTest = scope "unknownAbilityConstructorTest" $
-    expectFileParseFailure "f e = case e of {E t -> u} -> 1" expectation
+    expectFileParseFailure "f e = match e with {E t -> u} -> 1" expectation
       where
         expectation :: Var e => P.Error e -> Test ()
         expectation e = case e of

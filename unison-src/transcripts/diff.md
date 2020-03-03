@@ -1,3 +1,6 @@
+```ucm:hide
+.> builtins.merge
+```
 
 ```unison:hide
 x = 23
@@ -44,7 +47,7 @@ ability X a1 a2 where x : Nat
 .ns1> add
 .ns1> alias.term fromJust fromJust'
 .ns1> alias.term helloWorld helloWorld2
-.ns1> link fromJust b
+.ns1> link b fromJust
 .ns1> fork .ns1 .ns2
 .ns1> cd .
 ```
@@ -80,10 +83,10 @@ unique type Y a b = Y a b
 .> alias.type ns2.A ns2.A'
 .> alias.type ns2.X ns2.X'
 .> diff.namespace ns1 ns2
-.> link ns2.f ns1.c
+.> link ns1.c ns2.f
 .> link ns2.c ns2.c
 .> diff.namespace ns1 ns2
-.> unlink ns2.fromJust ns2.b
+.> unlink ns2.b ns2.fromJust
 .> diff.namespace ns1 ns2
 .> alias.type ns1.X ns1.X2
 .> alias.type ns2.A' ns2.A''
@@ -126,7 +129,11 @@ a = 555
 ```ucm
 .nsz> update
 .> merge nsy nsw
+```
+```ucm:error
 .> merge nsz nsw
+```
+```ucm
 .> diff.namespace nsx nsw
 .nsw> view a b
 ```
@@ -134,9 +141,9 @@ a = 555
 a = 777
 ```
 
-```-ucm
+```ucm:error
 .nsw> update
-nsw> view a b
+.nsw> view a b
 ```
 
 ##
@@ -148,14 +155,14 @@ New name conflicts: -- updates where RHS has multiple hashes (excluding when RHS
   1. foo#jk19sm5bf8 : Nat - do we want to force a hashqualified? Arya thinks so
      ↓
   2. ┌ foo#0ja1qfpej6 : Nat
-  3. └ foo#jk19sm5bf8 : Nat  
+  3. └ foo#jk19sm5bf8 : Nat
 
 Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has one
 
   4. ┌ bar#0ja1qfpej6 : Nat
-  5. └ bar#jk19sm5bf8 : Nat  
+  5. └ bar#jk19sm5bf8 : Nat
      ↓
-  6. bar#jk19sm5bf8 : Nat  
+  6. bar#jk19sm5bf8 : Nat
 
 ## Display issues to fixup
 

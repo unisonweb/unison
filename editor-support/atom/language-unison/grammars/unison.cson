@@ -7,7 +7,7 @@ patterns: [
   { include: '#boolean' }
   { include: '#numeric' }
   { include: '#text'}
-  { include: '#case_of' }
+  { include: '#match_with' }
   { include: '#if' }
   { include: '#annotation'}
   { include: '#type_operators' }
@@ -40,10 +40,10 @@ repository:
     captures:
       1: {name: 'keyword.other.forall.unison'}
       2: {name: 'keyword.other.arrow.unison'}
-  case_of:
-    match: '(\\s|^)(case|of|->)(?=\\s|$)'
+  match_with:
+    match: '(\\s|^)(match|with|->|cases)(?=\\s|$)'
     captures:
-      2: {name: 'keyword.control.case.unison'}
+      2: {name: 'keyword.control.match.unison'}
   unsorted_keywords:
     match: '(\\s|^)(let|alias|handle|with|namespace|type|ability|where)(?=\\s|$)'
     captures:

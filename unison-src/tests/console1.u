@@ -11,14 +11,14 @@ ability Console where
 
 use Console simulate
 
-fst x = case x of Tuple.Cons a _ -> a
+fst = cases Tuple.Cons a _ -> a
 
-snd x = case x of Tuple.Cons _ (Tuple.Cons b _) -> b
+snd = cases Tuple.Cons _ (Tuple.Cons b _) -> b
 
 namespace Console where
 
   simulate : Request Console a -> {State ([Text], [Text])} a
-  simulate c = case c of
+  simulate = cases
     {Console.read -> k} -> handle
         io = State.get
         ins = fst io
@@ -39,7 +39,7 @@ e = 'let handle
     use Console read write
     use Optional Some None
     write "What's your name?"
-    case read of
+    match read with
       Some name -> write ("Hello" ++ name)
       None -> write "Fine, be that way."
   with simulate

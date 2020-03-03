@@ -25,8 +25,8 @@ toInteger : Nat -> Integer
 toInteger x = _
 
 bigEndian : Words -> Integer
-bigEndian ws = case ws of
-  Words.Words s -> 
+bigEndian = cases
+  Words.Words s ->
     foldLeft Integer.zero (acc w -> shiftLeft 8 acc + toInteger w) s
 
 -- TODO: Need some conversions between integers and machine integers
@@ -46,17 +46,15 @@ codeString : Text
 codeString = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
 base58Encode : Words -> Text
-base58Encode ws = 
+base58Encode ws =
   x = bigEndian ws
   base58 : Integer -> Optional (Integer, Text)
-  base58 a = 
+  base58 a =
     if a == 0
     then Optional.None
-    else case divmod a 58 of
+    else match divmod a 58 with
            (d, m) -> Optional.Some (d, charAt m codeString)
   foldLeft "" Text.concatenate (unfoldRight base58 x)
 
 base58Decode : Text -> Words
 base58Decode txt = _
-
-

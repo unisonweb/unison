@@ -1,5 +1,9 @@
 ### Transcript parser operations
 
+```ucm:hide
+.> builtins.merge
+```
+
 The transcript parser is meant to parse `ucm` and `unison` blocks.
 
 ```unison

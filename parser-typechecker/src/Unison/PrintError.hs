@@ -184,7 +184,9 @@ renderTypeError e env src = case e of
         "The arguments to " <> style ErrorSite "or" <> " have to be"
       GuardMismatch ->
         "The guard expression for a "
-          <> style ErrorSite "case"
+          <> style ErrorSite "match"
+          <> "/"
+          <> style ErrorSite "with"
           <> " has to be"
 
   ExistentialMismatch {..} -> mconcat
@@ -234,9 +236,9 @@ renderTypeError e env src = case e of
       VectorBody -> "The elements of a vector all need to have the same type."
       CaseBody   -> mconcat
         [ "Each case of a "
-        , style ErrorSite "case"
+        , style ErrorSite "match"
         , "/"
-        , style ErrorSite "of"
+        , style ErrorSite "with"
         , " expression "
         , "need to have the same type."
         ]

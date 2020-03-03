@@ -159,11 +159,31 @@ unique[b28d929d0a73d2c18eac86341a3bb9399f8550c11b5f35eabb2751e6803ccc20] type
 
 d1 Doc.++ d2 =
   use Doc
-  case (d1,d2) of
+  match (d1,d2) with
     (Join ds, Join ds2) -> Join (ds Sequence.++ ds2)
     (Join ds, _) -> Join (ds `Sequence.snoc` d2)
     (_, Join ds) -> Join (d1 `Sequence.cons` ds)
     _ -> Join [d1,d2]
+
+unique[q1905679b27a97a4098bc965574da880c1074183a2c55ff1d481619c7fb8a1e1] type
+  Author = { guid : GUID, name : Text }
+
+unique[ee1c051034fa0671ea66e7c708ba552003bd3cf657bd28bf0051f1f8cdfcba53] type
+  CopyrightHolder = { guid : GUID, name : Text}
+
+unique[bed6724af0d5f47f80cdea1b6023d35f120137ee0556e57154a9fc8b62fe5fed] type
+  License = { copyrightHolders : [CopyrightHolder]
+            , years : [Year]
+            , licenseType : LicenseType }
+
+-- Use `Doc` here to get nice text-wrapping when viewing
+-- and to avoid needing to stick hard line breaks in the license
+unique[d875fa1ea7ef3adf8e29417c6c8b01a1830c4c6bd10dcca9d4196388462e0b7a] type LicenseType = LicenseType Doc
+
+unique[cb8469a1b41a63655062226556eaccf06129a2641af61fe7edef9c485c94a870] type GUID = GUID Bytes
+
+-- Common era years
+unique[u9ae6694152966cf1b0c1f4ad901a77e1acd7bbe16595fd27b07435ac45dab05] type Year = Year Nat
 
 -- This is linked to definitions that are considered tests
 unique[e6dca08b40458b03ca1660cfbdaecaa7279b42d18257898b5fd1c34596aac36f] type
@@ -205,7 +225,7 @@ namespace io where
 
   -- Throw an I/O error on the left as an effect in `IO`
   rethrow : (Either io.Error a) -> {IO} a
-  rethrow x = case x of
+  rethrow x = match x with
     Either.Left e -> io.IO.throw e
     Either.Right a -> a
 
@@ -375,7 +395,7 @@ namespace io where
   -- handle the error with the given handler.
   -- catch : '{IO} a -> (io.Error ->{IO} a) ->{IO} a
   -- catch c h =
-  --   k io = case io of
+  --   k io = match io with
   --            { IO.throw e } -> h e
   --            x -> x
   --   handle k in c

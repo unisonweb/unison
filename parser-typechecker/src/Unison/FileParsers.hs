@@ -28,9 +28,8 @@ import qualified Unison.Referent            as Referent
 import           Unison.Reference           (Reference)
 import           Unison.Result              (Note (..), Result, pattern Result, ResultT, CompilerBug(..))
 import qualified Unison.Result              as Result
-import           Unison.Term                (AnnotatedTerm)
 import qualified Unison.Term                as Term
-import qualified Unison.Type
+import qualified Unison.Type                as Type
 import qualified Unison.Typechecker         as Typechecker
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker.Context as Context
@@ -41,8 +40,8 @@ import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
 import Unison.Names3 (Names0)
 
-type Term v = AnnotatedTerm v Ann
-type Type v = Unison.Type.Type v Ann
+type Term v = Term.Term v Ann
+type Type v = Type.Type v Ann
 type UnisonFile v = UF.UnisonFile v Ann
 type Result' v = Result (Seq (Note v Ann))
 
@@ -84,7 +83,7 @@ resolveNames
   -> ResultT
        (Seq (Note v Ann))
        m
-       (AnnotatedTerm v Ann, TDNRMap v, TL.TypeLookup v Ann)
+       (Term v, TDNRMap v, TL.TypeLookup v Ann)
 resolveNames typeLookupf preexistingNames uf = do
   let tm = UF.typecheckingTerm uf
       deps = Term.dependencies tm
@@ -124,7 +123,7 @@ synthesizeFile
   -> TL.TypeLookup v Ann
   -> TDNRMap v
   -> UnisonFile v
-  -> AnnotatedTerm v Ann
+  -> Term v
   -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile v Ann)
 synthesizeFile ambient tl fqnsByShortName uf term = do
   let -- substitute Blanks for any remaining free vars in UF body

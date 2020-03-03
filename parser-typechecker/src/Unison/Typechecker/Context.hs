@@ -76,7 +76,6 @@ import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as Pattern
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
-import           Unison.Term                    ( AnnotatedTerm' )
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import           Unison.Typechecker.Components  ( minimize' )
@@ -88,7 +87,7 @@ import qualified Unison.TypePrinter            as TP
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 type Type v loc = Type.Type (TypeVar v loc) loc
-type Term v loc = AnnotatedTerm' (TypeVar v loc) v loc
+type Term v loc = Term.Term' (TypeVar v loc) v loc
 type Monotype v loc = Type.Monotype (TypeVar v loc) loc
 type RedundantTypeAnnotation = Bool
 
@@ -270,7 +269,7 @@ data ErrorNote v loc = ErrorNote {
 -- with the fully qualified name fqn.
 data InfoNote v loc
   = SolvedBlank (B.Recorded loc) v (Type v loc)
-  | Decision v loc (Term.AnnotatedTerm v loc)
+  | Decision v loc (Term.Term v loc)
   | TopLevelComponent [(v, Type.Type v loc, RedundantTypeAnnotation)]
   deriving (Show)
 

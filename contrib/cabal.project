@@ -1,0 +1,10 @@
+packages: unison-core/ parser-typechecker/ yaks/easytest/ yaks/haskeline/
+
+allow-newer: base, directory, filepath
+
+package unison-core
+  ghc-options: -Werror -Wno-type-defaults
+
+package unison-parser-typechecker
+  ghc-options: -Werror -Wno-type-defaults
+

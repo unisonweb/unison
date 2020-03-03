@@ -2,7 +2,7 @@ use Optional None Some
 use Universal <
 
 uncons : [a] -> Optional (a, [a])
-uncons as = case at 0 as of
+uncons as = match at 0 as with
   None -> None
   Some hd -> Some (hd, drop 1 as)
 
@@ -15,7 +15,7 @@ splitAt n as = (take n as, drop n as)
 merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]
 merge lte a b =
   use List ++
-  go out a b = case (uncons a, uncons b) of
+  go out a b = match (uncons a, uncons b) with
     (None,_) -> out ++ b
     (_,None) -> out ++ a
     (Some (hA, tA), Some (hB, tB)) ->
@@ -26,7 +26,7 @@ merge lte a b =
 sort : (a -> a -> Boolean) -> [a] -> [a]
 sort lte as =
   if size as < 2 then as
-  else case halve as of (left, right) ->
+  else match halve as with (left, right) ->
     l = sort lte left
     r = sort lte right
     merge lte l r

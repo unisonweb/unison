@@ -1,4 +1,4 @@
-foo x = case x of
+foo = cases
   "xyz" -> false
   "abc" -> true
   _ -> false

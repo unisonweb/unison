@@ -1,4 +1,4 @@
 r7 : ()
-r7 = case () of
+r7 = match () with
   x@() -> x
 

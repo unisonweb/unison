@@ -75,7 +75,7 @@ closeWithDependencies uf inputs = seenDefns where
   resolveTypes :: Set Reference -> [v]
   resolveTypes rs = [ v | r <- Set.toList rs, Just v <- [Map.lookup r typeNames]]
 
-  findTerm :: v -> Maybe (Term.AnnotatedTerm v a)
+  findTerm :: v -> Maybe (Term.Term v a)
   findTerm v = Map.lookup v allTerms
 
   allTerms = UF.allTerms uf

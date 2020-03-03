@@ -5,7 +5,7 @@ ability Noop where
 type List a = Nil | Cons a (List a)
 
 map : (a ->{} b) -> List a -> List b
-map f as = case as of
+map f = cases
   List.Nil -> List.Nil
   List.Cons h t -> List.Cons (f h) (map f t)
 

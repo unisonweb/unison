@@ -6,14 +6,14 @@ ability Console where
   read : {Console} (Optional Text)
   write : Text -> {Console} ()
 
-fst x = case x of Tuple.Cons a _ -> a
+fst = cases Tuple.Cons a _ -> a
 
-snd x = case x of Tuple.Cons _ (Tuple.Cons b _) -> b
+snd = cases Tuple.Cons _ (Tuple.Cons b _) -> b
 
 namespace Console where
 
   simulate : Request Console a -> {State ([Text], [Text])} a
-  simulate c = case c of
+  simulate = cases
     {Console.read -> k} ->
       io = State.get
       ins = fst io
@@ -27,4 +27,3 @@ namespace Console where
       k (State.set (ins, cons t outs)) -- this is missing recursive call
 
 ()
-

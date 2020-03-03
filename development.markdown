@@ -25,3 +25,19 @@ Again you can leave off the flag. To run an executable with profiling enabled, d
     stack exec -- <executable-name> +RTS -p
 
 That will generate a `<executable-name>.prof` plain text file with profiling data. [More info on profiling](https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/profiling.html).
+
+## Building with cabal
+
+Unison can also be built/installed with cabal. You'll need ghc 8.6.x to
+successfully build its dependencies. The provided project file is also in
+contrib/ so you'll need to specify its location on the command line.
+
+* To configure the build, you can use e.g. `cabal v2-configure
+  --project-file=contrib/cabal.project --with-ghc=ghc-8.6.5` if you have
+  multiple versions of GHC installed
+* To build all projects use `cabal v2-build --project-file=contrib/cabal.project all`
+* Tests can be run with e.g. `cabal v2-run --project-file=contrib/cabal.project
+  parser-typechecker:tests`
+* The executable can be installed with `cabal v2-install
+  --project-file=contrib/cabal.project unison` the install directory can be
+  modified by setting `installdir: ...` in `.cabal/config`

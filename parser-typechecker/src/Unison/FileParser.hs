@@ -19,7 +19,7 @@ import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Lexer as L
 import           Unison.Parser
-import           Unison.Term (AnnotatedTerm)
+import           Unison.Term (Term)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
 import           Unison.Type (Type)
@@ -107,7 +107,7 @@ getVars = \case
   Binding ((_,v), _) -> [v]
   Bindings bs -> [ v | ((_,v), _) <- bs ]
 
-stanza :: Var v => P v (Stanza v (AnnotatedTerm v Ann))
+stanza :: Var v => P v (Stanza v (Term v Ann))
 stanza = watchExpression <|> unexpectedAction <|> binding <|> namespace
   where
   unexpectedAction = failureIf (TermParser.blockTerm $> getErr) binding

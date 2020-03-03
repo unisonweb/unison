@@ -22,7 +22,7 @@ import qualified Unison.Var                    as Var
 
 data HashQualified' n
   = NameOnly n | HashOnly ShortHash | HashQualified n ShortHash
-  deriving (Eq, Ord, Functor, Show)
+  deriving (Eq, Functor, Show)
 
 type HashQualified = HashQualified' Name
 
@@ -60,7 +60,7 @@ hasName, hasHash :: HashQualified -> Bool
 hasName = isJust . toName
 hasHash = isJust . toHash
 
-toHash :: HashQualified -> Maybe ShortHash
+toHash :: HashQualified' n -> Maybe ShortHash
 toHash = \case
   NameOnly _         -> Nothing
   HashQualified _ sh -> Just sh
@@ -158,6 +158,13 @@ requalify hq r = case hq of
   NameOnly n        -> fromNamedReferent n r
   HashQualified n _ -> fromNamedReferent n r
   HashOnly _        -> fromReferent r
+
+-- this implementation shows HashOnly before the others, because None < Some. 
+-- Flip it around carefully if HashOnly should come last.
+instance Ord n => Ord (HashQualified' n) where
+  compare a b = case compare (toName a) (toName b) of
+    EQ -> compare (toHash a) (toHash b)
+    o -> o
 
 --instance Show n => Show (HashQualified' n) where
 --  show = Text.unpack . toText

@@ -7,6 +7,8 @@ pull_request_rules:
     actions:
       merge:
         method: merge
+      label:
+        remove: ["ready-to-merge"]
 #   - name: delete head branch after merge
 #     conditions: []
 #     actions:

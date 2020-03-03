@@ -35,7 +35,7 @@ import qualified Unison.PatternP as Pattern
 type Pos = Word64
 
 serializeTerm :: (MonadPut m, MonadState Pos m, Var v)
-              => AnnotatedTerm v a
+              => Term v a
               -> m Pos
 serializeTerm x = do
   let putTag = do putWord8 111; putWord8 0
@@ -260,7 +260,7 @@ serializeCase2 (MatchCase p guard body) = do
   putBackref body
 
 serializeCase1 :: (Var v, MonadPut m, MonadState Pos m)
-               => MatchCase p (AnnotatedTerm v a) -> m (MatchCase p Pos)
+               => MatchCase p (Term v a) -> m (MatchCase p Pos)
 serializeCase1 (MatchCase p guard body) = do
   posg <- traverse serializeTerm guard
   posb <- serializeTerm body
@@ -325,7 +325,7 @@ serializeConstructorArities r constructorArities = do
 
 serializeFile
   :: (MonadPut m, MonadState Pos m, Monoid a, Var v)
-  => UnisonFile v a -> AnnotatedTerm v a -> m ()
+  => UnisonFile v a -> Term v a -> m ()
 serializeFile uf@(UnisonFile dataDecls effectDecls _ _) tm = do
   let body = UF.uberTerm' uf tm
   let dataDecls' = second DD.constructorArities <$> toList dataDecls

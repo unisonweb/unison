@@ -1,5 +1,9 @@
 # Using numbered arguments in UCM
 
+```ucm:hide
+.> builtins.merge
+```
+
 First lets add some contents to our codebase.
 
 ```unison

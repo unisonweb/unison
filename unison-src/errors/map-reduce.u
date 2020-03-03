@@ -24,10 +24,10 @@ use Remote fork spawn at
 namespace Monoid where
 
   zero : Monoid a -> a
-  zero m = case m of Monoid _ z -> z
+  zero = cases Monoid _ z -> z
 
   op : Monoid a -> a -> a -> a
-  op m = case m of Monoid op _ -> op
+  op = cases Monoid op _ -> op
 
   foldMap : (a -> {e} b) -> Monoid b -> [a] -> {e} b
   foldMap f m as =
@@ -36,7 +36,7 @@ namespace Monoid where
     -- and `zero m` is of type `b`, but `as` is of type `[a]`
     --                                                 👇
     if size as < 2 then Sequence.foldLeft op (zero m) as
-    else case Sequence.halve as of (l, r) -> foldMap f m l `op` foldMap f m r
+    else match Sequence.halve as with (l, r) -> foldMap f m l `op` foldMap f m r
 
   par : Monoid a -> Monoid ('{Remote n} a)
   par m =
@@ -79,13 +79,13 @@ parApply f a b = 'let
 Remote.runLocal : '{Remote Nat} a -> a
 Remote.runLocal r =
   step : Nat -> Request (Remote Nat) a -> a
-  step nid r = case r of
+  step nid = cases
     {a} -> a
-    {Remote.fork t -> k} -> handle (step nid) in k t
-    {Remote.spawn -> k} -> handle (step (nid + 1)) in k nid
-    {Remote.at _ t -> k} -> handle (step (nid + 1)) in k !t
+    {Remote.fork t -> k} -> handle k t with step nid
+    {Remote.spawn -> k} -> handle k nid with step (nid + 1)
+    {Remote.at _ t -> k} -> handle k !t with step (nid + 1)
 
-  handle (step 0) in !r
+  handle !r with step 0
 
 uno : '{e} a -> '{e} a -> {e} a
 uno a a2 = !a
@@ -100,4 +100,3 @@ i |> f = f i
 Stream.fromNat 1
   |> Stream.take 15
   |> Stream.toSequence
-

@@ -5,7 +5,7 @@ We introduce a type `Foo` with a function dependent `fooToInt`.
 ```unison
 use .builtin
 
-unique [foo1] type Foo = Foo
+unique type Foo = Foo
 
 fooToInt : Foo -> Int
 fooToInt _ = +42
@@ -40,13 +40,13 @@ And then we add it.
 
 .subpath> find.verbose
 
-  1. -- #6ccohugs0p0rkd8cgfecjgot1djob2v486rfkf6g2o1lr34nsk6r3dgtjv096sokend68h5ae7vojsvaajkulr4pipe4bjmu6du4mpo
+  1. -- #qae64o6am81hoadf7eabd909gojboi5iu3g9deip79ro18f11bbhir2vg51grg4m72kr5ikdovi6aupttet0nsqil7f0df9nqr10hqg
      unique type Foo
      
-  2. -- #6ccohugs0p0rkd8cgfecjgot1djob2v486rfkf6g2o1lr34nsk6r3dgtjv096sokend68h5ae7vojsvaajkulr4pipe4bjmu6du4mpo#0
+  2. -- #qae64o6am81hoadf7eabd909gojboi5iu3g9deip79ro18f11bbhir2vg51grg4m72kr5ikdovi6aupttet0nsqil7f0df9nqr10hqg#0
      Foo.Foo : Foo
      
-  3. -- #o9q6anf4873hbnsaiifh5b46q8fdli18cu8cudu0ti8ort1gm253120uq8ijk24l52ecf62bm1rmq4tgnu7ip8apireh1oq97e042jg
+  3. -- #hvtmbg1bd8of81n2os4ginnnen13njh47294uandlohooq0ej971u6tl5cdsfq237lec1tc007oajc4dee1fmnflqi6ogom3ecemu5g
      fooToInt : Foo -> Int
      
   
@@ -60,7 +60,7 @@ And then we add it.
 Then if we change the type `Foo`...
 
 ```unison
-unique [foo2] type Foo = Foo | Bar
+unique type Foo = Foo | Bar
 ```
 
 ```ucm
@@ -69,8 +69,8 @@ unique [foo2] type Foo = Foo | Bar
   do an `add` or `update`, here's how your codebase would
   change:
   
-    ⍟ These new definitions will replace existing ones of the
-      same name and are ok to `update`:
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
     
       unique type Foo
    
@@ -83,13 +83,9 @@ and update the codebase to use the new type `Foo`...
 ```ucm
 .subpath> update
 
-  ⍟ I've updated to these definitions:
+  ⍟ I've updated these names to your new definition:
   
     unique type Foo
-
-  ✅
-  
-  No conflicts or edits in progress.
 
 ```
 ... it should automatically propagate the type to `fooToInt`.
@@ -159,8 +155,8 @@ someTerm _ = None
   do an `add` or `update`, here's how your codebase would
   change:
   
-    ⍟ These new definitions will replace existing ones of the
-      same name and are ok to `update`:
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
     
       someTerm : Optional x -> Optional x
    
@@ -173,16 +169,12 @@ Update...
 ```ucm
 .subpath.preserve> update
 
-  ⍟ I've updated to these definitions:
+  ⍟ I've updated these names to your new definition:
   
     someTerm : .builtin.Optional x -> .builtin.Optional x
 
-  ✅
-  
-  No conflicts or edits in progress.
-
 ```
-Now the type of `someTerm` should be `Optional x -> Optional x` and the 
+Now the type of `someTerm` should be `Optional x -> Optional x` and the
 type of `otherTerm` should remain the same.
 
 ```ucm
@@ -207,9 +199,9 @@ Cleaning up a bit...
   Removed definitions:
   
     1. unique type Foo
-    2. Foo.Bar            : #o4dd8v5jef
-    3. Foo.Foo            : #o4dd8v5jef
-    4. fooToInt           : #o4dd8v5jef -> Int
+    2. Foo.Bar            : #16d2id848g
+    3. Foo.Foo            : #16d2id848g
+    4. fooToInt           : #16d2id848g -> Int
     5. preserve.otherTerm : Optional baz -> Optional baz
     6. preserve.someTerm  : Optional x -> Optional x
     7. patch patch
@@ -290,13 +282,9 @@ someTerm _ = None
 ```ucm
 .subpath.one> update
 
-  ⍟ I've updated to these definitions:
+  ⍟ I've updated these names to your new definition:
   
     someTerm : .builtin.Optional x -> .builtin.Optional x
-
-  ✅
-  
-  No conflicts or edits in progress.
 
 ```
 The other namespace should be left alone.

@@ -11,6 +11,8 @@ import           Prelude                 hiding ( head
                                                 )
 import           Control.Lens                   ( (<&>) )
 import           Control.Monad.Loops            ( anyM )
+import qualified Control.Monad.State           as State
+import           Control.Monad.State            ( StateT )
 import           Data.List                      ( foldl1' )
 import           Data.Sequence                  ( ViewL(..) )
 import qualified Data.Sequence                 as Seq
@@ -69,6 +71,27 @@ data Causal m h e
           , tails :: Map (RawHash h) (m (Causal m h e))
           }
 
+-- Convert the Causal to an adjacency matrix for debugging purposes.
+toGraph
+  :: Monad m
+  => Set (RawHash h)
+  -> Causal m h e
+  -> m (Seq (RawHash h, RawHash h))
+toGraph seen c = case c of
+  One _ _           -> pure Seq.empty
+  Cons h1 _ (h2, m) -> if Set.notMember h1 seen
+    then do
+      tail <- m
+      g    <- toGraph (Set.insert h1 seen) tail
+      pure $ (h1, h2) Seq.<| g
+    else pure Seq.empty
+  Merge h _ ts -> if Set.notMember h seen
+    then do
+      tails <- sequence $ Map.elems ts
+      gs    <- Seq.fromList <$> traverse (toGraph (Set.insert h seen)) tails
+      pure $ Seq.fromList ((h, ) <$> Set.toList (Map.keysSet ts)) <> join gs
+    else pure Seq.empty
+
 -- A serializer `Causal m h e`. Nonrecursive -- only responsible for
 -- writing a single node of the causal structure.
 data Raw h e
@@ -102,23 +125,33 @@ type Serialize m h e = RawHash h -> Raw h e -> m ()
 -- Sync a causal to some persistent store, stopping when hitting a Hash which
 -- has already been written, according to the `exists` function provided.
 sync
-  :: Monad m => (RawHash h -> m Bool) -> Serialize m h e -> Causal m h e -> m ()
+  :: forall m h e
+   . Monad m
+  => (RawHash h -> m Bool)
+  -> Serialize (StateT (Set (RawHash h)) m) h e
+  -> Causal m h e
+  -> StateT (Set (RawHash h)) m ()
 sync exists serialize c = do
-  b <- exists (currentHash c)
+  b <- lift . exists $ currentHash c
   unless b $ go c
  where
-  go c = case c of
-    One currentHash head -> serialize currentHash $ RawOne head
-    Cons currentHash head (tailHash, tailm) -> do
-      -- write out the tail first, so what's on disk is always valid
-      b <- exists tailHash
-      unless b $ go =<< tailm
-      serialize currentHash (RawCons head tailHash)
-    Merge currentHash head tails -> do
-      for_ (Map.toList tails) $ \(hash, cm) -> do
-        b <- exists hash
-        unless b $ go =<< cm
-      serialize currentHash (RawMerge head (Map.keysSet tails))
+  go :: Causal m h e -> StateT (Set (RawHash h)) m ()
+  go c = do
+    queued <- State.get
+    when (Set.notMember (currentHash c) queued) $ case c of
+      One currentHash head -> serialize currentHash $ RawOne head
+      Cons currentHash head (tailHash, tailm) -> do
+        State.modify (Set.insert currentHash)
+        -- write out the tail first, so what's on disk is always valid
+        b <- lift $ exists tailHash
+        unless b $ go =<< lift tailm
+        serialize currentHash (RawCons head tailHash)
+      Merge currentHash head tails -> do
+        State.modify (Set.insert currentHash)
+        for_ (Map.toList tails) $ \(hash, cm) -> do
+          b <- lift $ exists hash
+          unless b $ go =<< lift cm
+        serialize currentHash (RawMerge head (Map.keysSet tails))
 
 instance Eq (Causal m h a) where
   a == b = currentHash a == currentHash b
@@ -132,40 +165,38 @@ instance Hashable (RawHash h) where
 -- Find the lowest common ancestor of two causals.
 lca :: Monad m => Causal m h e -> Causal m h e -> m (Maybe (Causal m h e))
 lca a b =
-  go Set.empty Set.empty (Seq.singleton $ pure a) . Seq.singleton $ pure b
- where
+  lca' (Seq.singleton $ pure a) (Seq.singleton $ pure b)
+
+-- `lca' xs ys` finds the lowest common ancestor of any element of `xs` and any
+-- element of `ys`.
+-- This is a breadth-first search used in the implementation of `lca a b`.
+lca'
+  :: Monad m
+  => Seq (m (Causal m h e))
+  -> Seq (m (Causal m h e))
+  -> m (Maybe (Causal m h e))
+lca' = go Set.empty Set.empty where
   go seenLeft seenRight remainingLeft remainingRight =
-    case (Seq.viewl remainingLeft, Seq.viewl remainingRight) of
-      (Seq.EmptyL, _         ) -> pure Nothing
-      (_         , Seq.EmptyL) -> pure Nothing
-      (a :< as   , b :< bs   ) -> do
+    case Seq.viewl remainingLeft of
+      Seq.EmptyL -> search seenLeft remainingRight
+      a :< as    -> do
         left <- a
-        -- Have we seen the left node before on the right?
         if Set.member (currentHash left) seenRight
           then pure $ Just left
-          else do
-            right <- b
-            -- Have we seen the right node before on the left?
-            if Set.member (currentHash right) seenLeft
-              then pure $ Just right
-              -- Are these two previously unseen nodes the same?
-              else if currentHash left == currentHash right
-                then pure $ Just left
-                -- Descend in to the children
-                else case (left, right) of
-                  (One h _, _) ->
-                    go (Set.insert h seenLeft) seenRight as remainingRight
-                  (_, One h _) ->
-                    go seenLeft (Set.insert h seenRight) remainingLeft bs
-                  _ -> descend (currentHash left)
-                               (currentHash right)
-                               (children left)
-                               (children right)
-       where
-        descend h1 h2 r1 r2 = go (Set.insert h1 seenLeft)
-                                 (Set.insert h2 seenRight)
-                                 (as <> r1)
-                                 (bs <> r2)
+          -- Note: swapping position of left and right when we recurse so that
+          -- we search each side equally. This avoids having to case on both
+          -- arguments, and the order shouldn't really matter.
+          else go seenRight
+                  (Set.insert (currentHash left) seenLeft)
+                  remainingRight
+                  (as <> children left)
+  search seen remaining = case Seq.viewl remaining of
+    Seq.EmptyL -> pure Nothing
+    a :< as    -> do
+      current <- a
+      if Set.member (currentHash current) seen
+        then pure $ Just current
+        else search seen (as <> children current)
 
 children :: Causal m h e -> Seq (m (Causal m h e))
 children (One _ _         ) = Seq.empty
@@ -173,34 +204,30 @@ children (Cons  _ _ (_, t)) = Seq.singleton t
 children (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
 
 threeWayMerge
-  :: forall m h e d
-   . (Show d, Monad m, Hashable e, Semigroup d)
-  => (e -> e -> m e)
-  -> (e -> e -> m d)
-  -> (e -> d -> m e)
+  :: forall m h e
+   . (Monad m, Hashable e)
+  => (Maybe e -> e -> e -> m e)
   -> Causal m h e
   -> Causal m h e
   -> m (Causal m h e)
-threeWayMerge combine diff patch = mergeInternal merge0
+threeWayMerge combine = mergeInternal merge0
  where
   merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
-  merge0 m =
-    let k left right = do
-          a           <- left
-          b           <- right
-          mayAncestor <- lca a b
-          case mayAncestor of
-            Nothing       -> mergeWithM combine a b
-            Just ancestor -> do
-              da      <- diff (head ancestor) (head a)
-              db      <- diff (head ancestor) (head b)
-              newHead <- patch (head ancestor) (da <> db)
-              let h = hash (newHead, Map.keys m)
-              pure . Merge (RawHash h) newHead $ Map.fromList
-                [(currentHash a, pure a), (currentHash b, pure b)]
-    in  if Map.null m
-          then error "Causal.threeWayMerge empty map"
-          else foldl1' k $ Map.elems m
+  merge0 m = case Map.elems m of
+    []       -> error "Causal.threeWayMerge empty map"
+    me : mes -> do
+      e            <- me
+      (newHead, _) <- foldM k (head e, Seq.singleton (pure e)) mes
+      pure $ Merge (RawHash (hash (newHead, Map.keys m))) newHead m
+   where
+    k (e, acc) new = do
+      n           <- new
+      -- We call `lca'` here since we don't want to merge using the n-way LCA of
+      -- all children. Note for example that some of the children might have
+      -- totally unrelated histories. We want the LCA of any two children.
+      mayAncestor <- lca' acc (Seq.singleton (pure n))
+      newHead     <- combine (head <$> mayAncestor) e (head n)
+      pure (newHead, pure n Seq.<| acc)
 
 mergeInternal
   :: forall m h e
@@ -279,7 +306,8 @@ stepM
 stepM f c = (`cons` c) <$> f (head c)
 
 stepDistinctM
-  :: (Applicative m, Eq e, Hashable e) => (e -> m e) -> Causal m h e -> m (Causal m h e)
+  :: (Applicative m, Functor n, Eq e, Hashable e)
+  => (e -> n e) -> Causal m h e -> n (Causal m h e)
 stepDistinctM f c = (`consDistinct` c) <$> f (head c)
 
 one :: Hashable e => e -> Causal m h e

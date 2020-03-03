@@ -17,6 +17,7 @@ import Unison.Codebase.Editor.RemoteRepo
 
 import qualified Unison.Builtin                as B
 
+import qualified Crypto.Random                 as Random 
 import           Control.Monad.Except           ( runExceptT )
 import qualified Data.Configurator             as Config
 import           Data.Configurator.Types        ( Config )
@@ -49,6 +50,7 @@ import           Unison.FileParsers             ( parseAndSynthesizeFile
                                                 )
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.ShortHash              as SH
+import Unison.Term (Term)
 import Unison.Type (Type)
 
 typecheck
@@ -87,8 +89,8 @@ tempGitDir url commit =
     </> Text.unpack (fromMaybe "HEAD" commit)
 
 commandLine
-  :: forall i v a
-   . Var v
+  :: forall i v a gen
+   . (Var v, Random.DRG gen)
   => Config
   -> IO i
   -> (Branch IO -> IO ())
@@ -97,13 +99,14 @@ commandLine
   -> (NumberedOutput v -> IO NumberedArgs)
   -> (SourceName -> IO LoadSourceResult)
   -> Codebase IO v Ann
+  -> (Int -> IO gen)
   -> Free (Command IO i v) a
   -> IO a
-commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase =
- Free.fold go
+commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase rngGen =
+ Free.foldWithIndex go
  where
-  go :: forall x . Command IO i v x -> IO x
-  go = \case
+  go :: forall x . Int -> Command IO i v x -> IO x
+  go i x = case x of 
     -- Wait until we get either user input or a unison file update
     Eval m        -> m
     Input         -> awaitInput
@@ -115,8 +118,9 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     Typecheck ambient names sourceName source -> do
       -- todo: if guids are being shown to users,
       -- not ideal to generate new guid every time
-      namegen <- Parser.uniqueBase58Namegen
-      let env = Parser.ParsingEnv namegen names
+      rng <- rngGen i
+      let namegen = Parser.uniqueBase32Namegen rng
+          env = Parser.ParsingEnv namegen names
       typecheck ambient codebase env sourceName source
     TypecheckFile file ambient     -> typecheck' ambient codebase file
     Evaluate ppe unisonFile        -> evalUnisonFile ppe unisonFile
@@ -168,7 +172,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     AppendToReflog reason old new -> Codebase.appendReflog codebase reason old new
     LoadReflog -> Codebase.getReflog codebase
 
-  eval1 :: PPE.PrettyPrintEnv -> Term.AnnotatedTerm v Ann -> _
+  eval1 :: PPE.PrettyPrintEnv -> Term v Ann -> _
   eval1 ppe tm = do
     let codeLookup = Codebase.toCodeLookup codebase
     r <- Runtime.evaluateTerm codeLookup ppe rt tm

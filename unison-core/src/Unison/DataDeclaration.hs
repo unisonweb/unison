@@ -35,8 +35,8 @@ import qualified Unison.Reference.Util         as Reference.Util
 import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
-import           Unison.Term                    ( AnnotatedTerm
-                                                , AnnotatedTerm2
+import           Unison.Term                    ( Term
+                                                , Term2
                                                 )
 import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
@@ -91,7 +91,7 @@ generateRecordAccessors
   => [(v, a)]
   -> v
   -> Reference
-  -> [(v, AnnotatedTerm v a)]
+  -> [(v, Term v a)]
 generateRecordAccessors fields typename typ =
   join [ tm t i | (t, i) <- fields `zip` [(0::Int)..] ]
   where
@@ -145,10 +145,10 @@ generateRecordAccessors fields typename typ =
 -- along with the terms for those references and their types.
 constructorTerms
   :: (Reference -> ConstructorId -> Reference)
-  -> (a -> Reference -> ConstructorId -> AnnotatedTerm v a)
+  -> (a -> Reference -> ConstructorId -> Term v a)
   -> Reference.Id
   -> DataDeclaration' v a
-  -> [(Reference.Id, AnnotatedTerm v a, Type v a)]
+  -> [(Reference.Id, Term v a, Type v a)]
 constructorTerms hashCtor f rid dd =
   (\((a, _, t), (i, re@(Reference.DerivedId r))) -> (r, f a re i, t)) <$> zip
     (constructors' dd)
@@ -158,14 +158,14 @@ dataConstructorTerms
   :: Ord v
   => Reference.Id
   -> DataDeclaration' v a
-  -> [(Reference.Id, AnnotatedTerm v a, Type v a)]
+  -> [(Reference.Id, Term v a, Type v a)]
 dataConstructorTerms = constructorTerms Term.hashConstructor Term.constructor
 
 effectConstructorTerms
   :: Ord v
   => Reference.Id
   -> EffectDeclaration' v a
-  -> [(Reference.Id, AnnotatedTerm v a, Type v a)]
+  -> [(Reference.Id, Term v a, Type v a)]
 effectConstructorTerms rid ed =
   constructorTerms Term.hashRequest Term.request rid $ toDataDecl ed
 
@@ -443,7 +443,7 @@ okConstructorReferent, failConstructorReferent :: Referent.Referent
 okConstructorReferent = Referent.Con testResultRef okConstructorId CT.Data
 failConstructorReferent = Referent.Con testResultRef failConstructorId CT.Data
 
-failResult :: (Ord v, Monoid a) => a -> Text -> AnnotatedTerm v a
+failResult :: (Ord v, Monoid a) => a -> Text -> Term v a
 failResult ann msg =
   Term.app ann (Term.request ann testResultRef failConstructorId)
                (Term.text ann msg)
@@ -557,30 +557,30 @@ pairType a = Type.ref a pairRef
 testResultType a = Type.app a (Type.vector a) (Type.ref a testResultRef)
 optionalType a = Type.ref a optionalRef
 
-unitTerm :: Var v => a -> AnnotatedTerm v a
+unitTerm :: Var v => a -> Term v a
 unitTerm ann = Term.constructor ann unitRef 0
 
 tupleConsTerm :: (Ord v, Semigroup a)
-              => AnnotatedTerm2 vt at ap v a
-              -> AnnotatedTerm2 vt at ap v a
-              -> AnnotatedTerm2 vt at ap v a
+              => Term2 vt at ap v a
+              -> Term2 vt at ap v a
+              -> Term2 vt at ap v a
 tupleConsTerm hd tl =
   Term.apps' (Term.constructor (ABT.annotation hd) pairRef 0) [hd, tl]
 
-tupleTerm :: (Var v, Monoid a) => [AnnotatedTerm v a] -> AnnotatedTerm v a
+tupleTerm :: (Var v, Monoid a) => [Term v a] -> Term v a
 tupleTerm = foldr tupleConsTerm (unitTerm mempty)
 
 -- delayed terms are just lambdas that take a single `()` arg
 -- `force` calls the function
-forceTerm :: Var v => a -> a -> AnnotatedTerm v a -> AnnotatedTerm v a
+forceTerm :: Var v => a -> a -> Term v a -> Term v a
 forceTerm a au e = Term.app a e (unitTerm au)
 
-delayTerm :: Var v => a -> AnnotatedTerm v a -> AnnotatedTerm v a
+delayTerm :: Var v => a -> Term v a -> Term v a
 delayTerm a = Term.lam a $ Var.named "()"
 
 unTupleTerm
-  :: Term.AnnotatedTerm2 vt at ap v a
-  -> Maybe [Term.AnnotatedTerm2 vt at ap v a]
+  :: Term.Term2 vt at ap v a
+  -> Maybe [Term.Term2 vt at ap v a]
 unTupleTerm t = case t of
   Term.Apps' (Term.Constructor' PairRef 0) [fst, snd] ->
     (fst :) <$> unTupleTerm snd

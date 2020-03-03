@@ -11,7 +11,7 @@ import Unison.Prelude
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
-import           Unison.Codebase.Path           ( Path', Path )
+import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.Reference (Reference)
@@ -45,13 +45,16 @@ data Input
     | MergeLocalBranchI Path' Path'
     | PreviewMergeLocalBranchI Path' Path'
     | DiffNamespaceI Path' Path' -- old new
-    | PullRemoteBranchI (Maybe (RemoteRepo, Maybe ShortBranchHash, Path)) Path'
-    | PushRemoteBranchI (Maybe (RemoteRepo, Path)) Path'
+    | PullRemoteBranchI (Maybe RemoteNamespace) Path'
+    | PushRemoteBranchI (Maybe RemoteHead) Path'
+    | CreatePullRequestI RemoteNamespace RemoteNamespace
+    | LoadPullRequestI RemoteNamespace RemoteNamespace Path'
     | ResetRootI (Either ShortBranchHash Path')
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- change directory
     | SwitchBranchI Path'
+    | PopBranchI
     -- > names foo
     -- > names foo.bar
     -- > names .foo.bar
@@ -60,6 +63,7 @@ data Input
     | NamesI HQ.HashQualified
     | AliasTermI Path.HQSplit' Path.Split'
     | AliasTypeI Path.HQSplit' Path.Split'
+    | AliasManyI [Path.HQSplit] Path'
     -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
     | MoveTermI Path.HQSplit' Path.Split'
     | MoveTypeI Path.HQSplit' Path.Split'
@@ -104,9 +108,9 @@ data Input
   | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
   -- link from to
-  | LinkI Path.HQSplit' Path.HQSplit'
+  | LinkI [Path.HQSplit'] Path.HQSplit'
   -- unlink from to
-  | UnlinkI Path.HQSplit' Path.HQSplit'
+  | UnlinkI [Path.HQSplit'] Path.HQSplit'
   -- links from <type>
   | LinksI Path.HQSplit' (Maybe String)
   | DisplayI OutputLocation String

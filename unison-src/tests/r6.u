@@ -1,4 +1,4 @@
 r6 : ()
-r6 = case () of
+r6 = match () with
   () -> ()
 

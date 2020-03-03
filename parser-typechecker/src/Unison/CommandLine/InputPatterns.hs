@@ -8,6 +8,7 @@ module Unison.CommandLine.InputPatterns where
 
 import Unison.Prelude
 
+import qualified Control.Lens.Cons as Cons
 import Data.Bifunctor (first)
 import Data.List (intercalate, sortOn, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
@@ -40,6 +41,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
+import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -53,9 +55,11 @@ patternName :: InputPattern -> P.Pretty P.ColorText
 patternName = fromString . I.patternName
 
 -- `example list ["foo", "bar"]` (haskell) becomes `list foo bar` (pretty)
-makeExample :: InputPattern -> [P.Pretty CT.ColorText] -> P.Pretty CT.ColorText
-makeExample p args = P.group $
-  backtick (intercalateMap " " id (P.nonEmpty $ fromString (I.patternName p) : args))
+makeExample, makeExampleNoBackticks :: InputPattern -> [P.Pretty CT.ColorText] -> P.Pretty CT.ColorText
+makeExample p args = P.group . backtick $ makeExampleNoBackticks p args
+
+makeExampleNoBackticks p args =
+  P.group $ intercalateMap " " id (P.nonEmpty $ fromString (I.patternName p) : args)
 
 makeExample' :: InputPattern -> P.Pretty CT.ColorText
 makeExample' p = makeExample p []
@@ -438,6 +442,24 @@ aliasType = InputPattern "alias.type" []
         "`alias.type` takes two arguments, like `alias.type oldname newname`."
     )
 
+aliasMany :: InputPattern
+aliasMany = InputPattern "alias.many" ["copy"]
+  [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionOrPathArg)]
+  (P.group . P.lines $
+    [ P.wrap $ P.group (makeExample aliasMany ["<relative1>", "[relative2...]", "<namespace>"])
+      <> "creates aliases `relative1`, `relative2`, ... in the namespace `namespace`."
+    , P.wrap $ P.group (makeExample aliasMany ["foo.foo", "bar.bar", ".quux"])
+      <> "creates aliases `.quux.foo.foo` and `.quux.bar.bar`."
+    ])
+  (\case
+    srcs@(_:_) Cons.:> dest -> first fromString $ do
+      sourceDefinitions <- traverse Path.parseHQSplit srcs
+      destNamespace <- Path.parsePath' dest
+      pure $ Input.AliasManyI sourceDefinitions destNamespace
+    _ -> Left (I.help aliasMany)
+  )
+
+
 cd :: InputPattern
 cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
     (P.wrapColumn2
@@ -449,6 +471,17 @@ cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
       [p] -> first fromString $ do
         p <- Path.parsePath' p
         pure . Input.SwitchBranchI $ p
+      _ -> Left (I.help cd)
+    )
+
+back :: InputPattern
+back = InputPattern "back" ["popd"] []
+    (P.wrapColumn2
+      [ (makeExample back [],
+          "undoes the last" <> makeExample' cd <> "command.")
+      ])
+    (\case
+      [] -> pure Input.PopBranchI
       _ -> Left (I.help cd)
     )
 
@@ -649,6 +682,53 @@ push = InputPattern
       Right $ Input.PushRemoteBranchI (Just (repo, path)) p
   )
 
+createPullRequest :: InputPattern
+createPullRequest = InputPattern "pr.create" []
+  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
+  (P.group $ P.lines
+    [ P.wrap $ makeExample createPullRequest ["base", "head"]
+        <> "will generate a request to merge the remote repo `head`"
+        <> "into the remote repo `base`."
+    , ""
+    , "example: pr.create https://github.com/unisonweb/base https://github.com/me/unison:.libs.pr.base"
+    ])
+  (\case
+    [baseUrl, headUrl] -> first fromString $ do
+      baseRepo <- parseUri "baseRepo" baseUrl
+      headRepo <- parseUri "headRepo" headUrl
+      pure $ Input.CreatePullRequestI baseRepo headRepo
+    _ -> Left (I.help createPullRequest)
+  )
+
+loadPullRequest :: InputPattern
+loadPullRequest = InputPattern "pr.load" []
+  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
+  (P.lines
+   [P.wrap $ makeExample loadPullRequest ["base", "head"]
+    <> "will load a pull request for merging the remote repo `head` into the"
+    <> "remote repo `base`, staging each in the current namespace"
+    <> "(so make yourself a clean spot to work first)."
+   ,P.wrap $ makeExample loadPullRequest ["base", "head", "dest"]
+     <> "will load a pull request for merging the remote repo `head` into the"
+     <> "remote repo `base`, staging each in `dest`, which must be empty."
+   ])
+  (\case
+    [baseUrl, headUrl] -> first fromString $ do
+      baseRepo <- parseUri "baseRepo" baseUrl
+      headRepo <- parseUri "topicRepo" headUrl
+      pure $ Input.LoadPullRequestI baseRepo headRepo Path.relativeEmpty'
+    [baseUrl, headUrl, dest] -> first fromString $ do
+      baseRepo <- parseUri "baseRepo" baseUrl
+      headRepo <- parseUri "topicRepo" headUrl
+      destPath <- Path.parsePath' dest
+      pure $ Input.LoadPullRequestI baseRepo headRepo destPath
+    _ -> Left (I.help loadPullRequest)
+  )
+parseUri :: IsString b => String -> String -> Either b RemoteNamespace
+parseUri label input =
+  first (fromString . show)
+    (P.parse UriParser.repoPath label (Text.pack input))
+
 mergeLocal :: InputPattern
 mergeLocal = InputPattern "merge" [] [(Required, pathArg)
                                      ,(Optional, pathArg)]
@@ -786,22 +866,40 @@ edit = InputPattern
   )
   (pure . Input.ShowDefinitionI Input.LatestFileLocation)
 
-helpTopics :: Map String (P.Pretty P.ColorText)
-helpTopics = Map.fromList [
+topicNameArg :: ArgumentType
+topicNameArg =
+  ArgumentType "topic" $ \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap)
+
+helpTopics :: InputPattern
+helpTopics = InputPattern
+  "help-topics"
+  ["help-topic"]
+  [(Optional, topicNameArg)]
+  ( "`help-topics` lists all topics and `help-topics <topic>` shows an explanation of that topic." )
+  (\case
+    [] -> Left topics
+    [topic] -> case Map.lookup topic helpTopicsMap of
+       Nothing -> Left . warn $ "I don't know of that topic. Try `help-topics`."
+       Just t -> Left t
+    _ -> Left $ warn "Use `help-topics <topic>` or `help-topics`."
+  )
+  where
+    topics = P.callout "🌻" $ P.lines [
+      "Here's a list of topics I can tell you more about: ",
+      "",
+      P.indentN 2 $ P.sep "\n" (P.string <$> Map.keys helpTopicsMap),
+      "",
+      aside "Example" "use `help filestatus` to learn more about that topic."
+      ]
+
+helpTopicsMap :: Map String (P.Pretty P.ColorText)
+helpTopicsMap = Map.fromList [
   ("testcache", testCacheMsg),
   ("filestatus", fileStatusMsg),
-  ("topics", topics),
   ("messages.disallowedAbsolute", disallowedAbsoluteMsg),
   ("namespaces", pathnamesMsg)
   ]
   where
-  topics = P.callout "🌻" $ P.lines [
-    "Here's a list of topics I can tell you more about: ",
-    "",
-    P.indentN 2 $ P.sep "\n" (P.string <$> Map.keys helpTopics),
-    "",
-    aside "Example" "use `help filestatus` to learn more about that topic."
-    ]
   blankline = ("","")
   fileStatusMsg = P.callout "📓" . P.lines $ [
     P.wrap $ "Here's a list of possible status messages you might see"
@@ -826,11 +924,6 @@ helpTopics = Map.fromList [
        "A type defined in the file has a constructor that's named the" <>
        "same as an existing term. Rename that term or your constructor" <>
        "before trying again to `add` or `update`."),
-      blankline,
-      (P.bold $ SR.prettyStatus SR.Alias,
-       "A definition in the file already has another name." <>
-       "You can use the `alias.term` or `alias.type` commands" <>
-       "to create new names for existing definitions."),
       blankline,
       (P.bold $ SR.prettyStatus SR.BlockedDependency,
        "This definition was blocked because it dependended on " <>
@@ -902,7 +995,7 @@ help = InputPattern
     where
       commandsByName = Map.fromList [
         (n, i) | i <- validInputs, n <- I.patternName i : I.aliases i ]
-      isHelp s = Map.lookup s helpTopics
+      isHelp s = Map.lookup s helpTopicsMap
 
 quit :: InputPattern
 quit = InputPattern "quit" ["exit", ":q"] []
@@ -932,17 +1025,25 @@ viewPatch = InputPattern "view.patch" [] [(Required, patchArg)]
    )
 
 link :: InputPattern
-link = InputPattern "link" []
-  [(Required, exactDefinitionQueryArg),
-   (Required, exactDefinitionQueryArg) ]
-  "`link src dest` creates a link from `src` to `dest`. Use `links src` or `links src <type>` to view outgoing links, and `unlink src dest` to remove a link."
+link = InputPattern
+  "link"
+  []
+  [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionQueryArg)]
+  (fromString $ concat
+    [ "`link metadata defn` creates a link to `metadata` from `defn`. "
+    , "Use `links defn` or `links defn <type>` to view outgoing links, "
+    , "and `unlink metadata defn` to remove a link. The `defn` can be either the "
+    , "name of a term or type, multiple such names, or a range like `1-4` "
+    , "for a range of definitions listed by a prior `find` command."
+    ]
+  )
   (\case
-    [src, dest] -> first fromString $ do
-      src <- Path.parseHQSplit' src
+    dest : srcs -> first fromString $ do
+      srcs <- traverse Path.parseHQSplit' srcs
       dest <- Path.parseHQSplit' dest
-      Right $ Input.LinkI src dest
+      Right $ Input.LinkI srcs dest
     _ -> Left (I.help link)
-   )
+  )
 
 links :: InputPattern
 links = InputPattern
@@ -950,8 +1051,8 @@ links = InputPattern
   []
   [(Required, exactDefinitionQueryArg), (Optional, exactDefinitionQueryArg)]
   (P.column2 [
-    (makeExample links ["src"], "shows all outgoing links from `src`."),
-    (makeExample links ["src", "<type>"], "shows all links for the given type.") ])
+    (makeExample links ["defn"], "shows all outgoing links from `defn`."),
+    (makeExample links ["defn", "<type>"], "shows all links of the given type.") ])
   (\case
     src : rest -> first fromString $ do
       src <- Path.parseHQSplit' src
@@ -963,17 +1064,23 @@ links = InputPattern
   )
 
 unlink :: InputPattern
-unlink = InputPattern "unlink" ["delete.link"]
-  [(Required, exactDefinitionQueryArg),
-   (Required, exactDefinitionQueryArg) ]
-  "`unlink src dest` removes a link from `src` to `dest`."
+unlink = InputPattern
+  "unlink"
+  ["delete.link"]
+  [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionQueryArg)]
+  (fromString $ concat
+    [ "`unlink metadata defn` removes a link to `detadata` from `defn`."
+    , "The `defn` can be either the "
+    , "name of a term or type, multiple such names, or a range like `1-4` "
+    , "for a range of definitions listed by a prior `find` command."
+    ])
   (\case
-    [src, dest] -> first fromString $ do
-      src <- Path.parseHQSplit' src
+    dest : srcs -> first fromString $ do
+      srcs <- traverse Path.parseHQSplit' srcs
       dest <- Path.parseHQSplit' dest
-      Right $ Input.UnlinkI src dest
+      Right $ Input.UnlinkI srcs dest
     _ -> Left (I.help unlink)
-   )
+  )
 
 names :: InputPattern
 names = InputPattern "names" []
@@ -987,7 +1094,7 @@ names = InputPattern "names" []
     _ -> Left (I.help names)
   )
 
-debugNumberedArgs :: InputPattern 
+debugNumberedArgs :: InputPattern
 debugNumberedArgs = InputPattern "debug.numberedArgs" [] []
   "Dump the contents of the numbered args state."
   (const $ Right Input.DebugNumberedArgsI)
@@ -1023,6 +1130,7 @@ execute = InputPattern
 validInputs :: [InputPattern]
 validInputs =
   [ help
+  , helpTopics
   , load
   , add
   , previewAdd
@@ -1036,7 +1144,10 @@ validInputs =
   , names
   , push
   , pull
+  , createPullRequest
+  , loadPullRequest
   , cd
+  , back
   , deleteBranch
   , renameBranch
   , deletePatch
@@ -1060,6 +1171,7 @@ validInputs =
   , renameType
   , deleteType
   , aliasType
+  , aliasMany
   , todo
   , patch
   , link
@@ -1083,7 +1195,7 @@ commandNames = validInputs >>= \i -> I.patternName i : I.aliases i
 
 commandNameArg :: ArgumentType
 commandNameArg =
-  ArgumentType "command" $ \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopics))
+  ArgumentType "command" $ \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap))
 
 fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
@@ -1091,6 +1203,15 @@ fuzzyDefinitionQueryArg =
   ArgumentType "fuzzy definition query" $
     bothCompletors (termCompletor fuzzyComplete)
                    (typeCompletor fuzzyComplete)
+
+exactDefinitionOrPathArg :: ArgumentType
+exactDefinitionOrPathArg =
+  ArgumentType "definition or path" $
+    bothCompletors
+      (bothCompletors
+        (termCompletor exactComplete)
+        (typeCompletor exactComplete))
+      (pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths))
 
 -- todo: support absolute paths?
 exactDefinitionQueryArg :: ArgumentType
