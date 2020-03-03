@@ -206,7 +206,7 @@ instance Bifoldable ANormalF where
   bifoldMap f g (AHnd v e) = f v <> g e
   bifoldMap f _ (AApp func args) = foldMap f func <> foldMap f args
 
-matchLit :: AnnotatedTerm v a -> Maybe Lit
+matchLit :: Term v a -> Maybe Lit
 matchLit (Int' i) = Just $ I i
 matchLit (Nat' n) = Just $ N n
 matchLit (Float' f) = Just $ F f
@@ -272,7 +272,7 @@ data SuperNormal v = Lambda { bound :: ANormal v }
 toSuperNormal
   :: Var v
   => (Reference -> Int)
-  -> AnnotatedTerm v a
+  -> Term v a
   -> SuperNormal v
 toSuperNormal resolve tm
   | not . Set.null $ freeVars tm
@@ -287,7 +287,7 @@ anfTerm
   :: Var v
   => Set v              -- variable choices to avoid
   -> (Reference -> Int) -- resolve a reference to a supercombinator
-  -> AnnotatedTerm v a
+  -> Term v a
   -> ANormal v
 anfTerm avoid resolve tm = case anfBlock avoid resolve tm of
   (ctx, body) -> foldr le body ctx
@@ -297,7 +297,7 @@ anfBlock
   :: Var v
   => Set v
   -> (Reference -> Int)
-  -> AnnotatedTerm v a
+  -> Term v a
   -> ([(v, ANormal v)], ANormal v)
 anfBlock _     _       (Var' v) = ([], ABTN.TVar v)
 anfBlock avoid resolve (If' c t f)
@@ -363,7 +363,7 @@ anfCases
   :: Var v
   => Set v
   -> (Reference -> Int)
-  -> [MatchCase p (AnnotatedTerm v a)]
+  -> [MatchCase p (Term v a)]
   -> IntMap (ANormal v)
 anfCases avoid resolve = IMap.fromList . map mkCase
   where
@@ -382,7 +382,7 @@ anfFunc
   :: Var v
   => Set v              -- variable choices to avoid
   -> (Reference -> Int) -- resolve a reference to a supercombinator
-  -> AnnotatedTerm v a
+  -> Term v a
   -> ([(v, ANormal v)], Func v)
 anfFunc _     _       (Var' v) = ([], FVar v)
 anfFunc _     resolve (Ref' r) = ([], FComb $ resolve r)
@@ -399,7 +399,7 @@ anfArg
   :: Var v
   => Set v
   -> (Reference -> Int)
-  -> AnnotatedTerm v a
+  -> Term v a
   -> ([(v, ANormal v)], v)
 anfArg avoid resolve tm = case anfBlock avoid resolve tm of
   (ctx, ABTN.TVar v) -> (ctx, v)
