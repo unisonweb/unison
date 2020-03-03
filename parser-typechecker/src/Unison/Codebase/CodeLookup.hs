@@ -7,7 +7,7 @@ import qualified Data.Map                      as Map
 import           Unison.UnisonFile              ( UnisonFile )
 import qualified Unison.UnisonFile              as UF
 import qualified Unison.Term                    as Term
-import           Unison.Term                    ( AnnotatedTerm )
+import           Unison.Term                    ( Term )
 import           Unison.Var                     ( Var )
 import qualified Unison.Reference as Reference
 import           Unison.DataDeclaration (Decl)
@@ -29,7 +29,7 @@ fromUnisonFile uf = CodeLookup tm ty where
 
 data CodeLookup v m a
   = CodeLookup {
-      getTerm :: Reference.Id -> m (Maybe (AnnotatedTerm v a)),
+      getTerm :: Reference.Id -> m (Maybe (Term v a)),
       getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
    }
 

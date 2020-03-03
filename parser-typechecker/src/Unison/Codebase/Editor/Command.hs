@@ -31,7 +31,7 @@ import           Unison.DataDeclaration         ( Decl )
 import qualified Unison.Codebase.Runtime       as Runtime
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Reference              as Reference
-import qualified Unison.Term                   as Term
+import           Unison.Term                    ( Term )
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Lexer                  as L
 import qualified Unison.Parser                 as Parser
@@ -46,7 +46,6 @@ type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
 type Source = Text
 type LexedSource = (Text, [L.Token L.Lexeme])
-type Term v a = Term.AnnotatedTerm v a
 
 data LoadSourceResult = InvalidSourceNameError
                       | LoadError

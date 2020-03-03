@@ -6,7 +6,7 @@ module Unison.CommandLine.DisplayValues where
 
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Term (AnnotatedTerm)
+import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Unison.DataDeclaration as DD
@@ -25,11 +25,11 @@ type Pretty = P.Pretty P.ColorText
 
 displayTerm :: (Var v, Monad m)
            => PPE.PrettyPrintEnvDecl
-           -> (Reference -> m (Maybe (AnnotatedTerm v a)))
+           -> (Reference -> m (Maybe (Term v a)))
            -> (Referent -> m (Maybe (Type v a)))
-           -> (Reference -> m (Maybe (AnnotatedTerm v a)))
+           -> (Reference -> m (Maybe (Term v a)))
            -> (Reference -> m (Maybe (DD.Decl v a)))
-           -> AnnotatedTerm v a 
+           -> Term v a 
            -> m Pretty
 displayTerm pped terms typeOf eval types tm = case tm of
   -- todo: can dispatch on other things with special rendering
@@ -40,11 +40,11 @@ displayTerm pped terms typeOf eval types tm = case tm of
 
 displayDoc :: (Var v, Monad m)
            => PPE.PrettyPrintEnvDecl 
-           -> (Reference -> m (Maybe (AnnotatedTerm v a)))
+           -> (Reference -> m (Maybe (Term v a)))
            -> (Referent  -> m (Maybe (Type v a)))
-           -> (Reference -> m (Maybe (AnnotatedTerm v a)))
+           -> (Reference -> m (Maybe (Term v a)))
            -> (Reference -> m (Maybe (DD.Decl v a)))
-           -> AnnotatedTerm v a 
+           -> Term v a 
            -> m Pretty
 displayDoc pped terms typeOf evaluated types t = go t
   where

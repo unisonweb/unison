@@ -16,14 +16,13 @@ import           Unison.Parser (Ann(..))
 import           Unison.PrintError              ( prettyParseError )
 import           Unison.Result (Result, Note)
 import           Unison.Symbol (Symbol)
-import           Unison.Term (AnnotatedTerm)
 import           Unison.Var (Var)
 import           Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Lexer                  as L
 import qualified Unison.Parser                 as Parser
+import qualified Unison.Term                   as Term
 import qualified Unison.TermParser             as TermParser
-import qualified Unison.Type
 import qualified Unison.Type                   as Type
 import qualified Unison.TypeParser             as TypeParser
 import qualified Unison.Util.Pretty            as Pr
@@ -31,8 +30,8 @@ import qualified Text.Megaparsec.Error         as MPE
 import qualified Unison.Names3
 
 
-type Term v = AnnotatedTerm v Ann
-type Type v = Unison.Type.Type v Ann
+type Term v = Term.Term v Ann
+type Type v = Type.Type v Ann
 
 hqLength :: Int
 hqLength = 10

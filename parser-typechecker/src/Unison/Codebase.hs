@@ -34,6 +34,7 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Runtime.IOSource       as IOSource
 import           Unison.Symbol                  ( Symbol )
 import Unison.DataDeclaration (Decl)
+import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
@@ -41,7 +42,6 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
-type Term v a = Term.AnnotatedTerm v a
 
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))

@@ -47,10 +47,10 @@ import qualified Unison.DataDeclaration        as DD
 import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
 import qualified Unison.ConstructorType as CT
 
-pretty :: Var v => PrettyPrintEnv -> AnnotatedTerm v a -> Pretty ColorText
+pretty :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
 pretty env tm = PP.syntaxToColor $ pretty0 env (ac (-1) Normal Map.empty MaybeDoc) (printAnnotate env tm)
 
-pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> ColorText
+pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> Term v a -> ColorText
 pretty' (Just width) n t = PP.render width $ PP.syntaxToColor $ pretty0 n (ac (-1) Normal Map.empty MaybeDoc) (printAnnotate n t)
 pretty' Nothing      n t = PP.renderUnbroken $ PP.syntaxToColor $ pretty0 n (ac (-1) Normal Map.empty MaybeDoc) (printAnnotate n t)
 
@@ -147,7 +147,7 @@ pretty0
   :: Var v
   => PrettyPrintEnv
   -> AmbientContext
-  -> AnnotatedTerm3 v PrintAnnotation
+  -> Term3 v PrintAnnotation
   -> Pretty SyntaxText
 pretty0
   n
@@ -299,8 +299,8 @@ pretty0
 
   printLet :: Var v
            => BlockContext
-           -> [(v, AnnotatedTerm3 v PrintAnnotation)]
-           -> AnnotatedTerm3 v PrintAnnotation
+           -> [(v, Term3 v PrintAnnotation)]
+           -> Term3 v PrintAnnotation
            -> Imports
            -> ([Pretty SyntaxText] -> Pretty SyntaxText)
            -> Pretty SyntaxText
@@ -321,13 +321,13 @@ pretty0
   -- operators.  At the moment the policy is just to render symbolic
   -- operators as infix - not 'wordy' function names.  So we produce
   -- "x + y" and "foo x y" but not "x `foo` y".
-  binaryOpsPred :: Var v => AnnotatedTerm3 v PrintAnnotation -> Bool
+  binaryOpsPred :: Var v => Term3 v PrintAnnotation -> Bool
   binaryOpsPred = \case
     Ref' r | isSymbolic (PrettyPrintEnv.termName n (Referent.Ref r)) -> True
     Var' v | isSymbolic (HQ.unsafeFromVar v) -> True
     _ -> False
 
-  nonForcePred :: AnnotatedTerm3 v PrintAnnotation -> Bool
+  nonForcePred :: Term3 v PrintAnnotation -> Bool
   nonForcePred = \case
     Constructor' DD.UnitRef 0 -> False
     Constructor' DD.DocRef _  -> False
@@ -342,7 +342,7 @@ pretty0
   -- produce any backticks.  We build the result out from the right,
   -- starting at `f2`.
   binaryApps
-    :: Var v => [(AnnotatedTerm3 v PrintAnnotation, AnnotatedTerm3 v PrintAnnotation)]
+    :: Var v => [(Term3 v PrintAnnotation, Term3 v PrintAnnotation)]
              -> Pretty SyntaxText
              -> Pretty SyntaxText
   binaryApps xs last = unbroken `PP.orElse` broken
@@ -440,7 +440,7 @@ printCase
   => PrettyPrintEnv
   -> Imports
   -> DocLiteralContext
-  -> [MatchCase () (AnnotatedTerm3 v PrintAnnotation)]
+  -> [MatchCase () (Term3 v PrintAnnotation)]
   -> Pretty SyntaxText
 printCase env im doc ms = PP.lines $ map each gridArrowsAligned where
   each (lhs, arrow, body) = PP.group $ (lhs <> arrow) `PP.hang` body
@@ -483,12 +483,12 @@ prettyBinding
   :: Var v
   => PrettyPrintEnv
   -> HQ.HashQualified
-  -> AnnotatedTerm2 v at ap v a
+  -> Term2 v at ap v a
   -> Pretty SyntaxText
 prettyBinding n = prettyBinding0 n $ ac (-1) Block Map.empty MaybeDoc
 
 prettyBinding' ::
-  Var v => Int -> PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> ColorText
+  Var v => Int -> PrettyPrintEnv -> HQ.HashQualified -> Term v a -> ColorText
 prettyBinding' width n v t = PP.render width $ PP.syntaxToColor $ prettyBinding n v t
 
 prettyBinding0
@@ -496,7 +496,7 @@ prettyBinding0
   => PrettyPrintEnv
   -> AmbientContext
   -> HQ.HashQualified
-  -> AnnotatedTerm2 v at ap v a
+  -> Term2 v at ap v a
   -> Pretty SyntaxText
 prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = go
   (symbolic && isBinary term)
@@ -547,7 +547,7 @@ prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = 
     LamsNamedOrDelay' vs _ -> length vs == 2
     _                      -> False -- unhittable
 
-isDocLiteral :: AnnotatedTerm3 v PrintAnnotation -> Bool
+isDocLiteral :: Term3 v PrintAnnotation -> Bool
 isDocLiteral term = case term of
   DD.DocJoin segs -> all isDocLiteral segs
   DD.DocBlob _ -> True
@@ -561,7 +561,7 @@ isDocLiteral term = case term of
   _ -> False
 
 -- Similar to DisplayValues.displayDoc, but does not follow and expand references.
-prettyDoc :: Var v => PrettyPrintEnv -> Imports -> AnnotatedTerm3 v a -> Pretty SyntaxText
+prettyDoc :: Var v => PrettyPrintEnv -> Imports -> Term3 v a -> Pretty SyntaxText
 prettyDoc n im term = mconcat [ fmt S.DocDelimiter $ l "[: "
                               , go term
                               , spaceUnlessBroken
@@ -765,7 +765,7 @@ instance Semigroup PrintAnnotation where
 instance Monoid PrintAnnotation where
   mempty = PrintAnnotation { usages = Map.empty }
 
-suffixCounterTerm :: Var v => PrettyPrintEnv -> AnnotatedTerm2 v at ap v a -> PrintAnnotation
+suffixCounterTerm :: Var v => PrettyPrintEnv -> Term2 v at ap v a -> PrintAnnotation
 suffixCounterTerm n = \case
     Var' v -> countHQ $ HQ.unsafeFromVar v
     Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
@@ -785,9 +785,9 @@ suffixCounterType n = \case
     Type.Ref' r -> countHQ $ PrettyPrintEnv.typeName n r
     _ -> mempty
 
-printAnnotate :: (Var v, Ord v) => PrettyPrintEnv -> AnnotatedTerm2 v at ap v a -> AnnotatedTerm3 v PrintAnnotation
+printAnnotate :: (Var v, Ord v) => PrettyPrintEnv -> Term2 v at ap v a -> Term3 v PrintAnnotation
 printAnnotate n tm = fmap snd (go (reannotateUp (suffixCounterTerm n) tm)) where
-  go :: Ord v => AnnotatedTerm2 v at ap v b -> AnnotatedTerm2 v () () v b
+  go :: Ord v => Term2 v at ap v b -> Term2 v () () v b
   go = extraMap' id (const ()) (const ())
 
 countTypeUsages :: (Var v, Ord v) => PrettyPrintEnv -> Type v a -> PrintAnnotation
@@ -865,7 +865,7 @@ x |> f = f x
 calcImports
   :: (Var v, Ord v)
   => Imports
-  -> AnnotatedTerm3 v PrintAnnotation
+  -> Term3 v PrintAnnotation
   -> (Imports, [Pretty SyntaxText] -> Pretty SyntaxText)
 calcImports im tm = (im', render $ getUses result)
   where
@@ -950,7 +950,7 @@ calcImports im tm = (im', render $ getUses result)
 -- looking for child terms that are block terms, and see if any of those contain
 -- all the usages of the name.
 -- Cut out the occurrences of "const id $" to get tracing.
-allInSubBlock :: (Var v, Ord v) => AnnotatedTerm3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
+allInSubBlock :: (Var v, Ord v) => Term3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
 allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
                              result = any (/= tm) $ found
                              tr = const id $ trace ("\nallInSubBlock(" ++ show p ++ ", " ++
@@ -983,7 +983,7 @@ allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
 -- syntax that get a call to `calcImports` in `pretty0`.  AST nodes that do a calcImports in
 -- pretty0, in order to try and emit a `use` statement, need to be emitted also by this
 -- function, otherwise the `use` statement may come out at an enclosing scope instead.
-immediateChildBlockTerms :: (Var vt, Var v) => AnnotatedTerm2 vt at ap v a -> [AnnotatedTerm2 vt at ap v a]
+immediateChildBlockTerms :: (Var vt, Var v) => Term2 vt at ap v a -> [Term2 vt at ap v a]
 immediateChildBlockTerms = \case
     Handle' handler body -> [handler, body]
     If' _ t f -> [t, f]
@@ -1007,8 +1007,8 @@ pattern LetBlock bindings body <- (unLetBlock -> Just (bindings, body))
 -- outer block.
 unLetBlock
   :: Ord v
-  => AnnotatedTerm2 vt at ap v a
-  -> Maybe ([(v, AnnotatedTerm2 vt at ap v a)], AnnotatedTerm2 vt at ap v a)
+  => Term2 vt at ap v a
+  -> Maybe ([(v, Term2 vt at ap v a)], Term2 vt at ap v a)
 unLetBlock t = rec t where
   dontIntersect v1s v2s =
     all (`Set.notMember` v2set) (fst <$> v1s) where

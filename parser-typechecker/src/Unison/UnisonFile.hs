@@ -23,7 +23,7 @@ import qualified Unison.Names3          as Names
 import           Unison.Reference       (Reference)
 import           Unison.Referent        (Referent)
 import qualified Unison.Referent        as Referent
-import           Unison.Term            (AnnotatedTerm)
+import           Unison.Term            (Term)
 import qualified Unison.Term            as Term
 import           Unison.Type            (Type)
 import qualified Unison.Type            as Type
@@ -41,18 +41,18 @@ import Unison.LabeledDependency (LabeledDependency)
 data UnisonFile v a = UnisonFile {
   dataDeclarations   :: Map v (Reference, DataDeclaration' v a),
   effectDeclarations :: Map v (Reference, EffectDeclaration' v a),
-  terms :: [(v, AnnotatedTerm v a)],
-  watches :: Map WatchKind [(v, AnnotatedTerm v a)]
+  terms :: [(v, Term v a)],
+  watches :: Map WatchKind [(v, Term v a)]
 } deriving Show
 
-watchesOfKind :: WatchKind -> UnisonFile v a -> [(v, AnnotatedTerm v a)]
+watchesOfKind :: WatchKind -> UnisonFile v a -> [(v, Term v a)]
 watchesOfKind kind uf = Map.findWithDefault [] kind (watches uf)
 
-watchesOfOtherKinds :: WatchKind -> UnisonFile v a -> [(v, AnnotatedTerm v a)]
+watchesOfOtherKinds :: WatchKind -> UnisonFile v a -> [(v, Term v a)]
 watchesOfOtherKinds kind uf =
   join [ ws | (k, ws) <- Map.toList (watches uf), k /= kind ]
 
-allWatches :: UnisonFile v a -> [(v, AnnotatedTerm v a)]
+allWatches :: UnisonFile v a -> [(v, Term v a)]
 allWatches = join . Map.elems . watches
 
 type WatchKind = Var.WatchKind
@@ -61,7 +61,7 @@ pattern TestWatch = Var.TestWatch
 
 -- Converts a file to a single let rec with a body of `()`, for
 -- purposes of typechecking.
-typecheckingTerm :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a
+typecheckingTerm :: (Var v, Monoid a) => UnisonFile v a -> Term v a
 typecheckingTerm uf =
   Term.letRec' True (terms uf <> testWatches <> watchesOfOtherKinds TestWatch uf) $
   DD.unitTerm mempty
@@ -71,7 +71,7 @@ typecheckingTerm uf =
     testWatches = map (second f) $ watchesOfKind TestWatch uf
 
 -- Converts a file and a body to a single let rec with the given body.
-uberTerm' :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a -> AnnotatedTerm v a
+uberTerm' :: (Var v, Monoid a) => UnisonFile v a -> Term v a -> Term v a
 uberTerm' uf body =
   Term.letRec' True (terms uf <> allWatches uf) $ body
 
@@ -81,16 +81,16 @@ data TypecheckedUnisonFile v a =
   TypecheckedUnisonFile {
     dataDeclarations'   :: Map v (Reference, DataDeclaration' v a),
     effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
-    topLevelComponents' :: [[(v, AnnotatedTerm v a, Type v a)]],
-    watchComponents     :: [(WatchKind, [(v, AnnotatedTerm v a, Type v a)])],
-    hashTerms           :: Map v (Reference, AnnotatedTerm v a, Type v a)
+    topLevelComponents' :: [[(v, Term v a, Type v a)]],
+    watchComponents     :: [(WatchKind, [(v, Term v a, Type v a)])],
+    hashTerms           :: Map v (Reference, Term v a, Type v a)
   } deriving Show
 
 typecheckedUnisonFile :: Var v
                       => Map v (Reference, DataDeclaration' v a)
                       -> Map v (Reference, EffectDeclaration' v a)
-                      -> [[(v, AnnotatedTerm v a, Type v a)]]
-                      -> [(WatchKind, [(v, AnnotatedTerm v a, Type v a)])]
+                      -> [[(v, Term v a, Type v a)]]
+                      -> [(WatchKind, [(v, Term v a, Type v a)])]
                       -> TypecheckedUnisonFile v a
 typecheckedUnisonFile datas effects tlcs watches =
   file0 { hashTerms = hashImpl file0 }
@@ -112,12 +112,12 @@ lookupDecl v uf =
   over _2 Right <$> (Map.lookup v (dataDeclarations' uf)  ) <|>
   over _2 Left  <$> (Map.lookup v (effectDeclarations' uf))
 
-allTerms :: Ord v => TypecheckedUnisonFile v a -> Map v (AnnotatedTerm v a)
+allTerms :: Ord v => TypecheckedUnisonFile v a -> Map v (Term v a)
 allTerms uf =
   Map.fromList [ (v, t) | (v, t, _) <- join $ topLevelComponents' uf ]
 
 topLevelComponents :: TypecheckedUnisonFile v a
-                   -> [[(v, AnnotatedTerm v a, Type v a)]]
+                   -> [[(v, Term v a, Type v a)]]
 topLevelComponents file =
   topLevelComponents' file ++ [ comp | (TestWatch, comp) <- watchComponents file ]
 
@@ -148,7 +148,7 @@ termSignatureExternalLabeledDependencies TypecheckedUnisonFile{..} =
 dependencies' ::
   forall v a. Var v => TypecheckedUnisonFile v a -> Relation Reference Reference
 dependencies' file = let
-  terms :: Map v (Reference, AnnotatedTerm v a, Type v a)
+  terms :: Map v (Reference, Term v a, Type v a)
   terms = hashTerms file
   decls :: Map v (Reference, DataDeclaration' v a)
   decls = dataDeclarations' file <>

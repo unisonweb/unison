@@ -20,7 +20,7 @@ import           Unison.Reference (Reference)
 import           Unison.Referent (Referent)
 import           Unison.Parser hiding (seq)
 import           Unison.PatternP (Pattern)
-import           Unison.Term (AnnotatedTerm, IsTop)
+import           Unison.Term (Term, IsTop)
 import           Unison.Type (Type)
 import           Unison.Util.List (intercalateMapWith)
 import           Unison.Var (Var)
@@ -60,7 +60,7 @@ operator characters (like empty? or fold-left).
 Sections / partial application of infix operators is not implemented.
 -}
 
-type TermP v = P v (AnnotatedTerm v Ann)
+type TermP v = P v (Term v Ann)
 
 term :: Var v => TermP v
 term = term2
@@ -134,7 +134,7 @@ match = do
   _ <- closeBlock
   pure $ Term.match (ann start <> ann (last cases)) scrutinee cases
 
-matchCase :: Var v => P v (Term.MatchCase Ann (AnnotatedTerm v Ann))
+matchCase :: Var v => P v (Term.MatchCase Ann (Term v Ann))
 matchCase = do
   (p, boundVars) <- parsePattern
   guard <- optional $ reserved "|" *> infixAppOrBooleanOp
@@ -400,7 +400,7 @@ data UnbreakCase =
 --
 -- This function has some tracing which you can enable by deleting some calls to
 -- 'const id' below.
-docNormalize :: (Ord v, Show v) => AnnotatedTerm v a -> AnnotatedTerm v a
+docNormalize :: (Ord v, Show v) => Term v a -> Term v a
 docNormalize tm = case tm of
   -- This pattern is just `DD.DocJoin seqs`, but exploded in order to grab
   -- the annotations.  The aim is just to map `normalize` over it.
@@ -424,8 +424,8 @@ docNormalize tm = case tm of
   miniPreProcess seqs = zip (toList seqs) (previousLines seqs)
   unIndent
     :: Ord v
-    => [(AnnotatedTerm v a, UnbreakCase)]
-    -> [(AnnotatedTerm v a, UnbreakCase)]
+    => [(Term v a, UnbreakCase)]
+    -> [(Term v a, UnbreakCase)]
   unIndent tms = map go tms   where
     go (b, previous) =
       ((mapBlob $ (reduceIndent includeFirst minIndent)) b, previous)
@@ -476,8 +476,8 @@ docNormalize tm = case tm of
   -- be removed.
   unbreakParas
     :: (Show v, Ord v)
-    => [(AnnotatedTerm v a, UnbreakCase, Bool)]
-    -> [(AnnotatedTerm v a, UnbreakCase, Bool)]
+    => [(Term v a, UnbreakCase, Bool)]
+    -> [(Term v a, UnbreakCase, Bool)]
   unbreakParas = map go   where
     -- 'candidate' means 'candidate to be joined with an adjacent line as part of a
     -- paragraph'.
@@ -524,7 +524,7 @@ docNormalize tm = case tm of
   -- several, which we can't do perfectly, and which varies depending on
   -- whether the doc is viewed or displayed.  This can cause some glitches
   -- cutting out whitespace immediately following @[source] and @[evaluate].
-  lastLines :: Show v => Sequence.Seq (AnnotatedTerm v a) -> [Maybe UnbreakCase]
+  lastLines :: Show v => Sequence.Seq (Term v a) -> [Maybe UnbreakCase]
   lastLines tms = (flip fmap) (toList tms) $ \case
     DD.DocBlob      txt -> unbreakCase txt
     DD.DocLink      _   -> Nothing
@@ -551,7 +551,7 @@ docNormalize tm = case tm of
   -- fighting to break free - overwriting elements that are 'shadowed' by
   -- a preceding element for which the predicate is true, with a copy of
   -- that element.
-  previousLines :: Show v => Sequence.Seq (AnnotatedTerm v a) -> [UnbreakCase]
+  previousLines :: Show v => Sequence.Seq (Term v a) -> [UnbreakCase]
   previousLines tms = tr xs''   where
     tr = const id $
       trace $ "previousLines: xs = " ++ (show xs) ++ ", xss = "
@@ -574,7 +574,7 @@ docNormalize tm = case tm of
       map (Maybe.fromJust . Maybe.fromJust . (List.find isJust) . reverse) xss
     xs'' = List.Extra.dropEnd 1 xs'
   -- For each element, can it be a line-continuation of a preceding blob?
-  continuesLine :: Sequence.Seq (AnnotatedTerm v a) -> [Bool]
+  continuesLine :: Sequence.Seq (Term v a) -> [Bool]
   continuesLine tms = (flip fmap) (toList tms) $ \case
     DD.DocBlob      _ -> False -- value doesn't matter - you don't get adjacent blobs
     DD.DocLink      _ -> True
@@ -598,7 +598,7 @@ docNormalize tm = case tm of
     Term.app aa (Term.constructor ac DD.docRef DD.docBlobId) (Term.text at txt)
   join aa ac as segs =
     Term.app aa (Term.constructor ac DD.docRef DD.docJoinId) (Term.seq' as segs)
-  mapBlob :: Ord v => (Text -> Text) -> AnnotatedTerm v a -> AnnotatedTerm v a
+  mapBlob :: Ord v => (Text -> Text) -> Term v a -> Term v a
   -- this pattern is just `DD.DocBlob txt` but exploded to capture the annotations as well
   mapBlob f (aa@(Term.App' ac@(Term.Constructor' DD.DocRef DD.DocBlobId) at@(Term.Text' txt)))
     = blob (ABT.annotation aa) (ABT.annotation ac) (ABT.annotation at) (f txt)
@@ -616,7 +616,7 @@ bang = P.label "bang" $ do
   e <- termLeaf
   pure $ DD.forceTerm (ann start <> ann e) (ann start) e
 
-var :: Var v => L.Token v -> AnnotatedTerm v Ann
+var :: Var v => L.Token v -> Term v Ann
 var t = Term.var (ann t) (L.payload t)
 
 seqOp :: Ord v => P v Pattern.SeqOp
@@ -666,7 +666,7 @@ verifyRelativeName' name = do
   when (Text.isPrefixOf "." txt && txt /= ".") $
     failCommitted (DisallowedAbsoluteName name)
 
-binding :: forall v. Var v => P v ((Ann, v), AnnotatedTerm v Ann)
+binding :: forall v. Var v => P v ((Ann, v), Term v Ann)
 binding = label "binding" $ do
   typ <- optional typedecl
   -- a ++ b = ... OR
@@ -746,8 +746,8 @@ importp = do
 --  op m = case m of Monoid
 
 data BlockElement v
-  = Binding ((Ann, v), AnnotatedTerm v Ann)
-  | Action (AnnotatedTerm v Ann)
+  = Binding ((Ann, v), Term v Ann)
+  | Action (Term v Ann)
   | Namespace String [BlockElement v]
 
 namespaceBlock :: Var v => P v (BlockElement v)
@@ -761,7 +761,7 @@ namespaceBlock = do
   _ <- closeBlock
   pure $ Namespace (Name.toString $ L.payload name) elems
 
-toBindings :: forall v . Var v => [BlockElement v] -> [((Ann,v), AnnotatedTerm v Ann)]
+toBindings :: forall v . Var v => [BlockElement v] -> [((Ann,v), Term v Ann)]
 toBindings b = let
   expand (Binding ((a, v), e)) = [((a, Just v), e)]
   expand (Action e) = [((ann e, Nothing), e)]
@@ -770,8 +770,8 @@ toBindings b = let
   finishBindings bs =
     [((a, v `orBlank` i), e) | (((a,v), e), i) <- bs `zip` [(1::Int)..]]
 
-  scope :: String -> [((Ann, Maybe v), AnnotatedTerm v Ann)]
-                  -> [((Ann, Maybe v), AnnotatedTerm v Ann)]
+  scope :: String -> [((Ann, Maybe v), Term v Ann)]
+                  -> [((Ann, Maybe v), Term v Ann)]
   scope name bs = let
     vs :: [Maybe v]
     vs = snd . fst <$> bs
@@ -797,7 +797,7 @@ imports = do
 -- A key feature of imports is we want to be able to say:
 -- `use foo.bar Baz qux` without having to specify whether `Baz` or `qux` are
 -- terms or types.
-substImports :: Var v => Names -> [(v,v)] -> AnnotatedTerm v Ann -> AnnotatedTerm v Ann
+substImports :: Var v => Names -> [(v,v)] -> Term v Ann -> Term v Ann
 substImports ns imports =
   ABT.substsInheritAnnotation [ (suffix, Term.var () full)
     | (suffix,full) <- imports ] . -- no guard here, as `full` could be bound
@@ -823,7 +823,7 @@ block' isTop s openBlock closeBlock = do
   where
     statement = namespaceBlock <|>
       asum [ Binding <$> binding, Action <$> blockTerm ]
-    go :: L.Token () -> [BlockElement v] -> P v (AnnotatedTerm v Ann)
+    go :: L.Token () -> [BlockElement v] -> P v (Term v Ann)
     go open bs
       = let
           startAnnotation = (fst . fst . head $ toBindings bs)

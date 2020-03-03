@@ -19,7 +19,7 @@ import           Control.Monad.Writer           ( WriterT(..)
 import           Unison.Name                    ( Name )
 import qualified Unison.Parser                 as Parser
 import           Unison.Paths                   ( Path )
-import           Unison.Term                    ( AnnotatedTerm )
+import           Unison.Term                    ( Term )
 import qualified Unison.Typechecker.Context    as Context
 import           Control.Error.Util             ( note)
 import qualified Unison.Names3                 as Names
@@ -27,8 +27,6 @@ import qualified Unison.Names3                 as Names
 type Result notes = ResultT notes Identity
 
 type ResultT notes f = MaybeT (WriterT notes f)
-
-type Term v loc = AnnotatedTerm v loc
 
 data Note v loc
   = Parsing (Parser.Err v)

@@ -13,7 +13,7 @@ import qualified Unison.Parser                 as Parser
 import           Unison.PrintError              ( prettyParseError
                                                 , defaultWidth )
 import           Unison.Symbol                  ( Symbol )
-import           Unison.Term                    ( AnnotatedTerm )
+import           Unison.Term                    ( Term )
 import qualified Unison.TermParser             as TermParser
 import           Unison.Type                    ( Type )
 import qualified Unison.TypeParser             as TypeParser
@@ -37,7 +37,7 @@ parseTerm
   :: Var v
   => String
   -> Parser.ParsingEnv
-  -> Either (Parser.Err v) (AnnotatedTerm v Ann)
+  -> Either (Parser.Err v) (Term v Ann)
 parseTerm = parse TermParser.term
 
 parseType
@@ -65,7 +65,7 @@ readAndParseFile penv fileName = do
   let src = Text.unpack txt
   pure $ parseFile fileName src penv
 
-unsafeParseTerm :: Var v => String -> Parser.ParsingEnv -> AnnotatedTerm v Ann
+unsafeParseTerm :: Var v => String -> Parser.ParsingEnv -> Term v Ann
 unsafeParseTerm s = fmap (unsafeGetRightFrom s) . parseTerm $ s
 
 unsafeReadAndParseFile

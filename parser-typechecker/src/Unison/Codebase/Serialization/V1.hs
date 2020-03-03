@@ -45,7 +45,7 @@ import           Unison.Hash                    ( Hash )
 import           Unison.Kind                    ( Kind )
 import           Unison.Reference               ( Reference )
 import           Unison.Symbol                  ( Symbol(..) )
-import           Unison.Term                    ( AnnotatedTerm )
+import           Unison.Term                    ( Term )
 import qualified Data.ByteString               as B
 import qualified Data.Sequence                 as Sequence
 import qualified Data.Set                      as Set
@@ -478,7 +478,7 @@ getPattern getA = getWord8 >>= \tag -> case tag of
 
 putTerm :: (MonadPut m, Ord v)
         => (v -> m ()) -> (a -> m ())
-        -> AnnotatedTerm v a
+        -> Term v a
         -> m ()
 putTerm putVar putA = putABT putVar putA go where
   go putChild t = case t of
@@ -534,7 +534,7 @@ putTerm putVar putA = putABT putVar putA go where
     putPattern putA pat *> putMaybe guard putChild *> putChild body
 
 getTerm :: (MonadGet m, Ord v)
-        => m v -> m a -> m (Term.AnnotatedTerm v a)
+        => m v -> m a -> m (Term v a)
 getTerm getVar getA = getABT getVar getA go where
   go getChild = getWord8 >>= \tag -> case tag of
     0 -> Term.Int <$> getInt
