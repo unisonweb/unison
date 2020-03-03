@@ -36,27 +36,23 @@ data ABT f v r
   | Tm (f v r)
   deriving (Functor, Foldable, Traversable)
 
-data Term f v a = Term
+data Term f v = Term
   { freeVars :: Set v
-  , annotation :: a
-  , out :: ABT f v (Term f v a)
+  , out :: ABT f v (Term f v)
   }
 
-pattern TVar a v <- Term _ a (Var v)
-  where TVar a v = Term (Set.singleton v) a (Var v)
+pattern TVar v <- Term _ (Var v)
+  where TVar v = Term (Set.singleton v) (Var v)
 
-pattern TAbs :: Var v => a -> v -> Term f v a -> Term f v a
-pattern TAbs a u bd <- Term _ a (Abs u bd)
-  where TAbs a u bd = Term (Set.delete u (freeVars bd)) a (Abs u bd)
+pattern TAbs :: Var v => v -> Term f v -> Term f v
+pattern TAbs u bd <- Term _ (Abs u bd)
+  where TAbs u bd = Term (Set.delete u (freeVars bd)) (Abs u bd)
 
-pattern TTm :: (Var v, Bifoldable f) => a -> f v (Term f v a) -> Term f v a
-pattern TTm a bd <- Term _ a (Tm bd)
-  where TTm a bd = Term (bifoldMap Set.singleton freeVars bd) a (Tm bd)
+pattern TTm :: (Var v, Bifoldable f) => f v (Term f v) -> Term f v
+pattern TTm bd <- Term _ (Tm bd)
+  where TTm bd = Term (bifoldMap Set.singleton freeVars bd) (Tm bd)
 
 {-# complete TVar, TAbs, TTm #-}
-
-instance Functor (f v) => Functor (Term f v) where
-  fmap f (Term fvs a bnd) = Term fvs (f a) $ fmap f <$> bnd
 
 -- Simultaneous variable renaming.
 --
@@ -66,12 +62,12 @@ instance Functor (f v) => Functor (Term f v) where
 -- rnv0 is the variable renaming map.
 renames
   :: (Var v, Ord v, Bifunctor f, Bifoldable f)
-  => Map v Int -> Map v v -> Term f v a -> Term f v a
+  => Map v Int -> Map v v -> Term f v -> Term f v
 renames subvs0 rnv0 tm = case tm of
-  TVar ann v | Just u <- Map.lookup v rnv0 -> TVar ann u
+  TVar v | Just u <- Map.lookup v rnv0 -> TVar u
 
-  TAbs ann u body
-    | not $ Map.null rnv' -> TAbs ann u' (renames subvs' rnv' body)
+  TAbs u body
+    | not $ Map.null rnv' -> TAbs u' (renames subvs' rnv' body)
    where
    rnv' = Map.alter (const $ adjustment) u rnv
    -- if u is in the set of variables we're substituting in, it
@@ -86,9 +82,9 @@ renames subvs0 rnv0 tm = case tm of
      | u /= u' && u `Set.member` fvs = (Just u', Map.insertWith (+) u' 1 subvs)
      | otherwise = (Nothing, subvs)
 
-  TTm ann body
+  TTm body
     | not $ Map.null rnv
-    -> TTm ann $ bimap (\u -> Map.findWithDefault u u rnv) (renames subvs rnv) body
+    -> TTm $ bimap (\u -> Map.findWithDefault u u rnv) (renames subvs rnv) body
 
   _ -> tm
  where
@@ -105,13 +101,13 @@ renames subvs0 rnv0 tm = case tm of
 
 rename
   :: (Var v, Ord v, Bifunctor f, Bifoldable f)
-  => v -> v -> Term f v a -> Term f v a
+  => v -> v -> Term f v -> Term f v
 rename old new = renames (Map.singleton new 1) (Map.singleton old new)
 
 transform
   :: (Var v, Bifunctor g, Bifoldable f, Bifoldable g)
   => (forall a b. f a b -> g a b)
-  -> Term f v a -> Term g v a
-transform phi (TTm  ann   body) = TTm ann . second (transform phi) $ phi body
-transform phi (TAbs ann u body) = TAbs ann u $ transform phi body
-transform _   (TVar ann v)      = TVar ann v
+  -> Term f v -> Term g v
+transform phi (TTm    body) = TTm . second (transform phi) $ phi body
+transform phi (TAbs u body) = TAbs u $ transform phi body
+transform _   (TVar v)      = TVar v

@@ -52,6 +52,7 @@ name v = case typeOf v of
   Inference TypeConstructorArg -> "𝕦" <> showid v
   MissingResult -> "_" <> showid v
   Blank -> "_" <> showid v
+  ANFBlank -> "_anf" <> showid v
   UnnamedWatch k guid -> fromString k <> "." <> guid <> showid v
   where
   showid (freshId -> 0) = ""
@@ -98,6 +99,8 @@ data Type
   --  > 1 + 1
   --    has kind ""
   | UnnamedWatch WatchKind Text -- guid
+  -- An unnamed variable introduced by ANF transformation
+  | ANFBlank
   deriving (Eq,Ord,Show)
 
 type WatchKind = String

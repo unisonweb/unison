@@ -3,25 +3,42 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# Language OverloadedStrings #-}
+{-# Language PatternGuards #-}
 {-# Language PatternSynonyms #-}
 {-# Language ScopedTypeVariables #-}
 
-module Unison.Runtime.ANF (optimize, fromTerm, fromTerm', term, minimizeCyclesOrCrash) where
+module Unison.Runtime.ANF
+  ( optimize
+  , fromTerm
+  , fromTerm'
+  , term
+  , minimizeCyclesOrCrash
+  , SuperNormal(..)
+  , Branched(..)
+  , toSuperNormal
+  , POp(..)
+  ) where
 
 import Unison.Prelude
 
 import Data.Bifunctor (second)
+import Data.Bifoldable (Bifoldable(..))
 import Data.List hiding (and,or)
 import Prelude hiding (abs,and,or,seq)
 import Unison.Term
-import Unison.Var (Var)
+import Unison.Var (Var, typed)
+import Data.IntMap (IntMap)
 import qualified Data.Map as Map
+import qualified Data.IntMap.Strict as IMap
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
+import qualified Unison.ABT.Normalized as ABTN
 import qualified Unison.Term as Term
 import qualified Unison.Var as Var
 import Unison.Typechecker.Components (minimize')
+import Unison.Pattern (PatternP(..))
+import Unison.Reference (Reference)
 -- import Debug.Trace
 -- import qualified Unison.TermPrinter as TP
 -- import qualified Unison.Util.Pretty as P
@@ -174,3 +191,221 @@ fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
     else fixup (ABT.freeVars e) (seq (ann e)) (toList vs)
   go e@(Ann' tm typ) = Term.ann (ann e) (go tm) typ
   go e = error $ "ANF.term: I thought we got all of these\n" <> show e
+
+data ANormalF v e
+  = ALit Lit
+  | ALet e e
+  | AMatch v (Branched e)
+  | AHnd v e
+  | AApp (Func v) [v]
+
+instance Bifoldable ANormalF where
+  bifoldMap _ _ (ALit _) = mempty
+  bifoldMap _ g (ALet b e) = g b <> g e
+  bifoldMap f g (AMatch v br) = f v <> foldMap g br
+  bifoldMap f g (AHnd v e) = f v <> g e
+  bifoldMap f _ (AApp func args) = foldMap f func <> foldMap f args
+
+matchLit :: AnnotatedTerm v a -> Maybe Lit
+matchLit (Int' i) = Just $ I i
+matchLit (Nat' n) = Just $ N n
+matchLit (Float' f) = Just $ F f
+matchLit (Boolean' b) = Just $ B b
+matchLit (Text' t) = Just $ T t
+matchLit (Char' c) = Just $ C c
+matchLit _ = Nothing
+
+pattern Lit' l <- (matchLit -> Just l)
+pattern TLit l = ABTN.TTm (ALit l)
+
+pattern TApp f args = ABTN.TTm (AApp f args)
+pattern TCon r t args = TApp (FCon r t) args
+pattern TReq r t args = TApp (FReq r t) args
+pattern TPrm p args = TApp (FPrim p) args
+
+pattern THnd v b = ABTN.TTm (AHnd v b)
+
+data Branched e
+  = MatchIntegral { cases :: IntMap e }
+  deriving (Functor, Foldable, Traversable)
+
+data Func v
+  -- variable
+  = FVar v
+  -- top-level combinator
+  | FComb !Int
+  -- data constructor
+  | FCon !Int !Int
+  -- ability request
+  | FReq !Int !Int
+  -- prim op
+  | FPrim POp
+  deriving (Functor, Foldable, Traversable)
+
+data Lit
+  = I Int64
+  | N Word64
+  | F Double
+  | B Bool
+  | T Text
+  | C Char
+
+data POp
+  = PAND | POR | PNOT
+  -- Int
+  | PADI | PSUI | PMUI | PDII
+  | PGTI | PLTI | PGEI | PLEI | PEQI
+  | PSGI | PNEI | PTRI | PMDI
+  -- Nat
+  | PADN | PSUN | PMUN | PDIN
+  | PGTN | PLTN | PGEN | PLEN | PEQN
+  | PSGN | PNEN | PTRN | PMDN
+  -- Float
+  | PADF | PSUF | PMUF | PDIF
+  | PGTF | PLTF | PGEF | PLEF | PEQF
+
+type ANormal = ABTN.Term ANormalF
+
+-- Should be a completely closed term
+data SuperNormal v = Lambda { bound :: ANormal v }
+
+toSuperNormal
+  :: Var v
+  => (Reference -> Int)
+  -> AnnotatedTerm v a
+  -> SuperNormal v
+toSuperNormal resolve tm
+  | not . Set.null $ freeVars tm
+  = error "free variables in supercombinators"
+  | otherwise = Lambda bound
+  where
+  (vs, body) = fromMaybe ([], tm) $ unLams' tm
+  bound = foldr ABTN.TAbs anfBody vs
+  anfBody = anfTerm (Set.fromList vs) resolve body
+
+anfTerm
+  :: Var v
+  => Set v              -- variable choices to avoid
+  -> (Reference -> Int) -- resolve a reference to a supercombinator
+  -> AnnotatedTerm v a
+  -> ANormal v
+anfTerm avoid resolve tm = case anfBlock avoid resolve tm of
+  (ctx, body) -> foldr le body ctx
+  where le (v, b) e = ABTN.TTm . ALet b $ ABTN.TAbs v e
+
+anfBlock
+  :: Var v
+  => Set v
+  -> (Reference -> Int)
+  -> AnnotatedTerm v a
+  -> ([(v, ANormal v)], ANormal v)
+anfBlock _     _       (Var' v) = ([], ABTN.TVar v)
+anfBlock avoid resolve (If' c t f)
+  | ABTN.TVar cv <- cc = (cctx, ABTN.TTm $ AMatch cv cases)
+  | otherwise          = (cctx ++ [(fcv,cc)], ABTN.TTm $ AMatch fcv cases)
+  where
+  (cctx, cc) = anfBlock avoid resolve c
+  fcv = freshANF avoid (ABTN.freeVars cc)
+  cases = MatchIntegral $ IMap.fromList
+    [ (0, anfTerm avoid resolve f)
+    , (1, anfTerm avoid resolve t)
+    ]
+anfBlock avoid resolve (And' l r) = (lctx ++ rctx, TPrm PAND [vl, vr])
+  where
+  (lctx, vl) = anfArg avoid resolve l
+  (rctx, vr) = anfArg (addAvoid avoid lctx) resolve r
+anfBlock avoid resolve (Or' l r) = (lctx ++ rctx, TPrm POR [vl, vr])
+  where
+  (lctx, vl) = anfArg avoid resolve l
+  (rctx, vr) = anfArg (addAvoid avoid lctx) resolve r
+anfBlock avoid resolve (Handle' h body) = (hctx ++ bctx, THnd vh cb)
+  where
+  (hctx, vh) = anfArg avoid resolve h
+  (bctx, cb) = anfBlock (addAvoid avoid hctx) resolve body
+anfBlock avoid resolve (Match' scrut cas)
+  | ABTN.TVar sv <- sc = (sctx, ABTN.TTm $ AMatch sv cases)
+  | otherwise = (sctx ++ [(fsv, sc)], ABTN.TTm $ AMatch fsv cases)
+  where
+  (sctx, sc) = anfBlock avoid resolve scrut
+  fsv = freshANF avoid $ ABTN.freeVars sc
+  cases = MatchIntegral $ anfCases avoid resolve cas
+anfBlock avoid resolve (Let1Named' v b e)
+  = (bctx ++ (v, cb) : ectx, ce)
+  where
+  avoid' = Set.insert v avoid
+  (bctx, cb) = anfBlock avoid' resolve b
+  (ectx, ce) = anfBlock avoid' resolve e
+anfBlock avoid resolve (Apps' f args)
+  = (fctx ++ actx, TApp cf cas)
+  where
+  (fctx, cf) = anfFunc avoid resolve f
+  (actx, cas) = foldr acc (const ([], [])) args avoid
+  acc tm k av
+    | (cctx, cv) <- anfArg av resolve tm
+    , (ctx, cas) <- k (addAvoid av cctx)
+    = (cctx ++ ctx, cv : cas)
+anfBlock _     resolve (Constructor' r t)
+  = ([], TCon (resolve r) t [])
+anfBlock _     resolve (Request' r t)
+  = ([], TReq (resolve r) t [])
+anfBlock _     _       (Lit' l) = ([], TLit l)
+anfBlock _     _       (Blank' _) = error "tried to compile Blank"
+anfBlock _     _       _ = error "anf: unhandled term"
+
+addAvoid :: Var v => Set v -> [(v,x)] -> Set v
+addAvoid av ctx = Set.union av . Set.fromList . map fst $ ctx
+
+-- Note: this assumes that patterns have already been translated
+-- to a state in which every case matches a single layer of data,
+-- with no guards, and no variables ignored. This is not checked
+-- completely.
+anfCases
+  :: Var v
+  => Set v
+  -> (Reference -> Int)
+  -> [MatchCase p (AnnotatedTerm v a)]
+  -> IntMap (ANormal v)
+anfCases avoid resolve = IMap.fromList . map mkCase
+  where
+  -- TODO: Int64, Word64, ...
+  patDecode (IntP _ i) = fromIntegral $ i
+  patDecode (ConstructorP _ _ t _) = fromIntegral $ t
+  patDecode (EffectBindP _ _ t _ _) = fromIntegral $ t
+  patDecode _ = error "unexpected pattern for ANF"
+
+  mkCase (MatchCase p Nothing (ABT.AbsN' vs body))
+    = (patDecode p, anfTerm avoid' resolve body)
+    where avoid' = Set.union avoid $ Set.fromList vs
+  mkCase _ = error "unexpected guard for ANF"
+
+anfFunc
+  :: Var v
+  => Set v              -- variable choices to avoid
+  -> (Reference -> Int) -- resolve a reference to a supercombinator
+  -> AnnotatedTerm v a
+  -> ([(v, ANormal v)], Func v)
+anfFunc _     _       (Var' v) = ([], FVar v)
+anfFunc _     resolve (Ref' r) = ([], FComb $ resolve r)
+anfFunc _     resolve (Constructor' r t) = ([], FCon (resolve r) t)
+anfFunc _     resolve (Request' r t) = ([], FReq (resolve r) t)
+anfFunc avoid resolve tm
+  = case anfBlock (Set.insert v avoid) resolve tm of
+      (fctx, anfTm) -> (fctx ++ [(v, anfTm)], FVar v)
+  where
+  fvs = ABT.freeVars tm
+  v = freshANF avoid fvs
+
+anfArg
+  :: Var v
+  => Set v
+  -> (Reference -> Int)
+  -> AnnotatedTerm v a
+  -> ([(v, ANormal v)], v)
+anfArg avoid resolve tm = case anfBlock avoid resolve tm of
+  (ctx, ABTN.TVar v) -> (ctx, v)
+  (ctx, tm) -> (ctx ++ [(fv, tm)], fv)
+    where fv = freshANF avoid $ ABTN.freeVars tm
+
+freshANF :: Var v => Set v -> Set v -> v
+freshANF avoid free
+  = ABT.freshIn (Set.union avoid free) (typed Var.ANFBlank)
