@@ -467,7 +467,7 @@ syncToDirectory fmtV fmtA codebase localPath branch = do
   writeBranch (Branch.Raw terms types _ _) = do
     for_ (toList $ Star3.fact types) $ \case
       Reference.DerivedId i -> do
-        alreadyExists <- liftIO . doesPathExist $ termPath localPath i
+        alreadyExists <- liftIO . doesPathExist $ declPath localPath i
         unless alreadyExists $ do
           mayDecl <- Codebase.getTypeDeclaration codebase i
           maybe (calamity i) (putDecl (S.put fmtV) (S.put fmtA) localPath i) mayDecl
