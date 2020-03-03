@@ -28,6 +28,7 @@ import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
 import qualified Unison.Result                 as Result
 import qualified Unison.Term                   as Term
+import           Unison.Term                    ( Term )
 import           Unison.Util.Free               ( Free
                                                 , eval
                                                 )
@@ -48,7 +49,6 @@ import           Unison.ConstructorType         ( ConstructorType )
 import qualified Unison.Runtime.IOSource       as IOSource
 
 type F m i v = Free (Command m i v)
-type Term v a = Term.AnnotatedTerm v a
 
 data Edits v = Edits
   { termEdits :: Map Reference TermEdit

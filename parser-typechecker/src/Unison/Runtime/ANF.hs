@@ -26,7 +26,7 @@ import Unison.Typechecker.Components (minimize')
 -- import qualified Unison.TermPrinter as TP
 -- import qualified Unison.Util.Pretty as P
 
-newtype ANF v a = ANF_ { term :: Term.AnnotatedTerm v a }
+newtype ANF v a = ANF_ { term :: Term v a }
 
 -- Replace all lambdas with free variables with closed lambdas.
 -- Works by adding a parameter for each free variable. These
@@ -38,7 +38,7 @@ newtype ANF v a = ANF_ { term :: Term.AnnotatedTerm v a }
 --
 -- The transformation is shallow and doesn't transform the body of
 -- lambdas it finds inside of `t`.
-lambdaLift :: (Var v, Semigroup a) => (v -> v) -> AnnotatedTerm v a -> AnnotatedTerm v a
+lambdaLift :: (Var v, Semigroup a) => (v -> v) -> Term v a -> Term v a
 lambdaLift liftVar t = result where
   result = ABT.visitPure go t
   go t@(LamsNamed' vs body) = Just $ let
@@ -51,7 +51,7 @@ lambdaLift liftVar t = result where
                   (snd <$> subs)
   go _ = Nothing
 
-optimize :: forall a v . (Semigroup a, Var v) => AnnotatedTerm v a -> AnnotatedTerm v a
+optimize :: forall a v . (Semigroup a, Var v) => Term v a -> Term v a
 optimize t = go t where
   ann = ABT.annotation
   go (Let1' b body) | canSubstLet b body = go (ABT.bind body b)
@@ -92,24 +92,24 @@ isLeaf (TermLink' _) = True
 isLeaf (TypeLink' _) = True
 isLeaf _ = False
 
-minimizeCyclesOrCrash :: Var v => AnnotatedTerm v a -> AnnotatedTerm v a
+minimizeCyclesOrCrash :: Var v => Term v a -> Term v a
 minimizeCyclesOrCrash t = case minimize' t of
   Right t -> t
   Left e -> error $ "tried to minimize let rec with duplicate definitions: "
                  ++ show (fst <$> toList e)
 
-fromTerm' :: (Monoid a, Var v) => (v -> v) -> AnnotatedTerm v a -> AnnotatedTerm v a
+fromTerm' :: (Monoid a, Var v) => (v -> v) -> Term v a -> Term v a
 fromTerm' liftVar t = term (fromTerm liftVar t)
 
-fromTerm :: forall a v . (Monoid a, Var v) => (v -> v) -> AnnotatedTerm v a -> ANF v a
+fromTerm :: forall a v . (Monoid a, Var v) => (v -> v) -> Term v a -> ANF v a
 fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
   ann = ABT.annotation
   isRef (Ref' _) = True
   isRef _ = False
   fixup :: Set v -- if we gotta create new vars, avoid using these
-       -> ([AnnotatedTerm v a] -> AnnotatedTerm v a) -- do this with ANF'd args
-       -> [AnnotatedTerm v a] -- the args (not all in ANF already)
-       -> AnnotatedTerm v a -- the ANF'd term
+       -> ([Term v a] -> Term v a) -- do this with ANF'd args
+       -> [Term v a] -- the args (not all in ANF already)
+       -> Term v a -- the ANF'd term
   fixup used f args = let
     args' = Map.fromList $ toVar =<< (args `zip` [0..])
     toVar (b, i) | isLeaf b   = []
@@ -118,7 +118,7 @@ fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
     toANF (b,i) = maybe b (var (ann b)) $ Map.lookup i args'
     addLet (b,i) body = maybe body (\v -> let1' False [(v,go b)] body) (Map.lookup i args')
     in foldr addLet (f argsANF) (args `zip` [(0::Int)..])
-  go :: AnnotatedTerm v a -> AnnotatedTerm v a
+  go :: Term v a -> Term v a
   go e@(Apps' f args)
     | (isRef f || isLeaf f) && all isLeaf args = e
     | not (isRef f || isLeaf f) =

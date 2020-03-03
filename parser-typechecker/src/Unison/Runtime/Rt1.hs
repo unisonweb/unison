@@ -224,7 +224,7 @@ arity _ = 0
 -- types that are referenced by the given term, `t`.
 compilationEnv :: Monad m
   => CL.CodeLookup Symbol m a
-  -> Term.AnnotatedTerm Symbol a
+  -> Term.Term Symbol a
   -> m CompilationEnv
 compilationEnv env t = do
   let typeDeps = Term.typeDependencies t

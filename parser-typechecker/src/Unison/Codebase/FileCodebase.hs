@@ -86,6 +86,7 @@ import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent(..) )
 import qualified Unison.Referent               as Referent
+import           Unison.Term                    ( Term )
 import qualified Unison.Term                   as Term
 import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
@@ -493,7 +494,7 @@ putTerm
   -> S.Put a
   -> FilePath
   -> Reference.Id
-  -> Term.AnnotatedTerm v a
+  -> Term v a
   -> Type v a
   -> m ()
 putTerm putV putA path h e typ = liftIO $ do
@@ -549,7 +550,7 @@ putWatch
   -> FilePath
   -> UF.WatchKind
   -> Reference.Id
-  -> Codebase.Term v a
+  -> Term v a
   -> m ()
 putWatch putV putA path k id e = liftIO $ S.putWithParentDirs
   (V1.putTerm putV putA)
@@ -654,7 +655,7 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
         createDirectoryIfMissing True wp
         ls <- listDirectory wp
         pure $ ls >>= (toList . componentIdFromString . takeFileName)
-    getWatch :: UF.WatchKind -> Reference.Id -> m (Maybe (Codebase.Term v a))
+    getWatch :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
     getWatch k id =
       liftIO $ do
         let wp = watchesDir path (Text.pack k)

@@ -115,6 +115,7 @@ import Unison.Codebase.Editor.SearchResult' (SearchResult')
 import qualified Unison.Codebase.Editor.SearchResult' as SR'
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
+import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Builtin as Builtin
 import Unison.Codebase.NameSegment (NameSegment(..))
@@ -130,7 +131,6 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 
 type F m i v = Free (Command m i v)
-type Term v a = Term.AnnotatedTerm v a
 
 -- type (Action m i v) a
 type Action m i v = MaybeT (StateT (LoopState m v) (F m i v))

@@ -50,6 +50,7 @@ import           Unison.FileParsers             ( parseAndSynthesizeFile
                                                 )
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.ShortHash              as SH
+import Unison.Term (Term)
 import Unison.Type (Type)
 
 typecheck
@@ -171,7 +172,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     AppendToReflog reason old new -> Codebase.appendReflog codebase reason old new
     LoadReflog -> Codebase.getReflog codebase
 
-  eval1 :: PPE.PrettyPrintEnv -> Term.AnnotatedTerm v Ann -> _
+  eval1 :: PPE.PrettyPrintEnv -> Term v Ann -> _
   eval1 ppe tm = do
     let codeLookup = Codebase.toCodeLookup codebase
     r <- Runtime.evaluateTerm codeLookup ppe rt tm

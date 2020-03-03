@@ -20,7 +20,7 @@ test = scope "term" $ tests
       let v s = Var.nameds s :: Symbol
           tv s = Type.var() (v s)
           v1 s = Var.freshenId 1 (v s)
-          tm :: Term.Term Symbol
+          tm :: Term.Term Symbol ()
           tm = Term.ann() (Term.ann()
                              (Term.nat() 42)
                              (Type.introOuter() (v "a") $

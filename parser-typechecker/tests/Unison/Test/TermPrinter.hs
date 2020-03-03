@@ -6,7 +6,8 @@ import EasyTest
 import qualified Data.Text as Text
 import Unison.ABT (annotation)
 import qualified Unison.HashQualified as HQ
-import Unison.Term
+import Unison.Term (Term)
+import qualified Unison.Term as Term
 import Unison.TermPrinter
 import qualified Unison.Type as Type
 import Unison.Symbol (Symbol, symbol)
@@ -29,7 +30,7 @@ getNames = PPE.fromNames Common.hqLength Unison.Builtin.names
 tcDiffRtt :: Bool -> String -> String -> Int -> Test ()
 tcDiffRtt rtt s expected width
   = let
-      inputTerm = tm s :: Unison.Term.AnnotatedTerm Symbol Ann
+      inputTerm = tm s :: Term Symbol Ann
       prettied  = CT.toPlain <$> pretty getNames inputTerm
       actual    = if width == 0
         then PP.renderUnbroken prettied
@@ -75,9 +76,9 @@ tcBinding :: Int -> String -> Maybe String -> String -> String -> Test ()
 tcBinding width v mtp tm expected
   = let
       baseTerm =
-        Unison.Test.Common.tm tm :: Unison.Term.AnnotatedTerm Symbol Ann
+        Unison.Test.Common.tm tm :: Term Symbol Ann
       inputType = fmap Unison.Test.Common.t mtp :: Maybe (Type.Type Symbol Ann)
-      inputTerm (Just tp) = ann (annotation tp) baseTerm tp
+      inputTerm (Just tp) = Term.ann (annotation tp) baseTerm tp
       inputTerm Nothing   = baseTerm
       varV     = symbol $ Text.pack v
       prettied = fmap CT.toPlain $ PP.syntaxToColor $ prettyBinding

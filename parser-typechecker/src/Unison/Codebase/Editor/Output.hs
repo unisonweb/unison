@@ -40,13 +40,13 @@ import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Parser as Parser
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as Reference
-import qualified Unison.Term as Term
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
 import Unison.Codebase.Editor.DisplayThing (DisplayThing)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.Codebase.Editor.SearchResult' (SearchResult')
+import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Names3 as Names
 import qualified Data.Set as Set
@@ -57,7 +57,6 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
 
-type Term v a = Term.AnnotatedTerm v a
 type ListDetailed = Bool
 type SourceName = Text
 type NumberedArgs = [String]

@@ -13,9 +13,6 @@ import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.Codebase               as Codebase
 import           Unison.UnisonFile              ( UnisonFile )
 import qualified Unison.Term                   as Term
-import           Unison.Term                    ( Term
-                                                , AnnotatedTerm
-                                                )
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Reference               ( Reference )
@@ -26,6 +23,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.PrettyPrintEnv as PPE
 
 type Error = P.Pretty P.ColorText
+type Term v = Term.Term v ()
 
 data Runtime v = Runtime
   { terminate :: IO ()
@@ -65,7 +63,7 @@ evaluateWatches
   -- IO (bindings :: [v,Term v], map :: ^^^)
 evaluateWatches code ppe evaluationCache rt uf = do
   -- 1. compute hashes for everything in the file
-  let m :: Map v (Reference, AnnotatedTerm v a)
+  let m :: Map v (Reference, Term.Term v a)
       m = Term.hashComponents (Map.fromList (UF.terms uf <> UF.allWatches uf))
       watches = Set.fromList (fst <$> UF.allWatches uf)
       watchKinds :: Map v UF.WatchKind
@@ -105,7 +103,7 @@ evaluateWatches code ppe evaluationCache rt uf = do
       pure $ Right (bindings, watchMap)
     Left e -> pure (Left e)
  where
-    -- unref :: Map Reference v -> AnnotatedTerm v a -> AnnotatedTerm v a
+    -- unref :: Map Reference v -> Term.Term v a -> Term.Term v a
   unref rv t = ABT.visitPure go t
    where
     go t@(Term.Ref' r@(Reference.DerivedId _)) = case Map.lookup r rv of
@@ -118,8 +116,8 @@ evaluateTerm
   => CL.CodeLookup v IO a
   -> PPE.PrettyPrintEnv
   -> Runtime v
-  -> Term.AnnotatedTerm v a
-  -> IO (Either Error (ABT.Term (Term.F v () ()) v ()))
+  -> Term.Term v a
+  -> IO (Either Error (Term v))
 evaluateTerm codeLookup ppe rt tm = do
   let uf = UF.UnisonFile mempty mempty mempty
              (Map.singleton UF.RegularWatch [(Var.nameds "result", tm)])
