@@ -29,6 +29,7 @@ import qualified Unison.Test.Codebase as Codebase
 import qualified Unison.Test.Codebase.FileCodebase as FileCodebase
 import qualified Unison.Test.UriParser as UriParser
 import qualified Unison.Test.Git as Git
+import qualified Unison.Test.ANF as ANF
 
 test :: Test ()
 test = tests
@@ -50,6 +51,7 @@ test = tests
   , Referent.test
   , FileCodebase.test
   , ABT.test
+  , ANF.test
   , Var.test
   , Codebase.test
   , Typechecker.test
