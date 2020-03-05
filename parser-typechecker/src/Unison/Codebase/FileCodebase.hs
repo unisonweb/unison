@@ -116,14 +116,15 @@ data SyncedEntities = SyncedEntities
   , _syncedReferents :: Set Referent
   , __syncedWatches  :: Set Reference
   , _syncedEdits    :: Set Branch.EditHash
+  , _syncDestExists :: Set FilePath
   }
 
 instance Semigroup SyncedEntities where
-  SyncedEntities t1 d1 r1 w1 e1 <> SyncedEntities t2 d2 r2 w2 e2 =
-    SyncedEntities (t1 <> t2) (d1 <> d2) (r1 <> r2) (w1 <> w2) (e1 <> e2)
+  SyncedEntities t1 d1 r1 w1 e1 f1 <> SyncedEntities t2 d2 r2 w2 e2 f2 =
+    SyncedEntities (t1 <> t2) (d1 <> d2) (r1 <> r2) (w1 <> w2) (e1 <> e2) (f1 <> f2)
 
 instance Monoid SyncedEntities where
-  mempty = SyncedEntities mempty mempty mempty mempty mempty
+  mempty = SyncedEntities mempty mempty mempty mempty mempty mempty
   mappend = (<>)
 
 makeLenses ''SyncedEntities
@@ -227,6 +228,9 @@ dependentsDir' root = root </> "dependents"
 watchesDir :: CodebasePath -> Text -> FilePath
 watchesDir root UF.RegularWatch = root </> "watches" </> "_cache"
 watchesDir root kind = root </> "watches" </> encodeFileName (Text.unpack kind)
+watchPath :: CodebasePath -> UF.WatchKind -> Reference.Id -> FilePath
+watchPath root kind id = 
+  watchesDir root (Text.pack kind) </> componentIdToString id <> ".ub"
 
 typeIndexDir :: CodebasePath -> Reference -> FilePath
 typeIndexDir root r = typeIndexDir' root </> referenceToDir r
@@ -584,17 +588,25 @@ copySyncToDirectory srcPath destPath branch =
       \i -> do
         copyFileWithParents (termPath srcPath i) (termPath destPath i) -- compiled.ub
         copyFileWithParents (typePath srcPath i) (typePath destPath i) -- type.ub
+        whenM (doesFileExist $ watchPath srcPath UF.TestWatch i) $
+          copyFileWithParents (watchPath srcPath UF.TestWatch i)
+                              (watchPath destPath UF.TestWatch i)
   copyEdits :: Branch.EditHash -> StateT SyncedEntities m ()
   copyEdits = copyHelper syncedEdits editsPath $
     \h -> copyFileWithParents (editsPath srcPath h) (editsPath destPath h)
   -- half-generic function to eliminate duplicated logic above
-  copyHelper :: forall m s h. (MonadIO m, MonadState s m, Ord h)
-             => SimpleLens s (Set h) -> (FilePath -> h -> FilePath) -> (h -> m ()) -> h -> m ()
+  copyHelper :: forall m h. (MonadIO m, MonadState SyncedEntities m, Ord h)
+             => SimpleLens SyncedEntities (Set h) 
+             -> (FilePath -> h -> FilePath) 
+             -> (h -> m ()) 
+             -> h 
+             -> m ()
   copyHelper l getFilename f h =
-    unlessM (use (l . to (Set.member h))) $
+    let filePath = getFilename destPath h in
+    unlessM (use (syncDestExists . to (Set.member filePath))) $
       ifM (doesFileExist (getFilename destPath h))
-        (l %= Set.insert h)
-        (do f h; l %= Set.insert h)
+        (syncDestExists %= Set.insert filePath)
+        (do f h; l %= Set.insert h; syncDestExists %= Set.insert filePath)
 
 
 -- Create a codebase structure at `localPath` if none exists, and
@@ -720,14 +732,14 @@ putWatch
   => Var v
   => S.Put v
   -> S.Put a
-  -> FilePath
+  -> CodebasePath
   -> UF.WatchKind
   -> Reference.Id
   -> Codebase.Term v a
   -> m ()
-putWatch putV putA path k id e = liftIO $ S.putWithParentDirs
+putWatch putV putA root k id e = liftIO $ S.putWithParentDirs
   (V1.putTerm putV putA)
-  (watchesDir path (Text.pack k) </> componentIdToString id <> ".ub")
+  (watchPath root k id)
   e
 
 referencesByPrefix :: MonadIO m => CodebasePath -> Text -> m (Set Reference.Id)
