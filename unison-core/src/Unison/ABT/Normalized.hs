@@ -8,7 +8,7 @@
 
 module Unison.ABT.Normalized
   ( ABT(..)
-  , Term(.., TVar, TAbs, TTm)
+  , Term(.., TAbs, TTm)
   , renames
   , rename
   , transform
@@ -30,19 +30,14 @@ import Unison.ABT (Var(..))
 -- ABTs with support for 'normalized' structure where only variables
 -- may occur at some positions. This is accomplished by passing the
 -- variable type to the base functor.
-data ABT f v r
-  = Var v
-  | Abs v r
-  | Tm (f v r)
-  deriving (Functor, Foldable, Traversable)
+data ABT f v
+  = Abs v (Term f v)
+  | Tm (f v (Term f v))
 
 data Term f v = Term
   { freeVars :: Set v
-  , out :: ABT f v (Term f v)
+  , out :: ABT f v
   }
-
-pattern TVar v <- Term _ (Var v)
-  where TVar v = Term (Set.singleton v) (Var v)
 
 pattern TAbs :: Var v => v -> Term f v -> Term f v
 pattern TAbs u bd <- Term _ (Abs u bd)
@@ -52,7 +47,7 @@ pattern TTm :: (Var v, Bifoldable f) => f v (Term f v) -> Term f v
 pattern TTm bd <- Term _ (Tm bd)
   where TTm bd = Term (bifoldMap Set.singleton freeVars bd) (Tm bd)
 
-{-# complete TVar, TAbs, TTm #-}
+{-# complete TAbs, TTm #-}
 
 -- Simultaneous variable renaming.
 --
@@ -64,8 +59,6 @@ renames
   :: (Var v, Ord v, Bifunctor f, Bifoldable f)
   => Map v Int -> Map v v -> Term f v -> Term f v
 renames subvs0 rnv0 tm = case tm of
-  TVar v | Just u <- Map.lookup v rnv0 -> TVar u
-
   TAbs u body
     | not $ Map.null rnv' -> TAbs u' (renames subvs' rnv' body)
    where
@@ -110,4 +103,3 @@ transform
   -> Term f v -> Term g v
 transform phi (TTm    body) = TTm . second (transform phi) $ phi body
 transform phi (TAbs u body) = TAbs u $ transform phi body
-transform _   (TVar v)      = TVar v

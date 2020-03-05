@@ -4,7 +4,7 @@ module Unison.Test.ANF where
 
 import EasyTest
 
-import Unison.ABT.Normalized
+import Unison.ABT.Normalized (Term(TAbs))
 import Unison.Pattern (PatternP(..))
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF
@@ -44,7 +44,7 @@ denormalize (TLet v bn bo)
   | typeOf v == ANFBlank = ABT.subst v dbn dbo
   | otherwise = Term.let1_ False [(v, dbn)] dbo
   where
-  dbn = denormalize bn
+  dbn = denormalize $ TTm bn
   dbo = denormalize bo
 denormalize (TMatch v cs)
   = Term.match () (ABT.var v) $ denormalizeMatch cs

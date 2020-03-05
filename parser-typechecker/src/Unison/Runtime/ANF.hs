@@ -23,16 +23,21 @@ module Unison.Runtime.ANF
   , pattern TPrm
   , pattern THnd
   , pattern TLet
+  , pattern TTm
+  , pattern TLets
+  , pattern TLets'
   , pattern TMatch
   , Lit(..)
   , SuperNormal(..)
   , POp(..)
-  , ANormalF(..)
+  , ANormalBF(..)
+  , ANormalTF(.., AApv, ACom, ACon, AReq, APrm)
   , ANormal
   , Branched(..)
   , Func(..)
   , toSuperNormal
   , anfTerm
+  , letANF
   ) where
 
 import Unison.Prelude
@@ -49,7 +54,6 @@ import qualified Data.IntMap.Strict as IMap
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
-import Unison.ABT.Normalized (pattern TVar)
 import qualified Unison.ABT.Normalized as ABTN
 import qualified Unison.Term as Term
 import qualified Unison.Var as Var
@@ -209,16 +213,24 @@ fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
   go e@(Ann' tm typ) = Term.ann (ann e) (go tm) typ
   go e = error $ "ANF.term: I thought we got all of these\n" <> show e
 
-data ANormalF v e
+data ANormalBF v e
+  = ALet (ANormalTF v e) e
+  | ATm (ANormalTF v e)
+
+data ANormalTF v e
   = ALit Lit
-  | ALet e e
   | AMatch v (Branched e)
   | AHnd v e
   | AApp (Func v) [v]
+  | AVar v
 
-instance Bifoldable ANormalF where
+instance Bifoldable ANormalBF where
+  bifoldMap f g (ALet b e) = bifoldMap f g b <> g e
+  bifoldMap f g (ATm e) = bifoldMap f g e
+
+instance Bifoldable ANormalTF where
+  bifoldMap f _ (AVar v) = f v
   bifoldMap _ _ (ALit _) = mempty
-  bifoldMap _ g (ALet b e) = g b <> g e
   bifoldMap f g (AMatch v br) = f v <> foldMap g br
   bifoldMap f g (AHnd v e) = f v <> g e
   bifoldMap f _ (AApp func args) = foldMap f func <> foldMap f args
@@ -233,23 +245,55 @@ matchLit (Char' c) = Just $ C c
 matchLit _ = Nothing
 
 pattern Lit' l <- (matchLit -> Just l)
-pattern TLit l = ABTN.TTm (ALit l)
+pattern TLet v bn bo = ABTN.TTm (ALet bn (ABTN.TAbs v bo))
+pattern TTm e = ABTN.TTm (ATm e)
+{-# complete TLet, TTm #-}
 
-pattern TApp f args = ABTN.TTm (AApp f args)
+pattern TLit l = TTm (ALit l)
+
+pattern TApp f args = TTm (AApp f args)
+pattern AApv v args = AApp (FVar v) args
 pattern TApv v args = TApp (FVar v) args
+pattern ACom r args = AApp (FComb r) args
 pattern TCom r args = TApp (FComb r) args
+pattern ACon r t args = AApp (FCon r t) args
 pattern TCon r t args = TApp (FCon r t) args
+pattern AReq r t args = AApp (FReq r t) args
 pattern TReq r t args = TApp (FReq r t) args
+pattern APrm p args = AApp (FPrim p) args
 pattern TPrm p args = TApp (FPrim p) args
 
-pattern THnd v b = ABTN.TTm (AHnd v b)
-pattern TLet v bn bo = ABTN.TTm (ALet bn (ABTN.TAbs v bo))
-pattern TMatch v cs = ABTN.TTm (AMatch v cs)
+pattern THnd v b = TTm (AHnd v b)
+pattern TMatch v cs = TTm (AMatch v cs)
+pattern TVar v = TTm (AVar v)
+
+letANF :: Var v => v -> ANormal v -> ANormal v -> ANormal v
+letANF v (TLets ctx bn) bd = TLets' (ctx ++ [(v,bn)]) bd
 
 {-# complete TVar, TApp, TLit, THnd, TLet, TMatch #-}
 {-# complete
       TVar, TApv, TCom, TCon, TReq, TPrm, TLit, THnd, TLet, TMatch
   #-}
+
+unlets :: Var v => ANormal v -> ([(v, ANormalT v)], ANormalT v)
+unlets (TLet u bu bo) = ((u,bu):ctx, bo')
+  where (ctx, bo') = unlets bo
+unlets (TTm tm) = ([], tm)
+
+unlets' :: Var v => ANormal v -> ([(v, ANormalT v)], ANormal v)
+unlets' (TLet u bu bo) = ((u,bu):ctx, bo')
+  where (ctx, bo') = unlets' bo
+unlets' tm = ([], tm)
+
+freeVarsT :: Var v => ANormalT v -> Set.Set v
+freeVarsT = bifoldMap Set.singleton ABTN.freeVars
+
+pattern TLets ctx t <- (unlets -> (ctx, t))
+  where TLets ctx t = foldr (uncurry TLet) (TTm t) ctx
+pattern TLets' ctx t <- (unlets' -> (ctx, t))
+  where TLets' ctx t = foldr (uncurry TLet) t ctx
+
+{-# complete TLets #-}
 
 data Branched e
   = MatchIntegral { cases :: IntMap e }
@@ -292,7 +336,8 @@ data POp
   | PADF | PSUF | PMUF | PDIF
   | PGTF | PLTF | PGEF | PLEF | PEQF
 
-type ANormal = ABTN.Term ANormalF
+type ANormal = ABTN.Term ANormalBF
+type ANormalT v = ANormalTF v (ANormal v)
 
 -- Should be a completely closed term
 data SuperNormal v = Lambda { bound :: ANormal v }
@@ -318,7 +363,7 @@ anfTerm
   -> Term v a
   -> ANormal v
 anfTerm avoid resolve tm = case anfBlock avoid resolve tm of
-  (ctx, body) -> foldr le body ctx
+  (ctx, body) -> foldr le (TTm body) ctx
   where le (v, b) e = TLet v b e
 
 anfBlock
@@ -326,36 +371,36 @@ anfBlock
   => Set v
   -> (Reference -> Int)
   -> Term v a
-  -> ([(v, ANormal v)], ANormal v)
-anfBlock _     _       (Var' v) = ([], TVar v)
+  -> ([(v, ANormalT v)], ANormalT v)
+anfBlock _     _       (Var' v) = ([], AVar v)
 anfBlock avoid resolve (If' c t f)
-  | TVar cv <- cc = (cctx, TMatch cv cases)
-  | otherwise          = (cctx ++ [(fcv,cc)], TMatch fcv cases)
+  | AVar cv <- cc = (cctx, AMatch cv cases)
+  | otherwise          = (cctx ++ [(fcv,cc)], AMatch fcv cases)
   where
   (cctx, cc) = anfBlock avoid resolve c
-  fcv = freshANF avoid (ABTN.freeVars cc)
+  fcv = freshANF avoid $ freeVarsT cc
   cases = MatchIntegral $ IMap.fromList
     [ (0, anfTerm avoid resolve f)
     , (1, anfTerm avoid resolve t)
     ]
-anfBlock avoid resolve (And' l r) = (lctx ++ rctx, TPrm PAND [vl, vr])
+anfBlock avoid resolve (And' l r) = (lctx ++ rctx, APrm PAND [vl, vr])
   where
   (lctx, vl) = anfArg avoid resolve l
   (rctx, vr) = anfArg (addAvoid avoid lctx) resolve r
-anfBlock avoid resolve (Or' l r) = (lctx ++ rctx, TPrm POR [vl, vr])
+anfBlock avoid resolve (Or' l r) = (lctx ++ rctx, APrm POR [vl, vr])
   where
   (lctx, vl) = anfArg avoid resolve l
   (rctx, vr) = anfArg (addAvoid avoid lctx) resolve r
-anfBlock avoid resolve (Handle' h body) = (hctx ++ bctx, THnd vh cb)
+anfBlock avoid resolve (Handle' h body) = (hctx, AHnd vh cb)
   where
   (hctx, vh) = anfArg avoid resolve h
-  (bctx, cb) = anfBlock (addAvoid avoid hctx) resolve body
+  cb = anfTerm (addAvoid avoid hctx) resolve body
 anfBlock avoid resolve (Match' scrut cas)
-  | TVar sv <- sc = (sctx, TMatch sv cases)
-  | otherwise = (sctx ++ [(fsv, sc)], TMatch fsv cases)
+  | AVar sv <- sc = (sctx, AMatch sv cases)
+  | otherwise = (sctx ++ [(fsv, sc)], AMatch fsv cases)
   where
   (sctx, sc) = anfBlock avoid resolve scrut
-  fsv = freshANF avoid $ ABTN.freeVars sc
+  fsv = freshANF avoid $ freeVarsT sc
   cases = MatchIntegral $ anfCases avoid resolve cas
 anfBlock avoid resolve (Let1Named' v b e)
   = (bctx ++ (v, cb) : ectx, ce)
@@ -364,7 +409,7 @@ anfBlock avoid resolve (Let1Named' v b e)
   (bctx, cb) = anfBlock avoid' resolve b
   (ectx, ce) = anfBlock avoid' resolve e
 anfBlock avoid resolve (Apps' f args)
-  = (fctx ++ actx, TApp cf cas)
+  = (fctx ++ actx, AApp cf cas)
   where
   (fctx, cf) = anfFunc avoid resolve f
   (actx, cas) = foldr acc (const ([], [])) args avoid
@@ -373,10 +418,10 @@ anfBlock avoid resolve (Apps' f args)
     , (ctx, cas) <- k (addAvoid av cctx)
     = (cctx ++ ctx, cv : cas)
 anfBlock _     resolve (Constructor' r t)
-  = ([], TCon (resolve r) t [])
+  = ([], ACon (resolve r) t [])
 anfBlock _     resolve (Request' r t)
-  = ([], TReq (resolve r) t [])
-anfBlock _     _       (Lit' l) = ([], TLit l)
+  = ([], AReq (resolve r) t [])
+anfBlock _     _       (Lit' l) = ([], ALit l)
 anfBlock _     _       (Blank' _) = error "tried to compile Blank"
 anfBlock _     _       _ = error "anf: unhandled term"
 
@@ -412,7 +457,7 @@ anfFunc
   => Set v              -- variable choices to avoid
   -> (Reference -> Int) -- resolve a reference to a supercombinator
   -> Term v a
-  -> ([(v, ANormal v)], Func v)
+  -> ([(v, ANormalT v)], Func v)
 anfFunc _     _       (Var' v) = ([], FVar v)
 anfFunc _     resolve (Ref' r) = ([], FComb $ resolve r)
 anfFunc _     resolve (Constructor' r t) = ([], FCon (resolve r) t)
@@ -429,12 +474,14 @@ anfArg
   => Set v
   -> (Reference -> Int)
   -> Term v a
-  -> ([(v, ANormal v)], v)
+  -> ([(v, ANormalT v)], v)
 anfArg avoid resolve tm = case anfBlock avoid resolve tm of
-  (ctx, TVar v) -> (ctx, v)
+  (ctx, AVar v) -> (ctx, v)
   (ctx, tm) -> (ctx ++ [(fv, tm)], fv)
-    where fv = freshANF avoid $ ABTN.freeVars tm
+    where fv = freshANF avoid $ freeVarsT tm
 
 freshANF :: Var v => Set v -> Set v -> v
 freshANF avoid free
   = ABT.freshIn (Set.union avoid free) (typed Var.ANFBlank)
+
+
