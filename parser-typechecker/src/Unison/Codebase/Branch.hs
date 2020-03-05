@@ -20,6 +20,7 @@ module Unison.Codebase.Branch
   , empty0
   , branch0
   , one
+  , transform
 
     -- * Branch history
     -- ** History queries
@@ -108,6 +109,7 @@ import           Control.Lens            hiding ( children, cons, transform, unc
 import qualified Control.Monad                 as Monad
 import qualified Control.Monad.State           as State
 import           Control.Monad.State            ( StateT )
+import           Data.Bifunctor                 ( second )
 import qualified Data.Map                      as Map
 import qualified Data.Map.Merge.Lazy           as Map
 import qualified Data.Set                      as Set
@@ -803,6 +805,21 @@ diff0 old new = do
     , removedTypes   = Star3.difference (_types old) (_types new)
     , changedPatches = diffEdits
     }
+
+transform :: Functor m => (forall a . m a -> n a) -> Branch m -> Branch n
+transform f b = case _history b of
+  causal -> Branch . Causal.transform f $ transformB0s f causal
+  where
+  transformB0 :: Functor m => (forall a . m a -> n a) -> Branch0 m -> Branch0 n
+  transformB0 f b =
+    b { _children = transform f <$> _children b
+      , _edits    = second f    <$> _edits b
+      }
+
+  transformB0s :: Functor m => (forall a . m a -> n a)
+               -> Causal m Raw (Branch0 m)
+               -> Causal m Raw (Branch0 n)
+  transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
 
 data BranchAttentions = BranchAttentions
   { -- Patches that were edited on the right but entirely removed on the left.
