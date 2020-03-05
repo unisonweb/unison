@@ -13,10 +13,26 @@ module Unison.Runtime.ANF
   , fromTerm'
   , term
   , minimizeCyclesOrCrash
+  , pattern TVar
+  , pattern TLit
+  , pattern TApp
+  , pattern TApv
+  , pattern TCom
+  , pattern TCon
+  , pattern TReq
+  , pattern TPrm
+  , pattern THnd
+  , pattern TLet
+  , pattern TMatch
+  , Lit(..)
   , SuperNormal(..)
-  , Branched(..)
-  , toSuperNormal
   , POp(..)
+  , ANormalF(..)
+  , ANormal
+  , Branched(..)
+  , Func(..)
+  , toSuperNormal
+  , anfTerm
   ) where
 
 import Unison.Prelude
@@ -33,6 +49,7 @@ import qualified Data.IntMap.Strict as IMap
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
+import Unison.ABT.Normalized (pattern TVar)
 import qualified Unison.ABT.Normalized as ABTN
 import qualified Unison.Term as Term
 import qualified Unison.Var as Var
@@ -219,14 +236,25 @@ pattern Lit' l <- (matchLit -> Just l)
 pattern TLit l = ABTN.TTm (ALit l)
 
 pattern TApp f args = ABTN.TTm (AApp f args)
+pattern TApv v args = TApp (FVar v) args
+pattern TCom r args = TApp (FComb r) args
 pattern TCon r t args = TApp (FCon r t) args
 pattern TReq r t args = TApp (FReq r t) args
 pattern TPrm p args = TApp (FPrim p) args
 
 pattern THnd v b = ABTN.TTm (AHnd v b)
+pattern TLet v bn bo = ABTN.TTm (ALet bn (ABTN.TAbs v bo))
+pattern TMatch v cs = ABTN.TTm (AMatch v cs)
+
+{-# complete TVar, TApp, TLit, THnd, TLet, TMatch #-}
+{-# complete
+      TVar, TApv, TCom, TCon, TReq, TPrm, TLit, THnd, TLet, TMatch
+  #-}
 
 data Branched e
   = MatchIntegral { cases :: IntMap e }
+  | MatchData { ref :: Reference, cases :: IntMap e }
+  | MatchAbility { ref :: Reference, cases :: IntMap e, other :: e }
   deriving (Functor, Foldable, Traversable)
 
 data Func v
@@ -291,7 +319,7 @@ anfTerm
   -> ANormal v
 anfTerm avoid resolve tm = case anfBlock avoid resolve tm of
   (ctx, body) -> foldr le body ctx
-  where le (v, b) e = ABTN.TTm . ALet b $ ABTN.TAbs v e
+  where le (v, b) e = TLet v b e
 
 anfBlock
   :: Var v
@@ -299,10 +327,10 @@ anfBlock
   -> (Reference -> Int)
   -> Term v a
   -> ([(v, ANormal v)], ANormal v)
-anfBlock _     _       (Var' v) = ([], ABTN.TVar v)
+anfBlock _     _       (Var' v) = ([], TVar v)
 anfBlock avoid resolve (If' c t f)
-  | ABTN.TVar cv <- cc = (cctx, ABTN.TTm $ AMatch cv cases)
-  | otherwise          = (cctx ++ [(fcv,cc)], ABTN.TTm $ AMatch fcv cases)
+  | TVar cv <- cc = (cctx, TMatch cv cases)
+  | otherwise          = (cctx ++ [(fcv,cc)], TMatch fcv cases)
   where
   (cctx, cc) = anfBlock avoid resolve c
   fcv = freshANF avoid (ABTN.freeVars cc)
@@ -323,8 +351,8 @@ anfBlock avoid resolve (Handle' h body) = (hctx ++ bctx, THnd vh cb)
   (hctx, vh) = anfArg avoid resolve h
   (bctx, cb) = anfBlock (addAvoid avoid hctx) resolve body
 anfBlock avoid resolve (Match' scrut cas)
-  | ABTN.TVar sv <- sc = (sctx, ABTN.TTm $ AMatch sv cases)
-  | otherwise = (sctx ++ [(fsv, sc)], ABTN.TTm $ AMatch fsv cases)
+  | TVar sv <- sc = (sctx, TMatch sv cases)
+  | otherwise = (sctx ++ [(fsv, sc)], TMatch fsv cases)
   where
   (sctx, sc) = anfBlock avoid resolve scrut
   fsv = freshANF avoid $ ABTN.freeVars sc
@@ -369,6 +397,7 @@ anfCases avoid resolve = IMap.fromList . map mkCase
   where
   -- TODO: Int64, Word64, ...
   patDecode (IntP _ i) = fromIntegral $ i
+  patDecode (NatP _ n) = fromIntegral $ n
   patDecode (ConstructorP _ _ t _) = fromIntegral $ t
   patDecode (EffectBindP _ _ t _ _) = fromIntegral $ t
   patDecode _ = error "unexpected pattern for ANF"
@@ -402,7 +431,7 @@ anfArg
   -> Term v a
   -> ([(v, ANormal v)], v)
 anfArg avoid resolve tm = case anfBlock avoid resolve tm of
-  (ctx, ABTN.TVar v) -> (ctx, v)
+  (ctx, TVar v) -> (ctx, v)
   (ctx, tm) -> (ctx ++ [(fv, tm)], fv)
     where fv = freshANF avoid $ ABTN.freeVars tm
 
