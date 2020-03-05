@@ -193,6 +193,7 @@ library
     time,
     transformers,
     unison-core,
+    unix,
     unliftio,
     util,
     vector

@@ -44,6 +44,7 @@ pullBranch
 pullBranch localPath uri treeish = do
   checkForGit
   e <- liftIO . Ex.tryAny . whenM (doesDirectoryExist localPath) $
+    trace ("Git.hs: erasing " ++ localPath)
     removeDirectoryRecursive localPath
   case e of
     Left e -> throwError (SomeOtherError (Text.pack (show e)))
