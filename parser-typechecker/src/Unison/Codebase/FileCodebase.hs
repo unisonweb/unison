@@ -6,6 +6,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Unison.Codebase.FileCodebase
 ( getRootBranch        -- used by Git module
@@ -62,7 +65,6 @@ import           System.Path                    ( replaceRoot
                                                 , files
                                                 , dirPath
                                                 )
-import qualified System.Posix.Files            as Files
 import           System.Exit                    ( exitFailure, exitSuccess )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase                ( Codebase(Codebase)
@@ -107,6 +109,7 @@ import qualified Control.Monad.State           as State
 import Control.Lens
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Monoid as Monoid
+import Data.Monoid.Generic -- (GenericSemigroup, GenericMonoid)
 
 type CodebasePath = FilePath
 
@@ -117,15 +120,9 @@ data SyncedEntities = SyncedEntities
   , __syncedWatches  :: Set Reference
   , _syncedEdits    :: Set Branch.EditHash
   , _syncDestExists :: Set FilePath
-  }
-
-instance Semigroup SyncedEntities where
-  SyncedEntities t1 d1 r1 w1 e1 f1 <> SyncedEntities t2 d2 r2 w2 e2 f2 =
-    SyncedEntities (t1 <> t2) (d1 <> d2) (r1 <> r2) (w1 <> w2) (e1 <> e2) (f1 <> f2)
-
-instance Monoid SyncedEntities where
-  mempty = SyncedEntities mempty mempty mempty mempty mempty mempty
-  mappend = (<>)
+  } deriving Generic
+  deriving Semigroup via GenericSemigroup SyncedEntities
+  deriving Monoid via GenericMonoid SyncedEntities
 
 makeLenses ''SyncedEntities
 
@@ -229,7 +226,7 @@ watchesDir :: CodebasePath -> Text -> FilePath
 watchesDir root UF.RegularWatch = root </> "watches" </> "_cache"
 watchesDir root kind = root </> "watches" </> encodeFileName (Text.unpack kind)
 watchPath :: CodebasePath -> UF.WatchKind -> Reference.Id -> FilePath
-watchPath root kind id = 
+watchPath root kind id =
   watchesDir root (Text.pack kind) </> componentIdToString id <> ".ub"
 
 typeIndexDir :: CodebasePath -> Reference -> FilePath
@@ -310,7 +307,7 @@ touchReferentFile id fp =
 touchFile :: MonadIO m => FilePath -> m ()
 touchFile fp = do
   createDirectoryIfMissing True (takeDirectory fp)
-  liftIO $ Files.touchFile fp
+  liftIO $ writeFile fp ""
 
 -- Relation Dependency Dependent, e.g. [(List.foldLeft, List.reverse)]
 -- root / "dependents" / "_builtin" / Nat / yourFunction
@@ -596,10 +593,10 @@ copySyncToDirectory srcPath destPath branch =
     \h -> copyFileWithParents (editsPath srcPath h) (editsPath destPath h)
   -- half-generic function to eliminate duplicated logic above
   copyHelper :: forall m h. (MonadIO m, MonadState SyncedEntities m, Ord h)
-             => SimpleLens SyncedEntities (Set h) 
-             -> (FilePath -> h -> FilePath) 
-             -> (h -> m ()) 
-             -> h 
+             => SimpleLens SyncedEntities (Set h)
+             -> (FilePath -> h -> FilePath)
+             -> (h -> m ())
+             -> h
              -> m ()
   copyHelper l getFilename f h =
     let filePath = getFilename destPath h in

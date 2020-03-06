@@ -161,6 +161,7 @@ library
     free,
     fsnotify,
     fsutils,
+    generic-monoid,
     hashable,
     hashtables,
     haskeline,
@@ -193,7 +194,6 @@ library
     time,
     transformers,
     unison-core,
-    unix,
     unliftio,
     util,
     vector
