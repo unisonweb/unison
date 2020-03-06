@@ -1,8 +1,10 @@
-{-# Language ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# Language PatternSynonyms #-}
 {-# Language OverloadedStrings #-}
 
 module Unison.CommandLine.DisplayValues where
+
+import Data.Foldable ( fold )
 
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
@@ -29,58 +31,66 @@ displayTerm :: (Var v, Monad m)
            -> (Referent -> m (Maybe (Type v a)))
            -> (Reference -> m (Maybe (Term v a)))
            -> (Reference -> m (Maybe (DD.Decl v a)))
-           -> Term v a 
+           -> Term v a
            -> m Pretty
 displayTerm pped terms typeOf eval types tm = case tm of
   -- todo: can dispatch on other things with special rendering
   Term.Ref' r -> eval r >>= \case
-    Nothing -> pure $ termName (PPE.suffixifiedPPE pped) (Referent.Ref r) 
+    Nothing -> pure $ termName (PPE.suffixifiedPPE pped) (Referent.Ref r)
     Just tm -> displayDoc pped terms typeOf eval types tm
   _ -> displayDoc pped terms typeOf eval types tm
 
-displayDoc :: (Var v, Monad m)
-           => PPE.PrettyPrintEnvDecl 
+displayDoc :: forall v m a. (Var v, Monad m)
+           => PPE.PrettyPrintEnvDecl
            -> (Reference -> m (Maybe (Term v a)))
            -> (Referent  -> m (Maybe (Type v a)))
            -> (Reference -> m (Maybe (Term v a)))
            -> (Reference -> m (Maybe (DD.Decl v a)))
-           -> Term v a 
+           -> Term v a
            -> m Pretty
-displayDoc pped terms typeOf evaluated types t = go t
+displayDoc pped terms typeOf evaluated types = go
   where
-  go (DD.DocJoin docs) = foldMap id <$> traverse go docs
+  go (DD.DocJoin docs) = fold <$> traverse go docs
   go (DD.DocBlob txt) = pure $ P.paragraphyText txt
-  go (DD.DocLink (DD.LinkTerm (Term.TermLink' r))) = 
+  go (DD.DocLink (DD.LinkTerm (Term.TermLink' r))) =
     pure $ P.underline (termName (PPE.suffixifiedPPE pped) r)
-  go (DD.DocLink (DD.LinkType (Term.TypeLink' r))) = 
+  go (DD.DocLink (DD.LinkType (Term.TypeLink' r))) =
     pure $ P.underline (typeName (PPE.suffixifiedPPE pped) r)
-  go (DD.DocSource (DD.LinkTerm (Term.TermLink' r))) = prettyTerm terms r 
+  go (DD.DocSource (DD.LinkTerm (Term.TermLink' r))) = prettyTerm terms r
   go (DD.DocSource (DD.LinkType (Term.TypeLink' r))) = prettyType r
   go (DD.DocSignature (Term.TermLink' r)) = prettySignature r
-  go (DD.DocEvaluate (Term.TermLink' r)) = prettyTerm evaluated r
+  go (DD.DocEvaluate (Term.TermLink' r)) = prettyEval evaluated r
   go tm = pure $ TP.pretty (PPE.suffixifiedPPE pped) tm
   prettySignature r = typeOf r >>= \case
-    Nothing -> pure $ termName (PPE.unsuffixifiedPPE pped) r 
-    Just typ -> pure . P.group $ 
-      TypePrinter.prettySignatures 
-        (PPE.suffixifiedPPE pped) 
+    Nothing -> pure $ termName (PPE.unsuffixifiedPPE pped) r
+    Just typ -> pure . P.group $
+      TypePrinter.prettySignatures
+        (PPE.suffixifiedPPE pped)
         [(PPE.termName (PPE.unsuffixifiedPPE pped) r, typ)]
+  prettyEval terms r = case r of
+    Referent.Ref (Reference.Builtin n) -> pure . P.syntaxToColor $ P.text n
+    Referent.Ref ref ->
+      let ppe = PPE.declarationPPE pped ref
+      in  terms ref >>= \case
+            Nothing -> pure $ "😶  Missing term source for: " <> termName ppe r
+            Just tm -> pure $ TP.pretty ppe tm
+    Referent.Con r _ _ -> pure $ typeName (PPE.declarationPPE pped r) r
   prettyTerm terms r = case r of
-    Referent.Ref (Reference.Builtin _) -> prettySignature r 
+    Referent.Ref (Reference.Builtin _) -> prettySignature r
     Referent.Ref ref -> let ppe = PPE.declarationPPE pped ref in terms ref >>= \case
       Nothing -> pure $ "😶  Missing term source for: " <> termName ppe r
       Just tm -> pure . P.syntaxToColor $ P.group $ TP.prettyBinding ppe (PPE.termName ppe r) tm
-    Referent.Con r _ _ -> prettyType r 
+    Referent.Con r _ _ -> prettyType r
   prettyType r = let ppe = PPE.declarationPPE pped r in types r >>= \case
     Nothing -> pure $ "😶  Missing type source for: " <> typeName ppe r
     Just ty -> pure . P.syntaxToColor $ P.group $ DP.prettyDecl ppe r (PPE.typeName ppe r) ty
 
 termName :: PPE.PrettyPrintEnv -> Referent -> Pretty
-termName ppe r = P.syntaxToColor $ 
+termName ppe r = P.syntaxToColor $
   NP.styleHashQualified'' (NP.fmt S.Reference) name
   where name = PPE.termName ppe r
 
 typeName :: PPE.PrettyPrintEnv -> Reference -> Pretty
-typeName ppe r = P.syntaxToColor $ 
+typeName ppe r = P.syntaxToColor $
   NP.styleHashQualified'' (NP.fmt S.Reference) name
   where name = PPE.typeName ppe r
