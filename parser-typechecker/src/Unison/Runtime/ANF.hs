@@ -38,11 +38,12 @@ module Unison.Runtime.ANF
   , toSuperNormal
   , anfTerm
   , letANF
+  , sink
   ) where
 
 import Unison.Prelude
 
-import Data.Bifunctor (second)
+import Data.Bifunctor (Bifunctor(..))
 import Data.Bifoldable (Bifoldable(..))
 import Data.List hiding (and,or)
 import Prelude hiding (abs,and,or,seq)
@@ -224,9 +225,31 @@ data ANormalTF v e
   | AApp (Func v) [v]
   | AVar v
 
+instance Functor (ANormalBF v) where
+  fmap f (ALet bn bo) = ALet (f <$> bn) $ f bo
+  fmap f (ATm tm) = ATm $ f <$> tm
+
+instance Bifunctor ANormalBF where
+  bimap f g (ALet bn bo) = ALet (bimap f g bn) $ g bo
+  bimap f g (ATm tm) = ATm (bimap f g tm)
+
 instance Bifoldable ANormalBF where
   bifoldMap f g (ALet b e) = bifoldMap f g b <> g e
   bifoldMap f g (ATm e) = bifoldMap f g e
+
+instance Functor (ANormalTF v) where
+  fmap _ (AVar v) = AVar v
+  fmap _ (ALit l) = ALit l
+  fmap f (AMatch v br) = AMatch v $ f <$> br
+  fmap f (AHnd v e) = AHnd v $ f e
+  fmap _ (AApp f args) = AApp f args
+
+instance Bifunctor ANormalTF where
+  bimap f _ (AVar v) = AVar (f v)
+  bimap _ _ (ALit l) = ALit l
+  bimap f g (AMatch v br) = AMatch (f v) $ fmap g br
+  bimap f g (AHnd v e) = AHnd (f v) $ g e
+  bimap f _ (AApp fu args) = AApp (fmap f fu) $ fmap f args
 
 instance Bifoldable ANormalTF where
   bifoldMap f _ (AVar v) = f v
@@ -284,6 +307,9 @@ unlets' :: Var v => ANormal v -> ([(v, ANormalT v)], ANormal v)
 unlets' (TLet u bu bo) = ((u,bu):ctx, bo')
   where (ctx, bo') = unlets' bo
 unlets' tm = ([], tm)
+
+directVars :: Var v => ANormalT v -> Set.Set v
+directVars = bifoldMap Set.singleton (const mempty)
 
 freeVarsT :: Var v => ANormalT v -> Set.Set v
 freeVarsT = bifoldMap Set.singleton ABTN.freeVars
@@ -479,6 +505,26 @@ anfArg avoid resolve tm = case anfBlock avoid resolve tm of
   (ctx, AVar v) -> (ctx, v)
   (ctx, tm) -> (ctx ++ [(fv, tm)], fv)
     where fv = freshANF avoid $ freeVarsT tm
+
+sink :: Var v => v -> ANormalT v -> ANormal v -> ANormal v
+sink v tm = dive $ freeVarsT tm
+  where
+  dive _ exp | v `Set.notMember` ABTN.freeVars exp = exp
+  dive avoid exp@(TLet u bn bo)
+    | v `Set.member` directVars bn -- we need to stop here
+    = let w = freshANF avoid (ABTN.freeVars exp)
+       in TLet w tm $ ABTN.rename v w exp
+    | otherwise
+    = TLet u bn' $ dive avoid' bo
+    where
+    avoid' = Set.insert u avoid
+    bn' | v `Set.notMember` freeVarsT bn = bn
+        | otherwise = dive avoid' <$> bn
+  dive avoid exp@(TTm tm)
+    | v `Set.member` directVars tm -- same as above
+    = let w = freshANF avoid (ABTN.freeVars exp)
+       in TLet w tm $ ABTN.rename v w exp
+    | otherwise = TTm $ dive avoid <$> tm
 
 freshANF :: Var v => Set v -> Set v -> v
 freshANF avoid free
