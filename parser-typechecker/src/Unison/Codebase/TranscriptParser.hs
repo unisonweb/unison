@@ -171,6 +171,7 @@ run dir configFile stanzas codebase = do
       outputEcho :: String -> IO ()
       outputEcho = withToggledHide True
 
+      awaitInput :: IO (Either Event Input)
       awaitInput = do
 
         -- pop a command from the queue
@@ -248,6 +249,7 @@ run dir configFile stanzas codebase = do
                     atomically . Q.enqueue cmdQueue $ Nothing
                     awaitInput
 
+      loadPreviousUnisonBlock :: ScratchFileName -> IO LoadSourceResult
       loadPreviousUnisonBlock name = do
         ufs <- readIORef unisonFiles
         case Map.lookup name ufs of
@@ -256,6 +258,7 @@ run dir configFile stanzas codebase = do
           Nothing ->
             return $ InvalidSourceNameError
 
+      cleanup :: IO ()
       cleanup = do Runtime.terminate runtime; cancelConfig
 
       print o = do
@@ -284,6 +287,7 @@ run dir configFile stanzas codebase = do
           "Transcript failed due to the message above.", "",
           "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
+      loop :: HandleInput.LoopState IO Symbol -> IO Text
       loop state = do
         writeIORef pathRef (view HandleInput.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
@@ -304,8 +308,8 @@ run dir configFile stanzas codebase = do
           Just () -> do
             writeIORef numberedArgsRef (HandleInput._numberedArgs state')
             loop state'
-    (`finally` cleanup)
-      $ loop (HandleInput.loopState0 root initialPath)
+
+    (`finally` cleanup) $ loop (HandleInput.loopState0 root initialPath)
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do
