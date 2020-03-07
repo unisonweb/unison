@@ -610,7 +610,7 @@ pull = InputPattern
       , ( "`pull remote`"
         , "merges the remote namespace `remote`"
         <>"into the current namespace")
-      , ( "`push`"
+      , ( "`pull`"
         , "merges the remote namespace configured in `.unisonConfig`"
         <> "with the key `GitUrl.ns` where `ns` is the current namespace,"
         <> "into the current namespace")
