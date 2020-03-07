@@ -7,7 +7,6 @@ module Unison.Codebase.TranscriptParser (
   run, parse, parseFile)
   where
 
--- import qualified Text.Megaparsec.Char as P
 import Control.Concurrent.STM (atomically)
 import Control.Exception (finally)
 import Control.Monad.State (runStateT)
