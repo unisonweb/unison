@@ -156,9 +156,9 @@ run dir configFile stanzas codebase = do
         unless (hideOutput inputEcho hide) $ modifyIORef' out (\acc -> acc <> pure msg)
 
       hideOutput :: Bool -> Hidden -> Bool
-      hideOutput inputEcho = \case
+      hideOutput echoInput = \case
         Shown      -> False
-        HideOutput -> True && (not inputEcho)
+        HideOutput -> not echoInput
         HideAll    -> True
 
       output = output' False
