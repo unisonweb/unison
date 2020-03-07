@@ -2,48 +2,74 @@
 {-# Language BangPatterns #-}
 {-# Language ViewPatterns #-}
 
-module Unison.Codebase.TranscriptParser (
-  Stanza(..), FenceType, ExpectingError, Hidden, Err, UcmCommand(..),
-  run, parse, parseFile)
-  where
+module Unison.Codebase.TranscriptParser
+  ( ExpectingError
+  , Err
+  , FenceType
+  , Hidden
+  , Stanza(..)
+  , UcmCommand(..)
+  , parse
+  , parseFile
+  , run
+  )
+where
 
-import Control.Concurrent.STM (atomically)
-import Control.Exception (finally)
-import Control.Monad.State (runStateT)
-import Data.IORef
-import Prelude hiding (readFile, writeFile)
-import System.Directory ( doesFileExist )
-import System.Exit (die)
-import System.IO.Error (catchIOError)
-import Unison.Codebase (Codebase)
-import Unison.Codebase.Editor.Command (LoadSourceResult (..))
-import Unison.Codebase.Editor.Input (Input (..), Event(UnisonFileChanged))
-import Unison.CommandLine
-import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
-import Unison.CommandLine.InputPatterns (validInputs)
-import Unison.CommandLine.OutputMessages (notifyUser, notifyNumbered)
-import Unison.Parser (Ann)
-import Unison.Prelude
-import Unison.PrettyTerminal
-import Unison.Symbol (Symbol)
-import Unison.CommandLine.Main (asciiartUnison, expandNumber)
-import qualified Data.Char as Char
-import qualified Data.Map as Map
-import qualified Data.Text as Text
-import qualified System.IO as IO
-import qualified Crypto.Random as Random
-import qualified Text.Megaparsec as P
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
-import qualified Unison.Codebase.Editor.HandleInput as HandleInput
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Runtime as Runtime
-import qualified Unison.CommandLine.InputPattern as IP
-import qualified Unison.Runtime.Rt1IO as Rt1
-import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.TQueue as Q
+import           Control.Concurrent.STM         ( atomically )
+import           Control.Exception              ( finally )
+import           Control.Lens                   ( view )
+import           Control.Monad.State            ( runStateT )
+import           Data.IORef
+import           Prelude                 hiding ( readFile
+                                                , writeFile
+                                                )
+import           System.Directory               ( doesFileExist )
+import           System.Exit                    ( die )
+import           System.IO.Error                ( catchIOError )
+import           Unison.Codebase                ( Codebase )
+import           Unison.Codebase.Editor.Command ( LoadSourceResult(..) )
+import           Unison.Codebase.Editor.Input   ( Input(..)
+                                                , Event(UnisonFileChanged)
+                                                )
+import           Unison.CommandLine
+import           Unison.CommandLine.InputPattern
+                                                ( InputPattern
+                                                  ( aliases
+                                                  , patternName
+                                                  )
+                                                )
+import           Unison.CommandLine.Main        ( asciiartUnison
+                                                , expandNumber
+                                                )
+import           Unison.CommandLine.InputPatterns
+                                                ( validInputs )
+import           Unison.CommandLine.OutputMessages
+                                                ( notifyUser
+                                                , notifyNumbered
+                                                )
+import           Unison.Parser                  ( Ann )
+import           Unison.Prelude
+import           Unison.PrettyTerminal
+import           Unison.Symbol                  ( Symbol )
+import qualified Crypto.Random                 as Random
+import qualified Data.Char                     as Char
+import qualified Data.Map                      as Map
+import qualified Data.Text                     as Text
+import qualified System.IO                     as IO
+import qualified Text.Megaparsec               as P
+import qualified Unison.Codebase               as Codebase
+import qualified Unison.Codebase.Editor.HandleCommand
+                                               as HandleCommand
+import qualified Unison.Codebase.Editor.HandleInput
+                                               as HandleInput
 import qualified Unison.Codebase.Editor.Output as Output
-import Control.Lens (view)
+import qualified Unison.Codebase.Path          as Path
+import qualified Unison.Codebase.Runtime       as Runtime
+import qualified Unison.CommandLine.InputPattern
+                                               as IP
+import qualified Unison.Runtime.Rt1IO          as Rt1
+import qualified Unison.Util.Pretty            as P
+import qualified Unison.Util.TQueue            as Q
 
 type ExpectingError = Bool
 data Hidden = Shown | HideOutput | HideAll
