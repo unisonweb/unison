@@ -13,6 +13,7 @@ import           Control.Concurrent.STM         ( atomically )
 import           Control.Exception              ( finally )
 import           Control.Lens                   ( view )
 import           Control.Monad.State            ( runStateT )
+import           Data.Bifunctor                 ( first )
 import           Data.IORef
 import           Prelude                 hiding ( readFile
                                                 , writeFile
@@ -116,9 +117,8 @@ parseFile filePath = do
     pure $ Left $ show filePath ++ " does not exist"
 
 parse :: String -> Text -> Either Err [Stanza]
-parse srcName txt = case P.parse (stanzas <* P.eof) srcName txt of
-  Right a -> Right a
-  Left e -> Left (show e)
+parse srcName txt = 
+  first show $ P.parse (stanzas <* P.eof) srcName txt
 
 run :: FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> IO Text
 run dir configFile stanzas codebase = do
