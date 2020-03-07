@@ -110,9 +110,8 @@ instance Show Stanza where
 parseFile :: FilePath -> IO (Either Err [Stanza])
 parseFile filePath = do
   exists <- doesFileExist filePath
-  if exists then do
-    txt <- readUtf8 filePath
-    pure $ parse filePath txt
+  if exists then
+    parse filePath <$> readUtf8 filePath
   else
     pure $ Left $ show filePath ++ " does not exist"
 
