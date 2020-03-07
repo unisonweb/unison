@@ -400,9 +400,6 @@ word' txt = P.try $ do
 word :: Text -> P Text
 word = word'
 
--- token :: P a -> P a
--- token p = p <* spaces
-
 lineToken :: P a -> P a
 lineToken p = p <* nonNewlineSpaces
 
@@ -425,6 +422,3 @@ language = P.takeWhileP Nothing (\ch -> Char.isDigit ch || Char.isLower ch || ch
 
 spaces :: P ()
 spaces = void $ P.takeWhileP (Just "spaces") Char.isSpace
-
--- single :: Char -> P Char
--- single t = P.satisfy (== t)
