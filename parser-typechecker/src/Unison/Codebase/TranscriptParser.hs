@@ -66,12 +66,11 @@ import qualified Unison.Util.Pretty            as P
 import qualified Unison.Util.TQueue            as Q
 
 type ExpectingError = Bool
-data Hidden = Shown | HideOutput | HideAll
 type Err = String
 type ScratchFileName = Text
-
 type FenceType = Text
 
+data Hidden = Shown | HideOutput | HideAll
 data UcmCommand = UcmCommand Path.Absolute Text
 
 data Stanza
