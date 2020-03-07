@@ -144,7 +144,7 @@ run dir configFile stanzas codebase = do
     (config, cancelConfig)   <-
       catchIOError (watchConfig configFile) $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
-    traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1..])
+    traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1 :: Int ..])
     let patternMap =
           Map.fromList
             $   validInputs
@@ -280,6 +280,7 @@ run dir configFile stanzas codebase = do
           else dieWithMsg
         pure numberedArgs
 
+      -- output ``` and new lines then call transcriptFailure
       dieWithMsg :: forall a. IO a
       dieWithMsg = do
         output "\n```\n\n"
