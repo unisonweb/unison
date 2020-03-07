@@ -150,25 +150,37 @@ run dir configFile stanzas codebase = do
             $   validInputs
             >>= (\p -> (patternName p, p) : ((, p) <$> aliases p))
     let
-      output' :: Bool -> String -> IO ()
-      output' inputEcho msg = do
+      appendOutput :: Bool -> Hidden -> Bool
+      appendOutput echoInput = \case
+        Shown      -> True
+        HideOutput -> echoInput -- True makes me Shown, False makes me HideAll
+        HideAll    -> False
+
+      withToggledHide :: Bool -> String -> IO ()
+      withToggledHide echoInput msg = do
         hide <- readIORef hidden
-        unless (hideOutput inputEcho hide) $ modifyIORef' out (\acc -> acc <> pure msg)
+        when (appendOutput echoInput hide) $ modifyIORef' out (\acc -> acc <> pure msg)
 
-      hideOutput :: Bool -> Hidden -> Bool
-      hideOutput echoInput = \case
-        Shown      -> False
-        HideOutput -> not echoInput
-        HideAll    -> True
+      -- Append this string to the output when the block is visible.
+      -- The output will be discarded when 'hide' and 'hide:all' are specified.
+      output :: String -> IO ()
+      output = withToggledHide False
 
-      output = output' False
-      outputEcho = output' True
+      -- Append this string to the output when the block is visible or hidden.
+      -- The output will be discarded when 'hide:all' is specified.
+      outputEcho :: String -> IO ()
+      outputEcho = withToggledHide True
 
       awaitInput = do
+
+        -- pop a command from the queue
         cmd <- atomically (Q.tryDequeue cmdQueue)
+
         case cmd of
+
+          -- we popped a Nothing
           Just Nothing -> do
-            output "\n```\n" -- this ends the ucm block
+            output "\n```\n"
             writeIORef hidden Shown
             awaitInput
           Just (Just p@(UcmCommand path lineTxt)) -> do
@@ -245,6 +257,7 @@ run dir configFile stanzas codebase = do
             return $ InvalidSourceNameError
 
       cleanup = do Runtime.terminate runtime; cancelConfig
+
       print o = do
         msg <- notifyUser dir o
         errOk <- readIORef allowErrors
@@ -274,7 +287,7 @@ run dir configFile stanzas codebase = do
       loop state = do
         writeIORef pathRef (view HandleInput.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
-            rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)) 
+            rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (const $ pure ())
                                      runtime
