@@ -3,13 +3,7 @@
 {-# Language ViewPatterns #-}
 
 module Unison.Codebase.TranscriptParser
-  ( ExpectingError
-  , Err
-  , FenceType
-  , Hidden
-  , Stanza(..)
-  , UcmCommand(..)
-  , parse
+  ( parse
   , parseFile
   , run
   )
