@@ -8,25 +8,48 @@ import           Shellmet                       ( )
 import           System.Directory
 import           System.FilePath                ( (</>)
                                                 , takeExtensions
+                                                , takeBaseName
                                                 )
-import           Data.Text                      ( pack )
+import           System.Process                 ( readProcessWithExitCode )
+
+import           Data.Text                      ( pack 
+                                                , unpack
+                                                )
 import           Data.List
 
-buildTest :: FilePath -> String -> Test ()
-buildTest dir transcript = scope transcript $ do
+type TestBuilder = FilePath -> String -> Test ()
+
+testBuilder :: FilePath -> String -> Test ()
+testBuilder dir transcript = scope transcript $ do
   io $ "stack" ["exec", "unison", "--", "transcript", pack (dir </> transcript)]
   ok
 
-test :: Test ()
-test = do
+testBuilder' :: FilePath -> String -> Test ()
+testBuilder' dir transcript = scope transcript $ do
+  let input = pack (dir </> transcript)
+  let output = dir </> takeBaseName transcript <> ".output.md"
+  io $ runAndCaptureOutput "stack" ["exec", "unison", "--", "transcript", input] output
+  ok
+  where 
+    -- Given a command and arguments, run it and capture the standard output to a file
+    -- regardless of success or failure.
+    runAndCaptureOutput :: FilePath -> [Text] -> FilePath -> IO ()  
+    runAndCaptureOutput cmd args outfile = do
+      t <- readProcessWithExitCode cmd (map unpack args) ""
+      let output = (\(_, stdout, _) -> stdout) t
+      writeUtf8 outfile $ pack output
 
-  -- each transcript becomes a test case and all tests reduced into one
-  let dir = "unison-src" </> "transcripts"
+buildTests :: TestBuilder -> FilePath -> Test ()
+buildTests testBuilder dir = do 
   files <- io $ listDirectory dir
   let transcripts = filter (\f -> takeExtensions f == ".md") files
-  tests (buildTest dir <$> transcripts)
+  tests (testBuilder dir <$> transcripts)
 
-  -- the output of failed transcripts is preserved in the . dir
+-- Transcripts that exit successfully get cleaned-up by the transcript parser.
+-- Any remaining folders matching "transcript-.*" are output directories
+-- of failed transcripts and should be moved under the "test-output" folder
+cleanup :: Test ()
+cleanup = do
   files' <- io $ listDirectory "."
   let dirs = filter ("transcript-" `isPrefixOf`) files'
 
@@ -41,6 +64,13 @@ test = do
         , "NOTE: All transcript codebases have been moved into"
         , "the `test-output` directory. Feel free to delete it."
         ]
+
+test :: Test ()
+test = do
+
+  buildTests testBuilder $"unison-src" </> "transcripts"
+  buildTests testBuilder' $"unison-src" </> "transcripts" </> "errors"
+  cleanup
 
 main :: IO ()
 main = run test
