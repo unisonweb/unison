@@ -117,7 +117,7 @@ parseFile filePath = do
     pure $ Left $ show filePath ++ " does not exist"
 
 parse :: String -> Text -> Either Err [Stanza]
-parse srcName txt = 
+parse srcName txt =
   first show $ P.parse (stanzas <* P.eof) srcName txt
 
 run :: FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> IO Text
