@@ -28,16 +28,21 @@ testBuilder' :: FilePath -> String -> Test ()
 testBuilder' dir transcript = scope transcript $ do
   let input = pack (dir </> transcript)
   let output = dir </> takeBaseName transcript <> ".output.md"
-  io $ runAndCaptureOutput "stack" ["exec", "unison", "--", "transcript", input] output
+  io $ runAndCaptureError "stack" ["exec", "unison", "--", "transcript", input] output
   ok
   where 
-    -- Given a command and arguments, run it and capture the standard output to a file
+    -- Given a command and arguments, run it and capture the standard error to a file
     -- regardless of success or failure.
-    runAndCaptureOutput :: FilePath -> [Text] -> FilePath -> IO ()  
-    runAndCaptureOutput cmd args outfile = do
+    runAndCaptureError :: FilePath -> [Text] -> FilePath -> IO ()  
+    runAndCaptureError cmd args outfile = do
       t <- readProcessWithExitCode cmd (map unpack args) ""
-      let output = (\(_, stdout, _) -> stdout) t
-      writeUtf8 outfile $ pack output
+      let output = (\(_, _, stderr) -> stderr) t
+      writeUtf8 outfile $ (pack . dropRunMessage) output
+
+    -- Given the standard error, drops the part in the end that changes each run
+    dropRunMessage :: String -> String  
+    dropRunMessage = unlines . reverse . drop 3 . reverse . lines
+
 
 buildTests :: TestBuilder -> FilePath -> Test ()
 buildTests testBuilder dir = do 
@@ -68,7 +73,7 @@ cleanup = do
 test :: Test ()
 test = do
 
-  buildTests testBuilder $"unison-src" </> "transcripts"
+  buildTests testBuilder  $"unison-src" </> "transcripts"
   buildTests testBuilder' $"unison-src" </> "transcripts" </> "errors"
   cleanup
 
