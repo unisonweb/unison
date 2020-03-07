@@ -198,11 +198,11 @@ run dir configFile stanzas codebase = do
                 -- invalid command is treated as a failure
                 case Map.lookup cmd patternMap of
                   Nothing ->
-                    die
+                    dieWithMsg
                   Just pat -> case IP.parse pat args of
                     Left msg -> do
                       output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
-                      die
+                      dieWithMsg
                     Right input -> pure $ Right input
           Nothing -> do
             errOk <- readIORef allowErrors
@@ -268,7 +268,7 @@ run dir configFile stanzas codebase = do
         output rendered
         when (Output.isFailure o) $
           if errOk then writeIORef hasErrors True
-          else die
+          else dieWithMsg
 
       printNumbered o = do
         let (msg, numberedArgs) = notifyNumbered o
@@ -277,10 +277,11 @@ run dir configFile stanzas codebase = do
         output rendered
         when (Output.isNumberedFailure o) $
           if errOk then writeIORef hasErrors True
-          else die
+          else dieWithMsg
         pure numberedArgs
 
-      die = do
+      dieWithMsg :: forall a. IO a
+      dieWithMsg = do
         output "\n```\n\n"
         transcriptFailure out $ Text.unlines [
           "\128721", "",
