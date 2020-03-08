@@ -51,12 +51,11 @@ import           UnliftIO.Directory             ( createDirectoryIfMissing
 import           System.FilePath                ( FilePath
                                                 , takeBaseName
                                                 , takeFileName
-                                                , takeDirectory
                                                 , (</>)
                                                 )
 import           System.Directory               ( copyFile
                                                 , getHomeDirectory
-                                                , makeAbsolute
+                                                , canonicalizePath
                                                 )
 import           System.Path                    ( replaceRoot
                                                 , createDir
@@ -128,10 +127,8 @@ initCodebaseAndExit mdir = do
   exitSuccess
 
 absDir :: FilePath -> IO FilePath
-absDir dir 
-  | dir == "." = makeAbsolute dir
-  | dir == ".." = takeDirectory <$> makeAbsolute "."
-  | otherwise = pure dir
+absDir dir =
+  if dir == "." || dir == ".." then canonicalizePath dir else pure dir
 
 initCodebase :: FilePath -> IO (Codebase IO Symbol Ann)
 initCodebase dir = do
