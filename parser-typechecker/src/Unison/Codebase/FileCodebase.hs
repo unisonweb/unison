@@ -51,9 +51,13 @@ import           UnliftIO.Directory             ( createDirectoryIfMissing
 import           System.FilePath                ( FilePath
                                                 , takeBaseName
                                                 , takeFileName
+                                                , takeDirectory
                                                 , (</>)
                                                 )
-import           System.Directory               ( copyFile, getHomeDirectory )
+import           System.Directory               ( copyFile
+                                                , getHomeDirectory
+                                                , makeAbsolute
+                                                )
 import           System.Path                    ( replaceRoot
                                                 , createDir
                                                 , subDirs
@@ -123,20 +127,26 @@ initCodebaseAndExit mdir = do
   _ <- initCodebase dir
   exitSuccess
 
+absDir :: FilePath -> IO FilePath
+absDir dir 
+  | dir == "." = makeAbsolute dir
+  | dir == ".." = takeDirectory <$> makeAbsolute "."
+  | otherwise = pure dir
+
 initCodebase :: FilePath -> IO (Codebase IO Symbol Ann)
 initCodebase dir = do
   let path = dir </> codebasePath
   let theCodebase = codebase1 V1.formatSymbol formatAnn path
-  let prettyDir = P.endSentence . P.string $ dir
+  prettyDir <- P.string <$> absDir dir
+
   whenM (exists path) $
     do PT.putPrettyLn'
-         .  P.warnCallout
          .  P.wrap
          $  "It looks like there's already a codebase in: "
          <> prettyDir
        exitFailure
+
   PT.putPrettyLn'
-    .  P.warnCallout
     .  P.wrap
     $  "Initializing a new codebase in: "
     <> prettyDir
@@ -148,17 +158,14 @@ initCodebase dir = do
 getCodebaseOrExit :: Maybe FilePath -> IO (Codebase IO Symbol Ann)
 getCodebaseOrExit mdir = do
   (dir, errMsg) <- case mdir of
-    Just dir -> pure
-      ( dir
-      , "No codebase exists in "
-          <> (P.endSentence . P.string $ dir)
-          <> P.newline
-          <> "Run `ucm -codebase "
-          <> P.string dir
-          <> " init` to create one, then try again!" )
+    Just dir -> do
+      dir' <- P.string <$> absDir dir
+      let errMsg = P.lines ["No codebase exists in " <> dir'
+                           , "Run `ucm -codebase " <> P.string dir <> " init` to create one, then try again!"]
+      pure ( dir, errMsg)
     Nothing -> do
       dir <- getHomeDirectory
-      let errMsg = P.lines [ "No codebase exists in " <> (P.endSentence . P.string $ dir)
+      let errMsg = P.lines [ "No codebase exists in " <> P.string dir
                            , "Run `ucm init` to create one, then try again!" ]
       pure (dir, errMsg)
 
@@ -166,7 +173,7 @@ getCodebaseOrExit mdir = do
   let theCodebase = codebase1 V1.formatSymbol formatAnn path
   Codebase.initializeBuiltinCode theCodebase
   unlessM (exists path) $ do
-    PT.putPrettyLn'. P.warnCallout . P.wrap $ errMsg
+    PT.putPrettyLn' errMsg
     exitFailure
   pure theCodebase
 
