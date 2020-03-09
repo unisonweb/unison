@@ -406,9 +406,7 @@ nonNewlineSpaces :: P ()
 nonNewlineSpaces = void $ P.takeWhileP Nothing (\ch -> ch `elem` (" \t" :: String))
 
 hidden :: P Hidden
-hidden = (\case Just x -> x; Nothing -> Shown) <$> optional go where
-  go = ((\_ -> HideAll) <$> (word ":hide:all")) <|>
-       ((\_ -> HideOutput) <$> (word ":hide"))
+hidden = (const HideAll <$> word ":hide:all") <|> (const HideOutput <$> word ":hide") <|> pure Shown
 
 expectingError :: P ExpectingError
 expectingError = isJust <$> optional (word ":error")
