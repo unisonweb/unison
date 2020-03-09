@@ -126,15 +126,11 @@ initCodebaseAndExit mdir = do
   _ <- initCodebase dir
   exitSuccess
 
-absDir :: FilePath -> IO FilePath
-absDir dir =
-  if dir == "." || dir == ".." then canonicalizePath dir else pure dir
-
 initCodebase :: FilePath -> IO (Codebase IO Symbol Ann)
 initCodebase dir = do
   let path = dir </> codebasePath
   let theCodebase = codebase1 V1.formatSymbol formatAnn path
-  prettyDir <- P.string <$> absDir dir
+  prettyDir <- P.string <$> canonicalizePath dir
 
   whenM (exists path) $
     do PT.putPrettyLn'
@@ -156,7 +152,7 @@ getCodebaseOrExit :: Maybe FilePath -> IO (Codebase IO Symbol Ann)
 getCodebaseOrExit mdir = do
   (dir, errMsg) <- case mdir of
     Just dir -> do
-      dir' <- P.string <$> absDir dir
+      dir' <- P.string <$> canonicalizePath dir
       let errMsg = P.lines ["No codebase exists in " <> dir'
                            , "Run `ucm -codebase " <> P.string dir <> " init` to create one, then try again!"]
       pure ( dir, errMsg)
