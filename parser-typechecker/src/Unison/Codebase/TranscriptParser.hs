@@ -253,10 +253,8 @@ run dir configFile stanzas codebase = do
       loadPreviousUnisonBlock name = do
         ufs <- readIORef unisonFiles
         case Map.lookup name ufs of
-          Just uf -> do
-            return $ LoadSuccess uf
-          Nothing ->
-            return $ InvalidSourceNameError
+          Just uf -> return $ LoadSuccess uf
+          Nothing -> return InvalidSourceNameError
 
       cleanup :: IO ()
       cleanup = do Runtime.terminate runtime; cancelConfig
