@@ -28,7 +28,7 @@ putPrettyLn' :: P.Pretty CT.ColorText -> IO ()
 putPrettyLn' p | p == mempty = pure ()
 putPrettyLn' p = do
   width <- getAvailableWidth
-  less . P.toANSI width $ P.indentN 2 p
+  less . P.toANSI width $ p
 
 clearCurrentLine :: IO ()
 clearCurrentLine = do
