@@ -381,7 +381,7 @@ untilFence = do
     f <- P.lookAhead (P.optional fence)
     case f of
       Nothing -> do
-        oneOrTwoBackticks <- optional (word' "``" <|> word' "`")
+        oneOrTwoBackticks <- optional (word "``" <|> word "`")
         let start = fromMaybe "" oneOrTwoBackticks
         txt <- P.takeWhileP (Just "unfenced") (/= '`')
         eof <- P.lookAhead (P.optional P.eof)
@@ -390,14 +390,11 @@ untilFence = do
           Nothing -> go (acc <> pure start <> pure txt)
       Just _ -> pure $ fold acc
 
-word' :: Text -> P Text
-word' txt = P.try $ do
+word :: Text -> P Text
+word txt = P.try $ do
   chs <- P.takeP (Just $ show txt) (Text.length txt)
   guard (chs == txt)
   pure txt
-
-word :: Text -> P Text
-word = word'
 
 lineToken :: P a -> P a
 lineToken p = p <* nonNewlineSpaces
