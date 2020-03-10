@@ -735,7 +735,8 @@ stepManyAt0 actions b = go (first Path.toList <$> toList actions) b where
     stepChildren :: Map NameSegment (Branch m) -> Map NameSegment (Branch m)
     stepChildren m0 = foldl' g Map.empty (Map.keysSet m0 <> Map.keysSet childActions)
       where
-      g m seg = Map.insert seg child m where
+      insert seg child m = if isEmpty child then m else Map.insert seg child m 
+      g m seg = insert seg child m where
         child = case Map.lookup seg childActions of
           Just actions -> step (go actions) (Map.findWithDefault empty seg m0) 
           Nothing -> Map.findWithDefault empty seg m0 
@@ -755,11 +756,12 @@ stepManyAt0M actions b = go (first Path.toList <$> toList actions) b where
     stepChildren :: Map NameSegment (Branch m) -> n (Map NameSegment (Branch m))
     stepChildren m0 = foldM g Map.empty (Map.keysSet m0 <> Map.keysSet childActions)
       where
+      insert seg child m = if isEmpty child then m else Map.insert seg child m 
       g m seg = do
         child <- case Map.lookup seg childActions of
           Just actions -> stepM (go actions) (Map.findWithDefault empty seg m0) 
           Nothing -> pure $ Map.findWithDefault empty seg m0 
-        pure $ Map.insert seg child m
+        pure $ insert seg child m
     in do
       c2 <- stepChildren (view children b)
       currentAction (set children c2 b)
