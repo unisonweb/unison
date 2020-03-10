@@ -196,27 +196,15 @@ myLibrary.h x = x + 3
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #jlbhn80169
+  ⊙ #mquil07fad
   
     
   
-  ⊙ #83aqs82gho
+  ⊙ #4nfhqq566a
   
     + Adds / updates:
     
-      h
-  
-  ⊙ #eisjldgdgg
-  
-    + Adds / updates:
-    
-      g
-  
-  ⊙ #seb6uuoocl
-  
-    + Adds / updates:
-    
-      f
+      f g h
   
   □ #7asfbtqmoj (start of history)
 
