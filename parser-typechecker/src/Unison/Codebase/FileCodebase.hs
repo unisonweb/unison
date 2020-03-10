@@ -84,7 +84,10 @@ import qualified Unison.Hash                   as Hash
 import           Unison.Parser                  ( Ann(External) )
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
-import           Unison.Referent                ( Referent(..) )
+import           Unison.Referent                ( Referent
+                                                , pattern Ref
+                                                , pattern Con
+                                                , Referent' )
 import qualified Unison.Referent               as Referent
 import           Unison.Term                    ( Term )
 import qualified Unison.Term                   as Term
@@ -99,6 +102,10 @@ import qualified Unison.PrettyTerminal         as PT
 import           Unison.Symbol                  ( Symbol )
 import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.ShortHash (ShortHash)
+import qualified Unison.ShortHash as SH
+import qualified Unison.ConstructorType as CT
+import Unison.Util.Monoid (foldMapM)
 
 type CodebasePath = FilePath
 
@@ -557,13 +564,43 @@ putWatch putV putA path k id e = liftIO $ S.putWithParentDirs
   (watchesDir path (Text.pack k) </> componentIdToString id <> ".ub")
   e
 
-referencesByPrefix :: MonadIO m => CodebasePath -> Text -> m (Set Reference.Id)
-referencesByPrefix codebasePath p =
-  liftIO $ fmap (Set.fromList . join) . for [termsDir, typesDir] $ \f -> do
-    let dir = f codebasePath
-    paths <- filter (isPrefixOf $ Text.unpack p) <$> listDirectory dir
-    let refs = paths >>= (toList . componentIdFromString)
-    pure refs
+loadReferencesByPrefix
+  :: MonadIO m => FilePath -> ShortHash -> m (Set Reference.Id)
+loadReferencesByPrefix dir sh = liftIO $ do
+    refs <- mapMaybe Reference.fromShortHash
+             . filter (SH.isPrefixOf sh)
+             . mapMaybe SH.fromString
+            <$> listDirectory dir
+    pure $ Set.fromList [ i | Reference.DerivedId i <- refs]
+
+termReferencesByPrefix, typeReferencesByPrefix
+  :: MonadIO m => CodebasePath -> ShortHash -> m (Set Reference.Id)
+termReferencesByPrefix root = loadReferencesByPrefix (termsDir root)
+typeReferencesByPrefix root = loadReferencesByPrefix (typesDir root)
+
+-- returns all the derived terms and derived constructors
+termReferentsByPrefix :: MonadIO m
+  => Codebase m v a
+  -> CodebasePath
+  -> ShortHash
+  -> m (Set (Referent' Reference.Id))
+termReferentsByPrefix c root sh = do
+  terms <- termReferencesByPrefix root sh
+  ctors <- do
+    types <- typeReferencesByPrefix root sh
+    foldMapM collect types
+  pure (Set.map Referent.Ref' terms <> ctors)
+  where
+  -- load up the Decl for `ref` to see how many constructors it has,
+  -- and what constructor type
+  collect ref =
+   Codebase.getTypeDeclaration c ref <&> (\case
+    Nothing -> mempty
+    Just decl ->
+      Set.fromList [ Referent.Con' ref i ct
+                   | i <- [0 .. ctorCount-1]]
+      where ct = either (const CT.Effect) (const CT.Data) decl
+            ctorCount = length . DD.constructors' $ DD.asDataDecl decl)
 
 branchHashesByPrefix :: MonadIO m => CodebasePath -> ShortBranchHash -> m (Set Branch.Hash)
 branchHashesByPrefix codebasePath p =
@@ -613,7 +650,9 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
    -- todo: maintain a trie of references to come up with this number
           (pure 10)
    -- The same trie can be used to make this lookup fast:
-          (referencesByPrefix path)
+          (termReferencesByPrefix path)
+          (typeReferencesByPrefix path)
+          (termReferentsByPrefix c path)
           (pure 10)
           (branchHashesByPrefix path)
    in c

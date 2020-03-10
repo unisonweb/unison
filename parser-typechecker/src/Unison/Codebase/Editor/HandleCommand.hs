@@ -22,6 +22,7 @@ import           Control.Monad.Except           ( runExceptT )
 import qualified Data.Configurator             as Config
 import           Data.Configurator.Types        ( Config )
 import qualified Data.Map                      as Map
+import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import           System.Directory               ( getXdgDirectory
                                                 , XdgDirectory(..)
@@ -49,7 +50,6 @@ import           Unison.FileParsers             ( parseAndSynthesizeFile
                                                 , synthesizeFile'
                                                 )
 import qualified Unison.PrettyPrintEnv         as PPE
-import qualified Unison.ShortHash              as SH
 import Unison.Term (Term)
 import Unison.Type (Type)
 
@@ -154,8 +154,22 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     GetTermsOfType ty -> Codebase.termsOfType codebase ty
     GetTermsMentioningType ty -> Codebase.termsMentioningType codebase ty
     CodebaseHashLength -> Codebase.hashLength codebase
-    ReferencesByShortHash sh ->
-      Codebase.referencesByPrefix codebase (SH.toText sh)
+    TermReferencesByShortHash sh -> do
+      fromCodebase <- Codebase.termReferencesByPrefix codebase sh
+      let fromBuiltins =
+            Set.filter (\r -> sh == Reference.toShortHash r)
+                        B.intrinsicTermReferences
+      pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
+    TypeReferencesByShortHash sh -> do
+      fromCodebase <- Codebase.typeReferencesByPrefix codebase sh
+      let fromBuiltins =
+            Set.filter (\r -> sh == Reference.toShortHash r)
+                        B.intrinsicTypeReferences
+      pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
+    TermReferentsByShortHash sh -> do
+      fromCodebase <- Codebase.termReferentsByPrefix codebase sh
+      -- no built-in referents yet.
+      pure (Set.map (fmap Reference.DerivedId) fromCodebase)
     BranchHashLength -> Codebase.branchHashLength codebase
     BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
     LoadRemoteShortBranch GitRepo{..} sbh -> do

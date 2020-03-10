@@ -799,9 +799,12 @@ notifyUser dir o = case o of
     P.wrap "Try again with a few more hash characters to disambiguate."
     ]
   BadDestinationBranch _ -> pure "That destination namespace is bad."
-  TermNotFound' h ->
+  TermNotFound' sh ->
     pure $ "I could't find a term with hash "
-         <> (prettyShortHash $ Reference.toShortHash (Reference.DerivedId h))
+         <> (prettyShortHash sh)
+  TypeNotFound' sh ->
+    pure $ "I could't find a type with hash "
+         <> (prettyShortHash sh)
   NothingToPatch _patchPath dest -> pure $
     P.callout "😶" . P.wrap
        $ "This had no effect. Perhaps the patch has already been applied"

@@ -55,7 +55,7 @@ import           Unison.Name                  (Name)
 import qualified Unison.Name                  as Name
 import           Unison.Reference             (Reference)
 import qualified Unison.Reference             as Reference
-import           Unison.Referent              (Referent (..))
+import           Unison.Referent              (Referent)
 import qualified Unison.Referent              as Referent
 import           Unison.Util.Relation         (Relation)
 import qualified Unison.Util.Relation         as R

@@ -23,7 +23,6 @@ import Unison.CommandLine.InputPattern
          )
 import Unison.CommandLine
 import Unison.Util.Monoid (intercalateMap)
-import Unison.ShortHash (ShortHash)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -422,7 +421,7 @@ aliasTerm = InputPattern "alias.term" []
     "`alias.term foo bar` introduces `bar` with the same definition as `foo`."
     (\case
       [oldName, newName] -> first fromString $ do
-        source <- Path.parseHQSplit' oldName
+        source <- Path.parseShortHashOrHQSplit' oldName
         target <- Path.parseSplit' Path.definitionNameSegment newName
         pure $ Input.AliasTermI source target
       _ -> Left . warn $ P.wrap
@@ -435,7 +434,7 @@ aliasType = InputPattern "alias.type" []
     "`alias.type Foo Bar` introduces `Bar` with the same definition as `Foo`."
     (\case
       [oldName, newName] -> first fromString $ do
-        source <- Path.parseHQSplit' oldName
+        source <- Path.parseShortHashOrHQSplit' oldName
         target <- Path.parseSplit' Path.definitionNameSegment newName
         pure $ Input.AliasTypeI source target
       _ -> Left . warn $ P.wrap
@@ -792,7 +791,10 @@ previewMergeLocal = InputPattern
   )
 
 replaceEdit
-  :: (ShortHash -> ShortHash -> Maybe Input.PatchPath -> Input)
+  :: (Input.HashOrHQSplit'
+       -> Input.HashOrHQSplit'
+       -> Maybe Input.PatchPath
+       -> Input)
   -> String
   -> InputPattern
 replaceEdit f s = self
@@ -826,18 +828,9 @@ replaceEdit f s = self
         dest  <- Path.parseShortHashOrHQSplit' target
         patch <- traverse (Path.parseSplit' Path.wordyNameSegment)
           $ listToMaybe patch
-        sourceH <- maybe (Left (source <> " is not a valid hash."))
-                         Right
-                         (toHash src)
-        targetH <- maybe (Left (target <> " is not a valid hash."))
-                         Right
-                         (toHash dest)
-        pure $ f sourceH targetH patch
+        pure $ f src dest patch
       _ -> Left $ I.help self
     )
-  toHash :: Either ShortHash Path.HQSplit' -> Maybe ShortHash
-  toHash (Left  h      ) = Just h
-  toHash (Right (_, hq)) = HQ'.toHash hq
 
 replaceType :: InputPattern
 replaceType = replaceEdit Input.ReplaceTypeI "type"
