@@ -63,6 +63,7 @@ denormalizeRef _ = error "denormalizeRef"
 denormalizeMatch
   :: Var v => Branched (ANormal v) -> [Term.MatchCase () (Term.Term0 v)]
 denormalizeMatch b
+  | MatchEmpty <- b = []
   | MatchIntegral m <- b = dcase ipat <$> IMap.toList m
   | MatchData r m <- b = dcase (dpat r) <$> IMap.toList m
   | MatchAbility r m d <- b

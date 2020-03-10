@@ -325,6 +325,7 @@ data Branched e
   = MatchIntegral { cases :: IntMap e }
   | MatchData { ref :: Reference, cases :: IntMap e }
   | MatchAbility { ref :: Reference, cases :: IntMap e, other :: e }
+  | MatchEmpty
   deriving (Functor, Foldable, Traversable)
 
 data Func v
@@ -427,7 +428,7 @@ anfBlock avoid resolve (Match' scrut cas)
   where
   (sctx, sc) = anfBlock avoid resolve scrut
   fsv = freshANF avoid $ freeVarsT sc
-  cases = MatchIntegral $ anfCases avoid resolve cas
+  cases = anfCases avoid resolve cas
 anfBlock avoid resolve (Let1Named' v b e)
   = (bctx ++ (v, cb) : ectx, ce)
   where
@@ -463,20 +464,58 @@ anfCases
   => Set v
   -> (Reference -> Int)
   -> [MatchCase p (Term v a)]
-  -> IntMap (ANormal v)
-anfCases avoid resolve = IMap.fromList . map mkCase
+  -> Branched (ANormal v)
+anfCases _     _       [    ] = MatchEmpty
+anfCases avoid resolve cs@(MatchCase p _ _ : _)
+  | IntP _ _ <- p
+  = MatchIntegral . IMap.fromList . fmap intCase $ cs
+  | NatP _ _ <- p
+  = MatchIntegral . IMap.fromList . fmap natCase $ cs
+  | ConstructorP _ r _ _ <- p
+  = MatchData r . snd . foldl' (dataCase r) (Nothing, mempty) $ cs
+  | EffectPureP _ _ <- p
+  = abilityCases $ foldl' abilityCase (Nothing, Nothing, mempty) cs
+  | EffectBindP _ r _ _ _ <- p
+  = abilityCases $ foldl' abilityCase (Just r, Nothing, mempty) cs
   where
-  -- TODO: Int64, Word64, ...
-  patDecode (IntP _ i) = fromIntegral $ i
-  patDecode (NatP _ n) = fromIntegral $ n
-  patDecode (ConstructorP _ _ t _) = fromIntegral $ t
-  patDecode (EffectBindP _ _ t _ _) = fromIntegral $ t
-  patDecode _ = error "unexpected pattern for ANF"
-
-  mkCase (MatchCase p Nothing (ABT.AbsN' vs body))
-    = (patDecode p, anfTerm avoid' resolve body)
+  intCase (MatchCase (IntP _ i) Nothing (ABT.AbsN' vs body))
+    = (fromIntegral i, anfTerm avoid' resolve body)
     where avoid' = Set.union avoid $ Set.fromList vs
-  mkCase _ = error "unexpected guard for ANF"
+  intCase _ = error "unexpected int case"
+
+  natCase (MatchCase (NatP _ i) Nothing (ABT.AbsN' vs body))
+    = (fromIntegral i, anfTerm avoid' resolve body)
+    where avoid' = Set.union avoid $ Set.fromList vs
+  natCase _ = error "unexpected nat case"
+
+  dataCase r0 (ad, ac) (MatchCase (ConstructorP _ r t _) Nothing bd)
+    | r0 == r
+    , ABT.AbsN' vs body <- bd
+    = let avoid' = Set.union avoid $ Set.fromList vs
+       in (ad, IMap.insert t (anfTerm avoid' resolve body) ac)
+    | r0 /= r = error "mismatched data type in case"
+    | otherwise = error "unexpected data case"
+  dataCase _ _ _ = error "unexpected data case"
+
+  abilityCase (ar, ad, ac) (MatchCase (EffectPureP _ _) Nothing bd)
+    | ABT.AbsN' vs body <- bd
+    = let avoid' = Set.union avoid $ Set.fromList vs
+       in (ar, ad `mplus` Just (anfTerm avoid' resolve body), ac)
+  abilityCase (ar, ad, ac) (MatchCase (EffectBindP _ r t _ _) Nothing bd)
+    | Just r0 <- ar
+    , r0 /= r
+    = error "ability mismatch"
+    | ABT.AbsN' vs body <- bd
+    = let avoid' = Set.union avoid $ Set.fromList vs
+       in ( ar `mplus` Just r
+          , ad
+          , IMap.insert t (anfTerm avoid' resolve body) ac
+          )
+  abilityCase _ _ = error "ability case"
+
+  abilityCases (Just r, Just d, cs) = MatchAbility r cs d
+  abilityCases _ = error "incomplete ability matching"
+anfCases _ _ _ = error "unhandled match"
 
 anfFunc
   :: Var v
