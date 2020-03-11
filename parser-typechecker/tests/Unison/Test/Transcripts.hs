@@ -73,7 +73,7 @@ cleanup = do
 test :: Test ()
 test = do
 
-  buildTests testBuilder  $"unison-src" </> "transcripts"
+  -- buildTests testBuilder  $"unison-src" </> "transcripts"
   buildTests testBuilder' $"unison-src" </> "transcripts" </> "errors"
   cleanup
 

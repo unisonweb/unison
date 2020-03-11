@@ -176,11 +176,8 @@ run dir configFile stanzas codebase = do
 
       awaitInput :: IO (Either Event Input)
       awaitInput = do
-
         cmd <- atomically (Q.tryDequeue cmdQueue)
-
         case cmd of
-
           Just Nothing -> do
             output "\n```\n"
             writeIORef hidden Shown
@@ -191,22 +188,28 @@ run dir configFile stanzas codebase = do
             if curPath /= path then do
               atomically $ Q.undequeue cmdQueue (Just p)
               pure $ Right (SwitchBranchI (Path.absoluteToPath' path))
-            else case (>>= expandNumber numberedArgs)
-                       . words . Text.unpack $ lineTxt of
-              [] -> awaitInput
+            else case (>>= expandNumber numberedArgs) . words . Text.unpack $ lineTxt of
+              -- no ucm commands to run
+              [] -> 
+                awaitInput
+
+              -- a list of ucm commands to run
               cmd:args -> do
                 output ("\n" <> show p <> "\n")
                 -- invalid command is treated as a failure
                 case Map.lookup cmd patternMap of
                   Nothing ->
                     dieWithMsg
-                  Just pat -> case IP.parse pat args of
-                    Left msg -> do
-                      output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
-                      dieWithMsg
-                    Right input -> do
-                      dieUnexpectedSuccess 
-                      pure $ Right input
+                  Just pat -> 
+                    case IP.parse pat args of
+                      Left msg -> do
+                        output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
+                        dieWithMsg
+                      Right input -> do
+                        -- if all the commands in the ucm block have run and not failed
+                        -- then fail with an error  
+                        when (null args) dieUnexpectedSuccess 
+                        pure $ Right input
 
           Nothing -> do
             dieUnexpectedSuccess
@@ -240,6 +243,7 @@ run dir configFile stanzas codebase = do
                   Ucm hide errOk cmds -> do
                     writeIORef hidden hide
                     writeIORef allowErrors errOk
+                    writeIORef hasErrors False
                     output "```ucm"
                     traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
                     atomically . Q.enqueue cmdQueue $ Nothing
@@ -254,7 +258,6 @@ run dir configFile stanzas codebase = do
 
       cleanup :: IO ()
       cleanup = do Runtime.terminate runtime; cancelConfig
-
       print o = do
         msg <- notifyUser dir o
         errOk <- readIORef allowErrors
@@ -273,7 +276,6 @@ run dir configFile stanzas codebase = do
           if errOk then writeIORef hasErrors True
           else dieWithMsg
         pure numberedArgs
-
 
       -- Looks at the current stanza and decides if it is contained in the
       -- output so far. Appends it if not.
@@ -328,7 +330,6 @@ run dir configFile stanzas codebase = do
           Just () -> do
             writeIORef numberedArgsRef (HandleInput._numberedArgs state')
             loop state'
-
     (`finally` cleanup) $ loop (HandleInput.loopState0 root initialPath)
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
