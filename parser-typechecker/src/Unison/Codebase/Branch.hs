@@ -107,7 +107,6 @@ import           Prelude                  hiding (head,read,subtract)
 import           Control.Lens            hiding ( children, cons, transform, uncons )
 import qualified Control.Monad.State           as State
 import           Control.Monad.State            ( StateT )
-import           Data.Bifunctor                 ( first )
 import qualified Data.Map                      as Map
 import qualified Data.Map.Merge.Lazy           as Map
 import qualified Data.Set                      as Set
@@ -724,15 +723,16 @@ modifyAtM path f b = case Path.uncons path of
 stepManyAt0 :: forall f m . (Applicative m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
-stepManyAt0 actions b = go (first Path.toList <$> toList actions) b where
-  go :: [([NameSegment], Branch0 m -> Branch0 m)] -> Branch0 m -> Branch0 m
+stepManyAt0 actions b = go (toList actions) b where
+  go :: [(Path, Branch0 m -> Branch0 m)] -> Branch0 m -> Branch0 m
   go actions b = let 
     -- combines the functions that apply to this level of the tree
-    currentAction b = foldl' (\b f -> f b) b [ f | ([], f) <- actions ]
+    currentAction b = foldl' (\b f -> f b) b [ f | (Path.Empty, f) <- actions ]
 
     -- groups the actions based on the child they apply to
-    childActions :: Map NameSegment [([NameSegment], Branch0 m -> Branch0 m)]
-    childActions = List.multimap [ (seg, (rest,f)) | ((seg:rest), f) <- actions ]
+    childActions :: Map NameSegment [(Path, Branch0 m -> Branch0 m)]
+    childActions = 
+      List.multimap [ (seg, (rest,f)) | (Path.Cons seg rest, f) <- actions ]
 
     -- alters the children of `b` based on the `childActions` map
     stepChildren :: Map NameSegment (Branch m) -> Map NameSegment (Branch m)
@@ -754,13 +754,14 @@ stepManyAt0 actions b = go (first Path.toList <$> toList actions) b where
 stepManyAt0M :: forall m n f . (Monad m, Monad n, Foldable f)
              => f (Path, Branch0 m -> n (Branch0 m))
              -> Branch0 m -> n (Branch0 m)
-stepManyAt0M actions b = go (first Path.toList <$> toList actions) b where
-  go :: [([NameSegment], Branch0 m -> n (Branch0 m))] -> Branch0 m -> n (Branch0 m)
+stepManyAt0M actions b = go (toList actions) b where
+  go :: [(Path, Branch0 m -> n (Branch0 m))] -> Branch0 m -> n (Branch0 m)
   go actions b = let 
-    currentAction b = foldM (\b f -> f b) b [ f | ([], f) <- actions ]
+    currentAction b = foldM (\b f -> f b) b [ f | (Path.Empty, f) <- actions ]
 
-    childActions :: Map NameSegment [([NameSegment], Branch0 m -> n (Branch0 m))]
-    childActions = List.multimap [ (seg, (rest,f)) | ((seg:rest), f) <- actions ]
+    childActions :: Map NameSegment [(Path, Branch0 m -> n (Branch0 m))]
+    childActions = 
+      List.multimap [ (seg, (rest,f)) | (Path.Cons seg rest, f) <- actions ]
 
     stepChildren :: Map NameSegment (Branch m) -> n (Map NameSegment (Branch m))
     stepChildren m0 = foldM g Map.empty (Map.keysSet m0 <> Map.keysSet childActions)

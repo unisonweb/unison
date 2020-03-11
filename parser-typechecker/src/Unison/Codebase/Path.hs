@@ -312,6 +312,9 @@ relativeToAncestor (Path a) (Path b) = case (a, b) of
   _ -> (empty, Path a, Path b)
 
 pattern Parent h t = Path (NameSegment h :<| t)
+pattern Cons h t <- Path (h :<| (Path -> t)) where 
+  Cons h (Path t) = Path (h :<| t)
+pattern Empty = Path Seq.Empty
 
 empty :: Path
 empty = Path mempty
