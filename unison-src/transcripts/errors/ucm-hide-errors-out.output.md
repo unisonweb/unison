@@ -7,8 +7,11 @@ When an error is encountered in a `ucm:hide` block
 then the transcript parser should print the stanza
 and surface a helpful message.
 
+```ucm
+.> move.namespace foo bar
+```
 
 
 🛑
 
-Transcript failed due to the message above.
+The transcript failed due to an error while running the stanza above.

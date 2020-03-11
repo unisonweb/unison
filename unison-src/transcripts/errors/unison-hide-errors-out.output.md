@@ -13,4 +13,4 @@ g 3
 
 🛑
 
-Transcript failed due to the message above.
+The transcript failed due to an error while running the stanza above.

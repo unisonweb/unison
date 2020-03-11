@@ -15,6 +15,7 @@ import           Control.Lens                   ( view )
 import           Control.Monad.State            ( runStateT )
 import           Data.Bifunctor                 ( first )
 import           Data.IORef
+import           Data.List                      ( isSubsequenceOf )
 import           Prelude                 hiding ( readFile
                                                 , writeFile
                                                 )
@@ -72,6 +73,7 @@ type ScratchFileName = Text
 type FenceType = Text
 
 data Hidden = Shown | HideOutput | HideAll
+            deriving (Eq, Show)
 data UcmCommand = UcmCommand Path.Absolute Text
 
 data Stanza
@@ -87,7 +89,7 @@ instance Show Stanza where
   show s = case s of
     Ucm _ _ cmds -> unlines [
       "```ucm",
-      show cmds,
+      foldl (\x y -> x ++ show y) "" cmds,
       "```"
       ]
     Unison _hide _ fname txt -> unlines [
@@ -141,6 +143,7 @@ run dir configFile stanzas codebase = do
     hidden                   <- newIORef Shown
     allowErrors              <- newIORef False
     hasErrors                <- newIORef False
+    mStanza                  <- newIORef Nothing
     (config, cancelConfig)   <-
       catchIOError (watchConfig configFile) $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
@@ -174,12 +177,10 @@ run dir configFile stanzas codebase = do
       awaitInput :: IO (Either Event Input)
       awaitInput = do
 
-        -- pop a command from the queue
         cmd <- atomically (Q.tryDequeue cmdQueue)
 
         case cmd of
 
-          -- we popped a Nothing
           Just Nothing -> do
             output "\n```\n"
             writeIORef hidden Shown
@@ -216,7 +217,7 @@ run dir configFile stanzas codebase = do
             writeIORef hidden Shown
             writeIORef allowErrors False
             maybeStanza <- atomically (Q.tryDequeue inputQueue)
-
+            _ <- writeIORef mStanza maybeStanza
             case maybeStanza of
               Nothing -> do
                 putStrLn ""
@@ -282,9 +283,15 @@ run dir configFile stanzas codebase = do
       dieWithMsg :: forall a. IO a
       dieWithMsg = do
         output "\n```\n\n"
+        stanzaOpt <- readIORef mStanza
+        currentOut <- readIORef out
+        let stnz = maybe "" show (fmap fst stanzaOpt :: Maybe Stanza)
+        unless (stnz `isSubsequenceOf` concat currentOut) $
+          modifyIORef' out (\acc -> acc <> pure stnz)
+
         transcriptFailure out $ Text.unlines [
           "\128721", "",
-          "Transcript failed due to the message above.", "",
+          "The transcript failed due to an error while running the stanza above.", "",
           "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       loop :: HandleInput.LoopState IO Symbol -> IO Text
