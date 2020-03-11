@@ -204,16 +204,12 @@ run dir configFile stanzas codebase = do
                     Left msg -> do
                       output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
                       dieWithMsg
-                    Right input -> pure $ Right input
+                    Right input -> do
+                      dieUnexpectedSuccess 
+                      pure $ Right input
+
           Nothing -> do
-            errOk <- readIORef allowErrors
-            hasErr <- readIORef hasErrors
-            when (errOk && not hasErr) $ do
-              output "\n```\n\n"
-              transcriptFailure out $ Text.unlines [
-                "\128721", "",
-                "Transcript failed due to an unexpected success above.",
-                "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
+            dieUnexpectedSuccess
             writeIORef hidden Shown
             writeIORef allowErrors False
             maybeStanza <- atomically (Q.tryDequeue inputQueue)
@@ -244,7 +240,6 @@ run dir configFile stanzas codebase = do
                   Ucm hide errOk cmds -> do
                     writeIORef hidden hide
                     writeIORef allowErrors errOk
-                    writeIORef hasErrors False
                     output "```ucm"
                     traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
                     atomically . Q.enqueue cmdQueue $ Nothing
@@ -293,6 +288,17 @@ run dir configFile stanzas codebase = do
           "\128721", "",
           "The transcript failed due to an error while running the stanza above.", "",
           "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
+        
+      dieUnexpectedSuccess :: IO ()
+      dieUnexpectedSuccess = do
+        errOk <- readIORef allowErrors
+        hasErr <- readIORef hasErrors
+        when (errOk && not hasErr) $ do
+          output "\n```\n\n"
+          transcriptFailure out $ Text.unlines [
+            "\128721", "",
+            "Transcript failed due to an unexpected success above.", "",
+            "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       loop :: HandleInput.LoopState IO Symbol -> IO Text
       loop state = do

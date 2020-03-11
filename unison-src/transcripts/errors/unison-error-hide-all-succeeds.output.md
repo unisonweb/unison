@@ -12,3 +12,4 @@ and surface a helpful message.
 
 🛑
 
+Transcript failed due to an unexpected success above.
