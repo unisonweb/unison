@@ -1920,7 +1920,7 @@ updateAtM reason (Path.Absolute p) f = do
   updateRoot b b' reason
   pure $ b /= b'
 
-stepAt :: forall m i v. Applicative m
+stepAt :: forall m i v. Monad m
        => InputDescription
        -> (Path, Branch0 m -> Branch0 m)
        -> Action m i v ()
@@ -1938,7 +1938,7 @@ stepAtM' :: forall m i v. Monad m
         -> Action m i v Bool
 stepAtM' cause = stepManyAtM' @m @[] cause . pure
 
-stepManyAt :: (Applicative m, Foldable f)
+stepManyAt :: (Monad m, Foldable f)
            => InputDescription
            -> f (Path, Branch0 m -> Branch0 m)
            -> Action m i v ()
@@ -2189,7 +2189,7 @@ filterBySlurpResult SlurpResult{..} UF.TypecheckedUnisonFile{..} =
   filterTLC (v,_,_) = Set.member v keepTerms
 
 -- updates the namespace for adding `slurp`
-doSlurpAdds :: forall m v. (Applicative m, Var v)
+doSlurpAdds :: forall m v. (Monad m, Var v)
             => SlurpComponent v
             -> UF.TypecheckedUnisonFile v Ann
             -> (Branch0 m -> Branch0 m)
@@ -2223,7 +2223,7 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   errorEmptyVar = error "encountered an empty var name"
   errorMissingVar v = error $ "expected to find " ++ show v ++ " in " ++ show uf
 
-doSlurpUpdates :: Applicative m
+doSlurpUpdates :: Monad m
                => Map Name (Reference, Reference)
                -> Map Name (Reference, Reference)
                -> [(Name, Referent)]

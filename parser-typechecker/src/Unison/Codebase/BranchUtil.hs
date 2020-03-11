@@ -26,7 +26,7 @@ import qualified Unison.Util.List as List
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.NameSegment (HQSegment, NameSegment)
 
-addFromNames0 :: Applicative m => Names0 -> Branch0 m -> Branch0 m
+addFromNames0 :: Monad m => Names0 -> Branch0 m -> Branch0 m
 addFromNames0 names0 = Branch.stepManyAt0 (typeActions <> termActions)
   where
   typeActions = map doType . R.toList $ Names.types names0
