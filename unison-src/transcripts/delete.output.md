@@ -182,10 +182,6 @@ type Foo = Foo Boolean
     5. ┌ Foo.Foo#d97e0jhkmd#0 : Nat -> Foo
     6. └ Foo.Foo#gq9inhvg9h#0 : Boolean -> b.Foo
   
-  Added definitions:
-  
-    7. foo : Nat
-  
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
