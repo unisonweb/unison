@@ -105,7 +105,6 @@ import Unison.Prelude hiding (empty)
 import           Prelude                  hiding (head,read,subtract)
 
 import           Control.Lens            hiding ( children, cons, transform, uncons )
-import qualified Control.Monad                 as Monad
 import qualified Control.Monad.State           as State
 import           Control.Monad.State            ( StateT )
 import qualified Data.Map                      as Map
@@ -140,6 +139,7 @@ import qualified Unison.Reference              as Reference
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation            ( Relation )
 import qualified Unison.Util.Relation4         as R4
+import qualified Unison.Util.List              as List
 import           Unison.Util.Map                ( unionWithM )
 import qualified Unison.Util.Star3             as Star3
 import Unison.ShortHash (ShortHash)
@@ -719,32 +719,62 @@ modifyAtM path f b = case Path.uncons path of
     -- step the branch by updating its children according to fixup
     pure $ step (setChildBranch seg child') b
 
-stepAt0 :: Applicative m => Path
-                         -> (Branch0 m -> Branch0 m)
-                         -> Branch0 m -> Branch0 m
-stepAt0 p f = runIdentity . stepAt0M p (pure . f)
-
 -- stepManyAt0 consolidates several changes into a single step
-stepManyAt0 :: (Applicative m, Foldable f)
+stepManyAt0 :: forall f m . (Applicative m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
-stepManyAt0 actions b = foldl' (\b (p, f) -> stepAt0 p f b) b actions
+stepManyAt0 actions b = go (toList actions) b where
+  go :: [(Path, Branch0 m -> Branch0 m)] -> Branch0 m -> Branch0 m
+  go actions b = let
+    -- combines the functions that apply to this level of the tree
+    currentAction b = foldl' (\b f -> f b) b [ f | (Path.Empty, f) <- actions ]
 
-stepManyAt0M :: (Monad m, Monad n, Foldable f)
+    -- groups the actions based on the child they apply to
+    childActions :: Map NameSegment [(Path, Branch0 m -> Branch0 m)]
+    childActions =
+      List.multimap [ (seg, (rest,f)) | (seg :< rest, f) <- actions ]
+
+    -- alters the children of `b` based on the `childActions` map
+    stepChildren :: Map NameSegment (Branch m) -> Map NameSegment (Branch m)
+    stepChildren m0 = foldl' g Map.empty (Map.keysSet m0 <> Map.keysSet childActions)
+      where
+      -- this skips adding any empty children, which could happen depending
+      -- on the action functions provided (think: `b -> Branch.empty0`)
+      insert seg child m = if isEmpty child then m else Map.insert seg child m
+      g m seg = insert seg child m where
+        child = case Map.lookup seg childActions of
+          Just actions ->
+            -- this `findWithDefault` is important, allows the stepManyAt
+            -- to create new children at deeper paths than exist in the
+            -- original Branch
+            step (go actions) (Map.findWithDefault empty seg m0)
+          Nothing -> Map.findWithDefault empty seg m0
+    in currentAction $ over children stepChildren b
+
+stepManyAt0M :: forall m n f . (Monad m, Monad n, Foldable f)
              => f (Path, Branch0 m -> n (Branch0 m))
              -> Branch0 m -> n (Branch0 m)
-stepManyAt0M actions b = Monad.foldM (\b (p, f) -> stepAt0M p f b) b actions
+stepManyAt0M actions b = go (toList actions) b where
+  go :: [(Path, Branch0 m -> n (Branch0 m))] -> Branch0 m -> n (Branch0 m)
+  go actions b = let
+    currentAction b = foldM (\b f -> f b) b [ f | (Path.Empty, f) <- actions ]
 
-stepAt0M :: forall n m. (Functor n, Applicative m)
-         => Path
-         -> (Branch0 m -> n (Branch0 m))
-         -> Branch0 m -> n (Branch0 m)
-stepAt0M p f b = case Path.uncons p of
-  Nothing -> f b
-  Just (seg, path) -> do
-    let child = getChildBranch seg b
-    child0' <- stepAt0M path f (head child)
-    pure $ setChildBranch seg (cons child0' child) b
+    childActions :: Map NameSegment [(Path, Branch0 m -> n (Branch0 m))]
+    childActions =
+      List.multimap [ (seg, (rest,f)) | (seg :< rest, f) <- actions ]
+
+    stepChildren :: Map NameSegment (Branch m) -> n (Map NameSegment (Branch m))
+    stepChildren m0 = foldM g Map.empty (Map.keysSet m0 <> Map.keysSet childActions)
+      where
+      insert seg child m = if isEmpty child then m else Map.insert seg child m
+      g m seg = do
+        child <- case Map.lookup seg childActions of
+          Just actions -> stepM (go actions) (Map.findWithDefault empty seg m0)
+          Nothing -> pure $ Map.findWithDefault empty seg m0
+        pure $ insert seg child m
+    in do
+      c2 <- stepChildren (view children b)
+      currentAction (set children c2 b)
 
 instance Hashable (Branch0 m) where
   tokens b =
