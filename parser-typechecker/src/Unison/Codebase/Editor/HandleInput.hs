@@ -212,29 +212,24 @@ loop = do
       getHQ'TermsIncludingHistorical p =
         getTermsIncludingHistorical (resolveSplit' p) root0
 
-      -- HHQS' -> Term References (for `replace`)
       getHQ'TermReferences :: Path.HQSplit' -> Set Reference
       getHQ'TermReferences p =
         Set.fromList [ r | Referent.Ref r <- toList (getHQ'Terms p) ]
-      -- HHQS' -> Term Referents (for `alias`)
       getHQ'Terms :: Path.HQSplit' -> Set Referent
       getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
-      -- HHQS' -> Type References (for `replace` & `alias`)
       getHQ'Types :: Path.HQSplit' -> Set Reference
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
       resolveHHQS'Types :: HashOrHQSplit' -> Action' m v (Set Reference)
       resolveHHQS'Types = either 
         (eval . TypeReferencesByShortHash)
-        (pure . getHQ'Types)        
+        (pure . getHQ'Types)
+      -- Term Refs only
       resolveHHQS'Terms = either
         (eval . TermReferencesByShortHash)
         (pure . getHQ'TermReferences)
+      -- Term Refs and Cons
       resolveHHQS'Referents = either
-        (\h ->
-          (<>) <$> eval (TermReferentsByShortHash h)
-               <*> fmap (Set.map Referent.Ref)
-                        (eval (TermReferencesByShortHash h))
-               )
+        (eval . TermReferentsByShortHash)
         (pure . getHQ'Terms)
       getTypes :: Path.Split' -> Set Reference
       getTypes = getHQ'Types . fmap HQ'.NameOnly

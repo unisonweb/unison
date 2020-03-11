@@ -517,6 +517,13 @@ putTerm putV putA path h e typ = liftIO $ do
   traverse_ (touchReferentFile r . typeMentionsIndexDir path) typeMentions
   touchReferentFile r (typeIndexDir path rootTypeHash)
 
+getDecl :: (MonadIO m, Ord v)
+  => S.Get v -> S.Get a -> CodebasePath -> Reference.Id -> m (Maybe (DD.Decl v a))
+getDecl getV getA root h = liftIO $
+  S.getFromFile
+    (V1.getEither (V1.getEffectDeclaration getV getA) (V1.getDataDeclaration getV getA))
+    (declPath root h)
+
 putDecl
   :: MonadIO m
   => Var v
@@ -580,27 +587,26 @@ typeReferencesByPrefix root = loadReferencesByPrefix (typesDir root)
 
 -- returns all the derived terms and derived constructors
 termReferentsByPrefix :: MonadIO m
-  => Codebase m v a
+  => (CodebasePath -> Reference.Id -> m (Maybe (DD.Decl v a)))
   -> CodebasePath
   -> ShortHash
   -> m (Set (Referent' Reference.Id))
-termReferentsByPrefix c root sh = do
+termReferentsByPrefix getDecl root sh = do
   terms <- termReferencesByPrefix root sh
   ctors <- do
     types <- typeReferencesByPrefix root sh
-    foldMapM collect types
+    foldMapM collectCtors types
   pure (Set.map Referent.Ref' terms <> ctors)
   where
   -- load up the Decl for `ref` to see how many constructors it has,
   -- and what constructor type
-  collect ref =
-   Codebase.getTypeDeclaration c ref <&> (\case
+  collectCtors ref = getDecl root ref <&> \case
     Nothing -> mempty
     Just decl ->
       Set.fromList [ Referent.Con' ref i ct
                    | i <- [0 .. ctorCount-1]]
       where ct = either (const CT.Effect) (const CT.Data) decl
-            ctorCount = length . DD.constructors' $ DD.asDataDecl decl)
+            ctorCount = length . DD.constructors' $ DD.asDataDecl decl
 
 branchHashesByPrefix :: MonadIO m => CodebasePath -> ShortBranchHash -> m (Set Branch.Hash)
 branchHashesByPrefix codebasePath p =
@@ -627,7 +633,7 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
         Codebase
           getTerm
           getTypeOfTerm
-          getDecl
+          (getDecl getV getA path)
           (putTerm putV putA path)
           (putDecl putV putA path)
           (getRootBranch FailIfMissing path)
@@ -652,18 +658,13 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
    -- The same trie can be used to make this lookup fast:
           (termReferencesByPrefix path)
           (typeReferencesByPrefix path)
-          (termReferentsByPrefix c path)
+          (termReferentsByPrefix (getDecl getV getA) path)
           (pure 10)
           (branchHashesByPrefix path)
    in c
   where
     getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)
     getTypeOfTerm h = liftIO $ S.getFromFile (V1.getType getV getA) (typePath path h)
-    getDecl h =
-      liftIO $
-      S.getFromFile
-        (V1.getEither (V1.getEffectDeclaration getV getA) (V1.getDataDeclaration getV getA))
-        (declPath path h)
     dependents :: Reference -> m (Set Reference.Id)
     dependents r = listDirAsIds (dependentsDir path r)
     getTermsOfType :: Reference -> m (Set Referent)
