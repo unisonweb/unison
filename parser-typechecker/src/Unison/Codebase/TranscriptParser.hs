@@ -274,19 +274,25 @@ run dir configFile stanzas codebase = do
           else dieWithMsg
         pure numberedArgs
 
-      -- output ``` and new lines then call transcriptFailure
-      dieWithMsg :: forall a. IO a
-      dieWithMsg = do
-        output "\n```\n\n"
+
+      -- Looks at the current stanza and decides if it is contained in the
+      -- output so far. Appends it if not.
+      appendFailingStanza :: IO ()
+      appendFailingStanza = do
         stanzaOpt <- readIORef mStanza
         currentOut <- readIORef out
         let stnz = maybe "" show (fmap fst stanzaOpt :: Maybe Stanza)
         unless (stnz `isSubsequenceOf` concat currentOut) $
           modifyIORef' out (\acc -> acc <> pure stnz)
 
+      -- output ``` and new lines then call transcriptFailure
+      dieWithMsg :: forall a. IO a
+      dieWithMsg = do
+        output "\n```\n\n"
+        appendFailingStanza
         transcriptFailure out $ Text.unlines [
           "\128721", "",
-          "The transcript failed due to an error while running the stanza above.", "",
+          "The transcript failed due to an error encountered in the stanza above.", "",
           "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
         
       dieUnexpectedSuccess :: IO ()
@@ -295,9 +301,10 @@ run dir configFile stanzas codebase = do
         hasErr <- readIORef hasErrors
         when (errOk && not hasErr) $ do
           output "\n```\n\n"
+          appendFailingStanza
           transcriptFailure out $ Text.unlines [
             "\128721", "",
-            "Transcript failed due to an unexpected success above.", "",
+            "The transcript failed to fail as unexpected in the stanza above.", "",
             "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       loop :: HandleInput.LoopState IO Symbol -> IO Text

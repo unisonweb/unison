@@ -8,8 +8,12 @@ and surface a helpful message.
 
 ```
 
+```unison
+myVal = 3
+```
+
 
 
 🛑
 
-Transcript failed due to an unexpected success above.
+The transcript failed to fail as unexpected in the stanza above.

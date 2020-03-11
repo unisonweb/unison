@@ -14,4 +14,4 @@ and surface a helpful message.
 
 🛑
 
-The transcript failed due to an error while running the stanza above.
+The transcript failed due to an error encountered in the stanza above.
