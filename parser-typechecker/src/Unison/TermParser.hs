@@ -137,9 +137,11 @@ match = do
 matchCase :: Var v => P v (Term.MatchCase Ann (Term v Ann))
 matchCase = do
   (p, boundVars) <- parsePattern
+  let boundVars' = snd <$> boundVars
   guard <- optional $ reserved "|" *> infixAppOrBooleanOp
   t <- block "->"
-  pure . Term.MatchCase p (fmap (ABT.absChain' boundVars) guard) $ ABT.absChain' boundVars t
+  let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
+  pure . Term.MatchCase p (fmap (absChain boundVars') guard) $ absChain boundVars' t
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
 parsePattern =
