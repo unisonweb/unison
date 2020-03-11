@@ -1,7 +1,9 @@
 
 ### Transcript parser hidden errors
 
-An error in a hide:all block should not be hidden.
+When an error is encountered in a `unison:hide:all` block
+then the transcript parser should print the stanza
+and surface a helpful message.
 
 
 

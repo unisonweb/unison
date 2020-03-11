@@ -1,8 +1,10 @@
 
 ### Transcript parser hidden errors
 
-An error in a hide block should not be hidden.
+When an error is encountered in a `unison:hide` block
+then the transcript parser should print the stanza
+and surface a helpful message.
 
 ```unison:hide
-x
+g 3
 ```
