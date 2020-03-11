@@ -625,7 +625,7 @@ stepAt p f = modifyAt p g where
   g :: Branch m -> Branch m
   g (Branch b) = Branch . Causal.consDistinct (f (Causal.head b)) $ b
 
-stepManyAt :: (Applicative m, Foldable f)
+stepManyAt :: (Monad m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m) -> Branch m -> Branch m
 stepManyAt actions = step (stepManyAt0 actions)
 
@@ -720,36 +720,11 @@ modifyAtM path f b = case Path.uncons path of
     pure $ step (setChildBranch seg child') b
 
 -- stepManyAt0 consolidates several changes into a single step
-stepManyAt0 :: forall f m . (Applicative m, Foldable f)
+stepManyAt0 :: forall f m . (Monad m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
-stepManyAt0 actions b = go (toList actions) b where
-  go :: [(Path, Branch0 m -> Branch0 m)] -> Branch0 m -> Branch0 m
-  go actions b = let
-    -- combines the functions that apply to this level of the tree
-    currentAction b = foldl' (\b f -> f b) b [ f | (Path.Empty, f) <- actions ]
-
-    -- groups the actions based on the child they apply to
-    childActions :: Map NameSegment [(Path, Branch0 m -> Branch0 m)]
-    childActions =
-      List.multimap [ (seg, (rest,f)) | (seg :< rest, f) <- actions ]
-
-    -- alters the children of `b` based on the `childActions` map
-    stepChildren :: Map NameSegment (Branch m) -> Map NameSegment (Branch m)
-    stepChildren m0 = foldl' g Map.empty (Map.keysSet m0 <> Map.keysSet childActions)
-      where
-      -- this skips adding any empty children, which could happen depending
-      -- on the action functions provided (think: `b -> Branch.empty0`)
-      insert seg child m = if isEmpty child then m else Map.insert seg child m
-      g m seg = insert seg child m where
-        child = case Map.lookup seg childActions of
-          Just actions ->
-            -- this `findWithDefault` is important, allows the stepManyAt
-            -- to create new children at deeper paths than exist in the
-            -- original Branch
-            step (go actions) (Map.findWithDefault empty seg m0)
-          Nothing -> Map.findWithDefault empty seg m0
-    in currentAction $ over children stepChildren b
+stepManyAt0 actions =
+  runIdentity . stepManyAt0M [ (p, pure . f) | (p,f) <- toList actions ]
 
 stepManyAt0M :: forall m n f . (Monad m, Monad n, Foldable f)
              => f (Path, Branch0 m -> n (Branch0 m))
@@ -757,21 +732,24 @@ stepManyAt0M :: forall m n f . (Monad m, Monad n, Foldable f)
 stepManyAt0M actions b = go (toList actions) b where
   go :: [(Path, Branch0 m -> n (Branch0 m))] -> Branch0 m -> n (Branch0 m)
   go actions b = let
+    -- combines the functions that apply to this level of the tree
     currentAction b = foldM (\b f -> f b) b [ f | (Path.Empty, f) <- actions ]
 
+    -- groups the actions based on the child they apply to
     childActions :: Map NameSegment [(Path, Branch0 m -> n (Branch0 m))]
     childActions =
       List.multimap [ (seg, (rest,f)) | (seg :< rest, f) <- actions ]
 
+    -- alters the children of `b` based on the `childActions` map
     stepChildren :: Map NameSegment (Branch m) -> n (Map NameSegment (Branch m))
-    stepChildren m0 = foldM g Map.empty (Map.keysSet m0 <> Map.keysSet childActions)
+    stepChildren children0 = foldM g children0 $ Map.toList childActions
       where
-      insert seg child m = if isEmpty child then m else Map.insert seg child m
-      g m seg = do
-        child <- case Map.lookup seg childActions of
-          Just actions -> stepM (go actions) (Map.findWithDefault empty seg m0)
-          Nothing -> pure $ Map.findWithDefault empty seg m0
-        pure $ insert seg child m
+      g children (seg, actions) = do
+        -- Recursively applies the relevant actions to the child branch
+        -- The `findWithDefault` is important - it allows the stepManyAt
+        -- to create new children at paths that don't previously exist.
+        child <- stepM (go actions) (Map.findWithDefault empty seg children0)
+        pure $ updateChildren seg child children
     in do
       c2 <- stepChildren (view children b)
       currentAction (set children c2 b)
