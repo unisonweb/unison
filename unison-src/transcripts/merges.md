@@ -1,5 +1,9 @@
 # Forking and merging namespaces in `ucm`
 
+```ucm:hide
+.> builtins.merge
+```
+
 The Unison namespace is a versioned tree of names that map to Unison definitions. You can change this namespace and fork and merge subtrees of it. Let's start by introducing a few definitions into a new namespace, `foo`:
 
 ```unison

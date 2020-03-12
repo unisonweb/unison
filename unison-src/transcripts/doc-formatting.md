@@ -2,6 +2,10 @@ This transcript explains a few minor details about doc parsing and pretty-printi
 
 Docs can be used as inline code comments.
 
+```ucm:hide
+.> builtins.merge
+```
+
 ```unison
 foo : Nat -> Nat
 foo n =
@@ -203,6 +207,9 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 @[evaluate] expr
 
 @[include] doc1
+
+-- note the leading space below
+  @[signature] List.take
 
 :]
 ```

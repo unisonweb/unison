@@ -26,7 +26,7 @@ import qualified Unison.Util.List as List
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.NameSegment (HQSegment, NameSegment)
 
-addFromNames0 :: Applicative m => Names0 -> Branch0 m -> Branch0 m
+addFromNames0 :: Monad m => Names0 -> Branch0 m -> Branch0 m
 addFromNames0 names0 = Branch.stepManyAt0 (typeActions <> termActions)
   where
   typeActions = map doType . R.toList $ Names.types names0
@@ -46,13 +46,8 @@ getTerm (p, hq) b = case hq of
     NameOnly n -> Star3.lookupD1 n terms
     HashQualified n sh -> filter sh $ Star3.lookupD1 n terms
   where
-  filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Referent.toShortHash r)
+  filter sh = Set.filter (SH.isPrefixOf sh . Referent.toShortHash)
   terms = Branch._terms (Branch.getAt0 p b)
-
-getTermByShortHash :: SH.ShortHash -> Branch0 m -> Set Referent
-getTermByShortHash sh b = filter sh $ Branch.deepReferents b
-  where
-  filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Referent.toShortHash r)
 
 getTermMetadataHQNamed :: (Path.Path, HQSegment) -> Branch0 m -> Metadata.R4 Referent NameSegment
 getTermMetadataHQNamed (path, hqseg) b =
@@ -78,13 +73,13 @@ getType (p, hq) b = case hq of
     NameOnly n -> Star3.lookupD1 n types
     HashQualified n sh -> filter sh $ Star3.lookupD1 n types
   where
-  filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Reference.toShortHash r)
+  filter sh = Set.filter (SH.isPrefixOf sh . Reference.toShortHash)
   types = Branch._types (Branch.getAt0 p b)
 
 getTypeByShortHash :: SH.ShortHash -> Branch0 m -> Set Reference
 getTypeByShortHash sh b = filter sh $ Branch.deepTypeReferences b
   where
-  filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Reference.toShortHash r)
+  filter sh = Set.filter (SH.isPrefixOf sh . Reference.toShortHash)
 
 getTypeMetadataAt :: (Path.Path, a) -> Reference -> Branch0 m -> Metadata
 getTypeMetadataAt (path,_) r b = Set.fromList <$> List.multimap mdList

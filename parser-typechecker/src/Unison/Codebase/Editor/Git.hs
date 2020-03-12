@@ -1,6 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Codebase.Editor.Git where
+module Unison.Codebase.Editor.Git
+  ( pullGitRootBranch
+  , pullGitBranch
+  , pushGitRootBranch
+  ) where
 
 import Unison.Prelude
 
@@ -33,40 +37,23 @@ import qualified Unison.Names3                 as Names
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 
 -- Given a local path, a remote git repo url, and branch/commit hash,
--- pulls the HEAD of that remote repo into the local path.
-pullFromGit
+-- checks for git, the repo path, performs a clone, and verifies resulting repo
+pullBranch
   :: MonadIO m
   => MonadError GitError m => FilePath -> Text -> Maybe Text -> m ()
-pullFromGit localPath url treeish = do
-  prepGitPull localPath url
-  pull localPath url treeish
-
--- checks for git, the repo path, performs a clone, and verifies resulting repo
-prepGitPull
-  :: MonadIO m => MonadError GitError m => FilePath -> Text -> m ()
-prepGitPull localPath uri = do
+pullBranch localPath uri treeish = do
   checkForGit
   e <- liftIO . Ex.tryAny . whenM (doesDirectoryExist localPath) $
     removeDirectoryRecursive localPath
   case e of
     Left e -> throwError (SomeOtherError (Text.pack (show e)))
     Right _ -> pure ()
-  clone uri localPath
+  "git" (["clone", "--quiet"] ++ ["--depth", "1"]
+     ++ maybe [] (\t -> ["--branch", t]) treeish
+     ++ [uri, Text.pack localPath])
+    `onError` throwError (NoRemoteRepoAt uri)
   isGitDir <- liftIO $ checkGitDir localPath
   unless isGitDir . throwError $ NoLocalRepoAt localPath
-
--- Shallow pull in preparation for a push
-shallowPullFromGit
-  :: MonadIO m
-  => MonadError GitError m => FilePath -> Text -> Maybe Text -> m ()
-shallowPullFromGit localPath url gitBranch = do
-  prepGitPull localPath url
-  for_ gitBranch $ \gitBranch ->
-    gitIn localPath ["checkout", gitBranch]
-      -- creates a new branch in prep for pushing,
-      -- not sure what happens if the branch has the same name as a commit 😬
-      `onError` gitIn localPath ["checkout", "-b", gitBranch]
-      `onError` throwError (CheckoutFailed gitBranch)
 
 -- Given a local path, a remote repo url, and branch/commit hash, pulls the
 -- HEAD of that remote repo into the local path and attempts to load it as a
@@ -94,7 +81,7 @@ pullGitBranch
   -> Either BranchLoadMode ShortBranchHash
   -> ExceptT GitError m (Branch m)
 pullGitBranch localPath codebase url treeish loadInfo = do
-  pullFromGit localPath url treeish
+  pullBranch localPath url treeish
   branch <- case loadInfo of
     Left loadMode -> lift $ FC.getRootBranch loadMode gitCodebasePath
     Right sbh -> do
@@ -121,15 +108,6 @@ onError x k = liftIO ((const True <$> x) $? pure False) >>= \case
   True  -> pure ()
   False -> k
 
-clone :: MonadError GitError m => MonadIO m => Text -> FilePath -> m ()
-clone uri localPath = "git" ["clone", uri, Text.pack localPath]
-  `onError` throwError (NoRemoteRepoAt uri)
-
-pull :: MonadError GitError m => MonadIO m => FilePath -> Text -> Maybe Text -> m ()
-pull localPath _uri treeish = do
-  for_ treeish $ \treeish ->
-    liftIO $ gitIn localPath ["checkout", treeish]
-
 gitIn :: FilePath -> [Text] -> IO ()
 gitIn localPath args = "git" (["-C", Text.pack localPath] <> args)
 
@@ -150,7 +128,7 @@ pushGitRootBranch
   -> ExceptT GitError m ()
 pushGitRootBranch localPath codebase branch url gitbranch = do
   -- Clone and pull the remote repo
-  shallowPullFromGit localPath url gitbranch
+  pullBranch localPath url gitbranch
   -- Stick our changes in the checked-out copy
   merged <- lift $ syncToDirectory codebase (localPath </> codebasePath) branch
   isBefore <- lift $ Branch.before merged branch
@@ -166,10 +144,10 @@ pushGitRootBranch localPath codebase branch url gitbranch = do
       unless (Text.null status) $ do
         gitIn localPath ["add", "--all", "."]
         gitIn localPath
-          ["commit", "-m", "Sync branch " <> Text.pack (show $ headHash branch)]
-      -- Push our changes to the repo
-      case gitbranch of
-        Nothing        -> gitIn localPath ["push", "--all", url]
-        Just gitbranch -> gitIn localPath ["push", url, gitbranch]
+          ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ headHash branch)]
+        -- Push our changes to the repo
+        case gitbranch of
+          Nothing        -> gitIn localPath ["push", "--quiet", "--all", url]
+          Just gitbranch -> gitIn localPath ["push", "--quiet", url, gitbranch]
   liftIO push `onException` throwError (NoRemoteRepoAt url)
 

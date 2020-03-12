@@ -157,6 +157,12 @@ topHasClosePair :: Layout -> Bool
 topHasClosePair [] = False
 topHasClosePair ((name,_):_) = name == "{" || name == "("
 
+findNearest :: Layout -> Set BlockName -> Maybe BlockName
+findNearest l ns =
+  case topBlockName l of
+    Just n -> if Set.member n ns then Just n else findNearest (pop l) ns
+    Nothing -> Nothing
+
 pop :: [a] -> [a]
 pop = drop 1
 
@@ -268,11 +274,13 @@ lexer0 scope rem =
           in Token Close pos end
                : Token (Reserved kw) pos end
                : goWhitespace (pop l) (incBy kw pos) rem
-      Just (kw, rem) -> case closes (openingKeyword kw) kw l pos of
-        (Nothing, ts) -> ts ++ recover l (incBy kw pos) rem
-        (Just l, ts) ->
-          let end = incBy kw pos
-          in ts ++ [Token (Open kw) pos end] ++ pushLayout kw l end rem
+      Just (kw, rem) ->
+        let kw' = layoutCloseAndOpenKeywordMap kw l in
+        case closes (openingKeyword kw') kw' l pos of
+          (Nothing, ts) -> ts ++ recover l (incBy kw pos) rem
+          (Just l, ts) ->
+            let end = incBy kw pos
+            in ts ++ [Token (Open kw) pos end] ++ pushLayout kw' l end rem
 
     -- Examine current column and pop the layout stack
     -- and emit `Semi` / `Close` tokens as needed
@@ -395,7 +403,9 @@ lexer0 scope rem =
         | isSpace c || isAlphaNum c || Set.member c delimiters ->
           let end = incBy "->" pos
           in case topBlockName l of
-              Just "of" -> -- `->` opens a block when pattern-matching only
+              Just "match-with" -> -- `->` opens a block when pattern-matching only
+                Token (Open "->") pos end : pushLayout "->" l end rem
+              Just "cases" -> -- `->` opens a block when pattern-matching only
                 Token (Open "->") pos end : pushLayout "->" l end rem
               Just _ -> Token (Reserved "->") pos end : goWhitespace l end rem
               Nothing -> Token (Err LayoutError) pos pos : recover l pos rem
@@ -641,9 +651,11 @@ isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F300' && c <= '\x1FAFF'
 
 symbolyId :: String -> Either Err (String, String)
-symbolyId r@('.':ch:_) | isSpace ch || isDelimeter ch
-                       = symbolyId0 r -- lone dot treated as an operator
-symbolyId ('.':s) = (\(s,rem) -> ('.':s,rem)) <$> symbolyId' s
+symbolyId r@('.':s)
+  | s == ""              = symbolyId0 r --
+  | isSpace (head s)     = symbolyId0 r -- lone dot treated as an operator
+  | isDelimiter (head s) = symbolyId0 r --
+  | otherwise            = (\(s, rem) -> ('.':s, rem)) <$> symbolyId' s
 symbolyId s = symbolyId' s
 
 -- Is a '.' delimited list of wordyId, with a final segment of `symbolyId0`
@@ -694,23 +706,36 @@ keywords = Set.fromList [
   "where", "use",
   "true", "false",
   "type", "ability", "alias", "typeLink", "termLink",
-  "let", "namespace", "case", "of"]
+  "let", "namespace", "match", "cases"]
 
 -- These keywords introduce a layout block
 layoutKeywords :: Set String
 layoutKeywords =
   Set.fromList [
-    "if", "handle", "let", "where", "of"
+    "if", "handle", "let", "where", "match", "cases"
   ]
 
 -- These keywords end a layout block and begin another layout block
 layoutCloseAndOpenKeywords :: Set String
 layoutCloseAndOpenKeywords = Set.fromList ["then", "else", "with"]
 
-openingKeyword :: String -> String
-openingKeyword "then" = "if"
-openingKeyword "else" = "then"
-openingKeyword "with" = "handle"
+-- Use a transformed block name to disambiguate certain keywords
+layoutCloseAndOpenKeywordMap :: String    -- close-and-open keyword
+                             -> Layout    -- layout
+                             -> BlockName -- transformed blockname for keyword
+layoutCloseAndOpenKeywordMap "with" l =
+  case findNearest l (Set.fromList ["handle", "match"]) of
+    Just "match"  -> "match-with"
+    Just "handle" -> "handle-with"
+    _ -> "with"
+layoutCloseAndOpenKeywordMap kw _ = kw
+
+openingKeyword :: BlockName -> String
+openingKeyword        "then" = "if"
+openingKeyword        "else" = "then"
+openingKeyword        "with" = "match or handle" -- hack!!
+openingKeyword  "match-with" = "match"
+openingKeyword "handle-with" = "handle"
 openingKeyword kw = error $ "Not sure what the opening keyword is for: " <> kw
 
 -- These keywords end a layout block
@@ -720,8 +745,8 @@ layoutCloseOnlyKeywords = Set.fromList ["}"]
 delimiters :: Set Char
 delimiters = Set.fromList "()[]{},?;"
 
-isDelimeter :: Char -> Bool
-isDelimeter ch = Set.member ch delimiters
+isDelimiter :: Char -> Bool
+isDelimiter ch = Set.member ch delimiters
 
 reservedOperators :: Set String
 reservedOperators = Set.fromList ["->", ":", "&&", "||"]

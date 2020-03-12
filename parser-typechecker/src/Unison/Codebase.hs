@@ -17,12 +17,11 @@ import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.Codebase.Reflog        as Reflog
 import qualified Unison.DataDeclaration        as DD
-import qualified Unison.Name                   as Name
 import qualified Unison.Names2                 as Names
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent as Referent
-import Unison.Referent (Referent)
+import Unison.Referent (Referent, Referent')
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import           Unison.Typechecker.TypeLookup  (TypeLookup(TypeLookup))
@@ -34,16 +33,16 @@ import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
 import qualified Unison.Runtime.IOSource       as IOSource
 import           Unison.Symbol                  ( Symbol )
-import qualified Unison.Codebase.BranchUtil as BranchUtil
 import Unison.DataDeclaration (Decl)
+import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.ShortHash (ShortHash)
 
 --import Debug.Trace
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
-type Term v a = Term.AnnotatedTerm v a
 
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
@@ -83,7 +82,9 @@ data Codebase m v a =
            , termsMentioningTypeImpl :: Reference -> m (Set Referent)
            -- number of base58 characters needed to distinguish any two references in the codebase
            , hashLength         :: m Int
-           , referencesByPrefix :: Text -> m (Set Reference.Id)
+           , termReferencesByPrefix :: ShortHash -> m (Set Reference.Id)
+           , typeReferencesByPrefix :: ShortHash -> m (Set Reference.Id)
+           , termReferentsByPrefix :: ShortHash -> m (Set (Referent' Reference.Id))
 
            , branchHashLength   :: m Int
            , branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.Hash)
@@ -109,10 +110,7 @@ initializeBuiltinCode c = do
 initializeCodebase :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
 initializeCodebase c = do
   initializeBuiltinCode c
-  let b0 = BranchUtil.addFromNames0
-            (Names.prefix0 (Name.unsafeFromText "builtin") bootstrapNames)
-            Branch.empty0
-  putRootBranch c (Branch.one b0)
+  putRootBranch c (Branch.one Branch.empty0)
 
 -- Feel free to refactor this to use some other type than TypecheckedUnisonFile
 -- if it makes sense to later.

@@ -15,6 +15,8 @@ module Unison.Builtin
   ,builtinTypeDependents
   ,builtinTermsByType
   ,builtinTermsByTypeMention
+  ,intrinsicTermReferences
+  ,intrinsicTypeReferences
   ,isBuiltinType
   ,typeLookup
   ,termRefTypes
@@ -24,6 +26,7 @@ import Unison.Prelude
 
 import           Data.Bifunctor                 ( second )
 import qualified Data.Map                      as Map
+import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Unison.ConstructorType        as CT
 import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
@@ -158,6 +161,18 @@ builtinTypesSrc =
   , B' "Link.Term" CT.Data
   , B' "Link.Type" CT.Data
   ]
+
+-- rename these to "builtin" later, when builtin means intrinsic as opposed to
+-- stuff that intrinsics depend on.
+intrinsicTypeReferences :: Set R.Reference
+intrinsicTypeReferences = foldl' go mempty builtinTypesSrc where
+  go acc = \case
+    B' r _ -> Set.insert (R.Builtin r) acc
+    D' r -> Set.insert (R.Builtin r) acc
+    _ -> acc
+
+intrinsicTermReferences :: Set R.Reference
+intrinsicTermReferences = Map.keysSet (termRefTypes @Symbol)
 
 builtinConstructorType :: Map R.Reference CT.ConstructorType
 builtinConstructorType = Map.fromList [ (R.Builtin r, ct) | B' r ct <- builtinTypesSrc ]

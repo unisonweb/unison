@@ -29,7 +29,7 @@ import           Unison.Referent            (Referent)
 import           Unison.Result              (pattern Result, Result,
                                              ResultT, runResultT)
 import qualified Unison.Result              as Result
-import           Unison.Term                (AnnotatedTerm)
+import           Unison.Term                (Term)
 import qualified Unison.Term                as Term
 import           Unison.Type                (Type)
 import qualified Unison.Typechecker.Context as Context
@@ -40,8 +40,6 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import           Unison.Util.List           ( uniqueBy )
 
 type Name = Text
-
-type Term v loc = AnnotatedTerm v loc
 
 data Notes v loc = Notes {
   bugs   :: Seq (Context.CompilerBug v loc),

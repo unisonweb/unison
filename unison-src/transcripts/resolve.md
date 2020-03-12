@@ -1,5 +1,9 @@
 # Resolving edit conflicts in `ucm`
 
+```ucm:hide
+.> builtins.merge
+```
+
 The `ucm` tool tracks edits to hashes in an object called a _patch_. When patches get merged, sometimes those patches will have conflicting edits. The `replace.term` command helps resolve such conflicts.
 
 First, let's make a new namespace, `example.resolve`:
@@ -70,6 +74,8 @@ Let's now merge these namespaces into `c`:
 
 ```ucm
 .example.resolve> merge a c
+```
+```ucm:error
 .example.resolve> merge b c
 ```
 
@@ -107,4 +113,3 @@ We can resolve the name conflict by deleting one of the names.
 ```
 
 And that's how you resolve edit conflicts with UCM.
-

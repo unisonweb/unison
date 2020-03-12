@@ -1,5 +1,9 @@
 # Documenting Unison code
 
+```ucm:hide
+.> builtins.merge
+```
+
 Unison documentation is written in Unison. Documentation is a value of the following type:
 
 ```ucm
@@ -55,12 +59,12 @@ docs.List.take = [:
 
 @[source] List.take.ex1
 🔽
-@[evaluate] List.take.ex1
+@List.take.ex1 = @[evaluate] List.take.ex1
 
 
 @[source] List.take.ex2
 🔽
-@[evaluate] List.take.ex2
+@List.take.ex2 = @[evaluate] List.take.ex2
 :]
 ```
 
@@ -68,7 +72,7 @@ Let's add it to the codebase, and link it to the definition:
 
 ```ucm
 .> add
-.> link builtin.List.take docs.List.take
+.> link docs.List.take builtin.List.take
 ```
 
 Now that documentation is linked to the definition. We can view it if we like:

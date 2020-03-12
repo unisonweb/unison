@@ -79,6 +79,7 @@ type Split' = (Path', NameSegment)
 type HQSplit' = (Path', HQSegment)
 
 type SplitAbsolute = (Absolute, NameSegment)
+type HQSplitAbsolute = (Absolute, HQSegment)
 
 -- examples:
 --   unprefix .foo.bar .blah == .blah (absolute paths left alone)
@@ -88,12 +89,12 @@ unprefix :: Absolute -> Path' -> Path
 unprefix (Absolute prefix) (Path' p) = case p of
   Left abs -> unabsolute abs
   Right (unrelative -> rel) -> fromList $ dropPrefix (toList prefix) (toList rel)
-  
+
 -- too many types
 prefix :: Absolute -> Path' -> Path
 prefix (Absolute (Path prefix)) (Path' p) = case p of
   Left (unabsolute -> abs) -> abs
-  Right (unrelative -> rel) -> Path $ prefix <> toSeq rel  
+  Right (unrelative -> rel) -> Path $ prefix <> toSeq rel
 
 -- .libs.blah.poo is Absolute
 -- libs.blah.poo is Relative
@@ -184,11 +185,18 @@ parseShortHashOrHQSplit' s =
   where
   shError s = "couldn't parse shorthash from " <> s
 
+parseHQSplit :: String -> Either String HQSplit
+parseHQSplit s = case parseHQSplit' s of
+  Right (Path' (Right (Relative p)), hqseg) -> Right (p, hqseg)
+  Right (Path' Left{}, _) ->
+    Left $ "Sorry, you can't use an absolute name like " <> s <> " here."
+  Left e -> Left e
+
 parseHQSplit' :: String -> Either String HQSplit'
 parseHQSplit' s =
   case Text.breakOn "#" $ Text.pack s of
     ("","") -> error $ "encountered empty string parsing '" <> s <> "'"
-    ("", _) -> Left "HQSplit' doesn't have a hash-only option."
+    ("", _) -> Left "Sorry, you can't use a hash-only reference here."
     (n, "") -> do
       (p, rem) <- parsePath'Impl (Text.unpack n)
       seg <- definitionNameSegment rem
@@ -203,7 +211,7 @@ parseHQSplit' s =
   shError s = "couldn't parse shorthash from " <> s
 
 toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
-toAbsoluteSplit a (p, s) = (toAbsolutePath a p, s)
+toAbsoluteSplit a (p, s) = (resolve a p, s)
 
 fromSplit' :: (Path', a) -> (Path, a)
 fromSplit' (Path' (Left (Absolute p)), a) = (p, a)
@@ -218,10 +226,8 @@ absoluteEmpty = Absolute empty
 relativeEmpty' :: Path'
 relativeEmpty' = Path' (Right (Relative empty))
 
-toAbsolutePath :: Absolute -> Path' -> Absolute
-toAbsolutePath (Absolute cur) (Path' p) = case p of
-  Left a -> a
-  Right (Relative rel) -> Absolute (Path $ toSeq cur <> toSeq rel)
+relativeSingleton :: NameSegment -> Relative
+relativeSingleton = Relative . Path . Seq.singleton
 
 toPath' :: Path -> Path'
 toPath' = \case
@@ -246,23 +252,20 @@ prefixName p = toName . prefix p . fromName'
 singleton :: NameSegment -> Path
 singleton n = fromList [n]
 
+cons :: NameSegment -> Path -> Path
+cons = Lens.cons
+
 snoc :: Path -> NameSegment -> Path
-snoc (Path p) ns = Path (p <> pure ns)
+snoc = Lens.snoc
 
 snoc' :: Path' -> NameSegment -> Path'
-snoc' (Path' e) n = case e of
-  Left abs -> Path' (Left . Absolute $ snoc (unabsolute abs) n)
-  Right rel -> Path' (Right . Relative $ snoc (unrelative rel) n)
+snoc' = Lens.snoc
 
 unsnoc :: Path -> Maybe (Path, NameSegment)
-unsnoc p = case p of
-  Path (init :|> last) -> Just (Path init, last)
-  _ -> Nothing
+unsnoc = Lens.unsnoc
 
 uncons :: Path -> Maybe (NameSegment, Path)
-uncons p = case p of
-  Path (hd :<| tl) -> Just (hd, Path tl)
-  _ -> Nothing
+uncons = Lens.uncons
 
 --asDirectory :: Path -> Text
 --asDirectory p = case toList p of
@@ -309,20 +312,10 @@ relativeToAncestor (Path a) (Path b) = case (a, b) of
   _ -> (empty, Path a, Path b)
 
 pattern Parent h t = Path (NameSegment h :<| t)
+pattern Empty = Path Seq.Empty
 
 empty :: Path
 empty = Path mempty
-
-cons :: NameSegment -> Path -> Path
-cons ns (Path p) = Path (ns :<| p)
-
-cons' :: NameSegment -> Path' -> Path'
-cons' n (Path' e) = case e of
-  Left abs -> Path' (Left . Absolute $ cons n (unabsolute abs))
-  Right rel -> Path' (Right . Relative $ cons n (unrelative rel))
-
-consAbsolute :: NameSegment -> Absolute -> Absolute
-consAbsolute n a = Absolute . cons n $ unabsolute a
 
 instance Show Path where
   show = Text.unpack . toText
@@ -334,3 +327,80 @@ toText' :: Path' -> Text
 toText' = \case
   Path' (Left (Absolute path)) -> Text.cons '.' (toText path)
   Path' (Right (Relative path)) -> toText path
+
+instance Cons Path Path NameSegment NameSegment where
+  _Cons = prism (uncurry cons) uncons where
+    cons :: NameSegment -> Path -> Path
+    cons ns (Path p) = Path (ns :<| p)
+    uncons :: Path -> Either Path (NameSegment, Path)
+    uncons p = case p of
+      Path (hd :<| tl) -> Right (hd, Path tl)
+      _ -> Left p
+
+instance Snoc Relative Relative NameSegment NameSegment where
+  _Snoc = prism (uncurry snocRelative) $ \case
+    Relative (Lens.unsnoc -> Just (s,a)) -> Right (Relative s,a)
+    e -> Left e
+    where
+    snocRelative :: Relative -> NameSegment -> Relative
+    snocRelative r n = Relative . (`Lens.snoc` n) $ unrelative r
+
+instance Snoc Absolute Absolute NameSegment NameSegment where
+  _Snoc = prism (uncurry snocAbsolute) $ \case
+    Absolute (Lens.unsnoc -> Just (s,a)) -> Right (Absolute s, a)
+    e -> Left e
+    where
+    snocAbsolute :: Absolute -> NameSegment -> Absolute
+    snocAbsolute a n = Absolute . (`Lens.snoc` n) $ unabsolute a
+
+instance Snoc Path Path NameSegment NameSegment where
+  _Snoc = prism (uncurry snoc) unsnoc
+    where
+    unsnoc :: Path -> Either Path (Path, NameSegment)
+    unsnoc = \case
+      Path (s Seq.:|> a) -> Right (Path s, a)
+      e -> Left e
+    snoc :: Path -> NameSegment -> Path
+    snoc (Path p) ns = Path (p <> pure ns)
+
+instance Snoc Path' Path' NameSegment NameSegment where
+  _Snoc = prism (uncurry snoc') $ \case
+    Path' (Left (Lens.unsnoc -> Just (s,a))) -> Right (Path' (Left s), a)
+    Path' (Right (Lens.unsnoc -> Just (s,a))) -> Right (Path' (Right s), a)
+    e -> Left e
+    where
+    snoc' :: Path' -> NameSegment -> Path'
+    snoc' (Path' e) n = case e of
+      Left abs -> Path' (Left . Absolute $ Lens.snoc (unabsolute abs) n)
+      Right rel -> Path' (Right . Relative $ Lens.snoc (unrelative rel) n)
+
+
+class Resolve l r o where
+  resolve :: l -> r -> o
+
+instance Resolve Path Path Path where
+  resolve (Path l) (Path r) = Path (l <> r)
+
+instance Resolve Relative Relative Relative where
+  resolve (Relative (Path l)) (Relative (Path r)) = Relative (Path (l <> r))
+
+instance Resolve Absolute Relative Absolute where
+  resolve (Absolute l) (Relative r) = Absolute (resolve l r)
+
+instance Resolve Path' Path' Path' where
+  resolve _ a@(Path' Left{}) = a
+  resolve (Path' (Left a)) (Path' (Right r)) = Path' (Left (resolve a r))
+  resolve (Path' (Right r1)) (Path' (Right r2)) = Path' (Right (resolve r1 r2))
+
+instance Resolve Path' Split' Path' where
+  resolve l r = resolve l (unsplit' r)
+
+instance Resolve Path' Split' Split' where
+  resolve l (r, ns) = (resolve l r, ns)
+
+instance Resolve Absolute HQSplit HQSplitAbsolute where
+  resolve l (r, hq) = (resolve l (Relative r), hq)
+
+instance Resolve Absolute Path' Absolute where
+  resolve _ (Path' (Left a)) = a
+  resolve a (Path' (Right r)) = resolve a r

@@ -21,7 +21,6 @@ import Unison.Hash (Hash)
 import Unison.NamePrinter (prettyHashQualified0)
 import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
-import Unison.Term (AnnotatedTerm)
 import Unison.Util.CyclicEq (CyclicEq, cyclicEq)
 import Unison.Util.CyclicOrd (CyclicOrd, cyclicOrd)
 import Unison.Util.Monoid (intercalateMap)
@@ -47,7 +46,7 @@ import qualified Unison.Var as Var
 type Pos = Int
 type Arity = Int
 type ConstructorId = Int
-type Term v = AnnotatedTerm v ()
+type Term v = Term.Term v ()
 
 data CompilationEnv e cont
   = CompilationEnv { toIR' :: Map R.Reference (IR e cont)

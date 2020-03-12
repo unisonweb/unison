@@ -18,7 +18,7 @@ import qualified Unison.ShortHash              as SH
 import qualified Unison.HashQualified          as HQ
 
 data HashQualified' n = NameOnly n | HashQualified n ShortHash
-  deriving (Eq, Ord, Functor)
+  deriving (Eq, Functor)
 
 type HashQualified = HashQualified' Name
 
@@ -106,16 +106,10 @@ requalify hq r = case hq of
   NameOnly n        -> fromNamedReferent n r
   HashQualified n _ -> fromNamedReferent n r
 
--- | Sort a list of hash-qualified names first by name, then if those match, by
--- hash.
-sort :: [HashQualified] -> [HashQualified]
-sort =
-  Name.sortNamed' toName $ \hq1 hq2 ->
-    case (hq1, hq2) of
-      (NameOnly{}, HashQualified{}) -> LT
-      (NameOnly{}, NameOnly{}) -> EQ
-      (HashQualified{}, NameOnly{}) -> GT
-      (HashQualified _ h1, HashQualified _ h2) -> compare h1 h2
+instance Ord n => Ord (HashQualified' n) where
+  compare a b = case compare (toName a) (toName b) of
+    EQ -> compare (toHash a) (toHash b)
+    o -> o
 
 instance IsString HashQualified where
   fromString = unsafeFromText . Text.pack

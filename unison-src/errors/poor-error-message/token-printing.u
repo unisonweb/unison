@@ -8,8 +8,8 @@ use Board.Board
 -- x = 1
 -- y = 2
 
-ex = case Board 77 88 99
-  of Board a b c -> c
+ex = match Board 77 88 99
+  with Board a b c -> c
 
 -- yields:
 
@@ -18,7 +18,7 @@ ex = case Board 77 88 99
 -- I was expecting an indented block following the`of` keyword
 -- but instead found an outdent:
 --
---    12 |   of Board a b c -> c
+--    12 |   with Board a b c -> c
 --   SourcePos {sourceName = "/Users/pchiusano/work/unison/unison-src/tests/tictactoe0-array-oob1.u", sourceLine = Pos 12, sourceColumn = Pos 3}
 
 -- What's with the `SourcePos` default show instance here?

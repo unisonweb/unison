@@ -24,6 +24,7 @@ module Unison.Codebase.Branch
     -- * Branch history
     -- ** History queries
   , isEmpty
+  , isEmpty0
   , isOne
   , head
   , headHash
@@ -104,7 +105,8 @@ import Unison.Prelude hiding (empty)
 import           Prelude                  hiding (head,read,subtract)
 
 import           Control.Lens            hiding ( children, cons, transform, uncons )
-import qualified Control.Monad                 as Monad
+import qualified Control.Monad.State           as State
+import           Control.Monad.State            ( StateT )
 import qualified Data.Map                      as Map
 import qualified Data.Map.Merge.Lazy           as Map
 import qualified Data.Set                      as Set
@@ -137,6 +139,7 @@ import qualified Unison.Reference              as Reference
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation            ( Relation )
 import qualified Unison.Util.Relation4         as R4
+import qualified Unison.Util.List              as List
 import           Unison.Util.Map                ( unionWithM )
 import qualified Unison.Util.Star3             as Star3
 import Unison.ShortHash (ShortHash)
@@ -340,8 +343,30 @@ deepEdits' b = go id b where
 
 merge :: forall m . Monad m => Branch m -> Branch m -> m (Branch m)
 merge (Branch x) (Branch y) =
-  Branch <$> Causal.threeWayMerge merge0 diff0 apply x y
+  Branch <$> Causal.threeWayMerge combine x y
  where
+  combine :: Maybe (Branch0 m) -> Branch0 m -> Branch0 m -> m (Branch0 m)
+  combine Nothing l r = merge0 l r
+  combine (Just ca) l r = do
+    dl <- diff0 ca l
+    dr <- diff0 ca r
+    head0 <- apply ca (dl <> dr)
+    children <- Map.mergeA
+                  (Map.traverseMaybeMissing $ combineMissing ca)
+                  (Map.traverseMaybeMissing $ combineMissing ca)
+                  (Map.zipWithAMatched $ const merge)
+                  (_children l) (_children r)
+    pure $ branch0 (_terms head0) (_types head0) children (_edits head0)
+
+  combineMissing ca k cur =
+    case Map.lookup k (_children ca) of
+      Nothing -> pure $ Just cur
+      Just old -> do
+        nw <- merge (cons empty0 old) cur
+        if isEmpty0 $ head nw
+        then pure Nothing
+        else pure $ Just nw
+
   apply :: Branch0 m -> BranchDiff -> m (Branch0 m)
   apply b0 BranchDiff {..} = do
     patches <- sequenceA
@@ -442,36 +467,51 @@ read deserializeRaw deserializeEdits h = Branch <$> Causal.read d h
     RawCons  raw h  -> flip RawCons h <$> fromRaw raw
     RawMerge raw hs -> flip RawMerge hs <$> fromRaw raw
 
+sync
+  :: Monad m
+  => (Hash -> m Bool)
+  -> Causal.Serialize m Raw Raw
+  -> (EditHash -> m Patch -> m ())
+  -> Branch m
+  -> m ()
+sync exists serializeRaw serializeEdits b =
+  State.evalStateT (sync' exists serializeRaw serializeEdits b) mempty
 
 -- serialize a `Branch m` indexed by the hash of its corresponding Raw
-sync :: forall m. Monad m
-     => (Hash -> m Bool)
-     -> Causal.Serialize m Raw Raw
-     -> (EditHash -> m Patch -> m ())
-     -> Branch m
-     -> m ()
-sync exists serializeRaw serializeEdits b =
-  Causal.sync exists serialize0 (view history b)
-  where
+sync'
+  :: forall m
+   . Monad m
+  => (Hash -> m Bool)
+  -> Causal.Serialize m Raw Raw
+  -> (EditHash -> m Patch -> m ())
+  -> Branch m
+  -> StateT (Set Hash) m ()
+sync' exists serializeRaw serializeEdits b = Causal.sync exists
+                                                         serialize0
+                                                         (view history b)
+ where
   toRaw :: Branch0 m -> Raw
-  toRaw Branch0{..} =
+  toRaw Branch0 {..} =
     Raw _terms _types (headHash <$> _children) (fst <$> _edits)
-  serialize0 :: Causal.Serialize m Raw (Branch0 m)
-  serialize0 h b0 =
-    case b0 of
-      RawOne b0 -> do
-        writeB0 b0
-        serializeRaw h $ RawOne (toRaw b0)
-      RawCons b0 ht -> do
-        writeB0 b0
-        serializeRaw h $ RawCons (toRaw b0) ht
-      RawMerge b0 hs -> do
-        writeB0 b0
-        serializeRaw h $ RawMerge (toRaw b0) hs
-    where
-      writeB0 b0 = do
-        for_ (view children b0) (sync exists serializeRaw serializeEdits)
-        for_ (view edits b0) (uncurry serializeEdits)
+  serialize0 :: Causal.Serialize (StateT (Set Hash) m) Raw (Branch0 m)
+  serialize0 h b0 = case b0 of
+    RawOne b0 -> do
+      writeB0 b0
+      lift $ serializeRaw h $ RawOne (toRaw b0)
+    RawCons b0 ht -> do
+      writeB0 b0
+      lift $ serializeRaw h $ RawCons (toRaw b0) ht
+    RawMerge b0 hs -> do
+      writeB0 b0
+      lift $ serializeRaw h $ RawMerge (toRaw b0) hs
+   where
+    writeB0 :: Branch0 m -> StateT (Set Hash) m ()
+    writeB0 b0 = do
+      for_ (view children b0) $ \c -> do
+        queued <- State.get
+        when (Set.notMember (headHash c) queued)
+          $ sync' exists serializeRaw serializeEdits c
+      for_ (view edits b0) (lift . uncurry serializeEdits)
 
   -- this has to serialize the branch0 and its descendants in the tree,
   -- and then serialize the rest of the history of the branch as well
@@ -561,7 +601,7 @@ isEmpty = (== empty)
 step :: Applicative m => (Branch0 m -> Branch0 m) -> Branch m -> Branch m
 step f = over history (Causal.stepDistinct f)
 
-stepM :: Monad m => (Branch0 m -> m (Branch0 m)) -> Branch m -> m (Branch m)
+stepM :: (Monad m, Monad n) => (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepM f = mapMOf history (Causal.stepDistinctM f)
 
 cons :: Applicative m => Branch0 m -> Branch m -> Branch m
@@ -585,7 +625,7 @@ stepAt p f = modifyAt p g where
   g :: Branch m -> Branch m
   g (Branch b) = Branch . Causal.consDistinct (f (Causal.head b)) $ b
 
-stepManyAt :: (Applicative m, Foldable f)
+stepManyAt :: (Monad m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m) -> Branch m -> Branch m
 stepManyAt actions = step (stepManyAt0 actions)
 
@@ -599,8 +639,8 @@ stepAtM p f = modifyAtM p g where
     b0' <- f (Causal.head b)
     pure $ Branch . Causal.consDistinct b0' $ b
 
-stepManyAtM :: (Monad m, Foldable f)
-            => f (Path, Branch0 m -> m (Branch0 m)) -> Branch m -> m (Branch m)
+stepManyAtM :: (Monad m, Monad n, Foldable f)
+            => f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepManyAtM actions = stepM (stepManyAt0M actions)
 
 -- starting at the leaves, apply `f` to every level of the branch.
@@ -651,7 +691,7 @@ updateChildren ::NameSegment
                -> Map NameSegment (Branch m)
                -> Map NameSegment (Branch m)
 updateChildren seg updatedChild =
-  if isEmpty0 (head updatedChild)
+  if isEmpty updatedChild
   then Map.delete seg
   else Map.insert seg updatedChild
 
@@ -679,32 +719,40 @@ modifyAtM path f b = case Path.uncons path of
     -- step the branch by updating its children according to fixup
     pure $ step (setChildBranch seg child') b
 
-stepAt0 :: Applicative m => Path
-                         -> (Branch0 m -> Branch0 m)
-                         -> Branch0 m -> Branch0 m
-stepAt0 p f = runIdentity . stepAt0M p (pure . f)
-
 -- stepManyAt0 consolidates several changes into a single step
-stepManyAt0 :: (Applicative m, Foldable f)
+stepManyAt0 :: forall f m . (Monad m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
-stepManyAt0 actions b = foldl' (\b (p, f) -> stepAt0 p f b) b actions
+stepManyAt0 actions =
+  runIdentity . stepManyAt0M [ (p, pure . f) | (p,f) <- toList actions ]
 
-stepManyAt0M :: (Monad m, Foldable f)
-             => f (Path, Branch0 m -> m (Branch0 m))
-             -> Branch0 m -> m (Branch0 m)
-stepManyAt0M actions b = Monad.foldM (\b (p, f) -> stepAt0M p f b) b actions
+stepManyAt0M :: forall m n f . (Monad m, Monad n, Foldable f)
+             => f (Path, Branch0 m -> n (Branch0 m))
+             -> Branch0 m -> n (Branch0 m)
+stepManyAt0M actions b = go (toList actions) b where
+  go :: [(Path, Branch0 m -> n (Branch0 m))] -> Branch0 m -> n (Branch0 m)
+  go actions b = let
+    -- combines the functions that apply to this level of the tree
+    currentAction b = foldM (\b f -> f b) b [ f | (Path.Empty, f) <- actions ]
 
-stepAt0M :: forall n m. (Functor n, Applicative m)
-         => Path
-         -> (Branch0 m -> n (Branch0 m))
-         -> Branch0 m -> n (Branch0 m)
-stepAt0M p f b = case Path.uncons p of
-  Nothing -> f b
-  Just (seg, path) -> do
-    let child = getChildBranch seg b
-    child0' <- stepAt0M path f (head child)
-    pure $ setChildBranch seg (cons child0' child) b
+    -- groups the actions based on the child they apply to
+    childActions :: Map NameSegment [(Path, Branch0 m -> n (Branch0 m))]
+    childActions =
+      List.multimap [ (seg, (rest,f)) | (seg :< rest, f) <- actions ]
+
+    -- alters the children of `b` based on the `childActions` map
+    stepChildren :: Map NameSegment (Branch m) -> n (Map NameSegment (Branch m))
+    stepChildren children0 = foldM g children0 $ Map.toList childActions
+      where
+      g children (seg, actions) = do
+        -- Recursively applies the relevant actions to the child branch
+        -- The `findWithDefault` is important - it allows the stepManyAt
+        -- to create new children at paths that don't previously exist.
+        child <- stepM (go actions) (Map.findWithDefault empty seg children0)
+        pure $ updateChildren seg child children
+    in do
+      c2 <- stepChildren (view children b)
+      currentAction (set children c2 b)
 
 instance Hashable (Branch0 m) where
   tokens b =

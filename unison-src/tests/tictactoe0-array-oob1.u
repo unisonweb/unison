@@ -8,5 +8,5 @@ use Board Board
 -- x = 1
 -- y = 2
 
-ex = case Board 77 88 99 of
+ex = match Board 77 88 99 with
   Board a b c -> c

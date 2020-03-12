@@ -9,6 +9,7 @@ module Unison.Util.Pretty (
    Pretty,
    ColorText,
    align,
+   align',
    alternations,
    backticked,
    boxForkLeft,
@@ -35,6 +36,7 @@ module Unison.Util.Pretty (
    commas,
    commented,
    oxfordCommas,
+   oxfordCommasWith,
    plural,
    dashed,
    flatMap,
@@ -54,6 +56,7 @@ module Unison.Util.Pretty (
    linesSpaced,
    lit,
    map,
+   mayColumn2,
    nest,
    num,
    newline,
@@ -83,7 +86,6 @@ module Unison.Util.Pretty (
    spacedMap,
    spacesIfBreak,
    string,
-   endSentence,
    surroundCommas,
    syntaxToColor,
    text,
@@ -104,6 +106,7 @@ module Unison.Util.Pretty (
 
 import Unison.Prelude
 
+import           Data.Bifunctor                 ( second )
 import           Data.Char                      ( isSpace )
 import           Data.List                      ( foldr1, intersperse )
 import           Prelude                 hiding ( lines , map )
@@ -302,17 +305,23 @@ commas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 commas = intercalateMap ("," <> softbreak) id
 
 oxfordCommas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
-oxfordCommas xs = case toList xs of
+oxfordCommas = oxfordCommasWith ""
+
+-- Like `oxfordCommas`, but attaches `end` at the end (without a space).
+-- For example, `oxfordCommasWith "."` will attach a period.
+oxfordCommasWith
+  :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
+oxfordCommasWith end xs = case toList xs of
   []     -> ""
-  [x]    -> x
-  [x, y] -> x <> " and " <> y
+  [x]    -> group (x <> end)
+  [x, y] -> x <> " and " <> group (y <> end)
   xs ->
     intercalateMap ("," <> softbreak) id (init xs)
       <> ","
       <> softbreak
       <> "and"
       <> softbreak
-      <> last xs
+      <> group (last xs <> end)
 
 parenthesizeCommas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 parenthesizeCommas = surroundCommas "(" ")"
@@ -452,13 +461,24 @@ excerptColumn2 max cols = case max of
 
 column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
-column2 rows = lines (group <$> align rows)
+column2 = lines . (group <$>) . align
 
-column2M :: (Applicative m, LL.ListLike s Char, IsString s) => [m (Pretty s, Pretty s)] -> m (Pretty s)
+column2M
+  :: (Applicative m, LL.ListLike s Char, IsString s)
+  => [m (Pretty s, Pretty s)]
+  -> m (Pretty s)
 column2M = fmap column2 . sequenceA
 
+mayColumn2
+  :: (LL.ListLike s Char, IsString s)
+  => [(Pretty s, Maybe (Pretty s))]
+  -> Pretty s
+mayColumn2 = lines . (group <$>) . ((uncurry (<>)) <$>) . align'
+
 column3
-  :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s, Pretty s)] -> Pretty s
+  :: (LL.ListLike s Char, IsString s)
+  => [(Pretty s, Pretty s, Pretty s)]
+  -> Pretty s
 column3 = column3sep ""
 
 column3M
@@ -510,20 +530,35 @@ wrapColumn2 rows = lines (align rows) where
     in [ group (rightPad lwidth l <> indentNAfterNewline lwidth (wrap r))
        | (l, r) <- rows]
 
-align :: (LL.ListLike s Char, IsString s)
-  => [(Pretty s, Pretty s)]
-  -> [Pretty s]
-align rows = uncurry (<>) <$> align' rows
+align
+  :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> [Pretty s]
+align rows = (((uncurry (<>)) <$>) . align') (second Just <$> rows)
 
+-- [("foo", Just "bar")
+-- ,("barabaz", Nothing)
+-- ,("qux","quux")]
+--
+-- results in:
+--
+-- [("foo ", "bar"),
+-- [("barabaz", ""),
+-- [("qux ", "quuxbill")]
+--
+-- The first component has padding added, sufficient to align the second
+-- component.  The second component has whitespace added after its
+-- newlines, again sufficient to line it up in a second column.
 align'
   :: (LL.ListLike s Char, IsString s)
-  => [(Pretty s, Pretty s)]
+  => [(Pretty s, Maybe (Pretty s))]
   -> [(Pretty s, Pretty s)]
 align' rows = alignedRows
  where
-  maxWidth = foldl' max 0 (preferredWidth . fst <$> rows) + 1
+  col0Width = foldl' max 0 [ preferredWidth col1 | (col1, Just _) <- rows ] + 1
   alignedRows =
-    [ (rightPad maxWidth col0, indentNAfterNewline maxWidth col1)
+    [ case col1 of
+        Just s  ->
+          (rightPad col0Width col0, indentNAfterNewline col0Width s)
+        Nothing -> (col0, mempty)
     | (col0, col1) <- rows
     ]
 
@@ -535,9 +570,6 @@ num n = fromString (show n)
 
 string :: IsString s => String -> Pretty s
 string = fromString
-
-endSentence :: IsString s => Pretty s -> Pretty s
-endSentence p = group (p <> ".")
 
 shown :: (Show a, IsString s) => a -> Pretty s
 shown = fromString . show

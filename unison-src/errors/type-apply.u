@@ -1,7 +1,7 @@
 --Type.apply
 type List a = Nil | Cons a (List a)
 map : ∀ a b . (a -> b) -> List a -> List b
-map f as = case as of
+map f = cases
   List.Nil -> List.Nil
   List.Cons h t -> List.Cons h (map f t) -- should not typecheck, missing (f h)
 -- definitely should not typecheck!
@@ -13,4 +13,3 @@ ex = c 1 (c 2 (c 3 z))
 pureMap : List Int -- should fail, output is a `List Text`
 pureMap = map (a -> "hi") ex
 ()
-

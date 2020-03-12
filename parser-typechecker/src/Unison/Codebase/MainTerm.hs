@@ -13,6 +13,7 @@ import Unison.Prelude
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.Term                   as Term
+import           Unison.Term                    ( Term )
 import           Unison.Var                     ( Var )
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.HashQualified          as HQ
@@ -28,7 +29,7 @@ data MainTerm v
   = NotAFunctionName String
   | NotFound String
   | BadType String
-  | Success HQ.HashQualified (Term.AnnotatedTerm v Ann) (Type v Ann)
+  | Success HQ.HashQualified (Term v Ann) (Type v Ann)
 
 getMainTerm
   :: (Monad m, Var v)

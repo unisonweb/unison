@@ -1,7 +1,7 @@
 use Optional None Some
 
 foo : Optional a -> [a]
-foo a = case a of
+foo = cases
   None -> []
   Some a -> [a]
 
@@ -16,7 +16,7 @@ foo a = case a of
 --   e <- errorTerm
 --   b <- isFunctionCall
 --   if b then do
-        -- 
+        --
 
 
 -- in reply to `> why err1`:
@@ -44,6 +44,6 @@ and x 4
 and 3 4
 -- but the literal `3` has type `Nat`.
 
-case 3 of
+match 3 with
   3 -> "text"
   4 -> 4.0

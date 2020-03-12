@@ -39,14 +39,13 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Parser as Parser
 import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.Reference as Reference
-import qualified Unison.Term as Term
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
 import Unison.Codebase.Editor.DisplayThing (DisplayThing)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.Codebase.Editor.SearchResult' (SearchResult')
+import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Names3 as Names
 import qualified Data.Set as Set
@@ -57,7 +56,6 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
 
-type Term v a = Term.AnnotatedTerm v a
 type ListDetailed = Bool
 type SourceName = Text
 type NumberedArgs = [String]
@@ -74,45 +72,49 @@ data NumberedOutput v
   | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterMerge Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterMergePropagate Path.Path' Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterCreatePR RemoteNamespace RemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
 
 --  | ShowDiff
 
 data Output v
   -- Generic Success response; we might consider deleting this.
-  -- I had put the `Input` field here in case we wanted the success message
-  -- to vary based on the command the user submitted.
-  = Success Input
+  = Success
   -- User did `add` or `update` before typechecking a file?
-  | NoUnisonFile Input
+  | NoUnisonFile
   | InvalidSourceName String
   | SourceLoadFailed String
   -- No main function, the [Type v Ann] are the allowed types
-  | NoMainFunction Input String PPE.PrettyPrintEnv [Type v Ann]
+  | NoMainFunction String PPE.PrettyPrintEnv [Type v Ann]
+  | BranchNotEmpty Path'
+  | LoadPullRequest RemoteNamespace RemoteNamespace Path' Path' Path'
   | CreatedNewBranch Path.Absolute
-  | BranchAlreadyExists Input Path'
-  | PatchAlreadyExists Input Path.Split'
+  | BranchAlreadyExists Path'
+  | PatchAlreadyExists Path.Split'
   | NoExactTypeMatches
-  | TypeAlreadyExists Input Path.Split' (Set Reference)
-  | TypeParseError Input String (Parser.Err v)
-  | ParseResolutionFailures Input String [Names.ResolutionFailure v Ann]
-  | TypeHasFreeVars Input (Type v Ann)
-  | TermAlreadyExists Input Path.Split' (Set Referent)
+  | TypeAlreadyExists Path.Split' (Set Reference)
+  | TypeParseError String (Parser.Err v)
+  | ParseResolutionFailures String [Names.ResolutionFailure v Ann]
+  | TypeHasFreeVars (Type v Ann)
+  | TermAlreadyExists Path.Split' (Set Referent)
   | NameAmbiguous
       Int -- codebase hash length
-      Input Path.HQSplit' (Set Referent) (Set Reference)
-  | TermAmbiguous Input HQ.HashQualified (Set Referent)
-  | HashAmbiguous Input ShortHash (Set Referent)
-  | BranchHashAmbiguous Input ShortBranchHash (Set ShortBranchHash)
-  | BadDestinationBranch Input Path'
-  | BranchNotFound Input Path'
-  | NameNotFound Input Path.HQSplit'
-  | PatchNotFound Input Path.Split'
-  | TypeNotFound Input Path.HQSplit'
-  | TermNotFound Input Path.HQSplit'
-  | TermNotFound' Input Reference.Id
+      Path.HQSplit' (Set Referent) (Set Reference)
+  | TermAmbiguous HQ.HashQualified (Set Referent)
+  | HashAmbiguous ShortHash (Set Referent)
+  | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
+  | BadDestinationBranch Path'
+  | BranchNotFound Path'
+  | NameNotFound Path.HQSplit'
+  | PatchNotFound Path.Split'
+  | TypeNotFound Path.HQSplit'
+  | TermNotFound Path.HQSplit'
+  | TypeNotFound' ShortHash
+  | TermNotFound' ShortHash
   | SearchTermsNotFound [HQ.HashQualified]
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
@@ -121,7 +123,7 @@ data Output v
   | DeleteBranchConfirmation
       [(Path', (Names, [SearchResult' v Ann]))]
   -- CantDelete input couldntDelete becauseTheseStillReferenceThem
-  | CantDelete Input PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
+  | CantDelete PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
   | DeleteEverythingConfirmation
   | DeletedEverything
   | ListNames Int -- hq length to print References
@@ -178,13 +180,16 @@ data Output v
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch (Set ShortBranchHash)
+  | StartOfCurrentPathHistory
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
-  | NothingTodo Input
+  | PullAlreadyUpToDate RemoteNamespace Path'
+  | MergeAlreadyUpToDate Path' Path'
+  | PreviewMergeAlreadyUpToDate Path' Path'
   -- | No conflicts or edits remain for the current patch.
   | NoConflictsOrEdits
   | NotImplemented
-  | NoBranchWithHash Input ShortBranchHash
+  | NoBranchWithHash ShortBranchHash
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   deriving (Show)
@@ -248,6 +253,7 @@ isFailure o = case o of
   BranchAlreadyExists{} -> True
   PatchAlreadyExists{} -> True
   NoExactTypeMatches -> True
+  BranchNotEmpty{} -> True
   TypeAlreadyExists{} -> True
   TypeParseError{} -> True
   ParseResolutionFailures{} -> True
@@ -261,6 +267,7 @@ isFailure o = case o of
   NameNotFound{} -> True
   PatchNotFound{} -> True
   TypeNotFound{} -> True
+  TypeNotFound'{} -> True
   TermNotFound{} -> True
   TermNotFound'{} -> True
   SearchTermsNotFound ts -> not (null ts)
@@ -299,24 +306,31 @@ isFailure o = case o of
   NothingToPatch{} -> False
   WarnIncomingRootBranch{} -> False
   History{} -> False
+  StartOfCurrentPathHistory -> True
   NotImplemented -> True
   DumpNumberedArgs{} -> False
   DumpBitBooster{} -> False
   NoBranchWithHash{} -> True
-  NothingTodo{} -> False
+  PullAlreadyUpToDate{} -> False
+  MergeAlreadyUpToDate{} -> False
+  PreviewMergeAlreadyUpToDate{} -> False
   NoConflictsOrEdits{} -> False
   ListShallow _ es -> null es
   HashAmbiguous{} -> True
   ShowReflog{} -> False
+  LoadPullRequest{} -> False
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case
   ShowDiffNamespace{} -> False
   ShowDiffAfterDeleteDefinitions{} -> False
   ShowDiffAfterDeleteBranch{} -> False
+  ShowDiffAfterModifyBranch{} -> False
   ShowDiffAfterMerge{} -> False
+  ShowDiffAfterMergePropagate{} -> False
   ShowDiffAfterMergePreview{} -> False
   ShowDiffAfterUndo{} -> False
   ShowDiffAfterPull{} -> False
+  ShowDiffAfterCreatePR{} -> False
 
 

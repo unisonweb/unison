@@ -12,14 +12,14 @@ import qualified Data.Map as Map
 import           Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
-import           Unison.Term (AnnotatedTerm')
+import           Unison.Term (Term')
 import qualified Unison.Term as Term
 import           Unison.Var (Var)
 
-unordered :: Var v => [(v,AnnotatedTerm' vt v a)] -> [[(v,AnnotatedTerm' vt v a)]]
+unordered :: Var v => [(v,Term' vt v a)] -> [[(v,Term' vt v a)]]
 unordered = ABT.components 
 
-ordered :: Var v => [(v,AnnotatedTerm' vt v a)] -> [[(v,AnnotatedTerm' vt v a)]]
+ordered :: Var v => [(v,Term' vt v a)] -> [[(v,Term' vt v a)]]
 ordered = ABT.orderedComponents 
 
 -- | Algorithm for minimizing cycles of a `let rec`. This can
@@ -38,8 +38,8 @@ ordered = ABT.orderedComponents
 -- Fails on the left if there are duplicate definitions.
 minimize
   :: Var v
-  => AnnotatedTerm' vt v a
-  -> Either (NonEmpty (v, [a])) (Maybe (AnnotatedTerm' vt v a))
+  => Term' vt v a
+  -> Either (NonEmpty (v, [a])) (Maybe (Term' vt v a))
 minimize (Term.LetRecNamedAnnotatedTop' isTop ann bs e) =
   let bindings = first snd <$> bs
       group    = map (fst . head &&& map (ABT.annotation . snd)) . groupBy ((==) `on` fst) . sortBy
@@ -84,5 +84,5 @@ minimize (Term.LetRecNamedAnnotatedTop' isTop ann bs e) =
 minimize _ = Right Nothing
 
 minimize'
-  :: Var v => AnnotatedTerm' vt v a -> Either (NonEmpty (v,[a])) (AnnotatedTerm' vt v a)
+  :: Var v => Term' vt v a -> Either (NonEmpty (v,[a])) (Term' vt v a)
 minimize' term = fromMaybe term <$> minimize term

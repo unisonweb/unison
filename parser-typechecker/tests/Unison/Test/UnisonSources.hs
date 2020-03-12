@@ -36,7 +36,7 @@ import qualified Unison.Result          as Result
 import qualified Unison.Runtime.Rt1IO   as RT
 import           Unison.Symbol          (Symbol)
 import qualified Unison.Term            as Term
-import           Unison.Term            ( AnnotatedTerm, Term, amap )
+import           Unison.Term            ( Term )
 import           Unison.Test.Common     (parseAndSynthesizeAsFile, parsingEnv)
 import           Unison.Type            ( Type )
 import qualified Unison.UnisonFile      as UF
@@ -153,8 +153,8 @@ resultTest rt uf filepath = do
           let [watchResult] = view _5 <$> Map.elems watches
               tm' = Term.letRec' False bindings watchResult
           -- note . show $ tm'
-          -- note . show $ amap (const ()) tm
-          expect $ tm' == amap (const ()) tm
+          -- note . show $ Term.amap (const ()) tm
+          expect $ tm' == Term.amap (const ()) tm
         Left e -> crash $ show e
     else pure ()
 
@@ -183,9 +183,9 @@ serializationTest uf = scope "serialization" . tests . concat $
           bytes = putBytes (V1.putEffectDeclaration V1.putSymbol putUnit) decl'
           decl'' = getFromBytes (V1.getEffectDeclaration V1.getSymbol getUnit) bytes
       in expectEqual decl'' (Just decl')
-    testTerm :: (Symbol, (Reference, AnnotatedTerm Symbol Ann, Type Symbol Ann)) -> Test ()
+    testTerm :: (Symbol, (Reference, Term Symbol Ann, Type Symbol Ann)) -> Test ()
     testTerm (name, (_, tm, tp)) = scope (Var.nameStr name) $
-      let tm' :: Term Symbol
+      let tm' :: Term Symbol ()
           tm' = Term.amap (const ()) tm
           tp' :: Type Symbol ()
           tp' = ABT.amap (const ()) tp

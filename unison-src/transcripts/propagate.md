@@ -1,11 +1,15 @@
 # Propagating type edits
 
+```ucm:hide
+.> builtins.merge
+```
+
 We introduce a type `Foo` with a function dependent `fooToInt`.
 
 ```unison
 use .builtin
 
-unique [foo1] type Foo = Foo
+unique type Foo = Foo
 
 fooToInt : Foo -> Int
 fooToInt _ = +42
@@ -22,7 +26,7 @@ And then we add it.
 Then if we change the type `Foo`...
 
 ```unison
-unique [foo2] type Foo = Foo | Bar
+unique type Foo = Foo | Bar
 ```
 
 and update the codebase to use the new type `Foo`...
@@ -73,7 +77,7 @@ Update...
 .subpath.preserve> update
 ```
 
-Now the type of `someTerm` should be `Optional x -> Optional x` and the 
+Now the type of `someTerm` should be `Optional x -> Optional x` and the
 type of `otherTerm` should remain the same.
 
 ```ucm
@@ -128,4 +132,3 @@ The other namespace should be left alone.
 ```ucm
 .subpath.two> view someTerm
 ```
-

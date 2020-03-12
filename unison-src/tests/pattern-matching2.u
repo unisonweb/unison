@@ -7,14 +7,14 @@ use Foo0 Foo0
 use Foo1 Foo1
 use Foo2 Foo2
 
-x = case Foo0 of
+x = match Foo0 with
   Foo0 -> 1
 
-y = case Foo1 1 of
+y = match Foo1 1 with
   Foo1 1 -> 0
   Foo1 _ -> 10
 
-z = case Foo2 1 "hi" of
+z = match Foo2 1 "hi" with
   Foo2 x "bye" -> x
   Foo2 1 "hi" -> 1
 

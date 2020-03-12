@@ -4,6 +4,7 @@ module Unison.Codebase.Editor.Input
   , OutputLocation(..)
   , PatchPath
   , BranchId, parseBranchId
+  , HashOrHQSplit'
   ) where
 
 import Unison.Prelude
@@ -11,7 +12,7 @@ import Unison.Prelude
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
-import           Unison.Codebase.Path           ( Path', Path )
+import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.Reference (Reference)
@@ -28,6 +29,7 @@ type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 type PatchPath = Path.Split'
 type BranchId = Either ShortBranchHash Path'
+type HashOrHQSplit' = Either ShortHash Path.HQSplit'
 
 parseBranchId :: String -> Either String BranchId
 parseBranchId ('#':s) = case SBH.fromText (Text.pack s) of
@@ -45,21 +47,25 @@ data Input
     | MergeLocalBranchI Path' Path'
     | PreviewMergeLocalBranchI Path' Path'
     | DiffNamespaceI Path' Path' -- old new
-    | PullRemoteBranchI (Maybe (RemoteRepo, Maybe ShortBranchHash, Path)) Path'
-    | PushRemoteBranchI (Maybe (RemoteRepo, Path)) Path'
+    | PullRemoteBranchI (Maybe RemoteNamespace) Path'
+    | PushRemoteBranchI (Maybe RemoteHead) Path'
+    | CreatePullRequestI RemoteNamespace RemoteNamespace
+    | LoadPullRequestI RemoteNamespace RemoteNamespace Path'
     | ResetRootI (Either ShortBranchHash Path')
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- change directory
     | SwitchBranchI Path'
+    | PopBranchI
     -- > names foo
     -- > names foo.bar
     -- > names .foo.bar
     -- > names .foo.bar#asdflkjsdf
     -- > names #sdflkjsdfhsdf
     | NamesI HQ.HashQualified
-    | AliasTermI Path.HQSplit' Path.Split'
-    | AliasTypeI Path.HQSplit' Path.Split'
+    | AliasTermI HashOrHQSplit' Path.Split'
+    | AliasTypeI HashOrHQSplit' Path.Split'
+    | AliasManyI [Path.HQSplit] Path'
     -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
     | MoveTermI Path.HQSplit' Path.Split'
     | MoveTypeI Path.HQSplit' Path.Split'
@@ -93,8 +99,8 @@ data Input
     | AddTypeReplacementI PatchPath Reference Reference
     | RemoveTermReplacementI PatchPath Reference Reference
     | RemoveTypeReplacementI PatchPath Reference Reference
-    | ReplaceTermI ShortHash ShortHash (Maybe PatchPath)
-    | ReplaceTypeI ShortHash ShortHash (Maybe PatchPath)
+    | ReplaceTermI HashOrHQSplit' HashOrHQSplit' (Maybe PatchPath)
+    | ReplaceTypeI HashOrHQSplit' HashOrHQSplit' (Maybe PatchPath)
   | UndoI
   -- First `Maybe Int` is cap on number of results, if any
   -- Second `Maybe Int` is cap on diff elements shown, if any
@@ -104,9 +110,9 @@ data Input
   | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
   -- link from to
-  | LinkI Path.HQSplit' Path.HQSplit'
+  | LinkI [Path.HQSplit'] Path.HQSplit'
   -- unlink from to
-  | UnlinkI Path.HQSplit' Path.HQSplit'
+  | UnlinkI [Path.HQSplit'] Path.HQSplit'
   -- links from <type>
   | LinksI Path.HQSplit' (Maybe String)
   | DisplayI OutputLocation String

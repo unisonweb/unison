@@ -47,10 +47,10 @@ import qualified Unison.DataDeclaration        as DD
 import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
 import qualified Unison.ConstructorType as CT
 
-pretty :: Var v => PrettyPrintEnv -> AnnotatedTerm v a -> Pretty ColorText
+pretty :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
 pretty env tm = PP.syntaxToColor $ pretty0 env (ac (-1) Normal Map.empty MaybeDoc) (printAnnotate env tm)
 
-pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> ColorText
+pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> Term v a -> ColorText
 pretty' (Just width) n t = PP.render width $ PP.syntaxToColor $ pretty0 n (ac (-1) Normal Map.empty MaybeDoc) (printAnnotate n t)
 pretty' Nothing      n t = PP.renderUnbroken $ PP.syntaxToColor $ pretty0 n (ac (-1) Normal Map.empty MaybeDoc) (printAnnotate n t)
 
@@ -121,7 +121,7 @@ data DocLiteralContext
 
      >=2
        if 0a then 0b else 0c
-       handle 2h in 2b
+       handle 0b with 0h
        case 2x of
          a | 2g -> 0b
 
@@ -147,7 +147,7 @@ pretty0
   :: Var v
   => PrettyPrintEnv
   -> AmbientContext
-  -> AnnotatedTerm3 v PrintAnnotation
+  -> Term3 v PrintAnnotation
   -> Pretty SyntaxText
 pretty0
   n
@@ -159,6 +159,9 @@ pretty0
   , docContext = doc
   }
   term
+  -- Note: the set of places in this function that call calcImports has to be kept in sync
+  -- with the definition of immediateChildBlockTerms, otherwise `use` statements get
+  -- inserted at the wrong scope.
   = specialCases term $ \case
     Var' v -> parenIfInfix name ic $ styleHashQualified'' (fmt S.Var) name
       -- OK since all term vars are user specified, any freshening was just added during typechecking
@@ -252,8 +255,15 @@ pretty0
       ]
     LetBlock bs e -> printLet bc bs e im' uses
     Match' scrutinee branches -> paren (p >= 2) $
-      ((fmt S.ControlKeyword "case ") <> pretty0 n (ac 2 Normal im doc) scrutinee <> (fmt S.ControlKeyword " of")) `PP.hang` bs
-      where bs = PP.lines (map printCase branches)
+      if height > 0 then PP.lines [
+        (fmt S.ControlKeyword "match ") `PP.hang` ps,
+        (fmt S.ControlKeyword " with") `PP.hang` pbs
+       ]
+      else ((fmt S.ControlKeyword "match ") <> ps <> (fmt S.ControlKeyword " with")) `PP.hang` pbs
+      where height = PP.preferredHeight ps
+            ps = pretty0 n (ac 2 Normal im doc) scrutinee
+            pbs = printCase n im doc branches
+
     t -> l "error: " <> l (show t)
  where
   specialCases term go = case (term, binaryOpsPred) of
@@ -274,6 +284,9 @@ pretty0
         paren (p >= 10) $ pretty0 n (ac 10 Normal im doc) f `PP.hang`
           PP.spacedMap (pretty0 n (ac 10 Normal im doc)) args
       _ -> case (term, nonUnitArgPred) of
+        (LamsNamedMatch' [] branches, _) ->
+          paren (p >= 3) $
+            PP.group (fmt S.ControlKeyword "cases") `PP.hang` printCase n im doc branches
         LamsNamedPred' vs body ->
           paren (p >= 3) $
             PP.group (varList vs <> fmt S.ControlKeyword " ->") `PP.hang` pretty0 n (ac 2 Block im doc) body
@@ -286,8 +299,8 @@ pretty0
 
   printLet :: Var v
            => BlockContext
-           -> [(v, AnnotatedTerm3 v PrintAnnotation)]
-           -> AnnotatedTerm3 v PrintAnnotation
+           -> [(v, Term3 v PrintAnnotation)]
+           -> Term3 v PrintAnnotation
            -> Imports
            -> ([Pretty SyntaxText] -> Pretty SyntaxText)
            -> Pretty SyntaxText
@@ -304,35 +317,17 @@ pretty0
       Block  -> id
       Normal -> \x -> (fmt S.ControlKeyword "let") `PP.hang` x
 
-  printCase :: Var v => MatchCase () (AnnotatedTerm3 v PrintAnnotation) -> Pretty SyntaxText
-  printCase (MatchCase pat guard (AbsN' vs body)) =
-    PP.group $ lhs `PP.hang` (uses [pretty0 n (ac 0 Block im' doc) body])
-    where
-    lhs = PP.group (fst (prettyPattern n (ac 0 Block im doc) (-1) vs pat) <> " ")
-       <> printGuard guard
-       <> (fmt S.ControlKeyword "->")
-    printGuard (Just g0) = let
-      -- strip off any Abs-chain around the guard, guard variables are rendered
-      -- like any other variable, ex: case Foo x y | x < y -> ...
-      g = case g0 of
-        AbsN' _ g' -> g'
-        _ -> g0
-      in PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty0 n (ac 2 Normal im doc) g, ""]
-    printGuard Nothing  = mempty
-    (im', uses) = calcImports im body
-  printCase _ = l "error"
-
   -- This predicate controls which binary functions we render as infix
   -- operators.  At the moment the policy is just to render symbolic
   -- operators as infix - not 'wordy' function names.  So we produce
   -- "x + y" and "foo x y" but not "x `foo` y".
-  binaryOpsPred :: Var v => AnnotatedTerm3 v PrintAnnotation -> Bool
+  binaryOpsPred :: Var v => Term3 v PrintAnnotation -> Bool
   binaryOpsPred = \case
     Ref' r | isSymbolic (PrettyPrintEnv.termName n (Referent.Ref r)) -> True
     Var' v | isSymbolic (HQ.unsafeFromVar v) -> True
     _ -> False
 
-  nonForcePred :: AnnotatedTerm3 v PrintAnnotation -> Bool
+  nonForcePred :: Term3 v PrintAnnotation -> Bool
   nonForcePred = \case
     Constructor' DD.UnitRef 0 -> False
     Constructor' DD.DocRef _  -> False
@@ -347,7 +342,7 @@ pretty0
   -- produce any backticks.  We build the result out from the right,
   -- starting at `f2`.
   binaryApps
-    :: Var v => [(AnnotatedTerm3 v PrintAnnotation, AnnotatedTerm3 v PrintAnnotation)]
+    :: Var v => [(Term3 v PrintAnnotation, Term3 v PrintAnnotation)]
              -> Pretty SyntaxText
              -> Pretty SyntaxText
   binaryApps xs last = unbroken `PP.orElse` broken
@@ -440,6 +435,36 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   patternsSep p sep vs pats = case patterns p vs pats of
     (printed, tail_vs) -> (PP.sep sep printed, tail_vs)
 
+printCase
+  :: Var v
+  => PrettyPrintEnv
+  -> Imports
+  -> DocLiteralContext
+  -> [MatchCase () (Term3 v PrintAnnotation)]
+  -> Pretty SyntaxText
+printCase env im doc ms = PP.lines $ map each gridArrowsAligned where
+  each (lhs, arrow, body) = PP.group $ (lhs <> arrow) `PP.hang` body
+  grid = go <$> ms
+  gridArrowsAligned = tidy <$> zip (PP.align' (f <$> grid)) grid where
+    f (a, b, _) = (a, Just b)
+    tidy ((a', b'), (_, _, c)) = (a', b', c)
+  go (MatchCase pat guard (AbsN' vs body)) =
+    (lhs, arrow, (uses [pretty0 env (ac 0 Block im' doc) body]))
+    where
+    lhs = PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
+       <> printGuard guard
+    arrow = fmt S.ControlKeyword "->"
+    printGuard (Just g0) = let
+      -- strip off any Abs-chain around the guard, guard variables are rendered
+      -- like any other variable, ex: case Foo x y | x < y -> ...
+      g = case g0 of
+        AbsN' _ g' -> g'
+        _ -> g0
+      in PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 env (ac 2 Normal im doc) g]
+    printGuard Nothing  = mempty
+    (im', uses) = calcImports im body
+  go _ = (l "error", mempty, mempty)
+
 {- Render a binding, producing output of the form
 
 foo : t -> u
@@ -458,12 +483,12 @@ prettyBinding
   :: Var v
   => PrettyPrintEnv
   -> HQ.HashQualified
-  -> AnnotatedTerm2 v at ap v a
+  -> Term2 v at ap v a
   -> Pretty SyntaxText
 prettyBinding n = prettyBinding0 n $ ac (-1) Block Map.empty MaybeDoc
 
 prettyBinding' ::
-  Var v => Int -> PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> ColorText
+  Var v => Int -> PrettyPrintEnv -> HQ.HashQualified -> Term v a -> ColorText
 prettyBinding' width n v t = PP.render width $ PP.syntaxToColor $ prettyBinding n v t
 
 prettyBinding0
@@ -471,7 +496,7 @@ prettyBinding0
   => PrettyPrintEnv
   -> AmbientContext
   -> HQ.HashQualified
-  -> AnnotatedTerm2 v at ap v a
+  -> Term2 v at ap v a
   -> Pretty SyntaxText
 prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = go
   (symbolic && isBinary term)
@@ -485,6 +510,10 @@ prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = 
         )
       , PP.group (prettyBinding0 env a v tm)
       ]
+    (printAnnotate env -> LamsNamedMatch' vs branches) ->
+      PP.group
+            $         PP.group (defnLhs v vs <> fmt S.BindingEquals " =" <> " " <> fmt S.ControlKeyword "cases")
+            `PP.hang` printCase env im doc branches
     LamsNamedOrDelay' vs body ->
       let (im', uses) = calcImports im body'
           -- In the case where we're being called from inside `pretty0`, this
@@ -514,10 +543,11 @@ prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = 
   symbolic = isSymbolic v
   isBinary = \case
     Ann'              tm _ -> isBinary tm
+    LamsNamedMatch'   vs _ -> length vs == 1
     LamsNamedOrDelay' vs _ -> length vs == 2
     _                      -> False -- unhittable
 
-isDocLiteral :: AnnotatedTerm3 v PrintAnnotation -> Bool
+isDocLiteral :: Term3 v PrintAnnotation -> Bool
 isDocLiteral term = case term of
   DD.DocJoin segs -> all isDocLiteral segs
   DD.DocBlob _ -> True
@@ -531,7 +561,7 @@ isDocLiteral term = case term of
   _ -> False
 
 -- Similar to DisplayValues.displayDoc, but does not follow and expand references.
-prettyDoc :: Var v => PrettyPrintEnv -> Imports -> AnnotatedTerm3 v a -> Pretty SyntaxText
+prettyDoc :: Var v => PrettyPrintEnv -> Imports -> Term3 v a -> Pretty SyntaxText
 prettyDoc n im term = mconcat [ fmt S.DocDelimiter $ l "[: "
                               , go term
                               , spaceUnlessBroken
@@ -735,7 +765,7 @@ instance Semigroup PrintAnnotation where
 instance Monoid PrintAnnotation where
   mempty = PrintAnnotation { usages = Map.empty }
 
-suffixCounterTerm :: Var v => PrettyPrintEnv -> AnnotatedTerm2 v at ap v a -> PrintAnnotation
+suffixCounterTerm :: Var v => PrettyPrintEnv -> Term2 v at ap v a -> PrintAnnotation
 suffixCounterTerm n = \case
     Var' v -> countHQ $ HQ.unsafeFromVar v
     Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
@@ -755,9 +785,9 @@ suffixCounterType n = \case
     Type.Ref' r -> countHQ $ PrettyPrintEnv.typeName n r
     _ -> mempty
 
-printAnnotate :: (Var v, Ord v) => PrettyPrintEnv -> AnnotatedTerm2 v at ap v a -> AnnotatedTerm3 v PrintAnnotation
+printAnnotate :: (Var v, Ord v) => PrettyPrintEnv -> Term2 v at ap v a -> Term3 v PrintAnnotation
 printAnnotate n tm = fmap snd (go (reannotateUp (suffixCounterTerm n) tm)) where
-  go :: Ord v => AnnotatedTerm2 v at ap v b -> AnnotatedTerm2 v () () v b
+  go :: Ord v => Term2 v at ap v b -> Term2 v () () v b
   go = extraMap' id (const ()) (const ())
 
 countTypeUsages :: (Var v, Ord v) => PrettyPrintEnv -> Type v a -> PrintAnnotation
@@ -835,7 +865,7 @@ x |> f = f x
 calcImports
   :: (Var v, Ord v)
   => Imports
-  -> AnnotatedTerm3 v PrintAnnotation
+  -> Term3 v PrintAnnotation
   -> (Imports, [Pretty SyntaxText] -> Pretty SyntaxText)
 calcImports im tm = (im', render $ getUses result)
   where
@@ -920,7 +950,7 @@ calcImports im tm = (im', render $ getUses result)
 -- looking for child terms that are block terms, and see if any of those contain
 -- all the usages of the name.
 -- Cut out the occurrences of "const id $" to get tracing.
-allInSubBlock :: (Var v, Ord v) => AnnotatedTerm3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
+allInSubBlock :: (Var v, Ord v) => Term3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
 allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
                              result = any (/= tm) $ found
                              tr = const id $ trace ("\nallInSubBlock(" ++ show p ++ ", " ++
@@ -950,10 +980,12 @@ allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
   hit t = (getUsages t) == i
 
 -- Return any blockterms at or immediately under this term.  Has to match the places in the
--- syntax that get a call to `calcImports` in `pretty0`.
-immediateChildBlockTerms :: (Var vt, Var v) => AnnotatedTerm2 vt at ap v a -> [AnnotatedTerm2 vt at ap v a]
+-- syntax that get a call to `calcImports` in `pretty0`.  AST nodes that do a calcImports in
+-- pretty0, in order to try and emit a `use` statement, need to be emitted also by this
+-- function, otherwise the `use` statement may come out at an enclosing scope instead.
+immediateChildBlockTerms :: (Var vt, Var v) => Term2 vt at ap v a -> [Term2 vt at ap v a]
 immediateChildBlockTerms = \case
-    Handle' _ body -> [body]
+    Handle' handler body -> [handler, body]
     If' _ t f -> [t, f]
     LetBlock bs _ -> concat $ map doLet bs
     Match' _ branches -> concat $ map doCase branches
@@ -975,8 +1007,8 @@ pattern LetBlock bindings body <- (unLetBlock -> Just (bindings, body))
 -- outer block.
 unLetBlock
   :: Ord v
-  => AnnotatedTerm2 vt at ap v a
-  -> Maybe ([(v, AnnotatedTerm2 vt at ap v a)], AnnotatedTerm2 vt at ap v a)
+  => Term2 vt at ap v a
+  -> Maybe ([(v, Term2 vt at ap v a)], Term2 vt at ap v a)
 unLetBlock t = rec t where
   dontIntersect v1s v2s =
     all (`Set.notMember` v2set) (fst <$> v1s) where
@@ -995,4 +1027,3 @@ unLetBlock t = rec t where
         Just (innerBindings, innerBody) | dontIntersect bindings innerBindings ->
           Just (bindings ++ innerBindings, innerBody)
         _ -> Just (bindings, body)
-

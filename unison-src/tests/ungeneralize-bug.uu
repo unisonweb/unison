@@ -5,7 +5,7 @@ use Optional Some None
 type Foo a b = Foo a (Optional b)
 
 foo : Foo a b -> (b -> c) -> Foo a c
-foo x f = case x of
+foo x f = match x with
   Foo a None -> Foo a None
 
 --
@@ -13,7 +13,7 @@ foo x f = case x of
 -- I found a value of type b where I expected to find one of type c:
 --
 --     7 | foo : Foo a b -> (b -> c) -> Foo a c
---     8 | foo x f = case x of
+--     8 | foo x f = match x with
 --     9 |   Foo a None -> Foo a None
 --
 --   from right here:

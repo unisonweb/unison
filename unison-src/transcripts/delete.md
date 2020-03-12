@@ -1,5 +1,9 @@
 # Delete
 
+```ucm:hide
+.> builtins.merge
+```
+
 The delete command can delete both terms and types, as long as it's given an
 unambiguous name.
 
@@ -52,6 +56,10 @@ I can force my delete through by re-issuing the command.
 
 ```ucm
 .a> delete foo
+```
+
+```ucm:error
+.a> ls
 ```
 
 Let's repeat all that on a type, for completeness.

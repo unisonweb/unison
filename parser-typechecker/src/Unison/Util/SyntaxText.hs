@@ -17,7 +17,7 @@ data Element = NumericLiteral
              | Constructor
              | Request
              | AbilityBraces
-             -- let|handle|in|where|case|of|->|if|then|else|and|or
+             -- let|handle|in|where|match|with|cases|->|if|then|else|and|or
              | ControlKeyword
              -- forall|->
              | TypeOperator

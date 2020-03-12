@@ -1,46 +1,8 @@
 # Unison
-.unison*/
-.unisonHistory
+.unison*
 test-output
-
-# Haskell
-dist
-cabal-dev
-*.o
-*.hi
-*.chi
-*.chs.h
-*.swp
-*.un~
-**/cache/**
-**/build/**
-tags
-ctags
-unison-src/.loaded
-**/cabal.sandbox.config
-.cabal-sandbox/**
-blockstore
-blockstore.leveldb
-target
-htags
-scala-tags
-haskell-tags
-out
+transcript-*
 
 # Stack
 .stack-work
 stack.yaml.lock
-
-# IntelliJ
-.idea
-*.iml
-
-# Misc
-*~
-.DS_Store
-.virtualenv
-.vagrant
-.bloop
-.floo
-.flooignore
-tmp/

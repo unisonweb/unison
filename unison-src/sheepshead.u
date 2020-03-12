@@ -13,14 +13,14 @@ namespace Suit where
 
 namespace Rank where
   all = [A, _10, K, Q, J, _9, _8, _7]
-  points r = case r of
+  points = cases
     A -> 11
     _10 -> 10
     K -> 4
     Q -> 3
     J -> 2
     _ -> 0
-  toText r = case r of
+  toText = cases
     A -> "A"
     K -> "K"
     Q -> "Q"
@@ -31,9 +31,9 @@ namespace Rank where
     _7 -> "7"
 
 namespace NonEmpty where
-  toList n = case n of
+  toList = cases
     NonEmpty h t -> Sequence.cons h t
   fromList : [a] -> Optional (NonEmpty a)
-  fromList l = case Sequence.at 0 l of
+  fromList l = match Sequence.at 0 l with
     None -> None
     Some a -> Some (NonEmpty a (Sequence.drop 1 l))

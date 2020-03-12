@@ -37,6 +37,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO
 import qualified System.Console.Haskeline as Line
 import System.IO.Error (isDoesNotExistError)
+import qualified Crypto.Random        as Random   
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase as Codebase
@@ -44,6 +45,7 @@ import qualified Unison.CommandLine.InputPattern as IP
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import Text.Regex.TDFA
+import Control.Lens (view)
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
@@ -190,11 +192,11 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
           numberedArgs <- readIORef numberedArgsRef
           getUserInput patternMap codebase root path numberedArgs
         loadSourceFile :: Text -> IO LoadSourceResult
-        loadSourceFile fname = do
+        loadSourceFile fname =
           if allow $ Text.unpack fname
             then
               let handle :: IOException -> IO LoadSourceResult
-                  handle e = do
+                  handle e =
                     case e of
                       _ | isDoesNotExistError e -> return InvalidSourceNameError
                       _ -> return LoadError
@@ -203,7 +205,7 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
                     return $ LoadSuccess contents
                   in catch go handle
             else return InvalidSourceNameError
-        notify = notifyUser dir >=> (\o -> do
+        notify = notifyUser dir >=> (\o ->
           ifM (readIORef pageOutput)
               (putPrettyNonempty o)
               (putPrettyLnUnpaged o))
@@ -231,8 +233,9 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
         cancelFileSystemWatch
         cancelWatchBranchUpdates
       loop state = do
-        writeIORef pathRef (HandleInput._currentPath state)
+        writeIORef pathRef (view HandleInput.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
+        
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (writeIORef rootRef)
                                      runtime
@@ -241,6 +244,7 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
                                       putPrettyNonempty p $> args)
                                      loadSourceFile
                                      codebase
+                                     (const Random.getSystemDRG)
                                      free
         case o of
           Nothing -> pure ()

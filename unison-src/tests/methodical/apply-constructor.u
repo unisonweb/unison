@@ -1,11 +1,11 @@
 
--- Now check exact and underapply cases for constructorsa
+-- Now check exact and underapply cases for constructors
 -- (overapply of a constructor is always a type error)
 
 type Woot = Woot Nat Nat Nat Nat
 
 toSeq : Woot -> [Nat]
-toSeq w = case w of
+toSeq = cases
   Woot a b c d -> [a,b,c,d]
 
 use Woot Woot
@@ -27,5 +27,3 @@ underapply2t =
   f 4
 
 > (toSeq exactt, toSeq underapply0t, toSeq underapply1t, toSeq underapply2t)
-
-

@@ -6,12 +6,12 @@ type Board = Board P P
 use Board.Board
 use P O X E
 
-case Board X O X
-  of Board a b c -> a
+match Board X O X
+  with Board a b c -> a
 
 
 -- gives this error:
   -- This looks like a function call, but with a Board where the function should be.  Are you missing an operator?
   --                                             ^^^^^
-  --    13 | case Board X O X
+  --    13 | match Board X O X
   --              ^^^^^
