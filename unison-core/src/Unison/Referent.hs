@@ -19,8 +19,15 @@ import qualified Unison.ConstructorType as CT
 
 -- Slightly odd naming. This is the "referent of term name in the codebase",
 -- rather than the target of a Reference.
-data Referent = Ref Reference | Con Reference Int ConstructorType
-  deriving (Show, Ord, Eq)
+type Referent = Referent' Reference
+pattern Ref :: Reference -> Referent
+pattern Ref r = Ref' r
+pattern Con :: Reference -> Int -> ConstructorType -> Referent
+pattern Con r i t = Con' r i t
+{-# COMPLETE Ref, Con #-}
+
+data Referent' r = Ref' r | Con' r Int ConstructorType
+  deriving (Show, Ord, Eq, Functor)
 
 type Pos = Word64
 type Size = Word64

@@ -49,11 +49,6 @@ getTerm (p, hq) b = case hq of
   filter sh = Set.filter (SH.isPrefixOf sh . Referent.toShortHash)
   terms = Branch._terms (Branch.getAt0 p b)
 
-getTermByShortHash :: SH.ShortHash -> Branch0 m -> Set Referent
-getTermByShortHash sh b = filter sh $ Branch.deepReferents b
-  where
-  filter sh = Set.filter (SH.isPrefixOf sh . Referent.toShortHash)
-
 getTermMetadataHQNamed :: (Path.Path, HQSegment) -> Branch0 m -> Metadata.R4 Referent NameSegment
 getTermMetadataHQNamed (path, hqseg) b =
   R4.filter (\(r,n,_t,_v) -> HQ'.matchesNamedReferent n r hqseg) terms

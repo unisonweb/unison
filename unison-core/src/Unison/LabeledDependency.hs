@@ -1,10 +1,12 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Unison.LabeledDependency (derivedTerm, derivedType, termRef, typeRef, referent, dataConstructor, effectConstructor, fold, referents, LabeledDependency) where
 
 import Unison.Prelude hiding (fold)
 
 import Unison.ConstructorType (ConstructorType(Data, Effect))
 import Unison.Reference (Reference(DerivedId), Id)
-import Unison.Referent (Referent(Ref, Con))
+import Unison.Referent (Referent, pattern Ref, pattern Con)
 import qualified Data.Set as Set
 
 -- dumb constructor name is private

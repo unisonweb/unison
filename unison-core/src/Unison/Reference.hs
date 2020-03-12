@@ -17,6 +17,7 @@ module Unison.Reference
    unsafeFromText,
    idFromText,
    isPrefixOf,
+   fromShortHash,
    fromText,
    readSuffix,
    showShort,
@@ -67,6 +68,23 @@ toShortHash (Derived h i n) = SH.ShortHash (H.base32Hex h) index Nothing
     -- todo: remove `n` parameter; must also update readSuffix
     index = Just $ showSuffix i n
 toShortHash (DerivedId _) = error "this should be covered above"
+
+-- toShortHash . fromJust . fromShortHash == id and
+-- fromJust . fromShortHash . toShortHash == id
+-- but for arbitrary ShortHashes which may be broken at the wrong boundary, it
+-- may not be possible to base32Hex decode them.  These will return Nothing.
+-- Also, ShortHashes that include constructor ids will return Nothing;
+-- try Referent.fromShortHash
+fromShortHash :: ShortHash -> Maybe Reference
+fromShortHash (SH.Builtin b) = Just (Builtin b)
+fromShortHash (SH.ShortHash prefix cycle Nothing) = do
+  h <- H.fromBase32Hex prefix
+  case cycle of
+    Nothing -> Just (Derived h 0 1)
+    Just t -> case Text.splitOn "c" t of
+      [i,n] -> Derived h <$> readMay (Text.unpack i) <*> readMay (Text.unpack n)
+      _ -> Nothing
+fromShortHash (SH.ShortHash _prefix _cycle (Just _cid)) = Nothing
 
 -- (3,10) encoded as "3c10"
 -- (0,93) encoded as "0c93"

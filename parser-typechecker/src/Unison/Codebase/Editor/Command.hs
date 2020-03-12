@@ -72,7 +72,9 @@ data Command m i v a where
   -- the hash length needed to disambiguate any definition in the codebase
   CodebaseHashLength :: Command m i v Int
 
-  ReferencesByShortHash :: ShortHash -> Command m i v (Set Reference.Id)
+  TypeReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
+  TermReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
+  TermReferentsByShortHash :: ShortHash -> Command m i v (Set Referent)
 
   -- the hash length needed to disambiguate any branch in the codebase
   BranchHashLength :: Command m i v Int
