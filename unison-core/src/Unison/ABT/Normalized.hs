@@ -1,5 +1,6 @@
 {-# language GADTs #-}
 {-# language RankNTypes #-}
+{-# language ViewPatterns #-}
 {-# language DeriveFunctor #-}
 {-# language PatternGuards #-}
 {-# language DeriveFoldable #-}
@@ -8,7 +9,7 @@
 
 module Unison.ABT.Normalized
   ( ABT(..)
-  , Term(.., TAbs, TTm)
+  , Term(.., TAbs, TTm, TAbss)
   , renames
   , rename
   , transform
@@ -48,6 +49,16 @@ pattern TTm bd <- Term _ (Tm bd)
   where TTm bd = Term (bifoldMap Set.singleton freeVars bd) (Tm bd)
 
 {-# complete TAbs, TTm #-}
+
+unabss :: Var v => Term f v -> ([v], Term f v)
+unabss (TAbs v (unabss -> (vs, bd))) = (v:vs, bd)
+unabss bd = ([], bd)
+
+pattern TAbss :: Var v => [v] -> Term f v -> Term f v
+pattern TAbss vs bd <- (unabss -> (vs, bd))
+  where TAbss vs bd = foldr TAbs bd vs
+
+{-# complete TAbss #-}
 
 -- Simultaneous variable renaming.
 --

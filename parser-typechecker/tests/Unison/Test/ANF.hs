@@ -10,6 +10,7 @@ import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF
 import Unison.Var as Var
 
+import qualified Data.Map as Map
 import qualified Data.IntMap as IMap
 import qualified Data.Set as Set
 
@@ -39,12 +40,21 @@ denormalize (TLit l) = case l of
   B b -> Term.boolean () b
   T t -> Term.text () t
   C c -> Term.char () c
-denormalize (THnd h b) = Term.handle () (Term.var () h) $ denormalize b
+denormalize (THnd h b)
+  = Term.match () (denormalize b) $ denormalizeHandler h
 denormalize (TLet v bn bo)
   | typeOf v == ANFBlank = ABT.subst v dbn dbo
   | otherwise = Term.let1_ False [(v, dbn)] dbo
   where
   dbn = denormalize $ TTm bn
+  dbo = denormalize bo
+denormalize (TName v bn bo)
+  = ABT.subst v dbn
+  . ABT.subst u dbo
+  $ Term.handle () (Term.var () u) (Term.var () v)
+  where
+  u = ABT.freshIn Set.empty (typed Var.ANFBlank)
+  dbn = denormalize bn
   dbo = denormalize bo
 denormalize (TMatch v cs)
   = Term.match () (ABT.var v) $ denormalizeMatch cs
@@ -66,21 +76,35 @@ denormalizeMatch b
   | MatchEmpty <- b = []
   | MatchIntegral m <- b = dcase ipat <$> IMap.toList m
   | MatchData r m <- b = dcase (dpat r) <$> IMap.toList m
-  | MatchAbility r m d <- b
-  = dpure d : (dcase (epat r) <$> IMap.toList m)
   where
-  dpure d
-    = Term.MatchCase (EffectPureP () (VarP ())) Nothing . snd $ dbranch d
   dcase p (t, br) = Term.MatchCase (p n t) Nothing dbr
-   where (n, dbr) = dbranch br
+   where (n, dbr) = denormalizeBranch br
 
   ipat _ i = IntP () $ fromIntegral i
   dpat r n t = ConstructorP () r t (replicate n $ VarP ())
-  epat r n t = EffectBindP () r t (replicate n $ VarP ()) (VarP ())
 
-  dbranch (TAbs v br) = (n+1, ABT.abs v dbr)
-   where (n, dbr) = dbranch br
-  dbranch tm = (0, denormalize tm)
+denormalizeBranch (TAbs v br) = (n+1, ABT.abs v dbr)
+ where (n, dbr) = denormalizeBranch br
+denormalizeBranch tm = (0, denormalize tm)
+
+denormalizeHandler
+  :: Var v => Handler (ANormal v) -> [Term.MatchCase () (Term.Term0 v)]
+denormalizeHandler (Hndl cs d) = dcs ++ pur
+  where
+  pur = maybe []
+          (pure . Term.MatchCase (EffectPureP () (VarP ())) Nothing
+                . snd
+                . denormalizeBranch)
+          d
+
+  dcs = Map.foldMapWithKey rf cs
+  rf r rcs = IMap.foldMapWithKey (cf r) rcs
+  cf r t b = [ Term.MatchCase
+                 (EffectBindP () r t (replicate n $ VarP ()) (VarP ()))
+                 Nothing
+                 db
+             ]
+   where (n, db) = denormalizeBranch b
 
 test :: Test ()
 test = scope "anf" . tests $
