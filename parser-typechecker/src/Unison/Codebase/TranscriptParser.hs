@@ -178,10 +178,12 @@ run dir configFile stanzas codebase = do
       awaitInput = do
         cmd <- atomically (Q.tryDequeue cmdQueue)
         case cmd of
+          -- end of ucm block
           Just Nothing -> do
             output "\n```\n"
-            writeIORef hidden Shown
+            dieUnexpectedSuccess
             awaitInput
+          -- ucm command to run
           Just (Just p@(UcmCommand path lineTxt)) -> do
             curPath <- readIORef pathRef
             numberedArgs <- readIORef numberedArgsRef
@@ -189,15 +191,12 @@ run dir configFile stanzas codebase = do
               atomically $ Q.undequeue cmdQueue (Just p)
               pure $ Right (SwitchBranchI (Path.absoluteToPath' path))
             else case (>>= expandNumber numberedArgs) . words . Text.unpack $ lineTxt of
-              -- no ucm commands to run
               [] -> 
                 awaitInput
-
-              -- a list of ucm commands to run
               cmd:args -> do
                 output ("\n" <> show p <> "\n")
-                -- invalid command is treated as a failure
                 case Map.lookup cmd patternMap of
+                  -- invalid command is treated as a failure
                   Nothing ->
                     dieWithMsg
                   Just pat -> 
@@ -205,10 +204,7 @@ run dir configFile stanzas codebase = do
                       Left msg -> do
                         output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
                         dieWithMsg
-                      Right input -> do
-                        -- if all the commands in the ucm block have run and not failed
-                        -- then fail with an error  
-                        when (null args) dieUnexpectedSuccess 
+                      Right input -> 
                         pure $ Right input
 
           Nothing -> do
@@ -234,8 +230,8 @@ run dir configFile stanzas codebase = do
                     awaitInput
                   Unison hide errOk filename txt -> do
                     writeIORef hidden hide
-                    outputEcho $ show s
                     writeIORef allowErrors errOk
+                    outputEcho $ show s
                     output "```ucm\n"
                     atomically . Q.enqueue cmdQueue $ Nothing
                     modifyIORef' unisonFiles (Map.insert (fromMaybe "scratch.u" filename) txt)
@@ -258,6 +254,7 @@ run dir configFile stanzas codebase = do
 
       cleanup :: IO ()
       cleanup = do Runtime.terminate runtime; cancelConfig
+
       print o = do
         msg <- notifyUser dir o
         errOk <- readIORef allowErrors
