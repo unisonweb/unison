@@ -58,6 +58,10 @@ I can force my delete through by re-issuing the command.
 .a> delete foo
 ```
 
+```ucm:error
+.a> ls
+```
+
 Let's repeat all that on a type, for completeness.
 
 ```unison:hide

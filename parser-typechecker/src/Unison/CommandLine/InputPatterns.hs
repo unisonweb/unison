@@ -23,7 +23,6 @@ import Unison.CommandLine.InputPattern
          )
 import Unison.CommandLine
 import Unison.Util.Monoid (intercalateMap)
-import Unison.ShortHash (ShortHash)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -422,7 +421,7 @@ aliasTerm = InputPattern "alias.term" []
     "`alias.term foo bar` introduces `bar` with the same definition as `foo`."
     (\case
       [oldName, newName] -> first fromString $ do
-        source <- Path.parseHQSplit' oldName
+        source <- Path.parseShortHashOrHQSplit' oldName
         target <- Path.parseSplit' Path.definitionNameSegment newName
         pure $ Input.AliasTermI source target
       _ -> Left . warn $ P.wrap
@@ -435,7 +434,7 @@ aliasType = InputPattern "alias.type" []
     "`alias.type Foo Bar` introduces `Bar` with the same definition as `Foo`."
     (\case
       [oldName, newName] -> first fromString $ do
-        source <- Path.parseHQSplit' oldName
+        source <- Path.parseShortHashOrHQSplit' oldName
         target <- Path.parseSplit' Path.definitionNameSegment newName
         pure $ Input.AliasTypeI source target
       _ -> Left . warn $ P.wrap
@@ -610,7 +609,7 @@ pull = InputPattern
       , ( "`pull remote`"
         , "merges the remote namespace `remote`"
         <>"into the current namespace")
-      , ( "`push`"
+      , ( "`pull`"
         , "merges the remote namespace configured in `.unisonConfig`"
         <> "with the key `GitUrl.ns` where `ns` is the current namespace,"
         <> "into the current namespace")
@@ -683,14 +682,16 @@ push = InputPattern
   )
 
 createPullRequest :: InputPattern
-createPullRequest = InputPattern "pr.create" []
+createPullRequest = InputPattern "pull-request.create" ["pr.create"]
   [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
   (P.group $ P.lines
     [ P.wrap $ makeExample createPullRequest ["base", "head"]
         <> "will generate a request to merge the remote repo `head`"
         <> "into the remote repo `base`."
     , ""
-    , "example: pr.create https://github.com/unisonweb/base https://github.com/me/unison:.libs.pr.base"
+    , "example: " <> 
+      makeExampleNoBackticks createPullRequest ["https://github.com/unisonweb/base", 
+                                                "https://github.com/me/unison:.libs.pr.base" ]
     ])
   (\case
     [baseUrl, headUrl] -> first fromString $ do
@@ -701,7 +702,7 @@ createPullRequest = InputPattern "pr.create" []
   )
 
 loadPullRequest :: InputPattern
-loadPullRequest = InputPattern "pr.load" []
+loadPullRequest = InputPattern "pull-request.load" ["pr.load"]
   [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
   (P.lines
    [P.wrap $ makeExample loadPullRequest ["base", "head"]
@@ -792,7 +793,10 @@ previewMergeLocal = InputPattern
   )
 
 replaceEdit
-  :: (ShortHash -> ShortHash -> Maybe Input.PatchPath -> Input)
+  :: (Input.HashOrHQSplit'
+       -> Input.HashOrHQSplit'
+       -> Maybe Input.PatchPath
+       -> Input)
   -> String
   -> InputPattern
 replaceEdit f s = self
@@ -826,18 +830,9 @@ replaceEdit f s = self
         dest  <- Path.parseShortHashOrHQSplit' target
         patch <- traverse (Path.parseSplit' Path.wordyNameSegment)
           $ listToMaybe patch
-        sourceH <- maybe (Left (source <> " is not a valid hash."))
-                         Right
-                         (toHash src)
-        targetH <- maybe (Left (target <> " is not a valid hash."))
-                         Right
-                         (toHash dest)
-        pure $ f sourceH targetH patch
+        pure $ f src dest patch
       _ -> Left $ I.help self
     )
-  toHash :: Either ShortHash Path.HQSplit' -> Maybe ShortHash
-  toHash (Left  h      ) = Just h
-  toHash (Right (_, hq)) = HQ'.toHash hq
 
 replaceType :: InputPattern
 replaceType = replaceEdit Input.ReplaceTypeI "type"

@@ -39,7 +39,6 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Parser as Parser
 import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.Reference as Reference
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
@@ -114,7 +113,8 @@ data Output v
   | PatchNotFound Path.Split'
   | TypeNotFound Path.HQSplit'
   | TermNotFound Path.HQSplit'
-  | TermNotFound' Reference.Id
+  | TypeNotFound' ShortHash
+  | TermNotFound' ShortHash
   | SearchTermsNotFound [HQ.HashQualified]
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
@@ -267,6 +267,7 @@ isFailure o = case o of
   NameNotFound{} -> True
   PatchNotFound{} -> True
   TypeNotFound{} -> True
+  TypeNotFound'{} -> True
   TermNotFound{} -> True
   TermNotFound'{} -> True
   SearchTermsNotFound ts -> not (null ts)

@@ -22,6 +22,7 @@ import           Control.Monad.Except           ( runExceptT )
 import qualified Data.Configurator             as Config
 import           Data.Configurator.Types        ( Config )
 import qualified Data.Map                      as Map
+import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import           System.Directory               ( getXdgDirectory
                                                 , XdgDirectory(..)
@@ -37,6 +38,7 @@ import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.Parsers                as Parsers
 import qualified Unison.Reference              as Reference
+import qualified Unison.Referent               as Referent
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
 import qualified Unison.Term                   as Term
@@ -49,7 +51,6 @@ import           Unison.FileParsers             ( parseAndSynthesizeFile
                                                 , synthesizeFile'
                                                 )
 import qualified Unison.PrettyPrintEnv         as PPE
-import qualified Unison.ShortHash              as SH
 import Unison.Term (Term)
 import Unison.Type (Type)
 
@@ -154,8 +155,25 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     GetTermsOfType ty -> Codebase.termsOfType codebase ty
     GetTermsMentioningType ty -> Codebase.termsMentioningType codebase ty
     CodebaseHashLength -> Codebase.hashLength codebase
-    ReferencesByShortHash sh ->
-      Codebase.referencesByPrefix codebase (SH.toText sh)
+    -- all builtin and derived type references
+    TypeReferencesByShortHash sh -> do
+      fromCodebase <- Codebase.typeReferencesByPrefix codebase sh
+      let fromBuiltins = Set.filter (\r -> sh == Reference.toShortHash r)
+            $ B.intrinsicTypeReferences
+      pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
+    -- all builtin and derived term references
+    TermReferencesByShortHash sh -> do
+      fromCodebase <- Codebase.termReferencesByPrefix codebase sh
+      let fromBuiltins = Set.filter (\r -> sh == Reference.toShortHash r)
+            $ B.intrinsicTermReferences
+      pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
+    -- all builtin and derived term references & type constructors
+    TermReferentsByShortHash sh -> do
+      fromCodebase <- Codebase.termReferentsByPrefix codebase sh
+      let fromBuiltins = Set.map Referent.Ref 
+            . Set.filter (\r -> sh == Reference.toShortHash r)
+            $ B.intrinsicTermReferences
+      pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase) 
     BranchHashLength -> Codebase.branchHashLength codebase
     BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
     LoadRemoteShortBranch GitRepo{..} sbh -> do

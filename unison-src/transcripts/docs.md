@@ -59,12 +59,12 @@ docs.List.take = [:
 
 @[source] List.take.ex1
 🔽
-@[evaluate] List.take.ex1
+@List.take.ex1 = @[evaluate] List.take.ex1
 
 
 @[source] List.take.ex2
 🔽
-@[evaluate] List.take.ex2
+@List.take.ex2 = @[evaluate] List.take.ex2
 :]
 ```
 

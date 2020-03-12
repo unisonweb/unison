@@ -211,8 +211,26 @@ loop = do
         eval . Eval $ Branch.getMaybePatch seg (Branch.head b)
       getHQ'TermsIncludingHistorical p =
         getTermsIncludingHistorical (resolveSplit' p) root0
+
+      getHQ'TermReferences :: Path.HQSplit' -> Set Reference
+      getHQ'TermReferences p =
+        Set.fromList [ r | Referent.Ref r <- toList (getHQ'Terms p) ]
+      getHQ'Terms :: Path.HQSplit' -> Set Referent
       getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
+      getHQ'Types :: Path.HQSplit' -> Set Reference
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
+      resolveHHQS'Types :: HashOrHQSplit' -> Action' m v (Set Reference)
+      resolveHHQS'Types = either 
+        (eval . TypeReferencesByShortHash)
+        (pure . getHQ'Types)
+      -- Term Refs only
+      resolveHHQS'Terms = either
+        (eval . TermReferencesByShortHash)
+        (pure . getHQ'TermReferences)
+      -- Term Refs and Cons
+      resolveHHQS'Referents = either
+        (eval . TermReferentsByShortHash)
+        (pure . getHQ'Terms)
       getTypes :: Path.Split' -> Set Reference
       getTypes = getHQ'Types . fmap HQ'.NameOnly
       getTerms :: Path.Split' -> Set Referent
@@ -284,7 +302,9 @@ loop = do
         patchExists :: Path.Split' -> _
         patchExists s = respond $ PatchAlreadyExists s
         typeNotFound = respond . TypeNotFound
+        typeNotFound' = respond . TypeNotFound'
         termNotFound = respond . TermNotFound
+        termNotFound' = respond . TermNotFound'
         nameConflicted src tms tys = respond (NameAmbiguous hqLength src tms tys)
         typeConflicted src = nameConflicted src Set.empty
         termConflicted src tms = nameConflicted src tms Set.empty
@@ -299,8 +319,8 @@ loop = do
           ForkLocalBranchI src dest -> "fork " <> hp' src <> " " <> p' dest
           MergeLocalBranchI src dest -> "merge " <> p' src <> " " <> p' dest
           ResetRootI src -> "reset-root " <> hp' src
-          AliasTermI src dest -> "alias.term " <> hqs' src <> " " <> ps' dest
-          AliasTypeI src dest -> "alias.type " <> hqs' src <> " " <> ps' dest
+          AliasTermI src dest -> "alias.term " <> hhqs' src <> " " <> ps' dest
+          AliasTypeI src dest -> "alias.type " <> hhqs' src <> " " <> ps' dest
           AliasManyI srcs dest ->
             "alias.many " <> intercalateMap " " hqs srcs <> " " <> p' dest
           MoveTermI src dest -> "move.term " <> hqs' src <> " " <> ps' dest
@@ -314,12 +334,12 @@ loop = do
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
           DeletePatchI path -> "delete.patch " <> ps' path
           ReplaceTermI srcH targetH p ->
-            "replace.term " <> SH.toText srcH <> " "
-                            <> SH.toText targetH <> " "
+            "replace.term " <> hhqs' srcH <> " "
+                            <> hhqs' targetH <> " "
                             <> opatch p
           ReplaceTypeI srcH targetH p ->
-            "replace.type " <> SH.toText srcH <> " "
-                            <> SH.toText targetH <> " "
+            "replace.type " <> hhqs' srcH <> " "
+                            <> hhqs' targetH <> " "
                             <> opatch p
           ResolveTermNameI path -> "resolve.termName " <> hqs' path
           ResolveTypeNameI path -> "resolve.typeName " <> hqs' path
@@ -385,6 +405,8 @@ loop = do
           ops' = maybe "." ps'
           opatch = ps' . fromMaybe defaultPatchPath
           wat = error $ show input ++ " is not expected to alter the branch"
+          hhqs' (Left sh) = SH.toText sh
+          hhqs' (Right x) = hqs' x
           hqs' (p, hq) =
             Monoid.unlessM (Path.isRoot' p) (p' p) <> "." <> Text.pack (show hq)
           hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
@@ -729,27 +751,46 @@ loop = do
             diffHelper (Branch.head prev) (Branch.head root') >>=
               respondNumbered . uncurry Output.ShowDiffAfterUndo
 
-      AliasTermI src dest -> case (toList (getHQ'Terms src), toList (getTerms dest)) of
-        ([r],       []) -> do
-          stepAt (BranchUtil.makeAddTermName (resolveSplit' dest) r (oldMD r))
-          success
-        ([_], rs@(_:_)) -> termExists dest (Set.fromList rs)
-        ([],         _) -> termNotFound src
-        (rs,         _) -> termConflicted src (Set.fromList rs)
-        where
-        p = resolveSplit' src
-        oldMD r = BranchUtil.getTermMetadataAt p r root0
+      AliasTermI src dest -> do
+        referents <- resolveHHQS'Referents src
+        case (toList referents, toList (getTerms dest)) of
+          ([r],       []) -> do
+            stepAt (BranchUtil.makeAddTermName (resolveSplit' dest) r (oldMD r))
+            success
+          ([_], rs@(_:_)) -> termExists dest (Set.fromList rs)
+          ([],         _) -> either termNotFound' termNotFound src
+          (rs,         _) ->
+            either hashConflicted termConflicted src (Set.fromList rs)
+          where
+          oldMD r = either (const mempty)
+                           (\src ->
+                            let p = resolveSplit' src in
+                            BranchUtil.getTermMetadataAt p r root0)
+                           src
 
-      AliasTypeI src dest -> case (toList (getHQ'Types src), toList (getTypes dest)) of
-        ([r],       []) -> do
-          stepAt (BranchUtil.makeAddTypeName (resolveSplit' dest) r (oldMD r))
-          success
-        ([_], rs@(_:_)) -> typeExists dest (Set.fromList rs)
-        ([],         _) -> typeNotFound src
-        (rs,         _) -> typeConflicted src (Set.fromList rs)
-        where
-        p = resolveSplit' src
-        oldMD r = BranchUtil.getTypeMetadataAt p r root0
+      AliasTypeI src dest -> do
+        refs <- resolveHHQS'Types src
+        case (toList refs, toList (getTypes dest)) of
+          ([r],       []) -> do
+            stepAt (BranchUtil.makeAddTypeName (resolveSplit' dest) r (oldMD r))
+            success
+          ([_], rs@(_:_)) -> typeExists dest (Set.fromList rs)
+          ([],         _) -> either typeNotFound' typeNotFound src
+          (rs,         _) ->
+            either
+              (\src -> hashConflicted src . Set.map Referent.Ref)
+              typeConflicted
+              src
+              (Set.fromList rs)
+
+
+          where
+          oldMD r =
+            either (const mempty)
+                   (\src ->
+                    let p = resolveSplit' src in
+                    BranchUtil.getTypeMetadataAt p r root0)
+                   src
 
       -- this implementation will happily produce name conflicts,
       -- but will surface them in a normal diff at the end of the operation.
@@ -1102,19 +1143,20 @@ loop = do
       ReplaceTermI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
-        fromRefs <- eval $ ReferencesByShortHash from
-        toRefs <- eval $ ReferencesByShortHash to
-        let go :: Reference.Id
-               -> Reference.Id
+        fromRefs <- resolveHHQS'Terms from
+        toRefs <- resolveHHQS'Terms to
+        let go :: Reference
+               -> Reference
                -> Action m (Either Event Input) v ()
-            go fid tid = do
-              let fr = DerivedId fid
-                  tr = DerivedId tid
+            go fr tr = do
               mft <- eval $ LoadTypeOfTerm fr
               mtt <- eval $ LoadTypeOfTerm tr
+              let termNotFound = respond . TermNotFound'
+                                         . SH.take hqLength
+                                         . Reference.toShortHash
               case (mft, mtt) of
-                (Nothing, _) -> respond $ TermNotFound' fid
-                (_, Nothing) -> respond $ TermNotFound' tid
+                (Nothing, _) -> termNotFound fr
+                (_, Nothing) -> termNotFound tr
                 (Just ft, Just tt) -> do
                   let
                       patch' =
@@ -1133,29 +1175,33 @@ loop = do
                   void $ propagatePatch inputDescription patch' currentPath'
                   -- Say something
                   success
+            sayNotFound = respond
+              . SearchTermsNotFound
+              . pure
+              . either
+                  HQ.HashOnly
+                  (fmap Path.toName' . HQ'.toHQ . Path.unsplitHQ')
+            sayHashConflicted t = hashConflicted t . Set.map Referent.Ref
+            sayTermConflicted t = termConflicted t . Set.map Referent.Ref
         zeroOneOrMore
           fromRefs
-          (respond $ SearchTermsNotFound [HQ.HashOnly from])
+          (sayNotFound from)
           (\r -> zeroOneOrMore toRefs
-                               (respond $ SearchTermsNotFound [HQ.HashOnly to])
+                               (sayNotFound to)
                                (go r)
-                               (hashConflicted to .
-                                 Set.map (Referent.Ref . DerivedId)))
-          (hashConflicted from .
-            Set.map (Referent.Ref . DerivedId))
+                               (either sayHashConflicted sayTermConflicted to))
+          (either sayHashConflicted sayTermConflicted from)
 
       ReplaceTypeI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
-        fromRefs <- eval $ ReferencesByShortHash from
-        toRefs <- eval $ ReferencesByShortHash to
-        let go :: Reference.Id
-               -> Reference.Id
+        fromRefs <- resolveHHQS'Types from
+        toRefs <- resolveHHQS'Types to
+        let go :: Reference
+               -> Reference
                -> Action m (Either Event Input) v ()
-            go fid tid = do
-              let fr = DerivedId fid
-                  tr = DerivedId tid
-                  patch' =
+            go fr tr = do
+              let patch' =
                     -- The modified patch
                     over Patch.typeEdits
                       (R.insert fr (TypeEdit.Replace tr) . R.deleteDom fr) patch
@@ -1168,16 +1214,21 @@ loop = do
               void $ propagatePatch inputDescription patch' currentPath'
               -- Say something
               success
+            sayNotFound = respond
+              . SearchTermsNotFound
+              . pure
+              . either
+                  HQ.HashOnly
+                  (fmap Path.toName' . HQ'.toHQ . Path.unsplitHQ')
+            sayHashConflicted t = hashConflicted t . Set.map Referent.Ref
         zeroOneOrMore
           fromRefs
-          (respond $ SearchTermsNotFound [HQ.HashOnly from])
+          (sayNotFound from)
           (\r -> zeroOneOrMore toRefs
-                               (respond $ SearchTermsNotFound [HQ.HashOnly to])
+                               (sayNotFound to)
                                (go r)
-                               (hashConflicted to .
-                                 Set.map (Referent.Ref . DerivedId)))
-          (hashConflicted from .
-            Set.map (Referent.Ref . DerivedId))
+                               (either sayHashConflicted typeConflicted to))
+          (either sayHashConflicted typeConflicted from)
 
       LoadI maybePath ->
         case maybePath <|> (fst <$> latestFile') of
@@ -1361,7 +1412,7 @@ loop = do
               Reference.DerivedId rid -> do
                 tm <- eval $ LoadTerm rid
                 case tm of
-                  Nothing -> [] <$ respond (TermNotFound' rid)
+                  Nothing -> [] <$ respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
                   Just tm -> do
                     respond $ TestIncrementalOutputStart ppe (n,total) r tm
                     tm' <- eval (Evaluate1 ppe tm) <&> \case
@@ -1920,7 +1971,7 @@ updateAtM reason (Path.Absolute p) f = do
   updateRoot b b' reason
   pure $ b /= b'
 
-stepAt :: forall m i v. Applicative m
+stepAt :: forall m i v. Monad m
        => InputDescription
        -> (Path, Branch0 m -> Branch0 m)
        -> Action m i v ()
@@ -1938,7 +1989,7 @@ stepAtM' :: forall m i v. Monad m
         -> Action m i v Bool
 stepAtM' cause = stepManyAtM' @m @[] cause . pure
 
-stepManyAt :: (Applicative m, Foldable f)
+stepManyAt :: (Monad m, Foldable f)
            => InputDescription
            -> f (Path, Branch0 m -> Branch0 m)
            -> Action m i v ()
@@ -2102,6 +2153,7 @@ toSlurpResult currentPath uf existingNames =
     , r                   <- toList $ Names.termsNamed existingNames n
     -- ignore collisions w/ ctors of types being updated
     , Set.notMember (Referent.toReference r) typesToUpdate
+    , Set.notMember (var n) (terms dups)
     ]
 
   -- duplicate (n,r) if (n,r) exists in names0
@@ -2189,7 +2241,7 @@ filterBySlurpResult SlurpResult{..} UF.TypecheckedUnisonFile{..} =
   filterTLC (v,_,_) = Set.member v keepTerms
 
 -- updates the namespace for adding `slurp`
-doSlurpAdds :: forall m v. (Applicative m, Var v)
+doSlurpAdds :: forall m v. (Monad m, Var v)
             => SlurpComponent v
             -> UF.TypecheckedUnisonFile v Ann
             -> (Branch0 m -> Branch0 m)
@@ -2223,7 +2275,7 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   errorEmptyVar = error "encountered an empty var name"
   errorMissingVar v = error $ "expected to find " ++ show v ++ " in " ++ show uf
 
-doSlurpUpdates :: Applicative m
+doSlurpUpdates :: Monad m
                => Map Name (Reference, Reference)
                -> Map Name (Reference, Reference)
                -> [(Name, Referent)]

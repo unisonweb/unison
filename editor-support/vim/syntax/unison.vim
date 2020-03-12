@@ -96,6 +96,11 @@ syn match   uLineComment      "---*\([^-!#$%&\*\+./<=>\?@\\^|~].*\)\?$"
 syn region  uBlockComment     start="{-"  end="-}" contains=uBlockComment
 syn region  uPragma	       start="{-#" end="#-}"
 
+" Docs
+syn region  uDocBlock         start="\[:" end=":]" contains=uLink,uDocDirective
+syn match   uLink             contained "@\([A-Z][a-zA-Z0-9_']*\.\)\=\<[a-z][a-zA-Z0-9_'.]*\>"
+syn match   uDocDirective     contained "@\[\([A-Z][a-zA-Z0-9_']*\.\)\=\<[a-z][a-zA-Z0-9_'.]*\>] \(\<[A-Z][a-zA-Z0-9_']*\.\)\=\<[a-z][a-zA-Z0-9_'.]*\>"
+
 " Define the default highlighting.
 " For version 5.7 and earlier: only when not done already
 " For version 5.8 and later: only when an item doesn't have highlighting yet
@@ -127,6 +132,9 @@ if version >= 508 || !exists("did_u_syntax_inits")
   HiLink uBlockComment		  uComment
   HiLink uLineComment			  uComment
   HiLink uComment			  Comment
+  HiLink uDocBlock                String
+  HiLink uLink                    uType
+  HiLink uDocDirective            uImport
   HiLink uPragma			  SpecialComment
   HiLink uBoolean			  Boolean
   HiLink uType			  Type

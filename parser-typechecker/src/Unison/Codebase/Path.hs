@@ -188,8 +188,8 @@ parseShortHashOrHQSplit' s =
 parseHQSplit :: String -> Either String HQSplit
 parseHQSplit s = case parseHQSplit' s of
   Right (Path' (Right (Relative p)), hqseg) -> Right (p, hqseg)
-  Right (Path' Left{}, _) -> 
-    Left $ "Sorry, you can't use an absolute name like " <> s <> " here." 
+  Right (Path' Left{}, _) ->
+    Left $ "Sorry, you can't use an absolute name like " <> s <> " here."
   Left e -> Left e
 
 parseHQSplit' :: String -> Either String HQSplit'
@@ -312,6 +312,7 @@ relativeToAncestor (Path a) (Path b) = case (a, b) of
   _ -> (empty, Path a, Path b)
 
 pattern Parent h t = Path (NameSegment h :<| t)
+pattern Empty = Path Seq.Empty
 
 empty :: Path
 empty = Path mempty

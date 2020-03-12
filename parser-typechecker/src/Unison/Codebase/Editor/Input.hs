@@ -4,6 +4,7 @@ module Unison.Codebase.Editor.Input
   , OutputLocation(..)
   , PatchPath
   , BranchId, parseBranchId
+  , HashOrHQSplit'
   ) where
 
 import Unison.Prelude
@@ -28,6 +29,7 @@ type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 type PatchPath = Path.Split'
 type BranchId = Either ShortBranchHash Path'
+type HashOrHQSplit' = Either ShortHash Path.HQSplit'
 
 parseBranchId :: String -> Either String BranchId
 parseBranchId ('#':s) = case SBH.fromText (Text.pack s) of
@@ -61,8 +63,8 @@ data Input
     -- > names .foo.bar#asdflkjsdf
     -- > names #sdflkjsdfhsdf
     | NamesI HQ.HashQualified
-    | AliasTermI Path.HQSplit' Path.Split'
-    | AliasTypeI Path.HQSplit' Path.Split'
+    | AliasTermI HashOrHQSplit' Path.Split'
+    | AliasTypeI HashOrHQSplit' Path.Split'
     | AliasManyI [Path.HQSplit] Path'
     -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
     | MoveTermI Path.HQSplit' Path.Split'
@@ -97,8 +99,8 @@ data Input
     | AddTypeReplacementI PatchPath Reference Reference
     | RemoveTermReplacementI PatchPath Reference Reference
     | RemoveTypeReplacementI PatchPath Reference Reference
-    | ReplaceTermI ShortHash ShortHash (Maybe PatchPath)
-    | ReplaceTypeI ShortHash ShortHash (Maybe PatchPath)
+    | ReplaceTermI HashOrHQSplit' HashOrHQSplit' (Maybe PatchPath)
+    | ReplaceTypeI HashOrHQSplit' HashOrHQSplit' (Maybe PatchPath)
   | UndoI
   -- First `Maybe Int` is cap on number of results, if any
   -- Second `Maybe Int` is cap on diff elements shown, if any
