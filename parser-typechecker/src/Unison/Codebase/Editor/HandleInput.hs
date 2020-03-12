@@ -2102,6 +2102,7 @@ toSlurpResult currentPath uf existingNames =
     , r                   <- toList $ Names.termsNamed existingNames n
     -- ignore collisions w/ ctors of types being updated
     , Set.notMember (Referent.toReference r) typesToUpdate
+    , Set.notMember (var n) (terms dups)
     ]
 
   -- duplicate (n,r) if (n,r) exists in names0
