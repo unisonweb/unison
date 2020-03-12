@@ -274,7 +274,7 @@ run dir configFile stanzas codebase = do
           appendFailingStanza
           transcriptFailure out $ Text.unlines [
             "\128721", "",
-            "The transcript failed to fail as unexpected in the stanza above.", "",
+            "The transcript was expecting an error in the stanza above, but did not encounter one.", "",
             "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       loop state = do

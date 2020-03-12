@@ -13,4 +13,4 @@ myVal = 3
 
 🛑
 
-The transcript failed to fail as unexpected in the stanza above.
+The transcript was expecting an error in the stanza above, but did not encounter one.
