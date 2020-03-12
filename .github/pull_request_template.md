@@ -1,3 +1,5 @@
+> Reminder: Please make your pull request's title more descriptive than "Fix #1203".  Fixed issues can be listed in the "Overview" section.
+
 ## Overview
 
 What does this change accomplish and why? i.e. How does it change the user experience?
