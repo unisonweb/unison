@@ -42,7 +42,6 @@ import           Data.Configurator              ()
 import qualified Data.List                      as List
 import           Data.List                      ( partition, sortOn )
 import           Data.List.Extra                ( nubOrd, sort )
-import           Data.Maybe                     ( fromJust )
 import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
 import qualified Text.Megaparsec               as P
@@ -220,7 +219,7 @@ loop = do
       getHQ'Types :: Path.HQSplit' -> Set Reference
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
       resolveHHQS'Types :: HashOrHQSplit' -> Action' m v (Set Reference)
-      resolveHHQS'Types = either 
+      resolveHHQS'Types = either
         (eval . TypeReferencesByShortHash)
         (pure . getHQ'Types)
       -- Term Refs only
@@ -1327,7 +1326,8 @@ loop = do
 
           allTypes :: Map Reference (Type v Ann) <-
             fmap Map.fromList . for (toList neededTypes) $ \r ->
-              (r,) . fromJust <$> (eval . LoadTypeOfTerm) r
+              (r,) . fromMaybe (Type.builtin External "unknown type")
+              <$> (eval . LoadTypeOfTerm) r
 
           let typing r1 r2 = case (Map.lookup r1 allTypes, Map.lookup r2 hashTerms) of
                 (Just t1, Just t2)

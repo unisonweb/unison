@@ -9,7 +9,6 @@ import           Data.List (groupBy, sortBy, sortOn)
 import           Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
-import           Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import           Unison.Term (Term')
@@ -17,10 +16,10 @@ import qualified Unison.Term as Term
 import           Unison.Var (Var)
 
 unordered :: Var v => [(v,Term' vt v a)] -> [[(v,Term' vt v a)]]
-unordered = ABT.components 
+unordered = ABT.components
 
 ordered :: Var v => [(v,Term' vt v a)] -> [[(v,Term' vt v a)]]
-ordered = ABT.orderedComponents 
+ordered = ABT.orderedComponents
 
 -- | Algorithm for minimizing cycles of a `let rec`. This can
 -- improve generalization during typechecking and may also be more
@@ -61,7 +60,8 @@ minimize (Term.LetRecNamedAnnotatedTop' isTop ann bs e) =
               -- loop).
               cs = sortOn (\(_,e) -> Term.arity e == 0) <$> cs0
               varAnnotations = Map.fromList ((\((a, v), _) -> (v, a)) <$> bs)
-              annotationFor v = fromJust $ Map.lookup v varAnnotations
+              msg v = error $ "Components.minimize " <> show (v, Map.keys varAnnotations)
+              annotationFor v = fromMaybe (msg v) $ Map.lookup v varAnnotations
               annotatedVar v = (annotationFor v, v)
               -- When introducing a nested let/let rec, we use the annotation
               -- of the variable that starts off that let/let rec

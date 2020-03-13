@@ -5,8 +5,6 @@ module Unison.HashQualified where
 import Unison.Prelude hiding (fromString)
 
 import           Data.List                      ( sortOn )
-import           Data.Maybe                     ( fromJust
-                                                )
 import qualified Data.Text                     as Text
 import           Prelude                 hiding ( take )
 import           Unison.Name                    ( Name )
@@ -89,7 +87,8 @@ fromString :: String -> Maybe HashQualified
 fromString = fromText . Text.pack
 
 unsafeFromString :: String -> HashQualified
-unsafeFromString = fromJust . fromString
+unsafeFromString s = fromMaybe msg . fromString $ s where
+  msg = error $ "HashQualified.unsafeFromString " <> show s
 
 -- Parses possibly-hash-qualified into structured type.
 -- Doesn't validate against base58 or the codebase.
@@ -102,7 +101,8 @@ fromText t = case Text.breakOn "#" t of -- breakOn leaves the '#' on the RHS
 -- Won't crash as long as SH.unsafeFromText doesn't crash on any input that
 -- starts with '#', which is true as of the time of this writing, but not great.
 unsafeFromText :: Text -> HashQualified
-unsafeFromText  = fromJust . fromText
+unsafeFromText txt = fromMaybe msg . fromText $ txt where
+  msg = error $ "HashQualified.unsafeFromText " <> show txt
 
 toText :: Show n => HashQualified' n -> Text
 toText = \case
@@ -159,7 +159,7 @@ requalify hq r = case hq of
   HashQualified n _ -> fromNamedReferent n r
   HashOnly _        -> fromReferent r
 
--- this implementation shows HashOnly before the others, because None < Some. 
+-- this implementation shows HashOnly before the others, because None < Some.
 -- Flip it around carefully if HashOnly should come last.
 instance Ord n => Ord (HashQualified' n) where
   compare a b = case compare (toName a) (toName b) of
