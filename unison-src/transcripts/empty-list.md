@@ -1,6 +1,6 @@
 
 ```ucm:hide:all
-.> pull https://github.com/unisonweb/base .base
+.> alias.term ##List.empty List.empty
 ```
 
 ```unison
