@@ -872,6 +872,7 @@ builtins = Map.fromList $ arity0 <> arityN
   var = Var.named "x"
   arity0 = [ (R.Builtin name, val value) | (name, value) <-
         [ ("Text.empty", T "")
+        , ("List.empty", Sequence mempty)
         , ("Sequence.empty", Sequence mempty)
         , ("Bytes.empty", Bs mempty)
         ] ]
