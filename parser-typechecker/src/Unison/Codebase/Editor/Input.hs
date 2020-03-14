@@ -15,7 +15,6 @@ import qualified Unison.HashQualified'         as HQ'
 import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
-import           Unison.Reference (Reference)
 import           Unison.ShortHash (ShortHash)
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
@@ -95,12 +94,10 @@ data Input
     -- -- create and remove update directives
     | DeprecateTermI PatchPath Path.HQSplit'
     | DeprecateTypeI PatchPath Path.HQSplit'
-    | AddTermReplacementI PatchPath Reference Reference
-    | AddTypeReplacementI PatchPath Reference Reference
-    | RemoveTermReplacementI PatchPath Reference Reference
-    | RemoveTypeReplacementI PatchPath Reference Reference
     | ReplaceTermI HashOrHQSplit' HashOrHQSplit' (Maybe PatchPath)
     | ReplaceTypeI HashOrHQSplit' HashOrHQSplit' (Maybe PatchPath)
+    | RemoveTermReplacementI HashOrHQSplit' (Maybe PatchPath)
+    | RemoveTypeReplacementI HashOrHQSplit' (Maybe PatchPath)
   | UndoI
   -- First `Maybe Int` is cap on number of results, if any
   -- Second `Maybe Int` is cap on diff elements shown, if any

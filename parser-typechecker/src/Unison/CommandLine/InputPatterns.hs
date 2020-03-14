@@ -415,6 +415,50 @@ deleteType = InputPattern "delete.type" []
         "`delete.type` takes an argument, like `delete.type name`."
     )
 
+deleteReplacement :: Bool -> InputPattern
+deleteReplacement isTerm = InputPattern
+  ("delete." <> str <> "Replacement")
+  []
+  [(Required, exactDefinitionQueryArg), (Optional, patchArg)]
+  (  P.string
+  $  "`delete."
+  <> str
+  <> "Replacement <foo> <patch>` removes any edit of the "
+  <> str
+  <> " `foo` "
+  <> "from the patch `patch`, or the default patch if none is specified."
+  )
+  (\case
+    query : patch -> first fromString $ do
+      t     <- Path.parseShortHashOrHQSplit' query
+      patch <- traverse (Path.parseSplit' Path.wordyNameSegment)
+        $ listToMaybe patch
+      pure
+        $ (if isTerm
+            then Input.RemoveTermReplacementI
+            else Input.RemoveTypeReplacementI
+          )
+            t
+            patch
+    _ ->
+      Left
+        .  P.warnCallout
+        .  P.wrapString
+        $  "`delete."
+        <> str
+        <> "Replacement` needs arguments. See `help delete."
+        <> str
+        <> "Replacement`."
+  )
+  where str = if isTerm then "term" else "type"
+
+
+deleteTermReplacement :: InputPattern
+deleteTermReplacement = deleteReplacement True
+
+deleteTypeReplacement :: InputPattern
+deleteTypeReplacement = deleteReplacement False
+
 aliasTerm :: InputPattern
 aliasTerm = InputPattern "alias.term" []
     [(Required, exactDefinitionTermQueryArg), (Required, newNameArg)]
@@ -689,8 +733,8 @@ createPullRequest = InputPattern "pull-request.create" ["pr.create"]
         <> "will generate a request to merge the remote repo `head`"
         <> "into the remote repo `base`."
     , ""
-    , "example: " <> 
-      makeExampleNoBackticks createPullRequest ["https://github.com/unisonweb/base", 
+    , "example: " <>
+      makeExampleNoBackticks createPullRequest ["https://github.com/unisonweb/base",
                                                 "https://github.com/me/unison:.libs.pr.base" ]
     ])
   (\case
@@ -1174,6 +1218,8 @@ validInputs =
   , links
   , replaceTerm
   , replaceType
+  , deleteTermReplacement
+  , deleteTypeReplacement
   , test
   , execute
   , viewReflog

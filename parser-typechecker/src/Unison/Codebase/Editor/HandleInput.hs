@@ -220,7 +220,7 @@ loop = do
       getHQ'Types :: Path.HQSplit' -> Set Reference
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
       resolveHHQS'Types :: HashOrHQSplit' -> Action' m v (Set Reference)
-      resolveHHQS'Types = either 
+      resolveHHQS'Types = either
         (eval . TypeReferencesByShortHash)
         (pure . getHQ'Types)
       -- Term Refs only
@@ -309,6 +309,40 @@ loop = do
         typeConflicted src = nameConflicted src Set.empty
         termConflicted src tms = nameConflicted src tms Set.empty
         hashConflicted src = respond . HashAmbiguous src
+        doRemoveReplacement from patchPath isTerm = do
+          let patchPath' = fromMaybe defaultPatchPath patchPath
+          patch <- getPatchAt patchPath'
+          fromRefs <-
+            (if isTerm then resolveHHQS'Terms else resolveHHQS'Types) from
+          let go :: Reference -> Action m (Either Event Input) v ()
+              go fr = do
+                let termPatch =
+                      over Patch.termEdits (R.deleteDom fr) patch
+                    typePatch =
+                      over Patch.typeEdits (R.deleteDom fr) patch
+                    (patchPath'', patchName) = resolveSplit' patchPath'
+                  -- Save the modified patch
+                stepAtM inputDescription
+                          (patchPath'',
+                           Branch.modifyPatches
+                             patchName
+                             (const (if isTerm then termPatch else typePatch)))
+                -- Say something
+                success
+              sayNotFound = respond
+                . SearchTermsNotFound
+                . pure
+                . either
+                    HQ.HashOnly
+                    (fmap Path.toName' . HQ'.toHQ . Path.unsplitHQ')
+              sayHashConflicted t = hashConflicted t . Set.map Referent.Ref
+              sayTermConflicted t = termConflicted t . Set.map Referent.Ref
+          zeroOneOrMore
+            fromRefs
+            (sayNotFound from)
+            go
+            (either sayHashConflicted
+                    (if isTerm then sayTermConflicted else typeConflicted) from)
         branchExists dest _x = respond $ BranchAlreadyExists dest
         branchExistsSplit = branchExists . Path.unsplit'
         typeExists dest = respond . TypeAlreadyExists dest
@@ -395,10 +429,10 @@ loop = do
           QuitI{} -> wat
           DeprecateTermI{} -> undefined
           DeprecateTypeI{} -> undefined
-          AddTermReplacementI{} -> undefined
-          AddTypeReplacementI{} -> undefined
-          RemoveTermReplacementI{} -> undefined
-          RemoveTypeReplacementI{} -> undefined
+          RemoveTermReplacementI srcH p ->
+            "delete.termReplacement" <> hhqs' srcH <> " " <> opatch p
+          RemoveTypeReplacementI srcH p ->
+            "delete.typeReplacement" <> hhqs' srcH <> " " <> opatch p
           where
           hp' = either (Text.pack . show) p'
           p' = Text.pack . show . resolveToAbsolute
@@ -1508,10 +1542,10 @@ loop = do
 
       DeprecateTermI {} -> notImplemented
       DeprecateTypeI {} -> notImplemented
-      AddTermReplacementI {} -> notImplemented
-      AddTypeReplacementI {} -> notImplemented
-      RemoveTermReplacementI {} -> notImplemented
-      RemoveTypeReplacementI {} -> notImplemented
+      RemoveTermReplacementI from patchPath ->
+        doRemoveReplacement from patchPath True
+      RemoveTypeReplacementI from patchPath ->
+        doRemoveReplacement from patchPath False
       ShowDefinitionByPrefixI {} -> notImplemented
       UpdateBuiltinsI -> notImplemented
       QuitI -> MaybeT $ pure Nothing
