@@ -20,8 +20,7 @@ import qualified Unison.DataDeclaration        as DD
 import qualified Unison.Names2                 as Names
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
-import qualified Unison.Referent as Referent
-import Unison.Referent (Referent, Referent')
+import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import           Unison.Typechecker.TypeLookup  (TypeLookup(TypeLookup))
@@ -77,14 +76,14 @@ data Codebase m v a =
            , appendReflog       :: Text -> Branch m -> Branch m -> m ()
 
            -- list of terms of the given type
-           , termsOfTypeImpl    :: Reference -> m (Set Referent)
+           , termsOfTypeImpl    :: Reference -> m (Set Referent.Id)
            -- list of terms that mention the given type anywhere in their signature
-           , termsMentioningTypeImpl :: Reference -> m (Set Referent)
+           , termsMentioningTypeImpl :: Reference -> m (Set Referent.Id)
            -- number of base58 characters needed to distinguish any two references in the codebase
            , hashLength         :: m Int
            , termReferencesByPrefix :: ShortHash -> m (Set Reference.Id)
            , typeReferencesByPrefix :: ShortHash -> m (Set Reference.Id)
-           , termReferentsByPrefix :: ShortHash -> m (Set (Referent' Reference.Id))
+           , termReferentsByPrefix :: ShortHash -> m (Set Referent.Id)
 
            , branchHashLength   :: m Int
            , branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.Hash)
@@ -258,13 +257,16 @@ dependents c r
 
 termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
 termsOfType c ty =
-  Set.union (Rel.lookupDom r Builtin.builtinTermsByType) <$> termsOfTypeImpl c r
+  Set.union (Rel.lookupDom r Builtin.builtinTermsByType)
+    . Set.map (fmap Reference.DerivedId)
+    <$> termsOfTypeImpl c r
   where
   r = Type.toReference ty
 
 termsMentioningType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
 termsMentioningType c ty =
   Set.union (Rel.lookupDom r Builtin.builtinTermsByTypeMention)
+    . Set.map (fmap Reference.DerivedId)
     <$> termsMentioningTypeImpl c r
   where
   r = Type.toReference ty

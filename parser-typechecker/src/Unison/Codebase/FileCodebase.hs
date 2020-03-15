@@ -90,7 +90,7 @@ import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent
                                                 , pattern Ref
                                                 , pattern Con
-                                                , Referent' )
+                                                )
 import qualified Unison.Referent               as Referent
 import           Unison.Term                    ( Term )
 import qualified Unison.Term                   as Term
@@ -409,6 +409,12 @@ componentIdFromString = Reference.idFromText . Text.pack
 referentFromString :: String -> Maybe Referent
 referentFromString = Referent.fromText . Text.pack
 
+referentIdFromString :: String -> Maybe Referent.Id
+referentIdFromString s = referentFromString s >>= \case
+  Referent.Ref (Reference.DerivedId r) -> Just $ Referent.Ref' r
+  Referent.Con (Reference.DerivedId r) i t -> Just $ Referent.Con' r i t
+  _ -> Nothing
+
 -- here
 referentToString :: Referent -> String
 referentToString = Text.unpack . Referent.toText
@@ -590,7 +596,7 @@ termReferentsByPrefix :: MonadIO m
   => (CodebasePath -> Reference.Id -> m (Maybe (DD.Decl v a)))
   -> CodebasePath
   -> ShortHash
-  -> m (Set (Referent' Reference.Id))
+  -> m (Set Referent.Id)
 termReferentsByPrefix getDecl root sh = do
   terms <- termReferencesByPrefix root sh
   ctors <- do
@@ -667,9 +673,9 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
     getTypeOfTerm h = liftIO $ S.getFromFile (V1.getType getV getA) (typePath path h)
     dependents :: Reference -> m (Set Reference.Id)
     dependents r = listDirAsIds (dependentsDir path r)
-    getTermsOfType :: Reference -> m (Set Referent)
+    getTermsOfType :: Reference -> m (Set Referent.Id)
     getTermsOfType r = listDirAsReferents (typeIndexDir path r)
-    getTermsMentioningType :: Reference -> m (Set Referent)
+    getTermsMentioningType :: Reference -> m (Set Referent.Id)
     getTermsMentioningType r = listDirAsReferents (typeMentionsIndexDir path r)
   -- todo: revisit these
     listDirAsIds :: FilePath -> m (Set Reference.Id)
@@ -680,13 +686,13 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
           ls <- fmap decodeFileName <$> listDirectory d
           pure . Set.fromList $ ls >>= (toList . componentIdFromString)
         else pure Set.empty
-    listDirAsReferents :: FilePath -> m (Set Referent)
+    listDirAsReferents :: FilePath -> m (Set Referent.Id)
     listDirAsReferents d = do
       e <- doesDirectoryExist d
       if e
         then do
           ls <- fmap decodeFileName <$> listDirectory d
-          pure . Set.fromList $ ls >>= (toList . referentFromString)
+          pure . Set.fromList $ ls >>= (toList . referentIdFromString)
         else pure Set.empty
     watches :: UF.WatchKind -> m [Reference.Id]
     watches k =
