@@ -473,3 +473,30 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
     :]
 
 ```
+```unison
+-- Regression test for #1363 - preservation of spaces after @ directives in first line when unindenting
+reg1363 = [: `@List.take foo` bar
+  baz :]
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      reg1363 : Doc
+   
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+```
+```ucm
+.> view reg1363
+
+  reg1363 : Doc
+  reg1363 = [: `@List.take foo` bar baz :]
+
+```

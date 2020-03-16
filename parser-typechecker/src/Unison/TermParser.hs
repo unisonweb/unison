@@ -22,7 +22,7 @@ import           Unison.Parser hiding (seq)
 import           Unison.PatternP (Pattern)
 import           Unison.Term (Term, IsTop)
 import           Unison.Type (Type)
-import           Unison.Util.List (intercalateMapWith)
+import           Unison.Util.List (intercalateMapWith, quenchRuns)
 import           Unison.Var (Var)
 import qualified Data.List.Extra as List.Extra
 import qualified Data.Char as Char
@@ -420,10 +420,10 @@ docNormalize tm = case tm of
       . (tracing "after unindent") . unIndent
       . (tracing "initial parse") . miniPreProcess
   preProcess xs = zip3 seqs
-                       (previousLines $ Sequence.fromList seqs)
+                       (lineStarteds $ Sequence.fromList seqs)
                        (followingLines $ Sequence.fromList seqs)
     where seqs = map fst xs
-  miniPreProcess seqs = zip (toList seqs) (previousLines seqs)
+  miniPreProcess seqs = zip (toList seqs) (lineStarteds seqs)
   unIndent
     :: Ord v
     => [(Term v a, UnbreakCase)]
@@ -521,7 +521,8 @@ docNormalize tm = case tm of
           else result
   -- A list whose entries match those of tms.  `Nothing` is used for elements
   -- which just continue a line, and so need to be ignored when looking back
-  -- for how the last line started.
+  -- for how the last line started.  Otherwise describes whether the last
+  -- line of this entry is indented (or maybe terminated by a newline.)
   -- Here we're guessing whether an element will be rendered on one line or
   -- several, which we can't do perfectly, and which varies depending on
   -- whether the doc is viewed or displayed.  This can cause some glitches
@@ -535,7 +536,7 @@ docNormalize tm = case tm of
     DD.DocEvaluate  _   -> Just LineEnds
     Term.Var' _         -> Just LineEnds  -- @[include]
     e@_                 -> error ("unexpected doc element: " ++ show e)
-  -- Work out whether the last line of this blob is indented (or else is
+  -- Work out whether the last line of this blob is indented (or maybe
   -- terminated by a newline.)
   unbreakCase :: Text -> Maybe UnbreakCase
   unbreakCase txt =
@@ -547,16 +548,18 @@ docNormalize tm = case tm of
             else if Char.isSpace (Text.head afterNewline)
               then Just StartsIndented
               else Just StartsUnindented
-  -- A list whose entries match those of tms.  The UnbreakCase of the previous
-  -- entry that included a newline.
+  -- A list whose entries match those of tms.  Describes how the current
+  -- line started (the line including the start of this entry) - or LineEnds
+  -- if this entry is starting a line itself.
+  -- Calculated as the UnbreakCase of the previous entry that included a newline.
   -- Really there's a function of type (a -> Bool) -> a -> [a] -> [a] in here
   -- fighting to break free - overwriting elements that are 'shadowed' by
   -- a preceding element for which the predicate is true, with a copy of
   -- that element.
-  previousLines :: Show v => Sequence.Seq (Term v a) -> [UnbreakCase]
-  previousLines tms = tr xs''   where
+  lineStarteds :: Show v => Sequence.Seq (Term v a) -> [UnbreakCase]
+  lineStarteds tms = tr $ quenchRuns LineEnds StartsUnindented $ xs'' where
     tr = const id $
-      trace $ "previousLines: xs = " ++ (show xs) ++ ", xss = "
+      trace $ "lineStarteds: xs = " ++ (show xs) ++ ", xss = "
         ++ (show xss) ++ ", xs' = " ++ (show xs') ++ ", xs'' = "
         ++ (show xs'') ++ "\n\n"
     -- Make sure there's a Just at the start of the list so we always find

@@ -220,3 +220,14 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 .> view test1
 ```
 
+```unison
+-- Regression test for #1363 - preservation of spaces after @ directives in first line when unindenting
+reg1363 = [: `@List.take foo` bar
+  baz :]
+```
+```ucm:hide
+.> add
+```
+```ucm
+.> view reg1363
+```
