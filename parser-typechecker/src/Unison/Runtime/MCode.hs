@@ -1,9 +1,39 @@
 {-# language GADTs #-}
+{-# language PatternGuards #-}
 {-# language EmptyDataDecls #-}
+{-# language PatternSynonyms #-}
 
 module Unison.Runtime.MCode where
 
+import Data.List (elemIndex)
+
 import Data.Primitive.PrimArray
+
+import Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap.Strict as IM
+
+import Unison.Var (Var)
+import Unison.ABT.Normalized (pattern TAbss)
+import Unison.Runtime.ANF
+  ( ANormal
+  , ANormalT
+  , ANormalTF(..)
+  , Branched(..)
+  , Handler(..)
+  , Func(..)
+  , pattern TVar
+  , pattern TLit
+  , pattern TApv
+  , pattern TCom
+  , pattern TCon
+  , pattern TReq
+  , pattern THnd
+  , pattern TLet
+  , pattern TName
+  , pattern TTm
+  , pattern TMatch
+  )
+import qualified Unison.Runtime.ANF as ANF
 
 -- This outlines some of the ideas/features in this core
 -- language, and how they may be used to implement features of
@@ -179,6 +209,7 @@ data Args
   | UArgR !Int !Int
   | BArgR !Int !Int
   | DArgR !Int !Int !Int !Int
+  | BArgN !(PrimArray Int)
 
 ucount, bcount :: Args -> Int
 
@@ -306,3 +337,102 @@ data Branch
   | Test2 !Int !Section    -- if tag == m then ...
           !Int !Section    -- else if tag == n then ...
           !Section         -- else ...
+  | TestT (IntMap Section)
+
+type Ctx v = [Maybe v]
+
+ctxResolve :: Var v => Ctx v -> v -> Int
+ctxResolve ctx u
+  | Just i <- elemIndex (Just u) ctx = i
+  | otherwise = error $ "ctxResolve: bad variable scoping: " ++ show u
+
+emitSection :: Var v => Ctx v -> ANormal v -> Section
+emitSection ctx (TLet u bu bo)
+  = emitLet ctx bu $ emitSection (Just u : ctx) bo
+emitSection ctx (TName u f as bo)
+  = Ins (Name f $ emitArgs ctx as) $ emitSection (Just u : ctx) bo
+emitSection ctx (TVar v) = Yield . BArg1 $ ctxResolve ctx v
+emitSection ctx (TApv v args)
+  = App False (Stk $ ctxResolve ctx v) $ emitArgs ctx args
+emitSection ctx (TCom n args)
+  | False -- known saturated call
+  = Call False n $ emitArgs ctx args
+  | False -- known unsaturated call
+  = Ins (Name n $ emitArgs ctx args) $ Yield (BArg1 0)
+  | otherwise -- slow path
+  = App False (Env n) $ emitArgs ctx args
+emitSection ctx (TCon _ t args)
+  = Ins (Pack t (emitArgs ctx args))
+  . Yield $ BArg1 0
+emitSection ctx (TReq a e args)
+  -- Currently implementing packed calling convention for abilities
+  = Ins (Pack e (emitArgs ctx args))
+  . App True (Dyn a) $ BArg1 0
+emitSection _   (TLit l)
+  = Ins (emitLit l)
+  . Ins (Pack 0 $ UArg1 0)
+  . Yield $ BArg1 0
+-- Currently implementing boxed integer matching
+emitSection ctx (TMatch v cs)
+  = Ins (Unpack $ ctxResolve ctx v)
+  $ Match i $ emitBranches [Nothing] ctx cs
+  where i | MatchIntegral _ <- cs = 1
+          | otherwise = 0
+emitSection ctx (THnd cs b)
+  = emitHandler ctx cs $ emitSection ctx b
+emitSection _ _ = error "emitSection: unhandled code"
+
+emitLet :: Var v => Ctx v -> ANormalT v -> Section -> Section
+-- Currently packed literals
+emitLet _   (ALit l)
+  = Ins (emitLit l)
+  . Ins (Pack 0 $ UArg1 0)
+emitLet ctx (AApp (FComb n) args)
+  -- We should be able to tell if we are making a saturated call
+  -- or not here. We aren't carrying the information here yet, though.
+  | False -- not saturated
+  = Ins . Name n $ emitArgs ctx args
+emitLet ctx (AApp (FCon _ n) args) -- TODO: use reference number
+  = Ins . Pack n $ emitArgs ctx args
+emitLet ctx (AApp (FPrim p) args)
+  = Ins . emitPOp p $ emitArgs ctx args
+emitLet ctx bnd = Let (emitSection ctx (TTm bnd))
+
+emitPOp :: ANF.POp -> Args -> Instr
+emitPOp ANF.PADI = emitP2 Add
+emitPOp ANF.PADN = emitP2 Add
+emitPOp ANF.PSUI = emitP2 Sub
+emitPOp ANF.PSUN = emitP2 Sub
+emitPOp p = error $ "unhandled prim op: " ++ show p
+
+emitP2 :: Prim2 -> Args -> Instr
+emitP2 p (UArg2 i j) = Prim2 p i j
+emitP2 _ _ = error "prim ops must be saturated"
+
+emitBranches :: Var v => Ctx v -> Ctx v -> Branched (ANormal v) -> Branch
+emitBranches tctx ctx bs
+  = TestT $ IM.map (emitCase tctx ctx) $ cases bs
+
+emitHandler
+  :: Var v => Ctx v -> Handler (ANormal v) -> Section -> Section
+emitHandler _   (Hndl _  _ ) _
+  = error "TODO: handler"
+
+emitCase :: Var v => Ctx v -> Ctx v -> ANormal v -> Section
+emitCase tctx ctx (TAbss vs bo)
+  = emitSection (tctx ++ fmap Just vs ++ ctx) bo
+
+emitLit :: ANF.Lit -> Instr
+emitLit l = Lit i
+  where
+  i = case l of
+        ANF.I i -> fromIntegral i
+        ANF.N n -> fromIntegral n
+        _ -> error "unhandled literal"
+
+emitArgs :: Var v => Ctx v -> [v] -> Args
+emitArgs ctx args = case map (ctxResolve ctx) args of
+  [] -> ZArgs
+  [i] -> BArg1 i
+  [i,j] -> BArg2 i j
+  is -> BArgN $ primArrayFromList is

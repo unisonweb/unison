@@ -216,6 +216,9 @@ moveArgs !ustk !bstk (DArgR ui ul bi bl) = do
   ustk <- prepareArgs ustk (ArgR ui ul)
   bstk <- prepareArgs bstk (ArgR bi bl)
   pure (ustk, bstk)
+moveArgs !ustk !bstk (BArgN as) = do
+  bstk <- prepareArgs bstk (ArgN as)
+  pure (ustk, bstk)
 {-# inline moveArgs #-}
 
 buildData
@@ -249,6 +252,9 @@ buildData !ustk !bstk !t (DArgR ui ul bi bl) = do
   useg <- augSeg ustk unull (ArgR ui ul)
   bseg <- augSeg bstk bnull (ArgR bi bl)
   pure $ DataG t useg bseg
+buildData !_    !bstk !t (BArgN as) = do
+  bseg <- augSeg bstk bnull (ArgN as)
+  pure $ DataG t unull bseg
 {-# inline buildData #-}
 
 dumpData
@@ -332,6 +338,9 @@ closeArgs !ustk !bstk !useg !bseg (DArgR ui ul bi bl) = do
   useg <- augSeg ustk useg (ArgR ui ul)
   bseg <- augSeg bstk bseg (ArgR bi bl)
   pure (useg, bseg)
+closeArgs !_    !bstk !useg !bseg (BArgN as) = do
+  bseg <- augSeg bstk bseg (ArgN as)
+  pure (useg, bseg)
 
 prim1 :: Stack 'UN -> Prim1 -> Int -> IO (Stack 'UN)
 prim1 !ustk Dec !i = do
@@ -380,6 +389,7 @@ selectBranch t (Test2 u cu v cv e)
   | t == u    = cu
   | t == v    = cv
   | otherwise = e
+selectBranch t (TestT cs) = cs M.! t
 {-# inline selectBranch #-}
 
 splitCont

@@ -35,6 +35,7 @@ module Unison.Runtime.ANF
   , ANormalBF(..)
   , ANormalTF(.., AApv, ACom, ACon, AReq, APrm)
   , ANormal
+  , ANormalT
   , Branched(..)
   , Handler(..)
   , Func(..)
@@ -217,13 +218,13 @@ fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
   go e = error $ "ANF.term: I thought we got all of these\n" <> show e
 
 -- Context entries with evaluation strategy
-data CTE v s l
+data CTE v s
   = ST { cvar :: v, _sbnd :: s }
-  | LZ { cvar :: v, _lbnd :: l }
+  | LZ { cvar :: v, _fbnd :: Int, _abnd :: [v] }
 
 data ANormalBF v e
   = ALet (ANormalTF v e) e
-  | AName e e
+  | AName Int [v] e
   | ATm (ANormalTF v e)
 
 data ANormalTF v e
@@ -235,17 +236,17 @@ data ANormalTF v e
 
 instance Functor (ANormalBF v) where
   fmap f (ALet bn bo) = ALet (f <$> bn) $ f bo
-  fmap f (AName bn bo) = AName (f bn) $ f bo
+  fmap f (AName n as bo) = AName n as $ f bo
   fmap f (ATm tm) = ATm $ f <$> tm
 
 instance Bifunctor ANormalBF where
   bimap f g (ALet bn bo) = ALet (bimap f g bn) $ g bo
-  bimap _ g (AName bn bo) = AName (g bn) $ g bo
+  bimap f g (AName n as bo) = AName n (f <$> as) $ g bo
   bimap f g (ATm tm) = ATm (bimap f g tm)
 
 instance Bifoldable ANormalBF where
   bifoldMap f g (ALet b e) = bifoldMap f g b <> g e
-  bifoldMap _ g (AName b e) = g b <> g e
+  bifoldMap f g (AName _ as e) = foldMap f as <> g e
   bifoldMap f g (ATm e) = bifoldMap f g e
 
 instance Functor (ANormalTF v) where
@@ -280,7 +281,7 @@ matchLit _ = Nothing
 
 pattern Lit' l <- (matchLit -> Just l)
 pattern TLet v bn bo = ABTN.TTm (ALet bn (ABTN.TAbs v bo))
-pattern TName v bn bo = ABTN.TTm (AName bn (ABTN.TAbs v bo))
+pattern TName v f as bo = ABTN.TTm (AName f as (ABTN.TAbs v bo))
 pattern TTm e = ABTN.TTm (ATm e)
 {-# complete TLet, TName, TTm #-}
 
@@ -315,21 +316,21 @@ freeVarsT = bifoldMap Set.singleton ABTN.freeVars
 
 bind :: Var v => Cte v -> ANormal v -> ANormal v
 bind (ST u bu) = TLet u bu
-bind (LZ u bu) = TName u bu
+bind (LZ u f as) = TName u f as
 
 unbind :: Var v => ANormal v -> Maybe (Cte v, ANormal v)
 unbind (TLet  u bu bd) = Just (ST u bu, bd)
-unbind (TName u bu bd) = Just (LZ u bu, bd)
+unbind (TName u f as bd) = Just (LZ u f as, bd)
 unbind _ = Nothing
 
 unbinds :: Var v => ANormal v -> (Ctx v, ANormal v)
 unbinds (TLet  u bu (unbinds -> (ctx, bd))) = (ST u bu:ctx, bd)
-unbinds (TName u bu (unbinds -> (ctx, bd))) = (LZ u bu:ctx, bd)
+unbinds (TName u f as (unbinds -> (ctx, bd))) = (LZ u f as:ctx, bd)
 unbinds tm = ([], tm)
 
 unbinds' :: Var v => ANormal v -> (Ctx v, ANormalT v)
 unbinds' (TLet  u bu (unbinds' -> (ctx, bd))) = (ST u bu:ctx, bd)
-unbinds' (TName u bu (unbinds' -> (ctx, bd))) = (LZ u bu:ctx, bd)
+unbinds' (TName u f as (unbinds' -> (ctx, bd))) = (LZ u f as:ctx, bd)
 unbinds' (TTm tm) = ([], tm)
 
 pattern TBind bn bd <- (unbind -> Just (bn, bd))
@@ -362,17 +363,17 @@ instance Monoid (Branched e) where
 
 data Handler e
   = Hndl
-  { hcases :: Map Reference (IntMap e)
+  { hcases :: IntMap (IntMap e)
   , dflt :: Maybe e
   } deriving (Functor, Foldable, Traversable)
 
 instance Semigroup (Handler e) where
   Hndl cl dl <> Hndl cr dr = Hndl cm $ mplus dl dr
     where
-    cm = Map.unionWith (<>) cl cr
+    cm = IMap.unionWith (<>) cl cr
 
 instance Monoid (Handler e) where
-  mempty = Hndl Map.empty Nothing
+  mempty = Hndl IMap.empty Nothing
 
 data Func v
   -- variable
@@ -408,6 +409,7 @@ data POp
   -- Float
   | PADF | PSUF | PMUF | PDIF
   | PGTF | PLTF | PGEF | PLEF | PEQF
+  deriving (Show)
 
 type ANormal = ABTN.Term ANormalBF
 type ANormalT v = ANormalTF v (ANormal v)
@@ -415,7 +417,7 @@ type ANormalT v = ANormalTF v (ANormal v)
 type ABranched v = Branched (ANormal v)
 type AHandler v = Handler (ANormal v)
 
-type Cte v = CTE v (ANormalT v) (ANormal v)
+type Cte v = CTE v (ANormalT v)
 type Ctx v = [Cte v]
 
 data ACases v
@@ -484,12 +486,14 @@ anfBlock avoid resolve (Or' l r) = (lctx ++ rctx, APrm POR [vl, vr])
   (lctx, vl) = anfArg avoid resolve l
   (rctx, vr) = anfArg (addAvoid avoid lctx) resolve r
 anfBlock avoid resolve (Handle' h body)
-  = (hctx ++ [LZ fcv cb], AApp (FVar vh) [fcv])
+  = case anfBlock avoid' resolve body of
+      ([], ACom f as) -> (hctx ++ [LZ fcv f as], AApp (FVar vh) [fcv])
+        where fcv = freshANF avoid' $ Set.fromList as
+      (_, _) ->
+        error "handle body should be a call to a top-level combinator"
   where
   (hctx, vh) = anfArg avoid resolve h
   avoid' = addAvoid avoid hctx
-  cb = anfTerm avoid' resolve body
-  fcv = freshANF avoid' $ ABTN.freeVars cb
 anfBlock avoid resolve (Match' scrut cas) = case cases of
   HCase hn -> (sctx, AHnd hn (TTm sc))
   DCase cs
@@ -548,12 +552,12 @@ anfInitCase avoid resolve (MatchCase p guard (ABT.AbsN' vs bd))
   $ anfTerm avoid' resolve bd
   | EffectPureP _ q <- p
   , us <- expandBindings avoid' [q] vs
-  = HCase . Hndl Map.empty . Just
+  = HCase . Hndl IMap.empty . Just
   . ABTN.TAbss us $ anfTerm avoid' resolve bd
   | EffectBindP _ r t ps pk <- p
   , us <- expandBindings avoid' (ps ++ [pk]) vs
   = HCase . flip Hndl Nothing
-  . Map.singleton r . IMap.singleton t
+  . IMap.singleton (resolve r) . IMap.singleton t
   . ABTN.TAbss us $ anfTerm avoid' resolve bd
   where avoid' = Set.union avoid $ Set.fromList vs
 anfInitCase _ _ _ = error "anfInitCase: unexpected pattern"
@@ -617,8 +621,12 @@ sink :: Var v => v -> ANormalT v -> ANormal v -> ANormal v
 sink v tm = dive $ freeVarsT tm
   where
   dive _ exp | v `Set.notMember` ABTN.freeVars exp = exp
-  dive avoid (TName u bn bo)
-    = TName u (dive avoid' bn) (dive avoid' bo)
+  dive avoid exp@(TName u f as bo)
+    | v `elem` as
+    = let w = freshANF avoid (ABTN.freeVars exp)
+       in TLet w tm $ ABTN.rename v w exp
+    | otherwise
+    = TName u f as (dive avoid' bo)
     where avoid' = Set.insert u avoid
   dive avoid exp@(TLet u bn bo)
     | v `Set.member` directVars bn -- we need to stop here

@@ -10,7 +10,6 @@ import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF
 import Unison.Var as Var
 
-import qualified Data.Map as Map
 import qualified Data.IntMap as IMap
 import qualified Data.Set as Set
 
@@ -48,14 +47,8 @@ denormalize (TLet v bn bo)
   where
   dbn = denormalize $ TTm bn
   dbo = denormalize bo
-denormalize (TName v bn bo)
-  = ABT.subst v dbn
-  . ABT.subst u dbo
-  $ Term.handle () (Term.var () u) (Term.var () v)
-  where
-  u = ABT.freshIn Set.empty (typed Var.ANFBlank)
-  dbn = denormalize bn
-  dbo = denormalize bo
+denormalize (TName _ _ _ _)
+  = error "can't denormalize by-name bindings"
 denormalize (TMatch v cs)
   = Term.match () (ABT.var v) $ denormalizeMatch cs
 denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
@@ -97,14 +90,17 @@ denormalizeHandler (Hndl cs d) = dcs ++ pur
                 . denormalizeBranch)
           d
 
-  dcs = Map.foldMapWithKey rf cs
-  rf r rcs = IMap.foldMapWithKey (cf r) rcs
+  dcs = IMap.foldMapWithKey rf cs
+  rf r rcs = IMap.foldMapWithKey (cf $ backReference r) rcs
   cf r t b = [ Term.MatchCase
                  (EffectBindP () r t (replicate n $ VarP ()) (VarP ()))
                  Nothing
                  db
              ]
    where (n, db) = denormalizeBranch b
+
+backReference :: Int -> Reference
+backReference = error "backReference"
 
 test :: Test ()
 test = scope "anf" . tests $
