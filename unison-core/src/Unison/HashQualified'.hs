@@ -32,10 +32,6 @@ fromHQ = \case
   HQ.HashQualified n sh -> Just $ HashQualified n sh
   HQ.HashOnly{} -> Nothing
 
-unsafeFromHQ :: HQ.HashQualified' n -> HashQualified' n
-unsafeFromHQ = fromMaybe msg . fromHQ where
-  msg = error "HashQualified'.unsafeFromHQ"
-
 toName :: HashQualified' n -> n
 toName = \case
   NameOnly name        ->  name

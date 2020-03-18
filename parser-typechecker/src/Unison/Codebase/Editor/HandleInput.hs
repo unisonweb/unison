@@ -218,6 +218,19 @@ loop = do
       getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
       getHQ'Types :: Path.HQSplit' -> Set Reference
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
+      getHQTerms :: HQ.HashQualified -> Action' m v (Set Referent) 
+      getHQTerms hq = case hq of
+        HQ.NameOnly n -> let
+          -- absolute-ify the name, then lookup in deepTerms of root
+          path :: Path.Path' 
+          path = Path.fromName' n
+          Path.Absolute absPath = resolveToAbsolute path
+          in pure $ R.lookupRan (Path.toName absPath) (Branch.deepTerms root0) 
+        HQ.HashOnly sh -> hashOnly sh 
+        HQ.HashQualified _ sh -> hashOnly sh
+        where
+        hashOnly sh = eval $ TermReferentsByShortHash sh
+
       resolveHHQS'Types :: HashOrHQSplit' -> Action' m v (Set Reference)
       resolveHHQS'Types = either
         (eval . TypeReferencesByShortHash)
@@ -347,10 +360,10 @@ loop = do
           PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
           UndoI{} -> "undo"
           ExecuteI s -> "execute " <> Text.pack s
-          LinkI froms to ->
-            "link " <> hqs' to <> " " <> intercalateMap " " hqs' froms
-          UnlinkI froms to ->
-            "unlink " <> hqs' to <> " " <> intercalateMap " " hqs' froms
+          LinkI defs md ->
+            "link " <> HQ.toText md <> " " <> intercalateMap " " hqs' defs
+          UnlinkI defs md ->
+            "unlink " <> HQ.toText md <> " " <> intercalateMap " " hqs' defs
           UpdateBuiltinsI -> "builtins.update"
           MergeBuiltinsI -> "builtins.merge"
           PullRemoteBranchI orepo dest ->
@@ -414,23 +427,28 @@ loop = do
         stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
         stepManyAtM = Unison.Codebase.Editor.HandleInput.stepManyAtM inputDescription
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
-        manageLinks :: Var v0
-                    => [(Path', NameSegment.HQSegment)]
-                    -> (Path', NameSegment.HQSegment)
+        manageLinks :: [(Path', NameSegment.HQSegment)]
+                    -> HQ.HashQualified
                     -> (forall r. Ord r
                         => (r, Reference, Reference)
                         ->  Branch.Star r NameSegment
                         ->  Branch.Star r NameSegment)
-                    -> MaybeT (StateT (LoopState m v0) (F m (Either Event Input) v0)) ()
-        manageLinks srcs mdValue op = do
-          let srcle = toList . getHQ'Terms =<< srcs
-              srclt = toList . getHQ'Types =<< srcs
-              mdValuel = toList (getHQ'Terms mdValue)
+                    -> MaybeT (StateT (LoopState m v) (F m (Either Event Input) v)) ()
+        manageLinks srcs mdValue2 op = do
+          traceM "In manage links, before srcle"
+          let !srcle = toList . getHQ'Terms =<< srcs
+              !srclt = toList . getHQ'Types =<< srcs
+          traceM "In manage links, AFTER srcle"
+          mdValuel <- toList <$> getHQTerms mdValue2
+          traceM "Got mdValuel"
+          names0 <- basicPrettyPrintNames0
+          ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (Names names0 mempty)
           case (srcle, srclt, mdValuel) of
-            (srcle, srclt, [Referent.Ref mdValue]) -> do
+            (srcle, srclt, [r@(Referent.Ref mdValue)]) -> do
               mdType <- eval $ LoadTypeOfTerm mdValue
+              traceM $ "Loaded type for " <> show mdValue
               case mdType of
-                Nothing -> respond $ LinkFailure input
+                Nothing -> respond $ MetadataMissingType ppe r
                 Just ty -> do
                   let steps =
                         second (const . step $ Type.toReference ty)
@@ -441,7 +459,7 @@ loop = do
                   after <- get
                   (ppe, outputDiff) <- diffHelper before after
                   respondNumbered $ ShowDiffNamespace
-                      Path.absoluteEmpty Path.absoluteEmpty ppe outputDiff
+                     Path.absoluteEmpty Path.absoluteEmpty ppe outputDiff
                 where
                 step mdType b0 = let
                   tmUpdates terms = foldl' go terms srcle
@@ -451,7 +469,8 @@ loop = do
                     where
                     go types src = op (src, mdType, mdValue) types
                   in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
-            _ -> respond $ LinkFailure input
+            (_srcle, _srclt, mdValues) -> 
+              respond $ MetadataAmbiguous ppe mdValues
         delete
           :: (Path.HQSplit' -> Set Referent) -- compute matching terms
           -> (Path.HQSplit' -> Set Reference) -- compute matching types

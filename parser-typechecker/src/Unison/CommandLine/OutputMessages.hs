@@ -71,6 +71,7 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyName, prettyShortHash,
                                                 styleHashQualified,
                                                 styleHashQualified', prettyHashQualified')
+import qualified Unison.NamePrinter            as NP
 import           Unison.Names2                 (Names'(..), Names0)
 import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names
@@ -323,7 +324,25 @@ notifyUser dir o = case o of
     else putPretty' "  🚫  "
     pure mempty
 
-  LinkFailure input -> pure $ P.warnCallout . P.shown $ input
+  MetadataMissingType ppe ref -> pure . P.fatalCallout . P.lines $ [
+    P.wrap $ "The metadata value " <> P.red (prettyTermName ppe ref)
+          <> "is missing a type signature in the codebase.",
+    "",
+    P.wrap $ "This might be due to pulling an incomplete"
+          <> "or invalid codebase, or because files inside the codebase"
+          <> "are being deleted external to UCM."
+    ]         
+  MetadataAmbiguous ppe [] -> pure . P.warnCallout .
+    P.wrap $ "Nothing to do. I couldn't find any matching metadata."
+  MetadataAmbiguous ppe refs -> pure . P.warnCallout . P.lines $ [
+    P.wrap $ "I'm not sure which metadata value you're referring to"
+          <> "since there are multiple matches:",
+    "",
+    P.indentN 2 $ P.spaced (P.blue . prettyTermName ppe <$> refs),
+    "",
+    tip "Try again and supply one of the above definitions explicitly."
+    ]
+
   EvaluationFailure err -> pure err
   SearchTermsNotFound hqs | null hqs -> pure mempty
   SearchTermsNotFound hqs ->
@@ -1827,6 +1846,10 @@ prettyDiff diff = let
        ]
      else mempty
    ]
+
+prettyTermName :: PPE.PrettyPrintEnv -> Referent -> Pretty
+prettyTermName ppe r = P.syntaxToColor $
+  prettyHashQualified (PPE.termName ppe r)
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of

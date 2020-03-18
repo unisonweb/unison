@@ -109,10 +109,10 @@ data Input
   | ExecuteI String
   | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
-  -- link from to
-  | LinkI [Path.HQSplit'] Path.HQSplit'
-  -- unlink from to
-  | UnlinkI [Path.HQSplit'] Path.HQSplit'
+  -- `link definitions metadata` (adds metadata to all of `definitions`)
+  | LinkI [Path.HQSplit'] HQ.HashQualified
+  -- `unlink definitions metadata` (removes metadata from all of `definitions`)
+  | UnlinkI [Path.HQSplit'] HQ.HashQualified
   -- links from <type>
   | LinksI Path.HQSplit' (Maybe String)
   | DisplayI OutputLocation String

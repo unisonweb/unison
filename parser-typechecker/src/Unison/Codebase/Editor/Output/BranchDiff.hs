@@ -2,12 +2,14 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Codebase.Editor.Output.BranchDiff where
 
 import Control.Lens (_1,view)
 import Unison.Prelude
 import Unison.Name (Name)
+import qualified Unison.Name as Name
 import qualified Unison.Codebase.Patch as P
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Codebase.BranchDiff as BranchDiff
@@ -329,7 +331,11 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
   where
   fillMetadata :: Traversable t => PPE.PrettyPrintEnv -> t Metadata.Value -> m (t (MetadataDisplay v a))
   fillMetadata ppe = traverse $ -- metadata values are all terms
-    \(Referent.Ref -> mdRef) -> (HQ'.unsafeFromHQ $ PPE.termName ppe mdRef, mdRef, ) <$> typeOf mdRef
+    \(Referent.Ref -> mdRef) -> 
+      let name = case HQ'.fromHQ (PPE.termName ppe mdRef) of  
+            Nothing -> HQ'.NameOnly (Name.unsafeFromText "(unnamed metadata)")
+            Just hq' -> hq'
+      in (name, mdRef, ) <$> typeOf mdRef
   getMetadata :: Ord r => r -> Name -> R3.Relation3 r Name Metadata.Value -> Set Metadata.Value
   getMetadata r n = R.lookupDom n . R3.lookupD1 r
 

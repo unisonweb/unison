@@ -1033,10 +1033,12 @@ link = InputPattern
     ]
   )
   (\case
-    dest : srcs -> first fromString $ do
-      srcs <- traverse Path.parseHQSplit' srcs
-      dest <- Path.parseHQSplit' dest
-      Right $ Input.LinkI srcs dest
+    md : defs -> first fromString $ do
+      defs <- traverse Path.parseHQSplit' defs
+      md <- case HQ.fromString md of
+        Nothing -> Left "Invalid hash qualified identifier for metadata." 
+        Just hq -> pure hq
+      Right $ Input.LinkI defs md
     _ -> Left (I.help link)
   )
 
@@ -1070,10 +1072,12 @@ unlink = InputPattern
     , "for a range of definitions listed by a prior `find` command."
     ])
   (\case
-    dest : srcs -> first fromString $ do
-      srcs <- traverse Path.parseHQSplit' srcs
-      dest <- Path.parseHQSplit' dest
-      Right $ Input.UnlinkI srcs dest
+    md : defs -> first fromString $ do
+      defs <- traverse Path.parseHQSplit' defs
+      md <- case HQ.fromString md of
+        Nothing -> Left "Invalid hash qualified identifier for metadata." 
+        Just hq -> pure hq
+      Right $ traceShowId $ Input.UnlinkI defs md
     _ -> Left (I.help unlink)
   )
 
