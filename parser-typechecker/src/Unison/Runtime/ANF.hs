@@ -36,21 +36,25 @@ module Unison.Runtime.ANF
   , ANormalTF(.., AApv, ACom, ACon, AReq, APrm)
   , ANormal
   , ANormalT
+  , ANFM
   , Branched(..)
   , Handler(..)
   , Func(..)
-  , toSuperNormal
+  , superNormalize
   , anfTerm
   , sink
   ) where
 
 import Unison.Prelude
 
+import Control.Monad.Reader (ReaderT(..), MonadReader(..))
+import Control.Monad.State (State, runState, MonadState(..), modify)
+
 import Data.Bifunctor (Bifunctor(..))
 import Data.Bifoldable (Bifoldable(..))
 import Data.List hiding (and,or)
 import Prelude hiding (abs,and,or,seq)
-import Unison.Term
+import Unison.Term hiding (resolve, fresh)
 import Unison.Var (Var, typed)
 import Data.IntMap (IntMap)
 import qualified Data.Map as Map
@@ -219,8 +223,8 @@ fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
 
 -- Context entries with evaluation strategy
 data CTE v s
-  = ST { cvar :: v, _sbnd :: s }
-  | LZ { cvar :: v, _fbnd :: Int, _abnd :: [v] }
+  = ST v s
+  | LZ v Int [v]
 
 data ANormalBF v e
   = ALet (ANormalTF v e) e
@@ -232,6 +236,7 @@ data ANormalTF v e
   | AMatch v (Branched e)
   | AHnd (Handler e) e
   | AApp (Func v) [v]
+  | AFrc v
   | AVar v
 
 instance Functor (ANormalBF v) where
@@ -254,6 +259,7 @@ instance Functor (ANormalTF v) where
   fmap _ (ALit l) = ALit l
   fmap f (AMatch v br) = AMatch v $ f <$> br
   fmap f (AHnd h e) = AHnd (f <$> h) $ f e
+  fmap _ (AFrc v) = AFrc v
   fmap _ (AApp f args) = AApp f args
 
 instance Bifunctor ANormalTF where
@@ -261,6 +267,7 @@ instance Bifunctor ANormalTF where
   bimap _ _ (ALit l) = ALit l
   bimap f g (AMatch v br) = AMatch (f v) $ fmap g br
   bimap _ g (AHnd v e) = AHnd (g <$> v) $ g e
+  bimap f _ (AFrc v) = AFrc (f v)
   bimap f _ (AApp fu args) = AApp (fmap f fu) $ fmap f args
 
 instance Bifoldable ANormalTF where
@@ -268,6 +275,7 @@ instance Bifoldable ANormalTF where
   bifoldMap _ _ (ALit _) = mempty
   bifoldMap f g (AMatch v br) = f v <> foldMap g br
   bifoldMap _ g (AHnd h e) = foldMap g h <> g e
+  bifoldMap f _ (AFrc v) = f v
   bifoldMap f _ (AApp func args) = foldMap f func <> foldMap f args
 
 matchLit :: Term v a -> Maybe Lit
@@ -437,185 +445,191 @@ instance Monoid (ACases v) where
 -- Should be a completely closed term
 data SuperNormal v = Lambda { bound :: ANormal v }
 
-toSuperNormal
+type ANFM v
+  = ReaderT (Reference -> Int)
+      (State (Set v, Int, [(Int, SuperNormal v)]))
+
+clear :: ANFM v ()
+clear = modify $ \(_, gl, to) -> (Set.empty, gl, to)
+
+reset :: ANFM v a -> ANFM v a
+reset m = do
+  (av, _, _) <- get
+  m <* modify (\(_, gl, to) -> (av, gl, to))
+
+avoid :: Var v => [v] -> ANFM v ()
+avoid = avoids . Set.fromList
+
+avoids :: Var v => Set v -> ANFM v ()
+avoids s = modify $ \(av, gl, rs) -> (s `Set.union` av, gl, rs)
+
+reserve :: ANFM v Int
+reserve = state $ \(av, gl, to) -> (gl, (av, gl+1, to))
+
+resolve :: Reference -> ANFM v Int
+resolve r = ($r) <$> ask
+
+fresh :: Var v => ANFM v v
+fresh = (\(av, _, _) -> flip ABT.freshIn (typed Var.ANFBlank) av) <$> get
+
+contextualize :: Var v => ANormalT v -> ANFM v (Ctx v, v)
+contextualize (AVar cv) = pure ([], cv)
+contextualize tm = do
+  fv <- reset $ avoids (freeVarsT tm) *> fresh
+  avoid [fv]
+  pure ([ST fv tm], fv)
+
+superNormalize
   :: Var v
   => (Reference -> Int)
   -> Term v a
-  -> SuperNormal v
-toSuperNormal resolve tm
+  -> [(Int, SuperNormal v)]
+superNormalize rslv tm = c : l
+  where
+  subc = runReaderT (toSuperNormal tm) rslv
+  (c, (_,_,l)) = runState subc (Set.empty, 0, [])
+
+toSuperNormal :: Var v => Term v a -> ANFM v (Int, SuperNormal v)
+toSuperNormal tm
   | not . Set.null $ freeVars tm
   = error "free variables in supercombinators"
-  | otherwise = Lambda bound
+  | otherwise = do
+    clear
+    avoid vs
+    i <- reserve
+    (,) i . Lambda . ABTN.TAbss vs <$> anfTerm body
   where
   (vs, body) = fromMaybe ([], tm) $ unLams' tm
-  bound = foldr ABTN.TAbs anfBody vs
-  anfBody = anfTerm (Set.fromList vs) resolve body
 
-anfTerm
-  :: Var v
-  => Set v              -- variable choices to avoid
-  -> (Reference -> Int) -- resolve a reference to a supercombinator
-  -> Term v a
-  -> ANormal v
-anfTerm avoid resolve tm = case anfBlock avoid resolve tm of
-  (ctx, body) -> TBinds' ctx body
+anfTerm :: Var v => Term v a -> ANFM v (ANormal v)
+anfTerm tm = reset $ uncurry TBinds' <$> anfBlock tm
 
-anfBlock
-  :: Var v
-  => Set v
-  -> (Reference -> Int)
-  -> Term v a
-  -> (Ctx v, ANormalT v)
-anfBlock _     _       (Var' v) = ([], AVar v)
-anfBlock avoid resolve (If' c t f)
-  | AVar cv <- cc = (cctx, AMatch cv cases)
-  | otherwise          = (cctx ++ [ST fcv cc], AMatch fcv cases)
-  where
-  (cctx, cc) = anfBlock avoid resolve c
-  fcv = freshANF avoid $ freeVarsT cc
-  cases = MatchIntegral $ IMap.fromList
-    [ (0, anfTerm avoid resolve f)
-    , (1, anfTerm avoid resolve t)
-    ]
-anfBlock avoid resolve (And' l r) = (lctx ++ rctx, APrm PAND [vl, vr])
-  where
-  (lctx, vl) = anfArg avoid resolve l
-  (rctx, vr) = anfArg (addAvoid avoid lctx) resolve r
-anfBlock avoid resolve (Or' l r) = (lctx ++ rctx, APrm POR [vl, vr])
-  where
-  (lctx, vl) = anfArg avoid resolve l
-  (rctx, vr) = anfArg (addAvoid avoid lctx) resolve r
-anfBlock avoid resolve (Handle' h body)
-  = case anfBlock avoid' resolve body of
-      ([], ACom f as) -> (hctx ++ [LZ fcv f as], AApp (FVar vh) [fcv])
-        where fcv = freshANF avoid' $ Set.fromList as
+anfBlock :: Var v => Term v a -> ANFM v (Ctx v, ANormalT v)
+anfBlock (Var' v) = pure ([], AVar v)
+anfBlock (If' c t f) = do
+  (cctx, cc) <- anfBlock c
+  cf <- anfTerm f
+  ct <- anfTerm t
+  (cx, v) <- contextualize cc
+  let cases = MatchIntegral $ IMap.fromList [(0, cf), (1, ct)]
+  pure (cctx ++ cx, AMatch v cases)
+anfBlock (And' l r) = do
+  (lctx, vl) <- anfArg l
+  (rctx, vr) <- anfArg r
+  pure (lctx ++ rctx, APrm PAND [vl, vr])
+anfBlock (Or' l r) = do
+  (lctx, vl) <- anfArg l
+  (rctx, vr) <- anfArg r
+  pure (lctx ++ rctx, APrm POR [vl, vr])
+anfBlock (Handle' h body)
+  = anfArg h >>= \(hctx, vh) ->
+    anfBlock body >>= \case
+      ([], ACom f as) -> do
+        avoid as
+        v <- fresh
+        avoid [v]
+        pure (hctx ++ [LZ v f as], AApp (FVar vh) [v])
       (_, _) ->
         error "handle body should be a call to a top-level combinator"
-  where
-  (hctx, vh) = anfArg avoid resolve h
-  avoid' = addAvoid avoid hctx
-anfBlock avoid resolve (Match' scrut cas) = case cases of
-  HCase hn -> (sctx, AHnd hn (TTm sc))
-  DCase cs
-    | AVar sv <- sc -> (sctx, AMatch sv cs)
-    | otherwise -> (sctx ++ [(ST fsv sc)], AMatch fsv cs)
-  where
-  (sctx, sc) = anfBlock avoid resolve scrut
-  fsv = freshANF avoid $ freeVarsT sc
-  cases = anfCases avoid resolve cas
-anfBlock avoid resolve (Let1Named' v b e)
-  = (bctx ++ (ST v cb) : ectx, ce)
-  where
-  avoid' = Set.insert v avoid
-  (bctx, cb) = anfBlock avoid' resolve b
-  (ectx, ce) = anfBlock avoid' resolve e
-anfBlock avoid resolve (Apps' f args)
-  = (fctx ++ actx, AApp cf cas)
-  where
-  (fctx, cf) = anfFunc avoid resolve f
-  (actx, cas) = foldr acc (const ([], [])) args avoid
-  acc tm k av
-    | (cctx, cv) <- anfArg av resolve tm
-    , (ctx, cas) <- k (addAvoid av cctx)
-    = (cctx ++ ctx, cv : cas)
-anfBlock _     resolve (Constructor' r t)
-  = ([], ACon (resolve r) t [])
-anfBlock _     resolve (Request' r t)
-  = ([], AReq (resolve r) t [])
-anfBlock _     _       (Lit' l) = ([], ALit l)
-anfBlock _     _       (Blank' _) = error "tried to compile Blank"
-anfBlock _     _       _ = error "anf: unhandled term"
-
-addAvoid :: Var v => Set v -> Ctx v -> Set v
-addAvoid av ctx = Set.union av . Set.fromList . map cvar $ ctx
+anfBlock (Match' scrut cas)
+  = anfBlock scrut >>= \(sctx, sc) ->
+    anfCases cas >>= \case
+      HCase hn -> pure (sctx, AHnd hn (TTm sc))
+      DCase cs -> do
+        (cx, v) <- contextualize sc
+        pure (sctx ++ cx, AMatch v cs)
+anfBlock (Let1Named' v b e) = do
+  avoid [v]
+  (bctx, cb) <- anfBlock b
+  (ectx, ce) <- anfBlock e
+  pure (bctx ++ ST v cb : ectx, ce)
+anfBlock (Apps' f args) = do
+  (fctx, cf) <- anfFunc f
+  (actxs, cas) <- unzip <$> traverse anfArg args
+  pure (fctx ++ concat actxs, AApp cf cas)
+anfBlock (Constructor' r t) = do
+  r <- resolve r
+  pure ([], ACon r t [])
+anfBlock (Request' r t) = do
+  r <- resolve r
+  pure ([], AReq r t [])
+anfBlock (Lit' l) = pure ([], ALit l)
+anfBlock (Blank' _) = error "tried to compile Blank"
+anfBlock _ = error "anf: unhandled term"
 
 -- Note: this assumes that patterns have already been translated
 -- to a state in which every case matches a single layer of data,
 -- with no guards, and no variables ignored. This is not checked
 -- completely.
-anfInitCase
-  :: Var v
-  => Set v
-  -> (Reference -> Int)
-  -> MatchCase p (Term v a)
-  -> ACases v
-anfInitCase avoid resolve (MatchCase p guard (ABT.AbsN' vs bd))
+anfInitCase :: Var v => MatchCase p (Term v a) -> ANFM v (ACases v)
+anfInitCase (MatchCase p guard (ABT.AbsN' vs bd))
   | Just _ <- guard = error "anfInitCase: unexpected guard"
   | IntP _ (fromIntegral -> i) <- p
-  = DCase . MatchIntegral . IMap.singleton i $ anfTerm avoid' resolve bd
+  = DCase . MatchIntegral . IMap.singleton i <$> anfTerm bd
   | NatP _ (fromIntegral -> i) <- p
-  = DCase . MatchIntegral . IMap.singleton i $ anfTerm avoid' resolve bd
-  | ConstructorP _ r t ps <- p
-  , us <- expandBindings avoid' ps vs
-  = DCase . MatchData r
-  . IMap.singleton t . ABTN.TAbss us
-  $ anfTerm avoid' resolve bd
-  | EffectPureP _ q <- p
-  , us <- expandBindings avoid' [q] vs
-  = HCase . Hndl IMap.empty . Just
-  . ABTN.TAbss us $ anfTerm avoid' resolve bd
-  | EffectBindP _ r t ps pk <- p
-  , us <- expandBindings avoid' (ps ++ [pk]) vs
-  = HCase . flip Hndl Nothing
-  . IMap.singleton (resolve r) . IMap.singleton t
-  . ABTN.TAbss us $ anfTerm avoid' resolve bd
-  where avoid' = Set.union avoid $ Set.fromList vs
-anfInitCase _ _ _ = error "anfInitCase: unexpected pattern"
+  = DCase . MatchIntegral . IMap.singleton i <$> anfTerm bd
+  | ConstructorP _ r t ps <- p = do
+    us <- expandBindings ps vs
+    DCase . MatchData r . IMap.singleton t . ABTN.TAbss us <$> anfTerm bd
+  | EffectPureP _ q <- p = do
+    us <- expandBindings [q] vs
+    HCase . Hndl IMap.empty . Just . ABTN.TAbss us <$> anfTerm bd
+  | EffectBindP _ r t ps pk <- p = do
+    us <- expandBindings (ps ++ [pk]) vs
+    n <- resolve r
+    HCase . flip Hndl Nothing
+          . IMap.singleton n
+          . IMap.singleton t
+          . ABTN.TAbss us
+      <$> anfTerm bd
+anfInitCase _ = error "anfInitCase: unexpected pattern"
 
-expandBindings
+expandBindings'
   :: Var v
   => Set v
   -> [PatternP p]
   -> [v]
   -> [v]
-expandBindings _ [] [] = []
-expandBindings avoid (UnboundP _:ps) vs
-  = u : expandBindings (Set.insert u avoid) ps vs
+expandBindings' _ [] [] = []
+expandBindings' avoid (UnboundP _:ps) vs
+  = u : expandBindings' (Set.insert u avoid) ps vs
   where u = ABT.freshIn avoid $ typed Var.ANFBlank
-expandBindings avoid (VarP _:ps) (v:vs)
-  = v : expandBindings avoid ps vs
-expandBindings _ [] (_:_)
-  = error "expandBindings: more bindings than expected"
-expandBindings _ (VarP _:_) []
-  = error "expandBindings: more patterns than expected"
-expandBindings _ _ _
-  = error "expandBindings: unexpected pattern"
+expandBindings' avoid (VarP _:ps) (v:vs)
+  = v : expandBindings' avoid ps vs
+expandBindings' _ [] (_:_)
+  = error "expandBindings': more bindings than expected"
+expandBindings' _ (VarP _:_) []
+  = error "expandBindings': more patterns than expected"
+expandBindings' _ _ _
+  = error "expandBindings': unexpected pattern"
 
-anfCases
-  :: Var v
-  => Set v
-  -> (Reference -> Int)
-  -> [MatchCase p (Term v a)]
-  -> ACases v
-anfCases avoid resolve = foldMap (anfInitCase avoid resolve)
+expandBindings :: Var v => [PatternP p] -> [v] -> ANFM v [v]
+expandBindings ps vs = (\(av,_,_) -> expandBindings' av ps vs) <$> get
 
-anfFunc
-  :: Var v
-  => Set v              -- variable choices to avoid
-  -> (Reference -> Int) -- resolve a reference to a supercombinator
-  -> Term v a
-  -> (Ctx v, Func v)
-anfFunc _     _       (Var' v) = ([], FVar v)
-anfFunc _     resolve (Ref' r) = ([], FComb $ resolve r)
-anfFunc _     resolve (Constructor' r t) = ([], FCon (resolve r) t)
-anfFunc _     resolve (Request' r t) = ([], FReq (resolve r) t)
-anfFunc avoid resolve tm
-  = case anfBlock (Set.insert v avoid) resolve tm of
-      (fctx, anfTm) -> (fctx ++ [(ST v anfTm)], FVar v)
-  where
-  fvs = ABT.freeVars tm
-  v = freshANF avoid fvs
+anfCases :: Var v => [MatchCase p (Term v a)] -> ANFM v (ACases v)
+anfCases = fmap fold . traverse anfInitCase
 
-anfArg
-  :: Var v
-  => Set v
-  -> (Reference -> Int)
-  -> Term v a
-  -> (Ctx v, v)
-anfArg avoid resolve tm = case anfBlock avoid resolve tm of
-  (ctx, AVar v) -> (ctx, v)
-  (ctx, tm) -> (ctx ++ [(ST fv tm)], fv)
-    where fv = freshANF avoid $ freeVarsT tm
+anfFunc :: Var v => Term v a -> ANFM v (Ctx v, Func v)
+anfFunc (Var' v) = pure ([], FVar v)
+anfFunc (Ref' r) = do
+  n <- resolve r
+  pure ([], FComb n)
+anfFunc (Constructor' r t) = do
+  n <- resolve r
+  pure ([], FCon n t)
+anfFunc (Request' r t) = do
+  n <- resolve r
+  pure ([], FReq n t)
+anfFunc tm = do
+  (fctx, ctm) <- anfBlock tm
+  (cx, v) <- contextualize ctm
+  pure (fctx ++ cx, FVar v)
+
+anfArg :: Var v => Term v a -> ANFM v (Ctx v, v)
+anfArg tm = do
+  (ctx, ctm) <- anfBlock tm
+  (cx, v) <- contextualize ctm
+  pure (ctx ++ cx, v)
 
 sink :: Var v => v -> ANormalT v -> ANormal v -> ANormal v
 sink v tm = dive $ freeVarsT tm

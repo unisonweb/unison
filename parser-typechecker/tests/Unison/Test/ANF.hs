@@ -17,10 +17,16 @@ import qualified Unison.Term as Term
 import qualified Unison.ABT as ABT
 import Unison.Test.Common (tm)
 
+import Control.Monad.Reader (ReaderT(..))
+import Control.Monad.State (evalState)
+
 -- testSNF s = ok
 --   where
 --   t0 = tm s
 --   snf = toSuperNormal (const 0) t0
+
+runANF :: Var v => ANFM v a -> a
+runANF m = evalState (runReaderT m (const 0)) (Set.empty, 0, [])
 
 testANF :: String -> Test ()
 testANF s
@@ -28,7 +34,7 @@ testANF s
   | otherwise = crash $ show $ denormalize anf
   where
   t0 = const () `Term.amap` tm s
-  anf = anfTerm Set.empty (const 0) t0
+  anf = runANF $ anfTerm t0
 
 denormalize :: Var v => ANormal v -> Term.Term0 v
 denormalize (TVar v) = Term.var () v
