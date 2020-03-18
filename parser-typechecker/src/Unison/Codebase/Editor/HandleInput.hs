@@ -435,18 +435,14 @@ loop = do
                         ->  Branch.Star r NameSegment)
                     -> MaybeT (StateT (LoopState m v) (F m (Either Event Input) v)) ()
         manageLinks srcs mdValue2 op = do
-          traceM "In manage links, before srcle"
           let !srcle = toList . getHQ'Terms =<< srcs
               !srclt = toList . getHQ'Types =<< srcs
-          traceM "In manage links, AFTER srcle"
           mdValuel <- toList <$> getHQTerms mdValue2
-          traceM "Got mdValuel"
           names0 <- basicPrettyPrintNames0
           ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (Names names0 mempty)
           case (srcle, srclt, mdValuel) of
             (srcle, srclt, [r@(Referent.Ref mdValue)]) -> do
               mdType <- eval $ LoadTypeOfTerm mdValue
-              traceM $ "Loaded type for " <> show mdValue
               case mdType of
                 Nothing -> respond $ MetadataMissingType ppe r
                 Just ty -> do

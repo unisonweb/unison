@@ -1077,7 +1077,7 @@ unlink = InputPattern
       md <- case HQ.fromString md of
         Nothing -> Left "Invalid hash qualified identifier for metadata." 
         Just hq -> pure hq
-      Right $ traceShowId $ Input.UnlinkI defs md
+      Right $ Input.UnlinkI defs md
     _ -> Left (I.help unlink)
   )
 

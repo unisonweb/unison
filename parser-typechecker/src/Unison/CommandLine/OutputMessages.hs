@@ -1301,7 +1301,7 @@ listOfLinks ::
 listOfLinks _ [] = pure . P.callout "😶" . P.wrap $
   "No results. Try using the " <>
   IP.makeExample IP.link [] <>
-  "command to add outgoing links to a definition."
+  "command to add metadata to a definition."
 listOfLinks ppe results = pure $ P.lines [
     P.numberedColumn2 num [
     (P.syntaxToColor $ prettyHashQualified hq, ": " <> prettyType typ) | (hq,typ) <- results
