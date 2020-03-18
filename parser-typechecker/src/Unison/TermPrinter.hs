@@ -905,13 +905,16 @@ calcImports im tm = (im', render $ getUses result)
                                                                  in ((n, l), (p, s, i)))
                                          |> Map.fromList
     -- For each k1, choose the v with the largest k2.
-    longestPrefix :: (Ord k1, Ord k2) => Map (k1, k2) v -> Map k1 v
+    longestPrefix :: (Show k1, Show k2, Ord k1, Ord k2) => Map (k1, k2) v -> Map k1 v
     longestPrefix m = let k1s = Set.map fst $ Map.keysSet m
                           k2s = k1s |> Map.fromSet (\k1' -> Map.keysSet m
                                                               |> Set.filter (\(k1, _) -> k1 == k1')
                                                               |> Set.map snd)
                           maxk2s = Map.map maximum k2s
-                          err k1 k2 = error $ "Not found " <> show (k1,k2) <> " in " <> show maxk2s
+                          err k1 k2 = error $ 
+                            "TermPrinter.longestPrefix not found " 
+                            <> show (k1,k2) 
+                            <> " in " <> show maxk2s
                       in Map.mapWithKey (\k1 k2 -> fromMaybe (err k1 k2) $ Map.lookup (k1, k2) m) maxk2s
     -- Don't do another `use` for a name for which we've already done one, unless the
     -- new suffix is shorter.
