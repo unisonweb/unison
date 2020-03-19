@@ -55,34 +55,14 @@ x = 2
 .> view.patch
 
   Edited Terms: x#jk19sm5bf8 -> x
-
-```
-```unison
-z = 1
-```
-
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
   
-    ⍟ These new definitions are ok to `add`:
-    
-      z : ##Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Tip: To remove entries from a patch, use
+       delete.term-replacement or delete.type-replacement, as
+       appropriate.
 
 ```
 ```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    z : ##Nat
-
-.> delete.termReplacement z
+.> delete.term-replacement #jk19
 
   Done.
 
@@ -146,34 +126,14 @@ type Foo = Foo | Bar
 .> view.patch
 
   Edited Types: Foo#568rsi7o3g -> Foo
-
-```
-```unison
-type X = X
-```
-
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
   
-    ⍟ These new definitions are ok to `add`:
-    
-      type X
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Tip: To remove entries from a patch, use
+       delete.term-replacement or delete.type-replacement, as
+       appropriate.
 
 ```
 ```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    type X
-
-.> delete.typeReplacement X
+.> delete.type-replacement #568rsi7o3g
 
   Done.
 

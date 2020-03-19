@@ -17,13 +17,8 @@ x = 2
 .> view.patch
 ```
 
-```unison
-z = 1
-```
-
 ```ucm
-.> add
-.> delete.termReplacement z
+.> delete.term-replacement #jk19
 .> view.patch
 ```
 
@@ -44,13 +39,8 @@ type Foo = Foo | Bar
 .> view.patch
 ```
 
-```unison
-type X = X
-```
-
 ```ucm
-.> add
-.> delete.typeReplacement X
+.> delete.type-replacement #568rsi7o3g
 .> view.patch
 ```
 

@@ -128,10 +128,18 @@ The `a` and `b` namespaces now each contain a patch named `patch`. We can view t
 .example.resolve> view.patch a.patch
 
   Edited Terms: c.foo -> a.foo
+  
+  Tip: To remove entries from a patch, use
+       delete.term-replacement or delete.term-replacement, as
+       appropriate.
 
 .example.resolve> view.patch b.patch
 
   Edited Terms: c.foo -> b.foo
+  
+  Tip: To remove entries from a patch, use
+       delete.term-replacement or delete.term-replacement, as
+       appropriate.
 
 ```
 Let's now merge these namespaces into `c`:
@@ -215,6 +223,10 @@ This changes the merged `c.patch` so that only the edit from #44954ulpdf to  #8e
 .example.resolve.c> view.patch
 
   Edited Terms: foo#44954ulpdf -> foo#8e68dvpr0a
+  
+  Tip: To remove entries from a patch, use
+       delete.term-replacement or delete.term-replacement, as
+       appropriate.
 
 ```
 We still have a remaining _name conflict_ since it just so happened that both of the definitions in the edits were named `foo`.
