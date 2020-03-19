@@ -258,28 +258,44 @@ patch = InputPattern
   )
 
 view :: InputPattern
-view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
-      "`view foo` prints the definition of `foo`."
-      (pure . Input.ShowDefinitionI Input.ConsoleLocation)
+view = InputPattern
+  "view"
+  []
+  [(OnePlus, exactDefinitionQueryArg)]
+  "`view foo` prints the definition of `foo`."
+  ( fmap (Input.ShowDefinitionI Input.ConsoleLocation)
+  . traverse parseHashQualifiedName
+  )
 
 display :: InputPattern
-display = InputPattern "display" [] [(Required, exactDefinitionQueryArg)]
-      "`display foo` prints a rendered version of the term `foo`."
-      (\case
-        [s] -> pure (Input.DisplayI Input.ConsoleLocation s)
-        _ -> Left (I.help display))
+display = InputPattern
+  "display"
+  []
+  [(Required, exactDefinitionQueryArg)]
+  "`display foo` prints a rendered version of the term `foo`."
+  (\case
+    [s] -> Input.DisplayI Input.ConsoleLocation <$> parseHashQualifiedName s
+    _   -> Left (I.help display)
+  )
 
 displayTo :: InputPattern
-displayTo = InputPattern "display.to" [] [(Required, noCompletions), (Required, exactDefinitionQueryArg)]
-      (P.wrap $ makeExample displayTo ["<filename>", "foo"]
-             <> "prints a rendered version of the term `foo` to the given file.")
-      (\case
-        [file,s] -> pure (Input.DisplayI (Input.FileLocation file) s)
-        _ -> Left (I.help displayTo))
+displayTo = InputPattern
+  "display.to"
+  []
+  [(Required, noCompletions), (Required, exactDefinitionQueryArg)]
+  (  P.wrap
+  $  makeExample displayTo ["<filename>", "foo"]
+  <> "prints a rendered version of the term `foo` to the given file."
+  )
+  (\case
+    [file, s] ->
+      Input.DisplayI (Input.FileLocation file) <$> parseHashQualifiedName s
+    _ -> Left (I.help displayTo)
+  )
 
 docs :: InputPattern
 docs = InputPattern "docs" [] [(Required, exactDefinitionQueryArg)]
-      ("`docs foo` shows documentation for the definition `foo`.")
+      "`docs foo` shows documentation for the definition `foo`."
       (\case
         [s] -> first fromString $ Input.DocsI <$> Path.parseHQSplit' s
         _ -> Left (I.help docs))
@@ -290,10 +306,14 @@ undo = InputPattern "undo" [] []
       (const $ pure Input.UndoI)
 
 viewByPrefix :: InputPattern
-viewByPrefix
-  = InputPattern "view.recursive" [] [(OnePlus, exactDefinitionQueryArg)]
-    "`view.recursive Foo` prints the definitions of `Foo` and `Foo.blah`."
-    (pure . Input.ShowDefinitionByPrefixI Input.ConsoleLocation)
+viewByPrefix = InputPattern
+  "view.recursive"
+  []
+  [(OnePlus, exactDefinitionQueryArg)]
+  "`view.recursive Foo` prints the definitions of `Foo` and `Foo.blah`."
+  ( fmap (Input.ShowDefinitionByPrefixI Input.ConsoleLocation)
+  . traverse parseHashQualifiedName
+  )
 
 find :: InputPattern
 find = InputPattern
@@ -439,7 +459,8 @@ deleteReplacement isTerm = InputPattern
         first fromString
         . traverse (Path.parseSplit' Path.wordyNameSegment)
         $ listToMaybe patch
-      pure $ input query patch
+      q <- parseHashQualifiedName query
+      pure $ input q patch
     _ ->
       Left
         .  P.warnCallout
@@ -463,6 +484,20 @@ deleteTermReplacement = deleteReplacement True
 
 deleteTypeReplacement :: InputPattern
 deleteTypeReplacement = deleteReplacement False
+
+parseHashQualifiedName
+  :: String -> Either (P.Pretty CT.ColorText) HQ.HashQualified
+parseHashQualifiedName s =
+  maybe
+      (  Left
+      .  P.warnCallout
+      .  P.wrap
+      $  P.string s
+      <> " is not a well-formed name, hash, or hash-qualified name. "
+      <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
+      )
+      Right
+    $ HQ.fromString s
 
 aliasTerm :: InputPattern
 aliasTerm = InputPattern "alias.term" []
@@ -842,7 +877,7 @@ previewMergeLocal = InputPattern
   )
 
 replaceEdit
-  :: (String -> String -> Maybe Input.PatchPath -> Input)
+  :: (HQ.HashQualified -> HQ.HashQualified -> Maybe Input.PatchPath -> Input)
   -> String
   -> InputPattern
 replaceEdit f s = self
@@ -871,10 +906,14 @@ replaceEdit f s = self
       ]
     )
     (\case
-      source : target : patch -> first fromString $ do
-        patch <- traverse (Path.parseSplit' Path.wordyNameSegment)
-          $ listToMaybe patch
-        pure $ f source target patch
+      source : target : patch -> do
+        patch <-
+          first fromString
+          <$> traverse (Path.parseSplit' Path.wordyNameSegment)
+          $   listToMaybe patch
+        sourcehq <- parseHashQualifiedName source
+        targethq <- parseHashQualifiedName target
+        pure $ f sourcehq targethq patch
       _ -> Left $ I.help self
     )
 
@@ -903,7 +942,9 @@ edit = InputPattern
   (  "`edit foo` prepends the definition of `foo` to the top of the most "
   <> "recently saved file."
   )
-  (pure . Input.ShowDefinitionI Input.LatestFileLocation)
+  ( fmap (Input.ShowDefinitionI Input.LatestFileLocation)
+  . traverse parseHashQualifiedName
+  )
 
 topicNameArg :: ArgumentType
 topicNameArg =

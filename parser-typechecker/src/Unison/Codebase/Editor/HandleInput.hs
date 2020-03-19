@@ -302,7 +302,7 @@ loop = do
         typeConflicted src = nameConflicted src Set.empty
         termConflicted src tms = nameConflicted src tms Set.empty
         hashConflicted src = respond . HashAmbiguous src
-        hqNameQuery (fmap HQ.unsafeFromString -> hqs) = do
+        hqNameQuery hqs = do
           parseNames <- makeHistoricalParsingNames $ Set.fromList hqs
           let resultss = searchBranchExact hqLength parseNames hqs
               (misses, hits) =
@@ -371,12 +371,12 @@ loop = do
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
           DeletePatchI path -> "delete.patch " <> ps' path
           ReplaceTermI src target p ->
-            "replace.term " <> Text.pack src <> " "
-                            <> Text.pack target <> " "
+            "replace.term " <> HQ.toText src <> " "
+                            <> HQ.toText target <> " "
                             <> opatch p
           ReplaceTypeI src target p ->
-            "replace.type " <> Text.pack src <> " "
-                            <> Text.pack target <> " "
+            "replace.type " <> HQ.toText src <> " "
+                            <> HQ.toText target <> " "
                             <> opatch p
           ResolveTermNameI path -> "resolve.termName " <> hqs' path
           ResolveTypeNameI path -> "resolve.typeName " <> hqs' path
@@ -433,9 +433,9 @@ loop = do
           DeprecateTermI{} -> undefined
           DeprecateTypeI{} -> undefined
           RemoveTermReplacementI src p ->
-            "delete.term-replacement" <> Text.pack src <> " " <> opatch p
+            "delete.term-replacement" <> HQ.toText src <> " " <> opatch p
           RemoveTypeReplacementI src p ->
-            "delete.type-replacement" <> Text.pack src <> " " <> opatch p
+            "delete.type-replacement" <> HQ.toText src <> " " <> opatch p
           where
           hp' = either (Text.pack . show) p'
           p' = Text.pack . show . resolveToAbsolute
@@ -981,7 +981,7 @@ loop = do
       DeleteTypeI hq -> delete (const Set.empty) getHQ'Types       hq
       DeleteTermI hq -> delete getHQ'Terms       (const Set.empty) hq
 
-      DisplayI outputLoc (HQ.unsafeFromString -> hq) -> do
+      DisplayI outputLoc hq -> do
         parseNames <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
         let results = Names3.lookupHQTerm hq parseNames
         if Set.null results then
@@ -1216,11 +1216,15 @@ loop = do
                   void $ propagatePatch inputDescription patch' currentPath'
                   -- Say something
                   success
-            sayTermConflicted t = termConflicted t . Set.map Referent.Ref
             misses = fromMisses <> toMisses
-            ambiguous str rs = case Path.parseHQSplit' str of
-              Left  _ -> undefined
-              Right t -> sayTermConflicted t (Set.fromList rs)
+            ambiguous t rs =
+              let rs' = Set.map Referent.Ref $ Set.fromList rs
+              in  case t of
+                    HQ.HashOnly h ->
+                      hashConflicted h rs'
+                    (Path.parseHQSplit' . HQ.toString -> Right n) ->
+                      termConflicted n rs'
+                    _ -> respond . BadName $ HQ.toString t
         when (not $ null misses) $
           respond $ SearchTermsNotFound misses
         case (fromRefs, toRefs) of
@@ -1257,9 +1261,17 @@ loop = do
               -- Say something
               success
             misses = fromMisses <> toMisses
-            ambiguous str rs = case Path.parseHQSplit' str of
-              Left  _ -> undefined
-              Right t -> typeConflicted t (Set.fromList rs)
+            ambiguous t rs =
+              let rs' = Set.map Referent.Ref $ Set.fromList rs
+              in  case t of
+                    HQ.HashOnly h ->
+                      hashConflicted h rs'
+                    (Path.parseHQSplit' . HQ.toString -> Right n) ->
+                      typeConflicted n $ Set.fromList rs
+                    -- This is unlikely to happen, as t has to be a parsed
+                    -- hash-qualified name already.
+                    -- Still, the types say we need to handle this case.
+                    _ -> respond . BadName $ HQ.toString t
         when (not $ null misses) $
           respond $ SearchTermsNotFound misses
         case (fromRefs, toRefs) of

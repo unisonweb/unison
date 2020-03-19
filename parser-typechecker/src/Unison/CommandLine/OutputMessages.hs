@@ -801,6 +801,8 @@ notifyUser dir o = case o of
     P.wrap "Try again with a few more hash characters to disambiguate."
     ]
   BadDestinationBranch _ -> pure "That destination namespace is bad."
+  BadName n ->
+    pure . P.wrap $ P.string n <> " is not a kind of name I understand."
   TermNotFound' sh ->
     pure $ "I could't find a term with hash "
          <> (prettyShortHash sh)
