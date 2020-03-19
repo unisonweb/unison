@@ -947,12 +947,14 @@ loop = do
       DisplayI outputLoc (HQ.unsafeFromString -> hq) -> do
         parseNames0 <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
         let parseNames = Names3.suffixify parseNames0
+        -- use suffixed names for resolving the argument to display
         let results = Names3.lookupHQTerm hq parseNames
         if Set.null results then
           respond $ SearchTermsNotFound [hq]
         else if Set.size results > 1 then
           respond $ TermAmbiguous hq results
-        else doDisplay outputLoc parseNames (Set.findMin results)
+        -- ... but use the unsuffixed names for display
+        else doDisplay outputLoc parseNames0 (Set.findMin results)
 
       ShowDefinitionI outputLoc (fmap HQ.unsafeFromString -> hqs) -> do
         parseNames0 <- makeHistoricalParsingNames $ Set.fromList hqs
