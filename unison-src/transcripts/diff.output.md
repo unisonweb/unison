@@ -426,7 +426,7 @@ unique type Y a b = Y a b
     ns1.fromJust' -> ns2.fromJust
   
   Tip: To remove entries from a patch, use
-       delete.term-replacement or delete.term-replacement, as
+       delete.term-replacement or delete.type-replacement, as
        appropriate.
 
 .> fork ns2 ns3

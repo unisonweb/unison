@@ -130,7 +130,7 @@ The `a` and `b` namespaces now each contain a patch named `patch`. We can view t
   Edited Terms: c.foo -> a.foo
   
   Tip: To remove entries from a patch, use
-       delete.term-replacement or delete.term-replacement, as
+       delete.term-replacement or delete.type-replacement, as
        appropriate.
 
 .example.resolve> view.patch b.patch
@@ -138,7 +138,7 @@ The `a` and `b` namespaces now each contain a patch named `patch`. We can view t
   Edited Terms: c.foo -> b.foo
   
   Tip: To remove entries from a patch, use
-       delete.term-replacement or delete.term-replacement, as
+       delete.term-replacement or delete.type-replacement, as
        appropriate.
 
 ```
@@ -225,7 +225,7 @@ This changes the merged `c.patch` so that only the edit from #44954ulpdf to  #8e
   Edited Terms: foo#44954ulpdf -> foo#8e68dvpr0a
   
   Tip: To remove entries from a patch, use
-       delete.term-replacement or delete.term-replacement, as
+       delete.term-replacement or delete.type-replacement, as
        appropriate.
 
 ```

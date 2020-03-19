@@ -344,7 +344,7 @@ loop = do
                 -- Say something
                 success
           when (not $ null misses) $
-            eval . Notify $ SearchTermsNotFound misses
+            respond $ SearchTermsNotFound misses
           traverse_ go (if isTerm then tmRefs else tpRefs)
         branchExists dest _x = respond $ BranchAlreadyExists dest
         branchExistsSplit = branchExists . Path.unsplit'
@@ -1177,10 +1177,15 @@ loop = do
       ReplaceTermI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
-        (fromMisses, fromHits) <- hqNameQuery [from]
-        (toMisses, toHits) <- hqNameQuery [to]
+        (fromMisses', fromHits) <- hqNameQuery [from]
+        (toMisses', toHits) <- hqNameQuery [to]
         let fromRefs = termReferences fromHits
             toRefs = termReferences toHits
+            -- Type hits are term misses
+            fromMisses = (fst <$> fromMisses')
+                       <> (HQ'.toHQ . SR.typeName <$> typeResults fromHits)
+            toMisses = (fst <$> toMisses')
+                       <> (HQ'.toHQ . SR.typeName <$> typeResults fromHits)
             go :: Reference
                -> Reference
                -> Action m (Either Event Input) v ()
@@ -1217,18 +1222,23 @@ loop = do
               Left  _ -> undefined
               Right t -> sayTermConflicted t (Set.fromList rs)
         when (not $ null misses) $
-          respond . SearchTermsNotFound $ fmap fst misses
+          respond $ SearchTermsNotFound misses
         case (fromRefs, toRefs) of
           ([fr], [tr]) -> go fr tr
           ([_], tos) -> ambiguous to tos
           (frs, _) -> ambiguous from frs
       ReplaceTypeI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
-        (fromMisses, fromHits) <- hqNameQuery [from]
-        (toMisses, toHits) <- hqNameQuery [to]
+        (fromMisses', fromHits) <- hqNameQuery [from]
+        (toMisses', toHits) <- hqNameQuery [to]
         patch <- getPatchAt patchPath'
         let fromRefs = typeReferences fromHits
             toRefs = typeReferences toHits
+            -- Term hits are type misses
+            fromMisses = (fst <$> fromMisses')
+                       <> (HQ'.toHQ . SR.termName <$> termResults fromHits)
+            toMisses = (fst <$> toMisses')
+                       <> (HQ'.toHQ . SR.termName <$> termResults fromHits)
             go :: Reference
                -> Reference
                -> Action m (Either Event Input) v ()
@@ -1251,7 +1261,7 @@ loop = do
               Left  _ -> undefined
               Right t -> typeConflicted t (Set.fromList rs)
         when (not $ null misses) $
-          respond . SearchTermsNotFound $ fmap fst misses
+          respond $ SearchTermsNotFound misses
         case (fromRefs, toRefs) of
           ([fr], [tr]) -> go fr tr
           ([_], tos) -> ambiguous to tos
