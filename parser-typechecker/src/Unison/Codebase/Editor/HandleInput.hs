@@ -954,7 +954,8 @@ loop = do
         else doDisplay outputLoc parseNames (Set.findMin results)
 
       ShowDefinitionI outputLoc (fmap HQ.unsafeFromString -> hqs) -> do
-        parseNames <- makeHistoricalParsingNames $ Set.fromList hqs
+        parseNames0 <- makeHistoricalParsingNames $ Set.fromList hqs
+        let parseNames = Names3.suffixify parseNames0
         let resultss = searchBranchExact hqLength parseNames hqs
             (misses, hits) = partition (\(_, results) -> null results) (zip hqs resultss)
             results = List.sort . uniqueBy SR.toReferent $ hits >>= snd

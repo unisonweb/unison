@@ -1212,8 +1212,8 @@ exactDefinitionOrPathArg =
 exactDefinitionQueryArg :: ArgumentType
 exactDefinitionQueryArg =
   ArgumentType "definition query" $
-    bothCompletors (termCompletor exactComplete)
-                   (typeCompletor exactComplete)
+    bothCompletors (termCompletor fuzzyComplete)
+                   (typeCompletor fuzzyComplete)
 
 exactDefinitionTypeQueryArg :: ArgumentType
 exactDefinitionTypeQueryArg =

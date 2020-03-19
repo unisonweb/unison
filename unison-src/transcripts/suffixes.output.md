@@ -39,6 +39,14 @@ This also affects commands like find. Notice lack of qualified names in output:
   
 
 ```
+The `view` command also benefits from this:
+
+```ucm
+.> view List.drop
+
+  -- builtin.List.drop is built-in.
+
+```
 In the signature, we don't see `base.Nat`, just `Nat`. The full declaration name is still shown for each search result though.
 
 Type-based search also benefits from this, we can just say `Nat` rather than `.base.Nat`:
