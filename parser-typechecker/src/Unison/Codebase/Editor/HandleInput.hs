@@ -360,9 +360,9 @@ loop = do
           PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
           UndoI{} -> "undo"
           ExecuteI s -> "execute " <> Text.pack s
-          LinkI defs md ->
+          LinkI md defs ->
             "link " <> HQ.toText md <> " " <> intercalateMap " " hqs' defs
-          UnlinkI defs md ->
+          UnlinkI md defs ->
             "unlink " <> HQ.toText md <> " " <> intercalateMap " " hqs' defs
           UpdateBuiltinsI -> "builtins.update"
           MergeBuiltinsI -> "builtins.merge"
@@ -902,10 +902,10 @@ loop = do
 --                      | r <- toList $ Names.typesNamed ns name ]
 --              in (terms, types)
 
-      LinkI srcs mdValue ->
+      LinkI mdValue srcs ->
         manageLinks srcs mdValue Metadata.insert
 
-      UnlinkI srcs mdValue ->
+      UnlinkI mdValue srcs ->
         manageLinks srcs mdValue Metadata.delete
 
       -- > links List.map (.Docs .English)
