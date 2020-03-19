@@ -945,7 +945,8 @@ loop = do
       DeleteTermI hq -> delete getHQ'Terms       (const Set.empty) hq
 
       DisplayI outputLoc (HQ.unsafeFromString -> hq) -> do
-        parseNames <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
+        parseNames0 <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
+        let parseNames = Names3.suffixify parseNames0
         let results = Names3.lookupHQTerm hq parseNames
         if Set.null results then
           respond $ SearchTermsNotFound [hq]
