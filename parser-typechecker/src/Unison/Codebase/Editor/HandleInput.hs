@@ -1461,8 +1461,7 @@ loop = do
       MergeBuiltinsI -> do
           let names0 = Builtin.names0
                        <> UF.typecheckedToNames0 IOSource.typecheckedFile
-          let b0 = BranchUtil.addFromNames0 names0 Branch.empty0
-          let srcb = Branch.one b0
+          let srcb = BranchUtil.fromNames0 names0
           _ <- updateAtM (currentPath' `snoc` "builtin") $ \destb ->
                  eval . Eval $ Branch.merge srcb destb
           success

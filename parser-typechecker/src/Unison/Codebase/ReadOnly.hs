@@ -20,9 +20,10 @@ import Data.Set (Set)
 import Data.Trie (Trie)
 import qualified Data.Trie as Trie
 import Unison.ShortHash (ShortHash)
+import qualified Unison.Codebase.ShortBranchHash as SBH
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Branch (Branch)
-import Data.Foldable (toList)
+import Data.Foldable (toList, foldl')
 import Control.Lens (view, _1)
 import Debug.Trace (trace)
 import Unison.Util.Relation (Relation)
@@ -35,6 +36,8 @@ import Unison.Reference (Reference)
 import Unison.Hash as Hash
 import qualified Data.Set as Set
 import qualified Unison.ShortHash as SH
+import qualified Unison.Codebase.Causal as Causal
+import qualified Unison.Codebase.BranchUtil as BranchUtil
 
 -- a read-only codebase
 data Codebase m v a = Codebase
@@ -56,12 +59,16 @@ data Codebase m v a = Codebase
   }
 
 fromTypechecked :: forall m v a.
-  (Applicative m, Var v, Show v) => [UF.TypecheckedUnisonFile v a] -> Codebase m v a
-fromTypechecked files =  Codebase
+  (Monad m, Var v, Show v) => [UF.TypecheckedUnisonFile v a] -> Codebase m v a
+fromTypechecked files = Codebase
   { getTerm = pure . flip Map.lookup terms
   , getTypeOfTermImpl = pure . flip Map.lookup typeOfTerms
   , getTypeDeclaration = pure . flip Map.lookup typeDeclarations
-  , getBranchForHash = const (pure Nothing)
+  , getBranchForHash = \h ->
+      pure
+      . fmap snd
+      . Trie.lookup (branchHashKey h)
+      $ branchesTrie
   , dependentsImpl = error "todo: ReadOnly.dependentsImpl"
   , watches = pure . toList . Map.keysSet . Monoid.fromMaybe . flip Map.lookup watches
   , getWatch = \k r -> pure . Map.lookup r . Monoid.fromMaybe $ Map.lookup k watches
@@ -96,12 +103,20 @@ fromTypechecked files =  Codebase
       . findHash sh
       $ referentsTrie
   , branchHashLength = pure 10
-  , branchHashesByPrefix = error "todo: ReadOnly.branchHashesByPrefix"
+  , branchHashesByPrefix = \sbh ->
+      pure
+      . Set.fromList
+      . fmap fst
+      . Trie.elems
+      . findSBH sbh
+      $ branchesTrie
   }
   where
   findHash :: ShortHash -> Trie b -> Trie b
   findHash sh@SH.ShortHash{} = Trie.submap . encodeUtf8 $ SH.prefix sh
   findHash SH.Builtin{} = const Trie.empty
+  findSBH :: ShortBranchHash -> Trie b -> Trie b
+  findSBH = Trie.submap . encodeUtf8 . SBH.toText
   terms :: Map Reference.Id (Term v a)
   typeOfTerms :: Map Reference.Id (Type v a)
   (terms, typeOfTerms) = foldMap doFile files where
@@ -144,19 +159,19 @@ fromTypechecked files =  Codebase
               ++ show v ++ ") which wasn't in UF.hashTermsId.") []
         in Map.singleton k (Map.fromList terms)
   -- `Trie Reference.Id` won't work, because Reference.Id has some relevant
-  -- suffix stuff too.  (A `Trie Hash` would work, if we were just looking up
-  -- hashes, but we aren't.) So, we'll look up a `Set Reference.Id` (or `Set
+  -- suffix stuff too.  So, we'll look up a `Set Reference.Id` (or `Set
   -- Referent.Id`) by Hash!
+  -- (`Trie (Branch m)` is okay, since it's just a simple hash, with no suffix.)
   termsTrie :: Trie (Set Reference.Id)
   typesTrie :: Trie (Set Reference.Id)
   referentsTrie :: Trie (Set Referent.Id)
+  branchesTrie :: Trie (Branch.Hash, Branch m)
   (termsTrie, typesTrie) =
     ( Trie.fromList . map idToBS $ Map.keys terms
     , Trie.fromList . map idToBS $ Map.keys typeDeclarations )
     where
     idToBS :: Reference.Id -> (ByteString, Set Reference.Id)
-    idToBS r@(Reference.Id h _ _) =
-      (encodeUtf8 (Hash.base32Hex h), Set.singleton r)
+    idToBS r@(Reference.Id h _ _) = (hashKey h, Set.singleton r)
   referentsTrie =
     fmap (Set.map Referent.Ref') termsTrie <>
       Trie.fromList (Map.toList typeDeclarations >>= conBS)
@@ -165,8 +180,20 @@ fromTypechecked files =  Codebase
     conBS (r, d) = fmap idToBS (DD.declConstructorReferents r d)
     idToBS :: Referent.Id -> (ByteString, Set Referent.Id)
     idToBS rtid@(Referent.toReference' -> Reference.Id h _ _) =
-      (encodeUtf8 (Hash.base32Hex h), Set.singleton rtid)
-
+      (hashKey h, Set.singleton rtid)
+  branchesTrie = foldl' Trie.unionL Trie.empty $ map doFile files where
+    doFile uf =
+      -- having trouble deciding whether this should be Names0 or Branch based.
+      -- I guess for UnisonFile it doesn't matter.
+      Trie.fromList
+        . map f
+        . Map.toList
+        . BranchUtil.hashesFromNames0 @m
+        $ UF.typecheckedToNames0 @v uf
+    f :: (Branch.Hash, Branch m) -> (ByteString, (Branch.Hash, Branch m))
+    f (h, b) = (branchHashKey h, (h, b))
+  hashKey = encodeUtf8 . Hash.base32Hex
+  branchHashKey = hashKey . Causal.unRawHash
 
 --fuse :: forall m v a. Monad m => Codebase m v a -> C.Codebase m v a -> C.Codebase m v a
 --fuse ro rw = C.Codebase
