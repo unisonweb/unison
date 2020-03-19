@@ -1432,7 +1432,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
           -- [ "peach  ┐"
           -- , "peach' ┘"]
           olds' :: [Numbered Pretty] =
-            map (\(oldhq, oldp) -> numHQ oldPath oldhq r <&> (\n -> n <> " " <> oldp))
+            map (\(oldhq, oldp) -> numHQ' oldPath oldhq r <&> (\n -> n <> " " <> oldp))
               . (zip (toList olds))
               . P.boxRight
               . map (P.rightPad leftNamePad . phq')
@@ -1450,7 +1450,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
             addedLabel   = "(added)"
             removedLabel = "(removed)"
             number label name =
-              numHQ newPath name r <&>
+              numHQ' newPath name r <&>
                 (\num -> num <> " " <> phq' name <> " " <> label)
 
           buildTable :: [Numbered Pretty] -> [Numbered Pretty] -> Numbered Pretty
@@ -1514,7 +1514,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
       pure . P.column2 $ zip nums (boxLeft decls)
     prettyLine :: Reference -> Maybe (DD.DeclOrBuiltin v a) -> (HQ'.HashQualified, [OBD.MetadataDisplay v a]) -> Numbered (Pretty, Pretty)
     prettyLine r odecl (hq, mds) = do
-      n <- numHQ newPath hq (Referent.Ref r)
+      n <- numHQ' newPath hq (Referent.Ref r)
       pure . (n,) $ prettyDecl hq odecl <> case length mds of
         0 -> mempty
         c -> " (+" <> P.shown c <> " metadata)"
@@ -1529,7 +1529,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
           boxLeft = case hqmds of _:_:_ -> P.boxLeft; _ -> id
       pure $ zip3 nums (boxLeft names) decls
     prettyLine r otype (hq, mds) = do
-      n <- numHQ newPath hq r
+      n <- numHQ' newPath hq r
       pure . (n, phq' hq, ) $ ": " <> prettyType otype <> case length mds of
         0 -> mempty
         c -> " (+" <> P.shown c <> " metadata)"
@@ -1571,7 +1571,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
           boxLeft = case hqs of _:_:_ -> P.boxLeft; _ -> id
       pure . P.column2 $ zip nums (boxLeft decls)
     prettyLine r odecl hq = do
-      n <- numHQ newPath hq (Referent.Ref r)
+      n <- numHQ' newPath hq (Referent.Ref r)
       pure (n, prettyDecl hq odecl)
 
   prettyRemoveTerms :: [OBD.RemovedTermDisplay v a] -> Numbered Pretty
@@ -1587,16 +1587,16 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
           boxLeft = case hqs of _:_ -> P.boxLeft; _ -> id
       pure $ zip3 nums (boxLeft names) decls
     prettyLine1 r otype hq = do
-      n <- numHQ newPath hq r
+      n <- numHQ' newPath hq r
       pure (n, phq' hq, ": " <> prettyType otype)
     prettyLine r hq = do
-      n <- numHQ newPath hq r
+      n <- numHQ' newPath hq r
       pure (n, phq' hq, mempty)
 
   downArrow = P.bold "↓"
   mdTypeLine :: Path.Absolute -> OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)
   mdTypeLine p (hq, r, odecl, mddiff) = do
-    n <- numHQ p hq (Referent.Ref r)
+    n <- numHQ' p hq (Referent.Ref r)
     fmap ((n,) . P.linesNonEmpty) . sequence $
       [ pure $ prettyDecl hq odecl
       , P.indentN leftNumsWidth <$> prettyMetadataDiff mddiff ]
@@ -1605,7 +1605,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
   -- - 3. AllRightsReserved : License
   mdTermLine :: Path.Absolute -> Int -> OBD.TermDisplay v a -> Numbered (Pretty, Pretty)
   mdTermLine p namesWidth (hq, r, otype, mddiff) = do
-    n <- numHQ p hq r
+    n <- numHQ' p hq r
     fmap ((n,) . P.linesNonEmpty) . sequence $
       [ pure $ P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
       , prettyMetadataDiff mddiff ]
@@ -1634,21 +1634,27 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
     where
     elem p x (hq, r, otype) = do
       num <- numHQ p hq r
-      pure (x <> num <> " " <> phq' hq, ": " <> prettyType otype)
+      pure (x <> num <> " " <> phq hq, ": " <> prettyType otype)
 
   prettyType = maybe (P.red "type not found") (TypePrinter.pretty ppe)
   prettyDecl hq =
     maybe (P.red "type not found")
           (P.syntaxToColor . DeclPrinter.prettyDeclOrBuiltinHeader (HQ'.toHQ hq))
   phq' :: _ -> Pretty = P.syntaxToColor . prettyHashQualified'
+  phq  :: _ -> Pretty = P.syntaxToColor . prettyHashQualified
   --
   -- DeclPrinter.prettyDeclHeader : HQ -> Either
   numPatch :: Path.Absolute -> Name -> Numbered Pretty
   numPatch prefix name =
     addNumberedArg . Name.toString . Name.makeAbsolute $ Path.prefixName prefix name
 
-  numHQ :: Path.Absolute -> HQ'.HashQualified -> Referent -> Numbered Pretty
-  numHQ prefix hq r = addNumberedArg (HQ'.toString hq')
+  numHQ :: Path.Absolute -> HQ.HashQualified -> Referent -> Numbered Pretty
+  numHQ prefix hq r = addNumberedArg (HQ.toString hq')
+    where
+    hq' = HQ.requalify (fmap (Name.makeAbsolute . Path.prefixName prefix) hq) r
+
+  numHQ' :: Path.Absolute -> HQ'.HashQualified -> Referent -> Numbered Pretty
+  numHQ' prefix hq r = addNumberedArg (HQ'.toString hq')
     where
     hq' = HQ'.requalify (fmap (Name.makeAbsolute . Path.prefixName prefix) hq) r
 

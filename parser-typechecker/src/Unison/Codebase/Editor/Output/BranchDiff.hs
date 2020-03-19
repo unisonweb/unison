@@ -9,7 +9,6 @@ module Unison.Codebase.Editor.Output.BranchDiff where
 import Control.Lens (_1,view)
 import Unison.Prelude
 import Unison.Name (Name)
-import qualified Unison.Name as Name
 import qualified Unison.Codebase.Patch as P
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Codebase.BranchDiff as BranchDiff
@@ -24,7 +23,7 @@ import Unison.Util.Set (symmetricDifference)
 import Unison.Reference (Reference)
 import Unison.Type (Type)
 import Unison.HashQualified' (HashQualified)
-import qualified Unison.HashQualified' as HQ'
+import qualified Unison.HashQualified as HQ
 import qualified Unison.Referent as Referent
 import Unison.Referent (Referent)
 import Data.Set (Set)
@@ -93,7 +92,7 @@ type SimpleTypeDisplay v a = (HashQualified, Reference, Maybe (DeclOrBuiltin v a
 type UpdateTermDisplay v a = (Maybe [SimpleTermDisplay v a], [TermDisplay v a])
 type UpdateTypeDisplay v a = (Maybe [SimpleTypeDisplay v a], [TypeDisplay v a])
 
-type MetadataDisplay v a = SimpleTermDisplay v a
+type MetadataDisplay v a = (HQ.HashQualified, Referent, Maybe (Type v  a))
 type RenameTermDisplay v a = (Referent, Maybe (Type v a), Set HashQualified, Set HashQualified)
 type RenameTypeDisplay v a = (Reference, Maybe (DeclOrBuiltin v a), Set HashQualified, Set HashQualified)
 type PatchDisplay = (Name, P.PatchDiff)
@@ -332,9 +331,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
   fillMetadata :: Traversable t => PPE.PrettyPrintEnv -> t Metadata.Value -> m (t (MetadataDisplay v a))
   fillMetadata ppe = traverse $ -- metadata values are all terms
     \(Referent.Ref -> mdRef) -> 
-      let name = case HQ'.fromHQ (PPE.termName ppe mdRef) of  
-            Nothing -> HQ'.NameOnly (Name.unsafeFromText "(unnamed metadata)")
-            Just hq' -> hq'
+      let name = PPE.termName ppe mdRef
       in (name, mdRef, ) <$> typeOf mdRef
   getMetadata :: Ord r => r -> Name -> R3.Relation3 r Name Metadata.Value -> Set Metadata.Value
   getMetadata r n = R.lookupDom n . R3.lookupD1 r

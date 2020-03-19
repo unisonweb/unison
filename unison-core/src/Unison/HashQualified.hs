@@ -108,7 +108,7 @@ toText :: Show n => HashQualified' n -> Text
 toText = \case
   NameOnly name           -> Text.pack (show name)
   HashQualified name hash -> Text.pack (show name) <> SH.toText hash
-  HashOnly ref            -> Text.pack (show ref)
+  HashOnly hash           -> SH.toText hash
 
 -- Returns the full referent in the hash.  Use HQ.take to just get a prefix
 fromNamedReferent :: n -> Referent -> HashQualified' n
