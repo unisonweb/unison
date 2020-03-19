@@ -197,6 +197,9 @@ isArrow _ = False
 ref :: Ord v => a -> Reference -> Type v a
 ref a = ABT.tm' a . Ref
 
+refId :: Ord v => a -> Reference.Id -> Type v a
+refId a = ref a . Reference.DerivedId
+
 termLink :: Ord v => a -> Type v a
 termLink a = ABT.tm' a . Ref $ termLinkRef
 
@@ -580,8 +583,8 @@ toReferenceMentions ty =
   in Set.fromList $ toReference . gen <$> ABT.subterms ty
 
 hashComponents
-  :: Var v => Map v (Type v a) -> Map v (Reference, Type v a)
-hashComponents = ReferenceUtil.hashComponents $ ref ()
+  :: Var v => Map v (Type v a) -> Map v (Reference.Id, Type v a)
+hashComponents = ReferenceUtil.hashComponents $ refId ()
 
 instance Hashable1 F where
   hash1 hashCycle hash e =

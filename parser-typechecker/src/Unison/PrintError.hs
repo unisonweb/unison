@@ -23,7 +23,7 @@ import qualified Data.Text                    as Text
 import           Data.Void                    (Void)
 import qualified Text.Megaparsec              as P
 import qualified Unison.ABT                   as ABT
-import Unison.DataDeclaration (pattern TupleType')
+import Unison.Builtin.Decls                   (pattern TupleType')
 import qualified Unison.HashQualified         as HQ
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind

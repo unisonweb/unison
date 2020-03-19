@@ -75,9 +75,12 @@ toTermReference = \case
   _ -> Nothing
 
 toReference :: Referent -> Reference
-toReference = \case
-  Ref r -> r
-  Con r _i _t -> r
+toReference = toReference'
+
+toReference' :: Referent' r -> r
+toReference' = \case
+  Ref' r -> r
+  Con' r _i _t -> r
 
 toTypeReference :: Referent -> Maybe Reference
 toTypeReference = \case

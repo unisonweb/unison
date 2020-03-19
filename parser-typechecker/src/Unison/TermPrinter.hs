@@ -43,8 +43,8 @@ import qualified Unison.Util.Pretty             as PP
 import           Unison.Util.Pretty             ( Pretty, ColorText )
 import           Unison.PrettyPrintEnv          ( PrettyPrintEnv, Suffix, Prefix, Imports, elideFQN )
 import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
-import qualified Unison.DataDeclaration        as DD
-import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
+import qualified Unison.Builtin.Decls          as DD
+import Unison.Builtin.Decls (pattern TuplePattern, pattern TupleTerm')
 import qualified Unison.ConstructorType as CT
 
 pretty :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText

@@ -11,6 +11,7 @@ import Unison.Referent (Referent)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Var (Var)
+import qualified Unison.Builtin.Decls as DD
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DP
 import qualified Unison.NamePrinter as NP

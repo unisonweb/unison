@@ -33,6 +33,7 @@ import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
                                                 )
+import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Parser                  ( Ann(..) )
 import qualified Unison.Reference              as R
@@ -82,11 +83,9 @@ constructorType :: R.Reference -> Maybe CT.ConstructorType
 constructorType r = TL.constructorType (typeLookup @Symbol) r
                 <|> Map.lookup r builtinConstructorType
 
--- | parse some builtin data types, and resolve their free variables using
--- | builtinTypes' and those types defined herein
 builtinDataDecls :: Var v => [(v, (R.Reference, DataDeclaration v))]
 builtinDataDecls =
-  [ (v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinDataDecls ]
+  [ (v, (R.DerivedId r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinDataDecls ]
 
 builtinEffectDecls :: Var v => [(v, (R.Reference, EffectDeclaration v))]
 builtinEffectDecls = []

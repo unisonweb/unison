@@ -14,6 +14,7 @@ data GitError = NoGit
               | PushDestinationHasNewStuff Text (Maybe Text) Names.Diff
               | NoRemoteNamespaceWithHash Text (Maybe Text) ShortBranchHash
               | RemoteNamespaceHashAmbiguous Text (Maybe Text) ShortBranchHash (Set Branch.Hash)
+              | Couldn'tLoadRootBranch Text (Maybe Text) (Maybe ShortBranchHash) Branch.Hash
               | SomeOtherError Text
               deriving Show
 

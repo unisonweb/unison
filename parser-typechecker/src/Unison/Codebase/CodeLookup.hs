@@ -24,7 +24,7 @@ fromUnisonFile uf = CodeLookup tm ty where
                             Map.toList (UF.effectDeclarations uf) ]
   tmm = Map.fromList (UF.terms uf)
   termMap = Map.fromList [ (id, e) |
-                            (_, (Reference.DerivedId id, e)) <-
+                            (_, (id, e)) <-
                             Map.toList (Term.hashComponents tmm) ]
 
 data CodeLookup v m a

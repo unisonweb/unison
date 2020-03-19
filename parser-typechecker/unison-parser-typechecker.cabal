@@ -35,11 +35,11 @@ library
 
   exposed-modules:
     Unison.Builtin
+    Unison.Builtin.Decls
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase.Branch
     Unison.Codebase.BranchDiff
-    Unison.Codebase.BranchLoadMode
     Unison.Codebase.BranchUtil
     Unison.Codebase.Causal
     Unison.Codebase.Classes
@@ -65,6 +65,7 @@ library
     Unison.Codebase.NameEdit
     Unison.Codebase.Path
     Unison.Codebase.Patch
+    Unison.Codebase.ReadOnly
     Unison.Codebase.Reflog
     Unison.Codebase.Runtime
     Unison.Codebase.SearchResult
@@ -142,6 +143,7 @@ library
     bifunctors,
     bytes,
     bytestring,
+    bytestring-trie,
     cereal,
     containers,
     comonad,

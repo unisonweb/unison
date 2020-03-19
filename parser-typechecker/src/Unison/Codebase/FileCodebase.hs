@@ -4,12 +4,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.FileCodebase
 ( getRootBranch        -- used by Git module
 , branchHashesByPrefix -- used by Git module
 , branchFromFiles      -- used by Git module
-, BranchLoadMode(..)   -- used by Git module
 , codebase1  -- used by Main
 , exists     -- used by Main
 , initialize -- used by Main
@@ -74,7 +74,6 @@ import           Unison.Codebase.Causal         ( Causal
 import qualified Unison.Codebase.Causal        as Causal
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Codebase.BranchLoadMode ( BranchLoadMode(FailIfMissing, EmptyIfMissing) )
 import qualified Unison.Codebase.Reflog        as Reflog
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V1
@@ -109,8 +108,15 @@ import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import qualified Unison.ConstructorType as CT
 import Unison.Util.Monoid (foldMapM)
+import Control.Error (rightMay, runExceptT, ExceptT(..))
 
 type CodebasePath = FilePath
+
+--data FileCodebase v a = FileCodebase
+--  { root :: CodebasePath
+--  , fmtV :: S.Format v
+--  , fmtA :: S.Format a
+--  }
 
 data Err
   = InvalidBranchFile FilePath String
@@ -151,7 +157,7 @@ initCodebase dir = do
     $  "Initializing a new codebase in: "
     <> prettyDir
   initialize path
-  Codebase.initializeCodebase theCodebase
+  Codebase.putRootBranch theCodebase Branch.empty
   pure theCodebase
 
 -- get the codebase in dir, or in the home directory if not provided.
@@ -171,7 +177,9 @@ getCodebaseOrExit mdir = do
 
   let path = dir </> codebasePath
   let theCodebase = codebase1 V1.formatSymbol formatAnn path
-  Codebase.initializeBuiltinCode theCodebase
+--  initialize path
+--  error "todo: figure out who's hosting builtins/io"
+--  Codebase.initializeBuiltinCode theCodebase
   unlessM (exists path) $ do
     PT.putPrettyLn' errMsg
     exitFailure
@@ -303,15 +311,15 @@ initialize :: CodebasePath -> IO ()
 initialize path =
   traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
 
-branchFromFiles :: MonadIO m => BranchLoadMode -> FilePath -> Branch.Hash -> m (Branch m)
-branchFromFiles loadMode rootDir h@(RawHash h') = do
+branchFromFiles :: MonadIO m => FilePath -> Branch.Hash -> m (Maybe (Branch m))
+branchFromFiles rootDir h@(RawHash h') = do
   fileExists <- doesFileExist (branchPath rootDir h')
-  if fileExists || loadMode == FailIfMissing then
+  if fileExists then Just <$>
     Branch.read (deserializeRawBranch rootDir)
                 (deserializeEdits rootDir)
                 h
   else
-    pure Branch.empty
+    pure Nothing
  where
   deserializeRawBranch
     :: MonadIO m => CodebasePath -> Causal.Deserialize m Branch.Raw Branch.Raw
@@ -328,25 +336,28 @@ branchFromFiles loadMode rootDir h@(RawHash h') = do
           Right edits -> pure edits
 
 -- returns Nothing if `root` has no root branch (in `branchHeadDir root`)
-getRootBranch ::
-  MonadIO m => BranchLoadMode -> CodebasePath -> m (Branch m)
-getRootBranch loadMode root = do
+getRootBranch :: forall m.
+  MonadIO m => CodebasePath -> m (Either Codebase.GetRootBranchError (Branch m))
+getRootBranch root = do
   ifM (exists root)
-    (liftIO (listDirectory $ branchHeadDir root) >>= \case
-      []       -> missing
-      [single] -> go single
-      conflict -> traverse go conflict >>= \case
-        x : xs -> foldM Branch.merge x xs
-        []     -> missing
-    )
-    missing
+    (liftIO (listDirectory $ branchHeadDir root) >>= go')
+    (pure $ Left Codebase.NoRootBranch)
  where
+  go' :: [String] -> m (Either Codebase.GetRootBranchError (Branch m))
+  go' = \case
+              []       -> pure $ Left Codebase.NoRootBranch
+              [single] -> runExceptT $ go single
+              conflict -> runExceptT (traverse go conflict) >>= \case
+                Right (x : xs) -> Right <$> foldM Branch.merge x xs
+                Right _ -> error "FileCodebase.getRootBranch.conflict can't be empty."
+                Left e -> Left <$> pure e
+
+  go :: String -> ExceptT Codebase.GetRootBranchError m (Branch m)
   go single = case hashFromString single of
     Nothing -> failWith $ CantParseBranchHead single
-    Just h  -> branchFromFiles FailIfMissing root (RawHash h)
-  missing = case loadMode of
-    FailIfMissing -> failWith . NoBranchHead $ branchHeadDir root
-    EmptyIfMissing -> pure $ Branch.empty
+    Just (Branch.Hash -> h)  -> ExceptT $ branchFromFiles root h <&> \case
+      Just b -> Right b
+      Nothing -> Left $ Codebase.CouldntLoadRootBranch h
 
 putRootBranch :: MonadIO m => CodebasePath -> Branch m -> m ()
 putRootBranch root b = do
@@ -457,7 +468,7 @@ syncToDirectory fmtV fmtA codebase localPath branch = do
   b <- (liftIO . exists) localPath
   if b then do
     let code = codebase1 fmtV fmtA localPath
-    remoteRoot <- Codebase.getRootBranch code
+    remoteRoot <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch code
     Branch.sync (hashExists localPath) serialize (serializeEdits localPath) branch
     merged <- Branch.merge branch remoteRoot
     Codebase.putRootBranch code merged
@@ -642,10 +653,10 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
           (getDecl getV getA path)
           (putTerm putV putA path)
           (putDecl putV putA path)
-          (getRootBranch FailIfMissing path)
+          (getRootBranch path)
           (putRootBranch path)
           (branchHeadUpdates path)
-          (branchFromFiles EmptyIfMissing path)
+          (branchFromFiles path)
           dependents
           -- Just copies all the files from a to-be-supplied path to `path`.
           (copyFromGit path)

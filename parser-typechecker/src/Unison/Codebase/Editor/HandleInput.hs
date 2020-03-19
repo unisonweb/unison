@@ -55,7 +55,6 @@ import           Unison.Codebase.Branch         ( Branch(..)
                                                 , Branch0(..)
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Codebase.BranchLoadMode ( BranchLoadMode(FailIfMissing, EmptyIfMissing) )
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
 import qualified Unison.Codebase.Causal        as Causal
 import qualified Unison.Codebase.Metadata      as Metadata
@@ -69,6 +68,7 @@ import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
@@ -1491,7 +1491,7 @@ loop = do
           Left e -> eval . Notify $ e
           Right (repo, Nothing, remotePath) -> do
               -- push from srcb to repo's remotePath
-              eval (LoadRemoteRootBranch EmptyIfMissing repo) >>= \case
+              eval (LoadRemoteRootBranch repo) >>= \case
                 Left e -> eval . Notify $ GitError input e
                 Right remoteRoot -> do
                   newRemoteRoot <- eval . Eval $
@@ -1943,7 +1943,7 @@ loadPropagateDiffDefaultPatch inputDescription dest0 dest = do
 
 loadRemoteBranch :: RemoteNamespace -> Action' m v (Either GitError (Branch m))
 loadRemoteBranch (repo, sbh, remotePath) = do
-  eroot <-  eval (maybe (LoadRemoteRootBranch FailIfMissing repo)
+  eroot <-  eval (maybe (LoadRemoteRootBranch repo)
                         (LoadRemoteShortBranch repo) sbh)
   pure $ Branch.getAt' remotePath <$> eroot
 
@@ -2227,8 +2227,14 @@ filterBySlurpResult :: Ord v
            => SlurpResult v
            -> UF.TypecheckedUnisonFile v Ann
            -> UF.TypecheckedUnisonFile v Ann
-filterBySlurpResult SlurpResult{..} UF.TypecheckedUnisonFile{..} =
-  UF.TypecheckedUnisonFile datas effects tlcs watches hashTerms'
+filterBySlurpResult SlurpResult{..} 
+                    (UF.TypecheckedUnisonFileId
+                      dataDeclarations'
+                      effectDeclarations'
+                      topLevelComponents'
+                      watchComponents
+                      hashTerms) =
+  UF.TypecheckedUnisonFileId datas effects tlcs watches hashTerms'
   where
   keep = updates <> adds
   keepTerms = SC.terms keep
@@ -2556,8 +2562,8 @@ addRunMain mainName (Just uf) = do
       if Typechecker.isSubtype ty (nullaryMain a) then Just $ let
         runMain = DD.forceTerm a a (Term.var a v)
         in UF.typecheckedUnisonFile
-             (UF.dataDeclarations' uf)
-             (UF.effectDeclarations' uf)
+             (UF.dataDeclarationsId' uf)
+             (UF.effectDeclarationsId' uf)
              (UF.topLevelComponents' uf <> [[(v2, runMain, nullaryMain a)]])
              (UF.watchComponents uf)
       else Nothing
