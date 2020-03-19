@@ -670,7 +670,9 @@ notifyUser dir o = case o of
       else "Edited Terms:" `P.hang`
               P.column2 (prettyTermEdit <$> R.toList terms),
       if R.null types && R.null terms then "This patch is empty."
-      else mempty
+      else tip . P.string $ "To remove entries from a patch, use "
+           <> IP.deleteTermReplacementCommand <> " or "
+           <> IP.deleteTypeReplacementCommand <> ", as appropriate."
       ]
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but

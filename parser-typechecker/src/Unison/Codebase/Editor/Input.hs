@@ -94,10 +94,10 @@ data Input
     -- -- create and remove update directives
     | DeprecateTermI PatchPath Path.HQSplit'
     | DeprecateTypeI PatchPath Path.HQSplit'
-    | ReplaceTermI HashOrHQSplit' HashOrHQSplit' (Maybe PatchPath)
-    | ReplaceTypeI HashOrHQSplit' HashOrHQSplit' (Maybe PatchPath)
-    | RemoveTermReplacementI HashOrHQSplit' (Maybe PatchPath)
-    | RemoveTypeReplacementI HashOrHQSplit' (Maybe PatchPath)
+    | ReplaceTermI String String (Maybe PatchPath)
+    | ReplaceTypeI String String (Maybe PatchPath)
+    | RemoveTermReplacementI String (Maybe PatchPath)
+    | RemoveTypeReplacementI String (Maybe PatchPath)
   | UndoI
   -- First `Maybe Int` is cap on number of results, if any
   -- Second `Maybe Int` is cap on diff elements shown, if any

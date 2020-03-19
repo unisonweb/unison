@@ -212,9 +212,6 @@ loop = do
       getHQ'TermsIncludingHistorical p =
         getTermsIncludingHistorical (resolveSplit' p) root0
 
-      getHQ'TermReferences :: Path.HQSplit' -> Set Reference
-      getHQ'TermReferences p =
-        Set.fromList [ r | Referent.Ref r <- toList (getHQ'Terms p) ]
       getHQ'Terms :: Path.HQSplit' -> Set Referent
       getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
       getHQ'Types :: Path.HQSplit' -> Set Reference
@@ -223,10 +220,6 @@ loop = do
       resolveHHQS'Types = either
         (eval . TypeReferencesByShortHash)
         (pure . getHQ'Types)
-      -- Term Refs only
-      resolveHHQS'Terms = either
-        (eval . TermReferencesByShortHash)
-        (pure . getHQ'TermReferences)
       -- Term Refs and Cons
       resolveHHQS'Referents = either
         (eval . TermReferentsByShortHash)
@@ -309,12 +302,33 @@ loop = do
         typeConflicted src = nameConflicted src Set.empty
         termConflicted src tms = nameConflicted src tms Set.empty
         hashConflicted src = respond . HashAmbiguous src
+        hqNameQuery (fmap HQ.unsafeFromString -> hqs) = do
+          parseNames <- makeHistoricalParsingNames $ Set.fromList hqs
+          let resultss = searchBranchExact hqLength parseNames hqs
+              (misses, hits) =
+                partition (\(_, results) -> null results) (zip hqs resultss)
+              results = List.sort . uniqueBy SR.toReferent $ hits >>= snd
+          pure (misses, results)
+        typeReferences :: [SearchResult] -> [Reference]
+        typeReferences rs
+          = [ r | SR.Tp (SR.TypeResult _ r _) <- rs ]
+        termReferences :: [SearchResult] -> [Reference]
+        termReferences rs =
+          [ r | SR.Tm (SR.TermResult _ (Referent.Ref r) _) <- rs ]
+        termResults rs = [ r | SR.Tm r <- rs ]
+        typeResults rs = [ r | SR.Tp r <- rs ]
         doRemoveReplacement from patchPath isTerm = do
           let patchPath' = fromMaybe defaultPatchPath patchPath
           patch <- getPatchAt patchPath'
-          fromRefs <-
-            (if isTerm then resolveHHQS'Terms else resolveHHQS'Types) from
-          let go :: Reference -> Action m (Either Event Input) v ()
+          (misses', hits) <- hqNameQuery [from]
+          let tpRefs = Set.fromList $ typeReferences hits
+              tmRefs = Set.fromList $ termReferences hits
+              tmMisses = (fst <$> misses')
+                         <> (HQ'.toHQ . SR.termName <$> termResults hits)
+              tpMisses = (fst <$> misses')
+                         <> (HQ'.toHQ . SR.typeName <$> typeResults hits)
+              misses = if isTerm then tpMisses else tmMisses
+              go :: Reference -> Action m (Either Event Input) v ()
               go fr = do
                 let termPatch =
                       over Patch.termEdits (R.deleteDom fr) patch
@@ -329,20 +343,9 @@ loop = do
                              (const (if isTerm then termPatch else typePatch)))
                 -- Say something
                 success
-              sayNotFound = respond
-                . SearchTermsNotFound
-                . pure
-                . either
-                    HQ.HashOnly
-                    (fmap Path.toName' . HQ'.toHQ . Path.unsplitHQ')
-              sayHashConflicted t = hashConflicted t . Set.map Referent.Ref
-              sayTermConflicted t = termConflicted t . Set.map Referent.Ref
-          zeroOneOrMore
-            fromRefs
-            (sayNotFound from)
-            go
-            (either sayHashConflicted
-                    (if isTerm then sayTermConflicted else typeConflicted) from)
+          when (not $ null misses) $
+            eval . Notify $ SearchTermsNotFound misses
+          traverse_ go (if isTerm then tmRefs else tpRefs)
         branchExists dest _x = respond $ BranchAlreadyExists dest
         branchExistsSplit = branchExists . Path.unsplit'
         typeExists dest = respond . TypeAlreadyExists dest
@@ -367,13 +370,13 @@ loop = do
           DeleteTypeI def -> "delete.type " <> hqs' def
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
           DeletePatchI path -> "delete.patch " <> ps' path
-          ReplaceTermI srcH targetH p ->
-            "replace.term " <> hhqs' srcH <> " "
-                            <> hhqs' targetH <> " "
+          ReplaceTermI src target p ->
+            "replace.term " <> Text.pack src <> " "
+                            <> Text.pack target <> " "
                             <> opatch p
-          ReplaceTypeI srcH targetH p ->
-            "replace.type " <> hhqs' srcH <> " "
-                            <> hhqs' targetH <> " "
+          ReplaceTypeI src target p ->
+            "replace.type " <> Text.pack src <> " "
+                            <> Text.pack target <> " "
                             <> opatch p
           ResolveTermNameI path -> "resolve.termName " <> hqs' path
           ResolveTypeNameI path -> "resolve.typeName " <> hqs' path
@@ -429,10 +432,10 @@ loop = do
           QuitI{} -> wat
           DeprecateTermI{} -> undefined
           DeprecateTypeI{} -> undefined
-          RemoveTermReplacementI srcH p ->
-            "delete.termReplacement" <> hhqs' srcH <> " " <> opatch p
-          RemoveTypeReplacementI srcH p ->
-            "delete.typeReplacement" <> hhqs' srcH <> " " <> opatch p
+          RemoveTermReplacementI src p ->
+            "delete.term-replacement" <> Text.pack src <> " " <> opatch p
+          RemoveTypeReplacementI src p ->
+            "delete.type-replacement" <> Text.pack src <> " " <> opatch p
           where
           hp' = either (Text.pack . show) p'
           p' = Text.pack . show . resolveToAbsolute
@@ -987,11 +990,8 @@ loop = do
           respond $ TermAmbiguous hq results
         else doDisplay outputLoc parseNames (Set.findMin results)
 
-      ShowDefinitionI outputLoc (fmap HQ.unsafeFromString -> hqs) -> do
-        parseNames <- makeHistoricalParsingNames $ Set.fromList hqs
-        let resultss = searchBranchExact hqLength parseNames hqs
-            (misses, hits) = partition (\(_, results) -> null results) (zip hqs resultss)
-            results = List.sort . uniqueBy SR.toReferent $ hits >>= snd
+      ShowDefinitionI outputLoc query -> do
+        (misses, results) <- hqNameQuery query
         results' <- loadSearchResults results
         let termTypes :: Map.Map Reference (Type v Ann)
             termTypes =
@@ -1177,9 +1177,11 @@ loop = do
       ReplaceTermI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
-        fromRefs <- resolveHHQS'Terms from
-        toRefs <- resolveHHQS'Terms to
-        let go :: Reference
+        (fromMisses, fromHits) <- hqNameQuery [from]
+        (toMisses, toHits) <- hqNameQuery [to]
+        let fromRefs = termReferences fromHits
+            toRefs = termReferences toHits
+            go :: Reference
                -> Reference
                -> Action m (Either Event Input) v ()
             go fr tr = do
@@ -1209,29 +1211,25 @@ loop = do
                   void $ propagatePatch inputDescription patch' currentPath'
                   -- Say something
                   success
-            sayNotFound = respond
-              . SearchTermsNotFound
-              . pure
-              . either
-                  HQ.HashOnly
-                  (fmap Path.toName' . HQ'.toHQ . Path.unsplitHQ')
-            sayHashConflicted t = hashConflicted t . Set.map Referent.Ref
             sayTermConflicted t = termConflicted t . Set.map Referent.Ref
-        zeroOneOrMore
-          fromRefs
-          (sayNotFound from)
-          (\r -> zeroOneOrMore toRefs
-                               (sayNotFound to)
-                               (go r)
-                               (either sayHashConflicted sayTermConflicted to))
-          (either sayHashConflicted sayTermConflicted from)
-
+            misses = fromMisses <> toMisses
+            ambiguous str rs = case Path.parseHQSplit' str of
+              Left  _ -> undefined
+              Right t -> sayTermConflicted t (Set.fromList rs)
+        when (not $ null misses) $
+          respond . SearchTermsNotFound $ fmap fst misses
+        case (fromRefs, toRefs) of
+          ([fr], [tr]) -> go fr tr
+          ([_], tos) -> ambiguous to tos
+          (frs, _) -> ambiguous from frs
       ReplaceTypeI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
+        (fromMisses, fromHits) <- hqNameQuery [from]
+        (toMisses, toHits) <- hqNameQuery [to]
         patch <- getPatchAt patchPath'
-        fromRefs <- resolveHHQS'Types from
-        toRefs <- resolveHHQS'Types to
-        let go :: Reference
+        let fromRefs = typeReferences fromHits
+            toRefs = typeReferences toHits
+            go :: Reference
                -> Reference
                -> Action m (Either Event Input) v ()
             go fr tr = do
@@ -1248,22 +1246,16 @@ loop = do
               void $ propagatePatch inputDescription patch' currentPath'
               -- Say something
               success
-            sayNotFound = respond
-              . SearchTermsNotFound
-              . pure
-              . either
-                  HQ.HashOnly
-                  (fmap Path.toName' . HQ'.toHQ . Path.unsplitHQ')
-            sayHashConflicted t = hashConflicted t . Set.map Referent.Ref
-        zeroOneOrMore
-          fromRefs
-          (sayNotFound from)
-          (\r -> zeroOneOrMore toRefs
-                               (sayNotFound to)
-                               (go r)
-                               (either sayHashConflicted typeConflicted to))
-          (either sayHashConflicted typeConflicted from)
-
+            misses = fromMisses <> toMisses
+            ambiguous str rs = case Path.parseHQSplit' str of
+              Left  _ -> undefined
+              Right t -> typeConflicted t (Set.fromList rs)
+        when (not $ null misses) $
+          respond . SearchTermsNotFound $ fmap fst misses
+        case (fromRefs, toRefs) of
+          ([fr], [tr]) -> go fr tr
+          ([_], tos) -> ambiguous to tos
+          (frs, _) -> ambiguous from frs
       LoadI maybePath ->
         case maybePath <|> (fst <$> latestFile') of
           Nothing   -> respond NoUnisonFile

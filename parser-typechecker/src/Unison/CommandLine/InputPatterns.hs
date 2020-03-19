@@ -415,43 +415,48 @@ deleteType = InputPattern "delete.type" []
         "`delete.type` takes an argument, like `delete.type name`."
     )
 
+deleteTermReplacementCommand :: String
+deleteTermReplacementCommand = "delete.term-replacement"
+
+deleteTypeReplacementCommand :: String
+deleteTypeReplacementCommand = "delete.type-replacement"
+
 deleteReplacement :: Bool -> InputPattern
 deleteReplacement isTerm = InputPattern
-  ("delete." <> str <> "Replacement")
+  commandName
   []
   [(Required, exactDefinitionQueryArg), (Optional, patchArg)]
   (  P.string
-  $  "`delete."
-  <> str
-  <> "Replacement <foo> <patch>` removes any edit of the "
+  $  commandName
+  <> " <patch>` removes any edit of the "
   <> str
   <> " `foo` "
   <> "from the patch `patch`, or the default patch if none is specified."
   )
   (\case
-    query : patch -> first fromString $ do
-      t     <- Path.parseShortHashOrHQSplit' query
-      patch <- traverse (Path.parseSplit' Path.wordyNameSegment)
+    query : patch -> do
+      patch <-
+        first fromString
+        . traverse (Path.parseSplit' Path.wordyNameSegment)
         $ listToMaybe patch
-      pure
-        $ (if isTerm
-            then Input.RemoveTermReplacementI
-            else Input.RemoveTypeReplacementI
-          )
-            t
-            patch
+      pure $ input query patch
     _ ->
       Left
         .  P.warnCallout
         .  P.wrapString
-        $  "`delete."
-        <> str
-        <> "Replacement` needs arguments. See `help delete."
-        <> str
-        <> "Replacement`."
+        $  commandName
+        <> " needs arguments. See `help "
+        <> commandName
+        <> "`."
   )
-  where str = if isTerm then "term" else "type"
-
+ where
+  input = if isTerm
+    then Input.RemoveTermReplacementI
+    else Input.RemoveTypeReplacementI
+  str         = if isTerm then "term" else "type"
+  commandName = if isTerm
+    then deleteTermReplacementCommand
+    else deleteTypeReplacementCommand
 
 deleteTermReplacement :: InputPattern
 deleteTermReplacement = deleteReplacement True
@@ -837,10 +842,7 @@ previewMergeLocal = InputPattern
   )
 
 replaceEdit
-  :: (Input.HashOrHQSplit'
-       -> Input.HashOrHQSplit'
-       -> Maybe Input.PatchPath
-       -> Input)
+  :: (String -> String -> Maybe Input.PatchPath -> Input)
   -> String
   -> InputPattern
 replaceEdit f s = self
@@ -870,11 +872,9 @@ replaceEdit f s = self
     )
     (\case
       source : target : patch -> first fromString $ do
-        src   <- Path.parseShortHashOrHQSplit' source
-        dest  <- Path.parseShortHashOrHQSplit' target
         patch <- traverse (Path.parseSplit' Path.wordyNameSegment)
           $ listToMaybe patch
-        pure $ f src dest patch
+        pure $ f source target patch
       _ -> Left $ I.help self
     )
 
