@@ -258,19 +258,19 @@ patch = InputPattern
   )
 
 view :: InputPattern
-view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
+view = InputPattern "view" [] [(OnePlus, definitionQueryArg)]
       "`view foo` prints the definition of `foo`."
       (pure . Input.ShowDefinitionI Input.ConsoleLocation)
 
 display :: InputPattern
-display = InputPattern "display" [] [(Required, exactDefinitionQueryArg)]
+display = InputPattern "display" [] [(Required, definitionQueryArg)]
       "`display foo` prints a rendered version of the term `foo`."
       (\case
         [s] -> pure (Input.DisplayI Input.ConsoleLocation s)
         _ -> Left (I.help display))
 
 displayTo :: InputPattern
-displayTo = InputPattern "display.to" [] [(Required, noCompletions), (Required, exactDefinitionQueryArg)]
+displayTo = InputPattern "display.to" [] [(Required, noCompletions), (Required, definitionQueryArg)]
       (P.wrap $ makeExample displayTo ["<filename>", "foo"]
              <> "prints a rendered version of the term `foo` to the given file.")
       (\case
@@ -278,7 +278,7 @@ displayTo = InputPattern "display.to" [] [(Required, noCompletions), (Required, 
         _ -> Left (I.help displayTo))
 
 docs :: InputPattern
-docs = InputPattern "docs" [] [(Required, exactDefinitionQueryArg)]
+docs = InputPattern "docs" [] [(Required, definitionQueryArg)]
       ("`docs foo` shows documentation for the definition `foo`.")
       (\case
         [s] -> first fromString $ Input.DocsI <$> Path.parseHQSplit' s
@@ -291,7 +291,7 @@ undo = InputPattern "undo" [] []
 
 viewByPrefix :: InputPattern
 viewByPrefix
-  = InputPattern "view.recursive" [] [(OnePlus, exactDefinitionQueryArg)]
+  = InputPattern "view.recursive" [] [(OnePlus, definitionQueryArg)]
     "`view.recursive Foo` prints the definitions of `Foo` and `Foo.blah`."
     (pure . Input.ShowDefinitionByPrefixI Input.ConsoleLocation)
 
@@ -381,7 +381,7 @@ renameType = InputPattern "move.type" ["rename.type"]
 
 delete :: InputPattern
 delete = InputPattern "delete" []
-    [(OnePlus, exactDefinitionQueryArg)]
+    [(OnePlus, definitionQueryArg)]
     "`delete foo` removes the term or type name `foo` from the namespace."
     (\case
       [query] -> first fromString $ do
@@ -443,7 +443,7 @@ aliasType = InputPattern "alias.type" []
 
 aliasMany :: InputPattern
 aliasMany = InputPattern "alias.many" ["copy"]
-  [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionOrPathArg)]
+  [(Required, definitionQueryArg), (OnePlus, exactDefinitionOrPathArg)]
   (P.group . P.lines $
     [ P.wrap $ P.group (makeExample aliasMany ["<relative1>", "[relative2...]", "<namespace>"])
       <> "creates aliases `relative1`, `relative2`, ... in the namespace `namespace`."
@@ -804,8 +804,8 @@ replaceEdit f s = self
   self = InputPattern
     ("replace." <> s)
     []
-    [ (Required, exactDefinitionQueryArg)
-    , (Required, exactDefinitionQueryArg)
+    [ (Required, definitionQueryArg)
+    , (Required, definitionQueryArg)
     , (Optional, patchArg)
     ]
     (P.wrapColumn2
@@ -855,7 +855,7 @@ edit :: InputPattern
 edit = InputPattern
   "edit"
   []
-  [(OnePlus, exactDefinitionQueryArg)]
+  [(OnePlus, definitionQueryArg)]
   (  "`edit foo` prepends the definition of `foo` to the top of the most "
   <> "recently saved file."
   )
@@ -1023,7 +1023,7 @@ link :: InputPattern
 link = InputPattern
   "link"
   []
-  [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionQueryArg)]
+  [(Required, definitionQueryArg), (OnePlus, definitionQueryArg)]
   (fromString $ concat
     [ "`link metadata defn` creates a link to `metadata` from `defn`. "
     , "Use `links defn` or `links defn <type>` to view outgoing links, "
@@ -1044,7 +1044,7 @@ links :: InputPattern
 links = InputPattern
   "links"
   []
-  [(Required, exactDefinitionQueryArg), (Optional, exactDefinitionQueryArg)]
+  [(Required, definitionQueryArg), (Optional, definitionQueryArg)]
   (P.column2 [
     (makeExample links ["defn"], "shows all outgoing links from `defn`."),
     (makeExample links ["defn", "<type>"], "shows all links of the given type.") ])
@@ -1062,7 +1062,7 @@ unlink :: InputPattern
 unlink = InputPattern
   "unlink"
   ["delete.link"]
-  [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionQueryArg)]
+  [(Required, definitionQueryArg), (OnePlus, definitionQueryArg)]
   (fromString $ concat
     [ "`unlink metadata defn` removes a link to `detadata` from `defn`."
     , "The `defn` can be either the "
@@ -1079,7 +1079,7 @@ unlink = InputPattern
 
 names :: InputPattern
 names = InputPattern "names" []
-  [(Required, exactDefinitionQueryArg)]
+  [(Required, definitionQueryArg)]
   "`names foo` shows the hash and all known names for `foo`."
   (\case
     [thing] -> case HQ.fromString thing of
@@ -1192,13 +1192,6 @@ commandNameArg :: ArgumentType
 commandNameArg =
   ArgumentType "command" $ \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap))
 
-fuzzyDefinitionQueryArg :: ArgumentType
-fuzzyDefinitionQueryArg =
-  -- todo: improve this
-  ArgumentType "fuzzy definition query" $
-    bothCompletors (termCompletor fuzzyComplete)
-                   (typeCompletor fuzzyComplete)
-
 exactDefinitionOrPathArg :: ArgumentType
 exactDefinitionOrPathArg =
   ArgumentType "definition or path" $
@@ -1208,12 +1201,15 @@ exactDefinitionOrPathArg =
         (typeCompletor exactComplete))
       (pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths))
 
--- todo: support absolute paths?
-exactDefinitionQueryArg :: ArgumentType
-exactDefinitionQueryArg =
-  ArgumentType "definition query" $
+fuzzyDefinitionQueryArg :: ArgumentType
+fuzzyDefinitionQueryArg =
+  -- todo: improve this
+  ArgumentType "fuzzy definition query" $
     bothCompletors (termCompletor fuzzyComplete)
                    (typeCompletor fuzzyComplete)
+
+definitionQueryArg :: ArgumentType
+definitionQueryArg = fuzzyDefinitionQueryArg { typeName = "definition query" }
 
 exactDefinitionTypeQueryArg :: ArgumentType
 exactDefinitionTypeQueryArg =
