@@ -72,9 +72,9 @@ exec !_   !denv !ustk !bstk !k (Lit n) = do
   ustk <- bump ustk
   poke ustk n
   pure (denv, ustk, bstk, k)
-exec !_   !denv !ustk !bstk !k (Reset p) = do
-  pure (denv, ustk, bstk, Mark p clo k)
- where clo = lookupDenv p denv
+exec !_   !denv !ustk !bstk !k (Reset ps) = do
+  pure (denv, ustk, bstk, Mark clos k)
+ where clos = M.restrictKeys denv ps
 {-# inline exec #-}
 
 eval :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> Section -> IO ()
@@ -99,6 +99,8 @@ eval !env !denv !ustk !bstk !k (Let nw nx) = do
 eval !env !denv !ustk !bstk !k (Ins i nx) = do
   (denv, ustk, bstk, k) <- exec env denv ustk bstk k i
   eval env denv ustk bstk k nx
+eval !_   !_    !_    !_    !_ (Die s) =
+  putStrLn s
 {-# noinline eval #-}
 
 -- fast path application
@@ -169,10 +171,10 @@ repush :: Env -> Stack 'UN -> Stack 'BX -> DEnv -> K -> K -> IO ()
 repush !env !ustk !bstk = go
  where
  go !denv KE !k = yield env denv ustk bstk k
- go !denv (Mark p c sk) !k = go denv' sk $ Mark p c' k
+ go !denv (Mark cs sk) !k = go denv' sk $ Mark cs' k
   where
-  denv' = M.insert p c denv
-  c' = lookupDenv p denv
+  denv' = cs <> denv
+  cs' = M.restrictKeys denv $ M.keysSet cs
  go !denv (Push un bn ua ba nx sk) !k
    = go denv sk $ Push un bn ua ba nx k
 {-# inline repush #-}
@@ -373,7 +375,7 @@ prim2 !ustk Sub !i !j = do
 yield :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> IO ()
 yield !env !denv !ustk !bstk !k = leap denv k
  where
- leap !denv (Mark q c k) = leap (M.insert q c denv) k
+ leap !denv (Mark cs k) = leap (cs <> denv) k
  leap !denv (Push ufsz bfsz uasz basz nx k) = do
    ustk <- restoreFrame ustk ufsz uasz
    bstk <- restoreFrame bstk bfsz basz
@@ -400,12 +402,12 @@ splitCont !denv !ustk !bstk !k !p
  where
  walk !denv !usz !bsz !ck KE
    = error "fell off stack" >> finish denv usz bsz ck KE
- walk !denv !usz !bsz !ck (Mark q c k)
-   | p == q    = finish denv' usz bsz ck k
-   | otherwise = walk denv' usz bsz (Mark q c' ck) k
+ walk !denv !usz !bsz !ck (Mark cs k)
+   | M.member p cs = finish denv' usz bsz ck k
+   | otherwise     = walk denv' usz bsz (Mark cs' ck) k
   where
-  denv' = M.insert q c denv
-  c' = lookupDenv q denv
+  denv' = cs <> denv
+  cs' = M.restrictKeys denv $ M.keysSet cs
  walk !denv !usz !bsz !ck (Push un bn ua ba br k)
    = walk denv (usz+un+ua) (bsz+bn+ba) (Push un bn ua ba br ck) k
 

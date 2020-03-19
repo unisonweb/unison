@@ -10,6 +10,7 @@ import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF
 import Unison.Var as Var
 
+import Data.IntMap (IntMap)
 import qualified Data.IntMap as IMap
 import qualified Data.Set as Set
 
@@ -45,8 +46,9 @@ denormalize (TLit l) = case l of
   B b -> Term.boolean () b
   T t -> Term.text () t
   C c -> Term.char () c
-denormalize (THnd h b)
-  = Term.match () (denormalize b) $ denormalizeHandler h
+denormalize (THnd _  _ _ _)
+  = error "denormalize handler"
+  -- = Term.match () (denormalize b) $ denormalizeHandler h
 denormalize (TLet v bn bo)
   | typeOf v == ANFBlank = ABT.subst v dbn dbo
   | otherwise = Term.let1_ False [(v, dbn)] dbo
@@ -75,6 +77,7 @@ denormalizeMatch b
   | MatchEmpty <- b = []
   | MatchIntegral m <- b = dcase ipat <$> IMap.toList m
   | MatchData r m <- b = dcase (dpat r) <$> IMap.toList m
+  | MatchRequest hs <- b = denormalizeHandler hs
   where
   dcase p (t, br) = Term.MatchCase (p n t) Nothing dbr
    where (n, dbr) = denormalizeBranch br
@@ -87,15 +90,11 @@ denormalizeBranch (TAbs v br) = (n+1, ABT.abs v dbr)
 denormalizeBranch tm = (0, denormalize tm)
 
 denormalizeHandler
-  :: Var v => Handler (ANormal v) -> [Term.MatchCase () (Term.Term0 v)]
-denormalizeHandler (Hndl cs d) = dcs ++ pur
+  :: Var v
+  => IntMap (IntMap (ANormal v))
+  -> [Term.MatchCase () (Term.Term0 v)]
+denormalizeHandler cs = dcs
   where
-  pur = maybe []
-          (pure . Term.MatchCase (EffectPureP () (VarP ())) Nothing
-                . snd
-                . denormalizeBranch)
-          d
-
   dcs = IMap.foldMapWithKey rf cs
   rf r rcs = IMap.foldMapWithKey (cf $ backReference r) rcs
   cf r t b = [ Term.MatchCase

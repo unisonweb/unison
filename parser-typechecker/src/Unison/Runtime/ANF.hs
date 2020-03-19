@@ -38,7 +38,6 @@ module Unison.Runtime.ANF
   , ANormalT
   , ANFM
   , Branched(..)
-  , Handler(..)
   , Func(..)
   , superNormalize
   , anfTerm
@@ -234,7 +233,7 @@ data ANormalBF v e
 data ANormalTF v e
   = ALit Lit
   | AMatch v (Branched e)
-  | AHnd (Handler e) e
+  | AHnd [Int] v (Maybe e) e
   | AApp (Func v) [v]
   | AFrc v
   | AVar v
@@ -258,7 +257,7 @@ instance Functor (ANormalTF v) where
   fmap _ (AVar v) = AVar v
   fmap _ (ALit l) = ALit l
   fmap f (AMatch v br) = AMatch v $ f <$> br
-  fmap f (AHnd h e) = AHnd (f <$> h) $ f e
+  fmap f (AHnd rs h d e) = AHnd rs h (f <$> d) $ f e
   fmap _ (AFrc v) = AFrc v
   fmap _ (AApp f args) = AApp f args
 
@@ -266,7 +265,7 @@ instance Bifunctor ANormalTF where
   bimap f _ (AVar v) = AVar (f v)
   bimap _ _ (ALit l) = ALit l
   bimap f g (AMatch v br) = AMatch (f v) $ fmap g br
-  bimap _ g (AHnd v e) = AHnd (g <$> v) $ g e
+  bimap f g (AHnd rs v d e) = AHnd rs (f v) (g <$> d) $ g e
   bimap f _ (AFrc v) = AFrc (f v)
   bimap f _ (AApp fu args) = AApp (fmap f fu) $ fmap f args
 
@@ -274,7 +273,7 @@ instance Bifoldable ANormalTF where
   bifoldMap f _ (AVar v) = f v
   bifoldMap _ _ (ALit _) = mempty
   bifoldMap f g (AMatch v br) = f v <> foldMap g br
-  bifoldMap _ g (AHnd h e) = foldMap g h <> g e
+  bifoldMap f g (AHnd _ h d e) = f h <> foldMap g d <> g e
   bifoldMap f _ (AFrc v) = f v
   bifoldMap f _ (AApp func args) = foldMap f func <> foldMap f args
 
@@ -307,7 +306,7 @@ pattern TReq r t args = TApp (FReq r t) args
 pattern APrm p args = AApp (FPrim p) args
 pattern TPrm p args = TApp (FPrim p) args
 
-pattern THnd h b = TTm (AHnd h b)
+pattern THnd rs h d b = TTm (AHnd rs h d b)
 pattern TMatch v cs = TTm (AMatch v cs)
 pattern TVar v = TTm (AVar v)
 
@@ -355,33 +354,48 @@ pattern TBinds' ctx bd <- (unbinds' -> (ctx, bd))
 data Branched e
   = MatchIntegral { cases :: IntMap e }
   | MatchData { ref :: Reference, cases :: IntMap e }
+  | MatchRequest { handlers :: IntMap (IntMap e) }
   | MatchEmpty
   deriving (Functor, Foldable, Traversable)
 
-instance Semigroup (Branched e) where
-  MatchEmpty <> r = r
-  l <> MatchEmpty = l
-  MatchIntegral cl <> MatchIntegral cr = MatchIntegral $ cl <> cr
-  MatchData rl cl <> MatchData rr cr
-    | rl == rr  = MatchData rl $ cl <> cr
+data BranchAccum v
+  = AccumIntegral (IntMap (ANormal v))
+  | AccumData Reference (IntMap (ANormal v))
+  | AccumRequest (IntMap (IntMap (ANormal v))) (Maybe (ANormal v))
+  | AccumEmpty
+
+accumData :: BranchAccum v -> Maybe (ABranched v)
+accumData (AccumIntegral cs) = Just (MatchIntegral cs)
+accumData (AccumData r cs) = Just (MatchData r cs)
+accumData AccumEmpty = Just MatchEmpty
+accumData _ = Nothing
+
+mkAccum :: ABranched v -> BranchAccum v
+mkAccum MatchEmpty = AccumEmpty
+mkAccum (MatchIntegral cs) = AccumIntegral cs
+mkAccum (MatchData r cs) = AccumData r cs
+mkAccum (MatchRequest hs) = AccumRequest hs Nothing
+
+pattern AccumD :: ABranched v -> BranchAccum v
+pattern AccumD d <- (accumData -> Just d)
+  where AccumD d = mkAccum d
+
+{-# complete AccumD, AccumRequest #-}
+
+instance Semigroup (BranchAccum v) where
+  AccumEmpty <> r = r
+  l <> AccumEmpty = l
+  AccumIntegral cl <> AccumIntegral cr = AccumIntegral $ cl <> cr
+  AccumData rl cl <> AccumData rr cr
+    | rl == rr  = AccumData rl $ cl <> cr
+  AccumRequest hl dl <> AccumRequest hr dr
+    = AccumRequest hm $ mplus dl dr
+    where
+    hm = IMap.unionWith (<>) hl hr
   _ <> _ = error "cannot merge data cases for different types"
 
-instance Monoid (Branched e) where
-  mempty = MatchEmpty
-
-data Handler e
-  = Hndl
-  { hcases :: IntMap (IntMap e)
-  , dflt :: Maybe e
-  } deriving (Functor, Foldable, Traversable)
-
-instance Semigroup (Handler e) where
-  Hndl cl dl <> Hndl cr dr = Hndl cm $ mplus dl dr
-    where
-    cm = IMap.unionWith (<>) cl cr
-
-instance Monoid (Handler e) where
-  mempty = Hndl IMap.empty Nothing
+instance Monoid (BranchAccum e) where
+  mempty = AccumEmpty
 
 data Func v
   -- variable
@@ -423,24 +437,9 @@ type ANormal = ABTN.Term ANormalBF
 type ANormalT v = ANormalTF v (ANormal v)
 
 type ABranched v = Branched (ANormal v)
-type AHandler v = Handler (ANormal v)
 
 type Cte v = CTE v (ANormalT v)
 type Ctx v = [Cte v]
-
-data ACases v
-  = DCase (ABranched v)
-  | HCase (AHandler v)
-
-instance Semigroup (ACases v) where
-  DCase MatchEmpty <> cr = cr
-  cl <> DCase MatchEmpty = cl
-  DCase dl <> DCase dr = DCase $ dl <> dr
-  HCase hl <> HCase hr = HCase $ hl <> hr
-  _ <> _ = error "cannot merge data and ability cases"
-
-instance Monoid (ACases v) where
-  mempty = DCase MatchEmpty
 
 -- Should be a completely closed term
 data SuperNormal v = Lambda { bound :: ANormal v }
@@ -478,6 +477,9 @@ contextualize tm = do
   fv <- reset $ avoids (freeVarsT tm) *> fresh
   avoid [fv]
   pure ([ST fv tm], fv)
+
+record :: (Int, SuperNormal v) -> ANFM v ()
+record p = state $ \(av, gl, to) -> ((), (av, gl, p:to))
 
 superNormalize
   :: Var v
@@ -531,13 +533,23 @@ anfBlock (Handle' h body)
         pure (hctx ++ [LZ v f as], AApp (FVar vh) [v])
       (_, _) ->
         error "handle body should be a call to a top-level combinator"
-anfBlock (Match' scrut cas)
-  = anfBlock scrut >>= \(sctx, sc) ->
-    anfCases cas >>= \case
-      HCase hn -> pure (sctx, AHnd hn (TTm sc))
-      DCase cs -> do
-        (cx, v) <- contextualize sc
-        pure (sctx ++ cx, AMatch v cs)
+anfBlock (Match' scrut cas) = do
+  (sctx, sc) <- anfBlock scrut
+  brn <- anfCases cas
+  case brn of
+    AccumRequest abr df -> do
+      (i, vs) <- reset $ do
+        i <- reserve
+        v <- fresh
+        let hfb = ABTN.TAbs v $ TMatch v (MatchRequest abr)
+            hfvs = Set.toList $ ABTN.freeVars hfb
+        record (i, Lambda . ABTN.TAbss hfvs $ hfb)
+        pure (i, hfvs)
+      hv <- fresh
+      pure (sctx ++ [LZ hv i vs], AHnd (IMap.keys abr) hv df (TTm sc))
+    AccumD cs -> do
+      (cx, v) <- contextualize sc
+      pure (sctx ++ cx, AMatch v cs)
 anfBlock (Let1Named' v b e) = do
   avoid [v]
   (bctx, cb) <- anfBlock b
@@ -561,26 +573,26 @@ anfBlock _ = error "anf: unhandled term"
 -- to a state in which every case matches a single layer of data,
 -- with no guards, and no variables ignored. This is not checked
 -- completely.
-anfInitCase :: Var v => MatchCase p (Term v a) -> ANFM v (ACases v)
+anfInitCase :: Var v => MatchCase p (Term v a) -> ANFM v (BranchAccum v)
 anfInitCase (MatchCase p guard (ABT.AbsN' vs bd))
   | Just _ <- guard = error "anfInitCase: unexpected guard"
   | IntP _ (fromIntegral -> i) <- p
-  = DCase . MatchIntegral . IMap.singleton i <$> anfTerm bd
+  = AccumIntegral . IMap.singleton i <$> anfTerm bd
   | NatP _ (fromIntegral -> i) <- p
-  = DCase . MatchIntegral . IMap.singleton i <$> anfTerm bd
+  = AccumIntegral . IMap.singleton i <$> anfTerm bd
   | ConstructorP _ r t ps <- p = do
     us <- expandBindings ps vs
-    DCase . MatchData r . IMap.singleton t . ABTN.TAbss us <$> anfTerm bd
+    AccumData r . IMap.singleton t . ABTN.TAbss us <$> anfTerm bd
   | EffectPureP _ q <- p = do
     us <- expandBindings [q] vs
-    HCase . Hndl IMap.empty . Just . ABTN.TAbss us <$> anfTerm bd
+    AccumRequest IMap.empty . Just . ABTN.TAbss us <$> anfTerm bd
   | EffectBindP _ r t ps pk <- p = do
     us <- expandBindings (ps ++ [pk]) vs
     n <- resolve r
-    HCase . flip Hndl Nothing
-          . IMap.singleton n
-          . IMap.singleton t
-          . ABTN.TAbss us
+    flip AccumRequest Nothing
+       . IMap.singleton n
+       . IMap.singleton t
+       . ABTN.TAbss us
       <$> anfTerm bd
 anfInitCase _ = error "anfInitCase: unexpected pattern"
 
@@ -606,7 +618,7 @@ expandBindings' _ _ _
 expandBindings :: Var v => [PatternP p] -> [v] -> ANFM v [v]
 expandBindings ps vs = (\(av,_,_) -> expandBindings' av ps vs) <$> get
 
-anfCases :: Var v => [MatchCase p (Term v a)] -> ANFM v (ACases v)
+anfCases :: Var v => [MatchCase p (Term v a)] -> ANFM v (BranchAccum v)
 anfCases = fmap fold . traverse anfInitCase
 
 anfFunc :: Var v => Term v a -> ANFM v (Ctx v, Func v)

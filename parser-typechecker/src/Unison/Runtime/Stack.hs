@@ -11,6 +11,9 @@ import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
 import Data.Primitive.Array
 
+import Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap.Strict as IM
+
 import Unison.Runtime.MCode
 
 data Mem = UN | BX
@@ -19,8 +22,7 @@ data Mem = UN | BX
 data K
   = KE
   -- mark continuation with a prompt
-  | Mark !Int     -- prompt
-         !Closure -- shadowed dynamic storage
+  | Mark !(IntMap Closure)
          !K
   -- save information about a frame for later resumption
   | Push !Int -- unboxed frame size
@@ -280,7 +282,7 @@ instance Show K where
     go _ KE = "]"
     go com (Push uf bf ua ba _ k)
       = com ++ show (uf,bf,ua,ba) ++ go "," k
-    go com (Mark p _ k) = com ++ "M" ++ show p ++ go "," k
+    go com (Mark ps k) = com ++ "M" ++ show (IM.keys ps) ++ go "," k
 
 instance MEM 'BX where
   data Stack 'BX

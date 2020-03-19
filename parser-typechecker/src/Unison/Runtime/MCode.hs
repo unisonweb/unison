@@ -1,4 +1,5 @@
 {-# language GADTs #-}
+{-# language BangPatterns #-}
 {-# language PatternGuards #-}
 {-# language EmptyDataDecls #-}
 {-# language PatternSynonyms #-}
@@ -10,7 +11,8 @@ import Data.List (elemIndex)
 import Data.Primitive.PrimArray
 
 import Data.IntMap.Strict (IntMap)
-import qualified Data.IntMap.Strict as IM
+import Data.IntSet (IntSet)
+import qualified Data.IntSet as IS
 
 import Unison.Var (Var)
 import Unison.ABT.Normalized (pattern TAbss)
@@ -19,7 +21,6 @@ import Unison.Runtime.ANF
   , ANormalT
   , ANormalTF(..)
   , Branched(..)
-  , Handler(..)
   , Func(..)
   , pattern TVar
   , pattern TLit
@@ -276,7 +277,7 @@ data Instr
   | Print !Int -- index of the primitive value to print
 
   -- Put a delimiter on the continuation
-  | Reset !Int -- prompt id
+  | Reset !IntSet -- prompt ids
 
 data Section
   -- Apply a function to arguments. This is the 'slow path', and
@@ -317,6 +318,8 @@ data Section
   -- the first are lost on return to the second.
   | Let !Section !Section
 
+  | Die String
+
 data Comb
   = Lam !Int -- Number of unboxed arguments
         !Int -- Number of boxed arguments
@@ -337,20 +340,20 @@ data Branch
   | Test2 !Int !Section    -- if tag == m then ...
           !Int !Section    -- else if tag == n then ...
           !Section         -- else ...
-  | TestT (IntMap Section)
+  | TestT !(IntMap Section)
 
-type Ctx v = [Maybe v]
+type Ctx v = [v]
 
 ctxResolve :: Var v => Ctx v -> v -> Int
 ctxResolve ctx u
-  | Just i <- elemIndex (Just u) ctx = i
+  | Just i <- elemIndex u ctx = i
   | otherwise = error $ "ctxResolve: bad variable scoping: " ++ show u
 
 emitSection :: Var v => Ctx v -> ANormal v -> Section
 emitSection ctx (TLet u bu bo)
-  = emitLet ctx bu $ emitSection (Just u : ctx) bo
+  = emitLet ctx bu $ emitSection (u : ctx) bo
 emitSection ctx (TName u f as bo)
-  = Ins (Name f $ emitArgs ctx as) $ emitSection (Just u : ctx) bo
+  = Ins (Name f $ emitArgs ctx as) $ emitSection (u : ctx) bo
 emitSection ctx (TVar v) = Yield . BArg1 $ ctxResolve ctx v
 emitSection ctx (TApv v args)
   = App False (Stk $ ctxResolve ctx v) $ emitArgs ctx args
@@ -375,11 +378,13 @@ emitSection _   (TLit l)
 -- Currently implementing boxed integer matching
 emitSection ctx (TMatch v cs)
   = Ins (Unpack $ ctxResolve ctx v)
-  $ Match i $ emitBranches [Nothing] ctx cs
-  where i | MatchIntegral _ <- cs = 1
-          | otherwise = 0
-emitSection ctx (THnd cs b)
-  = emitHandler ctx cs $ emitSection ctx b
+  $ emitMatching ctx cs
+emitSection ctx (THnd rs h df b)
+  = Ins (Reset $ IS.fromList rs)
+  $ flip (foldr (\r -> Ins (SetDyn r i))) rs
+  $ maybe id (\(TAbss us d) l -> Let l $ emitSection (us ++ ctx) d) df
+  $ emitSection ctx b
+  where !i = ctxResolve ctx h
 emitSection _ _ = error "emitSection: unhandled code"
 
 emitLet :: Var v => Ctx v -> ANormalT v -> Section -> Section
@@ -409,18 +414,20 @@ emitP2 :: Prim2 -> Args -> Instr
 emitP2 p (UArg2 i j) = Prim2 p i j
 emitP2 _ _ = error "prim ops must be saturated"
 
-emitBranches :: Var v => Ctx v -> Ctx v -> Branched (ANormal v) -> Branch
-emitBranches tctx ctx bs
-  = TestT $ IM.map (emitCase tctx ctx) $ cases bs
+emitMatching :: Var v => Ctx v -> Branched (ANormal v) -> Section
+emitMatching _   MatchEmpty = Die "empty match"
+emitMatching ctx (MatchIntegral cs)
+  = Match 1 . TestT $ fmap (emitCase ctx) cs
+emitMatching ctx (MatchData _ cs)
+  = Match 0 . TestT $ fmap (emitCase ctx) cs
+emitMatching ctx (MatchRequest hs)
+  = Match 0 . TestT $ fmap f hs
+  where
+  f cs = Match 1 . TestT $ fmap (emitCase ctx) cs
 
-emitHandler
-  :: Var v => Ctx v -> Handler (ANormal v) -> Section -> Section
-emitHandler _   (Hndl _  _ ) _
-  = error "TODO: handler"
-
-emitCase :: Var v => Ctx v -> Ctx v -> ANormal v -> Section
-emitCase tctx ctx (TAbss vs bo)
-  = emitSection (tctx ++ fmap Just vs ++ ctx) bo
+emitCase :: Var v => Ctx v -> ANormal v -> Section
+emitCase ctx (TAbss vs bo)
+  = emitSection (vs ++ ctx) bo
 
 emitLit :: ANF.Lit -> Instr
 emitLit l = Lit i
