@@ -148,6 +148,9 @@ builtinDataDecls = rs1 ++ rs
     , ((), v "Link.Type", Type.typeLink () `arr` var "Link")
     ]
 
+builtinEffectDecls :: [(v, Reference.Id, DD.EffectDeclaration' v ())]
+builtinEffectDecls = []
+
 pattern UnitRef <- (unUnitRef -> True)
 pattern PairRef <- (unPairRef -> True)
 pattern OptionalRef <- (unOptionalRef -> True)
