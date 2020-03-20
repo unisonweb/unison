@@ -159,7 +159,7 @@ requalify hq r = case hq of
   HashQualified n _ -> fromNamedReferent n r
   HashOnly _        -> fromReferent r
 
--- this implementation shows HashOnly before the others, because None < Some. 
+-- this implementation shows HashOnly before the others, because None < Some.
 -- Flip it around carefully if HashOnly should come last.
 instance Ord n => Ord (HashQualified' n) where
   compare a b = case compare (toName a) (toName b) of

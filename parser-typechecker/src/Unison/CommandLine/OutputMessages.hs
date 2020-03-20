@@ -670,7 +670,9 @@ notifyUser dir o = case o of
       else "Edited Terms:" `P.hang`
               P.column2 (prettyTermEdit <$> R.toList terms),
       if R.null types && R.null terms then "This patch is empty."
-      else mempty
+      else tip . P.string $ "To remove entries from a patch, use "
+           <> IP.deleteTermReplacementCommand <> " or "
+           <> IP.deleteTypeReplacementCommand <> ", as appropriate."
       ]
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
@@ -799,6 +801,8 @@ notifyUser dir o = case o of
     P.wrap "Try again with a few more hash characters to disambiguate."
     ]
   BadDestinationBranch _ -> pure "That destination namespace is bad."
+  BadName n ->
+    pure . P.wrap $ P.string n <> " is not a kind of name I understand."
   TermNotFound' sh ->
     pure $ "I could't find a term with hash "
          <> (prettyShortHash sh)

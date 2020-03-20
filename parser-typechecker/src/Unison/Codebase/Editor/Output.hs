@@ -192,6 +192,7 @@ data Output v
   | NoBranchWithHash ShortBranchHash
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
+  | BadName String
   deriving (Show)
 
 data ReflogEntry =
@@ -263,6 +264,7 @@ isFailure o = case o of
   TermAmbiguous{} -> True
   BranchHashAmbiguous{} -> True
   BadDestinationBranch{} -> True
+  BadName{} -> True
   BranchNotFound{} -> True
   NameNotFound{} -> True
   PatchNotFound{} -> True
