@@ -29,7 +29,6 @@ module Unison.Reference
 import Unison.Prelude
 
 import qualified Data.Map        as Map
-import           Data.Maybe      (fromJust)
 import qualified Data.Set        as Set
 import qualified Data.Text       as Text
 import qualified Unison.Hash     as H
@@ -121,8 +120,9 @@ componentFor (  DerivedId (Id h _ n)) = Component
   )
 
 derivedBase32Hex :: Text -> Pos -> Size -> Reference
-derivedBase32Hex b32Hex i n = DerivedId (Id (fromJust h) i n)
+derivedBase32Hex b32Hex i n = DerivedId (Id (fromMaybe msg h) i n)
   where
+  msg = error $ "Reference.derivedBase32Hex " <> show h
   h = H.fromBase32Hex b32Hex
 
 unsafeFromText :: Text -> Reference

@@ -71,6 +71,7 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyName, prettyShortHash,
                                                 styleHashQualified,
                                                 styleHashQualified', prettyHashQualified')
+import qualified Unison.NamePrinter            as NP
 import           Unison.Names2                 (Names'(..), Names0)
 import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names
@@ -323,7 +324,25 @@ notifyUser dir o = case o of
     else putPretty' "  🚫  "
     pure mempty
 
-  LinkFailure input -> pure $ P.warnCallout . P.shown $ input
+  MetadataMissingType ppe ref -> pure . P.fatalCallout . P.lines $ [
+    P.wrap $ "The metadata value " <> P.red (prettyTermName ppe ref)
+          <> "is missing a type signature in the codebase.",
+    "",
+    P.wrap $ "This might be due to pulling an incomplete"
+          <> "or invalid codebase, or because files inside the codebase"
+          <> "are being deleted external to UCM."
+    ]         
+  MetadataAmbiguous ppe [] -> pure . P.warnCallout .
+    P.wrap $ "Nothing to do. I couldn't find any matching metadata."
+  MetadataAmbiguous ppe refs -> pure . P.warnCallout . P.lines $ [
+    P.wrap $ "I'm not sure which metadata value you're referring to"
+          <> "since there are multiple matches:",
+    "",
+    P.indentN 2 $ P.spaced (P.blue . prettyTermName ppe <$> refs),
+    "",
+    tip "Try again and supply one of the above definitions explicitly."
+    ]
+
   EvaluationFailure err -> pure err
   SearchTermsNotFound hqs | null hqs -> pure mempty
   SearchTermsNotFound hqs ->
@@ -1286,7 +1305,7 @@ listOfLinks ::
 listOfLinks _ [] = pure . P.callout "😶" . P.wrap $
   "No results. Try using the " <>
   IP.makeExample IP.link [] <>
-  "command to add outgoing links to a definition."
+  "command to add metadata to a definition."
 listOfLinks ppe results = pure $ P.lines [
     P.numberedColumn2 num [
     (P.syntaxToColor $ prettyHashQualified hq, ": " <> prettyType typ) | (hq,typ) <- results
@@ -1417,7 +1436,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
           -- [ "peach  ┐"
           -- , "peach' ┘"]
           olds' :: [Numbered Pretty] =
-            map (\(oldhq, oldp) -> numHQ oldPath oldhq r <&> (\n -> n <> " " <> oldp))
+            map (\(oldhq, oldp) -> numHQ' oldPath oldhq r <&> (\n -> n <> " " <> oldp))
               . (zip (toList olds))
               . P.boxRight
               . map (P.rightPad leftNamePad . phq')
@@ -1435,7 +1454,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
             addedLabel   = "(added)"
             removedLabel = "(removed)"
             number label name =
-              numHQ newPath name r <&>
+              numHQ' newPath name r <&>
                 (\num -> num <> " " <> phq' name <> " " <> label)
 
           buildTable :: [Numbered Pretty] -> [Numbered Pretty] -> Numbered Pretty
@@ -1499,7 +1518,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
       pure . P.column2 $ zip nums (boxLeft decls)
     prettyLine :: Reference -> Maybe (DD.DeclOrBuiltin v a) -> (HQ'.HashQualified, [OBD.MetadataDisplay v a]) -> Numbered (Pretty, Pretty)
     prettyLine r odecl (hq, mds) = do
-      n <- numHQ newPath hq (Referent.Ref r)
+      n <- numHQ' newPath hq (Referent.Ref r)
       pure . (n,) $ prettyDecl hq odecl <> case length mds of
         0 -> mempty
         c -> " (+" <> P.shown c <> " metadata)"
@@ -1514,7 +1533,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
           boxLeft = case hqmds of _:_:_ -> P.boxLeft; _ -> id
       pure $ zip3 nums (boxLeft names) decls
     prettyLine r otype (hq, mds) = do
-      n <- numHQ newPath hq r
+      n <- numHQ' newPath hq r
       pure . (n, phq' hq, ) $ ": " <> prettyType otype <> case length mds of
         0 -> mempty
         c -> " (+" <> P.shown c <> " metadata)"
@@ -1556,7 +1575,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
           boxLeft = case hqs of _:_:_ -> P.boxLeft; _ -> id
       pure . P.column2 $ zip nums (boxLeft decls)
     prettyLine r odecl hq = do
-      n <- numHQ newPath hq (Referent.Ref r)
+      n <- numHQ' newPath hq (Referent.Ref r)
       pure (n, prettyDecl hq odecl)
 
   prettyRemoveTerms :: [OBD.RemovedTermDisplay v a] -> Numbered Pretty
@@ -1572,16 +1591,16 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
           boxLeft = case hqs of _:_ -> P.boxLeft; _ -> id
       pure $ zip3 nums (boxLeft names) decls
     prettyLine1 r otype hq = do
-      n <- numHQ newPath hq r
+      n <- numHQ' newPath hq r
       pure (n, phq' hq, ": " <> prettyType otype)
     prettyLine r hq = do
-      n <- numHQ newPath hq r
+      n <- numHQ' newPath hq r
       pure (n, phq' hq, mempty)
 
   downArrow = P.bold "↓"
   mdTypeLine :: Path.Absolute -> OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)
   mdTypeLine p (hq, r, odecl, mddiff) = do
-    n <- numHQ p hq (Referent.Ref r)
+    n <- numHQ' p hq (Referent.Ref r)
     fmap ((n,) . P.linesNonEmpty) . sequence $
       [ pure $ prettyDecl hq odecl
       , P.indentN leftNumsWidth <$> prettyMetadataDiff mddiff ]
@@ -1590,7 +1609,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
   -- - 3. AllRightsReserved : License
   mdTermLine :: Path.Absolute -> Int -> OBD.TermDisplay v a -> Numbered (Pretty, Pretty)
   mdTermLine p namesWidth (hq, r, otype, mddiff) = do
-    n <- numHQ p hq r
+    n <- numHQ' p hq r
     fmap ((n,) . P.linesNonEmpty) . sequence $
       [ pure $ P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
       , prettyMetadataDiff mddiff ]
@@ -1619,21 +1638,27 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
     where
     elem p x (hq, r, otype) = do
       num <- numHQ p hq r
-      pure (x <> num <> " " <> phq' hq, ": " <> prettyType otype)
+      pure (x <> num <> " " <> phq hq, ": " <> prettyType otype)
 
   prettyType = maybe (P.red "type not found") (TypePrinter.pretty ppe)
   prettyDecl hq =
     maybe (P.red "type not found")
           (P.syntaxToColor . DeclPrinter.prettyDeclOrBuiltinHeader (HQ'.toHQ hq))
   phq' :: _ -> Pretty = P.syntaxToColor . prettyHashQualified'
+  phq  :: _ -> Pretty = P.syntaxToColor . prettyHashQualified
   --
   -- DeclPrinter.prettyDeclHeader : HQ -> Either
   numPatch :: Path.Absolute -> Name -> Numbered Pretty
   numPatch prefix name =
     addNumberedArg . Name.toString . Name.makeAbsolute $ Path.prefixName prefix name
 
-  numHQ :: Path.Absolute -> HQ'.HashQualified -> Referent -> Numbered Pretty
-  numHQ prefix hq r = addNumberedArg (HQ'.toString hq')
+  numHQ :: Path.Absolute -> HQ.HashQualified -> Referent -> Numbered Pretty
+  numHQ prefix hq r = addNumberedArg (HQ.toString hq')
+    where
+    hq' = HQ.requalify (fmap (Name.makeAbsolute . Path.prefixName prefix) hq) r
+
+  numHQ' :: Path.Absolute -> HQ'.HashQualified -> Referent -> Numbered Pretty
+  numHQ' prefix hq r = addNumberedArg (HQ'.toString hq')
     where
     hq' = HQ'.requalify (fmap (Name.makeAbsolute . Path.prefixName prefix) hq) r
 
@@ -1831,6 +1856,10 @@ prettyDiff diff = let
        ]
      else mempty
    ]
+
+prettyTermName :: PPE.PrettyPrintEnv -> Referent -> Pretty
+prettyTermName ppe r = P.syntaxToColor $
+  prettyHashQualified (PPE.termName ppe r)
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of
