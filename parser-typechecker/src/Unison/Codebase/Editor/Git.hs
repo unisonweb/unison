@@ -61,34 +61,40 @@ pullBranch localPath uri treeish = do
 pullGitRootBranch
   :: MonadIO m
   => FilePath
-  -> BranchLoadMode
   -> Codebase m v a
   -> Text
   -> Maybe Text
   -> ExceptT GitError m (Branch m)
-pullGitRootBranch localPath loadMode codebase url treeish =
-  pullGitBranch localPath codebase url treeish (Left loadMode)
+pullGitRootBranch localPath codebase url treeish =
+  pullGitBranch localPath codebase url treeish Nothing
 
 -- pull repo & load arbitrary branch
 -- if `loadInfo` is Left, we try to load the root branch;
 -- if Right, we try to load the specified hash
 pullGitBranch
-  :: MonadIO m
+  :: forall m v a
+   . MonadIO m
   => FilePath
   -> Codebase m v a
   -> Text
   -> Maybe Text
-  -> Either BranchLoadMode ShortBranchHash
+  -> Maybe ShortBranchHash
   -> ExceptT GitError m (Branch m)
-pullGitBranch localPath codebase url treeish loadInfo = do
+pullGitBranch localPath codebase url treeish sbh = do
   pullBranch localPath url treeish
-  branch <- case loadInfo of
-    Left loadMode -> lift $ FC.getRootBranch loadMode gitCodebasePath
-    Right sbh -> do
+  branch :: (Branch m) <- case sbh of
+    Nothing -> lift (FC.getRootBranch gitCodebasePath) >>= \case
+      Left Codebase.NoRootBranch -> pure Branch.empty
+      Left (Codebase.CouldntLoadRootBranch h) ->
+        throwError $ Couldn'tLoadRootBranch url treeish sbh h
+      Right b -> pure b
+    Just sbh -> do
       branchCompletions <- lift $ FC.branchHashesByPrefix gitCodebasePath sbh
       case toList branchCompletions of
         [] -> throwError $ NoRemoteNamespaceWithHash url treeish sbh
-        [h] -> lift $ FC.branchFromFiles FC.FailIfMissing gitCodebasePath h
+        [h] -> (lift $ FC.branchFromFiles gitCodebasePath h) >>= \case
+          Just b -> pure b
+          Nothing -> throwError $ NoRemoteNamespaceWithHash url treeish sbh
         _ -> throwError $ RemoteNamespaceHashAmbiguous url treeish sbh branchCompletions
   lift $ Codebase.syncFromDirectory codebase gitCodebasePath
   pure branch

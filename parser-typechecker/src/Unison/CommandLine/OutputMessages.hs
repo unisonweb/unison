@@ -57,6 +57,7 @@ import           Unison.PrettyTerminal          ( clearCurrentLine
                                                 )
 import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
+import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.DeclPrinter            as DeclPrinter
 import qualified Unison.HashQualified          as HQ
@@ -620,6 +621,19 @@ notifyUser dir o = case o of
             Nothing -> mempty
           ]
         _ -> "⁉️ Unison bug - push command expected"
+    Couldn'tLoadRootBranch url treeish (Just sbh) hash -> P.wrap
+      $ "I couldn't load the specified root hash"
+      <> prettySBH sbh <> (if SBH.fullFromHash hash == sbh then mempty else
+      "(which expands to" <> fromString (Hash.showBase32Hex hash) <> ")")
+      <> "from the repository at" <> P.blue (P.text url)
+      <> (Monoid.fromMaybe $ treeish <&> \treeish ->
+          "at revision" <> P.blue (P.text treeish))
+    Couldn'tLoadRootBranch url treeish Nothing hash -> P.wrap
+      $ "I couldn't load the designated root hash"
+      <> P.group ("(" <> fromString (Hash.showBase32Hex hash) <> ")")
+      <> "from the repository at" <> P.blue (P.text url)
+      <> (Monoid.fromMaybe $ treeish <&> \treeish ->
+          "at revision" <> P.blue (P.text treeish))
     NoRemoteNamespaceWithHash url treeish sbh -> P.wrap
       $ "The repository at" <> P.blue (P.text url)
       <> (Monoid.fromMaybe $ treeish <&> \treeish ->

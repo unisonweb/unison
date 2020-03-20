@@ -22,6 +22,7 @@ module Unison.Reference
    readSuffix,
    showShort,
    showSuffix,
+   toId,
    toText,
    unsafeId,
    toShortHash) where
@@ -134,6 +135,10 @@ idFromText s = case fromText s of
   Right (Builtin _) -> Nothing
   Right (DerivedId id) -> pure id
 
+toId :: Reference -> Maybe Id
+toId (DerivedId id) = Just id
+toId Builtin{} = Nothing
+
 -- examples:
 -- `##Text.take` — builtins don’t have cycles
 -- `#2tWjVAuc7` — derived, no cycle
@@ -149,12 +154,12 @@ fromText t = case Text.split (=='#') t of
   _ -> bail
   where bail = Left $ "couldn't parse a Reference from " <> Text.unpack t
 
-component :: H.Hash -> [k] -> [(k, Reference)]
+component :: H.Hash -> [k] -> [(k, Id)]
 component h ks = let
   size = fromIntegral (length ks)
-  in [ (k, DerivedId (Id h i size)) | (k, i) <- ks `zip` [0..]]
+  in [ (k, (Id h i size)) | (k, i) <- ks `zip` [0..]]
 
-components :: [(H.Hash, [k])] -> [(k, Reference)]
+components :: [(H.Hash, [k])] -> [(k, Id)]
 components sccs = uncurry component =<< sccs
 
 groupByComponent :: [(k, Reference)] -> [[(k, Reference)]]

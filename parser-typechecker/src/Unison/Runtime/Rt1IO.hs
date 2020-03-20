@@ -82,7 +82,7 @@ import           System.Directory               ( getCurrentDirectory
                                                 )
 import qualified System.IO.Error               as SysError
 import           Type.Reflection                ( Typeable )
-import           Unison.DataDeclaration        as DD
+import           Unison.Builtin.Decls          as DD
 import           Unison.Symbol
 import qualified Unison.Reference              as R
 import qualified Unison.Runtime.Rt1            as RT

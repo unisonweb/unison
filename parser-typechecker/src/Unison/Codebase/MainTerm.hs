@@ -1,9 +1,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 -- | Find a computation of type '{IO} () in the codebase.
 module Unison.Codebase.MainTerm where
@@ -15,7 +12,7 @@ import qualified Unison.Parser                 as Parser
 import qualified Unison.Term                   as Term
 import           Unison.Term                    ( Term )
 import           Unison.Var                     ( Var )
-import qualified Unison.DataDeclaration        as DD
+import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.Referent               as Referent
 import qualified Unison.Names3                 as Names3
