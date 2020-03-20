@@ -36,6 +36,7 @@ import Unison.Reference (Reference)
 import Unison.Hash as Hash
 import qualified Data.Set as Set
 import qualified Unison.ShortHash as SH
+import qualified Unison.Codebase as C
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.BranchUtil as BranchUtil
 
@@ -209,35 +210,37 @@ fromTypechecked files = Codebase
   hashKey = encodeUtf8 . Hash.base32Hex
   branchHashKey = hashKey . Causal.unRawHash
 
---fuse :: forall m v a. Monad m => Codebase m v a -> C.Codebase m v a -> C.Codebase m v a
---fuse ro rw = C.Codebase
---  { C.getTerm = firstOf (getTerm ro) (C.getTerm rw)
---  , C.getTypeOfTermImpl = firstOf (getTypeOfTermImpl ro) (C.getTypeOfTermImpl rw)
---  , C.getTypeDeclaration = firstOf (getTypeDeclaration ro) (C.getTypeDeclaration rw)
---  , C.putTerm = C.putTerm rw
---  , C.putTypeDeclaration = C.putTypeDeclaration rw
---  , C.getRootBranch = C.getRootBranch rw
---  , C.putRootBranch = C.putRootBranch rw
---  , C.rootBranchUpdates = C.rootBranchUpdates rw
---  , C.getBranchForHash = firstOf (getBranchForHash ro) (C.getBranchForHash rw)
---  , C.dependentsImpl = unionOf (dependentsImpl ro) (C.dependentsImpl rw)
---  , C.watches = unionOf (watches ro) (C.watches rw)
---  , C.getWatch = \t -> firstOf (getWatch ro t) (C.getWatch rw t)
---  , C.putWatch = C.putWatch rw
---  , C.getReflog = C.getReflog rw
---  , C.appendReflog = C.appendReflog rw
---  , C.termsOfTypeImpl = unionOf (termsOfTypeImpl ro) (C.termsOfTypeImpl rw)
---  , C.termsMentioningTypeImpl = unionOf (termsMentioningTypeImpl ro) (C.termsMentioningTypeImpl rw)
---  , C.termReferentsByPrefix = unionOf (termReferentsByPrefix ro) (C.termReferentsByPrefix rw)
---  , C.termReferencesByPrefix = unionOf (termReferencesByPrefix ro) (C.termReferencesByPrefix rw)
---  , C.typeReferencesByPrefix = unionOf (typeReferencesByPrefix ro) (C.typeReferencesByPrefix rw)
---  , C.branchHashesByPrefix = unionOf (branchHashesByPrefix ro) (C.branchHashesByPrefix rw)
---  , C.hashLength = pure 10 -- would have to combine two tries; `max` won't cut it
---  , C.branchHashLength = pure 10 -- same thing
---  , C.syncFromDirectory = error "delete me"
---  , C.syncToDirectory = error "delete me"
---  }
---  where
---  firstOf a b i =
---    a i >>= maybe (b i) (pure . Just)
---  unionOf a b i = (<>) <$> a i <*> b i
+fuseRW :: forall m v a. Monad m => Codebase m v a -> C.Codebase m v a -> C.Codebase m v a
+fuseRW ro rw = C.Codebase
+  { C.getTerm = firstOf (getTerm ro) (C.getTerm rw)
+  , C.getTypeOfTermImpl = firstOf (getTypeOfTermImpl ro) (C.getTypeOfTermImpl rw)
+  , C.getTypeDeclaration = firstOf (getTypeDeclaration ro) (C.getTypeDeclaration rw)
+  , C.putTerm = C.putTerm rw
+  , C.putTypeDeclaration = C.putTypeDeclaration rw
+  , C.getRootBranch = C.getRootBranch rw
+  , C.putRootBranch = C.putRootBranch rw
+  , C.rootBranchUpdates = C.rootBranchUpdates rw
+  , C.getBranchForHash = firstOf (getBranchForHash ro) (C.getBranchForHash rw)
+  , C.dependentsImpl = unionOf (dependentsImpl ro) (C.dependentsImpl rw)
+  , C.watches = unionOf (watches ro) (C.watches rw)
+  , C.getWatch = \t -> firstOf (getWatch ro t) (C.getWatch rw t)
+  , C.putWatch = C.putWatch rw
+  , C.getReflog = C.getReflog rw
+  , C.appendReflog = C.appendReflog rw
+  , C.termsOfTypeImpl = unionOf (termsOfTypeImpl ro) (C.termsOfTypeImpl rw)
+  , C.termsMentioningTypeImpl = unionOf (termsMentioningTypeImpl ro) (C.termsMentioningTypeImpl rw)
+  , C.termReferentsByPrefix = unionOf (termReferentsByPrefix ro) (C.termReferentsByPrefix rw)
+  , C.termReferencesByPrefix = unionOf (termReferencesByPrefix ro) (C.termReferencesByPrefix rw)
+  , C.typeReferencesByPrefix = unionOf (typeReferencesByPrefix ro) (C.typeReferencesByPrefix rw)
+  , C.branchHashesByPrefix = unionOf (branchHashesByPrefix ro) (C.branchHashesByPrefix rw)
+  , C.hashLength = pure 10 -- would have to combine two tries; `max` won't cut it
+  , C.branchHashLength = pure 10 -- same thing
+  -- these are wrong, but it might not be noticeable?
+  -- eventually, remove these methods from the interface!
+  , C.syncFromDirectory = C.syncFromDirectory rw
+  , C.syncToDirectory = C.syncToDirectory rw
+  }
+  where
+  firstOf a b i =
+    a i >>= maybe (b i) (pure . Just)
+  unionOf a b i = (<>) <$> a i <*> b i

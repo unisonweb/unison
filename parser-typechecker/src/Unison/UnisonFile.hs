@@ -116,6 +116,9 @@ pattern TypecheckedUnisonFile ds es tlcs wcs hts <-
                           wcs
                           (fmap (over _1 Reference.DerivedId) -> hts)
 
+-- todo: this is confusing, right?
+-- currently: create a degenerate TypecheckedUnisonFile
+--            multiple definitions of "top-level components" non-watch vs w/ watch
 typecheckedUnisonFile :: Var v
                       => Map v (Reference.Id, DataDeclaration' v a)
                       -> Map v (Reference.Id, EffectDeclaration' v a)

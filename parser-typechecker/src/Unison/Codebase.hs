@@ -93,26 +93,6 @@ bootstrapNames :: Names.Names0
 bootstrapNames =
   Builtin.names0 <> UF.typecheckedToNames0 IOSource.typecheckedFile
 
----- | Write all of the builtins types and IO types into the codebase. Returns the names of builtins
----- but DOES NOT add these names to the namespace.
---initializeBuiltinCode :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
---initializeBuiltinCode c = do
---  let uf = (UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
---                                     (Map.fromList Builtin.builtinEffectDecls)
---                                     mempty mempty)
---  addDefsToCodebase c uf
---  addDefsToCodebase c IOSource.typecheckedFile
---  pure ()
-
-
-
------- | Write all of the builtins types and IO types into the codebase and put their
------- names under .builtin
---initializeCodebase :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
---initializeCodebase c = do
---  initializeBuiltinCode c
---  putRootBranch c (Branch.one Branch.empty0)
-
 -- Feel free to refactor this to use some other type than TypecheckedUnisonFile
 -- if it makes sense to later.
 addDefsToCodebase :: forall m v a. (Monad m, Var v)

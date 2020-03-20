@@ -35,6 +35,7 @@ library
 
   exposed-modules:
     Unison.Builtin
+    Unison.Builtin.Codebase
     Unison.Builtin.Decls
     Unison.Codecs
     Unison.Codebase

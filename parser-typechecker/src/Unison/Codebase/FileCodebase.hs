@@ -109,6 +109,8 @@ import qualified Unison.ShortHash as SH
 import qualified Unison.ConstructorType as CT
 import Unison.Util.Monoid (foldMapM)
 import Control.Error (rightMay, runExceptT, ExceptT(..))
+import qualified Unison.Codebase.ReadOnly as RO
+import qualified Unison.Builtin.Codebase as BC
 
 type CodebasePath = FilePath
 
@@ -139,6 +141,7 @@ initCodebaseAndExit mdir = do
   _ <- initCodebase dir
   exitSuccess
 
+-- initializes a new codebase here (i.e. `ucm -codebase dir init`)
 initCodebase :: FilePath -> IO (Codebase IO Symbol Ann)
 initCodebase dir = do
   let path = dir </> codebasePath
@@ -163,27 +166,19 @@ initCodebase dir = do
 -- get the codebase in dir, or in the home directory if not provided.
 getCodebaseOrExit :: Maybe FilePath -> IO (Codebase IO Symbol Ann)
 getCodebaseOrExit mdir = do
-  (dir, errMsg) <- case mdir of
-    Just dir -> do
-      dir' <- P.string <$> canonicalizePath dir
-      let errMsg = P.lines ["No codebase exists in " <> dir'
-                           , "Run `ucm -codebase " <> P.string dir <> " init` to create one, then try again!"]
-      pure ( dir, errMsg)
-    Nothing -> do
-      dir <- getHomeDirectory
-      let errMsg = P.lines [ "No codebase exists in " <> P.string dir
-                           , "Run `ucm init` to create one, then try again!" ]
-      pure (dir, errMsg)
-
+  dir <- getCodebaseDir mdir
+  prettyDir <- P.string <$> canonicalizePath dir
+  let errMsg = P.lines
+        [ "No codebase exists in " <> prettyDir
+        , "Run `ucm -codebase " <> prettyDir
+          <> " init` to create one, then try again!"]
   let path = dir </> codebasePath
-  let theCodebase = codebase1 V1.formatSymbol formatAnn path
---  initialize path
---  error "todo: figure out who's hosting builtins/io"
---  Codebase.initializeBuiltinCode theCodebase
+  let fileCodebase = codebase1 V1.formatSymbol formatAnn path
+  let fusedCodebase = RO.fuseRW BC.codebase fileCodebase
   unlessM (exists path) $ do
     PT.putPrettyLn' errMsg
     exitFailure
-  pure theCodebase
+  pure fusedCodebase
 
 getCodebaseDir :: Maybe FilePath -> IO FilePath
 getCodebaseDir mdir =
