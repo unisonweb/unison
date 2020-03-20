@@ -302,13 +302,16 @@ loop = do
         typeConflicted src = nameConflicted src Set.empty
         termConflicted src tms = nameConflicted src tms Set.empty
         hashConflicted src = respond . HashAmbiguous src
-        hqNameQuery hqs = do
-          parseNames <- makeHistoricalParsingNames $ Set.fromList hqs
+        hqNameQuery' doSuffixify hqs = do
+          parseNames0 <- makeHistoricalParsingNames $ Set.fromList hqs
+          let parseNames = (if doSuffixify then Names3.suffixify else id) parseNames0
           let resultss = searchBranchExact hqLength parseNames hqs
               (misses, hits) =
                 partition (\(_, results) -> null results) (zip hqs resultss)
               results = List.sort . uniqueBy SR.toReferent $ hits >>= snd
           pure (misses, results)
+        hqNameQuery = hqNameQuery' False
+        hqNameQuerySuffixify = hqNameQuery' True
         typeReferences :: [SearchResult] -> [Reference]
         typeReferences rs
           = [ r | SR.Tp (SR.TypeResult _ r _) <- rs ]
@@ -982,16 +985,19 @@ loop = do
       DeleteTermI hq -> delete getHQ'Terms       (const Set.empty) hq
 
       DisplayI outputLoc hq -> do
-        parseNames <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
+        parseNames0 <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
+        -- use suffixed names for resolving the argument to display
+        let parseNames = Names3.suffixify parseNames0
         let results = Names3.lookupHQTerm hq parseNames
         if Set.null results then
           respond $ SearchTermsNotFound [hq]
         else if Set.size results > 1 then
           respond $ TermAmbiguous hq results
-        else doDisplay outputLoc parseNames (Set.findMin results)
+        -- ... but use the unsuffixed names for display
+        else doDisplay outputLoc parseNames0 (Set.findMin results)
 
       ShowDefinitionI outputLoc query -> do
-        (misses, results) <- hqNameQuery query
+        (misses, results) <- hqNameQuerySuffixify query
         results' <- loadSearchResults results
         let termTypes :: Map.Map Reference (Type v Ann)
             termTypes =
