@@ -69,11 +69,11 @@ fromTypechecked files = Codebase
       . fmap snd
       . Trie.lookup (branchHashKey h)
       $ branchesTrie
-  , dependentsImpl = error "todo: ReadOnly.dependentsImpl"
+  , dependentsImpl = pure . flip Relation.lookupRan dependencies
   , watches = pure . toList . Map.keysSet . Monoid.fromMaybe . flip Map.lookup watches
   , getWatch = \k r -> pure . Map.lookup r . Monoid.fromMaybe $ Map.lookup k watches
   , termsOfTypeImpl = pure . flip Relation.lookupDom termsOfType
-  , termsMentioningTypeImpl = error "todo: ReadOnly.termsMentioningTypeImpl"
+  , termsMentioningTypeImpl = pure . flip Relation.lookupDom termsMentioningType
   , hashLength = pure 10
   , termReferencesByPrefix = \sh ->
       pure
@@ -122,23 +122,35 @@ fromTypechecked files = Codebase
   (terms, typeOfTerms) = foldMap doFile files where
     doFile = foldMap doTerm . UF.hashTermsId
     doTerm (id, tm, tp) = (Map.singleton id tm, Map.singleton id tp)
-  termsOfType :: Relation Reference Referent.Id
-  termsOfType = foldMap doFile files where
+  termsOfType, termsMentioningType :: Relation Reference Referent.Id
+  (termsOfType, termsMentioningType) = foldMap doFile files where
     -- Semigroup a => Semigroup (x -> a)
     doFile = foldMap doTerm . UF.hashTermsId
            <> foldMap (doCtor CT.Data id) . UF.dataDeclarationsId'
            <> foldMap (doCtor CT.Effect DD.toDataDecl) . UF.effectDeclarationsId'
     doTerm :: (Reference.Id, Term v a, Type v a)
-           -> Relation Reference Referent.Id
+           -> (Relation Reference Referent.Id -- termsOfType
+              ,Relation Reference Referent.Id) -- termsMentioningType
     doTerm (id, _tm, tp) =
-        Relation.singleton (Type.toReference tp) (Referent.Ref' id)
+      (Relation.singleton (Type.toReference tp) (Referent.Ref' id)
+      ,Relation.insertManyDom (Type.toReferenceMentions tp) (Referent.Ref' id) mempty)
     doCtor :: CT.ConstructorType
            -> (x -> DD.DataDeclaration' v a)
            -> (Reference.Id, x)
-           -> Relation Reference Referent.Id
-    doCtor ct f (id, dd) =
-      Relation.fromList [ (Type.toReference tp, Referent.Con' id i ct)
-                        | (i,(_, _, tp)) <- [0..] `zip` DD.constructors' (f dd)]
+           -> ( Relation Reference Referent.Id -- termsOfType
+              , Relation Reference Referent.Id) -- termsMentioningType
+    doCtor ct f (rid, dd) =
+      ( -- termsOfType
+        Relation.fromList
+          [ (Type.toReference tp, Referent.Con' rid cid ct)
+          | (cid,(_, _, tp)) <- [0..] `zip` DD.constructors' (f dd)]
+      , -- termsMentioningType
+        Relation.fromList
+          [ (mention, referent)
+          | (cid, (_, _, tp)) <- [0..] `zip` DD.constructors' (f dd)
+          , let referent = Referent.Con' rid cid ct
+          , mention <- toList $ Type.toReferenceMentions tp ]
+      )
   typeDeclarations :: Map Reference.Id (Decl v a)
   typeDeclarations = foldMap doFile files where
     doFile = foldMap doDatas . UF.dataDeclarationsId'
@@ -192,6 +204,8 @@ fromTypechecked files = Codebase
         $ UF.typecheckedToNames0 @v uf
     f :: (Branch.Hash, Branch m) -> (ByteString, (Branch.Hash, Branch m))
     f (h, b) = (branchHashKey h, (h, b))
+  dependencies :: Relation Reference.Id Reference
+  dependencies = foldMap UF.dependencies' files
   hashKey = encodeUtf8 . Hash.base32Hex
   branchHashKey = hashKey . Causal.unRawHash
 
