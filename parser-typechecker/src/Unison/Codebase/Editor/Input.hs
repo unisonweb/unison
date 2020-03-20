@@ -15,7 +15,6 @@ import qualified Unison.HashQualified'         as HQ'
 import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
-import           Unison.Reference (Reference)
 import           Unison.ShortHash (ShortHash)
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
@@ -95,12 +94,10 @@ data Input
     -- -- create and remove update directives
     | DeprecateTermI PatchPath Path.HQSplit'
     | DeprecateTypeI PatchPath Path.HQSplit'
-    | AddTermReplacementI PatchPath Reference Reference
-    | AddTypeReplacementI PatchPath Reference Reference
-    | RemoveTermReplacementI PatchPath Reference Reference
-    | RemoveTypeReplacementI PatchPath Reference Reference
-    | ReplaceTermI HashOrHQSplit' HashOrHQSplit' (Maybe PatchPath)
-    | ReplaceTypeI HashOrHQSplit' HashOrHQSplit' (Maybe PatchPath)
+    | ReplaceTermI HQ.HashQualified HQ.HashQualified (Maybe PatchPath)
+    | ReplaceTypeI HQ.HashQualified HQ.HashQualified (Maybe PatchPath)
+    | RemoveTermReplacementI HQ.HashQualified (Maybe PatchPath)
+    | RemoveTypeReplacementI HQ.HashQualified (Maybe PatchPath)
   | UndoI
   -- First `Maybe Int` is cap on number of results, if any
   -- Second `Maybe Int` is cap on diff elements shown, if any
@@ -115,14 +112,14 @@ data Input
   | UnlinkI [Path.HQSplit'] Path.HQSplit'
   -- links from <type>
   | LinksI Path.HQSplit' (Maybe String)
-  | DisplayI OutputLocation String
+  | DisplayI OutputLocation HQ.HashQualified
   | DocsI Path.HQSplit'
   -- other
   | SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
   | FindShallowI Path'
   | FindPatchI
-  | ShowDefinitionI OutputLocation [String]
-  | ShowDefinitionByPrefixI OutputLocation [String]
+  | ShowDefinitionI OutputLocation [HQ.HashQualified]
+  | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified]
   | ShowReflogI
   | UpdateBuiltinsI
   | MergeBuiltinsI
