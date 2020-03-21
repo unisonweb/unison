@@ -46,6 +46,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import Text.Regex.TDFA
 import Control.Lens (view)
+import Control.Error (rightMay)
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
@@ -161,7 +162,7 @@ main
   -> IO ()
 main dir initialPath configFile initialInputs startRuntime codebase = do
   dir' <- shortenDirectory dir
-  root <- Codebase.getRootBranch codebase
+  root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   putPrettyLn $ if Branch.isOne root
     then welcomeMessage dir' <> P.newline <> P.newline <> hintFreshCodebase
     else welcomeMessage dir'

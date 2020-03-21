@@ -29,7 +29,7 @@ import qualified Data.Map as Map
 import qualified Data.Sequence as Sequence
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
-import qualified Unison.DataDeclaration as DD
+import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Pattern as Pattern
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as R

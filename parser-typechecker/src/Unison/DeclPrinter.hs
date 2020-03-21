@@ -22,7 +22,7 @@ import           Unison.NamePrinter             ( styleHashQualified'' )
 import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Referent               as Referent
-import           Unison.Reference               ( Reference )
+import           Unison.Reference               ( Reference(DerivedId) )
 import qualified Unison.Util.SyntaxText        as S
 import           Unison.Util.SyntaxText         ( SyntaxText )
 import qualified Unison.Term                   as Term
@@ -130,7 +130,7 @@ fieldNames env r name dd = case DD.constructors dd of
     vars = [ Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0..Type.arity typ - 1]]
     accessors = DD.generateRecordAccessors (map (,()) vars) (HQ.toVar name) r
     hashes = Term.hashComponents (Map.fromList accessors)
-    names = [ (r, HQ.toString . PPE.termName env . Referent.Ref $ r)
+    names = [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
             | r <- fst <$> Map.elems hashes ]
     fieldNames = Map.fromList
       [ (r, f) | (r, n) <- names

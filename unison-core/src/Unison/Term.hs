@@ -470,6 +470,9 @@ var' = var() . Var.named
 ref :: Ord v => a -> Reference -> Term2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
 
+refId :: Ord v => a -> Reference.Id -> Term2 vt at ap v a
+refId a = ref a . Reference.DerivedId
+
 termLink :: Ord v => a -> Referent -> Term2 vt at ap v a
 termLink a r = ABT.tm' a (TermLink r)
 
@@ -926,8 +929,8 @@ unhashComponent m = let
   in second unhash1 <$> m'
 
 hashComponents
-  :: Var v => Map v (Term v a) -> Map v (Reference, Term v a)
-hashComponents = ReferenceUtil.hashComponents $ ref ()
+  :: Var v => Map v (Term v a) -> Map v (Reference.Id, Term v a)
+hashComponents = ReferenceUtil.hashComponents $ refId ()
 
 -- The hash for a constructor
 hashConstructor'
@@ -938,7 +941,7 @@ hashConstructor' f r cid =
 -- ensure the hashing is always done in the same way
       m = hashComponents (Map.fromList [(Var.named "_" :: Symbol, f r cid)])
   in  case toList m of
-        [(r, _)] -> r
+        [(r, _)] -> Reference.DerivedId r
         _        -> error "unpossible"
 
 hashConstructor :: Reference -> Int -> Reference

@@ -35,6 +35,7 @@ import qualified System.IO as IO
 import qualified Crypto.Random as Random
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Path as Path
@@ -45,6 +46,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import qualified Unison.Codebase.Editor.Output as Output
 import Control.Lens (view)
+import Control.Error (rightMay)
 
 type ExpectingError = Bool
 data Hidden = Shown | HideOutput | HideAll
@@ -112,7 +114,7 @@ run dir configFile stanzas codebase = do
     "Running the provided transcript file...",
     ""
     ]
-  root <- Codebase.getRootBranch codebase
+  root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   do
     runtime                  <- startRuntime
     pathRef                  <- newIORef initialPath
@@ -222,10 +224,10 @@ run dir configFile stanzas codebase = do
       loadPreviousUnisonBlock name = do
         ufs <- readIORef unisonFiles
         case Map.lookup name ufs of
-          Just uf -> do
-            return $ LoadSuccess uf
+          Just uf ->
+            return (LoadSuccess uf)
           Nothing ->
-            return $ InvalidSourceNameError
+            return InvalidSourceNameError
 
       cleanup = do Runtime.terminate runtime; cancelConfig
       print o = do

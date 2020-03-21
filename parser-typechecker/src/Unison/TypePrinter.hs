@@ -21,7 +21,7 @@ import           Unison.Util.SyntaxText (SyntaxText)
 import qualified Unison.Util.Pretty    as PP
 import           Unison.Var            (Var)
 import qualified Unison.Var            as Var
-import qualified Unison.DataDeclaration as DD
+import qualified Unison.Builtin.Decls as DD
 
 pretty :: forall v a . (Var v) => PrettyPrintEnv -> Type v a -> Pretty ColorText
 pretty ppe = PP.syntaxToColor . pretty0 ppe mempty (-1)

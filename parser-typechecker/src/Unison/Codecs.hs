@@ -25,7 +25,7 @@ import           Unison.Reference (Reference, pattern Builtin, pattern Derived)
 import qualified Unison.Referent as Referent
 import qualified Unison.ConstructorType as ConstructorType 
 import           Unison.Term
-import           Unison.UnisonFile (UnisonFile(..))
+import           Unison.UnisonFile (UnisonFile, pattern UnisonFile)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var

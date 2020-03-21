@@ -24,7 +24,7 @@ module Unison.Builtin
 
 import Unison.Prelude
 
-import           Data.Bifunctor                 ( second )
+import           Data.Bifunctor                 ( second, first )
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
@@ -33,6 +33,7 @@ import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
                                                 )
+import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Parser                  ( Ann(..) )
 import qualified Unison.Reference              as R
@@ -58,13 +59,15 @@ names = Names names0 mempty
 names0 :: Names0
 names0 = Names3.names0 terms types where
   terms = Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs) <>
-    Rel.fromList [ (Name.fromVar vc, Referent.Con r cid ct)
+    Rel.fromList [ (Name.fromVar vc, Referent.Con (R.DerivedId r) cid ct)
                  | (ct, (_,(r,decl))) <- ((CT.Data,) <$> builtinDataDecls @Symbol) <>
                     ((CT.Effect,) . (second . second) DD.toDataDecl <$> builtinEffectDecls)
                  , ((_,vc,_), cid) <- DD.constructors' decl `zip` [0..]]
   types = Rel.fromList builtinTypes <>
-    Rel.fromList [ (Name.fromVar v, r) | (v,(r,_)) <- builtinDataDecls @Symbol ] <>
-    Rel.fromList [ (Name.fromVar v, r) | (v,(r,_)) <- builtinEffectDecls @Symbol ]
+    Rel.fromList [ (Name.fromVar v, R.DerivedId r)
+                 | (v,(r,_)) <- builtinDataDecls @Symbol ] <>
+    Rel.fromList [ (Name.fromVar v, R.DerivedId r)
+                 | (v,(r,_)) <- builtinEffectDecls @Symbol ]
 
 -- note: this function is really for deciding whether `r` is a term or type,
 -- but it can only answer correctly for Builtins.
@@ -75,27 +78,25 @@ typeLookup :: Var v => TL.TypeLookup v Ann
 typeLookup =
   TL.TypeLookup
     (fmap (const Intrinsic) <$> termRefTypes)
-    (Map.fromList $ map snd builtinDataDecls)
-    (Map.fromList $ map snd builtinEffectDecls)
+    (Map.fromList . map (first R.DerivedId) $ map snd builtinDataDecls)
+    (Map.fromList . map (first R.DerivedId) $ map snd builtinEffectDecls)
 
 constructorType :: R.Reference -> Maybe CT.ConstructorType
 constructorType r = TL.constructorType (typeLookup @Symbol) r
                 <|> Map.lookup r builtinConstructorType
 
--- | parse some builtin data types, and resolve their free variables using
--- | builtinTypes' and those types defined herein
-builtinDataDecls :: Var v => [(v, (R.Reference, DataDeclaration v))]
+builtinDataDecls :: Var v => [(v, (R.Id, DataDeclaration v))]
 builtinDataDecls =
   [ (v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinDataDecls ]
 
-builtinEffectDecls :: Var v => [(v, (R.Reference, EffectDeclaration v))]
-builtinEffectDecls = []
+builtinEffectDecls :: Var v => [(v, (R.Id, EffectDeclaration v))]
+builtinEffectDecls = [ (v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinEffectDecls ]
 
 codeLookup :: (Applicative m, Var v) => CodeLookup v m Ann
 codeLookup = CodeLookup (const $ pure Nothing) $ \r ->
   pure
-    $ lookup r [ (r, Right x) | (R.DerivedId r, x) <- snd <$> builtinDataDecls ]
-  <|> lookup r [ (r, Left x)  | (R.DerivedId r, x) <- snd <$> builtinEffectDecls ]
+    $ lookup r [ (r, Right x) | (r, x) <- snd <$> builtinDataDecls ]
+  <|> lookup r [ (r, Left x)  | (r, x) <- snd <$> builtinEffectDecls ]
 
 -- Relation predicate: Domain depends on range.
 builtinDependencies :: Rel.Relation R.Reference R.Reference

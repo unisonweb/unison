@@ -26,7 +26,7 @@ test = scope "codebase" $ tests
         foo = Var.named "foo"
         -- original binding: `foo = \v1 -> ref`
         binding = (foo, Term.lam () v1 (Term.ref () ref))
-        uf = UF.UnisonFile mempty mempty [binding] mempty
+        uf = UF.UnisonFileId mempty mempty [binding] mempty
         code :: CodeLookup Symbol Identity ()
         code = CodeLookup
           { getTerm = \rid -> pure $

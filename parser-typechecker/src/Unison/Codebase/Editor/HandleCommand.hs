@@ -32,6 +32,7 @@ import           System.FilePath                ( (</>) )
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch         ( Branch )
+import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Editor.Git    as Git
 import qualified Unison.Hash                   as Hash
 import           Unison.Parser                  ( Ann )
@@ -126,14 +127,14 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     TypecheckFile file ambient     -> typecheck' ambient codebase file
     Evaluate ppe unisonFile        -> evalUnisonFile ppe unisonFile
     Evaluate1 ppe term             -> eval1 ppe term
-    LoadLocalRootBranch        -> Codebase.getRootBranch codebase
-    LoadLocalBranch h          -> Codebase.getBranchForHash codebase h
+    LoadLocalRootBranch        -> either (const Branch.empty) id <$> Codebase.getRootBranch codebase
+    LoadLocalBranch h          -> fromMaybe Branch.empty <$> Codebase.getBranchForHash codebase h
     SyncLocalRootBranch branch -> do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
-    LoadRemoteRootBranch loadMode GitRepo {..} -> do
+    LoadRemoteRootBranch GitRepo {..} -> do
       tmp <- tempGitDir url commit
-      runExceptT $ Git.pullGitRootBranch tmp loadMode codebase url commit
+      runExceptT $ Git.pullGitRootBranch tmp codebase url commit
     SyncRemoteRootBranch GitRepo {..} branch -> do
       tmp <- tempGitDir url commit
       runExceptT
@@ -178,7 +179,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
     LoadRemoteShortBranch GitRepo{..} sbh -> do
       tmp <- tempGitDir url commit
-      runExceptT $ Git.pullGitBranch tmp codebase url commit (Right sbh)
+      runExceptT $ Git.pullGitBranch tmp codebase url commit (Just sbh)
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
 
