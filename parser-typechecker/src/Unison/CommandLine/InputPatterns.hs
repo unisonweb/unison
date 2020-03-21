@@ -726,7 +726,7 @@ push :: InputPattern
 push = InputPattern
   "push"
   []
-  [(Optional, gitUrlArg), (Optional, pathArg)]
+  [(Required, gitUrlArg), (Optional, pathArg)]
   (P.lines
     [ P.wrap
       "The `push` command merges a local namespace into a remote namespace."
