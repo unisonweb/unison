@@ -66,7 +66,6 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyName, prettyShortHash,
                                                 styleHashQualified,
                                                 styleHashQualified', prettyHashQualified')
-import qualified Unison.NamePrinter            as NP
 import           Unison.Names2                 (Names'(..), Names0)
 import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names
@@ -327,7 +326,7 @@ notifyUser dir o = case o of
           <> "or invalid codebase, or because files inside the codebase"
           <> "are being deleted external to UCM."
     ]         
-  MetadataAmbiguous ppe [] -> pure . P.warnCallout .
+  MetadataAmbiguous _ppe [] -> pure . P.warnCallout .
     P.wrap $ "Nothing to do. I couldn't find any matching metadata."
   MetadataAmbiguous ppe refs -> pure . P.warnCallout . P.lines $ [
     P.wrap $ "I'm not sure which metadata value you're referring to"
