@@ -1,6 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-unused-imports #-}
-{-# OPTIONS_GHC -fno-warn-unused-binds #-} -- todo: remove me later
-{-# LANGUAGE FunctionalDependencies #-}
 
 module Unison.Codebase.Classes where
 --  ( GetDecls(..)

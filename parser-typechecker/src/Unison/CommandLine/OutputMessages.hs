@@ -1,6 +1,3 @@
-{-# OPTIONS_GHC -Wno-unused-top-binds #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
-{-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 {-# LANGUAGE FlexibleContexts    #-}
@@ -29,7 +26,6 @@ import qualified Control.Monad.State.Strict    as State
 import           Data.Bifunctor                (bimap, first)
 import           Data.List                     (sort, sortOn, stripPrefix)
 import           Data.List.Extra               (nubOrdOn, nubOrd)
-import           Data.ListLike                 (ListLike)
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Data.Sequence                 as Seq
@@ -40,7 +36,6 @@ import           Prelude                       hiding (readFile, writeFile)
 import           System.Directory              (canonicalizePath, doesFileExist)
 import qualified Unison.ABT                    as ABT
 import qualified Unison.UnisonFile             as UF
-import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.GitError
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Patch         as Patch
@@ -72,7 +67,6 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyName, prettyShortHash,
                                                 styleHashQualified,
                                                 styleHashQualified', prettyHashQualified')
-import qualified Unison.NamePrinter            as NP
 import           Unison.Names2                 (Names'(..), Names0)
 import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names
@@ -244,7 +238,7 @@ prettyRemoteNamespace =
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
   Success     -> pure $ P.bold "Done."
-  WarnIncomingRootBranch hashes -> mempty
+  WarnIncomingRootBranch _hashes -> mempty
   -- todo: resurrect this code once it's not triggered by update+propagate
 --  WarnIncomingRootBranch hashes -> putPrettyLn $
 --    if null hashes then P.wrap $
@@ -293,14 +287,14 @@ notifyUser dir o = case o of
     else
       pure $ intercalateMap "\n\n" go (Map.toList md)
       where
-      go (key, rs) =
+      go (_key, rs) =
         displayDefinitions' ppe (Map.restrictKeys types rs)
                                 (Map.restrictKeys terms rs)
   TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n' | n == n' -> pure $
       P.lines [ cache, "", displayTestResults True ppe oks fails ]
-    CachedTests n m -> pure $
+    CachedTests _n m -> pure $
       if m == 0 then "✅  "
       else P.indentN 2 $
            P.lines [ "", cache, "", displayTestResults False ppe oks fails, "", "✅  " ]
@@ -319,7 +313,7 @@ notifyUser dir o = case o of
               <> (P.syntaxToColor $ prettyHashQualified (PPE.termName ppe $ Referent.Ref r))
     pure mempty
 
-  TestIncrementalOutputEnd _ppe (n,total) _r result -> do
+  TestIncrementalOutputEnd _ppe (_n, _total) _r result -> do
     clearCurrentLine
     if isTestOk result then putPretty' "  ✅  "
     else putPretty' "  🚫  "
@@ -333,7 +327,7 @@ notifyUser dir o = case o of
           <> "or invalid codebase, or because files inside the codebase"
           <> "are being deleted external to UCM."
     ]         
-  MetadataAmbiguous ppe [] -> pure . P.warnCallout .
+  MetadataAmbiguous _ppe [] -> pure . P.warnCallout .
     P.wrap $ "Nothing to do. I couldn't find any matching metadata."
   MetadataAmbiguous ppe refs -> pure . P.warnCallout . P.lines $ [
     P.wrap $ "I'm not sure which metadata value you're referring to"
@@ -481,7 +475,7 @@ notifyUser dir o = case o of
       f (i, (p1, p2)) = (P.hiBlack . fromString $ show i <> ".", p1, p2)
     formatEntry :: ShallowListEntry v a -> (P.Pretty P.ColorText, P.Pretty P.ColorText)
     formatEntry = \case
-      ShallowTermEntry r hq ot ->
+      ShallowTermEntry _r hq ot ->
         (P.syntaxToColor . prettyHashQualified' . fmap NameSegment.toName $ hq
         , P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) ot <> P.lit ")" )
       ShallowTypeEntry r hq ->
@@ -491,7 +485,7 @@ notifyUser dir o = case o of
         ((P.syntaxToColor . prettyName . NameSegment.toName) ns <> "/"
         ,case count of
           1 -> P.lit ("(1 definition)")
-          n -> P.lit "(" <> P.shown count <> P.lit " definitions)")
+          _n -> P.lit "(" <> P.shown count <> P.lit " definitions)")
       ShallowPatchEntry ns ->
         ((P.syntaxToColor . prettyName . NameSegment.toName) ns
         ,P.lit "(patch)")
@@ -792,7 +786,7 @@ notifyUser dir o = case o of
     <> "if you want to" <> pushPull "push onto" "pull from" pp
     <> "the latest."
     ]
-  NoBranchWithHash h -> pure . P.callout "😶" $
+  NoBranchWithHash _h -> pure . P.callout "😶" $
     P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> pure $ P.wrap "That's not implemented yet. Sorry! 😬"
   BranchAlreadyExists _ -> pure "That namespace already exists."
@@ -880,7 +874,7 @@ notifyUser dir o = case o of
     renderEntry :: Output.ReflogEntry -> P.Pretty CT.ColorText
     renderEntry (Output.ReflogEntry hash reason) = P.wrap $
       P.blue (prettySBH hash) <> " : " <> P.text reason
-  History cap history tail -> pure $
+  History _cap history tail -> pure $
     P.lines [
       note $ "The most recent namespace hash is immediately below this message.", "",
       P.sep "\n\n" [ go h diff | (h,diff) <- reverse history ], "",
@@ -899,7 +893,7 @@ notifyUser dir o = case o of
         "⊙ " <> prettySBH h
              <> (if null history then mempty else "\n")
         ]
-      E.PageEnd h n -> P.lines [
+      E.PageEnd h _n -> P.lines [
         P.wrap $ "There's more history before the versions shown here." <> ex, "",
         dots, "",
         "⊙ " <> prettySBH h,
@@ -1072,7 +1066,7 @@ displayDefinitions :: Var v => Ord a1 =>
   -> Map Reference.Reference (DisplayThing (DD.Decl v a1))
   -> Map Reference.Reference (DisplayThing (Term v a1))
   -> IO Pretty
-displayDefinitions outputLoc ppe types terms | Map.null types && Map.null terms =
+displayDefinitions _outputLoc _ppe types terms | Map.null types && Map.null terms =
   pure $ P.callout "😶" "No results to display."
 displayDefinitions outputLoc ppe types terms =
   maybe displayOnly scratchAndDisplay outputLoc

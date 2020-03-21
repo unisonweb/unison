@@ -1,5 +1,3 @@
---{-# OPTIONS_GHC -Wno-unused-top-binds #-} -- todo: delete
-
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
