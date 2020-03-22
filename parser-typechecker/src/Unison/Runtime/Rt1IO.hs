@@ -473,8 +473,8 @@ runtime = Runtime terminate eval
       Map.empty
     term <- case Components.minimize' term of
       Left es -> fail . reportBug "B23784210" $
-                 "Term contains duplicate definitions: " <> show (fst <$> es)  
-      Right term -> pure term 
+                 "Term contains duplicate definitions: " <> show (fst <$> es)
+      Right term -> pure term
     r <- try $ RT.run (handleIO' cenv $ S mmap)
                  cenv
                  (IR.compile cenv $ Term.amap (const ()) term)
@@ -496,8 +496,8 @@ toTermOrError ppe r = case r of
       ]
   Right (RT.RError t val) -> do
     msg <- IR.decompile val
-    let errorType = case t of 
-                      RT.ErrorTypeTodo -> "builtin.todo" 
+    let errorType = case t of
+                      RT.ErrorTypeTodo -> "builtin.todo"
                       RT.ErrorTypeBug -> "builtin.bug"
     pure . Left . P.callout icon . P.lines $ [
       P.wrap ("I've encountered a call to" <> P.red errorType

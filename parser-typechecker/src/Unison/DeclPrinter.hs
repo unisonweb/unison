@@ -40,7 +40,7 @@ prettyDecl
   -> HashQualified
   -> DD.Decl v a
   -> Pretty SyntaxText
-prettyDecl ppe r hq d = case d of 
+prettyDecl ppe r hq d = case d of
   Left e -> prettyEffectDecl ppe r hq e
   Right dd -> prettyDataDecl ppe r hq dd
 
@@ -182,7 +182,7 @@ prettyDeclOrBuiltinHeader
   -> DD.DeclOrBuiltin v a
   -> Pretty SyntaxText
 prettyDeclOrBuiltinHeader name (DD.Builtin ctype) = case ctype of
-  CT.Data -> fmt S.DataTypeKeyword "builtin type " <> styleHashQualified'' (fmt S.DataType) name 
+  CT.Data -> fmt S.DataTypeKeyword "builtin type " <> styleHashQualified'' (fmt S.DataType) name
   CT.Effect -> fmt S.DataTypeKeyword "builtin ability " <> styleHashQualified'' (fmt S.DataType) name
 prettyDeclOrBuiltinHeader name (DD.Decl e) = prettyDeclHeader name e
 

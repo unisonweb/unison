@@ -32,9 +32,9 @@ fromNames0 names0 = Branch.one $ addFromNames0 names0 Branch.empty0
 
 -- can produce a pure value because there's no history to traverse
 hashesFromNames0 :: Monad m => Names0 -> Map Branch.Hash (Branch m)
-hashesFromNames0 = deepHashes . fromNames0 where 
+hashesFromNames0 = deepHashes . fromNames0 where
   deepHashes :: Branch m -> Map Branch.Hash (Branch m)
-  deepHashes b = Map.singleton (Branch.headHash b) b 
+  deepHashes b = Map.singleton (Branch.headHash b) b
     <> (foldMap deepHashes . view Branch.children . Branch.head) b
 
 addFromNames0 :: Monad m => Names0 -> Branch0 m -> Branch0 m

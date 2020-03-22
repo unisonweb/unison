@@ -17,7 +17,7 @@ import Unison.Codebase.Editor.RemoteRepo
 
 import qualified Unison.Builtin                as B
 
-import qualified Crypto.Random                 as Random 
+import qualified Crypto.Random                 as Random
 import           Control.Monad.Except           ( runExceptT )
 import qualified Data.Configurator             as Config
 import           Data.Configurator.Types        ( Config )
@@ -108,7 +108,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
  Free.foldWithIndex go
  where
   go :: forall x . Int -> Command IO i v x -> IO x
-  go i x = case x of 
+  go i x = case x of
     -- Wait until we get either user input or a unison file update
     Eval m        -> m
     Input         -> awaitInput
@@ -171,10 +171,10 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     -- all builtin and derived term references & type constructors
     TermReferentsByShortHash sh -> do
       fromCodebase <- Codebase.termReferentsByPrefix codebase sh
-      let fromBuiltins = Set.map Referent.Ref 
+      let fromBuiltins = Set.map Referent.Ref
             . Set.filter (\r -> sh == Reference.toShortHash r)
             $ B.intrinsicTermReferences
-      pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase) 
+      pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase)
     BranchHashLength -> Codebase.branchHashLength codebase
     BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
     LoadRemoteShortBranch GitRepo{..} sbh -> do

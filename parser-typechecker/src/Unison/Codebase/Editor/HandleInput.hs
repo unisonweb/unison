@@ -215,15 +215,15 @@ loop = do
       getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
       getHQ'Types :: Path.HQSplit' -> Set Reference
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
-      getHQTerms :: HQ.HashQualified -> Action' m v (Set Referent) 
+      getHQTerms :: HQ.HashQualified -> Action' m v (Set Referent)
       getHQTerms hq = case hq of
         HQ.NameOnly n -> let
           -- absolute-ify the name, then lookup in deepTerms of root
-          path :: Path.Path' 
+          path :: Path.Path'
           path = Path.fromName' n
           Path.Absolute absPath = resolveToAbsolute path
-          in pure $ R.lookupRan (Path.toName absPath) (Branch.deepTerms root0) 
-        HQ.HashOnly sh -> hashOnly sh 
+          in pure $ R.lookupRan (Path.toName absPath) (Branch.deepTerms root0)
+        HQ.HashOnly sh -> hashOnly sh
         HQ.HashQualified _ sh -> hashOnly sh
         where
         hashOnly sh = eval $ TermReferentsByShortHash sh
@@ -505,7 +505,7 @@ loop = do
                     where
                     go types src = op (src, mdType, mdValue) types
                   in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
-            (_srcle, _srclt, mdValues) -> 
+            (_srcle, _srclt, mdValues) ->
               respond $ MetadataAmbiguous ppe mdValues
         delete
           :: (Path.HQSplit' -> Set Referent) -- compute matching terms

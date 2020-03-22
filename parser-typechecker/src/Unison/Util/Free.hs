@@ -59,7 +59,7 @@ instance Monad (Free f) where
   return = Pure
   Pure a >>= f = f a
   Bind fx f >>= g = Bind fx (f >=> g)
-  
+
 
 instance Applicative (Free f) where
   pure = Pure

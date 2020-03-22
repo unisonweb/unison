@@ -107,7 +107,7 @@ data Input
   | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
   -- `link metadata definitions` (adds metadata to all of `definitions`)
-  | LinkI HQ.HashQualified [Path.HQSplit'] 
+  | LinkI HQ.HashQualified [Path.HQSplit']
   -- `unlink metadata definitions` (removes metadata from all of `definitions`)
   | UnlinkI HQ.HashQualified [Path.HQSplit']
   -- links from <type>

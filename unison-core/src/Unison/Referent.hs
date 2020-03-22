@@ -26,7 +26,7 @@ pattern Con :: Reference -> Int -> ConstructorType -> Referent
 pattern Con r i t = Con' r i t
 {-# COMPLETE Ref, Con #-}
 
-type Id = Referent' R.Id 
+type Id = Referent' R.Id
 
 data Referent' r = Ref' r | Con' r Int ConstructorType
   deriving (Show, Ord, Eq, Functor)

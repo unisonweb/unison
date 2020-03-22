@@ -911,9 +911,9 @@ calcImports im tm = (im', render $ getUses result)
                                                               |> Set.filter (\(k1, _) -> k1 == k1')
                                                               |> Set.map snd)
                           maxk2s = Map.map maximum k2s
-                          err k1 k2 = error $ 
-                            "TermPrinter.longestPrefix not found " 
-                            <> show (k1,k2) 
+                          err k1 k2 = error $
+                            "TermPrinter.longestPrefix not found "
+                            <> show (k1,k2)
                             <> " in " <> show maxk2s
                       in Map.mapWithKey (\k1 k2 -> fromMaybe (err k1 k2) $ Map.lookup (k1, k2) m) maxk2s
     -- Don't do another `use` for a name for which we've already done one, unless the

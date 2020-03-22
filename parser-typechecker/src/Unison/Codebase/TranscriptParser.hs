@@ -259,7 +259,7 @@ run dir configFile stanzas codebase = do
       loop state = do
         writeIORef pathRef (view HandleInput.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
-            rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)) 
+            rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (const $ pure ())
                                      runtime

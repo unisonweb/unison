@@ -167,8 +167,8 @@ transitiveDependencies code seen0 rid = if Set.member rid seen0
     in CL.getTerm code rid >>= \case
       Just t ->
         foldM (transitiveDependencies code) seen (getIds $ Term.dependencies t)
-      Nothing -> 
-        CL.getTypeDeclaration code rid >>= \case 
+      Nothing ->
+        CL.getTypeDeclaration code rid >>= \case
           Nothing        -> pure seen
           Just (Left ed) -> foldM (transitiveDependencies code)
                                   seen

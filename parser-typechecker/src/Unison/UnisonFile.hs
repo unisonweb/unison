@@ -162,7 +162,7 @@ getDecl' uf v =
 -- External type references that appear in the types of the file's terms
 termSignatureExternalLabeledDependencies
   :: Ord v => TypecheckedUnisonFile v a -> Set LabeledDependency
-termSignatureExternalLabeledDependencies 
+termSignatureExternalLabeledDependencies
     (TypecheckedUnisonFile dataDeclarations' effectDeclarations' _ _ hashTerms) =
   Set.difference
     (Set.map LD.typeRef

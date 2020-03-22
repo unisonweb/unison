@@ -329,7 +329,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
   where
   fillMetadata :: Traversable t => PPE.PrettyPrintEnv -> t Metadata.Value -> m (t (MetadataDisplay v a))
   fillMetadata ppe = traverse $ -- metadata values are all terms
-    \(Referent.Ref -> mdRef) -> 
+    \(Referent.Ref -> mdRef) ->
       let name = PPE.termName ppe mdRef
       in (name, mdRef, ) <$> typeOf mdRef
   getMetadata :: Ord r => r -> Name -> R3.Relation3 r Name Metadata.Value -> Set Metadata.Value

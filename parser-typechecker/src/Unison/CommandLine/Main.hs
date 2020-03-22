@@ -37,7 +37,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO
 import qualified System.Console.Haskeline as Line
 import System.IO.Error (isDoesNotExistError)
-import qualified Crypto.Random        as Random   
+import qualified Crypto.Random        as Random
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase as Codebase
@@ -236,7 +236,7 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
       loop state = do
         writeIORef pathRef (view HandleInput.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
-        
+
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (writeIORef rootRef)
                                      runtime
