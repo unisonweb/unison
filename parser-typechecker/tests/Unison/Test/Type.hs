@@ -8,7 +8,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Var as Var
 import qualified Unison.Typechecker as Typechecker
 
-infixr 1 --> 
+infixr 1 -->
 
 (-->) :: Ord v => Type v () -> Type v () -> Type v ()
 (-->) a b = arrow() a b
@@ -23,8 +23,8 @@ test = scope "type" $ tests [
          _ -> crash "unArrows (a -> b) did not return a spine of [a,b]"
   ,
   scope "subtype" $ do
-    let v = Var.named "a" 
-        v2 = Var.named "b" 
+    let v = Var.named "a"
+        v2 = Var.named "b"
         vt = var() v
         vt2 = var() v2
         x = forall() v (nat() --> effect() [vt, builtin() "eff"] (nat())) :: Type Symbol ()

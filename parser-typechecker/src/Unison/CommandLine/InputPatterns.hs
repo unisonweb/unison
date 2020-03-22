@@ -1121,7 +1121,7 @@ link = InputPattern
   (\case
     md : defs -> first fromString $ do
       md <- case HQ.fromString md of
-        Nothing -> Left "Invalid hash qualified identifier for metadata." 
+        Nothing -> Left "Invalid hash qualified identifier for metadata."
         Just hq -> pure hq
       defs <- traverse Path.parseHQSplit' defs
       Right $ Input.LinkI md defs
@@ -1160,10 +1160,10 @@ unlink = InputPattern
   (\case
     md : defs -> first fromString $ do
       md <- case HQ.fromString md of
-        Nothing -> Left "Invalid hash qualified identifier for metadata." 
+        Nothing -> Left "Invalid hash qualified identifier for metadata."
         Just hq -> pure hq
       defs <- traverse Path.parseHQSplit' defs
-      Right $ Input.UnlinkI md defs 
+      Right $ Input.UnlinkI md defs
     _ -> Left (I.help unlink)
   )
 

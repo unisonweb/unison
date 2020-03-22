@@ -326,7 +326,7 @@ notifyUser dir o = case o of
     P.wrap $ "This might be due to pulling an incomplete"
           <> "or invalid codebase, or because files inside the codebase"
           <> "are being deleted external to UCM."
-    ]         
+    ]
   MetadataAmbiguous _ppe [] -> pure . P.warnCallout .
     P.wrap $ "Nothing to do. I couldn't find any matching metadata."
   MetadataAmbiguous ppe refs -> pure . P.warnCallout . P.lines $ [

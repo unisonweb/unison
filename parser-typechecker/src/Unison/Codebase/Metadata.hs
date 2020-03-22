@@ -49,9 +49,9 @@ delete (a, ty, v) s = let
   -- if (ty,v) is the last metadata of type ty
   -- we also delete (a, ty) from the d2 index
   metadataByType = List.multimap (toList (R.lookupDom a (Star3.d3 s)))
-  in 
+  in
   case Map.lookup ty metadataByType of
-    Just vs | all (== v) vs -> Star3.deleteD2 (a, ty) s' 
+    Just vs | all (== v) vs -> Star3.deleteD2 (a, ty) s'
     _ -> s'
 
 -- parallel composition - commutative and associative

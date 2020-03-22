@@ -56,7 +56,7 @@ typeNamedId s =
 
 typeNamed :: String -> R.Reference
 typeNamed = R.DerivedId . typeNamedId
-  
+
 abilityNamedId :: String -> R.Id
 abilityNamedId s =
   case Map.lookup (Var.nameds s) (UF.effectDeclarationsId' typecheckedFile) of

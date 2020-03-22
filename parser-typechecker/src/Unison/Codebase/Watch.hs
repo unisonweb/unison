@@ -56,9 +56,9 @@ watchDirectory' d = do
     -- janky: used to store the cancellation action returned
     -- by `watchDir`, which is created asynchronously
     cleanupRef <- newEmptyMVar
-    -- we don't like FSNotify's debouncing (it seems to drop later events) 
+    -- we don't like FSNotify's debouncing (it seems to drop later events)
     -- so we will be doing our own instead
-    let config = FSNotify.defaultConfig { FSNotify.confDebounce = FSNotify.NoDebounce } 
+    let config = FSNotify.defaultConfig { FSNotify.confDebounce = FSNotify.NoDebounce }
     cancel <- forkIO $ withRunInIO $ \inIO ->
       FSNotify.withManagerConf config $ \mgr -> do
         cancelInner <- FSNotify.watchDir mgr d (const True) (inIO . handler) <|> (pure (pure ()))
@@ -123,7 +123,7 @@ watchDirectory dir allow = do
   ctx <- UnliftIO.askUnliftIO
   -- We spawn a separate thread to siphon the file change events
   -- into a queue, which can be debounced using `collectUntilPause`
-  enqueuer <- liftIO . forkIO $ do 
+  enqueuer <- liftIO . forkIO $ do
     takeMVar gate -- wait until gate open before starting
     forever $ do
       event@(file, _) <- UnliftIO.unliftIO ctx watcher
@@ -141,9 +141,9 @@ watchDirectory dir allow = do
         events <- collectUntilPause queue 50000
         -- traceM $ "Collected file change events" <> show events
         case events of
-          [] -> pure Nothing 
-          -- we pick the last of the events within the 50ms window 
-          -- TODO: consider enqueing other events if there are 
+          [] -> pure Nothing
+          -- we pick the last of the events within the 50ms window
+          -- TODO: consider enqueing other events if there are
           -- multiple events for different files
           _ -> uncurry process $ last events
       ((file, t):rest) -> do
