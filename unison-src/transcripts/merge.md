@@ -89,13 +89,13 @@ and `quux` namespaces.
 These test that things we expect to be deleted are still deleted.
 
 ```ucm:error
-.P0> view foo.w
+.> view P0.foo.w
 ```
 
 ```ucm:error
-.P0> view baz.x
+.> view P0.baz.x
 ```
 
 ```ucm:error
-.P0> view quux.x
+.> view P0.quux.x
 ```

@@ -35,11 +35,11 @@ library
 
   exposed-modules:
     Unison.Builtin
+    Unison.Builtin.Decls
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase.Branch
     Unison.Codebase.BranchDiff
-    Unison.Codebase.BranchLoadMode
     Unison.Codebase.BranchUtil
     Unison.Codebase.Causal
     Unison.Codebase.Classes

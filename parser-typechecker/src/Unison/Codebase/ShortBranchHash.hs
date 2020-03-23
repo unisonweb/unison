@@ -21,6 +21,9 @@ fromHash :: Int -> Branch.Hash -> ShortBranchHash
 fromHash len =
   ShortBranchHash . Text.take len . Hash.base32Hex . Causal.unRawHash
 
+fullFromHash :: Branch.Hash -> ShortBranchHash
+fullFromHash = ShortBranchHash . Hash.base32Hex . Causal.unRawHash
+
 -- abc -> SBH abc
 -- #abc -> SBH abc
 fromText :: Text -> Maybe ShortBranchHash

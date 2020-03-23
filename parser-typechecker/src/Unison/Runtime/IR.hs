@@ -29,7 +29,7 @@ import qualified Data.Map as Map
 import qualified Data.Sequence as Sequence
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
-import qualified Unison.DataDeclaration as DD
+import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Pattern as Pattern
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as R
@@ -470,8 +470,8 @@ compile0 env bound t =
     Term.Boolean' n -> Leaf . Val . B $ n
     Term.Text' n -> Leaf . Val . T $ n
     Term.Char' n -> Leaf . Val . C $ n
-    Term.TermLink' r -> Leaf . Val . TermLink $ r 
-    Term.TypeLink' r -> Leaf . Val . TypeLink $ r 
+    Term.TermLink' r -> Leaf . Val . TermLink $ r
+    Term.TypeLink' r -> Leaf . Val . TypeLink $ r
     Term.And' x y -> And (toZ "and" t x) (go y)
     Term.LamsNamed' vs body -> Leaf . Val $
       Lam (length vs)
@@ -495,7 +495,7 @@ compile0 env bound t =
     Term.Var' _ -> Leaf $ toZ "var" t t
     Term.Ref' r -> case toIR env r of
       Nothing -> error $ reportBug "B8920912182" msg where
-        msg = "The program being compiled referenced this definition " <> 
+        msg = "The program being compiled referenced this definition " <>
                show r <> "\nbut the compilation environment has no compiled form for this reference."
       Just ir -> ir
     Term.Sequence' vs -> MakeSequence . toList . fmap (toZ "sequence" t) $ vs

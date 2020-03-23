@@ -1,8 +1,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | Execute a computation of type '{IO} () that has been previously added to
@@ -36,7 +34,12 @@ execute
   -> IO ()
 execute codebase runtime mainName =
   (`finally` Runtime.terminate runtime) $ do
-    root <- Codebase.getRootBranch codebase
+    root <- Codebase.getRootBranch codebase >>= \case
+      Right r -> pure r
+      Left Codebase.NoRootBranch ->
+        die ("Couldn't identify a root namespace.")
+      Left (Codebase.CouldntLoadRootBranch h) ->
+        die ("Couldn't load root branch " ++ show h)
     let parseNames0 = Names3.makeAbsolute0 (Branch.toNames0 (Branch.head root))
         loadTypeOfTerm = Codebase.getTypeOfTerm codebase
     mt <- getMainTerm loadTypeOfTerm parseNames0 mainName

@@ -1,4 +1,3 @@
---{-# OPTIONS_GHC -Wno-unused-top-binds #-} -- todo: delete
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -7,12 +6,12 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.FileCodebase
 ( getRootBranch        -- used by Git module
 , branchHashesByPrefix -- used by Git module
 , branchFromFiles      -- used by Git module
-, BranchLoadMode(..)   -- used by Git module
 , codebase1  -- used by Main
 , exists     -- used by Main
 , initialize -- used by Main
@@ -77,7 +76,6 @@ import           Unison.Codebase.Causal         ( Causal
 import qualified Unison.Codebase.Causal        as Causal
 import           Unison.Codebase.Branch         ( Branch(Branch) )
 import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Codebase.BranchLoadMode ( BranchLoadMode(FailIfMissing, EmptyIfMissing) )
 import qualified Unison.Codebase.Reflog        as Reflog
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V1
@@ -93,7 +91,7 @@ import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent
                                                 , pattern Ref
                                                 , pattern Con
-                                                , Referent' )
+                                                )
 import qualified Unison.Referent               as Referent
 import           Unison.Term                    ( Term )
 import qualified Unison.Term                   as Term
@@ -113,6 +111,7 @@ import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import qualified Unison.ConstructorType as CT
 import Unison.Util.Monoid (foldMapM)
+import Control.Error (rightMay, runExceptT, ExceptT(..))
 import Control.Monad.State (StateT, MonadState)
 import qualified Control.Monad.State           as State
 import Control.Lens
@@ -156,6 +155,7 @@ initCodebaseAndExit mdir = do
   _ <- initCodebase dir
   exitSuccess
 
+-- initializes a new codebase here (i.e. `ucm -codebase dir init`)
 initCodebase :: FilePath -> IO (Codebase IO Symbol Ann)
 initCodebase dir = do
   let path = dir </> codebasePath
@@ -180,18 +180,12 @@ initCodebase dir = do
 -- get the codebase in dir, or in the home directory if not provided.
 getCodebaseOrExit :: Maybe FilePath -> IO (Codebase IO Symbol Ann)
 getCodebaseOrExit mdir = do
-  (dir, errMsg) <- case mdir of
-    Just dir -> do
-      dir' <- P.string <$> canonicalizePath dir
-      let errMsg = P.lines ["No codebase exists in " <> dir'
-                           , "Run `ucm -codebase " <> P.string dir <> " init` to create one, then try again!"]
-      pure ( dir, errMsg)
-    Nothing -> do
-      dir <- getHomeDirectory
-      let errMsg = P.lines [ "No codebase exists in " <> P.string dir
-                           , "Run `ucm init` to create one, then try again!" ]
-      pure (dir, errMsg)
-
+  dir <- getCodebaseDir mdir
+  prettyDir <- P.string <$> canonicalizePath dir
+  let errMsg = P.lines
+        [ "No codebase exists in " <> prettyDir
+        , "Run `ucm -codebase " <> prettyDir
+          <> " init` to create one, then try again!"]
   let path = dir </> codebasePath
   let theCodebase = codebase1 V1.formatSymbol formatAnn path
   Codebase.initializeBuiltinCode theCodebase
@@ -373,15 +367,15 @@ initialize :: CodebasePath -> IO ()
 initialize path =
   traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
 
-branchFromFiles :: MonadIO m => BranchLoadMode -> FilePath -> Branch.Hash -> m (Branch m)
-branchFromFiles loadMode rootDir h@(RawHash h') = do
+branchFromFiles :: MonadIO m => FilePath -> Branch.Hash -> m (Maybe (Branch m))
+branchFromFiles rootDir h@(RawHash h') = do
   fileExists <- doesFileExist (branchPath rootDir h')
-  if fileExists || loadMode == FailIfMissing then
+  if fileExists then Just <$>
     Branch.read (deserializeRawBranch rootDir)
                 (deserializeEdits rootDir)
                 h
   else
-    pure Branch.empty
+    pure Nothing
  where
   deserializeRawBranch
     :: MonadIO m => CodebasePath -> Causal.Deserialize m Branch.Raw Branch.Raw
@@ -398,25 +392,28 @@ branchFromFiles loadMode rootDir h@(RawHash h') = do
           Right edits -> pure edits
 
 -- returns Nothing if `root` has no root branch (in `branchHeadDir root`)
-getRootBranch ::
-  MonadIO m => BranchLoadMode -> CodebasePath -> m (Branch m)
-getRootBranch loadMode root = do
+getRootBranch :: forall m.
+  MonadIO m => CodebasePath -> m (Either Codebase.GetRootBranchError (Branch m))
+getRootBranch root =
   ifM (exists root)
-    (liftIO (listDirectory $ branchHeadDir root) >>= \case
-      []       -> missing
-      [single] -> go single
-      conflict -> traverse go conflict >>= \case
-        x : xs -> foldM Branch.merge x xs
-        []     -> missing
-    )
-    missing
+    (liftIO (listDirectory $ branchHeadDir root) >>= go')
+    (pure $ Left Codebase.NoRootBranch)
  where
+  go' :: [String] -> m (Either Codebase.GetRootBranchError (Branch m))
+  go' = \case
+              []       -> pure $ Left Codebase.NoRootBranch
+              [single] -> runExceptT $ go single
+              conflict -> runExceptT (traverse go conflict) >>= \case
+                Right (x : xs) -> Right <$> foldM Branch.merge x xs
+                Right _ -> error "FileCodebase.getRootBranch.conflict can't be empty."
+                Left e -> Left <$> pure e
+
+  go :: String -> ExceptT Codebase.GetRootBranchError m (Branch m)
   go single = case hashFromString single of
     Nothing -> failWith $ CantParseBranchHead single
-    Just h  -> branchFromFiles FailIfMissing root (RawHash h)
-  missing = case loadMode of
-    FailIfMissing -> failWith . NoBranchHead $ branchHeadDir root
-    EmptyIfMissing -> pure $ Branch.empty
+    Just (Branch.Hash -> h)  -> ExceptT $ branchFromFiles root h <&> \case
+      Just b -> Right b
+      Nothing -> Left $ Codebase.CouldntLoadRootBranch h
 
 putRootBranch :: MonadIO m => CodebasePath -> Branch m -> m ()
 putRootBranch root b = do
@@ -476,6 +473,12 @@ componentIdFromString = Reference.idFromText . Text.pack
 referentFromString :: String -> Maybe Referent
 referentFromString = Referent.fromText . Text.pack
 
+referentIdFromString :: String -> Maybe Referent.Id
+referentIdFromString s = referentFromString s >>= \case
+  Referent.Ref (Reference.DerivedId r) -> Just $ Referent.Ref' r
+  Referent.Con (Reference.DerivedId r) i t -> Just $ Referent.Con' r i t
+  _ -> Nothing
+
 -- here
 referentToString :: Referent -> String
 referentToString = Text.unpack . Referent.toText
@@ -522,7 +525,14 @@ copySyncToDirectory srcPath destPath branch =
         -- we are merging the specified branch with the destination root;
         -- alternatives would be to replace the root, or leave it untouched,
         -- meaning this new data could be garbage-colleged
-        getRootBranch FailIfMissing destPath >>= Branch.merge branch
+        getRootBranch destPath >>= \case
+          -- todo: `fail` isn't great.
+          Left Codebase.NoRootBranch ->
+            fail $ "No root branch found in " ++ destPath
+          Left (Codebase.CouldntLoadRootBranch h) ->
+            fail $ "Couldn't find root branch " ++ show h ++ " in " ++ destPath
+          Right existingDestRoot ->
+            Branch.merge branch existingDestRoot
       else pure branch
     Branch.sync
       (hashExists destPath)
@@ -629,7 +639,7 @@ _syncToDirectory fmtV fmtA codebase localPath branch = do
   b <- (liftIO . exists) localPath
   if b then do
     let code = codebase1 fmtV fmtA localPath
-    remoteRoot <- Codebase.getRootBranch code
+    remoteRoot <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch code
     Branch.sync (hashExists localPath) serialize (serializeEdits localPath) branch
     merged <- Branch.merge branch remoteRoot
     Codebase.putRootBranch code merged
@@ -768,7 +778,7 @@ termReferentsByPrefix :: MonadIO m
   => (CodebasePath -> Reference.Id -> m (Maybe (DD.Decl v a)))
   -> CodebasePath
   -> ShortHash
-  -> m (Set (Referent' Reference.Id))
+  -> m (Set Referent.Id)
 termReferentsByPrefix getDecl root sh = do
   terms <- termReferencesByPrefix root sh
   ctors <- do
@@ -814,10 +824,10 @@ codebase1 _fmtV@(S.Format getV putV) _fmtA@(S.Format getA putA) path =
           (getDecl getV getA path)
           (putTerm putV putA path)
           (putDecl putV putA path)
-          (getRootBranch FailIfMissing path)
+          (getRootBranch path)
           (putRootBranch path)
           (branchHeadUpdates path)
-          (branchFromFiles EmptyIfMissing path)
+          (branchFromFiles path)
           dependents
           -- Just copies all the files from a to-be-supplied path to `path`.
           (copyFromGit path)
@@ -844,9 +854,9 @@ codebase1 _fmtV@(S.Format getV putV) _fmtA@(S.Format getA putA) path =
     getTypeOfTerm h = liftIO $ S.getFromFile (V1.getType getV getA) (typePath path h)
     dependents :: Reference -> m (Set Reference.Id)
     dependents r = listDirAsIds (dependentsDir path r)
-    getTermsOfType :: Reference -> m (Set Referent)
+    getTermsOfType :: Reference -> m (Set Referent.Id)
     getTermsOfType r = listDirAsReferents (typeIndexDir path r)
-    getTermsMentioningType :: Reference -> m (Set Referent)
+    getTermsMentioningType :: Reference -> m (Set Referent.Id)
     getTermsMentioningType r = listDirAsReferents (typeMentionsIndexDir path r)
   -- todo: revisit these
     listDirAsIds :: FilePath -> m (Set Reference.Id)
@@ -857,13 +867,13 @@ codebase1 _fmtV@(S.Format getV putV) _fmtA@(S.Format getA putA) path =
           ls <- fmap decodeFileName <$> listDirectory d
           pure . Set.fromList $ ls >>= (toList . componentIdFromString)
         else pure Set.empty
-    listDirAsReferents :: FilePath -> m (Set Referent)
+    listDirAsReferents :: FilePath -> m (Set Referent.Id)
     listDirAsReferents d = do
       e <- doesDirectoryExist d
       if e
         then do
           ls <- fmap decodeFileName <$> listDirectory d
-          pure . Set.fromList $ ls >>= (toList . referentFromString)
+          pure . Set.fromList $ ls >>= (toList . referentIdFromString)
         else pure Set.empty
     watches :: UF.WatchKind -> m [Reference.Id]
     watches k =

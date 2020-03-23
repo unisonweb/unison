@@ -13,30 +13,34 @@ optional.isNone = cases
   Some _ -> false
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foo.bar.a       : Int
-      optional.isNone : Optional a -> Boolean
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
-
-```
 This also affects commands like find. Notice lack of qualified names in output:
 
 ```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    foo.bar.a       : Int
+    optional.isNone : Optional a -> Boolean
+
 .> find take
 
   1. builtin.Bytes.take : Nat -> Bytes -> Bytes
   2. builtin.List.take : Nat -> [a] -> [a]
   3. builtin.Text.take : Nat -> Text -> Text
   
+
+```
+The `view` and `display` commands also benefit from this:
+
+```ucm
+.> view List.drop
+
+  -- builtin.List.drop is built-in.
+
+.> display bar.a
+
+  +99
 
 ```
 In the signature, we don't see `base.Nat`, just `Nat`. The full declaration name is still shown for each search result though.

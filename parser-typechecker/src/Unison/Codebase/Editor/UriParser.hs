@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wno-unused-local-binds -Wno-unused-imports #-}
 
 module Unison.Codebase.Editor.UriParser (repoPath) where
 

@@ -7,7 +7,7 @@ module Unison.Parser where
 
 import Unison.Prelude
 
-import qualified Crypto.Random        as Random 
+import qualified Crypto.Random        as Random
 import           Data.Bytes.Put                 (runPutS)
 import           Data.Bytes.Serial              ( serialize )
 import           Data.Bytes.VarInt              ( VarInt(..) )

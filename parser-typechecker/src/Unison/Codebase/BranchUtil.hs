@@ -25,6 +25,17 @@ import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Util.List as List
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.NameSegment (HQSegment, NameSegment)
+import Control.Lens (view)
+
+fromNames0 :: Monad m => Names0 -> Branch m
+fromNames0 names0 = Branch.one $ addFromNames0 names0 Branch.empty0
+
+-- can produce a pure value because there's no history to traverse
+hashesFromNames0 :: Monad m => Names0 -> Map Branch.Hash (Branch m)
+hashesFromNames0 = deepHashes . fromNames0 where
+  deepHashes :: Branch m -> Map Branch.Hash (Branch m)
+  deepHashes b = Map.singleton (Branch.headHash b) b
+    <> (foldMap deepHashes . view Branch.children . Branch.head) b
 
 addFromNames0 :: Monad m => Names0 -> Branch0 m -> Branch0 m
 addFromNames0 names0 = Branch.stepManyAt0 (typeActions <> termActions)

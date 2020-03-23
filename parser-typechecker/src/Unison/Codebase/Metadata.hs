@@ -11,6 +11,7 @@ import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as R
 import Unison.Util.Relation4 (Relation4)
 import qualified Unison.Util.Relation4 as R4
+import qualified Unison.Util.List as List
 
 type Type = Reference
 type Value = Reference
@@ -43,7 +44,15 @@ insert :: (Ord a, Ord n) => (a, Type, Value) -> Star a n -> Star a n
 insert (a, ty, v) = Star3.insertD23 (a, ty, (ty,v))
 
 delete :: (Ord a, Ord n) => (a, Type, Value) -> Star a n -> Star a n
-delete (a, ty, v) = Star3.deleteD23 (a, ty, (ty,v))
+delete (a, ty, v) s = let
+  s' = Star3.deleteD3 (a, (ty,v)) s
+  -- if (ty,v) is the last metadata of type ty
+  -- we also delete (a, ty) from the d2 index
+  metadataByType = List.multimap (toList (R.lookupDom a (Star3.d3 s)))
+  in
+  case Map.lookup ty metadataByType of
+    Just vs | all (== v) vs -> Star3.deleteD2 (a, ty) s'
+    _ -> s'
 
 -- parallel composition - commutative and associative
 merge :: Metadata -> Metadata -> Metadata
