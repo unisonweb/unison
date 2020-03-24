@@ -212,6 +212,7 @@ data Args
   | BArgR !Int !Int
   | DArgR !Int !Int !Int !Int
   | BArgN !(PrimArray Int)
+  deriving (Show)
 
 ucount, bcount :: Args -> Int
 
@@ -228,11 +229,12 @@ bcount (BArg2 _ _) = 2
 bcount (DArg2 _ _) = 1
 bcount (BArgR _ l) = l
 bcount (DArgR _ _ _ l) = l
+bcount (BArgN a) = sizeofPrimArray a
 bcount _ = 0
 {-# inline bcount #-}
 
-data Prim1 = Dec | Inc
-data Prim2 = Add | Sub | Eqn | Gtn
+data Prim1 = Dec | Inc deriving (Show)
+data Prim2 = Add | Sub | Eqn | Gtn deriving (Show)
 
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
@@ -279,6 +281,7 @@ data Instr
 
   -- Put a delimiter on the continuation
   | Reset !IntSet -- prompt ids
+  deriving (Show)
 
 data Section
   -- Apply a function to arguments. This is the 'slow path', and
@@ -320,6 +323,7 @@ data Section
   | Let !Section !Section
 
   | Die String
+  deriving (Show)
 
 data Comb
   = Lam !Int -- Number of unboxed arguments
@@ -327,11 +331,13 @@ data Comb
         !Int -- Maximum needed unboxed frame size
         !Int -- Maximum needed boxed frame size
         !Section -- Code
+  deriving (Show)
 
 data Ref
   = Stk !Int -- stack reference to a closure
   | Env !Int -- global environment reference to a combinator
   | Dyn !Int -- dynamic scope reference to a closure
+  deriving (Show)
 
 data Branch
   -- if tag == n then t else f
@@ -343,6 +349,7 @@ data Branch
           !Section         -- else ...
   | TestT !Section
           !(IntMap Section)
+  deriving (Show)
 
 type Ctx v = [v]
 
@@ -353,7 +360,7 @@ ctxResolve ctx u
 
 emitComb :: Var v => SuperNormal v -> Comb
 emitComb (Lambda (TAbss vs bd))
-  = Lam 0 (length vs) 0 0 $ emitSection vs bd
+  = Lam 0 (length vs) 10 10 $ emitSection vs bd
 
 emitSection :: Var v => Ctx v -> ANormal v -> Section
 emitSection ctx (TLet u bu bo)

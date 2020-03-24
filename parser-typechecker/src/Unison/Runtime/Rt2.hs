@@ -301,7 +301,7 @@ dumpData !ustk !bstk (DataG t us bs) = do
   ustk <- bump ustk
   poke ustk t
   pure (ustk, bstk)
-dumpData !_    !_  _ = error "dumpData: bad closure"
+dumpData !_    !_  clo = error $ "dumpData: bad closure: " ++ show clo
 {-# inline dumpData #-}
 
 -- Note: although the representation allows it, it is impossible

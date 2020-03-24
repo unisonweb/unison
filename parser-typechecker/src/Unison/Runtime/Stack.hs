@@ -45,6 +45,7 @@ data Closure
   | DataG !Int !(Seg 'UN) !(Seg 'BX)
   | Captured !K {-# unpack #-} !(Seg 'UN) !(Seg 'BX)
   | BlackHole
+  deriving (Show)
 
 type Off = Int
 type SZ = Int
