@@ -66,7 +66,7 @@ import qualified Unison.Term as Term
 import qualified Unison.Var as Var
 import Unison.Typechecker.Components (minimize')
 import Unison.Pattern (PatternP(..))
-import Unison.Reference (Reference)
+import Unison.Reference (Reference(..))
 -- import Debug.Trace
 -- import qualified Unison.TermPrinter as TP
 -- import qualified Unison.Util.Pretty as P
@@ -225,6 +225,10 @@ data CTE v s
   = ST v s
   | LZ v Int [v]
 
+cbvar :: CTE v s -> v
+cbvar (ST v _) = v
+cbvar (LZ v _ _) = v
+
 data ANormalBF v e
   = ALet (ANormalTF v e) e
   | AName Int [v] e
@@ -351,45 +355,57 @@ pattern TBinds' :: Var v => Ctx v -> ANormalT v -> ANormal v
 pattern TBinds' ctx bd <- (unbinds' -> (ctx, bd))
   where TBinds' ctx bd = foldr bind (TTm bd) ctx
 
+{-# complete TBinds' #-}
+
 data Branched e
-  = MatchIntegral { cases :: IntMap e }
-  | MatchData { ref :: Reference, cases :: IntMap e }
+  = MatchIntegral { cases :: IntMap e, dflt :: Maybe e }
+  | MatchData { ref :: Reference, cases :: IntMap e, dflt :: Maybe e }
   | MatchRequest { handlers :: IntMap (IntMap e) }
   | MatchEmpty
   deriving (Functor, Foldable, Traversable)
 
 data BranchAccum v
-  = AccumIntegral (IntMap (ANormal v))
-  | AccumData Reference (IntMap (ANormal v))
+  = AccumIntegral (Maybe (ANormal v)) (IntMap (ANormal v))
+  | AccumData Reference (Maybe (ANormal v)) (IntMap (ANormal v))
+  | AccumDefault (ANormal v)
   | AccumRequest (IntMap (IntMap (ANormal v))) (Maybe (ANormal v))
   | AccumEmpty
 
 accumData :: BranchAccum v -> Maybe (ABranched v)
-accumData (AccumIntegral cs) = Just (MatchIntegral cs)
-accumData (AccumData r cs) = Just (MatchData r cs)
+accumData (AccumIntegral df cs) = Just (MatchIntegral cs df)
+accumData (AccumData r df cs) = Just (MatchData r cs df)
 accumData AccumEmpty = Just MatchEmpty
 accumData _ = Nothing
 
 mkAccum :: ABranched v -> BranchAccum v
 mkAccum MatchEmpty = AccumEmpty
-mkAccum (MatchIntegral cs) = AccumIntegral cs
-mkAccum (MatchData r cs) = AccumData r cs
+mkAccum (MatchIntegral cs df) = AccumIntegral df cs
+mkAccum (MatchData r cs df) = AccumData r df cs
 mkAccum (MatchRequest hs) = AccumRequest hs Nothing
 
 pattern AccumD :: ABranched v -> BranchAccum v
 pattern AccumD d <- (accumData -> Just d)
   where AccumD d = mkAccum d
 
-{-# complete AccumD, AccumRequest #-}
+{-# complete AccumD, AccumDefault, AccumRequest #-}
 
 instance Semigroup (BranchAccum v) where
   AccumEmpty <> r = r
   l <> AccumEmpty = l
-  AccumIntegral cl <> AccumIntegral cr = AccumIntegral $ cl <> cr
-  AccumData rl cl <> AccumData rr cr
-    | rl == rr  = AccumData rl $ cl <> cr
+  AccumIntegral dl cl <> AccumIntegral dr cr
+    = AccumIntegral (dl <|> dr) $ cl <> cr
+  AccumData rl dl cl <> AccumData rr dr cr
+    | rl == rr = AccumData rl (dl <|> dr) (cl <> cr)
+  AccumDefault dl <> AccumIntegral _ cr
+    = AccumIntegral (Just dl) cr
+  AccumDefault dl <> AccumData rr _ cr
+    = AccumData rr (Just dl) cr
+  AccumIntegral dl cl <> AccumDefault dr
+    = AccumIntegral (dl <|> Just dr) cl
+  AccumData rl dl cl <> AccumDefault dr
+    = AccumData rl (dl <|> Just dr) cl
   AccumRequest hl dl <> AccumRequest hr dr
-    = AccumRequest hm $ mplus dl dr
+    = AccumRequest hm $ dl <|> dr
     where
     hm = IMap.unionWith (<>) hl hr
   _ <> _ = error "cannot merge data cases for different types"
@@ -462,6 +478,9 @@ avoid = avoids . Set.fromList
 avoids :: Var v => Set v -> ANFM v ()
 avoids s = modify $ \(av, gl, rs) -> (s `Set.union` av, gl, rs)
 
+avoidCtx :: Var v => Ctx v -> ANFM v ()
+avoidCtx ctx = avoid $ cbvar <$> ctx
+
 reserve :: ANFM v Int
 reserve = state $ \(av, gl, to) -> (gl, (av, gl+1, to))
 
@@ -494,7 +513,7 @@ superNormalize rslv tm = c : l
 toSuperNormal :: Var v => Term v a -> ANFM v (Int, SuperNormal v)
 toSuperNormal tm
   | not . Set.null $ freeVars tm
-  = error "free variables in supercombinators"
+  = error $ "free variables in supercombinator: " ++ show tm
   | otherwise = do
     clear
     avoid vs
@@ -513,7 +532,10 @@ anfBlock (If' c t f) = do
   cf <- anfTerm f
   ct <- anfTerm t
   (cx, v) <- contextualize cc
-  let cases = MatchIntegral $ IMap.fromList [(0, cf), (1, ct)]
+  let cases = MatchData
+                (Builtin $ Text.pack "Boolean")
+                (IMap.singleton 0 cf)
+                (Just ct)
   pure (cctx ++ cx, AMatch v cases)
 anfBlock (And' l r) = do
   (lctx, vl) <- anfArg l
@@ -537,16 +559,24 @@ anfBlock (Match' scrut cas) = do
   (sctx, sc) <- anfBlock scrut
   brn <- anfCases cas
   case brn of
+    AccumDefault (TBinds' dctx df) -> do
+      avoidCtx dctx
+      sv <- fresh
+      pure (sctx ++ ST sv sc : dctx, df)
     AccumRequest abr df -> do
       (i, vs) <- reset $ do
         i <- reserve
         v <- fresh
-        let hfb = ABTN.TAbs v $ TMatch v (MatchRequest abr)
+        let hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr
             hfvs = Set.toList $ ABTN.freeVars hfb
         record (i, Lambda . ABTN.TAbss hfvs $ hfb)
         pure (i, hfvs)
       hv <- fresh
-      pure (sctx ++ [LZ hv i vs], AHnd (IMap.keys abr) hv df (TTm sc))
+      let msc | AVar v <- sc = AFrc v
+              | otherwise = sc
+      pure ( sctx ++ [LZ hv i vs]
+           , AHnd (IMap.keys abr) hv df . TTm $ msc
+           )
     AccumD cs -> do
       (cx, v) <- contextualize sc
       pure (sctx ++ cx, AMatch v cs)
@@ -567,7 +597,7 @@ anfBlock (Request' r t) = do
   pure ([], AReq r t [])
 anfBlock (Lit' l) = pure ([], ALit l)
 anfBlock (Blank' _) = error "tried to compile Blank"
-anfBlock _ = error "anf: unhandled term"
+anfBlock t = error $ "anf: unhandled term: " ++ show t
 
 -- Note: this assumes that patterns have already been translated
 -- to a state in which every case matches a single layer of data,
@@ -576,13 +606,15 @@ anfBlock _ = error "anf: unhandled term"
 anfInitCase :: Var v => MatchCase p (Term v a) -> ANFM v (BranchAccum v)
 anfInitCase (MatchCase p guard (ABT.AbsN' vs bd))
   | Just _ <- guard = error "anfInitCase: unexpected guard"
+  | UnboundP _ <- p
+  = AccumDefault <$> anfTerm bd
   | IntP _ (fromIntegral -> i) <- p
-  = AccumIntegral . IMap.singleton i <$> anfTerm bd
+  = AccumIntegral Nothing . IMap.singleton i <$> anfTerm bd
   | NatP _ (fromIntegral -> i) <- p
-  = AccumIntegral . IMap.singleton i <$> anfTerm bd
+  = AccumIntegral Nothing . IMap.singleton i <$> anfTerm bd
   | ConstructorP _ r t ps <- p = do
     us <- expandBindings ps vs
-    AccumData r . IMap.singleton t . ABTN.TAbss us <$> anfTerm bd
+    AccumData r Nothing . IMap.singleton t . ABTN.TAbss us <$> anfTerm bd
   | EffectPureP _ q <- p = do
     us <- expandBindings [q] vs
     AccumRequest IMap.empty . Just . ABTN.TAbss us <$> anfTerm bd

@@ -75,10 +75,16 @@ denormalizeMatch
   :: Var v => Branched (ANormal v) -> [Term.MatchCase () (Term.Term0 v)]
 denormalizeMatch b
   | MatchEmpty <- b = []
-  | MatchIntegral m <- b = dcase ipat <$> IMap.toList m
-  | MatchData r m <- b = dcase (dpat r) <$> IMap.toList m
+  | MatchIntegral m df <- b
+  = (dcase ipat <$> IMap.toList m) ++ dfcase df
+  | MatchData r m df <- b
+  = (dcase (dpat r) <$> IMap.toList m) ++ dfcase df
   | MatchRequest hs <- b = denormalizeHandler hs
   where
+  dfcase (Just d)
+    = [Term.MatchCase (UnboundP ()) Nothing $ denormalize d]
+  dfcase Nothing = []
+
   dcase p (t, br) = Term.MatchCase (p n t) Nothing dbr
    where (n, dbr) = denormalizeBranch br
 

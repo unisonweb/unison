@@ -22,6 +22,7 @@ import Unison.Runtime.ANF
   , ANormalTF(..)
   , Branched(..)
   , Func(..)
+  , SuperNormal(..)
   , pattern TVar
   , pattern TLit
   , pattern TApv
@@ -231,7 +232,7 @@ bcount _ = 0
 {-# inline bcount #-}
 
 data Prim1 = Dec | Inc
-data Prim2 = Add | Sub
+data Prim2 = Add | Sub | Eqn | Gtn
 
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
@@ -340,7 +341,8 @@ data Branch
   | Test2 !Int !Section    -- if tag == m then ...
           !Int !Section    -- else if tag == n then ...
           !Section         -- else ...
-  | TestT !(IntMap Section)
+  | TestT !Section
+          !(IntMap Section)
 
 type Ctx v = [v]
 
@@ -348,6 +350,10 @@ ctxResolve :: Var v => Ctx v -> v -> Int
 ctxResolve ctx u
   | Just i <- elemIndex u ctx = i
   | otherwise = error $ "ctxResolve: bad variable scoping: " ++ show u
+
+emitComb :: Var v => SuperNormal v -> Comb
+emitComb (Lambda (TAbss vs bd))
+  = Lam 0 (length vs) 0 0 $ emitSection vs bd
 
 emitSection :: Var v => Ctx v -> ANormal v -> Section
 emitSection ctx (TLet u bu bo)
@@ -416,14 +422,21 @@ emitP2 _ _ = error "prim ops must be saturated"
 
 emitMatching :: Var v => Ctx v -> Branched (ANormal v) -> Section
 emitMatching _   MatchEmpty = Die "empty match"
-emitMatching ctx (MatchIntegral cs)
-  = Match 1 . TestT $ fmap (emitCase ctx) cs
-emitMatching ctx (MatchData _ cs)
-  = Match 0 . TestT $ fmap (emitCase ctx) cs
-emitMatching ctx (MatchRequest hs)
-  = Match 0 . TestT $ fmap f hs
+emitMatching ctx (MatchIntegral cs df)
+  = Match 1 . TestT edf $ fmap (emitCase ctx) cs
   where
-  f cs = Match 1 . TestT $ fmap (emitCase ctx) cs
+  edf | Just co <- df = emitSection ctx co
+      | otherwise = Die "missing case"
+emitMatching ctx (MatchData _ cs df)
+  = Match 0 . TestT edf $ fmap (emitCase ctx) cs
+  where
+  edf | Just co <- df = emitSection ctx co
+      | otherwise = Die "missing case"
+emitMatching ctx (MatchRequest hs)
+  = Match 0 . TestT edf $ fmap f hs
+  where
+  f cs = Match 1 . TestT edf $ fmap (emitCase ctx) cs
+  edf = Die "unhandled ability"
 
 emitCase :: Var v => Ctx v -> ANormal v -> Section
 emitCase ctx (TAbss vs bo)

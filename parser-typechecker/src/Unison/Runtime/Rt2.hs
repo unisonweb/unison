@@ -99,8 +99,7 @@ eval !env !denv !ustk !bstk !k (Let nw nx) = do
 eval !env !denv !ustk !bstk !k (Ins i nx) = do
   (denv, ustk, bstk, k) <- exec env denv ustk bstk k i
   eval env denv ustk bstk k nx
-eval !_   !_    !_    !_    !_ (Die s) =
-  putStrLn s
+eval !_   !_    !_    !_    !_ (Die s) = error s
 {-# noinline eval #-}
 
 -- fast path application
@@ -370,6 +369,18 @@ prim2 !ustk Sub !i !j = do
   ustk <- bump ustk
   poke ustk (m-n)
   pure ustk
+prim2 !ustk Eqn !i !j = do
+  m <- peekOff ustk i
+  n <- peekOff ustk j
+  ustk <- bump ustk
+  poke ustk $ if m == n then 1 else 0
+  pure ustk
+prim2 !ustk Gtn !i !j = do
+  m <- peekOff ustk i
+  n <- peekOff ustk j
+  ustk <- bump ustk
+  poke ustk $ if m > n then 1 else 0
+  pure ustk
 {-# inline prim2 #-}
 
 yield :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> IO ()
@@ -391,7 +402,7 @@ selectBranch t (Test2 u cu v cv e)
   | t == u    = cu
   | t == v    = cv
   | otherwise = e
-selectBranch t (TestT cs) = cs M.! t
+selectBranch t (TestT df cs) = M.findWithDefault df t cs
 {-# inline selectBranch #-}
 
 splitCont
