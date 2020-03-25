@@ -185,7 +185,11 @@ deleteFact facts Star3{..} =
 replaceFact :: (Ord fact, Ord d1, Ord d2, Ord d3)
             => fact -> fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
 replaceFact f f' Star3{..} =
-  Star3 ((Set.insert f' . Set.delete f) fact)
+  let updateFact fact = 
+        if Set.member f fact
+        then (Set.insert f' . Set.delete f) fact
+        else fact
+  in Star3 (updateFact fact)
         (R.replaceDom f f' d1)
         (R.replaceDom f f' d2)
         (R.replaceDom f f' d3)
