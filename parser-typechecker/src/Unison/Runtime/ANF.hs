@@ -32,6 +32,7 @@ module Unison.Runtime.ANF
   , Lit(..)
   , SuperNormal(..)
   , POp(..)
+  , lamLift
   , ANormalBF(..)
   , ANormalTF(.., AApv, ACom, ACon, AReq, APrm)
   , ANormal
@@ -53,7 +54,7 @@ import Data.Bifunctor (Bifunctor(..))
 import Data.Bifoldable (Bifoldable(..))
 import Data.List hiding (and,or)
 import Prelude hiding (abs,and,or,seq)
-import Unison.Term hiding (resolve, fresh)
+import Unison.Term hiding (resolve, fresh, float)
 import Unison.Var (Var, typed)
 import Data.IntMap (IntMap)
 import qualified Data.Map as Map
@@ -95,6 +96,73 @@ lambdaLift liftVar t = result where
        else apps' (lam' a (map snd fvsLifted ++ vs) (ABT.substs subs body))
                   (snd <$> subs)
   go _ = Nothing
+
+enclose
+  :: (Var v, Monoid a)
+  => Set v
+  -> (Set v -> Term v a -> Term v a)
+  -> Term v a
+  -> Maybe (Term v a)
+enclose keep rec (LetRecNamedTop' top vbs bd)
+  = Just $ letRec' top lvbs lbd
+  where
+  keep' = Set.union keep . Set.fromList . map fst $ vbs
+  lvbs = (map.fmap) (rec keep') vbs
+  lbd = rec keep' bd
+enclose keep rec t@(LamsNamed' vs body)
+  = Just $ if null evs then lamb else apps' lamb $ map (var a) evs
+  where
+  -- remove shadowed variables
+  keep' = Set.difference keep $ Set.fromList vs
+  fvs = ABT.freeVars t
+  evs = Set.toList $ Set.difference fvs keep
+  a = ABT.annotation t
+  lbody = rec keep' body
+  lamb = lam' a (evs ++ vs) lbody
+enclose _ _ _ = Nothing
+
+close :: (Var v, Monoid a) => Set v -> Term v a -> Term v a
+close unlift tm = ABT.visitPure (enclose unlift close) tm
+
+type FloatM v a r = State (Set v, [(v, Term v a)]) r
+
+letFloater
+  :: (Var v, Monoid a)
+  => [(v, Term v a)] -> Term v a
+  -> FloatM v a (Term v a)
+letFloater vbs e = do
+  (cvs, ctx) <- get
+  let shadows = [ (v, Var.freshIn cvs v)
+                | (v, _) <- vbs, Set.member v cvs ]
+      shadowMap = Map.fromList shadows
+      rn v = Map.findWithDefault v v shadowMap
+      fvbs = [ (rn v, ABT.changeVars shadowMap b) | (v, b) <- vbs ]
+      fcvs = Set.fromList . map fst $ fvbs
+  put (cvs <> fcvs, ctx ++ fvbs)
+  pure $ ABT.changeVars shadowMap e
+
+floater
+  :: (Var v, Monoid a)
+  => (Term v a -> FloatM v a (Term v a))
+  -> Term v a -> Maybe (FloatM v a (Term v a))
+floater rec (LetRecNamed' vbs e) = Just $ letFloater vbs e >>= rec
+floater rec (Let1Named' v b e) = Just $ letFloater [(v,b)] e >>= rec
+floater rec tm@(LamsNamed' vs bd) = Just $ do
+  bd <- rec bd
+  (cvs, ctx) <- get
+  let lv = ABT.freshIn cvs $ typed Var.Float
+      a = ABT.annotation tm
+  put (Set.insert lv cvs, ctx <> [(lv, lam' a vs bd)])
+  pure $ var a lv
+floater _ _ = Nothing
+
+float :: (Var v, Monoid a) => Term v a -> Term v a
+float tm = case runState (go tm) (Set.empty, []) of
+  (bd, (_, ctx)) -> letRec' True ctx bd
+  where go = ABT.visit $ floater go
+
+lamLift :: (Var v, Monoid a) => Term v a -> Term v a
+lamLift = float . close Set.empty
 
 optimize :: forall a v . (Semigroup a, Var v) => Term v a -> Term v a
 optimize t = go t where
