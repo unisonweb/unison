@@ -154,5 +154,5 @@ test = scope "mcode" . tests $
   , scope "5*5=25"
   $ testEval [(20,multc)] "##todo (##Nat.== (##Nat.* 5 5) 25)"
   , scope "5*1000=5000 acc"
-  $ testEval [(20,multAccc)] "##Nat.== (##Nat.* 5 1000 0) 5000"
+  $ testEval [(20,multAccc)] "##todo (##Nat.== (##Nat.* 5 1000 0) 5000)"
   ]
