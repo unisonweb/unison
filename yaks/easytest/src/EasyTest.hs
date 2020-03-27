@@ -352,9 +352,30 @@ crash msg = do
       msg' = msg ++ " " ++ prettyCallStack trace
   Test (Just <$> putResult Failed) >> noteScoped ("FAILURE " ++ msg') >> Test (pure Nothing)
 
--- skips the test but makes a note of this fact
-pending :: Test a -> Test a
-pending _ = Test (Nothing <$ putResult Pending)
+-- | Overwrites the env so that note_ (the logger) is a no op
+nologging :: HasCallStack => Test a -> Test a
+nologging (Test t) = Test $ do
+  env <- ask
+  liftIO $ runReaderT t (env {note_ = \_ -> pure ()})
+  
+-- | Run a test under a new scope, without logs and suppressing all output
+attempt :: Test a -> Test (Maybe a)
+attempt (Test t) = nologging $ do
+  env <- ask
+  let msg = "internal attempt"
+  let messages' = case messages env of [] -> msg; ms -> ms ++ ('.':msg)
+  liftIO $ runWrap env { messages = messages', allow = "not visible" } t
+
+-- | Placeholder wrapper for a failing test. The test being wrapped is expected/known to fail.
+-- Will produce a failure if the test being wrapped suddenly becomes a success.
+pending :: HasCallStack => Test a -> Test a
+pending test = do
+  m <- attempt test
+  case m of
+    Just _ ->
+      crash "This pending test should not pass!"
+    Nothing ->
+      ok >> Test (pure Nothing)
 
 putResult :: Status -> ReaderT Env IO ()
 putResult passed = do
