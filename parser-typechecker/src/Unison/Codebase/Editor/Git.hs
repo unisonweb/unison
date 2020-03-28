@@ -114,11 +114,16 @@ onError x k = liftIO ((const True <$> x) $? pure False) >>= \case
   True  -> pure ()
   False -> k
 
+setupGitDir :: FilePath -> [Text]
+setupGitDir localPath = 
+  ["--git-dir", Text.pack $ localPath </> ".git"
+  ,"--work-tree", Text.pack localPath]
+
 gitIn :: FilePath -> [Text] -> IO ()
-gitIn localPath args = "git" (["-C", Text.pack localPath] <> args)
+gitIn localPath args = "git" (setupGitDir localPath <> args)
 
 gitTextIn :: FilePath -> [Text] -> IO Text
-gitTextIn localPath args = "git" $| ["-C", Text.pack localPath] <> args
+gitTextIn localPath args = "git" $| setupGitDir localPath <> args
 
 -- Clone the given remote repo and commit to the given local path.
 -- Then given a codebase and a branch, write the branch and all its
