@@ -35,6 +35,18 @@ import qualified Unison.Util.Exception         as Ex
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Names3                 as Names
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import UnliftIO.IO (hFlush, stdout)
+
+withStatus :: MonadIO m => String -> m a -> m a
+withStatus str ma = do
+  flushStr str
+  a <- ma
+  flushStr (const ' ' <$> str)
+  pure a
+  where
+  flushStr str = do
+    liftIO . putStr $ "  " ++ str ++ "\r"
+    hFlush stdout
 
 -- Given a local path, a remote git repo url, and branch/commit hash,
 -- checks for git, the repo path, performs a clone, and verifies resulting repo
@@ -48,10 +60,11 @@ pullBranch localPath uri treeish = do
   case e of
     Left e -> throwError (SomeOtherError (Text.pack (show e)))
     Right _ -> pure ()
-  "git" (["clone", "--quiet"] ++ ["--depth", "1"]
-     ++ maybe [] (\t -> ["--branch", t]) treeish
-     ++ [uri, Text.pack localPath])
-    `onError` throwError (NoRemoteRepoAt uri)
+  withStatus ("Downloading from " ++ Text.unpack uri ++ " ...")
+    ("git" $^ (["clone", "--quiet"] ++ ["--depth", "1"]
+       ++ maybe [] (\t -> ["--branch", t]) treeish
+       ++ [uri, Text.pack localPath]))
+      `onError` throwError (NoRemoteRepoAt uri)
   isGitDir <- liftIO $ checkGitDir localPath
   unless isGitDir . throwError $ NoLocalRepoAt localPath
 
@@ -96,7 +109,8 @@ pullGitBranch localPath codebase url treeish sbh = do
           Just b -> pure b
           Nothing -> throwError $ NoRemoteNamespaceWithHash url treeish sbh
         _ -> throwError $ RemoteNamespaceHashAmbiguous url treeish sbh branchCompletions
-  lift $ Codebase.syncFromDirectory codebase gitCodebasePath
+  withStatus "Importing downloaded files into local codebase..." $
+    lift $ Codebase.syncFromDirectory codebase gitCodebasePath
   pure branch
   where gitCodebasePath = localPath </> codebasePath
 
@@ -141,7 +155,9 @@ pushGitRootBranch localPath codebase branch url gitbranch = do
   -- Clone and pull the remote repo
   pullBranch localPath url gitbranch
   -- Stick our changes in the checked-out copy
-  merged <- lift $ syncToDirectory codebase (localPath </> codebasePath) branch
+  merged <-
+    withStatus ("Staging files for upload to " ++ Text.unpack url ++ " ...") $
+      lift $ syncToDirectory codebase (localPath </> codebasePath) branch
   isBefore <- lift $ Branch.before merged branch
   let mergednames = Branch.toNames0 (Branch.head merged)
       localnames  = Branch.toNames0 (Branch.head branch)
@@ -160,5 +176,5 @@ pushGitRootBranch localPath codebase branch url gitbranch = do
         case gitbranch of
           Nothing        -> gitIn localPath ["push", "--quiet", "--all", url]
           Just gitbranch -> gitIn localPath ["push", "--quiet", url, gitbranch]
-  liftIO push `onException` throwError (NoRemoteRepoAt url)
-
+  withStatus ("Uploading to " ++ Text.unpack url ++ " ...") $
+    liftIO push `onException` throwError (NoRemoteRepoAt url)
