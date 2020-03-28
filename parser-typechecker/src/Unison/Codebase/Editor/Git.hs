@@ -16,7 +16,7 @@ import           Control.Monad.Except           ( MonadError
                                                 , ExceptT
                                                 )
 import qualified Data.Text                     as Text
-import           Shellmet                       ( ($?), ($|) )
+import           Shellmet                       ( ($?), ($|), ($^))
 import           System.Directory               ( doesDirectoryExist
                                                 , findExecutable
                                                 , removeDirectoryRecursive
@@ -120,7 +120,7 @@ setupGitDir localPath =
   ,"--work-tree", Text.pack localPath]
 
 gitIn :: FilePath -> [Text] -> IO ()
-gitIn localPath args = "git" (setupGitDir localPath <> args)
+gitIn localPath args = "git" $^ (setupGitDir localPath <> args)
 
 gitTextIn :: FilePath -> [Text] -> IO Text
 gitTextIn localPath args = "git" $| setupGitDir localPath <> args
