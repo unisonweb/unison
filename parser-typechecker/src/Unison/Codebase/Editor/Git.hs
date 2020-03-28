@@ -107,7 +107,7 @@ checkForGit = do
 
 checkGitDir :: FilePath -> IO Bool
 checkGitDir dir =
-  (const True <$> gitIn dir ["rev-parse", "--git-dir"]) $? pure False
+  (const True <$> gitIn dir ["rev-parse"]) $? pure False
 
 onError :: MonadError e m => MonadIO m => IO () -> m () -> m ()
 onError x k = liftIO ((const True <$> x) $? pure False) >>= \case
