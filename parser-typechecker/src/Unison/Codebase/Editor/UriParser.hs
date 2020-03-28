@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Codebase.Editor.UriParser (repoPath) where
+module Unison.Codebase.Editor.UriParser (repoPath, GitProtocol(..), printProtocol) where
 
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -18,6 +18,7 @@ import qualified Unison.Lexer
 import Unison.Codebase.NameSegment (NameSegment(..))
 import Data.Sequence as Seq
 import Data.Char (isAlphaNum, isSpace, isDigit)
+import Unison.Codebase.Editor.GitProtocol (GitProtocol(..), User(..), HostInfo(..), printProtocol)
 
 type P = P.Parsec () Text
 
@@ -37,7 +38,7 @@ repoPath :: P RemoteNamespace
 repoPath = P.label "generic git repo" $ do
   protocol <- parseProtocol
   treeish <- P.optional treeishSuffix
-  let repo = GitRepo (printProtocol protocol) treeish
+  let repo = GitRepo protocol treeish
   nshashPath <- P.optional (C.char ':' *> namespaceHashPath)
   case nshashPath of
     Nothing -> pure (repo, Nothing, Path.empty)
@@ -46,47 +47,6 @@ repoPath = P.label "generic git repo" $ do
 -- does this not exist somewhere in megaparsec? yes in 7.0
 symbol :: Text -> P Text
 symbol = L.symbol (pure ())
-
-data GitProtocol
-  = HttpsProtocol (Maybe User) HostInfo UrlPath
-  | SshProtocol (Maybe User) HostInfo UrlPath
-  | ScpProtocol (Maybe User) Host UrlPath
-  | FileProtocol UrlPath
-  | LocalProtocol UrlPath
-  deriving (Eq, Ord, Show)
-
-printProtocol :: GitProtocol -> Text
---printProtocol x | traceShow x False = undefined
-printProtocol x = case x of
-  HttpsProtocol muser hostInfo path -> "https://"
-    <> printUser muser
-    <> printHostInfo hostInfo
-    <> path
-  SshProtocol muser hostInfo path -> "ssh://"
-    <> printUser muser
-    <> printHostInfo hostInfo
-    <> path
-  ScpProtocol muser host path -> printUser muser <> host <> ":" <> path
-  FileProtocol path -> "file://" <> path
-  LocalProtocol path -> path
-  where
-  printUser = maybe mempty (\(User u) -> u <> "@")
-  printHostInfo :: HostInfo -> Text
-  printHostInfo (HostInfo hostname mport) =
-    hostname <> maybe mempty (Text.cons ':') mport
-
-data Scheme = Ssh | Https
-  deriving (Eq, Ord, Show)
-
-data User = User Text
-  deriving (Eq, Ord, Show)
-
-type UrlPath = Text
-
-data HostInfo = HostInfo Text (Maybe Text)
-  deriving (Eq, Ord, Show)
-
-type Host = Text -- no port
 
 -- doesn't yet handle basic authentication like https://user:pass@server.com
 -- (does anyone even want that?)

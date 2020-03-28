@@ -132,13 +132,13 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     SyncLocalRootBranch branch -> do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
-    LoadRemoteRootBranch GitRepo {..} -> do
-      tmp <- tempGitDir url commit
-      runExceptT $ Git.pullGitRootBranch tmp codebase url commit
-    SyncRemoteRootBranch GitRepo {..} branch -> do
-      tmp <- tempGitDir url commit
+    LoadRemoteRootBranch repo@GitRepo{} -> do
+      tmp <- tempGitDir (url repo) (commit repo)
+      runExceptT $ Git.pullGitRootBranch tmp codebase (url repo) (commit repo)
+    SyncRemoteRootBranch repo@GitRepo{} branch -> do
+      tmp <- tempGitDir (url repo) (commit repo)
       runExceptT
-        $ Git.pushGitRootBranch tmp codebase branch url commit
+        $ Git.pushGitRootBranch tmp codebase branch (url repo) (commit repo)
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r
@@ -177,9 +177,9 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase)
     BranchHashLength -> Codebase.branchHashLength codebase
     BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
-    LoadRemoteShortBranch GitRepo{..} sbh -> do
-      tmp <- tempGitDir url commit
-      runExceptT $ Git.pullGitBranch tmp codebase url commit (Just sbh)
+    LoadRemoteShortBranch repo@GitRepo{} sbh -> do
+      tmp <- tempGitDir (url repo) (commit repo)
+      runExceptT $ Git.pullGitBranch tmp codebase (url repo) (commit repo) (Just sbh)
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
 
