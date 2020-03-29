@@ -537,9 +537,12 @@ copySyncToDirectory srcPath destPath branch =
       serialize
       (\h _me -> copyEdits h)
       (Branch.transform lift newRemoteRoot)
-    copyDependents @m <$> use syncedTerms <*> use syncedDecls
-    copyTypeIndex @m <$> use syncedReferents
-    copyTypeMentionsIndex @m <$> use syncedReferents
+    x <- use syncedTerms
+    y <- use syncedDecls
+    copyDependents x y
+    z <- use syncedReferents
+    copyTypeIndex z
+    copyTypeMentionsIndex z
     updateCausalHead (branchHeadDir destPath) c
     pure branch
   where
