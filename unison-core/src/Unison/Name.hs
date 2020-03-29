@@ -114,9 +114,13 @@ parent (Name txt) = case unsnoc (Text.splitOn "." txt) of
   Just ([],_) -> Nothing
   Just (init,_) -> Just $ Name (Text.intercalate "." init)
 
+-- suffixes "" -> [] 
+-- suffixes bar -> [bar]
+-- suffixes foo.bar -> [foo.bar, bar]
+-- suffixes foo.bar.baz -> [foo.bar.baz, bar.baz, baz]
 suffixes :: Name -> [Name]
-suffixes (Name n) =
-  fmap up . tails . dropWhile (== "") $ Text.splitOn "." n
+suffixes (Name "") = []
+suffixes (Name n) = fmap up $ filter (not . null) $ tails $ Text.splitOn "." n
   where
   up ns = Name (Text.intercalate "." ns)
 
