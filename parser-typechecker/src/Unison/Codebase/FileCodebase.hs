@@ -125,7 +125,6 @@ data SyncedEntities = SyncedEntities
   { _syncedTerms    :: Set Reference.Id
   , _syncedDecls    :: Set Reference.Id
   , _syncedReferents :: Set Referent
-  , __syncedWatches  :: Set Reference
   , _syncedEdits    :: Set Branch.EditHash
   , _syncDestExists :: Set FilePath
   } deriving Generic
@@ -339,9 +338,8 @@ loadIndex parseKey indexDir =
 
   loadDependentsOf :: Reference -> FilePath -> m (Relation Reference k)
   loadDependentsOf r path = do
-    traceM $ "loadDependentsOf " ++ show r ++ show path
     listDirectory path <&>
-      Relation.fromList . fmap (r,) . catMaybes . traceShowId . fmap parseKey
+      Relation.fromList . fmap (r,) . catMaybes . fmap parseKey
 
 -- Relation Dependency Dependent, e.g. [(Set a -> List a, Set.toList)]
 loadTypeIndexDir :: MonadIO m => CodebasePath -> m (Relation Reference Referent)
