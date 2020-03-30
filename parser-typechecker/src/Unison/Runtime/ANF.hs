@@ -128,32 +128,42 @@ type FloatM v a r = State (Set v, [(v, Term v a)]) r
 
 letFloater
   :: (Var v, Monoid a)
-  => [(v, Term v a)] -> Term v a
+  => (Term v a -> FloatM v a (Term v a))
+  -> [(v, Term v a)] -> Term v a
   -> FloatM v a (Term v a)
-letFloater vbs e = do
+letFloater rec vbs e = do
   (cvs, ctx) <- get
   let shadows = [ (v, Var.freshIn cvs v)
                 | (v, _) <- vbs, Set.member v cvs ]
       shadowMap = Map.fromList shadows
       rn v = Map.findWithDefault v v shadowMap
-      fvbs = [ (rn v, ABT.changeVars shadowMap b) | (v, b) <- vbs ]
-      fcvs = Set.fromList . map fst $ fvbs
+  fvbs <- traverse (\(v, b) -> (,) (rn v) <$> rec b) vbs
+  let fcvs = Set.fromList . map fst $ fvbs
   put (cvs <> fcvs, ctx ++ fvbs)
   pure $ ABT.changeVars shadowMap e
+
+lamFloater
+  :: (Var v, Monoid a)
+  => Maybe v -> a -> [v] -> Term v a -> FloatM v a v
+lamFloater mv a vs bd
+  = state $ \(cvs, ctx) ->
+      let v = fromMaybe (ABT.freshIn cvs $ typed Var.Float) mv
+       in (v, (Set.insert v cvs, ctx <> [(v, lam' a vs bd)]))
 
 floater
   :: (Var v, Monoid a)
   => (Term v a -> FloatM v a (Term v a))
   -> Term v a -> Maybe (FloatM v a (Term v a))
-floater rec (LetRecNamed' vbs e) = Just $ letFloater vbs e >>= rec
-floater rec (Let1Named' v b e) = Just $ letFloater [(v,b)] e >>= rec
+floater rec (LetRecNamed' vbs e) = Just $ letFloater rec vbs e >>= rec
+floater rec (Let1Named' v b e)
+  | LamsNamed' vs bd <- b
+  = Just $ rec bd >>= lamFloater (Just v) a vs >> rec e
+  where a = ABT.annotation b
 floater rec tm@(LamsNamed' vs bd) = Just $ do
   bd <- rec bd
-  (cvs, ctx) <- get
-  let lv = ABT.freshIn cvs $ typed Var.Float
-      a = ABT.annotation tm
-  put (Set.insert lv cvs, ctx <> [(lv, lam' a vs bd)])
+  lv <- lamFloater Nothing a vs bd
   pure $ var a lv
+  where a = ABT.annotation tm
 floater _ _ = Nothing
 
 float :: (Var v, Monoid a) => Term v a -> Term v a
