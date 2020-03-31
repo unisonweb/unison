@@ -60,6 +60,8 @@ library
     Unison.Codebase.Editor.TodoOutput
     Unison.Codebase.Editor.UriParser
     Unison.Codebase.FileCodebase
+    Unison.Codebase.FileCodebaseB
+    Unison.Codebase.FileCodebaseC
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
     Unison.Codebase.NameEdit

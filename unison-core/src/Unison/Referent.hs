@@ -81,6 +81,9 @@ toReference' :: Referent' r -> r
 toReference' = \case
   Ref' r -> r
   Con' r _i _t -> r
+  
+fromId :: Id -> Referent
+fromId = fmap R.DerivedId  
 
 toTypeReference :: Referent -> Maybe Reference
 toTypeReference = \case

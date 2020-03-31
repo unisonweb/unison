@@ -462,6 +462,14 @@ toMap r =
 fromSet :: (Ord a, Ord b) => Set (a,b) -> Relation a b
 fromSet = fromList . S.toList
 
+fromManyRan
+  :: (Foldable f, Ord a, Ord b) => a -> f b -> Relation a b
+fromManyRan a bs = insertManyRan a bs mempty
+
+fromManyDom
+  :: (Foldable f, Ord a, Ord b) => f a -> b -> Relation a b
+fromManyDom as b = insertManyDom as b mempty
+
 swap :: Relation a b -> Relation b a
 swap (Relation a b) = Relation b a
 

@@ -8,7 +8,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.FileCodebase
+module Unison.Codebase.FileCodebaseC
 ( getRootBranch        -- used by Git module
 , branchHashesByPrefix -- used by Git module
 , branchFromFiles      -- used by Git module
@@ -47,7 +47,6 @@ import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 , doesDirectoryExist
                                                 , listDirectory
                                                 , removeFile
-                                                , doesPathExist
                                                 )
 import           System.FilePath                ( FilePath
                                                 , takeBaseName
@@ -74,7 +73,7 @@ import           Unison.Codebase.Causal         ( Causal
                                                 , RawHash(..)
                                                 )
 import qualified Unison.Codebase.Causal        as Causal
-import           Unison.Codebase.Branch         ( Branch )
+import           Unison.Codebase.Branch         ( Branch(Branch) )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Reflog        as Reflog
 import qualified Unison.Codebase.Serialization as S
@@ -102,6 +101,7 @@ import           Unison.Var                     ( Var )
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
+import qualified Unison.Util.Relation          as Relation
 import qualified Unison.PrettyTerminal         as PT
 import           Unison.Symbol                  ( Symbol )
 import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
@@ -110,9 +110,27 @@ import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import qualified Unison.ConstructorType as CT
 import Unison.Util.Monoid (foldMapM)
-import Control.Error (rightMay, runExceptT, ExceptT(..))
+import Control.Error (runExceptT, ExceptT(..))
+import Control.Monad.State (StateT, MonadState)
+import qualified Control.Monad.State           as State
+import Control.Lens
+import Unison.Util.Relation (Relation)
+import Data.Monoid.Generic -- (GenericSemigroup, GenericMonoid)
 
 type CodebasePath = FilePath
+
+data SyncedEntities = SyncedEntities
+  { _syncedTerms       :: Set Reference.Id
+  , _syncedDecls       :: Set Reference.Id
+  , _syncedEdits       :: Set Branch.EditHash
+  , _dependentsIndex   :: Relation Reference Reference.Id
+  , _typeIndex         :: Relation Reference Referent.Id
+  , _typeMentionsIndex :: Relation Reference Referent.Id
+  } deriving Generic
+  deriving Semigroup via GenericSemigroup SyncedEntities
+  deriving Monoid via GenericMonoid SyncedEntities
+
+makeLenses ''SyncedEntities
 
 data Err
   = InvalidBranchFile FilePath String
@@ -284,6 +302,9 @@ touchReferentFile :: MonadIO m => Referent -> FilePath -> m ()
 touchReferentFile id fp =
   touchFile (fp </> encodeFileName (referentToString id))
 
+touchReferentIdFile :: MonadIO m => Referent.Id -> FilePath -> m ()
+touchReferentIdFile = touchReferentFile . Referent.fromId
+
 touchFile :: MonadIO m => FilePath -> m ()
 touchFile fp = do
   createDirectoryIfMissing True (takeDirectory fp)
@@ -440,65 +461,144 @@ copyFromGit to from = liftIO . whenM (doesDirectoryExist from) $
   copyDir (\x -> not ((".git" `isSuffixOf` x) || ("_head" `isSuffixOf` x)))
           from to
 
--- Create a codebase structure at `localPath` if none exists, and
--- copy (merge) all codebase elements from the current codebase into it.
-syncToDirectory
-  :: forall m v a
-   . (MonadUnliftIO m)
+copyFileWithParents :: MonadIO m => FilePath -> FilePath -> m ()
+copyFileWithParents src dest = liftIO $
+  unlessM (doesFileExist dest) $ do
+    createDirectoryIfMissing True (takeDirectory dest)
+    copyFile src dest
+
+type SimpleLens s a = Lens s s a a
+
+copySyncToDirectory :: forall m v a
+  . MonadIO m
   => Var v
-  => Codebase.BuiltinAnnotation a
-  => S.Format v
-  -> S.Format a
-  -> Codebase m v a
+  => S.Get v
+  -> S.Get a
+  -> FilePath
   -> FilePath
   -> Branch m
   -> m (Branch m)
-syncToDirectory fmtV fmtA codebase localPath branch = do
-  b <- (liftIO . exists) localPath
-  if b then do
-    let code = codebase1 fmtV fmtA localPath
-    remoteRoot <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch code
-    Branch.sync (hashExists localPath) serialize (serializeEdits localPath) branch
-    merged <- Branch.merge branch remoteRoot
-    Codebase.putRootBranch code merged
-    pure merged
-  else do
-    Branch.sync (hashExists localPath) serialize (serializeEdits localPath) branch
-    updateCausalHead (branchHeadDir localPath) $ Branch._history branch
+copySyncToDirectory getV getA srcPath destPath branch =
+  (`State.evalStateT` mempty) $ do
+    b <- (liftIO . exists) destPath
+    newRemoteRoot@(Branch c) <- lift $
+      if b then
+        -- we are merging the specified branch with the destination root;
+        -- alternatives would be to replace the root, or leave it untouched,
+        -- meaning this new data could be garbage-colleged
+        getRootBranch destPath >>= \case
+          -- todo: `fail` isn't great.
+          Left Codebase.NoRootBranch ->
+            fail $ "No root branch found in " ++ destPath
+          Left (Codebase.CouldntLoadRootBranch h) ->
+            fail $ "Couldn't find root branch " ++ show h ++ " in " ++ destPath
+          Right existingDestRoot ->
+            Branch.merge branch existingDestRoot
+      else pure branch
+    Branch.sync
+      (hashExists destPath)
+      serialize
+      (\h _me -> copyEdits h)
+      (Branch.transform lift newRemoteRoot)
+    writeDependentsIndex =<< use dependentsIndex
+    writeTypeIndex =<< use typeIndex
+    writeTypeMentionsIndex =<< use typeMentionsIndex
+    updateCausalHead (branchHeadDir destPath) c
     pure branch
- where
-  serialize :: Causal.Serialize m Branch.Raw Branch.Raw
-  serialize rh rawBranch = do
+  where
+  writeDependentsIndex
+    :: Relation Reference Reference.Id -> StateT SyncedEntities m ()
+  writeDependentsIndex =
+    writeIndexHelper (\k v -> touchIdFile v (dependentsDir destPath k))
+  writeTypeIndex, writeTypeMentionsIndex
+    :: Relation Reference Referent.Id -> StateT SyncedEntities m ()
+  writeTypeIndex =
+    writeIndexHelper (\k v -> touchReferentIdFile v (typeIndexDir destPath k))
+  writeTypeMentionsIndex =
+    writeIndexHelper (\k v -> touchReferentIdFile v (typeMentionsIndexDir destPath k))
+  writeIndexHelper
+    :: forall m a b. MonadIO m => (a -> b -> m ()) -> Relation a b -> m ()
+  writeIndexHelper touchIndexFile index =
+    traverse_ @[] @m (uncurry touchIndexFile) (Relation.toList index)
+  serialize :: Causal.Serialize (StateT SyncedEntities m) Branch.Raw Branch.Raw
+  serialize rh rawBranch = unlessM (lift $ hashExists destPath rh) $ do
     writeBranch $ Causal.rawHead rawBranch
-    serializeRawBranch localPath rh rawBranch
-  calamity i =
-    error
-      $  "Calamity! Somebody deleted "
-      <> show i
-      <> " from the codebase while I wasn't looking."
-  writeBranch :: Branch.Raw -> m ()
-  writeBranch (Branch.Raw terms types _ _) = do
-    for_ (toList $ Star3.fact types) $ \case
-      Reference.DerivedId i -> do
-        alreadyExists <- liftIO . doesPathExist $ declPath localPath i
-        unless alreadyExists $ do
-          mayDecl <- Codebase.getTypeDeclaration codebase i
-          maybe (calamity i) (putDecl (S.put fmtV) (S.put fmtA) localPath i) mayDecl
-      Reference.Builtin{} -> pure ()
-    -- Write all terms
-    for_ (toList $ Star3.fact terms) $ \case
-      Ref r@(Reference.DerivedId i) -> do
-        alreadyExists <- liftIO . doesPathExist $ termPath localPath i
-        unless alreadyExists $ do
-          mayTerm <- Codebase.getTerm codebase i
-          mayType <- Codebase.getTypeOfTerm codebase r
-          fromMaybe (calamity i)
-                    (putTerm (S.put fmtV) (S.put fmtA) localPath i <$> mayTerm <*> mayType)
-          -- If the term is a test, write the cached value too.
-          mayTest <- Codebase.getWatch codebase UF.TestWatch i
-          maybe (pure ()) (putWatch (S.put fmtV) (S.put fmtA) localPath UF.TestWatch i) mayTest
-      Ref Reference.Builtin{} -> pure ()
-      Con{} -> pure ()
+    lift $ serializeRawBranch destPath rh rawBranch
+    where
+    writeBranch :: Branch.Raw -> StateT SyncedEntities m ()
+    writeBranch (Branch.Raw terms types _ _) = do
+      -- Index and copy decls
+      for_ (toList $ Star3.fact types) $ \case
+        Reference.DerivedId i -> copyDecl i
+        Reference.Builtin{} -> pure ()
+      -- Index and copy term definitions
+      for_ (toList $ Star3.fact terms) $ \case
+        Ref (Reference.DerivedId i) -> copyTerm i
+        Ref Reference.Builtin{} -> pure ()
+        Con{} -> pure ()
+    copyDecl :: Reference.Id -> StateT SyncedEntities m ()
+    copyDecl = copyHelper destPath syncedDecls declPath $ \i -> do
+      copyFileWithParents (declPath srcPath i) (declPath destPath i)
+      liftIO (getDecl getV getA srcPath i) >>= \case
+        Just decl -> do
+          let referentTypes :: [(Referent.Id, Type v a)]
+              referentTypes = DD.declConstructorReferents i decl
+                              `zip` (DD.constructorTypes . DD.asDataDecl) decl
+          for_ referentTypes $ \(r, typ) -> do
+            dependentsIndex <>=
+              Relation.fromManyDom (Type.dependencies typ) i
+            typeIndex <>=
+              Relation.singleton (Type.toReference typ) r
+            typeMentionsIndex <>=
+              Relation.fromManyDom (Type.toReferenceMentions typ) r
+        Nothing ->
+          fail $ "😞 The namespace " ++ show rh
+               ++ " referenced the type " ++ show i
+               ++ ", but I couldn't find it in " ++ (declPath srcPath i)
+    copyTerm :: Reference.Id -> StateT SyncedEntities m ()
+    copyTerm = copyHelper destPath syncedTerms termPath $
+      \i -> do
+        -- copy the files, and hopefully leave them in the disk cache for when
+        -- we read them in a second!
+        copyFileWithParents (termPath srcPath i) (termPath destPath i) -- compiled.ub
+        copyFileWithParents (typePath srcPath i) (typePath destPath i) -- type.ub
+        whenM (doesFileExist $ watchPath srcPath UF.TestWatch i) $
+          copyFileWithParents (watchPath srcPath UF.TestWatch i)
+                              (watchPath destPath UF.TestWatch i)
+        -- build the dependents index from dependencies
+        liftIO (S.getFromFile (V1.getTerm getV getA) (termPath srcPath i)) >>= \case
+          Just term ->
+            dependentsIndex <>= Relation.fromManyDom (Term.dependencies term) i
+          Nothing ->
+            fail $ "😞 The namespace " ++ show rh
+                 ++ " referenced the term " ++ show i
+                 ++ ", but I couldn't find it in " ++ (termPath srcPath i)
+        -- build the type indices
+        liftIO (S.getFromFile (V1.getType getV getA) (typePath srcPath i)) >>= \case
+          Just typ -> do
+            typeIndex <>=
+              Relation.singleton (Type.toReference typ) (Referent.Ref' i)
+            typeMentionsIndex <>=
+              Relation.fromManyDom (Type.toReferenceMentions typ) (Referent.Ref' i)
+          Nothing ->
+            fail $ "😞 The namespace " ++ show rh
+                 ++ " referenced the term " ++ show i
+                 ++ ", but I couldn't find its type in " ++ (typePath srcPath i)
+  copyEdits :: Branch.EditHash -> StateT SyncedEntities m ()
+  copyEdits = copyHelper destPath syncedEdits editsPath $
+    \h -> copyFileWithParents (editsPath srcPath h) (editsPath destPath h)
+  copyHelper :: forall m s h. (MonadIO m, MonadState s m, Ord h)
+             => CodebasePath
+             -> SimpleLens s (Set h) -- lens to track if `h` is already handled
+             -> (FilePath -> h -> FilePath) -- codebasepath -> hash -> filepath
+             -> (h -> m ()) -- handle h
+             -> h -> m ()
+  copyHelper destPath l getFilename f h =
+    unlessM (use (l . to (Set.member h))) $ do
+      l %= Set.insert h
+      ifM (doesFileExist (getFilename destPath h)) (f h) (pure ())
+  
+
 
 putTerm
   :: MonadIO m
@@ -634,7 +734,7 @@ codebase1
   => Var v
   => BuiltinAnnotation a
   => S.Format v -> S.Format a -> CodebasePath -> Codebase m v a
-codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
+codebase1 _fmtV@(S.Format getV putV) _fmtA@(S.Format getA putA) path =
   let c =
         Codebase
           getTerm
@@ -649,7 +749,7 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
           dependents
           -- Just copies all the files from a to-be-supplied path to `path`.
           (copyFromGit path)
-          (syncToDirectory fmtV fmtA c)
+          (copySyncToDirectory getV getA path)
           watches
           getWatch
           (putWatch putV putA path)
