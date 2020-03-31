@@ -528,14 +528,13 @@ find' :: (Ord v, Foldable f, Functor f)
 find' p = Unison.ABT.find (\t -> if p t then Found t else Continue)
 
 instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
-  -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
+  -- alpha equivalence, works by renaming any aligned Abs ctors to use a common variable
   t1 == t2 = go (out t1) (out t2) where
     go (Var v) (Var v2) | v == v2 = True
     go (Cycle t1) (Cycle t2) = t1 == t2
     go (Abs v1 body1) (Abs v2 body2) =
       if v1 == v2 then body1 == body2
-      else let v3 = freshInBoth body1 body2 v1
-           in rename v1 v3 body1 == rename v2 v3 body2
+      else rename v1 v2 body1 == body2
     go (Tm f1) (Tm f2) = f1 ==# f2
     go _ _ = False
 
