@@ -168,6 +168,7 @@ data Output v
   -- and a nicer render.
   | BustedBuiltins (Set Reference) (Set Reference)
   | GitError Input GitError
+  | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredGitUrl PushPull Path'
   | ConfiguredGitUrlParseError PushPull Path' Text String
   | ConfiguredGitUrlIncludesShortBranchHash PushPull RemoteRepo ShortBranchHash Path
@@ -299,6 +300,7 @@ isFailure o = case o of
   ListEdits{} -> False
   GitError{} -> True
   BustedBuiltins{} -> True
+  ConfiguredMetadataParseError{} -> True
   NoConfiguredGitUrl{} -> True
   ConfiguredGitUrlParseError{} -> True
   ConfiguredGitUrlIncludesShortBranchHash{} -> True

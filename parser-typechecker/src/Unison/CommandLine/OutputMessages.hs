@@ -737,27 +737,36 @@ notifyUser dir o = case o of
       (P.column2 . fmap format) ([(1::Integer)..] `zip` (toList patches))
       where
       format (i, p) = (P.hiBlack . fromString $ show i <> ".", prettyName p)
+  ConfiguredMetadataParseError p md err ->
+    pure . P.fatalCallout . P.lines $
+      [ P.wrap $ "I couldn't understand the default metadata that's set for "
+        <> prettyPath' p <> " in .unisonConfig."
+      , P.wrap $ "The value I found was"
+        <> (P.backticked . P.blue . P.string) md
+        <> "but I encountered the following error when trying to parse it:"
+      , ""
+      , err
+      ]
   NoConfiguredGitUrl pp p ->
     pure . P.fatalCallout . P.wrap $
       "I don't know where to " <>
         pushPull "push to!" "pull from!" pp <>
           (if Path.isRoot' p then ""
-           else "Add a line like `GitUrl." <> prettyPath' p
+           else "Add a line like `GitUrl." <> P.shown p
                 <> " = <some-git-url>' to .unisonConfig. "
           )
           <> "Type `help " <> pushPull "push" "pull" pp <>
           "` for more information."
 
 --  | ConfiguredGitUrlParseError PushPull Path' Text String
-  ConfiguredGitUrlParseError pp p url error ->
+  ConfiguredGitUrlParseError pp p url err ->
     pure . P.fatalCallout . P.lines $
-      [ P.wrap $ "I couldn't understand the url set in .unisonConfig for"
-          <> prettyPath' p <> "."
-      , ""
+      [ P.wrap $ "I couldn't understand the GitUrl that's set for"
+          <> prettyPath' p <> "in .unisonConfig"
       , P.wrap $ "The value I found was" <> (P.backticked . P.blue . P.text) url
         <> "but I encountered the following error when trying to parse it:"
       , ""
-      , P.string error
+      , P.string err
       , ""
       , P.wrap $ "Type" <> P.backticked ("help " <> pushPull "push" "pull" pp)
         <> "for more information."
