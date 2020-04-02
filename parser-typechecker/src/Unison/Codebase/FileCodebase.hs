@@ -64,7 +64,6 @@ import           Unison.Parser                  (Ann() )
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
-import           Unison.Term                    ( Term )
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
 import qualified Unison.UnisonFile             as UF
@@ -134,8 +133,8 @@ codebase1
 codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
   let c =
         Codebase
-          getTerm
-          getTypeOfTerm
+          (getTerm getV getA path)
+          (getTypeOfTerm getV getA path)
           (getDecl getV getA path)
           (putTerm putV putA path)
           (putDecl putV putA path)
@@ -146,9 +145,9 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
           dependents
           -- Just copies all the files from a to-be-supplied path to `path`.
           (copyFromGit path)
-          (syncToDirectory fmtV fmtA c)
+          (syncToDirectory fmtV fmtA path)
           watches
-          getWatch
+          (getWatch getV getA path)
           (putWatch putV putA path)
           getReflog
           appendReflog
@@ -164,8 +163,6 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
           (branchHashesByPrefix path)
    in c
   where
-    getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)
-    getTypeOfTerm h = liftIO $ S.getFromFile (V1.getType getV getA) (typePath path h)
     dependents :: Reference -> m (Set Reference.Id)
     dependents r = listDirAsIds (dependentsDir path r)
     getTermsOfType :: Reference -> m (Set Referent.Id)
@@ -196,12 +193,6 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
         createDirectoryIfMissing True wp
         ls <- listDirectory wp
         pure $ ls >>= (toList . componentIdFromString . takeFileName)
-    getWatch :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
-    getWatch k id =
-      liftIO $ do
-        let wp = watchesDir path (Text.pack k)
-        createDirectoryIfMissing True wp
-        S.getFromFile (V1.getTerm getV getA) (wp </> componentIdToString id <> ".ub")
     getReflog :: m [Reflog.Entry]
     getReflog =
       liftIO

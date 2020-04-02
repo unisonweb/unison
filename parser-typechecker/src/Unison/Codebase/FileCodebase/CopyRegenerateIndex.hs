@@ -13,20 +13,16 @@ module Unison.Codebase.FileCodebase.CopyRegenerateIndex (syncToDirectory) where
 import Unison.Prelude
 
 import qualified Data.Set                      as Set
-import           UnliftIO.Directory             ( doesFileExist )
+import           UnliftIO.Directory             ( doesFileExist, doesDirectoryExist )
 import           System.FilePath                ( FilePath )
 import qualified Unison.Codebase               as Codebase
 import qualified Unison.Codebase.Causal        as Causal
 import           Unison.Codebase.Branch         ( Branch(Branch) )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Serialization as S
-import qualified Unison.Codebase.Serialization.V1 as V1
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
-import           Unison.Referent                ( pattern Ref
-                                                , pattern Con
-                                                )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
 import           Unison.Type                    ( Type )
@@ -55,6 +51,35 @@ data SyncedEntities = SyncedEntities
 
 makeLenses ''SyncedEntities
 
+-- Create a codebase structure at `destPath` if none exists, and
+-- copy (merge) all codebase elements from the current codebase into it.
+--
+-- As a refresher, in the normal course of using `ucm` and updating the
+-- namespace, we call Branch.sync to write the updated root to disk.
+-- Branch.sync takes a few parameters:
+--  - `exists`: checks if a branch file already exists in the codebase,
+--              so we can skip it and the rest of its history.
+--  - `serializeRaw`: given a Branch.Hash, writes a Branch.Raw to disk
+--  - `serializeEdits`: given an EditsHash, writes an `m Patch` to disk
+--
+-- In this module, our `serializeRaw` (called `copyRawBranch`) works by
+-- copying branch, term, decl, and edits files.  It only serializes a
+-- branch from memory if it doesn't exist on disk; e.g. a merge root node.
+--
+-- Our `serializeEdits` ignores the `m Patch` it's given, and assumes it can
+-- file-copy one from disk based on the provided EditsHash.
+--
+-- Although branches, terms, decls, and edits are copied directly from source
+-- to destination without going through the serialization process, the
+-- dependents, type, and type mention indices are populated by loading the source
+-- definitions, and then creating the appropriate files in the destination index
+--
+-- Finally, this implementation does write all the transitive dependencies and
+-- indices by loading each term as it's copied, and recursing over each
+-- dependency.  It uses SyncedEntities to track what's already been done and not
+-- repeat work.  It does deserialize definitions to find their dependencies, but
+-- it doesn't do any serialization, except in the situation where we are trying
+-- to copy Branch history that only exists in memory and not in the FileCodebase.
 syncToDirectory :: forall m v a
   . MonadIO m
   => Var v
@@ -65,25 +90,23 @@ syncToDirectory :: forall m v a
   -> Branch m
   -> m (Branch m)
 syncToDirectory getV getA srcPath destPath branch =
-  (`State.evalStateT` mempty) $ do
-    b <- (liftIO . exists) destPath
+  flip State.evalStateT mempty $ do
     newRemoteRoot@(Branch c) <- lift $
-      if b then
-        -- we are merging the specified branch with the destination root;
-        -- alternatives would be to replace the root, or leave it untouched,
-        -- meaning this new data could be garbage-colleged
-        getRootBranch destPath >>= \case
-          -- todo: `fail` isn't great.
-          Left Codebase.NoRootBranch ->
-            fail $ "No root branch found in " ++ destPath
-          Left (Codebase.CouldntLoadRootBranch h) ->
-            fail $ "Couldn't find root branch " ++ show h ++ " in " ++ destPath
-          Right existingDestRoot ->
-            Branch.merge branch existingDestRoot
-      else pure branch
+      ifM (exists destPath)
+        (getRootBranch destPath >>= \case
+          Right existingDestRoot -> Branch.merge branch existingDestRoot
+          -- The destination codebase doesn't advertise a root branch,
+          -- so we'll just use ours.
+          Left Codebase.NoRootBranch -> pure branch
+          Left (Codebase.CouldntLoadRootBranch h) -> fail $
+            "I was trying to merge with the existing root branch at " ++
+            branchPath destPath h ++ ", but the file was missing."
+          )
+        -- else there was no existing codebase structure at `destPath` so whatev
+        (pure branch)
     Branch.sync
       (hashExists destPath)
-      serialize
+      copyRawBranch
       (\h _me -> copyEdits h)
       (Branch.transform lift newRemoteRoot)
     writeDependentsIndex =<< use dependentsIndex
@@ -92,10 +115,8 @@ syncToDirectory getV getA srcPath destPath branch =
     updateCausalHead (branchHeadDir destPath) c
     pure branch
   where
-  writeDependentsIndex
-    :: Relation Reference Reference.Id -> StateT SyncedEntities m ()
-  writeDependentsIndex =
-    writeIndexHelper (\k v -> touchIdFile v (dependentsDir destPath k))
+  writeDependentsIndex :: Relation Reference Reference.Id -> StateT SyncedEntities m ()
+  writeDependentsIndex = writeIndexHelper (\k v -> touchIdFile v (dependentsDir destPath k))
   writeTypeIndex, writeTypeMentionsIndex
     :: Relation Reference Referent.Id -> StateT SyncedEntities m ()
   writeTypeIndex =
@@ -105,71 +126,93 @@ syncToDirectory getV getA srcPath destPath branch =
   writeIndexHelper
     :: forall m a b. MonadIO m => (a -> b -> m ()) -> Relation a b -> m ()
   writeIndexHelper touchIndexFile index =
-    traverse_ @[] @m (uncurry touchIndexFile) (Relation.toList index)
-  serialize :: Causal.Serialize (StateT SyncedEntities m) Branch.Raw Branch.Raw
-  serialize rh rawBranch = unlessM (lift $ hashExists destPath rh) $ do
-    writeBranch $ Causal.rawHead rawBranch
-    lift $ serializeRawBranch destPath rh rawBranch
+    traverse_ (uncurry touchIndexFile) (Relation.toList index)
+  copyRawBranch :: (MonadState SyncedEntities n, MonadIO n) 
+                => Branch.Hash -> Causal.Raw Branch.Raw Branch.Raw -> n ()
+  copyRawBranch rh rc = unlessM (hashExists destPath rh) $ do
+    copyReferencedDefns $ Causal.rawHead rc
+    copyOrReserializeRawBranch rh rc
     where
-    writeBranch :: Branch.Raw -> StateT SyncedEntities m ()
-    writeBranch (Branch.Raw terms types _ _) = do
+    copyOrReserializeRawBranch rh rc =
+      ifM (doesFileExist (branchPath srcPath rh))
+        (copyFileWithParents (branchPath srcPath rh) (branchPath destPath rh))
+        (serializeRawBranch destPath rh rc)
+    copyReferencedDefns :: (MonadState SyncedEntities n, MonadIO n) => Branch.Raw -> n ()
+    copyReferencedDefns (Branch.Raw terms types _ _) = do
       -- Index and copy decls
-      for_ (toList $ Star3.fact types) $ \case
-        Reference.DerivedId i -> copyDecl i
-        Reference.Builtin{} -> pure ()
+      traverse_ copyDecl
+        . mapMaybe Reference.toId
+        . toList
+        $ Star3.fact types
       -- Index and copy term definitions
-      for_ (toList $ Star3.fact terms) $ \case
-        Ref (Reference.DerivedId i) -> copyTerm i
-        Ref Reference.Builtin{} -> pure ()
-        Con{} -> pure ()
-    copyDecl :: Reference.Id -> StateT SyncedEntities m ()
-    copyDecl = copyHelper destPath syncedDecls declPath $ \i -> do
-      copyFileWithParents (declPath srcPath i) (declPath destPath i)
-      liftIO (getDecl getV getA srcPath i) >>= \case
-        Just decl -> do
-          let referentTypes :: [(Referent.Id, Type v a)]
-              referentTypes = DD.declConstructorReferents i decl
-                              `zip` (DD.constructorTypes . DD.asDataDecl) decl
-          for_ referentTypes $ \(r, typ) -> do
-            dependentsIndex <>=
-              Relation.fromManyDom (Type.dependencies typ) i
-            typeIndex <>=
-              Relation.singleton (Type.toReference typ) r
-            typeMentionsIndex <>=
-              Relation.fromManyDom (Type.toReferenceMentions typ) r
+      traverse_ copyTerm
+        . mapMaybe Reference.toId
+        . mapMaybe Referent.toTermReference
+        . toList
+        $ Star3.fact terms
+  -- copy and index a decl and its transitive dependencies
+  copyDecl :: (MonadState SyncedEntities n, MonadIO n) => Reference.Id -> n ()
+  copyDecl = copyHelper destPath syncedDecls declPath $ \i -> do
+    -- first copy the file, then recursively copy its dependencies
+    copyFileWithParents (declPath srcPath i) (declPath destPath i)
+    getDecl getV getA srcPath i >>= \case
+      Just decl -> do
+        let referentTypes :: [(Referent.Id, Type v a)]
+            referentTypes = DD.declConstructorReferents i decl
+                            `zip` (DD.constructorTypes . DD.asDataDecl) decl
+        for_ referentTypes $ \(r, typ) -> do
+          let dependencies = Type.dependencies typ
+          traverse copyDecl . mapMaybe Reference.toId $ toList dependencies
+          dependentsIndex <>=
+            Relation.fromManyDom dependencies i
+          typeIndex <>=
+            Relation.singleton (Type.toReference typ) r
+          typeMentionsIndex <>=
+            Relation.fromManyDom (Type.toReferenceMentions typ) r
+      Nothing ->
+        fail $ "😞 I encountered a reference to the type " ++ show i
+             ++ ", but I couldn't find it in " ++ (declPath srcPath i)
+  -- copy and index a term and its transitive dependencies
+  copyTerm :: MonadState SyncedEntities n => MonadIO n => Reference.Id -> n ()
+  copyTerm = copyHelper destPath syncedTerms termPath $
+    \i -> do
+      -- copy the files, and hopefully leave them in the disk cache for when
+      -- we read them in a second!
+      copyFileWithParents (termPath srcPath i) (termPath destPath i) -- compiled.ub
+      copyFileWithParents (typePath srcPath i) (typePath destPath i) -- type.ub
+      whenM (doesFileExist $ watchPath srcPath UF.TestWatch i) $
+        copyFileWithParents (watchPath srcPath UF.TestWatch i)
+                            (watchPath destPath UF.TestWatch i)
+      -- build up the dependents index from dependencies,
+      -- and recursively copy the dependencies too.
+      getTerm getV getA srcPath i >>= \case
+        Just term -> do
+          let dependencies = Term.dependencies term
+          dependentsIndex <>= Relation.fromManyDom dependencies i
+          -- copy the transitive dependencies
+          for_ (mapMaybe Reference.toId $ toList dependencies) $ \r -> do
+            ifM (isTerm r) (copyTerm r) $
+              ifM (isDecl r) (copyDecl r) $
+                liftIO . putStrLn $
+                  "❗️ I was trying to copy the definition of " ++ show r ++
+                  ", which is a dependency of " ++ show i ++
+                  ", but I couldn't find it as a type _or_ a term."
+            where
+            isTerm = doesDirectoryExist . termPath srcPath
+            isDecl = doesDirectoryExist . declPath srcPath
         Nothing ->
-          fail $ "😞 The namespace " ++ show rh
-               ++ " referenced the type " ++ show i
-               ++ ", but I couldn't find it in " ++ (declPath srcPath i)
-    copyTerm :: Reference.Id -> StateT SyncedEntities m ()
-    copyTerm = copyHelper destPath syncedTerms termPath $
-      \i -> do
-        -- copy the files, and hopefully leave them in the disk cache for when
-        -- we read them in a second!
-        copyFileWithParents (termPath srcPath i) (termPath destPath i) -- compiled.ub
-        copyFileWithParents (typePath srcPath i) (typePath destPath i) -- type.ub
-        whenM (doesFileExist $ watchPath srcPath UF.TestWatch i) $
-          copyFileWithParents (watchPath srcPath UF.TestWatch i)
-                              (watchPath destPath UF.TestWatch i)
-        -- build the dependents index from dependencies
-        liftIO (S.getFromFile (V1.getTerm getV getA) (termPath srcPath i)) >>= \case
-          Just term ->
-            dependentsIndex <>= Relation.fromManyDom (Term.dependencies term) i
-          Nothing ->
-            fail $ "😞 The namespace " ++ show rh
-                 ++ " referenced the term " ++ show i
-                 ++ ", but I couldn't find it in " ++ (termPath srcPath i)
-        -- build the type indices
-        liftIO (S.getFromFile (V1.getType getV getA) (typePath srcPath i)) >>= \case
-          Just typ -> do
-            typeIndex <>=
-              Relation.singleton (Type.toReference typ) (Referent.Ref' i)
-            typeMentionsIndex <>=
-              Relation.fromManyDom (Type.toReferenceMentions typ) (Referent.Ref' i)
-          Nothing ->
-            fail $ "😞 The namespace " ++ show rh
-                 ++ " referenced the term " ++ show i
-                 ++ ", but I couldn't find its type in " ++ (typePath srcPath i)
+          fail $ "😞 I was trying to copy the type " ++ show i
+               ++ ", but I couldn't find it in " ++ (termPath srcPath i)
+      -- build the type indices
+      getTypeOfTerm getV getA srcPath i >>= \case
+        Just typ -> do
+          typeIndex <>=
+            Relation.singleton (Type.toReference typ) (Referent.Ref' i)
+          typeMentionsIndex <>=
+            Relation.fromManyDom (Type.toReferenceMentions typ) (Referent.Ref' i)
+        Nothing ->
+          fail $ "😞 I was trying to copy the term " ++ show i
+               ++ ", but I couldn't find its type in " ++ (typePath srcPath i)
   copyEdits :: Branch.EditHash -> StateT SyncedEntities m ()
   copyEdits = copyHelper destPath syncedEdits editsPath $
     \h -> copyFileWithParents (editsPath srcPath h) (editsPath destPath h)

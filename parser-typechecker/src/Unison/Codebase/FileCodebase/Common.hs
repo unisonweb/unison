@@ -24,14 +24,13 @@ import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 , doesFileExist
                                                 , listDirectory
                                                 , removeFile
-                                                , doesDirectoryExist
+                                                , doesDirectoryExist, copyFile
                                                 )
 import           System.FilePath                ( FilePath
                                                 , takeBaseName
                                                 , takeDirectory
                                                 , (</>)
                                                 )
-import           System.Directory               ( copyFile )
 import           System.Path                    ( replaceRoot
                                                 , createDir
                                                 , subDirs
@@ -71,6 +70,7 @@ import Unison.Util.Monoid (foldMapM)
 import Control.Error (runExceptT, ExceptT(..))
 import Control.Monad.State (MonadState)
 import Control.Lens (Lens, use, to, (%=))
+import UnliftIO.IO.File (writeBinaryFile)
 
 type CodebasePath = FilePath
 
@@ -179,10 +179,10 @@ termPath path r = termDir path r </> "compiled.ub"
 typePath path r = termDir path r </> "type.ub"
 declPath path r = declDir path r </> "compiled.ub"
 
-branchPath :: CodebasePath -> Hash.Hash -> FilePath
-branchPath root h = branchesDir root </> hashToString h ++ ".ub"
+branchPath :: CodebasePath -> Branch.Hash -> FilePath
+branchPath root (RawHash h) = branchesDir root </> hashToString h ++ ".ub"
 
-editsPath :: CodebasePath -> Hash.Hash -> FilePath
+editsPath :: CodebasePath -> Branch.EditHash -> FilePath
 editsPath root h = editsDir root </> hashToString h ++ ".up"
 
 reflogPath :: CodebasePath -> FilePath
@@ -202,7 +202,7 @@ touchReferentIdFile = touchReferentFile . Referent.fromId
 touchFile :: MonadIO m => FilePath -> m ()
 touchFile fp = do
   createDirectoryIfMissing True (takeDirectory fp)
-  liftIO $ writeFile fp ""
+  writeBinaryFile fp mempty
 
 -- checks if `path` looks like a unison codebase
 minimalCodebaseStructure :: CodebasePath -> [FilePath]
@@ -219,8 +219,8 @@ initialize path =
   traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
 
 branchFromFiles :: MonadIO m => FilePath -> Branch.Hash -> m (Maybe (Branch m))
-branchFromFiles rootDir h@(RawHash h') = do
-  fileExists <- doesFileExist (branchPath rootDir h')
+branchFromFiles rootDir h = do
+  fileExists <- doesFileExist (branchPath rootDir h)
   if fileExists then Just <$>
     Branch.read (deserializeRawBranch rootDir)
                 (deserializeEdits rootDir)
@@ -230,24 +230,24 @@ branchFromFiles rootDir h@(RawHash h') = do
  where
   deserializeRawBranch
     :: MonadIO m => CodebasePath -> Causal.Deserialize m Branch.Raw Branch.Raw
-  deserializeRawBranch root (RawHash h) = do
+  deserializeRawBranch root h = do
     let ubf = branchPath root h
-    liftIO (S.getFromFile' (V1.getCausal0 V1.getRawBranch) ubf) >>= \case
+    S.getFromFile' (V1.getCausal0 V1.getRawBranch) ubf >>= \case
       Left  err -> failWith $ InvalidBranchFile ubf err
       Right c0  -> pure c0
   deserializeEdits :: MonadIO m => CodebasePath -> Branch.EditHash -> m Patch
   deserializeEdits root h =
     let file = editsPath root h
-    in  liftIO (S.getFromFile' V1.getEdits file) >>= \case
-          Left  err   -> failWith $ InvalidEditsFile file err
-          Right edits -> pure edits
+    in S.getFromFile' V1.getEdits file >>= \case
+      Left  err   -> failWith $ InvalidEditsFile file err
+      Right edits -> pure edits
 
 -- returns Nothing if `root` has no root branch (in `branchHeadDir root`)
 getRootBranch :: forall m.
   MonadIO m => CodebasePath -> m (Either Codebase.GetRootBranchError (Branch m))
 getRootBranch root =
   ifM (exists root)
-    (liftIO (listDirectory $ branchHeadDir root) >>= go')
+    (listDirectory (branchHeadDir root) >>= go')
     (pure $ Left Codebase.NoRootBranch)
  where
   go' :: [String] -> m (Either Codebase.GetRootBranchError (Branch m))
@@ -275,19 +275,19 @@ putRootBranch root b = do
   updateCausalHead (branchHeadDir root) (Branch._history b)
 
 hashExists :: MonadIO m => CodebasePath -> Branch.Hash -> m Bool
-hashExists root (RawHash h) = liftIO $ doesFileExist (branchPath root h)
+hashExists root h = doesFileExist (branchPath root h)
 
 serializeRawBranch
   :: (MonadIO m) => CodebasePath -> Causal.Serialize m Branch.Raw Branch.Raw
-serializeRawBranch root (RawHash h) = liftIO
-  . S.putWithParentDirs (V1.putRawCausal V1.putRawBranch) (branchPath root h)
+serializeRawBranch root h =
+  S.putWithParentDirs (V1.putRawCausal V1.putRawBranch) (branchPath root h)
 
 serializeEdits
   :: MonadIO m => CodebasePath -> Branch.EditHash -> m Patch -> m ()
 serializeEdits root h medits =
-  unlessM (liftIO $ doesFileExist (editsPath root h)) $ do
+  unlessM (doesFileExist (editsPath root h)) $ do
     edits <- medits
-    liftIO $ S.putWithParentDirs V1.putEdits (editsPath root h) edits
+    S.putWithParentDirs V1.putEdits (editsPath root h) edits
 
 -- `headDir` is like ".unison/branches/head", or ".unison/edits/head";
 -- not ".unison"
@@ -298,7 +298,7 @@ updateCausalHead headDir c = do
   -- write new head
   touchFile (headDir </> hs)
   -- delete existing heads
-  liftIO $ fmap (filter (/= hs)) (listDirectory headDir)
+  fmap (filter (/= hs)) (listDirectory headDir)
        >>= traverse_ (removeFile . (headDir </>))
 
 -- here
@@ -336,13 +336,13 @@ referentToString = Text.unpack . Referent.toText
 
 -- Adapted from
 -- http://hackage.haskell.org/package/fsutils-0.1.2/docs/src/System-Path.html
-copyDir :: (FilePath -> Bool) -> FilePath -> FilePath -> IO ()
+copyDir :: MonadIO m => (FilePath -> Bool) -> FilePath -> FilePath -> m ()
 copyDir predicate from to = do
   createDirectoryIfMissing True to
   -- createDir doesn't create a new directory on disk,
   -- it creates a description of an existing directory,
   -- and it crashes if `from` doesn't exist.
-  d <- createDir from
+  d <- liftIO $ createDir from
   when (predicate $ dirPath d) $ do
     forM_ (subDirs d)
       $ \path -> copyDir predicate path (replaceRoot from to path)
@@ -351,38 +351,44 @@ copyDir predicate from to = do
       unless exists . copyFile path $ replaceRoot from to path
 
 copyFromGit :: MonadIO m => FilePath -> FilePath -> m ()
-copyFromGit to from = liftIO . whenM (doesDirectoryExist from) $
+copyFromGit to from = whenM (doesDirectoryExist from) $
   copyDir (\x -> not ((".git" `isSuffixOf` x) || ("_head" `isSuffixOf` x)))
           from to
 
 copyFileWithParents :: MonadIO m => FilePath -> FilePath -> m ()
-copyFileWithParents src dest = liftIO $
+copyFileWithParents src dest =
   unlessM (doesFileExist dest) $ do
     createDirectoryIfMissing True (takeDirectory dest)
     copyFile src dest
 
 copyHelper :: forall m s h. (MonadIO m, MonadState s m, Ord h)
            => CodebasePath
-           -> SimpleLens s (Set h) -- lens to track if `h` is already handled
-           -> (FilePath -> h -> FilePath) -- codebasepath -> hash -> filepath
-           -> (h -> m ()) -- handle h
+           -> SimpleLens s (Set h) -- lens to track if `h` is already done
+           -> (CodebasePath -> h -> FilePath) -- done if this filepath exists
+           -> (h -> m ()) -- do!
            -> h -> m ()
 copyHelper destPath l getFilename f h =
   unlessM (use (l . to (Set.member h))) $ do
     l %= Set.insert h
     ifM (doesFileExist (getFilename destPath h)) (f h) (pure ())
 
+getTerm :: (MonadIO m, Ord v) => S.Get v -> S.Get a -> CodebasePath -> Reference.Id -> m (Maybe (Term v a))
+getTerm getV getA path h = S.getFromFile (V1.getTerm getV getA) (termPath path h)
+
+getTypeOfTerm :: (MonadIO m, Ord v) => S.Get v -> S.Get a -> CodebasePath -> Reference.Id -> m (Maybe (Type v a))
+getTypeOfTerm getV getA path h = S.getFromFile (V1.getType getV getA) (typePath path h)
+
 putTerm
   :: MonadIO m
   => Var v
   => S.Put v
   -> S.Put a
-  -> FilePath
+  -> CodebasePath
   -> Reference.Id
   -> Term v a
   -> Type v a
   -> m ()
-putTerm putV putA path h e typ = liftIO $ do
+putTerm putV putA path h e typ = do
   let typeForIndexing = Type.removeAllEffectVars typ
       rootTypeHash = Type.toReference typeForIndexing
       typeMentions = Type.toReferenceMentions typeForIndexing
@@ -397,9 +403,11 @@ putTerm putV putA path h e typ = liftIO $ do
 
 getDecl :: (MonadIO m, Ord v)
   => S.Get v -> S.Get a -> CodebasePath -> Reference.Id -> m (Maybe (DD.Decl v a))
-getDecl getV getA root h = liftIO $
+getDecl getV getA root h =
   S.getFromFile
-    (V1.getEither (V1.getEffectDeclaration getV getA) (V1.getDataDeclaration getV getA))
+    (V1.getEither
+      (V1.getEffectDeclaration getV getA)
+      (V1.getDataDeclaration getV getA))
     (declPath root h)
 
 putDecl
@@ -407,15 +415,15 @@ putDecl
   => Var v
   => S.Put v
   -> S.Put a
-  -> FilePath
+  -> CodebasePath
   -> Reference.Id
   -> DD.Decl v a
   -> m ()
-putDecl putV putA path h decl = liftIO $ do
+putDecl putV putA path h decl = do
   S.putWithParentDirs
-    (V1.putEither (V1.putEffectDeclaration putV putA)
-                  (V1.putDataDeclaration putV putA)
-    )
+    (V1.putEither
+      (V1.putEffectDeclaration putV putA)
+      (V1.putDataDeclaration putV putA))
     (declPath path h)
     decl
   traverse_ (touchIdFile h . dependentsDir path) deps
@@ -434,6 +442,18 @@ putDecl putV putA path h decl = liftIO $ do
     [ (Referent.Con r i ct, Type.removeAllEffectVars t)
     | (t,i) <- DD.constructorTypes decl' `zip` [0..] ]
 
+getWatch :: (MonadIO m, Ord v)
+         => S.Get v
+         -> S.Get a
+         -> CodebasePath
+         -> UF.WatchKind
+         -> Reference.Id
+         -> m (Maybe (Term v a))
+getWatch getV getA path k id = do
+  let wp = watchesDir path (Text.pack k)
+  createDirectoryIfMissing True wp
+  S.getFromFile (V1.getTerm getV getA) (wp </> componentIdToString id <> ".ub")
+
 putWatch
   :: MonadIO m
   => Var v
@@ -444,14 +464,15 @@ putWatch
   -> Reference.Id
   -> Term v a
   -> m ()
-putWatch putV putA root k id e = liftIO $ S.putWithParentDirs
-  (V1.putTerm putV putA)
-  (watchPath root k id)
-  e
+putWatch putV putA root k id e =
+  S.putWithParentDirs
+    (V1.putTerm putV putA)
+    (watchPath root k id)
+    e
 
 loadReferencesByPrefix
   :: MonadIO m => FilePath -> ShortHash -> m (Set Reference.Id)
-loadReferencesByPrefix dir sh = liftIO $ do
+loadReferencesByPrefix dir sh = do
     refs <- mapMaybe Reference.fromShortHash
              . filter (SH.isPrefixOf sh)
              . mapMaybe SH.fromString
@@ -488,7 +509,7 @@ termReferentsByPrefix getDecl root sh = do
 
 branchHashesByPrefix :: MonadIO m => CodebasePath -> ShortBranchHash -> m (Set Branch.Hash)
 branchHashesByPrefix codebasePath p =
-  liftIO $ fmap (Set.fromList . join) . for [branchesDir] $ \f -> do
+  fmap (Set.fromList . join) . for [branchesDir] $ \f -> do
     let dir = f codebasePath
     paths <- filter (isPrefixOf . Text.unpack . SBH.toText $ p) <$> listDirectory dir
     let refs = paths >>= (toList . filenameToHash)

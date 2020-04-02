@@ -11,81 +11,147 @@
 module Unison.Codebase.FileCodebase.Reserialize where
 
 import Unison.Prelude
-import           UnliftIO.Directory             ( doesPathExist
-                                                )
-import qualified Unison.Codebase               as Codebase
-import           Unison.Codebase                ( Codebase )
+
+import Data.Monoid.Generic
+import Control.Error (rightMay)
+import Control.Lens
+import Control.Monad.State (evalStateT, StateT)
+
+import           UnliftIO.Directory             ( doesDirectoryExist )
 import qualified Unison.Codebase.Causal        as Causal
-import           Unison.Codebase.Branch         ( Branch )
+import           Unison.Codebase.Branch         ( Branch(..) )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Reference              as Reference
-import           Unison.Referent                (
-                                                 pattern Ref
-                                                , pattern Con
-                                                )
+import Unison.Reference (Reference)
+import qualified Unison.Referent               as Referent
 import           Unison.Var                     ( Var )
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Star3             as Star3
-import Control.Error (rightMay)
 import Unison.Codebase.FileCodebase.Common
+import Unison.DataDeclaration as DD
+import Unison.Codebase (BuiltinAnnotation)
+import qualified Unison.Term as Term
+import qualified Unison.Type as Type
+
+data SyncedEntities = SyncedEntities
+  { _syncedTerms :: Set Reference.Id
+  , _syncedDecls :: Set Reference.Id
+  } deriving Generic
+  deriving Semigroup via GenericSemigroup SyncedEntities
+  deriving Monoid via GenericMonoid SyncedEntities
+
+makeLenses ''SyncedEntities
 
 -- Create a codebase structure at `destPath` if none exists, and
 -- copy (merge) all codebase elements from the current codebase into it.
+-- 
+-- As a refresher, in the normal course of using `ucm` and updating the 
+-- namespace, we call Branch.sync to write the updated root to disk.
+-- Branch.sync takes a few parameters:
+--  - `exists`: checks if a branch file already exists in the codebase, 
+--              so we can skip it and the rest of its history.
+--  - `serializeRaw`: given a Branch.Hash, writes a Branch.Raw to disk
+--  - `serializeEdits`: given an EditsHash, writes an `m Patch` to disk
+--
+-- In this module, our `serializeRaw` (called `serialize`) is given double duty, 
+-- to both write out the Branch.Raw as usual, and to take a look at the decls 
+-- and terms referenced by each Raw, and write them and their dependencies 
+-- (via normal serialization) to the destination codebase. 
+-- 
+-- The dependents, type, and type mention indices are populated like with the 
+-- primary local codebase, by adding to them as each definition is serialized.
 syncToDirectory
   :: forall m v a
    . (MonadIO m)
   => Var v
-  => Codebase.BuiltinAnnotation a
+  => BuiltinAnnotation a
   => S.Format v
   -> S.Format a
-  -> Codebase m v a
+  -> CodebasePath
   -> CodebasePath
   -> Branch m
   -> m (Branch m)
-syncToDirectory fmtV fmtA codebase destPath branch = do
-  b <- (liftIO . exists) destPath
-  if b then do
---    let code = codebase1 fmtV fmtA localPath
-    remoteRoot <- fromMaybe Branch.empty . rightMay <$> getRootBranch destPath
-    Branch.sync (hashExists destPath) serialize (serializeEdits destPath) branch
-    merged <- Branch.merge branch remoteRoot
-    putRootBranch destPath merged
-    pure merged
-  else do
-    Branch.sync (hashExists destPath) serialize (serializeEdits destPath) branch
-    updateCausalHead (branchHeadDir destPath) $ Branch._history branch
-    pure branch
+syncToDirectory fmtV fmtA srcPath destPath branch = do
+  -- If there's already a codebase at `destPath` and we can access its root
+  -- branch, then we merge the existing root with the provided `branch`, in
+  -- preparation for writing; otherwise we just plan to write the provided one.
+  branch@(Branch c) <-
+    ifM (exists destPath)
+      (do
+        remoteRoot <- getRootBranch destPath
+        Branch.merge branch (fromMaybe Branch.empty $ rightMay remoteRoot))
+      (pure branch)
+  -- We build and use the state inside of `serialize`; now we can throw it away.
+  flip evalStateT mempty $
+    Branch.sync
+      (hashExists destPath)
+      serialize
+      (serializeEdits destPath)
+      (Branch.transform lift branch)
+  updateCausalHead (branchHeadDir destPath) c
+  pure branch
  where
-  serialize :: Causal.Serialize m Branch.Raw Branch.Raw
   serialize rh rawBranch = do
     writeBranch $ Causal.rawHead rawBranch
     serializeRawBranch destPath rh rawBranch
-  calamity i =
-    error
-      $  "Calamity! Somebody deleted "
-      <> show i
-      <> " from the codebase while I wasn't looking."
-  writeBranch :: Branch.Raw -> m ()
+  writeBranch :: Branch.Raw -> StateT SyncedEntities m ()
   writeBranch (Branch.Raw terms types _ _) = do
-    for_ (toList $ Star3.fact types) $ \case
-      Reference.DerivedId i -> do
-        alreadyExists <- liftIO . doesPathExist $ declPath destPath i
-        unless alreadyExists $ do
-          mayDecl <- Codebase.getTypeDeclaration codebase i
-          maybe (calamity i) (putDecl (S.put fmtV) (S.put fmtA) destPath i) mayDecl
-      Reference.Builtin{} -> pure ()
-    -- Write all terms
-    for_ (toList $ Star3.fact terms) $ \case
-      Ref r@(Reference.DerivedId i) -> do
-        alreadyExists <- liftIO . doesPathExist $ termPath destPath i
-        unless alreadyExists $ do
-          mayTerm <- Codebase.getTerm codebase i
-          mayType <- Codebase.getTypeOfTerm codebase r
-          fromMaybe (calamity i)
-                    (putTerm (S.put fmtV) (S.put fmtA) destPath i <$> mayTerm <*> mayType)
-          -- If the term is a test, write the cached value too.
-          mayTest <- Codebase.getWatch codebase UF.TestWatch i
-          maybe (pure ()) (putWatch (S.put fmtV) (S.put fmtA) destPath UF.TestWatch i) mayTest
-      Ref Reference.Builtin{} -> pure ()
-      Con{} -> pure ()
+    -- Write all decls & transitive dependencies 🤞
+    traverse_ putDecl'
+      . mapMaybe Reference.toId
+      . toList
+      $ Star3.fact types
+    -- Write all terms & transitive dependencies 🤞
+    traverse_ putTerm'
+      . mapMaybe Reference.toId
+      . mapMaybe Referent.toTermReference
+      . toList
+      $ Star3.fact terms
+  getDecl' = getDecl (S.get fmtV) (S.get fmtA) srcPath
+  getTerm' = getTerm (S.get fmtV) (S.get fmtA) srcPath
+  getTypeOfTerm' = getTypeOfTerm (S.get fmtV) (S.get fmtA) srcPath
+  getWatch' = getWatch (S.get fmtV) (S.get fmtA) srcPath
+  putWatch' = putWatch (S.put fmtV) (S.put fmtA) destPath
+  -- copyHelper is responsible for making sure we don't repeat work
+  putDecl' = copyHelper destPath syncedDecls declPath go where
+    go i = do
+      d <- fromMaybe noDecl <$> getDecl' i
+      putDecl (S.put fmtV) (S.put fmtA) destPath i d
+      traverse_ tryPutDependency (DD.declDependencies d)
+      where
+      noDecl = error $
+        "😞 I was trying to copy a type from" ++
+        "\n\t" ++ declPath destPath i ++
+        "\nbut there was nothing there."
+  putTerm' :: Reference.Id -> StateT SyncedEntities m ()
+  putTerm' = copyHelper destPath syncedTerms termPath go where
+    go i = do
+      tm <- fromMaybe noTerm <$> getTerm' i
+      tp <- fromMaybe noType <$> getTypeOfTerm' i
+      putTerm (S.put fmtV) (S.put fmtA) destPath i tm tp
+      mayTest <- getWatch' UF.TestWatch i
+      maybe (pure ()) (putWatch' UF.TestWatch i) mayTest
+      traverse_ tryPutDependency
+        (Term.dependencies tm <> Type.dependencies tp)
+      where
+      noTerm = error $
+        "😞 I was trying to copy a term from" ++
+        "\n\t" ++ termPath destPath i ++
+        "\nbut there was nothing there."
+      noType = error $
+        "😞 I was trying to copy a type signature from" ++
+        "\n\t" ++ typePath destPath i ++
+        "\nbut there was nothing there."
+  serialize :: Causal.Serialize (StateT SyncedEntities m) Branch.Raw Branch.Raw
+  -- Decide if this is a term reference or decl reference, and then dispatch.
+  -- These disk accesses are guarded by `copyHelper`, above.
+  tryPutDependency :: Reference -> StateT SyncedEntities m ()
+  tryPutDependency Reference.Builtin{} = pure ()
+  tryPutDependency (Reference.DerivedId i) = do
+    ifM (isTerm i) (putTerm' i) $
+      ifM (isDecl i) (putDecl' i) $
+        fail $ "😞 I was trying to copy the definition of " ++ show i
+            ++ ", but I couldn't find it as a type _or_ a term."
+  isTerm = doesDirectoryExist . termPath srcPath
+  isDecl = doesDirectoryExist . declPath srcPath
