@@ -244,12 +244,25 @@ into' a abt = case abt of
 
 -- | renames `old` to `new` in the given term, ignoring subtrees that bind `old`
 rename :: (Foldable f, Functor f, Var v) => v -> v -> Term f v a -> Term f v a
-rename old new t0@(Term _ ann t) = case t of
-  Var v -> if v == old then annotatedVar ann new else t0
-  Cycle body -> cycle' ann (rename old new body)
-  Abs v body -> if v == old then abs' ann v body
-                else abs' ann v (rename old new body)
-  Tm v -> tm' ann (fmap (rename old new) v)
+rename old new t0@(Term fvs ann t) =
+  if Set.notMember old fvs then t0
+  else case t of
+    Var v -> if v == old then annotatedVar ann new else t0
+    Cycle body -> cycle' ann (rename old new body)
+    Abs v body ->
+      -- v shadows old, so skip this subtree
+      if v == old then abs' ann v body
+
+      -- the rename would capture new, freshen this Abs
+      -- to make that no longer true, then proceed with
+      -- renaming `old` to `new`
+      else if v == new then
+        let v' = freshIn (Set.insert new (freeVars body)) v
+        in abs' ann v' (rename old new (rename v v' body))
+
+      -- nothing special, just rename inside body of Abs
+      else abs' ann v (rename old new body)
+    Tm v -> tm' ann (fmap (rename old new) v)
 
 changeVars :: (Foldable f, Functor f, Var v) => Map v v -> Term f v a -> Term f v a
 changeVars m t = case out t of
@@ -528,13 +541,14 @@ find' :: (Ord v, Foldable f, Functor f)
 find' p = Unison.ABT.find (\t -> if p t then Found t else Continue)
 
 instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
-  -- alpha equivalence, works by renaming any aligned Abs ctors to use a common variable
+  -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
   t1 == t2 = go (out t1) (out t2) where
     go (Var v) (Var v2) | v == v2 = True
     go (Cycle t1) (Cycle t2) = t1 == t2
     go (Abs v1 body1) (Abs v2 body2) =
       if v1 == v2 then body1 == body2
-      else rename v1 v2 body1 == body2
+      else let v3 = freshInBoth body1 body2 v1
+           in rename v1 v3 body1 == rename v2 v3 body2
     go (Tm f1) (Tm f2) = f1 ==# f2
     go _ _ = False
 
