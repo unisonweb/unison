@@ -12,8 +12,8 @@ import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
 import Data.Primitive.Array
 
+import Data.IntSet (IntSet)
 import Data.IntMap.Strict (IntMap)
-import qualified Data.IntMap.Strict as IM
 
 import Unison.Runtime.MCode
 
@@ -23,7 +23,8 @@ data Mem = UN | BX
 data K
   = KE
   -- mark continuation with a prompt
-  | Mark !(IntMap Closure)
+  | Mark !IntSet
+         !(IntMap Closure)
          !K
   -- save information about a frame for later resumption
   | Push !Int -- unboxed frame size
@@ -75,17 +76,23 @@ uargOnto stk sp cop cp0 (Arg2 i j) = do
   pure cp
  where cp = cp0+2
 uargOnto stk sp cop cp0 (ArgN v) = do
+  buf <- if overwrite
+         then newByteArray $ bytes sz
+         else pure cop
   let loop i
         | i < 0     = return ()
         | otherwise = do
             (x :: Int) <- readByteArray stk (sp-indexPrimArray v i)
-            writeByteArray cop (cp-i) x
+            writeByteArray buf (sz-1-i) x
             loop $ i-1
   loop $ sz-1
+  when overwrite $
+    copyMutableByteArray cop (bytes $ cp+1) buf 0 (bytes sz)
   pure cp
  where
  cp = cp0+sz
  sz = sizeofPrimArray v
+ overwrite = sameMutableByteArray stk cop
 uargOnto stk sp cop cp0 (ArgR i l) = do
   moveByteArray cop cbp stk sbp (bytes l)
   pure $ cp0+l
@@ -293,7 +300,7 @@ instance Show K where
     go _ KE = "]"
     go com (Push uf bf ua ba _ k)
       = com ++ show (uf,bf,ua,ba) ++ go "," k
-    go com (Mark ps k) = com ++ "M" ++ show (IM.keys ps) ++ go "," k
+    go com (Mark ps _ k) = com ++ "M" ++ show ps ++ go "," k
 
 instance MEM 'BX where
   data Stack 'BX

@@ -5,6 +5,7 @@ module Unison.Runtime.Rt2 where
 
 import Data.Maybe (fromMaybe)
 
+import qualified Data.IntSet as S
 import qualified Data.IntMap.Strict as M
 
 import Unison.Runtime.Stack
@@ -73,7 +74,7 @@ exec !_   !denv !ustk !bstk !k (Lit n) = do
   poke ustk n
   pure (denv, ustk, bstk, k)
 exec !_   !denv !ustk !bstk !k (Reset ps) = do
-  pure (denv, ustk, bstk, Mark clos k)
+  pure (denv, ustk, bstk, Mark ps clos k)
  where clos = M.restrictKeys denv ps
 {-# inline exec #-}
 
@@ -174,10 +175,10 @@ repush :: Env -> Stack 'UN -> Stack 'BX -> DEnv -> K -> K -> IO ()
 repush !env !ustk !bstk = go
  where
  go !denv KE !k = yield env denv ustk bstk k
- go !denv (Mark cs sk) !k = go denv' sk $ Mark cs' k
+ go !denv (Mark ps cs sk) !k = go denv' sk $ Mark ps cs' k
   where
-  denv' = cs <> denv
-  cs' = M.restrictKeys denv $ M.keysSet cs
+  denv' = cs <> M.withoutKeys denv ps
+  cs' = M.restrictKeys denv ps
  go !denv (Push un bn ua ba nx sk) !k
    = go denv sk $ Push un bn ua ba nx k
 {-# inline repush #-}
@@ -390,7 +391,7 @@ prim2 !ustk Gtn !i !j = do
 yield :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> IO ()
 yield !env !denv !ustk !bstk !k = leap denv k
  where
- leap !denv (Mark cs k) = leap (cs <> denv) k
+ leap !denv (Mark ps cs k) = leap (cs <> M.withoutKeys denv ps) k
  leap !denv (Push ufsz bfsz uasz basz nx k) = do
    ustk <- restoreFrame ustk ufsz uasz
    bstk <- restoreFrame bstk bfsz basz
@@ -417,12 +418,12 @@ splitCont !denv !ustk !bstk !k !p
  where
  walk !denv !usz !bsz !ck KE
    = error "fell off stack" >> finish denv usz bsz ck KE
- walk !denv !usz !bsz !ck (Mark cs k)
-   | M.member p cs = finish denv' usz bsz ck k
-   | otherwise     = walk denv' usz bsz (Mark cs' ck) k
+ walk !denv !usz !bsz !ck (Mark ps cs k)
+   | S.member p ps = finish denv' usz bsz ck k
+   | otherwise     = walk denv' usz bsz (Mark ps cs' ck) k
   where
-  denv' = cs <> denv
-  cs' = M.restrictKeys denv $ M.keysSet cs
+  denv' = cs <> M.withoutKeys denv ps
+  cs' = M.restrictKeys denv ps
  walk !denv !usz !bsz !ck (Push un bn ua ba br k)
    = walk denv (usz+un+ua) (bsz+bn+ba) (Push un bn ua ba br ck) k
 
