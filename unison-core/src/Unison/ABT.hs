@@ -257,7 +257,7 @@ rename old new t0@(Term fvs ann t) =
       -- to make that no longer true, then proceed with
       -- renaming `old` to `new`
       else if v == new then
-        let v' = freshIn (Set.insert new (freeVars body)) v
+        let v' = freshIn (Set.fromList [new,old] <> freeVars body) v
         in abs' ann v' (rename old new (rename v v' body))
 
       -- nothing special, just rename inside body of Abs
