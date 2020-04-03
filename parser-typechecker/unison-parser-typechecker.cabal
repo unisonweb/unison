@@ -333,5 +333,6 @@ benchmark runtime
   build-depends:
     base,
     criterion,
+    containers,
     unison-core,
     unison-parser-typechecker

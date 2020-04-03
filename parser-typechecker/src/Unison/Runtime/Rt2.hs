@@ -77,7 +77,8 @@ exec !_   !denv !ustk !bstk !k (Reset ps) = do
  where clos = M.restrictKeys denv ps
 {-# inline exec #-}
 
-eval :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> Section -> IO ()
+eval :: Env -> DEnv
+     -> Stack 'UN -> Stack 'BX -> K -> Section -> IO ()
 eval !env !denv !ustk !bstk !k (Match i br) = do
   t <- peekOff ustk i
   eval env denv ustk bstk k $ selectBranch t br
@@ -87,7 +88,8 @@ eval !env !denv !ustk !bstk !k (Yield args) = do
   bstk <- frameArgs bstk
   yield env denv ustk bstk k
 eval !env !denv !ustk !bstk !k (App ck r args) =
-  resolve env denv ustk bstk r >>= apply env denv ustk bstk k ck args
+  resolve env denv ustk bstk r
+    >>= apply env denv ustk bstk k ck args
 eval !env !denv !ustk !bstk !k (Call ck n args) =
   enter env denv ustk bstk k ck args $ env n
 eval !env !denv !ustk !bstk !k (Jump i args) =
@@ -106,13 +108,15 @@ eval !_   !_    !_    !_    !_ (Die s) = error s
 enter
   :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K
   -> Bool -> Args -> Comb -> IO ()
-enter !env !denv !ustk !bstk !k !ck !args (Lam ua ba uf bf fun) = do
+enter !env !denv !ustk !bstk !k !ck !args !comb = do
   ustk <- if ck then ensure ustk uf else pure ustk
   bstk <- if ck then ensure bstk bf else pure bstk
   (ustk, bstk) <- moveArgs ustk bstk args
   ustk <- acceptArgs ustk ua
   bstk <- acceptArgs bstk ba
-  eval env denv ustk bstk k fun
+  eval env denv ustk bstk k entry
+  where
+  Lam ua ba uf bf entry = comb
 {-# inline enter #-}
 
 -- fast path by-name delaying
@@ -129,7 +133,7 @@ apply
   :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> K
   -> Bool -> Args -> Closure -> IO ()
 apply !env !denv !ustk !bstk !k !ck !args clo = case clo of
-  PAp comb@(Lam ua ba uf bf fun) useg bseg
+  PAp comb@(Lam ua ba uf bf entry) useg bseg
     | ck || ua <= uac && ba <= bac -> do
       ustk <- ensure ustk uf
       bstk <- ensure bstk bf
@@ -138,7 +142,7 @@ apply !env !denv !ustk !bstk !k !ck !args clo = case clo of
       bstk <- dumpSeg bstk bseg A
       ustk <- acceptArgs ustk ua
       bstk <- acceptArgs bstk ba
-      eval env denv ustk bstk k fun
+      eval env denv ustk bstk k entry
     | otherwise -> do
       (useg, bseg) <- closeArgs ustk bstk useg bseg args
       ustk <- discardFrame ustk

@@ -6,11 +6,15 @@
 
 module Unison.Runtime.MCode where
 
+import GHC.Stack (HasCallStack)
+
 import Data.List (elemIndex)
 
 import Data.Primitive.PrimArray
 
+import qualified Data.Map.Strict as M
 import Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap.Strict as IM
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IS
 
@@ -23,6 +27,7 @@ import Unison.Runtime.ANF
   , Branched(..)
   , Func(..)
   , SuperNormal(..)
+  , SuperGroup(..)
   , pattern TVar
   , pattern TLit
   , pattern TApv
@@ -330,7 +335,7 @@ data Comb
         !Int -- Number of boxed arguments
         !Int -- Maximum needed unboxed frame size
         !Int -- Maximum needed boxed frame size
-        !Section -- Code
+        !Section -- Entry
   deriving (Show)
 
 data Ref
@@ -352,69 +357,100 @@ data Branch
   deriving (Show)
 
 type Ctx v = [v]
+type RCtx v = M.Map v Int
 
-ctxResolve :: Var v => Ctx v -> v -> Int
-ctxResolve ctx u
-  | Just i <- elemIndex u ctx = i
-  | otherwise = error $ "ctxResolve: bad variable scoping: " ++ show u
+ctxResolve :: Var v => Ctx v -> v -> Maybe Int
+ctxResolve ctx u = elemIndex u ctx
 
-emitComb :: Var v => SuperNormal v -> Comb
-emitComb (Lambda (TAbss vs bd))
-  = Lam 0 (length vs) 10 10 $ emitSection vs bd
+rctxResolve :: Var v => RCtx v -> v -> Maybe Int
+rctxResolve ctx u = M.lookup u ctx
 
-emitSection :: Var v => Ctx v -> ANormal v -> Section
-emitSection ctx (TLet u bu bo)
-  = emitLet ctx bu $ emitSection (u : ctx) bo
-emitSection ctx (TName u f as bo)
-  = Ins (Name f $ emitArgs ctx as) $ emitSection (u : ctx) bo
-emitSection ctx (TVar v) = Yield . BArg1 $ ctxResolve ctx v
-emitSection ctx (TApv v args)
-  = App False (Stk $ ctxResolve ctx v) $ emitArgs ctx args
-emitSection ctx (TCom n args)
+emitCombs :: Var v => Int -> SuperGroup v -> (Comb, IntMap Comb, Int)
+emitCombs frsh (Rec grp ent)
+  = (emitComb rec ent, IM.fromList aux, frsh')
+  where
+  frsh' = frsh + length grp
+  (rvs, cmbs) = unzip grp
+  rec = M.fromList $ zip rvs [frsh..]
+  aux = zip [frsh..] $ emitComb rec <$> cmbs
+
+emitComb :: Var v => RCtx v -> SuperNormal v -> Comb
+emitComb rec (Lambda (TAbss vs bd))
+  = Lam 0 (length vs) 10 10 $ emitSection rec vs bd
+
+emitSection :: Var v => RCtx v -> Ctx v -> ANormal v -> Section
+emitSection rec ctx (TLet u bu bo)
+  = emitLet rec ctx bu $ emitSection rec (u : ctx) bo
+emitSection rec ctx (TName u (Left f) as bo)
+  = Ins (Name f $ emitArgs ctx as) $ emitSection rec (u : ctx) bo
+emitSection rec ctx (TName u (Right v) as bo)
+  | Just f <- rctxResolve rec v
+  = Ins (Name f $ emitArgs ctx as) $ emitSection rec (u : ctx) bo
+  | otherwise = emitSectionVErr v
+emitSection rec ctx (TVar v)
+  | Just i <- ctxResolve ctx v = Yield $ BArg1 i
+  | Just j <- rctxResolve rec v = App False (Env j) ZArgs
+  | otherwise = emitSectionVErr v
+emitSection rec ctx (TApv v args)
+  | Just i <- ctxResolve ctx v
+  = App False (Stk i) $ emitArgs ctx args
+  | Just j <- rctxResolve rec v
+  = App False (Env j) $ emitArgs ctx args
+  | otherwise = emitSectionVErr v
+emitSection _   ctx (TCom n args)
   | False -- known saturated call
   = Call False n $ emitArgs ctx args
   | False -- known unsaturated call
   = Ins (Name n $ emitArgs ctx args) $ Yield (BArg1 0)
   | otherwise -- slow path
   = App False (Env n) $ emitArgs ctx args
-emitSection ctx (TCon _ t args)
+emitSection _   ctx (TCon _ t args)
   = Ins (Pack t (emitArgs ctx args))
   . Yield $ BArg1 0
-emitSection ctx (TReq a e args)
+emitSection _   ctx (TReq a e args)
   -- Currently implementing packed calling convention for abilities
   = Ins (Pack e (emitArgs ctx args))
   . App True (Dyn a) $ BArg1 0
-emitSection _   (TLit l)
+emitSection _   _   (TLit l)
   = Ins (emitLit l)
   . Ins (Pack 0 $ UArg1 0)
   . Yield $ BArg1 0
 -- Currently implementing boxed integer matching
-emitSection ctx (TMatch v cs)
-  = Ins (Unpack $ ctxResolve ctx v)
-  $ emitMatching ctx cs
-emitSection ctx (THnd rs h df b)
+emitSection rec ctx (TMatch v cs)
+  | Just i <- ctxResolve ctx v
+  = Ins (Unpack i)
+  $ emitMatching rec ctx cs
+  | otherwise = emitSectionVErr v
+emitSection rec ctx (THnd rs h df b)
+  | Just i <- ctxResolve ctx h
   = Ins (Reset $ IS.fromList rs)
   $ flip (foldr (\r -> Ins (SetDyn r i))) rs
-  $ maybe id (\(TAbss us d) l -> Let l $ emitSection (us ++ ctx) d) df
-  $ emitSection ctx b
-  where !i = ctxResolve ctx h
-emitSection _ _ = error "emitSection: unhandled code"
+  $ maybe id (\(TAbss us d) l ->
+                  Let l $ emitSection rec (us ++ ctx) d) df
+  $ emitSection rec ctx b
+  | otherwise = emitSectionVErr h
+emitSection _ _ _ = error "emitSection: unhandled code"
 
-emitLet :: Var v => Ctx v -> ANormalT v -> Section -> Section
+emitSectionVErr :: (Var v, HasCallStack) => v -> a
+emitSectionVErr v
+  = error
+  $ "emitSection: could not resolve function variable: " ++ show v
+
+emitLet :: Var v => RCtx v -> Ctx v -> ANormalT v -> Section -> Section
 -- Currently packed literals
-emitLet _   (ALit l)
+emitLet _   _   (ALit l)
   = Ins (emitLit l)
   . Ins (Pack 0 $ UArg1 0)
-emitLet ctx (AApp (FComb n) args)
+emitLet _    ctx (AApp (FComb n) args)
   -- We should be able to tell if we are making a saturated call
   -- or not here. We aren't carrying the information here yet, though.
   | False -- not saturated
   = Ins . Name n $ emitArgs ctx args
-emitLet ctx (AApp (FCon _ n) args) -- TODO: use reference number
+emitLet _   ctx (AApp (FCon _ n) args) -- TODO: use reference number
   = Ins . Pack n $ emitArgs ctx args
-emitLet ctx (AApp (FPrim p) args)
+emitLet _   ctx (AApp (FPrim p) args)
   = Ins . emitPOp p $ emitArgs ctx args
-emitLet ctx bnd = Let (emitSection ctx (TTm bnd))
+emitLet rec ctx bnd = Let (emitSection rec ctx (TTm bnd))
 
 emitPOp :: ANF.POp -> Args -> Instr
 emitPOp ANF.PADI = emitP2 Add
@@ -427,27 +463,28 @@ emitP2 :: Prim2 -> Args -> Instr
 emitP2 p (UArg2 i j) = Prim2 p i j
 emitP2 _ _ = error "prim ops must be saturated"
 
-emitMatching :: Var v => Ctx v -> Branched (ANormal v) -> Section
-emitMatching _   MatchEmpty = Die "empty match"
-emitMatching ctx (MatchIntegral cs df)
-  = Match 1 . TestT edf $ fmap (emitCase ctx) cs
+emitMatching
+  :: Var v => RCtx v -> Ctx v -> Branched (ANormal v) -> Section
+emitMatching _   _   MatchEmpty = Die "empty match"
+emitMatching rec ctx (MatchIntegral cs df)
+  = Match 1 . TestT edf $ fmap (emitCase rec ctx) cs
   where
-  edf | Just co <- df = emitSection ctx co
+  edf | Just co <- df = emitSection rec ctx co
       | otherwise = Die "missing case"
-emitMatching ctx (MatchData _ cs df)
-  = Match 0 . TestT edf $ fmap (emitCase ctx) cs
+emitMatching rec ctx (MatchData _ cs df)
+  = Match 0 . TestT edf $ fmap (emitCase rec ctx) cs
   where
-  edf | Just co <- df = emitSection ctx co
+  edf | Just co <- df = emitSection rec ctx co
       | otherwise = Die "missing case"
-emitMatching ctx (MatchRequest hs)
+emitMatching rec ctx (MatchRequest hs)
   = Match 0 . TestT edf $ fmap f hs
   where
-  f cs = Match 1 . TestT edf $ fmap (emitCase ctx) cs
+  f cs = Match 1 . TestT edf $ fmap (emitCase rec ctx) cs
   edf = Die "unhandled ability"
 
-emitCase :: Var v => Ctx v -> ANormal v -> Section
-emitCase ctx (TAbss vs bo)
-  = emitSection (vs ++ ctx) bo
+emitCase :: Var v => RCtx v -> Ctx v -> ANormal v -> Section
+emitCase rec ctx (TAbss vs bo)
+  = emitSection rec (vs ++ ctx) bo
 
 emitLit :: ANF.Lit -> Instr
 emitLit l = Lit i
@@ -458,8 +495,11 @@ emitLit l = Lit i
         _ -> error "unhandled literal"
 
 emitArgs :: Var v => Ctx v -> [v] -> Args
-emitArgs ctx args = case map (ctxResolve ctx) args of
-  [] -> ZArgs
-  [i] -> BArg1 i
-  [i,j] -> BArg2 i j
-  is -> BArgN $ primArrayFromList is
+emitArgs ctx args
+  | Just l <- traverse (ctxResolve ctx) args = case l of
+    [] -> ZArgs
+    [i] -> BArg1 i
+    [i,j] -> BArg2 i j
+    is -> BArgN $ primArrayFromList is
+  | otherwise
+  = error $ "could not resolve argument variables: " ++ show args

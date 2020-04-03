@@ -9,7 +9,7 @@ import Control.Monad.State (evalState)
 import Control.Monad.Reader (runReaderT)
 
 import qualified Data.Set as Set
-import qualified Data.Map as Map
+import qualified Data.IntMap as Map
 
 import Unison.Var (Var)
 import Unison.Reference (Reference(Builtin))
@@ -17,6 +17,8 @@ import Unison.Runtime.ANF
   ( ANFM
   , anfTerm
   , superNormalize
+  , entry
+  , lamLift
   )
 import Unison.Runtime.MCode
   ( Section(..)
@@ -28,6 +30,7 @@ import Unison.Runtime.MCode
   , Branch(..)
   , emitSection
   , emitComb
+  , emitCombs
   )
 import Unison.Runtime.Rt2
   ( eval0 )
@@ -35,7 +38,7 @@ import Unison.Runtime.Rt2
 import Unison.Test.Common (tm)
 
 runANF :: Var v => (Reference -> Int) -> ANFM v a -> a
-runANF rslv m = evalState (runReaderT m rslv) (Set.empty, 0, [])
+runANF rslv m = evalState (runReaderT m (Set.empty, rslv)) (Set.empty, [])
 
 testEval0 :: (Int -> Comb) -> Section -> Test ()
 testEval0 env sect = do
@@ -64,9 +67,8 @@ benv 6 = Lam 0 1 3 2 inci
 benv 7 = Lam 0 2 6 3 drpn
 benv _ = error "benv"
 
-env :: [(Int, Comb)] -> Int -> Comb
-env cs = \n -> if n < 0 then benv $ -n else m Map.! n
-  where m = Map.fromList cs
+env :: Map.IntMap Comb -> Int -> Comb
+env m = \n -> if n < 0 then benv $ -n else m Map.! n
 
 i2b :: Section
 i2b = Match 0
@@ -123,9 +125,16 @@ drpn = Ins (Unpack 1)
  where pk = Ins (Pack 0 $ UArg1 0) . Yield $ BArg1 0
 
 mkComb :: String -> Comb
-mkComb txt = case superNormalize builtins $ tm txt of
-  [(_, sn)] -> emitComb sn
-  _ -> error "unexpected multi-cobminator"
+mkComb txt = emitComb mempty . entry . superNormalize builtins $ tm txt
+
+mkCombs :: Int -> String -> Map.IntMap Comb
+mkCombs r txt = Map.insert r main aux
+  where
+  (main, aux, _)
+    = emitCombs (r+1)
+    . superNormalize builtins
+    . lamLift
+    $ tm txt
 
 multc :: Comb
 multc
@@ -133,26 +142,32 @@ multc
            \  0 -> 0\n\
            \  _ -> ##Nat.+ n (##Nat.* (##Nat.sub m 1) n)"
 
-multAccc :: Comb
-multAccc
-  = mkComb "m n a -> match n with\n\
-           \  0 -> a\n\
-           \  _ -> ##Nat.* m (##Nat.sub n 1) (##Nat.+ a m)"
+multRec :: Map.IntMap Comb
+multRec
+  = mkCombs 20
+      "m n -> let\n\
+      \  f acc i = match i with\n\
+      \     0 -> acc\n\
+      \     _ -> f (##Nat.+ acc n) (##Nat.sub i 1)\n\
+      \  f 0 m"
 
-testEval :: [(Int, Comb)] -> String -> Test ()
+testEval' :: [(Int, Comb)] -> String -> Test ()
+testEval' cs = testEval (Map.fromList cs)
+
+testEval :: Map.IntMap Comb -> String -> Test ()
 testEval cs s = testEval0 (env cs) mc
   where
   t = tm s
   a = runANF builtins $ anfTerm t
-  mc = emitSection [] a
+  mc = emitSection mempty [] a
 
 test :: Test ()
 test = scope "mcode" . tests $
-  [ scope "2=2" $ testEval [] "##todo (##Nat.== 2 2)"
-  , scope "2=1+1" $ testEval [] "##todo (##Nat.== 2 (##Nat.+ 1 1))"
-  , scope "2=3-1" $ testEval [] "##todo (##Nat.== 2 (##Nat.sub 3 1))"
+  [ scope "2=2" $ testEval' [] "##todo (##Nat.== 2 2)"
+  , scope "2=1+1" $ testEval' [] "##todo (##Nat.== 2 (##Nat.+ 1 1))"
+  , scope "2=3-1" $ testEval' [] "##todo (##Nat.== 2 (##Nat.sub 3 1))"
   , scope "5*5=25"
-  $ testEval [(20,multc)] "##todo (##Nat.== (##Nat.* 5 5) 25)"
+  $ testEval' [(20,multc)] "##todo (##Nat.== (##Nat.* 5 5) 25)"
   , scope "5*1000=5000 acc"
-  $ testEval [(20,multAccc)] "##todo (##Nat.== (##Nat.* 5 1000 0) 5000)"
+  $ testEval multRec "##todo (##Nat.== (##Nat.* 5 1000) 5000)"
   ]

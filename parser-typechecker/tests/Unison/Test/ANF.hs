@@ -1,3 +1,4 @@
+{-# language BangPatterns #-}
 {-# language PatternGuards #-}
 
 module Unison.Test.ANF where
@@ -8,6 +9,7 @@ import Unison.ABT.Normalized (Term(TAbs))
 import Unison.Pattern (PatternP(..))
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF
+import Unison.Runtime.MCode (emitCombs)
 import Unison.Var as Var
 
 import Data.IntMap (IntMap)
@@ -27,7 +29,7 @@ import Control.Monad.State (evalState)
 --   snf = toSuperNormal (const 0) t0
 
 runANF :: Var v => ANFM v a -> a
-runANF m = evalState (runReaderT m (const 0)) (Set.empty, 0, [])
+runANF m = evalState (runReaderT m (Set.empty, const 0)) (Set.empty, [])
 
 testANF :: String -> Test ()
 testANF s
@@ -36,6 +38,11 @@ testANF s
   where
   t0 = const () `Term.amap` tm s
   anf = runANF $ anfTerm t0
+
+testLift :: String -> Test ()
+testLift s = case cs of (!_, !_, _) -> ok
+  where
+  cs = emitCombs 0 . superNormalize (const 0) . lamLift $ tm s
 
 denormalize :: Var v => ANormal v -> Term.Term0 v
 denormalize (TVar v) = Term.var () v
@@ -115,14 +122,26 @@ backReference = error "backReference"
 
 test :: Test ()
 test = scope "anf" . tests $
-  [ testANF "1"
-  , testANF "1 + 2"
-  , testANF "match x with\n\
-            \  +1 -> foo\n\
-            \  +2 -> bar\n\
-            \  +3 -> baz"
-  , testANF "1 + match x with\n\
-            \  +1 -> foo\n\
-            \  +2 -> bar"
-  , testANF "(match x with +3 -> foo) + (match x with +2 -> foo)"
+  [ scope "lift" . tests $
+    [ testLift "let\n\
+               \  g = m x -> ##Nat.+ x m\n\
+               \  m -> g m m"
+    , testLift "m n -> let\n\
+               \  f acc i = match i with\n\
+               \     0 -> acc\n\
+               \     _ -> f (##Nat.+ acc n) (##Nat.sub i 1)\n\
+               \  f 0 m"
+    ]
+  , scope "denormalize" . tests $
+    [ testANF "1"
+    , testANF "1 + 2"
+    , testANF "match x with\n\
+              \  +1 -> foo\n\
+              \  +2 -> bar\n\
+              \  +3 -> baz"
+    , testANF "1 + match x with\n\
+              \  +1 -> foo\n\
+              \  +2 -> bar"
+    , testANF "(match x with +3 -> foo) + (match x with +2 -> foo)"
+    ]
   ]

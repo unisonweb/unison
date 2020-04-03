@@ -6,6 +6,7 @@ module Unison.Runtime.Stack where
 
 import Prelude hiding (words)
 
+import Control.Monad (when)
 import Control.Monad.Primitive
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
@@ -106,17 +107,26 @@ bargOnto stk sp cop cp0 (Arg2 i j) = do
   pure cp
  where cp = cp0+2
 bargOnto stk sp cop cp0 (ArgN v) = do
+  buf <- if overwrite
+         then newArray sz undefined
+         else pure cop
   let loop i
         | i < 0     = return ()
         | otherwise = do
-            x <- readArray stk (sp-indexPrimArray v i)
-            writeArray cop (cp-i) x
+            print i
+            print $ indexPrimArray v i
+            x <- readArray stk $ sp-indexPrimArray v i
+            print x
+            writeArray buf (sz-1-i) x
             loop $ i-1
   loop $ sz-1
+  when overwrite $
+    copyMutableArray cop (cp0+1) buf 0 sz
   pure cp
  where
  cp = cp0+sz
  sz = sizeofPrimArray v
+ overwrite = stk == cop
 bargOnto stk sp cop cp0 (ArgR i l) = do
   copyMutableArray cop cp0 stk (sp-i-l) l
   pure $ cp0+l

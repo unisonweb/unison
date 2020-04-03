@@ -4,6 +4,8 @@ module Main(main) where
 
 import Criterion.Main
 
+import Data.IntSet as Set
+
 import Unison.Runtime.MCode
 import Unison.Runtime.Rt2
 
@@ -73,7 +75,7 @@ add = Unpack 1
 
 -- k s => (k s) s -- k continuation
 diag :: Section
-diag = Let (Reset 0 $$ Jump 0 (BArg1 1))
+diag = Let (Reset (Set.singleton 0) $$ Jump 0 (BArg1 1))
      $ App False (Stk 0) (BArg1 2)
 
 -- => shift k. diag k
@@ -83,7 +85,7 @@ get = Capture 0
 
 -- k s _ => (k) s
 kid :: Section
-kid = Let (Reset 0 $$ Jump 0 ZArgs)
+kid = Let (Reset (Set.singleton 0) $$ Jump 0 ZArgs)
     $ App False (Stk 0) (BArg1 2)
 
 -- s => shift k. kid k s
@@ -107,7 +109,7 @@ kloopb =
 
 -- m a => f = reset (kloopb m) ; y = f (I# a) ; print y
 kloop :: Section
-kloop = Let (Reset 0 $$ App False (Env 5) (UArg1 0))
+kloop = Let (Reset (Set.singleton 0) $$ App False (Env 5) (UArg1 0))
       $ Pack 0 (UArg1 1)
      $$ App False (Stk 1) (BArg1 0)
 
@@ -142,7 +144,7 @@ tloopb =
 
 -- m s => reset (tinst (I# s) ; tloopb m)
 tloop :: Section
-tloop = Reset 0
+tloop = Reset (Set.singleton 0)
      $$ Pack 0 (UArg1 1)
      $$ Let (Call True 21 $ BArg1 0)
       $ Call True 25 $ UArg1 0

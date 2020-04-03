@@ -31,7 +31,10 @@ module Unison.Runtime.ANF
   , pattern TMatch
   , Lit(..)
   , SuperNormal(..)
+  , SuperGroup(..)
   , POp(..)
+  , close
+  , float
   , lamLift
   , ANormalBF(..)
   , ANormalTF(.., AApv, ACom, ACon, AReq, APrm)
@@ -48,7 +51,7 @@ module Unison.Runtime.ANF
 import Unison.Prelude
 
 import Control.Monad.Reader (ReaderT(..), MonadReader(..))
-import Control.Monad.State (State, runState, MonadState(..), modify)
+import Control.Monad.State (State, runState, MonadState(..), modify, gets)
 
 import Data.Bifunctor (Bifunctor(..))
 import Data.Bifoldable (Bifoldable(..))
@@ -97,6 +100,24 @@ lambdaLift liftVar t = result where
                   (snd <$> subs)
   go _ = Nothing
 
+expand
+  :: (Var v, Monoid a)
+  => Set v
+  -> (v, Term v a)
+  -> (v, Term v a)
+expand keep (v, bnd) = (v, apps' (var a v) evs)
+  where
+  a = ABT.annotation bnd
+  fvs = ABT.freeVars bnd
+  evs = map (var a) . Set.toList $ Set.difference fvs keep
+
+abstract :: (Var v) => Set v -> Term v a -> Term v a
+abstract keep bnd = lam' a evs bnd
+  where
+  a = ABT.annotation bnd
+  fvs = ABT.freeVars bnd
+  evs = Set.toList $ Set.difference fvs keep
+
 enclose
   :: (Var v, Monoid a)
   => Set v
@@ -106,9 +127,22 @@ enclose
 enclose keep rec (LetRecNamedTop' top vbs bd)
   = Just $ letRec' top lvbs lbd
   where
+  xpnd = expand keep' <$> vbs
   keep' = Set.union keep . Set.fromList . map fst $ vbs
-  lvbs = (map.fmap) (rec keep') vbs
-  lbd = rec keep' bd
+  lvbs = (map.fmap) (rec keep' . abstract keep' . ABT.substs xpnd) vbs
+  lbd = rec keep' . ABT.substs xpnd $ bd
+-- will be lifted, so keep this variable
+enclose keep rec (Let1NamedTop' top v b@(LamsNamed' vs bd) e)
+  = Just . let1' top [(v, lamb)] . rec (Set.insert v keep)
+  $ ABT.subst v av e
+  where
+  (_, av) = expand keep (v, b) 
+  keep' = Set.difference keep $ Set.fromList vs
+  fvs = ABT.freeVars b
+  evs = Set.toList $ Set.difference fvs keep
+  a = ABT.annotation b
+  lbody = rec keep' bd
+  lamb = lam' a (evs ++ vs) lbody
 enclose keep rec t@(LamsNamed' vs body)
   = Just $ if null evs then lamb else apps' lamb $ map (var a) evs
   where
@@ -122,7 +156,7 @@ enclose keep rec t@(LamsNamed' vs body)
 enclose _ _ _ = Nothing
 
 close :: (Var v, Monoid a) => Set v -> Term v a -> Term v a
-close unlift tm = ABT.visitPure (enclose unlift close) tm
+close keep tm = ABT.visitPure (enclose keep close) tm
 
 type FloatM v a r = State (Set v, [(v, Term v a)]) r
 
@@ -137,10 +171,13 @@ letFloater rec vbs e = do
                 | (v, _) <- vbs, Set.member v cvs ]
       shadowMap = Map.fromList shadows
       rn v = Map.findWithDefault v v shadowMap
-  fvbs <- traverse (\(v, b) -> (,) (rn v) <$> rec b) vbs
+  fvbs <- traverse (\(v, b) -> (,) (rn v) <$> rec' (ABT.changeVars shadowMap b)) vbs
   let fcvs = Set.fromList . map fst $ fvbs
   put (cvs <> fcvs, ctx ++ fvbs)
   pure $ ABT.changeVars shadowMap e
+  where
+  rec' b@(LamsNamed' vs bd) = lam' (ABT.annotation b) vs <$> rec bd
+  rec' b = rec b
 
 lamFloater
   :: (Var v, Monoid a)
@@ -301,7 +338,7 @@ fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
 -- Context entries with evaluation strategy
 data CTE v s
   = ST v s
-  | LZ v Int [v]
+  | LZ v (Either Int v) [v]
 
 cbvar :: CTE v s -> v
 cbvar (ST v _) = v
@@ -309,7 +346,7 @@ cbvar (LZ v _ _) = v
 
 data ANormalBF v e
   = ALet (ANormalTF v e) e
-  | AName Int [v] e
+  | AName (Either Int v) [v] e
   | ATm (ANormalTF v e)
 
 data ANormalTF v e
@@ -327,12 +364,12 @@ instance Functor (ANormalBF v) where
 
 instance Bifunctor ANormalBF where
   bimap f g (ALet bn bo) = ALet (bimap f g bn) $ g bo
-  bimap f g (AName n as bo) = AName n (f <$> as) $ g bo
+  bimap f g (AName n as bo) = AName (f <$> n) (f <$> as) $ g bo
   bimap f g (ATm tm) = ATm (bimap f g tm)
 
 instance Bifoldable ANormalBF where
   bifoldMap f g (ALet b e) = bifoldMap f g b <> g e
-  bifoldMap f g (AName _ as e) = foldMap f as <> g e
+  bifoldMap f g (AName n as e) = foldMap f n <> foldMap f as <> g e
   bifoldMap f g (ATm e) = bifoldMap f g e
 
 instance Functor (ANormalTF v) where
@@ -537,36 +574,43 @@ type Ctx v = [Cte v]
 
 -- Should be a completely closed term
 data SuperNormal v = Lambda { bound :: ANormal v }
+data SuperGroup v
+  = Rec
+  { group :: [(v, SuperNormal v)]
+  , entry :: SuperNormal v
+  }
 
 type ANFM v
-  = ReaderT (Reference -> Int)
-      (State (Set v, Int, [(Int, SuperNormal v)]))
+  = ReaderT (Set v, Reference -> Int)
+      (State (Set v, [(v, SuperNormal v)]))
 
-clear :: ANFM v ()
-clear = modify $ \(_, gl, to) -> (Set.empty, gl, to)
+-- clear :: Var v => ANFM v ()
+-- clear = do
+--   (gl, _) <- ask
+--   modify $ \(_, to) -> (Set.union gl . Set.fromList $ fst <$> to, to)
 
 reset :: ANFM v a -> ANFM v a
 reset m = do
-  (av, _, _) <- get
-  m <* modify (\(_, gl, to) -> (av, gl, to))
+  (av, _) <- get
+  m <* modify (\(_, to) -> (av, to))
 
 avoid :: Var v => [v] -> ANFM v ()
 avoid = avoids . Set.fromList
 
 avoids :: Var v => Set v -> ANFM v ()
-avoids s = modify $ \(av, gl, rs) -> (s `Set.union` av, gl, rs)
+avoids s = modify $ \(av, rs) -> (s `Set.union` av, rs)
 
 avoidCtx :: Var v => Ctx v -> ANFM v ()
 avoidCtx ctx = avoid $ cbvar <$> ctx
 
-reserve :: ANFM v Int
-reserve = state $ \(av, gl, to) -> (gl, (av, gl+1, to))
+-- reserve :: ANFM v Int
+-- reserve = state $ \(av, gl, to) -> (gl, (av, gl+1, to))
 
 resolve :: Reference -> ANFM v Int
-resolve r = ($r) <$> ask
+resolve r = ($r) . snd <$> ask
 
 fresh :: Var v => ANFM v v
-fresh = (\(av, _, _) -> flip ABT.freshIn (typed Var.ANFBlank) av) <$> get
+fresh = gets $ \(av, _) -> flip ABT.freshIn (typed Var.ANFBlank) av
 
 contextualize :: Var v => ANormalT v -> ANFM v (Ctx v, v)
 contextualize (AVar cv) = pure ([], cv)
@@ -575,33 +619,41 @@ contextualize tm = do
   avoid [fv]
   pure ([ST fv tm], fv)
 
-record :: (Int, SuperNormal v) -> ANFM v ()
-record p = state $ \(av, gl, to) -> ((), (av, gl, p:to))
+record :: (v, SuperNormal v) -> ANFM v ()
+record p = modify $ \(av, to) -> (av, p:to)
 
 superNormalize
   :: Var v
   => (Reference -> Int)
   -> Term v a
-  -> [(Int, SuperNormal v)]
-superNormalize rslv tm = c : l
+  -> SuperGroup v
+superNormalize rslv tm = Rec l c
   where
-  subc = runReaderT (toSuperNormal tm) rslv
-  (c, (_,_,l)) = runState subc (Set.empty, 0, [])
+  (bs, e) | LetRecNamed' bs e <- tm = (bs, e)
+          | otherwise = ([], tm)
+  grp = Set.fromList $ fst <$> bs
+  comp = traverse_ superBinding bs *> toSuperNormal e
+  subc = runReaderT comp (grp, rslv)
+  (c, (_,l)) = runState subc (grp, [])
 
-toSuperNormal :: Var v => Term v a -> ANFM v (Int, SuperNormal v)
-toSuperNormal tm
-  | not . Set.null $ freeVars tm
-  = error $ "free variables in supercombinator: " ++ show tm
-  | otherwise = do
-    clear
-    avoid vs
-    i <- reserve
-    (,) i . Lambda . ABTN.TAbss vs <$> anfTerm body
+superBinding :: Var v => (v, Term v a) -> ANFM v ()
+superBinding (v, tm) = do
+  nf <- toSuperNormal tm
+  modify $ \(cvs, ctx) -> (cvs, (v,nf):ctx)
+
+toSuperNormal :: Var v => Term v a -> ANFM v (SuperNormal v)
+toSuperNormal tm = do
+  (grp, _) <- ask
+  if not . Set.null . (Set.\\ grp) $ freeVars tm
+    then error $ "free variables in supercombinator: " ++ show tm
+    else reset $ do
+      avoid vs
+      Lambda . ABTN.TAbss vs <$> anfTerm body
   where
   (vs, body) = fromMaybe ([], tm) $ unLams' tm
 
 anfTerm :: Var v => Term v a -> ANFM v (ANormal v)
-anfTerm tm = reset $ uncurry TBinds' <$> anfBlock tm
+anfTerm tm = uncurry TBinds' <$> anfBlock tm
 
 anfBlock :: Var v => Term v a -> ANFM v (Ctx v, ANormalT v)
 anfBlock (Var' v) = pure ([], AVar v)
@@ -630,7 +682,7 @@ anfBlock (Handle' h body)
         avoid as
         v <- fresh
         avoid [v]
-        pure (hctx ++ [LZ v f as], AApp (FVar vh) [v])
+        pure (hctx ++ [LZ v (Left f) as], AApp (FVar vh) [v])
       (_, _) ->
         error "handle body should be a call to a top-level combinator"
 anfBlock (Match' scrut cas) = do
@@ -642,17 +694,17 @@ anfBlock (Match' scrut cas) = do
       sv <- fresh
       pure (sctx ++ ST sv sc : dctx, df)
     AccumRequest abr df -> do
-      (i, vs) <- reset $ do
-        i <- reserve
+      (r, vs) <- reset $ do
+        r <- fresh
         v <- fresh
         let hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr
             hfvs = Set.toList $ ABTN.freeVars hfb
-        record (i, Lambda . ABTN.TAbss hfvs $ hfb)
-        pure (i, hfvs)
+        record (r, Lambda . ABTN.TAbss hfvs $ hfb)
+        pure (r, hfvs)
       hv <- fresh
       let msc | AVar v <- sc = AFrc v
               | otherwise = sc
-      pure ( sctx ++ [LZ hv i vs]
+      pure ( sctx ++ [LZ hv (Right r) vs]
            , AHnd (IMap.keys abr) hv df . TTm $ msc
            )
     AccumD cs -> do
@@ -726,7 +778,7 @@ expandBindings' _ _ _
   = error "expandBindings': unexpected pattern"
 
 expandBindings :: Var v => [PatternP p] -> [v] -> ANFM v [v]
-expandBindings ps vs = (\(av,_,_) -> expandBindings' av ps vs) <$> get
+expandBindings ps vs = (\(av,_) -> expandBindings' av ps vs) <$> get
 
 anfCases :: Var v => [MatchCase p (Term v a)] -> ANFM v (BranchAccum v)
 anfCases = fmap fold . traverse anfInitCase
