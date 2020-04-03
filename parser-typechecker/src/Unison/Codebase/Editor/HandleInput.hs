@@ -468,27 +468,27 @@ loop = do
         stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
         stepManyAtM = Unison.Codebase.Editor.HandleInput.stepManyAtM inputDescription
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
-        manageLinks path sources =
-          manageLinks' path terms types
-          where
-            terms = toList . getHQ'Terms =<< sources
-            types = toList . getHQ'Types =<< sources
-        manageLinks'
-          :: [(Path', NameSegment.HQSegment)]
-          -> [Referent]
-          -> [Reference]
-          -> (  forall r
-              . Ord r
-             => (r, Reference, Reference)
-             -> Branch.Star r NameSegment
-             -> Branch.Star r NameSegment
-             )
-          -> MaybeT (StateT (LoopState m v) (F m (Either Event Input) v)) ()
-        manageLinks' !srcTerms !srcTypes mdValues op = do
+        manageLinks :: [(Path', NameSegment.HQSegment)]
+                    -> [HQ.HashQualified]
+                    -> (forall r. Ord r
+                        => (r, Reference, Reference)
+                        ->  Branch.Star r NameSegment
+                        ->  Branch.Star r NameSegment)
+                    -> MaybeT (StateT (LoopState m v) (F m (Either Event Input) v)) ()
+        manageLinks srcs mdValues op = do
+          traceM (show srcs)
+          traceM (show mdValues)
           mdValuels <- fmap toList <$> traverse getHQTerms mdValues
           traverse_ go mdValuels
           where
             go mdl = do
+              newRoot <- use root
+              let r0 = Branch.head newRoot
+                  getTerms p = BranchUtil.getTerm (resolveSplit' p) r0
+                  getTypes p = BranchUtil.getType (resolveSplit' p) r0
+                  !srcle = toList . getTerms =<< srcs
+                  !srclt = toList . getTypes =<< srcs
+              traceM $ show srcle
               names0 <- basicPrettyPrintNames0
               ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (Names names0 mempty)
               case mdl of
@@ -503,6 +503,7 @@ loop = do
                               <$> srcs
                       let get = Branch.head <$> use root
                       before <- get
+                      traceM (show . fst $ head steps)
                       stepManyAt steps
                       after  <- get
                       (ppe, outputDiff) <- diffHelper before after
@@ -515,9 +516,9 @@ loop = do
                                                  outputDiff
                  where
                   step mdType b0 =
-                    let tmUpdates terms = foldl' go terms srcTerms
+                    let tmUpdates terms = foldl' go terms srcle
                             where go terms src = op (src, mdType, mdValue) terms
-                        tyUpdates types = foldl' go types srcTypes
+                        tyUpdates types = foldl' go types srclt
                             where go types src = op (src, mdType, mdValue) types
                     in  over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
                 mdValues -> respond $ MetadataAmbiguous ppe mdValues
@@ -1330,30 +1331,35 @@ loop = do
               . toSlurpResult currentPath' uf
              <$> slurpResultNames0
           let adds = Slurp.adds sr
-              filtered = filterBySlurpResult sr $ uf
           when (Slurp.isNonempty sr) $ do
             stepAt ( Path.unabsolute currentPath'
                    , doSlurpAdds adds uf)
-            eval $ AddDefsToCodebase filtered
+            eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
           ppe <- prettyPrintEnvDecl =<<
             makeShadowedPrintNamesFromLabeled
               (UF.termSignatureExternalLabeledDependencies uf)
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
-          dm <- resolveDefaultMetadata currentPath'
-          case dm of
-            Nothing -> pure ()
-            Just dm' -> do
-              let hqs = traverse InputPatterns.parseHashQualifiedName dm'
-              case hqs of
-                Left e -> respond $
-                  ConfiguredMetadataParseError
-                    (Path.absoluteToPath' currentPath') (show dm') e
-                Right defaultMeta ->
-                  let terms = view _1 . elems $ hashTermsId filtered
-                      types = fst (elems (dataDeclarationsId' filtered))
-                        <> fst (elems (effectDeclarationsId' filtered))
-                  in  manageLinks' terms types defaultMeta Metadata.insert
+          let
+            addedVs = Set.toList $ SC.types adds <> SC.terms adds
+            parseResult = (Path.parseHQSplit' . Var.nameStr) <$> addedVs
+            (errs, addedNames) = partitionEithers parseResult
+          case errs of
+            e : _ ->
+              error $ "I couldn't parse a name I just added to the codebase! " <> e
+            _ -> do
+              dm <- resolveDefaultMetadata currentPath'
+              case dm of
+                Nothing -> pure ()
+                Just dm' -> do
+                  let hqs = traverse InputPatterns.parseHashQualifiedName dm'
+                  case hqs of
+                    Left e -> respond $
+                      ConfiguredMetadataParseError
+                        (Path.absoluteToPath' currentPath') (show dm') e
+                    Right defaultMeta ->
+
+                      manageLinks addedNames defaultMeta Metadata.insert
 
       PreviewAddI hqs -> case (latestFile', uf) of
         (Just (sourceName, _), Just uf) -> do
@@ -1620,6 +1626,7 @@ loop = do
       resolveDefaultMetadata :: Path.Absolute -> Action' m v (Maybe [String])
       resolveDefaultMetadata path = do
         mstr <- (eval . ConfigLookup) $ configKey "DefaultMetadata" path
+        traceM (show mstr)
         pure mstr
 
       configKey k p =
