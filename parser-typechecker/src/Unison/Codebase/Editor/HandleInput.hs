@@ -1590,16 +1590,16 @@ loop = do
           then respond $ LabeledReferenceNotFound hq
           else for_ lds $ \ld -> do
             dependencies :: Set Reference <- let
-              tp (Reference.DerivedId r) = eval (LoadType r) <&> \case
-                Nothing -> error $ "What happened to " ++ show r ++ "?"
-                Just decl -> DD.dependencies $ DD.asDataDecl decl
+              tp r@(Reference.DerivedId i) = eval (LoadType i) <&> \case
+                Nothing -> error $ "What happened to " ++ show i ++ "?"
+                Just decl -> Set.delete r . DD.dependencies $ DD.asDataDecl decl
               tp _ = pure mempty
-              tm (Referent.Ref (Reference.DerivedId r)) = eval (LoadTerm r) <&> \case
-                Nothing -> error $ "What happened to " ++ show r ++ "?"
-                Just tm -> Term.dependencies tm
-              tm con@(Referent.Con (Reference.DerivedId r) i _ct) = eval (LoadType r) <&> \case
-                Nothing -> error $ "What happened to " ++ show r ++ "?"
-                Just decl ->  case DD.typeOfConstructor (DD.asDataDecl decl) i of
+              tm (Referent.Ref r@(Reference.DerivedId i)) = eval (LoadTerm i) <&> \case
+                Nothing -> error $ "What happened to " ++ show i ++ "?"
+                Just tm -> Set.delete r $ Term.dependencies tm
+              tm con@(Referent.Con (Reference.DerivedId i) cid _ct) = eval (LoadType i) <&> \case
+                Nothing -> error $ "What happened to " ++ show i ++ "?"
+                Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
                   Nothing -> error $ "What happened to " ++ show con ++ "?"
                   Just tp -> Type.dependencies tp
               tm _ = pure mempty
