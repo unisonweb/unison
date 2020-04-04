@@ -24,8 +24,9 @@ import Unison.Codebase.GitError
 import Unison.Codebase.Path (Path', Path)
 import Unison.Codebase.Patch (Patch)
 import Unison.Name ( Name )
-import Unison.Names2 ( Names )
+import Unison.Names2 ( Names, Names0 )
 import Unison.Parser ( Ann )
+import qualified Unison.Reference as Reference
 import Unison.Reference ( Reference )
 import Unison.Referent  ( Referent )
 import Unison.DataDeclaration ( Decl )
@@ -55,6 +56,7 @@ import Unison.Var (Var)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
+import Unison.LabeledDependency (LabeledDependency)
 
 type ListDetailed = Bool
 type SourceName = Text
@@ -101,9 +103,9 @@ data Output v
   | ParseResolutionFailures String [Names.ResolutionFailure v Ann]
   | TypeHasFreeVars (Type v Ann)
   | TermAlreadyExists Path.Split' (Set Referent)
-  | NameAmbiguous
-      Int -- codebase hash length
-      Path.HQSplit' (Set Referent) (Set Reference)
+  | LabeledReferenceAmbiguous Int HQ.HashQualified (Set LabeledDependency)
+  | LabeledReferenceNotFound HQ.HashQualified
+  | DeleteNameAmbiguous Int Path.HQSplit' (Set Referent) (Set Reference)
   | TermAmbiguous HQ.HashQualified (Set Referent)
   | HashAmbiguous ShortHash (Set Referent)
   | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
@@ -191,8 +193,11 @@ data Output v
   | NoConflictsOrEdits
   | NotImplemented
   | NoBranchWithHash ShortBranchHash
+  | ListDependencies Int LabeledDependency Names0 (Set Reference)
+  | ListDependents Int LabeledDependency Names0 (Set Reference)
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
+  | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
   deriving (Show)
 
@@ -261,7 +266,9 @@ isFailure o = case o of
   ParseResolutionFailures{} -> True
   TypeHasFreeVars{} -> True
   TermAlreadyExists{} -> True
-  NameAmbiguous{} -> True
+  LabeledReferenceAmbiguous{} -> True
+  LabeledReferenceNotFound{} -> True
+  DeleteNameAmbiguous{} -> True
   TermAmbiguous{} -> True
   BranchHashAmbiguous{} -> True
   BadDestinationBranch{} -> True
@@ -323,6 +330,9 @@ isFailure o = case o of
   HashAmbiguous{} -> True
   ShowReflog{} -> False
   LoadPullRequest{} -> False
+  ListDependencies{} -> False
+  ListDependents{} -> False
+  DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case

@@ -310,7 +310,7 @@ loop = do
         typeNotFound' = respond . TypeNotFound'
         termNotFound = respond . TermNotFound
         termNotFound' = respond . TermNotFound'
-        nameConflicted src tms tys = respond (NameAmbiguous hqLength src tms tys)
+        nameConflicted src tms tys = respond (DeleteNameAmbiguous hqLength src tms tys)
         typeConflicted src = nameConflicted src Set.empty
         termConflicted src tms = nameConflicted src tms Set.empty
         hashConflicted src = respond . HashAmbiguous src
@@ -431,6 +431,8 @@ loop = do
           NamesI{} -> wat
           TodoI{} -> wat
           ListEditsI{} -> wat
+          ListDependenciesI{} -> wat
+          ListDependentsI{} -> wat
           HistoryI{} -> wat
           TestI{} -> wat
           LinksI{} -> wat
@@ -444,6 +446,7 @@ loop = do
           ShowReflogI{} -> wat
           DebugNumberedArgsI{} -> wat
           DebugBranchHistoryI{} -> wat
+          DebugTypecheckedUnisonFileI{} -> wat
           QuitI{} -> wat
           DeprecateTermI{} -> undefined
           DeprecateTypeI{} -> undefined
@@ -1569,10 +1572,52 @@ loop = do
             error $ "impossible match, resolveConfiguredGitUrl shouldn't return"
                 <> " `Just` unless it was passed `Just`; and here it is passed"
                 <> " `Nothing` by `expandRepo`."
+      ListDependentsI hq -> do -- todo: add flag to handle transitive efficiently
+        resolveHQToLabeledDependencies hq >>= \lds ->
+          if null lds
+          then respond $ LabeledReferenceNotFound hq
+          else for_ lds $ \ld -> do
+            dependents <- let
+              tp r = eval $ GetDependents r
+              tm (Referent.Ref r) = eval $ GetDependents r
+              tm (Referent.Con r _i _ct) = eval $ GetDependents r
+              in LD.fold tp tm ld
+            (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependents root'
+            respond $ ListDependents hqLength ld names0 missing
+      ListDependenciesI hq -> do -- todo: add flag to handle transitive efficiently
+        resolveHQToLabeledDependencies hq >>= \lds ->
+          if null lds
+          then respond $ LabeledReferenceNotFound hq
+          else for_ lds $ \ld -> do
+            dependencies :: Set Reference <- let
+              tp (Reference.DerivedId r) = eval (LoadType r) <&> \case
+                Nothing -> error $ "What happened to " ++ show r ++ "?"
+                Just decl -> DD.dependencies $ DD.asDataDecl decl
+              tp _ = pure mempty
+              tm (Referent.Ref (Reference.DerivedId r)) = eval (LoadTerm r) <&> \case
+                Nothing -> error $ "What happened to " ++ show r ++ "?"
+                Just tm -> Term.dependencies tm
+              tm con@(Referent.Con (Reference.DerivedId r) i _ct) = eval (LoadType r) <&> \case
+                Nothing -> error $ "What happened to " ++ show r ++ "?"
+                Just decl ->  case DD.typeOfConstructor (DD.asDataDecl decl) i of
+                  Nothing -> error $ "What happened to " ++ show con ++ "?"
+                  Just tp -> Type.dependencies tp
+              tm _ = pure mempty
+              in LD.fold tp tm ld
+            (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependencies root'
+            respond $ ListDependencies hqLength ld names0 missing
       DebugNumberedArgsI -> use numberedArgs >>= respond . DumpNumberedArgs
       DebugBranchHistoryI ->
         eval . Notify . DumpBitBooster (Branch.headHash currentBranch') =<<
           (eval . Eval $ Causal.hashToRaw (Branch._history currentBranch'))
+      DebugTypecheckedUnisonFileI -> case uf of
+        Nothing -> respond NoUnisonFile
+        Just uf -> let
+          datas, effects, terms :: [(Name, Reference.Id)]
+          datas = [ (Name.fromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf ]
+          effects = [ (Name.fromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf ]
+          terms = [ (Name.fromVar v, r) | (v, (r, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf ]
+          in eval . Notify $ DumpUnisonFileHashes hqLength datas effects terms
 
       DeprecateTermI {} -> notImplemented
       DeprecateTypeI {} -> notImplemented
@@ -1638,6 +1683,24 @@ loop = do
       <> " disappeared from storage. "
       <> "I tried to put it back, but couldn't. Everybody panic!"
   -}
+
+-- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
+resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified -> Action' m v (Set LabeledDependency)
+resolveHQToLabeledDependencies = \case
+  HQ.NameOnly n -> do
+    parseNames <- Names3.suffixify0 <$> basicParseNames0
+    let terms, types :: Set LabeledDependency
+        terms = Set.map LD.referent . R.lookupDom n $ Names3.terms0 parseNames
+        types = Set.map LD.typeRef . R.lookupDom n $ Names3.types0 parseNames
+    pure $ terms <> types
+  -- rationale: the hash should be unique enough that the name never helps
+  HQ.HashQualified _n sh -> resolveHashOnly sh
+  HQ.HashOnly sh -> resolveHashOnly sh
+  where
+  resolveHashOnly sh = do
+    terms <- eval $ TermReferentsByShortHash sh
+    types <- eval $ TypeReferencesByShortHash sh
+    pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
 doDisplay :: Var v => OutputLocation -> Names -> Referent -> Action' m v ()
 doDisplay outputLoc names r = do

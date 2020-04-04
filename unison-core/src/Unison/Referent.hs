@@ -42,6 +42,9 @@ toShortHash :: Referent -> ShortHash
 toShortHash = \case
   Ref r -> R.toShortHash r
   Con r i _ -> patternShortHash r i
+  
+toShortHashId :: Id -> ShortHash
+toShortHashId = toShortHash . fromId
 
 -- also used by HashQualified.fromPattern
 patternShortHash :: Reference -> Int -> ShortHash

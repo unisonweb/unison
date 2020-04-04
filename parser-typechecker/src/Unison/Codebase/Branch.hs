@@ -32,6 +32,7 @@ module Unison.Codebase.Branch
   , before
   , findHistoricalHQs
   , findHistoricalRefs
+  , findHistoricalRefs'
   , namesDiff
     -- ** History updates
   , step
@@ -239,6 +240,12 @@ findHistoricalRefs :: Monad m => Set LabeledDependency -> Branch m
 findHistoricalRefs = findInHistory
   (\query r _n -> LD.fold (const False) (==r) query)
   (\query r _n -> LD.fold (==r) (const False) query)
+
+findHistoricalRefs' :: Monad m => Set Reference -> Branch m
+                    -> m (Set Reference, Names0)
+findHistoricalRefs' = findInHistory
+  (\queryRef r _n -> r == Referent.Ref queryRef)
+  (\queryRef r _n -> r == queryRef)
 
 findInHistory :: forall m q. (Monad m, Ord q)
   => (q -> Referent -> Name -> Bool)
