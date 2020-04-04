@@ -1184,12 +1184,12 @@ dependents = InputPattern "dependents" [] []
   "List the dependents of the specified definition."
   (\case
     [thing] -> fmap Input.ListDependentsI $ parseHashQualifiedName thing
-    _ -> Left (I.help names))
+    _ -> Left (I.help dependents))
 dependencies = InputPattern "dependencies" [] []
   "List the dependencies of the specified definition."
   (\case
     [thing] -> fmap Input.ListDependenciesI $ parseHashQualifiedName thing
-    _ -> Left (I.help names))
+    _ -> Left (I.help dependencies))
 
 debugNumberedArgs :: InputPattern
 debugNumberedArgs = InputPattern "debug.numberedArgs" [] []

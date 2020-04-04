@@ -978,15 +978,11 @@ notifyUser dir o = case o of
     then prettyLabeledDependency hqLength ld <> " doesn't have any dependents."
     else
       "Dependents of " <> prettyLabeledDependency hqLength ld <> ":\n\n" <>
-      (P.indentN 2 . P.lines) ((P.column2 $
-      [ (prettyShortHash . SH.take hqLength $ Reference.toShortHash r
-      , prettyName n)
-      | (n, r) <- R.toList $ Names.types0 names0 ] ++
-      [ (prettyShortHash . SH.take hqLength $ Referent.toShortHash r
-      , prettyName n)
-      | (n, r) <- R.toList $ Names.terms names0 ]) :
-      map (prettyShortHash . SH.take hqLength . Reference.toShortHash)
-          (toList missing))
+      (P.indentN 2 . P.column2 $
+        [ (p $ Reference.toShortHash r, prettyName n) | (n, r) <- R.toList $ Names.types0 names0 ] ++
+        [ (p $ Referent.toShortHash r, prettyName n) | (n, r) <- R.toList $ Names.terms names0 ] ++
+        [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
+    where p = prettyShortHash . SH.take hqLength
   -- this definition is identical to the previous one, apart from the word
   -- "Dependencies", but undecided about whether or how to refactor
   ListDependencies hqLength ld names0 missing -> pure . P.syntaxToColor $
@@ -994,26 +990,19 @@ notifyUser dir o = case o of
     then prettyLabeledDependency hqLength ld <> " doesn't have any dependencies."
     else
       "Dependencies of " <> prettyLabeledDependency hqLength ld <> ":\n\n" <>
-      (P.indentN 2 . P.lines) ((P.column2 $
-      [ (prettyShortHash . SH.take hqLength $ Reference.toShortHash r
-      , prettyName n)
-      | (n, r) <- R.toList $ Names.types0 names0 ] ++
-      [ (prettyShortHash . SH.take hqLength $ Referent.toShortHash r
-      , prettyName n)
-      | (n, r) <- R.toList $ Names.terms names0 ]) :
-      map (prettyShortHash . SH.take hqLength . Reference.toShortHash)
-          (toList missing))
+      (P.indentN 2 . P.column2 $
+        [ (p $ Reference.toShortHash r, prettyName n) | (n, r) <- R.toList $ Names.types0 names0 ] ++
+        [ (p $ Referent.toShortHash r, prettyName n) | (n, r) <- R.toList $ Names.terms names0 ] ++
+        [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
+    where p = prettyShortHash . SH.take hqLength
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $
       (effects <&> \(n,r) -> "ability " <>
-        prettyHashQualified'
-          (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r)) <>
+        prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r)) <>
       (datas <&> \(n,r) -> "type " <>
-        prettyHashQualified'
-          (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r)) <>
+        prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r)) <>
       (terms <&> \(n,r) ->
-        prettyHashQualified'
-          (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r))
+        prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r))
 
   where
   _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"

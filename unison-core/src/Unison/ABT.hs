@@ -244,12 +244,25 @@ into' a abt = case abt of
 
 -- | renames `old` to `new` in the given term, ignoring subtrees that bind `old`
 rename :: (Foldable f, Functor f, Var v) => v -> v -> Term f v a -> Term f v a
-rename old new t0@(Term _ ann t) = case t of
-  Var v -> if v == old then annotatedVar ann new else t0
-  Cycle body -> cycle' ann (rename old new body)
-  Abs v body -> if v == old then abs' ann v body
-                else abs' ann v (rename old new body)
-  Tm v -> tm' ann (fmap (rename old new) v)
+rename old new t0@(Term fvs ann t) =
+  if Set.notMember old fvs then t0
+  else case t of
+    Var v -> if v == old then annotatedVar ann new else t0
+    Cycle body -> cycle' ann (rename old new body)
+    Abs v body ->
+      -- v shadows old, so skip this subtree
+      if v == old then abs' ann v body
+
+      -- the rename would capture new, freshen this Abs
+      -- to make that no longer true, then proceed with
+      -- renaming `old` to `new`
+      else if v == new then
+        let v' = freshIn (Set.fromList [new,old] <> freeVars body) v
+        in abs' ann v' (rename old new (rename v v' body))
+
+      -- nothing special, just rename inside body of Abs
+      else abs' ann v (rename old new body)
+    Tm v -> tm' ann (fmap (rename old new) v)
 
 changeVars :: (Foldable f, Functor f, Var v) => Map v v -> Term f v a -> Term f v a
 changeVars m t = case out t of

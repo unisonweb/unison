@@ -491,9 +491,14 @@ termReferentsByPrefix :: MonadIO m
   -> CodebasePath
   -> ShortHash
   -> m (Set Referent.Id)
-termReferentsByPrefix getDecl root sh = do
+termReferentsByPrefix _ root sh@SH.Builtin{} =
+  Set.map Referent.Ref' <$> termReferencesByPrefix root sh
+  -- builtin types don't provide any referents we could match against,
+  -- only decl types do. Those get handled in the next case.
+termReferentsByPrefix getDecl root sh@SH.ShortHash{} = do
   terms <- termReferencesByPrefix root sh
   ctors <- do
+    -- clear out any CID from the SH, so we can use it to find a type decl
     types <- typeReferencesByPrefix root sh { SH.cid = Nothing }
     foldMapM collectCtors types
   pure (Set.map Referent.Ref' terms <> ctors)
