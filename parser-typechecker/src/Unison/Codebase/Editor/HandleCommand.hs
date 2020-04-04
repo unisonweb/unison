@@ -114,8 +114,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     Input         -> awaitInput
     Notify output -> notifyUser output
     NotifyNumbered output -> notifyNumbered output
-    ConfigLookup name -> do
-      traceM (show name)
+    ConfigLookup name ->
       Config.lookup config name
     LoadSource sourcePath -> loadSource sourcePath
 
