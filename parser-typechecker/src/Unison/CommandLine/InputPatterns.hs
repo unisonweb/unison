@@ -1179,6 +1179,18 @@ names = InputPattern "names" []
     _ -> Left (I.help names)
   )
 
+dependents, dependencies :: InputPattern
+dependents = InputPattern "dependents" [] []
+  "List the dependents of the specified definition."
+  (\case
+    [thing] -> fmap Input.ListDependentsI $ parseHashQualifiedName thing
+    _ -> Left (I.help names))
+dependencies = InputPattern "dependencies" [] []
+  "List the dependencies of the specified definition."
+  (\case
+    [thing] -> fmap Input.ListDependenciesI $ parseHashQualifiedName thing
+    _ -> Left (I.help names))
+
 debugNumberedArgs :: InputPattern
 debugNumberedArgs = InputPattern "debug.numberedArgs" [] []
   "Dump the contents of the numbered args state."
@@ -1189,7 +1201,12 @@ debugBranchHistory = InputPattern "debug.history" []
   [(Optional, noCompletions)]
   "Dump codebase history, compatible with bit-booster.com/graph.html"
   (const $ Right Input.DebugBranchHistoryI)
-
+  
+debugFileHashes :: InputPattern
+debugFileHashes = InputPattern "debug.file" [] []
+  "View details about the most recent succesfully typechecked file."
+  (const $ Right Input.DebugTypecheckedUnisonFileI)
+   
 test :: InputPattern
 test = InputPattern "test" [] []
     "`test` runs unit tests for the current branch."
@@ -1273,8 +1290,10 @@ validInputs =
   , quit
   , updateBuiltins
   , mergeBuiltins
+  , dependents, dependencies
   , debugNumberedArgs
   , debugBranchHistory
+  , debugFileHashes
   ]
 
 commandNames :: [String]

@@ -1,6 +1,18 @@
 {-# LANGUAGE PatternSynonyms #-}
 
-module Unison.LabeledDependency (derivedTerm, derivedType, termRef, typeRef, referent, dataConstructor, effectConstructor, fold, referents, LabeledDependency) where
+module Unison.LabeledDependency 
+  ( derivedTerm
+  , derivedType
+  , termRef
+  , typeRef
+  , referent
+  , dataConstructor
+  , effectConstructor
+  , fold
+  , referents
+  , LabeledDependency
+  , partition
+  ) where
 
 import Unison.Prelude hiding (fold)
 
@@ -31,3 +43,6 @@ referents rs = Set.fromList (map referent $ toList rs)
 
 fold :: (Reference -> a) -> (Referent -> a) -> LabeledDependency -> a
 fold f g (X e) = either f g e
+
+partition :: Foldable t => t LabeledDependency -> ([Reference], [Referent])
+partition = partitionEithers . map (\(X e) -> e) . toList 

@@ -588,6 +588,7 @@ termReferencesByPrefix root = loadReferencesByPrefix (termsDir root)
 typeReferencesByPrefix root = loadReferencesByPrefix (typesDir root)
 
 -- returns all the derived terms and derived constructors
+-- that have `sh` as a prefix
 termReferentsByPrefix :: MonadIO m
   => (CodebasePath -> Reference.Id -> m (Maybe (DD.Decl v a)))
   -> CodebasePath
@@ -596,7 +597,7 @@ termReferentsByPrefix :: MonadIO m
 termReferentsByPrefix getDecl root sh = do
   terms <- termReferencesByPrefix root sh
   ctors <- do
-    types <- typeReferencesByPrefix root sh
+    types <- typeReferencesByPrefix root sh { SH.cid = Nothing }
     foldMapM collectCtors types
   pure (Set.map Referent.Ref' terms <> ctors)
   where
@@ -605,8 +606,10 @@ termReferentsByPrefix getDecl root sh = do
   collectCtors ref = getDecl root ref <&> \case
     Nothing -> mempty
     Just decl ->
-      Set.fromList [ Referent.Con' ref i ct
-                   | i <- [0 .. ctorCount-1]]
+      Set.fromList [ con
+                   | i <- [0 .. ctorCount-1]
+                   , let con = Referent.Con' ref i ct
+                   , SH.isPrefixOf sh $ Referent.toShortHashId con]
       where ct = either (const CT.Effect) (const CT.Data) decl
             ctorCount = length . DD.constructors' $ DD.asDataDecl decl
 
