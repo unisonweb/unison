@@ -12,7 +12,7 @@
 
 Demonstrating `create.author`:
 
-```unison
+```unison:hide
 def1 = 1
 def2 = 2
 ```
