@@ -1352,7 +1352,7 @@ loop = do
                     Left e -> respond $
                       ConfiguredMetadataParseError
                         (Path.absoluteToPath' currentPath') (show dm') e
-                    Right defaultMeta ->
+                    Right defaultMeta -> do
                       respond DefaultMetadataNotification
                       manageLinks addedNames defaultMeta Metadata.insert
 
