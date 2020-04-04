@@ -374,6 +374,13 @@ instance Snoc Path' Path' NameSegment NameSegment where
       Left abs -> Path' (Left . Absolute $ Lens.snoc (unabsolute abs) n)
       Right rel -> Path' (Right . Relative $ Lens.snoc (unrelative rel) n)
 
+instance Snoc Split' Split' NameSegment NameSegment where
+  _Snoc = prism (uncurry snoc') $ \case -- unsnoc
+    (Lens.unsnoc -> Just (s, a), ns) -> Right ((s, a), ns)
+    e -> Left e    
+    where
+    snoc' :: Split' -> NameSegment -> Split'
+    snoc' (p, a) n = (Lens.snoc p a, n)
 
 class Resolve l r o where
   resolve :: l -> r -> o

@@ -1,0 +1,67 @@
+<!-- pending bugfix
+```
+.> alias.term #aohndsu9bl#0 basics.CopyrightHolder
+
+```
+
+-->
+
+Demonstrating `create.author`:
+
+```unison
+def1 = 1
+def2 = 2
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      def1 : Nat
+      def2 : Nat
+   
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+```
+```ucm
+  ☝️  The namespace .foo is empty.
+
+.foo> add
+
+  ⍟ I've added these definitions:
+  
+    def1 : Nat
+    def2 : Nat
+
+.foo> create.author alicecoder "Alice McGee"
+
+  Added definitions:
+  
+    1. metadata.authors.alicecoder          : Author
+    2. metadata.authors.alicecoder.guid     : GUID
+    3. metadata.copyrightHolders.alicecoder : CopyrightHolder
+  
+  Tip: Add License values for alicecoder under metadata.
+
+.foo> view 3
+
+  metadata.copyrightHolders.alicecoder : CopyrightHolder
+  metadata.copyrightHolders.alicecoder =
+    #aohndsu9bl#0 guid "Alice McGee"
+
+.foo> link metadata.authors.alicecoder def1 def2
+
+  Updates:
+  
+    1. foo.def1 : Nat
+       + 2. authors.alicecoder : Author
+    
+    3. foo.def2 : Nat
+       + 4. authors.alicecoder : Author
+
+```
