@@ -195,6 +195,8 @@ data Output v
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   | BadName String
+  | DefaultMetadataNotification
+  | NoOp
   deriving (Show)
 
 data ReflogEntry =
@@ -325,6 +327,8 @@ isFailure o = case o of
   HashAmbiguous{} -> True
   ShowReflog{} -> False
   LoadPullRequest{} -> False
+  DefaultMetadataNotification -> False
+  NoOp -> False
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case

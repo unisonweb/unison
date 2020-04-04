@@ -483,7 +483,7 @@ loop = do
           after  <- get
           (ppe, outputDiff) <- diffHelper before after
           if OBranchDiff.isEmpty outputDiff
-            then success
+            then respond NoOp
             else respondNumbered $ ShowDiffNamespace Path.absoluteEmpty
                                                      Path.absoluteEmpty
                                                      ppe
@@ -1353,6 +1353,7 @@ loop = do
                       ConfiguredMetadataParseError
                         (Path.absoluteToPath' currentPath') (show dm') e
                     Right defaultMeta ->
+                      respond DefaultMetadataNotification
                       manageLinks addedNames defaultMeta Metadata.insert
 
       PreviewAddI hqs -> case (latestFile', uf) of

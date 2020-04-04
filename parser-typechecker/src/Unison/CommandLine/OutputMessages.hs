@@ -931,6 +931,8 @@ notifyUser dir o = case o of
   DumpNumberedArgs args -> pure . P.numberedList $ fmap P.string args
   NoConflictsOrEdits ->
     pure (P.okCallout "No conflicts or edits in progress.")
+  NoOp -> pure $ P.okCallout "That didn't do anything."
+  DefaultMetadataNotification -> pure $ P.wrap "Adding default metadata..."
   DumpBitBooster head map -> let
     go output []          = output
     go output (head : queue) = case Map.lookup head map of
