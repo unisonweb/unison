@@ -476,10 +476,18 @@ loop = do
                         ->  Branch.Star r NameSegment)
                     -> MaybeT (StateT (LoopState m v) (F m (Either Event Input) v)) ()
         manageLinks srcs mdValues op = do
-          traceM (show srcs)
-          traceM (show mdValues)
           mdValuels <- fmap toList <$> traverse getHQTerms mdValues
+          let get = Branch.head <$> use root
+          before <- get
           traverse_ go mdValuels
+          after  <- get
+          (ppe, outputDiff) <- diffHelper before after
+          if OBranchDiff.isEmpty outputDiff
+            then success
+            else respondNumbered $ ShowDiffNamespace Path.absoluteEmpty
+                                                     Path.absoluteEmpty
+                                                     ppe
+                                                     outputDiff
           where
             go mdl = do
               newRoot <- use root
@@ -488,7 +496,6 @@ loop = do
                   getTypes p = BranchUtil.getType (resolveSplit' p) r0
                   !srcle = toList . getTerms =<< srcs
                   !srclt = toList . getTypes =<< srcs
-              traceM $ show srcle
               names0 <- basicPrettyPrintNames0
               ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (Names names0 mempty)
               case mdl of
@@ -501,19 +508,7 @@ loop = do
                             second (const . step $ Type.toReference ty)
                               .   first (Path.unabsolute . resolveToAbsolute)
                               <$> srcs
-                      let get = Branch.head <$> use root
-                      before <- get
-                      traceM (show . fst $ head steps)
                       stepManyAt steps
-                      after  <- get
-                      (ppe, outputDiff) <- diffHelper before after
-                      if OBranchDiff.isEmpty outputDiff
-                        then success
-                        else respondNumbered $
-                               ShowDiffNamespace Path.absoluteEmpty
-                                                 Path.absoluteEmpty
-                                                 ppe
-                                                 outputDiff
                  where
                   step mdType b0 =
                     let tmUpdates terms = foldl' go terms srcle
@@ -1358,7 +1353,6 @@ loop = do
                       ConfiguredMetadataParseError
                         (Path.absoluteToPath' currentPath') (show dm') e
                     Right defaultMeta ->
-
                       manageLinks addedNames defaultMeta Metadata.insert
 
       PreviewAddI hqs -> case (latestFile', uf) of
@@ -1626,7 +1620,6 @@ loop = do
       resolveDefaultMetadata :: Path.Absolute -> Action' m v (Maybe [String])
       resolveDefaultMetadata path = do
         mstr <- (eval . ConfigLookup) $ configKey "DefaultMetadata" path
-        traceM (show mstr)
         pure mstr
 
       configKey k p =
