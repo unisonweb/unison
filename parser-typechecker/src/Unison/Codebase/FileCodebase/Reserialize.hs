@@ -17,7 +17,7 @@ import Control.Error (rightMay)
 import Control.Lens
 import Control.Monad.State (evalStateT, StateT)
 
-import           UnliftIO.Directory             ( doesDirectoryExist )
+import           UnliftIO.Directory             ( doesFileExist )
 import qualified Unison.Codebase.Causal        as Causal
 import           Unison.Codebase.Branch         ( Branch(..) )
 import qualified Unison.Codebase.Branch        as Branch
@@ -148,10 +148,10 @@ syncToDirectory fmtV fmtA srcPath destPath branch = do
   -- These disk accesses are guarded by `copyHelper`, above.
   tryPutDependency :: Reference -> StateT SyncedEntities m ()
   tryPutDependency Reference.Builtin{} = pure ()
-  tryPutDependency (Reference.DerivedId i) = do
+  tryPutDependency (Reference.DerivedId i) =
     ifM (isTerm i) (putTerm' i) $
       ifM (isDecl i) (putDecl' i) $
         fail $ "😞 I was trying to copy the definition of " ++ show i
             ++ ", but I couldn't find it as a type _or_ a term."
-  isTerm = doesDirectoryExist . termPath srcPath
-  isDecl = doesDirectoryExist . declPath srcPath
+  isTerm = doesFileExist . termPath srcPath
+  isDecl = doesFileExist . declPath srcPath

@@ -370,7 +370,7 @@ copyHelper :: forall m s h. (MonadIO m, MonadState s m, Ord h)
 copyHelper destPath l getFilename f h =
   unlessM (use (l . to (Set.member h))) $ do
     l %= Set.insert h
-    ifM (doesFileExist (getFilename destPath h)) (f h) (pure ())
+    unlessM (doesFileExist (getFilename destPath h)) (f h)
 
 getTerm :: (MonadIO m, Ord v) => S.Get v -> S.Get a -> CodebasePath -> Reference.Id -> m (Maybe (Term v a))
 getTerm getV getA path h = S.getFromFile (V1.getTerm getV getA) (termPath path h)
