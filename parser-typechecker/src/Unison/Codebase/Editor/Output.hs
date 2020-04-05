@@ -90,6 +90,7 @@ data Output v
   | SourceLoadFailed String
   -- No main function, the [Type v Ann] are the allowed types
   | NoMainFunction String PPE.PrettyPrintEnv [Type v Ann]
+  | BranchEmpty (Either ShortBranchHash Path')
   | BranchNotEmpty Path'
   | LoadPullRequest RemoteNamespace RemoteNamespace Path' Path' Path'
   | CreatedNewBranch Path.Absolute
@@ -107,7 +108,6 @@ data Output v
   | TermAmbiguous HQ.HashQualified (Set Referent)
   | HashAmbiguous ShortHash (Set Referent)
   | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
-  | BadDestinationBranch Path'
   | BranchNotFound Path'
   | NameNotFound Path.HQSplit'
   | PatchNotFound Path.Split'
@@ -255,6 +255,7 @@ isFailure o = case o of
   BranchAlreadyExists{} -> True
   PatchAlreadyExists{} -> True
   NoExactTypeMatches -> True
+  BranchEmpty{} -> True
   BranchNotEmpty{} -> True
   TypeAlreadyExists{} -> True
   TypeParseError{} -> True
@@ -264,7 +265,6 @@ isFailure o = case o of
   NameAmbiguous{} -> True
   TermAmbiguous{} -> True
   BranchHashAmbiguous{} -> True
-  BadDestinationBranch{} -> True
   BadName{} -> True
   BranchNotFound{} -> True
   NameNotFound{} -> True

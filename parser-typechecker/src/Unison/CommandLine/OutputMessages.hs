@@ -359,6 +359,8 @@ notifyUser dir o = case o of
     pure . P.warnCallout $ "A type by that name already exists."
   PatchAlreadyExists _ ->
     pure . P.warnCallout $ "A patch by that name already exists."
+  BranchEmpty b -> pure . P.warnCallout . P.wrap $
+    P.group (either P.shown prettyPath' b) <> "is an empty namespace."
   BranchNotEmpty path ->
     pure . P.warnCallout $ "I was expecting the namespace " <> prettyPath' path
       <> " to be empty for this operation, but it isn't."
@@ -789,7 +791,8 @@ notifyUser dir o = case o of
   NoBranchWithHash _h -> pure . P.callout "😶" $
     P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> pure $ P.wrap "That's not implemented yet. Sorry! 😬"
-  BranchAlreadyExists _ -> pure "That namespace already exists."
+  BranchAlreadyExists p -> pure . P.wrap $
+    "The namespace" <> prettyPath' p <> "already exists."
   NameAmbiguous hashLen p tms tys ->
     pure . P.callout "\129300" . P.lines $ [
       P.wrap "That name is ambiguous. It could refer to any of the following definitions:"
@@ -827,7 +830,6 @@ notifyUser dir o = case o of
     "",
     P.wrap "Try again with a few more hash characters to disambiguate."
     ]
-  BadDestinationBranch _ -> pure "That destination namespace is bad."
   BadName n ->
     pure . P.wrap $ P.string n <> " is not a kind of name I understand."
   TermNotFound' sh ->
