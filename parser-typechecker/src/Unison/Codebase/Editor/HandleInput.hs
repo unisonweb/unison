@@ -601,9 +601,11 @@ loop = do
         let tryUpdateDest srcb dest0 = do
               let dest = resolveToAbsolute dest0
               -- if dest isn't empty: leave dest unchanged, and complain.
-              ok <- updateAtM dest $ \destb ->
-                pure (if Branch.isEmpty destb then srcb else destb)
-              if ok then success else respond $ BadDestinationBranch dest0
+              destb <- getAt dest
+              if Branch.isEmpty destb then do
+                ok <- updateAtM dest (const $ pure srcb)
+                if ok then success else respond $ BranchEmpty src0 
+              else respond $ BranchAlreadyExists dest0
         case src0 of
           Left hash -> resolveShortBranchHash hash >>= \case
             Left output -> respond output
