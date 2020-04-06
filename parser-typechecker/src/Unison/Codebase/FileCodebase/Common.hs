@@ -129,7 +129,6 @@ typeMentionsIndexDir :: CodebasePath -> Reference -> FilePath
 typeMentionsIndexDir root r = typeMentionsIndexDir' root </> referenceToDir r
 typeMentionsIndexDir' root = root </> "type-mentions-index"
 
--- todo: decodeFileName & encodeFileName shouldn't use base58; recommend $xFF$
 decodeFileName :: FilePath -> String
 decodeFileName = go where
   go ('$':tl) = case span (/= '$') tl of
@@ -146,7 +145,7 @@ decodeFileName = go where
     ("",_:tl) -> '$' : go tl
     (s,_:tl) -> s ++ go tl
     (s,[]) -> s
-  go (hd:tl) = hd : tl
+  go (hd:tl) = hd : go tl
   go [] = []
   decodeHex :: String -> String
   decodeHex s = maybe s (Text.unpack . decodeUtf8)

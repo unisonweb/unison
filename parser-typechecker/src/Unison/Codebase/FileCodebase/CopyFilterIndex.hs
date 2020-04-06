@@ -14,7 +14,6 @@ import Unison.Prelude
 
 import qualified Data.Text                     as Text
 import           UnliftIO.Directory             ( doesFileExist
-                                                , doesDirectoryExist
                                                 , listDirectory
                                                 )
 import           System.FilePath                ( FilePath
@@ -108,8 +107,10 @@ syncToDirectory srcPath destPath branch =
     x <- use syncedTerms
     y <- use syncedDecls
     dependentsIndex <- loadDependentsDir srcPath
-    copyDependentsIndex (x <> y) dependentsIndex
     copyTransitiveDependencies (x <> y) dependentsIndex
+    x <- use syncedTerms
+    y <- use syncedDecls
+    copyDependentsIndex (x <> y) dependentsIndex
     q <- use typeIndexQueue
     copyTypeIndex q
     copyTypeMentionsIndex q
@@ -122,13 +123,13 @@ syncToDirectory srcPath destPath branch =
   -- anything twice.
   copyDependentsIndex :: forall m. MonadIO m
     => Set Reference.Id -> Relation Reference Reference.Id -> m ()
-  copyDependentsIndex ids dependentsIndex = do
+  copyDependentsIndex ids dependentsIndex =
     copyIndexHelper
       (const (pure dependentsIndex))
       (\k v -> touchIdFile v (dependentsDir destPath k))
       ids
-  copyTransitiveDependencies ids dependentsIndex = do
-    for_ transitiveDependencies $ \r -> do
+  copyTransitiveDependencies ids dependentsIndex =
+    for_ transitiveDependencies $ \r ->
       ifM (isTerm r) (copyTerm r) $
         ifM (isDecl r) (copyDecl r) $
           liftIO . putStrLn $
@@ -140,8 +141,8 @@ syncToDirectory srcPath destPath branch =
     dependenciesOf r =
       Set.mapMaybe Reference.toId (Relation.lookupRan r dependentsIndex)
     transitiveDependencies = TC.transitiveClosure' dependenciesOf ids
-    isTerm = doesDirectoryExist . termPath srcPath
-    isDecl = doesDirectoryExist . declPath srcPath
+    isTerm = doesFileExist . termPath srcPath
+    isDecl = doesFileExist . declPath srcPath
 
   copyTypeIndex, copyTypeMentionsIndex :: forall m. MonadIO m => Set Referent -> m ()
   copyTypeIndex = copyIndexHelper loadTypeIndexDir $
@@ -218,13 +219,13 @@ loadIndex parseKey indexDir =
   listDirectory indexDir >>= Monoid.foldMapM loadDependency
   where
   loadDependency :: FilePath -> m (Relation Reference k)
-  loadDependency b@"_builtin" = do
+  loadDependency b@"_builtin" =
     listDirectory (indexDir </> b) >>= Monoid.foldMapM loadBuiltinDependency
     where
     loadBuiltinDependency :: FilePath -> m (Relation Reference k)
     loadBuiltinDependency path =
       loadDependentsOf
-        (Reference.Builtin (Text.pack path))
+        (Reference.Builtin . Text.pack . decodeFileName $ path)
         (indexDir </> b </> path)
 
   loadDependency path = case componentIdFromString path of
@@ -233,7 +234,7 @@ loadIndex parseKey indexDir =
       loadDependentsOf (Reference.DerivedId r) (indexDir </> path)
 
   loadDependentsOf :: Reference -> FilePath -> m (Relation Reference k)
-  loadDependentsOf r path = do
+  loadDependentsOf r path =
     listDirectory path <&>
       Relation.fromList . fmap (r,) . catMaybes . fmap parseKey
 

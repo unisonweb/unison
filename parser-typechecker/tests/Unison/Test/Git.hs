@@ -85,6 +85,7 @@ r = false
         TR.run currentDir configFile stanzas theCodebase
         "git" ["clone", Text.pack repoGit, Text.pack $ tmp </> "repo" ]
 
+    -- todo: test against all three implementations
     let groups = [ ("types", types)
                  , ("terms", terms)
                  , ("branches", branches)
@@ -160,6 +161,7 @@ r = false
     , ("Boolean <- d",          ".unison/v1/type-index/_builtin/Boolean/#6cdi7g1oi2lro3d6n9qg8v8fe3l2clc194qnb507oi72d5ap08gs0v9m80qbe0nc1keui9r03jnb48is0lttbsk336ehetlc2cs37do")
     , ("(A -> M) <- M#0",       ".unison/v1/type-index/#735ugfihokh6o8ob9akhe1ei05ocsfncdrj76bdomeue5rb9td82q7m4a72e68bpgl3np562fehe9uio4vfcs07ib0mss1o5m08plk8/#4idrjau9395kb8lsvielcjkli6dd7kkgalsfsgq4hq1k62n3vgpd2uejfuldmnutn1uch2292cj6ebr4ebvgqopucrp2j6pmv0s5uhg#d0")
     , ("Nat <- p",              ".unison/v1/type-index/_builtin/Nat/#fiupm7pl7o6ffitqatr174po7rdoh8ajqtcj7nirbeb9nqm4qd5qg9uvf1hic7lsm7b9qs38ka9lqv1iksmd6mothe816di0vcs0500")
+    -- note: typeForIndexing = Type.removeAllEffectVars typ
     , ("(Nat -> Nat) <- q",     ".unison/v1/type-index/#29pbek54phqkda8dp4erqn9u6etr8dm74h3sbg431kdvrt23l3c2a7eh01qpnc4kqq6i8fu1g0r5dsc08qqofnrlvfhpqs4cb6snls0/#l5pndeifuhmue9a204v77h8kgff6lt8i5rnujkv3u74bjqukokol9vj45t291i7grneso95i3jctnr8a1nes523m1gb8jqir3o1k6h8")
     , ("Boolean <- r",          ".unison/v1/type-index/_builtin/Boolean/#im2kiu2hmnfdvv5fbfc5lhaakebbs69074hjrb3ptkjnrh6dpkcp1rnnq99mhson2gr6g8uduppvpelpq4jvq1rg5p3f9jpiplpk9u8")
     , ("Boolean <- r'",          ".unison/v1/type-index/_builtin/Boolean/#gi015he0n17ji9sl5hgh1q8tjas74341p48h719kkgajj75d6qapakq993gu2duvit32b7qhqac1odk6jhvad0ku8ajcj7sup6t6mbo")

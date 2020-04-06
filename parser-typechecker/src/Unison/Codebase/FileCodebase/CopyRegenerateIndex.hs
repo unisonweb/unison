@@ -12,8 +12,7 @@ module Unison.Codebase.FileCodebase.CopyRegenerateIndex (syncToDirectory) where
 
 import Unison.Prelude
 
-import qualified Data.Set                      as Set
-import           UnliftIO.Directory             ( doesFileExist, doesDirectoryExist )
+import           UnliftIO.Directory             ( doesFileExist )
 import           System.FilePath                ( FilePath )
 import qualified Unison.Codebase               as Codebase
 import qualified Unison.Codebase.Causal        as Causal
@@ -46,6 +45,7 @@ data SyncedEntities = SyncedEntities
   , _typeIndex         :: Relation Reference Referent.Id
   , _typeMentionsIndex :: Relation Reference Referent.Id
   } deriving Generic
+  deriving Show
   deriving Semigroup via GenericSemigroup SyncedEntities
   deriving Monoid via GenericMonoid SyncedEntities
 
@@ -171,7 +171,7 @@ syncToDirectory getV getA srcPath destPath branch =
             Relation.fromManyDom (Type.toReferenceMentions typ) r
       Nothing ->
         fail $ "😞 I encountered a reference to the type " ++ show i
-             ++ ", but I couldn't find it in " ++ (declPath srcPath i)
+             ++ ", but I couldn't find it in " ++ declPath srcPath i
   -- copy and index a term and its transitive dependencies
   copyTerm :: MonadState SyncedEntities n => MonadIO n => Reference.Id -> n ()
   copyTerm = copyHelper destPath syncedTerms termPath $
@@ -190,7 +190,7 @@ syncToDirectory getV getA srcPath destPath branch =
           let dependencies = Term.dependencies term
           dependentsIndex <>= Relation.fromManyDom dependencies i
           -- copy the transitive dependencies
-          for_ (mapMaybe Reference.toId $ toList dependencies) $ \r -> do
+          for_ (mapMaybe Reference.toId $ toList dependencies) $ \r ->
             ifM (isTerm r) (copyTerm r) $
               ifM (isDecl r) (copyDecl r) $
                 liftIO . putStrLn $
@@ -198,31 +198,26 @@ syncToDirectory getV getA srcPath destPath branch =
                   ", which is a dependency of " ++ show i ++
                   ", but I couldn't find it as a type _or_ a term."
             where
-            isTerm = doesDirectoryExist . termPath srcPath
-            isDecl = doesDirectoryExist . declPath srcPath
+            isTerm = doesFileExist . termPath srcPath
+            isDecl = doesFileExist . declPath srcPath
         Nothing ->
           fail $ "😞 I was trying to copy the type " ++ show i
-               ++ ", but I couldn't find it in " ++ (termPath srcPath i)
+               ++ ", but I couldn't find it in " ++ termPath srcPath i
       -- build the type indices
       getTypeOfTerm getV getA srcPath i >>= \case
         Just typ -> do
+          let dependencies = Type.dependencies typ
+          let typeForIndexing = Type.removeAllEffectVars typ
+          let typeReference = Type.toReference typeForIndexing
+          let typeMentions = Type.toReferenceMentions typeForIndexing
+          dependentsIndex <>= Relation.fromManyDom dependencies i
           typeIndex <>=
-            Relation.singleton (Type.toReference typ) (Referent.Ref' i)
+            Relation.singleton typeReference (Referent.Ref' i)
           typeMentionsIndex <>=
-            Relation.fromManyDom (Type.toReferenceMentions typ) (Referent.Ref' i)
+            Relation.fromManyDom typeMentions (Referent.Ref' i)
         Nothing ->
           fail $ "😞 I was trying to copy the term " ++ show i
-               ++ ", but I couldn't find its type in " ++ (typePath srcPath i)
+               ++ ", but I couldn't find its type in " ++ typePath srcPath i
   copyEdits :: Branch.EditHash -> StateT SyncedEntities m ()
   copyEdits = copyHelper destPath syncedEdits editsPath $
     \h -> copyFileWithParents (editsPath srcPath h) (editsPath destPath h)
-  copyHelper :: forall m s h. (MonadIO m, MonadState s m, Ord h)
-             => CodebasePath
-             -> SimpleLens s (Set h) -- lens to track if `h` is already handled
-             -> (FilePath -> h -> FilePath) -- codebasepath -> hash -> filepath
-             -> (h -> m ()) -- handle h
-             -> h -> m ()
-  copyHelper destPath l getFilename f h =
-    unlessM (use (l . to (Set.member h))) $ do
-      l %= Set.insert h
-      ifM (doesFileExist (getFilename destPath h)) (f h) (pure ())

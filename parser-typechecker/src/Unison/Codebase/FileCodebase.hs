@@ -72,6 +72,8 @@ import qualified Unison.PrettyTerminal         as PT
 import           Unison.Symbol                  ( Symbol )
 import Unison.Codebase.FileCodebase.Common
 import Unison.Codebase.FileCodebase.Reserialize (syncToDirectory)
+--import Unison.Codebase.FileCodebase.CopyRegenerateIndex (syncToDirectory)
+--import Unison.Codebase.FileCodebase.CopyFilterIndex (syncToDirectory)
 
 initCodebaseAndExit :: Maybe FilePath -> IO ()
 initCodebaseAndExit mdir = do
@@ -130,6 +132,7 @@ codebase1
   => Var v
   => BuiltinAnnotation a
   => S.Format v -> S.Format a -> CodebasePath -> Codebase m v a
+--codebase1 (S.Format getV putV) (S.Format getA putA) path =
 codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
   let c =
         Codebase
@@ -146,6 +149,8 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
           -- Just copies all the files from a to-be-supplied path to `path`.
           (copyFromGit path)
           (syncToDirectory fmtV fmtA path)
+--          (syncToDirectory getV getA path)
+--          (syncToDirectory path)
           watches
           (getWatch getV getA path)
           (putWatch putV putA path)
