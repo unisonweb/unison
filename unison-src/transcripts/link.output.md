@@ -213,7 +213,7 @@ x.doc = [: I am the documentation for x :]
 
   ⚠️
   
-  Nothing to do. I couldn't find any matching metadata.
+  I could not find the metadata `x.do` in the codebase.
 
 ```
 2. Trying to link two non existing values
@@ -222,7 +222,7 @@ x.doc = [: I am the documentation for x :]
 
   ⚠️
   
-  Nothing to do. I couldn't find any matching metadata.
+  I could not find the metadata `blah` in the codebase.
 
 ```
 3. Trying to link an existing document to a non existing value:
