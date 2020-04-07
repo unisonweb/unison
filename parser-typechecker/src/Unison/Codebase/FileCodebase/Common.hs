@@ -8,7 +8,67 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.FileCodebase.Common where
+module Unison.Codebase.FileCodebase.Common
+  ( CodebasePath
+  , Err(..)
+  , SyncToDir
+  , exists
+  , hashExists
+  -- dirs (parent of all the files)
+  , branchHeadDir
+  , dependentsDir
+  , dependentsDir'
+  , typeIndexDir
+  , typeIndexDir'
+  , typeMentionsIndexDir
+  , typeMentionsIndexDir'
+  , watchesDir
+  -- paths (looking up one file)
+  , branchPath
+  , declPath
+  , editsPath
+  , reflogPath
+  , termPath
+  , typePath
+  , watchPath
+  -- core stuff
+  , formatAnn
+  , getDecl
+  , putDecl
+  , putRootBranch
+  , getTerm
+  , getTypeOfTerm
+  , putTerm
+  , getWatch
+  , putWatch
+  , updateCausalHead
+  , serializeEdits
+  , serializeRawBranch
+  , branchFromFiles
+  , branchHashesByPrefix
+  , copyFromGit
+  , termReferencesByPrefix
+  , termReferentsByPrefix
+  , typeReferencesByPrefix
+  -- stringing
+  , hashFromFilePath
+  , componentIdFromString
+  , componentIdToString
+  , referentIdFromString
+  -- touching files
+  , touchIdFile
+  , touchReferentFile
+  , touchReferentIdFile
+  -- util
+  , copyFileWithParents
+  , doFileOnce
+  , failWith
+  -- expose for tests :|
+  , encodeFileName
+  , decodeFileName
+  , getRootBranch
+
+  ) where
 
 import           Unison.Prelude
 
@@ -91,13 +151,21 @@ codebasePath = ".unison" </> "v1"
 formatAnn :: S.Format Ann
 formatAnn = S.Format (pure External) (\_ -> pure ())
 
+type SyncToDir m v a
+  = S.Format v
+  -> S.Format a
+  -> CodebasePath
+  -> CodebasePath
+  -> Branch m
+  -> m (Branch m)
+
 termsDir, typesDir, branchesDir, branchHeadDir, editsDir
   :: CodebasePath -> FilePath
-termsDir root = root </> "terms"
-typesDir root = root </> "types"
-branchesDir root = root </> "paths"
+termsDir root = root </> codebasePath </> "terms"
+typesDir root = root </> codebasePath </> "types"
+branchesDir root = root </> codebasePath </> "paths"
 branchHeadDir root = branchesDir root </> "_head"
-editsDir root = root </> "patches"
+editsDir root = root </> codebasePath </> "patches"
 
 termDir, declDir :: CodebasePath -> Reference.Id -> FilePath
 termDir root r = termsDir root </> componentIdToString r
@@ -112,22 +180,24 @@ dependentsDir', typeIndexDir', typeMentionsIndexDir' :: FilePath -> FilePath
 
 dependentsDir :: CodebasePath -> Reference -> FilePath
 dependentsDir root r = dependentsDir' root </> referenceToDir r
-dependentsDir' root = root </> "dependents"
+dependentsDir' root = root </> codebasePath </> "dependents"
 
 watchesDir :: CodebasePath -> Text -> FilePath
-watchesDir root UF.RegularWatch = root </> "watches" </> "_cache"
-watchesDir root kind = root </> "watches" </> encodeFileName (Text.unpack kind)
+watchesDir root UF.RegularWatch =
+  root </> codebasePath </> "watches" </> "_cache"
+watchesDir root kind =
+  root </> codebasePath </> "watches" </> encodeFileName (Text.unpack kind)
 watchPath :: CodebasePath -> UF.WatchKind -> Reference.Id -> FilePath
 watchPath root kind id =
   watchesDir root (Text.pack kind) </> componentIdToString id <> ".ub"
 
 typeIndexDir :: CodebasePath -> Reference -> FilePath
 typeIndexDir root r = typeIndexDir' root </> referenceToDir r
-typeIndexDir' root = root </> "type-index"
+typeIndexDir' root = root </> codebasePath </> "type-index"
 
 typeMentionsIndexDir :: CodebasePath -> Reference -> FilePath
 typeMentionsIndexDir root r = typeMentionsIndexDir' root </> referenceToDir r
-typeMentionsIndexDir' root = root </> "type-mentions-index"
+typeMentionsIndexDir' root = root </> codebasePath </> "type-mentions-index"
 
 decodeFileName :: FilePath -> String
 decodeFileName = go where
@@ -143,7 +213,7 @@ decodeFileName = go where
     ("pipe", _:tl) -> '|' : go tl
     ('x':hex, _:tl) -> decodeHex hex ++ go tl
     ("",_:tl) -> '$' : go tl
-    (s,_:tl) -> s ++ go tl
+    (s,_:tl) -> '$' : s ++ '$' : go tl -- unknown escapes left unchanged
     (s,[]) -> s
   go (hd:tl) = hd : go tl
   go [] = []
@@ -185,7 +255,7 @@ editsPath :: CodebasePath -> Branch.EditHash -> FilePath
 editsPath root h = editsDir root </> hashToString h ++ ".up"
 
 reflogPath :: CodebasePath -> FilePath
-reflogPath root = root </> "reflog"
+reflogPath root = root </> codebasePath </> "reflog"
 
 touchIdFile :: MonadIO m => Reference.Id -> FilePath -> m ()
 touchIdFile id fp =
@@ -211,11 +281,6 @@ minimalCodebaseStructure root = [ branchHeadDir root ]
 exists :: MonadIO m => CodebasePath -> m Bool
 exists root =
   and <$> traverse doesDirectoryExist (minimalCodebaseStructure root)
-
--- creates a minimal codebase structure at `path`
-initialize :: CodebasePath -> IO ()
-initialize path =
-  traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
 
 branchFromFiles :: MonadIO m => FilePath -> Branch.Hash -> m (Maybe (Branch m))
 branchFromFiles rootDir h = do
@@ -360,13 +425,13 @@ copyFileWithParents src dest =
     createDirectoryIfMissing True (takeDirectory dest)
     copyFile src dest
 
-copyHelper :: forall m s h. (MonadIO m, MonadState s m, Ord h)
+doFileOnce :: forall m s h. (MonadIO m, MonadState s m, Ord h)
            => CodebasePath
            -> SimpleLens s (Set h) -- lens to track if `h` is already done
            -> (CodebasePath -> h -> FilePath) -- done if this filepath exists
            -> (h -> m ()) -- do!
            -> h -> m ()
-copyHelper destPath l getFilename f h =
+doFileOnce destPath l getFilename f h =
   unlessM (use (l . to (Set.member h))) $ do
     l %= Set.insert h
     unlessM (doesFileExist (getFilename destPath h)) (f h)

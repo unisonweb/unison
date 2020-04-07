@@ -14,6 +14,13 @@ import System.Directory (doesFileExist, getCurrentDirectory, removeDirectoryRecu
 
 import Unison.Codebase.FileCodebase as FC
 import qualified Unison.Codebase.TranscriptParser as TR
+import Unison.Codebase.FileCodebase.Reserialize as Reserialize
+import Unison.Codebase.FileCodebase.CopyFilterIndex as CopyFilterIndex
+import Unison.Codebase.FileCodebase.CopyRegenerateIndex as CopyRegenerateIndex
+import Unison.Codebase.FileCodebase.Common (SyncToDir, formatAnn)
+import qualified Unison.Codebase.Serialization.V1 as V1
+import Unison.Var (Var)
+import Unison.Codebase (BuiltinAnnotation)
 
 test :: Test ()
 test = scope "git" . tests $ [testPush]
@@ -27,11 +34,48 @@ testPush = scope "push" $ do
 
 --  Temp.withSystemTempDirectory "git-push" $ \tmp -> do
     tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "git-push"
-    -- create a git repo and a transcript that references it
-    let repoGit = tmp </> "repo.git"
-    io $ "git" ["init", "--bare", Text.pack repoGit]
 
-    let transcript = Text.pack $ [iTrim|
+    let configFile = tmp </> ".unisonConfig"
+    let codebaseDir = tmp </> "codebase"
+
+    -- initialize a fresh codebase
+
+    -- transcript runner wants a "current directory" for I guess writing scratch files?
+    -- this should almost definitely not be this, if it were to be used.
+    currentDir <- io getCurrentDirectory
+
+    let err err = error $ "Parse error: \n" <> show err
+    
+    -- run the "setup transcript" to do the adds and updates, 
+    -- everything short of pushing  
+    c <- io $ FC.initCodebase codebaseDir
+    flip (either err) (TR.parse "setupTranscript" setupTranscript) $ \stanzas -> do
+      io . void $ TR.run currentDir configFile stanzas c
+      
+      -- now we'll try pushing three ways.
+      for_ pushImplementations $ \(implName, impl) -> scope implName $ do
+        -- initialize git repo
+        let repoGit = tmp </> (implName ++ ".git")
+        io $ "git" ["init", "--bare", Text.pack repoGit]
+
+        -- push one way!
+        flip (either err) (TR.parse "pushTranscript" (pushTranscript repoGit)) $ \stanzas -> do
+          let experimentalCodebase = FC.codebase1' impl V1.formatSymbol formatAnn codebaseDir
+          io . void $ TR.run currentDir configFile stanzas experimentalCodebase
+          
+          -- check out the resulting repo so we can inspect it 
+          io $ "git" ["clone", Text.pack repoGit, Text.pack $ tmp </> implName ]
+          
+          -- inspect it
+          for_ groups $ \(group, list) -> scope group $
+            for_ list $ \(title, path) -> scope title $
+              io (doesFileExist $ tmp </> implName </> path) >>= expect
+
+    -- if we haven't crashed, clean up!
+    io $ removeDirectoryRecursive tmp
+
+  where
+  setupTranscript = Text.pack $ [iTrim|
 ```ucm
 .> builtins.merge
 ```
@@ -67,38 +111,31 @@ r = false
 ```
 ```ucm
 .foo.inside> update
-.foo.inside> push ${repoGit}
+```
+|]
+  pushTranscript repo = Text.pack $ [iTrim|
+```ucm
+.foo.inside> push ${repo}
 ```
 |]
 
-    -- initialize an fresh codebase
-    let codebaseDir = tmp </> "codebase"
-    _codebase <- io $ FC.initCodebase codebaseDir
+  pushImplementations :: (MonadIO m, Var v, BuiltinAnnotation a)
+                      => [(String, SyncToDir m v a)]
+  pushImplementations =
+    [ ("Reserialize", Reserialize.syncToDirectory)
+    , ("CopyFilterIndex", CopyFilterIndex.syncToDirectory)
+    , ("CopyRegenerateIndex", CopyRegenerateIndex.syncToDirectory)
+    ]
 
-    let configFile = tmp </> ".unisonConfig"
+  groups =
+    [ ("types", types)
+    , ("terms", terms)
+    , ("branches", branches)
+    , ("patches", patches)
+    , ("dependentsIndex", dependentsIndex)
+    , ("typeIndex", typeIndex)
+    , ("typeMentionsIndex", typeMentionsIndex) ]
 
-    case TR.parse "transcript" transcript of
-      Left err -> error $ "Parse error: \n" <> show err
-      Right stanzas -> io $ do
-        currentDir <- getCurrentDirectory
-        theCodebase <- FC.getCodebaseOrExit $ Just codebaseDir
-        TR.run currentDir configFile stanzas theCodebase
-        "git" ["clone", Text.pack repoGit, Text.pack $ tmp </> "repo" ]
-
-    -- todo: test against all three implementations
-    let groups = [ ("types", types)
-                 , ("terms", terms)
-                 , ("branches", branches)
-                 , ("patches", patches)
-                 , ("dependentsIndex", dependentsIndex)
-                 , ("typeIndex", typeIndex)
-                 , ("typeMentionsIndex", typeMentionsIndex) ]
-    for_ groups $ \(group, list) -> scope group $
-      for_ list $ \(title, path) -> scope title $
-        io (doesFileExist $ tmp </> "repo" </> path) >>= expect
-
-    io $ removeDirectoryRecursive tmp
-  where
   types =
     [ ("M", ".unison/v1/types/#4idrjau9395kb8lsvielcjkli6dd7kkgalsfsgq4hq1k62n3vgpd2uejfuldmnutn1uch2292cj6ebr4ebvgqopucrp2j6pmv0s5uhg/compiled.ub")
     , ("A", ".unison/v1/types/#0n4pbd0q9uh78eurgn28gkqk44gdtgttv9uuvusvm1fg6dvapdn76ui86lsn761lop466vo8m80m4is9n5qukg80vr4k8fibpo58rk8/compiled.ub")

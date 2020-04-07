@@ -1,7 +1,7 @@
 module Unison.Test.Codebase.FileCodebase where
 
 import EasyTest
-import Unison.Codebase.FileCodebase
+import Unison.Codebase.FileCodebase.Common (encodeFileName, decodeFileName)
 import qualified Data.Set as Set
 import qualified Unison.Lexer as L
 import Data.Foldable (toList)

@@ -13,7 +13,6 @@ module Unison.Codebase.FileCodebase.CopyRegenerateIndex (syncToDirectory) where
 import Unison.Prelude
 
 import           UnliftIO.Directory             ( doesFileExist )
-import           System.FilePath                ( FilePath )
 import qualified Unison.Codebase               as Codebase
 import qualified Unison.Codebase.Causal        as Causal
 import           Unison.Codebase.Branch         ( Branch(Branch) )
@@ -51,6 +50,17 @@ data SyncedEntities = SyncedEntities
 
 makeLenses ''SyncedEntities
 
+syncToDirectory :: forall m v a
+  . MonadIO m
+  => Var v
+  => S.Format v
+  -> S.Format a
+  -> CodebasePath
+  -> CodebasePath
+  -> Branch m
+  -> m (Branch m)
+syncToDirectory fmtV fmtA = syncToDirectory' (S.get fmtV) (S.get fmtA)
+
 -- Create a codebase structure at `destPath` if none exists, and
 -- copy (merge) all codebase elements from the current codebase into it.
 --
@@ -80,16 +90,16 @@ makeLenses ''SyncedEntities
 -- repeat work.  It does deserialize definitions to find their dependencies, but
 -- it doesn't do any serialization, except in the situation where we are trying
 -- to copy Branch history that only exists in memory and not in the FileCodebase.
-syncToDirectory :: forall m v a
+syncToDirectory' :: forall m v a
   . MonadIO m
   => Var v
   => S.Get v
   -> S.Get a
-  -> FilePath
-  -> FilePath
+  -> CodebasePath
+  -> CodebasePath
   -> Branch m
   -> m (Branch m)
-syncToDirectory getV getA srcPath destPath branch =
+syncToDirectory' getV getA srcPath destPath branch =
   flip State.evalStateT mempty $ do
     newRemoteRoot@(Branch c) <- lift $
       ifM (exists destPath)
@@ -152,7 +162,7 @@ syncToDirectory getV getA srcPath destPath branch =
         $ Star3.fact terms
   -- copy and index a decl and its transitive dependencies
   copyDecl :: (MonadState SyncedEntities n, MonadIO n) => Reference.Id -> n ()
-  copyDecl = copyHelper destPath syncedDecls declPath $ \i -> do
+  copyDecl = doFileOnce destPath syncedDecls declPath $ \i -> do
     -- first copy the file, then recursively copy its dependencies
     copyFileWithParents (declPath srcPath i) (declPath destPath i)
     getDecl getV getA srcPath i >>= \case
@@ -174,7 +184,7 @@ syncToDirectory getV getA srcPath destPath branch =
              ++ ", but I couldn't find it in " ++ declPath srcPath i
   -- copy and index a term and its transitive dependencies
   copyTerm :: MonadState SyncedEntities n => MonadIO n => Reference.Id -> n ()
-  copyTerm = copyHelper destPath syncedTerms termPath $
+  copyTerm = doFileOnce destPath syncedTerms termPath $
     \i -> do
       -- copy the files, and hopefully leave them in the disk cache for when
       -- we read them in a second!
@@ -219,5 +229,5 @@ syncToDirectory getV getA srcPath destPath branch =
           fail $ "😞 I was trying to copy the term " ++ show i
                ++ ", but I couldn't find its type in " ++ typePath srcPath i
   copyEdits :: Branch.EditHash -> StateT SyncedEntities m ()
-  copyEdits = copyHelper destPath syncedEdits editsPath $
+  copyEdits = doFileOnce destPath syncedEdits editsPath $
     \h -> copyFileWithParents (editsPath srcPath h) (editsPath destPath h)

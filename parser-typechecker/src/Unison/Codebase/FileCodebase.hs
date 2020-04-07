@@ -9,16 +9,13 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.FileCodebase
-( getRootBranch        -- used by Git module
+( CodebasePath         -- used by Git module
+, getRootBranch        -- used by Git module
 , branchHashesByPrefix -- used by Git module
 , branchFromFiles      -- used by Git module
 , codebase1  -- used by Main
+, codebase1' -- used by Test/Git
 , exists     -- used by Main
-, initialize -- used by Main
--- todo: where are these used?
-, decodeFileName
-, encodeFileName
-, codebasePath
 , initCodebaseAndExit
 , initCodebase
 , getCodebaseOrExit
@@ -42,7 +39,6 @@ import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 )
 import           System.FilePath                ( FilePath
                                                 , takeFileName
-                                                , (</>)
                                                 )
 import           System.Directory               (
                                                  getHomeDirectory
@@ -70,10 +66,45 @@ import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Pretty            as P
 import qualified Unison.PrettyTerminal         as PT
 import           Unison.Symbol                  ( Symbol )
+import qualified Unison.Codebase.FileCodebase.Common as Common
 import Unison.Codebase.FileCodebase.Common
-import Unison.Codebase.FileCodebase.Reserialize (syncToDirectory)
---import Unison.Codebase.FileCodebase.CopyRegenerateIndex (syncToDirectory)
---import Unison.Codebase.FileCodebase.CopyFilterIndex (syncToDirectory)
+  ( CodebasePath
+  , Err(CantParseBranchHead)
+  , exists
+
+  , branchHeadDir
+  , dependentsDir
+  , reflogPath
+  , typeIndexDir
+  , typeMentionsIndexDir
+  , watchesDir
+
+  , componentIdFromString
+  , hashFromFilePath
+  , referentIdFromString
+  , decodeFileName
+  , formatAnn
+  , getRootBranch
+  , getDecl
+  , getTerm
+  , getTypeOfTerm
+  , getWatch
+  , putDecl
+  , putTerm
+  , putRootBranch
+  , putWatch
+
+  , copyFromGit
+  , branchFromFiles
+  , branchHashesByPrefix
+  , termReferencesByPrefix
+  , termReferentsByPrefix
+  , typeReferencesByPrefix
+
+  , failWith
+  )
+
+import qualified Unison.Codebase.FileCodebase.Reserialize as Sync
 
 initCodebaseAndExit :: Maybe FilePath -> IO ()
 initCodebaseAndExit mdir = do
@@ -83,10 +114,9 @@ initCodebaseAndExit mdir = do
 
 -- initializes a new codebase here (i.e. `ucm -codebase dir init`)
 initCodebase :: FilePath -> IO (Codebase IO Symbol Ann)
-initCodebase dir = do
-  let path = dir </> codebasePath
-  let theCodebase = codebase1 V1.formatSymbol formatAnn path
-  prettyDir <- P.string <$> canonicalizePath dir
+initCodebase path = do
+  let theCodebase = codebase1 V1.formatSymbol Common.formatAnn path
+  prettyDir <- P.string <$> canonicalizePath path
 
   whenM (exists path) $
     do PT.putPrettyLn'
@@ -99,7 +129,6 @@ initCodebase dir = do
     .  P.wrap
     $  "Initializing a new codebase in: "
     <> prettyDir
-  initialize path
   Codebase.initializeCodebase theCodebase
   pure theCodebase
 
@@ -112,10 +141,8 @@ getCodebaseOrExit mdir = do
         [ "No codebase exists in " <> prettyDir
         , "Run `ucm -codebase " <> prettyDir
           <> " init` to create one, then try again!"]
-  let path = dir </> codebasePath
-  let theCodebase = codebase1 V1.formatSymbol formatAnn path
-  Codebase.initializeBuiltinCode theCodebase
-  unlessM (exists path) $ do
+  let theCodebase = codebase1 V1.formatSymbol formatAnn dir
+  unlessM (exists dir) $ do
     PT.putPrettyLn' errMsg
     exitFailure
   pure theCodebase
@@ -133,7 +160,15 @@ codebase1
   => BuiltinAnnotation a
   => S.Format v -> S.Format a -> CodebasePath -> Codebase m v a
 --codebase1 (S.Format getV putV) (S.Format getA putA) path =
-codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
+codebase1 = codebase1' Sync.syncToDirectory
+
+codebase1'
+  :: forall m v a
+   . MonadUnliftIO m
+  => Var v
+  => BuiltinAnnotation a
+  => Common.SyncToDir m v a -> S.Format v -> S.Format a -> CodebasePath -> Codebase m v a
+codebase1' syncToDirectory fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
   let c =
         Codebase
           (getTerm getV getA path)
@@ -149,8 +184,6 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
           -- Just copies all the files from a to-be-supplied path to `path`.
           (copyFromGit path)
           (syncToDirectory fmtV fmtA path)
---          (syncToDirectory getV getA path)
---          (syncToDirectory path)
           watches
           (getWatch getV getA path)
           (putWatch putV putA path)

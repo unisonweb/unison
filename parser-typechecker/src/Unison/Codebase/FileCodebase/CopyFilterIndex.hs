@@ -3,7 +3,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -25,34 +24,37 @@ import           Unison.Codebase.Branch         ( Branch(Branch) )
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
-import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import qualified Unison.UnisonFile             as UF
+import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Relation          as Relation
+import           Unison.Util.TransitiveClosure as TC
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State           as State
+import qualified Control.Monad.Writer          as Writer
 import Control.Lens
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Monoid as Monoid
 import Data.Monoid.Generic
 import Unison.Codebase.FileCodebase.Common
-import Data.Set (Set)
 import GHC.Generics (Generic)
-import Unison.Prelude (MonadIO)
+import qualified Data.Set as Set
+import           Data.Set (Set)
 import qualified Unison.Util.Set as Set
-import Unison.Util.TransitiveClosure as TC
 
 data SyncedEntities = SyncedEntities
   { _syncedTerms     :: Set Reference.Id
   , _syncedDecls     :: Set Reference.Id
-  , _typeIndexQueue  :: Set Referent
   , _syncedEdits     :: Set Branch.EditHash
   } deriving Generic
   deriving Semigroup via GenericSemigroup SyncedEntities
   deriving Monoid via GenericMonoid SyncedEntities
 
 makeLenses ''SyncedEntities
+
+syncToDirectory :: MonadIO m => v -> a
+                -> CodebasePath -> CodebasePath -> Branch m -> m (Branch m)
+syncToDirectory _ _ = syncToDirectory'
 
 -- Create a codebase structure at `destPath` if none exists, and
 -- copy (merge) all codebase elements from the current codebase into it.
@@ -78,13 +80,13 @@ makeLenses ''SyncedEntities
 -- `SyncedEntities`, and writing the relevant parts to the destination.
 --
 -- No definitions are deserialized or serialized during this sync.
-syncToDirectory :: forall m
+syncToDirectory' :: forall m
   . MonadIO m
-  => FilePath
-  -> FilePath
+  => CodebasePath
+  -> CodebasePath
   -> Branch m
   -> m (Branch m)
-syncToDirectory srcPath destPath branch =
+syncToDirectory' srcPath destPath branch =
   flip State.evalStateT mempty $ do
     newRemoteRoot@(Branch c) <- lift $
       ifM (exists destPath)
@@ -108,12 +110,12 @@ syncToDirectory srcPath destPath branch =
     y <- use syncedDecls
     dependentsIndex <- loadDependentsDir srcPath
     copyTransitiveDependencies (x <> y) dependentsIndex
+    -- reload x and y as they may have grown while copying transitive deps
     x <- use syncedTerms
     y <- use syncedDecls
     copyDependentsIndex (x <> y) dependentsIndex
-    q <- use typeIndexQueue
-    copyTypeIndex q
-    copyTypeMentionsIndex q
+    knownReferents <- copyTypeIndex x y
+    copyTypeMentionsIndex knownReferents
     updateCausalHead (branchHeadDir destPath) c
     pure branch
   where
@@ -144,11 +146,21 @@ syncToDirectory srcPath destPath branch =
     isTerm = doesFileExist . termPath srcPath
     isDecl = doesFileExist . declPath srcPath
 
-  copyTypeIndex, copyTypeMentionsIndex :: forall m. MonadIO m => Set Referent -> m ()
-  copyTypeIndex = copyIndexHelper loadTypeIndexDir $
-    \k v -> touchReferentFile v (typeIndexDir destPath k)
+  copyTypeIndex :: forall m. MonadIO m 
+                => Set Reference.Id -> Set Reference.Id -> m (Set Referent.Id)
+  copyTypeIndex termIds declIds = do
+    -- load the type index, collect all the referents that correspond to the input sets
+    index <- loadTypeIndexDir srcPath
+    let needed = \case
+          Referent.Ref' r     -> Set.member r termIds 
+          Referent.Con' r _ _ -> Set.member r declIds
+    Writer.execWriterT $ 
+      for_ (Relation.toList index) $ \(k, v) -> when (needed v) $ do 
+        liftIO $ touchReferentIdFile v (typeIndexDir destPath k)
+        Writer.tell $ Set.singleton v
+  copyTypeMentionsIndex :: forall m. MonadIO m => Set Referent.Id -> m ()
   copyTypeMentionsIndex = copyIndexHelper loadTypeMentionsDir $
-    \k v -> touchReferentFile v (typeMentionsIndexDir destPath k)
+    \k v -> touchReferentIdFile v (typeMentionsIndexDir destPath k)
 
   -- | loads an index using IO, restrict it to `neededRange`, and run the `touch`
   -- action on each of the resulting pairs.
@@ -193,11 +205,10 @@ syncToDirectory srcPath destPath branch =
         . mapMaybe Referent.toTermReference
         . toList
         $ Star3.fact terms
-      typeIndexQueue <>= Star3.fact terms
   copyDecl, copyTerm :: Reference.Id -> StateT SyncedEntities m ()
-  copyDecl = copyHelper destPath syncedDecls declPath $
+  copyDecl = doFileOnce destPath syncedDecls declPath $
     \i -> copyFileWithParents (declPath srcPath i) (declPath destPath i)
-  copyTerm = copyHelper destPath syncedTerms termPath $
+  copyTerm = doFileOnce destPath syncedTerms termPath $
     \i -> do
       copyFileWithParents (termPath srcPath i) (termPath destPath i) -- compiled.ub
       copyFileWithParents (typePath srcPath i) (typePath destPath i) -- type.ub
@@ -205,7 +216,7 @@ syncToDirectory srcPath destPath branch =
         copyFileWithParents (watchPath srcPath UF.TestWatch i)
                             (watchPath destPath UF.TestWatch i)
   copyEdits :: Branch.EditHash -> StateT SyncedEntities m ()
-  copyEdits = copyHelper destPath syncedEdits editsPath $
+  copyEdits = doFileOnce destPath syncedEdits editsPath $
     \h -> copyFileWithParents (editsPath srcPath h) (editsPath destPath h)
 
 -- Relation Dependency Dependent, e.g. [(List.foldLeft, List.reverse)]
@@ -239,12 +250,11 @@ loadIndex parseKey indexDir =
       Relation.fromList . fmap (r,) . catMaybes . fmap parseKey
 
 -- Relation Dependency Dependent, e.g. [(Set a -> List a, Set.toList)]
-loadTypeIndexDir :: MonadIO m => CodebasePath -> m (Relation Reference Referent)
+loadTypeIndexDir :: MonadIO m => CodebasePath -> m (Relation Reference Referent.Id)
 loadTypeIndexDir =
-  loadIndex (Referent.fromText . Text.pack) . typeIndexDir'
+  loadIndex referentIdFromString . typeIndexDir'
 
 -- Relation Dependency Dependent, e.g. [(Set, Set.toList), (List, Set.toList)]
-loadTypeMentionsDir :: MonadIO m => CodebasePath -> m (Relation Reference Referent)
+loadTypeMentionsDir :: MonadIO m => CodebasePath -> m (Relation Reference Referent.Id)
 loadTypeMentionsDir =
-  loadIndex (Referent.fromText . Text.pack) . typeMentionsIndexDir'
-
+  loadIndex referentIdFromString . typeMentionsIndexDir'

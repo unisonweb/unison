@@ -161,12 +161,12 @@ prepareTranscriptDir inFork mcodepath = do
 
   when inFork $ FileCodebase.getCodebaseOrExit mcodepath >> do
     origCodePath <- FileCodebase.getCodebaseDir mcodepath
-    let path = origCodePath FP.</> FileCodebase.codebasePath
+    let path = origCodePath
     PT.putPrettyLn $ P.lines [
       P.wrap "Transcript will be run on a copy of the codebase at: ", "",
       P.indentN 2 (P.string path)
       ]
-    Path.copyDir path (tmp FP.</> FileCodebase.codebasePath)
+    Path.copyDir path tmp
 
   pure tmp
 

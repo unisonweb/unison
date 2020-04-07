@@ -114,7 +114,7 @@ syncToDirectory fmtV fmtA srcPath destPath branch = do
   getWatch' = getWatch (S.get fmtV) (S.get fmtA) srcPath
   putWatch' = putWatch (S.put fmtV) (S.put fmtA) destPath
   -- copyHelper is responsible for making sure we don't repeat work
-  putDecl' = copyHelper destPath syncedDecls declPath go where
+  putDecl' = doFileOnce destPath syncedDecls declPath go where
     go i = do
       d <- fromMaybe noDecl <$> getDecl' i
       putDecl (S.put fmtV) (S.put fmtA) destPath i d
@@ -125,7 +125,7 @@ syncToDirectory fmtV fmtA srcPath destPath branch = do
         "\n\t" ++ declPath destPath i ++
         "\nbut there was nothing there."
   putTerm' :: Reference.Id -> StateT SyncedEntities m ()
-  putTerm' = copyHelper destPath syncedTerms termPath go where
+  putTerm' = doFileOnce destPath syncedTerms termPath go where
     go i = do
       tm <- fromMaybe noTerm <$> getTerm' i
       tp <- fromMaybe noType <$> getTypeOfTerm' i
