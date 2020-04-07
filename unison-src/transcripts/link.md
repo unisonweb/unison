@@ -68,3 +68,40 @@ myLibrary.h x = x + 3
 .myLibrary> links h
 .myLibrary> history
 ```
+
+Examples of user error that are handled
+
+```unison:hide
+x = 42
+x.doc = [: I am the documentation for x :]
+```
+
+```ucm:hide:all
+.> add
+```
+1. Trying to link a document that does not exist to an existing value:
+```ucm:error
+.> link x.do x
+```
+
+2. Trying to link two non existing values
+```ucm:error
+.> link blah blah
+```
+
+3. Trying to link an existing document to a non existing value:
+```ucm
+.> link x.doc y
+```
+
+```ucm
+.> cd a.b
+.> link .x.doc y
+```
+
+4. Re-linking an existing valid link:
+```ucm
+.> link x.doc x
+.> link x.doc x
+```
+
