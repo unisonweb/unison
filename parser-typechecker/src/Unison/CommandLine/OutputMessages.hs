@@ -327,8 +327,13 @@ notifyUser dir o = case o of
           <> "or invalid codebase, or because files inside the codebase"
           <> "are being deleted external to UCM."
     ]
-  MetadataAmbiguous _ppe [] -> pure . P.warnCallout .
+
+  MetadataNotFound Nothing -> pure . P.warnCallout .
     P.wrap $ "Nothing to do. I couldn't find any matching metadata."
+
+  MetadataNotFound (Just name) -> pure . P.warnCallout .
+    P.wrap $ "I could not find the metadata " <> P.backticked ( P.text name) <> " in the codebase."
+
   MetadataAmbiguous ppe refs -> pure . P.warnCallout . P.lines $ [
     P.wrap $ "I'm not sure which metadata value you're referring to"
           <> "since there are multiple matches:",
@@ -1333,6 +1338,7 @@ data ShowNumbers = ShowNumbers | HideNumbers
 -- | `ppe` is just for rendering type signatures
 --   `oldPath, newPath :: Path.Absolute` are just for producing fully-qualified
 --                                       numbered args
+-- showDiffNamespace
 showDiffNamespace :: forall v . Var v
                   => ShowNumbers
                   -> PPE.PrettyPrintEnv
