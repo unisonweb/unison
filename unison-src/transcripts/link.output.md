@@ -225,6 +225,14 @@ x.doc = [: I am the documentation for x :]
   I could not find the metadata `x.do` in the codebase.
 
 ```
+```ucm
+.> link ##Nat Nat
+
+  ⚠️
+  
+  Nothing to do. I couldn't find any matching metadata.
+
+```
 2. Trying to link two non existing values
 ```ucm
 .> link blah blah
