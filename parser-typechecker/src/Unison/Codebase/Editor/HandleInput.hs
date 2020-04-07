@@ -2027,7 +2027,6 @@ syncRemoteRootBranch input repo b = do
   e <- eval $ SyncRemoteRootBranch repo b
   either (eval . Notify . GitError input) (const $ respond Success) e
 
--- getAt
 getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =
   use root <&> fromMaybe Branch.empty . Branch.getAt p
