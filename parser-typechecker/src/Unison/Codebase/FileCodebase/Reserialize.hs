@@ -77,7 +77,7 @@ syncToDirectory fmtV fmtA srcPath destPath branch = do
   -- branch, then we merge the existing root with the provided `branch`, in
   -- preparation for writing; otherwise we just plan to write the provided one.
   branch@(Branch c) <-
-    ifM (exists destPath)
+    ifM (codebaseExists destPath)
       (do
         remoteRoot <- getRootBranch destPath
         Branch.merge branch (fromMaybe Branch.empty $ rightMay remoteRoot))

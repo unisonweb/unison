@@ -89,7 +89,7 @@ syncToDirectory' :: forall m
 syncToDirectory' srcPath destPath branch =
   flip State.evalStateT mempty $ do
     newRemoteRoot@(Branch c) <- lift $
-      ifM (exists destPath)
+      ifM (codebaseExists destPath)
         (getRootBranch destPath >>= \case
           Right existingDestRoot -> Branch.merge branch existingDestRoot
           -- The destination codebase doesn't advertise a root branch,
@@ -146,16 +146,16 @@ syncToDirectory' srcPath destPath branch =
     isTerm = doesFileExist . termPath srcPath
     isDecl = doesFileExist . declPath srcPath
 
-  copyTypeIndex :: forall m. MonadIO m 
+  copyTypeIndex :: forall m. MonadIO m
                 => Set Reference.Id -> Set Reference.Id -> m (Set Referent.Id)
   copyTypeIndex termIds declIds = do
     -- load the type index, collect all the referents that correspond to the input sets
     index <- loadTypeIndexDir srcPath
     let needed = \case
-          Referent.Ref' r     -> Set.member r termIds 
+          Referent.Ref' r     -> Set.member r termIds
           Referent.Con' r _ _ -> Set.member r declIds
-    Writer.execWriterT $ 
-      for_ (Relation.toList index) $ \(k, v) -> when (needed v) $ do 
+    Writer.execWriterT $
+      for_ (Relation.toList index) $ \(k, v) -> when (needed v) $ do
         liftIO $ touchReferentIdFile v (typeIndexDir destPath k)
         Writer.tell $ Set.singleton v
   copyTypeMentionsIndex :: forall m. MonadIO m => Set Referent.Id -> m ()

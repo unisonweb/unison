@@ -15,7 +15,7 @@ module Unison.Codebase.FileCodebase
 , branchFromFiles      -- used by Git module
 , codebase1  -- used by Main
 , codebase1' -- used by Test/Git
-, exists     -- used by Main
+, codebaseExists     -- used by Main
 , initCodebaseAndExit
 , initCodebase
 , getCodebaseOrExit
@@ -70,7 +70,7 @@ import qualified Unison.Codebase.FileCodebase.Common as Common
 import Unison.Codebase.FileCodebase.Common
   ( CodebasePath
   , Err(CantParseBranchHead)
-  , exists
+  , codebaseExists
 
   , branchHeadDir
   , dependentsDir
@@ -118,7 +118,7 @@ initCodebase path = do
   let theCodebase = codebase1 V1.formatSymbol Common.formatAnn path
   prettyDir <- P.string <$> canonicalizePath path
 
-  whenM (exists path) $
+  whenM (codebaseExists path) $
     do PT.putPrettyLn'
          .  P.wrap
          $  "It looks like there's already a codebase in: "
@@ -142,7 +142,7 @@ getCodebaseOrExit mdir = do
         , "Run `ucm -codebase " <> prettyDir
           <> " init` to create one, then try again!"]
   let theCodebase = codebase1 V1.formatSymbol formatAnn dir
-  unlessM (exists dir) $ do
+  unlessM (codebaseExists dir) $ do
     PT.putPrettyLn' errMsg
     exitFailure
   pure theCodebase

@@ -102,7 +102,7 @@ syncToDirectory' :: forall m v a
 syncToDirectory' getV getA srcPath destPath branch =
   flip State.evalStateT mempty $ do
     newRemoteRoot@(Branch c) <- lift $
-      ifM (exists destPath)
+      ifM (codebaseExists destPath)
         (getRootBranch destPath >>= \case
           Right existingDestRoot -> Branch.merge branch existingDestRoot
           -- The destination codebase doesn't advertise a root branch,

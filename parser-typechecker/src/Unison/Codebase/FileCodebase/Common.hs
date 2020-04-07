@@ -12,7 +12,7 @@ module Unison.Codebase.FileCodebase.Common
   ( CodebasePath
   , Err(..)
   , SyncToDir
-  , exists
+  , codebaseExists
   , hashExists
   -- dirs (parent of all the files)
   , branchHeadDir
@@ -278,8 +278,8 @@ minimalCodebaseStructure :: CodebasePath -> [FilePath]
 minimalCodebaseStructure root = [ branchHeadDir root ]
 
 -- checks if a minimal codebase structure exists at `path`
-exists :: MonadIO m => CodebasePath -> m Bool
-exists root =
+codebaseExists :: MonadIO m => CodebasePath -> m Bool
+codebaseExists root =
   and <$> traverse doesDirectoryExist (minimalCodebaseStructure root)
 
 branchFromFiles :: MonadIO m => FilePath -> Branch.Hash -> m (Maybe (Branch m))
@@ -310,7 +310,7 @@ branchFromFiles rootDir h = do
 getRootBranch :: forall m.
   MonadIO m => CodebasePath -> m (Either Codebase.GetRootBranchError (Branch m))
 getRootBranch root =
-  ifM (exists root)
+  ifM (codebaseExists root)
     (listDirectory (branchHeadDir root) >>= go')
     (pure $ Left Codebase.NoRootBranch)
  where
