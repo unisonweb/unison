@@ -191,7 +191,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     Execute ppe uf -> void $ evalUnisonFile ppe uf
     AppendToReflog reason old new -> Codebase.appendReflog codebase reason old new
     LoadReflog -> Codebase.getReflog codebase
-    CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Parser.Intrinsic t
+    CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Parser.External t
 
   eval1 :: PPE.PrettyPrintEnv -> Term v Ann -> _
   eval1 ppe tm = do
