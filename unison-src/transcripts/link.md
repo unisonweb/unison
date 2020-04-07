@@ -84,6 +84,10 @@ x.doc = [: I am the documentation for x :]
 .> link x.do x
 ```
 
+```ucm:error
+.> link ##Nat Nat
+```
+
 2. Trying to link two non existing values
 ```ucm:error
 .> link blah blah
