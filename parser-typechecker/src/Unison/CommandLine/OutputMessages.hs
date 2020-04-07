@@ -1405,7 +1405,6 @@ data ShowNumbers = ShowNumbers | HideNumbers
 -- | `ppe` is just for rendering type signatures
 --   `oldPath, newPath :: Path.Absolute` are just for producing fully-qualified
 --                                       numbered args
--- showDiffNamespace
 showDiffNamespace :: forall v . Var v
                   => ShowNumbers
                   -> PPE.PrettyPrintEnv
