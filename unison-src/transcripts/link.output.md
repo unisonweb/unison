@@ -209,3 +209,59 @@ myLibrary.h x = x + 3
   □ #7asfbtqmoj (start of history)
 
 ```
+Examples of user error that are handled
+
+```unison
+x = 42
+x.doc = [: I am the documentation for x :]
+```
+
+1. Trying to link a document that does not exist to an existing value:
+```ucm
+.> link x.do x
+
+  ⚠️
+  
+  Nothing to do. I couldn't find any matching metadata.
+
+```
+2. Trying to link two non existing values
+```ucm
+.> link blah blah
+
+  ⚠️
+  
+  Nothing to do. I couldn't find any matching metadata.
+
+```
+3. Trying to link an existing document to a non existing value:
+```ucm
+.> link x.doc y
+
+  The namespaces are identical.
+
+```
+```ucm
+.> cd a.b
+
+  ☝️  The namespace .a.b is empty.
+
+.> link .x.doc y
+
+  The namespaces are identical.
+
+```
+4. Re-linking an existing valid link:
+```ucm
+.> link x.doc x
+
+  Updates:
+  
+    1. x : Nat
+       + 2. x.doc : Doc
+
+.> link x.doc x
+
+  The namespaces are identical.
+
+```
