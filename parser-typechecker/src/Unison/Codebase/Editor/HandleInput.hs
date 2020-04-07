@@ -511,8 +511,11 @@ loop = do
                     where
                     go types src = op (src, mdType, mdValue) types
                   in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
-            (_srcle, _srclt, mdValues) ->
-              respond $ MetadataAmbiguous ppe mdValues
+            (_srcle, _srclt, []) ->
+              respond $ MetadataNotFound $ (Name.toText <$> HQ.toName mdValue2)
+            (_srcle, _srclt, _multiple) ->
+              respond $ MetadataAmbiguous ppe _multiple
+
         delete
           :: (Path.HQSplit' -> Set Referent) -- compute matching terms
           -> (Path.HQSplit' -> Set Reference) -- compute matching types
@@ -2146,6 +2149,7 @@ syncRemoteRootBranch input repo b = do
   e <- eval $ SyncRemoteRootBranch repo b
   either (eval . Notify . GitError input) (const $ respond Success) e
 
+-- getAt
 getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =
   use root <&> fromMaybe Branch.empty . Branch.getAt p
