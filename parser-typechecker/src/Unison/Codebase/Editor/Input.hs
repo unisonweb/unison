@@ -125,8 +125,11 @@ data Input
   | ShowReflogI
   | UpdateBuiltinsI
   | MergeBuiltinsI
+  | ListDependenciesI HQ.HashQualified
+  | ListDependentsI HQ.HashQualified
   | DebugNumberedArgsI
   | DebugBranchHistoryI
+  | DebugTypecheckedUnisonFileI
   | QuitI
   deriving (Eq, Show)
 

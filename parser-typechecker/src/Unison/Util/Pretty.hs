@@ -27,6 +27,8 @@ module Unison.Util.Pretty (
    excerptColumn2Headed,
    warnCallout, blockedCallout, fatalCallout, okCallout,
    column2,
+   column2sep,
+   column2Header,
    column2M,
    column2UnzippedM,
    column3,
@@ -461,7 +463,15 @@ excerptColumn2 max cols = case max of
 
 column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
-column2 = lines . (group <$>) . align
+column2 = column2sep ""
+
+column2Header
+  :: Pretty ColorText -> Pretty ColorText -> [(Pretty ColorText, Pretty ColorText)] -> Pretty ColorText
+column2Header left right = column2sep "  " . ((fmap CT.hiBlack left, fmap CT.hiBlack right):)
+
+column2sep
+  :: (LL.ListLike s Char, IsString s) => Pretty s -> [(Pretty s, Pretty s)] -> Pretty s
+column2sep sep rows = lines . (group <$>) . align $ [(a, sep <> b) | (a, b) <- rows]
 
 column2M
   :: (Applicative m, LL.ListLike s Char, IsString s)
