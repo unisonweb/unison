@@ -21,15 +21,6 @@ source-repository head
   type: git
   location: git://github.com/unisonweb/unison.git
 
--- `cabal install -foptimized` enables optimizations
-flag optimized
-  manual: True
-  default: False
-
-flag quiet
-  manual: True
-  default: False
-
 library
   hs-source-dirs: src
 
@@ -198,7 +189,7 @@ library
     util,
     vector
 
-  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   default-extensions:
     ApplicativeDo,
     DeriveFunctor,
@@ -213,12 +204,6 @@ library
     TupleSections
     TypeApplications
     -- ViewPatterns
-
-  if flag(optimized)
-    ghc-options: -funbox-strict-fields
-
-  if flag(quiet)
-    ghc-options: -v0
 
 executable unison
   main-is: Main.hs

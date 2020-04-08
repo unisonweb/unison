@@ -20,15 +20,6 @@ source-repository head
   type: git
   location: git://github.com/unisonweb/unison.git
 
--- `cabal install -foptimized` enables optimizations
-flag optimized
-  manual: True
-  default: False
-
-flag quiet
-  manual: True
-  default: False
-
 library
   hs-source-dirs: src
 
@@ -45,12 +36,6 @@ library
     random                    >= 1.1
 
   ghc-options: -Wall -fno-warn-name-shadowing
-
-  if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
-
-  if flag(quiet)
-    ghc-options: -v0
 
 -- Preferred way to run EasyTest-based test suite
 executable runtests
