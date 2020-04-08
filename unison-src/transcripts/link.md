@@ -1,7 +1,7 @@
 # Linking definitions to metadata
 
 ```ucm:hide
-.> builtins.merge
+.> builtins.mergeio
 ```
 
 The `link` and `unlink` commands can be used to manage metadata linked to definitions. For example, you can link documentation to a definition:
@@ -68,4 +68,3 @@ myLibrary.h x = x + 3
 .myLibrary> links h
 .myLibrary> history
 ```
-

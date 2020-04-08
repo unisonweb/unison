@@ -38,10 +38,10 @@ import qualified Data.Text.IO                  as TextIO
 import           Data.Text.Encoding             ( encodeUtf8
                                                 , decodeUtf8
                                                 )
+import qualified UnliftIO.Directory
 import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 , doesFileExist
                                                 , doesDirectoryExist
-                                                , listDirectory
                                                 , createDirectory
                                                 , removeFile
                                                 , doesPathExist
@@ -110,6 +110,10 @@ import Control.Error (rightMay, runExceptT, ExceptT(..))
 
 type CodebasePath = FilePath
 
+listDirectory :: MonadUnliftIO m => FilePath -> m [FilePath]
+listDirectory dir =
+  UnliftIO.Directory.listDirectory dir `catchIO` (const $ pure mempty)
+
 data Err
   = InvalidBranchFile FilePath String
   | InvalidEditsFile FilePath String
@@ -164,7 +168,6 @@ getCodebaseOrExit mdir = do
           <> " init` to create one, then try again!"]
   let path = dir </> codebasePath
   let theCodebase = codebase1 V1.formatSymbol formatAnn path
-  Codebase.initializeBuiltinCode theCodebase
   unlessM (exists path) $ do
     PT.putPrettyLn' errMsg
     exitFailure
