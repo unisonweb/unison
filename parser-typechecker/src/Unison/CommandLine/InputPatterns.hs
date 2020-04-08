@@ -1212,6 +1212,24 @@ execute = InputPattern
     _   -> Left $ showPatternHelp execute
   )
 
+createAuthor :: InputPattern
+createAuthor = InputPattern "create.author" []
+  [(Required, noCompletions), (Required, noCompletions)]
+  (makeExample createAuthor ["alicecoder", "\"Alice McGee\""]
+    <> "creates" <> backtick "alicecoder" <> "values in"
+    <> backtick "metadata.authors" <> "and"
+    <> backtickEOS "metadata.copyrightHolders")
+  (\case
+      symbolStr : authorStr@(_:_) -> first fromString $ do
+        symbol <- Path.wordyNameSegment symbolStr
+        -- let's have a real parser in not too long
+        let author :: Text
+            author = Text.pack $ case (unwords authorStr) of
+              quoted@('"':_) -> (init . tail) quoted
+              bare -> bare
+        pure $ Input.CreateAuthorI symbol author
+      _   -> Left $ showPatternHelp createAuthor
+    )
 validInputs :: [InputPattern]
 validInputs =
   [ help
@@ -1262,6 +1280,7 @@ validInputs =
   , link
   , unlink
   , links
+  , createAuthor
   , replaceTerm
   , replaceType
   , deleteTermReplacement

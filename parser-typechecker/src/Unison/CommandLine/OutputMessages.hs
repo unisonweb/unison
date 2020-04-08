@@ -223,6 +223,14 @@ notifyNumbered o = case o of
         --  since the content isn't necessarily here.
         -- Should we have a mode with no numbers? :P
 
+  ShowDiffAfterCreateAuthor authorNS authorPath' bAbs ppe diff ->
+    first (\p -> P.lines
+      [ p
+      , ""
+      , tip $ "Add" <> prettyName "License" <> "values for"
+           <> prettyName (NameSegment.toName authorNS)
+           <> "under" <> P.group (prettyPath' authorPath' <> ".")
+      ]) (showDiffNamespace ShowNumbers ppe bAbs bAbs diff)
   where
     e = Path.absoluteEmpty
     undoTip = tip $ "You can use" <> IP.makeExample' IP.undo

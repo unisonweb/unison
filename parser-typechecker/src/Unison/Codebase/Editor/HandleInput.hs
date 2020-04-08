@@ -128,6 +128,7 @@ import Unison.Codebase.GitError (GitError)
 import Unison.Util.Monoid (intercalateMap)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
+import Unison.Codebase.Editor.AuthorInfo (AuthorInfo(..))
 
 type F m i v = Free (Command m i v)
 
@@ -415,6 +416,7 @@ loop = do
           LoadI{} -> wat
           PreviewAddI{} -> wat
           PreviewUpdateI{} -> wat
+          CreateAuthorI (NameSegment id) name -> "create.author " <> id <> " " <> name
           CreatePullRequestI{} -> wat
           LoadPullRequestI base head dest ->
             "pr.load "
@@ -968,6 +970,36 @@ loop = do
           out -> do
             numberedArgs .= fmap (HQ.toString . view _1) out
             respond $ ListOfLinks ppe out
+
+      CreateAuthorI authorNameSegment authorFullName -> do
+        initialBranch <- getAt currentPath'
+        AuthorInfo
+          guid@(guidRef, _, _)
+          author@(authorRef, _, _)
+          copyrightHolder@(copyrightHolderRef, _, _) <-
+          eval $ CreateAuthorInfo authorFullName
+        -- add the new definitions to the codebase and to the namespace
+        traverse_ (eval . uncurry3 PutTerm) [guid, author, copyrightHolder]
+        stepManyAt
+          [ BranchUtil.makeAddTermName (resolveSplit' authorPath) (d authorRef) mempty
+          , BranchUtil.makeAddTermName (resolveSplit' copyrightHolderPath) (d copyrightHolderRef) mempty
+          , BranchUtil.makeAddTermName (resolveSplit' guidPath) (d guidRef) mempty
+          ]
+        finalBranch <- getAt currentPath'
+        -- print some output
+        diffHelper (Branch.head initialBranch) (Branch.head finalBranch) >>=
+          respondNumbered
+            . uncurry (ShowDiffAfterCreateAuthor
+                        authorNameSegment
+                        (Path.unsplit' base)
+                        currentPath')
+        where
+        d :: Reference.Id -> Referent
+        d = Referent.Ref . Reference.DerivedId
+        base :: Path.Split' = (Path.relativeEmpty', "metadata")
+        authorPath = base |> "authors" |> authorNameSegment
+        copyrightHolderPath = base |> "copyrightHolders" |> authorNameSegment
+        guidPath = authorPath |> "guid"
 
       MoveTermI src dest ->
         case (toList (getHQ'Terms src), toList (getTerms dest)) of

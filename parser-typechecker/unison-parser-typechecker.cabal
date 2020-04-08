@@ -44,6 +44,7 @@ library
     Unison.Codebase.Causal
     Unison.Codebase.Classes
     Unison.Codebase.CodeLookup
+    Unison.Codebase.Editor.AuthorInfo
     Unison.Codebase.Editor.Command
     Unison.Codebase.Editor.DisplayThing
     Unison.Codebase.Editor.Git
