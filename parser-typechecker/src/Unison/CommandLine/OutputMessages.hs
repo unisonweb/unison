@@ -23,7 +23,7 @@ import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 
 import           Control.Lens
 import qualified Control.Monad.State.Strict    as State
-import           Data.Bifunctor                (bimap, first)
+import           Data.Bifunctor                (bimap, first, second)
 import           Data.List                     (sort, sortOn, stripPrefix)
 import           Data.List.Extra               (nubOrdOn, nubOrd)
 import qualified Data.Map                      as Map
@@ -975,28 +975,32 @@ notifyUser dir o = case o of
       "",
       "Paste that output into http://bit-booster.com/graph.html"
       ]
-  ListDependents hqLength ld names0 missing -> pure . P.syntaxToColor $
+  ListDependents hqLength ld names0 missing -> pure $
     if names0 == mempty && missing == mempty
-    then prettyLabeledDependency hqLength ld <> " doesn't have any dependents."
+    then c (prettyLabeledDependency hqLength ld) <> " doesn't have any dependents."
     else
-      "Dependents of " <> prettyLabeledDependency hqLength ld <> ":\n\n" <>
-      (P.indentN 2 . P.column2 $
+      "Dependents of " <> c (prettyLabeledDependency hqLength ld) <> ":\n\n" <>
+      (P.indentN 2 . P.column2Header "Reference" "Name" $ fmap (first c . second c) $
         [ (p $ Reference.toShortHash r, prettyName n) | (n, r) <- R.toList $ Names.types0 names0 ] ++
         [ (p $ Referent.toShortHash r, prettyName n) | (n, r) <- R.toList $ Names.terms names0 ] ++
         [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
-    where p = prettyShortHash . SH.take hqLength
+    where
+    p = prettyShortHash . SH.take hqLength
+    c = P.syntaxToColor
   -- this definition is identical to the previous one, apart from the word
   -- "Dependencies", but undecided about whether or how to refactor
-  ListDependencies hqLength ld names0 missing -> pure . P.syntaxToColor $
+  ListDependencies hqLength ld names0 missing -> pure $
     if names0 == mempty && missing == mempty
-    then prettyLabeledDependency hqLength ld <> " doesn't have any dependencies."
+    then c (prettyLabeledDependency hqLength ld) <> " doesn't have any dependencies."
     else
-      "Dependencies of " <> prettyLabeledDependency hqLength ld <> ":\n\n" <>
-      (P.indentN 2 . P.column2 $
+      "Dependencies of " <> c (prettyLabeledDependency hqLength ld) <> ":\n\n" <>
+      (P.indentN 2 . P.column2Header "Reference" "Name" $ fmap (first c . second c) $
         [ (p $ Reference.toShortHash r, prettyName n) | (n, r) <- R.toList $ Names.types0 names0 ] ++
         [ (p $ Referent.toShortHash r, prettyName n) | (n, r) <- R.toList $ Names.terms names0 ] ++
         [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
-    where p = prettyShortHash . SH.take hqLength
+    where
+    p = prettyShortHash . SH.take hqLength
+    c = P.syntaxToColor
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $
       (effects <&> \(n,r) -> "ability " <>
