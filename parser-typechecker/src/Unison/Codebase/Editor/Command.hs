@@ -39,6 +39,7 @@ import           Unison.ShortHash               ( ShortHash )
 import           Unison.Type                    ( Type )
 import           Unison.Codebase.ShortBranchHash
                                                 ( ShortBranchHash )
+import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
 
 
 type AmbientAbilities v = [Type v Ann]
@@ -187,3 +188,5 @@ data Command m i v a where
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?
   Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> Command m i v ()
+
+  CreateAuthorInfo :: Text -> Command m i v (AuthorInfo v Ann)

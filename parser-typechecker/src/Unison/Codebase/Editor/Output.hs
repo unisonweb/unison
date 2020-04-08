@@ -80,6 +80,8 @@ data NumberedOutput v
   | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterCreatePR RemoteNamespace RemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  -- <authorIdentifier> <authorPath> <relativeBase>
+  | ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
 
 --  | ShowDiff
 
@@ -346,5 +348,6 @@ isNumberedFailure = \case
   ShowDiffAfterUndo{} -> False
   ShowDiffAfterPull{} -> False
   ShowDiffAfterCreatePR{} -> False
+  ShowDiffAfterCreateAuthor{} -> False
 
 
