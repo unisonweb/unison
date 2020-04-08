@@ -13,9 +13,6 @@ x = 1
     ⍟ These new definitions are ok to `add`:
     
       x : ##Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -40,9 +37,6 @@ x = 2
       new definition:
     
       x : ##Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -84,9 +78,6 @@ type Foo = Foo
     ⍟ These new definitions are ok to `add`:
     
       type Foo
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -111,9 +102,6 @@ type Foo = Foo | Bar
       new definition:
     
       type Foo
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm

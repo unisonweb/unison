@@ -636,9 +636,6 @@ a = 777
       conflicted   a   : Nat
     
       Tip: Use `help filestatus` to learn more.
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm

@@ -25,9 +25,6 @@ a.foo = 42
     ⍟ These new definitions are ok to `add`:
     
       a.foo : Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -74,9 +71,6 @@ foo = 43
       new definition:
     
       foo : Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -107,9 +101,6 @@ foo = 44
       new definition:
     
       foo : Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
