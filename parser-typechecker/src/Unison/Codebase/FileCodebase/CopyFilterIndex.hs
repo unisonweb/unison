@@ -41,6 +41,7 @@ import GHC.Generics (Generic)
 import qualified Data.Set as Set
 import           Data.Set (Set)
 import qualified Unison.Util.Set as Set
+import Unison.Codebase.Patch (Patch)
 
 data SyncedEntities = SyncedEntities
   { _syncedTerms     :: Set Reference.Id
@@ -104,7 +105,7 @@ syncToDirectory' srcPath destPath branch =
     Branch.sync
       (hashExists destPath)
       copyRawBranch
-      (\h _me -> copyEdits h)
+      (flip copyEdits)
       (Branch.transform lift newRemoteRoot)
     x <- use syncedTerms
     y <- use syncedDecls
@@ -215,9 +216,11 @@ syncToDirectory' srcPath destPath branch =
       whenM (doesFileExist $ watchPath srcPath UF.TestWatch i) $
         copyFileWithParents (watchPath srcPath UF.TestWatch i)
                             (watchPath destPath UF.TestWatch i)
-  copyEdits :: Branch.EditHash -> StateT SyncedEntities m ()
-  copyEdits = doFileOnce destPath syncedEdits editsPath $
-    \h -> copyFileWithParents (editsPath srcPath h) (editsPath destPath h)
+  copyEdits :: StateT SyncedEntities m Patch -> Branch.EditHash -> StateT SyncedEntities m ()
+  copyEdits p = doFileOnce destPath syncedEdits editsPath $ \h -> do
+    ifM (doesFileExist (editsPath srcPath h))
+        (copyFileWithParents (editsPath srcPath h) (editsPath destPath h))
+        (serializeEdits destPath h p)
 
 -- Relation Dependency Dependent, e.g. [(List.foldLeft, List.reverse)]
 -- codebasePath / "dependents" / "_builtin" / Nat / yourFunction

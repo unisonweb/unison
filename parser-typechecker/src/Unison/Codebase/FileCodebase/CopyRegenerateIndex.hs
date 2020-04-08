@@ -35,6 +35,7 @@ import Control.Lens
 import Unison.Util.Relation (Relation)
 import Data.Monoid.Generic
 import Unison.Codebase.FileCodebase.Common
+import Unison.Codebase.Patch (Patch)
 
 data SyncedEntities = SyncedEntities
   { _syncedTerms       :: Set Reference.Id
@@ -117,7 +118,7 @@ syncToDirectory' getV getA srcPath destPath branch =
     Branch.sync
       (hashExists destPath)
       copyRawBranch
-      (\h _me -> copyEdits h)
+      (flip copyEdits)
       (Branch.transform lift newRemoteRoot)
     writeDependentsIndex =<< use dependentsIndex
     writeTypeIndex =<< use typeIndex
@@ -228,6 +229,8 @@ syncToDirectory' getV getA srcPath destPath branch =
         Nothing ->
           fail $ "😞 I was trying to copy the term " ++ show i
                ++ ", but I couldn't find its type in " ++ typePath srcPath i
-  copyEdits :: Branch.EditHash -> StateT SyncedEntities m ()
-  copyEdits = doFileOnce destPath syncedEdits editsPath $
-    \h -> copyFileWithParents (editsPath srcPath h) (editsPath destPath h)
+  copyEdits :: StateT SyncedEntities m Patch -> Branch.EditHash -> StateT SyncedEntities m ()
+  copyEdits p = doFileOnce destPath syncedEdits editsPath $ \h -> do
+    ifM (doesFileExist (editsPath srcPath h))
+        (copyFileWithParents (editsPath srcPath h) (editsPath destPath h))
+        (serializeEdits destPath h p)
