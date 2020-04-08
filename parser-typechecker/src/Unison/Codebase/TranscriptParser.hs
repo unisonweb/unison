@@ -11,6 +11,7 @@ module Unison.Codebase.TranscriptParser (
 import Control.Concurrent.STM (atomically)
 import Control.Exception (finally)
 import Control.Monad.State (runStateT)
+import Data.List (isSubsequenceOf)
 import Data.IORef
 import Prelude hiding (readFile, writeFile)
 import System.Directory ( doesFileExist )
@@ -49,12 +50,12 @@ import Control.Lens (view)
 import Control.Error (rightMay)
 
 type ExpectingError = Bool
-data Hidden = Shown | HideOutput | HideAll
 type Err = String
 type ScratchFileName = Text
-
 type FenceType = Text
 
+data Hidden = Shown | HideOutput | HideAll
+            deriving (Eq, Show)
 data UcmCommand = UcmCommand Path.Absolute Text
 
 data Stanza
@@ -70,7 +71,7 @@ instance Show Stanza where
   show s = case s of
     Ucm _ _ cmds -> unlines [
       "```ucm",
-      show cmds,
+      foldl (\x y -> x ++ show y) "" cmds,
       "```"
       ]
     Unison _hide _ fname txt -> unlines [
@@ -126,6 +127,7 @@ run dir configFile stanzas codebase = do
     hidden                   <- newIORef Shown
     allowErrors              <- newIORef False
     hasErrors                <- newIORef False
+    mStanza                  <- newIORef Nothing
     (config, cancelConfig)   <-
       catchIOError (watchConfig configFile) $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
@@ -152,10 +154,12 @@ run dir configFile stanzas codebase = do
       awaitInput = do
         cmd <- atomically (Q.tryDequeue cmdQueue)
         case cmd of
+          -- end of ucm block
           Just Nothing -> do
-            output "\n```\n" -- this ends the ucm block
-            writeIORef hidden Shown
+            output "\n```\n"
+            dieUnexpectedSuccess
             awaitInput
+          -- ucm command to run
           Just (Just p@(UcmCommand path lineTxt)) -> do
             curPath <- readIORef pathRef
             numberedArgs <- readIORef numberedArgsRef
@@ -167,28 +171,22 @@ run dir configFile stanzas codebase = do
               [] -> awaitInput
               cmd:args -> do
                 output ("\n" <> show p <> "\n")
-                -- invalid command is treated as a failure
                 case Map.lookup cmd patternMap of
+                  -- invalid command is treated as a failure
                   Nothing ->
-                    die
+                    dieWithMsg
                   Just pat -> case IP.parse pat args of
                     Left msg -> do
                       output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
-                      die
+                      dieWithMsg
                     Right input -> pure $ Right input
+
           Nothing -> do
-            errOk <- readIORef allowErrors
-            hasErr <- readIORef hasErrors
-            when (errOk && not hasErr) $ do
-              output "\n```\n\n"
-              transcriptFailure out $ Text.unlines [
-                "\128721", "",
-                "Transcript failed due to an unexpected success above.",
-                "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
+            dieUnexpectedSuccess
             writeIORef hidden Shown
             writeIORef allowErrors False
             maybeStanza <- atomically (Q.tryDequeue inputQueue)
-
+            _ <- writeIORef mStanza maybeStanza
             case maybeStanza of
               Nothing -> do
                 putStrLn ""
@@ -237,7 +235,7 @@ run dir configFile stanzas codebase = do
         output rendered
         when (Output.isFailure o) $
           if errOk then writeIORef hasErrors True
-          else die
+          else dieWithMsg
 
       printNumbered o = do
         let (msg, numberedArgs) = notifyNumbered o
@@ -246,15 +244,40 @@ run dir configFile stanzas codebase = do
         output rendered
         when (Output.isNumberedFailure o) $
           if errOk then writeIORef hasErrors True
-          else die
+          else dieWithMsg
         pure numberedArgs
 
-      die = do
+      -- Looks at the current stanza and decides if it is contained in the
+      -- output so far. Appends it if not.
+      appendFailingStanza :: IO ()
+      appendFailingStanza = do
+        stanzaOpt <- readIORef mStanza
+        currentOut <- readIORef out
+        let stnz = maybe "" show (fmap fst stanzaOpt :: Maybe Stanza)
+        unless (stnz `isSubsequenceOf` concat currentOut) $
+          modifyIORef' out (\acc -> acc <> pure stnz)
+
+      -- output ``` and new lines then call transcriptFailure
+      dieWithMsg :: forall a. IO a
+      dieWithMsg = do
         output "\n```\n\n"
+        appendFailingStanza
         transcriptFailure out $ Text.unlines [
           "\128721", "",
-          "Transcript failed due to the message above.", "",
+          "The transcript failed due to an error encountered in the stanza above.", "",
           "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
+        
+      dieUnexpectedSuccess :: IO ()
+      dieUnexpectedSuccess = do
+        errOk <- readIORef allowErrors
+        hasErr <- readIORef hasErrors
+        when (errOk && not hasErr) $ do
+          output "\n```\n\n"
+          appendFailingStanza
+          transcriptFailure out $ Text.unlines [
+            "\128721", "",
+            "The transcript was expecting an error in the stanza above, but did not encounter one.", "",
+            "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       loop state = do
         writeIORef pathRef (view HandleInput.currentPath state)

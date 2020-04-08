@@ -317,6 +317,7 @@ executable transcripts
     easytest,
     filepath,
     shellmet,
+    process,
     text,
     unison-core,
     unison-parser-typechecker
