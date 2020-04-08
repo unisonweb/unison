@@ -354,7 +354,9 @@ serializeEdits root h medits =
     S.putWithParentDirs V1.putEdits (editsPath root h) edits
 
 -- `headDir` is like ".unison/branches/head", or ".unison/edits/head";
--- not ".unison"
+-- not ".unison"; a little weird.  I guess the reason this doesn't take
+-- the codebase root path is because it's applicable to any causal.
+-- We just have one though, and I suppose that won't change any time soon.
 updateCausalHead :: MonadIO m => FilePath -> Causal n h e -> m ()
 updateCausalHead headDir c = do
   let (RawHash h) = Causal.currentHash c
@@ -425,6 +427,7 @@ copyFileWithParents src dest =
     createDirectoryIfMissing True (takeDirectory dest)
     copyFile src dest
 
+-- Use State and Lens to do some specified thing at most once, to create a file. 
 doFileOnce :: forall m s h. (MonadIO m, MonadState s m, Ord h)
            => CodebasePath
            -> SimpleLens s (Set h) -- lens to track if `h` is already done

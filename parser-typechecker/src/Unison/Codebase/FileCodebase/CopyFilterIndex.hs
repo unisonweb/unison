@@ -114,6 +114,7 @@ syncToDirectory' srcPath destPath branch =
     x <- use syncedTerms
     y <- use syncedDecls
     copyDependentsIndex (x <> y) dependentsIndex
+    -- in processing x and y, we distill them to a direct form:
     knownReferents <- copyTypeIndex x y
     copyTypeMentionsIndex knownReferents
     updateCausalHead (branchHeadDir destPath) c
@@ -199,7 +200,6 @@ syncToDirectory' srcPath destPath branch =
         . toList
         $ Star3.fact types
       -- Copy term definitions, enqueue Ids for dependents indexing,
-      -- and enqueue all referents for indexing
       traverse_ copyTerm
         . mapMaybe Reference.toId
         . mapMaybe Referent.toTermReference
@@ -220,10 +220,14 @@ syncToDirectory' srcPath destPath branch =
     \h -> copyFileWithParents (editsPath srcPath h) (editsPath destPath h)
 
 -- Relation Dependency Dependent, e.g. [(List.foldLeft, List.reverse)]
--- root / "dependents" / "_builtin" / Nat / yourFunction
+-- codebasePath / "dependents" / "_builtin" / Nat / yourFunction
+-- codebasePath / "dependents" / <derivedId> / yourFunction
 loadDependentsDir :: MonadIO m => CodebasePath -> m (Relation Reference Reference.Id)
 loadDependentsDir = loadIndex (Reference.idFromText . Text.pack) . dependentsDir'
 
+-- | Helper for loading relations from disk like the previous one.
+-- you just provide a function that can turn `yourFunction` into a `Maybe k`
+-- `Nothing`s are ignored.
 loadIndex :: forall m k. (MonadIO m, Ord k)
            => (String -> Maybe k) -> FilePath -> m (Relation Reference k)
 loadIndex parseKey indexDir =
@@ -238,12 +242,14 @@ loadIndex parseKey indexDir =
       loadDependentsOf
         (Reference.Builtin . Text.pack . decodeFileName $ path)
         (indexDir </> b </> path)
-
+  -- part of the previous definition; not the `_builtin` directory, so try 
+  -- parsing as a derived id reference
   loadDependency path = case componentIdFromString path of
     Nothing -> pure mempty
     Just r ->
       loadDependentsOf (Reference.DerivedId r) (indexDir </> path)
 
+  -- load the range of the relation directory
   loadDependentsOf :: Reference -> FilePath -> m (Relation Reference k)
   loadDependentsOf r path =
     listDirectory path <&>
