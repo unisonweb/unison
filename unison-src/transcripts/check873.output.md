@@ -13,9 +13,6 @@ See [this ticket](https://github.com/unisonweb/unison/issues/873); the point bei
     ⍟ These new definitions are ok to `add`:
     
       - : Nat -> Nat -> Int
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -39,8 +36,5 @@ baz x = x - 1
     ⍟ These new definitions are ok to `add`:
     
       baz : Nat -> Int
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```

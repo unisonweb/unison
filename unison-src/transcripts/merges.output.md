@@ -15,9 +15,6 @@ x = 42
     ⍟ These new definitions are ok to `add`:
     
       x : Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -64,9 +61,6 @@ y = "hello"
     ⍟ These new definitions are ok to `add`:
     
       y : Text
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -340,9 +334,6 @@ z = 99
     ⍟ These new definitions are ok to `add`:
     
       z : Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -380,9 +371,6 @@ master.frobnicate n = n + 1
     
       master.frobnicate : Nat -> Nat
       master.y          : Text
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm

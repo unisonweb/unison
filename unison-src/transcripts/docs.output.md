@@ -37,9 +37,6 @@ Can link to definitions like @List.drop or @List
     ⍟ These new definitions are ok to `add`:
     
       doc1 : Doc
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 Syntax:
@@ -71,9 +68,6 @@ List.take.ex2 = take 2 [1,2,3,4,5]
     
       List.take.ex1 : [Nat]
       List.take.ex2 : [Nat]
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -115,9 +109,6 @@ docs.List.take = [:
     ⍟ These new definitions are ok to `add`:
     
       docs.List.take : Doc
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 Let's add it to the codebase, and link it to the definition:
