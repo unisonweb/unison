@@ -11,7 +11,7 @@ module Unison.Codebase.TranscriptParser (
 import Control.Concurrent.STM (atomically)
 import Control.Exception (finally)
 import Control.Monad.State (runStateT)
-import  Data.List (isSubsequenceOf)
+import Data.List (isSubsequenceOf)
 import Data.IORef
 import Prelude hiding (readFile, writeFile)
 import System.Directory ( doesFileExist )
