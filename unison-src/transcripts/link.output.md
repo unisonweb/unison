@@ -217,7 +217,7 @@ x.doc = [: I am the documentation for x :]
 
 ```
 ```ucm
-.> link ##Nat Nat
+.> link ##x x
 
   ⚠️
   
