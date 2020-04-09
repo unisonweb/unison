@@ -343,7 +343,7 @@ notifyUser dir o = case o of
     P.wrap $ "Nothing to do. I couldn't find any matching metadata."
 
   MetadataNotFound (Just name) -> pure . P.warnCallout .
-    P.wrap $ "I could not find the metadata " <> P.backticked ( P.text name) <> " in the codebase."
+    P.wrap $ "I could not find the metadata " <> (P.backticked . P.string . show) name <> " in the codebase."
 
   MetadataAmbiguous ppe refs -> pure . P.warnCallout . P.lines $ [
     P.wrap $ "I'm not sure which metadata value you're referring to"
