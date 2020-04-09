@@ -26,4 +26,16 @@ Technically, the definitions all exist, but they have no names. `builtins.merge`
   1. builtin/ (150 definitions)
 
 ```
+And for a limited time, you can get even more builtin goodies:
+
+```ucm
+.foo> builtins.mergeio
+
+  Done.
+
+.foo> ls
+
+  1. builtin/ (316 definitions)
+
+```
 More typically, you'd start out by pulling `base.
