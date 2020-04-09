@@ -333,6 +333,12 @@ transform nt c = case c of
   Cons h e (ht, tl) -> Cons h e (ht, nt (transform nt <$> tl))
   Merge h e tls -> Merge h e $ Map.map (\mc -> nt (transform nt <$> mc)) tls
 
+unsafeMapHashPreserving :: Functor m => (e -> e2) -> Causal m h e -> Causal m h e2
+unsafeMapHashPreserving f c = case c of
+  One h e -> One h (f e)
+  Cons h e (ht, tl) -> Cons h (f e) (ht, unsafeMapHashPreserving f <$> tl)
+  Merge h e tls -> Merge h (f e) $ Map.map (fmap $ unsafeMapHashPreserving f) tls
+
 -- foldHistoryUntil some condition on the accumulator is met,
 -- attempting to work backwards fairly through merge nodes
 -- (rather than following one back all the way to its root before working

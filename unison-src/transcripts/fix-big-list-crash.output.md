@@ -18,8 +18,5 @@ x = [(R,1005),(U,563),(R,417),(U,509),(L,237),(U,555),(R,397),(U,414),(L,490),(U
     
       unique type Direction
       x : [(Direction, Nat)]
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```

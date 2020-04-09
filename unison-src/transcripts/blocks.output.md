@@ -24,7 +24,7 @@ ex thing =
     ⍟ These new definitions are ok to `add`:
     
       ex : thing -> Nat
-   
+  
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
@@ -55,7 +55,7 @@ ex thing =
     ⍟ These new definitions are ok to `add`:
     
       ex : thing -> Nat
-   
+  
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
@@ -88,7 +88,7 @@ ex thing =
     ⍟ These new definitions are ok to `add`:
     
       ex : (Nat ->{𝕖} Nat) ->{𝕖} Nat
-   
+  
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
@@ -118,7 +118,7 @@ ex thing =
     ⍟ These new definitions are ok to `add`:
     
       ex : (Nat ->{𝕖} Nat) ->{𝕖} Nat
-   
+  
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
@@ -156,9 +156,6 @@ ex n =
     
       ex    : n -> 𝕣
       sumTo : Nat -> Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 The `go` function is a one-element cycle (it reference itself), and `ping` and `pong` form a two-element cycle.
@@ -183,9 +180,6 @@ ex n =
     ⍟ These new definitions are ok to `add`:
     
       ex : n -> Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 Since the forward reference to `pong` appears inside `ping`.
@@ -239,9 +233,6 @@ ex n =
     ⍟ These new definitions are ok to `add`:
     
       ex : n -> 𝕣
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 Just don't try to run it as it's an infinite loop!
@@ -292,9 +283,6 @@ ex n =
     
       ability SpaceAttack
       ex : n ->{SpaceAttack} Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ### Unrelated definitions not part of a cycle and are moved after the cycle
@@ -322,9 +310,6 @@ ex n =
     
       ability SpaceAttack
       ex : n ->{SpaceAttack} 𝕣
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 This is actually parsed as if you moved `zap` after the cycle it find itself a part of:
@@ -350,8 +335,5 @@ ex n =
     
       ability SpaceAttack
       ex : n ->{SpaceAttack} 𝕣
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```

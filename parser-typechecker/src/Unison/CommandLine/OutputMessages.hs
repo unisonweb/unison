@@ -25,7 +25,7 @@ import           Control.Lens
 import qualified Control.Monad.State.Strict    as State
 import           Data.Bifunctor                (bimap, first, second)
 import           Data.List                     (sort, sortOn, stripPrefix)
-import           Data.List.Extra               (nubOrdOn, nubOrd)
+import           Data.List.Extra               (nubOrdOn, nubOrd, notNull)
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Data.Sequence                 as Seq
@@ -572,9 +572,10 @@ notifyUser dir o = case o of
     -- if we ever allow users to edit hashes directly.
   Typechecked sourceName ppe slurpResult uf -> do
     let fileStatusMsg = SlurpResult.pretty False ppe slurpResult
+    let containsWatchExpressions = notNull $ UF.watchComponents uf
     if UF.nonEmpty uf then do
       fileName <- renderFileName $ Text.unpack sourceName
-      pure $ P.linesNonEmpty [
+      pure $ P.linesNonEmpty ([
         if fileStatusMsg == mempty then
           P.okCallout $ fileName <> " changed."
         else if  SlurpResult.isAllDuplicates slurpResult then
@@ -595,12 +596,12 @@ notifyUser dir o = case o of
              <> "change:"
             , P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
             ]
-          ,
-         " ",
-         P.wrap $ "Now evaluating any watch expressions"
-               <> "(lines starting with `>`)... "
-               <> P.group (P.hiBlack "Ctrl+C cancels.")
-        ]
+        ] ++ if containsWatchExpressions then [
+          "",
+          P.wrap $ "Now evaluating any watch expressions"
+                 <> "(lines starting with `>`)... "
+                 <> P.group (P.hiBlack "Ctrl+C cancels.")
+          ] else [])
     else if (null $ UF.watchComponents uf) then pure . P.wrap $
       "I loaded " <> P.text sourceName <> " and didn't find anything."
     else pure mempty
