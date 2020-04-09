@@ -200,7 +200,7 @@ typeMentionsIndexDir root r = typeMentionsIndexDir' root </> referenceToDir r
 typeMentionsIndexDir' root = root </> codebasePath </> "type-mentions-index"
 
 decodeFileName :: FilePath -> String
-decodeFileName = go where
+decodeFileName = let
   go ('$':tl) = case span (/= '$') tl of
     ("forward-slash", _:tl) -> '/' : go tl
     ("back-slash", _:tl) ->  '\\' : go tl
@@ -220,10 +220,14 @@ decodeFileName = go where
   decodeHex :: String -> String
   decodeHex s = maybe s (Text.unpack . decodeUtf8)
               . Hex.unhex . encodeUtf8 . Text.pack $ s
+  in \case
+    "$dot$" -> "."
+    "$dotdot$" -> ".."
+    t -> go t
 
 -- https://superuser.com/questions/358855/what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
 encodeFileName :: String -> FilePath
-encodeFileName t = let
+encodeFileName = let
   go ('/' : rem) = "$forward-slash$" <> go rem
   go ('\\' : rem) = "$back-slash$" <> go rem
   go (':' : rem) = "$colon$" <> go rem
@@ -239,9 +243,10 @@ encodeFileName t = let
                | otherwise = c : go rem
   go [] = []
   encodeHex = Text.unpack . decodeUtf8 . Hex.hex . encodeUtf8 . Text.pack
-  in if t == "." then "$dot$"
-     else if t == ".." then "$dotdot$"
-     else go t
+  in \case
+    "." -> "$dot$"
+    ".." -> "$dotdot$"
+    t -> go t
 
 termPath, typePath, declPath :: CodebasePath -> Reference.Id -> FilePath
 termPath path r = termDir path r </> "compiled.ub"
