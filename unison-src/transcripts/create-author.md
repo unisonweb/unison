@@ -1,14 +1,6 @@
 ```ucm:hide
-.> alias.type ##Nat basics.Nat
-.> alias.type #5hi1vvs5t1 basics.Author
-.> alias.type #rc29vdqe01 basics.GUID
-.> alias.type #aohndsu9bl basics.CopyrightHolder
+.> builtins.mergeio
 ```
-<!-- pending bugfix
-```
-.> alias.term #aohndsu9bl#0 basics.CopyrightHolder
-```
--->
 
 Demonstrating `create.author`:
 

@@ -28,8 +28,11 @@ import qualified Unison.Var as Var
 import qualified Unison.Names3 as Names
 
 typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
-typecheckedFile = let
-  tl :: a -> Identity (TL.TypeLookup Symbol Ann)
+typecheckedFile = typecheckedFile'
+
+typecheckedFile' :: forall v. Var.Var v => UF.TypecheckedUnisonFile v Ann
+typecheckedFile' = let
+  tl :: a -> Identity (TL.TypeLookup v Ann)
   tl = const $ pure (External <$ Builtin.typeLookup)
   env = Parser.ParsingEnv mempty (Names.Names Builtin.names0 mempty)
   r = parseAndSynthesizeFile [] tl env "<IO.u builtin>" source

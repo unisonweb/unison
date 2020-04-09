@@ -125,6 +125,7 @@ data Input
   | ShowReflogI
   | UpdateBuiltinsI
   | MergeBuiltinsI
+  | MergeIOBuiltinsI
   | ListDependenciesI HQ.HashQualified
   | ListDependentsI HQ.HashQualified
   | DebugNumberedArgsI

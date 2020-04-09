@@ -407,6 +407,7 @@ loop = do
             "unlink " <> HQ.toText md <> " " <> intercalateMap " " hqs' defs
           UpdateBuiltinsI -> "builtins.update"
           MergeBuiltinsI -> "builtins.merge"
+          MergeIOBuiltinsI -> "builtins.mergeio"
           PullRemoteBranchI orepo dest ->
             "pull "
               <> maybe "(remote namespace from .unisonConfig)"
@@ -1565,12 +1566,38 @@ loop = do
       --   checkTodo
 
       MergeBuiltinsI -> do
-          let names0 = Builtin.names0
-                       <> UF.typecheckedToNames0 IOSource.typecheckedFile
-          let srcb = BranchUtil.fromNames0 names0
-          _ <- updateAtM (currentPath' `snoc` "builtin") $ \destb ->
-                 eval . Eval $ Branch.merge srcb destb
-          success
+        -- these were added once, but maybe they've changed and need to be
+        -- added again.
+        let uf = (UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
+                                           (Map.fromList Builtin.builtinEffectDecls)
+                                           mempty mempty)
+        eval $ AddDefsToCodebase uf
+        -- add the names; note, there are more names than definitions
+        -- due to builtin terms; so we don't just reuse `uf` above.
+        let srcb = BranchUtil.fromNames0 Builtin.names0
+        _ <- updateAtM (currentPath' `snoc` "builtin") $ \destb ->
+               eval . Eval $ Branch.merge srcb destb
+        success
+
+      MergeIOBuiltinsI -> do
+        -- these were added once, but maybe they've changed and need to be
+        -- added again.
+        let uf = (UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
+                                           (Map.fromList Builtin.builtinEffectDecls)
+                                           mempty mempty)
+        eval $ AddDefsToCodebase uf
+        -- these have not neceesarily been added yet
+        eval $ AddDefsToCodebase IOSource.typecheckedFile'
+
+        -- add the names; note, there are more names than definitions
+        -- due to builtin terms; so we don't just reuse `uf` above.
+        let names0 = Builtin.names0
+                     <> UF.typecheckedToNames0 @v IOSource.typecheckedFile'
+        let srcb = BranchUtil.fromNames0 names0
+        _ <- updateAtM (currentPath' `snoc` "builtin") $ \destb ->
+               eval . Eval $ Branch.merge srcb destb
+
+        success
 
       ListEditsI maybePath -> do
         let (p, seg) =

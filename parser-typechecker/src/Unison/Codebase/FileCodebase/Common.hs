@@ -63,6 +63,7 @@ module Unison.Codebase.FileCodebase.Common
   , copyFileWithParents
   , doFileOnce
   , failWith
+  , listDirectory
   -- expose for tests :|
   , encodeFileName
   , decodeFileName
@@ -82,10 +83,10 @@ import           Data.Text.Encoding             ( encodeUtf8
                                                 )
 import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 , doesFileExist
-                                                , listDirectory
                                                 , removeFile
                                                 , doesDirectoryExist, copyFile
                                                 )
+import qualified System.Directory
 import           System.FilePath                ( FilePath
                                                 , takeBaseName
                                                 , takeDirectory
@@ -131,6 +132,7 @@ import Control.Error (runExceptT, ExceptT(..))
 import Control.Monad.State (MonadState)
 import Control.Lens (Lens, use, to, (%=))
 import UnliftIO.IO.File (writeBinaryFile)
+import Control.Monad.Catch (catch)
 
 type CodebasePath = FilePath
 
@@ -602,6 +604,11 @@ branchHashesByPrefix codebasePath p =
 
 failWith :: MonadIO m => Err -> m a
 failWith = fail . show
+
+-- | A version of listDirectory that returns mempty if the directory doesn't exist
+listDirectory :: MonadIO m => FilePath -> m [FilePath]
+listDirectory dir = liftIO $
+  System.Directory.listDirectory dir `catch` (\(_ :: IOException) -> pure mempty)
 
 -- | delete all the elements of a given reference component from a set
 deleteComponent :: Reference.Id -> Set Reference -> Set Reference

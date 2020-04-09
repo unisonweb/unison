@@ -73,8 +73,13 @@ helpFor p = I.parse help [I.patternName p]
 
 mergeBuiltins :: InputPattern
 mergeBuiltins = InputPattern "builtins.merge" [] []
-  "Adds all the builtins to `builtins.` in the current namespace."
+  "Adds the builtins to `builtins.` in the current namespace (excluding `io` and misc)."
   (const . pure $ Input.MergeBuiltinsI)
+
+mergeIOBuiltins :: InputPattern
+mergeIOBuiltins = InputPattern "builtins.mergeio" [] []
+  "Adds all the builtins to `builtins.` in the current namespace, including `io` and misc."
+  (const . pure $ Input.MergeIOBuiltinsI)
 
 updateBuiltins :: InputPattern
 updateBuiltins = InputPattern
@@ -1309,6 +1314,7 @@ validInputs =
   , quit
   , updateBuiltins
   , mergeBuiltins
+  , mergeIOBuiltins
   , dependents, dependencies
   , debugNumberedArgs
   , debugBranchHistory

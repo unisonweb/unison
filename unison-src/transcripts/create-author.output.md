@@ -1,11 +1,3 @@
-<!-- pending bugfix
-```
-.> alias.term #aohndsu9bl#0 basics.CopyrightHolder
-
-```
-
--->
-
 Demonstrating `create.author`:
 
 ```unison
@@ -37,7 +29,7 @@ def2 = 2
 
   metadata.copyrightHolders.alicecoder : CopyrightHolder
   metadata.copyrightHolders.alicecoder =
-    #aohndsu9bl#0 guid "Alice McGee"
+    CopyrightHolder alicecoder.guid "Alice McGee"
 
 .foo> link metadata.authors.alicecoder def1 def2
 

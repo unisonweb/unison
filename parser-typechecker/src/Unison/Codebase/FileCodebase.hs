@@ -1,11 +1,7 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.FileCodebase
@@ -35,13 +31,11 @@ import qualified Data.Text                     as Text
 import qualified Data.Text.IO                  as TextIO
 import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 , doesDirectoryExist
-                                                , listDirectory
                                                 )
 import           System.FilePath                ( FilePath
                                                 , takeFileName
                                                 )
-import           System.Directory               (
-                                                 getHomeDirectory
+import           System.Directory               ( getHomeDirectory
                                                 , canonicalizePath
                                                 )
 import           System.Exit                    ( exitFailure, exitSuccess )
@@ -71,14 +65,14 @@ import Unison.Codebase.FileCodebase.Common
   ( CodebasePath
   , Err(CantParseBranchHead)
   , codebaseExists
-
+  ---
   , branchHeadDir
   , dependentsDir
   , reflogPath
   , typeIndexDir
   , typeMentionsIndexDir
   , watchesDir
-
+  ---
   , componentIdFromString
   , hashFromFilePath
   , referentIdFromString
@@ -93,15 +87,16 @@ import Unison.Codebase.FileCodebase.Common
   , putTerm
   , putRootBranch
   , putWatch
-
+  ---
   , copyFromGit
   , branchFromFiles
   , branchHashesByPrefix
   , termReferencesByPrefix
   , termReferentsByPrefix
   , typeReferencesByPrefix
-
+  ---
   , failWith
+  , listDirectory
   )
 
 import qualified Unison.Codebase.FileCodebase.Reserialize as Sync
@@ -159,7 +154,6 @@ codebase1
   => Var v
   => BuiltinAnnotation a
   => S.Format v -> S.Format a -> CodebasePath -> Codebase m v a
---codebase1 (S.Format getV putV) (S.Format getA putA) path =
 codebase1 = codebase1' Sync.syncToDirectory
 
 codebase1'

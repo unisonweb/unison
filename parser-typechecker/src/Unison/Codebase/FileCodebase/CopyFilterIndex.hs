@@ -12,9 +12,7 @@ module Unison.Codebase.FileCodebase.CopyFilterIndex (syncToDirectory) where
 import Unison.Prelude
 
 import qualified Data.Text                     as Text
-import           UnliftIO.Directory             ( doesFileExist
-                                                , listDirectory
-                                                )
+import           UnliftIO.Directory             ( doesFileExist )
 import           System.FilePath                ( FilePath
                                                 , (</>)
                                                 )
