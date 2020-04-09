@@ -61,6 +61,10 @@ library
     Unison.Codebase.Editor.TodoOutput
     Unison.Codebase.Editor.UriParser
     Unison.Codebase.FileCodebase
+    Unison.Codebase.FileCodebase.Common
+    Unison.Codebase.FileCodebase.Reserialize
+    Unison.Codebase.FileCodebase.CopyFilterIndex
+    Unison.Codebase.FileCodebase.CopyRegenerateIndex
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
     Unison.Codebase.NameEdit
@@ -162,6 +166,7 @@ library
     free,
     fsnotify,
     fsutils,
+    generic-monoid,
     hashable,
     hashtables,
     haskeline,
