@@ -482,29 +482,34 @@ loop = do
           ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (Names names0 mempty)
           case (srcle, srclt, mdValuel) of
             (srcle, srclt, [r@(Referent.Ref mdValue)]) -> do
-              mdType <- eval $ LoadTypeOfTerm mdValue
-              case mdType of
-                Nothing -> respond $ MetadataMissingType ppe r
-                Just ty -> do
-                  let steps =
-                        second (const . step $ Type.toReference ty)
-                        . first (Path.unabsolute .  resolveToAbsolute) <$> srcs
-                  let get = Branch.head <$> use root
-                  before <- get
-                  stepManyAt steps
-                  after <- get
-                  (ppe, outputDiff) <- diffHelper before after
-                  respondNumbered $ ShowDiffNamespace
-                     Path.absoluteEmpty Path.absoluteEmpty ppe outputDiff
-                where
-                step mdType b0 = let
-                  tmUpdates terms = foldl' go terms srcle
-                    where
-                    go terms src = op (src, mdType, mdValue) terms
-                  tyUpdates types = foldl' go types srclt
-                    where
-                    go types src = op (src, mdType, mdValue) types
-                  in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
+             let defnsAndTerms = Map.fromList $ srcs `zip` (toList . getHQ'Terms <$> srcs)
+             let noReferents = Map.keys $ Map.filterWithKey (\_ v -> null $ v) defnsAndTerms
+             let paths = (\(path', segment) -> Path.snoc' path' $ HQ'.toName segment) <$> noReferents
+             when (not . null $ noReferents) $ respond $ LinkDefnsNotFound paths
+             unless (not. null $ noReferents) $ do
+                mdType <- eval $ LoadTypeOfTerm mdValue
+                case mdType of
+                  Nothing -> respond $ MetadataMissingType ppe r
+                  Just ty -> do
+                    let steps =
+                          second (const . step $ Type.toReference ty)
+                          . first (Path.unabsolute . resolveToAbsolute) <$> srcs
+                    let get = Branch.head <$> use root
+                    before <- get
+                    stepManyAt steps
+                    after <- get
+                    (ppe, outputDiff) <- diffHelper before after
+                    respondNumbered $ ShowDiffNamespace
+                       Path.absoluteEmpty Path.absoluteEmpty ppe outputDiff
+                  where
+                  step mdType b0 = let
+                    tmUpdates terms = foldl' go terms srcle
+                      where
+                      go terms src = op (src, mdType, mdValue) terms
+                    tyUpdates types = foldl' go types srclt
+                      where
+                      go types src = op (src, mdType, mdValue) types
+                    in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
             (_srcle, _srclt, []) ->
               respond $ MetadataNotFound $ HQ.toName mdValue2
             (_srcle, _srclt, multiple) ->
