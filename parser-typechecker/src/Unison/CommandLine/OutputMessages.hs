@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
+{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -338,6 +339,15 @@ notifyUser dir o = case o of
           <> "or invalid codebase, or because files inside the codebase"
           <> "are being deleted external to UCM."
     ]
+
+  LinkDefnsNotFound [path] -> pure . P.warnCallout .
+    P.wrap $ "I could not link the definition " <> (P.backticked . P.string . show) path <>
+    " as I could not find it in the codebase."
+
+  LinkDefnsNotFound paths -> pure . P.warnCallout .
+    P.wrap $ "I could not link the definitions " <> commaSeparated <> " as I could not find them in the codebase."
+    where
+    commaSeparated = P.commas (P.backticked . P.string . show <$> paths)
 
   MetadataNotFound Nothing -> pure . P.warnCallout .
     P.wrap $ "Nothing to do. I couldn't find any matching metadata."

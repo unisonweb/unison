@@ -178,6 +178,7 @@ data Output v
   | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
                (Map Reference (DisplayThing (Decl v Ann)))
                (Map Reference (DisplayThing (Term v Ann)))
+  | LinkDefnsNotFound [Path']
   | MetadataMissingType PPE.PrettyPrintEnv Referent
   | MetadataNotFound (Maybe Name)
   | MetadataAmbiguous PPE.PrettyPrintEnv [Referent]
@@ -313,6 +314,7 @@ isFailure o = case o of
   ConfiguredGitUrlParseError{} -> True
   ConfiguredGitUrlIncludesShortBranchHash{} -> True
   DisplayLinks{} -> False
+  LinkDefnsNotFound{} -> True
   MetadataMissingType{} -> True
   MetadataNotFound{} -> True
   MetadataAmbiguous{} -> True
