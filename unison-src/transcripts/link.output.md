@@ -209,14 +209,15 @@ myLibrary.h x = x + 3
   □ #7asfbtqmoj (start of history)
 
 ```
-Examples of user error that are handled
+Examples of user errors that are handled
 
 ```unison
 x = 42
 x.doc = [: I am the documentation for x :]
+a.b.c = 1
 ```
 
-1. Trying to link a document that does not exist to an existing value:
+1. Trying to link metadata that does not exist to an existing definition
 ```ucm
 .> link x.do x
 
@@ -224,8 +225,18 @@ x.doc = [: I am the documentation for x :]
   
   I could not find the metadata `x.do` in the codebase.
 
-```
-```ucm
+.> link .x.do x
+
+  ⚠️
+  
+  I could not find the metadata `.x.do` in the codebase.
+
+.> link .a.c.d a.b.c
+
+  ⚠️
+  
+  I could not find the metadata `.a.c.d` in the codebase.
+
 .> link ##x x
 
   ⚠️
@@ -233,7 +244,7 @@ x.doc = [: I am the documentation for x :]
   Nothing to do. I couldn't find any matching metadata.
 
 ```
-2. Trying to link two non existing values
+2. Trying to link non-existent metadata to a non-existent definition
 ```ucm
 .> link blah blah
 
@@ -241,25 +252,98 @@ x.doc = [: I am the documentation for x :]
   
   I could not find the metadata `blah` in the codebase.
 
+.> link .a.c.d .a.c.d
+
+  ⚠️
+  
+  I could not find the metadata `.a.c.d` in the codebase.
+
 ```
-3. Trying to link an existing document to a non existing value:
+3. Trying to link existing metadata to non-existing definition(s)
+
 ```ucm
 .> link x.doc y
 
-  The namespaces are identical.
+  ⚠️
+  
+  I could not link the definition `y` as I could not find it in
+  the codebase.
+
+.> link a.b.c a.b.d
+
+  ⚠️
+  
+  I could not link the definition `a.b.d` as I could not find it
+  in the codebase.
+
+.> link .a.b.c .a.b.d
+
+  ⚠️
+  
+  I could not link the definition `.a.b.d` as I could not find
+  it in the codebase.
+
+.> link x.doc a .b c .d e .f g
+
+  ⚠️
+  
+  I could not link the definitions `.b` , `.d` , `.f` , `a` ,
+  `c` , `e` , `g` as I could not find them in the codebase.
+
+.> link .x.doc a.a.a.a b.b.b.b .c.c.c.c
+
+  ⚠️
+  
+  I could not link the definitions `.c.c.c.c` , `a.a.a.a` ,
+  `b.b.b.b` as I could not find them in the codebase.
 
 ```
+4. Trying to link an existing definition if grouped witn non-existing ones
 ```ucm
-.> cd a.b
+.> link x.doc x y
 
-  ☝️  The namespace .a.b is empty.
+  ⚠️
+  
+  I could not link the definition `y` as I could not find it in
+  the codebase.
 
-.> link .x.doc y
+.> link x.doc .x .y
 
-  The namespaces are identical.
+  ⚠️
+  
+  I could not link the definition `.y` as I could not find it in
+  the codebase.
+
+.> links x
+
+  😶
+  
+  No results. Try using the `link` command to add metadata to a
+  definition.
+
+.> link x.doc a.b.c a.b.d
+
+  ⚠️
+  
+  I could not link the definition `a.b.d` as I could not find it
+  in the codebase.
+
+.> link x.doc .a.b.c .a.b.d
+
+  ⚠️
+  
+  I could not link the definition `.a.b.d` as I could not find
+  it in the codebase.
+
+.> links a.b.c
+
+  😶
+  
+  No results. Try using the `link` command to add metadata to a
+  definition.
 
 ```
-4. Re-linking an existing valid link:
+5. Trying to relink an existing link
 ```ucm
 .> link x.doc x
 
