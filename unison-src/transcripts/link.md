@@ -69,43 +69,53 @@ myLibrary.h x = x + 3
 .myLibrary> history
 ```
 
-Examples of user error that are handled
+Examples of user errors that are handled
 
 ```unison:hide
 x = 42
 x.doc = [: I am the documentation for x :]
+a.b.c = 1
 ```
 
 ```ucm:hide:all
 .> add
 ```
-1. Trying to link a document that does not exist to an existing value:
+1. Trying to link metadata that does not exist to an existing definition
 ```ucm:error
 .> link x.do x
-```
-
-```ucm:error
+.> link .x.do x
+.> link .a.c.d a.b.c
 .> link ##x x
 ```
 
-2. Trying to link two non existing values
+2. Trying to link non-existent metadata to a non-existent definition
 ```ucm:error
 .> link blah blah
+.> link .a.c.d .a.c.d
 ```
 
-3. Trying to link an existing document to a non existing value:
-```ucm
+3. Trying to link existing metadata to non-existing definition(s)
+
+```ucm:error
 .> link x.doc y
+.> link a.b.c a.b.d
+.> link .a.b.c .a.b.d
+.> link x.doc a .b c .d e .f g
+.> link .x.doc a.a.a.a b.b.b.b .c.c.c.c
 ```
 
-```ucm
-.> cd a.b
-.> link .x.doc y
+4. Trying to link an existing definition if grouped witn non-existing ones
+```ucm:error
+.> link x.doc x y
+.> link x.doc .x .y
+.> links x
+.> link x.doc a.b.c a.b.d
+.> link x.doc .a.b.c .a.b.d
+.> links a.b.c
 ```
 
-4. Re-linking an existing valid link:
+5. Trying to relink an existing link
 ```ucm
 .> link x.doc x
 .> link x.doc x
 ```
-
