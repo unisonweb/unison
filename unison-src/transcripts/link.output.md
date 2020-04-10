@@ -266,36 +266,33 @@ a.b.c = 1
 
   ⚠️
   
-  I could not link the definition `y` as I could not find it in
-  the codebase.
+  I could not find the definition `y` in the codebase.
 
 .> link a.b.c a.b.d
 
   ⚠️
   
-  I could not link the definition `a.b.d` as I could not find it
-  in the codebase.
+  I could not find the definition `a.b.d` in the codebase.
 
 .> link .a.b.c .a.b.d
 
   ⚠️
   
-  I could not link the definition `.a.b.d` as I could not find
-  it in the codebase.
+  I could not find the definition `.a.b.d` in the codebase.
 
 .> link x.doc a .b c .d e .f g
 
   ⚠️
   
-  I could not link the definitions `.b` , `.d` , `.f` , `a` ,
-  `c` , `e` , `g` as I could not find them in the codebase.
+  I could not find the definitions `.b` , `.d` , `.f` , `a` ,
+  `c` , `e` , `g` in the codebase.
 
 .> link .x.doc a.a.a.a b.b.b.b .c.c.c.c
 
   ⚠️
   
-  I could not link the definitions `.c.c.c.c` , `a.a.a.a` ,
-  `b.b.b.b` as I could not find them in the codebase.
+  I could not find the definitions `.c.c.c.c` , `a.a.a.a` ,
+  `b.b.b.b` in the codebase.
 
 ```
 4. Trying to link an existing definition if grouped witn non-existing ones
@@ -304,15 +301,13 @@ a.b.c = 1
 
   ⚠️
   
-  I could not link the definition `y` as I could not find it in
-  the codebase.
+  I could not find the definition `y` in the codebase.
 
 .> link x.doc .x .y
 
   ⚠️
   
-  I could not link the definition `.y` as I could not find it in
-  the codebase.
+  I could not find the definition `.y` in the codebase.
 
 .> links x
 
@@ -325,15 +320,13 @@ a.b.c = 1
 
   ⚠️
   
-  I could not link the definition `a.b.d` as I could not find it
-  in the codebase.
+  I could not find the definition `a.b.d` in the codebase.
 
 .> link x.doc .a.b.c .a.b.d
 
   ⚠️
   
-  I could not link the definition `.a.b.d` as I could not find
-  it in the codebase.
+  I could not find the definition `.a.b.d` in the codebase.
 
 .> links a.b.c
 
