@@ -1,4 +1,5 @@
 {-# Language BangPatterns #-}
+{-# Language DoAndIfThenElse #-}
 {-# Language FunctionalDependencies #-}
 {-# Language GeneralizedNewtypeDeriving #-}
 
@@ -63,7 +64,7 @@ expect True = ok
 
 expectEqual :: (Eq a, Show a) => a -> a -> Test ()
 expectEqual expected actual = if expected == actual then ok
-                  else crash $ unlines ["", (show actual), "** did not equal expected value **", (show expected)]
+                  else crash $ unlines ["", show actual, "** did not equal expected value **", show expected]
 
 expectNotEqual :: (Eq a, Show a) => a -> a -> Test ()
 expectNotEqual forbidden actual =
@@ -175,10 +176,10 @@ scope :: String -> Test a -> Test a
 scope msg (Test t) = wrap . Test $ do
   env <- ask
   let messages' = case messages env of [] -> msg; ms -> ms ++ ('.':msg)
-  case (null (allow env) || take (length (allow env)) msg `isPrefixOf` allow env) of
-    False -> putResult Skipped >> pure Nothing
-    True -> liftIO $
-      runReaderT t (env { messages = messages', allow = drop (length msg + 1) (allow env) })
+  if null (allow env) || take (length (allow env)) msg `isPrefixOf` allow env
+  then liftIO $
+    runReaderT t (env {messages = messages', allow = drop (length msg + 1) (allow env)})
+  else putResult Skipped >> pure Nothing
 
 -- | Log a message
 note :: String -> Test ()
@@ -388,9 +389,7 @@ putResult passed = do
 instance MonadReader Env Test where
   ask = Test $ do
     allow <- asks (null . allow)
-    case allow of
-      True -> Just <$> ask
-      False -> pure Nothing
+    if allow then Just <$> ask else pure Nothing
   local f (Test t) = Test (local f t)
   reader f = Test (Just <$> reader f)
 
@@ -398,9 +397,7 @@ instance Monad Test where
   fail = Control.Monad.Fail.fail
   return a = Test $ do
     allow <- asks (null . allow)
-    pure $ case allow of
-      True -> Just a
-      False -> Nothing
+    pure $ if allow then Just a else Nothing
   Test a >>= f = Test $ do
     a <- a
     case a of
@@ -420,9 +417,10 @@ instance Applicative Test where
 instance MonadIO Test where
   liftIO io = do
     s <- asks (null . allow)
-    case s of
-      True -> wrap $ Test (Just <$> liftIO io)
-      False -> Test (pure Nothing)
+    if s then
+      wrap $ Test (Just <$> liftIO io)
+    else
+      Test (pure Nothing)
 
 instance Alternative Test where
   empty = Test (pure Nothing)
