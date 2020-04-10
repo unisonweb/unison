@@ -341,11 +341,10 @@ notifyUser dir o = case o of
     ]
 
   LinkDefnsNotFound [path] -> pure . P.warnCallout .
-    P.wrap $ "I could not link the definition " <> (P.backticked . P.string . show) path <>
-    " as I could not find it in the codebase."
+    P.wrap $ "I could not find the definition " <> (P.backticked . P.string . show) path <> " in the codebase."
 
   LinkDefnsNotFound paths -> pure . P.warnCallout .
-    P.wrap $ "I could not link the definitions " <> commaSeparated <> " as I could not find them in the codebase."
+    P.wrap $ "I could not find the definitions " <> commaSeparated <> " in the codebase."
     where
     commaSeparated = P.commas (P.backticked . P.string . show <$> paths)
 
