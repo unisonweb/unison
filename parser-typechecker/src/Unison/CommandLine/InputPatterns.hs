@@ -73,8 +73,13 @@ helpFor p = I.parse help [I.patternName p]
 
 mergeBuiltins :: InputPattern
 mergeBuiltins = InputPattern "builtins.merge" [] []
-  "Adds all the builtins to `builtins.` in the current namespace."
+  "Adds the builtins to `builtins.` in the current namespace (excluding `io` and misc)."
   (const . pure $ Input.MergeBuiltinsI)
+
+mergeIOBuiltins :: InputPattern
+mergeIOBuiltins = InputPattern "builtins.mergeio" [] []
+  "Adds all the builtins to `builtins.` in the current namespace, including `io` and misc."
+  (const . pure $ Input.MergeIOBuiltinsI)
 
 updateBuiltins :: InputPattern
 updateBuiltins = InputPattern
@@ -1179,6 +1184,18 @@ names = InputPattern "names" []
     _ -> Left (I.help names)
   )
 
+dependents, dependencies :: InputPattern
+dependents = InputPattern "dependents" [] []
+  "List the dependents of the specified definition."
+  (\case
+    [thing] -> fmap Input.ListDependentsI $ parseHashQualifiedName thing
+    _ -> Left (I.help dependents))
+dependencies = InputPattern "dependencies" [] []
+  "List the dependencies of the specified definition."
+  (\case
+    [thing] -> fmap Input.ListDependenciesI $ parseHashQualifiedName thing
+    _ -> Left (I.help dependencies))
+
 debugNumberedArgs :: InputPattern
 debugNumberedArgs = InputPattern "debug.numberedArgs" [] []
   "Dump the contents of the numbered args state."
@@ -1189,7 +1206,12 @@ debugBranchHistory = InputPattern "debug.history" []
   [(Optional, noCompletions)]
   "Dump codebase history, compatible with bit-booster.com/graph.html"
   (const $ Right Input.DebugBranchHistoryI)
-
+  
+debugFileHashes :: InputPattern
+debugFileHashes = InputPattern "debug.file" [] []
+  "View details about the most recent succesfully typechecked file."
+  (const $ Right Input.DebugTypecheckedUnisonFileI)
+   
 test :: InputPattern
 test = InputPattern "test" [] []
     "`test` runs unit tests for the current branch."
@@ -1212,6 +1234,24 @@ execute = InputPattern
     _   -> Left $ showPatternHelp execute
   )
 
+createAuthor :: InputPattern
+createAuthor = InputPattern "create.author" []
+  [(Required, noCompletions), (Required, noCompletions)]
+  (makeExample createAuthor ["alicecoder", "\"Alice McGee\""]
+    <> "creates" <> backtick "alicecoder" <> "values in"
+    <> backtick "metadata.authors" <> "and"
+    <> backtickEOS "metadata.copyrightHolders")
+  (\case
+      symbolStr : authorStr@(_:_) -> first fromString $ do
+        symbol <- Path.wordyNameSegment symbolStr
+        -- let's have a real parser in not too long
+        let author :: Text
+            author = Text.pack $ case (unwords authorStr) of
+              quoted@('"':_) -> (init . tail) quoted
+              bare -> bare
+        pure $ Input.CreateAuthorI symbol author
+      _   -> Left $ showPatternHelp createAuthor
+    )
 validInputs :: [InputPattern]
 validInputs =
   [ help
@@ -1262,6 +1302,7 @@ validInputs =
   , link
   , unlink
   , links
+  , createAuthor
   , replaceTerm
   , replaceType
   , deleteTermReplacement
@@ -1273,8 +1314,11 @@ validInputs =
   , quit
   , updateBuiltins
   , mergeBuiltins
+  , mergeIOBuiltins
+  , dependents, dependencies
   , debugNumberedArgs
   , debugBranchHistory
+  , debugFileHashes
   ]
 
 commandNames :: [String]

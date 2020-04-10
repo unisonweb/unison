@@ -24,8 +24,9 @@ import Unison.Codebase.GitError
 import Unison.Codebase.Path (Path', Path)
 import Unison.Codebase.Patch (Patch)
 import Unison.Name ( Name )
-import Unison.Names2 ( Names )
+import Unison.Names2 ( Names, Names0 )
 import Unison.Parser ( Ann )
+import qualified Unison.Reference as Reference
 import Unison.Reference ( Reference )
 import Unison.Referent  ( Referent )
 import Unison.DataDeclaration ( Decl )
@@ -55,6 +56,7 @@ import Unison.Var (Var)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
+import Unison.LabeledDependency (LabeledDependency)
 
 type ListDetailed = Bool
 type SourceName = Text
@@ -78,6 +80,8 @@ data NumberedOutput v
   | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterCreatePR RemoteNamespace RemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  -- <authorIdentifier> <authorPath> <relativeBase>
+  | ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
 
 --  | ShowDiff
 
@@ -90,6 +94,7 @@ data Output v
   | SourceLoadFailed String
   -- No main function, the [Type v Ann] are the allowed types
   | NoMainFunction String PPE.PrettyPrintEnv [Type v Ann]
+  | BranchEmpty (Either ShortBranchHash Path')
   | BranchNotEmpty Path'
   | LoadPullRequest RemoteNamespace RemoteNamespace Path' Path' Path'
   | CreatedNewBranch Path.Absolute
@@ -101,13 +106,12 @@ data Output v
   | ParseResolutionFailures String [Names.ResolutionFailure v Ann]
   | TypeHasFreeVars (Type v Ann)
   | TermAlreadyExists Path.Split' (Set Referent)
-  | NameAmbiguous
-      Int -- codebase hash length
-      Path.HQSplit' (Set Referent) (Set Reference)
+  | LabeledReferenceAmbiguous Int HQ.HashQualified (Set LabeledDependency)
+  | LabeledReferenceNotFound HQ.HashQualified
+  | DeleteNameAmbiguous Int Path.HQSplit' (Set Referent) (Set Reference)
   | TermAmbiguous HQ.HashQualified (Set Referent)
   | HashAmbiguous ShortHash (Set Referent)
   | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
-  | BadDestinationBranch Path'
   | BranchNotFound Path'
   | NameNotFound Path.HQSplit'
   | PatchNotFound Path.Split'
@@ -192,8 +196,11 @@ data Output v
   | NoConflictsOrEdits
   | NotImplemented
   | NoBranchWithHash ShortBranchHash
+  | ListDependencies Int LabeledDependency Names0 (Set Reference)
+  | ListDependents Int LabeledDependency Names0 (Set Reference)
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
+  | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
   | DefaultMetadataNotification
   | NoOp
@@ -258,16 +265,18 @@ isFailure o = case o of
   BranchAlreadyExists{} -> True
   PatchAlreadyExists{} -> True
   NoExactTypeMatches -> True
+  BranchEmpty{} -> True
   BranchNotEmpty{} -> True
   TypeAlreadyExists{} -> True
   TypeParseError{} -> True
   ParseResolutionFailures{} -> True
   TypeHasFreeVars{} -> True
   TermAlreadyExists{} -> True
-  NameAmbiguous{} -> True
+  LabeledReferenceAmbiguous{} -> True
+  LabeledReferenceNotFound{} -> True
+  DeleteNameAmbiguous{} -> True
   TermAmbiguous{} -> True
   BranchHashAmbiguous{} -> True
-  BadDestinationBranch{} -> True
   BadName{} -> True
   BranchNotFound{} -> True
   NameNotFound{} -> True
@@ -329,6 +338,9 @@ isFailure o = case o of
   LoadPullRequest{} -> False
   DefaultMetadataNotification -> False
   NoOp -> False
+  ListDependencies{} -> False
+  ListDependents{} -> False
+  DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case
@@ -342,5 +354,6 @@ isNumberedFailure = \case
   ShowDiffAfterUndo{} -> False
   ShowDiffAfterPull{} -> False
   ShowDiffAfterCreatePR{} -> False
+  ShowDiffAfterCreateAuthor{} -> False
 
 

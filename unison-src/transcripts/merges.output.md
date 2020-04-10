@@ -15,9 +15,6 @@ x = 42
     ⍟ These new definitions are ok to `add`:
     
       x : Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -64,9 +61,6 @@ y = "hello"
     ⍟ These new definitions are ok to `add`:
     
       y : Text
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -118,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #be8v31d0lc
+  ⊙ #tklmrocnqt
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #qcumplt3un
+  ⊙ #1rn4ods0ce
   
     + Adds / updates:
     
@@ -135,50 +129,38 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #qf8ku0e8ja
+  ⊙ #vj242er6kb
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #jdd6dqbg1f
+  ⊙ #43nhdcu440
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #j222ocpe39
+  ⊙ #5khd8vn0j3
   
     + Adds / updates:
     
       x
   
-  ⊙ #i5f8gcfb14
+  ⊙ #h8t86n0gqk
   
     + Adds / updates:
     
-      builtin.Author builtin.Author.Author builtin.Author.guid
-      builtin.Author.guid.modify builtin.Author.guid.set
-      builtin.Author.name builtin.Author.name.modify
-      builtin.Author.name.set builtin.Boolean
-      builtin.Boolean.not builtin.Bytes builtin.Bytes.++
-      builtin.Bytes.at builtin.Bytes.drop builtin.Bytes.empty
-      builtin.Bytes.flatten builtin.Bytes.fromList
-      builtin.Bytes.size builtin.Bytes.take builtin.Bytes.toList
-      builtin.Char builtin.Char.fromNat builtin.Char.toNat
-      builtin.CopyrightHolder
-      builtin.CopyrightHolder.CopyrightHolder
-      builtin.CopyrightHolder.guid
-      builtin.CopyrightHolder.guid.modify
-      builtin.CopyrightHolder.guid.set
-      builtin.CopyrightHolder.name
-      builtin.CopyrightHolder.name.modify
-      builtin.CopyrightHolder.name.set builtin.Debug.watch
-      builtin.Doc builtin.Doc.++ builtin.Doc.Blob
+      builtin.Boolean builtin.Boolean.not builtin.Bytes
+      builtin.Bytes.++ builtin.Bytes.at builtin.Bytes.drop
+      builtin.Bytes.empty builtin.Bytes.flatten
+      builtin.Bytes.fromList builtin.Bytes.size
+      builtin.Bytes.take builtin.Bytes.toList builtin.Char
+      builtin.Char.fromNat builtin.Char.toNat
+      builtin.Debug.watch builtin.Doc builtin.Doc.Blob
       builtin.Doc.Evaluate builtin.Doc.Join builtin.Doc.Link
-      builtin.Doc.Signature builtin.Doc.Source builtin.Either
-      builtin.Either.Left builtin.Either.Right builtin.Float
+      builtin.Doc.Signature builtin.Doc.Source builtin.Float
       builtin.Float.* builtin.Float.+ builtin.Float.-
       builtin.Float./ builtin.Float.abs builtin.Float.acos
       builtin.Float.acosh builtin.Float.asin builtin.Float.asinh
@@ -191,38 +173,27 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Float.pow builtin.Float.round builtin.Float.sin
       builtin.Float.sinh builtin.Float.sqrt builtin.Float.tan
       builtin.Float.tanh builtin.Float.toText
-      builtin.Float.truncate builtin.GUID builtin.GUID.GUID
-      builtin.Int builtin.Int.* builtin.Int.+ builtin.Int.-
-      builtin.Int./ builtin.Int.eq builtin.Int.fromText
-      builtin.Int.gt builtin.Int.gteq builtin.Int.increment
-      builtin.Int.isEven builtin.Int.isOdd builtin.Int.lt
-      builtin.Int.lteq builtin.Int.mod builtin.Int.negate
-      builtin.Int.signum builtin.Int.toFloat builtin.Int.toText
-      builtin.Int.truncate0 builtin.IsPropagated
-      builtin.IsPropagated.IsPropagated builtin.IsTest
-      builtin.IsTest.IsTest builtin.License
-      builtin.License.License builtin.License.copyrightHolders
-      builtin.License.copyrightHolders.modify
-      builtin.License.copyrightHolders.set
-      builtin.License.licenseType
-      builtin.License.licenseType.modify
-      builtin.License.licenseType.set builtin.License.years
-      builtin.License.years.modify builtin.License.years.set
-      builtin.LicenseType builtin.LicenseType.LicenseType
-      builtin.Link builtin.Link.Term##Link.Term
-      builtin.Link.Term#quh#0 builtin.Link.Type##Link.Type
-      builtin.Link.Type#quh#1 builtin.List builtin.List.++
-      builtin.List.+: builtin.List.:+ builtin.List.at
-      builtin.List.cons builtin.List.drop builtin.List.empty
-      builtin.List.size builtin.List.snoc builtin.List.take
-      builtin.Nat builtin.Nat.* builtin.Nat.+ builtin.Nat./
-      builtin.Nat.drop builtin.Nat.eq builtin.Nat.fromText
-      builtin.Nat.gt builtin.Nat.gteq builtin.Nat.increment
-      builtin.Nat.isEven builtin.Nat.isOdd builtin.Nat.lt
-      builtin.Nat.lteq builtin.Nat.mod builtin.Nat.sub
-      builtin.Nat.toFloat builtin.Nat.toInt builtin.Nat.toText
-      builtin.Optional builtin.Optional.None
-      builtin.Optional.Some builtin.Request builtin.Test.Result
+      builtin.Float.truncate builtin.Int builtin.Int.*
+      builtin.Int.+ builtin.Int.- builtin.Int./ builtin.Int.eq
+      builtin.Int.fromText builtin.Int.gt builtin.Int.gteq
+      builtin.Int.increment builtin.Int.isEven builtin.Int.isOdd
+      builtin.Int.lt builtin.Int.lteq builtin.Int.mod
+      builtin.Int.negate builtin.Int.signum builtin.Int.toFloat
+      builtin.Int.toText builtin.Int.truncate0 builtin.Link
+      builtin.Link.Term##Link.Term builtin.Link.Term#quh#0
+      builtin.Link.Type##Link.Type builtin.Link.Type#quh#1
+      builtin.List builtin.List.++ builtin.List.+:
+      builtin.List.:+ builtin.List.at builtin.List.cons
+      builtin.List.drop builtin.List.empty builtin.List.size
+      builtin.List.snoc builtin.List.take builtin.Nat
+      builtin.Nat.* builtin.Nat.+ builtin.Nat./ builtin.Nat.drop
+      builtin.Nat.eq builtin.Nat.fromText builtin.Nat.gt
+      builtin.Nat.gteq builtin.Nat.increment builtin.Nat.isEven
+      builtin.Nat.isOdd builtin.Nat.lt builtin.Nat.lteq
+      builtin.Nat.mod builtin.Nat.sub builtin.Nat.toFloat
+      builtin.Nat.toInt builtin.Nat.toText builtin.Optional
+      builtin.Optional.None builtin.Optional.Some
+      builtin.Request builtin.Test.Result
       builtin.Test.Result.Fail builtin.Test.Result.Ok
       builtin.Text builtin.Text.!= builtin.Text.++
       builtin.Text.drop builtin.Text.empty builtin.Text.eq
@@ -234,77 +205,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Unit builtin.Unit.Unit builtin.Universal.<
       builtin.Universal.<= builtin.Universal.==
       builtin.Universal.> builtin.Universal.>=
-      builtin.Universal.compare builtin.Year builtin.Year.Year
-      builtin.bug builtin.io.BufferMode
-      builtin.io.BufferMode.Block builtin.io.BufferMode.Line
-      builtin.io.EpochTime builtin.io.EpochTime.EpochTime
-      builtin.io.Error builtin.io.Error.Error
-      builtin.io.ErrorDescription
-      builtin.io.ErrorDescription.ErrorDescription
-      builtin.io.ErrorLocation
-      builtin.io.ErrorLocation.ErrorLocation
-      builtin.io.ErrorType builtin.io.ErrorType.AlreadyExists
-      builtin.io.ErrorType.EOF
-      builtin.io.ErrorType.IllegalOperation
-      builtin.io.ErrorType.NoSuchThing
-      builtin.io.ErrorType.PermissionDenied
-      builtin.io.ErrorType.ResourceBusy
-      builtin.io.ErrorType.ResourceExhausted
-      builtin.io.ErrorType.UserError builtin.io.FilePath
-      builtin.io.FilePath.FilePath builtin.io.Handle
-      builtin.io.Handle.Handle builtin.io.HostName
-      builtin.io.HostName.HostName builtin.io.IO
-      builtin.io.IO.accept_ builtin.io.IO.bracket_
-      builtin.io.IO.clientSocket_ builtin.io.IO.closeFile_
-      builtin.io.IO.closeSocket_ builtin.io.IO.createDirectory_
-      builtin.io.IO.delay_ builtin.io.IO.directoryContents_
-      builtin.io.IO.fileExists_ builtin.io.IO.fork_
-      builtin.io.IO.getBuffering_
-      builtin.io.IO.getCurrentDirectory_
-      builtin.io.IO.getFileSize_ builtin.io.IO.getFileTimestamp_
-      builtin.io.IO.getLine_
-      builtin.io.IO.getTemporaryDirectory_
-      builtin.io.IO.getText_ builtin.io.IO.isDirectory_
-      builtin.io.IO.isFileEOF_ builtin.io.IO.isFileOpen_
-      builtin.io.IO.isSeekable_ builtin.io.IO.kill_
-      builtin.io.IO.listen_ builtin.io.IO.openFile_
-      builtin.io.IO.position_ builtin.io.IO.putText_
-      builtin.io.IO.receive_ builtin.io.IO.removeDirectory_
-      builtin.io.IO.removeFile_ builtin.io.IO.renameDirectory_
-      builtin.io.IO.renameFile_ builtin.io.IO.seek_
-      builtin.io.IO.send_ builtin.io.IO.serverSocket_
-      builtin.io.IO.setBuffering_
-      builtin.io.IO.setCurrentDirectory_
-      builtin.io.IO.systemTime_ builtin.io.IO.throw
-      builtin.io.Mode builtin.io.Mode.Append
-      builtin.io.Mode.Read builtin.io.Mode.ReadWrite
-      builtin.io.Mode.Write builtin.io.SeekMode
-      builtin.io.SeekMode.Absolute builtin.io.SeekMode.FromEnd
-      builtin.io.SeekMode.Relative builtin.io.ServiceName
-      builtin.io.ServiceName.ServiceName builtin.io.Socket
-      builtin.io.Socket.Socket builtin.io.ThreadId
-      builtin.io.ThreadId.ThreadId builtin.io.accept
-      builtin.io.bracket builtin.io.clientSocket
-      builtin.io.closeFile builtin.io.closeSocket
-      builtin.io.createDirectory builtin.io.delay
-      builtin.io.directoryContents builtin.io.fileExists
-      builtin.io.fork builtin.io.getBuffering
-      builtin.io.getCurrentDirectory builtin.io.getFileSize
-      builtin.io.getFileTimestamp builtin.io.getLine
-      builtin.io.getTemporaryDirectory builtin.io.getText
-      builtin.io.isDirectory builtin.io.isFileEOF
-      builtin.io.isFileOpen builtin.io.isSeekable
-      builtin.io.kill builtin.io.listen builtin.io.openFile
-      builtin.io.position builtin.io.printLine
-      builtin.io.putText builtin.io.readLine builtin.io.receive
-      builtin.io.removeDirectory builtin.io.removeFile
-      builtin.io.renameDirectory builtin.io.renameFile
-      builtin.io.rethrow builtin.io.seek builtin.io.send
-      builtin.io.serverSocket builtin.io.setBuffering
-      builtin.io.setCurrentDirectory builtin.io.stderr
-      builtin.io.stdin builtin.io.stdout builtin.io.systemTime
-      builtin.metadata.isPropagated builtin.metadata.isTest
-      builtin.todo
+      builtin.Universal.compare builtin.bug builtin.todo
   
   □ #7asfbtqmoj (start of history)
 
@@ -340,9 +241,6 @@ z = 99
     ⍟ These new definitions are ok to `add`:
     
       z : Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -380,9 +278,6 @@ master.frobnicate n = n + 1
     
       master.frobnicate : Nat -> Nat
       master.y          : Text
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm

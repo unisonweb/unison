@@ -19,6 +19,7 @@ import           Unison.ShortHash (ShortHash)
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Data.Text as Text
+import Unison.Codebase.NameSegment (NameSegment)
 
 data Event
   = UnisonFileChanged SourceName Source
@@ -112,6 +113,7 @@ data Input
   | UnlinkI HQ.HashQualified [Path.HQSplit']
   -- links from <type>
   | LinksI Path.HQSplit' (Maybe String)
+  | CreateAuthorI NameSegment {- identifier -} Text {- name -}
   | DisplayI OutputLocation HQ.HashQualified
   | DocsI Path.HQSplit'
   -- other
@@ -123,8 +125,12 @@ data Input
   | ShowReflogI
   | UpdateBuiltinsI
   | MergeBuiltinsI
+  | MergeIOBuiltinsI
+  | ListDependenciesI HQ.HashQualified
+  | ListDependentsI HQ.HashQualified
   | DebugNumberedArgsI
   | DebugBranchHistoryI
+  | DebugTypecheckedUnisonFileI
   | QuitI
   deriving (Eq, Show)
 

@@ -17,9 +17,6 @@ hey = "yello"
     ⍟ These new definitions are ok to `add`:
     
       hey : Text
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -50,9 +47,6 @@ hey = "hello"
       new definition:
     
       hey : Text
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 Update

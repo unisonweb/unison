@@ -21,9 +21,6 @@ fooToInt _ = +42
     
       unique type Foo
       fooToInt : Foo -> Int
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 And then we add it.
@@ -73,9 +70,6 @@ unique type Foo = Foo | Bar
       new definition:
     
       unique type Foo
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 and update the codebase to use the new type `Foo`...
@@ -122,9 +116,6 @@ otherTerm y = someTerm y
     
       otherTerm : Optional baz -> Optional baz
       someTerm  : Optional foo -> Optional foo
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 Add that to the codebase:
@@ -159,9 +150,6 @@ someTerm _ = None
       new definition:
     
       someTerm : Optional x -> Optional x
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 Update...
@@ -232,9 +220,6 @@ otherTerm y = someTerm y
     
       otherTerm : Optional baz -> Optional baz
       someTerm  : Optional foo -> Optional foo
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 We'll make two copies of this namespace.
@@ -272,9 +257,6 @@ someTerm _ = None
     ⍟ These new definitions are ok to `add`:
     
       someTerm : Optional x -> Optional x
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ... in one of the namespaces...
