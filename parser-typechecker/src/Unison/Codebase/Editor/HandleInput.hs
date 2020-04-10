@@ -468,6 +468,33 @@ loop = do
         stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
         stepManyAtM = Unison.Codebase.Editor.HandleInput.stepManyAtM inputDescription
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
+
+        addDefaultMetadata
+          :: SlurpComponent v
+          -> Action m (Either Event Input) v ()
+        addDefaultMetadata adds = do
+          let
+            addedVs = Set.toList $ SC.types adds <> SC.terms adds
+            parseResult = (Path.parseHQSplit' . Var.nameStr) <$> addedVs
+            (errs, addedNames) = partitionEithers parseResult
+          case errs of
+            e : _ ->
+              error $ "I couldn't parse a name I just added to the codebase! " <> e
+            _ -> do
+              dm <- resolveDefaultMetadata currentPath'
+              case toList dm of
+                []  -> pure ()
+                dm' -> do
+                  let hqs = traverse InputPatterns.parseHashQualifiedName dm'
+                  case hqs of
+                    Left e -> respond $ ConfiguredMetadataParseError
+                      (Path.absoluteToPath' currentPath')
+                      (show dm')
+                      e
+                    Right defaultMeta -> do
+                      respond DefaultMetadataNotification
+                      manageLinks addedNames defaultMeta Metadata.insert
+
         manageLinks :: [(Path', NameSegment.HQSegment)]
                     -> [HQ.HashQualified]
                     -> (forall r. Ord r
@@ -1335,26 +1362,7 @@ loop = do
               (UF.termSignatureExternalLabeledDependencies uf)
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
-          let
-            addedVs = Set.toList $ SC.types adds <> SC.terms adds
-            parseResult = (Path.parseHQSplit' . Var.nameStr) <$> addedVs
-            (errs, addedNames) = partitionEithers parseResult
-          case errs of
-            e : _ ->
-              error $ "I couldn't parse a name I just added to the codebase! " <> e
-            _ -> do
-              dm <- resolveDefaultMetadata currentPath'
-              case dm of
-                Nothing -> pure ()
-                Just dm' -> do
-                  let hqs = traverse InputPatterns.parseHashQualifiedName dm'
-                  case hqs of
-                    Left e -> respond $
-                      ConfiguredMetadataParseError
-                        (Path.absoluteToPath' currentPath') (show dm') e
-                    Right defaultMeta -> do
-                      respond DefaultMetadataNotification
-                      manageLinks addedNames defaultMeta Metadata.insert
+          addDefaultMetadata adds
 
       PreviewAddI hqs -> case (latestFile', uf) of
         (Just (sourceName, _), Just uf) -> do
@@ -1378,7 +1386,8 @@ loop = do
           let sr = applySelection hqs uf
                  . toSlurpResult currentPath' uf
                  $ slurpCheckNames0
-          let fileNames0 = UF.typecheckedToNames0 uf
+              addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
+              fileNames0 = UF.typecheckedToNames0 uf
               -- todo: display some error if typeEdits or termEdits itself contains a loop
               typeEdits :: Map Name (Reference, Reference)
               typeEdits = Map.fromList $ map f (toList $ SC.types (updates sr)) where
@@ -1454,7 +1463,7 @@ loop = do
               [( Path.unabsolute currentPath'
                , pure . doSlurpUpdates typeEdits termEdits termDeprecations)
               ,( Path.unabsolute currentPath'
-               , pure . doSlurpAdds (Slurp.updates sr <> Slurp.adds sr) uf)
+               , pure . doSlurpAdds addsAndUpdates uf)
               ,( Path.unabsolute p, updatePatches )]
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
           ppe <- prettyPrintEnv =<<
@@ -1464,6 +1473,7 @@ loop = do
           respond $ SlurpOutput input ppe sr
           -- propagatePatch prints TodoOutput
           void $ propagatePatch inputDescription (updatePatch ye'ol'Patch) currentPath'
+          addDefaultMetadata addsAndUpdates
 
       PreviewUpdateI hqs -> case (latestFile', uf) of
         (Just (sourceName, _), Just uf) -> do
@@ -1618,10 +1628,15 @@ loop = do
       notImplemented = eval $ Notify NotImplemented
       success = respond Success
 
-      resolveDefaultMetadata :: Path.Absolute -> Action' m v (Maybe [String])
+      resolveDefaultMetadata :: Path.Absolute -> Action' m v (Seq String)
       resolveDefaultMetadata path = do
-        mstr <- (eval . ConfigLookup) $ configKey "DefaultMetadata" path
-        pure mstr
+        let superpaths = Path.ancestors path
+        for
+          superpaths
+          (\path -> do
+            mstr <- eval . ConfigLookup $ configKey "DefaultMetadata" path
+            pure . join $ toList mstr
+          )
 
       configKey k p =
         Text.intercalate "." . toList $ k :<| fmap

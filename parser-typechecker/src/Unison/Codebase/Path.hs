@@ -240,6 +240,9 @@ toList = Foldable.toList . toSeq
 fromList :: [NameSegment] -> Path
 fromList = Path . Seq.fromList
 
+ancestors :: Absolute -> Seq Absolute
+ancestors (Absolute (Path segments)) = Absolute . Path <$> Seq.inits segments
+
 splitFromName :: Name -> Maybe Split
 splitFromName = unsnoc . fromName
 
