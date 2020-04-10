@@ -68,3 +68,54 @@ myLibrary.h x = x + 3
 .myLibrary> links h
 .myLibrary> history
 ```
+
+Examples of user errors that are handled
+
+```unison:hide
+x = 42
+x.doc = [: I am the documentation for x :]
+a.b.c = 1
+```
+
+```ucm:hide:all
+.> add
+```
+1. Trying to link metadata that does not exist to an existing definition
+```ucm:error
+.> link x.do x
+.> link .x.do x
+.> link .a.c.d a.b.c
+.> link ##x x
+```
+
+2. Trying to link non-existent metadata to a non-existent definition
+```ucm:error
+.> link blah blah
+.> link .a.c.d .a.c.d
+```
+
+3. Trying to link existing metadata to non-existing definition(s)
+
+```ucm:error
+.> link x.doc y
+.> link a.b.c a.b.d
+.> link .a.b.c .a.b.d
+.> link x.doc a .b c .d e .f g
+.> link .x.doc a.a.a.a b.b.b.b .c.c.c.c
+```
+
+4. Trying to link an existing definition if grouped witn non-existing ones
+```ucm:error
+.> link x.doc x y
+.> link x.doc .x .y
+.> links x
+.> link x.doc a.b.c a.b.d
+.> link x.doc .a.b.c .a.b.d
+.> links a.b.c
+```
+
+5. Trying to relink an existing link
+```ucm
+.> link x.doc x
+.> link x.doc x
+```

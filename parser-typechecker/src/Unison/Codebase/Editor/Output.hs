@@ -178,7 +178,9 @@ data Output v
   | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
                (Map Reference (DisplayThing (Decl v Ann)))
                (Map Reference (DisplayThing (Term v Ann)))
+  | DefinitionsNotFound [Path']
   | MetadataMissingType PPE.PrettyPrintEnv Referent
+  | MetadataNotFound (Maybe Name)
   | MetadataAmbiguous PPE.PrettyPrintEnv [Referent]
   -- todo: tell the user to run `todo` on the same patch they just used
   | NothingToPatch PatchPath Path'
@@ -312,7 +314,9 @@ isFailure o = case o of
   ConfiguredGitUrlParseError{} -> True
   ConfiguredGitUrlIncludesShortBranchHash{} -> True
   DisplayLinks{} -> False
+  DefinitionsNotFound{} -> True
   MetadataMissingType{} -> True
+  MetadataNotFound{} -> True
   MetadataAmbiguous{} -> True
   PatchNeedsToBeConflictFree{} -> True
   PatchInvolvesExternalDependents{} -> True

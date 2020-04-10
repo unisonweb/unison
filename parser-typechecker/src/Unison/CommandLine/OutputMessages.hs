@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
+{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -338,8 +339,21 @@ notifyUser dir o = case o of
           <> "or invalid codebase, or because files inside the codebase"
           <> "are being deleted external to UCM."
     ]
-  MetadataAmbiguous _ppe [] -> pure . P.warnCallout .
+
+  DefinitionsNotFound [path] -> pure . P.warnCallout .
+    P.wrap $ "I could not find the definition " <> (P.backticked . P.string . show) path <> " in the codebase."
+
+  DefinitionsNotFound paths -> pure . P.warnCallout .
+    P.wrap $ "I could not find the definitions " <> commaSeparated <> " in the codebase."
+    where
+    commaSeparated = P.commas (P.backticked . P.string . show <$> paths)
+
+  MetadataNotFound Nothing -> pure . P.warnCallout .
     P.wrap $ "Nothing to do. I couldn't find any matching metadata."
+
+  MetadataNotFound (Just name) -> pure . P.warnCallout .
+    P.wrap $ "I could not find the metadata " <> (P.backticked . P.string . show) name <> " in the codebase."
+
   MetadataAmbiguous ppe refs -> pure . P.warnCallout . P.lines $ [
     P.wrap $ "I'm not sure which metadata value you're referring to"
           <> "since there are multiple matches:",

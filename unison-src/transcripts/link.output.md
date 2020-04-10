@@ -200,3 +200,144 @@ myLibrary.h x = x + 3
   □ #7asfbtqmoj (start of history)
 
 ```
+Examples of user errors that are handled
+
+```unison
+x = 42
+x.doc = [: I am the documentation for x :]
+a.b.c = 1
+```
+
+1. Trying to link metadata that does not exist to an existing definition
+```ucm
+.> link x.do x
+
+  ⚠️
+  
+  I could not find the metadata `x.do` in the codebase.
+
+.> link .x.do x
+
+  ⚠️
+  
+  I could not find the metadata `.x.do` in the codebase.
+
+.> link .a.c.d a.b.c
+
+  ⚠️
+  
+  I could not find the metadata `.a.c.d` in the codebase.
+
+.> link ##x x
+
+  ⚠️
+  
+  Nothing to do. I couldn't find any matching metadata.
+
+```
+2. Trying to link non-existent metadata to a non-existent definition
+```ucm
+.> link blah blah
+
+  ⚠️
+  
+  I could not find the metadata `blah` in the codebase.
+
+.> link .a.c.d .a.c.d
+
+  ⚠️
+  
+  I could not find the metadata `.a.c.d` in the codebase.
+
+```
+3. Trying to link existing metadata to non-existing definition(s)
+
+```ucm
+.> link x.doc y
+
+  ⚠️
+  
+  I could not find the definition `y` in the codebase.
+
+.> link a.b.c a.b.d
+
+  ⚠️
+  
+  I could not find the definition `a.b.d` in the codebase.
+
+.> link .a.b.c .a.b.d
+
+  ⚠️
+  
+  I could not find the definition `.a.b.d` in the codebase.
+
+.> link x.doc a .b c .d e .f g
+
+  ⚠️
+  
+  I could not find the definitions `.b` , `.d` , `.f` , `a` ,
+  `c` , `e` , `g` in the codebase.
+
+.> link .x.doc a.a.a.a b.b.b.b .c.c.c.c
+
+  ⚠️
+  
+  I could not find the definitions `.c.c.c.c` , `a.a.a.a` ,
+  `b.b.b.b` in the codebase.
+
+```
+4. Trying to link an existing definition if grouped witn non-existing ones
+```ucm
+.> link x.doc x y
+
+  ⚠️
+  
+  I could not find the definition `y` in the codebase.
+
+.> link x.doc .x .y
+
+  ⚠️
+  
+  I could not find the definition `.y` in the codebase.
+
+.> links x
+
+  😶
+  
+  No results. Try using the `link` command to add metadata to a
+  definition.
+
+.> link x.doc a.b.c a.b.d
+
+  ⚠️
+  
+  I could not find the definition `a.b.d` in the codebase.
+
+.> link x.doc .a.b.c .a.b.d
+
+  ⚠️
+  
+  I could not find the definition `.a.b.d` in the codebase.
+
+.> links a.b.c
+
+  😶
+  
+  No results. Try using the `link` command to add metadata to a
+  definition.
+
+```
+5. Trying to relink an existing link
+```ucm
+.> link x.doc x
+
+  Updates:
+  
+    1. x : Nat
+       + 2. x.doc : Doc
+
+.> link x.doc x
+
+  The namespaces are identical.
+
+```
