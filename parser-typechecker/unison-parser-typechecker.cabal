@@ -312,6 +312,7 @@ library unison-tests
     mtl,
     raw-strings-qq,
     shellmet,
+    split,
     temporary,
     text,
     transformers,
