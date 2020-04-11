@@ -24,6 +24,7 @@ import qualified Unison.Test.Typechecker.Context as Context
 import qualified Unison.Test.Typechecker.TypeError as TypeError
 import qualified Unison.Test.UnisonSources as UnisonSources
 import qualified Unison.Test.Util.Bytes as Bytes
+import qualified Unison.Test.Util.Pretty as Pretty
 import qualified Unison.Test.Var as Var
 import qualified Unison.Test.Codebase as Codebase
 import qualified Unison.Test.Codebase.FileCodebase as FileCodebase
@@ -58,6 +59,7 @@ test = tests
   , Context.test
   , Git.test
   , Name.test
+  , Pretty.test
  ]
 
 main :: IO ()
