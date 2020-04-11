@@ -12,7 +12,7 @@ test = scope "FileCodebase" . tests $
     [ encodeDecode "abc"
     , encodeDecode "👍"
     , encodeDecode "\xfff"
-    , tests $ (encodeDecode . (:[])) <$> ['!'..'~']
+    , tests $ encodeDecode . (:[]) <$> ['!'..'~']
     , encodeDecode ("Universal." ++ ['!'..'~'])
     , specialEncode "."
     , specialEncode ".."
