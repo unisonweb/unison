@@ -25,9 +25,20 @@ test =
       in expectEqual actual expected
   , scope "wrap.commas.backticked" $
       let
-        list = P.backticked . P.string . show <$> [1, 2, 3]
-        actual = P.render 80 $ P.wrap $ P.commas list
+        actual = P.render 80 $ P.wrap commas
         expected = "`1` , `2` , `3`"
       in expectEqual actual expected
+  , scope "group.commas.backticked" $
+      let
+        actual = P.render 80 $ P.group commas
+        expected = "`1`, `2`, `3`"
+      in expectEqual actual expected
+  , scope "wrap.group.commas.backticked" $
+      let
+        actual = P.render 80 $ (P.wrap . P.group) commas
+        expected = "`1`, `2`, `3`"
+      in expectEqual actual expected
   ]
-  where input = P.string . show <$> [1, 2, 3]
+  where 
+    input = P.string . show <$> [1, 2, 3]
+    commas = P.commas (P.backticked . P.string . show <$> [1, 2, 3])

@@ -340,13 +340,12 @@ notifyUser dir o = case o of
           <> "are being deleted external to UCM."
     ]
 
-  DefinitionsNotFound [path] -> pure . P.warnCallout .
-    P.wrap $ "I could not find the definition " <> (P.backticked . P.string . show) path <> " in the codebase."
-
-  DefinitionsNotFound paths -> pure . P.warnCallout .
-    P.wrap $ "I could not find the definitions " <> commaSeparated <> " in the codebase."
-    where
-    commaSeparated = P.commas (P.backticked . P.string . show <$> paths)
+  DefinitionsNotFound paths -> pure . P.warnCallout . P.lines $ [
+    P.wrap $ "I could not find the following definitions in the codebase: ",
+    "",
+    (P.group . P.commas) (P.backticked . P.string . show <$> paths)
+    <> "."
+    ]
 
   MetadataNotFound Nothing -> pure . P.warnCallout .
     P.wrap $ "Nothing to do. I couldn't find any matching metadata."
