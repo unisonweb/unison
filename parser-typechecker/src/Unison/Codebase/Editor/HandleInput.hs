@@ -517,7 +517,7 @@ loop = do
                       go types src = op (src, mdType, mdValue) types
                     in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
             (_srcle, _srclt, []) ->
-              respond $ MetadataNotFound $ HQ.toName mdValue2
+              respond $ SearchTermsNotFound [mdValue2]
             (_srcle, _srclt, multiple) ->
               respond $ MetadataAmbiguous ppe multiple
 

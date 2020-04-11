@@ -214,25 +214,29 @@ a.b.c = 1
 
   ⚠️
   
-  I could not find the metadata `x.do` in the codebase.
+  The following names were not found in the codebase. Check your spelling.
+    x.do
 
 .> link .x.do x
 
   ⚠️
   
-  I could not find the metadata `.x.do` in the codebase.
+  The following names were not found in the codebase. Check your spelling.
+    .x.do
 
 .> link .a.c.d a.b.c
 
   ⚠️
   
-  I could not find the metadata `.a.c.d` in the codebase.
+  The following names were not found in the codebase. Check your spelling.
+    .a.c.d
 
 .> link ##x x
 
   ⚠️
   
-  Nothing to do. I couldn't find any matching metadata.
+  The following names were not found in the codebase. Check your spelling.
+    ##x
 
 ```
 2. Trying to link non-existent metadata to a non-existent definition
@@ -241,13 +245,15 @@ a.b.c = 1
 
   ⚠️
   
-  I could not find the metadata `blah` in the codebase.
+  The following names were not found in the codebase. Check your spelling.
+    blah
 
 .> link .a.c.d .a.c.d
 
   ⚠️
   
-  I could not find the metadata `.a.c.d` in the codebase.
+  The following names were not found in the codebase. Check your spelling.
+    .a.c.d
 
 ```
 3. Trying to link existing metadata to non-existing definition(s)
