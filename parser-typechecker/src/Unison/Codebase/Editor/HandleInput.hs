@@ -927,7 +927,7 @@ loop = do
             types' :: Set (Reference, Set HQ'.HashQualified)
             types' = (`Set.map` Names.typeReferences filtered) $
                         \r -> (r, Names3.typeName hqLength r printNames)
-        respond $ ListNames hqLength (toList terms') (toList types')
+        respond $ ListNames hqLength (toList types') (toList terms') 
 --          let (p, hq) = p0
 --              namePortion = HQ'.toName hq
 --          case hq of

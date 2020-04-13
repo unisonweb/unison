@@ -454,8 +454,8 @@ notifyUser dir o = case o of
      listOfLinks ppe [ (name,tm) | (name,_ref,tm) <- results ]
   ListNames _len [] [] -> pure . P.callout "😶" $
     P.wrap "I couldn't find anything by that name."
-  ListNames len terms types -> pure . P.sepNonEmpty "\n\n" $ [
-    formatTerms terms, formatTypes types ]
+  ListNames len types terms -> pure . P.sepNonEmpty "\n\n" $ [
+    formatTypes types, formatTerms terms ]
     where
     formatTerms tms =
       P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : (go <$> tms) where
