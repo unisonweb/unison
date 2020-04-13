@@ -4,7 +4,6 @@ import Unison.Prelude
 
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
-import           Data.Maybe (fromJust)
 import qualified Data.Set as Set
 
 -- | Order bindings by dependencies and group into components.
@@ -38,7 +37,8 @@ components freeVars bs =
   let varIds =
         Map.fromList (map fst bs `zip` reverse [(1 :: Int) .. length bs])
       -- something horribly wrong if this bombs
-      varId v = fromJust $ Map.lookup v varIds
+      msg = error "Components.components bug"
+      varId v = fromMaybe msg $ Map.lookup v varIds
 
       -- use ints as keys for graph to preserve original source order as much as
       -- possible

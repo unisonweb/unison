@@ -18,9 +18,6 @@ foo n =
     ⍟ These new definitions are ok to `add`:
     
       foo : Nat -> Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -48,9 +45,6 @@ escaping = [: Docs look [: like \@this \:] :]
     ⍟ These new definitions are ok to `add`:
     
       escaping : Doc
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -81,9 +75,6 @@ commented = [:
     ⍟ These new definitions are ok to `add`:
     
       commented : Doc
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -119,9 +110,6 @@ doc1 = [:   hi   :]
     ⍟ These new definitions are ok to `add`:
     
       doc1 : Doc
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -152,9 +140,6 @@ doc2 = [: hello
     ⍟ These new definitions are ok to `add`:
     
       doc2 : Doc
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -192,9 +177,6 @@ Note that because of the special treatment of the first line mentioned above, wh
     ⍟ These new definitions are ok to `add`:
     
       doc3 : Doc
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -239,9 +221,6 @@ doc4 = [: Here's another example of some paragraphs.
     ⍟ These new definitions are ok to `add`:
     
       doc4 : Doc
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -275,9 +254,6 @@ doc5 = [:   - foo
     ⍟ These new definitions are ok to `add`:
     
       doc5 : Doc
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -308,9 +284,6 @@ doc6 = [:
     ⍟ These new definitions are ok to `add`:
     
       doc6 : Doc
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -344,9 +317,6 @@ expr = foo 1
     
       empty : Doc
       expr  : Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -405,9 +375,6 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
     ⍟ These new definitions are ok to `add`:
     
       test1 : Doc
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm

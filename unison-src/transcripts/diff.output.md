@@ -424,6 +424,10 @@ unique type Y a b = Y a b
   Edited Terms:
     ns1.b         -> ns2.b
     ns1.fromJust' -> ns2.fromJust
+  
+  Tip: To remove entries from a patch, use
+       delete.term-replacement or delete.type-replacement, as
+       appropriate.
 
 .> fork ns2 ns3
 
@@ -632,9 +636,6 @@ a = 777
       conflicted   a   : Nat
     
       Tip: Use `help filestatus` to learn more.
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm

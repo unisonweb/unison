@@ -17,7 +17,7 @@ import Unison.Codebase.Editor.RemoteRepo
 
 import qualified Unison.Builtin                as B
 
-import qualified Crypto.Random                 as Random 
+import qualified Crypto.Random                 as Random
 import           Control.Monad.Except           ( runExceptT )
 import qualified Data.Configurator             as Config
 import           Data.Configurator.Types        ( Config )
@@ -32,6 +32,7 @@ import           System.FilePath                ( (</>) )
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch         ( Branch )
+import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Editor.Git    as Git
 import qualified Unison.Hash                   as Hash
 import           Unison.Parser                  ( Ann )
@@ -53,6 +54,7 @@ import           Unison.FileParsers             ( parseAndSynthesizeFile
 import qualified Unison.PrettyPrintEnv         as PPE
 import Unison.Term (Term)
 import Unison.Type (Type)
+import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 
 typecheck
   :: (Monad m, Var v)
@@ -107,7 +109,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
  Free.foldWithIndex go
  where
   go :: forall x . Int -> Command IO i v x -> IO x
-  go i x = case x of 
+  go i x = case x of
     -- Wait until we get either user input or a unison file update
     Eval m        -> m
     Input         -> awaitInput
@@ -126,14 +128,14 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     TypecheckFile file ambient     -> typecheck' ambient codebase file
     Evaluate ppe unisonFile        -> evalUnisonFile ppe unisonFile
     Evaluate1 ppe term             -> eval1 ppe term
-    LoadLocalRootBranch        -> Codebase.getRootBranch codebase
-    LoadLocalBranch h          -> Codebase.getBranchForHash codebase h
+    LoadLocalRootBranch        -> either (const Branch.empty) id <$> Codebase.getRootBranch codebase
+    LoadLocalBranch h          -> fromMaybe Branch.empty <$> Codebase.getBranchForHash codebase h
     SyncLocalRootBranch branch -> do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
-    LoadRemoteRootBranch loadMode GitRepo {..} -> do
+    LoadRemoteRootBranch GitRepo {..} -> do
       tmp <- tempGitDir url commit
-      runExceptT $ Git.pullGitRootBranch tmp loadMode codebase url commit
+      runExceptT $ Git.pullGitRootBranch tmp codebase url commit
     SyncRemoteRootBranch GitRepo {..} branch -> do
       tmp <- tempGitDir url commit
       runExceptT
@@ -170,15 +172,15 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     -- all builtin and derived term references & type constructors
     TermReferentsByShortHash sh -> do
       fromCodebase <- Codebase.termReferentsByPrefix codebase sh
-      let fromBuiltins = Set.map Referent.Ref 
+      let fromBuiltins = Set.map Referent.Ref
             . Set.filter (\r -> sh == Reference.toShortHash r)
             $ B.intrinsicTermReferences
-      pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase) 
+      pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase)
     BranchHashLength -> Codebase.branchHashLength codebase
     BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
     LoadRemoteShortBranch GitRepo{..} sbh -> do
       tmp <- tempGitDir url commit
-      runExceptT $ Git.pullGitBranch tmp codebase url commit (Right sbh)
+      runExceptT $ Git.pullGitBranch tmp codebase url commit (Just sbh)
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
 
@@ -189,6 +191,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     Execute ppe uf -> void $ evalUnisonFile ppe uf
     AppendToReflog reason old new -> Codebase.appendReflog codebase reason old new
     LoadReflog -> Codebase.getReflog codebase
+    CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Parser.External t
 
   eval1 :: PPE.PrettyPrintEnv -> Term v Ann -> _
   eval1 ppe tm = do

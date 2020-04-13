@@ -70,7 +70,7 @@ usage = P.callout "🌻" $ P.lines [
   P.bold "ucm transcript.fork -save-codebase mytranscript.md",
   P.wrap $ "Executes the `mytranscript.md` transcript in a copy of the current codebase"
         <> "and creates `mytranscript.output.md` if successful. Exits after completion,"
-        <> "and saves the resulting codebase to a new directory on disk."  
+        <> "and saves the resulting codebase to a new directory on disk."
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
@@ -137,11 +137,11 @@ main = do
           theCodebase <- FileCodebase.getCodebaseOrExit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch currentDir configFilePath theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
-    "transcript" : args' -> 
+    "transcript" : args' ->
       case args' of
       "-save-codebase" : transcripts -> runTranscripts False True mcodepath transcripts
       _                              -> runTranscripts False False mcodepath args'
-    "transcript.fork" : args' -> 
+    "transcript.fork" : args' ->
       case args' of
       "-save-codebase" : transcripts -> runTranscripts True True mcodepath transcripts
       _                              -> runTranscripts True False mcodepath args'
@@ -154,19 +154,18 @@ prepareTranscriptDir inFork mcodepath = do
   currentDir <- getCurrentDirectory
   tmp <- Temp.createTempDirectory currentDir "transcript"
 
-  unless inFork $ do 
+  unless inFork $ do
     PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
     _ <- FileCodebase.initCodebase tmp
     pure()
 
   when inFork $ FileCodebase.getCodebaseOrExit mcodepath >> do
-    origCodePath <- FileCodebase.getCodebaseDir mcodepath
-    let path = origCodePath FP.</> FileCodebase.codebasePath
+    path <- FileCodebase.getCodebaseDir mcodepath
     PT.putPrettyLn $ P.lines [
       P.wrap "Transcript will be run on a copy of the codebase at: ", "",
       P.indentN 2 (P.string path)
       ]
-    Path.copyDir path (tmp FP.</> FileCodebase.codebasePath)
+    Path.copyDir path tmp
 
   pure tmp
 
@@ -193,13 +192,13 @@ runTranscripts' mcodepath transcriptDir args = do
                                          (FP.takeExtension md)
               writeUtf8 out mdOut
               putStrLn $ "💾  Wrote " <> out
-        wat -> 
+        wat ->
               PT.putPrettyLn $ P.callout "❓" (
                 P.lines [
                   P.indentN 2 "Unrecognized command, skipping:", "",
                   P.indentN 2 $ P.string wat])
       pure True
-    [] -> 
+    [] ->
       pure False
 
 runTranscripts :: Bool -> Bool -> Maybe FilePath -> [String] -> IO ()
@@ -217,7 +216,7 @@ runTranscripts inFork keepTemp mcodepath args = do
                   <> P.backticked ("ucm -codebase " <> P.string transcriptDir)
                   <> "to do more work with it."])
 
-  unless completed $ do 
+  unless completed $ do
       unless keepTemp $ removeDirectoryRecursive transcriptDir
       PT.putPrettyLn usage
       Exit.exitWith (Exit.ExitFailure 1)

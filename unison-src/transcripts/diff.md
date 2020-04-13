@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.merge
+.> builtins.mergeio
 ```
 
 ```unison:hide

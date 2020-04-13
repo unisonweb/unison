@@ -116,14 +116,14 @@ innerJoinDomMultimaps :: (Ord a, Ord b, Ord c)
                       -> Map a (Set b, Set c)
 innerJoinDomMultimaps b c =
   Map.fromList
-    [ (a, (lookupDom a b, lookupDom a c)) 
+    [ (a, (lookupDom a b, lookupDom a c))
     | a <- S.toList $ dom b `S.intersection` dom c ]
 
 innerJoinRanMultimaps :: (Ord a, Ord b, Ord c)
                       => Relation a c
                       -> Relation b c
                       -> Map c (Set a, Set b)
-innerJoinRanMultimaps a b = innerJoinDomMultimaps (swap a) (swap b)                                            
+innerJoinRanMultimaps a b = innerJoinDomMultimaps (swap a) (swap b)
 
 joinDom :: (Ord a, Ord b, Ord c) => Relation a b -> Relation a c -> Relation a (b,c)
 joinDom b c = swap $ joinRan (swap b) (swap c)
@@ -461,6 +461,14 @@ toMap r =
 
 fromSet :: (Ord a, Ord b) => Set (a,b) -> Relation a b
 fromSet = fromList . S.toList
+
+fromManyRan
+  :: (Foldable f, Ord a, Ord b) => a -> f b -> Relation a b
+fromManyRan a bs = insertManyRan a bs mempty
+
+fromManyDom
+  :: (Foldable f, Ord a, Ord b) => f a -> b -> Relation a b
+fromManyDom as b = insertManyDom as b mempty
 
 swap :: Relation a b -> Relation b a
 swap (Relation a b) = Relation b a

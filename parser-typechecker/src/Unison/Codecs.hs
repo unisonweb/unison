@@ -23,9 +23,9 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
 import           Unison.Reference (Reference, pattern Builtin, pattern Derived)
 import qualified Unison.Referent as Referent
-import qualified Unison.ConstructorType as ConstructorType 
+import qualified Unison.ConstructorType as ConstructorType
 import           Unison.Term
-import           Unison.UnisonFile (UnisonFile(..))
+import           Unison.UnisonFile (UnisonFile, pattern UnisonFile)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
@@ -294,10 +294,10 @@ serializeReferent :: MonadPut m => Referent.Referent -> m ()
 serializeReferent r = case r of
   Referent.Ref r -> putWord8 0 *> serializeReference r
   Referent.Con r cid ct -> do
-    putWord8 1 
-    serializeReference r 
+    putWord8 1
+    serializeReference r
     putLength cid
-    serializeConstructorType ct 
+    serializeConstructorType ct
 
 serializeConstructorType :: MonadPut m => ConstructorType.ConstructorType -> m ()
 serializeConstructorType ct = case ct of

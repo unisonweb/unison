@@ -37,7 +37,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO
 import qualified System.Console.Haskeline as Line
 import System.IO.Error (isDoesNotExistError)
-import qualified Crypto.Random        as Random   
+import qualified Crypto.Random        as Random
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase as Codebase
@@ -46,6 +46,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import Text.Regex.TDFA
 import Control.Lens (view)
+import Control.Error (rightMay)
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
@@ -161,7 +162,7 @@ main
   -> IO ()
 main dir initialPath configFile initialInputs startRuntime codebase = do
   dir' <- shortenDirectory dir
-  root <- Codebase.getRootBranch codebase
+  root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   putPrettyLn $ if Branch.isOne root
     then welcomeMessage dir' <> P.newline <> P.newline <> hintFreshCodebase
     else welcomeMessage dir'
@@ -235,7 +236,7 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
       loop state = do
         writeIORef pathRef (view HandleInput.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
-        
+
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (writeIORef rootRef)
                                      runtime

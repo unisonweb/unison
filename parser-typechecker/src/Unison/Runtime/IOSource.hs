@@ -28,8 +28,11 @@ import qualified Unison.Var as Var
 import qualified Unison.Names3 as Names
 
 typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
-typecheckedFile = let
-  tl :: a -> Identity (TL.TypeLookup Symbol Ann)
+typecheckedFile = typecheckedFile'
+
+typecheckedFile' :: forall v. Var.Var v => UF.TypecheckedUnisonFile v Ann
+typecheckedFile' = let
+  tl :: a -> Identity (TL.TypeLookup v Ann)
   tl = const $ pure (External <$ Builtin.typeLookup)
   env = Parser.ParsingEnv mempty (Names.Names Builtin.names0 mempty)
   r = parseAndSynthesizeFile [] tl env "<IO.u builtin>" source
@@ -48,26 +51,27 @@ termNamed s = fromMaybe (error $ "No builtin term called: " <> s)
 codeLookup :: CodeLookup Symbol Identity Ann
 codeLookup = CL.fromUnisonFile $ UF.discardTypes typecheckedFile
 
-typeNamed :: String -> R.Reference
-typeNamed s =
-  case Map.lookup (Var.nameds s) (UF.dataDeclarations' typecheckedFile) of
+typeNamedId :: String -> R.Id
+typeNamedId s =
+  case Map.lookup (Var.nameds s) (UF.dataDeclarationsId' typecheckedFile) of
     Nothing -> error $ "No builtin type called: " <> s
     Just (r, _) -> r
 
-abilityNamed :: String -> R.Reference
-abilityNamed s =
-  case Map.lookup (Var.nameds s) (UF.effectDeclarations' typecheckedFile) of
+typeNamed :: String -> R.Reference
+typeNamed = R.DerivedId . typeNamedId
+
+abilityNamedId :: String -> R.Id
+abilityNamedId s =
+  case Map.lookup (Var.nameds s) (UF.effectDeclarationsId' typecheckedFile) of
     Nothing -> error $ "No builtin ability called: " <> s
     Just (r, _) -> r
 
-ioHash, eitherHash, ioModeHash :: R.Id
-ioHash = R.unsafeId ioReference
-eitherHash = R.unsafeId eitherReference
-ioModeHash = R.unsafeId ioModeReference
+ioHash :: R.Id
+ioHash = abilityNamedId "io.IO"
 
 ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, isPropagatedReference, filePathReference
   :: R.Reference
-ioReference = abilityNamed "io.IO"
+ioReference = R.DerivedId ioHash
 bufferModeReference = typeNamed "io.BufferMode"
 eitherReference = typeNamed "Either"
 ioModeReference = typeNamed "io.Mode"

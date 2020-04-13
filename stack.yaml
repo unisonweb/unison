@@ -16,7 +16,7 @@ resolver: lts-14.7
 extra-deps:
 - base58-bytestring-0.1.0
 - relation-0.2.1
-- shellmet-0.0.1
+- shellmet-0.0.3.0
 - filepattern-0.1.1
 - strings-1.1@sha256:0285dec4c8ab262359342b3e5ef1eb567074669461b9b38404f1cb870c881c5c
 - guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1
@@ -24,6 +24,7 @@ extra-deps:
 - prelude-extras-0.4.0.3@sha256:1c10b0123ea13a6423d74a8fcbaeb2d5249b472588abde418a36b47b7c4f48c8
 - sandi-0.5@sha256:b278d072ca717706ea38f9bd646e023f7f2576a778fb43565b434f93638849aa
 - megaparsec-6.5.0
+- generic-monoid-0.1.0.0@sha256:372875d12742b97befaacbd08a35c2e73cc3821a3b7a09ec1b17a079d0b24ff7,856
 
 ghc-options:
  # All packages

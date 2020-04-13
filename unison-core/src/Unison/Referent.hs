@@ -26,6 +26,8 @@ pattern Con :: Reference -> Int -> ConstructorType -> Referent
 pattern Con r i t = Con' r i t
 {-# COMPLETE Ref, Con #-}
 
+type Id = Referent' R.Id
+
 data Referent' r = Ref' r | Con' r Int ConstructorType
   deriving (Show, Ord, Eq, Functor)
 
@@ -40,6 +42,9 @@ toShortHash :: Referent -> ShortHash
 toShortHash = \case
   Ref r -> R.toShortHash r
   Con r i _ -> patternShortHash r i
+  
+toShortHashId :: Id -> ShortHash
+toShortHashId = toShortHash . fromId
 
 -- also used by HashQualified.fromPattern
 patternShortHash :: Reference -> Int -> ShortHash
@@ -73,9 +78,15 @@ toTermReference = \case
   _ -> Nothing
 
 toReference :: Referent -> Reference
-toReference = \case
-  Ref r -> r
-  Con r _i _t -> r
+toReference = toReference'
+
+toReference' :: Referent' r -> r
+toReference' = \case
+  Ref' r -> r
+  Con' r _i _t -> r
+  
+fromId :: Id -> Referent
+fromId = fmap R.DerivedId  
 
 toTypeReference :: Referent -> Maybe Reference
 toTypeReference = \case

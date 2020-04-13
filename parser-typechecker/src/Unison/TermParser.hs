@@ -34,7 +34,7 @@ import qualified Data.Tuple.Extra as TupleE
 import qualified Data.Sequence as Sequence
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
-import qualified Unison.DataDeclaration as DD
+import qualified Unison.Builtin.Decls as DD
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
 import qualified Unison.Name as Name

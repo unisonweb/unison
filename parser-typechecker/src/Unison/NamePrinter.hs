@@ -4,6 +4,8 @@ import Unison.Prelude
 
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
+import           Unison.LabeledDependency (LabeledDependency)
+import qualified Unison.LabeledDependency as LD
 import           Unison.Name          (Name)
 import qualified Unison.Name          as Name
 import           Unison.Reference     (Reference)
@@ -48,6 +50,9 @@ prettyReference len =
 prettyReferent :: Int -> Referent -> Pretty SyntaxText
 prettyReferent len =
   prettyHashQualified . HQ.take len . HQ.fromReferent
+
+prettyLabeledDependency :: Int -> LabeledDependency -> Pretty SyntaxText
+prettyLabeledDependency len = LD.fold (prettyReference len) (prettyReferent len)
 
 prettyShortHash :: IsString s => ShortHash -> Pretty s
 prettyShortHash = fromString . SH.toString
