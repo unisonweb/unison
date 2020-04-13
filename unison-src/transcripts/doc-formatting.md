@@ -231,3 +231,24 @@ reg1363 = [: `@List.take foo` bar
 ```ucm
 .> view reg1363
 ```
+
+```unison
+-- Demonstrate doc display when whitespace follows a @[source] or @[evaluate]
+-- whose output spans multiple lines.
+
+test2 = [:
+  Take a look at this:
+  @[source] foo    ▶    bar
+:]
+```
+```ucm:hide
+.> add
+```
+View is fine.
+```ucm
+.> view test2
+```
+But note it's not obvious how display should best be handling this.  At the moment it just does the simplest thing:
+```ucm
+.> display test2
+```

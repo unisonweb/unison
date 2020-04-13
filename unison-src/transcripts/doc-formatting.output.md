@@ -455,9 +455,6 @@ reg1363 = [: `@List.take foo` bar
     ⍟ These new definitions are ok to `add`:
     
       reg1363 : Doc
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -465,5 +462,51 @@ reg1363 = [: `@List.take foo` bar
 
   reg1363 : Doc
   reg1363 = [: `@List.take foo` bar baz :]
+
+```
+```unison
+-- Demonstrate doc display when whitespace follows a @[source] or @[evaluate]
+-- whose output spans multiple lines.
+
+test2 = [:
+  Take a look at this:
+  @[source] foo    ▶    bar
+:]
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      test2 : Doc
+
+```
+View is fine.
+```ucm
+.> view test2
+
+  test2 : Doc
+  test2 =
+    [: 
+    Take a look at this:
+    @[source] foo    ▶    bar
+     :]
+
+```
+But note it's not obvious how display should best be handling this.  At the moment it just does the simplest thing:
+```ucm
+.> display test2
+
+  
+  Take a look at this:
+  foo n =
+    use Nat +
+    [: do the thing :]
+    n + 1    ▶    bar
+  
 
 ```
