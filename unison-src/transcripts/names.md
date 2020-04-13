@@ -1,6 +1,6 @@
  Example uses of the `names` command and output
 ```ucm:hide
-.> builtins.mergeio
+.> alias.type ##Int .builtins.Int
 ```
 
 ```unison:hide
