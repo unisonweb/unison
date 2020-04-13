@@ -12,30 +12,15 @@ test =
       actual = P.render 80 $ P.commas input
       expected = "1, 2, 3"
     in expectEqual actual expected
-  , scope "wrap.commas" $
-     let
-       actual = P.render 80 $ P.wrap $ P.commas input
-       expected = "1 , 2 , 3"
-     in expectEqual actual expected
   , scope "commas.backticked" $
       let
         list = P.backticked . P.string . show <$> [1, 2, 3]
         actual = P.render 80 $ P.commas list
         expected = "`1`, `2`, `3`"
       in expectEqual actual expected
-  , scope "wrap.commas.backticked" $
-      let
-        actual = P.render 80 $ P.wrap commas
-        expected = "`1` , `2` , `3`"
-      in expectEqual actual expected
   , scope "group.commas.backticked" $
       let
         actual = P.render 80 $ P.group commas
-        expected = "`1`, `2`, `3`"
-      in expectEqual actual expected
-  , scope "wrap.group.commas.backticked" $
-      let
-        actual = P.render 80 $ (P.wrap . P.group) commas
         expected = "`1`, `2`, `3`"
       in expectEqual actual expected
   ]
