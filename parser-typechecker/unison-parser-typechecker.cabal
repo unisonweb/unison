@@ -230,13 +230,16 @@ executable unison
   hs-source-dirs: unison
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   other-modules:
+    Options
     Version
   build-depends:
+    ansi-wl-pprint,
     base,
     containers,
     directory,
     filepath,
     fsutils,
+    optparse-applicative,
     safe,
     shellmet,
     template-haskell,
