@@ -1,3 +1,4 @@
+{-# Language AllowAmbiguousTypes #-}
 {-# Language BangPatterns #-}
 {-# Language OverloadedStrings #-}
 {-# Language Strict #-}
@@ -22,6 +23,14 @@ import Unison.Symbol (Symbol)
 import Unison.Util.CyclicEq (CyclicEq, cyclicEq)
 import Unison.Util.CyclicOrd (CyclicOrd, cyclicOrd)
 import Unison.Util.Monoid (intercalateMap)
+import Data.ByteString.Builder (doubleBE, word64BE, int64BE, int32BE, toLazyByteString)
+import Data.Text.Encoding (encodeUtf8)
+import qualified Data.ByteArray as BA
+import qualified Crypto.Hash as CH
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.Char as Char
+import qualified Unison.Hashable as H
 import qualified System.Mem.StableName as S
 import qualified Data.ByteString as BS
 import qualified Data.List as List
@@ -33,6 +42,7 @@ import qualified Data.Vector.Mutable as MV
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase.CodeLookup as CL
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.Referent as R
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.IR as IR
 import qualified Unison.Term as Term
@@ -311,6 +321,10 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk2 "Bytes.at" atn atbs pure $ \i bs ->
       IR.maybeToOptional (N . fromIntegral <$> Bytes.at (fromIntegral i) bs)
     , mk1 "Bytes.flatten" atbs (pure . Bs) Bytes.flatten
+    , mk1 "Hash.sha3_512" at (pure . Bs . Bytes.fromByteString) (hashValue @CH.SHA3_512)
+    , mk1 "Hash.sha3_384" at (pure . Bs . Bytes.fromByteString) (hashValue @CH.SHA3_384)
+    , mk1 "Hash.sha3_256" at (pure . Bs . Bytes.fromByteString) (hashValue @CH.SHA3_256)
+    , mk1 "Hash.sha3_224" at (pure . Bs . Bytes.fromByteString) (hashValue @CH.SHA3_224)
 
     -- Trigonometric functions
     , mk1 "Float.acos"          atf (pure . F) acos
@@ -795,6 +809,45 @@ run ioHandler env ir = do
 
   r <- go 0 m0 ir
   loop r
+
+hashValue :: forall a . CH.HashAlgorithm a => Value -> ByteString
+hashValue = BA.convert . CH.hashFinalize @a . CH.hashUpdates (CH.hashInit :: CH.Context a) . go where
+  go :: Value -> [B.ByteString]
+  go v = case v of
+    I n -> B.singleton 0 : (BL.toChunks . toLazyByteString . int64BE $ n)
+    F n -> B.singleton 1 : (BL.toChunks . toLazyByteString . doubleBE $ n)
+    N n -> B.singleton 2 : (BL.toChunks . toLazyByteString . word64BE $ n)
+    B b -> B.singleton 3 : [B.singleton (if b then 0 else 1)]
+    T txt ->
+      let tbytes = encodeUtf8 txt
+      in [B.singleton 4, encodeLength (B.length tbytes), tbytes]
+    C ch ->
+      B.singleton 5 : (BL.toChunks . toLazyByteString . int32BE . fromIntegral $ Char.ord ch)
+    Bs bs ->
+      B.singleton 6 : encodeLength (Bytes.size bs) : Bytes.chunks bs
+    TermLink r -> B.singleton 7 : encodeReferent r
+    TypeLink r -> B.singleton 8 : encodeReference r
+    Data r cid vs -> B.singleton 9 : encodeLength cid : (encodeReference r ++ (vs >>= go))
+    Sequence vs -> B.singleton 10 : encodeLength (length vs) : (toList vs >>= go)
+    Lam{} -> error "todo"
+    Ref{} -> error "todo"
+    Pure{} -> error "todo"
+    Requested{} -> error "todo"
+    Cont{} -> error "todo"
+    UninitializedLetRecSlot{} -> error "todo"
+
+  encodeReferent  :: R.Referent -> [B.ByteString]
+  encodeReferent r = case r of
+    R.Ref r -> B.singleton 0 : encodeReference r
+    R.Con r cid _ -> B.singleton 1 : encodeLength cid : encodeReference r
+
+  encodeReference :: R.Reference -> [B.ByteString]
+  encodeReference r = case r of
+    R.DerivedId (R.Id h pos _) -> [B.singleton 0, H.toBytes h , encodeLength pos]
+    R.Builtin b -> [B.singleton 1, encodeUtf8 b]
+
+  encodeLength :: Integral n => n -> B.ByteString
+  encodeLength = BL.toStrict . toLazyByteString . word64BE . fromIntegral
 
 instance Show ExternalFunction where
   show _ = "ExternalFunction"

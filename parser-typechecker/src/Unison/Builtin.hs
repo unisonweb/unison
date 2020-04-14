@@ -363,6 +363,10 @@ builtinsSrc =
   , B "Bytes.toList" $ bytes --> list nat
   , B "Bytes.size" $ bytes --> nat
   , B "Bytes.flatten" $ bytes --> bytes
+  , B "Hash.sha3_512" $ forall1 "a" (\a -> a --> bytes)
+  , B "Hash.sha3_384" $ forall1 "a" (\a -> a --> bytes)
+  , B "Hash.sha3_256" $ forall1 "a" (\a -> a --> bytes)
+  , B "Hash.sha3_224" $ forall1 "a" (\a -> a --> bytes)
 
   , B "List.empty" $ forall1 "a" list
   , B "List.cons" $ forall1 "a" (\a -> a --> list a --> list a)
