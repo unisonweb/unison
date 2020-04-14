@@ -4,7 +4,7 @@ module Main where
 
 import           Unison.Prelude
 import           EasyTest
-import           Shellmet                       ( )
+import           Shellmet                       (($|))
 import           System.Directory
 import           System.FilePath                ( (</>)
                                                 , takeExtensions
@@ -12,35 +12,35 @@ import           System.FilePath                ( (</>)
                                                 )
 import           System.Process                 ( readProcessWithExitCode )
 
-import           Data.Text                      ( pack 
+import           Data.Text                      ( pack
                                                 , unpack
                                                 )
 import           Data.List
 
-type TestBuilder = FilePath -> String -> Test ()
+type TestBuilder = FilePath -> FilePath -> String -> Test ()
 
-testBuilder :: FilePath -> String -> Test ()
-testBuilder dir transcript = scope transcript $ do
-  io $ "stack" ["exec", "unison", "--", "transcript", pack (dir </> transcript)]
+testBuilder :: FilePath -> FilePath -> String -> Test ()
+testBuilder ucm dir transcript = scope transcript $ do
+  io $ fromString ucm ["transcript", pack (dir </> transcript)]
   ok
 
-testBuilder' :: FilePath -> String -> Test ()
-testBuilder' dir transcript = scope transcript $ do
+testBuilder' :: FilePath -> FilePath -> String -> Test ()
+testBuilder' ucm dir transcript = scope transcript $ do
   let input = pack (dir </> transcript)
   let output = dir </> takeBaseName transcript <> ".output.md"
-  io $ runAndCaptureError "stack" ["exec", "unison", "--", "transcript", input] output
+  io $ runAndCaptureError ucm ["transcript", input] output
   ok
-  where 
+  where
     -- Given a command and arguments, run it and capture the standard error to a file
     -- regardless of success or failure.
-    runAndCaptureError :: FilePath -> [Text] -> FilePath -> IO ()  
+    runAndCaptureError :: FilePath -> [Text] -> FilePath -> IO ()
     runAndCaptureError cmd args outfile = do
       t <- readProcessWithExitCode cmd (map unpack args) ""
       let output = (\(_, _, stderr) -> stderr) t
       writeUtf8 outfile $ (pack . dropRunMessage) output
 
     -- Given the standard error, drops the part in the end that changes each run
-    dropRunMessage :: String -> String  
+    dropRunMessage :: String -> String
     dropRunMessage = unlines . reverse . drop 3 . reverse . lines
 
 
@@ -54,7 +54,8 @@ buildTests testBuilder dir = do
        ]
   files <- io $ listDirectory dir
   let transcripts = sort . filter (\f -> takeExtensions f == ".md") $ files
-  tests (testBuilder dir <$> transcripts)
+  ucm <- io $ unpack <$> "stack" $| ["exec", "--", "which", "unison"] -- todo: what is it in windows?
+  tests (testBuilder ucm dir <$> transcripts)
 
 -- Transcripts that exit successfully get cleaned-up by the transcript parser.
 -- Any remaining folders matching "transcript-.*" are output directories
@@ -78,7 +79,6 @@ cleanup = do
 
 test :: Test ()
 test = do
-
   buildTests testBuilder  $"unison-src" </> "transcripts"
   buildTests testBuilder' $"unison-src" </> "transcripts" </> "errors"
   cleanup

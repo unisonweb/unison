@@ -52,3 +52,14 @@ intercalateMapWith sep f xs  = result where
     _           -> error "bad list length"
   paired = zipWith (\sep x -> [sep, x]) seps (drop 1 xs')
   result = (take 1 xs') ++ mconcat paired
+
+-- Take runs of consecutive occurrences of r within a list,
+-- and in each run, overwrite all but the first occurrence of r with w.
+quenchRuns :: Eq a => a -> a -> [a] -> [a]
+quenchRuns r w = reverse . (go False r w []) where
+  go inRun r w acc = \case
+    [] -> acc
+    h : tl ->
+      if h == r
+      then go True r w ((if inRun then w else r) : acc) tl
+      else go False r w (h : acc) tl

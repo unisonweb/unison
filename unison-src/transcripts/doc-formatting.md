@@ -220,3 +220,35 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 .> view test1
 ```
 
+```unison
+-- Regression test for #1363 - preservation of spaces after @ directives in first line when unindenting
+reg1363 = [: `@List.take foo` bar
+  baz :]
+```
+```ucm:hide
+.> add
+```
+```ucm
+.> view reg1363
+```
+
+```unison
+-- Demonstrate doc display when whitespace follows a @[source] or @[evaluate]
+-- whose output spans multiple lines.
+
+test2 = [:
+  Take a look at this:
+  @[source] foo    ▶    bar
+:]
+```
+```ucm:hide
+.> add
+```
+View is fine.
+```ucm
+.> view test2
+```
+But note it's not obvious how display should best be handling this.  At the moment it just does the simplest thing:
+```ucm
+.> display test2
+```
