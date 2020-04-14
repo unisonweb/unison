@@ -365,7 +365,9 @@ unique type Y a b = Y a b
 
 .> unlink ns2.b ns2.fromJust
 
-  The namespaces are identical.
+  ✅
+  
+  That didn't do anything.
 
 .> diff.namespace ns1 ns2
 

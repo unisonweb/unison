@@ -485,7 +485,8 @@ loop = do
             (errs, addedNames) = partitionEithers parseResult
           case errs of
             e : _ ->
-              error $ "I couldn't parse a name I just added to the codebase! " <> e
+              error $ "I couldn't parse a name I just added to the codebase! "
+                      <> e <> "-- Added names: " <> show addedVs
             _ -> do
               dm <- resolveDefaultMetadata currentPath'
               case toList dm of
