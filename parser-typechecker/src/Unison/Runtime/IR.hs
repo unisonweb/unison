@@ -209,11 +209,12 @@ data IR' ann z
   | AddI z z | SubI z z | MultI z z | DivI z z
   | GtI z z | LtI z z | GtEqI z z | LtEqI z z | EqI z z
   | SignumI z | NegateI z | Truncate0I z | ModI z z
-  | PowI z z | LeftShI z z | RightShI z z
+  | PowI z z | ShiftLI z z | ShiftRI z z
   -- Nats
   | AddN z z | DropN z z | SubN z z | MultN z z | DivN z z
   | GtN z z | LtN z z | GtEqN z z | LtEqN z z | EqN z z
-  | ModN z z | ToIntN z
+  | ModN z z | ToIntN z | PowN z z | ShiftLN z z | ShiftRN z z
+
   -- Floats
   | AddF z z | SubF z z | MultF z z | DivF z z
   | GtF z z | LtF z z | GtEqF z z | LtEqF z z | EqF z z
@@ -279,8 +280,8 @@ prettyIR ppe prettyE prettyCont = pir
     Truncate0I a -> P.parenthesize $ "Truncate0I" `P.hang` P.spaced [pz a]
     ModI a b -> P.parenthesize $ "ModI" `P.hang` P.spaced [pz a, pz b]
     PowI a b -> P.parenthesize $ "PowI" `P.hang` P.spaced [pz a, pz b]
-    RightShI a b -> P.parenthesize $ "RightShI" `P.hang` P.spaced [pz a, pz b]
-    LeftShI a b -> P.parenthesize $ "LeftShI" `P.hang` P.spaced [pz a, pz b]
+    ShiftRI a b -> P.parenthesize $ "ShiftRI" `P.hang` P.spaced [pz a, pz b]
+    ShiftLI a b -> P.parenthesize $ "ShiftLI" `P.hang` P.spaced [pz a, pz b]
 
     AddN a b -> P.parenthesize $ "AddN" `P.hang` P.spaced [pz a, pz b]
     SubN a b -> P.parenthesize $ "SubN" `P.hang` P.spaced [pz a, pz b]
@@ -294,6 +295,9 @@ prettyIR ppe prettyE prettyCont = pir
     EqN a b -> P.parenthesize $ "EqN" `P.hang` P.spaced [pz a, pz b]
     ModN a b -> P.parenthesize $ "ModN" `P.hang` P.spaced [pz a, pz b]
     ToIntN a -> P.parenthesize $ "ToIntN" `P.hang` P.spaced [pz a]
+    PowN a b -> P.parenthesize $ "PowN" `P.hang` P.spaced [pz a, pz b]
+    ShiftLN a b -> P.parenthesize $ "ShiftLN" `P.hang` P.spaced [pz a, pz b]
+    ShiftRN a b -> P.parenthesize $ "ShiftRN" `P.hang` P.spaced [pz a, pz b]
 
     AddF a b -> P.parenthesize $ "AddF" `P.hang` P.spaced [pz a, pz b]
     SubF a b -> P.parenthesize $ "SubF" `P.hang` P.spaced [pz a, pz b]
@@ -678,8 +682,8 @@ boundVarsIR = \case
   Truncate0I _ -> mempty
   ModI _ _ -> mempty
   PowI _ _ -> mempty
-  RightShI _ _ -> mempty
-  LeftShI _ _ -> mempty
+  ShiftRI _ _ -> mempty
+  ShiftLI _ _ -> mempty
   AddN _ _ -> mempty
   DropN _ _ -> mempty
   SubN _ _ -> mempty
@@ -691,6 +695,9 @@ boundVarsIR = \case
   LtEqN _ _ -> mempty
   EqN _ _ -> mempty
   ModN _ _ -> mempty
+  PowN _ _ -> mempty
+  ShiftLN _ _ -> mempty
+  ShiftRN _ _ -> mempty
   ToIntN _ -> mempty
   AddF _ _ -> mempty
   SubF _ _ -> mempty
@@ -733,8 +740,8 @@ decompileIR stack = \case
   Truncate0I x -> builtin "Int.truncate0" [x]
   ModI x y -> builtin "Int.mod" [x,y]
   PowI x y -> builtin "Int.pow" [x,y]
-  RightShI x y -> builtin "Int.>>" [x,y]
-  LeftShI x y -> builtin "Int.<<" [x,y]
+  ShiftRI x y -> builtin "Int.shiftRight" [x,y]
+  ShiftLI x y -> builtin "Int.shiftLeft" [x,y]
   AddN x y -> builtin "Nat.+" [x,y]
   DropN x y -> builtin "Nat.drop" [x,y]
   SubN x y -> builtin "Nat.sub" [x,y]
@@ -747,6 +754,9 @@ decompileIR stack = \case
   EqN x y -> builtin "Nat.==" [x,y]
   ModN x y -> builtin "Nat.mod" [x,y]
   ToIntN x -> builtin "Nat.toInt" [x]
+  PowN x y -> builtin "Nat.pow" [x,y]
+  ShiftRN x y -> builtin "Nat.shiftRight" [x,y]
+  ShiftLN x y -> builtin "Nat.shiftLeft" [x,y]
   AddF x y -> builtin "Float.+" [x,y]
   SubF x y -> builtin "Float.-" [x,y]
   MultF x y -> builtin "Float.*" [x,y]
@@ -896,14 +906,14 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Int.<=", 2, LtEqI (Slot 1) (Slot 0))
         , ("Int.>=", 2, GtEqI (Slot 1) (Slot 0))
         , ("Int.==", 2, EqI (Slot 1) (Slot 0))
-        , ("Int.>>", 2, RightShI (Slot 1) (Slot 0))
-        , ("Int.<<", 2, LeftShI (Slot 1) (Slot 0))
         , ("Int.increment", 1, AddI (Val (I 1)) (Slot 0))
         , ("Int.signum", 1, SignumI (Slot 0))
         , ("Int.negate", 1, NegateI (Slot 0))
         , ("Int.truncate0", 1, Truncate0I (Slot 0))
         , ("Int.mod", 2, ModI (Slot 1) (Slot 0))
         , ("Int.pow", 2, PowI (Slot 1) (Slot 0))
+        , ("Int.shiftLeft", 2, ShiftLI (Slot 1) (Slot 0))
+        , ("Int.shiftRight", 2, ShiftRI (Slot 1) (Slot 0))
         , ("Int.isEven", 1, let' var (ModI (Slot 0) (Val (I 2)))
                                      (EqI (Val (I 0)) (Slot 0)))
         , ("Int.isOdd", 1, let' var (ModI (Slot 0) (Val (I 2)))
@@ -922,6 +932,9 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Nat.==", 2, EqN (Slot 1) (Slot 0))
         , ("Nat.increment", 1, AddN (Val (N 1)) (Slot 0))
         , ("Nat.mod", 2, ModN (Slot 1) (Slot 0))
+        , ("Nat.pow", 2, PowN (Slot 1) (Slot 0))
+        , ("Nat.shiftLeft", 2, ShiftLN (Slot 1) (Slot 0))
+        , ("Nat.shiftRight", 2, ShiftRN (Slot 1) (Slot 0))
         , ("Nat.isEven", 1, let' var (ModN (Slot 0) (Val (N 2)))
                                      (EqN (Val (N 0)) (Slot 0)))
         , ("Nat.isOdd", 1, let' var (ModN (Slot 0) (Val (N 2)))
