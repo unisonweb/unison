@@ -209,6 +209,7 @@ data IR' ann z
   | AddI z z | SubI z z | MultI z z | DivI z z
   | GtI z z | LtI z z | GtEqI z z | LtEqI z z | EqI z z
   | SignumI z | NegateI z | Truncate0I z | ModI z z
+  | PowI z z | LeftShI z z | RightShI z z
   -- Nats
   | AddN z z | DropN z z | SubN z z | MultN z z | DivN z z
   | GtN z z | LtN z z | GtEqN z z | LtEqN z z | EqN z z
@@ -277,6 +278,9 @@ prettyIR ppe prettyE prettyCont = pir
     NegateI a -> P.parenthesize $ "NegateI" `P.hang` P.spaced [pz a]
     Truncate0I a -> P.parenthesize $ "Truncate0I" `P.hang` P.spaced [pz a]
     ModI a b -> P.parenthesize $ "ModI" `P.hang` P.spaced [pz a, pz b]
+    PowI a b -> P.parenthesize $ "PowI" `P.hang` P.spaced [pz a, pz b]
+    RightShI a b -> P.parenthesize $ "RightShI" `P.hang` P.spaced [pz a, pz b]
+    LeftShI a b -> P.parenthesize $ "LeftShI" `P.hang` P.spaced [pz a, pz b]
 
     AddN a b -> P.parenthesize $ "AddN" `P.hang` P.spaced [pz a, pz b]
     SubN a b -> P.parenthesize $ "SubN" `P.hang` P.spaced [pz a, pz b]
@@ -673,6 +677,9 @@ boundVarsIR = \case
   NegateI _ -> mempty
   Truncate0I _ -> mempty
   ModI _ _ -> mempty
+  PowI _ _ -> mempty
+  RightShI _ _ -> mempty
+  LeftShI _ _ -> mempty
   AddN _ _ -> mempty
   DropN _ _ -> mempty
   SubN _ _ -> mempty
@@ -725,6 +732,9 @@ decompileIR stack = \case
   NegateI x -> builtin "Int.negate" [x]
   Truncate0I x -> builtin "Int.truncate0" [x]
   ModI x y -> builtin "Int.mod" [x,y]
+  PowI x y -> builtin "Int.pow" [x,y]
+  RightShI x y -> builtin "Int.>>" [x,y]
+  LeftShI x y -> builtin "Int.<<" [x,y]
   AddN x y -> builtin "Nat.+" [x,y]
   DropN x y -> builtin "Nat.drop" [x,y]
   SubN x y -> builtin "Nat.sub" [x,y]
@@ -886,11 +896,14 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Int.<=", 2, LtEqI (Slot 1) (Slot 0))
         , ("Int.>=", 2, GtEqI (Slot 1) (Slot 0))
         , ("Int.==", 2, EqI (Slot 1) (Slot 0))
+        , ("Int.>>", 2, RightShI (Slot 1) (Slot 0))
+        , ("Int.<<", 2, LeftShI (Slot 1) (Slot 0))
         , ("Int.increment", 1, AddI (Val (I 1)) (Slot 0))
         , ("Int.signum", 1, SignumI (Slot 0))
         , ("Int.negate", 1, NegateI (Slot 0))
         , ("Int.truncate0", 1, Truncate0I (Slot 0))
         , ("Int.mod", 2, ModI (Slot 1) (Slot 0))
+        , ("Int.pow", 2, PowI (Slot 1) (Slot 0))
         , ("Int.isEven", 1, let' var (ModI (Slot 0) (Val (I 2)))
                                      (EqI (Val (I 0)) (Slot 0)))
         , ("Int.isOdd", 1, let' var (ModI (Slot 0) (Val (I 2)))

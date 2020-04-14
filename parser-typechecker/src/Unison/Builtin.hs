@@ -235,12 +235,15 @@ builtinsSrc =
   , B "Int.<=" $ int --> int --> boolean
   , B "Int.>=" $ int --> int --> boolean
   , B "Int.==" $ int --> int --> boolean
+  , B "Int.>>" $ int --> int --> boolean
+  , B "Int.<<" $ int --> int --> boolean
   , B "Int.increment" $ int --> int
   , B "Int.isEven" $ int --> boolean
   , B "Int.isOdd" $ int --> boolean
   , B "Int.signum" $ int --> int
   , B "Int.negate" $ int --> int
   , B "Int.mod" $ int --> int --> int
+  , B "Int.pow" $ int --> int --> int
   , B "Int.truncate0" $ int --> nat
   , B "Int.toText" $ int --> text
   , B "Int.fromText" $ text --> optional int
