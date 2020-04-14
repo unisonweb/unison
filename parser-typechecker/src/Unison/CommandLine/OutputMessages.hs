@@ -338,9 +338,10 @@ notifyUser dir o = case o of
           <> "or invalid codebase, or because files inside the codebase"
           <> "are being deleted external to UCM."
     ]
-  MetadataAmbiguous _ppe [] -> pure . P.warnCallout .
-    P.wrap $ "Nothing to do. I couldn't find any matching metadata."
-  MetadataAmbiguous ppe refs -> pure . P.warnCallout . P.lines $ [
+  MetadataAmbiguous hq _ppe [] -> pure . P.warnCallout .
+    P.wrap $ "Nothing to do. I couldn't find any metadata matching "
+           <> P.syntaxToColor (prettyHashQualified hq)
+  MetadataAmbiguous _ ppe refs -> pure . P.warnCallout . P.lines $ [
     P.wrap $ "I'm not sure which metadata value you're referring to"
           <> "since there are multiple matches:",
     "",

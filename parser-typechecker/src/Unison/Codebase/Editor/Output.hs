@@ -180,7 +180,7 @@ data Output v
                (Map Reference (DisplayThing (Decl v Ann)))
                (Map Reference (DisplayThing (Term v Ann)))
   | MetadataMissingType PPE.PrettyPrintEnv Referent
-  | MetadataAmbiguous PPE.PrettyPrintEnv [Referent]
+  | MetadataAmbiguous HQ.HashQualified PPE.PrettyPrintEnv [Referent]
   -- todo: tell the user to run `todo` on the same patch they just used
   | NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree

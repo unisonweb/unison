@@ -509,7 +509,7 @@ loop = do
                         ->  Branch.Star r NameSegment)
                     -> MaybeT (StateT (LoopState m v) (F m (Either Event Input) v)) ()
         manageLinks srcs mdValues op = do
-          mdValuels <- fmap toList <$> traverse getHQTerms mdValues
+          mdValuels <- fmap toList <$> traverse (getHQTerms &&& pure) mdValues
           let get = Branch.head <$> use root
           before <- get
           traverse_ go mdValuels
@@ -522,7 +522,7 @@ loop = do
                                                      ppe
                                                      outputDiff
           where
-            go mdl = do
+            go (mdl, hqn) = do
               newRoot <- use root
               let r0 = Branch.head newRoot
                   getTerms p = BranchUtil.getTerm (resolveSplit' p) r0
@@ -549,7 +549,7 @@ loop = do
                         tyUpdates types = foldl' go types srclt
                             where go types src = op (src, mdType, mdValue) types
                     in  over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
-                mdValues -> respond $ MetadataAmbiguous ppe mdValues
+                mdValues -> respond $ MetadataAmbiguous hqn ppe mdValues
         delete
           :: (Path.HQSplit' -> Set Referent) -- compute matching terms
           -> (Path.HQSplit' -> Set Reference) -- compute matching types
@@ -644,7 +644,7 @@ loop = do
               destb <- getAt dest
               if Branch.isEmpty destb then do
                 ok <- updateAtM dest (const $ pure srcb)
-                if ok then success else respond $ BranchEmpty src0 
+                if ok then success else respond $ BranchEmpty src0
               else respond $ BranchAlreadyExists dest0
         case src0 of
           Left hash -> resolveShortBranchHash hash >>= \case
@@ -964,7 +964,7 @@ loop = do
             types' :: Set (Reference, Set HQ'.HashQualified)
             types' = (`Set.map` Names.typeReferences filtered) $
                         \r -> (r, Names3.typeName hqLength r printNames)
-        respond $ ListNames hqLength (toList types') (toList terms') 
+        respond $ ListNames hqLength (toList types') (toList terms')
 --          let (p, hq) = p0
 --              namePortion = HQ'.toName hq
 --          case hq of
@@ -1734,15 +1734,19 @@ loop = do
       notImplemented = eval $ Notify NotImplemented
       success = respond Success
 
-      resolveDefaultMetadata :: Path.Absolute -> Action' m v (Seq String)
+      resolveDefaultMetadata :: Path.Absolute -> Action' m v [String]
       resolveDefaultMetadata path = do
         let superpaths = Path.ancestors path
-        for
+        traceM (show $ fmap (configKey "DefaultMetadata") superpaths)
+        xs <- for
           superpaths
           (\path -> do
-            mstr <- eval . ConfigLookup $ configKey "DefaultMetadata" path
-            pure . join $ toList mstr
+            mayNames <-
+              eval . ConfigLookup @[String] $ configKey "DefaultMetadata" path
+            pure . join $ toList mayNames
           )
+        traceM (show xs)
+        pure . join $ toList xs
 
       configKey k p =
         Text.intercalate "." . toList $ k :<| fmap
