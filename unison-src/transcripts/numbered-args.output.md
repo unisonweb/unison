@@ -25,9 +25,6 @@ corge = "corge"
       foo   : Text
       quux  : Text
       qux   : Text
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm

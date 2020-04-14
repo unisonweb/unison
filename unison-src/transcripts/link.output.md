@@ -20,9 +20,6 @@ coolFunction.doc = [: This is a cool function. :]
     
       coolFunction     : Nat -> Nat
       coolFunction.doc : Doc
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -72,9 +69,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       coolFunction.license : License
       licenses.mit         : LicenseType
       toCopyrightHolder    : Author -> CopyrightHolder
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -134,9 +128,6 @@ myLibrary.h x = x + 3
       myLibrary.f : Nat -> Nat
       myLibrary.g : Nat -> Nat
       myLibrary.h : Nat -> Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm

@@ -44,6 +44,7 @@ library
     Unison.Codebase.Causal
     Unison.Codebase.Classes
     Unison.Codebase.CodeLookup
+    Unison.Codebase.Editor.AuthorInfo
     Unison.Codebase.Editor.Command
     Unison.Codebase.Editor.DisplayThing
     Unison.Codebase.Editor.Git
@@ -60,6 +61,10 @@ library
     Unison.Codebase.Editor.TodoOutput
     Unison.Codebase.Editor.UriParser
     Unison.Codebase.FileCodebase
+    Unison.Codebase.FileCodebase.Common
+    Unison.Codebase.FileCodebase.Reserialize
+    Unison.Codebase.FileCodebase.CopyFilterIndex
+    Unison.Codebase.FileCodebase.CopyRegenerateIndex
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
     Unison.Codebase.NameEdit
@@ -161,6 +166,7 @@ library
     free,
     fsnotify,
     fsutils,
+    generic-monoid,
     hashable,
     hashtables,
     haskeline,
@@ -252,9 +258,16 @@ executable prettyprintdemo
 
 executable tests
   main-is:        Suite.hs
+  hs-source-dirs: testSuite
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
+  build-depends:
+    base,
+    easytest,
+    unison-tests
+
+library unison-tests
   hs-source-dirs: tests
-  other-modules:
+  exposed-modules:
     Unison.Test.ABT
     Unison.Test.Codebase
     Unison.Test.Codebase.Causal
@@ -306,9 +319,9 @@ executable tests
     unison-parser-typechecker
 
 executable transcripts
-  main-is:        Unison/Test/Transcripts.hs
+  main-is:        Transcripts.hs
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
-  hs-source-dirs: tests
+  hs-source-dirs: transcripts
   other-modules:
   build-depends:
     base,
@@ -316,6 +329,8 @@ executable transcripts
     easytest,
     filepath,
     shellmet,
+    process,
     text,
     unison-core,
-    unison-parser-typechecker
+    unison-parser-typechecker,
+    unison-tests

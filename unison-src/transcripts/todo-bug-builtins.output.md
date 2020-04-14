@@ -10,7 +10,7 @@
   ✅
   
   scratch.u changed.
-   
+  
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
@@ -35,7 +35,7 @@
   ✅
   
   scratch.u changed.
-   
+  
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
@@ -66,9 +66,6 @@ complicatedMathStuff x = todo "Come back and to something with x here"
     ⍟ These new definitions are ok to `add`:
     
       complicatedMathStuff : x -> 𝕣
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ## Bug
@@ -88,8 +85,5 @@ test = match true with
     ⍟ These new definitions are ok to `add`:
     
       test : Text
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```

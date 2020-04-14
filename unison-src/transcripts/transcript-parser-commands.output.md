@@ -15,9 +15,6 @@ x = 1
     ⍟ These new definitions are ok to `add`:
     
       x : Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm

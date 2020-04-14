@@ -37,22 +37,25 @@ named n = typed (User n)
 refNamed :: Var v => Reference -> v
 refNamed ref = named ("ℍ" <> R.toText ref)
 
+rawName :: Type -> Text
+rawName typ = case typ of
+  User n -> n
+  Inference Ability -> "𝕖"
+  Inference Input -> "𝕒"
+  Inference Output -> "𝕣"
+  Inference Other -> "𝕩"
+  Inference PatternPureE -> "𝕞"
+  Inference PatternPureV -> "𝕧"
+  Inference PatternBindE -> "𝕞"
+  Inference PatternBindV -> "𝕧"
+  Inference TypeConstructor -> "𝕗"
+  Inference TypeConstructorArg -> "𝕦"
+  MissingResult -> "_"
+  Blank -> "_"
+  UnnamedWatch k guid -> fromString k <> "." <> guid
+
 name :: Var v => v -> Text
-name v = case typeOf v of
-  User n -> n <> showid v
-  Inference Ability -> "𝕖" <> showid v
-  Inference Input -> "𝕒" <> showid v
-  Inference Output -> "𝕣" <> showid v
-  Inference Other -> "𝕩" <> showid v
-  Inference PatternPureE -> "𝕞" <> showid v
-  Inference PatternPureV -> "𝕧" <> showid v
-  Inference PatternBindE -> "𝕞" <> showid v
-  Inference PatternBindV -> "𝕧" <> showid v
-  Inference TypeConstructor -> "𝕗" <> showid v
-  Inference TypeConstructorArg -> "𝕦" <> showid v
-  MissingResult -> "_" <> showid v
-  Blank -> "_" <> showid v
-  UnnamedWatch k guid -> fromString k <> "." <> guid <> showid v
+name v = rawName (typeOf v) <> showid v
   where
   showid (freshId -> 0) = ""
   showid (freshId -> n) = pack (show n)

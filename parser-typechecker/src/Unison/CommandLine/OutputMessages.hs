@@ -23,9 +23,9 @@ import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 
 import           Control.Lens
 import qualified Control.Monad.State.Strict    as State
-import           Data.Bifunctor                (bimap, first)
+import           Data.Bifunctor                (bimap, first, second)
 import           Data.List                     (sort, sortOn, stripPrefix)
-import           Data.List.Extra               (nubOrdOn, nubOrd)
+import           Data.List.Extra               (nubOrdOn, nubOrd, notNull)
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Data.Sequence                 as Seq
@@ -62,6 +62,7 @@ import qualified Unison.Name                   as Name
 import qualified Unison.Codebase.NameSegment   as NameSegment
 import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyReference, prettyReferent,
+                                                prettyLabeledDependency,
                                                 prettyNamedReference,
                                                 prettyNamedReferent,
                                                 prettyName, prettyShortHash,
@@ -107,6 +108,8 @@ import qualified Unison.Util.Monoid            as Monoid
 import Data.Tuple (swap)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Control.Lens (view, over, _1, _3)
+import qualified Unison.ShortHash as SH
+import Unison.LabeledDependency as LD
 
 type Pretty = P.Pretty P.ColorText
 
@@ -223,6 +226,14 @@ notifyNumbered o = case o of
         --  since the content isn't necessarily here.
         -- Should we have a mode with no numbers? :P
 
+  ShowDiffAfterCreateAuthor authorNS authorPath' bAbs ppe diff ->
+    first (\p -> P.lines
+      [ p
+      , ""
+      , tip $ "Add" <> prettyName "License" <> "values for"
+           <> prettyName (NameSegment.toName authorNS)
+           <> "under" <> P.group (prettyPath' authorPath' <> ".")
+      ]) (showDiffNamespace ShowNumbers ppe bAbs bAbs diff)
   where
     e = Path.absoluteEmpty
     undoTip = tip $ "You can use" <> IP.makeExample' IP.undo
@@ -359,6 +370,8 @@ notifyUser dir o = case o of
     pure . P.warnCallout $ "A type by that name already exists."
   PatchAlreadyExists _ ->
     pure . P.warnCallout $ "A patch by that name already exists."
+  BranchEmpty b -> pure . P.warnCallout . P.wrap $
+    P.group (either P.shown prettyPath' b) <> "is an empty namespace."
   BranchNotEmpty path ->
     pure . P.warnCallout $ "I was expecting the namespace " <> prettyPath' path
       <> " to be empty for this operation, but it isn't."
@@ -441,8 +454,8 @@ notifyUser dir o = case o of
      listOfLinks ppe [ (name,tm) | (name,_ref,tm) <- results ]
   ListNames _len [] [] -> pure . P.callout "😶" $
     P.wrap "I couldn't find anything by that name."
-  ListNames len terms types -> pure . P.sepNonEmpty "\n\n" $ [
-    formatTerms terms, formatTypes types ]
+  ListNames len types terms -> pure . P.sepNonEmpty "\n\n" $ [
+    formatTypes types, formatTerms terms ]
     where
     formatTerms tms =
       P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : (go <$> tms) where
@@ -559,9 +572,10 @@ notifyUser dir o = case o of
     -- if we ever allow users to edit hashes directly.
   Typechecked sourceName ppe slurpResult uf -> do
     let fileStatusMsg = SlurpResult.pretty False ppe slurpResult
+    let containsWatchExpressions = notNull $ UF.watchComponents uf
     if UF.nonEmpty uf then do
       fileName <- renderFileName $ Text.unpack sourceName
-      pure $ P.linesNonEmpty [
+      pure $ P.linesNonEmpty ([
         if fileStatusMsg == mempty then
           P.okCallout $ fileName <> " changed."
         else if  SlurpResult.isAllDuplicates slurpResult then
@@ -582,12 +596,12 @@ notifyUser dir o = case o of
              <> "change:"
             , P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
             ]
-          ,
-         " ",
-         P.wrap $ "Now evaluating any watch expressions"
-               <> "(lines starting with `>`)... "
-               <> P.group (P.hiBlack "Ctrl+C cancels.")
-        ]
+        ] ++ if containsWatchExpressions then [
+          "",
+          P.wrap $ "Now evaluating any watch expressions"
+                 <> "(lines starting with `>`)... "
+                 <> P.group (P.hiBlack "Ctrl+C cancels.")
+          ] else [])
     else if (null $ UF.watchComponents uf) then pure . P.wrap $
       "I loaded " <> P.text sourceName <> " and didn't find anything."
     else pure mempty
@@ -789,8 +803,29 @@ notifyUser dir o = case o of
   NoBranchWithHash _h -> pure . P.callout "😶" $
     P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> pure $ P.wrap "That's not implemented yet. Sorry! 😬"
-  BranchAlreadyExists _ -> pure "That namespace already exists."
-  NameAmbiguous hashLen p tms tys ->
+  BranchAlreadyExists p -> pure . P.wrap $
+    "The namespace" <> prettyPath' p <> "already exists."
+  LabeledReferenceNotFound hq ->
+    pure . P.callout "\129300" . P.wrap . P.syntaxToColor $
+      "Sorry, I couldn't find anything named" <> prettyHashQualified hq <> "."
+  LabeledReferenceAmbiguous hashLen hq (LD.partition -> (tps, tms)) ->
+    pure . P.callout "\129300" . P.lines $ [
+      P.wrap "That name is ambiguous. It could refer to any of the following definitions:"
+    , ""
+    , P.indentN 2 (P.lines (map qualifyTerm tms ++ map qualifyType tps))
+    ]
+    where
+      qualifyTerm :: Referent -> P.Pretty P.ColorText
+      qualifyTerm = P.syntaxToColor . case hq of
+        HQ.NameOnly n -> prettyNamedReferent hashLen n
+        HQ.HashQualified n _ -> prettyNamedReferent hashLen n
+        HQ.HashOnly _ -> prettyReferent hashLen
+      qualifyType :: Reference -> P.Pretty P.ColorText
+      qualifyType = P.syntaxToColor . case hq of
+        HQ.NameOnly n -> prettyNamedReference hashLen n
+        HQ.HashQualified n _ -> prettyNamedReference hashLen n
+        HQ.HashOnly _ -> prettyReference hashLen
+  DeleteNameAmbiguous hashLen p tms tys ->
     pure . P.callout "\129300" . P.lines $ [
       P.wrap "That name is ambiguous. It could refer to any of the following definitions:"
     , ""
@@ -827,7 +862,6 @@ notifyUser dir o = case o of
     "",
     P.wrap "Try again with a few more hash characters to disambiguate."
     ]
-  BadDestinationBranch _ -> pure "That destination namespace is bad."
   BadName n ->
     pure . P.wrap $ P.string n <> " is not a kind of name I understand."
   TermNotFound' sh ->
@@ -950,6 +984,41 @@ notifyUser dir o = case o of
       "",
       "Paste that output into http://bit-booster.com/graph.html"
       ]
+  ListDependents hqLength ld names0 missing -> pure $
+    if names0 == mempty && missing == mempty
+    then c (prettyLabeledDependency hqLength ld) <> " doesn't have any dependents."
+    else
+      "Dependents of " <> c (prettyLabeledDependency hqLength ld) <> ":\n\n" <>
+      (P.indentN 2 . P.column2Header "Reference" "Name" $ fmap (first c . second c) $
+        [ (p $ Reference.toShortHash r, prettyName n) | (n, r) <- R.toList $ Names.types0 names0 ] ++
+        [ (p $ Referent.toShortHash r, prettyName n) | (n, r) <- R.toList $ Names.terms names0 ] ++
+        [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
+    where
+    p = prettyShortHash . SH.take hqLength
+    c = P.syntaxToColor
+  -- this definition is identical to the previous one, apart from the word
+  -- "Dependencies", but undecided about whether or how to refactor
+  ListDependencies hqLength ld names0 missing -> pure $
+    if names0 == mempty && missing == mempty
+    then c (prettyLabeledDependency hqLength ld) <> " doesn't have any dependencies."
+    else
+      "Dependencies of " <> c (prettyLabeledDependency hqLength ld) <> ":\n\n" <>
+      (P.indentN 2 . P.column2Header "Reference" "Name" $ fmap (first c . second c) $
+        [ (p $ Reference.toShortHash r, prettyName n) | (n, r) <- R.toList $ Names.types0 names0 ] ++
+        [ (p $ Referent.toShortHash r, prettyName n) | (n, r) <- R.toList $ Names.terms names0 ] ++
+        [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
+    where
+    p = prettyShortHash . SH.take hqLength
+    c = P.syntaxToColor
+  DumpUnisonFileHashes hqLength datas effects terms ->
+    pure . P.syntaxToColor . P.lines $
+      (effects <&> \(n,r) -> "ability " <>
+        prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r)) <>
+      (datas <&> \(n,r) -> "type " <>
+        prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r)) <>
+      (terms <&> \(n,r) ->
+        prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r))
+
   where
   _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
   -- do
@@ -988,7 +1057,7 @@ prettyPath' p' =
 prettyRelative :: Path.Relative -> Pretty
 prettyRelative = P.blue . P.shown
 
-prettySBH :: ShortBranchHash -> P.Pretty CT.ColorText
+prettySBH :: IsString s => ShortBranchHash -> P.Pretty s
 prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
 
 formatMissingStuff :: (Show tm, Show typ) =>

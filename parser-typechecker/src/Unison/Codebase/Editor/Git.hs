@@ -87,32 +87,31 @@ pullGitRootBranch localPath codebase url treeish =
 pullGitBranch
   :: forall m v a
    . MonadIO m
-  => FilePath
+  => CodebasePath
   -> Codebase m v a
   -> Text
   -> Maybe Text
   -> Maybe ShortBranchHash
   -> ExceptT GitError m (Branch m)
-pullGitBranch localPath codebase url treeish sbh = do
-  pullBranch localPath url treeish
+pullGitBranch remotePath codebase url treeish sbh = do
+  pullBranch remotePath url treeish
   branch :: (Branch m) <- case sbh of
-    Nothing -> lift (FC.getRootBranch gitCodebasePath) >>= \case
+    Nothing -> lift (FC.getRootBranch remotePath) >>= \case
       Left Codebase.NoRootBranch -> pure Branch.empty
       Left (Codebase.CouldntLoadRootBranch h) ->
         throwError $ Couldn'tLoadRootBranch url treeish sbh h
       Right b -> pure b
     Just sbh -> do
-      branchCompletions <- lift $ FC.branchHashesByPrefix gitCodebasePath sbh
+      branchCompletions <- lift $ FC.branchHashesByPrefix remotePath sbh
       case toList branchCompletions of
         [] -> throwError $ NoRemoteNamespaceWithHash url treeish sbh
-        [h] -> (lift $ FC.branchFromFiles gitCodebasePath h) >>= \case
+        [h] -> (lift $ FC.branchFromFiles remotePath h) >>= \case
           Just b -> pure b
           Nothing -> throwError $ NoRemoteNamespaceWithHash url treeish sbh
         _ -> throwError $ RemoteNamespaceHashAmbiguous url treeish sbh branchCompletions
   withStatus "Importing downloaded files into local codebase..." $
-    lift $ Codebase.syncFromDirectory codebase gitCodebasePath
+    lift $ Codebase.syncFromDirectory codebase remotePath
   pure branch
-  where gitCodebasePath = localPath </> codebasePath
 
 checkForGit :: MonadIO m => MonadError GitError m => m ()
 checkForGit = do
@@ -145,19 +144,19 @@ gitTextIn localPath args = "git" $| setupGitDir localPath <> args
 pushGitRootBranch
   :: MonadIO m
   => MonadCatch m
-  => FilePath
+  => CodebasePath
   -> Codebase m v a
   -> Branch m
   -> Text
   -> Maybe Text
   -> ExceptT GitError m ()
-pushGitRootBranch localPath codebase branch url gitbranch = do
+pushGitRootBranch remotePath codebase branch url gitbranch = do
   -- Clone and pull the remote repo
-  pullBranch localPath url gitbranch
+  pullBranch remotePath url gitbranch
   -- Stick our changes in the checked-out copy
   merged <-
     withStatus ("Staging files for upload to " ++ Text.unpack url ++ " ...") $
-      lift $ syncToDirectory codebase (localPath </> codebasePath) branch
+      lift $ syncToDirectory codebase remotePath branch
   isBefore <- lift $ Branch.before merged branch
   let mergednames = Branch.toNames0 (Branch.head merged)
       localnames  = Branch.toNames0 (Branch.head branch)
@@ -167,14 +166,14 @@ pushGitRootBranch localPath codebase branch url gitbranch = do
   let
     push = do
       -- Commit our changes
-      status <- gitTextIn localPath ["status", "--short"]
+      status <- gitTextIn remotePath ["status", "--short"]
       unless (Text.null status) $ do
-        gitIn localPath ["add", "--all", "."]
-        gitIn localPath
+        gitIn remotePath ["add", "--all", "."]
+        gitIn remotePath
           ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ headHash branch)]
         -- Push our changes to the repo
         case gitbranch of
-          Nothing        -> gitIn localPath ["push", "--quiet", "--all", url]
-          Just gitbranch -> gitIn localPath ["push", "--quiet", url, gitbranch]
+          Nothing        -> gitIn remotePath ["push", "--quiet", "--all", url]
+          Just gitbranch -> gitIn remotePath ["push", "--quiet", url, gitbranch]
   withStatus ("Uploading to " ++ Text.unpack url ++ " ...") $
     liftIO push `onException` throwError (NoRemoteRepoAt url)
