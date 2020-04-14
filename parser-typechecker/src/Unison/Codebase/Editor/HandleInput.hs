@@ -509,7 +509,8 @@ loop = do
                         ->  Branch.Star r NameSegment)
                     -> MaybeT (StateT (LoopState m v) (F m (Either Event Input) v)) ()
         manageLinks srcs mdValues op = do
-          mdValuels <- fmap toList <$> traverse (getHQTerms &&& pure) mdValues
+          mdValuels <- fmap (first toList) <$>
+            traverse (\x -> fmap (,x) (getHQTerms x)) mdValues
           let get = Branch.head <$> use root
           before <- get
           traverse_ go mdValuels
@@ -1737,7 +1738,6 @@ loop = do
       resolveDefaultMetadata :: Path.Absolute -> Action' m v [String]
       resolveDefaultMetadata path = do
         let superpaths = Path.ancestors path
-        traceM (show $ fmap (configKey "DefaultMetadata") superpaths)
         xs <- for
           superpaths
           (\path -> do
@@ -1745,7 +1745,6 @@ loop = do
               eval . ConfigLookup @[String] $ configKey "DefaultMetadata" path
             pure . join $ toList mayNames
           )
-        traceM (show xs)
         pure . join $ toList xs
 
       configKey k p =

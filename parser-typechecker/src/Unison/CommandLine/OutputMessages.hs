@@ -339,7 +339,7 @@ notifyUser dir o = case o of
           <> "are being deleted external to UCM."
     ]
   MetadataAmbiguous hq _ppe [] -> pure . P.warnCallout .
-    P.wrap $ "Nothing to do. I couldn't find any metadata matching "
+    P.wrap $ "I couldn't find any metadata matching "
            <> P.syntaxToColor (prettyHashQualified hq)
   MetadataAmbiguous _ ppe refs -> pure . P.warnCallout . P.lines $ [
     P.wrap $ "I'm not sure which metadata value you're referring to"
