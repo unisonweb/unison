@@ -118,13 +118,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #be8v31d0lc
+  ⊙ #8n3i2vg2l2
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #qcumplt3un
+  ⊙ #15t3c3rc5f
   
     + Adds / updates:
     
@@ -135,26 +135,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #qf8ku0e8ja
+  ⊙ #40br15u619
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #jdd6dqbg1f
+  ⊙ #c5rc4f1sbd
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #j222ocpe39
+  ⊙ #oj57eg917n
   
     + Adds / updates:
     
       x
   
-  ⊙ #i5f8gcfb14
+  ⊙ #ei3ntpgm12
   
     + Adds / updates:
     
@@ -197,7 +197,9 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Int.gt builtin.Int.gteq builtin.Int.increment
       builtin.Int.isEven builtin.Int.isOdd builtin.Int.lt
       builtin.Int.lteq builtin.Int.mod builtin.Int.negate
-      builtin.Int.signum builtin.Int.toFloat builtin.Int.toText
+      builtin.Int.pow builtin.Int.shiftLeft
+      builtin.Int.shiftRight builtin.Int.signum
+      builtin.Int.toFloat builtin.Int.toText
       builtin.Int.truncate0 builtin.IsPropagated
       builtin.IsPropagated.IsPropagated builtin.IsTest
       builtin.IsTest.IsTest builtin.License
@@ -219,9 +221,10 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Nat.drop builtin.Nat.eq builtin.Nat.fromText
       builtin.Nat.gt builtin.Nat.gteq builtin.Nat.increment
       builtin.Nat.isEven builtin.Nat.isOdd builtin.Nat.lt
-      builtin.Nat.lteq builtin.Nat.mod builtin.Nat.sub
-      builtin.Nat.toFloat builtin.Nat.toInt builtin.Nat.toText
-      builtin.Optional builtin.Optional.None
+      builtin.Nat.lteq builtin.Nat.mod builtin.Nat.pow
+      builtin.Nat.shiftLeft builtin.Nat.shiftRight
+      builtin.Nat.sub builtin.Nat.toFloat builtin.Nat.toInt
+      builtin.Nat.toText builtin.Optional builtin.Optional.None
       builtin.Optional.Some builtin.Request builtin.Test.Result
       builtin.Test.Result.Fail builtin.Test.Result.Ok
       builtin.Text builtin.Text.!= builtin.Text.++

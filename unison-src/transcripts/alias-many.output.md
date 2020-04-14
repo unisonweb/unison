@@ -130,271 +130,277 @@ Let's try it!
   96.  Int.lteq : Int -> Int -> Boolean
   97.  Int.mod : Int -> Int -> Int
   98.  Int.negate : Int -> Int
-  99.  Int.signum : Int -> Int
-  100. Int.toFloat : Int -> Float
-  101. Int.toText : Int -> Text
-  102. Int.truncate0 : Int -> Nat
-  103. unique type IsPropagated
-  104. IsPropagated.IsPropagated : IsPropagated
-  105. unique type IsTest
-  106. IsTest.IsTest : IsTest
-  107. unique type License
-  108. License.License : [CopyrightHolder]
+  99.  Int.pow : Int -> Nat -> Int
+  100. Int.shiftLeft : Int -> Nat -> Int
+  101. Int.shiftRight : Int -> Nat -> Int
+  102. Int.signum : Int -> Int
+  103. Int.toFloat : Int -> Float
+  104. Int.toText : Int -> Text
+  105. Int.truncate0 : Int -> Nat
+  106. unique type IsPropagated
+  107. IsPropagated.IsPropagated : IsPropagated
+  108. unique type IsTest
+  109. IsTest.IsTest : IsTest
+  110. unique type License
+  111. License.License : [CopyrightHolder]
                          -> [Year]
                          -> LicenseType
                          -> License
-  109. License.copyrightHolders : License -> [CopyrightHolder]
-  110. License.copyrightHolders.modify : ([CopyrightHolder]
+  112. License.copyrightHolders : License -> [CopyrightHolder]
+  113. License.copyrightHolders.modify : ([CopyrightHolder]
                                          ->{𝕖} [CopyrightHolder])
                                          -> License
                                          ->{𝕖} License
-  111. License.copyrightHolders.set : [CopyrightHolder]
+  114. License.copyrightHolders.set : [CopyrightHolder]
                                       -> License
                                       -> License
-  112. License.licenseType : License -> LicenseType
-  113. License.licenseType.modify : (LicenseType
+  115. License.licenseType : License -> LicenseType
+  116. License.licenseType.modify : (LicenseType
                                     ->{𝕖} LicenseType)
                                     -> License
                                     ->{𝕖} License
-  114. License.licenseType.set : LicenseType
+  117. License.licenseType.set : LicenseType
                                  -> License
                                  -> License
-  115. License.years : License -> [Year]
-  116. License.years.modify : ([Year] ->{𝕖} [Year])
+  118. License.years : License -> [Year]
+  119. License.years.modify : ([Year] ->{𝕖} [Year])
                               -> License
                               ->{𝕖} License
-  117. License.years.set : [Year] -> License -> License
-  118. unique type LicenseType
-  119. LicenseType.LicenseType : Doc -> LicenseType
-  120. unique type Link
-  121. builtin type Link.Term
-  122. Link.Term : Term -> Link
-  123. builtin type Link.Type
-  124. Link.Type : Type -> Link
-  125. builtin type List
-  126. List.++ : [a] -> [a] -> [a]
-  127. List.+: : a -> [a] -> [a]
-  128. List.:+ : [a] -> a -> [a]
-  129. List.at : Nat -> [a] -> Optional a
-  130. List.cons : a -> [a] -> [a]
-  131. List.drop : Nat -> [a] -> [a]
-  132. List.empty : [a]
-  133. List.size : [a] -> Nat
-  134. List.snoc : [a] -> a -> [a]
-  135. List.take : Nat -> [a] -> [a]
-  136. builtin type Nat
-  137. Nat.* : Nat -> Nat -> Nat
-  138. Nat.+ : Nat -> Nat -> Nat
-  139. Nat./ : Nat -> Nat -> Nat
-  140. Nat.drop : Nat -> Nat -> Nat
-  141. Nat.eq : Nat -> Nat -> Boolean
-  142. Nat.fromText : Text -> Optional Nat
-  143. Nat.gt : Nat -> Nat -> Boolean
-  144. Nat.gteq : Nat -> Nat -> Boolean
-  145. Nat.increment : Nat -> Nat
-  146. Nat.isEven : Nat -> Boolean
-  147. Nat.isOdd : Nat -> Boolean
-  148. Nat.lt : Nat -> Nat -> Boolean
-  149. Nat.lteq : Nat -> Nat -> Boolean
-  150. Nat.mod : Nat -> Nat -> Nat
-  151. Nat.sub : Nat -> Nat -> Int
-  152. Nat.toFloat : Nat -> Float
-  153. Nat.toInt : Nat -> Int
-  154. Nat.toText : Nat -> Text
-  155. type Optional a
-  156. Optional.None : Optional a
-  157. Optional.Some : a -> Optional a
-  158. builtin type Request
-  159. unique type Test.Result
-  160. Test.Result.Fail : Text -> Result
-  161. Test.Result.Ok : Text -> Result
-  162. builtin type Text
-  163. Text.!= : Text -> Text -> Boolean
-  164. Text.++ : Text -> Text -> Text
-  165. Text.drop : Nat -> Text -> Text
-  166. Text.empty : Text
-  167. Text.eq : Text -> Text -> Boolean
-  168. Text.fromCharList : [Char] -> Text
-  169. Text.gt : Text -> Text -> Boolean
-  170. Text.gteq : Text -> Text -> Boolean
-  171. Text.lt : Text -> Text -> Boolean
-  172. Text.lteq : Text -> Text -> Boolean
-  173. Text.size : Text -> Nat
-  174. Text.take : Nat -> Text -> Text
-  175. Text.toCharList : Text -> [Char]
-  176. Text.uncons : Text -> Optional (Char, Text)
-  177. Text.unsnoc : Text -> Optional (Text, Char)
-  178. type Tuple a b
-  179. Tuple.Cons : a -> b -> Tuple a b
-  180. type Unit
-  181. Unit.Unit : ()
-  182. Universal.< : a -> a -> Boolean
-  183. Universal.<= : a -> a -> Boolean
-  184. Universal.== : a -> a -> Boolean
-  185. Universal.> : a -> a -> Boolean
-  186. Universal.>= : a -> a -> Boolean
-  187. Universal.compare : a -> a -> Int
-  188. unique type Year
-  189. Year.Year : Nat -> Year
-  190. bug : a -> b
-  191. unique type io.BufferMode
-  192. io.BufferMode.Block : Optional Nat -> BufferMode
-  193. io.BufferMode.Line : BufferMode
-  194. unique type io.EpochTime
-  195. io.EpochTime.EpochTime : Nat -> EpochTime
-  196. type io.Error
-  197. io.Error.Error : ErrorType -> Text -> Error
-  198. unique type io.ErrorDescription
-  199. io.ErrorDescription.ErrorDescription : Text
+  120. License.years.set : [Year] -> License -> License
+  121. unique type LicenseType
+  122. LicenseType.LicenseType : Doc -> LicenseType
+  123. unique type Link
+  124. builtin type Link.Term
+  125. Link.Term : Term -> Link
+  126. builtin type Link.Type
+  127. Link.Type : Type -> Link
+  128. builtin type List
+  129. List.++ : [a] -> [a] -> [a]
+  130. List.+: : a -> [a] -> [a]
+  131. List.:+ : [a] -> a -> [a]
+  132. List.at : Nat -> [a] -> Optional a
+  133. List.cons : a -> [a] -> [a]
+  134. List.drop : Nat -> [a] -> [a]
+  135. List.empty : [a]
+  136. List.size : [a] -> Nat
+  137. List.snoc : [a] -> a -> [a]
+  138. List.take : Nat -> [a] -> [a]
+  139. builtin type Nat
+  140. Nat.* : Nat -> Nat -> Nat
+  141. Nat.+ : Nat -> Nat -> Nat
+  142. Nat./ : Nat -> Nat -> Nat
+  143. Nat.drop : Nat -> Nat -> Nat
+  144. Nat.eq : Nat -> Nat -> Boolean
+  145. Nat.fromText : Text -> Optional Nat
+  146. Nat.gt : Nat -> Nat -> Boolean
+  147. Nat.gteq : Nat -> Nat -> Boolean
+  148. Nat.increment : Nat -> Nat
+  149. Nat.isEven : Nat -> Boolean
+  150. Nat.isOdd : Nat -> Boolean
+  151. Nat.lt : Nat -> Nat -> Boolean
+  152. Nat.lteq : Nat -> Nat -> Boolean
+  153. Nat.mod : Nat -> Nat -> Nat
+  154. Nat.pow : Nat -> Nat -> Nat
+  155. Nat.shiftLeft : Nat -> Nat -> Nat
+  156. Nat.shiftRight : Nat -> Nat -> Nat
+  157. Nat.sub : Nat -> Nat -> Int
+  158. Nat.toFloat : Nat -> Float
+  159. Nat.toInt : Nat -> Int
+  160. Nat.toText : Nat -> Text
+  161. type Optional a
+  162. Optional.None : Optional a
+  163. Optional.Some : a -> Optional a
+  164. builtin type Request
+  165. unique type Test.Result
+  166. Test.Result.Fail : Text -> Result
+  167. Test.Result.Ok : Text -> Result
+  168. builtin type Text
+  169. Text.!= : Text -> Text -> Boolean
+  170. Text.++ : Text -> Text -> Text
+  171. Text.drop : Nat -> Text -> Text
+  172. Text.empty : Text
+  173. Text.eq : Text -> Text -> Boolean
+  174. Text.fromCharList : [Char] -> Text
+  175. Text.gt : Text -> Text -> Boolean
+  176. Text.gteq : Text -> Text -> Boolean
+  177. Text.lt : Text -> Text -> Boolean
+  178. Text.lteq : Text -> Text -> Boolean
+  179. Text.size : Text -> Nat
+  180. Text.take : Nat -> Text -> Text
+  181. Text.toCharList : Text -> [Char]
+  182. Text.uncons : Text -> Optional (Char, Text)
+  183. Text.unsnoc : Text -> Optional (Text, Char)
+  184. type Tuple a b
+  185. Tuple.Cons : a -> b -> Tuple a b
+  186. type Unit
+  187. Unit.Unit : ()
+  188. Universal.< : a -> a -> Boolean
+  189. Universal.<= : a -> a -> Boolean
+  190. Universal.== : a -> a -> Boolean
+  191. Universal.> : a -> a -> Boolean
+  192. Universal.>= : a -> a -> Boolean
+  193. Universal.compare : a -> a -> Int
+  194. unique type Year
+  195. Year.Year : Nat -> Year
+  196. bug : a -> b
+  197. unique type io.BufferMode
+  198. io.BufferMode.Block : Optional Nat -> BufferMode
+  199. io.BufferMode.Line : BufferMode
+  200. unique type io.EpochTime
+  201. io.EpochTime.EpochTime : Nat -> EpochTime
+  202. type io.Error
+  203. io.Error.Error : ErrorType -> Text -> Error
+  204. unique type io.ErrorDescription
+  205. io.ErrorDescription.ErrorDescription : Text
                                               -> ErrorDescription
-  200. unique type io.ErrorLocation
-  201. io.ErrorLocation.ErrorLocation : Text -> ErrorLocation
-  202. unique type io.ErrorType
-  203. io.ErrorType.AlreadyExists : ErrorType
-  204. io.ErrorType.EOF : ErrorType
-  205. io.ErrorType.IllegalOperation : ErrorType
-  206. io.ErrorType.NoSuchThing : ErrorType
-  207. io.ErrorType.PermissionDenied : ErrorType
-  208. io.ErrorType.ResourceBusy : ErrorType
-  209. io.ErrorType.ResourceExhausted : ErrorType
-  210. io.ErrorType.UserError : ErrorType
-  211. unique type io.FilePath
-  212. io.FilePath.FilePath : Text -> FilePath
-  213. unique type io.Handle
-  214. io.Handle.Handle : Text -> Handle
-  215. unique type io.HostName
-  216. io.HostName.HostName : Text -> HostName
-  217. ability io.IO
-  218. io.IO.accept_ : Socket ->{IO} Either Error Socket
-  219. io.IO.bracket_ : '{IO} a
+  206. unique type io.ErrorLocation
+  207. io.ErrorLocation.ErrorLocation : Text -> ErrorLocation
+  208. unique type io.ErrorType
+  209. io.ErrorType.AlreadyExists : ErrorType
+  210. io.ErrorType.EOF : ErrorType
+  211. io.ErrorType.IllegalOperation : ErrorType
+  212. io.ErrorType.NoSuchThing : ErrorType
+  213. io.ErrorType.PermissionDenied : ErrorType
+  214. io.ErrorType.ResourceBusy : ErrorType
+  215. io.ErrorType.ResourceExhausted : ErrorType
+  216. io.ErrorType.UserError : ErrorType
+  217. unique type io.FilePath
+  218. io.FilePath.FilePath : Text -> FilePath
+  219. unique type io.Handle
+  220. io.Handle.Handle : Text -> Handle
+  221. unique type io.HostName
+  222. io.HostName.HostName : Text -> HostName
+  223. ability io.IO
+  224. io.IO.accept_ : Socket ->{IO} Either Error Socket
+  225. io.IO.bracket_ : '{IO} a
                         -> (a ->{IO} b)
                         -> (a ->{IO} c)
                         ->{IO} Either Error c
-  220. io.IO.clientSocket_ : HostName
+  226. io.IO.clientSocket_ : HostName
                              -> ServiceName
                              ->{IO} Either Error Socket
-  221. io.IO.closeFile_ : Handle ->{IO} Either Error ()
-  222. io.IO.closeSocket_ : Socket ->{IO} Either Error ()
-  223. io.IO.createDirectory_ : FilePath ->{IO} Either Error ()
-  224. io.IO.delay_ : Nat ->{IO} Either Error ()
-  225. io.IO.directoryContents_ : FilePath
+  227. io.IO.closeFile_ : Handle ->{IO} Either Error ()
+  228. io.IO.closeSocket_ : Socket ->{IO} Either Error ()
+  229. io.IO.createDirectory_ : FilePath ->{IO} Either Error ()
+  230. io.IO.delay_ : Nat ->{IO} Either Error ()
+  231. io.IO.directoryContents_ : FilePath
                                   ->{IO} Either Error [FilePath]
-  226. io.IO.fileExists_ : FilePath ->{IO} Either Error Boolean
-  227. io.IO.fork_ : '{IO} a ->{IO} Either Error ThreadId
-  228. io.IO.getBuffering_ : Handle
+  232. io.IO.fileExists_ : FilePath ->{IO} Either Error Boolean
+  233. io.IO.fork_ : '{IO} a ->{IO} Either Error ThreadId
+  234. io.IO.getBuffering_ : Handle
                              ->{IO} Either
                                Error (Optional BufferMode)
-  229. io.IO.getCurrentDirectory_ : {IO} (Either Error FilePath)
-  230. io.IO.getFileSize_ : FilePath ->{IO} Either Error Nat
-  231. io.IO.getFileTimestamp_ : FilePath
+  235. io.IO.getCurrentDirectory_ : {IO} (Either Error FilePath)
+  236. io.IO.getFileSize_ : FilePath ->{IO} Either Error Nat
+  237. io.IO.getFileTimestamp_ : FilePath
                                  ->{IO} Either Error EpochTime
-  232. io.IO.getLine_ : Handle ->{IO} Either Error Text
-  233. io.IO.getTemporaryDirectory_ : {IO} (Either
+  238. io.IO.getLine_ : Handle ->{IO} Either Error Text
+  239. io.IO.getTemporaryDirectory_ : {IO} (Either
                                         Error FilePath)
-  234. io.IO.getText_ : Handle ->{IO} Either Error Text
-  235. io.IO.isDirectory_ : FilePath ->{IO} Either Error Boolean
-  236. io.IO.isFileEOF_ : Handle ->{IO} Either Error Boolean
-  237. io.IO.isFileOpen_ : Handle ->{IO} Either Error Boolean
-  238. io.IO.isSeekable_ : Handle ->{IO} Either Error Boolean
-  239. io.IO.kill_ : ThreadId ->{IO} Either Error ()
-  240. io.IO.listen_ : Socket ->{IO} Either Error ()
-  241. io.IO.openFile_ : FilePath
+  240. io.IO.getText_ : Handle ->{IO} Either Error Text
+  241. io.IO.isDirectory_ : FilePath ->{IO} Either Error Boolean
+  242. io.IO.isFileEOF_ : Handle ->{IO} Either Error Boolean
+  243. io.IO.isFileOpen_ : Handle ->{IO} Either Error Boolean
+  244. io.IO.isSeekable_ : Handle ->{IO} Either Error Boolean
+  245. io.IO.kill_ : ThreadId ->{IO} Either Error ()
+  246. io.IO.listen_ : Socket ->{IO} Either Error ()
+  247. io.IO.openFile_ : FilePath
                          -> Mode
                          ->{IO} Either Error Handle
-  242. io.IO.position_ : Handle ->{IO} Either Error Int
-  243. io.IO.putText_ : Handle -> Text ->{IO} Either Error ()
-  244. io.IO.receive_ : Socket
+  248. io.IO.position_ : Handle ->{IO} Either Error Int
+  249. io.IO.putText_ : Handle -> Text ->{IO} Either Error ()
+  250. io.IO.receive_ : Socket
                         -> Nat
                         ->{IO} Either Error (Optional Bytes)
-  245. io.IO.removeDirectory_ : FilePath ->{IO} Either Error ()
-  246. io.IO.removeFile_ : FilePath ->{IO} Either Error ()
-  247. io.IO.renameDirectory_ : FilePath
+  251. io.IO.removeDirectory_ : FilePath ->{IO} Either Error ()
+  252. io.IO.removeFile_ : FilePath ->{IO} Either Error ()
+  253. io.IO.renameDirectory_ : FilePath
                                 -> FilePath
                                 ->{IO} Either Error ()
-  248. io.IO.renameFile_ : FilePath
+  254. io.IO.renameFile_ : FilePath
                            -> FilePath
                            ->{IO} Either Error ()
-  249. io.IO.seek_ : Handle
+  255. io.IO.seek_ : Handle
                      -> SeekMode
                      -> Int
                      ->{IO} Either Error ()
-  250. io.IO.send_ : Socket -> Bytes ->{IO} Either Error ()
-  251. io.IO.serverSocket_ : Optional HostName
+  256. io.IO.send_ : Socket -> Bytes ->{IO} Either Error ()
+  257. io.IO.serverSocket_ : Optional HostName
                              -> ServiceName
                              ->{IO} Either Error Socket
-  252. io.IO.setBuffering_ : Handle
+  258. io.IO.setBuffering_ : Handle
                              -> Optional BufferMode
                              ->{IO} Either Error ()
-  253. io.IO.setCurrentDirectory_ : FilePath
+  259. io.IO.setCurrentDirectory_ : FilePath
                                     ->{IO} Either Error ()
-  254. io.IO.systemTime_ : {IO} (Either Error EpochTime)
-  255. io.IO.throw : Error ->{IO} a
-  256. type io.Mode
-  257. io.Mode.Append : Mode
-  258. io.Mode.Read : Mode
-  259. io.Mode.ReadWrite : Mode
-  260. io.Mode.Write : Mode
-  261. unique type io.SeekMode
-  262. io.SeekMode.Absolute : SeekMode
-  263. io.SeekMode.FromEnd : SeekMode
-  264. io.SeekMode.Relative : SeekMode
-  265. unique type io.ServiceName
-  266. io.ServiceName.ServiceName : Text -> ServiceName
-  267. unique type io.Socket
-  268. io.Socket.Socket : Text -> Socket
-  269. unique type io.ThreadId
-  270. io.ThreadId.ThreadId : Text -> ThreadId
-  271. io.accept : Socket ->{IO} Socket
-  272. io.bracket : '{IO} a
+  260. io.IO.systemTime_ : {IO} (Either Error EpochTime)
+  261. io.IO.throw : Error ->{IO} a
+  262. type io.Mode
+  263. io.Mode.Append : Mode
+  264. io.Mode.Read : Mode
+  265. io.Mode.ReadWrite : Mode
+  266. io.Mode.Write : Mode
+  267. unique type io.SeekMode
+  268. io.SeekMode.Absolute : SeekMode
+  269. io.SeekMode.FromEnd : SeekMode
+  270. io.SeekMode.Relative : SeekMode
+  271. unique type io.ServiceName
+  272. io.ServiceName.ServiceName : Text -> ServiceName
+  273. unique type io.Socket
+  274. io.Socket.Socket : Text -> Socket
+  275. unique type io.ThreadId
+  276. io.ThreadId.ThreadId : Text -> ThreadId
+  277. io.accept : Socket ->{IO} Socket
+  278. io.bracket : '{IO} a
                     -> (a ->{IO} b)
                     -> (a ->{IO} c)
                     ->{IO} c
-  273. io.clientSocket : HostName -> ServiceName ->{IO} Socket
-  274. io.closeFile : Handle ->{IO} ()
-  275. io.closeSocket : Socket ->{IO} ()
-  276. io.createDirectory : FilePath ->{IO} ()
-  277. io.delay : Nat ->{IO} ()
-  278. io.directoryContents : FilePath ->{IO} [FilePath]
-  279. io.fileExists : FilePath ->{IO} Boolean
-  280. io.fork : '{IO} a ->{IO} ThreadId
-  281. io.getBuffering : Handle ->{IO} Optional BufferMode
-  282. io.getCurrentDirectory : '{IO} FilePath
-  283. io.getFileSize : FilePath ->{IO} Nat
-  284. io.getFileTimestamp : FilePath ->{IO} EpochTime
-  285. io.getLine : Handle ->{IO} Text
-  286. io.getTemporaryDirectory : '{IO} FilePath
-  287. io.getText : Handle ->{IO} Text
-  288. io.isDirectory : FilePath ->{IO} Boolean
-  289. io.isFileEOF : Handle ->{IO} Boolean
-  290. io.isFileOpen : Handle ->{IO} Boolean
-  291. io.isSeekable : Handle ->{IO} Boolean
-  292. io.kill : ThreadId ->{IO} ()
-  293. io.listen : Socket ->{IO} ()
-  294. io.openFile : FilePath -> Mode ->{IO} Handle
-  295. io.position : Handle ->{IO} Int
-  296. io.printLine : Text ->{IO} ()
-  297. io.putText : Handle -> Text ->{IO} ()
-  298. io.readLine : '{IO} Text
-  299. io.receive : Socket -> Nat ->{IO} Optional Bytes
-  300. io.removeDirectory : FilePath ->{IO} ()
-  301. io.removeFile : FilePath ->{IO} ()
-  302. io.renameDirectory : FilePath -> FilePath ->{IO} ()
-  303. io.renameFile : FilePath -> FilePath ->{IO} ()
-  304. io.rethrow : Either Error a ->{IO} a
-  305. io.seek : Handle -> SeekMode -> Int ->{IO} ()
-  306. io.send : Socket -> Bytes ->{IO} ()
-  307. io.serverSocket : Optional HostName
+  279. io.clientSocket : HostName -> ServiceName ->{IO} Socket
+  280. io.closeFile : Handle ->{IO} ()
+  281. io.closeSocket : Socket ->{IO} ()
+  282. io.createDirectory : FilePath ->{IO} ()
+  283. io.delay : Nat ->{IO} ()
+  284. io.directoryContents : FilePath ->{IO} [FilePath]
+  285. io.fileExists : FilePath ->{IO} Boolean
+  286. io.fork : '{IO} a ->{IO} ThreadId
+  287. io.getBuffering : Handle ->{IO} Optional BufferMode
+  288. io.getCurrentDirectory : '{IO} FilePath
+  289. io.getFileSize : FilePath ->{IO} Nat
+  290. io.getFileTimestamp : FilePath ->{IO} EpochTime
+  291. io.getLine : Handle ->{IO} Text
+  292. io.getTemporaryDirectory : '{IO} FilePath
+  293. io.getText : Handle ->{IO} Text
+  294. io.isDirectory : FilePath ->{IO} Boolean
+  295. io.isFileEOF : Handle ->{IO} Boolean
+  296. io.isFileOpen : Handle ->{IO} Boolean
+  297. io.isSeekable : Handle ->{IO} Boolean
+  298. io.kill : ThreadId ->{IO} ()
+  299. io.listen : Socket ->{IO} ()
+  300. io.openFile : FilePath -> Mode ->{IO} Handle
+  301. io.position : Handle ->{IO} Int
+  302. io.printLine : Text ->{IO} ()
+  303. io.putText : Handle -> Text ->{IO} ()
+  304. io.readLine : '{IO} Text
+  305. io.receive : Socket -> Nat ->{IO} Optional Bytes
+  306. io.removeDirectory : FilePath ->{IO} ()
+  307. io.removeFile : FilePath ->{IO} ()
+  308. io.renameDirectory : FilePath -> FilePath ->{IO} ()
+  309. io.renameFile : FilePath -> FilePath ->{IO} ()
+  310. io.rethrow : Either Error a ->{IO} a
+  311. io.seek : Handle -> SeekMode -> Int ->{IO} ()
+  312. io.send : Socket -> Bytes ->{IO} ()
+  313. io.serverSocket : Optional HostName
                          -> ServiceName
                          ->{IO} Socket
-  308. io.setBuffering : Handle -> Optional BufferMode ->{IO} ()
-  309. io.setCurrentDirectory : FilePath ->{IO} ()
-  310. io.stderr : Handle
-  311. io.stdin : Handle
-  312. io.stdout : Handle
-  313. io.systemTime : '{IO} EpochTime
-  314. metadata.isPropagated : IsPropagated
-  315. metadata.isTest : IsTest
-  316. todo : a -> b
+  314. io.setBuffering : Handle -> Optional BufferMode ->{IO} ()
+  315. io.setCurrentDirectory : FilePath ->{IO} ()
+  316. io.stderr : Handle
+  317. io.stdin : Handle
+  318. io.stdout : Handle
+  319. io.systemTime : '{IO} EpochTime
+  320. metadata.isPropagated : IsPropagated
+  321. metadata.isTest : IsTest
+  322. todo : a -> b
   
 
 .builtin> alias.many 94-104 .mylib
@@ -403,17 +409,17 @@ Let's try it!
   
   Added definitions:
   
-    1.  unique type IsPropagated
-    2.  IsPropagated.IsPropagated : IsPropagated
-    3.  Int.isOdd                 : Int -> Boolean
-    4.  Int.lt                    : Int -> Int -> Boolean
-    5.  Int.lteq                  : Int -> Int -> Boolean
-    6.  Int.mod                   : Int -> Int -> Int
-    7.  Int.negate                : Int -> Int
-    8.  Int.signum                : Int -> Int
-    9.  Int.toFloat               : Int -> Float
-    10. Int.toText                : Int -> Text
-    11. Int.truncate0             : Int -> Nat
+    1.  Int.isOdd      : Int -> Boolean
+    2.  Int.lt         : Int -> Int -> Boolean
+    3.  Int.lteq       : Int -> Int -> Boolean
+    4.  Int.mod        : Int -> Int -> Int
+    5.  Int.negate     : Int -> Int
+    6.  Int.pow        : Int -> Nat -> Int
+    7.  Int.shiftLeft  : Int -> Nat -> Int
+    8.  Int.shiftRight : Int -> Nat -> Int
+    9.  Int.signum     : Int -> Int
+    10. Int.toFloat    : Int -> Float
+    11. Int.toText     : Int -> Text
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -480,12 +486,12 @@ I want to incorporate a few more from another namespace:
   3.  Int.lteq : Int -> Int -> Boolean
   4.  Int.mod : Int -> Int -> Int
   5.  Int.negate : Int -> Int
-  6.  Int.signum : Int -> Int
-  7.  Int.toFloat : Int -> Float
-  8.  Int.toText : Int -> Text
-  9.  Int.truncate0 : Int -> Nat
-  10. unique type IsPropagated
-  11. IsPropagated.IsPropagated : IsPropagated
+  6.  Int.pow : Int -> Nat -> Int
+  7.  Int.shiftLeft : Int -> Nat -> Int
+  8.  Int.shiftRight : Int -> Nat -> Int
+  9.  Int.signum : Int -> Int
+  10. Int.toFloat : Int -> Float
+  11. Int.toText : Int -> Text
   12. List.adjacentPairs : [a] -> [(a, a)]
   13. List.all : (a ->{𝕖} Boolean) ->{𝕖} [a] ->{𝕖} Boolean
   14. List.any : (a ->{𝕖} Boolean) ->{𝕖} [a] ->{𝕖} Boolean
