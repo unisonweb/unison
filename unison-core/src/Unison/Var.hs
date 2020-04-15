@@ -54,6 +54,7 @@ name v = case typeOf v of
   Blank -> "_" <> showid v
   ANFBlank -> "_anf" <> showid v
   Float -> "_float" <> showid v
+  Pattern -> "_pattern" <> showid v
   UnnamedWatch k guid -> fromString k <> "." <> guid <> showid v
   where
   showid (freshId -> 0) = ""
@@ -104,6 +105,8 @@ data Type
   | ANFBlank
   -- An unnamed variable for a floated lambda
   | Float
+  -- An unnamed variable introduced from pattern compilation
+  | Pattern
   deriving (Eq,Ord,Show)
 
 type WatchKind = String

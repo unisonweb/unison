@@ -53,7 +53,7 @@ data PatternP loc
 data SeqOp = Cons
            | Snoc
            | Concat
-           deriving (Eq, Show)
+           deriving (Eq, Ord, Show)
 
 instance H.Hashable SeqOp where
   tokens Cons = [H.Tag 0]
@@ -143,6 +143,42 @@ instance Eq (PatternP loc) where
   SequenceLiteralP _ ps == SequenceLiteralP _ ps2 = ps == ps2
   SequenceOpP _ ph op pt == SequenceOpP _ ph2 op2 pt2 = ph == ph2 && op == op2 && pt == pt2
   _ == _ = False
+
+instance Ord (PatternP loc) where
+  compare p q
+    = compare (patternTag p) (patternTag q) <> diag p q
+    where 
+    patternTag :: PatternP a -> Int
+    patternTag (UnboundP _) = 0
+    patternTag (VarP _) = 1
+    patternTag (BooleanP _ _) = 2
+    patternTag (IntP _ _) = 3
+    patternTag (NatP _ _) = 4
+    patternTag (CharP _ _) = 5
+    patternTag (FloatP _ _) = 6
+    patternTag (ConstructorP _ _ _ _) = 7
+    patternTag (EffectPureP _ _) = 8
+    patternTag (EffectBindP _ _ _ _ _) = 9
+    patternTag (AsP _ _) = 10
+    patternTag (TextP _ _) = 11
+    patternTag (SequenceLiteralP _ _) = 12
+    patternTag (SequenceOpP _ _ _ _) = 13
+
+    BooleanP _ b `diag` BooleanP _ c = compare b c
+    IntP _ i `diag` IntP _ j = compare i j
+    NatP _ m `diag` NatP _ n = compare m n
+    CharP _ c `diag` CharP _ d = compare c d
+    FloatP _ f `diag` FloatP _ g = compare f g
+    ConstructorP _ r i ps `diag` ConstructorP _ s j qs
+      = compare r s <> compare i j <> compare ps qs
+    EffectPureP _ p `diag` EffectPureP _ q = compare p q
+    EffectBindP _ r i ps k `diag` EffectBindP _ s j qs l
+      = compare r s <> compare i j <> compare ps qs <> compare k l
+    SequenceLiteralP _ ps `diag` SequenceLiteralP _ qs
+      = compare ps qs
+    SequenceOpP _ p o q `diag` SequenceOpP _ r m s
+      = compare p r <> compare o m <> compare q s
+    diag _ _ = EQ
 
 foldMap' :: Monoid m => (PatternP loc -> m) -> PatternP loc -> m
 foldMap' f p = case p of
