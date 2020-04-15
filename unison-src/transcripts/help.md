@@ -6,4 +6,8 @@
 .> help-topic filestatus
 .> help-topic namespaces
 .> help-topic messages.disallowedAbsolute
+.> help testcache
+.> help filestatus
+.> help namespaces
+.> help messages.disallowedAbsolute
 ```

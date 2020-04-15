@@ -1021,7 +1021,7 @@ notifyUser dir o = case o of
         prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r))
 
   ShowHelpTopic maybeTopic -> case maybeTopic of
-    Just _ -> pure (P.string "")
+    Just helpTopic -> pure $ HT.toPretty helpTopic
     Nothing -> pure HT.knownTopics
   where
   _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
