@@ -42,6 +42,7 @@ import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.CommandLine.InputPattern as IP
+import qualified Unison.CommandLine.InputPatterns as IPS
 import qualified Unison.Runtime.Rt1IO as Rt1
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
@@ -180,7 +181,9 @@ run dir configFile stanzas codebase = do
                     case IP.parse pat args of
                       Left msg -> do
                         output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
-                        if IP.patternName pat == "help" || IP.patternName pat == "?"
+                        let commands = IP.patternName <$> IPS.validInputs
+                        if IP.patternName pat `elem` ["help", "?", "help-topics"]
+                          && foldl (\status command -> status && command `elem` commands) True args
                         then awaitInput
                         else dieWithMsg
                       Right input -> pure $ Right input

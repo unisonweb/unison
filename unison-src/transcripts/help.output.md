@@ -710,4 +710,17 @@
   `view.patch <patch>`  Lists all the edits in the given patch.
 
 
+.> help-topics
+  🌻
+  
+  Here's a list of topics I can tell you more about: 
+  
+    filestatus
+    messages.disallowedAbsolute
+    namespaces
+    testcache
+  
+  Example: use `help filestatus` to learn more about that topic.
+
+
 ```

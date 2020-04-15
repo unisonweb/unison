@@ -2,4 +2,5 @@
 .> help push
 .> help
 .> ?
+.> help-topics
 ```
