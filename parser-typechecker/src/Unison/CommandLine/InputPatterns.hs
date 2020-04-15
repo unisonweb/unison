@@ -969,11 +969,6 @@ helpTopics = InputPattern
     _ -> Left $ warn "Use `help-topics <topic>` or `help-topics`."
   )
 
--- This map is used when doing key look up (is this word a known help topic)
--- and to enable "help <topic>"
--- Can deprecate and change @985
-helpTopicsMap :: Map String (P.Pretty P.ColorText)
-helpTopicsMap = Map.fromList ((\ht -> (show ht, HT.toPretty ht)) <$> HT.allTopics)
 
 help :: InputPattern
 help = InputPattern
@@ -982,7 +977,7 @@ help = InputPattern
     (\case
       [] -> Left $ intercalateMap "\n\n" showPatternHelp
         (sortOn I.patternName validInputs)
-      [isHelp -> Just msg] -> Left msg
+      [isHelp -> Right ht] -> Right ht
       [cmd] -> case Map.lookup cmd commandsByName of
         Nothing  -> Left . warn $ "I don't know of that command. Try `help`."
         Just pat -> Left $ showPatternHelp pat
@@ -990,7 +985,7 @@ help = InputPattern
     where
       commandsByName = Map.fromList [
         (n, i) | i <- validInputs, n <- I.patternName i : I.aliases i ]
-      isHelp s = Map.lookup s helpTopicsMap
+      isHelp topic = second (Input.HelpTopicI . Just) $ HT.fromString topic
 
 quit :: InputPattern
 quit = InputPattern "quit" ["exit", ":q"] []
