@@ -15,6 +15,7 @@ import qualified Unison.HashQualified'         as HQ'
 import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
+import           Unison.Codebase.Editor.HelpTopics
 import           Unison.ShortHash (ShortHash)
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
@@ -131,6 +132,7 @@ data Input
   | DebugNumberedArgsI
   | DebugBranchHistoryI
   | DebugTypecheckedUnisonFileI
+  | HelpTopicI (Maybe HelpTopic)
   | QuitI
   deriving (Eq, Show)
 

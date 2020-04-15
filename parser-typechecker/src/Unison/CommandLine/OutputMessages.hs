@@ -1019,6 +1019,10 @@ notifyUser dir o = case o of
       (terms <&> \(n,r) ->
         prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r))
 
+  ShowHelpTopic maybeTopic -> case maybeTopic of
+    Just _ -> pure (P.string "")
+    Nothing -> pure (P.string "")
+
   where
   _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
   -- do

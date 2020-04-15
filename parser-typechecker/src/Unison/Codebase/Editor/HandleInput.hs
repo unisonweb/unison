@@ -450,6 +450,7 @@ loop = do
           DebugNumberedArgsI{} -> wat
           DebugBranchHistoryI{} -> wat
           DebugTypecheckedUnisonFileI{} -> wat
+          HelpTopicI{} -> wat
           QuitI{} -> wat
           DeprecateTermI{} -> undefined
           DeprecateTypeI{} -> undefined
@@ -1688,6 +1689,7 @@ loop = do
         doRemoveReplacement from patchPath False
       ShowDefinitionByPrefixI {} -> notImplemented
       UpdateBuiltinsI -> notImplemented
+      HelpTopicI maybeTopic -> respond $ ShowHelpTopic maybeTopic
       QuitI -> MaybeT $ pure Nothing
      where
       notImplemented = eval $ Notify NotImplemented

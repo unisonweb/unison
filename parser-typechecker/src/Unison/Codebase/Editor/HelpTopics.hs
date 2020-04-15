@@ -7,6 +7,7 @@ import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
 
 data HelpTopic = TestCache | FileStatus | NameSpaces | DisallowedAbsolute
+  deriving (Eq, Show)
 
 toPretty :: HelpTopic -> P.Pretty CT.ColorText
 toPretty = \case
