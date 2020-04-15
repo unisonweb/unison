@@ -2,12 +2,47 @@
 
 module Unison.Codebase.Editor.HelpTopics where
 
+import           Data.ListLike                   (ListLike)
+import           Data.String                     (IsString)
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
 
 data HelpTopic = TestCache | FileStatus | NameSpaces | DisallowedAbsolute
-  deriving (Eq, Show)
+  deriving (Eq)
+
+instance Show HelpTopic where
+  show = \case
+    TestCache          -> "testcache"
+    FileStatus         -> "filestatus"
+    NameSpaces         -> "namespaces"
+    DisallowedAbsolute -> "messages.disallowedAbsolute"
+
+fromString :: String -> Either (P.Pretty CT.ColorText) HelpTopic
+fromString = \case
+    "testcache"                   -> Right TestCache
+    "filestatus"                  -> Right FileStatus
+    "namespaces"                  -> Right NameSpaces
+    "messages.disallowedAbsolute" -> Right DisallowedAbsolute
+    _ -> Left $ P.warnCallout "I don't know of that topic. Try `help-topics`."
+
+helpTopics :: [String]
+helpTopics = show <$> [TestCache, FileStatus, NameSpaces, DisallowedAbsolute]
+
+-- hack: importing Codebase causes a cyclical import error
+-- copy pasting for now to get things moving, will address
+-- I suspect that this needs to be implemented in the Pretty module to avoid?
+aside :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s -> P.Pretty s
+aside a b = P.column2 [(a <> ":", b)]
+
+knownTopics :: P.Pretty CT.ColorText
+knownTopics = P.callout "🌻" $ P.lines [
+  "Here's a list of topics I can tell you more about: ",
+  "",
+  P.indentN 2 $ P.sep "\n" (P.string <$> helpTopics),
+  "",
+  aside "Example" "use `help filestatus` to learn more about that topic."
+  ]
 
 toPretty :: HelpTopic -> P.Pretty CT.ColorText
 toPretty = \case

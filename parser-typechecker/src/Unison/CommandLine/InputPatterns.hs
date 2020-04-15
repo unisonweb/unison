@@ -9,7 +9,7 @@ module Unison.CommandLine.InputPatterns where
 import Unison.Prelude
 
 import qualified Control.Lens.Cons as Cons
-import Data.Bifunctor (first)
+import Data.Bifunctor (first, second)
 import Data.List (intercalate, sortOn, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
 import qualified System.Console.Haskeline.Completion as Completion
@@ -964,20 +964,10 @@ helpTopics = InputPattern
   [(Optional, topicNameArg)]
   ( "`help-topics` lists all topics and `help-topics <topic>` shows an explanation of that topic." )
   (\case
-    [] -> Left topics
-    [topic] -> case Map.lookup topic helpTopicsMap of
-       Nothing -> Left . warn $ "I don't know of that topic. Try `help-topics`."
-       Just t -> Left t
+    [] -> Right $ Input.HelpTopicI Nothing
+    [topic] -> second (Input.HelpTopicI . Just) $ HT.fromString topic
     _ -> Left $ warn "Use `help-topics <topic>` or `help-topics`."
   )
-  where
-    topics = P.callout "🌻" $ P.lines [
-      "Here's a list of topics I can tell you more about: ",
-      "",
-      P.indentN 2 $ P.sep "\n" (P.string <$> Map.keys helpTopicsMap),
-      "",
-      aside "Example" "use `help filestatus` to learn more about that topic."
-      ]
 
 helpTopicsMap :: Map String (P.Pretty P.ColorText)
 helpTopicsMap = Map.fromList [

@@ -13,6 +13,7 @@ module Unison.CommandLine.OutputMessages where
 
 import Unison.Prelude hiding (unlessM)
 
+import qualified Unison.Codebase.Editor.HelpTopics       as HT
 import           Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output           as E
 import qualified Unison.Codebase.Editor.Output           as Output
@@ -1021,8 +1022,7 @@ notifyUser dir o = case o of
 
   ShowHelpTopic maybeTopic -> case maybeTopic of
     Just _ -> pure (P.string "")
-    Nothing -> pure (P.string "")
-
+    Nothing -> pure HT.knownTopics
   where
   _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
   -- do
