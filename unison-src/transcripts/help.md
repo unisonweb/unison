@@ -3,4 +3,5 @@
 .> help
 .> ?
 .> help-topics
+.> help filestatus
 ```

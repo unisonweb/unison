@@ -181,7 +181,7 @@ run dir configFile stanzas codebase = do
                     case IP.parse pat args of
                       Left msg -> do
                         output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
-                        let commands = IP.patternName <$> IPS.validInputs
+                        let commands = (IP.patternName <$> IPS.validInputs) ++ Map.keys IPS.helpTopicsMap
                         if IP.patternName pat `elem` ["help", "?", "help-topics"]
                           && foldl (\status command -> status && command `elem` commands) True args
                         then awaitInput
