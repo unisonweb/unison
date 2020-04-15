@@ -177,12 +177,13 @@ run dir configFile stanzas codebase = do
                   -- invalid command is treated as a failure
                   Nothing ->
                     dieWithMsg
-                  Just pat -> 
+                  Just pat ->
                     case IP.parse pat args of
                       Left msg -> do
                         output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
                         let commands = (IP.patternName <$> IPS.validInputs) ++ Map.keys IPS.helpTopicsMap
-                        if IP.patternName pat `elem` ["help", "?", "help-topics"]
+                        let allowed = [IP.patternName IPS.help, IP.patternName IPS.helpTopics] ++ IP.aliases IPS.help ++ IP.aliases IPS.helpTopics
+                        if IP.patternName pat `elem` allowed
                           && foldl (\status command -> status && command `elem` commands) True args
                         then awaitInput
                         else dieWithMsg
@@ -273,7 +274,7 @@ run dir configFile stanzas codebase = do
           "\128721", "",
           "The transcript failed due to an error encountered in the stanza above.", "",
           "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
-        
+
       dieUnexpectedSuccess :: IO ()
       dieUnexpectedSuccess = do
         errOk <- readIORef allowErrors
