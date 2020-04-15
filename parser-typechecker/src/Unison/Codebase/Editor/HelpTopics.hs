@@ -26,9 +26,11 @@ fromString = \case
     "messages.disallowedAbsolute" -> Right DisallowedAbsolute
     _ -> Left $ P.warnCallout "I don't know of that topic. Try `help-topics`."
 
-helpTopics :: [String]
-helpTopics = show <$> [TestCache, FileStatus, NameSpaces, DisallowedAbsolute]
+allTopics :: [HelpTopic]
+allTopics = [TestCache, FileStatus, NameSpaces, DisallowedAbsolute]
 
+topics :: [String]
+topics = show <$> allTopics
 -- hack: importing Codebase causes a cyclical import error
 -- copy pasting for now to get things moving, will address
 -- I suspect that this needs to be implemented in the Pretty module to avoid?
@@ -39,7 +41,7 @@ knownTopics :: P.Pretty CT.ColorText
 knownTopics = P.callout "🌻" $ P.lines [
   "Here's a list of topics I can tell you more about: ",
   "",
-  P.indentN 2 $ P.sep "\n" (P.string <$> helpTopics),
+  P.indentN 2 $ P.sep "\n" (P.string <$> topics),
   "",
   aside "Example" "use `help filestatus` to learn more about that topic."
   ]

@@ -955,7 +955,7 @@ edit = InputPattern
 
 topicNameArg :: ArgumentType
 topicNameArg =
-  ArgumentType "topic" $ \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap)
+  ArgumentType "topic" $ \q _ _ _ -> pure (exactComplete q HT.topics)
 
 helpTopics :: InputPattern
 helpTopics = InputPattern
@@ -969,13 +969,11 @@ helpTopics = InputPattern
     _ -> Left $ warn "Use `help-topics <topic>` or `help-topics`."
   )
 
+-- This map is used when doing key look up (is this word a known help topic)
+-- and to enable "help <topic>"
+-- Can deprecate and change @985
 helpTopicsMap :: Map String (P.Pretty P.ColorText)
-helpTopicsMap = Map.fromList [
-  ("testcache", HT.toPretty HT.TestCache),
-  ("filestatus", HT.toPretty HT.FileStatus),
-  ("messages.disallowedAbsolute", HT.toPretty HT.DisallowedAbsolute),
-  ("namespaces", HT.toPretty HT.NameSpaces)
-  ]
+helpTopicsMap = Map.fromList ((\ht -> (show ht, HT.toPretty ht)) <$> HT.allTopics)
 
 help :: InputPattern
 help = InputPattern
@@ -1237,7 +1235,7 @@ commandNames = validInputs >>= \i -> I.patternName i : I.aliases i
 
 commandNameArg :: ArgumentType
 commandNameArg =
-  ArgumentType "command" $ \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap))
+  ArgumentType "command" $ \q _ _ _ -> pure (exactComplete q (commandNames <> HT.topics))
 
 exactDefinitionOrPathArg :: ArgumentType
 exactDefinitionOrPathArg =
