@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #tklmrocnqt
+  ⊙ #1knda118ml
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #1rn4ods0ce
+  ⊙ #dufp8qeq3n
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #vj242er6kb
+  ⊙ #v94vprvf7f
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #43nhdcu440
+  ⊙ #f166mvv1hb
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #5khd8vn0j3
+  ⊙ #971j7jvcsa
   
     + Adds / updates:
     
       x
   
-  ⊙ #h8t86n0gqk
+  ⊙ #rdkmqee7e3
   
     + Adds / updates:
     
@@ -178,8 +178,10 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Int.fromText builtin.Int.gt builtin.Int.gteq
       builtin.Int.increment builtin.Int.isEven builtin.Int.isOdd
       builtin.Int.lt builtin.Int.lteq builtin.Int.mod
-      builtin.Int.negate builtin.Int.signum builtin.Int.toFloat
-      builtin.Int.toText builtin.Int.truncate0 builtin.Link
+      builtin.Int.negate builtin.Int.pow builtin.Int.shiftLeft
+      builtin.Int.shiftRight builtin.Int.signum
+      builtin.Int.toFloat builtin.Int.toText
+      builtin.Int.truncate0 builtin.Link
       builtin.Link.Term##Link.Term builtin.Link.Term#quh#0
       builtin.Link.Type##Link.Type builtin.Link.Type#quh#1
       builtin.List builtin.List.++ builtin.List.+:
@@ -190,7 +192,8 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Nat.eq builtin.Nat.fromText builtin.Nat.gt
       builtin.Nat.gteq builtin.Nat.increment builtin.Nat.isEven
       builtin.Nat.isOdd builtin.Nat.lt builtin.Nat.lteq
-      builtin.Nat.mod builtin.Nat.sub builtin.Nat.toFloat
+      builtin.Nat.mod builtin.Nat.pow builtin.Nat.shiftLeft
+      builtin.Nat.shiftRight builtin.Nat.sub builtin.Nat.toFloat
       builtin.Nat.toInt builtin.Nat.toText builtin.Optional
       builtin.Optional.None builtin.Optional.Some
       builtin.Request builtin.Test.Result

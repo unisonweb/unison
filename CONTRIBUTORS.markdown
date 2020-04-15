@@ -40,3 +40,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Moses Alexander (@moses-alexander)
 * Andre Popovitch (@anchpop)
 * Daniël Heres (@Dandandan)
+* Stew O'Connor (@stew)
