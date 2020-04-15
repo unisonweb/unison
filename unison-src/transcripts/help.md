@@ -1,3 +1,3 @@
-```ucm
+```ucm:error
 .> help push
 ```
