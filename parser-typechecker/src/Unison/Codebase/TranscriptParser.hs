@@ -151,6 +151,7 @@ run dir configFile stanzas codebase = do
       output = output' False
       outputEcho = output' True
 
+      awaitInput :: IO (Either Event Input)
       awaitInput = do
         cmd <- atomically (Q.tryDequeue cmdQueue)
         case cmd of
@@ -175,11 +176,14 @@ run dir configFile stanzas codebase = do
                   -- invalid command is treated as a failure
                   Nothing ->
                     dieWithMsg
-                  Just pat -> case IP.parse pat args of
-                    Left msg -> do
-                      output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
-                      dieWithMsg
-                    Right input -> pure $ Right input
+                  Just pat -> 
+                    case IP.parse pat args of
+                      Left msg -> do
+                        output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
+                        if IP.patternName pat == "help" || IP.patternName pat == "?"
+                        then awaitInput
+                        else dieWithMsg
+                      Right input -> pure $ Right input
 
           Nothing -> do
             dieUnexpectedSuccess
