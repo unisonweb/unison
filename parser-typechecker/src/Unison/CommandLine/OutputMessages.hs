@@ -1020,6 +1020,10 @@ notifyUser dir o = case o of
       (terms <&> \(n,r) ->
         prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r))
 
+  ShowHelp maybeCommandName -> case maybeCommandName of
+    Just _  -> pure $ P.string ""
+    Nothing -> pure $ P.string ""
+
   ShowHelpTopic maybeTopic -> case maybeTopic of
     Just helpTopic -> pure $ HT.toPretty helpTopic
     Nothing -> pure HT.knownTopics

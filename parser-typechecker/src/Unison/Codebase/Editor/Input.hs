@@ -133,6 +133,7 @@ data Input
   | DebugBranchHistoryI
   | DebugTypecheckedUnisonFileI
   | HelpTopicI (Maybe HelpTopic)
+  | HelpI (Maybe String)
   | QuitI
   deriving (Eq, Show)
 
