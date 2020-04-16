@@ -85,9 +85,6 @@ tip s = P.column2 [("Tip:", P.wrap s)]
 note :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 note s = P.column2 [("Note:", P.wrap s)]
 
-aside :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s -> P.Pretty s
-aside a b = P.column2 [(a <> ":", b)]
-
 warn :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 warn = emojiNote "⚠️"
 
