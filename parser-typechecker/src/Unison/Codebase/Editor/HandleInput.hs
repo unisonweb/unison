@@ -491,7 +491,8 @@ loop = do
              let defnsAndTerms = Map.fromList $ srcs `zip` (toList . getHQ'Terms <$> srcs)
              let noReferents = Map.keys $ Map.filterWithKey (\_ v -> null $ v) defnsAndTerms
              let paths = (\(path', segment) -> Path.snoc' path' $ HQ'.toName segment) <$> noReferents
-             when (not . null $ noReferents) $ respond $ DefinitionsNotFound paths
+             when (not . null $ noReferents) $ 
+               respond $ SearchTermsNotFound ((HQ.NameOnly . Path.toName') <$> paths)
              unless (not. null $ noReferents) $ do
                 mdType <- eval $ LoadTypeOfTerm mdValue
                 case mdType of

@@ -263,41 +263,44 @@ a.b.c = 1
 
   ⚠️
   
-  I could not find the following definitions in the codebase:
-  
-  `y`.
+  The following names were not found in the codebase. Check your spelling.
+    y
 
 .> link a.b.c a.b.d
 
   ⚠️
   
-  I could not find the following definitions in the codebase:
-  
-  `a.b.d`.
+  The following names were not found in the codebase. Check your spelling.
+    a.b.d
 
 .> link .a.b.c .a.b.d
 
   ⚠️
   
-  I could not find the following definitions in the codebase:
-  
-  `.a.b.d`.
+  The following names were not found in the codebase. Check your spelling.
+    .a.b.d
 
 .> link x.doc a .b c .d e .f g
 
   ⚠️
   
-  I could not find the following definitions in the codebase:
-  
-  `.b`, `.d`, `.f`, `a`, `c`, `e`, `g`.
+  The following names were not found in the codebase. Check your spelling.
+    .b
+    .d
+    .f
+    a
+    c
+    e
+    g
 
 .> link .x.doc a.a.a.a b.b.b.b .c.c.c.c
 
   ⚠️
   
-  I could not find the following definitions in the codebase:
-  
-  `.c.c.c.c`, `a.a.a.a`, `b.b.b.b`.
+  The following names were not found in the codebase. Check your spelling.
+    .c.c.c.c
+    a.a.a.a
+    b.b.b.b
 
 ```
 4. Trying to link an existing definition if grouped witn non-existing ones
@@ -306,17 +309,15 @@ a.b.c = 1
 
   ⚠️
   
-  I could not find the following definitions in the codebase:
-  
-  `y`.
+  The following names were not found in the codebase. Check your spelling.
+    y
 
 .> link x.doc .x .y
 
   ⚠️
   
-  I could not find the following definitions in the codebase:
-  
-  `.y`.
+  The following names were not found in the codebase. Check your spelling.
+    .y
 
 .> links x
 
@@ -329,17 +330,15 @@ a.b.c = 1
 
   ⚠️
   
-  I could not find the following definitions in the codebase:
-  
-  `a.b.d`.
+  The following names were not found in the codebase. Check your spelling.
+    a.b.d
 
 .> link x.doc .a.b.c .a.b.d
 
   ⚠️
   
-  I could not find the following definitions in the codebase:
-  
-  `.a.b.d`.
+  The following names were not found in the codebase. Check your spelling.
+    .a.b.d
 
 .> links a.b.c
 

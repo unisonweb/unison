@@ -339,13 +339,6 @@ notifyUser dir o = case o of
           <> "are being deleted external to UCM."
     ]
 
-  DefinitionsNotFound paths -> pure . P.warnCallout . P.lines $ [
-    P.wrap $ "I could not find the following definitions in the codebase: ",
-    "",
-    (P.group . P.commas) (P.backticked . P.string . show <$> paths)
-    <> "."
-    ]
-
   MetadataAmbiguous ppe refs -> pure . P.warnCallout . P.lines $ [
     P.wrap $ "I'm not sure which metadata value you're referring to"
           <> "since there are multiple matches:",
