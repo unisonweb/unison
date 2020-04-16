@@ -15,6 +15,7 @@ import Options.Applicative
     command,
     footerDoc,
     help,
+    helpDoc,
     helper,
     hsubparser,
     info,
@@ -22,11 +23,12 @@ import Options.Applicative
     metavar,
     optional,
     progDesc,
+    progDescDoc,
     strArgument,
     strOption,
     switch,
   )
-import Text.PrettyPrint.ANSI.Leijen ((<+>), (</>))
+import Text.PrettyPrint.ANSI.Leijen ((<$$>), (<+>), (</>), Doc, bold, hardline)
 
 -- Unfortunately we can't use a global --codebase option so we have
 -- to add it to all Commands that needs it
@@ -51,49 +53,65 @@ newtype SaveCodebase = SaveCodebase Bool
   deriving (Show)
 
 options :: ParserInfo Command
-options = info (options' <**> helper) mempty
+options = info (options' <**> helper) (progDescDoc unisonHelp)
 
-codebaseHelp :: String
-codebaseHelp = "The path to the codebase, defaults to the home directory"
+unisonHelp :: Maybe Doc
+unisonHelp =
+  Just $
+    "Usage instructions for the Unison Codebase Manager"
+      <> hardline
+      <> hardline
+      <> "To get started just run " <+> bold "unison" <+> "to enter interactive mode"
+      <$$> mempty
+      </> "Unison has various sub-commands (see Available commands) but by default will run in interactive mode"
+      </> "Use" <+> bold "unison command --help" <+> "to show help for a command"
+      <> hardline
+      <> hardline
+      <> "Most commands take the option" <+> bold "--codebase" <+> "which expects a path to a unison codebase"
+      </> "If none is provided then the home directory is used"
+
+codebaseHelp :: Maybe Doc
+codebaseHelp = Just "The path to the codebase, defaults to the home directory"
 
 options' :: Parser Command
 options' =
   hsubparser
     ( command "version" (info (pure Version) (progDesc "print the version of unison"))
-        <> command "init" (info (Init <$> optional (strOption (long "codebase" <> help codebaseHelp))) (progDesc initHelp))
-        <> command "run" (info run (progDesc runHelp))
+        <> command "init" (info (Init <$> optional (strOption (long "codebase" <> helpDoc codebaseHelp))) (progDesc initHelp))
+        <> command "run" (info run (progDescDoc runHelp))
         <> command "transcript" (info transcript (progDesc transcriptHelp <> footerDoc transcriptFooter))
     )
-    <|> (Launch <$> optional (strOption (long "codebase" <> help codebaseHelp)))
+    <|> (Launch <$> optional (strOption (long "codebase" <> helpDoc codebaseHelp)))
   where
     initHelp = "Initialise a unison codebase"
-    runHelp = "Execute a definition"
+    runHelp = Just "Execute a definition from a file, stdin or the codebase"
     transcriptHelp = "Execute transcript markdown files"
     transcriptFooter =
       Just $
         "For each transcript file provided this executes the transcript and creates"
-          <+> "`mytranscript.output.md` if successful. "
+          <+> bold "mytranscript.output.md"
+          <+> "if successful."
           </> "Exits after completion, and deletes the temporary directory created."
           </> "Multiple transcript files may be provided; they are processed in sequence"
           <+> "starting from the same codebase."
 
 run :: Parser Command
 run =
-  Run <$> optional (strOption (long "codebase" <> help codebaseHelp))
-    <*> optional (strOption (long "file" <> help fileHelp))
-    <*> (Stdin <$> switch (long "stdin" <> help pipeHelp))
+  Run <$> optional (strOption (long "codebase" <> helpDoc codebaseHelp))
+    <*> optional (strOption (long "file" <> helpDoc fileHelp))
+    <*> (Stdin <$> switch (long "stdin" <> helpDoc pipeHelp))
     <*> strArgument (help mainHelp <> metavar ".mylib.mymain")
   where
-    fileHelp = "the file containing .mylib.mymain - if not provided then the codebase codebase will be used"
-    pipeHelp = "read the definition from stdin"
+    fileHelp = Just $ "the file containing" <+> bold ".mylib.mymain" <+> "- if not provided then the codebase will be used"
+    pipeHelp = Just $ "read the definition from stdin, usefull for piping to unison"
     mainHelp = "the main method"
 
 transcript :: Parser Command
 transcript =
-  Transcript <$> optional (strOption (long "codebase" <> help codebaseHelp))
-    <*> (Fork <$> switch (long "fork" <> help forkHelp))
-    <*> (SaveCodebase <$> switch (long "save-codebase" <> help saveHelp))
+  Transcript <$> optional (strOption (long "codebase" <> helpDoc codebaseHelp))
+    <*> (Fork <$> switch (long "fork" <> helpDoc forkHelp))
+    <*> (SaveCodebase <$> switch (long "save-codebase" <> helpDoc saveHelp))
     <*> some (strArgument (metavar "transcriptfiles..."))
   where
-    forkHelp = "if set the transcript is executed in a copy of the current codebase"
-    saveHelp = "if set the resulting codebase will be saved to a new directory, otherwise it will be deleted"
+    forkHelp = Just "if set the transcript is executed in a copy of the current codebase"
+    saveHelp = Just "if set the resulting codebase will be saved to a new directory, otherwise it will be deleted"
