@@ -41,3 +41,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Andre Popovitch (@anchpop)
 * Daniël Heres (@Dandandan)
 * David Smith (@shmish111)
+* Stew O'Connor (@stew)
