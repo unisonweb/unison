@@ -8,7 +8,7 @@ module Main where
 import Control.Concurrent (mkWeakThreadId, myThreadId)
 import Control.Exception (AsyncException (UserInterrupt), throwTo)
 import qualified Data.Text as Text
-import Options (Command (..), Fork (..), Options (..), SaveCodebase (..), Stdin (..))
+import Options (Command (..), Fork (..), SaveCodebase (..), Stdin (..))
 import qualified Options
 import Options.Applicative (customExecParser, prefs, showHelpOnError)
 import System.Directory (getCurrentDirectory, removeDirectoryRecursive)
@@ -45,36 +45,38 @@ installSignalHandlers = do
 main :: IO ()
 main = do
   void installSignalHandlers
-  Options {codepath, cmd} <- customExecParser (prefs showHelpOnError) Options.options
+  option <- customExecParser (prefs showHelpOnError) Options.options
   currentDir <- getCurrentDirectory
-  configFilePath <- getConfigFilePath codepath
-  case cmd of
-    Launch -> do
+  case option of
+    Launch codepath -> do
+      configFilePath <- getConfigFilePath codepath
       theCodebase <- FileCodebase.getCodebaseOrExit codepath
       launch currentDir configFilePath theCodebase []
     Version -> putStrLn $ "ucm version: " <> Version.gitDescribe
-    Init -> FileCodebase.initCodebaseAndExit codepath
-    Run _ (Stdin True) mainName -> do
+    Init codepath -> FileCodebase.initCodebaseAndExit codepath
+    Run codepath _ (Stdin True) mainName -> do
       e <- safeReadUtf8StdIn
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
           theCodebase <- FileCodebase.getCodebaseOrExit codepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
+          configFilePath <- getConfigFilePath codepath
           launch currentDir configFilePath theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
-    Run Nothing (Stdin False) mainName -> do
+    Run codepath Nothing (Stdin False) mainName -> do
       theCodebase <- FileCodebase.getCodebaseOrExit codepath
       execute theCodebase Rt1.runtime mainName
-    Run (Just file) (Stdin False) mainName | isDotU file -> do
+    Run codepath (Just file) (Stdin False) mainName | isDotU file -> do
       e <- safeReadUtf8 file
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
         Right contents -> do
           theCodebase <- FileCodebase.getCodebaseOrExit codepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
+          configFilePath <- getConfigFilePath codepath
           launch currentDir configFilePath theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
-    Run _ _ _ -> Exit.die "Expected a unison file with extension .u"
-    Transcript fork save transcripts -> runTranscripts fork save currentDir codepath transcripts
+    Run _ _ _ _ -> Exit.die "Expected a unison file with extension .u"
+    Transcript codepath fork save transcripts -> runTranscripts fork save currentDir codepath transcripts
 
 prepareTranscriptDir :: Fork -> FilePath -> Maybe FilePath -> IO FilePath
 prepareTranscriptDir (Fork False) currentDir _ = do

@@ -1,5 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- |
+-- The Options module defines the command line options available when invoking unison
+--
+-- It is built using https://hackage.haskell.org/package/optparse-applicative
+-- which has a pretty good guide that should explain everything in this module
 module Options where
 
 import Control.Applicative ((<**>), (<|>), some)
@@ -23,19 +28,17 @@ import Options.Applicative
   )
 import Text.PrettyPrint.ANSI.Leijen ((<+>), (</>))
 
-data Options
-  = Options
-      { codepath :: Maybe FilePath,
-        cmd :: Command
-      }
-  deriving (Show)
+-- Unfortunately we can't use a global --codebase option so we have
+-- to add it to all Commands that needs it
+-- see https://github.com/pcapriotti/optparse-applicative/issues/294
+type Codebase = Maybe FilePath
 
 data Command
-  = Launch
+  = Launch Codebase
   | Version
-  | Init
-  | Run (Maybe FilePath) Stdin String
-  | Transcript Fork SaveCodebase [FilePath]
+  | Init Codebase
+  | Run Codebase (Maybe FilePath) Stdin String
+  | Transcript Codebase Fork SaveCodebase [FilePath]
   deriving (Show)
 
 newtype Stdin = Stdin Bool
@@ -47,22 +50,22 @@ newtype Fork = Fork Bool
 newtype SaveCodebase = SaveCodebase Bool
   deriving (Show)
 
-options :: ParserInfo Options
+options :: ParserInfo Command
 options = info (options' <**> helper) mempty
 
-options' :: Parser Options
+codebaseHelp :: String
+codebaseHelp = "The path to the codebase, defaults to the home directory"
+
+options' :: Parser Command
 options' =
-  Options <$> optional (strOption (long "codebase" <> help codebaseHelp))
-    <*> ( hsubparser
-            ( command "version" (info (pure Version) (progDesc "print the version of unison"))
-                <> command "init" (info (pure Init) (progDesc initHelp))
-                <> command "run" (info run (progDesc runHelp))
-                <> command "transcript" (info transcript (progDesc transcriptHelp <> footerDoc transcriptFooter))
-            )
-            <|> (pure Launch)
-        )
+  hsubparser
+    ( command "version" (info (pure Version) (progDesc "print the version of unison"))
+        <> command "init" (info (Init <$> optional (strOption (long "codebase" <> help codebaseHelp))) (progDesc initHelp))
+        <> command "run" (info run (progDesc runHelp))
+        <> command "transcript" (info transcript (progDesc transcriptHelp <> footerDoc transcriptFooter))
+    )
+    <|> (Launch <$> optional (strOption (long "codebase" <> help codebaseHelp)))
   where
-    codebaseHelp = "The path to the codebase, defaults to the home directory"
     initHelp = "Initialise a unison codebase"
     runHelp = "Execute a definition"
     transcriptHelp = "Execute transcript markdown files"
@@ -76,7 +79,8 @@ options' =
 
 run :: Parser Command
 run =
-  Run <$> optional (strOption (long "file" <> help fileHelp))
+  Run <$> optional (strOption (long "codebase" <> help codebaseHelp))
+    <*> optional (strOption (long "file" <> help fileHelp))
     <*> (Stdin <$> switch (long "stdin" <> help pipeHelp))
     <*> strArgument (help mainHelp <> metavar ".mylib.mymain")
   where
@@ -86,7 +90,8 @@ run =
 
 transcript :: Parser Command
 transcript =
-  Transcript <$> (Fork <$> switch (long "fork" <> help forkHelp))
+  Transcript <$> optional (strOption (long "codebase" <> help codebaseHelp))
+    <*> (Fork <$> switch (long "fork" <> help forkHelp))
     <*> (SaveCodebase <$> switch (long "save-codebase" <> help saveHelp))
     <*> some (strArgument (metavar "transcriptfiles..."))
   where
