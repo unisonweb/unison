@@ -8,7 +8,7 @@ module Main where
 import Control.Concurrent (mkWeakThreadId, myThreadId)
 import Control.Exception (AsyncException (UserInterrupt), throwTo)
 import qualified Data.Text as Text
-import Options (Command (..), Options (..))
+import Options (Command (..), Fork (..), Options (..), SaveCodebase (..), Stdin (..))
 import qualified Options
 import Options.Applicative (customExecParser, prefs, showHelpOnError)
 import System.Directory (getCurrentDirectory, removeDirectoryRecursive)
@@ -54,7 +54,7 @@ main = do
       launch currentDir configFilePath theCodebase []
     Version -> putStrLn $ "ucm version: " <> Version.gitDescribe
     Init -> FileCodebase.initCodebaseAndExit codepath
-    Run _ True mainName -> do
+    Run _ (Stdin True) mainName -> do
       e <- safeReadUtf8StdIn
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
@@ -62,10 +62,10 @@ main = do
           theCodebase <- FileCodebase.getCodebaseOrExit codepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch currentDir configFilePath theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
-    Run Nothing False mainName -> do
+    Run Nothing (Stdin False) mainName -> do
       theCodebase <- FileCodebase.getCodebaseOrExit codepath
       execute theCodebase Rt1.runtime mainName
-    Run (Just file) False mainName | isDotU file -> do
+    Run (Just file) (Stdin False) mainName | isDotU file -> do
       e <- safeReadUtf8 file
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
@@ -76,13 +76,13 @@ main = do
     Run _ _ _ -> Exit.die "Expected a unison file with extension .u"
     Transcript fork save transcripts -> runTranscripts fork save currentDir codepath transcripts
 
-prepareTranscriptDir :: Bool -> FilePath -> Maybe FilePath -> IO FilePath
-prepareTranscriptDir False currentDir _ = do
+prepareTranscriptDir :: Fork -> FilePath -> Maybe FilePath -> IO FilePath
+prepareTranscriptDir (Fork False) currentDir _ = do
   tmp <- Temp.createTempDirectory currentDir "transcript"
   PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
   void $ FileCodebase.initCodebase tmp
   pure tmp
-prepareTranscriptDir True currentDir mcodepath = do
+prepareTranscriptDir (Fork True) currentDir mcodepath = do
   void $ FileCodebase.getCodebaseOrExit mcodepath
   tmp <- Temp.createTempDirectory currentDir "transcript"
   path <- FileCodebase.getCodebaseDir mcodepath
@@ -133,13 +133,13 @@ runTranscripts' currentDir mcodepath transcriptDir args = do
               ]
           )
 
-runTranscripts :: Bool -> Bool -> FilePath -> Maybe FilePath -> [String] -> IO ()
+runTranscripts :: Fork -> SaveCodebase -> FilePath -> Maybe FilePath -> [String] -> IO ()
 runTranscripts inFork keepTemp currentDir mcodepath args = do
   transcriptDir <- prepareTranscriptDir inFork currentDir mcodepath
   runTranscripts' currentDir mcodepath transcriptDir args
   case keepTemp of
-    True -> removeDirectoryRecursive transcriptDir
-    False ->
+    (SaveCodebase False) -> removeDirectoryRecursive transcriptDir
+    (SaveCodebase True) ->
       PT.putPrettyLn $
         P.callout
           "🌸"
@@ -150,7 +150,7 @@ runTranscripts inFork keepTemp currentDir mcodepath args = do
                 "",
                 P.wrap $
                   "You can run"
-                    <> P.backticked ("ucm -codebase " <> P.string transcriptDir)
+                    <> P.backticked ("ucm --codebase " <> P.string transcriptDir)
                     <> "to do more work with it."
               ]
           )

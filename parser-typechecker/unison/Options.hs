@@ -34,8 +34,17 @@ data Command
   = Launch
   | Version
   | Init
-  | Run (Maybe FilePath) Bool String
-  | Transcript Bool Bool [FilePath]
+  | Run (Maybe FilePath) Stdin String
+  | Transcript Fork SaveCodebase [FilePath]
+  deriving (Show)
+
+newtype Stdin = Stdin Bool
+  deriving (Show)
+
+newtype Fork = Fork Bool
+  deriving (Show)
+
+newtype SaveCodebase = SaveCodebase Bool
   deriving (Show)
 
 options :: ParserInfo Options
@@ -68,7 +77,7 @@ options' =
 run :: Parser Command
 run =
   Run <$> optional (strOption (long "file" <> help fileHelp))
-    <*> switch (long "stdin" <> help pipeHelp)
+    <*> (Stdin <$> switch (long "stdin" <> help pipeHelp))
     <*> strArgument (help mainHelp <> metavar ".mylib.mymain")
   where
     fileHelp = "the file containing .mylib.mymain - if not provided then the codebase codebase will be used"
@@ -77,8 +86,8 @@ run =
 
 transcript :: Parser Command
 transcript =
-  Transcript <$> switch (long "fork" <> help forkHelp)
-    <*> switch (long "save-codebase" <> help saveHelp)
+  Transcript <$> (Fork <$> switch (long "fork" <> help forkHelp))
+    <*> (SaveCodebase <$> switch (long "save-codebase" <> help saveHelp))
     <*> some (strArgument (metavar "transcriptfiles..."))
   where
     forkHelp = "if set the transcript is executed in a copy of the current codebase"
