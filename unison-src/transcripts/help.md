@@ -19,7 +19,6 @@
 These are treated as failures (for example: a user invokes wrong arguments, less or more)
 
 ```ucm:error
-.> load
 .> load 1 2 3
 .> display
 .> display 1 2 3
@@ -77,3 +76,5 @@ These are treated as failures (for example: a user invokes wrong arguments, less
 .> run 1 2
 .> create.author
 ```
+
+load cannot be tested as its output changes per invocation of the trancript
