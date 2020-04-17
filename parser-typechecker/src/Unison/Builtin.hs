@@ -241,29 +241,35 @@ builtinsSrc =
   , B "Int.signum" $ int --> int
   , B "Int.negate" $ int --> int
   , B "Int.mod" $ int --> int --> int
+  , B "Int.pow" $ int --> nat --> int
+  , B "Int.shiftLeft" $ int --> nat --> int
+  , B "Int.shiftRight" $ int --> nat --> int
   , B "Int.truncate0" $ int --> nat
   , B "Int.toText" $ int --> text
   , B "Int.fromText" $ text --> optional int
   , B "Int.toFloat" $ int --> float
 
-  , B "Nat.+" $ nat --> nat --> nat
-  , B "Nat.drop" $ nat --> nat --> nat
-  , B "Nat.sub" $ nat --> nat --> int
   , B "Nat.*" $ nat --> nat --> nat
+  , B "Nat.+" $ nat --> nat --> nat
   , B "Nat./" $ nat --> nat --> nat
-  , B "Nat.mod" $ nat --> nat --> nat
   , B "Nat.<" $ nat --> nat --> boolean
-  , B "Nat.>" $ nat --> nat --> boolean
   , B "Nat.<=" $ nat --> nat --> boolean
-  , B "Nat.>=" $ nat --> nat --> boolean
   , B "Nat.==" $ nat --> nat --> boolean
+  , B "Nat.>" $ nat --> nat --> boolean
+  , B "Nat.>=" $ nat --> nat --> boolean
+  , B "Nat.drop" $ nat --> nat --> nat
+  , B "Nat.fromText" $ text --> optional nat
   , B "Nat.increment" $ nat --> nat
   , B "Nat.isEven" $ nat --> boolean
   , B "Nat.isOdd" $ nat --> boolean
+  , B "Nat.mod" $ nat --> nat --> nat
+  , B "Nat.pow" $ nat --> nat --> nat
+  , B "Nat.shiftLeft" $ nat --> nat --> nat
+  , B "Nat.shiftRight" $ nat --> nat --> nat
+  , B "Nat.sub" $ nat --> nat --> int
+  , B "Nat.toFloat" $ nat --> float
   , B "Nat.toInt" $ nat --> int
   , B "Nat.toText" $ nat --> text
-  , B "Nat.fromText" $ text --> optional nat
-  , B "Nat.toFloat" $ nat --> float
 
   , B "Float.+" $ float --> float --> float
   , B "Float.-" $ float --> float --> float

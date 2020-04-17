@@ -424,10 +424,11 @@ copyDir predicate from to = do
       exists <- doesFileExist to
       unless exists . copyFile path $ replaceRoot from to path
 
--- | note, this skips ANY directories called `.git` or `_head`,
--- which may or may not be what you want.
-copyFromGit :: MonadIO m => FilePath -> FilePath -> m ()
-copyFromGit to from = whenM (doesDirectoryExist from) $
+copyFromGit :: MonadIO m => CodebasePath -> CodebasePath -> m ()
+copyFromGit to0 from0 = let
+  to = to0 </> codebasePath
+  from = from0 </> codebasePath 
+  in whenM (doesDirectoryExist from) $
   copyDir (\x -> takeFileName x `notElem` [".git", "_head"]) from to
 
 copyFileWithParents :: MonadIO m => FilePath -> FilePath -> m ()

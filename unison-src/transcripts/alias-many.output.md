@@ -94,80 +94,86 @@ Let's try it!
   74.  Int.lteq : Int -> Int -> Boolean
   75.  Int.mod : Int -> Int -> Int
   76.  Int.negate : Int -> Int
-  77.  Int.signum : Int -> Int
-  78.  Int.toFloat : Int -> Float
-  79.  Int.toText : Int -> Text
-  80.  Int.truncate0 : Int -> Nat
-  81.  unique type Link
-  82.  builtin type Link.Term
-  83.  Link.Term : Term -> Link
-  84.  builtin type Link.Type
-  85.  Link.Type : Type -> Link
-  86.  builtin type List
-  87.  List.++ : [a] -> [a] -> [a]
-  88.  List.+: : a -> [a] -> [a]
-  89.  List.:+ : [a] -> a -> [a]
-  90.  List.at : Nat -> [a] -> Optional a
-  91.  List.cons : a -> [a] -> [a]
-  92.  List.drop : Nat -> [a] -> [a]
-  93.  List.empty : [a]
-  94.  List.size : [a] -> Nat
-  95.  List.snoc : [a] -> a -> [a]
-  96.  List.take : Nat -> [a] -> [a]
-  97.  builtin type Nat
-  98.  Nat.* : Nat -> Nat -> Nat
-  99.  Nat.+ : Nat -> Nat -> Nat
-  100. Nat./ : Nat -> Nat -> Nat
-  101. Nat.drop : Nat -> Nat -> Nat
-  102. Nat.eq : Nat -> Nat -> Boolean
-  103. Nat.fromText : Text -> Optional Nat
-  104. Nat.gt : Nat -> Nat -> Boolean
-  105. Nat.gteq : Nat -> Nat -> Boolean
-  106. Nat.increment : Nat -> Nat
-  107. Nat.isEven : Nat -> Boolean
-  108. Nat.isOdd : Nat -> Boolean
-  109. Nat.lt : Nat -> Nat -> Boolean
-  110. Nat.lteq : Nat -> Nat -> Boolean
-  111. Nat.mod : Nat -> Nat -> Nat
-  112. Nat.sub : Nat -> Nat -> Int
-  113. Nat.toFloat : Nat -> Float
-  114. Nat.toInt : Nat -> Int
-  115. Nat.toText : Nat -> Text
-  116. type Optional a
-  117. Optional.None : Optional a
-  118. Optional.Some : a -> Optional a
-  119. builtin type Request
-  120. unique type Test.Result
-  121. Test.Result.Fail : Text -> Result
-  122. Test.Result.Ok : Text -> Result
-  123. builtin type Text
-  124. Text.!= : Text -> Text -> Boolean
-  125. Text.++ : Text -> Text -> Text
-  126. Text.drop : Nat -> Text -> Text
-  127. Text.empty : Text
-  128. Text.eq : Text -> Text -> Boolean
-  129. Text.fromCharList : [Char] -> Text
-  130. Text.gt : Text -> Text -> Boolean
-  131. Text.gteq : Text -> Text -> Boolean
-  132. Text.lt : Text -> Text -> Boolean
-  133. Text.lteq : Text -> Text -> Boolean
-  134. Text.size : Text -> Nat
-  135. Text.take : Nat -> Text -> Text
-  136. Text.toCharList : Text -> [Char]
-  137. Text.uncons : Text -> Optional (Char, Text)
-  138. Text.unsnoc : Text -> Optional (Text, Char)
-  139. type Tuple a b
-  140. Tuple.Cons : a -> b -> Tuple a b
-  141. type Unit
-  142. Unit.Unit : ()
-  143. Universal.< : a -> a -> Boolean
-  144. Universal.<= : a -> a -> Boolean
-  145. Universal.== : a -> a -> Boolean
-  146. Universal.> : a -> a -> Boolean
-  147. Universal.>= : a -> a -> Boolean
-  148. Universal.compare : a -> a -> Int
-  149. bug : a -> b
-  150. todo : a -> b
+  77.  Int.pow : Int -> Nat -> Int
+  78.  Int.shiftLeft : Int -> Nat -> Int
+  79.  Int.shiftRight : Int -> Nat -> Int
+  80.  Int.signum : Int -> Int
+  81.  Int.toFloat : Int -> Float
+  82.  Int.toText : Int -> Text
+  83.  Int.truncate0 : Int -> Nat
+  84.  unique type Link
+  85.  builtin type Link.Term
+  86.  Link.Term : Term -> Link
+  87.  builtin type Link.Type
+  88.  Link.Type : Type -> Link
+  89.  builtin type List
+  90.  List.++ : [a] -> [a] -> [a]
+  91.  List.+: : a -> [a] -> [a]
+  92.  List.:+ : [a] -> a -> [a]
+  93.  List.at : Nat -> [a] -> Optional a
+  94.  List.cons : a -> [a] -> [a]
+  95.  List.drop : Nat -> [a] -> [a]
+  96.  List.empty : [a]
+  97.  List.size : [a] -> Nat
+  98.  List.snoc : [a] -> a -> [a]
+  99.  List.take : Nat -> [a] -> [a]
+  100. builtin type Nat
+  101. Nat.* : Nat -> Nat -> Nat
+  102. Nat.+ : Nat -> Nat -> Nat
+  103. Nat./ : Nat -> Nat -> Nat
+  104. Nat.drop : Nat -> Nat -> Nat
+  105. Nat.eq : Nat -> Nat -> Boolean
+  106. Nat.fromText : Text -> Optional Nat
+  107. Nat.gt : Nat -> Nat -> Boolean
+  108. Nat.gteq : Nat -> Nat -> Boolean
+  109. Nat.increment : Nat -> Nat
+  110. Nat.isEven : Nat -> Boolean
+  111. Nat.isOdd : Nat -> Boolean
+  112. Nat.lt : Nat -> Nat -> Boolean
+  113. Nat.lteq : Nat -> Nat -> Boolean
+  114. Nat.mod : Nat -> Nat -> Nat
+  115. Nat.pow : Nat -> Nat -> Nat
+  116. Nat.shiftLeft : Nat -> Nat -> Nat
+  117. Nat.shiftRight : Nat -> Nat -> Nat
+  118. Nat.sub : Nat -> Nat -> Int
+  119. Nat.toFloat : Nat -> Float
+  120. Nat.toInt : Nat -> Int
+  121. Nat.toText : Nat -> Text
+  122. type Optional a
+  123. Optional.None : Optional a
+  124. Optional.Some : a -> Optional a
+  125. builtin type Request
+  126. unique type Test.Result
+  127. Test.Result.Fail : Text -> Result
+  128. Test.Result.Ok : Text -> Result
+  129. builtin type Text
+  130. Text.!= : Text -> Text -> Boolean
+  131. Text.++ : Text -> Text -> Text
+  132. Text.drop : Nat -> Text -> Text
+  133. Text.empty : Text
+  134. Text.eq : Text -> Text -> Boolean
+  135. Text.fromCharList : [Char] -> Text
+  136. Text.gt : Text -> Text -> Boolean
+  137. Text.gteq : Text -> Text -> Boolean
+  138. Text.lt : Text -> Text -> Boolean
+  139. Text.lteq : Text -> Text -> Boolean
+  140. Text.size : Text -> Nat
+  141. Text.take : Nat -> Text -> Text
+  142. Text.toCharList : Text -> [Char]
+  143. Text.uncons : Text -> Optional (Char, Text)
+  144. Text.unsnoc : Text -> Optional (Text, Char)
+  145. type Tuple a b
+  146. Tuple.Cons : a -> b -> Tuple a b
+  147. type Unit
+  148. Unit.Unit : ()
+  149. Universal.< : a -> a -> Boolean
+  150. Universal.<= : a -> a -> Boolean
+  151. Universal.== : a -> a -> Boolean
+  152. Universal.> : a -> a -> Boolean
+  153. Universal.>= : a -> a -> Boolean
+  154. Universal.compare : a -> a -> Int
+  155. bug : a -> b
+  156. todo : a -> b
   
 
 .builtin> alias.many 94-104 .mylib
@@ -177,16 +183,16 @@ Let's try it!
   Added definitions:
   
     1.  builtin type Nat
-    2.  List.size    : [a] -> Nat
-    3.  List.snoc    : [a] -> a -> [a]
-    4.  List.take    : Nat -> [a] -> [a]
-    5.  Nat.*        : Nat -> Nat -> Nat
-    6.  Nat.+        : Nat -> Nat -> Nat
-    7.  Nat./        : Nat -> Nat -> Nat
-    8.  Nat.drop     : Nat -> Nat -> Nat
-    9.  Nat.eq       : Nat -> Nat -> Boolean
-    10. Nat.fromText : Text -> Optional Nat
-    11. Nat.gt       : Nat -> Nat -> Boolean
+    2.  List.cons  : a -> [a] -> [a]
+    3.  List.drop  : Nat -> [a] -> [a]
+    4.  List.empty : [a]
+    5.  List.size  : [a] -> Nat
+    6.  List.snoc  : [a] -> a -> [a]
+    7.  List.take  : Nat -> [a] -> [a]
+    8.  Nat.*      : Nat -> Nat -> Nat
+    9.  Nat.+      : Nat -> Nat -> Nat
+    10. Nat./      : Nat -> Nat -> Nat
+    11. Nat.drop   : Nat -> Nat -> Nat
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -253,27 +259,27 @@ I want to incorporate a few more from another namespace:
   3.  List.any : (a ->{𝕖} Boolean) ->{𝕖} [a] ->{𝕖} Boolean
   4.  List.chunk : Nat -> [a] -> [[a]]
   5.  List.chunksOf : Nat -> [a] -> [[a]]
-  6.  List.dropWhile : (a ->{𝕖} Boolean) ->{𝕖} [a] ->{𝕖} [a]
-  7.  List.first : [a] -> Optional a
-  8.  List.init : [a] -> Optional [a]
-  9.  List.intersperse : a -> [a] -> [a]
-  10. List.isEmpty : [a] -> Boolean
-  11. List.last : [a] -> Optional a
-  12. List.replicate : Nat -> a -> [a]
-  13. List.size : [a] -> Nat
-  14. List.snoc : [a] -> a -> [a]
-  15. List.splitAt : Nat -> [a] -> ([a], [a])
-  16. List.tail : [a] -> Optional [a]
-  17. List.take : Nat -> [a] -> [a]
-  18. List.takeWhile : (a ->{𝕖} Boolean) -> [a] ->{𝕖} [a]
-  19. builtin type Nat
-  20. Nat.* : Nat -> Nat -> Nat
-  21. Nat.+ : Nat -> Nat -> Nat
-  22. Nat./ : Nat -> Nat -> Nat
-  23. Nat.drop : Nat -> Nat -> Nat
-  24. Nat.eq : Nat -> Nat -> Boolean
-  25. Nat.fromText : Text -> Optional Nat
-  26. Nat.gt : Nat -> Nat -> Boolean
+  6.  List.cons : a -> [a] -> [a]
+  7.  List.drop : Nat -> [a] -> [a]
+  8.  List.dropWhile : (a ->{𝕖} Boolean) ->{𝕖} [a] ->{𝕖} [a]
+  9.  List.empty : [a]
+  10. List.first : [a] -> Optional a
+  11. List.init : [a] -> Optional [a]
+  12. List.intersperse : a -> [a] -> [a]
+  13. List.isEmpty : [a] -> Boolean
+  14. List.last : [a] -> Optional a
+  15. List.replicate : Nat -> a -> [a]
+  16. List.size : [a] -> Nat
+  17. List.snoc : [a] -> a -> [a]
+  18. List.splitAt : Nat -> [a] -> ([a], [a])
+  19. List.tail : [a] -> Optional [a]
+  20. List.take : Nat -> [a] -> [a]
+  21. List.takeWhile : (a ->{𝕖} Boolean) -> [a] ->{𝕖} [a]
+  22. builtin type Nat
+  23. Nat.* : Nat -> Nat -> Nat
+  24. Nat.+ : Nat -> Nat -> Nat
+  25. Nat./ : Nat -> Nat -> Nat
+  26. Nat.drop : Nat -> Nat -> Nat
   
 
 ```
