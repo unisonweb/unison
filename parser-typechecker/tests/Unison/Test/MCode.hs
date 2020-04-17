@@ -13,6 +13,7 @@ import qualified Data.IntMap as Map
 
 import Unison.Var (Var)
 import Unison.Reference (Reference(Builtin))
+import Unison.Runtime.Pattern (splitPatterns)
 import Unison.Runtime.ANF
   ( ANFM
   , anfTerm
@@ -125,7 +126,12 @@ drpn = Ins (Unpack 1)
  where pk = Ins (Pack 0 $ UArg1 0) . Yield $ BArg1 0
 
 mkComb :: String -> Comb
-mkComb txt = emitComb mempty . entry . superNormalize builtins $ tm txt
+mkComb txt
+  = emitComb mempty
+  . entry
+  . superNormalize builtins
+  . splitPatterns
+  $ tm txt
 
 mkCombs :: Int -> String -> Map.IntMap Comb
 mkCombs r txt = Map.insert r main aux
@@ -134,6 +140,7 @@ mkCombs r txt = Map.insert r main aux
     = emitCombs (r+1)
     . superNormalize builtins
     . lamLift
+    . splitPatterns
     $ tm txt
 
 multc :: Comb
@@ -150,6 +157,13 @@ multRec
       \     0 -> acc\n\
       \     _ -> f (##Nat.+ acc n) (##Nat.sub i 1)\n\
       \  f 0 m"
+
+nested :: Comb
+nested
+  = mkComb
+      "v -> match v with\n\
+      \  0 -> ##Nat.+ 0 1\n\
+      \  m@n -> n"
 
 testEval' :: [(Int, Comb)] -> String -> Test ()
 testEval' cs = testEval (Map.fromList cs)
@@ -170,4 +184,6 @@ test = scope "mcode" . tests $
   $ testEval' [(20,multc)] "##todo (##Nat.== (##Nat.* 5 5) 25)"
   , scope "5*1000=5000 acc"
   $ testEval multRec "##todo (##Nat.== (##Nat.* 5 1000) 5000)"
+  , scope "nested"
+  $ testEval' [(20,nested)] "##todo (##Nat.== (##Nat.* 2) 2)"
   ]
