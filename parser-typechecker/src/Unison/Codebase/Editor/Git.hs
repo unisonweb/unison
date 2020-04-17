@@ -89,7 +89,7 @@ pullBranch uri Nothing = do
   isEmptyGitRepo :: MonadIO m => FilePath -> m Bool
   isEmptyGitRepo localPath = liftIO $
     -- if rev-parse succeeds, the repo is not empty
-    (gitIn localPath ["rev-parse", "--verify", "--quiet", "HEAD"] $> False)
+    (gitTextIn localPath ["rev-parse", "--verify", "--quiet", "HEAD"] $> False)
       $? pure True
 
   checkOutNew localPath branch = do
