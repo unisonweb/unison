@@ -1690,7 +1690,7 @@ loop = do
         doRemoveReplacement from patchPath False
       ShowDefinitionByPrefixI {} -> notImplemented
       UpdateBuiltinsI -> notImplemented
-      HelpI maybeName -> respond $ ShowHelp maybeName
+      HelpI maybeName isFailure -> respond $ ShowHelp maybeName isFailure
       HelpTopicI maybeTopic -> respond $ ShowHelpTopic maybeTopic
       QuitI -> MaybeT $ pure Nothing
      where
