@@ -7,7 +7,7 @@ module Unison.Runtime.Pattern
   ( splitPatterns
   ) where
 
-import Control.Monad.State (State, state, runState)
+import Control.Monad.State (State, state, runState, modify)
 
 import Data.List (splitAt)
 
@@ -21,7 +21,8 @@ import Unison.Pattern
 import Unison.Term
 import Unison.Var (Var, typed, pattern Pattern)
 
-import Data.Map.Strict as Map (Map, fromListWith, toList, (!))
+import Data.Map.Strict as Map
+  (Map, fromListWith, toList, (!), insertWith)
 
 -- newtype DataSpec = DS (Map Reference [Int])
 
@@ -33,6 +34,11 @@ data PatternRow v a
   , guard :: Maybe (Term v a)
   , body :: Term v a
   }
+
+bound :: Var v => PatternRow v a -> Term v a -> Term v a
+bound (PR ps _ _) = absChain' avs
+  where
+  avs = [ av | VarP av <- ps ]
 
 -- collectRowVars
 --   :: Var v
@@ -86,6 +92,9 @@ splitRow
   -> PatternRow v a
   -> (PatternP a, [([(a,v)], PatternRow v a)])
 splitRow i (PR (splitAt i -> (pl, sp : pr)) g b)
+  | VarP av@(a,_) <- sp
+  = (VarP a, [([av], PR (pl ++ pr) g b)])
+  | otherwise
   = (fst <$> sp, [(vars, PR (pl ++ subs ++ pr) g b)])
   where
   (vars, subs) = unzip $ decomposePattern sp
@@ -124,36 +133,42 @@ type PPM v a = State (Set v, [v], Map v v) a
 freshVar :: Var v => PPM v v
 freshVar = state $ \(avoid, vs, rn) ->
   let v = freshIn avoid $ typed Pattern
-  in (v, (Set.insert v avoid, vs, rn))
+  in (v, (insert v avoid, vs, rn))
 
 useVar :: PPM v v
 useVar = state $ \(avoid, v:vs, rn) -> (v, (avoid, vs, rn))
 
-preparePattern :: Var v => PatternP a -> PPM v (PatternV a v)
-preparePattern (VarP a) = VarP . (a,) <$> useVar
-preparePattern (AsP a p) = do
-  v <- useVar
-  AsP (a,v) <$> preparePattern p
-preparePattern (ConstructorP a r i ps) = do
-  v <- freshVar
-  ConstructorP (a,v) r i <$> traverse preparePattern ps
-preparePattern (EffectPureP a p) = do
-  v <- freshVar
-  EffectPureP (a,v) <$> preparePattern p
-preparePattern (EffectBindP a r i ps k) = do
-  v <- freshVar
-  EffectBindP (a,v) r i
+renameTo :: Var v => v -> v -> PPM v ()
+renameTo to from
+  = modify $ \(avoid, vs, rn) ->
+      ( avoid, vs
+      , insertWith (error "renameTo: duplicate rename") from to rn
+      )
+
+prepareAs :: Var v => PatternP a -> v -> PPM v (PatternV a v)
+prepareAs (UnboundP a) u = pure $ VarP (a, u)
+prepareAs (AsP _ p) u = prepareAs p u <* (renameTo u =<< useVar)
+prepareAs (VarP a) u = VarP (a, u) <$ (renameTo u =<< useVar)
+prepareAs (ConstructorP a r i ps) u = do
+  ConstructorP (a,u) r i <$> traverse preparePattern ps
+prepareAs (EffectPureP a p) u = do
+  EffectPureP (a,u) <$> preparePattern p
+prepareAs (EffectBindP a r i ps k) u = do
+  EffectBindP (a,u) r i
     <$> traverse preparePattern ps
     <*> preparePattern k
-preparePattern (SequenceLiteralP a ps) = do
-  v <- freshVar
-  SequenceLiteralP (a,v) <$> traverse preparePattern ps
-preparePattern (SequenceOpP a p op q) = do
-  v <- freshVar
-  flip (SequenceOpP (a,v)) op
+prepareAs (SequenceLiteralP a ps) u = do
+  SequenceLiteralP (a,u) <$> traverse preparePattern ps
+prepareAs (SequenceOpP a p op q) u = do
+  flip (SequenceOpP (a,u)) op
     <$> preparePattern p
     <*> preparePattern q
-preparePattern p = (\v -> (,v) <$> p) <$> freshVar
+prepareAs p u = pure $ (,u) <$> p
+
+preparePattern :: Var v => PatternP a -> PPM v (PatternV a v)
+preparePattern (VarP a) = VarP . (a,) <$> useVar
+preparePattern (AsP _ p) = prepareAs p =<< useVar
+preparePattern p = prepareAs p =<< freshVar
 
 compile
   :: (Var v, Monoid a) => [Term v a] -> PatternMatrix v a -> Term v a
@@ -162,8 +177,8 @@ compile _ (PM [])
 compile tms m@(PM (r:rs))
   | rowIrrefutable r
   = case guard r of
-      Nothing -> body r
-      Just g -> iff mempty g (body r) $ compile tms (PM rs)
+      Nothing -> bound r $ body r
+      Just g -> bound r $ iff mempty g (body r) $ compile tms (PM rs)
   | otherwise
   = case splitAt i tms of
       (tmsl, scrut : tmsr) -> match mempty scrut $ f tmsl tmsr <$> sm
@@ -178,7 +193,7 @@ compile tms m@(PM (r:rs))
 mkRow :: Var v => MatchCase a (Term v a) -> PatternRow v a
 mkRow (MatchCase p0 g (AbsN' vs b))
   = case runState (preparePattern p0) (avoid, vs, mempty) of
-      (p, (_, [], _)) -> PR [p] g b
+      (p, (_, [], rn)) -> PR [p] g (changeVars rn b)
       _ -> error "mkRow: not all variables used"
   where
   avoid = fromList vs <> maybe mempty freeVars g <> freeVars b
