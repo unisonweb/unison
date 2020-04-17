@@ -1022,8 +1022,8 @@ notifyUser dir o = case o of
         prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r))
 
   ShowHelp maybeCommandName _ -> case maybeCommandName of
-    Just _  -> pure $ P.string ""
-    Nothing -> pure $ H.helpAll
+    Just cmd -> pure $ H.helpFor cmd
+    Nothing -> pure $ H.help
 
   ShowHelpTopic maybeTopic -> case maybeTopic of
     Just helpTopic -> pure $ HT.toPretty helpTopic
