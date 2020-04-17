@@ -13,6 +13,7 @@ module Unison.CommandLine.OutputMessages where
 
 import Unison.Prelude hiding (unlessM)
 
+import qualified Unison.Codebase.Editor.Help             as H
 import qualified Unison.Codebase.Editor.HelpTopics       as HT
 import           Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output           as E
@@ -1022,7 +1023,7 @@ notifyUser dir o = case o of
 
   ShowHelp maybeCommandName _ -> case maybeCommandName of
     Just _  -> pure $ P.string ""
-    Nothing -> pure $ P.string ""
+    Nothing -> pure $ H.helpAll
 
   ShowHelpTopic maybeTopic -> case maybeTopic of
     Just helpTopic -> pure $ HT.toPretty helpTopic
