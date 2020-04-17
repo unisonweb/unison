@@ -9,6 +9,7 @@ module Unison.CommandLine.InputPatterns where
 import Unison.Prelude
 
 import qualified Control.Lens.Cons as Cons
+import qualified Control.Lens as Lens
 import Data.Bifunctor (first)
 import Data.List (intercalate, sortOn, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
@@ -41,6 +42,7 @@ import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
+import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -716,12 +718,10 @@ pull = InputPattern
   (\case
     []    -> Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty'
     [url] -> do
-      ns <- first (fromString . show)
-              (P.parse UriParser.repoPath "url" (Text.pack url))
+      ns <- parseUri "url" url
       Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty'
     [url, path] -> do
-      ns <- first (fromString . show)
-              (P.parse UriParser.repoPath "url" (Text.pack url))
+      ns <- parseUri "url" url
       p <- first fromString $ Path.parsePath' path
       pure $ Input.PullRemoteBranchI (Just ns) p
     _ -> Left (I.help pull)
@@ -760,8 +760,7 @@ push = InputPattern
   (\case
     []    -> Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty'
     url : rest -> do
-      (repo, sbh, path) <- first (fromString . show)
-        (P.parse UriParser.repoPath "url" (Text.pack url))
+      (repo, sbh, path) <- parseUri "url" url
       when (isJust sbh)
         $ Left "Can't push to a particular remote namespace hash."
       p <- case rest of
@@ -784,7 +783,7 @@ createPullRequest = InputPattern "pull-request.create" ["pr.create"]
                                                 "https://github.com/me/unison:.libs.pr.base" ]
     ])
   (\case
-    [baseUrl, headUrl] -> first fromString $ do
+    [baseUrl, headUrl] -> do
       baseRepo <- parseUri "baseRepo" baseUrl
       headRepo <- parseUri "headRepo" headUrl
       pure $ Input.CreatePullRequestI baseRepo headRepo
@@ -804,21 +803,28 @@ loadPullRequest = InputPattern "pull-request.load" ["pr.load"]
      <> "remote repo `base`, staging each in `dest`, which must be empty."
    ])
   (\case
-    [baseUrl, headUrl] -> first fromString $ do
+    [baseUrl, headUrl] -> do
       baseRepo <- parseUri "baseRepo" baseUrl
       headRepo <- parseUri "topicRepo" headUrl
       pure $ Input.LoadPullRequestI baseRepo headRepo Path.relativeEmpty'
-    [baseUrl, headUrl, dest] -> first fromString $ do
+    [baseUrl, headUrl, dest] -> do
       baseRepo <- parseUri "baseRepo" baseUrl
       headRepo <- parseUri "topicRepo" headUrl
-      destPath <- Path.parsePath' dest
+      destPath <- first fromString $ Path.parsePath' dest
       pure $ Input.LoadPullRequestI baseRepo headRepo destPath
     _ -> Left (I.help loadPullRequest)
   )
-parseUri :: IsString b => String -> String -> Either b RemoteNamespace
-parseUri label input =
-  first (fromString . show)
+parseUri :: String -> String -> Either (P.Pretty P.ColorText) RemoteNamespace
+parseUri label input = do
+  ns <- first (fromString . show) -- turn any parsing errors into a Pretty.
     (P.parse UriParser.repoPath label (Text.pack input))
+  case (RemoteRepo.commit . Lens.view Lens._1) ns of
+    Nothing -> pure ns
+    Just commit -> Left . P.wrap $
+      "I don't totally know how to address specific git commits (e.g. "
+      <> P.group (P.text commit <> ")") <> " yet."
+      <> "If you need this, add your 2¢ at"
+      <> P.backticked "https://github.com/unisonweb/unison/issues/1436"
 
 mergeLocal :: InputPattern
 mergeLocal = InputPattern "merge" [] [(Required, pathArg)

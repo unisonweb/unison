@@ -5,7 +5,7 @@
 module Unison.Test.Git where
 
 import EasyTest
-import Data.List (intercalate, partition)
+import Data.List (intercalate)
 import Data.List.Split (splitOn)
 import Data.String.Here (iTrim)
 import Unison.Prelude

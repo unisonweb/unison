@@ -8,7 +8,8 @@ import qualified Unison.Codebase.Branch as Branch
 
 data GitError = NoGit
               | NoRemoteRepoAt Text
-              | NoLocalRepoAt FilePath
+              | UnrecognizableCacheDir Text FilePath
+              | UnrecognizableCheckoutDir Text FilePath
               | CheckoutFailed Text
               -- url commit Diff of what would change on merge with remote
               | PushDestinationHasNewStuff Text (Maybe Text) Names.Diff

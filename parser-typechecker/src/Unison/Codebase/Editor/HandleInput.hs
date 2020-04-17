@@ -2106,10 +2106,9 @@ pullRemoteBranchAt p' input inputDescription ns p = do
 mergeBranchAndPropagateDefaultPatch :: (Monad m, Var v) =>
   InputDescription -> Maybe (Output v) -> Branch m -> Maybe Path.Path' -> Path.Absolute -> Action' m v ()
 mergeBranchAndPropagateDefaultPatch inputDescription unchangedMessage srcb dest0 dest = do
-  mergeDidChange <- mergeBranch inputDescription srcb dest0 dest
-  if mergeDidChange then
-    loadPropagateDiffDefaultPatch inputDescription dest0 dest
-  else for_ unchangedMessage respond
+  ifM (mergeBranch inputDescription srcb dest0 dest)
+      (loadPropagateDiffDefaultPatch inputDescription dest0 dest)
+      (for_ unchangedMessage respond)
   where
   mergeBranch :: (Monad m, Var v) =>
     InputDescription -> Branch m -> Maybe Path.Path' -> Path.Absolute -> Action' m v Bool

@@ -615,9 +615,14 @@ notifyUser dir o = case o of
       <> "repository at " <> P.group (P.text p <> ".")
       <> "Make sure the repo exists "
       <> "and that you have access to it."
-    NoLocalRepoAt p -> P.wrap
-       $ "The directory at " <> P.string p
-      <> "doesn't seem to contain a git repository."
+    UnrecognizableCacheDir uri localPath -> P.wrap $ "A cache directory for" 
+      <> P.backticked (P.text uri) <> "already exists at"
+      <> P.backticked' (P.string localPath) "," <> "but it doesn't seem to"
+      <> "be a git repo, so I'm not sure what to do next.  Delete it?"
+    UnrecognizableCheckoutDir uri localPath -> P.wrap $ "I tried to clone" 
+      <> P.backticked (P.text uri) <> "into a cache directory at"
+      <> P.backticked' (P.string localPath) "," <> "but I can't recognize the"
+      <> "result as a git repo, so I'm not sure what to do next."    
     CheckoutFailed t -> P.wrap
        $ "I couldn't do a git checkout of "
       <> P.group (P.text t <> ".")

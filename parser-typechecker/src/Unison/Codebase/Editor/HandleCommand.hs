@@ -24,17 +24,11 @@ import           Data.Configurator.Types        ( Config )
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
-import           System.Directory               ( getXdgDirectory
-                                                , XdgDirectory(..)
-                                                )
-import           System.FilePath                ( (</>) )
-
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Editor.Git    as Git
-import qualified Unison.Hash                   as Hash
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.Parsers                as Parsers
@@ -83,14 +77,6 @@ typecheck' ambient codebase file = do
     <$> Codebase.typeLookupForDependencies codebase (UF.dependencies file)
   pure . fmap Right $ synthesizeFile' ambient typeLookup file
 
-tempGitDir :: Text -> Maybe Text -> IO FilePath
-tempGitDir url commit =
-  getXdgDirectory XdgCache
-    $   "unisonlanguage"
-    </> "gitfiles"
-    </> Hash.showBase32Hex url
-    </> Text.unpack (fromMaybe "HEAD" commit)
-
 commandLine
   :: forall i v a gen
    . (Var v, Random.DRG gen)
@@ -133,13 +119,12 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     SyncLocalRootBranch branch -> do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
-    LoadRemoteRootBranch GitRepo {..} -> do
-      tmp <- tempGitDir url commit
-      runExceptT $ Git.pullGitRootBranch tmp codebase url commit
-    SyncRemoteRootBranch GitRepo {..} branch -> do
-      tmp <- tempGitDir url commit
-      runExceptT
-        $ Git.pushGitRootBranch tmp codebase branch url commit
+    LoadRemoteRootBranch GitRepo {..} ->
+      runExceptT $ Git.pullGitBranch codebase url commit Nothing
+    LoadRemoteShortBranch GitRepo{..} sbh ->
+      runExceptT $ Git.pullGitBranch codebase url commit (Just sbh)
+    SyncRemoteRootBranch GitRepo {..} branch ->
+      runExceptT $ Git.pushGitRootBranch codebase branch url commit
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r
@@ -178,9 +163,6 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase)
     BranchHashLength -> Codebase.branchHashLength codebase
     BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
-    LoadRemoteShortBranch GitRepo{..} sbh -> do
-      tmp <- tempGitDir url commit
-      runExceptT $ Git.pullGitBranch tmp codebase url commit (Just sbh)
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
 

@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.Editor.Git
-  ( pullGitRootBranch
-  , pullGitBranch
+  ( pullGitBranch
   , pushGitRootBranch
   ) where
 
@@ -17,16 +17,10 @@ import           Control.Monad.Except           ( MonadError
                                                 )
 import qualified Data.Text                     as Text
 import           Shellmet                       ( ($?), ($|), ($^))
-import           System.Directory               ( doesDirectoryExist
-                                                , findExecutable
-                                                , removeDirectoryRecursive
-                                                )
 import           System.FilePath                ( (</>) )
 import           Unison.Codebase.GitError
 import qualified Unison.Codebase               as Codebase
-import           Unison.Codebase                ( Codebase
-                                                , syncToDirectory
-                                                )
+import           Unison.Codebase                ( Codebase )
 import           Unison.Codebase.FileCodebase  as FC
 import           Unison.Codebase.Branch         ( Branch
                                                 , headHash
@@ -36,6 +30,15 @@ import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Names3                 as Names
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import UnliftIO.IO (hFlush, stdout)
+import UnliftIO.Directory (getXdgDirectory, XdgDirectory(XdgCache), doesDirectoryExist, findExecutable, removeDirectoryRecursive)
+import Unison.Codebase.FileCodebase.Common (encodeFileName)
+
+tempGitDir :: MonadIO m => Text -> m FilePath
+tempGitDir url =
+  getXdgDirectory XdgCache
+    $   "unisonlanguage"
+    </> "gitfiles"
+    </> encodeFileName (Text.unpack url)
 
 withStatus :: MonadIO m => String -> m a -> m a
 withStatus str ma = do
@@ -51,50 +54,75 @@ withStatus str ma = do
 -- Given a local path, a remote git repo url, and branch/commit hash,
 -- checks for git, the repo path, performs a clone, and verifies resulting repo
 pullBranch
-  :: MonadIO m
-  => MonadError GitError m => FilePath -> Text -> Maybe Text -> m ()
-pullBranch localPath uri treeish = do
+  :: (MonadIO m, MonadError GitError m)
+  => Text -> Maybe Text -> m CodebasePath
+pullBranch _uri (Just t) = error $
+  "InputPatterns.parseUri was expected to have prevented you " ++
+  "from supplying the git treeish `" ++ Text.unpack t ++ "`!"
+pullBranch uri Nothing = do
   checkForGit
-  e <- liftIO . Ex.tryAny . whenM (doesDirectoryExist localPath) $
-    removeDirectoryRecursive localPath
-  case e of
-    Left e -> throwError (SomeOtherError (Text.pack (show e)))
-    Right _ -> pure ()
-  withStatus ("Downloading from " ++ Text.unpack uri ++ " ...")
-    ("git" $^ (["clone", "--quiet"] ++ ["--depth", "1"]
-       ++ maybe [] (\t -> ["--branch", t]) treeish
-       ++ [uri, Text.pack localPath]))
-      `onError` throwError (NoRemoteRepoAt uri)
-  isGitDir <- liftIO $ checkGitDir localPath
-  unless isGitDir . throwError $ NoLocalRepoAt localPath
 
--- Given a local path, a remote repo url, and branch/commit hash, pulls the
--- HEAD of that remote repo into the local path and attempts to load it as a
--- branch. Then merges the branch into the given codebase.
-pullGitRootBranch
-  :: MonadIO m
-  => FilePath
-  -> Codebase m v a
-  -> Text
-  -> Maybe Text
-  -> ExceptT GitError m (Branch m)
-pullGitRootBranch localPath codebase url treeish =
-  pullGitBranch localPath codebase url treeish Nothing
+  localPath <- tempGitDir uri
+
+  ifM (doesDirectoryExist localPath)
+    -- try to update existing directory
+    (ifM (isGitRepo localPath)
+      (checkoutExisting localPath)
+      (throwError (UnrecognizableCacheDir uri localPath)))
+    -- directory doesn't exist, so clone anew
+    (checkOutNew localPath Nothing)
+  pure localPath
+  where
+  checkoutExisting :: (MonadIO m, MonadError GitError m) => FilePath -> m ()
+  checkoutExisting localPath =
+    ifM (isEmptyGitRepo localPath)
+      -- I don't know how to properly update from an empty repo;
+      -- but if this copy is empty, then the remote might be too,
+      -- so this impl. just wipes the cache dir and starts over from scratch.
+      (do wipeDir localPath; checkOutNew localPath Nothing)
+    -- Otherwise proceed!
+    (withStatus ("Updating cached copy of " ++ Text.unpack uri ++ " ...") $ do
+      gitIn localPath ["reset", "--hard", "--quiet", "HEAD"]
+      gitIn localPath ["clean", "-d", "--force", "--quiet"]
+      gitIn localPath ["pull", "--force", "--quiet"])
+
+  isEmptyGitRepo :: MonadIO m => FilePath -> m Bool
+  isEmptyGitRepo localPath = liftIO $
+    -- if rev-parse succeeds, the repo is not empty
+    (gitIn localPath ["rev-parse", "--verify", "--quiet", "HEAD"] $> False)
+      $? pure True
+
+  checkOutNew localPath branch = do
+    withStatus ("Downloading from " ++ Text.unpack uri ++ " ...")
+      -- if `treeish` is a branch or tag
+      (liftIO $
+        "git" $^ (["clone", "--quiet"] ++ ["--depth", "1"]
+         ++ maybe [] (\t -> ["--branch", t]) branch
+         ++ [uri, Text.pack localPath]))
+        `onError` throwError (NoRemoteRepoAt uri)
+    isGitDir <- liftIO $ isGitRepo localPath
+    unless isGitDir . throwError $ UnrecognizableCheckoutDir uri localPath
+
+  wipeDir localPath = do
+    e <- Ex.tryAny . whenM (doesDirectoryExist localPath) $
+      removeDirectoryRecursive localPath
+    case e of
+      Left e -> throwError (SomeOtherError (Text.pack (show e)))
+      Right _ -> pure ()
 
 -- pull repo & load arbitrary branch
--- if `loadInfo` is Left, we try to load the root branch;
--- if Right, we try to load the specified hash
+-- if `sbh` is supplied, we try to load the specified branch hash;
+-- otherwise we try to load the root branch
 pullGitBranch
   :: forall m v a
    . MonadIO m
-  => CodebasePath
-  -> Codebase m v a
+  => Codebase m v a
   -> Text
   -> Maybe Text
   -> Maybe ShortBranchHash
   -> ExceptT GitError m (Branch m)
-pullGitBranch remotePath codebase url treeish sbh = do
-  pullBranch remotePath url treeish
+pullGitBranch codebase url treeish sbh = do
+  remotePath <- pullBranch url treeish
   branch :: (Branch m) <- case sbh of
     Nothing -> lift (FC.getRootBranch remotePath) >>= \case
       Left Codebase.NoRootBranch -> pure Branch.empty
@@ -118,9 +146,9 @@ checkForGit = do
   gitPath <- liftIO $ findExecutable "git"
   when (isNothing gitPath) $ throwError NoGit
 
-checkGitDir :: FilePath -> IO Bool
-checkGitDir dir =
-  (const True <$> gitIn dir ["rev-parse"]) $? pure False
+isGitRepo :: MonadIO m => FilePath -> m Bool
+isGitRepo dir = liftIO $
+  (True <$ gitIn dir ["rev-parse"]) $? pure False
 
 onError :: MonadError e m => MonadIO m => IO () -> m () -> m ()
 onError x k = liftIO ((const True <$> x) $? pure False) >>= \case
@@ -132,11 +160,11 @@ setupGitDir localPath =
   ["--git-dir", Text.pack $ localPath </> ".git"
   ,"--work-tree", Text.pack localPath]
 
-gitIn :: FilePath -> [Text] -> IO ()
-gitIn localPath args = "git" $^ (setupGitDir localPath <> args)
+gitIn :: MonadIO m => FilePath -> [Text] -> m ()
+gitIn localPath args = liftIO $ "git" $^ (setupGitDir localPath <> args)
 
-gitTextIn :: FilePath -> [Text] -> IO Text
-gitTextIn localPath args = "git" $| setupGitDir localPath <> args
+gitTextIn :: MonadIO m => FilePath -> [Text] -> m Text
+gitTextIn localPath args = liftIO $ "git" $| setupGitDir localPath <> args
 
 -- Clone the given remote repo and commit to the given local path.
 -- Then given a codebase and a branch, write the branch and all its
@@ -144,19 +172,19 @@ gitTextIn localPath args = "git" $| setupGitDir localPath <> args
 pushGitRootBranch
   :: MonadIO m
   => MonadCatch m
-  => CodebasePath
-  -> Codebase m v a
+  => Codebase m v a
   -> Branch m
   -> Text
   -> Maybe Text
   -> ExceptT GitError m ()
-pushGitRootBranch remotePath codebase branch url gitbranch = do
-  -- Clone and pull the remote repo
-  pullBranch remotePath url gitbranch
+pushGitRootBranch codebase branch url gitbranch = do
+  -- Clone and check out the remote repo
+  remotePath <- pullBranch url gitbranch
   -- Stick our changes in the checked-out copy
   merged <-
     withStatus ("Staging files for upload to " ++ Text.unpack url ++ " ...") $
-      lift $ syncToDirectory codebase remotePath branch
+      lift $ Codebase.syncToDirectory codebase remotePath branch
+  -- `isBefore` = "is fast-forward merge"
   isBefore <- lift $ Branch.before merged branch
   let mergednames = Branch.toNames0 (Branch.head merged)
       localnames  = Branch.toNames0 (Branch.head branch)
@@ -164,8 +192,9 @@ pushGitRootBranch remotePath codebase branch url gitbranch = do
   when (not isBefore) $
     throwError (PushDestinationHasNewStuff url gitbranch diff)
   let
+    -- Commit our changes
     push = do
-      -- Commit our changes
+      -- has anything changed?
       status <- gitTextIn remotePath ["status", "--short"]
       unless (Text.null status) $ do
         gitIn remotePath ["add", "--all", "."]
@@ -173,7 +202,7 @@ pushGitRootBranch remotePath codebase branch url gitbranch = do
           ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ headHash branch)]
         -- Push our changes to the repo
         case gitbranch of
-          Nothing        -> gitIn remotePath ["push", "--quiet", "--all", url]
+          Nothing        -> gitIn remotePath ["push", "--quiet", url]
           Just gitbranch -> gitIn remotePath ["push", "--quiet", url, gitbranch]
   withStatus ("Uploading to " ++ Text.unpack url ++ " ...") $
     liftIO push `onException` throwError (NoRemoteRepoAt url)

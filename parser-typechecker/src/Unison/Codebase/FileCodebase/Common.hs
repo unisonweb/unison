@@ -75,7 +75,7 @@ import           Unison.Prelude
 
 import qualified Data.Char                     as Char
 import qualified Data.Hex                      as Hex
-import           Data.List                      ( isSuffixOf, isPrefixOf )
+import           Data.List                      ( isPrefixOf )
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import           Data.Text.Encoding             ( encodeUtf8
@@ -90,6 +90,7 @@ import qualified System.Directory
 import           System.FilePath                ( FilePath
                                                 , takeBaseName
                                                 , takeDirectory
+                                                , takeFileName
                                                 , (</>)
                                                 )
 import           System.Path                    ( replaceRoot
@@ -423,10 +424,11 @@ copyDir predicate from to = do
       exists <- doesFileExist to
       unless exists . copyFile path $ replaceRoot from to path
 
+-- | note, this skips ANY directories called `.git` or `_head`,
+-- which may or may not be what you want.
 copyFromGit :: MonadIO m => FilePath -> FilePath -> m ()
 copyFromGit to from = whenM (doesDirectoryExist from) $
-  copyDir (\x -> not ((".git" `isSuffixOf` x) || ("_head" `isSuffixOf` x)))
-          from to
+  copyDir (\x -> takeFileName x `notElem` [".git", "_head"]) from to
 
 copyFileWithParents :: MonadIO m => FilePath -> FilePath -> m ()
 copyFileWithParents src dest =
