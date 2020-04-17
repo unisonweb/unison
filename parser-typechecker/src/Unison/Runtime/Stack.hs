@@ -120,10 +120,7 @@ bargOnto stk sp cop cp0 (ArgN v) = do
   let loop i
         | i < 0     = return ()
         | otherwise = do
-            print i
-            print $ indexPrimArray v i
             x <- readArray stk $ sp-indexPrimArray v i
-            print x
             writeArray buf (sz-1-i) x
             loop $ i-1
   loop $ sz-1
