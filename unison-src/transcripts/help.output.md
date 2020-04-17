@@ -536,7 +536,22 @@
 
 .> help push
 
-  
+  push
+  The `push` command merges a local namespace into a remote
+  namespace.
+  `push remote local`  merges the contents of the local
+                       namespace `local` into the remote
+                       namespace `remote`.
+  `push remote`        publishes the current namespace into the
+                       remote namespace `remote`
+  `push`               publishes the current namespace into the
+                       remote namespace configured in
+                       `.unisonConfig` with the key `GitUrl.ns`
+                       where `ns` is the current namespace
+  where `remote` is a git repository, optionally followed by `:`
+  and an absolute remote path, such as:
+  `https://github.com/org/repo`
+  `https://github.com/org/repo:.some.remote.path`
 
 ```
 ### Tests output 'help your-command' due to broken invocation of a command
@@ -546,100 +561,212 @@ These are treated as failures (for example: a user invokes wrong arguments, less
 ```ucm
 .> load 1 2 3
 
-  
+  load
+  `load`                 parses, typechecks, and evaluates the
+                         most recent scratch file.
+  `load <scratch file>`  parses, typechecks, and evaluates the
+                         given scratch file.
 
+```
+```ucm
 .> display
 
-  
+  display
+  `display foo` prints a rendered version of the term `foo`.
 
+```
+```ucm
 .> display 1 2 3
 
-  
+  display
+  `display foo` prints a rendered version of the term `foo`.
 
+```
+```ucm
 .> display.to
 
-  
+  display.to
+  `display.to <filename> foo` prints a rendered version of the
+  term `foo` to the given file.
 
+```
+```ucm
 .> display.to 1 2 3
 
-  
+  display.to
+  `display.to <filename> foo` prints a rendered version of the
+  term `foo` to the given file.
 
+```
+```ucm
 .> docs
 
-  
+  docs
+  `docs foo` shows documentation for the definition `foo`.
 
+```
+```ucm
 .> docs 1 2
 
-  
+  docs
+  `docs foo` shows documentation for the definition `foo`.
 
+```
+```ucm
 .> list
 
   nothing to show
 
+```
+```ucm
 .> list 1 2
 
-  
+  list (or ls)
+  `list`       lists definitions and namespaces at the current
+               level of the current namespace.
+  `list foo`   lists the 'foo' namespace.
+  `list .foo`  lists the '.foo' namespace.
 
+```
+```ucm
 .> alias.many
 
-  
+  alias.many (or copy)
+  `alias.many <relative1> [relative2...] <namespace>` creates
+  aliases `relative1`, `relative2`, ... in the namespace
+  `namespace`.
+  `alias.many foo.foo bar.bar .quux` creates aliases
+  `.quux.foo.foo` and `.quux.bar.bar`.
 
+```
+```ucm
 .> cd
 
-  
+  namespace (or cd, j)
+  `namespace foo.bar`   descends into foo.bar from the current
+                        namespace.
+  `namespace .cat.dog`  sets the current namespace to the
+                        abolute namespace .cat.dog.
 
+```
+```ucm
 .> cd 1 2 3
 
-  
+  namespace (or cd, j)
+  `namespace foo.bar`   descends into foo.bar from the current
+                        namespace.
+  `namespace .cat.dog`  sets the current namespace to the
+                        abolute namespace .cat.dog.
 
+```
+```ucm
 .> back 1
 
-  
+  namespace (or cd, j)
+  `namespace foo.bar`   descends into foo.bar from the current
+                        namespace.
+  `namespace .cat.dog`  sets the current namespace to the
+                        abolute namespace .cat.dog.
 
+```
+```ucm
 .> delete.namespace 1 2 3
 
-  
+  delete.namespace
+  `delete.namespace <foo>` deletes the namespace `foo`
 
+```
+```ucm
 .> delete.patch 1 2
 
-  
+  delete.patch
+  `delete.patch <foo>` deletes the patch `foo`
 
+```
+```ucm
 .> copy.patch 1 2 3
 
-  
+  copy.patch
+  `copy.patch foo bar` copies the patch `bar` to `foo`.
 
+```
+```ucm
 .> rename.patch 1 2 3
 
-  
+  move.patch (or rename.patch)
+  `move.patch foo bar` renames the patch `bar` to `foo`.
 
+```
+```ucm
 .> rename.namespace 1 2 3
 
-  
+  move.namespace (or rename.namespace)
+  `move.namespace foo bar` renames the path `bar` to `foo`.
 
+```
+```ucm
 .> history 1 2 3
 
-  
+  history
+  `history`                     Shows the history of the current
+                                path.
+  `history .foo`                Shows history of the path .foo.
+  `history #9dndk3kbsk13nbpeu`  Shows the history of the
+                                namespace with the given hash.
+                                The full hash must be provided.
 
+```
+```ucm
 .> fork
 
-  
+  fork (or copy.namespace)
+  `fork src dest` creates the namespace `dest` as a copy of
+  `src`.
 
+```
+```ucm
 .> fork 1
 
-  
+  fork (or copy.namespace)
+  `fork src dest` creates the namespace `dest` as a copy of
+  `src`.
 
+```
+```ucm
 .> fork 1 2 3
 
-  
+  fork (or copy.namespace)
+  `fork src dest` creates the namespace `dest` as a copy of
+  `src`.
 
+```
+```ucm
 .> reset-root
 
-  
+  reset-root
+  `reset-root .foo`                Reset the root namespace
+                                   (along with its history) to
+                                   that of the `.foo` namespace.
+  `reset-root #9dndk3kbsk13nbpeu`  Reset the root namespace
+                                   (along with its history) to
+                                   that of the namespace with
+                                   hash `#9dndk3kbsk13nbpeu`.
 
+```
+```ucm
 .> reset-root 1 2
 
-  
+  reset-root
+  `reset-root .foo`                Reset the root namespace
+                                   (along with its history) to
+                                   that of the `.foo` namespace.
+  `reset-root #9dndk3kbsk13nbpeu`  Reset the root namespace
+                                   (along with its history) to
+                                   that of the namespace with
+                                   hash `#9dndk3kbsk13nbpeu`.
 
+```
+```ucm
 .> pull
 
   ❗️
@@ -648,66 +775,170 @@ These are treated as failures (for example: a user invokes wrong arguments, less
   current namespace = <some-git-url>' to .unisonConfig. Type
   `help pull ` for more information.
 
+```
+```ucm
 .> pull 1 2 3
 
-  
+  pull
+  The `pull` command merges a remote namespace into a local
+  namespace.
+  `pull remote local`  merges the remote namespace `remote` into
+                       the local namespace `local`.
+  `pull remote`        merges the remote namespace `remote` into
+                       the current namespace
+  `pull`               merges the remote namespace configured in
+                       `.unisonConfig` with the key `GitUrl.ns`
+                       where `ns` is the current namespace, into
+                       the current namespace
+  where `remote` is a git repository, optionally followed by `:`
+  and an absolute remote path, such as:
+  `https://github.com/org/repo`
+  `https://github.com/org/repo:.some.remote.path`
 
+```
+```ucm
 .> pull-request.create
 
+  pull-request.create (or pr.create)
+  `pull-request.create base head` will generate a request to
+  merge the remote repo `head` into the remote repo `base`.
   
+  example: pull-request.create https://github.com/unisonweb/base https://github.com/me/unison:.libs.pr.base
 
+```
+```ucm
 .> pull-request.create 1 2 3
 
+  pull-request.create (or pr.create)
+  `pull-request.create base head` will generate a request to
+  merge the remote repo `head` into the remote repo `base`.
   
+  example: pull-request.create https://github.com/unisonweb/base https://github.com/me/unison:.libs.pr.base
 
+```
+```ucm
 .> pull-request.load
 
-  
+  pull-request.load (or pr.load)
+  `pull-request.load base head` will load a pull request for
+  merging the remote repo `head` into the remote repo `base`,
+  staging each in the current namespace (so make yourself a
+  clean spot to work first).
+  `pull-request.load base head dest` will load a pull request
+  for merging the remote repo `head` into the remote repo
+  `base`, staging each in `dest`, which must be empty.
 
+```
+```ucm
 .> pull-request.load 1
 
-  
+  pull-request.load (or pr.load)
+  `pull-request.load base head` will load a pull request for
+  merging the remote repo `head` into the remote repo `base`,
+  staging each in the current namespace (so make yourself a
+  clean spot to work first).
+  `pull-request.load base head dest` will load a pull request
+  for merging the remote repo `head` into the remote repo
+  `base`, staging each in `dest`, which must be empty.
 
+```
+```ucm
 .> pull-request.load 1 2 3 4
 
-  
+  pull-request.load (or pr.load)
+  `pull-request.load base head` will load a pull request for
+  merging the remote repo `head` into the remote repo `base`,
+  staging each in the current namespace (so make yourself a
+  clean spot to work first).
+  `pull-request.load base head dest` will load a pull request
+  for merging the remote repo `head` into the remote repo
+  `base`, staging each in `dest`, which must be empty.
 
+```
+```ucm
 .> merge
 
-  
+  merge
+  `merge src`      merges `src` namespace into the current namespace
+  `merge src dest` merges `src` namespace into the `dest` namespace
 
+```
+```ucm
 .> merge 1 2 3
 
-  
+  merge
+  `merge src`      merges `src` namespace into the current namespace
+  `merge src dest` merges `src` namespace into the `dest` namespace
 
+```
+```ucm
 .> diff.namespace
 
-  
+  diff.namespace
+  `diff.namespace before after` shows how the namespace `after`
+                                differs from the namespace
+                                `before`
 
+```
+```ucm
 .> diff.namespace 1
 
-  
+  diff.namespace
+  `diff.namespace before after` shows how the namespace `after`
+                                differs from the namespace
+                                `before`
 
+```
+```ucm
 .> diff.namespace 1 2 3
 
-  
+  diff.namespace
+  `diff.namespace before after` shows how the namespace `after`
+                                differs from the namespace
+                                `before`
 
+```
+```ucm
 .> merge.preview
 
-  
+  merge.preview
+  `merge.preview src`      shows how the current namespace will change after a `merge src`.
+  `merge.preview src dest` shows how `dest` namespace will change after a `merge src dest`.
 
+```
+```ucm
 .> merge.preview 1 2 3
 
-  
+  merge.preview
+  `merge.preview src`      shows how the current namespace will change after a `merge src`.
+  `merge.preview src dest` shows how `dest` namespace will change after a `merge src dest`.
 
+```
+```ucm
 .> replace.type
 
-  
+  replace.type
+  `replace.type <from> <to> <patch>`  Replace the type <from> in
+                                      the given patch with the
+                                      type <to>.
+  `replace.type <from> <to>`          Replace the type <from>
+                                      with <to> in the default
+                                      patch.
 
+```
+```ucm
 .> replace.type 1 
 
-  
+  replace.type
+  `replace.type <from> <to> <patch>`  Replace the type <from> in
+                                      the given patch with the
+                                      type <to>.
+  `replace.type <from> <to>`          Replace the type <from>
+                                      with <to> in the default
+                                      patch.
 
+```
+```ucm
 .> replace.type 1 2
 
   ⚠️
@@ -718,14 +949,32 @@ These are treated as failures (for example: a user invokes wrong arguments, less
 
   1 is not a kind of name I understand.
 
+```
+```ucm
 .> replace.term
 
-  
+  replace.term
+  `replace.term <from> <to> <patch>`  Replace the term <from> in
+                                      the given patch with the
+                                      term <to>.
+  `replace.term <from> <to>`          Replace the term <from>
+                                      with <to> in the default
+                                      patch.
 
+```
+```ucm
 .> replace.term 1
 
-  
+  replace.term
+  `replace.term <from> <to> <patch>`  Replace the term <from> in
+                                      the given patch with the
+                                      term <to>.
+  `replace.term <from> <to>`          Replace the term <from>
+                                      with <to> in the default
+                                      patch.
 
+```
+```ucm
 .> replace.term 1 2
 
   ⚠️
@@ -736,53 +985,102 @@ These are treated as failures (for example: a user invokes wrong arguments, less
 
   1 is not a kind of name I understand.
 
+```
+```ucm
 .> link
 
-  
-
-.> links
-
-  
-
-.> unlink
-
-  
-
-.> names
-
-  
-
-.> names 1 2
-
-  
-
-.> dependents
-
-  
-
-.> dependents 1 2
-
-  
-
-.> dependencies
-
-  
-
-.> dependencies 1 2
-
-  
-
-.> run
-
-  
-
-.> run 1 2
-
-  
-
-.> create.author
-
-  
+  link
+  `link metadata defn` creates a link to `metadata` from `defn`.
+  Use `links defn` or `links defn <type>` to view outgoing
+  links, and `unlink metadata defn` to remove a link. The `defn`
+  can be either the name of a term or type, multiple such names,
+  or a range like `1-4` for a range of definitions listed by a
+  prior `find` command.
 
 ```
-load cannot be tested as its output changes per invocation of the trancript
+```ucm
+.> links
+
+  links
+  `links defn`        shows all outgoing links from `defn`.
+  `links defn <type>` shows all links of the given type.
+
+```
+```ucm
+.> unlink
+
+  unlink (or delete.link)
+  `unlink metadata defn` removes a link to `detadata` from
+  `defn`.The `defn` can be either the name of a term or type,
+  multiple such names, or a range like `1-4` for a range of
+  definitions listed by a prior `find` command.
+
+```
+```ucm
+.> names
+
+  names
+  `names foo` shows the hash and all known names for `foo`.
+
+```
+```ucm
+.> names 1 2
+
+  names
+  `names foo` shows the hash and all known names for `foo`.
+
+```
+```ucm
+.> dependents
+
+  dependents
+  List the dependents of the specified definition.
+
+```
+```ucm
+.> dependents 1 2
+
+  dependents
+  List the dependents of the specified definition.
+
+```
+```ucm
+.> dependencies
+
+  dependencies
+  List the dependencies of the specified definition.
+
+```
+```ucm
+.> dependencies 1 2
+
+  dependencies
+  List the dependencies of the specified definition.
+
+```
+```ucm
+.> run
+
+  run
+  `run mymain`  Runs `!mymain`, where `mymain` is searched for
+                in the most recent typechecked file, or in the
+                codebase.
+
+```
+```ucm
+.> run 1 2
+
+  run
+  `run mymain`  Runs `!mymain`, where `mymain` is searched for
+                in the most recent typechecked file, or in the
+                codebase.
+
+```
+```ucm
+.> create.author
+
+  create.author
+  `create.author alicecoder "Alice McGee"` creates `alicecoder`
+  values in `metadata.authors` and `metadata.copyrightHolders`.
+
+```
