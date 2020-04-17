@@ -687,12 +687,12 @@ anfBlock (Handle' h body)
         error "handle body should be a call to a top-level combinator"
 anfBlock (Match' scrut cas) = do
   (sctx, sc) <- anfBlock scrut
-  brn <- anfCases cas
+  (cx, v) <- contextualize sc
+  brn <- anfCases v cas
   case brn of
     AccumDefault (TBinds' dctx df) -> do
       avoidCtx dctx
-      sv <- fresh
-      pure (sctx ++ ST sv sc : dctx, df)
+      pure (sctx ++ cx ++ dctx, df)
     AccumRequest abr df -> do
       (r, vs) <- reset $ do
         r <- fresh
@@ -702,13 +702,12 @@ anfBlock (Match' scrut cas) = do
         record (r, Lambda . ABTN.TAbss hfvs $ hfb)
         pure (r, hfvs)
       hv <- fresh
-      let msc | AVar v <- sc = AFrc v
-              | otherwise = sc
+      let msc | [ST _ tm] <- cx = tm
+              | otherwise = AFrc v
       pure ( sctx ++ [LZ hv (Right r) vs]
            , AHnd (IMap.keys abr) hv df . TTm $ msc
            )
     AccumD cs -> do
-      (cx, v) <- contextualize sc
       pure (sctx ++ cx, AMatch v cs)
 anfBlock (Let1Named' v b e) = do
   avoid [v]
@@ -733,11 +732,21 @@ anfBlock t = error $ "anf: unhandled term: " ++ show t
 -- to a state in which every case matches a single layer of data,
 -- with no guards, and no variables ignored. This is not checked
 -- completely.
-anfInitCase :: Var v => MatchCase p (Term v a) -> ANFM v (BranchAccum v)
-anfInitCase (MatchCase p guard (ABT.AbsN' vs bd))
+anfInitCase
+  :: Var v
+  => v
+  -> MatchCase p (Term v a)
+  -> ANFM v (BranchAccum v)
+anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   | Just _ <- guard = error "anfInitCase: unexpected guard"
   | UnboundP _ <- p
+  , [] <- vs
   = AccumDefault <$> anfTerm bd
+  | VarP _ <- p
+  , [v] <- vs
+  = AccumDefault . ABTN.rename v u <$> anfTerm bd
+  | VarP _ <- p
+  = error $ "vars: " ++ show (length vs)
   | IntP _ (fromIntegral -> i) <- p
   = AccumIntegral Nothing . IMap.singleton i <$> anfTerm bd
   | NatP _ (fromIntegral -> i) <- p
@@ -756,7 +765,8 @@ anfInitCase (MatchCase p guard (ABT.AbsN' vs bd))
        . IMap.singleton t
        . ABTN.TAbss us
       <$> anfTerm bd
-anfInitCase _ = error "anfInitCase: unexpected pattern"
+anfInitCase _ (MatchCase p _ _)
+  = error $ "anfInitCase: unexpected pattern: " ++ show p
 
 expandBindings'
   :: Var v
@@ -780,8 +790,12 @@ expandBindings' _ _ _
 expandBindings :: Var v => [PatternP p] -> [v] -> ANFM v [v]
 expandBindings ps vs = (\(av,_) -> expandBindings' av ps vs) <$> get
 
-anfCases :: Var v => [MatchCase p (Term v a)] -> ANFM v (BranchAccum v)
-anfCases = fmap fold . traverse anfInitCase
+anfCases
+  :: Var v
+  => v
+  -> [MatchCase p (Term v a)]
+  -> ANFM v (BranchAccum v)
+anfCases u = fmap fold . traverse (anfInitCase u)
 
 anfFunc :: Var v => Term v a -> ANFM v (Ctx v, Func v)
 anfFunc (Var' v) = pure ([], FVar v)
