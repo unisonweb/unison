@@ -797,6 +797,27 @@ These are treated as failures (for example: a user invokes wrong arguments, less
 
 ```
 ```ucm
+.> push 1 2 3
+
+  push
+  The `push` command merges a local namespace into a remote
+  namespace.
+  `push remote local`  merges the contents of the local
+                       namespace `local` into the remote
+                       namespace `remote`.
+  `push remote`        publishes the current namespace into the
+                       remote namespace `remote`
+  `push`               publishes the current namespace into the
+                       remote namespace configured in
+                       `.unisonConfig` with the key `GitUrl.ns`
+                       where `ns` is the current namespace
+  where `remote` is a git repository, optionally followed by `:`
+  and an absolute remote path, such as:
+  `https://github.com/org/repo`
+  `https://github.com/org/repo:.some.remote.path`
+
+```
+```ucm
 .> pull-request.create
 
   pull-request.create (or pr.create)

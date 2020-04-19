@@ -758,12 +758,11 @@ push = InputPattern
         (P.parse UriParser.repoPath "url" (Text.pack url))
       when (isJust sbh)
         $ Left "Can't push to a particular remote namespace hash."
-      p <- case rest of
-        [] -> Right Path.relativeEmpty'
-        [path] -> first fromString $ Path.parsePath' path
-        -- todo: change to use HelpI
-        _ -> Left (I.help push)
-      Right $ Input.PushRemoteBranchI (Just (repo, path)) p
+      case rest of
+        [] -> Right $ Input.PushRemoteBranchI (Just (repo, path)) Path.relativeEmpty'
+        [path'] -> first fromString $ Path.parsePath' path' >>= 
+          Right . Input.PushRemoteBranchI (Just (repo, path))
+        _ -> Right $ Input.HelpI (Just $ I.patternName push) True
   )
 
 createPullRequest :: InputPattern

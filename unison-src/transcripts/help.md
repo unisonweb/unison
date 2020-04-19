@@ -97,6 +97,9 @@ These are treated as failures (for example: a user invokes wrong arguments, less
 .> pull 1 2 3
 ```
 ```ucm:error
+.> push 1 2 3
+```
+```ucm:error
 .> pull-request.create
 ```
 ```ucm:error
