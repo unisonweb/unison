@@ -1,6 +1,10 @@
 {-# LANGUAGE OverloadedStrings   #-}
 
-module Unison.Codebase.Editor.Help where
+module Unison.Codebase.Editor.Help
+  ( help
+  , helpFor
+  )
+where
 
 import           Unison.Prelude
 
