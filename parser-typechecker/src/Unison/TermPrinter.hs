@@ -14,6 +14,7 @@ import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import           Data.Text                      ( splitOn, unpack )
 import qualified Data.Text                     as Text
+import qualified Text.Show.Unicode             as U
 import           Data.Vector                    ( )
 import           Unison.ABT                     ( pattern AbsN', reannotateUp, annotation )
 import qualified Unison.ABT                    as ABT
@@ -187,7 +188,7 @@ pretty0
     --      metaprograms), then it needs to be able to print them (and then the
     --      parser ought to be able to parse them, to maintain symmetry.)
     Boolean' b  -> fmt S.BooleanLiteral $ if b then l "true" else l "false"
-    Text'    s  -> fmt S.TextLiteral $ l $ show s
+    Text'    s  -> fmt S.TextLiteral $ l $ U.ushow s
     Char'    c  -> fmt S.CharLiteral $ l $ case showEscapeChar c of
                                             Just c -> "?\\" ++ [c]
                                             Nothing -> '?': [c]

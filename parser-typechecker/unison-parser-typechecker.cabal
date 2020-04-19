@@ -201,7 +201,8 @@ library
     unison-core,
     unliftio,
     util,
-    vector
+    vector,
+    unicode-show
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   default-extensions:
