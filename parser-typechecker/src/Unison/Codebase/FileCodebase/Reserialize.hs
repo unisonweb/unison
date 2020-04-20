@@ -3,7 +3,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -42,8 +41,8 @@ data SyncedEntities = SyncedEntities
 
 makeLenses ''SyncedEntities
 
--- Copy (merge) all dependents of `newRoot` from `srcPath` into `destPath`,
--- and set `newRoot` as the new root in `destPath`.
+-- Copy (merge) all dependents of `branch` from `srcPath` into `destPath`,
+-- and set `branch` as the new root in `destPath`.
 -- 
 -- As a refresher, in the normal course of using `ucm` and updating the 
 -- namespace, we call Branch.sync to write the updated root to disk.

@@ -55,8 +55,8 @@ syncToDirectory :: MonadIO m => v -> a
                 -> CodebasePath -> CodebasePath -> Branch m -> m ()
 syncToDirectory _ _ = syncToDirectory'
 
--- Create a codebase structure at `destPath` if none exists, and
--- copy (merge) all codebase elements from the current codebase into it.
+-- Copy (merge) all dependent codebase elements of `branch` from `srcPath` into 
+-- `destPath`, and set `branch` as the new root in `destPath`.
 --
 -- As a refresher, in the normal course of using `ucm` and updating the
 -- namespace, we call Branch.sync to write the updated root to disk.
