@@ -37,8 +37,6 @@ x = 1
   Tip: Try again and supply one of the above definitions
        explicitly.
 
-  ✅
-  
-  That didn't do anything.
+  I didn't make any changes.
 
 ```
