@@ -95,7 +95,7 @@ todo :: InputPattern
 todo = InputPattern
   "todo"
   []
-  [(Optional, patchArg), (Optional, pathArg)]
+  [(Required, patchArg), (Optional, pathArg)]
   (P.wrapColumn2
     [ ( makeExample' todo
       , "lists the refactor work remaining in the default patch for the current"
