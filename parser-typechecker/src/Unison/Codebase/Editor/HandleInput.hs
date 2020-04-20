@@ -32,6 +32,7 @@ import qualified Unison.Codebase.Editor.SlurpResult as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import Unison.Codebase.Editor.RemoteRepo (RemoteRepo, printNamespace, RemoteNamespace)
+import qualified Unison.CommandLine.InputPatterns as InputPatterns
 
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
@@ -474,46 +475,89 @@ loop = do
         stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
         stepManyAtM = Unison.Codebase.Editor.HandleInput.stepManyAtM inputDescription
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
+
+        addDefaultMetadata
+          :: SlurpComponent v
+          -> Action m (Either Event Input) v ()
+        addDefaultMetadata adds = do
+          let
+            addedVs = Set.toList $ SC.types adds <> SC.terms adds
+            parseResult = (Path.parseHQSplit' . Var.nameStr) <$> addedVs
+            (errs, addedNames) = partitionEithers parseResult
+          case errs of
+            e : _ ->
+              error $ "I couldn't parse a name I just added to the codebase! "
+                      <> e <> "-- Added names: " <> show addedVs
+            _ -> do
+              dm <- resolveDefaultMetadata currentPath'
+              case toList dm of
+                []  -> pure ()
+                dm' -> do
+                  let hqs = traverse InputPatterns.parseHashQualifiedName dm'
+                  case hqs of
+                    Left e -> respond $ ConfiguredMetadataParseError
+                      (Path.absoluteToPath' currentPath')
+                      (show dm')
+                      e
+                    Right defaultMeta -> do
+                      respond DefaultMetadataNotification
+                      manageLinks addedNames defaultMeta Metadata.insert
+
+        -- Add/remove metadata links to definitions.
+        -- `srcs` is (names of the) definitions to pass to `op`
+        -- `mdValues` is (names of the) metadata to pass to `op`
+        -- `op` is the operation to add/remove/alter metadata mappings.
+        --   e.g. `Metadata.insert` is passed to add metadata links.
         manageLinks :: [(Path', NameSegment.HQSegment)]
-                    -> HQ.HashQualified
+                    -> [HQ.HashQualified]
                     -> (forall r. Ord r
                         => (r, Reference, Reference)
                         ->  Branch.Star r NameSegment
                         ->  Branch.Star r NameSegment)
-                    -> MaybeT (StateT (LoopState m v) (F m (Either Event Input) v)) ()
-        manageLinks srcs mdValue2 op = do
-          let !srcle = toList . getHQ'Terms =<< srcs
-              !srclt = toList . getHQ'Types =<< srcs
-          mdValuel <- toList <$> getHQTerms mdValue2
-          names0 <- basicPrettyPrintNames0
-          ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (Names names0 mempty)
-          case (srcle, srclt, mdValuel) of
-            (srcle, srclt, [r@(Referent.Ref mdValue)]) -> do
-              mdType <- eval $ LoadTypeOfTerm mdValue
-              case mdType of
-                Nothing -> respond $ MetadataMissingType ppe r
-                Just ty -> do
-                  let steps =
-                        second (const . step $ Type.toReference ty)
-                        . first (Path.unabsolute .  resolveToAbsolute) <$> srcs
-                  let get = Branch.head <$> use root
-                  before <- get
-                  stepManyAt steps
-                  after <- get
-                  (ppe, outputDiff) <- diffHelper before after
-                  respondNumbered $ ShowDiffNamespace
-                     Path.absoluteEmpty Path.absoluteEmpty ppe outputDiff
-                where
-                step mdType b0 = let
-                  tmUpdates terms = foldl' go terms srcle
-                    where
-                    go terms src = op (src, mdType, mdValue) terms
-                  tyUpdates types = foldl' go types srclt
-                    where
-                    go types src = op (src, mdType, mdValue) types
-                  in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
-            (_srcle, _srclt, mdValues) ->
-              respond $ MetadataAmbiguous ppe mdValues
+                    -> Action m (Either Event Input) v ()
+        manageLinks srcs mdValues op = do
+          mdValuels <- fmap (first toList) <$>
+            traverse (\x -> fmap (,x) (getHQTerms x)) mdValues
+          let get = Branch.head <$> use root
+          before <- get
+          traverse_ go mdValuels
+          after  <- get
+          (ppe, outputDiff) <- diffHelper before after
+          if OBranchDiff.isEmpty outputDiff
+            then respond NoOp
+            else respondNumbered $ ShowDiffNamespace Path.absoluteEmpty
+                                                     Path.absoluteEmpty
+                                                     ppe
+                                                     outputDiff
+          where
+            go (mdl, hqn) = do
+              newRoot <- use root
+              let r0 = Branch.head newRoot
+                  getTerms p = BranchUtil.getTerm (resolveSplit' p) r0
+                  getTypes p = BranchUtil.getType (resolveSplit' p) r0
+                  !srcle = toList . getTerms =<< srcs
+                  !srclt = toList . getTypes =<< srcs
+              names0 <- basicPrettyPrintNames0
+              ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (Names names0 mempty)
+              case mdl of
+                [r@(Referent.Ref mdValue)] -> do
+                  mdType <- eval $ LoadTypeOfTerm mdValue
+                  case mdType of
+                    Nothing -> respond $ MetadataMissingType ppe r
+                    Just ty -> do
+                      let steps =
+                            second (const . step $ Type.toReference ty)
+                              .   first (Path.unabsolute . resolveToAbsolute)
+                              <$> srcs
+                      stepManyAt steps
+                 where
+                  step mdType b0 =
+                    let tmUpdates terms = foldl' go terms srcle
+                            where go terms src = op (src, mdType, mdValue) terms
+                        tyUpdates types = foldl' go types srclt
+                            where go types src = op (src, mdType, mdValue) types
+                    in  over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
+                mdValues -> respond $ MetadataAmbiguous hqn ppe mdValues
         delete
           :: (Path.HQSplit' -> Set Referent) -- compute matching terms
           -> (Path.HQSplit' -> Set Reference) -- compute matching types
@@ -608,7 +652,7 @@ loop = do
               destb <- getAt dest
               if Branch.isEmpty destb then do
                 ok <- updateAtM dest (const $ pure srcb)
-                if ok then success else respond $ BranchEmpty src0 
+                if ok then success else respond $ BranchEmpty src0
               else respond $ BranchAlreadyExists dest0
         case src0 of
           Left hash -> resolveShortBranchHash hash >>= \case
@@ -928,7 +972,7 @@ loop = do
             types' :: Set (Reference, Set HQ'.HashQualified)
             types' = (`Set.map` Names.typeReferences filtered) $
                         \r -> (r, Names3.typeName hqLength r printNames)
-        respond $ ListNames hqLength (toList types') (toList terms') 
+        respond $ ListNames hqLength (toList types') (toList terms')
 --          let (p, hq) = p0
 --              namePortion = HQ'.toName hq
 --          case hq of
@@ -952,10 +996,10 @@ loop = do
 --              in (terms, types)
 
       LinkI mdValue srcs ->
-        manageLinks srcs mdValue Metadata.insert
+        manageLinks srcs [mdValue] Metadata.insert
 
       UnlinkI mdValue srcs ->
-        manageLinks srcs mdValue Metadata.delete
+        manageLinks srcs [mdValue] Metadata.delete
 
       -- > links List.map (.Docs .English)
       -- > links List.map -- give me all the
@@ -1354,15 +1398,17 @@ loop = do
               . applySelection hqs uf
               . toSlurpResult currentPath' uf
              <$> slurpResultNames0
+          let adds = Slurp.adds sr
           when (Slurp.isNonempty sr) $ do
             stepAt ( Path.unabsolute currentPath'
-                   , doSlurpAdds (Slurp.adds sr) uf)
+                   , doSlurpAdds adds uf)
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
           ppe <- prettyPrintEnvDecl =<<
             makeShadowedPrintNamesFromLabeled
               (UF.termSignatureExternalLabeledDependencies uf)
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+          addDefaultMetadata adds
 
       PreviewAddI hqs -> case (latestFile', uf) of
         (Just (sourceName, _), Just uf) -> do
@@ -1386,7 +1432,8 @@ loop = do
           let sr = applySelection hqs uf
                  . toSlurpResult currentPath' uf
                  $ slurpCheckNames0
-          let fileNames0 = UF.typecheckedToNames0 uf
+              addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
+              fileNames0 = UF.typecheckedToNames0 uf
               -- todo: display some error if typeEdits or termEdits itself contains a loop
               typeEdits :: Map Name (Reference, Reference)
               typeEdits = Map.fromList $ map f (toList $ SC.types (updates sr)) where
@@ -1462,7 +1509,7 @@ loop = do
               [( Path.unabsolute currentPath'
                , pure . doSlurpUpdates typeEdits termEdits termDeprecations)
               ,( Path.unabsolute currentPath'
-               , pure . doSlurpAdds (Slurp.updates sr <> Slurp.adds sr) uf)
+               , pure . doSlurpAdds addsAndUpdates uf)
               ,( Path.unabsolute p, updatePatches )]
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
           ppe <- prettyPrintEnv =<<
@@ -1472,6 +1519,7 @@ loop = do
           respond $ SlurpOutput input ppe sr
           -- propagatePatch prints TodoOutput
           void $ propagatePatch inputDescription (updatePatch ye'ol'Patch) currentPath'
+          addDefaultMetadata addsAndUpdates
 
       PreviewUpdateI hqs -> case (latestFile', uf) of
         (Just (sourceName, _), Just uf) -> do
@@ -1695,6 +1743,23 @@ loop = do
       notImplemented = eval $ Notify NotImplemented
       success = respond Success
 
+      resolveDefaultMetadata :: Path.Absolute -> Action' m v [String]
+      resolveDefaultMetadata path = do
+        let superpaths = Path.ancestors path
+        xs <- for
+          superpaths
+          (\path -> do
+            mayNames <-
+              eval . ConfigLookup @[String] $ configKey "DefaultMetadata" path
+            pure . join $ toList mayNames
+          )
+        pure . join $ toList xs
+
+      configKey k p =
+        Text.intercalate "." . toList $ k :<| fmap
+          NameSegment.toText
+          (Path.toSeq $ Path.unabsolute p)
+
       -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
       -- otherwise, tries to load a value from .unisonConfig, and complains
       -- if needed.
@@ -1722,30 +1787,11 @@ loop = do
             Nothing ->
               pure . Left $ NoConfiguredGitUrl pushPull destPath'
 
-      gitUrlKey p = Text.intercalate "." . toList $ "GitUrl" :<| fmap
-        NameSegment.toText
-        (Path.toSeq $ Path.unabsolute p)
+      gitUrlKey = configKey "GitUrl"
+
   case e of
     Right input -> lastInput .= Just input
     _ -> pure ()
- -- where
-  {-
-  doMerge branchName b = do
-    updated <- eval $ SyncBranch branchName b
-    -- updated is False if `branchName` doesn't exist.
-    -- Not sure why you were updating a nonexistent branch, but under the
-    -- assumption that it just got deleted somehow, I guess, we'll write
-    -- it to disk now.
-    unless updated $ do
-      written <- eval $ NewBranch b branchName
-      unless written (disappearingBranchBomb branchName)
-  disappearingBranchBomb branchName =
-    error
-      $  "The branch named "
-      <> Text.unpack branchName
-      <> " disappeared from storage. "
-      <> "I tried to put it back, but couldn't. Everybody panic!"
-  -}
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified -> Action' m v (Set LabeledDependency)

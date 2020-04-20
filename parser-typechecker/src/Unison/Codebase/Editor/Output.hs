@@ -173,6 +173,7 @@ data Output v
   -- and a nicer render.
   | BustedBuiltins (Set Reference) (Set Reference)
   | GitError Input GitError
+  | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredGitUrl PushPull Path'
   | ConfiguredGitUrlParseError PushPull Path' Text String
   | ConfiguredGitUrlIncludesShortBranchHash PushPull RemoteRepo ShortBranchHash Path
@@ -180,7 +181,7 @@ data Output v
                (Map Reference (DisplayThing (Decl v Ann)))
                (Map Reference (DisplayThing (Term v Ann)))
   | MetadataMissingType PPE.PrettyPrintEnv Referent
-  | MetadataAmbiguous PPE.PrettyPrintEnv [Referent]
+  | MetadataAmbiguous HQ.HashQualified PPE.PrettyPrintEnv [Referent]
   -- todo: tell the user to run `todo` on the same patch they just used
   | NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
@@ -203,6 +204,8 @@ data Output v
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
   | ShowHelpTopic (Maybe HT.HelpTopic)
+  | DefaultMetadataNotification
+  | NoOp
   deriving (Show)
 
 data ReflogEntry =
@@ -310,6 +313,7 @@ isFailure o = case o of
   ListEdits{} -> False
   GitError{} -> True
   BustedBuiltins{} -> True
+  ConfiguredMetadataParseError{} -> True
   NoConfiguredGitUrl{} -> True
   ConfiguredGitUrlParseError{} -> True
   ConfiguredGitUrlIncludesShortBranchHash{} -> True
@@ -334,6 +338,8 @@ isFailure o = case o of
   HashAmbiguous{} -> True
   ShowReflog{} -> False
   LoadPullRequest{} -> False
+  DefaultMetadataNotification -> False
+  NoOp -> False
   ListDependencies{} -> False
   ListDependents{} -> False
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty

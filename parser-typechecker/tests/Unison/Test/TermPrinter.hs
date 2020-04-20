@@ -113,7 +113,11 @@ test = scope "termprinter" . tests $
   , tc "3.14159"
   , tc "+0"
   , tc "\"some text\""
-  , pending $ tc "\"they said \\\"hi\\\"\""  -- TODO lexer doesn't support strings with quotes in
+  , tc "\"they said \\\"hi\\\"\""
+  , pending $ tc "\'they said \\\'hi\\\'\'" -- TODO lexer doesn't support strings with single quotes in
+  , tc "Rúnar"
+  , pending $ tc "῎Ανδρα μοι ἔννεπε, Μοῦσα, πολύτροπον" -- TODO lexer does not like classics!
+  , tc "古池や蛙飛びこむ水の音"
   , tc "2 : Nat"
   , tc "x -> x && false"
   , tc "x y -> x && y"

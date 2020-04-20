@@ -14,7 +14,7 @@ import Control.Exception (finally, catch, AsyncException(UserInterrupt), asyncEx
 import Control.Monad.State (runStateT)
 import Data.IORef
 import Prelude hiding (readFile, writeFile)
-import System.IO.Error (catchIOError)
+import System.IO.Error (catchIOError, isDoesNotExistError)
 import System.Exit (die)
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
@@ -36,7 +36,6 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Text.IO
 import qualified System.Console.Haskeline as Line
-import System.IO.Error (isDoesNotExistError)
 import qualified Crypto.Random        as Random
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
