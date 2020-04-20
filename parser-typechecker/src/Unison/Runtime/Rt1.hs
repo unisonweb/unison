@@ -15,6 +15,7 @@ module Unison.Runtime.Rt1 where
 import Unison.Prelude
 
 import Data.Bifunctor (second)
+import Data.Bits (shiftR, shiftL)
 import Data.IORef
 import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
@@ -512,6 +513,9 @@ run ioHandler env ir = do
       NegateI i -> do x <- ati size i m; done (I (negate x))
       Truncate0I i -> do x <- ati size i m; done (N (fromIntegral (truncate0 x)))
       ModI i j -> do x <- ati size i m; y <- ati size j m; done (I (x `mod` y))
+      PowI i j -> do x <- ati size i m; y <- atn size j m; done (I (x ^ y))
+      ShiftRI i j -> do x <- ati size i m; y <- atn size j m; done (I (x `shiftR` (fromIntegral y)))
+      ShiftLI i j -> do x <- ati size i m; y <- atn size j m; done (I (x `shiftL` (fromIntegral y)))
 
       AddN i j -> do x <- atn size i m; y <- atn size j m; done (N (x + y))
       -- cast to `Int` and subtract
@@ -523,6 +527,9 @@ run ioHandler env ir = do
       MultN i j -> do x <- atn size i m; y <- atn size j m; done (N (x * y))
       DivN i j -> do x <- atn size i m; y <- atn size j m; done (N (x `div` y))
       ModN i j -> do x <- atn size i m; y <- atn size j m; done (N (x `mod` y))
+      PowN i j -> do x <- atn size i m; y <- atn size j m; done (N (fromIntegral (x ^ y)))
+      ShiftRN i j -> do x <- atn size i m; y <- atn size j m; done (N (fromIntegral (x `shiftR` (fromIntegral y))))
+      ShiftLN i j -> do x <- atn size i m; y <- atn size j m; done (N (fromIntegral (x `shiftL` (fromIntegral y))))
       ToIntN i -> do x <- atn size i m; done (I (fromIntegral x))
       GtN i j -> do x <- atn size i m; y <- atn size j m; done (B (x > y))
       GtEqN i j -> do x <- atn size i m; y <- atn size j m; done (B (x >= y))
