@@ -502,13 +502,18 @@ loop = do
                       respond DefaultMetadataNotification
                       manageLinks addedNames defaultMeta Metadata.insert
 
+        -- Add/remove metadata links to definitions.
+        -- `srcs` is (names of the) definitions to pass to `op`
+        -- `mdValues` is (names of the) metadata to pass to `op`
+        -- `op` is the operation to add/remove/alter metadata mappings.
+        --   e.g. `Metadata.insert` is passed to add metadata links.
         manageLinks :: [(Path', NameSegment.HQSegment)]
                     -> [HQ.HashQualified]
                     -> (forall r. Ord r
                         => (r, Reference, Reference)
                         ->  Branch.Star r NameSegment
                         ->  Branch.Star r NameSegment)
-                    -> MaybeT (StateT (LoopState m v) (F m (Either Event Input) v)) ()
+                    -> Action m (Either Event Input) v ()
         manageLinks srcs mdValues op = do
           mdValuels <- fmap (first toList) <$>
             traverse (\x -> fmap (,x) (getHQTerms x)) mdValues
