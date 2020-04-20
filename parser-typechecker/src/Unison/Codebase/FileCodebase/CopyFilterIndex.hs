@@ -16,7 +16,7 @@ import           UnliftIO.Directory             ( doesFileExist )
 import           System.FilePath                ( FilePath
                                                 , (</>)
                                                 )
-import qualified Unison.Codebase               as Codebase
+import           Unison.Codebase                ( CodebasePath )
 import qualified Unison.Codebase.Causal        as Causal
 import           Unison.Codebase.Branch         ( Branch(Branch) )
 import qualified Unison.Codebase.Branch        as Branch
@@ -52,7 +52,7 @@ data SyncedEntities = SyncedEntities
 makeLenses ''SyncedEntities
 
 syncToDirectory :: MonadIO m => v -> a
-                -> CodebasePath -> CodebasePath -> Branch m -> m (Branch m)
+                -> CodebasePath -> CodebasePath -> Branch m -> m ()
 syncToDirectory _ _ = syncToDirectory'
 
 -- Create a codebase structure at `destPath` if none exists, and
@@ -84,22 +84,9 @@ syncToDirectory' :: forall m
   => CodebasePath
   -> CodebasePath
   -> Branch m
-  -> m (Branch m)
-syncToDirectory' srcPath destPath branch =
+  -> m ()
+syncToDirectory' srcPath destPath newRemoteRoot@(Branch c) =
   flip State.evalStateT mempty $ do
-    newRemoteRoot@(Branch c) <- lift $
-      ifM (codebaseExists destPath)
-        (getRootBranch destPath >>= \case
-          Right existingDestRoot -> Branch.merge branch existingDestRoot
-          -- The destination codebase doesn't advertise a root branch,
-          -- so we'll just use ours.
-          Left Codebase.NoRootBranch -> pure branch
-          Left (Codebase.CouldntLoadRootBranch h) -> fail $
-            "I was trying to merge with the existing root branch at " ++
-            branchPath destPath h ++ ", but the file was missing."
-          )
-        -- else there was no existing codebase structure at `destPath` so whatev
-        (pure branch)
     Branch.sync
       (hashExists destPath)
       copyRawBranch
@@ -117,7 +104,6 @@ syncToDirectory' srcPath destPath branch =
     knownReferents <- copyTypeIndex x y
     copyTypeMentionsIndex knownReferents
     updateCausalHead (branchHeadDir destPath) c
-    pure branch
   where
   -- Loads the entire dependents index from disk, copies the appropriate subset
   -- to `destPath`, then uses it to compute transitive dependents, and copy

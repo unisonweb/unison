@@ -41,6 +41,9 @@ import Unison.ShortHash (ShortHash)
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
 
+-- | this FileCodebase detail lives here, because the interface depends on it 🙃
+type CodebasePath = FilePath  
+
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
            , getTypeOfTermImpl  :: Reference.Id -> m (Maybe (Type v a))
@@ -55,13 +58,12 @@ data Codebase m v a =
            , getBranchForHash   :: Branch.Hash -> m (Maybe (Branch m))
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
-           -- This copies all codebase elements (except _head) from the
-           -- specified FileCodebase path into the current one.
-           , syncFromDirectory  :: FilePath -> m ()
-           -- This returns the merged branch that results from
-           -- merging the input branch with the root branch at the
-           -- given file path
-           , syncToDirectory    :: FilePath -> Branch m -> m (Branch m)
+           -- This copies all the dependencies of `b` from the specified
+           -- FileCodebase into this Codebase, and sets our root branch to `b`
+           , syncFromDirectory  :: CodebasePath -> Branch m -> m ()
+           -- This copies all the dependencies of `b` from the this Codebase
+           -- into the specified FileCodebase, and sets its _head to `b`
+           , syncToDirectory    :: CodebasePath -> Branch m -> m ()
 
            -- Watch expressions are part of the codebase, the `Reference.Id` is
            -- the hash of the source of the watch expression, and the `Term v a`
@@ -87,7 +89,13 @@ data Codebase m v a =
            , branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.Hash)
            }
 
-data GetRootBranchError = NoRootBranch | CouldntLoadRootBranch Branch.Hash
+data GetRootBranchError
+  = NoRootBranch
+  | CouldntParseRootBranch String
+  | CouldntLoadRootBranch Branch.Hash
+  deriving Show
+  
+data SyncFileCodebaseResult = SyncOk | UnknownDestinationRootBranch Branch.Hash | NotFastForward
 
 bootstrapNames :: Names.Names0
 bootstrapNames =

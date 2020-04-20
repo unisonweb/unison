@@ -3,7 +3,7 @@
 module Unison.Codebase.Editor.RemoteRepo where
 
 import Unison.Prelude
-import Unison.Util.Monoid as Monoid
+import Unison.Util.Monoid as Monoid 
 import Data.Text as Text
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Path (Path)

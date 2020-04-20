@@ -15,13 +15,13 @@ import Shellmet ()
 import System.FilePath ((</>))
 import System.Directory (doesFileExist, removeDirectoryRecursive)
 
-import Unison.Codebase (Codebase)
+import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase.FileCodebase as FC
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Codebase.FileCodebase.Reserialize as Reserialize
 import Unison.Codebase.FileCodebase.CopyFilterIndex as CopyFilterIndex
 import Unison.Codebase.FileCodebase.CopyRegenerateIndex as CopyRegenerateIndex
-import Unison.Codebase.FileCodebase.Common (CodebasePath, SyncToDir, formatAnn)
+import Unison.Codebase.FileCodebase.Common (SyncToDir, formatAnn)
 import qualified Unison.Codebase.Serialization.V1 as V1
 import Unison.Parser (Ann)
 import Unison.Symbol (Symbol)

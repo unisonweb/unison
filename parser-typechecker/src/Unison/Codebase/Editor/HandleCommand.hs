@@ -13,7 +13,6 @@ import Unison.Prelude
 
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Command
-import Unison.Codebase.Editor.RemoteRepo
 
 import qualified Unison.Builtin                as B
 
@@ -119,12 +118,10 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     SyncLocalRootBranch branch -> do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
-    LoadRemoteRootBranch GitRepo {..} ->
-      runExceptT $ Git.pullGitBranch codebase url commit Nothing
-    LoadRemoteShortBranch GitRepo{..} sbh ->
-      runExceptT $ Git.pullGitBranch codebase url commit (Just sbh)
-    SyncRemoteRootBranch GitRepo {..} branch ->
-      runExceptT $ Git.pushGitRootBranch codebase branch url commit
+    ViewRemoteBranch ns -> runExceptT $ Git.viewRemoteBranch ns
+    ImportRemoteBranch ns -> runExceptT $ Git.importRemoteBranch codebase ns
+    SyncRemoteRootBranch repo branch ->
+      runExceptT $ Git.pushGitRootBranch codebase branch repo
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r

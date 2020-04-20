@@ -1,16 +1,12 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.FileCodebase.Common
-  ( CodebasePath
-  , Err(..)
+  ( Err(..)
   , SyncToDir
   , codebaseExists
   , hashExists
@@ -46,7 +42,6 @@ module Unison.Codebase.FileCodebase.Common
   , serializeRawBranch
   , branchFromFiles
   , branchHashesByPrefix
-  , copyFromGit
   , termReferencesByPrefix
   , termReferentsByPrefix
   , typeReferencesByPrefix
@@ -73,6 +68,10 @@ module Unison.Codebase.FileCodebase.Common
 
 import           Unison.Prelude
 
+import           Control.Error (runExceptT, ExceptT(..))
+import           Control.Lens (Lens, use, to, (%=))
+import           Control.Monad.Catch (catch)
+import           Control.Monad.State (MonadState)
 import qualified Data.Char                     as Char
 import qualified Data.Hex                      as Hex
 import           Data.List                      ( isPrefixOf )
@@ -86,30 +85,28 @@ import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 , removeFile
                                                 , doesDirectoryExist, copyFile
                                                 )
+import           UnliftIO.IO.File               (writeBinaryFile)
 import qualified System.Directory
 import           System.FilePath                ( FilePath
                                                 , takeBaseName
                                                 , takeDirectory
-                                                , takeFileName
                                                 , (</>)
                                                 )
-import           System.Path                    ( replaceRoot
-                                                , createDir
-                                                , subDirs
-                                                , files
-                                                , dirPath
-                                                )
 import qualified Unison.Codebase               as Codebase
+import           Unison.Codebase                (CodebasePath)
 import           Unison.Codebase.Causal         ( Causal
                                                 , RawHash(..)
                                                 )
 import qualified Unison.Codebase.Causal        as Causal
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
+import           Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
+import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V1
                                                as V1
 import           Unison.Codebase.Patch          ( Patch(..) )
+import qualified Unison.ConstructorType        as CT
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.Hash                   as Hash
 import           Unison.Parser                  ( Ann(External) )
@@ -117,25 +114,16 @@ import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
+import           Unison.ShortHash (ShortHash)
+import qualified Unison.ShortHash as SH
 import           Unison.Term                    ( Term )
 import qualified Unison.Term                   as Term
 import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 import           Unison.Var                     ( Var )
 import qualified Unison.UnisonFile             as UF
-import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
-import qualified Unison.Codebase.ShortBranchHash as SBH
-import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
-import qualified Unison.ConstructorType as CT
-import Unison.Util.Monoid (foldMapM)
-import Control.Error (runExceptT, ExceptT(..))
-import Control.Monad.State (MonadState)
-import Control.Lens (Lens, use, to, (%=))
-import UnliftIO.IO.File (writeBinaryFile)
-import Control.Monad.Catch (catch)
-
-type CodebasePath = FilePath
+import           Unison.Util.Monoid (foldMapM)
+import Data.Either.Extra (maybeToEither)
 
 data Err
   = InvalidBranchFile FilePath String
@@ -154,13 +142,14 @@ codebasePath = ".unison" </> "v1"
 formatAnn :: S.Format Ann
 formatAnn = S.Format (pure External) (\_ -> pure ())
 
+-- Write Branch and its dependents to the dest codebase, and set it as the root.
 type SyncToDir m v a
   = S.Format v
   -> S.Format a
-  -> CodebasePath
-  -> CodebasePath
-  -> Branch m
-  -> m (Branch m)
+  -> CodebasePath -- src codebase
+  -> CodebasePath -- dest codebase
+  -> Branch m -- new dest root branch
+  -> m ()
 
 termsDir, typesDir, branchesDir, branchHeadDir, editsDir
   :: CodebasePath -> FilePath
@@ -290,7 +279,8 @@ codebaseExists :: MonadIO m => CodebasePath -> m Bool
 codebaseExists root =
   and <$> traverse doesDirectoryExist (minimalCodebaseStructure root)
 
-branchFromFiles :: MonadIO m => FilePath -> Branch.Hash -> m (Maybe (Branch m))
+-- | load a branch w/ children from a FileCodebase
+branchFromFiles :: MonadIO m => CodebasePath -> Branch.Hash -> m (Maybe (Branch m))
 branchFromFiles rootDir h = do
   fileExists <- doesFileExist (branchPath rootDir h)
   if fileExists then Just <$>
@@ -314,30 +304,29 @@ branchFromFiles rootDir h = do
       Left  err   -> failWith $ InvalidEditsFile file err
       Right edits -> pure edits
 
--- returns Nothing if `root` has no root branch (in `branchHeadDir root`)
 getRootBranch :: forall m.
   MonadIO m => CodebasePath -> m (Either Codebase.GetRootBranchError (Branch m))
 getRootBranch root =
   ifM (codebaseExists root)
-    (listDirectory (branchHeadDir root) >>= go')
+    (listDirectory (branchHeadDir root) >>= filesToBranch)
     (pure $ Left Codebase.NoRootBranch)
  where
-  go' :: [String] -> m (Either Codebase.GetRootBranchError (Branch m))
-  go' = \case
-              []       -> pure $ Left Codebase.NoRootBranch
-              [single] -> runExceptT $ go single
-              conflict -> runExceptT (traverse go conflict) >>= \case
-                Right (x : xs) -> Right <$> foldM Branch.merge x xs
-                Right _ -> error "FileCodebase.getRootBranch.conflict can't be empty."
-                Left e -> Left <$> pure e
+  filesToBranch :: [FilePath] -> m (Either Codebase.GetRootBranchError (Branch m))
+  filesToBranch = \case
+    []       -> pure $ Left Codebase.NoRootBranch
+    [single] -> runExceptT $ fileToBranch single
+    conflict -> runExceptT (traverse fileToBranch conflict) >>= \case
+      Right (x : xs) -> Right <$> foldM Branch.merge x xs
+      Right _ -> error "FileCodebase.getRootBranch.conflict can't be empty."
+      Left e -> Left <$> pure e
 
-  go :: String -> ExceptT Codebase.GetRootBranchError m (Branch m)
-  go single = case hashFromString single of
-    Nothing -> failWith $ CantParseBranchHead single
-    Just (Branch.Hash -> h)  -> ExceptT $ branchFromFiles root h <&> \case
-      Just b -> Right b
-      Nothing -> Left $ Codebase.CouldntLoadRootBranch h
+  fileToBranch :: String -> ExceptT Codebase.GetRootBranchError m (Branch m)
+  fileToBranch single = ExceptT $ case hashFromString single of
+    Nothing -> pure . Left $ Codebase.CouldntParseRootBranch single
+    Just (Branch.Hash -> h) -> branchFromFiles root h <&>
+                                maybeToEither (Codebase.CouldntLoadRootBranch h)
 
+-- |only syncs branches and edits -- no dependencies
 putRootBranch :: MonadIO m => CodebasePath -> Branch m -> m ()
 putRootBranch root b = do
   Branch.sync (hashExists root)
@@ -407,29 +396,6 @@ referentIdFromString s = referentFromString s >>= \case
 -- here
 referentToString :: Referent -> String
 referentToString = Text.unpack . Referent.toText
-
--- Adapted from
--- http://hackage.haskell.org/package/fsutils-0.1.2/docs/src/System-Path.html
-copyDir :: MonadIO m => (FilePath -> Bool) -> FilePath -> FilePath -> m ()
-copyDir predicate from to = do
-  createDirectoryIfMissing True to
-  -- createDir doesn't create a new directory on disk,
-  -- it creates a description of an existing directory,
-  -- and it crashes if `from` doesn't exist.
-  d <- liftIO $ createDir from
-  when (predicate $ dirPath d) $ do
-    forM_ (subDirs d)
-      $ \path -> copyDir predicate path (replaceRoot from to path)
-    forM_ (files d) $ \path -> do
-      exists <- doesFileExist to
-      unless exists . copyFile path $ replaceRoot from to path
-
-copyFromGit :: MonadIO m => CodebasePath -> CodebasePath -> m ()
-copyFromGit to0 from0 = let
-  to = to0 </> codebasePath
-  from = from0 </> codebasePath 
-  in whenM (doesDirectoryExist from) $
-  copyDir (\x -> takeFileName x `notElem` [".git", "_head"]) from to
 
 copyFileWithParents :: MonadIO m => FilePath -> FilePath -> m ()
 copyFileWithParents src dest =

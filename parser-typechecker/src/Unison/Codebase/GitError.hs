@@ -2,20 +2,22 @@ module Unison.Codebase.GitError where
 
 import Unison.Prelude
 
-import qualified Unison.Names3 as Names
+import Unison.Codebase (CodebasePath)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Editor.RemoteRepo (RemoteRepo)
 
 data GitError = NoGit
-              | NoRemoteRepoAt Text
-              | UnrecognizableCacheDir Text FilePath
-              | UnrecognizableCheckoutDir Text FilePath
-              | CheckoutFailed Text
+              | UnrecognizableCacheDir Text CodebasePath
+              | UnrecognizableCheckoutDir Text CodebasePath
+              | CloneException RemoteRepo String
+              | PushException RemoteRepo String
+              | PushNoOp RemoteRepo
               -- url commit Diff of what would change on merge with remote
-              | PushDestinationHasNewStuff Text (Maybe Text) Names.Diff
-              | NoRemoteNamespaceWithHash Text (Maybe Text) ShortBranchHash
-              | RemoteNamespaceHashAmbiguous Text (Maybe Text) ShortBranchHash (Set Branch.Hash)
-              | Couldn'tLoadRootBranch Text (Maybe Text) (Maybe ShortBranchHash) Branch.Hash
-              | SomeOtherError Text
+              | PushDestinationHasNewStuff RemoteRepo
+              | NoRemoteNamespaceWithHash RemoteRepo ShortBranchHash
+              | RemoteNamespaceHashAmbiguous RemoteRepo ShortBranchHash (Set Branch.Hash)
+              | CouldntLoadRootBranch RemoteRepo Branch.Hash
+              | CouldntParseRootBranch RemoteRepo String
+              | SomeOtherError String
               deriving Show
-
