@@ -288,11 +288,11 @@ master.frobnicate n = n + 1
 
   ⍟ I've added these definitions:
   
-    master.frobnicate : builtin.Nat -> builtin.Nat
+    master.frobnicate : Nat -> Nat
   
   ⍟ I've updated these names to your new definition:
   
-    master.y : builtin.Text
+    master.y : Text
       (The old definition was also named feature2.y. I updated
       this name too.)
 

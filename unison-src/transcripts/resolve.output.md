@@ -78,7 +78,7 @@ foo = 43
 
   ⍟ I've updated these names to your new definition:
   
-    foo : .builtin.Nat
+    foo : Nat
 
 ```
 And make a different change in the `b` namespace:
@@ -108,7 +108,7 @@ foo = 44
 
   ⍟ I've updated these names to your new definition:
   
-    foo : .builtin.Nat
+    foo : Nat
 
 ```
 The `a` and `b` namespaces now each contain a patch named `patch`. We can view these:
