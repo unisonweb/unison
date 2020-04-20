@@ -202,6 +202,7 @@ data Output v
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
+  | ShowHelp (Maybe String) Bool
   | ShowHelpTopic (Maybe HT.HelpTopic)
   deriving (Show)
 
@@ -337,6 +338,7 @@ isFailure o = case o of
   ListDependencies{} -> False
   ListDependents{} -> False
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
+  ShowHelp _ isFailure -> isFailure
   ShowHelpTopic{} -> False
 
 isNumberedFailure :: NumberedOutput v -> Bool
