@@ -2,6 +2,7 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 {-# LANGUAGE ApplicativeDo       #-}
+{-# LANGUAGE BlockArguments      #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE GADTs               #-}
@@ -36,7 +37,7 @@ import Unison.Codebase.Editor.RemoteRepo (RemoteRepo, printNamespace, RemoteName
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
 import           Control.Monad.State            ( StateT )
-import           Control.Monad.Trans.Except     ( ExceptT(..), runExceptT)
+import           Control.Monad.Except           ( ExceptT(..), runExceptT, withExceptT)
 import           Data.Bifunctor                 ( second, first )
 import           Data.Configurator              ()
 import qualified Data.List                      as List
@@ -280,10 +281,9 @@ loop = do
                       (UF.typecheckedToNames0 unisonFile)
           ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
           eval . Notify $ Typechecked sourceName ppe sr unisonFile
-          r <- eval . Evaluate ppe $ unisonFile
-          case r of
-            Left e -> eval . Notify $ EvaluationFailure e
-            Right (bindings, e) -> do
+          unlessError' EvaluationFailure do
+            (bindings, e) <- ExceptT . eval . Evaluate ppe $ unisonFile
+            lift do
               let e' = Map.map go e
                   go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
               when (not $ null e') $
@@ -589,9 +589,9 @@ loop = do
 
       ResetRootI src0 ->
         case src0 of
-          Left hash -> resolveShortBranchHash hash >>= \case
-            Left output -> respond output
-            Right newRoot -> do
+          Left hash -> unlessError do
+            newRoot <- resolveShortBranchHash hash
+            lift do
               updateRoot root' newRoot inputDescription
               success
           Right path' -> do
@@ -610,9 +610,9 @@ loop = do
                 if ok then success else respond $ BranchEmpty src0 
               else respond $ BranchAlreadyExists dest0
         case src0 of
-          Left hash -> resolveShortBranchHash hash >>= \case
-            Left output -> respond output
-            Right srcb -> tryUpdateDest srcb dest0
+          Left hash -> unlessError do
+            srcb <- resolveShortBranchHash hash
+            lift $ tryUpdateDest srcb dest0
           Right path' -> do
             srcb <- getAt $ resolveToAbsolute path'
             if Branch.isEmpty srcb then respond $ BranchNotFound path'
@@ -778,10 +778,9 @@ loop = do
         (_, Just t) -> currentPathStack .= t
 
       HistoryI resultsCap diffCap from -> case from of
-        Left hash -> resolveShortBranchHash hash >>= \case
-          Left output -> respond output
-          Right b -> do
-            doHistory 0 b []
+        Left hash -> unlessError do
+          b <- resolveShortBranchHash hash
+          lift $ doHistory 0 b []
         Right path' -> do
           let path = resolveToAbsolute path'
           branch' <- getAt path
@@ -959,15 +958,15 @@ loop = do
       -- > links List.map (.Docs .English)
       -- > links List.map -- give me all the
       -- > links Optional License
-      LinksI src mdTypeStr -> getLinks input src (Right mdTypeStr) >>= \case
-        Left e -> respond e
-        Right (ppe, out) -> do
+      LinksI src mdTypeStr -> unlessError do
+        (ppe, out) <- getLinks input src (Right mdTypeStr)
+        lift do
           numberedArgs .= fmap (HQ.toString . view _1) out
           respond $ ListOfLinks ppe out
 
-      DocsI src -> getLinks input src (Left $ Set.singleton DD.docRef) >>= \case
-        Left e -> respond e
-        Right (ppe, out) -> case out of
+      DocsI src -> unlessError do
+        (ppe, out) <- getLinks input src (Left $ Set.singleton DD.docRef)
+        lift case out of
           [(_name, ref, _tm)] -> do
             names <- basicPrettyPrintNames0
             doDisplay ConsoleLocation (Names3.Names names mempty) (Referent.Ref ref)
@@ -1177,37 +1176,34 @@ loop = do
 
       SearchByNameI isVerbose _showAll ws -> do
         prettyPrintNames0 <- basicPrettyPrintNames0
-        -- results became an Either to accommodate `parseSearchType` returning an error
-        results <- runExceptT $ case ws of
-          -- no query, list everything
-          [] -> pure . listBranch $ Branch.head currentBranch'
+        unlessError do
+          results <- case ws of
+            -- no query, list everything
+            [] -> pure . listBranch $ Branch.head currentBranch'
 
-          -- type query
-          ":" : ws -> ExceptT (parseSearchType input (unwords ws)) >>= \typ -> ExceptT $ do
-            let named = Branch.deepReferents root0
-            matches <- fmap toList . eval $ GetTermsOfType typ
-            matches <- filter (`Set.member` named) <$>
-              if null matches then do
-                respond NoExactTypeMatches
-                fmap toList . eval $ GetTermsMentioningType typ
-              else pure matches
-            let results =
-                  -- in verbose mode, aliases are shown, so we collapse all
-                  -- aliases to a single search result; in non-verbose mode,
-                  -- a separate result may be shown for each alias
-                  (if isVerbose then uniqueBy SR.toReferent else id) $
-                  searchResultsFor prettyPrintNames0 matches []
-            pure . pure $ results
+            -- type query
+            ":" : ws -> ExceptT (parseSearchType input (unwords ws)) >>= \typ -> ExceptT $ do
+              let named = Branch.deepReferents root0
+              matches <- fmap toList . eval $ GetTermsOfType typ
+              matches <- filter (`Set.member` named) <$>
+                if null matches then do
+                  respond NoExactTypeMatches
+                  fmap toList . eval $ GetTermsMentioningType typ
+                else pure matches
+              let results =
+                    -- in verbose mode, aliases are shown, so we collapse all
+                    -- aliases to a single search result; in non-verbose mode,
+                    -- a separate result may be shown for each alias
+                    (if isVerbose then uniqueBy SR.toReferent else id) $
+                    searchResultsFor prettyPrintNames0 matches []
+              pure . pure $ results
 
-          -- name query
-          (map HQ.unsafeFromString -> qs) -> do
-            ns <- lift $ basicPrettyPrintNames0
-            let srs = searchBranchScored ns fuzzyNameDistance qs
-            pure $ uniqueBy SR.toReferent srs
-
-        case results of
-          Left error -> respond error
-          Right results -> do
+            -- name query
+            (map HQ.unsafeFromString -> qs) -> do
+              ns <- lift $ basicPrettyPrintNames0
+              let srs = searchBranchScored ns fuzzyNameDistance qs
+              pure $ uniqueBy SR.toReferent srs
+          lift do
             numberedArgs .= fmap searchResultToHQString results
             results' <- loadSearchResults results
             ppe <- prettyPrintEnv . Names3.suffixify =<<
@@ -1790,11 +1786,12 @@ getLinks :: (Var v, Monad m)
          => Input
          -> Path.HQSplit'
          -> Either (Set Reference) (Maybe String)
-         -> Action' m v (Either (Output v)
-                                (PPE.PrettyPrintEnv,
-                                --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
-                                 [(HQ.HashQualified, Reference, Maybe (Type v Ann))]))
-getLinks input src mdTypeStr = do
+         -> ExceptT (Output v)
+                    (Action' m v)
+                    (PPE.PrettyPrintEnv,
+                       --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
+                       [(HQ.HashQualified, Reference, Maybe (Type v Ann))])
+getLinks input src mdTypeStr = ExceptT $ do
   let go = fmap Right . getLinks' src
   case mdTypeStr of
     Left s -> go (Just s)
@@ -1830,8 +1827,8 @@ getLinks' src selection0 = do
   pure (PPE.suffixifiedPPE ppe, out)
 
 resolveShortBranchHash ::
-  ShortBranchHash -> Action' m v (Either (Output v) (Branch m))
-resolveShortBranchHash hash = do
+  ShortBranchHash -> ExceptT (Output v) (Action' m v) (Branch m)
+resolveShortBranchHash hash = ExceptT do
   hashSet <- eval $ BranchHashesByPrefix hash
   len <- eval BranchHashLength
   case Set.toList hashSet of
@@ -2080,6 +2077,12 @@ respondNumbered output = do
   args <- eval $ NotifyNumbered output
   unless (null args) $
     numberedArgs .= toList args
+
+unlessError :: ExceptT (Output v) (Action' m v) () -> Action' m v ()
+unlessError ma = runExceptT ma >>= either (eval . Notify) pure
+
+unlessError' :: (e -> Output v) -> ExceptT e (Action' m v) () -> Action' m v ()
+unlessError' f ma = unlessError $ withExceptT f ma
 
 -- Merges the specified remote branch into the specified local absolute path.
 -- Implementation detail of PullRemoteBranchI
