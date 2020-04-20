@@ -13,6 +13,7 @@ module Unison.CommandLine.OutputMessages where
 
 import Unison.Prelude hiding (unlessM)
 
+import qualified Unison.Codebase.Editor.Help             as H
 import qualified Unison.Codebase.Editor.HelpTopics       as HT
 import           Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output           as E
@@ -1031,6 +1032,10 @@ notifyUser dir o = case o of
         prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r)) <>
       (terms <&> \(n,r) ->
         prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r))
+
+  ShowHelp maybeCommandName _ -> case maybeCommandName of
+    Just cmd -> pure $ H.helpFor cmd
+    Nothing -> pure $ H.help
 
   ShowHelpTopic maybeTopic -> case maybeTopic of
     Just helpTopic -> pure $ HT.toPretty helpTopic
