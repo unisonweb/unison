@@ -686,7 +686,7 @@ pull :: InputPattern
 pull = InputPattern
   "pull"
   []
-  [(Optional, gitUrlArg), (Optional, pathArg)]
+  [(Required, gitUrlArg), (Optional, pathArg)]
   (P.lines
     [ P.wrap
       "The `pull` command merges a remote namespace into a local namespace."
