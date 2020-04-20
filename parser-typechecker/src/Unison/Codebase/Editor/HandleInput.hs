@@ -1464,11 +1464,11 @@ loop = do
                , pure . doSlurpAdds (Slurp.updates sr <> Slurp.adds sr) uf)
               ,( Path.unabsolute p, updatePatches )]
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
-          ppe <- prettyPrintEnv =<<
+          ppe <- prettyPrintEnvDecl =<<
             makeShadowedPrintNamesFromLabeled
               (UF.termSignatureExternalLabeledDependencies uf)
               (UF.typecheckedToNames0 uf)
-          respond $ SlurpOutput input ppe sr
+          respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
           -- propagatePatch prints TodoOutput
           void $ propagatePatch inputDescription (updatePatch ye'ol'Patch) currentPath'
 
