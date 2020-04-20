@@ -771,9 +771,9 @@ These are treated as failures (for example: a user invokes wrong arguments, less
 
   ❗️
   
-  I don't know where to pull from! Add a line like `GitUrl. the
-  current namespace = <some-git-url>' to .unisonConfig. Type
-  `help pull ` for more information.
+  I don't know where to pull from! Add a line like `GitUrl. =
+  <some-git-url>' to .unisonConfig. Type `help pull ` for more
+  information.
 
 ```
 ```ucm
