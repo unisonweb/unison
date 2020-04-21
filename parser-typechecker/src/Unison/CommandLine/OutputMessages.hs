@@ -110,6 +110,7 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Control.Lens (view, over, _1, _3)
 import qualified Unison.ShortHash as SH
 import Unison.LabeledDependency as LD
+import Unison.Codebase.Editor.RemoteRepo (RemoteRepo)
 
 type Pretty = P.Pretty P.ColorText
 
@@ -338,9 +339,10 @@ notifyUser dir o = case o of
           <> "or invalid codebase, or because files inside the codebase"
           <> "are being deleted external to UCM."
     ]
-  MetadataAmbiguous _ppe [] -> pure . P.warnCallout .
-    P.wrap $ "Nothing to do. I couldn't find any matching metadata."
-  MetadataAmbiguous ppe refs -> pure . P.warnCallout . P.lines $ [
+  MetadataAmbiguous hq _ppe [] -> pure . P.warnCallout .
+    P.wrap $ "I couldn't find any metadata matching "
+           <> P.syntaxToColor (prettyHashQualified hq)
+  MetadataAmbiguous _ ppe refs -> pure . P.warnCallout . P.lines $ [
     P.wrap $ "I'm not sure which metadata value you're referring to"
           <> "since there are multiple matches:",
     "",
@@ -608,31 +610,37 @@ notifyUser dir o = case o of
 
   TodoOutput names todo -> pure (todoOutput names todo)
   GitError input e -> pure $ case e of
+    CouldntParseRootBranch repo s -> P.wrap $ "I couldn't parse the string"
+      <> P.red (P.string s) <> "into a namespace hash, when opening the repository at"
+      <> P.group (prettyRepoBranch repo <> ".")
     NoGit -> P.wrap $
       "I couldn't find git. Make sure it's installed and on your path."
-    NoRemoteRepoAt p -> P.wrap
-       $ "I couldn't access a git "
-      <> "repository at " <> P.group (P.text p <> ".")
-      <> "Make sure the repo exists "
-      <> "and that you have access to it."
-    NoLocalRepoAt p -> P.wrap
-       $ "The directory at " <> P.string p
-      <> "doesn't seem to contain a git repository."
-    CheckoutFailed t -> P.wrap
-       $ "I couldn't do a git checkout of "
-      <> P.group (P.text t <> ".")
-      <> "Make sure there's a branch or commit with that name."
-    PushDestinationHasNewStuff url treeish diff -> P.callout "⏸" . P.lines $ [
-      P.wrap $ "The repository at" <> P.blue (P.text url)
-            <> (Monoid.fromMaybe $ treeish <&> \treeish ->
-                  "at revision" <> P.blue (P.text treeish))
-            <> "has some changes I don't know about:",
-      "", P.indentN 2 (prettyDiff diff), "",
+    CloneException repo msg -> P.wrap $
+      "I couldn't clone the repository at" <> prettyRepoBranch repo <> ";"
+      <> "the error was:" <> (P.indentNAfterNewline 2 . P.group . P.string) msg
+    PushNoOp repo -> P.wrap $
+      "The repository at" <> prettyRepoBranch repo <> "is already up-to-date."
+    PushException repo msg -> P.wrap $
+      "I couldn't push to the repository at" <> prettyRepoRevision repo <> ";"
+      <> "the error was:" <> (P.indentNAfterNewline 2 . P.group . P.string) msg
+    UnrecognizableCacheDir uri localPath -> P.wrap $ "A cache directory for"
+      <> P.backticked (P.text uri) <> "already exists at"
+      <> P.backticked' (P.string localPath) "," <> "but it doesn't seem to"
+      <> "be a git repository, so I'm not sure what to do next.  Delete it?"
+    UnrecognizableCheckoutDir uri localPath -> P.wrap $ "I tried to clone" 
+      <> P.backticked (P.text uri) <> "into a cache directory at"
+      <> P.backticked' (P.string localPath) "," <> "but I can't recognize the"
+      <> "result as a git repository, so I'm not sure what to do next."
+    PushDestinationHasNewStuff repo ->
+      P.callout "⏸" . P.lines $ [
+      P.wrap $ "The repository at" <> prettyRepoRevision repo
+            <> "has some changes I don't know about.",
+      "",
       P.wrap $ "If you want to " <> push <> "you can do:", "",
        P.indentN 2 pull, "",
        P.wrap $
-         "to merge these changes locally." <>
-         "Then try your" <> push <> "again."
+         "to merge these changes locally," <>
+         "then try your" <> push <> "again."
       ]
       where
       push = P.group . P.backticked $ IP.patternName IP.push
@@ -648,30 +656,17 @@ notifyUser dir o = case o of
             Nothing -> mempty
           ]
         _ -> "⁉️ Unison bug - push command expected"
-    Couldn'tLoadRootBranch url treeish (Just sbh) hash -> P.wrap
-      $ "I couldn't load the specified root hash"
-      <> prettySBH sbh <> (if SBH.fullFromHash hash == sbh then mempty else
-      "(which expands to" <> fromString (Hash.showBase32Hex hash) <> ")")
-      <> "from the repository at" <> P.blue (P.text url)
-      <> (Monoid.fromMaybe $ treeish <&> \treeish ->
-          "at revision" <> P.blue (P.text treeish))
-    Couldn'tLoadRootBranch url treeish Nothing hash -> P.wrap
+    CouldntLoadRootBranch repo hash -> P.wrap
       $ "I couldn't load the designated root hash"
       <> P.group ("(" <> fromString (Hash.showBase32Hex hash) <> ")")
-      <> "from the repository at" <> P.blue (P.text url)
-      <> (Monoid.fromMaybe $ treeish <&> \treeish ->
-          "at revision" <> P.blue (P.text treeish))
-    NoRemoteNamespaceWithHash url treeish sbh -> P.wrap
-      $ "The repository at" <> P.blue (P.text url)
-      <> (Monoid.fromMaybe $ treeish <&> \treeish ->
-          "at revision" <> P.blue (P.text treeish))
+      <> "from the repository at" <> prettyRepoRevision repo
+    NoRemoteNamespaceWithHash repo sbh -> P.wrap
+      $ "The repository at" <> prettyRepoRevision repo
       <> "doesn't contain a namespace with the hash prefix"
       <> (P.blue . P.text . SBH.toText) sbh
-    RemoteNamespaceHashAmbiguous url treeish sbh hashes -> P.lines [
+    RemoteNamespaceHashAmbiguous repo sbh hashes -> P.lines [
       P.wrap $ "The namespace hash" <> prettySBH sbh
-            <> "at" <> P.blue (P.text url)
-            <> (Monoid.fromMaybe $ treeish <&> \treeish ->
-                "at revision" <> P.blue (P.text treeish))
+            <> "at" <> prettyRepoRevision repo
             <> "is ambiguous."
             <> "Did you mean one of these hashes?",
       "",
@@ -683,7 +678,7 @@ notifyUser dir o = case o of
       ]
     SomeOtherError msg -> P.callout "‼" . P.lines $ [
       P.wrap "I ran into an error:", "",
-      P.indentN 2 (P.text msg), "",
+      P.indentN 2 (P.string msg), "",
       P.wrap $ "Check the logging messages above for more info."
       ]
   ListEdits patch ppe -> do
@@ -751,27 +746,36 @@ notifyUser dir o = case o of
       (P.column2 . fmap format) ([(1::Integer)..] `zip` (toList patches))
       where
       format (i, p) = (P.hiBlack . fromString $ show i <> ".", prettyName p)
+  ConfiguredMetadataParseError p md err ->
+    pure . P.fatalCallout . P.lines $
+      [ P.wrap $ "I couldn't understand the default metadata that's set for "
+        <> prettyPath' p <> " in .unisonConfig."
+      , P.wrap $ "The value I found was"
+        <> (P.backticked . P.blue . P.string) md
+        <> "but I encountered the following error when trying to parse it:"
+      , ""
+      , err
+      ]
   NoConfiguredGitUrl pp p ->
     pure . P.fatalCallout . P.wrap $
       "I don't know where to " <>
         pushPull "push to!" "pull from!" pp <>
           (if Path.isRoot' p then ""
-           else "Add a line like `GitUrl." <> prettyPath' p
+           else "Add a line like `GitUrl." <> P.shown p
                 <> " = <some-git-url>' to .unisonConfig. "
           )
           <> "Type `help " <> pushPull "push" "pull" pp <>
           "` for more information."
 
 --  | ConfiguredGitUrlParseError PushPull Path' Text String
-  ConfiguredGitUrlParseError pp p url error ->
+  ConfiguredGitUrlParseError pp p url err ->
     pure . P.fatalCallout . P.lines $
-      [ P.wrap $ "I couldn't understand the url set in .unisonConfig for"
-          <> prettyPath' p <> "."
-      , ""
+      [ P.wrap $ "I couldn't understand the GitUrl that's set for"
+          <> prettyPath' p <> "in .unisonConfig"
       , P.wrap $ "The value I found was" <> (P.backticked . P.blue . P.text) url
         <> "but I encountered the following error when trying to parse it:"
       , ""
-      , P.string error
+      , P.string err
       , ""
       , P.wrap $ "Type" <> P.backticked ("help " <> pushPull "push" "pull" pp)
         <> "for more information."
@@ -956,6 +960,8 @@ notifyUser dir o = case o of
   DumpNumberedArgs args -> pure . P.numberedList $ fmap P.string args
   NoConflictsOrEdits ->
     pure (P.okCallout "No conflicts or edits in progress.")
+  NoOp -> pure $ P.string "I didn't make any changes."
+  DefaultMetadataNotification -> pure $ P.wrap "I added some default metadata."
   DumpBitBooster head map -> let
     go output []          = output
     go output (head : queue) = case Map.lookup head map of
@@ -1937,6 +1943,22 @@ prettyDiff diff = let
 prettyTermName :: PPE.PrettyPrintEnv -> Referent -> Pretty
 prettyTermName ppe r = P.syntaxToColor $
   prettyHashQualified (PPE.termName ppe r)
+
+prettyRepoRevision :: RemoteRepo -> Pretty
+prettyRepoRevision (RemoteRepo.GitRepo url treeish) =
+  P.blue (P.text url) <> prettyRevision treeish
+  where
+  prettyRevision treeish =
+    Monoid.fromMaybe $
+      treeish <&> \treeish -> "at revision" <> P.blue (P.text treeish)
+
+prettyRepoBranch :: RemoteRepo -> Pretty
+prettyRepoBranch (RemoteRepo.GitRepo url treeish) =
+  P.blue (P.text url) <> prettyRevision treeish
+  where
+  prettyRevision treeish =
+    Monoid.fromMaybe $
+      treeish <&> \treeish -> "at branch" <> P.blue (P.text treeish)
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of

@@ -138,7 +138,7 @@ runTranscripts' currentDir mcodepath transcriptDir args = do
 runTranscripts :: Fork -> SaveCodebase -> FilePath -> Maybe FilePath -> [String] -> IO ()
 runTranscripts inFork keepTemp currentDir mcodepath args = do
   transcriptDir <- prepareTranscriptDir inFork currentDir mcodepath
-  runTranscripts' currentDir mcodepath transcriptDir args
+  runTranscripts' currentDir (Just transcriptDir) transcriptDir args
   case keepTemp of
     (SaveCodebase False) -> removeDirectoryRecursive transcriptDir
     (SaveCodebase True) ->

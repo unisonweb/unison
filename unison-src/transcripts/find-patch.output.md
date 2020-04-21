@@ -56,7 +56,7 @@ Update
 
   ⍟ I've updated these names to your new definition:
   
-    hey : builtin.Text
+    hey : Text
 
 .> find.patch
 
