@@ -501,7 +501,8 @@ loop = do
                       respond DefaultMetadataNotification
                       manageLinks True addedNames defaultMeta Metadata.insert
 
-        -- Add/remove metadata links to definitions.
+        -- Add/remove links between definitions and metadata.
+        -- `silent` controls whether this produces any output to the user.
         -- `srcs` is (names of the) definitions to pass to `op`
         -- `mdValues` is (names of the) metadata to pass to `op`
         -- `op` is the operation to add/remove/alter metadata mappings.
