@@ -55,8 +55,8 @@ withStatus str ma = do
     liftIO . putStr $ "  " ++ str ++ "\r"
     hFlush stdout
 
--- Given a local path, a remote git repo url, and branch/commit hash,
--- checks for git, the repo path, performs a clone, and verifies resulting repo
+-- | Given a remote git repo url, and branch/commit hash (currently
+-- not allowed): checks for git, clones or updates a cached copy of the repo
 pullBranch :: (MonadIO m, MonadError GitError m) => RemoteRepo -> m CodebasePath
 pullBranch (GitRepo _uri (Just t)) = error $
   "Pulling a specific commit isn't fully implemented or tested yet.\n" ++
@@ -73,13 +73,27 @@ pullBranch repo@(GitRepo uri Nothing) = do
     -- directory doesn't exist, so clone anew
     (checkOutNew localPath Nothing)
   pure localPath
+
   where
+  -- | Do a `git clone` (for a not-previously-cached repo).
+  checkOutNew :: (MonadIO m, MonadError GitError m) => CodebasePath -> Maybe Text -> m ()
+  checkOutNew localPath branch = do
+    withStatus ("Downloading from " ++ Text.unpack uri ++ " ...") $
+      (liftIO $
+        "git" $^ (["clone", "--quiet"] ++ ["--depth", "1"]
+         ++ maybe [] (\t -> ["--branch", t]) branch
+         ++ [uri, Text.pack localPath]))
+        `withIOError` (throwError . GitError.CloneException repo . show)
+    isGitDir <- liftIO $ isGitRepo localPath
+    unless isGitDir . throwError $ GitError.UnrecognizableCheckoutDir uri localPath
+
+  -- | Do a `git pull` on a cached repo.
   checkoutExisting :: (MonadIO m, MonadError GitError m) => FilePath -> m ()
   checkoutExisting localPath =
     ifM (isEmptyGitRepo localPath)
-      -- I don't know how to properly update from an empty repo;
-      -- but if this copy is empty, then the remote might be too,
-      -- so this impl. just wipes the cache dir and starts over from scratch.
+      -- I don't know how to properly update from an empty remote repo.
+      -- As a heuristic, if this cached copy is empty, then the remote might
+      -- be too, so this impl. just wipes the cached copy and starts from scratch.
       (do wipeDir localPath; checkOutNew localPath Nothing)
     -- Otherwise proceed!
     (withStatus ("Updating cached copy of " ++ Text.unpack uri ++ " ...") $ do
@@ -89,22 +103,11 @@ pullBranch repo@(GitRepo uri Nothing) = do
 
   isEmptyGitRepo :: MonadIO m => FilePath -> m Bool
   isEmptyGitRepo localPath = liftIO $
-    -- if rev-parse succeeds, the repo is not empty
+    -- if rev-parse succeeds, the repo is _not_ empty, so return False; else True
     (gitTextIn localPath ["rev-parse", "--verify", "--quiet", "HEAD"] $> False)
       $? pure True
 
-  checkOutNew :: (MonadIO m, MonadError GitError m) => CodebasePath -> Maybe Text -> m ()
-  checkOutNew localPath branch = do
-    withStatus ("Downloading from " ++ Text.unpack uri ++ " ...")
-      -- if `treeish` is a branch or tag
-      (liftIO $
-        "git" $^ (["clone", "--quiet"] ++ ["--depth", "1"]
-         ++ maybe [] (\t -> ["--branch", t]) branch
-         ++ [uri, Text.pack localPath]))
-        `withIOError` (throwError . GitError.CloneException repo . show)
-    isGitDir <- liftIO $ isGitRepo localPath
-    unless isGitDir . throwError $ GitError.UnrecognizableCheckoutDir uri localPath
-
+  -- | try removing a cached copy
   wipeDir localPath = do
     e <- Ex.tryAny . whenM (doesDirectoryExist localPath) $
       removeDirectoryRecursive localPath
@@ -112,9 +115,9 @@ pullBranch repo@(GitRepo uri Nothing) = do
       Left e -> throwError (GitError.SomeOtherError (show e))
       Right _ -> pure ()
 
--- pull repo & load arbitrary branch
--- if `sbh` is supplied, we try to load the specified branch hash;
--- otherwise we try to load the root branch
+-- | Sync elements as needed from a remote codebase into the local one.
+-- If `sbh` is supplied, we try to load the specified branch hash;
+-- otherwise we try to load the root branch.
 importRemoteBranch
   :: forall m v a
    . MonadIO m
@@ -138,7 +141,9 @@ viewRemoteBranch' :: forall m. MonadIO m
 viewRemoteBranch' (repo, sbh, path) = do
   -- set up the cache dir
   remotePath <- pullBranch repo
+  -- try to load the requested branch from it
   branch <- case sbh of
+    -- load the root branch
     Nothing -> lift (FC.getRootBranch remotePath) >>= \case
       Left Codebase.NoRootBranch -> pure Branch.empty
       Left (Codebase.CouldntLoadRootBranch h) ->
@@ -146,6 +151,7 @@ viewRemoteBranch' (repo, sbh, path) = do
       Left (Codebase.CouldntParseRootBranch s) ->
         throwError $ GitError.CouldntParseRootBranch repo s
       Right b -> pure b
+    -- load from a specific `ShortBranchHash`
     Just sbh -> do
       branchCompletions <- lift $ FC.branchHashesByPrefix remotePath sbh
       case toList branchCompletions of
@@ -156,20 +162,24 @@ viewRemoteBranch' (repo, sbh, path) = do
         _ -> throwError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
   pure (Branch.getAt' path branch, remotePath)
 
+-- | See if `git` is on the system path.
 checkForGit :: MonadIO m => MonadError GitError m => m ()
 checkForGit = do
   gitPath <- liftIO $ findExecutable "git"
   when (isNothing gitPath) $ throwError GitError.NoGit
 
+-- | Does `git` recognize this directory as being managed by git?
 isGitRepo :: MonadIO m => FilePath -> m Bool
 isGitRepo dir = liftIO $
   (True <$ gitIn dir ["rev-parse"]) $? pure False
 
+-- | Perform an IO action, passing any IO exception to `handler`
 withIOError :: MonadIO m => IO a -> (IOException -> m a) -> m a 
 withIOError action handler =
   liftIO (fmap Right action `Control.Exception.catch` (pure . Left)) >>=
     either handler pure
 
+-- | Generate some `git` flags for operating on some arbitary checked out copy 
 setupGitDir :: FilePath -> [Text]
 setupGitDir localPath = 
   ["--git-dir", Text.pack $ localPath </> ".git"

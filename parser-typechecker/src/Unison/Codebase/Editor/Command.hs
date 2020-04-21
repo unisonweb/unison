@@ -136,11 +136,11 @@ data Command m i v a where
   -- Like `LoadLocalRootBranch`.
   LoadLocalBranch :: Branch.Hash -> Command m i v (Branch m)
 
-  -- todo: could split this one into Root vs SBH
   ViewRemoteBranch ::
     RemoteNamespace -> Command m i v (Either GitError (Branch m))
 
-  -- we want to import as little as possible, so we pass the SBH/path
+  -- we want to import as little as possible, so we pass the SBH/path as part
+  -- of the `RemoteNamespace`.
   ImportRemoteBranch ::
     RemoteNamespace -> Command m i v (Either GitError (Branch m))
 
