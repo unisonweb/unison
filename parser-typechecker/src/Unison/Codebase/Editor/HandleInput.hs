@@ -1,5 +1,4 @@
 {-# LANGUAGE RankNTypes #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 {-# LANGUAGE ApplicativeDo       #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -304,9 +303,9 @@ loop = do
         ifConfirmed = ifM (confirmedCommand input)
         branchNotFound = respond . BranchNotFound
         branchNotFound' = respond . BranchNotFound . Path.unsplit'
-        patchNotFound :: Path.Split' -> _
+        patchNotFound :: Path.Split' -> Action' m v ()
         patchNotFound s = respond $ PatchNotFound s
-        patchExists :: Path.Split' -> _
+        patchExists :: Path.Split' -> Action' m v ()
         patchExists s = respond $ PatchAlreadyExists s
         typeNotFound = respond . TypeNotFound
         typeNotFound' = respond . TypeNotFound'
@@ -1765,7 +1764,7 @@ loop = do
         :: PushPull
         -> Path'
         -> Maybe RemoteNamespace
-        -> Action' m v (Either _ RemoteNamespace)
+        -> Action' m v (Either (Output v) RemoteNamespace)
       resolveConfiguredGitUrl pushPull destPath' = \case
         Just ns -> pure $ Right ns
         Nothing -> do
@@ -2001,7 +2000,7 @@ searchResultToHQString = \case
   _ -> error "unpossible match failure"
 
 -- Return a list of definitions whose names fuzzy match the given queries.
-fuzzyNameDistance :: Name -> Name -> Maybe _ -- MatchArray
+fuzzyNameDistance :: Name -> Name -> Maybe Int
 fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
   Find.simpleFuzzyScore q n
 
@@ -2574,7 +2573,7 @@ loadDisplayInfo refs = do
   types <- forM typeRefs $ \r -> (r,) <$> loadTypeDisplayThing r
   pure (terms, types)
 
-loadReferentType :: Referent -> _ (Maybe (Type _ _))
+loadReferentType :: Referent -> Action m i v (Maybe (Type v Ann))
 loadReferentType = \case
   Referent.Ref r -> eval $ LoadTypeOfTerm r
   Referent.Con r cid _ -> getTypeOfConstructor r cid
@@ -2588,7 +2587,7 @@ loadReferentType = \case
   getTypeOfConstructor r cid =
     error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
 
-loadTypeDisplayThing :: Reference -> _ (DisplayThing (DD.Decl _ _))
+loadTypeDisplayThing :: Reference -> Action m i v (DisplayThing (DD.Decl v Ann))
 loadTypeDisplayThing = \case
   Reference.Builtin _ -> pure BuiltinThing
   Reference.DerivedId id ->
