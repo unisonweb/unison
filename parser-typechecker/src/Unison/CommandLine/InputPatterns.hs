@@ -10,13 +10,14 @@ import Unison.Prelude
 
 import qualified Control.Lens.Cons as Cons
 import qualified Control.Lens as Lens
-import Data.Bifunctor (first)
-import Data.List (intercalate, sortOn, isPrefixOf)
+import Data.Bifunctor (first, second)
+import Data.List (isPrefixOf)
 import Data.List.Extra (nubOrdOn)
 import qualified System.Console.Haskeline.Completion as Completion
 import System.Console.Haskeline.Completion (Completion(Completion))
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input)
+import qualified Unison.Codebase.Editor.HelpTopics as HT
 import Unison.CommandLine.InputPattern
          ( ArgumentType(..)
          , InputPattern(InputPattern)
@@ -39,18 +40,9 @@ import qualified Unison.Names2 as Names
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
-import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
-
-showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
-showPatternHelp i = P.lines [
-  P.bold (fromString $ I.patternName i) <> fromString
-    (if not . null $ I.aliases i
-     then " (or " <> intercalate ", " (I.aliases i) <> ")"
-     else ""),
-  P.wrap $ I.help i ]
 
 patternName :: InputPattern -> P.Pretty P.ColorText
 patternName = fromString . I.patternName
@@ -140,8 +132,8 @@ load = InputPattern
   (\case
     [] -> pure $ Input.LoadI Nothing
     [file] -> pure $ Input.LoadI . Just $ file
-    _ -> Left (I.help load))
-
+    _ -> pure $ Input.HelpI (Just $ I.patternName load) True
+  )
 
 add :: InputPattern
 add =
@@ -282,7 +274,7 @@ display = InputPattern
   "`display foo` prints a rendered version of the term `foo`."
   (\case
     [s] -> Input.DisplayI Input.ConsoleLocation <$> parseHashQualifiedName s
-    _   -> Left (I.help display)
+    _ -> pure $ Input.HelpI (Just $ I.patternName display) True
   )
 
 
@@ -298,7 +290,7 @@ displayTo = InputPattern
   (\case
     [file, s] ->
       Input.DisplayI (Input.FileLocation file) <$> parseHashQualifiedName s
-    _ -> Left (I.help displayTo)
+    _ -> pure $ Input.HelpI (Just $ I.patternName displayTo) True
   )
 
 docs :: InputPattern
@@ -306,7 +298,8 @@ docs = InputPattern "docs" [] [(Required, definitionQueryArg)]
       "`docs foo` shows documentation for the definition `foo`."
       (\case
         [s] -> first fromString $ Input.DocsI <$> Path.parseHQSplit' s
-        _ -> Left (I.help docs))
+        _ -> pure $ Input.HelpI (Just $ I.patternName docs) True
+    )
 
 undo :: InputPattern
 undo = InputPattern "undo" [] []
@@ -358,7 +351,7 @@ findShallow = InputPattern
     [path] -> first fromString $ do
       p <- Path.parsePath' path
       pure $ Input.FindShallowI p
-    _ -> Left (I.help findShallow)
+    _ -> pure $ Input.HelpI (Just $ I.patternName findShallow) True
   )
 
 findVerbose :: InputPattern
@@ -547,7 +540,7 @@ aliasMany = InputPattern "alias.many" ["copy"]
       sourceDefinitions <- traverse Path.parseHQSplit srcs
       destNamespace <- Path.parsePath' dest
       pure $ Input.AliasManyI sourceDefinitions destNamespace
-    _ -> Left (I.help aliasMany)
+    _ -> pure $ Input.HelpI (Just $ I.patternName aliasMany) True
   )
 
 
@@ -562,7 +555,7 @@ cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
       [p] -> first fromString $ do
         p <- Path.parsePath' p
         pure . Input.SwitchBranchI $ p
-      _ -> Left (I.help cd)
+      _ -> pure $ Input.HelpI (Just $ I.patternName cd) True
     )
 
 back :: InputPattern
@@ -573,7 +566,7 @@ back = InputPattern "back" ["popd"] []
       ])
     (\case
       [] -> pure Input.PopBranchI
-      _ -> Left (I.help cd)
+      _ -> pure $ Input.HelpI (Just $ I.patternName cd) True
     )
 
 deleteBranch :: InputPattern
@@ -585,7 +578,7 @@ deleteBranch = InputPattern "delete.namespace" [] [(Required, pathArg)]
         [p] -> first fromString $ do
           p <- Path.parseSplit' Path.wordyNameSegment p
           pure . Input.DeleteBranchI $ Just p
-        _ -> Left (I.help deleteBranch)
+        _ -> pure $ Input.HelpI (Just $ I.patternName deleteBranch) True
       )
 
 deletePatch :: InputPattern
@@ -595,7 +588,7 @@ deletePatch = InputPattern "delete.patch" [] [(Required, patchArg)]
         [p] -> first fromString $ do
           p <- Path.parseSplit' Path.wordyNameSegment p
           pure . Input.DeletePatchI $ p
-        _ -> Left (I.help deletePatch)
+        _ -> pure $ Input.HelpI (Just $ I.patternName deletePatch) True
       )
 
 movePatch :: String -> String -> Either (P.Pretty CT.ColorText) Input
@@ -611,7 +604,7 @@ copyPatch = InputPattern "copy.patch"
    "`copy.patch foo bar` copies the patch `bar` to `foo`."
     (\case
       [src, dest] -> movePatch src dest
-      _ -> Left (I.help copyPatch)
+      _ -> pure $ Input.HelpI (Just $ I.patternName copyPatch) True
     )
 
 renamePatch :: InputPattern
@@ -621,7 +614,7 @@ renamePatch = InputPattern "move.patch"
    "`move.patch foo bar` renames the patch `bar` to `foo`."
     (\case
       [src, dest] -> movePatch src dest
-      _ -> Left (I.help renamePatch)
+      _ -> pure $ Input.HelpI (Just $ I.patternName renamePatch) True
     )
 
 renameBranch :: InputPattern
@@ -637,7 +630,7 @@ renameBranch = InputPattern "move.namespace"
         src <- Path.parseSplit' Path.wordyNameSegment src
         dest <- Path.parseSplit' Path.wordyNameSegment dest
         pure $ Input.MoveBranchI (Just src) dest
-      _ -> Left (I.help renameBranch)
+      _ -> pure $ Input.HelpI (Just $ I.patternName renameBranch) True
     )
 
 history :: InputPattern
@@ -655,7 +648,7 @@ history = InputPattern "history" []
         p <- Input.parseBranchId src
         pure $ Input.HistoryI (Just 10) (Just 10) p
       [] -> pure $ Input.HistoryI (Just 10) (Just 10) (Right Path.currentPath)
-      _ -> Left (I.help history)
+      _ -> pure $ Input.HelpI (Just $ I.patternName history) True
     )
 
 forkLocal :: InputPattern
@@ -667,7 +660,7 @@ forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
         src <- Input.parseBranchId src
         dest <- Path.parsePath' dest
         pure $ Input.ForkLocalBranchI src dest
-      _ -> Left (I.help forkLocal)
+      _ -> pure $ Input.HelpI (Just $ I.patternName forkLocal) True
     )
 
 resetRoot :: InputPattern
@@ -682,7 +675,8 @@ resetRoot = InputPattern "reset-root" [] [(Required, pathArg)]
     [src] -> first fromString $ do
      src <- Input.parseBranchId src
      pure $ Input.ResetRootI src
-    _ -> Left (I.help resetRoot))
+    _ -> pure $ Input.HelpI (Just $ I.patternName resetRoot) True
+  )
 
 pull :: InputPattern
 pull = InputPattern
@@ -724,7 +718,7 @@ pull = InputPattern
       ns <- parseUri "url" url
       p <- first fromString $ Path.parsePath' path
       pure $ Input.PullRemoteBranchI (Just ns) p
-    _ -> Left (I.help pull)
+    _ -> pure $ Input.HelpI (Just $ I.patternName pull) True
   )
 
 push :: InputPattern
@@ -763,11 +757,11 @@ push = InputPattern
       (repo, sbh, path) <- parseUri "url" url
       when (isJust sbh)
         $ Left "Can't push to a particular remote namespace hash."
-      p <- case rest of
-        [] -> Right Path.relativeEmpty'
-        [path] -> first fromString $ Path.parsePath' path
-        _ -> Left (I.help push)
-      Right $ Input.PushRemoteBranchI (Just (repo, path)) p
+      case rest of
+        [] -> Right $ Input.PushRemoteBranchI (Just (repo, path)) Path.relativeEmpty'
+        [path'] -> first fromString $ Path.parsePath' path' >>= 
+          Right . Input.PushRemoteBranchI (Just (repo, path))
+        _ -> Right $ Input.HelpI (Just $ I.patternName push) True
   )
 
 createPullRequest :: InputPattern
@@ -787,7 +781,7 @@ createPullRequest = InputPattern "pull-request.create" ["pr.create"]
       baseRepo <- parseUri "baseRepo" baseUrl
       headRepo <- parseUri "headRepo" headUrl
       pure $ Input.CreatePullRequestI baseRepo headRepo
-    _ -> Left (I.help createPullRequest)
+    _ -> pure $ Input.HelpI (Just $ I.patternName createPullRequest) True
   )
 
 loadPullRequest :: InputPattern
@@ -812,7 +806,7 @@ loadPullRequest = InputPattern "pull-request.load" ["pr.load"]
       headRepo <- parseUri "topicRepo" headUrl
       destPath <- first fromString $ Path.parsePath' dest
       pure $ Input.LoadPullRequestI baseRepo headRepo destPath
-    _ -> Left (I.help loadPullRequest)
+    _ -> pure $ Input.HelpI (Just $ I.patternName loadPullRequest) True
   )
 parseUri :: String -> String -> Either (P.Pretty P.ColorText) RemoteNamespace
 parseUri label input = do
@@ -840,7 +834,7 @@ mergeLocal = InputPattern "merge" [] [(Required, pathArg)
         src <- Path.parsePath' src
         dest <- Path.parsePath' dest
         pure $ Input.MergeLocalBranchI src dest
-      _ -> Left (I.help mergeLocal)
+      _ -> pure $ Input.HelpI (Just $ I.patternName mergeLocal) True
  )
 
 diffNamespace :: InputPattern
@@ -860,7 +854,7 @@ diffNamespace = InputPattern
       before <- Path.parsePath' before
       after <- Path.parsePath' after
       pure $ Input.DiffNamespaceI before after
-    _ -> Left $ I.help diffNamespace
+    _ -> pure $ Input.HelpI (Just $ I.patternName diffNamespace) True
   )
 
 previewMergeLocal :: InputPattern
@@ -885,7 +879,7 @@ previewMergeLocal = InputPattern
       src  <- Path.parsePath' src
       dest <- Path.parsePath' dest
       pure $ Input.PreviewMergeLocalBranchI src dest
-    _ -> Left (I.help previewMergeLocal)
+    _ -> pure $ Input.HelpI (Just $ I.patternName previewMergeLocal) True
   )
 
 replaceEdit
@@ -926,7 +920,7 @@ replaceEdit f s = self
         sourcehq <- parseHashQualifiedName source
         targethq <- parseHashQualifiedName target
         pure $ f sourcehq targethq patch
-      _ -> Left $ I.help self
+      _ -> pure $ Input.HelpI (Just $ I.patternName self) True
     )
 
 replaceType :: InputPattern
@@ -960,7 +954,7 @@ edit = InputPattern
 
 topicNameArg :: ArgumentType
 topicNameArg =
-  ArgumentType "topic" $ \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap)
+  ArgumentType "topic" $ \q _ _ _ -> pure (exactComplete q HT.topics)
 
 helpTopics :: InputPattern
 helpTopics = InputPattern
@@ -969,125 +963,27 @@ helpTopics = InputPattern
   [(Optional, topicNameArg)]
   ( "`help-topics` lists all topics and `help-topics <topic>` shows an explanation of that topic." )
   (\case
-    [] -> Left topics
-    [topic] -> case Map.lookup topic helpTopicsMap of
-       Nothing -> Left . warn $ "I don't know of that topic. Try `help-topics`."
-       Just t -> Left t
+    [] -> Right $ Input.HelpTopicI Nothing
+    [topic] -> second (Input.HelpTopicI . Just) $ HT.fromString topic
     _ -> Left $ warn "Use `help-topics <topic>` or `help-topics`."
   )
-  where
-    topics = P.callout "🌻" $ P.lines [
-      "Here's a list of topics I can tell you more about: ",
-      "",
-      P.indentN 2 $ P.sep "\n" (P.string <$> Map.keys helpTopicsMap),
-      "",
-      aside "Example" "use `help filestatus` to learn more about that topic."
-      ]
 
-helpTopicsMap :: Map String (P.Pretty P.ColorText)
-helpTopicsMap = Map.fromList [
-  ("testcache", testCacheMsg),
-  ("filestatus", fileStatusMsg),
-  ("messages.disallowedAbsolute", disallowedAbsoluteMsg),
-  ("namespaces", pathnamesMsg)
-  ]
-  where
-  blankline = ("","")
-  fileStatusMsg = P.callout "📓" . P.lines $ [
-    P.wrap $ "Here's a list of possible status messages you might see"
-          <> "for definitions in a .u file.", "",
-    P.wrapColumn2 [
-      (P.bold $ SR.prettyStatus SR.Collision,
-       "A definition with the same name as an existing definition. Doing" <>
-       "`update` instead of `add` will turn this failure into a successful" <>
-       "update."),
-      blankline,
-      (P.bold $ SR.prettyStatus SR.Conflicted,
-       "A definition with the same name as an existing definition." <>
-       "Resolving the conflict and then trying an `update` again will" <>
-       "turn this into a successful update."),
-      blankline,
-      (P.bold $ SR.prettyStatus SR.TermExistingConstructorCollision,
-       "A definition with the same name as an existing constructor for " <>
-       "some data type. Rename your definition or the data type before" <>
-       "trying again to `add` or `update`."),
-      blankline,
-      (P.bold $ SR.prettyStatus SR.ConstructorExistingTermCollision,
-       "A type defined in the file has a constructor that's named the" <>
-       "same as an existing term. Rename that term or your constructor" <>
-       "before trying again to `add` or `update`."),
-      blankline,
-      (P.bold $ SR.prettyStatus SR.BlockedDependency,
-       "This definition was blocked because it dependended on " <>
-       "a definition with a failed status."),
-      blankline,
-      (P.bold $ SR.prettyStatus SR.ExtraDefinition,
-       "This definition was added because it was a dependency of" <>
-       "a definition explicitly selected.")
-      ]
-   ]
-  testCacheMsg = P.callout "🎈" . P.lines $ [
-    P.wrap $ "Unison caches the results of " <> P.blue "test>"
-          <> "watch expressions. Since these expressions are pure and"
-          <> "always yield the same result when evaluated, there's no need"
-          <> "to run them more than once!",
-    "",
-    P.wrap $ "A test is rerun only if it has changed, or if one"
-          <> "of the definitions it depends on has changed."
-    ]
-  pathnamesMsg = P.callout "\129488" . P.lines $ [
-    P.wrap $ "There are two kinds of namespaces," <> P.group (P.blue "absolute" <> ",")
-          <> "such as" <> P.group ("(" <> P.blue ".foo.bar")
-          <> "or" <> P.group (P.blue ".base.math.+" <> ")")
-          <> "and" <> P.group (P.green "relative" <> ",")
-          <> "such as" <> P.group ("(" <> P.green "math.sqrt")
-          <> "or" <> P.group (P.green "util.List.++" <> ")."),
-    "",
-    P.wrap $ "Relative names are converted to absolute names by prepending the current namespace."
-          <> "For example, if your Unison prompt reads:", "",
-      P.indentN 2 $ P.blue ".foo.bar>", "",
-    "and your .u file looks like:", "",
-      P.indentN 2 $ P.green "x" <> " = 41", "",
-    P.wrap $
-      "then doing an" <> P.blue "add" <>
-      "will create the definition with the absolute name" <>
-      P.group (P.blue ".foo.bar.x" <> " = 41"),
-    "",
-    P.wrap $
-      "and you can refer to" <> P.green "x" <> "by its absolute name " <>
-      P.blue ".foo.bar.x" <> "elsewhere" <> "in your code. For instance:", "",
-    P.indentN 2 $
-      "answerToLifeTheUniverseAndEverything = " <> P.blue ".foo.bar.x" <> " + 1"
-    ]
-
-  disallowedAbsoluteMsg = P.callout "\129302" . P.lines $ [
-    P.wrap $
-      "Although I can understand absolute (ex: .foo.bar) or" <>
-      "relative (ex: util.math.sqrt) references to existing definitions" <>
-      P.group ("(" <> P.blue "help namespaces") <> "to learn more)," <>
-      "I can't yet handle giving new definitions with absolute names in a .u file.",
-    "",
-    P.wrap $ "As a workaround, you can give definitions with a relative name"
-          <> "temporarily (like `exports.blah.foo`) and then use `move.*` "
-          <> "or `merge` commands to move stuff around afterwards."
-    ]
 
 help :: InputPattern
 help = InputPattern
     "help" ["?"] [(Optional, commandNameArg)]
     "`help` shows general help and `help <cmd>` shows help for one command."
     (\case
-      [] -> Left $ intercalateMap "\n\n" showPatternHelp
-        (sortOn I.patternName validInputs)
-      [isHelp -> Just msg] -> Left msg
+      [] -> Right $ Input.HelpI Nothing False
+      [isHelp -> Right ht] -> Right ht
       [cmd] -> case Map.lookup cmd commandsByName of
         Nothing  -> Left . warn $ "I don't know of that command. Try `help`."
-        Just pat -> Left $ showPatternHelp pat
+        Just _ -> Right $ Input.HelpI (Just cmd) False
       _ -> Left $ warn "Use `help <cmd>` or `help`.")
     where
       commandsByName = Map.fromList [
         (n, i) | i <- validInputs, n <- I.patternName i : I.aliases i ]
-      isHelp s = Map.lookup s helpTopicsMap
+      isHelp topic = second (Input.HelpTopicI . Just) $ HT.fromString topic
 
 quit :: InputPattern
 quit = InputPattern "quit" ["exit", ":q"] []
@@ -1136,7 +1032,7 @@ link = InputPattern
         Just hq -> pure hq
       defs <- traverse Path.parseHQSplit' defs
       Right $ Input.LinkI md defs
-    _ -> Left (I.help link)
+    _ -> pure $ Input.HelpI (Just $ I.patternName link) True
   )
 
 links :: InputPattern
@@ -1154,7 +1050,7 @@ links = InputPattern
             [] -> Nothing
             _  -> Just $ unwords rest
        in Right $ Input.LinksI src ty
-    _ -> Left (I.help links)
+    _ -> pure $ Input.HelpI (Just $ I.patternName links) True
   )
 
 unlink :: InputPattern
@@ -1175,7 +1071,7 @@ unlink = InputPattern
         Just hq -> pure hq
       defs <- traverse Path.parseHQSplit' defs
       Right $ Input.UnlinkI md defs
-    _ -> Left (I.help unlink)
+    _ -> pure $ Input.HelpI (Just $ I.patternName unlink) True
   )
 
 names :: InputPattern
@@ -1187,7 +1083,7 @@ names = InputPattern "names" []
       Just hq -> Right $ Input.NamesI hq
       Nothing -> Left $ "I was looking for one of these forms: "
                        <> P.blue "foo .foo.bar foo#abc #abcde .foo.bar#asdf"
-    _ -> Left (I.help names)
+    _ -> pure $ Input.HelpI (Just $ I.patternName names) True
   )
 
 dependents, dependencies :: InputPattern
@@ -1195,12 +1091,14 @@ dependents = InputPattern "dependents" [] []
   "List the dependents of the specified definition."
   (\case
     [thing] -> fmap Input.ListDependentsI $ parseHashQualifiedName thing
-    _ -> Left (I.help dependents))
+    _ -> pure $ Input.HelpI (Just $ I.patternName dependents) True
+  )
 dependencies = InputPattern "dependencies" [] []
   "List the dependencies of the specified definition."
   (\case
     [thing] -> fmap Input.ListDependenciesI $ parseHashQualifiedName thing
-    _ -> Left (I.help dependencies))
+    _ -> pure $ Input.HelpI (Just $ I.patternName dependencies) True
+  )
 
 debugNumberedArgs :: InputPattern
 debugNumberedArgs = InputPattern "debug.numberedArgs" [] []
@@ -1237,7 +1135,7 @@ execute = InputPattern
   )
   (\case
     [w] -> pure . Input.ExecuteI $ w
-    _   -> Left $ showPatternHelp execute
+    _   -> pure $ Input.HelpI (Just $ I.patternName execute) True
   )
 
 createAuthor :: InputPattern
@@ -1256,7 +1154,7 @@ createAuthor = InputPattern "create.author" []
               quoted@('"':_) -> (init . tail) quoted
               bare -> bare
         pure $ Input.CreateAuthorI symbol author
-      _   -> Left $ showPatternHelp createAuthor
+      _   -> pure $ Input.HelpI (Just $ I.patternName createAuthor) True
     )
 validInputs :: [InputPattern]
 validInputs =
@@ -1332,7 +1230,7 @@ commandNames = validInputs >>= \i -> I.patternName i : I.aliases i
 
 commandNameArg :: ArgumentType
 commandNameArg =
-  ArgumentType "command" $ \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap))
+  ArgumentType "command" $ \q _ _ _ -> pure (exactComplete q (commandNames <> HT.topics))
 
 exactDefinitionOrPathArg :: ArgumentType
 exactDefinitionOrPathArg =

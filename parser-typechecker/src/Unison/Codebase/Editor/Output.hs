@@ -33,6 +33,7 @@ import Unison.DataDeclaration ( Decl )
 import Unison.Util.Relation (Relation)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.SlurpResult as SR
+import qualified Unison.Codebase.Editor.HelpTopics as HT
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
@@ -202,6 +203,8 @@ data Output v
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
+  | ShowHelp (Maybe String) Bool
+  | ShowHelpTopic (Maybe HT.HelpTopic)
   | DefaultMetadataNotification
   | NoOp
   deriving (Show)
@@ -341,6 +344,8 @@ isFailure o = case o of
   ListDependencies{} -> False
   ListDependents{} -> False
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
+  ShowHelp _ isFailure -> isFailure
+  ShowHelpTopic{} -> False
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case
