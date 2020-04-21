@@ -102,7 +102,7 @@ inside.y = c + c
   scope "user-should-have" $
     for userShouldHave $ \path ->
       scope (makeTitle path) $ io (doesFileExist $ userDir </> path) >>= expect
-  pending $ scope "user-should-not-have" $ -- this definitely won't pass with current implementation
+  scope "user-should-not-have" $ -- this definitely won't pass with current implementation
     for userShouldNotHave $ \path ->
       scope (makeTitle path) $ io (doesFileExist $ userDir </> path) >>= expect . not
 
