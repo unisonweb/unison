@@ -2125,17 +2125,6 @@ unlessError ma = runExceptT ma >>= either (eval . Notify) pure
 unlessError' :: (e -> Output v) -> ExceptT e (Action' m v) () -> Action' m v ()
 unlessError' f ma = unlessError $ withExceptT f ma
 
--- Merges the specified remote branch into the specified local absolute path.
--- Implementation detail of PullRemoteBranchI
--- `p'` (user-supplied version of `p`) is needed if you want to print a diff
--- after the pull.
-
-unlessError :: ExceptT (Output v) (Action' m v) () -> Action' m v ()
-unlessError ma = runExceptT ma >>= either (eval . Notify) pure
-
-unlessError' :: (e -> Output v) -> ExceptT e (Action' m v) () -> Action' m v ()
-unlessError' f ma = unlessError $ withExceptT f ma
-
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect
 mergeBranchAndPropagateDefaultPatch :: (Monad m, Var v) =>
