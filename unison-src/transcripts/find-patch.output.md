@@ -17,9 +17,6 @@ hey = "yello"
     ⍟ These new definitions are ok to `add`:
     
       hey : Text
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -50,9 +47,6 @@ hey = "hello"
       new definition:
     
       hey : Text
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 Update
@@ -62,7 +56,7 @@ Update
 
   ⍟ I've updated these names to your new definition:
   
-    hey : builtin.Text
+    hey : Text
 
 .> find.patch
 
@@ -71,9 +65,17 @@ Update
 .> view.patch patch
 
   Edited Terms: hey#8e79ctircj -> hey
+  
+  Tip: To remove entries from a patch, use
+       delete.term-replacement or delete.type-replacement, as
+       appropriate.
 
 .> view.patch 1
 
   Edited Terms: hey#8e79ctircj -> hey
+  
+  Tip: To remove entries from a patch, use
+       delete.term-replacement or delete.type-replacement, as
+       appropriate.
 
 ```

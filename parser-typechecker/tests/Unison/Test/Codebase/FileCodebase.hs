@@ -1,9 +1,9 @@
 module Unison.Test.Codebase.FileCodebase where
 
 import EasyTest
-import Unison.Codebase.FileCodebase
+import Unison.Codebase.FileCodebase.Common (encodeFileName, decodeFileName)
 import qualified Data.Set as Set
-import qualified Unison.Lexer as L
+import Data.Char as Char
 import Data.Foldable (toList)
 
 test :: Test ()
@@ -12,18 +12,19 @@ test = scope "FileCodebase" . tests $
     [ encodeDecode "abc"
     , encodeDecode "👍"
     , encodeDecode "\xfff"
-    , pending $ encodeDecode ['!'..'~']
-    , pending $ specialEncode "."
-    , pending $ specialEncode ".."
-    , pending $
-        tests $ map specialEncodeChar (toList $ Set.delete '.' L.symbolyIdChars)
-    , pending $ tests $ map specialEncodeChar unsafeChars
+    , tests $ encodeDecode . (:[]) <$> ['!'..'~']
+    , encodeDecode ("Universal." ++ ['!'..'~'])
+    , specialEncode "."
+    , specialEncode ".."
+    , tests $ map specialEncodeChar (toList specificallyBadChars)
+    , specialEncodeChar '👍'
+    , specialEncodeChar '\xfff'
     ]
   ]
 
 specialEncode :: String -> Test ()
 specialEncode s =
-  scope (s <> " gets special encoding") $ expect (encodeFileName s /= s)
+  scope (" " <> s <> " gets special encoding") $ expect (encodeFileName s /= s)
 
 specialEncodeChar :: Char -> Test ()
 specialEncodeChar = specialEncode . pure
@@ -32,11 +33,16 @@ encodeDecode :: String -> Test ()
 encodeDecode s =
   let e = encodeFileName s
       d = decodeFileName e
-  in scope s $ expect $ d == s && all (`Set.member` safeChars) e
+  in scope s $ expect $ d == s && all isSafeChar e
 
-safeChars :: Set.Set Char
-safeChars = Set.fromList $
-  ['0'..'9'] ++ ['a'..'z'] ++ ['A'..'Z'] ++ "-._$"
+-- In the past we had considered a much smaller set of safe chars:
+--   [0-9,a-z,A-Z,-._] from https://superuser.com/a/748264
+-- Currently we are going by https://superuser.com/a/358861
+isSafeChar :: Char -> Bool
+isSafeChar c = Set.notMember c specificallyBadChars
+            && Char.isPrint c
+            && Char.isAscii c
 
-unsafeChars :: [Char]
-unsafeChars = toList $ (Set.fromList ['!'..'~'] `Set.difference` safeChars)
+specificallyBadChars :: Set.Set Char
+specificallyBadChars = Set.fromList "\\/:*?\"<>|"
+

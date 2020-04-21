@@ -160,13 +160,19 @@ insertD23 (f, x, y) s = Star3 fact' (d1 s) d2' d3' where
   d2'   = R.insert f x (d2 s)
   d3'   = R.insert f y (d3 s)
 
-deleteD23 :: (Ord fact, Ord d1, Ord d2, Ord d3)
-          => (fact, d2, d3)
+deleteD3 :: (Ord fact, Ord d1, Ord d2, Ord d3)
+          => (fact, d3)
           -> Star3 fact d1 d2 d3
           -> Star3 fact d1 d2 d3
-deleteD23 (f, x, y) s = Star3 (fact s) (d1 s) d2' d3' where
+deleteD3 (f, x) s = Star3 (fact s) (d1 s) (d2 s) d3' where
+  d3' = R.delete f x (d3 s)
+
+deleteD2 :: (Ord fact, Ord d1, Ord d2, Ord d3)
+          => (fact, d2)
+          -> Star3 fact d1 d2 d3
+          -> Star3 fact d1 d2 d3
+deleteD2 (f, x) s = Star3 (fact s) (d1 s) d2' (d3 s) where
   d2' = R.delete f x (d2 s)
-  d3' = R.delete f y (d3 s)
 
 deleteFact :: (Ord fact, Ord d1, Ord d2, Ord d3)
            => Set fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
@@ -179,7 +185,11 @@ deleteFact facts Star3{..} =
 replaceFact :: (Ord fact, Ord d1, Ord d2, Ord d3)
             => fact -> fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
 replaceFact f f' Star3{..} =
-  Star3 ((Set.insert f' . Set.delete f) fact)
+  let updateFact fact = 
+        if Set.member f fact
+        then (Set.insert f' . Set.delete f) fact
+        else fact
+  in Star3 (updateFact fact)
         (R.replaceDom f f' d1)
         (R.replaceDom f f' d2)
         (R.replaceDom f f' d3)

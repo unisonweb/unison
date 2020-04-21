@@ -17,9 +17,6 @@ a = 1
     ⍟ These new definitions are ok to `add`:
     
       a : ##Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -45,9 +42,6 @@ b = 2
     ⍟ These new definitions are ok to `add`:
     
       b : ##Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -66,9 +60,6 @@ b = 2
 
   I found and typechecked the definitions in scratch.u. This
   file has been previously added to the codebase.
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -94,9 +85,6 @@ a = 1
     ⍟ These new definitions are ok to `add`:
     
       a : ##Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -116,9 +104,6 @@ b = 2
 
   I found and typechecked the definitions in scratch.u. This
   file has been previously added to the codebase.
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm

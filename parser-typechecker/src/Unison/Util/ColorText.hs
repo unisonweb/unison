@@ -39,7 +39,7 @@ hiPurple = style HiPurple
 hiCyan = style HiCyan
 hiWhite = style HiWhite
 bold = style Bold
-underline = style Underline 
+underline = style Underline
 
 style :: Color -> ColorText -> ColorText
 style = annotate

@@ -201,14 +201,14 @@ unique type Y a b = Y a b
   ⍟ I've added these definitions:
   
     unique type Y a b
-    d : .builtin.Nat
-    e : .builtin.Nat
-    f : .builtin.Nat
+    d : Nat
+    e : Nat
+    f : Nat
   
   ⍟ I've updated these names to your new definition:
   
-    b        : .builtin.Text
-    fromJust : .builtin.Nat
+    b        : Text
+    fromJust : Nat
       (The old definition was also named fromJust'. I updated
       this name too.)
 
@@ -365,7 +365,7 @@ unique type Y a b = Y a b
 
 .> unlink ns2.b ns2.fromJust
 
-  The namespaces are identical.
+  I didn't make any changes.
 
 .> diff.namespace ns1 ns2
 
@@ -424,6 +424,10 @@ unique type Y a b = Y a b
   Edited Terms:
     ns1.b         -> ns2.b
     ns1.fromJust' -> ns2.fromJust
+  
+  Tip: To remove entries from a patch, use
+       delete.term-replacement or delete.type-replacement, as
+       appropriate.
 
 .> fork ns2 ns3
 
@@ -464,7 +468,7 @@ bdependent = "banana"
 
   ⍟ I've updated these names to your new definition:
   
-    bdependent : .builtin.Text
+    bdependent : Text
 
 .> diff.namespace ns2 ns3
 
@@ -519,7 +523,7 @@ a = 444
 
   ⍟ I've updated these names to your new definition:
   
-    a : .builtin.Nat
+    a : Nat
 
 ```
 ```unison
@@ -531,7 +535,7 @@ a = 555
 
   ⍟ I've updated these names to your new definition:
   
-    a : .builtin.Nat
+    a : Nat
 
 .> merge nsy nsw
 
@@ -632,9 +636,6 @@ a = 777
       conflicted   a   : Nat
     
       Tip: Use `help filestatus` to learn more.
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -643,7 +644,7 @@ a = 777
   x These definitions failed:
   
     Reason
-    conflicted   a   : .builtin.Nat
+    conflicted   a   : Nat
   
     Tip: Use `help filestatus` to learn more.
 

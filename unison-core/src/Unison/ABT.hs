@@ -244,12 +244,25 @@ into' a abt = case abt of
 
 -- | renames `old` to `new` in the given term, ignoring subtrees that bind `old`
 rename :: (Foldable f, Functor f, Var v) => v -> v -> Term f v a -> Term f v a
-rename old new t0@(Term _ ann t) = case t of
-  Var v -> if v == old then annotatedVar ann new else t0
-  Cycle body -> cycle' ann (rename old new body)
-  Abs v body -> if v == old then abs' ann v body
-                else abs' ann v (rename old new body)
-  Tm v -> tm' ann (fmap (rename old new) v)
+rename old new t0@(Term fvs ann t) =
+  if Set.notMember old fvs then t0
+  else case t of
+    Var v -> if v == old then annotatedVar ann new else t0
+    Cycle body -> cycle' ann (rename old new body)
+    Abs v body ->
+      -- v shadows old, so skip this subtree
+      if v == old then abs' ann v body
+
+      -- the rename would capture new, freshen this Abs
+      -- to make that no longer true, then proceed with
+      -- renaming `old` to `new`
+      else if v == new then
+        let v' = freshIn (Set.fromList [new,old] <> freeVars body) v
+        in abs' ann v' (rename old new (rename v v' body))
+
+      -- nothing special, just rename inside body of Abs
+      else abs' ann v (rename old new body)
+    Tm v -> tm' ann (fmap (rename old new) v)
 
 changeVars :: (Foldable f, Functor f, Var v) => Map v v -> Term f v a -> Term f v a
 changeVars m t = case out t of
@@ -559,16 +572,16 @@ components :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
 components = Components.components freeVars
 
 -- Converts to strongly connected components while preserving the
--- order of definitions. Satisfies `join (orderedComponents bs) == bs`. 
+-- order of definitions. Satisfies `join (orderedComponents bs) == bs`.
 orderedComponents' :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
-orderedComponents' tms = go [] Set.empty tms 
+orderedComponents' tms = go [] Set.empty tms
   where
   go [] _ [] = []
   go [] deps (hd:rem) = go [hd] (deps <> freeVars (snd hd)) rem
   go cur deps rem = case findIndex isDep rem of
     Nothing -> reverse cur : let (hd,tl) = splitAt 1 rem
                              in go hd (depsFor hd) tl
-    Just i  -> go (reverse newMembers ++ cur) deps' (drop (i+1) rem) 
+    Just i  -> go (reverse newMembers ++ cur) deps' (drop (i+1) rem)
                where deps' = deps <> depsFor newMembers
                      newMembers = take (i+1) rem
     where
@@ -576,7 +589,7 @@ orderedComponents' tms = go [] Set.empty tms
     isDep (v, _) = Set.member v deps
 
 -- Like `orderedComponents'`, but further break up cycles and move
--- cyclic subcycles before other components in the same cycle. 
+-- cyclic subcycles before other components in the same cycle.
 -- Tweak suggested by @aryairani.
 --
 -- Example: given `[[x],[ping,r,s,pong]]`, where `ping` and `pong`
@@ -587,7 +600,7 @@ orderedComponents bs0 = tweak =<< orderedComponents' bs0 where
   tweak :: Var v => [(v,Term f v a)] -> [[(v,Term f v a)]]
   tweak bs@(_:_:_) = case takeWhile isCyclic (components bs) of
     [] -> [bs]
-    cycles -> cycles <> orderedComponents rest 
+    cycles -> cycles <> orderedComponents rest
       where
       rest = [ (v,b) | (v,b) <- bs, Set.notMember v cycleVars ]
       cycleVars = Set.fromList (fst <$> join cycles)

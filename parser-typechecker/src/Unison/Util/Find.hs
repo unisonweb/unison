@@ -122,7 +122,6 @@ prefixFindInBranch b hq = fmap getName $
       filter (filterName n) (candidates b hq)
   where
   filterName n sr =
-    -- fromJust is safe here because entries from the namespace will have names.
     fromString n `Name.isPrefixOf` (HQ.toName . SR.name) sr
 
 -- only search before the # before the # and after the # after the #

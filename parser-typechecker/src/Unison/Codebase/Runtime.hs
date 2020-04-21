@@ -7,6 +7,7 @@ module Unison.Codebase.Runtime where
 import Unison.Prelude
 
 import qualified Unison.ABT                    as ABT
+import Data.Bifunctor (first)
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Unison.Codebase.CodeLookup    as CL
@@ -18,7 +19,7 @@ import qualified Unison.Var                    as Var
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.UnisonFile             as UF
-import Unison.DataDeclaration (pattern TupleTerm', tupleTerm)
+import Unison.Builtin.Decls (pattern TupleTerm', tupleTerm)
 import qualified Unison.Util.Pretty as P
 import qualified Unison.PrettyPrintEnv as PPE
 
@@ -64,7 +65,8 @@ evaluateWatches
 evaluateWatches code ppe evaluationCache rt uf = do
   -- 1. compute hashes for everything in the file
   let m :: Map v (Reference, Term.Term v a)
-      m = Term.hashComponents (Map.fromList (UF.terms uf <> UF.allWatches uf))
+      m = first Reference.DerivedId <$>
+            Term.hashComponents (Map.fromList (UF.terms uf <> UF.allWatches uf))
       watches = Set.fromList (fst <$> UF.allWatches uf)
       watchKinds :: Map v UF.WatchKind
       watchKinds = Map.fromList [ (v, k) | (k, ws) <- Map.toList (UF.watches uf)
@@ -119,7 +121,7 @@ evaluateTerm
   -> Term.Term v a
   -> IO (Either Error (Term v))
 evaluateTerm codeLookup ppe rt tm = do
-  let uf = UF.UnisonFile mempty mempty mempty
+  let uf = UF.UnisonFileId mempty mempty mempty
              (Map.singleton UF.RegularWatch [(Var.nameds "result", tm)])
   selfContained <- Codebase.makeSelfContained' codeLookup uf
   r <- evaluateWatches codeLookup ppe noCache rt selfContained

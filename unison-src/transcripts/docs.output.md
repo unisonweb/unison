@@ -37,9 +37,6 @@ Can link to definitions like @List.drop or @List
     ⍟ These new definitions are ok to `add`:
     
       doc1 : Doc
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 Syntax:
@@ -71,9 +68,6 @@ List.take.ex2 = take 2 [1,2,3,4,5]
     
       List.take.ex1 : [Nat]
       List.take.ex2 : [Nat]
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -95,14 +89,14 @@ docs.List.take = [:
 
 ## Examples:
 
-@[source] List.take.ex1
-🔽
-@List.take.ex1 = @[evaluate] List.take.ex1
+  @[source] List.take.ex1
+  🔽
+  @List.take.ex1 = @[evaluate] List.take.ex1
 
 
-@[source] List.take.ex2
-🔽
-@List.take.ex2 = @[evaluate] List.take.ex2
+  @[source] List.take.ex2
+  🔽
+  @List.take.ex2 = @[evaluate] List.take.ex2
 :]
 ```
 
@@ -115,9 +109,6 @@ docs.List.take = [:
     ⍟ These new definitions are ok to `add`:
     
       docs.List.take : Doc
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 Let's add it to the codebase, and link it to the definition:
@@ -157,12 +148,14 @@ Now that documentation is linked to the definition. We can view it if we like:
   
   ## Examples:
   
-  List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
-  🔽 ex1 = []
+    List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
+    🔽
+    ex1 = []
   
   
-  List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
-  🔽 ex2 = [1, 2]
+    List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
+    🔽
+    ex2 = [1, 2]
   
 
 ```
@@ -179,12 +172,14 @@ Or there's also a convenient function, `docs`, which shows the `Doc` values that
   
   ## Examples:
   
-  List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
-  🔽 ex1 = []
+    List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
+    🔽
+    ex1 = []
   
   
-  List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
-  🔽 ex2 = [1, 2]
+    List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
+    🔽
+    ex2 = [1, 2]
   
 
 ```
@@ -203,12 +198,14 @@ Note that if we view the source of the documentation, the various references are
     
     ## Examples:
     
-    @[source] ex1
-    🔽 @ex1 = @[evaluate] ex1
+      @[source] ex1
+      🔽
+      @ex1 = @[evaluate] ex1
     
     
-    @[source] ex2
-    🔽 @ex2 = @[evaluate] ex2
+      @[source] ex2
+      🔽
+      @ex2 = @[evaluate] ex2
     :]
 
 ```

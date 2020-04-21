@@ -11,11 +11,10 @@ import Unison.Prelude
 import           Data.List
 import           Data.List.Extra                ( dropEnd )
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( fromJust
-                                                )
 import qualified Data.Set                      as Set
 import           Data.Text                      ( splitOn, unpack )
 import qualified Data.Text                     as Text
+import qualified Text.Show.Unicode             as U
 import           Data.Vector                    ( )
 import           Unison.ABT                     ( pattern AbsN', reannotateUp, annotation )
 import qualified Unison.ABT                    as ABT
@@ -43,8 +42,8 @@ import qualified Unison.Util.Pretty             as PP
 import           Unison.Util.Pretty             ( Pretty, ColorText )
 import           Unison.PrettyPrintEnv          ( PrettyPrintEnv, Suffix, Prefix, Imports, elideFQN )
 import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
-import qualified Unison.DataDeclaration        as DD
-import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
+import qualified Unison.Builtin.Decls          as DD
+import Unison.Builtin.Decls (pattern TuplePattern, pattern TupleTerm')
 import qualified Unison.ConstructorType as CT
 
 pretty :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
@@ -189,7 +188,7 @@ pretty0
     --      metaprograms), then it needs to be able to print them (and then the
     --      parser ought to be able to parse them, to maintain symmetry.)
     Boolean' b  -> fmt S.BooleanLiteral $ if b then l "true" else l "false"
-    Text'    s  -> fmt S.TextLiteral $ l $ show s
+    Text'    s  -> fmt S.TextLiteral $ l $ U.ushow s
     Char'    c  -> fmt S.CharLiteral $ l $ case showEscapeChar c of
                                             Just c -> "?\\" ++ [c]
                                             Nothing -> '?': [c]
@@ -891,11 +890,14 @@ calcImports im tm = (im', render $ getUses result)
     --   - is > 1, or
     --   - is 1, and S is an infix operator.
     -- Also drop names with an empty prefix.
+    lookupOrDie s m = fromMaybe msg (Map.lookup s m) where
+      msg = error $ "TermPrinter.enoughUsages " <> show (s, m)
+
     enoughUsages :: Map Suffix (Prefix, Int) -> Map Suffix (Prefix, Int)
-    enoughUsages m = (Map.keys m) |> filter (\s -> let (p, i) = fromJust $ Map.lookup s m
+    enoughUsages m = (Map.keys m) |> filter (\s -> let (p, i) = lookupOrDie s m
                                                    in (i > 1 || isRight (symbolyId (unpack s))) &&
                                                       (length p > 0))
-                                  |> map (\s -> (s, fromJust $ Map.lookup s m))
+                                  |> map (\s -> (s, lookupOrDie s m))
                                   |> Map.fromList
     -- Group by `Prefix ++ Suffix`, and then by `length Prefix`
     groupAndCountLength :: Map Suffix (Prefix, Int) -> Map (Name, Int) (Prefix, Suffix, Int)
@@ -904,13 +906,17 @@ calcImports im tm = (im', render $ getUses result)
                                                                  in ((n, l), (p, s, i)))
                                          |> Map.fromList
     -- For each k1, choose the v with the largest k2.
-    longestPrefix :: (Ord k1, Ord k2) => Map (k1, k2) v -> Map k1 v
+    longestPrefix :: (Show k1, Show k2, Ord k1, Ord k2) => Map (k1, k2) v -> Map k1 v
     longestPrefix m = let k1s = Set.map fst $ Map.keysSet m
                           k2s = k1s |> Map.fromSet (\k1' -> Map.keysSet m
                                                               |> Set.filter (\(k1, _) -> k1 == k1')
                                                               |> Set.map snd)
                           maxk2s = Map.map maximum k2s
-                      in Map.mapWithKey (\k1 k2 -> fromJust $ Map.lookup (k1, k2) m) maxk2s
+                          err k1 k2 = error $
+                            "TermPrinter.longestPrefix not found "
+                            <> show (k1,k2)
+                            <> " in " <> show maxk2s
+                      in Map.mapWithKey (\k1 k2 -> fromMaybe (err k1 k2) $ Map.lookup (k1, k2) m) maxk2s
     -- Don't do another `use` for a name for which we've already done one, unless the
     -- new suffix is shorter.
     avoidRepeatsAndClashes :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)

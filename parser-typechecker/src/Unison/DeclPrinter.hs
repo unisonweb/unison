@@ -22,7 +22,7 @@ import           Unison.NamePrinter             ( styleHashQualified'' )
 import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Referent               as Referent
-import           Unison.Reference               ( Reference )
+import           Unison.Reference               ( Reference(DerivedId) )
 import qualified Unison.Util.SyntaxText        as S
 import           Unison.Util.SyntaxText         ( SyntaxText )
 import qualified Unison.Term                   as Term
@@ -40,7 +40,7 @@ prettyDecl
   -> HashQualified
   -> DD.Decl v a
   -> Pretty SyntaxText
-prettyDecl ppe r hq d = case d of 
+prettyDecl ppe r hq d = case d of
   Left e -> prettyEffectDecl ppe r hq e
   Right dd -> prettyDataDecl ppe r hq dd
 
@@ -130,7 +130,7 @@ fieldNames env r name dd = case DD.constructors dd of
     vars = [ Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0..Type.arity typ - 1]]
     accessors = DD.generateRecordAccessors (map (,()) vars) (HQ.toVar name) r
     hashes = Term.hashComponents (Map.fromList accessors)
-    names = [ (r, HQ.toString . PPE.termName env . Referent.Ref $ r)
+    names = [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
             | r <- fst <$> Map.elems hashes ]
     fieldNames = Map.fromList
       [ (r, f) | (r, n) <- names
@@ -182,7 +182,7 @@ prettyDeclOrBuiltinHeader
   -> DD.DeclOrBuiltin v a
   -> Pretty SyntaxText
 prettyDeclOrBuiltinHeader name (DD.Builtin ctype) = case ctype of
-  CT.Data -> fmt S.DataTypeKeyword "builtin type " <> styleHashQualified'' (fmt S.DataType) name 
+  CT.Data -> fmt S.DataTypeKeyword "builtin type " <> styleHashQualified'' (fmt S.DataType) name
   CT.Effect -> fmt S.DataTypeKeyword "builtin ability " <> styleHashQualified'' (fmt S.DataType) name
 prettyDeclOrBuiltinHeader name (DD.Decl e) = prettyDeclHeader name e
 

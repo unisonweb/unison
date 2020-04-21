@@ -14,9 +14,6 @@ x = 1
     ⍟ These new definitions are ok to `add`:
     
       x : Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -40,9 +37,6 @@ y = 2
     ⍟ These new definitions are ok to `add`:
     
       y : Nat
-   
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
 
 ```
 ```ucm
@@ -65,16 +59,16 @@ y = 2
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #d7reeo8lc4 .old`   to make an old namespace
+    `fork #dajtoef205 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #d7reeo8lc4`  to reset the root namespace and
+    `reset-root #dajtoef205`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #up853v4413 : add
-  2. #d7reeo8lc4 : add
-  3. #i5f8gcfb14 : builtins.merge
+  1. #kac7fmh0ja : add
+  2. #dajtoef205 : add
+  3. #rdkmqee7e3 : builtins.merge
   4. #7asfbtqmoj : (initial reflogged namespace)
 
 ```

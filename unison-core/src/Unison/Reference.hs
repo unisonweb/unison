@@ -22,6 +22,7 @@ module Unison.Reference
    readSuffix,
    showShort,
    showSuffix,
+   toId,
    toText,
    unsafeId,
    toShortHash) where
@@ -29,7 +30,6 @@ module Unison.Reference
 import Unison.Prelude
 
 import qualified Data.Map        as Map
-import           Data.Maybe      (fromJust)
 import qualified Data.Set        as Set
 import qualified Data.Text       as Text
 import qualified Unison.Hash     as H
@@ -121,8 +121,9 @@ componentFor (  DerivedId (Id h _ n)) = Component
   )
 
 derivedBase32Hex :: Text -> Pos -> Size -> Reference
-derivedBase32Hex b32Hex i n = DerivedId (Id (fromJust h) i n)
+derivedBase32Hex b32Hex i n = DerivedId (Id (fromMaybe msg h) i n)
   where
+  msg = error $ "Reference.derivedBase32Hex " <> show h
   h = H.fromBase32Hex b32Hex
 
 unsafeFromText :: Text -> Reference
@@ -133,6 +134,10 @@ idFromText s = case fromText s of
   Left _ -> Nothing
   Right (Builtin _) -> Nothing
   Right (DerivedId id) -> pure id
+
+toId :: Reference -> Maybe Id
+toId (DerivedId id) = Just id
+toId Builtin{} = Nothing
 
 -- examples:
 -- `##Text.take` — builtins don’t have cycles
@@ -149,12 +154,12 @@ fromText t = case Text.split (=='#') t of
   _ -> bail
   where bail = Left $ "couldn't parse a Reference from " <> Text.unpack t
 
-component :: H.Hash -> [k] -> [(k, Reference)]
+component :: H.Hash -> [k] -> [(k, Id)]
 component h ks = let
   size = fromIntegral (length ks)
-  in [ (k, DerivedId (Id h i size)) | (k, i) <- ks `zip` [0..]]
+  in [ (k, (Id h i size)) | (k, i) <- ks `zip` [0..]]
 
-components :: [(H.Hash, [k])] -> [(k, Reference)]
+components :: [(H.Hash, [k])] -> [(k, Id)]
 components sccs = uncurry component =<< sccs
 
 groupByComponent :: [(k, Reference)] -> [[(k, Reference)]]

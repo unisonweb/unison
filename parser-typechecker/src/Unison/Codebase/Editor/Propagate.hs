@@ -201,7 +201,9 @@ propagate patch b = case validatePatch patch of
                   <$> componentMap
               declMap = over _2 (either Decl.toDataDecl id) <$> componentMap'
               -- TODO: kind-check the new components
-              hashedDecls = Decl.hashDecls $ view _2 <$> declMap
+              hashedDecls = (fmap . fmap) (over _2 DerivedId)
+                          . Decl.hashDecls
+                          $ view _2 <$> declMap
           hashedComponents' <- case hashedDecls of
             Left _ ->
               fail
@@ -404,7 +406,7 @@ propagate patch b = case validatePatch patch of
          oldTypes
       then pure Nothing
       else do
-        let file = UnisonFile
+        let file = UnisonFileId
               mempty
               mempty
               (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)

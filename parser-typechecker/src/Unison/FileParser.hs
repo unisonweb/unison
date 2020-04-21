@@ -78,7 +78,7 @@ file = do
           | (typ, fields) <- parsedAccessors
           , Just (r,_) <- [Map.lookup (L.payload typ) (UF.datas env)]
           ]
-        uf = UnisonFile (UF.datas env) (UF.effects env) (terms <> join accessors)
+        uf = UnisonFileId (UF.datasId env) (UF.effectsId env) (terms <> join accessors)
                         (List.multimap watches)
     pure uf
 

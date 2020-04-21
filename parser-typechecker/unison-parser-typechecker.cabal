@@ -35,15 +35,16 @@ library
 
   exposed-modules:
     Unison.Builtin
+    Unison.Builtin.Decls
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase.Branch
     Unison.Codebase.BranchDiff
-    Unison.Codebase.BranchLoadMode
     Unison.Codebase.BranchUtil
     Unison.Codebase.Causal
     Unison.Codebase.Classes
     Unison.Codebase.CodeLookup
+    Unison.Codebase.Editor.AuthorInfo
     Unison.Codebase.Editor.Command
     Unison.Codebase.Editor.DisplayThing
     Unison.Codebase.Editor.Git
@@ -60,6 +61,10 @@ library
     Unison.Codebase.Editor.TodoOutput
     Unison.Codebase.Editor.UriParser
     Unison.Codebase.FileCodebase
+    Unison.Codebase.FileCodebase.Common
+    Unison.Codebase.FileCodebase.Reserialize
+    Unison.Codebase.FileCodebase.CopyFilterIndex
+    Unison.Codebase.FileCodebase.CopyRegenerateIndex
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
     Unison.Codebase.NameEdit
@@ -161,6 +166,7 @@ library
     free,
     fsnotify,
     fsutils,
+    generic-monoid,
     hashable,
     hashtables,
     haskeline,
@@ -195,7 +201,8 @@ library
     unison-core,
     unliftio,
     util,
-    vector
+    vector,
+    unicode-show
 
   ghc-options: -Wall -O2 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   default-extensions:
@@ -252,8 +259,11 @@ executable prettyprintdemo
 
 executable tests
   main-is:        Suite.hs
-  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests
+  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
+  build-depends:
+    base,
+    easytest
   other-modules:
     Unison.Test.ABT
     Unison.Test.Codebase
@@ -281,6 +291,7 @@ executable tests
     Unison.Test.UriParser
     Unison.Test.Util.Bytes
     Unison.Test.Var
+    Unison.Core.Test.Name
 
   build-depends:
     base,
@@ -298,6 +309,7 @@ executable tests
     mtl,
     raw-strings-qq,
     shellmet,
+    split,
     temporary,
     text,
     transformers,
@@ -305,9 +317,9 @@ executable tests
     unison-parser-typechecker
 
 executable transcripts
-  main-is:        Unison/Test/Transcripts.hs
+  main-is:        Transcripts.hs
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
-  hs-source-dirs: tests
+  hs-source-dirs: transcripts
   other-modules:
   build-depends:
     base,
@@ -315,6 +327,7 @@ executable transcripts
     easytest,
     filepath,
     shellmet,
+    process,
     text,
     unison-core,
     unison-parser-typechecker

@@ -9,6 +9,7 @@ module Unison.CommandLine.InputPatterns where
 import Unison.Prelude
 
 import qualified Control.Lens.Cons as Cons
+import qualified Control.Lens as Lens
 import Data.Bifunctor (first)
 import Data.List (intercalate, sortOn, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
@@ -41,6 +42,7 @@ import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
+import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -73,8 +75,13 @@ helpFor p = I.parse help [I.patternName p]
 
 mergeBuiltins :: InputPattern
 mergeBuiltins = InputPattern "builtins.merge" [] []
-  "Adds all the builtins to `builtins.` in the current namespace."
+  "Adds the builtins to `builtins.` in the current namespace (excluding `io` and misc)."
   (const . pure $ Input.MergeBuiltinsI)
+
+mergeIOBuiltins :: InputPattern
+mergeIOBuiltins = InputPattern "builtins.mergeio" [] []
+  "Adds all the builtins to `builtins.` in the current namespace, including `io` and misc."
+  (const . pure $ Input.MergeIOBuiltinsI)
 
 updateBuiltins :: InputPattern
 updateBuiltins = InputPattern
@@ -258,28 +265,45 @@ patch = InputPattern
   )
 
 view :: InputPattern
-view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
-      "`view foo` prints the definition of `foo`."
-      (pure . Input.ShowDefinitionI Input.ConsoleLocation)
+view = InputPattern
+  "view"
+  []
+  [(OnePlus, definitionQueryArg)]
+  "`view foo` prints the definition of `foo`."
+  ( fmap (Input.ShowDefinitionI Input.ConsoleLocation)
+  . traverse parseHashQualifiedName
+  )
 
 display :: InputPattern
-display = InputPattern "display" [] [(Required, exactDefinitionQueryArg)]
-      "`display foo` prints a rendered version of the term `foo`."
-      (\case
-        [s] -> pure (Input.DisplayI Input.ConsoleLocation s)
-        _ -> Left (I.help display))
+display = InputPattern
+  "display"
+  []
+  [(Required, definitionQueryArg)]
+  "`display foo` prints a rendered version of the term `foo`."
+  (\case
+    [s] -> Input.DisplayI Input.ConsoleLocation <$> parseHashQualifiedName s
+    _   -> Left (I.help display)
+  )
+
 
 displayTo :: InputPattern
-displayTo = InputPattern "display.to" [] [(Required, noCompletions), (Required, exactDefinitionQueryArg)]
-      (P.wrap $ makeExample displayTo ["<filename>", "foo"]
-             <> "prints a rendered version of the term `foo` to the given file.")
-      (\case
-        [file,s] -> pure (Input.DisplayI (Input.FileLocation file) s)
-        _ -> Left (I.help displayTo))
+displayTo = InputPattern
+  "display.to"
+  []
+  [(Required, noCompletions), (Required, definitionQueryArg)]
+  (  P.wrap
+  $  makeExample displayTo ["<filename>", "foo"]
+  <> "prints a rendered version of the term `foo` to the given file."
+  )
+  (\case
+    [file, s] ->
+      Input.DisplayI (Input.FileLocation file) <$> parseHashQualifiedName s
+    _ -> Left (I.help displayTo)
+  )
 
 docs :: InputPattern
-docs = InputPattern "docs" [] [(Required, exactDefinitionQueryArg)]
-      ("`docs foo` shows documentation for the definition `foo`.")
+docs = InputPattern "docs" [] [(Required, definitionQueryArg)]
+      "`docs foo` shows documentation for the definition `foo`."
       (\case
         [s] -> first fromString $ Input.DocsI <$> Path.parseHQSplit' s
         _ -> Left (I.help docs))
@@ -290,10 +314,14 @@ undo = InputPattern "undo" [] []
       (const $ pure Input.UndoI)
 
 viewByPrefix :: InputPattern
-viewByPrefix
-  = InputPattern "view.recursive" [] [(OnePlus, exactDefinitionQueryArg)]
-    "`view.recursive Foo` prints the definitions of `Foo` and `Foo.blah`."
-    (pure . Input.ShowDefinitionByPrefixI Input.ConsoleLocation)
+viewByPrefix = InputPattern
+  "view.recursive"
+  []
+  [(OnePlus, definitionQueryArg)]
+  "`view.recursive Foo` prints the definitions of `Foo` and `Foo.blah`."
+  ( fmap (Input.ShowDefinitionByPrefixI Input.ConsoleLocation)
+  . traverse parseHashQualifiedName
+  )
 
 find :: InputPattern
 find = InputPattern
@@ -381,7 +409,7 @@ renameType = InputPattern "move.type" ["rename.type"]
 
 delete :: InputPattern
 delete = InputPattern "delete" []
-    [(OnePlus, exactDefinitionQueryArg)]
+    [(OnePlus, definitionQueryArg)]
     "`delete foo` removes the term or type name `foo` from the namespace."
     (\case
       [query] -> first fromString $ do
@@ -415,6 +443,70 @@ deleteType = InputPattern "delete.type" []
         "`delete.type` takes an argument, like `delete.type name`."
     )
 
+deleteTermReplacementCommand :: String
+deleteTermReplacementCommand = "delete.term-replacement"
+
+deleteTypeReplacementCommand :: String
+deleteTypeReplacementCommand = "delete.type-replacement"
+
+deleteReplacement :: Bool -> InputPattern
+deleteReplacement isTerm = InputPattern
+  commandName
+  []
+  [(Required, if isTerm then exactDefinitionTermQueryArg else exactDefinitionTypeQueryArg), (Optional, patchArg)]
+  (  P.string
+  $  commandName
+  <> " <patch>` removes any edit of the "
+  <> str
+  <> " `foo` "
+  <> "from the patch `patch`, or the default patch if none is specified."
+  )
+  (\case
+    query : patch -> do
+      patch <-
+        first fromString
+        . traverse (Path.parseSplit' Path.wordyNameSegment)
+        $ listToMaybe patch
+      q <- parseHashQualifiedName query
+      pure $ input q patch
+    _ ->
+      Left
+        .  P.warnCallout
+        .  P.wrapString
+        $  commandName
+        <> " needs arguments. See `help "
+        <> commandName
+        <> "`."
+  )
+ where
+  input = if isTerm
+    then Input.RemoveTermReplacementI
+    else Input.RemoveTypeReplacementI
+  str         = if isTerm then "term" else "type"
+  commandName = if isTerm
+    then deleteTermReplacementCommand
+    else deleteTypeReplacementCommand
+
+deleteTermReplacement :: InputPattern
+deleteTermReplacement = deleteReplacement True
+
+deleteTypeReplacement :: InputPattern
+deleteTypeReplacement = deleteReplacement False
+
+parseHashQualifiedName
+  :: String -> Either (P.Pretty CT.ColorText) HQ.HashQualified
+parseHashQualifiedName s =
+  maybe
+      (  Left
+      .  P.warnCallout
+      .  P.wrap
+      $  P.string s
+      <> " is not a well-formed name, hash, or hash-qualified name. "
+      <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
+      )
+      Right
+    $ HQ.fromString s
+
 aliasTerm :: InputPattern
 aliasTerm = InputPattern "alias.term" []
     [(Required, exactDefinitionTermQueryArg), (Required, newNameArg)]
@@ -443,7 +535,7 @@ aliasType = InputPattern "alias.type" []
 
 aliasMany :: InputPattern
 aliasMany = InputPattern "alias.many" ["copy"]
-  [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionOrPathArg)]
+  [(Required, definitionQueryArg), (OnePlus, exactDefinitionOrPathArg)]
   (P.group . P.lines $
     [ P.wrap $ P.group (makeExample aliasMany ["<relative1>", "[relative2...]", "<namespace>"])
       <> "creates aliases `relative1`, `relative2`, ... in the namespace `namespace`."
@@ -626,12 +718,10 @@ pull = InputPattern
   (\case
     []    -> Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty'
     [url] -> do
-      ns <- first (fromString . show)
-              (P.parse UriParser.repoPath "url" (Text.pack url))
+      ns <- parseUri "url" url
       Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty'
     [url, path] -> do
-      ns <- first (fromString . show)
-              (P.parse UriParser.repoPath "url" (Text.pack url))
+      ns <- parseUri "url" url
       p <- first fromString $ Path.parsePath' path
       pure $ Input.PullRemoteBranchI (Just ns) p
     _ -> Left (I.help pull)
@@ -641,7 +731,7 @@ push :: InputPattern
 push = InputPattern
   "push"
   []
-  [(Optional, gitUrlArg), (Optional, pathArg)]
+  [(Required, gitUrlArg), (Optional, pathArg)]
   (P.lines
     [ P.wrap
       "The `push` command merges a local namespace into a remote namespace."
@@ -670,8 +760,7 @@ push = InputPattern
   (\case
     []    -> Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty'
     url : rest -> do
-      (repo, sbh, path) <- first (fromString . show)
-        (P.parse UriParser.repoPath "url" (Text.pack url))
+      (repo, sbh, path) <- parseUri "url" url
       when (isJust sbh)
         $ Left "Can't push to a particular remote namespace hash."
       p <- case rest of
@@ -689,12 +778,12 @@ createPullRequest = InputPattern "pull-request.create" ["pr.create"]
         <> "will generate a request to merge the remote repo `head`"
         <> "into the remote repo `base`."
     , ""
-    , "example: " <> 
-      makeExampleNoBackticks createPullRequest ["https://github.com/unisonweb/base", 
+    , "example: " <>
+      makeExampleNoBackticks createPullRequest ["https://github.com/unisonweb/base",
                                                 "https://github.com/me/unison:.libs.pr.base" ]
     ])
   (\case
-    [baseUrl, headUrl] -> first fromString $ do
+    [baseUrl, headUrl] -> do
       baseRepo <- parseUri "baseRepo" baseUrl
       headRepo <- parseUri "headRepo" headUrl
       pure $ Input.CreatePullRequestI baseRepo headRepo
@@ -714,21 +803,28 @@ loadPullRequest = InputPattern "pull-request.load" ["pr.load"]
      <> "remote repo `base`, staging each in `dest`, which must be empty."
    ])
   (\case
-    [baseUrl, headUrl] -> first fromString $ do
+    [baseUrl, headUrl] -> do
       baseRepo <- parseUri "baseRepo" baseUrl
       headRepo <- parseUri "topicRepo" headUrl
       pure $ Input.LoadPullRequestI baseRepo headRepo Path.relativeEmpty'
-    [baseUrl, headUrl, dest] -> first fromString $ do
+    [baseUrl, headUrl, dest] -> do
       baseRepo <- parseUri "baseRepo" baseUrl
       headRepo <- parseUri "topicRepo" headUrl
-      destPath <- Path.parsePath' dest
+      destPath <- first fromString $ Path.parsePath' dest
       pure $ Input.LoadPullRequestI baseRepo headRepo destPath
     _ -> Left (I.help loadPullRequest)
   )
-parseUri :: IsString b => String -> String -> Either b RemoteNamespace
-parseUri label input =
-  first (fromString . show)
+parseUri :: String -> String -> Either (P.Pretty P.ColorText) RemoteNamespace
+parseUri label input = do
+  ns <- first (fromString . show) -- turn any parsing errors into a Pretty.
     (P.parse UriParser.repoPath label (Text.pack input))
+  case (RemoteRepo.commit . Lens.view Lens._1) ns of
+    Nothing -> pure ns
+    Just commit -> Left . P.wrap $
+      "I don't totally know how to address specific git commits (e.g. "
+      <> P.group (P.text commit <> ")") <> " yet."
+      <> "If you need this, add your 2¢ at"
+      <> P.backticked "https://github.com/unisonweb/unison/issues/1436"
 
 mergeLocal :: InputPattern
 mergeLocal = InputPattern "merge" [] [(Required, pathArg)
@@ -793,10 +889,7 @@ previewMergeLocal = InputPattern
   )
 
 replaceEdit
-  :: (Input.HashOrHQSplit'
-       -> Input.HashOrHQSplit'
-       -> Maybe Input.PatchPath
-       -> Input)
+  :: (HQ.HashQualified -> HQ.HashQualified -> Maybe Input.PatchPath -> Input)
   -> String
   -> InputPattern
 replaceEdit f s = self
@@ -804,8 +897,8 @@ replaceEdit f s = self
   self = InputPattern
     ("replace." <> s)
     []
-    [ (Required, exactDefinitionQueryArg)
-    , (Required, exactDefinitionQueryArg)
+    [ (Required, definitionQueryArg)
+    , (Required, definitionQueryArg)
     , (Optional, patchArg)
     ]
     (P.wrapColumn2
@@ -825,12 +918,14 @@ replaceEdit f s = self
       ]
     )
     (\case
-      source : target : patch -> first fromString $ do
-        src   <- Path.parseShortHashOrHQSplit' source
-        dest  <- Path.parseShortHashOrHQSplit' target
-        patch <- traverse (Path.parseSplit' Path.wordyNameSegment)
-          $ listToMaybe patch
-        pure $ f src dest patch
+      source : target : patch -> do
+        patch <-
+          first fromString
+          <$> traverse (Path.parseSplit' Path.wordyNameSegment)
+          $   listToMaybe patch
+        sourcehq <- parseHashQualifiedName source
+        targethq <- parseHashQualifiedName target
+        pure $ f sourcehq targethq patch
       _ -> Left $ I.help self
     )
 
@@ -855,11 +950,13 @@ edit :: InputPattern
 edit = InputPattern
   "edit"
   []
-  [(OnePlus, exactDefinitionQueryArg)]
+  [(OnePlus, definitionQueryArg)]
   (  "`edit foo` prepends the definition of `foo` to the top of the most "
   <> "recently saved file."
   )
-  (pure . Input.ShowDefinitionI Input.LatestFileLocation)
+  ( fmap (Input.ShowDefinitionI Input.LatestFileLocation)
+  . traverse parseHashQualifiedName
+  )
 
 topicNameArg :: ArgumentType
 topicNameArg =
@@ -1023,7 +1120,7 @@ link :: InputPattern
 link = InputPattern
   "link"
   []
-  [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionQueryArg)]
+  [(Required, definitionQueryArg), (OnePlus, definitionQueryArg)]
   (fromString $ concat
     [ "`link metadata defn` creates a link to `metadata` from `defn`. "
     , "Use `links defn` or `links defn <type>` to view outgoing links, "
@@ -1033,10 +1130,12 @@ link = InputPattern
     ]
   )
   (\case
-    dest : srcs -> first fromString $ do
-      srcs <- traverse Path.parseHQSplit' srcs
-      dest <- Path.parseHQSplit' dest
-      Right $ Input.LinkI srcs dest
+    md : defs -> first fromString $ do
+      md <- case HQ.fromString md of
+        Nothing -> Left "Invalid hash qualified identifier for metadata."
+        Just hq -> pure hq
+      defs <- traverse Path.parseHQSplit' defs
+      Right $ Input.LinkI md defs
     _ -> Left (I.help link)
   )
 
@@ -1044,7 +1143,7 @@ links :: InputPattern
 links = InputPattern
   "links"
   []
-  [(Required, exactDefinitionQueryArg), (Optional, exactDefinitionQueryArg)]
+  [(Required, definitionQueryArg), (Optional, definitionQueryArg)]
   (P.column2 [
     (makeExample links ["defn"], "shows all outgoing links from `defn`."),
     (makeExample links ["defn", "<type>"], "shows all links of the given type.") ])
@@ -1062,7 +1161,7 @@ unlink :: InputPattern
 unlink = InputPattern
   "unlink"
   ["delete.link"]
-  [(Required, exactDefinitionQueryArg), (OnePlus, exactDefinitionQueryArg)]
+  [(Required, definitionQueryArg), (OnePlus, definitionQueryArg)]
   (fromString $ concat
     [ "`unlink metadata defn` removes a link to `detadata` from `defn`."
     , "The `defn` can be either the "
@@ -1070,16 +1169,18 @@ unlink = InputPattern
     , "for a range of definitions listed by a prior `find` command."
     ])
   (\case
-    dest : srcs -> first fromString $ do
-      srcs <- traverse Path.parseHQSplit' srcs
-      dest <- Path.parseHQSplit' dest
-      Right $ Input.UnlinkI srcs dest
+    md : defs -> first fromString $ do
+      md <- case HQ.fromString md of
+        Nothing -> Left "Invalid hash qualified identifier for metadata."
+        Just hq -> pure hq
+      defs <- traverse Path.parseHQSplit' defs
+      Right $ Input.UnlinkI md defs
     _ -> Left (I.help unlink)
   )
 
 names :: InputPattern
 names = InputPattern "names" []
-  [(Required, exactDefinitionQueryArg)]
+  [(Required, definitionQueryArg)]
   "`names foo` shows the hash and all known names for `foo`."
   (\case
     [thing] -> case HQ.fromString thing of
@@ -1088,6 +1189,18 @@ names = InputPattern "names" []
                        <> P.blue "foo .foo.bar foo#abc #abcde .foo.bar#asdf"
     _ -> Left (I.help names)
   )
+
+dependents, dependencies :: InputPattern
+dependents = InputPattern "dependents" [] []
+  "List the dependents of the specified definition."
+  (\case
+    [thing] -> fmap Input.ListDependentsI $ parseHashQualifiedName thing
+    _ -> Left (I.help dependents))
+dependencies = InputPattern "dependencies" [] []
+  "List the dependencies of the specified definition."
+  (\case
+    [thing] -> fmap Input.ListDependenciesI $ parseHashQualifiedName thing
+    _ -> Left (I.help dependencies))
 
 debugNumberedArgs :: InputPattern
 debugNumberedArgs = InputPattern "debug.numberedArgs" [] []
@@ -1099,7 +1212,12 @@ debugBranchHistory = InputPattern "debug.history" []
   [(Optional, noCompletions)]
   "Dump codebase history, compatible with bit-booster.com/graph.html"
   (const $ Right Input.DebugBranchHistoryI)
-
+  
+debugFileHashes :: InputPattern
+debugFileHashes = InputPattern "debug.file" [] []
+  "View details about the most recent succesfully typechecked file."
+  (const $ Right Input.DebugTypecheckedUnisonFileI)
+   
 test :: InputPattern
 test = InputPattern "test" [] []
     "`test` runs unit tests for the current branch."
@@ -1122,6 +1240,24 @@ execute = InputPattern
     _   -> Left $ showPatternHelp execute
   )
 
+createAuthor :: InputPattern
+createAuthor = InputPattern "create.author" []
+  [(Required, noCompletions), (Required, noCompletions)]
+  (makeExample createAuthor ["alicecoder", "\"Alice McGee\""]
+    <> "creates" <> backtick "alicecoder" <> "values in"
+    <> backtick "metadata.authors" <> "and"
+    <> backtickEOS "metadata.copyrightHolders")
+  (\case
+      symbolStr : authorStr@(_:_) -> first fromString $ do
+        symbol <- Path.wordyNameSegment symbolStr
+        -- let's have a real parser in not too long
+        let author :: Text
+            author = Text.pack $ case (unwords authorStr) of
+              quoted@('"':_) -> (init . tail) quoted
+              bare -> bare
+        pure $ Input.CreateAuthorI symbol author
+      _   -> Left $ showPatternHelp createAuthor
+    )
 validInputs :: [InputPattern]
 validInputs =
   [ help
@@ -1172,8 +1308,11 @@ validInputs =
   , link
   , unlink
   , links
+  , createAuthor
   , replaceTerm
   , replaceType
+  , deleteTermReplacement
+  , deleteTypeReplacement
   , test
   , execute
   , viewReflog
@@ -1181,8 +1320,11 @@ validInputs =
   , quit
   , updateBuiltins
   , mergeBuiltins
+  , mergeIOBuiltins
+  , dependents, dependencies
   , debugNumberedArgs
   , debugBranchHistory
+  , debugFileHashes
   ]
 
 commandNames :: [String]
@@ -1191,13 +1333,6 @@ commandNames = validInputs >>= \i -> I.patternName i : I.aliases i
 commandNameArg :: ArgumentType
 commandNameArg =
   ArgumentType "command" $ \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap))
-
-fuzzyDefinitionQueryArg :: ArgumentType
-fuzzyDefinitionQueryArg =
-  -- todo: improve this
-  ArgumentType "fuzzy definition query" $
-    bothCompletors (termCompletor fuzzyComplete)
-                   (typeCompletor fuzzyComplete)
 
 exactDefinitionOrPathArg :: ArgumentType
 exactDefinitionOrPathArg =
@@ -1208,12 +1343,15 @@ exactDefinitionOrPathArg =
         (typeCompletor exactComplete))
       (pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths))
 
--- todo: support absolute paths?
-exactDefinitionQueryArg :: ArgumentType
-exactDefinitionQueryArg =
-  ArgumentType "definition query" $
-    bothCompletors (termCompletor exactComplete)
-                   (typeCompletor exactComplete)
+fuzzyDefinitionQueryArg :: ArgumentType
+fuzzyDefinitionQueryArg =
+  -- todo: improve this
+  ArgumentType "fuzzy definition query" $
+    bothCompletors (termCompletor fuzzyComplete)
+                   (typeCompletor fuzzyComplete)
+
+definitionQueryArg :: ArgumentType
+definitionQueryArg = fuzzyDefinitionQueryArg { typeName = "definition query" }
 
 exactDefinitionTypeQueryArg :: ArgumentType
 exactDefinitionTypeQueryArg =

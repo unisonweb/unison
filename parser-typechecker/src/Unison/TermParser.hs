@@ -22,7 +22,7 @@ import           Unison.Parser hiding (seq)
 import           Unison.PatternP (Pattern)
 import           Unison.Term (Term, IsTop)
 import           Unison.Type (Type)
-import           Unison.Util.List (intercalateMapWith)
+import           Unison.Util.List (intercalateMapWith, quenchRuns)
 import           Unison.Var (Var)
 import qualified Data.List.Extra as List.Extra
 import qualified Data.Char as Char
@@ -34,7 +34,7 @@ import qualified Data.Tuple.Extra as TupleE
 import qualified Data.Sequence as Sequence
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
-import qualified Unison.DataDeclaration as DD
+import qualified Unison.Builtin.Decls as DD
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
 import qualified Unison.Name as Name
@@ -374,6 +374,17 @@ data UnbreakCase =
 
 -- Doc literal normalization
 --
+-- This normalization allows the pretty-printer and doc display code to do
+-- indenting, and to do line-wrap of paragraphs, but without the inserted
+-- newlines being then frozen into the text for ever more over subsequent
+-- edit/update cycles.
+--
+-- The alternative would be to stop line-wrapping docs on view/display by adding
+-- newlines in the pretty-printer, and instead leave wrapping to the
+-- terminal/editor.  Might be worth considering if this code ends up being
+-- too buggy and fragile to maintain.  Maybe display could add newlines,
+-- and view could refrain from doing so.
+--
 -- Operates on the text of the Blobs within a doc (as parsed by docBlock):
 -- - reduces the whitespace after all newlines so that at least one of the
 --   non-initial lines has zero indent (important because the pretty-printer adds
@@ -381,11 +392,6 @@ data UnbreakCase =
 -- - removes trailing whitespace from each line
 -- - removes newlines between any sequence of non-empty zero-indent lines
 --   (i.e. undo line-breaking within paragraphs).
---
--- This normalization allows the pretty-printer and doc display code to do
--- indenting, and to do line-wrap of paragraphs, but without the inserted
--- newlines being then frozen into the text for ever more over subsequent
--- edit/update cycles.
 --
 -- Should be understood in tandem with Util.Pretty.paragraphyText, which
 -- outputs doc text for display/edit/view.
@@ -420,19 +426,19 @@ docNormalize tm = case tm of
       . (tracing "after unindent") . unIndent
       . (tracing "initial parse") . miniPreProcess
   preProcess xs = zip3 seqs
-                       (previousLines $ Sequence.fromList seqs)
+                       (lineStarteds $ Sequence.fromList seqs)
                        (followingLines $ Sequence.fromList seqs)
     where seqs = map fst xs
-  miniPreProcess seqs = zip (toList seqs) (previousLines seqs)
+  miniPreProcess seqs = zip (toList seqs) (lineStarteds seqs)
   unIndent
     :: Ord v
     => [(Term v a, UnbreakCase)]
     -> [(Term v a, UnbreakCase)]
-  unIndent tms = map go tms   where
+  unIndent tms = map go tms where
     go (b, previous) =
       ((mapBlob $ (reduceIndent includeFirst minIndent)) b, previous)
       where
-      -- Since previous was calculated before unindenting, it will often by wrongly
+      -- Since previous was calculated before unindenting, it will often be wrongly
       -- StartsIndented instead of StartsUnindented - but that's OK just for the test
       -- below.  And we'll recalculate it later in preProcess.
             includeFirst = previous == LineEnds
@@ -521,21 +527,24 @@ docNormalize tm = case tm of
           else result
   -- A list whose entries match those of tms.  `Nothing` is used for elements
   -- which just continue a line, and so need to be ignored when looking back
-  -- for how the last line started.
-  -- Here we're guessing whether an element will be rendered on one line or
-  -- several, which we can't do perfectly, and which varies depending on
-  -- whether the doc is viewed or displayed.  This can cause some glitches
-  -- cutting out whitespace immediately following @[source] and @[evaluate].
+  -- for how the last line started.  Otherwise describes whether the last
+  -- line of this entry is indented (or maybe terminated by a newline.)
+  -- A value of `Nothing` protects ensuing text from having its leading
+  -- whitespace removed by `unindent`.
+  -- Note that some elements render over multiple lines when displayed.
+  -- See test2 in transcript doc-formatting.md for an example of how
+  -- this looks when there is whitespace immediately following @[source]
+  -- or @[evaluate].
   lastLines :: Show v => Sequence.Seq (Term v a) -> [Maybe UnbreakCase]
   lastLines tms = (flip fmap) (toList tms) $ \case
     DD.DocBlob      txt -> unbreakCase txt
     DD.DocLink      _   -> Nothing
-    DD.DocSource    _   -> Just LineEnds
+    DD.DocSource    _   -> Nothing
     DD.DocSignature _   -> Nothing
-    DD.DocEvaluate  _   -> Just LineEnds
-    Term.Var' _         -> Just LineEnds  -- @[include]
+    DD.DocEvaluate  _   -> Nothing
+    Term.Var' _         -> Nothing  -- @[include]
     e@_                 -> error ("unexpected doc element: " ++ show e)
-  -- Work out whether the last line of this blob is indented (or else is
+  -- Work out whether the last line of this blob is indented (or maybe
   -- terminated by a newline.)
   unbreakCase :: Text -> Maybe UnbreakCase
   unbreakCase txt =
@@ -547,16 +556,18 @@ docNormalize tm = case tm of
             else if Char.isSpace (Text.head afterNewline)
               then Just StartsIndented
               else Just StartsUnindented
-  -- A list whose entries match those of tms.  The UnbreakCase of the previous
-  -- entry that included a newline.
+  -- A list whose entries match those of tms.  Describes how the current
+  -- line started (the line including the start of this entry) - or LineEnds
+  -- if this entry is starting a line itself.
+  -- Calculated as the UnbreakCase of the previous entry that included a newline.
   -- Really there's a function of type (a -> Bool) -> a -> [a] -> [a] in here
   -- fighting to break free - overwriting elements that are 'shadowed' by
   -- a preceding element for which the predicate is true, with a copy of
   -- that element.
-  previousLines :: Show v => Sequence.Seq (Term v a) -> [UnbreakCase]
-  previousLines tms = tr xs''   where
+  lineStarteds :: Show v => Sequence.Seq (Term v a) -> [UnbreakCase]
+  lineStarteds tms = tr $ quenchRuns LineEnds StartsUnindented $ xs'' where
     tr = const id $
-      trace $ "previousLines: xs = " ++ (show xs) ++ ", xss = "
+      trace $ "lineStarteds: xs = " ++ (show xs) ++ ", xss = "
         ++ (show xss) ++ ", xs' = " ++ (show xs') ++ ", xs'' = "
         ++ (show xs'') ++ "\n\n"
     -- Make sure there's a Just at the start of the list so we always find

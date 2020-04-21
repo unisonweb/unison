@@ -4,7 +4,6 @@ module Unison.HashQualified' where
 
 import Unison.Prelude
 
-import           Data.Maybe                     ( fromJust )
 import qualified Data.Text                     as Text
 import           Prelude                 hiding ( take )
 import           Unison.Name                    ( Name )
@@ -32,9 +31,6 @@ fromHQ = \case
   HQ.NameOnly n -> Just $ NameOnly n
   HQ.HashQualified n sh -> Just $ HashQualified n sh
   HQ.HashOnly{} -> Nothing
-
-unsafeFromHQ :: HQ.HashQualified' n -> HashQualified' n
-unsafeFromHQ = fromJust . fromHQ
 
 toName :: HashQualified' n -> n
 toName = \case
@@ -69,7 +65,8 @@ fromText t = case Text.breakOn "#" t of
     HashQualified (Name.unsafeFromText name) <$> SH.fromText hash
 
 unsafeFromText :: Text -> HashQualified
-unsafeFromText = fromJust . fromText
+unsafeFromText txt = fromMaybe msg (fromText txt) where
+  msg = error ("HashQualified'.unsafeFromText " <> show txt)
 
 fromString :: String -> Maybe HashQualified
 fromString = fromText . Text.pack
