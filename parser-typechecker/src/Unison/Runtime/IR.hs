@@ -611,7 +611,7 @@ decompileImpl v = case v of
   B b -> pure $ Term.boolean () b
   T t -> pure $ Term.text () t
   C c -> pure $ Term.char () c
-  Bs bs -> pure $ Term.builtin() "Bytes.fromSequence" `Term.apps'` [bsv] where
+  Bs bs -> pure $ Term.builtin() "Bytes.fromList" `Term.apps'` [bsv] where
     bsv = Term.seq'() . Sequence.fromList $
             [ Term.nat() (fromIntegral w8) | w8 <- Bytes.toWord8s bs ]
   Lam _ f _ -> decompileUnderapplied f

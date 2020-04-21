@@ -8,6 +8,7 @@
 
 module Unison.CommandLine.InputPattern where
 
+import Debug.Trace
 import qualified System.Console.Haskeline       as Line
 import           Unison.Codebase                (Codebase)
 import           Unison.Codebase.Branch         (Branch)
@@ -52,19 +53,19 @@ argType :: InputPattern -> Int -> Maybe ArgumentType
 argType ip i = go (i, args ip) where
   -- Strategy: all of these input patterns take some number of arguments.
   -- If it takes no arguments, then don't autocomplete.
-  go (_, []) = Nothing
+  go (_, []) = traceShow "1" Nothing
   -- If requesting the 0th of >=1 arguments, return it.
-  go (0, (_, t) : _) = Just t
+  go (0, (_, t) : _) = traceShow "2" $ Just t
   -- Vararg parameters should appear at the end of the arg list, and work for
   -- any later argument number.
-  go (_, [(ZeroPlus, t)]) = Just t
-  go (_, [(OnePlus, t)]) = Just t
+  go (_, [(ZeroPlus, t)]) = traceShow "3" $ Just t
+  go (_, [(OnePlus, t)]) = traceShow "4" $ Just t
   -- Optional parameters only work at position 0, under this countdown scheme.
-  go (_, [(Optional, _)]) = Nothing
+  go (_, [(Optional, _)]) = traceShow "5" Nothing
   -- If requesting a later parameter, decrement and drop one.
-  go (n, (Required, _) : args) = go (n - 1, args)
+  go (n, (Required, _) : args) = traceShow "6" $ go (n - 1, args)
   -- The argument list spec is invalid if something follows optional or vararg
-  go _ = error $ "Input pattern " <> show (patternName ip)
+  go s = traceShow s $ error $ "Input pattern " <> show (patternName ip)
     <> " has an invalid argument list: " <> (show . fmap fst) (args ip)
 
 minArgs :: InputPattern -> Int

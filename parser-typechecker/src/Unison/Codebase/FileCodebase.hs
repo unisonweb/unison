@@ -5,8 +5,7 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.FileCodebase
-( CodebasePath         -- used by Git module
-, getRootBranch        -- used by Git module
+( getRootBranch        -- used by Git module
 , branchHashesByPrefix -- used by Git module
 , branchFromFiles      -- used by Git module
 , codebase1  -- used by Main
@@ -61,9 +60,9 @@ import qualified Unison.Util.Pretty            as P
 import qualified Unison.PrettyTerminal         as PT
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Codebase.FileCodebase.Common as Common
+import           Unison.Codebase                (CodebasePath)
 import Unison.Codebase.FileCodebase.Common
-  ( CodebasePath
-  , Err(CantParseBranchHead)
+  ( Err(CantParseBranchHead)
   , codebaseExists
   ---
   , branchHeadDir
@@ -88,7 +87,6 @@ import Unison.Codebase.FileCodebase.Common
   , putRootBranch
   , putWatch
   ---
-  , copyFromGit
   , branchFromFiles
   , branchHashesByPrefix
   , termReferencesByPrefix
@@ -175,8 +173,7 @@ codebase1' syncToDirectory fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) p
           (branchHeadUpdates path)
           (branchFromFiles path)
           dependents
-          -- Just copies all the files from a to-be-supplied path to `path`.
-          (copyFromGit path)
+          (flip (syncToDirectory fmtV fmtA) path)
           (syncToDirectory fmtV fmtA path)
           watches
           (getWatch getV getA path)
