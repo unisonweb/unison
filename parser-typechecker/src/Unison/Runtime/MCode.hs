@@ -453,10 +453,10 @@ emitLet _   ctx (AApp (FPrim p) args)
 emitLet rec ctx bnd = Let (emitSection rec ctx (TTm bnd))
 
 emitPOp :: ANF.POp -> Args -> Instr
-emitPOp ANF.PADI = emitP2 Add
-emitPOp ANF.PADN = emitP2 Add
-emitPOp ANF.PSUI = emitP2 Sub
-emitPOp ANF.PSUN = emitP2 Sub
+emitPOp ANF.ADDI = emitP2 Add
+emitPOp ANF.ADDN = emitP2 Add
+emitPOp ANF.SUBI = emitP2 Sub
+emitPOp ANF.SUBN = emitP2 Sub
 emitPOp p = error $ "unhandled prim op: " ++ show p
 
 emitP2 :: Prim2 -> Args -> Instr

@@ -97,6 +97,7 @@ library
     Unison.PrintError
     Unison.Result
     Unison.Runtime.ANF
+    Unison.Runtime.Builtin
     Unison.Runtime.IR
     Unison.Runtime.MCode
     Unison.Runtime.Pattern

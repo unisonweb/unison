@@ -534,7 +534,7 @@ data Func v
   -- top-level combinator
   | FComb !Int
   -- data constructor
-  | FCon !Int !Int
+  | FCon !Reference !Int
   -- ability request
   | FReq !Int !Int
   -- prim op
@@ -550,19 +550,22 @@ data Lit
   | C Char
 
 data POp
-  = PAND | POR | PNOT
   -- Int
-  | PADI | PSUI | PMUI | PDII
-  | PGTI | PLTI | PGEI | PLEI | PEQI
-  | PSGI | PNEI | PTRI | PMDI
+  = ADDI | SUBI | MULI | DIVI -- +,-,*,/
+  | SGNI | NEGI | TRNI | MODI -- sgn,neg,trunc,mod
+  | POWI | SHLI | SHRI        -- pow,shiftl,shiftr
+  | INCI | DECI               -- inc,dec
+  | LESI | LEQI | EQLI        -- <,<=,==
   -- Nat
-  | PADN | PSUN | PMUN | PDIN
-  | PGTN | PLTN | PGEN | PLEN | PEQN
-  | PSGN | PNEN | PTRN | PMDN
+  | ADDN | SUBN | MULN | DIVN -- +,-,*,/
+  | MODN                      -- mod
+  | POWN | SHLN | SHRN        -- pow,shiftl,shiftr
+  | INCN | DECN               -- inc,dec
+  | LESN | LEQN | EQLN        -- <,<=,==
   -- Float
-  | PADF | PSUF | PMUF | PDIF
-  | PGTF | PLTF | PGEF | PLEF | PEQF
-  deriving (Show)
+  | ADDF | SUBF | MULF | DIVF -- +,-,*,/
+  | LESF | LEQF | EQLF        -- <,<=,==
+  deriving (Show,Eq,Ord)
 
 type ANormal = ABTN.Term ANormalBF
 type ANormalT v = ANormalTF v (ANormal v)
@@ -670,11 +673,13 @@ anfBlock (If' c t f) = do
 anfBlock (And' l r) = do
   (lctx, vl) <- anfArg l
   (rctx, vr) <- anfArg r
-  pure (lctx ++ rctx, APrm PAND [vl, vr])
+  i <- resolve $ Builtin "Boolean.and"
+  pure (lctx ++ rctx, ACom i [vl, vr])
 anfBlock (Or' l r) = do
   (lctx, vl) <- anfArg l
   (rctx, vr) <- anfArg r
-  pure (lctx ++ rctx, APrm POR [vl, vr])
+  i <- resolve $ Builtin "Boolean.or"
+  pure (lctx ++ rctx, ACom i [vl, vr])
 anfBlock (Handle' h body)
   = anfArg h >>= \(hctx, vh) ->
     anfBlock body >>= \case
@@ -719,7 +724,6 @@ anfBlock (Apps' f args) = do
   (actxs, cas) <- unzip <$> traverse anfArg args
   pure (fctx ++ concat actxs, AApp cf cas)
 anfBlock (Constructor' r t) = do
-  r <- resolve r
   pure ([], ACon r t [])
 anfBlock (Request' r t) = do
   r <- resolve r
@@ -803,8 +807,7 @@ anfFunc (Ref' r) = do
   n <- resolve r
   pure ([], FComb n)
 anfFunc (Constructor' r t) = do
-  n <- resolve r
-  pure ([], FCon n t)
+  pure ([], FCon r t)
 anfFunc (Request' r t) = do
   n <- resolve r
   pure ([], FReq n t)

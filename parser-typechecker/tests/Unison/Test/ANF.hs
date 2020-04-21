@@ -71,7 +71,7 @@ denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
   df = case f of
     FVar v -> Term.var () v
     FComb _ -> error "hmm"
-    FCon r n -> Term.constructor () (denormalizeRef r) n
+    FCon r n -> Term.constructor () r n
     FReq r n -> Term.request () (denormalizeRef r) n
     FPrim _ -> error "hmm" -- Term.ref _
 
