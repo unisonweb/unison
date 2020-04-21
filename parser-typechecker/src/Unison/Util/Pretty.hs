@@ -12,6 +12,7 @@ module Unison.Util.Pretty (
    align',
    alternations,
    backticked,
+   backticked',
    boxForkLeft,
    boxLeft,
    boxLeftM,
@@ -785,6 +786,10 @@ blockedCallout = callout "🚫"
 
 backticked :: IsString s => Pretty s -> Pretty s
 backticked p = group ("`" <> p <> "`")
+
+-- |Attach some punctuation after the closing backtick.
+backticked' :: IsString s => Pretty s -> Pretty s -> Pretty s
+backticked' p end = group ("`" <> p <> "`" <> end)
 
 instance Show s => Show (Pretty s) where
   show p = render 80 (metaPretty p)

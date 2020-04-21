@@ -40,6 +40,8 @@ execute codebase runtime mainName =
         die ("Couldn't identify a root namespace.")
       Left (Codebase.CouldntLoadRootBranch h) ->
         die ("Couldn't load root branch " ++ show h)
+      Left (Codebase.CouldntParseRootBranch h) ->
+        die ("Couldn't parse root branch head " ++ show h)
     let parseNames0 = Names3.makeAbsolute0 (Branch.toNames0 (Branch.head root))
         loadTypeOfTerm = Codebase.getTypeOfTerm codebase
     mt <- getMainTerm loadTypeOfTerm parseNames0 mainName

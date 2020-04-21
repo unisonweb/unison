@@ -13,7 +13,7 @@ module Unison.Codebase.FileCodebase.CopyRegenerateIndex (syncToDirectory) where
 import Unison.Prelude
 
 import           UnliftIO.Directory             ( doesFileExist )
-import qualified Unison.Codebase               as Codebase
+import           Unison.Codebase                ( CodebasePath )
 import qualified Unison.Codebase.Causal        as Causal
 import           Unison.Codebase.Branch         ( Branch(Branch) )
 import qualified Unison.Codebase.Branch        as Branch
@@ -59,11 +59,11 @@ syncToDirectory :: forall m v a
   -> CodebasePath
   -> CodebasePath
   -> Branch m
-  -> m (Branch m)
+  -> m ()
 syncToDirectory fmtV fmtA = syncToDirectory' (S.get fmtV) (S.get fmtA)
 
--- Create a codebase structure at `destPath` if none exists, and
--- copy (merge) all codebase elements from the current codebase into it.
+-- Copy (merge) all dependent codebase elements of `branch` from `srcPath` into 
+-- `destPath`, and set `branch` as the new root in `destPath`.
 --
 -- As a refresher, in the normal course of using `ucm` and updating the
 -- namespace, we call Branch.sync to write the updated root to disk.
@@ -99,22 +99,9 @@ syncToDirectory' :: forall m v a
   -> CodebasePath
   -> CodebasePath
   -> Branch m
-  -> m (Branch m)
-syncToDirectory' getV getA srcPath destPath branch =
+  -> m ()
+syncToDirectory' getV getA srcPath destPath newRemoteRoot@(Branch c) =
   flip State.evalStateT mempty $ do
-    newRemoteRoot@(Branch c) <- lift $
-      ifM (codebaseExists destPath)
-        (getRootBranch destPath >>= \case
-          Right existingDestRoot -> Branch.merge branch existingDestRoot
-          -- The destination codebase doesn't advertise a root branch,
-          -- so we'll just use ours.
-          Left Codebase.NoRootBranch -> pure branch
-          Left (Codebase.CouldntLoadRootBranch h) -> fail $
-            "I was trying to merge with the existing root branch at " ++
-            branchPath destPath h ++ ", but the file was missing."
-          )
-        -- else there was no existing codebase structure at `destPath` so whatev
-        (pure branch)
     Branch.sync
       (hashExists destPath)
       copyRawBranch
@@ -124,7 +111,6 @@ syncToDirectory' getV getA srcPath destPath branch =
     writeTypeIndex =<< use typeIndex
     writeTypeMentionsIndex =<< use typeMentionsIndex
     updateCausalHead (branchHeadDir destPath) c
-    pure branch
   where
   writeDependentsIndex :: Relation Reference Reference.Id -> StateT SyncedEntities m ()
   writeDependentsIndex = writeIndexHelper (\k v -> touchIdFile v (dependentsDir destPath k))
