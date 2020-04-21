@@ -259,16 +259,12 @@ executable prettyprintdemo
 
 executable tests
   main-is:        Suite.hs
-  hs-source-dirs: testSuite
+  hs-source-dirs: tests
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
   build-depends:
     base,
-    easytest,
-    unison-tests
-
-library unison-tests
-  hs-source-dirs: tests
-  exposed-modules:
+    easytest
+  other-modules:
     Unison.Test.ABT
     Unison.Test.Codebase
     Unison.Test.Codebase.Causal
@@ -333,5 +329,4 @@ executable transcripts
     process,
     text,
     unison-core,
-    unison-parser-typechecker,
-    unison-tests
+    unison-parser-typechecker
