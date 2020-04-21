@@ -204,7 +204,7 @@ runTranscripts' mcodepath transcriptDir args = do
 runTranscripts :: Bool -> Bool -> Maybe FilePath -> [String] -> IO ()
 runTranscripts inFork keepTemp mcodepath args = do
   transcriptDir <- prepareTranscriptDir inFork mcodepath
-  completed <- runTranscripts' mcodepath transcriptDir args
+  completed <- runTranscripts' (Just transcriptDir) transcriptDir args
   when completed $ do
     unless keepTemp $ removeDirectoryRecursive transcriptDir
     when keepTemp $ PT.putPrettyLn $

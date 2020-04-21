@@ -13,14 +13,13 @@ import qualified Unison.ShortHash as SH
 
 test :: Test ()
 test = scope "path" . tests $
-  [ scope "parsePath'Impl" . tests $
-    [ let s = "foo.bar.baz.34"  in scope s . expect $ parsePath'Impl s == Right (relative ["foo","bar","baz"], "34")
-    , let s = "foo.bar.baz" in scope s . expect $ parsePath'Impl s == Right (relative ["foo", "bar"], "baz")
-    , let s = "baz" in scope s . expect $ parsePath'Impl s == Right (relative [], "baz")
-    , let s = "34" in scope s . pending . expect $ parsePath'Impl s == Right (relative [], "34")
-
---    , let s = "foo.bar.baz#a8fj" in scope s . expect $ parsePath'Impl s == Right (relative ["foo", "bar"], "baz#a8fj")
-    , let s = "foo.bar.baz#a8fj" in scope s . expect $ isLeft $ parsePath'Impl s
+  [ scope "parsePathImpl'" . tests $
+    [ let s = "foo.bar.baz.34"  in scope s . expect $ parsePathImpl' s == Right (relative ["foo","bar","baz"], "34")
+    , let s = "foo.bar.baz" in scope s . expect $ parsePathImpl' s == Right (relative ["foo", "bar"], "baz")
+    , let s = "baz" in scope s . expect $ parsePathImpl' s == Right (relative [], "baz")
+    , let s = "-" in scope s . expect $ parsePathImpl' s == Right (relative [], "-")
+    , let s = "34" in scope s . pending . expect $ parsePathImpl' s == Right (relative [], "34")
+    , let s = "foo.bar.baz#a8fj" in scope s . expect $ isLeft $ parsePathImpl' s
     ]
   , scope "parseSplit'" . tests $
     [ scope "wordyNameSegment" . tests $
