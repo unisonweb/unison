@@ -961,7 +961,7 @@ notifyUser dir o = case o of
   NoConflictsOrEdits ->
     pure (P.okCallout "No conflicts or edits in progress.")
   NoOp -> pure $ P.string "I didn't make any changes."
-  DefaultMetadataNotification -> pure $ P.wrap "Adding default metadata..."
+  DefaultMetadataNotification -> pure $ P.wrap "I added some default metadata."
   DumpBitBooster head map -> let
     go output []          = output
     go output (head : queue) = case Map.lookup head map of
