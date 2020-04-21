@@ -109,7 +109,7 @@ Expected: `x` is now `3` and `X` has constructor `Three`. UCM tells you the old 
     type X
       (The old definition was also named Z. I updated this name
       too.)
-    x : .builtin.Nat
+    x : Nat
       (The old definition was also named z. I updated this name
       too.)
 
@@ -151,7 +151,7 @@ Expected: `x` is now `2` and `X` is `Two`. UCM says the old definition was also 
       (The old definition was also named Z. I updated this name
       too.)
       (The new definition is already named Y as well.)
-    x : .builtin.Nat
+    x : Nat
       (The old definition was also named z. I updated this name
       too.)
       (The new definition is already named y as well.)

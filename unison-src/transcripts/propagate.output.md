@@ -159,7 +159,7 @@ Update...
 
   ⍟ I've updated these names to your new definition:
   
-    someTerm : .builtin.Optional x -> .builtin.Optional x
+    someTerm : Optional x -> Optional x
 
 ```
 Now the type of `someTerm` should be `Optional x -> Optional x` and the
@@ -266,7 +266,7 @@ someTerm _ = None
 
   ⍟ I've updated these names to your new definition:
   
-    someTerm : .builtin.Optional x -> .builtin.Optional x
+    someTerm : Optional x -> Optional x
 
 ```
 The other namespace should be left alone.
