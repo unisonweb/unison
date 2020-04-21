@@ -309,6 +309,7 @@ executable tests
     mtl,
     raw-strings-qq,
     shellmet,
+    split,
     temporary,
     text,
     transformers,

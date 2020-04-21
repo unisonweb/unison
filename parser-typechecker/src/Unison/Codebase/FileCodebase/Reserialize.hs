@@ -3,7 +3,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -13,7 +12,6 @@ module Unison.Codebase.FileCodebase.Reserialize where
 import Unison.Prelude
 
 import Data.Monoid.Generic
-import Control.Error (rightMay)
 import Control.Lens
 import Control.Monad.State (evalStateT, StateT)
 
@@ -30,7 +28,7 @@ import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Star3             as Star3
 import Unison.Codebase.FileCodebase.Common
 import Unison.DataDeclaration as DD
-import Unison.Codebase (BuiltinAnnotation)
+import Unison.Codebase (BuiltinAnnotation, CodebasePath)
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 
@@ -43,8 +41,8 @@ data SyncedEntities = SyncedEntities
 
 makeLenses ''SyncedEntities
 
--- Create a codebase structure at `destPath` if none exists, and
--- copy (merge) all codebase elements from the current codebase into it.
+-- Copy (merge) all dependents of `branch` from `srcPath` into `destPath`,
+-- and set `branch` as the new root in `destPath`.
 -- 
 -- As a refresher, in the normal course of using `ucm` and updating the 
 -- namespace, we call Branch.sync to write the updated root to disk.
@@ -71,18 +69,8 @@ syncToDirectory
   -> CodebasePath
   -> CodebasePath
   -> Branch m
-  -> m (Branch m)
-syncToDirectory fmtV fmtA srcPath destPath branch = do
-  -- If there's already a codebase at `destPath` and we can access its root
-  -- branch, then we merge the existing root with the provided `branch`, in
-  -- preparation for writing; otherwise we just plan to write the provided one.
-  branch@(Branch c) <-
-    ifM (codebaseExists destPath)
-      (do
-        remoteRoot <- getRootBranch destPath
-        Branch.merge branch (fromMaybe Branch.empty $ rightMay remoteRoot))
-      (pure branch)
-  -- We build and use the state inside of `serialize`; now we can throw it away.
+  -> m ()
+syncToDirectory fmtV fmtA srcPath destPath branch@(Branch c) = do
   flip evalStateT mempty $
     Branch.sync
       (hashExists destPath)
@@ -90,7 +78,6 @@ syncToDirectory fmtV fmtA srcPath destPath branch = do
       (serializeEdits destPath)
       (Branch.transform lift branch)
   updateCausalHead (branchHeadDir destPath) c
-  pure branch
  where
   serialize rh rawBranch = do
     writeBranch $ Causal.rawHead rawBranch
