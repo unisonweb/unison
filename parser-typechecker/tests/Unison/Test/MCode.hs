@@ -79,7 +79,7 @@ i2b = Match 0
 eqn :: Section
 eqn = Ins (Unpack 1)
     $ Ins (Unpack 0)
-    $ Ins (Prim2 Eqn 1 3)
+    $ Ins (Prim2 EQLI 1 3)
     $ i2b
 
 asrt :: Section
@@ -104,24 +104,24 @@ bi2w op = Ins (Unpack 1)
 {-# inline bi2w #-}
 
 deci :: Section
-deci = bi1w Dec
+deci = bi1w DECI
 
 inci :: Section
-inci = bi1w Inc
+inci = bi1w INCI
 
 addi :: Section
-addi = bi2w Add
+addi = bi2w ADDI
 
 subi :: Section
-subi = bi2w Sub
+subi = bi2w SUBI
 
 drpn :: Section
 drpn = Ins (Unpack 1)
      $ Ins (Unpack 0)
-     $ Ins (Prim2 Gtn 1 3)
+     $ Ins (Prim2 LESI 3 1)
      $ Match 0
      $ Test1 1 (Ins (Lit 0) pk)
-     $ Ins (Prim2 Sub 4 2)
+     $ Ins (Prim2 SUBI 4 2)
      $ pk
  where pk = Ins (Pack 0 $ UArg1 0) . Yield $ BArg1 0
 

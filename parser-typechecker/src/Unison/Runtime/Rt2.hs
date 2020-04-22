@@ -5,6 +5,8 @@ module Unison.Runtime.Rt2 where
 
 import Data.Maybe (fromMaybe)
 
+import Data.Bits
+
 import qualified Data.IntSet as S
 import qualified Data.IntMap.Strict as M
 
@@ -349,42 +351,112 @@ closeArgs !_    !bstk !useg !bseg (BArgN as) = do
   pure (useg, bseg)
 
 prim1 :: Stack 'UN -> Prim1 -> Int -> IO (Stack 'UN)
-prim1 !ustk Dec !i = do
+prim1 !ustk DECI !i = do
   m <- peekOff ustk i
   ustk <- bump ustk
   poke ustk (m-1)
   pure ustk
-prim1 !ustk Inc !i = do
+prim1 !ustk INCI !i = do
   m <- peekOff ustk i
   ustk <- bump ustk
   poke ustk (m+1)
   pure ustk
+prim1 !ustk NEGI !i = do
+  m <- peekOff ustk i
+  ustk <- bump ustk
+  poke ustk (-m)
+  pure ustk
+prim1 !ustk SGNI !i = do
+  m <- peekOff ustk i
+  ustk <- bump ustk
+  poke ustk (signum m)
+  pure ustk
 {-# inline prim1 #-}
 
 prim2 :: Stack 'UN -> Prim2 -> Int -> Int -> IO (Stack 'UN)
-prim2 !ustk Add !i !j = do
+prim2 !ustk ADDI !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   poke ustk (m+n)
   pure ustk
-prim2 !ustk Sub !i !j = do
+prim2 !ustk SUBI !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   poke ustk (m-n)
   pure ustk
-prim2 !ustk Eqn !i !j = do
+prim2 !ustk MULI !i !j = do
+  m <- peekOff ustk i
+  n <- peekOff ustk j
+  ustk <- bump ustk
+  poke ustk (m*n)
+  pure ustk
+prim2 !ustk DIVI !i !j = do
+  m <- peekOff ustk i
+  n <- peekOff ustk j
+  ustk <- bump ustk
+  poke ustk (m`div`n)
+  pure ustk
+prim2 !ustk MODI !i !j = do
+  m <- peekOff ustk i
+  n <- peekOff ustk j
+  ustk <- bump ustk
+  poke ustk (m`mod`n)
+  pure ustk
+prim2 !ustk SHLI !i !j = do
+  m <- peekOff ustk i
+  n <- peekOff ustk j
+  ustk <- bump ustk
+  poke ustk (m`shiftL`n)
+  pure ustk
+prim2 !ustk SHRI !i !j = do
+  m <- peekOff ustk i
+  n <- peekOff ustk j
+  ustk <- bump ustk
+  poke ustk (m`shiftR`n)
+  pure ustk
+prim2 !ustk SHRN !i !j = do
+  m <- peekOffN ustk i
+  n <- peekOff ustk j
+  ustk <- bump ustk
+  pokeN ustk (m`shiftR`n)
+  pure ustk
+prim2 !ustk POWI !i !j = do
+  m <- peekOff ustk i
+  n <- peekOffN ustk j
+  ustk <- bump ustk
+  poke ustk (m^n)
+  pure ustk
+prim2 !ustk EQLI !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   poke ustk $ if m == n then 1 else 0
   pure ustk
-prim2 !ustk Gtn !i !j = do
+prim2 !ustk LESI !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
-  poke ustk $ if m > n then 1 else 0
+  poke ustk $ if m < n then 1 else 0
+  pure ustk
+prim2 !ustk LEQI !i !j = do
+  m <- peekOff ustk i
+  n <- peekOff ustk j
+  ustk <- bump ustk
+  poke ustk $ if m <= n then 1 else 0
+  pure ustk
+prim2 !ustk LESN !i !j = do
+  m <- peekOffN ustk i
+  n <- peekOffN ustk j
+  ustk <- bump ustk
+  poke ustk $ if m < n then 1 else 0
+  pure ustk
+prim2 !ustk LEQN !i !j = do
+  m <- peekOffN ustk i
+  n <- peekOffN ustk j
+  ustk <- bump ustk
+  poke ustk $ if m <= n then 1 else 0
   pure ustk
 {-# inline prim2 #-}
 

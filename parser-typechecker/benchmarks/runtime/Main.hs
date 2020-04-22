@@ -16,8 +16,8 @@ infixr 0 $$
 loop :: Section
 loop = Match 0 $ Test1 0 (Yield $ UArg1 1) rec
   where
-  rec = Prim2 Add 0 1
-     $$ Prim1 Dec 1
+  rec = Prim2 ADDI 0 1
+     $$ Prim1 DECI 1
      $$ App False (Env 0) (UArg2 0 1)
 
 -- Boxed version of loop to see how fast we are without
@@ -28,8 +28,8 @@ sloop = Unpack 1 $$ Unpack 0 $$ body
   body = Match 1 $ Test1
            0 (Pack 0 (UArg1 3) $$ Yield (BArg1 0))
            {-else-} rec
-  rec  = Prim2 Add 1 3
-      $$ Prim1 Dec 2
+  rec  = Prim2 ADDI 1 3
+      $$ Prim1 DECI 2
       $$ Pack 0 (UArg1 1)
       $$ Pack 0 (UArg1 0)
       $$ App False (Env 1) (BArg2 0 1)
@@ -38,8 +38,8 @@ sloop = Unpack 1 $$ Unpack 0 $$ body
 oloop :: Section
 oloop = Match 0 $ Test1 0 (Yield $ UArg1 1) rec
   where
-  rec = Prim2 Add 0 1
-     $$ Prim1 Dec 1
+  rec = Prim2 ADDI 0 1
+     $$ Prim1 DECI 1
      $$ Call False 7 (UArg2 0 1)
 
 -- sloop with fast path optimization
@@ -49,8 +49,8 @@ soloop = Unpack 1 $$ Unpack 0 $$ body
   body = Match 1 $ Test1
            0 (Pack 0 (UArg1 3) $$ Yield (BArg1 0))
            {-else-} rec
-  rec = Prim2 Add 1 3
-     $$ Prim1 Dec 2
+  rec = Prim2 ADDI 1 3
+     $$ Prim1 DECI 2
      $$ Pack 0 (UArg1 1)
      $$ Pack 0 (UArg1 0)
      $$ Call False 8 (BArg2 0 1)
@@ -61,7 +61,7 @@ konst = Yield (BArg1 0)
 add :: Section
 add = Unpack 1
    $$ Unpack 0
-   $$ Prim2 Add 1 3
+   $$ Prim2 ADDI 1 3
    $$ Pack 0 (UArg1 0)
    $$ Yield (BArg1 0)
 
@@ -104,7 +104,7 @@ kloopb =
      $ Pack 0 (UArg1 0)
     $$ Let (App False (Env 11) (BArg2 0 1)) -- add
      $ Let (App False (Env 14) (BArg1 0)) -- put
-     $ Prim1 Dec 0
+     $ Prim1 DECI 0
     $$ App False (Env 5) (UArg1 0)
 
 -- m a => f = reset (kloopb m) ; y = f (I# a) ; print y
@@ -139,7 +139,7 @@ tloopb =
       $ Pack 0 (UArg1 0) -- I# m
      $$ Let (App False (Env 11) (BArg2 0 1)) -- add
       $ Let (Lit 1 $$ App False (Dyn 0) (UArg1 0)) -- put
-      $ Prim1 Dec 0
+      $ Prim1 DECI 0
      $$ Call False 25 (UArg1 0)
 
 -- m s => reset (tinst (I# s) ; tloopb m)
@@ -155,11 +155,11 @@ fib = Match 0 $ Test2
         1 (Lit 1 $$ Yield $ UArg1 0)
         {-else-} rec
   where
-  rec = Prim1 Dec 0
-     $$ Prim1 Dec 0
+  rec = Prim1 DECI 0
+     $$ Prim1 DECI 0
      $$ Let (App False (Env 2) (UArg1 1))
       $ Let (App False (Env 2) (UArg1 1))
-      $ Prim2 Add 0 1 $$ Yield (UArg1 0)
+      $ Prim2 ADDI 0 1 $$ Yield (UArg1 0)
 
 ofib :: Section
 ofib = Match 0 $ Test2
@@ -167,17 +167,17 @@ ofib = Match 0 $ Test2
          1 (Lit 1 $$ Yield $ UArg1 0)
          {-else-} rec
   where
-  rec = Prim1 Dec 0
-     $$ Prim1 Dec 0
+  rec = Prim1 DECI 0
+     $$ Prim1 DECI 0
      $$ Let (Call True 9 (UArg1 1))
       $ Let (Call True 9 (UArg1 1))
-      $ Prim2 Add 0 1 $$ Yield (UArg1 0)
+      $ Prim2 ADDI 0 1 $$ Yield (UArg1 0)
 
 stackEater :: Section
 stackEater
   = Match 0 $ Test1
       0 (Yield ZArgs)
-    $ Prim1 Dec 0
+    $ Prim1 DECI 0
    $$ Let (App False (Env 4) (UArg1 0))
     $ Yield ZArgs
 

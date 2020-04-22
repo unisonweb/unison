@@ -238,8 +238,12 @@ bcount (BArgN a) = sizeofPrimArray a
 bcount _ = 0
 {-# inline bcount #-}
 
-data Prim1 = Dec | Inc deriving (Show)
-data Prim2 = Add | Sub | Eqn | Gtn deriving (Show)
+data Prim1 = DECI | INCI | NEGI | SGNI deriving (Show)
+data Prim2
+  = ADDI | SUBI | MULI | DIVI | MODI
+  | SHLI | SHRI | SHRN | POWI
+  | EQLI | LESI | LESN | LEQI | LEQN
+  deriving (Show)
 
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
@@ -452,16 +456,50 @@ emitLet _   ctx (AApp (FPrim p) args)
   = Ins . emitPOp p $ emitArgs ctx args
 emitLet rec ctx bnd = Let (emitSection rec ctx (TTm bnd))
 
+-- -- Float
+-- | ADDF | SUBF | MULF | DIVF -- +,-,*,/
+-- | LESF | LEQF | EQLF        -- <,<=,==
 emitPOp :: ANF.POp -> Args -> Instr
-emitPOp ANF.ADDI = emitP2 Add
-emitPOp ANF.ADDN = emitP2 Add
-emitPOp ANF.SUBI = emitP2 Sub
-emitPOp ANF.SUBN = emitP2 Sub
+emitPOp ANF.ADDI = emitP2 ADDI
+emitPOp ANF.ADDN = emitP2 ADDI
+emitPOp ANF.SUBI = emitP2 SUBI
+emitPOp ANF.SUBN = emitP2 SUBI
+emitPOp ANF.MULI = emitP2 MULI
+emitPOp ANF.MULN = emitP2 MULI
+emitPOp ANF.DIVI = emitP2 DIVI
+emitPOp ANF.DIVN = emitP2 DIVI
+emitPOp ANF.TRNI = error "I don't think this is used"
+emitPOp ANF.MODI = emitP2 MODI -- TODO: think about how these behave
+emitPOp ANF.MODN = emitP2 MODI -- TODO: think about how these behave
+emitPOp ANF.POWI = emitP2 POWI
+emitPOp ANF.POWN = emitP2 POWI
+emitPOp ANF.SHLI = emitP2 SHLI
+emitPOp ANF.SHLN = emitP2 SHLI -- Note: left shift behaves uniformly
+emitPOp ANF.SHRI = emitP2 SHRI
+emitPOp ANF.SHRN = emitP2 SHRN
+emitPOp ANF.LESI = emitP2 LESI
+emitPOp ANF.LESN = emitP2 LESN
+emitPOp ANF.LEQI = emitP2 LEQI
+emitPOp ANF.LEQN = emitP2 LEQN
+emitPOp ANF.EQLI = emitP2 EQLI
+emitPOp ANF.EQLN = emitP2 EQLI
+
+emitPOp ANF.SGNI = emitP1 SGNI
+emitPOp ANF.NEGI = emitP1 NEGI
+emitPOp ANF.INCI = emitP1 INCI
+emitPOp ANF.INCN = emitP1 INCI
+emitPOp ANF.DECI = emitP1 DECI
+emitPOp ANF.DECN = emitP1 DECI
+
 emitPOp p = error $ "unhandled prim op: " ++ show p
+
+emitP1 :: Prim1 -> Args -> Instr
+emitP1 p (UArg1 i) = Prim1 p i
+emitP1 _ _ = error "emitP1: prim ops must be saturated"
 
 emitP2 :: Prim2 -> Args -> Instr
 emitP2 p (UArg2 i j) = Prim2 p i j
-emitP2 _ _ = error "prim ops must be saturated"
+emitP2 _ _ = error "emitP2: prim ops must be saturated"
 
 emitMatching
   :: Var v => RCtx v -> Ctx v -> Branched (ANormal v) -> Section

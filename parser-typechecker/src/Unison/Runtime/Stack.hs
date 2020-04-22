@@ -15,6 +15,8 @@ import Data.Primitive.Array
 import Data.IntSet (IntSet)
 import Data.IntMap.Strict (IntMap)
 
+import Data.Word
+
 import Unison.Runtime.MCode
 
 data Mem = UN | BX
@@ -275,6 +277,22 @@ instance MEM 'UN where
 
   asize (US ap fp _ _) = fp-ap
   {-# inline asize #-}
+
+peekN :: Stack 'UN -> IO Word64
+peekN (US _ _ sp stk) = readByteArray stk sp
+{-# inline peekN #-}
+
+peekOffN :: Stack 'UN -> Int -> IO Word64
+peekOffN (US _ _ sp stk) i = readByteArray stk (sp-i)
+{-# inline peekOffN #-}
+
+pokeN :: Stack 'UN -> Word64 -> IO ()
+pokeN (US _ _ sp stk) n = writeByteArray stk sp n
+{-# inline pokeN #-}
+
+pokeOffN :: Stack 'UN -> Int -> Word64 -> IO ()
+pokeOffN (US _ _ sp stk) i n = writeByteArray stk (sp-i) n
+{-# inline pokeOffN #-}
 
 unull :: Seg 'UN
 unull = byteArrayFromListN 0 ([] :: [Int])
