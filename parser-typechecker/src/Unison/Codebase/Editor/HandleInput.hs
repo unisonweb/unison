@@ -502,21 +502,23 @@ loop = do
                       e
                     Right defaultMeta -> do
                       respond DefaultMetadataNotification
-                      manageLinks addedNames defaultMeta Metadata.insert
+                      manageLinks True addedNames defaultMeta Metadata.insert
 
-        -- Add/remove metadata links to definitions.
+        -- Add/remove links between definitions and metadata.
+        -- `silent` controls whether this produces any output to the user.
         -- `srcs` is (names of the) definitions to pass to `op`
         -- `mdValues` is (names of the) metadata to pass to `op`
         -- `op` is the operation to add/remove/alter metadata mappings.
         --   e.g. `Metadata.insert` is passed to add metadata links.
-        manageLinks :: [(Path', NameSegment.HQSegment)]
+        manageLinks :: Bool
+                    -> [(Path', NameSegment.HQSegment)]
                     -> [HQ.HashQualified]
                     -> (forall r. Ord r
                         => (r, Reference, Reference)
                         ->  Branch.Star r NameSegment
                         ->  Branch.Star r NameSegment)
                     -> Action m (Either Event Input) v ()
-        manageLinks srcs mdValues op = do
+        manageLinks silent srcs mdValues op = do
           mdValuels <- fmap (first toList) <$>
             traverse (\x -> fmap (,x) (getHQTerms x)) mdValues
           let get = Branch.head <$> use root
@@ -524,7 +526,7 @@ loop = do
           traverse_ go mdValuels
           after  <- get
           (ppe, outputDiff) <- diffHelper before after
-          if OBranchDiff.isEmpty outputDiff
+          unless silent if OBranchDiff.isEmpty outputDiff
             then respond NoOp
             else respondNumbered $ ShowDiffNamespace Path.absoluteEmpty
                                                      Path.absoluteEmpty
@@ -987,10 +989,10 @@ loop = do
 --              in (terms, types)
 
       LinkI mdValue srcs ->
-        manageLinks srcs [mdValue] Metadata.insert
+        manageLinks False srcs [mdValue] Metadata.insert
 
       UnlinkI mdValue srcs ->
-        manageLinks srcs [mdValue] Metadata.delete
+        manageLinks False srcs [mdValue] Metadata.delete
 
       -- > links List.map (.Docs .English)
       -- > links List.map -- give me all the
