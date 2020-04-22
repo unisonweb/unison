@@ -235,10 +235,16 @@ builtinsSrc =
   , B "Int.<=" $ int --> int --> boolean
   , B "Int.>=" $ int --> int --> boolean
   , B "Int.==" $ int --> int --> boolean
+  , B "Int.and" $ int --> int --> int
+  , B "Int.or" $ int --> int --> int
+  , B "Int.xor" $ int --> int --> int
+  , B "Int.complement" $ int --> int --> int
   , B "Int.increment" $ int --> int
   , B "Int.isEven" $ int --> boolean
   , B "Int.isOdd" $ int --> boolean
   , B "Int.signum" $ int --> int
+  , B "Int.leadingZeros" $ int --> nat
+  , B "Int.negate" $ int --> int
   , B "Int.negate" $ int --> int
   , B "Int.mod" $ int --> int --> int
   , B "Int.pow" $ int --> nat --> int
@@ -248,6 +254,7 @@ builtinsSrc =
   , B "Int.toText" $ int --> text
   , B "Int.fromText" $ text --> optional int
   , B "Int.toFloat" $ int --> float
+  , B "Int.trailingZeros" $ int --> nat
 
   , B "Nat.*" $ nat --> nat --> nat
   , B "Nat.+" $ nat --> nat --> nat
@@ -257,11 +264,16 @@ builtinsSrc =
   , B "Nat.==" $ nat --> nat --> boolean
   , B "Nat.>" $ nat --> nat --> boolean
   , B "Nat.>=" $ nat --> nat --> boolean
+  , B "Nat.and" $ nat --> nat --> nat
+  , B "Nat.or" $ nat --> nat --> nat
+  , B "Nat.xor" $ nat --> nat --> nat
+  , B "Nat.complement" $ nat --> nat --> nat
   , B "Nat.drop" $ nat --> nat --> nat
   , B "Nat.fromText" $ text --> optional nat
   , B "Nat.increment" $ nat --> nat
   , B "Nat.isEven" $ nat --> boolean
   , B "Nat.isOdd" $ nat --> boolean
+  , B "Nat.leadingZeros" $ nat --> nat
   , B "Nat.mod" $ nat --> nat --> nat
   , B "Nat.pow" $ nat --> nat --> nat
   , B "Nat.shiftLeft" $ nat --> nat --> nat
@@ -270,6 +282,7 @@ builtinsSrc =
   , B "Nat.toFloat" $ nat --> float
   , B "Nat.toInt" $ nat --> int
   , B "Nat.toText" $ nat --> text
+  , B "Nat.trailingZeros" $ nat --> nat
 
   , B "Float.+" $ float --> float --> float
   , B "Float.-" $ float --> float --> float
