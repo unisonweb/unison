@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #1knda118ml
+  ⊙ #ll42hbp60e
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #dufp8qeq3n
+  ⊙ #h72ma1qlnk
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #v94vprvf7f
+  ⊙ #km35ctvltc
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #f166mvv1hb
+  ⊙ #nbiibp60kj
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #971j7jvcsa
+  ⊙ #d3oe0kr57t
   
     + Adds / updates:
     
       x
   
-  ⊙ #rdkmqee7e3
+  ⊙ #gectfnld64
   
     + Adds / updates:
     
@@ -174,27 +174,32 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Float.sinh builtin.Float.sqrt builtin.Float.tan
       builtin.Float.tanh builtin.Float.toText
       builtin.Float.truncate builtin.Int builtin.Int.*
-      builtin.Int.+ builtin.Int.- builtin.Int./ builtin.Int.eq
-      builtin.Int.fromText builtin.Int.gt builtin.Int.gteq
-      builtin.Int.increment builtin.Int.isEven builtin.Int.isOdd
-      builtin.Int.lt builtin.Int.lteq builtin.Int.mod
-      builtin.Int.negate builtin.Int.pow builtin.Int.shiftLeft
+      builtin.Int.+ builtin.Int.- builtin.Int./ builtin.Int.and
+      builtin.Int.complement builtin.Int.eq builtin.Int.fromText
+      builtin.Int.gt builtin.Int.gteq builtin.Int.increment
+      builtin.Int.isEven builtin.Int.isOdd
+      builtin.Int.leadingZeros builtin.Int.lt builtin.Int.lteq
+      builtin.Int.mod builtin.Int.negate builtin.Int.or
+      builtin.Int.pow builtin.Int.shiftLeft
       builtin.Int.shiftRight builtin.Int.signum
       builtin.Int.toFloat builtin.Int.toText
-      builtin.Int.truncate0 builtin.Link
-      builtin.Link.Term##Link.Term builtin.Link.Term#quh#0
-      builtin.Link.Type##Link.Type builtin.Link.Type#quh#1
-      builtin.List builtin.List.++ builtin.List.+:
-      builtin.List.:+ builtin.List.at builtin.List.cons
-      builtin.List.drop builtin.List.empty builtin.List.size
-      builtin.List.snoc builtin.List.take builtin.Nat
-      builtin.Nat.* builtin.Nat.+ builtin.Nat./ builtin.Nat.drop
+      builtin.Int.trailingZeros builtin.Int.truncate0
+      builtin.Int.xor builtin.Link builtin.Link.Term##Link.Term
+      builtin.Link.Term#quh#0 builtin.Link.Type##Link.Type
+      builtin.Link.Type#quh#1 builtin.List builtin.List.++
+      builtin.List.+: builtin.List.:+ builtin.List.at
+      builtin.List.cons builtin.List.drop builtin.List.empty
+      builtin.List.size builtin.List.snoc builtin.List.take
+      builtin.Nat builtin.Nat.* builtin.Nat.+ builtin.Nat./
+      builtin.Nat.and builtin.Nat.complement builtin.Nat.drop
       builtin.Nat.eq builtin.Nat.fromText builtin.Nat.gt
       builtin.Nat.gteq builtin.Nat.increment builtin.Nat.isEven
-      builtin.Nat.isOdd builtin.Nat.lt builtin.Nat.lteq
-      builtin.Nat.mod builtin.Nat.pow builtin.Nat.shiftLeft
+      builtin.Nat.isOdd builtin.Nat.leadingZeros builtin.Nat.lt
+      builtin.Nat.lteq builtin.Nat.mod builtin.Nat.or
+      builtin.Nat.pow builtin.Nat.shiftLeft
       builtin.Nat.shiftRight builtin.Nat.sub builtin.Nat.toFloat
-      builtin.Nat.toInt builtin.Nat.toText builtin.Optional
+      builtin.Nat.toInt builtin.Nat.toText
+      builtin.Nat.trailingZeros builtin.Nat.xor builtin.Optional
       builtin.Optional.None builtin.Optional.Some
       builtin.Request builtin.Test.Result
       builtin.Test.Result.Fail builtin.Test.Result.Ok
