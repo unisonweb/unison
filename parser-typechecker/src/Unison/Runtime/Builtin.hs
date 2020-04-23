@@ -2,12 +2,15 @@
 
 module Unison.Runtime.Builtin
   ( builtinLookup
+  , builtinNumbering
+  , numberedLookup
   ) where
 
 import Unison.ABT.Normalized
 import Unison.Reference
 import Unison.Runtime.ANF
 import Unison.Var
+import Unison.Symbol
 
 import qualified Unison.Type as Ty
 
@@ -359,4 +362,10 @@ builtinLookup
 --   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
   ]
 
+builtinNumbering :: Map.Map Reference Int
+builtinNumbering
+  = Map.fromList $ zip (Map.keys $ builtinLookup @Symbol) [1..]
 
+numberedLookup :: Var v => Map.Map Int (SuperNormal v)
+numberedLookup
+  = Map.fromList . zip [1..] . Map.elems $ builtinLookup

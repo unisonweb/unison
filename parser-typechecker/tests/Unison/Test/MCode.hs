@@ -1,4 +1,5 @@
 {-# language PatternGuards #-}
+{-# language TypeApplications #-}
 {-# language OverloadedStrings #-}
 
 module Unison.Test.MCode where
@@ -9,9 +10,11 @@ import Control.Monad.State (evalState)
 import Control.Monad.Reader (runReaderT)
 
 import qualified Data.Set as Set
-import qualified Data.IntMap as Map
+import qualified Data.IntMap as IMap
+import qualified Data.Map.Strict as Map
 
 import Unison.Var (Var)
+import Unison.Symbol (Symbol)
 import Unison.Reference (Reference(Builtin))
 import Unison.Runtime.Pattern (splitPatterns)
 import Unison.Runtime.ANF
@@ -33,6 +36,7 @@ import Unison.Runtime.MCode
   , emitComb
   , emitCombs
   )
+import Unison.Runtime.Builtin
 import Unison.Runtime.Rt2
   ( eval0 )
 
@@ -47,29 +51,22 @@ testEval0 env sect = do
   ok
 
 builtins :: Reference -> Int
-builtins (Builtin t)
-  | t == "Nat.==" = -1
-  | t == "todo" = -2
-  | t == "Nat.+" = -3
-  | t == "Nat.sub" = -4
-  | t == "Nat.dec" = -5
-  | t == "Nat.increment" = -6
-  | t == "Nat.drop" = -7
-  | t == "Nat.*" = 20
-builtins _ = error "builtins"
+builtins r
+  | Builtin "todo" <- r = - (Map.size builtinNumbering+1)
+  | Just i <- Map.lookup r builtinNumbering = - i
+  | otherwise = error "builtins"
+
+cenv :: Map.Map Int Comb
+cenv = fmap (emitComb mempty) $ numberedLookup @Symbol
 
 benv :: Int -> Comb
-benv 1 = Lam 0 2 5 3 eqn
-benv 2 = Lam 0 1 1 1 asrt
-benv 3 = Lam 0 2 5 3 addi
-benv 4 = Lam 0 2 5 3 subi
-benv 5 = Lam 0 1 3 2 deci
-benv 6 = Lam 0 1 3 2 inci
-benv 7 = Lam 0 2 6 3 drpn
-benv _ = error "benv"
+benv i
+  | i == Map.size builtinNumbering + 1 = Lam 0 1 2 1 asrt
+  | Just c <- Map.lookup i cenv = c
+  | otherwise = error "benv"
 
-env :: Map.IntMap Comb -> Int -> Comb
-env m = \n -> if n < 0 then benv $ -n else m Map.! n
+env :: IMap.IntMap Comb -> Int -> Comb
+env m = \n -> if n < 0 then benv $ -n else m IMap.! n
 
 i2b :: Section
 i2b = Match 0
@@ -133,8 +130,8 @@ mkComb txt
   . splitPatterns
   $ tm txt
 
-mkCombs :: Int -> String -> Map.IntMap Comb
-mkCombs r txt = Map.insert r main aux
+mkCombs :: Int -> String -> IMap.IntMap Comb
+mkCombs r txt = IMap.insert r main aux
   where
   (main, aux, _)
     = emitCombs (r+1)
@@ -149,7 +146,7 @@ multc
            \  0 -> 0\n\
            \  _ -> ##Nat.+ n (##Nat.* (##Nat.sub m 1) n)"
 
-multRec :: Map.IntMap Comb
+multRec :: IMap.IntMap Comb
 multRec
   = mkCombs 20
       "m n -> let\n\
@@ -166,9 +163,9 @@ nested
       \  m@n -> n"
 
 testEval' :: [(Int, Comb)] -> String -> Test ()
-testEval' cs = testEval (Map.fromList cs)
+testEval' cs = testEval (IMap.fromList cs)
 
-testEval :: Map.IntMap Comb -> String -> Test ()
+testEval :: IMap.IntMap Comb -> String -> Test ()
 testEval cs s = testEval0 (env cs) mc
   where
   t = tm s
