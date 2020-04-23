@@ -604,13 +604,19 @@ movePatch src dest = first fromString $ do
   dest <- Path.parseSplit' Path.wordyNameSegment dest
   pure $ Input.MovePatchI src dest
 
+copyPatch' :: String -> String -> Either (P.Pretty CT.ColorText) Input
+copyPatch' src dest = first fromString $ do
+  src <- Path.parseSplit' Path.wordyNameSegment src
+  dest <- Path.parseSplit' Path.wordyNameSegment dest
+  pure $ Input.CopyPatchI src dest
+
 copyPatch :: InputPattern
 copyPatch = InputPattern "copy.patch"
    []
    [(Required, patchArg), (Required, newNameArg)]
-   "`copy.patch foo bar` copies the patch `bar` to `foo`."
+   "`copy.patch foo bar` copies the patch `foo` to `bar`."
     (\case
-      [src, dest] -> movePatch src dest
+      [src, dest] -> copyPatch' src dest
       _ -> Left (I.help copyPatch)
     )
 
@@ -618,7 +624,7 @@ renamePatch :: InputPattern
 renamePatch = InputPattern "move.patch"
    ["rename.patch"]
    [(Required, patchArg), (Required, newNameArg)]
-   "`move.patch foo bar` renames the patch `bar` to `foo`."
+   "`move.patch foo bar` renames the patch `foo` to `bar`."
     (\case
       [src, dest] -> movePatch src dest
       _ -> Left (I.help renamePatch)
@@ -1212,12 +1218,12 @@ debugBranchHistory = InputPattern "debug.history" []
   [(Optional, noCompletions)]
   "Dump codebase history, compatible with bit-booster.com/graph.html"
   (const $ Right Input.DebugBranchHistoryI)
-  
+
 debugFileHashes :: InputPattern
 debugFileHashes = InputPattern "debug.file" [] []
   "View details about the most recent succesfully typechecked file."
   (const $ Right Input.DebugTypecheckedUnisonFileI)
-   
+
 test :: InputPattern
 test = InputPattern "test" [] []
     "`test` runs unit tests for the current branch."
