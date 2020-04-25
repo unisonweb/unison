@@ -1,4 +1,4 @@
-use Nat drop fromText increment isEven isOdd mod pow shiftLeft shiftRight sub toFloat toInt toText
+use Nat drop fromText increment isEven isOdd mod pow shiftLeft shiftRight sub toFloat toInt toText trailingZeros leadingZeros and or xor complement
 
 withDefault : Optional a -> a -> a
 withDefault opt d = match opt with
@@ -14,7 +14,18 @@ withDefault opt d = match opt with
   pow 10 3,
   shiftLeft 7 2,
   shiftRight 7 2,
+  trailingZeros 0,
+  leadingZeros 1,
+  leadingZeros 8,
+  trailingZeros 0,
+  trailingZeros 1,
+  trailingZeros 8,
+  7 `and` 10,
+  7 `or` 10,
+  7 `xor` 14,
+  complement 0,
   sub 3 2,
   toFloat 3,
   toInt 3,
   toText 3)
+ 

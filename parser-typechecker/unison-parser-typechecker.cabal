@@ -60,6 +60,7 @@ library
     Unison.Codebase.Editor.SlurpComponent
     Unison.Codebase.Editor.TodoOutput
     Unison.Codebase.Editor.UriParser
+    Unison.Codebase.Editor.VersionParser
     Unison.Codebase.FileCodebase
     Unison.Codebase.FileCodebase.Common
     Unison.Codebase.FileCodebase.Reserialize
@@ -236,8 +237,10 @@ executable unison
     base,
     containers,
     directory,
+    errors,
     filepath,
     fsutils,
+    megaparsec,
     safe,
     shellmet,
     template-haskell,
@@ -291,6 +294,7 @@ executable tests
     Unison.Test.UriParser
     Unison.Test.Util.Bytes
     Unison.Test.Var
+    Unison.Test.VersionParser
     Unison.Core.Test.Name
 
   build-depends:
