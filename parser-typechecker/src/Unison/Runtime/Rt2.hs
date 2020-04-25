@@ -10,8 +10,8 @@ import Data.Bits
 import qualified Data.IntSet as S
 import qualified Data.IntMap.Strict as M
 
+import Unison.Runtime.ANF (Mem(..))
 import Unison.Runtime.Stack
-
 import Unison.Runtime.MCode
 
 type Tag = Int
@@ -224,8 +224,15 @@ moveArgs !ustk !bstk (DArgR ui ul bi bl) = do
   ustk <- prepareArgs ustk (ArgR ui ul)
   bstk <- prepareArgs bstk (ArgR bi bl)
   pure (ustk, bstk)
+moveArgs !ustk !bstk (UArgN as) = do
+  ustk <- prepareArgs ustk (ArgN as)
+  pure (ustk, bstk)
 moveArgs !ustk !bstk (BArgN as) = do
   bstk <- prepareArgs bstk (ArgN as)
+  pure (ustk, bstk)
+moveArgs !ustk !bstk (DArgN us bs) = do
+  ustk <- prepareArgs ustk (ArgN us)
+  bstk <- prepareArgs bstk (ArgN bs)
   pure (ustk, bstk)
 {-# inline moveArgs #-}
 
@@ -260,9 +267,16 @@ buildData !ustk !bstk !t (DArgR ui ul bi bl) = do
   useg <- augSeg ustk unull (ArgR ui ul)
   bseg <- augSeg bstk bnull (ArgR bi bl)
   pure $ DataG t useg bseg
+buildData !ustk !_    !t (UArgN as) = do
+  useg <- augSeg ustk unull (ArgN as)
+  pure $ DataG t useg bnull
 buildData !_    !bstk !t (BArgN as) = do
   bseg <- augSeg bstk bnull (ArgN as)
   pure $ DataG t unull bseg
+buildData !ustk !bstk !t (DArgN us bs) = do
+  useg <- augSeg ustk unull (ArgN us)
+  bseg <- augSeg bstk bnull (ArgN bs)
+  pure $ DataG t useg bseg
 {-# inline buildData #-}
 
 dumpData
@@ -346,8 +360,15 @@ closeArgs !ustk !bstk !useg !bseg (DArgR ui ul bi bl) = do
   useg <- augSeg ustk useg (ArgR ui ul)
   bseg <- augSeg bstk bseg (ArgR bi bl)
   pure (useg, bseg)
+closeArgs !ustk !_    !useg !bseg (UArgN as) = do
+  useg <- augSeg ustk useg (ArgN as)
+  pure (useg, bseg)
 closeArgs !_    !bstk !useg !bseg (BArgN as) = do
   bseg <- augSeg bstk bseg (ArgN as)
+  pure (useg, bseg)
+closeArgs !ustk !bstk !useg !bseg (DArgN us bs) = do
+  useg <- augSeg ustk useg (ArgN us)
+  bseg <- augSeg bstk bseg (ArgN bs)
   pure (useg, bseg)
 
 prim1 :: Stack 'UN -> Prim1 -> Int -> IO (Stack 'UN)

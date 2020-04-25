@@ -33,11 +33,11 @@ tru = TCon Ty.booleanRef 1 []
 
 unbox :: Var v => v -> Reference -> v -> ANormal v -> ANormal v
 unbox v0 r v b
-  = TMatch v0 $ MatchData r (singleton 0 $ TAbs v b) Nothing
+  = TMatch v0 $ MatchData r (singleton 0 $ ([UN], TAbs v b)) Nothing
 
 unop0 :: Var v => Int -> ([v] -> ANormal v) -> SuperNormal v
 unop0 n f
-  = Lambda
+  = Lambda [BX]
   . TAbss [x0]
   $ f xs
   where
@@ -45,7 +45,7 @@ unop0 n f
 
 binop0 :: Var v => Int -> ([v] -> ANormal v) -> SuperNormal v
 binop0 n f
-  = Lambda
+  = Lambda [BX,BX]
   . TAbss [x0,y0]
   $ f xs
   where
@@ -55,7 +55,7 @@ unop :: Var v => POp -> Reference -> SuperNormal v
 unop pop rf
   = unop0 2 $ \[x0,x,r]
  -> unbox x0 rf x
-  . TLet r (APrm pop [x])
+  . TLet r UN (APrm pop [x])
   $ TCon rf 0 [r]
 
 binop :: Var v => POp -> Reference -> SuperNormal v
@@ -70,7 +70,7 @@ binop' pop rfx rfy rfr
   = binop0 3 $ \[x0,y0,x,y,r]
  -> unbox x0 rfx x
   . unbox y0 rfy y
-  . TLet r (APrm pop [x,y])
+  . TLet r UN (APrm pop [x,y])
   $ TCon rfr 0 [r]
 
 cmpop :: Var v => POp -> Reference -> SuperNormal v
@@ -78,7 +78,7 @@ cmpop pop rf
   = binop0 3 $ \[x0,y0,x,y,b]
  -> unbox x0 rf x
   . unbox y0 rf y
-  . TLet b (APrm pop [x,y])
+  . TLet b UN (APrm pop [x,y])
   . TMatch b
   $ MatchIntegral (fromList [(0,fls), (1,tru)]) Nothing
 
@@ -87,7 +87,7 @@ cmpopb pop rf
   = binop0 3 $ \[x0,y0,x,y,b]
  -> unbox x0 rf x
   . unbox y0 rf y
-  . TLet b (APrm pop [y,x])
+  . TLet b UN (APrm pop [y,x])
   . TMatch b
   $ MatchIntegral (fromList [(0,fls), (1,tru)]) Nothing
 
@@ -96,7 +96,7 @@ cmpopn pop rf
   = binop0 3 $ \[x0,y0,x,y,b]
  -> unbox x0 rf x
   . unbox y0 rf y
-  . TLet b (APrm pop [x,y])
+  . TLet b UN (APrm pop [x,y])
   . TMatch b
   $ MatchIntegral (fromList [(0,tru), (1,fls)]) Nothing
 
@@ -163,8 +163,8 @@ negi = unop NEGI Ty.intRef
 trni :: Var v => SuperNormal v
 trni = unop0 3 $ \[x0,x,z,b]
     -> unbox x0 Ty.intRef x
-     . TLet z (ALit $ I 0)
-     . TLet b (APrm LEQI [x, z])
+     . TLet z UN (ALit $ I 0)
+     . TLet b UN (APrm LEQI [x, z])
      . TMatch b
      $ MatchIntegral
          (singleton 1 $ TCon Ty.natRef 0 [z])
@@ -174,8 +174,8 @@ modular :: Var v => POp -> (Bool -> ANormal v) -> SuperNormal v
 modular pop ret
   = unop0 3 $ \[x0,x,m,t]
  -> unbox x0 Ty.intRef x
-  . TLet t (ALit $ I 2)
-  . TLet m (APrm pop [x,t])
+  . TLet t UN (ALit $ I 2)
+  . TLet m UN (APrm pop [x,t])
   . TMatch m
   $ MatchIntegral
       (singleton 1 $ ret True)
@@ -191,8 +191,8 @@ dropn :: Var v => SuperNormal v
 dropn = binop0 4 $ \[x0,y0,x,y,b,r]
      -> unbox x0 Ty.natRef x
       . unbox y0 Ty.natRef y
-      . TLet b (APrm LEQN [y,x])
-      . TLet r
+      . TLet b UN (APrm LEQN [y,x])
+      . TLet r UN
           (AMatch b $ MatchIntegral
              (singleton 1 $ TLit $ N 0)
              (Just $ TPrm SUBN [y,x]))
@@ -228,6 +228,7 @@ builtinLookup
 
   , ("Nat.+", addn)
   , ("Nat.-", subn)
+  , ("Nat.sub", subn)
   , ("Nat.*", muln)
   , ("Nat./", divn)
   , ("Nat.mod", modn)

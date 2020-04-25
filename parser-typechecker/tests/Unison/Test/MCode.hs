@@ -19,9 +19,7 @@ import Unison.Reference (Reference(Builtin))
 import Unison.Runtime.Pattern (splitPatterns)
 import Unison.Runtime.ANF
   ( ANFM
-  , anfTerm
   , superNormalize
-  , entry
   , lamLift
   )
 import Unison.Runtime.MCode
@@ -32,7 +30,6 @@ import Unison.Runtime.MCode
   , Args(..)
   , Comb(..)
   , Branch(..)
-  , emitSection
   , emitComb
   , emitCombs
   )
@@ -122,65 +119,43 @@ drpn = Ins (Unpack 1)
      $ pk
  where pk = Ins (Pack 0 $ UArg1 0) . Yield $ BArg1 0
 
-mkComb :: String -> Comb
-mkComb txt
-  = emitComb mempty
-  . entry
-  . superNormalize builtins
-  . splitPatterns
-  $ tm txt
+multRec :: String
+multRec
+  = "let\n\
+    \  n = 5\n\
+    \  f acc i = match i with\n\
+    \    0 -> acc\n\
+    \    _ -> f (##Nat.+ acc n) (##Nat.sub i 1)\n\
+    \  ##todo (##Nat.== (f 0 1000) 5000)"
 
-mkCombs :: Int -> String -> IMap.IntMap Comb
-mkCombs r txt = IMap.insert r main aux
+testEval :: String -> Test ()
+testEval s = testEval0 (env aux) main
   where
-  (main, aux, _)
-    = emitCombs (r+1)
+  (Lam 0 0 _ _ main, aux, _)
+    = emitCombs 0
     . superNormalize builtins
     . lamLift
     . splitPatterns
-    $ tm txt
+    $ tm s
 
-multc :: Comb
-multc
-  = mkComb "m n -> match m with\n\
-           \  0 -> 0\n\
-           \  _ -> ##Nat.+ n (##Nat.* (##Nat.sub m 1) n)"
-
-multRec :: IMap.IntMap Comb
-multRec
-  = mkCombs 20
-      "m n -> let\n\
-      \  f acc i = match i with\n\
-      \     0 -> acc\n\
-      \     _ -> f (##Nat.+ acc n) (##Nat.sub i 1)\n\
-      \  f 0 m"
-
-nested :: Comb
+nested :: String
 nested
-  = mkComb
-      "v -> match v with\n\
-      \  0 -> ##Nat.+ 0 1\n\
-      \  m@n -> n"
-
-testEval' :: [(Int, Comb)] -> String -> Test ()
-testEval' cs = testEval (IMap.fromList cs)
-
-testEval :: IMap.IntMap Comb -> String -> Test ()
-testEval cs s = testEval0 (env cs) mc
-  where
-  t = tm s
-  a = runANF builtins $ anfTerm t
-  mc = emitSection mempty [] a
+  = "let\n\
+    \  x = match 2 with\n\
+    \        0 -> ##Nat.+ 0 1\n\
+    \        m@n -> n\n\
+    \  ##todo (##Nat.== x 2)"
 
 test :: Test ()
 test = scope "mcode" . tests $
-  [ scope "2=2" $ testEval' [] "##todo (##Nat.== 2 2)"
-  , scope "2=1+1" $ testEval' [] "##todo (##Nat.== 2 (##Nat.+ 1 1))"
-  , scope "2=3-1" $ testEval' [] "##todo (##Nat.== 2 (##Nat.sub 3 1))"
+  [ scope "2=2" $ testEval "##todo (##Nat.== 2 2)"
+  , scope "2=1+1" $ testEval "##todo (##Nat.== 2 (##Nat.+ 1 1))"
+  , scope "2=3-1" $ testEval "##todo (##Nat.== 2 (##Nat.sub 3 1))"
   , scope "5*5=25"
-  $ testEval' [(20,multc)] "##todo (##Nat.== (##Nat.* 5 5) 25)"
-  , scope "5*1000=5000 acc"
-  $ testEval multRec "##todo (##Nat.== (##Nat.* 5 1000) 5000)"
+  $ testEval "##todo (##Nat.== (##Nat.* 5 5) 25)"
+  , scope "5*1000=5000"
+  $ testEval "##todo (##Nat.== (##Nat.* 5 1000) 5000)"
+  , scope "5*1000=5000 rec" $ testEval multRec
   , scope "nested"
-  $ testEval' [(20,nested)] "##todo (##Nat.== (##Nat.* 2) 2)"
+  $ testEval nested
   ]

@@ -8,7 +8,8 @@ module Unison.Runtime.MCode where
 
 import GHC.Stack (HasCallStack)
 
-import Data.List (elemIndex)
+import Data.Bifunctor (bimap)
+import Data.List (partition)
 
 import Data.Primitive.PrimArray
 
@@ -26,6 +27,7 @@ import Unison.Runtime.ANF
   , ANormalTF(..)
   , Branched(..)
   , Func(..)
+  , Mem(..)
   , SuperNormal(..)
   , SuperGroup(..)
   , pattern TVar
@@ -217,6 +219,8 @@ data Args
   | BArgR !Int !Int
   | DArgR !Int !Int !Int !Int
   | BArgN !(PrimArray Int)
+  | UArgN !(PrimArray Int)
+  | DArgN !(PrimArray Int) !(PrimArray Int)
   deriving (Show)
 
 ucount, bcount :: Args -> Int
@@ -360,11 +364,19 @@ data Branch
           !(IntMap Section)
   deriving (Show)
 
-type Ctx v = [v]
+type Ctx v = [(Maybe v,Mem)]
 type RCtx v = M.Map v Int
 
-ctxResolve :: Var v => Ctx v -> v -> Maybe Int
-ctxResolve ctx u = elemIndex u ctx
+ctxResolve :: Var v => Ctx v -> v -> Maybe (Int,Mem)
+ctxResolve ctx v = walk 0 0 ctx
+  where
+  walk _  _  [] = Nothing
+  walk ui bi ((mx,m):xs)
+    | Just x <- mx
+    , v == x = case m of BX -> Just (bi,m) ; UN -> Just (ui,m)
+    | otherwise = walk ui' bi' xs
+    where
+    (ui',bi') = case m of BX -> (ui,bi+1) ; UN -> (ui+1,bi)
 
 rctxResolve :: Var v => RCtx v -> v -> Maybe Int
 rctxResolve ctx u = M.lookup u ctx
@@ -379,24 +391,27 @@ emitCombs frsh (Rec grp ent)
   aux = zip [frsh..] $ emitComb rec <$> cmbs
 
 emitComb :: Var v => RCtx v -> SuperNormal v -> Comb
-emitComb rec (Lambda (TAbss vs bd))
-  = Lam 0 (length vs) 10 10 $ emitSection rec vs bd
+emitComb rec (Lambda ccs (TAbss vs bd))
+  = Lam 0 (length vs) 10 10 $ emitSection rec (zip (Just <$> vs) ccs) bd
 
 emitSection :: Var v => RCtx v -> Ctx v -> ANormal v -> Section
-emitSection rec ctx (TLet u bu bo)
-  = emitLet rec ctx bu $ emitSection rec (u : ctx) bo
+emitSection rec ctx (TLet u m bu bo)
+  = emitLet rec ctx bu $ emitSection rec ((Just u,m) : ctx) bo
 emitSection rec ctx (TName u (Left f) as bo)
-  = Ins (Name f $ emitArgs ctx as) $ emitSection rec (u : ctx) bo
+  = Ins (Name f $ emitArgs ctx as)
+  $ emitSection rec ((Just u,BX) : ctx) bo
 emitSection rec ctx (TName u (Right v) as bo)
   | Just f <- rctxResolve rec v
-  = Ins (Name f $ emitArgs ctx as) $ emitSection rec (u : ctx) bo
+  = Ins (Name f $ emitArgs ctx as)
+  $ emitSection rec ((Just u,BX) : ctx) bo
   | otherwise = emitSectionVErr v
 emitSection rec ctx (TVar v)
-  | Just i <- ctxResolve ctx v = Yield $ BArg1 i
+  | Just (i,BX) <- ctxResolve ctx v = Yield $ BArg1 i
+  | Just (i,UN) <- ctxResolve ctx v = Yield $ UArg1 i
   | Just j <- rctxResolve rec v = App False (Env j) ZArgs
   | otherwise = emitSectionVErr v
 emitSection rec ctx (TApv v args)
-  | Just i <- ctxResolve ctx v
+  | Just (i,BX) <- ctxResolve ctx v
   = App False (Stk i) $ emitArgs ctx args
   | Just j <- rctxResolve rec v
   = App False (Env j) $ emitArgs ctx args
@@ -420,20 +435,41 @@ emitSection _   _   (TLit l)
   . Ins (Pack 0 $ UArg1 0)
   . Yield $ BArg1 0
 -- Currently implementing boxed integer matching
-emitSection rec ctx (TMatch v cs)
-  | Just i <- ctxResolve ctx v
+emitSection rec ctx (TMatch v bs)
+  | Just (i,BX) <- ctxResolve ctx v
+  , MatchData _ cs df <- bs
   = Ins (Unpack i)
-  $ emitMatching rec ctx cs
-  | otherwise = emitSectionVErr v
+  $ emitDataMatching rec ctx cs df
+  | Just (i,BX) <- ctxResolve ctx v
+  , MatchRequest hs <- bs
+  = Ins (Unpack i)
+  $ emitRequestMatching rec ctx hs
+  | Just (i,UN) <- ctxResolve ctx v
+  , MatchIntegral cs df <- bs
+  = emitIntegralMatching rec ctx i cs df
+  | Just (_,cc) <- ctxResolve ctx v
+  = error
+  $ "emitSection: mismatched calling convention for match: "
+  ++ matchCallingError cc bs
+  | otherwise
+  = error "emitSection: could not resolve match variable"
 emitSection rec ctx (THnd rs h df b)
-  | Just i <- ctxResolve ctx h
+  | Just (i,BX) <- ctxResolve ctx h
   = Ins (Reset $ IS.fromList rs)
   $ flip (foldr (\r -> Ins (SetDyn r i))) rs
   $ maybe id (\(TAbss us d) l ->
-                  Let l $ emitSection rec (us ++ ctx) d) df
+      Let l $ emitSection rec (fmap ((,BX).Just) us ++ ctx) d) df
   $ emitSection rec ctx b
   | otherwise = emitSectionVErr h
 emitSection _ _ _ = error "emitSection: unhandled code"
+
+matchCallingError :: Mem -> Branched v -> String
+matchCallingError cc b = "(" ++ show cc ++ "," ++ brs ++ ")"
+  where
+  brs | MatchData _ _ _ <- b = "MatchData"
+      | MatchEmpty <- b = "MatchEmpty"
+      | MatchIntegral _ _ <- b = "MatchIntegral"
+      | MatchRequest _ <- b = "MatchRequest"
 
 emitSectionVErr :: (Var v, HasCallStack) => v -> a
 emitSectionVErr v
@@ -444,7 +480,6 @@ emitLet :: Var v => RCtx v -> Ctx v -> ANormalT v -> Section -> Section
 -- Currently packed literals
 emitLet _   _   (ALit l)
   = Ins (emitLit l)
-  . Ins (Pack 0 $ UArg1 0)
 emitLet _    ctx (AApp (FComb n) args)
   -- We should be able to tell if we are making a saturated call
   -- or not here. We aren't carrying the information here yet, though.
@@ -501,28 +536,51 @@ emitP2 :: Prim2 -> Args -> Instr
 emitP2 p (UArg2 i j) = Prim2 p i j
 emitP2 _ _ = error "emitP2: prim ops must be saturated"
 
-emitMatching
-  :: Var v => RCtx v -> Ctx v -> Branched (ANormal v) -> Section
-emitMatching _   _   MatchEmpty = Die "empty match"
-emitMatching rec ctx (MatchIntegral cs df)
-  = Match 1 . TestT edf $ fmap (emitCase rec ctx) cs
-  where
-  edf | Just co <- df = emitSection rec ctx co
-      | otherwise = Die "missing case"
-emitMatching rec ctx (MatchData _ cs df)
+emitEmptyMatching :: Section
+emitEmptyMatching = Die "empty match"
+
+emitDataMatching
+  :: Var v
+  => RCtx v
+  -> Ctx v
+  -> IntMap ([Mem], ANormal v)
+  -> Maybe (ANormal v)
+  -> Section
+emitDataMatching rec ctx cs df
   = Match 0 . TestT edf $ fmap (emitCase rec ctx) cs
   where
   edf | Just co <- df = emitSection rec ctx co
-      | otherwise = Die "missing case"
-emitMatching rec ctx (MatchRequest hs)
+      | otherwise = Die "missing data case"
+
+emitRequestMatching
+  :: Var v
+  => RCtx v
+  -> Ctx v
+  -> IntMap (IntMap ([Mem], ANormal v))
+  -> Section
+emitRequestMatching rec ctx hs
   = Match 0 . TestT edf $ fmap f hs
   where
   f cs = Match 1 . TestT edf $ fmap (emitCase rec ctx) cs
   edf = Die "unhandled ability"
 
-emitCase :: Var v => RCtx v -> Ctx v -> ANormal v -> Section
-emitCase rec ctx (TAbss vs bo)
-  = emitSection rec (vs ++ ctx) bo
+emitIntegralMatching
+  :: Var v
+  => RCtx v
+  -> Ctx v
+  -> Int
+  -> IntMap (ANormal v)
+  -> Maybe (ANormal v)
+  -> Section
+emitIntegralMatching rec ctx i cs df
+  = Match i . TestT edf $ fmap (emitCase rec ctx . ([],)) cs
+  where
+  edf | Just co <- df = emitSection rec ctx co
+      | otherwise = Die "missing integral case"
+
+emitCase :: Var v => RCtx v -> Ctx v -> ([Mem], ANormal v) -> Section
+emitCase rec ctx (ccs, TAbss vs bo)
+  = emitSection rec ((Nothing,UN) : zip (Just <$> vs) ccs ++ ctx) bo
 
 emitLit :: ANF.Lit -> Instr
 emitLit l = Lit i
@@ -534,10 +592,20 @@ emitLit l = Lit i
 
 emitArgs :: Var v => Ctx v -> [v] -> Args
 emitArgs ctx args
-  | Just l <- traverse (ctxResolve ctx) args = case l of
-    [] -> ZArgs
-    [i] -> BArg1 i
-    [i,j] -> BArg2 i j
-    is -> BArgN $ primArrayFromList is
+  | Just l <- traverse (ctxResolve ctx) args = demuxArgs l
   | otherwise
   = error $ "could not resolve argument variables: " ++ show args
+
+demuxArgs :: [(Int,Mem)] -> Args
+demuxArgs as0
+  = case bimap (fmap fst) (fmap fst) $ partition ((==UN).snd) as0 of
+      ([],[]) -> ZArgs
+      ([],[i]) -> BArg1 i
+      ([],[i,j]) -> BArg2 i j
+      ([i],[]) -> UArg1 i
+      ([i,j],[]) -> UArg2 i j
+      ([i],[j]) -> DArg2 i j
+      ([],bs) -> BArgN $ primArrayFromList bs
+      (us,[]) -> UArgN $ primArrayFromList us
+      -- TODO: handle ranges
+      (us,bs) -> DArgN (primArrayFromList us) (primArrayFromList bs)

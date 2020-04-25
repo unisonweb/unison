@@ -10,6 +10,7 @@ import Unison.Pattern (PatternP(..))
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.MCode (emitCombs)
+import Unison.Type as Ty
 import Unison.Var as Var
 
 import Data.IntMap (IntMap)
@@ -56,7 +57,7 @@ denormalize (TLit l) = case l of
 denormalize (THnd _  _ _ _)
   = error "denormalize handler"
   -- = Term.match () (denormalize b) $ denormalizeHandler h
-denormalize (TLet v bn bo)
+denormalize (TLet v _ bn bo)
   | typeOf v == ANFBlank = ABT.subst v dbn dbo
   | otherwise = Term.let1_ False [(v, dbn)] dbo
   where
@@ -66,6 +67,11 @@ denormalize (TName _ _ _ _)
   = error "can't denormalize by-name bindings"
 denormalize (TMatch v cs)
   = Term.match () (ABT.var v) $ denormalizeMatch cs
+denormalize (TApp f args)
+  | FCon r 0 <- f
+  , r `elem` [Ty.natRef, Ty.intRef]
+  , [v] <- args
+  = Term.var () v
 denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
   where
   df = case f of
@@ -83,9 +89,14 @@ denormalizeMatch
 denormalizeMatch b
   | MatchEmpty <- b = []
   | MatchIntegral m df <- b
-  = (dcase ipat <$> IMap.toList m) ++ dfcase df
+  = (dcase (ipat Ty.intRef) <$> IMap.toList m) ++ dfcase df
+  | MatchData r cs Nothing <- b
+  , [(0, ([UN], zb))] <- IMap.toList cs
+  , TAbs i (TMatch j (MatchIntegral m df))  <- zb
+  , i == j
+  = (dcase (ipat r) <$> IMap.toList m) ++ dfcase df
   | MatchData r m df <- b
-  = (dcase (dpat r) <$> IMap.toList m) ++ dfcase df
+  = (dcase (dpat r) . fmap snd <$> IMap.toList m) ++ dfcase df
   | MatchRequest hs <- b = denormalizeHandler hs
   where
   dfcase (Just d)
@@ -95,7 +106,9 @@ denormalizeMatch b
   dcase p (t, br) = Term.MatchCase (p n t) Nothing dbr
    where (n, dbr) = denormalizeBranch br
 
-  ipat _ i = IntP () $ fromIntegral i
+  ipat r _ i
+    | r == Ty.natRef = NatP () $ fromIntegral i
+    | otherwise = IntP () $ fromIntegral i
   dpat r n t = ConstructorP () r t (replicate n $ VarP ())
 
 denormalizeBranch (TAbs v br) = (n+1, ABT.abs v dbr)
@@ -104,7 +117,7 @@ denormalizeBranch tm = (0, denormalize tm)
 
 denormalizeHandler
   :: Var v
-  => IntMap (IntMap (ANormal v))
+  => IntMap (IntMap ([Mem], ANormal v))
   -> [Term.MatchCase () (Term.Term0 v)]
 denormalizeHandler cs = dcs
   where
@@ -115,7 +128,7 @@ denormalizeHandler cs = dcs
                  Nothing
                  db
              ]
-   where (n, db) = denormalizeBranch b
+   where (n, db) = denormalizeBranch (snd b)
 
 backReference :: Int -> Reference
 backReference = error "backReference"

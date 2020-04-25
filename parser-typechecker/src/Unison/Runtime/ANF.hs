@@ -29,6 +29,7 @@ module Unison.Runtime.ANF
   , pattern TBinds
   , pattern TBinds'
   , pattern TMatch
+  , Mem(..)
   , Lit(..)
   , SuperNormal(..)
   , SuperGroup(..)
@@ -67,6 +68,7 @@ import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.ABT.Normalized as ABTN
 import qualified Unison.Term as Term
+import qualified Unison.Type as Ty
 import qualified Unison.Var as Var
 import Unison.Typechecker.Components (minimize')
 import Unison.Pattern (PatternP(..))
@@ -335,19 +337,22 @@ fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
   go e@(Ann' tm typ) = Term.ann (ann e) (go tm) typ
   go e = error $ "ANF.term: I thought we got all of these\n" <> show e
 
+data Mem = UN | BX deriving (Eq,Ord,Show,Enum)
+
 -- Context entries with evaluation strategy
 data CTE v s
-  = ST v s
+  = ST v Mem s
   | LZ v (Either Int v) [v]
 
 cbvar :: CTE v s -> v
-cbvar (ST v _) = v
+cbvar (ST v _ _) = v
 cbvar (LZ v _ _) = v
 
 data ANormalBF v e
-  = ALet (ANormalTF v e) e
+  = ALet Mem (ANormalTF v e) e
   | AName (Either Int v) [v] e
   | ATm (ANormalTF v e)
+  deriving (Show)
 
 data ANormalTF v e
   = ALit Lit
@@ -356,19 +361,20 @@ data ANormalTF v e
   | AApp (Func v) [v]
   | AFrc v
   | AVar v
+  deriving (Show)
 
 instance Functor (ANormalBF v) where
-  fmap f (ALet bn bo) = ALet (f <$> bn) $ f bo
+  fmap f (ALet m bn bo) = ALet m (f <$> bn) $ f bo
   fmap f (AName n as bo) = AName n as $ f bo
   fmap f (ATm tm) = ATm $ f <$> tm
 
 instance Bifunctor ANormalBF where
-  bimap f g (ALet bn bo) = ALet (bimap f g bn) $ g bo
+  bimap f g (ALet m bn bo) = ALet m (bimap f g bn) $ g bo
   bimap f g (AName n as bo) = AName (f <$> n) (f <$> as) $ g bo
   bimap f g (ATm tm) = ATm (bimap f g tm)
 
 instance Bifoldable ANormalBF where
-  bifoldMap f g (ALet b e) = bifoldMap f g b <> g e
+  bifoldMap f g (ALet _ b e) = bifoldMap f g b <> g e
   bifoldMap f g (AName n as e) = foldMap f n <> foldMap f as <> g e
   bifoldMap f g (ATm e) = bifoldMap f g e
 
@@ -406,7 +412,7 @@ matchLit (Char' c) = Just $ C c
 matchLit _ = Nothing
 
 pattern Lit' l <- (matchLit -> Just l)
-pattern TLet v bn bo = ABTN.TTm (ALet bn (ABTN.TAbs v bo))
+pattern TLet v m bn bo = ABTN.TTm (ALet m bn (ABTN.TAbs v bo))
 pattern TName v f as bo = ABTN.TTm (AName f as (ABTN.TAbs v bo))
 pattern TTm e = ABTN.TTm (ATm e)
 {-# complete TLet, TName, TTm #-}
@@ -441,21 +447,21 @@ freeVarsT :: Var v => ANormalT v -> Set.Set v
 freeVarsT = bifoldMap Set.singleton ABTN.freeVars
 
 bind :: Var v => Cte v -> ANormal v -> ANormal v
-bind (ST u bu) = TLet u bu
+bind (ST u m bu) = TLet u m bu
 bind (LZ u f as) = TName u f as
 
 unbind :: Var v => ANormal v -> Maybe (Cte v, ANormal v)
-unbind (TLet  u bu bd) = Just (ST u bu, bd)
+unbind (TLet u m bu bd) = Just (ST u m bu, bd)
 unbind (TName u f as bd) = Just (LZ u f as, bd)
 unbind _ = Nothing
 
 unbinds :: Var v => ANormal v -> (Ctx v, ANormal v)
-unbinds (TLet  u bu (unbinds -> (ctx, bd))) = (ST u bu:ctx, bd)
+unbinds (TLet u m bu (unbinds -> (ctx, bd))) = (ST u m bu:ctx, bd)
 unbinds (TName u f as (unbinds -> (ctx, bd))) = (LZ u f as:ctx, bd)
 unbinds tm = ([], tm)
 
 unbinds' :: Var v => ANormal v -> (Ctx v, ANormalT v)
-unbinds' (TLet  u bu (unbinds' -> (ctx, bd))) = (ST u bu:ctx, bd)
+unbinds' (TLet u m bu (unbinds' -> (ctx, bd))) = (ST u m bu:ctx, bd)
 unbinds' (TName u f as (unbinds' -> (ctx, bd))) = (LZ u f as:ctx, bd)
 unbinds' (TTm tm) = ([], tm)
 
@@ -473,50 +479,32 @@ pattern TBinds' ctx bd <- (unbinds' -> (ctx, bd))
 {-# complete TBinds' #-}
 
 data Branched e
-  = MatchIntegral { cases :: IntMap e, dflt :: Maybe e }
-  | MatchData { ref :: Reference, cases :: IntMap e, dflt :: Maybe e }
-  | MatchRequest { handlers :: IntMap (IntMap e) }
+  = MatchIntegral (IntMap e) (Maybe e)
+  | MatchRequest (IntMap (IntMap ([Mem], e)))
   | MatchEmpty
-  deriving (Functor, Foldable, Traversable)
+  | MatchData Reference (IntMap ([Mem], e)) (Maybe e)
+  deriving (Show, Functor, Foldable, Traversable)
 
 data BranchAccum v
-  = AccumIntegral (Maybe (ANormal v)) (IntMap (ANormal v))
-  | AccumData Reference (Maybe (ANormal v)) (IntMap (ANormal v))
+  = AccumEmpty
+  | AccumIntegral Reference (Maybe (ANormal v)) (IntMap (ANormal v))
   | AccumDefault (ANormal v)
-  | AccumRequest (IntMap (IntMap (ANormal v))) (Maybe (ANormal v))
-  | AccumEmpty
-
-accumData :: BranchAccum v -> Maybe (ABranched v)
-accumData (AccumIntegral df cs) = Just (MatchIntegral cs df)
-accumData (AccumData r df cs) = Just (MatchData r cs df)
-accumData AccumEmpty = Just MatchEmpty
-accumData _ = Nothing
-
-mkAccum :: ABranched v -> BranchAccum v
-mkAccum MatchEmpty = AccumEmpty
-mkAccum (MatchIntegral cs df) = AccumIntegral df cs
-mkAccum (MatchData r cs df) = AccumData r df cs
-mkAccum (MatchRequest hs) = AccumRequest hs Nothing
-
-pattern AccumD :: ABranched v -> BranchAccum v
-pattern AccumD d <- (accumData -> Just d)
-  where AccumD d = mkAccum d
-
-{-# complete AccumD, AccumDefault, AccumRequest #-}
+  | AccumRequest (IntMap (IntMap ([Mem],ANormal v))) (Maybe (ANormal v))
+  | AccumData Reference (Maybe (ANormal v)) (IntMap ([Mem],ANormal v))
 
 instance Semigroup (BranchAccum v) where
   AccumEmpty <> r = r
   l <> AccumEmpty = l
-  AccumIntegral dl cl <> AccumIntegral dr cr
-    = AccumIntegral (dl <|> dr) $ cl <> cr
+  AccumIntegral rl dl cl <> AccumIntegral rr dr cr
+    | rl == rr = AccumIntegral rl (dl <|> dr) $ cl <> cr
   AccumData rl dl cl <> AccumData rr dr cr
     | rl == rr = AccumData rl (dl <|> dr) (cl <> cr)
-  AccumDefault dl <> AccumIntegral _ cr
-    = AccumIntegral (Just dl) cr
+  AccumDefault dl <> AccumIntegral r _ cr
+    = AccumIntegral r (Just dl) cr
   AccumDefault dl <> AccumData rr _ cr
     = AccumData rr (Just dl) cr
-  AccumIntegral dl cl <> AccumDefault dr
-    = AccumIntegral (dl <|> Just dr) cl
+  AccumIntegral r dl cl <> AccumDefault dr
+    = AccumIntegral r (dl <|> Just dr) cl
   AccumData rl dl cl <> AccumDefault dr
     = AccumData rl (dl <|> Just dr) cl
   AccumRequest hl dl <> AccumRequest hr dr
@@ -539,7 +527,7 @@ data Func v
   | FReq !Int !Int
   -- prim op
   | FPrim POp
-  deriving (Functor, Foldable, Traversable)
+  deriving (Show, Functor, Foldable, Traversable)
 
 data Lit
   = I Int64
@@ -548,6 +536,15 @@ data Lit
   | B Bool
   | T Text
   | C Char
+  deriving (Show)
+
+litRef :: Lit -> Reference
+litRef (I _) = Ty.intRef
+litRef (N _) = Ty.natRef
+litRef (F _) = Ty.floatRef
+litRef (B _) = Ty.booleanRef
+litRef (T _) = Ty.textRef
+litRef (C _) = Ty.charRef
 
 data POp
   -- Int
@@ -570,13 +567,12 @@ data POp
 type ANormal = ABTN.Term ANormalBF
 type ANormalT v = ANormalTF v (ANormal v)
 
-type ABranched v = Branched (ANormal v)
-
 type Cte v = CTE v (ANormalT v)
 type Ctx v = [Cte v]
 
 -- Should be a completely closed term
-data SuperNormal v = Lambda { bound :: ANormal v }
+data SuperNormal v
+  = Lambda { conventions :: [Mem], bound :: ANormal v }
 data SuperGroup v
   = Rec
   { group :: [(v, SuperNormal v)]
@@ -620,7 +616,7 @@ contextualize (AVar cv) = pure ([], cv)
 contextualize tm = do
   fv <- reset $ avoids (freeVarsT tm) *> fresh
   avoid [fv]
-  pure ([ST fv tm], fv)
+  pure ([ST fv BX tm], fv)
 
 record :: (v, SuperNormal v) -> ANFM v ()
 record p = modify $ \(av, to) -> (av, p:to)
@@ -651,7 +647,7 @@ toSuperNormal tm = do
     then error $ "free variables in supercombinator: " ++ show tm
     else reset $ do
       avoid vs
-      Lambda . ABTN.TAbss vs <$> anfTerm body
+      Lambda (BX <$ vs) . ABTN.TAbss vs <$> anfTerm body
   where
   (vs, body) = fromMaybe ([], tm) $ unLams' tm
 
@@ -667,7 +663,7 @@ anfBlock (If' c t f) = do
   (cx, v) <- contextualize cc
   let cases = MatchData
                 (Builtin $ Text.pack "Boolean")
-                (IMap.singleton 0 cf)
+                (IMap.singleton 0 ([], cf))
                 (Just ct)
   pure (cctx ++ cx, AMatch v cases)
 anfBlock (And' l r) = do
@@ -704,21 +700,30 @@ anfBlock (Match' scrut cas) = do
         v <- fresh
         let hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr
             hfvs = Set.toList $ ABTN.freeVars hfb
-        record (r, Lambda . ABTN.TAbss hfvs $ hfb)
+        record (r, Lambda (BX <$ hfvs) . ABTN.TAbss hfvs $ hfb)
         pure (r, hfvs)
       hv <- fresh
-      let msc | [ST _ tm] <- cx = tm
+      let msc | [ST _ BX tm] <- cx = tm
+              | [ST _ UN _] <- cx = error "anfBlock: impossible"
               | otherwise = AFrc v
       pure ( sctx ++ [LZ hv (Right r) vs]
            , AHnd (IMap.keys abr) hv df . TTm $ msc
            )
-    AccumD cs -> do
-      pure (sctx ++ cx, AMatch v cs)
+    AccumIntegral r df cs -> do
+      i <- fresh
+      let dcs = MatchData r
+                  (IMap.singleton 0 ([UN], ABTN.TAbss [i] ics))
+                  Nothing
+          ics = TMatch i $ MatchIntegral cs df
+      pure (sctx ++ cx, AMatch v dcs)
+    AccumData r df cs ->
+      pure (sctx ++ cx, AMatch v $ MatchData r cs df)
+    AccumEmpty -> pure (sctx ++ cx, AMatch v MatchEmpty)
 anfBlock (Let1Named' v b e) = do
   avoid [v]
   (bctx, cb) <- anfBlock b
   (ectx, ce) <- anfBlock e
-  pure (bctx ++ ST v cb : ectx, ce)
+  pure (bctx ++ ST v BX cb : ectx, ce)
 anfBlock (Apps' f args) = do
   (fctx, cf) <- anfFunc f
   (actxs, cas) <- unzip <$> traverse anfArg args
@@ -728,7 +733,9 @@ anfBlock (Constructor' r t) = do
 anfBlock (Request' r t) = do
   r <- resolve r
   pure ([], AReq r t [])
-anfBlock (Lit' l) = pure ([], ALit l)
+anfBlock (Lit' l) = do
+  lv <- fresh
+  pure ([ST lv UN $ ALit l], ACon (litRef l) 0 [lv])
 anfBlock (Blank' _) = error "tried to compile Blank"
 anfBlock t = error $ "anf: unhandled term: " ++ show t
 
@@ -752,12 +759,16 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   | VarP _ <- p
   = error $ "vars: " ++ show (length vs)
   | IntP _ (fromIntegral -> i) <- p
-  = AccumIntegral Nothing . IMap.singleton i <$> anfTerm bd
+  = AccumIntegral Ty.intRef Nothing . IMap.singleton i <$> anfTerm bd
   | NatP _ (fromIntegral -> i) <- p
-  = AccumIntegral Nothing . IMap.singleton i <$> anfTerm bd
+  = AccumIntegral Ty.natRef Nothing . IMap.singleton i <$> anfTerm bd
   | ConstructorP _ r t ps <- p = do
     us <- expandBindings ps vs
-    AccumData r Nothing . IMap.singleton t . ABTN.TAbss us <$> anfTerm bd
+    AccumData r Nothing
+      . IMap.singleton t
+      . (BX<$us,)
+      . ABTN.TAbss us
+      <$> anfTerm bd
   | EffectPureP _ q <- p = do
     us <- expandBindings [q] vs
     AccumRequest IMap.empty . Just . ABTN.TAbss us <$> anfTerm bd
@@ -767,6 +778,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
     flip AccumRequest Nothing
        . IMap.singleton n
        . IMap.singleton t
+       . (BX<$us,)
        . ABTN.TAbss us
       <$> anfTerm bd
 anfInitCase _ (MatchCase p _ _)
@@ -822,23 +834,23 @@ anfArg tm = do
   (cx, v) <- contextualize ctm
   pure (ctx ++ cx, v)
 
-sink :: Var v => v -> ANormalT v -> ANormal v -> ANormal v
-sink v tm = dive $ freeVarsT tm
+sink :: Var v => v -> Mem -> ANormalT v -> ANormal v -> ANormal v
+sink v mtm tm = dive $ freeVarsT tm
   where
   dive _ exp | v `Set.notMember` ABTN.freeVars exp = exp
   dive avoid exp@(TName u f as bo)
     | v `elem` as
     = let w = freshANF avoid (ABTN.freeVars exp)
-       in TLet w tm $ ABTN.rename v w exp
+       in TLet w mtm tm $ ABTN.rename v w exp
     | otherwise
     = TName u f as (dive avoid' bo)
     where avoid' = Set.insert u avoid
-  dive avoid exp@(TLet u bn bo)
+  dive avoid exp@(TLet u m bn bo)
     | v `Set.member` directVars bn -- we need to stop here
     = let w = freshANF avoid (ABTN.freeVars exp)
-       in TLet w tm $ ABTN.rename v w exp
+       in TLet w mtm tm $ ABTN.rename v w exp
     | otherwise
-    = TLet u bn' $ dive avoid' bo
+    = TLet u m bn' $ dive avoid' bo
     where
     avoid' = Set.insert u avoid
     bn' | v `Set.notMember` freeVarsT bn = bn
@@ -846,7 +858,7 @@ sink v tm = dive $ freeVarsT tm
   dive avoid exp@(TTm tm)
     | v `Set.member` directVars tm -- same as above
     = let w = freshANF avoid (ABTN.freeVars exp)
-       in TLet w tm $ ABTN.rename v w exp
+       in TLet w mtm tm $ ABTN.rename v w exp
     | otherwise = TTm $ dive avoid <$> tm
 
 freshANF :: Var v => Set v -> Set v -> v

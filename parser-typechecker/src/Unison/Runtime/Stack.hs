@@ -17,9 +17,8 @@ import Data.IntMap.Strict (IntMap)
 
 import Data.Word
 
+import Unison.Runtime.ANF (Mem(..))
 import Unison.Runtime.MCode
-
-data Mem = UN | BX
 
 -- Evaluation stack
 data K
