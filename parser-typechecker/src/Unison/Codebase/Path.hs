@@ -328,6 +328,11 @@ instance Show Path where
 toText :: Path -> Text
 toText (Path nss) = intercalateMap "." NameSegment.toText nss
 
+fromText :: Text -> Path
+fromText = \case
+  "" -> empty
+  t -> fromList $ NameSegment <$> Text.splitOn "." t
+
 toText' :: Path' -> Text
 toText' = \case
   Path' (Left (Absolute path)) -> Text.cons '.' (toText path)

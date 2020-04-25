@@ -13,6 +13,7 @@ import Control.Concurrent.STM (atomically)
 import Control.Exception (finally, catch, AsyncException(UserInterrupt), asyncExceptionFromException)
 import Control.Monad.State (runStateT)
 import Data.IORef
+import Data.Tuple.Extra (uncurry3)
 import Prelude hiding (readFile, writeFile)
 import System.IO.Error (catchIOError, isDoesNotExistError)
 import System.Exit (die)
@@ -22,6 +23,7 @@ import Unison.Codebase.Editor.Input (Input (..), Event)
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import Unison.Codebase.Editor.Command (LoadSourceResult(..))
+import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, printNamespace)
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Codebase (Codebase)
 import Unison.CommandLine
@@ -144,27 +146,31 @@ welcomeMessage dir =
          , P.wrap ("Type " <> P.hiBlue "help" <> " to get help. 😎")
          ]
 
-hintFreshCodebase :: P.Pretty P.ColorText
-hintFreshCodebase =
-  P.wrap $ "Enter " <> P.hiBlue "pull https://github.com/unisonweb/base .base"
+hintFreshCodebase :: RemoteNamespace -> P.Pretty P.ColorText
+hintFreshCodebase ns =
+  P.wrap $ "Enter "
+    <> (P.hiBlue . P.group)
+        ("pull " <>  P.text (uncurry3 printNamespace ns) <> " .base")
     <> "to set up the default base library. 🏗"
 
 main
   :: forall v
   . Var v
   => FilePath
+  -> Maybe RemoteNamespace
   -> Path.Absolute
   -> FilePath
   -> [Either Event Input]
   -> IO (Runtime v)
   -> Codebase IO v Ann
   -> IO ()
-main dir initialPath configFile initialInputs startRuntime codebase = do
+main dir defaultBaseLib initialPath configFile initialInputs startRuntime codebase = do
   dir' <- shortenDirectory dir
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
-  putPrettyLn $ if Branch.isOne root
-    then welcomeMessage dir' <> P.newline <> P.newline <> hintFreshCodebase
-    else welcomeMessage dir'
+  putPrettyLn $ case defaultBaseLib of
+      Just ns | Branch.isOne root ->
+        welcomeMessage dir' <> P.newline <> P.newline <> hintFreshCodebase ns
+      _ -> welcomeMessage dir'
   eventQueue <- Q.newIO
   do
     runtime                  <- startRuntime

@@ -6,12 +6,15 @@ module Main where
 
 import Unison.Prelude
 import           Control.Concurrent             ( mkWeakThreadId, myThreadId )
+import           Control.Error.Safe             (rightMay)
 import           Control.Exception              ( throwTo, AsyncException(UserInterrupt) )
 import           System.Directory               ( getCurrentDirectory, removeDirectoryRecursive )
 import           System.Environment             ( getArgs )
 import           System.Mem.Weak                ( deRefWeak )
+import qualified Unison.Codebase.Editor.VersionParser as VP
 import           Unison.Codebase.Execute        ( execute )
 import qualified Unison.Codebase.FileCodebase  as FileCodebase
+import           Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 import qualified Unison.CommandLine.Main       as CommandLine
 import qualified Unison.Runtime.Rt1IO          as Rt1
 import qualified Unison.Codebase.Path          as Path
@@ -26,6 +29,7 @@ import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Util.Pretty as P
 import qualified Unison.PrettyTerminal as PT
 import qualified Data.Text as Text
+import Text.Megaparsec (runParser)
 
 usage :: P.Pretty P.ColorText
 usage = P.callout "🌻" $ P.lines [
@@ -226,7 +230,7 @@ initialPath = Path.absoluteEmpty
 
 launch :: FilePath -> FilePath -> _ -> [Either Input.Event Input.Input] -> IO ()
 launch dir configFile code inputs =
-  CommandLine.main dir initialPath configFile inputs (pure Rt1.runtime) code
+  CommandLine.main dir defaultBaseLib initialPath configFile inputs (pure Rt1.runtime) code
 
 isMarkdown :: String -> Bool
 isMarkdown md = case FP.takeExtension md of
@@ -244,3 +248,7 @@ isFlag f arg = arg == f || arg == "-" ++ f || arg == "--" ++ f
 
 getConfigFilePath :: Maybe FilePath -> IO FilePath
 getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> FileCodebase.getCodebaseDir mcodepath
+
+defaultBaseLib :: Maybe RemoteNamespace
+defaultBaseLib = rightMay $
+  runParser VP.defaultBaseLib "version" (Text.pack Version.gitDescribe)
