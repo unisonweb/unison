@@ -238,7 +238,7 @@ builtinsSrc =
   , B "Int.and" $ int --> int --> int
   , B "Int.or" $ int --> int --> int
   , B "Int.xor" $ int --> int --> int
-  , B "Int.complement" $ int --> int --> int
+  , B "Int.complement" $ int --> int
   , B "Int.increment" $ int --> int
   , B "Int.isEven" $ int --> boolean
   , B "Int.isOdd" $ int --> boolean
@@ -267,7 +267,7 @@ builtinsSrc =
   , B "Nat.and" $ nat --> nat --> nat
   , B "Nat.or" $ nat --> nat --> nat
   , B "Nat.xor" $ nat --> nat --> nat
-  , B "Nat.complement" $ nat --> nat --> nat
+  , B "Nat.complement" $ nat --> nat
   , B "Nat.drop" $ nat --> nat --> nat
   , B "Nat.fromText" $ text --> optional nat
   , B "Nat.increment" $ nat --> nat
