@@ -2,3 +2,8 @@
 	path = yaks/haskeline
 	url = https://github.com/aryairani/haskeline.git
 	branch = topic/align-ansi-completions
+[submodule "yaks/configurator"]
+	path = yaks/configurator
+	url = https://github.com/unisonweb/configurator.git
+	branch = master
+	ignore = untracked
