@@ -84,7 +84,7 @@ Let's try it!
   64.  Int.- : Int -> Int -> Int
   65.  Int./ : Int -> Int -> Int
   66.  Int.and : Int -> Int -> Int
-  67.  Int.complement : Int -> Int -> Int
+  67.  Int.complement : Int -> Int
   68.  Int.eq : Int -> Int -> Boolean
   69.  Int.fromText : Text -> Optional Int
   70.  Int.gt : Int -> Int -> Boolean
@@ -128,7 +128,7 @@ Let's try it!
   108. Nat.+ : Nat -> Nat -> Nat
   109. Nat./ : Nat -> Nat -> Nat
   110. Nat.and : Nat -> Nat -> Nat
-  111. Nat.complement : Nat -> Nat -> Nat
+  111. Nat.complement : Nat -> Nat
   112. Nat.drop : Nat -> Nat -> Nat
   113. Nat.eq : Nat -> Nat -> Boolean
   114. Nat.fromText : Text -> Optional Nat
