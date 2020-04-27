@@ -6,3 +6,4 @@
 	path = yaks/configurator
 	url = https://github.com/unisonweb/configurator.git
 	branch = master
+	ignore = untracked
