@@ -317,10 +317,7 @@ data MEnv v loc = MEnv {
   env :: Env v loc,                    -- The typechecking state
   abilities :: [Type v loc],           -- Allowed ambient abilities
   dataDecls :: DataDeclarations v loc, -- Data declarations in scope
-  effectDecls :: EffectDeclarations v loc, -- Effect declarations in scope
-  -- Types for which ability check should be skipped.
-  -- See abilityCheck function for how this is used.
-  skipAbilityCheck :: [Type v loc]
+  effectDecls :: EffectDeclarations v loc -- Effect declarations in scope
 }
 
 newtype Context v loc = Context [(Element v loc, Info v loc)]
@@ -623,13 +620,6 @@ getEffectDeclarations = fromMEnv effectDecls
 
 getAbilities :: M v loc [Type v loc]
 getAbilities = fromMEnv abilities
-
-shouldPerformAbilityCheck :: (Ord loc, Var v) => Type v loc -> M v loc Bool
-shouldPerformAbilityCheck t = do
-  skip <- fromMEnv skipAbilityCheck
-  skip <- traverse applyM skip
-  t <- applyM t
-  pure $ all (/= t) skip
 
 compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = liftResult $ compilerBug bug
@@ -1630,10 +1620,9 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
 abilityCheck :: (Var v, Ord loc) => [Type v loc] -> M v loc ()
 abilityCheck requested = do
   ambient <- getAbilities
-  requested' <- filterM shouldPerformAbilityCheck requested
   ctx <- getContext
   abilityCheck' (apply ctx <$> ambient >>= Type.flattenEffects)
-                (apply ctx <$> requested' >>= Type.flattenEffects)
+                (apply ctx <$> requested >>= Type.flattenEffects)
 
 verifyDataDeclarations :: (Var v, Ord loc) => DataDeclarations v loc -> Result v loc ()
 verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
@@ -1697,7 +1686,7 @@ run
 run ambient datas effects m =
   fmap fst
     . runM m
-    $ MEnv (Env 1 context0) ambient datas effects []
+    $ MEnv (Env 1 context0) ambient datas effects
 
 synthesizeClosed' :: (Var v, Ord loc)
                   => [Type v loc]
