@@ -1605,9 +1605,9 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
               -- introduce fresh existential 'e2 to context
               e2' <- extendExistential e'
               let et2 = Type.effects (loc r) [r, existentialp (loc r) e2']
-              instantiateR et2 b e' `orElse` die r
+              instantiateR et2 b e' `orElse` die ambient r
               go ambient rs
-            _ -> die r
+            _ -> die ambient r
 
   headMatch :: Type v loc -> Type v loc -> Bool
   headMatch (Type.App' f _) (Type.App' f2 _) = headMatch f f2
@@ -1616,10 +1616,9 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
   -- as a last ditch effort, if the request is an existential and there are
   -- no remaining unbound existentials left in ambient, we try to instantiate
   -- the request to the ambient effect list
-  die r = case r of
+  die ambient r = case r of
     Type.Var' (TypeVar.Existential b v) ->
-      -- todo: I kind of think this should be ambient, not ambient0
-      instantiateL b v (Type.effects (loc r) ambient0) `orElse` die1
+      instantiateL b v (Type.effects (loc r) ambient) `orElse` die1
       -- instantiateL b v (Type.effects (loc r) []) `orElse` die1
     _ -> die1 -- and if that doesn't work, then we're really toast
 
