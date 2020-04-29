@@ -1589,10 +1589,13 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
             `orElse` die1
           go ambient rs
         -- This branch deals with collecting up a list of used abilities
-        -- during inference, for instance: `x -> Stream.emit 42`, we have 
-        -- an ambient existential `e` ability that was created for the lambda.
-        -- This finds the first unsolved ambient ability, `e`, and solves that
-        -- to `{r, e'}` where `e'` is another fresh existential ability.
+        -- during inference. Example: when inferring `x -> Stream.emit 42`, 
+        -- an ambient existential `e` ability is created for the lambda.
+        -- In the body of the lambda, requests are made for various abilities
+        -- and this branch finds the first unsolved ambient ability, `e`, 
+        -- and solves that to `{r, e'}` where `e'` is another fresh existential.
+        -- In this way, a lambda whose body uses multiple effects can be inferred
+        -- properly.
         _ -> -- find unsolved existential, 'e, that appears in ambient
           let unsolveds = (ambient >>= Type.flattenEffects >>= vars)
               vars (Type.Var' (TypeVar.Existential b v)) = [(b,v)]
