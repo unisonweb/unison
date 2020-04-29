@@ -1,9 +1,12 @@
+{-# language RankNTypes #-}
+{-# language ViewPatterns #-}
 {-# language OverloadedStrings #-}
 
 module Unison.Runtime.Builtin
   ( builtinLookup
   , builtinNumbering
   , numberedLookup
+  , handle'io
   ) where
 
 import Unison.ABT.Normalized
@@ -11,16 +14,21 @@ import Unison.Reference
 import Unison.Runtime.ANF
 import Unison.Var
 import Unison.Symbol
+import Unison.Runtime.IOSource
 
 import qualified Unison.Type as Ty
 
-import Data.Set (insert)
+import Data.Set (Set, insert)
+import qualified Data.Set as Set
 
 import Data.IntMap.Strict (singleton, fromList)
 import qualified Data.Map as Map
 
 freshes :: Var v => Int -> [v]
-freshes = go mempty []
+freshes = freshes' mempty
+
+freshes' :: Var v => Set v -> Int -> [v]
+freshes' avoid0 = go avoid0 []
   where
   go _     vs 0 = vs
   go avoid vs n
@@ -31,9 +39,21 @@ fls, tru :: Var v => ANormal v
 fls = TCon Ty.booleanRef 0 []
 tru = TCon Ty.booleanRef 1 []
 
+boolift :: Var v => v -> ANormal v
+boolift v
+  = TMatch v $ MatchIntegral (fromList [(0,fls), (1,tru)]) Nothing
+
+notlift :: Var v => v -> ANormal v
+notlift v
+  = TMatch v $ MatchIntegral (fromList [(1,fls), (0,tru)]) Nothing
+
 unbox :: Var v => v -> Reference -> v -> ANormal v -> ANormal v
 unbox v0 r v b
   = TMatch v0 $ MatchData r (singleton 0 $ ([UN], TAbs v b)) Nothing
+
+unwrap :: Var v => v -> Reference -> v -> ANormal v -> ANormal v
+unwrap v0 r v b
+  = TMatch v0 $ MatchData r (singleton 0 $ ([BX], TAbs v b)) Nothing
 
 unop0 :: Var v => Int -> ([v] -> ANormal v) -> SuperNormal v
 unop0 n f
@@ -79,8 +99,7 @@ cmpop pop rf
  -> unbox x0 rf x
   . unbox y0 rf y
   . TLet b UN (APrm pop [x,y])
-  . TMatch b
-  $ MatchIntegral (fromList [(0,fls), (1,tru)]) Nothing
+  $ boolift b
 
 cmpopb :: Var v => POp -> Reference -> SuperNormal v
 cmpopb pop rf
@@ -88,8 +107,7 @@ cmpopb pop rf
  -> unbox x0 rf x
   . unbox y0 rf y
   . TLet b UN (APrm pop [y,x])
-  . TMatch b
-  $ MatchIntegral (fromList [(0,fls), (1,tru)]) Nothing
+  $ boolift b
 
 cmpopn :: Var v => POp -> Reference -> SuperNormal v
 cmpopn pop rf
@@ -97,8 +115,7 @@ cmpopn pop rf
  -> unbox x0 rf x
   . unbox y0 rf y
   . TLet b UN (APrm pop [x,y])
-  . TMatch b
-  $ MatchIntegral (fromList [(0,tru), (1,fls)]) Nothing
+  $ notlift b
 
 -- data POp
 --   -- Int
@@ -197,6 +214,103 @@ dropn = binop0 4 $ \[x0,y0,x,y,b,r]
              (singleton 1 $ TLit $ N 0)
              (Just $ TPrm SUBN [y,x]))
       $ TCon Ty.natRef 0 [r]
+
+handle'io :: Var v => SuperNormal v
+handle'io
+  = unop0 0 $ \[rq]
+ -> TMatch rq
+  . MatchRequest
+  . singleton 0 $ cases rq
+  where
+  cases (Set.singleton -> avoid0)
+    = fmap ($ avoid0)
+    . fromList
+    $ [ (0, open'file)
+      , (1, close'file)
+      , (2, is'file'eof)
+      , (3, is'file'open)
+      ]
+
+type IOOP = forall v. Var v => Set v -> ([Mem], ANormal v)
+
+open'file :: IOOP
+open'file avoid
+  = ([BX,BX],)
+  . TAbss [fp0,m0]
+  . unwrap fp0 filePathReference fp
+  $ TPrm OPEN [fp,m0]
+  where
+  [fp0,m0,fp] = freshes' avoid 3
+
+close'file :: IOOP
+close'file avoid
+  = ([BX],)
+  . TAbss [h0]
+  . unwrap h0 handleReference h
+  $ TPrm CLOS [h]
+  where
+  [h0,h] = freshes' avoid 2
+
+is'file'eof :: IOOP
+is'file'eof avoid
+  = ([BX],)
+  . TAbss [h0]
+  . unwrap h0 handleReference h
+  . TLet b UN (APrm EOFP [h])
+  $ boolift b
+  where
+  [h0,h,b] = freshes' avoid 3
+
+is'file'open :: IOOP
+is'file'open avoid
+  = ([BX],)
+  . TAbss [h0]
+  . unwrap h0 handleReference h
+  . TLet b UN (APrm OPNP [h])
+  $ boolift b
+  where
+  [h0,h,b] = freshes' avoid 3
+
+
+-- ability io.IO where
+--   openFile_ : io.FilePath -> io.Mode -> (Either io.Error io.Handle)
+--   closeFile_ : io.Handle -> (Either io.Error ())
+--   isFileEOF_ : io.Handle -> (Either io.Error Boolean)
+--   isFileOpen_ : io.Handle -> (Either io.Error Boolean)
+--   getLine_ : io.Handle -> (Either io.Error Text)
+--   getText_ : io.Handle -> (Either io.Error Text)
+--   putText_ : io.Handle -> Text -> (Either io.Error ())
+--   throw : io.Error -> a
+--   isSeekable_ : io.Handle -> (Either io.Error Boolean)
+--   seek_ : io.Handle -> io.SeekMode -> Int -> (Either io.Error ())
+--   position_ : io.Handle -> (Either io.Error Int)
+--   getBuffering_ : io.Handle -> Either io.Error (Optional io.BufferMode)
+--   setBuffering_ : io.Handle -> Optional io.BufferMode -> (Either io.Error ())
+--   systemTime_ :  (Either io.Error io.EpochTime)
+--   getTemporaryDirectory_ :  (Either io.Error io.FilePath)
+--   getCurrentDirectory_ :  (Either io.Error io.FilePath)
+--   setCurrentDirectory_ : io.FilePath -> (Either io.Error ())
+--   directoryContents_ : io.FilePath -> Either io.Error [io.FilePath]
+--   fileExists_ : io.FilePath ->  (Either io.Error Boolean)
+--   isDirectory_ : io.FilePath -> (Either io.Error Boolean)
+--   createDirectory_ : io.FilePath -> (Either io.Error ())
+--   removeDirectory_ : io.FilePath -> (Either io.Error ())
+--   renameDirectory_ : io.FilePath -> io.FilePath ->  (Either io.Error ())
+--   removeFile_ : io.FilePath -> (Either io.Error ())
+--   renameFile_ : io.FilePath -> io.FilePath -> (Either io.Error ())
+--   getFileTimestamp_ : io.FilePath -> (Either io.Error io.EpochTime)
+--   getFileSize_ : io.FilePath -> (Either io.Error Nat)
+--   serverSocket_ : Optional io.HostName -> io.ServiceName ->  (Either io.Error io.Socket)
+--   listen_ : io.Socket -> (Either io.Error ())
+--   clientSocket_ : io.HostName -> io.ServiceName -> (Either io.Error io.Socket)
+--   closeSocket_ : io.Socket -> (Either io.Error ())
+--   accept_ : io.Socket -> (Either io.Error io.Socket)
+--   send_ : io.Socket -> Bytes -> (Either io.Error ())
+--   receive_ : io.Socket -> Nat -> (Either io.Error (Optional Bytes))
+--   fork_ : '{io.IO} a -> (Either io.Error io.ThreadId)
+--   kill_ : io.ThreadId -> (Either io.Error ())
+--   delay_ : Nat -> (Either io.Error ())
+--   bracket_ : '{io.IO} a -> (a ->{io.IO} b) -> (a ->{io.IO} c) ->{io.IO} (Either io.Error c)
 
 builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
 builtinLookup

@@ -1,4 +1,6 @@
+{-# language GADTs #-}
 {-# language DataKinds #-}
+{-# language BangPatterns #-}
 {-# language TypeFamilies #-}
 {-# language PatternGuards #-}
 
@@ -35,6 +37,12 @@ data K
          !Section -- code
          !K
 
+data Foreign where
+  Wrap :: e -> Foreign
+
+instance Show Foreign where
+  showsPrec p !_ = showParen (p>9) $ showString "Foreign _"
+
 data Closure
   = PAp                !Comb      -- code
         {-# unpack #-} !(Seg 'UN) -- unboxed args
@@ -47,6 +55,7 @@ data Closure
   | DataUB !Int !Int !Closure
   | DataG !Int !(Seg 'UN) !(Seg 'BX)
   | Captured !K {-# unpack #-} !(Seg 'UN) !(Seg 'BX)
+  | Foreign !Foreign
   | BlackHole
   deriving (Show)
 

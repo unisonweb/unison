@@ -562,6 +562,8 @@ data POp
   -- Float
   | ADDF | SUBF | MULF | DIVF -- +,-,*,/
   | LESF | LEQF | EQLF        -- <,<=,==
+  -- IO
+  | OPEN | CLOS | EOFP | OPNP
   deriving (Show,Eq,Ord)
 
 type ANormal = ABTN.Term ANormalBF
