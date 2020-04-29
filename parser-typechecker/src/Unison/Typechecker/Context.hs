@@ -1570,10 +1570,13 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
     ambient <- traverse applyM ambient0
     r <- applyM r
     -- 1. Look in ambient for exact match of head of `r`
+    --    Ex: given `State Nat`, `State` is the head
+    --    Ex: given `IO`,        `IO` is the head
+    --    Ex: given `a`, where there's an exact variable 
     case find (headMatch r) ambient of
       -- 2a. If yes for `a` in ambient, do `subtype amb r` and done.
       Just amb -> do
-        subtype amb r `orElse` die r
+        subtype amb r `orElse` die1
         go ambient rs
       -- 2b. If no:
       Nothing -> case r of
@@ -1585,6 +1588,11 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
             `orElse` instantiateR (Type.effects (loc r) []) b v
             `orElse` die1
           go ambient rs
+        -- This branch deals with collecting up a list of used abilities
+        -- during inference, for instance: `x -> Stream.emit 42`, we have 
+        -- an ambient existential `e` ability that was created for the lambda.
+        -- This finds the first unsolved ambient ability, `e`, and solves that
+        -- to `{r, e'}` where `e'` is another fresh existential ability.
         _ -> -- find unsolved existential, 'e, that appears in ambient
           let unsolveds = (ambient >>= Type.flattenEffects >>= vars)
               vars (Type.Var' (TypeVar.Existential b v)) = [(b,v)]
@@ -1607,6 +1615,7 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
   -- the request to the ambient effect list
   die r = case r of
     Type.Var' (TypeVar.Existential b v) ->
+      -- todo: I kind of think this should be ambient, not ambient0
       instantiateL b v (Type.effects (loc r) ambient0) `orElse` die1
       -- instantiateL b v (Type.effects (loc r) []) `orElse` die1
     _ -> die1 -- and if that doesn't work, then we're really toast
