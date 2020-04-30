@@ -851,12 +851,10 @@ generalizedDependencies
 generalizedDependencies termRef typeRef literalType dataConstructor dataType effectConstructor effectType
   = Set.fromList . Writer.execWriter . ABT.visit' f where
   f t@(Ref r) = Writer.tell [termRef r] $> t
-  f t@(TermLink (Referent.Ref r)) =
-    Writer.tell [termRef r] $> t
-  f t@(TermLink (Referent.Con r id CT.Data))
-    = Writer.tell [dataConstructor r id] $> t
-  f t@(TermLink (Referent.Con r id CT.Effect))
-    = Writer.tell [effectConstructor r id] $> t
+  f t@(TermLink r) = case r of
+    Referent.Ref r -> Writer.tell [termRef r] $> t
+    Referent.Con r id CT.Data -> Writer.tell [dataConstructor r id] $> t
+    Referent.Con r id CT.Effect -> Writer.tell [effectConstructor r id] $> t
   f t@(TypeLink r) = Writer.tell [typeRef r] $> t
   f t@(Ann _ typ) =
     Writer.tell (map typeRef . toList $ Type.dependencies typ) $> t
