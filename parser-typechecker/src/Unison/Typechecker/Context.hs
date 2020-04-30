@@ -891,11 +891,14 @@ synthesize e = scope (InSynthesize e) $
     appendContext $
       [existential i, existential e, existential o, Ann arg it]
     body' <- pure $ ABT.bindInheritAnnotation body (Term.var() arg)
-    if Term.isLam body' then withEffects0 [] $ check body' ot
-    else                     withEffects0 [et] $ check body' ot
+    if Term.isLam body' then 
+      withEffects0 [] $ do
+        subtype et (Type.effects l [])
+        check body' ot
+    else
+      withEffects0 [et] $ check body' ot
     ctx <- getContext
-    let t = Type.arrow l it (Type.effect l (apply ctx <$> [et]) ot)
-    pure t
+    pure $ Type.arrow l it (Type.effect l (apply ctx <$> [et]) ot)
   go (Term.LetRecNamed' [] body) = synthesize body
   go (Term.LetRecTop' isTop letrec) = do
     (t, ctx2) <- markThenRetract (Var.named "let-rec-marker") $ do
@@ -1324,7 +1327,10 @@ check e0 t0 = scope (InCheck e0 t0) $ do
       extendContext (Ann x i)
       let Type.Effect'' es ot = o
       body' <- pure $ ABT.bindInheritAnnotation body (Term.var() x)
-      withEffects0 es $ check body' ot
+      if Term.isLam body' then do
+        zeroOutUnsolvedEffects (loc body') es
+        withEffects0 [] $ check body' ot
+      else withEffects0 es $ check body' ot
   go (Term.Let1' binding e) t = do
     v        <- ABT.freshen e freshenVar
     tbinding <- synthesize binding
@@ -1340,6 +1346,19 @@ check e0 t0 = scope (InCheck e0 t0) $ do
     a   <- synthesize e
     ctx <- getContext
     subtype (apply ctx a) (apply ctx t)
+
+-- Given a list of effects, {a,b,X}, replaces any unsolved
+-- existentials with {}. Used for effect lists attached to
+-- nested lambdas, for instance `x y -> body` can't have 
+-- any effects on its outer arrow `x -> ...` 
+zeroOutUnsolvedEffects :: (Var v, Ord loc) => loc -> [Type v loc] -> M v loc ()
+zeroOutUnsolvedEffects loc es0 = do
+  ctx <- getContext
+  let es = apply ctx <$> es0
+  -- anything which is still an existential after context 
+  -- has been applied to it is considered unsolved
+  let unsolved = [ e | e@(Type.Var' (TypeVar.Existential _ _)) <- es ]
+  subtype (Type.effects loc unsolved) (Type.effects loc [])
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
