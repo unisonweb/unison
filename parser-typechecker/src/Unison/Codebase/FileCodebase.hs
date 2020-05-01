@@ -130,15 +130,27 @@ getCodebaseOrExit :: Maybe FilePath -> IO (Codebase IO Symbol Ann)
 getCodebaseOrExit mdir = do
   dir <- getCodebaseDir mdir
   prettyDir <- P.string <$> canonicalizePath dir
-  let errMsg = P.lines
-        [ "No codebase exists in " <> prettyDir
-        , "Run `ucm -codebase " <> prettyDir
-          <> " init` to create one, then try again!"]
+  let errMsg = getNoCodebaseErrorMsg prettyDir mdir
   let theCodebase = codebase1 V1.formatSymbol formatAnn dir
   unlessM (codebaseExists dir) $ do
     PT.putPrettyLn' errMsg
     exitFailure
   pure theCodebase
+
+getNoCodebaseErrorMsg :: IsString s => P.Pretty s -> Maybe FilePath -> P.Pretty s
+getNoCodebaseErrorMsg prettyDir mdir =
+  let secondLine =
+        case mdir of
+          Just _  -> "Run `ucm -codebase "
+                     <> prettyDir
+                     <> " init` to create one, then try again!"
+          Nothing -> "Run `ucm init` to create one there,"
+                     <> " then try again;"
+                     <> " or `ucm -codebase <dir>` to load a codebase from someplace else!"
+  in
+    P.lines
+        [ "No codebase exists in " <> prettyDir
+        , secondLine ]
 
 getCodebaseDir :: Maybe FilePath -> IO FilePath
 getCodebaseDir mdir =
