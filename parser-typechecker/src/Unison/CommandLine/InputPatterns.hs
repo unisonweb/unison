@@ -1169,7 +1169,7 @@ unlink = InputPattern
   ["delete.link"]
   [(Required, definitionQueryArg), (OnePlus, definitionQueryArg)]
   (fromString $ concat
-    [ "`unlink metadata defn` removes a link to `detadata` from `defn`."
+    [ "`unlink metadata defn` removes a link to `metadata` from `defn`."
     , "The `defn` can be either the "
     , "name of a term or type, multiple such names, or a range like `1-4` "
     , "for a range of definitions listed by a prior `find` command."
