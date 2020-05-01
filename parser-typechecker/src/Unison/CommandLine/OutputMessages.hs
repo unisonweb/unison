@@ -270,6 +270,12 @@ notifyUser dir o = case o of
       , P.wrap $ "For what it's worth, the hash of the root namespace that's"
           <> "loaded right now is:"
           <> prettySBH current
+      , ""
+      , P.wrap $ "The" <> makeExample' IP.viewReflog <> "command may be useful here"
+          <> "too. Remember that the hash to the left of each command represents"
+          <> "the namespace that" <> P.bold "results" <> "from that command,"
+          <> "so when restoring, you will typicall want to use the"
+          <> P.bold "next" <> "hash after the command you want to undo."
       ]
   LoadPullRequest baseNS headNS basePath headPath mergedPath -> pure $ P.lines
     [ P.wrap $ "I checked out" <> prettyRemoteNamespace baseNS <> "to" <> P.group (prettyPath' basePath <> ".")
