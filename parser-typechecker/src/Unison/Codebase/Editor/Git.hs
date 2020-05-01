@@ -35,7 +35,7 @@ import qualified Unison.Util.Exception         as Ex
 import qualified Unison.Codebase.Branch        as Branch
 import UnliftIO.IO (hFlush, stdout)
 import UnliftIO.Directory (getXdgDirectory, XdgDirectory(XdgCache), doesDirectoryExist, findExecutable, removeDirectoryRecursive)
-import Unison.Codebase.FileCodebase.Common (encodeFileName)
+import Unison.Codebase.FileCodebase.Common (encodeFileName, updateCausalHead, branchHeadDir)
 
 tempGitDir :: MonadIO m => Text -> m FilePath
 tempGitDir url =
@@ -213,6 +213,7 @@ pushGitRootBranch codebase branch repo = do
     let repoString = Text.unpack $ printRepo repo
     withStatus ("Staging files for upload to " ++ repoString ++ " ...") $
       lift (Codebase.syncToDirectory codebase remotePath branch)
+    updateCausalHead (branchHeadDir remotePath) (Branch._history branch)
     -- push staging area to remote
     withStatus ("Uploading to " ++ repoString ++ " ...") $
       unlessM

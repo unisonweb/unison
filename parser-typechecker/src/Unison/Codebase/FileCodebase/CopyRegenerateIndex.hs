@@ -15,7 +15,7 @@ import Unison.Prelude
 import           UnliftIO.Directory             ( doesFileExist )
 import           Unison.Codebase                ( CodebasePath )
 import qualified Unison.Codebase.Causal        as Causal
-import           Unison.Codebase.Branch         ( Branch(Branch) )
+import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.DataDeclaration        as DD
@@ -62,8 +62,8 @@ syncToDirectory :: forall m v a
   -> m ()
 syncToDirectory fmtV fmtA = syncToDirectory' (S.get fmtV) (S.get fmtA)
 
--- Copy (merge) all dependent codebase elements of `branch` from `srcPath` into 
--- `destPath`, and set `branch` as the new root in `destPath`.
+-- Copy all dependent codebase elements of `branch` from `srcPath` into
+-- `destPath`.
 --
 -- As a refresher, in the normal course of using `ucm` and updating the
 -- namespace, we call Branch.sync to write the updated root to disk.
@@ -100,7 +100,7 @@ syncToDirectory' :: forall m v a
   -> CodebasePath
   -> Branch m
   -> m ()
-syncToDirectory' getV getA srcPath destPath newRemoteRoot@(Branch c) =
+syncToDirectory' getV getA srcPath destPath newRemoteRoot =
   flip State.evalStateT mempty $ do
     Branch.sync
       (hashExists destPath)
@@ -110,7 +110,6 @@ syncToDirectory' getV getA srcPath destPath newRemoteRoot@(Branch c) =
     writeDependentsIndex =<< use dependentsIndex
     writeTypeIndex =<< use typeIndex
     writeTypeMentionsIndex =<< use typeMentionsIndex
-    updateCausalHead (branchHeadDir destPath) c
   where
   writeDependentsIndex :: Relation Reference Reference.Id -> StateT SyncedEntities m ()
   writeDependentsIndex = writeIndexHelper (\k v -> touchIdFile v (dependentsDir destPath k))
