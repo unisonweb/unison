@@ -18,7 +18,7 @@ import           System.FilePath                ( FilePath
                                                 )
 import           Unison.Codebase                ( CodebasePath )
 import qualified Unison.Codebase.Causal        as Causal
-import           Unison.Codebase.Branch         ( Branch(Branch) )
+import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
@@ -55,8 +55,8 @@ syncToDirectory :: MonadIO m => v -> a
                 -> CodebasePath -> CodebasePath -> Branch m -> m ()
 syncToDirectory _ _ = syncToDirectory'
 
--- Copy (merge) all dependent codebase elements of `branch` from `srcPath` into 
--- `destPath`, and set `branch` as the new root in `destPath`.
+-- Copy all dependent codebase elements of `branch` from `srcPath` into
+-- `destPath`.
 --
 -- As a refresher, in the normal course of using `ucm` and updating the
 -- namespace, we call Branch.sync to write the updated root to disk.
@@ -85,7 +85,7 @@ syncToDirectory' :: forall m
   -> CodebasePath
   -> Branch m
   -> m ()
-syncToDirectory' srcPath destPath newRemoteRoot@(Branch c) =
+syncToDirectory' srcPath destPath newRemoteRoot =
   flip State.evalStateT mempty $ do
     Branch.sync
       (hashExists destPath)
@@ -103,7 +103,6 @@ syncToDirectory' srcPath destPath newRemoteRoot@(Branch c) =
     -- in processing x and y, we distill them to a direct form:
     knownReferents <- copyTypeIndex x y
     copyTypeMentionsIndex knownReferents
-    updateCausalHead (branchHeadDir destPath) c
   where
   -- Loads the entire dependents index from disk, copies the appropriate subset
   -- to `destPath`, then uses it to compute transitive dependents, and copy

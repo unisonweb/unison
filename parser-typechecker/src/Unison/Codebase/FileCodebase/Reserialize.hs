@@ -41,9 +41,8 @@ data SyncedEntities = SyncedEntities
 
 makeLenses ''SyncedEntities
 
--- Copy (merge) all dependents of `branch` from `srcPath` into `destPath`,
--- and set `branch` as the new root in `destPath`.
--- 
+-- Copy all dependents of `branch` from `srcPath` into `destPath`.
+--
 -- As a refresher, in the normal course of using `ucm` and updating the 
 -- namespace, we call Branch.sync to write the updated root to disk.
 -- Branch.sync takes a few parameters:
@@ -70,14 +69,13 @@ syncToDirectory
   -> CodebasePath
   -> Branch m
   -> m ()
-syncToDirectory fmtV fmtA srcPath destPath branch@(Branch c) = do
+syncToDirectory fmtV fmtA srcPath destPath branch = do
   flip evalStateT mempty $
     Branch.sync
       (hashExists destPath)
       serialize
       (serializeEdits destPath)
       (Branch.transform lift branch)
-  updateCausalHead (branchHeadDir destPath) c
  where
   serialize rh rawBranch = do
     writeBranch $ Causal.rawHead rawBranch
