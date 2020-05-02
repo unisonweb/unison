@@ -1,4 +1,4 @@
-> Reminder: Please make your pull request's title more descriptive than "Fix #1203".  Fixed issues can be listed in the "Overview" section.
+**Updated May 2:** Your pull request title is what's used to create release notes, so please make it descriptive of the change itself, which may be different from the initial motivation to make the change.
 
 ## Overview
 
