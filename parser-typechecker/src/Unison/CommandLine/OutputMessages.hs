@@ -262,20 +262,21 @@ notifyUser dir o = case o of
       , (P.indentN 2 . P.oxfordCommas)
                 (map prettySBH $ toList hashes)
       , ""
-      , P.wrap $ "but I'm not sure what to do about it."
-          <> "If you're feeling lucky, you can try deleting one of the heads"
-          <> "from `.unison/v1/paths/head/`, but please make a backup first."
-          <> "There will be a better way of handling this in the future. 😅"
+      , P.wrap $ "and I'm not sure what to do about it."
+          <> "The last root namespace hash that I knew about was:"
       , ""
-      , P.wrap $ "For what it's worth, the hash of the root namespace that's"
-          <> "loaded right now is:"
-          <> prettySBH current
+      , P.indentN 2 $ prettySBH current
       , ""
-      , P.wrap $ "The" <> makeExample' IP.viewReflog <> "command may be useful here"
-          <> "too. Remember that the hash to the left of each command represents"
-          <> "the namespace that" <> P.bold "results" <> "from that command,"
-          <> "so when restoring, you will typicall want to use the"
-          <> P.bold "next" <> "hash after the command you want to undo."
+      , P.wrap $ "Now might be a good time to make a backup of your codebase. 😬"
+      , ""
+      , P.wrap $ "After that, you might try using the" <> makeExample' IP.forkLocal
+          <> "command to inspect the namespaces listed above, and decide which"
+          <> "one you want as your root."
+          <> "You can also use" <> makeExample' IP.viewReflog <> "to see the"
+          <> "last few root namespace hashes on record."
+      , ""
+      , P.wrap $ "Once you find one you like, you can use the"
+          <> makeExample' IP.resetRoot <> "command to set it."
       ]
   LoadPullRequest baseNS headNS basePath headPath mergedPath -> pure $ P.lines
     [ P.wrap $ "I checked out" <> prettyRemoteNamespace baseNS <> "to" <> P.group (prettyPath' basePath <> ".")
