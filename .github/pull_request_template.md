@@ -1,4 +1,4 @@
-**Updated May 2:** Your pull request title is what's used to create release notes, so please make it descriptive of the change itself, which may be different from the initial motivation to make the change.
+**Choose your PR title well:** Your pull request title is what's used to create release notes, so please make it descriptive of the change itself, which may be different from the initial motivation to make the change.
 
 ## Overview
 
