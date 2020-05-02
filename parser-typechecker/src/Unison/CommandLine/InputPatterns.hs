@@ -456,10 +456,13 @@ deleteReplacement isTerm = InputPattern
   [(Required, if isTerm then exactDefinitionTermQueryArg else exactDefinitionTypeQueryArg), (Optional, patchArg)]
   (  P.string
   $  commandName
-  <> " <patch>` removes any edit of the "
+  <> " <foo> <patch>` removes any edit of the "
   <> str
-  <> " `foo` "
-  <> "from the patch `patch`, or the default patch if none is specified."
+  <> " `foo` from the patch `patch`, "
+  <> "or from the default patch if none is specified.  Note that `foo` refers to the "
+  <> "original name for the "
+  <> str
+  <> " - not the one in place after the edit."
   )
   (\case
     query : patch -> do
