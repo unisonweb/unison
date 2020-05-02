@@ -264,7 +264,7 @@ notifyUser dir o = case o of
       , ""
       , P.wrap $ "but I'm not sure what to do about it."
           <> "If you're feeling lucky, you can try deleting one of the heads"
-          <> "from `.unison/v1/branches/head/`, but please make a backup first."
+          <> "from `.unison/v1/paths/head/`, but please make a backup first."
           <> "There will be a better way of handling this in the future. 😅"
       , ""
       , P.wrap $ "For what it's worth, the hash of the root namespace that's"
