@@ -291,7 +291,9 @@ loop = do
 
   case e of
     Left (IncomingRootBranch hashes) ->
-      eval . Notify . WarnIncomingRootBranch $ Set.map (SBH.fromHash sbhLength) hashes
+      eval . Notify $ WarnIncomingRootBranch
+                        (SBH.fromHash sbhLength $ Branch.headHash root')
+                        (Set.map (SBH.fromHash sbhLength) hashes)
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
       if maybe False snd latestFile'

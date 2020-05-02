@@ -250,25 +250,34 @@ prettyRemoteNamespace =
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
   Success     -> pure $ P.bold "Done."
-  WarnIncomingRootBranch _hashes -> mempty
-  -- todo: resurrect this code once it's not triggered by update+propagate
---  WarnIncomingRootBranch hashes -> putPrettyLn $
---    if null hashes then P.wrap $
---      "Please let someone know I generated an empty IncomingRootBranch"
---                 <> " event, which shouldn't be possible!"
---    else P.lines
---      [ P.wrap $ (if length hashes == 1 then "A" else "Some")
---         <> "codebase" <> P.plural hashes "root" <> "appeared unexpectedly"
---         <> "with" <> P.group (P.plural hashes "hash" <> ":")
---      , ""
---      , (P.indentN 2 . P.oxfordCommas)
---                (map (P.text . Hash.base32Hex . Causal.unRawHash) $ toList hashes)
---      , ""
---      , P.wrap $ "but I'm not sure what to do about it."
---          <> "If you're feeling lucky, you can try deleting one of the heads"
---          <> "from `.unison/v1/branches/head/`, but please make a backup first."
---          <> "There will be a better way of handling this in the future. 😅"
---      ]
+  WarnIncomingRootBranch current hashes -> pure $
+    if null hashes then P.wrap $
+      "Please let someone know I generated an empty IncomingRootBranch"
+                 <> " event, which shouldn't be possible!"
+    else P.lines
+      [ P.wrap $ (if length hashes == 1 then "A" else "Some")
+         <> "codebase" <> P.plural hashes "root" <> "appeared unexpectedly"
+         <> "with" <> P.group (P.plural hashes "hash" <> ":")
+      , ""
+      , (P.indentN 2 . P.oxfordCommas)
+                (map prettySBH $ toList hashes)
+      , ""
+      , P.wrap $ "and I'm not sure what to do about it."
+          <> "The last root namespace hash that I knew about was:"
+      , ""
+      , P.indentN 2 $ prettySBH current
+      , ""
+      , P.wrap $ "Now might be a good time to make a backup of your codebase. 😬"
+      , ""
+      , P.wrap $ "After that, you might try using the" <> makeExample' IP.forkLocal
+          <> "command to inspect the namespaces listed above, and decide which"
+          <> "one you want as your root."
+          <> "You can also use" <> makeExample' IP.viewReflog <> "to see the"
+          <> "last few root namespace hashes on record."
+      , ""
+      , P.wrap $ "Once you find one you like, you can use the"
+          <> makeExample' IP.resetRoot <> "command to set it."
+      ]
   LoadPullRequest baseNS headNS basePath headPath mergedPath -> pure $ P.lines
     [ P.wrap $ "I checked out" <> prettyRemoteNamespace baseNS <> "to" <> P.group (prettyPath' basePath <> ".")
     , P.wrap $ "I checked out" <> prettyRemoteNamespace headNS <> "to" <> P.group (prettyPath' headPath <> ".")

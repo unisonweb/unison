@@ -185,7 +185,7 @@ data Output v
   | NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
-  | WarnIncomingRootBranch (Set ShortBranchHash)
+  | WarnIncomingRootBranch ShortBranchHash (Set ShortBranchHash)
   | StartOfCurrentPathHistory
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
