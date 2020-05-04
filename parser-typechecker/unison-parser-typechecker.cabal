@@ -98,6 +98,7 @@ library
     Unison.Result
     Unison.Runtime.ANF
     Unison.Runtime.Builtin
+    Unison.Runtime.Foreign
     Unison.Runtime.IR
     Unison.Runtime.MCode
     Unison.Runtime.Pattern

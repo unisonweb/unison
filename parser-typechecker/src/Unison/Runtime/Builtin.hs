@@ -1,6 +1,9 @@
 {-# language RankNTypes #-}
 {-# language ViewPatterns #-}
+{-# language TypeApplications #-}
 {-# language OverloadedStrings #-}
+{-# language ScopedTypeVariables #-}
+{-# language FunctionalDependencies #-}
 
 module Unison.Runtime.Builtin
   ( builtinLookup
@@ -54,6 +57,12 @@ unbox v0 r v b
 unwrap :: Var v => v -> Reference -> v -> ANormal v -> ANormal v
 unwrap v0 r v b
   = TMatch v0 $ MatchData r (singleton 0 $ ([BX], TAbs v b)) Nothing
+
+unenum :: Var v => v -> Reference -> v -> ANormal v -> ANormal v
+unenum = error "unenum: todo"
+
+mkenum :: Var v => v -> Reference -> ANormal v
+mkenum = error "mkenum: todo"
 
 unop0 :: Var v => Int -> ([v] -> ANormal v) -> SuperNormal v
 unop0 n f
@@ -116,20 +125,6 @@ cmpopn pop rf
   . unbox y0 rf y
   . TLet b UN (APrm pop [x,y])
   $ notlift b
-
--- data POp
---   -- Int
---   | PADI | PSUI | PMUI | PDII
---   | PGTI | PLTI | PGEI | PLEI | PEQI
---   | PSGI | PNEI | PTRI | PMDI
---   -- Nat
---   | PADN | PSUN | PMUN | PDIN
---   | PGTN | PLTN | PGEN | PLEN | PEQN
---   | PSGN | PNEN | PTRN | PMDN
---   -- Float
---   | PADF | PSUF | PMUF | PDIF
---   | PGTF | PLTF | PGEF | PLEF | PEQF
---   deriving (Show)
 
 addi,subi,muli,divi,modi,shli,shri,powi :: Var v => SuperNormal v
 addi = binop ADDI Ty.intRef
@@ -225,10 +220,39 @@ handle'io
   cases (Set.singleton -> avoid0)
     = fmap ($ avoid0)
     . fromList
-    $ [ (0, open'file)
-      , (1, close'file)
-      , (2, is'file'eof)
-      , (3, is'file'open)
+    . zip [0..]
+    $ [ open'file
+      , close'file
+      , is'file'eof
+      , is'file'open
+      , is'seekable
+      , seek'handle
+      , handle'position
+      , get'buffering
+      -- , set'buffering
+      , get'line
+      , get'text
+      , put'text
+      , system'time
+      , get'temp'directory
+      , get'current'directory
+      , set'current'directory
+      , file'exists
+      , is'directory
+      , create'directory
+      , remove'directory
+      , rename'directory
+      , remove'file
+      , rename'file
+      , get'file'timestamp
+      , get'file'size
+      -- , server'socket
+      , listen
+      -- , client'socket
+      , close'socket
+      , socket'accept
+      , socket'send
+      -- , socket'receive :: IOOP
       ]
 
 type IOOP = forall v. Var v => Set v -> ([Mem], ANormal v)
@@ -238,7 +262,7 @@ open'file avoid
   = ([BX,BX],)
   . TAbss [fp0,m0]
   . unwrap fp0 filePathReference fp
-  $ TPrm OPEN [fp,m0]
+  $ TIOp OPENFI [fp,m0]
   where
   [fp0,m0,fp] = freshes' avoid 3
 
@@ -247,7 +271,7 @@ close'file avoid
   = ([BX],)
   . TAbss [h0]
   . unwrap h0 handleReference h
-  $ TPrm CLOS [h]
+  $ TIOp CLOSFI [h]
   where
   [h0,h] = freshes' avoid 2
 
@@ -256,7 +280,7 @@ is'file'eof avoid
   = ([BX],)
   . TAbss [h0]
   . unwrap h0 handleReference h
-  . TLet b UN (APrm EOFP [h])
+  . TLet b UN (AIOp ISFEOF [h])
   $ boolift b
   where
   [h0,h,b] = freshes' avoid 3
@@ -266,51 +290,284 @@ is'file'open avoid
   = ([BX],)
   . TAbss [h0]
   . unwrap h0 handleReference h
-  . TLet b UN (APrm OPNP [h])
+  . TLet b UN (AIOp ISFOPN [h])
   $ boolift b
   where
   [h0,h,b] = freshes' avoid 3
 
+is'seekable :: IOOP
+is'seekable avoid
+  = ([BX],)
+  . TAbss [h0]
+  . unwrap h0 handleReference h
+  . TLet b UN (AIOp ISSEEK [h])
+  $ boolift b
+  where
+  [h0,h,b] = freshes' avoid 3
 
--- ability io.IO where
---   openFile_ : io.FilePath -> io.Mode -> (Either io.Error io.Handle)
---   closeFile_ : io.Handle -> (Either io.Error ())
---   isFileEOF_ : io.Handle -> (Either io.Error Boolean)
---   isFileOpen_ : io.Handle -> (Either io.Error Boolean)
---   getLine_ : io.Handle -> (Either io.Error Text)
---   getText_ : io.Handle -> (Either io.Error Text)
---   putText_ : io.Handle -> Text -> (Either io.Error ())
---   throw : io.Error -> a
---   isSeekable_ : io.Handle -> (Either io.Error Boolean)
---   seek_ : io.Handle -> io.SeekMode -> Int -> (Either io.Error ())
---   position_ : io.Handle -> (Either io.Error Int)
---   getBuffering_ : io.Handle -> Either io.Error (Optional io.BufferMode)
---   setBuffering_ : io.Handle -> Optional io.BufferMode -> (Either io.Error ())
---   systemTime_ :  (Either io.Error io.EpochTime)
---   getTemporaryDirectory_ :  (Either io.Error io.FilePath)
---   getCurrentDirectory_ :  (Either io.Error io.FilePath)
---   setCurrentDirectory_ : io.FilePath -> (Either io.Error ())
+seek'handle :: IOOP
+seek'handle avoid
+  = ([BX,BX,BX],)
+  . TAbss [h0,sm0,po0]
+  . unwrap h0 handleReference h
+  . unenum sm0 seekModeReference sm
+  . unbox po0 Ty.natRef po
+  $ TIOp SEEKFI [h,sm,po]
+  where
+  [h0,sm0,po0,h,sm,po] = freshes' avoid 6
+
+handle'position :: IOOP
+handle'position avoid
+  = ([BX],)
+  . TAbss [h0]
+  . unwrap h0 handleReference h
+  . TLet i UN (AIOp POSITN [h])
+  $ TCon Ty.intRef 0 [i]
+  where
+  [h0,h,i] = freshes' avoid 3
+
+get'buffering :: IOOP
+get'buffering avoid
+  = ([BX],)
+  . TAbss [h0]
+  . unwrap h0 handleReference h
+  . TLet bu UN (AIOp GBUFFR [h])
+  $ mkenum bu bufferModeReference
+  where
+  [h0,h,bu] = freshes' avoid 3
+
+-- set'buffering :: IOOP
+-- set'buffering avoid
+--   = ([BX,BX],)
+--   . TAbss [h0,bm0]
+--   . unwrap h0 handleReference h
+--   . TLet bm UN (AMatch bm0 mbcases)
+--   $ TIOp SBUFFR [bm]
+--   where
+--   [h0,bm0,h,bm] = freshes' avoid 4
+--   mbcases
+--     = fromList
+--     [ (0,)
+--     , (1,)
+--     ]
+  -- | SBUFFR
+  -- setBuffering_ : io.Handle -> Optional io.BufferMode -> (Either io.Error ())
+
+get'line :: IOOP
+get'line avoid
+  = ([BX],)
+  . TAbss [h0]
+  . unwrap h0 handleReference h
+  $ TIOp GTLINE [h]
+  where
+  [h0,h] = freshes' avoid 2
+
+get'text :: IOOP
+get'text avoid
+  = ([BX],)
+  . TAbss [h0]
+  . unwrap h0 handleReference h
+  $ TIOp GTTEXT [h]
+  where
+  [h0,h] = freshes' avoid 2
+
+put'text :: IOOP
+put'text avoid
+  = ([BX,BX],)
+  . TAbss [h0,tx]
+  . unwrap h0 handleReference h
+  $ TIOp PUTEXT [h,tx]
+  where
+  [h0,h,tx] = freshes' avoid 3
+
+system'time :: IOOP
+system'time avoid
+  = ([],)
+  . TLet n UN (AIOp SYTIME [])
+  $ TCon Ty.natRef 0 [n]
+  where
+  [n] = freshes' avoid 1
+
+get'temp'directory :: IOOP
+get'temp'directory avoid
+  = ([],)
+  . TLet t BX (AIOp GTMPDR [])
+  $ TCon Ty.textRef 0 [t]
+  where
+  [t] = freshes' avoid 1
+
+get'current'directory :: IOOP
+get'current'directory avoid
+  = ([],)
+  . TLet t BX (AIOp GCURDR [])
+  $ TCon Ty.textRef 0 [t]
+  where
+  [t] = freshes' avoid 1
+
+set'current'directory :: IOOP
+set'current'directory avoid
+  = ([BX],)
+  . TAbs fp0
+  . unwrap fp0 filePathReference fp
+  $ TIOp SCURDR [fp]
+  where
+  [fp0,fp] = freshes' avoid 2
+
+-- directory'contents
+-- DCNTNS
 --   directoryContents_ : io.FilePath -> Either io.Error [io.FilePath]
---   fileExists_ : io.FilePath ->  (Either io.Error Boolean)
---   isDirectory_ : io.FilePath -> (Either io.Error Boolean)
---   createDirectory_ : io.FilePath -> (Either io.Error ())
---   removeDirectory_ : io.FilePath -> (Either io.Error ())
---   renameDirectory_ : io.FilePath -> io.FilePath ->  (Either io.Error ())
---   removeFile_ : io.FilePath -> (Either io.Error ())
---   renameFile_ : io.FilePath -> io.FilePath -> (Either io.Error ())
---   getFileTimestamp_ : io.FilePath -> (Either io.Error io.EpochTime)
---   getFileSize_ : io.FilePath -> (Either io.Error Nat)
---   serverSocket_ : Optional io.HostName -> io.ServiceName ->  (Either io.Error io.Socket)
---   listen_ : io.Socket -> (Either io.Error ())
---   clientSocket_ : io.HostName -> io.ServiceName -> (Either io.Error io.Socket)
---   closeSocket_ : io.Socket -> (Either io.Error ())
---   accept_ : io.Socket -> (Either io.Error io.Socket)
---   send_ : io.Socket -> Bytes -> (Either io.Error ())
---   receive_ : io.Socket -> Nat -> (Either io.Error (Optional Bytes))
---   fork_ : '{io.IO} a -> (Either io.Error io.ThreadId)
---   kill_ : io.ThreadId -> (Either io.Error ())
---   delay_ : Nat -> (Either io.Error ())
---   bracket_ : '{io.IO} a -> (a ->{io.IO} b) -> (a ->{io.IO} c) ->{io.IO} (Either io.Error c)
+
+
+file'exists :: IOOP
+file'exists avoid
+  = ([BX],)
+  . TAbs fp0
+  . unwrap fp0 filePathReference fp
+  . TLet b UN (AIOp FEXIST [fp])
+  $ boolift b
+  where
+  [fp0,fp,b] = freshes' avoid 3
+
+is'directory :: IOOP
+is'directory avoid
+  = ([BX],)
+  . TAbs fp0
+  . unwrap fp0 filePathReference fp
+  . TLet b UN (AIOp ISFDIR [fp])
+  $ boolift b
+  where
+  [fp0,fp,b] = freshes' avoid 3
+
+create'directory :: IOOP
+create'directory avoid
+  = ([BX],)
+  . TAbs fp0
+  . unwrap fp0 filePathReference fp
+  $ TIOp CRTDIR [fp]
+  where
+  [fp0,fp] = freshes' avoid 2
+
+remove'directory :: IOOP
+remove'directory avoid
+  = ([BX],)
+  . TAbs fp0
+  . unwrap fp0 filePathReference fp
+  $ TIOp REMDIR [fp]
+  where
+  [fp0,fp] = freshes' avoid 2
+
+rename'directory :: IOOP
+rename'directory avoid
+  = ([BX,BX],)
+  . TAbss [from0,to0]
+  . unwrap from0 filePathReference from
+  . unwrap to0 filePathReference to
+  $ TIOp RENDIR [from,to]
+  where
+  [from0,to0,from,to] = freshes' avoid 4
+
+remove'file :: IOOP
+remove'file avoid
+  = ([BX],)
+  . TAbs fp0
+  . unwrap fp0 filePathReference fp
+  $ TIOp REMOFI [fp]
+  where
+  [fp0,fp] = freshes' avoid 2
+
+rename'file :: IOOP
+rename'file avoid
+  = ([BX,BX],)
+  . TAbss [from0,to0]
+  . unwrap from0 filePathReference from
+  . unwrap to0 filePathReference to
+  $ TIOp RENAFI [from,to]
+  where
+  [from0,to0,from,to] = freshes' avoid 4
+
+get'file'timestamp :: IOOP
+get'file'timestamp avoid
+  = ([BX],)
+  . TAbs fp0
+  . unwrap fp0 filePathReference fp
+  . TLet n UN (AIOp GFTIME [fp])
+  $ TCon Ty.natRef 0 [n]
+  where
+  [fp0,fp,n] = freshes' avoid 3
+
+get'file'size :: IOOP
+get'file'size avoid
+  = ([BX],)
+  . TAbs fp0
+  . unwrap fp0 filePathReference fp
+  . TLet n UN (AIOp GFSIZE [fp])
+  $ TCon Ty.natRef 0 [n]
+  where
+  [fp0,fp,n] = freshes' avoid 3
+
+-- server'socket :: IOOP
+-- server'socket avoid
+--   = ([BX,BX],)
+--   . TABss [mhn,sn0]
+--   . unwrap sn0 serviceNameReference sn
+--   
+
+listen :: IOOP
+listen avoid
+  = ([BX],)
+  . TAbs sk0
+  . unwrap sk0 socketReference sk
+  $ TIOp LISTEN [sk]
+  where
+  [sk0,sk] = freshes' avoid 2
+
+-- client'socket :: IOOP
+-- client'socket avoid
+--   = ([BX,BX],)
+--   . TAbss [hn0,sn0]
+--   . unwrap hn0 hostNameReference hn
+--   . unwrap sn0 serviceNameReference sn
+--   . TLet r BX (AIOp CLISCK [hn,sn])
+--   $ TCon socketReference 0 [r]
+--   where
+--   [hn0,sn0,hn,sn,r] = freshes' avoid 5
+
+close'socket :: IOOP
+close'socket avoid
+  = ([BX,BX],)
+  . TAbs sk0
+  . unwrap sk0 socketReference sk
+  $ TIOp CLOSCK [sk]
+  where
+  [sk0, sk] = freshes' avoid 2
+
+socket'accept :: IOOP
+socket'accept avoid
+  = ([BX],)
+  . TAbs sk0
+  . unwrap sk0 socketReference sk
+  . TLet r BX (AIOp SKACPT [sk])
+  $ TCon socketReference 0 [r]
+  where
+  [sk0,sk,r] = freshes' avoid 3
+
+socket'send :: IOOP
+socket'send avoid
+  = ([BX,BX],)
+  . TAbss [sk0,by]
+  . unwrap sk0 socketReference sk
+  $ TIOp SKSEND [sk,by]
+  where
+  [sk0,sk,by] = freshes' avoid 3
+
+-- socket'receive :: IOOP
+-- socket'receive avoid
+--   = ([BX,BX],)
+--   . TAbss [sk0,n0]
+--   . unwrap sk0 socketReference sk
+--   . unbox n0 Ty.natRef n
+--   . TLet r BX (AIOp SKRECV [sk,n])
+--   $ TCon 
 
 builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
 builtinLookup

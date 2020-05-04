@@ -6,11 +6,15 @@ module Unison.Runtime.Rt2 where
 import Data.Maybe (fromMaybe)
 
 import Data.Bits
+import Data.Traversable
+import Control.Lens ((<&>))
 
 import qualified Data.IntSet as S
 import qualified Data.IntMap.Strict as M
+import qualified Data.Primitive.PrimArray as PA
 
 import Unison.Runtime.ANF (Mem(..))
+import Unison.Runtime.Foreign
 import Unison.Runtime.Stack
 import Unison.Runtime.MCode
 
@@ -78,6 +82,11 @@ exec !_   !denv !ustk !bstk !k (Lit n) = do
 exec !_   !denv !ustk !bstk !k (Reset ps) = do
   pure (denv, ustk, bstk, Mark ps clos k)
  where clos = M.restrictKeys denv ps
+exec !_   !denv !ustk !bstk !k (ForeignCall (FF f) args)
+    = foreignArgs ustk bstk args
+  >>= f
+  >>= foreignResult ustk bstk
+  >>= pure . uncurry (denv,,,k)
 {-# inline exec #-}
 
 eval :: Env -> DEnv
@@ -236,6 +245,55 @@ moveArgs !ustk !bstk (DArgN us bs) = do
   pure (ustk, bstk)
 {-# inline moveArgs #-}
 
+foreignArgs :: Stack 'UN -> Stack 'BX -> Args -> IO ForeignArgs
+foreignArgs !_    !_    ZArgs = pure []
+foreignArgs !ustk !_    (UArg1 i) = do
+  x <- peekOff ustk i
+  pure [Wrap x]
+foreignArgs !ustk !_    (UArg2 i j) = do
+  x <- peekOff ustk i
+  y <- peekOff ustk j
+  pure [Wrap x, Wrap y]
+foreignArgs !_    !bstk (BArg1 i) = do
+  Foreign x <- peekOff bstk i
+  pure [x]
+foreignArgs !_    !bstk (BArg2 i j) = do
+  Foreign x <- peekOff bstk i
+  Foreign y <- peekOff bstk j
+  pure [x, y]
+foreignArgs !ustk !bstk (DArg2 i j) = do
+  x <- peekOff ustk i
+  Foreign y <- peekOff bstk j
+  pure [Wrap x,y]
+foreignArgs !ustk !_    (UArgR ui ul) =
+  for (take ul [ui..]) $ fmap Wrap . peekOff ustk
+foreignArgs !_    !bstk (BArgR bi bl) =
+  for (take bl [bi..]) $ fmap marshalToForeign . peekOff bstk
+foreignArgs !ustk !bstk (DArgR ui ul bi bl) = do
+  uas <- for (take ul [ui..]) $ fmap Wrap . peekOff ustk
+  bas <- for (take bl [bi..]) $ fmap marshalToForeign . peekOff bstk
+  pure $ uas ++ bas
+foreignArgs !ustk !_    (UArgN us) =
+  for (PA.primArrayToList us) $ fmap Wrap . peekOff ustk
+foreignArgs !_    !bstk (BArgN bs) = do
+  for (PA.primArrayToList bs) $ fmap Wrap . peekOff bstk
+foreignArgs !ustk !bstk (DArgN us bs) = do
+  uas <- for (PA.primArrayToList us) $ fmap Wrap . peekOff ustk
+  bas <- for (PA.primArrayToList bs) $ fmap Wrap . peekOff bstk
+  pure $ uas ++ bas
+
+foreignResult
+  :: Stack 'UN -> Stack 'BX -> ForeignRslt -> IO (Stack 'UN, Stack 'BX)
+foreignResult !ustk !bstk [] = pure (ustk,bstk)
+foreignResult !ustk !bstk (Left i : rs) = do
+  ustk <- bump ustk
+  poke ustk i
+  foreignResult ustk bstk rs
+foreignResult !ustk !bstk (Right x : rs) = do
+  bstk <- bump bstk
+  poke bstk $ Foreign x
+  foreignResult ustk bstk rs
+
 buildData
   :: Stack 'UN -> Stack 'BX -> Tag -> Args -> IO Closure
 buildData !_    !_    !t ZArgs = pure $ Enum t
@@ -370,6 +428,13 @@ closeArgs !ustk !bstk !useg !bseg (DArgN us bs) = do
   useg <- augSeg ustk useg (ArgN us)
   bseg <- augSeg bstk bseg (ArgN bs)
   pure (useg, bseg)
+
+peekForeign :: Stack 'BX -> Int -> IO a
+peekForeign bstk i
+  = peekOff bstk i <&> \case
+      Foreign x -> unwrapForeign x
+      _ -> error "bad foreign argument"
+{-# inline peekForeign #-}
 
 prim1 :: Stack 'UN -> Prim1 -> Int -> IO (Stack 'UN)
 prim1 !ustk DECI !i = do

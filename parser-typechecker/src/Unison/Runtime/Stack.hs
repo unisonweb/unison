@@ -20,6 +20,7 @@ import Data.IntMap.Strict (IntMap)
 import Data.Word
 
 import Unison.Runtime.ANF (Mem(..))
+import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
 
 -- Evaluation stack
@@ -37,12 +38,6 @@ data K
          !Section -- code
          !K
 
-data Foreign where
-  Wrap :: e -> Foreign
-
-instance Show Foreign where
-  showsPrec p !_ = showParen (p>9) $ showString "Foreign _"
-
 data Closure
   = PAp                !Comb      -- code
         {-# unpack #-} !(Seg 'UN) -- unboxed args
@@ -58,6 +53,10 @@ data Closure
   | Foreign !Foreign
   | BlackHole
   deriving (Show)
+
+marshalToForeign :: Closure -> Foreign
+marshalToForeign (Foreign x) = x
+marshalToForeign _ = error "marshalToForeign: unhandled closure"
 
 type Off = Int
 type SZ = Int

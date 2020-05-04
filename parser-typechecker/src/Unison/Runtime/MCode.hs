@@ -19,6 +19,8 @@ import qualified Data.IntMap.Strict as IM
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IS
 
+import qualified Data.Text as Text
+
 import Unison.Var (Var)
 import Unison.ABT.Normalized (pattern TAbss)
 import Unison.Runtime.ANF
@@ -43,6 +45,43 @@ import Unison.Runtime.ANF
   , pattern TMatch
   )
 import qualified Unison.Runtime.ANF as ANF
+import Unison.Runtime.Foreign
+
+import System.IO as SYS
+  ( BufferMode(..)
+  , Handle
+  , openFile
+  , hClose
+  , hGetBuffering
+  , hIsEOF
+  , hIsOpen
+  , hIsSeekable
+  , hSeek
+  , hTell
+  )
+import Data.Text.IO as SYS
+  ( hGetLine
+  , hPutStr
+  )
+import Data.Time.Clock.POSIX as SYS
+  ( getPOSIXTime
+  , utcTimeToPOSIXSeconds
+  )
+import System.Directory as SYS
+  ( getCurrentDirectory
+  , setCurrentDirectory
+  , getTemporaryDirectory
+  , getDirectoryContents
+  , doesPathExist
+  -- , doesDirectoryExist
+  , renameDirectory
+  , removeFile
+  , renameFile
+  , createDirectoryIfMissing
+  , removeDirectoryRecursive
+  , getModificationTime
+  , getFileSize
+  )
 
 -- This outlines some of the ideas/features in this core
 -- language, and how they may be used to implement features of
@@ -242,7 +281,10 @@ bcount (BArgN a) = sizeofPrimArray a
 bcount _ = 0
 {-# inline bcount #-}
 
-data Prim1 = DECI | INCI | NEGI | SGNI deriving (Show)
+data Prim1
+  = DECI | INCI | NEGI | SGNI
+  deriving (Show)
+
 data Prim2
   = ADDI | SUBI | MULI | DIVI | MODI
   | SHLI | SHRI | SHRN | POWI
@@ -261,6 +303,11 @@ data Instr
           !Int   -- index of first prim argument
           !Int   -- index of second prim argument
 
+  -- Call out to a Haskell function. This is considerably slower
+  -- for very simple operations, hence the primops.
+  | ForeignCall !ForeignFunc
+                !Args
+
   -- Set the value of a dynamic reference
   | SetDyn !Int -- the prompt tag of the reference
            !Int -- the stack index of the closure to store
@@ -272,7 +319,7 @@ data Instr
   -- statically known function into a closure with arguments.
   -- No stack is necessary, because no nested evaluation happens,
   -- so the instruction directly takes a follow-up.
-  | Name !Int Args
+  | Name !Int !Args
 
   -- Dump some debugging information about the machine state to
   -- the screen.
@@ -285,6 +332,7 @@ data Instr
 
   -- Unpack the contents of a data type onto the stack
   | Unpack !Int -- stack index of data to unpack
+
 
   -- Push a particular value onto the unboxed stack
   | Lit !Int -- value to push onto the stack
@@ -487,7 +535,7 @@ emitLet _    ctx (AApp (FComb n) args)
 emitLet _   ctx (AApp (FCon _ n) args) -- TODO: use reference number
   = Ins . Pack n $ emitArgs ctx args
 emitLet _   ctx (AApp (FPrim p) args)
-  = Ins . emitPOp p $ emitArgs ctx args
+  = Ins . either emitPOp emitIOp p $ emitArgs ctx args
 emitLet rec ctx bnd = Let (emitSection rec ctx (TTm bnd))
 
 -- -- Float
@@ -526,6 +574,98 @@ emitPOp ANF.DECI = emitP1 DECI
 emitPOp ANF.DECN = emitP1 DECI
 
 emitPOp p = error $ "unhandled prim op: " ++ show p
+
+emitIOp :: ANF.IOp -> Args -> Instr
+emitIOp iop = ForeignCall (iopToForeign iop)
+
+bufferModeResult :: BufferMode -> ForeignRslt
+bufferModeResult NoBuffering = [Left 0]
+bufferModeResult LineBuffering = [Left 1]
+bufferModeResult (BlockBuffering Nothing) = [Left 3]
+bufferModeResult (BlockBuffering (Just n)) = [Left 4, Right $ Wrap n]
+
+booleanResult :: Bool -> ForeignRslt
+booleanResult b = [Left $ fromEnum b]
+
+intResult :: Int -> ForeignRslt
+intResult i = [Left i]
+
+stringResult :: String -> ForeignRslt
+stringResult = wrappedResult . Text.pack
+
+wrappedResult :: a -> ForeignRslt
+wrappedResult x = [Right $ Wrap x]
+
+handleResult :: Handle -> ForeignRslt
+handleResult h = [Right $ Wrap h]
+
+timeResult :: RealFrac r => r -> ForeignRslt
+timeResult t = intResult $ round t
+
+iopToForeign :: ANF.IOp -> ForeignFunc
+iopToForeign ANF.OPENFI
+  = foreign2 $ \fp mo -> handleResult <$> openFile fp mo
+iopToForeign ANF.CLOSFI
+  = foreign1 $ \h -> [] <$ hClose h
+iopToForeign ANF.ISFEOF
+  = foreign1 $ \h -> booleanResult <$> hIsEOF h
+iopToForeign ANF.ISFOPN
+  = foreign1 $ \h -> booleanResult <$> hIsOpen h
+iopToForeign ANF.ISSEEK
+  = foreign1 $ \h -> booleanResult <$> hIsSeekable h
+iopToForeign ANF.SEEKFI
+  = foreign3 $ \h sm n -> [] <$ hSeek h sm (fromIntegral n)
+iopToForeign ANF.POSITN
+  = foreign1 $ \h -> wrappedResult <$> hTell h
+iopToForeign ANF.GBUFFR
+  = foreign1 $ \h -> bufferModeResult <$> hGetBuffering h
+iopToForeign ANF.SBUFFR = error "todo"
+iopToForeign ANF.GTLINE
+  = foreign1 $ \h -> wrappedResult <$> hGetLine h
+iopToForeign ANF.GTTEXT
+  = error "todo" -- foreign1 $ \h -> pure . Right . Wrap <$> hGetText h
+iopToForeign ANF.PUTEXT
+  = foreign2 $ \h t -> [] <$ hPutStr h t
+iopToForeign ANF.SYTIME
+  = foreign0 $ timeResult <$> getPOSIXTime
+iopToForeign ANF.GTMPDR
+  = foreign0 $ stringResult <$> getTemporaryDirectory
+iopToForeign ANF.GCURDR
+  = foreign0 $ stringResult <$> getCurrentDirectory
+iopToForeign ANF.SCURDR
+  = foreign1 $ \fp -> [] <$ setCurrentDirectory (Text.unpack fp)
+iopToForeign ANF.DCNTNS
+  = foreign1 $ \fp ->
+      error "todo" <$ getDirectoryContents (Text.unpack fp)
+iopToForeign ANF.FEXIST
+  = foreign1 $ \fp -> booleanResult <$> doesPathExist (Text.unpack fp)
+iopToForeign ANF.ISFDIR = error "todo"
+iopToForeign ANF.CRTDIR
+  = foreign1 $ \fp ->
+      [] <$ createDirectoryIfMissing True (Text.unpack fp)
+iopToForeign ANF.REMDIR
+  = foreign1 $ \fp -> [] <$ removeDirectoryRecursive (Text.unpack fp)
+iopToForeign ANF.RENDIR
+  = foreign2 $ \fmp top ->
+      [] <$ renameDirectory (Text.unpack fmp) (Text.unpack top)
+iopToForeign ANF.REMOFI
+  = foreign1 $ \fp -> [] <$ removeFile (Text.unpack fp)
+iopToForeign ANF.RENAFI
+  = foreign2 $ \fmp top ->
+      [] <$ renameFile (Text.unpack fmp) (Text.unpack top)
+iopToForeign ANF.GFTIME
+  = foreign1 $ \fp ->
+      timeResult . utcTimeToPOSIXSeconds
+        <$> getModificationTime (Text.unpack fp)
+iopToForeign ANF.GFSIZE
+  = foreign1 $ \fp -> wrappedResult <$> getFileSize (Text.unpack fp)
+iopToForeign ANF.SRVSCK = error "todo"
+iopToForeign ANF.LISTEN = error "todo"
+iopToForeign ANF.CLISCK = error "todo"
+iopToForeign ANF.CLOSCK = error "todo"
+iopToForeign ANF.SKACPT = error "todo"
+iopToForeign ANF.SKSEND = error "todo"
+iopToForeign ANF.SKRECV = error "todo"
 
 emitP1 :: Prim1 -> Args -> Instr
 emitP1 p (UArg1 i) = Prim1 p i

@@ -21,6 +21,7 @@ module Unison.Runtime.ANF
   , pattern TCon
   , pattern TReq
   , pattern TPrm
+  , pattern TIOp
   , pattern THnd
   , pattern TLet
   , pattern TName
@@ -34,11 +35,12 @@ module Unison.Runtime.ANF
   , SuperNormal(..)
   , SuperGroup(..)
   , POp(..)
+  , IOp(..)
   , close
   , float
   , lamLift
   , ANormalBF(..)
-  , ANormalTF(.., AApv, ACom, ACon, AReq, APrm)
+  , ANormalTF(.., AApv, ACom, ACon, AReq, APrm, AIOp)
   , ANormal
   , ANormalT
   , ANFM
@@ -428,8 +430,11 @@ pattern ACon r t args = AApp (FCon r t) args
 pattern TCon r t args = TApp (FCon r t) args
 pattern AReq r t args = AApp (FReq r t) args
 pattern TReq r t args = TApp (FReq r t) args
-pattern APrm p args = AApp (FPrim p) args
-pattern TPrm p args = TApp (FPrim p) args
+pattern APrm p args = AApp (FPrim (Left p)) args
+pattern TPrm p args = TApp (FPrim (Left p)) args
+pattern AIOp p args = AApp (FPrim (Right p)) args
+pattern TIOp p args = TApp (FPrim (Right p)) args
+
 
 pattern THnd rs h d b = TTm (AHnd rs h d b)
 pattern TMatch v cs = TTm (AMatch v cs)
@@ -437,7 +442,7 @@ pattern TVar v = TTm (AVar v)
 
 {-# complete TLet, TName, TVar, TApp, TLit, THnd, TMatch #-}
 {-# complete TLet, TName,
-      TVar, TApv, TCom, TCon, TReq, TPrm, TLit, THnd, TMatch
+      TVar, TApv, TCom, TCon, TReq, TPrm, TIOp, TLit, THnd, TMatch
   #-}
 
 directVars :: Var v => ANormalT v -> Set.Set v
@@ -526,7 +531,7 @@ data Func v
   -- ability request
   | FReq !Int !Int
   -- prim op
-  | FPrim POp
+  | FPrim (Either POp IOp)
   deriving (Show, Functor, Foldable, Traversable)
 
 data Lit
@@ -562,9 +567,25 @@ data POp
   -- Float
   | ADDF | SUBF | MULF | DIVF -- +,-,*,/
   | LESF | LEQF | EQLF        -- <,<=,==
-  -- IO
-  | OPEN | CLOS | EOFP | OPNP
   deriving (Show,Eq,Ord)
+
+data IOp
+  = OPENFI | CLOSFI | ISFEOF | ISFOPN
+  | ISSEEK | SEEKFI | POSITN
+  | GBUFFR | SBUFFR
+  | GTLINE | GTTEXT | PUTEXT
+  | SYTIME | GTMPDR | GCURDR | SCURDR
+  | DCNTNS | FEXIST | ISFDIR
+  | CRTDIR | REMDIR | RENDIR
+  | REMOFI | RENAFI | GFTIME | GFSIZE
+  | SRVSCK | LISTEN | CLISCK | CLOSCK
+  | SKACPT | SKSEND | SKRECV
+  deriving (Show,Eq,Ord)
+
+--   fork_ : '{io.IO} a -> (Either io.Error io.ThreadId)
+--   kill_ : io.ThreadId -> (Either io.Error ())
+--   delay_ : Nat -> (Either io.Error ())
+
 
 type ANormal = ABTN.Term ANormalBF
 type ANormalT v = ANormalTF v (ANormal v)
