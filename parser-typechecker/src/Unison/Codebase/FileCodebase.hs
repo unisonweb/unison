@@ -141,15 +141,14 @@ getNoCodebaseErrorMsg :: IsString s => P.Pretty s -> Maybe FilePath -> P.Pretty 
 getNoCodebaseErrorMsg prettyDir mdir =
   let secondLine =
         case mdir of
-          Just _  -> "Run `ucm -codebase "
-                     <> prettyDir
+          Just dir  -> "Run `ucm -codebase " <> fromString dir
                      <> " init` to create one, then try again!"
           Nothing -> "Run `ucm init` to create one there,"
                      <> " then try again;"
                      <> " or `ucm -codebase <dir>` to load a codebase from someplace else!"
   in
     P.lines
-        [ "No codebase exists in " <> prettyDir
+        [ "No codebase exists in " <> prettyDir <> "."
         , secondLine ]
 
 getCodebaseDir :: Maybe FilePath -> IO FilePath
