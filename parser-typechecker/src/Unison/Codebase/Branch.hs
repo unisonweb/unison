@@ -351,6 +351,8 @@ deepEdits' b = go id b where
     f (c, b) =  go (addPrefix . Name.joinDot (NameSegment.toName c)) (head b)
 
 merge :: forall m . Monad m => Branch m -> Branch m -> m (Branch m)
+merge b1 b2 | isEmpty b1 = pure b2
+merge b1 b2 | isEmpty b2 = pure b1
 merge (Branch x) (Branch y) =
   Branch <$> Causal.threeWayMerge combine x y
  where
