@@ -13,6 +13,7 @@ import Unison.Prelude
 
 import Data.Monoid.Generic
 import Control.Lens
+import Control.Monad.Extra ((||^))
 import Control.Monad.State (evalStateT, StateT)
 
 import           UnliftIO.Directory             ( doesFileExist )
@@ -138,5 +139,7 @@ syncToDirectory fmtV fmtA srcPath destPath branch = do
       ifM (isDecl i) (putDecl' i) $
         fail $ "😞 I was trying to copy the definition of " ++ show i
             ++ ", but I couldn't find it as a type _or_ a term."
-  isTerm = doesFileExist . termPath srcPath
-  isDecl = doesFileExist . declPath srcPath
+  isTerm i = (doesFileExist . termPath srcPath) i
+         ||^ (doesFileExist . termPath destPath) i
+  isDecl i = (doesFileExist . declPath srcPath) i
+         ||^ (doesFileExist . declPath destPath) i

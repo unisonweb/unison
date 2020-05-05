@@ -12,6 +12,7 @@ module Unison.Codebase.FileCodebase.CopyRegenerateIndex (syncToDirectory) where
 
 import Unison.Prelude
 
+import           Control.Monad.Extra            ( (||^) )
 import           UnliftIO.Directory             ( doesFileExist )
 import           Unison.Codebase                ( CodebasePath )
 import qualified Unison.Codebase.Causal        as Causal
@@ -123,7 +124,7 @@ syncToDirectory' getV getA srcPath destPath newRemoteRoot =
     :: forall m a b. MonadIO m => (a -> b -> m ()) -> Relation a b -> m ()
   writeIndexHelper touchIndexFile index =
     traverse_ (uncurry touchIndexFile) (Relation.toList index)
-  copyRawBranch :: (MonadState SyncedEntities n, MonadIO n) 
+  copyRawBranch :: (MonadState SyncedEntities n, MonadIO n)
                 => Branch.Hash -> Causal.Raw Branch.Raw Branch.Raw -> n ()
   copyRawBranch rh rc = unlessM (hashExists destPath rh) $ do
     copyReferencedDefns $ Causal.rawHead rc
@@ -194,8 +195,10 @@ syncToDirectory' getV getA srcPath destPath newRemoteRoot =
                   ", which is a dependency of " ++ show i ++
                   ", but I couldn't find it as a type _or_ a term."
             where
-            isTerm = doesFileExist . termPath srcPath
-            isDecl = doesFileExist . declPath srcPath
+            isTerm i = (doesFileExist . termPath srcPath) i
+                   ||^ (doesFileExist . termPath destPath) i
+            isDecl i = (doesFileExist . declPath srcPath) i
+                   ||^ (doesFileExist . declPath destPath) i
         Nothing ->
           fail $ "😞 I was trying to copy the type " ++ show i
                ++ ", but I couldn't find it in " ++ termPath srcPath i

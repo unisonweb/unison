@@ -11,6 +11,7 @@ module Unison.Codebase.FileCodebase.CopyFilterIndex (syncToDirectory) where
 
 import Unison.Prelude
 
+import           Control.Monad.Extra            ( (||^) )
 import qualified Data.Text                     as Text
 import           UnliftIO.Directory             ( doesFileExist )
 import           System.FilePath                ( FilePath
@@ -128,8 +129,10 @@ syncToDirectory' srcPath destPath newRemoteRoot =
     dependenciesOf r =
       Set.mapMaybe Reference.toId (Relation.lookupRan r dependentsIndex)
     transitiveDependencies = TC.transitiveClosure' dependenciesOf ids
-    isTerm = doesFileExist . termPath srcPath
-    isDecl = doesFileExist . declPath srcPath
+    isTerm i = (doesFileExist . termPath srcPath) i
+           ||^ (doesFileExist . termPath destPath) i
+    isDecl i = (doesFileExist . declPath srcPath) i
+           ||^ (doesFileExist . declPath destPath) i
 
   copyTypeIndex :: forall m. MonadIO m
                 => Set Reference.Id -> Set Reference.Id -> m (Set Referent.Id)
@@ -228,7 +231,7 @@ loadIndex parseKey indexDir =
       loadDependentsOf
         (Reference.Builtin . Text.pack . decodeFileName $ path)
         (indexDir </> b </> path)
-  -- part of the previous definition; not the `_builtin` directory, so try 
+  -- part of the previous definition; not the `_builtin` directory, so try
   -- parsing as a derived id reference
   loadDependency path = case componentIdFromString path of
     Nothing -> pure mempty
