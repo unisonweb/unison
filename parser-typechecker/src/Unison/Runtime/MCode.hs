@@ -384,6 +384,8 @@ data Section
   | Let !Section !Section
 
   | Die String
+
+  | Exit
   deriving (Show)
 
 data Comb

@@ -113,6 +113,7 @@ eval !env !denv !ustk !bstk !k (Let nw nx) = do
 eval !env !denv !ustk !bstk !k (Ins i nx) = do
   (denv, ustk, bstk, k) <- exec env denv ustk bstk k i
   eval env denv ustk bstk k nx
+eval !_   !_    !_    !_    !_ Exit = pure ()
 eval !_   !_    !_    !_    !_ (Die s) = error s
 {-# noinline eval #-}
 
