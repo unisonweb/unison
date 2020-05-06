@@ -39,7 +39,7 @@ import Unison.Runtime.ANF
   , pattern TCon
   , pattern TReq
   , pattern THnd
-  , pattern TLet
+  , pattern TLets
   , pattern TName
   , pattern TTm
   , pattern TMatch
@@ -372,6 +372,9 @@ data Section
   -- Branch on the value in the unboxed data stack
   | Match !Int    -- index of unboxed item to match on
           !Branch -- branches
+
+  | Fork
+
   -- Yield control to the current continuation, with arguments
   | Yield !Args -- values to yield
 
@@ -445,8 +448,10 @@ emitComb rec (Lambda ccs (TAbss vs bd))
   = Lam 0 (length vs) 10 10 $ emitSection rec (zip (Just <$> vs) ccs) bd
 
 emitSection :: Var v => RCtx v -> Ctx v -> ANormal v -> Section
-emitSection rec ctx (TLet u m bu bo)
-  = emitLet rec ctx bu $ emitSection rec ((Just u,m) : ctx) bo
+emitSection rec ctx (TLets us ms bu bo)
+  = emitLet rec ctx bu $ emitSection rec (ectx ++ ctx) bo
+  where
+  ectx = zip (Just <$> us) ms
 emitSection rec ctx (TName u (Left f) as bo)
   = Ins (Name f $ emitArgs ctx as)
   $ emitSection rec ((Just u,BX) : ctx) bo
@@ -496,6 +501,9 @@ emitSection rec ctx (TMatch v bs)
   | Just (i,UN) <- ctxResolve ctx v
   , MatchIntegral cs df <- bs
   = emitIntegralMatching rec ctx i cs df
+  | Just (i,UN) <- ctxResolve ctx v
+  , MatchSum cs <- bs
+  = emitSumMatching rec ctx i cs
   | Just (_,cc) <- ctxResolve ctx v
   = error
   $ "emitSection: mismatched calling convention for match: "
@@ -519,6 +527,7 @@ matchCallingError cc b = "(" ++ show cc ++ "," ++ brs ++ ")"
       | MatchEmpty <- b = "MatchEmpty"
       | MatchIntegral _ _ <- b = "MatchIntegral"
       | MatchRequest _ <- b = "MatchRequest"
+      | MatchSum _ <- b = "MatchSum"
 
 emitSectionVErr :: (Var v, HasCallStack) => v -> a
 emitSectionVErr v
@@ -537,6 +546,10 @@ emitLet _    ctx (AApp (FComb n) args)
 emitLet _   ctx (AApp (FCon _ n) args) -- TODO: use reference number
   = Ins . Pack n $ emitArgs ctx args
 emitLet _   ctx (AApp (FPrim p) args)
+  | Left ANF.FORK <- p = case args of
+    [] -> Let Fork
+    _ -> error "fork takes no arguments"
+  | otherwise
   = Ins . either emitPOp emitIOp p $ emitArgs ctx args
 emitLet rec ctx bnd = Let (emitSection rec ctx (TTm bnd))
 
@@ -692,6 +705,18 @@ emitDataMatching rec ctx cs df
   where
   edf | Just co <- df = emitSection rec ctx co
       | otherwise = Die "missing data case"
+
+emitSumMatching
+  :: Var v
+  => RCtx v
+  -> Ctx v
+  -> Int
+  -> IntMap ([Mem], ANormal v)
+  -> Section
+emitSumMatching rec ctx i cs
+  = Match i . TestT edf $ fmap (emitCase rec ctx) cs
+  where
+  edf = Die "uncovered unboxed sum case"
 
 emitRequestMatching
   :: Var v

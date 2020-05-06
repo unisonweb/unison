@@ -24,6 +24,7 @@ module Unison.Runtime.ANF
   , pattern TIOp
   , pattern THnd
   , pattern TLet
+  , pattern TLets
   , pattern TName
   , pattern TBind
   , pattern TTm
@@ -343,15 +344,17 @@ data Mem = UN | BX deriving (Eq,Ord,Show,Enum)
 
 -- Context entries with evaluation strategy
 data CTE v s
-  = ST v Mem s
+  = ST [v] [Mem] s
   | LZ v (Either Int v) [v]
 
-cbvar :: CTE v s -> v
-cbvar (ST v _ _) = v
-cbvar (LZ v _ _) = v
+pattern ST1 v m s = ST [v] [m] s
+
+cbvars :: CTE v s -> [v]
+cbvars (ST vs _ _) = vs
+cbvars (LZ v _ _) = [v]
 
 data ANormalBF v e
-  = ALet Mem (ANormalTF v e) e
+  = ALet [Mem] (ANormalTF v e) e
   | AName (Either Int v) [v] e
   | ATm (ANormalTF v e)
   deriving (Show)
@@ -414,10 +417,11 @@ matchLit (Char' c) = Just $ C c
 matchLit _ = Nothing
 
 pattern Lit' l <- (matchLit -> Just l)
-pattern TLet v m bn bo = ABTN.TTm (ALet m bn (ABTN.TAbs v bo))
+pattern TLet v m bn bo = ABTN.TTm (ALet [m] bn (ABTN.TAbs v bo))
+pattern TLets vs ms bn bo = ABTN.TTm (ALet ms bn (ABTN.TAbss vs bo))
 pattern TName v f as bo = ABTN.TTm (AName f as (ABTN.TAbs v bo))
 pattern TTm e = ABTN.TTm (ATm e)
-{-# complete TLet, TName, TTm #-}
+{-# complete TLets, TName, TTm #-}
 
 pattern TLit l = TTm (ALit l)
 
@@ -452,21 +456,21 @@ freeVarsT :: Var v => ANormalT v -> Set.Set v
 freeVarsT = bifoldMap Set.singleton ABTN.freeVars
 
 bind :: Var v => Cte v -> ANormal v -> ANormal v
-bind (ST u m bu) = TLet u m bu
+bind (ST us ms bu) = TLets us ms bu
 bind (LZ u f as) = TName u f as
 
 unbind :: Var v => ANormal v -> Maybe (Cte v, ANormal v)
-unbind (TLet u m bu bd) = Just (ST u m bu, bd)
+unbind (TLets us ms bu bd) = Just (ST us ms bu, bd)
 unbind (TName u f as bd) = Just (LZ u f as, bd)
 unbind _ = Nothing
 
 unbinds :: Var v => ANormal v -> (Ctx v, ANormal v)
-unbinds (TLet u m bu (unbinds -> (ctx, bd))) = (ST u m bu:ctx, bd)
+unbinds (TLets us ms bu (unbinds -> (ctx, bd))) = (ST us ms bu:ctx, bd)
 unbinds (TName u f as (unbinds -> (ctx, bd))) = (LZ u f as:ctx, bd)
 unbinds tm = ([], tm)
 
 unbinds' :: Var v => ANormal v -> (Ctx v, ANormalT v)
-unbinds' (TLet u m bu (unbinds' -> (ctx, bd))) = (ST u m bu:ctx, bd)
+unbinds' (TLets us ms bu (unbinds' -> (ctx, bd))) = (ST us ms bu:ctx, bd)
 unbinds' (TName u f as (unbinds' -> (ctx, bd))) = (LZ u f as:ctx, bd)
 unbinds' (TTm tm) = ([], tm)
 
@@ -488,6 +492,7 @@ data Branched e
   | MatchRequest (IntMap (IntMap ([Mem], e)))
   | MatchEmpty
   | MatchData Reference (IntMap ([Mem], e)) (Maybe e)
+  | MatchSum (IntMap ([Mem], e))
   deriving (Show, Functor, Foldable, Traversable)
 
 data BranchAccum v
@@ -567,6 +572,8 @@ data POp
   -- Float
   | ADDF | SUBF | MULF | DIVF -- +,-,*,/
   | LESF | LEQF | EQLF        -- <,<=,==
+  -- Concurrency
+  | FORK
   deriving (Show,Eq,Ord)
 
 data IOp
@@ -623,7 +630,7 @@ avoids :: Var v => Set v -> ANFM v ()
 avoids s = modify $ \(av, rs) -> (s `Set.union` av, rs)
 
 avoidCtx :: Var v => Ctx v -> ANFM v ()
-avoidCtx ctx = avoid $ cbvar <$> ctx
+avoidCtx ctx = avoid . fold $ cbvars <$> ctx
 
 -- reserve :: ANFM v Int
 -- reserve = state $ \(av, gl, to) -> (gl, (av, gl+1, to))
@@ -639,7 +646,7 @@ contextualize (AVar cv) = pure ([], cv)
 contextualize tm = do
   fv <- reset $ avoids (freeVarsT tm) *> fresh
   avoid [fv]
-  pure ([ST fv BX tm], fv)
+  pure ([ST1 fv BX tm], fv)
 
 record :: (v, SuperNormal v) -> ANFM v ()
 record p = modify $ \(av, to) -> (av, p:to)
@@ -726,8 +733,8 @@ anfBlock (Match' scrut cas) = do
         record (r, Lambda (BX <$ hfvs) . ABTN.TAbss hfvs $ hfb)
         pure (r, hfvs)
       hv <- fresh
-      let msc | [ST _ BX tm] <- cx = tm
-              | [ST _ UN _] <- cx = error "anfBlock: impossible"
+      let msc | [ST1 _ BX tm] <- cx = tm
+              | [ST _ _ _] <- cx = error "anfBlock: impossible"
               | otherwise = AFrc v
       pure ( sctx ++ [LZ hv (Right r) vs]
            , AHnd (IMap.keys abr) hv df . TTm $ msc
@@ -746,7 +753,7 @@ anfBlock (Let1Named' v b e) = do
   avoid [v]
   (bctx, cb) <- anfBlock b
   (ectx, ce) <- anfBlock e
-  pure (bctx ++ ST v BX cb : ectx, ce)
+  pure (bctx ++ ST1 v BX cb : ectx, ce)
 anfBlock (Apps' f args) = do
   (fctx, cf) <- anfFunc f
   (actxs, cas) <- unzip <$> traverse anfArg args
@@ -758,7 +765,7 @@ anfBlock (Request' r t) = do
   pure ([], AReq r t [])
 anfBlock (Lit' l) = do
   lv <- fresh
-  pure ([ST lv UN $ ALit l], ACon (litRef l) 0 [lv])
+  pure ([ST1 lv UN $ ALit l], ACon (litRef l) 0 [lv])
 anfBlock (Blank' _) = error "tried to compile Blank"
 anfBlock t = error $ "anf: unhandled term: " ++ show t
 
@@ -868,14 +875,14 @@ sink v mtm tm = dive $ freeVarsT tm
     | otherwise
     = TName u f as (dive avoid' bo)
     where avoid' = Set.insert u avoid
-  dive avoid exp@(TLet u m bn bo)
+  dive avoid exp@(TLets us ms bn bo)
     | v `Set.member` directVars bn -- we need to stop here
     = let w = freshANF avoid (ABTN.freeVars exp)
        in TLet w mtm tm $ ABTN.rename v w exp
     | otherwise
-    = TLet u m bn' $ dive avoid' bo
+    = TLets us ms bn' $ dive avoid' bo
     where
-    avoid' = Set.insert u avoid
+    avoid' = Set.fromList us <> avoid
     bn' | v `Set.notMember` freeVarsT bn = bn
         | otherwise = dive avoid' <$> bn
   dive avoid exp@(TTm tm)

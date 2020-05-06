@@ -168,6 +168,7 @@ class MEM (b :: Mem) where
   ensure :: Stack b -> SZ -> IO (Stack b)
   bump :: Stack b -> IO (Stack b)
   bumpn :: Stack b -> SZ -> IO (Stack b)
+  duplicate :: Stack b -> IO (Stack b)
   discardFrame :: Stack b -> IO (Stack b)
   saveFrame :: Stack b -> IO (Stack b, SZ, SZ)
   restoreFrame :: Stack b -> SZ -> SZ -> IO (Stack b)
@@ -228,6 +229,15 @@ instance MEM 'UN where
 
   bumpn (US ap fp sp stk) n = pure $ US ap fp (sp+n) stk
   {-# inline bumpn #-}
+
+  duplicate (US ap fp sp stk)
+    = US ap fp sp <$> do
+        b <- newByteArray sz
+        copyMutableByteArray b 0 stk 0 sz
+        pure b
+    where
+    sz = sizeofMutableByteArray stk
+  {-# inline duplicate #-}
 
   discardFrame (US ap fp _ stk) = pure $ US ap fp fp stk
   {-# inline discardFrame #-}
@@ -371,6 +381,10 @@ instance MEM 'BX where
 
   bumpn (BS ap fp sp stk) n = pure $ BS ap fp (sp+n) stk
   {-# inline bumpn #-}
+
+  duplicate (BS ap fp sp stk)
+    = BS ap fp sp <$> cloneMutableArray stk 0 (sizeofMutableArray stk)
+  {-# inline duplicate #-}
 
   discardFrame (BS ap fp _ stk) = pure $ BS ap fp fp stk
   {-# inline discardFrame #-}

@@ -98,6 +98,7 @@ denormalizeMatch b
   | MatchData r m df <- b
   = (dcase (dpat r) . fmap snd <$> IMap.toList m) ++ dfcase df
   | MatchRequest hs <- b = denormalizeHandler hs
+  | MatchSum _ <- b = error "MatchSum not a compilation target"
   where
   dfcase (Just d)
     = [Term.MatchCase (UnboundP ()) Nothing $ denormalize d]

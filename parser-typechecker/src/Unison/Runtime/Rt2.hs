@@ -8,6 +8,7 @@ import Data.Maybe (fromMaybe)
 import Data.Bits
 import Data.Traversable
 import Control.Lens ((<&>))
+import Control.Concurrent (forkIO, ThreadId)
 
 import qualified Data.IntSet as S
 import qualified Data.IntMap.Strict as M
@@ -113,9 +114,25 @@ eval !env !denv !ustk !bstk !k (Let nw nx) = do
 eval !env !denv !ustk !bstk !k (Ins i nx) = do
   (denv, ustk, bstk, k) <- exec env denv ustk bstk k i
   eval env denv ustk bstk k nx
+eval !env !denv !ustk !bstk !k Fork = do
+  ustk <- discardFrame ustk
+  bstk <- discardFrame bstk
+  tid <- forkYield env denv k <$> duplicate ustk <*> duplicate bstk
+  ustk <- bump ustk
+  poke ustk 1
+  bstk <- bump bstk
+  poke bstk . Foreign . Wrap $ tid
+  yield env denv ustk bstk k
 eval !_   !_    !_    !_    !_ Exit = pure ()
 eval !_   !_    !_    !_    !_ (Die s) = error s
 {-# noinline eval #-}
+
+forkYield :: Env -> DEnv -> K -> Stack 'UN -> Stack 'BX -> IO ThreadId
+forkYield env denv k ustk bstk = forkIO $ do
+  ustk <- bump ustk
+  poke ustk 0
+  yield env denv ustk bstk k
+{-# inline forkYield #-}
 
 -- fast path application
 enter
