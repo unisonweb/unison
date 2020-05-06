@@ -117,20 +117,33 @@ syncToDirectory' srcPath destPath newRemoteRoot =
       ids
   copyTransitiveDependencies ids dependentsIndex =
     for_ transitiveDependencies $ \r ->
-      ifM (isTerm r) (copyTerm r) $
-        ifM (isDecl r) (copyDecl r) $
-          liftIO . putStrLn $
-            "❗️ I was trying to copy the definition of " ++ show r ++
-            ", which is a dependency of " ++
-            (show . toList) (Relation.lookupRan r dependentsIndex) ++
-            ", but I couldn't find it as a type _or_ a term."
+      ifM (isTerm srcPath r) (copyTerm r) $
+      ifM (isDecl srcPath r) (copyDecl r) $
+      ifM (isTerm destPath r) (warnMissingDependency "term" r) $
+      ifM (isDecl destPath r) (warnMissingDependency "type" r) $
+        fail $ "❗️ I was trying to copy the definition of " ++ show r
+          ++ ", which is a dependency of "
+          ++ (show . toList) (Relation.lookupRan r dependentsIndex)
+          ++ ", but I couldn't find it as a type _or_ a term."
+          ++ andBrokenRepo
     where
     dependenciesOf r =
       Set.mapMaybe Reference.toId (Relation.lookupRan r dependentsIndex)
     transitiveDependencies = TC.transitiveClosure' dependenciesOf ids
-    isTerm = doesFileExist . termPath srcPath
-    isDecl = doesFileExist . declPath srcPath
-
+    isTerm path = doesFileExist . termPath path
+    isDecl path = doesFileExist . declPath path
+    warnMissingDependency thing i =
+      liftIO . putStrLn $ missingDependencyMessage thing i
+    missingDependencyMessage thing i =
+      "😞 I couldn't find the " ++ thing ++ " " ++ show i
+        ++ " in the source codebase."
+        ++ andBrokenRepo
+    andBrokenRepo =
+        "\n\n"
+        ++ "If you were trying to access a git repository,"
+        ++ " it is likely that it is incomplete, due to a bug in a"
+        ++ " previous version of `ucm`, and needs to be recreated."
+        ++ " using the latest."
   copyTypeIndex :: forall m. MonadIO m
                 => Set Reference.Id -> Set Reference.Id -> m (Set Referent.Id)
   copyTypeIndex termIds declIds = do
@@ -228,7 +241,7 @@ loadIndex parseKey indexDir =
       loadDependentsOf
         (Reference.Builtin . Text.pack . decodeFileName $ path)
         (indexDir </> b </> path)
-  -- part of the previous definition; not the `_builtin` directory, so try 
+  -- part of the previous definition; not the `_builtin` directory, so try
   -- parsing as a derived id reference
   loadDependency path = case componentIdFromString path of
     Nothing -> pure mempty

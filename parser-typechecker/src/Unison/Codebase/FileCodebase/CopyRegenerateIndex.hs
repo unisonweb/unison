@@ -123,7 +123,7 @@ syncToDirectory' getV getA srcPath destPath newRemoteRoot =
     :: forall m a b. MonadIO m => (a -> b -> m ()) -> Relation a b -> m ()
   writeIndexHelper touchIndexFile index =
     traverse_ (uncurry touchIndexFile) (Relation.toList index)
-  copyRawBranch :: (MonadState SyncedEntities n, MonadIO n) 
+  copyRawBranch :: (MonadState SyncedEntities n, MonadIO n)
                 => Branch.Hash -> Causal.Raw Branch.Raw Branch.Raw -> n ()
   copyRawBranch rh rc = unlessM (hashExists destPath rh) $ do
     copyReferencedDefns $ Causal.rawHead rc
@@ -168,6 +168,7 @@ syncToDirectory' getV getA srcPath destPath newRemoteRoot =
       Nothing ->
         fail $ "😞 I encountered a reference to the type " ++ show i
              ++ ", but I couldn't find it in " ++ declPath srcPath i
+             ++ andBrokenRepo
   -- copy and index a term and its transitive dependencies
   copyTerm :: MonadState SyncedEntities n => MonadIO n => Reference.Id -> n ()
   copyTerm = doFileOnce destPath syncedTerms termPath $
@@ -187,18 +188,24 @@ syncToDirectory' getV getA srcPath destPath newRemoteRoot =
           dependentsIndex <>= Relation.fromManyDom dependencies i
           -- copy the transitive dependencies
           for_ (mapMaybe Reference.toId $ toList dependencies) $ \r ->
-            ifM (isTerm r) (copyTerm r) $
-              ifM (isDecl r) (copyDecl r) $
-                liftIO . putStrLn $
-                  "❗️ I was trying to copy the definition of " ++ show r ++
-                  ", which is a dependency of " ++ show i ++
-                  ", but I couldn't find it as a type _or_ a term."
+            ifM (isTerm srcPath r) (copyTerm r) $
+            ifM (isDecl srcPath r) (copyDecl r) $
+            ifM (isTerm destPath r) (warnMissingDependency "term" r) $
+            ifM (isDecl destPath r) (warnMissingDependency "type" r) $
+              fail $ missingDependencyMessage "definition of" i
             where
-            isTerm = doesFileExist . termPath srcPath
-            isDecl = doesFileExist . declPath srcPath
+            isTerm path = doesFileExist . termPath path
+            isDecl path = doesFileExist . declPath path
+            missingDependencyMessage thing i =
+              "😞 I couldn't find the " ++ thing ++ " " ++ show i
+                ++ " in the source codebase."
+                ++ andBrokenRepo
+            warnMissingDependency thing i =
+              liftIO . putStrLn $ missingDependencyMessage thing i
         Nothing ->
           fail $ "😞 I was trying to copy the type " ++ show i
                ++ ", but I couldn't find it in " ++ termPath srcPath i
+               ++ andBrokenRepo
       -- build the type indices
       getTypeOfTerm getV getA srcPath i >>= \case
         Just typ -> do
@@ -214,8 +221,15 @@ syncToDirectory' getV getA srcPath destPath newRemoteRoot =
         Nothing ->
           fail $ "😞 I was trying to copy the term " ++ show i
                ++ ", but I couldn't find its type in " ++ typePath srcPath i
+               ++ andBrokenRepo
   copyEdits :: StateT SyncedEntities m Patch -> Branch.EditHash -> StateT SyncedEntities m ()
   copyEdits p = doFileOnce destPath syncedEdits editsPath $ \h -> do
     ifM (doesFileExist (editsPath srcPath h))
         (copyFileWithParents (editsPath srcPath h) (editsPath destPath h))
         (serializeEdits destPath h p)
+  andBrokenRepo =
+      "\n\n"
+      ++ "If you were trying to access a git repository,"
+      ++ " it is likely that it is incomplete, due to a bug in a"
+      ++ " previous version of `ucm`, and needs to be recreated."
+      ++ " using the latest."

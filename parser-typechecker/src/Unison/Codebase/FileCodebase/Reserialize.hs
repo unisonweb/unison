@@ -134,9 +134,17 @@ syncToDirectory fmtV fmtA srcPath destPath branch = do
   tryPutDependency :: Reference -> StateT SyncedEntities m ()
   tryPutDependency Reference.Builtin{} = pure ()
   tryPutDependency (Reference.DerivedId i) =
-    ifM (isTerm i) (putTerm' i) $
-      ifM (isDecl i) (putDecl' i) $
-        fail $ "😞 I was trying to copy the definition of " ++ show i
-            ++ ", but I couldn't find it as a type _or_ a term."
-  isTerm = doesFileExist . termPath srcPath
-  isDecl = doesFileExist . declPath srcPath
+    ifM (isTerm srcPath i) (putTerm' i) $
+    ifM (isDecl srcPath i) (putDecl' i) $
+    ifM (isTerm destPath i) (warnMissingDependency "term" i) $
+    ifM (isDecl destPath i) (warnMissingDependency "type" i) $
+      fail $ "😞 " ++ missingDependencyMessage "definition of" i
+  isTerm path = doesFileExist . termPath path
+  isDecl path = doesFileExist . declPath path
+  missingDependencyMessage thing i =
+    "I couldn't find the " ++ thing ++ " " ++ show i
+      ++ " in the source codebase. If you were trying to `pull` from a"
+      ++ " git repository, that git repository may need to be recreated"
+      ++ " using the latest version of ucm."
+  warnMissingDependency thing i =
+    liftIO . putStrLn $ "⚠️ " ++ missingDependencyMessage thing i
