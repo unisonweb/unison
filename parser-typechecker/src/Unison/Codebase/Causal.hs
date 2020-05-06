@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns        #-}
+
 module Unison.Codebase.Causal where
 
 import Unison.Prelude
@@ -10,7 +12,6 @@ import           Prelude                 hiding ( head
                                                 , read
                                                 )
 import           Control.Lens                   ( (<&>) )
-import           Control.Monad.Loops            ( anyM )
 import qualified Control.Monad.State           as State
 import           Control.Monad.State            ( StateT )
 import           Data.List                      ( foldl1' )
@@ -264,25 +265,19 @@ mergeWithM f = mergeInternal merge0
     in  e <&> \e -> Merge (RawHash h) e m
 
 -- Does `h2` incorporate all of `h1`?
-before :: Monad m => Causal m h e -> Causal m h e -> m Bool
-before = go
- where
-  -- stopping condition if both are equal
-  go h1 h2 | h1 == h2 = pure True
-  -- otherwise look through tails if they exist
-  go _  (One _ _    ) = pure False
-  go h1 (Cons _ _ tl) = snd tl >>= go h1
-  -- `m1` is a submap of `m2`
-  go (Merge _ _ m1) (Merge _ _ m2) | all (`Map.member` m2) (Map.keys m1) =
-    pure True
-  -- if not, see if `h1` is a subgraph of one of the tails
-  go h1 (Merge _ _ tls) =
-    (||) <$> pure (Map.member (currentHash h1) tls) <*> anyM (>>= go h1)
-                                                             (Map.elems tls)
-  -- Exponential algorithm of checking that all paths are present
-  -- in `h2` isn't necessary because of how merges are flattened
-  --go (Merge _ _ m1) h2@(Merge _ _ _)
-  --  all (\h1 -> go h1 h2) (Map.elems m1)
+before :: forall m h e. Monad m => Causal m h e -> Causal m h e -> m Bool
+before (currentHash -> h1) c2 = go mempty [(currentHash c2, pure c2)] where
+  go :: Set (RawHash h) -> [(RawHash h, m (Causal m h e))] -> m Bool
+  go _seen [] = pure False
+  go seen ((h2, mc2) : rest) =
+    if h1 == h2 then pure True
+    else if Set.member h2 seen then go seen rest
+    else mc2 >>= \case
+      -- nothing comes before One{}
+      One{} -> go (Set.insert h2 seen) rest
+      -- otherwise look through the tails if they exist
+      Cons _ _ tl -> go (Set.insert h2 seen) (tl : rest)
+      Merge _ _ tls -> go (Set.insert h2 seen) (Map.toList tls ++ rest)
 
 hash :: Hashable e => e -> Hash
 hash = Hashable.accumulate'
