@@ -423,15 +423,37 @@ freeEffectVars t =
       in pure . Set.toList $ frees `Set.difference` ABT.annotation t
     go _ = pure []
 
-existentializeArrows :: (Ord v, Monad m) => m v -> Type v a -> m (Type v a)
-existentializeArrows freshVar = ABT.visit go
+-- Converts all unadorned arrows in a type to have fresh
+-- existential ability requirements. For example:
+--
+--   (a -> b) -> [a] -> [b]
+--
+-- Becomes
+--
+--   (a ->{e1} b) ->{e2} [a] ->{e3} [b]
+--
+-- Uses either `positiveVar` or `negativeVar` to create
+-- the variable, based on whether the variable is in
+-- positive or negative position.
+existentializeArrows :: (Ord v, Monad m) => m v -> m v -> Type v a -> m (Type v a)
+existentializeArrows positiveVar negativeVar t = ABT.visit go t
  where
   go t@(Arrow' a b) = case b of
-    Effect1' _ _ -> Nothing
+    -- If an arrow already has attached abilities,
+    -- leave it alone. Ex: `a ->{e} b` is kept as is.
+    Effect1' _ _ -> Just $ do
+      -- Note: Flip roles of negative/positiveVar
+      -- when descending to the left of an arrow!
+      a <- existentializeArrows negativeVar positiveVar a -- flip!
+      b <- existentializeArrows positiveVar negativeVar b
+      pure $ arrow (ABT.annotation t) a b
+    -- For unadorned arrows, make up a fresh variable.
+    -- So `a -> b` becomes `a ->{e} b`, using the
+    -- `positiveVar` variable generator.
     _            -> Just $ do
-      e <- freshVar
-      a <- existentializeArrows freshVar a
-      b <- existentializeArrows freshVar b
+      e <- positiveVar
+      a <- existentializeArrows negativeVar positiveVar a -- flip!
+      b <- existentializeArrows positiveVar negativeVar b
       let ann = ABT.annotation t
       pure $ arrow ann a (effect ann [var ann e] b)
   go _ = Nothing

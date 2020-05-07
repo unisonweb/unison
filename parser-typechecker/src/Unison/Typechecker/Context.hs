@@ -1246,7 +1246,10 @@ existentialFunctionTypeFor e = do
 
 existentializeArrows :: Var v => Type v loc -> M v loc (Type v loc)
 existentializeArrows t = do
-  t <- Type.existentializeArrows (extendExistentialTV Var.inferAbility) t
+  -- TODO: do something different here for positive and negative
+  let positiveVar = extendExistentialTV Var.inferAbility
+  let negativeVar = extendExistentialTV Var.inferAbility
+  t <- Type.existentializeArrows positiveVar negativeVar t
   pure t
 
 ungeneralize :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
@@ -1572,7 +1575,7 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
     -- 1. Look in ambient for exact match of head of `r`
     --    Ex: given `State Nat`, `State` is the head
     --    Ex: given `IO`,        `IO` is the head
-    --    Ex: given `a`, where there's an exact variable 
+    --    Ex: given `a`, where there's an exact variable
     case find (headMatch r) ambient of
       -- 2a. If yes for `a` in ambient, do `subtype amb r` and done.
       Just amb -> do
@@ -1589,10 +1592,10 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
             `orElse` die1
           go ambient rs
         -- This branch deals with collecting up a list of used abilities
-        -- during inference. Example: when inferring `x -> Stream.emit 42`, 
+        -- during inference. Example: when inferring `x -> Stream.emit 42`,
         -- an ambient existential `e` ability is created for the lambda.
         -- In the body of the lambda, requests are made for various abilities
-        -- and this branch finds the first unsolved ambient ability, `e`, 
+        -- and this branch finds the first unsolved ambient ability, `e`,
         -- and solves that to `{r, e'}` where `e'` is another fresh existential.
         -- In this way, a lambda whose body uses multiple effects can be inferred
         -- properly.
