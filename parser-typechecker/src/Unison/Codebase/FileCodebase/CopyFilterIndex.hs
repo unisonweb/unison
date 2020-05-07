@@ -27,6 +27,7 @@ import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Relation          as Relation
+import           Unison.Util.Timing             (time)
 import           Unison.Util.TransitiveClosure as TC
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State           as State
@@ -87,22 +88,22 @@ syncToDirectory' :: forall m
   -> m ()
 syncToDirectory' srcPath destPath newRemoteRoot =
   flip State.evalStateT mempty $ do
-    Branch.sync
+    time "Branch.sync" $ Branch.sync
       (hashExists destPath)
       copyRawBranch
       (flip copyEdits)
       (Branch.transform lift newRemoteRoot)
     x <- use syncedTerms
-    y <- use syncedDecls
-    dependentsIndex <- loadDependentsDir srcPath
-    copyTransitiveDependencies (x <> y) dependentsIndex
+    y <- use syncedDecls    
+    dependentsIndex <- time "Load Dependents Dir" $ loadDependentsDir srcPath
+    time "Copy Transitive Dependencies" $ copyTransitiveDependencies (x <> y) dependentsIndex
     -- reload x and y as they may have grown while copying transitive deps
     x <- use syncedTerms
     y <- use syncedDecls
-    copyDependentsIndex (x <> y) dependentsIndex
+    time "Copy Dependents Index" $ copyDependentsIndex (x <> y) dependentsIndex
     -- in processing x and y, we distill them to a direct form:
-    knownReferents <- copyTypeIndex x y
-    copyTypeMentionsIndex knownReferents
+    knownReferents <- time "Copy Type Index" $ copyTypeIndex x y
+    time "Copy Type Mentions Index" $ copyTypeMentionsIndex knownReferents
   where
   -- Loads the entire dependents index from disk, copies the appropriate subset
   -- to `destPath`, then uses it to compute transitive dependents, and copy
