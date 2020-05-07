@@ -123,6 +123,7 @@ library
     Unison.UnisonFile
     Unison.Util.AnnotatedText
     Unison.Util.Bytes
+    Unison.Util.Cache
     Unison.Util.ColorText
     Unison.Util.Exception
     Unison.Util.Free
