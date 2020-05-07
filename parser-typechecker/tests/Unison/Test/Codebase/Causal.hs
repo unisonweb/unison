@@ -89,7 +89,7 @@ test =
     . tests
     $ [ scope "threeWayMerge.ex1"
         .  expect
-        $  Causal.head testThreeWay
+        $  runIdentity (Causal.head testThreeWay)
         == Set.fromList [3, 4]
       , scope "threeWayMerge.idempotent"
         .  expect
@@ -256,14 +256,16 @@ merge :: Causal M h [Int64]
 
 (cons, merge) = (cons'' pure, merge'' pure)
   where
-  pure :: Causal m h [Int64] -> M (Causal m h [Int64])
-  pure c = state (\s -> (c, Causal.head c : s))
+  pure :: Causal M h [Int64] -> M (Causal M h [Int64])
+  pure c = do
+    e <- Causal.head c
+    state (\s -> (c, e : s))
 
 cons'' :: Hashable e1
        => (Causal m1 h e2 -> m2 (Causal m2 h e1))
        -> e1 -> Causal m1 h e2 -> Causal m2 h e1
 cons'' pure e tl =
-  Cons (RawHash $ Causal.hash [Causal.hash e, unRawHash . currentHash $ tl]) e (currentHash tl, pure tl)
+  Cons (RawHash $ Causal.hash [Causal.hash e, unRawHash . currentHash $ tl]) (pure e) (currentHash tl, pure tl)
 
 merge'' :: (Monad m, Semigroup e)
         => (Causal m h e -> m (Causal m h e))

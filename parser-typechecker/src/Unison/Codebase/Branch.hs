@@ -333,7 +333,7 @@ branch0 terms types children edits =
     go (nameSeg, b) =
       Map.mapKeys (nameSegToName nameSeg `Name.joinDot`) . deepEdits $ head b
 
-head :: Branch m -> Branch0 m
+head :: Branch m -> m (Branch0 m)
 head (Branch c) = Causal.head c
 
 headHash :: Branch m -> Hash

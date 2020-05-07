@@ -49,25 +49,25 @@ newtype RawHash a = RawHash { unRawHash :: Hash }
 instance Show (RawHash a) where
   show = show . unRawHash
 
-instance Show e => Show (Causal m h e) where
+instance Show (Causal m h e) where
   show = \case
-    One h e      -> "One " ++ (take 3 . show) h ++ " " ++ show e
-    Cons h e t   -> "Cons " ++ (take 3 . show) h ++ " " ++ show e ++ " " ++ (take 3 . show) (fst t)
-    Merge h e ts -> "Merge " ++ (take 3 . show) h ++ " " ++ show e ++ " " ++ (show . fmap (take 3 . show) . toList) (Map.keysSet ts)
+    One h _      -> "One " ++ (take 3 . show) h
+    Cons h _ t   -> "Cons " ++ (take 3 . show) h ++ " " ++ (take 3 . show) (fst t)
+    Merge h _ ts -> "Merge " ++ (take 3 . show) h ++ " " ++ (show . fmap (take 3 . show) . toList) (Map.keysSet ts)
 
 -- h is the type of the pure data structure that will be hashed and used as
 -- an index; e.g. h = Branch00, e = Branch0 m
 data Causal m h e
   = One { currentHash :: RawHash h
-        , head :: e
+        , head :: m e
         }
   | Cons { currentHash :: RawHash h
-         , head :: e
+         , head :: m e
          , tail :: (RawHash h, m (Causal m h e))
          }
   -- The merge operation `<>` flattens and normalizes for order
   | Merge { currentHash :: RawHash h
-          , head :: e
+          , head :: m e
           , tails :: Map (RawHash h) (m (Causal m h e))
           }
 
@@ -110,15 +110,15 @@ data Tails h
   | TailsCons (RawHash h)
   | TailsMerge (Set (RawHash h))
 
-type Deserialize m h e = RawHash h -> m (Raw h e)
+type Deserialize m h e = RawHash h -> m (Tails h, m e)
 
 read :: Functor m => Deserialize m h e -> RawHash h -> m (Causal m h e)
 read d h = go <$> d h where
   go = \case
-    RawOne e -> One h e
-    RawCons e tailHash -> Cons h e (tailHash, read d tailHash)
-    RawMerge e tailHashes ->
-      Merge h e (Map.fromList [(h, read d h) | h <- toList tailHashes ])
+    (TailsOne, me) -> One h me
+    (TailsCons tailHash, me) -> Cons h me (tailHash, read d tailHash)
+    (TailsMerge tailHashes, me) ->
+      Merge h me (Map.fromList [(h, read d h) | h <- toList tailHashes ])
 
 type Serialize m h e = RawHash h -> Raw h e -> m ()
 
@@ -139,19 +139,19 @@ sync exists serialize c = do
   go c = do
     queued <- State.get
     when (Set.notMember (currentHash c) queued) $ case c of
-      One currentHash head -> serialize currentHash $ RawOne head
+      One currentHash head -> serialize currentHash . RawOne =<< lift head
       Cons currentHash head (tailHash, tailm) -> do
         State.modify (Set.insert currentHash)
         -- write out the tail first, so what's on disk is always valid
         b <- lift $ exists tailHash
         unless b $ go =<< lift tailm
-        serialize currentHash (RawCons head tailHash)
+        serialize currentHash . flip RawCons tailHash =<< lift head
       Merge currentHash head tails -> do
         State.modify (Set.insert currentHash)
         for_ (Map.toList tails) $ \(hash, cm) -> do
           b <- lift $ exists hash
           unless b $ go =<< lift cm
-        serialize currentHash (RawMerge head (Map.keysSet tails))
+        serialize currentHash . flip RawMerge (Map.keysSet tails) =<< lift head
 
 instance Eq (Causal m h a) where
   a == b = currentHash a == currentHash b
@@ -210,24 +210,24 @@ threeWayMerge
   -> Causal m h e
   -> Causal m h e
   -> m (Causal m h e)
-threeWayMerge combine = mergeInternal merge0
- where
-  merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
-  merge0 m = case Map.elems m of
-    []       -> error "Causal.threeWayMerge empty map"
-    me : mes -> do
-      e            <- me
-      (newHead, _) <- foldM k (head e, Seq.singleton (pure e)) mes
-      pure $ Merge (RawHash (hash (newHead, Map.keys m))) newHead m
-   where
-    k (e, acc) new = do
-      n           <- new
-      -- We call `lca'` here since we don't want to merge using the n-way LCA of
-      -- all children. Note for example that some of the children might have
-      -- totally unrelated histories. We want the LCA of any two children.
-      mayAncestor <- lca' acc (Seq.singleton (pure n))
-      newHead     <- combine (head <$> mayAncestor) e (head n)
-      pure (newHead, pure n Seq.<| acc)
+threeWayMerge combine = error "todo" combine -- mergeInternal merge0
+-- where
+--  merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
+--  merge0 m = case Map.elems m of
+--    []       -> error "Causal.threeWayMerge empty map"
+--    me : mes -> do
+--      e            <- me
+--      (newHead, _) <- foldM k (head e, Seq.singleton (pure e)) mes
+--      pure $ Merge (RawHash (hash (newHead, Map.keys m))) newHead m
+--   where
+--    k (e, acc) new = do
+--      n           <- new
+--      -- We call `lca'` here since we don't want to merge using the n-way LCA of
+--      -- all children. Note for example that some of the children might have
+--      -- totally unrelated histories. We want the LCA of any two children.
+--      mayAncestor <- lca' acc (Seq.singleton (pure n))
+--      newHead     <- combine (head <$> mayAncestor) e (head n)
+--      pure (newHead, pure n Seq.<| acc)
 
 mergeInternal
   :: forall m h e
@@ -244,24 +244,24 @@ mergeInternal f a b =
     (a, b) ->
       f $ Map.fromList [(currentHash a, pure a), (currentHash b, pure b)]
 
-mergeWithM
-  :: forall m h e
-   . Monad m
-  => (e -> e -> m e)
-  -> Causal m h e
-  -> Causal m h e
-  -> m (Causal m h e)
-mergeWithM f = mergeInternal merge0
- where
-  -- implementation detail, form a `Merge`
-  merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
-  merge0 m =
-    let e :: m e
-        e = if Map.null m
-          then error "Causal.merge0 empty map"
-          else foldl1' (bind2 f) (fmap head <$> Map.elems m)
-        h = hash (Map.keys m) -- sorted order
-    in  e <&> \e -> Merge (RawHash h) e m
+--mergeWithM
+--  :: forall m h e
+--   . Monad m
+--  => (e -> e -> m e)
+--  -> Causal m h e
+--  -> Causal m h e
+--  -> m (Causal m h e)
+--mergeWithM f = mergeInternal merge0
+-- where
+--  -- implementation detail, form a `Merge`
+--  merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
+--  merge0 m =
+--    let e :: m e
+--        e = if Map.null m
+--          then error "Causal.merge0 empty map"
+--          else foldl1' (bind2 f) (fmap head <$> Map.elems m)
+--        h = hash (Map.keys m) -- sorted order
+--    in  e <&> \e -> Merge (RawHash h) e m
 
 -- Does `h2` incorporate all of `h1`?
 before :: Monad m => Causal m h e -> Causal m h e -> m Bool
@@ -287,57 +287,64 @@ before = go
 hash :: Hashable e => e -> Hash
 hash = Hashable.accumulate'
 
-step :: (Applicative m, Hashable e) => (e -> e) -> Causal m h e -> Causal m h e
-step f c = f (head c) `cons` c
+step :: (Monad m, Hashable e) => (e -> e) -> Causal m h e -> m (Causal m h e)
+step f c = do
+  e <- head c
+  pure $ cons (f e) c
 
-stepDistinct :: (Applicative m, Eq e, Hashable e) => (e -> e) -> Causal m h e -> Causal m h e
-stepDistinct f c = f (head c) `consDistinct` c
+stepDistinct :: (Monad m, Eq e, Hashable e) => (e -> e) -> Causal m h e -> m (Causal m h e)
+stepDistinct f c = do
+  e <- head c
+  consDistinct (f e) c
 
-stepIf
-  :: (Applicative m, Hashable e)
-  => (e -> Bool)
-  -> (e -> e)
-  -> Causal m h e
-  -> Causal m h e
-stepIf cond f c = if cond (head c) then step f c else c
+--stepIf
+--  :: (Applicative m, Hashable e)
+--  => (e -> Bool)
+--  -> (e -> e)
+--  -> Causal m h e
+--  -> Causal m h e
+--stepIf cond f c = if cond (head c) then step f c else c
 
 stepM
-  :: (Applicative m, Hashable e) => (e -> m e) -> Causal m h e -> m (Causal m h e)
-stepM f c = (`cons` c) <$> f (head c)
+  :: (Monad m, Hashable e) => (e -> m e) -> Causal m h e -> m (Causal m h e)
+stepM f c = (`cons` c) <$> (f =<< head c)
 
 stepDistinctM
-  :: (Applicative m, Functor n, Eq e, Hashable e)
-  => (e -> n e) -> Causal m h e -> n (Causal m h e)
-stepDistinctM f c = (`consDistinct` c) <$> f (head c)
+  :: (Monad m, Eq e, Hashable e)
+  => (e -> m e) -> Causal m h e -> m (Causal m h e)
+stepDistinctM f c = do
+  e <- head c
+  (`consDistinct` c) =<< f e
 
-one :: Hashable e => e -> Causal m h e
-one e = One (RawHash $ hash e) e
+one :: Applicative m => Hashable e => e -> Causal m h e
+one e = One (RawHash $ hash e) (pure e)
 
 cons :: (Applicative m, Hashable e) => e -> Causal m h e -> Causal m h e
 cons e tl =
-  Cons (RawHash $ hash [hash e, unRawHash . currentHash $ tl]) e (currentHash tl, pure tl)
+  Cons (RawHash $ hash [hash e, unRawHash . currentHash $ tl]) (pure e) (currentHash tl, pure tl)
 
-consDistinct :: (Applicative m, Eq e, Hashable e) => e -> Causal m h e -> Causal m h e
-consDistinct e tl =
-  if head tl == e then tl
-  else cons e tl
+consDistinct :: (Monad m, Eq e, Hashable e) => e -> Causal m h e -> m (Causal m h e)
+consDistinct e tl = do
+  e' <- head tl
+  if e' == e then pure tl
+  else pure $ cons e tl
 
-uncons :: Applicative m => Causal m h e -> m (Maybe (e, Causal m h e))
+uncons :: Applicative m => Causal m h e -> m (Maybe (m e, Causal m h e))
 uncons c = case c of
   Cons _ e (_,tl) -> fmap (e,) . Just <$> tl
   _ -> pure Nothing
 
 transform :: Functor m => (forall a . m a -> n a) -> Causal m h e -> Causal n h e
 transform nt c = case c of
-  One h e -> One h e
-  Cons h e (ht, tl) -> Cons h e (ht, nt (transform nt <$> tl))
-  Merge h e tls -> Merge h e $ Map.map (\mc -> nt (transform nt <$> mc)) tls
+  One h me -> One h (nt me)
+  Cons h me (ht, tl) -> Cons h (nt me) (ht, nt (transform nt <$> tl))
+  Merge h me tls -> Merge h (nt me) $ Map.map (\mc -> nt (transform nt <$> mc)) tls
 
 unsafeMapHashPreserving :: Functor m => (e -> e2) -> Causal m h e -> Causal m h e2
 unsafeMapHashPreserving f c = case c of
-  One h e -> One h (f e)
-  Cons h e (ht, tl) -> Cons h (f e) (ht, unsafeMapHashPreserving f <$> tl)
-  Merge h e tls -> Merge h (f e) $ Map.map (fmap $ unsafeMapHashPreserving f) tls
+  One h me -> One h (f <$> me)
+  Cons h me (ht, tl) -> Cons h (f <$> me) (ht, unsafeMapHashPreserving f <$> tl)
+  Merge h me tls -> Merge h (f <$> me) $ Map.map (fmap $ unsafeMapHashPreserving f) tls
 
 data FoldHistoryResult a = Satisfied a | Unsatisfied a deriving (Eq,Ord,Show)
 
@@ -358,7 +365,9 @@ foldHistoryUntil f a c = step a mempty (pure c) where
   step a _seen Seq.Empty = pure (Unsatisfied a)
   step a seen (c Seq.:<| rest) | currentHash c `Set.member` seen =
     step a seen rest
-  step a seen (c Seq.:<| rest) = case f a (head c) of
+  step a seen (c Seq.:<| rest) = do
+   e <- head c
+   case f a e of
     (a, True ) -> pure (Satisfied a)
     (a, False) -> do
       tails <- case c of
