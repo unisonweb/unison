@@ -135,6 +135,7 @@ library
     Unison.Util.Range
     Unison.Util.Star3
     Unison.Util.SyntaxText
+    Unison.Util.Timing
     Unison.Util.TQueue
     Unison.Util.TransitiveClosure
     Unison.Util.CycleTable
