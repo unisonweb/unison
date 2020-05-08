@@ -19,6 +19,7 @@ module Unison.Runtime.ANF
   , pattern TApv
   , pattern TCom
   , pattern TCon
+  , pattern TKon
   , pattern TReq
   , pattern TPrm
   , pattern TIOp
@@ -30,6 +31,7 @@ module Unison.Runtime.ANF
   , pattern TTm
   , pattern TBinds
   , pattern TBinds'
+  , pattern TShift
   , pattern TMatch
   , Mem(..)
   , Lit(..)
@@ -41,7 +43,7 @@ module Unison.Runtime.ANF
   , float
   , lamLift
   , ANormalBF(..)
-  , ANormalTF(.., AApv, ACom, ACon, AReq, APrm, AIOp)
+  , ANormalTF(.., AApv, ACom, ACon, AKon, AReq, APrm, AIOp)
   , ANormal
   , ANormalT
   , ANFM
@@ -56,6 +58,7 @@ import Unison.Prelude
 
 import Control.Monad.Reader (ReaderT(..), MonadReader(..))
 import Control.Monad.State (State, runState, MonadState(..), modify, gets)
+import Control.Lens (snoc, unsnoc)
 
 import Data.Bifunctor (Bifunctor(..))
 import Data.Bifoldable (Bifoldable(..))
@@ -362,6 +365,7 @@ data ANormalBF v e
 data ANormalTF v e
   = ALit Lit
   | AMatch v (Branched e)
+  | AShift Int e
   | AHnd [Int] v (Maybe e) e
   | AApp (Func v) [v]
   | AFrc v
@@ -388,6 +392,7 @@ instance Functor (ANormalTF v) where
   fmap _ (ALit l) = ALit l
   fmap f (AMatch v br) = AMatch v $ f <$> br
   fmap f (AHnd rs h d e) = AHnd rs h (f <$> d) $ f e
+  fmap f (AShift i e) = AShift i $ f e
   fmap _ (AFrc v) = AFrc v
   fmap _ (AApp f args) = AApp f args
 
@@ -396,6 +401,7 @@ instance Bifunctor ANormalTF where
   bimap _ _ (ALit l) = ALit l
   bimap f g (AMatch v br) = AMatch (f v) $ fmap g br
   bimap f g (AHnd rs v d e) = AHnd rs (f v) (g <$> d) $ g e
+  bimap _ g (AShift i e) = AShift i $ g e
   bimap f _ (AFrc v) = AFrc (f v)
   bimap f _ (AApp fu args) = AApp (fmap f fu) $ fmap f args
 
@@ -404,6 +410,7 @@ instance Bifoldable ANormalTF where
   bifoldMap _ _ (ALit _) = mempty
   bifoldMap f g (AMatch v br) = f v <> foldMap g br
   bifoldMap f g (AHnd _ h d e) = f h <> foldMap g d <> g e
+  bifoldMap _ g (AShift _ e) = g e
   bifoldMap f _ (AFrc v) = f v
   bifoldMap f _ (AApp func args) = foldMap f func <> foldMap f args
 
@@ -432,6 +439,8 @@ pattern ACom r args = AApp (FComb r) args
 pattern TCom r args = TApp (FComb r) args
 pattern ACon r t args = AApp (FCon r t) args
 pattern TCon r t args = TApp (FCon r t) args
+pattern AKon v args = AApp (FCont v) args
+pattern TKon v args = TApp (FCont v) args
 pattern AReq r t args = AApp (FReq r t) args
 pattern TReq r t args = TApp (FReq r t) args
 pattern APrm p args = AApp (FPrim (Left p)) args
@@ -439,14 +448,16 @@ pattern TPrm p args = TApp (FPrim (Left p)) args
 pattern AIOp p args = AApp (FPrim (Right p)) args
 pattern TIOp p args = TApp (FPrim (Right p)) args
 
-
 pattern THnd rs h d b = TTm (AHnd rs h d b)
+pattern TShift i v e = TTm (AShift i (ABTN.TAbs v e))
 pattern TMatch v cs = TTm (AMatch v cs)
 pattern TVar v = TTm (AVar v)
 
-{-# complete TLet, TName, TVar, TApp, TLit, THnd, TMatch #-}
+{-# complete TLet, TName, TVar, TApp, TLit, THnd, TShift, TMatch #-}
 {-# complete TLet, TName,
-      TVar, TApv, TCom, TCon, TReq, TPrm, TIOp, TLit, THnd, TMatch
+      TVar,
+      TApv, TCom, TCon, TKon, TReq, TPrm, TIOp,
+      TLit, THnd, TShift, TMatch
   #-}
 
 directVars :: Var v => ANormalT v -> Set.Set v
@@ -531,6 +542,8 @@ data Func v
   = FVar v
   -- top-level combinator
   | FComb !Int
+  -- continuation jump
+  | FCont v
   -- data constructor
   | FCon !Reference !Int
   -- ability request
@@ -803,13 +816,20 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
     us <- expandBindings [q] vs
     AccumRequest IMap.empty . Just . ABTN.TAbss us <$> anfTerm bd
   | EffectBindP _ r t ps pk <- p = do
-    us <- expandBindings (ps ++ [pk]) vs
+    exp <- expandBindings (snoc ps pk) vs
+    let (us, uk)
+          = maybe (error "anfInitCase: unsnoc impossible") id
+          $ unsnoc exp
     n <- resolve r
+    jn <- resolve $ Builtin "jumpCont"
+    kf <- fresh
     flip AccumRequest Nothing
        . IMap.singleton n
        . IMap.singleton t
        . (BX<$us,)
        . ABTN.TAbss us
+       . TShift n kf
+       . TName uk (Left jn) [kf]
       <$> anfTerm bd
 anfInitCase _ (MatchCase p _ _)
   = error $ "anfInitCase: unexpected pattern: " ++ show p

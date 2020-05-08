@@ -210,6 +210,9 @@ dropn = binop0 4 $ \[x0,y0,x,y,b,r]
              (Just $ TPrm SUBN [y,x]))
       $ TCon Ty.natRef 0 [r]
 
+jumpk :: Var v => SuperNormal v
+jumpk = binop0 0 $ \[k,a] -> TKon k [a]
+
 handle'io :: Var v => SuperNormal v
 handle'io
   = unop0 0 $ \[rq]
@@ -746,6 +749,7 @@ builtinLookup
 --   , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optional a)
 --
 --   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
+  , ("jumpCont", jumpk)
   ]
 
 builtinNumbering :: Map.Map Reference Int

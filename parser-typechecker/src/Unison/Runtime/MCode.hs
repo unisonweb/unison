@@ -37,8 +37,10 @@ import Unison.Runtime.ANF
   , pattern TApv
   , pattern TCom
   , pattern TCon
+  , pattern TKon
   , pattern TReq
   , pattern THnd
+  , pattern TShift
   , pattern TLets
   , pattern TName
   , pattern TTm
@@ -485,6 +487,10 @@ emitSection _   ctx (TReq a e args)
   -- Currently implementing packed calling convention for abilities
   = Ins (Pack e (emitArgs ctx args))
   . App True (Dyn a) $ BArg1 0
+emitSection _   ctx (TKon k args)
+  | Just (i, BX) <- ctxResolve ctx k = Jump i $ emitArgs ctx args
+  | Nothing <- ctxResolve ctx k = emitSectionVErr k
+  | otherwise = error $ "emitSection: continuations are boxed"
 emitSection _   _   (TLit l)
   = Ins (emitLit l)
   . Ins (Pack 0 $ UArg1 0)
@@ -518,6 +524,9 @@ emitSection rec ctx (THnd rs h df b)
       Let l $ emitSection rec (fmap ((,BX).Just) us ++ ctx) d) df
   $ emitSection rec ctx b
   | otherwise = emitSectionVErr h
+emitSection rec ctx (TShift i v e)
+  = Ins (Capture i)
+  $ emitSection rec ((Just v, BX):ctx) e
 emitSection _ _ _ = error "emitSection: unhandled code"
 
 matchCallingError :: Mem -> Branched v -> String

@@ -57,6 +57,8 @@ denormalize (TLit l) = case l of
 denormalize (THnd _  _ _ _)
   = error "denormalize handler"
   -- = Term.match () (denormalize b) $ denormalizeHandler h
+denormalize (TShift _ _ _)
+  = error "denormalize shift"
 denormalize (TLet v _ bn bo)
   | typeOf v == ANFBlank = ABT.subst v dbn dbo
   | otherwise = Term.let1_ False [(v, dbn)] dbo
@@ -76,10 +78,11 @@ denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
   where
   df = case f of
     FVar v -> Term.var () v
-    FComb _ -> error "hmm"
+    FComb _ -> error "FComb"
     FCon r n -> Term.constructor () r n
     FReq r n -> Term.request () (denormalizeRef r) n
-    FPrim _ -> error "hmm" -- Term.ref _
+    FPrim _ -> error "FPrim"
+    FCont _ -> error "denormalize FCont"
 
 denormalizeRef :: Int -> Reference
 denormalizeRef _ = error "denormalizeRef"
