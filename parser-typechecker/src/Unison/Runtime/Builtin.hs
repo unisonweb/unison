@@ -256,7 +256,7 @@ handle'io
       , socket'accept
       , socket'send
       -- , socket'receive :: IOOP
-      , forked'value
+      , fork'comp
       ]
 
 type IOOP = forall v. Var v => Set v -> ([Mem], ANormal v)
@@ -573,18 +573,13 @@ socket'send avoid
 --   . TLet r BX (AIOp SKRECV [sk,n])
 --   $ TCon 
 
-forked'value :: IOOP
-forked'value avoid
-  = ([],)
-  . TLet t UN (APrm FORK [])
-  . TMatch t
-  . MatchSum
-  $ fromList
-      [ (0, ([], TCon optionReference 0 []))
-      , (1, ([BX], TAbs ti $ TCon optionReference 1 [ti]))
-      ]
+fork'comp :: IOOP
+fork'comp avoid
+  = ([BX],)
+  . TAbs lz
+  $ TPrm FORK [lz]
   where
-  [t,ti] = freshes' avoid 1
+  [lz] = freshes' avoid 3
 
 builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
 builtinLookup

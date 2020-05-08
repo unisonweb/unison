@@ -344,6 +344,8 @@ data Instr
 
   -- Put a delimiter on the continuation
   | Reset !IntSet -- prompt ids
+
+  | Fork !Section
   deriving (Show)
 
 data Section
@@ -374,8 +376,6 @@ data Section
   -- Branch on the value in the unboxed data stack
   | Match !Int    -- index of unboxed item to match on
           !Branch -- branches
-
-  | Fork
 
   -- Yield control to the current continuation, with arguments
   | Yield !Args -- values to yield
@@ -555,10 +555,6 @@ emitLet _    ctx (AApp (FComb n) args)
 emitLet _   ctx (AApp (FCon _ n) args) -- TODO: use reference number
   = Ins . Pack n $ emitArgs ctx args
 emitLet _   ctx (AApp (FPrim p) args)
-  | Left ANF.FORK <- p = case args of
-    [] -> Let Fork
-    _ -> error "fork takes no arguments"
-  | otherwise
   = Ins . either emitPOp emitIOp p $ emitArgs ctx args
 emitLet rec ctx bnd = Let (emitSection rec ctx (TTm bnd))
 
@@ -596,6 +592,10 @@ emitPOp ANF.INCI = emitP1 INCI
 emitPOp ANF.INCN = emitP1 INCI
 emitPOp ANF.DECI = emitP1 DECI
 emitPOp ANF.DECN = emitP1 DECI
+
+emitPOp ANF.FORK = \case
+  BArg1 i -> Fork $ App True (Stk i) ZArgs
+  _ -> error "fork takes exactly one boxed argument"
 
 emitPOp p = error $ "unhandled prim op: " ++ show p
 

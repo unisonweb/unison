@@ -88,6 +88,11 @@ exec !_   !denv !ustk !bstk !k (ForeignCall (FF f) args)
   >>= f
   >>= foreignResult ustk bstk
   >>= pure . uncurry (denv,,,k)
+exec !env !denv !ustk !bstk !k (Fork lz) = do
+  tid <- forkEval env denv k lz <$> duplicate ustk <*> duplicate bstk
+  bstk <- bump bstk
+  poke bstk . Foreign . Wrap $ tid
+  pure (denv, ustk, bstk, k)
 {-# inline exec #-}
 
 eval :: Env -> DEnv
@@ -114,25 +119,16 @@ eval !env !denv !ustk !bstk !k (Let nw nx) = do
 eval !env !denv !ustk !bstk !k (Ins i nx) = do
   (denv, ustk, bstk, k) <- exec env denv ustk bstk k i
   eval env denv ustk bstk k nx
-eval !env !denv !ustk !bstk !k Fork = do
-  ustk <- discardFrame ustk
-  bstk <- discardFrame bstk
-  tid <- forkYield env denv k <$> duplicate ustk <*> duplicate bstk
-  ustk <- bump ustk
-  poke ustk 1
-  bstk <- bump bstk
-  poke bstk . Foreign . Wrap $ tid
-  yield env denv ustk bstk k
 eval !_   !_    !_    !_    !_ Exit = pure ()
 eval !_   !_    !_    !_    !_ (Die s) = error s
 {-# noinline eval #-}
 
-forkYield :: Env -> DEnv -> K -> Stack 'UN -> Stack 'BX -> IO ThreadId
-forkYield env denv k ustk bstk = forkIO $ do
-  ustk <- bump ustk
-  poke ustk 0
-  yield env denv ustk bstk k
-{-# inline forkYield #-}
+forkEval
+  :: Env -> DEnv -> K -> Section -> Stack 'UN -> Stack 'BX -> IO ThreadId
+forkEval env denv k nx ustk bstk = forkIO $ do
+  (denv, ustk, bstk, k) <- discardCont denv ustk bstk k (-1)
+  eval env denv ustk bstk k nx
+{-# inline forkEval #-}
 
 -- fast path application
 enter
@@ -608,6 +604,14 @@ splitCont !denv !ustk !bstk !k !p
    (bseg, bstk) <- grab bstk bsz
    return (ck, denv, ustk, bstk, useg, bseg, k)
 {-# inline splitCont #-}
+
+discardCont
+  :: DEnv -> Stack 'UN -> Stack 'BX -> K
+  -> Int -> IO (DEnv, Stack 'UN, Stack 'BX, K)
+discardCont denv ustk bstk k p
+    = splitCont denv ustk bstk k p
+  <&> \(_, denv, ustk, bstk, _, _, k) -> (denv, ustk, bstk, k)
+{-# inline discardCont #-}
 
 resolve :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> Ref -> IO Closure
 resolve env _ _ _ (Env i) = return $ PAp (env i) unull bnull
