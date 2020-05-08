@@ -485,8 +485,10 @@ sync
   -> (EditHash -> m Patch -> m ())
   -> Branch m
   -> m ()
-sync exists serializeRaw serializeEdits b =
-  State.evalStateT (sync' exists serializeRaw serializeEdits b) mempty
+sync exists serializeRaw serializeEdits b = do
+  written <- State.execStateT (sync' exists serializeRaw serializeEdits b) mempty
+  traceM $ "Branch.sync wrote " <> show (Set.size written) <> " namespace files."
+  pure ()
 
 -- serialize a `Branch m` indexed by the hash of its corresponding Raw
 sync'
@@ -520,8 +522,8 @@ sync' exists serializeRaw serializeEdits b = Causal.sync exists
     writeB0 b0 = do
       for_ (view children b0) $ \c -> do
         queued <- State.get
-        when (Set.notMember (headHash c) queued)
-          $ sync' exists serializeRaw serializeEdits c
+        when (Set.notMember (headHash c) queued) $
+          sync' exists serializeRaw serializeEdits c
       for_ (view edits b0) (lift . uncurry serializeEdits)
 
   -- this has to serialize the branch0 and its descendants in the tree,
