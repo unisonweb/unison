@@ -428,7 +428,7 @@ renderTypeError e env src = case e of
           , "\n\n"
           , annotatedAsErrorSite src termSite
           , case expectedType of
-            Type.Var' (TypeVar.Existential _ _) -> "\nThere are no constraints on its type."
+            Type.Var' (TypeVar.Existential{}) -> "\nThere are no constraints on its type."
             _ ->
               "\nWhatever it is, it has a type that conforms to "
                 <> style Type1 (renderType' env expectedType)
@@ -688,7 +688,7 @@ renderContext env ctx@(C.Context es) = "  Γ\n    "
     -> Pretty (AnnotatedText a)
   showElem _ctx (C.Var v) = case v of
     TypeVar.Universal x     -> "@" <> renderVar x
-    TypeVar.Existential _ x -> "'" <> renderVar x
+    e -> Pr.shown e
   showElem ctx (C.Solved _ v (Type.Monotype t)) =
     "'" <> shortName v <> " = " <> renderType' env (C.apply ctx t)
   showElem ctx (C.Ann v t) =
