@@ -1687,7 +1687,9 @@ loop = do
               tm (Referent.Con r _i _ct) = eval $ GetDependents r
               in LD.fold tp tm ld
             (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependents root'
-            respond $ ListDependents hqLength ld names0 missing
+            let names = getTypesAndTerms names0
+            numberedArgs .= fmap (Name.toString . fst) names
+            respond $ ListDependents hqLength ld names missing
       ListDependenciesI hq -> do -- todo: add flag to handle transitive efficiently
         resolveHQToLabeledDependencies hq >>= \lds ->
           if null lds
@@ -1709,7 +1711,9 @@ loop = do
               tm _ = pure mempty
               in LD.fold tp tm ld
             (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependencies root'
-            respond $ ListDependencies hqLength ld names0 missing
+            let names = getTypesAndTerms names0
+            numberedArgs .= fmap (Name.toString . fst) names
+            respond $ ListDependencies hqLength ld names missing
       DebugNumberedArgsI -> use numberedArgs >>= respond . DumpNumberedArgs
       DebugBranchHistoryI ->
         eval . Notify . DumpBitBooster (Branch.headHash currentBranch') =<<
@@ -1735,6 +1739,12 @@ loop = do
      where
       notImplemented = eval $ Notify NotImplemented
       success = respond Success
+
+      getTypesAndTerms :: Names0 -> [(Name, Reference)]
+      getTypesAndTerms names0 = types <> terms
+        where
+          types = R.toList $ Names3.types0 names0
+          terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
 
       resolveDefaultMetadata :: Path.Absolute -> Action' m v [String]
       resolveDefaultMetadata path = do

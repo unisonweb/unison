@@ -67,6 +67,7 @@ module Unison.Util.Pretty (
    nonEmpty,
    numbered,
    numberedColumn2,
+   numberedColumn2Header,
    numberedList,
    orElse,
    orElses,
@@ -416,6 +417,13 @@ numbered
   -> Pretty s
 numbered num ps = column2 (fmap num [1 ..] `zip` toList ps)
 
+numberedHeader
+  :: (Foldable f, LL.ListLike s Char, IsString s)
+  => (Maybe Int -> Pretty s)
+  -> f (Pretty s)
+  -> Pretty s
+numberedHeader num ps = column2 (fmap num (Nothing : fmap Just [1 ..]) `zip` toList ps)
+
 -- Like `column2` but with the lines numbered. For instance:
 --
 -- 1. one thing     : this is a thing
@@ -427,6 +435,13 @@ numberedColumn2
   -> f (Pretty s, Pretty s)
   -> Pretty s
 numberedColumn2 num ps = numbered num (align $ toList ps)
+
+numberedColumn2Header
+  :: (Foldable f, LL.ListLike s Char, IsString s)
+  => (Int -> Pretty s)
+  -> f (Pretty s, Pretty s)
+  -> Pretty s
+numberedColumn2Header num ps = numberedHeader (maybe mempty num) (align $ toList ps)
 
 -- Opinionated `numbered` that uses bold numbers in front
 numberedList :: Foldable f => f (Pretty ColorText) -> Pretty ColorText
