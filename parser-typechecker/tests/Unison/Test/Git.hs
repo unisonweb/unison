@@ -21,6 +21,7 @@ import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Codebase.FileCodebase.Reserialize as Reserialize
 import Unison.Codebase.FileCodebase.CopyFilterIndex as CopyFilterIndex
 import Unison.Codebase.FileCodebase.CopyRegenerateIndex as CopyRegenerateIndex
+import Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex as SlimCopyRegenerateIndex
 import Unison.Codebase.FileCodebase.Common (SyncToDir, formatAnn)
 import qualified Unison.Codebase.Serialization.V1 as V1
 import Unison.Parser (Ann)
@@ -209,7 +210,7 @@ testPush = scope "push" $ do
   -- pushing.
   runTranscript_ tmp c setupTranscript
 
-  -- now we'll try pushing three ways.
+  -- now we'll try pushing multiple ways.
   for_ pushImplementations $ \(implName, impl) -> scope implName $ do
     -- initialize git repo
     let repoGit = tmp </> (implName ++ ".git")
@@ -282,6 +283,7 @@ testPush = scope "push" $ do
     [ ("Reserialize", Reserialize.syncToDirectory)
     , ("CopyFilterIndex", CopyFilterIndex.syncToDirectory)
     , ("CopyRegenerateIndex", CopyRegenerateIndex.syncToDirectory)
+    , ("SlimCopyRegenerateIndex", SlimCopyRegenerateIndex.syncToDirectory)
     ]
 
   groups =
