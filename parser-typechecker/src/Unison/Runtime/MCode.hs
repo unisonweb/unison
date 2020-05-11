@@ -65,6 +65,10 @@ import Data.Text.IO as SYS
   ( hGetLine
   , hPutStr
   )
+import Control.Concurrent as SYS
+  ( threadDelay
+  , killThread
+  )
 import Data.Time.Clock.POSIX as SYS
   ( getPOSIXTime
   , utcTimeToPOSIXSeconds
@@ -690,6 +694,10 @@ iopToForeign ANF.CLOSCK = error "todo"
 iopToForeign ANF.SKACPT = error "todo"
 iopToForeign ANF.SKSEND = error "todo"
 iopToForeign ANF.SKRECV = error "todo"
+iopToForeign ANF.THKILL
+  = foreign1 $ \tid -> [] <$ killThread tid
+iopToForeign ANF.THDELY
+  = foreign1 $ \n -> [] <$ threadDelay n
 
 emitP1 :: Prim1 -> Args -> Instr
 emitP1 p (UArg1 i) = Prim1 p i

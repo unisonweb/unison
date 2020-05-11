@@ -600,6 +600,7 @@ data IOp
   | REMOFI | RENAFI | GFTIME | GFSIZE
   | SRVSCK | LISTEN | CLISCK | CLOSCK
   | SKACPT | SKSEND | SKRECV
+  | THKILL | THDELY
   deriving (Show,Eq,Ord)
 
 --   fork_ : '{io.IO} a -> (Either io.Error io.ThreadId)
