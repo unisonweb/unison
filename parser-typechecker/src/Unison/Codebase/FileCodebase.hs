@@ -108,7 +108,7 @@ initCodebaseAndExit mdir = do
 -- initializes a new codebase here (i.e. `ucm -codebase dir init`)
 initCodebase :: FilePath -> IO (Codebase IO Symbol Ann)
 initCodebase path = do
-  let theCodebase = codebase1 V1.formatSymbol Common.formatAnn path
+  theCodebase <- codebase1 V1.formatSymbol Common.formatAnn path
   prettyDir <- P.string <$> canonicalizePath path
 
   whenM (codebaseExists path) $
@@ -135,7 +135,7 @@ getCodebaseOrExit mdir = do
   unlessM (codebaseExists dir) $ do
     PT.putPrettyLn' errMsg
     exitFailure
-  pure theCodebase
+  theCodebase
 
 getNoCodebaseErrorMsg :: IsString s => P.Pretty s -> Maybe FilePath -> P.Pretty s
 getNoCodebaseErrorMsg prettyDir mdir =
@@ -162,16 +162,18 @@ codebase1
    . MonadUnliftIO m
   => Var v
   => BuiltinAnnotation a
-  => S.Format v -> S.Format a -> CodebasePath -> Codebase m v a
+  => S.Format v -> S.Format a -> CodebasePath -> m (Codebase m v a)
 codebase1 = codebase1' Sync.syncToDirectory
+
+-- cache :: (MonadIO m, Ord k) => (k -> m (Maybe v)) -> m (k -> m (Maybe v))
 
 codebase1'
   :: forall m v a
    . MonadUnliftIO m
   => Var v
   => BuiltinAnnotation a
-  => Common.SyncToDir m v a -> S.Format v -> S.Format a -> CodebasePath -> Codebase m v a
-codebase1' syncToDirectory fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path =
+  => Common.SyncToDir m v a -> S.Format v -> S.Format a -> CodebasePath -> m (Codebase m v a)
+codebase1' syncToDirectory fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path = do
   let c =
         Codebase
           (getTerm getV getA path)
@@ -201,7 +203,7 @@ codebase1' syncToDirectory fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) p
           (termReferentsByPrefix (getDecl getV getA) path)
           (pure 10)
           (branchHashesByPrefix path)
-   in c
+   in pure c
   where
     dependents :: Reference -> m (Set Reference.Id)
     dependents r = listDirAsIds (dependentsDir path r)

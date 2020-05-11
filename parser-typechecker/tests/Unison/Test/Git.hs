@@ -216,9 +216,8 @@ testPush = scope "push" $ do
     io $ "git" ["init", "--bare", Text.pack repoGit]
 
     -- push one way!
-    runTranscript_ tmp
-      (FC.codebase1' impl V1.formatSymbol formatAnn codebasePath)
-      (pushTranscript repoGit)
+    codebase <- io $ FC.codebase1' impl V1.formatSymbol formatAnn codebasePath
+    runTranscript_ tmp codebase (pushTranscript repoGit)
 
     -- check out the resulting repo so we can inspect it
     io $ "git" ["clone", Text.pack repoGit, Text.pack $ tmp </> implName ]
