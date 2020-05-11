@@ -95,6 +95,7 @@ import qualified Unison.Util.Free              as Free
 import           Unison.Util.List               ( uniqueBy )
 import qualified Unison.Util.Relation          as R
 import qualified Unison.Util.Relation4          as R4
+import           Unison.Util.Timing             (unsafeTime)
 import           Unison.Util.TransitiveClosure  (transitiveClosure)
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
@@ -2140,7 +2141,7 @@ mergeBranchAndPropagateDefaultPatch inputDescription unchangedMessage srcb dest0
   where
   mergeBranch :: (Monad m, Var v) =>
     InputDescription -> Branch m -> Maybe Path.Path' -> Path.Absolute -> Action' m v Bool
-  mergeBranch inputDescription srcb dest0 dest = do
+  mergeBranch inputDescription srcb dest0 dest = unsafeTime "Merge Branch" $ do
     destb <- getAt dest
     merged <- eval . Eval $ Branch.merge srcb destb
     for_ dest0 $ \dest0 ->
@@ -2150,7 +2151,7 @@ mergeBranchAndPropagateDefaultPatch inputDescription unchangedMessage srcb dest0
 
 loadPropagateDiffDefaultPatch :: (Monad m, Var v) =>
   InputDescription -> Maybe Path.Path' -> Path.Absolute -> Action' m v ()
-loadPropagateDiffDefaultPatch inputDescription dest0 dest = do
+loadPropagateDiffDefaultPatch inputDescription dest0 dest = unsafeTime "Propagate Default Patch" $ do
     original <- getAt dest
     patch <- eval . Eval $ Branch.getPatch defaultPatchNameSegment (Branch.head original)
     patchDidChange <- propagatePatch inputDescription patch dest

@@ -132,26 +132,28 @@ sync
   -> Causal m h e
   -> StateT (Set (RawHash h)) m ()
 sync exists serialize c = do
-  b <- lift . exists $ currentHash c
-  unless b $ go c
+  queued <- State.get
+  itExists <- if Set.member (currentHash c) queued then pure True
+              else lift . exists $ currentHash c
+  unless itExists $ go c
  where
   go :: Causal m h e -> StateT (Set (RawHash h)) m ()
   go c = do
     queued <- State.get
-    when (Set.notMember (currentHash c) queued) $ case c of
-      One currentHash head -> serialize currentHash $ RawOne head
-      Cons currentHash head (tailHash, tailm) -> do
-        State.modify (Set.insert currentHash)
-        -- write out the tail first, so what's on disk is always valid
-        b <- lift $ exists tailHash
-        unless b $ go =<< lift tailm
-        serialize currentHash (RawCons head tailHash)
-      Merge currentHash head tails -> do
-        State.modify (Set.insert currentHash)
-        for_ (Map.toList tails) $ \(hash, cm) -> do
-          b <- lift $ exists hash
-          unless b $ go =<< lift cm
-        serialize currentHash (RawMerge head (Map.keysSet tails))
+    when (Set.notMember (currentHash c) queued) $ do
+      State.modify (Set.insert $ currentHash c)
+      case c of
+        One currentHash head -> serialize currentHash $ RawOne head
+        Cons currentHash head (tailHash, tailm) -> do
+          -- write out the tail first, so what's on disk is always valid
+          b <- lift $ exists tailHash
+          unless b $ go =<< lift tailm
+          serialize currentHash (RawCons head tailHash)
+        Merge currentHash head tails -> do
+          for_ (Map.toList tails) $ \(hash, cm) -> do
+            b <- lift $ exists hash
+            unless b $ go =<< lift cm
+          serialize currentHash (RawMerge head (Map.keysSet tails))
 
 instance Eq (Causal m h a) where
   a == b = currentHash a == currentHash b
