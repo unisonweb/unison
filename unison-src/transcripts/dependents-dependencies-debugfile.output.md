@@ -58,10 +58,6 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
     2. ##Nat.+     builtin.Nat.+
     3. #fiupm7pl7o inside.p
 
-.> view 2
-
-  -- builtin.Nat.+ is built-in.
-
 .> dependencies B
 
   Dependencies of #muulibntaq:
@@ -92,20 +88,6 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
   
        Reference   Name
     1. #im2kiu2hmn inside.r
-
-.> dependencies 1
-
-  Dependencies of #im2kiu2hmn:
-  
-       Reference   Name
-    1. #6cdi7g1oi2 outside.d
-
-.> view 1
-
-  outside.d : Boolean
-  outside.d =
-    use Nat +
-    c < (p + 1)
 
 ```
 We don't have an index for dependents of constructors, but iirc if you ask for that, it will show you dependents of the type that provided the constructor.

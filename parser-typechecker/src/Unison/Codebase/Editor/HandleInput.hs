@@ -1688,7 +1688,7 @@ loop = do
               in LD.fold tp tm ld
             (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependents root'
             let names = getTypesAndTerms names0
-            numberedArgs .= fmap (Name.toString . fst) names
+            numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
             respond $ ListDependents hqLength ld names missing
       ListDependenciesI hq -> do -- todo: add flag to handle transitive efficiently
         resolveHQToLabeledDependencies hq >>= \lds ->
@@ -1712,7 +1712,7 @@ loop = do
               in LD.fold tp tm ld
             (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependencies root'
             let names = getTypesAndTerms names0
-            numberedArgs .= fmap (Name.toString . fst) names
+            numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
             respond $ ListDependencies hqLength ld names missing
       DebugNumberedArgsI -> use numberedArgs >>= respond . DumpNumberedArgs
       DebugBranchHistoryI ->

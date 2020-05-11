@@ -29,12 +29,9 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
 .> add
 .> dependents q
 .> dependencies q
-.> view 2
 .> dependencies B
 .> dependencies d
 .> dependents d
-.> dependencies 1
-.> view 1
 .>
 ```
 
