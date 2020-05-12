@@ -54,11 +54,3 @@ toReference = \case
   X (Left r)             -> Left r
   X (Right (Ref' r))     -> Right r
   X (Right (Con' r _ _)) -> Left r
-
----- | Left Decl | Right Term
---toReferenceId :: LabeledDependency -> Maybe (Either Id Id)
---toReferenceId = \case
---  X (Left (DerivedId i))            -> Just (Left i)
---  X (Right (Ref (DerivedId i)))     -> Just (Right i)
---  X (Right (Con (DerivedId i) _ _)) -> Just (Left i)
---  _                                 -> Nothing
