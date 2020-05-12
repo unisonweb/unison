@@ -281,13 +281,15 @@ codebaseExists root =
   and <$> traverse doesDirectoryExist (minimalCodebaseStructure root)
 
 -- | load a branch w/ children from a FileCodebase
-branchFromFiles :: MonadIO m => CodebasePath -> Branch.Hash -> m (Maybe (Branch m))
-branchFromFiles rootDir h = time "FileCodebase.Common.branchFromFiles" $ do
+branchFromFiles :: MonadIO m => Branch.Cache m -> CodebasePath -> Branch.Hash -> m (Maybe (Branch m))
+branchFromFiles cache rootDir h = time "FileCodebase.Common.branchFromFiles" $ do
   fileExists <- doesFileExist (branchPath rootDir h)
   if fileExists then Just <$>
-    Branch.read (deserializeRawBranch rootDir)
-                (deserializeEdits rootDir)
-                h
+    Branch.cachedRead
+      cache
+      (deserializeRawBranch rootDir)
+      (deserializeEdits rootDir)
+      h
   else
     pure Nothing
  where
@@ -306,8 +308,8 @@ branchFromFiles rootDir h = time "FileCodebase.Common.branchFromFiles" $ do
       Right edits -> pure edits
 
 getRootBranch :: forall m.
-  MonadIO m => CodebasePath -> m (Either Codebase.GetRootBranchError (Branch m))
-getRootBranch root = time "FileCodebase.Common.getRootBranch" $
+  MonadIO m => Branch.Cache m -> CodebasePath -> m (Either Codebase.GetRootBranchError (Branch m))
+getRootBranch cache root = time "FileCodebase.Common.getRootBranch" $
   ifM (codebaseExists root)
     (listDirectory (branchHeadDir root) >>= filesToBranch)
     (pure $ Left Codebase.NoRootBranch)
@@ -324,7 +326,7 @@ getRootBranch root = time "FileCodebase.Common.getRootBranch" $
   fileToBranch :: String -> ExceptT Codebase.GetRootBranchError m (Branch m)
   fileToBranch single = ExceptT $ case hashFromString single of
     Nothing -> pure . Left $ Codebase.CouldntParseRootBranch single
-    Just (Branch.Hash -> h) -> branchFromFiles root h <&>
+    Just (Branch.Hash -> h) -> branchFromFiles cache root h <&>
                                 maybeToEither (Codebase.CouldntLoadRootBranch h)
 
 -- |only syncs branches and edits -- no dependencies
@@ -404,7 +406,7 @@ copyFileWithParents src dest =
     createDirectoryIfMissing True (takeDirectory dest)
     copyFile src dest
 
--- Use State and Lens to do some specified thing at most once, to create a file. 
+-- Use State and Lens to do some specified thing at most once, to create a file.
 doFileOnce :: forall m s h. (MonadIO m, MonadState s m, Ord h)
            => CodebasePath
            -> SimpleLens s (Set h) -- lens to track if `h` is already done
