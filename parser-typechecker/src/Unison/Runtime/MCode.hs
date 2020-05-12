@@ -4,7 +4,21 @@
 {-# language EmptyDataDecls #-}
 {-# language PatternSynonyms #-}
 
-module Unison.Runtime.MCode where
+module Unison.Runtime.MCode
+  ( Args'(..)
+  , Args(..)
+  , Instr(..)
+  , Section(..)
+  , Comb(..)
+  , Ref(..)
+  , Prim1(..)
+  , Prim2(..)
+  , Branch(..)
+  , bcount
+  , ucount
+  , emitCombs
+  , emitComb
+  ) where
 
 import GHC.Stack (HasCallStack)
 
