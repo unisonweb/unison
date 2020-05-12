@@ -72,6 +72,7 @@ import           Unison.DataDeclaration         ( DataDeclaration'
 import qualified Unison.Var                    as Var
 import qualified Unison.ConstructorType        as CT
 import Unison.Type (Type)
+import Unison.Util.Debug (traceIfShowMatch)
 
 -- ABOUT THIS FORMAT:
 --
@@ -719,7 +720,9 @@ getRawBranch =
 getBranchDependencies :: MonadGet m => m (BD.Branches n, BD.Dependencies)
 getBranchDependencies = do
   (terms1, types1) <- getTermStarDependencies
+  traceIfShowMatch terms1 ["#dk56i", "#gvvm0"] "in getTermStarDependencies"
   (terms2, types2) <- getTypeStarDependencies
+  traceIfShowMatch terms2 ["#dk56i", "#gvvm0"] "in getTypeStarDependencies"
   childHashes <- fmap (RawHash . snd) <$> getList (getPair skipText getHash)
   editHashes <- Set.fromList . fmap snd <$> getList (getPair skipText getHash)
   pure ( childHashes `zip` repeat Nothing
@@ -727,16 +730,23 @@ getBranchDependencies = do
   where
   -- returns things, metadata types, metadata values
   getStarReferences ::
-    (MonadGet m, Ord r) => m r -> m ([r], [Metadata.Value])
+    forall m r. (MonadGet m, Ord r, Show r) => m r -> m ([r], [Metadata.Value])
   getStarReferences getR = do
     void $ getList getR -- throw away the `facts`
     -- d1: references and namesegments
-    rs :: [r] <- fmap fst <$> getList (getPair getR skipText)
+    rns :: [(r, NameSegment)] <-
+      getList (getPair getR getNameSegment)
+    let rs :: [r] = fmap fst rns
     -- d2: metadata type index
     void $ getList (getPair getR getMetadataType)
     -- d3: metadata (type, value) index
-    (_metadataTypes, metadataValues) <- unzip . fmap snd <$>
-      getList (getPair getR (getPair getMetadataType getMetadataValue))
+    metadataAssociations :: [(r, (Metadata.Type, Metadata.Value))] <- getList (getPair getR (getPair getMetadataType getMetadataValue))
+    let matchingMetadata = filter (\(_, (_, mv)) -> show mv `elem` ["#dk56i", "#gvvm0"]) metadataAssociations
+    let (_metadataTypes, metadataValues) = unzip . fmap snd $ metadataAssociations
+    if not (null matchingMetadata) then let
+      matchingData = filter (\(r,_) -> elem r (fst <$> matchingMetadata)) rns
+      in traceM $ "found as metadata for " ++ show matchingData 
+        ++ " (metadata: " ++ show matchingMetadata ++ ")" else pure ()
     pure (rs, metadataValues)
 
   getTermStarDependencies :: MonadGet m => m (Set Reference.Id, Set Reference.Id)

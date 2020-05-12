@@ -126,6 +126,7 @@ library
     Unison.Util.AnnotatedText
     Unison.Util.Bytes
     Unison.Util.ColorText
+    Unison.Util.Debug
     Unison.Util.Exception
     Unison.Util.Free
     Unison.Util.Find

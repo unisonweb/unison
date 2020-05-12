@@ -45,6 +45,7 @@ import qualified Unison.Util.Relation          as Relation
 import           Unison.Util.Relation           ( Relation )
 import           Unison.Util.Monoid (foldMapM)
 import           Unison.Util.Timing (time)
+import Unison.Util.Debug
 
 import Data.Monoid.Generic
 import Unison.Codebase.FileCodebase.Common
@@ -142,6 +143,9 @@ syncToDirectory' getV getA srcPath destPath newRoot =
               (branches, deps) <-
                 BD.fromRawCausal <$> deserializeRawBranchDependencies srcPath h
               copyFileWithParents (branchPath srcPath h) (branchPath destPath h)
+              case deps of
+                BD.Dependencies _patches terms _decls ->
+                  traceIfShowMatch terms ["#dk56i", "#gvvm0"] ("in raw branch " ++ show h)
               Writer.tell deps
               processBranches (branches ++ rest))
         -- else if it's in memory, enqueue its dependencies, write it, mark it done
@@ -149,6 +153,9 @@ syncToDirectory' getV getA srcPath destPath newRoot =
               Just mb -> do
                 b <- mb
                 let (branches, deps) = BD.fromBranch b
+                case deps of
+                  BD.Dependencies _patches terms _decls ->
+                    traceIfShowMatch terms ["#dk56i", "#gvvm0"] ("in in-memory branch " ++ show h)
                 let causalRaw = Branch.toCausalRaw b
                 serializeRawBranch destPath h causalRaw
                 Writer.tell deps
@@ -182,6 +189,7 @@ syncToDirectory' getV getA srcPath destPath newRoot =
                                   toList . Relation.ran $ Patch._typeEdits patch]
           ifM (doesFileExist (editsPath srcPath h))
               (do
+                traceIfShowMatch newTerms ["#dk56i", "#gvvm0"] ("from patch " ++ show h)
                 copyFileWithParents (editsPath srcPath h) (editsPath destPath h)
                 processDependencies $
                   BD.Dependencies' editHashes (newTerms ++ terms) (newDecls ++ decls))
@@ -203,6 +211,7 @@ syncToDirectory' getV getA srcPath destPath newRoot =
               -- enqueue its type's dependencies, type & type mentions into respective indices
               -- and continue
               (newTerms, newDecls) <- enqueueTermDependencies h
+              traceIfShowMatch newTerms ["#dk56i", "#gvvm0"] ("as a dependency of " ++ show h)
               processDependencies $
                 BD.Dependencies' [] (newTerms ++ termHashes) (newDecls ++ decls)
             )
@@ -277,6 +286,7 @@ syncToDirectory' getV getA srcPath destPath newRoot =
               Relation.fromManyDom typeMentions (Referent.Ref' h)
             let newDecls = [ i | Reference.DerivedId i <- typeDeps ++ typeDeps']
             let newTerms = [ i | Reference.DerivedId i <- termDeps ]
+            traceIfShowMatch newDecls ["#dk56i", "#gvvm0"] ("as a dependency of term " ++ show h)
             pure (newTerms, newDecls)
           Nothing -> throwError (InvalidTypeOfTerm h))
         (throwError (MissingTypeOfTerm h))
