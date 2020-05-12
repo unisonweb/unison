@@ -4,7 +4,7 @@ module Unison.Util.Cache where
 
 import Prelude hiding (lookup)
 import Unison.Prelude
-import UnliftIO (MonadIO, newTVarIO, modifyTVar, writeTVar, atomically, readTVar, readTVarIO)
+import UnliftIO (MonadIO, newTVarIO, modifyTVar', writeTVar, atomically, readTVar, readTVarIO)
 import qualified Data.Map as Map
 
 data Cache m k v =
@@ -21,7 +21,7 @@ cache = do
     insert k v = do
       m <- readTVarIO t
       case Map.lookup k m of
-        Nothing -> atomically $ modifyTVar t (Map.insert k v)
+        Nothing -> atomically $ modifyTVar' t (Map.insert k v)
         _ -> pure ()
 
   pure $ Cache lookup insert
@@ -51,7 +51,7 @@ semispaceCache maxSize = do
             Just v -> insert k v $> Just v
         just -> pure just
     insert k v = atomically $ do
-      modifyTVar gen0 (Map.insert k v)
+      modifyTVar' gen0 (Map.insert k v)
       m0 <- readTVar gen0
       when (fromIntegral (Map.size m0) >= maxSize) $ do
         writeTVar gen1 m0
