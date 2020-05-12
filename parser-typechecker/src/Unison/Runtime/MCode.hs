@@ -33,6 +33,7 @@ import qualified Data.IntMap.Strict as IM
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IS
 
+import Data.Text (Text)
 import qualified Data.Text as Text
 
 import Unison.Var (Var)
@@ -62,7 +63,20 @@ import Unison.Runtime.ANF
   )
 import qualified Unison.Runtime.ANF as ANF
 import Unison.Runtime.Foreign
+import Unison.Util.Bytes as Bytes
 
+import Network.Socket as SYS
+  ( accept
+  )
+import Network.Simple.TCP as SYS
+  ( HostPreference(..)
+  , bindSock
+  , connectSock
+  , listenSock
+  , closeSock
+  , send
+  , recv
+  )
 import System.IO as SYS
   ( BufferMode(..)
   , Handle
@@ -650,6 +664,13 @@ handleResult h = [Right $ Wrap h]
 timeResult :: RealFrac r => r -> ForeignRslt
 timeResult t = intResult $ round t
 
+maybeResult'
+  :: (a -> (Int, ForeignRslt)) -> Maybe a -> ForeignRslt
+maybeResult' _ Nothing = [Left 0]
+maybeResult' f (Just x)
+  | (i, r) <- f x = Left (i+1) : r
+
+
 iopToForeign :: ANF.IOp -> ForeignFunc
 iopToForeign ANF.OPENFI
   = foreign2 $ \fp mo -> handleResult <$> openFile fp mo
@@ -707,17 +728,36 @@ iopToForeign ANF.GFTIME
         <$> getModificationTime (Text.unpack fp)
 iopToForeign ANF.GFSIZE
   = foreign1 $ \fp -> wrappedResult <$> getFileSize (Text.unpack fp)
-iopToForeign ANF.SRVSCK = error "todo"
-iopToForeign ANF.LISTEN = error "todo"
-iopToForeign ANF.CLISCK = error "todo"
-iopToForeign ANF.CLOSCK = error "todo"
-iopToForeign ANF.SKACPT = error "todo"
-iopToForeign ANF.SKSEND = error "todo"
-iopToForeign ANF.SKRECV = error "todo"
+iopToForeign ANF.SRVSCK
+  = foreign1m2 $ \mhst port ->
+      wrappedResult
+        <$> SYS.bindSock (hostPreference mhst) (Text.unpack port)
+iopToForeign ANF.LISTEN
+  = foreign1 $ \sk ->
+      [] <$ SYS.listenSock sk 2048
+iopToForeign ANF.CLISCK
+  = foreign2 $ \ho po ->
+      wrappedResult <$> SYS.connectSock (Text.unpack ho) (Text.unpack po)
+iopToForeign ANF.CLOSCK
+  = foreign1 $ \sk -> [] <$ SYS.closeSock sk
+iopToForeign ANF.SKACPT
+  = foreign1 $ \sk ->
+      wrappedResult <$> SYS.accept sk
+iopToForeign ANF.SKSEND
+  = foreign2 $ \sk bs ->
+      [] <$ SYS.send sk (Bytes.toByteString bs)
+iopToForeign ANF.SKRECV
+  = foreign2 $ \hs n ->
+      maybeResult' ((0,) . wrappedResult) . fmap Bytes.fromByteString
+        <$> SYS.recv hs n
 iopToForeign ANF.THKILL
   = foreign1 $ \tid -> [] <$ killThread tid
 iopToForeign ANF.THDELY
   = foreign1 $ \n -> [] <$ threadDelay n
+
+hostPreference :: Maybe Text -> SYS.HostPreference
+hostPreference Nothing = SYS.HostAny
+hostPreference (Just host) = SYS.Host $ Text.unpack host
 
 emitP1 :: Prim1 -> Args -> Instr
 emitP1 p (UArg1 i) = Prim1 p i
