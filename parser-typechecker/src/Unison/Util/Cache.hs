@@ -2,33 +2,55 @@
 
 module Unison.Util.Cache where
 
+import Prelude hiding (lookup)
 import Unison.Prelude
 import UnliftIO (MonadIO, newTVarIO, modifyTVar, atomically, readTVarIO)
 import qualified Data.Map as Map
 
-cache :: (MonadIO m, Ord k) => (k -> m v) -> m (k -> m v)
-cache f = do
-  t <- newTVarIO Map.empty
-  pure $ \k -> do
-     m <- readTVarIO t
-     case Map.lookup k m of
-       Nothing -> do
-         v <- f k
-         atomically $ modifyTVar t (Map.insert k v)
-         pure v
-       Just v -> pure v
+data Cache m k v =
+  Cache { lookup :: k -> m (Maybe v)
+        , insert :: k -> v -> m ()
+        }
 
-cacheDefined
-  :: (MonadIO m, Applicative g, Traversable g, Ord k)
-  => (k -> m (g v)) -> m (k -> m (g v))
-cacheDefined f = do
+-- Create a cache
+cache :: (MonadIO m, Ord k) => m (Cache m k v)
+cache = do
   t <- newTVarIO Map.empty
-  pure $ \k -> do
-     m <- readTVarIO t
-     case Map.lookup k m of
-       Nothing -> do
-         v <- f k
-         -- we only populate the cache if f returns `Just`
-         for_ v $ \v -> atomically $ modifyTVar t (Map.insert k v)
-         pure v
-       Just v -> pure (pure v)
+  let
+    lookup k = Map.lookup k <$> readTVarIO t
+    insert k v = do
+      m <- readTVarIO t
+      case Map.lookup k m of
+        Nothing -> atomically $ modifyTVar t (Map.insert k v)
+        _ -> pure ()
+
+  pure $ Cache lookup insert
+
+-- Cached function application: if a key `k` is not in the cache,
+-- calls `f` and inserts `f k` results in the cache.
+apply :: Monad m => Cache m k v -> (k -> m v) -> k -> m v
+apply c f k = lookup c k >>= \case
+  Just v -> pure v
+  Nothing -> do
+    v <- f k
+    insert c k v
+    pure v
+
+-- Cached function application which only caches values for
+-- which `f k` is non-empty. For instance, if `g` is `Maybe`,
+-- and `f x` returns `Nothing`, this won't be cached.
+--
+-- Useful when we think that missing results for `f` may be
+-- later filled in so we don't want to cache missing results.
+applyDefined :: (Monad m, Applicative g, Traversable g)
+             => Cache m k v
+             -> (k -> m (g v))
+             -> k
+             -> m (g v)
+applyDefined c f k = lookup c k >>= \case
+  Just v -> pure (pure v)
+  Nothing -> do
+    v <- f k
+    -- only populate the cache if f returns a non-empty result
+    for_ v $ \v -> insert c k v
+    pure v
