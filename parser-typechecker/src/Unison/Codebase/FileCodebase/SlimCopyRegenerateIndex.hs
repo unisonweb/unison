@@ -19,8 +19,7 @@ import           Control.Lens
 import           Control.Monad.State            ( MonadState, evalStateT )
 import           Control.Monad.Writer           ( MonadWriter, execWriterT )
 import qualified Control.Monad.Writer          as Writer
-import           Control.Monad.Except           ( MonadError, runExceptT, throwError )
-
+import           Control.Monad.Except           ( MonadError, runExceptT )
 import           UnliftIO.Directory             ( doesFileExist )
 import           Unison.Codebase                ( CodebasePath )
 import qualified Unison.Codebase.Causal        as Causal
@@ -154,7 +153,10 @@ syncToDirectory' getV getA srcPath destPath newRoot =
                 Writer.tell deps
                 processBranches (branches ++ rest)
         -- else -- error?
-              Nothing -> throwError $ MissingBranch h)
+              Nothing -> do
+                traceShowM $ MissingBranch h
+                processBranches rest
+      )
       (processBranches rest)
   processDependencies :: forall n
      . MonadIO n
@@ -185,7 +187,9 @@ syncToDirectory' getV getA srcPath destPath newRoot =
                 copyFileWithParents (editsPath srcPath h) (editsPath destPath h)
                 processDependencies $
                   BD.Dependencies' editHashes (newTerms ++ terms) (newDecls ++ decls))
-              (throwError $ MissingPatch h))
+              (do
+                traceShowM $ MissingPatch h
+                (processDependencies $ BD.Dependencies' editHashes terms decls)))
         (processDependencies $ BD.Dependencies' editHashes terms decls)
 
   -- for each term id
@@ -207,7 +211,9 @@ syncToDirectory' getV getA srcPath destPath newRoot =
                 BD.Dependencies' [] (newTerms ++ termHashes) (newDecls ++ decls)
             )
       -- else -- an error?
-            (throwError $ MissingTerm h))
+            (do
+              traceShowM $ MissingTerm h
+              (processDependencies $ BD.Dependencies' [] termHashes decls)))
         (processDependencies $ BD.Dependencies' [] termHashes decls)
   -- for each decl id
     BD.Dependencies' [] [] (declHash : declHashes) ->
@@ -224,7 +230,9 @@ syncToDirectory' getV getA srcPath destPath newRoot =
             (do
               newDecls <- copyAndIndexDecls h
               processDependencies $ BD.Dependencies' [] [] (newDecls ++ declHashes))
-            (throwError (MissingDecl h)))
+            (do
+              traceShowM (MissingDecl h)
+              (processDependencies $ BD.Dependencies' [] [] declHashes)))
         (processDependencies $ BD.Dependencies' [] [] declHashes)
     BD.Dependencies' [] [] [] -> pure ()
   copyAndIndexDecls :: forall m
@@ -248,7 +256,9 @@ syncToDirectory' getV getA srcPath destPath newRoot =
         typeIndex <>= Relation.singleton typeReference r
         typeMentionsIndex <>= Relation.fromManyDom typeMentions r
         pure [ i | Reference.DerivedId i <- dependencies ]
-    Nothing -> throwError (InvalidDecl h)
+    Nothing -> do
+      traceShowM (InvalidDecl h)
+      pure mempty
 
   enqueueTermDependencies :: forall m
      . MonadIO m
@@ -278,9 +288,9 @@ syncToDirectory' getV getA srcPath destPath newRoot =
             let newDecls = [ i | Reference.DerivedId i <- typeDeps ++ typeDeps']
             let newTerms = [ i | Reference.DerivedId i <- termDeps ]
             pure (newTerms, newDecls)
-          Nothing -> throwError (InvalidTypeOfTerm h))
-        (throwError (MissingTypeOfTerm h))
-    Nothing -> throwError (InvalidTerm h)
+          Nothing -> traceShowM (InvalidTypeOfTerm h) >> pure mempty)
+        (traceShowM (MissingTypeOfTerm h) >> pure mempty)
+    Nothing -> traceShowM (InvalidTerm h) >> pure mempty
   deserializeRawBranchDependencies :: forall m
     . MonadIO m
     => MonadError Error m
@@ -288,7 +298,7 @@ syncToDirectory' getV getA srcPath destPath newRoot =
     -> Causal.Deserialize m Branch.Raw (BD.Branches m, BD.Dependencies)
   deserializeRawBranchDependencies root h =
     S.getFromFile (V1.getCausal0 V1.getBranchDependencies) (branchPath root h) >>= \case
-      Nothing -> throwError (InvalidBranch h)
+      Nothing -> traceShowM (InvalidBranch h) >> pure (Causal.RawOne mempty)
       Just results -> pure results
 
 -- Use State and Lens to do some specified thing at most once, to create a file.
