@@ -83,6 +83,8 @@ module Unison.Codebase.Branch
     -- * Branch serialization
   , read
   , cachedRead
+  , boundedCache
+  , Cache
   , sync
 
     -- * Unused
@@ -457,10 +459,16 @@ data ForkFailure = SrcNotFound | DestExists
 numHashChars :: Branch m -> Int
 numHashChars _b = 3
 
+-- This type is a little ugly, so we wrap it up with a nice type alias for
+-- use outside this module.
+type Cache m = Cache.Cache m (Causal.RawHash Raw) (Causal m Raw (Branch0 m))
+
+boundedCache :: MonadIO m => Word -> m (Cache m)
+boundedCache = Cache.semispaceCache
+
 -- todo: can delete old `read` once we are confident in this
 cachedRead :: forall m . Monad m
-           => Cache.Cache m (Causal.RawHash Raw)
-                            (Causal m Raw (Branch0 m))
+           => Cache m
            -> Causal.Deserialize m Raw Raw
            -> (EditHash -> m Patch)
            -> Hash
