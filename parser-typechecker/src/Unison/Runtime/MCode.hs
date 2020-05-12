@@ -767,9 +767,6 @@ emitP2 :: Prim2 -> Args -> Instr
 emitP2 p (UArg2 i j) = Prim2 p i j
 emitP2 _ _ = error "emitP2: prim ops must be saturated"
 
-emitEmptyMatching :: Section
-emitEmptyMatching = Die "empty match"
-
 emitDataMatching
   :: Var v
   => RCtx v
