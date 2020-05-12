@@ -19,6 +19,7 @@ import qualified Data.Sequence                 as Seq
 import           Unison.Hash                    ( Hash )
 import qualified Unison.Hashable               as Hashable
 import           Unison.Hashable                ( Hashable )
+import qualified Unison.Util.Cache             as Cache
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import           Util                           ( bind2 )
@@ -111,6 +112,24 @@ data Tails h
   | TailsMerge (Set (RawHash h))
 
 type Deserialize m h e = RawHash h -> m (Raw h e)
+
+cachedRead :: Monad m
+           => Cache.Cache m (RawHash h) (Causal m h e)
+           -> Deserialize m h e
+           -> RawHash h -> m (Causal m h e)
+cachedRead cache deserializeRaw h = Cache.lookup cache h >>= \case
+  Nothing -> do
+    raw <- deserializeRaw h
+    causal <- pure $ case raw of
+      RawOne e              -> One h e
+      RawCons e tailHash    -> Cons h e (tailHash, read tailHash)
+      RawMerge e tailHashes -> Merge h e $
+        Map.fromList [(h, read h) | h <- toList tailHashes ]
+    Cache.insert cache h causal
+    pure causal
+  Just causal -> pure causal
+  where
+    read = cachedRead cache deserializeRaw
 
 read :: Functor m => Deserialize m h e -> RawHash h -> m (Causal m h e)
 read d h = go <$> d h where

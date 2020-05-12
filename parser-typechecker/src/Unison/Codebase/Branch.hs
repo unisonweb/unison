@@ -82,6 +82,7 @@ module Unison.Codebase.Branch
 
     -- * Branch serialization
   , read
+  , cachedRead
   , sync
 
     -- * Unused
@@ -139,6 +140,7 @@ import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Reference              as Reference
 
+import qualified Unison.Util.Cache             as Cache
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation            ( Relation )
 import qualified Unison.Util.Relation4         as R4
@@ -454,6 +456,29 @@ data ForkFailure = SrcNotFound | DestExists
 -- could move a Names0 to a read-only field in Branch0 until it gets too big
 numHashChars :: Branch m -> Int
 numHashChars _b = 3
+
+-- todo: can delete old `read` once we are confident in this
+cachedRead :: forall m . Monad m
+           => Cache.Cache m (Causal.RawHash Raw)
+                            (Causal m Raw (Branch0 m))
+           -> Causal.Deserialize m Raw Raw
+           -> (EditHash -> m Patch)
+           -> Hash
+           -> m (Branch m)
+cachedRead cache deserializeRaw deserializeEdits h =
+ Branch <$> Causal.cachedRead cache d h
+ where
+  fromRaw :: Raw -> m (Branch0 m)
+  fromRaw Raw {..} = do
+    children <- traverse go _childrenR
+    edits <- for _editsR $ \hash -> (hash,) . pure <$> deserializeEdits hash
+    pure $ branch0 _termsR _typesR children edits
+  go = cachedRead cache deserializeRaw deserializeEdits
+  d :: Causal.Deserialize m Raw (Branch0 m)
+  d h = deserializeRaw h >>= \case
+    RawOne raw      -> RawOne <$> fromRaw raw
+    RawCons  raw h  -> flip RawCons h <$> fromRaw raw
+    RawMerge raw hs -> flip RawMerge hs <$> fromRaw raw
 
 -- Question: How does Deserialize throw a not-found error?
 -- Question: What is the previous question?
