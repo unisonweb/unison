@@ -603,11 +603,6 @@ data IOp
   | THKILL | THDELY
   deriving (Show,Eq,Ord)
 
---   fork_ : '{io.IO} a -> (Either io.Error io.ThreadId)
---   kill_ : io.ThreadId -> (Either io.Error ())
---   delay_ : Nat -> (Either io.Error ())
-
-
 type ANormal = ABTN.Term ANormalBF
 type ANormalT v = ANormalTF v (ANormal v)
 
