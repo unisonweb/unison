@@ -238,6 +238,7 @@ executable unison
   build-depends:
     base,
     containers,
+    configurator,
     directory,
     errors,
     filepath,

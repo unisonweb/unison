@@ -12,11 +12,11 @@ import Unison.Prelude
 import Control.Concurrent.STM (atomically)
 import Control.Exception (finally, catch, AsyncException(UserInterrupt), asyncExceptionFromException)
 import Control.Monad.State (runStateT)
+import Data.Configurator.Types (Config)
 import Data.IORef
 import Data.Tuple.Extra (uncurry3)
 import Prelude hiding (readFile, writeFile)
-import System.IO.Error (catchIOError, isDoesNotExistError)
-import System.Exit (die)
+import System.IO.Error (isDoesNotExistError)
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Input (Input (..), Event)
@@ -159,13 +159,13 @@ main
   => FilePath
   -> Maybe RemoteNamespace
   -> Path.Absolute
-  -> FilePath
+  -> (Config, IO ())
   -> [Either Event Input]
   -> IO (Runtime v)
   -> Codebase IO v Ann
   -> Branch.Cache IO
   -> IO ()
-main dir defaultBaseLib initialPath configFile initialInputs startRuntime codebase branchCache = do
+main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs startRuntime codebase branchCache = do
   dir' <- shortenDirectory dir
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   putPrettyLn $ case defaultBaseLib of
@@ -181,9 +181,6 @@ main dir defaultBaseLib initialPath configFile initialInputs startRuntime codeba
     initialInputsRef         <- newIORef initialInputs
     numberedArgsRef          <- newIORef []
     pageOutput               <- newIORef True
-    (config, cancelConfig)   <-
-      catchIOError (watchConfig configFile) $ \_ ->
-        die "Your .unisonConfig could not be loaded. Check that it's correct!"
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
     cancelWatchBranchUpdates <- watchBranchUpdates (Branch.headHash <$>
                                                       readIORef rootRef)
