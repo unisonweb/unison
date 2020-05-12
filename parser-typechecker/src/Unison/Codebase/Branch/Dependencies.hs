@@ -73,22 +73,20 @@ fromBranch0 b =
   where
   fromChildren :: Applicative m => Map NameSegment (Branch m) -> Branches m
   fromChildren m = [ (Branch.headHash b, Just (pure b)) | b <- toList m ]
-  mdReferences = unzip . toList . R.ran . Star3.d3
+  references :: Branch.Star r NameSegment -> [r]
+  references = toList . R.dom . Star3.d1
+  mdValues :: Branch.Star r NameSegment -> [Reference]
+  mdValues = fmap snd . toList . R.ran . Star3.d3
   fromTermsStar :: Branch.Star Referent NameSegment -> Dependencies
   fromTermsStar s = Dependencies mempty terms decls where
-    referents = toList . R.dom . Star3.d1 $ s
-    (mdTypes, mdValues) = mdReferences s
     terms = Set.fromList $
-      [ i | Referent.Ref (DerivedId i) <- referents] ++
-      [ i | DerivedId i <- mdValues]
+      [ i | Referent.Ref (DerivedId i) <- references s] ++
+      [ i | DerivedId i <- mdValues s]
     decls = Set.fromList $
-      [ i | Referent.Con (DerivedId i) _ _ <- referents ] ++
-      [ i | DerivedId i <- mdTypes ]
+      [ i | Referent.Con (DerivedId i) _ _ <- references s ]
   fromTypesStar :: Branch.Star Reference NameSegment -> Dependencies
   fromTypesStar s = Dependencies mempty terms decls where
-    references = toList . R.dom . Star3.d1 $ s
-    (mdTypes, mdValues) = mdReferences s
-    terms = Set.fromList [ i | DerivedId i <- mdValues ]
-    decls = Set.fromList [ i | DerivedId i <- references ++ mdTypes ]
+    terms = Set.fromList [ i | DerivedId i <- mdValues s ]
+    decls = Set.fromList [ i | DerivedId i <- references s ]
   fromEdits :: Map NameSegment (EditHash, m Patch) -> Dependencies
   fromEdits m = Dependencies (Set.fromList . fmap fst $ toList m) mempty mempty
