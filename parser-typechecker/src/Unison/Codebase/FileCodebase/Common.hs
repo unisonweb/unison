@@ -8,6 +8,7 @@
 module Unison.Codebase.FileCodebase.Common
   ( Err(..)
   , SyncToDir
+  , SimpleLens
   , codebaseExists
   , hashExists
   -- dirs (parent of all the files)

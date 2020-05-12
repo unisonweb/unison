@@ -14,11 +14,12 @@ module Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex (syncToDirectory) wh
 
 import Unison.Prelude
 
+import qualified Data.Set                      as Set
+import           Control.Lens
 import           Control.Monad.State            ( MonadState, evalStateT )
 import           Control.Monad.Writer           ( MonadWriter, execWriterT )
 import qualified Control.Monad.Writer          as Writer
 import           Control.Monad.Except           ( MonadError, runExceptT, throwError )
-import           Control.Lens
 
 import           UnliftIO.Directory             ( doesFileExist )
 import           Unison.Codebase                ( CodebasePath )
@@ -94,17 +95,33 @@ syncToDirectory' :: forall m v a
   -> CodebasePath
   -> Branch m
   -> m ()
-syncToDirectory' getV getA srcPath destPath newRoot = flip evalStateT mempty do
-  result <- runExceptT do
-    deps <- execWriterT $
-      processBranches [( Branch.headHash newRoot
-                       , ( Just
-                         . pure
-                         . Branch.transform (lift . lift . lift)
-                         ) newRoot )]
-    processDependencies (BD.to' deps)
-  either (fail . show) pure result -- todo: nicer error messages here?
+syncToDirectory' getV getA srcPath destPath newRoot =
+  flip evalStateT mempty do
+    result <- runExceptT do
+      deps <- execWriterT $
+        processBranches [( Branch.headHash newRoot
+                         , ( Just
+                           . pure
+                           . Branch.transform (lift . lift . lift)
+                           ) newRoot )]
+      processDependencies (BD.to' deps)
+      lift do
+        lift . writeDependentsIndex   =<< use dependentsIndex
+        lift . writeTypeIndex         =<< use typeIndex
+        lift . writeTypeMentionsIndex =<< use typeMentionsIndex
+    either (fail . show) pure result -- todo: nicer error messages here?
   where
+  writeDependentsIndex :: MonadIO m => Relation Reference Reference.Id -> m ()
+  writeDependentsIndex = writeIndexHelper (\k v -> touchIdFile v (dependentsDir destPath k))
+  writeTypeIndex, writeTypeMentionsIndex :: MonadIO m => Relation Reference Referent.Id -> m ()
+  writeTypeIndex =
+    writeIndexHelper (\k v -> touchReferentIdFile v (typeIndexDir destPath k))
+  writeTypeMentionsIndex =
+    writeIndexHelper (\k v -> touchReferentIdFile v (typeMentionsIndexDir destPath k))
+  writeIndexHelper
+    :: forall m a b. MonadIO m => (a -> b -> m ()) -> Relation a b -> m ()
+  writeIndexHelper touchIndexFile index =
+    traverse_ (uncurry touchIndexFile) (Relation.toList index)
   processBranches :: forall m
      . MonadIO m
     => MonadState SyncedEntities m
@@ -116,26 +133,28 @@ syncToDirectory' getV getA srcPath destPath newRoot = flip evalStateT mempty do
   -- for each branch,
   processBranches ((h, mmb) : rest) =
     -- if hash exists at the destination, skip it, mark it done
-    flip (doFileOnce destPath syncedBranches branchPath) h $ \h ->
+    ifNeedsSyncing h destPath branchPath syncedBranches
+      (\h ->
       -- else if hash exists at the source, enqueue its dependencies, copy it, mark it done
-      ifM (doesFileExist (branchPath srcPath h))
-          (do
-            (branches, deps) <-
-              BD.fromRawCausal <$> deserializeRawBranchDependencies srcPath h
-            copyFileWithParents (branchPath srcPath h) (branchPath destPath h)
-            Writer.tell deps
-            processBranches (branches ++ rest))
-      -- else if it's in memory, enqueue its dependencies, write it, mark it done
-          case mmb of
-            Just mb -> do
-              b <- mb
-              let (branches, deps) = BD.fromBranch b
-              let causalRaw = Branch.toCausalRaw b
-              serializeRawBranch destPath h causalRaw
+        ifM (doesFileExist (branchPath srcPath h))
+            (do
+              (branches, deps) <-
+                BD.fromRawCausal <$> deserializeRawBranchDependencies srcPath h
+              copyFileWithParents (branchPath srcPath h) (branchPath destPath h)
               Writer.tell deps
-              processBranches (branches ++ rest)
-      -- else -- error?
-            Nothing -> throwError $ MissingBranch h
+              processBranches (branches ++ rest))
+        -- else if it's in memory, enqueue its dependencies, write it, mark it done
+            case mmb of
+              Just mb -> do
+                b <- mb
+                let (branches, deps) = BD.fromBranch b
+                let causalRaw = Branch.toCausalRaw b
+                serializeRawBranch destPath h causalRaw
+                Writer.tell deps
+                processBranches (branches ++ rest)
+        -- else -- error?
+              Nothing -> throwError $ MissingBranch h)
+      (processBranches rest)
   processDependencies :: forall n
      . MonadIO n
     => MonadState SyncedEntities n
@@ -149,56 +168,63 @@ syncToDirectory' getV getA srcPath destPath newRoot = flip evalStateT mempty do
       -- This code assumes that patches are always available on disk,
       -- not ever just held in memory with `pure`.  If that's not the case,
       -- then we can do something similar to what we did  with branches.
-      flip (doFileOnce destPath syncedEdits editsPath) editHash $ \h -> do
-        patch <- deserializeEdits srcPath h
-        -- I'm calling all the replacement terms dependents of the patches.
-        -- If we're supposed to replace X with Y, we don't necessarily need X,
-        -- but we do need Y.
-        let newTerms, newDecls :: [Reference.Id]
-            newTerms = [ i | TermEdit.Replace (Reference.DerivedId i) _ <-
-                                toList . Relation.ran $ Patch._termEdits patch]
-            newDecls = [ i | TypeEdit.Replace (Reference.DerivedId i) <-
-                                toList . Relation.ran $ Patch._typeEdits patch]
-        ifM (doesFileExist (editsPath srcPath h))
-            (do
-              copyFileWithParents (editsPath srcPath h) (editsPath destPath h)
-              processDependencies $
-                BD.Dependencies' editHashes (newTerms ++ terms) (newDecls ++ decls))
-            (throwError $ MissingPatch h)
+      ifNeedsSyncing editHash destPath editsPath syncedEdits
+        (\h -> do
+          patch <- deserializeEdits srcPath h
+          -- I'm calling all the replacement terms dependents of the patches.
+          -- If we're supposed to replace X with Y, we don't necessarily need X,
+          -- but we do need Y.
+          let newTerms, newDecls :: [Reference.Id]
+              newTerms = [ i | TermEdit.Replace (Reference.DerivedId i) _ <-
+                                  toList . Relation.ran $ Patch._termEdits patch]
+              newDecls = [ i | TypeEdit.Replace (Reference.DerivedId i) <-
+                                  toList . Relation.ran $ Patch._typeEdits patch]
+          ifM (doesFileExist (editsPath srcPath h))
+              (do
+                copyFileWithParents (editsPath srcPath h) (editsPath destPath h)
+                processDependencies $
+                  BD.Dependencies' editHashes (newTerms ++ terms) (newDecls ++ decls))
+              (throwError $ MissingPatch h))
+        (processDependencies $ BD.Dependencies' editHashes terms decls)
+
   -- for each term id
     BD.Dependencies' [] (termHash : termHashes) decls ->
     -- if it exists at the destination, skip it, mark it done
-      flip (doFileOnce destPath syncedTerms termPath) termHash $ \h -> do
+      ifNeedsSyncing termHash destPath termPath syncedTerms
+        (\h -> do
     -- else if it exists at the source,
-        ifM (doesFileExist (termPath srcPath h))
-          (do
-            -- copy it,
-            -- load it,
-            -- enqueue its dependencies for syncing
-            -- enqueue its type's type dependencies for syncing
-            -- enqueue its type's dependencies, type & type mentions into respective indices
-            -- and continue
-            (newTerms, newDecls) <- enqueueTermDependencies h
-            processDependencies $
-              BD.Dependencies' [] (newTerms ++ termHashes) (newDecls ++ decls)
-          )
-    -- else -- an error?
-          (throwError $ MissingTerm h)
+          ifM (doesFileExist (termPath srcPath h))
+            (do
+              -- copy it,
+              -- load it,
+              -- enqueue its dependencies for syncing
+              -- enqueue its type's type dependencies for syncing
+              -- enqueue its type's dependencies, type & type mentions into respective indices
+              -- and continue
+              (newTerms, newDecls) <- enqueueTermDependencies h
+              processDependencies $
+                BD.Dependencies' [] (newTerms ++ termHashes) (newDecls ++ decls)
+            )
+      -- else -- an error?
+            (throwError $ MissingTerm h))
+        (processDependencies $ BD.Dependencies' [] termHashes decls)
   -- for each decl id
     BD.Dependencies' [] [] (declHash : declHashes) ->
     -- if it exists at the destination, skip it, mark it done
-      flip (doFileOnce destPath syncedDecls declPath) declHash $ \h -> do
-    -- else if it exists at the source,
-        ifM (doesFileExist (declPath srcPath h))
-          -- copy it,
-          -- load it,
-          -- enqueue its type dependencies for syncing
-          -- for each constructor,
-            -- enqueue its dependencies, type, type mentions into respective indices
-          (do
-            newDecls <- copyAndIndexDecls h
-            processDependencies $ BD.Dependencies' [] [] (newDecls ++ declHashes))
-          (throwError (MissingDecl h))
+      ifNeedsSyncing declHash destPath declPath syncedDecls
+        (\h -> do
+      -- else if it exists at the source,
+          ifM (doesFileExist (declPath srcPath h))
+            -- copy it,
+            -- load it,
+            -- enqueue its type dependencies for syncing
+            -- for each constructor,
+              -- enqueue its dependencies, type, type mentions into respective indices
+            (do
+              newDecls <- copyAndIndexDecls h
+              processDependencies $ BD.Dependencies' [] [] (newDecls ++ declHashes))
+            (throwError (MissingDecl h)))
+        (processDependencies $ BD.Dependencies' [] [] declHashes)
     BD.Dependencies' [] [] [] -> pure ()
   copyAndIndexDecls :: forall m
      . MonadIO m
@@ -264,9 +290,16 @@ syncToDirectory' getV getA srcPath destPath newRoot = flip evalStateT mempty do
       Nothing -> throwError (InvalidBranch h)
       Just results -> pure results
 
-
--- getFromFile :: MonadIO m => Get a -> FilePath -> m (Maybe a)
-
-
--- getCausal0 getBranchDependencies
--- :: MonadGet m => m (Causal.Raw h (BD.Branches m, BD.Dependencies))
+-- Use State and Lens to do some specified thing at most once, to create a file.
+ifNeedsSyncing :: forall m s h. (MonadIO m, MonadState s m, Ord h)
+               => h
+               -> CodebasePath
+               -> (CodebasePath -> h -> FilePath) -- done if this filepath exists
+               -> SimpleLens s (Set h) -- lens to track if `h` is already done
+               -> (h -> m ()) -- do!
+               -> m ()        -- don't
+               -> m ()
+ifNeedsSyncing h destPath getFilename l doSync dontSync =
+  ifM (use (l . to (Set.member h))) dontSync $ do
+    l %= Set.insert h
+    ifM (doesFileExist (getFilename destPath h)) dontSync (doSync h)

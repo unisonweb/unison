@@ -33,6 +33,7 @@ data Dependencies = Dependencies
   , terms :: Set Reference.Id
   , decls :: Set Reference.Id
   }
+  deriving Show
   deriving Generic
   deriving Semigroup via GenericSemigroup Dependencies
   deriving Monoid via GenericMonoid Dependencies
@@ -41,10 +42,11 @@ data Dependencies' = Dependencies'
   { patches' :: [EditHash]
   , terms' :: [Reference.Id]
   , decls' :: [Reference.Id]
-  }
+  } deriving Show
 
 to' :: Dependencies -> Dependencies'
 to' Dependencies{..} = Dependencies' (toList patches) (toList terms) (toList decls)
+
 fromBranch :: Applicative m => Branch m -> (Branches m, Dependencies)
 fromBranch (Branch c) = case c of
   Causal.One _hh e         -> fromBranch0 e
