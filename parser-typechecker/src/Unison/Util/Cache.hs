@@ -4,7 +4,7 @@ module Unison.Util.Cache where
 
 import Prelude hiding (lookup)
 import Unison.Prelude
-import UnliftIO (MonadIO, newTVarIO, modifyTVar, atomically, readTVarIO)
+import UnliftIO (MonadIO, newTVarIO, modifyTVar, writeTVar, atomically, readTVar, readTVarIO)
 import qualified Data.Map as Map
 
 data Cache m k v =
@@ -12,7 +12,7 @@ data Cache m k v =
         , insert :: k -> v -> m ()
         }
 
--- Create a cache
+-- Create a cache of unbounded size.
 cache :: (MonadIO m, Ord k) => m (Cache m k v)
 cache = do
   t <- newTVarIO Map.empty
@@ -24,6 +24,38 @@ cache = do
         Nothing -> atomically $ modifyTVar t (Map.insert k v)
         _ -> pure ()
 
+  pure $ Cache lookup insert
+
+-- Create a cache of bounded size. Once the cache
+-- reaches a size of `maxSize`, older unused entries
+-- are evicted from the cache. Unlike LRU caching,
+-- where cache hits require updating LRU info,
+-- cache hits here are read-only and contention free.
+semispaceCache :: (MonadIO m, Ord k) => Word -> m (Cache m k v)
+semispaceCache maxSize = do
+  -- Analogous to semispace GC, keep 2 maps: gen0 and gen1
+  -- `lookup k` is done in gen0;
+  --   if full, gen1 = gen0; gen0 = Map.empty
+  -- `insert k v` is done in gen0, then gen1
+  --   if found in gen0, return immediately
+  --   if found in gen1, `insert k v`, then return
+  -- Thus, older keys not recently looked up are forgotten
+  gen0 <- newTVarIO Map.empty
+  gen1 <- newTVarIO Map.empty
+  let
+    lookup k = readTVarIO gen0 >>= \m0 ->
+      case Map.lookup k m0 of
+        Nothing -> readTVarIO gen1 >>= \m1 ->
+          case Map.lookup k m1 of
+            Nothing -> pure Nothing
+            Just v -> insert k v $> Just v
+        just -> pure just
+    insert k v = atomically $ do
+      modifyTVar gen0 (Map.insert k v)
+      m0 <- readTVar gen0
+      when (fromIntegral (Map.size m0) >= maxSize) $ do
+        writeTVar gen1 m0
+        writeTVar gen0 Map.empty
   pure $ Cache lookup insert
 
 -- Cached function application: if a key `k` is not in the cache,
