@@ -174,11 +174,14 @@ codebase1'
   => BuiltinAnnotation a
   => Common.SyncToDir m v a -> Branch.Cache m -> S.Format v -> S.Format a -> CodebasePath -> m (Codebase m v a)
 codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path = do
+  termCache <- Cache.semispaceCache 8192
+  typeOfTermCache <- Cache.semispaceCache 8192
+  declCache <- Cache.semispaceCache 1024
   let c =
         Codebase
-          (getTerm getV getA path)
-          (getTypeOfTerm getV getA path)
-          (getDecl getV getA path)
+          (Cache.applyDefined termCache $ getTerm getV getA path)
+          (Cache.applyDefined typeOfTermCache $ getTypeOfTerm getV getA path)
+          (Cache.applyDefined declCache $ getDecl getV getA path)
           (putTerm putV putA path)
           (putDecl putV putA path)
           (getRootBranch branchCache path)
