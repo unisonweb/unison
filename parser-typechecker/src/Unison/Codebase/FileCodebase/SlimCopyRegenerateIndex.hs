@@ -44,6 +44,7 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Util.Relation          as Relation
 import           Unison.Util.Relation           ( Relation )
 import           Unison.Util.Monoid (foldMapM)
+import           Unison.Util.Timing (time)
 
 import Data.Monoid.Generic
 import Unison.Codebase.FileCodebase.Common
@@ -98,14 +99,14 @@ syncToDirectory' :: forall m v a
 syncToDirectory' getV getA srcPath destPath newRoot =
   flip evalStateT mempty do
     result <- runExceptT do
-      deps <- execWriterT $
+      deps <- time "Sync Branches" $ execWriterT $
         processBranches [( Branch.headHash newRoot
                          , ( Just
                            . pure
                            . Branch.transform (lift . lift . lift)
                            ) newRoot )]
-      processDependencies (BD.to' deps)
-      lift do
+      time "Sync Definitions" $ processDependencies (BD.to' deps)
+      time "Write indices" $ lift do
         lift . writeDependentsIndex   =<< use dependentsIndex
         lift . writeTypeIndex         =<< use typeIndex
         lift . writeTypeMentionsIndex =<< use typeMentionsIndex
