@@ -22,7 +22,6 @@ import           Data.Bytes.Serial              ( serialize
                                                 )
 import           Data.Bytes.Signed              ( Unsigned )
 import           Data.Bytes.VarInt              ( VarInt(..) )
-import qualified Data.Foldable                 as Foldable
 import qualified Data.Map                      as Map
 import           Data.List                      ( elemIndex
                                                 )
@@ -721,8 +720,8 @@ getBranchDependencies :: MonadGet m => m (BD.Branches n, BD.Dependencies)
 getBranchDependencies = do
   (terms1, types1) <- getTermStarDependencies
   (terms2, types2) <- getTypeStarDependencies
-  childHashes <- fmap RawHash . Foldable.toList <$> getMap skipText getHash
-  editHashes <- Set.fromList . Foldable.toList <$> getMap skipText getHash
+  childHashes <- fmap (RawHash . snd) <$> getList (getPair skipText getHash)
+  editHashes <- Set.fromList . fmap snd <$> getList (getPair skipText getHash)
   pure ( childHashes `zip` repeat Nothing
        , BD.Dependencies editHashes (terms1 <> terms2) (types1 <> types2) )
   where
