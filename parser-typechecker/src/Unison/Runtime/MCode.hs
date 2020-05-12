@@ -597,11 +597,17 @@ emitPOp ANF.INCN = emitP1 INCI
 emitPOp ANF.DECI = emitP1 DECI
 emitPOp ANF.DECN = emitP1 DECI
 
+emitPOp p@ANF.ADDF = error $ "unhandled prim op: " ++ show p
+emitPOp p@ANF.SUBF = error $ "unhandled prim op: " ++ show p
+emitPOp p@ANF.MULF = error $ "unhandled prim op: " ++ show p
+emitPOp p@ANF.DIVF = error $ "unhandled prim op: " ++ show p
+emitPOp p@ANF.LESF = error $ "unhandled prim op: " ++ show p
+emitPOp p@ANF.LEQF = error $ "unhandled prim op: " ++ show p
+emitPOp p@ANF.EQLF = error $ "unhandled prim op: " ++ show p
+
 emitPOp ANF.FORK = \case
   BArg1 i -> Fork $ App True (Stk i) ZArgs
   _ -> error "fork takes exactly one boxed argument"
-
-emitPOp p = error $ "unhandled prim op: " ++ show p
 
 emitIOp :: ANF.IOp -> Args -> Instr
 emitIOp iop = ForeignCall (iopToForeign iop)
