@@ -22,7 +22,6 @@ import           Data.Bytes.Serial              ( serialize
                                                 )
 import           Data.Bytes.Signed              ( Unsigned )
 import           Data.Bytes.VarInt              ( VarInt(..) )
-import qualified Data.Foldable                 as Foldable
 import qualified Data.Map                      as Map
 import           Data.List                      ( elemIndex
                                                 )
@@ -721,14 +720,14 @@ getBranchDependencies :: MonadGet m => m (BD.Branches n, BD.Dependencies)
 getBranchDependencies = do
   (terms1, types1) <- getTermStarDependencies
   (terms2, types2) <- getTypeStarDependencies
-  childHashes <- fmap RawHash . Foldable.toList <$> getMap skipText getHash
-  editHashes <- Set.fromList . Foldable.toList <$> getMap skipText getHash
+  childHashes <- fmap (RawHash . snd) <$> getList (getPair skipText getHash)
+  editHashes <- Set.fromList . fmap snd <$> getList (getPair skipText getHash)
   pure ( childHashes `zip` repeat Nothing
        , BD.Dependencies editHashes (terms1 <> terms2) (types1 <> types2) )
   where
   -- returns things, metadata types, metadata values
   getStarReferences ::
-    (MonadGet m, Ord r) => m r -> m ([r], [Metadata.Type], [Metadata.Value])
+    (MonadGet m, Ord r) => m r -> m ([r], [Metadata.Value])
   getStarReferences getR = do
     void $ getList getR -- throw away the `facts`
     -- d1: references and namesegments
@@ -736,26 +735,25 @@ getBranchDependencies = do
     -- d2: metadata type index
     void $ getList (getPair getR getMetadataType)
     -- d3: metadata (type, value) index
-    (metadataTypes, metadataValues) <- unzip . fmap snd <$>
+    (_metadataTypes, metadataValues) <- unzip . fmap snd <$>
       getList (getPair getR (getPair getMetadataType getMetadataValue))
-    pure (rs, metadataTypes, metadataValues)
+    pure (rs, metadataValues)
 
   getTermStarDependencies :: MonadGet m => m (Set Reference.Id, Set Reference.Id)
   getTermStarDependencies = do
-    (referents, mdTypes, mdValues) <- getStarReferences getReferent
+    (referents, mdValues) <- getStarReferences getReferent
     let termIds = Set.fromList $
           [ i | Referent.Ref (Reference.DerivedId i) <- referents ] ++
           [ i | Reference.DerivedId i <- mdValues ]
         declIds = Set.fromList $
-          [ i | Referent.Con (Reference.DerivedId i) _cid _ct <- referents ] ++
-          [ i | Reference.DerivedId i <- mdTypes ]
+          [ i | Referent.Con (Reference.DerivedId i) _cid _ct <- referents ]
     pure (termIds, declIds)
 
   getTypeStarDependencies :: MonadGet m => m (Set Reference.Id, Set Reference.Id)
   getTypeStarDependencies = do
-    (references, mdTypes, mdValues) <- getStarReferences getReference
+    (references, mdValues) <- getStarReferences getReference
     let termIds = Set.fromList $ [ i | Reference.DerivedId i <- mdValues ]
-        declIds = Set.fromList $ [ i | Reference.DerivedId i <- references ++ mdTypes ]
+        declIds = Set.fromList $ [ i | Reference.DerivedId i <- references ]
     pure (termIds, declIds)
 
 putDataDeclaration :: (MonadPut m, Ord v)
