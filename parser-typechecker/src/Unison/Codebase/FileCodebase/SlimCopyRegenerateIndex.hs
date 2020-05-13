@@ -95,7 +95,7 @@ syncToDirectory' :: forall m v a
   -> Branch m
   -> m ()
 syncToDirectory' getV getA srcPath destPath newRoot =
-  let warnMissingEntities = True in
+  let warnMissingEntities = False in
   flip evalStateT mempty $ do -- MonadState s m
     (deps, errors) <- time "Sync Branches" $ execWriterT $
       processBranches [(Branch.headHash newRoot
