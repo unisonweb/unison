@@ -82,7 +82,9 @@ module Unison.Codebase.Branch
   , modifyPatches
 
     -- * Branch serialization
-  , read
+  , cachedRead
+  , boundedCache
+  , Cache
   , sync
 
     -- * Unused
@@ -140,6 +142,7 @@ import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Reference              as Reference
 
+import qualified Unison.Util.Cache             as Cache
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation            ( Relation )
 import qualified Unison.Util.Relation4         as R4
@@ -456,23 +459,29 @@ data ForkFailure = SrcNotFound | DestExists
 numHashChars :: Branch m -> Int
 numHashChars _b = 3
 
--- Question: How does Deserialize throw a not-found error?
--- Question: What is the previous question?
-read
-  :: forall m
-   . Monad m
-  => Causal.Deserialize m Raw Raw
-  -> (EditHash -> m Patch)
-  -> Hash
-  -> m (Branch m)
-read deserializeRaw deserializeEdits h = Branch <$> Causal.read d h
+-- This type is a little ugly, so we wrap it up with a nice type alias for
+-- use outside this module.
+type Cache m = Cache.Cache m (Causal.RawHash Raw) (Causal m Raw (Branch0 m))
+
+boundedCache :: MonadIO m => Word -> m (Cache m)
+boundedCache = Cache.semispaceCache
+
+-- Can use `Cache.nullCache` to disable caching if needed
+cachedRead :: forall m . Monad m
+           => Cache m
+           -> Causal.Deserialize m Raw Raw
+           -> (EditHash -> m Patch)
+           -> Hash
+           -> m (Branch m)
+cachedRead cache deserializeRaw deserializeEdits h =
+ Branch <$> Causal.cachedRead cache d h
  where
   fromRaw :: Raw -> m (Branch0 m)
   fromRaw Raw {..} = do
     children <- traverse go _childrenR
     edits <- for _editsR $ \hash -> (hash,) . pure <$> deserializeEdits hash
     pure $ branch0 _termsR _typesR children edits
-  go = read deserializeRaw deserializeEdits
+  go = cachedRead cache deserializeRaw deserializeEdits
   d :: Causal.Deserialize m Raw (Branch0 m)
   d h = deserializeRaw h >>= \case
     RawOne raw      -> RawOne <$> fromRaw raw
@@ -486,8 +495,10 @@ sync
   -> (EditHash -> m Patch -> m ())
   -> Branch m
   -> m ()
-sync exists serializeRaw serializeEdits b =
-  State.evalStateT (sync' exists serializeRaw serializeEdits b) mempty
+sync exists serializeRaw serializeEdits b = do
+  _written <- State.execStateT (sync' exists serializeRaw serializeEdits b) mempty
+  -- traceM $ "Branch.sync wrote " <> show (Set.size written) <> " namespace files."
+  pure ()
 
 -- serialize a `Branch m` indexed by the hash of its corresponding Raw
 sync'
@@ -518,8 +529,8 @@ sync' exists serializeRaw serializeEdits b = Causal.sync exists
     writeB0 b0 = do
       for_ (view children b0) $ \c -> do
         queued <- State.get
-        when (Set.notMember (headHash c) queued)
-          $ sync' exists serializeRaw serializeEdits c
+        when (Set.notMember (headHash c) queued) $
+          sync' exists serializeRaw serializeEdits c
       for_ (view edits b0) (lift . uncurry serializeEdits)
 
   -- this has to serialize the branch0 and its descendants in the tree,

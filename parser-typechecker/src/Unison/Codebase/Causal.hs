@@ -16,6 +16,7 @@ import qualified Data.Sequence                 as Seq
 import           Unison.Hash                    ( Hash )
 import qualified Unison.Hashable               as Hashable
 import           Unison.Hashable                ( Hashable )
+import qualified Unison.Util.Cache             as Cache
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 
@@ -108,13 +109,23 @@ data Tails h
 
 type Deserialize m h e = RawHash h -> m (Raw h e)
 
-read :: Functor m => Deserialize m h e -> RawHash h -> m (Causal m h e)
-read d h = go <$> d h where
-  go = \case
-    RawOne e -> One h e
-    RawCons e tailHash -> Cons h e (tailHash, read d tailHash)
-    RawMerge e tailHashes ->
-      Merge h e (Map.fromList [(h, read d h) | h <- toList tailHashes ])
+cachedRead :: Monad m
+           => Cache.Cache m (RawHash h) (Causal m h e)
+           -> Deserialize m h e
+           -> RawHash h -> m (Causal m h e)
+cachedRead cache deserializeRaw h = Cache.lookup cache h >>= \case
+  Nothing -> do
+    raw <- deserializeRaw h
+    causal <- pure $ case raw of
+      RawOne e              -> One h e
+      RawCons e tailHash    -> Cons h e (tailHash, read tailHash)
+      RawMerge e tailHashes -> Merge h e $
+        Map.fromList [(h, read h) | h <- toList tailHashes ]
+    Cache.insert cache h causal
+    pure causal
+  Just causal -> pure causal
+  where
+    read = cachedRead cache deserializeRaw
 
 type Serialize m h e = RawHash h -> Raw h e -> m ()
 
@@ -128,26 +139,28 @@ sync
   -> Causal m h e
   -> StateT (Set (RawHash h)) m ()
 sync exists serialize c = do
-  b <- lift . exists $ currentHash c
-  unless b $ go c
+  queued <- State.get
+  itExists <- if Set.member (currentHash c) queued then pure True
+              else lift . exists $ currentHash c
+  unless itExists $ go c
  where
   go :: Causal m h e -> StateT (Set (RawHash h)) m ()
   go c = do
     queued <- State.get
-    when (Set.notMember (currentHash c) queued) $ case c of
-      One currentHash head -> serialize currentHash $ RawOne head
-      Cons currentHash head (tailHash, tailm) -> do
-        State.modify (Set.insert currentHash)
-        -- write out the tail first, so what's on disk is always valid
-        b <- lift $ exists tailHash
-        unless b $ go =<< lift tailm
-        serialize currentHash (RawCons head tailHash)
-      Merge currentHash head tails -> do
-        State.modify (Set.insert currentHash)
-        for_ (Map.toList tails) $ \(hash, cm) -> do
-          b <- lift $ exists hash
-          unless b $ go =<< lift cm
-        serialize currentHash (RawMerge head (Map.keysSet tails))
+    when (Set.notMember (currentHash c) queued) $ do
+      State.modify (Set.insert $ currentHash c)
+      case c of
+        One currentHash head -> serialize currentHash $ RawOne head
+        Cons currentHash head (tailHash, tailm) -> do
+          -- write out the tail first, so what's on disk is always valid
+          b <- lift $ exists tailHash
+          unless b $ go =<< lift tailm
+          serialize currentHash (RawCons head tailHash)
+        Merge currentHash head tails -> do
+          for_ (Map.toList tails) $ \(hash, cm) -> do
+            b <- lift $ exists hash
+            unless b $ go =<< lift cm
+          serialize currentHash (RawMerge head (Map.keysSet tails))
 
 instance Eq (Causal m h a) where
   a == b = currentHash a == currentHash b
