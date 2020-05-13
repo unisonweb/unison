@@ -20,6 +20,7 @@ module Unison.Codebase.Branch
   , empty0
   , branch0
   , one
+  , toCausalRaw
   , transform
 
     -- * Branch history
@@ -501,9 +502,6 @@ sync' exists serializeRaw serializeEdits b = Causal.sync exists
                                                          serialize0
                                                          (view history b)
  where
-  toRaw :: Branch0 m -> Raw
-  toRaw Branch0 {..} =
-    Raw _terms _types (headHash <$> _children) (fst <$> _edits)
   serialize0 :: Causal.Serialize (StateT (Set Hash) m) Raw (Branch0 m)
   serialize0 h b0 = case b0 of
     RawOne b0 -> do
@@ -526,6 +524,16 @@ sync' exists serializeRaw serializeEdits b = Causal.sync exists
 
   -- this has to serialize the branch0 and its descendants in the tree,
   -- and then serialize the rest of the history of the branch as well
+
+toRaw :: Branch0 m -> Raw
+toRaw Branch0 {..} =
+  Raw _terms _types (headHash <$> _children) (fst <$> _edits)
+
+toCausalRaw :: Branch m -> Causal.Raw Raw Raw
+toCausalRaw = \case
+  Branch (Causal.One _h e)           -> RawOne (toRaw e)
+  Branch (Causal.Cons _h e (ht, _m)) -> RawCons (toRaw e) ht
+  Branch (Causal.Merge _h e tls)     -> RawMerge (toRaw e) (Map.keysSet tls)
 
 -- copy a path to another path
 fork

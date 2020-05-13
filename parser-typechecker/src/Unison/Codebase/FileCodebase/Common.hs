@@ -8,6 +8,7 @@
 module Unison.Codebase.FileCodebase.Common
   ( Err(..)
   , SyncToDir
+  , SimpleLens
   , codebaseExists
   , hashExists
   -- dirs (parent of all the files)
@@ -39,6 +40,7 @@ module Unison.Codebase.FileCodebase.Common
   , putWatch
   , updateCausalHead
   , serializeEdits
+  , deserializeEdits
   , serializeRawBranch
   , branchFromFiles
   , branchHashesByPrefix
@@ -123,6 +125,7 @@ import qualified Unison.Type                   as Type
 import           Unison.Var                     ( Var )
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Monoid (foldMapM)
+import           Unison.Util.Timing             (time)
 import Data.Either.Extra (maybeToEither)
 
 data Err
@@ -281,7 +284,7 @@ codebaseExists root =
 
 -- | load a branch w/ children from a FileCodebase
 branchFromFiles :: MonadIO m => CodebasePath -> Branch.Hash -> m (Maybe (Branch m))
-branchFromFiles rootDir h = do
+branchFromFiles rootDir h = time "FileCodebase.Common.branchFromFiles" $ do
   fileExists <- doesFileExist (branchPath rootDir h)
   if fileExists then Just <$>
     Branch.read (deserializeRawBranch rootDir)
@@ -297,16 +300,17 @@ branchFromFiles rootDir h = do
     S.getFromFile' (V1.getCausal0 V1.getRawBranch) ubf >>= \case
       Left  err -> failWith $ InvalidBranchFile ubf err
       Right c0  -> pure c0
-  deserializeEdits :: MonadIO m => CodebasePath -> Branch.EditHash -> m Patch
-  deserializeEdits root h =
-    let file = editsPath root h
-    in S.getFromFile' V1.getEdits file >>= \case
-      Left  err   -> failWith $ InvalidEditsFile file err
-      Right edits -> pure edits
+
+deserializeEdits :: MonadIO m => CodebasePath -> Branch.EditHash -> m Patch
+deserializeEdits root h =
+  let file = editsPath root h
+  in S.getFromFile' V1.getEdits file >>= \case
+    Left  err   -> failWith $ InvalidEditsFile file err
+    Right edits -> pure edits
 
 getRootBranch :: forall m.
   MonadIO m => CodebasePath -> m (Either Codebase.GetRootBranchError (Branch m))
-getRootBranch root =
+getRootBranch root = time "FileCodebase.Common.getRootBranch" $
   ifM (codebaseExists root)
     (listDirectory (branchHeadDir root) >>= filesToBranch)
     (pure $ Left Codebase.NoRootBranch)
