@@ -19,8 +19,6 @@ import           Control.Lens
 import           Control.Monad.State            ( MonadState, evalStateT )
 import           Control.Monad.Writer           ( MonadWriter, execWriterT )
 import qualified Control.Monad.Writer          as Writer
-import           Control.Monad.Except           ( MonadError, runExceptT, throwError )
-
 import           UnliftIO.Directory             ( doesFileExist )
 import           Unison.Codebase                ( CodebasePath )
 import qualified Unison.Codebase.Causal        as Causal
@@ -44,6 +42,7 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Util.Relation          as Relation
 import           Unison.Util.Relation           ( Relation )
 import           Unison.Util.Monoid (foldMapM)
+import           Unison.Util.Timing (time)
 
 import Data.Monoid.Generic
 import Unison.Codebase.FileCodebase.Common
@@ -84,7 +83,7 @@ data Error
   | InvalidTerm Reference.Id
   | InvalidTypeOfTerm Reference.Id
   | InvalidDecl Reference.Id
-  deriving Show
+  deriving (Eq, Ord, Show)
 
 syncToDirectory' :: forall m v a
   . MonadIO m
@@ -96,20 +95,18 @@ syncToDirectory' :: forall m v a
   -> Branch m
   -> m ()
 syncToDirectory' getV getA srcPath destPath newRoot =
-  flip evalStateT mempty do
-    result <- runExceptT do
-      deps <- execWriterT $
-        processBranches [( Branch.headHash newRoot
-                         , ( Just
-                           . pure
-                           . Branch.transform (lift . lift . lift)
-                           ) newRoot )]
-      processDependencies (BD.to' deps)
-      lift do
-        lift . writeDependentsIndex   =<< use dependentsIndex
-        lift . writeTypeIndex         =<< use typeIndex
-        lift . writeTypeMentionsIndex =<< use typeMentionsIndex
-    either (fail . show) pure result -- todo: nicer error messages here?
+  let warnMissingEntities = True in
+  flip evalStateT mempty $ do -- MonadState s m
+    (deps, errors) <- time "Sync Branches" $ execWriterT $
+      processBranches [(Branch.headHash newRoot
+                       ,Just . pure . Branch.transform (lift . lift) $ newRoot)]
+    errors' <- time "Sync Definitions" $
+      execWriterT $ processDependencies (BD.to' deps)
+    time "Write indices" $ do
+      lift . writeDependentsIndex   =<< use dependentsIndex
+      lift . writeTypeIndex         =<< use typeIndex
+      lift . writeTypeMentionsIndex =<< use typeMentionsIndex
+    when (warnMissingEntities) $ for_ (errors <> errors') traceShowM
   where
   writeDependentsIndex :: MonadIO m => Relation Reference Reference.Id -> m ()
   writeDependentsIndex = writeIndexHelper (\k v -> touchIdFile v (dependentsDir destPath k))
@@ -125,23 +122,24 @@ syncToDirectory' getV getA srcPath destPath newRoot =
   processBranches :: forall m
      . MonadIO m
     => MonadState SyncedEntities m
-    => MonadWriter BD.Dependencies m
-    => MonadError Error m
+    => MonadWriter (BD.Dependencies, Set Error) m
     => [(Branch.Hash, Maybe (m (Branch m)))]
     -> m ()
   processBranches [] = pure ()
   -- for each branch,
   processBranches ((h, mmb) : rest) =
+    let tellError = Writer.tell . (mempty,) . Set.singleton
+        tellDependencies = Writer.tell . (,mempty) in
     -- if hash exists at the destination, skip it, mark it done
     ifNeedsSyncing h destPath branchPath syncedBranches
       (\h ->
       -- else if hash exists at the source, enqueue its dependencies, copy it, mark it done
         ifM (doesFileExist (branchPath srcPath h))
             (do
-              (branches, deps) <-
-                BD.fromRawCausal <$> deserializeRawBranchDependencies srcPath h
+              (branches, deps) <- BD.fromRawCausal <$>
+                (deserializeRawBranchDependencies tellError srcPath h)
               copyFileWithParents (branchPath srcPath h) (branchPath destPath h)
-              Writer.tell deps
+              tellDependencies deps
               processBranches (branches ++ rest))
         -- else if it's in memory, enqueue its dependencies, write it, mark it done
             case mmb of
@@ -150,15 +148,18 @@ syncToDirectory' getV getA srcPath destPath newRoot =
                 let (branches, deps) = BD.fromBranch b
                 let causalRaw = Branch.toCausalRaw b
                 serializeRawBranch destPath h causalRaw
-                Writer.tell deps
+                tellDependencies deps
                 processBranches (branches ++ rest)
         -- else -- error?
-              Nothing -> throwError $ MissingBranch h)
+              Nothing -> do
+                tellError (MissingBranch h)
+                processBranches rest
+      )
       (processBranches rest)
   processDependencies :: forall n
      . MonadIO n
     => MonadState SyncedEntities n
-    => MonadError Error n
+    => MonadWriter (Set Error) n
     => BD.Dependencies'
     -> n ()
   processDependencies = \case
@@ -184,7 +185,9 @@ syncToDirectory' getV getA srcPath destPath newRoot =
                 copyFileWithParents (editsPath srcPath h) (editsPath destPath h)
                 processDependencies $
                   BD.Dependencies' editHashes (newTerms ++ terms) (newDecls ++ decls))
-              (throwError $ MissingPatch h))
+              (do
+                tellError (MissingPatch h)
+                (processDependencies $ BD.Dependencies' editHashes terms decls)))
         (processDependencies $ BD.Dependencies' editHashes terms decls)
 
   -- for each term id
@@ -206,7 +209,9 @@ syncToDirectory' getV getA srcPath destPath newRoot =
                 BD.Dependencies' [] (newTerms ++ termHashes) (newDecls ++ decls)
             )
       -- else -- an error?
-            (throwError $ MissingTerm h))
+            (do
+              tellError (MissingTerm h)
+              (processDependencies $ BD.Dependencies' [] termHashes decls)))
         (processDependencies $ BD.Dependencies' [] termHashes decls)
   -- for each decl id
     BD.Dependencies' [] [] (declHash : declHashes) ->
@@ -223,16 +228,18 @@ syncToDirectory' getV getA srcPath destPath newRoot =
             (do
               newDecls <- copyAndIndexDecls h
               processDependencies $ BD.Dependencies' [] [] (newDecls ++ declHashes))
-            (throwError (MissingDecl h)))
+            (do
+              tellError  (MissingDecl h)
+              (processDependencies $ BD.Dependencies' [] [] declHashes)))
         (processDependencies $ BD.Dependencies' [] [] declHashes)
     BD.Dependencies' [] [] [] -> pure ()
   copyAndIndexDecls :: forall m
      . MonadIO m
     => MonadState SyncedEntities m
-    => MonadError Error m
+    => MonadWriter (Set Error) m
     => Reference.Id
     -> m [Reference.Id]
-  copyAndIndexDecls h = getDecl getV getA srcPath h >>= \case
+  copyAndIndexDecls h = (getDecl getV getA srcPath h :: m (Maybe (DD.Decl v a))) >>= \case
     Just decl -> do
       copyFileWithParents (declPath srcPath h) (declPath destPath h)
       let referentTypes :: [(Referent.Id, Type v a)]
@@ -247,12 +254,12 @@ syncToDirectory' getV getA srcPath destPath newRoot =
         typeIndex <>= Relation.singleton typeReference r
         typeMentionsIndex <>= Relation.fromManyDom typeMentions r
         pure [ i | Reference.DerivedId i <- dependencies ]
-    Nothing -> throwError (InvalidDecl h)
+    Nothing -> tellError (InvalidDecl h) $> mempty
 
   enqueueTermDependencies :: forall m
      . MonadIO m
     => MonadState SyncedEntities m
-    => MonadError Error m
+    => MonadWriter (Set Error) m
     => Reference.Id
     -> m ([Reference.Id], [Reference.Id])
   enqueueTermDependencies h = getTerm getV getA srcPath h >>= \case
@@ -277,18 +284,21 @@ syncToDirectory' getV getA srcPath destPath newRoot =
             let newDecls = [ i | Reference.DerivedId i <- typeDeps ++ typeDeps']
             let newTerms = [ i | Reference.DerivedId i <- termDeps ]
             pure (newTerms, newDecls)
-          Nothing -> throwError (InvalidTypeOfTerm h))
-        (throwError (MissingTypeOfTerm h))
-    Nothing -> throwError (InvalidTerm h)
+          Nothing -> tellError (InvalidTypeOfTerm h) $> mempty)
+        (tellError (MissingTypeOfTerm h) $> mempty)
+    Nothing -> tellError (InvalidTerm h) $> mempty
+
   deserializeRawBranchDependencies :: forall m
     . MonadIO m
-    => MonadError Error m
-    => CodebasePath
+    => (Error -> m ())
+    -> CodebasePath
     -> Causal.Deserialize m Branch.Raw (BD.Branches m, BD.Dependencies)
-  deserializeRawBranchDependencies root h =
+  deserializeRawBranchDependencies tellError root h =
     S.getFromFile (V1.getCausal0 V1.getBranchDependencies) (branchPath root h) >>= \case
-      Nothing -> throwError (InvalidBranch h)
+      Nothing -> tellError (InvalidBranch h) $> Causal.RawOne mempty
       Just results -> pure results
+  tellError :: forall m a. MonadWriter (Set a) m => a -> m ()
+  tellError = Writer.tell . Set.singleton
 
 -- Use State and Lens to do some specified thing at most once, to create a file.
 ifNeedsSyncing :: forall m s h. (MonadIO m, MonadState s m, Ord h)

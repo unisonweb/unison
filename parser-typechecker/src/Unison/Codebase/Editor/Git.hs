@@ -32,6 +32,7 @@ import           Unison.Codebase.Branch         ( Branch
                                                 )
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Util.Exception         as Ex
+import           Unison.Util.Timing             (time)
 import qualified Unison.Codebase.Branch        as Branch
 import UnliftIO.IO (hFlush, stdout)
 import UnliftIO.Directory (getXdgDirectory, XdgDirectory(XdgCache), doesDirectoryExist, findExecutable, removeDirectoryRecursive)
@@ -127,7 +128,7 @@ importRemoteBranch
 importRemoteBranch codebase ns = do
   (branch, cacheDir) <- viewRemoteBranch' ns
   withStatus "Importing downloaded files into local codebase..." $
-    lift $ Codebase.syncFromDirectory codebase cacheDir branch
+    time "SyncFromDirectory" $ lift $ Codebase.syncFromDirectory codebase cacheDir branch
   pure branch
 
 -- | Pull a git branch and view it from the cache, without syncing into the
@@ -140,9 +141,9 @@ viewRemoteBranch' :: forall m. MonadIO m
   => RemoteNamespace -> ExceptT GitError m (Branch m, CodebasePath)
 viewRemoteBranch' (repo, sbh, path) = do
   -- set up the cache dir
-  remotePath <- pullBranch repo
+  remotePath <- time "Git fetch" $ pullBranch repo
   -- try to load the requested branch from it
-  branch <- case sbh of
+  branch <- time "Git fetch (sbh)" $ case sbh of
     -- load the root branch
     Nothing -> lift (FC.getRootBranch remotePath) >>= \case
       Left Codebase.NoRootBranch -> pure Branch.empty

@@ -125,6 +125,7 @@ import qualified Unison.Type                   as Type
 import           Unison.Var                     ( Var )
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Monoid (foldMapM)
+import           Unison.Util.Timing             (time)
 import Data.Either.Extra (maybeToEither)
 
 data Err
@@ -283,7 +284,7 @@ codebaseExists root =
 
 -- | load a branch w/ children from a FileCodebase
 branchFromFiles :: MonadIO m => CodebasePath -> Branch.Hash -> m (Maybe (Branch m))
-branchFromFiles rootDir h = do
+branchFromFiles rootDir h = time "FileCodebase.Common.branchFromFiles" $ do
   fileExists <- doesFileExist (branchPath rootDir h)
   if fileExists then Just <$>
     Branch.read (deserializeRawBranch rootDir)
@@ -309,7 +310,7 @@ deserializeEdits root h =
 
 getRootBranch :: forall m.
   MonadIO m => CodebasePath -> m (Either Codebase.GetRootBranchError (Branch m))
-getRootBranch root =
+getRootBranch root = time "FileCodebase.Common.getRootBranch" $
   ifM (codebaseExists root)
     (listDirectory (branchHeadDir root) >>= filesToBranch)
     (pure $ Left Codebase.NoRootBranch)
