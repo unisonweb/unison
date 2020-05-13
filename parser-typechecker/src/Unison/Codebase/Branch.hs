@@ -519,8 +519,8 @@ sync
   -> Branch m
   -> m ()
 sync exists serializeRaw serializeEdits b = do
-  written <- State.execStateT (sync' exists serializeRaw serializeEdits b) mempty
-  traceM $ "Branch.sync wrote " <> show (Set.size written) <> " namespace files."
+  _written <- State.execStateT (sync' exists serializeRaw serializeEdits b) mempty
+  -- traceM $ "Branch.sync wrote " <> show (Set.size written) <> " namespace files."
   pure ()
 
 -- serialize a `Branch m` indexed by the hash of its corresponding Raw

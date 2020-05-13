@@ -31,7 +31,6 @@ import Unison.DataDeclaration as DD
 import Unison.Codebase (BuiltinAnnotation, CodebasePath)
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
-import qualified Data.Set as Set
 
 data SyncedEntities = SyncedEntities
   { _syncedTerms :: Set Reference.Id
@@ -71,16 +70,13 @@ syncToDirectory
   -> Branch m
   -> m ()
 syncToDirectory fmtV fmtA srcPath destPath branch = do
-  written <- flip execStateT mempty $
+  _written <- flip execStateT mempty $
     Branch.sync
       (hashExists destPath)
       serialize
       (serializeEdits destPath)
       (Branch.transform lift branch)
-  traceM $ "syncToDirectory: wrote " <> show (Set.size (_syncedTerms written))
-        <> " terms"
-  traceM $ "syncToDirectory: wrote " <> show (Set.size (_syncedDecls written))
-        <> " decls"
+  pure ()
  where
   serialize rh rawBranch = do
     writeBranch $ Causal.rawHead rawBranch
