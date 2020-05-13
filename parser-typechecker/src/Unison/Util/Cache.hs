@@ -34,9 +34,9 @@ cache = do
 semispaceCache :: (MonadIO m, Ord k) => Word -> m (Cache m k v)
 semispaceCache maxSize = do
   -- Analogous to semispace GC, keep 2 maps: gen0 and gen1
-  -- `lookup k` is done in gen0;
+  -- `insert k v` is done in gen0
   --   if full, gen1 = gen0; gen0 = Map.empty
-  -- `insert k v` is done in gen0, then gen1
+  -- `lookup k` is done in gen0; then gen1
   --   if found in gen0, return immediately
   --   if found in gen1, `insert k v`, then return
   -- Thus, older keys not recently looked up are forgotten
