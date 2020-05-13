@@ -8,6 +8,7 @@
 module Unison.Codebase.FileCodebase.Common
   ( Err(..)
   , SyncToDir
+  , SimpleLens
   , codebaseExists
   , hashExists
   -- dirs (parent of all the files)
@@ -39,6 +40,7 @@ module Unison.Codebase.FileCodebase.Common
   , putWatch
   , updateCausalHead
   , serializeEdits
+  , deserializeEdits
   , serializeRawBranch
   , branchFromFiles
   , branchHashesByPrefix
@@ -300,12 +302,13 @@ branchFromFiles cache rootDir h = time "FileCodebase.Common.branchFromFiles" $ d
     S.getFromFile' (V1.getCausal0 V1.getRawBranch) ubf >>= \case
       Left  err -> failWith $ InvalidBranchFile ubf err
       Right c0  -> pure c0
-  deserializeEdits :: MonadIO m => CodebasePath -> Branch.EditHash -> m Patch
-  deserializeEdits root h =
-    let file = editsPath root h
-    in S.getFromFile' V1.getEdits file >>= \case
-      Left  err   -> failWith $ InvalidEditsFile file err
-      Right edits -> pure edits
+
+deserializeEdits :: MonadIO m => CodebasePath -> Branch.EditHash -> m Patch
+deserializeEdits root h =
+  let file = editsPath root h
+  in S.getFromFile' V1.getEdits file >>= \case
+    Left  err   -> failWith $ InvalidEditsFile file err
+    Right edits -> pure edits
 
 getRootBranch :: forall m.
   MonadIO m => Branch.Cache m -> CodebasePath -> m (Either Codebase.GetRootBranchError (Branch m))

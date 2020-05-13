@@ -98,7 +98,7 @@ import Unison.Codebase.FileCodebase.Common
   , listDirectory
   )
 
-import qualified Unison.Codebase.FileCodebase.Reserialize as Sync
+import qualified Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex as Sync
 
 initCodebaseAndExit :: Maybe FilePath -> IO ()
 initCodebaseAndExit mdir = do

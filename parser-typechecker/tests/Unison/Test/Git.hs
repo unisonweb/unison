@@ -22,6 +22,7 @@ import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Codebase.FileCodebase.Reserialize as Reserialize
 import Unison.Codebase.FileCodebase.CopyFilterIndex as CopyFilterIndex
 import Unison.Codebase.FileCodebase.CopyRegenerateIndex as CopyRegenerateIndex
+import Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex as SlimCopyRegenerateIndex
 import Unison.Codebase.FileCodebase.Common (SyncToDir, formatAnn)
 import qualified Unison.Codebase.Serialization.V1 as V1
 import Unison.Parser (Ann)
@@ -210,7 +211,7 @@ testPush = scope "push" $ do
   -- pushing.
   runTranscript_ tmp c branchCache setupTranscript
 
-  -- now we'll try pushing three ways.
+  -- now we'll try pushing multiple ways.
   for_ pushImplementations $ \(implName, impl) -> scope implName $ do
     -- initialize git repo
     let repoGit = tmp </> (implName ++ ".git")
@@ -227,6 +228,10 @@ testPush = scope "push" $ do
     for_ groups $ \(group, list) -> scope group $
       for_ list $ \(title, path) -> scope title $
         io (doesFileExist $ tmp </> implName </> path) >>= expect
+
+    for_ notGroups $ \(group, list) -> scope group $
+      for_ list $ \(title, path) -> scope title $
+        io (fmap not . doesFileExist $ tmp </> implName </> path) >>= expect
 
   -- if we haven't crashed, clean up!
   io $ removeDirectoryRecursive tmp
@@ -282,6 +287,7 @@ testPush = scope "push" $ do
     [ ("Reserialize", Reserialize.syncToDirectory)
     , ("CopyFilterIndex", CopyFilterIndex.syncToDirectory)
     , ("CopyRegenerateIndex", CopyRegenerateIndex.syncToDirectory)
+    , ("SlimCopyRegenerateIndex", SlimCopyRegenerateIndex.syncToDirectory)
     ]
 
   groups =
@@ -292,6 +298,9 @@ testPush = scope "push" $ do
     , ("dependentsIndex", dependentsIndex)
     , ("typeIndex", typeIndex)
     , ("typeMentionsIndex", typeMentionsIndex) ]
+
+  notGroups =
+    [ ("notBranches", notBranches) ]
 
   types =
     [ ("M", ".unison/v1/types/#4idrjau9395kb8lsvielcjkli6dd7kkgalsfsgq4hq1k62n3vgpd2uejfuldmnutn1uch2292cj6ebr4ebvgqopucrp2j6pmv0s5uhg/compiled.ub")
@@ -315,11 +324,22 @@ testPush = scope "push" $ do
     ]
 
   branches =
-    [ ("_head",  ".unison/v1/paths/_head/pciob2qnondela4h4u1dtk9pvbc9up7qed0j311lkomordjah2lliddis7tdl76h5mdbs5ja10tm8kh2o3sni1bu2kdsqtm4fkv5288")
-    , (".",      ".unison/v1/paths/pciob2qnondela4h4u1dtk9pvbc9up7qed0j311lkomordjah2lliddis7tdl76h5mdbs5ja10tm8kh2o3sni1bu2kdsqtm4fkv5288.ub")
-    , (".'",     ".unison/v1/paths/0ufjqqmabderbejfhrled8i4lirgpqgimejbkdnk1m9t90ibj25oi7g1h2adougdqhv72sv939eq67ur77n3qciajh0reiuqs68th00.ub")
-    , (".M",     ".unison/v1/paths/i2p08iv1l50fc934gh6kea181kvjnt3kdgiid5c4r5016kjuliesji43u4j4mjvsne3qvmq43puk9dkm61nuc542n7pchsvg6t0v55o.ub")
-    , ("<empty>",".unison/v1/paths/7asfbtqmoj56pq7b053v2jc1spgb8g5j4cg1tj97ausi3scveqa50ktv4b2ofoclnkqmnl18vnt5d83jrh85qd43nnrsh6qetbksb70.ub")
+    [ ("_head",             ".unison/v1/paths/_head/pciob2qnondela4h4u1dtk9pvbc9up7qed0j311lkomordjah2lliddis7tdl76h5mdbs5ja10tm8kh2o3sni1bu2kdsqtm4fkv5288")
+    , (".foo.inside",       ".unison/v1/paths/pciob2qnondela4h4u1dtk9pvbc9up7qed0j311lkomordjah2lliddis7tdl76h5mdbs5ja10tm8kh2o3sni1bu2kdsqtm4fkv5288.ub")
+    , (".foo.inside'",      ".unison/v1/paths/0ufjqqmabderbejfhrled8i4lirgpqgimejbkdnk1m9t90ibj25oi7g1h2adougdqhv72sv939eq67ur77n3qciajh0reiuqs68th00.ub")
+    , (".foo.inside.M",     ".unison/v1/paths/i2p08iv1l50fc934gh6kea181kvjnt3kdgiid5c4r5016kjuliesji43u4j4mjvsne3qvmq43puk9dkm61nuc542n7pchsvg6t0v55o.ub")
+    , ("<empty>",           ".unison/v1/paths/7asfbtqmoj56pq7b053v2jc1spgb8g5j4cg1tj97ausi3scveqa50ktv4b2ofoclnkqmnl18vnt5d83jrh85qd43nnrsh6qetbksb70.ub")
+    ]
+
+  notBranches =
+    [ (".",                 ".unison/v1/paths/9r7l4k8ks1tog088fg96evunq1ednlsskf2lh0nacpe5n00khcrl8f1g5sevm7cqd3s64cj22ukvkh2fflm3rhhkn2hh2rj1n20mnm8.ub")
+    , (".'",                ".unison/v1/paths/llton7oiormlimkdmqjdr8tja12i6tebii7cmfd7545b7mt1sb02f9usjqnjd6iaisnn1ngpsl76hfg024l8dlult3s6stkt28j42sg.ub")
+    , (".''",               ".unison/v1/paths/givahf3f6fu8vv07kglsofdcoem7q5dm4rracr78a5didjc4pq2djh2rfdo5sn7nld2757oi02a4a07cv9rk4peafhh76nllcp8l1n8.ub")
+    , (".foo",              ".unison/v1/paths/a8dt4i16905fql2d4fbmtipmj35tj6qmkq176dlnsn6klh0josr255eobn0d3f0aku360h0em6oit9ftjpq3vhcdap8bgpqr79qne58.ub")
+    , (".foo'",             ".unison/v1/paths/l3r86dvdmbe2lsinh213tp9upm5qjtk17iep3n5mah7qg5bupj1e7ikpv1iqbgegp895r0krlo0u2c4nclvfvch3e6kspu766th6tqo.ub")
+    , (".foo.outside",      ".unison/v1/paths/s6iquav10f69pvrpj6rtm7vcp6fs6hgnnmjb1qs00n594ljugbf2qtls93oc4lvb3kjro8fpakoua05gqido4haj4m520rip2gu2hvo.ub")
+    , (".foo.outside.A",    ".unison/v1/paths/2i1lh7pntl3rqrtn4c10ajdg4m3al1rqm6u6ak5ak6urgsaf6nhqn2olt3rjqj5kcj042h8lqseguk3opp019hc7g8ncukds25t9r40.ub")
+    , (".foo.outside.B",    ".unison/v1/paths/jag86haq235jmifji4n8nff8dg1ithenefs2uk5ms6b4qgj9pfa9g40vs4kdn3uhm066ni0bvfb7ib9tqtdgqcn90eadl7282nqqbc0.ub")
     ]
 
   patches =

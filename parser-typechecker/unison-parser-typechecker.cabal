@@ -39,6 +39,7 @@ library
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase.Branch
+    Unison.Codebase.Branch.Dependencies
     Unison.Codebase.BranchDiff
     Unison.Codebase.BranchUtil
     Unison.Codebase.Causal
@@ -66,6 +67,7 @@ library
     Unison.Codebase.FileCodebase.Reserialize
     Unison.Codebase.FileCodebase.CopyFilterIndex
     Unison.Codebase.FileCodebase.CopyRegenerateIndex
+    Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
     Unison.Codebase.NameEdit
