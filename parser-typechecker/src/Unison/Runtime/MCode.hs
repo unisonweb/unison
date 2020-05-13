@@ -339,8 +339,9 @@ data Instr
 
   -- Call out to a Haskell function. This is considerably slower
   -- for very simple operations, hence the primops.
-  | ForeignCall !ForeignFunc
-                !Args
+  | ForeignCall !Bool        -- catch exceptions
+                !ForeignFunc -- FFI call
+                !Args        -- arguments
 
   -- Set the value of a dynamic reference
   | SetDyn !Int -- the prompt tag of the reference
@@ -638,7 +639,7 @@ emitPOp ANF.FORK = \case
   _ -> error "fork takes exactly one boxed argument"
 
 emitIOp :: ANF.IOp -> Args -> Instr
-emitIOp iop = ForeignCall (iopToForeign iop)
+emitIOp iop = ForeignCall True (iopToForeign iop)
 
 bufferModeResult :: BufferMode -> ForeignRslt
 bufferModeResult NoBuffering = [Left 0]

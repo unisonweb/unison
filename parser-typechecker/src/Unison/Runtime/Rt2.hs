@@ -9,6 +9,8 @@ import Data.Bits
 import Data.Traversable
 import Control.Lens ((<&>))
 import Control.Concurrent (forkIO, ThreadId)
+import Control.Exception (try)
+import Control.Monad ((<=<))
 
 import qualified Data.IntSet as S
 import qualified Data.IntMap.Strict as M
@@ -83,11 +85,14 @@ exec !_   !denv !ustk !bstk !k (Lit n) = do
 exec !_   !denv !ustk !bstk !k (Reset ps) = do
   pure (denv, ustk, bstk, Mark ps clos k)
  where clos = M.restrictKeys denv ps
-exec !_   !denv !ustk !bstk !k (ForeignCall (FF f) args)
+exec !_   !denv !ustk !bstk !k (ForeignCall catch (FF f) args)
     = foreignArgs ustk bstk args
-  >>= f
-  >>= foreignResult ustk bstk
-  >>= pure . uncurry (denv,,,k)
+  >>= perform
+  <&> uncurry (denv,,,k)
+  where
+  perform
+    | catch = foreignCatch (error "unmask") ustk bstk f
+    | otherwise = foreignResult ustk bstk <=< f
 exec !env !denv !ustk !bstk !k (Fork lz) = do
   tid <- forkEval env denv k lz <$> duplicate ustk <*> duplicate bstk
   bstk <- bump bstk
@@ -295,6 +300,20 @@ foreignArgs !ustk !bstk (DArgN us bs) = do
   uas <- for (PA.primArrayToList us) $ fmap Wrap . peekOff ustk
   bas <- for (PA.primArrayToList bs) $ fmap Wrap . peekOff bstk
   pure $ uas ++ bas
+
+foreignCatch
+  :: (IO ForeignRslt -> IO ForeignRslt)
+  -> Stack 'UN -> Stack 'BX
+  -> (ForeignArgs -> IO ForeignRslt)
+  -> ForeignArgs
+  -> IO (Stack 'UN, Stack 'BX)
+foreignCatch unmask ustk bstk f args
+    = try (unmask $ f args)
+  >>= foreignResult ustk bstk . encodeExn
+  where
+  encodeExn :: Either IOError ForeignRslt -> ForeignRslt
+  encodeExn (Left e) = [Left 0, Right $ Wrap e]
+  encodeExn (Right r) = Left 1 : r
 
 foreignResult
   :: Stack 'UN -> Stack 'BX -> ForeignRslt -> IO (Stack 'UN, Stack 'BX)
