@@ -82,7 +82,6 @@ module Unison.Codebase.Branch
   , modifyPatches
 
     -- * Branch serialization
-  , read
   , cachedRead
   , boundedCache
   , Cache
@@ -467,7 +466,7 @@ type Cache m = Cache.Cache m (Causal.RawHash Raw) (Causal m Raw (Branch0 m))
 boundedCache :: MonadIO m => Word -> m (Cache m)
 boundedCache = Cache.semispaceCache
 
--- todo: can delete old `read` once we are confident in this
+-- Can use `Cache.nullCache` to disable caching if needed
 cachedRead :: forall m . Monad m
            => Cache m
            -> Causal.Deserialize m Raw Raw
@@ -483,29 +482,6 @@ cachedRead cache deserializeRaw deserializeEdits h =
     edits <- for _editsR $ \hash -> (hash,) . pure <$> deserializeEdits hash
     pure $ branch0 _termsR _typesR children edits
   go = cachedRead cache deserializeRaw deserializeEdits
-  d :: Causal.Deserialize m Raw (Branch0 m)
-  d h = deserializeRaw h >>= \case
-    RawOne raw      -> RawOne <$> fromRaw raw
-    RawCons  raw h  -> flip RawCons h <$> fromRaw raw
-    RawMerge raw hs -> flip RawMerge hs <$> fromRaw raw
-
--- Question: How does Deserialize throw a not-found error?
--- Question: What is the previous question?
-read
-  :: forall m
-   . Monad m
-  => Causal.Deserialize m Raw Raw
-  -> (EditHash -> m Patch)
-  -> Hash
-  -> m (Branch m)
-read deserializeRaw deserializeEdits h = Branch <$> Causal.read d h
- where
-  fromRaw :: Raw -> m (Branch0 m)
-  fromRaw Raw {..} = do
-    children <- traverse go _childrenR
-    edits <- for _editsR $ \hash -> (hash,) . pure <$> deserializeEdits hash
-    pure $ branch0 _termsR _typesR children edits
-  go = read deserializeRaw deserializeEdits
   d :: Causal.Deserialize m Raw (Branch0 m)
   d h = deserializeRaw h >>= \case
     RawOne raw      -> RawOne <$> fromRaw raw

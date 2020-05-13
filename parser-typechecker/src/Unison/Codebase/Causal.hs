@@ -127,14 +127,6 @@ cachedRead cache deserializeRaw h = Cache.lookup cache h >>= \case
   where
     read = cachedRead cache deserializeRaw
 
-read :: Functor m => Deserialize m h e -> RawHash h -> m (Causal m h e)
-read d h = go <$> d h where
-  go = \case
-    RawOne e -> One h e
-    RawCons e tailHash -> Cons h e (tailHash, read d tailHash)
-    RawMerge e tailHashes ->
-      Merge h e (Map.fromList [(h, read d h) | h <- toList tailHashes ])
-
 type Serialize m h e = RawHash h -> Raw h e -> m ()
 
 -- Sync a causal to some persistent store, stopping when hitting a Hash which
