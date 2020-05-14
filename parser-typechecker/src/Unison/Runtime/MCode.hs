@@ -542,7 +542,7 @@ emitSection rec ctx (TMatch v bs)
   = emitIntegralMatching rec ctx i cs df
   | Just (i,UN) <- ctxResolve ctx v
   , MatchSum cs <- bs
-  = emitSumMatching rec ctx i cs
+  = emitSumMatching rec ctx v i cs
   | Just (_,cc) <- ctxResolve ctx v
   = error
   $ "emitSection: mismatched calling convention for match: "
@@ -785,11 +785,12 @@ emitSumMatching
   :: Var v
   => RCtx v
   -> Ctx v
+  -> v
   -> Int
   -> IntMap ([Mem], ANormal v)
   -> Section
-emitSumMatching rec ctx i cs
-  = Match i . TestT edf $ fmap (emitCase rec ctx) cs
+emitSumMatching rec ctx v i cs
+  = Match i . TestT edf $ fmap (emitSumCase rec ctx v) cs
   where
   edf = Die "uncovered unboxed sum case"
 
@@ -822,6 +823,21 @@ emitIntegralMatching rec ctx i cs df
 emitCase :: Var v => RCtx v -> Ctx v -> ([Mem], ANormal v) -> Section
 emitCase rec ctx (ccs, TAbss vs bo)
   = emitSection rec ((Nothing,UN) : zip (Just <$> vs) ccs ++ ctx) bo
+
+breakAfter :: Eq a => (a -> Bool) -> [a] ->  ([a], [a])
+breakAfter _ [] = ([],[])
+breakAfter p (y:ys)
+  | p y       = ([y], ys)
+  | otherwise = (y:lys, rys)
+  where (lys, rys) = breakAfter p ys
+
+emitSumCase
+  :: Var v => RCtx v -> Ctx v -> v -> ([Mem], ANormal v) -> Section
+emitSumCase rec ctx v (ccs, TAbss vs bo)
+  = emitSection rec (lctx ++ vcs ++ rctx) bo
+  where
+  vcs = zip (Just <$> vs) ccs
+  (lctx, rctx) = breakAfter ((Just v ==) . fst) ctx
 
 emitLit :: ANF.Lit -> Instr
 emitLit l = Lit i
