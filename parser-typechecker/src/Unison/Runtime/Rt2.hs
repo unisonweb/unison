@@ -1,4 +1,5 @@
 {-# language DataKinds #-}
+{-# language RankNTypes #-}
 {-# language BangPatterns #-}
 
 module Unison.Runtime.Rt2 where
@@ -25,7 +26,7 @@ type Tag = Int
 type Env = Int -> Comb
 type DEnv = M.IntMap Closure
 
-type Unmask = IO ForeignRslt -> IO ForeignRslt
+type Unmask = forall a. IO a -> IO a
 
 info :: Show a => String -> a -> IO ()
 info ctx x = infos ctx (show x)
@@ -95,8 +96,9 @@ exec unmask !_   !denv !ustk !bstk !k (ForeignCall catch (FF f) args)
   perform
     | catch = foreignCatch unmask ustk bstk f
     | otherwise = foreignResult ustk bstk <=< f
-exec _      !env !denv !ustk !bstk !k (Fork lz) = do
-  tid <- forkEval env denv k lz <$> duplicate ustk <*> duplicate bstk
+exec unmask !env !denv !ustk !bstk !k (Fork lz) = do
+  tid <-
+    unmask $ forkEval env denv k lz <$> duplicate ustk <*> duplicate bstk
   bstk <- bump bstk
   poke bstk . Foreign . Wrap $ tid
   pure (denv, ustk, bstk, k)
