@@ -125,24 +125,23 @@ beforeHashTests = do
   c12 <- Causal.threeWayMerge sillyMerge c1' c2'
 
   -- verifying basic properties of `before` for these examples
-  expect' =<< before (hash c1) c1
-  expect' =<< before (hash c1) c12
-  expect' =<< before (hash c2) c2
-  expect' =<< before (hash c2) c12
-  expect' =<< before (hash c2) c2'
-  expect' =<< before (hash c1) c1'
-  expect' . not =<< before (hash c1) c2
-  expect' . not =<< before (hash c2) c1
+  expect' =<< before c1 c1
+  expect' =<< before c1 c12
+  expect' =<< before c2 c2
+  expect' =<< before c2 c12
+  expect' =<< before c2 c2'
+  expect' =<< before c1 c1'
+  expect' . not =<< before c1 c2
+  expect' . not =<< before c2 c1
 
   -- make sure the search cutoff works -
   -- even though both start with `Causal.one 0`, that's
   -- more than 10 steps back from `longCausal 1000`, so we
   -- want this to be false
-  expect' . not =<< beforeHash (hash c1) (longCausal (1000 :: Int64))
+  expect' . not =<< before c1 (longCausal (1000 :: Int64))
   ok
   where
-    before = beforeHash 10
-    hash = Causal.currentHash
+    before h c = beforeHash 10 (Causal.currentHash h) c
     sillyMerge _lca l _r = pure l
     longCausal 0 = Causal.one 0
     longCausal n = Causal.cons n (longCausal (n - 1))
