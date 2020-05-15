@@ -531,14 +531,15 @@ loop = do
           traverse_ go mdValuels
           after  <- Branch.head <$> use root
           (ppe, outputDiff) <- diffHelper before after
-          unless silent if OBranchDiff.isEmpty outputDiff
+          if not silent then
+            if OBranchDiff.isEmpty outputDiff
             then respond NoOp
             else respondNumbered $ ShowDiffNamespace Path.absoluteEmpty
                                                      Path.absoluteEmpty
                                                      ppe
                                                      outputDiff
-          when (silent && not (OBranchDiff.isEmpty outputDiff)) $
-            respond DefaultMetadataNotification
+          else unless (OBranchDiff.isEmpty outputDiff) $
+                 respond DefaultMetadataNotification
           where
             go (mdl, hqn) = do
               newRoot <- use root
