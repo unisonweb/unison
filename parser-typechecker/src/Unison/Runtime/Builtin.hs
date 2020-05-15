@@ -317,9 +317,10 @@ open'file avoid
   = ([BX,BX],)
   . TAbss [fp0,m0]
   . unwrap fp0 filePathReference fp
-  $ io'error'result'direct OPENFI [fp,m0] ior e r
+  . unenum m0 ioModeReference m
+  $ io'error'result'direct OPENFI [fp,m] ior e r
   where
-  [fp0,m0,fp,ior,e,r] = freshes' avoid 6
+  [fp0,m0,fp,m,ior,e,r] = freshes' avoid 7
 
 close'file :: IOOP
 close'file avoid
