@@ -83,6 +83,7 @@ import System.IO as SYS
   , openFile
   , hClose
   , hGetBuffering
+  , hSetBuffering
   , hIsEOF
   , hIsOpen
   , hIsSeekable
@@ -689,7 +690,8 @@ iopToForeign ANF.POSITN
   = foreign1 $ \h -> wrappedResult <$> hTell h
 iopToForeign ANF.GBUFFR
   = foreign1 $ \h -> bufferModeResult <$> hGetBuffering h
-iopToForeign ANF.SBUFFR = error "todo"
+iopToForeign ANF.SBUFFR
+  = foreign2 $ \h bm -> [] <$ hSetBuffering h bm
 iopToForeign ANF.GTLINE
   = foreign1 $ \h -> wrappedResult <$> hGetLine h
 iopToForeign ANF.GTTEXT
