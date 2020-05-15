@@ -1,5 +1,4 @@
 {-# LANGUAGE RankNTypes #-}
-
 {-# LANGUAGE ApplicativeDo       #-}
 {-# LANGUAGE BlockArguments      #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -16,9 +15,16 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE EmptyCase #-}
 
-module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..), currentPath, parseSearchType) where
+module Unison.Codebase.Editor.HandleInput
+  ( loop
+  , loopState0
+  , LoopState(..)
+  , currentPath
+  , parseSearchType
+  )
+where
 
-import Unison.Prelude
+import           Unison.Prelude
 
 import Unison.Codebase.MainTerm ( nullaryMain, mainTypes, getMainTerm )
 import qualified Unison.Codebase.MainTerm as MainTerm
@@ -287,7 +293,7 @@ loop = do
             lift do
               let e' = Map.map go e
                   go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-              when (not $ null e') $
+              unless (null e') $
                 eval . Notify $ Evaluated text ppe bindings e'
               latestTypecheckedFile .= Just unisonFile
 
@@ -362,7 +368,7 @@ loop = do
                              (const (if isTerm then termPatch else typePatch)))
                 -- Say something
                 success
-          when (not $ null misses) $
+          unless (null misses) $
             respond $ SearchTermsNotFound misses
           traverse_ go (if isTerm then tmRefs else tpRefs)
         branchExists dest _x = respond $ BranchAlreadyExists dest
@@ -483,6 +489,27 @@ loop = do
         importRemoteBranch = ExceptT . eval . ImportRemoteBranch
         viewRemoteBranch = ExceptT . eval . ViewRemoteBranch
         syncRemoteRootBranch repo b = ExceptT . eval $ SyncRemoteRootBranch repo b
+        handleFailedDelete failed failedDependents = do
+          failed           <- loadSearchResults $ SR.fromNames failed
+          failedDependents <- loadSearchResults $ SR.fromNames failedDependents
+          ppe              <- prettyPrintEnv =<< makePrintNamesFromLabeled'
+            (foldMap SR'.labeledDependencies $ failed <> failedDependents)
+          respond $ CantDelete ppe failed failedDependents
+        saveAndApplyPatch patchPath'' patchName patch' = do
+          stepAtM (inputDescription <> " (1/2)")
+                  (patchPath'',
+                   Branch.modifyPatches patchName (const patch'))
+          -- Apply the modified patch to the current path
+          -- since we might be able to propagate further.
+          void $ propagatePatch inputDescription patch' currentPath'
+          -- Say something
+          success
+        previewResponse sourceName sr uf = do
+          names <- makeShadowedPrintNamesFromLabeled
+                      (UF.termSignatureExternalLabeledDependencies uf)
+                      (UF.typecheckedToNames0 uf)
+          ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
+          respond $ Typechecked (Text.pack sourceName) ppe sr uf
 
         addDefaultMetadata
           :: SlurpComponent v
@@ -603,18 +630,10 @@ loop = do
               root'' <- use root
               diffHelper (Branch.head root') (Branch.head root'') >>=
                 respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
-            else do
-              failed <-
-                loadSearchResults $ SR.fromNames failed
-              failedDependents <-
-                loadSearchResults $ SR.fromNames failedDependents
-              ppe <- prettyPrintEnv =<<
-                makePrintNamesFromLabeled'
-                  (foldMap SR'.labeledDependencies $ failed <> failedDependents)
-              respond $ CantDelete ppe failed failedDependents
+            else handleFailedDelete failed failedDependents
       in case input of
       ShowReflogI -> do
-        entries <- fmap (convertEntries Nothing []) $ eval LoadReflog
+        entries <- convertEntries Nothing [] <$> eval LoadReflog
         numberedArgs .=
           fmap (('#':) . SBH.toString . Output.hash) entries
         respond $ ShowReflog entries
@@ -806,14 +825,7 @@ loop = do
               respondNumbered
                 . uncurry (ShowDiffAfterDeleteBranch
                             $ resolveToAbsolute (Path.unsplit' p))
-          else do
-            failed <- loadSearchResults $ SR.fromNames failed
-            failedDependents <- loadSearchResults $ SR.fromNames failedDependents
-            ppe <- prettyPrintEnv =<<
-              makePrintNamesFromLabeled'
-                (foldMap SR'.labeledDependencies $ failed <> failedDependents)
-            respond $ CantDelete ppe failed failedDependents
-
+          else handleFailedDelete failed failedDependents
       SwitchBranchI path' -> do
         let path = resolveToAbsolute path'
         currentPathStack %= Nel.cons path
@@ -1150,10 +1162,10 @@ loop = do
               FileLocation path  -> Just path
               LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
         do
-          when (not $ null loadedDisplayTypes && null loadedDisplayTerms) $
+          unless (null loadedDisplayTypes && null loadedDisplayTerms) $
             eval . Notify $
               DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
-          when (not $ null misses) $
+          unless (null misses) $
             eval . Notify . SearchTermsNotFound $ fmap fst misses
           -- We set latestFile to be programmatically generated, if we
           -- are viewing these definitions to a file - this will skip the
@@ -1248,7 +1260,7 @@ loop = do
 
             -- name query
             (map HQ.unsafeFromString -> qs) -> do
-              ns <- lift $ basicPrettyPrintNames0
+              ns <- lift basicPrettyPrintNames0
               let srs = searchBranchScored ns fuzzyNameDistance qs
               pure $ uniqueBy SR.toReferent srs
           lift do
@@ -1309,15 +1321,7 @@ loop = do
                            . R.deleteDom fr)
                           patch
                       (patchPath'', patchName) = resolveSplit' patchPath'
-                  -- Save the modified patch
-                  stepAtM (inputDescription <> " (1/2)")
-                          (patchPath'',
-                           Branch.modifyPatches patchName (const patch'))
-                  -- Apply the modified patch to the current path
-                  -- since we might be able to propagate further.
-                  void $ propagatePatch inputDescription patch' currentPath'
-                  -- Say something
-                  success
+                  saveAndApplyPatch patchPath'' patchName patch'
             misses = fromMisses <> toMisses
             ambiguous t rs =
               let rs' = Set.map Referent.Ref $ Set.fromList rs
@@ -1327,7 +1331,7 @@ loop = do
                     (Path.parseHQSplit' . HQ.toString -> Right n) ->
                       termConflicted n rs'
                     _ -> respond . BadName $ HQ.toString t
-        when (not $ null misses) $
+        unless (null misses) $
           respond $ SearchTermsNotFound misses
         case (fromRefs, toRefs) of
           ([fr], [tr]) -> go fr tr
@@ -1354,14 +1358,7 @@ loop = do
                     over Patch.typeEdits
                       (R.insert fr (TypeEdit.Replace tr) . R.deleteDom fr) patch
                   (patchPath'', patchName) = resolveSplit' patchPath'
-              -- Save the modified patch
-              stepAtM (inputDescription <> " (1/2)")
-                      (patchPath'', Branch.modifyPatches patchName (const patch'))
-              -- Apply the modified patch to the current path
-              -- since we might be able to propagate further.
-              void $ propagatePatch inputDescription patch' currentPath'
-              -- Say something
-              success
+              saveAndApplyPatch patchPath'' patchName patch'
             misses = fromMisses <> toMisses
             ambiguous t rs =
               let rs' = Set.map Referent.Ref $ Set.fromList rs
@@ -1374,7 +1371,7 @@ loop = do
                     -- hash-qualified name already.
                     -- Still, the types say we need to handle this case.
                     _ -> respond . BadName $ HQ.toString t
-        when (not $ null misses) $
+        unless (null misses) $
           respond $ SearchTermsNotFound misses
         case (fromRefs, toRefs) of
           ([fr], [tr]) -> go fr tr
@@ -1416,11 +1413,7 @@ loop = do
                     .  applySelection hqs uf
                     .  toSlurpResult currentPath' uf
                    <$> slurpResultNames0
-          names <- makeShadowedPrintNamesFromLabeled
-                      (UF.termSignatureExternalLabeledDependencies uf)
-                      (UF.typecheckedToNames0 uf)
-          ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
-          respond $ Typechecked (Text.pack sourceName) ppe sr uf
+          previewResponse sourceName sr uf
         _ -> respond NoUnisonFile
 
       UpdateI maybePatchPath hqs -> case uf of
@@ -1527,11 +1520,7 @@ loop = do
           sr <-  applySelection hqs uf
                     .  toSlurpResult currentPath' uf
                    <$> slurpResultNames0
-          names <- makeShadowedPrintNamesFromLabeled
-                      (UF.termSignatureExternalLabeledDependencies uf)
-                      (UF.typecheckedToNames0 uf)
-          ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
-          respond $ Typechecked (Text.pack sourceName) ppe sr uf
+          previewResponse sourceName sr uf
         _ -> respond NoUnisonFile
 
       TodoI patchPath branchPath' -> do
@@ -1540,7 +1529,7 @@ loop = do
 
       TestI showOk showFail -> do
         let
-          testTerms = Map.keys . R4.d1 . (uncurry R4.selectD34) isTest
+          testTerms = Map.keys . R4.d1 . uncurry R4.selectD34 isTest
                     . Branch.deepTermMetadata $ currentBranch0
           testRefs = Set.fromList [ r | Referent.Ref r <- toList testTerms ]
           oks results =
@@ -1618,9 +1607,9 @@ loop = do
       MergeBuiltinsI -> do
         -- these were added once, but maybe they've changed and need to be
         -- added again.
-        let uf = (UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
-                                           (Map.fromList Builtin.builtinEffectDecls)
-                                           mempty mempty)
+        let uf = UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
+                                          (Map.fromList Builtin.builtinEffectDecls)
+                                          mempty mempty
         eval $ AddDefsToCodebase uf
         -- add the names; note, there are more names than definitions
         -- due to builtin terms; so we don't just reuse `uf` above.
@@ -1632,9 +1621,9 @@ loop = do
       MergeIOBuiltinsI -> do
         -- these were added once, but maybe they've changed and need to be
         -- added again.
-        let uf = (UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
-                                           (Map.fromList Builtin.builtinEffectDecls)
-                                           mempty mempty)
+        let uf = UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
+                                          (Map.fromList Builtin.builtinEffectDecls)
+                                          mempty mempty
         eval $ AddDefsToCodebase uf
         -- these have not neceesarily been added yet
         eval $ AddDefsToCodebase IOSource.typecheckedFile'
@@ -2480,8 +2469,8 @@ toSlurpResult currentPath uf existingNames =
                              (SC.terms dups)
 
   typeAliases :: Map v Slurp.Aliases
-  typeAliases = buildAliases (R.mapRan (Referent.Ref) $ Names.types existingNames)
-                             (R.mapRan (Referent.Ref) $ Names.types fileNames0)
+  typeAliases = buildAliases (R.mapRan Referent.Ref $ Names.types existingNames)
+                             (R.mapRan Referent.Ref $ Names.types fileNames0)
                              (SC.types dups)
 
   -- (n,r) is in `adds` if n isn't in existingNames
@@ -2666,20 +2655,10 @@ parseType input src = do
       Left es -> Left $ ParseResolutionFailures src (toList es)
       Right typ -> Right typ
 
-makeShadowedPrintNamesFromLabeled ::
-  Monad m => Set LabeledDependency -> Names0 -> Action' m v Names
-makeShadowedPrintNamesFromLabeled deps shadowing = do
-  root <- use root
-  currentPath <- use currentPath
-  (_missing, rawHistoricalNames) <-
-    eval . Eval $ Branch.findHistoricalRefs deps root
-  basicNames0 <- basicPrettyPrintNames0
-  -- The basic names go into "current", but are shadowed by "shadowing".
-  -- They go again into "historical" as a hack that makes them available HQ-ed.
-  pure $
-    Names3.shadowing
-      shadowing
-      (Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames))
+makeShadowedPrintNamesFromLabeled
+  :: Monad m => Set LabeledDependency -> Names0 -> Action' m v Names
+makeShadowedPrintNamesFromLabeled deps shadowing =
+  Names3.shadowing shadowing <$> makePrintNamesFromLabeled' deps
 
 getTermsIncludingHistorical
   :: Monad m => Path.HQSplit -> Branch0 m -> Action' m v (Set Referent)
