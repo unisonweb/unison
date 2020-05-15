@@ -142,6 +142,7 @@ _liftToAction = lift . lift . Free.eval . Eval
 data LoopState m v
   = LoopState
       { _root :: Branch m
+      , _lastSavedRoot :: Branch m
       -- the current position in the namespace
       , _currentPathStack :: NonEmpty Path.Absolute
 
@@ -174,7 +175,7 @@ currentPath :: Getter (LoopState m v) Path.Absolute
 currentPath = currentPathStack . to Nel.head
 
 loopState0 :: Branch m -> Path.Absolute -> LoopState m v
-loopState0 b p = LoopState b (pure p) Nothing Nothing Nothing []
+loopState0 b p = LoopState b b (pure p) Nothing Nothing Nothing []
 
 type Action' m v = Action m (Either Event Input) v
 
@@ -473,7 +474,10 @@ loop = do
           ps' = p' . Path.unsplit'
         stepAt = Unison.Codebase.Editor.HandleInput.stepAt inputDescription
         stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
-        stepManyAtM = Unison.Codebase.Editor.HandleInput.stepManyAtM inputDescription
+        stepManyAtNoSync =
+          Unison.Codebase.Editor.HandleInput.stepManyAtNoSync
+        updateRoot = flip Unison.Codebase.Editor.HandleInput.updateRoot inputDescription
+        syncRoot = use root >>= updateRoot
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
         unlessGitError = unlessError' (Output.GitError input)
         importRemoteBranch = ExceptT . eval . ImportRemoteBranch
@@ -486,7 +490,7 @@ loop = do
         addDefaultMetadata adds = do
           let
             addedVs = Set.toList $ SC.types adds <> SC.terms adds
-            parseResult = (Path.parseHQSplit' . Var.nameStr) <$> addedVs
+            parseResult = Path.parseHQSplit' . Var.nameStr <$> addedVs
             (errs, addedNames) = partitionEithers parseResult
           case errs of
             e : _ ->
@@ -503,8 +507,7 @@ loop = do
                       (Path.absoluteToPath' currentPath')
                       (show dm')
                       e
-                    Right defaultMeta -> do
-                      respond DefaultMetadataNotification
+                    Right defaultMeta ->
                       manageLinks True addedNames defaultMeta Metadata.insert
 
         -- Add/remove links between definitions and metadata.
@@ -524,17 +527,19 @@ loop = do
         manageLinks silent srcs mdValues op = do
           mdValuels <- fmap (first toList) <$>
             traverse (\x -> fmap (,x) (getHQTerms x)) mdValues
-          let get = Branch.head <$> use root
-          before <- get
+          before <- Branch.head <$> use root
           traverse_ go mdValuels
-          after  <- get
+          after  <- Branch.head <$> use root
           (ppe, outputDiff) <- diffHelper before after
-          unless silent if OBranchDiff.isEmpty outputDiff
+          if not silent then
+            if OBranchDiff.isEmpty outputDiff
             then respond NoOp
             else respondNumbered $ ShowDiffNamespace Path.absoluteEmpty
                                                      Path.absoluteEmpty
                                                      ppe
                                                      outputDiff
+          else unless (OBranchDiff.isEmpty outputDiff) $
+                 respond DefaultMetadataNotification
           where
             go (mdl, hqn) = do
               newRoot <- use root
@@ -552,10 +557,10 @@ loop = do
                     Nothing -> respond $ MetadataMissingType ppe r
                     Just ty -> do
                       let steps =
-                            second (const . step $ Type.toReference ty)
-                              .   first (Path.unabsolute . resolveToAbsolute)
+                            bimap (Path.unabsolute . resolveToAbsolute)
+                                  (const . step $ Type.toReference ty)
                               <$> srcs
-                      stepManyAt steps
+                      stepManyAtNoSync steps
                  where
                   step mdType b0 =
                     let tmUpdates terms = foldl' go terms srcle
@@ -643,13 +648,13 @@ loop = do
           Left hash -> unlessError do
             newRoot <- resolveShortBranchHash hash
             lift do
-              updateRoot root' newRoot inputDescription
+              updateRoot newRoot
               success
           Right path' -> do
             newRoot <- getAt $ resolveToAbsolute path'
             if Branch.isEmpty newRoot then respond $ BranchNotFound path'
             else do
-              updateRoot root' newRoot inputDescription
+              updateRoot newRoot
               success
       ForkLocalBranchI src0 dest0 -> do
         let tryUpdateDest srcb dest0 = do
@@ -827,8 +832,7 @@ loop = do
           let path = resolveToAbsolute path'
           branch' <- getAt path
           if Branch.isEmpty branch' then respond $ CreatedNewBranch path
-          else do
-            doHistory 0 branch' []
+          else doHistory 0 branch' []
         where
           doHistory !n b acc =
             if maybe False (n >=) resultsCap then
@@ -850,7 +854,7 @@ loop = do
             respond . CantUndo $ if Branch.isOne root' then CantUndoPastStart
                                  else CantUndoPastMerge
           Just (_, prev) -> do
-            updateRoot root' prev inputDescription
+            updateRoot prev
             diffHelper (Branch.head prev) (Branch.head root') >>=
               respondNumbered . uncurry Output.ShowDiffAfterUndo
 
@@ -991,11 +995,13 @@ loop = do
 --                      | r <- toList $ Names.typesNamed ns name ]
 --              in (terms, types)
 
-      LinkI mdValue srcs ->
+      LinkI mdValue srcs -> do
         manageLinks False srcs [mdValue] Metadata.insert
+        syncRoot
 
-      UnlinkI mdValue srcs ->
+      UnlinkI mdValue srcs -> do
         manageLinks False srcs [mdValue] Metadata.delete
+        syncRoot
 
       -- > links List.map (.Docs .English)
       -- > links List.map -- give me all the
@@ -1393,7 +1399,7 @@ loop = do
              <$> slurpResultNames0
           let adds = Slurp.adds sr
           when (Slurp.isNonempty sr) $ do
-            stepAt ( Path.unabsolute currentPath'
+            stepAtNoSync ( Path.unabsolute currentPath'
                    , doSlurpAdds adds uf)
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
           ppe <- prettyPrintEnvDecl =<<
@@ -1402,6 +1408,7 @@ loop = do
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
           addDefaultMetadata adds
+          syncRoot
 
       PreviewAddI hqs -> case (latestFile', uf) of
         (Just (sourceName, _), Just uf) -> do
@@ -1498,7 +1505,7 @@ loop = do
           when (Slurp.isNonempty sr) $ do
           -- take a look at the `updates` from the SlurpResult
           -- and make a patch diff to record a replacement from the old to new references
-            stepManyAtM
+            stepManyAtMNoSync
               [( Path.unabsolute currentPath'
                , pure . doSlurpUpdates typeEdits termEdits termDeprecations)
               ,( Path.unabsolute currentPath'
@@ -1511,8 +1518,9 @@ loop = do
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
           -- propagatePatch prints TodoOutput
-          void $ propagatePatch inputDescription (updatePatch ye'ol'Patch) currentPath'
+          void $ propagatePatchNoSync (updatePatch ye'ol'Patch) currentPath'
           addDefaultMetadata addsAndUpdates
+          syncRoot
 
       PreviewUpdateI hqs -> case (latestFile', uf) of
         (Just (sourceName, _), Just uf) -> do
@@ -1677,7 +1685,7 @@ loop = do
               error $ "impossible match, resolveConfiguredGitUrl shouldn't return"
                   <> " `Just` unless it was passed `Just`; and here it is passed"
                   <> " `Nothing` by `expandRepo`."
-      ListDependentsI hq -> do -- todo: add flag to handle transitive efficiently
+      ListDependentsI hq -> -- todo: add flag to handle transitive efficiently
         resolveHQToLabeledDependencies hq >>= \lds ->
           if null lds
           then respond $ LabeledReferenceNotFound hq
@@ -1689,7 +1697,7 @@ loop = do
               in LD.fold tp tm ld
             (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependents root'
             respond $ ListDependents hqLength ld names0 missing
-      ListDependenciesI hq -> do -- todo: add flag to handle transitive efficiently
+      ListDependenciesI hq -> -- todo: add flag to handle transitive efficiently
         resolveHQToLabeledDependencies hq >>= \lds ->
           if null lds
           then respond $ LabeledReferenceNotFound hq
@@ -1849,9 +1857,9 @@ getLinks input src mdTypeStr = ExceptT $ do
 getLinks' :: (Var v, Monad m)
          => Path.HQSplit'         -- definition to print metadata of
          -> Maybe (Set Reference) -- return all metadata if empty
-         -> Action' m v ((PPE.PrettyPrintEnv,
+         -> Action' m v (PPE.PrettyPrintEnv,
                           --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
-                         [(HQ.HashQualified, Reference, Maybe (Type v Ann))]))
+                         [(HQ.HashQualified, Reference, Maybe (Type v Ann))])
 getLinks' src selection0 = do
   root0 <- Branch.head <$> use root
   currentPath' <- use currentPath
@@ -1881,6 +1889,15 @@ resolveShortBranchHash hash = ExceptT do
     []  -> pure . Left $ NoBranchWithHash hash
     [h] -> fmap Right . eval $ LoadLocalBranch h
     _   -> pure . Left $ BranchHashAmbiguous hash (Set.map (SBH.fromHash len) hashSet)
+
+-- Returns True if the operation changed the namespace, False otherwise.
+propagatePatchNoSync
+  :: (Monad m, Var v)
+  => Patch
+  -> Path.Absolute
+  -> Action' m v Bool
+propagatePatchNoSync patch scopePath = stepAtMNoSync'
+  (Path.unabsolute scopePath, lift . lift . Propagate.propagateAndApply patch)
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch :: (Monad m, Var v) =>
@@ -2134,7 +2151,7 @@ unlessError' f ma = unlessError $ withExceptT f ma
 --   supply unchangedMessage if you want to display it if merge had no effect
 mergeBranchAndPropagateDefaultPatch :: (Monad m, Var v) =>
   InputDescription -> Maybe (Output v) -> Branch m -> Maybe Path.Path' -> Path.Absolute -> Action' m v ()
-mergeBranchAndPropagateDefaultPatch inputDescription unchangedMessage srcb dest0 dest = do
+mergeBranchAndPropagateDefaultPatch inputDescription unchangedMessage srcb dest0 dest =
   ifM (mergeBranch inputDescription srcb dest0 dest)
       (loadPropagateDiffDefaultPatch inputDescription dest0 dest)
       (for_ unchangedMessage respond)
@@ -2173,16 +2190,23 @@ updateAtM :: Applicative m
           -> (Branch m -> Action m i v (Branch m))
           -> Action m i v Bool
 updateAtM reason (Path.Absolute p) f = do
-  b <- use root
+  b  <- use lastSavedRoot
   b' <- Branch.modifyAtM p f b
-  updateRoot b b' reason
+  updateRoot b' reason
   pure $ b /= b'
 
-stepAt :: forall m i v. Monad m
-       => InputDescription
-       -> (Path, Branch0 m -> Branch0 m)
-       -> Action m i v ()
+stepAt
+  :: forall m i v
+   . Monad m
+  => InputDescription
+  -> (Path, Branch0 m -> Branch0 m)
+  -> Action m i v ()
 stepAt cause = stepManyAt @m @[] cause . pure
+
+stepAtNoSync :: forall m i v. Monad m
+       => (Path, Branch0 m -> Branch0 m)
+       -> Action m i v ()
+stepAtNoSync = stepManyAtNoSync @m @[] . pure
 
 stepAtM :: forall m i v. Monad m
         => InputDescription
@@ -2190,29 +2214,57 @@ stepAtM :: forall m i v. Monad m
         -> Action m i v ()
 stepAtM cause = stepManyAtM @m @[] cause . pure
 
-stepAtM' :: forall m i v. Monad m
-        => InputDescription
-        -> (Path, Branch0 m -> Action m i v (Branch0 m))
-        -> Action m i v Bool
+stepAtM'
+  :: forall m i v
+   . Monad m
+  => InputDescription
+  -> (Path, Branch0 m -> Action m i v (Branch0 m))
+  -> Action m i v Bool
 stepAtM' cause = stepManyAtM' @m @[] cause . pure
 
-stepManyAt :: (Monad m, Foldable f)
-           => InputDescription
-           -> f (Path, Branch0 m -> Branch0 m)
-           -> Action m i v ()
+stepAtMNoSync'
+  :: forall m i v
+   . Monad m
+  => (Path, Branch0 m -> Action m i v (Branch0 m))
+  -> Action m i v Bool
+stepAtMNoSync' = stepManyAtMNoSync' @m @[] . pure
+
+stepManyAt
+  :: (Monad m, Foldable f)
+  => InputDescription
+  -> f (Path, Branch0 m -> Branch0 m)
+  -> Action m i v ()
 stepManyAt reason actions = do
-    b <- use root
-    let b' = Branch.stepManyAt actions b
-    updateRoot b b' reason
+  stepManyAtNoSync actions
+  b <- use root
+  updateRoot b reason
+
+-- Like stepManyAt, but doesn't update the root
+stepManyAtNoSync
+  :: (Monad m, Foldable f)
+  => f (Path, Branch0 m -> Branch0 m)
+  -> Action m i v ()
+stepManyAtNoSync actions = do
+  b <- use root
+  let new = Branch.stepManyAt actions b
+  root .= new
 
 stepManyAtM :: (Monad m, Foldable f)
            => InputDescription
            -> f (Path, Branch0 m -> m (Branch0 m))
            -> Action m i v ()
 stepManyAtM reason actions = do
+    stepManyAtMNoSync actions
+    b <- use root
+    updateRoot b reason
+
+stepManyAtMNoSync :: (Monad m, Foldable f)
+           => f (Path, Branch0 m -> m (Branch0 m))
+           -> Action m i v ()
+stepManyAtMNoSync actions = do
     b <- use root
     b' <- eval . Eval $ Branch.stepManyAtM actions b
-    updateRoot b b' reason
+    root .= b'
 
 stepManyAtM' :: (Monad m, Foldable f)
            => InputDescription
@@ -2221,14 +2273,26 @@ stepManyAtM' :: (Monad m, Foldable f)
 stepManyAtM' reason actions = do
     b <- use root
     b' <- Branch.stepManyAtM actions b
-    updateRoot b b' reason
+    updateRoot b' reason
     pure (b /= b')
 
-updateRoot :: Branch m -> Branch m -> InputDescription -> Action m i v ()
-updateRoot old new reason = when (old /= new) $ do
-  root .= new
-  eval $ SyncLocalRootBranch new
-  eval $ AppendToReflog reason old new
+stepManyAtMNoSync' :: (Monad m, Foldable f)
+           => f (Path, Branch0 m -> Action m i v (Branch0 m))
+           -> Action m i v Bool
+stepManyAtMNoSync' actions = do
+    b <- use root
+    b' <- Branch.stepManyAtM actions b
+    root .= b'
+    pure (b /= b')
+
+updateRoot :: Branch m -> InputDescription -> Action m i v ()
+updateRoot new reason = do
+  old <- use lastSavedRoot
+  when (old /= new) $ do
+    root .= new
+    eval $ SyncLocalRootBranch new
+    eval $ AppendToReflog reason old new
+    lastSavedRoot .= new
 
 -- cata for 0, 1, or more elements of a Foldable
 -- tries to match as lazily as possible
