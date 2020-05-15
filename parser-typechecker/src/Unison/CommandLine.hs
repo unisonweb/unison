@@ -12,6 +12,9 @@ import Unison.Prelude
 
 import           Control.Concurrent              (forkIO, killThread)
 import           Control.Concurrent.STM          (atomically)
+import qualified Control.Monad.Extra             as Monad
+import qualified Control.Monad.Reader            as Reader
+import qualified Control.Monad.State             as State
 import           Data.Configurator               (autoReload, autoConfig)
 import           Data.Configurator.Types         (Config, Worth (..))
 import           Data.List                       (isSuffixOf, isPrefixOf)
@@ -25,6 +28,8 @@ import           System.FilePath                 ( takeFileName )
 import           Unison.Codebase                 (Codebase)
 import qualified Unison.Codebase                 as Codebase
 import qualified Unison.Codebase.Branch          as Branch
+import           Unison.Codebase.Causal          ( Causal )
+import qualified Unison.Codebase.Causal          as Causal
 import           Unison.Codebase.Editor.Input    (Event(..), Input(..))
 import qualified Unison.Codebase.SearchResult    as SR
 import qualified Unison.Codebase.Watch           as Watch
@@ -67,13 +72,35 @@ watchBranchUpdates currentRoot q codebase = do
     -- the OS generates a file watch event, we skip branch update events
     -- that are causally before the current root.
     --
-    -- NB: There's no way to distinguish events from our own writes from those
-    -- of an external program. So this will also skip events from a random
-    -- external process writing an old branch to _head.
-    notBefore <- filterM (\b -> not <$> (Branch.beforeHash b currentRoot)) (toList updatedBranches)
+    -- NB: Sadly, since the file watching API doesn't have a way to silence
+    -- the events from a specific individual write, this is ultimately a
+    -- heuristic. If a fairly recent head gets deposited at just the right
+    -- time, it would get ignored by this logic. This seems unavoidable.
+    let maxDepth = 20 -- if it's further back than this, consider it new
+    let isNew b = not <$> beforeHash maxDepth b (Branch._history currentRoot)
+    notBefore <- filterM isNew (toList updatedBranches)
     when (length notBefore > 0) $
       atomically . Q.enqueue q . IncomingRootBranch $ Set.fromList notBefore
   pure (cancelExternalBranchUpdates >> killThread thread)
+
+
+-- `True` if `h` is found in the history of `c` within `maxDepth` path length
+-- from the tip of `c`
+beforeHash :: forall m h e . Monad m => Word -> Causal.RawHash h -> Causal m h e -> m Bool
+beforeHash maxDepth h c =
+  Reader.runReaderT (State.evalStateT (go c) Set.empty) (0 :: Word)
+  where
+  go c | h == Causal.currentHash c = pure True
+  go c = do
+    currentDepth :: Word <- Reader.ask
+    if currentDepth >= maxDepth
+    then pure False
+    else do
+      seen <- State.get
+      cs <- lift . lift $ toList <$> sequence (Causal.children c)
+      let unseens = filter (\c -> c `Set.notMember` seen) cs
+      State.modify' (<> Set.fromList cs)
+      Monad.anyM (Reader.local (1+) . go) unseens
 
 warnNote :: String -> String
 warnNote s = "⚠️  " <> s

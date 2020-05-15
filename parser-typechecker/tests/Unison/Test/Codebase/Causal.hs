@@ -24,6 +24,7 @@ import Unison.Hashable (Hashable)
 import Data.Set (Set)
 import Data.Functor.Identity
 import Unison.Hash (Hash)
+import Unison.CommandLine (beforeHash)
 
 c :: M (Causal M Int64 [Int64])
 c = merge (foldr cons (one [1]) t1)
@@ -110,7 +111,41 @@ test =
         -- $  prop_mergeCommonAncestor --}
       , scope "lca.hasLca" lcaPairTest
       , scope "lca.noLca" noLcaPairTest
-      ]
+      , scope "beforeHash" $ beforeHashTests
+    ]
+
+beforeHashTests :: Test ()
+beforeHashTests = do
+  -- c1 have unrelated histories
+  c1  <- pure $ Causal.one (0 :: Int64)
+  c2  <- pure $ Causal.one (1 :: Int64)
+  -- c1' and c2' are extension of c1
+  c1' <- pure $ Causal.cons 2 c1
+  c2' <- pure $ Causal.cons 3 c2
+  c12 <- Causal.threeWayMerge sillyMerge c1' c2'
+
+  -- verifying basic properties of `before` for these examples
+  expect' =<< before (hash c1) c1
+  expect' =<< before (hash c1) c12
+  expect' =<< before (hash c2) c2
+  expect' =<< before (hash c2) c12
+  expect' =<< before (hash c2) c2'
+  expect' =<< before (hash c1) c1'
+  expect' . not =<< before (hash c1) c2
+  expect' . not =<< before (hash c2) c1
+
+  -- make sure the search cutoff works -
+  -- even though both start with `Causal.one 0`, that's
+  -- more than 10 steps back from `longCausal 1000`, so we
+  -- want this to be false
+  expect' . not =<< beforeHash (hash c1) (longCausal (1000 :: Int64))
+  ok
+  where
+    before = beforeHash 10
+    hash = Causal.currentHash
+    sillyMerge _lca l _r = pure l
+    longCausal 0 = Causal.one 0
+    longCausal n = Causal.cons n (longCausal (n - 1))
 
 int64 :: Test Int64
 int64 = random

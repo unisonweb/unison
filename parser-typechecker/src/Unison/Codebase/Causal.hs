@@ -10,7 +10,6 @@ import           Prelude                 hiding ( head
                                                 , read
                                                 )
 import qualified Control.Monad.State           as State
-import           Control.Monad.Extra            ( anyM )
 import           Control.Monad.State            ( StateT )
 import           Data.Sequence                  ( ViewL(..) )
 import qualified Data.Sequence                 as Seq
@@ -237,18 +236,6 @@ threeWayMerge combine c1 c2 = do
 
 before :: Monad m => Causal m h e -> Causal m h e -> m Bool
 before a b = (== Just a) <$> lca a b
-
-beforeHash :: forall m h e . Monad m => RawHash h -> Causal m h e -> m Bool
-beforeHash h c = flip State.evalStateT Set.empty $ go c where
-  go :: Causal m h e -> StateT (Set (Causal m h e)) m Bool
-  go c =
-    if h == currentHash c then pure True
-    else do
-      seen <- State.get
-      cs <- lift $ toList <$> sequence (children c)
-      let unseens = filter (\c -> c `Set.notMember` seen) cs
-      State.modify' (<> Set.fromList cs)
-      anyM go unseens
 
 hash :: Hashable e => e -> Hash
 hash = Hashable.accumulate'
