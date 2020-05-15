@@ -1,6 +1,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 
-module Unison.LabeledDependency 
+module Unison.LabeledDependency
   ( derivedTerm
   , derivedType
   , termRef
@@ -10,6 +10,7 @@ module Unison.LabeledDependency
   , effectConstructor
   , fold
   , referents
+  , toReference
   , LabeledDependency
   , partition
   ) where
@@ -18,7 +19,7 @@ import Unison.Prelude hiding (fold)
 
 import Unison.ConstructorType (ConstructorType(Data, Effect))
 import Unison.Reference (Reference(DerivedId), Id)
-import Unison.Referent (Referent, pattern Ref, pattern Con)
+import Unison.Referent (Referent, pattern Ref, pattern Con, Referent'(Ref', Con'))
 import qualified Data.Set as Set
 
 -- dumb constructor name is private
@@ -45,4 +46,11 @@ fold :: (Reference -> a) -> (Referent -> a) -> LabeledDependency -> a
 fold f g (X e) = either f g e
 
 partition :: Foldable t => t LabeledDependency -> ([Reference], [Referent])
-partition = partitionEithers . map (\(X e) -> e) . toList 
+partition = partitionEithers . map (\(X e) -> e) . toList
+
+-- | Left TypeRef | Right TermRef
+toReference :: LabeledDependency -> Either Reference Reference
+toReference = \case
+  X (Left r)             -> Left r
+  X (Right (Ref' r))     -> Right r
+  X (Right (Con' r _ _)) -> Left r
