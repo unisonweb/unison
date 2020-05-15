@@ -12,10 +12,18 @@ module Unison.Runtime.Foreign
   , foreign1
   , foreign2
   , foreign3
-  , foreign1m1
-  , foreign1m2
-  , foreign1m3
   ) where
+
+import GHC.Stack (HasCallStack)
+
+import Data.Bifunctor
+
+import Control.Concurrent (ThreadId)
+import Data.Text (Text,unpack)
+import Network.Socket (Socket)
+import System.FilePath (FilePath)
+import System.IO (BufferMode(..), SeekMode, Handle, IOMode)
+import Unison.Util.Bytes (Bytes)
 
 import Unsafe.Coerce
 
@@ -33,52 +41,104 @@ newtype ForeignFunc = FF (ForeignArgs -> IO ForeignRslt)
 instance Show ForeignFunc where
   show _ = "ForeignFunc"
 
+decodeForeignEnum :: Enum a => [Foreign] -> (a,[Foreign])
+decodeForeignEnum = first toEnum . decodeForeign
+
+class ForeignConvention a where
+  decodeForeign :: [Foreign] -> (a, [Foreign])
+  decodeForeign (f:fs) = (unwrapForeign f, fs)
+  decodeForeign _ = foreignCCError
+
+instance ForeignConvention Int
+instance ForeignConvention Text
+instance ForeignConvention Bytes
+instance ForeignConvention Handle
+instance ForeignConvention Socket
+instance ForeignConvention ThreadId
+
+instance ForeignConvention FilePath where
+  decodeForeign = first unpack . decodeForeign
+instance ForeignConvention SeekMode where
+  decodeForeign = decodeForeignEnum
+instance ForeignConvention IOMode where
+  decodeForeign = decodeForeignEnum
+
+instance ForeignConvention a => ForeignConvention (Maybe a) where
+  decodeForeign (f:fs)
+    | 0 <- unwrapForeign f = (Nothing, fs)
+    | 1 <- unwrapForeign f
+    , (x, fs) <- decodeForeign fs = (Just x, fs)
+  decodeForeign _ = foreignCCError
+
+instance (ForeignConvention a, ForeignConvention b)
+      => ForeignConvention (a,b)
+  where
+  decodeForeign fs
+    | (x,fs) <- decodeForeign fs
+    , (y,fs) <- decodeForeign fs
+    = ((x,y), fs)
+
+instance ( ForeignConvention a
+         , ForeignConvention b
+         , ForeignConvention c
+         )
+      => ForeignConvention (a,b,c)
+  where
+  decodeForeign fs
+    | (x, fs) <- decodeForeign fs
+    , (y, fs) <- decodeForeign fs
+    , (z, fs) <- decodeForeign fs
+    = ((x,y,z), fs)
+
+instance ForeignConvention BufferMode where
+  decodeForeign (f:fs)
+    | 0 <- unwrapForeign f = (NoBuffering,fs)
+    | 1 <- unwrapForeign f = (LineBuffering,fs)
+    | 2 <- unwrapForeign f = (BlockBuffering Nothing, fs)
+    | 3 <- unwrapForeign f
+    , (n,fs) <- decodeForeign fs
+    = (BlockBuffering $ Just n, fs)
+  decodeForeign _ = foreignCCError
+
+foreignCCError :: HasCallStack => a
+foreignCCError = error "mismatched foreign calling convention"
+
 unwrapForeign :: Foreign -> a
 unwrapForeign (Wrap e) = unsafeCoerce e
 
 foreign0 :: IO [Either Int Foreign] -> ForeignFunc
 foreign0 e = FF $ \[] -> e
 
-foreign1 :: (a -> IO [Either Int Foreign]) -> ForeignFunc
-foreign1 f = FF $ \[x] -> f $ unwrapForeign x
+foreign1
+  :: ForeignConvention a
+  => (a -> IO [Either Int Foreign])
+  -> ForeignFunc
+foreign1 f = FF $ \case
+  fs | (x,[]) <- decodeForeign fs
+    -> f x
+     | otherwise -> foreignCCError
 
-foreign2 :: (a -> b -> IO [Either Int Foreign]) -> ForeignFunc
-foreign2 f = FF $ \[x,y] -> f (unwrapForeign x) (unwrapForeign y)
+foreign2
+  :: ForeignConvention a
+  => ForeignConvention b
+  => (a -> b -> IO [Either Int Foreign])
+  -> ForeignFunc
+foreign2 f = FF $ \case
+  fs | (x,fs) <- decodeForeign fs
+     , (y,[]) <- decodeForeign fs
+    -> f x y
+     | otherwise -> foreignCCError
 
-foreign3 :: (a -> b -> c -> IO [Either Int Foreign]) -> ForeignFunc
-foreign3 f
-   = FF $ \[x,y,z]
-  -> f (unwrapForeign x) (unwrapForeign y) (unwrapForeign z)
+foreign3
+  :: ForeignConvention a
+  => ForeignConvention b
+  => ForeignConvention c
+  => (a -> b -> c -> IO [Either Int Foreign])
+  -> ForeignFunc
+foreign3 f = FF $ \case
+  fs | (x,fs) <- decodeForeign fs
+     , (y,fs) <- decodeForeign fs
+     , (z,[]) <- decodeForeign fs
+    -> f x y z
+     | otherwise -> foreignCCError
 
-foreign1m1 :: (Maybe a -> IO [Either Int Foreign]) -> ForeignFunc
-foreign1m1 f = FF $ \case
-  t:xs
-    | 0 <- unwrapForeign t
-    -> f Nothing
-    | 1 <- unwrapForeign t
-    , [x] <- xs
-    -> f (Just $ unwrapForeign x)
-  _ -> error "mismatched foreign calling convention"
-
-foreign1m2 :: (Maybe a -> b -> IO [Either Int Foreign]) -> ForeignFunc
-foreign1m2 f = FF $ \case
-  t:xs
-    | 0 <- unwrapForeign t
-    , [y] <- xs
-    -> f Nothing (unwrapForeign y)
-    | 1 <- unwrapForeign t
-    , [x,y] <- xs
-    -> f (Just $ unwrapForeign x) (unwrapForeign y)
-  _ -> error "mismatched foreign calling convention"
-
-foreign1m3
-  :: (Maybe a -> b -> c -> IO [Either Int Foreign]) -> ForeignFunc
-foreign1m3 f = FF $ \case
-  t:xs
-    | 0 <- unwrapForeign t
-    , [y,z] <- xs
-    -> f Nothing (unwrapForeign y) (unwrapForeign z)
-    | 1 <- unwrapForeign t
-    , [x,y,z] <- xs
-    -> f (Just $ unwrapForeign x) (unwrapForeign y) (unwrapForeign z)
-  _ -> error "mismatched foreign calling convention"

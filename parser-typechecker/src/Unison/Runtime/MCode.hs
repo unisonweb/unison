@@ -684,7 +684,7 @@ iopToForeign ANF.ISFOPN
 iopToForeign ANF.ISSEEK
   = foreign1 $ \h -> booleanResult <$> hIsSeekable h
 iopToForeign ANF.SEEKFI
-  = foreign3 $ \h sm n -> [] <$ hSeek h sm (fromIntegral n)
+  = foreign3 $ \h sm n -> [] <$ hSeek h sm (fromIntegral (n :: Int))
 iopToForeign ANF.POSITN
   = foreign1 $ \h -> wrappedResult <$> hTell h
 iopToForeign ANF.GBUFFR
@@ -730,7 +730,7 @@ iopToForeign ANF.GFTIME
 iopToForeign ANF.GFSIZE
   = foreign1 $ \fp -> wrappedResult <$> getFileSize (Text.unpack fp)
 iopToForeign ANF.SRVSCK
-  = foreign1m2 $ \mhst port ->
+  = foreign2 $ \mhst port ->
       wrappedResult
         <$> SYS.bindSock (hostPreference mhst) (Text.unpack port)
 iopToForeign ANF.LISTEN
