@@ -477,6 +477,7 @@ loop = do
         stepManyAtNoSync =
           Unison.Codebase.Editor.HandleInput.stepManyAtNoSync
         updateRoot = flip Unison.Codebase.Editor.HandleInput.updateRoot inputDescription
+        syncRoot = use root >>= updateRoot
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
         unlessGitError = unlessError' (Output.GitError input)
         importRemoteBranch = ExceptT . eval . ImportRemoteBranch
@@ -489,7 +490,7 @@ loop = do
         addDefaultMetadata adds = do
           let
             addedVs = Set.toList $ SC.types adds <> SC.terms adds
-            parseResult = (Path.parseHQSplit' . Var.nameStr) <$> addedVs
+            parseResult = Path.parseHQSplit' . Var.nameStr <$> addedVs
             (errs, addedNames) = partitionEithers parseResult
           case errs of
             e : _ ->
@@ -526,8 +527,7 @@ loop = do
         manageLinks silent srcs mdValues op = do
           mdValuels <- fmap (first toList) <$>
             traverse (\x -> fmap (,x) (getHQTerms x)) mdValues
-          oldRoot <- use root
-          let before = Branch.head oldRoot
+          before <- Branch.head <$> use root
           traverse_ go mdValuels
           after  <- Branch.head <$> use root
           (ppe, outputDiff) <- diffHelper before after
@@ -553,12 +553,11 @@ loop = do
                 [r@(Referent.Ref mdValue)] -> do
                   mdType <- eval $ LoadTypeOfTerm mdValue
                   case mdType of
-                    Nothing -> do
-                      respond $ MetadataMissingType ppe r
+                    Nothing -> respond $ MetadataMissingType ppe r
                     Just ty -> do
                       let steps =
-                            second (const . step $ Type.toReference ty)
-                              .   first (Path.unabsolute . resolveToAbsolute)
+                            bimap (Path.unabsolute . resolveToAbsolute)
+                                  (const . step $ Type.toReference ty)
                               <$> srcs
                       stepManyAtNoSync steps
                  where
@@ -568,8 +567,7 @@ loop = do
                         tyUpdates types = foldl' go types srclt
                             where go types src = op (src, mdType, mdValue) types
                     in  over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
-                mdValues -> do
-                  respond $ MetadataAmbiguous hqn ppe mdValues
+                mdValues -> respond $ MetadataAmbiguous hqn ppe mdValues
         delete
           :: (Path.HQSplit' -> Set Referent) -- compute matching terms
           -> (Path.HQSplit' -> Set Reference) -- compute matching types
@@ -833,8 +831,7 @@ loop = do
           let path = resolveToAbsolute path'
           branch' <- getAt path
           if Branch.isEmpty branch' then respond $ CreatedNewBranch path
-          else do
-            doHistory 0 branch' []
+          else doHistory 0 branch' []
         where
           doHistory !n b acc =
             if maybe False (n >=) resultsCap then
@@ -999,13 +996,11 @@ loop = do
 
       LinkI mdValue srcs -> do
         manageLinks False srcs [mdValue] Metadata.insert
-        r <- use root
-        updateRoot r
+        syncRoot
 
       UnlinkI mdValue srcs -> do
         manageLinks False srcs [mdValue] Metadata.delete
-        r <- use root
-        updateRoot r
+        syncRoot
 
       -- > links List.map (.Docs .English)
       -- > links List.map -- give me all the
@@ -1412,8 +1407,7 @@ loop = do
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
           addDefaultMetadata adds
-          r <- use root
-          updateRoot r
+          syncRoot
 
       PreviewAddI hqs -> case (latestFile', uf) of
         (Just (sourceName, _), Just uf) -> do
@@ -1525,8 +1519,7 @@ loop = do
           -- propagatePatch prints TodoOutput
           void $ propagatePatchNoSync (updatePatch ye'ol'Patch) currentPath'
           addDefaultMetadata addsAndUpdates
-          r <- use root
-          updateRoot r
+          syncRoot
 
       PreviewUpdateI hqs -> case (latestFile', uf) of
         (Just (sourceName, _), Just uf) -> do
@@ -1691,7 +1684,7 @@ loop = do
               error $ "impossible match, resolveConfiguredGitUrl shouldn't return"
                   <> " `Just` unless it was passed `Just`; and here it is passed"
                   <> " `Nothing` by `expandRepo`."
-      ListDependentsI hq -> do -- todo: add flag to handle transitive efficiently
+      ListDependentsI hq -> -- todo: add flag to handle transitive efficiently
         resolveHQToLabeledDependencies hq >>= \lds ->
           if null lds
           then respond $ LabeledReferenceNotFound hq
@@ -1703,7 +1696,7 @@ loop = do
               in LD.fold tp tm ld
             (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependents root'
             respond $ ListDependents hqLength ld names0 missing
-      ListDependenciesI hq -> do -- todo: add flag to handle transitive efficiently
+      ListDependenciesI hq -> -- todo: add flag to handle transitive efficiently
         resolveHQToLabeledDependencies hq >>= \lds ->
           if null lds
           then respond $ LabeledReferenceNotFound hq
@@ -1863,9 +1856,9 @@ getLinks input src mdTypeStr = ExceptT $ do
 getLinks' :: (Var v, Monad m)
          => Path.HQSplit'         -- definition to print metadata of
          -> Maybe (Set Reference) -- return all metadata if empty
-         -> Action' m v ((PPE.PrettyPrintEnv,
+         -> Action' m v (PPE.PrettyPrintEnv,
                           --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
-                         [(HQ.HashQualified, Reference, Maybe (Type v Ann))]))
+                         [(HQ.HashQualified, Reference, Maybe (Type v Ann))])
 getLinks' src selection0 = do
   root0 <- Branch.head <$> use root
   currentPath' <- use currentPath
@@ -2157,7 +2150,7 @@ unlessError' f ma = unlessError $ withExceptT f ma
 --   supply unchangedMessage if you want to display it if merge had no effect
 mergeBranchAndPropagateDefaultPatch :: (Monad m, Var v) =>
   InputDescription -> Maybe (Output v) -> Branch m -> Maybe Path.Path' -> Path.Absolute -> Action' m v ()
-mergeBranchAndPropagateDefaultPatch inputDescription unchangedMessage srcb dest0 dest = do
+mergeBranchAndPropagateDefaultPatch inputDescription unchangedMessage srcb dest0 dest =
   ifM (mergeBranch inputDescription srcb dest0 dest)
       (loadPropagateDiffDefaultPatch inputDescription dest0 dest)
       (for_ unchangedMessage respond)
@@ -2207,14 +2200,12 @@ stepAt
   => InputDescription
   -> (Path, Branch0 m -> Branch0 m)
   -> Action m i v ()
-stepAt cause = do
-  stepManyAt @m @[] cause . pure
+stepAt cause = stepManyAt @m @[] cause . pure
 
 stepAtNoSync :: forall m i v. Monad m
        => (Path, Branch0 m -> Branch0 m)
        -> Action m i v ()
-stepAtNoSync = do
-  stepManyAtNoSync @m @[] . pure
+stepAtNoSync = stepManyAtNoSync @m @[] . pure
 
 stepAtM :: forall m i v. Monad m
         => InputDescription
