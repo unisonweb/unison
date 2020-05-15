@@ -56,18 +56,23 @@ watchFileSystem q dir = do
     atomically . Q.enqueue q $ UnisonFileChanged (Text.pack filePath) text
   pure (cancel >> killThread t)
 
-watchBranchUpdates :: IO Branch.Hash -> TQueue Event -> Codebase IO v a -> IO (IO ())
+watchBranchUpdates :: IO (Branch.Branch IO) -> TQueue Event -> Codebase IO v a -> IO (IO ())
 watchBranchUpdates currentRoot q codebase = do
   (cancelExternalBranchUpdates, externalBranchUpdates) <-
     Codebase.rootBranchUpdates codebase
   thread <- forkIO . forever $ do
     updatedBranches <- externalBranchUpdates
     currentRoot <- currentRoot
-    -- We only issue the event if the branch is different than what's already
-    -- in memory. This skips over file events triggered by saving to disk what's
-    -- already in memory.
-    when (any (/= currentRoot) updatedBranches) $
-      atomically . Q.enqueue q . IncomingRootBranch $ Set.delete currentRoot updatedBranches
+    -- Since there's some lag between when branch files are written and when
+    -- the OS generates a file watch event, we skip branch update events
+    -- that are causally before the current root.
+    --
+    -- NB: There's no way to distinguish events from our own writes from those
+    -- of an external program. So this will also skip events from a random
+    -- external process writing an old branch to _head.
+    notBefore <- filterM (\b -> not <$> (Branch.beforeHash b currentRoot)) (toList updatedBranches)
+    when (length notBefore > 0) $
+      atomically . Q.enqueue q . IncomingRootBranch $ Set.fromList notBefore
   pure (cancelExternalBranchUpdates >> killThread thread)
 
 warnNote :: String -> String

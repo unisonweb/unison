@@ -31,6 +31,7 @@ module Unison.Codebase.Branch
   , head
   , headHash
   , before
+  , beforeHash
   , findHistoricalHQs
   , findHistoricalRefs
   , findHistoricalRefs'
@@ -408,6 +409,10 @@ merge (Branch x) (Branch y) =
 -- `before b1 b2` is true if `b2` incorporates all of `b1`
 before :: Monad m => Branch m -> Branch m -> m Bool
 before (Branch x) (Branch y) = Causal.before x y
+
+-- `beforeHash h b2` is true if `b2` contains the hash `h` in its history
+beforeHash :: Monad m => Hash -> Branch m -> m Bool
+beforeHash h (Branch b) = Causal.beforeHash h b
 
 merge0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m (Branch0 m)
 merge0 b1 b2 = do

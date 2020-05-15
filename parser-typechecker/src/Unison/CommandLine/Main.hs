@@ -182,8 +182,7 @@ main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs startRun
     numberedArgsRef          <- newIORef []
     pageOutput               <- newIORef True
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
-    cancelWatchBranchUpdates <- watchBranchUpdates (Branch.headHash <$>
-                                                      readIORef rootRef)
+    cancelWatchBranchUpdates <- watchBranchUpdates (readIORef rootRef)
                                                    eventQueue
                                                    codebase
     let patternMap =
