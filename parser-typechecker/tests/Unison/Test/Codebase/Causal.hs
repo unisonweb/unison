@@ -116,10 +116,10 @@ test =
 
 beforeHashTests :: Test ()
 beforeHashTests = do
-  -- c1 have unrelated histories
+  -- c1 and c2 have unrelated histories
   c1  <- pure $ Causal.one (0 :: Int64)
   c2  <- pure $ Causal.one (1 :: Int64)
-  -- c1' and c2' are extension of c1
+  -- c1' and c2' are extension of c1 and c2, respectively
   c1' <- pure $ Causal.cons 2 c1
   c2' <- pure $ Causal.cons 3 c2
   c12 <- Causal.threeWayMerge sillyMerge c1' c2'
