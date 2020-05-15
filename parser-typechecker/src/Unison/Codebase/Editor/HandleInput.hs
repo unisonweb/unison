@@ -997,11 +997,15 @@ loop = do
 --                      | r <- toList $ Names.typesNamed ns name ]
 --              in (terms, types)
 
-      LinkI mdValue srcs ->
+      LinkI mdValue srcs -> do
         manageLinks False srcs [mdValue] Metadata.insert
+        r <- use root
+        updateRoot r
 
-      UnlinkI mdValue srcs ->
+      UnlinkI mdValue srcs -> do
         manageLinks False srcs [mdValue] Metadata.delete
+        r <- use root
+        updateRoot r
 
       -- > links List.map (.Docs .English)
       -- > links List.map -- give me all the
