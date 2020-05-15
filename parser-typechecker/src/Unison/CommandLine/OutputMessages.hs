@@ -935,10 +935,10 @@ notifyUser dir o = case o of
       E.MergeTail h hs -> P.lines [
         P.wrap $ "This segment of history starts with a merge." <> ex,
         "",
-        P.lines (prettySBH <$> hs),
-        "⑂",
         "⊙ " <> prettySBH h
-             <> (if null history then mempty else "\n")
+             <> (if null history then mempty else "\n"),
+        "⑃",
+        P.lines (prettySBH <$> hs)
         ]
       E.PageEnd h _n -> P.lines [
         P.wrap $ "There's more history before the versions shown here." <> ex, "",
