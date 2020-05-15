@@ -60,11 +60,12 @@ unwrap :: Var v => v -> Reference -> v -> ANormal v -> ANormal v
 unwrap v0 r v b
   = TMatch v0 $ MatchData r (singleton 0 $ ([BX], TAbs v b)) Nothing
 
-unenum :: Var v => v -> Reference -> v -> ANormal v -> ANormal v
-unenum = error "unenum: todo"
-
-mkenum :: Var v => v -> Reference -> ANormalT v
-mkenum = error "mkenum: todo"
+unenum :: Var v => Int -> v -> Reference -> v -> ANormal v -> ANormal v
+unenum n v0 r v nx
+  = TMatch v0 $ MatchData r cases Nothing
+  where
+  mkCase i = (i, ([], TLet v UN (ALit . I $ fromIntegral i) nx))
+  cases = fromList . fmap mkCase $ [0..n-1]
 
 unop0 :: Var v => Int -> ([v] -> ANormal v) -> SuperNormal v
 unop0 n f
@@ -317,7 +318,7 @@ open'file avoid
   = ([BX,BX],)
   . TAbss [fp0,m0]
   . unwrap fp0 filePathReference fp
-  . unenum m0 ioModeReference m
+  . unenum 4 m0 ioModeReference m
   $ io'error'result'direct OPENFI [fp,m] ior e r
   where
   [fp0,m0,fp,m,ior,e,r] = freshes' avoid 7
@@ -363,7 +364,7 @@ seek'handle avoid
   = ([BX,BX,BX],)
   . TAbss [h0,sm0,po0]
   . unwrap h0 handleReference h
-  . unenum sm0 seekModeReference sm
+  . unenum 3 sm0 seekModeReference sm
   . unbox po0 Ty.natRef po
   $ io'error'result'unit SEEKFI [h,sm,po] ior e r
   where
@@ -385,9 +386,26 @@ get'buffering avoid
   . TAbss [h0]
   . unwrap h0 handleReference h
   . io'error'result'let GBUFFR [h] ior [UN] [bu] e r
-  $ mkenum bu bufferModeReference
+  . AMatch bu . MatchSum
+  $ fromList
+  [ (0, ([], TCon Ty.optionalRef 0 []))
+  , (1, ([], line))
+  , (2, ([], block'nothing))
+  , (3, ([UN], TAbs n $ block'n))
+  ]
   where
-  [h0,h,bu,ior,e,r] = freshes' avoid 6
+  [h0,h,bu,ior,e,r,m,n,b] = freshes' avoid 9
+  final = TCon Ty.optionalRef 1 [b]
+  block = TLet b BX (ACon bufferModeReference 1 [m]) $ final
+
+  line
+    = TLet b BX (ACon bufferModeReference 0 []) $ final
+  block'nothing
+    = TLet m BX (ACon Ty.optionalRef 0 [])
+    $ block
+  block'n
+    = TLet m BX (ACon Ty.optionalRef 1 [n])
+    $ block
 
 set'buffering :: IOOP
 set'buffering avoid
