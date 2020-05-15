@@ -477,7 +477,6 @@ loop = do
         stepManyAtNoSync =
           Unison.Codebase.Editor.HandleInput.stepManyAtNoSync
         updateRoot = flip Unison.Codebase.Editor.HandleInput.updateRoot inputDescription
-        stepManyAtM = Unison.Codebase.Editor.HandleInput.stepManyAtM inputDescription
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
         unlessGitError = unlessError' (Output.GitError input)
         importRemoteBranch = ExceptT . eval . ImportRemoteBranch
@@ -1507,7 +1506,7 @@ loop = do
           when (Slurp.isNonempty sr) $ do
           -- take a look at the `updates` from the SlurpResult
           -- and make a patch diff to record a replacement from the old to new references
-            stepManyAtM
+            stepManyAtMNoSync
               [( Path.unabsolute currentPath'
                , pure . doSlurpUpdates typeEdits termEdits termDeprecations)
               ,( Path.unabsolute currentPath'
@@ -1520,8 +1519,10 @@ loop = do
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
           -- propagatePatch prints TodoOutput
-          void $ propagatePatch inputDescription (updatePatch ye'ol'Patch) currentPath'
+          void $ propagatePatchNoSync (updatePatch ye'ol'Patch) currentPath'
           addDefaultMetadata addsAndUpdates
+          r <- use root
+          updateRoot r
 
       PreviewUpdateI hqs -> case (latestFile', uf) of
         (Just (sourceName, _), Just uf) -> do
@@ -1892,6 +1893,15 @@ resolveShortBranchHash hash = ExceptT do
     _   -> pure . Left $ BranchHashAmbiguous hash (Set.map (SBH.fromHash len) hashSet)
 
 -- Returns True if the operation changed the namespace, False otherwise.
+propagatePatchNoSync
+  :: (Monad m, Var v)
+  => Patch
+  -> Path.Absolute
+  -> Action' m v Bool
+propagatePatchNoSync patch scopePath = stepAtMNoSync'
+  (Path.unabsolute scopePath, lift . lift . Propagate.propagateAndApply patch)
+
+-- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch :: (Monad m, Var v) =>
   InputDescription -> Patch -> Path.Absolute -> Action' m v Bool
 propagatePatch inputDescription patch scopePath =
@@ -2208,11 +2218,20 @@ stepAtM :: forall m i v. Monad m
         -> Action m i v ()
 stepAtM cause = stepManyAtM @m @[] cause . pure
 
-stepAtM' :: forall m i v. Monad m
-        => InputDescription
-        -> (Path, Branch0 m -> Action m i v (Branch0 m))
-        -> Action m i v Bool
+stepAtM'
+  :: forall m i v
+   . Monad m
+  => InputDescription
+  -> (Path, Branch0 m -> Action m i v (Branch0 m))
+  -> Action m i v Bool
 stepAtM' cause = stepManyAtM' @m @[] cause . pure
+
+stepAtMNoSync'
+  :: forall m i v
+   . Monad m
+  => (Path, Branch0 m -> Action m i v (Branch0 m))
+  -> Action m i v Bool
+stepAtMNoSync' = stepManyAtMNoSync' @m @[] . pure
 
 stepManyAt
   :: (Monad m, Foldable f)
@@ -2239,9 +2258,17 @@ stepManyAtM :: (Monad m, Foldable f)
            -> f (Path, Branch0 m -> m (Branch0 m))
            -> Action m i v ()
 stepManyAtM reason actions = do
+    stepManyAtMNoSync actions
+    b <- use root
+    updateRoot b reason
+
+stepManyAtMNoSync :: (Monad m, Foldable f)
+           => f (Path, Branch0 m -> m (Branch0 m))
+           -> Action m i v ()
+stepManyAtMNoSync actions = do
     b <- use root
     b' <- eval . Eval $ Branch.stepManyAtM actions b
-    updateRoot b' reason
+    root .= b'
 
 stepManyAtM' :: (Monad m, Foldable f)
            => InputDescription
@@ -2251,6 +2278,15 @@ stepManyAtM' reason actions = do
     b <- use root
     b' <- Branch.stepManyAtM actions b
     updateRoot b' reason
+    pure (b /= b')
+
+stepManyAtMNoSync' :: (Monad m, Foldable f)
+           => f (Path, Branch0 m -> Action m i v (Branch0 m))
+           -> Action m i v Bool
+stepManyAtMNoSync' actions = do
+    b <- use root
+    b' <- Branch.stepManyAtM actions b
+    root .= b'
     pure (b /= b')
 
 updateRoot :: Branch m -> InputDescription -> Action m i v ()
