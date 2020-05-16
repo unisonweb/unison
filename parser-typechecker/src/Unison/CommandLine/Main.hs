@@ -132,13 +132,14 @@ asciiartUnison =
     <> P.cyan "|___|"
     <> P.purple "_|_|"
 
-welcomeMessage :: FilePath -> P.Pretty P.ColorText
-welcomeMessage dir =
+welcomeMessage :: FilePath -> String -> P.Pretty P.ColorText
+welcomeMessage dir version =
   asciiartUnison
     <> P.newline
     <> P.newline
     <> P.linesSpaced
          [ P.wrap "Welcome to Unison!"
+         , P.wrap ("You are running version: " <> P.string version)
          , P.wrap
            (  "I'm currently watching for changes to .u files under "
            <> (P.group . P.blue $ fromString dir)
@@ -164,14 +165,15 @@ main
   -> IO (Runtime v)
   -> Codebase IO v Ann
   -> Branch.Cache IO
+  -> String
   -> IO ()
-main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs startRuntime codebase branchCache = do
+main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs startRuntime codebase branchCache version = do
   dir' <- shortenDirectory dir
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   putPrettyLn $ case defaultBaseLib of
       Just ns | Branch.isOne root ->
-        welcomeMessage dir' <> P.newline <> P.newline <> hintFreshCodebase ns
-      _ -> welcomeMessage dir'
+        welcomeMessage dir' version <> P.newline <> P.newline <> hintFreshCodebase ns
+      _ -> welcomeMessage dir' version
   eventQueue <- Q.newIO
   do
     runtime                  <- startRuntime

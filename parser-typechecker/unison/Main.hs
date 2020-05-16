@@ -242,7 +242,7 @@ initialPath = Path.absoluteEmpty
 
 launch :: FilePath -> (Config, IO ()) -> _ -> Branch.Cache IO -> [Either Input.Event Input.Input] -> IO ()
 launch dir config code branchCache inputs =
-  CommandLine.main dir defaultBaseLib initialPath config inputs (pure Rt1.runtime) code branchCache
+  CommandLine.main dir defaultBaseLib initialPath config inputs (pure Rt1.runtime) code branchCache Version.gitDescribe
 
 isMarkdown :: String -> Bool
 isMarkdown md = case FP.takeExtension md of
