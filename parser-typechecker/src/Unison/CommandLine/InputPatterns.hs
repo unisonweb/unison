@@ -788,8 +788,8 @@ createPullRequest = InputPattern "pull-request.create" ["pr.create"]
         <> "into the remote repo `base`."
     , ""
     , "example: " <>
-      makeExampleNoBackticks createPullRequest ["https://github.com/unisonweb/base",
-                                                "https://github.com/me/unison:.libs.pr.base" ]
+      makeExampleNoBackticks createPullRequest ["https://github.com/unisonweb/base:.trunk",
+                                                "https://github.com/me/unison:.prs.base._myFeature" ]
     ])
   (\case
     [baseUrl, headUrl] -> do

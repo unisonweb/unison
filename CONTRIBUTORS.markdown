@@ -42,3 +42,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Daniël Heres (@Dandandan)
 * Stew O'Connor (@stew)
 * Dave Nicponski (@virusdave)
+* Cody Allen (@ceedubs)
