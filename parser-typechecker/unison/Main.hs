@@ -125,7 +125,9 @@ main = do
     catchIOError (watchConfig configFilePath) $ \_ ->
       Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
   branchCacheSize :: Word <- Config.lookupDefault 4096 config_ "NamespaceCacheSize"
-  branchCache <- Cache.semispaceCache branchCacheSize
+  when (branchCacheSize == 0) $
+    putStrLn "Disabling namespace cache."
+  branchCache <- Cache.nullCache -- Cache.semispaceCache branchCacheSize
   case restargs of
     [] -> do
       theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath

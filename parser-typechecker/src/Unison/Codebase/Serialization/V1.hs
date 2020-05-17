@@ -181,7 +181,7 @@ putText text = do
 getText :: MonadGet m => m Text
 getText = do
   len <- getLength
-  bs <- getBytes len
+  bs <- B.copy <$> getBytes len
   pure $ decodeUtf8 bs
 
 skipText :: MonadGet m => m ()
@@ -226,7 +226,7 @@ putHash h = do
 getHash :: MonadGet m => m Hash
 getHash = do
   len <- getLength
-  bs <- getBytes len
+  bs <- B.copy <$> getBytes len
   pure $ Hash.fromBytes bs
 
 putReference :: MonadPut m => Reference -> m ()
