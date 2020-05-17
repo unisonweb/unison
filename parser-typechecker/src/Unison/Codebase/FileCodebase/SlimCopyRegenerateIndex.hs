@@ -15,10 +15,11 @@ module Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex (syncToDirectory) wh
 import Unison.Prelude
 
 import qualified Data.Set                      as Set
-import           Control.Lens
+import qualified Data.Map.Strict               as Map
+import           Control.Lens                  hiding (Index)
 import           Control.Monad.State            ( MonadState, evalStateT )
-import           Control.Monad.Writer           ( MonadWriter, execWriterT )
-import qualified Control.Monad.Writer          as Writer
+import           Control.Monad.Writer.Strict    ( MonadWriter, execWriterT )
+import qualified Control.Monad.Writer.Strict   as Writer
 import           UnliftIO.Directory             ( doesFileExist )
 import           Unison.Codebase                ( CodebasePath )
 import qualified Unison.Codebase.Causal        as Causal
@@ -40,7 +41,6 @@ import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 import           Unison.Var                     ( Var )
 import qualified Unison.Util.Relation          as Relation
-import           Unison.Util.Relation           ( Relation )
 import           Unison.Util.Monoid (foldMapM)
 import           Unison.Util.Timing (time)
 
@@ -52,13 +52,31 @@ data SyncedEntities = SyncedEntities
   , _syncedDecls       :: Set Reference.Id
   , _syncedEdits       :: Set Branch.EditHash
   , _syncedBranches    :: Set Branch.Hash
-  , _dependentsIndex   :: Relation Reference Reference.Id
-  , _typeIndex         :: Relation Reference Referent.Id
-  , _typeMentionsIndex :: Relation Reference Referent.Id
+  , _dependentsIndex   :: Index Reference Reference.Id
+  , _typeIndex         :: Index Reference Referent.Id
+  , _typeMentionsIndex :: Index Reference Referent.Id
   } deriving Generic
   deriving Show
   deriving Semigroup via GenericSemigroup SyncedEntities
   deriving Monoid via GenericMonoid SyncedEntities
+
+newtype Index a b = Index (Map b (Set a))
+instance (Ord a, Ord b) => Semigroup (Index a b) where
+  Index m1 <> Index m2 = Index (Map.unionWith (<>) m1 m2)
+instance (Ord a, Ord b) => Monoid (Index a b) where
+  mempty = Index mempty
+  mappend = (<>)
+instance (Show a, Show b) => Show (Index a b) where
+  show = show . indexToList
+
+indexFromSet :: Set a -> b -> Index a b
+indexFromSet as b = Index (Map.singleton b as)
+indexFromFoldable :: (Foldable f, Ord a) => f a -> b -> Index a b
+indexFromFoldable as b = indexFromSet (Set.fromList $ toList as) b
+indexFromSingleton :: a -> b -> Index a b
+indexFromSingleton a b = indexFromSet (Set.singleton a) b
+indexToList :: Index a b -> [(a,b)]
+indexToList (Index m) = [ (a, b) | (b, as) <- Map.toList m, a <- toList as ]
 
 makeLenses ''SyncedEntities
 
@@ -108,17 +126,17 @@ syncToDirectory' getV getA srcPath destPath newRoot =
       lift . writeTypeMentionsIndex =<< use typeMentionsIndex
     when (warnMissingEntities) $ for_ (errors <> errors') traceShowM
   where
-  writeDependentsIndex :: MonadIO m => Relation Reference Reference.Id -> m ()
+  writeDependentsIndex :: MonadIO m => Index Reference Reference.Id -> m ()
   writeDependentsIndex = writeIndexHelper (\k v -> touchIdFile v (dependentsDir destPath k))
-  writeTypeIndex, writeTypeMentionsIndex :: MonadIO m => Relation Reference Referent.Id -> m ()
+  writeTypeIndex, writeTypeMentionsIndex :: MonadIO m => Index Reference Referent.Id -> m ()
   writeTypeIndex =
     writeIndexHelper (\k v -> touchReferentIdFile v (typeIndexDir destPath k))
   writeTypeMentionsIndex =
     writeIndexHelper (\k v -> touchReferentIdFile v (typeMentionsIndexDir destPath k))
   writeIndexHelper
-    :: forall m a b. MonadIO m => (a -> b -> m ()) -> Relation a b -> m ()
+    :: forall m a b. MonadIO m => (a -> b -> m ()) -> Index a b -> m ()
   writeIndexHelper touchIndexFile index =
-    traverse_ (uncurry touchIndexFile) (Relation.toList index)
+    traverse_ (uncurry touchIndexFile) (indexToList index)
   processBranches :: forall m
      . MonadIO m
     => MonadState SyncedEntities m
@@ -246,14 +264,14 @@ syncToDirectory' getV getA srcPath destPath newRoot =
           referentTypes = DD.declConstructorReferents h decl
                           `zip` (DD.constructorTypes . DD.asDataDecl) decl
       flip foldMapM referentTypes \(r, typ) -> do
-        let dependencies = toList (Type.dependencies typ)
-        dependentsIndex <>= Relation.fromManyDom dependencies h
+        let dependencies = Type.dependencies typ
+        dependentsIndex <>= indexFromSet dependencies h
         let typeForIndexing = Type.removeAllEffectVars typ
         let typeReference = Type.toReference typeForIndexing
         let typeMentions = Type.toReferenceMentions typeForIndexing
-        typeIndex <>= Relation.singleton typeReference r
-        typeMentionsIndex <>= Relation.fromManyDom typeMentions r
-        pure [ i | Reference.DerivedId i <- dependencies ]
+        typeIndex <>= indexFromSingleton typeReference r
+        typeMentionsIndex <>= indexFromSet typeMentions r
+        pure [ i | Reference.DerivedId i <- toList dependencies ]
     Nothing -> tellError (InvalidDecl h) $> mempty
 
   enqueueTermDependencies :: forall m
@@ -271,17 +289,17 @@ syncToDirectory' getV getA srcPath destPath newRoot =
           Just typ -> do
             copyFileWithParents (termPath srcPath h) (termPath destPath h)
             copyFileWithParents (typePath srcPath h) (typePath destPath h)
-            let typeDeps' = toList (Type.dependencies typ)
+            let typeDeps' = Type.dependencies typ
             let typeForIndexing = Type.removeAllEffectVars typ
             let typeReference = Type.toReference typeForIndexing
             let typeMentions = Type.toReferenceMentions typeForIndexing
             dependentsIndex <>=
-              Relation.fromManyDom (typeDeps ++ typeDeps' ++ termDeps) h
+              indexFromFoldable (typeDeps <> toList typeDeps' <> termDeps) h
             typeIndex <>=
-              Relation.singleton typeReference (Referent.Ref' h)
+              indexFromSingleton typeReference (Referent.Ref' h)
             typeMentionsIndex <>=
-              Relation.fromManyDom typeMentions (Referent.Ref' h)
-            let newDecls = [ i | Reference.DerivedId i <- typeDeps ++ typeDeps']
+              indexFromSet typeMentions (Referent.Ref' h)
+            let newDecls = [ i | Reference.DerivedId i <- typeDeps ++ toList typeDeps']
             let newTerms = [ i | Reference.DerivedId i <- termDeps ]
             pure (newTerms, newDecls)
           Nothing -> tellError (InvalidTypeOfTerm h) $> mempty)
