@@ -74,18 +74,6 @@ marshalToForeign :: Closure -> Foreign
 marshalToForeign (Foreign x) = x
 marshalToForeign _ = error "marshalToForeign: unhandled closure"
 
--- equateClosure :: Closure -> Closure -> Bool
--- equateClosure (Enum i) (Enum j)
---   = i == j
--- equateClosure (DataU1 s i) (DataU1 t j)
---   = s == t && i == j
--- equiateClosure (DataU2 s i1 i2) (DataU2 s j1 j2)
---   = s == t && i1 == j1 && i2 == j2
--- equateClosure (DataB1 s c) (DataB1 t d)
---   = s == t && equateClosure c d
--- equateClosure (DataB2 s c1 c2) (DataB1 t d1 d2)
---   = s == t && equateClosure c1 d1 && equateClosure c2 d2
-
 type Off = Int
 type SZ = Int
 type FP = Int
