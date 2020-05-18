@@ -16,9 +16,9 @@ import Unison.Prelude
 
 import qualified Data.Set                      as Set
 import           Control.Lens
-import           Control.Monad.State            ( MonadState, evalStateT )
-import           Control.Monad.Writer           ( MonadWriter, execWriterT )
-import qualified Control.Monad.Writer          as Writer
+import           Control.Monad.State.Strict     ( MonadState, evalStateT )
+import           Control.Monad.Writer.Strict    ( MonadWriter, execWriterT )
+import qualified Control.Monad.Writer.Strict   as Writer
 import           UnliftIO.Directory             ( doesFileExist )
 import           Unison.Codebase                ( CodebasePath )
 import qualified Unison.Codebase.Causal        as Causal
