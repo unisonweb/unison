@@ -39,6 +39,7 @@ library
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase.Branch
+    Unison.Codebase.Branch.Dependencies
     Unison.Codebase.BranchDiff
     Unison.Codebase.BranchUtil
     Unison.Codebase.Causal
@@ -66,6 +67,7 @@ library
     Unison.Codebase.FileCodebase.Reserialize
     Unison.Codebase.FileCodebase.CopyFilterIndex
     Unison.Codebase.FileCodebase.CopyRegenerateIndex
+    Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
     Unison.Codebase.NameEdit
@@ -123,6 +125,7 @@ library
     Unison.UnisonFile
     Unison.Util.AnnotatedText
     Unison.Util.Bytes
+    Unison.Util.Cache
     Unison.Util.ColorText
     Unison.Util.Exception
     Unison.Util.Free
@@ -237,6 +240,7 @@ executable unison
   build-depends:
     base,
     containers,
+    configurator,
     directory,
     errors,
     filepath,
@@ -270,6 +274,7 @@ executable tests
     easytest
   other-modules:
     Unison.Test.ABT
+    Unison.Test.Cache
     Unison.Test.Codebase
     Unison.Test.Codebase.Causal
     Unison.Test.Codebase.FileCodebase
@@ -299,6 +304,7 @@ executable tests
     Unison.Core.Test.Name
 
   build-depends:
+    async,
     base,
     bytestring,
     containers,
@@ -313,6 +319,7 @@ executable tests
     megaparsec,
     mtl,
     raw-strings-qq,
+    stm,
     shellmet,
     split,
     temporary,

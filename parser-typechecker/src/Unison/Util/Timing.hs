@@ -9,7 +9,11 @@ import Data.Time.Clock.System (getSystemTime, systemToTAITime)
 import Data.Time.Clock.TAI (diffAbsoluteTime)
 import Data.Time.Clock (picosecondsToDiffTime)
 
+enabled :: Bool
+enabled = False
+
 time :: MonadIO m => String -> m a -> m a
+time _ ma | not enabled = ma
 time label ma = do
   systemStart <- liftIO getSystemTime
   cpuPicoStart <- liftIO getCPUTime
@@ -23,6 +27,7 @@ time label ma = do
   pure a
 
 unsafeTime :: Monad m => String -> m a -> m a
+unsafeTime _ ma | not enabled = ma
 unsafeTime label ma = do
   let !systemStart = unsafePerformIO getSystemTime
       !cpuPicoStart = unsafePerformIO getCPUTime

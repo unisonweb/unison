@@ -13,7 +13,7 @@ import Unison.Prelude
 
 import Data.Monoid.Generic
 import Control.Lens
-import Control.Monad.State (evalStateT, StateT)
+import Control.Monad.State (execStateT, StateT)
 
 import           UnliftIO.Directory             ( doesFileExist )
 import qualified Unison.Codebase.Causal        as Causal
@@ -43,20 +43,20 @@ makeLenses ''SyncedEntities
 
 -- Copy all dependents of `branch` from `srcPath` into `destPath`.
 --
--- As a refresher, in the normal course of using `ucm` and updating the 
+-- As a refresher, in the normal course of using `ucm` and updating the
 -- namespace, we call Branch.sync to write the updated root to disk.
 -- Branch.sync takes a few parameters:
---  - `exists`: checks if a branch file already exists in the codebase, 
+--  - `exists`: checks if a branch file already exists in the codebase,
 --              so we can skip it and the rest of its history.
 --  - `serializeRaw`: given a Branch.Hash, writes a Branch.Raw to disk
 --  - `serializeEdits`: given an EditsHash, writes an `m Patch` to disk
 --
--- In this module, our `serializeRaw` (called `serialize`) is given double duty, 
--- to both write out the Branch.Raw as usual, and to take a look at the decls 
--- and terms referenced by each Raw, and write them and their dependencies 
--- (via normal serialization) to the destination codebase. 
--- 
--- The dependents, type, and type mention indices are populated like with the 
+-- In this module, our `serializeRaw` (called `serialize`) is given double duty,
+-- to both write out the Branch.Raw as usual, and to take a look at the decls
+-- and terms referenced by each Raw, and write them and their dependencies
+-- (via normal serialization) to the destination codebase.
+--
+-- The dependents, type, and type mention indices are populated like with the
 -- primary local codebase, by adding to them as each definition is serialized.
 syncToDirectory
   :: forall m v a
@@ -70,12 +70,13 @@ syncToDirectory
   -> Branch m
   -> m ()
 syncToDirectory fmtV fmtA srcPath destPath branch = do
-  flip evalStateT mempty $
+  _written <- flip execStateT mempty $
     Branch.sync
       (hashExists destPath)
       serialize
       (serializeEdits destPath)
       (Branch.transform lift branch)
+  pure ()
  where
   serialize rh rawBranch = do
     writeBranch $ Causal.rawHead rawBranch
