@@ -53,41 +53,41 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
 
   Dependencies of #l5pndeifuh:
   
-    Reference     Name
-    ##Nat.*       builtin.Nat.*
-    ##Nat.+       builtin.Nat.+
-    #fiupm7pl7o   inside.p
+       Reference   Name
+    1. ##Nat.*     builtin.Nat.*
+    2. ##Nat.+     builtin.Nat.+
+    3. #fiupm7pl7o inside.p
 
 .> dependencies B
 
   Dependencies of #muulibntaq:
   
-    Reference   Name
-    ##Int       builtin.Int
+       Reference Name
+    1. ##Int     builtin.Int
 
   Dependencies of #muulibntaq#0:
   
-    Reference     Name
-    ##Int         builtin.Int
-    #muulibntaq   outside.B
+       Reference   Name
+    1. ##Int       builtin.Int
+    2. #muulibntaq outside.B
 
 .> dependencies d
 
   Dependencies of #6cdi7g1oi2:
   
-    Reference       Name
-    ##Nat           builtin.Nat
-    ##Nat.+         builtin.Nat.+
-    ##Universal.<   builtin.Universal.<
-    #fiupm7pl7o     inside.p
-    #msp7bv40rv     outside.c
+       Reference     Name
+    1. ##Nat         builtin.Nat
+    2. ##Nat.+       builtin.Nat.+
+    3. ##Universal.< builtin.Universal.<
+    4. #fiupm7pl7o   inside.p
+    5. #msp7bv40rv   outside.c
 
 .> dependents d
 
   Dependents of #6cdi7g1oi2:
   
-    Reference     Name
-    #im2kiu2hmn   inside.r
+       Reference   Name
+    1. #im2kiu2hmn inside.r
 
 ```
 We don't have an index for dependents of constructors, but iirc if you ask for that, it will show you dependents of the type that provided the constructor.

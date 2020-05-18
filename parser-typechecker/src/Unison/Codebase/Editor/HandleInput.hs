@@ -1685,7 +1685,11 @@ loop = do
               tm (Referent.Con r _i _ct) = eval $ GetDependents r
               in LD.fold tp tm ld
             (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependents root'
-            respond $ ListDependents hqLength ld names0 missing
+            let types = R.toList $ Names3.types0 names0
+            let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
+            let names = types <> terms
+            numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
+            respond $ ListDependents hqLength ld names missing
       ListDependenciesI hq -> -- todo: add flag to handle transitive efficiently
         resolveHQToLabeledDependencies hq >>= \lds ->
           if null lds
@@ -1707,7 +1711,11 @@ loop = do
               tm _ = pure mempty
               in LD.fold tp tm ld
             (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependencies root'
-            respond $ ListDependencies hqLength ld names0 missing
+            let types = R.toList $ Names3.types0 names0
+            let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
+            let names = types <> terms
+            numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
+            respond $ ListDependencies hqLength ld names missing
       DebugNumberedArgsI -> use numberedArgs >>= respond . DumpNumberedArgs
       DebugBranchHistoryI ->
         eval . Notify . DumpBitBooster (Branch.headHash currentBranch') =<<
