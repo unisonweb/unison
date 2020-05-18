@@ -11,9 +11,7 @@ import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
-import Unison.Reference (Reference)
 import Unison.Reference as Reference
-import Unison.Referent (Referent)
 import Unison.Referent as Referent
 import Unison.Util.Relation (Relation)
 import qualified Data.Set as Set

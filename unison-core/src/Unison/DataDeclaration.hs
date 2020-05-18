@@ -17,7 +17,6 @@ import Control.Monad.State (evalState)
 
 import Data.Bifunctor (first, second)
 import qualified Unison.Util.Relation as Rel
-import           Data.List                      ( sortOn )
 import           Unison.Hash                    ( Hash )
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set

@@ -5,7 +5,7 @@ import Unison.Prelude
 import           Control.Arrow ((&&&))
 import           Data.Bifunctor (first)
 import           Data.Function (on)
-import           Data.List (groupBy, sortBy, sortOn)
+import           Data.List (groupBy, sortBy)
 import           Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map

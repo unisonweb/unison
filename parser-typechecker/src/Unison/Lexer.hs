@@ -12,15 +12,15 @@ module Unison.Lexer where
 import Unison.Prelude
 
 import           Control.Lens.TH (makePrisms)
-import qualified Control.Monad.State as S
+-- import qualified Control.Monad.State as S
 import           Data.Char
 import           Data.List
-import qualified Data.List.NonEmpty as Nel
+-- import qualified Data.List.NonEmpty as Nel
 import Unison.Util.Monoid (intercalateMap)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import           GHC.Exts (sortWith)
-import           Text.Megaparsec.Error (ShowToken(..))
+-- import           Text.Megaparsec.Stream (Stream, showTokens)
 import           Unison.ShortHash ( ShortHash )
 import qualified Unison.ShortHash as SH
 
@@ -81,37 +81,37 @@ notLayout t = case payload t of
   Open _ -> False
   _ -> True
 
-instance ShowToken (Token Lexeme) where
-  showTokens xs =
-      join . Nel.toList . S.evalState (traverse go xs) . end $ Nel.head xs
-    where
-      go :: Token Lexeme -> S.State Pos String
-      go tok = do
-        prev <- S.get
-        S.put $ end tok
-        pure $ pad prev (start tok) ++ pretty (payload tok)
-      pretty (Open s) = s
-      pretty (Reserved w) = w
-      pretty (Textual t) = '"' : t ++ ['"']
-      pretty (Character c) =
-        case showEscapeChar c of
-          Just c -> "?\\" ++ [c]
-          Nothing -> '?' : [c]
-      pretty (Backticks n h) =
-        '`' : n ++ (toList h >>= SH.toString) ++ ['`']
-      pretty (WordyId n h) = n ++ (toList h >>= SH.toString)
-      pretty (SymbolyId n h) = n ++ (toList h >>= SH.toString)
-      pretty (Blank s) = "_" ++ s
-      pretty (Numeric n) = n
-      pretty (Hash sh) = show sh
-      pretty (Err e) = show e
-      pretty Close = "<outdent>"
-      pretty (Semi True) = "<virtual semicolon>"
-      pretty (Semi False) = ";"
-      pad (Pos line1 col1) (Pos line2 col2) =
-        if line1 == line2
-        then replicate (col2 - col1) ' '
-        else replicate (line2 - line1) '\n' ++ replicate col2 ' '
+-- instance Stream (Token Lexeme) where
+--   showTokens xs =
+--       join . Nel.toList . S.evalState (traverse go xs) . end $ Nel.head xs
+--     where
+--       go :: Token Lexeme -> S.State Pos String
+--       go tok = do
+--         prev <- S.get
+--         S.put $ end tok
+--         pure $ pad prev (start tok) ++ pretty (payload tok)
+--       pretty (Open s) = s
+--       pretty (Reserved w) = w
+--       pretty (Textual t) = '"' : t ++ ['"']
+--       pretty (Character c) =
+--         case showEscapeChar c of
+--           Just c -> "?\\" ++ [c]
+--           Nothing -> '?' : [c]
+--       pretty (Backticks n h) =
+--         '`' : n ++ (toList h >>= SH.toString) ++ ['`']
+--       pretty (WordyId n h) = n ++ (toList h >>= SH.toString)
+--       pretty (SymbolyId n h) = n ++ (toList h >>= SH.toString)
+--       pretty (Blank s) = "_" ++ s
+--       pretty (Numeric n) = n
+--       pretty (Hash sh) = show sh
+--       pretty (Err e) = show e
+--       pretty Close = "<outdent>"
+--       pretty (Semi True) = "<virtual semicolon>"
+--       pretty (Semi False) = ";"
+--       pad (Pos line1 col1) (Pos line2 col2) =
+--         if line1 == line2
+--         then replicate (col2 - col1) ' '
+--         else replicate (line2 - line1) '\n' ++ replicate col2 ' '
 
 instance Applicative Token where
   pure a = Token a (Pos 0 0) (Pos 0 0)

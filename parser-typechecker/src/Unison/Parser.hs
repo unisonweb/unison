@@ -8,12 +8,14 @@ module Unison.Parser where
 import Unison.Prelude
 
 import qualified Crypto.Random        as Random
+import qualified Control.Monad.State as S
 import           Data.Bytes.Put                 (runPutS)
 import           Data.Bytes.Serial              ( serialize )
 import           Data.Bytes.VarInt              ( VarInt(..) )
 import           Data.Bifunctor       (bimap)
 import qualified Data.Char            as Char
 import           Data.List.NonEmpty   (NonEmpty (..))
+import qualified Data.List.NonEmpty as Nel
 -- import           Data.Maybe
 import qualified Data.Set             as Set
 import qualified Data.Text            as Text
@@ -28,6 +30,7 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer         as L
 import           Unison.Pattern       (PatternP)
 import qualified Unison.PatternP      as Pattern
+import qualified Unison.ShortHash     as SH
 import           Unison.Term          (MatchCase (..))
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
@@ -45,7 +48,7 @@ debug = False
 
 type P v = P.ParsecT (Error v) Input ((->) ParsingEnv)
 type Token s = P.Token s
-type Err v = P.ParseError (Token Input) (Error v)
+type Err v = P.ParseErrorBundle Input (Error v)
 
 data ParsingEnv =
   ParsingEnv { uniqueNames :: UniqueName
@@ -148,14 +151,14 @@ instance P.Stream Input where
 
   chunkEmpty pxy = null . P.chunkToTokens pxy
 
-  positionAt1 _ sp t = setPos sp (L.start t)
+  -- positionAt1 _ sp t = setPos sp (L.start t)
 
-  positionAtN pxy sp =
-    maybe sp (setPos sp . L.start) . listToMaybe . P.chunkToTokens pxy
+  -- positionAtN pxy sp =
+    -- maybe sp (setPos sp . L.start) . listToMaybe . P.chunkToTokens pxy
 
-  advance1 _ _ cp = setPos cp . L.end
+  -- advance1 _ _ cp = setPos cp . L.end
 
-  advanceN _ _ cp = setPos cp . L.end . last . inputStream
+  -- advanceN _ _ cp = setPos cp . L.end . last . inputStream
 
   take1_ (P.chunkToTokens proxy -> [])   = Nothing
   take1_ (P.chunkToTokens proxy -> t:ts) = Just (t, P.tokensToChunk proxy ts)
@@ -168,6 +171,36 @@ instance P.Stream Input where
       . splitAt n $ P.chunkToTokens proxy ts
 
   takeWhile_ p = join bimap (P.tokensToChunk proxy) . span p . inputStream
+
+  showTokens xs = S.evalState (traverse go xs) . end $ Nel.head xs
+    where
+      go :: Token L.Lexeme -> S.State L.Pos String
+      go tok = do
+        prev <- S.get
+        S.put $ end tok
+        pure $ pad prev (start tok) ++ pretty (L.payload tok)
+      pretty (L.Open s) = s
+      pretty (L.Reserved w) = w
+      pretty (L.Textual t) = '"' : t ++ ['"']
+      pretty (L.Character c) =
+        case L.showEscapeChar c of
+          Just c -> "?\\" ++ [c]
+          Nothing -> '?' : [c]
+      pretty (L.Backticks n h) =
+        '`' : n ++ (toList h >>= SH.toString) ++ ['`']
+      pretty (L.WordyId n h) = n ++ (toList h >>= SH.toString)
+      pretty (L.SymbolyId n h) = n ++ (toList h >>= SH.toString)
+      pretty (L.Blank s) = "_" ++ s
+      pretty (L.Numeric n) = n
+      pretty (L.Hash sh) = show sh
+      pretty (L.Err e) = show e
+      pretty L.Close = "<outdent>"
+      pretty (L.Semi True) = "<virtual semicolon>"
+      pretty (L.Semi False) = ";"
+      pad (L.Pos line1 col1) (L.Pos line2 col2) =
+        if line1 == line2
+        then replicate (col2 - col1) ' '
+        else replicate (line2 - line1) '\n' ++ replicate col2 ' '
 
 setPos :: P.SourcePos -> L.Pos -> P.SourcePos
 setPos sp lp =
@@ -210,13 +243,13 @@ tok :: (Ann -> a -> b) -> L.Token a -> b
 tok f (L.Token a start end) = f (Ann start end) a
 
 peekAny :: Ord v => P v (L.Token L.Lexeme)
-peekAny = P.lookAhead P.anyChar
+peekAny = P.lookAhead P.anySingle
 
 lookAhead :: Ord v => P v a -> P v a
 lookAhead = P.lookAhead
 
 anyToken :: Ord v => P v (L.Token L.Lexeme)
-anyToken = P.anyChar
+anyToken = P.anySingle
 
 failCommitted :: Ord v => Error v -> P v x
 failCommitted e = do
@@ -247,9 +280,9 @@ run p s = run' p s ""
 
 -- Virtual pattern match on a lexeme.
 queryToken :: Ord v => (L.Lexeme -> Maybe a) -> P v (L.Token a)
-queryToken f = P.token go Nothing
-  where go t@(f . L.payload -> Just s) = Right $ fmap (const s) t
-        go x = Left (pure (P.Tokens (x:|[])), Set.empty)
+queryToken f = P.token go mempty
+  where go t@(f . L.payload -> Just s) = Just $ fmap (const s) t
+        go x = Nothing
 
 -- Consume a block opening and return the string that opens the block.
 openBlock :: Ord v => P v (L.Token String)

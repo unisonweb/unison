@@ -12,7 +12,7 @@ import Control.Monad.Trans.Maybe as X (MaybeT(MaybeT, runMaybeT))
 import Data.ByteString as X (ByteString)
 import Data.Either as X
 import Data.Either.Combinators as X (mapLeft, maybeToRight)
-import Data.Foldable as X (asum, fold, foldl', for_, forM_, toList, traverse_)
+import Data.Foldable as X (asum, fold, foldl', for_, toList, traverse_)
 import Data.Functor as X
 import Data.Int as X
 import Data.List as X (foldl1', sortOn)

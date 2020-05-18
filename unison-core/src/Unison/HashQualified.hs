@@ -4,7 +4,6 @@ module Unison.HashQualified where
 
 import Unison.Prelude hiding (fromString)
 
-import           Data.List                      ( sortOn )
 import qualified Data.Text                     as Text
 import           Prelude                 hiding ( take )
 import           Unison.Name                    ( Name )

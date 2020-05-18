@@ -14,9 +14,7 @@ import qualified Data.Map               as Map
 import qualified Data.Set               as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType as CT
-import           Unison.DataDeclaration (DataDeclaration')
-import           Unison.DataDeclaration (EffectDeclaration' (..))
-import           Unison.DataDeclaration (hashDecls, toDataDecl)
+import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration'(..), hashDecls, toDataDecl)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Builtin.Decls   as DD
 import qualified Unison.Name            as Name

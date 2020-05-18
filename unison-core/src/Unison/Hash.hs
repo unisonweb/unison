@@ -6,7 +6,6 @@ module Unison.Hash (Hash, toBytes, base32Hex, base32Hexs, fromBase32Hex, fromByt
 import Unison.Prelude
 
 import Data.ByteString.Builder (doubleBE, word64BE, int64BE, toLazyByteString)
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.ByteArray as BA
 
 import qualified Crypto.Hash as CH

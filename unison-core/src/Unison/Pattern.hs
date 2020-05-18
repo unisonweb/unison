@@ -5,7 +5,7 @@ module Unison.Pattern where
 import Unison.Prelude
 
 import Data.List (intercalate)
-import Data.Foldable as Foldable
+import qualified Data.Foldable as Foldable
 import Unison.Reference (Reference)
 import qualified Unison.Hashable as H
 import qualified Unison.Type as Type
