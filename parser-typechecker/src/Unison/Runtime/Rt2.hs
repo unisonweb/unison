@@ -53,7 +53,7 @@ exec _      !_   !denv !ustk !bstk !k (Info tx) = do
   info tx k
   pure (denv, ustk, bstk, k)
 exec _      !env !denv !ustk !bstk !k (Name n args) = do
-  bstk <- name ustk bstk args (env n)
+  bstk <- name ustk bstk args (IC n $ env n)
   pure (denv, ustk, bstk, k)
 exec _      !_   !denv !ustk !bstk !k (SetDyn p i) = do
   clo <- peekOff bstk i
@@ -155,7 +155,7 @@ enter unmask !env !denv !ustk !bstk !k !ck !args !comb = do
 {-# inline enter #-}
 
 -- fast path by-name delaying
-name :: Stack 'UN -> Stack 'BX -> Args -> Comb -> IO (Stack 'BX)
+name :: Stack 'UN -> Stack 'BX -> Args -> IComb -> IO (Stack 'BX)
 name !ustk !bstk !args !comb = do
   (useg, bseg) <- closeArgs ustk bstk unull bnull args
   bstk <- bump bstk
@@ -168,7 +168,7 @@ apply
   :: Unmask -> Env -> DEnv -> Stack 'UN -> Stack 'BX -> K
   -> Bool -> Args -> Closure -> IO ()
 apply unmask !env !denv !ustk !bstk !k !ck !args clo = case clo of
-  PAp comb@(Lam ua ba uf bf entry) useg bseg
+  PAp comb@(Lam_ ua ba uf bf entry) useg bseg
     | ck || ua <= uac && ba <= bac -> do
       ustk <- ensure ustk uf
       bstk <- ensure bstk bf
@@ -638,7 +638,7 @@ discardCont denv ustk bstk k p
 {-# inline discardCont #-}
 
 resolve :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> Ref -> IO Closure
-resolve env _ _ _ (Env i) = return $ PAp (env i) unull bnull
+resolve env _ _ _ (Env i) = return $ PAp (IC i $ env i) unull bnull
 resolve _ _ _ bstk (Stk i) = peekOff bstk i
 resolve _ denv _ _ (Dyn i) = case M.lookup i denv of
   Just clo -> pure clo

@@ -295,7 +295,7 @@ data Args
   | BArgN !(PrimArray Int)
   | UArgN !(PrimArray Int)
   | DArgN !(PrimArray Int) !(PrimArray Int)
-  deriving (Show)
+  deriving (Show, Eq, Ord)
 
 ucount, bcount :: Args -> Int
 
@@ -318,13 +318,13 @@ bcount _ = 0
 
 data Prim1
   = DECI | INCI | NEGI | SGNI
-  deriving (Show)
+  deriving (Show, Eq, Ord)
 
 data Prim2
   = ADDI | SUBI | MULI | DIVI | MODI
   | SHLI | SHRI | SHRN | POWI
   | EQLI | LESI | LESN | LEQI | LEQN
-  deriving (Show)
+  deriving (Show, Eq, Ord)
 
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
@@ -380,7 +380,7 @@ data Instr
   | Reset !IntSet -- prompt ids
 
   | Fork !Section
-  deriving (Show)
+  deriving (Show, Eq, Ord)
 
 data Section
   -- Apply a function to arguments. This is the 'slow path', and
@@ -425,7 +425,7 @@ data Section
   | Die String
 
   | Exit
-  deriving (Show)
+  deriving (Show, Eq, Ord)
 
 data Comb
   = Lam !Int -- Number of unboxed arguments
@@ -433,13 +433,13 @@ data Comb
         !Int -- Maximum needed unboxed frame size
         !Int -- Maximum needed boxed frame size
         !Section -- Entry
-  deriving (Show)
+  deriving (Show, Eq, Ord)
 
 data Ref
   = Stk !Int -- stack reference to a closure
   | Env !Int -- global environment reference to a combinator
   | Dyn !Int -- dynamic scope reference to a closure
-  deriving (Show)
+  deriving (Show, Eq, Ord)
 
 data Branch
   -- if tag == n then t else f
@@ -451,7 +451,7 @@ data Branch
           !Section         -- else ...
   | TestT !Section
           !(IntMap Section)
-  deriving (Show)
+  deriving (Show, Eq, Ord)
 
 type Ctx v = [(Maybe v,Mem)]
 type RCtx v = M.Map v Int

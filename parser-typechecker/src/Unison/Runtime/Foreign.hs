@@ -30,6 +30,9 @@ import Unsafe.Coerce
 data Foreign where
   Wrap :: e -> Foreign
 
+instance Eq Foreign where _ == _ = error "Eq Foreign"
+instance Ord Foreign where compare __ = error "Ord Foreign"
+
 instance Show Foreign where
   showsPrec p !_ = showParen (p>9) $ showString "Foreign _"
 
@@ -40,6 +43,10 @@ newtype ForeignFunc = FF (ForeignArgs -> IO ForeignRslt)
 
 instance Show ForeignFunc where
   show _ = "ForeignFunc"
+instance Eq ForeignFunc where
+  _ == _ = error "Eq ForeignFunc"
+instance Ord ForeignFunc where
+  compare _ _ = error "Ord ForeignFunc"
 
 decodeForeignEnum :: Enum a => [Foreign] -> (a,[Foreign])
 decodeForeignEnum = first toEnum . decodeForeign
