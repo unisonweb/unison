@@ -1687,7 +1687,9 @@ loop = do
               tm (Referent.Con r _i _ct) = eval $ GetDependents r
               in LD.fold tp tm ld
             (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependents root'
-            let names = getTypesAndTerms names0
+            let types = R.toList $ Names3.types0 names0
+            let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
+            let names = types <> terms
             numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
             respond $ ListDependents hqLength ld names missing
       ListDependenciesI hq -> do -- todo: add flag to handle transitive efficiently
@@ -1711,7 +1713,9 @@ loop = do
               tm _ = pure mempty
               in LD.fold tp tm ld
             (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependencies root'
-            let names = getTypesAndTerms names0
+            let types = R.toList $ Names3.types0 names0
+            let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
+            let names = types <> terms
             numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
             respond $ ListDependencies hqLength ld names missing
       DebugNumberedArgsI -> use numberedArgs >>= respond . DumpNumberedArgs
@@ -1739,12 +1743,6 @@ loop = do
      where
       notImplemented = eval $ Notify NotImplemented
       success = respond Success
-
-      getTypesAndTerms :: Names0 -> [(Name, Reference)]
-      getTypesAndTerms names0 = types <> terms
-        where
-          types = R.toList $ Names3.types0 names0
-          terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
 
       resolveDefaultMetadata :: Path.Absolute -> Action' m v [String]
       resolveDefaultMetadata path = do
