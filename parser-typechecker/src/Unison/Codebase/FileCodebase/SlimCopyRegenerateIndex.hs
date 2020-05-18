@@ -39,6 +39,7 @@ import qualified Unison.Term                   as Term
 import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 import           Unison.Var                     ( Var )
+import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Relation          as Relation
 import           Unison.Util.Relation           ( Relation )
 import           Unison.Util.Monoid (foldMapM)
@@ -271,6 +272,9 @@ syncToDirectory' getV getA srcPath destPath newRoot =
           Just typ -> do
             copyFileWithParents (termPath srcPath h) (termPath destPath h)
             copyFileWithParents (typePath srcPath h) (typePath destPath h)
+            whenM (doesFileExist $ watchPath srcPath UF.TestWatch h) $
+              copyFileWithParents (watchPath srcPath UF.TestWatch h)
+                                  (watchPath destPath UF.TestWatch h)
             let typeDeps' = toList (Type.dependencies typ)
             let typeForIndexing = Type.removeAllEffectVars typ
             let typeReference = Type.toReference typeForIndexing
