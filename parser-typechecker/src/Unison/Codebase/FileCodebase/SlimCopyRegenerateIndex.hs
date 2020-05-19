@@ -28,6 +28,8 @@ import qualified Unison.Codebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.Patch         as Patch
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V1 as V1
+import           Unison.Codebase.SyncMode       ( SyncMode )
+import qualified Unison.Codebase.SyncMode      as SyncMode
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.DataDeclaration        as DD
@@ -69,6 +71,7 @@ syncToDirectory :: forall m v a
   -> S.Format a
   -> CodebasePath
   -> CodebasePath
+  -> SyncMode
   -> Branch m
   -> m ()
 syncToDirectory fmtV fmtA = syncToDirectory' (S.get fmtV) (S.get fmtA)
@@ -92,9 +95,10 @@ syncToDirectory' :: forall m v a
   -> S.Get a
   -> CodebasePath
   -> CodebasePath
+  -> SyncMode
   -> Branch m
   -> m ()
-syncToDirectory' getV getA srcPath destPath newRoot =
+syncToDirectory' getV getA srcPath destPath mode newRoot =
   let warnMissingEntities = False in
   flip evalStateT mempty $ do -- MonadState s m
     (deps, errors) <- time "Sync Branches" $ execWriterT $
@@ -300,16 +304,17 @@ syncToDirectory' getV getA srcPath destPath newRoot =
   tellError :: forall m a. MonadWriter (Set a) m => a -> m ()
   tellError = Writer.tell . Set.singleton
 
--- Use State and Lens to do some specified thing at most once, to create a file.
-ifNeedsSyncing :: forall m s h. (MonadIO m, MonadState s m, Ord h)
-               => h
-               -> CodebasePath
-               -> (CodebasePath -> h -> FilePath) -- done if this filepath exists
-               -> SimpleLens s (Set h) -- lens to track if `h` is already done
-               -> (h -> m ()) -- do!
-               -> m ()        -- don't
-               -> m ()
-ifNeedsSyncing h destPath getFilename l doSync dontSync =
-  ifM (use (l . to (Set.member h))) dontSync $ do
-    l %= Set.insert h
-    ifM (doesFileExist (getFilename destPath h)) dontSync (doSync h)
+  -- Use State and Lens to do some specified thing at most once, to create a file.
+  ifNeedsSyncing :: forall m s h. (MonadIO m, MonadState s m, Ord h)
+                 => h
+                 -> CodebasePath
+                 -> (CodebasePath -> h -> FilePath) -- done if this filepath exists
+                 -> SimpleLens s (Set h) -- lens to track if `h` is already done
+                 -> (h -> m ()) -- do!
+                 -> m ()        -- don't
+                 -> m ()
+  ifNeedsSyncing h destPath getFilename l doSync dontSync =
+    ifM (use (l . to (Set.member h))) dontSync $ do
+      l %= Set.insert h
+      if mode == SyncMode.Complete then doSync h
+      else ifM (doesFileExist (getFilename destPath h)) dontSync (doSync h)

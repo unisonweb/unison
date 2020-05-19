@@ -654,9 +654,9 @@ notifyUser dir o = case o of
       where
       push = P.group . P.backticked $ IP.patternName IP.push
       pull = case input of
-        Input.PushRemoteBranchI Nothing p ->
+        Input.PushRemoteBranchI Nothing p _ ->
           P.sep " " [IP.patternName IP.pull, P.shown p ]
-        Input.PushRemoteBranchI (Just (r, _)) p -> P.sepNonEmpty " " [
+        Input.PushRemoteBranchI (Just (r, _)) p _ -> P.sepNonEmpty " " [
           IP.patternName IP.pull,
           P.text (RemoteRepo.url r),
           P.shown p,

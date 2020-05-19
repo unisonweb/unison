@@ -18,6 +18,7 @@ import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.ShortHash (ShortHash)
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import           Unison.Codebase.SyncMode       ( SyncMode )
 import qualified Data.Text as Text
 import Unison.Codebase.NameSegment (NameSegment)
 
@@ -47,8 +48,8 @@ data Input
     | MergeLocalBranchI Path' Path'
     | PreviewMergeLocalBranchI Path' Path'
     | DiffNamespaceI Path' Path' -- old new
-    | PullRemoteBranchI (Maybe RemoteNamespace) Path'
-    | PushRemoteBranchI (Maybe RemoteHead) Path'
+    | PullRemoteBranchI (Maybe RemoteNamespace) Path' SyncMode
+    | PushRemoteBranchI (Maybe RemoteHead) Path' SyncMode
     | CreatePullRequestI RemoteNamespace RemoteNamespace
     | LoadPullRequestI RemoteNamespace RemoteNamespace Path'
     | ResetRootI (Either ShortBranchHash Path')

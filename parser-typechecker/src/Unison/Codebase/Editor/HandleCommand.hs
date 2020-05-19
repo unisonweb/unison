@@ -120,10 +120,12 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     SyncLocalRootBranch branch -> do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
-    ViewRemoteBranch ns -> runExceptT $ Git.viewRemoteBranch branchCache ns
-    ImportRemoteBranch ns -> runExceptT $ Git.importRemoteBranch codebase branchCache ns
-    SyncRemoteRootBranch repo branch ->
-      runExceptT $ Git.pushGitRootBranch codebase branchCache branch repo
+    ViewRemoteBranch ns ->
+      runExceptT $ Git.viewRemoteBranch branchCache ns
+    ImportRemoteBranch ns syncMode ->
+      runExceptT $ Git.importRemoteBranch codebase branchCache ns syncMode
+    SyncRemoteRootBranch repo branch syncMode ->
+      runExceptT $ Git.pushGitRootBranch codebase branchCache branch repo syncMode
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r

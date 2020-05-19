@@ -17,6 +17,7 @@ import qualified System.Console.Haskeline.Completion as Completion
 import System.Console.Haskeline.Completion (Completion(Completion))
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input)
+import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.CommandLine.InputPattern
          ( ArgumentType(..)
          , InputPattern(InputPattern)
@@ -725,14 +726,15 @@ pull = InputPattern
     ]
   )
   (\case
-    []    -> Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty'
+    []    ->
+      Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
     [url] -> do
       ns <- parseUri "url" url
-      Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty'
+      Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit
     [url, path] -> do
       ns <- parseUri "url" url
       p <- first fromString $ Path.parsePath' path
-      pure $ Input.PullRemoteBranchI (Just ns) p
+      Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit
     _ -> Left (I.help pull)
   )
 
@@ -767,7 +769,8 @@ push = InputPattern
     ]
   )
   (\case
-    []    -> Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty'
+    []    ->
+      Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
     url : rest -> do
       (repo, sbh, path) <- parseUri "url" url
       when (isJust sbh)
@@ -776,7 +779,7 @@ push = InputPattern
         [] -> Right Path.relativeEmpty'
         [path] -> first fromString $ Path.parsePath' path
         _ -> Left (I.help push)
-      Right $ Input.PushRemoteBranchI (Just (repo, path)) p
+      Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.ShortCircuit
   )
 
 createPullRequest :: InputPattern

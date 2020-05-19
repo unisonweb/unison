@@ -19,9 +19,6 @@ import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.FileCodebase as FC
 import qualified Unison.Codebase.TranscriptParser as TR
-import Unison.Codebase.FileCodebase.Reserialize as Reserialize
-import Unison.Codebase.FileCodebase.CopyFilterIndex as CopyFilterIndex
-import Unison.Codebase.FileCodebase.CopyRegenerateIndex as CopyRegenerateIndex
 import Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex as SlimCopyRegenerateIndex
 import Unison.Codebase.FileCodebase.Common (SyncToDir, formatAnn)
 import qualified Unison.Codebase.Serialization.V1 as V1
@@ -31,7 +28,10 @@ import Unison.Var (Var)
 import Unison.Codebase (BuiltinAnnotation)
 
 test :: Test ()
-test = scope "git" . tests $ [testPull, testPush]
+test = scope "git" . tests $
+  [ testPull
+  , testPush
+  ]
 
 -- goal of this test is to make sure that pull doesn't grab a ton of unneeded
 -- dependencies
@@ -284,10 +284,7 @@ testPush = scope "push" $ do
   pushImplementations :: (MonadIO m, Var v, BuiltinAnnotation a)
                       => [(String, SyncToDir m v a)]
   pushImplementations =
-    [ ("Reserialize", Reserialize.syncToDirectory)
-    , ("CopyFilterIndex", CopyFilterIndex.syncToDirectory)
-    , ("CopyRegenerateIndex", CopyRegenerateIndex.syncToDirectory)
-    , ("SlimCopyRegenerateIndex", SlimCopyRegenerateIndex.syncToDirectory)
+    [ ("SlimCopyRegenerateIndex", SlimCopyRegenerateIndex.syncToDirectory)
     ]
 
   groups =

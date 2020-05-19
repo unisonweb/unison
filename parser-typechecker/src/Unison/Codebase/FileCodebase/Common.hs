@@ -105,8 +105,8 @@ import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.Serialization as S
-import qualified Unison.Codebase.Serialization.V1
-                                               as V1
+import qualified Unison.Codebase.Serialization.V1 as V1
+import           Unison.Codebase.SyncMode       ( SyncMode )
 import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.ConstructorType        as CT
 import qualified Unison.DataDeclaration        as DD
@@ -151,6 +151,7 @@ type SyncToDir m v a
   -> S.Format a
   -> CodebasePath -- src codebase
   -> CodebasePath -- dest codebase
+  -> SyncMode
   -> Branch m -- new dest root branch
   -> m ()
 

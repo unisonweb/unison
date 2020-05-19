@@ -31,6 +31,7 @@ import           Unison.Codebase.Branch         ( Branch
                                                 , headHash
                                                 )
 import qualified Unison.Codebase.Path          as Path
+import           Unison.Codebase.SyncMode       ( SyncMode )
 import qualified Unison.Util.Exception         as Ex
 import           Unison.Util.Timing             (time)
 import qualified Unison.Codebase.Branch        as Branch
@@ -125,11 +126,13 @@ importRemoteBranch
   => Codebase m v a
   -> Branch.Cache m
   -> RemoteNamespace
+  -> SyncMode
   -> ExceptT GitError m (Branch m)
-importRemoteBranch codebase cache ns = do
+importRemoteBranch codebase cache ns mode = do
   (branch, cacheDir) <- viewRemoteBranch' cache ns
   withStatus "Importing downloaded files into local codebase..." $
-    time "SyncFromDirectory" $ lift $ Codebase.syncFromDirectory codebase cacheDir branch
+    time "SyncFromDirectory" $
+      lift $ Codebase.syncFromDirectory codebase cacheDir mode branch
   pure branch
 
 -- | Pull a git branch and view it from the cache, without syncing into the
@@ -201,8 +204,9 @@ pushGitRootBranch
   -> Branch.Cache m
   -> Branch m
   -> RemoteRepo
+  -> SyncMode
   -> ExceptT GitError m ()
-pushGitRootBranch codebase cache branch repo = do
+pushGitRootBranch codebase cache branch repo syncMode = do
   -- Pull the remote repo into a staging directory
   (remoteRoot, remotePath) <- viewRemoteBranch' cache (repo, Nothing, Path.empty)
   ifM (pure (remoteRoot == Branch.empty)
@@ -215,7 +219,7 @@ pushGitRootBranch codebase cache branch repo = do
   stageAndPush remotePath = do
     let repoString = Text.unpack $ printRepo repo
     withStatus ("Staging files for upload to " ++ repoString ++ " ...") $
-      lift (Codebase.syncToDirectory codebase remotePath branch)
+      lift (Codebase.syncToDirectory codebase remotePath syncMode branch)
     updateCausalHead (branchHeadDir remotePath) (Branch._history branch)
     -- push staging area to remote
     withStatus ("Uploading to " ++ repoString ++ " ...") $
