@@ -24,7 +24,7 @@ import Unison.Codebase.GitError
 import Unison.Codebase.Path (Path', Path)
 import Unison.Codebase.Patch (Patch)
 import Unison.Name ( Name )
-import Unison.Names2 ( Names, Names0 )
+import Unison.Names2 ( Names )
 import Unison.Parser ( Ann )
 import qualified Unison.Reference as Reference
 import Unison.Reference ( Reference )
@@ -196,8 +196,8 @@ data Output v
   | NoConflictsOrEdits
   | NotImplemented
   | NoBranchWithHash ShortBranchHash
-  | ListDependencies Int LabeledDependency Names0 (Set Reference)
-  | ListDependents Int LabeledDependency Names0 (Set Reference)
+  | ListDependencies Int LabeledDependency [(Name, Reference)] (Set Reference)
+  | ListDependents Int LabeledDependency [(Name, Reference)] (Set Reference)
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]

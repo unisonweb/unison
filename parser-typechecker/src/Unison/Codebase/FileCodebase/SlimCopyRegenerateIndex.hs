@@ -16,9 +16,9 @@ import Unison.Prelude
 
 import qualified Data.Set                      as Set
 import           Control.Lens
-import           Control.Monad.State            ( MonadState, evalStateT )
-import           Control.Monad.Writer           ( MonadWriter, execWriterT )
-import qualified Control.Monad.Writer          as Writer
+import           Control.Monad.State.Strict     ( MonadState, evalStateT )
+import           Control.Monad.Writer.Strict    ( MonadWriter, execWriterT )
+import qualified Control.Monad.Writer.Strict   as Writer
 import           UnliftIO.Directory             ( doesFileExist )
 import           Unison.Codebase                ( CodebasePath )
 import qualified Unison.Codebase.Causal        as Causal
@@ -41,6 +41,7 @@ import qualified Unison.Term                   as Term
 import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 import           Unison.Var                     ( Var )
+import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Relation          as Relation
 import           Unison.Util.Relation           ( Relation )
 import           Unison.Util.Monoid (foldMapM)
@@ -275,6 +276,9 @@ syncToDirectory' getV getA srcPath destPath mode newRoot =
           Just typ -> do
             copyFileWithParents (termPath srcPath h) (termPath destPath h)
             copyFileWithParents (typePath srcPath h) (typePath destPath h)
+            whenM (doesFileExist $ watchPath srcPath UF.TestWatch h) $
+              copyFileWithParents (watchPath srcPath UF.TestWatch h)
+                                  (watchPath destPath UF.TestWatch h)
             let typeDeps' = toList (Type.dependencies typ)
             let typeForIndexing = Type.removeAllEffectVars typ
             let typeReference = Type.toReference typeForIndexing

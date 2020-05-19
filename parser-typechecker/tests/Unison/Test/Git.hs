@@ -1,6 +1,7 @@
 {-# Language OverloadedStrings #-}
 {-# Language QuasiQuotes #-}
 {-# Language TypeApplications #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Unison.Test.Git where
 
@@ -15,23 +16,82 @@ import Shellmet ()
 import System.FilePath ((</>))
 import System.Directory (doesFileExist, removeDirectoryRecursive)
 
-import Unison.Codebase (Codebase, CodebasePath)
+import Unison.Codebase (BuiltinAnnotation, Codebase, CodebasePath)
+import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.FileCodebase as FC
+import qualified Unison.Codebase.Serialization.V1 as V1
+import qualified Unison.Codebase.SyncMode as SyncMode
 import qualified Unison.Codebase.TranscriptParser as TR
+import Unison.Codebase.Path (Path(..))
 import Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex as SlimCopyRegenerateIndex
 import Unison.Codebase.FileCodebase.Common (SyncToDir, formatAnn)
-import qualified Unison.Codebase.Serialization.V1 as V1
 import Unison.Parser (Ann)
 import Unison.Symbol (Symbol)
+import qualified Unison.Util.Cache as Cache
 import Unison.Var (Var)
-import Unison.Codebase (BuiltinAnnotation)
 
 test :: Test ()
 test = scope "git" . tests $
   [ testPull
   , testPush
+  , syncTestResults
   ]
+
+traceTranscriptOutput :: Bool
+traceTranscriptOutput = False
+
+syncTestResults :: Test ()
+syncTestResults = scope "syncTestResults" $ do
+  -- put all our junk into here
+  tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "syncTestResults"
+
+  targetDir <- io $ Temp.createTempDirectory tmp "target"
+  cache <- io Cache.nullCache
+  codebase <- io $ snd <$> initCodebase cache tmp "codebase"
+
+  runTranscript_ tmp codebase cache [iTrim|
+```ucm
+.> builtins.merge
+```
+```unison
+test> tests.x = [Ok "Great!"]
+```
+```ucm
+.> add
+```
+|]
+
+{-
+  .> history tests
+    ⊙ #0bnfrk7cu4
+  .> debug.file
+    tests.x#2c2hpa2jm1
+  .>
+-}
+
+  b <- io (Codebase.getRootBranch codebase) >>= \case
+    Left e -> crash $ show e
+    Right b -> pure b
+
+  io $ Codebase.syncToDirectory codebase targetDir SyncMode.ShortCircuit
+        (Branch.getAt' (Path $ pure "tests") b)
+
+  let makeTitle :: String -> String
+      makeTitle = intercalate "/" . map (take 20) . drop 2 . splitOn "/"
+  scope "target-should-have" $
+    for targetShouldHave $ \path ->
+      scope (makeTitle path) $ io (doesFileExist $ targetDir </> path) >>= expect
+
+  -- if we haven't crashed, clean up!
+  io $ removeDirectoryRecursive tmp
+  where
+  targetShouldHave =
+    [ ".unison/v1/paths/0bnfrk7cu44q0vvaj7a0osl90huv6nj01nkukplcsbgn3i09h6ggbthhrorm01gpqc088673nom2i491fh9rtbqcc6oud6iqq6oam88.ub"
+    , ".unison/v1/terms/#2c2hpa2jm1101sq10k4jqhpmv5cvvgtqm8sf9710kl8mlrum5b6i2d0rdtrrpg3k1ned5ljna1rvomjte7rcbpd9ouaqcsit1n1np3o/type.ub"
+    , ".unison/v1/terms/#2c2hpa2jm1101sq10k4jqhpmv5cvvgtqm8sf9710kl8mlrum5b6i2d0rdtrrpg3k1ned5ljna1rvomjte7rcbpd9ouaqcsit1n1np3o/compiled.ub"
+    , ".unison/v1/watches/test/#2c2hpa2jm1101sq10k4jqhpmv5cvvgtqm8sf9710kl8mlrum5b6i2d0rdtrrpg3k1ned5ljna1rvomjte7rcbpd9ouaqcsit1n1np3o.ub"
+    ]
 
 -- goal of this test is to make sure that pull doesn't grab a ton of unneeded
 -- dependencies
@@ -193,7 +253,8 @@ runTranscript_ tmpDir c branchCache transcript = do
 
   -- parse and run the transcript
   flip (either err) (TR.parse "transcript" (Text.pack transcript)) $ \stanzas ->
-    void . liftIO $ TR.run cwd configFile stanzas c branchCache >>= traceM . Text.unpack
+    void . liftIO $ TR.run cwd configFile stanzas c branchCache >>=
+                      when traceTranscriptOutput . traceM . Text.unpack
 
 -- goal of this test is to make sure that push works correctly:
 -- the destination should contain the right definitions from the namespace,
