@@ -14,7 +14,7 @@ import qualified Data.Text as Text
 import qualified System.IO.Temp as Temp
 import Shellmet ()
 import System.FilePath ((</>))
-import System.Directory (doesFileExist, removeDirectoryRecursive)
+import System.Directory (doesFileExist, removeDirectoryRecursive, removeFile)
 
 import Unison.Codebase (BuiltinAnnotation, Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
@@ -35,11 +35,74 @@ test :: Test ()
 test = scope "git" . tests $
   [ testPull
   , testPush
+  , syncComplete
   , syncTestResults
   ]
 
 traceTranscriptOutput :: Bool
 traceTranscriptOutput = False
+
+-- | make sure that a definition present in the target dir doesn't prevent
+-- syncing of its dependencies
+syncComplete :: Test ()
+syncComplete = scope "syncComplete" $ do
+  tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "syncComplete"
+
+  targetDir <- io $ Temp.createTempDirectory tmp "target"
+  let
+    delete = io . traverse_ removeFile . fmap (targetDir </>)
+    observe expectation title files = scope title . for_ files $ \path ->
+      scope (makeTitle path) $ io (doesFileExist $ targetDir </> path) >>= expectation
+
+  cache <- io Cache.nullCache
+  codebase <- io $ snd <$> initCodebase cache tmp "codebase"
+
+  runTranscript_ tmp codebase cache [iTrim|
+```ucm:hide
+.builtin> alias.type ##Nat Nat
+.builtin> alias.term ##Nat.+ Nat.+
+```
+```unison
+pushComplete.a.x = 3
+pushComplete.b.y = x + 1
+```
+```ucm
+.> add
+.> history pushComplete.b
+```
+|]
+
+  -- sync to targetDir
+  -- observe that pushComplete.b and x exist
+  b <- io (Codebase.getRootBranch codebase) >>= either (crash.show) pure
+  io $ Codebase.syncToDirectory codebase targetDir SyncMode.ShortCircuit b
+  observe expect "initial" files
+
+  -- delete pushComplete.b (#5lk9autjd5)
+  -- delete x              (#msp7bv40rv)
+  -- observe that pushComplete.b and x are missing
+  delete files
+  observe (expect . not) "deleted" files
+
+  -- sync again with ShortCircuit
+  -- observe that pushComplete.b and x are still missing
+  io $ Codebase.syncToDirectory codebase targetDir SyncMode.ShortCircuit b
+  observe (expect . not) "short-circuited" files
+
+  -- sync again with Complete
+  -- observe that pushComplete.b and x are back
+  io $ Codebase.syncToDirectory codebase targetDir SyncMode.Complete b
+  observe expect "complete" files
+
+  -- if we haven't crashed, clean up!
+  io $ removeDirectoryRecursive tmp
+
+  where
+  files =
+    [ ".unison/v1/paths/5lk9autjd5911i8m52vsvf3si8ckino03gqrks1fokd9lf9kvc4id9gmuudjk4q06j3rkhi83o9g47mde5amchc1leqlskjs391m7fg.ub"
+    , ".unison/v1/terms/#msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo/type.ub"
+    , ".unison/v1/terms/#msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo/compiled.ub"
+    ]
 
 syncTestResults :: Test ()
 syncTestResults = scope "syncTestResults" $ do
@@ -77,8 +140,6 @@ test> tests.x = [Ok "Great!"]
   io $ Codebase.syncToDirectory codebase targetDir SyncMode.ShortCircuit
         (Branch.getAt' (Path $ pure "tests") b)
 
-  let makeTitle :: String -> String
-      makeTitle = intercalate "/" . map (take 20) . drop 2 . splitOn "/"
   scope "target-should-have" $
     for targetShouldHave $ \path ->
       scope (makeTitle path) $ io (doesFileExist $ targetDir </> path) >>= expect
@@ -138,12 +199,6 @@ inside.y = c + c
   -- check out the resulting repo so we can inspect it
   io $ "git" ["clone", Text.pack repo, Text.pack $ tmp </> "repo" ]
 
-  -- a helper to try turning these repo path names into test titles, by
-  -- limiting each path segment to 20 chars.  may produce duplicate names since
-  -- it ends up dropping reference cycles suffixes, constructor ids, etc.
-  let makeTitle :: String -> String
-      makeTitle = intercalate "/" . map (take 20) . drop 2 . splitOn "/"
-
   scope "git-should-have" $
     for gitShouldHave $ \path ->
       scope (makeTitle path) $ io (doesFileExist $ tmp </> "repo" </> path) >>= expect
@@ -160,8 +215,6 @@ inside.y = c + c
   |]
 
   -- inspect user codebase
-  let makeTitle :: String -> String
-      makeTitle = intercalate "/" . map (take 20) . drop 2 . splitOn "/"
   scope "user-should-have" $
     for userShouldHave $ \path ->
       scope (makeTitle path) $ io (doesFileExist $ userDir </> path) >>= expect
@@ -459,3 +512,9 @@ testPush = scope "push" $ do
     , ("Boolean <- r",          ".unison/v1/type-mentions-index/_builtin/Boolean/#im2kiu2hmnfdvv5fbfc5lhaakebbs69074hjrb3ptkjnrh6dpkcp1rnnq99mhson2gr6g8uduppvpelpq4jvq1rg5p3f9jpiplpk9u8")
     , ("Boolean <- r'",          ".unison/v1/type-mentions-index/_builtin/Boolean/#gi015he0n17ji9sl5hgh1q8tjas74341p48h719kkgajj75d6qapakq993gu2duvit32b7qhqac1odk6jhvad0ku8ajcj7sup6t6mbo")
     ]
+
+-- a helper to try turning these repo path names into test titles, by
+-- limiting each path segment to 20 chars.  may produce duplicate names since
+-- it ends up dropping reference cycles suffixes, constructor ids, etc.
+makeTitle :: String -> String
+makeTitle = intercalate "/" . map (take 20) . drop 2 . splitOn "/"
