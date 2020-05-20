@@ -17,6 +17,7 @@ import qualified System.Console.Haskeline.Completion as Completion
 import System.Console.Haskeline.Completion (Completion(Completion))
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input)
+import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.CommandLine.InputPattern
          ( ArgumentType(..)
          , InputPattern(InputPattern)
@@ -43,6 +44,7 @@ import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
+import Data.Tuple.Extra (uncurry3)
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -725,14 +727,41 @@ pull = InputPattern
     ]
   )
   (\case
-    []    -> Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty'
+    []    ->
+      Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
     [url] -> do
       ns <- parseUri "url" url
-      Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty'
+      Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit
     [url, path] -> do
       ns <- parseUri "url" url
       p <- first fromString $ Path.parsePath' path
-      pure $ Input.PullRemoteBranchI (Just ns) p
+      Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit
+    _ -> Left (I.help pull)
+  )
+
+pullExhaustive :: InputPattern
+pullExhaustive = InputPattern
+  "debug.pull-exhaustive"
+  []
+  [(Required, gitUrlArg), (Optional, pathArg)]
+  (P.lines
+    [ P.wrap $
+      "The " <> makeExample' pullExhaustive <> "command can be used in place of"
+        <> makeExample' pull <> "to complete namespaces"
+        <> "which were pulled incompletely due to a bug in UCM"
+        <> "versions M1l and earlier.  It may be extra slow!"
+    ]
+  )
+  (\case
+    []    ->
+      Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete
+    [url] -> do
+      ns <- parseUri "url" url
+      Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete
+    [url, path] -> do
+      ns <- parseUri "url" url
+      p <- first fromString $ Path.parsePath' path
+      Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete
     _ -> Left (I.help pull)
   )
 
@@ -767,7 +796,8 @@ push = InputPattern
     ]
   )
   (\case
-    []    -> Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty'
+    []    ->
+      Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
     url : rest -> do
       (repo, sbh, path) <- parseUri "url" url
       when (isJust sbh)
@@ -776,7 +806,34 @@ push = InputPattern
         [] -> Right Path.relativeEmpty'
         [path] -> first fromString $ Path.parsePath' path
         _ -> Left (I.help push)
-      Right $ Input.PushRemoteBranchI (Just (repo, path)) p
+      Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.ShortCircuit
+  )
+
+pushExhaustive :: InputPattern
+pushExhaustive = InputPattern
+  "debug.push-exhaustive"
+  []
+  [(Required, gitUrlArg), (Optional, pathArg)]
+  (P.lines
+    [ P.wrap $
+      "The " <> makeExample' pushExhaustive <> "command can be used in place of"
+        <> makeExample' push <> "to repair remote namespaces"
+        <> "which were pushed incompletely due to a bug in UCM"
+        <> "versions M1l and earlier. It may be extra slow!"
+    ]
+  )
+  (\case
+    []    ->
+      Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete
+    url : rest -> do
+      (repo, sbh, path) <- parseUri "url" url
+      when (isJust sbh)
+        $ Left "Can't push to a particular remote namespace hash."
+      p <- case rest of
+        [] -> Right Path.relativeEmpty'
+        [path] -> first fromString $ Path.parsePath' path
+        _ -> Left (I.help push)
+      Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.Complete
   )
 
 createPullRequest :: InputPattern
@@ -1284,6 +1341,8 @@ validInputs =
   , names
   , push
   , pull
+  , pushExhaustive
+  , pullExhaustive
   , createPullRequest
   , loadPullRequest
   , cd
@@ -1453,3 +1512,23 @@ gitUrlArg = ArgumentType "git-url" $ \input _ _ _ -> case input of
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [ a | (Nothing, a) <- map f as `zip` as ]
+
+patternFromInput :: Input -> InputPattern
+patternFromInput = \case
+  Input.PushRemoteBranchI _ _ SyncMode.ShortCircuit -> push
+  Input.PushRemoteBranchI _ _ SyncMode.Complete -> pushExhaustive
+  Input.PullRemoteBranchI _ _ SyncMode.ShortCircuit -> pull
+  Input.PullRemoteBranchI _ _ SyncMode.Complete -> pushExhaustive
+  _ -> error "todo: finish this function"
+
+inputStringFromInput :: IsString s => Input -> P.Pretty s
+inputStringFromInput = \case
+  i@(Input.PushRemoteBranchI rh p' _) ->
+    (P.string . I.patternName $ patternFromInput i)
+      <> (" " <> maybe mempty (P.text . uncurry RemoteRepo.printHead) rh)
+      <> " " <> P.shown p'
+  i@(Input.PullRemoteBranchI ns p' _) ->
+    (P.string . I.patternName $ patternFromInput i)
+      <> (" " <> maybe mempty (P.text . uncurry3 RemoteRepo.printNamespace) ns)
+      <> " " <> P.shown p'
+  _ -> error "todo: finish this function"

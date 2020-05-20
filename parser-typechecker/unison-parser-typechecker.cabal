@@ -64,9 +64,6 @@ library
     Unison.Codebase.Editor.VersionParser
     Unison.Codebase.FileCodebase
     Unison.Codebase.FileCodebase.Common
-    Unison.Codebase.FileCodebase.Reserialize
-    Unison.Codebase.FileCodebase.CopyFilterIndex
-    Unison.Codebase.FileCodebase.CopyRegenerateIndex
     Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
@@ -80,6 +77,7 @@ library
     Unison.Codebase.Serialization.PutT
     Unison.Codebase.Serialization.V1
     Unison.Codebase.ShortBranchHash
+    Unison.Codebase.SyncMode
     Unison.Codebase.TermEdit
     Unison.Codebase.TranscriptParser
     Unison.Codebase.TypeEdit

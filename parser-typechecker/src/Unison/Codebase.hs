@@ -15,6 +15,7 @@ import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.Codebase.Reflog        as Reflog
+import           Unison.Codebase.SyncMode       ( SyncMode )
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.Names2                 as Names
 import           Unison.Reference               ( Reference )
@@ -60,10 +61,10 @@ data Codebase m v a =
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
            -- This copies all the dependencies of `b` from the specified
            -- FileCodebase into this Codebase, and sets our root branch to `b`
-           , syncFromDirectory  :: CodebasePath -> Branch m -> m ()
+           , syncFromDirectory  :: CodebasePath -> SyncMode -> Branch m -> m ()
            -- This copies all the dependencies of `b` from the this Codebase
            -- into the specified FileCodebase, and sets its _head to `b`
-           , syncToDirectory    :: CodebasePath -> Branch m -> m ()
+           , syncToDirectory    :: CodebasePath -> SyncMode -> Branch m -> m ()
 
            -- Watch expressions are part of the codebase, the `Reference.Id` is
            -- the hash of the source of the watch expression, and the `Term v a`

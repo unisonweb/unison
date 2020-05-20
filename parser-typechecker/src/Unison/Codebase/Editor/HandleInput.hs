@@ -38,6 +38,7 @@ import qualified Unison.Codebase.Editor.SlurpResult as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, printNamespace)
+import qualified Unison.CommandLine.InputPattern as InputPattern
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
 
 import           Control.Lens
@@ -74,6 +75,7 @@ import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Codebase.SyncMode      as SyncMode
 import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.HashQualified          as HQ
@@ -417,8 +419,11 @@ loop = do
           UpdateBuiltinsI -> "builtins.update"
           MergeBuiltinsI -> "builtins.merge"
           MergeIOBuiltinsI -> "builtins.mergeio"
-          PullRemoteBranchI orepo dest ->
-            "pull "
+          PullRemoteBranchI orepo dest _syncMode ->
+            (Text.pack . InputPattern.patternName
+              $ InputPatterns.patternFromInput input)
+              <> " "
+              -- todo: show the actual config-loaded namespace
               <> maybe "(remote namespace from .unisonConfig)"
                        (uncurry3 printNamespace) orepo
               <> " "
@@ -486,9 +491,10 @@ loop = do
         syncRoot = use root >>= updateRoot
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
         unlessGitError = unlessError' (Output.GitError input)
-        importRemoteBranch = ExceptT . eval . ImportRemoteBranch
-        viewRemoteBranch = ExceptT . eval . ViewRemoteBranch
-        syncRemoteRootBranch repo b = ExceptT . eval $ SyncRemoteRootBranch repo b
+        importRemoteBranch ns mode = ExceptT . eval $ ImportRemoteBranch ns mode
+        viewRemoteBranch ns = ExceptT . eval $ ViewRemoteBranch ns
+        syncRemoteRootBranch repo b mode =
+          ExceptT . eval $ SyncRemoteRootBranch repo b mode
         handleFailedDelete failed failedDependents = do
           failed           <- loadSearchResults $ SR.fromNames failed
           failedDependents <- loadSearchResults $ SR.fromNames failedDependents
@@ -734,8 +740,8 @@ loop = do
         let dest = Path.unabsolute desta
         destb <- getAt desta
         if Branch.isEmpty0 (Branch.head destb) then unlessGitError do
-          baseb <- importRemoteBranch baseRepo
-          headb <- importRemoteBranch headRepo
+          baseb <- importRemoteBranch baseRepo SyncMode.ShortCircuit
+          headb <- importRemoteBranch headRepo SyncMode.ShortCircuit
           lift $ do
             mergedb <- eval . Eval $ Branch.merge baseb headb
             stepManyAt
@@ -1648,15 +1654,15 @@ loop = do
           makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
         respond $ ListEdits patch ppe
 
-      PullRemoteBranchI mayRepo path -> unlessError do
+      PullRemoteBranchI mayRepo path syncMode -> unlessError do
         ns <- resolveConfiguredGitUrl Pull path mayRepo
         lift $ unlessGitError do
-          b <- importRemoteBranch ns
+          b <- importRemoteBranch ns syncMode
           let msg = Just $ PullAlreadyUpToDate ns path
           let destAbs = resolveToAbsolute path
           lift $ mergeBranchAndPropagateDefaultPatch inputDescription msg b (Just path) destAbs
 
-      PushRemoteBranchI mayRepo path -> do
+      PushRemoteBranchI mayRepo path syncMode -> do
         let srcAbs = resolveToAbsolute path
         srcb <- getAt srcAbs
         let expandRepo (r, rp) = (r, Nothing, rp)
@@ -1668,7 +1674,7 @@ loop = do
               remoteRoot <- viewRemoteBranch (repo, Nothing, Path.empty)
               newRemoteRoot <- lift . eval . Eval $
                 Branch.modifyAtM remotePath (Branch.merge srcb) remoteRoot
-              syncRemoteRootBranch repo newRemoteRoot
+              syncRemoteRootBranch repo newRemoteRoot syncMode
               lift $ respond Success
             Just{} ->
               error $ "impossible match, resolveConfiguredGitUrl shouldn't return"

@@ -8,36 +8,106 @@ module Unison.Test.Git where
 import EasyTest
 import Data.List (intercalate)
 import Data.List.Split (splitOn)
+import qualified Data.Sequence as Seq
 import Data.String.Here (iTrim)
 import Unison.Prelude
 import qualified Data.Text as Text
 import qualified System.IO.Temp as Temp
 import Shellmet ()
 import System.FilePath ((</>))
-import System.Directory (doesFileExist, removeDirectoryRecursive)
+import System.Directory (doesFileExist, removeDirectoryRecursive, removeFile)
 
-import Unison.Codebase (Codebase, CodebasePath)
+import Unison.Codebase (BuiltinAnnotation, Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.FileCodebase as FC
-import Unison.Codebase.Path (Path(..))
+import qualified Unison.Codebase.Serialization.V1 as V1
+import qualified Unison.Codebase.SyncMode as SyncMode
 import qualified Unison.Codebase.TranscriptParser as TR
-import Unison.Codebase.FileCodebase.Reserialize as Reserialize
-import Unison.Codebase.FileCodebase.CopyFilterIndex as CopyFilterIndex
-import Unison.Codebase.FileCodebase.CopyRegenerateIndex as CopyRegenerateIndex
+import Unison.Codebase.Path (Path(..))
 import Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex as SlimCopyRegenerateIndex
 import Unison.Codebase.FileCodebase.Common (SyncToDir, formatAnn)
-import qualified Unison.Codebase.Serialization.V1 as V1
 import Unison.Parser (Ann)
 import Unison.Symbol (Symbol)
-import Unison.Var (Var)
-import Unison.Codebase (BuiltinAnnotation)
 import qualified Unison.Util.Cache as Cache
+import Unison.Var (Var)
 
 test :: Test ()
-test = scope "git" . tests $ [testPull, testPush, syncTestResults]
+test = scope "git" . tests $
+  [ testPull
+  , testPush
+  , syncComplete
+  , syncTestResults
+  ]
 
+traceTranscriptOutput :: Bool
 traceTranscriptOutput = False
+
+-- | make sure that a definition present in the target dir doesn't prevent
+-- syncing of its dependencies
+syncComplete :: Test ()
+syncComplete = scope "syncComplete" $ do
+  tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "syncComplete"
+
+  targetDir <- io $ Temp.createTempDirectory tmp "target"
+  let
+    delete = io . traverse_ removeFile . fmap (targetDir </>)
+    observe title expectation files = scope title . for_ files $ \path ->
+      scope (makeTitle path) $ io (doesFileExist $ targetDir </> path) >>= expectation
+
+  cache <- io Cache.nullCache
+  codebase <- io $ snd <$> initCodebase cache tmp "codebase"
+
+  runTranscript_ tmp codebase cache [iTrim|
+```ucm:hide
+.builtin> alias.type ##Nat Nat
+.builtin> alias.term ##Nat.+ Nat.+
+```
+```unison
+pushComplete.a.x = 3
+pushComplete.b.c.y = x + 1
+```
+```ucm
+.> add
+.> history pushComplete.b
+```
+|]
+
+  -- sync pushComplete.b to targetDir
+  -- observe that pushComplete.b.c and x exist
+  b <- io (Codebase.getRootBranch codebase)
+    >>= either (crash.show)
+      (pure . Branch.getAt' (Path $ Seq.fromList ["pushComplete", "b"] ))
+  io $ Codebase.syncToDirectory codebase targetDir SyncMode.ShortCircuit b
+  observe "initial" expect files
+
+  -- delete pushComplete.b.c (#5lk9autjd5)
+  -- delete x                (#msp7bv40rv)
+  -- observe that pushComplete.b.c and x are now gone
+  delete files
+  observe "deleted" (expect . not) files
+
+  -- sync again with ShortCircuit
+  -- observe that pushComplete.b.c and x are still missing.
+  -- `c` is short-circuited at `b`, and `x` is short-circuited
+  -- at both `pushComplete` and `y`.
+  io $ Codebase.syncToDirectory codebase targetDir SyncMode.ShortCircuit b
+  observe "short-circuited" (expect . not) files
+
+  -- sync again with Complete
+  -- observe that pushComplete.b.c and x are back
+  io $ Codebase.syncToDirectory codebase targetDir SyncMode.Complete b
+  observe "complete" expect files
+
+  -- if we haven't crashed, clean up!
+  io $ removeDirectoryRecursive tmp
+
+  where
+  files =
+    [ ".unison/v1/paths/5lk9autjd5911i8m52vsvf3si8ckino03gqrks1fokd9lf9kvc4id9gmuudjk4q06j3rkhi83o9g47mde5amchc1leqlskjs391m7fg.ub"
+    , ".unison/v1/terms/#msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo/type.ub"
+    , ".unison/v1/terms/#msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo/compiled.ub"
+    ]
 
 syncTestResults :: Test ()
 syncTestResults = scope "syncTestResults" $ do
@@ -72,11 +142,9 @@ test> tests.x = [Ok "Great!"]
     Left e -> crash $ show e
     Right b -> pure b
 
-  io $ Codebase.syncToDirectory codebase targetDir
+  io $ Codebase.syncToDirectory codebase targetDir SyncMode.ShortCircuit
         (Branch.getAt' (Path $ pure "tests") b)
 
-  let makeTitle :: String -> String
-      makeTitle = intercalate "/" . map (take 20) . drop 2 . splitOn "/"
   scope "target-should-have" $
     for targetShouldHave $ \path ->
       scope (makeTitle path) $ io (doesFileExist $ targetDir </> path) >>= expect
@@ -136,12 +204,6 @@ inside.y = c + c
   -- check out the resulting repo so we can inspect it
   io $ "git" ["clone", Text.pack repo, Text.pack $ tmp </> "repo" ]
 
-  -- a helper to try turning these repo path names into test titles, by
-  -- limiting each path segment to 20 chars.  may produce duplicate names since
-  -- it ends up dropping reference cycles suffixes, constructor ids, etc.
-  let makeTitle :: String -> String
-      makeTitle = intercalate "/" . map (take 20) . drop 2 . splitOn "/"
-
   scope "git-should-have" $
     for gitShouldHave $ \path ->
       scope (makeTitle path) $ io (doesFileExist $ tmp </> "repo" </> path) >>= expect
@@ -158,8 +220,6 @@ inside.y = c + c
   |]
 
   -- inspect user codebase
-  let makeTitle :: String -> String
-      makeTitle = intercalate "/" . map (take 20) . drop 2 . splitOn "/"
   scope "user-should-have" $
     for userShouldHave $ \path ->
       scope (makeTitle path) $ io (doesFileExist $ userDir </> path) >>= expect
@@ -251,7 +311,7 @@ runTranscript_ tmpDir c branchCache transcript = do
 
   -- parse and run the transcript
   flip (either err) (TR.parse "transcript" (Text.pack transcript)) $ \stanzas ->
-    void . liftIO $ TR.run cwd configFile stanzas c branchCache >>= 
+    void . liftIO $ TR.run cwd configFile stanzas c branchCache >>=
                       when traceTranscriptOutput . traceM . Text.unpack
 
 -- goal of this test is to make sure that push works correctly:
@@ -343,10 +403,7 @@ testPush = scope "push" $ do
   pushImplementations :: (MonadIO m, Var v, BuiltinAnnotation a)
                       => [(String, SyncToDir m v a)]
   pushImplementations =
-    [ ("Reserialize", Reserialize.syncToDirectory)
-    , ("CopyFilterIndex", CopyFilterIndex.syncToDirectory)
-    , ("CopyRegenerateIndex", CopyRegenerateIndex.syncToDirectory)
-    , ("SlimCopyRegenerateIndex", SlimCopyRegenerateIndex.syncToDirectory)
+    [ ("SlimCopyRegenerateIndex", SlimCopyRegenerateIndex.syncToDirectory)
     ]
 
   groups =
@@ -460,3 +517,9 @@ testPush = scope "push" $ do
     , ("Boolean <- r",          ".unison/v1/type-mentions-index/_builtin/Boolean/#im2kiu2hmnfdvv5fbfc5lhaakebbs69074hjrb3ptkjnrh6dpkcp1rnnq99mhson2gr6g8uduppvpelpq4jvq1rg5p3f9jpiplpk9u8")
     , ("Boolean <- r'",          ".unison/v1/type-mentions-index/_builtin/Boolean/#gi015he0n17ji9sl5hgh1q8tjas74341p48h719kkgajj75d6qapakq993gu2duvit32b7qhqac1odk6jhvad0ku8ajcj7sup6t6mbo")
     ]
+
+-- a helper to try turning these repo path names into test titles, by
+-- limiting each path segment to 20 chars.  may produce duplicate names since
+-- it ends up dropping reference cycles suffixes, constructor ids, etc.
+makeTitle :: String -> String
+makeTitle = intercalate "/" . map (take 20) . drop 2 . splitOn "/"
