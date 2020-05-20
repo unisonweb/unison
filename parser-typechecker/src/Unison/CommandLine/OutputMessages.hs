@@ -50,6 +50,7 @@ import           Unison.CommandLine             ( bigproblem
 import           Unison.PrettyTerminal          ( clearCurrentLine
                                                 , putPretty'
                                                 )
+import qualified Unison.CommandLine.InputPattern as IP1
 import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
 import qualified Unison.Builtin.Decls          as DD
@@ -652,19 +653,8 @@ notifyUser dir o = case o of
          "then try your" <> push <> "again."
       ]
       where
-      push = P.group . P.backticked $ IP.patternName IP.push
-      pull = case input of
-        Input.PushRemoteBranchI Nothing p _ ->
-          P.sep " " [IP.patternName IP.pull, P.shown p ]
-        Input.PushRemoteBranchI (Just (r, _)) p _ -> P.sepNonEmpty " " [
-          IP.patternName IP.pull,
-          P.text (RemoteRepo.url r),
-          P.shown p,
-          case RemoteRepo.commit r of
-            Just s -> P.text s
-            Nothing -> mempty
-          ]
-        _ -> "⁉️ Unison bug - push command expected"
+      push = P.group . P.backticked . P.string . IP1.patternName $ IP.patternFromInput input
+      pull = P.group . P.backticked $ IP.inputStringFromInput input
     CouldntLoadRootBranch repo hash -> P.wrap
       $ "I couldn't load the designated root hash"
       <> P.group ("(" <> fromString (Hash.showBase32Hex hash) <> ")")

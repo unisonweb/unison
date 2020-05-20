@@ -38,6 +38,7 @@ import qualified Unison.Codebase.Editor.SlurpResult as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, printNamespace)
+import qualified Unison.CommandLine.InputPattern as InputPattern
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
 
 import           Control.Lens
@@ -419,7 +420,10 @@ loop = do
           MergeBuiltinsI -> "builtins.merge"
           MergeIOBuiltinsI -> "builtins.mergeio"
           PullRemoteBranchI orepo dest _syncMode ->
-            "pull "
+            (Text.pack . InputPattern.patternName
+              $ InputPatterns.patternFromInput input)
+              <> " "
+              -- todo: show the actual config-loaded namespace
               <> maybe "(remote namespace from .unisonConfig)"
                        (uncurry3 printNamespace) orepo
               <> " "

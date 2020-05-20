@@ -44,6 +44,7 @@ import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
+import Data.Tuple.Extra (uncurry3)
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -738,14 +739,14 @@ pull = InputPattern
     _ -> Left (I.help pull)
   )
 
-pullRepair :: InputPattern
-pullRepair = InputPattern
+pullExhaustive :: InputPattern
+pullExhaustive = InputPattern
   "debug.pull-exhaustive"
   []
   [(Required, gitUrlArg), (Optional, pathArg)]
   (P.lines
     [ P.wrap $
-      "The " <> makeExample' pullRepair <> "command can be used in place of"
+      "The " <> makeExample' pullExhaustive <> "command can be used in place of"
         <> makeExample' pull <> "to complete namespaces"
         <> "which were pulled incompletely due to a bug in UCM"
         <> "versions M1l and earlier.  It may be extra slow!"
@@ -808,14 +809,14 @@ push = InputPattern
       Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.ShortCircuit
   )
 
-pushRepair :: InputPattern
-pushRepair = InputPattern
+pushExhaustive :: InputPattern
+pushExhaustive = InputPattern
   "debug.push-exhaustive"
   []
   [(Required, gitUrlArg), (Optional, pathArg)]
   (P.lines
     [ P.wrap $
-      "The " <> makeExample' pushRepair <> "command can be used in place of"
+      "The " <> makeExample' pushExhaustive <> "command can be used in place of"
         <> makeExample' push <> "to repair remote namespaces"
         <> "which were pushed incompletely due to a bug in UCM"
         <> "versions M1l and earlier. It may be extra slow!"
@@ -1340,8 +1341,8 @@ validInputs =
   , names
   , push
   , pull
-  , pushRepair
-  , pullRepair
+  , pushExhaustive
+  , pullExhaustive
   , createPullRequest
   , loadPullRequest
   , cd
@@ -1511,3 +1512,23 @@ gitUrlArg = ArgumentType "git-url" $ \input _ _ _ -> case input of
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [ a | (Nothing, a) <- map f as `zip` as ]
+
+patternFromInput :: Input -> InputPattern
+patternFromInput = \case
+  Input.PushRemoteBranchI _ _ SyncMode.ShortCircuit -> push
+  Input.PushRemoteBranchI _ _ SyncMode.Complete -> pushExhaustive
+  Input.PullRemoteBranchI _ _ SyncMode.ShortCircuit -> pull
+  Input.PullRemoteBranchI _ _ SyncMode.Complete -> pushExhaustive
+  _ -> error "todo: finish this function"
+
+inputStringFromInput :: IsString s => Input -> P.Pretty s
+inputStringFromInput = \case
+  i@(Input.PushRemoteBranchI rh p' _) ->
+    (P.string . I.patternName $ patternFromInput i)
+      <> (" " <> maybe mempty (P.text . uncurry RemoteRepo.printHead) rh)
+      <> " " <> P.shown p'
+  i@(Input.PullRemoteBranchI ns p' _) ->
+    (P.string . I.patternName $ patternFromInput i)
+      <> (" " <> maybe mempty (P.text . uncurry3 RemoteRepo.printNamespace) ns)
+      <> " " <> P.shown p'
+  _ -> error "todo: finish this function"
