@@ -52,7 +52,7 @@ syncComplete = scope "syncComplete" $ do
   targetDir <- io $ Temp.createTempDirectory tmp "target"
   let
     delete = io . traverse_ removeFile . fmap (targetDir </>)
-    observe expectation title files = scope title . for_ files $ \path ->
+    observe title expectation files = scope title . for_ files $ \path ->
       scope (makeTitle path) $ io (doesFileExist $ targetDir </> path) >>= expectation
 
   cache <- io Cache.nullCache
@@ -79,25 +79,25 @@ pushComplete.b.c.y = x + 1
     >>= either (crash.show)
       (pure . Branch.getAt' (Path $ Seq.fromList ["pushComplete", "b"] ))
   io $ Codebase.syncToDirectory codebase targetDir SyncMode.ShortCircuit b
-  observe expect "initial" files
+  observe "initial" expect files
 
   -- delete pushComplete.b.c (#5lk9autjd5)
   -- delete x                (#msp7bv40rv)
   -- observe that pushComplete.b.c and x are now gone
   delete files
-  observe (expect . not) "deleted" files
+  observe "deleted" (expect . not) files
 
   -- sync again with ShortCircuit
   -- observe that pushComplete.b.c and x are still missing.
   -- `c` is short-circuited at `b`, and `x` is short-circuited
   -- at both `pushComplete` and `y`.
   io $ Codebase.syncToDirectory codebase targetDir SyncMode.ShortCircuit b
-  observe (expect . not) "short-circuited" files
+  observe "short-circuited" (expect . not) files
 
   -- sync again with Complete
   -- observe that pushComplete.b.c and x are back
   io $ Codebase.syncToDirectory codebase targetDir SyncMode.Complete b
-  observe expect "complete" files
+  observe "complete" expect files
 
   -- if we haven't crashed, clean up!
   io $ removeDirectoryRecursive tmp
