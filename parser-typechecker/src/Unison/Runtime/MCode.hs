@@ -24,14 +24,13 @@ import GHC.Stack (HasCallStack)
 
 import Data.Bifunctor (bimap)
 import Data.List (partition)
+import Data.Bits ((.|.), shiftL)
+import Data.Word (Word64)
 
 import Data.Primitive.PrimArray
 
 import qualified Data.Map.Strict as M
-import Data.IntMap.Strict (IntMap)
-import qualified Data.IntMap.Strict as IM
-import Data.IntSet (IntSet)
-import qualified Data.IntSet as IS
+import Unison.Util.WordContainers as WC
 
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -47,6 +46,9 @@ import Unison.Runtime.ANF
   , Mem(..)
   , SuperNormal(..)
   , SuperGroup(..)
+  , RTag
+  , CTag
+  , Tag(..)
   , pattern TVar
   , pattern TLit
   , pattern TApv
@@ -345,17 +347,17 @@ data Instr
                 !Args        -- arguments
 
   -- Set the value of a dynamic reference
-  | SetDyn !Int -- the prompt tag of the reference
+  | SetDyn !Word64 -- the prompt tag of the reference
            !Int -- the stack index of the closure to store
 
   -- Capture the continuation up to a given marker.
-  | Capture !Int -- the prompt tag
+  | Capture !Word64 -- the prompt tag
 
   -- This is essentially the opposite of `Call`. Pack a given
   -- statically known function into a closure with arguments.
   -- No stack is necessary, because no nested evaluation happens,
   -- so the instruction directly takes a follow-up.
-  | Name !Int !Args
+  | Name !Word64 !Args
 
   -- Dump some debugging information about the machine state to
   -- the screen.
@@ -363,8 +365,8 @@ data Instr
 
   -- Pack a data type value into a closure and place it
   -- on the stack.
-  | Pack !Int  -- tag
-         !Args -- arguments to pack
+  | Pack !Word64 -- tag
+         !Args   -- arguments to pack
 
   -- Unpack the contents of a data type onto the stack
   | Unpack !Int -- stack index of data to unpack
@@ -377,7 +379,7 @@ data Instr
   | Print !Int -- index of the primitive value to print
 
   -- Put a delimiter on the continuation
-  | Reset !IntSet -- prompt ids
+  | Reset !WordSet -- prompt ids
 
   | Fork !Section
   deriving (Show, Eq, Ord)
@@ -398,9 +400,9 @@ data Section
   -- stack check if we know that the current stack allowance is
   -- sufficient for where we're jumping to.
   | Call
-      !Bool -- skip stack check
-      !Int  -- global function reference
-      !Args -- arguments
+      !Bool   -- skip stack check
+      !Word64 -- global function reference
+      !Args   -- arguments
 
   -- Jump to a captured continuation value.
   | Jump
@@ -436,25 +438,25 @@ data Comb
   deriving (Show, Eq, Ord)
 
 data Ref
-  = Stk !Int -- stack reference to a closure
-  | Env !Int -- global environment reference to a combinator
-  | Dyn !Int -- dynamic scope reference to a closure
+  = Stk !Int    -- stack reference to a closure
+  | Env !Word64 -- global environment reference to a combinator
+  | Dyn !Word64 -- dynamic scope reference to a closure
   deriving (Show, Eq, Ord)
 
 data Branch
   -- if tag == n then t else f
-  = Test1 !Int
+  = Test1 !Word64
           !Section
           !Section
-  | Test2 !Int !Section    -- if tag == m then ...
-          !Int !Section    -- else if tag == n then ...
+  | Test2 !Word64 !Section -- if tag == m then ...
+          !Word64 !Section -- else if tag == n then ...
           !Section         -- else ...
   | TestT !Section
-          !(IntMap Section)
+          !(WordMap Section)
   deriving (Show, Eq, Ord)
 
 type Ctx v = [(Maybe v,Mem)]
-type RCtx v = M.Map v Int
+type RCtx v = M.Map v Word64
 
 ctxResolve :: Var v => Ctx v -> v -> Maybe (Int,Mem)
 ctxResolve ctx v = walk 0 0 ctx
@@ -467,14 +469,16 @@ ctxResolve ctx v = walk 0 0 ctx
     where
     (ui',bi') = case m of BX -> (ui,bi+1) ; UN -> (ui+1,bi)
 
-rctxResolve :: Var v => RCtx v -> v -> Maybe Int
+rctxResolve :: Var v => RCtx v -> v -> Maybe Word64
 rctxResolve ctx u = M.lookup u ctx
 
-emitCombs :: Var v => Int -> SuperGroup v -> (Comb, IntMap Comb, Int)
+emitCombs
+  :: Var v => Word64 -> SuperGroup v
+  -> (Comb, WordMap Comb, Word64)
 emitCombs frsh (Rec grp ent)
-  = (emitComb rec ent, IM.fromList aux, frsh')
+  = (emitComb rec ent, WC.mapFromList aux, frsh')
   where
-  frsh' = frsh + length grp
+  frsh' = frsh + fromIntegral (length grp)
   (rvs, cmbs) = unzip grp
   rec = M.fromList $ zip rvs [frsh..]
   aux = zip [frsh..] $ emitComb rec <$> cmbs
@@ -514,13 +518,13 @@ emitSection _   ctx (TCom n args)
   = Ins (Name n $ emitArgs ctx args) $ Yield (BArg1 0)
   | otherwise -- slow path
   = App False (Env n) $ emitArgs ctx args
-emitSection _   ctx (TCon _ t args)
-  = Ins (Pack t (emitArgs ctx args))
+emitSection _   ctx (TCon r t args)
+  = Ins (Pack (packTag r t) (emitArgs ctx args))
   . Yield $ BArg1 0
 emitSection _   ctx (TReq a e args)
   -- Currently implementing packed calling convention for abilities
-  = Ins (Pack e (emitArgs ctx args))
-  . App True (Dyn a) $ BArg1 0
+  = Ins (Pack (rawTag e) (emitArgs ctx args))
+  . App True (Dyn $ rawTag a) $ BArg1 0
 emitSection _   ctx (TKon k args)
   | Just (i, BX) <- ctxResolve ctx k = Jump i $ emitArgs ctx args
   | Nothing <- ctxResolve ctx k = emitSectionVErr k
@@ -552,7 +556,7 @@ emitSection rec ctx (TMatch v bs)
   = error "emitSection: could not resolve match variable"
 emitSection rec ctx (THnd rs h df b)
   | Just (i,BX) <- ctxResolve ctx h
-  = Ins (Reset $ IS.fromList rs)
+  = Ins (Reset . WC.setFromList $ rs)
   $ flip (foldr (\r -> Ins (SetDyn r i))) rs
   $ maybe id (\(TAbss us d) l ->
       Let l $ emitSection rec (fmap ((,BX).Just) us ++ ctx) d) df
@@ -577,6 +581,12 @@ emitSectionVErr v
   = error
   $ "emitSection: could not resolve function variable: " ++ show v
 
+packTag :: RTag -> CTag -> Word64
+packTag rt ct = ri .|. ci
+  where
+  ri = rawTag rt `shiftL` 16
+  ci = rawTag ct
+
 emitLet :: Var v => RCtx v -> Ctx v -> ANormalT v -> Section -> Section
 -- Currently packed literals
 emitLet _   _   (ALit l)
@@ -586,8 +596,8 @@ emitLet _    ctx (AApp (FComb n) args)
   -- or not here. We aren't carrying the information here yet, though.
   | False -- not saturated
   = Ins . Name n $ emitArgs ctx args
-emitLet _   ctx (AApp (FCon _ n) args) -- TODO: use reference number
-  = Ins . Pack n $ emitArgs ctx args
+emitLet _   ctx (AApp (FCon r n) args) -- TODO: use reference number
+  = Ins . Pack (packTag r n) $ emitArgs ctx args
 emitLet _   ctx (AApp (FPrim p) args)
   = Ins . either emitPOp emitIOp p $ emitArgs ctx args
 emitLet rec ctx bnd = Let (emitSection rec ctx (TTm bnd))
@@ -774,7 +784,7 @@ emitDataMatching
   :: Var v
   => RCtx v
   -> Ctx v
-  -> IntMap ([Mem], ANormal v)
+  -> WordMap ([Mem], ANormal v)
   -> Maybe (ANormal v)
   -> Section
 emitDataMatching rec ctx cs df
@@ -789,7 +799,7 @@ emitSumMatching
   -> Ctx v
   -> v
   -> Int
-  -> IntMap ([Mem], ANormal v)
+  -> WordMap ([Mem], ANormal v)
   -> Section
 emitSumMatching rec ctx v i cs
   = Match i . TestT edf $ fmap (emitSumCase rec ctx v) cs
@@ -800,7 +810,7 @@ emitRequestMatching
   :: Var v
   => RCtx v
   -> Ctx v
-  -> IntMap (IntMap ([Mem], ANormal v))
+  -> WordMap (WordMap ([Mem], ANormal v))
   -> Section
 emitRequestMatching rec ctx hs
   = Match 0 . TestT edf $ fmap f hs
@@ -813,7 +823,7 @@ emitIntegralMatching
   => RCtx v
   -> Ctx v
   -> Int
-  -> IntMap (ANormal v)
+  -> WordMap (ANormal v)
   -> Maybe (ANormal v)
   -> Section
 emitIntegralMatching rec ctx i cs df

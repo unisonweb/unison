@@ -15,21 +15,20 @@ import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
 import Data.Primitive.Array
 
-import Data.IntSet (IntSet)
-import Data.IntMap.Strict (IntMap)
-
 import Data.Word
 
 import Unison.Runtime.ANF (Mem(..))
 import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
 
+import Unison.Util.WordContainers as WC
+
 -- Evaluation stack
 data K
   = KE
   -- mark continuation with a prompt
-  | Mark !IntSet
-         !(IntMap Closure)
+  | Mark !WordSet
+         !(WordMap Closure)
          !K
   -- save information about a frame for later resumption
   | Push !Int -- unboxed frame size
@@ -42,7 +41,7 @@ data K
 
 -- Comb with an identifier
 data IComb
-  = IC !Int !Comb
+  = IC !Word64 !Comb
   deriving (Show)
 
 instance Eq IComb where
@@ -58,13 +57,13 @@ data Closure
   = PAp {-# unpack #-} !IComb     -- code
         {-# unpack #-} !(Seg 'UN) -- unboxed args
         {-  unpack  -} !(Seg 'BX) -- boxed args
-  | Enum !Int
-  | DataU1 !Int !Int
-  | DataU2 !Int !Int !Int
-  | DataB1 !Int !Closure
-  | DataB2 !Int !Closure !Closure
-  | DataUB !Int !Int !Closure
-  | DataG !Int !(Seg 'UN) !(Seg 'BX)
+  | Enum !Word64
+  | DataU1 !Word64 !Int
+  | DataU2 !Word64 !Int !Int
+  | DataB1 !Word64 !Closure
+  | DataB2 !Word64 !Closure !Closure
+  | DataUB !Word64 !Int !Closure
+  | DataG !Word64 !(Seg 'UN) !(Seg 'BX)
   | Captured !K {-# unpack #-} !(Seg 'UN) !(Seg 'BX)
   | Foreign !Foreign
   | BlackHole

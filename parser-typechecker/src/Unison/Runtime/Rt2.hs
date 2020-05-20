@@ -8,13 +8,13 @@ import Data.Maybe (fromMaybe)
 
 import Data.Bits
 import Data.Traversable
+import Data.Word (Word64)
+
 import Control.Lens ((<&>))
 import Control.Concurrent (forkIOWithUnmask, ThreadId)
 import Control.Exception (try, mask)
 import Control.Monad ((<=<))
 
-import qualified Data.IntSet as S
-import qualified Data.IntMap.Strict as M
 import qualified Data.Primitive.PrimArray as PA
 
 import Unison.Runtime.ANF (Mem(..))
@@ -22,9 +22,11 @@ import Unison.Runtime.Foreign
 import Unison.Runtime.Stack
 import Unison.Runtime.MCode
 
-type Tag = Int
-type Env = Int -> Comb
-type DEnv = M.IntMap Closure
+import Unison.Util.WordContainers as WC
+
+type Tag = Word64
+type Env = Word64 -> Comb
+type DEnv = WordMap Closure
 
 type Unmask = forall a. IO a -> IO a
 
@@ -37,10 +39,10 @@ eval0 :: Env -> Section -> IO ()
 eval0 !env !co = do
   ustk <- alloc
   bstk <- alloc
-  mask $ \unmask -> eval unmask env M.empty ustk bstk KE co
+  mask $ \unmask -> eval unmask env mempty ustk bstk KE co
 
-lookupDenv :: Int -> DEnv -> Closure
-lookupDenv p denv = fromMaybe BlackHole $ M.lookup p denv
+lookupDenv :: Word64 -> DEnv -> Closure
+lookupDenv p denv = fromMaybe BlackHole $ WC.lookup p denv
 
 exec
   :: Unmask -> Env -> DEnv
@@ -57,7 +59,7 @@ exec _      !env !denv !ustk !bstk !k (Name n args) = do
   pure (denv, ustk, bstk, k)
 exec _      !_   !denv !ustk !bstk !k (SetDyn p i) = do
   clo <- peekOff bstk i
-  pure (M.insert p clo denv, ustk, bstk, k)
+  pure (WC.mapInsert p clo denv, ustk, bstk, k)
 exec _      !_   !denv !ustk !bstk !k (Capture p) = do
   (sk,denv,ustk,bstk,useg,bseg,k) <- splitCont denv ustk bstk k p
   bstk <- bump bstk
@@ -87,7 +89,7 @@ exec _      !_   !denv !ustk !bstk !k (Lit n) = do
   pure (denv, ustk, bstk, k)
 exec _      !_   !denv !ustk !bstk !k (Reset ps) = do
   pure (denv, ustk, bstk, Mark ps clos k)
- where clos = M.restrictKeys denv ps
+ where clos = WC.restrictKeys denv ps
 exec unmask !_   !denv !ustk !bstk !k (ForeignCall catch (FF f) args)
     = foreignArgs ustk bstk args
   >>= perform
@@ -104,10 +106,13 @@ exec unmask !env !denv !ustk !bstk !k (Fork lz) = do
   pure (denv, ustk, bstk, k)
 {-# inline exec #-}
 
+maskTag :: Word64 -> Word64
+maskTag i = i .&. 0xFFFF
+
 eval :: Unmask -> Env -> DEnv
      -> Stack 'UN -> Stack 'BX -> K -> Section -> IO ()
 eval unmask !env !denv !ustk !bstk !k (Match i br) = do
-  t <- peekOff ustk i
+  t <- peekOffN ustk i
   eval unmask env denv ustk bstk k $ selectBranch t br
 eval unmask !env !denv !ustk !bstk !k (Yield args) = do
   (ustk, bstk) <- moveArgs ustk bstk args
@@ -135,7 +140,7 @@ eval _      !_   !_    !_    !_    !_ (Die s) = error s
 forkEval
   :: Env -> DEnv -> K -> Section -> Stack 'UN -> Stack 'BX -> IO ThreadId
 forkEval env denv k nx ustk bstk = forkIOWithUnmask $ \unmask -> do
-  (denv, ustk, bstk, k) <- discardCont denv ustk bstk k (-1)
+  (denv, ustk, bstk, k) <- discardCont denv ustk bstk k 0
   eval unmask env denv ustk bstk k nx
 {-# inline forkEval #-}
 
@@ -212,8 +217,8 @@ repush unmask !env !ustk !bstk = go
  go !denv KE !k = yield unmask env denv ustk bstk k
  go !denv (Mark ps cs sk) !k = go denv' sk $ Mark ps cs' k
   where
-  denv' = cs <> M.withoutKeys denv ps
-  cs' = M.restrictKeys denv ps
+  denv' = cs <> WC.withoutKeys denv ps
+  cs' = WC.restrictKeys denv ps
  go !denv (Push un bn ua ba nx sk) !k
    = go denv sk $ Push un bn ua ba nx k
 {-# inline repush #-}
@@ -379,44 +384,44 @@ dumpData
   :: Stack 'UN -> Stack 'BX -> Closure -> IO (Stack 'UN, Stack 'BX)
 dumpData !ustk !bstk (Enum t) = do
   ustk <- bump ustk
-  poke ustk t
+  pokeN ustk $ maskTag t
   pure (ustk, bstk)
 dumpData !ustk !bstk (DataU1 t x) = do
   ustk <- bumpn ustk 2
   pokeOff ustk 1 x
-  poke ustk t
+  pokeN ustk $ maskTag t
   pure (ustk, bstk)
 dumpData !ustk !bstk (DataU2 t x y) = do
   ustk <- bumpn ustk 3
   pokeOff ustk 2 y
   pokeOff ustk 1 x
-  poke ustk t
+  pokeN ustk $ maskTag t
   pure (ustk, bstk)
 dumpData !ustk !bstk (DataB1 t x) = do
   ustk <- bump ustk
   bstk <- bump bstk
   poke bstk x
-  poke ustk t
+  pokeN ustk $ maskTag t
   pure (ustk, bstk)
 dumpData !ustk !bstk (DataB2 t x y) = do
   ustk <- bump ustk
   bstk <- bumpn bstk 2
   pokeOff bstk 1 y
   poke bstk x
-  poke ustk t
+  pokeN ustk $ maskTag t
   pure (ustk, bstk)
 dumpData !ustk !bstk (DataUB t x y) = do
   ustk <- bumpn ustk 2
   bstk <- bump bstk
   pokeOff ustk 1 x
   poke bstk y
-  poke ustk t
+  pokeN ustk $ maskTag t
   pure (ustk, bstk)
 dumpData !ustk !bstk (DataG t us bs) = do
   ustk <- dumpSeg ustk us S
   bstk <- dumpSeg bstk bs S
   ustk <- bump ustk
-  poke ustk t
+  pokeN ustk $ maskTag t
   pure (ustk, bstk)
 dumpData !_    !_  clo = error $ "dumpData: bad closure: " ++ show clo
 {-# inline dumpData #-}
@@ -587,7 +592,7 @@ prim2 !ustk LEQN !i !j = do
 yield :: Unmask -> Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> IO ()
 yield unmask !env !denv !ustk !bstk !k = leap denv k
  where
- leap !denv (Mark ps cs k) = leap (cs <> M.withoutKeys denv ps) k
+ leap !denv (Mark ps cs k) = leap (cs <> WC.withoutKeys denv ps) k
  leap !denv (Push ufsz bfsz uasz basz nx k) = do
    ustk <- restoreFrame ustk ufsz uasz
    bstk <- restoreFrame bstk bfsz basz
@@ -603,23 +608,23 @@ selectBranch t (Test2 u cu v cv e)
   | t == u    = cu
   | t == v    = cv
   | otherwise = e
-selectBranch t (TestT df cs) = M.findWithDefault df t cs
+selectBranch t (TestT df cs) = lookupWithDefault df t cs
 {-# inline selectBranch #-}
 
 splitCont
   :: DEnv -> Stack 'UN -> Stack 'BX -> K
-  -> Int -> IO (K, DEnv, Stack 'UN, Stack 'BX, Seg 'UN, Seg 'BX, K)
+  -> Word64 -> IO (K, DEnv, Stack 'UN, Stack 'BX, Seg 'UN, Seg 'BX, K)
 splitCont !denv !ustk !bstk !k !p
   = walk denv (asize ustk) (asize bstk) KE k
  where
  walk !denv !usz !bsz !ck KE
    = error "fell off stack" >> finish denv usz bsz ck KE
  walk !denv !usz !bsz !ck (Mark ps cs k)
-   | S.member p ps = finish denv' usz bsz ck k
-   | otherwise     = walk denv' usz bsz (Mark ps cs' ck) k
+   | WC.member p ps = finish denv' usz bsz ck k
+   | otherwise      = walk denv' usz bsz (Mark ps cs' ck) k
   where
-  denv' = cs <> M.withoutKeys denv ps
-  cs' = M.restrictKeys denv ps
+  denv' = cs <> WC.withoutKeys denv ps
+  cs' = WC.restrictKeys denv ps
  walk !denv !usz !bsz !ck (Push un bn ua ba br k)
    = walk denv (usz+un+ua) (bsz+bn+ba) (Push un bn ua ba br ck) k
 
@@ -631,7 +636,7 @@ splitCont !denv !ustk !bstk !k !p
 
 discardCont
   :: DEnv -> Stack 'UN -> Stack 'BX -> K
-  -> Int -> IO (DEnv, Stack 'UN, Stack 'BX, K)
+  -> Word64 -> IO (DEnv, Stack 'UN, Stack 'BX, K)
 discardCont denv ustk bstk k p
     = splitCont denv ustk bstk k p
   <&> \(_, denv, ustk, bstk, _, _, k) -> (denv, ustk, bstk, k)
@@ -640,6 +645,6 @@ discardCont denv ustk bstk k p
 resolve :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> Ref -> IO Closure
 resolve env _ _ _ (Env i) = return $ PAp (IC i $ env i) unull bnull
 resolve _ _ _ bstk (Stk i) = peekOff bstk i
-resolve _ denv _ _ (Dyn i) = case M.lookup i denv of
+resolve _ denv _ _ (Dyn i) = case WC.lookup i denv of
   Just clo -> pure clo
   _ -> error $ "resolve: looked up bad dynamic: " ++ show i

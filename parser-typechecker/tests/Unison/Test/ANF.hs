@@ -13,8 +13,8 @@ import Unison.Runtime.MCode (emitCombs)
 import Unison.Type as Ty
 import Unison.Var as Var
 
-import Data.IntMap (IntMap)
-import qualified Data.IntMap as IMap
+import Unison.Util.WordContainers as WC
+
 import qualified Data.Set as Set
 
 import qualified Unison.Term as Term
@@ -24,13 +24,25 @@ import Unison.Test.Common (tm)
 import Control.Monad.Reader (ReaderT(..))
 import Control.Monad.State (evalState)
 
+import Data.Word (Word64)
+
 -- testSNF s = ok
 --   where
 --   t0 = tm s
 --   snf = toSuperNormal (const 0) t0
 
+simpleRefs :: Reference -> Word64
+simpleRefs r
+  | r == Ty.natRef = 0
+  | r == Ty.intRef = 1
+  | r == Ty.floatRef = 2
+  | r == Ty.booleanRef = 3
+  | r == Ty.textRef = 4
+  | r == Ty.charRef = 5
+  | otherwise = 100
+
 runANF :: Var v => ANFM v a -> a
-runANF m = evalState (runReaderT m (Set.empty, const 0)) (Set.empty, [])
+runANF m = evalState (runReaderT m (Set.empty, simpleRefs)) (Set.empty, [])
 
 testANF :: String -> Test ()
 testANF s
@@ -70,7 +82,8 @@ denormalize (TName _ _ _ _)
 denormalize (TMatch v cs)
   = Term.match () (ABT.var v) $ denormalizeMatch cs
 denormalize (TApp f args)
-  | FCon r 0 <- f
+  | FCon rt 0 <- f
+  , r <- denormalizeRef rt
   , r `elem` [Ty.natRef, Ty.intRef]
   , [v] <- args
   = Term.var () v
@@ -79,27 +92,39 @@ denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
   df = case f of
     FVar v -> Term.var () v
     FComb _ -> error "FComb"
-    FCon r n -> Term.constructor () r n
-    FReq r n -> Term.request () (denormalizeRef r) n
+    FCon r n ->
+      Term.constructor () (denormalizeRef r) (fromIntegral $ rawTag n)
+    FReq r n ->
+      Term.request () (denormalizeRef r) (fromIntegral $ rawTag n)
     FPrim _ -> error "FPrim"
     FCont _ -> error "denormalize FCont"
 
-denormalizeRef :: Int -> Reference
-denormalizeRef _ = error "denormalizeRef"
+denormalizeRef :: RTag -> Reference
+denormalizeRef r
+  | 0 <- rawTag r = Ty.natRef
+  | 1 <- rawTag r = Ty.intRef
+  | 2 <- rawTag r = Ty.floatRef
+  | 3 <- rawTag r = Ty.booleanRef
+  | 4 <- rawTag r = Ty.textRef
+  | 5 <- rawTag r = Ty.charRef
+  | otherwise = error "denormalizeRef"
+
+backReference :: Word64 -> Reference
+backReference _ = error "backReference"
 
 denormalizeMatch
   :: Var v => Branched (ANormal v) -> [Term.MatchCase () (Term.Term0 v)]
 denormalizeMatch b
   | MatchEmpty <- b = []
   | MatchIntegral m df <- b
-  = (dcase (ipat Ty.intRef) <$> IMap.toList m) ++ dfcase df
+  = (dcase (ipat Ty.intRef) <$> mapToList m) ++ dfcase df
   | MatchData r cs Nothing <- b
-  , [(0, ([UN], zb))] <- IMap.toList cs
+  , [(0, ([UN], zb))] <- mapToList cs
   , TAbs i (TMatch j (MatchIntegral m df))  <- zb
   , i == j
-  = (dcase (ipat r) <$> IMap.toList m) ++ dfcase df
+  = (dcase (ipat r) <$> mapToList m) ++ dfcase df
   | MatchData r m df <- b
-  = (dcase (dpat r) . fmap snd <$> IMap.toList m) ++ dfcase df
+  = (dcase (dpat r) . fmap snd <$> mapToList m) ++ dfcase df
   | MatchRequest hs <- b = denormalizeHandler hs
   | MatchSum _ <- b = error "MatchSum not a compilation target"
   where
@@ -113,7 +138,7 @@ denormalizeMatch b
   ipat r _ i
     | r == Ty.natRef = NatP () $ fromIntegral i
     | otherwise = IntP () $ fromIntegral i
-  dpat r n t = ConstructorP () r t (replicate n $ VarP ())
+  dpat r n t = ConstructorP () r (fromIntegral t) (replicate n $ VarP ())
 
 denormalizeBranch (TAbs v br) = (n+1, ABT.abs v dbr)
  where (n, dbr) = denormalizeBranch br
@@ -121,21 +146,19 @@ denormalizeBranch tm = (0, denormalize tm)
 
 denormalizeHandler
   :: Var v
-  => IntMap (IntMap ([Mem], ANormal v))
+  => WordMap (WordMap ([Mem], ANormal v))
   -> [Term.MatchCase () (Term.Term0 v)]
 denormalizeHandler cs = dcs
   where
-  dcs = IMap.foldMapWithKey rf cs
-  rf r rcs = IMap.foldMapWithKey (cf $ backReference r) rcs
+  dcs = foldMapWithKey rf cs
+  rf r rcs = foldMapWithKey (cf $ backReference r) rcs
   cf r t b = [ Term.MatchCase
-                 (EffectBindP () r t (replicate n $ VarP ()) (VarP ()))
+                 (EffectBindP () r (fromIntegral t)
+                   (replicate n $ VarP ()) (VarP ()))
                  Nothing
                  db
              ]
    where (n, db) = denormalizeBranch (snd b)
-
-backReference :: Int -> Reference
-backReference = error "backReference"
 
 test :: Test ()
 test = scope "anf" . tests $

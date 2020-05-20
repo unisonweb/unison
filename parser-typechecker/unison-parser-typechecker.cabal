@@ -140,6 +140,7 @@ library
     Unison.Util.CycleTable
     Unison.Util.CyclicEq
     Unison.Util.CyclicOrd
+    Unison.Util.WordContainers
 
   build-depends:
     ansi-terminal,

@@ -23,10 +23,14 @@ import qualified Unison.Type as Ty
 import qualified Unison.DataDeclaration as Ty
   (unitRef,optionalRef)
 
+import Unison.Util.WordContainers as WC
+
+import Data.Word (Word64)
+
 import Data.Set (Set, insert)
 import qualified Data.Set as Set
 
-import Data.IntMap.Strict (singleton, fromList)
+import Data.Map (Map)
 import qualified Data.Map as Map
 
 freshes :: Var v => Int -> [v]
@@ -41,31 +45,34 @@ freshes' avoid0 = go avoid0 []
        in go (insert v avoid) (v:vs) (n-1)
 
 fls, tru :: Var v => ANormal v
-fls = TCon Ty.booleanRef 0 []
-tru = TCon Ty.booleanRef 1 []
+fls = TCon (rtag Ty.booleanRef) 0 []
+tru = TCon (rtag Ty.booleanRef) 1 []
 
 boolift :: Var v => v -> ANormalT v
 boolift v
-  = AMatch v $ MatchIntegral (fromList [(0,fls), (1,tru)]) Nothing
+  = AMatch v $ MatchIntegral (mapFromList [(0,fls), (1,tru)]) Nothing
 
 notlift :: Var v => v -> ANormalT v
 notlift v
-  = AMatch v $ MatchIntegral (fromList [(1,fls), (0,tru)]) Nothing
+  = AMatch v $ MatchIntegral (mapFromList [(1,fls), (0,tru)]) Nothing
 
 unbox :: Var v => v -> Reference -> v -> ANormal v -> ANormal v
 unbox v0 r v b
-  = TMatch v0 $ MatchData r (singleton 0 $ ([UN], TAbs v b)) Nothing
+  = TMatch v0
+  $ MatchData r (mapSingleton 0 $ ([UN], TAbs v b)) Nothing
 
 unwrap :: Var v => v -> Reference -> v -> ANormal v -> ANormal v
 unwrap v0 r v b
-  = TMatch v0 $ MatchData r (singleton 0 $ ([BX], TAbs v b)) Nothing
+  = TMatch v0
+  $ MatchData r (mapSingleton 0 $ ([BX], TAbs v b)) Nothing
 
-unenum :: Var v => Int -> v -> Reference -> v -> ANormal v -> ANormal v
+unenum
+  :: Var v => Word64 -> v -> Reference -> v -> ANormal v -> ANormal v
 unenum n v0 r v nx
   = TMatch v0 $ MatchData r cases Nothing
   where
   mkCase i = (i, ([], TLet v UN (ALit . I $ fromIntegral i) nx))
-  cases = fromList . fmap mkCase $ [0..n-1]
+  cases = mapFromList . fmap mkCase $ [0..n-1]
 
 unop0 :: Var v => Int -> ([v] -> ANormal v) -> SuperNormal v
 unop0 n f
@@ -88,7 +95,7 @@ unop pop rf
   = unop0 2 $ \[x0,x,r]
  -> unbox x0 rf x
   . TLet r UN (APrm pop [x])
-  $ TCon rf 0 [r]
+  $ TCon (rtag rf) 0 [r]
 
 binop :: Var v => POp -> Reference -> SuperNormal v
 binop pop rf = binop' pop rf rf rf
@@ -103,7 +110,7 @@ binop' pop rfx rfy rfr
  -> unbox x0 rfx x
   . unbox y0 rfy y
   . TLet r UN (APrm pop [x,y])
-  $ TCon rfr 0 [r]
+  $ TCon (rtag rfr) 0 [r]
 
 cmpop :: Var v => POp -> Reference -> SuperNormal v
 cmpop pop rf
@@ -182,7 +189,7 @@ trni = unop0 3 $ \[x0,x,z,b]
      . TLet b UN (APrm LEQI [x, z])
      . TMatch b
      $ MatchIntegral
-         (singleton 1 $ TCon Ty.natRef 0 [z])
+         (mapSingleton 1 $ TCon (rtag Ty.natRef) 0 [z])
          (Just $ TVar x0)
 
 modular :: Var v => POp -> (Bool -> ANormal v) -> SuperNormal v
@@ -193,7 +200,7 @@ modular pop ret
   . TLet m UN (APrm pop [x,t])
   . TMatch m
   $ MatchIntegral
-      (singleton 1 $ ret True)
+      (mapSingleton 1 $ ret True)
       (Just $ ret False)
 
 evni, evnn, oddi, oddn :: Var v => SuperNormal v
@@ -209,9 +216,9 @@ dropn = binop0 4 $ \[x0,y0,x,y,b,r]
       . TLet b UN (APrm LEQN [y,x])
       . TLet r UN
           (AMatch b $ MatchIntegral
-             (singleton 1 $ TLit $ N 0)
+             (mapSingleton 1 $ TLit $ N 0)
              (Just $ TPrm SUBN [y,x]))
-      $ TCon Ty.natRef 0 [r]
+      $ TCon (rtag Ty.natRef) 0 [r]
 
 jumpk :: Var v => SuperNormal v
 jumpk = binop0 0 $ \[k,a] -> TKon k [a]
@@ -221,11 +228,11 @@ handle'io
   = unop0 0 $ \[rq]
  -> TMatch rq
   . MatchRequest
-  . singleton 0 $ cases rq
+  . mapSingleton 0 $ cases rq
   where
   cases (Set.singleton -> avoid0)
     = fmap ($ avoid0)
-    . fromList
+    . mapFromList
     . zip [0..]
     $ [ open'file
       , close'file
@@ -272,8 +279,8 @@ io'error'result0
 io'error'result0 ins args ior ccs vs e nx
   = TLet ior UN (AIOp ins args)
   . TMatch ior . MatchSum
-  $ fromList
-  [ (0, ([BX], TAbs e $ TCon eitherReference 0 [e]))
+  $ mapFromList
+  [ (0, ([BX], TAbs e $ TCon (rtag eitherReference) 0 [e]))
   , (1, (ccs, TAbss vs nx))
   ]
 
@@ -285,7 +292,7 @@ io'error'result'let
 io'error'result'let ins args ior ccs vs e r m
   = io'error'result0 ins args ior ccs vs e
   . TLet r BX m
-  $ TCon eitherReference 1 [r]
+  $ TCon (rtag eitherReference) 1 [r]
 
 io'error'result'direct
   :: Var v
@@ -294,7 +301,7 @@ io'error'result'direct
   -> ANormal v
 io'error'result'direct ins args ior e r
   = io'error'result0 ins args ior [BX] [r] e
-  $ TCon eitherReference 1 [r]
+  $ TCon (rtag eitherReference) 1 [r]
 
 io'error'result'unit
   :: Var v
@@ -303,7 +310,7 @@ io'error'result'unit
   -> ANormal v
 io'error'result'unit ins args ior e r
   = io'error'result'let ins args ior [] [] e r
-  $ ACon Ty.unitRef 0 []
+  $ ACon (rtag Ty.unitRef) 0 []
 
 io'error'result'bool
   :: Var v
@@ -376,7 +383,7 @@ handle'position avoid
   . TAbss [h0]
   . unwrap h0 handleReference h
   . io'error'result'let POSITN [h] ior [UN] [i] e r
-  $ (ACon Ty.intRef 0 [i])
+  $ (ACon (rtag Ty.intRef) 0 [i])
   where
   [h0,h,i,ior,e,r] = freshes' avoid 6
 
@@ -387,24 +394,24 @@ get'buffering avoid
   . unwrap h0 handleReference h
   . io'error'result'let GBUFFR [h] ior [UN] [bu] e r
   . AMatch bu . MatchSum
-  $ fromList
-  [ (0, ([], TCon Ty.optionalRef 0 []))
+  $ mapFromList
+  [ (0, ([], TCon (rtag Ty.optionalRef) 0 []))
   , (1, ([], line))
   , (2, ([], block'nothing))
   , (3, ([UN], TAbs n $ block'n))
   ]
   where
   [h0,h,bu,ior,e,r,m,n,b] = freshes' avoid 9
-  final = TCon Ty.optionalRef 1 [b]
-  block = TLet b BX (ACon bufferModeReference 1 [m]) $ final
+  final = TCon (rtag Ty.optionalRef) 1 [b]
+  block = TLet b BX (ACon (rtag bufferModeReference) 1 [m]) $ final
 
   line
-    = TLet b BX (ACon bufferModeReference 0 []) $ final
+    = TLet b BX (ACon (rtag bufferModeReference) 0 []) $ final
   block'nothing
-    = TLet m BX (ACon Ty.optionalRef 0 [])
+    = TLet m BX (ACon (rtag Ty.optionalRef) 0 [])
     $ block
   block'n
-    = TLet m BX (ACon Ty.optionalRef 1 [n])
+    = TLet m BX (ACon (rtag Ty.optionalRef) 1 [n])
     $ block
 
 set'buffering :: IOOP
@@ -412,7 +419,7 @@ set'buffering avoid
   = ([BX,BX],)
   . TAbss [h,bm0]
   . TMatch bm0 . flip (MatchData Ty.optionalRef) Nothing
-  $ fromList
+  $ mapFromList
   [ (0, ([], none'branch))
   , (1, ([BX], TAbs bm just'branch'0))
   ]
@@ -423,7 +430,7 @@ set'buffering avoid
     $ io'error'result'unit SBUFFR [h,t] ior e r
   just'branch'0
     = TMatch bm . flip (MatchData bufferModeReference) Nothing
-    $ fromList
+    $ mapFromList
     [ (0, ([]
         , TLet t UN (ALit $ I 1)
         $ io'error'result'unit SBUFFR [h,t] ior e r
@@ -433,7 +440,7 @@ set'buffering avoid
   just'branch'1
     = TMatch mbs
       . flip (MatchData Ty.optionalRef) Nothing
-      $ fromList
+      $ mapFromList
       [ (0, ([]
           , TLet t UN (ALit $ I 2)
           $ io'error'result'unit SBUFFR [h,t] ior e r))
@@ -475,7 +482,7 @@ system'time :: IOOP
 system'time avoid
   = ([],)
   . io'error'result'let SYTIME [] ior [UN] [n] e r
-  $ ACon Ty.natRef 0 [n]
+  $ ACon (rtag Ty.natRef) 0 [n]
   where
   [n,ior,e,r] = freshes' avoid 4
 
@@ -483,7 +490,7 @@ get'temp'directory :: IOOP
 get'temp'directory avoid
   = ([],)
   . io'error'result'let GTMPDR [] ior [BX] [t] e r
-  $ ACon filePathReference 0 [t]
+  $ ACon (rtag filePathReference) 0 [t]
   where
   [t,ior,e,r] = freshes' avoid 4
 
@@ -491,7 +498,7 @@ get'current'directory :: IOOP
 get'current'directory avoid
   = ([],)
   . io'error'result'let GCURDR [] ior [BX] [t] e r
-  $ ACon filePathReference 0 [r]
+  $ ACon (rtag filePathReference) 0 [r]
   where
   [t,e,r,ior] = freshes' avoid 4
 
@@ -580,7 +587,7 @@ get'file'timestamp avoid
   . TAbs fp0
   . unwrap fp0 filePathReference fp
   . io'error'result'let GFTIME [fp] ior [UN] [n] e r
-  $ ACon Ty.natRef 0 [n]
+  $ ACon (rtag Ty.natRef) 0 [n]
   where
   [fp0,fp,n,ior,e,r] = freshes' avoid 6
 
@@ -590,7 +597,7 @@ get'file'size avoid
   . TAbs fp0
   . unwrap fp0 filePathReference fp
   . io'error'result'let GFSIZE [fp] ior [UN] [n] e r
-  $ ACon Ty.natRef 0 [n]
+  $ ACon (rtag Ty.natRef) 0 [n]
   where
   [fp0,fp,n,ior,e,r] = freshes' avoid 6
 
@@ -600,7 +607,7 @@ server'socket avoid
   . TAbss [mhn,sn0]
   . unwrap sn0 serviceNameReference sn
   . TMatch mhn . flip (MatchData Ty.optionalRef) Nothing
-  $ fromList
+  $ mapFromList
   [ (0, ([], none'branch))
   , (1, ([BX], TAbs hn just'branch))
   ]
@@ -667,9 +674,9 @@ socket'receive avoid
   . unbox n0 Ty.natRef n
   . io'error'result'let SKRECV [sk,n] ior [UN] [mt] e r
   . AMatch mt . MatchSum
-  $ fromList
-  [ (0, ([], TCon Ty.optionalRef 0 []))
-  , (1, ([BX], TAbs b $ TCon Ty.optionalRef 1 [b]))
+  $ mapFromList
+  [ (0, ([], TCon (rtag Ty.optionalRef) 0 []))
+  , (1, ([BX], TAbs b $ TCon (rtag Ty.optionalRef) 1 [b]))
   ]
   where
   [sk0,n0,sk,n,ior,e,r,b,mt] = freshes' avoid 7
@@ -848,10 +855,31 @@ builtinLookup
   , ("jumpCont", jumpk)
   ]
 
-builtinNumbering :: Map.Map Reference Int
-builtinNumbering
-  = Map.fromList $ zip (Map.keys $ builtinLookup @Symbol) [1..]
+typeReferences :: [(Reference, RTag)]
+typeReferences
+  = zip
+  [ Ty.natRef
+  , Ty.optionalRef
+  , Ty.unitRef
+  , Ty.intRef
+  , Ty.booleanRef
+  , eitherReference
+  , filePathReference
+  , bufferModeReference
+  ] [1..]
 
-numberedLookup :: Var v => Map.Map Int (SuperNormal v)
+numberedLookup :: Var v => Map.Map Word64 (SuperNormal v)
 numberedLookup
-  = Map.fromList . zip [1..] . Map.elems $ builtinLookup
+  = Map.fromList . zip [2^48..] . Map.elems $ builtinLookup
+
+rtagMap :: Map Reference RTag
+rtagMap = Map.fromList typeReferences
+
+rtag :: Reference -> RTag
+rtag = (rtagMap Map.!)
+
+builtinNumbering :: Map.Map Reference Word64
+builtinNumbering
+  = Map.fromList (zip (Map.keys $ builtinLookup @Symbol) [2^48..])
+  <> fmap rawTag rtagMap
+
