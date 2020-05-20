@@ -8,6 +8,7 @@ module Unison.Test.Git where
 import EasyTest
 import Data.List (intercalate)
 import Data.List.Split (splitOn)
+import qualified Data.Sequence as Seq
 import Data.String.Here (iTrim)
 import Unison.Prelude
 import qualified Data.Text as Text
@@ -64,7 +65,7 @@ syncComplete = scope "syncComplete" $ do
 ```
 ```unison
 pushComplete.a.x = 3
-pushComplete.b.y = x + 1
+pushComplete.b.c.y = x + 1
 ```
 ```ucm
 .> add
@@ -72,25 +73,29 @@ pushComplete.b.y = x + 1
 ```
 |]
 
-  -- sync to targetDir
-  -- observe that pushComplete.b and x exist
-  b <- io (Codebase.getRootBranch codebase) >>= either (crash.show) pure
+  -- sync pushComplete.b to targetDir
+  -- observe that pushComplete.b.c and x exist
+  b <- io (Codebase.getRootBranch codebase)
+    >>= either (crash.show)
+      (pure . Branch.getAt' (Path $ Seq.fromList ["pushComplete", "b"] ))
   io $ Codebase.syncToDirectory codebase targetDir SyncMode.ShortCircuit b
   observe expect "initial" files
 
-  -- delete pushComplete.b (#5lk9autjd5)
-  -- delete x              (#msp7bv40rv)
-  -- observe that pushComplete.b and x are missing
+  -- delete pushComplete.b.c (#5lk9autjd5)
+  -- delete x                (#msp7bv40rv)
+  -- observe that pushComplete.b.c and x are now gone
   delete files
   observe (expect . not) "deleted" files
 
   -- sync again with ShortCircuit
-  -- observe that pushComplete.b and x are still missing
+  -- observe that pushComplete.b.c and x are still missing.
+  -- `c` is short-circuited at `b`, and `x` is short-circuited
+  -- at both `pushComplete` and `y`.
   io $ Codebase.syncToDirectory codebase targetDir SyncMode.ShortCircuit b
   observe (expect . not) "short-circuited" files
 
   -- sync again with Complete
-  -- observe that pushComplete.b and x are back
+  -- observe that pushComplete.b.c and x are back
   io $ Codebase.syncToDirectory codebase targetDir SyncMode.Complete b
   observe expect "complete" files
 
