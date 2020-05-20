@@ -2,6 +2,7 @@
 {-# language DataKinds #-}
 {-# language BangPatterns #-}
 {-# language TypeFamilies #-}
+{-# language ViewPatterns #-}
 {-# language PatternGuards #-}
 {-# language PatternSynonyms #-}
 
@@ -11,13 +12,14 @@ import Prelude hiding (words)
 
 import Control.Monad (when)
 import Control.Monad.Primitive
+
+import Data.Foldable (toList)
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
 import Data.Primitive.Array
-
 import Data.Word
 
-import Unison.Runtime.ANF (Mem(..))
+import Unison.Runtime.ANF (Mem(..), unpackTags)
 import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
 
@@ -68,6 +70,26 @@ data Closure
   | Foreign !Foreign
   | BlackHole
   deriving (Show, Eq, Ord)
+
+splitData :: Closure -> Maybe (Word64, [Int], [Closure])
+splitData (Enum t) = Just (t, [], [])
+splitData (DataU1 t i) = Just (t, [i], [])
+splitData (DataU2 t i j) = Just (t, [i,j], [])
+splitData (DataB1 t x) = Just (t, [], [x])
+splitData (DataB2 t x y) = Just (t, [], [x,y])
+splitData (DataUB t i y) = Just (t, [i], [y])
+splitData (DataG t us bs) = Just (t, ints us, toList bs)
+splitData _ = Nothing
+
+ints :: ByteArray -> [Int]
+ints ba = fmap (indexByteArray ba) [0..n]
+  where
+  n = sizeofByteArray ba `div` 8
+
+pattern DataC rt ct us bs <-
+  (splitData -> Just (unpackTags -> (rt, ct), us, bs))
+
+{-# complete DataC, PAp, Captured, Foreign, BlackHole #-}
 
 marshalToForeign :: Closure -> Foreign
 marshalToForeign (Foreign x) = x
