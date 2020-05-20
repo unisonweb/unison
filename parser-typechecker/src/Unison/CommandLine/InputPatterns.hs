@@ -738,6 +738,32 @@ pull = InputPattern
     _ -> Left (I.help pull)
   )
 
+pullRepair :: InputPattern
+pullRepair = InputPattern
+  "debug.pull-exhaustive"
+  []
+  [(Required, gitUrlArg), (Optional, pathArg)]
+  (P.lines
+    [ P.wrap $
+      "The " <> makeExample' pullRepair <> "command can be used in place of"
+        <> makeExample' pull <> "to complete namespaces"
+        <> "which were pulled incompletely due to a bug in UCM"
+        <> "versions M1l and earlier.  It may be extra slow!"
+    ]
+  )
+  (\case
+    []    ->
+      Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete
+    [url] -> do
+      ns <- parseUri "url" url
+      Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete
+    [url, path] -> do
+      ns <- parseUri "url" url
+      p <- first fromString $ Path.parsePath' path
+      Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete
+    _ -> Left (I.help pull)
+  )
+
 push :: InputPattern
 push = InputPattern
   "push"
@@ -780,6 +806,33 @@ push = InputPattern
         [path] -> first fromString $ Path.parsePath' path
         _ -> Left (I.help push)
       Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.ShortCircuit
+  )
+
+pushRepair :: InputPattern
+pushRepair = InputPattern
+  "debug.push-exhaustive"
+  []
+  [(Required, gitUrlArg), (Optional, pathArg)]
+  (P.lines
+    [ P.wrap $
+      "The " <> makeExample' pushRepair <> "command can be used in place of"
+        <> makeExample' push <> "to repair remote namespaces"
+        <> "which were pushed incompletely due to a bug in UCM"
+        <> "versions M1l and earlier. It may be extra slow!"
+    ]
+  )
+  (\case
+    []    ->
+      Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete
+    url : rest -> do
+      (repo, sbh, path) <- parseUri "url" url
+      when (isJust sbh)
+        $ Left "Can't push to a particular remote namespace hash."
+      p <- case rest of
+        [] -> Right Path.relativeEmpty'
+        [path] -> first fromString $ Path.parsePath' path
+        _ -> Left (I.help push)
+      Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.Complete
   )
 
 createPullRequest :: InputPattern
@@ -1287,6 +1340,8 @@ validInputs =
   , names
   , push
   , pull
+  , pushRepair
+  , pullRepair
   , createPullRequest
   , loadPullRequest
   , cd
