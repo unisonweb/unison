@@ -49,6 +49,8 @@ module Unison.Runtime.ANF
   , RTag
   , CTag
   , Tag(..)
+  , packTags
+  , unpackTags
   , ANFM
   , Branched(..)
   , Func(..)
@@ -65,6 +67,7 @@ import Control.Lens (snoc, unsnoc)
 
 import Data.Bifunctor (Bifunctor(..))
 import Data.Bifoldable (Bifoldable(..))
+import Data.Bits ((.&.), (.|.), shiftL, shiftR)
 import Data.List hiding (and,or)
 import Data.Word (Word64, Word16)
 import Prelude hiding (abs,and,or,seq)
@@ -385,6 +388,15 @@ newtype CTag = CTag Word16 deriving (Eq,Ord,Show,Read)
 class Tag t where rawTag :: t -> Word64
 instance Tag RTag where rawTag (RTag w) = w
 instance Tag CTag where rawTag (CTag w) = fromIntegral w
+
+packTags :: RTag -> CTag -> Word64
+packTags (RTag rt) (CTag ct) = ri .|. ci
+  where
+  ri = rt `shiftL` 16
+  ci = fromIntegral ct
+
+unpackTags :: Word64 -> (RTag, CTag)
+unpackTags w = (RTag $ w `shiftR` 16, CTag . fromIntegral $ w .&. 0xFFFF)
 
 ensureRTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
 ensureRTag s n x

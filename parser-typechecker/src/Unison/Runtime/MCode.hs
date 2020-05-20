@@ -24,7 +24,6 @@ import GHC.Stack (HasCallStack)
 
 import Data.Bifunctor (bimap)
 import Data.List (partition)
-import Data.Bits ((.|.), shiftL)
 import Data.Word (Word64)
 
 import Data.Primitive.PrimArray
@@ -46,9 +45,8 @@ import Unison.Runtime.ANF
   , Mem(..)
   , SuperNormal(..)
   , SuperGroup(..)
-  , RTag
-  , CTag
   , Tag(..)
+  , packTags
   , pattern TVar
   , pattern TLit
   , pattern TApv
@@ -519,7 +517,7 @@ emitSection _   ctx (TCom n args)
   | otherwise -- slow path
   = App False (Env n) $ emitArgs ctx args
 emitSection _   ctx (TCon r t args)
-  = Ins (Pack (packTag r t) (emitArgs ctx args))
+  = Ins (Pack (packTags r t) (emitArgs ctx args))
   . Yield $ BArg1 0
 emitSection _   ctx (TReq a e args)
   -- Currently implementing packed calling convention for abilities
@@ -581,12 +579,6 @@ emitSectionVErr v
   = error
   $ "emitSection: could not resolve function variable: " ++ show v
 
-packTag :: RTag -> CTag -> Word64
-packTag rt ct = ri .|. ci
-  where
-  ri = rawTag rt `shiftL` 16
-  ci = rawTag ct
-
 emitLet :: Var v => RCtx v -> Ctx v -> ANormalT v -> Section -> Section
 -- Currently packed literals
 emitLet _   _   (ALit l)
@@ -597,7 +589,7 @@ emitLet _    ctx (AApp (FComb n) args)
   | False -- not saturated
   = Ins . Name n $ emitArgs ctx args
 emitLet _   ctx (AApp (FCon r n) args) -- TODO: use reference number
-  = Ins . Pack (packTag r n) $ emitArgs ctx args
+  = Ins . Pack (packTags r n) $ emitArgs ctx args
 emitLet _   ctx (AApp (FPrim p) args)
   = Ins . either emitPOp emitIOp p $ emitArgs ctx args
 emitLet rec ctx bnd = Let (emitSection rec ctx (TTm bnd))
