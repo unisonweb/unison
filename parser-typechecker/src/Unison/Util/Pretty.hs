@@ -112,7 +112,7 @@ import Unison.Prelude
 
 import           Data.Bifunctor                 ( second )
 import           Data.Char                      ( isSpace )
-import           Data.List                      ( foldr1, intersperse )
+import           Data.List                      ( intersperse )
 import           Prelude                 hiding ( lines , map )
 import           Unison.Util.AnnotatedText      ( annotateMaybe )
 import qualified Unison.Util.ColorText         as CT

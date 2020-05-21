@@ -31,8 +31,7 @@ import qualified Data.Text.IO                  as TextIO
 import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 , doesDirectoryExist
                                                 )
-import           System.FilePath                ( FilePath
-                                                , takeFileName
+import           System.FilePath                ( takeFileName
                                                 )
 import           System.Directory               ( getHomeDirectory
                                                 , canonicalizePath

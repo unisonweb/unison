@@ -5,7 +5,6 @@ module Unison.Typechecker.Extractor where
 
 import Unison.Prelude hiding (whenM)
 
-import           Control.Monad.Fail             ( MonadFail, fail )
 import           Control.Monad.Reader
 import qualified Data.List                     as List
 import           Data.List.NonEmpty            ( NonEmpty )
@@ -316,7 +315,6 @@ instance MonadFail (SubseqExtractor' n) where
   fail _ = mzero
 
 instance Monad (SubseqExtractor' n) where
-  fail = Control.Monad.Fail.fail
   return a = SubseqExtractor' $ \_ -> [Pure a]
   xa >>= f = SubseqExtractor' $ \note ->
     let as = runSubseq xa note in do

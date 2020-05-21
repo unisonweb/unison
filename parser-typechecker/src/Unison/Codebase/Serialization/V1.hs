@@ -26,9 +26,6 @@ import           Data.Bytes.VarInt              ( VarInt(..) )
 import qualified Data.Map                      as Map
 import           Data.List                      ( elemIndex
                                                 )
-import           Data.Text.Encoding             ( encodeUtf8
-                                                , decodeUtf8
-                                                )
 import qualified Unison.Codebase.Branch         as Branch
 import qualified Unison.Codebase.Branch.Dependencies as BD
 import           Unison.Codebase.Causal         ( Raw(..)
@@ -37,7 +34,6 @@ import           Unison.Codebase.Causal         ( Raw(..)
                                                 )
 import qualified Unison.Codebase.Causal         as Causal
 import qualified Unison.Codebase.Metadata       as Metadata
-import           Unison.Codebase.NameSegment    ( NameSegment )
 import           Unison.Codebase.NameSegment    as NameSegment
 import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch          as Patch

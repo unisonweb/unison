@@ -4,7 +4,7 @@ module Unison.Util.Cache where
 
 import Prelude hiding (lookup)
 import Unison.Prelude
-import UnliftIO (MonadIO, newTVarIO, modifyTVar', writeTVar, atomically, readTVar, readTVarIO)
+import UnliftIO (newTVarIO, modifyTVar', writeTVar, atomically, readTVar, readTVarIO)
 import qualified Data.Map as Map
 
 data Cache m k v =

@@ -23,8 +23,8 @@ import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 
 import           Control.Lens
 import qualified Control.Monad.State.Strict    as State
-import           Data.Bifunctor                (bimap, first, second)
-import           Data.List                     (sort, sortOn, stripPrefix)
+import           Data.Bifunctor                (first, second)
+import           Data.List                     (sort, stripPrefix)
 import           Data.List.Extra               (nubOrdOn, nubOrd, notNull)
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
@@ -108,7 +108,6 @@ import qualified Unison.Util.List              as List
 import qualified Unison.Util.Monoid            as Monoid
 import Data.Tuple (swap)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import Control.Lens (view, over, _1, _3)
 import qualified Unison.ShortHash as SH
 import Unison.LabeledDependency as LD
 import Unison.Codebase.Editor.RemoteRepo (RemoteRepo)

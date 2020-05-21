@@ -9,8 +9,7 @@ module Unison.Runtime.Rt1IO where
 
 import Unison.Prelude
 
-import           Control.Exception              ( try
-                                                , throwIO
+import           Control.Exception              ( throwIO
                                                 , AsyncException(UserInterrupt)
                                                 , finally
                                                 , bracket

@@ -179,7 +179,7 @@ propagate patch b = case validatePatch patch of
                     "This reference is not a term nor a type " <> show r
                   mmayEdits | haveTerm  = doTerm r
                             | haveType  = doType r
-                            | otherwise = fail message
+                            | otherwise = error message
               mayEdits <- mmayEdits
               case mayEdits of
                 (Nothing    , seen') -> collectEdits es seen' todo
@@ -206,7 +206,7 @@ propagate patch b = case validatePatch patch of
                           $ view _2 <$> declMap
           hashedComponents' <- case hashedDecls of
             Left _ ->
-              fail
+              error
                 $ "Edit propagation failed because some of the dependencies of "
                 <> show r
                 <> " could not be resolved."
@@ -349,13 +349,13 @@ propagate patch b = case validatePatch patch of
           :: Reference -> F m i v (Maybe (Reference, (Term v Ann, Type v Ann)))
         termInfo termRef = do
           tpm <- eval $ LoadTypeOfTerm termRef
-          tp  <- maybe (fail $ "Missing type for term " <> show termRef)
+          tp  <- maybe (error $ "Missing type for term " <> show termRef)
                        pure
                        tpm
           case termRef of
             Reference.DerivedId id -> do
               mtm <- eval $ LoadTerm id
-              tm  <- maybe (fail $ "Missing term with id " <> show id) pure mtm
+              tm  <- maybe (error $ "Missing term with id " <> show id) pure mtm
               pure $ Just (termRef, (tm, tp))
             Reference.Builtin{} -> pure Nothing
         unhash m =
@@ -376,7 +376,7 @@ propagate patch b = case validatePatch patch of
       typeInfo typeRef = case typeRef of
         Reference.DerivedId id -> do
           declm <- eval $ LoadType id
-          decl  <- maybe (fail $ "Missing type declaration " <> show typeRef)
+          decl  <- maybe (error $ "Missing type declaration " <> show typeRef)
                          pure
                          declm
           pure $ Just (typeRef, decl)
