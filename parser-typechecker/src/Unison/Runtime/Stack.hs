@@ -89,7 +89,10 @@ ints ba = fmap (indexByteArray ba) [0..n]
 pattern DataC rt ct us bs <-
   (splitData -> Just (unpackTags -> (rt, ct), us, bs))
 
+pattern PApV ic us bs <- PAp ic (ints -> us) (toList -> bs)
+
 {-# complete DataC, PAp, Captured, Foreign, BlackHole #-}
+{-# complete DataC, PApV, Captured, Foreign, BlackHole #-}
 
 marshalToForeign :: Closure -> Foreign
 marshalToForeign (Foreign x) = x
