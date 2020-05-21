@@ -361,9 +361,16 @@ data MergeMode = RegularMerge | SquashMerge deriving (Eq,Ord,Show)
 merge :: forall m . Monad m => Branch m -> Branch m -> m (Branch m)
 merge = merge' RegularMerge
 
+-- Discards the history of a Branch0's children, recursively
+discardHistory0 :: Applicative m => Branch0 m -> Branch0 m
+discardHistory0 b = over children (fmap tweak) $ b where
+  tweak b = cons (discardHistory0 (head b)) empty
+
 merge' :: forall m . Monad m => MergeMode -> Branch m -> Branch m -> m (Branch m)
 merge' _ b1 b2 | isEmpty b1 = pure b2
-merge' _ b1 b2 | isEmpty b2 = pure b1
+merge' mode b1 b2 | isEmpty b2 = case mode of
+  RegularMerge -> pure b1
+  SquashMerge -> pure $ cons (discardHistory0 (head b1)) b2
 merge' mode (Branch x) (Branch y) =
   Branch <$> case mode of
                RegularMerge -> Causal.threeWayMerge combine x y

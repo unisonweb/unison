@@ -213,17 +213,32 @@ children (Cons  _ _ (_, t)) = Seq.singleton t
 children (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
 
 -- A `squashMerge combine c1 c2` gives the same resulting `e`
--- as a merge with an LCA of `c2`, but doesn't introduce a
--- merge node for the result. The resulting node is a simple
--- `Cons` onto `c2` (or is equal to `c2` if `c1` changes nothing).
+-- as a `threeWayMerge`, but doesn't introduce a merge node for the
+-- result. Instead, the resulting causal is a simple `Cons` onto `c2`
+-- (or is equal to `c2` if `c1` changes nothing).
 squashMerge
-  :: (Monad m, Eq e, Hashable e)
+  :: forall m h e
+   . (Monad m, Hashable e, Eq e)
   => (Maybe e -> e -> e -> m e)
   -> Causal m h e
   -> Causal m h e
   -> m (Causal m h e)
-squashMerge combine c1 c2 =
-  stepDistinctM (combine (Just $ head c2) (head c1)) c2
+squashMerge combine c1 c2 = do
+  theLCA <- lca c1 c2
+  let done newHead = consDistinct newHead c2
+  case theLCA of
+    Nothing -> done <$> combine Nothing (head c1) (head c2)
+    Just lca
+      | lca == c1 -> pure c2
+
+      -- Pretty subtle: if we were to add this short circuit, then
+      -- the history of c1's children would still make it into the result
+      -- Calling `combine` will recursively call into `squashMerge`
+      -- for the children, discarding their history before calling `done`
+      -- on the parent.
+      -- | lca == c2 -> pure $ done c1
+
+      | otherwise -> done <$> combine (Just $ head lca) (head c1) (head c2)
 
 threeWayMerge
   :: forall m h e
