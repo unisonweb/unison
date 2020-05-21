@@ -96,7 +96,7 @@ data Output v
   | NoMainFunction String PPE.PrettyPrintEnv [Type v Ann]
   | BranchEmpty (Either ShortBranchHash Path')
   | BranchNotEmpty Path'
-  | LoadPullRequest RemoteNamespace RemoteNamespace Path' Path' Path'
+  | LoadPullRequest RemoteNamespace RemoteNamespace Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
   | PatchAlreadyExists Path.Split'

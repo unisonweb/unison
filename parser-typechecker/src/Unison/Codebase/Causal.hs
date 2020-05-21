@@ -212,6 +212,19 @@ children (One _ _         ) = Seq.empty
 children (Cons  _ _ (_, t)) = Seq.singleton t
 children (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
 
+-- A `squashMerge combine c1 c2` gives the same resulting `e`
+-- as a merge with an LCA of `c2`, but doesn't introduce a
+-- merge node for the result. The resulting node is a simple
+-- `Cons` onto `c2` (or is equal to `c2` if `c1` changes nothing).
+squashMerge
+  :: (Monad m, Eq e, Hashable e)
+  => (Maybe e -> e -> e -> m e)
+  -> Causal m h e
+  -> Causal m h e
+  -> m (Causal m h e)
+squashMerge combine c1 c2 =
+  stepDistinctM (combine (Just $ head c2) (head c1)) c2
+
 threeWayMerge
   :: forall m h e
    . (Monad m, Hashable e)

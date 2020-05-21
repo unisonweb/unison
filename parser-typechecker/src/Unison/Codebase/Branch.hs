@@ -9,6 +9,7 @@ module Unison.Codebase.Branch
   ( -- * Branch types
     Branch(..)
   , Branch0(..)
+  , MergeMode(..)
   , Raw(..)
   , Star
   , Hash
@@ -40,6 +41,7 @@ module Unison.Codebase.Branch
   , stepEverywhere
   , uncons
   , merge
+  , merge'
 
     -- * Branch children
     -- ** Children lenses
@@ -354,14 +356,21 @@ deepEdits' b = go id b where
     f :: (NameSegment, Branch m) -> Map Name (EditHash, m Patch)
     f (c, b) =  go (addPrefix . Name.joinDot (NameSegment.toName c)) (head b)
 
+data MergeMode = RegularMerge | SquashMerge deriving (Eq,Ord,Show)
+
 merge :: forall m . Monad m => Branch m -> Branch m -> m (Branch m)
-merge b1 b2 | isEmpty b1 = pure b2
-merge b1 b2 | isEmpty b2 = pure b1
-merge (Branch x) (Branch y) =
-  Branch <$> Causal.threeWayMerge combine x y
+merge = merge' RegularMerge
+
+merge' :: forall m . Monad m => MergeMode -> Branch m -> Branch m -> m (Branch m)
+merge' _ b1 b2 | isEmpty b1 = pure b2
+merge' _ b1 b2 | isEmpty b2 = pure b1
+merge' mode (Branch x) (Branch y) =
+  Branch <$> case mode of
+               RegularMerge -> Causal.threeWayMerge combine x y
+               SquashMerge  -> Causal.squashMerge combine x y
  where
   combine :: Maybe (Branch0 m) -> Branch0 m -> Branch0 m -> m (Branch0 m)
-  combine Nothing l r = merge0 l r
+  combine Nothing l r = merge0 mode l r
   combine (Just ca) l r = do
     dl <- diff0 ca l
     dr <- diff0 ca r
@@ -369,7 +378,7 @@ merge (Branch x) (Branch y) =
     children <- Map.mergeA
                   (Map.traverseMaybeMissing $ combineMissing ca)
                   (Map.traverseMaybeMissing $ combineMissing ca)
-                  (Map.zipWithAMatched $ const merge)
+                  (Map.zipWithAMatched $ const (merge' mode))
                   (_children l) (_children r)
     pure $ branch0 (_terms head0) (_types head0) children (_edits head0)
 
@@ -377,7 +386,7 @@ merge (Branch x) (Branch y) =
     case Map.lookup k (_children ca) of
       Nothing -> pure $ Just cur
       Just old -> do
-        nw <- merge (cons empty0 old) cur
+        nw <- merge' mode (cons empty0 old) cur
         if isEmpty0 $ head nw
         then pure Nothing
         else pure $ Just nw
@@ -409,9 +418,9 @@ merge (Branch x) (Branch y) =
 before :: Monad m => Branch m -> Branch m -> m Bool
 before (Branch x) (Branch y) = Causal.before x y
 
-merge0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m (Branch0 m)
-merge0 b1 b2 = do
-  c3 <- unionWithM merge (_children b1) (_children b2)
+merge0 :: forall m. Monad m => MergeMode -> Branch0 m -> Branch0 m -> m (Branch0 m)
+merge0 mode b1 b2 = do
+  c3 <- unionWithM (merge' mode) (_children b1) (_children b2)
   e3 <- unionWithM g (_edits b1) (_edits b2)
   pure $ branch0 (_terms b1 <> _terms b2)
                  (_types b1 <> _types b2)
