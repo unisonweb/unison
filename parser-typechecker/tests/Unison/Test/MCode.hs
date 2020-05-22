@@ -31,7 +31,7 @@ import Unison.Runtime.MCode
   , emitCombs
   )
 import Unison.Runtime.Builtin
-import Unison.Runtime.Rt2
+import Unison.Runtime.Machine
   ( eval0 )
 
 import Unison.Test.Common (tm)

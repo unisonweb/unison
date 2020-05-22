@@ -102,9 +102,9 @@ library
     Unison.Runtime.Foreign
     Unison.Runtime.IR
     Unison.Runtime.MCode
+    Unison.Runtime.Machine
     Unison.Runtime.Pattern
     Unison.Runtime.Rt1
-    Unison.Runtime.Rt2
     Unison.Runtime.Rt1IO
     Unison.Runtime.IOSource
     Unison.Runtime.Vector

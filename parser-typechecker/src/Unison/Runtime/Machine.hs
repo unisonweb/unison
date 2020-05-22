@@ -2,7 +2,7 @@
 {-# language RankNTypes #-}
 {-# language BangPatterns #-}
 
-module Unison.Runtime.Rt2 where
+module Unison.Runtime.Machine where
 
 import Data.Maybe (fromMaybe)
 
