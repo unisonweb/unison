@@ -363,7 +363,7 @@ merge = merge' RegularMerge
 
 -- Discards the history of a Branch0's children, recursively
 discardHistory0 :: Applicative m => Branch0 m -> Branch0 m
-discardHistory0 b = over children (fmap tweak) $ b where
+discardHistory0 = over children (fmap tweak) where
   tweak b = cons (discardHistory0 (head b)) empty
 
 merge' :: forall m . Monad m => MergeMode -> Branch m -> Branch m -> m (Branch m)
