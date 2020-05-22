@@ -381,7 +381,9 @@ loop = do
         inputDescription :: InputDescription
         inputDescription = case input of
           ForkLocalBranchI src dest -> "fork " <> hp' src <> " " <> p' dest
-          MergeLocalBranchI src dest -> "merge " <> p' src <> " " <> p' dest
+          MergeLocalBranchI src dest mode -> case mode of
+            Branch.RegularMerge -> "merge " <> p' src <> " " <> p' dest
+            Branch.SquashMerge -> "merge.squash " <> p' src <> " " <> p' dest
           ResetRootI src -> "reset-root " <> hp' src
           AliasTermI src dest -> "alias.term " <> hhqs' src <> " " <> ps' dest
           AliasTypeI src dest -> "alias.type " <> hhqs' src <> " " <> ps' dest
@@ -698,13 +700,13 @@ loop = do
             srcb <- getAt $ resolveToAbsolute path'
             if Branch.isEmpty srcb then respond $ BranchNotFound path'
             else tryUpdateDest srcb dest0
-      MergeLocalBranchI src0 dest0 -> do
+      MergeLocalBranchI src0 dest0 mergeMode -> do
         let [src, dest] = resolveToAbsolute <$> [src0, dest0]
         srcb <- getAt src
         if Branch.isEmpty srcb then branchNotFound src0
         else do
           let err = Just $ MergeAlreadyUpToDate src0 dest0
-          mergeBranchAndPropagateDefaultPatch inputDescription err srcb (Just dest0) dest
+          mergeBranchAndPropagateDefaultPatch mergeMode inputDescription err srcb (Just dest0) dest
 
       PreviewMergeLocalBranchI src0 dest0 -> do
         let [src, dest] = resolveToAbsolute <$> [src0, dest0]
@@ -744,14 +746,17 @@ loop = do
           headb <- importRemoteBranch headRepo SyncMode.ShortCircuit
           lift $ do
             mergedb <- eval . Eval $ Branch.merge baseb headb
+            squashedb <- eval . Eval $ Branch.merge' Branch.SquashMerge headb baseb
             stepManyAt
               [BranchUtil.makeSetBranch (dest, "base") baseb
               ,BranchUtil.makeSetBranch (dest, "head") headb
-              ,BranchUtil.makeSetBranch (dest, "merged") mergedb]
+              ,BranchUtil.makeSetBranch (dest, "merged") mergedb
+              ,BranchUtil.makeSetBranch (dest, "squashed") squashedb]
             let base = snoc dest0 "base"
                 head = snoc dest0 "head"
                 merged = snoc dest0 "merged"
-            respond $ LoadPullRequest baseRepo headRepo base head merged
+                squashed = snoc dest0 "squashed"
+            respond $ LoadPullRequest baseRepo headRepo base head merged squashed
             loadPropagateDiffDefaultPatch
               inputDescription
               (Just merged)
@@ -1660,7 +1665,7 @@ loop = do
           b <- importRemoteBranch ns syncMode
           let msg = Just $ PullAlreadyUpToDate ns path
           let destAbs = resolveToAbsolute path
-          lift $ mergeBranchAndPropagateDefaultPatch inputDescription msg b (Just path) destAbs
+          lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b (Just path) destAbs
 
       PushRemoteBranchI mayRepo path syncMode -> do
         let srcAbs = resolveToAbsolute path
@@ -2152,18 +2157,18 @@ unlessError' f ma = unlessError $ withExceptT f ma
 
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect
-mergeBranchAndPropagateDefaultPatch :: (Monad m, Var v) =>
+mergeBranchAndPropagateDefaultPatch :: (Monad m, Var v) => Branch.MergeMode ->
   InputDescription -> Maybe (Output v) -> Branch m -> Maybe Path.Path' -> Path.Absolute -> Action' m v ()
-mergeBranchAndPropagateDefaultPatch inputDescription unchangedMessage srcb dest0 dest =
-  ifM (mergeBranch inputDescription srcb dest0 dest)
+mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb dest0 dest =
+  ifM (mergeBranch mode inputDescription srcb dest0 dest)
       (loadPropagateDiffDefaultPatch inputDescription dest0 dest)
       (for_ unchangedMessage respond)
   where
   mergeBranch :: (Monad m, Var v) =>
-    InputDescription -> Branch m -> Maybe Path.Path' -> Path.Absolute -> Action' m v Bool
-  mergeBranch inputDescription srcb dest0 dest = unsafeTime "Merge Branch" $ do
+    Branch.MergeMode -> InputDescription -> Branch m -> Maybe Path.Path' -> Path.Absolute -> Action' m v Bool
+  mergeBranch mode inputDescription srcb dest0 dest = unsafeTime "Merge Branch" $ do
     destb <- getAt dest
-    merged <- eval . Eval $ Branch.merge srcb destb
+    merged <- eval . Eval $ Branch.merge' mode srcb destb
     for_ dest0 $ \dest0 ->
       diffHelper (Branch.head destb) (Branch.head merged) >>=
         respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)

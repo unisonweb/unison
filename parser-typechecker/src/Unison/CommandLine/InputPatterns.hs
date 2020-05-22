@@ -892,6 +892,22 @@ parseUri label input = do
       <> "If you need this, add your 2¢ at"
       <> P.backticked "https://github.com/unisonweb/unison/issues/1436"
 
+squashMerge :: InputPattern
+squashMerge =
+  InputPattern "merge.squash" ["squash"] [(Required, pathArg), (Required, pathArg)]
+  (P.wrap $ makeExample squashMerge ["src","dest"]
+         <> "merges `src` namespace into `dest`,"
+         <> "discarding the history of `src` in the process."
+         <> "The resulting `dest` will have (at most) 1"
+         <> "additional history entry.")
+  (\case
+     [src, dest] -> first fromString $ do
+       src <- Path.parsePath' src
+       dest <- Path.parsePath' dest
+       pure $ Input.MergeLocalBranchI src dest Branch.SquashMerge
+     _ -> Left (I.help squashMerge)
+  )
+
 mergeLocal :: InputPattern
 mergeLocal = InputPattern "merge" [] [(Required, pathArg)
                                      ,(Optional, pathArg)]
@@ -901,11 +917,11 @@ mergeLocal = InputPattern "merge" [] [(Required, pathArg)
  (\case
       [src] -> first fromString $ do
         src <- Path.parsePath' src
-        pure $ Input.MergeLocalBranchI src Path.relativeEmpty'
+        pure $ Input.MergeLocalBranchI src Path.relativeEmpty' Branch.RegularMerge
       [src, dest] -> first fromString $ do
         src <- Path.parsePath' src
         dest <- Path.parsePath' dest
-        pure $ Input.MergeLocalBranchI src dest
+        pure $ Input.MergeLocalBranchI src dest Branch.RegularMerge
       _ -> Left (I.help mergeLocal)
  )
 
@@ -1336,6 +1352,7 @@ validInputs =
   , delete
   , forkLocal
   , mergeLocal
+  , squashMerge
   , previewMergeLocal
   , diffNamespace
   , names

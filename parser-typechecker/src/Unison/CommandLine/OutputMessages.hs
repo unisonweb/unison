@@ -279,14 +279,18 @@ notifyUser dir o = case o of
       , P.wrap $ "Once you find one you like, you can use the"
           <> makeExample' IP.resetRoot <> "command to set it."
       ]
-  LoadPullRequest baseNS headNS basePath headPath mergedPath -> pure $ P.lines
+  LoadPullRequest baseNS headNS basePath headPath mergedPath squashedPath -> pure $ P.lines
     [ P.wrap $ "I checked out" <> prettyRemoteNamespace baseNS <> "to" <> P.group (prettyPath' basePath <> ".")
     , P.wrap $ "I checked out" <> prettyRemoteNamespace headNS <> "to" <> P.group (prettyPath' headPath <> ".")
     , ""
     , P.wrap $ "The merged result is in" <> P.group (prettyPath' mergedPath <> ".")
+    , P.wrap $ "The (squashed) merged result is in" <> P.group (prettyPath' squashedPath <> ".")
     , P.wrap $ "Use" <>
         IP.makeExample IP.diffNamespace
           [prettyPath' basePath, prettyPath' mergedPath]
+      <> "or" <>
+        IP.makeExample IP.diffNamespace
+          [prettyPath' basePath, prettyPath' squashedPath]
       <> "to see what's been updated."
     , P.wrap $ "Use" <>
         IP.makeExample IP.todo
@@ -295,7 +299,10 @@ notifyUser dir o = case o of
         <> "to see what work is remaining for the merge."
     , P.wrap $ "Use" <>
         IP.makeExample IP.push
-          [prettyRemoteNamespace baseNS, prettyPath' mergedPath]
+          [prettyRemoteNamespace baseNS, prettyPath' mergedPath] <>
+        "or" <>
+        IP.makeExample IP.push
+          [prettyRemoteNamespace baseNS, prettyPath' squashedPath]
         <> "to push the changes."
     ]
 
@@ -637,7 +644,7 @@ notifyUser dir o = case o of
       <> P.backticked (P.text uri) <> "already exists at"
       <> P.backticked' (P.string localPath) "," <> "but it doesn't seem to"
       <> "be a git repository, so I'm not sure what to do next.  Delete it?"
-    UnrecognizableCheckoutDir uri localPath -> P.wrap $ "I tried to clone" 
+    UnrecognizableCheckoutDir uri localPath -> P.wrap $ "I tried to clone"
       <> P.backticked (P.text uri) <> "into a cache directory at"
       <> P.backticked' (P.string localPath) "," <> "but I can't recognize the"
       <> "result as a git repository, so I'm not sure what to do next."

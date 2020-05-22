@@ -45,7 +45,7 @@ data Input
     -- clone w/o merge, error if would clobber
     = ForkLocalBranchI (Either ShortBranchHash Path') Path'
     -- merge first causal into destination
-    | MergeLocalBranchI Path' Path'
+    | MergeLocalBranchI Path' Path' Branch.MergeMode
     | PreviewMergeLocalBranchI Path' Path'
     | DiffNamespaceI Path' Path' -- old new
     | PullRemoteBranchI (Maybe RemoteNamespace) Path' SyncMode
