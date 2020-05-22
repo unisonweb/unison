@@ -6,6 +6,7 @@
 {-# Language PatternGuards #-}
 {-# Language PatternSynonyms #-}
 {-# Language ScopedTypeVariables #-}
+{-# Language GeneralizedNewtypeDeriving #-}
 
 module Unison.Runtime.ANF
   ( optimize
@@ -61,7 +62,7 @@ module Unison.Runtime.ANF
 
 import Unison.Prelude
 
-import Control.Monad.Reader (ReaderT(..), MonadReader(..))
+import Control.Monad.Reader (ReaderT(..), asks)
 import Control.Monad.State (State, runState, MonadState(..), modify, gets)
 import Control.Lens (snoc, unsnoc)
 
@@ -74,7 +75,7 @@ import Prelude hiding (abs,and,or,seq)
 import qualified Prelude
 import Unison.Term hiding (resolve, fresh, float)
 import Unison.Var (Var, typed)
-import Unison.Util.WordContainers as WC
+import Unison.Util.EnumContainers as EC
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -372,8 +373,8 @@ data ANormalBF v e
 data ANormalTF v e
   = ALit Lit
   | AMatch v (Branched e)
-  | AShift Word64 e
-  | AHnd [Word64] v (Maybe e) e
+  | AShift RTag e
+  | AHnd [RTag] v (Maybe e) e
   | AApp (Func v) [v]
   | AFrc v
   | AVar v
@@ -382,8 +383,8 @@ data ANormalTF v e
 -- Types representing components that will go into the runtime tag of
 -- a data type value. RTags correspond to references, while CTags
 -- correspond to constructors.
-newtype RTag = RTag Word64 deriving (Eq,Ord,Show,Read)
-newtype CTag = CTag Word16 deriving (Eq,Ord,Show,Read)
+newtype RTag = RTag Word64 deriving (Eq,Ord,Show,Read,EC.EnumKey)
+newtype CTag = CTag Word16 deriving (Eq,Ord,Show,Read,EC.EnumKey)
 
 class Tag t where rawTag :: t -> Word64
 instance Tag RTag where rawTag (RTag w) = w
@@ -559,11 +560,11 @@ pattern TBinds' ctx bd <- (unbinds' -> (ctx, bd))
 {-# complete TBinds' #-}
 
 data Branched e
-  = MatchIntegral (WordMap e) (Maybe e)
-  | MatchRequest (WordMap (WordMap ([Mem], e)))
+  = MatchIntegral (EnumMap Word64 e) (Maybe e)
+  | MatchRequest (EnumMap RTag (EnumMap CTag ([Mem], e)))
   | MatchEmpty
-  | MatchData Reference (WordMap ([Mem], e)) (Maybe e)
-  | MatchSum (WordMap ([Mem], e))
+  | MatchData Reference (EnumMap CTag ([Mem], e)) (Maybe e)
+  | MatchSum (EnumMap Word64 ([Mem], e))
   deriving (Show, Functor, Foldable, Traversable)
 
 data BranchAccum v
@@ -571,15 +572,15 @@ data BranchAccum v
   | AccumIntegral
       Reference
       (Maybe (ANormal v))
-      (WordMap (ANormal v))
+      (EnumMap Word64 (ANormal v))
   | AccumDefault (ANormal v)
   | AccumRequest
-      (WordMap (WordMap ([Mem],ANormal v)))
+      (EnumMap RTag (EnumMap CTag ([Mem],ANormal v)))
       (Maybe (ANormal v))
   | AccumData
       Reference
       (Maybe (ANormal v))
-      (WordMap ([Mem],ANormal v))
+      (EnumMap CTag ([Mem],ANormal v))
 
 instance Semigroup (BranchAccum v) where
   AccumEmpty <> r = r
@@ -599,7 +600,7 @@ instance Semigroup (BranchAccum v) where
   AccumRequest hl dl <> AccumRequest hr dr
     = AccumRequest hm $ dl <|> dr
     where
-    hm = WC.unionWith (<>) hl hr
+    hm = EC.unionWith (<>) hl hr
   _ <> _ = error "cannot merge data cases for different types"
 
 instance Monoid (BranchAccum e) where
@@ -687,7 +688,7 @@ data SuperGroup v
   }
 
 type ANFM v
-  = ReaderT (Set v, Reference -> Word64)
+  = ReaderT (Set v, Reference -> Word64, Reference -> RTag)
       (State (Set v, [(v, SuperNormal v)]))
 
 reset :: ANFM v a -> ANFM v a
@@ -704,8 +705,14 @@ avoids s = modify $ \(av, rs) -> (s `Set.union` av, rs)
 avoidCtx :: Var v => Ctx v -> ANFM v ()
 avoidCtx ctx = avoid . fold $ cbvars <$> ctx
 
-resolve :: Num n => Reference -> ANFM v n
-resolve r = fromIntegral . ($r) . snd <$> ask
+resolveTerm :: Reference -> ANFM v Word64
+resolveTerm r = asks $ \(_, rtm, _) -> rtm r
+
+resolveType :: Reference -> ANFM v RTag
+resolveType r = asks $ \(_, _, rty) -> rty r
+
+groupVars :: ANFM v (Set v)
+groupVars = asks $ \(grp, _, _) -> grp
 
 fresh :: Var v => ANFM v v
 fresh = gets $ \(av, _) -> flip ABT.freshIn (typed Var.ANFBlank) av
@@ -723,15 +730,16 @@ record p = modify $ \(av, to) -> (av, p:to)
 superNormalize
   :: Var v
   => (Reference -> Word64)
+  -> (Reference -> RTag)
   -> Term v a
   -> SuperGroup v
-superNormalize rslv tm = Rec l c
+superNormalize rtm rty tm = Rec l c
   where
   (bs, e) | LetRecNamed' bs e <- tm = (bs, e)
           | otherwise = ([], tm)
   grp = Set.fromList $ fst <$> bs
   comp = traverse_ superBinding bs *> toSuperNormal e
-  subc = runReaderT comp (grp, rslv)
+  subc = runReaderT comp (grp, rtm, rty)
   (c, (_,l)) = runState subc (grp, [])
 
 superBinding :: Var v => (v, Term v a) -> ANFM v ()
@@ -741,7 +749,7 @@ superBinding (v, tm) = do
 
 toSuperNormal :: Var v => Term v a -> ANFM v (SuperNormal v)
 toSuperNormal tm = do
-  (grp, _) <- ask
+  grp <- groupVars
   if not . Set.null . (Set.\\ grp) $ freeVars tm
     then error $ "free variables in supercombinator: " ++ show tm
     else reset $ do
@@ -762,18 +770,18 @@ anfBlock (If' c t f) = do
   (cx, v) <- contextualize cc
   let cases = MatchData
                 (Builtin $ Text.pack "Boolean")
-                (WC.mapSingleton 0 ([], cf))
+                (EC.mapSingleton 0 ([], cf))
                 (Just ct)
   pure (cctx ++ cx, AMatch v cases)
 anfBlock (And' l r) = do
   (lctx, vl) <- anfArg l
   (rctx, vr) <- anfArg r
-  i <- resolve $ Builtin "Boolean.and"
+  i <- resolveTerm $ Builtin "Boolean.and"
   pure (lctx ++ rctx, ACom i [vl, vr])
 anfBlock (Or' l r) = do
   (lctx, vl) <- anfArg l
   (rctx, vr) <- anfArg r
-  i <- resolve $ Builtin "Boolean.or"
+  i <- resolveTerm $ Builtin "Boolean.or"
   pure (lctx ++ rctx, ACom i [vl, vr])
 anfBlock (Handle' h body)
   = anfArg h >>= \(hctx, vh) ->
@@ -806,12 +814,12 @@ anfBlock (Match' scrut cas) = do
               | [ST _ _ _] <- cx = error "anfBlock: impossible"
               | otherwise = AFrc v
       pure ( sctx ++ [LZ hv (Right r) vs]
-           , AHnd (WC.keys abr) hv df . TTm $ msc
+           , AHnd (EC.keys abr) hv df . TTm $ msc
            )
     AccumIntegral r df cs -> do
       i <- fresh
       let dcs = MatchData r
-                  (WC.mapSingleton 0 ([UN], ABTN.TAbss [i] ics))
+                  (EC.mapSingleton 0 ([UN], ABTN.TAbss [i] ics))
                   Nothing
           ics = TMatch i $ MatchIntegral cs df
       pure (sctx ++ cx, AMatch v dcs)
@@ -828,13 +836,13 @@ anfBlock (Apps' f args) = do
   (actxs, cas) <- unzip <$> traverse anfArg args
   pure (fctx ++ concat actxs, AApp cf cas)
 anfBlock (Constructor' r t)
-  = resolve r <&> \rt -> ([], ACon rt (toEnum t) [])
+  = resolveType r <&> \rt -> ([], ACon rt (toEnum t) [])
 anfBlock (Request' r t) = do
-  r <- resolve r
+  r <- resolveType r
   pure ([], AReq r (toEnum t) [])
 anfBlock (Lit' l) = do
   lv <- fresh
-  rt <- resolve $ litRef l
+  rt <- resolveType $ litRef l
   pure ([ST1 lv UN $ ALit l], ACon rt 0 [lv])
 anfBlock (Blank' _) = error "tried to compile Blank"
 anfBlock t = error $ "anf: unhandled term: " ++ show t
@@ -859,13 +867,13 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   | VarP _ <- p
   = error $ "vars: " ++ show (length vs)
   | IntP _ (fromIntegral -> i) <- p
-  = AccumIntegral Ty.intRef Nothing . WC.mapSingleton i <$> anfTerm bd
+  = AccumIntegral Ty.intRef Nothing . EC.mapSingleton i <$> anfTerm bd
   | NatP _ i <- p
-  = AccumIntegral Ty.natRef Nothing . WC.mapSingleton i <$> anfTerm bd
+  = AccumIntegral Ty.natRef Nothing . EC.mapSingleton i <$> anfTerm bd
   | ConstructorP _ r t ps <- p = do
     us <- expandBindings ps vs
     AccumData r Nothing
-      . WC.mapSingleton (toEnum t)
+      . EC.mapSingleton (toEnum t)
       . (BX<$us,)
       . ABTN.TAbss us
       <$> anfTerm bd
@@ -877,12 +885,12 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
     let (us, uk)
           = maybe (error "anfInitCase: unsnoc impossible") id
           $ unsnoc exp
-    n <- resolve r
-    jn <- resolve $ Builtin "jumpCont"
+    n <- resolveType r
+    jn <- resolveTerm $ Builtin "jumpCont"
     kf <- fresh
     flip AccumRequest Nothing
-       . WC.mapSingleton n
-       . WC.mapSingleton (toEnum t)
+       . EC.mapSingleton n
+       . EC.mapSingleton (toEnum t)
        . (BX<$us,)
        . ABTN.TAbss us
        . TShift n kf
@@ -923,11 +931,11 @@ anfCases u = fmap fold . traverse (anfInitCase u)
 anfFunc :: Var v => Term v a -> ANFM v (Ctx v, Func v)
 anfFunc (Var' v) = pure ([], FVar v)
 anfFunc (Ref' r)
-  = resolve r <&> \n -> ([], FComb n)
+  = resolveTerm r <&> \n -> ([], FComb n)
 anfFunc (Constructor' r t)
-  = resolve r <&> \rt -> ([], FCon rt $ toEnum t)
+  = resolveType r <&> \rt -> ([], FCon rt $ toEnum t)
 anfFunc (Request' r t)
-  = resolve r <&> \rt -> ([], FReq rt $ toEnum t)
+  = resolveType r <&> \rt -> ([], FReq rt $ toEnum t)
 anfFunc tm = do
   (fctx, ctm) <- anfBlock tm
   (cx, v) <- contextualize ctm

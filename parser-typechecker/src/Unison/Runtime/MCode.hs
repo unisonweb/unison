@@ -23,13 +23,14 @@ module Unison.Runtime.MCode
 import GHC.Stack (HasCallStack)
 
 import Data.Bifunctor (bimap)
+import Data.Coerce
 import Data.List (partition)
 import Data.Word (Word64)
 
 import Data.Primitive.PrimArray
 
 import qualified Data.Map.Strict as M
-import Unison.Util.WordContainers as WC
+import Unison.Util.EnumContainers as EC
 
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -45,6 +46,8 @@ import Unison.Runtime.ANF
   , Mem(..)
   , SuperNormal(..)
   , SuperGroup(..)
+  , RTag
+  , CTag
   , Tag(..)
   , packTags
   , pattern TVar
@@ -377,7 +380,7 @@ data Instr
   | Print !Int -- index of the primitive value to print
 
   -- Put a delimiter on the continuation
-  | Reset !WordSet -- prompt ids
+  | Reset !(EnumSet Word64) -- prompt ids
 
   | Fork !Section
   deriving (Show, Eq, Ord)
@@ -450,7 +453,7 @@ data Branch
           !Word64 !Section -- else if tag == n then ...
           !Section         -- else ...
   | TestT !Section
-          !(WordMap Section)
+          !(EnumMap Word64 Section)
   deriving (Show, Eq, Ord)
 
 type Ctx v = [(Maybe v,Mem)]
@@ -472,9 +475,9 @@ rctxResolve ctx u = M.lookup u ctx
 
 emitCombs
   :: Var v => Word64 -> SuperGroup v
-  -> (Comb, WordMap Comb, Word64)
+  -> (Comb, EnumMap Word64 Comb, Word64)
 emitCombs frsh (Rec grp ent)
-  = (emitComb rec ent, WC.mapFromList aux, frsh')
+  = (emitComb rec ent, EC.mapFromList aux, frsh')
   where
   frsh' = frsh + fromIntegral (length grp)
   (rvs, cmbs) = unzip grp
@@ -552,16 +555,18 @@ emitSection rec ctx (TMatch v bs)
   ++ matchCallingError cc bs
   | otherwise
   = error "emitSection: could not resolve match variable"
-emitSection rec ctx (THnd rs h df b)
+emitSection rec ctx (THnd rts h df b)
   | Just (i,BX) <- ctxResolve ctx h
-  = Ins (Reset . WC.setFromList $ rs)
+  = Ins (Reset . EC.setFromList $ rs)
   $ flip (foldr (\r -> Ins (SetDyn r i))) rs
   $ maybe id (\(TAbss us d) l ->
       Let l $ emitSection rec (fmap ((,BX).Just) us ++ ctx) d) df
   $ emitSection rec ctx b
   | otherwise = emitSectionVErr h
+  where
+  rs = rawTag <$> rts
 emitSection rec ctx (TShift i v e)
-  = Ins (Capture i)
+  = Ins (Capture $ rawTag i)
   $ emitSection rec ((Just v, BX):ctx) e
 emitSection _ _ _ = error "emitSection: unhandled code"
 
@@ -776,11 +781,11 @@ emitDataMatching
   :: Var v
   => RCtx v
   -> Ctx v
-  -> WordMap ([Mem], ANormal v)
+  -> EnumMap CTag ([Mem], ANormal v)
   -> Maybe (ANormal v)
   -> Section
 emitDataMatching rec ctx cs df
-  = Match 0 . TestT edf $ fmap (emitCase rec ctx) cs
+  = Match 0 . TestT edf . coerce $ fmap (emitCase rec ctx) cs
   where
   edf | Just co <- df = emitSection rec ctx co
       | otherwise = Die "missing data case"
@@ -791,7 +796,7 @@ emitSumMatching
   -> Ctx v
   -> v
   -> Int
-  -> WordMap ([Mem], ANormal v)
+  -> EnumMap Word64 ([Mem], ANormal v)
   -> Section
 emitSumMatching rec ctx v i cs
   = Match i . TestT edf $ fmap (emitSumCase rec ctx v) cs
@@ -802,12 +807,12 @@ emitRequestMatching
   :: Var v
   => RCtx v
   -> Ctx v
-  -> WordMap (WordMap ([Mem], ANormal v))
+  -> EnumMap RTag (EnumMap CTag ([Mem], ANormal v))
   -> Section
 emitRequestMatching rec ctx hs
-  = Match 0 . TestT edf $ fmap f hs
+  = Match 0 . TestT edf . coerce $ fmap f hs
   where
-  f cs = Match 1 . TestT edf $ fmap (emitCase rec ctx) cs
+  f cs = Match 1 . TestT edf . coerce $ fmap (emitCase rec ctx) cs
   edf = Die "unhandled ability"
 
 emitIntegralMatching
@@ -815,7 +820,7 @@ emitIntegralMatching
   => RCtx v
   -> Ctx v
   -> Int
-  -> WordMap (ANormal v)
+  -> EnumMap Word64 (ANormal v)
   -> Maybe (ANormal v)
   -> Section
 emitIntegralMatching rec ctx i cs df

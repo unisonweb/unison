@@ -125,6 +125,7 @@ library
     Unison.Util.AnnotatedText
     Unison.Util.Bytes
     Unison.Util.ColorText
+    Unison.Util.EnumContainers
     Unison.Util.Exception
     Unison.Util.Free
     Unison.Util.Find
@@ -141,7 +142,6 @@ library
     Unison.Util.CycleTable
     Unison.Util.CyclicEq
     Unison.Util.CyclicOrd
-    Unison.Util.WordContainers
 
   build-depends:
     ansi-terminal,

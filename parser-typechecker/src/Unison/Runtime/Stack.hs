@@ -23,14 +23,14 @@ import Unison.Runtime.ANF (Mem(..), unpackTags)
 import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
 
-import Unison.Util.WordContainers as WC
+import Unison.Util.EnumContainers as EC
 
 -- Evaluation stack
 data K
   = KE
   -- mark continuation with a prompt
-  | Mark !WordSet
-         !(WordMap Closure)
+  | Mark !(EnumSet Word64)
+         !(EnumMap Word64 Closure)
          !K
   -- save information about a frame for later resumption
   | Push !Int -- unboxed frame size

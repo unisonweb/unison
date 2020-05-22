@@ -13,7 +13,7 @@ import Unison.Runtime.MCode (emitCombs)
 import Unison.Type as Ty
 import Unison.Var as Var
 
-import Unison.Util.WordContainers as WC
+import Unison.Util.EnumContainers as EC
 
 import qualified Data.Set as Set
 
@@ -24,14 +24,12 @@ import Unison.Test.Common (tm)
 import Control.Monad.Reader (ReaderT(..))
 import Control.Monad.State (evalState)
 
-import Data.Word (Word64)
-
 -- testSNF s = ok
 --   where
 --   t0 = tm s
 --   snf = toSuperNormal (const 0) t0
 
-simpleRefs :: Reference -> Word64
+simpleRefs :: Reference -> RTag
 simpleRefs r
   | r == Ty.natRef = 0
   | r == Ty.intRef = 1
@@ -42,7 +40,9 @@ simpleRefs r
   | otherwise = 100
 
 runANF :: Var v => ANFM v a -> a
-runANF m = evalState (runReaderT m (Set.empty, simpleRefs)) (Set.empty, [])
+runANF m = evalState (runReaderT m env) (Set.empty, [])
+ where
+ env = (Set.empty, const 0, simpleRefs)
 
 testANF :: String -> Test ()
 testANF s
@@ -55,7 +55,7 @@ testANF s
 testLift :: String -> Test ()
 testLift s = case cs of (!_, !_, _) -> ok
   where
-  cs = emitCombs 0 . superNormalize (const 0) . lamLift $ tm s
+  cs = emitCombs 0 . superNormalize (const 0) (const 0) . lamLift $ tm s
 
 denormalize :: Var v => ANormal v -> Term.Term0 v
 denormalize (TVar v) = Term.var () v
@@ -109,7 +109,7 @@ denormalizeRef r
   | 5 <- rawTag r = Ty.charRef
   | otherwise = error "denormalizeRef"
 
-backReference :: Word64 -> Reference
+backReference :: RTag -> Reference
 backReference _ = error "backReference"
 
 denormalizeMatch
@@ -138,7 +138,7 @@ denormalizeMatch b
   ipat r _ i
     | r == Ty.natRef = NatP () $ fromIntegral i
     | otherwise = IntP () $ fromIntegral i
-  dpat r n t = ConstructorP () r (fromIntegral t) (replicate n $ VarP ())
+  dpat r n t = ConstructorP () r (fromEnum t) (replicate n $ VarP ())
 
 denormalizeBranch (TAbs v br) = (n+1, ABT.abs v dbr)
  where (n, dbr) = denormalizeBranch br
@@ -146,14 +146,14 @@ denormalizeBranch tm = (0, denormalize tm)
 
 denormalizeHandler
   :: Var v
-  => WordMap (WordMap ([Mem], ANormal v))
+  => EnumMap RTag (EnumMap CTag ([Mem], ANormal v))
   -> [Term.MatchCase () (Term.Term0 v)]
 denormalizeHandler cs = dcs
   where
   dcs = foldMapWithKey rf cs
   rf r rcs = foldMapWithKey (cf $ backReference r) rcs
   cf r t b = [ Term.MatchCase
-                 (EffectBindP () r (fromIntegral t)
+                 (EffectBindP () r (fromEnum t)
                    (replicate n $ VarP ()) (VarP ()))
                  Nothing
                  db

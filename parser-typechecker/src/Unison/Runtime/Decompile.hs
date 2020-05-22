@@ -34,19 +34,19 @@ decompile
   -> (Word64 -> Maybe (Term v ()))
   -> Closure
   -> Either String (Term v ())
-decompile backref _ (DataC rt ct [] [])
-  | Just rf <- backref $ rawTag rt
+decompile tyRef _ (DataC rt ct [] [])
+  | Just rf <- tyRef $ rawTag rt
   , rf == booleanRef
   = boolean () <$> tag2bool ct
-decompile backref _ (DataC rt ct [i] [])
-  | Just rf <- backref $ rawTag rt
+decompile tyRef _ (DataC rt ct [i] [])
+  | Just rf <- tyRef $ rawTag rt
   = decompileUnboxed rf ct i
-decompile backref topTerms (DataC rt ct [] bs)
-  | Just rf <- backref $ rawTag rt
-  = apps' (con rf ct) <$> traverse (decompile backref topTerms) bs
-decompile backref topTerms (PApV (IC rt _) [] bs)
+decompile tyRef topTerms (DataC rt ct [] bs)
+  | Just rf <- tyRef $ rawTag rt
+  = apps' (con rf ct) <$> traverse (decompile tyRef topTerms) bs
+decompile tyRef topTerms (PApV (IC rt _) [] bs)
   | Just t <- topTerms rt
-  = substitute t <$> traverse (decompile backref topTerms) bs
+  = substitute t <$> traverse (decompile tyRef topTerms) bs
   | otherwise
   = Left "reference to unknown combinator"
 decompile _ _ (PAp _ _ _)
@@ -55,7 +55,7 @@ decompile _ _ (DataC{})
   = Left "cannot decompile data type with multiple unboxed fields"
 decompile _ _ BlackHole = Left "exception"
 decompile _ _ (Captured{}) = Left "decompiling a captured continuation"
-decompile backref _ (Foreign f) = decompileForeign backref f
+decompile tyRef _ (Foreign f) = decompileForeign tyRef f
 
 tag2bool :: CTag -> Either String Bool
 tag2bool c = case rawTag c of

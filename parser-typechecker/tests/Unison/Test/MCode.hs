@@ -6,25 +6,19 @@ module Unison.Test.MCode where
 
 import EasyTest
 
-import Control.Monad.State (evalState)
-import Control.Monad.Reader (runReaderT)
-
-import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
 
 import Data.Bits (bit)
 import Data.Maybe (fromMaybe)
 import Data.Word (Word64)
 
-import Unison.Util.WordContainers as WC
+import Unison.Util.EnumContainers as EC
 
-import Unison.Var (Var)
 import Unison.Symbol (Symbol)
 import Unison.Reference (Reference(Builtin))
 import Unison.Runtime.Pattern (splitPatterns)
 import Unison.Runtime.ANF
-  ( ANFM
-  , superNormalize
+  ( superNormalize
   , lamLift
   )
 import Unison.Runtime.MCode
@@ -42,10 +36,6 @@ import Unison.Runtime.Rt2
 
 import Unison.Test.Common (tm)
 
-
-runANF :: Var v => (Reference -> Word64) -> ANFM v a -> a
-runANF rslv m = evalState (runReaderT m (Set.empty, rslv)) (Set.empty, [])
-
 testEval0 :: (Word64 -> Comb) -> Section -> Test ()
 testEval0 env sect = do
   io $ eval0 env sect
@@ -54,7 +44,7 @@ testEval0 env sect = do
 builtins :: Reference -> Word64
 builtins r
   | Builtin "todo" <- r = bit 64
-  | Just i <- Map.lookup r builtinNumbering = i
+  | Just i <- Map.lookup r builtinTermNumbering = i
   | otherwise = error $ "builtins: " ++ show r
 
 cenv :: Map.Map Word64 Comb
@@ -65,7 +55,7 @@ benv i
   | i == bit 64 = Just $ Lam 0 1 2 1 asrt
   | otherwise = Map.lookup i cenv
 
-env :: WordMap Comb -> Word64 -> Comb
+env :: EnumMap Word64 Comb -> Word64 -> Comb
 env m n = fromMaybe (m ! n) $ benv n
 
 asrt :: Section
@@ -88,7 +78,7 @@ testEval s = testEval0 (env aux) main
   where
   (Lam 0 0 _ _ main, aux, _)
     = emitCombs (bit 24)
-    . superNormalize builtins
+    . superNormalize builtins (builtinTypeNumbering Map.!)
     . lamLift
     . splitPatterns
     $ tm s

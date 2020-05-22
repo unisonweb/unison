@@ -7,7 +7,8 @@
 
 module Unison.Runtime.Builtin
   ( builtinLookup
-  , builtinNumbering
+  , builtinTermNumbering
+  , builtinTypeNumbering
   , numberedLookup
   , handle'io
   ) where
@@ -23,7 +24,7 @@ import qualified Unison.Type as Ty
 import qualified Unison.DataDeclaration as Ty
   (unitRef,optionalRef)
 
-import Unison.Util.WordContainers as WC
+import Unison.Util.EnumContainers as EC
 
 import Data.Word (Word64)
 
@@ -66,12 +67,11 @@ unwrap v0 r v b
   = TMatch v0
   $ MatchData r (mapSingleton 0 $ ([BX], TAbs v b)) Nothing
 
-unenum
-  :: Var v => Word64 -> v -> Reference -> v -> ANormal v -> ANormal v
+unenum :: Var v => Int -> v -> Reference -> v -> ANormal v -> ANormal v
 unenum n v0 r v nx
   = TMatch v0 $ MatchData r cases Nothing
   where
-  mkCase i = (i, ([], TLet v UN (ALit . I $ fromIntegral i) nx))
+  mkCase i = (toEnum i, ([], TLet v UN (ALit . I $ fromIntegral i) nx))
   cases = mapFromList . fmap mkCase $ [0..n-1]
 
 unop0 :: Var v => Int -> ([v] -> ANormal v) -> SuperNormal v
@@ -868,18 +868,16 @@ typeReferences
   , bufferModeReference
   ] [1..]
 
-numberedLookup :: Var v => Map.Map Word64 (SuperNormal v)
+numberedLookup :: Var v => Map Word64 (SuperNormal v)
 numberedLookup
-  = Map.fromList . zip [2^48..] . Map.elems $ builtinLookup
-
-rtagMap :: Map Reference RTag
-rtagMap = Map.fromList typeReferences
+  = Map.fromList . zip [1..] . Map.elems $ builtinLookup
 
 rtag :: Reference -> RTag
-rtag = (rtagMap Map.!)
+rtag = (builtinTypeNumbering Map.!)
 
-builtinNumbering :: Map.Map Reference Word64
-builtinNumbering
-  = Map.fromList (zip (Map.keys $ builtinLookup @Symbol) [2^48..])
-  <> fmap rawTag rtagMap
+builtinTermNumbering :: Map Reference Word64
+builtinTermNumbering
+  = Map.fromList (zip (Map.keys $ builtinLookup @Symbol) [1..])
 
+builtinTypeNumbering :: Map Reference RTag
+builtinTypeNumbering = Map.fromList typeReferences

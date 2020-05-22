@@ -22,11 +22,11 @@ import Unison.Runtime.Foreign
 import Unison.Runtime.Stack
 import Unison.Runtime.MCode
 
-import Unison.Util.WordContainers as WC
+import Unison.Util.EnumContainers as EC
 
 type Tag = Word64
 type Env = Word64 -> Comb
-type DEnv = WordMap Closure
+type DEnv = EnumMap Word64 Closure
 
 type Unmask = forall a. IO a -> IO a
 
@@ -42,7 +42,7 @@ eval0 !env !co = do
   mask $ \unmask -> eval unmask env mempty ustk bstk KE co
 
 lookupDenv :: Word64 -> DEnv -> Closure
-lookupDenv p denv = fromMaybe BlackHole $ WC.lookup p denv
+lookupDenv p denv = fromMaybe BlackHole $ EC.lookup p denv
 
 exec
   :: Unmask -> Env -> DEnv
@@ -59,7 +59,7 @@ exec _      !env !denv !ustk !bstk !k (Name n args) = do
   pure (denv, ustk, bstk, k)
 exec _      !_   !denv !ustk !bstk !k (SetDyn p i) = do
   clo <- peekOff bstk i
-  pure (WC.mapInsert p clo denv, ustk, bstk, k)
+  pure (EC.mapInsert p clo denv, ustk, bstk, k)
 exec _      !_   !denv !ustk !bstk !k (Capture p) = do
   (sk,denv,ustk,bstk,useg,bseg,k) <- splitCont denv ustk bstk k p
   bstk <- bump bstk
@@ -89,7 +89,7 @@ exec _      !_   !denv !ustk !bstk !k (Lit n) = do
   pure (denv, ustk, bstk, k)
 exec _      !_   !denv !ustk !bstk !k (Reset ps) = do
   pure (denv, ustk, bstk, Mark ps clos k)
- where clos = WC.restrictKeys denv ps
+ where clos = EC.restrictKeys denv ps
 exec unmask !_   !denv !ustk !bstk !k (ForeignCall catch (FF f) args)
     = foreignArgs ustk bstk args
   >>= perform
@@ -217,8 +217,8 @@ repush unmask !env !ustk !bstk = go
  go !denv KE !k = yield unmask env denv ustk bstk k
  go !denv (Mark ps cs sk) !k = go denv' sk $ Mark ps cs' k
   where
-  denv' = cs <> WC.withoutKeys denv ps
-  cs' = WC.restrictKeys denv ps
+  denv' = cs <> EC.withoutKeys denv ps
+  cs' = EC.restrictKeys denv ps
  go !denv (Push un bn ua ba nx sk) !k
    = go denv sk $ Push un bn ua ba nx k
 {-# inline repush #-}
@@ -592,7 +592,7 @@ prim2 !ustk LEQN !i !j = do
 yield :: Unmask -> Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> IO ()
 yield unmask !env !denv !ustk !bstk !k = leap denv k
  where
- leap !denv (Mark ps cs k) = leap (cs <> WC.withoutKeys denv ps) k
+ leap !denv (Mark ps cs k) = leap (cs <> EC.withoutKeys denv ps) k
  leap !denv (Push ufsz bfsz uasz basz nx k) = do
    ustk <- restoreFrame ustk ufsz uasz
    bstk <- restoreFrame bstk bfsz basz
@@ -620,11 +620,11 @@ splitCont !denv !ustk !bstk !k !p
  walk !denv !usz !bsz !ck KE
    = error "fell off stack" >> finish denv usz bsz ck KE
  walk !denv !usz !bsz !ck (Mark ps cs k)
-   | WC.member p ps = finish denv' usz bsz ck k
+   | EC.member p ps = finish denv' usz bsz ck k
    | otherwise      = walk denv' usz bsz (Mark ps cs' ck) k
   where
-  denv' = cs <> WC.withoutKeys denv ps
-  cs' = WC.restrictKeys denv ps
+  denv' = cs <> EC.withoutKeys denv ps
+  cs' = EC.restrictKeys denv ps
  walk !denv !usz !bsz !ck (Push un bn ua ba br k)
    = walk denv (usz+un+ua) (bsz+bn+ba) (Push un bn ua ba br ck) k
 
@@ -645,6 +645,6 @@ discardCont denv ustk bstk k p
 resolve :: Env -> DEnv -> Stack 'UN -> Stack 'BX -> Ref -> IO Closure
 resolve env _ _ _ (Env i) = return $ PAp (IC i $ env i) unull bnull
 resolve _ _ _ bstk (Stk i) = peekOff bstk i
-resolve _ denv _ _ (Dyn i) = case WC.lookup i denv of
+resolve _ denv _ _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo
   _ -> error $ "resolve: looked up bad dynamic: " ++ show i
