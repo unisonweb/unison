@@ -106,8 +106,8 @@ parse srcName txt = case P.parse (stanzas <* P.eof) srcName txt of
   Right a -> Right a
   Left e -> Left (show e)
 
-run :: FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> IO Text
-run dir configFile stanzas codebase = do
+run :: FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> Branch.Cache IO -> IO Text
+run dir configFile stanzas codebase branchCache = do
   let initialPath = Path.absoluteEmpty
   let startRuntime = pure Rt1.runtime
   putPrettyLn $ P.lines [
@@ -266,7 +266,7 @@ run dir configFile stanzas codebase = do
           "\128721", "",
           "The transcript failed due to an error encountered in the stanza above.", "",
           "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
-        
+
       dieUnexpectedSuccess :: IO ()
       dieUnexpectedSuccess = do
         errOk <- readIORef allowErrors
@@ -291,6 +291,7 @@ run dir configFile stanzas codebase = do
                                      loadPreviousUnisonBlock
                                      codebase
                                      rng
+                                     branchCache
                                      free
         case o of
           Nothing -> do

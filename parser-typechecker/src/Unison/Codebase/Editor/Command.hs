@@ -21,6 +21,7 @@ import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.GitError
 import qualified Unison.Codebase.Reflog        as Reflog
+import           Unison.Codebase.SyncMode       ( SyncMode )
 import           Unison.Names3                  ( Names, Names0 )
 import           Unison.Parser                  ( Ann )
 import           Unison.Referent                ( Referent )
@@ -142,7 +143,7 @@ data Command m i v a where
   -- we want to import as little as possible, so we pass the SBH/path as part
   -- of the `RemoteNamespace`.
   ImportRemoteBranch ::
-    RemoteNamespace -> Command m i v (Either GitError (Branch m))
+    RemoteNamespace -> SyncMode -> Command m i v (Either GitError (Branch m))
 
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
@@ -150,7 +151,7 @@ data Command m i v a where
   SyncLocalRootBranch :: Branch m -> Command m i v ()
 
   SyncRemoteRootBranch ::
-    RemoteRepo -> Branch m -> Command m i v (Either GitError ())
+    RemoteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
 
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
 

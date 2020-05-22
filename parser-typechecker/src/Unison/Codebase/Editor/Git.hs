@@ -31,11 +31,13 @@ import           Unison.Codebase.Branch         ( Branch
                                                 , headHash
                                                 )
 import qualified Unison.Codebase.Path          as Path
+import           Unison.Codebase.SyncMode       ( SyncMode )
 import qualified Unison.Util.Exception         as Ex
+import           Unison.Util.Timing             (time)
 import qualified Unison.Codebase.Branch        as Branch
 import UnliftIO.IO (hFlush, stdout)
 import UnliftIO.Directory (getXdgDirectory, XdgDirectory(XdgCache), doesDirectoryExist, findExecutable, removeDirectoryRecursive)
-import Unison.Codebase.FileCodebase.Common (encodeFileName)
+import Unison.Codebase.FileCodebase.Common (encodeFileName, updateCausalHead, branchHeadDir)
 
 tempGitDir :: MonadIO m => Text -> m FilePath
 tempGitDir url =
@@ -122,29 +124,32 @@ importRemoteBranch
   :: forall m v a
    . MonadIO m
   => Codebase m v a
+  -> Branch.Cache m
   -> RemoteNamespace
+  -> SyncMode
   -> ExceptT GitError m (Branch m)
-importRemoteBranch codebase ns = do
-  (branch, cacheDir) <- viewRemoteBranch' ns
+importRemoteBranch codebase cache ns mode = do
+  (branch, cacheDir) <- viewRemoteBranch' cache ns
   withStatus "Importing downloaded files into local codebase..." $
-    lift $ Codebase.syncFromDirectory codebase cacheDir branch
+    time "SyncFromDirectory" $
+      lift $ Codebase.syncFromDirectory codebase cacheDir mode branch
   pure branch
 
 -- | Pull a git branch and view it from the cache, without syncing into the
 -- local codebase.
 viewRemoteBranch :: forall m. MonadIO m
-  => RemoteNamespace -> ExceptT GitError m (Branch m)
-viewRemoteBranch = fmap fst . viewRemoteBranch'
+  => Branch.Cache m -> RemoteNamespace -> ExceptT GitError m (Branch m)
+viewRemoteBranch cache = fmap fst . viewRemoteBranch' cache
 
 viewRemoteBranch' :: forall m. MonadIO m
-  => RemoteNamespace -> ExceptT GitError m (Branch m, CodebasePath)
-viewRemoteBranch' (repo, sbh, path) = do
+  => Branch.Cache m -> RemoteNamespace -> ExceptT GitError m (Branch m, CodebasePath)
+viewRemoteBranch' cache (repo, sbh, path) = do
   -- set up the cache dir
-  remotePath <- pullBranch repo
+  remotePath <- time "Git fetch" $ pullBranch repo
   -- try to load the requested branch from it
-  branch <- case sbh of
+  branch <- time "Git fetch (sbh)" $ case sbh of
     -- load the root branch
-    Nothing -> lift (FC.getRootBranch remotePath) >>= \case
+    Nothing -> lift (FC.getRootBranch cache remotePath) >>= \case
       Left Codebase.NoRootBranch -> pure Branch.empty
       Left (Codebase.CouldntLoadRootBranch h) ->
         throwError $ GitError.CouldntLoadRootBranch repo h
@@ -156,7 +161,7 @@ viewRemoteBranch' (repo, sbh, path) = do
       branchCompletions <- lift $ FC.branchHashesByPrefix remotePath sbh
       case toList branchCompletions of
         [] -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
-        [h] -> (lift $ FC.branchFromFiles remotePath h) >>= \case
+        [h] -> (lift $ FC.branchFromFiles cache remotePath h) >>= \case
           Just b -> pure b
           Nothing -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
         _ -> throwError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
@@ -174,14 +179,14 @@ isGitRepo dir = liftIO $
   (True <$ gitIn dir ["rev-parse"]) $? pure False
 
 -- | Perform an IO action, passing any IO exception to `handler`
-withIOError :: MonadIO m => IO a -> (IOException -> m a) -> m a 
+withIOError :: MonadIO m => IO a -> (IOException -> m a) -> m a
 withIOError action handler =
   liftIO (fmap Right action `Control.Exception.catch` (pure . Left)) >>=
     either handler pure
 
--- | Generate some `git` flags for operating on some arbitary checked out copy 
+-- | Generate some `git` flags for operating on some arbitary checked out copy
 setupGitDir :: FilePath -> [Text]
-setupGitDir localPath = 
+setupGitDir localPath =
   ["--git-dir", Text.pack $ localPath </> ".git"
   ,"--work-tree", Text.pack localPath]
 
@@ -196,12 +201,14 @@ gitTextIn localPath args = liftIO $ "git" $| setupGitDir localPath <> args
 pushGitRootBranch
   :: MonadIO m
   => Codebase m v a
+  -> Branch.Cache m
   -> Branch m
   -> RemoteRepo
+  -> SyncMode
   -> ExceptT GitError m ()
-pushGitRootBranch codebase branch repo = do
+pushGitRootBranch codebase cache branch repo syncMode = do
   -- Pull the remote repo into a staging directory
-  (remoteRoot, remotePath) <- viewRemoteBranch' (repo, Nothing, Path.empty)
+  (remoteRoot, remotePath) <- viewRemoteBranch' cache (repo, Nothing, Path.empty)
   ifM (pure (remoteRoot == Branch.empty)
         ||^ lift (remoteRoot `Branch.before` branch))
     -- ours is newer 👍, meaning this is a fast-forward push,
@@ -212,7 +219,8 @@ pushGitRootBranch codebase branch repo = do
   stageAndPush remotePath = do
     let repoString = Text.unpack $ printRepo repo
     withStatus ("Staging files for upload to " ++ repoString ++ " ...") $
-      lift (Codebase.syncToDirectory codebase remotePath branch)
+      lift (Codebase.syncToDirectory codebase remotePath syncMode branch)
+    updateCausalHead (branchHeadDir remotePath) (Branch._history branch)
     -- push staging area to remote
     withStatus ("Uploading to " ++ repoString ++ " ...") $
       unlessM
@@ -234,8 +242,8 @@ pushGitRootBranch codebase branch repo = do
       case gitbranch of
         Nothing        -> gitIn remotePath ["push", "--quiet", url]
         Just gitbranch -> error $
-          "Pushing to a specific branch isn't fully implemented or tested yet.\n" 
-          ++ "InputPatterns.parseUri was expected to have prevented you " 
+          "Pushing to a specific branch isn't fully implemented or tested yet.\n"
+          ++ "InputPatterns.parseUri was expected to have prevented you "
           ++ "from supplying the git treeish `" ++ Text.unpack gitbranch ++ "`!"
           -- gitIn remotePath ["push", "--quiet", url, gitbranch]
       pure True

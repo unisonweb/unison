@@ -17,6 +17,7 @@ import qualified System.Console.Haskeline.Completion as Completion
 import System.Console.Haskeline.Completion (Completion(Completion))
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input)
+import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.CommandLine.InputPattern
          ( ArgumentType(..)
          , InputPattern(InputPattern)
@@ -43,6 +44,7 @@ import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
+import Data.Tuple.Extra (uncurry3)
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -456,10 +458,13 @@ deleteReplacement isTerm = InputPattern
   [(Required, if isTerm then exactDefinitionTermQueryArg else exactDefinitionTypeQueryArg), (Optional, patchArg)]
   (  P.string
   $  commandName
-  <> " <patch>` removes any edit of the "
+  <> " <foo> <patch>` removes any edit of the "
   <> str
-  <> " `foo` "
-  <> "from the patch `patch`, or the default patch if none is specified."
+  <> " `foo` from the patch `patch`, "
+  <> "or from the default patch if none is specified.  Note that `foo` refers to the "
+  <> "original name for the "
+  <> str
+  <> " - not the one in place after the edit."
   )
   (\case
     query : patch -> do
@@ -722,14 +727,41 @@ pull = InputPattern
     ]
   )
   (\case
-    []    -> Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty'
+    []    ->
+      Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
     [url] -> do
       ns <- parseUri "url" url
-      Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty'
+      Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit
     [url, path] -> do
       ns <- parseUri "url" url
       p <- first fromString $ Path.parsePath' path
-      pure $ Input.PullRemoteBranchI (Just ns) p
+      Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit
+    _ -> Left (I.help pull)
+  )
+
+pullExhaustive :: InputPattern
+pullExhaustive = InputPattern
+  "debug.pull-exhaustive"
+  []
+  [(Required, gitUrlArg), (Optional, pathArg)]
+  (P.lines
+    [ P.wrap $
+      "The " <> makeExample' pullExhaustive <> "command can be used in place of"
+        <> makeExample' pull <> "to complete namespaces"
+        <> "which were pulled incompletely due to a bug in UCM"
+        <> "versions M1l and earlier.  It may be extra slow!"
+    ]
+  )
+  (\case
+    []    ->
+      Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete
+    [url] -> do
+      ns <- parseUri "url" url
+      Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete
+    [url, path] -> do
+      ns <- parseUri "url" url
+      p <- first fromString $ Path.parsePath' path
+      Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete
     _ -> Left (I.help pull)
   )
 
@@ -764,7 +796,8 @@ push = InputPattern
     ]
   )
   (\case
-    []    -> Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty'
+    []    ->
+      Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
     url : rest -> do
       (repo, sbh, path) <- parseUri "url" url
       when (isJust sbh)
@@ -773,7 +806,34 @@ push = InputPattern
         [] -> Right Path.relativeEmpty'
         [path] -> first fromString $ Path.parsePath' path
         _ -> Left (I.help push)
-      Right $ Input.PushRemoteBranchI (Just (repo, path)) p
+      Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.ShortCircuit
+  )
+
+pushExhaustive :: InputPattern
+pushExhaustive = InputPattern
+  "debug.push-exhaustive"
+  []
+  [(Required, gitUrlArg), (Optional, pathArg)]
+  (P.lines
+    [ P.wrap $
+      "The " <> makeExample' pushExhaustive <> "command can be used in place of"
+        <> makeExample' push <> "to repair remote namespaces"
+        <> "which were pushed incompletely due to a bug in UCM"
+        <> "versions M1l and earlier. It may be extra slow!"
+    ]
+  )
+  (\case
+    []    ->
+      Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete
+    url : rest -> do
+      (repo, sbh, path) <- parseUri "url" url
+      when (isJust sbh)
+        $ Left "Can't push to a particular remote namespace hash."
+      p <- case rest of
+        [] -> Right Path.relativeEmpty'
+        [path] -> first fromString $ Path.parsePath' path
+        _ -> Left (I.help push)
+      Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.Complete
   )
 
 createPullRequest :: InputPattern
@@ -785,8 +845,8 @@ createPullRequest = InputPattern "pull-request.create" ["pr.create"]
         <> "into the remote repo `base`."
     , ""
     , "example: " <>
-      makeExampleNoBackticks createPullRequest ["https://github.com/unisonweb/base",
-                                                "https://github.com/me/unison:.libs.pr.base" ]
+      makeExampleNoBackticks createPullRequest ["https://github.com/unisonweb/base:.trunk",
+                                                "https://github.com/me/unison:.prs.base._myFeature" ]
     ])
   (\case
     [baseUrl, headUrl] -> do
@@ -832,6 +892,22 @@ parseUri label input = do
       <> "If you need this, add your 2¢ at"
       <> P.backticked "https://github.com/unisonweb/unison/issues/1436"
 
+squashMerge :: InputPattern
+squashMerge =
+  InputPattern "merge.squash" ["squash"] [(Required, pathArg), (Required, pathArg)]
+  (P.wrap $ makeExample squashMerge ["src","dest"]
+         <> "merges `src` namespace into `dest`,"
+         <> "discarding the history of `src` in the process."
+         <> "The resulting `dest` will have (at most) 1"
+         <> "additional history entry.")
+  (\case
+     [src, dest] -> first fromString $ do
+       src <- Path.parsePath' src
+       dest <- Path.parsePath' dest
+       pure $ Input.MergeLocalBranchI src dest Branch.SquashMerge
+     _ -> Left (I.help squashMerge)
+  )
+
 mergeLocal :: InputPattern
 mergeLocal = InputPattern "merge" [] [(Required, pathArg)
                                      ,(Optional, pathArg)]
@@ -841,11 +917,11 @@ mergeLocal = InputPattern "merge" [] [(Required, pathArg)
  (\case
       [src] -> first fromString $ do
         src <- Path.parsePath' src
-        pure $ Input.MergeLocalBranchI src Path.relativeEmpty'
+        pure $ Input.MergeLocalBranchI src Path.relativeEmpty' Branch.RegularMerge
       [src, dest] -> first fromString $ do
         src <- Path.parsePath' src
         dest <- Path.parsePath' dest
-        pure $ Input.MergeLocalBranchI src dest
+        pure $ Input.MergeLocalBranchI src dest Branch.RegularMerge
       _ -> Left (I.help mergeLocal)
  )
 
@@ -1169,7 +1245,7 @@ unlink = InputPattern
   ["delete.link"]
   [(Required, definitionQueryArg), (OnePlus, definitionQueryArg)]
   (fromString $ concat
-    [ "`unlink metadata defn` removes a link to `detadata` from `defn`."
+    [ "`unlink metadata defn` removes a link to `metadata` from `defn`."
     , "The `defn` can be either the "
     , "name of a term or type, multiple such names, or a range like `1-4` "
     , "for a range of definitions listed by a prior `find` command."
@@ -1276,11 +1352,14 @@ validInputs =
   , delete
   , forkLocal
   , mergeLocal
+  , squashMerge
   , previewMergeLocal
   , diffNamespace
   , names
   , push
   , pull
+  , pushExhaustive
+  , pullExhaustive
   , createPullRequest
   , loadPullRequest
   , cd
@@ -1450,3 +1529,23 @@ gitUrlArg = ArgumentType "git-url" $ \input _ _ _ -> case input of
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [ a | (Nothing, a) <- map f as `zip` as ]
+
+patternFromInput :: Input -> InputPattern
+patternFromInput = \case
+  Input.PushRemoteBranchI _ _ SyncMode.ShortCircuit -> push
+  Input.PushRemoteBranchI _ _ SyncMode.Complete -> pushExhaustive
+  Input.PullRemoteBranchI _ _ SyncMode.ShortCircuit -> pull
+  Input.PullRemoteBranchI _ _ SyncMode.Complete -> pushExhaustive
+  _ -> error "todo: finish this function"
+
+inputStringFromInput :: IsString s => Input -> P.Pretty s
+inputStringFromInput = \case
+  i@(Input.PushRemoteBranchI rh p' _) ->
+    (P.string . I.patternName $ patternFromInput i)
+      <> (" " <> maybe mempty (P.text . uncurry RemoteRepo.printHead) rh)
+      <> " " <> P.shown p'
+  i@(Input.PullRemoteBranchI ns p' _) ->
+    (P.string . I.patternName $ patternFromInput i)
+      <> (" " <> maybe mempty (P.text . uncurry3 RemoteRepo.printNamespace) ns)
+      <> " " <> P.shown p'
+  _ -> error "todo: finish this function"

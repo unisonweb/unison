@@ -12,11 +12,11 @@ import Unison.Prelude
 import Control.Concurrent.STM (atomically)
 import Control.Exception (finally, catch, AsyncException(UserInterrupt), asyncExceptionFromException)
 import Control.Monad.State (runStateT)
+import Data.Configurator.Types (Config)
 import Data.IORef
 import Data.Tuple.Extra (uncurry3)
 import Prelude hiding (readFile, writeFile)
-import System.IO.Error (catchIOError, isDoesNotExistError)
-import System.Exit (die)
+import System.IO.Error (isDoesNotExistError)
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Input (Input (..), Event)
@@ -132,13 +132,14 @@ asciiartUnison =
     <> P.cyan "|___|"
     <> P.purple "_|_|"
 
-welcomeMessage :: FilePath -> P.Pretty P.ColorText
-welcomeMessage dir =
+welcomeMessage :: FilePath -> String -> P.Pretty P.ColorText
+welcomeMessage dir version =
   asciiartUnison
     <> P.newline
     <> P.newline
     <> P.linesSpaced
          [ P.wrap "Welcome to Unison!"
+         , P.wrap ("You are running version: " <> P.string version)
          , P.wrap
            (  "I'm currently watching for changes to .u files under "
            <> (P.group . P.blue $ fromString dir)
@@ -159,18 +160,20 @@ main
   => FilePath
   -> Maybe RemoteNamespace
   -> Path.Absolute
-  -> FilePath
+  -> (Config, IO ())
   -> [Either Event Input]
   -> IO (Runtime v)
   -> Codebase IO v Ann
+  -> Branch.Cache IO
+  -> String
   -> IO ()
-main dir defaultBaseLib initialPath configFile initialInputs startRuntime codebase = do
+main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs startRuntime codebase branchCache version = do
   dir' <- shortenDirectory dir
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   putPrettyLn $ case defaultBaseLib of
       Just ns | Branch.isOne root ->
-        welcomeMessage dir' <> P.newline <> P.newline <> hintFreshCodebase ns
-      _ -> welcomeMessage dir'
+        welcomeMessage dir' version <> P.newline <> P.newline <> hintFreshCodebase ns
+      _ -> welcomeMessage dir' version
   eventQueue <- Q.newIO
   do
     runtime                  <- startRuntime
@@ -180,12 +183,8 @@ main dir defaultBaseLib initialPath configFile initialInputs startRuntime codeba
     initialInputsRef         <- newIORef initialInputs
     numberedArgsRef          <- newIORef []
     pageOutput               <- newIORef True
-    (config, cancelConfig)   <-
-      catchIOError (watchConfig configFile) $ \_ ->
-        die "Your .unisonConfig could not be loaded. Check that it's correct!"
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
-    cancelWatchBranchUpdates <- watchBranchUpdates (Branch.headHash <$>
-                                                      readIORef rootRef)
+    cancelWatchBranchUpdates <- watchBranchUpdates (readIORef rootRef)
                                                    eventQueue
                                                    codebase
     let patternMap =
@@ -251,6 +250,7 @@ main dir defaultBaseLib initialPath configFile initialInputs startRuntime codeba
                                      loadSourceFile
                                      codebase
                                      (const Random.getSystemDRG)
+                                     branchCache
                                      free
         case o of
           Nothing -> pure ()

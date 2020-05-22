@@ -313,7 +313,7 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
     hh <- getHaskellHandleOrThrow handle
     reraiseIO . hPutStr hh $ Text.unpack string
     pure IR.unit
-  go "io.IO.throw_" [IR.Data _ _ [IR.Data _ _ [], IR.T message]] =
+  go "io.IO.throw" [IR.Data _ _ [IR.Data _ _ [], IR.T message]] =
     liftIO . throwIO $ UnisonRuntimeException message
   go "io.IO.isSeekable_" [IR.Data _ 0 [IR.T handle]] = do
     hh       <- getHaskellHandleOrThrow handle
