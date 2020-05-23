@@ -57,12 +57,12 @@ tc_breaks s width expected = tc_diff_rtt True s expected width
 
 test :: Test ()
 test = scope "typeprinter" . tests $
-  [ tc "a -> b"
+  [ tc_diff_rtt False "a -> b" "'b" 80
   , tc "()"
   , tc "Pair"
   , tc "Pair a b"
   , tc "Pair a a"
-  , tc_diff "((a))" $ "a"
+  , tc_diff "((a))" "a"
   , tc "Pair a ()" -- unary tuple
   , tc "(a, a)"
   , tc "(a, a, a)"
@@ -70,14 +70,14 @@ test = scope "typeprinter" . tests $
   , tc "Pair a (Pair a a)"
   , tc "Pair (Pair a a) a"
   , tc "{} (Pair a a)"
-  , tc "a ->{} b"
-  , tc "a ->{e1} b"
-  , tc "a ->{e1, e2} b -> c ->{} d"
-  , tc "a ->{e1, e2} b ->{} c -> d"
-  , tc "a -> b -> c ->{} d"
-  , tc "a -> b ->{} c -> d"
+  , tc_diff_rtt False "a ->{} b" "'{} b" 80
+  , tc_diff_rtt False "a ->{e1} b" "'{e1} b" 80
+  , tc_diff_rtt False "a ->{e1, e2} b -> c ->{} d" "'{e1,e2}''{}d" 80
+  , tc_diff_rtt False "a ->{e1, e2} b ->{} c -> d" "'{e1,e2}'{}'d" 80
+  , tc_diff_rtt False "a -> b -> c ->{} d" "'''{}d" 80
+  , tc_diff_rtt False "a -> b ->{} c -> d" "''{}'d" 80
   , tc "{e1, e2} (Pair a a)"
-  , tc "Pair (a -> b) (c -> d)"
+  , tc_diff_rtt False "Pair (a -> b) (c -> d)" "Pair '(b) '(d)" 80
   , tc "Pair a b ->{e1, e2} Pair a b ->{} Pair (a -> b) d -> Pair c d"
   , tc "[Pair a a]"
   , tc "'a"
@@ -95,7 +95,7 @@ test = scope "typeprinter" . tests $
   , tc "((a -> b) -> c) -> d"
   , tc "(∀ a. 'a) -> ()"
   , tc "(∀ a. (∀ b. 'b) -> a) -> ()"
-  , tc_diff "∀ a. 'a" $ "'a"
+  , tc_diff "∀ a. 'a" "'a"
   , tc "a -> '(b -> c)"
   , tc "a -> b -> c -> d"
   , tc "a -> 'Pair b c"
@@ -136,9 +136,9 @@ test = scope "typeprinter" . tests $
   , tc "'{e} (a ->{f} b)"
   , pending $ tc "Pair a '{e} b"                           -- parser hits unexpected '
   , tc_diff_rtt False "Pair a ('{e} b)" "Pair a '{e} b" 80 -- no RTT due to the above
-  , tc "'(a -> 'a)"
+  , tc_diff_ "'(a -> 'a)"
   , tc "'()"
-  , tc "'('a)"
+  , tc_diff_rtt False "'('a)" "''a" 80
   , pending $ tc "''a"  -- issue #249
   , pending $ tc "'''a" -- issue #249
   , tc_diff "∀ a . a" $ "a"

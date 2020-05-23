@@ -10,11 +10,13 @@ import           Unison.Parser
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
+import qualified Unison.Var as Var
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Name as Name
 import qualified Unison.Names3 as Names
 import qualified Data.Set as Set
+import qualified Unison.ABT as ABT
 import Control.Monad.Reader (asks)
 
 -- A parsed type is annotated with its starting and ending position in the
@@ -57,9 +59,9 @@ delayed :: Var v => TypeP v
 delayed = do
   q <- reserved "'"
   t <- effect <|> type2
-  pure $ Type.arrow (Ann (L.start q) (end $ ann t))
-                    (DD.unitType (ann q))
-                    t
+  let a = Ann (L.start q) (end $ ann t)
+      arr = Type.arrow a (DD.unitType (ann q)) t
+  pure $ Type.forall a (ABT.fresh arr (Var.named "t")) arr
 
 type2 :: Var v => TypeP v
 type2 = do

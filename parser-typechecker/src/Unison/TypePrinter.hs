@@ -8,6 +8,7 @@ module Unison.TypePrinter where
 import Unison.Prelude
 
 import qualified Data.Map              as Map
+import qualified Data.Set              as Set
 import           Unison.HashQualified  (HashQualified)
 import           Unison.NamePrinter    (styleHashQualified'')
 import           Unison.PrettyPrintEnv (PrettyPrintEnv, Imports, elideFQN)
@@ -73,6 +74,16 @@ prettyRaw
 -- application has precedence 10.
 prettyRaw n im p tp = go n im p tp
   where
+  shouldDelay :: v -> [v] -> [(Maybe [Type v a], Type v a)] -> Bool
+  shouldDelay v vs rest =
+    elem v vs
+      && all
+           ( Set.notMember v
+           . Set.unions
+           . fmap freeVars
+           . (\(m, t) -> t : concat m)
+           )
+           rest
   go :: PrettyPrintEnv -> Imports -> Int -> Type v a -> Pretty SyntaxText
   go n im p tp = case stripIntroOuters tp of
     Var' v     -> fmt S.Var $ PP.text (Var.name v)
@@ -89,16 +100,22 @@ prettyRaw n im p tp = go n im p tp
     Effect1' e t ->
       PP.parenthesizeIf (p >= 10) $ go n im 9 e <> " " <> go n im 10 t
     Effects' es         -> effects (Just es)
-    ForallsNamed' vs body -> if (p < 0 && all Var.universallyQuantifyIfFree vs)
+    -- `forall a. a -> x` where `x` does not involve `a` at all should be
+    -- rendered as `'x`.
+    -- Note: rest has type `[(Maybe [Type v a], Type v a)]`
+    ForallsNamed' vs (EffectfulArrows' (Var' v) rest)
+      | shouldDelay v vs rest -> arrows vs True True rest
+    ForallsNamed' vs body -> if p < 0 && all Var.universallyQuantifyIfFree vs
       then go n im p body
       else paren (p >= 0) $
         let vformatted = PP.sep " " (fmt S.Var . PP.text . Var.name <$> vs)
-        in ((fmt S.TypeOperator "∀ ") <> vformatted <> (fmt S.TypeOperator "."))
+        in (fmt S.TypeOperator "∀ " <> vformatted <> fmt S.TypeOperator ".")
            `PP.hang` go n im (-1) body
     t@(Arrow' _ _) -> case t of
-      EffectfulArrows' (Ref' DD.UnitRef) rest -> arrows True True rest
+      EffectfulArrows' (Ref' DD.UnitRef) rest -> arrows mempty True True rest
       EffectfulArrows' fst rest ->
-        PP.parenthesizeIf (p >= 0) $ go n im 0 fst <> arrows False False rest
+        PP.parenthesizeIf (p >= 0) $
+          go n im 0 fst <> arrows mempty False False rest
       _ -> "error"
     _ -> "error"
   effects Nothing   = mempty
@@ -109,18 +126,26 @@ prettyRaw n im p tp = go n im p tp
       <> effects mes
       <> if (isJust mes) || (not delay) && (not first) then " " else mempty
 
-  arrows delay first [(mes, Ref' DD.UnitRef)] = arrow delay first mes <> (fmt S.DataType "()")
-  arrows delay first ((mes, Ref' DD.UnitRef) : rest) =
-    arrow delay first mes <> (parenNoGroup delay $ arrows True True rest)
-  arrows delay first ((mes, arg) : rest) =
-    arrow delay first mes
-      <> (  parenNoGroup (delay && (not $ null rest))
-         $  go n im 0 arg
-         <> arrows False False rest
-         )
-  arrows False False [] = mempty
-  arrows False True  [] = mempty  -- not reachable
-  arrows True  _     [] = mempty  -- not reachable
+  -- `delay` is whether this arrow is a "delayed" computation and should start
+  -- with `'`.
+  -- `first` is True if we're about to emit the first arrow in a function type
+  arrows
+    :: [v] -> Bool -> Bool -> [(Maybe [Type v a], Type v a)] -> Pretty SyntaxText
+  arrows _ delay first [(mes, Ref' DD.UnitRef)] =
+    arrow delay first mes <> fmt S.DataType "()"
+  arrows vs delay first ((mes, Ref' DD.UnitRef) : rest) =
+    arrow delay first mes <> parenNoGroup delay (arrows vs True True rest)
+  arrows vs delay first ((mes, arg) : rest) =
+    -- Whether to delay the next arrow
+    let delay' = case arg of
+          Var' v -> shouldDelay v vs rest && not (null rest)
+          _      -> False
+    in  arrow delay first mes <> parenNoGroup
+          (delay && not (null rest) && not delay')
+          (  (if delay' then mempty else go n im 0 arg)
+          <> arrows vs delay' delay' rest
+          )
+  arrows _ _ _ [] = mempty
 
   paren True  s = PP.group $ ( fmt S.Parenthesis "(" ) <> s <> ( fmt S.Parenthesis ")" )
   paren False s = PP.group s
