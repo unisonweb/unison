@@ -76,7 +76,9 @@ prettyRaw n im p tp = go n im p tp
   where
   shouldDelay :: v -> [v] -> [(Maybe [Type v a], Type v a)] -> Bool
   shouldDelay v vs rest =
-    elem v vs
+    Var.name v
+      == "()"
+      || elem v vs
       && all
            ( Set.notMember v
            . Set.unions
@@ -103,8 +105,8 @@ prettyRaw n im p tp = go n im p tp
     -- `forall a. a -> x` where `x` does not involve `a` at all should be
     -- rendered as `'x`.
     -- Note: rest has type `[(Maybe [Type v a], Type v a)]`
-    ForallsNamed' vs (EffectfulArrows' (Var' v) rest)
-      | shouldDelay v vs rest -> arrows vs True True rest
+    ForallsNamed' vs (EffectfulArrows' vv rest) ->
+       PP.parenthesizeIf (p >= 0) $ arrows vs False True ((Nothing, vv) : rest)
     ForallsNamed' vs body -> if p < 0 && all Var.universallyQuantifyIfFree vs
       then go n im p body
       else paren (p >= 0) $

@@ -83,7 +83,7 @@ test = scope "typeprinter" . tests $
   , tc "'a"
   , tc "'Pair a a"
   , tc "a -> 'b"
-  , tc "'(a -> b)"
+  , tc_diff_rtt False "'(a -> b)" "''b" 80
   , tc "(a -> b) -> c"
   , tc "'a -> b"
   , tc "∀ A. A -> A"
@@ -132,18 +132,18 @@ test = scope "typeprinter" . tests $
   , tc "a -> '{e} (b -> c)"
   , tc_diff "a -> () ->{e} () -> b" $ "a -> '{e} ('b)"
   , tc "'{e} a"
-  , tc "'{e} (a -> b)"
-  , tc "'{e} (a ->{f} b)"
+  , tc_diff_rtt False "'{Nat} (a -> b)" "'{Nat} 'b" 80
+  , tc_diff_rtt False "'{Nat} (a ->{Int} b)" "'{Nat} '{Int} b" 80
   , pending $ tc "Pair a '{e} b"                           -- parser hits unexpected '
   , tc_diff_rtt False "Pair a ('{e} b)" "Pair a '{e} b" 80 -- no RTT due to the above
-  , tc_diff_ "'(a -> 'a)"
+  , tc "'(a -> 'a)"
   , tc "'()"
   , tc_diff_rtt False "'('a)" "''a" 80
   , pending $ tc "''a"  -- issue #249
   , pending $ tc "'''a" -- issue #249
-  , tc_diff "∀ a . a" $ "a"
-  , tc_diff "∀ a. a" $ "a"
-  , tc_diff "∀ a . 'a" $ "'a"
+  , tc_diff "∀ a . a" "a"
+  , tc_diff "∀ a. a" "a"
+  , tc_diff "∀ a . 'a" "'a"
   , pending $ tc_diff "∀a . a" $ "a" -- lexer doesn't accept, treats ∀a as one lexeme - feels like it should work
   , pending $ tc_diff "∀ A . 'A" $ "'A"  -- 'unknown parse error' - should this be accepted?
 
