@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest] # , macOS-latest]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        name: cache ~/.stack
+        with:
+          path: ~/.stack
+          key: x-${{runner.os}}-stack-${{hashFiles('stack.yaml')}}
+      - uses: actions/cache@v2
+        name: cache .stack-work
+        with:
+          path: |
+            .stack-work
+            parser-typechecker/.stack-work
+            unison-core/.stack-work
+            yaks/easytest/.stack-work
+          key: x-${{runner.os}}-stack_work-${{hashFiles('stack.yaml')}}-${{github.sha}}
+          restore-keys: x-${{runner.os}}-stack_work-${{hashFiles('stack.yaml')}}-
+      - name: install stack
+        run: |
+          echo $PATH
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-linux-x86_64.tar.gz | tar -xz
+          echo "$HOME/stack-2.5.1-linux-x86_64/" >> $GITHUB_PATH
+      - name: set git username
+        run: git config --global user.name "GitHub Actions"
+      - name: build dependencies
+        run: stack --no-terminal --system-ghc build --fast --only-dependencies
+      - name: build
+        run: stack --no-terminal --system-ghc build --fast
+      - name: tests
+        run: stack --no-terminal --system-ghc exec tests
+      - name: tests (new runtime)
+        run: stack --no-terminal --system-ghc exec tests -- --new-runtime
+      - name: transcripts
+        run: |
+          stack --no-terminal --system-ghc exec transcripts
+          git diff
+          x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi'
+      - name: transcripts (new runtime)
+        run: |
+          stack --no-terminal --system-ghc exec transcripts -- --new-runtime
+          git diff
+          x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi'
