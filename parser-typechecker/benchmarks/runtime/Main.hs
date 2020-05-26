@@ -4,10 +4,12 @@ module Main(main) where
 
 import Criterion.Main
 
-import Data.IntSet as Set
+import Data.Word
 
 import Unison.Runtime.MCode
-import Unison.Runtime.Rt2
+import Unison.Runtime.Machine
+
+import Unison.Util.EnumContainers
 
 infixr 0 $$
 ($$) :: Instr -> Section -> Section
@@ -75,7 +77,7 @@ add = Unpack 1
 
 -- k s => (k s) s -- k continuation
 diag :: Section
-diag = Let (Reset (Set.singleton 0) $$ Jump 0 (BArg1 1))
+diag = Let (Reset (setSingleton 0) $$ Jump 0 (BArg1 1))
      $ App False (Stk 0) (BArg1 2)
 
 -- => shift k. diag k
@@ -85,7 +87,7 @@ get = Capture 0
 
 -- k s _ => (k) s
 kid :: Section
-kid = Let (Reset (Set.singleton 0) $$ Jump 0 ZArgs)
+kid = Let (Reset (setSingleton 0) $$ Jump 0 ZArgs)
     $ App False (Stk 0) (BArg1 2)
 
 -- s => shift k. kid k s
@@ -109,7 +111,7 @@ kloopb =
 
 -- m a => f = reset (kloopb m) ; y = f (I# a) ; print y
 kloop :: Section
-kloop = Let (Reset (Set.singleton 0) $$ App False (Env 5) (UArg1 0))
+kloop = Let (Reset (setSingleton 0) $$ App False (Env 5) (UArg1 0))
       $ Pack 0 (UArg1 1)
      $$ App False (Stk 1) (BArg1 0)
 
@@ -144,7 +146,7 @@ tloopb =
 
 -- m s => reset (tinst (I# s) ; tloopb m)
 tloop :: Section
-tloop = Reset (Set.singleton 0)
+tloop = Reset (setSingleton 0)
      $$ Pack 0 (UArg1 1)
      $$ Let (Call True 21 $ BArg1 0)
       $ Call True 25 $ UArg1 0
@@ -181,7 +183,7 @@ stackEater
    $$ Let (App False (Env 4) (UArg1 0))
     $ Yield ZArgs
 
-testEnv :: Int -> Comb
+testEnv :: Word64 -> Comb
 testEnv 0 = Lam 2 0 4 0 loop
 testEnv 1 = Lam 0 2 6 4 sloop
 testEnv 2 = Lam 1 0 6 0 fib
@@ -203,13 +205,13 @@ testEnv 25 = Lam 1 0 4 3 tloopb
 testEnv 26 = Lam 1 0 4 3 tloop
 testEnv _ = error "testEnv"
 
-setupu1 :: Int -> Int -> Section
+setupu1 :: Word64 -> Int -> Section
 setupu1 f n = Lit n $$ App False (Env f) (UArg1 0)
 
-setupu2 :: Int -> Int -> Int -> Section
+setupu2 :: Word64 -> Int -> Int -> Section
 setupu2 f m n = Lit m $$ Lit n $$ App False (Env f) (UArg2 0 1)
 
-setupb2 :: Int -> Int -> Int -> Section
+setupb2 :: Word64 -> Int -> Int -> Section
 setupb2 f m n
   = Lit m $$ Pack 0 (UArg1 0)
  $$ Lit n $$ Pack 0 (UArg1 0)
