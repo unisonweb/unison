@@ -7,6 +7,7 @@ module Unison.TypePrinter where
 
 import Unison.Prelude
 
+import qualified Unison.ABT as ABT
 import qualified Data.Map              as Map
 import qualified Data.Set              as Set
 import           Unison.HashQualified  (HashQualified)
@@ -105,14 +106,27 @@ prettyRaw n im p tp = go n im p tp
     -- `forall a. a -> x` where `x` does not involve `a` at all should be
     -- rendered as `'x`.
     -- Note: rest has type `[(Maybe [Type v a], Type v a)]`
-    ForallsNamed' vs (EffectfulArrows' vv rest) ->
-       PP.parenthesizeIf (p >= 0) $ arrows vs False True ((Nothing, vv) : rest)
-    ForallsNamed' vs body -> if p < 0 && all Var.universallyQuantifyIfFree vs
-      then go n im p body
-      else paren (p >= 0) $
-        let vformatted = PP.sep " " (fmt S.Var . PP.text . Var.name <$> vs)
-        in (fmt S.TypeOperator "∀ " <> vformatted <> fmt S.TypeOperator ".")
-           `PP.hang` go n im (-1) body
+    x@(ForallsNamed' vs' body) ->
+      case vs' of
+        v : _ | Var.name v == "()" ->
+          case x of
+            ABT.Term _ _ (ABT.Tm (Forall (ABT.Term _ _ (ABT.Abs _ body)))) ->
+              go n im p body
+            _ -> undefined
+        _ ->
+          let vs = filter (\x -> Var.name x /= "()") vs'
+          in if p < 0 && all Var.universallyQuantifyIfFree vs
+             then case body of
+                    EffectfulArrows' vv rest ->
+                      arrows vs False True ((Nothing, vv) : rest)
+                    _ -> go n im p body
+             else paren (p >= 0) $
+               let vformatted = PP.sep " " (fmt S.Var . PP.text . Var.name <$> vs)
+               in (fmt S.TypeOperator "∀ " <> vformatted <> fmt S.TypeOperator ".")
+                  `PP.hang` case body of
+                              EffectfulArrows' vv rest ->
+                                arrows vs False True ((Nothing, vv) : rest)
+                              _ -> go n im (-1) body
     t@(Arrow' _ _) -> case t of
       EffectfulArrows' (Ref' DD.UnitRef) rest -> arrows mempty True True rest
       EffectfulArrows' fst rest ->

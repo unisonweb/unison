@@ -58,10 +58,10 @@ type2a = delayed <|> type2
 delayed :: Var v => TypeP v
 delayed = do
   q <- reserved "'"
-  t <- effect <|> type2
+  t <- effect <|> type2a
   let a = Ann (L.start q) (end $ ann t)
       arr = Type.arrow a (DD.unitType (ann q)) t
-  pure $ Type.forall a (ABT.fresh arr (Var.named "t")) arr
+  pure $ Type.forall a (ABT.fresh arr (Var.named "()")) arr
 
 type2 :: Var v => TypeP v
 type2 = do

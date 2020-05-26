@@ -3,8 +3,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
 
 module Unison.Lexer where
@@ -13,6 +11,7 @@ import Unison.Prelude
 
 import           Control.Lens.TH (makePrisms)
 import qualified Control.Monad.State as S
+import           Data.Bifunctor (first)
 import           Data.Char
 import           Data.List
 import qualified Data.List.NonEmpty as Nel
@@ -489,7 +488,7 @@ lexer0 scope rem =
         Right Nothing -> Token (Err UnknownLexeme) pos pos : recover l pos rem
         Left e -> Token (Err e) pos pos : recover l pos rem
 
-    lexDoc l pos rem = case span (\c -> isSpace c && not (c == '\n')) rem of
+    lexDoc l pos rem = case span (\c -> isSpace c && (c /= '\n')) rem of
       (spaces,rem) -> docBlob l pos' rem pos' []
         where pos' = incBy spaces pos
 
@@ -511,7 +510,7 @@ lexer0 scope rem =
         let pos' = inc . inc $ pos in
         (if null acc then id
          else (Token (Textual (reverse
-          $ dropWhile (\c -> isSpace c && not (c == '\n')) acc)) blobStart pos :)) $
+          $ dropWhile (\c -> isSpace c && (c /= '\n')) acc)) blobStart pos :)) $
           Token Close pos pos' : goWhitespace l pos' rem
       [] -> recover l pos rem
       ch : rem -> docBlob l (incBy [ch] pos) rem blobStart (ch:acc)
@@ -655,7 +654,7 @@ symbolyId r@('.':s)
   | s == ""              = symbolyId0 r --
   | isSpace (head s)     = symbolyId0 r -- lone dot treated as an operator
   | isDelimiter (head s) = symbolyId0 r --
-  | otherwise            = (\(s, rem) -> ('.':s, rem)) <$> symbolyId' s
+  | otherwise            = first ('.':) <$> symbolyId' s
 symbolyId s = symbolyId' s
 
 -- Is a '.' delimited list of wordyId, with a final segment of `symbolyId0`
@@ -668,7 +667,7 @@ symbolyId' s = case wordyId0 s of
   Right (w,_) -> Left (InvalidSymbolyId w)
 
 wordyId :: String -> Either Err (String, String)
-wordyId ('.':s) = (\(s,rem) -> ('.':s,rem)) <$> wordyId' s
+wordyId ('.':s) = first ('.':) <$> wordyId' s
 wordyId s = wordyId' s
 
 -- Is a '.' delimited list of wordyId

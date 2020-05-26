@@ -51,13 +51,16 @@ tc_diff s expected = tc_diff_rtt True s expected 0
 tc :: String -> Test ()
 tc s = tc_diff s s
 
+tc' :: String -> String -> Test ()
+tc' s1 s2 = tc_diff_rtt False s1 s2 80
+
 -- Use renderBroken to render the output to some maximum width.
 tc_breaks :: String -> Int -> String -> Test ()
 tc_breaks s width expected = tc_diff_rtt True s expected width
 
 test :: Test ()
 test = scope "typeprinter" . tests $
-  [ tc_diff_rtt False "a -> b" "'b" 80
+  [ tc' "a -> b" "'b"
   , tc "()"
   , tc "Pair"
   , tc "Pair a b"
@@ -70,20 +73,24 @@ test = scope "typeprinter" . tests $
   , tc "Pair a (Pair a a)"
   , tc "Pair (Pair a a) a"
   , tc "{} (Pair a a)"
-  , tc_diff_rtt False "a ->{} b" "'{} b" 80
-  , tc_diff_rtt False "a ->{e1} b" "'{e1} b" 80
-  , tc_diff_rtt False "a ->{e1, e2} b -> c ->{} d" "'{e1,e2}''{}d" 80
-  , tc_diff_rtt False "a ->{e1, e2} b ->{} c -> d" "'{e1,e2}'{}'d" 80
-  , tc_diff_rtt False "a -> b -> c ->{} d" "'''{}d" 80
-  , tc_diff_rtt False "a -> b ->{} c -> d" "''{}'d" 80
+  , tc' "a ->{} b" "'{} b"
+  , tc' "a ->{e1} b" "'{e1} b"
+  , tc "A ->{E1, E2} B -> C ->{} D"
+  , tc' "a ->{e1, e2} b -> c ->{} d" "'''d"
+  , tc' "a ->{e1, e2} b ->{} c -> d" "'''d"
+  , tc "A ->{E1, E2} B ->{} C -> D"
+  , tc "A -> B ->{} C -> D"
+  , tc' "a -> b ->{} c -> d" "'''d"
+  , tc "A -> B -> C ->{} D"
+  , tc' "a -> b -> c ->{} d" "'''d"
   , tc "{e1, e2} (Pair a a)"
-  , tc_diff_rtt False "Pair (a -> b) (c -> d)" "Pair '(b) '(d)" 80
+  , tc "Pair (A -> B) (C -> D)"
   , tc "Pair a b ->{e1, e2} Pair a b ->{} Pair (a -> b) d -> Pair c d"
   , tc "[Pair a a]"
   , tc "'a"
   , tc "'Pair a a"
-  , tc "a -> 'b"
-  , tc_diff_rtt False "'(a -> b)" "''b" 80
+  , tc' "a -> 'b" "''b"
+  , tc' "'(a -> b)" "''b"
   , tc "(a -> b) -> c"
   , tc "'a -> b"
   , tc "∀ A. A -> A"
@@ -91,36 +98,58 @@ test = scope "typeprinter" . tests $
   , tc "∀ A B. A -> B -> (A, B)"
   , tc "a -> 'b -> c"
   , tc "a -> (b -> c) -> d"
-  , tc "(a -> b) -> c -> d"
+  , tc "(A -> B) -> C -> D"
+  , tc' "(a -> b) -> c -> d" "(a -> b) -> 'd"
   , tc "((a -> b) -> c) -> d"
   , tc "(∀ a. 'a) -> ()"
   , tc "(∀ a. (∀ b. 'b) -> a) -> ()"
   , tc_diff "∀ a. 'a" "'a"
-  , tc "a -> '(b -> c)"
-  , tc "a -> b -> c -> d"
-  , tc "a -> 'Pair b c"
-  , tc "a -> b -> 'c"
-  , tc "a ->{e} 'b"
-  , tc "a -> '{e} b"
-  , tc "a -> '{e} b -> c"
-  , tc "a -> '{e} b ->{f} c"
-  , tc "a -> '{e} (b -> c)"
-  , tc "a -> '{e} (b ->{f} c)"
-  , tc "a -> 'b"
-  , tc "a -> '('b)"
-  , tc "a -> '('(b -> c))"
-  , tc "a -> '('('(b -> c)))"
-  , tc "a -> '{e} ('('(b -> c)))"
-  , tc "a -> '('{e} ('(b -> c)))"
-  , tc "a -> '('('{e} (b -> c)))"
-  , tc "a -> 'b ->{f} c"
-  , tc "a -> '(b -> c)"
-  , tc "a -> '(b ->{f} c)"
-  , tc "a -> '{e} ('b)"
+  , tc' "a -> '(b -> c)" "'''c"
+  , tc "A -> '(B -> C)"
+  , tc "A -> B -> C -> D"
+  , tc' "a -> b -> c -> d" "'''d"
+  , tc "A -> 'Pair B C"
+  , tc' "a -> 'Pair b c" "''Pair b c"
+  , tc "A -> B -> 'C"
+  , tc' "a -> b -> 'c" "'''c"
+  , tc' "a ->{e} 'b" "''b"
+  , tc "A ->{E} 'B"
+  , tc "A -> '{E} B"
+  , tc' "a -> '{e} b" "''b"
+  , tc "A -> '{E} B -> C"
+  , tc' "a -> '{e} b -> c" "'''c"
+  , tc "A -> '{E} B ->{F} C"
+  , tc' "a -> '{e} b ->{f} c" "'''c"
+  , tc "A -> '{E} (B -> C)"
+  , tc' "a -> '{e} (b -> c)" "'''c"
+  , tc "A -> '{E} (B ->{F} C)"
+  , tc' "a -> '{e} (b ->{f} c)" "'''c"
+  , tc "A -> 'B"
+  , tc' "a -> 'b" "''b"
+  , tc' "A -> '('B)" "A -> ''B"
+  , tc' "a -> '('b)" "'''b"
+  , tc' "A -> '('(B -> C))" "A -> ''(B -> C)"
+  , tc' "a -> '('(b -> c))" "''''c"
+  , tc' "A -> '('('(B -> C)))" "A -> '''(B -> C)"
+  , tc' "a -> '('('(b -> c)))" "'''''c"
+  , tc' "a -> '{e} ('('(b -> c)))" "'''''c"
+  , tc' "A -> '{E} ('('(B -> C)))" "A -> '{E} ''(B -> C)"
+  , tc' "a -> '('{e} ('(b -> c)))" "'''''c"
+  , tc' "A -> '('{E} ('(B -> C)))" "A -> ''{E} '(B -> C)"
+  , tc' "a -> '('('{e} (b -> c)))" "'''''c"
+  , tc' "A -> '('('{E} (B -> C)))" "A -> '''{E} (B -> C)"
+  , tc' "a -> 'b ->{f} c" "'''c"
+  , tc "A -> 'B ->{F} C"
+  , tc' "a -> '(b -> c)" "'''c"
+  , tc "A -> '(B -> C)"
+  , tc "A -> '(B ->{F} C)"
+  , tc' "a -> '(b ->{f} c)" "'''c"
+  , tc "a -> '{e} ('b)" "'''b"
+  , tc "A -> '{E} ('B)"
   , pending $ tc "a -> '{e} 'b"      -- issue #249
   , pending $ tc "a -> '{e} '{f} b"  -- issue #249
   , tc "a -> '{e} ('b)"
-  , tc_diff "a -> () ->{e} () -> b -> c" $ "a -> '{e} ('(b -> c))"
+  , tc_diff "a -> () ->{e} () -> b -> c" "a -> '{e} ('(b -> c))"
   , tc "a -> '{e} ('(b -> c))"
   , tc_diff "a ->{e} () ->{f} b" $ "a ->{e} '{f} b"
   , tc "a ->{e} '{f} b"
@@ -138,25 +167,25 @@ test = scope "typeprinter" . tests $
   , tc_diff_rtt False "Pair a ('{e} b)" "Pair a '{e} b" 80 -- no RTT due to the above
   , tc "'(a -> 'a)"
   , tc "'()"
-  , tc_diff_rtt False "'('a)" "''a" 80
-  , pending $ tc "''a"  -- issue #249
-  , pending $ tc "'''a" -- issue #249
+  , tc' "'('a)" "''a"
+  , tc "''a"
+  , tc "'''a"
   , tc_diff "∀ a . a" "a"
   , tc_diff "∀ a. a" "a"
   , tc_diff "∀ a . 'a" "'a"
   , pending $ tc_diff "∀a . a" $ "a" -- lexer doesn't accept, treats ∀a as one lexeme - feels like it should work
   , pending $ tc_diff "∀ A . 'A" $ "'A"  -- 'unknown parse error' - should this be accepted?
 
-  , tc_diff_rtt False "a -> b -> c -> d"   -- hitting 'unexpected Semi' in the reparse
-              "a\n\
-              \-> b\n\
-              \-> c\n\
-              \-> d" 10
+  , tc_diff_rtt False "A -> B -> C -> D"   -- hitting 'unexpected Semi' in the reparse
+              "A\n\
+              \-> B\n\
+              \-> C\n\
+              \-> D" 10
 
-  , tc_diff_rtt False "a -> Pair b c -> d"   -- ditto, and extra line breaks that seem superfluous in Pair
-              "a\n\
-              \-> Pair b c\n\
-              \-> d" 14
+  , tc_diff_rtt False "A -> Pair B C -> D"   -- ditto, and extra line breaks that seem superfluous in Pair
+              "A\n\
+              \-> Pair B C\n\
+              \-> D" 14
 
   , tc_diff_rtt False "Pair (forall a. (a -> a -> a)) b"    -- as above, and TODO not nesting under Pair
               "Pair\n\
