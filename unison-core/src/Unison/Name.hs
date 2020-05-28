@@ -21,6 +21,7 @@ module Unison.Name
   , unsafeFromText
   , unsafeFromString
   , fromVar
+  , segments
   )
 where
 
@@ -93,7 +94,7 @@ stripNamePrefix prefix name =
 
 -- a.b.c.d -> d
 stripPrefixes :: Name -> Name
-stripPrefixes = unsafeFromText . last . Text.splitOn "." . toText
+stripPrefixes = last . segments
 
 joinDot :: Name -> Name -> Name
 joinDot prefix suffix =
@@ -103,16 +104,27 @@ joinDot prefix suffix =
 unqualified :: Name -> Name
 unqualified = unsafeFromText . unqualified' . toText
 
+-- Smarter segmentation than `text.splitOn "."`
+-- e.g. split `base..` into `[base,.]`
+segments :: Name -> [Name]
+segments (Name n) = unsafeFromText <$> go parse
+  where
+    parse = Text.splitOn "." n
+    go [] = []
+    go ("" : "" : z) = "." : go z
+    go ("" : z) = go z
+    go (x : y) = x : go y
+
 -- parent . -> Nothing
 -- parent + -> Nothing
 -- parent foo -> Nothing
 -- parent foo.bar -> foo
 -- parent foo.bar.+ -> foo.bar
 parent :: Name -> Maybe Name
-parent (Name txt) = case unsnoc (Text.splitOn "." txt) of
-  Nothing -> Nothing
-  Just ([],_) -> Nothing
-  Just (init,_) -> Just $ Name (Text.intercalate "." init)
+parent n = case unsnoc (toText <$> segments n) of
+  Nothing        -> Nothing
+  Just ([]  , _) -> Nothing
+  Just (init, _) -> Just $ Name (Text.intercalate "." init)
 
 -- suffixes "" -> []
 -- suffixes bar -> [bar]
