@@ -9,7 +9,6 @@ module Unison.TermPrinter where
 import Unison.Prelude
 
 import           Data.List
-import           Data.List.Extra                ( dropEnd )
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import           Data.Text                      ( splitOn, unpack )
@@ -819,12 +818,12 @@ countName :: Name -> PrintAnnotation
 countName n = let f = \(p, s) -> (s, Map.singleton p 1)
               in PrintAnnotation { usages = Map.fromList $ map f $ splitName n}
 
+-- Generates all valid splits of a name into a prefix and suffix.
+-- See examples in Unison.Test.TermPrinter
 splitName :: Name -> [(Prefix, Suffix)]
-splitName n = let ns = splitOn "." (Name.toText n)
-              in dropEnd 1 ((inits ns) `zip` (map dotConcat $ tails ns))
--- > splitName "x" == [([], "x")]
--- > splitName "A.x" == [(["A"], "x")]
--- > splitName "A.B.x" == [(["A"], "B.x"), (["A.B"], "x")]
+splitName n =
+  let ns = splitOn "." (Name.toText n)
+  in  filter (not . Text.null . snd) $ inits ns `zip` map dotConcat (tails ns)
 
 joinName :: Prefix -> Suffix -> Name
 joinName p s = Name.unsafeFromText $ dotConcat $ p ++ [s]

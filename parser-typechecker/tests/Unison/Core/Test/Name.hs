@@ -15,5 +15,7 @@ test = scope "name" $ tests [
         $ expectEqual (suffixes "foo.bar") ["foo.bar", "bar"]
       , scope "multiple namespaces"
         $ expectEqual (suffixes "foo.bar.baz") ["foo.bar.baz", "bar.baz", "baz"]
+      , scope "terms named `.`"
+        $ expectEqual (suffixes "base..") ["base..", "."]
       ]
   ]

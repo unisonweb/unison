@@ -114,14 +114,19 @@ parent (Name txt) = case unsnoc (Text.splitOn "." txt) of
   Just ([],_) -> Nothing
   Just (init,_) -> Just $ Name (Text.intercalate "." init)
 
--- suffixes "" -> [] 
+-- suffixes "" -> []
 -- suffixes bar -> [bar]
 -- suffixes foo.bar -> [foo.bar, bar]
 -- suffixes foo.bar.baz -> [foo.bar.baz, bar.baz, baz]
+-- suffixes ".base.." -> [base.., .]
 suffixes :: Name -> [Name]
 suffixes (Name "") = []
-suffixes (Name n) = fmap up $ filter (not . null) $ tails $ Text.splitOn "." n
-  where
+suffixes (Name n ) = go n
+ where
+  go n | Text.last n == '.' =
+    (addDot <$> go (Text.dropWhileEnd ('.' ==) n)) ++ [Name "."]
+  go n = fmap up . filter (not . null) . tails $ Text.splitOn "." n
+  addDot (Name n) = Name (n <> "..")
   up ns = Name (Text.intercalate "." ns)
 
 unqualified' :: Text -> Text
