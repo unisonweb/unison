@@ -6,8 +6,6 @@ allow-different-user: true
 
 packages:
 - yaks/easytest
-- yaks/haskeline
-- yaks/configurator
 - parser-typechecker
 - unison-core
 
@@ -15,6 +13,10 @@ packages:
 resolver: lts-14.7
 
 extra-deps:
+- github: unisonweb/configurator
+  commit: 31daaf0469be0e3c9b6465bf84464ca98661b29d
+- github: unisonweb/haskeline
+  commit: f81e80f66f7059a0df3986133c396fcf227bfa2c
 - base58-bytestring-0.1.0
 - relation-0.2.1
 - shellmet-0.0.3.0

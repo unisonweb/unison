@@ -139,8 +139,8 @@ test = scope "typeprinter" . tests $
   , tc "'(a -> 'a)"
   , tc "'()"
   , tc "'('a)"
-  , pending $ tc "''a"  -- issue #249
-  , pending $ tc "'''a" -- issue #249
+  , tc_diff "''a" "'('a)"
+  , tc_diff "'''a" "'('('a))"
   , tc_diff "∀ a . a" $ "a"
   , tc_diff "∀ a. a" $ "a"
   , tc_diff "∀ a . 'a" $ "'a"

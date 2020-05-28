@@ -12,6 +12,9 @@ import Unison.Prelude
 
 import           Control.Concurrent              (forkIO, killThread)
 import           Control.Concurrent.STM          (atomically)
+import qualified Control.Monad.Extra             as Monad
+import qualified Control.Monad.Reader            as Reader
+import qualified Control.Monad.State             as State
 import           Data.Configurator               (autoReload, autoConfig)
 import           Data.Configurator.Types         (Config, Worth (..))
 import           Data.List                       (isSuffixOf, isPrefixOf)
@@ -25,6 +28,8 @@ import           System.FilePath                 ( takeFileName )
 import           Unison.Codebase                 (Codebase)
 import qualified Unison.Codebase                 as Codebase
 import qualified Unison.Codebase.Branch          as Branch
+import           Unison.Codebase.Causal          ( Causal )
+import qualified Unison.Codebase.Causal          as Causal
 import           Unison.Codebase.Editor.Input    (Event(..), Input(..))
 import qualified Unison.Codebase.SearchResult    as SR
 import qualified Unison.Codebase.Watch           as Watch
@@ -56,19 +61,46 @@ watchFileSystem q dir = do
     atomically . Q.enqueue q $ UnisonFileChanged (Text.pack filePath) text
   pure (cancel >> killThread t)
 
-watchBranchUpdates :: IO Branch.Hash -> TQueue Event -> Codebase IO v a -> IO (IO ())
+watchBranchUpdates :: IO (Branch.Branch IO) -> TQueue Event -> Codebase IO v a -> IO (IO ())
 watchBranchUpdates currentRoot q codebase = do
   (cancelExternalBranchUpdates, externalBranchUpdates) <-
     Codebase.rootBranchUpdates codebase
   thread <- forkIO . forever $ do
     updatedBranches <- externalBranchUpdates
     currentRoot <- currentRoot
-    -- We only issue the event if the branch is different than what's already
-    -- in memory. This skips over file events triggered by saving to disk what's
-    -- already in memory.
-    when (any (/= currentRoot) updatedBranches) $
-      atomically . Q.enqueue q . IncomingRootBranch $ Set.delete currentRoot updatedBranches
+    -- Since there's some lag between when branch files are written and when
+    -- the OS generates a file watch event, we skip branch update events
+    -- that are causally before the current root.
+    --
+    -- NB: Sadly, since the file watching API doesn't have a way to silence
+    -- the events from a specific individual write, this is ultimately a
+    -- heuristic. If a fairly recent head gets deposited at just the right
+    -- time, it would get ignored by this logic. This seems unavoidable.
+    let maxDepth = 20 -- if it's further back than this, consider it new
+    let isNew b = not <$> beforeHash maxDepth b (Branch._history currentRoot)
+    notBefore <- filterM isNew (toList updatedBranches)
+    when (length notBefore > 0) $
+      atomically . Q.enqueue q . IncomingRootBranch $ Set.fromList notBefore
   pure (cancelExternalBranchUpdates >> killThread thread)
+
+
+-- `True` if `h` is found in the history of `c` within `maxDepth` path length
+-- from the tip of `c`
+beforeHash :: forall m h e . Monad m => Word -> Causal.RawHash h -> Causal m h e -> m Bool
+beforeHash maxDepth h c =
+  Reader.runReaderT (State.evalStateT (go c) Set.empty) (0 :: Word)
+  where
+  go c | h == Causal.currentHash c = pure True
+  go c = do
+    currentDepth :: Word <- Reader.ask
+    if currentDepth >= maxDepth
+    then pure False
+    else do
+      seen <- State.get
+      cs <- lift . lift $ toList <$> sequence (Causal.children c)
+      let unseens = filter (\c -> c `Set.notMember` seen) cs
+      State.modify' (<> Set.fromList cs)
+      Monad.anyM (Reader.local (1+) . go) unseens
 
 warnNote :: String -> String
 warnNote s = "⚠️  " <> s

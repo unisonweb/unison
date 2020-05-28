@@ -50,6 +50,7 @@ import           Unison.CommandLine             ( bigproblem
 import           Unison.PrettyTerminal          ( clearCurrentLine
                                                 , putPretty'
                                                 )
+import qualified Unison.CommandLine.InputPattern as IP1
 import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
 import qualified Unison.Builtin.Decls          as DD
@@ -250,33 +251,46 @@ prettyRemoteNamespace =
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
   Success     -> pure $ P.bold "Done."
-  WarnIncomingRootBranch _hashes -> mempty
-  -- todo: resurrect this code once it's not triggered by update+propagate
---  WarnIncomingRootBranch hashes -> putPrettyLn $
---    if null hashes then P.wrap $
---      "Please let someone know I generated an empty IncomingRootBranch"
---                 <> " event, which shouldn't be possible!"
---    else P.lines
---      [ P.wrap $ (if length hashes == 1 then "A" else "Some")
---         <> "codebase" <> P.plural hashes "root" <> "appeared unexpectedly"
---         <> "with" <> P.group (P.plural hashes "hash" <> ":")
---      , ""
---      , (P.indentN 2 . P.oxfordCommas)
---                (map (P.text . Hash.base32Hex . Causal.unRawHash) $ toList hashes)
---      , ""
---      , P.wrap $ "but I'm not sure what to do about it."
---          <> "If you're feeling lucky, you can try deleting one of the heads"
---          <> "from `.unison/v1/branches/head/`, but please make a backup first."
---          <> "There will be a better way of handling this in the future. 😅"
---      ]
-  LoadPullRequest baseNS headNS basePath headPath mergedPath -> pure $ P.lines
+  WarnIncomingRootBranch current hashes -> pure $
+    if null hashes then P.wrap $
+      "Please let someone know I generated an empty IncomingRootBranch"
+                 <> " event, which shouldn't be possible!"
+    else P.lines
+      [ P.wrap $ (if length hashes == 1 then "A" else "Some")
+         <> "codebase" <> P.plural hashes "root" <> "appeared unexpectedly"
+         <> "with" <> P.group (P.plural hashes "hash" <> ":")
+      , ""
+      , (P.indentN 2 . P.oxfordCommas)
+                (map prettySBH $ toList hashes)
+      , ""
+      , P.wrap $ "and I'm not sure what to do about it."
+          <> "The last root namespace hash that I knew about was:"
+      , ""
+      , P.indentN 2 $ prettySBH current
+      , ""
+      , P.wrap $ "Now might be a good time to make a backup of your codebase. 😬"
+      , ""
+      , P.wrap $ "After that, you might try using the" <> makeExample' IP.forkLocal
+          <> "command to inspect the namespaces listed above, and decide which"
+          <> "one you want as your root."
+          <> "You can also use" <> makeExample' IP.viewReflog <> "to see the"
+          <> "last few root namespace hashes on record."
+      , ""
+      , P.wrap $ "Once you find one you like, you can use the"
+          <> makeExample' IP.resetRoot <> "command to set it."
+      ]
+  LoadPullRequest baseNS headNS basePath headPath mergedPath squashedPath -> pure $ P.lines
     [ P.wrap $ "I checked out" <> prettyRemoteNamespace baseNS <> "to" <> P.group (prettyPath' basePath <> ".")
     , P.wrap $ "I checked out" <> prettyRemoteNamespace headNS <> "to" <> P.group (prettyPath' headPath <> ".")
     , ""
     , P.wrap $ "The merged result is in" <> P.group (prettyPath' mergedPath <> ".")
+    , P.wrap $ "The (squashed) merged result is in" <> P.group (prettyPath' squashedPath <> ".")
     , P.wrap $ "Use" <>
         IP.makeExample IP.diffNamespace
           [prettyPath' basePath, prettyPath' mergedPath]
+      <> "or" <>
+        IP.makeExample IP.diffNamespace
+          [prettyPath' basePath, prettyPath' squashedPath]
       <> "to see what's been updated."
     , P.wrap $ "Use" <>
         IP.makeExample IP.todo
@@ -285,7 +299,10 @@ notifyUser dir o = case o of
         <> "to see what work is remaining for the merge."
     , P.wrap $ "Use" <>
         IP.makeExample IP.push
-          [prettyRemoteNamespace baseNS, prettyPath' mergedPath]
+          [prettyRemoteNamespace baseNS, prettyPath' mergedPath] <>
+        "or" <>
+        IP.makeExample IP.push
+          [prettyRemoteNamespace baseNS, prettyPath' squashedPath]
         <> "to push the changes."
     ]
 
@@ -627,7 +644,7 @@ notifyUser dir o = case o of
       <> P.backticked (P.text uri) <> "already exists at"
       <> P.backticked' (P.string localPath) "," <> "but it doesn't seem to"
       <> "be a git repository, so I'm not sure what to do next.  Delete it?"
-    UnrecognizableCheckoutDir uri localPath -> P.wrap $ "I tried to clone" 
+    UnrecognizableCheckoutDir uri localPath -> P.wrap $ "I tried to clone"
       <> P.backticked (P.text uri) <> "into a cache directory at"
       <> P.backticked' (P.string localPath) "," <> "but I can't recognize the"
       <> "result as a git repository, so I'm not sure what to do next."
@@ -643,19 +660,8 @@ notifyUser dir o = case o of
          "then try your" <> push <> "again."
       ]
       where
-      push = P.group . P.backticked $ IP.patternName IP.push
-      pull = case input of
-        Input.PushRemoteBranchI Nothing p ->
-          P.sep " " [IP.patternName IP.pull, P.shown p ]
-        Input.PushRemoteBranchI (Just (r, _)) p -> P.sepNonEmpty " " [
-          IP.patternName IP.pull,
-          P.text (RemoteRepo.url r),
-          P.shown p,
-          case RemoteRepo.commit r of
-            Just s -> P.text s
-            Nothing -> mempty
-          ]
-        _ -> "⁉️ Unison bug - push command expected"
+      push = P.group . P.backticked . P.string . IP1.patternName $ IP.patternFromInput input
+      pull = P.group . P.backticked $ IP.inputStringFromInput input
     CouldntLoadRootBranch repo hash -> P.wrap
       $ "I couldn't load the designated root hash"
       <> P.group ("(" <> fromString (Hash.showBase32Hex hash) <> ")")
@@ -926,10 +932,9 @@ notifyUser dir o = case o of
       E.MergeTail h hs -> P.lines [
         P.wrap $ "This segment of history starts with a merge." <> ex,
         "",
-        P.lines (prettySBH <$> hs),
-        "⑂",
-        "⊙ " <> prettySBH h
-             <> (if null history then mempty else "\n")
+        "⊙ " <> prettySBH h,
+        "⑃",
+        P.lines (prettySBH <$> hs)
         ]
       E.PageEnd h _n -> P.lines [
         P.wrap $ "There's more history before the versions shown here." <> ex, "",
@@ -990,30 +995,34 @@ notifyUser dir o = case o of
       "",
       "Paste that output into http://bit-booster.com/graph.html"
       ]
-  ListDependents hqLength ld names0 missing -> pure $
-    if names0 == mempty && missing == mempty
+  ListDependents hqLength ld names missing -> pure $
+    if names == mempty && missing == mempty
     then c (prettyLabeledDependency hqLength ld) <> " doesn't have any dependents."
     else
       "Dependents of " <> c (prettyLabeledDependency hqLength ld) <> ":\n\n" <>
-      (P.indentN 2 . P.column2Header "Reference" "Name" $ fmap (first c . second c) $
-        [ (p $ Reference.toShortHash r, prettyName n) | (n, r) <- R.toList $ Names.types0 names0 ] ++
-        [ (p $ Referent.toShortHash r, prettyName n) | (n, r) <- R.toList $ Names.terms names0 ] ++
-        [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
+      (P.indentN 2 (P.numberedColumn2Header num pairs))
     where
+    num n = P.hiBlack $ P.shown n <> "."
+    header = (P.hiBlack "Reference", P.hiBlack "Name")
+    pairs = header : (fmap (first c . second c) $
+        [ (p $ Reference.toShortHash r, prettyName n) | (n, r) <- names ] ++
+        [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
     p = prettyShortHash . SH.take hqLength
     c = P.syntaxToColor
   -- this definition is identical to the previous one, apart from the word
   -- "Dependencies", but undecided about whether or how to refactor
-  ListDependencies hqLength ld names0 missing -> pure $
-    if names0 == mempty && missing == mempty
+  ListDependencies hqLength ld names missing -> pure $
+    if names == mempty && missing == mempty
     then c (prettyLabeledDependency hqLength ld) <> " doesn't have any dependencies."
     else
       "Dependencies of " <> c (prettyLabeledDependency hqLength ld) <> ":\n\n" <>
-      (P.indentN 2 . P.column2Header "Reference" "Name" $ fmap (first c . second c) $
-        [ (p $ Reference.toShortHash r, prettyName n) | (n, r) <- R.toList $ Names.types0 names0 ] ++
-        [ (p $ Referent.toShortHash r, prettyName n) | (n, r) <- R.toList $ Names.terms names0 ] ++
-        [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
+      (P.indentN 2 (P.numberedColumn2Header num pairs))
     where
+    num n = P.hiBlack $ P.shown n <> "."
+    header = (P.hiBlack "Reference", P.hiBlack "Name")
+    pairs = header : (fmap (first c . second c) $
+        [ (p $ Reference.toShortHash r, prettyName n) | (n, r) <- names ] ++
+        [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
     p = prettyShortHash . SH.take hqLength
     c = P.syntaxToColor
   DumpUnisonFileHashes hqLength datas effects terms ->
