@@ -429,7 +429,7 @@ ordered ctx v v2 = Set.member v (existentials (retract' (existential v2) ctx))
 -- env0 = Env 0 context0
 
 debugEnabled :: Bool
-debugEnabled = False
+debugEnabled = True
 
 debugPatternsEnabled :: Bool
 debugPatternsEnabled = False
@@ -1502,9 +1502,12 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
   where
     go ctx = case t of
       Type.Var' (TypeVar.Existential _ v2) | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)
-        solve ctx v2 (Type.Monotype (existentialp (loc t) v)) >>=
-          maybe (failWith $ TypeMismatch ctx) setContext
+        do
+          traceM "In InstRReach"
+          solve ctx v2 (Type.Monotype (existentialp (loc t) v)) >>=
+            maybe (failWith $ TypeMismatch ctx) setContext
       Type.Arrow' i o -> do -- InstRArrow
+        traceM "In Arrow"
         [i', o'] <- traverse freshenVar [nameFrom Var.inferInput i, nameFrom Var.inferOutput o]
         let s = Solved blank v (Type.Monotype
                           (Type.arrow (loc t)
@@ -1515,6 +1518,7 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
         ctx <- instantiateL B.Blank i' i >> getContext
         instantiateR (apply ctx o) B.Blank o'
       Type.App' x y -> do -- analogue of InstRArr
+        traceM "In apply"
         -- example foo a <: v' will
         -- 1. create foo', a', add these to the context
         -- 2. add v' = foo' a' to the context
@@ -1525,6 +1529,7 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
         applyM x >>= \x -> instantiateR x B.Blank x'
         applyM y >>= \y -> instantiateR y B.Blank y'
       Type.Effect1' es vt -> do
+        traceM "In Effect1"
         es' <- freshenVar (nameFrom Var.inferAbility es)
         vt' <- freshenVar (nameFrom Var.inferTypeConstructorArg vt)
         let t' = Type.effect1 (loc t) (existentialp (loc es) es')
@@ -1535,6 +1540,7 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
         applyM es >>= \es -> instantiateR es B.Blank es'
         applyM vt >>= \vt -> instantiateR vt B.Blank vt'
       Type.Effects' es -> do
+        traceM "In Effects"
         es' <- traverse (\e -> freshenVar (nameFrom Var.inferAbility e)) es
         let locs = loc <$> es
             t' = Type.effects (loc t) (uncurry existentialp <$> locs `zip` es')
@@ -1543,8 +1549,10 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
                        ((existential <$> es') ++ [s])
         Foldable.for_ (es `zip` es') $ \(e, e') -> do
           ctx <- getContext
+          traceM "In Effects.for_"
           instantiateR (apply ctx e) B.Blank e'
       Type.Forall' body -> do -- InstRAIIL
+        traceM "In Forall"
         x' <- ABT.freshen body freshenTypeVar
         markThenRetract0 x' $ do
           appendContext [existential x']
