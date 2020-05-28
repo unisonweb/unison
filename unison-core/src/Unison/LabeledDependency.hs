@@ -1,4 +1,16 @@
-module Unison.LabeledDependency (derivedTerm, derivedType, termRef, typeRef, referent, dataConstructor, effectConstructor, fold, referents, LabeledDependency) where
+module Unison.LabeledDependency
+  ( derivedTerm
+  , derivedType
+  , termRef
+  , typeRef
+  , referent
+  , dataConstructor
+  , effectConstructor
+  , fold
+  , referents
+  , dependencyRef
+  , LabeledDependency
+  ) where
 
 import Unison.Prelude hiding (fold)
 
@@ -26,6 +38,11 @@ effectConstructor r cid = X . Right $ Con r cid Effect
 
 referents :: Foldable f => f Referent -> Set LabeledDependency
 referents rs = Set.fromList (map referent $ toList rs)
+
+dependencyRef :: LabeledDependency -> Either Reference Reference
+dependencyRef (X (Left r)) = Left r
+dependencyRef (X (Right (Ref r))) = Right r
+dependencyRef (X (Right (Con r _ _))) = Left r
 
 fold :: (Reference -> a) -> (Referent -> a) -> LabeledDependency -> a
 fold f g (X e) = either f g e

@@ -47,13 +47,13 @@ builtins r
   | Just i <- Map.lookup r builtinTermNumbering = i
   | otherwise = error $ "builtins: " ++ show r
 
-cenv :: Map.Map Word64 Comb
-cenv = fmap (emitComb mempty) $ numberedLookup @Symbol
+cenv :: EnumMap Word64 Comb
+cenv = fmap (emitComb mempty) $ numberedTermLookup @Symbol
 
 benv :: Word64 -> Maybe Comb
 benv i
   | i == bit 64 = Just $ Lam 0 1 2 1 asrt
-  | otherwise = Map.lookup i cenv
+  | otherwise = EC.lookup i cenv
 
 env :: EnumMap Word64 Comb -> Word64 -> Comb
 env m n = fromMaybe (m ! n) $ benv n

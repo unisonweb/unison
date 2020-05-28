@@ -7,9 +7,11 @@ module Unison.Runtime.Machine where
 import Data.Maybe (fromMaybe)
 
 import Data.Bits
+import Data.String (fromString)
 import Data.Traversable
 import Data.Word (Word64)
 
+import Control.Exception
 import Control.Lens ((<&>))
 import Control.Concurrent (forkIOWithUnmask, ThreadId)
 import Control.Exception (try, mask)
@@ -23,12 +25,20 @@ import Unison.Runtime.Stack
 import Unison.Runtime.MCode
 
 import Unison.Util.EnumContainers as EC
+import Unison.Util.Pretty as P
 
 type Tag = Word64
 type Env = Word64 -> Comb
 type DEnv = EnumMap Word64 Closure
 
 type Unmask = forall a. IO a -> IO a
+
+newtype RuntimeExn = RE { prettyError :: P.Pretty P.ColorText }
+  deriving (Show)
+instance Exception RuntimeExn
+
+die :: String -> IO a
+die = throwIO . RE . P.lit . fromString
 
 info :: Show a => String -> a -> IO ()
 info ctx x = infos ctx (show x)
@@ -40,6 +50,16 @@ eval0 !env !co = do
   ustk <- alloc
   bstk <- alloc
   mask $ \unmask -> eval unmask env mempty ustk bstk KE co
+
+apply0 :: Env -> Word64 -> IO Closure
+apply0 !env !i = do
+  ustk <- alloc
+  bstk <- alloc
+  mask $ \unmask ->
+      apply unmask env mempty ustk bstk KE True ZArgs comb
+        >> peek bstk
+  where
+  comb = PAp (IC i $ env i) unull bnull
 
 lookupDenv :: Word64 -> DEnv -> Closure
 lookupDenv p denv = fromMaybe BlackHole $ EC.lookup p denv
@@ -134,7 +154,7 @@ eval unmask !env !denv !ustk !bstk !k (Ins i nx) = do
   (denv, ustk, bstk, k) <- exec unmask env denv ustk bstk k i
   eval unmask env denv ustk bstk k nx
 eval _      !_   !_    !_    !_    !_ Exit = pure ()
-eval _      !_   !_    !_    !_    !_ (Die s) = error s
+eval _      !_   !_    !_    !_    !_ (Die s) = die s
 {-# noinline eval #-}
 
 forkEval
@@ -193,7 +213,7 @@ apply unmask !env !denv !ustk !bstk !k !ck !args clo = case clo of
    where
    uac = asize ustk + ucount args + uscount useg
    bac = asize bstk + bcount args + bscount bseg
-  _ -> error "applying non-function"
+  _ -> die "applying non-function"
 {-# inline apply #-}
 
 jump
@@ -207,7 +227,7 @@ jump unmask !env !denv !ustk !bstk !k !args clo = case clo of
     ustk <- dumpSeg ustk useg . F $ ucount args
     bstk <- dumpSeg bstk bseg . F $ bcount args
     repush unmask env ustk bstk denv sk k
-  _ ->  error "jump: non-cont"
+  _ -> die "jump: non-cont"
 {-# inline jump #-}
 
 repush
@@ -423,7 +443,7 @@ dumpData !ustk !bstk (DataG t us bs) = do
   ustk <- bump ustk
   pokeN ustk $ maskTag t
   pure (ustk, bstk)
-dumpData !_    !_  clo = error $ "dumpData: bad closure: " ++ show clo
+dumpData !_    !_  clo = die $ "dumpData: bad closure: " ++ show clo
 {-# inline dumpData #-}
 
 -- Note: although the representation allows it, it is impossible
@@ -474,9 +494,9 @@ closeArgs !ustk !bstk !useg !bseg (DArgN us bs) = do
 
 peekForeign :: Stack 'BX -> Int -> IO a
 peekForeign bstk i
-  = peekOff bstk i <&> \case
-      Foreign x -> unwrapForeign x
-      _ -> error "bad foreign argument"
+  = peekOff bstk i >>= \case
+      Foreign x -> pure $ unwrapForeign x
+      _ -> die "bad foreign argument"
 {-# inline peekForeign #-}
 
 prim1 :: Stack 'UN -> Prim1 -> Int -> IO (Stack 'UN)
@@ -618,7 +638,7 @@ splitCont !denv !ustk !bstk !k !p
   = walk denv (asize ustk) (asize bstk) KE k
  where
  walk !denv !usz !bsz !ck KE
-   = error "fell off stack" >> finish denv usz bsz ck KE
+   = die "fell off stack" >> finish denv usz bsz ck KE
  walk !denv !usz !bsz !ck (Mark ps cs k)
    | EC.member p ps = finish denv' usz bsz ck k
    | otherwise      = walk denv' usz bsz (Mark ps cs' ck) k
@@ -647,4 +667,4 @@ resolve env _ _ _ (Env i) = return $ PAp (IC i $ env i) unull bnull
 resolve _ _ _ bstk (Stk i) = peekOff bstk i
 resolve _ denv _ _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo
-  _ -> error $ "resolve: looked up bad dynamic: " ++ show i
+  _ -> die $ "resolve: looked up bad dynamic: " ++ show i

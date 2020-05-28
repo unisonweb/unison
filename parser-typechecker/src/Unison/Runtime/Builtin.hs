@@ -9,7 +9,9 @@ module Unison.Runtime.Builtin
   ( builtinLookup
   , builtinTermNumbering
   , builtinTypeNumbering
-  , numberedLookup
+  , builtinTermBackref
+  , builtinTypeBackref
+  , numberedTermLookup
   , handle'io
   ) where
 
@@ -868,9 +870,9 @@ typeReferences
   , bufferModeReference
   ] [1..]
 
-numberedLookup :: Var v => Map Word64 (SuperNormal v)
-numberedLookup
-  = Map.fromList . zip [1..] . Map.elems $ builtinLookup
+numberedTermLookup :: Var v => EnumMap Word64 (SuperNormal v)
+numberedTermLookup
+  = mapFromList . zip [1..] . Map.elems $ builtinLookup
 
 rtag :: Reference -> RTag
 rtag = (builtinTypeNumbering Map.!)
@@ -879,5 +881,13 @@ builtinTermNumbering :: Map Reference Word64
 builtinTermNumbering
   = Map.fromList (zip (Map.keys $ builtinLookup @Symbol) [1..])
 
+builtinTermBackref :: EnumMap Word64 Reference
+builtinTermBackref
+  = mapFromList . zip [1..] . Map.keys $ builtinLookup @Symbol
+
 builtinTypeNumbering :: Map Reference RTag
 builtinTypeNumbering = Map.fromList typeReferences
+
+builtinTypeBackref :: EnumMap RTag Reference
+builtinTypeBackref = mapFromList $ swap <$> typeReferences
+  where swap (x, y) = (y, x)

@@ -5,6 +5,7 @@
 module Unison.Runtime.Decompile
   ( decompile ) where
 
+import Data.String (fromString)
 import Data.Word (Word64)
 
 import Unison.ABT (absChain, substs, pattern AbsN')
@@ -18,50 +19,56 @@ import Unison.Type
 import Unison.Var (Var)
 import Unison.Reference (Reference)
 
-import Unison.Runtime.ANF (CTag, Tag(..))
+import Unison.Runtime.ANF (RTag, CTag, Tag(..))
 import Unison.Runtime.Foreign (Foreign)
 import Unison.Runtime.Stack
   (Closure(..), pattern DataC, pattern PApV, IComb(..))
+
+import Unison.Codebase.Runtime (Error)
+import Unison.Util.Pretty (lit)
 
 import Unsafe.Coerce -- for Int -> Double
 
 con :: Var v => Reference -> CTag -> Term v ()
 con rf ct = constructor () rf . fromIntegral $ rawTag ct
 
+err :: String -> Either Error a
+err = Left . lit . fromString
+
 decompile
   :: Var v
-  => (Word64 -> Maybe Reference)
+  => (RTag -> Maybe Reference)
   -> (Word64 -> Maybe (Term v ()))
   -> Closure
-  -> Either String (Term v ())
+  -> Either Error (Term v ())
 decompile tyRef _ (DataC rt ct [] [])
-  | Just rf <- tyRef $ rawTag rt
+  | Just rf <- tyRef rt
   , rf == booleanRef
   = boolean () <$> tag2bool ct
 decompile tyRef _ (DataC rt ct [i] [])
-  | Just rf <- tyRef $ rawTag rt
+  | Just rf <- tyRef rt
   = decompileUnboxed rf ct i
 decompile tyRef topTerms (DataC rt ct [] bs)
-  | Just rf <- tyRef $ rawTag rt
+  | Just rf <- tyRef rt
   = apps' (con rf ct) <$> traverse (decompile tyRef topTerms) bs
 decompile tyRef topTerms (PApV (IC rt _) [] bs)
   | Just t <- topTerms rt
   = substitute t <$> traverse (decompile tyRef topTerms) bs
   | otherwise
-  = Left "reference to unknown combinator"
+  = err "reference to unknown combinator"
 decompile _ _ (PAp _ _ _)
-  = Left "cannot decompile a partial application to unboxed values"
+  = err "cannot decompile a partial application to unboxed values"
 decompile _ _ (DataC{})
-  = Left "cannot decompile data type with multiple unboxed fields"
-decompile _ _ BlackHole = Left "exception"
-decompile _ _ (Captured{}) = Left "decompiling a captured continuation"
+  = err "cannot decompile data type with multiple unboxed fields"
+decompile _ _ BlackHole = err "exception"
+decompile _ _ (Captured{}) = err "decompiling a captured continuation"
 decompile tyRef _ (Foreign f) = decompileForeign tyRef f
 
-tag2bool :: CTag -> Either String Bool
+tag2bool :: CTag -> Either Error Bool
 tag2bool c = case rawTag c of
   0 -> Right False
   1 -> Right True
-  _ -> Left "bad boolean tag"
+  _ -> err "bad boolean tag"
 
 substitute :: Var v => Term v () -> [Term v ()] -> Term v ()
 substitute (AbsN' vs bd) ts = align [] vs ts
@@ -74,16 +81,16 @@ substitute (AbsN' vs bd) ts = align [] vs ts
 substitute _ _ = error "impossible"
 
 decompileUnboxed
-  :: Var v => Reference -> CTag -> Int -> Either String (Term v ())
+  :: Var v => Reference -> CTag -> Int -> Either Error (Term v ())
 decompileUnboxed r _ i
   | r == natRef = pure . nat () $ fromIntegral i
   | r == intRef = pure . int () $ fromIntegral i
   | r == floatRef = pure . float () $ unsafeCoerce i
-decompileUnboxed _ _ _ = Left "cannot decompile unboxed data type"
+decompileUnboxed _ _ _ = err "cannot decompile unboxed data type"
 
 decompileForeign
   :: Var v
-  => (Word64 -> Maybe Reference)
+  => (RTag -> Maybe Reference)
   -> Foreign
-  -> Either String (Term v ())
-decompileForeign _ _ = Left "cannot decompile Foreign"
+  -> Either Error (Term v ())
+decompileForeign _ _ = err "cannot decompile Foreign"
