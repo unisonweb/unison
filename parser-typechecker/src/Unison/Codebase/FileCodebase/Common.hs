@@ -235,7 +235,8 @@ encodeFileName = let
                | otherwise = c : go rem
   go [] = []
   encodeHex :: String -> String
-  encodeHex = Text.unpack . ByteString.encodeBase16 . encodeUtf8 . Text.pack
+  encodeHex = Text.unpack . Text.toUpper . ByteString.encodeBase16 .
+              encodeUtf8 . Text.pack
   in \case
     "." -> "$dot$"
     ".." -> "$dotdot$"
