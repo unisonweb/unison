@@ -7,7 +7,8 @@ module Unison.Codebase.Path where
 
 import Unison.Prelude hiding (empty, toList)
 
-import           Data.List.Extra                ( dropPrefix )
+import           Data.Bifunctor                 ( first )
+import           Data.List.Extra                ( stripPrefix, dropPrefix )
 import Control.Lens hiding (unsnoc, cons, snoc)
 import qualified Control.Lens as Lens
 import qualified Data.Foldable as Foldable
@@ -97,17 +98,16 @@ prefix (Absolute (Path prefix)) (Path' p) = case p of
 -- .libs.blah.poo is Absolute
 -- libs.blah.poo is Relative
 -- Left is some parse error tbd
--- All the segments must be wordyIds
 parsePath' :: String -> Either String Path'
 parsePath' p = case parsePathImpl' p of
-  Left e -> Left e
+  Left  e       -> Left e
   Right (p, "") -> Right p
-  Right (p, rem) -> case (Lexer.wordyId0 <> Lexer.symbolyId0) rem of
-    Right (seg, "") ->
-      Right (unsplit' (p, NameSegment . Text.pack $ seg))
-    Right (_, rem) ->
-      Left ("extra characters after " <> show p <> ": " ++ show rem)
-    Left e -> Left (show e)
+  Right (p, rem) ->
+    case (first show . (Lexer.wordyId0 <> Lexer.symbolyId0) <> unit') rem of
+      Right (seg, "") -> Right (unsplit' (p, NameSegment . Text.pack $ seg))
+      Right (_, rem) ->
+        Left ("extra characters after " <> show p <> ": " <> show rem)
+      Left e -> Left e
 
 -- implementation detail of parsePath' and parseSplit'
 -- foo.bar.baz.34 becomes `Right (foo.bar.baz, "34")
@@ -121,9 +121,7 @@ parsePathImpl' p = case p of
   '.' : p -> over _1 (Path' . Left . Absolute . fromList) <$> segs p
   p       -> over _1 (Path' . Right . Relative . fromList) <$> segs p
  where
-  go f g p b = case f p of
-    Left _ | b    -> go g f p False
-    Left  e       -> Left (show e)
+  go f p = case f p of
     Right (a, "") -> case Lens.unsnoc (Name.segments' $ Text.pack a) of
       Nothing           -> Left "empty path"
       Just (segs, last) -> Right (NameSegment <$> segs, Text.unpack last)
@@ -132,7 +130,8 @@ parsePathImpl' p = case p of
       in  Right (NameSegment <$> segs', rem)
     Right (segs, rem) ->
       Left $ "extra characters after " <> segs <> ": " <> show rem
-  segs p = go Lexer.symbolyId Lexer.wordyId p True
+    Left e -> Left e
+  segs p = go (first show . (Lexer.symbolyId <> Lexer.wordyId) <> unit') p
 
 wordyNameSegment, definitionNameSegment :: String -> Either String NameSegment
 wordyNameSegment s = case Lexer.wordyId0 s of
@@ -142,13 +141,26 @@ wordyNameSegment s = case Lexer.wordyId0 s of
     Left $ "trailing characters after " <> show a <> ": " <> show rem
 
 optionalWordyNameSegment :: String -> Either String NameSegment
-optionalWordyNameSegment "" = Right (NameSegment (Text.pack ""))
-optionalWordyNameSegment s = wordyNameSegment s
+optionalWordyNameSegment "" = Right $ NameSegment ""
+optionalWordyNameSegment s  = wordyNameSegment s
 
-definitionNameSegment s = wordyNameSegment s <> symbolyNameSegment s
-  where
+-- Parse a name segment like "()"
+unit' :: String -> Either String (String, String)
+unit' s = case stripPrefix "()" s of
+  Nothing  -> Left $ "Expected () but found: " <> s
+  Just rem -> Right ("()", rem)
+
+unit :: String -> Either String NameSegment
+unit s = case unit' s of
+  Right (_, "" ) -> Right $ NameSegment "()"
+  Right (_, rem) -> Left $ "trailing characters after (): " <> show rem
+  Left  _        -> Left $ "I don't know how to parse " <> s
+
+
+definitionNameSegment s = wordyNameSegment s <> symbolyNameSegment s <> unit s
+ where
   symbolyNameSegment s = case Lexer.symbolyId0 s of
-    Left e -> Left (show e)
+    Left  e       -> Left (show e)
     Right (a, "") -> Right (NameSegment (Text.pack a))
     Right (a, rem) ->
       Left $ "trailing characters after " <> show a <> ": " <> show rem
