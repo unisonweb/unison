@@ -193,22 +193,27 @@ parseHQSplit s = case parseHQSplit' s of
   Left e -> Left e
 
 parseHQSplit' :: String -> Either String HQSplit'
-parseHQSplit' s =
-  case Text.breakOn "#" $ Text.pack s of
-    ("","") -> error $ "encountered empty string parsing '" <> s <> "'"
-    ("", _) -> Left "Sorry, you can't use a hash-only reference here."
-    (n, "") -> do
-      (p, rem) <- parsePathImpl' (Text.unpack n)
-      seg <- definitionNameSegment rem
-      pure (p, HQ'.NameOnly seg)
-    (n, sh) -> do
-      (p, rem) <- parsePathImpl' (Text.unpack n)
-      seg <- definitionNameSegment rem
-      maybeToRight (shError s) .
-        fmap (\sh -> (p, HQ'.HashQualified seg sh)) .
-        SH.fromText $ sh
-  where
+parseHQSplit' s = case Text.breakOn "#" $ Text.pack s of
+  ("", "") -> error $ "encountered empty string parsing '" <> s <> "'"
+  ("", _ ) -> Left "Sorry, you can't use a hash-only reference here."
+  (n , "") -> do
+    (p, rem) <- parsePath n
+    seg      <- definitionNameSegment rem
+    pure (p, HQ'.NameOnly seg)
+  (n, sh) -> do
+    (p, rem) <- parsePath n
+    seg      <- definitionNameSegment rem
+    maybeToRight (shError s)
+      . fmap (\sh -> (p, HQ'.HashQualified seg sh))
+      . SH.fromText
+      $ sh
+ where
   shError s = "couldn't parse shorthash from " <> s
+  parsePath n = do
+    x <- parsePathImpl' $ Text.unpack n
+    pure $ case x of
+      (Path' (Left e), "") | e == absoluteEmpty -> (relativeEmpty', ".")
+      x -> x
 
 toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
 toAbsoluteSplit a (p, s) = (resolve a p, s)
