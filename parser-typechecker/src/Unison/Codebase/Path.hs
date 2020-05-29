@@ -124,11 +124,11 @@ parsePathImpl' p = case p of
   go f g p b = case f p of
     Left _ | b    -> go g f p False
     Left  e       -> Left (show e)
-    Right (a, "") -> case Lens.unsnoc (Text.splitOn "." $ Text.pack a) of
+    Right (a, "") -> case Lens.unsnoc (Name.segments' $ Text.pack a) of
       Nothing           -> Left "empty path"
       Just (segs, last) -> Right (NameSegment <$> segs, Text.unpack last)
     Right (segs, '.' : rem) ->
-      let segs' = Text.splitOn "." (Text.pack segs)
+      let segs' = Name.segments' (Text.pack segs)
       in  Right (NameSegment <$> segs', rem)
     Right (segs, rem) ->
       Left $ "extra characters after " <> segs <> ": " <> show rem
@@ -286,7 +286,7 @@ uncons = Lens.uncons
 -- todo: fromName needs to be a little more complicated if we want to allow
 --       identifiers called Function.(.)
 fromName :: Name -> Path
-fromName = fromList . fmap NameSegment . Text.splitOn "." . Name.toText
+fromName = fromList . Name.segments
 
 fromName' :: Name -> Path'
 fromName' n = case first of
@@ -329,7 +329,7 @@ toText (Path nss) = intercalateMap "." NameSegment.toText nss
 fromText :: Text -> Path
 fromText = \case
   "" -> empty
-  t -> fromList $ NameSegment <$> Text.splitOn "." t
+  t -> fromList $ NameSegment <$> Name.segments' t
 
 toText' :: Path' -> Text
 toText' = \case

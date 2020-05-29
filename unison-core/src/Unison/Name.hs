@@ -15,6 +15,7 @@ module Unison.Name
   , stripNamePrefix
   , stripPrefixes
   , segments
+  , segments'
   , suffixes
   , toString
   , toText
@@ -30,7 +31,9 @@ where
 
 import           Unison.Prelude
 import qualified Unison.NameSegment            as NameSegment
-import           Unison.NameSegment             ( NameSegment(NameSegment) )
+import           Unison.NameSegment             ( NameSegment(NameSegment)
+                                                , segments'
+                                                )
 
 import           Control.Lens                   ( unsnoc )
 import qualified Control.Lens                  as Lens
@@ -132,12 +135,12 @@ suffixes (Name n ) = go n
  where
   go n | Text.last n == '.' =
     (addDot <$> go (Text.dropWhileEnd ('.' ==) n)) ++ [Name "."]
-  go n = fmap up . filter (not . null) . tails $ Text.splitOn "." n
+  go n = fmap up . filter (not . null) . tails $ segments' n
   addDot (Name n) = Name (n <> "..")
   up ns = Name (Text.intercalate "." ns)
 
 unqualified' :: Text -> Text
-unqualified' = last . Text.splitOn "."
+unqualified' = last . segments'
 
 makeAbsolute :: Name -> Name
 makeAbsolute n | toText n == "."                = Name ".."
@@ -159,21 +162,16 @@ fromSegment = unsafeFromText . NameSegment.toText
 -- Smarter segmentation than `text.splitOn "."`
 -- e.g. split `base..` into `[base,.]`
 segments :: Name -> [NameSegment]
-segments (Name n) = NameSegment <$> go split
-  where
-    split = Text.splitOn "." n
-    go [] = []
-    go ("" : "" : z) = "." : go z
-    go ("" : z) = go z
-    go (x : y) = x : go y
+segments (Name n) = NameSegment <$> segments' n
 
 instance Lens.Snoc Name Name NameSegment NameSegment where
   _Snoc = Lens.prism snoc unsnoc
-    where
+   where
     snoc :: (Name, NameSegment) -> Name
-    snoc (n,s) = joinDot n (fromSegment s)
+    snoc (n, s) = joinDot n (fromSegment s)
     unsnoc :: Name -> Either Name (Name, NameSegment)
-    unsnoc n@(Name (Text.splitOn "." -> ns)) = case Lens.unsnoc ns of
-      Nothing -> Left n
-      Just ([],_) -> Left n
-      Just (init, last) -> Right (Name (Text.intercalate "." init), NameSegment last)
+    unsnoc n@(segments -> ns) = case Lens.unsnoc (NameSegment.toText <$> ns) of
+      Nothing      -> Left n
+      Just ([], _) -> Left n
+      Just (init, last) ->
+        Right (Name (Text.intercalate "." init), NameSegment last)

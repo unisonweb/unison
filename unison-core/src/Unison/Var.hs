@@ -11,6 +11,8 @@ import Data.Char (toLower, isLower)
 import Data.Text (pack)
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
+import qualified Unison.NameSegment as Name
+
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Reference (Reference)
 import qualified Unison.Reference as R
@@ -119,13 +121,13 @@ data InferenceType =
 reset :: Var v => v -> v
 reset v = typed (typeOf v)
 
+unqualifiedName :: Var v => v -> Text
+unqualifiedName = last . Name.segments' . name
+
 unqualified :: Var v => v -> v
 unqualified v = case typeOf v of
   User _ -> named . unqualifiedName $ v
   _ -> v
-
-unqualifiedName :: Var v => v -> Text
-unqualifiedName = last . Text.splitOn "." . name
 
 namespaced :: Var v => [v] -> v
 namespaced vs = named $ intercalateMap "." name vs
