@@ -131,13 +131,8 @@ parent n = case unsnoc (NameSegment.toText <$> segments n) of
 -- suffixes ".base.." -> [base.., .]
 suffixes :: Name -> [Name]
 suffixes (Name "") = []
-suffixes (Name n ) = go n
- where
-  go n | Text.last n == '.' =
-    (addDot <$> go (Text.dropWhileEnd ('.' ==) n)) ++ [Name "."]
-  go n = fmap up . filter (not . null) . tails $ segments' n
-  addDot (Name n) = Name (n <> "..")
-  up ns = Name (Text.intercalate "." ns)
+suffixes (Name n ) = fmap up . filter (not . null) . tails $ segments' n
+  where up ns = Name (Text.intercalate "." ns)
 
 unqualified' :: Text -> Text
 unqualified' = last . segments'
