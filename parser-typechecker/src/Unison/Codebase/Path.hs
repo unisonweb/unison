@@ -243,6 +243,9 @@ fromList = Path . Seq.fromList
 ancestors :: Absolute -> Seq Absolute
 ancestors (Absolute (Path segments)) = Absolute . Path <$> Seq.inits segments
 
+hqSplitFromName' :: Name -> Maybe HQSplit'
+hqSplitFromName' = fmap (fmap HQ'.fromName) . Lens.unsnoc . fromName'
+
 splitFromName :: Name -> Maybe Split
 splitFromName = unsnoc . fromName
 

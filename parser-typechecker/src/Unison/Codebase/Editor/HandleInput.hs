@@ -523,15 +523,13 @@ loop = do
           :: SlurpComponent v
           -> Action m (Either Event Input) v ()
         addDefaultMetadata adds = do
-          let
-            addedVs = Set.toList $ SC.types adds <> SC.terms adds
-            parseResult = Path.parseHQSplit' . Var.nameStr <$> addedVs
-            (errs, addedNames) = partitionEithers parseResult
-          case errs of
-            e : _ ->
+          let addedVs = Set.toList $ SC.types adds <> SC.terms adds
+              addedNs = traverse (Path.hqSplitFromName' . Name.fromVar) addedVs
+          case addedNs of
+            Nothing ->
               error $ "I couldn't parse a name I just added to the codebase! "
-                      <> e <> "-- Added names: " <> show addedVs
-            _ -> do
+                    <> "-- Added names: " <> show addedVs
+            Just addedNames -> do
               dm <- resolveDefaultMetadata currentPath'
               case toList dm of
                 []  -> pure ()
