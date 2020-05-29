@@ -33,7 +33,10 @@ import qualified Data.Text                     as Text
 import           Data.Text.IO                  (readFile, writeFile)
 import           Data.Tuple.Extra              (dupe, uncurry3)
 import           Prelude                       hiding (readFile, writeFile)
-import           System.Directory              (canonicalizePath, doesFileExist)
+import           System.Directory               ( canonicalizePath
+                                                , doesFileExist
+                                                , getHomeDirectory
+                                                )
 import qualified Unison.ABT                    as ABT
 import qualified Unison.UnisonFile             as UF
 import           Unison.Codebase.GitError
@@ -97,7 +100,6 @@ import qualified Unison.Util.Relation          as R
 import           Unison.Var                    (Var)
 import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
-import           System.Directory               ( getHomeDirectory )
 import Unison.Codebase.Editor.DisplayThing (DisplayThing(MissingThing, BuiltinThing, RegularThing))
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Hash as Hash
@@ -107,7 +109,6 @@ import qualified Unison.Util.List              as List
 import qualified Unison.Util.Monoid            as Monoid
 import Data.Tuple (swap)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import Control.Lens (view, over, _1, _3)
 import qualified Unison.ShortHash as SH
 import Unison.LabeledDependency as LD
 import Unison.Codebase.Editor.RemoteRepo (RemoteRepo)
@@ -121,7 +122,7 @@ shortenDirectory dir = do
     Just d  -> "~" <> d
     Nothing -> dir
 
-renderFileName :: FilePath -> IO (Pretty)
+renderFileName :: FilePath -> IO Pretty
 renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
 
 notifyNumbered :: Var v => NumberedOutput v -> (Pretty, NumberedArgs)
@@ -199,7 +200,7 @@ notifyNumbered o = case o of
     if OBD.isEmpty diff then
       ("✅  Looks like " <> prettyPath' dest' <> " is up to date.", mempty)
     else
-      first (\p -> P.lines $ [
+      first (\p -> P.lines [
           P.wrap $ "Here's what's changed in " <> prettyPath' dest' <> "after the pull:", "",
           p, "",
           undoTip
