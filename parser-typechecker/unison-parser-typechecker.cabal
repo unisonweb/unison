@@ -35,15 +35,17 @@ library
 
   exposed-modules:
     Unison.Builtin
+    Unison.Builtin.Decls
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase.Branch
+    Unison.Codebase.Branch.Dependencies
     Unison.Codebase.BranchDiff
-    Unison.Codebase.BranchLoadMode
     Unison.Codebase.BranchUtil
     Unison.Codebase.Causal
     Unison.Codebase.Classes
     Unison.Codebase.CodeLookup
+    Unison.Codebase.Editor.AuthorInfo
     Unison.Codebase.Editor.Command
     Unison.Codebase.Editor.DisplayThing
     Unison.Codebase.Editor.Git
@@ -59,7 +61,10 @@ library
     Unison.Codebase.Editor.SlurpComponent
     Unison.Codebase.Editor.TodoOutput
     Unison.Codebase.Editor.UriParser
+    Unison.Codebase.Editor.VersionParser
     Unison.Codebase.FileCodebase
+    Unison.Codebase.FileCodebase.Common
+    Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
     Unison.Codebase.NameEdit
@@ -72,6 +77,7 @@ library
     Unison.Codebase.Serialization.PutT
     Unison.Codebase.Serialization.V1
     Unison.Codebase.ShortBranchHash
+    Unison.Codebase.SyncMode
     Unison.Codebase.TermEdit
     Unison.Codebase.TranscriptParser
     Unison.Codebase.TypeEdit
@@ -125,6 +131,7 @@ library
     Unison.UnisonFile
     Unison.Util.AnnotatedText
     Unison.Util.Bytes
+    Unison.Util.Cache
     Unison.Util.ColorText
     Unison.Util.EnumContainers
     Unison.Util.Exception
@@ -138,6 +145,7 @@ library
     Unison.Util.Range
     Unison.Util.Star3
     Unison.Util.SyntaxText
+    Unison.Util.Timing
     Unison.Util.TQueue
     Unison.Util.TransitiveClosure
     Unison.Util.CycleTable
@@ -170,6 +178,7 @@ library
     free,
     fsnotify,
     fsutils,
+    generic-monoid,
     hashable,
     hashtables,
     haskeline,
@@ -205,7 +214,8 @@ library
     unison-core,
     unliftio,
     util,
-    vector
+    vector,
+    unicode-show
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   default-extensions:
@@ -238,9 +248,12 @@ executable unison
   build-depends:
     base,
     containers,
+    configurator,
     directory,
+    errors,
     filepath,
     fsutils,
+    megaparsec,
     safe,
     shellmet,
     template-haskell,
@@ -262,11 +275,15 @@ executable prettyprintdemo
 
 executable tests
   main-is:        Suite.hs
-  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests
+  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
+  build-depends:
+    base,
+    easytest
   other-modules:
     Unison.Test.ABT
     Unison.Test.ANF
+    Unison.Test.Cache
     Unison.Test.Codebase
     Unison.Test.Codebase.Causal
     Unison.Test.Codebase.FileCodebase
@@ -293,8 +310,11 @@ executable tests
     Unison.Test.UriParser
     Unison.Test.Util.Bytes
     Unison.Test.Var
+    Unison.Test.VersionParser
+    Unison.Core.Test.Name
 
   build-depends:
+    async,
     base,
     bytestring,
     containers,
@@ -309,7 +329,9 @@ executable tests
     megaparsec,
     mtl,
     raw-strings-qq,
+    stm,
     shellmet,
+    split,
     temporary,
     text,
     transformers,
@@ -317,9 +339,9 @@ executable tests
     unison-parser-typechecker
 
 executable transcripts
-  main-is:        Unison/Test/Transcripts.hs
+  main-is:        Transcripts.hs
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
-  hs-source-dirs: tests
+  hs-source-dirs: transcripts
   other-modules:
   build-depends:
     base,
@@ -327,6 +349,7 @@ executable transcripts
     easytest,
     filepath,
     shellmet,
+    process,
     text,
     unison-core,
     unison-parser-typechecker

@@ -20,7 +20,7 @@ import qualified Unison.Var             as Var
 
 test :: Test ()
 test = scope "datadeclaration" $
-  let Right hashes = hashDecls . (snd <$>) . dataDeclarations $ file
+  let Right hashes = hashDecls . (snd <$>) . dataDeclarationsId $ file
       hashMap = Map.fromList $ fmap (\(a,b,_) -> (a,b)) hashes
       hashOf k = Map.lookup (Var.named k) hashMap
   in tests [

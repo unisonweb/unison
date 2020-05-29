@@ -1,6 +1,3 @@
-{-# OPTIONS_GHC -Wno-unused-top-binds #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
-{-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 {-# LANGUAGE FlexibleContexts    #-}
@@ -26,10 +23,9 @@ import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 
 import           Control.Lens
 import qualified Control.Monad.State.Strict    as State
-import           Data.Bifunctor                (bimap, first)
+import           Data.Bifunctor                (bimap, first, second)
 import           Data.List                     (sort, sortOn, stripPrefix)
-import           Data.List.Extra               (nubOrdOn, nubOrd)
-import           Data.ListLike                 (ListLike)
+import           Data.List.Extra               (nubOrdOn, nubOrd, notNull)
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Data.Sequence                 as Seq
@@ -40,7 +36,6 @@ import           Prelude                       hiding (readFile, writeFile)
 import           System.Directory              (canonicalizePath, doesFileExist)
 import qualified Unison.ABT                    as ABT
 import qualified Unison.UnisonFile             as UF
-import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.GitError
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Patch         as Patch
@@ -55,8 +50,10 @@ import           Unison.CommandLine             ( bigproblem
 import           Unison.PrettyTerminal          ( clearCurrentLine
                                                 , putPretty'
                                                 )
+import qualified Unison.CommandLine.InputPattern as IP1
 import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
+import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.DeclPrinter            as DeclPrinter
 import qualified Unison.HashQualified          as HQ
@@ -66,6 +63,7 @@ import qualified Unison.Name                   as Name
 import qualified Unison.Codebase.NameSegment   as NameSegment
 import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyReference, prettyReferent,
+                                                prettyLabeledDependency,
                                                 prettyNamedReference,
                                                 prettyNamedReferent,
                                                 prettyName, prettyShortHash,
@@ -111,6 +109,9 @@ import qualified Unison.Util.Monoid            as Monoid
 import Data.Tuple (swap)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Control.Lens (view, over, _1, _3)
+import qualified Unison.ShortHash as SH
+import Unison.LabeledDependency as LD
+import Unison.Codebase.Editor.RemoteRepo (RemoteRepo)
 
 type Pretty = P.Pretty P.ColorText
 
@@ -227,6 +228,14 @@ notifyNumbered o = case o of
         --  since the content isn't necessarily here.
         -- Should we have a mode with no numbers? :P
 
+  ShowDiffAfterCreateAuthor authorNS authorPath' bAbs ppe diff ->
+    first (\p -> P.lines
+      [ p
+      , ""
+      , tip $ "Add" <> prettyName "License" <> "values for"
+           <> prettyName (NameSegment.toName authorNS)
+           <> "under" <> P.group (prettyPath' authorPath' <> ".")
+      ]) (showDiffNamespace ShowNumbers ppe bAbs bAbs diff)
   where
     e = Path.absoluteEmpty
     undoTip = tip $ "You can use" <> IP.makeExample' IP.undo
@@ -242,33 +251,46 @@ prettyRemoteNamespace =
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
   Success     -> pure $ P.bold "Done."
-  WarnIncomingRootBranch hashes -> mempty
-  -- todo: resurrect this code once it's not triggered by update+propagate
---  WarnIncomingRootBranch hashes -> putPrettyLn $
---    if null hashes then P.wrap $
---      "Please let someone know I generated an empty IncomingRootBranch"
---                 <> " event, which shouldn't be possible!"
---    else P.lines
---      [ P.wrap $ (if length hashes == 1 then "A" else "Some")
---         <> "codebase" <> P.plural hashes "root" <> "appeared unexpectedly"
---         <> "with" <> P.group (P.plural hashes "hash" <> ":")
---      , ""
---      , (P.indentN 2 . P.oxfordCommas)
---                (map (P.text . Hash.base32Hex . Causal.unRawHash) $ toList hashes)
---      , ""
---      , P.wrap $ "but I'm not sure what to do about it."
---          <> "If you're feeling lucky, you can try deleting one of the heads"
---          <> "from `.unison/v1/branches/head/`, but please make a backup first."
---          <> "There will be a better way of handling this in the future. 😅"
---      ]
-  LoadPullRequest baseNS headNS basePath headPath mergedPath -> pure $ P.lines
+  WarnIncomingRootBranch current hashes -> pure $
+    if null hashes then P.wrap $
+      "Please let someone know I generated an empty IncomingRootBranch"
+                 <> " event, which shouldn't be possible!"
+    else P.lines
+      [ P.wrap $ (if length hashes == 1 then "A" else "Some")
+         <> "codebase" <> P.plural hashes "root" <> "appeared unexpectedly"
+         <> "with" <> P.group (P.plural hashes "hash" <> ":")
+      , ""
+      , (P.indentN 2 . P.oxfordCommas)
+                (map prettySBH $ toList hashes)
+      , ""
+      , P.wrap $ "and I'm not sure what to do about it."
+          <> "The last root namespace hash that I knew about was:"
+      , ""
+      , P.indentN 2 $ prettySBH current
+      , ""
+      , P.wrap $ "Now might be a good time to make a backup of your codebase. 😬"
+      , ""
+      , P.wrap $ "After that, you might try using the" <> makeExample' IP.forkLocal
+          <> "command to inspect the namespaces listed above, and decide which"
+          <> "one you want as your root."
+          <> "You can also use" <> makeExample' IP.viewReflog <> "to see the"
+          <> "last few root namespace hashes on record."
+      , ""
+      , P.wrap $ "Once you find one you like, you can use the"
+          <> makeExample' IP.resetRoot <> "command to set it."
+      ]
+  LoadPullRequest baseNS headNS basePath headPath mergedPath squashedPath -> pure $ P.lines
     [ P.wrap $ "I checked out" <> prettyRemoteNamespace baseNS <> "to" <> P.group (prettyPath' basePath <> ".")
     , P.wrap $ "I checked out" <> prettyRemoteNamespace headNS <> "to" <> P.group (prettyPath' headPath <> ".")
     , ""
     , P.wrap $ "The merged result is in" <> P.group (prettyPath' mergedPath <> ".")
+    , P.wrap $ "The (squashed) merged result is in" <> P.group (prettyPath' squashedPath <> ".")
     , P.wrap $ "Use" <>
         IP.makeExample IP.diffNamespace
           [prettyPath' basePath, prettyPath' mergedPath]
+      <> "or" <>
+        IP.makeExample IP.diffNamespace
+          [prettyPath' basePath, prettyPath' squashedPath]
       <> "to see what's been updated."
     , P.wrap $ "Use" <>
         IP.makeExample IP.todo
@@ -277,7 +299,10 @@ notifyUser dir o = case o of
         <> "to see what work is remaining for the merge."
     , P.wrap $ "Use" <>
         IP.makeExample IP.push
-          [prettyRemoteNamespace baseNS, prettyPath' mergedPath]
+          [prettyRemoteNamespace baseNS, prettyPath' mergedPath] <>
+        "or" <>
+        IP.makeExample IP.push
+          [prettyRemoteNamespace baseNS, prettyPath' squashedPath]
         <> "to push the changes."
     ]
 
@@ -291,14 +316,14 @@ notifyUser dir o = case o of
     else
       pure $ intercalateMap "\n\n" go (Map.toList md)
       where
-      go (key, rs) =
+      go (_key, rs) =
         displayDefinitions' ppe (Map.restrictKeys types rs)
                                 (Map.restrictKeys terms rs)
   TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n' | n == n' -> pure $
       P.lines [ cache, "", displayTestResults True ppe oks fails ]
-    CachedTests n m -> pure $
+    CachedTests _n m -> pure $
       if m == 0 then "✅  "
       else P.indentN 2 $
            P.lines [ "", cache, "", displayTestResults False ppe oks fails, "", "✅  " ]
@@ -317,13 +342,32 @@ notifyUser dir o = case o of
               <> (P.syntaxToColor $ prettyHashQualified (PPE.termName ppe $ Referent.Ref r))
     pure mempty
 
-  TestIncrementalOutputEnd _ppe (n,total) _r result -> do
+  TestIncrementalOutputEnd _ppe (_n, _total) _r result -> do
     clearCurrentLine
     if isTestOk result then putPretty' "  ✅  "
     else putPretty' "  🚫  "
     pure mempty
 
-  LinkFailure input -> pure $ P.warnCallout . P.shown $ input
+  MetadataMissingType ppe ref -> pure . P.fatalCallout . P.lines $ [
+    P.wrap $ "The metadata value " <> P.red (prettyTermName ppe ref)
+          <> "is missing a type signature in the codebase.",
+    "",
+    P.wrap $ "This might be due to pulling an incomplete"
+          <> "or invalid codebase, or because files inside the codebase"
+          <> "are being deleted external to UCM."
+    ]
+  MetadataAmbiguous hq _ppe [] -> pure . P.warnCallout .
+    P.wrap $ "I couldn't find any metadata matching "
+           <> P.syntaxToColor (prettyHashQualified hq)
+  MetadataAmbiguous _ ppe refs -> pure . P.warnCallout . P.lines $ [
+    P.wrap $ "I'm not sure which metadata value you're referring to"
+          <> "since there are multiple matches:",
+    "",
+    P.indentN 2 $ P.spaced (P.blue . prettyTermName ppe <$> refs),
+    "",
+    tip "Try again and supply one of the above definitions explicitly."
+    ]
+
   EvaluationFailure err -> pure err
   SearchTermsNotFound hqs | null hqs -> pure mempty
   SearchTermsNotFound hqs ->
@@ -345,6 +389,8 @@ notifyUser dir o = case o of
     pure . P.warnCallout $ "A type by that name already exists."
   PatchAlreadyExists _ ->
     pure . P.warnCallout $ "A patch by that name already exists."
+  BranchEmpty b -> pure . P.warnCallout . P.wrap $
+    P.group (either P.shown prettyPath' b) <> "is an empty namespace."
   BranchNotEmpty path ->
     pure . P.warnCallout $ "I was expecting the namespace " <> prettyPath' path
       <> " to be empty for this operation, but it isn't."
@@ -427,8 +473,8 @@ notifyUser dir o = case o of
      listOfLinks ppe [ (name,tm) | (name,_ref,tm) <- results ]
   ListNames _len [] [] -> pure . P.callout "😶" $
     P.wrap "I couldn't find anything by that name."
-  ListNames len terms types -> pure . P.sepNonEmpty "\n\n" $ [
-    formatTerms terms, formatTypes types ]
+  ListNames len types terms -> pure . P.sepNonEmpty "\n\n" $ [
+    formatTypes types, formatTerms terms ]
     where
     formatTerms tms =
       P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : (go <$> tms) where
@@ -461,7 +507,7 @@ notifyUser dir o = case o of
       f (i, (p1, p2)) = (P.hiBlack . fromString $ show i <> ".", p1, p2)
     formatEntry :: ShallowListEntry v a -> (P.Pretty P.ColorText, P.Pretty P.ColorText)
     formatEntry = \case
-      ShallowTermEntry r hq ot ->
+      ShallowTermEntry _r hq ot ->
         (P.syntaxToColor . prettyHashQualified' . fmap NameSegment.toName $ hq
         , P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) ot <> P.lit ")" )
       ShallowTypeEntry r hq ->
@@ -471,7 +517,7 @@ notifyUser dir o = case o of
         ((P.syntaxToColor . prettyName . NameSegment.toName) ns <> "/"
         ,case count of
           1 -> P.lit ("(1 definition)")
-          n -> P.lit "(" <> P.shown count <> P.lit " definitions)")
+          _n -> P.lit "(" <> P.shown count <> P.lit " definitions)")
       ShallowPatchEntry ns ->
         ((P.syntaxToColor . prettyName . NameSegment.toName) ns
         ,P.lit "(patch)")
@@ -545,9 +591,10 @@ notifyUser dir o = case o of
     -- if we ever allow users to edit hashes directly.
   Typechecked sourceName ppe slurpResult uf -> do
     let fileStatusMsg = SlurpResult.pretty False ppe slurpResult
+    let containsWatchExpressions = notNull $ UF.watchComponents uf
     if UF.nonEmpty uf then do
       fileName <- renderFileName $ Text.unpack sourceName
-      pure $ P.linesNonEmpty [
+      pure $ P.linesNonEmpty ([
         if fileStatusMsg == mempty then
           P.okCallout $ fileName <> " changed."
         else if  SlurpResult.isAllDuplicates slurpResult then
@@ -568,69 +615,64 @@ notifyUser dir o = case o of
              <> "change:"
             , P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
             ]
-          ,
-         " ",
-         P.wrap $ "Now evaluating any watch expressions"
-               <> "(lines starting with `>`)... "
-               <> P.group (P.hiBlack "Ctrl+C cancels.")
-        ]
+        ] ++ if containsWatchExpressions then [
+          "",
+          P.wrap $ "Now evaluating any watch expressions"
+                 <> "(lines starting with `>`)... "
+                 <> P.group (P.hiBlack "Ctrl+C cancels.")
+          ] else [])
     else if (null $ UF.watchComponents uf) then pure . P.wrap $
       "I loaded " <> P.text sourceName <> " and didn't find anything."
     else pure mempty
 
   TodoOutput names todo -> pure (todoOutput names todo)
   GitError input e -> pure $ case e of
+    CouldntParseRootBranch repo s -> P.wrap $ "I couldn't parse the string"
+      <> P.red (P.string s) <> "into a namespace hash, when opening the repository at"
+      <> P.group (prettyRepoBranch repo <> ".")
     NoGit -> P.wrap $
       "I couldn't find git. Make sure it's installed and on your path."
-    NoRemoteRepoAt p -> P.wrap
-       $ "I couldn't access a git "
-      <> "repository at " <> P.group (P.text p <> ".")
-      <> "Make sure the repo exists "
-      <> "and that you have access to it."
-    NoLocalRepoAt p -> P.wrap
-       $ "The directory at " <> P.string p
-      <> "doesn't seem to contain a git repository."
-    CheckoutFailed t -> P.wrap
-       $ "I couldn't do a git checkout of "
-      <> P.group (P.text t <> ".")
-      <> "Make sure there's a branch or commit with that name."
-    PushDestinationHasNewStuff url treeish diff -> P.callout "⏸" . P.lines $ [
-      P.wrap $ "The repository at" <> P.blue (P.text url)
-            <> (Monoid.fromMaybe $ treeish <&> \treeish ->
-                  "at revision" <> P.blue (P.text treeish))
-            <> "has some changes I don't know about:",
-      "", P.indentN 2 (prettyDiff diff), "",
+    CloneException repo msg -> P.wrap $
+      "I couldn't clone the repository at" <> prettyRepoBranch repo <> ";"
+      <> "the error was:" <> (P.indentNAfterNewline 2 . P.group . P.string) msg
+    PushNoOp repo -> P.wrap $
+      "The repository at" <> prettyRepoBranch repo <> "is already up-to-date."
+    PushException repo msg -> P.wrap $
+      "I couldn't push to the repository at" <> prettyRepoRevision repo <> ";"
+      <> "the error was:" <> (P.indentNAfterNewline 2 . P.group . P.string) msg
+    UnrecognizableCacheDir uri localPath -> P.wrap $ "A cache directory for"
+      <> P.backticked (P.text uri) <> "already exists at"
+      <> P.backticked' (P.string localPath) "," <> "but it doesn't seem to"
+      <> "be a git repository, so I'm not sure what to do next.  Delete it?"
+    UnrecognizableCheckoutDir uri localPath -> P.wrap $ "I tried to clone"
+      <> P.backticked (P.text uri) <> "into a cache directory at"
+      <> P.backticked' (P.string localPath) "," <> "but I can't recognize the"
+      <> "result as a git repository, so I'm not sure what to do next."
+    PushDestinationHasNewStuff repo ->
+      P.callout "⏸" . P.lines $ [
+      P.wrap $ "The repository at" <> prettyRepoRevision repo
+            <> "has some changes I don't know about.",
+      "",
       P.wrap $ "If you want to " <> push <> "you can do:", "",
        P.indentN 2 pull, "",
        P.wrap $
-         "to merge these changes locally." <>
-         "Then try your" <> push <> "again."
+         "to merge these changes locally," <>
+         "then try your" <> push <> "again."
       ]
       where
-      push = P.group . P.backticked $ IP.patternName IP.push
-      pull = case input of
-        Input.PushRemoteBranchI Nothing p ->
-          P.sep " " [IP.patternName IP.pull, P.shown p ]
-        Input.PushRemoteBranchI (Just (r, _)) p -> P.sepNonEmpty " " [
-          IP.patternName IP.pull,
-          P.text (RemoteRepo.url r),
-          P.shown p,
-          case RemoteRepo.commit r of
-            Just s -> P.text s
-            Nothing -> mempty
-          ]
-        _ -> "⁉️ Unison bug - push command expected"
-    NoRemoteNamespaceWithHash url treeish sbh -> P.wrap
-      $ "The repository at" <> P.blue (P.text url)
-      <> (Monoid.fromMaybe $ treeish <&> \treeish ->
-          "at revision" <> P.blue (P.text treeish))
+      push = P.group . P.backticked . P.string . IP1.patternName $ IP.patternFromInput input
+      pull = P.group . P.backticked $ IP.inputStringFromInput input
+    CouldntLoadRootBranch repo hash -> P.wrap
+      $ "I couldn't load the designated root hash"
+      <> P.group ("(" <> fromString (Hash.showBase32Hex hash) <> ")")
+      <> "from the repository at" <> prettyRepoRevision repo
+    NoRemoteNamespaceWithHash repo sbh -> P.wrap
+      $ "The repository at" <> prettyRepoRevision repo
       <> "doesn't contain a namespace with the hash prefix"
       <> (P.blue . P.text . SBH.toText) sbh
-    RemoteNamespaceHashAmbiguous url treeish sbh hashes -> P.lines [
+    RemoteNamespaceHashAmbiguous repo sbh hashes -> P.lines [
       P.wrap $ "The namespace hash" <> prettySBH sbh
-            <> "at" <> P.blue (P.text url)
-            <> (Monoid.fromMaybe $ treeish <&> \treeish ->
-                "at revision" <> P.blue (P.text treeish))
+            <> "at" <> prettyRepoRevision repo
             <> "is ambiguous."
             <> "Did you mean one of these hashes?",
       "",
@@ -642,7 +684,7 @@ notifyUser dir o = case o of
       ]
     SomeOtherError msg -> P.callout "‼" . P.lines $ [
       P.wrap "I ran into an error:", "",
-      P.indentN 2 (P.text msg), "",
+      P.indentN 2 (P.string msg), "",
       P.wrap $ "Check the logging messages above for more info."
       ]
   ListEdits patch ppe -> do
@@ -670,7 +712,9 @@ notifyUser dir o = case o of
       else "Edited Terms:" `P.hang`
               P.column2 (prettyTermEdit <$> R.toList terms),
       if R.null types && R.null terms then "This patch is empty."
-      else mempty
+      else tip . P.string $ "To remove entries from a patch, use "
+           <> IP.deleteTermReplacementCommand <> " or "
+           <> IP.deleteTypeReplacementCommand <> ", as appropriate."
       ]
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
@@ -708,27 +752,36 @@ notifyUser dir o = case o of
       (P.column2 . fmap format) ([(1::Integer)..] `zip` (toList patches))
       where
       format (i, p) = (P.hiBlack . fromString $ show i <> ".", prettyName p)
+  ConfiguredMetadataParseError p md err ->
+    pure . P.fatalCallout . P.lines $
+      [ P.wrap $ "I couldn't understand the default metadata that's set for "
+        <> prettyPath' p <> " in .unisonConfig."
+      , P.wrap $ "The value I found was"
+        <> (P.backticked . P.blue . P.string) md
+        <> "but I encountered the following error when trying to parse it:"
+      , ""
+      , err
+      ]
   NoConfiguredGitUrl pp p ->
     pure . P.fatalCallout . P.wrap $
       "I don't know where to " <>
         pushPull "push to!" "pull from!" pp <>
           (if Path.isRoot' p then ""
-           else "Add a line like `GitUrl." <> prettyPath' p
+           else "Add a line like `GitUrl." <> P.shown p
                 <> " = <some-git-url>' to .unisonConfig. "
           )
           <> "Type `help " <> pushPull "push" "pull" pp <>
           "` for more information."
 
 --  | ConfiguredGitUrlParseError PushPull Path' Text String
-  ConfiguredGitUrlParseError pp p url error ->
+  ConfiguredGitUrlParseError pp p url err ->
     pure . P.fatalCallout . P.lines $
-      [ P.wrap $ "I couldn't understand the url set in .unisonConfig for"
-          <> prettyPath' p <> "."
-      , ""
+      [ P.wrap $ "I couldn't understand the GitUrl that's set for"
+          <> prettyPath' p <> "in .unisonConfig"
       , P.wrap $ "The value I found was" <> (P.backticked . P.blue . P.text) url
         <> "but I encountered the following error when trying to parse it:"
       , ""
-      , P.string error
+      , P.string err
       , ""
       , P.wrap $ "Type" <> P.backticked ("help " <> pushPull "push" "pull" pp)
         <> "for more information."
@@ -757,11 +810,32 @@ notifyUser dir o = case o of
     <> "if you want to" <> pushPull "push onto" "pull from" pp
     <> "the latest."
     ]
-  NoBranchWithHash h -> pure . P.callout "😶" $
+  NoBranchWithHash _h -> pure . P.callout "😶" $
     P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> pure $ P.wrap "That's not implemented yet. Sorry! 😬"
-  BranchAlreadyExists _ -> pure "That namespace already exists."
-  NameAmbiguous hashLen p tms tys ->
+  BranchAlreadyExists p -> pure . P.wrap $
+    "The namespace" <> prettyPath' p <> "already exists."
+  LabeledReferenceNotFound hq ->
+    pure . P.callout "\129300" . P.wrap . P.syntaxToColor $
+      "Sorry, I couldn't find anything named" <> prettyHashQualified hq <> "."
+  LabeledReferenceAmbiguous hashLen hq (LD.partition -> (tps, tms)) ->
+    pure . P.callout "\129300" . P.lines $ [
+      P.wrap "That name is ambiguous. It could refer to any of the following definitions:"
+    , ""
+    , P.indentN 2 (P.lines (map qualifyTerm tms ++ map qualifyType tps))
+    ]
+    where
+      qualifyTerm :: Referent -> P.Pretty P.ColorText
+      qualifyTerm = P.syntaxToColor . case hq of
+        HQ.NameOnly n -> prettyNamedReferent hashLen n
+        HQ.HashQualified n _ -> prettyNamedReferent hashLen n
+        HQ.HashOnly _ -> prettyReferent hashLen
+      qualifyType :: Reference -> P.Pretty P.ColorText
+      qualifyType = P.syntaxToColor . case hq of
+        HQ.NameOnly n -> prettyNamedReference hashLen n
+        HQ.HashQualified n _ -> prettyNamedReference hashLen n
+        HQ.HashOnly _ -> prettyReference hashLen
+  DeleteNameAmbiguous hashLen p tms tys ->
     pure . P.callout "\129300" . P.lines $ [
       P.wrap "That name is ambiguous. It could refer to any of the following definitions:"
     , ""
@@ -798,10 +872,14 @@ notifyUser dir o = case o of
     "",
     P.wrap "Try again with a few more hash characters to disambiguate."
     ]
-  BadDestinationBranch _ -> pure "That destination namespace is bad."
-  TermNotFound' h ->
+  BadName n ->
+    pure . P.wrap $ P.string n <> " is not a kind of name I understand."
+  TermNotFound' sh ->
     pure $ "I could't find a term with hash "
-         <> (prettyShortHash $ Reference.toShortHash (Reference.DerivedId h))
+         <> (prettyShortHash sh)
+  TypeNotFound' sh ->
+    pure $ "I could't find a type with hash "
+         <> (prettyShortHash sh)
   NothingToPatch _patchPath dest -> pure $
     P.callout "😶" . P.wrap
        $ "This had no effect. Perhaps the patch has already been applied"
@@ -840,7 +918,7 @@ notifyUser dir o = case o of
     renderEntry :: Output.ReflogEntry -> P.Pretty CT.ColorText
     renderEntry (Output.ReflogEntry hash reason) = P.wrap $
       P.blue (prettySBH hash) <> " : " <> P.text reason
-  History cap history tail -> pure $
+  History _cap history tail -> pure $
     P.lines [
       note $ "The most recent namespace hash is immediately below this message.", "",
       P.sep "\n\n" [ go h diff | (h,diff) <- reverse history ], "",
@@ -854,12 +932,11 @@ notifyUser dir o = case o of
       E.MergeTail h hs -> P.lines [
         P.wrap $ "This segment of history starts with a merge." <> ex,
         "",
-        P.lines (prettySBH <$> hs),
-        "⑂",
-        "⊙ " <> prettySBH h
-             <> (if null history then mempty else "\n")
+        "⊙ " <> prettySBH h,
+        "⑃",
+        P.lines (prettySBH <$> hs)
         ]
-      E.PageEnd h n -> P.lines [
+      E.PageEnd h _n -> P.lines [
         P.wrap $ "There's more history before the versions shown here." <> ex, "",
         dots, "",
         "⊙ " <> prettySBH h,
@@ -888,6 +965,8 @@ notifyUser dir o = case o of
   DumpNumberedArgs args -> pure . P.numberedList $ fmap P.string args
   NoConflictsOrEdits ->
     pure (P.okCallout "No conflicts or edits in progress.")
+  NoOp -> pure $ P.string "I didn't make any changes."
+  DefaultMetadataNotification -> pure $ P.wrap "I added some default metadata."
   DumpBitBooster head map -> let
     go output []          = output
     go output (head : queue) = case Map.lookup head map of
@@ -916,6 +995,45 @@ notifyUser dir o = case o of
       "",
       "Paste that output into http://bit-booster.com/graph.html"
       ]
+  ListDependents hqLength ld names missing -> pure $
+    if names == mempty && missing == mempty
+    then c (prettyLabeledDependency hqLength ld) <> " doesn't have any dependents."
+    else
+      "Dependents of " <> c (prettyLabeledDependency hqLength ld) <> ":\n\n" <>
+      (P.indentN 2 (P.numberedColumn2Header num pairs))
+    where
+    num n = P.hiBlack $ P.shown n <> "."
+    header = (P.hiBlack "Reference", P.hiBlack "Name")
+    pairs = header : (fmap (first c . second c) $
+        [ (p $ Reference.toShortHash r, prettyName n) | (n, r) <- names ] ++
+        [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
+    p = prettyShortHash . SH.take hqLength
+    c = P.syntaxToColor
+  -- this definition is identical to the previous one, apart from the word
+  -- "Dependencies", but undecided about whether or how to refactor
+  ListDependencies hqLength ld names missing -> pure $
+    if names == mempty && missing == mempty
+    then c (prettyLabeledDependency hqLength ld) <> " doesn't have any dependencies."
+    else
+      "Dependencies of " <> c (prettyLabeledDependency hqLength ld) <> ":\n\n" <>
+      (P.indentN 2 (P.numberedColumn2Header num pairs))
+    where
+    num n = P.hiBlack $ P.shown n <> "."
+    header = (P.hiBlack "Reference", P.hiBlack "Name")
+    pairs = header : (fmap (first c . second c) $
+        [ (p $ Reference.toShortHash r, prettyName n) | (n, r) <- names ] ++
+        [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
+    p = prettyShortHash . SH.take hqLength
+    c = P.syntaxToColor
+  DumpUnisonFileHashes hqLength datas effects terms ->
+    pure . P.syntaxToColor . P.lines $
+      (effects <&> \(n,r) -> "ability " <>
+        prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r)) <>
+      (datas <&> \(n,r) -> "type " <>
+        prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r)) <>
+      (terms <&> \(n,r) ->
+        prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r))
+
   where
   _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
   -- do
@@ -954,7 +1072,7 @@ prettyPath' p' =
 prettyRelative :: Path.Relative -> Pretty
 prettyRelative = P.blue . P.shown
 
-prettySBH :: ShortBranchHash -> P.Pretty CT.ColorText
+prettySBH :: IsString s => ShortBranchHash -> P.Pretty s
 prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
 
 formatMissingStuff :: (Show tm, Show typ) =>
@@ -1032,7 +1150,7 @@ displayDefinitions :: Var v => Ord a1 =>
   -> Map Reference.Reference (DisplayThing (DD.Decl v a1))
   -> Map Reference.Reference (DisplayThing (Term v a1))
   -> IO Pretty
-displayDefinitions outputLoc ppe types terms | Map.null types && Map.null terms =
+displayDefinitions _outputLoc _ppe types terms | Map.null types && Map.null terms =
   pure $ P.callout "😶" "No results to display."
 displayDefinitions outputLoc ppe types terms =
   maybe displayOnly scratchAndDisplay outputLoc
@@ -1279,7 +1397,7 @@ listOfLinks ::
 listOfLinks _ [] = pure . P.callout "😶" . P.wrap $
   "No results. Try using the " <>
   IP.makeExample IP.link [] <>
-  "command to add outgoing links to a definition."
+  "command to add metadata to a definition."
 listOfLinks ppe results = pure $ P.lines [
     P.numberedColumn2 num [
     (P.syntaxToColor $ prettyHashQualified hq, ": " <> prettyType typ) | (hq,typ) <- results
@@ -1410,7 +1528,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
           -- [ "peach  ┐"
           -- , "peach' ┘"]
           olds' :: [Numbered Pretty] =
-            map (\(oldhq, oldp) -> numHQ oldPath oldhq r <&> (\n -> n <> " " <> oldp))
+            map (\(oldhq, oldp) -> numHQ' oldPath oldhq r <&> (\n -> n <> " " <> oldp))
               . (zip (toList olds))
               . P.boxRight
               . map (P.rightPad leftNamePad . phq')
@@ -1428,7 +1546,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
             addedLabel   = "(added)"
             removedLabel = "(removed)"
             number label name =
-              numHQ newPath name r <&>
+              numHQ' newPath name r <&>
                 (\num -> num <> " " <> phq' name <> " " <> label)
 
           buildTable :: [Numbered Pretty] -> [Numbered Pretty] -> Numbered Pretty
@@ -1492,7 +1610,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
       pure . P.column2 $ zip nums (boxLeft decls)
     prettyLine :: Reference -> Maybe (DD.DeclOrBuiltin v a) -> (HQ'.HashQualified, [OBD.MetadataDisplay v a]) -> Numbered (Pretty, Pretty)
     prettyLine r odecl (hq, mds) = do
-      n <- numHQ newPath hq (Referent.Ref r)
+      n <- numHQ' newPath hq (Referent.Ref r)
       pure . (n,) $ prettyDecl hq odecl <> case length mds of
         0 -> mempty
         c -> " (+" <> P.shown c <> " metadata)"
@@ -1507,7 +1625,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
           boxLeft = case hqmds of _:_:_ -> P.boxLeft; _ -> id
       pure $ zip3 nums (boxLeft names) decls
     prettyLine r otype (hq, mds) = do
-      n <- numHQ newPath hq r
+      n <- numHQ' newPath hq r
       pure . (n, phq' hq, ) $ ": " <> prettyType otype <> case length mds of
         0 -> mempty
         c -> " (+" <> P.shown c <> " metadata)"
@@ -1549,7 +1667,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
           boxLeft = case hqs of _:_:_ -> P.boxLeft; _ -> id
       pure . P.column2 $ zip nums (boxLeft decls)
     prettyLine r odecl hq = do
-      n <- numHQ newPath hq (Referent.Ref r)
+      n <- numHQ' newPath hq (Referent.Ref r)
       pure (n, prettyDecl hq odecl)
 
   prettyRemoveTerms :: [OBD.RemovedTermDisplay v a] -> Numbered Pretty
@@ -1565,16 +1683,16 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
           boxLeft = case hqs of _:_ -> P.boxLeft; _ -> id
       pure $ zip3 nums (boxLeft names) decls
     prettyLine1 r otype hq = do
-      n <- numHQ newPath hq r
+      n <- numHQ' newPath hq r
       pure (n, phq' hq, ": " <> prettyType otype)
     prettyLine r hq = do
-      n <- numHQ newPath hq r
+      n <- numHQ' newPath hq r
       pure (n, phq' hq, mempty)
 
   downArrow = P.bold "↓"
   mdTypeLine :: Path.Absolute -> OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)
   mdTypeLine p (hq, r, odecl, mddiff) = do
-    n <- numHQ p hq (Referent.Ref r)
+    n <- numHQ' p hq (Referent.Ref r)
     fmap ((n,) . P.linesNonEmpty) . sequence $
       [ pure $ prettyDecl hq odecl
       , P.indentN leftNumsWidth <$> prettyMetadataDiff mddiff ]
@@ -1583,7 +1701,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
   -- - 3. AllRightsReserved : License
   mdTermLine :: Path.Absolute -> Int -> OBD.TermDisplay v a -> Numbered (Pretty, Pretty)
   mdTermLine p namesWidth (hq, r, otype, mddiff) = do
-    n <- numHQ p hq r
+    n <- numHQ' p hq r
     fmap ((n,) . P.linesNonEmpty) . sequence $
       [ pure $ P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
       , prettyMetadataDiff mddiff ]
@@ -1612,21 +1730,27 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
     where
     elem p x (hq, r, otype) = do
       num <- numHQ p hq r
-      pure (x <> num <> " " <> phq' hq, ": " <> prettyType otype)
+      pure (x <> num <> " " <> phq hq, ": " <> prettyType otype)
 
   prettyType = maybe (P.red "type not found") (TypePrinter.pretty ppe)
   prettyDecl hq =
     maybe (P.red "type not found")
           (P.syntaxToColor . DeclPrinter.prettyDeclOrBuiltinHeader (HQ'.toHQ hq))
   phq' :: _ -> Pretty = P.syntaxToColor . prettyHashQualified'
+  phq  :: _ -> Pretty = P.syntaxToColor . prettyHashQualified
   --
   -- DeclPrinter.prettyDeclHeader : HQ -> Either
   numPatch :: Path.Absolute -> Name -> Numbered Pretty
   numPatch prefix name =
     addNumberedArg . Name.toString . Name.makeAbsolute $ Path.prefixName prefix name
 
-  numHQ :: Path.Absolute -> HQ'.HashQualified -> Referent -> Numbered Pretty
-  numHQ prefix hq r = addNumberedArg (HQ'.toString hq')
+  numHQ :: Path.Absolute -> HQ.HashQualified -> Referent -> Numbered Pretty
+  numHQ prefix hq r = addNumberedArg (HQ.toString hq')
+    where
+    hq' = HQ.requalify (fmap (Name.makeAbsolute . Path.prefixName prefix) hq) r
+
+  numHQ' :: Path.Absolute -> HQ'.HashQualified -> Referent -> Numbered Pretty
+  numHQ' prefix hq r = addNumberedArg (HQ'.toString hq')
     where
     hq' = HQ'.requalify (fmap (Name.makeAbsolute . Path.prefixName prefix) hq) r
 
@@ -1824,6 +1948,26 @@ prettyDiff diff = let
        ]
      else mempty
    ]
+
+prettyTermName :: PPE.PrettyPrintEnv -> Referent -> Pretty
+prettyTermName ppe r = P.syntaxToColor $
+  prettyHashQualified (PPE.termName ppe r)
+
+prettyRepoRevision :: RemoteRepo -> Pretty
+prettyRepoRevision (RemoteRepo.GitRepo url treeish) =
+  P.blue (P.text url) <> prettyRevision treeish
+  where
+  prettyRevision treeish =
+    Monoid.fromMaybe $
+      treeish <&> \treeish -> "at revision" <> P.blue (P.text treeish)
+
+prettyRepoBranch :: RemoteRepo -> Pretty
+prettyRepoBranch (RemoteRepo.GitRepo url treeish) =
+  P.blue (P.text url) <> prettyRevision treeish
+  where
+  prettyRevision treeish =
+    Monoid.fromMaybe $
+      treeish <&> \treeish -> "at branch" <> P.blue (P.text treeish)
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of

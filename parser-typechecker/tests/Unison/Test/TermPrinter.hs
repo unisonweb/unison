@@ -101,8 +101,14 @@ tcBinding width v mtp tm expected
         ]
 
 test :: Test ()
-test = scope "termprinter" . tests $
-  [ tc "if true then +2 else -2"
+test = scope "termprinter" $ tests
+  [ scope "splitName" $ tests
+      [ scope "x" $ expectEqual (splitName "x") [([], "x")]
+      , scope "A.x" $ expectEqual (splitName "A.x") [([],"A.x"),(["A"],"x")]
+      , scope "A.B.x"
+        $ expectEqual (splitName "A.B.x") [([],"A.B.x"),(["A"],"B.x"),(["A","B"],"x")]
+      ]
+  , tc "if true then +2 else -2"
   , tc "[2, 3, 4]"
   , tc "[2]"
   , tc "[]"
@@ -113,7 +119,11 @@ test = scope "termprinter" . tests $
   , tc "3.14159"
   , tc "+0"
   , tc "\"some text\""
-  , pending $ tc "\"they said \\\"hi\\\"\""  -- TODO lexer doesn't support strings with quotes in
+  , tc "\"they said \\\"hi\\\"\""
+  , pending $ tc "\'they said \\\'hi\\\'\'" -- TODO lexer doesn't support strings with single quotes in
+  , tc "Rúnar"
+  , pending $ tc "῎Ανδρα μοι ἔννεπε, Μοῦσα, πολύτροπον" -- TODO lexer does not like classics!
+  , tc "古池や蛙飛びこむ水の音"
   , tc "2 : Nat"
   , tc "x -> x && false"
   , tc "x y -> x && y"

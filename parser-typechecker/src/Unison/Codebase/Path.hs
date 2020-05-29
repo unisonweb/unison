@@ -101,7 +101,7 @@ prefix (Absolute (Path prefix)) (Path' p) = case p of
 -- Left is some parse error tbd
 -- All the segments must be wordyIds
 parsePath' :: String -> Either String Path'
-parsePath' p = case parsePath'Impl p of
+parsePath' p = case parsePathImpl' p of
   Left e -> Left e
   Right (p, "") -> Right p
   Right (p, rem) -> case Lexer.wordyId0 rem of
@@ -116,23 +116,25 @@ parsePath' p = case parsePath'Impl p of
 -- foo.bar.baz    becomes `Right (foo.bar, "baz")
 -- baz            becomes `Right (, "baz")
 -- foo.bar.baz#a8fj becomes `Left`; we don't hash-qualify paths.
-parsePath'Impl :: String -> Either String (Path', String)
-parsePath'Impl p = case p of
-  "." -> Right (Path' . Left $ absoluteEmpty, "")
-  '.' : p -> over _1 (Path' . Left  . Absolute . fromList) <$> segs p
+-- TODO: Get rid of this thing.
+parsePathImpl' :: String -> Either String (Path', String)
+parsePathImpl' p = case p of
+  "."     -> Right (Path' . Left $ absoluteEmpty, "")
+  '.' : p -> over _1 (Path' . Left . Absolute . fromList) <$> segs p
   p       -> over _1 (Path' . Right . Relative . fromList) <$> segs p
-  where
-  segs p = case Lexer.wordyId p of
-    Left e         -> Left (show e)
+ where
+  go f g p b = case f p of
+    Left _ | b    -> go g f p False
+    Left  e       -> Left (show e)
     Right (a, "") -> case Lens.unsnoc (Text.splitOn "." $ Text.pack a) of
-      Nothing -> Left "empty path"
-      Just (segs, last) ->
-        Right (NameSegment <$> segs, Text.unpack last)
-    Right (segs, '.':rem) ->
+      Nothing           -> Left "empty path"
+      Just (segs, last) -> Right (NameSegment <$> segs, Text.unpack last)
+    Right (segs, '.' : rem) ->
       let segs' = Text.splitOn "." (Text.pack segs)
-      in Right (NameSegment <$> segs', rem)
+      in  Right (NameSegment <$> segs', rem)
     Right (segs, rem) ->
       Left $ "extra characters after " <> segs <> ": " <> show rem
+  segs p = go Lexer.symbolyId Lexer.wordyId p True
 
 wordyNameSegment, definitionNameSegment :: String -> Either String NameSegment
 wordyNameSegment s = case Lexer.wordyId0 s of
@@ -160,7 +162,7 @@ parseSplit' :: (String -> Either String NameSegment)
             -> String
             -> Either String Split'
 parseSplit' lastSegment p = do
-  (p', rem) <- parsePath'Impl p
+  (p', rem) <- parsePathImpl' p
   seg <- lastSegment rem
   pure (p', seg)
 
@@ -169,14 +171,14 @@ parseShortHashOrHQSplit' s =
   case Text.breakOn "#" $ Text.pack s of
     ("","") -> error $ "encountered empty string parsing '" <> s <> "'"
     (n,"") -> do
-      (p, rem) <- parsePath'Impl (Text.unpack n)
+      (p, rem) <- parsePathImpl' (Text.unpack n)
       seg <- definitionNameSegment rem
       pure $ Right (p, HQ'.NameOnly seg)
     ("", sh) -> do
       sh <- maybeToRight (shError s) . SH.fromText $ sh
       pure $ Left sh
     (n, sh) -> do
-      (p, rem) <- parsePath'Impl (Text.unpack n)
+      (p, rem) <- parsePathImpl' (Text.unpack n)
       seg <- definitionNameSegment rem
       hq <- maybeToRight (shError s) .
         fmap (\sh -> (p, HQ'.HashQualified seg sh)) .
@@ -188,8 +190,8 @@ parseShortHashOrHQSplit' s =
 parseHQSplit :: String -> Either String HQSplit
 parseHQSplit s = case parseHQSplit' s of
   Right (Path' (Right (Relative p)), hqseg) -> Right (p, hqseg)
-  Right (Path' Left{}, _) -> 
-    Left $ "Sorry, you can't use an absolute name like " <> s <> " here." 
+  Right (Path' Left{}, _) ->
+    Left $ "Sorry, you can't use an absolute name like " <> s <> " here."
   Left e -> Left e
 
 parseHQSplit' :: String -> Either String HQSplit'
@@ -198,11 +200,11 @@ parseHQSplit' s =
     ("","") -> error $ "encountered empty string parsing '" <> s <> "'"
     ("", _) -> Left "Sorry, you can't use a hash-only reference here."
     (n, "") -> do
-      (p, rem) <- parsePath'Impl (Text.unpack n)
+      (p, rem) <- parsePathImpl' (Text.unpack n)
       seg <- definitionNameSegment rem
       pure (p, HQ'.NameOnly seg)
     (n, sh) -> do
-      (p, rem) <- parsePath'Impl (Text.unpack n)
+      (p, rem) <- parsePathImpl' (Text.unpack n)
       seg <- definitionNameSegment rem
       maybeToRight (shError s) .
         fmap (\sh -> (p, HQ'.HashQualified seg sh)) .
@@ -239,6 +241,9 @@ toList = Foldable.toList . toSeq
 
 fromList :: [NameSegment] -> Path
 fromList = Path . Seq.fromList
+
+ancestors :: Absolute -> Seq Absolute
+ancestors (Absolute (Path segments)) = Absolute . Path <$> Seq.inits segments
 
 splitFromName :: Name -> Maybe Split
 splitFromName = unsnoc . fromName
@@ -312,6 +317,7 @@ relativeToAncestor (Path a) (Path b) = case (a, b) of
   _ -> (empty, Path a, Path b)
 
 pattern Parent h t = Path (NameSegment h :<| t)
+pattern Empty = Path Seq.Empty
 
 empty :: Path
 empty = Path mempty
@@ -321,6 +327,11 @@ instance Show Path where
 
 toText :: Path -> Text
 toText (Path nss) = intercalateMap "." NameSegment.toText nss
+
+fromText :: Text -> Path
+fromText = \case
+  "" -> empty
+  t -> fromList $ NameSegment <$> Text.splitOn "." t
 
 toText' :: Path' -> Text
 toText' = \case
@@ -373,6 +384,13 @@ instance Snoc Path' Path' NameSegment NameSegment where
       Left abs -> Path' (Left . Absolute $ Lens.snoc (unabsolute abs) n)
       Right rel -> Path' (Right . Relative $ Lens.snoc (unrelative rel) n)
 
+instance Snoc Split' Split' NameSegment NameSegment where
+  _Snoc = prism (uncurry snoc') $ \case -- unsnoc
+    (Lens.unsnoc -> Just (s, a), ns) -> Right ((s, a), ns)
+    e -> Left e
+    where
+    snoc' :: Split' -> NameSegment -> Split'
+    snoc' (p, a) n = (Lens.snoc p a, n)
 
 class Resolve l r o where
   resolve :: l -> r -> o

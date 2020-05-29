@@ -26,6 +26,7 @@ import Unison.Codebase.Patch (Patch)
 import Unison.Name ( Name )
 import Unison.Names2 ( Names )
 import Unison.Parser ( Ann )
+import qualified Unison.Reference as Reference
 import Unison.Reference ( Reference )
 import Unison.Referent  ( Referent )
 import Unison.DataDeclaration ( Decl )
@@ -39,7 +40,6 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Parser as Parser
 import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.Reference as Reference
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
@@ -56,6 +56,7 @@ import Unison.Var (Var)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
+import Unison.LabeledDependency (LabeledDependency)
 
 type ListDetailed = Bool
 type SourceName = Text
@@ -79,6 +80,8 @@ data NumberedOutput v
   | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterCreatePR RemoteNamespace RemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  -- <authorIdentifier> <authorPath> <relativeBase>
+  | ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
 
 --  | ShowDiff
 
@@ -91,8 +94,9 @@ data Output v
   | SourceLoadFailed String
   -- No main function, the [Type v Ann] are the allowed types
   | NoMainFunction String PPE.PrettyPrintEnv [Type v Ann]
+  | BranchEmpty (Either ShortBranchHash Path')
   | BranchNotEmpty Path'
-  | LoadPullRequest RemoteNamespace RemoteNamespace Path' Path' Path'
+  | LoadPullRequest RemoteNamespace RemoteNamespace Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
   | PatchAlreadyExists Path.Split'
@@ -102,19 +106,19 @@ data Output v
   | ParseResolutionFailures String [Names.ResolutionFailure v Ann]
   | TypeHasFreeVars (Type v Ann)
   | TermAlreadyExists Path.Split' (Set Referent)
-  | NameAmbiguous
-      Int -- codebase hash length
-      Path.HQSplit' (Set Referent) (Set Reference)
+  | LabeledReferenceAmbiguous Int HQ.HashQualified (Set LabeledDependency)
+  | LabeledReferenceNotFound HQ.HashQualified
+  | DeleteNameAmbiguous Int Path.HQSplit' (Set Referent) (Set Reference)
   | TermAmbiguous HQ.HashQualified (Set Referent)
   | HashAmbiguous ShortHash (Set Referent)
   | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
-  | BadDestinationBranch Path'
   | BranchNotFound Path'
   | NameNotFound Path.HQSplit'
   | PatchNotFound Path.Split'
   | TypeNotFound Path.HQSplit'
   | TermNotFound Path.HQSplit'
-  | TermNotFound' Reference.Id
+  | TypeNotFound' ShortHash
+  | TermNotFound' ShortHash
   | SearchTermsNotFound [HQ.HashQualified]
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
@@ -127,8 +131,8 @@ data Output v
   | DeleteEverythingConfirmation
   | DeletedEverything
   | ListNames Int -- hq length to print References
-              [(Referent, Set HQ'.HashQualified)] -- term match, term names
               [(Reference, Set HQ'.HashQualified)] -- type match, type names
+              [(Referent, Set HQ'.HashQualified)] -- term match, term names
   -- list of all the definitions within this branch
   | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
   | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified, Reference, Maybe (Type v Ann))]
@@ -168,18 +172,20 @@ data Output v
   -- and a nicer render.
   | BustedBuiltins (Set Reference) (Set Reference)
   | GitError Input GitError
+  | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredGitUrl PushPull Path'
   | ConfiguredGitUrlParseError PushPull Path' Text String
   | ConfiguredGitUrlIncludesShortBranchHash PushPull RemoteRepo ShortBranchHash Path
   | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
                (Map Reference (DisplayThing (Decl v Ann)))
                (Map Reference (DisplayThing (Term v Ann)))
-  | LinkFailure Input
+  | MetadataMissingType PPE.PrettyPrintEnv Referent
+  | MetadataAmbiguous HQ.HashQualified PPE.PrettyPrintEnv [Referent]
   -- todo: tell the user to run `todo` on the same patch they just used
   | NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
-  | WarnIncomingRootBranch (Set ShortBranchHash)
+  | WarnIncomingRootBranch ShortBranchHash (Set ShortBranchHash)
   | StartOfCurrentPathHistory
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
@@ -190,8 +196,14 @@ data Output v
   | NoConflictsOrEdits
   | NotImplemented
   | NoBranchWithHash ShortBranchHash
+  | ListDependencies Int LabeledDependency [(Name, Reference)] (Set Reference)
+  | ListDependents Int LabeledDependency [(Name, Reference)] (Set Reference)
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
+  | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
+  | BadName String
+  | DefaultMetadataNotification
+  | NoOp
   deriving (Show)
 
 data ReflogEntry =
@@ -253,20 +265,24 @@ isFailure o = case o of
   BranchAlreadyExists{} -> True
   PatchAlreadyExists{} -> True
   NoExactTypeMatches -> True
+  BranchEmpty{} -> True
   BranchNotEmpty{} -> True
   TypeAlreadyExists{} -> True
   TypeParseError{} -> True
   ParseResolutionFailures{} -> True
   TypeHasFreeVars{} -> True
   TermAlreadyExists{} -> True
-  NameAmbiguous{} -> True
+  LabeledReferenceAmbiguous{} -> True
+  LabeledReferenceNotFound{} -> True
+  DeleteNameAmbiguous{} -> True
   TermAmbiguous{} -> True
   BranchHashAmbiguous{} -> True
-  BadDestinationBranch{} -> True
+  BadName{} -> True
   BranchNotFound{} -> True
   NameNotFound{} -> True
   PatchNotFound{} -> True
   TypeNotFound{} -> True
+  TypeNotFound'{} -> True
   TermNotFound{} -> True
   TermNotFound'{} -> True
   SearchTermsNotFound ts -> not (null ts)
@@ -274,7 +290,7 @@ isFailure o = case o of
   CantDelete{} -> True
   DeleteEverythingConfirmation -> False
   DeletedEverything -> False
-  ListNames _ tms tys -> null tms && null tys
+  ListNames _ tys tms -> null tms && null tys
   ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ ds -> null ds
   ListOfPatches s -> Set.null s
@@ -295,11 +311,13 @@ isFailure o = case o of
   ListEdits{} -> False
   GitError{} -> True
   BustedBuiltins{} -> True
+  ConfiguredMetadataParseError{} -> True
   NoConfiguredGitUrl{} -> True
   ConfiguredGitUrlParseError{} -> True
   ConfiguredGitUrlIncludesShortBranchHash{} -> True
   DisplayLinks{} -> False
-  LinkFailure{} -> True
+  MetadataMissingType{} -> True
+  MetadataAmbiguous{} -> True
   PatchNeedsToBeConflictFree{} -> True
   PatchInvolvesExternalDependents{} -> True
   NothingToPatch{} -> False
@@ -318,6 +336,11 @@ isFailure o = case o of
   HashAmbiguous{} -> True
   ShowReflog{} -> False
   LoadPullRequest{} -> False
+  DefaultMetadataNotification -> False
+  NoOp -> False
+  ListDependencies{} -> False
+  ListDependents{} -> False
+  DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case
@@ -331,5 +354,6 @@ isNumberedFailure = \case
   ShowDiffAfterUndo{} -> False
   ShowDiffAfterPull{} -> False
   ShowDiffAfterCreatePR{} -> False
+  ShowDiffAfterCreateAuthor{} -> False
 
 

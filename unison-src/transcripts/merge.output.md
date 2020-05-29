@@ -199,29 +199,29 @@ and `quux` namespaces.
 These test that things we expect to be deleted are still deleted.
 
 ```ucm
-.P0> view foo.w
+.> view P0.foo.w
 
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.
-    foo.w
+    P0.foo.w
 
 ```
 ```ucm
-.P0> view baz.x
+.> view P0.baz.x
 
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.
-    baz.x
+    P0.baz.x
 
 ```
 ```ucm
-.P0> view quux.x
+.> view P0.quux.x
 
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.
-    quux.x
+    P0.quux.x
 
 ```

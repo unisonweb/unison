@@ -15,6 +15,7 @@ module Unison.Runtime.Rt1 where
 import Unison.Prelude
 
 import Data.Bifunctor (second)
+import Data.Bits ((.&.), (.|.), complement, countLeadingZeros, countTrailingZeros, shiftR, shiftL, xor)
 import Data.IORef
 import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
@@ -512,6 +513,15 @@ run ioHandler env ir = do
       NegateI i -> do x <- ati size i m; done (I (negate x))
       Truncate0I i -> do x <- ati size i m; done (N (fromIntegral (truncate0 x)))
       ModI i j -> do x <- ati size i m; y <- ati size j m; done (I (x `mod` y))
+      PowI i j -> do x <- ati size i m; y <- atn size j m; done (I (x ^ y))
+      ShiftRI i j -> do x <- ati size i m; y <- atn size j m; done (I (x `shiftR` (fromIntegral y)))
+      ShiftLI i j -> do x <- ati size i m; y <- atn size j m; done (I (x `shiftL` (fromIntegral y)))
+      BitAndI i j -> do x <- ati size i m; y <- ati size j m; done (I ((.&.) (fromIntegral x) (fromIntegral y)))
+      BitOrI i j -> do x <- ati size i m; y <- ati size j m; done (I ((.|.) (fromIntegral x) (fromIntegral y)))
+      BitXorI i j -> do x <- ati size i m; y <- ati size j m; done (I (xor (fromIntegral x) (fromIntegral y)))
+      ComplementI i -> do x <- ati size i m; done (I (fromIntegral (complement x)))
+      LeadZeroI i -> do x <- ati size i m; done (I (fromIntegral (countLeadingZeros x)))
+      TrailZeroI i -> do x <- ati size i m; done (I (fromIntegral (countTrailingZeros x)))
 
       AddN i j -> do x <- atn size i m; y <- atn size j m; done (N (x + y))
       -- cast to `Int` and subtract
@@ -523,12 +533,22 @@ run ioHandler env ir = do
       MultN i j -> do x <- atn size i m; y <- atn size j m; done (N (x * y))
       DivN i j -> do x <- atn size i m; y <- atn size j m; done (N (x `div` y))
       ModN i j -> do x <- atn size i m; y <- atn size j m; done (N (x `mod` y))
+      PowN i j -> do x <- atn size i m; y <- atn size j m; done (N (fromIntegral (x ^ y)))
+      ShiftRN i j -> do x <- atn size i m; y <- atn size j m; done (N (fromIntegral (x `shiftR` (fromIntegral y))))
+      ShiftLN i j -> do x <- atn size i m; y <- atn size j m; done (N (fromIntegral (x `shiftL` (fromIntegral y))))
       ToIntN i -> do x <- atn size i m; done (I (fromIntegral x))
       GtN i j -> do x <- atn size i m; y <- atn size j m; done (B (x > y))
       GtEqN i j -> do x <- atn size i m; y <- atn size j m; done (B (x >= y))
       LtN i j -> do x <- atn size i m; y <- atn size j m; done (B (x < y))
       LtEqN i j -> do x <- atn size i m; y <- atn size j m; done (B (x <= y))
       EqN i j -> do x <- atn size i m; y <- atn size j m; done (B (x == y))
+      BitAndN i j -> do x <- atn size i m; y <- atn size j m; done (N ((.&.) x y))
+      BitOrN i j -> do x <- atn size i m; y <- atn size j m; done (N ((.|.) x y))
+      BitXorN i j -> do x <- atn size i m; y <- atn size j m; done (N (xor x y))
+      ComplementN i -> do x <- atn size i m; done (N (fromIntegral (complement x)))
+      LeadZeroN i -> do x <- atn size i m; done (N (fromIntegral (countLeadingZeros x)))
+      TrailZeroN i -> do x <- atn size i m; done (N (fromIntegral (countTrailingZeros x)))
+
       AddF i j -> do x <- atf size i m; y <- atf size j m; done (F (x + y))
       SubF i j -> do x <- atf size i m; y <- atf size j m; done (F (x - y))
       MultF i j -> do x <- atf size i m; y <- atf size j m; done (F (x * y))

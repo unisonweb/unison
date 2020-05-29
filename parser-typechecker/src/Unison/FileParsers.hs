@@ -171,8 +171,8 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
                Nothing -> error "wat"
                Just kind -> (kind, tlc)
     pure $ UF.typecheckedUnisonFile
-             (UF.dataDeclarations uf)
-             (UF.effectDeclarations uf)
+             (UF.dataDeclarationsId uf)
+             (UF.effectDeclarationsId uf)
              terms'
              (map tlcKind watches')
  where

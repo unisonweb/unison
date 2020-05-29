@@ -12,16 +12,18 @@ import Unison.Prelude
 import Control.Concurrent.STM (atomically)
 import Control.Exception (finally, catch, AsyncException(UserInterrupt), asyncExceptionFromException)
 import Control.Monad.State (runStateT)
+import Data.Configurator.Types (Config)
 import Data.IORef
+import Data.Tuple.Extra (uncurry3)
 import Prelude hiding (readFile, writeFile)
-import System.IO.Error (catchIOError)
-import System.Exit (die)
+import System.IO.Error (isDoesNotExistError)
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Input (Input (..), Event)
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import Unison.Codebase.Editor.Command (LoadSourceResult(..))
+import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, printNamespace)
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Codebase (Codebase)
 import Unison.CommandLine
@@ -36,8 +38,7 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Text.IO
 import qualified System.Console.Haskeline as Line
-import System.IO.Error (isDoesNotExistError)
-import qualified Crypto.Random        as Random   
+import qualified Crypto.Random        as Random
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase as Codebase
@@ -46,6 +47,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import Text.Regex.TDFA
 import Control.Lens (view)
+import Control.Error (rightMay)
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
@@ -130,13 +132,14 @@ asciiartUnison =
     <> P.cyan "|___|"
     <> P.purple "_|_|"
 
-welcomeMessage :: FilePath -> P.Pretty P.ColorText
-welcomeMessage dir =
+welcomeMessage :: FilePath -> String -> P.Pretty P.ColorText
+welcomeMessage dir version =
   asciiartUnison
     <> P.newline
     <> P.newline
     <> P.linesSpaced
          [ P.wrap "Welcome to Unison!"
+         , P.wrap ("You are running version: " <> P.string version)
          , P.wrap
            (  "I'm currently watching for changes to .u files under "
            <> (P.group . P.blue $ fromString dir)
@@ -144,27 +147,33 @@ welcomeMessage dir =
          , P.wrap ("Type " <> P.hiBlue "help" <> " to get help. 😎")
          ]
 
-hintFreshCodebase :: P.Pretty P.ColorText
-hintFreshCodebase =
-  P.wrap $ "Enter " <> P.hiBlue "pull https://github.com/unisonweb/base .base"
+hintFreshCodebase :: RemoteNamespace -> P.Pretty P.ColorText
+hintFreshCodebase ns =
+  P.wrap $ "Enter "
+    <> (P.hiBlue . P.group)
+        ("pull " <>  P.text (uncurry3 printNamespace ns) <> " .base")
     <> "to set up the default base library. 🏗"
 
 main
   :: forall v
   . Var v
   => FilePath
+  -> Maybe RemoteNamespace
   -> Path.Absolute
-  -> FilePath
+  -> (Config, IO ())
   -> [Either Event Input]
   -> IO (Runtime v)
   -> Codebase IO v Ann
+  -> Branch.Cache IO
+  -> String
   -> IO ()
-main dir initialPath configFile initialInputs startRuntime codebase = do
+main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs startRuntime codebase branchCache version = do
   dir' <- shortenDirectory dir
-  root <- Codebase.getRootBranch codebase
-  putPrettyLn $ if Branch.isOne root
-    then welcomeMessage dir' <> P.newline <> P.newline <> hintFreshCodebase
-    else welcomeMessage dir'
+  root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
+  putPrettyLn $ case defaultBaseLib of
+      Just ns | Branch.isOne root ->
+        welcomeMessage dir' version <> P.newline <> P.newline <> hintFreshCodebase ns
+      _ -> welcomeMessage dir' version
   eventQueue <- Q.newIO
   do
     runtime                  <- startRuntime
@@ -174,12 +183,8 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
     initialInputsRef         <- newIORef initialInputs
     numberedArgsRef          <- newIORef []
     pageOutput               <- newIORef True
-    (config, cancelConfig)   <-
-      catchIOError (watchConfig configFile) $ \_ ->
-        die "Your .unisonConfig could not be loaded. Check that it's correct!"
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
-    cancelWatchBranchUpdates <- watchBranchUpdates (Branch.headHash <$>
-                                                      readIORef rootRef)
+    cancelWatchBranchUpdates <- watchBranchUpdates (readIORef rootRef)
                                                    eventQueue
                                                    codebase
     let patternMap =
@@ -235,7 +240,7 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
       loop state = do
         writeIORef pathRef (view HandleInput.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
-        
+
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (writeIORef rootRef)
                                      runtime
@@ -245,6 +250,7 @@ main dir initialPath configFile initialInputs startRuntime codebase = do
                                      loadSourceFile
                                      codebase
                                      (const Random.getSystemDRG)
+                                     branchCache
                                      free
         case o of
           Nothing -> pure ()

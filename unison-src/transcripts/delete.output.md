@@ -137,6 +137,12 @@ I can force my delete through by re-issuing the command.
   Tip: You can use `undo` or `reflog` to undo this change.
 
 ```
+```ucm
+.a> ls
+
+  nothing to show
+
+```
 Let's repeat all that on a type, for completeness.
 
 ```unison
@@ -181,10 +187,6 @@ type Foo = Foo Boolean
        ↓
     5. ┌ Foo.Foo#d97e0jhkmd#0 : Nat -> Foo
     6. └ Foo.Foo#gq9inhvg9h#0 : Boolean -> b.Foo
-  
-  Added definitions:
-  
-    7. foo : Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you

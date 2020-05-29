@@ -21,7 +21,7 @@ import           Unison.Util.SyntaxText (SyntaxText)
 import qualified Unison.Util.Pretty    as PP
 import           Unison.Var            (Var)
 import qualified Unison.Var            as Var
-import qualified Unison.DataDeclaration as DD
+import qualified Unison.Builtin.Decls as DD
 
 pretty :: forall v a . (Var v) => PrettyPrintEnv -> Type v a -> Pretty ColorText
 pretty ppe = PP.syntaxToColor . pretty0 ppe mempty (-1)
@@ -89,16 +89,22 @@ prettyRaw n im p tp = go n im p tp
     Effect1' e t ->
       PP.parenthesizeIf (p >= 10) $ go n im 9 e <> " " <> go n im 10 t
     Effects' es         -> effects (Just es)
-    ForallsNamed' vs body -> if (p < 0 && all Var.universallyQuantifyIfFree vs)
-      then go n im p body
-      else paren (p >= 0) $
-        let vformatted = PP.sep " " (fmt S.Var . PP.text . Var.name <$> vs)
-        in ((fmt S.TypeOperator "∀ ") <> vformatted <> (fmt S.TypeOperator "."))
-           `PP.hang` go n im (-1) body
+    ForallsNamed' vs' body ->
+      let vs = filter (\v -> Var.name v /= "()") vs'
+      in if p < 0 && all Var.universallyQuantifyIfFree vs
+         then go n im p body
+         else paren (p >= 0) $
+           let vformatted = PP.sep " " (fmt S.Var . PP.text . Var.name <$> vs)
+           in (fmt S.TypeOperator "∀ " <> vformatted <> fmt S.TypeOperator ".")
+              `PP.hang` go n im (-1) body
     t@(Arrow' _ _) -> case t of
       EffectfulArrows' (Ref' DD.UnitRef) rest -> arrows True True rest
       EffectfulArrows' fst rest ->
-        PP.parenthesizeIf (p >= 0) $ go n im 0 fst <> arrows False False rest
+        case fst of
+          Var' v | Var.name v == "()"
+            -> fmt S.DelayForceChar "'" <> arrows False True rest
+          _ -> PP.parenthesizeIf (p >= 0) $
+                 go n im 0 fst <> arrows False False rest
       _ -> "error"
     _ -> "error"
   effects Nothing   = mempty

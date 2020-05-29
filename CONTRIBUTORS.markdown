@@ -39,3 +39,7 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Ian Davidson (@bontaq)
 * Moses Alexander (@moses-alexander)
 * Andre Popovitch (@anchpop)
+* Daniël Heres (@Dandandan)
+* Stew O'Connor (@stew)
+* Dave Nicponski (@virusdave)
+* Cody Allen (@ceedubs)

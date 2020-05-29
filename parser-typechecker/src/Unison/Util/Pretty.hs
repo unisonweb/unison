@@ -12,6 +12,7 @@ module Unison.Util.Pretty (
    align',
    alternations,
    backticked,
+   backticked',
    boxForkLeft,
    boxLeft,
    boxLeftM,
@@ -27,6 +28,8 @@ module Unison.Util.Pretty (
    excerptColumn2Headed,
    warnCallout, blockedCallout, fatalCallout, okCallout,
    column2,
+   column2sep,
+   column2Header,
    column2M,
    column2UnzippedM,
    column3,
@@ -64,6 +67,7 @@ module Unison.Util.Pretty (
    nonEmpty,
    numbered,
    numberedColumn2,
+   numberedColumn2Header,
    numberedList,
    orElse,
    orElses,
@@ -86,7 +90,6 @@ module Unison.Util.Pretty (
    spacedMap,
    spacesIfBreak,
    string,
-   endSentence,
    surroundCommas,
    syntaxToColor,
    text,
@@ -414,6 +417,13 @@ numbered
   -> Pretty s
 numbered num ps = column2 (fmap num [1 ..] `zip` toList ps)
 
+numberedHeader
+  :: (Foldable f, LL.ListLike s Char, IsString s)
+  => (Maybe Int -> Pretty s)
+  -> f (Pretty s)
+  -> Pretty s
+numberedHeader num ps = column2 (fmap num (Nothing : fmap Just [1 ..]) `zip` toList ps)
+
 -- Like `column2` but with the lines numbered. For instance:
 --
 -- 1. one thing     : this is a thing
@@ -425,6 +435,13 @@ numberedColumn2
   -> f (Pretty s, Pretty s)
   -> Pretty s
 numberedColumn2 num ps = numbered num (align $ toList ps)
+
+numberedColumn2Header
+  :: (Foldable f, LL.ListLike s Char, IsString s)
+  => (Int -> Pretty s)
+  -> f (Pretty s, Pretty s)
+  -> Pretty s
+numberedColumn2Header num ps = numberedHeader (maybe mempty num) (align $ toList ps)
 
 -- Opinionated `numbered` that uses bold numbers in front
 numberedList :: Foldable f => f (Pretty ColorText) -> Pretty ColorText
@@ -462,7 +479,15 @@ excerptColumn2 max cols = case max of
 
 column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
-column2 = lines . (group <$>) . align
+column2 = column2sep ""
+
+column2Header
+  :: Pretty ColorText -> Pretty ColorText -> [(Pretty ColorText, Pretty ColorText)] -> Pretty ColorText
+column2Header left right = column2sep "  " . ((fmap CT.hiBlack left, fmap CT.hiBlack right):)
+
+column2sep
+  :: (LL.ListLike s Char, IsString s) => Pretty s -> [(Pretty s, Pretty s)] -> Pretty s
+column2sep sep rows = lines . (group <$>) . align $ [(a, sep <> b) | (a, b) <- rows]
 
 column2M
   :: (Applicative m, LL.ListLike s Char, IsString s)
@@ -571,9 +596,6 @@ num n = fromString (show n)
 
 string :: IsString s => String -> Pretty s
 string = fromString
-
-endSentence :: IsString s => Pretty s -> Pretty s
-endSentence p = group (p <> ".")
 
 shown :: (Show a, IsString s) => a -> Pretty s
 shown = fromString . show
@@ -779,6 +801,10 @@ blockedCallout = callout "🚫"
 
 backticked :: IsString s => Pretty s -> Pretty s
 backticked p = group ("`" <> p <> "`")
+
+-- |Attach some punctuation after the closing backtick.
+backticked' :: IsString s => Pretty s -> Pretty s -> Pretty s
+backticked' p end = group ("`" <> p <> "`" <> end)
 
 instance Show s => Show (Pretty s) where
   show p = render 80 (metaPretty p)

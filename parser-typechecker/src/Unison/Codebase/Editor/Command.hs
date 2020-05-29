@@ -21,6 +21,7 @@ import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.GitError
 import qualified Unison.Codebase.Reflog        as Reflog
+import           Unison.Codebase.SyncMode       ( SyncMode )
 import           Unison.Names3                  ( Names, Names0 )
 import           Unison.Parser                  ( Ann )
 import           Unison.Referent                ( Referent )
@@ -39,7 +40,7 @@ import           Unison.ShortHash               ( ShortHash )
 import           Unison.Type                    ( Type )
 import           Unison.Codebase.ShortBranchHash
                                                 ( ShortBranchHash )
-import Unison.Codebase.BranchLoadMode (BranchLoadMode)
+import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
 
 
 type AmbientAbilities v = [Type v Ann]
@@ -72,7 +73,9 @@ data Command m i v a where
   -- the hash length needed to disambiguate any definition in the codebase
   CodebaseHashLength :: Command m i v Int
 
-  ReferencesByShortHash :: ShortHash -> Command m i v (Set Reference.Id)
+  TypeReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
+  TermReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
+  TermReferentsByShortHash :: ShortHash -> Command m i v (Set Referent)
 
   -- the hash length needed to disambiguate any branch in the codebase
   BranchHashLength :: Command m i v Int
@@ -134,30 +137,26 @@ data Command m i v a where
   -- Like `LoadLocalRootBranch`.
   LoadLocalBranch :: Branch.Hash -> Command m i v (Branch m)
 
-  LoadRemoteRootBranch ::
-    BranchLoadMode -> RemoteRepo -> Command m i v (Either GitError (Branch m))
+  ViewRemoteBranch ::
+    RemoteNamespace -> Command m i v (Either GitError (Branch m))
 
-  -- returns NoRemoteNamespaceWithHash or RemoteNamespaceHashAmbiguous
-  -- if no exact match.
-  LoadRemoteShortBranch ::
-    RemoteRepo -> ShortBranchHash -> Command m i v (Either GitError (Branch m))
+  -- we want to import as little as possible, so we pass the SBH/path as part
+  -- of the `RemoteNamespace`.
+  ImportRemoteBranch ::
+    RemoteNamespace -> SyncMode -> Command m i v (Either GitError (Branch m))
 
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
   SyncLocalRootBranch :: Branch m -> Command m i v ()
 
+  SyncRemoteRootBranch ::
+    RemoteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
+
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
 
   -- load the reflog in file (chronological) order
   LoadReflog :: Command m i v [Reflog.Entry]
-
-  SyncRemoteRootBranch ::
-    RemoteRepo -> Branch m -> Command m i v (Either GitError ())
-  -- e.g.
-  --   /Lib/Arya/Public/SuperML> push github:aryairani/superML
-  --   SyncRootBranch (Github "aryairani" "superML" "master")
-  --                   (Branch at /Lib/Arya/Public/SuperML)
 
   LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
 
@@ -186,3 +185,5 @@ data Command m i v a where
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?
   Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> Command m i v ()
+
+  CreateAuthorInfo :: Text -> Command m i v (AuthorInfo v Ann)

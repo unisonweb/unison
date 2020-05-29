@@ -9,7 +9,7 @@ module Unison.UnisonFile where
 import Unison.Prelude
 
 import Control.Lens
-import           Data.Bifunctor         (second)
+import           Data.Bifunctor         (second, first)
 import qualified Data.Map               as Map
 import qualified Data.Set               as Set
 import qualified Unison.ABT as ABT
@@ -18,10 +18,11 @@ import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.DataDeclaration (EffectDeclaration' (..))
 import           Unison.DataDeclaration (hashDecls, toDataDecl)
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.Builtin.Decls   as DD
 import qualified Unison.Name            as Name
 import qualified Unison.Names3          as Names
 import           Unison.Reference       (Reference)
-import           Unison.Referent        (Referent)
+import qualified Unison.Reference       as Reference
 import qualified Unison.Referent        as Referent
 import           Unison.Term            (Term)
 import qualified Unison.Term            as Term
@@ -38,12 +39,25 @@ import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 -- import qualified Unison.Typechecker.Components as Components
 
-data UnisonFile v a = UnisonFile {
-  dataDeclarations   :: Map v (Reference, DataDeclaration' v a),
-  effectDeclarations :: Map v (Reference, EffectDeclaration' v a),
+data UnisonFile v a = UnisonFileId {
+  dataDeclarationsId   :: Map v (Reference.Id, DataDeclaration' v a),
+  effectDeclarationsId :: Map v (Reference.Id, EffectDeclaration' v a),
   terms :: [(v, Term v a)],
   watches :: Map WatchKind [(v, Term v a)]
 } deriving Show
+
+pattern UnisonFile ds es tms ws <-
+  UnisonFileId (fmap (first Reference.DerivedId) -> ds)
+               (fmap (first Reference.DerivedId) -> es)
+               tms
+               ws
+{-# COMPLETE UnisonFile #-}
+
+dataDeclarations :: UnisonFile v a -> Map v (Reference, DataDeclaration' v a)
+dataDeclarations = fmap (first Reference.DerivedId) . dataDeclarationsId
+
+effectDeclarations :: UnisonFile v a -> Map v (Reference, EffectDeclaration' v a)
+effectDeclarations = fmap (first Reference.DerivedId) . effectDeclarationsId
 
 watchesOfKind :: WatchKind -> UnisonFile v a -> [(v, Term v a)]
 watchesOfKind kind uf = Map.findWithDefault [] kind (watches uf)
@@ -78,24 +92,43 @@ uberTerm' uf body =
 -- A UnisonFile after typechecking. Terms are split into groups by
 -- cycle and the type of each term is known.
 data TypecheckedUnisonFile v a =
-  TypecheckedUnisonFile {
-    dataDeclarations'   :: Map v (Reference, DataDeclaration' v a),
-    effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
+  TypecheckedUnisonFileId {
+    dataDeclarationsId'   :: Map v (Reference.Id, DataDeclaration' v a),
+    effectDeclarationsId' :: Map v (Reference.Id, EffectDeclaration' v a),
     topLevelComponents' :: [[(v, Term v a, Type v a)]],
     watchComponents     :: [(WatchKind, [(v, Term v a, Type v a)])],
-    hashTerms           :: Map v (Reference, Term v a, Type v a)
+    hashTermsId           :: Map v (Reference.Id, Term v a, Type v a)
   } deriving Show
 
+-- backwards compatibility with the old data type
+dataDeclarations' :: TypecheckedUnisonFile v a -> Map v (Reference, DataDeclaration' v a)
+dataDeclarations' = fmap (first Reference.DerivedId) . dataDeclarationsId'
+effectDeclarations' :: TypecheckedUnisonFile v a -> Map v (Reference, EffectDeclaration' v a)
+effectDeclarations' = fmap (first Reference.DerivedId) . effectDeclarationsId'
+hashTerms :: TypecheckedUnisonFile v a -> Map v (Reference, Term v a, Type v a)
+hashTerms = fmap (over _1 Reference.DerivedId) . hashTermsId
+
+{-# COMPLETE TypecheckedUnisonFile #-}
+pattern TypecheckedUnisonFile ds es tlcs wcs hts <-
+  TypecheckedUnisonFileId (fmap (first Reference.DerivedId) -> ds)
+                          (fmap (first Reference.DerivedId) -> es)
+                          tlcs
+                          wcs
+                          (fmap (over _1 Reference.DerivedId) -> hts)
+
+-- todo: this is confusing, right?
+-- currently: create a degenerate TypecheckedUnisonFile
+--            multiple definitions of "top-level components" non-watch vs w/ watch
 typecheckedUnisonFile :: Var v
-                      => Map v (Reference, DataDeclaration' v a)
-                      -> Map v (Reference, EffectDeclaration' v a)
+                      => Map v (Reference.Id, DataDeclaration' v a)
+                      -> Map v (Reference.Id, EffectDeclaration' v a)
                       -> [[(v, Term v a, Type v a)]]
                       -> [(WatchKind, [(v, Term v a, Type v a)])]
                       -> TypecheckedUnisonFile v a
 typecheckedUnisonFile datas effects tlcs watches =
-  file0 { hashTerms = hashImpl file0 }
+  file0 { hashTermsId = hashImpl file0 }
   where
-  file0 = TypecheckedUnisonFile datas effects tlcs watches mempty
+  file0 = TypecheckedUnisonFileId datas effects tlcs watches mempty
   hashImpl file = let
     -- test watches are added to the codebase also
     -- todo: maybe other kinds of watches too
@@ -107,10 +140,10 @@ typecheckedUnisonFile datas effects tlcs watches =
                                        Just t <- [Map.lookup v types] ]
 
 lookupDecl :: Ord v => v -> TypecheckedUnisonFile v a
-           -> Maybe (Reference, Either (EffectDeclaration' v a) (DataDeclaration' v a))
+           -> Maybe (Reference.Id, DD.Decl v a)
 lookupDecl v uf =
-  over _2 Right <$> (Map.lookup v (dataDeclarations' uf)  ) <|>
-  over _2 Left  <$> (Map.lookup v (effectDeclarations' uf))
+  over _2 Right <$> (Map.lookup v (dataDeclarationsId' uf)) <|>
+  over _2 Left  <$> (Map.lookup v (effectDeclarationsId' uf))
 
 allTerms :: Ord v => TypecheckedUnisonFile v a -> Map v (Term v a)
 allTerms uf =
@@ -129,7 +162,8 @@ getDecl' uf v =
 -- External type references that appear in the types of the file's terms
 termSignatureExternalLabeledDependencies
   :: Ord v => TypecheckedUnisonFile v a -> Set LabeledDependency
-termSignatureExternalLabeledDependencies TypecheckedUnisonFile{..} =
+termSignatureExternalLabeledDependencies
+    (TypecheckedUnisonFile dataDeclarations' effectDeclarations' _ _ hashTerms) =
   Set.difference
     (Set.map LD.typeRef
       . foldMap Type.dependencies
@@ -146,13 +180,13 @@ termSignatureExternalLabeledDependencies TypecheckedUnisonFile{..} =
 -- `R.lookupDom r (dependencies file)` returns the set of dependencies
 -- of the reference `r`.
 dependencies' ::
-  forall v a. Var v => TypecheckedUnisonFile v a -> Relation Reference Reference
+  forall v a. Var v => TypecheckedUnisonFile v a -> Relation Reference.Id Reference
 dependencies' file = let
-  terms :: Map v (Reference, Term v a, Type v a)
-  terms = hashTerms file
-  decls :: Map v (Reference, DataDeclaration' v a)
-  decls = dataDeclarations' file <>
-          fmap (second toDataDecl) (effectDeclarations' file )
+  terms :: Map v (Reference.Id, Term v a, Type v a)
+  terms = hashTermsId file
+  decls :: Map v (Reference.Id, DataDeclaration' v a)
+  decls = dataDeclarationsId' file <>
+          fmap (second toDataDecl) (effectDeclarationsId' file )
   termDeps = foldl' f Relation.empty $ toList terms
   allDeps = foldl' g termDeps $ toList decls
   f acc (r, tm, tp) = acc <> termDeps <> typeDeps
@@ -170,13 +204,17 @@ dependencies' file = let
 -- Returns the dependencies of the `UnisonFile` input. Needed so we can
 -- load information about these dependencies before starting typechecking.
 dependencies :: (Monoid a, Var v) => UnisonFile v a -> Set Reference
-dependencies uf = Term.dependencies (typecheckingTerm uf)
+dependencies (UnisonFile ds es ts ws) =
+  foldMap (DD.dependencies . snd) ds
+  <> foldMap (DD.dependencies . DD.toDataDecl . snd) es
+  <> foldMap (Term.dependencies . snd) ts
+  <> foldMap (foldMap (Term.dependencies . snd)) ws
 
 discardTypes :: TypecheckedUnisonFile v a -> UnisonFile v a
-discardTypes (TypecheckedUnisonFile datas effects terms watches _) = let
+discardTypes (TypecheckedUnisonFileId datas effects terms watches _) = let
   watches' = g . mconcat <$> List.multimap watches
   g tup3s = [(v,e) | (v,e,_t) <- tup3s ]
-  in UnisonFile datas effects [ (a,b) | (a,b,_) <- join terms ] watches'
+  in UnisonFileId datas effects [ (a,b) | (a,b,_) <- join terms ] watches'
 
 declsToTypeLookup :: Var v => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf = TL.TypeLookup mempty
@@ -185,10 +223,10 @@ declsToTypeLookup uf = TL.TypeLookup mempty
   where wrangle = Map.fromList . Map.elems
 
 toNames :: Var v => UnisonFile v a -> Names0
-toNames (UnisonFile {..}) = datas <> effects
+toNames uf = datas <> effects
   where
-    datas = foldMap DD.dataDeclToNames' (Map.toList dataDeclarations)
-    effects = foldMap DD.effectDeclToNames' (Map.toList effectDeclarations)
+    datas = foldMap DD.dataDeclToNames' (Map.toList (dataDeclarationsId uf))
+    effects = foldMap DD.effectDeclToNames' (Map.toList (effectDeclarationsId uf))
 
 typecheckedToNames0 :: Var v => TypecheckedUnisonFile v a -> Names0
 typecheckedToNames0 uf = Names.names0 (terms <> ctors) types where
@@ -199,10 +237,14 @@ typecheckedToNames0 uf = Names.names0 (terms <> ctors) types where
     [ (Name.fromVar v, r)
     | (v, r) <- Map.toList $ fmap fst (dataDeclarations' uf)
                           <> fmap fst (effectDeclarations' uf) ]
-  ctors = Relation.fromMap . Map.mapKeys Name.fromVar . hashConstructors $ uf
+  ctors = Relation.fromMap
+        . Map.mapKeys Name.fromVar
+        . fmap (fmap Reference.DerivedId)
+        . hashConstructors
+        $ uf
 
 typecheckedUnisonFile0 :: Ord v => TypecheckedUnisonFile v a
-typecheckedUnisonFile0 = TypecheckedUnisonFile Map.empty Map.empty mempty mempty mempty
+typecheckedUnisonFile0 = TypecheckedUnisonFileId Map.empty Map.empty mempty mempty mempty
 
 -- Returns true if the file has any definitions or watches
 nonEmpty :: TypecheckedUnisonFile v a -> Bool
@@ -213,12 +255,12 @@ nonEmpty uf =
   any (not . null) (watchComponents uf)
 
 hashConstructors
-  :: forall v a. Ord v => TypecheckedUnisonFile v a -> Map v Referent
+  :: forall v a. Ord v => TypecheckedUnisonFile v a -> Map v Referent.Id
 hashConstructors file =
-  let ctors1 = Map.elems (dataDeclarations' file) >>= \(ref, dd) ->
-        [ (v, Referent.Con ref i CT.Data) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
-      ctors2 = Map.elems (effectDeclarations' file) >>= \(ref, dd) ->
-        [ (v, Referent.Con ref i CT.Effect) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
+  let ctors1 = Map.elems (dataDeclarationsId' file) >>= \(ref, dd) ->
+        [ (v, Referent.Con' ref i CT.Data) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
+      ctors2 = Map.elems (effectDeclarationsId' file) >>= \(ref, dd) ->
+        [ (v, Referent.Con' ref i CT.Effect) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
   in Map.fromList (ctors1 ++ ctors2)
 
 type CtorLookup = Map String (Reference, Int)
@@ -235,7 +277,7 @@ bindNames :: Var v
           => Names0
           -> UnisonFile v a
           -> Names.ResolutionResult v a (UnisonFile v a)
-bindNames names (UnisonFile d e ts ws) = do
+bindNames names (UnisonFileId d e ts ws) = do
   -- todo: consider having some kind of binding structure for terms & watches
   --    so that you don't weirdly have free vars to tiptoe around.
   --    The free vars should just be the things that need to be bound externally.
@@ -244,7 +286,7 @@ bindNames names (UnisonFile d e ts ws) = do
   -- todo: can we clean up this lambda using something like `second`
   ts' <- traverse (\(v,t) -> (v,) <$> Term.bindNames termVarsSet names t) ts
   ws' <- traverse (traverse (\(v,t) -> (v,) <$> Term.bindNames termVarsSet names t)) ws
-  pure $ UnisonFile d e ts' ws'
+  pure $ UnisonFileId d e ts' ws'
 
 constructorType ::
   Var v => UnisonFile v a -> Reference -> Maybe CT.ConstructorType
@@ -252,12 +294,18 @@ constructorType = TL.constructorType . declsToTypeLookup
 
 data Env v a = Env
   -- Data declaration name to hash and its fully resolved form
-  { datas   :: Map v (Reference, DataDeclaration' v a)
+  { datasId   :: Map v (Reference.Id, DataDeclaration' v a)
   -- Effect declaration name to hash and its fully resolved form
-  , effects :: Map v (Reference, EffectDeclaration' v a)
+  , effectsId :: Map v (Reference.Id, EffectDeclaration' v a)
   -- Naming environment
   , names   :: Names0
 }
+
+datas :: Env v a -> Map v (Reference, DataDeclaration' v a)
+datas = fmap (first Reference.DerivedId) . datasId
+
+effects :: Env v a -> Map v (Reference, EffectDeclaration' v a)
+effects = fmap (first Reference.DerivedId) . effectsId
 
 data Error v a
   -- A free type variable that couldn't be resolved
@@ -287,7 +335,7 @@ environmentFor names dataDecls0 effectDecls0 = do
     traverse (DD.withEffectDeclM (DD.bindNames locallyBoundTypes names)) effectDecls0
   let allDecls0 :: Map v (DataDeclaration' v a)
       allDecls0 = Map.union dataDecls (toDataDecl <$> effectDecls)
-  hashDecls' :: [(v, Reference, DataDeclaration' v a)] <-
+  hashDecls' :: [(v, Reference.Id, DataDeclaration' v a)] <-
       hashDecls allDecls0
     -- then we have to pick out the dataDecls from the effectDecls
   let

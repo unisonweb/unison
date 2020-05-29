@@ -17,10 +17,12 @@ module Unison.Reference
    unsafeFromText,
    idFromText,
    isPrefixOf,
+   fromShortHash,
    fromText,
    readSuffix,
    showShort,
    showSuffix,
+   toId,
    toText,
    unsafeId,
    toShortHash) where
@@ -28,7 +30,6 @@ module Unison.Reference
 import Unison.Prelude
 
 import qualified Data.Map        as Map
-import           Data.Maybe      (fromJust)
 import qualified Data.Set        as Set
 import qualified Data.Text       as Text
 import qualified Unison.Hash     as H
@@ -68,6 +69,23 @@ toShortHash (Derived h i n) = SH.ShortHash (H.base32Hex h) index Nothing
     index = Just $ showSuffix i n
 toShortHash (DerivedId _) = error "this should be covered above"
 
+-- toShortHash . fromJust . fromShortHash == id and
+-- fromJust . fromShortHash . toShortHash == id
+-- but for arbitrary ShortHashes which may be broken at the wrong boundary, it
+-- may not be possible to base32Hex decode them.  These will return Nothing.
+-- Also, ShortHashes that include constructor ids will return Nothing;
+-- try Referent.fromShortHash
+fromShortHash :: ShortHash -> Maybe Reference
+fromShortHash (SH.Builtin b) = Just (Builtin b)
+fromShortHash (SH.ShortHash prefix cycle Nothing) = do
+  h <- H.fromBase32Hex prefix
+  case cycle of
+    Nothing -> Just (Derived h 0 1)
+    Just t -> case Text.splitOn "c" t of
+      [i,n] -> Derived h <$> readMay (Text.unpack i) <*> readMay (Text.unpack n)
+      _ -> Nothing
+fromShortHash (SH.ShortHash _prefix _cycle (Just _cid)) = Nothing
+
 -- (3,10) encoded as "3c10"
 -- (0,93) encoded as "0c93"
 showSuffix :: Pos -> Size -> Text
@@ -103,8 +121,9 @@ componentFor (  DerivedId (Id h _ n)) = Component
   )
 
 derivedBase32Hex :: Text -> Pos -> Size -> Reference
-derivedBase32Hex b32Hex i n = DerivedId (Id (fromJust h) i n)
+derivedBase32Hex b32Hex i n = DerivedId (Id (fromMaybe msg h) i n)
   where
+  msg = error $ "Reference.derivedBase32Hex " <> show h
   h = H.fromBase32Hex b32Hex
 
 unsafeFromText :: Text -> Reference
@@ -115,6 +134,10 @@ idFromText s = case fromText s of
   Left _ -> Nothing
   Right (Builtin _) -> Nothing
   Right (DerivedId id) -> pure id
+
+toId :: Reference -> Maybe Id
+toId (DerivedId id) = Just id
+toId Builtin{} = Nothing
 
 -- examples:
 -- `##Text.take` — builtins don’t have cycles
@@ -131,12 +154,12 @@ fromText t = case Text.split (=='#') t of
   _ -> bail
   where bail = Left $ "couldn't parse a Reference from " <> Text.unpack t
 
-component :: H.Hash -> [k] -> [(k, Reference)]
+component :: H.Hash -> [k] -> [(k, Id)]
 component h ks = let
   size = fromIntegral (length ks)
-  in [ (k, DerivedId (Id h i size)) | (k, i) <- ks `zip` [0..]]
+  in [ (k, (Id h i size)) | (k, i) <- ks `zip` [0..]]
 
-components :: [(H.Hash, [k])] -> [(k, Reference)]
+components :: [(H.Hash, [k])] -> [(k, Id)]
 components sccs = uncurry component =<< sccs
 
 groupByComponent :: [(k, Reference)] -> [[(k, Reference)]]

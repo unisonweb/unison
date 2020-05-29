@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Unison.LabeledDependency
   ( derivedTerm
   , derivedType
@@ -8,15 +10,16 @@ module Unison.LabeledDependency
   , effectConstructor
   , fold
   , referents
-  , dependencyRef
+  , toReference
   , LabeledDependency
+  , partition
   ) where
 
 import Unison.Prelude hiding (fold)
 
 import Unison.ConstructorType (ConstructorType(Data, Effect))
 import Unison.Reference (Reference(DerivedId), Id)
-import Unison.Referent (Referent(Ref, Con))
+import Unison.Referent (Referent, pattern Ref, pattern Con, Referent'(Ref', Con'))
 import qualified Data.Set as Set
 
 -- dumb constructor name is private
@@ -39,10 +42,15 @@ effectConstructor r cid = X . Right $ Con r cid Effect
 referents :: Foldable f => f Referent -> Set LabeledDependency
 referents rs = Set.fromList (map referent $ toList rs)
 
-dependencyRef :: LabeledDependency -> Either Reference Reference
-dependencyRef (X (Left r)) = Left r
-dependencyRef (X (Right (Ref r))) = Right r
-dependencyRef (X (Right (Con r _ _))) = Left r
-
 fold :: (Reference -> a) -> (Referent -> a) -> LabeledDependency -> a
 fold f g (X e) = either f g e
+
+partition :: Foldable t => t LabeledDependency -> ([Reference], [Referent])
+partition = partitionEithers . map (\(X e) -> e) . toList
+
+-- | Left TypeRef | Right TermRef
+toReference :: LabeledDependency -> Either Reference Reference
+toReference = \case
+  X (Left r)             -> Left r
+  X (Right (Ref' r))     -> Right r
+  X (Right (Con' r _ _)) -> Left r

@@ -471,6 +471,9 @@ var' = var() . Var.named
 ref :: Ord v => a -> Reference -> Term2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
 
+refId :: Ord v => a -> Reference.Id -> Term2 vt at ap v a
+refId a = ref a . Reference.DerivedId
+
 termLink :: Ord v => a -> Referent -> Term2 vt at ap v a
 termLink a r = ABT.tm' a (TermLink r)
 
@@ -849,7 +852,10 @@ generalizedDependencies
 generalizedDependencies termRef typeRef literalType dataConstructor dataType effectConstructor effectType
   = Set.fromList . Writer.execWriter . ABT.visit' f where
   f t@(Ref r) = Writer.tell [termRef r] $> t
-  f t@(TermLink r) = Writer.tell [termRef $ Referent.toReference r] $> t
+  f t@(TermLink r) = case r of
+    Referent.Ref r -> Writer.tell [termRef r] $> t
+    Referent.Con r id CT.Data -> Writer.tell [dataConstructor r id] $> t
+    Referent.Con r id CT.Effect -> Writer.tell [effectConstructor r id] $> t
   f t@(TypeLink r) = Writer.tell [typeRef r] $> t
   f t@(Ann _ typ) =
     Writer.tell (map typeRef . toList $ Type.dependencies typ) $> t
@@ -873,10 +879,15 @@ generalizedDependencies termRef typeRef literalType dataConstructor dataType eff
                                                            effectType
                                                            pat
 
-labeledDependencies :: (Ord v, Ord vt)
-                    => Term2 vt at ap v a
-                    -> Set LabeledDependency
-labeledDependencies = generalizedDependencies LD.termRef LD.typeRef LD.typeRef LD.dataConstructor LD.typeRef LD.effectConstructor LD.typeRef
+labeledDependencies
+  :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set LabeledDependency
+labeledDependencies = generalizedDependencies LD.termRef
+                                              LD.typeRef
+                                              LD.typeRef
+                                              LD.dataConstructor
+                                              LD.typeRef
+                                              LD.effectConstructor
+                                              LD.typeRef
 
 updateDependencies
   :: Ord v
@@ -927,8 +938,8 @@ unhashComponent m = let
   in second unhash1 <$> m'
 
 hashComponents
-  :: Var v => Map v (Term v a) -> Map v (Reference, Term v a)
-hashComponents = ReferenceUtil.hashComponents $ ref ()
+  :: Var v => Map v (Term v a) -> Map v (Reference.Id, Term v a)
+hashComponents = ReferenceUtil.hashComponents $ refId ()
 
 -- The hash for a constructor
 hashConstructor'
@@ -939,7 +950,7 @@ hashConstructor' f r cid =
 -- ensure the hashing is always done in the same way
       m = hashComponents (Map.fromList [(Var.named "_" :: Symbol, f r cid)])
   in  case toList m of
-        [(r, _)] -> r
+        [(r, _)] -> Reference.DerivedId r
         _        -> error "unpossible"
 
 hashConstructor :: Reference -> Int -> Reference

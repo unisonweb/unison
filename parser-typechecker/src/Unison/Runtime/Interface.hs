@@ -101,7 +101,7 @@ collectDeps _  tm
   = pure $ foldr categorize ([],[]) chld
   where
   chld = toList $ Tm.labeledDependencies tm
-  categorize = either (first . (:)) (second . (:)) . RF.dependencyRef
+  categorize = either (first . (:)) (second . (:)) . RF.toReference
 
 loadDeps
   :: Var v

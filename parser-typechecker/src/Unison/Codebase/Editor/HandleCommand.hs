@@ -13,30 +13,26 @@ import Unison.Prelude
 
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Command
-import Unison.Codebase.Editor.RemoteRepo
 
 import qualified Unison.Builtin                as B
 
-import qualified Crypto.Random                 as Random 
+import qualified Crypto.Random                 as Random
 import           Control.Monad.Except           ( runExceptT )
 import qualified Data.Configurator             as Config
 import           Data.Configurator.Types        ( Config )
 import qualified Data.Map                      as Map
+import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
-import           System.Directory               ( getXdgDirectory
-                                                , XdgDirectory(..)
-                                                )
-import           System.FilePath                ( (</>) )
-
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch         ( Branch )
+import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Editor.Git    as Git
-import qualified Unison.Hash                   as Hash
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.Parsers                as Parsers
 import qualified Unison.Reference              as Reference
+import qualified Unison.Referent               as Referent
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
 import qualified Unison.Term                   as Term
@@ -49,9 +45,9 @@ import           Unison.FileParsers             ( parseAndSynthesizeFile
                                                 , synthesizeFile'
                                                 )
 import qualified Unison.PrettyPrintEnv         as PPE
-import qualified Unison.ShortHash              as SH
 import Unison.Term (Term)
 import Unison.Type (Type)
+import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 
 typecheck
   :: (Monad m, Var v)
@@ -80,14 +76,6 @@ typecheck' ambient codebase file = do
     <$> Codebase.typeLookupForDependencies codebase (UF.dependencies file)
   pure . fmap Right $ synthesizeFile' ambient typeLookup file
 
-tempGitDir :: Text -> Maybe Text -> IO FilePath
-tempGitDir url commit =
-  getXdgDirectory XdgCache
-    $   "unisonlanguage"
-    </> "gitfiles"
-    </> Hash.showBase32Hex url
-    </> Text.unpack (fromMaybe "HEAD" commit)
-
 commandLine
   :: forall i v a gen
    . (Var v, Random.DRG gen)
@@ -100,19 +88,21 @@ commandLine
   -> (SourceName -> IO LoadSourceResult)
   -> Codebase IO v Ann
   -> (Int -> IO gen)
+  -> Branch.Cache IO
   -> Free (Command IO i v) a
   -> IO a
-commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase rngGen =
+commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase rngGen branchCache =
  Free.foldWithIndex go
  where
   go :: forall x . Int -> Command IO i v x -> IO x
-  go i x = case x of 
+  go i x = case x of
     -- Wait until we get either user input or a unison file update
     Eval m        -> m
     Input         -> awaitInput
     Notify output -> notifyUser output
     NotifyNumbered output -> notifyNumbered output
-    ConfigLookup name -> Config.lookup config name
+    ConfigLookup name ->
+      Config.lookup config name
     LoadSource sourcePath -> loadSource sourcePath
 
     Typecheck ambient names sourceName source -> do
@@ -125,18 +115,17 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     TypecheckFile file ambient     -> typecheck' ambient codebase file
     Evaluate ppe unisonFile        -> evalUnisonFile ppe unisonFile
     Evaluate1 ppe term             -> eval1 ppe term
-    LoadLocalRootBranch        -> Codebase.getRootBranch codebase
-    LoadLocalBranch h          -> Codebase.getBranchForHash codebase h
+    LoadLocalRootBranch        -> either (const Branch.empty) id <$> Codebase.getRootBranch codebase
+    LoadLocalBranch h          -> fromMaybe Branch.empty <$> Codebase.getBranchForHash codebase h
     SyncLocalRootBranch branch -> do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
-    LoadRemoteRootBranch loadMode GitRepo {..} -> do
-      tmp <- tempGitDir url commit
-      runExceptT $ Git.pullGitRootBranch tmp loadMode codebase url commit
-    SyncRemoteRootBranch GitRepo {..} branch -> do
-      tmp <- tempGitDir url commit
-      runExceptT
-        $ Git.pushGitRootBranch tmp codebase branch url commit
+    ViewRemoteBranch ns ->
+      runExceptT $ Git.viewRemoteBranch branchCache ns
+    ImportRemoteBranch ns syncMode ->
+      runExceptT $ Git.importRemoteBranch codebase branchCache ns syncMode
+    SyncRemoteRootBranch repo branch syncMode ->
+      runExceptT $ Git.pushGitRootBranch codebase branchCache branch repo syncMode
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r
@@ -154,13 +143,27 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     GetTermsOfType ty -> Codebase.termsOfType codebase ty
     GetTermsMentioningType ty -> Codebase.termsMentioningType codebase ty
     CodebaseHashLength -> Codebase.hashLength codebase
-    ReferencesByShortHash sh ->
-      Codebase.referencesByPrefix codebase (SH.toText sh)
+    -- all builtin and derived type references
+    TypeReferencesByShortHash sh -> do
+      fromCodebase <- Codebase.typeReferencesByPrefix codebase sh
+      let fromBuiltins = Set.filter (\r -> sh == Reference.toShortHash r)
+            $ B.intrinsicTypeReferences
+      pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
+    -- all builtin and derived term references
+    TermReferencesByShortHash sh -> do
+      fromCodebase <- Codebase.termReferencesByPrefix codebase sh
+      let fromBuiltins = Set.filter (\r -> sh == Reference.toShortHash r)
+            $ B.intrinsicTermReferences
+      pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
+    -- all builtin and derived term references & type constructors
+    TermReferentsByShortHash sh -> do
+      fromCodebase <- Codebase.termReferentsByPrefix codebase sh
+      let fromBuiltins = Set.map Referent.Ref
+            . Set.filter (\r -> sh == Reference.toShortHash r)
+            $ B.intrinsicTermReferences
+      pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase)
     BranchHashLength -> Codebase.branchHashLength codebase
     BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
-    LoadRemoteShortBranch GitRepo{..} sbh -> do
-      tmp <- tempGitDir url commit
-      runExceptT $ Git.pullGitBranch tmp codebase url commit (Right sbh)
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
 
@@ -171,6 +174,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     Execute ppe uf -> void $ evalUnisonFile ppe uf
     AppendToReflog reason old new -> Codebase.appendReflog codebase reason old new
     LoadReflog -> Codebase.getReflog codebase
+    CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Parser.External t
 
   eval1 :: PPE.PrettyPrintEnv -> Term v Ann -> _
   eval1 ppe tm = do

@@ -1,20 +1,28 @@
 {-# Language OverloadedStrings #-}
 {-# Language PartialTypeSignatures #-}
+{-# Language ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module Main where
 
 import Unison.Prelude
 import           Control.Concurrent             ( mkWeakThreadId, myThreadId )
+import           Control.Error.Safe             (rightMay)
 import           Control.Exception              ( throwTo, AsyncException(UserInterrupt) )
+import           Data.Configurator.Types        ( Config )
 import           System.Directory               ( getCurrentDirectory, removeDirectoryRecursive )
 import           System.Environment             ( getArgs )
 import           System.Mem.Weak                ( deRefWeak )
+import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.Editor.VersionParser as VP
 import           Unison.Codebase.Execute        ( execute )
 import qualified Unison.Codebase.FileCodebase  as FileCodebase
+import           Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
+import           Unison.CommandLine             ( watchConfig )
 import qualified Unison.CommandLine.Main       as CommandLine
 import qualified Unison.Runtime.Rt1IO          as Rt1
 import qualified Unison.Codebase.Path          as Path
+import qualified Unison.Util.Cache             as Cache
 import qualified Version
 import qualified Unison.Codebase.TranscriptParser as TR
 import qualified System.Path as Path
@@ -22,10 +30,13 @@ import qualified System.Posix.Signals as Sig
 import qualified System.FilePath as FP
 import qualified System.IO.Temp as Temp
 import qualified System.Exit as Exit
+import System.IO.Error (catchIOError)
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Util.Pretty as P
 import qualified Unison.PrettyTerminal as PT
 import qualified Data.Text as Text
+import qualified Data.Configurator as Config
+import Text.Megaparsec (runParser)
 
 usage :: P.Pretty P.ColorText
 usage = P.callout "🌻" $ P.lines [
@@ -70,7 +81,7 @@ usage = P.callout "🌻" $ P.lines [
   P.bold "ucm transcript.fork -save-codebase mytranscript.md",
   P.wrap $ "Executes the `mytranscript.md` transcript in a copy of the current codebase"
         <> "and creates `mytranscript.output.md` if successful. Exits after completion,"
-        <> "and saves the resulting codebase to a new directory on disk."  
+        <> "and saves the resulting codebase to a new directory on disk."
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
@@ -110,70 +121,74 @@ main = do
            _                                 -> (Nothing, args)
   currentDir <- getCurrentDirectory
   configFilePath <- getConfigFilePath mcodepath
+  config@(config_, _cancelConfig) <-
+    catchIOError (watchConfig configFilePath) $ \_ ->
+      Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
+  branchCacheSize :: Word <- Config.lookupDefault 4096 config_ "NamespaceCacheSize"
+  branchCache <- Cache.semispaceCache branchCacheSize
   case restargs of
     [] -> do
-      theCodebase <- FileCodebase.getCodebaseOrExit mcodepath
-      launch currentDir configFilePath theCodebase []
+      theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
+      launch currentDir config theCodebase branchCache []
     [version] | isFlag "version" version ->
       putStrLn $ "ucm version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn usage
     ["init"] -> FileCodebase.initCodebaseAndExit mcodepath
     "run" : [mainName] -> do
-      theCodebase <- FileCodebase.getCodebaseOrExit mcodepath
+      theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
       execute theCodebase Rt1.runtime mainName
     "run.file" : file : [mainName] | isDotU file -> do
       e <- safeReadUtf8 file
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
         Right contents -> do
-          theCodebase <- FileCodebase.getCodebaseOrExit mcodepath
+          theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-          launch currentDir configFilePath theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+          launch currentDir config theCodebase branchCache [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "run.pipe" : [mainName] -> do
       e <- safeReadUtf8StdIn
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
-          theCodebase <- FileCodebase.getCodebaseOrExit mcodepath
+          theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
-          launch currentDir configFilePath theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
-    "transcript" : args' -> 
+          launch currentDir config theCodebase branchCache [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+    "transcript" : args' ->
       case args' of
-      "-save-codebase" : transcripts -> runTranscripts False True mcodepath transcripts
-      _                              -> runTranscripts False False mcodepath args'
-    "transcript.fork" : args' -> 
+      "-save-codebase" : transcripts -> runTranscripts branchCache False True mcodepath transcripts
+      _                              -> runTranscripts branchCache False False mcodepath args'
+    "transcript.fork" : args' ->
       case args' of
-      "-save-codebase" : transcripts -> runTranscripts True True mcodepath transcripts
-      _                              -> runTranscripts True False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts branchCache True True mcodepath transcripts
+      _                              -> runTranscripts branchCache True False mcodepath args'
     _ -> do
       PT.putPrettyLn usage
       Exit.exitWith (Exit.ExitFailure 1)
 
-prepareTranscriptDir :: Bool -> Maybe FilePath -> IO FilePath
-prepareTranscriptDir inFork mcodepath = do
+prepareTranscriptDir :: Branch.Cache IO -> Bool -> Maybe FilePath -> IO FilePath
+prepareTranscriptDir branchCache inFork mcodepath = do
   currentDir <- getCurrentDirectory
   tmp <- Temp.createTempDirectory currentDir "transcript"
 
-  unless inFork $ do 
+  unless inFork $ do
     PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-    _ <- FileCodebase.initCodebase tmp
+    _ <- FileCodebase.initCodebase branchCache tmp
     pure()
 
-  when inFork $ FileCodebase.getCodebaseOrExit mcodepath >> do
-    origCodePath <- FileCodebase.getCodebaseDir mcodepath
-    let path = origCodePath FP.</> FileCodebase.codebasePath
+  when inFork $ FileCodebase.getCodebaseOrExit branchCache mcodepath >> do
+    path <- FileCodebase.getCodebaseDir mcodepath
     PT.putPrettyLn $ P.lines [
       P.wrap "Transcript will be run on a copy of the codebase at: ", "",
       P.indentN 2 (P.string path)
       ]
-    Path.copyDir path (tmp FP.</> FileCodebase.codebasePath)
+    Path.copyDir path tmp
 
   pure tmp
 
-runTranscripts' :: Maybe FilePath -> FilePath -> [String] -> IO Bool
-runTranscripts' mcodepath transcriptDir args = do
+runTranscripts' :: Branch.Cache IO -> Maybe FilePath -> FilePath -> [String] -> IO Bool
+runTranscripts' branchCache mcodepath transcriptDir args = do
   currentDir <- getCurrentDirectory
-  theCodebase <- FileCodebase.getCodebaseOrExit $ Just transcriptDir
+  theCodebase <- FileCodebase.getCodebaseOrExit branchCache $ Just transcriptDir
   case args of
     args@(_:_) -> do
       for_ args $ \arg -> case arg of
@@ -187,25 +202,25 @@ runTranscripts' mcodepath transcriptDir args = do
                   P.indentN 2 $ P.string err])
             Right stanzas -> do
               configFilePath <- getConfigFilePath mcodepath
-              mdOut <- TR.run transcriptDir configFilePath stanzas theCodebase
+              mdOut <- TR.run transcriptDir configFilePath stanzas theCodebase branchCache
               let out = currentDir FP.</>
                          FP.addExtension (FP.dropExtension arg ++ ".output")
                                          (FP.takeExtension md)
               writeUtf8 out mdOut
               putStrLn $ "💾  Wrote " <> out
-        wat -> 
+        wat ->
               PT.putPrettyLn $ P.callout "❓" (
                 P.lines [
                   P.indentN 2 "Unrecognized command, skipping:", "",
                   P.indentN 2 $ P.string wat])
       pure True
-    [] -> 
+    [] ->
       pure False
 
-runTranscripts :: Bool -> Bool -> Maybe FilePath -> [String] -> IO ()
-runTranscripts inFork keepTemp mcodepath args = do
-  transcriptDir <- prepareTranscriptDir inFork mcodepath
-  completed <- runTranscripts' mcodepath transcriptDir args
+runTranscripts :: Branch.Cache IO -> Bool -> Bool -> Maybe FilePath -> [String] -> IO ()
+runTranscripts branchCache inFork keepTemp mcodepath args = do
+  transcriptDir <- prepareTranscriptDir branchCache inFork mcodepath
+  completed <- runTranscripts' branchCache (Just transcriptDir) transcriptDir args
   when completed $ do
     unless keepTemp $ removeDirectoryRecursive transcriptDir
     when keepTemp $ PT.putPrettyLn $
@@ -217,7 +232,7 @@ runTranscripts inFork keepTemp mcodepath args = do
                   <> P.backticked ("ucm -codebase " <> P.string transcriptDir)
                   <> "to do more work with it."])
 
-  unless completed $ do 
+  unless completed $ do
       unless keepTemp $ removeDirectoryRecursive transcriptDir
       PT.putPrettyLn usage
       Exit.exitWith (Exit.ExitFailure 1)
@@ -225,9 +240,9 @@ runTranscripts inFork keepTemp mcodepath args = do
 initialPath :: Path.Absolute
 initialPath = Path.absoluteEmpty
 
-launch :: FilePath -> FilePath -> _ -> [Either Input.Event Input.Input] -> IO ()
-launch dir configFile code inputs =
-  CommandLine.main dir initialPath configFile inputs (pure Rt1.runtime) code
+launch :: FilePath -> (Config, IO ()) -> _ -> Branch.Cache IO -> [Either Input.Event Input.Input] -> IO ()
+launch dir config code branchCache inputs =
+  CommandLine.main dir defaultBaseLib initialPath config inputs (pure Rt1.runtime) code branchCache Version.gitDescribe
 
 isMarkdown :: String -> Bool
 isMarkdown md = case FP.takeExtension md of
@@ -245,3 +260,7 @@ isFlag f arg = arg == f || arg == "-" ++ f || arg == "--" ++ f
 
 getConfigFilePath :: Maybe FilePath -> IO FilePath
 getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> FileCodebase.getCodebaseDir mcodepath
+
+defaultBaseLib :: Maybe RemoteNamespace
+defaultBaseLib = rightMay $
+  runParser VP.defaultBaseLib "version" (Text.pack Version.gitDescribe)

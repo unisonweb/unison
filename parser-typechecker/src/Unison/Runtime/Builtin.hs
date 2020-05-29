@@ -23,7 +23,7 @@ import Unison.Symbol
 import Unison.Runtime.IOSource
 
 import qualified Unison.Type as Ty
-import qualified Unison.DataDeclaration as Ty
+import qualified Unison.Builtin.Decls as Ty
   (unitRef,optionalRef)
 
 import Unison.Util.EnumContainers as EC

@@ -9,19 +9,16 @@ import           Prelude                 hiding ( head
                                                 , tail
                                                 , read
                                                 )
-import           Control.Lens                   ( (<&>) )
-import           Control.Monad.Loops            ( anyM )
 import qualified Control.Monad.State           as State
 import           Control.Monad.State            ( StateT )
-import           Data.List                      ( foldl1' )
 import           Data.Sequence                  ( ViewL(..) )
 import qualified Data.Sequence                 as Seq
 import           Unison.Hash                    ( Hash )
 import qualified Unison.Hashable               as Hashable
 import           Unison.Hashable                ( Hashable )
+import qualified Unison.Util.Cache             as Cache
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
-import           Util                           ( bind2 )
 
 {-
 `Causal a` has 5 operations, specified algebraically here:
@@ -34,7 +31,7 @@ import           Util                           ( bind2 )
 * `cons : a -> Causal a -> Causal a`, satisfying `head (cons hd tl) == hd` and
           also `before tl (cons hd tl)`.
 * `merge : CommutativeSemigroup a => Causal a -> Causal a -> Causal a`, which is
-           associative and commutative and satisfies:
+           commutative (but not associative) and satisfies:
   * `before c1 (merge c1 c2)`
   * `before c2 (merge c1 c2)`
 * `sequence : Causal a -> Causal a -> Causal a`, which is defined as
@@ -112,13 +109,23 @@ data Tails h
 
 type Deserialize m h e = RawHash h -> m (Raw h e)
 
-read :: Functor m => Deserialize m h e -> RawHash h -> m (Causal m h e)
-read d h = go <$> d h where
-  go = \case
-    RawOne e -> One h e
-    RawCons e tailHash -> Cons h e (tailHash, read d tailHash)
-    RawMerge e tailHashes ->
-      Merge h e (Map.fromList [(h, read d h) | h <- toList tailHashes ])
+cachedRead :: Monad m
+           => Cache.Cache m (RawHash h) (Causal m h e)
+           -> Deserialize m h e
+           -> RawHash h -> m (Causal m h e)
+cachedRead cache deserializeRaw h = Cache.lookup cache h >>= \case
+  Nothing -> do
+    raw <- deserializeRaw h
+    causal <- pure $ case raw of
+      RawOne e              -> One h e
+      RawCons e tailHash    -> Cons h e (tailHash, read tailHash)
+      RawMerge e tailHashes -> Merge h e $
+        Map.fromList [(h, read h) | h <- toList tailHashes ]
+    Cache.insert cache h causal
+    pure causal
+  Just causal -> pure causal
+  where
+    read = cachedRead cache deserializeRaw
 
 type Serialize m h e = RawHash h -> Raw h e -> m ()
 
@@ -132,26 +139,28 @@ sync
   -> Causal m h e
   -> StateT (Set (RawHash h)) m ()
 sync exists serialize c = do
-  b <- lift . exists $ currentHash c
-  unless b $ go c
+  queued <- State.get
+  itExists <- if Set.member (currentHash c) queued then pure True
+              else lift . exists $ currentHash c
+  unless itExists $ go c
  where
   go :: Causal m h e -> StateT (Set (RawHash h)) m ()
   go c = do
     queued <- State.get
-    when (Set.notMember (currentHash c) queued) $ case c of
-      One currentHash head -> serialize currentHash $ RawOne head
-      Cons currentHash head (tailHash, tailm) -> do
-        State.modify (Set.insert currentHash)
-        -- write out the tail first, so what's on disk is always valid
-        b <- lift $ exists tailHash
-        unless b $ go =<< lift tailm
-        serialize currentHash (RawCons head tailHash)
-      Merge currentHash head tails -> do
-        State.modify (Set.insert currentHash)
-        for_ (Map.toList tails) $ \(hash, cm) -> do
-          b <- lift $ exists hash
-          unless b $ go =<< lift cm
-        serialize currentHash (RawMerge head (Map.keysSet tails))
+    when (Set.notMember (currentHash c) queued) $ do
+      State.modify (Set.insert $ currentHash c)
+      case c of
+        One currentHash head -> serialize currentHash $ RawOne head
+        Cons currentHash head (tailHash, tailm) -> do
+          -- write out the tail first, so what's on disk is always valid
+          b <- lift $ exists tailHash
+          unless b $ go =<< lift tailm
+          serialize currentHash (RawCons head tailHash)
+        Merge currentHash head tails -> do
+          for_ (Map.toList tails) $ \(hash, cm) -> do
+            b <- lift $ exists hash
+            unless b $ go =<< lift cm
+          serialize currentHash (RawMerge head (Map.keysSet tails))
 
 instance Eq (Causal m h a) where
   a == b = currentHash a == currentHash b
@@ -203,6 +212,34 @@ children (One _ _         ) = Seq.empty
 children (Cons  _ _ (_, t)) = Seq.singleton t
 children (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
 
+-- A `squashMerge combine c1 c2` gives the same resulting `e`
+-- as a `threeWayMerge`, but doesn't introduce a merge node for the
+-- result. Instead, the resulting causal is a simple `Cons` onto `c2`
+-- (or is equal to `c2` if `c1` changes nothing).
+squashMerge
+  :: forall m h e
+   . (Monad m, Hashable e, Eq e)
+  => (Maybe e -> e -> e -> m e)
+  -> Causal m h e
+  -> Causal m h e
+  -> m (Causal m h e)
+squashMerge combine c1 c2 = do
+  theLCA <- lca c1 c2
+  let done newHead = consDistinct newHead c2
+  case theLCA of
+    Nothing -> done <$> combine Nothing (head c1) (head c2)
+    Just lca
+      | lca == c1 -> pure c2
+
+      -- Pretty subtle: if we were to add this short circuit, then
+      -- the history of c1's children would still make it into the result
+      -- Calling `combine` will recursively call into `squashMerge`
+      -- for the children, discarding their history before calling `done`
+      -- on the parent.
+      -- | lca == c2 -> pure $ done c1
+
+      | otherwise -> done <$> combine (Just $ head lca) (head c1) (head c2)
+
 threeWayMerge
   :: forall m h e
    . (Monad m, Hashable e)
@@ -210,79 +247,23 @@ threeWayMerge
   -> Causal m h e
   -> Causal m h e
   -> m (Causal m h e)
-threeWayMerge combine = mergeInternal merge0
+threeWayMerge combine c1 c2 = do
+  theLCA <- lca c1 c2
+  case theLCA of
+    Nothing -> done <$> combine Nothing (head c1) (head c2)
+    Just lca
+      | lca == c1 -> pure c2
+      | lca == c2 -> pure c1
+      | otherwise -> done <$> combine (Just $ head lca) (head c1) (head c2)
  where
-  merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
-  merge0 m = case Map.elems m of
-    []       -> error "Causal.threeWayMerge empty map"
-    me : mes -> do
-      e            <- me
-      (newHead, _) <- foldM k (head e, Seq.singleton (pure e)) mes
-      pure $ Merge (RawHash (hash (newHead, Map.keys m))) newHead m
-   where
-    k (e, acc) new = do
-      n           <- new
-      -- We call `lca'` here since we don't want to merge using the n-way LCA of
-      -- all children. Note for example that some of the children might have
-      -- totally unrelated histories. We want the LCA of any two children.
-      mayAncestor <- lca' acc (Seq.singleton (pure n))
-      newHead     <- combine (head <$> mayAncestor) e (head n)
-      pure (newHead, pure n Seq.<| acc)
+  children =
+    Map.fromList [(currentHash c1, pure c1), (currentHash c2, pure c2)]
+  done :: e -> Causal m h e
+  done newHead =
+    Merge (RawHash (hash (newHead, Map.keys children))) newHead children
 
-mergeInternal
-  :: forall m h e
-   . Monad m
-  => (Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e))
-  -> Causal m h e
-  -> Causal m h e
-  -> m (Causal m h e)
-mergeInternal f a b =
-  ifM (before a b) (pure b) . ifM (before b a) (pure a) $ case (a, b) of
-    (Merge _ _ tls, Merge _ _ tls2) -> f $ Map.union tls tls2
-    (Merge _ _ tls, b) -> f $ Map.insert (currentHash b) (pure b) tls
-    (b, Merge _ _ tls) -> f $ Map.insert (currentHash b) (pure b) tls
-    (a, b) ->
-      f $ Map.fromList [(currentHash a, pure a), (currentHash b, pure b)]
-
-mergeWithM
-  :: forall m h e
-   . Monad m
-  => (e -> e -> m e)
-  -> Causal m h e
-  -> Causal m h e
-  -> m (Causal m h e)
-mergeWithM f = mergeInternal merge0
- where
-  -- implementation detail, form a `Merge`
-  merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
-  merge0 m =
-    let e :: m e
-        e = if Map.null m
-          then error "Causal.merge0 empty map"
-          else foldl1' (bind2 f) (fmap head <$> Map.elems m)
-        h = hash (Map.keys m) -- sorted order
-    in  e <&> \e -> Merge (RawHash h) e m
-
--- Does `h2` incorporate all of `h1`?
 before :: Monad m => Causal m h e -> Causal m h e -> m Bool
-before = go
- where
-  -- stopping condition if both are equal
-  go h1 h2 | h1 == h2 = pure True
-  -- otherwise look through tails if they exist
-  go _  (One _ _    ) = pure False
-  go h1 (Cons _ _ tl) = snd tl >>= go h1
-  -- `m1` is a submap of `m2`
-  go (Merge _ _ m1) (Merge _ _ m2) | all (`Map.member` m2) (Map.keys m1) =
-    pure True
-  -- if not, see if `h1` is a subgraph of one of the tails
-  go h1 (Merge _ _ tls) =
-    (||) <$> pure (Map.member (currentHash h1) tls) <*> anyM (>>= go h1)
-                                                             (Map.elems tls)
-  -- Exponential algorithm of checking that all paths are present
-  -- in `h2` isn't necessary because of how merges are flattened
-  --go (Merge _ _ m1) h2@(Merge _ _ _)
-  --  all (\h1 -> go h1 h2) (Map.elems m1)
+before a b = (== Just a) <$> lca a b
 
 hash :: Hashable e => e -> Hash
 hash = Hashable.accumulate'
@@ -333,25 +314,45 @@ transform nt c = case c of
   Cons h e (ht, tl) -> Cons h e (ht, nt (transform nt <$> tl))
   Merge h e tls -> Merge h e $ Map.map (\mc -> nt (transform nt <$> mc)) tls
 
+unsafeMapHashPreserving :: Functor m => (e -> e2) -> Causal m h e -> Causal m h e2
+unsafeMapHashPreserving f c = case c of
+  One h e -> One h (f e)
+  Cons h e (ht, tl) -> Cons h (f e) (ht, unsafeMapHashPreserving f <$> tl)
+  Merge h e tls -> Merge h (f e) $ Map.map (fmap $ unsafeMapHashPreserving f) tls
+
+data FoldHistoryResult a = Satisfied a | Unsatisfied a deriving (Eq,Ord,Show)
+
 -- foldHistoryUntil some condition on the accumulator is met,
 -- attempting to work backwards fairly through merge nodes
 -- (rather than following one back all the way to its root before working
 -- through others).  Returns Unsatisfied if the condition was never satisfied,
 -- otherwise Satisfied.
-data FoldHistoryResult a = Satisfied a | Unsatisfied a deriving (Eq,Ord,Show)
-foldHistoryUntil :: forall m h e a. (Monad m) => --(Show a, Show e) =>
-  (a -> e -> (a, Bool)) -> a -> Causal m h e -> m (FoldHistoryResult a)
+foldHistoryUntil
+  :: forall m h e a
+   . (Monad m)
+  => (a -> e -> (a, Bool))
+  -> a
+  -> Causal m h e
+  -> m (FoldHistoryResult a)
 foldHistoryUntil f a c = step a mempty (pure c) where
   step :: a -> Set (RawHash h) -> Seq (Causal m h e) -> m (FoldHistoryResult a)
-  --step a seen rest | trace ("step a=" ++ show a ++ " seen=" ++ (show . fmap (take 3 . show) . toList) seen ++ " rest=" ++ show rest) False = undefined
   step a _seen Seq.Empty = pure (Unsatisfied a)
+  step a seen (c Seq.:<| rest) | currentHash c `Set.member` seen =
+    step a seen rest
   step a seen (c Seq.:<| rest) = case f a (head c) of
-    (a, True) -> pure (Satisfied a)
+    (a, True ) -> pure (Satisfied a)
     (a, False) -> do
       tails <- case c of
         One{} -> pure mempty
-        Cons{} -> Seq.singleton <$> snd (tail c)
-        Merge{} -> Seq.fromList <$> (sequenceA . toList . tails) c
+        Cons{} ->
+          let (h, t) = tail c
+          in  if h `Set.member` seen then pure mempty else Seq.singleton <$> t
+        Merge{} ->
+          fmap Seq.fromList
+            . traverse snd
+            . filter (\(h, _) -> Set.notMember h seen)
+            . Map.toList
+            $ tails c
       step a (Set.insert (currentHash c) seen) (rest <> tails)
 
 hashToRaw ::

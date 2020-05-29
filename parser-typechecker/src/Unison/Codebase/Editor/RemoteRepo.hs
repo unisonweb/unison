@@ -3,7 +3,7 @@
 module Unison.Codebase.Editor.RemoteRepo where
 
 import Unison.Prelude
-import Unison.Util.Monoid as Monoid
+import Unison.Util.Monoid as Monoid 
 import Data.Text as Text
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Path (Path)
@@ -24,6 +24,9 @@ printNamespace repo sbh path =
     Just sbh -> ":#" <> SBH.toText sbh <>
       if path == Path.empty then mempty
       else "." <> Path.toText path
+      
+printHead :: RemoteRepo -> Path -> Text
+printHead repo path = printNamespace repo Nothing path      
 
 type RemoteNamespace = (RemoteRepo, Maybe ShortBranchHash, Path)
 type RemoteHead = (RemoteRepo, Path)

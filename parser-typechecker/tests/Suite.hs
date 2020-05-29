@@ -5,12 +5,17 @@ module Main where
 import           EasyTest
 import           System.Environment (getArgs)
 import           System.IO
+import qualified Unison.Core.Test.Name as Name
 import qualified Unison.Test.ABT as ABT
+import qualified Unison.Test.Cache as Cache
+import qualified Unison.Test.Codebase as Codebase
 import qualified Unison.Test.Codebase.Causal as Causal
+import qualified Unison.Test.Codebase.FileCodebase as FileCodebase
 import qualified Unison.Test.Codebase.Path as Path
 import qualified Unison.Test.ColorText as ColorText
 import qualified Unison.Test.DataDeclaration as DataDeclaration
 import qualified Unison.Test.FileParser as FileParser
+import qualified Unison.Test.Git as Git
 import qualified Unison.Test.Lexer as Lexer
 import qualified Unison.Test.Range as Range
 import qualified Unison.Test.Referent as Referent
@@ -23,18 +28,17 @@ import qualified Unison.Test.Typechecker as Typechecker
 import qualified Unison.Test.Typechecker.Context as Context
 import qualified Unison.Test.Typechecker.TypeError as TypeError
 import qualified Unison.Test.UnisonSources as UnisonSources
+import qualified Unison.Test.UriParser as UriParser
 import qualified Unison.Test.Util.Bytes as Bytes
 import qualified Unison.Test.Var as Var
-import qualified Unison.Test.Codebase as Codebase
-import qualified Unison.Test.Codebase.FileCodebase as FileCodebase
-import qualified Unison.Test.UriParser as UriParser
-import qualified Unison.Test.Git as Git
 import qualified Unison.Test.ANF as ANF
 import qualified Unison.Test.MCode as MCode
+import qualified Unison.Test.VersionParser as VersionParser
 
 test :: Test ()
 test = tests
-  [ Lexer.test
+  [ Cache.test
+  , Lexer.test
   , Term.test
   , TermParser.test
   , TermPrinter.test
@@ -60,6 +64,8 @@ test = tests
   , UriParser.test
   , Context.test
   , Git.test
+  , Name.test
+  , VersionParser.test
  ]
 
 main :: IO ()

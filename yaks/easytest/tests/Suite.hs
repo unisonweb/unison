@@ -12,6 +12,12 @@ suite1 = tests
   , scope "b" . scope "c" . scope "d" $ ok
   , scope "c" ok ]
 
+suite2 :: Test ()
+suite2 = tests
+  [ scope "pending.failure" (pending (expectEqual True False))
+  --, scope "pending.success" (pending ok) 
+  ]
+
 reverseTest :: Test ()
 reverseTest = scope "list reversal" $ do
   nums <- listsOf [0..100] (int' 0 99)
@@ -25,3 +31,4 @@ main = do
   runOnly "b" $ tests [suite1, scope "xyz" (crash "never run")]
   runOnly "b.c" $ tests [suite1, scope "b" (crash "never run")]
   run reverseTest
+  run suite2

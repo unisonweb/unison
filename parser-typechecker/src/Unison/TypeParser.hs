@@ -10,7 +10,7 @@ import           Unison.Parser
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
-import qualified Unison.DataDeclaration as DD
+import qualified Unison.Builtin.Decls as DD
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Name as Name
 import qualified Unison.Names3 as Names
@@ -56,7 +56,7 @@ type2a = delayed <|> type2
 delayed :: Var v => TypeP v
 delayed = do
   q <- reserved "'"
-  t <- effect <|> type2
+  t <- effect <|> type2a
   pure $ Type.arrow (Ann (L.start q) (end $ ann t))
                     (DD.unitType (ann q))
                     t

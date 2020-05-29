@@ -4,6 +4,7 @@ module Unison.Codebase.Editor.Input
   , OutputLocation(..)
   , PatchPath
   , BranchId, parseBranchId
+  , HashOrHQSplit'
   ) where
 
 import Unison.Prelude
@@ -14,11 +15,12 @@ import qualified Unison.HashQualified'         as HQ'
 import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
-import           Unison.Reference (Reference)
 import           Unison.ShortHash (ShortHash)
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import           Unison.Codebase.SyncMode       ( SyncMode )
 import qualified Data.Text as Text
+import Unison.Codebase.NameSegment (NameSegment)
 
 data Event
   = UnisonFileChanged SourceName Source
@@ -28,6 +30,7 @@ type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 type PatchPath = Path.Split'
 type BranchId = Either ShortBranchHash Path'
+type HashOrHQSplit' = Either ShortHash Path.HQSplit'
 
 parseBranchId :: String -> Either String BranchId
 parseBranchId ('#':s) = case SBH.fromText (Text.pack s) of
@@ -42,11 +45,11 @@ data Input
     -- clone w/o merge, error if would clobber
     = ForkLocalBranchI (Either ShortBranchHash Path') Path'
     -- merge first causal into destination
-    | MergeLocalBranchI Path' Path'
+    | MergeLocalBranchI Path' Path' Branch.MergeMode
     | PreviewMergeLocalBranchI Path' Path'
     | DiffNamespaceI Path' Path' -- old new
-    | PullRemoteBranchI (Maybe RemoteNamespace) Path'
-    | PushRemoteBranchI (Maybe RemoteHead) Path'
+    | PullRemoteBranchI (Maybe RemoteNamespace) Path' SyncMode
+    | PushRemoteBranchI (Maybe RemoteHead) Path' SyncMode
     | CreatePullRequestI RemoteNamespace RemoteNamespace
     | LoadPullRequestI RemoteNamespace RemoteNamespace Path'
     | ResetRootI (Either ShortBranchHash Path')
@@ -61,8 +64,8 @@ data Input
     -- > names .foo.bar#asdflkjsdf
     -- > names #sdflkjsdfhsdf
     | NamesI HQ.HashQualified
-    | AliasTermI Path.HQSplit' Path.Split'
-    | AliasTypeI Path.HQSplit' Path.Split'
+    | AliasTermI HashOrHQSplit' Path.Split'
+    | AliasTypeI HashOrHQSplit' Path.Split'
     | AliasManyI [Path.HQSplit] Path'
     -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
     | MoveTermI Path.HQSplit' Path.Split'
@@ -93,12 +96,10 @@ data Input
     -- -- create and remove update directives
     | DeprecateTermI PatchPath Path.HQSplit'
     | DeprecateTypeI PatchPath Path.HQSplit'
-    | AddTermReplacementI PatchPath Reference Reference
-    | AddTypeReplacementI PatchPath Reference Reference
-    | RemoveTermReplacementI PatchPath Reference Reference
-    | RemoveTypeReplacementI PatchPath Reference Reference
-    | ReplaceTermI ShortHash ShortHash (Maybe PatchPath)
-    | ReplaceTypeI ShortHash ShortHash (Maybe PatchPath)
+    | ReplaceTermI HQ.HashQualified HQ.HashQualified (Maybe PatchPath)
+    | ReplaceTypeI HQ.HashQualified HQ.HashQualified (Maybe PatchPath)
+    | RemoveTermReplacementI HQ.HashQualified (Maybe PatchPath)
+    | RemoveTypeReplacementI HQ.HashQualified (Maybe PatchPath)
   | UndoI
   -- First `Maybe Int` is cap on number of results, if any
   -- Second `Maybe Int` is cap on diff elements shown, if any
@@ -107,25 +108,30 @@ data Input
   | ExecuteI String
   | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
-  -- link from to
-  | LinkI [Path.HQSplit'] Path.HQSplit'
-  -- unlink from to
-  | UnlinkI [Path.HQSplit'] Path.HQSplit'
+  -- `link metadata definitions` (adds metadata to all of `definitions`)
+  | LinkI HQ.HashQualified [Path.HQSplit']
+  -- `unlink metadata definitions` (removes metadata from all of `definitions`)
+  | UnlinkI HQ.HashQualified [Path.HQSplit']
   -- links from <type>
   | LinksI Path.HQSplit' (Maybe String)
-  | DisplayI OutputLocation String
+  | CreateAuthorI NameSegment {- identifier -} Text {- name -}
+  | DisplayI OutputLocation HQ.HashQualified
   | DocsI Path.HQSplit'
   -- other
   | SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
   | FindShallowI Path'
   | FindPatchI
-  | ShowDefinitionI OutputLocation [String]
-  | ShowDefinitionByPrefixI OutputLocation [String]
+  | ShowDefinitionI OutputLocation [HQ.HashQualified]
+  | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified]
   | ShowReflogI
   | UpdateBuiltinsI
   | MergeBuiltinsI
+  | MergeIOBuiltinsI
+  | ListDependenciesI HQ.HashQualified
+  | ListDependentsI HQ.HashQualified
   | DebugNumberedArgsI
   | DebugBranchHistoryI
+  | DebugTypecheckedUnisonFileI
   | QuitI
   deriving (Eq, Show)
 
