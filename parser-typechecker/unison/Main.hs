@@ -20,7 +20,7 @@ import qualified Unison.Codebase.FileCodebase  as FileCodebase
 import           Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 import           Unison.CommandLine             ( watchConfig )
 import qualified Unison.CommandLine.Main       as CommandLine
-import qualified Unison.Runtime.Rt1IO          as Rt1
+import qualified Unison.Runtime.Interface as RTI
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Util.Cache             as Cache
 import qualified Version
@@ -136,7 +136,8 @@ main = do
     ["init"] -> FileCodebase.initCodebaseAndExit mcodepath
     "run" : [mainName] -> do
       theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
-      execute theCodebase Rt1.runtime mainName
+      runtime <- RTI.startRuntime
+      execute theCodebase runtime mainName
     "run.file" : file : [mainName] | isDotU file -> do
       e <- safeReadUtf8 file
       case e of
@@ -242,7 +243,7 @@ initialPath = Path.absoluteEmpty
 
 launch :: FilePath -> (Config, IO ()) -> _ -> Branch.Cache IO -> [Either Input.Event Input.Input] -> IO ()
 launch dir config code branchCache inputs =
-  CommandLine.main dir defaultBaseLib initialPath config inputs (pure Rt1.runtime) code branchCache Version.gitDescribe
+  CommandLine.main dir defaultBaseLib initialPath config inputs RTI.startRuntime code branchCache Version.gitDescribe
 
 isMarkdown :: String -> Bool
 isMarkdown md = case FP.takeExtension md of

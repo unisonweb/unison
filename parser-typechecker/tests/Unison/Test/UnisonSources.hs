@@ -33,7 +33,7 @@ import qualified Unison.PrintError      as PrintError
 import           Unison.Reference       ( Reference )
 import           Unison.Result          (pattern Result, Result)
 import qualified Unison.Result          as Result
-import qualified Unison.Runtime.Rt1IO   as RT
+import qualified Unison.Runtime.Interface as RTI
 import           Unison.Symbol          (Symbol)
 import qualified Unison.Term            as Term
 import           Unison.Term            ( Term )
@@ -70,7 +70,7 @@ bad r = EasyTest.expectLeft r >> done
 
 test :: Test ()
 test = do
-  let rt = RT.runtime
+  rt <- io RTI.startRuntime
   scope "unison-src"
     . tests
     $ [ go rt shouldPassNow   good

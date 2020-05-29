@@ -42,7 +42,7 @@ import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.CommandLine.InputPattern as IP
-import qualified Unison.Runtime.Rt1IO as Rt1
+import qualified Unison.Runtime.Interface as RTI
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import qualified Unison.Codebase.Editor.Output as Output
@@ -109,7 +109,7 @@ parse srcName txt = case P.parse (stanzas <* P.eof) srcName txt of
 run :: FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> Branch.Cache IO -> IO Text
 run dir configFile stanzas codebase branchCache = do
   let initialPath = Path.absoluteEmpty
-  let startRuntime = pure Rt1.runtime
+  let startRuntime = RTI.startRuntime
   putPrettyLn $ P.lines [
     asciiartUnison, "",
     "Running the provided transcript file...",
