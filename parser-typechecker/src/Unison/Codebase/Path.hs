@@ -289,13 +289,12 @@ fromName :: Name -> Path
 fromName = fromList . Name.segments
 
 fromName' :: Name -> Path'
-fromName' n = case first of
-  [NameSegment ""] -> Path' . Left . Absolute . Path $ Seq.drop 1 seq
-  _    -> Path' . Right $ Relative path
+fromName' n = case take 1 (Name.toString n) of
+  "." -> Path' . Left . Absolute $ Path seq
+  _   -> Path' . Right $ Relative path
  where
-  path  = fromName n
-  seq   = toSeq path
-  first = Seq.take 1 seq
+  path = fromName n
+  seq  = toSeq path
 
 toName :: Path -> Name
 toName = Name.unsafeFromText . toText
