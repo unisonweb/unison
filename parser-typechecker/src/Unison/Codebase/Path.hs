@@ -102,7 +102,7 @@ parsePath' :: String -> Either String Path'
 parsePath' p = case parsePathImpl' p of
   Left e -> Left e
   Right (p, "") -> Right p
-  Right (p, rem) -> case Lexer.wordyId0 rem of
+  Right (p, rem) -> case (Lexer.wordyId0 <> Lexer.symbolyId0) rem of
     Right (seg, "") ->
       Right (unsplit' (p, NameSegment . Text.pack $ seg))
     Right (_, rem) ->
