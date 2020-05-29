@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedStrings   #-}
 
 module Unison.Name
@@ -12,6 +14,7 @@ module Unison.Name
   , sortNamed'
   , stripNamePrefix
   , stripPrefixes
+  , segments
   , suffixes
   , toString
   , toText
@@ -20,14 +23,17 @@ module Unison.Name
   , unqualified'
   , unsafeFromText
   , unsafeFromString
+  , fromSegment
   , fromVar
-  , segments
   )
 where
 
-import Unison.Prelude
+import           Unison.Prelude
+import qualified Unison.NameSegment            as NameSegment
+import           Unison.NameSegment             ( NameSegment(NameSegment) )
 
 import           Control.Lens                   ( unsnoc )
+import qualified Control.Lens                  as Lens
 import qualified Data.Text                     as Text
 import qualified Unison.Hashable               as H
 import           Unison.Var                     ( Var )
@@ -94,7 +100,7 @@ stripNamePrefix prefix name =
 
 -- a.b.c.d -> d
 stripPrefixes :: Name -> Name
-stripPrefixes = last . segments
+stripPrefixes = fromSegment . last . segments
 
 joinDot :: Name -> Name -> Name
 joinDot prefix suffix =
@@ -104,24 +110,13 @@ joinDot prefix suffix =
 unqualified :: Name -> Name
 unqualified = unsafeFromText . unqualified' . toText
 
--- Smarter segmentation than `text.splitOn "."`
--- e.g. split `base..` into `[base,.]`
-segments :: Name -> [Name]
-segments (Name n) = unsafeFromText <$> go parse
-  where
-    parse = Text.splitOn "." n
-    go [] = []
-    go ("" : "" : z) = "." : go z
-    go ("" : z) = go z
-    go (x : y) = x : go y
-
 -- parent . -> Nothing
 -- parent + -> Nothing
 -- parent foo -> Nothing
 -- parent foo.bar -> foo
 -- parent foo.bar.+ -> foo.bar
 parent :: Name -> Maybe Name
-parent n = case unsnoc (toText <$> segments n) of
+parent n = case unsnoc (NameSegment.toText <$> segments n) of
   Nothing        -> Nothing
   Just ([]  , _) -> Nothing
   Just (init, _) -> Just $ Name (Text.intercalate "." init)
@@ -157,3 +152,28 @@ instance IsString Name where
 
 instance H.Hashable Name where
   tokens s = [H.Text (toText s)]
+
+fromSegment :: NameSegment -> Name
+fromSegment = unsafeFromText . NameSegment.toText
+
+-- Smarter segmentation than `text.splitOn "."`
+-- e.g. split `base..` into `[base,.]`
+segments :: Name -> [NameSegment]
+segments (Name n) = NameSegment <$> go split
+  where
+    split = Text.splitOn "." n
+    go [] = []
+    go ("" : "" : z) = "." : go z
+    go ("" : z) = go z
+    go (x : y) = x : go y
+
+instance Lens.Snoc Name Name NameSegment NameSegment where
+  _Snoc = Lens.prism snoc unsnoc
+    where
+    snoc :: (Name, NameSegment) -> Name
+    snoc (n,s) = joinDot n (fromSegment s)
+    unsnoc :: Name -> Either Name (Name, NameSegment)
+    unsnoc n@(Name (Text.splitOn "." -> ns)) = case Lens.unsnoc ns of
+      Nothing -> Left n
+      Just ([],_) -> Left n
+      Just (init, last) -> Right (Name (Text.intercalate "." init), NameSegment last)

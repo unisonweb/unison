@@ -70,7 +70,6 @@ import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Path           ( Path
                                                 , Path'(..) )
 import qualified Unison.Codebase.Path          as Path
-import qualified Unison.Codebase.NameSegment   as NameSegment
 import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
@@ -127,7 +126,8 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Builtin as Builtin
-import Unison.Codebase.NameSegment (NameSegment(..))
+import Unison.NameSegment (NameSegment(..))
+import qualified Unison.NameSegment as NameSegment
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.Editor.Propagate as Propagate
 import qualified Unison.Codebase.Editor.UriParser as UriParser
@@ -552,7 +552,7 @@ loop = do
         -- `op` is the operation to add/remove/alter metadata mappings.
         --   e.g. `Metadata.insert` is passed to add metadata links.
         manageLinks :: Bool
-                    -> [(Path', NameSegment.HQSegment)]
+                    -> [(Path', HQ'.HQSegment)]
                     -> [HQ.HashQualified]
                     -> (forall r. Ord r
                         => (r, Reference, Reference)

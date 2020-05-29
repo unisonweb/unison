@@ -8,6 +8,7 @@ import qualified Data.Text                     as Text
 import           Prelude                 hiding ( take )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
+import           Unison.NameSegment             ( NameSegment )
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent )
@@ -18,6 +19,8 @@ import qualified Unison.HashQualified          as HQ
 
 data HashQualified' n = NameOnly n | HashQualified n ShortHash
   deriving (Eq, Functor)
+
+type HQSegment = HashQualified' NameSegment
 
 type HashQualified = HashQualified' Name
 

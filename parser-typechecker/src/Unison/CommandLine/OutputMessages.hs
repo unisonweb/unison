@@ -60,7 +60,6 @@ import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import           Unison.Name                   (Name)
 import qualified Unison.Name                   as Name
-import qualified Unison.Codebase.NameSegment   as NameSegment
 import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyReference, prettyReferent,
                                                 prettyLabeledDependency,
@@ -233,7 +232,7 @@ notifyNumbered o = case o of
       [ p
       , ""
       , tip $ "Add" <> prettyName "License" <> "values for"
-           <> prettyName (NameSegment.toName authorNS)
+           <> prettyName (Name.fromSegment authorNS)
            <> "under" <> P.group (prettyPath' authorPath' <> ".")
       ]) (showDiffNamespace ShowNumbers ppe bAbs bAbs diff)
   where
@@ -508,18 +507,18 @@ notifyUser dir o = case o of
     formatEntry :: ShallowListEntry v a -> (P.Pretty P.ColorText, P.Pretty P.ColorText)
     formatEntry = \case
       ShallowTermEntry _r hq ot ->
-        (P.syntaxToColor . prettyHashQualified' . fmap NameSegment.toName $ hq
+        (P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq
         , P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) ot <> P.lit ")" )
       ShallowTypeEntry r hq ->
-        (P.syntaxToColor . prettyHashQualified' . fmap NameSegment.toName $ hq
+        (P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq
         ,isBuiltin r)
       ShallowBranchEntry ns count ->
-        ((P.syntaxToColor . prettyName . NameSegment.toName) ns <> "/"
+        ((P.syntaxToColor . prettyName . Name.fromSegment) ns <> "/"
         ,case count of
           1 -> P.lit ("(1 definition)")
           _n -> P.lit "(" <> P.shown count <> P.lit " definitions)")
       ShallowPatchEntry ns ->
-        ((P.syntaxToColor . prettyName . NameSegment.toName) ns
+        ((P.syntaxToColor . prettyName . Name.fromSegment) ns
         ,P.lit "(patch)")
     isBuiltin = \case
       Reference.Builtin{} -> P.lit "(builtin type)"

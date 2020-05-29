@@ -21,10 +21,8 @@ import qualified Unison.Lexer                  as Lexer
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.ShortHash as SH
 
-import           Unison.Codebase.NameSegment    ( NameSegment(NameSegment)
-                                                , HQSegment
-                                                )
-import qualified Unison.Codebase.NameSegment as NameSegment
+import           Unison.NameSegment             ( NameSegment(NameSegment))
+import qualified Unison.NameSegment            as NameSegment
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
 newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord)
@@ -73,13 +71,13 @@ unsplitHQ' :: HQSplit' -> HQ'.HashQualified' Path'
 unsplitHQ' (p, a) = fmap (snoc' p) a
 
 type Split = (Path, NameSegment)
-type HQSplit = (Path, HQSegment)
+type HQSplit = (Path, HQ'.HQSegment)
 
 type Split' = (Path', NameSegment)
-type HQSplit' = (Path', HQSegment)
+type HQSplit' = (Path', HQ'.HQSegment)
 
 type SplitAbsolute = (Absolute, NameSegment)
-type HQSplitAbsolute = (Absolute, HQSegment)
+type HQSplitAbsolute = (Absolute, HQ'.HQSegment)
 
 -- examples:
 --   unprefix .foo.bar .blah == .blah (absolute paths left alone)

@@ -4,6 +4,7 @@ module Unison.Core.Test.Name where
 
 import           EasyTest
 import           Unison.Name                   as Name
+import           Unison.NameSegment            as NameSegment
 import           Data.List                      ( intercalate )
 import           Data.Text                      ( pack )
 
@@ -24,5 +25,5 @@ test = scope "name" $ tests
     n       <- int' 0 10
     segs <- listOf n . pick $ replicate numDots "." ++ replicate numSegs "foo"
     expectEqual (segments $ Name . pack $ intercalate "." segs)
-                (Name . pack <$> segs)
+                (NameSegment . pack <$> segs)
   ]
