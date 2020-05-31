@@ -34,7 +34,8 @@ import           Unison.Codebase.Causal         ( Raw(..)
                                                 )
 import qualified Unison.Codebase.Causal         as Causal
 import qualified Unison.Codebase.Metadata       as Metadata
-import           Unison.Codebase.NameSegment    as NameSegment
+import           Unison.NameSegment             ( NameSegment )
+import           Unison.NameSegment            as NameSegment
 import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch          as Patch
 import           Unison.Codebase.TermEdit       ( TermEdit )

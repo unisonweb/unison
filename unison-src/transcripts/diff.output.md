@@ -106,7 +106,7 @@ ability X a1 a2 where x : Nat
     bdependent : Nat
     c          : Nat
     fromJust   : Nat
-    helloWorld : ∀ (). () ->{IO} ()
+    helloWorld : '{IO} ()
 
 .ns1> alias.term fromJust fromJust'
 
@@ -148,8 +148,8 @@ Here's what we've done so far:
     7.  c             : Nat
     8.  ┌ fromJust    : Nat (+1 metadata)
     9.  └ fromJust'   : Nat (+1 metadata)
-    10. ┌ helloWorld  : ∀ (). () ->{IO} ()
-    11. └ helloWorld2 : ∀ (). () ->{IO} ()
+    10. ┌ helloWorld  : '{IO} ()
+    11. └ helloWorld2 : '{IO} ()
 
 .> diff.namespace ns1 ns2
 

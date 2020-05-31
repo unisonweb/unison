@@ -56,7 +56,7 @@ type2a = delayed <|> type2
 delayed :: Var v => TypeP v
 delayed = do
   q <- reserved "'"
-  t <- effect <|> type2
+  t <- effect <|> type2a
   pure $ Type.arrow (Ann (L.start q) (end $ ann t))
                     (DD.unitType (ann q))
                     t

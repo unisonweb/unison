@@ -50,7 +50,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Names3 as Names
 import qualified Data.Set as Set
-import Unison.Codebase.NameSegment (NameSegment, HQSegment)
+import Unison.NameSegment (NameSegment)
 import Unison.ShortHash (ShortHash)
 import Unison.Var (Var)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -211,8 +211,8 @@ data ReflogEntry =
   deriving (Show)
 
 data ShallowListEntry v a
-  = ShallowTermEntry Referent HQSegment (Maybe (Type v a))
-  | ShallowTypeEntry Reference HQSegment
+  = ShallowTermEntry Referent HQ'.HQSegment (Maybe (Type v a))
+  | ShallowTypeEntry Reference HQ'.HQSegment
   | ShallowBranchEntry NameSegment Int -- number of child definitions
   | ShallowPatchEntry NameSegment
   deriving (Eq, Show)
