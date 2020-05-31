@@ -98,6 +98,7 @@ fromTermNames tms = let
 -- todo: these need to be a dynamic length, but we need additional info
 todoHashLength :: Int
 todoHashLength = 10
+
 termName :: PrettyPrintEnv -> Referent -> HashQualified
 termName env r =
   fromMaybe (HQ.take todoHashLength $ HQ.fromReferent r) (terms env r)

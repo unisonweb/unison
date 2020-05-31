@@ -33,7 +33,10 @@ import qualified Data.Text                     as Text
 import           Data.Text.IO                  (readFile, writeFile)
 import           Data.Tuple.Extra              (dupe, uncurry3)
 import           Prelude                       hiding (readFile, writeFile)
-import           System.Directory              (canonicalizePath, doesFileExist)
+import           System.Directory               ( canonicalizePath
+                                                , doesFileExist
+                                                , getHomeDirectory
+                                                )
 import qualified Unison.ABT                    as ABT
 import qualified Unison.UnisonFile             as UF
 import           Unison.Codebase.GitError
@@ -60,7 +63,6 @@ import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import           Unison.Name                   (Name)
 import qualified Unison.Name                   as Name
-import qualified Unison.Codebase.NameSegment   as NameSegment
 import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyReference, prettyReferent,
                                                 prettyLabeledDependency,
@@ -98,7 +100,6 @@ import qualified Unison.Util.Relation          as R
 import           Unison.Var                    (Var)
 import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
-import           System.Directory               ( getHomeDirectory )
 import Unison.Codebase.Editor.DisplayThing (DisplayThing(MissingThing, BuiltinThing, RegularThing))
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Hash as Hash
@@ -108,7 +109,6 @@ import qualified Unison.Util.List              as List
 import qualified Unison.Util.Monoid            as Monoid
 import Data.Tuple (swap)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import Control.Lens (view, over, _1, _3)
 import qualified Unison.ShortHash as SH
 import Unison.LabeledDependency as LD
 import Unison.Codebase.Editor.RemoteRepo (RemoteRepo)
@@ -122,7 +122,7 @@ shortenDirectory dir = do
     Just d  -> "~" <> d
     Nothing -> dir
 
-renderFileName :: FilePath -> IO (Pretty)
+renderFileName :: FilePath -> IO Pretty
 renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
 
 notifyNumbered :: Var v => NumberedOutput v -> (Pretty, NumberedArgs)
@@ -200,7 +200,7 @@ notifyNumbered o = case o of
     if OBD.isEmpty diff then
       ("✅  Looks like " <> prettyPath' dest' <> " is up to date.", mempty)
     else
-      first (\p -> P.lines $ [
+      first (\p -> P.lines [
           P.wrap $ "Here's what's changed in " <> prettyPath' dest' <> "after the pull:", "",
           p, "",
           undoTip
@@ -233,7 +233,7 @@ notifyNumbered o = case o of
       [ p
       , ""
       , tip $ "Add" <> prettyName "License" <> "values for"
-           <> prettyName (NameSegment.toName authorNS)
+           <> prettyName (Name.fromSegment authorNS)
            <> "under" <> P.group (prettyPath' authorPath' <> ".")
       ]) (showDiffNamespace ShowNumbers ppe bAbs bAbs diff)
   where
@@ -508,18 +508,18 @@ notifyUser dir o = case o of
     formatEntry :: ShallowListEntry v a -> (P.Pretty P.ColorText, P.Pretty P.ColorText)
     formatEntry = \case
       ShallowTermEntry _r hq ot ->
-        (P.syntaxToColor . prettyHashQualified' . fmap NameSegment.toName $ hq
+        (P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq
         , P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) ot <> P.lit ")" )
       ShallowTypeEntry r hq ->
-        (P.syntaxToColor . prettyHashQualified' . fmap NameSegment.toName $ hq
+        (P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq
         ,isBuiltin r)
       ShallowBranchEntry ns count ->
-        ((P.syntaxToColor . prettyName . NameSegment.toName) ns <> "/"
+        ((P.syntaxToColor . prettyName . Name.fromSegment) ns <> "/"
         ,case count of
           1 -> P.lit ("(1 definition)")
           _n -> P.lit "(" <> P.shown count <> P.lit " definitions)")
       ShallowPatchEntry ns ->
-        ((P.syntaxToColor . prettyName . NameSegment.toName) ns
+        ((P.syntaxToColor . prettyName . Name.fromSegment) ns
         ,P.lit "(patch)")
     isBuiltin = \case
       Reference.Builtin{} -> P.lit "(builtin type)"

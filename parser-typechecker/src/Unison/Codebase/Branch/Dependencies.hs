@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -18,9 +17,8 @@ import qualified Unison.Referent as Referent
 import GHC.Generics (Generic)
 import Data.Monoid.Generic
 import Data.Map (Map)
-import Unison.Codebase.NameSegment (NameSegment)
+import Unison.NameSegment (NameSegment)
 import Unison.Referent (Referent)
-import Unison.Reference (Reference)
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Util.Star3 as Star3
 import qualified Unison.Util.Relation as R

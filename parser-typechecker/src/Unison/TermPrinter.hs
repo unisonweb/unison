@@ -11,7 +11,7 @@ import Unison.Prelude
 import           Data.List
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
-import           Data.Text                      ( splitOn, unpack )
+import           Data.Text                      ( unpack )
 import qualified Data.Text                     as Text
 import qualified Text.Show.Unicode             as U
 import           Data.Vector                    ( )
@@ -22,6 +22,7 @@ import qualified Unison.HashQualified          as HQ
 import           Unison.Lexer                   ( symbolyId, showEscapeChar )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
+import qualified Unison.NameSegment            as NameSegment
 import           Unison.NamePrinter             ( styleHashQualified'' )
 import qualified Unison.Pattern                as Pattern
 import           Unison.PatternP                ( Pattern )
@@ -822,7 +823,7 @@ countName n = let f = \(p, s) -> (s, Map.singleton p 1)
 -- See examples in Unison.Test.TermPrinter
 splitName :: Name -> [(Prefix, Suffix)]
 splitName n =
-  let ns = splitOn "." (Name.toText n)
+  let ns = NameSegment.toText <$> Name.segments n
   in  filter (not . Text.null . snd) $ inits ns `zip` map dotConcat (tails ns)
 
 joinName :: Prefix -> Suffix -> Name

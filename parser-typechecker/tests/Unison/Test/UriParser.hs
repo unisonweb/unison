@@ -11,7 +11,7 @@ import qualified Unison.Codebase.Editor.UriParser as UriParser
 import qualified Data.Sequence as Seq
 import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
 import Data.Text (Text)
-import Unison.Codebase.NameSegment (NameSegment(..))
+import Unison.NameSegment (NameSegment(..))
 import qualified Data.Text as Text
 
 test :: Test ()

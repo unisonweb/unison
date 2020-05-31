@@ -24,7 +24,7 @@ import Unison.Codebase.Metadata (Metadata)
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Util.List as List
 import Unison.Codebase.Patch (Patch)
-import Unison.Codebase.NameSegment (HQSegment, NameSegment)
+import Unison.NameSegment (NameSegment)
 import Control.Lens (view)
 
 fromNames0 :: Monad m => Names0 -> Branch m
@@ -60,12 +60,16 @@ getTerm (p, hq) b = case hq of
   filter sh = Set.filter (SH.isPrefixOf sh . Referent.toShortHash)
   terms = Branch._terms (Branch.getAt0 p b)
 
-getTermMetadataHQNamed :: (Path.Path, HQSegment) -> Branch0 m -> Metadata.R4 Referent NameSegment
+getTermMetadataHQNamed
+  :: (Path.Path, HQ'.HQSegment) -> Branch0 m -> Metadata.R4 Referent NameSegment
 getTermMetadataHQNamed (path, hqseg) b =
   R4.filter (\(r,n,_t,_v) -> HQ'.matchesNamedReferent n r hqseg) terms
   where terms = Metadata.starToR4 . Branch._terms $ Branch.getAt0 path b
 
-getTypeMetadataHQNamed :: (Path.Path, HQSegment) -> Branch0 m -> Metadata.R4 Reference NameSegment
+getTypeMetadataHQNamed
+  :: (Path.Path, HQ'.HQSegment)
+  -> Branch0 m
+  -> Metadata.R4 Reference NameSegment
 getTypeMetadataHQNamed (path, hqseg) b =
   R4.filter (\(r,n,_t,_v) -> HQ'.matchesNamedReference n r hqseg) types
   where types = Metadata.starToR4 . Branch._types $ Branch.getAt0 path b
