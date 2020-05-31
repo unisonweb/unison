@@ -1,6 +1,6 @@
 flags: {}
 
-allow-newer: true # async package has needlessly strict upper bound
+# allow-newer: true # async package has needlessly strict upper bound
 
 allow-different-user: true
 
@@ -10,24 +10,21 @@ packages:
 - unison-core
 
 #compiler-check: match-exact
-resolver: lts-14.7
+resolver: lts-15.13
 
 extra-deps:
 - github: unisonweb/configurator
-  commit: 31daaf0469be0e3c9b6465bf84464ca98661b29d
+  commit: e47e9e9fe1f576f8c835183b9def52d73c01327a
 - github: unisonweb/haskeline
-  commit: f81e80f66f7059a0df3986133c396fcf227bfa2c
-- base58-bytestring-0.1.0
-- relation-0.2.1
-- shellmet-0.0.3.0
-- filepattern-0.1.1
-- strings-1.1@sha256:0285dec4c8ab262359342b3e5ef1eb567074669461b9b38404f1cb870c881c5c
-- guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1
-- fsutils-0.1.2@sha256:fb3eb68e03e4317352032642d3ed18c796c30f5a3bec40caef69cee0b859df5e
-- prelude-extras-0.4.0.3@sha256:1c10b0123ea13a6423d74a8fcbaeb2d5249b472588abde418a36b47b7c4f48c8
-- sandi-0.5@sha256:b278d072ca717706ea38f9bd646e023f7f2576a778fb43565b434f93638849aa
-- megaparsec-6.5.0
-- generic-monoid-0.1.0.0@sha256:372875d12742b97befaacbd08a35c2e73cc3821a3b7a09ec1b17a079d0b24ff7,856
+  commit: 2944b11d19ee034c48276edc991736105c9d6143
+- github: unisonweb/megaparsec
+  commit: c4463124c578e8d1074c04518779b5ce5957af6b
+- base16-0.2.1.0@sha256:62e9abde29287913a775ec658b62ecba20270b9e1ac0a008e6acb4616b79a22d,2183
+- concurrent-supply-0.1.8@sha256:9373f4868ad28936a7b93781b214ef4afdeacf377ef4ac729583073491c9f9fb,1627
+- guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1,1078
+- prelude-extras-0.4.0.3@sha256:1c10b0123ea13a6423d74a8fcbaeb2d5249b472588abde418a36b47b7c4f48c8,1163
+- sandi-0.5@sha256:b278d072ca717706ea38f9bd646e023f7f2576a778fb43565b434f93638849aa,3010
+- strings-1.1@sha256:0285dec4c8ab262359342b3e5ef1eb567074669461b9b38404f1cb870c881c5c,1617
 
 ghc-options:
  # All packages

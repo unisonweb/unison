@@ -17,7 +17,6 @@ import           Data.List.NonEmpty   (NonEmpty (..))
 -- import           Data.Maybe
 import qualified Data.Set             as Set
 import qualified Data.Text            as Text
-import           Data.Text.Encoding   (encodeUtf8)
 import           Data.Typeable        (Proxy (..))
 import           Text.Megaparsec      (runParserT)
 import qualified Text.Megaparsec      as P

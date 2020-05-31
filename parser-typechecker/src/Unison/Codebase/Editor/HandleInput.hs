@@ -42,13 +42,12 @@ import qualified Unison.CommandLine.InputPattern as InputPattern
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
 
 import           Control.Lens
-import           Control.Lens.TH                ( makeLenses )
 import           Control.Monad.State            ( StateT )
 import           Control.Monad.Except           ( ExceptT(..), runExceptT, withExceptT)
 import           Data.Bifunctor                 ( second, first )
 import           Data.Configurator              ()
 import qualified Data.List                      as List
-import           Data.List                      ( partition, sortOn )
+import           Data.List                      ( partition )
 import           Data.List.Extra                ( nubOrd, sort )
 import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text

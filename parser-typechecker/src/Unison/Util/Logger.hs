@@ -16,7 +16,7 @@ import Unison.Prelude
 
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar
-import Control.Exception (bracket, try)
+import Control.Exception (bracket)
 import Data.List
 import System.IO (Handle, hPutStrLn, hGetLine, stdout, stderr)
 import System.IO.Error (isEOFError)

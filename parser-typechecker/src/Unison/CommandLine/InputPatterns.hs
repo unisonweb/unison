@@ -11,7 +11,7 @@ import Unison.Prelude
 import qualified Control.Lens.Cons as Cons
 import qualified Control.Lens as Lens
 import Data.Bifunctor (first)
-import Data.List (intercalate, sortOn, isPrefixOf)
+import Data.List (intercalate, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
 import qualified System.Console.Haskeline.Completion as Completion
 import System.Console.Haskeline.Completion (Completion(Completion))

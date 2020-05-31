@@ -147,6 +147,7 @@ library
     ansi-terminal,
     async,
     base,
+    base16 >= 0.2.1.0,
     bifunctors,
     bytes,
     bytestring,
@@ -168,12 +169,10 @@ library
     fingertree,
     free,
     fsnotify,
-    fsutils,
     generic-monoid,
     hashable,
     hashtables,
     haskeline,
-    hex,
     io-streams,
     lens,
     ListLike,
@@ -234,6 +233,7 @@ executable unison
   hs-source-dirs: unison
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   other-modules:
+    System.Path
     Version
   build-depends:
     base,
@@ -242,7 +242,6 @@ executable unison
     directory,
     errors,
     filepath,
-    fsutils,
     megaparsec,
     safe,
     shellmet,

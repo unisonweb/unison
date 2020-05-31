@@ -1,8 +1,6 @@
 module Unison.Codebase.BranchDiff where
 
 import Unison.Prelude
-import Data.Map (Map)
-import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Unison.Codebase.Branch (Branch0(..))

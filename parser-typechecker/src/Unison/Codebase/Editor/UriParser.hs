@@ -7,7 +7,6 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Text.Megaparsec.Char as C
 import Data.Text as Text
 
-import Data.Text (Text)
 import Unison.Codebase.Path (Path(..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Editor.RemoteRepo (RemoteRepo(..), RemoteNamespace)
