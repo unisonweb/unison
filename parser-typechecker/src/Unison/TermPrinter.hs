@@ -197,7 +197,7 @@ pretty0
     Request' ref i -> styleHashQualified'' (fmt S.Request) $
       elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Effect)
     Handle' h body -> paren (p >= 2) $
-      if height > 0 then PP.lines [
+      if PP.isMultiLine pb || PP.isMultiLine ph then PP.lines [
         (fmt S.ControlKeyword "handle") `PP.hang` pb,
         (fmt S.ControlKeyword "with") `PP.hang` ph
        ]
@@ -207,7 +207,6 @@ pretty0
           <> (fmt S.ControlKeyword "with") `PP.hang` ph
       ]
       where
-        height = PP.preferredHeight pb `max` PP.preferredHeight ph
         pb = pblock body
         ph = pblock h
         pblock tm = let (im', uses) = calcImports im tm
@@ -224,16 +223,15 @@ pretty0
           <> optSpace <> (fmt S.DelimiterChar $ l "]")
       where optSpace = PP.orElse "" " "
     If' cond t f -> paren (p >= 2) $
-      if height > 0 then PP.lines [
+      if PP.isMultiLine pt || PP.isMultiLine pf then PP.lines [
         (fmt S.ControlKeyword "if ") <> pcond <> (fmt S.ControlKeyword " then") `PP.hang` pt,
         (fmt S.ControlKeyword "else") `PP.hang` pf
        ]
       else PP.spaced [
-        (fmt S.ControlKeyword "if") `PP.hang` pcond <> ((fmt S.ControlKeyword " then") `PP.hang` pt),
+        ((fmt S.ControlKeyword "if") `PP.hang` pcond) <> ((fmt S.ControlKeyword " then") `PP.hang` pt),
         (fmt S.ControlKeyword "else") `PP.hang` pf
        ]
      where
-       height = PP.preferredHeight pt `max` PP.preferredHeight pf
        pcond  = pretty0 n (ac 2 Block im doc) cond
        pt     = branch t
        pf     = branch f
@@ -253,13 +251,12 @@ pretty0
       ]
     LetBlock bs e -> printLet bc bs e im' uses
     Match' scrutinee branches -> paren (p >= 2) $
-      if height > 0 then PP.lines [
+      if PP.isMultiLine ps then PP.lines [
         (fmt S.ControlKeyword "match ") `PP.hang` ps,
         (fmt S.ControlKeyword " with") `PP.hang` pbs
        ]
       else ((fmt S.ControlKeyword "match ") <> ps <> (fmt S.ControlKeyword " with")) `PP.hang` pbs
-      where height = PP.preferredHeight ps
-            ps = pretty0 n (ac 2 Normal im doc) scrutinee
+      where ps = pretty0 n (ac 2 Normal im doc) scrutinee
             pbs = printCase n im doc branches
 
     t -> l "error: " <> l (show t)

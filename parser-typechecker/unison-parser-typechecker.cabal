@@ -2,7 +2,7 @@ name:          unison-parser-typechecker
 category:      Compiler
 version:       0.1
 license:       MIT
-cabal-version: >= 1.8
+cabal-version: >= 1.10
 license-file:  LICENSE
 author:        Unison Computing, public benefit corp
 maintainer:    Paul Chiusano <paul.chiusano@gmail.com>, Runar Bjarnason <runarorama@gmail.com>, Arya Irani <arya.irani@gmail.com>
@@ -211,6 +211,7 @@ library
   default-extensions:
     ApplicativeDo,
     DeriveFunctor,
+    DerivingStrategies,
     DoAndIfThenElse,
     FlexibleContexts,
     FlexibleInstances,
@@ -223,6 +224,8 @@ library
     TypeApplications
     -- ViewPatterns
 
+  default-language: Haskell2010
+
   if flag(optimized)
     ghc-options: -funbox-strict-fields
 
@@ -232,6 +235,7 @@ library
 executable unison
   main-is: Main.hs
   hs-source-dirs: unison
+  default-language: Haskell2010
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   other-modules:
     Version
@@ -256,6 +260,7 @@ executable unison
 executable prettyprintdemo
   main-is: Main.hs
   hs-source-dirs: prettyprintdemo
+  default-language: Haskell2010
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
     base,
@@ -266,6 +271,7 @@ executable prettyprintdemo
 executable tests
   main-is:        Suite.hs
   hs-source-dirs: tests
+  default-language: Haskell2010
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
   build-depends:
     base,
@@ -297,6 +303,7 @@ executable tests
     Unison.Test.UnisonSources
     Unison.Test.UriParser
     Unison.Test.Util.Bytes
+    Unison.Test.Util.Pretty
     Unison.Test.Var
     Unison.Test.VersionParser
     Unison.Core.Test.Name
@@ -330,6 +337,7 @@ executable transcripts
   main-is:        Transcripts.hs
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: transcripts
+  default-language: Haskell2010
   other-modules:
   build-depends:
     base,

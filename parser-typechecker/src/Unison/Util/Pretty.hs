@@ -53,6 +53,7 @@ module Unison.Util.Pretty (
    indentN,
    indentNonEmptyN,
    indentNAfterNewline,
+   isMultiLine,
    leftPad,
    lines,
    linesNonEmpty,
@@ -75,8 +76,6 @@ module Unison.Util.Pretty (
    parenthesize,
    parenthesizeCommas,
    parenthesizeIf,
-   preferredWidth,
-   preferredHeight,
    render,
    renderUnbroken,
    rightPad,
@@ -105,7 +104,10 @@ module Unison.Util.Pretty (
    wrapString,
    black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold,
    border,
-   Width
+   Width,
+   -- * Exported for testing
+   delta,
+   Delta,
   ) where
 
 import Unison.Prelude
@@ -132,7 +134,18 @@ instance Functor Pretty where
   fmap f (Pretty d o) = Pretty d (mapLit f $ fmap (fmap f) o)
 
 data F s r
-  = Empty | Group r | Lit s | Wrap (Seq r) | OrElse r r | Append (Seq r)
+  = Empty
+    -- | A group adds a level of breaking. Layout tries not to break a group
+    -- unless needed to fit in available width. Breaking is done "outside in".
+    --
+    --   (a | b) <> (c | d) will try (a <> c), then (b <> d)
+    --
+    --   (a | b) <> group (c | d) will try (a <> c), then (b <> c), then (b <> d)
+  | Group r
+  | Lit s
+  | Wrap (Seq r)
+  | OrElse r r
+  | Append (Seq r)
   deriving (Eq, Show, Foldable, Traversable, Functor)
 
 mapLit :: (s -> t) -> F s r -> F t r
@@ -281,8 +294,36 @@ render availableWidth p = go mempty [Right p] where
     Wrap ps -> foldMap flow ps
 
   fits p cur =
-    let cur' = cur { maxCol = col cur }
-    in maxCol (cur' <> delta p) < availableWidth
+    maxCol (surgery cur <> delta p) < availableWidth
+    where
+      -- Surgically modify 'cur' to pretend it has not exceeded availableWidth.
+      -- This is necessary because sometimes things cannot be split and *must*
+      -- exceed availableWidth; in this case, we do not want to entirely "blame"
+      -- the new proposed (cur <> delta p) for this overflow.
+      --
+      -- For example, when appending
+      --
+      --       availableWidth
+      --       |
+      --   xxx |
+      --   yyyyyy
+      --   zz  |
+      --
+      -- with
+      --
+      --   aa  |
+      --   bb  |
+      --
+      -- we want to end up with
+      --
+      --   xxx |
+      --   yyyyyy
+      --   zzaa|
+      --   bb  |
+      --
+      surgery = \case
+        SingleLine c -> SingleLine (min c (availableWidth-1))
+        MultiLine fc lc mc -> MultiLine fc lc (min mc (availableWidth-1))
 
 newline :: IsString s => Pretty s
 newline = "\n"
@@ -606,7 +647,7 @@ hang'
   -> Pretty s
   -> Pretty s
   -> Pretty s
-hang' from by p = group $ if preferredHeight p > 0
+hang' from by p = group $ if isMultiLine p
   then from <> "\n" <> group (indent by p)
   else (from <> " " <> group p) `orElse` (from <> "\n" <> group (indent by p))
 
@@ -616,7 +657,7 @@ hangUngrouped'
   -> Pretty s
   -> Pretty s
   -> Pretty s
-hangUngrouped' from by p = if preferredHeight p > 0
+hangUngrouped' from by p = if isMultiLine p
   then from <> "\n" <> indent by p
   else (from <> " " <> p) `orElse` (from <> "\n" <> indent by p)
 
@@ -669,25 +710,49 @@ instance Monoid (Pretty s) where
       (_,_) -> pure p1 <> pure p2
 
 data Delta =
-  Delta { line :: !Int, col :: !Int, maxCol :: !Int }
-  deriving (Eq,Ord,Show)
+    -- | The number of columns.
+    SingleLine !Width
+    -- | The number of columns in the first, last, and longest lines.
+  | MultiLine !Width !Width !Width
+  deriving stock (Eq, Ord, Show)
 
-instance Semigroup Delta where (<>) = mappend
+instance Semigroup Delta where
+  SingleLine c <> SingleLine c2 = SingleLine (c + c2)
+  SingleLine c <> MultiLine fc lc mc =
+    let fc' = c + fc
+    in MultiLine fc' lc (max fc' mc)
+  MultiLine fc lc mc <> SingleLine c =
+    let lc' = lc + c
+    in MultiLine fc lc' (max lc' mc)
+  MultiLine fc lc mc <> MultiLine fc2 lc2 mc2 =
+    MultiLine fc lc2 (max mc (max mc2 (lc + fc2)))
+
 instance Monoid Delta where
-  mempty = Delta 0 0 0
-  mappend (Delta l c mc) (Delta 0 c2 mc2) =
-    Delta l (c + c2) (mc `max` mc2 `max` (c + c2))
-  mappend (Delta l _ mc) (Delta l2 c2 mc2) = Delta (l + l2) c2 (mc `max` mc2)
+  mempty = SingleLine 0
+  mappend = (<>)
+
+maxCol :: Delta -> Width
+maxCol = \case
+  SingleLine c -> c
+  MultiLine _ _ c -> c
+
+lastCol :: Delta -> Width
+lastCol = \case
+  SingleLine c -> c
+  MultiLine _ c _ -> c
 
 chDelta :: Char -> Delta
-chDelta '\n' = Delta 1 0 0
-chDelta _ = Delta 0 1 1
+chDelta '\n' = MultiLine 0 0 0
+chDelta _ = SingleLine 1
 
 preferredWidth :: Pretty s -> Width
-preferredWidth p = col (delta p)
+preferredWidth p = lastCol (delta p)
 
-preferredHeight :: Pretty s -> Width
-preferredHeight p = line (delta p)
+isMultiLine :: Pretty s -> Bool
+isMultiLine p =
+  case delta p of
+    SingleLine{} -> False
+    MultiLine{} -> True
 
 black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold, underline
   :: Pretty CT.ColorText -> Pretty CT.ColorText
