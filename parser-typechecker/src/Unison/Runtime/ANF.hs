@@ -718,7 +718,11 @@ fresh :: Var v => ANFM v v
 fresh = gets $ \(av, _) -> flip ABT.freshIn (typed Var.ANFBlank) av
 
 contextualize :: Var v => ANormalT v -> ANFM v (Ctx v, v)
-contextualize (AVar cv) = pure ([], cv)
+contextualize (AVar cv) = do
+  gvs <- groupVars
+  if cv `Set.notMember` gvs
+    then pure ([], cv)
+    else do bv <- fresh ; ([ST [bv] [BX] $ AApv cv []], bv) <$ avoid [bv]
 contextualize tm = do
   fv <- reset $ avoids (freeVarsT tm) *> fresh
   avoid [fv]
