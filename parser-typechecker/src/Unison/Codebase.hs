@@ -253,6 +253,8 @@ getTypeOfTerm c = \case
         <$> Map.lookup r Builtin.termRefTypes
 
 
+-- The dependents of a builtin type is the set of builtin terms which
+-- mention that type.
 dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
 dependents c r
     = Set.union (Builtin.builtinTypeDependents r)
