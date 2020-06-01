@@ -25,9 +25,16 @@ import Unison.Runtime.MCode
 
 import Unison.Util.EnumContainers as EC
 
+newtype Callback = Hook (Stack 'UN -> Stack 'BX -> IO ())
+
+instance Eq Callback where _ == _ = True
+instance Ord Callback where compare _ _ = EQ
+
 -- Evaluation stack
 data K
   = KE
+  -- callback hook
+  | CB Callback
   -- mark continuation with a prompt
   | Mark !(EnumSet Word64)
          !(EnumMap Word64 Closure)
@@ -370,6 +377,7 @@ instance Show K where
   show k = "[" ++ go "" k
     where
     go _ KE = "]"
+    go _ (CB _) = "]"
     go com (Push uf bf ua ba _ k)
       = com ++ show (uf,bf,ua,ba) ++ go "," k
     go com (Mark ps _ k) = com ++ "M" ++ show ps ++ go "," k

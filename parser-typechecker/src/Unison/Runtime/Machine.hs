@@ -51,15 +51,17 @@ eval0 !env !co = do
   bstk <- alloc
   mask $ \unmask -> eval unmask env mempty ustk bstk KE co
 
-apply0 :: Env -> Word64 -> IO Closure
-apply0 !env !i = do
+apply0
+  :: Maybe (Stack 'UN -> Stack 'BX -> IO ())
+  -> Env -> Word64 -> IO ()
+apply0 !callback !env !i = do
   ustk <- alloc
   bstk <- alloc
   mask $ \unmask ->
-      apply unmask env mempty ustk bstk KE True ZArgs comb
-        >> peek bstk
+    apply unmask env mempty ustk bstk k0 True ZArgs comb
   where
   comb = PAp (IC i $ env i) unull bnull
+  k0 = maybe KE (CB . Hook) callback
 
 lookupDenv :: Word64 -> DEnv -> Closure
 lookupDenv p denv = fromMaybe BlackHole $ EC.lookup p denv
@@ -241,6 +243,7 @@ repush unmask !env !ustk !bstk = go
   cs' = EC.restrictKeys denv ps
  go !denv (Push un bn ua ba nx sk) !k
    = go denv sk $ Push un bn ua ba nx k
+ go !_    (CB _) !_ = die "repush: impossible"
 {-# inline repush #-}
 
 moveArgs
@@ -617,6 +620,7 @@ yield unmask !env !denv !ustk !bstk !k = leap denv k
    ustk <- restoreFrame ustk ufsz uasz
    bstk <- restoreFrame bstk bfsz basz
    eval unmask env denv ustk bstk k nx
+ leap _ (CB (Hook f)) = f ustk bstk
  leap _ KE = pure ()
 {-# inline yield #-}
 
@@ -638,6 +642,8 @@ splitCont !denv !ustk !bstk !k !p
   = walk denv (asize ustk) (asize bstk) KE k
  where
  walk !denv !usz !bsz !ck KE
+   = die "fell off stack" >> finish denv usz bsz ck KE
+ walk !denv !usz !bsz !ck (CB _)
    = die "fell off stack" >> finish denv usz bsz ck KE
  walk !denv !usz !bsz !ck (Mark ps cs k)
    | EC.member p ps = finish denv' usz bsz ck k

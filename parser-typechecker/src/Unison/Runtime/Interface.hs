@@ -1,3 +1,4 @@
+{-# language DataKinds #-}
 {-# language ScopedTypeVariables #-}
 
 module Unison.Runtime.Interface
@@ -5,7 +6,7 @@ module Unison.Runtime.Interface
   ) where
 
 import Control.Exception (try)
-import Control.Monad (foldM)
+import Control.Monad (foldM, (<=<))
 
 import Data.Bifunctor (first,second)
 import Data.Foldable
@@ -32,6 +33,7 @@ import Unison.Runtime.Decompile
 import Unison.Runtime.Machine
 import Unison.Runtime.MCode
 import Unison.Runtime.Pattern
+import Unison.Runtime.Stack
 
 type Term v = Tm.Term v ()
 
@@ -141,10 +143,17 @@ compileTerm w tm ctx
     . addCombs (mapInsert w main aux)
     $ ctx
 
+watchHook :: IORef Closure -> Stack 'UN -> Stack 'BX -> IO ()
+watchHook r _ bstk = peek bstk >>= writeIORef r
+
 evalInContext
   :: Var v => EvalCtx v -> Word64 -> IO (Either Error (Term v))
 evalInContext ctx w = do
-  result <- fmap (first prettyError) . try $ apply0 (combs ctx !) w
+  r <- newIORef BlackHole
+  let hook = watchHook r
+  result <- traverse (const $ readIORef r)
+          . first prettyError
+        <=< try $ apply0 (Just hook) (combs ctx !) w
   pure $ decompile (`EC.lookup` backrefTy ctx)
                    (`EC.lookup` backrefTm ctx)
            =<< result
