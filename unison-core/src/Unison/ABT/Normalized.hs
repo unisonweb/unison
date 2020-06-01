@@ -7,6 +7,9 @@
 {-# language PatternSynonyms #-}
 {-# language DeriveTraversable #-}
 
+{-# language UndecidableInstances #-}
+{-# language QuantifiedConstraints #-}
+
 module Unison.ABT.Normalized
   ( ABT(..)
   , Term(.., TAbs, TTm, TAbss)
@@ -39,6 +42,21 @@ data Term f v = Term
   { freeVars :: Set v
   , out :: ABT f v
   }
+
+instance (forall a b. Show a => Show b => Show (f a b), Show v)
+      => Show (ABT f v)
+  where
+  showsPrec p a = showParen (p >= 9) $ case a of
+    Abs v tm
+      -> showString "Abs " . showsPrec 10 v
+       . showString " " . showsPrec 10 tm
+    Tm e -> showString "Tm " . showsPrec 10 e
+
+instance (forall a b. Show a => Show b => Show (f a b), Show v)
+      => Show (Term f v)
+  where
+  showsPrec p (Term _ e)
+    = showParen (p >= 9) $ showString "Term " . showsPrec 10 e
 
 pattern TAbs :: Var v => v -> Term f v -> Term f v
 pattern TAbs u bd <- Term _ (Abs u bd)

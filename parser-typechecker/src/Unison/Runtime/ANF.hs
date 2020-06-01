@@ -681,11 +681,12 @@ type Ctx v = [Cte v]
 -- Should be a completely closed term
 data SuperNormal v
   = Lambda { conventions :: [Mem], bound :: ANormal v }
+  deriving (Show)
 data SuperGroup v
   = Rec
   { group :: [(v, SuperNormal v)]
   , entry :: SuperNormal v
-  }
+  } deriving (Show)
 
 type ANFM v
   = ReaderT (Set v, Reference -> Word64, Reference -> RTag)
