@@ -11,7 +11,7 @@ import           Control.Error.Safe             (rightMay)
 import           Control.Exception              ( throwTo, AsyncException(UserInterrupt) )
 import           Data.Configurator.Types        ( Config )
 import           System.Directory               ( getCurrentDirectory, removeDirectoryRecursive )
-import           System.Environment             ( getArgs )
+import           System.Environment             ( getArgs, getProgName )
 import           System.Mem.Weak                ( deRefWeak )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Editor.VersionParser as VP
@@ -38,59 +38,59 @@ import qualified Data.Text as Text
 import qualified Data.Configurator as Config
 import Text.Megaparsec (runParser)
 
-usage :: P.Pretty P.ColorText
-usage = P.callout "🌻" $ P.lines [
+usage :: String -> P.Pretty P.ColorText
+usage executableStr = P.callout "🌻" $ P.lines [
   P.bold "Usage instructions for the Unison Codebase Manager",
   "You are running version: " <> P.string Version.gitDescribe,
   "",
-  P.bold "ucm",
+  P.bold executable,
   P.wrap "Starts Unison interactively, using the codebase in the home directory.",
   "",
-  P.bold "ucm -codebase path/to/codebase",
+  P.bold $ executable <> " -codebase path/to/codebase",
   P.wrap "Starts Unison interactively, using the specified codebase. This flag can also be set for any of the below commands.",
   "",
-  P.bold "ucm run .mylib.mymain",
+  P.bold $ executable <> " run .mylib.mymain",
   P.wrap "Executes the definition `.mylib.mymain` from the codebase, then exits.",
   "",
-  P.bold "ucm run.file foo.u mymain",
+  P.bold $ executable <> " run.file foo.u mymain",
   P.wrap "Executes the definition called `mymain` in `foo.u`, then exits.",
   "",
-  P.bold "ucm run.pipe mymain",
+  P.bold $ executable <> " run.pipe mymain",
   P.wrap "Executes the definition called `mymain` from a `.u` file read from the standard input, then exits.",
   "",
-  P.bold "ucm transcript mytranscript.md",
+  P.bold $ executable <> " transcript mytranscript.md",
   P.wrap $ "Executes the `mytranscript.md` transcript and creates"
         <> "`mytranscript.output.md` if successful. Exits after completion, and deletes"
         <> "the temporary directory created."
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
-  P.bold "ucm transcript -save-codebase mytranscript.md",
+  P.bold $ executable <> " transcript -save-codebase mytranscript.md",
   P.wrap $ "Executes the `mytranscript.md` transcript and creates"
         <> "`mytranscript.output.md` if successful. Exits after completion, and saves"
         <> "the resulting codebase to a new directory on disk."
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
-  P.bold "ucm transcript.fork mytranscript.md",
+  P.bold $ executable <> " transcript.fork mytranscript.md",
   P.wrap $ "Executes the `mytranscript.md` transcript in a copy of the current codebase"
         <> "and creates `mytranscript.output.md` if successful. Exits after completion."
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
-  P.bold "ucm transcript.fork -save-codebase mytranscript.md",
+  P.bold $ executable <> " transcript.fork -save-codebase mytranscript.md",
   P.wrap $ "Executes the `mytranscript.md` transcript in a copy of the current codebase"
         <> "and creates `mytranscript.output.md` if successful. Exits after completion,"
         <> "and saves the resulting codebase to a new directory on disk."
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
-  P.bold "ucm version",
+  P.bold $ executable <> " version",
   "Prints version of Unison then quits.",
   "",
-  P.bold "ucm help",
-  "Prints this help."
-  ]
+  P.bold $ executable <> " help",
+  "Prints this help."]
+      where executable = (P.text . Text.pack) executableStr
 
 installSignalHandlers :: IO ()
 installSignalHandlers = do
@@ -109,6 +109,7 @@ installSignalHandlers = do
 main :: IO ()
 main = do
   args <- getArgs
+  progName <- getProgName
   -- hSetBuffering stdout NoBuffering -- cool
 
   _ <- installSignalHandlers
@@ -132,7 +133,7 @@ main = do
       launch currentDir config theCodebase branchCache []
     [version] | isFlag "version" version ->
       putStrLn $ "ucm version: " ++ Version.gitDescribe
-    [help] | isFlag "help" help -> PT.putPrettyLn usage
+    [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
     ["init"] -> FileCodebase.initCodebaseAndExit mcodepath
     "run" : [mainName] -> do
       theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
@@ -162,7 +163,7 @@ main = do
       "-save-codebase" : transcripts -> runTranscripts branchCache True True mcodepath transcripts
       _                              -> runTranscripts branchCache True False mcodepath args'
     _ -> do
-      PT.putPrettyLn usage
+      PT.putPrettyLn (usage progName)
       Exit.exitWith (Exit.ExitFailure 1)
 
 prepareTranscriptDir :: Branch.Cache IO -> Bool -> Maybe FilePath -> IO FilePath
@@ -219,6 +220,7 @@ runTranscripts' branchCache mcodepath transcriptDir args = do
 
 runTranscripts :: Branch.Cache IO -> Bool -> Bool -> Maybe FilePath -> [String] -> IO ()
 runTranscripts branchCache inFork keepTemp mcodepath args = do
+  progName <- getProgName
   transcriptDir <- prepareTranscriptDir branchCache inFork mcodepath
   completed <- runTranscripts' branchCache (Just transcriptDir) transcriptDir args
   when completed $ do
@@ -234,7 +236,7 @@ runTranscripts branchCache inFork keepTemp mcodepath args = do
 
   unless completed $ do
       unless keepTemp $ removeDirectoryRecursive transcriptDir
-      PT.putPrettyLn usage
+      PT.putPrettyLn (usage progName)
       Exit.exitWith (Exit.ExitFailure 1)
 
 initialPath :: Path.Absolute
