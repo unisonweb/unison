@@ -19,6 +19,7 @@ module Unison.Runtime.MCode
   , emitCombs
   , emitComb
   , prettyCombs
+  , prettyComb
   ) where
 
 import GHC.Stack (HasCallStack)
@@ -57,6 +58,7 @@ import Unison.Runtime.ANF
   , pattern TCom
   , pattern TCon
   , pattern TKon
+  , pattern TPrm
   , pattern TReq
   , pattern THnd
   , pattern TShift
@@ -531,6 +533,9 @@ emitSection _   ctx (TKon k args)
   | Just (i, BX) <- ctxResolve ctx k = Jump i $ emitArgs ctx args
   | Nothing <- ctxResolve ctx k = emitSectionVErr k
   | otherwise = error $ "emitSection: continuations are boxed"
+emitSection _   ctx (TPrm p args)
+  = Ins (emitPOp p $ emitArgs ctx args)
+  $ Yield $ UArg1 0
 emitSection _   _   (TLit l)
   = Ins (emitLit l)
   . Yield $ UArg1 0
@@ -568,7 +573,7 @@ emitSection rec ctx (THnd rts h df b)
 emitSection rec ctx (TShift i v e)
   = Ins (Capture $ rawTag i)
   $ emitSection rec ((Just v, BX):ctx) e
-emitSection _ _ _ = error "emitSection: unhandled code"
+emitSection _ _ tm = error $ "emitSection: unhandled code: " ++ show tm
 
 matchCallingError :: Mem -> Branched v -> String
 matchCallingError cc b = "(" ++ show cc ++ "," ++ brs ++ ")"
@@ -593,7 +598,7 @@ emitLet _    ctx (AApp (FComb n) args)
   -- or not here. We aren't carrying the information here yet, though.
   | False -- not saturated
   = Ins . Name n $ emitArgs ctx args
-emitLet _   ctx (AApp (FCon r n) args) -- TODO: use reference number
+emitLet _   ctx (AApp (FCon r n) args)
   = Ins . Pack (packTags r n) $ emitArgs ctx args
 emitLet _   ctx (AApp (FPrim p) args)
   = Ins . either emitPOp emitIOp p $ emitArgs ctx args
