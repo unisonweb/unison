@@ -865,7 +865,9 @@ typeReferences
   , Ty.optionalRef
   , Ty.unitRef
   , Ty.intRef
+  , Ty.floatRef
   , Ty.booleanRef
+  , Ty.textRef
   , eitherReference
   , filePathReference
   , bufferModeReference
