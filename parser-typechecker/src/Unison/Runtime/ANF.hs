@@ -876,6 +876,10 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   = AccumIntegral Ty.intRef Nothing . EC.mapSingleton i <$> anfTerm bd
   | NatP _ i <- p
   = AccumIntegral Ty.natRef Nothing . EC.mapSingleton i <$> anfTerm bd
+  | BooleanP _ b <- p
+  , t <- if b then 1 else 0
+  = AccumData Ty.booleanRef Nothing
+  . EC.mapSingleton t . ([],) <$> anfTerm bd
   | ConstructorP _ r t ps <- p = do
     us <- expandBindings ps vs
     AccumData r Nothing
