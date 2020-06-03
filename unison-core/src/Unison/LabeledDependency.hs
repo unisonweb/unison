@@ -18,7 +18,7 @@ module Unison.LabeledDependency
 import Unison.Prelude hiding (fold)
 
 import Unison.ConstructorType (ConstructorType(Data, Effect))
-import Unison.Reference (Reference(DerivedId), Id)
+import Unison.Reference (Reference, pattern DerivedId, Id)
 import Unison.Referent (Referent, pattern Ref, pattern Con, Referent'(Ref', Con'))
 import qualified Data.Set as Set
 

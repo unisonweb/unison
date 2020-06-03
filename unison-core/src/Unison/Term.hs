@@ -27,16 +27,17 @@ import           Text.Show
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import qualified Unison.Hash as Hash
+import           Unison.Hash (Hash)
 import           Unison.Hashable (Hashable1, accumulateToken)
 import qualified Unison.Hashable as Hashable
 import           Unison.Names3 ( Names0 )
 import qualified Unison.Names3 as Names
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
-import           Unison.Reference (Reference, pattern Builtin)
+import           Unison.Reference (Reference, ReferenceH, pattern Builtin)
 import qualified Unison.Reference as Reference
 import qualified Unison.Reference.Util as ReferenceUtil
-import           Unison.Referent (Referent)
+import           Unison.Referent (Referent, ReferentH)
 import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
@@ -58,7 +59,7 @@ data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
 
 -- | Base functor for terms in the Unison language
 -- We need `typeVar` because the term and type variables may differ.
-data F typeVar typeAnn patternAnn a
+data F h typeVar typeAnn patternAnn a
   = Int Int64
   | Nat Word64
   | Float Double
@@ -66,11 +67,11 @@ data F typeVar typeAnn patternAnn a
   | Text Text
   | Char Char
   | Blank (B.Blank typeAnn)
-  | Ref Reference
+  | Ref (ReferenceH h)
   -- First argument identifies the data type,
   -- second argument identifies the constructor
-  | Constructor Reference Int
-  | Request Reference Int
+  | Constructor (ReferenceH h) Int
+  | Request (ReferenceH h) Int
   | Handle a a
   | App a a
   | Ann a (Type typeVar typeAnn)
@@ -96,19 +97,21 @@ data F typeVar typeAnn patternAnn a
   --     [ (Constructor 0 [Var], ABT.abs n rhs1)
   --     , (Constructor 1 [], rhs2) ]
   | Match a [MatchCase patternAnn a]
-  | TermLink Referent
-  | TypeLink Reference
+  | TermLink (ReferentH h)
+  | TypeLink (ReferenceH h)
   deriving (Foldable,Functor,Generic,Generic1,Traversable)
 
 type IsTop = Bool
 
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
 type Term v a = Term2 v a a v a
+type TermH h v a = Term2H h v a a v a
 -- | Allow type variables and term variables to differ
 type Term' vt v a = Term2 vt a a v a
 -- | Allow type variables, term variables, type annotations and term annotations
 -- to all differ
-type Term2 vt at ap v a = ABT.Term (F vt at ap) v a
+type Term2 vt at ap v a = ABT.Term (F Hash vt at ap) v a
+type Term2H h vt at ap v a = ABT.Term (F h vt at ap) v a
 -- | Like `Term v a`, but with only () for type and pattern annotations.
 type Term3 v a = Term2 v () () v a
 
@@ -176,7 +179,7 @@ bindSomeNames ns e = bindNames keepFree ns e where
 
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR
-prepareTDNR :: Var v => ABT.Term (F vt b ap) v b -> ABT.Term (F vt b ap) v b
+prepareTDNR :: Var v => Term2 vt b ap v b -> Term2 vt b ap v b
 prepareTDNR t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
   where f (ABT.Term _ (a, bound) (ABT.Var v)) | Set.notMember v bound =
           Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
@@ -220,21 +223,23 @@ typeMap f = go
 
 extraMap'
   :: (Ord vt, Ord vt')
-  => (vt -> vt')
+  => (h -> h')
+  -> (vt -> vt')
   -> (at -> at')
   -> (ap -> ap')
-  -> Term2 vt at ap v a
-  -> Term2 vt' at' ap' v a
-extraMap' vtf atf apf = ABT.extraMap (extraMap vtf atf apf)
+  -> Term2H h vt at ap v a
+  -> Term2H h' vt' at' ap' v a
+extraMap' hf vtf atf apf = ABT.extraMap (extraMap hf vtf atf apf)
 
 extraMap
   :: (Ord vt, Ord vt')
-  => (vt -> vt')
+  => (h -> h')
+  -> (vt -> vt')
   -> (at -> at')
   -> (ap -> ap')
-  -> F vt at ap a
-  -> F vt' at' ap' a
-extraMap vtf atf apf = \case
+  -> F h vt at ap a
+  -> F h' vt' at' ap' a
+extraMap hf vtf atf apf = \case
   Int x -> Int x
   Nat x -> Nat x
   Float x -> Float x
@@ -242,9 +247,9 @@ extraMap vtf atf apf = \case
   Text x -> Text x
   Char x -> Char x
   Blank x -> Blank (fmap atf x)
-  Ref x -> Ref x
-  Constructor x y -> Constructor x y
-  Request x y -> Request x y
+  Ref x -> Ref (Reference.hmap hf x)
+  Constructor x y -> Constructor (Reference.hmap hf x) y
+  Request x y -> Request (Reference.hmap hf x) y
   Handle x y -> Handle x y
   App x y -> App x y
   Ann tm x -> Ann tm (ABT.amap atf (ABT.vmap vtf x))
@@ -256,8 +261,8 @@ extraMap vtf atf apf = \case
   LetRec x y z -> LetRec x y z
   Let x y z -> Let x y z
   Match tm l -> Match tm (map (matchCaseExtraMap apf) l)
-  TermLink r -> TermLink r
-  TypeLink r -> TypeLink r
+  TermLink r -> TermLink (Referent.rmap (Reference.hmap hf) r)
+  TypeLink r -> TypeLink (Reference.hmap hf r)
 
 matchCaseExtraMap :: (loc -> loc') -> MatchCase loc a -> MatchCase loc' a
 matchCaseExtraMap f (MatchCase p x y) = MatchCase (fmap f p) x y
@@ -673,7 +678,7 @@ let1' isTop bindings e = foldr f e bindings
 unLet1
   :: Var v
   => Term' vt v a
-  -> Maybe (IsTop, Term' vt v a, ABT.Subst (F vt a a) v a)
+  -> Maybe (IsTop, Term' vt v a, ABT.Subst (F Hash vt a a) v a)
 unLet1 (ABT.Tm' (Let isTop b (ABT.Abs' subst))) = Just (isTop, b, subst)
 unLet1 _ = Nothing
 
@@ -968,7 +973,7 @@ fromReferent a = \case
     CT.Data -> constructor a r i
     CT.Effect -> request a r i
 
-instance Var v => Hashable1 (F v a p) where
+instance Var v => Hashable1 (F Hash v a p) where
   hash1 hashCycle hash e
     = let (tag, hashed, varint) =
             (Hashable.Tag, Hashable.Hashed, Hashable.Nat . fromIntegral)
@@ -1042,10 +1047,10 @@ instance Var v => Hashable1 (F v a p) where
 
 -- mostly boring serialization code below ...
 
-instance (Eq a, ABT.Var v) => Eq1 (F v a p) where (==#) = (==)
-instance (Show v) => Show1 (F v a p) where showsPrec1 = showsPrec
+instance (Eq h, Eq a, ABT.Var v) => Eq1 (F h v a p) where (==#) = (==)
+instance (Show (ReferenceH h), Show v) => Show1 (F h v a p) where showsPrec1 = showsPrec
 
-instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
+instance (Eq h, ABT.Var vt, Eq at, Eq a) => Eq (F h vt at p a) where
   Int x == Int y = x == y
   Nat x == Nat y = x == y
   Float x == Float y = x == y
@@ -1073,7 +1078,7 @@ instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   _ == _ = False
 
 
-instance (Show v, Show a) => Show (F v a0 p a) where
+instance (Show (ReferenceH h), Show v, Show a) => Show (F h v a0 p a) where
   showsPrec = go
    where
     showConstructor r n = shows r <> s "#" <> shows n

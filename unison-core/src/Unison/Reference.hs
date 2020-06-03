@@ -5,10 +5,14 @@
 
 module Unison.Reference
   (Reference,
+   ReferenceH,
      pattern Builtin,
      pattern Derived,
      pattern DerivedId,
-   Id(..),
+   IdH, pattern IdH,
+   Id, pattern Id,
+   hmap,
+   hmapId,
    derivedBase32Hex,
    Component, members,
    components,
@@ -38,32 +42,46 @@ import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import Data.Char (isDigit)
 
-data Reference
+type Reference = ReferenceH H.Hash
+data ReferenceH h
   = Builtin Text.Text
   -- `Derived` can be part of a strongly connected component.
   -- The `Pos` refers to a particular element of the component
   -- and the `Size` is the number of elements in the component.
   -- Using an ugly name so no one tempted to use this
-  | DerivedId Id deriving (Eq,Ord,Generic)
+  | DerivedId (IdH h) deriving (Eq,Ord,Generic)
 
-pattern Derived h i n = DerivedId (Id h i n)
+pattern Derived h i n = DerivedId (IdH h i n)
 
 -- A good idea, but causes a weird problem with view patterns in PatternP.hs in ghc 8.4.3
 --{-# COMPLETE Builtin, Derived #-}
 
-data Id = Id H.Hash Pos Size deriving (Eq,Ord,Generic)
+pattern Id :: H.Hash -> Pos -> Size -> Id
+pattern Id h i n = IdH h i n
+{-# COMPLETE Id #-}
 
-unsafeId :: Reference -> Id
+type Id = IdH H.Hash
+data IdH h = IdH h Pos Size deriving (Eq,Ord,Generic)
+
+hmap :: (h -> h') -> ReferenceH h -> ReferenceH h'
+hmap f = \case
+  Builtin t -> Builtin t
+  DerivedId i -> DerivedId (hmapId f i)
+
+hmapId :: (h -> h') -> IdH h -> IdH h'
+hmapId f (IdH h pos size) = IdH (f h) pos size
+
+unsafeId :: ReferenceH h -> IdH h
 unsafeId (Builtin b) =
   error $ "Tried to get the hash of builtin " <> Text.unpack b <> "."
 unsafeId (DerivedId x) = x
 
 -- todo: move these to ShortHash module?
 -- but Show Reference currently depends on SH
-toShortHash :: Reference -> ShortHash
+toShortHash :: Show h => ReferenceH h -> ShortHash
 toShortHash (Builtin b) = SH.Builtin b
-toShortHash (Derived h _ 1) = SH.ShortHash (H.base32Hex h) Nothing Nothing
-toShortHash (Derived h i n) = SH.ShortHash (H.base32Hex h) index Nothing
+toShortHash (Derived h _ 1) = SH.ShortHash (Text.pack (show h)) Nothing Nothing
+toShortHash (Derived h i n) = SH.ShortHash (Text.pack (show h)) index Nothing
   where
     -- todo: remove `n` parameter; must also update readSuffix
     index = Just $ showSuffix i n
