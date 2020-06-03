@@ -18,6 +18,7 @@ module Unison.Runtime.MCode
   , ucount
   , emitCombs
   , emitComb
+  , prettyCombs
   ) where
 
 import GHC.Stack (HasCallStack)
@@ -875,3 +876,52 @@ demuxArgs as0
       (us,[]) -> UArgN $ primArrayFromList us
       -- TODO: handle ranges
       (us,bs) -> DArgN (primArrayFromList us) (primArrayFromList bs)
+
+indent :: Int -> ShowS
+indent ind = showString (replicate (ind*2) ' ')
+
+prettyCombs
+  :: (Comb, EnumMap Word64 Comb, Word64)
+  -> ShowS
+prettyCombs (c, es, w)
+  = foldr (\(w,c) r -> prettyComb w c . showString "\n" . r)
+      id (mapToList es)
+  . showString "\n" . prettyComb w c
+
+prettyComb :: Word64 -> Comb -> ShowS
+prettyComb w (Lam _ _ _ _ s)
+  = shows w . showString ":\n" . prettySection 2 s
+
+prettySection :: Int -> Section -> ShowS
+prettySection ind sec
+  = indent ind . case sec of
+      App _ r as ->
+        showString "App " . showsPrec 12 r . showString " " . shows as
+      Call _ i as ->
+        showString "Call " . shows i . showString " " . shows as
+      Jump i as ->
+        showString "Jump " . shows i . showString " " . shows as
+      Match i bs ->
+        showString "Match " . shows i . showString "\n"
+          . prettyBranches (ind+1) bs
+      Yield as -> showString "Yield " . shows as
+      Ins i nx ->
+        shows i . showString "\n" . prettySection ind nx
+      Let s n ->
+          showString "Let\n" . prettySection (ind+2) s
+        . showString "\n" . prettySection ind n
+      Die s -> showString $ "Die " ++ s
+      Exit -> showString "Exit"
+
+prettyBranches :: Int -> Branch -> ShowS
+prettyBranches ind bs
+  = case bs of
+      Test1 i e df -> pdf df . pcase i e
+      Test2 i ei j ej df -> pdf df . pcase i ei . pcase j ej
+      TestT df m ->
+        pdf df . foldr (\(i,e) r -> pcase i e . r) id (mapToList m)
+  where
+  pdf e = indent ind . showString "DFLT ->\n" . prettySection (ind+1) e
+  pcase i e
+    = showString "\n" . indent ind . shows i . showString " ->\n"
+    . prettySection (ind+1) e
