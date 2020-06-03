@@ -533,8 +533,7 @@ emitSection _   ctx (TKon k args)
   | otherwise = error $ "emitSection: continuations are boxed"
 emitSection _   _   (TLit l)
   = Ins (emitLit l)
-  . Ins (Pack 0 $ UArg1 0)
-  . Yield $ BArg1 0
+  . Yield $ UArg1 0
 emitSection rec ctx (TMatch v bs)
   | Just (i,BX) <- ctxResolve ctx v
   , MatchData _ cs df <- bs
