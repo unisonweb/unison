@@ -10,7 +10,7 @@ packages:
 - unison-core
 
 #compiler-check: match-exact
-resolver: lts-15.13
+resolver: lts-15.15
 
 extra-deps:
 - github: unisonweb/configurator
