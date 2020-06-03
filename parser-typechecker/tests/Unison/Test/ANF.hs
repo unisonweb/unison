@@ -63,7 +63,6 @@ denormalize (TLit l) = case l of
   I i -> Term.int () i
   N n -> Term.nat () n
   F f -> Term.float () f
-  B b -> Term.boolean () b
   T t -> Term.text () t
   C c -> Term.char () c
 denormalize (THnd _  _ _ _)

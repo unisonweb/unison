@@ -479,7 +479,6 @@ matchLit :: Term v a -> Maybe Lit
 matchLit (Int' i) = Just $ I i
 matchLit (Nat' n) = Just $ N n
 matchLit (Float' f) = Just $ F f
-matchLit (Boolean' b) = Just $ B b
 matchLit (Text' t) = Just $ T t
 matchLit (Char' c) = Just $ C c
 matchLit _ = Nothing
@@ -625,7 +624,6 @@ data Lit
   = I Int64
   | N Word64
   | F Double
-  | B Bool
   | T Text
   | C Char
   deriving (Show)
@@ -634,7 +632,6 @@ litRef :: Lit -> Reference
 litRef (I _) = Ty.intRef
 litRef (N _) = Ty.natRef
 litRef (F _) = Ty.floatRef
-litRef (B _) = Ty.booleanRef
 litRef (T _) = Ty.textRef
 litRef (C _) = Ty.charRef
 
@@ -846,6 +843,9 @@ anfBlock (Constructor' r t)
 anfBlock (Request' r t) = do
   r <- resolveType r
   pure ([], AReq r (toEnum t) [])
+anfBlock (Boolean' b) =
+  resolveType Ty.booleanRef <&> \rt -> 
+    ([], ACon rt (if b then 1 else 0) [])
 anfBlock (Lit' l) = do
   lv <- fresh
   rt <- resolveType $ litRef l
