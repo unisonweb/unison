@@ -650,6 +650,12 @@ emitPOp p@ANF.EQLF = error $ "unhandled prim op: " ++ show p
 emitPOp ANF.FORK = \case
   BArg1 i -> Fork $ App True (Stk i) ZArgs
   _ -> error "fork takes exactly one boxed argument"
+emitPOp ANF.PRNT = \case
+  UArg1 i -> Print i
+  _ -> error "print takes exactly one unboxed argument"
+emitPOp ANF.INFO = \case
+  ZArgs -> Info "debug"
+  _ -> error "info takes no arguments"
 
 emitIOp :: ANF.IOp -> Args -> Instr
 emitIOp iop = ForeignCall True (iopToForeign iop)

@@ -656,6 +656,7 @@ data POp
   | LESF | LEQF | EQLF        -- <,<=,==
   -- Concurrency
   | FORK
+  | PRNT | INFO
   deriving (Show,Eq,Ord)
 
 data IOp
