@@ -1,5 +1,6 @@
 {-# language RankNTypes #-}
 {-# language ViewPatterns #-}
+{-# language PatternGuards #-}
 {-# language TypeApplications #-}
 {-# language OverloadedStrings #-}
 {-# language ScopedTypeVariables #-}
@@ -875,7 +876,9 @@ numberedTermLookup
   = mapFromList . zip [1..] . Map.elems $ builtinLookup
 
 rtag :: Reference -> RTag
-rtag = (builtinTypeNumbering Map.!)
+rtag r | Just x <- Map.lookup r builtinTypeNumbering = x
+       | otherwise = error $ "rtag: unknown reference: " ++ show r
+
 
 builtinTermNumbering :: Map Reference Word64
 builtinTermNumbering

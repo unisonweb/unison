@@ -22,7 +22,7 @@ import Unison.Term
 import Unison.Var (Var, typed, pattern Pattern)
 
 import Data.Map.Strict as Map
-  (Map, fromListWith, toList, (!), insertWith)
+  (Map, fromListWith, lookup, toList, insertWith)
 
 -- newtype DataSpec = DS (Map Reference [Int])
 
@@ -103,7 +103,10 @@ splitRow _ _ = error "splitRow: bad index"
 renameRow :: Var v => Map v v -> PatternRow v a -> PatternRow v a
 renameRow m (PR p0 g0 b0) = PR p g b
   where
-  p = (fmap.fmap.fmap) (m!) p0
+  access k
+    | Just v <- Map.lookup k m = v
+    | otherwise = k
+  p = (fmap.fmap.fmap) access p0
   g = changeVars m <$> g0
   b = changeVars m b0
 

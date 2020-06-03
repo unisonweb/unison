@@ -865,7 +865,7 @@ emitLit l = Lit i
   i = case l of
         ANF.I i -> fromIntegral i
         ANF.N n -> fromIntegral n
-        _ -> error "unhandled literal"
+        _ -> error $ "unhandled literal: " ++ show l
 
 emitArgs :: Var v => Ctx v -> [v] -> Args
 emitArgs ctx args

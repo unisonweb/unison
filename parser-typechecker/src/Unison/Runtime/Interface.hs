@@ -1,4 +1,5 @@
 {-# language DataKinds #-}
+{-# language PatternGuards #-}
 {-# language ScopedTypeVariables #-}
 
 module Unison.Runtime.Interface
@@ -125,12 +126,17 @@ addTermBackrefs refs ctx = ctx { backrefTm = refs <> backrefTm ctx }
 refresh :: Word64 -> EvalCtx v -> EvalCtx v
 refresh w ctx = ctx { freshTm = w }
 
+ref :: Ord k => Show k => Map.Map k v -> k -> v
+ref m k
+  | Just x <- Map.lookup k m = x
+  | otherwise = error $ "unknown reference: " ++ show k
+
 compileTerm
   :: Var v => Word64 -> Term v -> EvalCtx v -> EvalCtx v
 compileTerm w tm ctx
   = finish
   . emitCombs frsh
-  . superNormalize (refTm ctx Map.!) (refTy ctx Map.!)
+  . superNormalize (ref $ refTm ctx) (ref $ refTy ctx)
   . lamLift
   . splitPatterns
   $ tm
@@ -146,6 +152,11 @@ compileTerm w tm ctx
 watchHook :: IORef Closure -> Stack 'UN -> Stack 'BX -> IO ()
 watchHook r _ bstk = peek bstk >>= writeIORef r
 
+combEnv :: EvalCtx v -> Word64 -> Comb
+combEnv ctx w
+  | Just c <- EC.lookup w (combs ctx) = c
+  | otherwise = error $ "bad combinator reference: " ++ show w
+
 evalInContext
   :: Var v => EvalCtx v -> Word64 -> IO (Either Error (Term v))
 evalInContext ctx w = do
@@ -153,7 +164,7 @@ evalInContext ctx w = do
   let hook = watchHook r
   result <- traverse (const $ readIORef r)
           . first prettyError
-        <=< try $ apply0 (Just hook) (combs ctx !) w
+        <=< try $ apply0 (Just hook) (combEnv ctx) w
   pure $ decompile (`EC.lookup` backrefTy ctx)
                    (`EC.lookup` backrefTm ctx)
            =<< result
