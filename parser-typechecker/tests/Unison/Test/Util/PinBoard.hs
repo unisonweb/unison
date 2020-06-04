@@ -6,8 +6,6 @@ module Unison.Test.Util.PinBoard
   )
 where
 
-import Control.DeepSeq (NFData, force)
-import Control.Exception (evaluate)
 import qualified Data.ByteString as ByteString
 import EasyTest
 import GHC.Exts (reallyUnsafePtrEquality#, isTrue#)
@@ -17,8 +15,8 @@ test :: Test ()
 test =
   scope "util.pinboard" . tests $
     [ scope "pinning equal values stores only one" $ do
-        b0 <- nf (ByteString.singleton 0)
-        b1 <- nf (ByteString.copy b0)
+        let b0 = ByteString.singleton 0
+        let b1 = ByteString.copy b0
 
         board <- PinBoard.new
 
@@ -40,7 +38,3 @@ test =
 expectSamePointer :: a -> a -> Test ()
 expectSamePointer x y =
   expect' (isTrue# (reallyUnsafePtrEquality# x y))
-
-nf :: NFData a => a -> Test a
-nf =
-  io . evaluate . force

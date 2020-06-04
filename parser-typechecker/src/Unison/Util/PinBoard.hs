@@ -47,7 +47,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Tuple (swap)
 import System.Mem.Weak (Weak, deRefWeak, mkWeakPtr)
-import Unison.Prelude hiding (empty)
+import Unison.Prelude
 
 -- | A "pin board" is a place to pin values; semantically, it's a set, but differs in a few ways:
 --

@@ -316,7 +316,6 @@ executable tests
     base,
     bytestring,
     containers,
-    deepseq,
     directory,
     easytest,
     errors,
