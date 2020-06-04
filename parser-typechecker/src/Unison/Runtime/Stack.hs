@@ -354,6 +354,9 @@ pokeN :: Stack 'UN -> Word64 -> IO ()
 pokeN (US _ _ sp stk) n = writeByteArray stk sp n
 {-# inline pokeN #-}
 
+pokeD :: Stack 'UN -> Double -> IO ()
+pokeD (US _ _ sp stk) d = writeByteArray stk sp d
+
 pokeOffN :: Stack 'UN -> Int -> Word64 -> IO ()
 pokeOffN (US _ _ sp stk) i n = writeByteArray stk (sp-i) n
 {-# inline pokeOffN #-}

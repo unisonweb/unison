@@ -846,6 +846,8 @@ anfBlock (Request' r t) = do
 anfBlock (Boolean' b) =
   resolveType Ty.booleanRef <&> \rt -> 
     ([], ACon rt (if b then 1 else 0) [])
+anfBlock (Lit' l@(T _)) =
+  pure ([], ALit l)
 anfBlock (Lit' l) = do
   lv <- fresh
   rt <- resolveType $ litRef l

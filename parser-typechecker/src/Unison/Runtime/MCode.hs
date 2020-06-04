@@ -7,6 +7,7 @@
 module Unison.Runtime.MCode
   ( Args'(..)
   , Args(..)
+  , MLit(..)
   , Instr(..)
   , Section(..)
   , Comb(..)
@@ -332,6 +333,12 @@ data Prim2
   | EQLI | LESI | LESN | LEQI | LEQN
   deriving (Show, Eq, Ord)
 
+data MLit
+  = MI !Int
+  | MD !Double
+  | MT !Text
+  deriving (Show, Eq, Ord)
+
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
 data Instr
@@ -375,9 +382,8 @@ data Instr
   -- Unpack the contents of a data type onto the stack
   | Unpack !Int -- stack index of data to unpack
 
-
-  -- Push a particular value onto the unboxed stack
-  | Lit !Int -- value to push onto the stack
+  -- Push a particular value onto the appropriate stack
+  | Lit !MLit -- value to push onto the stack
 
   -- Print a value on the unboxed stack
   | Print !Int -- index of the primitive value to print
@@ -860,12 +866,12 @@ emitSumCase rec ctx v (ccs, TAbss vs bo)
   (lctx, rctx) = breakAfter ((Just v ==) . fst) ctx
 
 emitLit :: ANF.Lit -> Instr
-emitLit l = Lit i
-  where
-  i = case l of
-        ANF.I i -> fromIntegral i
-        ANF.N n -> fromIntegral n
-        _ -> error $ "unhandled literal: " ++ show l
+emitLit l = Lit $ case l of
+  ANF.I i -> MI $ fromIntegral i
+  ANF.N n -> MI $ fromIntegral n
+  ANF.C c -> MI $ fromEnum c
+  ANF.F d -> MD $ d
+  ANF.T t -> MT $ t
 
 emitArgs :: Var v => Ctx v -> [v] -> Args
 emitArgs ctx args

@@ -105,9 +105,17 @@ exec _      !_   !denv !ustk !bstk !k (Print i) = do
   m <- peekOff ustk i
   print m
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (Lit n) = do
+exec _      !_   !denv !ustk !bstk !k (Lit (MI n)) = do
   ustk <- bump ustk
   poke ustk n
+  pure (denv, ustk, bstk, k)
+exec _      !_   !denv !ustk !bstk !k (Lit (MD d)) = do
+  ustk <- bump ustk
+  pokeD ustk d
+  pure (denv, ustk, bstk, k)
+exec _      !_   !denv !ustk !bstk !k (Lit (MT t)) = do
+  bstk <- bump bstk
+  poke bstk (Foreign (Wrap t))
   pure (denv, ustk, bstk, k)
 exec _      !_   !denv !ustk !bstk !k (Reset ps) = do
   pure (denv, ustk, bstk, Mark ps clos k)
