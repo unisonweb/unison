@@ -1,5 +1,31 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | A utility type for saving memory in the presence of many duplicate ByteStrings, etc. If you have data that may be
+-- a redundant duplicate, try pinning it to a pin board, and use the result of that operation instead.
+--
+--   Without a pin board:
+--
+--     x ───── "38dce848c8c829c62"
+--     y ───── "38dce848c8c829c62"
+--     z ───── "d2518f260535b927b"
+--
+--   With a pin board:
+--
+--     x ───── "38dce848c8c829c62" ┄┄┄┄┄┐
+--     y ────────┘                     board
+--     z ───── "d2518f260535b927b" ┄┄┄┄┄┘
+--
+--   ... and after x is garbage collected:
+--
+--             "38dce848c8c829c62" ┄┄┄┄┄┐
+--     y ────────┘                     board
+--     z ───── "d2518f260535b927b" ┄┄┄┄┄┘
+--
+--   ... and after y is garbage collected:
+--
+--                                     board
+--     z ───── "d2518f260535b927b" ┄┄┄┄┄┘
+--
 module Unison.Util.PinBoard
   ( PinBoard,
     new,
@@ -22,10 +48,12 @@ import Data.Tuple (swap)
 import System.Mem.Weak (Weak, deRefWeak, mkWeakPtr)
 import Unison.Prelude hiding (empty)
 
--- | A "pin board" is a place to pin values; semantically, it's a set but differs in a few ways:
+-- | A "pin board" is a place to pin values; semantically, it's a set, but differs in a few ways:
 --
 --   * Pinned values aren't kept alive by the pin board, they might be garbage collected at any time.
---   * If you try to pin a value that's already pinned (per its Eq instance), the pinned one will be returned instead.
+--   * If you try to pin a value that's already pinned (per its Eq instance), the pinned one will be returned
+--     instead.
+--   * It has a small API: just 'new' and 'pin'.
 newtype PinBoard a
   = PinBoard (MVar (IntMap (Bucket a)))
 
