@@ -234,11 +234,17 @@ compile tms m@(PM (r:rs))
         | otherwise = tmsl ++ fmap (uncurry var) vs ++ tmsr
 
 mkRow :: Var v => MatchCase a (Term v a) -> PatternRow v a
-mkRow (MatchCase p0 g (AbsN' vs b))
+mkRow (MatchCase p0 g0 (AbsN' vs b))
   = case runState (preparePattern p0) (avoid, vs, mempty) of
-      (p, (_, [], rn)) -> PR [p] g (changeVars rn b)
+      (p, (_, [], rn)) -> PR [p] (changeVars rn <$> g) (changeVars rn b)
       _ -> error "mkRow: not all variables used"
   where
+  g = case g0 of
+        Just (AbsN' us g)
+          | us == vs -> Just g
+          | otherwise -> error "mkRow: guard variables do not match body"
+        Nothing -> Nothing
+        _ -> error "mkRow: impossible"
   avoid = fromList vs <> maybe mempty freeVars g <> freeVars b
 mkRow _ = error "mkRow: impossible"
 
