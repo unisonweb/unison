@@ -132,6 +132,7 @@ library
     Unison.Util.Logger
     Unison.Util.Map
     Unison.Util.Menu
+    Unison.Util.PinBoard
     Unison.Util.Pretty
     Unison.Util.Range
     Unison.Util.Star3
@@ -209,6 +210,7 @@ library
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   default-extensions:
     ApplicativeDo,
+    BlockArguments,
     DeriveFunctor,
     DerivingStrategies,
     DoAndIfThenElse,

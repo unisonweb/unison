@@ -5,7 +5,7 @@ module Unison.Prelude
 import Control.Applicative as X
 import Control.Exception as X (Exception, SomeException, IOException, try)
 import Control.Monad as X
-import Control.Monad.Extra as X (ifM, unlessM, whenM)
+import Control.Monad.Extra as X (ifM, mapMaybeM, unlessM, whenM)
 import Control.Monad.IO.Class as X (MonadIO(liftIO))
 import Control.Monad.Trans as X (MonadTrans(lift))
 import Control.Monad.Trans.Maybe as X (MaybeT(MaybeT, runMaybeT))
