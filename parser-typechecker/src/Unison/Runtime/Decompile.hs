@@ -86,7 +86,8 @@ decompileUnboxed r _ i
   | r == natRef = pure . nat () $ fromIntegral i
   | r == intRef = pure . int () $ fromIntegral i
   | r == floatRef = pure . float () $ unsafeCoerce i
-decompileUnboxed _ _ _ = err "cannot decompile unboxed data type"
+decompileUnboxed r _ _
+  = err $ "cannot decompile unboxed data type with reference: " ++ show r
 
 decompileForeign
   :: Var v
