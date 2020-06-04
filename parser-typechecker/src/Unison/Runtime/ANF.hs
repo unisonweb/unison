@@ -64,7 +64,7 @@ import Unison.Prelude
 
 import Control.Monad.Reader (ReaderT(..), asks)
 import Control.Monad.State (State, runState, MonadState(..), modify, gets)
-import Control.Lens (snoc, unsnoc)
+import Control.Lens (snoc, unsnoc, (<&>))
 
 import Data.Bifunctor (Bifunctor(..))
 import Data.Bifoldable (Bifoldable(..))
@@ -850,6 +850,8 @@ anfBlock (Lit' l) = do
   lv <- fresh
   rt <- resolveType $ litRef l
   pure ([ST1 lv UN $ ALit l], ACon rt 0 [lv])
+anfBlock (Ref' r) =
+  resolveTerm r <&> \n -> ([], ACom n [])
 anfBlock (Blank' _) = error "tried to compile Blank"
 anfBlock t = error $ "anf: unhandled term: " ++ show t
 
@@ -914,22 +916,25 @@ expandBindings'
   => Set v
   -> [PatternP p]
   -> [v]
-  -> [v]
-expandBindings' _ [] [] = []
+  -> Either String [v]
+expandBindings' _ [] [] = Right []
 expandBindings' avoid (UnboundP _:ps) vs
-  = u : expandBindings' (Set.insert u avoid) ps vs
+  = (u :) <$> expandBindings' (Set.insert u avoid) ps vs
   where u = ABT.freshIn avoid $ typed Var.ANFBlank
 expandBindings' avoid (VarP _:ps) (v:vs)
-  = v : expandBindings' avoid ps vs
+  = (v :) <$> expandBindings' avoid ps vs
 expandBindings' _ [] (_:_)
-  = error "expandBindings': more bindings than expected"
-expandBindings' _ (VarP _:_) []
-  = error "expandBindings': more patterns than expected"
+  = Left "expandBindings': more bindings than expected"
+expandBindings' _ (_:_) []
+  = Left "expandBindings': more patterns than expected"
 expandBindings' _ _ _
-  = error "expandBindings': unexpected pattern"
+  = Left $ "expandBindings': unexpected pattern"
 
 expandBindings :: Var v => [PatternP p] -> [v] -> ANFM v [v]
-expandBindings ps vs = (\(av,_) -> expandBindings' av ps vs) <$> get
+expandBindings ps vs
+  = get <&> \(av,_) -> case expandBindings' av ps vs of
+      Left err -> error $ err ++ " " ++ show (ps, vs)
+      Right x -> x
 
 anfCases
   :: Var v
