@@ -6,38 +6,41 @@ module Unison.Test.Util.PinBoard
   )
 where
 
-import Control.DeepSeq (force)
+import Control.DeepSeq (NFData, force)
 import Control.Exception (evaluate)
 import qualified Data.ByteString as ByteString
 import EasyTest
-import GHC.Exts (touch#)
-import GHC.IO (IO (IO))
-import qualified GHC.Stats as GHC
-import System.Mem (performGC)
-import Unison.Prelude
+import GHC.Exts (reallyUnsafePtrEquality#, isTrue#)
 import qualified Unison.Util.PinBoard as PinBoard
 
 test :: Test ()
 test =
   scope "util.pinboard" . tests $
     [ scope "pinning equal values stores only one" $ do
-        -- Allocate 2*1mb bytestrings, pin them both, and assert less than 2mb live memory
-        w0 <- getLiveHeapSize
-        bytes <- io $ evaluate (force (take 2 (iterate ByteString.copy (ByteString.replicate (2 ^ 20) 0))))
+        b0 <- nf (ByteString.singleton 0)
+        b1 <- nf (ByteString.copy b0)
+
         board <- PinBoard.new
-        for_ bytes (PinBoard.pin board)
-        w1 <- getLiveHeapSize
-        expect' (w1 - w0 < 2 ^ 20)
-        io (touch board)
+
+        -- pinning a thing for the first time returns it
+        b0' <- PinBoard.pin board b0
+        expectSamePointer b0 b0'
+
+        -- pinning an equal thing returns the first
+        b1' <- PinBoard.pin board b1
+        expectSamePointer b0 b1'
+
+        -- the board should only have one value in it
+        n <- io (PinBoard.debugSize board)
+        expect' (n == 1)
+
         ok
     ]
 
-getLiveHeapSize :: MonadIO m => m Word64
-getLiveHeapSize = liftIO do
-  performGC
-  stats <- GHC.getRTSStats
-  pure (GHC.gcdetails_live_bytes (GHC.gc stats))
+expectSamePointer :: a -> a -> Test ()
+expectSamePointer x y =
+  expect' (isTrue# (reallyUnsafePtrEquality# x y))
 
-touch :: a -> IO ()
-touch x =
-  IO \s -> (# touch# x s, () #)
+nf :: NFData a => a -> Test a
+nf =
+  io . evaluate . force

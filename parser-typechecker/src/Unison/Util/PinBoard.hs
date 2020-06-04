@@ -32,11 +32,13 @@ module Unison.Util.PinBoard
 
     -- * For debugging
     debugDump,
+    debugSize,
   )
 where
 
 import Control.Concurrent.MVar
-import Data.Foldable (find)
+import Control.Exception (assert)
+import Data.Foldable (find, foldlM)
 import Data.Functor.Compose
 import Data.Hashable (Hashable, hash)
 import qualified Data.IntMap as IntMap
@@ -77,16 +79,13 @@ pin (PinBoard boardVar) x = liftIO do
     ifHit :: Bucket a -> IO (a, Maybe (Bucket a))
     ifHit bucket =
       bucketFind bucket x >>= \case
-        -- The bucket fully compacted down to nothingness.
-        Nothing -> ifMiss
         -- Hash collision: the bucket has things in it, but none are the given value. Insert.
-        Just (Nothing, bucket') -> (x,) . Just <$> bucketAdd bucket' x finalizer
+        Nothing -> (x,) . Just <$> bucketAdd bucket x finalizer
         -- The thing being inserted already exists; return it.
-        Just (Just y, bucket') -> pure (y, Just bucket')
+        Just y -> pure (y, Just bucket)
     -- When each thing pinned here is garbage collected, compact its bucket.
     finalizer :: IO ()
-    finalizer = do
-      putStrLn ("Finalizing " ++ show n)
+    finalizer =
       modifyMVar_ boardVar (IntMap.alterF (maybe (pure Nothing) bucketCompact) n)
     n :: Int
     n =
@@ -98,9 +97,20 @@ debugDump f (PinBoard boardVar) = do
   contents <- traverse bucketToList (toList board)
   Text.putStrLn (Text.unlines ("PinBoard" : map (("  " <>) . f) (concat contents)))
 
+debugSize :: PinBoard a -> IO Int
+debugSize (PinBoard boardVar) = do
+  board <- readMVar boardVar
+  foldlM step 0 board
+  where
+    step :: Int -> Bucket a -> IO Int
+    step acc =
+      bucketToList >=> \xs -> pure (acc + length xs)
+
 -- | A bucket of weak pointers to different values that all share a hash.
 newtype Bucket a
-  = Bucket [Weak a] -- Invariant: non-empty list
+  = -- Invariant: non-empty list
+    -- Invariant: all weak pointers are live, because their finalizers remove them from this bucket
+    Bucket [Weak a]
 
 -- | A singleton bucket.
 newBucket :: a -> IO () -> IO (Bucket a)
@@ -115,14 +125,13 @@ bucketAdd (Bucket weaks) x finalizer = do
 
 -- | Drop all garbage-collected values from a bucket. If none remain, returns Nothing.
 bucketCompact :: Bucket a -> IO (Maybe (Bucket a))
-bucketCompact (Bucket weaks) = do
-  bucketFromList . map snd <$> dereferenceWeaks weaks
+bucketCompact (Bucket weaks) =
+  bucketFromList <$> mapMaybeM (\w -> (w <$) <$> deRefWeak w) weaks
 
--- | Look up a value in a bucket per its Eq instance, and compact the bucket.
-bucketFind :: Eq a => Bucket a -> a -> IO (Maybe (Maybe a, Bucket a))
-bucketFind (Bucket weaks) x = do
-  (ys, weaks') <- unzip <$> dereferenceWeaks weaks
-  pure ((find (== x) ys,) <$> bucketFromList weaks')
+-- | Look up a value in a bucket per its Eq instance.
+bucketFind :: Eq a => Bucket a -> a -> IO (Maybe a)
+bucketFind bucket x =
+  find (== x) <$> bucketToList bucket
 
 bucketFromList :: [Weak a] -> Maybe (Bucket a)
 bucketFromList = \case
@@ -130,10 +139,6 @@ bucketFromList = \case
   weaks -> Just (Bucket weaks)
 
 bucketToList :: Bucket a -> IO [a]
-bucketToList (Bucket weaks) =
-  map fst <$> dereferenceWeaks weaks
-
--- Dereference a list of weak pointers, returning the alive ones along with their values.
-dereferenceWeaks :: [Weak a] -> IO [(a, Weak a)]
-dereferenceWeaks =
-  mapMaybeM \w -> fmap (,w) <$> deRefWeak w
+bucketToList (Bucket weaks) = do
+  xs <- mapMaybeM deRefWeak weaks
+  assert (length xs == length weaks) (pure xs) -- assert invariant that every weak is alive
