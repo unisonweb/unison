@@ -9,7 +9,7 @@ module Unison.Runtime.Pattern
 
 import Control.Monad.State (State, state, runState, modify)
 
-import Data.List (splitAt)
+import Data.List (splitAt, findIndex)
 
 import Data.Set as Set (Set, insert, fromList)
 
@@ -35,10 +35,27 @@ data PatternRow v a
   , body :: Term v a
   }
 
-bound :: Var v => PatternRow v a -> Term v a -> Term v a
-bound (PR ps _ _) = absChain' avs
+rebind
+  :: Semigroup a
+  => Var v
+  => [Term v a]
+  -> PatternRow v a
+  -> Term v a
+  -> Term v a
+rebind tms0 (PR ps0 _ _) = let1' False . reverse $ collect [] tms0 ps0
   where
-  avs = [ av | VarP av <- ps ]
+  collect acc (Var' u : tms) (VarP (_, v) : ps)
+    | u == v = collect acc tms ps
+    | otherwise = error "pattern rebind: mismatched variables"
+  collect acc (tm : tms) (VarP (_, v) : ps)
+    = collect ((v, tm) : acc) tms ps
+  collect acc [] [] = acc
+  collect _ tms@(_:_) []
+    = error $ "pattern rebind: more terms than patterns: " ++ show tms
+  collect _ [] ps@(_:_)
+    = error $ "pattern rebind: more patterns than terms: " ++ show ps
+  collect _ (_:_) (p:_)
+    = error $ "pattern rebind: unsplit pattern" ++ show p
 
 -- collectRowVars
 --   :: Var v
@@ -69,8 +86,12 @@ refutable _ = True
 rowIrrefutable :: PatternRow v a -> Bool
 rowIrrefutable (PR ps _ _) = all (not.refutable) ps
 
+firstRow :: ([PatternV a v] -> Maybe Int) -> Heuristic v a
+firstRow f (PM (r:_)) = f $ _pats r
+firstRow _ _ = Nothing
+
 heuristics :: [Heuristic v a]
-heuristics = []
+heuristics = [firstRow $ findIndex refutable]
 
 extractVar :: Var v => PatternV a v -> ((a, v), PatternV a v)
 extractVar p = (loc p, p)
@@ -173,15 +194,31 @@ preparePattern (VarP a) = VarP . (a,) <$> useVar
 preparePattern (AsP _ p) = prepareAs p =<< useVar
 preparePattern p = prepareAs p =<< freshVar
 
+varp :: PatternP a -> PatternP a
+varp p = VarP $ loc p
+
+chopPattern :: PatternP a -> PatternP a
+chopPattern (ConstructorP a r i ps)
+  = ConstructorP a r i $ varp <$> ps
+chopPattern (EffectBindP a r i ps k)
+  = EffectBindP a r i (varp <$> ps) (varp k)
+chopPattern (EffectPureP a p)
+  = EffectPureP a (varp p)
+chopPattern (SequenceLiteralP a ps)
+  = SequenceLiteralP a $ varp <$> ps
+chopPattern (SequenceOpP a p op q)
+  = SequenceOpP a (varp p) op (varp q)
+chopPattern p = p
+
 compile
   :: (Var v, Monoid a) => [Term v a] -> PatternMatrix v a -> Term v a
 compile _ (PM [])
   = error "compile: empty matrix" -- TODO: maybe generate error term
 compile tms m@(PM (r:rs))
   | rowIrrefutable r
-  = case guard r of
-      Nothing -> bound r $ body r
-      Just g -> bound r $ iff mempty g (body r) $ compile tms (PM rs)
+  = rebind tms r $ case guard r of
+      Nothing -> body r
+      Just g -> iff mempty g (body r) $ compile tms (PM rs)
   | otherwise
   = case splitAt i tms of
       (tmsl, scrut : tmsr) -> match mempty scrut $ f tmsl tmsr <$> sm
@@ -190,8 +227,11 @@ compile tms m@(PM (r:rs))
   i = choose heuristics m
   sm = splitMatrix i m
   f tmsl tmsr (p, vs, m)
-    = MatchCase p Nothing . absChain' vs
-    $ compile (tmsl ++ fmap (uncurry var) vs ++ tmsr) m
+    = MatchCase (chopPattern p) Nothing . absChain' vs
+    $ compile tms m
+    where
+    tms | VarP _ <- p = tmsl ++ tmsr
+        | otherwise = tmsl ++ fmap (uncurry var) vs ++ tmsr
 
 mkRow :: Var v => MatchCase a (Term v a) -> PatternRow v a
 mkRow (MatchCase p0 g (AbsN' vs b))
