@@ -31,6 +31,7 @@ import qualified Unison.Test.Typechecker.TypeError as TypeError
 import qualified Unison.Test.UnisonSources as UnisonSources
 import qualified Unison.Test.UriParser as UriParser
 import qualified Unison.Test.Util.Bytes as Bytes
+import qualified Unison.Test.Util.PinBoard as PinBoard
 import qualified Unison.Test.Util.Pretty as Pretty
 import qualified Unison.Test.Var as Var
 import qualified Unison.Test.VersionParser as VersionParser
@@ -66,6 +67,7 @@ test = tests
   , Name.test
   , VersionParser.test
   , Pretty.test
+  , PinBoard.test
  ]
 
 main :: IO ()

@@ -25,7 +25,6 @@
 --
 --                                     board
 --     z ───── "d2518f260535b927b" ┄┄┄┄┄┘
---
 module Unison.Util.PinBoard
   ( PinBoard,
     new,
@@ -57,12 +56,12 @@ import Unison.Prelude hiding (empty)
 newtype PinBoard a
   = PinBoard (MVar (IntMap (Bucket a)))
 
-new :: IO (PinBoard a)
+new :: MonadIO m => m (PinBoard a)
 new =
-  PinBoard <$> newMVar IntMap.empty
+  liftIO (PinBoard <$> newMVar IntMap.empty)
 
-pin :: forall a. (Eq a, Hashable a) => PinBoard a -> a -> IO a
-pin (PinBoard boardVar) x =
+pin :: forall a m. (Eq a, Hashable a, MonadIO m) => PinBoard a -> a -> m a
+pin (PinBoard boardVar) x = liftIO do
   modifyMVar boardVar \board ->
     swap <$> getCompose (IntMap.alterF alter n board)
   where

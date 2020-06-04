@@ -273,7 +273,7 @@ executable tests
   main-is:        Suite.hs
   hs-source-dirs: tests
   default-language: Haskell2010
-  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
+  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
     base,
     easytest
@@ -305,6 +305,7 @@ executable tests
     Unison.Test.UnisonSources
     Unison.Test.UriParser
     Unison.Test.Util.Bytes
+    Unison.Test.Util.PinBoard
     Unison.Test.Util.Pretty
     Unison.Test.Var
     Unison.Test.VersionParser
@@ -315,6 +316,7 @@ executable tests
     base,
     bytestring,
     containers,
+    deepseq,
     directory,
     easytest,
     errors,
@@ -334,6 +336,9 @@ executable tests
     transformers,
     unison-core,
     unison-parser-typechecker
+
+  default-extensions:
+    BlockArguments
 
 executable transcripts
   main-is:        Transcripts.hs
