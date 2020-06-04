@@ -37,7 +37,6 @@ module Unison.Util.PinBoard
 where
 
 import Control.Concurrent.MVar
-import Control.Exception (assert)
 import Data.Foldable (find, foldlM)
 import Data.Functor.Compose
 import Data.Hashable (Hashable, hash)
@@ -91,11 +90,14 @@ pin (PinBoard boardVar) x = liftIO do
     n =
       hash x
 
-debugDump :: (a -> Text) -> PinBoard a -> IO ()
-debugDump f (PinBoard boardVar) = do
+debugDump :: MonadIO m => (a -> Text) -> PinBoard a -> m ()
+debugDump f (PinBoard boardVar) = liftIO do
   board <- readMVar boardVar
-  contents <- traverse bucketToList (toList board)
-  Text.putStrLn (Text.unlines ("PinBoard" : map (("  " <>) . f) (concat contents)))
+  contents <- (traverse . traverse) bucketToList (IntMap.toList board)
+  Text.putStrLn (Text.unlines ("PinBoard" : map row contents))
+  where
+    row (n, xs) =
+      Text.pack (show n) <> " => " <> Text.pack (show (map f xs))
 
 debugSize :: PinBoard a -> IO Int
 debugSize (PinBoard boardVar) = do
@@ -108,9 +110,7 @@ debugSize (PinBoard boardVar) = do
 
 -- | A bucket of weak pointers to different values that all share a hash.
 newtype Bucket a
-  = -- Invariant: non-empty list
-    -- Invariant: all weak pointers are live, because their finalizers remove them from this bucket
-    Bucket [Weak a]
+  = Bucket [Weak a] -- Invariant: non-empty list
 
 -- | A singleton bucket.
 newBucket :: a -> IO () -> IO (Bucket a)
@@ -139,6 +139,5 @@ bucketFromList = \case
   weaks -> Just (Bucket weaks)
 
 bucketToList :: Bucket a -> IO [a]
-bucketToList (Bucket weaks) = do
-  xs <- mapMaybeM deRefWeak weaks
-  assert (length xs == length weaks) (pure xs) -- assert invariant that every weak is alive
+bucketToList (Bucket weaks) =
+  mapMaybeM deRefWeak weaks

@@ -8,7 +8,9 @@ where
 
 import qualified Data.ByteString as ByteString
 import EasyTest
-import GHC.Exts (reallyUnsafePtrEquality#, isTrue#)
+import GHC.Exts (isTrue#, reallyUnsafePtrEquality#, touch#)
+import GHC.IO (IO (IO))
+import System.Mem (performGC)
 import qualified Unison.Util.PinBoard as PinBoard
 
 test :: Test ()
@@ -29,8 +31,14 @@ test =
         expectSamePointer b0 b1'
 
         -- the board should only have one value in it
-        n <- io (PinBoard.debugSize board)
-        expect' (n == 1)
+        expect' . (== 1) <$> io (PinBoard.debugSize board)
+
+        -- keep b0 alive until here
+        touch b0
+
+        -- observe that the board doesn't keep its value alive
+        io performGC
+        expect' . (== 0) <$> io (PinBoard.debugSize board)
 
         ok
     ]
@@ -38,3 +46,7 @@ test =
 expectSamePointer :: a -> a -> Test ()
 expectSamePointer x y =
   expect' (isTrue# (reallyUnsafePtrEquality# x y))
+
+touch :: a -> Test ()
+touch x =
+  io (IO \s -> (# touch# x s, () #))
