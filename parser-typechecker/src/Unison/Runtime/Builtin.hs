@@ -94,11 +94,14 @@ binop0 n f
   xs@(x0:y0:_) = freshes (2+n)
 
 unop :: Var v => POp -> Reference -> SuperNormal v
-unop pop rf
+unop pop rf = unop' pop rf rf
+
+unop' :: Var v => POp -> Reference -> Reference -> SuperNormal v
+unop' pop rfi rfo
   = unop0 2 $ \[x0,x,r]
- -> unbox x0 rf x
+ -> unbox x0 rfi x
   . TLet r UN (APrm pop [x])
-  $ TCon (rtag rf) 0 [r]
+  $ TCon (rtag rfo) 0 [r]
 
 binop :: Var v => POp -> Reference -> SuperNormal v
 binop pop rf = binop' pop rf rf rf
@@ -184,6 +187,57 @@ incn = unop INCN Ty.natRef
 sgni, negi :: Var v => SuperNormal v
 sgni = unop SGNI Ty.intRef
 negi = unop NEGI Ty.intRef
+
+addf, subf, mulf, divf, powf, sqrtf, logf, logbf
+  :: Var v => SuperNormal v
+addf = binop ADDF Ty.floatRef
+subf = binop SUBF Ty.floatRef
+mulf = binop MULF Ty.floatRef
+divf = binop DIVF Ty.floatRef
+powf = binop POWF Ty.floatRef
+sqrtf = unop SQRT Ty.floatRef
+logf = unop LOGF Ty.floatRef
+logbf = binop LOGB Ty.floatRef
+
+expf, absf :: Var v => SuperNormal v
+expf = unop EXPF Ty.floatRef
+absf = unop ABSF Ty.floatRef
+
+cosf, sinf, tanf, acosf, asinf, atanf :: Var v => SuperNormal v
+cosf = unop COSF Ty.floatRef
+sinf = unop SINF Ty.floatRef
+tanf = unop TANF Ty.floatRef
+acosf = unop ACOS Ty.floatRef
+asinf = unop ASIN Ty.floatRef
+atanf = unop ATAN Ty.floatRef
+
+coshf, sinhf, tanhf, acoshf, asinhf, atanhf :: Var v => SuperNormal v
+coshf = unop COSH Ty.floatRef
+sinhf = unop SINH Ty.floatRef
+tanhf = unop TANH Ty.floatRef
+acoshf = unop ACSH Ty.floatRef
+asinhf = unop ASNH Ty.floatRef
+atanhf = unop ATNH Ty.floatRef
+
+ltf, gtf, lef, gef, eqf, neqf :: Var v => SuperNormal v
+ltf = cmpop LESF Ty.floatRef
+gtf = cmpopb LESF Ty.floatRef
+lef = cmpop LEQF Ty.floatRef
+gef = cmpopb LEQF Ty.floatRef
+eqf = cmpop EQLF Ty.floatRef
+neqf = cmpopn EQLF Ty.floatRef
+
+minf, maxf :: Var v => SuperNormal v
+minf = binop MINF Ty.floatRef
+maxf = binop MAXF Ty.floatRef
+
+ceilf, floorf, truncf, roundf, i2f, n2f :: Var v => SuperNormal v
+ceilf = unop' CEIL Ty.floatRef Ty.intRef
+floorf = unop' FLOR Ty.floatRef Ty.intRef
+truncf = unop' TRNF Ty.floatRef Ty.intRef
+roundf = unop' RNDF Ty.floatRef Ty.intRef
+i2f = unop' ITOF Ty.intRef Ty.floatRef
+n2f = unop' NTOF Ty.natRef Ty.floatRef
 
 trni :: Var v => SuperNormal v
 trni = unop0 3 $ \[x0,x,z,b]
@@ -718,7 +772,7 @@ builtinLookup
   , ("Int.pow", powi)
 --   , B "Int.toText" $ int --> text
 --   , B "Int.fromText" $ text --> optional int
---   , B "Int.toFloat" $ int --> float
+  , ("Int.toFloat", i2f)
 
   , ("Nat.+", addn)
   , ("Nat.-", subn)
@@ -742,54 +796,53 @@ builtinLookup
 --   , B "Nat.toInt" $ nat --> int
 --   , B "Nat.toText" $ nat --> text
 --   , B "Nat.fromText" $ text --> optional nat
---   , B "Nat.toFloat" $ nat --> float
+  , ("Nat.toFloat", n2f)
 
---   , B "Float.+" $ float --> float --> float
---   , B "Float.-" $ float --> float --> float
---   , B "Float.*" $ float --> float --> float
---   , B "Float./" $ float --> float --> float
---   , B "Float.<" $ float --> float --> boolean
---   , B "Float.>" $ float --> float --> boolean
---   , B "Float.<=" $ float --> float --> boolean
---   , B "Float.>=" $ float --> float --> boolean
---   , B "Float.==" $ float --> float --> boolean
---
+  , ("Float.+", addf)
+  , ("Float.-", subf)
+  , ("Float.*", mulf)
+  , ("Float./", divf)
+  , ("Float.pow", powf)
+  , ("Float.log", logf)
+  , ("Float.logBase", logbf)
+  , ("Float.sqrt", sqrtf)
+
+  , ("Float.min", minf)
+  , ("Float.max", maxf)
+
+  , ("Float.<", ltf)
+  , ("Float.>", gtf)
+  , ("Float.<=", lef)
+  , ("Float.>=", gef)
+  , ("Float.==", eqf)
+  , ("Float.!=", neqf)
+
+  , ("Float.acos", acosf)
+  , ("Float.asin", asinf)
+  , ("Float.atan", atanf)
+  , ("Float.cos", cosf)
+  , ("Float.sin", sinf)
+  , ("Float.tan", tanf)
+
+  , ("Float.acosh", acoshf)
+  , ("Float.asinh", asinhf)
+  , ("Float.atanh", atanhf)
+  , ("Float.cosh", coshf)
+  , ("Float.sinh", sinhf)
+  , ("Float.tanh", tanhf)
+
+  , ("Float.exp", expf)
+  , ("Float.abs", absf)
+
+  , ("Float.ceiling", ceilf)
+  , ("Float.floor", floorf)
+  , ("Float.round", roundf)
+  , ("Float.truncate", truncf)
+
 --   -- Trigonmetric Functions
---   , B "Float.acos" $ float --> float
---   , B "Float.asin" $ float --> float
---   , B "Float.atan" $ float --> float
 --   , B "Float.atan2" $ float --> float --> float
---   , B "Float.cos" $ float --> float
---   , B "Float.sin" $ float --> float
---   , B "Float.tan" $ float --> float
---
---   -- Hyperbolic Functions
---   , B "Float.acosh" $ float --> float
---   , B "Float.asinh" $ float --> float
---   , B "Float.atanh" $ float --> float
---   , B "Float.cosh" $ float --> float
---   , B "Float.sinh" $ float --> float
---   , B "Float.tanh" $ float --> float
---
---   -- Exponential Functions
---   , B "Float.exp" $ float --> float
---   , B "Float.log" $ float --> float
---   , B "Float.logBase" $ float --> float --> float
---
---   -- Power Functions
---   , B "Float.pow" $ float --> float --> float
---   , B "Float.sqrt" $ float --> float
---
---   -- Rounding and Remainder Functions
---   , B "Float.ceiling" $ float --> int
---   , B "Float.floor" $ float --> int
---   , B "Float.round" $ float --> int
---   , B "Float.truncate" $ float --> int
 --
 --   -- Float Utils
---   , B "Float.abs" $ float --> float
---   , B "Float.max" $ float --> float --> float
---   , B "Float.min" $ float --> float --> float
 --   , B "Float.toText" $ float --> text
 --   , B "Float.fromText" $ text --> optional float
 --

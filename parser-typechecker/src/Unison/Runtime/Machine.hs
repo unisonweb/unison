@@ -531,6 +531,116 @@ prim1 !ustk SGNI !i = do
   ustk <- bump ustk
   poke ustk (signum m)
   pure ustk
+prim1 !ustk ABSF !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  pokeD ustk (abs d)
+  pure ustk
+prim1 !ustk CEIL !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  poke ustk (ceiling d)
+  pure ustk
+prim1 !ustk FLOR !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  poke ustk (floor d)
+  pure ustk
+prim1 !ustk TRNF !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  poke ustk (truncate d)
+  pure ustk
+prim1 !ustk RNDF !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  poke ustk (round d)
+  pure ustk
+prim1 !ustk EXPF !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  pokeD ustk (exp d)
+  pure ustk
+prim1 !ustk LOGF !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  pokeD ustk (log d)
+  pure ustk
+prim1 !ustk SQRT !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  pokeD ustk (sqrt d)
+  pure ustk
+prim1 !ustk COSF !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  pokeD ustk (cos d)
+  pure ustk
+prim1 !ustk SINF !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  pokeD ustk (sin d)
+  pure ustk
+prim1 !ustk TANF !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  pokeD ustk (tan d)
+  pure ustk
+prim1 !ustk COSH !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  pokeD ustk (cosh d)
+  pure ustk
+prim1 !ustk SINH !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  pokeD ustk (sinh d)
+  pure ustk
+prim1 !ustk TANH !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  pokeD ustk (tanh d)
+  pure ustk
+prim1 !ustk ACOS !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  pokeD ustk (acos d)
+  pure ustk
+prim1 !ustk ASIN !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  pokeD ustk (asin d)
+  pure ustk
+prim1 !ustk ATAN !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  pokeD ustk (atan d)
+  pure ustk
+prim1 !ustk ASNH !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  pokeD ustk (asinh d)
+  pure ustk
+prim1 !ustk ACSH !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  pokeD ustk (acosh d)
+  pure ustk
+prim1 !ustk ATNH !i = do
+  d <- peekOffD ustk i
+  ustk <- bump ustk
+  pokeD ustk (atanh d)
+  pure ustk
+prim1 !ustk ITOF !i = do
+  n <- peekOff ustk i
+  ustk <- bump ustk
+  pokeD ustk (fromIntegral n)
+  pure ustk
+prim1 !ustk NTOF !i = do
+  n <- peekOffN ustk i
+  ustk <- bump ustk
+  pokeD ustk (fromIntegral n)
+  pure ustk
 {-# inline prim1 #-}
 
 prim2 :: Stack 'UN -> Prim2 -> Int -> Int -> IO (Stack 'UN)
@@ -617,6 +727,72 @@ prim2 !ustk LEQN !i !j = do
   n <- peekOffN ustk j
   ustk <- bump ustk
   poke ustk $ if m <= n then 1 else 0
+  pure ustk
+prim2 !ustk ADDF !i !j = do
+  x <- peekOffD ustk i
+  y <- peekOffD ustk j
+  ustk <- bump ustk
+  pokeD ustk (x + y)
+  pure ustk
+prim2 !ustk SUBF !i !j = do
+  x <- peekOffD ustk i
+  y <- peekOffD ustk j
+  ustk <- bump ustk
+  pokeD ustk (x - y)
+  pure ustk
+prim2 !ustk MULF !i !j = do
+  x <- peekOffD ustk i
+  y <- peekOffD ustk j
+  ustk <- bump ustk
+  pokeD ustk (x * y)
+  pure ustk
+prim2 !ustk DIVF !i !j = do
+  x <- peekOffD ustk i
+  y <- peekOffD ustk j
+  ustk <- bump ustk
+  pokeD ustk (x / y)
+  pure ustk
+prim2 !ustk LOGB !i !j = do
+  x <- peekOffD ustk i
+  y <- peekOffD ustk j
+  ustk <- bump ustk
+  pokeD ustk (logBase x y)
+  pure ustk
+prim2 !ustk POWF !i !j = do
+  x <- peekOffD ustk i
+  y <- peekOffD ustk j
+  ustk <- bump ustk
+  pokeD ustk (x ** y)
+  pure ustk
+prim2 !ustk MAXF !i !j = do
+  x <- peekOffD ustk i
+  y <- peekOffD ustk j
+  ustk <- bump ustk
+  pokeD ustk (max x y)
+  pure ustk
+prim2 !ustk MINF !i !j = do
+  x <- peekOffD ustk i
+  y <- peekOffD ustk j
+  ustk <- bump ustk
+  pokeD ustk (min x y)
+  pure ustk
+prim2 !ustk EQLF !i !j = do
+  x <- peekOffD ustk i
+  y <- peekOffD ustk j
+  ustk <- bump ustk
+  pokeD ustk (if x == y then 1 else 0)
+  pure ustk
+prim2 !ustk LESF !i !j = do
+  x <- peekOffD ustk i
+  y <- peekOffD ustk j
+  ustk <- bump ustk
+  pokeD ustk (if x < y then 1 else 0)
+  pure ustk
+prim2 !ustk LEQF !i !j = do
+  x <- peekOffD ustk i
+  y <- peekOffD ustk j
+  ustk <- bump ustk
+  pokeD ustk (if x <= y then 1 else 0)
   pure ustk
 {-# inline prim2 #-}
 

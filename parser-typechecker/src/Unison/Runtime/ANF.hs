@@ -638,7 +638,7 @@ litRef (C _) = Ty.charRef
 data POp
   -- Int
   = ADDI | SUBI | MULI | DIVI -- +,-,*,/
-  | SGNI | NEGI | TRNI | MODI -- sgn,neg,trunc,mod
+  | SGNI | NEGI | MODI        -- sgn,neg,mod
   | POWI | SHLI | SHRI        -- pow,shiftl,shiftr
   | INCI | DECI               -- inc,dec
   | LESI | LEQI | EQLI        -- <,<=,==
@@ -651,8 +651,20 @@ data POp
   -- Float
   | ADDF | SUBF | MULF | DIVF -- +,-,*,/
   | LESF | LEQF | EQLF        -- <,<=,==
+  | MINF | MAXF
+  | POWF | EXPF | SQRT | LOGF -- pow,exp,sqrt,log
+  | LOGB                      -- logBase
+  | ABSF | CEIL | FLOR | TRNF -- abs,ceil,floor,truncate
+  | RNDF                      -- round
+  -- Trig
+  | COSF | ACOS | COSH | ACSH -- cos,acos,cosh,acosh
+  | SINF | ASIN | SINH | ASNH -- sin,asin,sinh,asinh
+  | TANF | ATAN | TANH | ATNH -- tan,atan,tanh,atanh
+  -- Conversion
+  | ITOF | NTOF
   -- Concurrency
   | FORK
+  -- Debug
   | PRNT | INFO
   deriving (Show,Eq,Ord)
 

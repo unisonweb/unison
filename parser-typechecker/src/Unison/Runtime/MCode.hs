@@ -324,13 +324,19 @@ bcount _ = 0
 {-# inline bcount #-}
 
 data Prim1
-  = DECI | INCI | NEGI | SGNI
+  = DECI | INCI | NEGI | SGNI | ABSF | EXPF | LOGF | SQRT
+  | COSF | ACOS | COSH | ACSH
+  | SINF | ASIN | SINH | ASNH
+  | TANF | ATAN | TANH | ATNH
+  | ITOF | NTOF | CEIL | FLOR | TRNF | RNDF
   deriving (Show, Eq, Ord)
 
 data Prim2
   = ADDI | SUBI | MULI | DIVI | MODI
+  | ADDF | SUBF | MULF | DIVF
   | SHLI | SHRI | SHRN | POWI
-  | EQLI | LESI | LESN | LEQI | LEQN
+  | EQLI | LESI | LESN | LEQI | LEQN | EQLF | LESF | LEQF
+  | POWF | LOGB | MAXF | MINF
   deriving (Show, Eq, Ord)
 
 data MLit
@@ -611,8 +617,6 @@ emitLet _   ctx (AApp (FPrim p) args)
 emitLet rec ctx bnd = Let (emitSection rec ctx (TTm bnd))
 
 -- -- Float
--- | ADDF | SUBF | MULF | DIVF -- +,-,*,/
--- | LESF | LEQF | EQLF        -- <,<=,==
 emitPOp :: ANF.POp -> Args -> Instr
 emitPOp ANF.ADDI = emitP2 ADDI
 emitPOp ANF.ADDN = emitP2 ADDI
@@ -622,7 +626,6 @@ emitPOp ANF.MULI = emitP2 MULI
 emitPOp ANF.MULN = emitP2 MULI
 emitPOp ANF.DIVI = emitP2 DIVI
 emitPOp ANF.DIVN = emitP2 DIVI
-emitPOp ANF.TRNI = error "I don't think this is used"
 emitPOp ANF.MODI = emitP2 MODI -- TODO: think about how these behave
 emitPOp ANF.MODN = emitP2 MODI -- TODO: think about how these behave
 emitPOp ANF.POWI = emitP2 POWI
@@ -645,13 +648,44 @@ emitPOp ANF.INCN = emitP1 INCI
 emitPOp ANF.DECI = emitP1 DECI
 emitPOp ANF.DECN = emitP1 DECI
 
-emitPOp p@ANF.ADDF = error $ "unhandled prim op: " ++ show p
-emitPOp p@ANF.SUBF = error $ "unhandled prim op: " ++ show p
-emitPOp p@ANF.MULF = error $ "unhandled prim op: " ++ show p
-emitPOp p@ANF.DIVF = error $ "unhandled prim op: " ++ show p
-emitPOp p@ANF.LESF = error $ "unhandled prim op: " ++ show p
-emitPOp p@ANF.LEQF = error $ "unhandled prim op: " ++ show p
-emitPOp p@ANF.EQLF = error $ "unhandled prim op: " ++ show p
+emitPOp ANF.ADDF = emitP2 ADDF
+emitPOp ANF.SUBF = emitP2 SUBF
+emitPOp ANF.MULF = emitP2 MULF
+emitPOp ANF.DIVF = emitP2 DIVF
+emitPOp ANF.LESF = emitP2 LESF
+emitPOp ANF.LEQF = emitP2 LEQF
+emitPOp ANF.EQLF = emitP2 EQLF
+
+emitPOp ANF.MINF = emitP2 MINF
+emitPOp ANF.MAXF = emitP2 MAXF
+
+emitPOp ANF.POWF = emitP2 POWF
+emitPOp ANF.EXPF = emitP1 EXPF
+emitPOp ANF.ABSF = emitP1 ABSF
+emitPOp ANF.SQRT = emitP1 SQRT
+emitPOp ANF.LOGF = emitP1 LOGF
+emitPOp ANF.LOGB = emitP2 LOGB
+
+emitPOp ANF.CEIL = emitP1 CEIL
+emitPOp ANF.FLOR = emitP1 FLOR
+emitPOp ANF.TRNF = emitP1 TRNF
+emitPOp ANF.RNDF = emitP1 RNDF
+
+emitPOp ANF.COSF = emitP1 COSF
+emitPOp ANF.SINF = emitP1 SINF
+emitPOp ANF.TANF = emitP1 TANF
+emitPOp ANF.COSH = emitP1 COSH
+emitPOp ANF.SINH = emitP1 SINH
+emitPOp ANF.TANH = emitP1 TANH
+emitPOp ANF.ACOS = emitP1 ACOS
+emitPOp ANF.ATAN = emitP1 ATAN
+emitPOp ANF.ASIN = emitP1 ASIN
+emitPOp ANF.ACSH = emitP1 ACSH
+emitPOp ANF.ASNH = emitP1 ASNH
+emitPOp ANF.ATNH = emitP1 ATNH
+
+emitPOp ANF.ITOF = emitP1 ITOF
+emitPOp ANF.NTOF = emitP1 NTOF
 
 emitPOp ANF.FORK = \case
   BArg1 i -> Fork $ App True (Stk i) ZArgs

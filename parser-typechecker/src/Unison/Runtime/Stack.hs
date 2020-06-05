@@ -346,9 +346,17 @@ peekN :: Stack 'UN -> IO Word64
 peekN (US _ _ sp stk) = readByteArray stk sp
 {-# inline peekN #-}
 
+peekD :: Stack 'UN -> IO Double
+peekD (US _ _ sp stk) = readByteArray stk sp
+{-# inline peekD #-}
+
 peekOffN :: Stack 'UN -> Int -> IO Word64
 peekOffN (US _ _ sp stk) i = readByteArray stk (sp-i)
 {-# inline peekOffN #-}
+
+peekOffD :: Stack 'UN -> Int -> IO Double
+peekOffD (US _ _ sp stk) i = readByteArray stk (sp-i)
+{-# inline peekOffD #-}
 
 pokeN :: Stack 'UN -> Word64 -> IO ()
 pokeN (US _ _ sp stk) n = writeByteArray stk sp n
@@ -356,10 +364,15 @@ pokeN (US _ _ sp stk) n = writeByteArray stk sp n
 
 pokeD :: Stack 'UN -> Double -> IO ()
 pokeD (US _ _ sp stk) d = writeByteArray stk sp d
+{-# inline pokeD #-}
 
 pokeOffN :: Stack 'UN -> Int -> Word64 -> IO ()
 pokeOffN (US _ _ sp stk) i n = writeByteArray stk (sp-i) n
 {-# inline pokeOffN #-}
+
+pokeOffD :: Stack 'UN -> Int -> Double -> IO ()
+pokeOffD (US _ _ sp stk) i d = writeByteArray stk (sp-i) d
+{-# inline pokeOffD #-}
 
 unull :: Seg 'UN
 unull = byteArrayFromListN 0 ([] :: [Int])
