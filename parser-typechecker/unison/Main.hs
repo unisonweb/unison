@@ -168,9 +168,7 @@ main = do
 
 prepareTranscriptDir :: Branch.Cache IO -> Bool -> Maybe FilePath -> IO FilePath
 prepareTranscriptDir branchCache inFork mcodepath = do
-  currentDir <- getCurrentDirectory
-  tmp <- Temp.createTempDirectory currentDir "transcript"
-
+  tmp <- Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
   unless inFork $ do
     PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
     _ <- FileCodebase.initCodebase branchCache tmp
