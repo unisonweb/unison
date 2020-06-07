@@ -132,7 +132,7 @@ main = do
       theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
       launch currentDir config theCodebase branchCache []
     [version] | isFlag "version" version ->
-      putStrLn $ "ucm version: " ++ Version.gitDescribe
+      putStrLn $ progName ++ " version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
     ["init"] -> FileCodebase.initCodebaseAndExit mcodepath
     "run" : [mainName] -> do
@@ -229,7 +229,7 @@ runTranscripts branchCache inFork keepTemp mcodepath args = do
             "I've finished running the transcript(s) in this codebase:", "",
             P.indentN 2 (P.string transcriptDir), "",
             P.wrap $ "You can run"
-                  <> P.backticked ("ucm -codebase " <> P.string transcriptDir)
+                  <> P.backticked (P.string progName <> " -codebase " <> P.string transcriptDir)
                   <> "to do more work with it."])
 
   unless completed $ do
