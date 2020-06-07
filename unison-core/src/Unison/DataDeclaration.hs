@@ -63,7 +63,7 @@ constructorType = \case
   Left{} -> CT.Effect
   Right{} -> CT.Data
 
-data Modifier = Structural | Unique Text -- | Opaque (Set Reference)
+data Modifier = Structural | Unique Text --  | Opaque (Set Reference)
   deriving (Eq, Ord, Show)
 
 data DataDeclaration' v a = DataDeclaration {
