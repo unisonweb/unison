@@ -1,11 +1,8 @@
-{-# Language BangPatterns #-}
 {-# Language OverloadedStrings #-}
 {-# Language Strict #-}
-{-# Language StrictData #-}
 {-# Language RankNTypes #-}
 {-# Language TupleSections #-}
 {-# Language PatternSynonyms #-}
-{-# Language ViewPatterns #-}
 {-# Language ScopedTypeVariables #-}
 {-# Language DoAndIfThenElse #-}
 
@@ -197,7 +194,7 @@ pushManyZ size zs m = do
 -- | Grow the physical stack to at least `size` slots
 ensureSize :: Size -> Stack -> IO Stack
 ensureSize size m =
-  if (size > MV.length m) then
+  if size > MV.length m then
     MV.grow m size
   else pure m
 
@@ -274,13 +271,13 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
         . IR.maybeToOptional
         . fmap (\(h, t) -> IR.tuple [C h, T t])
         )
-        $ Text.uncons
+        Text.uncons
     , mk1 "Text.unsnoc" att
         ( pure
         . IR.maybeToOptional
         . fmap (\(i, l) -> IR.tuple [T i, C l])
         )
-        $ Text.unsnoc
+        Text.unsnoc
 
     , mk1 "Text.toCharList" att (pure . Sequence)
         (Sequence.fromList . map C . Text.unpack)
@@ -304,8 +301,8 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Bytes.fromList" ats (pure . Bs) (\s ->
         Bytes.fromByteString (BS.pack [ fromIntegral n | N n <- toList s]))
     , mk2 "Bytes.++"  atbs atbs (pure . Bs) (<>)
-    , mk2 "Bytes.take" atn atbs (pure . Bs) (\n b -> Bytes.take (fromIntegral n) b)
-    , mk2 "Bytes.drop" atn atbs (pure . Bs) (\n b -> Bytes.drop (fromIntegral n) b)
+    , mk2 "Bytes.take" atn atbs (pure . Bs) (Bytes.take . fromIntegral)
+    , mk2 "Bytes.drop" atn atbs (pure . Bs) (Bytes.drop . fromIntegral)
     , mk1 "Bytes.toList" atbs (pure . Sequence)
         (\bs -> Sequence.fromList [ N (fromIntegral n) | n <- Bytes.toWord8s bs ])
     , mk1 "Bytes.size" atbs (pure . N . fromIntegral) Bytes.size
@@ -351,7 +348,7 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Nat.toFloat" atn (pure . F) fromIntegral
 
     , mk1 "Int.toText" ati (pure . T)
-          (Text.pack . (\x -> if x >= 0 then ("+" <> show x) else show x))
+          (Text.pack . (\x -> if x >= 0 then "+" <> show x else show x))
     , mk1 "Int.fromText" att (pure . IR.maybeToOptional . fmap I) $
         (\x -> readMaybe (if "+" `List.isPrefixOf` x then drop 1 x else x))
         . Text.unpack
@@ -365,7 +362,7 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Float.fromText"      att (pure . IR.maybeToOptional . fmap F) (
         (\x -> readMaybe x :: Maybe Double) . Text.unpack)
 
-    , mk2 "Debug.watch" att at id (\t v -> putStrLn (Text.unpack t) *> pure v)
+    , mk2 "Debug.watch" att at id (\t v -> putStrLn (Text.unpack t) $> v)
     ]
 
   builtinsMap :: Map R.Reference IR
@@ -473,7 +470,7 @@ run ioHandler env ir = do
             else pure (size, m)
           -- traceM . P.render 80 $ P.shown var <> " =" `P.hang` pvalue v
           push size v m >>= \m -> go (size + 1) m body
-        e@(RMatchFail _ _ _) -> pure e
+        e@RMatchFail {} -> pure e
         e@(RError _ _) -> pure e
       LetRec bs body -> letrec size m bs body
       MakeSequence vs ->
@@ -514,8 +511,8 @@ run ioHandler env ir = do
       Truncate0I i -> do x <- ati size i m; done (N (fromIntegral (truncate0 x)))
       ModI i j -> do x <- ati size i m; y <- ati size j m; done (I (x `mod` y))
       PowI i j -> do x <- ati size i m; y <- atn size j m; done (I (x ^ y))
-      ShiftRI i j -> do x <- ati size i m; y <- atn size j m; done (I (x `shiftR` (fromIntegral y)))
-      ShiftLI i j -> do x <- ati size i m; y <- atn size j m; done (I (x `shiftL` (fromIntegral y)))
+      ShiftRI i j -> do x <- ati size i m; y <- atn size j m; done (I (x `shiftR` fromIntegral y))
+      ShiftLI i j -> do x <- ati size i m; y <- atn size j m; done (I (x `shiftL` fromIntegral y))
       BitAndI i j -> do x <- ati size i m; y <- ati size j m; done (I ((.&.) (fromIntegral x) (fromIntegral y)))
       BitOrI i j -> do x <- ati size i m; y <- ati size j m; done (I ((.|.) (fromIntegral x) (fromIntegral y)))
       BitXorI i j -> do x <- ati size i m; y <- ati size j m; done (I (xor (fromIntegral x) (fromIntegral y)))
@@ -534,8 +531,8 @@ run ioHandler env ir = do
       DivN i j -> do x <- atn size i m; y <- atn size j m; done (N (x `div` y))
       ModN i j -> do x <- atn size i m; y <- atn size j m; done (N (x `mod` y))
       PowN i j -> do x <- atn size i m; y <- atn size j m; done (N (fromIntegral (x ^ y)))
-      ShiftRN i j -> do x <- atn size i m; y <- atn size j m; done (N (fromIntegral (x `shiftR` (fromIntegral y))))
-      ShiftLN i j -> do x <- atn size i m; y <- atn size j m; done (N (fromIntegral (x `shiftL` (fromIntegral y))))
+      ShiftRN i j -> do x <- atn size i m; y <- atn size j m; done (N (fromIntegral (x `shiftR` fromIntegral y)))
+      ShiftLN i j -> do x <- atn size i m; y <- atn size j m; done (N (fromIntegral (x `shiftL` fromIntegral y)))
       ToIntN i -> do x <- atn size i m; done (I (fromIntegral x))
       GtN i j -> do x <- atn size i m; y <- atn size j m; done (B (x > y))
       GtEqN i j -> do x <- atn size i m; y <- atn size j m; done (B (x >= y))
@@ -578,6 +575,7 @@ run ioHandler env ir = do
           GT -> 1
       Bug i -> RError ErrorTypeBug <$> at size i m
       Todo i -> RError ErrorTypeTodo <$> at size i m
+      Trace i j -> do x <- at size i m; traceM (show x); y <- at size j m; done y
 
     runHandler :: Size -> Stack -> Value -> IR -> IO Result
     runHandler size m handler body =
@@ -609,7 +607,7 @@ run ioHandler env ir = do
         m <- push size (Requested req) m
         result <- call (size + 1) m handler [Slot 0]
         case result of
-          RMatchFail _ _ _ -> pure $ RRequest (wrapHandler handler req)
+          RMatchFail {} -> pure $ RRequest (wrapHandler handler req)
           r -> pure r
       RDone v -> do
         m <- push size (Pure v) m
@@ -746,7 +744,7 @@ run ioHandler env ir = do
             (a1, a2) = Sequence.splitAt i args
             i = either id (\j -> length args - j) litLen
       (Pure v, PatternPure p) -> tryCase (v, p)
-      (Pure _, PatternBind _ _ _ _) -> Nothing
+      (Pure _, PatternBind {}) -> Nothing
       (Requested (Req r cid args k), PatternBind r2 cid2 pats kpat) ->
         if r == r2 && cid == cid2
         then join <$> traverse tryCase (zip (args ++ [Cont k]) (pats ++ [kpat]))
@@ -863,9 +861,9 @@ instance CyclicOrd Continuation where
 
 continuationConstructorId :: Continuation -> Int
 continuationConstructorId k = case k of
-  One _ _ _ _ -> 0
-  Chain _ _ _ -> 1
-  WrapHandler _ _ -> 2
+  One {} -> 0
+  Chain {} -> 1
+  WrapHandler {} -> 2
 
 truncate0 :: (Num a, Ord a) => a -> a
 truncate0 x = if x >= 0 then x else 0

@@ -227,6 +227,7 @@ data IR' ann z
   -- Debugging/Utilities
   | Todo z
   | Bug z
+  | Trace z z
   -- Control flow
 
   -- `Let` has an `ann` associated with it, e.g `ann = Set Int` which is the
@@ -327,6 +328,7 @@ prettyIR ppe prettyE prettyCont = pir
     CompareU a b -> P.parenthesize $ "CompareU" `P.hang` P.spaced [pz a, pz b]
     Bug a -> P.parenthesize $ "Bug" `P.hang` P.spaced [pz a]
     Todo a -> P.parenthesize $ "Todo" `P.hang` P.spaced [pz a]
+    Trace a b -> P.parenthesize $ "Trace" `P.hang` P.spaced [pz a, pz b]
     ir@Let{} ->
       P.group $ "let" `P.hang` P.lines (blockElem <$> block)
       where
@@ -739,6 +741,7 @@ boundVarsIR = \case
   CompareU _ _ -> mempty
   Bug _ -> mempty
   Todo _ -> mempty
+  Trace _ _ -> mempty
   MakeSequence _ -> mempty
   Construct{} -> mempty
   Request{} -> mempty
@@ -809,6 +812,7 @@ decompileIR stack = \case
   CompareU x y -> builtin "Universal.compare" [x,y]
   Bug x -> builtin "bug" [x]
   Todo x -> builtin "todo" [x]
+  Trace x y -> builtin "trace" [x,y]
   Let v b body _ -> do
     b' <- decompileIR stack b
     body' <- decompileIR (v:stack) body
@@ -1016,6 +1020,7 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Boolean.not", 1, Not (Slot 0))
         , ("bug", 1, Bug (Slot 0))
         , ("todo", 1, Todo (Slot 0))
+        , ("trace", 2, Trace (Slot 1) (Slot 0))
         ]]
 
 -- boring instances

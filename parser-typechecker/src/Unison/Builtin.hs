@@ -348,8 +348,9 @@ builtinsSrc =
   , B "Universal.>=" $ forall1 "a" (\a -> a --> a --> boolean)
   , B "Universal.<=" $ forall1 "a" (\a -> a --> a --> boolean)
 
-  , B "bug" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b))
-  , B "todo" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b))
+  , B "bug" $ forall1 "a" (\a -> forall1 "b" (a -->))
+  , B "todo" $ forall1 "a" (\a -> forall1 "b" (a -->))
+  , B "trace" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b --> b))
 
   , B "Boolean.not" $ boolean --> boolean
 
