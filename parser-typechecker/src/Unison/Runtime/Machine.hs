@@ -800,6 +800,12 @@ prim2 !ustk LEQF !i !j = do
   ustk <- bump ustk
   pokeD ustk (if x <= y then 1 else 0)
   pure ustk
+prim2 !ustk ATN2 !i !j = do
+  x <- peekOffD ustk i
+  y <- peekOffD ustk j
+  ustk <- bump ustk
+  pokeD ustk (atan2 x y)
+  pure ustk
 {-# inline prim2 #-}
 
 yield :: Unmask -> Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> IO ()

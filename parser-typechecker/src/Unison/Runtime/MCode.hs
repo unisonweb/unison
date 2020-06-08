@@ -333,7 +333,7 @@ data Prim1
 
 data Prim2
   = ADDI | SUBI | MULI | DIVI | MODI
-  | ADDF | SUBF | MULF | DIVF
+  | ADDF | SUBF | MULF | DIVF | ATN2
   | SHLI | SHRI | SHRN | POWI
   | EQLI | LESI | LESN | LEQI | LEQN | EQLF | LESF | LEQF
   | POWF | LOGB | MAXF | MINF
@@ -689,6 +689,7 @@ emitPOp ANF.ASIN = emitP1 ASIN
 emitPOp ANF.ACSH = emitP1 ACSH
 emitPOp ANF.ASNH = emitP1 ASNH
 emitPOp ANF.ATNH = emitP1 ATNH
+emitPOp ANF.ATN2 = emitP2 ATN2
 
 emitPOp ANF.ITOF = emitP1 ITOF
 emitPOp ANF.NTOF = emitP1 NTOF

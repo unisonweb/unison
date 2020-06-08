@@ -660,6 +660,7 @@ data POp
   | COSF | ACOS | COSH | ACSH -- cos,acos,cosh,acosh
   | SINF | ASIN | SINH | ASNH -- sin,asin,sinh,asinh
   | TANF | ATAN | TANH | ATNH -- tan,atan,tanh,atanh
+  | ATN2                      -- atan2
   -- Conversion
   | ITOF | NTOF
   -- Concurrency

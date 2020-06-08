@@ -211,13 +211,15 @@ acosf = unop ACOS Ty.floatRef
 asinf = unop ASIN Ty.floatRef
 atanf = unop ATAN Ty.floatRef
 
-coshf, sinhf, tanhf, acoshf, asinhf, atanhf :: Var v => SuperNormal v
+coshf, sinhf, tanhf, acoshf, asinhf, atanhf, atan2f
+  :: Var v => SuperNormal v
 coshf = unop COSH Ty.floatRef
 sinhf = unop SINH Ty.floatRef
 tanhf = unop TANH Ty.floatRef
 acoshf = unop ACSH Ty.floatRef
 asinhf = unop ASNH Ty.floatRef
 atanhf = unop ATNH Ty.floatRef
+atan2f = binop ATN2 Ty.floatRef
 
 ltf, gtf, lef, gef, eqf, neqf :: Var v => SuperNormal v
 ltf = cmpop LESF Ty.floatRef
@@ -843,10 +845,10 @@ builtinLookup
   , ("Float.floor", floorf)
   , ("Float.round", roundf)
   , ("Float.truncate", truncf)
+  , ("Float.atan2", atan2f)
 
---   -- Trigonmetric Functions
---   , B "Float.atan2" $ float --> float --> float
---
+  -- text
+  , ("Text.empty", Lambda [] $ TLit (T ""))
 --   -- Float Utils
 --   , B "Float.toText" $ float --> text
 --   , B "Float.fromText" $ text --> optional float
