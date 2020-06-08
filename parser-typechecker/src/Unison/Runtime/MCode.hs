@@ -40,6 +40,9 @@ import qualified Data.Text as Text
 
 import Unison.Var (Var)
 import Unison.ABT.Normalized (pattern TAbss)
+import Unison.Reference (Reference)
+import qualified Unison.Type as Rf
+import qualified Unison.Runtime.IOSource as Rf
 import Unison.Runtime.ANF
   ( ANormal
   , ANormalT
@@ -715,7 +718,7 @@ bufferModeResult :: BufferMode -> ForeignRslt
 bufferModeResult NoBuffering = [Left 0]
 bufferModeResult LineBuffering = [Left 1]
 bufferModeResult (BlockBuffering Nothing) = [Left 3]
-bufferModeResult (BlockBuffering (Just n)) = [Left 4, Right $ Wrap n]
+bufferModeResult (BlockBuffering (Just n)) = [Left 4, Left n]
 
 booleanResult :: Bool -> ForeignRslt
 booleanResult b = [Left $ fromEnum b]
@@ -723,14 +726,20 @@ booleanResult b = [Left $ fromEnum b]
 intResult :: Int -> ForeignRslt
 intResult i = [Left i]
 
-stringResult :: String -> ForeignRslt
-stringResult = wrappedResult . Text.pack
+-- TODO: this seems questionable, but the existing IO source is
+-- saying that these things return Nat, not arbitrary precision
+-- integers.
+intg2natResult :: Integer -> ForeignRslt
+intg2natResult i = [Left $ fromInteger i]
 
-wrappedResult :: a -> ForeignRslt
-wrappedResult x = [Right $ Wrap x]
+stringResult :: String -> ForeignRslt
+stringResult = wrappedResult Rf.textRef . Text.pack
+
+wrappedResult :: Reference -> a -> ForeignRslt
+wrappedResult r x = [Right $ Wrap r x]
 
 handleResult :: Handle -> ForeignRslt
-handleResult h = [Right $ Wrap h]
+handleResult h = [Right $ Wrap Rf.handleReference h]
 
 timeResult :: RealFrac r => r -> ForeignRslt
 timeResult t = intResult $ round t
@@ -756,13 +765,13 @@ iopToForeign ANF.ISSEEK
 iopToForeign ANF.SEEKFI
   = foreign3 $ \h sm n -> [] <$ hSeek h sm (fromIntegral (n :: Int))
 iopToForeign ANF.POSITN
-  = foreign1 $ \h -> wrappedResult <$> hTell h
+  = foreign1 $ \h -> intg2natResult <$> hTell h
 iopToForeign ANF.GBUFFR
   = foreign1 $ \h -> bufferModeResult <$> hGetBuffering h
 iopToForeign ANF.SBUFFR
   = foreign2 $ \h bm -> [] <$ hSetBuffering h bm
 iopToForeign ANF.GTLINE
-  = foreign1 $ \h -> wrappedResult <$> hGetLine h
+  = foreign1 $ \h -> wrappedResult Rf.textRef <$> hGetLine h
 iopToForeign ANF.GTTEXT
   = error "todo" -- foreign1 $ \h -> pure . Right . Wrap <$> hGetText h
 iopToForeign ANF.PUTEXT
@@ -799,28 +808,30 @@ iopToForeign ANF.GFTIME
       timeResult . utcTimeToPOSIXSeconds
         <$> getModificationTime (Text.unpack fp)
 iopToForeign ANF.GFSIZE
-  = foreign1 $ \fp -> wrappedResult <$> getFileSize (Text.unpack fp)
+  = foreign1 $ \fp -> intg2natResult <$> getFileSize (Text.unpack fp)
 iopToForeign ANF.SRVSCK
   = foreign2 $ \mhst port ->
-      wrappedResult
+      wrappedResult Rf.socketReference
         <$> SYS.bindSock (hostPreference mhst) (Text.unpack port)
 iopToForeign ANF.LISTEN
   = foreign1 $ \sk ->
       [] <$ SYS.listenSock sk 2048
 iopToForeign ANF.CLISCK
   = foreign2 $ \ho po ->
-      wrappedResult <$> SYS.connectSock (Text.unpack ho) (Text.unpack po)
+      wrappedResult Rf.socketReference
+        <$> SYS.connectSock (Text.unpack ho) (Text.unpack po)
 iopToForeign ANF.CLOSCK
   = foreign1 $ \sk -> [] <$ SYS.closeSock sk
 iopToForeign ANF.SKACPT
   = foreign1 $ \sk ->
-      wrappedResult <$> SYS.accept sk
+      wrappedResult Rf.socketReference <$> SYS.accept sk
 iopToForeign ANF.SKSEND
   = foreign2 $ \sk bs ->
       [] <$ SYS.send sk (Bytes.toByteString bs)
 iopToForeign ANF.SKRECV
   = foreign2 $ \hs n ->
-      maybeResult' ((0,) . wrappedResult) . fmap Bytes.fromByteString
+      maybeResult' ((0,) . wrappedResult Rf.bytesRef)
+        . fmap Bytes.fromByteString
         <$> SYS.recv hs n
 iopToForeign ANF.THKILL
   = foreign1 $ \tid -> [] <$ killThread tid

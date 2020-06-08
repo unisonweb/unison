@@ -24,6 +24,9 @@ import Unison.Runtime.Foreign
 import Unison.Runtime.Stack
 import Unison.Runtime.MCode
 
+import qualified Unison.Type as Rf
+import qualified Unison.Runtime.IOSource as Rf
+
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty as P
 
@@ -121,7 +124,7 @@ exec _      !_   !denv !ustk !bstk !k (Lit (MD d)) = do
   pure (denv, ustk, bstk, k)
 exec _      !_   !denv !ustk !bstk !k (Lit (MT t)) = do
   bstk <- bump bstk
-  poke bstk (Foreign (Wrap t))
+  poke bstk (Foreign (Wrap Rf.textRef t))
   pure (denv, ustk, bstk, k)
 exec _      !_   !denv !ustk !bstk !k (Reset ps) = do
   pure (denv, ustk, bstk, Mark ps clos k)
@@ -138,7 +141,7 @@ exec unmask !env !denv !ustk !bstk !k (Fork lz) = do
   tid <-
     unmask $ forkEval env denv k lz <$> duplicate ustk <*> duplicate bstk
   bstk <- bump bstk
-  poke bstk . Foreign . Wrap $ tid
+  poke bstk . Foreign . Wrap Rf.threadIdReference $ tid
   pure (denv, ustk, bstk, k)
 {-# inline exec #-}
 
@@ -315,37 +318,39 @@ foreignArgs :: Stack 'UN -> Stack 'BX -> Args -> IO ForeignArgs
 foreignArgs !_    !_    ZArgs = pure []
 foreignArgs !ustk !_    (UArg1 i) = do
   x <- peekOff ustk i
-  pure [Wrap x]
+  pure [Wrap Rf.intRef x]
 foreignArgs !ustk !_    (UArg2 i j) = do
   x <- peekOff ustk i
   y <- peekOff ustk j
-  pure [Wrap x, Wrap y]
+  pure [Wrap Rf.intRef x, Wrap Rf.intRef y]
 foreignArgs !_    !bstk (BArg1 i) = do
-  Foreign x <- peekOff bstk i
-  pure [x]
+  x <- peekOff bstk i
+  pure [marshalToForeign x]
 foreignArgs !_    !bstk (BArg2 i j) = do
-  Foreign x <- peekOff bstk i
-  Foreign y <- peekOff bstk j
-  pure [x, y]
+  x <- peekOff bstk i
+  y <- peekOff bstk j
+  pure [marshalToForeign x, marshalToForeign y]
 foreignArgs !ustk !bstk (DArg2 i j) = do
   x <- peekOff ustk i
-  Foreign y <- peekOff bstk j
-  pure [Wrap x,y]
+  y <- peekOff bstk j
+  pure [Wrap Rf.intRef x, marshalToForeign y]
 foreignArgs !ustk !_    (UArgR ui ul) =
-  for (take ul [ui..]) $ fmap Wrap . peekOff ustk
+  for (take ul [ui..]) $ fmap (Wrap Rf.intRef) . peekOff ustk
 foreignArgs !_    !bstk (BArgR bi bl) =
   for (take bl [bi..]) $ fmap marshalToForeign . peekOff bstk
 foreignArgs !ustk !bstk (DArgR ui ul bi bl) = do
-  uas <- for (take ul [ui..]) $ fmap Wrap . peekOff ustk
+  uas <- for (take ul [ui..]) $ fmap (Wrap Rf.intRef) . peekOff ustk
   bas <- for (take bl [bi..]) $ fmap marshalToForeign . peekOff bstk
   pure $ uas ++ bas
 foreignArgs !ustk !_    (UArgN us) =
-  for (PA.primArrayToList us) $ fmap Wrap . peekOff ustk
+  for (PA.primArrayToList us) $ fmap (Wrap Rf.intRef) . peekOff ustk
 foreignArgs !_    !bstk (BArgN bs) = do
-  for (PA.primArrayToList bs) $ fmap Wrap . peekOff bstk
+  for (PA.primArrayToList bs) $ fmap (Wrap Rf.intRef) . peekOff bstk
 foreignArgs !ustk !bstk (DArgN us bs) = do
-  uas <- for (PA.primArrayToList us) $ fmap Wrap . peekOff ustk
-  bas <- for (PA.primArrayToList bs) $ fmap Wrap . peekOff bstk
+  uas <- for (PA.primArrayToList us) $
+           fmap (Wrap Rf.intRef) . peekOff ustk
+  bas <- for (PA.primArrayToList bs) $
+           fmap (marshalToForeign) . peekOff bstk
   pure $ uas ++ bas
 
 foreignCatch
@@ -359,7 +364,7 @@ foreignCatch unmask ustk bstk f args
   >>= foreignResult ustk bstk . encodeExn
   where
   encodeExn :: Either IOError ForeignRslt -> ForeignRslt
-  encodeExn (Left e) = [Left 0, Right $ Wrap e]
+  encodeExn (Left e) = [Left 0, Right $ Wrap Rf.errorReference e]
   encodeExn (Right r) = Left 1 : r
 
 foreignResult

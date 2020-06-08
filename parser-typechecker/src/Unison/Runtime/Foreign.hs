@@ -24,13 +24,22 @@ import Network.Socket (Socket)
 import System.FilePath (FilePath)
 import System.IO (BufferMode(..), SeekMode, Handle, IOMode)
 import Unison.Util.Bytes (Bytes)
+import Unison.Reference (Reference)
+import qualified Unison.Type as Ty
 
 import Unsafe.Coerce
 
 data Foreign where
-  Wrap :: e -> Foreign
+  Wrap :: Reference -> e -> Foreign
 
-instance Eq Foreign where _ == _ = error "Eq Foreign"
+instance Eq Foreign where
+  Wrap rl t0 == Wrap rr u0
+    | rl == Ty.textRef, rr == Ty.textRef = t == u
+    where
+    t, u :: Text
+    t = unsafeCoerce t0
+    u = unsafeCoerce u0
+  _ == _ = error "Eq Foreign"
 instance Ord Foreign where compare __ = error "Ord Foreign"
 
 instance Show Foreign where
@@ -111,7 +120,7 @@ foreignCCError :: HasCallStack => a
 foreignCCError = error "mismatched foreign calling convention"
 
 unwrapForeign :: Foreign -> a
-unwrapForeign (Wrap e) = unsafeCoerce e
+unwrapForeign (Wrap _ e) = unsafeCoerce e
 
 foreign0 :: IO [Either Int Foreign] -> ForeignFunc
 foreign0 e = FF $ \[] -> e
