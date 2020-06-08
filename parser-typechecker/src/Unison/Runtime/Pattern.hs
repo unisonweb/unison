@@ -46,7 +46,8 @@ rebind tms0 (PR ps0 _ _) = let1' False . reverse $ collect [] tms0 ps0
   where
   collect acc (Var' u : tms) (VarP (_, v) : ps)
     | u == v = collect acc tms ps
-    | otherwise = error "pattern rebind: mismatched variables"
+    | otherwise
+    = error $ "pattern rebind: mismatched variables: " ++ show (u,v)
   collect acc (tm : tms) (VarP (_, v) : ps)
     = collect ((v, tm) : acc) tms ps
   collect acc [] [] = acc
