@@ -237,7 +237,7 @@ executable unison
   main-is: Main.hs
   hs-source-dirs: unison
   default-language: Haskell2010
-  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -rtsopts
   other-modules:
     System.Path
     Version
