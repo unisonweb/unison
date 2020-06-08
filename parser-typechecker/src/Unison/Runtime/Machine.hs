@@ -93,6 +93,12 @@ exec _      !_   !denv !ustk !bstk !k (Prim1 op i) = do
 exec _      !_   !denv !ustk !bstk !k (Prim2 op i j) = do
   ustk <- prim2 ustk op i j
   pure (denv, ustk, bstk, k)
+exec _      !_   !denv !ustk !bstk !k (EqU i j) = do
+  x <- peekOff bstk i
+  y <- peekOff bstk j
+  ustk <- bump ustk
+  poke ustk $ if x == y then 1 else 0
+  pure (denv, ustk, bstk, k)
 exec _      !_   !denv !ustk !bstk !k (Pack t args) = do
   clo <- buildData ustk bstk t args
   bstk <- bump bstk

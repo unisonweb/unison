@@ -357,6 +357,12 @@ data Instr
           !Int   -- index of first prim argument
           !Int   -- index of second prim argument
 
+  -- Universal equality instruction
+  --
+  -- Depending on how many of these there are, it might be
+  -- better to split them into a separate type like Prim1/2
+  | EqU !Int !Int -- arguments
+
   -- Call out to a Haskell function. This is considerably slower
   -- for very simple operations, hence the primops.
   | ForeignCall !Bool        -- catch exceptions
@@ -686,6 +692,10 @@ emitPOp ANF.ATNH = emitP1 ATNH
 
 emitPOp ANF.ITOF = emitP1 ITOF
 emitPOp ANF.NTOF = emitP1 NTOF
+
+emitPOp ANF.EQLU = \case
+  BArg2 i j -> EqU i j
+  _ -> error "universal equality takes two arguments"
 
 emitPOp ANF.FORK = \case
   BArg1 i -> Fork $ App True (Stk i) ZArgs

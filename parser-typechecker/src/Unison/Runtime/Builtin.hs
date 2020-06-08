@@ -277,6 +277,11 @@ dropn = binop0 4 $ \[x0,y0,x,y,b,r]
              (Just $ TPrm SUBN [y,x]))
       $ TCon (rtag Ty.natRef) 0 [r]
 
+equ :: Var v => SuperNormal v
+equ = binop0 1 $ \[x,y,b]
+   -> TLet b UN (APrm EQLU [x,y])
+    . TTm $ boolift b
+
 jumpk :: Var v => SuperNormal v
 jumpk = binop0 0 $ \[k,a] -> TKon k [a]
 
@@ -846,7 +851,6 @@ builtinLookup
 --   , B "Float.toText" $ float --> text
 --   , B "Float.fromText" $ text --> optional float
 --
---   , B "Universal.==" $ forall1 "a" (\a -> a --> a --> boolean)
 --   -- Don't we want a Universal.!= ?
 --
 --   -- Universal.compare intended as a low level function that just returns
@@ -908,6 +912,7 @@ builtinLookup
 --   , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optional a)
 --
 --   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
+  , ("Universal.==", equ)
   , ("jumpCont", jumpk)
   ]
 

@@ -664,6 +664,8 @@ data POp
   | ITOF | NTOF
   -- Concurrency
   | FORK
+  -- Universal operations
+  | EQLU
   -- Debug
   | PRNT | INFO
   deriving (Show,Eq,Ord)
