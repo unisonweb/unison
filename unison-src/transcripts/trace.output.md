@@ -8,7 +8,7 @@ fac n =
     trace "next" ()
     n * fac (drop 1 n)
 
-> fac 10
+> fac 4
 ```
 
 ```ucm
@@ -23,6 +23,11 @@ fac n =
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
+
+"next"
+"next"
+"next"
+"done"
 
     8 | > fac 10
           ⧩
