@@ -559,7 +559,7 @@ emitSection _   ctx (TPrm p args)
   $ Yield $ UArg1 0
 emitSection _   _   (TLit l)
   = Ins (emitLit l)
-  . Yield $ UArg1 0
+  . Yield $ litArg l
 emitSection rec ctx (TMatch v bs)
   | Just (i,BX) <- ctxResolve ctx v
   , MatchData _ cs df <- bs
@@ -609,6 +609,10 @@ emitSectionVErr :: (Var v, HasCallStack) => v -> a
 emitSectionVErr v
   = error
   $ "emitSection: could not resolve function variable: " ++ show v
+
+litArg :: ANF.Lit -> Args
+litArg ANF.T{} = BArg1 0
+litArg _       = UArg1 0
 
 emitLet :: Var v => RCtx v -> Ctx v -> ANormalT v -> Section -> Section
 -- Currently packed literals
