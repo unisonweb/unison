@@ -11,6 +11,8 @@ import Data.String (fromString)
 import Data.Traversable
 import Data.Word (Word64)
 
+import qualified Data.Text as Tx
+
 import Control.Exception
 import Control.Lens ((<&>))
 import Control.Concurrent (forkIOWithUnmask, ThreadId)
@@ -18,6 +20,8 @@ import Control.Exception (try, mask)
 import Control.Monad ((<=<))
 
 import qualified Data.Primitive.PrimArray as PA
+
+import Text.Read (readMaybe)
 
 import Unison.Runtime.ANF (Mem(..))
 import Unison.Runtime.Foreign
@@ -90,17 +94,17 @@ exec _      !_   !denv !ustk !bstk !k (Capture p) = do
   bstk <- bump bstk
   poke bstk $ Captured sk useg bseg
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (Prim1 op i) = do
-  ustk <- prim1 ustk op i
+exec _      !_   !denv !ustk !bstk !k (UPrim1 op i) = do
+  ustk <- uprim1 ustk op i
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (Prim2 op i j) = do
-  ustk <- prim2 ustk op i j
+exec _      !_   !denv !ustk !bstk !k (UPrim2 op i j) = do
+  ustk <- uprim2 ustk op i j
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (EqU i j) = do
-  x <- peekOff bstk i
-  y <- peekOff bstk j
-  ustk <- bump ustk
-  poke ustk $ if x == y then 1 else 0
+exec _      !_   !denv !ustk !bstk !k (BPrim1 op i) = do
+  (ustk,bstk) <- bprim1 ustk bstk op i
+  pure (denv, ustk, bstk, k)
+exec _      !_   !denv !ustk !bstk !k (BPrim2 op i j) = do
+  (ustk,bstk) <- bprim2 ustk bstk op i j
   pure (denv, ustk, bstk, k)
 exec _      !_   !denv !ustk !bstk !k (Pack t args) = do
   clo <- buildData ustk bstk t args
@@ -521,297 +525,433 @@ peekForeign bstk i
       _ -> die "bad foreign argument"
 {-# inline peekForeign #-}
 
-prim1 :: Stack 'UN -> Prim1 -> Int -> IO (Stack 'UN)
-prim1 !ustk DECI !i = do
+uprim1 :: Stack 'UN -> UPrim1 -> Int -> IO (Stack 'UN)
+uprim1 !ustk DECI !i = do
   m <- peekOff ustk i
   ustk <- bump ustk
   poke ustk (m-1)
   pure ustk
-prim1 !ustk INCI !i = do
+uprim1 !ustk INCI !i = do
   m <- peekOff ustk i
   ustk <- bump ustk
   poke ustk (m+1)
   pure ustk
-prim1 !ustk NEGI !i = do
+uprim1 !ustk NEGI !i = do
   m <- peekOff ustk i
   ustk <- bump ustk
   poke ustk (-m)
   pure ustk
-prim1 !ustk SGNI !i = do
+uprim1 !ustk SGNI !i = do
   m <- peekOff ustk i
   ustk <- bump ustk
   poke ustk (signum m)
   pure ustk
-prim1 !ustk ABSF !i = do
+uprim1 !ustk ABSF !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   pokeD ustk (abs d)
   pure ustk
-prim1 !ustk CEIL !i = do
+uprim1 !ustk CEIL !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   poke ustk (ceiling d)
   pure ustk
-prim1 !ustk FLOR !i = do
+uprim1 !ustk FLOR !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   poke ustk (floor d)
   pure ustk
-prim1 !ustk TRNF !i = do
+uprim1 !ustk TRNF !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   poke ustk (truncate d)
   pure ustk
-prim1 !ustk RNDF !i = do
+uprim1 !ustk RNDF !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   poke ustk (round d)
   pure ustk
-prim1 !ustk EXPF !i = do
+uprim1 !ustk EXPF !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   pokeD ustk (exp d)
   pure ustk
-prim1 !ustk LOGF !i = do
+uprim1 !ustk LOGF !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   pokeD ustk (log d)
   pure ustk
-prim1 !ustk SQRT !i = do
+uprim1 !ustk SQRT !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   pokeD ustk (sqrt d)
   pure ustk
-prim1 !ustk COSF !i = do
+uprim1 !ustk COSF !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   pokeD ustk (cos d)
   pure ustk
-prim1 !ustk SINF !i = do
+uprim1 !ustk SINF !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   pokeD ustk (sin d)
   pure ustk
-prim1 !ustk TANF !i = do
+uprim1 !ustk TANF !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   pokeD ustk (tan d)
   pure ustk
-prim1 !ustk COSH !i = do
+uprim1 !ustk COSH !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   pokeD ustk (cosh d)
   pure ustk
-prim1 !ustk SINH !i = do
+uprim1 !ustk SINH !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   pokeD ustk (sinh d)
   pure ustk
-prim1 !ustk TANH !i = do
+uprim1 !ustk TANH !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   pokeD ustk (tanh d)
   pure ustk
-prim1 !ustk ACOS !i = do
+uprim1 !ustk ACOS !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   pokeD ustk (acos d)
   pure ustk
-prim1 !ustk ASIN !i = do
+uprim1 !ustk ASIN !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   pokeD ustk (asin d)
   pure ustk
-prim1 !ustk ATAN !i = do
+uprim1 !ustk ATAN !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   pokeD ustk (atan d)
   pure ustk
-prim1 !ustk ASNH !i = do
+uprim1 !ustk ASNH !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   pokeD ustk (asinh d)
   pure ustk
-prim1 !ustk ACSH !i = do
+uprim1 !ustk ACSH !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   pokeD ustk (acosh d)
   pure ustk
-prim1 !ustk ATNH !i = do
+uprim1 !ustk ATNH !i = do
   d <- peekOffD ustk i
   ustk <- bump ustk
   pokeD ustk (atanh d)
   pure ustk
-prim1 !ustk ITOF !i = do
+uprim1 !ustk ITOF !i = do
   n <- peekOff ustk i
   ustk <- bump ustk
   pokeD ustk (fromIntegral n)
   pure ustk
-prim1 !ustk NTOF !i = do
+uprim1 !ustk NTOF !i = do
   n <- peekOffN ustk i
   ustk <- bump ustk
   pokeD ustk (fromIntegral n)
   pure ustk
-{-# inline prim1 #-}
+{-# inline uprim1 #-}
 
-prim2 :: Stack 'UN -> Prim2 -> Int -> Int -> IO (Stack 'UN)
-prim2 !ustk ADDI !i !j = do
+uprim2 :: Stack 'UN -> UPrim2 -> Int -> Int -> IO (Stack 'UN)
+uprim2 !ustk ADDI !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   poke ustk (m+n)
   pure ustk
-prim2 !ustk SUBI !i !j = do
+uprim2 !ustk SUBI !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   poke ustk (m-n)
   pure ustk
-prim2 !ustk MULI !i !j = do
+uprim2 !ustk MULI !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   poke ustk (m*n)
   pure ustk
-prim2 !ustk DIVI !i !j = do
+uprim2 !ustk DIVI !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   poke ustk (m`div`n)
   pure ustk
-prim2 !ustk MODI !i !j = do
+uprim2 !ustk MODI !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   poke ustk (m`mod`n)
   pure ustk
-prim2 !ustk SHLI !i !j = do
+uprim2 !ustk SHLI !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   poke ustk (m`shiftL`n)
   pure ustk
-prim2 !ustk SHRI !i !j = do
+uprim2 !ustk SHRI !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   poke ustk (m`shiftR`n)
   pure ustk
-prim2 !ustk SHRN !i !j = do
+uprim2 !ustk SHRN !i !j = do
   m <- peekOffN ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   pokeN ustk (m`shiftR`n)
   pure ustk
-prim2 !ustk POWI !i !j = do
+uprim2 !ustk POWI !i !j = do
   m <- peekOff ustk i
   n <- peekOffN ustk j
   ustk <- bump ustk
   poke ustk (m^n)
   pure ustk
-prim2 !ustk EQLI !i !j = do
+uprim2 !ustk EQLI !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   poke ustk $ if m == n then 1 else 0
   pure ustk
-prim2 !ustk LESI !i !j = do
+uprim2 !ustk LESI !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   poke ustk $ if m < n then 1 else 0
   pure ustk
-prim2 !ustk LEQI !i !j = do
+uprim2 !ustk LEQI !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   poke ustk $ if m <= n then 1 else 0
   pure ustk
-prim2 !ustk LESN !i !j = do
+uprim2 !ustk LESN !i !j = do
   m <- peekOffN ustk i
   n <- peekOffN ustk j
   ustk <- bump ustk
   poke ustk $ if m < n then 1 else 0
   pure ustk
-prim2 !ustk LEQN !i !j = do
+uprim2 !ustk LEQN !i !j = do
   m <- peekOffN ustk i
   n <- peekOffN ustk j
   ustk <- bump ustk
   poke ustk $ if m <= n then 1 else 0
   pure ustk
-prim2 !ustk ADDF !i !j = do
+uprim2 !ustk ADDF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
   pokeD ustk (x + y)
   pure ustk
-prim2 !ustk SUBF !i !j = do
+uprim2 !ustk SUBF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
   pokeD ustk (x - y)
   pure ustk
-prim2 !ustk MULF !i !j = do
+uprim2 !ustk MULF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
   pokeD ustk (x * y)
   pure ustk
-prim2 !ustk DIVF !i !j = do
+uprim2 !ustk DIVF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
   pokeD ustk (x / y)
   pure ustk
-prim2 !ustk LOGB !i !j = do
+uprim2 !ustk LOGB !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
   pokeD ustk (logBase x y)
   pure ustk
-prim2 !ustk POWF !i !j = do
+uprim2 !ustk POWF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
   pokeD ustk (x ** y)
   pure ustk
-prim2 !ustk MAXF !i !j = do
+uprim2 !ustk MAXF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
   pokeD ustk (max x y)
   pure ustk
-prim2 !ustk MINF !i !j = do
+uprim2 !ustk MINF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
   pokeD ustk (min x y)
   pure ustk
-prim2 !ustk EQLF !i !j = do
+uprim2 !ustk EQLF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
   pokeD ustk (if x == y then 1 else 0)
   pure ustk
-prim2 !ustk LESF !i !j = do
+uprim2 !ustk LESF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
   pokeD ustk (if x < y then 1 else 0)
   pure ustk
-prim2 !ustk LEQF !i !j = do
+uprim2 !ustk LEQF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
   pokeD ustk (if x <= y then 1 else 0)
   pure ustk
-prim2 !ustk ATN2 !i !j = do
+uprim2 !ustk ATN2 !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
   pokeD ustk (atan2 x y)
   pure ustk
-{-# inline prim2 #-}
+{-# inline uprim2 #-}
+
+bprim1
+  :: Stack 'UN -> Stack 'BX -> BPrim1 -> Int
+  -> IO (Stack 'UN, Stack 'BX)
+bprim1 !ustk !bstk SIZT i = do
+  t <- peekOffT bstk i
+  ustk <- bump ustk
+  poke ustk $ Tx.length t
+  pure (ustk, bstk)
+bprim1 !ustk !bstk ITOT i = do
+  n <- peekOff ustk i
+  bstk <- bump bstk
+  pokeT bstk . Tx.pack $ show n
+  pure (ustk, bstk)
+bprim1 !ustk !bstk NTOT i = do
+  n <- peekOffN ustk i
+  bstk <- bump bstk
+  pokeT bstk . Tx.pack $ show n
+  pure (ustk, bstk)
+bprim1 !ustk !bstk FTOT i = do
+  f <- peekOffD ustk i
+  bstk <- bump bstk
+  pokeT bstk . Tx.pack $ show f
+  pure (ustk, bstk)
+bprim1 !ustk !bstk USNC i
+  = peekOffT bstk i >>= \t -> case Tx.unsnoc t of
+      Nothing -> do
+        ustk <- bump ustk
+        poke ustk 0
+        pure (ustk, bstk)
+      Just (t, c) -> do
+        ustk <- bumpn ustk 2
+        bstk <- bump bstk
+        pokeOff ustk 1 $ fromEnum c
+        poke ustk 1
+        pokeT bstk t
+        pure (ustk, bstk)
+bprim1 !ustk !bstk UCNS i
+  = peekOffT bstk i >>= \t -> case Tx.uncons t of
+      Nothing -> do
+        ustk <- bump ustk
+        poke ustk 0
+        pure (ustk, bstk)
+      Just (c, t) -> do
+        ustk <- bumpn ustk 2
+        bstk <- bump bstk
+        pokeOff ustk 1 $ fromEnum c
+        poke ustk 1
+        pokeT bstk t
+        pure (ustk, bstk)
+bprim1 !ustk !bstk TTOI i
+  = peekOffT bstk i >>= \t -> case readMaybe $ Tx.unpack t of
+      Nothing -> do
+        ustk <- bump ustk
+        poke ustk 0
+        pure (ustk, bstk)
+      Just n -> do
+        ustk <- bumpn ustk 2
+        poke ustk 1
+        pokeOff ustk 1 n
+        pure (ustk, bstk)
+bprim1 !ustk !bstk TTON i
+  = peekOffT bstk i >>= \t -> case readMaybe $ Tx.unpack t of
+      Nothing -> do
+        ustk <- bump ustk
+        poke ustk 0
+        pure (ustk, bstk)
+      Just n -> do
+        ustk <- bumpn ustk 2
+        poke ustk 1
+        pokeOffN ustk 1 n
+        pure (ustk, bstk)
+bprim1 !ustk !bstk TTOF i
+  = peekOffT bstk i >>= \t -> case readMaybe $ Tx.unpack t of
+      Nothing -> do
+        ustk <- bump ustk
+        poke ustk 0
+        pure (ustk, bstk)
+      Just f -> do
+        ustk <- bumpn ustk 2
+        poke ustk 1
+        pokeOffD ustk 1 f
+        pure (ustk, bstk)
+{-# inline bprim1 #-}
+
+bprim2
+  :: Stack 'UN -> Stack 'BX -> BPrim2 -> Int -> Int
+  -> IO (Stack 'UN, Stack 'BX)
+bprim2 !ustk !bstk EQLU i j = do
+  x <- peekOff bstk i
+  y <- peekOff bstk j
+  ustk <- bump ustk
+  poke ustk $ if x == y then 1 else 0
+  pure (ustk, bstk)
+bprim2 !ustk !bstk LEQU i j = do
+  _ <- peekOff bstk i
+  _ <- peekOff bstk j
+  error "LEQU not implemented"
+  pure (ustk, bstk)
+bprim2 !ustk !bstk DRPT i j = do
+  n <- peekOff ustk i
+  t <- peekOffT bstk j
+  bstk <- bump bstk
+  pokeT bstk $ Tx.drop n t
+  pure (ustk, bstk)
+bprim2 !ustk !bstk CATT i j = do
+  x <- peekOffT bstk i
+  y <- peekOffT bstk j
+  bstk <- bump bstk
+  pokeT bstk $ Tx.append x y
+  pure (ustk, bstk)
+bprim2 !ustk !bstk TAKT i j = do
+  n <- peekOff ustk i
+  t <- peekOffT bstk j
+  bstk <- bump bstk
+  pokeT bstk $ Tx.take n t
+  pure (ustk, bstk)
+bprim2 !ustk !bstk EQLT i j = do
+  x <- peekOffT bstk i
+  y <- peekOffT bstk j
+  ustk <- bump ustk
+  poke ustk $ if x == y then 1 else 0
+  pure (ustk, bstk)
+bprim2 !ustk !bstk LEQT i j = do
+  x <- peekOffT bstk i
+  y <- peekOffT bstk j
+  ustk <- bump ustk
+  poke ustk $ if x <= y then 1 else 0
+  pure (ustk, bstk)
+bprim2 !ustk !bstk LEST i j = do
+  x <- peekOffT bstk i
+  y <- peekOffT bstk j
+  ustk <- bump ustk
+  poke ustk $ if x < y then 1 else 0
+  pure (ustk, bstk)
+{-# inline bprim2 #-}
 
 yield :: Unmask -> Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> IO ()
 yield unmask !env !denv !ustk !bstk !k = leap denv k

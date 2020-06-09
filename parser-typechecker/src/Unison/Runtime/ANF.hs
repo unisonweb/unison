@@ -661,8 +661,12 @@ data POp
   | SINF | ASIN | SINH | ASNH -- sin,asin,sinh,asinh
   | TANF | ATAN | TANH | ATNH -- tan,atan,tanh,atanh
   | ATN2                      -- atan2
+  -- Text
+  | CATT | TAKT | DRPT | SIZT -- ++,take,drop,size
+  | UCNS | USNC | EQLT | LEQT -- uncons,unsnoc,==,<=
   -- Conversion
-  | ITOF | NTOF
+  | ITOF | NTOF | ITOT | NTOT
+  | TTOI | TTON | TTOF | FTOT
   -- Concurrency
   | FORK
   -- Universal operations

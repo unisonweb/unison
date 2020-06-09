@@ -25,7 +25,6 @@ import Unison.Runtime.IOSource
 
 import qualified Unison.Type as Ty
 import qualified Unison.Builtin.Decls as Ty
-  (unitRef,optionalRef)
 
 import Unison.Util.EnumContainers as EC
 
@@ -48,9 +47,21 @@ freshes' avoid0 = go avoid0 []
     = let v = freshIn avoid $ typed ANFBlank
        in go (insert v avoid) (v:vs) (n-1)
 
+boolTag, intTag, natTag, floatTag, charTag :: RTag
+boolTag = rtag Ty.booleanRef
+intTag = rtag Ty.intRef
+natTag = rtag Ty.natRef
+floatTag = rtag Ty.floatRef
+charTag = rtag Ty.charRef
+
+optionTag, eitherTag, pairTag :: RTag
+optionTag = rtag Ty.optionalRef
+eitherTag = rtag eitherReference
+pairTag = rtag Ty.pairRef
+
 fls, tru :: Var v => ANormal v
-fls = TCon (rtag Ty.booleanRef) 0 []
-tru = TCon (rtag Ty.booleanRef) 1 []
+fls = TCon boolTag 0 []
+tru = TCon boolTag 1 []
 
 boolift :: Var v => v -> ANormalT v
 boolift v
@@ -248,7 +259,7 @@ trni = unop0 3 $ \[x0,x,z,b]
      . TLet b UN (APrm LEQI [x, z])
      . TMatch b
      $ MatchIntegral
-         (mapSingleton 1 $ TCon (rtag Ty.natRef) 0 [z])
+         (mapSingleton 1 $ TCon natTag 0 [z])
          (Just $ TVar x0)
 
 modular :: Var v => POp -> (Bool -> ANormal v) -> SuperNormal v
@@ -279,10 +290,98 @@ dropn = binop0 4 $ \[x0,y0,x,y,b,r]
              (Just $ TPrm SUBN [y,x]))
       $ TCon (rtag Ty.natRef) 0 [r]
 
+appendt, taket, dropt, sizet, unconst, unsnoct :: Var v => SuperNormal v
+appendt = binop0 0 $ \[x,y] -> TPrm CATT [x,y]
+taket = binop0 1 $ \[x0,y,x]
+     -> unbox x0 Ty.natRef x
+      $ TPrm TAKT [x,y]
+dropt = binop0 1 $ \[x0,y,x]
+     -> unbox x0 Ty.natRef x
+      $ TPrm DRPT [x,y]
+sizet = unop0 1 $ \[x,r]
+     -> TLet r UN (APrm SIZT [x])
+      $ TCon (rtag Ty.natRef) 0 [r]
+unconst = unop0 5 $ \[x,t,c0,c,y,p]
+     -> TLet t UN (APrm UCNS [x])
+      . TMatch t . MatchSum $ mapFromList
+      [ (0, ([], TCon optionTag 0 []))
+      , (1, ([UN,BX], TAbss [c0,y]
+                    . TLet c BX (ACon charTag 0 [c0])
+                    . TLet p BX (ACon pairTag 0 [c,y])
+                    $ TCon optionTag 1 [p]))
+      ]
+unsnoct = unop0 5 $ \[x,t,c0,c,y,p]
+     -> TLet t UN (APrm USNC [x])
+      . TMatch t . MatchSum $ mapFromList
+      [ (0, ([], TCon optionTag 0 []))
+      , (1, ([BX,UN], TAbss [y,c0]
+                    . TLet c BX (ACon charTag 0 [c0])
+                    . TLet p BX (ACon pairTag 0 [y,c])
+                    $ TCon optionTag 1 [p]))
+      ]
+
+eqt, neqt, leqt, geqt, lesst, great :: Var v => SuperNormal v
+eqt = binop0 1 $ \[x,y,b]
+   -> TLet b UN (APrm EQLT [x,y])
+    . TTm $ boolift b
+neqt = binop0 1 $ \[x,y,b]
+    -> TLet b UN (APrm EQLT [x,y])
+     . TTm $ notlift b
+leqt = binop0 1 $ \[x,y,b]
+    -> TLet b UN (APrm LEQT [x,y])
+     . TTm $ boolift b
+geqt = binop0 1 $ \[x,y,b]
+    -> TLet b UN (APrm LEQT [y,x])
+     . TTm $ boolift b
+lesst = binop0 1 $ \[x,y,b]
+     -> TLet b UN (APrm LEQT [y,x])
+      . TTm $ notlift b
+great = binop0 1 $ \[x,y,b]
+     -> TLet b UN (APrm LEQT [x,y])
+      . TTm $ notlift b
+
+i2t, n2t, f2t :: Var v => SuperNormal v
+i2t = unop0 1 $ \[n0,n]
+   -> unbox n0 Ty.intRef n
+    $ TPrm ITOT [n]
+n2t = unop0 1 $ \[n0,n]
+   -> unbox n0 Ty.natRef n
+    $ TPrm NTOT [n]
+f2t = unop0 1 $ \[f0,f]
+   -> unbox f0 Ty.floatRef f
+    $ TPrm FTOT [f]
+
+t2i, t2n, t2f :: Var v => SuperNormal v
+t2i = unop0 3 $ \[x,t,n0,n]
+   -> TLet t UN (APrm TTOI [x])
+    . TMatch t . MatchSum $ mapFromList
+    [ (0, ([], TCon optionTag 0 []))
+    , (1, ([UN], TAbs n0
+               . TLet n BX (ACon intTag 0 [n0])
+               $ TCon optionTag 1 [n]))
+    ]
+t2n = unop0 3 $ \[x,t,n0,n]
+   -> TLet t UN (APrm TTON [x])
+    . TMatch t . MatchSum $ mapFromList
+    [ (0, ([], TCon optionTag 0 []))
+    , (1, ([UN], TAbs n0
+               . TLet n BX (ACon natTag 0 [n0])
+               $ TCon optionTag 1 [n]))
+    ]
+t2f = unop0 3 $ \[x,t,f0,f]
+   -> TLet t UN (APrm TTOF [x])
+    . TMatch t . MatchSum $ mapFromList
+    [ (0, ([], TCon optionTag 0 []))
+    , (1, ([UN], TAbs f0
+               . TLet f BX (ACon floatTag 0 [f0])
+               $ TCon optionTag 1 [f]))
+    ]
+
 equ :: Var v => SuperNormal v
 equ = binop0 1 $ \[x,y,b]
    -> TLet b UN (APrm EQLU [x,y])
     . TTm $ boolift b
+
 
 jumpk :: Var v => SuperNormal v
 jumpk = binop0 0 $ \[k,a] -> TKon k [a]
@@ -344,7 +443,7 @@ io'error'result0 ins args ior ccs vs e nx
   = TLet ior UN (AIOp ins args)
   . TMatch ior . MatchSum
   $ mapFromList
-  [ (0, ([BX], TAbs e $ TCon (rtag eitherReference) 0 [e]))
+  [ (0, ([BX], TAbs e $ TCon eitherTag 0 [e]))
   , (1, (ccs, TAbss vs nx))
   ]
 
@@ -356,7 +455,7 @@ io'error'result'let
 io'error'result'let ins args ior ccs vs e r m
   = io'error'result0 ins args ior ccs vs e
   . TLet r BX m
-  $ TCon (rtag eitherReference) 1 [r]
+  $ TCon eitherTag 1 [r]
 
 io'error'result'direct
   :: Var v
@@ -365,7 +464,7 @@ io'error'result'direct
   -> ANormal v
 io'error'result'direct ins args ior e r
   = io'error'result0 ins args ior [BX] [r] e
-  $ TCon (rtag eitherReference) 1 [r]
+  $ TCon eitherTag 1 [r]
 
 io'error'result'unit
   :: Var v
@@ -777,8 +876,8 @@ builtinLookup
   , ("Int.shiftLeft", shli)
   , ("Int.shiftRight", shri)
   , ("Int.pow", powi)
---   , B "Int.toText" $ int --> text
---   , B "Int.fromText" $ text --> optional int
+  , ("Int.toText", i2t)
+  , ("Int.fromText", t2i)
   , ("Int.toFloat", i2f)
 
   , ("Nat.+", addn)
@@ -801,9 +900,9 @@ builtinLookup
   , ("Nat.pow", pown)
   , ("Nat.drop", dropn)
 --   , B "Nat.toInt" $ nat --> int
---   , B "Nat.toText" $ nat --> text
---   , B "Nat.fromText" $ text --> optional nat
   , ("Nat.toFloat", n2f)
+  , ("Nat.toText", n2t)
+  , ("Nat.fromText", t2n)
 
   , ("Float.+", addf)
   , ("Float.-", subf)
@@ -847,11 +946,24 @@ builtinLookup
   , ("Float.truncate", truncf)
   , ("Float.atan2", atan2f)
 
+  , ("Float.toText", f2t)
+  , ("Float.fromText", t2f)
+
   -- text
   , ("Text.empty", Lambda [] $ TLit (T ""))
+  , ("Text.++", appendt)
+  , ("Text.take", taket)
+  , ("Text.drop", dropt)
+  , ("Text.size", sizet)
+  , ("Text.==", eqt)
+  , ("Text.!=", neqt)
+  , ("Text.<=", leqt)
+  , ("Text.>=", geqt)
+  , ("Text.<", lesst)
+  , ("Text.>", great)
+  , ("Text.uncons", unconst)
+  , ("Text.unsnoc", unsnoct)
 --   -- Float Utils
---   , B "Float.toText" $ float --> text
---   , B "Float.fromText" $ text --> optional float
 --
 --   -- Don't we want a Universal.!= ?
 --
@@ -871,20 +983,6 @@ builtinLookup
 --   , B "todo" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b))
 --
 --   , B "Boolean.not" $ boolean --> boolean
---
---   , B "Text.empty" text
---   , B "Text.++" $ text --> text --> text
---   , B "Text.take" $ nat --> text --> text
---   , B "Text.drop" $ nat --> text --> text
---   , B "Text.size" $ text --> nat
---   , B "Text.==" $ text --> text --> boolean
---   , D "Text.!=" $ text --> text --> boolean
---   , B "Text.<=" $ text --> text --> boolean
---   , B "Text.>=" $ text --> text --> boolean
---   , B "Text.<" $ text --> text --> boolean
---   , B "Text.>" $ text --> text --> boolean
---   , B "Text.uncons" $ text --> optional (tuple [char, text])
---   , B "Text.unsnoc" $ text --> optional (tuple [text, char])
 --
 --   , B "Text.toCharList" $ text --> list char
 --   , B "Text.fromCharList" $ list char --> text

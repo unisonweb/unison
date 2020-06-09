@@ -17,6 +17,7 @@ import Data.Foldable (toList)
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
 import Data.Primitive.Array
+import Data.Text (Text)
 import Data.Word
 
 import Unison.Runtime.ANF (Mem(..), unpackTags)
@@ -24,6 +25,8 @@ import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
 
 import Unison.Util.EnumContainers as EC
+
+import GHC.Stack (HasCallStack)
 
 newtype Callback = Hook (Stack 'UN -> Stack 'BX -> IO ())
 
@@ -101,7 +104,7 @@ pattern PApV ic us bs <- PAp ic (ints -> us) (toList -> bs)
 {-# complete DataC, PAp, Captured, Foreign, BlackHole #-}
 {-# complete DataC, PApV, Captured, Foreign, BlackHole #-}
 
-marshalToForeign :: Closure -> Foreign
+marshalToForeign :: HasCallStack => Closure -> Foreign
 marshalToForeign (Foreign x) = x
 marshalToForeign _ = error "marshalToForeign: unhandled closure"
 
@@ -373,6 +376,15 @@ pokeOffN (US _ _ sp stk) i n = writeByteArray stk (sp-i) n
 pokeOffD :: Stack 'UN -> Int -> Double -> IO ()
 pokeOffD (US _ _ sp stk) i d = writeByteArray stk (sp-i) d
 {-# inline pokeOffD #-}
+
+peekOffT :: Stack 'BX -> Int -> IO Text
+peekOffT bstk i =
+  unwrapForeign . marshalToForeign <$> peekOff bstk i
+{-# inline peekOffT #-}
+
+pokeT :: Stack 'BX -> Text -> IO ()
+pokeT bstk t = poke bstk (Foreign $ wrapText t)
+{-# inline pokeT #-}
 
 unull :: Seg 'UN
 unull = byteArrayFromListN 0 ([] :: [Int])

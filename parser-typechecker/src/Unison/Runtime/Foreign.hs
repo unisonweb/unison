@@ -12,6 +12,7 @@ module Unison.Runtime.Foreign
   , foreign1
   , foreign2
   , foreign3
+  , wrapText
   ) where
 
 import GHC.Stack (HasCallStack)
@@ -31,6 +32,9 @@ import Unsafe.Coerce
 
 data Foreign where
   Wrap :: Reference -> e -> Foreign
+
+wrapText :: Text -> Foreign
+wrapText = Wrap Ty.textRef
 
 instance Eq Foreign where
   Wrap rl t0 == Wrap rr u0

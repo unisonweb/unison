@@ -12,8 +12,10 @@ module Unison.Runtime.MCode
   , Section(..)
   , Comb(..)
   , Ref(..)
-  , Prim1(..)
-  , Prim2(..)
+  , UPrim1(..)
+  , UPrim2(..)
+  , BPrim1(..)
+  , BPrim2(..)
   , Branch(..)
   , bcount
   , ucount
@@ -326,7 +328,7 @@ bcount (BArgN a) = sizeofPrimArray a
 bcount _ = 0
 {-# inline bcount #-}
 
-data Prim1
+data UPrim1
   = DECI | INCI | NEGI | SGNI | ABSF | EXPF | LOGF | SQRT
   | COSF | ACOS | COSH | ACSH
   | SINF | ASIN | SINH | ASNH
@@ -334,12 +336,24 @@ data Prim1
   | ITOF | NTOF | CEIL | FLOR | TRNF | RNDF
   deriving (Show, Eq, Ord)
 
-data Prim2
+data UPrim2
   = ADDI | SUBI | MULI | DIVI | MODI
   | ADDF | SUBF | MULF | DIVF | ATN2
   | SHLI | SHRI | SHRN | POWI
   | EQLI | LESI | LESN | LEQI | LEQN | EQLF | LESF | LEQF
   | POWF | LOGB | MAXF | MINF
+  deriving (Show, Eq, Ord)
+
+data BPrim1
+  = SIZT | USNC | UCNS
+  | ITOT | NTOT | FTOT
+  | TTOI | TTON | TTOF
+  deriving (Show, Eq, Ord)
+
+data BPrim2
+  = EQLU | LEQU
+  | DRPT | CATT | TAKT
+  | EQLT | LEQT | LEST
   deriving (Show, Eq, Ord)
 
 data MLit
@@ -351,20 +365,23 @@ data MLit
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
 data Instr
-  -- 1-argument primitive operations
-  = Prim1 !Prim1 -- primitive instruction
-          !Int   -- index of prim argument
+  -- 1-argument unboxed primitive operations
+  = UPrim1 !UPrim1 -- primitive instruction
+           !Int    -- index of prim argument
 
-  -- 2-argument primitive operations
-  | Prim2 !Prim2 -- primitive instruction
-          !Int   -- index of first prim argument
-          !Int   -- index of second prim argument
+  -- 2-argument unboxed primitive operations
+  | UPrim2 !UPrim2 -- primitive instruction
+           !Int    -- index of first prim argument
+           !Int    -- index of second prim argument
 
-  -- Universal equality instruction
-  --
-  -- Depending on how many of these there are, it might be
-  -- better to split them into a separate type like Prim1/2
-  | EqU !Int !Int -- arguments
+  -- 1-argument primitive operations that may involve boxed values
+  | BPrim1 !BPrim1
+           !Int
+
+  -- 2-argument primitive operations that may involve boxed values
+  | BPrim2 !BPrim2
+           !Int
+           !Int
 
   -- Call out to a Haskell function. This is considerably slower
   -- for very simple operations, hence the primops.
@@ -700,10 +717,23 @@ emitPOp ANF.ATN2 = emitP2 ATN2
 
 emitPOp ANF.ITOF = emitP1 ITOF
 emitPOp ANF.NTOF = emitP1 NTOF
+emitPOp ANF.ITOT = emitBP1 ITOT
+emitPOp ANF.NTOT = emitBP1 NTOT
+emitPOp ANF.FTOT = emitBP1 FTOT
+emitPOp ANF.TTON = emitBP1 TTON
+emitPOp ANF.TTOI = emitBP1 TTOI
+emitPOp ANF.TTOF = emitBP1 TTOF
 
-emitPOp ANF.EQLU = \case
-  BArg2 i j -> EqU i j
-  _ -> error "universal equality takes two arguments"
+emitPOp ANF.CATT = emitBP2 CATT
+emitPOp ANF.TAKT = emitBP2 TAKT
+emitPOp ANF.DRPT = emitBP2 DRPT
+emitPOp ANF.SIZT = emitBP1 SIZT
+emitPOp ANF.UCNS = emitBP1 UCNS
+emitPOp ANF.USNC = emitBP1 USNC
+emitPOp ANF.EQLT = emitBP2 EQLT
+emitPOp ANF.LEQT = emitBP2 LEQT
+
+emitPOp ANF.EQLU = emitBP2 EQLU
 
 emitPOp ANF.FORK = \case
   BArg1 i -> Fork $ App True (Stk i) ZArgs
@@ -846,13 +876,28 @@ hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny
 hostPreference (Just host) = SYS.Host $ Text.unpack host
 
-emitP1 :: Prim1 -> Args -> Instr
-emitP1 p (UArg1 i) = Prim1 p i
-emitP1 _ _ = error "emitP1: prim ops must be saturated"
+emitP1 :: UPrim1 -> Args -> Instr
+emitP1 p (UArg1 i) = UPrim1 p i
+emitP1 _ a
+  = error $ "wrong number of args for unary unboxed primop: " ++ show a
 
-emitP2 :: Prim2 -> Args -> Instr
-emitP2 p (UArg2 i j) = Prim2 p i j
-emitP2 _ _ = error "emitP2: prim ops must be saturated"
+emitP2 :: UPrim2 -> Args -> Instr
+emitP2 p (UArg2 i j) = UPrim2 p i j
+emitP2 _ a
+  = error $ "wrong number of args for binary unboxed primop: " ++ show a
+
+emitBP1 :: BPrim1 -> Args -> Instr
+emitBP1 p (UArg1 i) = BPrim1 p i
+emitBP1 p (BArg1 i) = BPrim1 p i
+emitBP1 _ a
+  = error $ "wrong number of args for unary boxed primop: " ++ show a
+
+emitBP2 :: BPrim2 -> Args -> Instr
+emitBP2 p (UArg2 i j) = BPrim2 p i j
+emitBP2 p (BArg2 i j) = BPrim2 p i j
+emitBP2 p (DArg2 i j) = BPrim2 p i j
+emitBP2 _ a
+  = error $ "wrong number of args for binary boxed primop: " ++ show a
 
 emitDataMatching
   :: Var v
