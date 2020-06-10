@@ -174,7 +174,7 @@ bargOnto stk sp cop cp0 (Arg2 i j) = do
  where cp = cp0+2
 bargOnto stk sp cop cp0 (ArgN v) = do
   buf <- if overwrite
-         then newArray sz undefined
+         then newArray sz BlackHole
          else pure cop
   let loop i
         | i < 0     = return ()
@@ -392,9 +392,6 @@ unull = byteArrayFromListN 0 ([] :: [Int])
 bnull :: Seg 'BX
 bnull = fromListN 0 []
 
-sentinel :: a
-sentinel = error "bad stack access"
-
 instance Show (Stack 'BX) where
   show (BS ap fp sp _)
     = "BS " ++ show ap ++ " " ++ show fp ++ " " ++ show sp
@@ -420,7 +417,7 @@ instance MEM 'BX where
   type Elem 'BX = Closure
   type Seg 'BX = Array Closure
 
-  alloc = BS (-1) (-1) (-1) <$> newArray 512 sentinel
+  alloc = BS (-1) (-1) (-1) <$> newArray 512 BlackHole
   {-# inline alloc #-}
 
   peek (BS _ _ sp stk) = readArray stk sp
@@ -446,7 +443,7 @@ instance MEM 'BX where
     | sz <= 0 = pure stki
     | sp+sz+1 < ssz = pure stki
     | otherwise = do
-      stk' <- newArray (ssz+1280) sentinel
+      stk' <- newArray (ssz+1280) BlackHole
       copyMutableArray stk' 0 stk 0 (sp+1)
       pure $ BS ap fp sp stk'
     where ssz = sizeofMutableArray stk
@@ -488,7 +485,7 @@ instance MEM 'BX where
   {-# inline frameArgs #-}
 
   augSeg (BS _ _ sp stk) seg args = do
-    cop <- newArray (ssz+asz) sentinel
+    cop <- newArray (ssz+asz) BlackHole
     copyArray cop asz seg 0 ssz
     _ <- bargOnto stk sp cop (-1) args
     unsafeFreezeArray cop
