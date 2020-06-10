@@ -560,6 +560,7 @@ pattern TBinds' ctx bd <- (unbinds' -> (ctx, bd))
 
 data Branched e
   = MatchIntegral (EnumMap Word64 e) (Maybe e)
+  | MatchText (Map.Map Text e) (Maybe e)
   | MatchRequest (EnumMap RTag (EnumMap CTag ([Mem], e)))
   | MatchEmpty
   | MatchData Reference (EnumMap CTag ([Mem], e)) (Maybe e)
@@ -572,6 +573,9 @@ data BranchAccum v
       Reference
       (Maybe (ANormal v))
       (EnumMap Word64 (ANormal v))
+  | AccumText
+      (Maybe (ANormal v))
+      (Map.Map Text (ANormal v))
   | AccumDefault (ANormal v)
   | AccumRequest
       (EnumMap RTag (EnumMap CTag ([Mem],ANormal v)))
@@ -586,14 +590,20 @@ instance Semigroup (BranchAccum v) where
   l <> AccumEmpty = l
   AccumIntegral rl dl cl <> AccumIntegral rr dr cr
     | rl == rr = AccumIntegral rl (dl <|> dr) $ cl <> cr
+  AccumText dl cl <> AccumText dr cr
+    = AccumText (dl <|> dr) (cl <> cr)
   AccumData rl dl cl <> AccumData rr dr cr
     | rl == rr = AccumData rl (dl <|> dr) (cl <> cr)
   AccumDefault dl <> AccumIntegral r _ cr
     = AccumIntegral r (Just dl) cr
+  AccumDefault dl <> AccumText _ cr
+    = AccumText (Just dl) cr
   AccumDefault dl <> AccumData rr _ cr
     = AccumData rr (Just dl) cr
   AccumIntegral r dl cl <> AccumDefault dr
     = AccumIntegral r (dl <|> Just dr) cl
+  AccumText dl cl <> AccumDefault dr
+    = AccumText (dl <|> Just dr) cl
   AccumData rl dl cl <> AccumDefault dr
     = AccumData rl (dl <|> Just dr) cl
   AccumRequest hl dl <> AccumRequest hr dr
@@ -836,6 +846,8 @@ anfBlock (Match' scrut cas) = do
       pure ( sctx ++ [LZ hv (Right r) vs]
            , AHnd (EC.keys abr) hv df . TTm $ msc
            )
+    AccumText df cs ->
+      pure (sctx ++ cx, AMatch v $ MatchText cs df)
     AccumIntegral r df cs -> do
       i <- fresh
       let dcs = MatchData r
@@ -901,6 +913,9 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   , t <- if b then 1 else 0
   = AccumData Ty.booleanRef Nothing
   . EC.mapSingleton t . ([],) <$> anfTerm bd
+  | TextP _ t <- p
+  , [] <- vs
+  = AccumText Nothing . Map.singleton t <$> anfTerm bd
   | ConstructorP _ r t ps <- p = do
     us <- expandBindings ps vs
     AccumData r Nothing

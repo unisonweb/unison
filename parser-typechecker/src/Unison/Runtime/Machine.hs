@@ -12,6 +12,7 @@ import Data.Traversable
 import Data.Word (Word64)
 
 import qualified Data.Text as Tx
+import qualified Data.Map.Strict as M
 
 import Control.Exception
 import Control.Lens ((<&>))
@@ -154,6 +155,9 @@ maskTag i = i .&. 0xFFFF
 
 eval :: Unmask -> Env -> DEnv
      -> Stack 'UN -> Stack 'BX -> K -> Section -> IO ()
+eval unmask !env !denv !ustk !bstk !k (Match i (TestT df cs)) = do
+  t <- peekOffT bstk i
+  eval unmask env denv ustk bstk k $ selectTextBranch t df cs
 eval unmask !env !denv !ustk !bstk !k (Match i br) = do
   t <- peekOffN ustk i
   eval unmask env denv ustk bstk k $ selectBranch t br
@@ -983,6 +987,11 @@ yield unmask !env !denv !ustk !bstk !k = leap denv k
  leap _ KE = pure ()
 {-# inline yield #-}
 
+selectTextBranch
+  :: Tx.Text -> Section -> M.Map Tx.Text Section -> Section
+selectTextBranch t df cs = M.findWithDefault df t cs
+{-# inline selectTextBranch #-}
+
 selectBranch :: Tag -> Branch -> Section
 selectBranch t (Test1 u y n)
   | t == u    = y
@@ -991,7 +1000,8 @@ selectBranch t (Test2 u cu v cv e)
   | t == u    = cu
   | t == v    = cv
   | otherwise = e
-selectBranch t (TestT df cs) = lookupWithDefault df t cs
+selectBranch t (TestW df cs) = lookupWithDefault df t cs
+selectBranch _ (TestT {}) = error "impossible"
 {-# inline selectBranch #-}
 
 splitCont

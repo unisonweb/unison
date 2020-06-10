@@ -495,8 +495,10 @@ data Branch
   | Test2 !Word64 !Section -- if tag == m then ...
           !Word64 !Section -- else if tag == n then ...
           !Section         -- else ...
-  | TestT !Section
+  | TestW !Section
           !(EnumMap Word64 Section)
+  | TestT !Section
+          !(M.Map Text Section)
   deriving (Show, Eq, Ord)
 
 type Ctx v = [(Maybe v,Mem)]
@@ -591,6 +593,9 @@ emitSection rec ctx (TMatch v bs)
   | Just (i,UN) <- ctxResolve ctx v
   , MatchIntegral cs df <- bs
   = emitIntegralMatching rec ctx i cs df
+  | Just (i,BX) <- ctxResolve ctx v
+  , MatchText cs df <- bs
+  = emitTextMatching rec ctx i cs df
   | Just (i,UN) <- ctxResolve ctx v
   , MatchSum cs <- bs
   = emitSumMatching rec ctx v i cs
@@ -623,6 +628,7 @@ matchCallingError cc b = "(" ++ show cc ++ "," ++ brs ++ ")"
       | MatchIntegral _ _ <- b = "MatchIntegral"
       | MatchRequest _ <- b = "MatchRequest"
       | MatchSum _ <- b = "MatchSum"
+      | MatchText _ _ <- b = "MatchText"
 
 emitSectionVErr :: (Var v, HasCallStack) => v -> a
 emitSectionVErr v
@@ -912,7 +918,7 @@ emitDataMatching
   -> Maybe (ANormal v)
   -> Section
 emitDataMatching rec ctx cs df
-  = Match 0 . TestT edf . coerce $ fmap (emitCase rec ctx) cs
+  = Match 0 . TestW edf . coerce $ fmap (emitCase rec ctx) cs
   where
   edf | Just co <- df = emitSection rec ctx co
       | otherwise = Die "missing data case"
@@ -926,7 +932,7 @@ emitSumMatching
   -> EnumMap Word64 ([Mem], ANormal v)
   -> Section
 emitSumMatching rec ctx v i cs
-  = Match i . TestT edf $ fmap (emitSumCase rec ctx v) cs
+  = Match i . TestW edf $ fmap (emitSumCase rec ctx v) cs
   where
   edf = Die "uncovered unboxed sum case"
 
@@ -937,9 +943,9 @@ emitRequestMatching
   -> EnumMap RTag (EnumMap CTag ([Mem], ANormal v))
   -> Section
 emitRequestMatching rec ctx hs
-  = Match 0 . TestT edf . coerce $ fmap f hs
+  = Match 0 . TestW edf . coerce $ fmap f hs
   where
-  f cs = Match 1 . TestT edf . coerce $ fmap (emitCase rec ctx) cs
+  f cs = Match 1 . TestW edf . coerce $ fmap (emitCase rec ctx) cs
   edf = Die "unhandled ability"
 
 emitIntegralMatching
@@ -951,10 +957,24 @@ emitIntegralMatching
   -> Maybe (ANormal v)
   -> Section
 emitIntegralMatching rec ctx i cs df
-  = Match i . TestT edf $ fmap (emitCase rec ctx . ([],)) cs
+  = Match i . TestW edf $ fmap (emitCase rec ctx . ([],)) cs
   where
   edf | Just co <- df = emitSection rec ctx co
       | otherwise = Die "missing integral case"
+
+emitTextMatching
+  :: Var v
+  => RCtx v
+  -> Ctx v
+  -> Int
+  -> M.Map Text (ANormal v)
+  -> Maybe (ANormal v)
+  -> Section
+emitTextMatching rec ctx i cs df
+  = Match i . TestT edf $ fmap (emitCase rec ctx . ([],)) cs
+  where
+  edf | Just co <- df = emitSection rec ctx co
+      | otherwise = Die "missing text case"
 
 emitCase :: Var v => RCtx v -> Ctx v -> ([Mem], ANormal v) -> Section
 emitCase rec ctx (ccs, TAbss vs bo)
@@ -1042,12 +1062,17 @@ prettySection ind sec
 prettyBranches :: Int -> Branch -> ShowS
 prettyBranches ind bs
   = case bs of
-      Test1 i e df -> pdf df . pcase i e
-      Test2 i ei j ej df -> pdf df . pcase i ei . pcase j ej
+      Test1 i e df -> pdf df . picase i e
+      Test2 i ei j ej df -> pdf df . picase i ei . picase j ej
+      TestW df m ->
+        pdf df . foldr (\(i,e) r -> picase i e . r) id (mapToList m)
       TestT df m ->
-        pdf df . foldr (\(i,e) r -> pcase i e . r) id (mapToList m)
+        pdf df . foldr (\(i,e) r -> ptcase i e . r) id (M.toList m)
   where
   pdf e = indent ind . showString "DFLT ->\n" . prettySection (ind+1) e
-  pcase i e
+  ptcase t e
+    = showString "\n" . indent ind . shows t . showString " ->\n"
+    . prettySection (ind+1) e
+  picase i e
     = showString "\n" . indent ind . shows i . showString " ->\n"
     . prettySection (ind+1) e

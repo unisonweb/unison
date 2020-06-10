@@ -16,10 +16,12 @@ import Unison.Var as Var
 import Unison.Util.EnumContainers as EC
 
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 
 import qualified Unison.Term as Term
 import qualified Unison.ABT as ABT
 import Unison.Test.Common (tm)
+import Unison.Pattern (PatternP(TextP))
 
 import Control.Monad.Reader (ReaderT(..))
 import Control.Monad.State (evalState)
@@ -117,6 +119,8 @@ denormalizeMatch b
   | MatchEmpty <- b = []
   | MatchIntegral m df <- b
   = (dcase (ipat Ty.intRef) <$> mapToList m) ++ dfcase df
+  | MatchText m df <- b
+  = (dcase (const $ TextP ()) <$> Map.toList m) ++ dfcase df
   | MatchData r cs Nothing <- b
   , [(0, ([UN], zb))] <- mapToList cs
   , TAbs i (TMatch j (MatchIntegral m df))  <- zb
