@@ -621,7 +621,8 @@ ac prec bc im doc = AmbientContext prec bc NonInfix im doc
 fmt :: S.Element -> Pretty S.SyntaxText -> Pretty S.SyntaxText
 fmt = PP.withSyntax
 
-{- # FQN elision
+{-
+   # FQN elision
 
    The term pretty-printer inserts `use` statements in some circumstances, to
    avoid the need for using fully-qualified names (FQNs) everywhere.  The
