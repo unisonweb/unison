@@ -656,6 +656,21 @@ uprim1 !ustk NTOF !i = do
   ustk <- bump ustk
   pokeD ustk (fromIntegral n)
   pure ustk
+uprim1 !ustk LZRO !i = do
+  n <- peekOffN ustk i
+  ustk <- bump ustk
+  poke ustk (countLeadingZeros n)
+  pure ustk
+uprim1 !ustk TZRO !i = do
+  n <- peekOffN ustk i
+  ustk <- bump ustk
+  poke ustk (countTrailingZeros n)
+  pure ustk
+uprim1 !ustk COMN !i = do
+  n <- peekOffN ustk i
+  ustk <- bump ustk
+  pokeN ustk (complement n)
+  pure ustk
 {-# inline uprim1 #-}
 
 uprim2 :: Stack 'UN -> UPrim2 -> Int -> Int -> IO (Stack 'UN)
@@ -719,23 +734,11 @@ uprim2 !ustk EQLI !i !j = do
   ustk <- bump ustk
   poke ustk $ if m == n then 1 else 0
   pure ustk
-uprim2 !ustk LESI !i !j = do
-  m <- peekOff ustk i
-  n <- peekOff ustk j
-  ustk <- bump ustk
-  poke ustk $ if m < n then 1 else 0
-  pure ustk
 uprim2 !ustk LEQI !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
   ustk <- bump ustk
   poke ustk $ if m <= n then 1 else 0
-  pure ustk
-uprim2 !ustk LESN !i !j = do
-  m <- peekOffN ustk i
-  n <- peekOffN ustk j
-  ustk <- bump ustk
-  poke ustk $ if m < n then 1 else 0
   pure ustk
 uprim2 !ustk LEQN !i !j = do
   m <- peekOffN ustk i
@@ -797,12 +800,6 @@ uprim2 !ustk EQLF !i !j = do
   ustk <- bump ustk
   pokeD ustk (if x == y then 1 else 0)
   pure ustk
-uprim2 !ustk LESF !i !j = do
-  x <- peekOffD ustk i
-  y <- peekOffD ustk j
-  ustk <- bump ustk
-  pokeD ustk (if x < y then 1 else 0)
-  pure ustk
 uprim2 !ustk LEQF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
@@ -814,6 +811,24 @@ uprim2 !ustk ATN2 !i !j = do
   y <- peekOffD ustk j
   ustk <- bump ustk
   pokeD ustk (atan2 x y)
+  pure ustk
+uprim2 !ustk ANDN !i !j = do
+  x <- peekOffN ustk i
+  y <- peekOffN ustk j
+  ustk <- bump ustk
+  pokeN ustk (x .&. y)
+  pure ustk
+uprim2 !ustk IORN !i !j = do
+  x <- peekOffN ustk i
+  y <- peekOffN ustk j
+  ustk <- bump ustk
+  pokeN ustk (x .|. y)
+  pure ustk
+uprim2 !ustk XORN !i !j = do
+  x <- peekOffN ustk i
+  y <- peekOffN ustk j
+  ustk <- bump ustk
+  pokeN ustk (xor x y)
   pure ustk
 {-# inline uprim2 #-}
 
@@ -867,7 +882,7 @@ bprim1 !ustk !bstk UCNS i
         pokeT bstk t
         pure (ustk, bstk)
 bprim1 !ustk !bstk TTOI i
-  = peekOffT bstk i >>= \t -> case readMaybe $ Tx.unpack t of
+  = peekOffT bstk i >>= \t -> case readm $ Tx.unpack t of
       Nothing -> do
         ustk <- bump ustk
         poke ustk 0
@@ -877,6 +892,9 @@ bprim1 !ustk !bstk TTOI i
         poke ustk 1
         pokeOff ustk 1 n
         pure (ustk, bstk)
+  where
+  readm ('+':s) = readMaybe s
+  readm s = readMaybe s
 bprim1 !ustk !bstk TTON i
   = peekOffT bstk i >>= \t -> case readMaybe $ Tx.unpack t of
       Nothing -> do

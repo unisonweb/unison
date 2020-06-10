@@ -153,6 +153,14 @@ cmpopn pop rf
   . TLet b UN (APrm pop [x,y])
   $ TTm $ notlift b
 
+cmpopbn :: Var v => POp -> Reference -> SuperNormal v
+cmpopbn pop rf
+  = binop0 3 $ \[x0,y0,x,y,b]
+ -> unbox x0 rf x
+  . unbox y0 rf y
+  . TLet b UN (APrm pop [y,x])
+  $ TTm $ notlift b
+
 addi,subi,muli,divi,modi,shli,shri,powi :: Var v => SuperNormal v
 addi = binop ADDI Ty.intRef
 subi = binop SUBI Ty.intRef
@@ -175,16 +183,16 @@ pown = binop POWN Ty.natRef
 
 eqi, eqn, lti, ltn, lei, len :: Var v => SuperNormal v
 eqi = cmpop EQLI Ty.intRef
-lti = cmpop LESI Ty.intRef
+lti = cmpopbn LEQI Ty.intRef
 lei = cmpop LEQI Ty.intRef
 eqn = cmpop EQLN Ty.natRef
-ltn = cmpop LESN Ty.natRef
+ltn = cmpopbn LEQN Ty.natRef
 len = cmpop LEQN Ty.natRef
 
 gti, gtn, gei, gen :: Var v => SuperNormal v
-gti = cmpopb LESI Ty.intRef
+gti = cmpopn LEQI Ty.intRef
 gei = cmpopb LEQI Ty.intRef
-gtn = cmpopb LESN Ty.intRef
+gtn = cmpopn LEQN Ty.intRef
 gen = cmpopb LEQN Ty.intRef
 
 neqi, neqn :: Var v => SuperNormal v
@@ -198,6 +206,18 @@ incn = unop INCN Ty.natRef
 sgni, negi :: Var v => SuperNormal v
 sgni = unop SGNI Ty.intRef
 negi = unop NEGI Ty.intRef
+
+lzeron, tzeron, lzeroi, tzeroi :: Var v => SuperNormal v
+lzeron = unop LZRO Ty.natRef
+tzeron = unop TZRO Ty.natRef
+lzeroi = unop' LZRO Ty.intRef Ty.natRef
+tzeroi = unop' TZRO Ty.intRef Ty.natRef
+
+andn, orn, xorn, compln :: Var v => SuperNormal v
+andn = binop ANDN Ty.natRef
+orn = binop IORN Ty.natRef
+xorn = binop XORN Ty.natRef
+compln = binop COMN Ty.natRef
 
 addf, subf, mulf, divf, powf, sqrtf, logf, logbf
   :: Var v => SuperNormal v
@@ -233,8 +253,8 @@ atanhf = unop ATNH Ty.floatRef
 atan2f = binop ATN2 Ty.floatRef
 
 ltf, gtf, lef, gef, eqf, neqf :: Var v => SuperNormal v
-ltf = cmpop LESF Ty.floatRef
-gtf = cmpopb LESF Ty.floatRef
+ltf = cmpopbn LEQF Ty.floatRef
+gtf = cmpopn LEQF Ty.floatRef
 lef = cmpop LEQF Ty.floatRef
 gef = cmpopb LEQF Ty.floatRef
 eqf = cmpop EQLF Ty.floatRef
@@ -382,6 +402,16 @@ equ = binop0 1 $ \[x,y,b]
    -> TLet b UN (APrm EQLU [x,y])
     . TTm $ boolift b
 
+notb :: Var v => SuperNormal v
+notb = unop0 0 $ \[b]
+    -> TMatch b . flip (MatchData Ty.booleanRef) Nothing
+     $ mapFromList [ (0, ([], tru)), (1, ([], fls)) ]
+
+-- unsafeCoerce, used for numeric types where conversion is a
+-- no-op on the representation. Ideally this will be inlined and
+-- eliminated so that no instruction is necessary.
+cast :: Var v => SuperNormal v
+cast = unop0 0 $ \[x] -> TVar x
 
 jumpk :: Var v => SuperNormal v
 jumpk = binop0 0 $ \[k,a] -> TKon k [a]
@@ -875,6 +905,8 @@ builtinLookup
   , ("Int.isOdd", oddi)
   , ("Int.shiftLeft", shli)
   , ("Int.shiftRight", shri)
+  , ("Int.trailingZeros", tzeroi)
+  , ("Int.leadingZeros", lzeroi)
   , ("Int.pow", powi)
   , ("Int.toText", i2t)
   , ("Int.fromText", t2i)
@@ -897,9 +929,15 @@ builtinLookup
   , ("Nat.isOdd", oddn)
   , ("Nat.shiftLeft", shln)
   , ("Nat.shiftRight", shrn)
+  , ("Nat.trailingZeros", tzeron)
+  , ("Nat.leadingZeros", lzeron)
+  , ("Nat.and", andn)
+  , ("Nat.or", orn)
+  , ("Nat.xor", xorn)
+  , ("Nat.complement", compln)
   , ("Nat.pow", pown)
   , ("Nat.drop", dropn)
---   , B "Nat.toInt" $ nat --> int
+  , ("Nat.toInt", cast)
   , ("Nat.toFloat", n2f)
   , ("Nat.toText", n2t)
   , ("Nat.fromText", t2n)
@@ -963,9 +1001,8 @@ builtinLookup
   , ("Text.>", great)
   , ("Text.uncons", unconst)
   , ("Text.unsnoc", unsnoct)
---   -- Float Utils
---
---   -- Don't we want a Universal.!= ?
+
+  , ("Boolean.not", notb)
 --
 --   -- Universal.compare intended as a low level function that just returns
 --   -- `Int` rather than some Ordering data type. If we want, later,
@@ -982,14 +1019,12 @@ builtinLookup
 --   , B "bug" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b))
 --   , B "todo" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b))
 --
---   , B "Boolean.not" $ boolean --> boolean
---
 --   , B "Text.toCharList" $ text --> list char
 --   , B "Text.fromCharList" $ list char --> text
---
---   , B "Char.toNat" $ char --> nat
---   , B "Char.fromNat" $ nat --> char
---
+
+  , ("Char.toNat", cast)
+  , ("Char.fromNat", cast)
+
 --   , B "Bytes.empty" bytes
 --   , B "Bytes.fromList" $ list nat --> bytes
 --   , B "Bytes.++" $ bytes --> bytes --> bytes

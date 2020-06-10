@@ -329,7 +329,8 @@ bcount _ = 0
 {-# inline bcount #-}
 
 data UPrim1
-  = DECI | INCI | NEGI | SGNI | ABSF | EXPF | LOGF | SQRT
+  = DECI | INCI | NEGI | SGNI | LZRO | TZRO | COMN
+  | ABSF | EXPF | LOGF | SQRT
   | COSF | ACOS | COSH | ACSH
   | SINF | ASIN | SINH | ASNH
   | TANF | ATAN | TANH | ATNH
@@ -340,8 +341,9 @@ data UPrim2
   = ADDI | SUBI | MULI | DIVI | MODI
   | ADDF | SUBF | MULF | DIVF | ATN2
   | SHLI | SHRI | SHRN | POWI
-  | EQLI | LESI | LESN | LEQI | LEQN | EQLF | LESF | LEQF
+  | EQLI | LEQI | LEQN | EQLF | LEQF
   | POWF | LOGB | MAXF | MINF
+  | ANDN | IORN | XORN
   deriving (Show, Eq, Ord)
 
 data BPrim1
@@ -664,8 +666,6 @@ emitPOp ANF.SHLI = emitP2 SHLI
 emitPOp ANF.SHLN = emitP2 SHLI -- Note: left shift behaves uniformly
 emitPOp ANF.SHRI = emitP2 SHRI
 emitPOp ANF.SHRN = emitP2 SHRN
-emitPOp ANF.LESI = emitP2 LESI
-emitPOp ANF.LESN = emitP2 LESN
 emitPOp ANF.LEQI = emitP2 LEQI
 emitPOp ANF.LEQN = emitP2 LEQN
 emitPOp ANF.EQLI = emitP2 EQLI
@@ -677,12 +677,17 @@ emitPOp ANF.INCI = emitP1 INCI
 emitPOp ANF.INCN = emitP1 INCI
 emitPOp ANF.DECI = emitP1 DECI
 emitPOp ANF.DECN = emitP1 DECI
+emitPOp ANF.TZRO = emitP1 TZRO
+emitPOp ANF.LZRO = emitP1 LZRO
+emitPOp ANF.ANDN = emitP2 ANDN
+emitPOp ANF.IORN = emitP2 IORN
+emitPOp ANF.XORN = emitP2 XORN
+emitPOp ANF.COMN = emitP1 COMN
 
 emitPOp ANF.ADDF = emitP2 ADDF
 emitPOp ANF.SUBF = emitP2 SUBF
 emitPOp ANF.MULF = emitP2 MULF
 emitPOp ANF.DIVF = emitP2 DIVF
-emitPOp ANF.LESF = emitP2 LESF
 emitPOp ANF.LEQF = emitP2 LEQF
 emitPOp ANF.EQLF = emitP2 EQLF
 

@@ -640,18 +640,16 @@ data POp
   = ADDI | SUBI | MULI | DIVI -- +,-,*,/
   | SGNI | NEGI | MODI        -- sgn,neg,mod
   | POWI | SHLI | SHRI        -- pow,shiftl,shiftr
-  | INCI | DECI               -- inc,dec
-  | LESI | LEQI | EQLI        -- <,<=,==
+  | INCI | DECI | LEQI | EQLI -- inc,dec,<=,==
   -- Nat
   | ADDN | SUBN | MULN | DIVN -- +,-,*,/
-  | MODN                      -- mod
+  | MODN | TZRO | LZRO        -- mod,trailing/leadingZeros
   | POWN | SHLN | SHRN        -- pow,shiftl,shiftr
-  | INCN | DECN               -- inc,dec
-  | LESN | LEQN | EQLN        -- <,<=,==
+  | ANDN | IORN | XORN | COMN -- and,or,xor,complement
+  | INCN | DECN | LEQN | EQLN -- inc,dec,<=,==
   -- Float
   | ADDF | SUBF | MULF | DIVF -- +,-,*,/
-  | LESF | LEQF | EQLF        -- <,<=,==
-  | MINF | MAXF
+  | MINF | MAXF | LEQF | EQLF -- min,max,<=,==
   | POWF | EXPF | SQRT | LOGF -- pow,exp,sqrt,log
   | LOGB                      -- logBase
   | ABSF | CEIL | FLOR | TRNF -- abs,ceil,floor,truncate
