@@ -278,6 +278,17 @@ moveArgs !ustk !bstk ZArgs = do
   ustk <- discardFrame ustk
   bstk <- discardFrame bstk
   pure (ustk, bstk)
+moveArgs !ustk !bstk (DArgV i j) = do
+  ustk <- if ul > 0
+            then prepareArgs ustk (ArgR 0 ul)
+            else discardFrame ustk
+  bstk <- if bl > 0
+            then prepareArgs bstk (ArgR 0 bl)
+            else discardFrame bstk
+  pure (ustk, bstk)
+  where
+  ul = fsize ustk - i
+  bl = fsize bstk - j
 moveArgs !ustk !bstk (UArg1 i) = do
   ustk <- prepareArgs ustk (Arg1 i)
   bstk <- discardFrame bstk
@@ -312,8 +323,10 @@ moveArgs !ustk !bstk (DArgR ui ul bi bl) = do
   pure (ustk, bstk)
 moveArgs !ustk !bstk (UArgN as) = do
   ustk <- prepareArgs ustk (ArgN as)
+  bstk <- discardFrame bstk
   pure (ustk, bstk)
 moveArgs !ustk !bstk (BArgN as) = do
+  ustk <- discardFrame ustk
   bstk <- prepareArgs bstk (ArgN as)
   pure (ustk, bstk)
 moveArgs !ustk !bstk (DArgN us bs) = do
@@ -360,6 +373,13 @@ foreignArgs !ustk !bstk (DArgN us bs) = do
   bas <- for (PA.primArrayToList bs) $
            fmap (marshalToForeign) . peekOff bstk
   pure $ uas ++ bas
+foreignArgs !ustk !bstk (DArgV ui bi) = do
+  uas <- for ([0..ul]) $ fmap (Wrap Rf.intRef) . peekOff ustk
+  bas <- for ([0..bl]) $ fmap marshalToForeign . peekOff bstk
+  pure $ uas ++ bas
+  where
+  ul = fsize ustk - ui - 1
+  bl = fsize bstk - bi - 1
 
 foreignCatch
   :: (IO ForeignRslt -> IO ForeignRslt)
@@ -428,6 +448,17 @@ buildData !ustk !bstk !t (DArgN us bs) = do
   useg <- augSeg ustk unull (ArgN us)
   bseg <- augSeg bstk bnull (ArgN bs)
   pure $ DataG t useg bseg
+buildData !ustk !bstk !t (DArgV ui bi) = do
+  useg <- if ul > 0
+            then augSeg ustk unull (ArgR 0 ul)
+            else pure unull
+  bseg <- if bl > 0
+            then augSeg bstk bnull (ArgR 0 bl)
+            else pure bnull
+  pure $ DataG t useg bseg
+  where
+  ul = fsize ustk - ui
+  bl = fsize bstk - bi
 {-# inline buildData #-}
 
 dumpData
@@ -521,6 +552,17 @@ closeArgs !ustk !bstk !useg !bseg (DArgN us bs) = do
   useg <- augSeg ustk useg (ArgN us)
   bseg <- augSeg bstk bseg (ArgN bs)
   pure (useg, bseg)
+closeArgs !ustk !bstk !useg !bseg (DArgV ui bi) = do
+  useg <- if ul > 0
+            then augSeg ustk useg (ArgR 0 $ ul)
+            else pure useg
+  bseg <- if bl > 0
+            then augSeg bstk bseg (ArgR 0 $ bl)
+            else pure bseg
+  pure (useg, bseg)
+  where
+  ul = fsize ustk - ui
+  bl = fsize bstk - bi
 
 peekForeign :: Stack 'BX -> Int -> IO a
 peekForeign bstk i

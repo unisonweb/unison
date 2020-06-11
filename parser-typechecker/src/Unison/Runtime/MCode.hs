@@ -307,6 +307,7 @@ data Args
   | BArgN !(PrimArray Int)
   | UArgN !(PrimArray Int)
   | DArgN !(PrimArray Int) !(PrimArray Int)
+  | DArgV !Int !Int
   deriving (Show, Eq, Ord)
 
 ucount, bcount :: Args -> Int
@@ -577,7 +578,9 @@ emitSection _   ctx (TKon k args)
   | otherwise = error $ "emitSection: continuations are boxed"
 emitSection _   ctx (TPrm p args)
   = Ins (emitPOp p $ emitArgs ctx args)
-  $ Yield $ UArg1 0
+  . Yield $ DArgV i j
+  where
+  (i, j) = countCtx ctx
 emitSection _   _   (TLit l)
   = Ins (emitLit l)
   . Yield $ litArg l
@@ -619,6 +622,9 @@ emitSection rec ctx (TShift i v e)
   = Ins (Capture $ rawTag i)
   $ emitSection rec ((Just v, BX):ctx) e
 emitSection _ _ tm = error $ "emitSection: unhandled code: " ++ show tm
+
+countCtx :: Ctx v -> (Int, Int)
+countCtx = bimap length length . partition (==UN) . fmap snd
 
 matchCallingError :: Mem -> Branched v -> String
 matchCallingError cc b = "(" ++ show cc ++ "," ++ brs ++ ")"

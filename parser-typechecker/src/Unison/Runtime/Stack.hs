@@ -106,7 +106,8 @@ pattern PApV ic us bs <- PAp ic (ints -> us) (toList -> bs)
 
 marshalToForeign :: HasCallStack => Closure -> Foreign
 marshalToForeign (Foreign x) = x
-marshalToForeign _ = error "marshalToForeign: unhandled closure"
+marshalToForeign c
+  = error $ "marshalToForeign: unhandled closure: " ++ show c
 
 type Off = Int
 type SZ = Int
@@ -156,8 +157,8 @@ uargOnto stk sp cop cp0 (ArgR i l) = do
   moveByteArray cop cbp stk sbp (bytes l)
   pure $ cp0+l
  where
- cbp = bytes cp0
- sbp = bytes $ sp-i-l
+ cbp = bytes $ cp0+1
+ sbp = bytes $ sp-i-l+1
 
 bargOnto :: BA -> Off -> BA -> Off -> Args' -> IO Int
 bargOnto stk sp cop cp0 (Arg1 i) = do
@@ -191,7 +192,7 @@ bargOnto stk sp cop cp0 (ArgN v) = do
  sz = sizeofPrimArray v
  overwrite = stk == cop
 bargOnto stk sp cop cp0 (ArgR i l) = do
-  copyMutableArray cop cp0 stk (sp-i-l) l
+  copyMutableArray cop (cp0+1) stk (sp-i-l+1) l
   pure $ cp0+l
 
 data Dump = A | F Int | S
@@ -472,7 +473,7 @@ instance MEM 'BX where
   {-# inline restoreFrame #-}
 
   prepareArgs (BS ap fp sp stk) (ArgR i l)
-    | fp+l+i == sp = pure $ BS ap sp sp stk
+    | fp+i+l == sp = pure $ BS ap (sp-i) (sp-i) stk
   prepareArgs (BS ap fp sp stk) args = do
     sp <- bargOnto stk sp stk fp args
     pure $ BS ap sp sp stk
