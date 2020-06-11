@@ -1064,6 +1064,8 @@ typeReferences
   , eitherReference
   , filePathReference
   , bufferModeReference
+  , Ty.effectRef
+  , Ty.vectorRef
   ] [1..]
 
 numberedTermLookup :: Var v => EnumMap Word64 (SuperNormal v)
