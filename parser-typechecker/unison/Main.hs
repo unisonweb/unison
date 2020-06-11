@@ -1,6 +1,7 @@
 {-# Language OverloadedStrings #-}
 {-# Language PartialTypeSignatures #-}
 {-# Language ScopedTypeVariables #-}
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module Main where
@@ -26,7 +27,6 @@ import qualified Unison.Util.Cache             as Cache
 import qualified Version
 import qualified Unison.Codebase.TranscriptParser as TR
 import qualified System.Path as Path
-import qualified System.Posix.Signals as Sig
 import qualified System.FilePath as FP
 import qualified System.IO.Temp as Temp
 import qualified System.Exit as Exit
@@ -37,6 +37,12 @@ import qualified Unison.PrettyTerminal as PT
 import qualified Data.Text as Text
 import qualified Data.Configurator as Config
 import Text.Megaparsec (runParser)
+
+#if defined(mingw32_HOST_OS)
+import qualified GHC.ConsoleHandler as WinSig
+#else
+import qualified System.Posix.Signals as Sig
+#endif
 
 usage :: String -> P.Pretty P.ColorText
 usage executableStr = P.callout "🌻" $ P.lines [
@@ -102,8 +108,17 @@ installSignalHandlers = do
         case r of
           Nothing -> return ()
           Just t  -> throwTo t UserInterrupt
+
+#if defined(mingw32_HOST_OS)
+  let sig_handler WinSig.ControlC = interrupt
+      sig_handler WinSig.Break    = interrupt
+      sig_handler _               = return ()
+  _ <- WinSig.installHandler (WinSig.Catch sig_handler)
+#else
   _ <- Sig.installHandler Sig.sigQUIT  (Sig.Catch interrupt) Nothing
   _ <- Sig.installHandler Sig.sigINT   (Sig.Catch interrupt) Nothing
+#endif
+
   return ()
 
 main :: IO ()
