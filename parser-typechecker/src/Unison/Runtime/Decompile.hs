@@ -11,7 +11,7 @@ import Data.Word (Word64)
 import Unison.ABT (absChain, substs, pattern AbsN')
 import Unison.Term
   ( Term
-  , nat, int, float, boolean, constructor, apps'
+  , nat, int, float, boolean, constructor, apps', text
   )
 import Unison.Type
   ( natRef, intRef, floatRef, booleanRef
@@ -20,7 +20,7 @@ import Unison.Var (Var)
 import Unison.Reference (Reference)
 
 import Unison.Runtime.ANF (RTag, CTag, Tag(..))
-import Unison.Runtime.Foreign (Foreign)
+import Unison.Runtime.Foreign (Foreign, unwrapText)
 import Unison.Runtime.Stack
   (Closure(..), pattern DataC, pattern PApV, IComb(..))
 
@@ -94,4 +94,6 @@ decompileForeign
   => (RTag -> Maybe Reference)
   -> Foreign
   -> Either Error (Term v ())
+decompileForeign _ f
+  | Just t <- unwrapText f = Right $ text () t
 decompileForeign _ _ = err "cannot decompile Foreign"
