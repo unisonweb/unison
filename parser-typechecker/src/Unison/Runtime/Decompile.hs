@@ -56,8 +56,9 @@ decompile tyRef topTerms (PApV (IC rt _) [] bs)
   = substitute t <$> traverse (decompile tyRef topTerms) bs
   | otherwise
   = err "reference to unknown combinator"
-decompile _ _ (PAp _ _ _)
-  = err "cannot decompile a partial application to unboxed values"
+decompile _ _ cl@(PAp _ _ _)
+  = err $ "cannot decompile a partial application to unboxed values: "
+       ++ show cl
 decompile _ _ (DataC{})
   = err "cannot decompile data type with multiple unboxed fields"
 decompile _ _ BlackHole = err "exception"

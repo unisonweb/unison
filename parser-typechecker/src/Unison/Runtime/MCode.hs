@@ -933,26 +933,30 @@ hostPreference (Just host) = SYS.Host $ Text.unpack host
 
 emitP1 :: UPrim1 -> Args -> Instr
 emitP1 p (UArg1 i) = UPrim1 p i
-emitP1 _ a
-  = error $ "wrong number of args for unary unboxed primop: " ++ show a
+emitP1 p a
+  = error $ "wrong number of args for unary unboxed primop: "
+         ++ show (p, a)
 
 emitP2 :: UPrim2 -> Args -> Instr
 emitP2 p (UArg2 i j) = UPrim2 p i j
-emitP2 _ a
-  = error $ "wrong number of args for binary unboxed primop: " ++ show a
+emitP2 p a
+  = error $ "wrong number of args for binary unboxed primop: "
+         ++ show (p, a)
 
 emitBP1 :: BPrim1 -> Args -> Instr
 emitBP1 p (UArg1 i) = BPrim1 p i
 emitBP1 p (BArg1 i) = BPrim1 p i
-emitBP1 _ a
-  = error $ "wrong number of args for unary boxed primop: " ++ show a
+emitBP1 p a
+  = error $ "wrong number of args for unary boxed primop: "
+         ++ show (p,a)
 
 emitBP2 :: BPrim2 -> Args -> Instr
 emitBP2 p (UArg2 i j) = BPrim2 p i j
 emitBP2 p (BArg2 i j) = BPrim2 p i j
 emitBP2 p (DArg2 i j) = BPrim2 p i j
-emitBP2 _ a
-  = error $ "wrong number of args for binary boxed primop: " ++ show a
+emitBP2 p a
+  = error $ "wrong number of args for binary boxed primop: "
+         ++ show (p,a)
 
 emitDataMatching
   :: Var v
