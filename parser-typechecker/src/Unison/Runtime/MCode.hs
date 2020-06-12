@@ -27,7 +27,7 @@ module Unison.Runtime.MCode
 
 import GHC.Stack (HasCallStack)
 
-import Data.Bifunctor (bimap)
+import Data.Bifunctor (bimap,first)
 import Data.Coerce
 import Data.List (partition)
 import Data.Word (Word64)
@@ -502,19 +502,52 @@ data Branch
           !(M.Map Text Section)
   deriving (Show, Eq, Ord)
 
-type Ctx v = [(Maybe v,Mem)]
+data Ctx v
+  = ECtx
+  | Block (Ctx v)
+  | Tag (Ctx v)
+  | Var v Mem (Ctx v)
+
 type RCtx v = M.Map v Word64
+
+ctx :: [v] -> [Mem] -> Ctx v
+ctx vs cs = pushCtx (zip vs cs) ECtx
 
 ctxResolve :: Var v => Ctx v -> v -> Maybe (Int,Mem)
 ctxResolve ctx v = walk 0 0 ctx
   where
-  walk _  _  [] = Nothing
-  walk ui bi ((mx,m):xs)
-    | Just x <- mx
-    , v == x = case m of BX -> Just (bi,m) ; UN -> Just (ui,m)
-    | otherwise = walk ui' bi' xs
+  walk _ _ ECtx = Nothing
+  walk ui bi (Block ctx) = walk ui bi ctx
+  walk ui bi (Tag ctx) = walk (ui+1) bi ctx
+  walk ui bi (Var x m ctx)
+    | v == x = case m of BX -> Just (bi,m) ; UN -> Just (ui,m)
+    | otherwise = walk ui' bi' ctx
     where
-    (ui',bi') = case m of BX -> (ui,bi+1) ; UN -> (ui+1,bi)
+    (ui', bi') = case m of BX -> (ui,bi+1) ; UN -> (ui+1,bi)
+
+pushCtx :: [(v,Mem)] -> Ctx v -> Ctx v
+pushCtx new old = foldr (uncurry Var) old new
+
+catCtx :: Ctx v -> Ctx v -> Ctx v
+catCtx ECtx r = r
+catCtx (Tag l) r = Tag $ catCtx l r
+catCtx (Block l) r = Block $ catCtx l r
+catCtx (Var v m l) r = Var v m $ catCtx l r
+
+breakAfter :: Eq v => (v -> Bool) -> Ctx v -> (Ctx v, Ctx v)
+breakAfter _ ECtx = (ECtx, ECtx)
+breakAfter p (Tag vs) = first Tag $ breakAfter p vs
+breakAfter p (Block vs) = first Block $ breakAfter p vs
+breakAfter p (Var v m vs) = (Var v m lvs, rvs)
+  where
+  (lvs, rvs)
+    | p v       = (ECtx, vs)
+    | otherwise = breakAfter p vs
+
+sumCtx :: Var v => Ctx v -> v -> [(v,Mem)] -> Ctx v
+sumCtx ctx v vcs
+  | (lctx, rctx) <- breakAfter (== v) ctx
+  = catCtx lctx $ pushCtx vcs rctx
 
 rctxResolve :: Var v => RCtx v -> v -> Maybe Word64
 rctxResolve ctx u = M.lookup u ctx
@@ -532,20 +565,20 @@ emitCombs frsh (Rec grp ent)
 
 emitComb :: Var v => RCtx v -> SuperNormal v -> Comb
 emitComb rec (Lambda ccs (TAbss vs bd))
-  = Lam 0 (length vs) 10 10 $ emitSection rec (zip (Just <$> vs) ccs) bd
+  = Lam 0 (length vs) 10 10 $ emitSection rec (ctx vs ccs) bd
 
 emitSection :: Var v => RCtx v -> Ctx v -> ANormal v -> Section
 emitSection rec ctx (TLets us ms bu bo)
-  = emitLet rec ctx bu $ emitSection rec (ectx ++ ctx) bo
+  = emitLet rec ctx bu $ emitSection rec ectx bo
   where
-  ectx = zip (Just <$> us) ms
+  ectx = pushCtx (zip us ms) ctx
 emitSection rec ctx (TName u (Left f) as bo)
   = Ins (Name f $ emitArgs ctx as)
-  $ emitSection rec ((Just u,BX) : ctx) bo
+  $ emitSection rec (Var u BX ctx) bo
 emitSection rec ctx (TName u (Right v) as bo)
   | Just f <- rctxResolve rec v
   = Ins (Name f $ emitArgs ctx as)
-  $ emitSection rec ((Just u,BX) : ctx) bo
+  $ emitSection rec (Var u BX ctx) bo
   | otherwise = emitSectionVErr v
 emitSection rec ctx (TVar v)
   | Just (i,BX) <- ctxResolve ctx v = Yield $ BArg1 i
@@ -580,7 +613,7 @@ emitSection _   ctx (TPrm p args)
   = Ins (emitPOp p $ emitArgs ctx args)
   . Yield $ DArgV i j
   where
-  (i, j) = countCtx ctx
+  (i, j) = countBlock ctx
 emitSection _   _   (TLit l)
   = Ins (emitLit l)
   . Yield $ litArg l
@@ -613,18 +646,23 @@ emitSection rec ctx (THnd rts h df b)
   = Ins (Reset . EC.setFromList $ rs)
   $ flip (foldr (\r -> Ins (SetDyn r i))) rs
   $ maybe id (\(TAbss us d) l ->
-      Let l $ emitSection rec (fmap ((,BX).Just) us ++ ctx) d) df
+      Let l $ emitSection rec (pushCtx ((,BX) <$> us) ctx) d) df
   $ emitSection rec ctx b
   | otherwise = emitSectionVErr h
   where
   rs = rawTag <$> rts
 emitSection rec ctx (TShift i v e)
   = Ins (Capture $ rawTag i)
-  $ emitSection rec ((Just v, BX):ctx) e
+  $ emitSection rec (Var v BX ctx) e
 emitSection _ _ tm = error $ "emitSection: unhandled code: " ++ show tm
 
-countCtx :: Ctx v -> (Int, Int)
-countCtx = bimap length length . partition (==UN) . fmap snd
+countBlock :: Ctx v -> (Int, Int)
+countBlock = go 0 0
+  where
+  go !ui !bi (Var _ UN ctx) = go (succ ui) bi ctx
+  go  ui  bi (Var _ BX ctx) = go ui (succ bi) ctx
+  go  ui  bi (Tag ctx)      = go (succ ui) bi ctx
+  go  ui  bi _              = (ui, bi)
 
 matchCallingError :: Mem -> Branched v -> String
 matchCallingError cc b = "(" ++ show cc ++ "," ++ brs ++ ")"
@@ -658,9 +696,9 @@ emitLet _   ctx (AApp (FCon r n) args)
   = Ins . Pack (packTags r n) $ emitArgs ctx args
 emitLet _   ctx (AApp (FPrim p) args)
   = Ins . either emitPOp emitIOp p $ emitArgs ctx args
-emitLet rec ctx bnd = Let (emitSection rec ctx (TTm bnd))
+emitLet rec ctx bnd = Let (emitSection rec (Block ctx) (TTm bnd))
 
--- -- Float
+-- Float
 emitPOp :: ANF.POp -> Args -> Instr
 emitPOp ANF.ADDI = emitP2 ADDI
 emitPOp ANF.ADDN = emitP2 ADDI
@@ -984,22 +1022,12 @@ emitTextMatching rec ctx i cs df
 
 emitCase :: Var v => RCtx v -> Ctx v -> ([Mem], ANormal v) -> Section
 emitCase rec ctx (ccs, TAbss vs bo)
-  = emitSection rec ((Nothing,UN) : zip (Just <$> vs) ccs ++ ctx) bo
-
-breakAfter :: Eq a => (a -> Bool) -> [a] ->  ([a], [a])
-breakAfter _ [] = ([],[])
-breakAfter p (y:ys)
-  | p y       = ([y], ys)
-  | otherwise = (y:lys, rys)
-  where (lys, rys) = breakAfter p ys
+  = emitSection rec (Tag $ pushCtx (zip vs ccs) ctx) bo
 
 emitSumCase
   :: Var v => RCtx v -> Ctx v -> v -> ([Mem], ANormal v) -> Section
 emitSumCase rec ctx v (ccs, TAbss vs bo)
-  = emitSection rec (lctx ++ vcs ++ rctx) bo
-  where
-  vcs = zip (Just <$> vs) ccs
-  (lctx, rctx) = breakAfter ((Just v ==) . fst) ctx
+  = emitSection rec (sumCtx ctx v $ zip vs ccs) bo
 
 emitLit :: ANF.Lit -> Instr
 emitLit l = Lit $ case l of
