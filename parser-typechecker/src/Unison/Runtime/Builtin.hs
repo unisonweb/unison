@@ -173,7 +173,7 @@ powi = binop' POWI Ty.intRef Ty.natRef Ty.intRef
 
 addn,subn,muln,divn,modn,shln,shrn,pown :: Var v => SuperNormal v
 addn = binop ADDN Ty.natRef
-subn = binop SUBN Ty.natRef
+subn = binop' SUBN Ty.natRef Ty.natRef Ty.intRef
 muln = binop MULN Ty.natRef
 divn = binop DIVN Ty.natRef
 modn = binop MODN Ty.natRef
@@ -217,7 +217,7 @@ andn, orn, xorn, compln :: Var v => SuperNormal v
 andn = binop ANDN Ty.natRef
 orn = binop IORN Ty.natRef
 xorn = binop XORN Ty.natRef
-compln = binop COMN Ty.natRef
+compln = unop COMN Ty.natRef
 
 addf, subf, mulf, divf, powf, sqrtf, logf, logbf
   :: Var v => SuperNormal v
@@ -303,11 +303,11 @@ dropn :: Var v => SuperNormal v
 dropn = binop0 4 $ \[x0,y0,x,y,b,r]
      -> unbox x0 Ty.natRef x
       . unbox y0 Ty.natRef y
-      . TLet b UN (APrm LEQN [y,x])
+      . TLet b UN (APrm LEQN [x,y])
       . TLet r UN
           (AMatch b $ MatchIntegral
              (mapSingleton 1 $ TLit $ N 0)
-             (Just $ TPrm SUBN [y,x]))
+             (Just $ TPrm SUBN [x,y]))
       $ TCon (rtag Ty.natRef) 0 [r]
 
 appendt, taket, dropt, sizet, unconst, unsnoct :: Var v => SuperNormal v
@@ -410,8 +410,11 @@ notb = unop0 0 $ \[b]
 -- unsafeCoerce, used for numeric types where conversion is a
 -- no-op on the representation. Ideally this will be inlined and
 -- eliminated so that no instruction is necessary.
-cast :: Var v => SuperNormal v
-cast = unop0 0 $ \[x] -> TVar x
+cast :: Var v => Reference -> Reference -> SuperNormal v
+cast ri ro
+  = unop0 1 $ \[x0,x]
+ -> unbox x0 ri x
+  $ TCon (rtag ro) 0 [x]
 
 jumpk :: Var v => SuperNormal v
 jumpk = binop0 0 $ \[k,a] -> TKon k [a]
@@ -937,7 +940,7 @@ builtinLookup
   , ("Nat.complement", compln)
   , ("Nat.pow", pown)
   , ("Nat.drop", dropn)
-  , ("Nat.toInt", cast)
+  , ("Nat.toInt", cast Ty.natRef Ty.intRef)
   , ("Nat.toFloat", n2f)
   , ("Nat.toText", n2t)
   , ("Nat.fromText", t2n)
@@ -1022,8 +1025,8 @@ builtinLookup
 --   , B "Text.toCharList" $ text --> list char
 --   , B "Text.fromCharList" $ list char --> text
 
-  , ("Char.toNat", cast)
-  , ("Char.fromNat", cast)
+  , ("Char.toNat", cast Ty.charRef Ty.natRef)
+  , ("Char.fromNat", cast Ty.natRef Ty.charRef)
 
 --   , B "Bytes.empty" bytes
 --   , B "Bytes.fromList" $ list nat --> bytes
