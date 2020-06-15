@@ -280,7 +280,7 @@ trni = unop0 3 $ \[x0,x,z,b]
      . TMatch b
      $ MatchIntegral
          (mapSingleton 1 $ TCon natTag 0 [z])
-         (Just $ TVar x0)
+         (Just $ TCon natTag 0 [x])
 
 modular :: Var v => POp -> (Bool -> ANormal v) -> SuperNormal v
 modular pop ret
