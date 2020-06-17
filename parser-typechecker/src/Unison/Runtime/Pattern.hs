@@ -3,6 +3,7 @@
 {-# language PatternGuards #-}
 {-# language TupleSections #-}
 {-# language PatternSynonyms #-}
+{-# language OverloadedStrings #-}
 
 module Unison.Runtime.Pattern
   ( DataSpec
@@ -15,8 +16,8 @@ import Control.Lens ((<&>))
 import Control.Monad.State (State, state, runState, modify)
 
 import Data.Bifunctor (bimap)
-import Data.List (splitAt, findIndex)
-import Data.Maybe (catMaybes)
+import Data.List (splitAt, findIndex, transpose)
+import Data.Maybe (catMaybes, fromMaybe)
 
 import Data.Set as Set (Set, insert, fromList, member)
 
@@ -38,7 +39,7 @@ import Data.Map.Strict
 import qualified Data.Map.Strict as Map
 
 type Term v = Tm.Term v ()
-type Cons = [[Reference]]
+type Cons = [Int]
 
 type DataSpec = Map Reference Cons
 
@@ -84,47 +85,40 @@ firstRow _ _ = Nothing
 heuristics :: [Heuristic v]
 heuristics = [firstRow $ findIndex refutable]
 
-extractVar
-  :: Var v
-  => Reference
-  -> PatternV v
-  -> (Maybe (v, Reference), PatternV v)
-extractVar r p
-  | UnboundP{} <- p = (Nothing, p)
-  | otherwise = (Just (loc p, r), p)
+extractVar :: Var v => PatternV v -> Maybe v
+extractVar p
+  | UnboundP{} <- p = Nothing
+  | otherwise = Just (loc p)
 
-zipWithExact :: String -> (a -> b -> c) -> [a] -> [b] -> [c]
-zipWithExact _ _ [] [] = []
-zipWithExact s f (x:xs) (y:ys)
-  = let !zs = zipWithExact s f xs ys in f x y : zs
-zipWithExact s _ _ _ = error s
+extractVars :: Var v => [PatternV v] -> [v]
+extractVars = catMaybes . fmap extractVar
 
 decomposePattern
   :: Var v
-  => Int -> [Reference] -> PatternV v
-  -> [[(Maybe (v,Reference), PatternV v)]]
-decomposePattern t flds p@(ConstructorP _ _ u ps)
+  => Int -> Int -> PatternV v
+  -> [[PatternV v]]
+decomposePattern t nfields p@(ConstructorP _ _ u ps)
   | t == u
-  = [zipWithExact err extractVar flds ps]
+  = if length ps == nfields
+    then [ps]
+    else error err
   where
-  err = "decomposePattern: mismatched constructor fields: "
-     ++ show (flds, p)
-decomposePattern t flds p@(EffectBindP _ _ u ps pk)
+  err = "decomposePattern: wrong number of constructor fields: "
+     ++ show (nfields, p)
+decomposePattern t nfields p@(EffectBindP _ _ u ps pk)
   | t == u
-  = [zipWithExact err extractVar flds $ ps ++ [pk]]
+  = if length ps == nfields
+    then [ps ++ [pk]]
+    else error err
   where
-  err = "decomposePattern: mismatched ability fields: "
-     ++ show (flds, p)
-decomposePattern t flds (EffectPureP _ p)
-  | t == -1
-  = [zipWithExact err extractVar flds [p]]
-  where
-  err = "decomposePattern: wrong number of fields for effect-pure: "
-     ++ show flds
-decomposePattern _ flds (VarP _)
-  = [(Nothing, UnboundP (typed Pattern)) <$ flds]
-decomposePattern _ flds (UnboundP _)
-  = [(Nothing, UnboundP (typed Pattern)) <$ flds]
+  err = "decomposePattern: wrong number of ability fields: "
+     ++ show (nfields, p)
+decomposePattern t _ (EffectPureP _ p)
+  | t == -1 = [[p]]
+decomposePattern _ nfields (VarP _)
+  = [replicate nfields (UnboundP (typed Pattern))]
+decomposePattern _ nfields (UnboundP _)
+  = [replicate nfields (UnboundP (typed Pattern))]
 decomposePattern _ _ (SequenceLiteralP _ _)
   = error "decomposePattern: sequence literal"
 decomposePattern _ _ _ = []
@@ -143,19 +137,19 @@ splitRow
   :: Var v
   => Int
   -> Int
-  -> [Reference]
+  -> Int
   -> PatternRow v
-  -> [([(v,Reference)], PatternRow v)]
-splitRow i t flds (PR (splitAt i -> (pl, sp : pr)) g b)
-  = bimap catMaybes (\subs -> PR (pl ++ subs ++ pr) g b)
-  . unzip <$> decomposePattern t flds sp
+  -> [([PatternV v], PatternRow v)]
+splitRow i t nfields (PR (splitAt i -> (pl, sp : pr)) g b)
+  = decomposePattern t nfields sp
+      <&> \subs -> (subs, PR (pl ++ subs ++ pr) g b)
 splitRow _ _ _ _ = error "splitRow: bad index"
 
 splitRowBuiltin
   :: Var v
   => Int
   -> PatternRow v
-  -> [(PatternP (), [([(v,Reference)], PatternRow v)])]
+  -> [(PatternP (), [([PatternV v], PatternRow v)])]
 splitRowBuiltin i (PR (splitAt i -> (pl, sp : pr)) g b)
   | Just p <- matchBuiltin sp = [(p, [([], PR (pl ++ pr) g b)])]
   | otherwise = []
@@ -173,13 +167,14 @@ renameRow m (PR p0 g0 b0) = PR p g b
 
 buildMatrix
   :: Var v
-  => [([(v,Reference)], PatternRow v)]
+  => [([PatternV v], PatternRow v)]
   -> ([(v,Reference)], PatternMatrix v)
 buildMatrix [] = error "buildMatrix: empty rows"
-buildMatrix vrs@((avrs,_):_) = (avrs, PM $ fixRow <$> vrs)
+buildMatrix vrs@((pvs,_):_) = (zip cvs rs, PM $ fixRow <$> vrs)
   where
-  cvs = fst <$> avrs
-  fixRow (fmap fst -> rvs, pr)
+  rs = fmap determineType . transpose . fmap fst $ vrs
+  cvs = extractVars pvs
+  fixRow (extractVars -> rvs, pr)
     = renameRow (fromListWith const . zip rvs $ cvs) pr
 
 splitMatrixBuiltin
@@ -223,9 +218,9 @@ renameTo to from
       )
 
 prepareAs :: Var v => PatternP a -> v -> PPM v (PatternV v)
-prepareAs (UnboundP _) u = pure $ UnboundP u
+prepareAs (UnboundP _) u = pure $ VarP u
 prepareAs (AsP _ p) u = prepareAs p u <* (renameTo u =<< useVar)
-prepareAs (VarP _) u = UnboundP u <$ (renameTo u =<< useVar)
+prepareAs (VarP _) u = VarP u <$ (renameTo u =<< useVar)
 prepareAs (ConstructorP _ r i ps) u = do
   ConstructorP u r i <$> traverse preparePattern ps
 prepareAs (EffectPureP _ p) u = do
@@ -244,15 +239,15 @@ prepareAs p u = pure $ u <$ p
 
 preparePattern :: Var v => PatternP a -> PPM v (PatternV v)
 preparePattern (UnboundP _) = UnboundP <$> freshVar
-preparePattern (VarP _) = UnboundP <$> useVar
+preparePattern (VarP _) = VarP <$> useVar
 preparePattern (AsP _ p) = prepareAs p =<< useVar
 preparePattern p = prepareAs p =<< freshVar
 
-buildPattern :: Reference -> Int -> [v] -> [Reference] -> PatternP ()
-buildPattern r t vs rs = ConstructorP () r t vps
+buildPattern :: Reference -> Int -> [v] -> Int -> PatternP ()
+buildPattern r t vs nfields = ConstructorP () r t vps
   where
-  vps | length vs < length rs
-      = UnboundP () <$ rs
+  vps | length vs < nfields
+      = replicate nfields $ UnboundP ()
       | otherwise
       = VarP () <$ vs
 
@@ -327,7 +322,7 @@ initialize r sc cs = (lv, (sv, r), PM $ mkRow sv <$> cs)
 splitPatterns :: Var v => DataSpec -> Term v -> Term v
 splitPatterns spec = visitPure $ \case
   Match' sc0 cs0
-    | Just r <- determineType cs0
+    | r <- determineType $ p <$> cs0
     , (lv, scrut, pm) <- initialize r sc cs
     , body <- compile spec [scrut] pm
    -> Just $ case lv of
@@ -337,6 +332,8 @@ splitPatterns spec = visitPure $ \case
     sc = splitPatterns spec sc0
     cs = fmap (splitPatterns spec) <$> cs0
   _ -> Nothing
+  where
+  p (MatchCase pp _ _) = pp
 
 builtinCase :: Set Reference
 builtinCase
@@ -348,10 +345,12 @@ builtinCase
   , Rf.charRef
   ]
 
-determineType :: [MatchCase a b] -> Maybe Reference
-determineType = foldr ((<|>) . f . p) Nothing
+defaultRef :: Reference
+defaultRef = Builtin "PatternMatchUnknown"
+
+determineType :: [PatternP a] -> Reference
+determineType = fromMaybe defaultRef . foldr ((<|>) . f) Nothing
   where
-  p (MatchCase p _ _) = p
   f (AsP _ p) = f p
   f IntP{} = Just Rf.intRef
   f NatP{} = Just Rf.natRef

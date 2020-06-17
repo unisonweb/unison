@@ -86,7 +86,7 @@ baseContext
 allocType
   :: EvalCtx v
   -> RF.Reference
-  -> [[RF.Reference]]
+  -> [Int]
   -> IO (EvalCtx v)
 allocType _ b@(RF.Builtin _) _
   = die $ "Unknown builtin type reference: " ++ show b
@@ -104,7 +104,7 @@ collectDeps
   :: Var v
   => CodeLookup v IO ()
   -> Term v
-  -> IO ([(Reference,[[Reference]])], [Reference])
+  -> IO ([(Reference,[Int])], [Reference])
 collectDeps cl tm
   = (,tms) <$> traverse getDecl tys
   where

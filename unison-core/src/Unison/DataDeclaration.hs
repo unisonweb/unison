@@ -168,6 +168,13 @@ effectConstructorTerms rid ed =
 constructorTypes :: DataDeclaration' v a -> [Type v a]
 constructorTypes = (snd <$>) . constructors
 
+constructorFields :: Var v => DataDeclaration' v a -> [Int]
+constructorFields = fmap fields . constructorTypes
+  where
+  fields (Type.ForallsNamed' _ ty) = fields ty
+  fields (Type.Arrows' spine) = length spine - 1
+  fields _ = 0
+
 typeOfConstructor :: DataDeclaration' v a -> ConstructorId -> Maybe (Type v a)
 typeOfConstructor dd i = constructorTypes dd `atMay` i
 
