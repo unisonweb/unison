@@ -1,7 +1,17 @@
 # https://docs.haskellstack.org/en/stable/travis_ci/
-# run on containerized infrastructure hopefully
-dist: trusty
-sudo: false
+jobs:
+  include:
+    - os: linux
+      dist: xenial
+    - os: linux
+      dist: trusty
+    - os: linux
+      dist: bionic
+    - os: osx
+      osx_image: xcode11.6
+    - os: osx
+      osx_image: xcode11.3
+
 language: generic
 
 # Caching so the next build will be fast too.
@@ -16,7 +26,7 @@ before_install:
 # Download and unpack the stack executable
 - mkdir -p ~/.local/bin
 - export PATH=$HOME/.local/bin:$PATH
-- travis_retry curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+- travis_retry curl -sSL https://get.haskellstack.org/ | sh
 
 install:
 - stack ghc -- --version
