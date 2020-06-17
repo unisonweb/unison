@@ -255,8 +255,10 @@ executable unison
     temporary,
     text,
     unison-core,
-    unison-parser-typechecker,
-    unix
+    unison-parser-typechecker
+  if !os(windows)
+    build-depends:
+      unix
 
 executable prettyprintdemo
   main-is: Main.hs
