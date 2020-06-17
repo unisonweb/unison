@@ -44,4 +44,3 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Dave Nicponski (@virusdave)
 * Cody Allen (@ceedubs)
 * Ludvig Sundström (@lsund)
-* Mohamed Elsharnouby (@sharno)
