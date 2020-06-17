@@ -14,9 +14,10 @@ import Data.Word (Word64)
 
 import Unison.Util.EnumContainers as EC
 
+import Unison.Term (unannotate)
 import Unison.Symbol (Symbol)
 import Unison.Reference (Reference(Builtin))
-import Unison.Runtime.Pattern (splitPatterns)
+import Unison.Runtime.Pattern
 import Unison.Runtime.ANF
   ( superNormalize
   , lamLift
@@ -73,6 +74,9 @@ multRec
     \    _ -> f (##Nat.+ acc n) (##Nat.sub i 1)\n\
     \  ##todo (##Nat.== (f 0 1000) 5000)"
 
+dataSpec :: DataSpec
+dataSpec = mempty
+
 testEval :: String -> Test ()
 testEval s = testEval0 (env aux) main
   where
@@ -80,7 +84,8 @@ testEval s = testEval0 (env aux) main
     = emitCombs (bit 24)
     . superNormalize builtins (builtinTypeNumbering Map.!)
     . lamLift
-    . splitPatterns
+    . splitPatterns dataSpec
+    . unannotate
     $ tm s
 
 nested :: String

@@ -19,6 +19,7 @@ import qualified Data.Map.Strict as Map
 import qualified Unison.Term as Tm
 import Unison.Var (Var)
 
+import Unison.DataDeclaration (constructorFields,asDataDecl)
 import qualified Unison.LabeledDependency as RF
 import Unison.Reference (Reference)
 import qualified Unison.Reference as RF
@@ -45,6 +46,7 @@ data EvalCtx v
   , refTy :: Map.Map RF.Reference RTag
   , refTm :: Map.Map RF.Reference Word64
   , combs :: EnumMap Word64 Comb
+  , dspec :: DataSpec
   , backrefTy :: EnumMap RTag RF.Reference
   , backrefTm :: EnumMap Word64 (Term v)
   }
@@ -62,6 +64,7 @@ baseContext
   , refTy = builtinTypeNumbering
   , refTm = builtinTermNumbering
   , combs = emitComb @v mempty <$> numberedTermLookup
+  , dspec = builtinDataSpec
   , backrefTy = builtinTypeBackref
   , backrefTm = Tm.ref () <$> builtinTermBackref
   }
@@ -83,13 +86,15 @@ baseContext
 allocType
   :: EvalCtx v
   -> RF.Reference
+  -> [[RF.Reference]]
   -> IO (EvalCtx v)
-allocType _ b@(RF.Builtin _)
+allocType _ b@(RF.Builtin _) _
   = die $ "Unknown builtin type reference: " ++ show b
-allocType ctx r
+allocType ctx r cons
   = pure $ ctx
          { refTy = Map.insert r frsh $ refTy ctx
          , backrefTy = mapInsert frsh r $ backrefTy ctx
+         , dspec = Map.insert r cons $ dspec ctx
          , freshTy = freshTy ctx + 1
          }
   where
@@ -99,12 +104,17 @@ collectDeps
   :: Var v
   => CodeLookup v IO ()
   -> Term v
-  -> IO ([Reference], [Reference])
-collectDeps _  tm
-  = pure $ foldr categorize ([],[]) chld
+  -> IO ([(Reference,[[Reference]])], [Reference])
+collectDeps cl tm
+  = (,tms) <$> traverse getDecl tys
   where
   chld = toList $ Tm.labeledDependencies tm
   categorize = either (first . (:)) (second . (:)) . RF.toReference
+  (tys, tms) = foldr categorize ([],[]) chld
+  getDecl ty@(RF.DerivedId i) =
+    (ty,) . maybe [] (constructorFields . asDataDecl)
+      <$> getTypeDeclaration cl i
+  getDecl r = pure (r,[])
 
 loadDeps
   :: Var v
@@ -115,7 +125,8 @@ loadDeps
 loadDeps cl ctx tm = do
   (tys, _  ) <- collectDeps cl tm
   -- TODO: terms
-  foldM allocType ctx $ filter (`Map.notMember`refTy ctx) tys
+  foldM (uncurry . allocType) ctx
+    $ filter (\(r,_) -> r `Map.notMember` refTy ctx) tys
 
 addCombs :: EnumMap Word64 Comb -> EvalCtx v -> EvalCtx v
 addCombs m ctx = ctx { combs = m <> combs ctx }
@@ -138,7 +149,7 @@ compileTerm w tm ctx
   . emitCombs frsh
   . superNormalize (ref $ refTm ctx) (ref $ refTy ctx)
   . lamLift
-  . splitPatterns
+  . splitPatterns (dspec ctx)
   $ tm
   where
   frsh = freshTm ctx
