@@ -19,8 +19,10 @@ cache:
   directories:
   - $HOME/.stack
 
-before_cache:
 # Do any cleanup here to avoid caching junk.
+before_cache:
+  # this was getting corrupted in the cache for osx ??
+  - rm -rf /Users/travis/.stack/setup-exe-cache
 
 before_install:
 # Download and unpack the stack executable
