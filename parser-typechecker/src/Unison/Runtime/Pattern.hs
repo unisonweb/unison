@@ -240,7 +240,7 @@ prepareAs (SequenceOpP _ p op q) u = do
 prepareAs p u = pure $ u <$ p
 
 preparePattern :: Var v => PatternP a -> PPM v (PatternV v)
-preparePattern (UnboundP _) = UnboundP <$> freshVar
+preparePattern (UnboundP _) = VarP <$> freshVar
 preparePattern (VarP _) = VarP <$> useVar
 preparePattern (AsP _ p) = prepareAs p =<< useVar
 preparePattern p = prepareAs p =<< freshVar
