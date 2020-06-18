@@ -552,7 +552,7 @@ loop = do
                     -> [(Path', HQ'.HQSegment)]
                     -> [HQ.HashQualified]
                     -> (forall r. Ord r
-                        => (r, Reference, Reference)
+                        => (r, Metadata.Type, Metadata.Value)
                         ->  Branch.Star r NameSegment
                         ->  Branch.Star r NameSegment)
                     -> Action m (Either Event Input) v ()
@@ -2588,6 +2588,8 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
     Just split -> [ BranchUtil.makeDeleteTermName split (Referent.Ref old)
                   , BranchUtil.makeAddTermName split (Referent.Ref new) oldMd ]
       where
+      -- oldMd is the metadata linked to the old definition
+      -- we relink it to the new definition
       oldMd = BranchUtil.getTermMetadataAt split (Referent.Ref old) b0
   errorEmptyVar = error "encountered an empty var name"
 

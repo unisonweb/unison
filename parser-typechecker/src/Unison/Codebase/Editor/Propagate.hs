@@ -465,11 +465,12 @@ applyPropagate patch Edits {..} = do
       (if isPropagated r'
        then Metadata.insert (propagatedMd (Referent.Ref r'))
        else Metadata.delete (propagatedMd (Referent.Ref r'))) .
-      Star3.replaceFact (Referent.Ref r) (Referent.Ref r') $ s
+      Star3.replaceFact (Referent.Ref r) (Referent.Ref r') .
+        Star3.mapD3 (\(tp, v) -> if v == r then (tp, r') else (tp, v)) $ s
 
     replaceConstructor s ((oldr, oldc, oldt), (newr, newc, newt)) =
       -- always insert the metadata since patches can't contain ctor mappings (yet)
-      (Metadata.insert (propagatedMd con')) .
+      Metadata.insert (propagatedMd con') .
       Star3.replaceFact (Referent.Con oldr oldc oldt) con' $ s
       where
       con' = Referent.Con newr newc newt
