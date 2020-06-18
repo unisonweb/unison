@@ -23,6 +23,8 @@ before_cache:
 # Do any cleanup here to avoid caching junk.
 
 before_install:
+- ls -l /Users/travis/.stack/setup-exe-cache/x86_64-osx/Cabal-simple_mPHDZzAJ_3.0.1.0_ghc-8.8.3 || true
+- sha1sum /Users/travis/.stack/setup-exe-cache/x86_64-osx/Cabal-simple_mPHDZzAJ_3.0.1.0_ghc-8.8.3 || true
 # Download and unpack the stack executable
 - mkdir -p ~/.local/bin
 - export PATH=$HOME/.local/bin:$PATH
@@ -36,3 +38,5 @@ install:
 # fail if running transcripts modified any versioned files
 - git diff
 - x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi'
+- ls -l /Users/travis/.stack/setup-exe-cache/x86_64-osx/Cabal-simple_mPHDZzAJ_3.0.1.0_ghc-8.8.3 || true
+- sha1sum /Users/travis/.stack/setup-exe-cache/x86_64-osx/Cabal-simple_mPHDZzAJ_3.0.1.0_ghc-8.8.3 || true
