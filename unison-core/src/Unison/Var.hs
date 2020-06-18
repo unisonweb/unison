@@ -52,6 +52,7 @@ rawName typ = case typ of
   Inference TypeConstructorArg -> "𝕦"
   MissingResult -> "_"
   Blank -> "_"
+  Eta -> "_eta"
   ANFBlank -> "_anf"
   Float -> "_float"
   Pattern -> "_pattern"
@@ -104,6 +105,8 @@ data Type
   --  > 1 + 1
   --    has kind ""
   | UnnamedWatch WatchKind Text -- guid
+  -- An unnamed variable for constructor eta expansion
+  | Eta
   -- An unnamed variable introduced by ANF transformation
   | ANFBlank
   -- An unnamed variable for a floated lambda

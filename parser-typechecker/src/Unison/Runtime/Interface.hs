@@ -51,6 +51,11 @@ data EvalCtx v
   , backrefTm :: EnumMap Word64 (Term v)
   }
 
+uncurryDspec :: DataSpec -> Map.Map (Reference,Int) Int
+uncurryDspec = Map.fromList . concatMap f . Map.toList
+  where
+  f (r,l) = zipWith (\n c -> ((r,n),c)) [0..] $ either id id l
+
 numberLetRec :: Word64 -> Term v -> EnumMap Word64 (Term v)
 numberLetRec frsh (Tm.LetRecNamed' bs e)
   = mapFromList . zip [frsh..] $ e : map snd bs
@@ -150,6 +155,7 @@ compileTerm w tm ctx
   . superNormalize (ref $ refTm ctx) (ref $ refTy ctx)
   . lamLift
   . splitPatterns (dspec ctx)
+  . constructorEta (uncurryDspec $ dspec ctx)
   $ tm
   where
   frsh = freshTm ctx
