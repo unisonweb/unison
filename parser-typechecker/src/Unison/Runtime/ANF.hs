@@ -183,12 +183,13 @@ letFloater
   -> [(v, Term v a)] -> Term v a
   -> FloatM v a (Term v a)
 letFloater rec vbs e = do
-  (cvs, ctx) <- get
+  cvs <- gets fst
   let shadows = [ (v, Var.freshIn cvs v)
                 | (v, _) <- vbs, Set.member v cvs ]
       shadowMap = Map.fromList shadows
       rn v = Map.findWithDefault v v shadowMap
   fvbs <- traverse (\(v, b) -> (,) (rn v) <$> rec' (ABT.changeVars shadowMap b)) vbs
+  ctx <- gets snd
   let fcvs = Set.fromList . map fst $ fvbs
   put (cvs <> fcvs, ctx ++ fvbs)
   pure $ ABT.changeVars shadowMap e
