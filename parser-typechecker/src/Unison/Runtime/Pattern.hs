@@ -124,7 +124,7 @@ decomposePattern _ _ (SequenceLiteralP _ _)
 decomposePattern _ _ _ = []
 
 matchBuiltin :: PatternP a -> Maybe (PatternP ())
-matchBuiltin (VarP _) = Just $ VarP ()
+matchBuiltin (VarP _) = Just $ UnboundP ()
 matchBuiltin (UnboundP _) = Just $ UnboundP ()
 matchBuiltin (NatP _ n) = Just $ NatP () n
 matchBuiltin (IntP _ n) = Just $ IntP () n
