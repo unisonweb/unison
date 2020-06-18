@@ -19,7 +19,7 @@ import qualified Data.Map.Strict as Map
 import qualified Unison.Term as Tm
 import Unison.Var (Var)
 
-import Unison.DataDeclaration (constructorFields,asDataDecl)
+import Unison.DataDeclaration (declFields)
 import qualified Unison.LabeledDependency as RF
 import Unison.Reference (Reference)
 import qualified Unison.Reference as RF
@@ -86,7 +86,7 @@ baseContext
 allocType
   :: EvalCtx v
   -> RF.Reference
-  -> [Int]
+  -> Either [Int] [Int]
   -> IO (EvalCtx v)
 allocType _ b@(RF.Builtin _) _
   = die $ "Unknown builtin type reference: " ++ show b
@@ -104,7 +104,7 @@ collectDeps
   :: Var v
   => CodeLookup v IO ()
   -> Term v
-  -> IO ([(Reference,[Int])], [Reference])
+  -> IO ([(Reference, Either [Int] [Int])], [Reference])
 collectDeps cl tm
   = (,tms) <$> traverse getDecl tys
   where
@@ -112,9 +112,9 @@ collectDeps cl tm
   categorize = either (first . (:)) (second . (:)) . RF.toReference
   (tys, tms) = foldr categorize ([],[]) chld
   getDecl ty@(RF.DerivedId i) =
-    (ty,) . maybe [] (constructorFields . asDataDecl)
+    (ty,) . maybe (Right []) declFields
       <$> getTypeDeclaration cl i
-  getDecl r = pure (r,[])
+  getDecl r = pure (r,Right [])
 
 loadDeps
   :: Var v

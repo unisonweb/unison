@@ -15,7 +15,6 @@ import Control.Applicative ((<|>))
 import Control.Lens ((<&>))
 import Control.Monad.State (State, state, runState, modify)
 
-import Data.Bifunctor (bimap)
 import Data.List (splitAt, findIndex, transpose)
 import Data.Maybe (catMaybes, fromMaybe)
 
@@ -23,8 +22,8 @@ import Data.Set as Set (Set, insert, fromList, member)
 
 import Unison.ABT
   (absChain', freshIn, visitPure, pattern AbsN', changeVars)
-import Unison.Builtin.Decls (builtinDataDecls)
-import Unison.DataDeclaration (constructorFields)
+import Unison.Builtin.Decls (builtinDataDecls, builtinEffectDecls)
+import Unison.DataDeclaration (declFields)
 import Unison.Pattern
 import Unison.Reference (Reference(..))
 import Unison.Symbol (Symbol)
@@ -41,7 +40,7 @@ import qualified Data.Map.Strict as Map
 type Term v = Tm.Term v ()
 type Cons = [Int]
 
-type DataSpec = Map Reference Cons
+type DataSpec = Map Reference (Either Cons Cons)
 
 type PatternV v = PatternP v
 type Scrut v = (v, Reference)
@@ -54,10 +53,12 @@ data PatternRow v
   }
 
 builtinDataSpec :: DataSpec
-builtinDataSpec
-  = Map.fromList
-  $ bimap DerivedId constructorFields . (\(_,x,y) -> (x,y))
- <$> builtinDataDecls @Symbol
+builtinDataSpec = Map.fromList decls
+ where
+ decls = [ (DerivedId x, declFields $ Right y)
+         | (_,x,y) <- builtinDataDecls @Symbol ]
+      ++ [ (DerivedId x, declFields $ Left y)
+         | (_,x,y) <- builtinEffectDecls @Symbol ]
 
 data PatternMatrix v
   = PM { _rows :: [PatternRow v] }
@@ -181,9 +182,9 @@ splitMatrixBuiltin
   :: Var v
   => Int
   -> PatternMatrix v
-  -> [(Either (PatternP ()) Int, [(v,Reference)], PatternMatrix v)]
+  -> [(PatternP (), [(v,Reference)], PatternMatrix v)]
 splitMatrixBuiltin i (PM rs)
-  = fmap (\(a,(b,c)) -> (Left a,b,c))
+  = fmap (\(a,(b,c)) -> (a,b,c))
   . toList
   . fmap buildMatrix
   . fromListWith (++)
@@ -192,13 +193,14 @@ splitMatrixBuiltin i (PM rs)
 splitMatrix
   :: Var v
   => Int
-  -> Cons
+  -> Either Cons Cons
   -> PatternMatrix v
-  -> [(Either (PatternP ()) Int, [(v,Reference)], PatternMatrix v)]
-splitMatrix i cons (PM rs)
+  -> [(Int, [(v,Reference)], PatternMatrix v)]
+splitMatrix i econs (PM rs)
   = fmap (\(a, (b, c)) -> (a,b,c)) . (fmap.fmap) buildMatrix $ mmap
   where
-  mmap = zipWith (\t fs -> (Right t , splitRow i t fs =<< rs)) [0..] cons
+  cons = either (((-1,1):) . zip [0..]) (zip [0..]) econs
+  mmap = fmap (\(t,fs) -> (t, splitRow i t fs =<< rs)) cons
 
 type PPM v a = State (Set v, [v], Map v v) a
 
@@ -243,8 +245,15 @@ preparePattern (VarP _) = VarP <$> useVar
 preparePattern (AsP _ p) = prepareAs p =<< useVar
 preparePattern p = prepareAs p =<< freshVar
 
-buildPattern :: Reference -> Int -> [v] -> Int -> PatternP ()
-buildPattern r t vs nfields = ConstructorP () r t vps
+buildPattern :: Bool -> Reference -> Int -> [v] -> Int -> PatternP ()
+buildPattern ef r t vs nfields =
+  case ef of
+    False -> ConstructorP () r t vps
+    True | t == -1 -> EffectPureP () (VarP ())
+         | otherwise -> EffectBindP () r t aps kp
+     where
+     (aps,kp) | [] <- vps = error "too few patterns for effect bind"
+              | otherwise = (init vps, last vps)
   where
   vps | length vs < nfields
       = replicate nfields $ UnboundP ()
@@ -262,7 +271,7 @@ compile spec scs m@(PM (r:rs))
   | (scsl, (scrut,r) : scsr) <- splitAt i scs
   , r `member` builtinCase
   = match () (var () scrut)
-      $ buildCase spec r [] scsl scsr <$> splitMatrixBuiltin i m
+      $ buildCaseBuiltin spec scsl scsr <$> splitMatrixBuiltin i m
   | (scsl, (scrut,r) : scsr) <- splitAt i scs
   = case Map.lookup r spec of
       Just cons ->
@@ -274,20 +283,33 @@ compile spec scs m@(PM (r:rs))
   i = choose heuristics m
 compile _ _ _ = error "inconsistent terms and pattern matrix"
 
+buildCaseBuiltin
+  :: Var v
+  => DataSpec
+  -> [Scrut v]
+  -> [Scrut v]
+  -> (PatternP (), [(v,Reference)], PatternMatrix v)
+  -> MatchCase () (Term v)
+buildCaseBuiltin spec scsl scsr (p, vrs, m)
+  = MatchCase p Nothing . absChain' vs $ compile spec scs m
+  where
+  (scsn, vs) = unzip $ vrs <&> \p@(v,_) -> (p,((),v))
+  scs = scsl ++ scsn ++ scsr
+
 buildCase
   :: Var v
   => DataSpec
   -> Reference
-  -> Cons
+  -> Either Cons Cons
   -> [Scrut v]
   -> [Scrut v]
-  -> (Either (PatternP ()) Int, [(v,Reference)], PatternMatrix v)
+  -> (Int, [(v,Reference)], PatternMatrix v)
   -> MatchCase () (Term v)
-buildCase spec r cons scsl scsr (epi, vrs, m)
+buildCase spec r econs scsl scsr (t, vrs, m)
   = MatchCase pat Nothing . absChain' vs $ compile spec scs m
   where
-  pat | Left  p <- epi = p
-      | Right t <- epi = buildPattern r t vs $ cons !! t
+  (eff, cons) = either (True,) (False,) econs
+  pat = buildPattern eff r t vs $ cons !! t
   (scsn, vs) = unzip $ vrs <&> \(v,r) -> ((v,r),((),v))
   scs = scsl ++ scsn ++ scsr
 
