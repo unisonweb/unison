@@ -224,8 +224,13 @@ float tm = case runState (go tm) (Set.empty, []) of
   (bd, (_, ctx)) -> letRec' True ctx bd
   where go = ABT.visit $ floater go
 
+deannotate :: Var v => Term v a -> Term v a
+deannotate = ABT.visitPure $ \case
+  Ann' c _ -> Just $ deannotate c
+  _ -> Nothing
+
 lamLift :: (Var v, Monoid a) => Term v a -> Term v a
-lamLift = float . close Set.empty
+lamLift = float . close Set.empty . deannotate
 
 optimize :: forall a v . (Semigroup a, Var v) => Term v a -> Term v a
 optimize t = go t where
