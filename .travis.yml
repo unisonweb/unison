@@ -18,12 +18,20 @@ language: generic
 cache:
   directories:
   - $HOME/.stack
+  - $TRAVIS_BUILD_DIR/parser-typechecker/.stack-work
+  - $TRAVIS_BUILD_DIR/yaks/easytest/.stack-work
+  - $TRAVIS_BUILD_DIR/unison-core/.stack-work
+  - $TRAVIS_BUILD_DIR/.stack-work
 
 before_cache:
 # Do any cleanup here to avoid caching junk.
 
 before_install:
-- find /Users/travis/.stack -type f | xargs sha1sum
+- find $HOME/.stack -type f | xargs sha1sum
+- find $TRAVIS_BUILD_DIR/parser-typechecker/.stack-work -type f | xargs sha1sum
+- find $TRAVIS_BUILD_DIR/yaks/easytest/.stack-work -type f | xargs sha1sum
+- find $TRAVIS_BUILD_DIR/unison-core/.stack-work -type f | xargs sha1sum
+- find $TRAVIS_BUILD_DIR/.stack-work -type f | xargs sha1sum
 # Download and unpack the stack executable
 - mkdir -p ~/.local/bin
 - export PATH=$HOME/.local/bin:$PATH
@@ -37,4 +45,8 @@ install:
 # fail if running transcripts modified any versioned files
 - git diff
 - x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi'
-- find /Users/travis/.stack -type f | xargs sha1sum
+- find $HOME/.stack -type f | xargs sha1sum
+- find $TRAVIS_BUILD_DIR/parser-typechecker/.stack-work -type f | xargs sha1sum
+- find $TRAVIS_BUILD_DIR/yaks/easytest/.stack-work -type f | xargs sha1sum
+- find $TRAVIS_BUILD_DIR/unison-core/.stack-work -type f | xargs sha1sum
+- find $TRAVIS_BUILD_DIR/.stack-work -type f | xargs sha1sum
