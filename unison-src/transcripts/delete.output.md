@@ -183,10 +183,10 @@ type Foo = Foo Boolean
     3. └ type Foo#gq9inhvg9h
            
     
-    4. Foo.Foo#d97e0jhkmd#0 : Nat -> Foo
+    4. Foo.Foo#d97e0jhkmd#0 : Nat -> Foo#d97e0jhkmd
        ↓
-    5. ┌ Foo.Foo#d97e0jhkmd#0 : Nat -> Foo
-    6. └ Foo.Foo#gq9inhvg9h#0 : Boolean -> b.Foo
+    5. ┌ Foo.Foo#d97e0jhkmd#0 : Nat -> Foo#d97e0jhkmd
+    6. └ Foo.Foo#gq9inhvg9h#0 : Boolean -> Foo#gq9inhvg9h
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
