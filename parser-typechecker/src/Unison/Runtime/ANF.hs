@@ -59,6 +59,7 @@ module Unison.Runtime.ANF
   , superNormalize
   , anfTerm
   , sink
+  , prettyGroup
   ) where
 
 import Unison.Prelude
@@ -1101,4 +1102,135 @@ freshANF :: Var v => Set v -> Set v -> v
 freshANF avoid free
   = ABT.freshIn (Set.union avoid free) (typed Var.ANFBlank)
 
+indent :: Int -> ShowS
+indent ind = showString (replicate (ind*2) ' ')
 
+prettyGroup :: Var v => SuperGroup v -> ShowS
+prettyGroup (Rec grp ent)
+  = showString "let rec\n"
+  . foldr f id grp
+  . showString "entry"
+  . prettySuperNormal 1 ent
+  where
+  f (v,sn) r = indent 1 . pvar v
+             . prettySuperNormal 2 sn . showString "\n" . r
+
+pvar :: Var v => v -> ShowS
+pvar v = showString . Text.unpack $ Var.name v
+
+prettyVars :: Var v => [v] -> ShowS
+prettyVars
+  = foldr (\v r -> showString " " . pvar v . r) (showString " ")
+
+prettyRBind :: Var v => [v] -> ShowS
+prettyRBind [] = showString "()"
+prettyRBind [v] = pvar v
+prettyRBind (v:vs)
+  = showParen True
+  $ pvar v . foldr (\v r -> shows v . showString "," . r) id vs
+
+prettySuperNormal :: Var v => Int -> SuperNormal v -> ShowS
+prettySuperNormal ind (Lambda _ (ABTN.TAbss vs tm))
+  = prettyVars vs
+  . showString "="
+  . prettyANF False (ind+1) tm
+
+prettyANF :: Var v => Bool -> Int -> ANormal v -> ShowS
+prettyANF m ind tm = case tm of
+  TLets vs _ bn bo
+    -> showString "\n"
+     . indent ind
+     . prettyRBind vs
+     . showString " ="
+     . prettyANFT False (ind+1) bn
+     . prettyANF True ind bo
+  TName v f vs bo
+    -> showString "\n"
+     . indent ind
+     . prettyRBind [v]
+     . showString " := "
+     . prettyLZF f
+     . prettyVars vs
+     . prettyANF True ind bo
+  TTm tm
+    -> prettyANFT m ind tm
+  _ -> shows tm
+
+prettySpace :: Bool -> Int -> ShowS
+prettySpace False _   = showString " "
+prettySpace True  ind = showString "\n" . indent ind
+
+prettyANFT :: Var v => Bool -> Int -> ANormalT v -> ShowS
+prettyANFT m ind tm = prettySpace m ind . case tm of
+    ALit l -> shows l
+    AFrc v -> showString "!" . pvar v
+    AVar v -> pvar v
+    AApp f vs -> prettyFunc f . prettyVars vs
+    AMatch v bs
+      -> showString "match "
+       . pvar v . showString " with"
+       . prettyBranches ind bs
+    AShift r (ABTN.TAbss vs bo)
+      -> showString "shift[" . shows r . showString "] "
+       . prettyVars vs . showString "."
+       . prettyANF False (ind+1) bo
+    AHnd rs v d bo
+      -> showString "handle" . prettyTags rs
+       . prettyANF True (ind+1) bo
+       . showString "with " . pvar v
+       . maybe id (\t -> prettyCase (ind+1) (showString "_") t id) d
+
+prettyLZF :: Var v => Either Word64 v -> ShowS
+prettyLZF (Left w) = showString "ENV(" . shows w . showString ") "
+prettyLZF (Right v) = pvar v . showString " "
+
+prettyTags :: [RTag] -> ShowS
+prettyTags [] = showString "{}"
+prettyTags (r:rs)
+  = showString "{" . shows r
+  . foldr (\t r -> shows t . showString "," . r) id rs
+  . showString "}"
+
+prettyFunc :: Var v => Func v -> ShowS
+prettyFunc (FVar v) = pvar v . showString " "
+prettyFunc (FCont v) = pvar v . showString " "
+prettyFunc (FComb w) = showString "ENV(" . shows w . showString ")"
+prettyFunc (FCon r t)
+  = showString "CON("
+  . shows r . showString "," . shows t
+  . showString ")"
+prettyFunc (FReq r t)
+  = showString "REQ("
+  . shows r . showString "," . shows t
+  . showString ")"
+prettyFunc (FPrim op) = either shows shows op . showString " "
+
+prettyBranches :: Var v => Int -> Branched (ANormal v) -> ShowS
+prettyBranches ind bs = case bs of
+  MatchEmpty -> showString "{}"
+  MatchIntegral bs df
+    -> maybe id (\e -> prettyCase ind (showString "_") e id)  df
+     . foldr (uncurry $ prettyCase ind . shows) id (mapToList bs)
+  MatchText bs df
+    -> maybe id (\e -> prettyCase ind (showString "_") e id)  df
+     . foldr (uncurry $ prettyCase ind . shows) id (Map.toList bs)
+  MatchData _ bs df
+    -> maybe id (\e -> prettyCase ind (showString "_") e id)  df
+     . foldr (uncurry $ prettyCase ind . shows) id
+         (mapToList $ snd <$> bs)
+  MatchRequest bs
+    -> foldr (\(r,m) s ->
+         foldr (\(c,e) -> prettyCase ind (prettyReq r c) e)
+           s (mapToList $ snd <$> m))
+         id (mapToList bs)
+  _ -> error "prettyBranches: todo"
+  where
+  prettyReq r c
+    = showString "REQ("
+    . shows r . showString "," . shows c
+    . showString ")"
+
+prettyCase :: Var v => Int -> ShowS -> ANormal v -> ShowS -> ShowS
+prettyCase ind sc (ABTN.TAbss vs e) r
+  = showString "\n" . indent ind . sc . prettyVars vs
+  . showString " ->" . prettyANF False (ind+1) e . r
