@@ -84,6 +84,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.ABT.Normalized as ABTN
 import qualified Unison.Term as Term
 import qualified Unison.Type as Ty
+import qualified Unison.Builtin.Decls as Ty (unitRef)
 import qualified Unison.Var as Var
 import Unison.Typechecker.Components (minimize')
 import Unison.Pattern (PatternP(..))
@@ -170,7 +171,35 @@ enclose keep rec t@(LamsNamed' vs body)
   a = ABT.annotation t
   lbody = rec keep' body
   lamb = lam' a (evs ++ vs) lbody
+enclose keep rec t@(Handle' h body)
+  | isStructured body
+  = Just . handle (ABT.annotation t) h $ apps' lamb args
+  where
+  fvs = ABT.freeVars body
+  evs = Set.toList $ Set.difference fvs keep
+  a = ABT.annotation body
+  lbody = rec keep body
+  fv = Var.freshIn fvs $ typed Var.Eta
+  args | null evs = [constructor a Ty.unitRef 0]
+       | otherwise = var a <$> evs
+  lamb | null evs = lam' a [fv] lbody
+       | otherwise = lam' a evs lbody
 enclose _ _ _ = Nothing
+
+isStructured :: Var v => Term v a -> Bool
+isStructured (Var' _) = False
+isStructured (Lam' _) = False
+isStructured (Nat' _) = False
+isStructured (Int' _) = False
+isStructured (Float' _) = False
+isStructured (Text' _) = False
+isStructured (Char' _) = False
+isStructured (Constructor' r _) = r /= Ty.unitRef
+isStructured (Apps' f args) = isStructured f || any isStructured args
+isStructured (If' b t f) = isStructured b || isStructured t || isStructured f
+isStructured (And' l r) = isStructured l || isStructured r
+isStructured (Or' l r) = isStructured l || isStructured r
+isStructured _ = True
 
 close :: (Var v, Monoid a) => Set v -> Term v a -> Term v a
 close keep tm = ABT.visitPure (enclose keep close) tm
@@ -821,6 +850,16 @@ toSuperNormal tm = do
 anfTerm :: Var v => Term v a -> ANFM v (ANormal v)
 anfTerm tm = uncurry TBinds' <$> anfBlock tm
 
+floatableCtx :: Ctx v -> Bool
+floatableCtx = all p
+  where
+  p (LZ _ _ _) = True
+  p (ST _ _ tm) = q tm
+  q (ALit _) = True
+  q (AVar _) = True
+  q (ACon _ _ []) = True
+  q _ = False
+
 anfBlock :: Var v => Term v a -> ANFM v (Ctx v, ANormalT v)
 anfBlock (Var' v) = pure ([], AVar v)
 anfBlock (If' c t f) = do
@@ -846,13 +885,18 @@ anfBlock (Or' l r) = do
 anfBlock (Handle' h body)
   = anfArg h >>= \(hctx, vh) ->
     anfBlock body >>= \case
-      ([], ACom f as) -> do
+      (ctx, ACom f as) | floatableCtx ctx -> do
         avoid as
         v <- fresh
         avoid [v]
-        pure (hctx ++ [LZ v (Left f) as], AApp (FVar vh) [v])
+        pure (hctx ++ ctx ++ [LZ v (Left f) as], AApp (FVar vh) [v])
+      (ctx, AApv f as) | floatableCtx ctx -> do
+        avoid (f:as)
+        v <- fresh
+        avoid [v]
+        pure (hctx ++ ctx ++ [LZ v (Right f) as], AApp (FVar vh) [v])
       (_, _) ->
-        error "handle body should be a call to a top-level combinator"
+        error "handle body should be a simple call"
 anfBlock (Match' scrut cas) = do
   (sctx, sc) <- anfBlock scrut
   (cx, v) <- contextualize sc
