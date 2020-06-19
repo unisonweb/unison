@@ -214,7 +214,7 @@ unique type Y a b = Y a b
 
 .ns2> links fromJust
 
-  1. .ns1.b : Nat
+  1. b : Text
   
   Tip: Try using `display 1` to display the first result or
        `view 1` to view its source.
@@ -227,30 +227,32 @@ unique type Y a b = Y a b
     2.  └ fromJust#jk19sm5bf8 : Nat
         ↓
     3.  fromJust#1o1iq26cq7 : Nat
-        + 4.  ns1.b : Nat
+        - 4.  ns1.b : Nat
+        + 5.  ns2.b : Text
   
   Updates:
   
-    5.  b : Nat
+    6.  b : Nat
         ↓
-    6.  b : Text
+    7.  b : Text
     
-    7.  fromJust' : Nat
-        ↓
     8.  fromJust' : Nat
-        + 9.  ns1.b : Nat
+        ↓
+    9.  fromJust' : Nat
+        - 10. ns1.b : Nat
+        + 11. ns2.b : Text
   
     There were 1 auto-propagated updates.
   
   Added definitions:
   
-    10. unique type Y a b
-    11. Y.Y : a -> b -> Y a b
-    12. d   : Nat
-    13. e   : Nat
-    14. f   : Nat
+    12. unique type Y a b
+    13. Y.Y : a -> b -> Y a b
+    14. d   : Nat
+    15. e   : Nat
+    16. f   : Nat
   
-    15. patch patch (added 2 updates)
+    17. patch patch (added 2 updates)
 
 .> alias.term ns2.d ns2.d'
 
@@ -272,38 +274,40 @@ unique type Y a b = Y a b
     2.  └ fromJust#jk19sm5bf8 : Nat
         ↓
     3.  fromJust#1o1iq26cq7 : Nat
-        + 4.  ns1.b : Nat
+        - 4.  ns1.b : Nat
+        + 5.  ns2.b : Text
   
   Updates:
   
-    5.  b : Nat
+    6.  b : Nat
         ↓
-    6.  b : Text
+    7.  b : Text
     
-    7.  fromJust' : Nat
-        ↓
     8.  fromJust' : Nat
-        + 9.  ns1.b : Nat
+        ↓
+    9.  fromJust' : Nat
+        - 10. ns1.b : Nat
+        + 11. ns2.b : Text
   
     There were 1 auto-propagated updates.
   
   Added definitions:
   
-    10. unique type Y a b
-    11. Y.Y  : a -> b -> Y a b
-    12. ┌ d  : Nat
-    13. └ d' : Nat
-    14. e    : Nat
-    15. f    : Nat
+    12. unique type Y a b
+    13. Y.Y  : a -> b -> Y a b
+    14. ┌ d  : Nat
+    15. └ d' : Nat
+    16. e    : Nat
+    17. f    : Nat
   
-    16. patch patch (added 2 updates)
+    18. patch patch (added 2 updates)
   
   Name changes:
   
     Original  Changes
-    17. A     18. A' (added)
+    19. A     20. A' (added)
     
-    19. X    20. X' (added)
+    21. X    22. X' (added)
 
 .> link ns1.c ns2.f
 
@@ -327,41 +331,43 @@ unique type Y a b = Y a b
     2.  └ fromJust#jk19sm5bf8 : Nat
         ↓
     3.  fromJust#1o1iq26cq7 : Nat
-        + 4.  ns1.b : Nat
+        - 4.  ns1.b : Nat
+        + 5.  ns2.b : Text
   
   Updates:
   
-    5.  b : Nat
+    6.  b : Nat
         ↓
-    6.  b : Text
+    7.  b : Text
     
-    7.  c : Nat
-        + 8.  c : Nat
+    8.  c : Nat
+        + 9.  c : Nat
     
-    9.  fromJust' : Nat
-        ↓
     10. fromJust' : Nat
-        + 11. ns1.b : Nat
+        ↓
+    11. fromJust' : Nat
+        - 12. ns1.b : Nat
+        + 13. ns2.b : Text
   
     There were 1 auto-propagated updates.
   
   Added definitions:
   
-    12. unique type Y a b
-    13. Y.Y  : a -> b -> Y a b
-    14. ┌ d  : Nat
-    15. └ d' : Nat
-    16. e    : Nat
-    17. f    : Nat (+1 metadata)
+    14. unique type Y a b
+    15. Y.Y  : a -> b -> Y a b
+    16. ┌ d  : Nat
+    17. └ d' : Nat
+    18. e    : Nat
+    19. f    : Nat (+1 metadata)
   
-    18. patch patch (added 2 updates)
+    20. patch patch (added 2 updates)
   
   Name changes:
   
     Original  Changes
-    19. A     20. A' (added)
+    21. A     22. A' (added)
     
-    21. X    22. X' (added)
+    23. X    24. X' (added)
 
 .> unlink ns2.b ns2.fromJust
 
@@ -375,41 +381,43 @@ unique type Y a b = Y a b
     2.  └ fromJust#jk19sm5bf8 : Nat
         ↓
     3.  fromJust#1o1iq26cq7 : Nat
-        + 4.  ns1.b : Nat
+        - 4.  ns1.b : Nat
+        + 5.  ns2.b : Text
   
   Updates:
   
-    5.  b : Nat
+    6.  b : Nat
         ↓
-    6.  b : Text
+    7.  b : Text
     
-    7.  c : Nat
-        + 8.  c : Nat
+    8.  c : Nat
+        + 9.  c : Nat
     
-    9.  fromJust' : Nat
-        ↓
     10. fromJust' : Nat
-        + 11. ns1.b : Nat
+        ↓
+    11. fromJust' : Nat
+        - 12. ns1.b : Nat
+        + 13. ns2.b : Text
   
     There were 1 auto-propagated updates.
   
   Added definitions:
   
-    12. unique type Y a b
-    13. Y.Y  : a -> b -> Y a b
-    14. ┌ d  : Nat
-    15. └ d' : Nat
-    16. e    : Nat
-    17. f    : Nat (+1 metadata)
+    14. unique type Y a b
+    15. Y.Y  : a -> b -> Y a b
+    16. ┌ d  : Nat
+    17. └ d' : Nat
+    18. e    : Nat
+    19. f    : Nat (+1 metadata)
   
-    18. patch patch (added 2 updates)
+    20. patch patch (added 2 updates)
   
   Name changes:
   
     Original  Changes
-    19. A     20. A' (added)
+    21. A     22. A' (added)
     
-    21. X    22. X' (added)
+    23. X    24. X' (added)
 
 .> alias.type ns1.X ns1.X2
 
