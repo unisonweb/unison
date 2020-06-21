@@ -1,4 +1,4 @@
-module Main where
+module Suite where
 
 import EasyTest
 import Control.Applicative

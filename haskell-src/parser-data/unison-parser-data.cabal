@@ -1,0 +1,26 @@
+cabal-version:       >=1.10
+
+name:                unison-parser-data
+version:             0.1.0.0
+-- synopsis:
+-- description:
+homepage:            https://unisonweb.org
+-- bug-reports:
+license:             MIT
+license-file:        LICENSE
+author:              Unison Computing, public benefit corp and contributors
+maintainer:          Paul Chiusano <paul.chiusano@gmail.com>, Runar Bjarnason <runarorama@gmail.com>, Arya Irani <arya.irani@gmail.com>
+-- copyright:
+category:            Development
+build-type:          Simple
+-- extra-source-files:
+
+library
+  exposed-modules:
+    Unison.Parser.Data,
+    Unison.Parser.Range
+  -- other-modules:
+  -- other-extensions:
+  build-depends: base
+  -- hs-source-dirs:
+  default-language:    Haskell2010

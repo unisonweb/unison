@@ -6,8 +6,31 @@ allow-different-user: true
 
 packages:
 - yaks/easytest
-- parser-typechecker
-- unison-core
+- haskell-src/codebase
+- haskell-src/codebase-data
+- haskell-src/editor-cli
+- haskell-src/editor-cli-lib
+- haskell-src/editor-data
+- haskell-src/editor-git
+- haskell-src/editor-lib
+- haskell-src/parser
+- haskell-src/parser-data
+- haskell-src/prelude
+- haskell-src/pretty
+- haskell-src/pretty-demo
+- haskell-src/printer
+- haskell-src/printer-data
+- haskell-src/runtime
+- haskell-src/runtime-api
+- haskell-src/runtime-builtin
+- haskell-src/runtime-data
+- haskell-src/term
+- haskell-src/tests
+- haskell-src/transcripts
+- haskell-src/typechecker
+- haskell-src/typechecker-data
+- haskell-src/util
+- haskell-src/util-data
 
 #compiler-check: match-exact
 resolver: lts-15.15
@@ -28,4 +51,9 @@ extra-deps:
 
 ghc-options:
  # All packages
- "$locals": -Werror -Wno-type-defaults #-freverse-errors
+ "$locals":
+    -Werror
+    -Wno-type-defaults
+    -XLambdaCase
+    -XRankNTypes
+    -XTupleSections

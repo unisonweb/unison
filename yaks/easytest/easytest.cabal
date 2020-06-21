@@ -37,12 +37,12 @@ library
 
   -- these bounds could probably be made looser
   build-depends:
-    async                     >= 2.1.1,
-    base                      >= 4.3,
-    mtl                       >= 2.0.1,
-    containers                >= 0.4.0,
-    stm                       >= 2.4,
-    random                    >= 1.1
+    async,
+    base,
+    containers,
+    mtl,
+    random,
+    stm
 
   ghc-options: -Wall -fno-warn-name-shadowing
 
@@ -52,18 +52,8 @@ library
   if flag(quiet)
     ghc-options: -v0
 
--- Preferred way to run EasyTest-based test suite
-executable runtests
-  main-is:        Suite.hs
-  ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
-  hs-source-dirs: tests
-  other-modules:
-  build-depends:
-    base,
-    easytest
-
 -- I really have no idea why you'd ever use this, just use an executable as above
-test-suite tests
+test-suite easytest
   type:           exitcode-stdio-1.0
   main-is:        Suite.hs
   ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
