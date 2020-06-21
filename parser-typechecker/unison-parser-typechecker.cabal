@@ -237,7 +237,7 @@ executable unison
   main-is: Main.hs
   hs-source-dirs: unison
   default-language: Haskell2010
-  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -rtsopts
+  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -rtsopts -optP-Wno-nonportable-include-path
   other-modules:
     System.Path
     Version
@@ -255,8 +255,10 @@ executable unison
     temporary,
     text,
     unison-core,
-    unison-parser-typechecker,
-    unix
+    unison-parser-typechecker
+  if !os(windows)
+    build-depends:
+      unix
 
 executable prettyprintdemo
   main-is: Main.hs
