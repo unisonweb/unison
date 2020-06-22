@@ -1125,7 +1125,17 @@ pvar v = showString . Text.unpack $ Var.name v
 
 prettyVars :: Var v => [v] -> ShowS
 prettyVars
-  = foldr (\v r -> showString " " . pvar v . r) (showString " ")
+  = foldr (\v r -> showString " " . pvar v . r) id
+
+prettyLVars :: Var v => [Mem] -> [v] -> ShowS
+prettyLVars [] [] = showString " "
+prettyLVars (c:cs) (v:vs)
+  = showString " "
+  . showParen True (pvar v . showString ":" . shows c)
+  . prettyLVars cs vs
+
+prettyLVars [] (_:_) = error "more variables than conventions"
+prettyLVars (_:_) [] = error "more conventions than variables"
 
 prettyRBind :: Var v => [v] -> ShowS
 prettyRBind [] = showString "()"
@@ -1135,8 +1145,8 @@ prettyRBind (v:vs)
   $ pvar v . foldr (\v r -> shows v . showString "," . r) id vs
 
 prettySuperNormal :: Var v => Int -> SuperNormal v -> ShowS
-prettySuperNormal ind (Lambda _ (ABTN.TAbss vs tm))
-  = prettyVars vs
+prettySuperNormal ind (Lambda ccs (ABTN.TAbss vs tm))
+  = prettyLVars ccs vs
   . showString "="
   . prettyANF False (ind+1) tm
 
@@ -1176,14 +1186,16 @@ prettyANFT m ind tm = prettySpace m ind . case tm of
        . pvar v . showString " with"
        . prettyBranches ind bs
     AShift r (ABTN.TAbss vs bo)
-      -> showString "shift[" . shows r . showString "] "
+      -> showString "shift[" . shows r . showString "]"
        . prettyVars vs . showString "."
        . prettyANF False (ind+1) bo
     AHnd rs v d bo
       -> showString "handle" . prettyTags rs
-       . prettyANF True (ind+1) bo
-       . showString "with " . pvar v
-       . maybe id (\t -> prettyCase (ind+1) (showString "_") t id) d
+       . prettyANF False (ind+1) bo
+       . showString " with " . pvar v
+       . maybe id
+           (\t -> prettyCase (ind+1) (showString "finally") t id)
+           d
 
 prettyLZF :: Var v => Either Word64 v -> ShowS
 prettyLZF (Left w) = showString "ENV(" . shows w . showString ") "
@@ -1238,4 +1250,4 @@ prettyBranches ind bs = case bs of
 prettyCase :: Var v => Int -> ShowS -> ANormal v -> ShowS -> ShowS
 prettyCase ind sc (ABTN.TAbss vs e) r
   = showString "\n" . indent ind . sc . prettyVars vs
-  . showString " ->" . prettyANF False (ind+1) e . r
+  . showString "->" . prettyANF False (ind+1) e . r
