@@ -26,6 +26,7 @@ module Unison.Runtime.ANF
   , pattern TIOp
   , pattern THnd
   , pattern TLet
+  , pattern TFrc
   , pattern TLets
   , pattern TName
   , pattern TBind
@@ -571,11 +572,15 @@ pattern TIOp p args = TApp (FPrim (Right p)) args
 pattern THnd rs h d b = TTm (AHnd rs h d b)
 pattern TShift i v e = TTm (AShift i (ABTN.TAbs v e))
 pattern TMatch v cs = TTm (AMatch v cs)
+pattern TFrc v = TTm (AFrc v)
 pattern TVar v = TTm (AVar v)
 
-{-# complete TLet, TName, TVar, TApp, TLit, THnd, TShift, TMatch #-}
-{-# complete TLet, TName,
-      TVar,
+{-# complete
+    TLet, TName, TVar, TApp, TFrc, TLit, THnd, TShift, TMatch
+  #-}
+{-# complete
+      TLet, TName,
+      TVar, TFrc,
       TApv, TCom, TCon, TKon, TReq, TPrm, TIOp,
       TLit, THnd, TShift, TMatch
   #-}

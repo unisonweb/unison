@@ -99,6 +99,7 @@ denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
       Term.request () (denormalizeRef r) (fromIntegral $ rawTag n)
     FPrim _ -> error "FPrim"
     FCont _ -> error "denormalize FCont"
+denormalize (TFrc _) = error "denormalize TFrc"
 
 denormalizeRef :: RTag -> Reference
 denormalizeRef r
