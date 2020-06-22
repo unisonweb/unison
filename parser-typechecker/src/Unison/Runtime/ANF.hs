@@ -917,7 +917,7 @@ anfBlock (Match' scrut cas) = do
         v <- fresh
         let hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr
             hfvs = Set.toList $ ABTN.freeVars hfb
-        record (r, Lambda (BX <$ hfvs) . ABTN.TAbss hfvs $ hfb)
+        record (r, Lambda (BX <$ hfvs ++ [v]) . ABTN.TAbss hfvs $ hfb)
         pure (r, hfvs)
       hv <- fresh
       let msc | [ST1 _ BX tm] <- cx = tm
