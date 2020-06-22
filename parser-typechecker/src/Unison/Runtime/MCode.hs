@@ -60,13 +60,10 @@ import Unison.Runtime.ANF
   , packTags
   , pattern TVar
   , pattern TLit
-  , pattern TApv
-  , pattern TCom
-  , pattern TCon
-  , pattern TKon
+  , pattern TApp
   , pattern TPrm
-  , pattern TReq
   , pattern THnd
+  , pattern TFrc
   , pattern TShift
   , pattern TLets
   , pattern TName
@@ -507,6 +504,7 @@ data Ctx v
   | Block (Ctx v)
   | Tag (Ctx v)
   | Var v Mem (Ctx v)
+  deriving (Show)
 
 type RCtx v = M.Map v Word64
 
@@ -572,12 +570,14 @@ emitSection rec ctx (TLets us ms bu bo)
   = emitLet rec ctx bu $ emitSection rec ectx bo
   where
   ectx = pushCtx (zip us ms) ctx
-emitSection rec ctx (TName u (Left f) as bo)
-  = Ins (Name f $ emitArgs ctx as)
+emitSection rec ctx (TName u (Left f) args bo)
+  = emitClosures rec ctx args $ \ctx as
+ -> Ins (Name f as)
   $ emitSection rec (Var u BX ctx) bo
-emitSection rec ctx (TName u (Right v) as bo)
+emitSection rec ctx (TName u (Right v) args bo)
   | Just f <- rctxResolve rec v
-  = Ins (Name f $ emitArgs ctx as)
+  = emitClosures rec ctx args $ \ctx as
+ -> Ins (Name f as)
   $ emitSection rec (Var u BX ctx) bo
   | otherwise = emitSectionVErr v
 emitSection rec ctx (TVar v)
@@ -585,35 +585,14 @@ emitSection rec ctx (TVar v)
   | Just (i,UN) <- ctxResolve ctx v = Yield $ UArg1 i
   | Just j <- rctxResolve rec v = App False (Env j) ZArgs
   | otherwise = emitSectionVErr v
-emitSection rec ctx (TApv v args)
-  | Just (i,BX) <- ctxResolve ctx v
-  = App False (Stk i) $ emitArgs ctx args
-  | Just j <- rctxResolve rec v
-  = App False (Env j) $ emitArgs ctx args
-  | otherwise = emitSectionVErr v
-emitSection _   ctx (TCom n args)
-  | False -- known saturated call
-  = Call False n $ emitArgs ctx args
-  | False -- known unsaturated call
-  = Ins (Name n $ emitArgs ctx args) $ Yield (BArg1 0)
-  | otherwise -- slow path
-  = App False (Env n) $ emitArgs ctx args
-emitSection _   ctx (TCon r t args)
-  = Ins (Pack (packTags r t) (emitArgs ctx args))
-  . Yield $ BArg1 0
-emitSection _   ctx (TReq a e args)
-  -- Currently implementing packed calling convention for abilities
-  = Ins (Pack (rawTag e) (emitArgs ctx args))
-  . App True (Dyn $ rawTag a) $ BArg1 0
-emitSection _   ctx (TKon k args)
-  | Just (i, BX) <- ctxResolve ctx k = Jump i $ emitArgs ctx args
-  | Nothing <- ctxResolve ctx k = emitSectionVErr k
-  | otherwise = error $ "emitSection: continuations are boxed"
 emitSection _   ctx (TPrm p args)
   = Ins (emitPOp p $ emitArgs ctx args)
   . Yield $ DArgV i j
   where
   (i, j) = countBlock ctx
+emitSection rec ctx (TApp f args)
+  = emitClosures rec ctx args $ \ctx as
+ -> emitFunction rec ctx f as
 emitSection _   _   (TLit l)
   = Ins (emitLit l)
   . Yield $ litArg l
@@ -640,7 +619,8 @@ emitSection rec ctx (TMatch v bs)
   $ "emitSection: mismatched calling convention for match: "
   ++ matchCallingError cc bs
   | otherwise
-  = error "emitSection: could not resolve match variable"
+  = error
+  $ "emitSection: could not resolve match variable: " ++ show (ctx,v)
 emitSection rec ctx (THnd rts h df b)
   | Just (i,BX) <- ctxResolve ctx h
   = Ins (Reset . EC.setFromList $ rs)
@@ -654,7 +634,40 @@ emitSection rec ctx (THnd rts h df b)
 emitSection rec ctx (TShift i v e)
   = Ins (Capture $ rawTag i)
   $ emitSection rec (Var v BX ctx) e
+emitSection _   ctx (TFrc v)
+  | Just (i,BX) <- ctxResolve ctx v = App False (Stk i) ZArgs
+  | Just _ <- ctxResolve ctx v = error
+  $ "emitSection: values to be forced must be boxed: " ++ show v
+  | otherwise = emitSectionVErr v
 emitSection _ _ tm = error $ "emitSection: unhandled code: " ++ show tm
+
+emitFunction :: Var v => RCtx v -> Ctx v -> Func v -> Args -> Section
+emitFunction rec ctx (FVar v) as
+  | Just (i,BX) <- ctxResolve ctx v
+  = App False (Stk i) as
+  | Just j <- rctxResolve rec v
+  = App False (Env j) as
+  | otherwise = emitSectionVErr v
+emitFunction _   _   (FComb n) as
+  | False -- known saturated call
+  = Call False n as
+  | False -- known unsaturated call
+  = Ins (Name n as) $ Yield (BArg1 0)
+  | otherwise -- slow path
+  = App False (Env n) as
+emitFunction _   _   (FCon r t) as
+  = Ins (Pack (packTags r t) as)
+  . Yield $ BArg1 0
+emitFunction _   _   (FReq a e) as
+  -- Currently implementing packed calling convention for abilities
+  = Ins (Pack (rawTag e) as)
+  . App True (Dyn $ rawTag a) $ BArg1 0
+emitFunction _   ctx (FCont k) as
+  | Just (i, BX) <- ctxResolve ctx k = Jump i as
+  | Nothing <- ctxResolve ctx k = emitFunctionVErr k
+  | otherwise = error $ "emitFunction: continuations are boxed"
+emitFunction _ _ (FPrim _) _
+  = error "emitFunction: impossible"
 
 countBlock :: Ctx v -> (Int, Int)
 countBlock = go 0 0
@@ -678,6 +691,11 @@ emitSectionVErr :: (Var v, HasCallStack) => v -> a
 emitSectionVErr v
   = error
   $ "emitSection: could not resolve function variable: " ++ show v
+
+emitFunctionVErr :: (Var v, HasCallStack) => v -> a
+emitFunctionVErr v
+  = error
+  $ "emitFunction: could not resolve function variable: " ++ show v
 
 litArg :: ANF.Lit -> Args
 litArg ANF.T{} = BArg1 0
@@ -1040,6 +1058,22 @@ emitLit l = Lit $ case l of
   ANF.C c -> MI $ fromEnum c
   ANF.F d -> MD $ d
   ANF.T t -> MT $ t
+
+emitClosures
+  :: Var v
+  => RCtx v -> Ctx v -> [v]
+  -> (Ctx v -> Args -> Section)
+  -> Section
+emitClosures rec ctx args k
+  = allocate ctx args $ \ctx -> k ctx $ emitArgs ctx args
+  where
+  allocate ctx [] k = k ctx
+  allocate ctx (a:as) k
+    | Just _ <- ctxResolve ctx a = allocate ctx as k
+    | Just n <- rctxResolve rec a
+    = Ins (Name n ZArgs) $ allocate (Var a BX ctx) as k
+    | otherwise
+    = error $ "emitClosures: unknown reference: " ++ show a
 
 emitArgs :: Var v => Ctx v -> [v] -> Args
 emitArgs ctx args
