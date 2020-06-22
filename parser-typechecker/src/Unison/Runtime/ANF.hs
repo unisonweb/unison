@@ -743,7 +743,7 @@ data POp
   -- Concurrency
   | FORK
   -- Universal operations
-  | EQLU
+  | EQLU | EROR
   -- Debug
   | PRNT | INFO
   deriving (Show,Eq,Ord)
@@ -963,7 +963,7 @@ anfBlock (Lit' l) = do
   pure ([ST1 lv UN $ ALit l], ACon rt 0 [lv])
 anfBlock (Ref' r) =
   resolveTerm r <&> \n -> ([], ACom n [])
-anfBlock (Blank' _) = error "tried to compile Blank"
+anfBlock (Blank' _) = pure ([], APrm EROR [])
 anfBlock t = error $ "anf: unhandled term: " ++ show t
 
 -- Note: this assumes that patterns have already been translated

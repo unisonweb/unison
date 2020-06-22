@@ -261,8 +261,7 @@ buildPattern ef r t vs nfields =
       = VarP () <$ vs
 
 compile :: Var v => DataSpec -> [Scrut v] -> PatternMatrix v -> Term v
-compile _ _ (PM [])
-  = error "compile: empty matrix" -- TODO: maybe generate error term
+compile _ _ (PM []) = blank ()
 compile spec scs m@(PM (r:rs))
   | rowIrrefutable r
   = case guard r of

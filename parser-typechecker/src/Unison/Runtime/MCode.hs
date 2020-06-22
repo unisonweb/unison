@@ -585,6 +585,8 @@ emitSection rec ctx (TVar v)
   | Just (i,UN) <- ctxResolve ctx v = Yield $ UArg1 i
   | Just j <- rctxResolve rec v = App False (Env j) ZArgs
   | otherwise = emitSectionVErr v
+emitSection _   _   (TPrm ANF.EROR [])
+  = Die "error call"
 emitSection _   ctx (TPrm p args)
   = Ins (emitPOp p $ emitArgs ctx args)
   . Yield $ DArgV i j
@@ -817,6 +819,8 @@ emitPOp ANF.PRNT = \case
 emitPOp ANF.INFO = \case
   ZArgs -> Info "debug"
   _ -> error "info takes no arguments"
+-- handled in emitSection because Die is not an instruction
+emitPOp ANF.EROR = error "error takes zero arguments"
 
 emitIOp :: ANF.IOp -> Args -> Instr
 emitIOp iop = ForeignCall True (iopToForeign iop)
