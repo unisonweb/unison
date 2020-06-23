@@ -91,6 +91,7 @@ import qualified Unison.Var as Var
 import Unison.Typechecker.Components (minimize')
 import Unison.Pattern (PatternP(..))
 import Unison.Reference (Reference(..))
+import Unison.Referent (Referent)
 -- import Debug.Trace
 -- import qualified Unison.TermPrinter as TP
 -- import qualified Unison.Util.Pretty as P
@@ -701,6 +702,8 @@ data Lit
   | F Double
   | T Text
   | C Char
+  | LM Referent
+  | LY Reference
   deriving (Show)
 
 litRef :: Lit -> Reference
@@ -709,6 +712,8 @@ litRef (N _) = Ty.natRef
 litRef (F _) = Ty.floatRef
 litRef (T _) = Ty.textRef
 litRef (C _) = Ty.charRef
+litRef (LM _) = Ty.termLinkRef
+litRef (LY _) = Ty.typeLinkRef
 
 data POp
   -- Int
@@ -964,6 +969,8 @@ anfBlock (Lit' l) = do
 anfBlock (Ref' r) =
   resolveTerm r <&> \n -> ([], ACom n [])
 anfBlock (Blank' _) = pure ([], APrm EROR [])
+anfBlock (TermLink' r) = pure ([], ALit (LM r))
+anfBlock (TypeLink' r) = pure ([], ALit (LY r))
 anfBlock t = error $ "anf: unhandled term: " ++ show t
 
 -- Note: this assumes that patterns have already been translated

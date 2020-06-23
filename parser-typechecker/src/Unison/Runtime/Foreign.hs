@@ -27,6 +27,7 @@ import System.FilePath (FilePath)
 import System.IO (BufferMode(..), SeekMode, Handle, IOMode)
 import Unison.Util.Bytes (Bytes)
 import Unison.Reference (Reference)
+import Unison.Referent (Referent)
 import qualified Unison.Type as Ty
 
 import Unsafe.Coerce
@@ -42,14 +43,21 @@ unwrapText (Wrap r v)
   | r == Ty.textRef = Just $ unsafeCoerce v
   | otherwise = Nothing
 
+promoteEq :: (a -> a -> Bool) -> b -> c -> Bool
+promoteEq (~~) x y = unsafeCoerce x ~~ unsafeCoerce y
+
+ref2eq :: Reference -> Maybe (a -> b -> Bool)
+ref2eq r
+  | r == Ty.textRef = Just $ promoteEq ((==) @Text)
+  | r == Ty.termLinkRef = Just $ promoteEq ((==) @Referent)
+  | r == Ty.typeLinkRef = Just $ promoteEq ((==) @Reference)
+  | otherwise = Nothing
+
 instance Eq Foreign where
-  Wrap rl t0 == Wrap rr u0
-    | rl == Ty.textRef, rr == Ty.textRef = t == u
-    where
-    t, u :: Text
-    t = unsafeCoerce t0
-    u = unsafeCoerce u0
+  Wrap rl t == Wrap rr u
+    | rl == rr , Just (~~) <- ref2eq rl = t ~~ u
   _ == _ = error "Eq Foreign"
+
 instance Ord Foreign where compare __ = error "Ord Foreign"
 
 instance Show Foreign where

@@ -131,6 +131,14 @@ exec _      !_   !denv !ustk !bstk !k (Lit (MT t)) = do
   bstk <- bump bstk
   poke bstk (Foreign (Wrap Rf.textRef t))
   pure (denv, ustk, bstk, k)
+exec _      !_   !denv !ustk !bstk !k (Lit (MM r)) = do
+  bstk <- bump bstk
+  poke bstk (Foreign (Wrap Rf.termLinkRef r))
+  pure (denv, ustk, bstk, k)
+exec _      !_   !denv !ustk !bstk !k (Lit (MY r)) = do
+  bstk <- bump bstk
+  poke bstk (Foreign (Wrap Rf.typeLinkRef r))
+  pure (denv, ustk, bstk, k)
 exec _      !_   !denv !ustk !bstk !k (Reset ps) = do
   pure (denv, ustk, bstk, Mark ps clos k)
  where clos = EC.restrictKeys denv ps

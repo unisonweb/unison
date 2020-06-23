@@ -43,6 +43,7 @@ import qualified Data.Text as Text
 import Unison.Var (Var)
 import Unison.ABT.Normalized (pattern TAbss)
 import Unison.Reference (Reference)
+import Unison.Referent (Referent)
 import qualified Unison.Type as Rf
 import qualified Unison.Runtime.IOSource as Rf
 import Unison.Runtime.ANF
@@ -360,6 +361,8 @@ data MLit
   = MI !Int
   | MD !Double
   | MT !Text
+  | MM !Referent
+  | MY !Reference
   deriving (Show, Eq, Ord)
 
 -- Instructions for manipulating the data stack in the main portion of
@@ -701,6 +704,8 @@ emitFunctionVErr v
 
 litArg :: ANF.Lit -> Args
 litArg ANF.T{} = BArg1 0
+litArg ANF.LM{} = BArg1 0
+litArg ANF.LY{} = BArg1 0
 litArg _       = UArg1 0
 
 emitLet :: Var v => RCtx v -> Ctx v -> ANormalT v -> Section -> Section
@@ -1060,8 +1065,10 @@ emitLit l = Lit $ case l of
   ANF.I i -> MI $ fromIntegral i
   ANF.N n -> MI $ fromIntegral n
   ANF.C c -> MI $ fromEnum c
-  ANF.F d -> MD $ d
-  ANF.T t -> MT $ t
+  ANF.F d -> MD d
+  ANF.T t -> MT t
+  ANF.LM r -> MM r
+  ANF.LY r -> MY r
 
 emitClosures
   :: Var v

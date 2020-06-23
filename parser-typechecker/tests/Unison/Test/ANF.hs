@@ -67,6 +67,8 @@ denormalize (TLit l) = case l of
   F f -> Term.float () f
   T t -> Term.text () t
   C c -> Term.char () c
+  LM r -> Term.termLink () r
+  LY r -> Term.typeLink () r
 denormalize (THnd _  _ _ _)
   = error "denormalize handler"
   -- = Term.match () (denormalize b) $ denormalizeHandler h
