@@ -345,7 +345,7 @@ appends = binop0 0 $ \[x,y] -> TPrm CATS [x,y]
 conss = binop0 0 $ \[x,y] -> TPrm CONS [x,y]
 snocs = binop0 0 $ \[x,y] -> TPrm SNOC [x,y]
 
-takes, drops, sizes, ats :: Var v => SuperNormal v
+takes, drops, sizes, ats, emptys :: Var v => SuperNormal v
 takes = binop0 1 $ \[x0,y,x]
      -> unbox x0 Ty.natRef x
       $ TPrm TAKS [x,y]
@@ -362,6 +362,7 @@ ats = binop0 3 $ \[x0,y,x,t,r]
     [ (0, ([], TCon optionTag 0 []))
     , (1, ([BX], TAbs r $ TCon optionTag 1 [r]))
     ]
+emptys = Lambda [] $ TPrm BLDS []
 
 eqt, neqt, leqt, geqt, lesst, great :: Var v => SuperNormal v
 eqt = binop0 1 $ \[x,y,b]
@@ -1068,8 +1069,7 @@ builtinLookup
   , ("List.at", ats)
   , ("List.cons", conss)
   , ("List.snoc", snocs)
---
---   , B "List.empty" $ forall1 "a" list
+  , ("List.empty", emptys)
 --
 --   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
   , ("Universal.==", equ)

@@ -429,6 +429,7 @@ data Instr
   | Reset !(EnumSet Word64) -- prompt ids
 
   | Fork !Section
+  | Seq !Args
   deriving (Show, Eq, Ord)
 
 data Section
@@ -825,6 +826,7 @@ emitPOp ANF.IDXS = emitBP2 IDXS
 
 emitPOp ANF.EQLU = emitBP2 EQLU
 
+emitPOp ANF.BLDS = Seq
 emitPOp ANF.FORK = \case
   BArg1 i -> Fork $ App True (Stk i) ZArgs
   _ -> error "fork takes exactly one boxed argument"

@@ -6,21 +6,22 @@ module Unison.Runtime.Decompile
   ( decompile ) where
 
 import Data.String (fromString)
+import Data.Sequence (Seq)
 import Data.Word (Word64)
 
 import Unison.ABT (absChain, substs, pattern AbsN')
 import Unison.Term
   ( Term
-  , nat, int, float, boolean, constructor, apps', text
+  , nat, int, float, boolean, constructor, apps', text, seq'
   )
 import Unison.Type
-  ( natRef, intRef, floatRef, booleanRef
+  ( natRef, intRef, floatRef, booleanRef, vectorRef
   )
 import Unison.Var (Var)
 import Unison.Reference (Reference)
 
 import Unison.Runtime.ANF (RTag, CTag, Tag(..))
-import Unison.Runtime.Foreign (Foreign, unwrapText)
+import Unison.Runtime.Foreign (Foreign, unwrapText, maybeUnwrapForeign)
 import Unison.Runtime.Stack
   (Closure(..), pattern DataC, pattern PApV, IComb(..))
 
@@ -63,7 +64,7 @@ decompile _ _ (DataC{})
   = err "cannot decompile data type with multiple unboxed fields"
 decompile _ _ BlackHole = err "exception"
 decompile _ _ (Captured{}) = err "decompiling a captured continuation"
-decompile tyRef _ (Foreign f) = decompileForeign tyRef f
+decompile tyRef topTerms (Foreign f) = decompileForeign tyRef topTerms f
 
 tag2bool :: CTag -> Either Error Bool
 tag2bool c = case rawTag c of
@@ -93,8 +94,14 @@ decompileUnboxed r _ _
 decompileForeign
   :: Var v
   => (RTag -> Maybe Reference)
+  -> (Word64 -> Maybe (Term v ()))
   -> Foreign
   -> Either Error (Term v ())
-decompileForeign _ f
+decompileForeign tyRef topTerms f
   | Just t <- unwrapText f = Right $ text () t
-decompileForeign _ _ = err "cannot decompile Foreign"
+  | Just s <- unwrapSeq f
+  = seq' () <$> traverse (decompile tyRef topTerms) s
+decompileForeign _ _ _ = err "cannot decompile Foreign"
+
+unwrapSeq :: Foreign -> Maybe (Seq Closure)
+unwrapSeq = maybeUnwrapForeign vectorRef

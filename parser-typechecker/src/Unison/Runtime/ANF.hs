@@ -744,7 +744,7 @@ data POp
   | UCNS | USNC | EQLT | LEQT -- uncons,unsnoc,==,<=
   -- Sequence
   | CATS | TAKS | DRPS | SIZS -- ++,take,drop,size
-  | CONS | SNOC | IDXS -- cons,snoc,at
+  | CONS | SNOC | IDXS | BLDS -- cons,snoc,at,build
   -- Conversion
   | ITOF | NTOF | ITOT | NTOT
   | TTOI | TTON | TTOF | FTOT
@@ -953,8 +953,8 @@ anfBlock (Let1Named' v b e) = do
   pure (bctx ++ ST1 v BX cb : ectx, ce)
 anfBlock (Apps' f args) = do
   (fctx, cf) <- anfFunc f
-  (actxs, cas) <- unzip <$> traverse anfArg args
-  pure (fctx ++ concat actxs, AApp cf cas)
+  (actx, cas) <- anfArgs args
+  pure (fctx ++ actx, AApp cf cas)
 anfBlock (Constructor' r t)
   = resolveType r <&> \rt -> ([], ACon rt (toEnum t) [])
 anfBlock (Request' r t) = do
@@ -974,6 +974,9 @@ anfBlock (Ref' r) =
 anfBlock (Blank' _) = pure ([], APrm EROR [])
 anfBlock (TermLink' r) = pure ([], ALit (LM r))
 anfBlock (TypeLink' r) = pure ([], ALit (LY r))
+anfBlock (Sequence' as) = fmap (APrm BLDS) <$> anfArgs tms
+  where
+  tms = toList as
 anfBlock t = error $ "anf: unhandled term: " ++ show t
 
 -- Note: this assumes that patterns have already been translated
@@ -1085,6 +1088,9 @@ anfArg tm = do
   (ctx, ctm) <- anfBlock tm
   (cx, v) <- contextualize ctm
   pure (ctx ++ cx, v)
+
+anfArgs :: Var v => [Term v a] -> ANFM v (Ctx v, [v])
+anfArgs tms = first concat . unzip <$> traverse anfArg tms
 
 sink :: Var v => v -> Mem -> ANormalT v -> ANormal v -> ANormal v
 sink v mtm tm = dive $ freeVarsT tm

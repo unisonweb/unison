@@ -8,6 +8,7 @@ module Unison.Runtime.Foreign
   , ForeignRslt
   , ForeignFunc(..)
   , unwrapForeign
+  , maybeUnwrapForeign
   , foreign0
   , foreign1
   , foreign2
@@ -139,6 +140,11 @@ foreignCCError = error "mismatched foreign calling convention"
 
 unwrapForeign :: Foreign -> a
 unwrapForeign (Wrap _ e) = unsafeCoerce e
+
+maybeUnwrapForeign :: Reference -> Foreign -> Maybe a
+maybeUnwrapForeign rt (Wrap r e)
+  | rt == r = Just (unsafeCoerce e)
+  | otherwise = Nothing
 
 foreign0 :: IO [Either Int Foreign] -> ForeignFunc
 foreign0 e = FF $ \[] -> e

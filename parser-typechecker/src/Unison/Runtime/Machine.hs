@@ -143,6 +143,11 @@ exec _      !_   !denv !ustk !bstk !k (Lit (MY r)) = do
 exec _      !_   !denv !ustk !bstk !k (Reset ps) = do
   pure (denv, ustk, bstk, Mark ps clos k)
  where clos = EC.restrictKeys denv ps
+exec _      !_   !denv !ustk !bstk !k (Seq as) = do
+  l <- closureArgs bstk as
+  bstk <- bump bstk
+  pokeS bstk $ Sq.fromList l
+  pure (denv, ustk, bstk, k)
 exec unmask !_   !denv !ustk !bstk !k (ForeignCall catch (FF f) args)
     = foreignArgs ustk bstk args
   >>= perform
@@ -343,6 +348,23 @@ moveArgs !ustk !bstk (DArgN us bs) = do
   bstk <- prepareArgs bstk (ArgN bs)
   pure (ustk, bstk)
 {-# inline moveArgs #-}
+
+closureArgs :: Stack 'BX -> Args -> IO [Closure]
+closureArgs !_    ZArgs = pure []
+closureArgs !bstk (BArg1 i) = do
+  x <- peekOff bstk i
+  pure [x]
+closureArgs !bstk (BArg2 i j) = do
+  x <- peekOff bstk i
+  y <- peekOff bstk j
+  pure [x,y]
+closureArgs !bstk (BArgR i l)
+  = for (take l [i..]) (peekOff bstk)
+closureArgs !bstk (BArgN bs)
+  = for (PA.primArrayToList bs) (peekOff bstk)
+closureArgs !_    _
+  = error "closure arguments can only be boxed."
+{-# inline closureArgs #-}
 
 foreignArgs :: Stack 'UN -> Stack 'BX -> Args -> IO ForeignArgs
 foreignArgs !_    !_    ZArgs = pure []
