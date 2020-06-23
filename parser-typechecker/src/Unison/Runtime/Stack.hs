@@ -17,12 +17,15 @@ import Data.Foldable (toList)
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
 import Data.Primitive.Array
+import Data.Sequence (Seq)
 import Data.Text (Text)
 import Data.Word
 
 import Unison.Runtime.ANF (Mem(..), unpackTags)
 import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
+
+import qualified Unison.Type as Ty
 
 import Unison.Util.EnumContainers as EC
 
@@ -386,6 +389,15 @@ peekOffT bstk i =
 pokeT :: Stack 'BX -> Text -> IO ()
 pokeT bstk t = poke bstk (Foreign $ wrapText t)
 {-# inline pokeT #-}
+
+peekOffS :: Stack 'BX -> Int -> IO (Seq Closure)
+peekOffS bstk i =
+  unwrapForeign . marshalToForeign <$> peekOff bstk i
+{-# inline peekOffS #-}
+
+pokeS :: Stack 'BX -> Seq Closure -> IO ()
+pokeS bstk s = poke bstk (Foreign $ Wrap Ty.vectorRef s)
+{-# inline pokeS #-}
 
 unull :: Seg 'UN
 unull = byteArrayFromListN 0 ([] :: [Int])

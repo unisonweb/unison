@@ -340,6 +340,29 @@ unsnoct = unop0 5 $ \[x,t,c0,c,y,p]
                     $ TCon optionTag 1 [p]))
       ]
 
+appends, conss, snocs :: Var v => SuperNormal v
+appends = binop0 0 $ \[x,y] -> TPrm CATS [x,y]
+conss = binop0 0 $ \[x,y] -> TPrm CONS [x,y]
+snocs = binop0 0 $ \[x,y] -> TPrm SNOC [x,y]
+
+takes, drops, sizes, ats :: Var v => SuperNormal v
+takes = binop0 1 $ \[x0,y,x]
+     -> unbox x0 Ty.natRef x
+      $ TPrm TAKS [x,y]
+drops = binop0 1 $ \[x0,y,x]
+     -> unbox x0 Ty.natRef x
+      $ TPrm DRPS [x,y]
+sizes = unop0 1 $ \[x,r]
+     -> TLet r UN (APrm SIZS [x])
+      $ TCon natTag 0 [r]
+ats = binop0 3 $ \[x0,y,x,t,r]
+   -> unbox x0 Ty.natRef x
+    . TLet t UN (APrm IDXS [x,y])
+    . TMatch t . MatchSum $ mapFromList
+    [ (0, ([], TCon optionTag 0 []))
+    , (1, ([BX], TAbs r $ TCon optionTag 1 [r]))
+    ]
+
 eqt, neqt, leqt, geqt, lesst, great :: Var v => SuperNormal v
 eqt = binop0 1 $ \[x,y,b]
    -> TLet b UN (APrm EQLT [x,y])
@@ -1037,17 +1060,16 @@ builtinLookup
 --   , B "Bytes.toList" $ bytes --> list nat
 --   , B "Bytes.size" $ bytes --> nat
 --   , B "Bytes.flatten" $ bytes --> bytes
+
+  , ("List.take", takes)
+  , ("List.drop", drops)
+  , ("List.size", sizes)
+  , ("List.++", appends)
+  , ("List.at", ats)
+  , ("List.cons", conss)
+  , ("List.snoc", snocs)
 --
 --   , B "List.empty" $ forall1 "a" list
---   , B "List.cons" $ forall1 "a" (\a -> a --> list a --> list a)
---   , Alias "List.cons" "List.+:"
---   , B "List.snoc" $ forall1 "a" (\a -> list a --> a --> list a)
---   , Alias "List.snoc" "List.:+"
---   , B "List.take" $ forall1 "a" (\a -> nat --> list a --> list a)
---   , B "List.drop" $ forall1 "a" (\a -> nat --> list a --> list a)
---   , B "List.++" $ forall1 "a" (\a -> list a --> list a --> list a)
---   , B "List.size" $ forall1 "a" (\a -> list a --> nat)
---   , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optional a)
 --
 --   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
   , ("Universal.==", equ)

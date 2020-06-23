@@ -349,12 +349,14 @@ data BPrim1
   = SIZT | USNC | UCNS
   | ITOT | NTOT | FTOT
   | TTOI | TTON | TTOF
+  | SIZS
   deriving (Show, Eq, Ord)
 
 data BPrim2
   = EQLU | LEQU
   | DRPT | CATT | TAKT
   | EQLT | LEQT | LEST
+  | DRPS | CATS | TAKS | CONS | SNOC | IDXS
   deriving (Show, Eq, Ord)
 
 data MLit
@@ -812,6 +814,14 @@ emitPOp ANF.UCNS = emitBP1 UCNS
 emitPOp ANF.USNC = emitBP1 USNC
 emitPOp ANF.EQLT = emitBP2 EQLT
 emitPOp ANF.LEQT = emitBP2 LEQT
+
+emitPOp ANF.CATS = emitBP2 CATS
+emitPOp ANF.TAKS = emitBP2 TAKS
+emitPOp ANF.DRPS = emitBP2 DRPS
+emitPOp ANF.SIZS = emitBP1 SIZS
+emitPOp ANF.CONS = emitBP2 CONS
+emitPOp ANF.SNOC = emitBP2 SNOC
+emitPOp ANF.IDXS = emitBP2 IDXS
 
 emitPOp ANF.EQLU = emitBP2 EQLU
 

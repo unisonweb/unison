@@ -742,6 +742,9 @@ data POp
   -- Text
   | CATT | TAKT | DRPT | SIZT -- ++,take,drop,size
   | UCNS | USNC | EQLT | LEQT -- uncons,unsnoc,==,<=
+  -- Sequence
+  | CATS | TAKS | DRPS | SIZS -- ++,take,drop,size
+  | CONS | SNOC | IDXS -- cons,snoc,at
   -- Conversion
   | ITOF | NTOF | ITOT | NTOT
   | TTOI | TTON | TTOF | FTOT

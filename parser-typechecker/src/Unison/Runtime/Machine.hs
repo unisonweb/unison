@@ -12,6 +12,7 @@ import Data.Traversable
 import Data.Word (Word64)
 
 import qualified Data.Text as Tx
+import qualified Data.Sequence as Sq
 import qualified Data.Map.Strict as M
 
 import Control.Exception
@@ -894,6 +895,11 @@ bprim1 !ustk !bstk SIZT i = do
   ustk <- bump ustk
   poke ustk $ Tx.length t
   pure (ustk, bstk)
+bprim1 !ustk !bstk SIZS i = do
+  s <- peekOffS bstk i
+  ustk <- bump ustk
+  poke ustk $ Sq.length s
+  pure (ustk, bstk)
 bprim1 !ustk !bstk ITOT i = do
   n <- peekOff ustk i
   bstk <- bump bstk
@@ -1023,6 +1029,50 @@ bprim2 !ustk !bstk LEST i j = do
   ustk <- bump ustk
   poke ustk $ if x < y then 1 else 0
   pure (ustk, bstk)
+bprim2 !ustk !bstk DRPS i j = do
+  n <- peekOff ustk i
+  s <- peekOffS bstk j
+  bstk <- bump bstk
+  pokeS bstk $ Sq.drop n s
+  pure (ustk, bstk)
+bprim2 !ustk !bstk TAKS i j = do
+  n <- peekOff ustk i
+  s <- peekOffS bstk j
+  bstk <- bump bstk
+  pokeS bstk $ Sq.take n s
+  pure (ustk, bstk)
+bprim2 !ustk !bstk CONS i j = do
+  x <- peekOff bstk i
+  s <- peekOffS bstk j
+  bstk <- bump bstk
+  pokeS bstk $ x Sq.<| s
+  pure (ustk, bstk)
+bprim2 !ustk !bstk SNOC i j = do
+  s <- peekOffS bstk i
+  x <- peekOff bstk j
+  bstk <- bump bstk
+  pokeS bstk $ s Sq.|> x
+  pure (ustk, bstk)
+bprim2 !ustk !bstk CATS i j = do
+  x <- peekOffS bstk i
+  y <- peekOffS bstk j
+  bstk <- bump bstk
+  pokeS bstk $ x Sq.>< y
+  pure (ustk, bstk)
+bprim2 !ustk !bstk IDXS i j = do
+  n <- peekOff ustk i
+  s <- peekOffS bstk j
+  case Sq.lookup n s of
+    Nothing -> do
+      ustk <- bump ustk
+      poke ustk 0
+      pure (ustk, bstk)
+    Just x -> do
+      ustk <- bump ustk
+      poke ustk 1
+      bstk <- bump bstk
+      poke bstk x
+      pure (ustk, bstk)
 {-# inline bprim2 #-}
 
 yield :: Unmask -> Env -> DEnv -> Stack 'UN -> Stack 'BX -> K -> IO ()
