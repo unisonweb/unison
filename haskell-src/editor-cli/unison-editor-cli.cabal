@@ -18,7 +18,7 @@ category:            Development
 build-type:          Simple
 -- extra-source-files:
 
-executable unison-editor-cli
+executable unison
   main-is:             Main.hs
   other-modules:
     System.Path,
@@ -46,3 +46,4 @@ executable unison-editor-cli
     unison-util-data
   -- hs-source-dirs:
   default-language:    Haskell2010
+  ghc-options: -rtsopts

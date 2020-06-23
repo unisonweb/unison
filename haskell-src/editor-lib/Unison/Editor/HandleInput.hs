@@ -552,7 +552,7 @@ loop = do
                     -> [(Path', HQ'.HQSegment)]
                     -> [HQ.HashQualified]
                     -> (forall r. Ord r
-                        => (r, Reference, Reference)
+                        => (r, Metadata.Type, Metadata.Value)
                         ->  Branch.Star r NameSegment
                         ->  Branch.Star r NameSegment)
                     -> Action m (Either Event Input) v ()
@@ -2166,10 +2166,11 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
   mergeBranch mode inputDescription srcb dest0 dest = unsafeTime "Merge Branch" $ do
     destb <- getAt dest
     merged <- eval . Eval $ Branch.merge' mode srcb destb
+    b <- updateAtM inputDescription dest (const $ pure merged)
     for_ dest0 $ \dest0 ->
       diffHelper (Branch.head destb) (Branch.head merged) >>=
         respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
-    updateAtM inputDescription dest (const $ pure merged)
+    pure b
 
 loadPropagateDiffDefaultPatch :: (Monad m, Var v) =>
   InputDescription -> Maybe Path.Path' -> Path.Absolute -> Action' m v ()
@@ -2588,6 +2589,8 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
     Just split -> [ BranchUtil.makeDeleteTermName split (Referent.Ref old)
                   , BranchUtil.makeAddTermName split (Referent.Ref new) oldMd ]
       where
+      -- oldMd is the metadata linked to the old definition
+      -- we relink it to the new definition
       oldMd = BranchUtil.getTermMetadataAt split (Referent.Ref old) b0
   errorEmptyVar = error "encountered an empty var name"
 

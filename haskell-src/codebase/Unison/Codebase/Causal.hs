@@ -236,7 +236,7 @@ squashMerge combine c1 c2 = do
       -- Calling `combine` will recursively call into `squashMerge`
       -- for the children, discarding their history before calling `done`
       -- on the parent.
-      -- | lca == c2 -> pure $ done c1
+      --   | lca == c2 -> pure $ done c1
 
       | otherwise -> done <$> combine (Just $ head lca) (head c1) (head c2)
 
