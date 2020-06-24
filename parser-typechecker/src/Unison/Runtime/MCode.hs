@@ -1130,8 +1130,9 @@ prettyCombs (c, es, w)
   . showString "\n" . prettyComb w c
 
 prettyComb :: Word64 -> Comb -> ShowS
-prettyComb w (Lam _ _ _ _ s)
-  = shows w . showString ":\n" . prettySection 2 s
+prettyComb w (Lam ua ba _ _ s)
+  = shows w . shows [ua,ba]
+  . showString ":\n" . prettySection 2 s
 
 prettySection :: Int -> Section -> ShowS
 prettySection ind sec
