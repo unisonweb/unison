@@ -1,6 +1,7 @@
 {-# language DataKinds #-}
 {-# language RankNTypes #-}
 {-# language BangPatterns #-}
+{-# language PatternGuards #-}
 
 module Unison.Runtime.Machine where
 
@@ -175,11 +176,14 @@ eval unmask !env !denv !ustk !bstk !k (Match i (TestT df cs)) = do
 eval unmask !env !denv !ustk !bstk !k (Match i br) = do
   t <- peekOffN ustk i
   eval unmask env denv ustk bstk k $ selectBranch t br
-eval unmask !env !denv !ustk !bstk !k (Yield args) = do
-  (ustk, bstk) <- moveArgs ustk bstk args
-  ustk <- frameArgs ustk
-  bstk <- frameArgs bstk
-  yield unmask env denv ustk bstk k
+eval unmask !env !denv !ustk !bstk !k (Yield args)
+  | asize ustk + asize bstk > 0 , BArg1 i <- args = do
+    peekOff bstk i >>= apply unmask env denv ustk bstk k False ZArgs
+  | otherwise = do
+    (ustk, bstk) <- moveArgs ustk bstk args
+    ustk <- frameArgs ustk
+    bstk <- frameArgs bstk
+    yield unmask env denv ustk bstk k
 eval unmask !env !denv !ustk !bstk !k (App ck r args) =
   resolve env denv ustk bstk r
     >>= apply unmask env denv ustk bstk k ck args
