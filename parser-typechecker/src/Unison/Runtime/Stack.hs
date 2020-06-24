@@ -317,13 +317,17 @@ instance MEM 'UN where
   frameArgs (US ap _ sp stk) = pure $ US ap ap sp stk
   {-# inline frameArgs #-}
 
-  augSeg (US _ _ sp stk) seg args = do
-    cop <- newByteArray $ ssz+asz
-    copyByteArray cop asz seg 0 ssz
-    _ <- uargOnto stk sp cop (-1) args
+  augSeg (US ap fp sp stk) seg args = do
+    cop <- newByteArray $ ssz+psz+asz
+    copyByteArray cop (psz+asz) seg 0 ssz
+    copyMutableByteArray cop 0 stk ap psz
+    _ <- uargOnto stk sp cop (pix-1) args
     unsafeFreezeByteArray cop
    where
    ssz = sizeofByteArray seg
+   -- pending
+   pix = fp-ap
+   psz = bytes pix
    asz = case args of
           Arg1 _   -> 8
           Arg2 _ _ -> 16
@@ -497,13 +501,15 @@ instance MEM 'BX where
   frameArgs (BS ap _ sp stk) = pure $ BS ap ap sp stk
   {-# inline frameArgs #-}
 
-  augSeg (BS _ _ sp stk) seg args = do
-    cop <- newArray (ssz+asz) BlackHole
-    copyArray cop asz seg 0 ssz
-    _ <- bargOnto stk sp cop (-1) args
+  augSeg (BS ap fp sp stk) seg args = do
+    cop <- newArray (ssz+psz+asz) BlackHole
+    copyArray cop (psz+asz) seg 0 ssz
+    copyMutableArray cop 0 stk ap psz
+    _ <- bargOnto stk sp cop (psz-1) args
     unsafeFreezeArray cop
    where
    ssz = sizeofArray seg
+   psz = fp-ap
    asz = case args of
           Arg1 _   -> 1
           Arg2 _ _ -> 2
