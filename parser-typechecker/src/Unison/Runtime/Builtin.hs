@@ -1082,10 +1082,12 @@ typeReferences
   [ Ty.natRef
   , Ty.optionalRef
   , Ty.unitRef
+  , Ty.booleanRef
   , Ty.intRef
   , Ty.floatRef
   , Ty.booleanRef
   , Ty.textRef
+  , Ty.charRef
   , eitherReference
   , filePathReference
   , bufferModeReference
