@@ -12,10 +12,10 @@ import Data.Word (Word64)
 import Unison.ABT (absChain, substs, pattern AbsN')
 import Unison.Term
   ( Term
-  , nat, int, float, boolean, constructor, apps', text, seq'
+  , nat, int, char, float, boolean, constructor, apps', text, seq'
   )
 import Unison.Type
-  ( natRef, intRef, floatRef, booleanRef, vectorRef
+  ( natRef, intRef, charRef, floatRef, booleanRef, vectorRef
   )
 import Unison.Var (Var)
 import Unison.Reference (Reference)
@@ -88,6 +88,7 @@ decompileUnboxed r _ i
   | r == natRef = pure . nat () $ fromIntegral i
   | r == intRef = pure . int () $ fromIntegral i
   | r == floatRef = pure . float () $ unsafeCoerce i
+  | r == charRef = pure . char () $ toEnum i
 decompileUnboxed r _ _
   = err $ "cannot decompile unboxed data type with reference: " ++ show r
 
