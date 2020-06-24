@@ -1137,17 +1137,18 @@ prettySection :: Int -> Section -> ShowS
 prettySection ind sec
   = indent ind . case sec of
       App _ r as ->
-        showString "App " . showsPrec 12 r . showString " " . shows as
+        showString "App "
+          . showsPrec 12 r . showString " " . prettyArgs as
       Call _ i as ->
-        showString "Call " . shows i . showString " " . shows as
+        showString "Call " . shows i . showString " " . prettyArgs as
       Jump i as ->
-        showString "Jump " . shows i . showString " " . shows as
+        showString "Jump " . shows i . showString " " . prettyArgs as
       Match i bs ->
         showString "Match " . shows i . showString "\n"
           . prettyBranches (ind+1) bs
-      Yield as -> showString "Yield " . shows as
+      Yield as -> showString "Yield " . prettyArgs as
       Ins i nx ->
-        shows i . showString "\n" . prettySection ind nx
+        prettyIns i . showString "\n" . prettySection ind nx
       Let s n ->
           showString "Let\n" . prettySection (ind+2) s
         . showString "\n" . prettySection ind n
@@ -1171,3 +1172,33 @@ prettyBranches ind bs
   picase i e
     = showString "\n" . indent ind . shows i . showString " ->\n"
     . prettySection (ind+1) e
+
+un :: ShowS
+un = ('U':)
+
+bx :: ShowS
+bx = ('B':)
+
+prettyIns :: Instr -> ShowS
+prettyIns (Pack i as)
+  = showString "Pack " . shows i . (' ':) . prettyArgs as
+prettyIns i = shows i
+
+prettyArgs :: Args -> ShowS
+prettyArgs ZArgs = shows @[Int] []
+prettyArgs (UArg1 i) = un . shows [i]
+prettyArgs (BArg1 i) = bx . shows [i]
+prettyArgs (UArg2 i j) = un . shows [i,j]
+prettyArgs (BArg2 i j) = bx . shows [i,j]
+prettyArgs (DArg2 i j) = un . shows [i] . (' ':) . bx . shows [j]
+prettyArgs (UArgR i l) = un . shows (Prelude.take l [i..])
+prettyArgs (BArgR i l) = bx . shows (Prelude.take l [i..])
+prettyArgs (DArgR i l j k)
+  = un . shows (Prelude.take l [i..]) . (' ':)
+  . bx . shows (Prelude.take k [j..])
+prettyArgs (UArgN v) = un . shows (primArrayToList v)
+prettyArgs (BArgN v) = bx . shows (primArrayToList v)
+prettyArgs (DArgN u b)
+  = un . shows (primArrayToList u) . (' ':)
+  . bx . shows (primArrayToList b)
+prettyArgs (DArgV i j) = ('V':) . shows [i,j]
