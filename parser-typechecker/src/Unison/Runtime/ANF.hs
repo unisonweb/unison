@@ -1200,7 +1200,7 @@ prettyANFT m ind tm = prettySpace m ind . case tm of
     AMatch v bs
       -> showString "match "
        . pvar v . showString " with"
-       . prettyBranches ind bs
+       . prettyBranches (ind+1) bs
     AShift r (ABTN.TAbss vs bo)
       -> showString "shift[" . shows r . showString "]"
        . prettyVars vs . showString "."
@@ -1266,4 +1266,4 @@ prettyBranches ind bs = case bs of
 prettyCase :: Var v => Int -> ShowS -> ANormal v -> ShowS -> ShowS
 prettyCase ind sc (ABTN.TAbss vs e) r
   = showString "\n" . indent ind . sc . prettyVars vs
-  . showString "->" . prettyANF False (ind+1) e . r
+  . showString " ->" . prettyANF False (ind+1) e . r
