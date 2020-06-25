@@ -234,7 +234,7 @@ lamFloater
   => Maybe v -> a -> [v] -> Term v a -> FloatM v a v
 lamFloater mv a vs bd
   = state $ \(cvs, ctx) ->
-      let v = fromMaybe (ABT.freshIn cvs $ typed Var.Float) mv
+      let v = ABT.freshIn cvs $ fromMaybe (typed Var.Float) mv
        in (v, (Set.insert v cvs, ctx <> [(v, lam' a vs bd)]))
 
 floater
@@ -244,7 +244,9 @@ floater
 floater rec (LetRecNamed' vbs e) = Just $ letFloater rec vbs e >>= rec
 floater rec (Let1Named' v b e)
   | LamsNamed' vs bd <- b
-  = Just $ rec bd >>= lamFloater (Just v) a vs >> rec e
+  = Just $ rec bd
+       >>= lamFloater (Just v) a vs
+       >>= \lv -> rec $ ABT.changeVars (Map.singleton v lv) e
   where a = ABT.annotation b
 floater rec tm@(LamsNamed' vs bd) = Just $ do
   bd <- rec bd
