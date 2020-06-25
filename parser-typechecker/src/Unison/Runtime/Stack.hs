@@ -13,7 +13,7 @@ import Prelude hiding (words)
 import Control.Monad (when)
 import Control.Monad.Primitive
 
-import Data.Foldable (toList)
+import Data.Foldable (toList, for_)
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
 import Data.Primitive.Array
@@ -229,7 +229,7 @@ class MEM (b :: Mem) where
   prepareArgs :: Stack b -> Args' -> IO (Stack b)
   acceptArgs :: Stack b -> Int -> IO (Stack b)
   frameArgs :: Stack b -> IO (Stack b)
-  augSeg :: Stack b -> Seg b -> Args' -> IO (Seg b)
+  augSeg :: Bool -> Stack b -> Seg b -> Maybe Args' -> IO (Seg b)
   dumpSeg :: Stack b -> Seg b -> Dump -> IO (Stack b)
   fsize :: Stack b -> SZ
   asize :: Stack b -> SZ
@@ -317,22 +317,23 @@ instance MEM 'UN where
   frameArgs (US ap _ sp stk) = pure $ US ap ap sp stk
   {-# inline frameArgs #-}
 
-  augSeg (US ap fp sp stk) seg args = do
+  augSeg pend (US ap fp sp stk) seg margs = do
     cop <- newByteArray $ ssz+psz+asz
-    copyByteArray cop (psz+asz) seg 0 ssz
+    when pend $ copyByteArray cop (psz+asz) seg 0 ssz
     copyMutableByteArray cop 0 stk ap psz
-    _ <- uargOnto stk sp cop (pix-1) args
+    for_ margs $ uargOnto stk sp cop (pix-1)
     unsafeFreezeByteArray cop
    where
    ssz = sizeofByteArray seg
    -- pending
-   pix = fp-ap
+   pix | pend = fp-ap | otherwise = 0
    psz = bytes pix
-   asz = case args of
-          Arg1 _   -> 8
-          Arg2 _ _ -> 16
-          ArgN v   -> bytes $ sizeofPrimArray v
-          ArgR _ l -> bytes l
+   asz = case margs of
+          Nothing         -> 0
+          Just (Arg1 _)   -> 8
+          Just (Arg2 _ _) -> 16
+          Just (ArgN v)   -> bytes $ sizeofPrimArray v
+          Just (ArgR _ l) -> bytes l
   {-# inline augSeg #-}
 
   dumpSeg (US ap fp sp stk) seg mode = do
@@ -501,20 +502,21 @@ instance MEM 'BX where
   frameArgs (BS ap _ sp stk) = pure $ BS ap ap sp stk
   {-# inline frameArgs #-}
 
-  augSeg (BS ap fp sp stk) seg args = do
+  augSeg pend (BS ap fp sp stk) seg margs = do
     cop <- newArray (ssz+psz+asz) BlackHole
     copyArray cop (psz+asz) seg 0 ssz
-    copyMutableArray cop 0 stk ap psz
-    _ <- bargOnto stk sp cop (psz-1) args
+    when pend $ copyMutableArray cop 0 stk ap psz
+    for_ margs $ bargOnto stk sp cop (psz-1)
     unsafeFreezeArray cop
    where
    ssz = sizeofArray seg
-   psz = fp-ap
-   asz = case args of
-          Arg1 _   -> 1
-          Arg2 _ _ -> 2
-          ArgN v   -> sizeofPrimArray v
-          ArgR _ l -> l
+   psz | pend = fp-ap | otherwise = 0
+   asz = case margs of
+          Nothing -> 0
+          Just (Arg1 _)   -> 1
+          Just (Arg2 _ _) -> 2
+          Just (ArgN v)   -> sizeofPrimArray v
+          Just (ArgR _ l) -> l
   {-# inline augSeg #-}
 
   dumpSeg (BS ap fp sp stk) seg mode = do

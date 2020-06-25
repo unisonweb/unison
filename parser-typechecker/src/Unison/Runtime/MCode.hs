@@ -405,7 +405,7 @@ data Instr
   -- statically known function into a closure with arguments.
   -- No stack is necessary, because no nested evaluation happens,
   -- so the instruction directly takes a follow-up.
-  | Name !Word64 !Args
+  | Name !Ref !Args
 
   -- Dump some debugging information about the machine state to
   -- the screen.
@@ -578,12 +578,16 @@ emitSection rec ctx (TLets us ms bu bo)
   ectx = pushCtx (zip us ms) ctx
 emitSection rec ctx (TName u (Left f) args bo)
   = emitClosures rec ctx args $ \ctx as
- -> Ins (Name f as)
+ -> Ins (Name (Env f) as)
   $ emitSection rec (Var u BX ctx) bo
 emitSection rec ctx (TName u (Right v) args bo)
-  | Just f <- rctxResolve rec v
+  | Just (i,BX) <- ctxResolve ctx v
   = emitClosures rec ctx args $ \ctx as
- -> Ins (Name f as)
+ -> Ins (Name (Stk i) as)
+  $ emitSection rec (Var u BX ctx) bo
+  | Just n <- rctxResolve rec v
+  = emitClosures rec ctx args $ \ctx as
+ -> Ins (Name (Env n) as)
   $ emitSection rec (Var u BX ctx) bo
   | otherwise = emitSectionVErr v
 emitSection rec ctx (TVar v)
@@ -660,7 +664,7 @@ emitFunction _   _   (FComb n) as
   | False -- known saturated call
   = Call False n as
   | False -- known unsaturated call
-  = Ins (Name n as) $ Yield (BArg1 0)
+  = Ins (Name (Env n) as) $ Yield (BArg1 0)
   | otherwise -- slow path
   = App False (Env n) as
 emitFunction _   _   (FCon r t) as
@@ -719,7 +723,7 @@ emitLet _    ctx (AApp (FComb n) args)
   -- We should be able to tell if we are making a saturated call
   -- or not here. We aren't carrying the information here yet, though.
   | False -- not saturated
-  = Ins . Name n $ emitArgs ctx args
+  = Ins . Name (Env n) $ emitArgs ctx args
 emitLet _   ctx (AApp (FCon r n) args)
   = Ins . Pack (packTags r n) $ emitArgs ctx args
 emitLet _   ctx (AApp (FPrim p) args)
@@ -1094,7 +1098,7 @@ emitClosures rec ctx args k
   allocate ctx (a:as) k
     | Just _ <- ctxResolve ctx a = allocate ctx as k
     | Just n <- rctxResolve rec a
-    = Ins (Name n ZArgs) $ allocate (Var a BX ctx) as k
+    = Ins (Name (Env n) ZArgs) $ allocate (Var a BX ctx) as k
     | otherwise
     = error $ "emitClosures: unknown reference: " ++ show a
 
