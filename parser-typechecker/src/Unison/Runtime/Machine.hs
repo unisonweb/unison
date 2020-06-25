@@ -250,15 +250,15 @@ apply unmask !env !denv !ustk !bstk !k !ck !args clo = case clo of
       eval unmask env denv ustk bstk k entry
     | otherwise -> do
       (useg, bseg) <- closeArgs ustk bstk useg bseg args
-      ustk <- discardFrame ustk
-      bstk <- discardFrame bstk
+      ustk <- discardFrame =<< frameArgs ustk
+      bstk <- discardFrame =<< frameArgs bstk
       bstk <- bump bstk
       poke bstk $ PAp comb useg bseg
       yield unmask env denv ustk bstk k
    where
    uac = asize ustk + ucount args + uscount useg
    bac = asize bstk + bcount args + bscount bseg
-  _ -> die "applying non-function"
+  clo -> die $ "applying non-function: " ++ show clo
 {-# inline apply #-}
 
 jump
