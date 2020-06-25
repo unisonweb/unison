@@ -9,7 +9,7 @@ import qualified Data.Char              as Char
 import qualified Data.Text              as Text
 import           Unison.Hashable        (Hashable)
 import qualified Unison.Hashable        as H
-import           Unison.Reference       (Reference)
+import           Unison.Reference       (Reference, ReferenceH)
 import qualified Unison.Reference       as R
 import           Unison.ShortHash       (ShortHash)
 import qualified Unison.ShortHash       as SH
@@ -20,6 +20,7 @@ import qualified Unison.ConstructorType as CT
 -- Slightly odd naming. This is the "referent of term name in the codebase",
 -- rather than the target of a Reference.
 type Referent = Referent' Reference
+type ReferentH h = Referent' (ReferenceH h)
 pattern Ref :: Reference -> Referent
 pattern Ref r = Ref' r
 pattern Con :: Reference -> Int -> ConstructorType -> Referent
@@ -33,6 +34,11 @@ data Referent' r = Ref' r | Con' r Int ConstructorType
 
 type Pos = Word64
 type Size = Word64
+
+rmap :: (r -> r') -> Referent' r -> Referent' r'
+rmap f = \case
+  Ref' r -> Ref' (f r)
+  Con' r i ct -> Con' (f r) i ct
 
 -- referentToTerm moved to Term.fromReferent
 -- termToReferent moved to Term.toReferent

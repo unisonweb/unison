@@ -80,7 +80,7 @@ optimize t = go t where
     -- binding is pure, okay to substitute
     | otherwise   = False
 
-isLeaf :: ABT.Term (F typeVar typeAnn patternAnn) v a -> Bool
+isLeaf :: ABT.Term (F h typeVar typeAnn patternAnn) v a -> Bool
 isLeaf (Var' _) = True
 isLeaf (Int' _) = True
 isLeaf (Float' _) = True

@@ -785,7 +785,7 @@ suffixCounterType n = \case
 printAnnotate :: (Var v, Ord v) => PrettyPrintEnv -> Term2 v at ap v a -> Term3 v PrintAnnotation
 printAnnotate n tm = fmap snd (go (reannotateUp (suffixCounterTerm n) tm)) where
   go :: Ord v => Term2 v at ap v b -> Term2 v () () v b
-  go = extraMap' id (const ()) (const ())
+  go = extraMap' id id (const ()) (const ())
 
 countTypeUsages :: (Var v, Ord v) => PrettyPrintEnv -> Type v a -> PrintAnnotation
 countTypeUsages n t = snd $ annotation $ reannotateUp (suffixCounterType n) t

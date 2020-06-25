@@ -85,7 +85,7 @@ import           Unison.Names3                  ( Names(..), Names0
 import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names3
 import           Unison.Parser                  ( Ann(..) )
-import           Unison.Reference               ( Reference(..) )
+import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent

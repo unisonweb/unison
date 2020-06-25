@@ -23,7 +23,7 @@ import qualified Unison.DataDeclaration        as Decl
 import           Unison.Names3                  ( Names0 )
 import qualified Unison.Names2                 as Names
 import           Unison.Parser                  ( Ann(..) )
-import           Unison.Reference               ( Reference(..) )
+import           Unison.Reference               ( Reference, pattern DerivedId )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
 import qualified Unison.Result                 as Result

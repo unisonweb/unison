@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Codebase.Branch.Dependencies where
 
@@ -22,7 +23,7 @@ import Unison.Referent (Referent)
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Util.Star3 as Star3
 import qualified Unison.Util.Relation as R
-import Unison.Reference (Reference(DerivedId))
+import Unison.Reference (Reference, pattern DerivedId)
 
 type Branches m = [(Branch.Hash, Maybe (m (Branch m)))]
 
