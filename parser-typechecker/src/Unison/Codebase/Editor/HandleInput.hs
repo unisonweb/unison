@@ -113,7 +113,6 @@ import qualified Unison.PrettyPrintEnv as PPE
 import           Unison.Runtime.IOSource       ( isTest )
 import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Util.Star3             as Star3
-import qualified Unison.Util.Pretty            as P
 import qualified Unison.Util.Monoid            as Monoid
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
@@ -1569,13 +1568,13 @@ loop = do
                   Nothing -> [] <$ respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
                   Just tm -> do
                     respond $ TestIncrementalOutputStart ppe (n,total) r tm
-                    tm' <- eval (Evaluate1 ppe tm) <&> \case
-                      Left e -> Term.seq External
-                        [ DD.failResult External (Text.pack $ P.toANSI 80 ("\n" <> e)) ]
-                      Right tm' -> tm'
-                    eval $ PutWatch UF.TestWatch rid tm'
-                    respond $ TestIncrementalOutputEnd ppe (n,total) r tm'
-                    pure [(r, tm')]
+                    tm' <- eval $ Evaluate1 ppe tm
+                    case tm' of
+                      Left e -> respond (EvaluationFailure e) $> []
+                      Right tm' -> do
+                        eval $ PutWatch UF.TestWatch rid tm'
+                        respond $ TestIncrementalOutputEnd ppe (n,total) r tm'
+                        pure [(r, tm')]
               r -> error $ "unpossible, tests can't be builtins: " <> show r
           let m = Map.fromList computedTests
           respond $ TestResults Output.NewlyComputed ppe showOk showFail (oks m) (fails m)
