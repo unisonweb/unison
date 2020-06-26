@@ -69,7 +69,7 @@ failConstructorReferent = Referent.Con testResultRef failConstructorId CT.Data
 
 failResult :: (Ord v, Monoid a) => a -> Text -> Term v a
 failResult ann msg =
-  Term.app ann (Term.request ann testResultRef failConstructorId)
+  Term.app ann (Term.constructor ann testResultRef failConstructorId)
                (Term.text ann msg)
 
 -- | parse some builtin data types, and resolve their free variables using
