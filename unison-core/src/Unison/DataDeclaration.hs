@@ -274,7 +274,7 @@ constructorArities (DataDeclaration _ _a _bound ctors) =
   Type.arity . (\(_,_,t) -> t) <$> ctors
 
 data F a
-  = Type (Type.F a)
+  = Type (Type.F Hash a)
   | LetRec [a] a
   | Constructors [a]
   | Modified Modifier a

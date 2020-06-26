@@ -21,9 +21,9 @@ import qualified Unison.ConstructorType as CT
 -- rather than the target of a Reference.
 type Referent = Referent' Reference
 type ReferentH h = Referent' (ReferenceH h)
-pattern Ref :: Reference -> Referent
+pattern Ref :: ReferenceH h -> ReferentH h
 pattern Ref r = Ref' r
-pattern Con :: Reference -> Int -> ConstructorType -> Referent
+pattern Con :: ReferenceH h -> Int -> ConstructorType -> ReferentH h
 pattern Con r i t = Con' r i t
 {-# COMPLETE Ref, Con #-}
 
@@ -48,7 +48,7 @@ toShortHash :: Referent -> ShortHash
 toShortHash = \case
   Ref r -> R.toShortHash r
   Con r i _ -> patternShortHash r i
-  
+
 toShortHashId :: Id -> ShortHash
 toShortHashId = toShortHash . fromId
 
@@ -90,9 +90,9 @@ toReference' :: Referent' r -> r
 toReference' = \case
   Ref' r -> r
   Con' r _i _t -> r
-  
+
 fromId :: Id -> Referent
-fromId = fmap R.DerivedId  
+fromId = fmap R.DerivedId
 
 toTypeReference :: Referent -> Maybe Reference
 toTypeReference = \case
