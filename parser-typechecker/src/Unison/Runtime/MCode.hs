@@ -672,7 +672,8 @@ emitFunction _   _   (FCon r t) as
   . Yield $ BArg1 0
 emitFunction _   _   (FReq a e) as
   -- Currently implementing packed calling convention for abilities
-  = Ins (Pack (rawTag e) as)
+  = Ins (Lit (MI . fromIntegral $ rawTag e))
+  . Ins (Pack (rawTag a) (reqArgs as))
   . App True (Dyn $ rawTag a) $ BArg1 0
 emitFunction _   ctx (FCont k) as
   | Just (i, BX) <- ctxResolve ctx k = Jump i as
@@ -680,6 +681,36 @@ emitFunction _   ctx (FCont k) as
   | otherwise = error $ "emitFunction: continuations are boxed"
 emitFunction _ _ (FPrim _) _
   = error "emitFunction: impossible"
+
+reqArgs :: Args -> Args
+reqArgs = \case
+  ZArgs -> UArg1 0
+  UArg1 i -> UArg2 0 (i+1)
+  UArg2 i j
+    | i == 0 && j == 1 -> UArgR 0 3
+    | otherwise -> UArgN (fl [0,i+1,j+1])
+  BArg1 i -> DArg2 0 i
+  BArg2 i j
+    | j == i+1 -> DArgR 0 1 i 2
+    | otherwise -> DArgN (fl [0]) (fl [i,j])
+  DArg2 i j
+    | i == 0 -> DArgR 0 2 j 1
+    | otherwise -> DArgN (fl [0,i+1]) (fl [j])
+  UArgR i l
+    | i == 0 -> UArgR 0 (l+1)
+    | otherwise -> UArgN (fl $ [0] ++ Prelude.take l [i+1..])
+  BArgR i l -> DArgR 0 1 i l
+  DArgR ui ul bi bl
+    | ui == 0 -> DArgR 0 (ul+1) bi bl
+    | otherwise -> DArgN (fl $ [0] ++ Prelude.take ul [ui+1..])
+                        (fl $ Prelude.take bl [bi..])
+  UArgN us -> UArgN (fl $ [0] ++ fmap (+1) (tl us))
+  BArgN bs -> DArgN (fl [0]) bs
+  DArgN us bs -> DArgN (fl $ [0] ++ fmap (+1) (tl us)) bs
+  DArgV i j -> DArgV i j
+  where
+  fl = primArrayFromList
+  tl = primArrayToList
 
 countBlock :: Ctx v -> (Int, Int)
 countBlock = go 0 0
