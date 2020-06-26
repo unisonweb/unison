@@ -1,0 +1,38 @@
+-- module Unison.Codebase2a.SyncV1V2 where
+--
+-- import Unison.Prelude
+--
+-- import           Control.Lens
+-- import           Control.Monad.State.Strict     ( MonadState, evalStateT )
+-- import           Control.Monad.Writer.Strict    ( MonadWriter, execWriterT )
+-- import qualified Control.Monad.Writer.Strict   as Writer
+--
+-- -- data SyncedEntities = SyncedEntities
+-- --   { _syncedTerms       :: Set Reference.Id
+-- --   , _syncedDecls       :: Set Reference.Id
+-- --   , _syncedEdits       :: Set Branch.EditHash
+-- --   , _syncedBranches    :: Set Branch.Hash
+-- --   } deriving Generic
+-- --   deriving Show
+-- --   deriving Semigroup via GenericSemigroup SyncedEntities
+-- --   deriving Monoid via GenericMonoid SyncedEntities
+-- --
+-- -- makeLenses ''SyncedEntities
+--
+-- initializeV2DB = error "todo"
+--
+-- syncV1V2 = do
+--   processBranches
+--   processDependencies
+--   where
+--   createV2DB = error "todo"
+--   processBranches = error "todo"
+--   processDependencies = error "todo"
+--
+-- newtype MdValues = MdValues (Set Reference)
+--
+-- data RawBranch = RawBranch
+--   { terms :: Map NameSegment (Map Referent MdValues)
+--   , types :: Map NameSegment (Map Reference MdValues)
+--   ,
+-- }

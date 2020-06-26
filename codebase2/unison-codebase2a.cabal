@@ -1,0 +1,47 @@
+cabal-version:       >=1.10
+-- Initial package description 'unison-unison-codebase2a.cabal' generated
+-- by 'cabal init'.  For further documentation, see
+-- http://haskell.org/cabal/users-guide/
+
+name:                unison-codebase2a
+version:             0.1.0.0
+-- synopsis:
+-- description:
+homepage:            https://unisonweb.org
+-- bug-reports:
+license:             MIT
+license-file:        LICENSE
+author:              Unison Computing, public benefit corp and contributors
+maintainer:          Paul Chiusano <paul.chiusano@gmail.com>, Runar Bjarnason <runarorama@gmail.com>, Arya Irani <arya.irani@gmail.com>
+-- copyright:
+category:            Development
+build-type:          Simple
+-- extra-source-files:
+
+library
+  exposed-modules:
+    Unison.Codebase2a.Codebase
+    Unison.Codebase2a.Sqlite
+  -- other-modules:
+  -- other-extensions:
+  build-depends:
+    base,
+    here,
+    sqlite-simple
+  hs-source-dirs:      lib
+  default-language:    Haskell2010
+
+executable unison-codebase2a
+  main-is:             Main.hs
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       base, unison-codebase2a
+  hs-source-dirs:      app
+  default-language:    Haskell2010
+
+test-suite unison-codebase2a-test
+  default-language:    Haskell2010
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             MyLibTest.hs
+  build-depends:       base

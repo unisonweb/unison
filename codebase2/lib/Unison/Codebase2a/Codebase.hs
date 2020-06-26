@@ -1,0 +1,109 @@
+module Unison.Codebase2a.Codebase where
+
+
+-- newtype CausalHash h = CausalHash Hash
+-- newtype ValueHash h = ValueHash Hash
+--
+-- -- Causal doesn't necessarily pre-load anything other than some hashes.
+-- data Causal m h e = Causal {
+--   causalHash :: CausalHash h,
+--   valueHash :: ValueHash h,
+--   value :: m e,
+--   parents :: Map (RawHash (Causal m h e)) (m (Causal m h e))
+-- }
+--
+-- -- Branch has to be Causal to cons onto it in memory.
+-- data Branch m = Branch { history :: Causal m Branch.Raw (Branch0 m) }
+--
+-- data MdValues = MdValues (Set References)
+-- data Branch0 m = Branch0 {
+--   terms :: Map Referent MdValues,
+--   types :: Map Reference MdValues,
+--   termEdits :: Map Referent TermEdit,
+--   typeEdits :: Map Reference TypeEdit,
+--   -- wait, do I need to load children?
+--   -- will I want everything loaded for the root?
+--   -- will I want everything loaded for the current branch?
+--   children :: Map NameSegment Branch.CausalHash
+-- }
+--
+-- -- or, continuing with "off-by-one"
+-- data Branch0 m = Branch0 {
+--   terms :: Map NameSegment (Map Referent MdValues),
+--   types :: Map NameSegment (Map Reference MdValues),
+--   patches :: Map NameSegment (EditHash, m Patch),
+--   -- same questions here
+--   children :: Map NameSegment Branch.CausalHash
+-- }
+--
+-- -- DeepTypes / DeepTerms etc. formed separately,
+-- -- possibly taking archived namespaces into account
+--
+-- type Branch.CausalHash = Causal.RawHash (Causal n Branch.Raw )
+-- type Branch.Hash = Causal.RawHash Branch.Raw
+--
+-- data Codebase m v a = Codebase {
+--   -- getTerm            :: Reference.Id -> m (Maybe (Term v a)),
+--   -- getTypeOfTermImpl  :: Reference.Id -> m (Maybe (Type v a)),
+--   -- getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a)),
+--   --
+--   -- putTerm            :: Reference.Id -> Term v a -> Type v a -> m (),
+--   -- putTypeDeclaration :: Reference.Id -> Decl v a -> m (),
+--   --
+--   -- getBranch           :: Branch.Hash -> m (Maybe (Branch m)),
+--   -- getRootBranch      :: m (Either GetRootBranchError (Branch m)),
+--   -- putRootBranch      :: Branch m -> m (),
+--   --
+--   -- rootBranchUpdates  :: m (m (), m (Set Branch.Hash),
+--   -- getBranchForCausal :: Branch.CausalHash -> m (Maybe (Branch m)),
+--   --
+--   -- -- |Supports syncing from a current or older codebase format
+--   -- syncFromDirectory  :: CodebasePath -> SyncMode -> Branch m -> m (),
+--   -- -- |Only writes the latest codebase format
+--   -- syncToDirectory    :: CodebasePath -> SyncMode -> Branch m -> m (),
+--   -- -- ^ maybe return type needs to reflect failure if remote codebase has an old version
+--   --
+--   -- -- |Watch expressions are part of the codebase, the `Reference.Id` is
+--   -- -- the hash of the source of the watch expression, and the `Term v a`
+--   -- -- is the evaluated result of the expression, decompiled to a term.
+--   -- watches  :: UF.WatchKind -> m [Reference.Id],
+--   -- getWatch :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a)),
+--   -- putWatch :: UF.WatchKind -> Reference.Id -> Term v a -> m (),
+--   --
+--   -- getReflog    :: m [Reflog.Entry],
+--   -- appendReflog :: Text -> Branch m -> Branch m -> m (),
+--   --
+--   -- -- |the nicely-named versions will utilize these, and add builtins to the result set
+--   -- termsHavingType_impl     :: Reference -> m (Set Referent.Id),
+--   -- termsMentioningType_impl :: Reference -> m (Set Referent.Id),
+--   --
+--   -- -- |number of base58 characters needed to distinguish any two hashes in the codebase;
+--   -- -- we don't have to compute it separately for different namespaces
+--   -- hashLength             :: m Int,
+--   -- termReferencesByPrefix :: ShortHash -> m (Set Reference.Id),
+--   -- typeReferencesByPrefix :: ShortHash -> m (Set Reference.Id),
+--   -- termReferentsByPrefix  :: ShortHash -> m (Set Referent.Id),
+--   -- branchHashesByPrefix   :: ShortBranchHash -> m (Set Branch.Hash),
+--   --
+--   -- --
+--   -- lca              :: [Causal m Branch.Raw e] -> m (Maybe Branch.Hash),
+--   -- dependentsImpl   :: Reference -> m (Maybe (Set Reference.Id)),
+--   -- termDependencies :: Reference.Id -> m (Maybe (Set Reference.Id)),
+--   -- declDependencies :: Reference.Id -> m (Maybe (Set Reference.Id)),
+--   -- -- |terms, types, patches, and branches
+--   -- branchDependencies ::
+--   --   Branch.Hash -> m (Maybe (Branch.CausalHash, BD.Dependencies)),
+--   -- -- |the "new" terms and types mentioned in a patch
+--   -- patchDependencies :: EditHash -> m (Set Reference, Set Reference)
+-- }
+--
+-- data Causal.Raw e = Causal.Raw
+--   { valueHash :: Hash e
+--   , parents :: [Hash (Causal.Raw e)]
+--   }
+--
+-- -- data Branch.Raw
+-- --   = Full [Hash Term] [Hash Type] ...
+-- --   | Delta { reference :: Hash Branch.Raw, ... }
+--
+-- sources :: Relation Hash RemoteRepo
