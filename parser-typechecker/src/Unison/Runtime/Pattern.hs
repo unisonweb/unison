@@ -341,7 +341,7 @@ initialize r sc cs = (lv, (sv, r), PM $ mkRow sv <$> cs)
            = (Just pv, pv)
 
 splitPatterns :: Var v => DataSpec -> Term v -> Term v
-splitPatterns spec = visitPure $ \case
+splitPatterns spec0 = visitPure $ \case
   Match' sc0 cs0
     | r <- determineType $ p <$> cs0
     , (lv, scrut, pm) <- initialize r sc cs
@@ -355,6 +355,7 @@ splitPatterns spec = visitPure $ \case
   _ -> Nothing
   where
   p (MatchCase pp _ _) = pp
+  spec = Map.insert Rf.booleanRef (Right [0,0]) spec0
 
 builtinCase :: Set Reference
 builtinCase
