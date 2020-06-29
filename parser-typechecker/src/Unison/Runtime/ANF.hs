@@ -925,8 +925,9 @@ anfBlock (Match' scrut cas) = do
       (r, vs) <- reset $ do
         r <- fresh
         v <- fresh
+        gvs <- groupVars
         let hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr
-            hfvs = Set.toList $ ABTN.freeVars hfb
+            hfvs = Set.toList $ ABTN.freeVars hfb `Set.difference` gvs
         record (r, Lambda (BX <$ hfvs ++ [v]) . ABTN.TAbss hfvs $ hfb)
         pure (r, hfvs)
       hv <- fresh
