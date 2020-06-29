@@ -209,6 +209,10 @@ dumpFP fp _  S = fp
 dumpFP fp sz A = fp+sz
 dumpFP fp sz (F n) = fp+sz-n
 
+-- closure augmentation mode
+-- instruction, kontinuation, call
+data Augment = I | K | C
+
 class MEM (b :: Mem) where
   data Stack b :: *
   type Elem b :: *
@@ -229,7 +233,7 @@ class MEM (b :: Mem) where
   prepareArgs :: Stack b -> Args' -> IO (Stack b)
   acceptArgs :: Stack b -> Int -> IO (Stack b)
   frameArgs :: Stack b -> IO (Stack b)
-  augSeg :: Bool -> Stack b -> Seg b -> Maybe Args' -> IO (Seg b)
+  augSeg :: Augment -> Stack b -> Seg b -> Maybe Args' -> IO (Seg b)
   dumpSeg :: Stack b -> Seg b -> Dump -> IO (Stack b)
   fsize :: Stack b -> SZ
   asize :: Stack b -> SZ
@@ -317,16 +321,18 @@ instance MEM 'UN where
   frameArgs (US ap _ sp stk) = pure $ US ap ap sp stk
   {-# inline frameArgs #-}
 
-  augSeg pend (US ap fp sp stk) seg margs = do
+  augSeg mode (US ap fp sp stk) seg margs = do
     cop <- newByteArray $ ssz+psz+asz
-    when pend $ copyByteArray cop (psz+asz) seg 0 ssz
+    copyByteArray cop soff seg 0 ssz
     copyMutableByteArray cop 0 stk ap psz
-    for_ margs $ uargOnto stk sp cop (pix-1)
+    for_ margs $ uargOnto stk sp cop (words poff + pix - 1)
     unsafeFreezeByteArray cop
    where
    ssz = sizeofByteArray seg
-   -- pending
-   pix | pend = fp-ap | otherwise = 0
+   pix | I <- mode = 0 | otherwise = fp-ap
+   (poff,soff)
+     | K <- mode = (ssz,0)
+     | otherwise = (0,psz+asz)
    psz = bytes pix
    asz = case margs of
           Nothing         -> 0
@@ -502,15 +508,18 @@ instance MEM 'BX where
   frameArgs (BS ap _ sp stk) = pure $ BS ap ap sp stk
   {-# inline frameArgs #-}
 
-  augSeg pend (BS ap fp sp stk) seg margs = do
+  augSeg mode (BS ap fp sp stk) seg margs = do
     cop <- newArray (ssz+psz+asz) BlackHole
-    copyArray cop (psz+asz) seg 0 ssz
-    when pend $ copyMutableArray cop 0 stk ap psz
-    for_ margs $ bargOnto stk sp cop (psz-1)
+    copyArray cop soff seg 0 ssz
+    copyMutableArray cop poff stk ap psz
+    for_ margs $ bargOnto stk sp cop (poff+psz-1)
     unsafeFreezeArray cop
    where
    ssz = sizeofArray seg
-   psz | pend = fp-ap | otherwise = 0
+   psz | I <- mode = 0 | otherwise = fp-ap
+   (poff,soff)
+     | K <- mode = (ssz,0)
+     | otherwise = (0,psz+asz)
    asz = case margs of
           Nothing -> 0
           Just (Arg1 _)   -> 1

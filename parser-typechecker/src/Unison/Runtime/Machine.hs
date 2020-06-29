@@ -228,7 +228,7 @@ enter unmask !env !denv !ustk !bstk !k !ck !args !comb = do
 name :: Stack 'UN -> Stack 'BX -> Args -> Closure -> IO (Stack 'BX)
 name !ustk !bstk !args clo = case clo of
   PAp comb useg bseg -> do
-    (useg, bseg) <- closeArgs False ustk bstk useg bseg args
+    (useg, bseg) <- closeArgs I ustk bstk useg bseg args
     bstk <- bump bstk
     poke bstk $ PAp comb useg bseg
     pure bstk
@@ -251,7 +251,7 @@ apply unmask !env !denv !ustk !bstk !k !ck !args clo = case clo of
       bstk <- acceptArgs bstk ba
       eval unmask env denv ustk bstk k entry
     | otherwise -> do
-      (useg, bseg) <- closeArgs True ustk bstk useg bseg args
+      (useg, bseg) <- closeArgs C ustk bstk useg bseg args
       ustk <- discardFrame =<< frameArgs ustk
       bstk <- discardFrame =<< frameArgs bstk
       bstk <- bump bstk
@@ -268,7 +268,7 @@ jump
   -> Args -> Closure -> IO ()
 jump unmask !env !denv !ustk !bstk !k !args clo = case clo of
   Captured sk useg bseg -> do
-    (useg, bseg) <- closeArgs True ustk bstk useg bseg args
+    (useg, bseg) <- closeArgs K ustk bstk useg bseg args
     ustk <- discardFrame ustk
     bstk <- discardFrame bstk
     ustk <- dumpSeg ustk useg . F $ ucount args
@@ -466,31 +466,31 @@ buildData !ustk !bstk !t (DArg2 i j) = do
   y <- peekOff bstk j
   pure $ DataUB t x y
 buildData !ustk !_    !t (UArgR i l) = do
-  useg <- augSeg False ustk unull (Just $ ArgR i l)
+  useg <- augSeg I ustk unull (Just $ ArgR i l)
   pure $ DataG t useg bnull
 buildData !_    !bstk !t (BArgR i l) = do
-  bseg <- augSeg False bstk bnull (Just $ ArgR i l)
+  bseg <- augSeg I bstk bnull (Just $ ArgR i l)
   pure $ DataG t unull bseg
 buildData !ustk !bstk !t (DArgR ui ul bi bl) = do
-  useg <- augSeg False ustk unull (Just $ ArgR ui ul)
-  bseg <- augSeg False bstk bnull (Just $ ArgR bi bl)
+  useg <- augSeg I ustk unull (Just $ ArgR ui ul)
+  bseg <- augSeg I bstk bnull (Just $ ArgR bi bl)
   pure $ DataG t useg bseg
 buildData !ustk !_    !t (UArgN as) = do
-  useg <- augSeg False ustk unull (Just $ ArgN as)
+  useg <- augSeg I ustk unull (Just $ ArgN as)
   pure $ DataG t useg bnull
 buildData !_    !bstk !t (BArgN as) = do
-  bseg <- augSeg False bstk bnull (Just $ ArgN as)
+  bseg <- augSeg I bstk bnull (Just $ ArgN as)
   pure $ DataG t unull bseg
 buildData !ustk !bstk !t (DArgN us bs) = do
-  useg <- augSeg False ustk unull (Just $ ArgN us)
-  bseg <- augSeg False bstk bnull (Just $ ArgN bs)
+  useg <- augSeg I ustk unull (Just $ ArgN us)
+  bseg <- augSeg I bstk bnull (Just $ ArgN bs)
   pure $ DataG t useg bseg
 buildData !ustk !bstk !t (DArgV ui bi) = do
   useg <- if ul > 0
-            then augSeg False ustk unull (Just $ ArgR 0 ul)
+            then augSeg I ustk unull (Just $ ArgR 0 ul)
             else pure unull
   bseg <- if bl > 0
-            then augSeg False bstk bnull (Just $ ArgR 0 bl)
+            then augSeg I bstk bnull (Just $ ArgR 0 bl)
             else pure bnull
   pure $ DataG t useg bseg
   where
@@ -549,13 +549,13 @@ dumpData !_    !_  clo = die $ "dumpData: bad closure: " ++ show clo
 -- other. Thus, it is unnecessary to worry about doing tricks to
 -- only grab a certain number of arguments.
 closeArgs
-  :: Bool
+  :: Augment
   -> Stack 'UN -> Stack 'BX
   -> Seg 'UN -> Seg 'BX
   -> Args -> IO (Seg 'UN, Seg 'BX)
-closeArgs !pend !ustk !bstk !useg !bseg args =
-  (,) <$> augSeg pend ustk useg uargs
-      <*> augSeg pend bstk bseg bargs
+closeArgs mode !ustk !bstk !useg !bseg args =
+  (,) <$> augSeg mode ustk useg uargs
+      <*> augSeg mode bstk bseg bargs
   where
   (uargs, bargs) = case args of
     ZArgs -> (Nothing, Nothing)
