@@ -42,7 +42,7 @@ module Unison.Runtime.ANF
   , POp(..)
   , IOp(..)
   , close
-  , constructorEta
+  , saturate
   , float
   , lamLift
   , ANormalBF(..)
@@ -268,28 +268,37 @@ deannotate = ABT.visitPure $ \case
 lamLift :: (Var v, Monoid a) => Term v a -> Term v a
 lamLift = float . close Set.empty . deannotate
 
-constructorEta
+saturate
   :: (Var v, Monoid a)
   => Map (Reference,Int) Int -> Term v a -> Term v a
-constructorEta dat = ABT.visitPure $ \case
-  Apps' f@(Constructor' r t) args -> eta r t f args
-  Apps' f@(Request' r t) args -> eta r t f args
-  f@(Constructor' r t) -> eta r t f []
-  f@(Request' r t) -> eta r t f []
+saturate dat = ABT.visitPure $ \case
+  Apps' f@(Constructor' r t) args -> sat r t f args
+  Apps' f@(Request' r t) args -> sat r t f args
+  f@(Constructor' r t) -> sat r t f []
+  f@(Request' r t) -> sat r t f []
   _ -> Nothing
   where
   frsh avoid _ =
     let v = Var.freshIn avoid $ typed Var.Eta
     in (Set.insert v avoid, v)
-  eta r t f args
-    | Just n <- Map.lookup (r,t) dat
-    , vs <- snd . mapAccumL frsh fvs $ drop (length args) [1..n]
-    , nargs <- var mempty <$> vs
-    = Just . lam' mempty vs . apps' f $ args' ++ nargs
-    | otherwise = Just (apps' f args')
+  sat r t f args = case Map.lookup (r,t) dat of
+      Just n
+        | m < n
+        , vs <- snd $ mapAccumL frsh fvs [1..n-m]
+        , nargs <- var mempty <$> vs
+        -> Just . lam' mempty vs . apps' f $ args' ++ nargs
+        | m > n
+        , trace "splitting" True
+        , (sargs, eargs) <- splitAt n args'
+        , sv <- Var.freshIn fvs $ typed Var.Eta
+        -> Just
+        . let1' False [(sv,apps' f sargs)]
+        $ apps' (var mempty sv) eargs
+      _ -> Just (apps' f args')
     where
+    m = length args
     fvs = foldMap freeVars args
-    args' = constructorEta dat <$> args
+    args' = saturate dat <$> args
 
 optimize :: forall a v . (Semigroup a, Var v) => Term v a -> Term v a
 optimize t = go t where

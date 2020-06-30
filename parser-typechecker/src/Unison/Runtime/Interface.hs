@@ -155,7 +155,7 @@ compileTerm w tm ctx
   . superNormalize (ref $ refTm ctx) (ref $ refTy ctx)
   . lamLift
   . splitPatterns (dspec ctx)
-  . constructorEta (uncurryDspec $ dspec ctx)
+  . saturate (uncurryDspec $ dspec ctx)
   $ tm
   where
   frsh = freshTm ctx
