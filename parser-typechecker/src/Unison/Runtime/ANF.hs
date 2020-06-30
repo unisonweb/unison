@@ -197,9 +197,10 @@ isStructured (Int' _) = False
 isStructured (Float' _) = False
 isStructured (Text' _) = False
 isStructured (Char' _) = False
-isStructured (Constructor' r _) = r /= Ty.unitRef
-isStructured (Apps' f args) = isStructured f || any isStructured args
-isStructured (If' b t f) = isStructured b || isStructured t || isStructured f
+isStructured (Constructor' _ _) = False
+isStructured (Apps' Constructor'{} args) = any isStructured args
+isStructured (If' b t f)
+  = isStructured b || isStructured t || isStructured f
 isStructured (And' l r) = isStructured l || isStructured r
 isStructured (Or' l r) = isStructured l || isStructured r
 isStructured _ = True
@@ -882,7 +883,7 @@ floatableCtx = all p
   p (ST _ _ tm) = q tm
   q (ALit _) = True
   q (AVar _) = True
-  q (ACon _ _ []) = True
+  q (ACon _ _ _) = True
   q _ = False
 
 anfBlock :: Var v => Term v a -> ANFM v (Ctx v, ANormalT v)
