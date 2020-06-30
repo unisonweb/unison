@@ -33,13 +33,13 @@ import Unison.Runtime.MCode
   )
 import Unison.Runtime.Builtin
 import Unison.Runtime.Machine
-  ( eval0 )
+  ( REnv(..), eval0 )
 
 import Unison.Test.Common (tm)
 
 testEval0 :: (Word64 -> Comb) -> Section -> Test ()
 testEval0 env sect = do
-  io $ eval0 env sect
+  io $ eval0 (Refs mempty mempty) env sect
   ok
 
 builtins :: Reference -> Word64

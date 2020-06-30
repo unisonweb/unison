@@ -44,14 +44,21 @@ unwrapText (Wrap r v)
   | r == Ty.textRef = Just $ unsafeCoerce v
   | otherwise = Nothing
 
-promoteEq :: (a -> a -> Bool) -> b -> c -> Bool
-promoteEq (~~) x y = unsafeCoerce x ~~ unsafeCoerce y
+promote :: (a -> a -> r) -> b -> c -> r
+promote (~~) x y = unsafeCoerce x ~~ unsafeCoerce y
 
 ref2eq :: Reference -> Maybe (a -> b -> Bool)
 ref2eq r
-  | r == Ty.textRef = Just $ promoteEq ((==) @Text)
-  | r == Ty.termLinkRef = Just $ promoteEq ((==) @Referent)
-  | r == Ty.typeLinkRef = Just $ promoteEq ((==) @Reference)
+  | r == Ty.textRef = Just $ promote ((==) @Text)
+  | r == Ty.termLinkRef = Just $ promote ((==) @Referent)
+  | r == Ty.typeLinkRef = Just $ promote ((==) @Reference)
+  | otherwise = Nothing
+
+ref2cmp :: Reference -> Maybe (a -> b -> Ordering)
+ref2cmp r
+  | r == Ty.textRef = Just $ promote (compare @Text)
+  | r == Ty.termLinkRef = Just $ promote (compare @Referent)
+  | r == Ty.typeLinkRef = Just $ promote (compare @Reference)
   | otherwise = Nothing
 
 instance Eq Foreign where
@@ -59,7 +66,10 @@ instance Eq Foreign where
     | rl == rr , Just (~~) <- ref2eq rl = t ~~ u
   _ == _ = error "Eq Foreign"
 
-instance Ord Foreign where compare __ = error "Ord Foreign"
+instance Ord Foreign where
+  Wrap rl t `compare` Wrap rr u
+    | rl == rr, Just cmp <- ref2cmp rl = cmp t u
+  compare _ _ = error "Ord Foreign"
 
 instance Show Foreign where
   showsPrec p !_ = showParen (p>9) $ showString "Foreign _"

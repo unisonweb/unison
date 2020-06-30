@@ -6,12 +6,45 @@
 {-# language PatternGuards #-}
 {-# language PatternSynonyms #-}
 
-module Unison.Runtime.Stack where
+module Unison.Runtime.Stack
+  ( K(..)
+  , IComb(.., Lam_)
+  , Closure(.., DataC, PApV, CapV)
+  , Callback(..)
+  , Augment(..)
+  , Dump(..)
+  , MEM(..)
+  , Stack(..)
+  , Off
+  , SZ
+  , FP
+  , universalCompare
+  , marshalToForeign
+  , unull
+  , bnull
+  , peekD
+  , peekOffD
+  , pokeD
+  , pokeOffD
+  , peekN
+  , peekOffN
+  , pokeN
+  , pokeOffN
+  , peekOffS
+  , pokeS
+  , peekOffT
+  , pokeT
+  , uscount
+  , bscount
+  ) where
 
 import Prelude hiding (words)
 
 import Control.Monad (when)
 import Control.Monad.Primitive
+
+import Data.Ord (comparing)
+import Data.Foldable (fold)
 
 import Data.Foldable (toList, for_)
 import Data.Primitive.ByteArray
@@ -21,7 +54,9 @@ import Data.Sequence (Seq)
 import Data.Text (Text)
 import Data.Word
 
-import Unison.Runtime.ANF (Mem(..), unpackTags)
+import Unison.Reference (Reference)
+
+import Unison.Runtime.ANF (Mem(..), unpackTags, RTag)
 import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
 
@@ -103,9 +138,45 @@ pattern DataC rt ct us bs <-
   (splitData -> Just (unpackTags -> (rt, ct), us, bs))
 
 pattern PApV ic us bs <- PAp ic (ints -> us) (toList -> bs)
+pattern CapV k us bs <- Captured k (ints -> us) (toList -> bs)
 
 {-# complete DataC, PAp, Captured, Foreign, BlackHole #-}
 {-# complete DataC, PApV, Captured, Foreign, BlackHole #-}
+{-# complete DataC, PApV, CapV, Foreign, BlackHole #-}
+
+closureNum :: Closure -> Int
+closureNum PAp{} = 0
+closureNum DataC{} = 1
+closureNum Captured{} = 2
+closureNum Foreign{} = 3
+closureNum BlackHole{} = error "BlackHole"
+
+universalCompare
+  :: (Word64 -> Reference)
+  -> (RTag -> Reference)
+  -> (Foreign -> Foreign -> Ordering)
+  -> Closure
+  -> Closure
+  -> Ordering
+universalCompare comb tag frn = cmpc
+  where
+  cmpl cm l r
+    = compare (length l) (length r) <> fold (zipWith cm l r)
+  cmpc (DataC rt1 ct1 us1 bs1) (DataC rt2 ct2 us2 bs2)
+    = compare (tag rt1) (tag rt2)
+   <> compare ct1 ct2
+   <> cmpl compare us1 us2
+   <> cmpl cmpc bs1 bs2
+  cmpc (PApV (IC i1 _) us1 bs1) (PApV (IC i2 _) us2 bs2)
+    = compare (comb i1) (comb i2)
+   <> cmpl compare us1 us2
+   <> cmpl cmpc bs1 bs2
+  cmpc (CapV k1 us1 bs1) (CapV k2 us2 bs2)
+    = compare k1 k2
+   <> cmpl compare us1 us2
+   <> cmpl cmpc bs1 bs2
+  cmpc (Foreign f1) (Foreign f2) = frn f1 f2
+  cmpc c d = comparing closureNum c d
 
 marshalToForeign :: HasCallStack => Closure -> Foreign
 marshalToForeign (Foreign x) = x

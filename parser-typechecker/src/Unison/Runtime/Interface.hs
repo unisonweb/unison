@@ -49,6 +49,7 @@ data EvalCtx v
   , dspec :: DataSpec
   , backrefTy :: EnumMap RTag RF.Reference
   , backrefTm :: EnumMap Word64 (Term v)
+  , backrefComb :: EnumMap Word64 RF.Reference
   }
 
 uncurryDspec :: DataSpec -> Map.Map (Reference,Int) Int
@@ -72,6 +73,7 @@ baseContext
   , dspec = builtinDataSpec
   , backrefTy = builtinTypeBackref
   , backrefTm = Tm.ref () <$> builtinTermBackref
+  , backrefComb = builtinTermBackref
   }
   where
   ftm = 1 + maximum builtinTermNumbering
@@ -179,9 +181,10 @@ evalInContext
 evalInContext ctx w = do
   r <- newIORef BlackHole
   let hook = watchHook r
+      renv = Refs (backrefTy ctx) (backrefComb ctx)
   result <- traverse (const $ readIORef r)
           . first prettyError
-        <=< try $ apply0 (Just hook) (combEnv ctx) w
+        <=< try $ apply0 (Just hook) renv (combEnv ctx) w
   pure $ decompile (`EC.lookup` backrefTy ctx)
                    (`EC.lookup` backrefTm ctx)
            =<< result

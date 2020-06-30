@@ -764,7 +764,7 @@ data POp
   -- Concurrency
   | FORK
   -- Universal operations
-  | EQLU | EROR
+  | EQLU | CMPU | EROR
   -- Debug
   | PRNT | INFO
   deriving (Show,Eq,Ord)

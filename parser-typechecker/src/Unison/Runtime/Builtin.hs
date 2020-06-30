@@ -426,6 +426,44 @@ equ = binop0 1 $ \[x,y,b]
    -> TLet b UN (APrm EQLU [x,y])
     . TTm $ boolift b
 
+cmpu :: Var v => SuperNormal v
+cmpu = binop0 2 $ \[x,y,c,i]
+    -> TLet c UN (APrm CMPU [x,y])
+     . TLet i UN (APrm DECI [c])
+     $ TCon intTag 0 [i]
+
+ltu :: Var v => SuperNormal v
+ltu = binop0 1 $ \[x,y,c]
+   -> TLet c UN (APrm CMPU [x,y])
+    . TMatch c
+    $ MatchIntegral
+        (mapFromList [ (0, TCon boolTag 1 []) ])
+        (Just $ TCon boolTag 0 [])
+
+gtu :: Var v => SuperNormal v
+gtu = binop0 1 $ \[x,y,c]
+   -> TLet c UN (APrm CMPU [x,y])
+    . TMatch c
+    $ MatchIntegral
+        (mapFromList [ (2, TCon boolTag 1 []) ])
+        (Just $ TCon boolTag 0 [])
+
+geu :: Var v => SuperNormal v
+geu = binop0 1 $ \[x,y,c]
+   -> TLet c UN (APrm CMPU [x,y])
+    . TMatch c
+    $ MatchIntegral
+        (mapFromList [ (0, TCon boolTag 0 []) ])
+        (Just $ TCon boolTag 1 [])
+
+leu :: Var v => SuperNormal v
+leu = binop0 1 $ \[x,y,c]
+   -> TLet c UN (APrm CMPU [x,y])
+    . TMatch c
+    $ MatchIntegral
+        (mapFromList [ (2, TCon boolTag 0 []) ])
+        (Just $ TCon boolTag 1 [])
+
 notb :: Var v => SuperNormal v
 notb = unop0 0 $ \[b]
     -> TMatch b . flip (MatchData Ty.booleanRef) Nothing
@@ -1031,18 +1069,6 @@ builtinLookup
 
   , ("Boolean.not", notb)
 --
---   -- Universal.compare intended as a low level function that just returns
---   -- `Int` rather than some Ordering data type. If we want, later,
---   -- could provide a pure Unison wrapper for Universal.compare that
---   -- returns a proper data type.
---   --
---   -- 0 is equal, < 0 is less than, > 0 is greater than
---   , B "Universal.compare" $ forall1 "a" (\a -> a --> a --> int)
---   , B "Universal.>" $ forall1 "a" (\a -> a --> a --> boolean)
---   , B "Universal.<" $ forall1 "a" (\a -> a --> a --> boolean)
---   , B "Universal.>=" $ forall1 "a" (\a -> a --> a --> boolean)
---   , B "Universal.<=" $ forall1 "a" (\a -> a --> a --> boolean)
---
 --   , B "bug" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b))
 --   , B "todo" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b))
 --
@@ -1073,6 +1099,12 @@ builtinLookup
 --
 --   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
   , ("Universal.==", equ)
+  , ("Universal.compare", cmpu)
+  , ("Universal.>", gtu)
+  , ("Universal.<", ltu)
+  , ("Universal.>=", geu)
+  , ("Universal.<=", leu)
+
   , ("jumpCont", jumpk)
   ]
 

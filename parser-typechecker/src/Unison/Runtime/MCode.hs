@@ -353,7 +353,7 @@ data BPrim1
   deriving (Show, Eq, Ord)
 
 data BPrim2
-  = EQLU | LEQU
+  = EQLU | CMPU
   | DRPT | CATT | TAKT
   | EQLT | LEQT | LEST
   | DRPS | CATS | TAKS | CONS | SNOC | IDXS
@@ -860,6 +860,7 @@ emitPOp ANF.SNOC = emitBP2 SNOC
 emitPOp ANF.IDXS = emitBP2 IDXS
 
 emitPOp ANF.EQLU = emitBP2 EQLU
+emitPOp ANF.CMPU = emitBP2 CMPU
 
 emitPOp ANF.BLDS = Seq
 emitPOp ANF.FORK = \case
