@@ -51,6 +51,7 @@ import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
 import Data.Primitive.Array
 import Data.Sequence (Seq)
+import qualified Data.Sequence as Sq
 import Data.Text (Text)
 import Data.Word
 
@@ -175,7 +176,11 @@ universalCompare comb tag frn = cmpc
     = compare k1 k2
    <> cmpl compare us1 us2
    <> cmpl cmpc bs1 bs2
-  cmpc (Foreign f1) (Foreign f2) = frn f1 f2
+  cmpc (Foreign fl) (Foreign fr)
+    | Just sl <- maybeUnwrapForeign Ty.vectorRef fl
+    , Just sr <- maybeUnwrapForeign Ty.vectorRef fr
+    = comparing Sq.length sl sr <> fold (Sq.zipWith cmpc sl sr)
+    | otherwise = frn fl fr
   cmpc c d = comparing closureNum c d
 
 marshalToForeign :: HasCallStack => Closure -> Foreign
