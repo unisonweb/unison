@@ -431,6 +431,7 @@ data Mem = UN | BX deriving (Eq,Ord,Show,Enum)
 data CTE v s
   = ST [v] [Mem] s
   | LZ v (Either Word64 v) [v]
+  deriving (Show)
 
 pattern ST1 v m s = ST [v] [m] s
 
