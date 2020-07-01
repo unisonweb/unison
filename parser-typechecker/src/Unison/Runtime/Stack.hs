@@ -131,7 +131,7 @@ splitData (DataG t us bs) = Just (t, ints us, toList bs)
 splitData _ = Nothing
 
 ints :: ByteArray -> [Int]
-ints ba = fmap (indexByteArray ba) [0..n]
+ints ba = fmap (indexByteArray ba) [0..n-1]
   where
   n = sizeofByteArray ba `div` 8
 
