@@ -221,7 +221,7 @@ letFloater rec vbs e = do
                 | (v, _) <- vbs, Set.member v cvs ]
       shadowMap = Map.fromList shadows
       rn v = Map.findWithDefault v v shadowMap
-      shvs = Set.fromList $ map snd shadows
+      shvs = Set.fromList $ map (rn.fst) vbs
   modify (first $ (<>shvs))
   fvbs <- traverse (\(v, b) -> (,) (rn v) <$> rec' (ABT.changeVars shadowMap b)) vbs
   modify (second (++ fvbs))
