@@ -72,7 +72,9 @@ instance Ord Foreign where
   compare _ _ = error "Ord Foreign"
 
 instance Show Foreign where
-  showsPrec p !_ = showParen (p>9) $ showString "Foreign _"
+  showsPrec p !(Wrap r _)
+    = showParen (p>9)
+    $ showString "Wrap " . showsPrec 10 r . showString " _"
 
 type ForeignArgs = [Foreign]
 type ForeignRslt = [Either Int Foreign]
