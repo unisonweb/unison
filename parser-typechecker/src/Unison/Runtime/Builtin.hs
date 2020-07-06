@@ -481,6 +481,9 @@ cast ri ro
 jumpk :: Var v => SuperNormal v
 jumpk = binop0 0 $ \[k,a] -> TKon k [a]
 
+bug :: Var v => SuperNormal v
+bug = unop0 0 $ \[x] -> TPrm EROR [x]
+
 handle'io :: Var v => SuperNormal v
 handle'io
   = unop0 0 $ \[rq]
@@ -1068,12 +1071,10 @@ builtinLookup
   , ("Text.unsnoc", unsnoct)
 
   , ("Boolean.not", notb)
---
---   , B "bug" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b))
---   , B "todo" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b))
---
 --   , B "Text.toCharList" $ text --> list char
 --   , B "Text.fromCharList" $ list char --> text
+  , ("bug", bug)
+  , ("todo", bug)
 
   , ("Char.toNat", cast Ty.charRef Ty.natRef)
   , ("Char.fromNat", cast Ty.natRef Ty.charRef)

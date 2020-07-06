@@ -349,7 +349,7 @@ data BPrim1
   = SIZT | USNC | UCNS
   | ITOT | NTOT | FTOT
   | TTOI | TTON | TTOF
-  | SIZS
+  | SIZS | THRO
   deriving (Show, Eq, Ord)
 
 data BPrim2
@@ -595,8 +595,6 @@ emitSection rec ctx (TVar v)
   | Just (i,UN) <- ctxResolve ctx v = Yield $ UArg1 i
   | Just j <- rctxResolve rec v = App False (Env j) ZArgs
   | otherwise = emitSectionVErr v
-emitSection _   _   (TPrm ANF.EROR [])
-  = Die "error call"
 emitSection _   ctx (TPrm p args)
   = Ins (emitPOp p $ emitArgs ctx args)
   . Yield $ DArgV i j
@@ -862,6 +860,8 @@ emitPOp ANF.IDXS = emitBP2 IDXS
 emitPOp ANF.EQLU = emitBP2 EQLU
 emitPOp ANF.CMPU = emitBP2 CMPU
 
+emitPOp ANF.EROR = emitBP1 THRO
+
 emitPOp ANF.BLDS = Seq
 emitPOp ANF.FORK = \case
   BArg1 i -> Fork $ App True (Stk i) ZArgs
@@ -873,7 +873,6 @@ emitPOp ANF.INFO = \case
   ZArgs -> Info "debug"
   _ -> error "info takes no arguments"
 -- handled in emitSection because Die is not an instruction
-emitPOp ANF.EROR = error "error takes zero arguments"
 
 emitIOp :: ANF.IOp -> Args -> Instr
 emitIOp iop = ForeignCall True (iopToForeign iop)

@@ -981,7 +981,9 @@ anfBlock (Lit' l) = do
   pure ([ST1 lv UN $ ALit l], ACon rt 0 [lv])
 anfBlock (Ref' r) =
   resolveTerm r <&> \n -> ([], ACom n [])
-anfBlock (Blank' _) = pure ([], APrm EROR [])
+anfBlock (Blank' _) = do
+  ev <- fresh
+  pure ([ST1 ev BX (ALit (T "Blank"))], APrm EROR [ev])
 anfBlock (TermLink' r) = pure ([], ALit (LM r))
 anfBlock (TypeLink' r) = pure ([], ALit (LY r))
 anfBlock (Sequence' as) = fmap (APrm BLDS) <$> anfArgs tms

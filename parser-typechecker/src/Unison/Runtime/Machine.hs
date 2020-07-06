@@ -9,6 +9,7 @@ import Data.Maybe (fromMaybe)
 
 import Data.Bits
 import Data.String (fromString)
+-- import Data.Foldable (for_)
 import Data.Traversable
 import Data.Word (Word64)
 
@@ -50,12 +51,14 @@ data REnv
 
 type Unmask = forall a. IO a -> IO a
 
-newtype RuntimeExn = RE { prettyError :: P.Pretty P.ColorText }
+data RuntimeExn
+  = PE (P.Pretty P.ColorText)
+  | BU Closure
   deriving (Show)
 instance Exception RuntimeExn
 
 die :: String -> IO a
-die = throwIO . RE . P.lit . fromString
+die = throwIO . PE . P.lit . fromString
 
 info :: Show a => String -> a -> IO ()
 info ctx x = infos ctx (show x)
@@ -120,7 +123,6 @@ exec _      renv !_   !denv !ustk !bstk !k (BPrim2 CMPU i j) = do
   poke ustk . fromEnum $ universalCompare cmb tag compare x y
   pure (denv, ustk, bstk, k)
   where
-
   cmb w | Just r <- EC.lookup w (combRefs renv) = r
         | otherwise = error $ "exec: unknown combinator: " ++ show w
   tag t | Just r <- EC.lookup t (tagRefs renv) = r
@@ -1006,6 +1008,8 @@ bprim1 !ustk !bstk TTOF i
         poke ustk 1
         pokeOffD ustk 1 f
         pure (ustk, bstk)
+bprim1 !_    !bstk THRO i
+  = throwIO . BU =<< peekOff bstk i
 {-# inline bprim1 #-}
 
 bprim2
