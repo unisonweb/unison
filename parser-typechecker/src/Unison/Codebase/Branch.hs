@@ -32,9 +32,9 @@ module Unison.Codebase.Branch
   , head
   , headHash
   , before
-  , findHistoricalHQs
-  , findHistoricalRefs
-  , findHistoricalRefs'
+  -- , findHistoricalHQs
+  -- , findHistoricalRefs
+  -- , findHistoricalRefs'
   , namesDiff
     -- ** History updates
   , step
@@ -94,7 +94,7 @@ module Unison.Codebase.Branch
   , debugPaths
   , editedPatchRemoved
   , editsR
-  , findHistoricalSHs
+  -- , findHistoricalSHs
   , fork
   , lca
   , move
@@ -136,13 +136,10 @@ import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
 import           Unison.Name                    ( Name(..) )
 import qualified Unison.Name                   as Name
-import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names
 import           Unison.Names2                  ( Names'(Names), Names0 )
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
-import qualified Unison.Referent               as Referent
-import qualified Unison.Reference              as Reference
 
 import qualified Unison.Util.Cache             as Cache
 import qualified Unison.Util.Relation          as R
@@ -151,12 +148,6 @@ import qualified Unison.Util.Relation4         as R4
 import qualified Unison.Util.List              as List
 import           Unison.Util.Map                ( unionWithM )
 import qualified Unison.Util.Star3             as Star3
-import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
-import qualified Unison.HashQualified as HQ
-import Unison.HashQualified (HashQualified)
-import qualified Unison.LabeledDependency as LD
-import Unison.LabeledDependency (LabeledDependency)
 
 newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
   deriving (Eq, Ord)
@@ -223,64 +214,64 @@ toNames0 :: Branch0 m -> Names0
 toNames0 b = Names (R.swap . deepTerms $ b)
                    (R.swap . deepTypes $ b)
 
--- This stops searching for a given ShortHash once it encounters
--- any term or type in any Branch0 that satisfies that ShortHash.
-findHistoricalSHs
-  :: Monad m => Set ShortHash -> Branch m -> m (Set ShortHash, Names0)
-findHistoricalSHs = findInHistory
-  (\sh r _n -> sh `SH.isPrefixOf` Referent.toShortHash r)
-  (\sh r _n -> sh `SH.isPrefixOf` Reference.toShortHash r)
+-- -- This stops searching for a given ShortHash once it encounters
+-- -- any term or type in any Branch0 that satisfies that ShortHash.
+-- findHistoricalSHs
+--   :: Monad m => Set ShortHash -> Branch m -> m (Set ShortHash, Names0)
+-- findHistoricalSHs = findInHistory
+--   (\sh r _n -> sh `SH.isPrefixOf` Referent.toShortHash r)
+--   (\sh r _n -> sh `SH.isPrefixOf` Reference.toShortHash r)
 
--- This stops searching for a given HashQualified once it encounters
--- any term or type in any Branch0 that satisfies that HashQualified.
-findHistoricalHQs :: Monad m
-                  => Set HashQualified
-                  -> Branch m
-                  -> m (Set HashQualified, Names0)
-findHistoricalHQs = findInHistory
-  (\hq r n -> HQ.matchesNamedReferent n r hq)
-  (\hq r n -> HQ.matchesNamedReference n r hq)
+-- -- This stops searching for a given HashQualified once it encounters
+-- -- any term or type in any Branch0 that satisfies that HashQualified.
+-- findHistoricalHQs :: Monad m
+--                   => Set HashQualified
+--                   -> Branch m
+--                   -> m (Set HashQualified, Names0)
+-- findHistoricalHQs = findInHistory
+--   (\hq r n -> HQ.matchesNamedReferent n r hq)
+--   (\hq r n -> HQ.matchesNamedReference n r hq)
 
-findHistoricalRefs :: Monad m => Set LabeledDependency -> Branch m
-                   -> m (Set LabeledDependency, Names0)
-findHistoricalRefs = findInHistory
-  (\query r _n -> LD.fold (const False) (==r) query)
-  (\query r _n -> LD.fold (==r) (const False) query)
+-- findHistoricalRefs :: Monad m => Set LabeledDependency -> Branch m
+--                    -> m (Set LabeledDependency, Names0)
+-- findHistoricalRefs = findInHistory
+--   (\query r _n -> LD.fold (const False) (==r) query)
+--   (\query r _n -> LD.fold (==r) (const False) query)
 
-findHistoricalRefs' :: Monad m => Set Reference -> Branch m
-                    -> m (Set Reference, Names0)
-findHistoricalRefs' = findInHistory
-  (\queryRef r _n -> r == Referent.Ref queryRef)
-  (\queryRef r _n -> r == queryRef)
+-- findHistoricalRefs' :: Monad m => Set Reference -> Branch m
+--                     -> m (Set Reference, Names0)
+-- findHistoricalRefs' = findInHistory
+--   (\queryRef r _n -> r == Referent.Ref queryRef)
+--   (\queryRef r _n -> r == queryRef)
 
-findInHistory :: forall m q. (Monad m, Ord q)
-  => (q -> Referent -> Name -> Bool)
-  -> (q -> Reference -> Name -> Bool)
-  -> Set q -> Branch m -> m (Set q, Names0)
-findInHistory termMatches typeMatches queries b =
-  (Causal.foldHistoryUntil f (queries, mempty) . _history) b <&> \case
-    -- could do something more sophisticated here later to report that some SH
-    -- couldn't be found anywhere in the history.  but for now, I assume that
-    -- the normal thing will happen when it doesn't show up in the namespace.
-    Causal.Satisfied   (_, names)       -> (mempty, names)
-    Causal.Unsatisfied (missing, names) -> (missing, names)
-  where
-  -- in order to not favor terms over types, we iterate through the ShortHashes,
-  -- for each `remainingQueries`, if we find a matching Referent or Reference,
-  -- we remove `q` from the accumulated `remainingQueries`, and add the Ref* to
-  -- the accumulated `names0`.
-  f acc@(remainingQueries, _) b0 = (acc', null remainingQueries')
-    where
-    acc'@(remainingQueries', _) = foldl' findQ acc remainingQueries
-    findQ :: (Set q, Names0) -> q -> (Set q, Names0)
-    findQ acc sh =
-      foldl' (doType sh) (foldl' (doTerm sh) acc
-                            (R.toList $ deepTerms b0))
-                            (R.toList $ deepTypes b0)
-    doTerm q acc@(remainingSHs, names0) (r, n) = if termMatches q r n
-      then (Set.delete q remainingSHs, Names.addTerm n r names0) else acc
-    doType q acc@(remainingSHs, names0) (r, n) = if typeMatches q r n
-      then (Set.delete q remainingSHs, Names.addType n r names0) else acc
+-- findInHistory :: forall m q. (Monad m, Ord q)
+--   => (q -> Referent -> Name -> Bool)
+--   -> (q -> Reference -> Name -> Bool)
+--   -> Set q -> Branch m -> m (Set q, Names0)
+-- findInHistory termMatches typeMatches queries b =
+--   (Causal.foldHistoryUntil f (queries, mempty) . _history) b <&> \case
+--     -- could do something more sophisticated here later to report that some SH
+--     -- couldn't be found anywhere in the history.  but for now, I assume that
+--     -- the normal thing will happen when it doesn't show up in the namespace.
+--     Causal.Satisfied   (_, names)       -> (mempty, names)
+--     Causal.Unsatisfied (missing, names) -> (missing, names)
+--   where
+--   -- in order to not favor terms over types, we iterate through the ShortHashes,
+--   -- for each `remainingQueries`, if we find a matching Referent or Reference,
+--   -- we remove `q` from the accumulated `remainingQueries`, and add the Ref* to
+--   -- the accumulated `names0`.
+--   f acc@(remainingQueries, _) b0 = (acc', null remainingQueries')
+--     where
+--     acc'@(remainingQueries', _) = foldl' findQ acc remainingQueries
+--     findQ :: (Set q, Names0) -> q -> (Set q, Names0)
+--     findQ acc sh =
+--       foldl' (doType sh) (foldl' (doTerm sh) acc
+--                             (R.toList $ deepTerms b0))
+--                             (R.toList $ deepTypes b0)
+--     doTerm q acc@(remainingSHs, names0) (r, n) = if termMatches q r n
+--       then (Set.delete q remainingSHs, Names.addTerm n r names0) else acc
+--     doType q acc@(remainingSHs, names0) (r, n) = if typeMatches q r n
+--       then (Set.delete q remainingSHs, Names.addType n r names0) else acc
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms

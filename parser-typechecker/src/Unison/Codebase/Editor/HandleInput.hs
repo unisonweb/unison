@@ -217,8 +217,8 @@ loop = do
         let (p, seg) = Path.toAbsoluteSplit currentPath' s
         b <- getAt p
         eval . Eval $ Branch.getMaybePatch seg (Branch.head b)
-      getHQ'TermsIncludingHistorical p =
-        getTermsIncludingHistorical (resolveSplit' p) root0
+      -- getHQ'TermsIncludingHistorical p =
+      --   getTermsIncludingHistorical (resolveSplit' p) root0
 
       getHQ'Terms :: Path.HQSplit' -> Set Referent
       getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
@@ -254,19 +254,8 @@ loop = do
         let (p, seg) = Path.toAbsoluteSplit currentPath' patchPath'
         b <- getAt p
         eval . Eval $ Branch.getPatch seg (Branch.head b)
-      withFile ambient sourceName lexed@(text, tokens) k = do
-        let
-          getHQ = \case
-            L.Backticks s (Just sh) ->
-              Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-            L.WordyId s (Just sh) ->
-              Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-            L.SymbolyId s (Just sh) ->
-              Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-            L.Hash sh -> Just (HQ.HashOnly sh)
-            _         -> Nothing
-          hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-        parseNames :: Names <- makeHistoricalParsingNames hqs
+      withFile ambient sourceName lexed@(text, _) k = do
+        parseNames :: Names <- makeHistoricalParsingNames
         latestFile .= Just (Text.unpack sourceName, False)
         latestTypecheckedFile .= Nothing
         Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
@@ -275,7 +264,7 @@ loop = do
           Nothing -> respond $
             ParseErrors text [ err | Result.Parsing err <- toList notes ]
           Just (Left errNames) -> do
-            ppe <- prettyPrintEnv =<< makeShadowedPrintNamesFromHQ hqs errNames
+            ppe <- prettyPrintEnv =<< makeShadowedPrintNames errNames
             respond $
               TypeErrors text ppe [ err | Result.TypeError err <- toList notes ]
           Just (Right uf) -> k uf
@@ -284,7 +273,6 @@ loop = do
         withFile [] sourceName (text, lexed) $ \unisonFile -> do
           sr <- toSlurpResult currentPath' unisonFile <$> slurpResultNames0
           names <- makeShadowedPrintNamesFromLabeled
-                      (UF.termSignatureExternalLabeledDependencies unisonFile)
                       (UF.typecheckedToNames0 unisonFile)
           ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
           eval . Notify $ Typechecked sourceName ppe sr unisonFile
@@ -325,7 +313,7 @@ loop = do
         termConflicted src tms = nameConflicted src tms Set.empty
         hashConflicted src = respond . HashAmbiguous src
         hqNameQuery' doSuffixify hqs = do
-          parseNames0 <- makeHistoricalParsingNames $ Set.fromList hqs
+          parseNames0 <- makeHistoricalParsingNames
           let parseNames = (if doSuffixify then Names3.suffixify else id) parseNames0
           let resultss = searchBranchExact hqLength parseNames hqs
               (misses, hits) =
@@ -498,8 +486,7 @@ loop = do
         handleFailedDelete failed failedDependents = do
           failed           <- loadSearchResults $ SR.fromNames failed
           failedDependents <- loadSearchResults $ SR.fromNames failedDependents
-          ppe              <- prettyPrintEnv =<< makePrintNamesFromLabeled'
-            (foldMap SR'.labeledDependencies $ failed <> failedDependents)
+          ppe              <- prettyPrintEnv =<< makePrintNames
           respond $ CantDelete ppe failed failedDependents
         saveAndApplyPatch patchPath'' patchName patch' = do
           stepAtM (inputDescription <> " (1/2)")
@@ -512,7 +499,6 @@ loop = do
           success
         previewResponse sourceName sr uf = do
           names <- makeShadowedPrintNamesFromLabeled
-                      (UF.termSignatureExternalLabeledDependencies uf)
                       (UF.typecheckedToNames0 uf)
           ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
           respond $ Typechecked (Text.pack sourceName) ppe sr uf
@@ -1155,10 +1141,7 @@ loop = do
                   (r,) . maybe (MissingThing i) RegularThing
                        $ Map.lookup i loadedDerivedTypes
                 r@(Reference.Builtin _) -> (r, BuiltinThing)
-        -- the SR' deps include the result term/type names, and the
-        let deps = foldMap SR'.labeledDependencies results'
-                <> foldMap Term.labeledDependencies loadedDerivedTerms
-        printNames <- makePrintNamesFromLabeled' deps
+        printNames <- makePrintNames
 
         -- We might like to make sure that the user search terms get used as
         -- the names in the pretty-printer, but the current implementation
@@ -1273,9 +1256,7 @@ loop = do
           lift do
             numberedArgs .= fmap searchResultToHQString results
             results' <- loadSearchResults results
-            ppe <- prettyPrintEnv . Names3.suffixify =<<
-              makePrintNamesFromLabeled'
-                (foldMap SR'.labeledDependencies results')
+            ppe <- prettyPrintEnv . Names3.suffixify =<< makePrintNames
             respond $ ListOfDefinitions ppe isVerbose results'
 
       ResolveTypeNameI hq ->
@@ -1287,7 +1268,7 @@ loop = do
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
       ResolveTermNameI hq -> do
-        refs <- getHQ'TermsIncludingHistorical hq
+        let refs = getHQ'Terms hq
         zeroOneOrMore refs (termNotFound hq) go (termConflicted hq)
         where
         conflicted = getHQ'Terms (fmap HQ'.toNameOnly hq)
@@ -1408,7 +1389,6 @@ loop = do
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
           ppe <- prettyPrintEnvDecl =<<
             makeShadowedPrintNamesFromLabeled
-              (UF.termSignatureExternalLabeledDependencies uf)
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
           addDefaultMetadata adds
@@ -1514,7 +1494,6 @@ loop = do
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
           ppe <- prettyPrintEnvDecl =<<
             makeShadowedPrintNamesFromLabeled
-              (UF.termSignatureExternalLabeledDependencies uf)
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
           -- propagatePatch prints TodoOutput
@@ -1551,9 +1530,7 @@ loop = do
             , cid == DD.failConstructorId && ref == DD.testResultRef ]
         cachedTests <- fmap Map.fromList . eval $ LoadWatches UF.TestWatch testRefs
         let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
-        names <- makePrintNamesFromLabeled' $
-          LD.referents testTerms <>
-          LD.referents [ DD.okConstructorReferent, DD.failConstructorReferent ]
+        names <- makePrintNames
         ppe <- prettyPrintEnv names
         respond $ TestResults stats ppe showOk showFail
                     (oks cachedTests) (fails cachedTests)
@@ -1651,8 +1628,7 @@ loop = do
                     (Path.toAbsoluteSplit currentPath')
                     maybePath
         patch <- eval . Eval . Branch.getPatch seg . Branch.head =<< getAt p
-        ppe <- prettyPrintEnv =<<
-          makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        ppe <- prettyPrintEnv =<< makePrintNames
         respond $ ListEdits patch ppe
 
       PullRemoteBranchI mayRepo path syncMode -> unlessError do
@@ -1691,12 +1667,12 @@ loop = do
               tm (Referent.Ref r) = eval $ GetDependents r
               tm (Referent.Con r _i _ct) = eval $ GetDependents r
               in LD.fold tp tm ld
-            (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependents root'
-            let types = R.toList $ Names3.types0 names0
-            let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
-            let names = types <> terms
-            numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
-            respond $ ListDependents hqLength ld names missing
+            let names0 = Names.restrictReferences dependents $ Branch.toNames0 root0
+                types = R.toList $ Names3.types0 names0
+                terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
+                names = types <> terms
+            numberedArgs .= fmap (Text.unpack . Reference.toText) (fmap snd names)
+            respond $ ListDependents hqLength ld names mempty
       ListDependenciesI hq -> -- todo: add flag to handle transitive efficiently
         resolveHQToLabeledDependencies hq >>= \lds ->
           if null lds
@@ -1717,12 +1693,12 @@ loop = do
                   Just tp -> Type.dependencies tp
               tm _ = pure mempty
               in LD.fold tp tm ld
-            (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependencies root'
-            let types = R.toList $ Names3.types0 names0
-            let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
-            let names = types <> terms
-            numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
-            respond $ ListDependencies hqLength ld names missing
+            let names0 = Names.restrictReferences dependencies $ Branch.toNames0 root0
+                types = R.toList $ Names3.types0 names0
+                terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
+                names = types <> terms
+            numberedArgs .= fmap (Text.unpack . Reference.toText) (fmap snd names)
+            respond $ ListDependencies hqLength ld names mempty
       DebugNumberedArgsI -> use numberedArgs >>= respond . DumpNumberedArgs
       DebugBranchHistoryI ->
         eval . Notify . DumpBitBooster (Branch.headHash currentBranch') =<<
@@ -1876,9 +1852,7 @@ getLinks' src selection0 = do
       -- then list the values after filtering by type
       allRefs :: Set Reference = R.ran allMd'
   sigs <- for (toList allRefs) (loadTypeOfTerm . Referent.Ref)
-  let deps = Set.map LD.termRef allRefs <>
-             Set.unions [ Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs ]
-  ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled' deps
+  ppe <- prettyPrintEnvDecl =<< makePrintNames
   let ppeDecl = PPE.unsuffixifiedPPE ppe
   let sortedSigs = sortOn snd (toList allRefs `zip` sigs)
   let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs ]
@@ -1918,7 +1892,7 @@ doShowTodoOutput patch scopePath = do
   let names0 = Branch.toNames0 (Branch.head scope)
   -- only needs the local references to check for obsolete defs
   let getPpe = do
-        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        names <- makePrintNames
         prettyPrintEnvDecl names
   showTodoOutput getPpe patch names0
 
@@ -2637,14 +2611,7 @@ loadTypeDisplayThing = \case
 lexedSource :: Monad m => SourceName -> Source -> Action' m v (Names, LexedSource)
 lexedSource name src = do
   let tokens = L.lexer (Text.unpack name) (Text.unpack src)
-      getHQ = \case
-        L.Backticks s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-        L.WordyId   s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-        L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-        L.Hash      sh          -> Just (HQ.HashOnly sh)
-        _                       -> Nothing
-      hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-  parseNames <- makeHistoricalParsingNames hqs
+  parseNames <- makeHistoricalParsingNames
   pure (parseNames, (src, tokens))
 
 prettyPrintEnv :: Names -> Action' m v PPE.PrettyPrintEnv
@@ -2674,91 +2641,63 @@ parseType input src = do
       Right typ -> Right typ
 
 makeShadowedPrintNamesFromLabeled
-  :: Monad m => Set LabeledDependency -> Names0 -> Action' m v Names
-makeShadowedPrintNamesFromLabeled deps shadowing =
-  Names3.shadowing shadowing <$> makePrintNamesFromLabeled' deps
+  :: Monad m => Names0 -> Action' m v Names
+makeShadowedPrintNamesFromLabeled shadowing =
+  Names3.shadowing shadowing <$> makePrintNames
 
-getTermsIncludingHistorical
-  :: Monad m => Path.HQSplit -> Branch0 m -> Action' m v (Set Referent)
-getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
-  [] -> case hq of
-    HQ'.HashQualified n hs -> do
-      names <- findHistoricalHQs
-        $ Set.fromList [HQ.HashQualified (Name.unsafeFromText (NameSegment.toText n)) hs]
-      pure . R.ran $ Names.terms names
-    _ -> pure Set.empty
-  _ -> pure refs
-  where refs = BranchUtil.getTerm (p, hq) b
+-- getTermsIncludingHistorical
+--   :: Monad m => Path.HQSplit -> Branch0 m -> Action' m v (Set Referent)
+-- getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
+--   [] -> case hq of
+--     HQ'.HashQualified n hs -> do
+--       names <- findHistoricalHQs
+--         $ Set.fromList [HQ.HashQualified (Name.unsafeFromText (NameSegment.toText n)) hs]
+--       pure . R.ran $ Names.terms names
+--     _ -> pure Set.empty
+--   _ -> pure refs
+--   where refs = BranchUtil.getTerm (p, hq) b
 
--- discards inputs that aren't hashqualified;
--- I'd enforce it with finer-grained types if we had them.
-findHistoricalHQs :: Monad m => Set HQ.HashQualified -> Action' m v Names0
-findHistoricalHQs lexedHQs0 = do
-  root <- use root
-  currentPath <- use currentPath
-  let
-    -- omg this nightmare name-to-path parsing code is littered everywhere.
-    -- We need to refactor so that the absolute-ness of a name isn't represented
-    -- by magical text combinations.
-    -- Anyway, this function takes a name, tries to determine whether it is
-    -- relative or absolute, and tries to return the corresponding name that is
-    -- /relative/ to the root.
-    preprocess n = case Name.toString n of
-      -- some absolute name that isn't just "."
-      '.' : t@(_:_)  -> Name.unsafeFromString t
-      -- something in current path
-      _ ->  if Path.isRoot currentPath then n
-            else Name.joinDot (Path.toName . Path.unabsolute $ currentPath) n
+-- -- discards inputs that aren't hashqualified;
+-- -- I'd enforce it with finer-grained types if we had them.
+-- findHistoricalHQs :: Monad m => Set HQ.HashQualified -> Action' m v Names0
+-- findHistoricalHQs lexedHQs0 = do
+--   root <- use root
+--   currentPath <- use currentPath
+--   let
+--     -- omg this nightmare name-to-path parsing code is littered everywhere.
+--     -- We need to refactor so that the absolute-ness of a name isn't represented
+--     -- by magical text combinations.
+--     -- Anyway, this function takes a name, tries to determine whether it is
+--     -- relative or absolute, and tries to return the corresponding name that is
+--     -- /relative/ to the root.
+--     preprocess n = case Name.toString n of
+--       -- some absolute name that isn't just "."
+--       '.' : t@(_:_)  -> Name.unsafeFromString t
+--       -- something in current path
+--       _ ->  if Path.isRoot currentPath then n
+--             else Name.joinDot (Path.toName . Path.unabsolute $ currentPath) n
 
-    lexedHQs = Set.map (fmap preprocess) . Set.filter HQ.hasHash $ lexedHQs0
-  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
-  pure rawHistoricalNames
+--     lexedHQs = Set.map (fmap preprocess) . Set.filter HQ.hasHash $ lexedHQs0
+--   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
+--   pure rawHistoricalNames
 
-makeShadowedPrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Names0 -> Action' m v Names
-makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
-  rawHistoricalNames <- findHistoricalHQs lexedHQs
+makeShadowedPrintNames :: Monad m => Names0 -> Action' m v Names
+makeShadowedPrintNames shadowing = do
   basicNames0 <- basicPrettyPrintNames0
-  currentPath <- use currentPath
   -- The basic names go into "current", but are shadowed by "shadowing".
-  -- They go again into "historical" as a hack that makes them available HQ-ed.
-  pure $
-    Names3.shadowing
-      shadowing
-      (Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames))
+  pure $ Names3.shadowing shadowing (Names basicNames0 mempty)
 
-makePrintNamesFromLabeled'
-  :: Monad m => Set LabeledDependency -> Action' m v Names
-makePrintNamesFromLabeled' deps = do
-  root                           <- use root
-  currentPath                    <- use currentPath
-  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalRefs
-    deps
-    root
+makePrintNames :: Monad m => Action' m v Names
+makePrintNames = do
   basicNames0 <- basicPrettyPrintNames0
-  pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
+  pure $ Names basicNames0 mempty
 
--- Any absolute names in the input which have `currentPath` as a prefix
--- are converted to names relative to current path. All other names are
--- converted to absolute names. For example:
---
--- e.g. if currentPath = .foo.bar
---      then name foo.bar.baz becomes baz
---           name cat.dog     becomes .cat.dog
-fixupNamesRelative :: Path.Absolute -> Names0 -> Names0
-fixupNamesRelative currentPath' = Names3.map0 fixName where
-  prefix = Path.toName (Path.unabsolute currentPath')
-  fixName n = if currentPath' == Path.absoluteEmpty then n else
-    fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
-
-makeHistoricalParsingNames ::
-  Monad m => Set HQ.HashQualified -> Action' m v Names
-makeHistoricalParsingNames lexedHQs = do
-  rawHistoricalNames <- findHistoricalHQs lexedHQs
+-- This used to include historical names but no longer does due to
+-- performance issues with Causal.
+makeHistoricalParsingNames :: Monad m => Action' m v Names
+makeHistoricalParsingNames = do
   basicNames0 <- basicParseNames0
-  currentPath <- use currentPath
-  pure $ Names basicNames0
-               (Names3.makeAbsolute0 rawHistoricalNames <>
-                 fixupNamesRelative currentPath rawHistoricalNames)
+  pure $ Names basicNames0 mempty
 
 basicParseNames0, basicPrettyPrintNames0, slurpResultNames0 :: Functor m => Action' m v Names0
 basicParseNames0 = fst <$> basicNames0'
@@ -2845,7 +2784,6 @@ executePPE unisonFile =
   -- voodoo
   prettyPrintEnv =<<
     makeShadowedPrintNamesFromLabeled
-      (UF.termSignatureExternalLabeledDependencies unisonFile)
       (UF.typecheckedToNames0 unisonFile)
 
 diffHelper :: Monad m
