@@ -92,9 +92,6 @@ import Unison.Typechecker.Components (minimize')
 import Unison.Pattern (PatternP(..))
 import Unison.Reference (Reference(..))
 import Unison.Referent (Referent)
--- import Debug.Trace
--- import qualified Unison.TermPrinter as TP
--- import qualified Unison.Util.Pretty as P
 
 newtype ANF v a = ANF_ { term :: Term v a }
 
@@ -289,7 +286,6 @@ saturate dat = ABT.visitPure $ \case
         , nargs <- var mempty <$> vs
         -> Just . lam' mempty vs . apps' f $ args' ++ nargs
         | m > n
-        , trace "splitting" True
         , (sargs, eargs) <- splitAt n args'
         , sv <- Var.freshIn fvs $ typed Var.Eta
         -> Just
