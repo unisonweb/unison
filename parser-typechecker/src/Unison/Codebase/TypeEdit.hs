@@ -1,11 +1,17 @@
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 module Unison.Codebase.TypeEdit where
 
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, ReferenceH)
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as H
+import Unison.Hash (Hash)
 
-data TypeEdit = Replace Reference | Deprecate
-  deriving (Eq, Ord, Show)
+type TypeEdit = TypeEditH Hash
+data TypeEditH h = Replace (ReferenceH h) | Deprecate
+  deriving (Eq, Ord)
+deriving instance Show (ReferenceH h) => Show (TypeEditH h)  
 
 references :: TypeEdit -> [Reference]
 references (Replace r) = [r]

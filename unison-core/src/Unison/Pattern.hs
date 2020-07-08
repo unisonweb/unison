@@ -6,7 +6,8 @@ import Unison.Prelude
 
 import Data.List (intercalate)
 import Data.Foldable as Foldable hiding (foldMap')
-import Unison.Reference (Reference)
+import Unison.Reference (ReferenceH)
+import Unison.Hash (Hash)
 import qualified Unison.Hashable as H
 import qualified Unison.Type as Type
 import qualified Data.Set as Set
@@ -33,7 +34,8 @@ type ConstructorId = Int
 
 -- pattern Var = VarP ()
 
-data PatternP loc
+type PatternP loc = PatternH Hash loc
+data PatternH h loc
   = UnboundP loc
   | VarP loc
   | BooleanP loc !Bool
@@ -42,12 +44,12 @@ data PatternP loc
   | FloatP loc !Double
   | TextP loc !Text
   | CharP loc !Char
-  | ConstructorP loc !Reference !Int [PatternP loc]
-  | AsP loc (PatternP loc)
-  | EffectPureP loc (PatternP loc)
-  | EffectBindP loc !Reference !Int [PatternP loc] (PatternP loc)
-  | SequenceLiteralP loc [PatternP loc]
-  | SequenceOpP loc (PatternP loc) !SeqOp (PatternP loc)
+  | ConstructorP loc !(ReferenceH h) !Int [PatternH h loc]
+  | AsP loc (PatternH h loc)
+  | EffectPureP loc (PatternH h loc)
+  | EffectBindP loc !(ReferenceH h) !Int [PatternH h loc] (PatternH h loc)
+  | SequenceLiteralP loc [PatternH h loc]
+  | SequenceOpP loc (PatternH h loc) !SeqOp (PatternH h loc)
     deriving (Generic,Functor,Foldable,Traversable)
 
 data SeqOp = Cons
@@ -60,7 +62,7 @@ instance H.Hashable SeqOp where
   tokens Snoc = [H.Tag 1]
   tokens Concat = [H.Tag 2]
 
-instance Show (PatternP loc) where
+instance Show (ReferenceH h) => Show (PatternH h loc) where
   show (UnboundP _  ) = "Unbound"
   show (VarP     _  ) = "Var"
   show (BooleanP _ x) = "Boolean " <> show x
@@ -144,7 +146,7 @@ instance Eq (PatternP loc) where
   SequenceOpP _ ph op pt == SequenceOpP _ ph2 op2 pt2 = ph == ph2 && op == op2 && pt == pt2
   _ == _ = False
 
-foldMap' :: Monoid m => (PatternP loc -> m) -> PatternP loc -> m
+foldMap' :: Monoid m => (PatternH h loc -> m) -> PatternH h loc -> m
 foldMap' f p = case p of
     UnboundP _              -> f p
     VarP _                  -> f p
@@ -168,12 +170,12 @@ foldMap' f p = case p of
 
 generalizedDependencies
   :: Ord r
-  => (Reference -> r)
-  -> (Reference -> ConstructorId -> r)
-  -> (Reference -> r)
-  -> (Reference -> ConstructorId -> r)
-  -> (Reference -> r)
-  -> PatternP loc
+  => (ReferenceH h -> r)
+  -> (ReferenceH h -> ConstructorId -> r)
+  -> (ReferenceH h -> r)
+  -> (ReferenceH h -> ConstructorId -> r)
+  -> (ReferenceH h -> r)
+  -> PatternH h loc
   -> Set r
 generalizedDependencies literalType dataConstructor dataType effectConstructor effectType
   = Set.fromList . foldMap'

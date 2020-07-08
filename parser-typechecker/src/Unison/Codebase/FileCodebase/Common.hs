@@ -103,7 +103,7 @@ import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V1 as V1
 import           Unison.Codebase.SyncMode       ( SyncMode )
-import           Unison.Codebase.Patch          ( Patch(..) )
+import           Unison.Codebase.Patch          ( Patch )
 import qualified Unison.ConstructorType        as CT
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.Hash                   as Hash

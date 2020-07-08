@@ -39,7 +39,7 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Reference.Util as ReferenceUtil
 import           Unison.Referent (Referent, ReferentH)
 import qualified Unison.Referent as Referent
-import           Unison.Type (Type)
+import           Unison.Type (Type, TypeH)
 import qualified Unison.Type as Type
 import qualified Unison.Util.Relation as Rel
 import qualified Unison.ConstructorType as CT
@@ -74,7 +74,7 @@ data F h typeVar typeAnn patternAnn a
   | Request (ReferenceH h) Int
   | Handle a a
   | App a a
-  | Ann a (Type typeVar typeAnn)
+  | Ann a (TypeH h typeVar typeAnn)
   | Sequence (Seq a)
   | If a a a
   | And a a
@@ -221,6 +221,9 @@ typeMap f = go
     -- otherwise we'd have to manually match on every non-`Ann` ctor
     ABT.Tm    ts        -> unsafeCoerce $ ABT.Tm (fmap go ts)
 
+hmap :: Ord vt => (h -> h') -> Term2H h vt at ap v a -> Term2H h' vt at ap v a
+hmap hf = extraMap' hf id id id
+
 extraMap'
   :: (Ord vt, Ord vt')
   => (h -> h')
@@ -252,7 +255,7 @@ extraMap hf vtf atf apf = \case
   Request x y -> Request (Reference.hmap hf x) y
   Handle x y -> Handle x y
   App x y -> App x y
-  Ann tm x -> Ann tm (ABT.amap atf (ABT.vmap vtf x))
+  Ann tm x -> Ann tm (Type.hmap hf (ABT.amap atf (ABT.vmap vtf x)))
   Sequence x -> Sequence x
   If x y z -> If x y z
   And x y -> And x y

@@ -10,7 +10,8 @@ import Prelude hiding (getChar, putChar)
 
 -- import qualified Data.Text as Text
 import qualified Unison.Pattern                 as Pattern
-import           Unison.PatternP                ( Pattern
+import           Unison.Pattern                 ( PatternP
+                                                , PatternH
                                                 , SeqOp
                                                 )
 import           Data.Bits                      ( Bits )
@@ -35,15 +36,16 @@ import           Unison.Codebase.Causal         ( Raw(..)
 import qualified Unison.Codebase.Causal         as Causal
 import qualified Unison.Codebase.Metadata       as Metadata
 import           Unison.NameSegment            as NameSegment
-import           Unison.Codebase.Patch          ( Patch(..) )
+import           Unison.Codebase.Patch          ( Patch, PatchH(..) )
 import qualified Unison.Codebase.Patch          as Patch
-import           Unison.Codebase.TermEdit       ( TermEdit )
-import           Unison.Codebase.TypeEdit       ( TypeEdit )
+import           Unison.Codebase.TermEdit       ( TermEdit, TermEditH )
+import           Unison.Codebase.TypeEdit       ( TypeEdit, TypeEditH )
 import           Unison.Hash                    ( Hash )
 import           Unison.Kind                    ( Kind )
-import           Unison.Reference               ( Reference )
+import           Unison.Reference               ( Reference, ReferenceH )
 import           Unison.Symbol                  ( Symbol(..) )
-import           Unison.Term                    ( Term )
+import           Unison.Term                    ( Term, TermH )
+import           Unison.Type                    ( Type, TypeH )
 import qualified Data.ByteString               as B
 import qualified Data.Sequence                 as Sequence
 import qualified Data.Set                      as Set
@@ -54,7 +56,7 @@ import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Hash                   as Hash
 import qualified Unison.Kind                   as Kind
 import qualified Unison.Reference              as Reference
-import           Unison.Referent               (Referent)
+import           Unison.Referent               (Referent, ReferentH)
 import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
@@ -64,11 +66,11 @@ import           Unison.Util.Relation           ( Relation )
 import qualified Unison.Util.Relation          as Relation
 import qualified Unison.DataDeclaration        as DataDeclaration
 import           Unison.DataDeclaration         ( DataDeclaration'
+                                                , DataDeclarationH
                                                 , EffectDeclaration'
                                                 )
 import qualified Unison.Var                    as Var
 import qualified Unison.ConstructorType        as CT
-import Unison.Type (Type)
 
 -- ABOUT THIS FORMAT:
 --
@@ -227,7 +229,10 @@ getHash = do
   pure $ Hash.fromBytes bs
 
 putReference :: MonadPut m => Reference -> m ()
-putReference r = case r of
+putReference = putReferenceH putHash
+
+putReferenceH :: MonadPut m => (h -> m ()) -> ReferenceH h -> m ()
+putReferenceH putHash r = case r of
   Reference.Builtin name -> do
     putWord8 0
     putText name
@@ -239,21 +244,27 @@ putReference r = case r of
   _ -> error "unpossible"
 
 getReference :: MonadGet m => m Reference
-getReference = do
+getReference = getReferenceH getHash
+
+getReferenceH :: MonadGet m => m h -> m (ReferenceH h)
+getReferenceH getHash = do
   tag <- getWord8
   case tag of
     0 -> Reference.Builtin <$> getText
-    1 -> Reference.DerivedId <$> (Reference.Id <$> getHash <*> getLength <*> getLength)
+    1 -> Reference.DerivedId <$> (Reference.IdH <$> getHash <*> getLength <*> getLength)
     _ -> unknownTag "Reference" tag
 
 putReferent :: MonadPut m => Referent -> m ()
-putReferent = \case
+putReferent = putReferentH putHash
+
+putReferentH :: MonadPut m => (h -> m ()) -> ReferentH h -> m ()
+putReferentH putHash = \case
   Referent.Ref r -> do
     putWord8 0
-    putReference r
+    putReferenceH putHash r
   Referent.Con r i ct -> do
     putWord8 1
-    putReference r
+    putReferenceH putHash r
     putLength i
     putConstructorType ct
 
@@ -263,11 +274,14 @@ putConstructorType = \case
   CT.Effect -> putWord8 1
 
 getReferent :: MonadGet m => m Referent
-getReferent = do
+getReferent = getReferentH getHash
+
+getReferentH :: MonadGet m => m h -> m (ReferentH h)
+getReferentH getHash = do
   tag <- getWord8
   case tag of
-    0 -> Referent.Ref <$> getReference
-    1 -> Referent.Con <$> getReference <*> getLength <*> getConstructorType
+    0 -> Referent.Ref <$> getReferenceH getHash
+    1 -> Referent.Con <$> getReferenceH getHash <*> getLength <*> getConstructorType
     _ -> unknownTag "getReferent" tag
 
 getConstructorType :: MonadGet m => m CT.ConstructorType
@@ -291,7 +305,6 @@ putFoldable
 putFoldable putA as = do
   putLength (length as)
   traverse_ putA as
-
 
 -- putFoldableN
 --   :: forall f m n a
@@ -372,9 +385,15 @@ putType :: (MonadPut m, Ord v)
         => (v -> m ()) -> (a -> m ())
         -> Type v a
         -> m ()
-putType putVar putA = putABT putVar putA go where
+putType = putTypeH putHash
+
+putTypeH :: (MonadPut m, Ord v)
+        => (h -> m ()) -> (v -> m ()) -> (a -> m ())
+        -> TypeH h v a
+        -> m ()
+putTypeH putHash putVar putA = putABT putVar putA go where
   go putChild t = case t of
-    Type.Ref r       -> putWord8 0 *> putReference r
+    Type.Ref r       -> putWord8 0 *> putReferenceH putHash r
     Type.Arrow i o   -> putWord8 1 *> putChild i *> putChild o
     Type.Ann t k     -> putWord8 2 *> putChild t *> putKind k
     Type.App f x     -> putWord8 3 *> putChild f *> putChild x
@@ -385,9 +404,13 @@ putType putVar putA = putABT putVar putA go where
 
 getType :: (MonadGet m, Ord v)
         => m v -> m a -> m (Type v a)
-getType getVar getA = getABT getVar getA go where
+getType = getTypeH getHash
+
+getTypeH :: (MonadGet m, Ord v)
+        => m h -> m v -> m a -> m (TypeH h v a)
+getTypeH getHash getVar getA = getABT getVar getA go where
   go getChild = getWord8 >>= \tag -> case tag of
-    0 -> Type.Ref <$> getReference
+    0 -> Type.Ref <$> getReferenceH getHash
     1 -> Type.Arrow <$> getChild <*> getChild
     2 -> Type.Ann <$> getChild <*> getKind
     3 -> Type.App <$> getChild <*> getChild
@@ -403,8 +426,11 @@ putSymbol (Symbol id typ) = putLength id *> putText (Var.rawName typ)
 getSymbol :: MonadGet m => m Symbol
 getSymbol = Symbol <$> getLength <*> (Var.User <$> getText)
 
-putPattern :: MonadPut m => (a -> m ()) -> Pattern a -> m ()
-putPattern putA p = case p of
+putPattern :: MonadPut m => (a -> m ()) -> PatternP a -> m ()
+putPattern = putPatternH putHash
+
+putPatternH :: MonadPut m => (h -> m ()) -> (a -> m ()) -> PatternH h a -> m ()
+putPatternH putH putA p = case p of
   Pattern.UnboundP a   -> putWord8 0 *> putA a
   Pattern.VarP     a   -> putWord8 1 *> putA a
   Pattern.BooleanP a b -> putWord8 2 *> putA a *> putBoolean b
@@ -414,26 +440,26 @@ putPattern putA p = case p of
   Pattern.ConstructorP a r cid ps ->
     putWord8 6
       *> putA a
-      *> putReference r
+      *> putReferenceH putH r
       *> putLength cid
-      *> putFoldable (putPattern putA) ps
-  Pattern.AsP         a p -> putWord8 7 *> putA a *> putPattern putA p
-  Pattern.EffectPureP a p -> putWord8 8 *> putA a *> putPattern putA p
+      *> putFoldable (putPatternH putH putA) ps
+  Pattern.AsP         a p -> putWord8 7 *> putA a *> putPatternH putH putA p
+  Pattern.EffectPureP a p -> putWord8 8 *> putA a *> putPatternH putH putA p
   Pattern.EffectBindP a r cid args k ->
     putWord8 9
       *> putA a
-      *> putReference r
+      *> putReferenceH putH r
       *> putLength cid
-      *> putFoldable (putPattern putA) args
-      *> putPattern putA k
+      *> putFoldable (putPatternH putH putA) args
+      *> putPatternH putH putA k
   Pattern.SequenceLiteralP a ps ->
-    putWord8 10 *> putA a *> putFoldable (putPattern putA) ps
+    putWord8 10 *> putA a *> putFoldable (putPatternH putH putA) ps
   Pattern.SequenceOpP a l op r ->
     putWord8 11
       *> putA a
-      *> putPattern putA l
+      *> putPatternH putH putA l
       *> putSeqOp op
-      *> putPattern putA r
+      *> putPatternH putH putA r
   Pattern.TextP a t -> putWord8 12 *> putA a *> putText t
   Pattern.CharP a c -> putWord8 13 *> putA a *> putChar c
 
@@ -449,32 +475,35 @@ getSeqOp = getWord8 >>= \case
   2   -> pure Pattern.Concat
   tag -> unknownTag "SeqOp" tag
 
-getPattern :: MonadGet m => m a -> m (Pattern a)
-getPattern getA = getWord8 >>= \tag -> case tag of
+getPattern :: MonadGet m => m a -> m (PatternP a)
+getPattern = getPatternH getHash
+
+getPatternH :: MonadGet m => m h -> m a -> m (PatternH h a)
+getPatternH getH getA = getWord8 >>= \tag -> case tag of
   0 -> Pattern.UnboundP <$> getA
   1 -> Pattern.VarP <$> getA
   2 -> Pattern.BooleanP <$> getA <*> getBoolean
   3 -> Pattern.IntP <$> getA <*> getInt
   4 -> Pattern.NatP <$> getA <*> getNat
   5 -> Pattern.FloatP <$> getA <*> getFloat
-  6 -> Pattern.ConstructorP <$> getA <*> getReference <*> getLength <*> getList
-    (getPattern getA)
-  7 -> Pattern.AsP <$> getA <*> getPattern getA
-  8 -> Pattern.EffectPureP <$> getA <*> getPattern getA
+  6 -> Pattern.ConstructorP <$> getA <*> getReferenceH getH <*> getLength <*> getList
+    (getPatternH getH getA)
+  7 -> Pattern.AsP <$> getA <*> getPatternH getH getA
+  8 -> Pattern.EffectPureP <$> getA <*> getPatternH getH getA
   9 ->
     Pattern.EffectBindP
       <$> getA
-      <*> getReference
+      <*> getReferenceH getH
       <*> getLength
-      <*> getList (getPattern getA)
-      <*> getPattern getA
-  10 -> Pattern.SequenceLiteralP <$> getA <*> getList (getPattern getA)
+      <*> getList (getPatternH getH getA)
+      <*> getPatternH getH getA
+  10 -> Pattern.SequenceLiteralP <$> getA <*> getList (getPatternH getH getA)
   11 ->
     Pattern.SequenceOpP
       <$> getA
-      <*> getPattern getA
+      <*> getPatternH getH getA
       <*> getSeqOp
-      <*> getPattern getA
+      <*> getPatternH getH getA
   12 -> Pattern.TextP <$> getA <*> getText
   13 -> Pattern.CharP <$> getA <*> getChar
   _ -> unknownTag "Pattern" tag
@@ -483,7 +512,13 @@ putTerm :: (MonadPut m, Ord v)
         => (v -> m ()) -> (a -> m ())
         -> Term v a
         -> m ()
-putTerm putVar putA = putABT putVar putA go where
+putTerm = putTermH putHash
+
+putTermH :: (MonadPut m, Ord v)
+        => (h -> m ()) -> (v -> m ()) -> (a -> m ())
+        -> TermH h v a
+        -> m ()
+putTermH putHash putVar putA = putABT putVar putA go where
   go putChild t = case t of
     Term.Int n
       -> putWord8 0 *> putInt n
@@ -498,17 +533,17 @@ putTerm putVar putA = putABT putVar putA go where
     Term.Blank _
       -> error "can't serialize term with blanks"
     Term.Ref r
-      -> putWord8 5 *> putReference r
+      -> putWord8 5 *> putReferenceH putHash r
     Term.Constructor r cid
-      -> putWord8 6 *> putReference r *> putLength cid
+      -> putWord8 6 *> putReferenceH putHash r *> putLength cid
     Term.Request r cid
-      -> putWord8 7 *> putReference r *> putLength cid
+      -> putWord8 7 *> putReferenceH putHash r *> putLength cid
     Term.Handle h a
       -> putWord8 8 *> putChild h *> putChild a
     Term.App f arg
       -> putWord8 9 *> putChild f *> putChild arg
     Term.Ann e t
-      -> putWord8 10 *> putChild e *> putType putVar putA t
+      -> putWord8 10 *> putChild e *> putTypeH putHash putVar putA t
     Term.Sequence vs
       -> putWord8 11 *> putFoldable putChild vs
     Term.If cond t f
@@ -528,9 +563,9 @@ putTerm putVar putA = putABT putVar putA go where
     Term.Char c
       -> putWord8 19 *> putChar c
     Term.TermLink r
-      -> putWord8 20 *> putReferent r
+      -> putWord8 20 *> putReferentH putHash r
     Term.TypeLink r
-      -> putWord8 21 *> putReference r
+      -> putWord8 21 *> putReferenceH putHash r
 
   putMatchCase :: MonadPut m => (a -> m ()) -> (x -> m ()) -> Term.MatchCase a x -> m ()
   putMatchCase putA putChild (Term.MatchCase pat guard body) =
@@ -538,19 +573,23 @@ putTerm putVar putA = putABT putVar putA go where
 
 getTerm :: (MonadGet m, Ord v)
         => m v -> m a -> m (Term v a)
-getTerm getVar getA = getABT getVar getA go where
+getTerm = getTermH getHash
+
+getTermH :: (MonadGet m, Ord v)
+        => m h -> m v -> m a -> m (TermH h v a)
+getTermH getHash getVar getA = getABT getVar getA go where
   go getChild = getWord8 >>= \tag -> case tag of
     0 -> Term.Int <$> getInt
     1 -> Term.Nat <$> getNat
     2 -> Term.Float <$> getFloat
     3 -> Term.Boolean <$> getBoolean
     4 -> Term.Text <$> getText
-    5 -> Term.Ref <$> getReference
-    6 -> Term.Constructor <$> getReference <*> getLength
-    7 -> Term.Request <$> getReference <*> getLength
+    5 -> Term.Ref <$> getReferenceH getHash
+    6 -> Term.Constructor <$> getReferenceH getHash <*> getLength
+    7 -> Term.Request <$> getReferenceH getHash <*> getLength
     8 -> Term.Handle <$> getChild <*> getChild
     9 -> Term.App <$> getChild <*> getChild
-    10 -> Term.Ann <$> getChild <*> getType getVar getA
+    10 -> Term.Ann <$> getChild <*> getTypeH getHash getVar getA
     11 -> Term.Sequence . Sequence.fromList <$> getList getChild
     12 -> Term.If <$> getChild <*> getChild <*> getChild
     13 -> Term.And <$> getChild <*> getChild
@@ -561,8 +600,8 @@ getTerm getVar getA = getABT getVar getA go where
     18 -> Term.Match <$> getChild
                      <*> getList (Term.MatchCase <$> getPattern getA <*> getMaybe getChild <*> getChild)
     19 -> Term.Char <$> getChar
-    20 -> Term.TermLink <$> getReferent
-    21 -> Term.TypeLink <$> getReference
+    20 -> Term.TermLink <$> getReferentH getHash
+    21 -> Term.TypeLink <$> getReferenceH getHash
     _ -> unknownTag "getTerm" tag
 
 putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()
@@ -604,16 +643,22 @@ getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
 getMap getA getB = Map.fromList <$> getList (getPair getA getB)
 
 putTermEdit :: MonadPut m => TermEdit -> m ()
-putTermEdit (TermEdit.Replace r typing) =
-  putWord8 1 *> putReference r *> case typing of
+putTermEdit = putTermEditH putHash
+
+putTermEditH :: MonadPut m => (h -> m ()) -> TermEditH h -> m ()
+putTermEditH putH (TermEdit.Replace r typing) =
+  putWord8 1 *> putReferenceH putH r *> case typing of
     TermEdit.Same -> putWord8 1
     TermEdit.Subtype -> putWord8 2
     TermEdit.Different -> putWord8 3
-putTermEdit TermEdit.Deprecate = putWord8 2
+putTermEditH _putH TermEdit.Deprecate = putWord8 2
 
 getTermEdit :: MonadGet m => m TermEdit
-getTermEdit = getWord8 >>= \case
-  1 -> TermEdit.Replace <$> getReference <*> (getWord8 >>= \case
+getTermEdit = getTermEditH getHash
+
+getTermEditH :: MonadGet m => m h -> m (TermEditH h)
+getTermEditH getH = getWord8 >>= \case
+  1 -> TermEdit.Replace <$> getReferenceH getH <*> (getWord8 >>= \case
     1 -> pure TermEdit.Same
     2 -> pure TermEdit.Subtype
     3 -> pure TermEdit.Different
@@ -623,12 +668,18 @@ getTermEdit = getWord8 >>= \case
   t -> unknownTag "TermEdit" t
 
 putTypeEdit :: MonadPut m => TypeEdit -> m ()
-putTypeEdit (TypeEdit.Replace r) = putWord8 1 *> putReference r
-putTypeEdit TypeEdit.Deprecate = putWord8 2
+putTypeEdit = putTypeEditH putHash
+
+putTypeEditH :: MonadPut m => (h -> m ()) -> TypeEditH h -> m ()
+putTypeEditH putH (TypeEdit.Replace r) = putWord8 1 *> putReferenceH putH r
+putTypeEditH _putH TypeEdit.Deprecate = putWord8 2
 
 getTypeEdit :: MonadGet m => m TypeEdit
-getTypeEdit = getWord8 >>= \case
-  1 -> TypeEdit.Replace <$> getReference
+getTypeEdit = getTypeEditH getHash
+
+getTypeEditH :: MonadGet m => m h -> m (TypeEditH h)
+getTypeEditH getH = getWord8 >>= \case
+  1 -> TypeEdit.Replace <$> getReferenceH getH
   2 -> pure TypeEdit.Deprecate
   t -> unknownTag "TypeEdit" t
 
@@ -757,18 +808,27 @@ putDataDeclaration :: (MonadPut m, Ord v)
                    => (v -> m ()) -> (a -> m ())
                    -> DataDeclaration' v a
                    -> m ()
-putDataDeclaration putV putA decl = do
+putDataDeclaration = putDataDeclarationH putHash
+
+putDataDeclarationH :: (MonadPut m, Ord v)
+                    => (h -> m ()) -> (v -> m ()) -> (a -> m ())
+                    -> DataDeclarationH h v a
+                    -> m ()
+putDataDeclarationH putH putV putA decl = do
   putModifier $ DataDeclaration.modifier decl
   putA $ DataDeclaration.annotation decl
   putFoldable putV (DataDeclaration.bound decl)
-  putFoldable (putTuple3' putA putV (putType putV putA)) (DataDeclaration.constructors' decl)
+  putFoldable (putTuple3' putA putV (putTypeH putH putV putA)) (DataDeclaration.constructors' decl)
 
 getDataDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (DataDeclaration' v a)
-getDataDeclaration getV getA = DataDeclaration.DataDeclaration <$>
+getDataDeclaration = getDataDeclarationH getHash
+
+getDataDeclarationH :: (MonadGet m, Ord v) => m h -> m v -> m a -> m (DataDeclarationH h v a)
+getDataDeclarationH getH getV getA = DataDeclaration.DataDeclaration <$>
   getModifier <*>
   getA <*>
   getList getV <*>
-  getList (getTuple3 getA getV (getType getV getA))
+  getList (getTuple3 getA getV (getTypeH getH getV getA))
 
 putModifier :: MonadPut m => DataDeclaration.Modifier -> m ()
 putModifier DataDeclaration.Structural   = putWord8 0
@@ -803,10 +863,19 @@ formatSymbol :: S.Format Symbol
 formatSymbol = S.Format getSymbol putSymbol
 
 putEdits :: MonadPut m => Patch -> m ()
-putEdits edits =
-  putRelation putReference putTermEdit (Patch._termEdits edits) >>
-  putRelation putReference putTypeEdit (Patch._typeEdits edits)
+putEdits = putEditsH putHash
+
+putEditsH :: MonadPut m => (h -> m ()) -> PatchH h -> m ()
+putEditsH putH edits =
+  putRelation (putReferenceH putH) (putTermEditH putH) (Patch._termEdits edits) >>
+  putRelation (putReferenceH putH) (putTypeEditH putH) (Patch._typeEdits edits)
 
 getEdits :: MonadGet m => m Patch
-getEdits = Patch <$> getRelation getReference getTermEdit
-                 <*> getRelation getReference getTypeEdit
+getEdits = getEditsH getHash
+
+getEditsH :: (MonadGet m, Ord h) => m h -> m (PatchH h)
+getEditsH getH =
+  Patch <$> getRelation (getReferenceH getH) (getTermEditH getH)
+        <*> getRelation (getReferenceH getH) (getTypeEditH getH)
+
+

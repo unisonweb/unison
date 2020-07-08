@@ -8,6 +8,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Type where
@@ -25,7 +26,7 @@ import qualified Unison.ABT as ABT
 import           Unison.Hashable (Hashable1)
 import qualified Unison.Hashable as Hashable
 import qualified Unison.Kind as K
-import           Unison.Reference (Reference)
+import           Unison.Reference (Reference, ReferenceH)
 import qualified Unison.Reference as Reference
 import qualified Unison.Reference.Util as ReferenceUtil
 import           Unison.Var (Var)
@@ -35,10 +36,11 @@ import qualified Unison.Util.Relation as R
 import qualified Unison.Names3 as Names
 import qualified Unison.Name as Name
 import qualified Unison.Util.List as List
+import           Unison.Hash (Hash)
 
 -- | Base functor for types in the Unison language
-data F a
-  = Ref Reference
+data F h a
+  = Ref (ReferenceH h)
   | Arrow a a
   | Ann a K.Kind
   | App a a
@@ -50,12 +52,24 @@ data F a
                  -- variables
   deriving (Foldable,Functor,Generic,Generic1,Eq,Ord,Traversable)
 
-instance Eq1 F where (==#) = (==)
-instance Ord1 F where compare1 = compare
-instance Show1 F where showsPrec1 = showsPrec
+instance Eq h => Eq1 (F h) where (==#) = (==)
+instance Ord1 (F Hash) where compare1 = compare
+instance Show (ReferenceH h) => Show1 (F h) where showsPrec1 = showsPrec
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
-type Type v a = ABT.Term F v a
+type Type v a = ABT.Term (F Hash) v a
+type TypeH h v a = ABT.Term (F h) v a
+
+hmap :: (h1 -> h2) -> TypeH h1 v a -> TypeH h2 v a
+hmap hf = ABT.extraMap $ \case
+  Ref r -> Ref $ Reference.hmap hf r
+  Arrow x y -> Arrow x y
+  Ann x y -> Ann x y
+  App x y -> App x y
+  Effect x y -> Effect x y
+  Effects xs -> Effects xs
+  Forall x -> Forall x
+  IntroOuter x -> IntroOuter x
 
 wrapV :: Ord v => Type v a -> Type (ABT.V v) a
 wrapV = ABT.vmap ABT.Bound
@@ -211,7 +225,7 @@ derivedBase32Hex r a = ref a r
 -- derivedBase58' :: Text -> Reference
 -- derivedBase58' base58 = Reference.derivedBase58 base58 0 1
 
-intRef, natRef, floatRef, booleanRef, textRef, charRef, vectorRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: Reference
+intRef, natRef, floatRef, booleanRef, textRef, charRef, vectorRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: ReferenceH h
 intRef = Reference.Builtin "Int"
 natRef = Reference.Builtin "Nat"
 floatRef = Reference.Builtin "Float"
@@ -585,7 +599,7 @@ hashComponents
   :: Var v => Map v (Type v a) -> Map v (Reference.Id, Type v a)
 hashComponents = ReferenceUtil.hashComponents $ refId ()
 
-instance Hashable1 F where
+instance Hashable1 (F Hash) where
   hash1 hashCycle hash e =
     let
       (tag, hashed) = (Hashable.Tag, Hashable.Hashed)
@@ -607,7 +621,7 @@ instance Hashable1 F where
       Forall a -> [tag 6, hashed (hash a)]
       IntroOuter a -> [tag 7, hashed (hash a)]
 
-instance Show a => Show (F a) where
+instance (Show (ReferenceH h), Show a) => Show (F h a) where
   showsPrec = go where
     go _ (Ref r) = shows r
     go p (Arrow i o) =
@@ -628,4 +642,3 @@ instance Show a => Show (F a) where
       _ -> showParen True $ s"outer " <> shows body
     (<>) = (.)
     s = showString
-

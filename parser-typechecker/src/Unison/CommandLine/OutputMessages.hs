@@ -42,7 +42,7 @@ import qualified Unison.UnisonFile             as UF
 import           Unison.Codebase.GitError
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Patch         as Patch
-import           Unison.Codebase.Patch         (Patch(..))
+import           Unison.Codebase.Patch         (Patch, PatchH(..))
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit

@@ -1,6 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Unison.Codebase.Patch where
 
@@ -10,32 +12,37 @@ import           Prelude                  hiding (head,read,subtract)
 
 import           Control.Lens            hiding ( children, cons, transform )
 import qualified Data.Set                      as Set
-import           Unison.Codebase.TermEdit       ( TermEdit, Typing(Same) )
+import           Unison.Codebase.TermEdit       ( TermEdit, TermEditH, Typing(Same) )
 import qualified Unison.Codebase.TermEdit      as TermEdit
-import           Unison.Codebase.TypeEdit       ( TypeEdit )
+import           Unison.Codebase.TypeEdit       ( TypeEdit, TypeEditH )
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
+import           Unison.Hash                    ( Hash )
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
-import           Unison.Reference               ( Reference )
+import           Unison.Reference               ( Reference, ReferenceH )
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation           ( Relation )
 import qualified Unison.LabeledDependency      as LD
 import           Unison.LabeledDependency       ( LabeledDependency )
 
-data Patch = Patch
-  { _termEdits :: Relation Reference TermEdit
-  , _typeEdits :: Relation Reference TypeEdit
-  } deriving (Eq, Ord, Show)
+type Patch = PatchH Hash
+data PatchH h = Patch
+  { _termEdits :: Relation (ReferenceH h) (TermEditH h)
+  , _typeEdits :: Relation (ReferenceH h) (TypeEditH h)
+  } deriving (Eq, Ord)
+deriving instance Show (ReferenceH h) => Show (PatchH h)
 
-data PatchDiff = PatchDiff
-  { _addedTermEdits :: Relation Reference TermEdit
-  , _addedTypeEdits :: Relation Reference TypeEdit
-  , _removedTermEdits :: Relation Reference TermEdit
-  , _removedTypeEdits :: Relation Reference TypeEdit
-  } deriving (Eq, Ord, Show)
+type PatchDiff = PatchDiffH Hash
+data PatchDiffH h = PatchDiff
+  { _addedTermEdits :: Relation (ReferenceH h) (TermEditH h)
+  , _addedTypeEdits :: Relation (ReferenceH h) (TypeEditH h)
+  , _removedTermEdits :: Relation (ReferenceH h) (TermEditH h)
+  , _removedTypeEdits :: Relation (ReferenceH h) (TypeEditH h)
+  } deriving (Eq, Ord)
+deriving instance Show (ReferenceH h) => Show (PatchDiffH h)
 
-makeLenses ''Patch
-makeLenses ''PatchDiff
+makeLenses ''PatchH
+makeLenses ''PatchDiffH
 
 diff :: Patch -> Patch -> PatchDiff
 diff new old = PatchDiff
