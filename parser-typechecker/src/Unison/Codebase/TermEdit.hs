@@ -1,14 +1,20 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
+
 module Unison.Codebase.TermEdit where
 
+import Unison.Hash (Hash)
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as H
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, ReferenceH)
 import qualified Unison.Typechecker as Typechecker
 import Unison.Type (Type)
 import Unison.Var (Var)
 
-data TermEdit = Replace Reference Typing | Deprecate
-  deriving (Eq, Ord, Show)
+type TermEdit = TermEditH Hash
+data TermEditH h = Replace (ReferenceH h) Typing | Deprecate
+  deriving (Eq, Ord)
+deriving instance Show (ReferenceH h) => Show (TermEditH h)
 
 references :: TermEdit -> [Reference]
 references (Replace r _) = [r]
@@ -29,7 +35,7 @@ instance Hashable TermEdit where
   tokens (Replace r t) = [H.Tag 0] ++ H.tokens r ++ H.tokens t
   tokens Deprecate = [H.Tag 1]
 
-toReference :: TermEdit -> Maybe Reference
+toReference :: TermEditH h -> Maybe (ReferenceH h)
 toReference (Replace r _) = Just r
 toReference Deprecate     = Nothing
 

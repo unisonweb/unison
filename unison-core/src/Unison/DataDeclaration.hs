@@ -7,6 +7,8 @@
 {-# Language PatternSynonyms #-}
 {-# Language TypeApplications #-}
 {-# Language ViewPatterns #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Unison.DataDeclaration where
 
@@ -28,13 +30,13 @@ import           Unison.Hashable                ( Accumulate
                                                 )
 import qualified Unison.Hashable               as Hashable
 import qualified Unison.Name                   as Name
-import           Unison.Reference               ( Reference )
+import           Unison.Reference               ( Reference, ReferenceH )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Reference.Util         as Reference.Util
 import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
 import           Unison.Term                    ( Term )
-import           Unison.Type                    ( Type )
+import           Unison.Type                    ( Type, TypeH )
 import qualified Unison.Type                   as Type
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
@@ -46,6 +48,7 @@ import qualified Unison.ConstructorType as CT
 type ConstructorId = Term.ConstructorId
 
 type DataDeclaration v = DataDeclaration' v ()
+type DataDeclaration' v a = DataDeclarationH Hash v a
 type Decl v a = Either (EffectDeclaration' v a) (DataDeclaration' v a)
 
 data DeclOrBuiltin v a =
@@ -66,12 +69,13 @@ constructorType = \case
 data Modifier = Structural | Unique Text -- | Opaque (Set Reference)
   deriving (Eq, Ord, Show)
 
-data DataDeclaration' v a = DataDeclaration {
+data DataDeclarationH h v a = DataDeclaration {
   modifier :: Modifier,
   annotation :: a,
   bound :: [v],
-  constructors' :: [(a, v, Type v a)]
-} deriving (Eq, Show, Functor)
+  constructors' :: [(a, v, TypeH h v a)]
+} deriving (Eq, Functor)
+deriving instance (Show (ReferenceH h), Show v, Show a) => Show (DataDeclarationH h v a)
 
 generateConstructorRefs
   :: (Reference -> ConstructorId -> Reference)
@@ -273,12 +277,15 @@ constructorArities :: DataDeclaration' v a -> [Int]
 constructorArities (DataDeclaration _ _a _bound ctors) =
   Type.arity . (\(_,_,t) -> t) <$> ctors
 
-data F a
-  = Type (Type.F Hash a)
+type F = FH Hash
+data FH h a
+  = Type (Type.F h a)
   | LetRec [a] a
   | Constructors [a]
   | Modified Modifier a
-  deriving (Functor, Foldable, Show, Show1)
+  deriving (Functor, Foldable)
+deriving instance (Show (ReferenceH h), Show a) => Show (FH h a)
+deriving instance Show (ReferenceH h) => Show1 (FH h)
 
 instance Hashable1 F where
   hash1 hashCycle hash e =

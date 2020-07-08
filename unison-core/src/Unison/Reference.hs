@@ -192,6 +192,8 @@ groupByComponent refs = done $ foldl' insert Map.empty refs
 instance Show Id where show = SH.toString . SH.take 5 . toShortHash . DerivedId
 instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
 
+-- To avoid accidentally saving non-canonical hashes, we only want
+-- `Hashable Reference` and not `Hashable h => Hashable (ReferenceH h)`
 instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]
   tokens (DerivedId (Id h i n)) = [Hashable.Tag 1, Hashable.Bytes (H.toBytes h), Hashable.Nat i, Hashable.Nat n]

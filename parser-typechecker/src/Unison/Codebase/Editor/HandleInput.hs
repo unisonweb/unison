@@ -64,7 +64,7 @@ import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
 import qualified Unison.Codebase.Causal        as Causal
 import qualified Unison.Codebase.Metadata      as Metadata
-import           Unison.Codebase.Patch          ( Patch(..) )
+import           Unison.Codebase.Patch          ( Patch )
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Path           ( Path
                                                 , Path'(..) )
@@ -106,7 +106,7 @@ import           Unison.Util.TransitiveClosure  (transitiveClosure)
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.TypeEdit as TypeEdit
-import Unison.Codebase.TermEdit (TermEdit(..))
+import Unison.Codebase.TermEdit (TermEditH(..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE

@@ -225,7 +225,7 @@ derivedBase32Hex r a = ref a r
 -- derivedBase58' :: Text -> Reference
 -- derivedBase58' base58 = Reference.derivedBase58 base58 0 1
 
-intRef, natRef, floatRef, booleanRef, textRef, charRef, vectorRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: Reference
+intRef, natRef, floatRef, booleanRef, textRef, charRef, vectorRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: ReferenceH h
 intRef = Reference.Builtin "Int"
 natRef = Reference.Builtin "Nat"
 floatRef = Reference.Builtin "Float"

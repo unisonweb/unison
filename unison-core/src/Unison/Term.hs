@@ -221,6 +221,9 @@ typeMap f = go
     -- otherwise we'd have to manually match on every non-`Ann` ctor
     ABT.Tm    ts        -> unsafeCoerce $ ABT.Tm (fmap go ts)
 
+hmap :: Ord vt => (h -> h') -> Term2H h vt at ap v a -> Term2H h' vt at ap v a
+hmap hf = extraMap' hf id id id
+
 extraMap'
   :: (Ord vt, Ord vt')
   => (h -> h')
