@@ -16,7 +16,7 @@ import Control.Lens ((<&>))
 import Control.Monad.State (State, state, runState, modify)
 
 import Data.List (splitAt, findIndex, transpose)
-import Data.Maybe (catMaybes, fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe, isNothing)
 
 import Data.Set as Set (Set, insert, fromList, member)
 
@@ -134,6 +134,64 @@ matchBuiltin (CharP _ c) = Just $ CharP () c
 matchBuiltin (FloatP _ d) = Just $ FloatP () d
 matchBuiltin _ = Nothing
 
+data SeqMatch = E | C | S | L Int | R Int
+
+seqPSize :: PatternV v -> Maybe Int
+seqPSize (SequenceLiteralP _ l) = Just $ length l
+seqPSize (SequenceOpP _ _ Cons r) = (1+) <$> seqPSize r
+seqPSize (SequenceOpP _ l Snoc _) = (1+) <$> seqPSize l
+seqPSize (SequenceOpP _ l Concat r) = (+) <$> seqPSize l <*> seqPSize r
+seqPSize _ = Nothing
+
+decideSeqPat :: [PatternV v] -> [SeqMatch]
+decideSeqPat [] = [E,C]
+decideSeqPat (SequenceLiteralP{} : ps) = decideSeqPat ps
+decideSeqPat (SequenceOpP _ _ Snoc _ : _) = [E,S]
+decideSeqPat (SequenceOpP _ _ Cons _ : _) = [E,C]
+decideSeqPat (SequenceOpP _ l Concat r : _)
+  | Just n <- seqPSize l = [L n]
+  | Just n <- seqPSize r = [R n]
+decideSeqPat (p:_)
+  = error $ "Cannot process sequence pattern: " ++ show p
+
+decomposeSeqP :: SeqMatch -> PatternV v -> Maybe [PatternV v]
+decomposeSeqP E (SequenceLiteralP _ []) = Just []
+decomposeSeqP E (VarP _) = Just []
+decomposeSeqP E (UnboundP _) = Just []
+decomposeSeqP C (SequenceOpP _ l Cons r) = Just [l,r]
+decomposeSeqP C (SequenceLiteralP u (p:ps))
+  | length ps > 0
+  = Just [p, SequenceLiteralP u ps]
+decomposeSeqP C (VarP u) = Just $ UnboundP <$> [u,u]
+decomposeSeqP C (UnboundP u) = Just $ UnboundP <$> [u,u]
+decomposeSeqP S (SequenceOpP _ l Snoc r) = Just [l,r]
+decomposeSeqP S (SequenceLiteralP u ps)
+  | length ps > 0
+  = Just [SequenceLiteralP u (init ps), last ps]
+decomposeSeqP S (VarP u) = Just $ UnboundP <$> [u,u]
+decomposeSeqP S (UnboundP u) = Just $ UnboundP <$> [u,u]
+decomposeSeqP (L n) (SequenceOpP _ l Concat r)
+  | Just m <- seqPSize l
+  , n == m
+  = Just [l,r]
+decomposeSeqP (L n) (SequenceLiteralP u ps)
+  | (pl, pr) <- splitAt n ps
+  , length pl == n
+  = Just $ SequenceLiteralP u <$> [pl,pr]
+decomposeSeqP (L _) (VarP u) = Just $ UnboundP <$> [u,u]
+decomposeSeqP (L _) (UnboundP u) = Just $ UnboundP <$> [u,u]
+decomposeSeqP (R n) (SequenceOpP _ l Concat r)
+  | Just m <- seqPSize r
+  , n == m
+  = Just [l,r]
+decomposeSeqP (R n) (SequenceLiteralP u ps)
+  | length ps >= n
+  , (pl, pr) <- splitAt (length ps - n) ps
+  = Just $ SequenceLiteralP u <$> [pl,pr]
+decomposeSeqP (R _) (VarP u) = Just $ UnboundP <$> [u,u]
+decomposeSeqP (R _) (UnboundP u) = Just $ UnboundP <$> [u,u]
+decomposeSeqP _ _ = Nothing
+
 splitRow
   :: Var v
   => Int
@@ -155,6 +213,16 @@ splitRowBuiltin i (PR (splitAt i -> (pl, sp : pr)) g b)
   | Just p <- matchBuiltin sp = [(p, [([], PR (pl ++ pr) g b)])]
   | otherwise = []
 splitRowBuiltin _ _ = error "splitRowBuiltin: bad index"
+
+splitRowSeq
+  :: Var v
+  => Int
+  -> SeqMatch
+  -> PatternRow v
+  -> [([PatternV v], PatternRow v)]
+splitRowSeq i m (PR (splitAt i -> (pl, sp : pr)) g b)
+  | Just sps <- decomposeSeqP m sp = [(sps, PR (pl ++ sps ++ pr) g b)]
+splitRowSeq _ _ _ = []
 
 renameRow :: Var v => Map v v -> PatternRow v -> PatternRow v
 renameRow m (PR p0 g0 b0) = PR p g b
@@ -189,6 +257,41 @@ splitMatrixBuiltin i (PM rs)
   . fmap buildMatrix
   . fromListWith (++)
   $ splitRowBuiltin i =<< rs
+
+defaultRowSeq
+  :: Var v
+  => Int
+  -> [SeqMatch]
+  -> PatternRow v
+  -> Bool
+defaultRowSeq i ms (PR (splitAt i -> (_, sp : _)) _ _)
+  = all (\m -> isNothing $ decomposeSeqP m sp) ms
+defaultRowSeq _ _ _ = False
+
+matchPattern :: SeqMatch -> PatternP ()
+matchPattern = \case
+    E -> sz 0
+    C -> SequenceOpP () (VarP ()) Cons (VarP ())
+    S -> SequenceOpP () (VarP ()) Snoc (VarP ())
+    L n -> SequenceOpP () (sz n) Concat (VarP ())
+    R n -> SequenceOpP () (VarP ()) Concat (sz n)
+  where sz n = SequenceLiteralP () . replicate n $ VarP ()
+
+splitMatrixSeq
+  :: Var v
+  => Int
+  -> PatternMatrix v
+  -> [(PatternP (), [(v,Reference)], PatternMatrix v)]
+splitMatrixSeq i (PM rs)
+  = cases ++ dflt
+  where
+  matches = decideSeqPat $ ((!!i)._pats) <$> rs
+  drs = filter (defaultRowSeq i matches) rs
+  dflt | null drs = []
+       | otherwise = [(UnboundP (), [], PM drs)]
+  cases = matches <&> \m ->
+    let (vrs, pm) = buildMatrix $ rs >>= splitRowSeq i m
+    in (matchPattern m, vrs, pm)
 
 splitMatrix
   :: Var v
@@ -270,7 +373,10 @@ compile spec scs m@(PM (r:rs))
   | (scsl, (scrut,r) : scsr) <- splitAt i scs
   , r `member` builtinCase
   = match () (var () scrut)
-      $ buildCaseBuiltin spec scsl scsr <$> splitMatrixBuiltin i m
+      $ buildCaseBuiltin spec scsl scsr
+     <$> (if r == Rf.vectorRef
+          then splitMatrixSeq
+          else splitMatrixBuiltin) i m
   | (scsl, (scrut,r) : scsr) <- splitAt i scs
   = case Map.lookup r spec of
       Just cons ->
@@ -365,6 +471,7 @@ builtinCase
   , Rf.floatRef
   , Rf.textRef
   , Rf.charRef
+  , Rf.vectorRef
   ]
 
 defaultRef :: Reference
