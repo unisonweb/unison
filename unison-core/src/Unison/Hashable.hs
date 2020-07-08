@@ -24,8 +24,9 @@ class Accumulate h where
 accumulateToken :: (Accumulate h, Hashable t) => t -> Token h
 accumulateToken = Hashed . accumulate'
 
-accumulate' :: (Accumulate h, Hashable t) => t -> h
+accumulate', hash :: (Accumulate h, Hashable t) => t -> h
 accumulate' = accumulate . tokens
+hash = accumulate'
 
 class Hashable t where
   tokens :: Accumulate h => t -> [Token h]

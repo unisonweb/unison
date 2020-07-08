@@ -16,6 +16,7 @@ CREATE INDEX hash_base32 ON hash(base32);
 CREATE TABLE hash_object (
   id INTEGER PRIMARY KEY,
   -- hashes are UNIQUE; many hashes correspond to one object
+  -- (causal nodes are not considered objects atm)
   hash_id INTEGER UNIQUE NOT NULL REFERENCES hash(id),
   object_id INTEGER NOT NULL REFERENCES object(id),
   hash_version INTEGER NOT NULL

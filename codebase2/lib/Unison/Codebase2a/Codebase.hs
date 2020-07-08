@@ -1,8 +1,10 @@
 module Unison.Codebase2a.Codebase where
 
-
--- newtype CausalHash h = CausalHash Hash
--- newtype ValueHash h = ValueHash Hash
+--import Unison.Hash (Hash)
+--
+--
+--newtype CausalHash h = CausalHash Hash
+--newtype ValueHash h = ValueHash Hash
 --
 -- -- Causal doesn't necessarily pre-load anything other than some hashes.
 -- data Causal m h e = Causal {
@@ -97,13 +99,14 @@ module Unison.Codebase2a.Codebase where
 --   -- patchDependencies :: EditHash -> m (Set Reference, Set Reference)
 -- }
 --
--- data Causal.Raw e = Causal.Raw
---   { valueHash :: Hash e
---   , parents :: [Hash (Causal.Raw e)]
---   }
+
+--data RawCausal e = RawCausal
+--  { valueHash :: ValueHash e
+--  , parents :: [CausalHash e]
+--  }
 --
--- -- data Branch.Raw
--- --   = Full [Hash Term] [Hash Type] ...
--- --   | Delta { reference :: Hash Branch.Raw, ... }
---
+--data RawBranch
+--  = RawBranchFull [Hash Term] [Hash Type] ...
+--  | Delta { reference :: Hash Branch.Raw, ... }
+
 -- sources :: Relation Hash RemoteRepo

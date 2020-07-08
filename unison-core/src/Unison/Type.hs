@@ -8,8 +8,8 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Unison.Type where
 
@@ -53,7 +53,7 @@ data F h a
   deriving (Foldable,Functor,Generic,Generic1,Eq,Ord,Traversable)
 
 instance Eq h => Eq1 (F h) where (==#) = (==)
-instance Ord1 (F Hash) where compare1 = compare
+instance Ord h => Ord1 (F h) where compare1 = compare
 instance Show (ReferenceH h) => Show1 (F h) where showsPrec1 = showsPrec
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
@@ -642,3 +642,4 @@ instance (Show (ReferenceH h), Show a) => Show (F h a) where
       _ -> showParen True $ s"outer " <> shows body
     (<>) = (.)
     s = showString
+

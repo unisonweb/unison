@@ -101,6 +101,11 @@ rawHead (RawOne e    ) = e
 rawHead (RawCons  e _) = e
 rawHead (RawMerge e _) = e
 
+rawTails :: Raw h e -> [RawHash h]
+rawTails (RawOne _)      = []
+rawTails (RawCons _ h)   = [h]
+rawTails (RawMerge _ hs) = toList hs
+
 -- Don't need to deserialize the `e` to calculate `before`.
 data Tails h
   = TailsOne

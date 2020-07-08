@@ -19,6 +19,8 @@ module Unison.Codebase.FileCodebase.Common
   , typeIndexDir'
   , typeMentionsIndexDir
   , typeMentionsIndexDir'
+  , termsDir
+  , typesDir
   , watchesDir
   -- paths (looking up one file)
   , branchPath
@@ -293,14 +295,14 @@ branchFromFiles cache rootDir h = time "FileCodebase.Common.branchFromFiles" $ d
       h
   else
     pure Nothing
- where
-  deserializeRawBranch
-    :: MonadIO m => CodebasePath -> Causal.Deserialize m Branch.Raw Branch.Raw
-  deserializeRawBranch root h = do
-    let ubf = branchPath root h
-    S.getFromFile' (V1.getCausal0 V1.getRawBranch) ubf >>= \case
-      Left  err -> failWith $ InvalidBranchFile ubf err
-      Right c0  -> pure c0
+
+deserializeRawBranch
+  :: MonadIO m => CodebasePath -> Causal.Deserialize m Branch.Raw Branch.Raw
+deserializeRawBranch root h = do
+  let ubf = branchPath root h
+  S.getFromFile' (V1.getCausal0 V1.getRawBranch) ubf >>= \case
+    Left  err -> failWith $ InvalidBranchFile ubf err
+    Right c0  -> pure c0
 
 deserializeEdits :: MonadIO m => CodebasePath -> Branch.EditHash -> m Patch
 deserializeEdits root h =

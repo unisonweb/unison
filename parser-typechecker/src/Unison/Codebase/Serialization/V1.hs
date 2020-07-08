@@ -258,13 +258,13 @@ putReferent :: MonadPut m => Referent -> m ()
 putReferent = putReferentH putHash
 
 putReferentH :: MonadPut m => (h -> m ()) -> ReferentH h -> m ()
-putReferentH putHash = \case
-  Referent.Ref r -> do
+putReferentH putH = \case
+  Referent.Ref' r -> do
     putWord8 0
-    putReferenceH putHash r
-  Referent.Con r i ct -> do
+    putReferenceH putH r
+  Referent.Con' r i ct -> do
     putWord8 1
-    putReferenceH putHash r
+    putReferenceH putH r
     putLength i
     putConstructorType ct
 
