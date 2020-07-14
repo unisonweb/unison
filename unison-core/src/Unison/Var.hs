@@ -56,6 +56,7 @@ rawName typ = case typ of
   ANFBlank -> "_anf"
   Float -> "_float"
   Pattern -> "_pattern"
+  Irrelevant -> "_irrelevant"
   UnnamedWatch k guid -> fromString k <> "." <> guid
 
 name :: Var v => v -> Text
@@ -113,6 +114,9 @@ data Type
   | Float
   -- An unnamed variable introduced from pattern compilation
   | Pattern
+  -- A variable for situations where we need to make up one that
+  -- definitely won't be used.
+  | Irrelevant
   deriving (Eq,Ord,Show)
 
 type WatchKind = String
