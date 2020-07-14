@@ -32,6 +32,7 @@ module Unison.Runtime.Stack
   , pokeOffN
   , peekOffS
   , pokeS
+  , pokeOffS
   , peekOffT
   , pokeT
   , uscount
@@ -485,6 +486,10 @@ peekOffS bstk i =
 pokeS :: Stack 'BX -> Seq Closure -> IO ()
 pokeS bstk s = poke bstk (Foreign $ Wrap Ty.vectorRef s)
 {-# inline pokeS #-}
+
+pokeOffS :: Stack 'BX -> Int -> Seq Closure -> IO ()
+pokeOffS bstk i s = pokeOff bstk i (Foreign $ Wrap Ty.vectorRef s)
+{-# inline pokeOffS #-}
 
 unull :: Seg 'UN
 unull = byteArrayFromListN 0 ([] :: [Int])

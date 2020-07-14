@@ -1115,6 +1115,7 @@ typeReferences
   [ Ty.natRef
   , Ty.optionalRef
   , Ty.unitRef
+  , Ty.pairRef
   , Ty.booleanRef
   , Ty.intRef
   , Ty.floatRef

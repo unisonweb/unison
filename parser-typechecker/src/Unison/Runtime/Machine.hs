@@ -1008,6 +1008,32 @@ bprim1 !ustk !bstk TTOF i
         poke ustk 1
         pokeOffD ustk 1 f
         pure (ustk, bstk)
+bprim1 !ustk !bstk VWLS i
+  = peekOffS bstk i >>= \case
+      Sq.Empty -> do
+        ustk <- bump ustk
+        poke ustk 0
+        pure (ustk, bstk)
+      x Sq.:<| xs -> do
+        ustk <- bump ustk
+        poke ustk 1
+        bstk <- bumpn bstk 2
+        pokeOffS bstk 1 xs
+        poke bstk x
+        pure (ustk, bstk)
+bprim1 !ustk !bstk VWRS i
+  = peekOffS bstk i >>= \case
+      Sq.Empty -> do
+        ustk <- bump ustk
+        poke ustk 0
+        pure (ustk, bstk)
+      xs Sq.:|> x -> do
+        ustk <- bump ustk
+        poke ustk 1
+        bstk <- bumpn bstk 2
+        pokeOff bstk 1 x
+        pokeS bstk xs
+        pure (ustk, bstk)
 bprim1 !_    !bstk THRO i
   = throwIO . BU =<< peekOff bstk i
 {-# inline bprim1 #-}
@@ -1101,6 +1127,36 @@ bprim2 !ustk !bstk IDXS i j = do
       bstk <- bump bstk
       poke bstk x
       pure (ustk, bstk)
+bprim2 !ustk !bstk SPLL i j = do
+  n <- peekOff ustk i
+  s <- peekOffS bstk j
+  if Sq.length s >= n then do
+    ustk <- bump ustk
+    poke ustk 0
+    pure (ustk, bstk)
+  else do
+    ustk <- bump ustk
+    poke ustk 1
+    bstk <- bumpn bstk 2
+    let (l,r) = Sq.splitAt n s
+    pokeOffS bstk 1 r
+    pokeS bstk l
+    pure (ustk, bstk)
+bprim2 !ustk !bstk SPLR i j = do
+  n <- peekOff ustk i
+  s <- peekOffS bstk j
+  if Sq.length s >= n then do
+    ustk <- bump ustk
+    poke ustk 0
+    pure (ustk, bstk)
+  else do
+    ustk <- bump ustk
+    poke ustk 1
+    bstk <- bumpn bstk 2
+    let (l,r) = Sq.splitAt (Sq.length s - n) s
+    pokeOffS bstk 1 r
+    pokeS bstk l
+    pure (ustk, bstk)
 bprim2 !ustk !bstk CMPU _ _ = pure (ustk, bstk) -- impossible
 {-# inline bprim2 #-}
 

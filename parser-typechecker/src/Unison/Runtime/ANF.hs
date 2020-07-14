@@ -89,7 +89,7 @@ import qualified Unison.Type as Ty
 import qualified Unison.Builtin.Decls as Ty (unitRef)
 import qualified Unison.Var as Var
 import Unison.Typechecker.Components (minimize')
-import Unison.Pattern (PatternP(..))
+import Unison.Pattern (PatternP(..), SeqOp(..))
 import Unison.Reference (Reference(..))
 import Unison.Referent (Referent)
 
@@ -633,6 +633,9 @@ pattern TBinds' ctx bd <- (unbinds' -> (ctx, bd))
 
 {-# complete TBinds' #-}
 
+data SeqEnd = SLeft | SRight
+  deriving (Eq, Ord, Enum, Show)
+
 data Branched e
   = MatchIntegral (EnumMap Word64 e) (Maybe e)
   | MatchText (Map.Map Text e) (Maybe e)
@@ -659,6 +662,16 @@ data BranchAccum v
       Reference
       (Maybe (ANormal v))
       (EnumMap CTag ([Mem],ANormal v))
+  | AccumSeqEmpty (ANormal v)
+  | AccumSeqView
+      SeqEnd
+      (Maybe (ANormal v)) -- empty
+      (ANormal v) -- cons/snoc
+  | AccumSeqSplit
+      SeqEnd
+      Int -- split at
+      (Maybe (ANormal v)) -- default
+      (ANormal v) -- split
 
 instance Semigroup (BranchAccum v) where
   AccumEmpty <> r = r
@@ -685,7 +698,32 @@ instance Semigroup (BranchAccum v) where
     = AccumRequest hm $ dl <|> dr
     where
     hm = EC.unionWith (<>) hl hr
-  _ <> _ = error "cannot merge data cases for different types"
+  l@(AccumSeqEmpty _) <> AccumSeqEmpty _ = l
+  AccumSeqEmpty eml <> AccumSeqView er _ cnr
+    = AccumSeqView er (Just eml) cnr
+  AccumSeqView el eml cnl <> AccumSeqEmpty emr
+    = AccumSeqView el (eml <|> Just emr) cnl
+  AccumSeqView el eml cnl <> AccumSeqView er emr _
+    | el /= er
+    = error "AccumSeqView: trying to merge views of opposite ends"
+    | otherwise = AccumSeqView el (eml <|> emr) cnl
+  AccumSeqView _ _ _ <> AccumDefault _
+    = error "seq views may not have defaults"
+  AccumDefault _ <> AccumSeqView _ _ _
+    = error "seq views may not have defaults"
+  AccumSeqSplit el nl dl bl <> AccumSeqSplit er nr dr _
+    | el /= er
+    = error "AccumSeqSplit: trying to merge splits at opposite ends"
+    | nl /= nr
+    = error
+        "AccumSeqSplit: trying to merge splits at different positions"
+    | otherwise
+    = AccumSeqSplit el nl (dl <|> dr) bl
+  AccumDefault dl <> AccumSeqSplit er nr _ br
+    = AccumSeqSplit er nr (Just dl) br
+  AccumSeqSplit el nl dl bl <> AccumDefault dr
+    = AccumSeqSplit el nl (dl <|> Just dr) bl
+  _ <> _ = error $ "cannot merge data cases for different types"
 
 instance Monoid (BranchAccum e) where
   mempty = AccumEmpty
@@ -754,6 +792,7 @@ data POp
   -- Sequence
   | CATS | TAKS | DRPS | SIZS -- ++,take,drop,size
   | CONS | SNOC | IDXS | BLDS -- cons,snoc,at,build
+  | VWLS | VWRS | SPLL | SPLR -- viewl,viewr,splitl,splitr
   -- Conversion
   | ITOF | NTOF | ITOT | NTOT
   | TTOI | TTON | TTOF | FTOT
@@ -836,8 +875,8 @@ contextualize tm = do
   avoid [fv]
   pure ([ST1 fv BX tm], fv)
 
-record :: (v, SuperNormal v) -> ANFM v ()
-record p = modify $ \(av, to) -> (av, p:to)
+record :: Var v => (v, SuperNormal v) -> ANFM v ()
+record p = modify $ \(av, to) -> (Set.insert (fst p) av, p:to)
 
 superNormalize
   :: Var v
@@ -955,6 +994,39 @@ anfBlock (Match' scrut cas) = do
       pure (sctx ++ cx, AMatch v dcs)
     AccumData r df cs ->
       pure (sctx ++ cx, AMatch v $ MatchData r cs df)
+    AccumSeqEmpty _ ->
+      error "anfBlock: non-exhaustive AccumSeqEmpty"
+    AccumSeqView en (Just em) bd -> fresh <&> \r ->
+        ( sctx ++ cx ++ [view r]
+        , AMatch r . MatchSum $ mapFromList
+        [ (0, ([], em))
+        , (1, ([BX,BX], bd))
+        ])
+      where
+      op | SLeft <- en = VWLS
+         | otherwise = VWRS
+      view r = ST1 r UN (APrm op [v])
+    AccumSeqView {} ->
+      error "anfBlock: non-exhaustive AccumSeqView"
+    AccumSeqSplit en n mdf bd -> do
+        i <- fresh
+        r <- fresh
+        t <- fresh
+        pure ( sctx ++ cx ++ [lit i, split i r]
+             , AMatch r . MatchSum $ mapFromList
+             [ (0, ([], df t))
+             , (1, ([BX,BX], bd))
+             ])
+      where
+      op | SLeft <- en = SPLL
+         | otherwise = SPLR
+      lit i = ST1 i UN (ALit . N $ fromIntegral n)
+      split i r = ST1 r UN (APrm op [i,v])
+      df t
+        = fromMaybe
+            ( TLet t BX (ALit (T "non-exhaustive split"))
+            $ TPrm EROR [t])
+            mdf
     AccumEmpty -> pure (sctx ++ cx, AMatch v MatchEmpty)
 anfBlock (Let1Named' v b e) = do
   avoid [v]
@@ -1047,6 +1119,26 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
        . TShift n kf
        . TName uk (Left jn) [kf]
       <$> anfTerm bd
+  | SequenceLiteralP _ [] <- p
+  = AccumSeqEmpty <$> anfTerm bd
+  | SequenceOpP _ l op r <- p
+  , Concat <- op
+  , SequenceLiteralP p ll <- l = do
+    us <- expandBindings [VarP p, r] vs
+    AccumSeqSplit SLeft (length ll) Nothing
+      . ABTN.TAbss us
+     <$> anfTerm bd
+  | SequenceOpP _ l op r <- p
+  , Concat <- op
+  , SequenceLiteralP p rl <- r = do
+    us <- expandBindings [l, VarP p] vs
+    AccumSeqSplit SLeft (length rl) Nothing
+      . ABTN.TAbss us
+     <$> anfTerm bd
+  | SequenceOpP _ l op r <- p = do
+    us <- expandBindings [l,r] vs
+    let dir = case op of Cons -> SLeft ; _ -> SRight
+    AccumSeqView dir Nothing . ABTN.TAbss us <$> anfTerm bd
 anfInitCase _ (MatchCase p _ _)
   = error $ "anfInitCase: unexpected pattern: " ++ show p
 
@@ -1268,7 +1360,10 @@ prettyBranches ind bs = case bs of
          foldr (\(c,e) -> prettyCase ind (prettyReq r c) e)
            s (mapToList $ snd <$> m))
          id (mapToList bs)
-  _ -> error "prettyBranches: todo"
+  MatchSum bs
+    -> foldr (uncurry $ prettyCase ind . shows) id
+         (mapToList $ snd <$> bs)
+  -- _ -> error "prettyBranches: todo"
   where
   prettyReq r c
     = showString "REQ("
