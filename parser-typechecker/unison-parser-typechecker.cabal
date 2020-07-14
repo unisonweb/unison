@@ -104,6 +104,7 @@ library
     Unison.Result
     Unison.Runtime.ANF
     Unison.Runtime.Builtin
+    Unison.Runtime.Debug
     Unison.Runtime.Decompile
     Unison.Runtime.Foreign
     Unison.Runtime.Interface
