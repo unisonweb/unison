@@ -9,8 +9,7 @@ module Unison.Runtime.Rt1IO where
 
 import Unison.Prelude
 
-import           Control.Exception              ( try
-                                                , throwIO
+import           Control.Exception              ( throwIO
                                                 , AsyncException(UserInterrupt)
                                                 , finally
                                                 , bracket
@@ -43,6 +42,7 @@ import           Data.GUID                      ( genText )
 import qualified Data.Map                      as Map
 import qualified Data.Sequence as Seq
 import           Data.Text                     as Text
+import qualified Data.Text.IO                  as TextIO
 import           Data.Time.Clock.POSIX         as Time
 import qualified Network.Simple.TCP            as Net
 import qualified Network.Socket                as Sock
@@ -53,13 +53,10 @@ import           System.IO                      ( Handle
                                                 , BufferMode(..)
                                                 , openFile
                                                 , hClose
-                                                , hPutStr
                                                 , stdin
                                                 , stdout
                                                 , stderr
                                                 , hIsEOF
-                                                , hGetLine
-                                                , hGetContents
                                                 , hIsSeekable
                                                 , hSeek
                                                 , hTell
@@ -303,15 +300,15 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
     IR.B . isJust <$> getHaskellHandle handle
   go "io.IO.getLine_" [IR.Data _ 0 [IR.T handle]] = do
     hh   <- getHaskellHandleOrThrow handle
-    line <- reraiseIO $ hGetLine hh
-    pure . IR.T $ Text.pack line
+    line <- reraiseIO $ TextIO.hGetLine hh
+    pure . IR.T $ line
   go "io.IO.getText_" [IR.Data _ 0 [IR.T handle]] = do
     hh   <- getHaskellHandleOrThrow handle
-    text <- reraiseIO $ hGetContents hh
-    pure . IR.T $ Text.pack text
+    text <- reraiseIO $ TextIO.hGetContents hh
+    pure . IR.T $ text
   go "io.IO.putText_" [IR.Data _ 0 [IR.T handle], IR.T string] = do
     hh <- getHaskellHandleOrThrow handle
-    reraiseIO . hPutStr hh $ Text.unpack string
+    reraiseIO . TextIO.hPutStr hh $ string
     pure IR.unit
   go "io.IO.throw" [IR.Data _ _ [IR.Data _ _ [], IR.T message]] =
     liftIO . throwIO $ UnisonRuntimeException message

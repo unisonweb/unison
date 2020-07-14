@@ -2,7 +2,7 @@ name:          unison-parser-typechecker
 category:      Compiler
 version:       0.1
 license:       MIT
-cabal-version: >= 1.8
+cabal-version: >= 1.10
 license-file:  LICENSE
 author:        Unison Computing, public benefit corp
 maintainer:    Paul Chiusano <paul.chiusano@gmail.com>, Runar Bjarnason <runarorama@gmail.com>, Arya Irani <arya.irani@gmail.com>
@@ -142,6 +142,7 @@ library
     Unison.Util.Logger
     Unison.Util.Map
     Unison.Util.Menu
+    Unison.Util.PinBoard
     Unison.Util.Pretty
     Unison.Util.Range
     Unison.Util.Star3
@@ -157,6 +158,7 @@ library
     ansi-terminal,
     async,
     base,
+    base16 >= 0.2.1.0,
     bifunctors,
     bytes,
     bytestring,
@@ -178,12 +180,10 @@ library
     fingertree,
     free,
     fsnotify,
-    fsutils,
     generic-monoid,
     hashable,
     hashtables,
     haskeline,
-    hex,
     io-streams,
     lens,
     ListLike,
@@ -221,7 +221,9 @@ library
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   default-extensions:
     ApplicativeDo,
+    BlockArguments,
     DeriveFunctor,
+    DerivingStrategies,
     DoAndIfThenElse,
     FlexibleContexts,
     FlexibleInstances,
@@ -234,6 +236,8 @@ library
     TypeApplications
     -- ViewPatterns
 
+  default-language: Haskell2010
+
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
 
@@ -243,8 +247,10 @@ library
 executable unison
   main-is: Main.hs
   hs-source-dirs: unison
-  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  default-language: Haskell2010
+  ghc-options: -Wall -threaded -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -rtsopts -optP-Wno-nonportable-include-path
   other-modules:
+    System.Path
     Version
   build-depends:
     base,
@@ -253,7 +259,6 @@ executable unison
     directory,
     errors,
     filepath,
-    fsutils,
     megaparsec,
     safe,
     shellmet,
@@ -261,12 +266,15 @@ executable unison
     temporary,
     text,
     unison-core,
-    unison-parser-typechecker,
-    unix
+    unison-parser-typechecker
+  if !os(windows)
+    build-depends:
+      unix
 
 executable prettyprintdemo
   main-is: Main.hs
   hs-source-dirs: prettyprintdemo
+  default-language: Haskell2010
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
     base,
@@ -277,7 +285,8 @@ executable prettyprintdemo
 executable tests
   main-is:        Suite.hs
   hs-source-dirs: tests
-  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
+  default-language: Haskell2010
+  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
     base,
     easytest
@@ -295,6 +304,7 @@ executable tests
     Unison.Test.FileParser
     Unison.Test.Git
     Unison.Test.Lexer
+    Unison.Test.IO
     Unison.Test.MCode
     Unison.Test.Range
     Unison.Test.Referent
@@ -310,6 +320,8 @@ executable tests
     Unison.Test.UnisonSources
     Unison.Test.UriParser
     Unison.Test.Util.Bytes
+    Unison.Test.Util.PinBoard
+    Unison.Test.Util.Pretty
     Unison.Test.Var
     Unison.Test.VersionParser
     Unison.Core.Test.Name
@@ -339,10 +351,14 @@ executable tests
     unison-core,
     unison-parser-typechecker
 
+  default-extensions:
+    BlockArguments
+
 executable transcripts
   main-is:        Transcripts.hs
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: transcripts
+  default-language: Haskell2010
   other-modules:
   build-depends:
     base,

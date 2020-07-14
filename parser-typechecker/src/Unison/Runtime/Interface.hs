@@ -29,6 +29,9 @@ import Unison.Util.EnumContainers as EC
 import Unison.Codebase.CodeLookup (CodeLookup(..))
 import Unison.Codebase.Runtime (Runtime(..), Error)
 
+import Unison.PrettyPrintEnv
+import Unison.TermPrinter
+
 import Unison.Runtime.ANF
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile

@@ -37,7 +37,6 @@ library
     Unison.ABT
     Unison.ABT.Normalized
     Unison.Blank
-    Unison.Codebase.NameSegment
     Unison.ConstructorType
     Unison.DataDeclaration
     Unison.Hash
@@ -49,6 +48,7 @@ library
     Unison.Name
     Unison.Names2
     Unison.Names3
+    Unison.NameSegment
     Unison.Paths
     Unison.Pattern
     Unison.PatternP

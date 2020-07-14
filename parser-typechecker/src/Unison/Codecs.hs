@@ -16,7 +16,6 @@ import qualified Data.ByteString as B
 import           Data.ByteString.Builder (doubleBE, int64BE, toLazyByteString)
 import qualified Data.ByteString.Lazy as BL
 import           Data.Bytes.Put
-import           Data.Text.Encoding (encodeUtf8)
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as Blank
 import qualified Unison.DataDeclaration as DD

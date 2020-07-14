@@ -21,7 +21,6 @@ import qualified Data.Map as Map
 import qualified Unison.Term as Term
 import qualified Unison.ABT as ABT
 import Unison.Test.Common (tm)
-import Unison.Pattern (PatternP(TextP))
 
 import Control.Monad.Reader (ReaderT(..))
 import Control.Monad.State (evalState)

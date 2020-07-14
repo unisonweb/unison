@@ -17,6 +17,7 @@ import Prelude hiding (readFile, writeFile)
 import System.Directory ( doesFileExist )
 import System.Exit (die)
 import System.IO.Error (catchIOError)
+import System.Environment (getProgName)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Command (LoadSourceResult (..))
 import Unison.Codebase.Editor.Input (Input (..), Event(UnisonFileChanged))
@@ -260,15 +261,17 @@ run dir configFile stanzas codebase branchCache = do
       -- output ``` and new lines then call transcriptFailure
       dieWithMsg :: forall a. IO a
       dieWithMsg = do
+        executable <- getProgName
         output "\n```\n\n"
         appendFailingStanza
         transcriptFailure out $ Text.unlines [
           "\128721", "",
           "The transcript failed due to an error encountered in the stanza above.", "",
-          "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
+          "Run `" <> Text.pack executable <> " -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       dieUnexpectedSuccess :: IO ()
       dieUnexpectedSuccess = do
+        executable <- getProgName
         errOk <- readIORef allowErrors
         hasErr <- readIORef hasErrors
         when (errOk && not hasErr) $ do
@@ -277,7 +280,7 @@ run dir configFile stanzas codebase branchCache = do
           transcriptFailure out $ Text.unlines [
             "\128721", "",
             "The transcript was expecting an error in the stanza above, but did not encounter one.", "",
-            "Run `ucm -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
+            "Run `" <> Text.pack executable <> " -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       loop state = do
         writeIORef pathRef (view HandleInput.currentPath state)

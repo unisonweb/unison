@@ -43,3 +43,5 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Stew O'Connor (@stew)
 * Dave Nicponski (@virusdave)
 * Cody Allen (@ceedubs)
+* Ludvig Sundström (@lsund)
+* Mohamed Elsharnouby (@sharno)

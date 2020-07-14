@@ -24,7 +24,6 @@ import Data.Bifunctor
 import Control.Concurrent (ThreadId)
 import Data.Text (Text,unpack)
 import Network.Socket (Socket)
-import System.FilePath (FilePath)
 import System.IO (BufferMode(..), SeekMode, Handle, IOMode)
 import Unison.Util.Bytes (Bytes)
 import Unison.Reference (Reference)

@@ -16,7 +16,6 @@ import Unison.Prelude
 
 import qualified Control.Monad.Writer.Strict as Writer
 import Data.Functor.Identity (runIdentity)
-import Data.Functor.Const (Const(..), getConst)
 import Data.Monoid (Any(..))
 import           Data.List.Extra (nubOrd)
 import qualified Data.Map as Map

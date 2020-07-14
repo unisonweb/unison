@@ -67,13 +67,12 @@ import Unison.Prelude
 
 import Control.Monad.Reader (ReaderT(..), asks)
 import Control.Monad.State (State, runState, MonadState(..), modify, gets)
-import Control.Lens (snoc, unsnoc, (<&>))
+import Control.Lens (snoc, unsnoc)
 
 import Data.Bifunctor (Bifunctor(..))
 import Data.Bifoldable (Bifoldable(..))
 import Data.Bits ((.&.), (.|.), shiftL, shiftR)
 import Data.List hiding (and,or)
-import Data.Word (Word64, Word16)
 import Prelude hiding (abs,and,or,seq)
 import qualified Prelude
 import Unison.Term hiding (resolve, fresh, float)

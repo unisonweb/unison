@@ -42,13 +42,12 @@ import qualified Unison.CommandLine.InputPattern as InputPattern
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
 
 import           Control.Lens
-import           Control.Lens.TH                ( makeLenses )
 import           Control.Monad.State            ( StateT )
 import           Control.Monad.Except           ( ExceptT(..), runExceptT, withExceptT)
 import           Data.Bifunctor                 ( second, first )
 import           Data.Configurator              ()
 import qualified Data.List                      as List
-import           Data.List                      ( partition, sortOn )
+import           Data.List                      ( partition )
 import           Data.List.Extra                ( nubOrd, sort )
 import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
@@ -70,7 +69,6 @@ import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Path           ( Path
                                                 , Path'(..) )
 import qualified Unison.Codebase.Path          as Path
-import qualified Unison.Codebase.NameSegment   as NameSegment
 import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
@@ -115,7 +113,6 @@ import qualified Unison.PrettyPrintEnv as PPE
 import           Unison.Runtime.IOSource       ( isTest )
 import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Util.Star3             as Star3
-import qualified Unison.Util.Pretty            as P
 import qualified Unison.Util.Monoid            as Monoid
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
@@ -127,7 +124,8 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Builtin as Builtin
-import Unison.Codebase.NameSegment (NameSegment(..))
+import Unison.NameSegment (NameSegment(..))
+import qualified Unison.NameSegment as NameSegment
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.Editor.Propagate as Propagate
 import qualified Unison.Codebase.Editor.UriParser as UriParser
@@ -523,15 +521,13 @@ loop = do
           :: SlurpComponent v
           -> Action m (Either Event Input) v ()
         addDefaultMetadata adds = do
-          let
-            addedVs = Set.toList $ SC.types adds <> SC.terms adds
-            parseResult = Path.parseHQSplit' . Var.nameStr <$> addedVs
-            (errs, addedNames) = partitionEithers parseResult
-          case errs of
-            e : _ ->
+          let addedVs = Set.toList $ SC.types adds <> SC.terms adds
+              addedNs = traverse (Path.hqSplitFromName' . Name.fromVar) addedVs
+          case addedNs of
+            Nothing ->
               error $ "I couldn't parse a name I just added to the codebase! "
-                      <> e <> "-- Added names: " <> show addedVs
-            _ -> do
+                    <> "-- Added names: " <> show addedVs
+            Just addedNames -> do
               dm <- resolveDefaultMetadata currentPath'
               case toList dm of
                 []  -> pure ()
@@ -552,10 +548,10 @@ loop = do
         -- `op` is the operation to add/remove/alter metadata mappings.
         --   e.g. `Metadata.insert` is passed to add metadata links.
         manageLinks :: Bool
-                    -> [(Path', NameSegment.HQSegment)]
+                    -> [(Path', HQ'.HQSegment)]
                     -> [HQ.HashQualified]
                     -> (forall r. Ord r
-                        => (r, Reference, Reference)
+                        => (r, Metadata.Type, Metadata.Value)
                         ->  Branch.Star r NameSegment
                         ->  Branch.Star r NameSegment)
                     -> Action m (Either Event Input) v ()
@@ -1572,13 +1568,13 @@ loop = do
                   Nothing -> [] <$ respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
                   Just tm -> do
                     respond $ TestIncrementalOutputStart ppe (n,total) r tm
-                    tm' <- eval (Evaluate1 ppe tm) <&> \case
-                      Left e -> Term.seq External
-                        [ DD.failResult External (Text.pack $ P.toANSI 80 ("\n" <> e)) ]
-                      Right tm' -> tm'
-                    eval $ PutWatch UF.TestWatch rid tm'
-                    respond $ TestIncrementalOutputEnd ppe (n,total) r tm'
-                    pure [(r, tm')]
+                    tm' <- eval $ Evaluate1 ppe tm
+                    case tm' of
+                      Left e -> respond (EvaluationFailure e) $> []
+                      Right tm' -> do
+                        eval $ PutWatch UF.TestWatch rid tm'
+                        respond $ TestIncrementalOutputEnd ppe (n,total) r tm'
+                        pure [(r, tm')]
               r -> error $ "unpossible, tests can't be builtins: " <> show r
           let m = Map.fromList computedTests
           respond $ TestResults Output.NewlyComputed ppe showOk showFail (oks m) (fails m)
@@ -2169,10 +2165,11 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
   mergeBranch mode inputDescription srcb dest0 dest = unsafeTime "Merge Branch" $ do
     destb <- getAt dest
     merged <- eval . Eval $ Branch.merge' mode srcb destb
+    b <- updateAtM inputDescription dest (const $ pure merged)
     for_ dest0 $ \dest0 ->
       diffHelper (Branch.head destb) (Branch.head merged) >>=
         respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
-    updateAtM inputDescription dest (const $ pure merged)
+    pure b
 
 loadPropagateDiffDefaultPatch :: (Monad m, Var v) =>
   InputDescription -> Maybe Path.Path' -> Path.Absolute -> Action' m v ()
@@ -2591,6 +2588,8 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
     Just split -> [ BranchUtil.makeDeleteTermName split (Referent.Ref old)
                   , BranchUtil.makeAddTermName split (Referent.Ref new) oldMd ]
       where
+      -- oldMd is the metadata linked to the old definition
+      -- we relink it to the new definition
       oldMd = BranchUtil.getTermMetadataAt split (Referent.Ref old) b0
   errorEmptyVar = error "encountered an empty var name"
 

@@ -1,6 +1,7 @@
 {-# Language OverloadedStrings #-}
 {-# Language PartialTypeSignatures #-}
 {-# Language ScopedTypeVariables #-}
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module Main where
@@ -11,7 +12,7 @@ import           Control.Error.Safe             (rightMay)
 import           Control.Exception              ( throwTo, AsyncException(UserInterrupt) )
 import           Data.Configurator.Types        ( Config )
 import           System.Directory               ( getCurrentDirectory, removeDirectoryRecursive )
-import           System.Environment             ( getArgs )
+import           System.Environment             ( getArgs, getProgName )
 import           System.Mem.Weak                ( deRefWeak )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Editor.VersionParser as VP
@@ -26,7 +27,6 @@ import qualified Unison.Util.Cache             as Cache
 import qualified Version
 import qualified Unison.Codebase.TranscriptParser as TR
 import qualified System.Path as Path
-import qualified System.Posix.Signals as Sig
 import qualified System.FilePath as FP
 import qualified System.IO.Temp as Temp
 import qualified System.Exit as Exit
@@ -38,59 +38,65 @@ import qualified Data.Text as Text
 import qualified Data.Configurator as Config
 import Text.Megaparsec (runParser)
 
-usage :: P.Pretty P.ColorText
-usage = P.callout "🌻" $ P.lines [
+#if defined(mingw32_HOST_OS)
+import qualified GHC.ConsoleHandler as WinSig
+#else
+import qualified System.Posix.Signals as Sig
+#endif
+
+usage :: String -> P.Pretty P.ColorText
+usage executableStr = P.callout "🌻" $ P.lines [
   P.bold "Usage instructions for the Unison Codebase Manager",
   "You are running version: " <> P.string Version.gitDescribe,
   "",
-  P.bold "ucm",
+  P.bold executable,
   P.wrap "Starts Unison interactively, using the codebase in the home directory.",
   "",
-  P.bold "ucm -codebase path/to/codebase",
+  P.bold $ executable <> " -codebase path/to/codebase",
   P.wrap "Starts Unison interactively, using the specified codebase. This flag can also be set for any of the below commands.",
   "",
-  P.bold "ucm run .mylib.mymain",
+  P.bold $ executable <> " run .mylib.mymain",
   P.wrap "Executes the definition `.mylib.mymain` from the codebase, then exits.",
   "",
-  P.bold "ucm run.file foo.u mymain",
+  P.bold $ executable <> " run.file foo.u mymain",
   P.wrap "Executes the definition called `mymain` in `foo.u`, then exits.",
   "",
-  P.bold "ucm run.pipe mymain",
+  P.bold $ executable <> " run.pipe mymain",
   P.wrap "Executes the definition called `mymain` from a `.u` file read from the standard input, then exits.",
   "",
-  P.bold "ucm transcript mytranscript.md",
+  P.bold $ executable <> " transcript mytranscript.md",
   P.wrap $ "Executes the `mytranscript.md` transcript and creates"
         <> "`mytranscript.output.md` if successful. Exits after completion, and deletes"
         <> "the temporary directory created."
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
-  P.bold "ucm transcript -save-codebase mytranscript.md",
+  P.bold $ executable <> " transcript -save-codebase mytranscript.md",
   P.wrap $ "Executes the `mytranscript.md` transcript and creates"
         <> "`mytranscript.output.md` if successful. Exits after completion, and saves"
         <> "the resulting codebase to a new directory on disk."
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
-  P.bold "ucm transcript.fork mytranscript.md",
+  P.bold $ executable <> " transcript.fork mytranscript.md",
   P.wrap $ "Executes the `mytranscript.md` transcript in a copy of the current codebase"
         <> "and creates `mytranscript.output.md` if successful. Exits after completion."
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
-  P.bold "ucm transcript.fork -save-codebase mytranscript.md",
+  P.bold $ executable <> " transcript.fork -save-codebase mytranscript.md",
   P.wrap $ "Executes the `mytranscript.md` transcript in a copy of the current codebase"
         <> "and creates `mytranscript.output.md` if successful. Exits after completion,"
         <> "and saves the resulting codebase to a new directory on disk."
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
-  P.bold "ucm version",
+  P.bold $ executable <> " version",
   "Prints version of Unison then quits.",
   "",
-  P.bold "ucm help",
-  "Prints this help."
-  ]
+  P.bold $ executable <> " help",
+  "Prints this help."]
+      where executable = (P.text . Text.pack) executableStr
 
 installSignalHandlers :: IO ()
 installSignalHandlers = do
@@ -102,13 +108,23 @@ installSignalHandlers = do
         case r of
           Nothing -> return ()
           Just t  -> throwTo t UserInterrupt
+
+#if defined(mingw32_HOST_OS)
+  let sig_handler WinSig.ControlC = interrupt
+      sig_handler WinSig.Break    = interrupt
+      sig_handler _               = return ()
+  _ <- WinSig.installHandler (WinSig.Catch sig_handler)
+#else
   _ <- Sig.installHandler Sig.sigQUIT  (Sig.Catch interrupt) Nothing
   _ <- Sig.installHandler Sig.sigINT   (Sig.Catch interrupt) Nothing
+#endif
+
   return ()
 
 main :: IO ()
 main = do
   args <- getArgs
+  progName <- getProgName
   -- hSetBuffering stdout NoBuffering -- cool
 
   _ <- installSignalHandlers
@@ -131,8 +147,8 @@ main = do
       theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
       launch currentDir config theCodebase branchCache []
     [version] | isFlag "version" version ->
-      putStrLn $ "ucm version: " ++ Version.gitDescribe
-    [help] | isFlag "help" help -> PT.putPrettyLn usage
+      putStrLn $ progName ++ " version: " ++ Version.gitDescribe
+    [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
     ["init"] -> FileCodebase.initCodebaseAndExit mcodepath
     "run" : [mainName] -> do
       theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
@@ -163,14 +179,12 @@ main = do
       "-save-codebase" : transcripts -> runTranscripts branchCache True True mcodepath transcripts
       _                              -> runTranscripts branchCache True False mcodepath args'
     _ -> do
-      PT.putPrettyLn usage
+      PT.putPrettyLn (usage progName)
       Exit.exitWith (Exit.ExitFailure 1)
 
 prepareTranscriptDir :: Branch.Cache IO -> Bool -> Maybe FilePath -> IO FilePath
 prepareTranscriptDir branchCache inFork mcodepath = do
-  currentDir <- getCurrentDirectory
-  tmp <- Temp.createTempDirectory currentDir "transcript"
-
+  tmp <- Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
   unless inFork $ do
     PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
     _ <- FileCodebase.initCodebase branchCache tmp
@@ -220,6 +234,7 @@ runTranscripts' branchCache mcodepath transcriptDir args = do
 
 runTranscripts :: Branch.Cache IO -> Bool -> Bool -> Maybe FilePath -> [String] -> IO ()
 runTranscripts branchCache inFork keepTemp mcodepath args = do
+  progName <- getProgName
   transcriptDir <- prepareTranscriptDir branchCache inFork mcodepath
   completed <- runTranscripts' branchCache (Just transcriptDir) transcriptDir args
   when completed $ do
@@ -230,12 +245,12 @@ runTranscripts branchCache inFork keepTemp mcodepath args = do
             "I've finished running the transcript(s) in this codebase:", "",
             P.indentN 2 (P.string transcriptDir), "",
             P.wrap $ "You can run"
-                  <> P.backticked ("ucm -codebase " <> P.string transcriptDir)
+                  <> P.backticked (P.string progName <> " -codebase " <> P.string transcriptDir)
                   <> "to do more work with it."])
 
   unless completed $ do
       unless keepTemp $ removeDirectoryRecursive transcriptDir
-      PT.putPrettyLn usage
+      PT.putPrettyLn (usage progName)
       Exit.exitWith (Exit.ExitFailure 1)
 
 initialPath :: Path.Absolute

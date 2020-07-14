@@ -21,12 +21,11 @@ import           UnliftIO.Directory             ( getModificationTime
 import           UnliftIO.MVar                  ( newEmptyMVar, takeMVar
                                                 , tryTakeMVar, tryPutMVar, putMVar )
 import           UnliftIO.STM                   ( atomically )
-import           UnliftIO.Exception             ( catch, IOException)
+import           UnliftIO.Exception             ( catch )
 import           UnliftIO.IORef                 ( newIORef
                                                 , readIORef
                                                 , writeIORef
                                                 )
-import           Data.List                      ( sortOn )
 import qualified Data.Map                      as Map
 import qualified Data.Text.IO
 import           Data.Time.Clock                ( UTCTime

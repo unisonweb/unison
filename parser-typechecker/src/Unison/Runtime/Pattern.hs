@@ -15,7 +15,7 @@ import Control.Applicative ((<|>))
 import Control.Lens ((<&>))
 import Control.Monad.State (State, state, runState, modify)
 
-import Data.List (splitAt, findIndex, transpose)
+import Data.List (findIndex, transpose)
 import Data.Maybe (catMaybes, fromMaybe)
 
 import Data.Set as Set (Set, insert, fromList, member)
@@ -135,6 +135,7 @@ matchBuiltin (FloatP _ d) = Just $ FloatP () d
 matchBuiltin _ = Nothing
 
 data SeqMatch = E | C | S | L Int | R Int
+  deriving (Eq,Ord,Show)
 
 seqPSize :: PatternV v -> Maybe Int
 seqPSize (SequenceLiteralP _ l) = Just $ length l

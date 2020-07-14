@@ -11,7 +11,7 @@ import Unison.Prelude
 import qualified Control.Lens.Cons as Cons
 import qualified Control.Lens as Lens
 import Data.Bifunctor (first)
-import Data.List (intercalate, sortOn, isPrefixOf)
+import Data.List (intercalate, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
 import qualified System.Console.Haskeline.Completion as Completion
 import System.Console.Haskeline.Completion (Completion(Completion))
@@ -116,7 +116,7 @@ todo = InputPattern
   )
   (\case
     patchStr : ws -> mapLeft (warn . fromString) $ do
-      patch  <- Path.parseSplit' Path.wordyNameSegment patchStr
+      patch  <- Path.parseSplit' Path.definitionNameSegment patchStr
       branch <- case ws of
         []        -> pure Path.relativeEmpty'
         [pathStr] -> Path.parsePath' pathStr
@@ -211,7 +211,7 @@ update = InputPattern "update"
   )
   (\case
     patchStr : ws -> do
-      patch <- first fromString $ Path.parseSplit' Path.wordyNameSegment patchStr
+      patch <- first fromString $ Path.parseSplit' Path.definitionNameSegment patchStr
       case traverse HQ'.fromString ws of
         Just ws -> Right $ Input.UpdateI (Just patch) ws
         Nothing ->
@@ -254,7 +254,7 @@ patch = InputPattern
   )
   (\case
     patchStr : ws -> first fromString $ do
-      patch  <- Path.parseSplit' Path.wordyNameSegment patchStr
+      patch  <- Path.parseSplit' Path.definitionNameSegment patchStr
       branch <- case ws of
         [pathStr] -> Path.parsePath' pathStr
         _         -> pure Path.relativeEmpty'
@@ -470,7 +470,7 @@ deleteReplacement isTerm = InputPattern
     query : patch -> do
       patch <-
         first fromString
-        . traverse (Path.parseSplit' Path.wordyNameSegment)
+        . traverse (Path.parseSplit' Path.definitionNameSegment)
         $ listToMaybe patch
       q <- parseHashQualifiedName query
       pure $ input q patch
@@ -588,7 +588,7 @@ deleteBranch = InputPattern "delete.namespace" [] [(Required, pathArg)]
         ["."] -> first fromString .
           pure $ Input.DeleteBranchI Nothing
         [p] -> first fromString $ do
-          p <- Path.parseSplit' Path.wordyNameSegment p
+          p <- Path.parseSplit' Path.definitionNameSegment p
           pure . Input.DeleteBranchI $ Just p
         _ -> Left (I.help deleteBranch)
       )
@@ -598,21 +598,21 @@ deletePatch = InputPattern "delete.patch" [] [(Required, patchArg)]
   "`delete.patch <foo>` deletes the patch `foo`"
    (\case
         [p] -> first fromString $ do
-          p <- Path.parseSplit' Path.wordyNameSegment p
+          p <- Path.parseSplit' Path.definitionNameSegment p
           pure . Input.DeletePatchI $ p
         _ -> Left (I.help deletePatch)
       )
 
 movePatch :: String -> String -> Either (P.Pretty CT.ColorText) Input
 movePatch src dest = first fromString $ do
-  src <- Path.parseSplit' Path.wordyNameSegment src
-  dest <- Path.parseSplit' Path.wordyNameSegment dest
+  src <- Path.parseSplit' Path.definitionNameSegment src
+  dest <- Path.parseSplit' Path.definitionNameSegment dest
   pure $ Input.MovePatchI src dest
 
 copyPatch' :: String -> String -> Either (P.Pretty CT.ColorText) Input
 copyPatch' src dest = first fromString $ do
-  src <- Path.parseSplit' Path.wordyNameSegment src
-  dest <- Path.parseSplit' Path.wordyNameSegment dest
+  src <- Path.parseSplit' Path.definitionNameSegment src
+  dest <- Path.parseSplit' Path.definitionNameSegment dest
   pure $ Input.CopyPatchI src dest
 
 copyPatch :: InputPattern
@@ -642,11 +642,11 @@ renameBranch = InputPattern "move.namespace"
    "`move.namespace foo bar` renames the path `bar` to `foo`."
     (\case
       [".", dest] -> first fromString $ do
-        dest <- Path.parseSplit' Path.wordyNameSegment dest
+        dest <- Path.parseSplit' Path.definitionNameSegment dest
         pure $ Input.MoveBranchI Nothing dest
       [src, dest] -> first fromString $ do
-        src <- Path.parseSplit' Path.wordyNameSegment src
-        dest <- Path.parseSplit' Path.wordyNameSegment dest
+        src <- Path.parseSplit' Path.definitionNameSegment src
+        dest <- Path.parseSplit' Path.definitionNameSegment dest
         pure $ Input.MoveBranchI (Just src) dest
       _ -> Left (I.help renameBranch)
     )
@@ -1003,7 +1003,7 @@ replaceEdit f s = self
       source : target : patch -> do
         patch <-
           first fromString
-          <$> traverse (Path.parseSplit' Path.wordyNameSegment)
+          <$> traverse (Path.parseSplit' Path.definitionNameSegment)
           $   listToMaybe patch
         sourcehq <- parseHashQualifiedName source
         targethq <- parseHashQualifiedName target
@@ -1193,7 +1193,7 @@ viewPatch = InputPattern "view.patch" [] [(Required, patchArg)]
   (\case
     []         -> Right $ Input.ListEditsI Nothing
     [patchStr] -> mapLeft fromString $ do
-      patch <- Path.parseSplit' Path.wordyNameSegment patchStr
+      patch <- Path.parseSplit' Path.definitionNameSegment patchStr
       Right $ Input.ListEditsI (Just patch)
     _ -> Left $ warn "`view.patch` takes a patch and that's it."
    )
@@ -1331,7 +1331,7 @@ createAuthor = InputPattern "create.author" []
     <> backtickEOS "metadata.copyrightHolders")
   (\case
       symbolStr : authorStr@(_:_) -> first fromString $ do
-        symbol <- Path.wordyNameSegment symbolStr
+        symbol <- Path.definitionNameSegment symbolStr
         -- let's have a real parser in not too long
         let author :: Text
             author = Text.pack $ case (unwords authorStr) of

@@ -17,6 +17,7 @@ import qualified Unison.Test.DataDeclaration as DataDeclaration
 import qualified Unison.Test.FileParser as FileParser
 import qualified Unison.Test.Git as Git
 import qualified Unison.Test.Lexer as Lexer
+import qualified Unison.Test.IO as TestIO
 import qualified Unison.Test.Range as Range
 import qualified Unison.Test.Referent as Referent
 import qualified Unison.Test.Term as Term
@@ -30,6 +31,8 @@ import qualified Unison.Test.Typechecker.TypeError as TypeError
 import qualified Unison.Test.UnisonSources as UnisonSources
 import qualified Unison.Test.UriParser as UriParser
 import qualified Unison.Test.Util.Bytes as Bytes
+import qualified Unison.Test.Util.PinBoard as PinBoard
+import qualified Unison.Test.Util.Pretty as Pretty
 import qualified Unison.Test.Var as Var
 import qualified Unison.Test.ANF as ANF
 import qualified Unison.Test.MCode as MCode
@@ -64,8 +67,11 @@ test = tests
   , UriParser.test
   , Context.test
   , Git.test
+  , TestIO.test
   , Name.test
   , VersionParser.test
+  , Pretty.test
+  , PinBoard.test
  ]
 
 main :: IO ()

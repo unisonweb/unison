@@ -44,6 +44,7 @@ import           Unison.UnisonFile              ( UnisonFile(..) )
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Star3             as Star3
 import           Unison.Type                    ( Type )
+import qualified Unison.Type                   as Type
 import qualified Unison.Typechecker            as Typechecker
 import           Unison.ConstructorType         ( ConstructorType )
 import qualified Unison.Runtime.IOSource       as IOSource
@@ -179,7 +180,7 @@ propagate patch b = case validatePatch patch of
                     "This reference is not a term nor a type " <> show r
                   mmayEdits | haveTerm  = doTerm r
                             | haveType  = doType r
-                            | otherwise = fail message
+                            | otherwise = error message
               mayEdits <- mmayEdits
               case mayEdits of
                 (Nothing    , seen') -> collectEdits es seen' todo
@@ -206,7 +207,7 @@ propagate patch b = case validatePatch patch of
                           $ view _2 <$> declMap
           hashedComponents' <- case hashedDecls of
             Left _ ->
-              fail
+              error
                 $ "Edit propagation failed because some of the dependencies of "
                 <> show r
                 <> " could not be resolved."
@@ -349,13 +350,13 @@ propagate patch b = case validatePatch patch of
           :: Reference -> F m i v (Maybe (Reference, (Term v Ann, Type v Ann)))
         termInfo termRef = do
           tpm <- eval $ LoadTypeOfTerm termRef
-          tp  <- maybe (fail $ "Missing type for term " <> show termRef)
+          tp  <- maybe (error $ "Missing type for term " <> show termRef)
                        pure
                        tpm
           case termRef of
             Reference.DerivedId id -> do
               mtm <- eval $ LoadTerm id
-              tm  <- maybe (fail $ "Missing term with id " <> show id) pure mtm
+              tm  <- maybe (error $ "Missing term with id " <> show id) pure mtm
               pure $ Just (termRef, (tm, tp))
             Reference.Builtin{} -> pure Nothing
         unhash m =
@@ -376,7 +377,7 @@ propagate patch b = case validatePatch patch of
       typeInfo typeRef = case typeRef of
         Reference.DerivedId id -> do
           declm <- eval $ LoadType id
-          decl  <- maybe (fail $ "Missing type declaration " <> show typeRef)
+          decl  <- maybe (error $ "Missing type declaration " <> show typeRef)
                          pure
                          declm
           pure $ Just (typeRef, decl)
@@ -436,19 +437,21 @@ applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
 -- definition that is created by the `Edits` which is passed in is marked as
 -- a propagated change.
 applyPropagate
-  :: Show v => Applicative m => Patch -> Edits v -> F m i v (Branch0 m -> Branch0 m)
+  :: Var v => Applicative m => Patch -> Edits v -> F m i v (Branch0 m -> Branch0 m)
 applyPropagate patch Edits {..} = do
   let termRefs = Map.mapMaybe TermEdit.toReference termEdits
       typeRefs = Map.mapMaybe TypeEdit.toReference typeEdits
+      termTypes = Map.map (Type.toReference . snd) newTerms
   -- recursively update names and delete deprecated definitions
-  pure $ Branch.stepEverywhere (updateLevel termRefs typeRefs)
+  pure $ Branch.stepEverywhere (updateLevel termRefs typeRefs termTypes)
  where
   updateLevel
     :: Map Reference Reference
     -> Map Reference Reference
+    -> Map Reference Reference
     -> Branch0 m
     -> Branch0 m
-  updateLevel termEdits typeEdits Branch0 {..} =
+  updateLevel termEdits typeEdits termTypes Branch0 {..} =
     Branch.branch0 termsWithCons types _children _edits
    where
     isPropagated = (`Set.notMember` allPatchTargets) where
@@ -456,6 +459,9 @@ applyPropagate patch Edits {..} = do
 
     terms = foldl' replaceTerm _terms (Map.toList termEdits)
     types = foldl' replaceType _types (Map.toList typeEdits)
+
+    updateMetadata r r' (tp, v) = if v == r then (typeOf r' tp, r') else (tp, v)
+      where typeOf r t = fromMaybe t $ Map.lookup r termTypes
 
     propagatedMd :: r -> (r, Metadata.Type, Metadata.Value)
     propagatedMd r = (r, IOSource.isPropagatedReference, IOSource.isPropagatedValue)
@@ -465,11 +471,12 @@ applyPropagate patch Edits {..} = do
       (if isPropagated r'
        then Metadata.insert (propagatedMd (Referent.Ref r'))
        else Metadata.delete (propagatedMd (Referent.Ref r'))) .
-      Star3.replaceFact (Referent.Ref r) (Referent.Ref r') $ s
+      Star3.replaceFact (Referent.Ref r) (Referent.Ref r') $
+        Star3.mapD3 (updateMetadata r r') s
 
     replaceConstructor s ((oldr, oldc, oldt), (newr, newc, newt)) =
       -- always insert the metadata since patches can't contain ctor mappings (yet)
-      (Metadata.insert (propagatedMd con')) .
+      Metadata.insert (propagatedMd con') .
       Star3.replaceFact (Referent.Con oldr oldc oldt) con' $ s
       where
       con' = Referent.Con newr newc newt

@@ -17,7 +17,6 @@ import Control.Monad.State (evalState)
 
 import Data.Bifunctor (first, second, bimap)
 import qualified Unison.Util.Relation as Rel
-import           Data.List                      ( sortOn )
 import           Unison.Hash                    ( Hash )
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
@@ -64,7 +63,7 @@ constructorType = \case
   Left{} -> CT.Effect
   Right{} -> CT.Data
 
-data Modifier = Structural | Unique Text -- | Opaque (Set Reference)
+data Modifier = Structural | Unique Text --  | Opaque (Set Reference)
   deriving (Eq, Ord, Show)
 
 data DataDeclaration' v a = DataDeclaration {

@@ -14,7 +14,7 @@ module Unison.Runtime.IR where
 
 import Unison.Prelude
 
-import Control.Monad.State.Strict (StateT, gets, modify, runStateT, lift)
+import Control.Monad.State.Strict (StateT, gets, modify, runStateT)
 import Data.Bifunctor (first, second)
 import Data.IORef
 import Unison.Hash (Hash)

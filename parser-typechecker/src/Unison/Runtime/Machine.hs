@@ -20,7 +20,6 @@ import qualified Data.Map.Strict as M
 import Control.Exception
 import Control.Lens ((<&>))
 import Control.Concurrent (forkIOWithUnmask, ThreadId)
-import Control.Exception (try, mask)
 import Control.Monad ((<=<))
 
 import qualified Data.Primitive.PrimArray as PA
