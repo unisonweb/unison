@@ -153,16 +153,18 @@ compileTerm
   :: Var v => Word64 -> Term v -> EvalCtx v -> EvalCtx v
 compileTerm w tm ctx
   = finish
-  . emitCombs frsh
-  . superNormalize (ref $ refTm ctx) (ref $ refTy ctx)
+  . fmap
+      ( emitCombs frsh
+      . superNormalize (ref $ refTm ctx) (ref $ refTy ctx))
+  . bkrf
   . lamLift
   . splitPatterns (dspec ctx)
   . saturate (uncurryDspec $ dspec ctx)
   $ tm
   where
   frsh = freshTm ctx
-  recs = numberLetRec frsh tm
-  finish (main, aux, frsh')
+  bkrf tm = (numberLetRec frsh tm, tm)
+  finish (recs, (main, aux, frsh'))
     = refresh frsh'
     . addTermBackrefs recs
     . addCombs (mapInsert w main aux)
@@ -177,29 +179,35 @@ combEnv ctx w
   | otherwise = error $ "bad combinator reference: " ++ show w
 
 evalInContext
-  :: Var v => EvalCtx v -> Word64 -> IO (Either Error (Term v))
-evalInContext ctx w = do
+  :: Var v
+  => PrettyPrintEnv
+  -> EvalCtx v
+  -> Word64
+  -> IO (Either Error (Term v))
+evalInContext ppe ctx w = do
   r <- newIORef BlackHole
   let hook = watchHook r
       renv = Refs (backrefTy ctx) (backrefComb ctx)
   result <- traverse (const $ readIORef r)
           . first prettyError
         <=< try $ apply0 (Just hook) renv (combEnv ctx) w
-  pure $ decompile (`EC.lookup` backrefTy ctx)
-                   (`EC.lookup` backrefTm ctx)
-           =<< result
+  pure $ decom =<< result
+  where
+  decom = decompile (`EC.lookup`backrefTy ctx) (`EC.lookup`backrefTm ctx)
+  prettyError (PE p) = p
+  prettyError (BU c) = either id (pretty ppe) $ decom c
 
 startRuntime :: Var v => IO (Runtime v)
 startRuntime = do
   ctxVar <- newIORef baseContext
   pure $ Runtime
        { terminate = pure ()
-       , evaluate = \cl _ tm -> do
+       , evaluate = \cl ppe tm -> do
            ctx <- readIORef ctxVar
            ctx <- loadDeps cl ctx tm
            writeIORef ctxVar ctx
            let init = freshTm ctx
            ctx <- pure $ refresh (init+1) ctx
            ctx <- pure $ compileTerm init tm ctx
-           evalInContext ctx init
+           evalInContext ppe ctx init
        }
