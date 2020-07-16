@@ -1129,7 +1129,7 @@ bprim2 !ustk !bstk IDXS i j = do
 bprim2 !ustk !bstk SPLL i j = do
   n <- peekOff ustk i
   s <- peekOffS bstk j
-  if Sq.length s >= n then do
+  if Sq.length s < n then do
     ustk <- bump ustk
     poke ustk 0
     pure (ustk, bstk)
@@ -1144,7 +1144,7 @@ bprim2 !ustk !bstk SPLL i j = do
 bprim2 !ustk !bstk SPLR i j = do
   n <- peekOff ustk i
   s <- peekOffS bstk j
-  if Sq.length s >= n then do
+  if Sq.length s < n then do
     ustk <- bump ustk
     poke ustk 0
     pure (ustk, bstk)
