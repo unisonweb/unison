@@ -13,15 +13,16 @@ module Unison.Runtime.Pattern
 
 import Control.Applicative ((<|>))
 import Control.Lens ((<&>))
-import Control.Monad.State (State, state, runState, modify)
+import Control.Monad.State (State, state, evalState, runState, modify)
 
-import Data.List (findIndex, transpose)
-import Data.Maybe (catMaybes, fromMaybe)
+import Data.List (transpose)
+import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
+import Data.Word (Word64)
 
-import Data.Set as Set (Set, insert, fromList, member)
+import Data.Set as Set (Set, fromList, member)
 
 import Unison.ABT
-  (absChain', freshIn, visitPure, pattern AbsN', changeVars)
+  (absChain', visitPure, pattern AbsN', changeVars)
 import Unison.Builtin.Decls (builtinDataDecls, builtinEffectDecls)
 import Unison.DataDeclaration (declFields)
 import Unison.Pattern
@@ -29,7 +30,7 @@ import Unison.Reference (Reference(..))
 import Unison.Symbol (Symbol)
 import Unison.Term hiding (Term)
 import qualified Unison.Term as Tm
-import Unison.Var (Var, typed, Type(Pattern,Irrelevant))
+import Unison.Var (Var, typed, freshIn, freshenId, Type(Pattern))
 
 import qualified Unison.Type as Rf
 
@@ -42,15 +43,14 @@ type Cons = [Int]
 
 type DataSpec = Map Reference (Either Cons Cons)
 
-type PatternV v = PatternP v
-type Scrut v = (v, Reference)
+type Ctx v = Map v Reference
 
 data PatternRow v
   = PR
-  { _pats :: [PatternV v]
+  { matches :: [PatternP v]
   , guard :: Maybe (Term v)
   , body :: Term v
-  }
+  } deriving (Show)
 
 builtinDataSpec :: DataSpec
 builtinDataSpec = Map.fromList decls
@@ -62,11 +62,13 @@ builtinDataSpec = Map.fromList decls
 
 data PatternMatrix v
   = PM { _rows :: [PatternRow v] }
+  deriving Show
 
-type Heuristic v = PatternMatrix v -> Maybe Int
+type Heuristic v = PatternMatrix v -> Maybe v
 
-choose :: [Heuristic v] -> PatternMatrix v -> Int
-choose [] _ = 0
+choose :: [Heuristic v] -> PatternMatrix v -> v
+choose [] (PM (PR (p:_) _ _ : _)) = loc p
+choose [] _ = error "pattern matching: failed to choose a splitting"
 choose (h:hs) m
   | Just i <- h m = i
   | otherwise = choose hs m
@@ -77,27 +79,27 @@ refutable (VarP _) = False
 refutable _ = True
 
 rowIrrefutable :: PatternRow v -> Bool
-rowIrrefutable (PR ps _ _) = all (not.refutable) ps
+rowIrrefutable (PR ps _ _) = null ps
 
-firstRow :: ([PatternV v] -> Maybe Int) -> Heuristic v
-firstRow f (PM (r:_)) = f $ _pats r
+firstRow :: ([PatternP v] -> Maybe v) -> Heuristic v
+firstRow f (PM (r:_)) = f $ matches r
 firstRow _ _ = Nothing
 
 heuristics :: [Heuristic v]
-heuristics = [firstRow $ findIndex refutable]
+heuristics = [firstRow $ fmap loc . listToMaybe]
 
-extractVar :: Var v => PatternV v -> Maybe v
+extractVar :: Var v => PatternP v -> Maybe v
 extractVar p
   | UnboundP{} <- p = Nothing
   | otherwise = Just (loc p)
 
-extractVars :: Var v => [PatternV v] -> [v]
+extractVars :: Var v => [PatternP v] -> [v]
 extractVars = catMaybes . fmap extractVar
 
 decomposePattern
   :: Var v
-  => Int -> Int -> PatternV v
-  -> [[PatternV v]]
+  => Int -> Int -> PatternP v
+  -> [[PatternP v]]
 decomposePattern t nfields p@(ConstructorP _ _ u ps)
   | t == u
   = if length ps == nfields
@@ -134,17 +136,17 @@ matchBuiltin (CharP _ c) = Just $ CharP () c
 matchBuiltin (FloatP _ d) = Just $ FloatP () d
 matchBuiltin _ = Nothing
 
-data SeqMatch = E | C | S | L Int | R Int
+data SeqMatch = E | C | S | L Int | R Int | DL Int | DR Int
   deriving (Eq,Ord,Show)
 
-seqPSize :: PatternV v -> Maybe Int
+seqPSize :: PatternP v -> Maybe Int
 seqPSize (SequenceLiteralP _ l) = Just $ length l
 seqPSize (SequenceOpP _ _ Cons r) = (1+) <$> seqPSize r
 seqPSize (SequenceOpP _ l Snoc _) = (1+) <$> seqPSize l
 seqPSize (SequenceOpP _ l Concat r) = (+) <$> seqPSize l <*> seqPSize r
 seqPSize _ = Nothing
 
-decideSeqPat :: [PatternV v] -> [SeqMatch]
+decideSeqPat :: [PatternP v] -> [SeqMatch]
 decideSeqPat = go False
   where
   go _ [] = [E,C]
@@ -154,89 +156,107 @@ decideSeqPat = go False
 
   go guard (SequenceOpP _ l Concat r : _)
     | guard = [E,C] -- prefer prior literals
-    | Just n <- seqPSize l = [L n]
-    | Just n <- seqPSize r = [R n]
+    | Just n <- seqPSize l = [L n, DL n]
+    | Just n <- seqPSize r = [R n, DR n]
   go b (UnboundP _ : ps) = go b ps
   go b (VarP _ : ps) = go b ps
   go _ (p:_)
     = error $ "Cannot process sequence pattern: " ++ show p
 
-irr :: Var v => v
-irr = typed Irrelevant
+data SeqCover v
+  = Cover [PatternP v]
+  | Disjoint
+  | Overlap
 
-decomposeSeqP :: Var v => SeqMatch -> PatternV v -> Maybe [PatternV v]
-decomposeSeqP E (SequenceLiteralP _ []) = Just []
-decomposeSeqP E (VarP _) = Just []
-decomposeSeqP E (UnboundP _) = Just []
-decomposeSeqP C (SequenceOpP _ l Cons r) = Just [l,r]
-decomposeSeqP C (SequenceLiteralP u (p:ps))
-  = Just [p, SequenceLiteralP u ps]
-decomposeSeqP C (VarP _) = Just $ VarP <$> [irr,irr]
-decomposeSeqP C (UnboundP _) = Just $ VarP <$> [irr,irr]
-decomposeSeqP C p@(SequenceOpP _ _ Concat _)
-  = Just [p]
-decomposeSeqP S (SequenceOpP _ l Snoc r) = Just [l,r]
-decomposeSeqP S (SequenceLiteralP u ps)
-  | length ps > 0
-  = Just [SequenceLiteralP u (init ps), last ps]
-decomposeSeqP S (VarP _) = Just $ VarP <$> [irr,irr]
-decomposeSeqP S (UnboundP _) = Just $ UnboundP <$> [irr,irr]
-decomposeSeqP S p@(SequenceOpP _ _ Concat _) = Just [p]
-decomposeSeqP (L n) (SequenceOpP _ l Concat r)
+decomposeSeqP :: Var v => Set v -> SeqMatch -> PatternP v -> SeqCover v
+decomposeSeqP _ E (SequenceLiteralP _ []) = Cover []
+decomposeSeqP _ E _ = Disjoint
+
+decomposeSeqP _ C (SequenceOpP _ l Cons r) = Cover [l,r]
+decomposeSeqP _ C (SequenceOpP _ _ Concat _) = Overlap
+decomposeSeqP _ C (SequenceLiteralP _ []) = Disjoint
+decomposeSeqP avoid C (SequenceLiteralP _ (p:ps))
+  = Cover [p, SequenceLiteralP u ps]
+  where u = freshIn avoid $ typed Pattern
+
+decomposeSeqP _ S (SequenceOpP _ l Snoc r) = Cover [l,r]
+decomposeSeqP _ S (SequenceOpP _ _ Concat _) = Overlap
+decomposeSeqP _ S (SequenceLiteralP _ []) = Disjoint
+decomposeSeqP avoid S (SequenceLiteralP _ ps)
+  = Cover [SequenceLiteralP u (init ps), last ps]
+  where u = freshIn avoid $ typed Pattern
+
+decomposeSeqP _ (L n) (SequenceOpP _ l Concat r)
   | Just m <- seqPSize l
   , n == m
-  = Just [l,r]
-decomposeSeqP (L n) (SequenceLiteralP u ps)
-  | (pl, pr) <- splitAt n ps
-  , length pl == n
-  = Just $ SequenceLiteralP u <$> [pl,pr]
-decomposeSeqP (L _) (VarP _)
-  = Just $ VarP <$> [irr,irr]
-decomposeSeqP (L _) (UnboundP _)
-  = Just $ VarP <$> [irr,irr]
-decomposeSeqP (R n) (SequenceOpP _ l Concat r)
+  = Cover [l,r]
+  | otherwise = Overlap
+decomposeSeqP avoid (L n) (SequenceLiteralP _ ps)
+  | length ps >= n
+  , (pl, pr) <- splitAt n ps
+  = Cover $ SequenceLiteralP u <$> [pl,pr]
+  | otherwise = Disjoint
+  where u = freshIn avoid $ typed Pattern
+
+decomposeSeqP _ (R n) (SequenceOpP _ l Concat r)
   | Just m <- seqPSize r
   , n == m
-  = Just [l,r]
-decomposeSeqP (R n) (SequenceLiteralP u ps)
+  = Cover [l,r]
+decomposeSeqP avoid (R n) (SequenceLiteralP _ ps)
   | length ps >= n
   , (pl, pr) <- splitAt (length ps - n) ps
-  = Just $ SequenceLiteralP u <$> [pl,pr]
-decomposeSeqP (R _) (VarP _) = Just $ UnboundP <$> [irr,irr]
-decomposeSeqP (R _) (UnboundP _) = Just $ UnboundP <$> [irr,irr]
-decomposeSeqP _ _ = Nothing
+  = Cover $ SequenceLiteralP u <$> [pl,pr]
+  | otherwise = Disjoint
+  where u = freshIn avoid $ typed Pattern
+
+decomposeSeqP _ (DL n) (SequenceOpP _ l Concat _)
+  | Just m <- seqPSize l , n == m = Disjoint
+decomposeSeqP _ (DL n) (SequenceLiteralP _ ps)
+  | length ps >= n = Disjoint
+
+decomposeSeqP _ (DR n) (SequenceOpP _ _ Concat r)
+  | Just m <- seqPSize r , n == m = Disjoint
+decomposeSeqP _ (DR n) (SequenceLiteralP _ ps)
+  | length ps >= n = Disjoint
+
+decomposeSeqP _ _ _ = Overlap
 
 splitRow
   :: Var v
-  => Int
+  => v
   -> Int
   -> Int
   -> PatternRow v
-  -> [([PatternV v], PatternRow v)]
-splitRow i t nfields (PR (splitAt i -> (pl, sp : pr)) g b)
+  -> [([PatternP v], PatternRow v)]
+splitRow v t nfields (PR (break ((==v).loc) -> (pl, sp : pr)) g b)
   = decomposePattern t nfields sp
-      <&> \subs -> (subs, PR (pl ++ subs ++ pr) g b)
-splitRow _ _ _ _ = error "splitRow: bad index"
+      <&> \subs -> (subs, PR (pl ++ filter refutable subs ++ pr) g b)
+splitRow _ _ _ row = [([],row)]
 
 splitRowBuiltin
   :: Var v
-  => Int
+  => v
   -> PatternRow v
-  -> [(PatternP (), [([PatternV v], PatternRow v)])]
-splitRowBuiltin i (PR (splitAt i -> (pl, sp : pr)) g b)
+  -> [(PatternP (), [([PatternP v], PatternRow v)])]
+splitRowBuiltin v (PR (break ((==v).loc) -> (pl, sp : pr)) g b)
   | Just p <- matchBuiltin sp = [(p, [([], PR (pl ++ pr) g b)])]
   | otherwise = []
-splitRowBuiltin _ _ = error "splitRowBuiltin: bad index"
+splitRowBuiltin _ r = [(UnboundP (), [([], r)])]
 
 splitRowSeq
   :: Var v
-  => Int
+  => v
   -> SeqMatch
   -> PatternRow v
-  -> [([PatternV v], PatternRow v)]
-splitRowSeq i m (PR (splitAt i -> (pl, sp : pr)) g b)
-  | Just sps <- decomposeSeqP m sp = [(sps, PR (pl ++ sps ++ pr) g b)]
-splitRowSeq _ _ _ = []
+  -> [([PatternP v], PatternRow v)]
+splitRowSeq v m r@(PR (break ((==v).loc) -> (pl, sp : pr)) g b)
+  = case decomposeSeqP avoid m sp of
+      Cover sps -> 
+        [(sps, PR (pl ++ filter refutable sps ++ pr) g b)]
+      Disjoint -> []
+      Overlap -> [([], r)]
+  where avoid = maybe mempty freeVars g <> freeVars b
+splitRowSeq _ _ r = [([], r)]
 
 renameRow :: Var v => Map v v -> PatternRow v -> PatternRow v
 renameRow m (PR p0 g0 b0) = PR p g b
@@ -250,7 +270,7 @@ renameRow m (PR p0 g0 b0) = PR p g b
 
 buildMatrix
   :: Var v
-  => [([PatternV v], PatternRow v)]
+  => [([PatternP v], PatternRow v)]
   -> ([(v,Reference)], PatternMatrix v)
 buildMatrix [] = error "buildMatrix: empty rows"
 buildMatrix vrs@((pvs,_):_) = (zip cvs rs, PM $ fixRow <$> vrs)
@@ -262,85 +282,66 @@ buildMatrix vrs@((pvs,_):_) = (zip cvs rs, PM $ fixRow <$> vrs)
 
 splitMatrixBuiltin
   :: Var v
-  => Int
+  => v
   -> PatternMatrix v
   -> [(PatternP (), [(v,Reference)], PatternMatrix v)]
-splitMatrixBuiltin i (PM rs)
+splitMatrixBuiltin v (PM rs)
   = fmap (\(a,(b,c)) -> (a,b,c))
   . toList
   . fmap buildMatrix
   . fromListWith (++)
-  $ splitRowBuiltin i =<< rs
+  $ splitRowBuiltin v =<< rs
 
-defaultRowSeq
-  :: Var v
-  => Int
-  -> [SeqMatch]
-  -> PatternRow v
-  -> Bool
-defaultRowSeq i [m] (PR (splitAt i -> (_, sp : _)) _ _)
-  = split && antiMatch
-  where
-  split = case m of L _ -> True ; R _ -> True ; _ -> False
-  antiMatch
-    | VarP _ <- sp = True
-    | UnboundP _ <- sp = True
-    | Nothing <- decomposeSeqP m sp = True
-    | otherwise = False
-
-defaultRowSeq _ _ _ = False
-
-matchPattern :: SeqMatch -> PatternP ()
-matchPattern = \case
+matchPattern :: [(v,Reference)] -> SeqMatch -> PatternP ()
+matchPattern vrs = \case
     E -> sz 0
     C -> SequenceOpP () vr Cons vr
     S -> SequenceOpP () vr Snoc vr
     L n -> SequenceOpP () (sz n) Concat (VarP ())
-    R n -> SequenceOpP () (VarP ()) Concat (AsP () $ sz n)
+    R n -> SequenceOpP () (VarP ()) Concat (sz n)
+    DL _ -> UnboundP ()
+    DR _ -> UnboundP ()
   where
-  vr = VarP ()
+  vr | [] <- vrs = UnboundP () | otherwise = VarP ()
   sz n = SequenceLiteralP () . replicate n $ UnboundP ()
 
 splitMatrixSeq
   :: Var v
-  => Int
+  => v
   -> PatternMatrix v
   -> [(PatternP (), [(v,Reference)], PatternMatrix v)]
-splitMatrixSeq i (PM rs)
-  = cases ++ dflt
+splitMatrixSeq v (PM rs)
+  = cases
   where
-  matches = decideSeqPat $ ((!!i)._pats) <$> rs
-  drs = filter (defaultRowSeq i matches) rs
-  dflt | null drs = []
-       | otherwise = [(UnboundP (), [], PM drs)]
+  ms = decideSeqPat $ take 1 . dropWhile ((/=v).loc) . matches =<< rs
   hint m vrs
     | m `elem` [E,C,S] = vrs
     | otherwise = (fmap.fmap) (const Rf.vectorRef) vrs
-  cases = matches <&> \m ->
-    let frs = rs >>= splitRowSeq i m
+  cases = ms <&> \m ->
+    let frs = rs >>= splitRowSeq v m
         (vrs, pm)
           | null frs = ([], PM [])
           | otherwise = buildMatrix frs
-    in (matchPattern m, hint m vrs, pm)
+    in (matchPattern vrs m, hint m vrs, pm)
 
 splitMatrix
   :: Var v
-  => Int
+  => v
   -> Either Cons Cons
   -> PatternMatrix v
   -> [(Int, [(v,Reference)], PatternMatrix v)]
-splitMatrix i econs (PM rs)
+splitMatrix v econs (PM rs)
   = fmap (\(a, (b, c)) -> (a,b,c)) . (fmap.fmap) buildMatrix $ mmap
   where
   cons = either (((-1,1):) . zip [0..]) (zip [0..]) econs
-  mmap = fmap (\(t,fs) -> (t, splitRow i t fs =<< rs)) cons
+  mmap = fmap (\(t,fs) -> (t, splitRow v t fs =<< rs)) cons
 
-type PPM v a = State (Set v, [v], Map v v) a
+type PPM v a = State (Word64, [v], Map v v) a
 
 freshVar :: Var v => PPM v v
-freshVar = state $ \(avoid, vs, rn) ->
-  let v = freshIn avoid $ typed Pattern
-  in (v, (insert v avoid, vs, rn))
+freshVar = state $ \(fw, vs, rn) ->
+  let v = freshenId fw $ typed Pattern
+  in (v, (fw+1, vs, rn))
 
 useVar :: PPM v v
 useVar = state $ \(avoid, v:vs, rn) -> (v, (avoid, vs, rn))
@@ -376,7 +377,7 @@ normalizeSeqP (SequenceOpP a p0 op q0)
       (op, p, q) -> SequenceOpP a p op q
 normalizeSeqP p = p
 
-prepareAs :: Var v => PatternP a -> v -> PPM v (PatternV v)
+prepareAs :: Var v => PatternP a -> v -> PPM v (PatternP v)
 prepareAs (UnboundP _) u = pure $ VarP u
 prepareAs (AsP _ p) u = prepareAs p u <* (renameTo u =<< useVar)
 prepareAs (VarP _) u = VarP u <$ (renameTo u =<< useVar)
@@ -396,7 +397,7 @@ prepareAs (SequenceOpP _ p op q) u = do
     <*> preparePattern q
 prepareAs p u = pure $ u <$ p
 
-preparePattern :: Var v => PatternP a -> PPM v (PatternV v)
+preparePattern :: Var v => PatternP a -> PPM v (PatternP v)
 preparePattern (UnboundP _) = VarP <$> freshVar
 preparePattern (VarP _) = VarP <$> useVar
 preparePattern (AsP _ p) = prepareAs p =<< useVar
@@ -417,81 +418,71 @@ buildPattern ef r t vs nfields =
       | otherwise
       = VarP () <$ vs
 
-compile :: Var v => DataSpec -> [Scrut v] -> PatternMatrix v -> Term v
+compile :: Var v => DataSpec -> Ctx v -> PatternMatrix v -> Term v
 compile _ _ (PM []) = blank ()
-compile spec scs m@(PM (r:rs))
+compile spec ctx m@(PM (r:rs))
   | rowIrrefutable r
   = case guard r of
       Nothing -> body r
-      Just g -> iff mempty g (body r) $ compile spec scs (PM rs)
-  | (scsl, (scrut,r) : scsr) <- splitAt i scs
-  , r == Rf.vectorRef
-  = match () (var () scrut)
-      $ buildCaseSeq spec scs scsl scsr
-     <$> splitMatrixSeq i m
-  | (scsl, (scrut,r) : scsr) <- splitAt i scs
-  , r `member` builtinCase
-  = match () (var () scrut)
-      $ buildCaseBuiltin spec scsl scsr
-     <$> splitMatrixBuiltin i m
-  | (scsl, (scrut,r) : scsr) <- splitAt i scs
-  = case Map.lookup r spec of
+      Just g -> iff mempty g (body r) $ compile spec ctx (PM rs)
+  | rf == Rf.vectorRef
+  = match () (var () v)
+      $ buildCaseBuiltin spec ctx
+     <$> splitMatrixSeq v m
+  | rf `member` builtinCase
+  = match () (var () v)
+      $ buildCaseBuiltin spec ctx
+     <$> splitMatrixBuiltin v m
+  | otherwise
+  = case Map.lookup rf spec of
       Just cons ->
-        match () (var () scrut)
-          $ buildCase spec r cons scsl scsr
-         <$> splitMatrix i cons m
+        match () (var () v)
+          $ buildCase spec rf cons ctx
+         <$> splitMatrix v cons m
       Nothing -> error $ "unknown data reference: " ++ show r
   where
-  i = choose heuristics m
-compile _ _ _ = error "inconsistent terms and pattern matrix"
-
-buildCaseSeq
-  :: Var v
-  => DataSpec
-  -> [Scrut v]
-  -> [Scrut v]
-  -> [Scrut v]
-  -> (PatternP (), [(v,Reference)], PatternMatrix v)
-  -> MatchCase () (Term v)
-buildCaseSeq spec scs _    _    (p@UnboundP{}, vrs, m)
-  | [] <- vrs = MatchCase p Nothing $ compile spec scs m
-buildCaseSeq spec _   scsl scsr t
-  = buildCaseBuiltin spec scsl scsr t
+  v = choose heuristics m
+  rf = Map.findWithDefault defaultRef v ctx
 
 buildCaseBuiltin
   :: Var v
   => DataSpec
-  -> [Scrut v]
-  -> [Scrut v]
+  -> Ctx v
   -> (PatternP (), [(v,Reference)], PatternMatrix v)
   -> MatchCase () (Term v)
-buildCaseBuiltin spec scsl scsr (p, vrs, m)
-  = MatchCase p Nothing . absChain' vs $ compile spec scs m
+buildCaseBuiltin spec ctx0 (p, vrs, m)
+  = MatchCase p Nothing . absChain' vs $ compile spec ctx m
   where
-  (scsn, vs) = unzip $ vrs <&> \p@(v,_) -> (p,((),v))
-  scs = scsl ++ scsn ++ scsr
+  vs = ((),) . fst <$> vrs
+  ctx = Map.fromList vrs <> ctx0
 
 buildCase
   :: Var v
   => DataSpec
   -> Reference
   -> Either Cons Cons
-  -> [Scrut v]
-  -> [Scrut v]
+  -> Ctx v
   -> (Int, [(v,Reference)], PatternMatrix v)
   -> MatchCase () (Term v)
-buildCase spec r econs scsl scsr (t, vrs, m)
-  = MatchCase pat Nothing . absChain' vs $ compile spec scs m
+buildCase spec r econs ctx0 (t, vrs, m)
+  = MatchCase pat Nothing . absChain' vs $ compile spec ctx m
   where
   (eff, cons) = either (True,) (False,) econs
   pat = buildPattern eff r t vs $ cons !! t
-  (scsn, vs) = unzip $ vrs <&> \(v,r) -> ((v,r),((),v))
-  scs = scsl ++ scsn ++ scsr
+  vs = ((),) . fst <$> vrs
+  ctx = Map.fromList vrs <> ctx0
 
-mkRow :: Var v => v -> MatchCase a (Term v) -> PatternRow v
+mkRow
+  :: Var v
+  => v
+  -> MatchCase a (Term v)
+  -> State Word64 (PatternRow v)
 mkRow sv (MatchCase (normalizeSeqP -> p0) g0 (AbsN' vs b))
-  = case runState (prepareAs p0 sv) (avoid, vs, mempty) of
-      (p, (_, [], rn)) -> PR [p] (changeVars rn <$> g) (changeVars rn b)
+  = state $ \w -> case runState (prepareAs p0 sv) (w, vs, mempty) of
+      (p, (w, [], rn)) -> (,w)
+        $ PR (filter refutable [p])
+             (changeVars rn <$> g)
+             (changeVars rn b)
       _ -> error "mkRow: not all variables used"
   where
   g = case g0 of
@@ -500,7 +491,6 @@ mkRow sv (MatchCase (normalizeSeqP -> p0) g0 (AbsN' vs b))
           | otherwise -> error "mkRow: guard variables do not match body"
         Nothing -> Nothing
         _ -> error "mkRow: impossible"
-  avoid = fromList (sv:vs) <> maybe mempty freeVars g <> freeVars b
 mkRow _ _ = error "mkRow: impossible"
 
 initialize
@@ -508,12 +498,15 @@ initialize
   => Reference
   -> Term v
   -> [MatchCase () (Term v)]
-  -> (Maybe v, Scrut v, PatternMatrix v)
-initialize r sc cs = (lv, (sv, r), PM $ mkRow sv <$> cs)
+  -> (Maybe v, (v, Reference), PatternMatrix v)
+initialize r sc cs
+  = ( lv
+    , (sv, r)
+    , PM $ evalState (traverse (mkRow sv) cs) 1
+    )
   where
-  avoid = freeVars sc
   (lv, sv) | Var' v <- sc = (Nothing, v)
-           | pv <- freshIn avoid $ typed Pattern
+           | pv <- freshenId 0 $ typed Pattern
            = (Just pv, pv)
 
 splitPatterns :: Var v => DataSpec -> Term v -> Term v
@@ -521,7 +514,7 @@ splitPatterns spec0 = visitPure $ \case
   Match' sc0 cs0
     | r <- determineType $ p <$> cs0
     , (lv, scrut, pm) <- initialize r sc cs
-    , body <- compile spec [scrut] pm
+    , body <- compile spec (uncurry Map.singleton scrut) pm
    -> Just $ case lv of
         Just v -> let1 False [(((),v), sc)] body
         _ -> body
