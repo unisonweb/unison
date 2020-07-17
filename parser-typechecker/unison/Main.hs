@@ -19,9 +19,12 @@ import qualified Unison.Codebase.Editor.VersionParser as VP
 import           Unison.Codebase.Execute        ( execute )
 import qualified Unison.Codebase.FileCodebase  as FileCodebase
 import           Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
+import           Unison.Codebase.Runtime        ( Runtime )
 import           Unison.CommandLine             ( watchConfig )
 import qualified Unison.CommandLine.Main       as CommandLine
-import qualified Unison.Runtime.Interface as RTI
+import qualified Unison.Runtime.Rt1IO          as Rt1
+import qualified Unison.Runtime.Interface      as RTI
+import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Util.Cache             as Cache
 import qualified Version
@@ -132,9 +135,12 @@ main = do
   -- certain messages. Therefore we keep a Maybe FilePath - mcodepath
   -- rather than just deciding on whether to use the supplied path or
   -- the home directory here and throwing away that bit of information
-  let (mcodepath, restargs) = case args of
+  let (mcodepath, restargs0) = case args of
            "-codebase" : codepath : restargs -> (Just codepath, restargs)
            _                                 -> (Nothing, args)
+      (mNewRun, restargs) = case restargs0 of
+           "--new-runtime" : rest -> (Just True, rest)
+           _ -> (Nothing, restargs0)
   currentDir <- getCurrentDirectory
   configFilePath <- getConfigFilePath mcodepath
   config@(config_, _cancelConfig) <-
@@ -145,14 +151,14 @@ main = do
   case restargs of
     [] -> do
       theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
-      launch currentDir config theCodebase branchCache []
+      launch currentDir mNewRun config theCodebase branchCache []
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
     ["init"] -> FileCodebase.initCodebaseAndExit mcodepath
     "run" : [mainName] -> do
       theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
-      runtime <- RTI.startRuntime
+      runtime <- join . getStartRuntime mNewRun $ fst config
       execute theCodebase runtime mainName
     "run.file" : file : [mainName] | isDotU file -> do
       e <- safeReadUtf8 file
@@ -161,7 +167,7 @@ main = do
         Right contents -> do
           theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-          launch currentDir config theCodebase branchCache [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+          launch currentDir mNewRun config theCodebase branchCache [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "run.pipe" : [mainName] -> do
       e <- safeReadUtf8StdIn
       case e of
@@ -169,15 +175,17 @@ main = do
         Right contents -> do
           theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
-          launch currentDir config theCodebase branchCache [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+          launch
+            currentDir mNewRun config theCodebase branchCache
+            [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "transcript" : args' ->
       case args' of
-      "-save-codebase" : transcripts -> runTranscripts branchCache False True mcodepath transcripts
-      _                              -> runTranscripts branchCache False False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts mNewRun branchCache False True mcodepath transcripts
+      _                              -> runTranscripts mNewRun branchCache False False mcodepath args'
     "transcript.fork" : args' ->
       case args' of
-      "-save-codebase" : transcripts -> runTranscripts branchCache True True mcodepath transcripts
-      _                              -> runTranscripts branchCache True False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts mNewRun branchCache True True mcodepath transcripts
+      _                              -> runTranscripts mNewRun branchCache True False mcodepath args'
     _ -> do
       PT.putPrettyLn (usage progName)
       Exit.exitWith (Exit.ExitFailure 1)
@@ -200,8 +208,14 @@ prepareTranscriptDir branchCache inFork mcodepath = do
 
   pure tmp
 
-runTranscripts' :: Branch.Cache IO -> Maybe FilePath -> FilePath -> [String] -> IO Bool
-runTranscripts' branchCache mcodepath transcriptDir args = do
+runTranscripts'
+  :: Maybe Bool
+  -> Branch.Cache IO
+  -> Maybe FilePath
+  -> FilePath
+  -> [String]
+  -> IO Bool
+runTranscripts' mNewRun branchCache mcodepath transcriptDir args = do
   currentDir <- getCurrentDirectory
   theCodebase <- FileCodebase.getCodebaseOrExit branchCache $ Just transcriptDir
   case args of
@@ -217,7 +231,7 @@ runTranscripts' branchCache mcodepath transcriptDir args = do
                   P.indentN 2 $ P.string err])
             Right stanzas -> do
               configFilePath <- getConfigFilePath mcodepath
-              mdOut <- TR.run transcriptDir configFilePath stanzas theCodebase branchCache
+              mdOut <- TR.run mNewRun transcriptDir configFilePath stanzas theCodebase branchCache
               let out = currentDir FP.</>
                          FP.addExtension (FP.dropExtension arg ++ ".output")
                                          (FP.takeExtension md)
@@ -232,11 +246,19 @@ runTranscripts' branchCache mcodepath transcriptDir args = do
     [] ->
       pure False
 
-runTranscripts :: Branch.Cache IO -> Bool -> Bool -> Maybe FilePath -> [String] -> IO ()
-runTranscripts branchCache inFork keepTemp mcodepath args = do
+runTranscripts
+  :: Maybe Bool
+  -> Branch.Cache IO
+  -> Bool
+  -> Bool
+  -> Maybe FilePath
+  -> [String]
+  -> IO ()
+runTranscripts mNewRun branchCache inFork keepTemp mcodepath args = do
   progName <- getProgName
   transcriptDir <- prepareTranscriptDir branchCache inFork mcodepath
-  completed <- runTranscripts' branchCache (Just transcriptDir) transcriptDir args
+  completed <-
+    runTranscripts' mNewRun branchCache (Just transcriptDir) transcriptDir args
   when completed $ do
     unless keepTemp $ removeDirectoryRecursive transcriptDir
     when keepTemp $ PT.putPrettyLn $
@@ -256,9 +278,22 @@ runTranscripts branchCache inFork keepTemp mcodepath args = do
 initialPath :: Path.Absolute
 initialPath = Path.absoluteEmpty
 
-launch :: FilePath -> (Config, IO ()) -> _ -> Branch.Cache IO -> [Either Input.Event Input.Input] -> IO ()
-launch dir config code branchCache inputs =
-  CommandLine.main dir defaultBaseLib initialPath config inputs RTI.startRuntime code branchCache Version.gitDescribe
+getStartRuntime :: Maybe Bool -> Config -> IO (IO (Runtime Symbol))
+getStartRuntime newRun config = do
+  b <- maybe (Config.lookupDefault False config "new-runtime") pure newRun
+  pure $ if b then RTI.startRuntime else pure Rt1.runtime
+
+launch
+  :: FilePath
+  -> Maybe Bool
+  -> (Config, IO ())
+  -> _
+  -> Branch.Cache IO
+  -> [Either Input.Event Input.Input]
+  -> IO ()
+launch dir newRun config code branchCache inputs = do
+  startRuntime <- getStartRuntime newRun $ fst config
+  CommandLine.main dir defaultBaseLib initialPath config inputs startRuntime code branchCache Version.gitDescribe
 
 isMarkdown :: String -> Bool
 isMarkdown md = case FP.takeExtension md of

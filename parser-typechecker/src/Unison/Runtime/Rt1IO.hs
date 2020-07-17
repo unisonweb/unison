@@ -455,8 +455,8 @@ lamToHask :: RT.CompilationEnv -> S -> RT.IR -> RT.Value -> IO RT.Result
 lamToHask cenv s ir val = RT.run (handleIO' cenv s) cenv $ task val
   where task x = IR.Let (Var.named "_") (IR.Leaf (IR.Val x)) ir mempty
 
-runtime__ :: Runtime Symbol
-runtime__ = Runtime terminate eval
+runtime :: Runtime Symbol
+runtime = Runtime terminate eval
  where
   terminate :: IO ()
   terminate = pure ()

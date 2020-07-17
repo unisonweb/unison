@@ -23,8 +23,8 @@ import Unison.Symbol (Symbol)
 
 -- * IO Tests
 
-test :: Test ()
-test = scope "IO" . tests $ [ testHandleOps ]
+test :: Bool -> Test ()
+test newRt = scope "IO" . tests $ [ testHandleOps newRt ]
 
 -- * Implementation
 
@@ -32,12 +32,13 @@ test = scope "IO" . tests $ [ testHandleOps ]
 --
 -- The transcript writes expectedText to a file, reads the same file and
 -- writes the read text to the result file which is then checked by the haskell.
-testHandleOps :: Test ()
-testHandleOps = withScopeAndTempDir "handleOps" $ \workdir codebase cache -> do
+testHandleOps :: Bool -> Test ()
+testHandleOps newRt =
+  withScopeAndTempDir "handleOps" $ \workdir codebase cache -> do
   let myFile = workdir </> "handleOps.txt"
       resultFile = workdir </> "handleOps.result"
       expectedText = "Good Job!" :: Text.Text
-  runTranscript_ workdir codebase cache [iTrim|
+  runTranscript_ newRt workdir codebase cache [iTrim|
 ```ucm:hide
 .> builtins.mergeio
 ```
@@ -84,15 +85,24 @@ initCodebase branchCache tmpDir name = do
   pure (codebaseDir, c)
 
 -- run a transcript on an existing codebase
-runTranscript_ :: MonadIO m => FilePath -> Codebase IO Symbol Ann -> Branch.Cache IO -> String -> m ()
-runTranscript_ tmpDir c branchCache transcript = do
+runTranscript_
+  :: MonadIO m
+  => Bool
+  -> FilePath
+  -> Codebase IO Symbol Ann
+  -> Branch.Cache IO
+  -> String
+  -> m ()
+runTranscript_ newRt tmpDir c branchCache transcript = do
   let configFile = tmpDir </> ".unisonConfig"
   let cwd = tmpDir </> "cwd"
   let err err = error $ "Parse error: \n" <> show err
 
   -- parse and run the transcript
   flip (either err) (TR.parse "transcript" (Text.pack transcript)) $ \stanzas ->
-    void . liftIO $ TR.run cwd configFile stanzas c branchCache >>= traceM . Text.unpack
+    void . liftIO $
+      TR.run (Just newRt) cwd configFile stanzas c branchCache
+        >>= traceM . Text.unpack
 
 withScopeAndTempDir :: String -> (FilePath -> Codebase IO Symbol Ann -> Branch.Cache IO -> Test ()) -> Test ()
 withScopeAndTempDir name body = scope name $ do
