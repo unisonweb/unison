@@ -102,13 +102,15 @@ allocType _ b@(RF.Builtin _) _
   = die $ "Unknown builtin type reference: " ++ show b
 allocType ctx r cons
   = pure $ ctx
-         { refTy = Map.insert r frsh $ refTy ctx
-         , backrefTy = mapInsert frsh r $ backrefTy ctx
+         { refTy = Map.insert r rt $ refTy ctx
+         , backrefTy = mapInsert rt r $ backrefTy ctx
          , dspec = Map.insert r cons $ dspec ctx
-         , freshTy = freshTy ctx + 1
+         , freshTy = fresh
          }
   where
-  frsh = toEnum $ freshTy ctx
+  (rt, fresh)
+    | Just rt <- Map.lookup r $ refTy ctx = (rt, freshTy ctx)
+    | frsh <- freshTy ctx = (toEnum $ frsh, frsh + 1)
 
 collectDeps
   :: Var v
@@ -135,8 +137,12 @@ loadDeps
 loadDeps cl ctx tm = do
   (tys, _  ) <- collectDeps cl tm
   -- TODO: terms
-  foldM (uncurry . allocType) ctx
-    $ filter (\(r,_) -> r `Map.notMember` refTy ctx) tys
+  foldM (uncurry . allocType) ctx $ filter p tys
+  where
+  p (r@RF.DerivedId{},_)
+    =  r `Map.notMember` dspec ctx
+    || r `Map.notMember` refTy ctx
+  p _ = False
 
 addCombs :: EnumMap Word64 Comb -> EvalCtx v -> EvalCtx v
 addCombs m ctx = ctx { combs = m <> combs ctx }
