@@ -10,6 +10,7 @@ module Unison.Codebase.FileCodebase.Common
   , SyncToDir
   , SimpleLens
   , codebaseExists
+  , codebasePath
   , hashExists
   -- dirs (parent of all the files)
   , branchHeadDir
