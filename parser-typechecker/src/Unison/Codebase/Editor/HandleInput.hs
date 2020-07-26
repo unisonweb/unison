@@ -1835,10 +1835,6 @@ doDisplay outputLoc names r = do
     loadDecl _ = pure Nothing
   rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm evalTerm loadDecl tm
   respond $ DisplayRendered loc rendered
-  -- We set latestFile to be programmatically generated, if we
-  -- are viewing these definitions to a file - this will skip the
-  -- next update for that file (which will happen immediately)
-  latestFile .= ((, True) <$> loc)
 
 getLinks :: (Var v, Monad m)
          => Input
