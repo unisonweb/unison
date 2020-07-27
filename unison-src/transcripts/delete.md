@@ -4,8 +4,7 @@
 .> builtins.merge
 ```
 
-The delete command can delete both terms and types, as long as it's given an
-unambiguous name.
+The delete command can delete both terms and types.
 
 First, let's make sure it complains when we try to delete a name that doesn't
 exist.
@@ -48,11 +47,7 @@ foo = 2
 .a> merge .b
 ```
 
-```ucm:error
-.a> delete foo
-```
-
-I can force my delete through by re-issuing the command.
+A delete should remove both versions of the term.
 
 ```ucm
 .a> delete foo
@@ -81,16 +76,8 @@ type Foo = Foo Boolean
 .a> merge .b
 ```
 
-```ucm:error
-.a> delete Foo
-```
-
 ```ucm
 .a> delete Foo
-```
-
-```ucm:error
-.a> delete Foo.Foo
 ```
 
 ```ucm
@@ -106,10 +93,6 @@ type foo = Foo Nat
 
 ```ucm
 .> add
-```
-
-```ucm:error
-.> delete foo
 ```
 
 ```ucm
