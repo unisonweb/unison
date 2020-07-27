@@ -7,6 +7,7 @@ import Unison.Hash (Hash)
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as H
 import Unison.Reference (Reference, ReferenceH)
+import qualified Unison.Reference as Reference
 import qualified Unison.Typechecker as Typechecker
 import Unison.Type (Type)
 import Unison.Var (Var)
@@ -15,6 +16,11 @@ type TermEdit = TermEditH Hash
 data TermEditH h = Replace (ReferenceH h) Typing | Deprecate
   deriving (Eq, Ord)
 deriving instance Show (ReferenceH h) => Show (TermEditH h)
+
+hmap :: (h -> h') -> TermEditH h -> TermEditH h'
+hmap f = \case
+  Replace r t -> Replace (Reference.hmap f r) t
+  Deprecate -> Deprecate
 
 references :: TermEdit -> [Reference]
 references (Replace r _) = [r]

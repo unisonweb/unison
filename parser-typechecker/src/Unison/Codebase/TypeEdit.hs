@@ -4,6 +4,7 @@
 module Unison.Codebase.TypeEdit where
 
 import Unison.Reference (Reference, ReferenceH)
+import qualified Unison.Reference as Reference
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as H
 import Unison.Hash (Hash)
@@ -12,6 +13,11 @@ type TypeEdit = TypeEditH Hash
 data TypeEditH h = Replace (ReferenceH h) | Deprecate
   deriving (Eq, Ord)
 deriving instance Show (ReferenceH h) => Show (TypeEditH h)  
+
+hmap :: (h -> h') -> TypeEditH h -> TypeEditH h'
+hmap f = \case
+  Replace r -> Replace (Reference.hmap f r)
+  Deprecate -> Deprecate
 
 references :: TypeEdit -> [Reference]
 references (Replace r) = [r]

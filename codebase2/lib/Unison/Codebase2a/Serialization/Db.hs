@@ -2,9 +2,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Unison.Codebase2a.Serialization.Db where
 
@@ -14,8 +16,7 @@ import Control.Lens (Traversal)
 import Control.Monad.Reader (MonadReader, ask)
 import Data.String.Here.Uninterpolated (here)
 import qualified Database.SQLite.Simple as SQLite
-import Database.SQLite.Simple (Connection, Only(..), ToRow(..), pattern (:.))
-import Database.SQLite.Simple (SQLData(SQLNull,SQLText))
+import Database.SQLite.Simple ( Connection, Only(..), ToRow(..), pattern (:.), SQLData(SQLNull,SQLText))
 import Database.SQLite.Simple.FromField
 import Database.SQLite.Simple.ToField
 import Data.Maybe (fromJust)
@@ -34,7 +35,7 @@ newtype HashId = HashId Word64 deriving (Eq, Ord) deriving (FromField, ToField) 
 newtype TypeId = TypeId ObjectId deriving (FromField, ToField) via ObjectId
 newtype TermId = TermCycleId ObjectId deriving (FromField, ToField) via ObjectId
 newtype DeclId = DeclCycleId ObjectId deriving (FromField, ToField) via ObjectId
-newtype ObjectId = ObjectId Word64 deriving (Eq, FromField, ToField) via Word64
+newtype ObjectId = ObjectId Word64 deriving (Eq, Ord, FromField, ToField) via Word64
 newtype CausalHashId = CausalHashId HashId deriving (FromField, ToField) via HashId
 newtype NamespaceHashId = NamespaceHashId ObjectId deriving (FromField, ToField) via ObjectId
 newtype ReferenceId = ReferenceId Word64 deriving FromField via Word64

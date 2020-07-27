@@ -86,6 +86,10 @@ import Unison.Parser (Ann)
 import Unison.Symbol (Symbol)
 import Data.Coerce (coerce)
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.Codebase.Patch as Patch
+import qualified Unison.Codebase.TermEdit as TermEdit
+import qualified Unison.Codebase.TypeEdit as TypeEdit
+import qualified Unison.Util.Relation as Relation
 
 -- [ ] todo: need some way to associate types to terms.  let's reuse the type index
 -- type_index does something similar?
@@ -140,9 +144,12 @@ data FatalError = NoRootBranch
 type Type = Type.Type Symbol Ann
 type Term = Term.Term Symbol Ann
 type Decl = DD.Decl Symbol Ann
+type Patch = Patch.Patch
+-- the S stands for "for serialization"
 type Type2S = Type.TypeH (Maybe Db.ObjectId) Symbol Ann
 type Term2S = Term.TermH (Maybe Db.ObjectId) Symbol Ann
 type Decl2S = DD.DeclH (Maybe Db.ObjectId) Symbol Ann
+type Patch2S = Patch.PatchH Db.ObjectId
 --type Term2S = ABT.Term (Term.F' (Maybe TermId) DeclId (Type.TypeH DeclId Symbol ()) Void ()) Symbol ()
 --alternative representation if embedded
 --type Term2S = ABT.Term (Term.F' (Maybe TermId) DeclId TypeId Void ()) Symbol ()
@@ -184,7 +191,6 @@ syncV1V2 c rootDir = liftIO $ SQLite.withTransaction c . runExceptT . flip runRe
     declsDirComponents <- componentMapForDir (V1.typesDir rootDir)
     case h of
       Branch1 (V1.unRawHash -> h) -> error "todo"
-      Patch1 h -> error "todo"
       Term1 h ->
         -- if this hash is already associated to an object
         ifM (existsObjectWithHash h) (convertEntities rest) $ do
@@ -201,7 +207,16 @@ syncV1V2 c rootDir = liftIO $ SQLite.withTransaction c . runExceptT . flip runRe
           matchDecl1Dependencies h d >>= \case
             Left missing -> convertEntities (missing ++ all)
             Right lookup -> do
-              void $ convertDecl1 lookup h d
+              convertDecl1 lookup h d
+              convertEntities rest
+      Patch1 h ->
+        ifM (existsObjectWithHash h) (convertEntities rest) $ do
+          p <- loadPatch1 rootDir h
+          matchPatch1Dependencies h p >>= \case
+            Left missing -> convertEntities (missing ++ all)
+            Right lookup -> do
+              hashId <- Db.saveHashByteString h
+              savePatch hashId (Patch.hmap lookup p)
               convertEntities rest
 
   -- |load a causal branch raw thingo
@@ -216,17 +231,7 @@ syncV1V2 c rootDir = liftIO $ SQLite.withTransaction c . runExceptT . flip runRe
         Right c0  -> pure c0)
       (throwError $ MissingBranch h)
 
-  -- |load a patch
-  loadPatch1 h = do
-    let file = V1.editsPath rootDir h
-    ifM (doesFileExist file)
-      (S.getFromFile' S.V1.getEdits file >>= \case
-        Left  _err   -> throwError (InvalidPatch h)
-        Right edits -> pure edits)
-      (throwError $ MissingPatch h)
-
   matchCausalBranch1Dependencies = error "todo"
-  matchPatch1Dependencies = error "todo"
   convertCausalBranch1
     :: MonadIO m
     => MonadError FatalError m
@@ -243,10 +248,6 @@ syncV1V2 c rootDir = liftIO $ SQLite.withTransaction c . runExceptT . flip runRe
     convertCausal1 lookup h2 tails = error "todo" lookup h2 tails
     saveBranch2 = error "todo"
     saveCausal2 = error "todo"
-  convertPatch1 lookup patch1 = do
-    rawPatch2 <- error "todo: convert patch" lookup patch1
-    savePatch2 rawPatch2
-    where savePatch2 = error "todo"
 
   -- | Given a V1 term component, convert and save it to the V2 codebase
   -- Pre-requisite: all hash-identified entities in the V1 component have
@@ -320,13 +321,14 @@ syncV1V2 c rootDir = liftIO $ SQLite.withTransaction c . runExceptT . flip runRe
       for (zip v1component [0..]) $ \(decl1, i) -> do
         let r :: Db.Reference2Id = Db.Reference2Id componentHashId i
 
-        for (DD.constructorTypes (DD.asDataDecl decl1) `zip` [0..]) $ \(type1, j) -> do
+        for_ (DD.constructorTypes (DD.asDataDecl decl1) `zip` [0..]) $ \(type1, j) -> do
           let rt :: Db.Referent2Id = Db.Referent2IdCon r j
 
           saveTypeOfReferent rt (Type.hmap lookup' type1)
           createTypeIndicesForReferent rt type1
 
         createDependencyIndexForDecl r decl1
+
         -- produce a new Decl that references ObjectIds instead of Hashes
         pure (DD.hmapDecl lookup' decl1)
 
@@ -467,6 +469,15 @@ loadDecl1 rootDir componentsFromDir h = case Map.lookup h componentsFromDir of
       V1.FC.getDecl (S.get fmtV) (S.get fmtA) rootDir r
         >>= maybe (throwError $ MissingDecl r) pure
 
+-- |load a patch
+loadPatch1 rootDir h = do
+  let file = V1.editsPath rootDir h
+  ifM (doesFileExist file)
+    (S.getFromFile' S.V1.getEdits file >>= \case
+      Left  _err   -> throwError (InvalidPatch h)
+      Right edits -> pure edits)
+    (throwError $ MissingPatch h)
+
 -- 3) figure out what their combined dependencies are
 matchTerm1Dependencies ::
   DB m => Hash -> [(Term, Type)] -> m (Either [V1EntityRef] (Hash -> Db.ObjectId))
@@ -491,7 +502,7 @@ matchTerm1Dependencies componentHash tms = let
     -- else return left.
     (missing, found) <- partitionEithers <$> foldMapM lookupDependencyObjects tms
     pure $ case missing of
-      [] -> Right (Map.fromList found Map.!)
+      [] -> Right (makeLookup "term component" componentHash found)
       missing -> Left missing
 
 matchDecl1Dependencies ::
@@ -505,8 +516,32 @@ matchDecl1Dependencies componentHash decls = let
   in do
     (missing, found) <- partitionEithers <$> foldMapM lookupDependencyObjects decls
     pure $ case missing of
-      [] -> Right (Map.fromList found Map.!)
+      [] -> Right (makeLookup "decl component" componentHash found)
       missing -> Left missing
+
+matchPatch1Dependencies h (Patch.Patch tms tps) = do
+  deps :: [Either V1EntityRef (Hash, Db.ObjectId)] <-
+    traverse lookupObject . nubOrd $
+      [ Term1 h | (r, e) <- Relation.toList tms
+      , Reference.Derived h _i _n <- r : TermEdit.references e ] ++
+      [ Decl1 h | (r, e) <- Relation.toList tps
+      , Reference.Derived h _i _n <- r : TypeEdit.references e]
+  let (missing, found) = partitionEithers deps
+  pure $ case missing of
+    [] -> Right (makeLookup "patch" h found)
+    missing -> Left missing
+
+makeLookup :: String -> Hash -> [(Hash, Db.ObjectId)] -> Hash -> Db.ObjectId
+makeLookup lookupDescription h l a = case Map.lookup a m of
+  Just b -> b
+  Nothing ->
+    error $ "Somehow I don't have the ObjectId for "
+      ++ show (Base32Hex.fromHash a)
+      ++ " in the map for "
+      ++ lookupDescription ++ " "
+      ++ show (Base32Hex.fromHash h)
+  where m = Map.fromList l
+
 --
 createTypeIndicesForReferent :: DB m => Db.Referent2Id -> Type -> m ()
 createTypeIndicesForReferent r typ = do
@@ -577,6 +612,11 @@ saveDeclComponent h component = do
   Db.saveHashObject h o 2
   where
   blob = S.putBytes (S.V1.putFoldable (V2.putDecl putObjectId putV putA)) component
+
+savePatch :: DB m => Db.HashId -> Patch2S -> m ()
+savePatch h p = do
+  o <- Db.saveObject h V2.Patch (S.putBytes (S.V1.putEditsH putObjectId) p)
+  Db.saveHashObject h o 2
 
 -- |Loads a dir with format <root>/base32-encoded-reference.id...
 -- into a map from Hash to component references

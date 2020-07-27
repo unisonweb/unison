@@ -20,12 +20,15 @@ import           Unison.Hash                    ( Hash )
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
 import           Unison.Reference               ( Reference, ReferenceH )
+import qualified Unison.Reference              as Reference
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation           ( Relation )
 import qualified Unison.LabeledDependency      as LD
 import           Unison.LabeledDependency       ( LabeledDependency )
 
 type Patch = PatchH Hash
+-- todo: who's looking these up by TermEdit? These would probably be better off
+-- as Map instead of Relation.
 data PatchH h = Patch
   { _termEdits :: Relation (ReferenceH h) (TermEditH h)
   , _typeEdits :: Relation (ReferenceH h) (TypeEditH h)
@@ -43,6 +46,12 @@ deriving instance Show (ReferenceH h) => Show (PatchDiffH h)
 
 makeLenses ''PatchH
 makeLenses ''PatchDiffH
+
+hmap :: Ord h' => (h -> h') -> PatchH h -> PatchH h'
+hmap f (Patch tms tps) =
+  Patch
+    (R.fromList [ (Reference.hmap f r, TermEdit.hmap f e) | (r, e) <- R.toList tms])
+    (R.fromList [ (Reference.hmap f r, TypeEdit.hmap f e) | (r, e) <- R.toList tps])
 
 diff :: Patch -> Patch -> PatchDiff
 diff new old = PatchDiff
