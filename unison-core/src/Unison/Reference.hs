@@ -2,15 +2,22 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE ViewPatterns   #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 
 module Unison.Reference
   (Reference,
    ReferenceH,
+   Reference',
      pattern Builtin,
      pattern Derived,
      pattern DerivedId,
    IdH, pattern IdH,
    Id, pattern Id,
+   -- * lenses
+   referenceH,
    hmap,
    hmapId,
    derivedBase32Hex,
@@ -33,6 +40,7 @@ module Unison.Reference
 
 import Unison.Prelude
 
+import Control.Lens
 import qualified Data.Map        as Map
 import qualified Data.Set        as Set
 import qualified Data.Text       as Text
@@ -43,17 +51,27 @@ import qualified Unison.ShortHash as SH
 import Data.Char (isDigit)
 
 type Reference = ReferenceH H.Hash
-data ReferenceH h
+type ReferenceH h = Reference' (IdH h)
+data Reference' id
   = Builtin Text.Text
-  -- `Derived` can be part of a strongly connected component.
-  -- The `Pos` refers to a particular element of the component
-  -- and the `Size` is the number of elements in the component.
-  -- Using an ugly name so no one tempted to use this
-  | DerivedId (IdH h) deriving (Eq,Ord,Generic)
+  | DerivedId id deriving (Eq,Ord,Generic,Functor,Foldable,Traversable)
 
+referenceH :: Traversal (Reference' (IdH h1)) (Reference' (IdH h2)) h1 h2
+referenceH = referenceId . idH
+
+referenceId :: Prism (Reference' i1) (Reference' i2) i1 i2
+referenceId = prism DerivedId $ \case
+  Builtin t -> Left (Builtin t)
+  DerivedId id -> Right id
+
+idH :: Lens (IdH h1) (IdH h2) h1 h2
+idH = lens (\(IdH h _i _n) -> h) (\(IdH _ i n) h -> IdH h i n)
+
+pattern Derived :: h -> Pos -> Size -> Reference' (IdH h)
 pattern Derived h i n = DerivedId (IdH h i n)
-
 -- A good idea, but causes a weird problem with view patterns in PatternP.hs in ghc 8.4.3
+-- Update: This is no longer complete for `Reference'`.  Is there a way we can declare
+-- it to be complete for `ReferenceH h` ?
 --{-# COMPLETE Builtin, Derived #-}
 
 pattern Id :: H.Hash -> Pos -> Size -> Id
@@ -61,7 +79,7 @@ pattern Id h i n = IdH h i n
 {-# COMPLETE Id #-}
 
 type Id = IdH H.Hash
-data IdH h = IdH h Pos Size deriving (Eq,Ord,Generic)
+data IdH h = IdH h Pos Size deriving (Eq,Ord,Generic,Functor,Foldable,Traversable)
 
 hmap :: (h -> h') -> ReferenceH h -> ReferenceH h'
 hmap f = \case
@@ -154,8 +172,11 @@ idFromText s = case fromText s of
   Right (DerivedId id) -> pure id
 
 toId :: Reference -> Maybe Id
-toId (DerivedId id) = Just id
-toId Builtin{} = Nothing
+toId = toId'
+
+toId' :: Reference' h -> Maybe h
+toId' (DerivedId id) = Just id
+toId' Builtin{} = Nothing
 
 -- examples:
 -- `##Text.take` — builtins don’t have cycles
@@ -197,3 +218,4 @@ instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
 instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]
   tokens (DerivedId (Id h i n)) = [Hashable.Tag 1, Hashable.Bytes (H.toBytes h), Hashable.Nat i, Hashable.Nat n]
+

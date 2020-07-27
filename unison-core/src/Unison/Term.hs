@@ -9,6 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module Unison.Term where
 
@@ -32,7 +33,7 @@ import           Unison.Hashable (Hashable1, accumulateToken)
 import qualified Unison.Hashable as Hashable
 import           Unison.Names3 ( Names0 )
 import qualified Unison.Names3 as Names
-import           Unison.PatternP (Pattern)
+import           Unison.PatternP (Pattern, PatternH')
 import qualified Unison.PatternP as Pattern
 import           Unison.Reference (Reference, ReferenceH, pattern Builtin)
 import qualified Unison.Reference as Reference
@@ -54,27 +55,34 @@ import Unison.LabeledDependency (LabeledDependency)
 
 type ConstructorId = Pattern.ConstructorId
 
-data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
-  deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
+type MatchCase loc a = MatchCaseH Hash loc a
+type MatchCaseH h loc a = MatchCaseH' (ReferenceH h) (ReferenceH h) loc a
+data MatchCaseH' d e loc a = MatchCase (PatternH' d e loc) (Maybe a) a
+  deriving (Foldable,Functor,Generic,Generic1,Traversable)
+deriving instance (Show (ReferenceH h), Show a) => Show (MatchCaseH h loc a)
+deriving instance (Eq h, Eq a) => Eq (MatchCaseH h loc a)
+
+type F h typeVar typeAnn patternAnn
+  = F' (ReferenceH h) (ReferentH h) (ReferenceH h) (TypeH h typeVar typeAnn) (B.Blank typeAnn) patternAnn
 
 -- | Base functor for terms in the Unison language
 -- We need `typeVar` because the term and type variables may differ.
-data F h typeVar typeAnn patternAnn a
+data F' termRepr termLinkRepr declRepr typeRepr blankRepr patternAnn a
   = Int Int64
   | Nat Word64
   | Float Double
   | Boolean Bool
   | Text Text
   | Char Char
-  | Blank (B.Blank typeAnn)
-  | Ref (ReferenceH h)
+  | Blank blankRepr
+  | Ref termRepr
   -- First argument identifies the data type,
   -- second argument identifies the constructor
-  | Constructor (ReferenceH h) Int
-  | Request (ReferenceH h) Int
+  | Constructor declRepr Int
+  | Request declRepr Int
   | Handle a a
   | App a a
-  | Ann a (TypeH h typeVar typeAnn)
+  | Ann a typeRepr
   | Sequence (Seq a)
   | If a a a
   | And a a
@@ -96,9 +104,9 @@ data F h typeVar typeAnn patternAnn a
   --   Match x
   --     [ (Constructor 0 [Var], ABT.abs n rhs1)
   --     , (Constructor 1 [], rhs2) ]
-  | Match a [MatchCase patternAnn a]
-  | TermLink (ReferentH h)
-  | TypeLink (ReferenceH h)
+  | Match a [MatchCaseH' declRepr declRepr patternAnn a]
+  | TermLink termLinkRepr
+  | TypeLink declRepr
   deriving (Foldable,Functor,Generic,Generic1,Traversable)
 
 type IsTop = Bool
@@ -263,12 +271,12 @@ extraMap hf vtf atf apf = \case
   Lam x -> Lam x
   LetRec x y z -> LetRec x y z
   Let x y z -> Let x y z
-  Match tm l -> Match tm (map (matchCaseExtraMap apf) l)
+  Match tm l -> Match tm (map (matchCaseExtraMap hf apf) l)
   TermLink r -> TermLink (Referent.rmap (Reference.hmap hf) r)
   TypeLink r -> TypeLink (Reference.hmap hf r)
 
-matchCaseExtraMap :: (loc -> loc') -> MatchCase loc a -> MatchCase loc' a
-matchCaseExtraMap f (MatchCase p x y) = MatchCase (fmap f p) x y
+matchCaseExtraMap :: (h -> h') -> (loc -> loc') -> MatchCaseH h loc a -> MatchCaseH h' loc' a
+matchCaseExtraMap hf f (MatchCase p x y) = MatchCase (fmap f (Pattern.hmap hf p)) x y
 
 unannotate
   :: forall vt at ap v a . Ord v => Term2 vt at ap v a -> Term0' vt v

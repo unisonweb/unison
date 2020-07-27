@@ -518,7 +518,7 @@ putTermH :: (MonadPut m, Ord v)
         => (h -> m ()) -> (v -> m ()) -> (a -> m ())
         -> TermH h v a
         -> m ()
-putTermH putHash putVar putA = putABT putVar putA go where
+putTermH putH putVar putA = putABT putVar putA go where
   go putChild t = case t of
     Term.Int n
       -> putWord8 0 *> putInt n
@@ -533,17 +533,17 @@ putTermH putHash putVar putA = putABT putVar putA go where
     Term.Blank _
       -> error "can't serialize term with blanks"
     Term.Ref r
-      -> putWord8 5 *> putReferenceH putHash r
+      -> putWord8 5 *> putReferenceH putH r
     Term.Constructor r cid
-      -> putWord8 6 *> putReferenceH putHash r *> putLength cid
+      -> putWord8 6 *> putReferenceH putH r *> putLength cid
     Term.Request r cid
-      -> putWord8 7 *> putReferenceH putHash r *> putLength cid
+      -> putWord8 7 *> putReferenceH putH r *> putLength cid
     Term.Handle h a
       -> putWord8 8 *> putChild h *> putChild a
     Term.App f arg
       -> putWord8 9 *> putChild f *> putChild arg
     Term.Ann e t
-      -> putWord8 10 *> putChild e *> putTypeH putHash putVar putA t
+      -> putWord8 10 *> putChild e *> putTypeH putH putVar putA t
     Term.Sequence vs
       -> putWord8 11 *> putFoldable putChild vs
     Term.If cond t f
@@ -559,17 +559,17 @@ putTermH putHash putVar putA = putABT putVar putA go where
     Term.Let _ b body
       -> putWord8 17 *> putChild b *> putChild body
     Term.Match s cases
-      -> putWord8 18 *> putChild s *> putFoldable (putMatchCase putA putChild) cases
+      -> putWord8 18 *> putChild s *> putFoldable (putMatchCaseH putH putA putChild) cases
     Term.Char c
       -> putWord8 19 *> putChar c
     Term.TermLink r
-      -> putWord8 20 *> putReferentH putHash r
+      -> putWord8 20 *> putReferentH putH r
     Term.TypeLink r
-      -> putWord8 21 *> putReferenceH putHash r
+      -> putWord8 21 *> putReferenceH putH r
 
-  putMatchCase :: MonadPut m => (a -> m ()) -> (x -> m ()) -> Term.MatchCase a x -> m ()
-  putMatchCase putA putChild (Term.MatchCase pat guard body) =
-    putPattern putA pat *> putMaybe guard putChild *> putChild body
+  putMatchCaseH :: MonadPut m => (h -> m ()) -> (a -> m ()) -> (x -> m ()) -> Term.MatchCaseH h a x -> m ()
+  putMatchCaseH putH putA putChild (Term.MatchCase pat guard body) =
+    putPatternH putH putA pat *> putMaybe guard putChild *> putChild body
 
 getTerm :: (MonadGet m, Ord v)
         => m v -> m a -> m (Term v a)
@@ -598,7 +598,7 @@ getTermH getHash getVar getA = getABT getVar getA go where
     16 -> Term.LetRec False <$> getList getChild <*> getChild
     17 -> Term.Let False <$> getChild <*> getChild
     18 -> Term.Match <$> getChild
-                     <*> getList (Term.MatchCase <$> getPattern getA <*> getMaybe getChild <*> getChild)
+                     <*> getList (Term.MatchCase <$> getPatternH getHash getA <*> getMaybe getChild <*> getChild)
     19 -> Term.Char <$> getChar
     20 -> Term.TermLink <$> getReferentH getHash
     21 -> Term.TypeLink <$> getReferenceH getHash
@@ -618,14 +618,14 @@ putPair'' putA putBn (a, b) = pure (putA a) *> putBn b
 getPair :: MonadGet m => m a -> m b -> m (a,b)
 getPair = liftA2 (,)
 
-putTuple3'
+putTuple3
   :: MonadPut m
   => (a -> m ())
   -> (b -> m ())
   -> (c -> m ())
   -> (a, b, c)
   -> m ()
-putTuple3' putA putB putC (a, b, c) = putA a *> putB b *> putC c
+putTuple3 putA putB putC (a, b, c) = putA a *> putB b *> putC c
 
 getTuple3 :: MonadGet m => m a -> m b -> m c -> m (a,b,c)
 getTuple3 = liftA3 (,,)
@@ -818,7 +818,7 @@ putDataDeclarationH putH putV putA decl = do
   putModifier $ DataDeclaration.modifier decl
   putA $ DataDeclaration.annotation decl
   putFoldable putV (DataDeclaration.bound decl)
-  putFoldable (putTuple3' putA putV (putTypeH putH putV putA)) (DataDeclaration.constructors' decl)
+  putFoldable (putTuple3 putA putV (putTypeH putH putV putA)) (DataDeclaration.constructors' decl)
 
 getDataDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (DataDeclaration' v a)
 getDataDeclaration = getDataDeclarationH getHash

@@ -14,38 +14,77 @@ CREATE INDEX hash_base32 ON hash(base32);
 --      INNER JOIN hash ON hash_id = hash.id
 --     WHERE base32 LIKE 'a1b2c3%'
 CREATE TABLE hash_object (
-  id INTEGER PRIMARY KEY,
   -- hashes are UNIQUE; many hashes correspond to one object
   -- (causal nodes are not considered objects atm)
-  hash_id INTEGER UNIQUE NOT NULL REFERENCES hash(id),
+  hash_id INTEGER PRIMARY KEY NOT NULL REFERENCES hash(id),
   object_id INTEGER NOT NULL REFERENCES object(id),
   hash_version INTEGER NOT NULL
 );
 CREATE INDEX hash_object_hash_id ON hash_object(hash_id);
+CREATE INDEX hash_object_object_id ON hash_object(object_id);
+
+-- this table is just documentation, it won't be used for joins.
+CREATE TABLE object_type_description (
+  id INTEGER UNIQUE NOT NULL,
+  description TEXT UNIQUE NOT NULL
+);
+INSERT INTO object_type_description (id, description) VALUES
+    (0, "Term"), -- foo x = x + 1
+    (1, "Type"), -- Nat -> Nat
+    (2, "Data"), -- unique type Animal = Cat | Dog | Mouse
+    (3, "Ability"), -- ability Abort where { abort : a }
+    (4, "Namespace"), -- a one-level slice
+    (5, "Patch");
 
 -- How should objects be linked to hashes?  (and old hashes)
 -- And which id should be linked into blobs?
---   a) object.id
---   b) hash.id (no good, if many hashes equally to one object)
+--   a) object.id -- no: I ran into an issue in serializing a type annotation
+--                   within a term; there wasn't enough info here to properly
+--                   ser/des a type annotation that includes a self-ref, and I
+--                   couldn't convince myself that the situation wouldn't come up
+--   b) hash.id -- ~~no: multiple hashes may refer to one object~~
+--              -- though, I guess that's true even when they are represented as
+--              -- inline bytestrings.  so I'm going with this option.
+--
 CREATE TABLE object (
   id INTEGER PRIMARY KEY,
-  primary_hash_id INTEGER NOT NULL REFERENCES hash(id),
-  type_id INTEGER NOT NULL,
-  bytes blob NOT NULL
+  primary_hash_id UNIQUE INTEGER NOT NULL REFERENCES hash(id),
+  type_id INTEGER NOT NULL REFERENCES object_type_description(id),
+  bytes BLOB NOT NULL
 );
 CREATE INDEX object_hash_id ON object(primary_hash_id);
 CREATE INDEX object_type_id ON object(type_id);
 
+-- `causal` references value hash ids instead of value ids, in case you want
+-- to be able to drop values and keep just the causal spine.
+-- to be able to drop values and keep just the causal spine.
+-- This implementation keeps the hash of the dropped values, although I could
+-- see an argument to drop them too and just use NULL, but I thought it better
+-- to not lose their identities.
 CREATE TABLE causal (
-  self_hash_id INTEGER PRIMARY KEY REFERENCES hash(id),
+  self_hash_id INTEGER PRIMARY KEY NOT NULL REFERENCES hash(id),
   value_hash_id INTEGER NOT NULL REFERENCES hash(id)
 );
 
-CREATE TABLE causal_parent (
-  id INTEGER PRIMARY KEY,
+create TABLE causal_parent (
+  id INTEGER PRIMARY KEY NOT NULL,
   causal_id INTEGER NOT NULL REFERENCES causal(self_hash_id),
   parent_id INTEGER NOT NULL REFERENCES causal(self_hash_id),
   UNIQUE(causal_id, parent_id)
 );
 CREATE INDEX causal_parent_causal_id ON causal_parent(causal_id);
 CREATE INDEX causal_parent_parent_id ON causal_parent(parent_id);
+
+-- |Links a referent to its type's object
+CREATE TABLE type_of_referent (
+  hash_id INTEGER NOT NULL REFERENCES hash(id),
+  component_index INTEGER NOT NULL,
+  constructor_index INTEGER NULL,
+  bytes BLOB NOT NULL,
+  PRIMARY KEY (hash_id, component_index, constructor_index)
+);
+--CREATE TABLE type_of_referent (
+--  referent_derived_id INTEGER NOT NULL PRIMARY KEY REFERENCES referent_derived(id),
+--  type_object_id INTEGER NOT NULL REFERENCES object(id)
+--);
+--CREATE INDEX type_of_referent_object_id ON type_of_referent(type_object_id);

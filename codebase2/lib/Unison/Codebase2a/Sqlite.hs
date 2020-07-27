@@ -3,14 +3,14 @@
 
 module Unison.Codebase2a.Sqlite where
 
-import Unison.Prelude
-import Data.String.Here
-import Database.SQLite.Simple
-
-create :: Connection -> IO ()
-create conn = liftIO do
-  execute_ conn [hereFile|sql/create.sql|]
-  execute_ conn [hereFile|sql/create-index.sql|]
+--import Unison.Prelude
+--import Data.String.Here
+--import Database.SQLite.Simple
+--
+--create :: Connection -> IO ()
+--create conn = liftIO do
+--  execute_ conn [hereFile|codebase2a/sql/create.sql|]
+--  execute_ conn [hereFile|codebase2a/sql/create-index.sql|]
 
 -- -- It looks like we need to refactor Reference, etc.
 -- -- as in `topic/hash-parameterized-references`,

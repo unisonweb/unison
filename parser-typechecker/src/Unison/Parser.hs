@@ -27,7 +27,8 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer         as L
 import           Unison.Pattern       (PatternP)
 import qualified Unison.PatternP      as Pattern
-import           Unison.Term          (MatchCase (..))
+--import           Unison.Term          (MatchCase, MatchCaseH, MatchCaseH'(..))
+import           Unison.Term          (MatchCase, MatchCaseH'(..))
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
 import qualified Unison.UnisonFile    as UF

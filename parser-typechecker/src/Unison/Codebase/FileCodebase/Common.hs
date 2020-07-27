@@ -135,6 +135,7 @@ data Err
   | UnknownTypeOrTerm Reference
   deriving Show
 
+-- oops, this should just be Lens' from Control.Lens
 type SimpleLens s a = Lens s s a a
 
 codebasePath :: FilePath

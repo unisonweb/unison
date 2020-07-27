@@ -17,7 +17,7 @@ import Unison.Prelude
 import Control.Lens (_3, over)
 import Control.Monad.State (evalState)
 
-import Data.Bifunctor (first, second)
+import Data.Bifunctor (bimap, first, second)
 import qualified Unison.Util.Relation as Rel
 import           Unison.Hash                    ( Hash )
 import qualified Data.Map                      as Map
@@ -50,10 +50,18 @@ type ConstructorId = Term.ConstructorId
 type DataDeclaration v = DataDeclaration' v ()
 type DataDeclaration' v a = DataDeclarationH Hash v a
 type Decl v a = Either (EffectDeclaration' v a) (DataDeclaration' v a)
+type DeclH h v a = Either (EffectDeclarationH h v a) (DataDeclarationH h v a)
 
 data DeclOrBuiltin v a =
   Builtin CT.ConstructorType | Decl (Decl v a)
   deriving (Eq, Show)
+
+hmapDecl :: (h -> h') -> DeclH h v a -> DeclH h' v a
+hmapDecl f = bimap (withEffectDecl (hmap f)) (hmap f)
+
+hmap :: (h -> h') -> DataDeclarationH h v a -> DataDeclarationH h' v a
+hmap f dd = dd { constructors' = constructors'' } where
+  constructors'' = [ (a, v, Type.hmap f typ) | (a, v, typ) <- constructors' dd]
 
 asDataDecl :: Decl v a -> DataDeclaration' v a
 asDataDecl = either toDataDecl id
@@ -242,15 +250,19 @@ dataDeclToNames' (v,(r,d)) = dataDeclToNames v r d
 effectDeclToNames' :: Var v => (v, (Reference.Id, EffectDeclaration' v a)) -> Names0
 effectDeclToNames' (v, (r, d)) = effectDeclToNames v r d
 
+-- todo: get rid of EffectDeclaration, establishing local aliases where needed, and rename EffectDeclaration' to EffectDeclaration
+-- suggestion: get rid of EffectDeclaration, establishing local alises where needed, and rename EffectDeclarationH to EffectDeclaration
 type EffectDeclaration v = EffectDeclaration' v ()
+type EffectDeclaration' v a = EffectDeclarationH Hash v a
 
-newtype EffectDeclaration' v a = EffectDeclaration {
-  toDataDecl :: DataDeclaration' v a
-} deriving (Eq,Show,Functor)
+newtype EffectDeclarationH h v a = EffectDeclaration {
+  toDataDecl :: DataDeclarationH h v a
+} deriving (Eq,Functor)
+deriving instance (Show (ReferenceH h), Show v, Show a) => Show (EffectDeclarationH h v a)
 
 withEffectDecl
-  :: (DataDeclaration' v a -> DataDeclaration' v' a')
-  -> (EffectDeclaration' v a -> EffectDeclaration' v' a')
+  :: (DataDeclarationH h v a -> DataDeclarationH h' v' a')
+  -> (EffectDeclarationH h v a -> EffectDeclarationH h' v' a')
 withEffectDecl f e = EffectDeclaration (f . toDataDecl $ e)
 
 withEffectDeclM :: Functor f

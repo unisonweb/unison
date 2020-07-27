@@ -1,4 +1,4 @@
-{-# Language DeriveFunctor, DeriveTraversable, DeriveGeneric, PatternSynonyms,  OverloadedStrings #-}
+{-# Language DeriveFunctor, DeriveTraversable, DeriveGeneric, PatternSynonyms,  OverloadedStrings, UndecidableInstances #-}
 
 module Unison.Pattern where
 
@@ -7,6 +7,7 @@ import Unison.Prelude
 import Data.List (intercalate)
 import Data.Foldable as Foldable hiding (foldMap')
 import Unison.Reference (ReferenceH)
+import qualified Unison.Reference as R
 import Unison.Hash (Hash)
 import qualified Unison.Hashable as H
 import qualified Unison.Type as Type
@@ -35,7 +36,8 @@ type ConstructorId = Int
 -- pattern Var = VarP ()
 
 type PatternP loc = PatternH Hash loc
-data PatternH h loc
+type PatternH h loc = PatternH' (ReferenceH h) (ReferenceH h) loc
+data PatternH' dataRepr effectRepr loc
   = UnboundP loc
   | VarP loc
   | BooleanP loc !Bool
@@ -44,13 +46,31 @@ data PatternH h loc
   | FloatP loc !Double
   | TextP loc !Text
   | CharP loc !Char
-  | ConstructorP loc !(ReferenceH h) !Int [PatternH h loc]
-  | AsP loc (PatternH h loc)
-  | EffectPureP loc (PatternH h loc)
-  | EffectBindP loc !(ReferenceH h) !Int [PatternH h loc] (PatternH h loc)
-  | SequenceLiteralP loc [PatternH h loc]
-  | SequenceOpP loc (PatternH h loc) !SeqOp (PatternH h loc)
+  | ConstructorP loc !dataRepr !Int [PatternH' dataRepr effectRepr loc]
+  | AsP loc (PatternH' dataRepr effectRepr loc)
+  | EffectPureP loc (PatternH' dataRepr effectRepr loc)
+  | EffectBindP loc !effectRepr !Int [PatternH' dataRepr effectRepr loc] (PatternH' dataRepr effectRepr loc)
+  | SequenceLiteralP loc [PatternH' dataRepr effectRepr loc]
+  | SequenceOpP loc (PatternH' dataRepr effectRepr loc) !SeqOp (PatternH' dataRepr effectRepr loc)
     deriving (Generic,Functor,Foldable,Traversable)
+
+hmap :: (h -> h') -> PatternH h loc -> PatternH h' loc
+hmap f = \case
+  UnboundP loc -> UnboundP loc
+  VarP loc -> VarP loc
+  BooleanP loc b -> BooleanP loc b
+  IntP loc i -> IntP loc i
+  NatP loc n -> NatP loc n
+  FloatP loc d -> FloatP loc d
+  TextP loc t -> TextP loc t
+  CharP loc c -> CharP loc c
+  ConstructorP loc r i ps -> ConstructorP loc (R.hmap f r) i (map go ps)
+  AsP loc p -> AsP loc (go p)
+  EffectPureP loc p -> EffectPureP loc (go p)
+  EffectBindP loc r i ps kp -> EffectBindP loc (R.hmap f r) i (map go ps) (go kp)
+  SequenceLiteralP loc ps -> SequenceLiteralP loc (map go ps)
+  SequenceOpP loc p1 op p2 -> SequenceOpP loc (go p1) op (go p2)
+  where go = hmap f
 
 data SeqOp = Cons
            | Snoc
@@ -130,7 +150,7 @@ instance H.Hashable (PatternP p) where
   tokens (SequenceOpP _ l op r) = H.Tag 12 : H.tokens op ++ H.tokens l ++ H.tokens r
   tokens (CharP _ c) = H.Tag 13 : H.tokens c
 
-instance Eq (PatternP loc) where
+instance Eq h => Eq (PatternH h loc) where
   UnboundP _ == UnboundP _ = True
   VarP _ == VarP _ = True
   BooleanP _ b == BooleanP _ b2 = b == b2

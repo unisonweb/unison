@@ -28,12 +28,16 @@ pattern Con r i t = Con' r i t
 {-# COMPLETE Ref, Con #-}
 
 type Id = Referent' R.Id
+type IdH h = Referent' (R.IdH h)
 
 data Referent' r = Ref' r | Con' r Int ConstructorType
   deriving (Show, Ord, Eq, Functor)
 
 type Pos = Word64
 type Size = Word64
+
+hmap :: (h -> h') -> ReferentH h -> ReferentH h'
+hmap f = rmap (R.hmap f)
 
 rmap :: (r -> r') -> Referent' r -> Referent' r'
 rmap f = \case

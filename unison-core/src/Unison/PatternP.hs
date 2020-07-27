@@ -9,6 +9,8 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.Reference (Reference)
 
 type Pattern loc = P.PatternP loc
+type PatternH h loc = P.PatternH h loc
+type PatternH' d e loc = P.PatternH' d e loc
 
 pattern Unbound loc = P.UnboundP loc
 pattern Var loc = P.VarP loc
@@ -34,6 +36,9 @@ type ConstructorId = P.ConstructorId
 
 loc :: P.PatternP loc -> loc
 loc = P.loc
+
+hmap :: (h -> h') -> P.PatternH h loc -> P.PatternH h' loc
+hmap = P.hmap
 
 setLoc :: P.PatternP loc -> loc -> P.PatternP loc
 setLoc = P.setLoc
