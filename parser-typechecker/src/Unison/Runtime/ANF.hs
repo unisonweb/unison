@@ -206,6 +206,22 @@ close keep tm = ABT.visitPure (enclose keep close) tm
 
 type FloatM v a r = State (Set v, [(v, Term v a)]) r
 
+reduceCycle
+  :: Var v
+  => [(v, Term v a)]
+  -> ([(v, Term v a)], [(v, Term v a)], [(v, Term v a)])
+reduceCycle vbs
+  | null pre && null post
+  = ([], rec, [])
+  | (pre', rec', post') <- reduceCycle rec
+  = (pre <> pre', rec', post' <> post)
+  where
+  vs = Set.fromList $ fst <$> vbs
+  (nonrec, rec)
+    = partition (Set.disjoint vs . freeVars . snd) vbs
+  (pre, post)
+    = partition (\(v, _) -> any (Set.member v . freeVars . snd) rec) nonrec
+
 letFloater
   :: (Var v, Monoid a)
   => (Term v a -> FloatM v a (Term v a))
@@ -253,9 +269,14 @@ floater rec tm@(LamsNamed' vs bd) = Just $ do
 floater _ _ = Nothing
 
 float :: (Var v, Monoid a) => Term v a -> Term v a
-float tm = case runState (go tm) (Set.empty, []) of
+float tm0 = case runState (go tm) (Set.empty, []) of
   (bd, (_, ctx)) -> letRec' True ctx bd
-  where go = ABT.visit $ floater go
+  where
+  go = ABT.visit $ floater go
+  tm | LetRecNamedTop' _ vbs e <- tm0
+     , (pre, rec, post) <- reduceCycle vbs
+     = let1' False pre . letRec' False rec . let1' False post $ e
+     | otherwise = tm0
 
 deannotate :: Var v => Term v a -> Term v a
 deannotate = ABT.visitPure $ \case
