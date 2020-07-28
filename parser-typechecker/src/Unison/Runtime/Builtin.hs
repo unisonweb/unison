@@ -13,7 +13,6 @@ module Unison.Runtime.Builtin
   , builtinTermBackref
   , builtinTypeBackref
   , numberedTermLookup
-  , handle'io
   ) where
 
 import Unison.ABT.Normalized hiding (TTm)
@@ -31,7 +30,6 @@ import Unison.Util.EnumContainers as EC
 import Data.Word (Word64)
 
 import Data.Set (Set, insert)
-import qualified Data.Set as Set
 
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -75,11 +73,6 @@ unbox :: Var v => v -> Reference -> v -> ANormal v -> ANormal v
 unbox v0 r v b
   = TMatch v0
   $ MatchData r (mapSingleton 0 $ ([UN], TAbs v b)) Nothing
-
-unwrap :: Var v => v -> Reference -> v -> ANormal v -> ANormal v
-unwrap v0 r v b
-  = TMatch v0
-  $ MatchData r (mapSingleton 0 $ ([BX], TAbs v b)) Nothing
 
 unenum :: Var v => Int -> v -> Reference -> v -> ANormal v -> ANormal v
 unenum n v0 r v nx
@@ -484,52 +477,6 @@ jumpk = binop0 0 $ \[k,a] -> TKon k [a]
 bug :: Var v => SuperNormal v
 bug = unop0 0 $ \[x] -> TPrm EROR [x]
 
-handle'io :: Var v => SuperNormal v
-handle'io
-  = unop0 0 $ \[rq]
- -> TMatch rq
-  . MatchRequest
-  . mapSingleton 0 $ cases rq
-  where
-  cases (Set.singleton -> avoid0)
-    = fmap ($ avoid0)
-    . mapFromList
-    . zip [0..]
-    $ [ open'file
-      , close'file
-      , is'file'eof
-      , is'file'open
-      , is'seekable
-      , seek'handle
-      , handle'position
-      , get'buffering
-      , set'buffering
-      , get'line
-      , get'text
-      , put'text
-      , system'time
-      , get'temp'directory
-      , get'current'directory
-      , set'current'directory
-      , file'exists
-      , is'directory
-      , create'directory
-      , remove'directory
-      , rename'directory
-      , remove'file
-      , rename'file
-      , get'file'timestamp
-      , get'file'size
-      , server'socket
-      , listen
-      , client'socket
-      , close'socket
-      , socket'accept
-      , socket'send
-      , socket'receive :: IOOP
-      , fork'comp
-      ]
-
 type IOOP = forall v. Var v => Set v -> ([Mem], ANormal v)
 
 io'error'result0
@@ -584,54 +531,49 @@ io'error'result'bool ins args ior encode b e r
 open'file :: IOOP
 open'file avoid
   = ([BX,BX],)
-  . TAbss [fp0,m0]
-  . unwrap fp0 filePathReference fp
+  . TAbss [fp,m0]
   . unenum 4 m0 ioModeReference m
   $ io'error'result'direct OPENFI [fp,m] ior e r
   where
-  [fp0,m0,fp,m,ior,e,r] = freshes' avoid 7
+  [m0,fp,m,ior,e,r] = freshes' avoid 6
 
 close'file :: IOOP
 close'file avoid
   = ([BX],)
-  . TAbss [h0]
-  . unwrap h0 handleReference h
+  . TAbss [h]
   $ io'error'result'unit CLOSFI [h] ior e r
   where
-  [h0,h,ior,e,r] = freshes' avoid 5
+  [h,ior,e,r] = freshes' avoid 4
 
 is'file'eof :: IOOP
 is'file'eof avoid
   = ([BX],)
-  . TAbss [h0]
-  . unwrap h0 handleReference h
+  . TAbss [h]
   $ io'error'result'bool ISFEOF [h] ior boolift b e r
   where
-  [h0,h,b,ior,e,r] = freshes' avoid 6
+  [h,b,ior,e,r] = freshes' avoid 5
 
 is'file'open :: IOOP
 is'file'open avoid
   = ([BX],)
-  . TAbss [h0]
-  . unwrap h0 handleReference h
+  . TAbss [h]
   $ io'error'result'bool ISFOPN [h] ior boolift b e r
   where
-  [h0,h,b,ior,e,r] = freshes' avoid 6
+  [h,b,ior,e,r] = freshes' avoid 5
 
 is'seekable :: IOOP
 is'seekable avoid
   = ([BX],)
-  . TAbss [h0]
-  . unwrap h0 handleReference h
+  . TAbss [h]
   $ io'error'result'bool ISSEEK [h] ior boolift b e r
   where
-  [h0,h,b,ior,e,r] = freshes' avoid 6
+  [h,b,ior,e,r] = freshes' avoid 5
 
 standard'handle :: IOOP
 standard'handle avoid
   = ([BX],)
-  . TAbss [n0,n]
-  . unwrap n0 Ty.natRef n
+  . TAbss [n0]
+  . unbox n0 Ty.natRef n
   . TLet r UN (AIOp STDHND [n])
   . TMatch r . MatchSum
   $ mapFromList
@@ -644,29 +586,26 @@ standard'handle avoid
 seek'handle :: IOOP
 seek'handle avoid
   = ([BX,BX,BX],)
-  . TAbss [h0,sm0,po0]
-  . unwrap h0 handleReference h
+  . TAbss [h,sm0,po0]
   . unenum 3 sm0 seekModeReference sm
   . unbox po0 Ty.natRef po
   $ io'error'result'unit SEEKFI [h,sm,po] ior e r
   where
-  [h0,sm0,po0,h,sm,po,ior,e,r] = freshes' avoid 9
+  [sm0,po0,h,sm,po,ior,e,r] = freshes' avoid 8
 
 handle'position :: IOOP
 handle'position avoid
   = ([BX],)
-  . TAbss [h0]
-  . unwrap h0 handleReference h
+  . TAbss [h]
   . io'error'result'let POSITN [h] ior [UN] [i] e r
   $ (ACon (rtag Ty.intRef) 0 [i])
   where
-  [h0,h,i,ior,e,r] = freshes' avoid 6
+  [h,i,ior,e,r] = freshes' avoid 5
 
 get'buffering :: IOOP
 get'buffering avoid
   = ([BX],)
-  . TAbss [h0]
-  . unwrap h0 handleReference h
+  . TAbss [h]
   . io'error'result'let GBUFFR [h] ior [UN] [bu] e r
   . AMatch bu . MatchSum
   $ mapFromList
@@ -676,7 +615,7 @@ get'buffering avoid
   , (3, ([UN], TAbs n $ block'n))
   ]
   where
-  [h0,h,bu,ior,e,r,m,n,b] = freshes' avoid 9
+  [h,bu,ior,e,r,m,n,b] = freshes' avoid 8
   final = TCon (rtag Ty.optionalRef) 1 [b]
   block = TLet b BX (ACon (rtag bufferModeReference) 1 [m]) $ final
 
@@ -729,29 +668,26 @@ set'buffering avoid
 get'line :: IOOP
 get'line avoid
   = ([BX],)
-  . TAbss [h0]
-  . unwrap h0 handleReference h
+  . TAbss [h]
   $ io'error'result'direct GTLINE [h] ior e r
   where
-  [h0,h,ior,e,r] = freshes' avoid 5
+  [h,ior,e,r] = freshes' avoid 4
 
 get'text :: IOOP
 get'text avoid
   = ([BX],)
-  . TAbss [h0]
-  . unwrap h0 handleReference h
+  . TAbss [h]
   $ io'error'result'direct GTTEXT [h] ior e r
   where
-  [h0,h,ior,e,r] = freshes' avoid 5
+  [h,ior,e,r] = freshes' avoid 4
 
 put'text :: IOOP
 put'text avoid
   = ([BX,BX],)
-  . TAbss [h0,tx]
-  . unwrap h0 handleReference h
+  . TAbss [h,tx]
   $ io'error'result'direct PUTEXT [h,tx] ior e r
   where
-  [h0,h,tx,ior,e,r] = freshes' avoid 6
+  [h,tx,ior,e,r] = freshes' avoid 5
 
 system'time :: IOOP
 system'time avoid
@@ -780,11 +716,10 @@ get'current'directory avoid
 set'current'directory :: IOOP
 set'current'directory avoid
   = ([BX],)
-  . TAbs fp0
-  . unwrap fp0 filePathReference fp
+  . TAbs fp
   $ io'error'result'unit SCURDR [fp] ior e r
   where
-  [fp0,fp,ior,e,r] = freshes' avoid 5
+  [fp,ior,e,r] = freshes' avoid 4
 
 -- directory'contents
 -- DCNTNS
@@ -794,100 +729,88 @@ set'current'directory avoid
 file'exists :: IOOP
 file'exists avoid
   = ([BX],)
-  . TAbs fp0
-  . unwrap fp0 filePathReference fp
+  . TAbs fp
   $ io'error'result'bool FEXIST [fp] ior boolift b e r
   where
-  [fp0,fp,b,ior,e,r] = freshes' avoid 6
+  [fp,b,ior,e,r] = freshes' avoid 5
 
 is'directory :: IOOP
 is'directory avoid
   = ([BX],)
-  . TAbs fp0
-  . unwrap fp0 filePathReference fp
+  . TAbs fp
   $ io'error'result'bool ISFDIR [fp] ior boolift b e r
   where
-  [fp0,fp,b,ior,e,r] = freshes' avoid 6
+  [fp,b,ior,e,r] = freshes' avoid 5
 
 create'directory :: IOOP
 create'directory avoid
   = ([BX],)
-  . TAbs fp0
-  . unwrap fp0 filePathReference fp
+  . TAbs fp
   $ io'error'result'unit CRTDIR [fp] ior e r
   where
-  [fp0,fp,ior,e,r] = freshes' avoid 5
+  [fp,ior,e,r] = freshes' avoid 4
 
 remove'directory :: IOOP
 remove'directory avoid
   = ([BX],)
-  . TAbs fp0
-  . unwrap fp0 filePathReference fp
+  . TAbs fp
   $ io'error'result'unit REMDIR [fp] ior e r
   where
-  [fp0,fp,ior,e,r] = freshes' avoid 5
+  [fp,ior,e,r] = freshes' avoid 4
 
 rename'directory :: IOOP
 rename'directory avoid
   = ([BX,BX],)
-  . TAbss [from0,to0]
-  . unwrap from0 filePathReference from
-  . unwrap to0 filePathReference to
+  . TAbss [from,to]
   $ io'error'result'unit RENDIR [from,to] ior e r
   where
-  [from0,to0,from,to,ior,e,r] = freshes' avoid 7
+  [from,to,ior,e,r] = freshes' avoid 5
 
 remove'file :: IOOP
 remove'file avoid
   = ([BX],)
-  . TAbs fp0
-  . unwrap fp0 filePathReference fp
+  . TAbs fp
   $ io'error'result'unit REMOFI [fp] ior e r
   where
-  [fp0,fp,ior,e,r] = freshes' avoid 5
+  [fp,ior,e,r] = freshes' avoid 4
 
 rename'file :: IOOP
 rename'file avoid
   = ([BX,BX],)
-  . TAbss [from0,to0]
-  . unwrap from0 filePathReference from
-  . unwrap to0 filePathReference to
+  . TAbss [from,to]
   $ io'error'result'unit RENAFI [from,to] ior e r
   where
-  [from0,to0,from,to,ior,e,r] = freshes' avoid 7
+  [from,to,ior,e,r] = freshes' avoid 5
 
 get'file'timestamp :: IOOP
 get'file'timestamp avoid
   = ([BX],)
-  . TAbs fp0
-  . unwrap fp0 filePathReference fp
+  . TAbs fp
   . io'error'result'let GFTIME [fp] ior [UN] [n] e r
   $ ACon (rtag Ty.natRef) 0 [n]
   where
-  [fp0,fp,n,ior,e,r] = freshes' avoid 6
+  [fp,n,ior,e,r] = freshes' avoid 5
 
 get'file'size :: IOOP
 get'file'size avoid
   = ([BX],)
-  . TAbs fp0
-  . unwrap fp0 filePathReference fp
+  . TAbs fp
   . io'error'result'let GFSIZE [fp] ior [UN] [n] e r
   $ ACon (rtag Ty.natRef) 0 [n]
   where
-  [fp0,fp,n,ior,e,r] = freshes' avoid 6
+  [fp,n,ior,e,r] = freshes' avoid 5
 
 server'socket :: IOOP
 server'socket avoid
   = ([BX,BX],)
-  . TAbss [mhn,sn0]
-  . unwrap sn0 serviceNameReference sn
+  . TAbss [mhn,sn]
   . TMatch mhn . flip (MatchData Ty.optionalRef) Nothing
   $ mapFromList
   [ (0, ([], none'branch))
   , (1, ([BX], TAbs hn just'branch))
   ]
   where
-  [mhn,sn0,sn,hn,t,ior,e,r] = freshes' avoid 8
+  [mhn,sn,hn,t,ior,e,r] = freshes' avoid 7
   none'branch
     = TLet t UN (ALit $ I 0)
     $ io'error'result'direct SRVSCK [t,sn] ior e r
@@ -898,11 +821,10 @@ server'socket avoid
 listen :: IOOP
 listen avoid
   = ([BX],)
-  . TAbs sk0
-  . unwrap sk0 socketReference sk
+  . TAbs sk
   $ io'error'result'direct LISTEN [sk] ior e r
   where
-  [sk0,sk,ior,e,r] = freshes' avoid 5
+  [sk,ior,e,r] = freshes' avoid 4
 
 client'socket :: IOOP
 client'socket avoid
