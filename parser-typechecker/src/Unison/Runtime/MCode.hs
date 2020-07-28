@@ -99,6 +99,7 @@ import System.IO as SYS
   , hIsSeekable
   , hSeek
   , hTell
+  , stdin, stdout, stderr
   )
 import Data.Text.IO as SYS
   ( hGetLine
@@ -880,6 +881,7 @@ emitPOp ANF.INFO = \case
 -- handled in emitSection because Die is not an instruction
 
 emitIOp :: ANF.IOp -> Args -> Instr
+emitIOp iop@ANF.STDHND = ForeignCall False (iopToForeign iop)
 emitIOp iop = ForeignCall True (iopToForeign iop)
 
 bufferModeResult :: BufferMode -> ForeignRslt
@@ -1005,6 +1007,12 @@ iopToForeign ANF.THKILL
   = foreign1 $ \tid -> [] <$ killThread tid
 iopToForeign ANF.THDELY
   = foreign1 $ \n -> [] <$ threadDelay n
+iopToForeign ANF.STDHND
+  = foreign1 $ \(n :: Int) -> case n of
+      0 -> pure [Left 1, Right . Wrap Rf.handleReference $ SYS.stdin]
+      1 -> pure [Left 1, Right . Wrap Rf.handleReference $ SYS.stdout]
+      2 -> pure [Left 1, Right . Wrap Rf.handleReference $ SYS.stderr]
+      _ -> pure [Left 0]
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny

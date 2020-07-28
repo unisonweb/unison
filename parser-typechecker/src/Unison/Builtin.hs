@@ -395,6 +395,42 @@ builtinsSrc =
   , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optional a)
 
   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
+
+  , B "IO.openFile" $ text --> ioe handle
+  , B "IO.closeFile" $ handle --> ioe unit
+  , B "IO.isFileEOF" $ handle --> ioe boolean
+  , B "IO.isFileOpen" $ handle --> ioe boolean
+  , B "IO.isSeekable" $ handle --> ioe boolean
+  , B "IO.seekHandle" $ handle --> fmode --> int --> ioe unit
+  , B "IO.handlePosition" $ handle --> ioe int
+  , B "IO.getBuffering" $ handle --> ioe bmode
+  , B "IO.setBuffering" $ handle --> bmode --> ioe unit
+  , B "IO.getLine" $ handle --> ioe text
+  , B "IO.getText" $ handle --> ioe text
+  , B "IO.putText" $ handle --> text --> ioe unit
+  , B "IO.systemTime" $ unit --> ioe nat
+  , B "IO.getTempDirectory" $ unit --> ioe text
+  , B "IO.getCurrentDirectory" $ unit --> ioe text
+  , B "IO.setCurrentDirectory" $ text --> ioe unit
+  , B "IO.fileExists" $ text --> ioe boolean
+  , B "IO.isDirectory" $ text --> ioe boolean
+  , B "IO.createDirectory" $ text --> ioe unit
+  , B "IO.removeDirectory" $ text --> ioe unit
+  , B "IO.renameDirectory" $ text --> text --> ioe unit
+  , B "IO.removeFile" $ text --> ioe unit
+  , B "IO.renameFile" $ text --> text --> ioe unit
+  , B "IO.getFileTimestamp" $ text --> ioe nat
+  , B "IO.getFileSize" $ text --> ioe nat
+  , B "IO.serverSocket" $ text --> text --> ioe socket
+  , B "IO.listen" $ socket --> ioe unit
+  , B "IO.clientSocket" $ text --> text --> ioe socket
+  , B "IO.closeSocket" $ socket --> ioe unit
+  , B "IO.socketAccept" $ socket --> ioe socket
+  , B "IO.socketSend" $ socket --> bytes --> ioe unit
+  , B "IO.socketReceive" $ socket --> nat --> ioe bytes
+  , B "IO.forkComp"
+      $ forall1 "a" $ \a -> (unit --> ioe a) --> ioe threadId
+  , B "IO.stdHandle" $ nat --> optional handle
   ] ++
   -- avoid name conflicts with Universal == < > <= >=
   [ Rename (t <> "." <> old) (t <> "." <> new)
@@ -413,6 +449,20 @@ builtinsSrc =
     text = Type.text ()
     bytes = Type.bytes ()
     char = Type.char ()
+
+    either :: Ord v => Type v -> Type v -> Type v
+    either l r = DD.eitherType () `app` l `app` r
+
+    fmode = DD.fileModeType ()
+    bmode = DD.bufferModeType ()
+
+    ioe = Type.effect1 () (Type.builtinIO ())
+        . either (DD.ioErrorType ())
+
+    socket = Type.socket ()
+    threadId = Type.threadId ()
+    handle = Type.fileHandle ()
+    unit = DD.unitType ()
 
     (-->) :: Ord v => Type v -> Type v -> Type v
     a --> b = Type.arrow () a b

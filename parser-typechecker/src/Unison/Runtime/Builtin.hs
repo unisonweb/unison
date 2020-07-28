@@ -627,6 +627,20 @@ is'seekable avoid
   where
   [h0,h,b,ior,e,r] = freshes' avoid 6
 
+standard'handle :: IOOP
+standard'handle avoid
+  = ([BX],)
+  . TAbss [n0,n]
+  . unwrap n0 Ty.natRef n
+  . TLet r UN (AIOp STDHND [n])
+  . TMatch r . MatchSum
+  $ mapFromList
+  [ (0, ([], TCon optionTag 0 []))
+  , (1, ([BX], TAbs h $ TCon optionTag 1 [h]))
+  ]
+  where
+  [n0,n,h,r] = freshes' avoid 4
+
 seek'handle :: IOOP
 seek'handle avoid
   = ([BX,BX,BX],)
@@ -893,45 +907,39 @@ listen avoid
 client'socket :: IOOP
 client'socket avoid
   = ([BX,BX],)
-  . TAbss [hn0,sn0]
-  . unwrap hn0 hostNameReference hn
-  . unwrap sn0 serviceNameReference sn
+  . TAbss [hn,sn]
   $ io'error'result'direct CLISCK [hn,sn] ior e r
   where
-  [hn0,sn0,hn,sn,r,ior,e] = freshes' avoid 7
+  [hn,sn,r,ior,e] = freshes' avoid 5
 
 close'socket :: IOOP
 close'socket avoid
   = ([BX,BX],)
-  . TAbs sk0
-  . unwrap sk0 socketReference sk
+  . TAbs sk
   $ io'error'result'unit CLOSCK [sk] ior e r
   where
-  [sk0,sk,ior,e,r] = freshes' avoid 5
+  [sk,ior,e,r] = freshes' avoid 4
 
 socket'accept :: IOOP
 socket'accept avoid
   = ([BX],)
-  . TAbs sk0
-  . unwrap sk0 socketReference sk
+  . TAbs sk
   $ io'error'result'direct SKACPT [sk] ior e r
   where
-  [sk0,sk,r,e,ior] = freshes' avoid 5
+  [sk,r,e,ior] = freshes' avoid 4
 
 socket'send :: IOOP
 socket'send avoid
   = ([BX,BX],)
-  . TAbss [sk0,by]
-  . unwrap sk0 socketReference sk
+  . TAbss [sk,by]
   $ io'error'result'unit SKSEND [sk,by] ior e r
   where
-  [sk0,sk,by,ior,e,r] = freshes' avoid 6
+  [sk,by,ior,e,r] = freshes' avoid 5
 
 socket'receive :: IOOP
 socket'receive avoid
   = ([BX,BX],)
-  . TAbss [sk0,n0]
-  . unwrap sk0 socketReference sk
+  . TAbss [sk,n0]
   . unbox n0 Ty.natRef n
   . io'error'result'let SKRECV [sk,n] ior [UN] [mt] e r
   . AMatch mt . MatchSum
@@ -940,7 +948,7 @@ socket'receive avoid
   , (1, ([BX], TAbs b $ TCon (rtag Ty.optionalRef) 1 [b]))
   ]
   where
-  [sk0,n0,sk,n,ior,e,r,b,mt] = freshes' avoid 7
+  [n0,sk,n,ior,e,r,b,mt] = freshes' avoid 8
 
 fork'comp :: IOOP
 fork'comp avoid
@@ -1107,7 +1115,45 @@ builtinLookup
   , ("Universal.<=", leu)
 
   , ("jumpCont", jumpk)
+
+  , ("IO.openFile", ioComb open'file)
+  , ("IO.closeFile", ioComb close'file)
+  , ("IO.isFileEOF", ioComb is'file'eof)
+  , ("IO.isFileOpen", ioComb is'file'open)
+  , ("IO.isSeekable", ioComb is'seekable)
+  , ("IO.seekHandle", ioComb seek'handle)
+  , ("IO.handlePosition", ioComb handle'position)
+  , ("IO.getBuffering", ioComb get'buffering)
+  , ("IO.setBuffering", ioComb set'buffering)
+  , ("IO.getLine", ioComb get'line)
+  , ("IO.getText", ioComb get'text)
+  , ("IO.putText", ioComb put'text)
+  , ("IO.systemTime", ioComb system'time)
+  , ("IO.getTempDirectory", ioComb get'temp'directory)
+  , ("IO.getCurrentDirectory", ioComb get'current'directory)
+  , ("IO.setCurrentDirectory", ioComb set'current'directory)
+  , ("IO.fileExists", ioComb file'exists)
+  , ("IO.isDirectory", ioComb is'directory)
+  , ("IO.createDirectory", ioComb create'directory)
+  , ("IO.removeDirectory", ioComb remove'directory)
+  , ("IO.renameDirectory", ioComb rename'directory)
+  , ("IO.removeFile", ioComb remove'file)
+  , ("IO.renameFile", ioComb rename'file)
+  , ("IO.getFileTimestamp", ioComb get'file'timestamp)
+  , ("IO.getFileSize", ioComb get'file'size)
+  , ("IO.serverSocket", ioComb server'socket)
+  , ("IO.listen", ioComb listen)
+  , ("IO.clientSocket", ioComb client'socket)
+  , ("IO.closeSocket", ioComb close'socket)
+  , ("IO.socketAccept", ioComb socket'accept)
+  , ("IO.socketSend", ioComb socket'send)
+  , ("IO.socketReceive", ioComb socket'receive)
+  , ("IO.forkComp", ioComb fork'comp)
+  , ("IO.stdHandle", ioComb standard'handle)
   ]
+
+ioComb :: Var v => IOOP -> SuperNormal v
+ioComb ioop = uncurry Lambda (ioop mempty)
 
 typeReferences :: [(Reference, RTag)]
 typeReferences

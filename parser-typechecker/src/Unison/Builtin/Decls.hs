@@ -29,8 +29,10 @@ import qualified Unison.Var                     as Var
 import           Unison.Var                     (Var)
 
 
-unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef :: Reference
-(unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef) =
+unitRef, pairRef, optionalRef, eitherRef :: Reference
+testResultRef, linkRef, docRef, ioErrorRef :: Reference
+fileModeRef, bufferModeRef :: Reference
+(unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef, eitherRef, ioErrorRef, fileModeRef, bufferModeRef) =
   let decls          = builtinDataDecls @Symbol
       [(_, unit, _)] = filter (\(v, _, _) -> v == Var.named "Unit") decls
       [(_, pair, _)] = filter (\(v, _, _) -> v == Var.named "Tuple") decls
@@ -39,8 +41,13 @@ unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef :: Reference
         filter (\(v, _, _) -> v == Var.named "Test.Result") decls
       [(_, link , _)] = filter (\(v, _, _) -> v == Var.named "Link") decls
       [(_, doc , _)] = filter (\(v, _, _) -> v == Var.named "Doc") decls
+
+      [(_,ethr,_)] = filter (\(v,_,_) -> v == Var.named "Either") decls
+      [(_,ioerr,_)] = filter (\(v,_,_) -> v == Var.named "IOError") decls
+      [(_,fmode,_)] = filter (\(v,_,_) -> v == Var.named "FileMode") decls
+      [(_,bmode,_)] = filter (\(v,_,_) -> v == Var.named "BufferMode") decls
       r = Reference.DerivedId
-  in  (r unit, r pair, r opt, r testResult, r link, r doc)
+  in (r unit, r pair, r opt, r testResult, r link, r doc, r ethr, r ioerr, r fmode, r bmode)
 
 pairCtorRef, unitCtorRef :: Referent
 pairCtorRef = Referent.Con pairRef 0 CT.Data
@@ -79,8 +86,12 @@ builtinDataDecls = rs1 ++ rs
     [ (v "Unit"           , unit)
     , (v "Tuple"          , tuple)
     , (v "Optional"       , opt)
+    , (v "Either"         , eith)
     , (v "Test.Result"    , tr)
     , (v "Doc"            , doc)
+    , (v "FileMode"       , fmode)
+    , (v "BufferMode"     , bmode)
+    , (v "IOError"        , ioerr)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
   [(_, linkRef, _)] = rs1
   v = Var.named
@@ -116,6 +127,53 @@ builtinDataDecls = rs1 ++ rs
                      [v "a"]
                      (var "a" `arr` Type.app' (var "Optional") (var "a"))
       )
+    ]
+  eith = DataDeclaration
+    Structural
+    ()
+    [v "a", v "b"]
+    [ ( ()
+      , v "Either.Left"
+      , Type.foralls () [v "a", v "b"]
+          (var "a" `arr` Type.apps' (var "Either") [var "a", var "b"])
+      )
+    , ( ()
+      , v "Either.Right"
+      , Type.foralls () [v "a", v "b"]
+          (var "b" `arr` Type.apps' (var "Either") [var "a", var "b"])
+      )
+    ]
+  fmode = DataDeclaration
+    Structural
+    ()
+    []
+    [ ((), v "FileMode.Read", var "FileMode")
+    , ((), v "FileMode.Write", var "FileMode")
+    , ((), v "FileMode.Append", var "FileMode")
+    , ((), v "FileMode.ReadWrite", var "FileMode")
+    ]
+  bmode = DataDeclaration
+    Structural
+    ()
+    []
+    [ ((), v "BufferMode.NoBuffering", var "BufferMode")
+    , ((), v "BufferMode.LineBuffering", var "BufferMode")
+    , ((), v "BufferMode.BlockBuffering", var "BufferMode")
+    , ((), v "BufferMode.SizedBlockBuffering"
+      , Type.nat () `arr` var "BufferMode")
+    ]
+  ioerr = DataDeclaration
+    Structural
+    ()
+    []
+    [ ((), v "AlreadyExists", var "IOError")
+    , ((), v "NoSuchThing", var "IOError")
+    , ((), v "ResourceBusy", var "IOError")
+    , ((), v "ResourceExhausted", var "IOError")
+    , ((), v "EOF", var "IOError")
+    , ((), v "IllegalOperation", var "IOError")
+    , ((), v "PermissionDenied", var "IOError")
+    , ((), v "UserError", var "IOError")
     ]
   tr = DataDeclaration
     (Unique "70621e539cd802b2ad53105697800930411a3ebc")
@@ -174,12 +232,17 @@ pattern LinkRef <- ((== linkRef) -> True)
 pattern LinkTerm tm <- Term.App' (Term.Constructor' LinkRef LinkTermId) tm
 pattern LinkType ty <- Term.App' (Term.Constructor' LinkRef LinkTypeId) ty
 
-unitType, pairType, optionalType, testResultType
-  :: Ord v => a -> Type v a
+unitType, pairType, optionalType, testResultType,
+  eitherType, ioErrorType, fileModeType, bufferModeType
+    :: Ord v => a -> Type v a
 unitType a = Type.ref a unitRef
 pairType a = Type.ref a pairRef
 testResultType a = Type.app a (Type.vector a) (Type.ref a testResultRef)
 optionalType a = Type.ref a optionalRef
+eitherType a = Type.ref a eitherRef
+ioErrorType a = Type.ref a ioErrorRef
+fileModeType a = Type.ref a fileModeRef
+bufferModeType a = Type.ref a bufferModeRef
 
 unitTerm :: Var v => a -> Term v a
 unitTerm ann = Term.constructor ann unitRef 0
