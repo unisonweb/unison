@@ -1,0 +1,11 @@
+
+unique type Color = Red | Black
+unique type RBTree a = Leaf | Tree Color (RBTree a) a (RBTree a)
+
+isRed = cases
+  Color.Red -> true
+  Color.Black -> false
+
+RBTree.isRed = cases
+  RBTree.Tree Color.Red _ _ _ -> true
+  _ -> false
