@@ -1,7 +1,6 @@
 {-# Language OverloadedStrings #-}
 {-# Language ViewPatterns #-}
 {-# Language PatternSynonyms #-}
-{-# Language ScopedTypeVariables #-}
 
 module Unison.Var where
 

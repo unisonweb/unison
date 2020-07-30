@@ -1,5 +1,4 @@
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Unison.Test.Codebase.Causal where
 

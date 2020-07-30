@@ -3,9 +3,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
 module Unison.TermParser where

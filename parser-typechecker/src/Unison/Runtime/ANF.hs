@@ -1,10 +1,8 @@
 {-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# Language OverloadedStrings #-}
 {-# Language PatternSynonyms #-}
-{-# Language ScopedTypeVariables #-}
 
 module Unison.Runtime.ANF (optimize, fromTerm, fromTerm', term, minimizeCyclesOrCrash) where
 

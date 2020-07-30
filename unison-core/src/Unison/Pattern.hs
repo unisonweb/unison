@@ -1,4 +1,4 @@
-{-# Language DeriveFunctor, DeriveTraversable, DeriveGeneric, PatternSynonyms,  OverloadedStrings #-}
+{-# Language DeriveTraversable, DeriveGeneric, PatternSynonyms,  OverloadedStrings #-}
 
 module Unison.Pattern where
 

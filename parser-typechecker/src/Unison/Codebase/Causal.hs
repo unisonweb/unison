@@ -1,6 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 module Unison.Codebase.Causal where
 
 import Unison.Prelude

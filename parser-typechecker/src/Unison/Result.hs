@@ -1,7 +1,4 @@
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Rank2Types #-}
 
 module Unison.Result where

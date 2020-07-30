@@ -2,12 +2,9 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE BlockArguments #-}
 
 
 module Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex (syncToDirectory) where

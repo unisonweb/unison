@@ -1,7 +1,4 @@
-{-# LANGUAGE DeriveFunctor       #-}
-{-# LANGUAGE DeriveFoldable      #-}
 {-# LANGUAGE DeriveTraversable   #-}
-{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ViewPatterns        #-}
 

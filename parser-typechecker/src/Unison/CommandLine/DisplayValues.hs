@@ -1,4 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# Language PatternSynonyms #-}
 {-# Language OverloadedStrings #-}
 

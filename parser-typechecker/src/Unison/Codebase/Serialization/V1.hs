@@ -1,6 +1,5 @@
 {-# LANGUAGE Strict #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE FlexibleContexts, RankNTypes #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Unison.Codebase.Serialization.V1 where
 

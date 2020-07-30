@@ -1,7 +1,5 @@
 {-# Language OverloadedStrings #-}
 {-# Language QuasiQuotes #-}
-{-# Language TypeApplications #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Unison.Test.Git where
 

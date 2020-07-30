@@ -1,7 +1,6 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Unison.Codebase.Branch.Dependencies where
 

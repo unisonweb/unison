@@ -1,11 +1,6 @@
-{-# LANGUAGE DoAndIfThenElse     #-}
-{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedLists     #-}
 {-# LANGUAGE PatternSynonyms     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
 -- | This module is the primary interface to the Unison typechecker

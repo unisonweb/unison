@@ -1,8 +1,4 @@
-{-# Language DoAndIfThenElse #-}
-{-# Language DeriveFunctor #-}
 {-# Language DeriveTraversable #-}
-{-# Language ScopedTypeVariables #-}
-{-# Language TupleSections #-}
 {-# Language OverloadedStrings #-}
 
 module Unison.FileParser where
