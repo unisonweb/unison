@@ -109,15 +109,6 @@ library
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
-  default-extensions:
-    DeriveFunctor
-    FlexibleContexts
-    FlexibleInstances
-    LambdaCase
-    ScopedTypeVariables
-    TupleSections
-    TypeSynonymInstances
-
   if flag(optimized)
     ghc-options: -funbox-strict-fields
 
