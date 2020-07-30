@@ -33,8 +33,9 @@ getMainTerm
   => (Reference -> m (Maybe (Type v Ann)))
   -> Names3.Names0
   -> String
+  -> Type.Type v Ann
   -> m (MainTerm v)
-getMainTerm loadTypeOfTerm parseNames0 mainName =
+getMainTerm loadTypeOfTerm parseNames0 mainName mainType =
   case HQ.fromString mainName of
     Nothing -> pure (NotAFunctionName mainName)
     Just hq -> do
@@ -44,7 +45,7 @@ getMainTerm loadTypeOfTerm parseNames0 mainName =
         [Referent.Ref ref] -> do
           typ <- loadTypeOfTerm ref
           case typ of
-            Just typ | Typechecker.isSubtype typ (nullaryMain a) -> do
+            Just typ | Typechecker.isSubtype typ mainType -> do
               let tm = DD.forceTerm a a (Term.ref a ref)
               return (Success hq tm typ)
             _ -> pure (BadType mainName)
@@ -54,9 +55,18 @@ getMainTerm loadTypeOfTerm parseNames0 mainName =
 ioUnit :: Ord v => a -> Type.Type v a
 ioUnit a = Type.effect a [Type.ref a ioReference] (Type.ref a DD.unitRef)
 
+builtinIOUnit :: Ord v => a -> Type.Type v a
+builtinIOUnit a
+  = Type.effect1 a (Type.builtinIO a) (Type.ref a DD.unitRef)
+
 -- '{IO} ()
 nullaryMain :: Ord v => a -> Type.Type v a
-nullaryMain a = Type.arrow a (Type.ref a DD.unitRef) (ioUnit a)
+nullaryMain a
+  = Type.arrow a (Type.ref a DD.unitRef) (ioUnit a)
+
+builtinMain :: Ord v => a -> Type.Type v a
+builtinMain a
+  = Type.arrow a (Type.ref a DD.unitRef) (builtinIOUnit a)
 
 mainTypes :: Ord v => a -> [Type v a]
 mainTypes a = [nullaryMain a]

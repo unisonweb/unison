@@ -166,6 +166,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
+    RuntimeMain -> pure $ Runtime.mainType rt
 
 --    Todo b -> doTodo codebase (Branch.head b)
 --    Propagate b -> do

@@ -81,6 +81,7 @@ import qualified System.IO.Error               as SysError
 import           Type.Reflection                ( Typeable )
 import           Unison.Builtin.Decls          as DD
 import           Unison.Symbol
+import           Unison.Parser                  ( Ann(External) )
 import qualified Unison.Reference              as R
 import qualified Unison.Runtime.Rt1            as RT
 import qualified Unison.Runtime.IR             as IR
@@ -89,6 +90,7 @@ import qualified Unison.Term                   as Term
 -- import qualified Unison.Util.Pretty            as Pretty
 -- import           Unison.TermPrinter             ( pretty )
 import           Unison.Codebase.Runtime        ( Runtime(Runtime) )
+import           Unison.Codebase.MainTerm       ( nullaryMain )
 import qualified Unison.Runtime.IOSource       as IOSrc
 import qualified Unison.Util.Bytes             as Bytes
 import qualified Unison.Var                    as Var
@@ -456,7 +458,7 @@ lamToHask cenv s ir val = RT.run (handleIO' cenv s) cenv $ task val
   where task x = IR.Let (Var.named "_") (IR.Leaf (IR.Val x)) ir mempty
 
 runtime :: Runtime Symbol
-runtime = Runtime terminate eval
+runtime = Runtime terminate eval (nullaryMain External)
  where
   terminate :: IO ()
   terminate = pure ()

@@ -28,7 +28,9 @@ import Unison.Util.EnumContainers as EC
 
 import Unison.Codebase.CodeLookup (CodeLookup(..))
 import Unison.Codebase.Runtime (Runtime(..), Error)
+import Unison.Codebase.MainTerm (builtinMain)
 
+import Unison.Parser (Ann(External))
 import Unison.PrettyPrintEnv
 import Unison.TermPrinter
 
@@ -219,4 +221,5 @@ startRuntime = do
            ctx <- pure $ refresh (init+1) ctx
            ctx <- pure $ compileTerm init tm ctx
            evalInContext ppe ctx init
+       , mainType = builtinMain External
        }

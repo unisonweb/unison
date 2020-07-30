@@ -13,7 +13,9 @@ import qualified Data.Set                      as Set
 import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.Codebase               as Codebase
 import           Unison.UnisonFile              ( UnisonFile )
+import           Unison.Parser                  ( Ann )
 import qualified Unison.Term                   as Term
+import           Unison.Type                    ( Type )
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Reference               ( Reference )
@@ -33,6 +35,7 @@ data Runtime v = Runtime
       -> PPE.PrettyPrintEnv
       -> Term v
       -> IO (Either Error (Term v))
+  , mainType :: Type v Ann
   }
 
 type IsCacheHit = Bool
