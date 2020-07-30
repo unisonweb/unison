@@ -1,6 +1,7 @@
 
 module Unison.Runtime.Debug
-  ( traceCombs
+  ( traceComb
+  , traceCombs
   , tracePretty
   , tracePrettyGroup
   ) where
@@ -20,6 +21,10 @@ import Unison.Runtime.MCode
 import Debug.Trace
 
 type Term v = Tm.Term v ()
+
+traceComb :: Bool -> Word64 -> Comb -> Bool
+traceComb False _ _ = True
+traceComb True  w c = trace (prettyComb w c "\n") True
 
 traceCombs
   :: Bool
