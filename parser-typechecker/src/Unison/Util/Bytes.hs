@@ -1,5 +1,3 @@
-{-# Language FlexibleInstances #-}
-{-# Language MultiParamTypeClasses #-}
 {-# Language ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 

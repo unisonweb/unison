@@ -1,6 +1,5 @@
 {-# Language OverloadedStrings #-}
 {-# Language PartialTypeSignatures #-}
-{-# Language ScopedTypeVariables #-}
 {-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 

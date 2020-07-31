@@ -1,7 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.TermPrinter where

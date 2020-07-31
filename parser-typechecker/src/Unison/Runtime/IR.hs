@@ -1,14 +1,10 @@
 {-# Language DeriveFoldable #-}
-{-# Language DeriveFunctor #-}
 {-# Language DeriveTraversable #-}
-{-# Language FlexibleContexts #-}
 {-# Language OverloadedStrings #-}
 {-# Language PartialTypeSignatures #-}
 {-# Language StrictData #-}
-{-# Language TupleSections #-}
 {-# Language ViewPatterns #-}
 {-# Language PatternSynonyms #-}
-{-# Language DoAndIfThenElse #-}
 
 module Unison.Runtime.IR where
 

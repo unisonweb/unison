@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternSynonyms, FlexibleContexts #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Codecs where
 

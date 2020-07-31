@@ -1,5 +1,4 @@
 {-# Language BangPatterns #-}
-{-# Language DoAndIfThenElse #-}
 {-# Language FunctionalDependencies #-}
 {-# Language GeneralizedNewtypeDeriving #-}
 

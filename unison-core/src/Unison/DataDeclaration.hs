@@ -1,11 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# Language DeriveFoldable #-}
-{-# Language DeriveFunctor #-}
 {-# Language DeriveTraversable #-}
 {-# Language OverloadedStrings #-}
 {-# Language PatternSynonyms #-}
-{-# Language TypeApplications #-}
 {-# Language ViewPatterns #-}
 
 module Unison.DataDeclaration where
