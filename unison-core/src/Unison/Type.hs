@@ -401,7 +401,7 @@ unforall' :: Type v a -> ([v], Type v a)
 unforall' (ForallsNamed' vs t) = (vs, t)
 unforall' t = ([], t)
 
-dependencies :: Ord v => Type v a -> Set Reference
+dependencies :: (Ord h, Ord v) => TypeH h v a -> Set (ReferenceH h)
 dependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] $> t
         f t = pure t

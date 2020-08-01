@@ -30,14 +30,15 @@ import Unison.Hash (Hash)
 import qualified Unison.Reference as Reference
 --import Unison.Referent (Referent')
 import qualified Unison.Referent as Referent
+import Unison.Hashable (Hashable)
 
-newtype HashId = HashId Word64 deriving (Eq, Ord) deriving (FromField, ToField) via Word64
+newtype HashId = HashId Word64 deriving (Eq, Ord) deriving (Hashable, FromField, ToField) via Word64
 newtype TypeId = TypeId ObjectId deriving (FromField, ToField) via ObjectId
 newtype TermId = TermCycleId ObjectId deriving (FromField, ToField) via ObjectId
 newtype DeclId = DeclCycleId ObjectId deriving (FromField, ToField) via ObjectId
-newtype ObjectId = ObjectId Word64 deriving (Eq, Ord, FromField, ToField) via Word64
-newtype CausalHashId = CausalHashId HashId deriving (FromField, ToField) via HashId
-newtype NamespaceHashId = NamespaceHashId ObjectId deriving (FromField, ToField) via ObjectId
+newtype ObjectId = ObjectId Word64 deriving (Eq, Ord, Hashable, FromField, ToField) via Word64
+newtype CausalHashId = CausalHashId HashId deriving (Hashable, FromField, ToField) via HashId
+newtype NamespaceHashId = NamespaceHashId ObjectId deriving (Hashable, FromField, ToField) via ObjectId
 newtype ReferenceId = ReferenceId Word64 deriving FromField via Word64
 newtype ReferenceDerivedId = ReferenceDerivedId Word64 deriving (FromField, ToField) via Word64
 newtype ReferentDerivedId = ReferentDerivedId Word64 deriving (FromField, ToField) via Word64
@@ -94,29 +95,46 @@ saveCausal self value = execute sql (self, value) where sql = [here|
   INSERT OR IGNORE INTO causal (self_hash_id, value_hash_id) VALUES (?, ?)
 |]
 
+loadCausalValueHash :: DB m => CausalHashId -> m (Maybe NamespaceHashId)
+loadCausalValueHash hash = queryMaybe sql (Only hash) where sql = [here|
+  SELECT value_hash_id FROM causal WHERE self_hash_id = ?
+|]
+
+saveCausalOld :: DB m => HashId -> CausalHashId -> m ()
+saveCausalOld v1 v2 = execute sql (v1, v2) where sql = [here|
+  INSERT OR IGNORE INTO causal_old (old_hash_id, new_hash_id) VALUES (?, ?)
+|]
+
+loadOldCausalValueHash :: DB m => HashId -> m (Maybe NamespaceHashId)
+loadOldCausalValueHash hash = queryMaybe sql (Only hash) where sql = [here|
+  SELECT value_hash_id FROM causal 
+  INNER JOIN causal_old ON self_hash_id = new_hash_id
+  WHERE old_hash_id = ?
+|]
+
 saveCausalParent :: DB m => CausalHashId -> CausalHashId -> m ()
 saveCausalParent child parent = execute sql (child, parent) where
   sql = [here|
     INSERT OR IGNORE INTO causal_parent (causal_id, parent_id) VALUES (?, ?)
   |]
 
-loadCausalParents :: DB m => HashId -> m [HashId]
+loadCausalParents :: DB m => CausalHashId -> m [CausalHashId]
 loadCausalParents h = queryList sql (Only h) where sql = [here|
   SELECT parent_id FROM causal_parent WHERE causal_id = ?
 |]
 
-saveTypeOfReferent :: DB m => Referent2Id -> ByteString -> m ()
+saveTypeOfReferent :: DB m => Referent2Id ObjectId -> ByteString -> m ()
 saveTypeOfReferent r bs = execute sql (r :. Only bs) where
   sql = [here|
     INSERT OR IGNORE INTO type_of_referent
-      (hash_id, component_index, constructor_index, bytes)
+      (object_id, component_index, constructor_index, bytes)
     VALUES (?, ?, ?, ?)
   |]
 
-loadTypeOfReferent :: DB m => Referent2Id -> m (Maybe ByteString)
+loadTypeOfReferent :: DB m => Referent2Id ObjectId -> m (Maybe ByteString)
 loadTypeOfReferent r = queryMaybe sql r where sql = [here|
   SELECT bytes FROM type_of_referent
-  WHERE hash_id = ?
+  WHERE object_id = ?
     AND component_index = ?
     AND constructor_index = ?
 |]
@@ -138,32 +156,32 @@ loadTypeOfReferent r = queryMaybe sql r where sql = [here|
 --    |]
 
 --- find index stuff
-addDependencyToIndex :: DB m => Reference2Id -> Reference2 -> m ()
+addDependencyToIndex :: DB m => (Reference2Id ObjectId) -> (Reference2 ObjectId) -> m ()
 addDependencyToIndex dependent dependency =
   execute sql (dependency :. dependent) where sql = [here|
     INSERT OR IGNORE INTO dependents_index (
       dependency_builtin,
-      dependency_hash_id,
+      dependency_object_id,
       dependency_component_index,
-      dependent_hash_id,
+      dependent_object_id,
       dependent_component_index
     ) VALUES (?, ?, ?, ?, ?)
   |]
 
-addToFindByTypeIndex :: DB m => Referent2Id -> Reference2 -> m ()
+addToFindByTypeIndex :: DB m => (Referent2Id ObjectId) -> (Reference2 HashId) -> m ()
 addToFindByTypeIndex termReferent typeReference =
   execute sql (typeReference :. termReferent) where sql = [here|
     INSERT OR IGNORE INTO find_type_index (
       type_reference_builtin,
       type_reference_hash_id,
       type_reference_component_index,
-      term_referent_hash_id,
+      term_referent_object_id,
       term_referent_component_index,
       term_referent_constructor_index
     ) VALUES (?, ?, ?, ?, ?, ?)
   |]
 
-addToFindByTypeMentionsIndex :: DB m => Referent2Id -> Reference2 -> m ()
+addToFindByTypeMentionsIndex :: DB m => (Referent2Id ObjectId) -> (Reference2 HashId) -> m ()
 addToFindByTypeMentionsIndex termReferent typeReference =
   execute sql (typeReference :. termReferent) where sql = [here|
     INSERT OR IGNORE INTO find_type_index (
@@ -171,7 +189,7 @@ addToFindByTypeMentionsIndex termReferent typeReference =
       type_reference_hash_id,
       type_reference_component_index,
       term_referent_hash_id,
-      term_referent_component_index,
+      term_referent_object_index,
       term_referent_constructor_index
     ) VALUES (?, ?, ?, ?, ?, ?)
   |]
@@ -251,41 +269,35 @@ execute q r = do c <- ask; liftIO $ SQLite.execute c q r
 type ComponentIndex = Word64
 type ConstructorIndex = Int
 
-data Reference2
-  = Reference2Builtin Text | Reference2Derived Reference2Id
+data Reference2 h
+  = Reference2Builtin Text | Reference2Derived (Reference2Id h)
   deriving (Eq, Ord)
 
-data Reference2Id
-  = Reference2Id HashId ComponentIndex
+data Reference2Id h
+  = Reference2Id h ComponentIndex
   deriving (Eq, Ord)
 
-data Referent2
-  = Referent2Ref Reference2 | Referent2Con Reference2 ConstructorIndex
+data Referent2 h
+  = Referent2Ref (Reference2 h) | Referent2Con (Reference2 h) ConstructorIndex
   deriving (Eq, Ord)
 
-data Referent2Id
-  = Referent2IdRef Reference2Id | Referent2IdCon Reference2Id ConstructorIndex
+data Referent2Id h
+  = Referent2IdRef (Reference2Id h) | Referent2IdCon (Reference2Id h) ConstructorIndex
   deriving (Eq, Ord)
 
-pattern Reference2Id' :: HashId -> ComponentIndex -> Reference2
+pattern Reference2Id' :: h -> ComponentIndex -> Reference2 h
 pattern Reference2Id' h i = Reference2Derived (Reference2Id h i)
 
-pattern Referent2IdRef' :: HashId -> ComponentIndex -> Referent2Id
+pattern Referent2IdRef' :: h -> ComponentIndex -> (Referent2Id h)
 pattern Referent2IdRef' h i = Referent2IdRef (Reference2Id h i)
---
---reference2idFromIdH :: Reference.IdH HashId -> Reference2Id
---reference2idFromIdH (Reference.IdH h i _n) = Reference2Id h i
---
---ref2idhash :: Lens' Reference2Id HashId
---ref2idhash = lens (\(Reference2Id h _i) -> h) (\(Reference2Id _h i) h -> Reference2Id h i)
 
-referenceTraversal :: Traversal Reference.Reference Reference2 Hash HashId
+referenceTraversal :: Traversal (Reference.ReferenceH h) (Reference2 h') h h'
 referenceTraversal f = \case
   Reference.Builtin text -> pure (Reference2Builtin text)
   Reference.DerivedId (Reference.IdH h i _n) ->
     f h <&> \h -> Reference2Derived (Reference2Id h i)
 
-referentTraversal :: Traversal Referent.Referent Referent2 Hash HashId
+referentTraversal :: Traversal Referent.Referent (Referent2 h) Hash h
 referentTraversal f = \case
   Referent.Ref r -> Referent2Ref <$> referenceTraversal f r
   Referent.Con r i _ct -> Referent2Con <$> referenceTraversal f r <*> pure i
@@ -295,22 +307,22 @@ referentTraversal f = \case
 --  Reference.DerivedId idh -> Reference2Derived (reference2idFromIdH idh)
 
 
-instance ToRow Reference2 where
+instance ToField id => ToRow (Reference2 id) where
   toRow = \case
     Reference2Builtin text -> [SQLText text, SQLNull, SQLNull]
     Reference2Derived id  -> SQLNull : toRow id
 
-instance ToRow Referent2 where
-  toRow = toRow . \case
-    Referent2Ref r -> r :. Only Nothing
-    Referent2Con r cid  -> r :. Only (Just cid)
+-- instance ToRow Referent2 where
+--   toRow = toRow . \case
+--     Referent2Ref r -> r :. Only Nothing
+--     Referent2Con r cid  -> r :. Only (Just cid)
 
-instance ToRow Referent2Id where
+instance (ToField id) => ToRow (Referent2Id id) where
   toRow = toRow . \case
     Referent2IdRef id -> id :. Only Nothing
     Referent2IdCon id cid -> id :. Only (Just cid)
 
-instance ToRow Reference2Id where
+instance ToField id => ToRow (Reference2Id id) where
   toRow (Reference2Id h i) = toRow (Just h, Just i)
 
 --instance ToRow (Referent.IdH HashId) where

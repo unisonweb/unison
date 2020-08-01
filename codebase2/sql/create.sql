@@ -29,12 +29,12 @@ CREATE TABLE object_type_description (
   description TEXT UNIQUE NOT NULL
 );
 INSERT INTO object_type_description (id, description) VALUES
-    (0, "Term"), -- foo x = x + 1
+    (0, "Term Component"), -- foo x = x + 1
     (1, "Type"), -- Nat -> Nat
-    (2, "Data"), -- unique type Animal = Cat | Dog | Mouse
-    (3, "Ability"), -- ability Abort where { abort : a }
-    (4, "Namespace"), -- a one-level slice
-    (5, "Patch");
+    (2, "Decl Component"), -- unique type Animal = Cat | Dog | Mouse
+    (3, "Namespace"), -- a one-level slice
+    (4, "Patch") -- replace term #abc with term #def
+    ;
 
 -- How should objects be linked to hashes?  (and old hashes)
 -- And which id should be linked into blobs?
@@ -63,10 +63,16 @@ CREATE INDEX object_type_id ON object(type_id);
 -- to not lose their identities.
 CREATE TABLE causal (
   self_hash_id INTEGER PRIMARY KEY NOT NULL REFERENCES hash(id),
+  -- intentionally not object_id, see above
   value_hash_id INTEGER NOT NULL REFERENCES hash(id)
 );
 
-create TABLE causal_parent (
+-- valueHash : Hash = hash(value)
+-- db.saveValue(valueHash, value)
+-- causalHash : Hash = hash(new Causal(valueHash, parentCausalHashes))
+-- db.saveCausal(selfHash = causalHash, valueHash, parentCausalHashes)
+
+CREATE TABLE causal_parent (
   id INTEGER PRIMARY KEY NOT NULL,
   causal_id INTEGER NOT NULL REFERENCES causal(self_hash_id),
   parent_id INTEGER NOT NULL REFERENCES causal(self_hash_id),
@@ -75,14 +81,21 @@ create TABLE causal_parent (
 CREATE INDEX causal_parent_causal_id ON causal_parent(causal_id);
 CREATE INDEX causal_parent_parent_id ON causal_parent(parent_id);
 
+-- associate old (e.g. v1) causal hashes with new causal hashes
+CREATE TABLE causal_old (
+  old_hash_id INTEGER PRIMARY KEY NOT NULL REFERENCES hash(id),
+  new_hash_id INTEGER NOT NULL REFERENCES hash(id)
+);
+
 -- |Links a referent to its type's object
 CREATE TABLE type_of_referent (
-  hash_id INTEGER NOT NULL REFERENCES hash(id),
+  object_id INTEGER NOT NULL REFERENCES object(id),
   component_index INTEGER NOT NULL,
   constructor_index INTEGER NULL,
   bytes BLOB NOT NULL,
-  PRIMARY KEY (hash_id, component_index, constructor_index)
+  PRIMARY KEY (object_id, component_index, constructor_index)
 );
+
 --CREATE TABLE type_of_referent (
 --  referent_derived_id INTEGER NOT NULL PRIMARY KEY REFERENCES referent_derived(id),
 --  type_object_id INTEGER NOT NULL REFERENCES object(id)

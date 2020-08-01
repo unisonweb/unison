@@ -63,10 +63,10 @@ hmap :: (h -> h') -> DataDeclarationH h v a -> DataDeclarationH h' v a
 hmap f dd = dd { constructors' = constructors'' } where
   constructors'' = [ (a, v, Type.hmap f typ) | (a, v, typ) <- constructors' dd]
 
-asDataDecl :: Decl v a -> DataDeclaration' v a
+asDataDecl :: DeclH h v a -> DataDeclarationH h v a
 asDataDecl = either toDataDecl id
 
-declDependencies :: Ord v => Decl v a -> Set Reference
+declDependencies :: (Ord h, Ord v) => DeclH h v a -> Set (ReferenceH h)
 declDependencies = either (dependencies . toDataDecl) dependencies
 
 constructorType :: Decl v a -> CT.ConstructorType
@@ -176,13 +176,13 @@ effectConstructorTerms
 effectConstructorTerms rid ed =
   constructorTerms Term.hashRequest Term.request rid $ toDataDecl ed
 
-constructorTypes :: DataDeclaration' v a -> [Type v a]
+constructorTypes :: DataDeclarationH h v a -> [TypeH h v a]
 constructorTypes = (snd <$>) . constructors
 
 typeOfConstructor :: DataDeclaration' v a -> ConstructorId -> Maybe (Type v a)
 typeOfConstructor dd i = constructorTypes dd `atMay` i
 
-constructors :: DataDeclaration' v a -> [(v, Type v a)]
+constructors :: DataDeclarationH h v a -> [(v, TypeH h v a)]
 constructors (DataDeclaration _ _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
 
 constructorVars :: DataDeclaration' v a -> [v]
@@ -220,7 +220,7 @@ bindNames keepFree names (DataDeclaration m a bound constructors) = do
     (a,v,) <$> Type.bindNames keepFree names ty
   pure $ DataDeclaration m a bound constructors
 
-dependencies :: Ord v => DataDeclaration' v a -> Set Reference
+dependencies :: (Ord h, Ord v) => DataDeclarationH h v a -> Set (ReferenceH h)
 dependencies dd =
   Set.unions (Type.dependencies <$> constructorTypes dd)
 

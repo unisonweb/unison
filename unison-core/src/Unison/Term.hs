@@ -51,7 +51,7 @@ import           Unsafe.Coerce
 import Unison.Symbol (Symbol)
 import qualified Unison.Name as Name
 import qualified Unison.LabeledDependency as LD
-import Unison.LabeledDependency (LabeledDependency)
+import Unison.LabeledDependency (LabeledDependencyH)
 
 type ConstructorId = Pattern.ConstructorId
 
@@ -832,8 +832,8 @@ unReqOrCtor (Request' r cid)     = Just (r, cid)
 unReqOrCtor _                         = Nothing
 
 -- Dependencies including referenced data and effect decls
-dependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
-dependencies t = Set.map (LD.fold id Referent.toReference) (labeledDependencies t)
+dependencies :: (Ord h, Ord v, Ord vt) => Term2H h vt at ap v a -> Set (ReferenceH h)
+dependencies t = Set.map (LD.fold id Referent.toReference') (labeledDependencies t)
 
 typeDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
 typeDependencies =
@@ -854,15 +854,15 @@ constructorDependencies =
                               Set.singleton
 
 generalizedDependencies
-  :: (Ord v, Ord vt, Ord r)
-  => (Reference -> r)
-  -> (Reference -> r)
-  -> (Reference -> r)
-  -> (Reference -> ConstructorId -> r)
-  -> (Reference -> r)
-  -> (Reference -> ConstructorId -> r)
-  -> (Reference -> r)
-  -> Term2 vt at ap v a
+  :: (Ord h, Ord v, Ord vt, Ord r)
+  => (ReferenceH h -> r)
+  -> (ReferenceH h -> r)
+  -> (ReferenceH h -> r)
+  -> (ReferenceH h -> ConstructorId -> r)
+  -> (ReferenceH h -> r)
+  -> (ReferenceH h -> ConstructorId -> r)
+  -> (ReferenceH h -> r)
+  -> Term2H h vt at ap v a
   -> Set r
 generalizedDependencies termRef typeRef literalType dataConstructor dataType effectConstructor effectType
   = Set.fromList . Writer.execWriter . ABT.visit' f where
@@ -895,7 +895,7 @@ generalizedDependencies termRef typeRef literalType dataConstructor dataType eff
                                                            pat
 
 labeledDependencies
-  :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set LabeledDependency
+  :: (Ord h, Ord v, Ord vt) => Term2H h vt at ap v a -> Set (LabeledDependencyH h)
 labeledDependencies = generalizedDependencies LD.termRef
                                               LD.typeRef
                                               LD.typeRef

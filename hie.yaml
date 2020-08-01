@@ -1,0 +1,41 @@
+cradle:
+  multi:
+    - path: "./"
+      config:
+        cradle:
+          stack:
+            - path: "./codebase2/lib"
+              component: "unison-codebase2a:lib"
+            - path: "./codebase2/app"
+              component: "unison-codebase2a:exe:unison-codebase2a"
+            - path: "./parser-typechecker/src"
+              component: "unison-parser-typechecker:lib"
+            - path: "./parser-typechecker/unison"
+              component: "unison-parser-typechecker:exe:unison"
+            - path: "./parser-typechecker/prettyprintdemo"
+              component: "unison-parser-typechecker:exe:prettyprintdemo"
+            - path: "./parser-typechecker/tests"
+              component: "unison-parser-typechecker:exe:tests"
+            - path: "./parser-typechecker/transcripts"
+              component: "unison-parser-typechecker:exe:transcripts"
+
+            - path: "./unison-core/src"
+              component: "unison-core:lib"
+
+            - path: "./yaks/easytest/src"
+              component: "easytest:lib"
+            - path: "./yaks/easytest/tests"
+              component: "easytest:exe:runtests"
+
+    # Attempt to skip ./unison-src/parser-tests/GenerateErrors.hs
+    # which doesn't have a corresponding cabal file.
+    #
+    # This is the skipping strategy suggested by:
+    # https://github.com/mpickering/hie-bios/tree/7f298424e30e0453dc21062ffa543998a2145ab6#ignoring-directories
+    # but it isn't working for some reason.
+    #
+    # Until it does you can expect to see "1 file failed" in the ghcide output.
+    - path: "./unison-src"
+      config:
+        cradle:
+          none:

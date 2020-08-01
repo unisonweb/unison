@@ -6,7 +6,7 @@ import Unison.Prelude
 
 import qualified Unison.Pattern as P
 import Unison.LabeledDependency (LabeledDependency)
-import Unison.Reference (Reference)
+import Unison.Reference (ReferenceH)
 
 type Pattern loc = P.PatternP loc
 type PatternH h loc = P.PatternH h loc
@@ -48,11 +48,11 @@ labeledDependencies = P.labeledDependencies
 
 generalizedDependencies
   :: Ord r
-  => (Reference -> r)
-  -> (Reference -> P.ConstructorId -> r)
-  -> (Reference -> r)
-  -> (Reference -> P.ConstructorId -> r)
-  -> (Reference -> r)
-  -> P.PatternP loc
+  => (ReferenceH h -> r)
+  -> (ReferenceH h -> P.ConstructorId -> r)
+  -> (ReferenceH h -> r)
+  -> (ReferenceH h -> P.ConstructorId -> r)
+  -> (ReferenceH h -> r)
+  -> P.PatternH h loc
   -> Set r
 generalizedDependencies = P.generalizedDependencies

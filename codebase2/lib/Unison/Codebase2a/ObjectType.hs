@@ -11,11 +11,11 @@ import Database.SQLite.Simple.FromField (FromField(..))
 
 -- Don't reorder these, they are part of the database
 data ObjectType
-  = TermCycle   -- 0
-  | TermType    -- 1
-  | DeclCycle   -- 2
-  | Namespace   -- 4
-  | Patch       -- 5
+  = TermComponent   -- 0
+  | TermType        -- 1
+  | DeclComponent   -- 2
+  | Namespace       -- 3
+  | Patch           -- 4
   deriving (Eq, Ord, Show, Enum)
 
 instance ToField ObjectType where
