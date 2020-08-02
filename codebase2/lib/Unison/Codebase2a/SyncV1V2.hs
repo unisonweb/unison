@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -91,32 +92,36 @@ import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Star3 as Star3
+import qualified Data.Set as Set
 
 -- [ ] todo: need some way to associate types to terms.  let's reuse the type index
 -- type_index does something similar?
 -- type_mentions_index does something similar
 
+newtype V1 a = V1 { runV1 :: a } deriving (Eq, Ord, Show)
+newtype V2 a = V2 { runV2 :: a } deriving (Eq, Ord, Show, Functor) deriving FromField via a
+
 data V1EntityRef
-  = Decl1 Hash -- this will refer to the whole component
-  | Term1 Hash -- "
-  | Patch1 V1.Branch.EditHash
+  = Decl1 (V1 Hash) -- this will refer to the whole component
+  | Term1 (V1 Hash) -- "
+  | Patch1 (V1 V1.Branch.EditHash)
   | Branch1 V1.Branch.Hash
   deriving (Eq, Ord)
 
-v1EntityRefToHash :: V1EntityRef -> Hash
+v1EntityRefToHash :: V1EntityRef -> V1 Hash
 v1EntityRefToHash = \case
   Decl1 h -> h
   Term1 h -> h
   Patch1 h -> h
-  Branch1 (V1.Causal.RawHash h) -> h
+  Branch1 (V1.Causal.RawHash h) -> V1 h
 
 newtype Base32HexPrefix = Base32HexPrefix Text
   deriving Show via Text
   deriving ToField via Text
   deriving FromField via Text
 
-newtype PatchHash h = PatchHash h
-newtype NamespaceHash h = NamespaceHash h
+-- newtype PatchHash h = PatchHash h
+-- newtype NamespaceHash h = NamespaceHash h
 newtype CausalHash h =  CausalHash h
 
 -- -- |things that appear in a deserialized RawBranch
@@ -146,15 +151,15 @@ initializeV2DB :: MonadIO m => m ()
 initializeV2DB = error "todo"
 
 data FatalError = NoRootBranch
-                | MissingBranch Hash
-                | MissingPatch Hash
+                | MissingBranch (V1 Hash)
+                | MissingPatch (V1 Hash)
                 | MissingTerm Reference.Id
-                | MissingTermHash Hash
+                | MissingTermHash (V1 Hash)
                 | MissingTypeOfTerm Reference.Id
                 | MissingDecl Reference.Id
-                | MissingDeclHash Hash
-                | InvalidBranch Hash
-                | InvalidPatch Hash
+                | MissingDeclHash (V1 Hash)
+                | InvalidBranch (V1 Hash)
+                | InvalidPatch (V1 Hash)
                 | InvalidTerm Reference.Id
                 | InvalidTypeOfTerm Reference.Id
                 | InvalidDecl Reference.Id
@@ -220,7 +225,7 @@ syncV1V2 c rootDir = liftIO $ SQLite.withTransaction c . runExceptT . flip runRe
     case h of
       Term1 h ->
         -- if this hash is already associated to an object
-        ifM (existsObjectWithHash h) (convertEntities rest) $ do
+        ifM (existsObjectWithHash (runV1 h)) (convertEntities rest) $ do
           -- load a cycle from disk
           e <- loadTerm1 rootDir termDirComponents h
           matchTerm1Dependencies h e >>= \case
@@ -229,7 +234,7 @@ syncV1V2 c rootDir = liftIO $ SQLite.withTransaction c . runExceptT . flip runRe
               convertTerm1 lookup h e
               convertEntities rest
       Decl1 h ->
-        ifM (existsObjectWithHash h) (convertEntities rest) $ do
+        ifM (existsObjectWithHash (runV1 h)) (convertEntities rest) $ do
           d <- loadDecl1 rootDir declsDirComponents h
           matchDecl1Dependencies h d >>= \case
             Left missing -> convertEntities (missing ++ all)
@@ -237,17 +242,17 @@ syncV1V2 c rootDir = liftIO $ SQLite.withTransaction c . runExceptT . flip runRe
               convertDecl1 lookup h d
               convertEntities rest
       Patch1 h ->
-        ifM (existsObjectWithHash h) (convertEntities rest) $ do
+        ifM (existsObjectWithHash (runV1 h)) (convertEntities rest) $ do
           p <- loadPatch1 rootDir h
           matchPatch1Dependencies ("patch " ++ show h) p >>= \case
             Left missing -> convertEntities (missing ++ all)
             Right lookup -> do
-              hashId <- Db.saveHashByteString h
-              savePatch hashId (Patch.hmap lookup p)
+              hashId <- Db.saveHashByteString (runV1 h)
+              savePatch hashId (Patch.hmap (lookup . V1) p)
               convertEntities rest
       Branch1 (V1.unRawHash -> h) ->
         ifM (existsObjectWithHash h) (convertEntities rest) $ do
-          cb <- loadCausalBranch1 rootDir h
+          cb <- loadCausalBranch1 rootDir (V1 h)
           matchCausalBranch1Dependencies ("branch " ++ show h) cb >>= \case
             Left missing -> convertEntities (missing ++ all)
             Right (lookupObject, lookupCausal) -> do
@@ -258,10 +263,10 @@ syncV1V2 c rootDir = liftIO $ SQLite.withTransaction c . runExceptT . flip runRe
 loadCausalBranch1 :: MonadIO m
                   => MonadError FatalError m
                   => CodebasePath
-                  -> Hash
+                  -> V1 Hash
                   -> m (V1.Causal.Raw V1.Branch.Raw V1.Branch.Raw)
 loadCausalBranch1 rootDir h = do
-  let file = V1.branchPath rootDir (V1.RawHash h)
+  let file = V1.branchPath rootDir (V1.RawHash (runV1 h))
   ifM (doesFileExist file)
     (S.getFromFile' (S.V1.getCausal0 S.V1.getRawBranch) file >>= \case
       Left err -> throwError $ InvalidBranch h
@@ -301,7 +306,13 @@ deriving via (Set (ReferenceH h))
   instance Hashable (ReferenceH h) => Hashable (MdValuesH h)
 
 -- this is the version we'll hash
-type RawBranch = RawBranchH V1.Referent V1.Reference V1.Reference Hash Hash
+type RawBranch = 
+    RawBranchH 
+      (Db.Referent2 Hash)  -- terms
+      (Db.Reference2 Hash) -- types
+      (Db.Reference2 Hash) -- metadata
+      Hash                 -- patches
+      Hash                 -- children
 
 -- this is the version that closely corresponds to the db schema
 type RawBranch2S = 
@@ -309,12 +320,12 @@ type RawBranch2S =
       (Db.Referent2 Db.ObjectId)  -- terms
       (Db.Reference2 Db.ObjectId) -- types
       (Db.Reference2 Db.ObjectId) -- metadata
-      Hash                        -- patches
+      Db.ObjectId                 -- patches
       Db.CausalHashId             -- children
 
 data RawBranchH termRef typeRef mdRef pRef cRef = RawBranch
-  { terms :: Map NameSegment (Map termRef (Set mdRef))
-  , types :: Map NameSegment (Map typeRef (Set mdRef))
+  { terms :: Map (NameSegment, termRef) (Set mdRef)
+  , types :: Map (NameSegment, typeRef) (Set mdRef)
   , patches :: Map NameSegment pRef
   , children :: Map NameSegment cRef
   }
@@ -348,15 +359,27 @@ getV1RootBranchHash root = listDirectory (V1.branchHeadDir root) <&> \case
 
 -- |Look for an ObjectId corresponding to the provided V1 hash.
 -- Returns Left if not found.
-lookupObject :: DB m => V1EntityRef -> m (Either V1EntityRef (Hash, Db.ObjectId))
-lookupObject r@(v1EntityRefToHash -> h) =
+lookupObject :: DB m => V1EntityRef -> m (Either V1EntityRef (V1 Hash, Db.ObjectId))
+lookupObject r@(runV1 . v1EntityRefToHash -> h) =
   getObjectIdByBase32Hex (Base32Hex.fromHash h) <&> \case
     Nothing -> Left r
-    Just i -> Right (h, i)
+    Just i -> Right (V1 h, i)
 
--- lookupCausal :: DB m => V1.Branch.Hash -> m (Either CausalHash (Hash, Db.CausalHashId))
-lookupCausal (V1.unRawHash -> h) = error "todo"
-  -- Db.
+-- |Look for a CausalHashId corresponding to the provided V1 hash.
+-- Returns Left if not found.
+lookupCausal :: DB m => V1.Branch.Hash -> m (Either (V1 Hash) (V1 Hash, (V2 Hash, Db.CausalHashId)))
+lookupCausal (V1.unRawHash -> h) = 
+  Db.queryMaybe sql (Only (Base32Hex.fromHash h)) <&> \case
+    Nothing -> Left (V1 h)
+    Just (v2Hash, id) -> Right (V1 h, (Base32Hex.toHash <$> v2Hash, id))
+  where 
+  sql = [here|
+    SELECT new_hash.base32, new_hash_id 
+    FROM causal_old 
+    INNER JOIN hash old_hash ON old_hash_id = old_hash.id
+    INNER JOIN hash new_hash ON new_hash_id = new_hash.id
+    WHERE old_hash.base32 = ?
+  |]
 
 saveTypeBlobForReferent :: DB m => (Db.Referent2Id Db.ObjectId) -> Type2S -> m ()
 saveTypeBlobForReferent r type2s = let
@@ -380,7 +403,7 @@ saveTypeBlobForReferent r type2s = let
 
 -- |Multiple hashes can map to a single object!
 getObjectIdByBase32Hex :: DB m => Base32Hex -> m (Maybe Db.ObjectId)
-getObjectIdByBase32Hex h = Db.queryMaybe sql (Only h)
+getObjectIdByBase32Hex h = Db.queryOnly sql (Only h)
   where
   sql = [here|
     SELECT object.id
@@ -413,8 +436,8 @@ saveReferenceAsReference2 = mapMOf Db.referenceTraversal Db.saveHashByteString
 loadTerm1 :: MonadIO m
           => MonadError FatalError m
           => CodebasePath
-          -> Map Hash [Reference.Id]
-          -> Hash
+          -> Map (V1 Hash) [Reference.Id]
+          -> V1 Hash
           -> m [(Term, Type)]
 loadTerm1 rootDir componentsFromDir h = case Map.lookup h componentsFromDir of
   Nothing -> throwError $ MissingTermHash h
@@ -429,7 +452,7 @@ loadTerm1 rootDir componentsFromDir h = case Map.lookup h componentsFromDir of
       pure (term, typeOfTerm)
 
 loadDecl1 :: MonadIO m => MonadError FatalError m
-  => CodebasePath -> Map Hash [Reference.Id] -> Hash -> m [Decl]
+  => CodebasePath -> Map (V1 Hash) [Reference.Id] -> V1 Hash -> m [Decl]
 loadDecl1 rootDir componentsFromDir h = case Map.lookup h componentsFromDir of
   Nothing -> throwError $ MissingDeclHash h
   Just set -> case toList set of
@@ -440,9 +463,9 @@ loadDecl1 rootDir componentsFromDir h = case Map.lookup h componentsFromDir of
         >>= maybe (throwError $ MissingDecl r) pure
 
 -- |load a patch
-loadPatch1 :: (MonadIO m, MonadError FatalError m) => [Char] -> Hash -> m Patch.Patch
+loadPatch1 :: (MonadIO m, MonadError FatalError m) => [Char] -> V1 Hash -> m Patch.Patch
 loadPatch1 rootDir h = do
-  let file = V1.editsPath rootDir h
+  let file = V1.editsPath rootDir (runV1 h)
   ifM (doesFileExist file)
     (S.getFromFile' S.V1.getEdits file >>= \case
       Left  _err   -> throwError (InvalidPatch h)
@@ -451,11 +474,11 @@ loadPatch1 rootDir h = do
 
 -- 3) figure out what their combined dependencies are
 matchTerm1Dependencies ::
-  DB m => Hash -> [(Term, Type)] -> m (Either [V1EntityRef] (Hash -> Db.ObjectId))
+  DB m => V1 Hash -> [(Term, Type)] -> m (Either [V1EntityRef] (V1 Hash -> Db.ObjectId))
 matchTerm1Dependencies componentHash tms = let
   -- Get a list of Eithers corresponding to the non-self dependencies of this term.
   lookupDependencyObjects
-    :: DB m => (Term, Type) -> m [Either V1EntityRef (Hash, Db.ObjectId)]
+    :: DB m => (Term, Type) -> m [Either V1EntityRef (V1 Hash, Db.ObjectId)]
   lookupDependencyObjects (term, typeOfTerm) = traverse lookupObject deps
     where
     (termTypeDeps, termTermDeps) =
@@ -464,10 +487,10 @@ matchTerm1Dependencies componentHash tms = let
         . toList
         $ Term.labeledDependencies term
     deps = nubOrd $
-      [ Decl1 h | Reference.Derived h _i _n <- toList $ Type.dependencies typeOfTerm ] <>
-      [ Decl1 h | Reference.Derived h _i _n <- termTypeDeps ] <>
-      [ Term1 h | Reference.Derived h _i _n <- termTermDeps
-                , h /= componentHash ] -- don't include self-refs 😬
+      [ Decl1 (V1 h) | Reference.Derived h _i _n <- toList $ Type.dependencies typeOfTerm ] <>
+      [ Decl1 (V1 h) | Reference.Derived h _i _n <- termTypeDeps ] <>
+      [ Term1 (V1 h) | Reference.Derived h _i _n <- termTermDeps
+                , h /= runV1 componentHash ] -- don't include self-refs 😬
   in do
     -- check the lefts, if empty then everything is on the right;
     -- else return left.
@@ -477,13 +500,13 @@ matchTerm1Dependencies componentHash tms = let
       missing -> Left missing
 
 matchDecl1Dependencies ::
-  DB m => Hash -> [Decl] -> m (Either [V1EntityRef] (Hash -> Db.ObjectId))
+  DB m => V1 Hash -> [Decl] -> m (Either [V1EntityRef] (V1 Hash -> Db.ObjectId))
 matchDecl1Dependencies componentHash decls = let
   lookupDependencyObjects
-    :: DB m => Decl -> m [Either V1EntityRef (Hash, Db.ObjectId)]
+    :: DB m => Decl -> m [Either V1EntityRef (V1 Hash, Db.ObjectId)]
   lookupDependencyObjects decl = traverse lookupObject . nubOrd $
-    [ Decl1 h | Reference.Derived h _i _n <- toList (DD.declDependencies decl)
-              , h /= componentHash ]
+    [ Decl1 (V1 h) | Reference.Derived h _i _n <- toList (DD.declDependencies decl)
+              , V1 h /= componentHash ]
   in do
     (missing, found) <- partitionEithers <$> foldMapM lookupDependencyObjects decls
     pure $ case missing of
@@ -491,13 +514,13 @@ matchDecl1Dependencies componentHash decls = let
       missing -> Left missing
 
 matchPatch1Dependencies :: DB m =>
-  String -> Patch -> m (Either [V1EntityRef] (Hash -> Db.ObjectId))
+  String -> Patch -> m (Either [V1EntityRef] (V1 Hash -> Db.ObjectId))
 matchPatch1Dependencies description (Patch.Patch tms tps) = do
-  deps :: [Either V1EntityRef (Hash, Db.ObjectId)] <-
+  deps :: [Either V1EntityRef (V1 Hash, Db.ObjectId)] <-
     traverse lookupObject . nubOrd $
-      [ Term1 h | (r, e) <- Relation.toList tms
+      [ Term1 (V1 h) | (r, e) <- Relation.toList tms
       , Reference.Derived h _i _n <- r : TermEdit.references e ] ++
-      [ Decl1 h | (r, e) <- Relation.toList tps
+      [ Decl1 (V1 h) | (r, e) <- Relation.toList tps
       , Reference.Derived h _i _n <- r : TypeEdit.references e]
   let (missing, found) = partitionEithers deps
   pure $ case missing of
@@ -510,27 +533,27 @@ data CBDepLookup
 matchCausalBranch1Dependencies :: DB m
   => String
   -> V1.Causal.Raw V1.Branch.Raw V1.Branch.Raw
-  -> m (Either [V1EntityRef] (Hash -> Db.ObjectId, Hash -> Db.CausalHashId))
+  -> m (Either [V1EntityRef] (V1 Hash -> Db.ObjectId, V1 Hash -> (V2 Hash, Db.CausalHashId)))
 matchCausalBranch1Dependencies description cb@(V1.Causal.rawHead -> b) = do
   deps <- traverse lookupObject . nubOrd $
     -- history
     [ Branch1 h | h <- V1.Causal.rawTails cb] ++
     -- terms
-    [ Term1 h | Referent.Ref (Reference.Derived h _i _n)
+    [ Term1 (V1 h) | Referent.Ref (Reference.Derived h _i _n)
         <- (toList . Relation.dom . Star3.d1 . V1.Branch._termsR) b ] ++
-    [ Term1 h | Referent.Ref (Reference.Derived h _i _n)
+    [ Term1 (V1 h) | Referent.Ref (Reference.Derived h _i _n)
         <- (toList . Relation.dom . Star3.d1 . V1.Branch._termsR) b ] ++
     -- term metadata
-    [ Term1 h | Reference.Derived h _i _n
+    [ Term1 (V1 h) | Reference.Derived h _i _n
         <- (map snd . toList . Relation.ran . Star3.d3 . V1.Branch._termsR) b ] ++
     -- types
-    [ Decl1 h | Reference.Derived h _i _n
+    [ Decl1 (V1 h) | Reference.Derived h _i _n
         <- (toList . Relation.dom . Star3.d1 . V1.Branch._typesR) b ] ++
     -- type metadata
-    [ Term1 h | Reference.Derived h _i _n
+    [ Term1 (V1 h) | Reference.Derived h _i _n
         <- (map snd . toList . Relation.ran . Star3.d3 . V1.Branch._typesR) b ] ++
     [ Branch1 h | h <- toList (V1.Branch._childrenR b)] ++
-    [ Patch1 h | h <- toList (V1.Branch._editsR b)]
+    [ Patch1 (V1 h) | h <- toList (V1.Branch._editsR b)]
 
   causalParents <- traverse lookupCausal (V1.Causal.rawTails cb)
 
@@ -542,25 +565,25 @@ matchCausalBranch1Dependencies description cb@(V1.Causal.rawHead -> b) = do
                 , makeCausalLookup foundParents description )
     missing -> Left missing
 
-makeCausalLookup :: [(Hash, Db.CausalHashId)] -> String -> Hash -> Db.CausalHashId
+makeCausalLookup :: [(V1 Hash, (V2 Hash, Db.CausalHashId))] -> String -> V1 Hash -> (V2 Hash, Db.CausalHashId)
 makeCausalLookup l description a = 
   let m = Map.fromList l 
   in case Map.lookup a m of
     Just b -> b
     Nothing ->
       error $ "Somehow I don't have the CausalHashId for "
-        ++ show (Base32Hex.fromHash a)
+        ++ show (Base32Hex.fromHash (runV1 a))
         ++ " in the map for "
         ++ description
 
-makeLookup :: [(Hash, Db.ObjectId)] -> String -> Hash -> Db.ObjectId
+makeLookup :: [(V1 Hash, Db.ObjectId)] -> String -> V1 Hash -> Db.ObjectId
 makeLookup l lookupDescription a = 
   let m = Map.fromList l
   in case Map.lookup a m of
     Just b -> b
     Nothing ->
       error $ "Somehow I don't have the ObjectId for "
-        ++ show (Base32Hex.fromHash a)
+        ++ show (Base32Hex.fromHash (runV1 a))
         ++ " in the map for "
         ++ lookupDescription
 
@@ -645,13 +668,13 @@ savePatch h p = do
 
 -- |Loads a dir with format <root>/base32-encoded-reference.id...
 -- into a map from Hash to component references
-componentMapForDir :: forall m. MonadIO m => FilePath -> m (Map Hash [Reference.Id])
+componentMapForDir :: forall m. MonadIO m => FilePath -> m (Map (V1 Hash) [Reference.Id])
 componentMapForDir root = listDirectory root <&> foldl' insert mempty
   where
   insert m filename = case V1.componentIdFromString filename of
     Nothing -> m -- skip silently
     Just r@(Reference.Id h _i _n) ->
-      Map.unionWith (<>) m (Map.singleton h [r])
+      Map.unionWith (<>) m (Map.singleton (V1 h) [r])
 
 existsObjectWithHash :: DB m => Hash -> m Bool
 existsObjectWithHash h = Db.queryExists sql [Base32Hex.fromHash h] where
@@ -666,7 +689,7 @@ existsObjectWithHash h = Db.queryExists sql [Base32Hex.fromHash h] where
 -- already been converted and added to the V2 codebase, apart from self-
 -- references.
 
-convertTerm1 :: DB m => (Hash -> Db.ObjectId) -> Hash -> [(Term, Type)] -> m ()
+convertTerm1 :: DB m => (V1 Hash -> Db.ObjectId) -> V1 Hash -> [(Term, Type)] -> m ()
 convertTerm1 lookup hash1 v1component = do
 
   -- v2component the same as v1 component, but reference Hashes are replaced 
@@ -674,8 +697,8 @@ convertTerm1 lookup hash1 v1component = do
   -- component is unknown until serialization is complete, so we use 
   -- Maybe ObjectId and a new serialization tag for self component references.
   
-  let v2component :: [Term2S] = map (Term.hmap lookup' . fst) v1component
-        where lookup' :: Hash -> Maybe Db.ObjectId
+  let v2component :: [Term2S] = map (Term.hmap (lookup' . V1) . fst) v1component
+        where lookup' :: V1 Hash -> Maybe Db.ObjectId
               lookup' h | h == hash1 = Nothing
               lookup' h = Just (lookup h)
 
@@ -683,7 +706,7 @@ convertTerm1 lookup hash1 v1component = do
   -- we can associate the v1 and v2 hashes for the term separately.
   -- That is currently done in saveTermComponent.
   componentObjectId :: Db.ObjectId <- do
-    componentHashId <- Db.saveHashByteString hash1
+    componentHashId <- Db.saveHashByteString (runV1 hash1)
     saveTermComponent componentHashId v2component
 
   for_ (zip3 [0..] v1component v2component) $ \(i, (_term1, typ1), term2) -> do
@@ -698,23 +721,23 @@ convertTerm1 lookup hash1 v1component = do
     -- I have a extra-richly parameterized Term.F' that supports different
     -- reference representations for calling terms (`termRepr`) vs ctors
     -- (`declRepr`).
-    saveTypeBlobForReferent rt (Type.hmap (Just . lookup) typ1)
+    saveTypeBlobForReferent rt (Type.hmap (Just . lookup . V1) typ1)
 
     createTypeSearchIndicesForReferent rt typ1
     createDependencyIndexForTerm r term2
 
-convertDecl1 :: DB m => (Hash -> Db.ObjectId) -> Hash -> [Decl] -> m ()
+convertDecl1 :: DB m => (V1 Hash -> Db.ObjectId) -> V1 Hash -> [Decl] -> m ()
 convertDecl1 lookup hash1 v1component = do
 
 
-  let v2component :: [Decl2S] = map (DD.hmapDecl lookup') v1component
-        where lookup' :: Hash -> Maybe Db.ObjectId
+  let v2component :: [Decl2S] = map (DD.hmapDecl (lookup' . V1)) v1component
+        where lookup' :: V1 Hash -> Maybe Db.ObjectId
               lookup' h | h == hash1 = Nothing
               lookup' h = Just (lookup h)
 
   -- the v2 decl uses the same hash as the v1 decl
   componentObjectId :: Db.ObjectId <- do
-    componentHashId <- Db.saveHashByteString hash1
+    componentHashId <- Db.saveHashByteString (runV1 hash1)
     saveDeclComponent componentHashId v2component
 
   for_ (zip3 v1component v2component [0..]) $ \(decl1, decl2, i) -> do
@@ -732,12 +755,13 @@ convertDecl1 lookup hash1 v1component = do
 
 convertCausalBranch1
   :: DB m
-  => (Hash -> Db.ObjectId)
-  -> (Hash -> Db.CausalHashId)
+  => (V1 Hash -> Db.ObjectId)
+  -> (V1 Hash -> (V2 Hash, Db.CausalHashId))
+  -- -> V1 Hash
   -> V1.Causal.Raw V1.Branch.Raw V1.Branch.Raw
   -> m ()
 convertCausalBranch1 lookupObject lookupCausal causalBranch1 = do
-  rawBranch2 :: RawBranch <- convertBranch1 (V1.rawHead causalBranch1)
+  let rawBranch2 :: RawBranch = convertBranch1 (V1.rawHead causalBranch1)
   -- rawBranch2S
   -- rawCausal2 :: RawCausal <- convertCausal1 lookup rawBranch2 (V1.rawTails causalBranch1)
 
@@ -746,14 +770,38 @@ convertCausalBranch1 lookupObject lookupCausal causalBranch1 = do
   -- saveCausal2 rawCausal2
   error "todo"
   where
-  convertBranch1 :: V1.Branch.Raw -> m RawBranch
-  convertBranch1 = error "todo"
-  --   RawBranchH {
-  --   terms = undefined,
-  --   types = undefined,
-  --   patches = undefined,
-  --   children = undefined
-  -- }
+  convertBranch1 :: V1.Branch.Raw -> RawBranch
+  convertBranch1 b = RawBranch
+    -- terms
+    (Map.fromList 
+        [ ((ns, over Db.referentTraversal id r), mdSet) 
+        | (r, ns) <- Relation.toList . Star3.d1 $ V1.Branch._termsR b
+        , let mdSet :: Set (Db.Reference2 Hash)
+              mdSet = Set.fromList 
+                    . fmap (over Db.referenceTraversal id . snd)
+                    . Set.toList 
+                    . Relation.lookupDom r 
+                    . Star3.d3 
+                    $ V1.Branch._termsR b
+        ])
+    -- types
+    (Map.fromList 
+        [ ((ns, over Db.referenceTraversal id r), mdSet) 
+        | (r, ns) <- Relation.toList . Star3.d1 $ V1.Branch._typesR b
+        , let mdSet :: Set (Db.Reference2 Hash)
+              mdSet = Set.fromList 
+                    . fmap (over Db.referenceTraversal id . snd)
+                    . Set.toList 
+                    . Relation.lookupDom r 
+                    . Star3.d3 
+                    $ V1.Branch._typesR b
+        ])
+    -- patches
+    (V1.Branch._editsR b)
+    -- children
+    undefined
+    -- (V1.Branch._childrenR b)
+    -- ((\(Db.CausalHashId h) -> h) . lookupCausalHash <$> V1.Branch._childrenR b)
 
 -- hmapRawCausal
 

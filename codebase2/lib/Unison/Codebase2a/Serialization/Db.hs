@@ -16,7 +16,7 @@ import Control.Lens (Traversal)
 import Control.Monad.Reader (MonadReader, ask)
 import Data.String.Here.Uninterpolated (here)
 import qualified Database.SQLite.Simple as SQLite
-import Database.SQLite.Simple ( Connection, Only(..), ToRow(..), pattern (:.), SQLData(SQLNull,SQLText))
+import Database.SQLite.Simple (FromRow,  Connection, Only(..), ToRow(..), pattern (:.), SQLData(SQLNull,SQLText))
 import Database.SQLite.Simple.FromField
 import Database.SQLite.Simple.ToField
 import Data.Maybe (fromJust)
@@ -31,6 +31,8 @@ import qualified Unison.Reference as Reference
 --import Unison.Referent (Referent')
 import qualified Unison.Referent as Referent
 import Unison.Hashable (Hashable)
+import qualified Unison.Hashable as Hashable
+import qualified Unison.Hash as Hash
 
 newtype HashId = HashId Word64 deriving (Eq, Ord) deriving (Hashable, FromField, ToField) via Word64
 newtype TypeId = TypeId ObjectId deriving (FromField, ToField) via ObjectId
@@ -51,11 +53,11 @@ saveHashByteString :: DB m => Hash -> m HashId
 saveHashByteString h = saveHash (Base32Hex.fromHash h)
 
 loadHash :: DB m => Base32Hex -> m (Maybe HashId)
-loadHash base32 = queryMaybe sql (Only base32) where
+loadHash base32 = queryOnly sql (Only base32) where
   sql = [here| SELECT id FROM hash WHERE base32 = ? |]
 
 loadHashById :: DB m => HashId -> m (Maybe Base32Hex)
-loadHashById h = queryMaybe sql (Only h) where
+loadHashById h = queryOnly sql (Only h) where
   sql = [here| SELECT base32 FROM hash WHERE id = ? |]
 
 saveHashObject :: DB m => HashId -> ObjectId -> Int -> m ()
@@ -74,12 +76,12 @@ saveObject h t blob =
   |]
 
 loadObjectById :: DB m => ObjectId -> m (Maybe ByteString)
-loadObjectById oId = queryMaybe sql (Only oId) where sql = [here|
+loadObjectById oId = queryOnly sql (Only oId) where sql = [here|
   SELECT bytes FROM object WHERE id = ?
 |]
 
 objectByPrimaryHashId :: DB m => HashId -> m (Maybe ObjectId)
-objectByPrimaryHashId h = queryMaybe sql (Only h) where sql = [here|
+objectByPrimaryHashId h = queryOnly sql (Only h) where sql = [here|
   SELECT id FROM object WHERE primary_hash_id = ?
 |]
 
@@ -96,7 +98,7 @@ saveCausal self value = execute sql (self, value) where sql = [here|
 |]
 
 loadCausalValueHash :: DB m => CausalHashId -> m (Maybe NamespaceHashId)
-loadCausalValueHash hash = queryMaybe sql (Only hash) where sql = [here|
+loadCausalValueHash hash = queryOnly sql (Only hash) where sql = [here|
   SELECT value_hash_id FROM causal WHERE self_hash_id = ?
 |]
 
@@ -106,7 +108,7 @@ saveCausalOld v1 v2 = execute sql (v1, v2) where sql = [here|
 |]
 
 loadOldCausalValueHash :: DB m => HashId -> m (Maybe NamespaceHashId)
-loadOldCausalValueHash hash = queryMaybe sql (Only hash) where sql = [here|
+loadOldCausalValueHash hash = queryOnly sql (Only hash) where sql = [here|
   SELECT value_hash_id FROM causal 
   INNER JOIN causal_old ON self_hash_id = new_hash_id
   WHERE old_hash_id = ?
@@ -132,7 +134,7 @@ saveTypeOfReferent r bs = execute sql (r :. Only bs) where
   |]
 
 loadTypeOfReferent :: DB m => Referent2Id ObjectId -> m (Maybe ByteString)
-loadTypeOfReferent r = queryMaybe sql r where sql = [here|
+loadTypeOfReferent r = queryOnly sql r where sql = [here|
   SELECT bytes FROM type_of_referent
   WHERE object_id = ?
     AND component_index = ?
@@ -240,8 +242,10 @@ addToFindByTypeMentionsIndex termReferent typeReference =
 
 queryList :: (DB f, ToRow q, FromField b) => SQLite.Query -> q -> f [b]
 queryList q r = map fromOnly <$> query q r
-queryMaybe :: (DB f, ToRow q, FromField b) => SQLite.Query -> q -> f (Maybe b)
-queryMaybe q r = fmap fromOnly . headMay <$> query q r
+queryMaybe :: (DB f, ToRow q, FromRow b) => SQLite.Query -> q -> f (Maybe b)
+queryMaybe q r = headMay <$> query q r
+queryOnly :: (DB f, ToRow q, FromField b) => SQLite.Query -> q -> f (Maybe b)
+queryOnly q r = fmap fromOnly <$> queryMaybe q r
 
 queryOne :: Functor f => f (Maybe b) -> f b
 queryOne = fmap fromJust
@@ -273,6 +277,12 @@ data Reference2 h
   = Reference2Builtin Text | Reference2Derived (Reference2Id h)
   deriving (Eq, Ord)
 
+instance Hashable (Reference2 Hash) where
+  tokens (Reference2Builtin txt) = 
+    [Hashable.Tag 0, Hashable.Text txt]
+  tokens (Reference2Derived (Reference2Id h i)) = 
+    [Hashable.Tag 1, Hashable.Bytes (Hash.toBytes h), Hashable.Nat i]
+
 data Reference2Id h
   = Reference2Id h ComponentIndex
   deriving (Eq, Ord)
@@ -280,6 +290,10 @@ data Reference2Id h
 data Referent2 h
   = Referent2Ref (Reference2 h) | Referent2Con (Reference2 h) ConstructorIndex
   deriving (Eq, Ord)
+
+instance Hashable (Referent2 Hash) where
+  tokens (Referent2Ref r) = Hashable.Tag 0 : Hashable.tokens r
+  tokens (Referent2Con r i) = [Hashable.Tag 1] ++ Hashable.tokens r ++ [Hashable.Nat (fromIntegral i)]
 
 data Referent2Id h
   = Referent2IdRef (Reference2Id h) | Referent2IdCon (Reference2Id h) ConstructorIndex
