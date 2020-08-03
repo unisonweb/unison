@@ -462,6 +462,16 @@ notb = unop0 0 $ \[b]
     -> TMatch b . flip (MatchData Ty.booleanRef) Nothing
      $ mapFromList [ (0, ([], tru)), (1, ([], fls)) ]
 
+orb :: Var v => SuperNormal v
+orb = binop0 0 $ \[p,q]
+   -> TMatch p . flip (MatchData Ty.booleanRef) Nothing
+    $ mapFromList [ (1, ([], tru)), (0, ([], TVar q)) ]
+
+andb :: Var v => SuperNormal v
+andb = binop0 0 $ \[p,q]
+    -> TMatch p . flip (MatchData Ty.booleanRef) Nothing
+     $ mapFromList [ (0, ([], fls)), (1, ([], TVar q)) ]
+
 -- unsafeCoerce, used for numeric types where conversion is a
 -- no-op on the representation. Ideally this will be inlined and
 -- eliminated so that no instruction is necessary.
@@ -1001,6 +1011,8 @@ builtinLookup
   , ("Text.unsnoc", unsnoct)
 
   , ("Boolean.not", notb)
+  , ("Boolean.or", orb)
+  , ("Boolean.and", andb)
 --   , B "Text.toCharList" $ text --> list char
 --   , B "Text.fromCharList" $ list char --> text
   , ("bug", bug)
