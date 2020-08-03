@@ -272,7 +272,7 @@ buildMatrix
   :: Var v
   => [([PatternP v], PatternRow v)]
   -> ([(v,Reference)], PatternMatrix v)
-buildMatrix [] = error "buildMatrix: empty rows"
+buildMatrix [] = ([], PM [])
 buildMatrix vrs@((pvs,_):_) = (zip cvs rs, PM $ fixRow <$> vrs)
   where
   rs = fmap determineType . transpose . fmap fst $ vrs
@@ -319,9 +319,7 @@ splitMatrixSeq v (PM rs)
     | otherwise = (fmap.fmap) (const Rf.vectorRef) vrs
   cases = ms <&> \m ->
     let frs = rs >>= splitRowSeq v m
-        (vrs, pm)
-          | null frs = ([], PM [])
-          | otherwise = buildMatrix frs
+        (vrs, pm) = buildMatrix frs
     in (matchPattern vrs m, hint m vrs, pm)
 
 splitMatrix
