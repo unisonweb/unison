@@ -2821,7 +2821,7 @@ addRunMain mainName Nothing = do
     mainToFile (MainTerm.BadType _) = Nothing
     mainToFile (MainTerm.Success hq tm typ) = Just $
       let v = Var.named (HQ.toText hq) in
-      UF.typecheckedUnisonFile mempty mempty [[(v, tm, typ)]] mempty
+      UF.typecheckedUnisonFile mempty mempty mempty [("main",[(v, tm, typ)])] -- mempty
 addRunMain mainName (Just uf) = do
   let components = join $ UF.topLevelComponents uf
   let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
@@ -2836,8 +2836,8 @@ addRunMain mainName (Just uf) = do
         in UF.typecheckedUnisonFile
              (UF.dataDeclarationsId' uf)
              (UF.effectDeclarationsId' uf)
-             (UF.topLevelComponents' uf <> [[(v2, runMain, mainType)]])
-             (UF.watchComponents uf)
+             (UF.topLevelComponents' uf)
+             (UF.watchComponents uf <> [("main", [(v2, runMain, mainType)])])
       else Nothing
     _ -> addRunMain mainName Nothing
 
