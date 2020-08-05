@@ -14,6 +14,7 @@ import Data.Traversable
 import Data.Word (Word64)
 
 import qualified Data.Text as Tx
+import qualified Data.Text.IO as Tx
 import qualified Data.Sequence as Sq
 import qualified Data.Map.Strict as M
 
@@ -138,8 +139,8 @@ exec _      _    !_   !denv !ustk !bstk !k (Unpack i) = do
   (ustk, bstk) <- dumpData ustk bstk =<< peekOff bstk i
   pure (denv, ustk, bstk, k)
 exec _      _    !_   !denv !ustk !bstk !k (Print i) = do
-  m <- peekOff ustk i
-  print m
+  t <- peekOffT bstk i
+  Tx.putStrLn t
   pure (denv, ustk, bstk, k)
 exec _      _    !_   !denv !ustk !bstk !k (Lit (MI n)) = do
   ustk <- bump ustk

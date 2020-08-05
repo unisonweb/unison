@@ -487,6 +487,12 @@ jumpk = binop0 0 $ \[k,a] -> TKon k [a]
 bug :: Var v => SuperNormal v
 bug = unop0 0 $ \[x] -> TPrm EROR [x]
 
+watch :: Var v => SuperNormal v
+watch
+  = binop0 0 $ \[t,v]
+ -> TLets [] [] (APrm PRNT [t])
+  $ TVar v
+
 type IOOP = forall v. Var v => Set v -> ([Mem], ANormal v)
 
 io'error'result0
@@ -1017,6 +1023,7 @@ builtinLookup
 --   , B "Text.fromCharList" $ list char --> text
   , ("bug", bug)
   , ("todo", bug)
+  , ("Debug.watch", watch)
 
   , ("Char.toNat", cast Ty.charRef Ty.natRef)
   , ("Char.fromNat", cast Ty.natRef Ty.charRef)
