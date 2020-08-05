@@ -65,7 +65,7 @@ module Unison.Runtime.ANF
 
 import Unison.Prelude
 
-import Control.Monad.Reader (ReaderT(..), asks)
+import Control.Monad.Reader (ReaderT(..), asks, local)
 import Control.Monad.State (State, runState, MonadState(..), modify, gets)
 import Control.Lens (snoc, unsnoc)
 
@@ -853,6 +853,10 @@ resolveType r = asks $ \(_, _, rty) -> rty r
 groupVars :: ANFM v (Set v)
 groupVars = asks $ \(grp, _, _) -> grp
 
+bindLocal :: Ord v => [v] -> ANFM v r -> ANFM v r
+bindLocal vs
+  = local $ \(gr, rw, rt) -> (gr Set.\\ Set.fromList vs, rw, rt)
+
 freshANF :: Var v => Word64 -> v
 freshANF fr = Var.freshenId fr $ typed Var.ANFBlank
 
@@ -895,7 +899,7 @@ toSuperNormal tm = do
   grp <- groupVars
   if not . Set.null . (Set.\\ grp) $ freeVars tm
     then error $ "free variables in supercombinator: " ++ show tm
-    else Lambda (BX <$ vs) . ABTN.TAbss vs <$> anfTerm body
+    else Lambda (BX<$vs) . ABTN.TAbss vs <$> bindLocal vs (anfTerm body)
   where
   (vs, body) = fromMaybe ([], tm) $ unLams' tm
 
@@ -1013,10 +1017,10 @@ anfBlock (Match' scrut cas) = do
             $ TPrm EROR [t])
             mdf
     AccumEmpty -> pure (sctx ++ cx, AMatch v MatchEmpty)
-anfBlock (Let1Named' v b e) = do
-  (bctx, cb) <- anfBlock b
-  (ectx, ce) <- anfBlock e
-  pure (bctx ++ ST1 v BX cb : ectx, ce)
+anfBlock (Let1Named' v b e)
+  = anfBlock b >>= \(bctx, cb) -> bindLocal [v] $ do
+      (ectx, ce) <- anfBlock e
+      pure (bctx ++ ST1 v BX cb : ectx, ce)
 anfBlock (Apps' f args) = do
   (fctx, cf) <- anfFunc f
   (actx, cas) <- anfArgs args
@@ -1060,33 +1064,33 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   | Just _ <- guard = error "anfInitCase: unexpected guard"
   | UnboundP _ <- p
   , [] <- vs
-  = AccumDefault <$> anfTerm bd
+  = AccumDefault <$> anfBody bd
   | VarP _ <- p
   , [v] <- vs
-  = AccumDefault . ABTN.rename v u <$> anfTerm bd
+  = AccumDefault . ABTN.rename v u <$> anfBody bd
   | VarP _ <- p
   = error $ "vars: " ++ show (length vs)
   | IntP _ (fromIntegral -> i) <- p
-  = AccumIntegral Ty.intRef Nothing . EC.mapSingleton i <$> anfTerm bd
+  = AccumIntegral Ty.intRef Nothing . EC.mapSingleton i <$> anfBody bd
   | NatP _ i <- p
-  = AccumIntegral Ty.natRef Nothing . EC.mapSingleton i <$> anfTerm bd
+  = AccumIntegral Ty.natRef Nothing . EC.mapSingleton i <$> anfBody bd
   | BooleanP _ b <- p
   , t <- if b then 1 else 0
   = AccumData Ty.booleanRef Nothing
-  . EC.mapSingleton t . ([],) <$> anfTerm bd
+  . EC.mapSingleton t . ([],) <$> anfBody bd
   | TextP _ t <- p
   , [] <- vs
-  = AccumText Nothing . Map.singleton t <$> anfTerm bd
+  = AccumText Nothing . Map.singleton t <$> anfBody bd
   | ConstructorP _ r t ps <- p = do
     us <- expandBindings ps vs
     AccumData r Nothing
       . EC.mapSingleton (toEnum t)
       . (BX<$us,)
       . ABTN.TAbss us
-      <$> anfTerm bd
+      <$> anfBody bd
   | EffectPureP _ q <- p = do
     us <- expandBindings [q] vs
-    AccumRequest mempty . Just . ABTN.TAbss us <$> anfTerm bd
+    AccumRequest mempty . Just . ABTN.TAbss us <$> anfBody bd
   | EffectBindP _ r t ps pk <- p = do
     exp <- expandBindings (snoc ps pk) vs
     let (us, uk)
@@ -1102,27 +1106,29 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
        . ABTN.TAbss us
        . TShift n kf
        . TName uk (Left jn) [kf]
-      <$> anfTerm bd
+      <$> anfBody bd
   | SequenceLiteralP _ [] <- p
-  = AccumSeqEmpty <$> anfTerm bd
+  = AccumSeqEmpty <$> anfBody bd
   | SequenceOpP _ l op r <- p
   , Concat <- op
   , SequenceLiteralP p ll <- l = do
     us <- expandBindings [VarP p, r] vs
     AccumSeqSplit SLeft (length ll) Nothing
       . ABTN.TAbss us
-     <$> anfTerm bd
+     <$> anfBody bd
   | SequenceOpP _ l op r <- p
   , Concat <- op
   , SequenceLiteralP p rl <- r = do
     us <- expandBindings [l, VarP p] vs
     AccumSeqSplit SLeft (length rl) Nothing
       . ABTN.TAbss us
-     <$> anfTerm bd
+     <$> anfBody bd
   | SequenceOpP _ l op r <- p = do
     us <- expandBindings [l,r] vs
     let dir = case op of Cons -> SLeft ; _ -> SRight
-    AccumSeqView dir Nothing . ABTN.TAbss us <$> anfTerm bd
+    AccumSeqView dir Nothing . ABTN.TAbss us <$> anfBody bd
+  where
+  anfBody tm = bindLocal vs $ anfTerm tm
 anfInitCase _ (MatchCase p _ _)
   = error $ "anfInitCase: unexpected pattern: " ++ show p
 
