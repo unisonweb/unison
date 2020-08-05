@@ -206,6 +206,18 @@ close keep tm = ABT.visitPure (enclose keep close) tm
 
 type FloatM v a r = State (Set v, [(v, Term v a)]) r
 
+freshFloat :: Var v => Set v -> v -> v
+freshFloat avoid (Var.freshIn avoid -> v0)
+  = case Var.typeOf v0 of
+      Var.User nm
+        | v <- typed (Var.User $ nm <> w) , v `Set.notMember` avoid
+        -> v
+        | otherwise
+        -> freshFloat (Set.insert v0 avoid) v0
+      _ -> v0
+  where
+  w = Text.pack . show $ Var.freshId v0
+
 letFloater
   :: (Var v, Monoid a)
   => (Term v a -> FloatM v a (Term v a))
@@ -213,7 +225,7 @@ letFloater
   -> FloatM v a (Term v a)
 letFloater rec vbs e = do
   cvs <- gets fst
-  let shadows = [ (v, Var.freshIn cvs v)
+  let shadows = [ (v, freshFloat cvs v)
                 | (v, _) <- vbs, Set.member v cvs ]
       shadowMap = Map.fromList shadows
       rn v = Map.findWithDefault v v shadowMap
