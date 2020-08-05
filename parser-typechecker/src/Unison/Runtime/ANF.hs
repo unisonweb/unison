@@ -447,10 +447,6 @@ data CTE v s
 
 pattern ST1 v m s = ST [v] [m] s
 
-cbvars :: CTE v s -> [v]
-cbvars (ST vs _ _) = vs
-cbvars (LZ v _ _) = [v]
-
 data ANormalBF v e
   = ALet [Mem] (ANormalTF v e) e
   | AName (Either Word64 v) [v] e
@@ -610,12 +606,6 @@ pattern TVar v = TTm (AVar v)
       TApv, TCom, TCon, TKon, TReq, TPrm, TIOp,
       TLit, THnd, TShift, TMatch
   #-}
-
-directVars :: Var v => ANormalT v -> Set.Set v
-directVars = bifoldMap Set.singleton (const mempty)
-
-freeVarsT :: Var v => ANormalT v -> Set.Set v
-freeVarsT = bifoldMap Set.singleton ABTN.freeVars
 
 bind :: Var v => Cte v -> ANormal v -> ANormal v
 bind (ST us ms bu) = TLets us ms bu
@@ -852,21 +842,7 @@ data SuperGroup v
 
 type ANFM v
   = ReaderT (Set v, Reference -> Word64, Reference -> RTag)
-      (State (Set v, [(v, SuperNormal v)]))
-
-reset :: ANFM v a -> ANFM v a
-reset m = do
-  (av, _) <- get
-  m <* modify (\(_, to) -> (av, to))
-
-avoid :: Var v => [v] -> ANFM v ()
-avoid = avoids . Set.fromList
-
-avoids :: Var v => Set v -> ANFM v ()
-avoids s = modify $ \(av, rs) -> (s `Set.union` av, rs)
-
-avoidCtx :: Var v => Ctx v -> ANFM v ()
-avoidCtx ctx = avoid . fold $ cbvars <$> ctx
+      (State (Word64, [(v, SuperNormal v)]))
 
 resolveTerm :: Reference -> ANFM v Word64
 resolveTerm r = asks $ \(_, rtm, _) -> rtm r
@@ -877,22 +853,22 @@ resolveType r = asks $ \(_, _, rty) -> rty r
 groupVars :: ANFM v (Set v)
 groupVars = asks $ \(grp, _, _) -> grp
 
+freshANF :: Var v => Word64 -> v
+freshANF fr = Var.freshenId fr $ typed Var.ANFBlank
+
 fresh :: Var v => ANFM v v
-fresh = gets $ \(av, _) -> flip ABT.freshIn (typed Var.ANFBlank) av
+fresh = state $ \(fr, cs) -> (freshANF fr, (fr+1, cs))
 
 contextualize :: Var v => ANormalT v -> ANFM v (Ctx v, v)
 contextualize (AVar cv) = do
   gvs <- groupVars
   if cv `Set.notMember` gvs
     then pure ([], cv)
-    else do bv <- fresh ; ([ST [bv] [BX] $ AApv cv []], bv) <$ avoid [bv]
-contextualize tm = do
-  fv <- reset $ avoids (freeVarsT tm) *> fresh
-  avoid [fv]
-  pure ([ST1 fv BX tm], fv)
+    else do fresh <&> \bv ->  ([ST1 bv BX $ AApv cv []], bv)
+contextualize tm = fresh <&> \fv -> ([ST1 fv BX tm], fv)
 
 record :: Var v => (v, SuperNormal v) -> ANFM v ()
-record p = modify $ \(av, to) -> (Set.insert (fst p) av, p:to)
+record p = modify $ \(fr, to) -> (fr, p:to)
 
 superNormalize
   :: Var v
@@ -907,7 +883,7 @@ superNormalize rtm rty tm = Rec l c
   grp = Set.fromList $ fst <$> bs
   comp = traverse_ superBinding bs *> toSuperNormal e
   subc = runReaderT comp (grp, rtm, rty)
-  (c, (_,l)) = runState subc (grp, [])
+  (c, (_,l)) = runState subc (0, [])
 
 superBinding :: Var v => (v, Term v a) -> ANFM v ()
 superBinding (v, tm) = do
@@ -919,9 +895,7 @@ toSuperNormal tm = do
   grp <- groupVars
   if not . Set.null . (Set.\\ grp) $ freeVars tm
     then error $ "free variables in supercombinator: " ++ show tm
-    else reset $ do
-      avoid vs
-      Lambda (BX <$ vs) . ABTN.TAbss vs <$> anfTerm body
+    else Lambda (BX <$ vs) . ABTN.TAbss vs <$> anfTerm body
   where
   (vs, body) = fromMaybe ([], tm) $ unLams' tm
 
@@ -964,14 +938,10 @@ anfBlock (Handle' h body)
   = anfArg h >>= \(hctx, vh) ->
     anfBlock body >>= \case
       (ctx, ACom f as) | floatableCtx ctx -> do
-        avoid as
         v <- fresh
-        avoid [v]
         pure (hctx ++ ctx ++ [LZ v (Left f) as], AApp (FVar vh) [v])
       (ctx, AApv f as) | floatableCtx ctx -> do
-        avoid (f:as)
         v <- fresh
-        avoid [v]
         pure (hctx ++ ctx ++ [LZ v (Right f) as], AApp (FVar vh) [v])
       p@(_, _) ->
         error $ "handle body should be a simple call: " ++ show p
@@ -981,10 +951,9 @@ anfBlock (Match' scrut cas) = do
   brn <- anfCases v cas
   case brn of
     AccumDefault (TBinds' dctx df) -> do
-      avoidCtx dctx
       pure (sctx ++ cx ++ dctx, df)
     AccumRequest abr df -> do
-      (r, vs) <- reset $ do
+      (r, vs) <- do
         r <- fresh
         v <- fresh
         gvs <- groupVars
@@ -1045,7 +1014,6 @@ anfBlock (Match' scrut cas) = do
             mdf
     AccumEmpty -> pure (sctx ++ cx, AMatch v MatchEmpty)
 anfBlock (Let1Named' v b e) = do
-  avoid [v]
   (bctx, cb) <- anfBlock b
   (ectx, ce) <- anfBlock e
   pure (bctx ++ ST1 v BX cb : ectx, ce)
@@ -1160,16 +1128,16 @@ anfInitCase _ (MatchCase p _ _)
 
 expandBindings'
   :: Var v
-  => Set v
+  => Word64
   -> [PatternP p]
   -> [v]
-  -> Either String [v]
-expandBindings' _ [] [] = Right []
-expandBindings' avoid (UnboundP _:ps) vs
-  = (u :) <$> expandBindings' (Set.insert u avoid) ps vs
-  where u = ABT.freshIn avoid $ typed Var.ANFBlank
-expandBindings' avoid (VarP _:ps) (v:vs)
-  = (v :) <$> expandBindings' avoid ps vs
+  -> Either String (Word64, [v])
+expandBindings' fr [] [] = Right (fr, [])
+expandBindings' fr (UnboundP _:ps) vs
+  = fmap (u :) <$> expandBindings' (fr+1) ps vs
+  where u = freshANF fr
+expandBindings' fr (VarP _:ps) (v:vs)
+  = fmap (v :) <$> expandBindings' fr ps vs
 expandBindings' _ [] (_:_)
   = Left "expandBindings': more bindings than expected"
 expandBindings' _ (_:_) []
@@ -1179,9 +1147,9 @@ expandBindings' _ _ _
 
 expandBindings :: Var v => [PatternP p] -> [v] -> ANFM v [v]
 expandBindings ps vs
-  = get <&> \(av,_) -> case expandBindings' av ps vs of
+  = state $ \(fr,co) -> case expandBindings' fr ps vs of
       Left err -> error $ err ++ " " ++ show (ps, vs)
-      Right x -> x
+      Right (fr,l) -> (l, (fr,co))
 
 anfCases
   :: Var v
@@ -1215,17 +1183,22 @@ anfArgs tms = first concat . unzip <$> traverse anfArg tms
 sink :: Var v => v -> Mem -> ANormalT v -> ANormal v -> ANormal v
 sink v mtm tm = dive $ freeVarsT tm
   where
+  frsh l r = Var.freshIn (l <> r) $ Var.typed Var.ANFBlank
+
+  directVars = bifoldMap Set.singleton (const mempty)
+  freeVarsT = bifoldMap Set.singleton ABTN.freeVars
+
   dive _ exp | v `Set.notMember` ABTN.freeVars exp = exp
   dive avoid exp@(TName u f as bo)
     | v `elem` as
-    = let w = freshANF avoid (ABTN.freeVars exp)
+    = let w = frsh avoid (ABTN.freeVars exp)
        in TLet w mtm tm $ ABTN.rename v w exp
     | otherwise
     = TName u f as (dive avoid' bo)
     where avoid' = Set.insert u avoid
   dive avoid exp@(TLets us ms bn bo)
     | v `Set.member` directVars bn -- we need to stop here
-    = let w = freshANF avoid (ABTN.freeVars exp)
+    = let w = frsh avoid (ABTN.freeVars exp)
        in TLet w mtm tm $ ABTN.rename v w exp
     | otherwise
     = TLets us ms bn' $ dive avoid' bo
@@ -1235,13 +1208,9 @@ sink v mtm tm = dive $ freeVarsT tm
         | otherwise = dive avoid' <$> bn
   dive avoid exp@(TTm tm)
     | v `Set.member` directVars tm -- same as above
-    = let w = freshANF avoid (ABTN.freeVars exp)
+    = let w = frsh avoid (ABTN.freeVars exp)
        in TLet w mtm tm $ ABTN.rename v w exp
     | otherwise = TTm $ dive avoid <$> tm
-
-freshANF :: Var v => Set v -> Set v -> v
-freshANF avoid free
-  = ABT.freshIn (Set.union avoid free) (typed Var.ANFBlank)
 
 indent :: Int -> ShowS
 indent ind = showString (replicate (ind*2) ' ')

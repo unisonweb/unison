@@ -41,7 +41,7 @@ simpleRefs r
   | otherwise = 100
 
 runANF :: Var v => ANFM v a -> a
-runANF m = evalState (runReaderT m env) (Set.empty, [])
+runANF m = evalState (runReaderT m env) (0, [])
  where
  env = (Set.empty, const 0, simpleRefs)
 
