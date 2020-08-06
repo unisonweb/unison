@@ -268,15 +268,21 @@ renameRow m (PR p0 g0 b0) = PR p g b
   g = changeVars m <$> g0
   b = changeVars m b0
 
+chooseVars :: Var v => [[PatternP v]] -> [v]
+chooseVars [] = []
+chooseVars ([]:rs) = chooseVars rs
+chooseVars ((UnboundP{} : _) : rs) = chooseVars rs
+chooseVars (r : _) = extractVars r
+
 buildMatrix
   :: Var v
   => [([PatternP v], PatternRow v)]
   -> ([(v,Reference)], PatternMatrix v)
 buildMatrix [] = ([], PM [])
-buildMatrix vrs@((pvs,_):_) = (zip cvs rs, PM $ fixRow <$> vrs)
+buildMatrix vrs = (zip cvs rs, PM $ fixRow <$> vrs)
   where
   rs = fmap determineType . transpose . fmap fst $ vrs
-  cvs = extractVars pvs
+  cvs = chooseVars $ fst <$> vrs
   fixRow (extractVars -> rvs, pr)
     = renameRow (fromListWith const . zip rvs $ cvs) pr
 
