@@ -117,16 +117,47 @@ lambdaLift liftVar t = result where
                   (snd <$> subs)
   go _ = Nothing
 
-expand
+closure :: Var v => Map v (Set v, Set v) -> Map v (Set v)
+closure m0 = trace (snd <$> m0)
+  where
+  refs = fst <$> m0
+
+  expand acc fvs rvs
+    = fvs <> foldMap (\r -> Map.findWithDefault mempty r acc) rvs
+
+  trace acc
+    | acc == acc' = acc
+    | otherwise = trace acc'
+    where
+    acc' = Map.intersectionWith (expand acc) acc refs
+
+expandRec
+  :: (Var v, Monoid a)
+  => Set v
+  -> [(v, Term v a)]
+  -> [(v, Term v a)]
+expandRec keep vbs = mkSub <$> fvl
+  where
+  mkSub (v, fvs) = (v, apps' (var mempty v) (var mempty <$> fvs))
+
+  fvl = Map.toList
+      . fmap (Set.toList)
+      . closure
+      $ Set.partition (`Set.member` keep)
+      . ABT.freeVars
+     <$> Map.fromList vbs
+
+expandSimple
   :: (Var v, Monoid a)
   => Set v
   -> (v, Term v a)
   -> (v, Term v a)
-expand keep (v, bnd) = (v, apps' (var a v) evs)
+expandSimple keep (v, bnd) = (v, apps' (var a v) evs)
   where
   a = ABT.annotation bnd
   fvs = ABT.freeVars bnd
   evs = map (var a) . Set.toList $ Set.difference fvs keep
+
 
 abstract :: (Var v) => Set v -> Term v a -> Term v a
 abstract keep bnd = lam' a evs bnd
@@ -144,7 +175,7 @@ enclose
 enclose keep rec (LetRecNamedTop' top vbs bd)
   = Just $ letRec' top lvbs lbd
   where
-  xpnd = expand keep' <$> vbs
+  xpnd = expandRec keep' vbs
   keep' = Set.union keep . Set.fromList . map fst $ vbs
   lvbs = (map.fmap) (rec keep' . abstract keep' . ABT.substs xpnd) vbs
   lbd = rec keep' . ABT.substs xpnd $ bd
@@ -153,7 +184,7 @@ enclose keep rec (Let1NamedTop' top v b@(LamsNamed' vs bd) e)
   = Just . let1' top [(v, lamb)] . rec (Set.insert v keep)
   $ ABT.subst v av e
   where
-  (_, av) = expand keep (v, b) 
+  (_, av) = expandSimple keep (v, b) 
   keep' = Set.difference keep $ Set.fromList vs
   fvs = ABT.freeVars b
   evs = Set.toList $ Set.difference fvs keep
