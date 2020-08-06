@@ -116,6 +116,20 @@ exec _      _    !_   !denv !ustk !bstk !k (UPrim2 op i j) = do
 exec _      _    !_   !denv !ustk !bstk !k (BPrim1 op i) = do
   (ustk,bstk) <- bprim1 ustk bstk op i
   pure (denv, ustk, bstk, k)
+exec _      renv !_   !denv !ustk !bstk !k (BPrim2 EQLU i j) = do
+  x <- peekOff bstk i
+  y <- peekOff bstk j
+  ustk <- bump ustk
+  poke ustk
+    $ case universalCompare cmb tag compare x y of
+        EQ -> 1
+        _ -> 0
+  pure (denv, ustk, bstk, k)
+  where
+  cmb w | Just r <- EC.lookup w (combRefs renv) = r
+        | otherwise = error $ "exec: unknown combinator: " ++ show w
+  tag t | Just r <- EC.lookup t (tagRefs renv) = r
+        | otherwise = error $ "exec: unknown data: " ++ show t
 exec _      renv !_   !denv !ustk !bstk !k (BPrim2 CMPU i j) = do
   x <- peekOff bstk i
   y <- peekOff bstk j
