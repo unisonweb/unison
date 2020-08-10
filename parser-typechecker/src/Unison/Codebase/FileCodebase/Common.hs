@@ -1,7 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -10,6 +9,7 @@ module Unison.Codebase.FileCodebase.Common
   , SyncToDir
   , SimpleLens
   , codebaseExists
+  , codebasePath
   , hashExists
   -- dirs (parent of all the files)
   , branchHeadDir

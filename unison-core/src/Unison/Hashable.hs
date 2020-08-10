@@ -1,5 +1,3 @@
-{-# Language FlexibleInstances #-}
-
 module Unison.Hashable where
 
 import Unison.Prelude

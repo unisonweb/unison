@@ -1,5 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Unison.Util.TransitiveClosure where
 
 import Unison.Prelude

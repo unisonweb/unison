@@ -1,8 +1,8 @@
+cabal-version: 2.2
 name:          easytest
 category:      Compiler
 version:       0.1
 license:       MIT
-cabal-version: >= 1.8
 license-file:  LICENSE
 author:        Paul Chiusano
 maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
@@ -29,7 +29,26 @@ flag quiet
   manual: True
   default: False
 
+-- NOTE: Keep in sync throughout repo.
+common unison-common
+  default-language: Haskell2010
+  default-extensions:
+    ApplicativeDo,
+    BlockArguments,
+    DeriveFunctor,
+    DerivingStrategies,
+    DoAndIfThenElse,
+    FlexibleContexts,
+    FlexibleInstances,
+    LambdaCase,
+    MultiParamTypeClasses,
+    ScopedTypeVariables,
+    TupleSections,
+    TypeApplications
+
 library
+  import: unison-common
+
   hs-source-dirs: src
 
   exposed-modules:
@@ -54,6 +73,7 @@ library
 
 -- Preferred way to run EasyTest-based test suite
 executable runtests
+  import:         unison-common
   main-is:        Suite.hs
   ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests
@@ -64,6 +84,7 @@ executable runtests
 
 -- I really have no idea why you'd ever use this, just use an executable as above
 test-suite tests
+  import:         unison-common
   type:           exitcode-stdio-1.0
   main-is:        Suite.hs
   ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0

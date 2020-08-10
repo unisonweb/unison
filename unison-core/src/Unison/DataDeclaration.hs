@@ -1,11 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# Language DeriveFoldable #-}
-{-# Language DeriveFunctor #-}
 {-# Language DeriveTraversable #-}
 {-# Language OverloadedStrings #-}
 {-# Language PatternSynonyms #-}
-{-# Language TypeApplications #-}
 {-# Language ViewPatterns #-}
 
 module Unison.DataDeclaration where
@@ -101,8 +99,8 @@ generateRecordAccessors fields typename typ =
       (Term.var ann argname)
       [Term.MatchCase pat Nothing rhs]
       where
-      pat = Pattern.ConstructorP ann typ 0 cargs
-      cargs = [ if j == i then Pattern.VarP ann else Pattern.UnboundP ann
+      pat = Pattern.Constructor ann typ 0 cargs
+      cargs = [ if j == i then Pattern.Var ann else Pattern.Unbound ann
               | (_, j) <- fields `zip` [0..]]
       rhs = ABT.abs' ann fname (Term.var ann fname)
     -- example: `x point -> case point of Point _ y -> Point x y`
@@ -112,8 +110,8 @@ generateRecordAccessors fields typename typ =
       where
       fname' = Var.named . Var.name $
                Var.freshIn (Set.fromList $ [argname] <> (fst <$> fields)) fname
-      pat = Pattern.ConstructorP ann typ 0 cargs
-      cargs = [ if j == i then Pattern.UnboundP ann else Pattern.VarP ann
+      pat = Pattern.Constructor ann typ 0 cargs
+      cargs = [ if j == i then Pattern.Unbound ann else Pattern.Var ann
               | (_, j) <- fields `zip` [0..]]
       rhs = foldr (ABT.abs' ann) (Term.constructor ann typ 0 `Term.apps'` vargs)
                   [ f | ((f, _), j) <- fields `zip` [0..], j /= i ]
@@ -127,8 +125,8 @@ generateRecordAccessors fields typename typ =
       fname' = Var.named . Var.name $
                Var.freshIn (Set.fromList $ [argname] <> (fst <$> fields))
                            (Var.named "f")
-      pat = Pattern.ConstructorP ann typ 0 cargs
-      cargs = replicate (length fields) $ Pattern.VarP ann
+      pat = Pattern.Constructor ann typ 0 cargs
+      cargs = replicate (length fields) $ Pattern.Var ann
       rhs = foldr (ABT.abs' ann) (Term.constructor ann typ 0 `Term.apps'` vargs)
                   (fst <$> fields)
       vargs = [ if j == i

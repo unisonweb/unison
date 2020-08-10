@@ -1,6 +1,5 @@
 {-# Language OverloadedStrings #-}
 {-# Language QuasiQuotes #-}
-{-# Language TypeApplications #-}
 
 module Unison.Test.IO where
 

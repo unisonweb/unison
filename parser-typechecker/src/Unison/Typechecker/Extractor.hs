@@ -1,6 +1,3 @@
-{-# LANGUAGE DeriveFunctor       #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Unison.Typechecker.Extractor where
 
 import Unison.Prelude hiding (whenM)

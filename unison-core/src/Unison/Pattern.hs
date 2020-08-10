@@ -1,4 +1,4 @@
-{-# Language DeriveFunctor, DeriveTraversable, DeriveGeneric, PatternSynonyms,  OverloadedStrings #-}
+{-# Language DeriveTraversable, DeriveGeneric, PatternSynonyms,  OverloadedStrings #-}
 
 module Unison.Pattern where
 
@@ -13,42 +13,24 @@ import qualified Data.Set as Set
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 
-type Pattern = PatternP ()
-
 type ConstructorId = Int
 
--- Pattern -> Pattern loc
---   Or, `data Pattern` becomes `data PatternP loc`,
---       and introduce `type Pattern = PatternP ()`
--- To have this refactoring break a minimum of stuff:
---
--- Need backwards compat Pattern type
--- Need backwards compat patterns (ignore the `loc` parameter)
--- Need backwards compat constructors (that specialize `loc` to `()`)
--- For the new typechecker and parser, they should import the module PatternP, which
---   will go away after refactoring but which will have the alias:
-  --   type Pattern loc = Pattern.PatternP loc
-  --   pattern Var loc = VarP loc
-  --   etc
-
--- pattern Var = VarP ()
-
-data PatternP loc
-  = UnboundP loc
-  | VarP loc
-  | BooleanP loc !Bool
-  | IntP loc !Int64
-  | NatP loc !Word64
-  | FloatP loc !Double
-  | TextP loc !Text
-  | CharP loc !Char
-  | ConstructorP loc !Reference !Int [PatternP loc]
-  | AsP loc (PatternP loc)
-  | EffectPureP loc (PatternP loc)
-  | EffectBindP loc !Reference !Int [PatternP loc] (PatternP loc)
-  | SequenceLiteralP loc [PatternP loc]
-  | SequenceOpP loc (PatternP loc) !SeqOp (PatternP loc)
-    deriving (Generic,Functor,Foldable,Traversable)
+data Pattern loc
+  = Unbound loc
+  | Var loc
+  | Boolean loc !Bool
+  | Int loc !Int64
+  | Nat loc !Word64
+  | Float loc !Double
+  | Text loc !Text
+  | Char loc !Char
+  | Constructor loc !Reference !Int [Pattern loc]
+  | As loc (Pattern loc)
+  | EffectPure loc (Pattern loc)
+  | EffectBind loc !Reference !Int [Pattern loc] (Pattern loc)
+  | SequenceLiteral loc [Pattern loc]
+  | SequenceOp loc (Pattern loc) !SeqOp (Pattern loc)
+    deriving (Ord,Generic,Functor,Foldable,Traversable)
 
 data SeqOp = Cons
            | Snoc
@@ -60,147 +42,91 @@ instance H.Hashable SeqOp where
   tokens Snoc = [H.Tag 1]
   tokens Concat = [H.Tag 2]
 
-instance Show (PatternP loc) where
-  show (UnboundP _  ) = "Unbound"
-  show (VarP     _  ) = "Var"
-  show (BooleanP _ x) = "Boolean " <> show x
-  show (IntP   _ x) = "Int " <> show x
-  show (NatP  _ x) = "Nat " <> show x
-  show (FloatP   _ x) = "Float " <> show x
-  show (TextP   _ t) = "Text " <> show t
-  show (CharP   _ c) = "Char " <> show c
-  show (ConstructorP _ r i ps) =
+instance Show (Pattern loc) where
+  show (Unbound _  ) = "Unbound"
+  show (Var     _  ) = "Var"
+  show (Boolean _ x) = "Boolean " <> show x
+  show (Int   _ x) = "Int " <> show x
+  show (Nat  _ x) = "Nat " <> show x
+  show (Float   _ x) = "Float " <> show x
+  show (Text   _ t) = "Text " <> show t
+  show (Char   _ c) = "Char " <> show c
+  show (Constructor _ r i ps) =
     "Constructor " <> unwords [show r, show i, show ps]
-  show (AsP         _ p) = "As " <> show p
-  show (EffectPureP _ k) = "EffectPure " <> show k
-  show (EffectBindP _ r i ps k) =
+  show (As         _ p) = "As " <> show p
+  show (EffectPure _ k) = "EffectPure " <> show k
+  show (EffectBind _ r i ps k) =
     "EffectBind " <> unwords [show r, show i, show ps, show k]
-  show (SequenceLiteralP _ ps) = "Sequence " <> intercalate ", " (fmap show ps)
-  show (SequenceOpP _ ph op pt) = "Sequence " <> show ph <> " " <> show op <> " " <> show pt
+  show (SequenceLiteral _ ps) = "Sequence " <> intercalate ", " (fmap show ps)
+  show (SequenceOp _ ph op pt) = "Sequence " <> show ph <> " " <> show op <> " " <> show pt
 
-application :: PatternP loc -> Bool
-application (ConstructorP _ _ _ (_ : _)) = True
+application :: Pattern loc -> Bool
+application (Constructor _ _ _ (_ : _)) = True
 application _ = False
 
-loc :: PatternP loc -> loc
+loc :: Pattern loc -> loc
 loc p = head $ Foldable.toList p
 
-setLoc :: PatternP loc -> loc -> PatternP loc
+setLoc :: Pattern loc -> loc -> Pattern loc
 setLoc p loc = case p of
-  EffectBindP _ a b c d -> EffectBindP loc a b c d
-  EffectPureP _ a -> EffectPureP loc a
-  AsP _ a -> AsP loc a
-  ConstructorP _ a b c -> ConstructorP loc a b c
-  SequenceLiteralP _ ps -> SequenceLiteralP loc ps
-  SequenceOpP _ ph op pt -> SequenceOpP loc ph op pt
+  EffectBind _ a b c d -> EffectBind loc a b c d
+  EffectPure _ a -> EffectPure loc a
+  As _ a -> As loc a
+  Constructor _ a b c -> Constructor loc a b c
+  SequenceLiteral _ ps -> SequenceLiteral loc ps
+  SequenceOp _ ph op pt -> SequenceOp loc ph op pt
   x -> fmap (const loc) x
 
-pattern Unbound = UnboundP ()
-pattern Var = VarP ()
-pattern Boolean b = BooleanP () b
-pattern Int n = IntP () n
-pattern Nat n = NatP () n
-pattern Float n = FloatP () n
-pattern Text t = TextP () t
-pattern Char c = CharP () c
-pattern Constructor r cid ps = ConstructorP () r cid ps
-pattern As p = AsP () p
-pattern EffectPure p = EffectPureP () p
-pattern EffectBind r cid ps k = EffectBindP () r cid ps k
-pattern SequenceLiteral ps = SequenceLiteralP () ps
-pattern SequenceOp ph op pt = SequenceOpP () ph op pt
-
-instance H.Hashable (PatternP p) where
-  tokens (UnboundP _) = [H.Tag 0]
-  tokens (VarP _) = [H.Tag 1]
-  tokens (BooleanP _ b) = H.Tag 2 : [H.Tag $ if b then 1 else 0]
-  tokens (IntP _ n) = H.Tag 3 : [H.Int n]
-  tokens (NatP _ n) = H.Tag 4 : [H.Nat n]
-  tokens (FloatP _ f) = H.Tag 5 : H.tokens f
-  tokens (ConstructorP _ r n args) =
+instance H.Hashable (Pattern p) where
+  tokens (Unbound _) = [H.Tag 0]
+  tokens (Var _) = [H.Tag 1]
+  tokens (Boolean _ b) = H.Tag 2 : [H.Tag $ if b then 1 else 0]
+  tokens (Int _ n) = H.Tag 3 : [H.Int n]
+  tokens (Nat _ n) = H.Tag 4 : [H.Nat n]
+  tokens (Float _ f) = H.Tag 5 : H.tokens f
+  tokens (Constructor _ r n args) =
     [H.Tag 6, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args]
-  tokens (EffectPureP _ p) = H.Tag 7 : H.tokens p
-  tokens (EffectBindP _ r n args k) =
+  tokens (EffectPure _ p) = H.Tag 7 : H.tokens p
+  tokens (EffectBind _ r n args k) =
     [H.Tag 8, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args, H.accumulateToken k]
-  tokens (AsP _ p) = H.Tag 9 : H.tokens p
-  tokens (TextP _ t) = H.Tag 10 : H.tokens t
-  tokens (SequenceLiteralP _ ps) = H.Tag 11 : concatMap H.tokens ps
-  tokens (SequenceOpP _ l op r) = H.Tag 12 : H.tokens op ++ H.tokens l ++ H.tokens r
-  tokens (CharP _ c) = H.Tag 13 : H.tokens c
+  tokens (As _ p) = H.Tag 9 : H.tokens p
+  tokens (Text _ t) = H.Tag 10 : H.tokens t
+  tokens (SequenceLiteral _ ps) = H.Tag 11 : concatMap H.tokens ps
+  tokens (SequenceOp _ l op r) = H.Tag 12 : H.tokens op ++ H.tokens l ++ H.tokens r
+  tokens (Char _ c) = H.Tag 13 : H.tokens c
 
-instance Eq (PatternP loc) where
-  UnboundP _ == UnboundP _ = True
-  VarP _ == VarP _ = True
-  BooleanP _ b == BooleanP _ b2 = b == b2
-  IntP _ n == IntP _ m = n == m
-  NatP _ n == NatP _ m = n == m
-  FloatP _ f == FloatP _ g = f == g
-  ConstructorP _ r n args == ConstructorP _ s m brgs = r == s && n == m && args == brgs
-  EffectPureP _ p == EffectPureP _ q = p == q
-  EffectBindP _ r ctor ps k == EffectBindP _ r2 ctor2 ps2 k2 = r == r2 && ctor == ctor2 && ps == ps2 && k == k2
-  AsP _ p == AsP _ q = p == q
-  TextP _ t == TextP _ t2 = t == t2
-  SequenceLiteralP _ ps == SequenceLiteralP _ ps2 = ps == ps2
-  SequenceOpP _ ph op pt == SequenceOpP _ ph2 op2 pt2 = ph == ph2 && op == op2 && pt == pt2
+instance Eq (Pattern loc) where
+  Unbound _ == Unbound _ = True
+  Var _ == Var _ = True
+  Boolean _ b == Boolean _ b2 = b == b2
+  Int _ n == Int _ m = n == m
+  Nat _ n == Nat _ m = n == m
+  Float _ f == Float _ g = f == g
+  Constructor _ r n args == Constructor _ s m brgs = r == s && n == m && args == brgs
+  EffectPure _ p == EffectPure _ q = p == q
+  EffectBind _ r ctor ps k == EffectBind _ r2 ctor2 ps2 k2 = r == r2 && ctor == ctor2 && ps == ps2 && k == k2
+  As _ p == As _ q = p == q
+  Text _ t == Text _ t2 = t == t2
+  SequenceLiteral _ ps == SequenceLiteral _ ps2 = ps == ps2
+  SequenceOp _ ph op pt == SequenceOp _ ph2 op2 pt2 = ph == ph2 && op == op2 && pt == pt2
   _ == _ = False
 
-instance Ord (PatternP loc) where
-  compare p q
-    = compare (patternTag p) (patternTag q) <> diag p q
-    where 
-    patternTag :: PatternP a -> Int
-    patternTag (UnboundP _) = 0
-    patternTag (VarP _) = 1
-    patternTag (BooleanP _ _) = 2
-    patternTag (IntP _ _) = 3
-    patternTag (NatP _ _) = 4
-    patternTag (CharP _ _) = 5
-    patternTag (FloatP _ _) = 6
-    patternTag (ConstructorP _ _ _ _) = 7
-    patternTag (EffectPureP _ _) = 8
-    patternTag (EffectBindP _ _ _ _ _) = 9
-    patternTag (AsP _ _) = 10
-    patternTag (TextP _ _) = 11
-    patternTag (SequenceLiteralP _ _) = 12
-    patternTag (SequenceOpP _ _ _ _) = 13
-
-    BooleanP _ b `diag` BooleanP _ c = compare b c
-    IntP _ i `diag` IntP _ j = compare i j
-    NatP _ m `diag` NatP _ n = compare m n
-    CharP _ c `diag` CharP _ d = compare c d
-    FloatP _ f `diag` FloatP _ g = compare f g
-    ConstructorP _ r i ps `diag` ConstructorP _ s j qs
-      = compare r s <> compare i j <> compare ps qs
-    EffectPureP _ p `diag` EffectPureP _ q = compare p q
-    EffectBindP _ r i ps k `diag` EffectBindP _ s j qs l
-      = compare r s <> compare i j <> compare ps qs <> compare k l
-    SequenceLiteralP _ ps `diag` SequenceLiteralP _ qs
-      = compare ps qs
-    SequenceOpP _ p o q `diag` SequenceOpP _ r m s
-      = compare p r <> compare o m <> compare q s
-    diag _ _ = EQ
-
-foldMap' :: Monoid m => (PatternP loc -> m) -> PatternP loc -> m
+foldMap' :: Monoid m => (Pattern loc -> m) -> Pattern loc -> m
 foldMap' f p = case p of
-    UnboundP _              -> f p
-    VarP _                  -> f p
-    BooleanP _ _            -> f p
-    IntP _ _                -> f p
-    NatP _ _                -> f p
-    FloatP _ _              -> f p
-    TextP _ _               -> f p
-    CharP _ _               -> f p
-    ConstructorP _ _ _ ps   -> f p <> foldMap (foldMap' f) ps
-    AsP _ p'                -> f p <> foldMap' f p'
-    EffectPureP _ p'        -> f p <> foldMap' f p'
-    EffectBindP _ _ _ ps p' -> f p <> foldMap (foldMap' f) ps <> foldMap' f p'
-    SequenceLiteralP _ ps   -> f p <> foldMap (foldMap' f) ps
-    SequenceOpP _ p1 _ p2   -> f p <> foldMap' f p1 <> foldMap' f p2
-
--- idea: rename PatternP to PatternP0
--- newtype PatternP loc = PatternP (PatternP0 loc)
--- instance Eq (PatternP loc) where
---   (PatternP p) == (PatternP p2) = void p == void p2
+    Unbound _              -> f p
+    Var _                  -> f p
+    Boolean _ _            -> f p
+    Int _ _                -> f p
+    Nat _ _                -> f p
+    Float _ _              -> f p
+    Text _ _               -> f p
+    Char _ _               -> f p
+    Constructor _ _ _ ps   -> f p <> foldMap (foldMap' f) ps
+    As _ p'                -> f p <> foldMap' f p'
+    EffectPure _ p'        -> f p <> foldMap' f p'
+    EffectBind _ _ _ ps p' -> f p <> foldMap (foldMap' f) ps <> foldMap' f p'
+    SequenceLiteral _ ps   -> f p <> foldMap (foldMap' f) ps
+    SequenceOp _ p1 _ p2   -> f p <> foldMap' f p1 <> foldMap' f p2
 
 generalizedDependencies
   :: Ord r
@@ -209,29 +135,29 @@ generalizedDependencies
   -> (Reference -> r)
   -> (Reference -> ConstructorId -> r)
   -> (Reference -> r)
-  -> PatternP loc
+  -> Pattern loc
   -> Set r
 generalizedDependencies literalType dataConstructor dataType effectConstructor effectType
   = Set.fromList . foldMap'
     (\case
-      UnboundP _             -> mempty
-      VarP     _             -> mempty
-      AsP _ _                -> mempty
-      ConstructorP _ r cid _ -> [dataType r, dataConstructor r cid]
-      EffectPureP _ _        -> [effectType Type.effectRef]
-      EffectBindP _ r cid _ _ ->
+      Unbound _             -> mempty
+      Var     _             -> mempty
+      As _ _                -> mempty
+      Constructor _ r cid _ -> [dataType r, dataConstructor r cid]
+      EffectPure _ _        -> [effectType Type.effectRef]
+      EffectBind _ r cid _ _ ->
         [effectType Type.effectRef, effectType r, effectConstructor r cid]
-      SequenceLiteralP _ _ -> [literalType Type.vectorRef]
-      SequenceOpP{}        -> [literalType Type.vectorRef]
-      BooleanP _ _         -> [literalType Type.booleanRef]
-      IntP     _ _         -> [literalType Type.intRef]
-      NatP     _ _         -> [literalType Type.natRef]
-      FloatP   _ _         -> [literalType Type.floatRef]
-      TextP    _ _         -> [literalType Type.textRef]
-      CharP    _ _         -> [literalType Type.charRef]
+      SequenceLiteral _ _ -> [literalType Type.vectorRef]
+      SequenceOp {}        -> [literalType Type.vectorRef]
+      Boolean _ _         -> [literalType Type.booleanRef]
+      Int     _ _         -> [literalType Type.intRef]
+      Nat     _ _         -> [literalType Type.natRef]
+      Float   _ _         -> [literalType Type.floatRef]
+      Text    _ _         -> [literalType Type.textRef]
+      Char    _ _         -> [literalType Type.charRef]
     )
 
-labeledDependencies :: PatternP loc -> Set LabeledDependency
+labeledDependencies :: Pattern loc -> Set LabeledDependency
 labeledDependencies = generalizedDependencies LD.typeRef
                                               LD.dataConstructor
                                               LD.typeRef

@@ -1,6 +1,5 @@
 {-# Language OverloadedStrings #-}
 {-# Language PartialTypeSignatures #-}
-{-# Language ScopedTypeVariables #-}
 {-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
@@ -18,6 +17,7 @@ import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Editor.VersionParser as VP
 import           Unison.Codebase.Execute        ( execute )
 import qualified Unison.Codebase.FileCodebase  as FileCodebase
+import           Unison.Codebase.FileCodebase.Common ( codebasePath )
 import           Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 import           Unison.Codebase.Runtime        ( Runtime )
 import           Unison.CommandLine             ( watchConfig )
@@ -204,7 +204,7 @@ prepareTranscriptDir branchCache inFork mcodepath = do
       P.wrap "Transcript will be run on a copy of the codebase at: ", "",
       P.indentN 2 (P.string path)
       ]
-    Path.copyDir path tmp
+    Path.copyDir (path FP.</> codebasePath) (tmp FP.</> codebasePath)
 
   pure tmp
 

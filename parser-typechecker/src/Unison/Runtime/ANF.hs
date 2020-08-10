@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# Language OverloadedStrings #-}
@@ -88,7 +87,8 @@ import qualified Unison.Type as Ty
 import qualified Unison.Builtin.Decls as Ty (unitRef)
 import qualified Unison.Var as Var
 import Unison.Typechecker.Components (minimize')
-import Unison.Pattern (PatternP(..), SeqOp(..))
+import Unison.Pattern (SeqOp(..))
+import qualified Unison.Pattern as P
 import Unison.Reference (Reference(..))
 import Unison.Referent (Referent)
 
@@ -1093,36 +1093,36 @@ anfInitCase
   -> ANFM v (BranchAccum v)
 anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   | Just _ <- guard = error "anfInitCase: unexpected guard"
-  | UnboundP _ <- p
+  | P.Unbound _ <- p
   , [] <- vs
   = AccumDefault <$> anfBody bd
-  | VarP _ <- p
+  | P.Var _ <- p
   , [v] <- vs
   = AccumDefault . ABTN.rename v u <$> anfBody bd
-  | VarP _ <- p
+  | P.Var _ <- p
   = error $ "vars: " ++ show (length vs)
-  | IntP _ (fromIntegral -> i) <- p
+  | P.Int _ (fromIntegral -> i) <- p
   = AccumIntegral Ty.intRef Nothing . EC.mapSingleton i <$> anfBody bd
-  | NatP _ i <- p
+  | P.Nat _ i <- p
   = AccumIntegral Ty.natRef Nothing . EC.mapSingleton i <$> anfBody bd
-  | BooleanP _ b <- p
+  | P.Boolean _ b <- p
   , t <- if b then 1 else 0
   = AccumData Ty.booleanRef Nothing
   . EC.mapSingleton t . ([],) <$> anfBody bd
-  | TextP _ t <- p
+  | P.Text _ t <- p
   , [] <- vs
   = AccumText Nothing . Map.singleton t <$> anfBody bd
-  | ConstructorP _ r t ps <- p = do
+  | P.Constructor _ r t ps <- p = do
     us <- expandBindings ps vs
     AccumData r Nothing
       . EC.mapSingleton (toEnum t)
       . (BX<$us,)
       . ABTN.TAbss us
       <$> anfBody bd
-  | EffectPureP _ q <- p = do
+  | P.EffectPure _ q <- p = do
     us <- expandBindings [q] vs
     AccumRequest mempty . Just . ABTN.TAbss us <$> anfBody bd
-  | EffectBindP _ r t ps pk <- p = do
+  | P.EffectBind _ r t ps pk <- p = do
     exp <- expandBindings (snoc ps pk) vs
     let (us, uk)
           = maybe (error "anfInitCase: unsnoc impossible") id
@@ -1138,23 +1138,23 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
        . TShift n kf
        . TName uk (Left jn) [kf]
       <$> anfBody bd
-  | SequenceLiteralP _ [] <- p
+  | P.SequenceLiteral _ [] <- p
   = AccumSeqEmpty <$> anfBody bd
-  | SequenceOpP _ l op r <- p
+  | P.SequenceOp _ l op r <- p
   , Concat <- op
-  , SequenceLiteralP p ll <- l = do
-    us <- expandBindings [VarP p, r] vs
+  , P.SequenceLiteral p ll <- l = do
+    us <- expandBindings [P.Var p, r] vs
     AccumSeqSplit SLeft (length ll) Nothing
       . ABTN.TAbss us
      <$> anfBody bd
-  | SequenceOpP _ l op r <- p
+  | P.SequenceOp _ l op r <- p
   , Concat <- op
-  , SequenceLiteralP p rl <- r = do
-    us <- expandBindings [l, VarP p] vs
+  , P.SequenceLiteral p rl <- r = do
+    us <- expandBindings [l, P.Var p] vs
     AccumSeqSplit SLeft (length rl) Nothing
       . ABTN.TAbss us
      <$> anfBody bd
-  | SequenceOpP _ l op r <- p = do
+  | P.SequenceOp _ l op r <- p = do
     us <- expandBindings [l,r] vs
     let dir = case op of Cons -> SLeft ; _ -> SRight
     AccumSeqView dir Nothing . ABTN.TAbss us <$> anfBody bd
@@ -1166,14 +1166,14 @@ anfInitCase _ (MatchCase p _ _)
 expandBindings'
   :: Var v
   => Word64
-  -> [PatternP p]
+  -> [P.Pattern p]
   -> [v]
   -> Either String (Word64, [v])
 expandBindings' fr [] [] = Right (fr, [])
-expandBindings' fr (UnboundP _:ps) vs
+expandBindings' fr (P.Unbound _:ps) vs
   = fmap (u :) <$> expandBindings' (fr+1) ps vs
   where u = freshANF fr
-expandBindings' fr (VarP _:ps) (v:vs)
+expandBindings' fr (P.Var _:ps) (v:vs)
   = fmap (v :) <$> expandBindings' fr ps vs
 expandBindings' _ [] (_:_)
   = Left "expandBindings': more bindings than expected"
@@ -1182,7 +1182,7 @@ expandBindings' _ (_:_) []
 expandBindings' _ _ _
   = Left $ "expandBindings': unexpected pattern"
 
-expandBindings :: Var v => [PatternP p] -> [v] -> ANFM v [v]
+expandBindings :: Var v => [P.Pattern p] -> [v] -> ANFM v [v]
 expandBindings ps vs
   = state $ \(fr,co) -> case expandBindings' fr ps vs of
       Left err -> error $ err ++ " " ++ show (ps, vs)

@@ -3,9 +3,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
 module Unison.TermParser where
@@ -19,7 +17,7 @@ import           Unison.Names3 (Names)
 import           Unison.Reference (Reference)
 import           Unison.Referent (Referent)
 import           Unison.Parser hiding (seq)
-import           Unison.PatternP (Pattern)
+import           Unison.Pattern (Pattern)
 import           Unison.Term (Term, IsTop)
 import           Unison.Type (Type)
 import           Unison.Util.List (intercalateMapWith, quenchRuns)
@@ -40,7 +38,7 @@ import qualified Unison.Lexer as L
 import qualified Unison.Name as Name
 import qualified Unison.Names3 as Names
 import qualified Unison.Parser as Parser (seq, uniqueName)
-import qualified Unison.PatternP as Pattern
+import qualified Unison.Pattern as Pattern
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.Typechecker.Components as Components
@@ -144,10 +142,10 @@ matchCase = do
   pure . Term.MatchCase p (fmap (absChain boundVars') guard) $ absChain boundVars' t
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
-parsePattern =
-  chainl1 patternCandidates patternInfixApp
+parsePattern = root
   where
-  patternCandidates = constructor <|> seqLiteral <|> leaf
+  root = chainl1 patternCandidates patternInfixApp
+  patternCandidates = constructor <|> leaf
   patternInfixApp :: P v ((Pattern Ann, [(Ann, v)])
                   -> (Pattern Ann, [(Ann, v)])
                   -> (Pattern Ann, [(Ann, v)]))
@@ -156,7 +154,11 @@ parsePattern =
     f op (l, lvs) (r, rvs) =
       (Pattern.SequenceOp (ann l <> ann r) l op r, lvs ++ rvs)
 
-  leaf = literal <|> varOrAs <|> unbound <|>
+  -- note: nullaryCtor comes before var patterns, since (for better or worse)
+  -- they can overlap (a variable could be called 'Foo' in the current grammar).
+  -- This order treats ambiguous patterns as nullary constructors if there's
+  -- a constructor with a matching name.
+  leaf = literal <|> nullaryCtor <|> varOrAs <|> unbound <|> seqLiteral <|>
          parenthesizedOrTuplePattern <|> effect
   literal = (,[]) <$> asum [true, false, number, text, char]
   true = (\t -> Pattern.Boolean (ann t) True) <$> reserved "true"
@@ -225,15 +227,21 @@ parsePattern =
     end <- closeBlock
     pure (Pattern.setLoc inner (ann start <> ann end), vs)
 
+  -- ex: unique type Day = Mon | Tue | ...
+  nullaryCtor = P.try $ do
+    tok <- ctor UnknownAbilityConstructor
+    let (ref, cid) = L.payload tok
+    pure (Pattern.Constructor (ann tok) ref cid [], [])
+
   constructor = do
     tok <- ctor UnknownDataConstructor
     let (ref,cid) = L.payload tok
         f patterns vs =
           let loc = foldl (<>) (ann tok) $ map ann patterns
           in (Pattern.Constructor loc ref cid patterns, vs)
-    unzipPatterns f <$> many patternCandidates
+    unzipPatterns f <$> many leaf
 
-  seqLiteral = Parser.seq f leaf
+  seqLiteral = Parser.seq f root
     where f loc = unzipPatterns ((,) . Pattern.SequenceLiteral loc)
 
 lam :: Var v => TermP v -> TermP v
