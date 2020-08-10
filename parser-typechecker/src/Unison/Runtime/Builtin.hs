@@ -52,10 +52,11 @@ natTag = rtag Ty.natRef
 floatTag = rtag Ty.floatRef
 charTag = rtag Ty.charRef
 
-optionTag, eitherTag, pairTag :: RTag
+optionTag, eitherTag, pairTag, seqViewTag :: RTag
 optionTag = rtag Ty.optionalRef
 eitherTag = rtag eitherReference
 pairTag = rtag Ty.pairRef
+seqViewTag = rtag Ty.seqViewRef
 
 fls, tru :: Var v => ANormal v
 fls = TCon boolTag 0 []
@@ -357,6 +358,20 @@ ats = binop0 3 $ \[x0,y,x,t,r]
     ]
 emptys = Lambda [] $ TPrm BLDS []
 
+viewls, viewrs :: Var v => SuperNormal v
+viewls = unop0 3 $ \[s,u,h,t]
+      -> TLet u UN (APrm VWLS [s])
+       . TMatch u . MatchSum $ mapFromList
+       [ (0, ([], TCon seqViewTag 0 []))
+       , (1, ([BX,BX], TAbss [h,t] $ TCon seqViewTag 1 [h,t]))
+       ]
+viewrs = unop0 3 $ \[s,u,i,l]
+      -> TLet u UN (APrm VWRS [s])
+       . TMatch u . MatchSum $ mapFromList
+       [ (0, ([], TCon seqViewTag 0 []))
+       , (1, ([BX,BX], TAbss [i,l] $ TCon seqViewTag 1 [i,l]))
+       ]
+
 eqt, neqt, leqt, geqt, lesst, great :: Var v => SuperNormal v
 eqt = binop0 1 $ \[x,y,b]
    -> TLet b UN (APrm EQLT [x,y])
@@ -376,6 +391,10 @@ lesst = binop0 1 $ \[x,y,b]
 great = binop0 1 $ \[x,y,b]
      -> TLet b UN (APrm LEQT [x,y])
       . TTm $ notlift b
+
+packt, unpackt :: Var v => SuperNormal v
+packt = unop0 0 $ \[s] -> TPrm PAKT [s]
+unpackt = unop0 0 $ \[t] -> TPrm UPKT [t]
 
 i2t, n2t, f2t :: Var v => SuperNormal v
 i2t = unop0 1 $ \[n0,n]
@@ -1015,12 +1034,13 @@ builtinLookup
   , ("Text.>", great)
   , ("Text.uncons", unconst)
   , ("Text.unsnoc", unsnoct)
+  , ("Text.toCharList", unpackt)
+  , ("Text.fromCharList", packt)
 
   , ("Boolean.not", notb)
   , ("Boolean.or", orb)
   , ("Boolean.and", andb)
---   , B "Text.toCharList" $ text --> list char
---   , B "Text.fromCharList" $ list char --> text
+
   , ("bug", bug)
   , ("todo", bug)
   , ("Debug.watch", watch)
@@ -1046,6 +1066,8 @@ builtinLookup
   , ("List.cons", conss)
   , ("List.snoc", snocs)
   , ("List.empty", emptys)
+  , ("List.viewl", viewls)
+  , ("List.viewr", viewrs)
 --
 --   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
   , ("Universal.==", equ)
@@ -1114,6 +1136,7 @@ typeReferences
   , bufferModeReference
   , Ty.effectRef
   , Ty.vectorRef
+  , Ty.seqViewRef
   ] [1..]
 
 numberedTermLookup :: Var v => EnumMap Word64 (SuperNormal v)

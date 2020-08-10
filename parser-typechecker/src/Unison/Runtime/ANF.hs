@@ -85,7 +85,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.ABT.Normalized as ABTN
 import qualified Unison.Term as Term
 import qualified Unison.Type as Ty
-import qualified Unison.Builtin.Decls as Ty (unitRef)
+import qualified Unison.Builtin.Decls as Ty (unitRef,seqViewRef)
 import qualified Unison.Var as Var
 import Unison.Typechecker.Components (minimize')
 import Unison.Pattern (PatternP(..), SeqOp(..))
@@ -826,6 +826,7 @@ data POp
   -- Text
   | CATT | TAKT | DRPT | SIZT -- ++,take,drop,size
   | UCNS | USNC | EQLT | LEQT -- uncons,unsnoc,==,<=
+  | PAKT | UPKT               -- pack,unpack
   -- Sequence
   | CATS | TAKS | DRPS | SIZS -- ++,take,drop,size
   | CONS | SNOC | IDXS | BLDS -- cons,snoc,at,build
@@ -1016,16 +1017,21 @@ anfBlock (Match' scrut cas) = do
       pure (sctx ++ cx, AMatch v $ MatchData r cs df)
     AccumSeqEmpty _ ->
       error "anfBlock: non-exhaustive AccumSeqEmpty"
-    AccumSeqView en (Just em) bd -> fresh <&> \r ->
-        ( sctx ++ cx ++ [view r]
-        , AMatch r . MatchSum $ mapFromList
-        [ (0, ([], em))
-        , (1, ([BX,BX], bd))
-        ])
-      where
-      op | SLeft <- en = VWLS
-         | otherwise = VWRS
-      view r = ST1 r UN (APrm op [v])
+    AccumSeqView en (Just em) bd -> do
+      r <- fresh
+      op <- case en of
+       SLeft -> resolveTerm $ Builtin "List.viewl"
+       _ -> resolveTerm $ Builtin "List.viewr"
+      pure ( sctx ++ cx ++ [ST1 r BX (ACom op [v])]
+           , AMatch r
+           $ MatchData Ty.seqViewRef
+               (EC.mapFromList
+                  [ (0, ([], em))
+                  , (1, ([BX,BX], bd))
+                  ]
+               )
+               Nothing
+           )
     AccumSeqView {} ->
       error "anfBlock: non-exhaustive AccumSeqView"
     AccumSeqSplit en n mdf bd -> do

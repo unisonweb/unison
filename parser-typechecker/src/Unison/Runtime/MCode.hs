@@ -352,6 +352,7 @@ data BPrim1
   | TTOI | TTON | TTOF
   | VWLS | VWRS
   | SIZS | THRO
+  | PAKT | UPKT
   deriving (Show, Eq, Ord)
 
 data BPrim2
@@ -571,7 +572,7 @@ emitCombs frsh (Rec grp ent)
 
 emitComb :: Var v => RCtx v -> SuperNormal v -> Comb
 emitComb rec (Lambda ccs (TAbss vs bd))
-  = Lam 0 (length vs) 10 10 $ emitSection rec (ctx vs ccs) bd
+  = Lam 0 (length vs) 20 20 $ emitSection rec (ctx vs ccs) bd
 
 emitSection :: Var v => RCtx v -> Ctx v -> ANormal v -> Section
 emitSection rec ctx (TLets us ms bu bo)
@@ -850,6 +851,8 @@ emitPOp ANF.UCNS = emitBP1 UCNS
 emitPOp ANF.USNC = emitBP1 USNC
 emitPOp ANF.EQLT = emitBP2 EQLT
 emitPOp ANF.LEQT = emitBP2 LEQT
+emitPOp ANF.PAKT = emitBP1 PAKT
+emitPOp ANF.UPKT = emitBP1 UPKT
 
 emitPOp ANF.CATS = emitBP2 CATS
 emitPOp ANF.TAKS = emitBP2 TAKS

@@ -9,7 +9,7 @@ import Data.Maybe (fromMaybe)
 
 import Data.Bits
 import Data.String (fromString)
--- import Data.Foldable (for_)
+import Data.Foldable (toList)
 import Data.Traversable
 import Data.Word (Word64)
 
@@ -1048,6 +1048,20 @@ bprim1 !ustk !bstk VWRS i
         pokeOff bstk 1 x
         pokeS bstk xs
         pure (ustk, bstk)
+bprim1 !ustk !bstk PAKT i = do
+  s <- peekOffS bstk i
+  bstk <- bump bstk
+  pokeT bstk . Tx.pack . toList $ clo2char <$> s
+  pure (ustk, bstk)
+  where
+  clo2char (DataU1 655360 i) = toEnum i
+  clo2char c = error $ "pack text: non-character closure: " ++ show c
+bprim1 !ustk !bstk UPKT i = do
+  t <- peekOffT bstk i
+  bstk <- bump bstk
+  pokeS bstk . Sq.fromList
+    . fmap (DataU1 655360 . fromEnum) . Tx.unpack $ t
+  pure (ustk, bstk)
 bprim1 !_    !bstk THRO i
   = throwIO . BU =<< peekOff bstk i
 {-# inline bprim1 #-}

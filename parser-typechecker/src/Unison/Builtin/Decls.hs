@@ -31,8 +31,8 @@ import           Unison.Var                     (Var)
 
 unitRef, pairRef, optionalRef, eitherRef :: Reference
 testResultRef, linkRef, docRef, ioErrorRef :: Reference
-fileModeRef, bufferModeRef :: Reference
-(unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef, eitherRef, ioErrorRef, fileModeRef, bufferModeRef) =
+fileModeRef, bufferModeRef, seqViewRef :: Reference
+(unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef, eitherRef, ioErrorRef, fileModeRef, bufferModeRef, seqViewRef) =
   let decls          = builtinDataDecls @Symbol
       [(_, unit, _)] = filter (\(v, _, _) -> v == Var.named "Unit") decls
       [(_, pair, _)] = filter (\(v, _, _) -> v == Var.named "Tuple") decls
@@ -46,8 +46,9 @@ fileModeRef, bufferModeRef :: Reference
       [(_,ioerr,_)] = filter (\(v,_,_) -> v == Var.named "IOError") decls
       [(_,fmode,_)] = filter (\(v,_,_) -> v == Var.named "FileMode") decls
       [(_,bmode,_)] = filter (\(v,_,_) -> v == Var.named "BufferMode") decls
+      [(_,seqv,_)] = filter (\(v,_,_) -> v == Var.named "SeqView") decls
       r = Reference.DerivedId
-  in (r unit, r pair, r opt, r testResult, r link, r doc, r ethr, r ioerr, r fmode, r bmode)
+  in (r unit, r pair, r opt, r testResult, r link, r doc, r ethr, r ioerr, r fmode, r bmode, r seqv)
 
 pairCtorRef, unitCtorRef :: Referent
 pairCtorRef = Referent.Con pairRef 0 CT.Data
@@ -91,6 +92,8 @@ builtinDataDecls = rs1 ++ rs
     , (v "Doc"            , doc)
     , (v "FileMode"       , fmode)
     , (v "BufferMode"     , bmode)
+    , (v "SeqView"        , seqview)
+
     , (v "IOError"        , ioerr)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
   [(_, linkRef, _)] = rs1
@@ -174,6 +177,21 @@ builtinDataDecls = rs1 ++ rs
     , ((), v "IllegalOperation", var "IOError")
     , ((), v "PermissionDenied", var "IOError")
     , ((), v "UserError", var "IOError")
+    ]
+  seqview = DataDeclaration
+    Structural
+    ()
+    [v "a"]
+    [ ( ()
+      , v "SeqView.VEmpty"
+      , Type.foralls () [v "a"]
+          (Type.apps' (var "SeqView") [var "a"])
+      )
+    , ( ()
+      , v "SeqView.VElem"
+      , let sv = Type.apps' (var "SeqView") [var "a"]
+         in Type.foralls () [v "a"] (var "a" `arr` (sv `arr` sv))
+      )
     ]
   tr = DataDeclaration
     (Unique "70621e539cd802b2ad53105697800930411a3ebc")
