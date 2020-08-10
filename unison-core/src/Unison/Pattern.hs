@@ -15,22 +15,6 @@ import Unison.LabeledDependency (LabeledDependency)
 
 type ConstructorId = Int
 
--- Pattern -> Pattern loc
---   Or, `data Pattern` becomes `data PatternP loc`,
---       and introduce `type Pattern = PatternP ()`
--- To have this refactoring break a minimum of stuff:
---
--- Need backwards compat Pattern type
--- Need backwards compat patterns (ignore the `loc` parameter)
--- Need backwards compat constructors (that specialize `loc` to `()`)
--- For the new typechecker and parser, they should import the module PatternP, which
---   will go away after refactoring but which will have the alias:
-  --   type Pattern loc = Pattern.PatternP loc
-  --   pattern Var loc = VarP loc
-  --   etc
-
--- pattern Var = VarP ()
-
 data Pattern loc
   = Unbound loc
   | Var loc
@@ -143,11 +127,6 @@ foldMap' f p = case p of
     EffectBind _ _ _ ps p' -> f p <> foldMap (foldMap' f) ps <> foldMap' f p'
     SequenceLiteral _ ps   -> f p <> foldMap (foldMap' f) ps
     SequenceOp _ p1 _ p2   -> f p <> foldMap' f p1 <> foldMap' f p2
-
--- idea: rename Pattern to PatternP0
--- newtype Pattern loc = Pattern (PatternP0 loc)
--- instance Eq (Pattern loc) where
---   (Pattern p) == (Pattern p2) = void p == void p2
 
 generalizedDependencies
   :: Ord r
