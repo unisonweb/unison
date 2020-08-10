@@ -65,8 +65,8 @@ import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
                                                 )
 import qualified Unison.DataDeclaration        as DD
-import           Unison.PatternP                ( Pattern )
-import qualified Unison.PatternP               as Pattern
+import           Unison.Pattern                 ( Pattern )
+import qualified Unison.Pattern                as Pattern
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
 import qualified Unison.Term                   as Term
@@ -1037,10 +1037,8 @@ checkPattern scrutineeType0 p =
                 Pattern.Snoc -> isConstLen l
                 Pattern.Cons -> isConstLen r
                 Pattern.Concat -> isConstLen l && isConstLen r
-                c -> error $ "unpossible Pattern.SeqOp: " <> show c
               Pattern.As _ p -> isConstLen p
               _ -> False
-        c -> error $ "unpossible Pattern.SeqOp: " <> show c
     -- TODO: provide a scope here for giving a good error message
     Pattern.Boolean loc _ ->
       lift $ subtype (Type.boolean loc) scrutineeType $> mempty
@@ -1118,7 +1116,6 @@ checkPattern scrutineeType0 p =
             _ -> lift . compilerCrash $ PatternMatchFailure
         _ -> lift . compilerCrash $ EffectConstructorHadMultipleEffects
           ctorOutputType
-    _ -> lift . compilerCrash $ MalformedPattern p
  where
 
   getAdvance :: Pattern loc -> StateT [v] (M v loc) v
