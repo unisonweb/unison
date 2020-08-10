@@ -23,8 +23,7 @@ import qualified Unison.Name                   as Name
 import qualified Unison.NameSegment            as NameSegment
 import           Unison.NamePrinter             ( styleHashQualified'' )
 import qualified Unison.Pattern                as Pattern
-import           Unison.PatternP                ( Pattern )
-import qualified Unison.PatternP               as PatternP
+import           Unison.Pattern                 ( Pattern )
 import           Unison.Reference               ( Reference )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Util.SyntaxText        as S
@@ -366,35 +365,35 @@ prettyPattern
 -- tail of variables it doesn't use.  This tail is the second component of
 -- the return value.
 prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
-  PatternP.Char    _ c -> (fmt S.CharLiteral $ l $ case showEscapeChar c of
+  Pattern.Char    _ c -> (fmt S.CharLiteral $ l $ case showEscapeChar c of
     Just c -> "?\\" ++ [c]
     Nothing -> '?': [c], vs)
-  PatternP.Unbound _   -> (fmt S.DelimiterChar $ l "_", vs)
-  PatternP.Var     _   -> let (v : tail_vs) = vs in (fmt S.Var $ l $ Var.nameStr v, tail_vs)
-  PatternP.Boolean _ b -> (fmt S.BooleanLiteral $ if b then l "true" else l "false", vs)
-  PatternP.Int     _ i -> (fmt S.NumericLiteral $ (if i >= 0 then l "+" else mempty) <> (l $ show i), vs)
-  PatternP.Nat     _ u -> (fmt S.NumericLiteral $ l $ show u, vs)
-  PatternP.Float   _ f -> (fmt S.NumericLiteral $ l $ show f, vs)
-  PatternP.Text    _ t -> (fmt S.TextLiteral $ l $ show t, vs)
+  Pattern.Unbound _   -> (fmt S.DelimiterChar $ l "_", vs)
+  Pattern.Var     _   -> let (v : tail_vs) = vs in (fmt S.Var $ l $ Var.nameStr v, tail_vs)
+  Pattern.Boolean _ b -> (fmt S.BooleanLiteral $ if b then l "true" else l "false", vs)
+  Pattern.Int     _ i -> (fmt S.NumericLiteral $ (if i >= 0 then l "+" else mempty) <> (l $ show i), vs)
+  Pattern.Nat     _ u -> (fmt S.NumericLiteral $ l $ show u, vs)
+  Pattern.Float   _ f -> (fmt S.NumericLiteral $ l $ show f, vs)
+  Pattern.Text    _ t -> (fmt S.TextLiteral $ l $ show t, vs)
   TuplePattern pats | length pats /= 1 ->
     let (pats_printed, tail_vs) = patterns (-1) vs pats
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
-  PatternP.Constructor _ ref i [] ->
+  Pattern.Constructor _ ref i [] ->
     (styleHashQualified'' (fmt S.Constructor) $ elideFQN im (PrettyPrintEnv.patternName n ref i), vs)
-  PatternP.Constructor _ ref i pats ->
+  Pattern.Constructor _ ref i pats ->
     let (pats_printed, tail_vs) = patternsSep 10 PP.softbreak vs pats
     in  ( paren (p >= 10)
           $ styleHashQualified'' (fmt S.Constructor) (elideFQN im (PrettyPrintEnv.patternName n ref i))
             `PP.hang` pats_printed
         , tail_vs)
-  PatternP.As _ pat ->
+  Pattern.As _ pat ->
     let (v : tail_vs)            = vs
         (printed, eventual_tail) = prettyPattern n c 11 tail_vs pat
     in  (paren (p >= 11) $ ((fmt S.Var $ l $ Var.nameStr v) <> (fmt S.DelimiterChar $ l "@") <> printed), eventual_tail)
-  PatternP.EffectPure _ pat ->
+  Pattern.EffectPure _ pat ->
     let (printed, eventual_tail) = prettyPattern n c (-1) vs pat
     in  (PP.sep " " [fmt S.DelimiterChar "{", printed, fmt S.DelimiterChar "}"], eventual_tail)
-  PatternP.EffectBind _ ref i pats k_pat ->
+  Pattern.EffectBind _ ref i pats k_pat ->
     let (pats_printed , tail_vs      ) = patternsSep 10 PP.softbreak vs pats
         (k_pat_printed, eventual_tail) = prettyPattern n c 0 tail_vs k_pat
     in  ((fmt S.DelimiterChar "{" ) <>
@@ -405,10 +404,10 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
             k_pat_printed]) <>
          (fmt S.DelimiterChar "}")
         , eventual_tail)
-  PatternP.SequenceLiteral _ pats ->
+  Pattern.SequenceLiteral _ pats ->
     let (pats_printed, tail_vs) = patternsSep (-1) (fmt S.DelimiterChar ", ") vs pats
     in  ((fmt S.DelimiterChar "[") <> pats_printed <> (fmt S.DelimiterChar "]"), tail_vs)
-  PatternP.SequenceOp _ l op r ->
+  Pattern.SequenceOp _ l op r ->
     let (pl, lvs) = prettyPattern n c p vs l
         (pr, rvs) = prettyPattern n c (p + 1) lvs r
         f i s = (paren (p >= i) (pl <> " " <> (fmt S.Reference s) <> " " <> pr), rvs)
@@ -416,7 +415,6 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
       Pattern.Cons -> f 9 "+:"
       Pattern.Snoc -> f 9 ":+"
       Pattern.Concat -> f 9 "++"
-  t -> (l "error: " <> l (show t), vs)
  where
   l :: IsString s => String -> s
   l = fromString
@@ -791,20 +789,20 @@ countTypeUsages n t = snd $ annotation $ reannotateUp (suffixCounterType n) t
 countPatternUsages :: PrettyPrintEnv -> Pattern loc -> PrintAnnotation
 countPatternUsages n p = Pattern.foldMap' f p where
   f = \case
-    Pattern.UnboundP _            -> mempty
-    Pattern.VarP _                -> mempty
-    Pattern.BooleanP _ _          -> mempty
-    Pattern.IntP _ _              -> mempty
-    Pattern.NatP _ _              -> mempty
-    Pattern.FloatP _ _            -> mempty
-    Pattern.TextP _ _             -> mempty
-    Pattern.CharP _ _             -> mempty
-    Pattern.AsP _ _               -> mempty
-    Pattern.SequenceLiteralP _ _  -> mempty
-    Pattern.SequenceOpP _ _ _ _   -> mempty
-    Pattern.EffectPureP _ _       -> mempty
-    Pattern.EffectBindP _ r i _ _ -> countHQ $ PrettyPrintEnv.patternName n r i
-    Pattern.ConstructorP _ r i _  ->
+    Pattern.Unbound _            -> mempty
+    Pattern.Var _                -> mempty
+    Pattern.Boolean _ _          -> mempty
+    Pattern.Int _ _              -> mempty
+    Pattern.Nat _ _              -> mempty
+    Pattern.Float _ _            -> mempty
+    Pattern.Text _ _             -> mempty
+    Pattern.Char _ _             -> mempty
+    Pattern.As _ _               -> mempty
+    Pattern.SequenceLiteral _ _  -> mempty
+    Pattern.SequenceOp _ _ _ _   -> mempty
+    Pattern.EffectPure _ _       -> mempty
+    Pattern.EffectBind _ r i _ _ -> countHQ $ PrettyPrintEnv.patternName n r i
+    Pattern.Constructor _ r i _  ->
       if noImportRefs r then mempty
       else countHQ $ PrettyPrintEnv.patternName n r i
 

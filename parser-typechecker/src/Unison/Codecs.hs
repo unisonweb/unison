@@ -28,8 +28,8 @@ import           Unison.UnisonFile (UnisonFile, pattern UnisonFile)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import Unison.PatternP (Pattern)
-import qualified Unison.PatternP as Pattern
+import Unison.Pattern (Pattern)
+import qualified Unison.Pattern as Pattern
 
 type Pos = Word64
 

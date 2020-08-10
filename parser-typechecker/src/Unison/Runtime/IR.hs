@@ -26,7 +26,7 @@ import qualified Data.Sequence as Sequence
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
-import qualified Unison.Pattern as Pattern
+import qualified Unison.PatternCompat as Pattern
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
@@ -163,11 +163,6 @@ decompileUnderapplied u = case u of -- todo: consider unlambda-lifting here
     lam <- Term.apps' (Term.vmap underlyingSymbol lam) . reverse <$>
       traverse (decompileImpl . snd) symvals
     pure $ Term.betaReduce lam
-
-type SeqOp = Pattern.SeqOp
-pattern Snoc = Pattern.Snoc
-pattern Cons = Pattern.Cons
-pattern Concat = Pattern.Concat
 
 -- Patterns - for now this follows Unison.Pattern exactly, but
 -- we may switch to more efficient runtime representation of patterns

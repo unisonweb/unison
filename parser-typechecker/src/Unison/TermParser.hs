@@ -17,7 +17,7 @@ import           Unison.Names3 (Names)
 import           Unison.Reference (Reference)
 import           Unison.Referent (Referent)
 import           Unison.Parser hiding (seq)
-import           Unison.PatternP (Pattern)
+import           Unison.Pattern (Pattern)
 import           Unison.Term (Term, IsTop)
 import           Unison.Type (Type)
 import           Unison.Util.List (intercalateMapWith, quenchRuns)
@@ -38,7 +38,7 @@ import qualified Unison.Lexer as L
 import qualified Unison.Name as Name
 import qualified Unison.Names3 as Names
 import qualified Unison.Parser as Parser (seq, uniqueName)
-import qualified Unison.PatternP as Pattern
+import qualified Unison.Pattern as Pattern
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.Typechecker.Components as Components

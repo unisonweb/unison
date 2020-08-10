@@ -69,7 +69,7 @@ library
     Unison.NameSegment
     Unison.Paths
     Unison.Pattern
-    Unison.PatternP
+    Unison.PatternCompat
     Unison.Prelude
     Unison.Reference
     Unison.Reference.Util
