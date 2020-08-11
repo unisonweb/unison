@@ -183,10 +183,10 @@ instance Annotated (L.Token a) where
 instance Annotated a => Annotated (ABT.Term f v a) where
   ann = ann . ABT.annotation
 
-instance Annotated a => Annotated (Pattern a) where
+instance Annotated a => Annotated (Pattern r a) where
   ann = ann . Pattern.loc
 
-instance (Annotated a, Annotated b) => Annotated (MatchCase a b) where
+instance (Annotated a, Annotated b) => Annotated (MatchCase r a b) where
   ann (MatchCase p _ b) = ann p <> ann b
 
 label :: (Ord v, Show a) => String -> P v a -> P v a

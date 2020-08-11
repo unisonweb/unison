@@ -72,6 +72,7 @@ library
     Unison.PatternCompat
     Unison.Prelude
     Unison.Reference
+    Unison.Reference.Class
     Unison.Reference.Util
     Unison.Referent
     Unison.Settings

@@ -17,7 +17,6 @@ import           Unison.Names3 (Names)
 import           Unison.Reference (Reference)
 import           Unison.Referent (Referent)
 import           Unison.Parser hiding (seq)
-import           Unison.Pattern (Pattern)
 import           Unison.Term (Term, IsTop)
 import           Unison.Type (Type)
 import           Unison.Util.List (intercalateMapWith, quenchRuns)
@@ -44,6 +43,9 @@ import qualified Unison.Type as Type
 import qualified Unison.Typechecker.Components as Components
 import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Var as Var
+
+type MatchCase ann body = Term.MatchCase Reference ann body
+type Pattern ann = Pattern.Pattern Reference ann
 
 watch :: Show a => String -> a -> a
 watch msg a = let !_ = trace (msg ++ ": " ++ show a) () in a
@@ -77,6 +79,7 @@ term3 = do
 keywordBlock :: Var v => TermP v
 keywordBlock = letBlock <|> handle <|> ifthen <|> match <|> lamCase
 
+-- todo: allow typeLinks and termLinks to reference terms in the .u file
 typeLink' :: Var v => P v (L.Token Reference)
 typeLink' = do
   id <- hqPrefixId
@@ -132,7 +135,7 @@ match = do
   _ <- closeBlock
   pure $ Term.match (ann start <> ann (last cases)) scrutinee cases
 
-matchCase :: Var v => P v (Term.MatchCase Ann (Term v Ann))
+matchCase :: Var v => P v (MatchCase Ann (Term v Ann))
 matchCase = do
   (p, boundVars) <- parsePattern
   let boundVars' = snd <$> boundVars

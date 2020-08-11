@@ -9,9 +9,7 @@ import Prelude hiding (getChar, putChar)
 
 -- import qualified Data.Text as Text
 import qualified Unison.Pattern                 as Pattern
-import           Unison.Pattern                 ( Pattern
-                                                , SeqOp
-                                                )
+import           Unison.Pattern                 ( SeqOp )
 import           Data.Bits                      ( Bits )
 import           Data.Bytes.Get
 import           Data.Bytes.Put
@@ -68,6 +66,9 @@ import           Unison.DataDeclaration         ( DataDeclaration'
 import qualified Unison.Var                    as Var
 import qualified Unison.ConstructorType        as CT
 import Unison.Type (Type)
+
+type MatchCase ann body = Term.MatchCase Reference ann body
+type Pattern ann = Pattern.Pattern Reference ann
 
 -- ABOUT THIS FORMAT:
 --
@@ -531,7 +532,7 @@ putTerm putVar putA = putABT putVar putA go where
     Term.TypeLink r
       -> putWord8 21 *> putReference r
 
-  putMatchCase :: MonadPut m => (a -> m ()) -> (x -> m ()) -> Term.MatchCase a x -> m ()
+  putMatchCase :: MonadPut m => (a -> m ()) -> (x -> m ()) -> MatchCase a x -> m ()
   putMatchCase putA putChild (Term.MatchCase pat guard body) =
     putPattern putA pat *> putMaybe guard putChild *> putChild body
 

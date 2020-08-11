@@ -19,6 +19,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Sequence as Sequence
+import           Data.Void (Void)
 import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
@@ -35,7 +36,7 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Reference.Util as ReferenceUtil
 import           Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
-import           Unison.Type (Type)
+import           Unison.Type (Type, TypeR_)
 import qualified Unison.Type as Type
 import qualified Unison.Util.Relation as Rel
 import qualified Unison.ConstructorType as CT
@@ -51,27 +52,30 @@ import Unison.LabeledDependency (LabeledDependency)
 -- This gets reexported; should maybe live somewhere other than Pattern, though.
 type ConstructorId = Pattern.ConstructorId
 
-data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
+data MatchCase r loc a = MatchCase (Pattern r loc) (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
 -- | Base functor for terms in the Unison language
 -- We need `typeVar` because the term and type variables may differ.
-data F typeVar typeAnn patternAnn a
+type F typeVar typeAnn patternAnn = 
+  F' Reference Reference Referent Reference (Type typeVar typeAnn) (B.Blank typeAnn) patternAnn
+
+data F' termRef typeRef termLink typeLink typeRepr blankRepr patternAnn a
   = Int Int64
   | Nat Word64
   | Float Double
   | Boolean Bool
   | Text Text
   | Char Char
-  | Blank (B.Blank typeAnn)
-  | Ref Reference
+  | Blank blankRepr
+  | Ref termRef
   -- First argument identifies the data type,
   -- second argument identifies the constructor
-  | Constructor Reference ConstructorId
-  | Request Reference ConstructorId
+  | Constructor typeRef ConstructorId
+  | Request typeRef ConstructorId
   | Handle a a
   | App a a
-  | Ann a (Type typeVar typeAnn)
+  | Ann a typeRepr
   | Sequence (Seq a)
   | If a a a
   | And a a
@@ -93,9 +97,9 @@ data F typeVar typeAnn patternAnn a
   --   Match x
   --     [ (Constructor 0 [Var], ABT.abs n rhs1)
   --     , (Constructor 1 [], rhs2) ]
-  | Match a [MatchCase patternAnn a]
-  | TermLink Referent
-  | TypeLink Reference
+  | Match a [MatchCase typeRef patternAnn a]
+  | TermLink termLink
+  | TypeLink typeLink
   deriving (Foldable,Functor,Generic,Generic1,Traversable)
 
 type IsTop = Bool
@@ -111,23 +115,16 @@ type Term2 vt at ap v a = ABT.Term (F vt at ap) v a
 type Term3 v a = Term2 v () () v a
 
 -- | Terms are represented as ABTs over the base functor F, with variables in `v`
-type Term0 v = Term v ()
+type Term0 v = Term0' v v
 -- | Terms with type variables in `vt`, and term variables in `v`
-type Term0' vt v = Term' vt v ()
+type Term0' vt v = ABT.Term (F vt () ()) v ()
 
--- bindExternals
---   :: forall v a b b2
---    . Var v
---   => [(v, Term2 v b a v b2)]
---   -> [(v, Reference)]
---   -> Term2 v b a v a
---   -> Term2 v b a v a
--- bindBuiltins termBuiltins typeBuiltins = f . g
---  where
---   f :: Term2 v b a v a -> Term2 v b a v a
---   f = typeMap (Type.bindBuiltins typeBuiltins)
---   g :: Term2 v b a v a -> Term2 v b a v a
---   g = ABT.substsInheritAnnotation termBuiltins
+type TermR tmRef tpRef tmLink tpLink tpRepr blankRepr pAnn v a =
+  ABT.Term (F' tmRef tpRef tmLink tpLink tpRepr blankRepr pAnn) v a
+
+type TermR_ termRef typeRef termLink v = 
+  ABT.Term (F' termRef typeRef termLink typeRef (TypeR_ typeRef v) Void ()) v ()
+
 bindNames
   :: forall v a . Var v
   => Set v
@@ -183,7 +180,9 @@ prepareTDNR t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
 amap :: Ord v => (a -> a2) -> Term v a -> Term v a2
 amap f = fmap f . patternMap (fmap f) . typeMap (fmap f)
 
-patternMap :: (Pattern ap -> Pattern ap2) -> Term2 vt at ap v a -> Term2 vt at ap2 v a
+patternMap :: (Pattern rtp ap -> Pattern rtp ap2) 
+           -> TermR rtm rtp ltm ltp tpRef blRef ap v a 
+           -> TermR rtm rtp ltm ltp tpRef blRef ap2 v a
 patternMap f = go where
   go (ABT.Term fvs a t) = ABT.Term fvs a $ case t of
     ABT.Abs v t -> ABT.Abs v (go t)
@@ -199,6 +198,14 @@ vmap f = ABT.vmap f . typeMap (ABT.vmap f)
 
 vtmap :: Ord vt2 => (vt -> vt2) -> Term' vt v a -> Term' vt2 v a
 vtmap f = typeMap (ABT.vmap f)
+
+rmap :: (termRef -> termRef') 
+     -> (typeRef -> typeRef') 
+     -> (termLink -> termLink') 
+     -> TermR_ termRef typeRef termLink v 
+     -> TermR_ termRef' typeRef' termLink' v
+rmap fTermRef fTypeRef fTermLink t =
+  extraMap fTermRef fTypeRef fTermLink fTypeRef (Type.rmap fTypeRef) undefined id t
 
 typeMap
   :: Ord vt2
@@ -216,6 +223,46 @@ typeMap f = go
     -- otherwise we'd have to manually match on every non-`Ann` ctor
     ABT.Tm    ts        -> unsafeCoerce $ ABT.Tm (fmap go ts)
 
+extraMap 
+  :: (termRef -> termRef')
+  -> (typeRef -> typeRef')
+  -> (termLink -> termLink')
+  -> (typeLink -> typeLink')
+  -> (typeRepr -> typeRepr')
+  -> (blankRepr -> blankRepr')
+  -> (patternAnn -> patternAnn')
+  -> ABT.Term (F' termRef typeRef termLink typeLink typeRepr blankRepr patternAnn) v a
+  -> ABT.Term (F' termRef' typeRef' termLink' typeLink' typeRepr' blankRepr' patternAnn') v a
+extraMap fTermRef fTypeRef fTermLink fTypeLink fTypeRepr fBlankRepr fPatternA =
+  ABT.extraMap $ \case
+    Int x -> Int x
+    Nat x -> Nat x
+    Float x -> Float x
+    Boolean x -> Boolean x
+    Text x -> Text x
+    Char x -> Char x
+    Blank x -> Blank (fBlankRepr x)
+    Ref x -> Ref (fTermRef x)
+    Constructor x y -> Constructor (fTypeRef x) y
+    Request x y -> Request (fTypeRef x) y
+    Handle x y -> Handle x y
+    App x y -> App x y
+    Ann tm x -> Ann tm (fTypeRepr x)
+    Sequence x -> Sequence x
+    If x y z -> If x y z
+    And x y -> And x y
+    Or x y -> Or x y
+    Lam x -> Lam x
+    LetRec x y z -> LetRec x y z
+    Let x y z -> Let x y z
+    Match tm l -> Match tm (matchCaseExtraMap fTypeRef fPatternA <$> l)
+    TermLink r -> TermLink (fTermLink r)
+    TypeLink r -> TypeLink (fTypeLink r)
+
+matchCaseExtraMap :: (r -> r') -> (a -> a') -> MatchCase r a x -> MatchCase r' a' x
+matchCaseExtraMap fr fa (MatchCase p x y) = 
+  MatchCase (Pattern.rmap fr $ fmap fa p) x y
+
 extraMap'
   :: (Ord vt, Ord vt')
   => (vt -> vt')
@@ -223,43 +270,9 @@ extraMap'
   -> (ap -> ap')
   -> Term2 vt at ap v a
   -> Term2 vt' at' ap' v a
-extraMap' vtf atf apf = ABT.extraMap (extraMap vtf atf apf)
-
-extraMap
-  :: (Ord vt, Ord vt')
-  => (vt -> vt')
-  -> (at -> at')
-  -> (ap -> ap')
-  -> F vt at ap a
-  -> F vt' at' ap' a
-extraMap vtf atf apf = \case
-  Int x -> Int x
-  Nat x -> Nat x
-  Float x -> Float x
-  Boolean x -> Boolean x
-  Text x -> Text x
-  Char x -> Char x
-  Blank x -> Blank (fmap atf x)
-  Ref x -> Ref x
-  Constructor x y -> Constructor x y
-  Request x y -> Request x y
-  Handle x y -> Handle x y
-  App x y -> App x y
-  Ann tm x -> Ann tm (ABT.amap atf (ABT.vmap vtf x))
-  Sequence x -> Sequence x
-  If x y z -> If x y z
-  And x y -> And x y
-  Or x y -> Or x y
-  Lam x -> Lam x
-  LetRec x y z -> LetRec x y z
-  Let x y z -> Let x y z
-  Match tm l -> Match tm (map (matchCaseExtraMap apf) l)
-  TermLink r -> TermLink r
-  TypeLink r -> TypeLink r
-
-matchCaseExtraMap :: (loc -> loc') -> MatchCase loc a -> MatchCase loc' a
-matchCaseExtraMap f (MatchCase p x y) = MatchCase (fmap f p) x y
-
+extraMap' vtf atf apf = 
+  extraMap id id id id (ABT.amap atf . ABT.vmap vtf) (fmap atf) apf
+  
 unannotate
   :: forall vt at ap v a . Ord v => Term2 vt at ap v a -> Term0' vt v
 unannotate = go
@@ -528,7 +541,10 @@ app_ f arg = ABT.tm (App f arg)
 app :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 app a f arg = ABT.tm' a (App f arg)
 
-match :: Ord v => a -> Term2 vt at a v a -> [MatchCase a (Term2 vt at a v a)] -> Term2 vt at a v a
+match :: Ord v => a
+           -> TermR rtm rtp ltm ltp tpRef blRef ap v a 
+           -> [MatchCase rtp ap (TermR rtm rtp ltm ltp tpRef blRef ap v a)]
+           -> TermR rtm rtp ltm ltp tpRef blRef ap v a 
 match a scrutinee branches = ABT.tm' a (Match scrutinee branches)
 
 handle :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
@@ -777,8 +793,8 @@ unLamsOpt' t = case unLams' t of
 -- delay (`'`) annotation which we want to preserve.
 unLamsUntilDelay'
   :: Var v
-  => Term2 vt at ap v a
-  -> Maybe ([v], Term2 vt at ap v a)
+  => TermR rtm rtp ltm ltp tpRef blRef ap v a
+  -> Maybe ([v], TermR rtm rtp ltm ltp tpRef blRef ap v a)
 unLamsUntilDelay' t = case unLamsPred' (t, (/=) $ Var.named "()") of
   r@(Just _) -> r
   Nothing    -> Just ([], t)
@@ -787,8 +803,8 @@ unLamsUntilDelay' t = case unLamsPred' (t, (/=) $ Var.named "()") of
 -- expression, where the scrutinee is also the last argument of the lambda
 unLamsMatch'
   :: Var v
-  => Term2 vt at ap v a
-  -> Maybe ([v], [MatchCase ap (Term2 vt at ap v a)])
+  => TermR rtm rtp ltm ltp tpRef blRef ap v a 
+  -> Maybe ([v], [MatchCase rtp ap (TermR rtm rtp ltm ltp tpRef blRef ap v a)])
 unLamsMatch' t = case unLamsUntilDelay' t of
     Just (reverse -> (v1:vs), Match' (Var' v1') branches) |
       (v1 == v1') && not (Set.member v1' (Set.unions $ freeVars <$> branches)) ->
@@ -801,8 +817,8 @@ unLamsMatch' t = case unLamsUntilDelay' t of
       in Set.union guardVars rhsVars
 
 -- Same as unLams' but taking a predicate controlling whether we match on a given binary function.
-unLamsPred' :: (Term2 vt at ap v a, v -> Bool) ->
-                 Maybe ([v], Term2 vt at ap v a)
+unLamsPred' :: (TermR rtm rtp ltm ltp tpRef blRef ap v a, v -> Bool) ->
+                 Maybe ([v], TermR rtm rtp ltm ltp tpRef blRef ap v a)
 unLamsPred' (LamNamed' v body, pred) | pred v = case unLamsPred' (body, pred) of
   Nothing -> Just ([v], body)
   Just (vs, body) -> Just (v:vs, body)

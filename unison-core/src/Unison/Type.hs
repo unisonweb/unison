@@ -23,6 +23,7 @@ import qualified Unison.Hashable as Hashable
 import qualified Unison.Kind as K
 import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
+import qualified Unison.Reference.Class as RC
 import qualified Unison.Reference.Util as ReferenceUtil
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
@@ -31,10 +32,13 @@ import qualified Unison.Util.Relation as R
 import qualified Unison.Names3 as Names
 import qualified Unison.Name as Name
 import qualified Unison.Util.List as List
+import Unsafe.Coerce (unsafeCoerce)
 
 -- | Base functor for types in the Unison language
-data F a
-  = Ref Reference
+type F = F' Reference
+
+data F' r a
+  = Ref r
   | Arrow a a
   | Ann a K.Kind
   | App a a
@@ -52,6 +56,12 @@ instance Show1 F where showsPrec1 = showsPrec
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
 type Type v a = ABT.Term F v a
+type TypeR_ r v = ABT.Term (F' r) v ()
+
+rmap :: (r -> r') -> ABT.Term (F' r) v a -> ABT.Term (F' r') v a
+rmap f = ABT.extraMap $ \case
+  Ref r -> Ref (f r)
+  x -> unsafeCoerce x
 
 wrapV :: Ord v => Type v a -> Type (ABT.V v) a
 wrapV = ABT.vmap ABT.Bound
@@ -207,21 +217,22 @@ derivedBase32Hex r a = ref a r
 -- derivedBase58' :: Text -> Reference
 -- derivedBase58' base58 = Reference.derivedBase58 base58 0 1
 
-intRef, natRef, floatRef, booleanRef, textRef, charRef, vectorRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: Reference
-intRef = Reference.Builtin "Int"
-natRef = Reference.Builtin "Nat"
-floatRef = Reference.Builtin "Float"
-booleanRef = Reference.Builtin "Boolean"
-textRef = Reference.Builtin "Text"
-charRef = Reference.Builtin "Char"
-vectorRef = Reference.Builtin "Sequence"
-bytesRef = Reference.Builtin "Bytes"
-effectRef = Reference.Builtin "Effect"
-termLinkRef = Reference.Builtin "Link.Term"
-typeLinkRef = Reference.Builtin "Link.Type"
+intRef, natRef, floatRef, booleanRef, textRef, charRef, vectorRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: RC.CanBuiltin r => r    
+intRef = RC.builtin "Int"
+natRef = RC.builtin "Nat"
+floatRef = RC.builtin "Float"
+booleanRef = RC.builtin "Boolean"
+textRef = RC.builtin "Text"
+charRef = RC.builtin "Char"
+vectorRef = RC.builtin "Sequence"
+bytesRef = RC.builtin "Bytes"
+effectRef = RC.builtin "Effect"
+termLinkRef = RC.builtin "Link.Term"
+typeLinkRef = RC.builtin "Link.Type"
 
+-- todo: come back and delete or generalize this
 builtin :: Ord v => a -> Text -> Type v a
-builtin a = ref a . Reference.Builtin
+builtin a = ref a . RC.builtin
 
 int :: Ord v => a -> Type v a
 int a = ref a intRef

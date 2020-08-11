@@ -3,8 +3,9 @@
 module Unison.PatternCompat where
 
 import qualified Unison.Pattern as P
+import Unison.Reference (Reference)
 
-type Pattern = P.Pattern ()
+type Pattern = P.Pattern Reference ()
 
 {-# COMPLETE Unbound, Var, Boolean, Int, Nat, Float, Text, Char, Constructor, As, EffectPure, EffectBind, SequenceLiteral, SequenceOp #-}
 
