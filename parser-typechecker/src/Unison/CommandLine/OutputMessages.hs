@@ -1284,7 +1284,7 @@ renderNameConflicts conflictedTypeNames conflictedTermNames =
         `P.hang` P.commas (P.blue . prettyName <$> toList conflictedNames)
 
 renderEditConflicts ::
-  PPE.PrettyPrintEnv -> Patch -> Pretty
+  PPE.PrettyPrintEnv -> Patch Reference -> Pretty
 renderEditConflicts ppe Patch{..} =
   unlessM (null editConflicts) . P.callout "❓" . P.sep "\n\n" $ [
     P.wrap $ "These" <> P.bold "definitions were edited differently"
@@ -1295,7 +1295,8 @@ renderEditConflicts ppe Patch{..} =
     ]
   where
     -- todo: could possibly simplify all of this, but today is a copy/paste day.
-    editConflicts :: [Either (Reference, Set TypeEdit.TypeEdit) (Reference, Set TermEdit.TermEdit)]
+    editConflicts :: [Either (Reference, Set (TypeEdit.TypeEdit Reference)) 
+                             (Reference, Set (TermEdit.TermEdit Reference))]
     editConflicts =
       (fmap Left . Map.toList . R.toMultimap . R.filterManyDom $ _typeEdits) <>
       (fmap Right . Map.toList . R.toMultimap . R.filterManyDom $ _termEdits)
@@ -1352,7 +1353,7 @@ todoOutput ppe todo =
     -- edit conflict, so that the edit conflict will be dealt with first.
     -- For example, if hash `h` has multiple edit targets { #x, #y, #z, ...},
     -- we'll temporarily remove name conflicts pointing to { #x, #y, #z, ...}.
-    removeEditConflicts :: Ord n => Patch -> Names' n -> Names' n
+    removeEditConflicts :: Ord n => Patch Reference -> Names' n -> Names' n
     removeEditConflicts Patch{..} Names{..} = Names terms' types' where
       terms' = R.filterRan (`Set.notMember` conflictedTermEditTargets) terms
       types' = R.filterRan (`Set.notMember` conflictedTypeEditTargets) types

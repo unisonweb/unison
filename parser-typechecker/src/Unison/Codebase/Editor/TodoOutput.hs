@@ -29,7 +29,7 @@ data TodoOutput v a = TodoOutput
         ( [(Score, Reference, Maybe (Type v a))]
         , [(Score, Reference, DisplayThing (Decl v a))])
   , nameConflicts :: Names0
-  , editConflicts :: Patch
+  , editConflicts :: Patch Reference
   } deriving (Show)
 
 labeledDependencies :: Ord v => TodoOutput v a -> Set LabeledDependency

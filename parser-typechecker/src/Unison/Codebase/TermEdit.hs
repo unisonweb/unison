@@ -2,15 +2,14 @@ module Unison.Codebase.TermEdit where
 
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as H
-import Unison.Reference (Reference)
 import qualified Unison.Typechecker as Typechecker
 import Unison.Type (Type)
 import Unison.Var (Var)
 
-data TermEdit = Replace Reference Typing | Deprecate
+data TermEdit r = Replace r Typing | Deprecate
   deriving (Eq, Ord, Show)
 
-references :: TermEdit -> [Reference]
+references :: TermEdit r -> [r]
 references (Replace r _) = [r]
 references Deprecate = []
 
@@ -25,21 +24,21 @@ instance Hashable Typing where
   tokens Subtype = [H.Tag 1]
   tokens Different = [H.Tag 2]
 
-instance Hashable TermEdit where
+instance Hashable r => Hashable (TermEdit r) where
   tokens (Replace r t) = [H.Tag 0] ++ H.tokens r ++ H.tokens t
   tokens Deprecate = [H.Tag 1]
 
-toReference :: TermEdit -> Maybe Reference
+toReference :: TermEdit r -> Maybe r
 toReference (Replace r _) = Just r
 toReference Deprecate     = Nothing
 
-isTypePreserving :: TermEdit -> Bool
+isTypePreserving :: TermEdit r -> Bool
 isTypePreserving e = case e of
   Replace _ Same -> True
   Replace _ Subtype -> True
   _ -> False
 
-isSame :: TermEdit -> Bool
+isSame :: TermEdit r -> Bool
 isSame e = case e of
   Replace _ Same -> True
   _              -> False

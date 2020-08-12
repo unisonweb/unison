@@ -118,7 +118,6 @@ import qualified Data.Map                      as Map
 import qualified Data.Map.Merge.Lazy           as Map
 import qualified Data.Set                      as Set
 import qualified Unison.Codebase.Patch         as Patch
-import           Unison.Codebase.Patch          ( Patch )
 import qualified Unison.Codebase.Causal        as Causal
 import           Unison.Codebase.Causal         ( Causal
                                                 , pattern RawOne
@@ -162,6 +161,8 @@ newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
 
 type Hash = Causal.RawHash Raw
 type EditHash = Hash.Hash
+type Patch = Patch.Patch Reference
+type PatchDiff = Patch.PatchDiff Reference
 
 -- Star3 r n Metadata.Type (Metadata.Type, Metadata.Value)
 type Star r n = Metadata.Star r n
@@ -189,7 +190,7 @@ data BranchDiff = BranchDiff
   , removedTerms :: Star Referent NameSegment
   , addedTypes :: Star Reference NameSegment
   , removedTypes :: Star Reference NameSegment
-  , changedPatches :: Map NameSegment Patch.PatchDiff
+  , changedPatches :: Map NameSegment PatchDiff
   } deriving (Eq, Ord, Show)
 
 instance Semigroup BranchDiff where

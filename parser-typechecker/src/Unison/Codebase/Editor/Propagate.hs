@@ -16,7 +16,6 @@ import           Unison.Prelude
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.Editor.Command
 import           Unison.Codebase.Editor.Output
-import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.DataDeclaration         ( Decl )
 import qualified Unison.DataDeclaration        as Decl
@@ -37,9 +36,7 @@ import           Unison.Util.TransitiveClosure  ( transitiveClosure )
 import           Unison.Var                     ( Var )
 import qualified Unison.Codebase.Metadata      as Metadata
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
-import           Unison.Codebase.TermEdit       ( TermEdit(..) )
 import qualified Unison.Codebase.TermEdit      as TermEdit
-import           Unison.Codebase.TypeEdit       ( TypeEdit(..) )
 import           Unison.UnisonFile              ( UnisonFile(..) )
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Star3             as Star3
@@ -48,6 +45,10 @@ import qualified Unison.Type                   as Type
 import qualified Unison.Typechecker            as Typechecker
 import           Unison.ConstructorType         ( ConstructorType )
 import qualified Unison.Runtime.IOSource       as IOSource
+
+type Patch = Patch.Patch Reference
+type TermEdit = TermEdit.TermEdit Reference
+type TypeEdit = TypeEdit.TypeEdit Reference
 
 type F m i v = Free (Command m i v)
 

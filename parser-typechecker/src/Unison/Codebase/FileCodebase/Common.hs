@@ -302,7 +302,7 @@ branchFromFiles cache rootDir h = time "FileCodebase.Common.branchFromFiles" $ d
       Left  err -> failWith $ InvalidBranchFile ubf err
       Right c0  -> pure c0
 
-deserializeEdits :: MonadIO m => CodebasePath -> Branch.EditHash -> m Patch
+deserializeEdits :: MonadIO m => CodebasePath -> Branch.EditHash -> m (Patch Reference)
 deserializeEdits root h =
   let file = editsPath root h
   in S.getFromFile' V1.getEdits file >>= \case
@@ -349,7 +349,7 @@ serializeRawBranch root h =
   S.putWithParentDirs (V1.putRawCausal V1.putRawBranch) (branchPath root h)
 
 serializeEdits
-  :: MonadIO m => CodebasePath -> Branch.EditHash -> m Patch -> m ()
+  :: MonadIO m => CodebasePath -> Branch.EditHash -> m (Patch Reference) -> m ()
 serializeEdits root h medits =
   unlessM (doesFileExist (editsPath root h)) $ do
     edits <- medits

@@ -603,7 +603,7 @@ putMap putA putB m = putFoldable (putPair putA putB) (Map.toList m)
 getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
 getMap getA getB = Map.fromList <$> getList (getPair getA getB)
 
-putTermEdit :: MonadPut m => TermEdit -> m ()
+putTermEdit :: MonadPut m => TermEdit Reference -> m ()
 putTermEdit (TermEdit.Replace r typing) =
   putWord8 1 *> putReference r *> case typing of
     TermEdit.Same -> putWord8 1
@@ -611,7 +611,7 @@ putTermEdit (TermEdit.Replace r typing) =
     TermEdit.Different -> putWord8 3
 putTermEdit TermEdit.Deprecate = putWord8 2
 
-getTermEdit :: MonadGet m => m TermEdit
+getTermEdit :: MonadGet m => m (TermEdit Reference )
 getTermEdit = getWord8 >>= \case
   1 -> TermEdit.Replace <$> getReference <*> (getWord8 >>= \case
     1 -> pure TermEdit.Same
@@ -622,11 +622,11 @@ getTermEdit = getWord8 >>= \case
   2 -> pure TermEdit.Deprecate
   t -> unknownTag "TermEdit" t
 
-putTypeEdit :: MonadPut m => TypeEdit -> m ()
+putTypeEdit :: MonadPut m => TypeEdit Reference -> m ()
 putTypeEdit (TypeEdit.Replace r) = putWord8 1 *> putReference r
 putTypeEdit TypeEdit.Deprecate = putWord8 2
 
-getTypeEdit :: MonadGet m => m TypeEdit
+getTypeEdit :: MonadGet m => m (TypeEdit Reference)
 getTypeEdit = getWord8 >>= \case
   1 -> TypeEdit.Replace <$> getReference
   2 -> pure TypeEdit.Deprecate
@@ -802,11 +802,11 @@ getEither getL getR = getWord8 >>= \case
 formatSymbol :: S.Format Symbol
 formatSymbol = S.Format getSymbol putSymbol
 
-putEdits :: MonadPut m => Patch -> m ()
+putEdits :: MonadPut m => Patch Reference -> m ()
 putEdits edits =
   putRelation putReference putTermEdit (Patch._termEdits edits) >>
   putRelation putReference putTypeEdit (Patch._typeEdits edits)
 
-getEdits :: MonadGet m => m Patch
+getEdits :: MonadGet m => m (Patch Reference)
 getEdits = Patch <$> getRelation getReference getTermEdit
                  <*> getRelation getReference getTypeEdit

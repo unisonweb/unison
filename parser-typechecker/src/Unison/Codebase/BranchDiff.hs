@@ -7,7 +7,6 @@ import Unison.Codebase.Branch (Branch0(..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Patch as Patch
-import Unison.Codebase.Patch (Patch, PatchDiff)
 import Unison.Name (Name)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
@@ -17,6 +16,9 @@ import qualified Unison.Util.Relation4 as R4
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation3 (Relation3)
 import Unison.Runtime.IOSource (isPropagatedValue)
+
+type Patch = Patch.Patch Reference
+type PatchDiff = Patch.PatchDiff Reference
 
 data DiffType a = Create a | Delete a | Modify a deriving Show
 

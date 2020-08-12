@@ -85,5 +85,5 @@ fromBranch0 b =
   fromTypesStar s = Dependencies mempty terms decls where
     terms = Set.fromList [ i | DerivedId i <- mdValues s ]
     decls = Set.fromList [ i | DerivedId i <- references s ]
-  fromEdits :: Map NameSegment (EditHash, m Patch) -> Dependencies
+  fromEdits :: Map NameSegment (EditHash, m (Patch Reference)) -> Dependencies
   fromEdits m = Dependencies (Set.fromList . fmap fst $ toList m) mempty mempty

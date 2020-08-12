@@ -165,7 +165,7 @@ data Output v
                 [(Reference, Text)] -- oks
                 [(Reference, Text)] -- fails
   | CantUndo UndoFailureReason
-  | ListEdits Patch PPE.PrettyPrintEnv
+  | ListEdits (Patch Reference) PPE.PrettyPrintEnv
 
   -- new/unrepresented references followed by old/removed
   -- todo: eventually replace these sets with [SearchResult' v Ann]

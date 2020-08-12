@@ -93,7 +93,7 @@ type UpdateTypeDisplay v a = (Maybe [SimpleTypeDisplay v a], [TypeDisplay v a])
 type MetadataDisplay v a = (HQ.HashQualified, Referent, Maybe (Type v  a))
 type RenameTermDisplay v a = (Referent, Maybe (Type v a), Set HashQualified, Set HashQualified)
 type RenameTypeDisplay v a = (Reference, Maybe (DeclOrBuiltin v a), Set HashQualified, Set HashQualified)
-type PatchDisplay = (Name, P.PatchDiff)
+type PatchDisplay = (Name, P.PatchDiff Reference)
 
 toOutput :: forall m v a
           . Monad m

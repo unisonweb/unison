@@ -23,9 +23,11 @@ import qualified Unison.Util.Star3 as Star3
 import Unison.Codebase.Metadata (Metadata)
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Util.List as List
-import Unison.Codebase.Patch (Patch)
+import qualified Unison.Codebase.Patch as Patch
 import Unison.NameSegment (NameSegment)
 import Control.Lens (view)
+
+type Patch = Patch.Patch Reference
 
 fromNames0 :: Monad m => Names0 -> Branch m
 fromNames0 names0 = Branch.one $ addFromNames0 names0 Branch.empty0
