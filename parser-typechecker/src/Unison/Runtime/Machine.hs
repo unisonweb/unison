@@ -297,7 +297,13 @@ apply unmask renv !env !denv !ustk !bstk !k !ck !args clo = case clo of
    where
    uac = asize ustk + ucount args + uscount useg
    bac = asize bstk + bcount args + bscount bseg
-  clo -> die $ "applying non-function: " ++ show clo
+  clo | ZArgs <- args, asize ustk == 0, asize bstk == 0 -> do
+        ustk <- discardFrame ustk
+        bstk <- discardFrame bstk
+        bstk <- bump bstk
+        poke bstk clo
+        yield unmask renv env denv ustk bstk k
+      | otherwise -> die $ "applying non-function: " ++ show clo
 {-# inline apply #-}
 
 jump
