@@ -488,7 +488,7 @@ data ANormalTF v e
   = ALit Lit
   | AMatch v (Branched e)
   | AShift RTag e
-  | AHnd [RTag] v (Maybe e) e
+  | AHnd [RTag] v e
   | AApp (Func v) [v]
   | AFrc v
   | AVar v
@@ -566,7 +566,7 @@ instance Functor (ANormalTF v) where
   fmap _ (AVar v) = AVar v
   fmap _ (ALit l) = ALit l
   fmap f (AMatch v br) = AMatch v $ f <$> br
-  fmap f (AHnd rs h d e) = AHnd rs h (f <$> d) $ f e
+  fmap f (AHnd rs h e) = AHnd rs h $ f e
   fmap f (AShift i e) = AShift i $ f e
   fmap _ (AFrc v) = AFrc v
   fmap _ (AApp f args) = AApp f args
@@ -575,7 +575,7 @@ instance Bifunctor ANormalTF where
   bimap f _ (AVar v) = AVar (f v)
   bimap _ _ (ALit l) = ALit l
   bimap f g (AMatch v br) = AMatch (f v) $ fmap g br
-  bimap f g (AHnd rs v d e) = AHnd rs (f v) (g <$> d) $ g e
+  bimap f g (AHnd rs v e) = AHnd rs (f v) $ g e
   bimap _ g (AShift i e) = AShift i $ g e
   bimap f _ (AFrc v) = AFrc (f v)
   bimap f _ (AApp fu args) = AApp (fmap f fu) $ fmap f args
@@ -584,7 +584,7 @@ instance Bifoldable ANormalTF where
   bifoldMap f _ (AVar v) = f v
   bifoldMap _ _ (ALit _) = mempty
   bifoldMap f g (AMatch v br) = f v <> foldMap g br
-  bifoldMap f g (AHnd _ h d e) = f h <> foldMap g d <> g e
+  bifoldMap f g (AHnd _ h e) = f h <> g e
   bifoldMap _ g (AShift _ e) = g e
   bifoldMap f _ (AFrc v) = f v
   bifoldMap f _ (AApp func args) = foldMap f func <> foldMap f args
@@ -622,7 +622,7 @@ pattern TPrm p args = TApp (FPrim (Left p)) args
 pattern AIOp p args = AApp (FPrim (Right p)) args
 pattern TIOp p args = TApp (FPrim (Right p)) args
 
-pattern THnd rs h d b = TTm (AHnd rs h d b)
+pattern THnd rs h b = TTm (AHnd rs h b)
 pattern TShift i v e = TTm (AShift i (ABTN.TAbs v e))
 pattern TMatch v cs = TTm (AMatch v cs)
 pattern TFrc v = TTm (AFrc v)
@@ -676,7 +676,7 @@ data SeqEnd = SLeft | SRight
 data Branched e
   = MatchIntegral (EnumMap Word64 e) (Maybe e)
   | MatchText (Map.Map Text e) (Maybe e)
-  | MatchRequest (EnumMap RTag (EnumMap CTag ([Mem], e)))
+  | MatchRequest (EnumMap RTag (EnumMap CTag ([Mem], e))) e
   | MatchEmpty
   | MatchData Reference (EnumMap CTag ([Mem], e)) (Maybe e)
   | MatchSum (EnumMap Word64 ([Mem], e))
@@ -979,6 +979,8 @@ anfBlock (Handle' h body)
       (ctx, AApv f as) | floatableCtx ctx -> do
         v <- fresh
         pure (hctx ++ ctx ++ [LZ v (Right f) as], AApp (FVar vh) [v])
+      (ctx, AVar v) | floatableCtx ctx -> do
+        pure (hctx ++ ctx, AApp (FVar vh) [v])
       p@(_, _) ->
         error $ "handle body should be a simple call: " ++ show p
 anfBlock (Match' scrut cas) = do
@@ -988,12 +990,14 @@ anfBlock (Match' scrut cas) = do
   case brn of
     AccumDefault (TBinds' dctx df) -> do
       pure (sctx ++ cx ++ dctx, df)
-    AccumRequest abr df -> do
+    AccumRequest _ Nothing ->
+      error "anfBlock: AccumRequest without default"
+    AccumRequest abr (Just df) -> do
       (r, vs) <- do
         r <- fresh
         v <- fresh
         gvs <- groupVars
-        let hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr
+        let hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr df
             hfvs = Set.toList $ ABTN.freeVars hfb `Set.difference` gvs
         record (r, Lambda (BX <$ hfvs ++ [v]) . ABTN.TAbss hfvs $ hfb)
         pure (r, hfvs)
@@ -1002,7 +1006,7 @@ anfBlock (Match' scrut cas) = do
               | [ST _ _ _] <- cx = error "anfBlock: impossible"
               | otherwise = AFrc v
       pure ( sctx ++ [LZ hv (Right r) vs]
-           , AHnd (EC.keys abr) hv df . TTm $ msc
+           , AHnd (EC.keys abr) hv . TTm $ msc
            )
     AccumText df cs ->
       pure (sctx ++ cx, AMatch v $ MatchText cs df)
@@ -1337,13 +1341,10 @@ prettyANFT m ind tm = prettySpace m ind . case tm of
       -> showString "shift[" . shows r . showString "]"
        . prettyVars vs . showString "."
        . prettyANF False (ind+1) bo
-    AHnd rs v d bo
+    AHnd rs v bo
       -> showString "handle" . prettyTags rs
        . prettyANF False (ind+1) bo
        . showString " with " . pvar v
-       . maybe id
-           (\t -> prettyCase (ind+1) (showString "finally") t id)
-           d
 
 prettyLZF :: Var v => Either Word64 v -> ShowS
 prettyLZF (Left w) = showString "ENV(" . shows w . showString ") "
@@ -1383,11 +1384,11 @@ prettyBranches ind bs = case bs of
     -> maybe id (\e -> prettyCase ind (showString "_") e id)  df
      . foldr (uncurry $ prettyCase ind . shows) id
          (mapToList $ snd <$> bs)
-  MatchRequest bs
+  MatchRequest bs df
     -> foldr (\(r,m) s ->
          foldr (\(c,e) -> prettyCase ind (prettyReq r c) e)
            s (mapToList $ snd <$> m))
-         id (mapToList bs)
+         (prettyCase ind (prettyReq 0 0) df id) (mapToList bs)
   MatchSum bs
     -> foldr (uncurry $ prettyCase ind . shows) id
          (mapToList $ snd <$> bs)

@@ -1193,7 +1193,11 @@ yield
   -> Stack 'UN -> Stack 'BX -> K -> IO ()
 yield unmask renv !env !denv !ustk !bstk !k = leap denv k
  where
- leap !denv (Mark ps cs k) = leap (cs <> EC.withoutKeys denv ps) k
+ leap !denv0 (Mark ps cs k) = do
+   let denv = cs <> EC.withoutKeys denv0 ps
+       clo = denv0 EC.! EC.findMin ps
+   poke bstk . DataB1 0 =<< peek bstk
+   apply unmask renv env denv ustk bstk k False (BArg1 0) clo
  leap !denv (Push ufsz bfsz uasz basz nx k) = do
    ustk <- restoreFrame ustk ufsz uasz
    bstk <- restoreFrame bstk bfsz basz

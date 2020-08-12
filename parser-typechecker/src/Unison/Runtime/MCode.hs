@@ -615,9 +615,9 @@ emitSection rec ctx (TMatch v bs)
   = Ins (Unpack i)
   $ emitDataMatching rec ctx cs df
   | Just (i,BX) <- ctxResolve ctx v
-  , MatchRequest hs <- bs
+  , MatchRequest hs df <- bs
   = Ins (Unpack i)
-  $ emitRequestMatching rec ctx hs
+  $ emitRequestMatching rec ctx hs df
   | Just (i,UN) <- ctxResolve ctx v
   , MatchIntegral cs df <- bs
   = emitIntegralMatching rec ctx i cs df
@@ -634,16 +634,15 @@ emitSection rec ctx (TMatch v bs)
   | otherwise
   = error
   $ "emitSection: could not resolve match variable: " ++ show (ctx,v)
-emitSection rec ctx (THnd rts h df b)
+emitSection rec ctx (THnd rts h b)
   | Just (i,BX) <- ctxResolve ctx h
-  = Ins (Reset . EC.setFromList $ rs)
-  $ flip (foldr (\r -> Ins (SetDyn r i))) rs
-  $ maybe id (\(TAbss us d) l ->
-      Let l $ emitSection rec (pushCtx ((,BX) <$> us) ctx) d) df
+  = Ins (Reset (EC.setFromList rs))
+  . flip (foldr (\r -> Ins (SetDyn r i))) rs
   $ emitSection rec ctx b
   | otherwise = emitSectionVErr h
   where
   rs = rawTag <$> rts
+
 emitSection rec ctx (TShift i v e)
   = Ins (Capture $ rawTag i)
   $ emitSection rec (Var v BX ctx) e
@@ -727,7 +726,7 @@ matchCallingError cc b = "(" ++ show cc ++ "," ++ brs ++ ")"
   brs | MatchData _ _ _ <- b = "MatchData"
       | MatchEmpty <- b = "MatchEmpty"
       | MatchIntegral _ _ <- b = "MatchIntegral"
-      | MatchRequest _ <- b = "MatchRequest"
+      | MatchRequest _ _ <- b = "MatchRequest"
       | MatchSum _ <- b = "MatchSum"
       | MatchText _ _ <- b = "MatchText"
 
@@ -1079,9 +1078,12 @@ emitRequestMatching
   => RCtx v
   -> Ctx v
   -> EnumMap RTag (EnumMap CTag ([Mem], ANormal v))
+  -> ANormal v
   -> Section
-emitRequestMatching rec ctx hs
-  = Match 0 . TestW edf . coerce $ fmap f hs
+emitRequestMatching rec ctx hs df
+  = Match 0 . TestW edf
+  . mapInsert 0 (emitCase rec ctx ([BX], df))
+  . coerce $ fmap f hs
   where
   f cs = Match 1 . TestW edf . coerce $ fmap (emitCase rec ctx) cs
   edf = Die "unhandled ability"

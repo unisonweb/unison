@@ -20,6 +20,7 @@ module Unison.Util.EnumContainers
   , foldMapWithKey
   , mapToList
   , (!)
+  , findMin
   ) where
 
 import Prelude hiding (lookup)
@@ -109,3 +110,6 @@ mapToList (EM m) = first intToKey <$> IM.toList m
 
 (!) :: EnumKey k => EnumMap k a -> k -> a
 EM m ! e = m IM.! keyToInt e
+
+findMin :: EnumKey k => EnumSet k -> k
+findMin (ES s) = intToKey $ IS.findMin s
