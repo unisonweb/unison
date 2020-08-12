@@ -325,13 +325,36 @@ loop = do
         termConflicted src tms = nameConflicted src tms Set.empty
         hashConflicted src = respond . HashAmbiguous src
         hqNameQuery' doSuffixify hqs = do
-          parseNames0 <- makeHistoricalParsingNames $ Set.fromList hqs
-          let parseNames = (if doSuffixify then Names3.suffixify else id) parseNames0
-          let resultss = searchBranchExact hqLength parseNames hqs
-              (misses, hits) =
-                partition (\(_, results) -> null results) (zip hqs resultss)
-              results = List.sort . uniqueBy SR.toReferent $ hits >>= snd
-          pure (misses, results)
+          let (hqnames, hashes) = partition (isJust . HQ.toName) hqs
+          termRefs <- filter (not . Set.null . snd) . zip hashes <$> traverse
+            (eval . TermReferentsByShortHash)
+            (catMaybes (HQ.toHash <$> hashes))
+          typeRefs <- filter (not . Set.null . snd) . zip hashes <$> traverse
+            (eval . TypeReferencesByShortHash)
+            (catMaybes (HQ.toHash <$> hashes))
+          parseNames0 <- makeHistoricalParsingNames $ Set.fromList hqnames
+          let
+            mkTermResult n r = SR.termResult (HQ'.fromHQ' n) r Set.empty
+            mkTypeResult n r = SR.typeResult (HQ'.fromHQ' n) r Set.empty
+            termResults =
+              (\(n, tms) -> (n, toList $ mkTermResult n <$> toList tms)) <$> termRefs
+            typeResults =
+              (\(n, tps) -> (n, toList $ mkTypeResult n <$> toList tps)) <$> typeRefs
+            parseNames = (if doSuffixify then Names3.suffixify else id) parseNames0
+            resultss   = searchBranchExact hqLength parseNames hqnames
+            missingRefs =
+              [ x
+              | x <- hashes
+              , isNothing (lookup x termRefs) && isNothing (lookup x typeRefs)
+              ]
+            (misses, hits) =
+              partition (\(_, results) -> null results) (zip hqs resultss)
+            results =
+              List.sort
+                .   uniqueBy SR.toReferent
+                $   (hits ++ termResults ++ typeResults)
+                >>= snd
+          pure (missingRefs ++ (fst <$> misses), results)
         hqNameQuery = hqNameQuery' False
         hqNameQuerySuffixify = hqNameQuery' True
         typeReferences :: [SearchResult] -> [Reference]
@@ -348,9 +371,9 @@ loop = do
           (misses', hits) <- hqNameQuery [from]
           let tpRefs = Set.fromList $ typeReferences hits
               tmRefs = Set.fromList $ termReferences hits
-              tmMisses = (fst <$> misses')
+              tmMisses = misses'
                          <> (HQ'.toHQ . SR.termName <$> termResults hits)
-              tpMisses = (fst <$> misses')
+              tpMisses = misses'
                          <> (HQ'.toHQ . SR.typeName <$> typeResults hits)
               misses = if isTerm then tpMisses else tmMisses
               go :: Reference -> Action m (Either Event Input) v ()
@@ -1173,7 +1196,7 @@ loop = do
             eval . Notify $
               DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
           unless (null misses) $
-            eval . Notify . SearchTermsNotFound $ fmap fst misses
+            eval . Notify $ SearchTermsNotFound misses
           -- We set latestFile to be programmatically generated, if we
           -- are viewing these definitions to a file - this will skip the
           -- next update for that file (which will happen immediately)
@@ -1303,9 +1326,9 @@ loop = do
         let fromRefs = termReferences fromHits
             toRefs = termReferences toHits
             -- Type hits are term misses
-            fromMisses = (fst <$> fromMisses')
+            fromMisses = fromMisses'
                        <> (HQ'.toHQ . SR.typeName <$> typeResults fromHits)
-            toMisses = (fst <$> toMisses')
+            toMisses = toMisses'
                        <> (HQ'.toHQ . SR.typeName <$> typeResults fromHits)
             go :: Reference
                -> Reference
@@ -1352,9 +1375,9 @@ loop = do
         let fromRefs = typeReferences fromHits
             toRefs = typeReferences toHits
             -- Term hits are type misses
-            fromMisses = (fst <$> fromMisses')
+            fromMisses = fromMisses'
                        <> (HQ'.toHQ . SR.termName <$> termResults fromHits)
-            toMisses = (fst <$> toMisses')
+            toMisses = toMisses'
                        <> (HQ'.toHQ . SR.termName <$> termResults fromHits)
             go :: Reference
                -> Reference

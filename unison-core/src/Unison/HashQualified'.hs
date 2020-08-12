@@ -35,6 +35,13 @@ fromHQ = \case
   HQ.HashQualified n sh -> Just $ HashQualified n sh
   HQ.HashOnly{} -> Nothing
 
+-- Like fromHQ, but turns hashes into hash-qualified empty names
+fromHQ' :: Monoid n => HQ.HashQualified' n -> HashQualified' n
+fromHQ' = \case
+  HQ.NameOnly n -> NameOnly n
+  HQ.HashQualified n sh -> HashQualified n sh
+  HQ.HashOnly h -> HashQualified mempty h
+
 toName :: HashQualified' n -> n
 toName = \case
   NameOnly name        ->  name
