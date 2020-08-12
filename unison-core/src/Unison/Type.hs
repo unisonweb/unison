@@ -56,6 +56,7 @@ instance Show1 F where showsPrec1 = showsPrec
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
 type Type v a = ABT.Term F v a
+type TypeR r v a = ABT.Term (F' r) v a
 type TypeR_ r v = ABT.Term (F' r) v ()
 
 rmap :: (r -> r') -> ABT.Term (F' r) v a -> ABT.Term (F' r') v a
