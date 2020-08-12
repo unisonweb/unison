@@ -1,12 +1,9 @@
 {-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -31,8 +28,8 @@ import           Unison.Hashable (Hashable1, accumulateToken)
 import qualified Unison.Hashable as Hashable
 import           Unison.Names3 ( Names0 )
 import qualified Unison.Names3 as Names
-import           Unison.PatternP (Pattern)
-import qualified Unison.PatternP as Pattern
+import           Unison.Pattern (Pattern)
+import qualified Unison.Pattern as Pattern
 import           Unison.Reference (Reference, pattern Builtin)
 import qualified Unison.Reference as Reference
 import qualified Unison.Reference.Util as ReferenceUtil
@@ -51,6 +48,7 @@ import qualified Unison.Name as Name
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 
+-- This gets reexported; should maybe live somewhere other than Pattern, though.
 type ConstructorId = Pattern.ConstructorId
 
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
@@ -69,8 +67,8 @@ data F typeVar typeAnn patternAnn a
   | Ref Reference
   -- First argument identifies the data type,
   -- second argument identifies the constructor
-  | Constructor Reference Int
-  | Request Reference Int
+  | Constructor Reference ConstructorId
+  | Request Reference ConstructorId
   | Handle a a
   | App a a
   | Ann a (Type typeVar typeAnn)
@@ -517,10 +515,10 @@ placeholder a s = ABT.tm' a . Blank $ B.Recorded (B.Placeholder a s)
 resolve :: Ord v => at -> ab -> String -> Term2 vt ab ap v at
 resolve at ab s = ABT.tm' at . Blank $ B.Recorded (B.Resolve ab s)
 
-constructor :: Ord v => a -> Reference -> Int -> Term2 vt at ap v a
+constructor :: Ord v => a -> Reference -> ConstructorId -> Term2 vt at ap v a
 constructor a ref n = ABT.tm' a (Constructor ref n)
 
-request :: Ord v => a -> Reference -> Int -> Term2 vt at ap v a
+request :: Ord v => a -> Reference -> ConstructorId -> Term2 vt at ap v a
 request a ref n = ABT.tm' a (Request ref n)
 
 -- todo: delete and rename app' to app
@@ -810,7 +808,7 @@ unLamsPred' (LamNamed' v body, pred) | pred v = case unLamsPred' (body, pred) of
   Just (vs, body) -> Just (v:vs, body)
 unLamsPred' _ = Nothing
 
-unReqOrCtor :: Term2 vt at ap v a -> Maybe (Reference, Int)
+unReqOrCtor :: Term2 vt at ap v a -> Maybe (Reference, ConstructorId)
 unReqOrCtor (Constructor' r cid) = Just (r, cid)
 unReqOrCtor (Request' r cid)     = Just (r, cid)
 unReqOrCtor _                         = Nothing
@@ -942,7 +940,7 @@ hashComponents = ReferenceUtil.hashComponents $ refId ()
 
 -- The hash for a constructor
 hashConstructor'
-  :: (Reference -> Int -> Term0 Symbol) -> Reference -> Int -> Reference
+  :: (Reference -> ConstructorId -> Term0 Symbol) -> Reference -> ConstructorId -> Reference
 hashConstructor' f r cid =
   let
 -- this is a bit circuitous, but defining everything in terms of hashComponents
@@ -952,10 +950,10 @@ hashConstructor' f r cid =
         [(r, _)] -> Reference.DerivedId r
         _        -> error "unpossible"
 
-hashConstructor :: Reference -> Int -> Reference
+hashConstructor :: Reference -> ConstructorId -> Reference
 hashConstructor = hashConstructor' $ constructor ()
 
-hashRequest :: Reference -> Int -> Reference
+hashRequest :: Reference -> ConstructorId -> Reference
 hashRequest = hashConstructor' $ request ()
 
 fromReferent :: Ord v

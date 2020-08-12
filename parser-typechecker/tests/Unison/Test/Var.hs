@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Unison.Test.Var where
 
 import EasyTest

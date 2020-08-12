@@ -1,4 +1,3 @@
-{-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE RankNTypes #-}
 
 module Unison.Codebase.Serialization where

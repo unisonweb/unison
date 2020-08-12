@@ -1,8 +1,5 @@
-{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
 
 module Unison.CommandLine.Main where

@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes       #-}
-{-# LANGUAGE TypeApplications  #-}
 
 module Unison.Test.TermParser where
 

@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 module Unison.Symbol where
 
 import Unison.Prelude

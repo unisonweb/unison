@@ -1,4 +1,4 @@
-{-# Language DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
+{-# Language DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RecordWildCards #-}

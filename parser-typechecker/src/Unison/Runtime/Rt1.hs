@@ -3,11 +3,8 @@
 {-# Language Strict #-}
 {-# Language StrictData #-}
 {-# Language RankNTypes #-}
-{-# Language TupleSections #-}
 {-# Language PatternSynonyms #-}
 {-# Language ViewPatterns #-}
-{-# Language ScopedTypeVariables #-}
-{-# Language DoAndIfThenElse #-}
 
 
 module Unison.Runtime.Rt1 where
