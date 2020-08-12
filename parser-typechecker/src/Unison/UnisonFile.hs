@@ -13,8 +13,8 @@ import qualified Data.Map               as Map
 import qualified Data.Set               as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType as CT
-import           Unison.DataDeclaration (DataDeclaration')
-import           Unison.DataDeclaration (EffectDeclaration' (..))
+import           Unison.DataDeclaration (DataDeclaration)
+import           Unison.DataDeclaration (EffectDeclaration(..))
 import           Unison.DataDeclaration (hashDecls)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Builtin.Decls   as DD
@@ -39,8 +39,8 @@ import Unison.LabeledDependency (LabeledDependency)
 -- import qualified Unison.Typechecker.Components as Components
 
 data UnisonFile v a = UnisonFileId {
-  dataDeclarationsId   :: Map v (Reference.Id, DataDeclaration' v a),
-  effectDeclarationsId :: Map v (Reference.Id, EffectDeclaration' v a),
+  dataDeclarationsId   :: Map v (Reference.Id, DataDeclaration v a),
+  effectDeclarationsId :: Map v (Reference.Id, EffectDeclaration v a),
   terms :: [(v, Term v a)],
   watches :: Map WatchKind [(v, Term v a)]
 } deriving Show
@@ -52,10 +52,10 @@ pattern UnisonFile ds es tms ws <-
                ws
 {-# COMPLETE UnisonFile #-}
 
-dataDeclarations :: UnisonFile v a -> Map v (Reference, DataDeclaration' v a)
+dataDeclarations :: UnisonFile v a -> Map v (Reference, DataDeclaration v a)
 dataDeclarations = fmap (first Reference.DerivedId) . dataDeclarationsId
 
-effectDeclarations :: UnisonFile v a -> Map v (Reference, EffectDeclaration' v a)
+effectDeclarations :: UnisonFile v a -> Map v (Reference, EffectDeclaration v a)
 effectDeclarations = fmap (first Reference.DerivedId) . effectDeclarationsId
 
 watchesOfKind :: WatchKind -> UnisonFile v a -> [(v, Term v a)]
@@ -92,17 +92,17 @@ uberTerm' uf body =
 -- cycle and the type of each term is known.
 data TypecheckedUnisonFile v a =
   TypecheckedUnisonFileId {
-    dataDeclarationsId'   :: Map v (Reference.Id, DataDeclaration' v a),
-    effectDeclarationsId' :: Map v (Reference.Id, EffectDeclaration' v a),
+    dataDeclarationsId'   :: Map v (Reference.Id, DataDeclaration v a),
+    effectDeclarationsId' :: Map v (Reference.Id, EffectDeclaration v a),
     topLevelComponents' :: [[(v, Term v a, Type v a)]],
     watchComponents     :: [(WatchKind, [(v, Term v a, Type v a)])],
     hashTermsId           :: Map v (Reference.Id, Term v a, Type v a)
   } deriving Show
 
 -- backwards compatibility with the old data type
-dataDeclarations' :: TypecheckedUnisonFile v a -> Map v (Reference, DataDeclaration' v a)
+dataDeclarations' :: TypecheckedUnisonFile v a -> Map v (Reference, DataDeclaration v a)
 dataDeclarations' = fmap (first Reference.DerivedId) . dataDeclarationsId'
-effectDeclarations' :: TypecheckedUnisonFile v a -> Map v (Reference, EffectDeclaration' v a)
+effectDeclarations' :: TypecheckedUnisonFile v a -> Map v (Reference, EffectDeclaration v a)
 effectDeclarations' = fmap (first Reference.DerivedId) . effectDeclarationsId'
 hashTerms :: TypecheckedUnisonFile v a -> Map v (Reference, Term v a, Type v a)
 hashTerms = fmap (over _1 Reference.DerivedId) . hashTermsId
@@ -119,8 +119,8 @@ pattern TypecheckedUnisonFile ds es tlcs wcs hts <-
 -- currently: create a degenerate TypecheckedUnisonFile
 --            multiple definitions of "top-level components" non-watch vs w/ watch
 typecheckedUnisonFile :: Var v
-                      => Map v (Reference.Id, DataDeclaration' v a)
-                      -> Map v (Reference.Id, EffectDeclaration' v a)
+                      => Map v (Reference.Id, DataDeclaration v a)
+                      -> Map v (Reference.Id, EffectDeclaration v a)
                       -> [[(v, Term v a, Type v a)]]
                       -> [(WatchKind, [(v, Term v a, Type v a)])]
                       -> TypecheckedUnisonFile v a
@@ -183,7 +183,7 @@ dependencies' ::
 dependencies' file = let
   terms :: Map v (Reference.Id, Term v a, Type v a)
   terms = hashTermsId file
-  decls :: Map v (Reference.Id, DataDeclaration' v a)
+  decls :: Map v (Reference.Id, DataDeclaration v a)
   decls = dataDeclarationsId' file <>
           fmap (second toDataDecl) (effectDeclarationsId' file )
   termDeps = foldl' f Relation.empty $ toList terms
@@ -293,17 +293,17 @@ constructorType = TL.constructorType . declsToTypeLookup
 
 data Env v a = Env
   -- Data declaration name to hash and its fully resolved form
-  { datasId   :: Map v (Reference.Id, DataDeclaration' v a)
+  { datasId   :: Map v (Reference.Id, DataDeclaration v a)
   -- Effect declaration name to hash and its fully resolved form
-  , effectsId :: Map v (Reference.Id, EffectDeclaration' v a)
+  , effectsId :: Map v (Reference.Id, EffectDeclaration v a)
   -- Naming environment
   , names   :: Names0
 }
 
-datas :: Env v a -> Map v (Reference, DataDeclaration' v a)
+datas :: Env v a -> Map v (Reference, DataDeclaration v a)
 datas = fmap (first Reference.DerivedId) . datasId
 
-effects :: Env v a -> Map v (Reference, EffectDeclaration' v a)
+effects :: Env v a -> Map v (Reference, EffectDeclaration v a)
 effects = fmap (first Reference.DerivedId) . effectsId
 
 data Error v a
@@ -322,19 +322,19 @@ data Error v a
 environmentFor
   :: forall v a . Var v
   => Names0
-  -> Map v (DataDeclaration' v a)
-  -> Map v (EffectDeclaration' v a)
+  -> Map v (DataDeclaration v a)
+  -> Map v (EffectDeclaration v a)
   -> Names.ResolutionResult v a (Either [Error v a] (Env v a))
 environmentFor names dataDecls0 effectDecls0 = do
   let locallyBoundTypes = Map.keysSet dataDecls0 <> Map.keysSet effectDecls0
   -- data decls and hash decls may reference each other, and thus must be hashed together
-  dataDecls :: Map v (DataDeclaration' v a) <-
+  dataDecls :: Map v (DataDeclaration v a) <-
     traverse (DD.bindNames locallyBoundTypes names) dataDecls0
-  effectDecls :: Map v (EffectDeclaration' v a) <-
+  effectDecls :: Map v (EffectDeclaration v a) <-
     traverse (DD.withEffectDeclM (DD.bindNames locallyBoundTypes names)) effectDecls0
-  let allDecls0 :: Map v (DataDeclaration' v a)
+  let allDecls0 :: Map v (DataDeclaration v a)
       allDecls0 = Map.union dataDecls (toDataDecl <$> effectDecls)
-  hashDecls' :: [(v, Reference.Id, DataDeclaration' v a)] <-
+  hashDecls' :: [(v, Reference.Id, DataDeclaration v a)] <-
       hashDecls allDecls0
     -- then we have to pick out the dataDecls from the effectDecls
   let
