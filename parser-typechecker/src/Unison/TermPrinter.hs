@@ -23,12 +23,22 @@ import qualified Unison.Name                   as Name
 import qualified Unison.NameSegment            as NameSegment
 import           Unison.NamePrinter             ( styleHashQualified'' )
 import qualified Unison.Pattern                as Pattern
-import           Unison.Pattern                 ( Pattern )
 import           Unison.Reference               ( Reference )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Util.SyntaxText        as S
 import           Unison.Util.SyntaxText         ( SyntaxText )
-import           Unison.Term
+import           Unison.Term                    ( Term, Term2, Term3
+  , extraMap', unLet, unLetRecNamed
+  , pattern Var', pattern Ref', pattern TermLink', pattern TypeLink'
+  , pattern Ann', pattern Int', pattern Nat', pattern Float', pattern Boolean'
+  , pattern Text', pattern Char', pattern Blank', pattern Constructor'
+  , pattern Request', pattern Handle', pattern App', pattern LamNamed'
+  , pattern Sequence', pattern If', pattern And', pattern Or', pattern Match'
+  , pattern BinaryAppsPred', pattern AppsPred', pattern LamsNamedMatch'
+  , pattern LamsNamedPred', pattern MatchCase, pattern LamsNamedOrDelay'
+  , pattern LamsNamedOpt'
+  )
+import qualified Unison.Term                   as Term
 import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
@@ -42,6 +52,9 @@ import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
 import qualified Unison.Builtin.Decls          as DD
 import Unison.Builtin.Decls (pattern TuplePattern, pattern TupleTerm')
 import qualified Unison.ConstructorType as CT
+
+type MatchCase loc a = Term.MatchCase Reference loc a
+type Pattern loc = Pattern.Pattern Reference loc
 
 pretty :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
 pretty env tm = PP.syntaxToColor $ pretty0 env (ac (-1) Normal Map.empty MaybeDoc) (printAnnotate env tm)

@@ -36,6 +36,7 @@ import qualified Unison.Hash     as H
 import           Unison.Hashable as Hashable
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
+import           Unison.Reference.Class (CanBuiltin(builtin))
 import Data.Char (isDigit)
 
 data Reference
@@ -177,3 +178,6 @@ instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
 instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]
   tokens (DerivedId (Id h i n)) = [Hashable.Tag 1, Hashable.Bytes (H.toBytes h), Hashable.Nat i, Hashable.Nat n]
+
+instance CanBuiltin Reference where
+  builtin = Builtin

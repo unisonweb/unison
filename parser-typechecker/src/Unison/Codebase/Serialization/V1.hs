@@ -9,9 +9,7 @@ import Prelude hiding (getChar, putChar)
 
 -- import qualified Data.Text as Text
 import qualified Unison.Pattern                 as Pattern
-import           Unison.Pattern                 ( Pattern
-                                                , SeqOp
-                                                )
+import           Unison.Pattern                 (Pattern,  SeqOp )
 import           Data.Bits                      ( Bits )
 import           Data.Bytes.Get
 import           Data.Bytes.Put
@@ -42,7 +40,7 @@ import           Unison.Hash                    ( Hash )
 import           Unison.Kind                    ( Kind )
 import           Unison.Reference               ( Reference )
 import           Unison.Symbol                  ( Symbol(..) )
-import           Unison.Term                    ( Term )
+import           Unison.Term                    (MatchCase(..), TermR,  Term )
 import qualified Data.ByteString               as B
 import qualified Data.Sequence                 as Sequence
 import qualified Data.Set                      as Set
@@ -67,7 +65,7 @@ import           Unison.DataDeclaration         ( DataDeclaration
                                                 )
 import qualified Unison.Var                    as Var
 import qualified Unison.ConstructorType        as CT
-import Unison.Type (Type)
+import Unison.Type (TypeR, Type)
 
 -- ABOUT THIS FORMAT:
 --
@@ -371,9 +369,15 @@ putType :: (MonadPut m, Ord v)
         => (v -> m ()) -> (a -> m ())
         -> Type v a
         -> m ()
-putType putVar putA = putABT putVar putA go where
+putType = putTypeR putReference
+
+putTypeR :: (MonadPut m, Ord v)
+         => (r -> m ()) -> (v -> m ()) -> (a -> m ())
+         -> TypeR r v a
+         -> m ()
+putTypeR putR putVar putA = putABT putVar putA go where
   go putChild t = case t of
-    Type.Ref r       -> putWord8 0 *> putReference r
+    Type.Ref r       -> putWord8 0 *> putR r
     Type.Arrow i o   -> putWord8 1 *> putChild i *> putChild o
     Type.Ann t k     -> putWord8 2 *> putChild t *> putKind k
     Type.App f x     -> putWord8 3 *> putChild f *> putChild x
@@ -382,11 +386,13 @@ putType putVar putA = putABT putVar putA go where
     Type.Forall body -> putWord8 6 *> putChild body
     Type.IntroOuter body -> putWord8 7 *> putChild body
 
-getType :: (MonadGet m, Ord v)
-        => m v -> m a -> m (Type v a)
-getType getVar getA = getABT getVar getA go where
+getType :: (MonadGet m, Ord v) => m v -> m a -> m (Type v a)
+getType = getTypeR getReference
+
+getTypeR :: (MonadGet m, Ord v) => m r -> m v -> m a -> m (TypeR r v a)
+getTypeR getR getVar getA = getABT getVar getA go where
   go getChild = getWord8 >>= \tag -> case tag of
-    0 -> Type.Ref <$> getReference
+    0 -> Type.Ref <$> getR
     1 -> Type.Arrow <$> getChild <*> getChild
     2 -> Type.Ann <$> getChild <*> getKind
     3 -> Type.App <$> getChild <*> getChild
@@ -402,8 +408,11 @@ putSymbol (Symbol id typ) = putLength id *> putText (Var.rawName typ)
 getSymbol :: MonadGet m => m Symbol
 getSymbol = Symbol <$> getLength <*> (Var.User <$> getText)
 
-putPattern :: MonadPut m => (a -> m ()) -> Pattern a -> m ()
-putPattern putA p = case p of
+putPattern :: MonadPut m => (a -> m ()) -> Pattern Reference a -> m ()
+putPattern = putPatternR putReference
+
+putPatternR :: MonadPut m => (r -> m ()) -> (a -> m ()) -> Pattern r a -> m ()
+putPatternR putR putA p = case p of
   Pattern.Unbound a   -> putWord8 0 *> putA a
   Pattern.Var     a   -> putWord8 1 *> putA a
   Pattern.Boolean a b -> putWord8 2 *> putA a *> putBoolean b
@@ -413,26 +422,26 @@ putPattern putA p = case p of
   Pattern.Constructor a r cid ps ->
     putWord8 6
       *> putA a
-      *> putReference r
+      *> putR r
       *> putLength cid
-      *> putFoldable (putPattern putA) ps
-  Pattern.As         a p -> putWord8 7 *> putA a *> putPattern putA p
-  Pattern.EffectPure a p -> putWord8 8 *> putA a *> putPattern putA p
+      *> putFoldable (putPatternR putR putA) ps
+  Pattern.As         a p -> putWord8 7 *> putA a *> putPatternR putR putA p
+  Pattern.EffectPure a p -> putWord8 8 *> putA a *> putPatternR putR putA p
   Pattern.EffectBind a r cid args k ->
     putWord8 9
       *> putA a
-      *> putReference r
+      *> putR r
       *> putLength cid
-      *> putFoldable (putPattern putA) args
-      *> putPattern putA k
+      *> putFoldable (putPatternR putR putA) args
+      *> putPatternR putR putA k
   Pattern.SequenceLiteral a ps ->
-    putWord8 10 *> putA a *> putFoldable (putPattern putA) ps
+    putWord8 10 *> putA a *> putFoldable (putPatternR putR putA) ps
   Pattern.SequenceOp a l op r ->
     putWord8 11
       *> putA a
-      *> putPattern putA l
+      *> putPatternR putR putA l
       *> putSeqOp op
-      *> putPattern putA r
+      *> putPatternR putR putA r
   Pattern.Text a t -> putWord8 12 *> putA a *> putText t
   Pattern.Char a c -> putWord8 13 *> putA a *> putChar c
 
@@ -448,41 +457,58 @@ getSeqOp = getWord8 >>= \case
   2   -> pure Pattern.Concat
   tag -> unknownTag "SeqOp" tag
 
-getPattern :: MonadGet m => m a -> m (Pattern a)
-getPattern getA = getWord8 >>= \tag -> case tag of
+getPattern :: MonadGet m => m a -> m (Pattern Reference a)
+getPattern = getPatternR getReference
+
+getPatternR :: MonadGet m => m r -> m a -> m (Pattern r a)
+getPatternR getR getA = getWord8 >>= \tag -> case tag of
   0 -> Pattern.Unbound <$> getA
   1 -> Pattern.Var <$> getA
   2 -> Pattern.Boolean <$> getA <*> getBoolean
   3 -> Pattern.Int <$> getA <*> getInt
   4 -> Pattern.Nat <$> getA <*> getNat
   5 -> Pattern.Float <$> getA <*> getFloat
-  6 -> Pattern.Constructor <$> getA <*> getReference <*> getLength <*> getList
-    (getPattern getA)
-  7 -> Pattern.As <$> getA <*> getPattern getA
-  8 -> Pattern.EffectPure <$> getA <*> getPattern getA
+  6 -> Pattern.Constructor <$> getA <*> getR <*> getLength <*> getList
+    (getPatternR getR getA)
+  7 -> Pattern.As <$> getA <*> getPatternR getR getA
+  8 -> Pattern.EffectPure <$> getA <*> getPatternR getR getA
   9 ->
     Pattern.EffectBind
       <$> getA
-      <*> getReference
+      <*> getR
       <*> getLength
-      <*> getList (getPattern getA)
-      <*> getPattern getA
-  10 -> Pattern.SequenceLiteral <$> getA <*> getList (getPattern getA)
+      <*> getList (getPatternR getR getA)
+      <*> getPatternR getR getA
+  10 -> Pattern.SequenceLiteral <$> getA <*> getList (getPatternR getR getA)
   11 ->
     Pattern.SequenceOp
       <$> getA
-      <*> getPattern getA
+      <*> getPatternR getR getA
       <*> getSeqOp
-      <*> getPattern getA
+      <*> getPatternR getR getA
   12 -> Pattern.Text <$> getA <*> getText
   13 -> Pattern.Char <$> getA <*> getChar
   _ -> unknownTag "Pattern" tag
+  
+putTerm :: (MonadPut m, Ord v) => (v -> m ()) -> (a -> m ()) -> Term v a -> m ()
+putTerm putVar putA =
+  putTermR putReference putReference putReferent putReference
+           (putType putVar putA) putA putVar putA
 
-putTerm :: (MonadPut m, Ord v)
-        => (v -> m ()) -> (a -> m ())
-        -> Term v a
-        -> m ()
-putTerm putVar putA = putABT putVar putA go where
+-- todo: eliminate the runtime error by setting blankRepr = Void
+putTermR :: (MonadPut m, Ord v)
+         => (tmRef -> m ())
+         -> (tpRef -> m ())
+         -> (tmLink -> m ())
+         -> (tpLink -> m ())
+         -> (tpRepr -> m ())
+         -> (pAnn -> m ())
+         -> (v -> m ())
+         -> (a -> m ())
+         -> TermR tmRef tpRef tmLink tpLink tpRepr blankRepr pAnn v a
+         -> m ()
+putTermR putTermRef putTypeRef putTermLink putTypeLink putTypeRepr putPatternAnn 
+         putVar putA = putABT putVar putA go where
   go putChild t = case t of
     Term.Int n
       -> putWord8 0 *> putInt n
@@ -497,17 +523,17 @@ putTerm putVar putA = putABT putVar putA go where
     Term.Blank _
       -> error "can't serialize term with blanks"
     Term.Ref r
-      -> putWord8 5 *> putReference r
+      -> putWord8 5 *> putTermRef r
     Term.Constructor r cid
-      -> putWord8 6 *> putReference r *> putLength cid
+      -> putWord8 6 *> putTypeRef r *> putLength cid
     Term.Request r cid
-      -> putWord8 7 *> putReference r *> putLength cid
+      -> putWord8 7 *> putTypeRef r *> putLength cid
     Term.Handle h a
       -> putWord8 8 *> putChild h *> putChild a
     Term.App f arg
       -> putWord8 9 *> putChild f *> putChild arg
     Term.Ann e t
-      -> putWord8 10 *> putChild e *> putType putVar putA t
+      -> putWord8 10 *> putChild e *> putTypeRepr t
     Term.Sequence vs
       -> putWord8 11 *> putFoldable putChild vs
     Term.If cond t f
@@ -523,33 +549,50 @@ putTerm putVar putA = putABT putVar putA go where
     Term.Let _ b body
       -> putWord8 17 *> putChild b *> putChild body
     Term.Match s cases
-      -> putWord8 18 *> putChild s *> putFoldable (putMatchCase putA putChild) cases
+      -> putWord8 18 *> putChild s *> putFoldable (putMatchCase putTypeRef putPatternAnn putChild) cases
     Term.Char c
       -> putWord8 19 *> putChar c
     Term.TermLink r
-      -> putWord8 20 *> putReferent r
+      -> putWord8 20 *> putTermLink r
     Term.TypeLink r
-      -> putWord8 21 *> putReference r
+      -> putWord8 21 *> putTypeLink r
 
-  putMatchCase :: MonadPut m => (a -> m ()) -> (x -> m ()) -> Term.MatchCase a x -> m ()
-  putMatchCase putA putChild (Term.MatchCase pat guard body) =
-    putPattern putA pat *> putMaybe guard putChild *> putChild body
+  putMatchCase :: MonadPut m 
+    => (r -> m ()) -> (a -> m ()) -> (x -> m ()) -> MatchCase r a x -> m ()
+  putMatchCase putR putA putChild (MatchCase pat guard body) =
+    putPatternR putR putA pat *> putMaybe guard putChild *> putChild body
 
 getTerm :: (MonadGet m, Ord v)
         => m v -> m a -> m (Term v a)
-getTerm getVar getA = getABT getVar getA go where
+getTerm getVar getA =
+  getTermR getReference getReference getReferent getReference 
+           (getTypeR getReference getVar getA) getA getVar getA
+
+-- todo: set blankRepr=Void
+getTermR :: (MonadGet m, Ord v)
+        => m tmRef
+        -> m tpRef
+        -> m tmLink
+        -> m tpLink
+        -> m tpRepr
+        -> m pAnn
+        -> m v
+        -> m a 
+        -> m (TermR tmRef tpRef tmLink tpLink tpRepr blankRepr pAnn v a)
+getTermR getTermRef getTypeRef getTermLink getTypeLink getTypeRepr getPatternAnn
+         getVar getA = getABT getVar getA go where
   go getChild = getWord8 >>= \tag -> case tag of
     0 -> Term.Int <$> getInt
     1 -> Term.Nat <$> getNat
     2 -> Term.Float <$> getFloat
     3 -> Term.Boolean <$> getBoolean
     4 -> Term.Text <$> getText
-    5 -> Term.Ref <$> getReference
-    6 -> Term.Constructor <$> getReference <*> getLength
-    7 -> Term.Request <$> getReference <*> getLength
+    5 -> Term.Ref <$> getTermRef
+    6 -> Term.Constructor <$> getTypeRef <*> getLength
+    7 -> Term.Request <$> getTypeRef <*> getLength
     8 -> Term.Handle <$> getChild <*> getChild
     9 -> Term.App <$> getChild <*> getChild
-    10 -> Term.Ann <$> getChild <*> getType getVar getA
+    10 -> Term.Ann <$> getChild <*> getTypeRepr
     11 -> Term.Sequence . Sequence.fromList <$> getList getChild
     12 -> Term.If <$> getChild <*> getChild <*> getChild
     13 -> Term.And <$> getChild <*> getChild
@@ -558,10 +601,13 @@ getTerm getVar getA = getABT getVar getA go where
     16 -> Term.LetRec False <$> getList getChild <*> getChild
     17 -> Term.Let False <$> getChild <*> getChild
     18 -> Term.Match <$> getChild
-                     <*> getList (Term.MatchCase <$> getPattern getA <*> getMaybe getChild <*> getChild)
+                     <*> getList (Term.MatchCase 
+                                    <$> getPatternR getTypeRef getPatternAnn 
+                                    <*> getMaybe getChild 
+                                    <*> getChild)
     19 -> Term.Char <$> getChar
-    20 -> Term.TermLink <$> getReferent
-    21 -> Term.TypeLink <$> getReference
+    20 -> Term.TermLink <$> getTermLink
+    21 -> Term.TypeLink <$> getTypeLink
     _ -> unknownTag "getTerm" tag
 
 putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()

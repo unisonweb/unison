@@ -23,13 +23,16 @@ import qualified Unison.Hash as Hash
 import           Unison.Reference (Reference, pattern Builtin, pattern Derived)
 import qualified Unison.Referent as Referent
 import qualified Unison.ConstructorType as ConstructorType
-import           Unison.Term
+import qualified Unison.Term as Term
+import           Unison.Term (Term, F'(..), pattern MatchCase)
 import           Unison.UnisonFile (UnisonFile, pattern UnisonFile)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
+
+type MatchCase pos body = Term.MatchCase Reference pos body
+type Pattern ann = Pattern.Pattern Reference ann
 
 type Pos = Word64
 

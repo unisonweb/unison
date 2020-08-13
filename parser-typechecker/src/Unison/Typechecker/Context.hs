@@ -65,7 +65,6 @@ import           Unison.DataDeclaration         ( DataDeclaration
                                                 , EffectDeclaration
                                                 )
 import qualified Unison.DataDeclaration        as DD
-import           Unison.Pattern                 ( Pattern )
 import qualified Unison.Pattern                as Pattern
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
@@ -82,6 +81,8 @@ type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 type Type v loc = Type.Type (TypeVar v loc) loc
 type Term v loc = Term.Term' (TypeVar v loc) v loc
 type Monotype v loc = Type.Monotype (TypeVar v loc) loc
+type Pattern loc = Pattern.Pattern Reference loc
+type MatchCase loc body = Term.MatchCase Reference loc body
 type RedundantTypeAnnotation = Bool
 
 pattern Universal v = Var (TypeVar.Universal v)
@@ -954,7 +955,7 @@ synthesize e = scope (InSynthesize e) $
 checkCase :: forall v loc . (Var v, Ord loc)
           => Type v loc
           -> Type v loc
-          -> Term.MatchCase loc (Term v loc)
+          -> MatchCase loc (Term v loc)
           -> M v loc ()
 checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
   scrutineeType <- applyM scrutineeType

@@ -12,10 +12,12 @@ import qualified Unison.Type as Type
 import qualified Data.Set as Set
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
+import Unison.Reference.Class (CanBuiltin)
+import Unsafe.Coerce (unsafeCoerce)
 
 type ConstructorId = Int
 
-data Pattern loc
+data Pattern r loc
   = Unbound loc
   | Var loc
   | Boolean loc !Bool
@@ -24,12 +26,12 @@ data Pattern loc
   | Float loc !Double
   | Text loc !Text
   | Char loc !Char
-  | Constructor loc !Reference !Int [Pattern loc]
-  | As loc (Pattern loc)
-  | EffectPure loc (Pattern loc)
-  | EffectBind loc !Reference !Int [Pattern loc] (Pattern loc)
-  | SequenceLiteral loc [Pattern loc]
-  | SequenceOp loc (Pattern loc) !SeqOp (Pattern loc)
+  | Constructor loc !r !Int [Pattern r loc]
+  | As loc (Pattern r loc)
+  | EffectPure loc (Pattern r loc)
+  | EffectBind loc !r !Int [Pattern r loc] (Pattern r loc)
+  | SequenceLiteral loc [Pattern r loc]
+  | SequenceOp loc (Pattern r loc) !SeqOp (Pattern r loc)
     deriving (Generic,Functor,Foldable,Traversable)
 
 data SeqOp = Cons
@@ -37,12 +39,23 @@ data SeqOp = Cons
            | Concat
            deriving (Eq, Show)
 
+rmap :: (r -> r') -> Pattern r loc -> Pattern r' loc
+rmap f = \case
+  Constructor loc r i ps -> Constructor loc (f r) i (rmap f <$> ps)
+  As loc p -> As loc (rmap f p)
+  EffectPure loc p -> EffectPure loc (rmap f p)
+  EffectBind loc r i ps p -> EffectBind loc (f r) i (rmap f <$> ps) (rmap f p)
+  SequenceLiteral loc ps -> SequenceLiteral loc (rmap f <$> ps)
+  SequenceOp loc p1 op p2 -> SequenceOp loc (rmap f p1) op (rmap f p2)
+  -- cover all cases having references or subpatterns above; the rest are fine
+  x -> unsafeCoerce x
+
 instance H.Hashable SeqOp where
   tokens Cons = [H.Tag 0]
   tokens Snoc = [H.Tag 1]
   tokens Concat = [H.Tag 2]
 
-instance Show (Pattern loc) where
+instance Show r => Show (Pattern r loc) where
   show (Unbound _  ) = "Unbound"
   show (Var     _  ) = "Var"
   show (Boolean _ x) = "Boolean " <> show x
@@ -60,14 +73,15 @@ instance Show (Pattern loc) where
   show (SequenceLiteral _ ps) = "Sequence " <> intercalate ", " (fmap show ps)
   show (SequenceOp _ ph op pt) = "Sequence " <> show ph <> " " <> show op <> " " <> show pt
 
-application :: Pattern loc -> Bool
+application :: Pattern r loc -> Bool
 application (Constructor _ _ _ (_ : _)) = True
 application _ = False
 
-loc :: Pattern loc -> loc
+loc :: Pattern r loc -> loc
 loc p = head $ Foldable.toList p
 
-setLoc :: Pattern loc -> loc -> Pattern loc
+-- |Sets the loc of this pattern, non-recursively
+setLoc :: Pattern r loc -> loc -> Pattern r loc
 setLoc p loc = case p of
   EffectBind _ a b c d -> EffectBind loc a b c d
   EffectPure _ a -> EffectPure loc a
@@ -77,7 +91,7 @@ setLoc p loc = case p of
   SequenceOp _ ph op pt -> SequenceOp loc ph op pt
   x -> fmap (const loc) x
 
-instance H.Hashable (Pattern p) where
+instance H.Hashable r => H.Hashable (Pattern r p) where
   tokens (Unbound _) = [H.Tag 0]
   tokens (Var _) = [H.Tag 1]
   tokens (Boolean _ b) = H.Tag 2 : [H.Tag $ if b then 1 else 0]
@@ -95,7 +109,7 @@ instance H.Hashable (Pattern p) where
   tokens (SequenceOp _ l op r) = H.Tag 12 : H.tokens op ++ H.tokens l ++ H.tokens r
   tokens (Char _ c) = H.Tag 13 : H.tokens c
 
-instance Eq (Pattern loc) where
+instance Eq r => Eq (Pattern r loc) where
   Unbound _ == Unbound _ = True
   Var _ == Var _ = True
   Boolean _ b == Boolean _ b2 = b == b2
@@ -111,7 +125,7 @@ instance Eq (Pattern loc) where
   SequenceOp _ ph op pt == SequenceOp _ ph2 op2 pt2 = ph == ph2 && op == op2 && pt == pt2
   _ == _ = False
 
-foldMap' :: Monoid m => (Pattern loc -> m) -> Pattern loc -> m
+foldMap' :: Monoid m => (Pattern r loc -> m) -> Pattern r loc -> m
 foldMap' f p = case p of
     Unbound _              -> f p
     Var _                  -> f p
@@ -129,14 +143,14 @@ foldMap' f p = case p of
     SequenceOp _ p1 _ p2   -> f p <> foldMap' f p1 <> foldMap' f p2
 
 generalizedDependencies
-  :: Ord r
-  => (Reference -> r)
-  -> (Reference -> ConstructorId -> r)
-  -> (Reference -> r)
-  -> (Reference -> ConstructorId -> r)
-  -> (Reference -> r)
-  -> Pattern loc
-  -> Set r
+  :: (CanBuiltin r, Ord d)
+  => (r -> d)
+  -> (r -> ConstructorId -> d)
+  -> (r -> d)
+  -> (r -> ConstructorId -> d)
+  -> (r -> d)
+  -> Pattern r loc
+  -> Set d
 generalizedDependencies literalType dataConstructor dataType effectConstructor effectType
   = Set.fromList . foldMap'
     (\case
@@ -157,7 +171,7 @@ generalizedDependencies literalType dataConstructor dataType effectConstructor e
       Char    _ _         -> [literalType Type.charRef]
     )
 
-labeledDependencies :: Pattern loc -> Set LabeledDependency
+labeledDependencies :: Pattern Reference loc -> Set LabeledDependency
 labeledDependencies = generalizedDependencies LD.typeRef
                                               LD.dataConstructor
                                               LD.typeRef

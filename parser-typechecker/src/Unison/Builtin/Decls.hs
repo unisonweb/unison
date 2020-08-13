@@ -26,6 +26,7 @@ import           Unison.Type                    (Type)
 import qualified Unison.Var                     as Var
 import           Unison.Var                     (Var)
 
+type Pattern loc = Pattern.Pattern Reference loc
 
 unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef :: Reference
 (unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef) =
@@ -215,7 +216,7 @@ unTupleType t = case t of
   Type.Ref' UnitRef -> Just []
   _ -> Nothing
 
-unTuplePattern :: Pattern.Pattern loc -> Maybe [Pattern.Pattern loc]
+unTuplePattern :: Pattern loc -> Maybe [Pattern loc]
 unTuplePattern p = case p of
   Pattern.Constructor _ PairRef 0 [fst, snd] -> (fst : ) <$> unTuplePattern snd
   Pattern.Constructor _ UnitRef 0 [] -> Just []
