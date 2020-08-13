@@ -60,7 +60,7 @@ import qualified Unison.Util.Star3             as Star3
 import           Unison.Util.Relation           ( Relation )
 import qualified Unison.Util.Relation          as Relation
 import qualified Unison.DataDeclaration        as DataDeclaration
-import           Unison.DataDeclaration         ( DataDeclaration
+import           Unison.DataDeclaration         (EffectDeclarationR, DataDeclarationR,  DataDeclaration
                                                 , EffectDeclaration
                                                 )
 import qualified Unison.Var                    as Var
@@ -802,18 +802,27 @@ putDataDeclaration :: (MonadPut m, Ord v)
                    => (v -> m ()) -> (a -> m ())
                    -> DataDeclaration v a
                    -> m ()
-putDataDeclaration putV putA decl = do
+putDataDeclaration = putDataDeclarationR putReference                   
+
+putDataDeclarationR :: (MonadPut m, Ord v)
+                    => (r -> m ()) -> (v -> m ()) -> (a -> m ())
+                    -> DataDeclarationR r v a
+                    -> m ()
+putDataDeclarationR putR putV putA decl = do
   putModifier $ DataDeclaration.modifier decl
   putA $ DataDeclaration.annotation decl
   putFoldable putV (DataDeclaration.bound decl)
-  putFoldable (putTuple3' putA putV (putType putV putA)) (DataDeclaration.constructors' decl)
+  putFoldable (putTuple3' putA putV (putTypeR putR putV putA)) (DataDeclaration.constructors' decl)
 
 getDataDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (DataDeclaration v a)
-getDataDeclaration getV getA = DataDeclaration.DataDeclaration <$>
+getDataDeclaration = getDataDeclarationR getReference
+
+getDataDeclarationR :: (MonadGet m, Ord v) => m r -> m v -> m a -> m (DataDeclarationR r v a)
+getDataDeclarationR getR getV getA = DataDeclaration.DataDeclaration <$>
   getModifier <*>
   getA <*>
   getList getV <*>
-  getList (getTuple3 getA getV (getType getV getA))
+  getList (getTuple3 getA getV (getTypeR getR getV getA))
 
 putModifier :: MonadPut m => DataDeclaration.Modifier -> m ()
 putModifier DataDeclaration.Structural   = putWord8 0
@@ -827,12 +836,20 @@ getModifier = getWord8 >>= \case
 
 putEffectDeclaration ::
   (MonadPut m, Ord v) => (v -> m ()) -> (a -> m ()) -> EffectDeclaration v a -> m ()
-putEffectDeclaration putV putA (DataDeclaration.EffectDeclaration d) =
-  putDataDeclaration putV putA d
+putEffectDeclaration = putEffectDeclarationR putReference
+
+putEffectDeclarationR ::
+  (MonadPut m, Ord v) => (r -> m ()) -> (v -> m ()) -> (a -> m ()) -> EffectDeclarationR r v a -> m ()
+putEffectDeclarationR putR putV putA (DataDeclaration.EffectDeclaration d) =
+  putDataDeclarationR putR putV putA d
 
 getEffectDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (EffectDeclaration v a)
 getEffectDeclaration getV getA =
-  DataDeclaration.EffectDeclaration <$> getDataDeclaration getV getA
+  DataDeclaration.EffectDeclaration <$> getDataDeclarationR getReference getV getA
+
+getEffectDeclarationR :: (MonadGet m, Ord v) => m r -> m v -> m a -> m (EffectDeclarationR r v a)
+getEffectDeclarationR getR getV getA =
+  DataDeclaration.EffectDeclaration <$> getDataDeclarationR getR getV getA
 
 putEither :: (MonadPut m) => (a -> m ()) -> (b -> m ()) -> Either a b -> m ()
 putEither putL _ (Left a) = putWord8 0 *> putL a

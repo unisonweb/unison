@@ -18,7 +18,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Prelude.Extras (Eq1(..),Show1(..),Ord1(..))
 import qualified Unison.ABT as ABT
-import           Unison.Hashable (Hashable1)
+import           Unison.Hashable (Hashable, Hashable1)
 import qualified Unison.Hashable as Hashable
 import qualified Unison.Kind as K
 import           Unison.Reference (Reference)
@@ -50,9 +50,9 @@ data F' r a
                  -- variables
   deriving (Foldable,Functor,Generic,Generic1,Eq,Ord,Traversable)
 
-instance Eq1 F where (==#) = (==)
-instance Ord1 F where compare1 = compare
-instance Show1 F where showsPrec1 = showsPrec
+instance Eq r => Eq1 (F' r) where (==#) = (==)
+instance Ord r => Ord1 (F' r) where compare1 = compare
+instance Show r => Show1 (F' r) where showsPrec1 = showsPrec
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
 type Type v a = ABT.Term F v a
@@ -98,7 +98,7 @@ monotype t = Monotype <$> ABT.visit isMono t where
   isMono (Forall' _) = Just Nothing
   isMono _ = Nothing
 
-arity :: Type v a -> Int
+arity :: TypeR r v a -> Int
 arity (ForallNamed' _ body) = arity body
 arity (Arrow' _ o) = 1 + arity o
 arity (Ann' a _) = arity a
@@ -395,12 +395,12 @@ unforall' :: Type v a -> ([v], Type v a)
 unforall' (ForallsNamed' vs t) = (vs, t)
 unforall' t = ([], t)
 
-dependencies :: Ord v => Type v a -> Set Reference
+dependencies :: (Ord r, Ord v) => TypeR r v a -> Set r
 dependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] $> t
         f t = pure t
 
-updateDependencies :: Ord v => Map Reference Reference -> Type v a -> Type v a
+updateDependencies :: (Ord r, Ord v) => Map r r -> TypeR r v a -> TypeR r v a
 updateDependencies typeUpdates = ABT.rebuildUp go
  where
   go (Ref r) = Ref (Map.findWithDefault r r typeUpdates)
@@ -593,7 +593,7 @@ hashComponents
   :: Var v => Map v (Type v a) -> Map v (Reference.Id, Type v a)
 hashComponents = ReferenceUtil.hashComponents $ refId ()
 
-instance Hashable1 F where
+instance Hashable r => Hashable1 (F' r) where
   hash1 hashCycle hash e =
     let
       (tag, hashed) = (Hashable.Tag, Hashable.Hashed)
@@ -615,7 +615,7 @@ instance Hashable1 F where
       Forall a -> [tag 6, hashed (hash a)]
       IntroOuter a -> [tag 7, hashed (hash a)]
 
-instance Show a => Show (F a) where
+instance (Show r, Show a) => Show (F' r a) where
   showsPrec = go where
     go _ (Ref r) = shows r
     go p (Arrow i o) =

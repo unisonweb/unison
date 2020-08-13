@@ -10,7 +10,8 @@ import           Data.Text                      (Text)
 import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType         as CT
 import qualified Unison.DataDeclaration as DD
-import           Unison.DataDeclaration         ( DataDeclaration(..)
+import           Unison.DataDeclaration         ( DataDeclaration
+                                                , DataDeclarationR(..)
                                                 , Modifier(Structural, Unique)
                                                 , hashDecls )
 import qualified Unison.Pattern                 as Pattern
