@@ -325,6 +325,9 @@ data FoldHistoryResult a = Satisfied a | Unsatisfied a deriving (Eq,Ord,Show)
 -- (rather than following one back all the way to its root before working
 -- through others).  Returns Unsatisfied if the condition was never satisfied,
 -- otherwise Satisfied.
+--
+-- NOTE by RÓB: this short-circuits immediately and only looks at the first
+-- entry in the history, since this operation is far too slow to be practical.
 foldHistoryUntil
   :: forall m h e a
    . (Monad m)
@@ -343,12 +346,13 @@ foldHistoryUntil f a c = step a mempty (pure c) where
       tails <- case c of
         One{} -> pure mempty
         Cons{} ->
-          let (h, t) = tail c
-          in  if h `Set.member` seen then pure mempty else Seq.singleton <$> t
+          let (_, t) = tail c
+          in  --if h `Set.member` seen
+            if not (Set.null seen) then pure mempty else Seq.singleton <$> t
         Merge{} ->
           fmap Seq.fromList
             . traverse snd
-            . filter (\(h, _) -> Set.notMember h seen)
+            . filter (\(_, _) -> not (Set.null seen))
             . Map.toList
             $ tails c
       step a (Set.insert (currentHash c) seen) (rest <> tails)

@@ -194,7 +194,7 @@ The namespace `c` now has an edit conflict, since the term `foo` was edited in t
   have been merged into this one. You'll have to tell me what to
   use as the new definition:
   
-    The term foo#44954ulpdf was replaced with foo#8e68dvpr0a and
+    The term #44954ulpdf was replaced with foo#8e68dvpr0a and
     foo#jdqoenu794
 
 ```
@@ -213,7 +213,7 @@ This changes the merged `c.patch` so that only the edit from #44954ulpdf to  #8e
 ```ucm
 .example.resolve.c> view.patch
 
-  Edited Terms: foo#44954ulpdf -> foo#8e68dvpr0a
+  Edited Terms: #44954ulpdf -> foo#8e68dvpr0a
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as

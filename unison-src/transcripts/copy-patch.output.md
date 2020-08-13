@@ -58,7 +58,7 @@ Copy the patch and make sure it's still there.
 
 .> view.patch foo.patch
 
-  Edited Terms: x#jk19sm5bf8 -> x
+  Edited Terms: #jk19sm5bf8 -> x
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -66,7 +66,7 @@ Copy the patch and make sure it's still there.
 
 .> view.patch bar.patch
 
-  Edited Terms: x#jk19sm5bf8 -> x
+  Edited Terms: #jk19sm5bf8 -> x
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
