@@ -106,7 +106,7 @@ defaultColors = \case
   ST.Reference _         -> Nothing
   ST.Referent _          -> Nothing
   ST.HashQualified _     -> Nothing
-  ST.Op                  -> Nothing
+  ST.Op _                -> Nothing
   ST.Constructor         -> Nothing
   ST.Request             -> Nothing
   ST.AbilityBraces       -> Just HiBlack

@@ -410,7 +410,7 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   Pattern.SequenceOp _ l op r ->
     let (pl, lvs) = prettyPattern n c p vs l
         (pr, rvs) = prettyPattern n c (p + 1) lvs r
-        f i s = (paren (p >= i) (pl <> " " <> (fmt S.Op s) <> " " <> pr), rvs)
+        f i s = (paren (p >= i) (pl <> " " <> (fmt (S.Op op) s) <> " " <> pr), rvs)
     in case op of
       Pattern.Cons -> f 9 "+:"
       Pattern.Snoc -> f 9 ":+"
