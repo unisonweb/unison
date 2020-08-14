@@ -1,6 +1,9 @@
 module Unison.Util.SyntaxText where
 
 import Unison.Prelude
+import Unison.Reference (Reference)
+import Unison.Referent (Referent)
+import Unison.HashQualified (HashQualified)
 
 import Unison.Util.AnnotatedText      ( AnnotatedText(..), annotate )
 
@@ -13,7 +16,10 @@ data Element = NumericLiteral
              | BooleanLiteral
              | Blank
              | Var
-             | Reference
+             | Reference Reference
+             | Referent Referent
+             | HashQualified HashQualified
+             | Op
              | Constructor
              | Request
              | AbilityBraces
@@ -46,7 +52,7 @@ data Element = NumericLiteral
              | DocDelimiter
              -- the 'include' in @[include], etc
              | DocKeyword
-             deriving (Eq, Ord, Bounded, Enum, Show, Read)
+             deriving (Eq, Ord, Show)
 
 syntax :: Element -> SyntaxText -> SyntaxText
 syntax = annotate

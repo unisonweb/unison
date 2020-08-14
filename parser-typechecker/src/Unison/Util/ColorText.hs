@@ -103,7 +103,10 @@ defaultColors = \case
   ST.BooleanLiteral      -> Nothing
   ST.Blank               -> Nothing
   ST.Var                 -> Nothing
-  ST.Reference           -> Nothing
+  ST.Reference _         -> Nothing
+  ST.Referent _          -> Nothing
+  ST.HashQualified _     -> Nothing
+  ST.Op                  -> Nothing
   ST.Constructor         -> Nothing
   ST.Request             -> Nothing
   ST.AbilityBraces       -> Just HiBlack

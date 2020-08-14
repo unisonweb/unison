@@ -162,13 +162,13 @@ pretty0
     Var' v -> parenIfInfix name ic $ styleHashQualified'' (fmt S.Var) name
       -- OK since all term vars are user specified, any freshening was just added during typechecking
       where name = elideFQN im $ HQ.unsafeFromVar (Var.reset v)
-    Ref' r -> parenIfInfix name ic $ styleHashQualified'' (fmt S.Reference) name
+    Ref' r -> parenIfInfix name ic $ styleHashQualified'' (fmt $ S.Reference r) name
       where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
     TermLink' r -> parenIfInfix name ic $
-      fmt S.LinkKeyword "termLink " <> styleHashQualified'' (fmt S.Reference) name
+      fmt S.LinkKeyword "termLink " <> styleHashQualified'' (fmt $ S.Referent r) name
       where name = elideFQN im $ PrettyPrintEnv.termName n r
     TypeLink' r -> parenIfInfix name ic $
-      fmt S.LinkKeyword "typeLink " <> styleHashQualified'' (fmt S.Reference) name
+      fmt S.LinkKeyword "typeLink " <> styleHashQualified'' (fmt $ S.Reference r) name
       where name = elideFQN im $ PrettyPrintEnv.typeName n r
     Ann' tm t ->
       paren (p >= 0)
@@ -410,7 +410,7 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   Pattern.SequenceOp _ l op r ->
     let (pl, lvs) = prettyPattern n c p vs l
         (pr, rvs) = prettyPattern n c (p + 1) lvs r
-        f i s = (paren (p >= i) (pl <> " " <> (fmt S.Reference s) <> " " <> pr), rvs)
+        f i s = (paren (p >= i) (pl <> " " <> (fmt S.Op s) <> " " <> pr), rvs)
     in case op of
       Pattern.Cons -> f 9 "+:"
       Pattern.Snoc -> f 9 ":+"
@@ -522,7 +522,7 @@ prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = 
         x : y : _ -> PP.sep
           " "
           [ fmt S.Var $ PP.text (Var.name x)
-          , styleHashQualified'' (fmt S.Reference) $ elideFQN im v
+          , styleHashQualified'' (fmt $ S.HashQualified v) $ elideFQN im v
           , fmt S.Var $ PP.text (Var.name y)
           ]
         _ -> l "error"
@@ -531,7 +531,7 @@ prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = 
     args = PP.spacedMap $ fmt S.Var . PP.text . Var.name
     renderName n =
       let n' = elideFQN im n
-      in  parenIfInfix n' NonInfix $ styleHashQualified'' (fmt S.Reference) n'
+      in  parenIfInfix n' NonInfix $ styleHashQualified'' (fmt $ S.HashQualified n') n'
   symbolic = isSymbolic v
   isBinary = \case
     Ann'              tm _ -> isBinary tm
@@ -562,9 +562,9 @@ prettyDoc n im term = mconcat [ fmt S.DocDelimiter $ l "[: "
   go (DD.DocJoin segs) = foldMap go segs
   go (DD.DocBlob txt) = PP.paragraphyText (escaped txt)
   go (DD.DocLink (DD.LinkTerm (TermLink' r))) =
-    (fmt S.DocDelimiter $ l "@") <> (fmt S.Reference $ fmtTerm r)
+    (fmt S.DocDelimiter $ l "@") <> ((fmt $ S.Referent r) $ fmtTerm r)
   go (DD.DocLink (DD.LinkType (TypeLink' r))) =
-    (fmt S.DocDelimiter $ l "@") <> (fmt S.Reference $ fmtType r)
+    (fmt S.DocDelimiter $ l "@") <> ((fmt $ S.Reference r) $ fmtType r)
   go (DD.DocSource (DD.LinkTerm (TermLink' r))) =
     atKeyword "source" <> fmtTerm r
   go (DD.DocSource (DD.LinkType (TypeLink' r))) =
@@ -575,7 +575,7 @@ prettyDoc n im term = mconcat [ fmt S.DocDelimiter $ l "[: "
     atKeyword "evaluate" <> fmtTerm r
   go (Ref' r) = atKeyword "include" <> fmtTerm (Referent.Ref r)
   go _ = l $ "(invalid doc literal: " ++ show term ++ ")"
-  fmtName s = styleHashQualified'' (fmt S.Reference) $ elideFQN im s
+  fmtName s = styleHashQualified'' (fmt $ S.HashQualified s) $ elideFQN im s
   fmtTerm r = fmtName $ PrettyPrintEnv.termName n r
   fmtType r = fmtName $ PrettyPrintEnv.typeName n r
   atKeyword w =
