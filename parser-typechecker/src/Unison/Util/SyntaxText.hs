@@ -19,7 +19,6 @@ data Element = NumericLiteral
              | Var
              | Reference Reference
              | Referent Referent
-             | HashQualified HashQualified
              | Op SeqOp
              | Constructor
              | Request
@@ -33,14 +32,14 @@ data Element = NumericLiteral
              -- type|ability
              | DataTypeKeyword
              | DataTypeParams
-             | DataType
+             | Unit
              -- unique
              | DataTypeModifier
              -- `use Foo bar` is keyword, prefix, suffix
              | UseKeyword
              | UsePrefix
              | UseSuffix
-             | HashQualifier
+             | HashQualifier HashQualified
              | DelayForceChar
              -- ? , ` [ ] @ |
              -- Currently not all commas in the pretty-print output are marked up as DelimiterChar - we miss

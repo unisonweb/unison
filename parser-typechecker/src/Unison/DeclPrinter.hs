@@ -155,14 +155,14 @@ prettyDataHeader name dd =
   P.sepNonEmpty " " [
     prettyModifier (DD.modifier dd),
     fmt S.DataTypeKeyword "type",
-    styleHashQualified'' (fmt S.DataType) name,
+    styleHashQualified'' (fmt $ S.HashQualifier name) name,
     P.sep " " (fmt S.DataTypeParams . P.text . Var.name <$> DD.bound dd) ]
 
 prettyEffectHeader :: Var v => HashQualified -> DD.EffectDeclaration' v a -> Pretty SyntaxText
 prettyEffectHeader name ed = P.sepNonEmpty " " [
   prettyModifier (DD.modifier (DD.toDataDecl ed)),
   fmt S.DataTypeKeyword "ability",
-  styleHashQualified'' (fmt S.DataType) name,
+  styleHashQualified'' (fmt $ S.HashQualifier name) name,
   P.sep " " (fmt S.DataTypeParams . P.text . Var.name <$> DD.bound (DD.toDataDecl ed)) ]
 
 prettyDeclHeader
@@ -179,8 +179,8 @@ prettyDeclOrBuiltinHeader
   -> DD.DeclOrBuiltin v a
   -> Pretty SyntaxText
 prettyDeclOrBuiltinHeader name (DD.Builtin ctype) = case ctype of
-  CT.Data -> fmt S.DataTypeKeyword "builtin type " <> styleHashQualified'' (fmt S.DataType) name
-  CT.Effect -> fmt S.DataTypeKeyword "builtin ability " <> styleHashQualified'' (fmt S.DataType) name
+  CT.Data -> fmt S.DataTypeKeyword "builtin type " <> styleHashQualified'' (fmt $ S.HashQualifier name) name
+  CT.Effect -> fmt S.DataTypeKeyword "builtin ability " <> styleHashQualified'' (fmt $ S.HashQualifier name) name
 prettyDeclOrBuiltinHeader name (DD.Decl e) = prettyDeclHeader name e
 
 fmt :: S.Element -> Pretty S.SyntaxText -> Pretty S.SyntaxText
