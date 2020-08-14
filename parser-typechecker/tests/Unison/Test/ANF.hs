@@ -68,7 +68,7 @@ denormalize (TLit l) = case l of
   C c -> Term.char () c
   LM r -> Term.termLink () r
   LY r -> Term.typeLink () r
-denormalize (THnd _  _ _ _)
+denormalize (THnd _ _ _)
   = error "denormalize handler"
   -- = Term.match () (denormalize b) $ denormalizeHandler h
 denormalize (TShift _ _ _)
@@ -130,7 +130,7 @@ denormalizeMatch b
   = (dcase (ipat r) <$> mapToList m) ++ dfcase df
   | MatchData r m df <- b
   = (dcase (dpat r) . fmap snd <$> mapToList m) ++ dfcase df
-  | MatchRequest hs <- b = denormalizeHandler hs
+  | MatchRequest hs df <- b = denormalizeHandler hs df
   | MatchSum _ <- b = error "MatchSum not a compilation target"
   where
   dfcase (Just d)
@@ -152,10 +152,17 @@ denormalizeBranch tm = (0, denormalize tm)
 denormalizeHandler
   :: Var v
   => EnumMap RTag (EnumMap CTag ([Mem], ANormal v))
+  -> ANormal v
   -> [Term.MatchCase () (Term.Term0 v)]
-denormalizeHandler cs = dcs
+denormalizeHandler cs df = dcs
   where
-  dcs = foldMapWithKey rf cs
+  dcs = foldMapWithKey rf cs <> dfc
+  dfc = [ Term.MatchCase
+            (EffectPureP () (VarP ()))
+            Nothing
+            db
+        ]
+   where (_, db) = denormalizeBranch df
   rf r rcs = foldMapWithKey (cf $ backReference r) rcs
   cf r t b = [ Term.MatchCase
                  (EffectBindP () r (fromEnum t)
