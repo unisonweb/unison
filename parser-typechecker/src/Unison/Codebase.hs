@@ -39,8 +39,8 @@ import Unison.Type (Type)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.ShortHash (ShortHash)
 
-type DataDeclaration v a = DD.DataDeclaration' v a
-type EffectDeclaration v a = DD.EffectDeclaration' v a
+type DataDeclaration v a = DD.DataDeclaration v a
+type EffectDeclaration v a = DD.EffectDeclaration v a
 
 -- | this FileCodebase detail lives here, because the interface depends on it 🙃
 type CodebasePath = FilePath  
@@ -199,8 +199,8 @@ makeSelfContained' code uf = do
          . forM (toList deps)
          $ \rid -> fmap (rid, ) <$> CL.getTypeDeclaration code rid
   -- partition the decls into effects and data
-  let es1 :: [(Reference.Id, DD.EffectDeclaration' v a)]
-      ds1 :: [(Reference.Id, DD.DataDeclaration' v a)]
+  let es1 :: [(Reference.Id, DD.EffectDeclaration v a)]
+      ds1 :: [(Reference.Id, DD.DataDeclaration v a)]
       (es1, ds1) = partitionEithers [ bimap (r,) (r,) d | (r, d) <- decls ]
   -- load all terms from deps list
   bs1 <- fmap catMaybes

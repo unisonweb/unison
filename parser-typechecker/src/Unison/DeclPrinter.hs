@@ -6,8 +6,8 @@ import Unison.Prelude
 
 import           Data.List                      ( isPrefixOf )
 import qualified Data.Map                      as Map
-import           Unison.DataDeclaration         ( DataDeclaration'
-                                                , EffectDeclaration'
+import           Unison.DataDeclaration         ( DataDeclaration
+                                                , EffectDeclaration
                                                 , toDataDecl
                                                 )
 import qualified Unison.DataDeclaration        as DD
@@ -46,7 +46,7 @@ prettyEffectDecl
   => PrettyPrintEnv
   -> Reference
   -> HashQualified
-  -> EffectDeclaration' v a
+  -> EffectDeclaration v a
   -> Pretty SyntaxText
 prettyEffectDecl ppe r name = prettyGADT ppe r name . toDataDecl
 
@@ -55,7 +55,7 @@ prettyGADT
   => PrettyPrintEnv
   -> Reference
   -> HashQualified
-  -> DataDeclaration' v a
+  -> DataDeclaration v a
   -> Pretty SyntaxText
 prettyGADT env r name dd = P.hang header . P.lines $ constructor <$> zip
   [0 ..]
@@ -79,7 +79,7 @@ prettyDataDecl
   => PrettyPrintEnv
   -> Reference
   -> HashQualified
-  -> DataDeclaration' v a
+  -> DataDeclaration v a
   -> Pretty SyntaxText
 prettyDataDecl env r name dd =
   (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | ")) $ constructor <$> zip
@@ -119,7 +119,7 @@ fieldNames
   => PrettyPrintEnv
   -> Reference
   -> HashQualified
-  -> DataDeclaration' v a
+  -> DataDeclaration v a
   -> Maybe [HashQualified]
 fieldNames env r name dd = case DD.constructors dd of
   [(_, typ)] -> let
@@ -150,7 +150,7 @@ prettyModifier DD.Structural = mempty
 prettyModifier (DD.Unique _uid) =
   fmt S.DataTypeModifier "unique" -- <> ("[" <> P.text uid <> "] ")
 
-prettyDataHeader :: Var v => HashQualified -> DD.DataDeclaration' v a -> Pretty SyntaxText
+prettyDataHeader :: Var v => HashQualified -> DD.DataDeclaration v a -> Pretty SyntaxText
 prettyDataHeader name dd =
   P.sepNonEmpty " " [
     prettyModifier (DD.modifier dd),
@@ -158,7 +158,7 @@ prettyDataHeader name dd =
     styleHashQualified'' (fmt S.DataType) name,
     P.sep " " (fmt S.DataTypeParams . P.text . Var.name <$> DD.bound dd) ]
 
-prettyEffectHeader :: Var v => HashQualified -> DD.EffectDeclaration' v a -> Pretty SyntaxText
+prettyEffectHeader :: Var v => HashQualified -> DD.EffectDeclaration v a -> Pretty SyntaxText
 prettyEffectHeader name ed = P.sepNonEmpty " " [
   prettyModifier (DD.modifier (DD.toDataDecl ed)),
   fmt S.DataTypeKeyword "ability",
@@ -168,7 +168,7 @@ prettyEffectHeader name ed = P.sepNonEmpty " " [
 prettyDeclHeader
   :: Var v
   => HashQualified
-  -> Either (DD.EffectDeclaration' v a) (DD.DataDeclaration' v a)
+  -> Either (DD.EffectDeclaration v a) (DD.DataDeclaration v a)
   -> Pretty SyntaxText
 prettyDeclHeader name (Left e) = prettyEffectHeader name e
 prettyDeclHeader name (Right d) = prettyDataHeader name d

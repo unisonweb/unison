@@ -7,7 +7,7 @@ import           Data.Map                ( Map, (!) )
 import           EasyTest
 import           Text.RawString.QQ
 import qualified Unison.DataDeclaration as DD
-import           Unison.DataDeclaration  ( DataDeclaration'(..), Decl, hashDecls )
+import           Unison.DataDeclaration  ( DataDeclaration(..), Decl, hashDecls )
 import qualified Unison.Hash            as Hash
 import           Unison.Parser           ( Ann )
 import           Unison.Parsers          ( unsafeParseFile )

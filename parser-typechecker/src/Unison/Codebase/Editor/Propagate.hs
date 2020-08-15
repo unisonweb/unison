@@ -84,7 +84,7 @@ propagateAndApply patch branch = do
 generateConstructorMapping
   :: Eq v
   => Map v (Reference, Decl v _)
-  -> Map v (Reference, Decl.DataDeclaration' v _)
+  -> Map v (Reference, Decl.DataDeclaration v _)
   -> Map
        (Reference, Int, ConstructorType)
        (Reference, Int, ConstructorType)
@@ -215,7 +215,7 @@ propagate patch b = case validatePatch patch of
           let
             -- Relation: (nameOfType, oldRef, newRef, newType)
             joinedStuff
-              :: [(v, (Reference, Reference, Decl.DataDeclaration' v _))]
+              :: [(v, (Reference, Reference, Decl.DataDeclaration v _))]
             joinedStuff =
               Map.toList (Map.intersectionWith f declMap hashedComponents')
             f (oldRef, _) (newRef, newType) = (oldRef, newRef, newType)

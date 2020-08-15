@@ -62,8 +62,8 @@ import qualified Unison.Util.Star3             as Star3
 import           Unison.Util.Relation           ( Relation )
 import qualified Unison.Util.Relation          as Relation
 import qualified Unison.DataDeclaration        as DataDeclaration
-import           Unison.DataDeclaration         ( DataDeclaration'
-                                                , EffectDeclaration'
+import           Unison.DataDeclaration         ( DataDeclaration
+                                                , EffectDeclaration
                                                 )
 import qualified Unison.Var                    as Var
 import qualified Unison.ConstructorType        as CT
@@ -754,7 +754,7 @@ getBranchDependencies = do
 
 putDataDeclaration :: (MonadPut m, Ord v)
                    => (v -> m ()) -> (a -> m ())
-                   -> DataDeclaration' v a
+                   -> DataDeclaration v a
                    -> m ()
 putDataDeclaration putV putA decl = do
   putModifier $ DataDeclaration.modifier decl
@@ -762,7 +762,7 @@ putDataDeclaration putV putA decl = do
   putFoldable putV (DataDeclaration.bound decl)
   putFoldable (putTuple3' putA putV (putType putV putA)) (DataDeclaration.constructors' decl)
 
-getDataDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (DataDeclaration' v a)
+getDataDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (DataDeclaration v a)
 getDataDeclaration getV getA = DataDeclaration.DataDeclaration <$>
   getModifier <*>
   getA <*>
@@ -780,11 +780,11 @@ getModifier = getWord8 >>= \case
   tag -> unknownTag "DataDeclaration.Modifier" tag
 
 putEffectDeclaration ::
-  (MonadPut m, Ord v) => (v -> m ()) -> (a -> m ()) -> EffectDeclaration' v a -> m ()
+  (MonadPut m, Ord v) => (v -> m ()) -> (a -> m ()) -> EffectDeclaration v a -> m ()
 putEffectDeclaration putV putA (DataDeclaration.EffectDeclaration d) =
   putDataDeclaration putV putA d
 
-getEffectDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (EffectDeclaration' v a)
+getEffectDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (EffectDeclaration v a)
 getEffectDeclaration getV getA =
   DataDeclaration.EffectDeclaration <$> getDataDeclaration getV getA
 
