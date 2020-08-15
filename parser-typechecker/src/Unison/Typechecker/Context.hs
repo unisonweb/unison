@@ -53,10 +53,8 @@ import           Data.List
 import           Data.List.NonEmpty             ( NonEmpty )
 import qualified Data.Map                      as Map
 import qualified Data.Sequence                 as Seq
-import           Data.Sequence.NonEmpty         ( NonEmptySeq
-                                                , appendSeq
-                                                , nonEmptySeqToSeq
-                                                )
+import           Data.Sequence.NonEmpty         ( NESeq )
+import qualified Data.Sequence.NonEmpty        as NESeq
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Unison.ABT                    as ABT
@@ -119,7 +117,7 @@ type DataDeclarations v loc = Map Reference (DataDeclaration' v loc)
 type EffectDeclarations v loc = Map Reference (EffectDeclaration' v loc)
 
 data Result v loc a = Success (Seq (InfoNote v loc)) a
-                    | TypeError (NonEmptySeq (ErrorNote v loc)) (Seq (InfoNote v loc))
+                    | TypeError (NESeq (ErrorNote v loc)) (Seq (InfoNote v loc))
                     | CompilerBug (CompilerBug v loc)
                                   (Seq (ErrorNote v loc)) -- type errors before hitting the bug
                                   (Seq (InfoNote v loc))  -- info notes before hitting the bug
@@ -129,7 +127,7 @@ instance Applicative (Result v loc) where
   pure = Success mempty
   CompilerBug bug es is <*> _                       = CompilerBug bug es is
   r                     <*> CompilerBug bug es' is' = CompilerBug bug (typeErrors r <> es') (infoNotes r <> is')
-  TypeError es is       <*> r'                      = TypeError (appendSeq es (typeErrors r')) (is <> infoNotes r')
+  TypeError es is       <*> r'                      = TypeError (es NESeq.|>< (typeErrors r')) (is <> infoNotes r')
   Success is _          <*> TypeError es' is'       = TypeError es' (is <> is')
   Success is f          <*> Success is' a           = Success (is <> is') (f a)
 
@@ -149,7 +147,7 @@ compilerBug bug = CompilerBug bug mempty mempty
 
 typeErrors :: Result v loc a -> Seq (ErrorNote v loc)
 typeErrors = \case
-  TypeError es _     -> nonEmptySeqToSeq es
+  TypeError es _     -> NESeq.toSeq es
   CompilerBug _ es _ -> es
   Success _ _        -> mempty
 
