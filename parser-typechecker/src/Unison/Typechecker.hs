@@ -16,7 +16,7 @@ import           Control.Monad.State        (State, StateT, execState, get,
                                              modify)
 import           Control.Monad.Writer
 import qualified Data.Map                   as Map
-import           Data.Sequence.NonEmpty     (nonEmptySeqToSeq)
+import qualified Data.Sequence.NonEmpty     as NESeq (toSeq)
 import qualified Data.Text                  as Text
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as B
@@ -51,7 +51,7 @@ instance Monoid (Notes v loc) where
 convertResult :: Context.Result v loc a -> Result (Notes v loc) a
 convertResult = \case
   Context.Success is a          -> Result (Notes mempty mempty is) (Just a)
-  Context.TypeError es is       -> Result (Notes mempty (nonEmptySeqToSeq es) is) Nothing
+  Context.TypeError es is       -> Result (Notes mempty (NESeq.toSeq es) is) Nothing
   Context.CompilerBug bug es is -> Result (Notes [bug] es is) Nothing
 
 data NamedReference v loc =
