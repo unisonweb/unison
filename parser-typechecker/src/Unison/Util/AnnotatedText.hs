@@ -86,6 +86,7 @@ annotate' a (AnnotatedText at) =
 deannotate :: AnnotatedText a -> AnnotatedText b
 deannotate = annotate' Nothing
 
+-- Replace the annotation (whether existing or no) with the given annotation
 annotate :: a -> AnnotatedText a -> AnnotatedText a
 annotate a (AnnotatedText at) =
   AnnotatedText $ (\(s,_) -> (s,Just a)) <$> at

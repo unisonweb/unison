@@ -1,6 +1,10 @@
 module Unison.Util.SyntaxText where
 
 import Unison.Prelude
+import Unison.Reference (Reference)
+import Unison.Referent (Referent)
+import Unison.HashQualified (HashQualified)
+import Unison.Pattern (SeqOp)
 
 import Unison.Util.AnnotatedText      ( AnnotatedText(..), annotate )
 
@@ -13,7 +17,9 @@ data Element = NumericLiteral
              | BooleanLiteral
              | Blank
              | Var
-             | Reference
+             | Reference Reference
+             | Referent Referent
+             | Op SeqOp
              | Constructor
              | Request
              | AbilityBraces
@@ -26,14 +32,14 @@ data Element = NumericLiteral
              -- type|ability
              | DataTypeKeyword
              | DataTypeParams
-             | DataType
+             | Unit
              -- unique
              | DataTypeModifier
              -- `use Foo bar` is keyword, prefix, suffix
              | UseKeyword
              | UsePrefix
              | UseSuffix
-             | HashQualifier
+             | HashQualifier HashQualified
              | DelayForceChar
              -- ? , ` [ ] @ |
              -- Currently not all commas in the pretty-print output are marked up as DelimiterChar - we miss
@@ -46,7 +52,7 @@ data Element = NumericLiteral
              | DocDelimiter
              -- the 'include' in @[include], etc
              | DocKeyword
-             deriving (Eq, Ord, Bounded, Enum, Show, Read)
+             deriving (Eq, Ord, Show)
 
 syntax :: Element -> SyntaxText -> SyntaxText
 syntax = annotate
