@@ -611,6 +611,15 @@ letRec' isTop bindings body =
     [ ((ABT.annotation b, v), b) | (v,b) <- bindings ]
     body
 
+consLetRec
+  :: Ord v
+  => a
+  -> v
+  -> Term' vt v a
+  -> Term' vt v a
+  -> Term' vt v a
+consLetRec = undefined
+
 letRec
   :: Ord v
   => Bool

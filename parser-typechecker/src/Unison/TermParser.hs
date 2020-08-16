@@ -687,6 +687,29 @@ verifyRelativeName' name = do
   when (Text.isPrefixOf "." txt && txt /= ".") $
     failCommitted (DisallowedAbsoluteName name)
 
+-- example:
+--   (x, y)   = foo
+--   hd +: tl | hd < 10 = [1,2,3]
+--   stuff
+--
+-- desugars to:
+--
+--   match foo with
+--     (x,y) -> match [1,2,3] with
+--       hd +: tl | hd < 10 -> stuff
+--
+destructuringBind :: forall v. Var v => P v (Ann, Term v Ann -> Term v Ann)
+destructuringBind = do
+  (p, boundVars) <- parsePattern
+  let boundVars' = snd <$> boundVars
+  guard <- optional $ reserved "|" *> infixAppOrBooleanOp
+  scrute <- block "=" -- Dwight K. Scrute ("The People's Scrutinee")
+  let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
+      thecase t = Term.MatchCase p (fmap (absChain boundVars') guard) $ absChain boundVars' t
+  pure $ (ann p, \t ->
+    let a = ann p <> ann t
+    in Term.match a scrute [thecase t])
+
 binding :: forall v. Var v => P v ((Ann, v), Term v Ann)
 binding = label "binding" $ do
   typ <- optional typedecl
@@ -768,6 +791,7 @@ importp = do
 
 data BlockElement v
   = Binding ((Ann, v), Term v Ann)
+  | DestructuringBind (Ann, Term v Ann -> Term v Ann)
   | Action (Term v Ann)
   | Namespace String [BlockElement v]
 
@@ -843,7 +867,7 @@ block' isTop s openBlock closeBlock = do
     substImports names imports <$> go open statements
   where
     statement = namespaceBlock <|>
-      asum [ Binding <$> binding, Action <$> blockTerm ]
+      asum [ Binding <$> binding, DestructuringBind <$> destructuringBind, Action <$> blockTerm ]
     go :: L.Token () -> [BlockElement v] -> P v (Term v Ann)
     go open bs
       = let
@@ -852,26 +876,25 @@ block' isTop s openBlock closeBlock = do
           finish tm = case Components.minimize' tm of
             Left dups -> customFailure $ DuplicateTermNames (toList dups)
             Right tm -> pure tm
-        in
-          case reverse bs of
-            Namespace _v _ : _ -> finish $ Term.letRec
-              isTop
-              (startAnnotation <> endAnnotation)
-              (toBindings bs)
-              (Term.var endAnnotation
-                        (positionalVar endAnnotation Var.missingResult)
-              )
-            Binding ((a, _v), _) : _ -> finish $ Term.letRec
-              isTop
-              (startAnnotation <> endAnnotation)
-              (toBindings bs)
-              (Term.var a (positionalVar endAnnotation Var.missingResult))
-            Action e : bs -> finish $ Term.letRec
-              isTop
-              (startAnnotation <> ann e)
-              (toBindings $ reverse bs)
-              e
+          toTm bs = do
+            body <- body bs
+            finish $ foldr step body (init bs)
+            where
+            step elem body = case elem of
+              Namespace _ _ -> undefined
+              Binding ((_,v), tm) -> Term.consLetRec v tm body
+              Action tm -> Term.consLetRec (positionalVar (ann tm) (Var.named "_")) tm body
+              DestructuringBind (_, f) -> f body
+          body bs = case reverse bs of
+            Namespace _v _ : _ -> pure $
+              Term.var endAnnotation (positionalVar endAnnotation Var.missingResult)
+            Binding ((a, _v), _) : _ -> pure $
+              Term.var a (positionalVar endAnnotation Var.missingResult)
+            Action e : _ -> pure e
+            DestructuringBind (a, _) : _ -> pure $
+              Term.var a (positionalVar endAnnotation Var.missingResult)
             [] -> customFailure $ EmptyBlock (const s <$> open)
+        in toTm bs
 
 number :: Var v => TermP v
 number = number' (tok Term.int) (tok Term.nat) (tok Term.float)
