@@ -604,16 +604,30 @@ getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
 getMap getA getB = Map.fromList <$> getList (getPair getA getB)
 
 putTermEdit :: MonadPut m => TermEdit Reference -> m ()
-putTermEdit (TermEdit.Replace r typing) =
-  putWord8 1 *> putReference r *> case typing of
+putTermEdit = putTermEditR putReference
+
+getTermEdit :: MonadGet m => m (TermEdit Reference)
+getTermEdit = getTermEditR getReference
+
+putTypeEdit :: MonadPut m => TypeEdit Reference -> m ()
+putTypeEdit = putTypeEditR putReference
+
+getTypeEdit :: MonadGet m => m (TypeEdit Reference)
+getTypeEdit = getTypeEditR getReference
+
+putTermEditR :: MonadPut m => (r -> m ()) -> TermEdit r -> m ()
+putTermEditR putR = \case
+  TermEdit.Replace r typing -> putWord8 1 *> putR r *> putTyping typing
+  TermEdit.Deprecate -> putWord8 2
+  where
+  putTyping = \case
     TermEdit.Same -> putWord8 1
     TermEdit.Subtype -> putWord8 2
     TermEdit.Different -> putWord8 3
-putTermEdit TermEdit.Deprecate = putWord8 2
 
-getTermEdit :: MonadGet m => m (TermEdit Reference )
-getTermEdit = getWord8 >>= \case
-  1 -> TermEdit.Replace <$> getReference <*> (getWord8 >>= \case
+getTermEditR :: MonadGet m => m r -> m (TermEdit r)
+getTermEditR getR = getWord8 >>= \case
+  1 -> TermEdit.Replace <$> getR <*> (getWord8 >>= \case
     1 -> pure TermEdit.Same
     2 -> pure TermEdit.Subtype
     3 -> pure TermEdit.Different
@@ -622,13 +636,14 @@ getTermEdit = getWord8 >>= \case
   2 -> pure TermEdit.Deprecate
   t -> unknownTag "TermEdit" t
 
-putTypeEdit :: MonadPut m => TypeEdit Reference -> m ()
-putTypeEdit (TypeEdit.Replace r) = putWord8 1 *> putReference r
-putTypeEdit TypeEdit.Deprecate = putWord8 2
+putTypeEditR :: MonadPut m => (r -> m ()) -> TypeEdit r -> m ()
+putTypeEditR putR = \case
+  TypeEdit.Replace r -> putWord8 1 *> putR r
+  TypeEdit.Deprecate -> putWord8 2
 
-getTypeEdit :: MonadGet m => m (TypeEdit Reference)
-getTypeEdit = getWord8 >>= \case
-  1 -> TypeEdit.Replace <$> getReference
+getTypeEditR :: MonadGet m => m r -> m (TypeEdit r)
+getTypeEditR getR = getWord8 >>= \case
+  1 -> TypeEdit.Replace <$> getR
   2 -> pure TypeEdit.Deprecate
   t -> unknownTag "TypeEdit" t
 
@@ -802,6 +817,8 @@ getEither getL getR = getWord8 >>= \case
 formatSymbol :: S.Format Symbol
 formatSymbol = S.Format getSymbol putSymbol
 
+-- Arya: I didn't bother to generalize these over Reference because I don't want 
+-- to be using putRelation, going forward.
 putEdits :: MonadPut m => Patch Reference -> m ()
 putEdits edits =
   putRelation putReference putTermEdit (Patch._termEdits edits) >>
