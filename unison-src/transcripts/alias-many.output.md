@@ -18,174 +18,251 @@ Let's try it!
 
 .builtin> find
 
-  1.   builtin type Boolean
-  2.   Boolean.not : Boolean -> Boolean
-  3.   builtin type Bytes
-  4.   Bytes.++ : Bytes -> Bytes -> Bytes
-  5.   Bytes.at : Nat -> Bytes -> Optional Nat
-  6.   Bytes.drop : Nat -> Bytes -> Bytes
-  7.   Bytes.empty : Bytes
-  8.   Bytes.flatten : Bytes -> Bytes
-  9.   Bytes.fromList : [Nat] -> Bytes
-  10.  Bytes.size : Bytes -> Nat
-  11.  Bytes.take : Nat -> Bytes -> Bytes
-  12.  Bytes.toList : Bytes -> [Nat]
-  13.  builtin type Char
-  14.  Char.fromNat : Nat -> Char
-  15.  Char.toNat : Char -> Nat
-  16.  Debug.watch : Text -> a -> a
-  17.  unique type Doc
-  18.  Doc.Blob : Text -> Doc
-  19.  Doc.Evaluate : Term -> Doc
-  20.  Doc.Join : [Doc] -> Doc
-  21.  Doc.Link : Link -> Doc
-  22.  Doc.Signature : Term -> Doc
-  23.  Doc.Source : Link -> Doc
-  24.  builtin type Float
-  25.  Float.* : Float -> Float -> Float
-  26.  Float.+ : Float -> Float -> Float
-  27.  Float.- : Float -> Float -> Float
-  28.  Float./ : Float -> Float -> Float
-  29.  Float.abs : Float -> Float
-  30.  Float.acos : Float -> Float
-  31.  Float.acosh : Float -> Float
-  32.  Float.asin : Float -> Float
-  33.  Float.asinh : Float -> Float
-  34.  Float.atan : Float -> Float
-  35.  Float.atan2 : Float -> Float -> Float
-  36.  Float.atanh : Float -> Float
-  37.  Float.ceiling : Float -> Int
-  38.  Float.cos : Float -> Float
-  39.  Float.cosh : Float -> Float
-  40.  Float.eq : Float -> Float -> Boolean
-  41.  Float.exp : Float -> Float
-  42.  Float.floor : Float -> Int
-  43.  Float.fromText : Text -> Optional Float
-  44.  Float.gt : Float -> Float -> Boolean
-  45.  Float.gteq : Float -> Float -> Boolean
-  46.  Float.log : Float -> Float
-  47.  Float.logBase : Float -> Float -> Float
-  48.  Float.lt : Float -> Float -> Boolean
-  49.  Float.lteq : Float -> Float -> Boolean
-  50.  Float.max : Float -> Float -> Float
-  51.  Float.min : Float -> Float -> Float
-  52.  Float.pow : Float -> Float -> Float
-  53.  Float.round : Float -> Int
-  54.  Float.sin : Float -> Float
-  55.  Float.sinh : Float -> Float
-  56.  Float.sqrt : Float -> Float
-  57.  Float.tan : Float -> Float
-  58.  Float.tanh : Float -> Float
-  59.  Float.toText : Float -> Text
-  60.  Float.truncate : Float -> Int
-  61.  builtin type Int
-  62.  Int.* : Int -> Int -> Int
-  63.  Int.+ : Int -> Int -> Int
-  64.  Int.- : Int -> Int -> Int
-  65.  Int./ : Int -> Int -> Int
-  66.  Int.and : Int -> Int -> Int
-  67.  Int.complement : Int -> Int
-  68.  Int.eq : Int -> Int -> Boolean
-  69.  Int.fromText : Text -> Optional Int
-  70.  Int.gt : Int -> Int -> Boolean
-  71.  Int.gteq : Int -> Int -> Boolean
-  72.  Int.increment : Int -> Int
-  73.  Int.isEven : Int -> Boolean
-  74.  Int.isOdd : Int -> Boolean
-  75.  Int.leadingZeros : Int -> Nat
-  76.  Int.lt : Int -> Int -> Boolean
-  77.  Int.lteq : Int -> Int -> Boolean
-  78.  Int.mod : Int -> Int -> Int
-  79.  Int.negate : Int -> Int
-  80.  Int.or : Int -> Int -> Int
-  81.  Int.pow : Int -> Nat -> Int
-  82.  Int.shiftLeft : Int -> Nat -> Int
-  83.  Int.shiftRight : Int -> Nat -> Int
-  84.  Int.signum : Int -> Int
-  85.  Int.toFloat : Int -> Float
-  86.  Int.toText : Int -> Text
-  87.  Int.trailingZeros : Int -> Nat
-  88.  Int.truncate0 : Int -> Nat
-  89.  Int.xor : Int -> Int -> Int
-  90.  unique type Link
-  91.  builtin type Link.Term
-  92.  Link.Term : Term -> Link
-  93.  builtin type Link.Type
-  94.  Link.Type : Type -> Link
-  95.  builtin type List
-  96.  List.++ : [a] -> [a] -> [a]
-  97.  List.+: : a -> [a] -> [a]
-  98.  List.:+ : [a] -> a -> [a]
-  99.  List.at : Nat -> [a] -> Optional a
-  100. List.cons : a -> [a] -> [a]
-  101. List.drop : Nat -> [a] -> [a]
-  102. List.empty : [a]
-  103. List.size : [a] -> Nat
-  104. List.snoc : [a] -> a -> [a]
-  105. List.take : Nat -> [a] -> [a]
-  106. builtin type Nat
-  107. Nat.* : Nat -> Nat -> Nat
-  108. Nat.+ : Nat -> Nat -> Nat
-  109. Nat./ : Nat -> Nat -> Nat
-  110. Nat.and : Nat -> Nat -> Nat
-  111. Nat.complement : Nat -> Nat
-  112. Nat.drop : Nat -> Nat -> Nat
-  113. Nat.eq : Nat -> Nat -> Boolean
-  114. Nat.fromText : Text -> Optional Nat
-  115. Nat.gt : Nat -> Nat -> Boolean
-  116. Nat.gteq : Nat -> Nat -> Boolean
-  117. Nat.increment : Nat -> Nat
-  118. Nat.isEven : Nat -> Boolean
-  119. Nat.isOdd : Nat -> Boolean
-  120. Nat.leadingZeros : Nat -> Nat
-  121. Nat.lt : Nat -> Nat -> Boolean
-  122. Nat.lteq : Nat -> Nat -> Boolean
-  123. Nat.mod : Nat -> Nat -> Nat
-  124. Nat.or : Nat -> Nat -> Nat
-  125. Nat.pow : Nat -> Nat -> Nat
-  126. Nat.shiftLeft : Nat -> Nat -> Nat
-  127. Nat.shiftRight : Nat -> Nat -> Nat
-  128. Nat.sub : Nat -> Nat -> Int
-  129. Nat.toFloat : Nat -> Float
-  130. Nat.toInt : Nat -> Int
-  131. Nat.toText : Nat -> Text
-  132. Nat.trailingZeros : Nat -> Nat
-  133. Nat.xor : Nat -> Nat -> Nat
-  134. type Optional a
-  135. Optional.None : Optional a
-  136. Optional.Some : a -> Optional a
-  137. builtin type Request
-  138. unique type Test.Result
-  139. Test.Result.Fail : Text -> Result
-  140. Test.Result.Ok : Text -> Result
-  141. builtin type Text
-  142. Text.!= : Text -> Text -> Boolean
-  143. Text.++ : Text -> Text -> Text
-  144. Text.drop : Nat -> Text -> Text
-  145. Text.empty : Text
-  146. Text.eq : Text -> Text -> Boolean
-  147. Text.fromCharList : [Char] -> Text
-  148. Text.gt : Text -> Text -> Boolean
-  149. Text.gteq : Text -> Text -> Boolean
-  150. Text.lt : Text -> Text -> Boolean
-  151. Text.lteq : Text -> Text -> Boolean
-  152. Text.size : Text -> Nat
-  153. Text.take : Nat -> Text -> Text
-  154. Text.toCharList : Text -> [Char]
-  155. Text.uncons : Text -> Optional (Char, Text)
-  156. Text.unsnoc : Text -> Optional (Text, Char)
-  157. type Tuple a b
-  158. Tuple.Cons : a -> b -> Tuple a b
-  159. type Unit
-  160. Unit.Unit : ()
-  161. Universal.< : a -> a -> Boolean
-  162. Universal.<= : a -> a -> Boolean
-  163. Universal.== : a -> a -> Boolean
-  164. Universal.> : a -> a -> Boolean
-  165. Universal.>= : a -> a -> Boolean
-  166. Universal.compare : a -> a -> Int
-  167. bug : a -> b
-  168. todo : a -> b
+  1.   AlreadyExists : IOError
+  2.   builtin type Boolean
+  3.   Boolean.not : Boolean -> Boolean
+  4.   type BufferMode
+  5.   BufferMode.BlockBuffering : BufferMode
+  6.   BufferMode.LineBuffering : BufferMode
+  7.   BufferMode.NoBuffering : BufferMode
+  8.   BufferMode.SizedBlockBuffering : Nat -> BufferMode
+  9.   builtin type Bytes
+  10.  Bytes.++ : Bytes -> Bytes -> Bytes
+  11.  Bytes.at : Nat -> Bytes -> Optional Nat
+  12.  Bytes.drop : Nat -> Bytes -> Bytes
+  13.  Bytes.empty : Bytes
+  14.  Bytes.flatten : Bytes -> Bytes
+  15.  Bytes.fromList : [Nat] -> Bytes
+  16.  Bytes.size : Bytes -> Nat
+  17.  Bytes.take : Nat -> Bytes -> Bytes
+  18.  Bytes.toList : Bytes -> [Nat]
+  19.  builtin type Char
+  20.  Char.fromNat : Nat -> Char
+  21.  Char.toNat : Char -> Nat
+  22.  Debug.watch : Text -> a -> a
+  23.  unique type Doc
+  24.  Doc.Blob : Text -> Doc
+  25.  Doc.Evaluate : Term -> Doc
+  26.  Doc.Join : [Doc] -> Doc
+  27.  Doc.Link : Link -> Doc
+  28.  Doc.Signature : Term -> Doc
+  29.  Doc.Source : Link -> Doc
+  30.  EOF : IOError
+  31.  type Either a b
+  32.  Either.Left : a -> Either a b
+  33.  Either.Right : b -> Either a b
+  34.  type FileMode
+  35.  FileMode.Append : FileMode
+  36.  FileMode.Read : FileMode
+  37.  FileMode.ReadWrite : FileMode
+  38.  FileMode.Write : FileMode
+  39.  builtin type Float
+  40.  Float.* : Float -> Float -> Float
+  41.  Float.+ : Float -> Float -> Float
+  42.  Float.- : Float -> Float -> Float
+  43.  Float./ : Float -> Float -> Float
+  44.  Float.abs : Float -> Float
+  45.  Float.acos : Float -> Float
+  46.  Float.acosh : Float -> Float
+  47.  Float.asin : Float -> Float
+  48.  Float.asinh : Float -> Float
+  49.  Float.atan : Float -> Float
+  50.  Float.atan2 : Float -> Float -> Float
+  51.  Float.atanh : Float -> Float
+  52.  Float.ceiling : Float -> Int
+  53.  Float.cos : Float -> Float
+  54.  Float.cosh : Float -> Float
+  55.  Float.eq : Float -> Float -> Boolean
+  56.  Float.exp : Float -> Float
+  57.  Float.floor : Float -> Int
+  58.  Float.fromText : Text -> Optional Float
+  59.  Float.gt : Float -> Float -> Boolean
+  60.  Float.gteq : Float -> Float -> Boolean
+  61.  Float.log : Float -> Float
+  62.  Float.logBase : Float -> Float -> Float
+  63.  Float.lt : Float -> Float -> Boolean
+  64.  Float.lteq : Float -> Float -> Boolean
+  65.  Float.max : Float -> Float -> Float
+  66.  Float.min : Float -> Float -> Float
+  67.  Float.pow : Float -> Float -> Float
+  68.  Float.round : Float -> Int
+  69.  Float.sin : Float -> Float
+  70.  Float.sinh : Float -> Float
+  71.  Float.sqrt : Float -> Float
+  72.  Float.tan : Float -> Float
+  73.  Float.tanh : Float -> Float
+  74.  Float.toText : Float -> Text
+  75.  Float.truncate : Float -> Int
+  76.  IO.clientSocket : Text
+                         -> Text
+                         ->{##IO} Either IOError ##Socket
+  77.  IO.closeFile : ##Handle ->{##IO} Either IOError ()
+  78.  IO.closeSocket : ##Socket ->{##IO} Either IOError ()
+  79.  IO.createDirectory : Text ->{##IO} Either IOError ()
+  80.  IO.fileExists : Text ->{##IO} Either IOError Boolean
+  81.  IO.forkComp : '{##IO} Either IOError a
+                     ->{##IO} Either IOError ##ThreadId
+  82.  IO.getBuffering : ##Handle
+                         ->{##IO} Either IOError BufferMode
+  83.  IO.getCurrentDirectory : '{##IO} Either IOError Text
+  84.  IO.getFileSize : Text ->{##IO} Either IOError Nat
+  85.  IO.getFileTimestamp : Text ->{##IO} Either IOError Nat
+  86.  IO.getLine : ##Handle ->{##IO} Either IOError Text
+  87.  IO.getTempDirectory : '{##IO} Either IOError Text
+  88.  IO.getText : ##Handle ->{##IO} Either IOError Text
+  89.  IO.handlePosition : ##Handle ->{##IO} Either IOError Int
+  90.  IO.isDirectory : Text ->{##IO} Either IOError Boolean
+  91.  IO.isFileEOF : ##Handle ->{##IO} Either IOError Boolean
+  92.  IO.isFileOpen : ##Handle ->{##IO} Either IOError Boolean
+  93.  IO.isSeekable : ##Handle ->{##IO} Either IOError Boolean
+  94.  IO.listen : ##Socket ->{##IO} Either IOError ()
+  95.  IO.openFile : Text ->{##IO} Either IOError ##Handle
+  96.  IO.putText : ##Handle -> Text ->{##IO} Either IOError ()
+  97.  IO.removeDirectory : Text ->{##IO} Either IOError ()
+  98.  IO.removeFile : Text ->{##IO} Either IOError ()
+  99.  IO.renameDirectory : Text
+                            -> Text
+                            ->{##IO} Either IOError ()
+  100. IO.renameFile : Text -> Text ->{##IO} Either IOError ()
+  101. IO.seekHandle : ##Handle
+                       -> FileMode
+                       -> Int
+                       ->{##IO} Either IOError ()
+  102. IO.serverSocket : Text
+                         -> Text
+                         ->{##IO} Either IOError ##Socket
+  103. IO.setBuffering : ##Handle
+                         -> BufferMode
+                         ->{##IO} Either IOError ()
+  104. IO.setCurrentDirectory : Text ->{##IO} Either IOError ()
+  105. IO.socketAccept : ##Socket
+                         ->{##IO} Either IOError ##Socket
+  106. IO.socketReceive : ##Socket
+                          -> Nat
+                          ->{##IO} Either IOError Bytes
+  107. IO.socketSend : ##Socket
+                       -> Bytes
+                       ->{##IO} Either IOError ()
+  108. IO.stdHandle : Nat -> Optional ##Handle
+  109. IO.systemTime : '{##IO} Either IOError Nat
+  110. type IOError
+  111. IllegalOperation : IOError
+  112. builtin type Int
+  113. Int.* : Int -> Int -> Int
+  114. Int.+ : Int -> Int -> Int
+  115. Int.- : Int -> Int -> Int
+  116. Int./ : Int -> Int -> Int
+  117. Int.and : Int -> Int -> Int
+  118. Int.complement : Int -> Int
+  119. Int.eq : Int -> Int -> Boolean
+  120. Int.fromText : Text -> Optional Int
+  121. Int.gt : Int -> Int -> Boolean
+  122. Int.gteq : Int -> Int -> Boolean
+  123. Int.increment : Int -> Int
+  124. Int.isEven : Int -> Boolean
+  125. Int.isOdd : Int -> Boolean
+  126. Int.leadingZeros : Int -> Nat
+  127. Int.lt : Int -> Int -> Boolean
+  128. Int.lteq : Int -> Int -> Boolean
+  129. Int.mod : Int -> Int -> Int
+  130. Int.negate : Int -> Int
+  131. Int.or : Int -> Int -> Int
+  132. Int.pow : Int -> Nat -> Int
+  133. Int.shiftLeft : Int -> Nat -> Int
+  134. Int.shiftRight : Int -> Nat -> Int
+  135. Int.signum : Int -> Int
+  136. Int.toFloat : Int -> Float
+  137. Int.toText : Int -> Text
+  138. Int.trailingZeros : Int -> Nat
+  139. Int.truncate0 : Int -> Nat
+  140. Int.xor : Int -> Int -> Int
+  141. unique type Link
+  142. builtin type Link.Term
+  143. Link.Term : Term -> Link
+  144. builtin type Link.Type
+  145. Link.Type : Type -> Link
+  146. builtin type List
+  147. List.++ : [a] -> [a] -> [a]
+  148. List.+: : a -> [a] -> [a]
+  149. List.:+ : [a] -> a -> [a]
+  150. List.at : Nat -> [a] -> Optional a
+  151. List.cons : a -> [a] -> [a]
+  152. List.drop : Nat -> [a] -> [a]
+  153. List.empty : [a]
+  154. List.size : [a] -> Nat
+  155. List.snoc : [a] -> a -> [a]
+  156. List.take : Nat -> [a] -> [a]
+  157. builtin type Nat
+  158. Nat.* : Nat -> Nat -> Nat
+  159. Nat.+ : Nat -> Nat -> Nat
+  160. Nat./ : Nat -> Nat -> Nat
+  161. Nat.and : Nat -> Nat -> Nat
+  162. Nat.complement : Nat -> Nat
+  163. Nat.drop : Nat -> Nat -> Nat
+  164. Nat.eq : Nat -> Nat -> Boolean
+  165. Nat.fromText : Text -> Optional Nat
+  166. Nat.gt : Nat -> Nat -> Boolean
+  167. Nat.gteq : Nat -> Nat -> Boolean
+  168. Nat.increment : Nat -> Nat
+  169. Nat.isEven : Nat -> Boolean
+  170. Nat.isOdd : Nat -> Boolean
+  171. Nat.leadingZeros : Nat -> Nat
+  172. Nat.lt : Nat -> Nat -> Boolean
+  173. Nat.lteq : Nat -> Nat -> Boolean
+  174. Nat.mod : Nat -> Nat -> Nat
+  175. Nat.or : Nat -> Nat -> Nat
+  176. Nat.pow : Nat -> Nat -> Nat
+  177. Nat.shiftLeft : Nat -> Nat -> Nat
+  178. Nat.shiftRight : Nat -> Nat -> Nat
+  179. Nat.sub : Nat -> Nat -> Int
+  180. Nat.toFloat : Nat -> Float
+  181. Nat.toInt : Nat -> Int
+  182. Nat.toText : Nat -> Text
+  183. Nat.trailingZeros : Nat -> Nat
+  184. Nat.xor : Nat -> Nat -> Nat
+  185. NoSuchThing : IOError
+  186. type Optional a
+  187. Optional.None : Optional a
+  188. Optional.Some : a -> Optional a
+  189. PermissionDenied : IOError
+  190. builtin type Request
+  191. ResourceBusy : IOError
+  192. ResourceExhausted : IOError
+  193. type SeqView a
+  194. SeqView.VElem : a -> SeqView a -> SeqView a
+  195. SeqView.VEmpty : SeqView a
+  196. unique type Test.Result
+  197. Test.Result.Fail : Text -> Result
+  198. Test.Result.Ok : Text -> Result
+  199. builtin type Text
+  200. Text.!= : Text -> Text -> Boolean
+  201. Text.++ : Text -> Text -> Text
+  202. Text.drop : Nat -> Text -> Text
+  203. Text.empty : Text
+  204. Text.eq : Text -> Text -> Boolean
+  205. Text.fromCharList : [Char] -> Text
+  206. Text.gt : Text -> Text -> Boolean
+  207. Text.gteq : Text -> Text -> Boolean
+  208. Text.lt : Text -> Text -> Boolean
+  209. Text.lteq : Text -> Text -> Boolean
+  210. Text.size : Text -> Nat
+  211. Text.take : Nat -> Text -> Text
+  212. Text.toCharList : Text -> [Char]
+  213. Text.uncons : Text -> Optional (Char, Text)
+  214. Text.unsnoc : Text -> Optional (Text, Char)
+  215. type Tuple a b
+  216. Tuple.Cons : a -> b -> Tuple a b
+  217. type Unit
+  218. Unit.Unit : ()
+  219. Universal.< : a -> a -> Boolean
+  220. Universal.<= : a -> a -> Boolean
+  221. Universal.== : a -> a -> Boolean
+  222. Universal.> : a -> a -> Boolean
+  223. Universal.>= : a -> a -> Boolean
+  224. Universal.compare : a -> a -> Int
+  225. UserError : IOError
+  226. bug : a -> b
+  227. todo : a -> b
   
 
 .builtin> alias.many 94-104 .mylib
@@ -194,17 +271,32 @@ Let's try it!
   
   Added definitions:
   
-    1.  builtin type List
-    2.  Link.Type   : Type -> Link
-    3.  List.++     : [a] -> [a] -> [a]
-    4.  ┌ List.+:   : a -> [a] -> [a]
-    5.  └ List.cons : a -> [a] -> [a]
-    6.  ┌ List.:+   : [a] -> a -> [a]
-    7.  └ List.snoc : [a] -> a -> [a]
-    8.  List.at     : Nat -> [a] -> Optional a
-    9.  List.drop   : Nat -> [a] -> [a]
-    10. List.empty  : [a]
-    11. List.size   : [a] -> Nat
+    1.  IO.listen              : ##Socket
+                               ->{##IO} Either IOError ()
+    2.  IO.openFile            : Text
+                               ->{##IO} Either IOError ##Handle
+    3.  IO.putText             : ##Handle
+                               -> Text
+                               ->{##IO} Either IOError ()
+    4.  IO.removeDirectory     : Text ->{##IO} Either IOError ()
+    5.  IO.removeFile          : Text ->{##IO} Either IOError ()
+    6.  IO.renameDirectory     : Text
+                               -> Text
+                               ->{##IO} Either IOError ()
+    7.  IO.renameFile          : Text
+                               -> Text
+                               ->{##IO} Either IOError ()
+    8.  IO.seekHandle          : ##Handle
+                               -> FileMode
+                               -> Int
+                               ->{##IO} Either IOError ()
+    9.  IO.serverSocket        : Text
+                               -> Text
+                               ->{##IO} Either IOError ##Socket
+    10. IO.setBuffering        : ##Handle
+                               -> BufferMode
+                               ->{##IO} Either IOError ()
+    11. IO.setCurrentDirectory : Text ->{##IO} Either IOError ()
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -266,29 +358,38 @@ I want to incorporate a few more from another namespace:
 
 .mylib> find
 
-  1.  Link.Type : Type -> Link
-  2.  builtin type List
-  3.  List.++ : [a] -> [a] -> [a]
-  4.  List.+: : a -> [a] -> [a]
-  5.  List.:+ : [a] -> a -> [a]
-  6.  List.adjacentPairs : [a] -> [(a, a)]
-  7.  List.all : (a ->{𝕖} Boolean) ->{𝕖} [a] ->{𝕖} Boolean
-  8.  List.any : (a ->{𝕖} Boolean) ->{𝕖} [a] ->{𝕖} Boolean
-  9.  List.at : Nat -> [a] -> Optional a
-  10. List.chunk : Nat -> [a] -> [[a]]
-  11. List.chunksOf : Nat -> [a] -> [[a]]
-  12. List.cons : a -> [a] -> [a]
-  13. List.drop : Nat -> [a] -> [a]
-  14. List.dropWhile : (a ->{𝕖} Boolean) ->{𝕖} [a] ->{𝕖} [a]
-  15. List.empty : [a]
-  16. List.first : [a] -> Optional a
-  17. List.init : [a] -> Optional [a]
-  18. List.intersperse : a -> [a] -> [a]
-  19. List.isEmpty : [a] -> Boolean
-  20. List.last : [a] -> Optional a
-  21. List.replicate : Nat -> a -> [a]
-  22. List.size : [a] -> Nat
-  23. List.snoc : [a] -> a -> [a]
+  1.  IO.listen : ##Socket ->{##IO} Either IOError ()
+  2.  IO.openFile : Text ->{##IO} Either IOError ##Handle
+  3.  IO.putText : ##Handle -> Text ->{##IO} Either IOError ()
+  4.  IO.removeDirectory : Text ->{##IO} Either IOError ()
+  5.  IO.removeFile : Text ->{##IO} Either IOError ()
+  6.  IO.renameDirectory : Text
+                           -> Text
+                           ->{##IO} Either IOError ()
+  7.  IO.renameFile : Text -> Text ->{##IO} Either IOError ()
+  8.  IO.seekHandle : ##Handle
+                      -> FileMode
+                      -> Int
+                      ->{##IO} Either IOError ()
+  9.  IO.serverSocket : Text
+                        -> Text
+                        ->{##IO} Either IOError ##Socket
+  10. IO.setBuffering : ##Handle
+                        -> BufferMode
+                        ->{##IO} Either IOError ()
+  11. IO.setCurrentDirectory : Text ->{##IO} Either IOError ()
+  12. List.adjacentPairs : [a] -> [(a, a)]
+  13. List.all : (a ->{𝕖} Boolean) ->{𝕖} [a] ->{𝕖} Boolean
+  14. List.any : (a ->{𝕖} Boolean) ->{𝕖} [a] ->{𝕖} Boolean
+  15. List.chunk : Nat -> [a] -> [[a]]
+  16. List.chunksOf : Nat -> [a] -> [[a]]
+  17. List.dropWhile : (a ->{𝕖} Boolean) ->{𝕖} [a] ->{𝕖} [a]
+  18. List.first : [a] -> Optional a
+  19. List.init : [a] -> Optional [a]
+  20. List.intersperse : a -> [a] -> [a]
+  21. List.isEmpty : [a] -> Boolean
+  22. List.last : [a] -> Optional a
+  23. List.replicate : Nat -> a -> [a]
   24. List.splitAt : Nat -> [a] -> ([a], [a])
   25. List.tail : [a] -> Optional [a]
   26. List.takeWhile : (a ->{𝕖} Boolean) -> [a] ->{𝕖} [a]
