@@ -15,6 +15,8 @@ module Unison.Runtime.Foreign
   , foreign3
   , wrapText
   , unwrapText
+  , wrapBytes
+  , unwrapBytes
   ) where
 
 import GHC.Stack (HasCallStack)
@@ -38,9 +40,17 @@ data Foreign where
 wrapText :: Text -> Foreign
 wrapText = Wrap Ty.textRef
 
+wrapBytes :: Bytes -> Foreign
+wrapBytes = Wrap Ty.bytesRef
+
 unwrapText :: Foreign -> Maybe Text
 unwrapText (Wrap r v)
   | r == Ty.textRef = Just $ unsafeCoerce v
+  | otherwise = Nothing
+
+unwrapBytes :: Foreign -> Maybe Bytes
+unwrapBytes (Wrap r v)
+  | r == Ty.bytesRef = Just $ unsafeCoerce v
   | otherwise = Nothing
 
 promote :: (a -> a -> r) -> b -> c -> r

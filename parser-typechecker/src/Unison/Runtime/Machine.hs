@@ -37,6 +37,7 @@ import Unison.Runtime.MCode
 import qualified Unison.Type as Rf
 import qualified Unison.Runtime.IOSource as Rf
 
+import qualified Unison.Util.Bytes as By
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty as P
 
@@ -210,8 +211,8 @@ eval unmask renv !env !denv !ustk !bstk !k (Match i (TestT df cs)) = do
   t <- peekOffT bstk i
   eval unmask renv env denv ustk bstk k $ selectTextBranch t df cs
 eval unmask renv !env !denv !ustk !bstk !k (Match i br) = do
-  t <- peekOffN ustk i
-  eval unmask renv env denv ustk bstk k $ selectBranch t br
+  n <- peekOffN ustk i
+  eval unmask renv env denv ustk bstk k $ selectBranch n br
 eval unmask renv !env !denv !ustk !bstk !k (Yield args)
   | asize ustk + asize bstk > 0 , BArg1 i <- args = do
     peekOff bstk i >>= apply unmask renv env denv ustk bstk k False ZArgs
@@ -1068,6 +1069,30 @@ bprim1 !ustk !bstk UPKT i = do
   pokeS bstk . Sq.fromList
     . fmap (DataU1 655360 . fromEnum) . Tx.unpack $ t
   pure (ustk, bstk)
+bprim1 !ustk !bstk PAKB i = do
+  s <- peekOffS bstk i
+  bstk <- bump bstk
+  pokeB bstk . By.fromWord8s . fmap clo2w8 $ toList s
+  pure (ustk, bstk)
+  where
+  clo2w8 (DataU1 65536 n) = toEnum n
+  clo2w8 c = error $ "pack bytes: non-natural closure: " ++ show c
+bprim1 !ustk !bstk UPKB i = do
+  b <- peekOffB bstk i
+  bstk <- bump bstk
+  pokeS bstk . Sq.fromList . fmap (DataU1 65536 . fromEnum)
+    $ By.toWord8s b
+  pure (ustk, bstk)
+bprim1 !ustk !bstk SIZB i = do
+  b <- peekOffB bstk i
+  ustk <- bump ustk
+  poke ustk $ By.size b
+  pure (ustk, bstk)
+bprim1 !ustk !bstk FLTB i = do
+  b <- peekOffB bstk i
+  bstk <- bump bstk
+  pokeB bstk $ By.flatten b
+  pure (ustk, bstk)
 bprim1 !_    !bstk THRO i
   = throwIO . BU =<< peekOff bstk i
 {-# inline bprim1 #-}
@@ -1191,6 +1216,35 @@ bprim2 !ustk !bstk SPLR i j = do
     pokeOffS bstk 1 r
     pokeS bstk l
     pure (ustk, bstk)
+bprim2 !ustk !bstk TAKB i j = do
+  n <- peekOff ustk i
+  b <- peekOffB bstk j
+  bstk <- bump bstk
+  pokeB bstk $ By.take n b
+  pure (ustk, bstk)
+bprim2 !ustk !bstk DRPB i j = do
+  n <- peekOff ustk i
+  b <- peekOffB bstk j
+  bstk <- bump bstk
+  pokeB bstk $ By.drop n b
+  pure (ustk, bstk)
+bprim2 !ustk !bstk IDXB i j = do
+  n <- peekOff ustk i
+  b <- peekOffB bstk j
+  ustk <- bump ustk
+  ustk <- case By.at n b of
+    Nothing -> ustk <$ poke ustk 0
+    Just x -> do
+      poke ustk $ fromIntegral x
+      ustk <- bump ustk
+      ustk <$ poke ustk 0
+  pure (ustk, bstk)
+bprim2 !ustk !bstk CATB i j = do
+  l <- peekOffB bstk i
+  r <- peekOffB bstk j
+  bstk <- bump bstk
+  pokeB bstk $ l <> r
+  pure (ustk, bstk)
 bprim2 !ustk !bstk CMPU _ _ = pure (ustk, bstk) -- impossible
 {-# inline bprim2 #-}
 

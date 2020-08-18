@@ -396,6 +396,42 @@ packt, unpackt :: Var v => SuperNormal v
 packt = unop0 0 $ \[s] -> TPrm PAKT [s]
 unpackt = unop0 0 $ \[t] -> TPrm UPKT [t]
 
+packb, unpackb, emptyb, appendb :: Var v => SuperNormal v
+packb = unop0 0 $ \[s] -> TPrm PAKB [s]
+unpackb = unop0 0 $ \[b] -> TPrm UPKB [b]
+emptyb
+  = Lambda []
+  . TLet es BX (APrm BLDS [])
+  $ TPrm PAKB [es]
+  where
+  [es] = freshes 1
+appendb = binop0 0 $ \[x,y] -> TPrm CATB [x,y]
+
+takeb, dropb, atb, sizeb, flattenb :: Var v => SuperNormal v
+takeb = binop0 1 $ \[n0,b,n]
+     -> unbox n0 Ty.natRef n
+      $ TPrm TAKB [n,b]
+
+dropb = binop0 1 $ \[n0,b,n]
+     -> unbox n0 Ty.natRef n
+      $ TPrm DRPB [n,b]
+
+atb = binop0 4 $ \[n0,b,n,t,r0,r]
+   -> unbox n0 Ty.natRef n
+    . TLet t UN (APrm IDXB [n,b])
+    . TMatch t . MatchSum $ mapFromList
+    [ (0, ([], TCon optionTag 0 []))
+    , (1, ([UN], TAbs r0
+               . TLet r BX (ACon natTag 0 [r0])
+               $ TCon optionTag 1 [r]))
+    ]
+
+sizeb = unop0 1 $ \[b,n]
+     -> TLet n UN (APrm SIZB [b])
+      $ TCon natTag 0 [n]
+
+flattenb = unop0 0 $ \[b] -> TPrm FLTB [b]
+
 i2t, n2t, f2t :: Var v => SuperNormal v
 i2t = unop0 1 $ \[n0,n]
    -> unbox n0 Ty.intRef n
@@ -1048,15 +1084,15 @@ builtinLookup
   , ("Char.toNat", cast Ty.charRef Ty.natRef)
   , ("Char.fromNat", cast Ty.natRef Ty.charRef)
 
---   , B "Bytes.empty" bytes
---   , B "Bytes.fromList" $ list nat --> bytes
---   , B "Bytes.++" $ bytes --> bytes --> bytes
---   , B "Bytes.take" $ nat --> bytes --> bytes
---   , B "Bytes.drop" $ nat --> bytes --> bytes
---   , B "Bytes.at" $ nat --> bytes --> optional nat
---   , B "Bytes.toList" $ bytes --> list nat
---   , B "Bytes.size" $ bytes --> nat
---   , B "Bytes.flatten" $ bytes --> bytes
+  , ("Bytes.empty", emptyb)
+  , ("Bytes.fromList", packb)
+  , ("Bytes.toList", unpackb)
+  , ("Bytes.++", appendb)
+  , ("Bytes.take", takeb)
+  , ("Bytes.drop", dropb)
+  , ("Bytes.at", atb)
+  , ("Bytes.size", sizeb)
+  , ("Bytes.flatten", flattenb)
 
   , ("List.take", takes)
   , ("List.drop", drops)

@@ -355,7 +355,7 @@ data BPrim1
   | TTOI | TTON | TTOF
   | VWLS | VWRS
   | SIZS | THRO
-  | PAKT | UPKT
+  | PAKT | UPKT | PAKB | UPKB | SIZB | FLTB
   deriving (Show, Eq, Ord)
 
 data BPrim2
@@ -363,6 +363,7 @@ data BPrim2
   | DRPT | CATT | TAKT
   | EQLT | LEQT | LEST
   | DRPS | CATS | TAKS | CONS | SNOC | IDXS | SPLL | SPLR
+  | TAKB | DRPB | IDXB | CATB
   deriving (Show, Eq, Ord)
 
 data MLit
@@ -905,6 +906,15 @@ emitPOp ANF.VWLS = emitBP1 VWLS
 emitPOp ANF.VWRS = emitBP1 VWRS
 emitPOp ANF.SPLL = emitBP2 SPLL
 emitPOp ANF.SPLR = emitBP2 SPLR
+
+emitPOp ANF.PAKB = emitBP1 PAKB
+emitPOp ANF.UPKB = emitBP1 UPKB
+emitPOp ANF.TAKB = emitBP2 TAKB
+emitPOp ANF.DRPB = emitBP2 DRPB
+emitPOp ANF.IDXB = emitBP2 IDXB
+emitPOp ANF.SIZB = emitBP1 SIZB
+emitPOp ANF.FLTB = emitBP1 FLTB
+emitPOp ANF.CATB = emitBP2 CATB
 
 emitPOp ANF.EQLU = emitBP2 EQLU
 emitPOp ANF.CMPU = emitBP2 CMPU

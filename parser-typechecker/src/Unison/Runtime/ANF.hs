@@ -831,6 +831,9 @@ data POp
   | CATS | TAKS | DRPS | SIZS -- ++,take,drop,size
   | CONS | SNOC | IDXS | BLDS -- cons,snoc,at,build
   | VWLS | VWRS | SPLL | SPLR -- viewl,viewr,splitl,splitr
+  -- Bytes
+  | PAKB | UPKB | TAKB | DRPB -- pack,unpack,take,drop
+  | IDXB | SIZB | FLTB | CATB -- index,size,flatten,append
   -- Conversion
   | ITOF | NTOF | ITOT | NTOT
   | TTOI | TTON | TTOF | FTOT

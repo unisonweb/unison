@@ -35,6 +35,8 @@ module Unison.Runtime.Stack
   , pokeOffS
   , peekOffT
   , pokeT
+  , peekOffB
+  , pokeB
   , uscount
   , bscount
   ) where
@@ -65,6 +67,7 @@ import Unison.Runtime.MCode
 import qualified Unison.Type as Ty
 
 import Unison.Util.EnumContainers as EC
+import Unison.Util.Bytes (Bytes)
 
 import GHC.Stack (HasCallStack)
 
@@ -477,6 +480,13 @@ peekOffT bstk i =
 pokeT :: Stack 'BX -> Text -> IO ()
 pokeT bstk t = poke bstk (Foreign $ wrapText t)
 {-# inline pokeT #-}
+
+peekOffB :: Stack 'BX -> Int -> IO Bytes
+peekOffB bstk i = unwrapForeign . marshalToForeign <$> peekOff bstk i
+{-# inline peekOffB #-}
+
+pokeB :: Stack 'BX -> Bytes -> IO ()
+pokeB bstk b = poke bstk (Foreign $ wrapBytes b)
 
 peekOffS :: Stack 'BX -> Int -> IO (Seq Closure)
 peekOffS bstk i =

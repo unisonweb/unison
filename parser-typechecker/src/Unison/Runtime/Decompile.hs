@@ -5,6 +5,8 @@
 module Unison.Runtime.Decompile
   ( decompile ) where
 
+import Prelude hiding (seq)
+
 import Data.String (fromString)
 import Data.Sequence (Seq)
 import Data.Word (Word64)
@@ -12,7 +14,8 @@ import Data.Word (Word64)
 import Unison.ABT (absChain, substs, pattern AbsN')
 import Unison.Term
   ( Term
-  , nat, int, char, float, boolean, constructor, apps', text, seq'
+  , nat, int, char, float, boolean, constructor, app, apps', text
+  , seq, seq', builtin
   )
 import Unison.Type
   ( natRef, intRef, charRef, floatRef, booleanRef, vectorRef
@@ -21,12 +24,15 @@ import Unison.Var (Var)
 import Unison.Reference (Reference)
 
 import Unison.Runtime.ANF (RTag, CTag, Tag(..))
-import Unison.Runtime.Foreign (Foreign, unwrapText, maybeUnwrapForeign)
+import Unison.Runtime.Foreign
+  (Foreign, unwrapText, unwrapBytes, maybeUnwrapForeign)
 import Unison.Runtime.Stack
   (Closure(..), pattern DataC, pattern PApV, IComb(..))
 
 import Unison.Codebase.Runtime (Error)
 import Unison.Util.Pretty (lit)
+
+import qualified Unison.Util.Bytes as By
 
 import Unsafe.Coerce -- for Int -> Double
 
@@ -100,9 +106,15 @@ decompileForeign
   -> Either Error (Term v ())
 decompileForeign tyRef topTerms f
   | Just t <- unwrapText f = Right $ text () t
+  | Just b <- unwrapBytes f = Right $ decompileBytes b
   | Just s <- unwrapSeq f
   = seq' () <$> traverse (decompile tyRef topTerms) s
 decompileForeign _ _ _ = err "cannot decompile Foreign"
+
+decompileBytes :: Var v => By.Bytes -> Term v ()
+decompileBytes
+  = app () (builtin () $ fromString "Bytes.fromList")
+  . seq () . fmap (nat () . fromIntegral) . By.toWord8s
 
 unwrapSeq :: Foreign -> Maybe (Seq Closure)
 unwrapSeq = maybeUnwrapForeign vectorRef
