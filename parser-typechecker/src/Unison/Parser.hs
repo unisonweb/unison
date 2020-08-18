@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE ViewPatterns      #-}
-{-# LANGUAGE DoAndIfThenElse   #-}
 
 module Unison.Parser where
 
@@ -25,8 +24,8 @@ import qualified Unison.ABT           as ABT
 import qualified Unison.Hash          as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer         as L
-import           Unison.Pattern       (PatternP)
-import qualified Unison.PatternP      as Pattern
+import           Unison.Pattern       (Pattern)
+import qualified Unison.Pattern      as Pattern
 import           Unison.Term          (MatchCase (..))
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
@@ -184,7 +183,7 @@ instance Annotated (L.Token a) where
 instance Annotated a => Annotated (ABT.Term f v a) where
   ann = ann . ABT.annotation
 
-instance Annotated a => Annotated (PatternP a) where
+instance Annotated a => Annotated (Pattern a) where
   ann = ann . Pattern.loc
 
 instance (Annotated a, Annotated b) => Annotated (MatchCase a b) where

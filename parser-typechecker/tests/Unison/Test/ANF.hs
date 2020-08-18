@@ -6,7 +6,7 @@ module Unison.Test.ANF where
 import EasyTest
 
 import Unison.ABT.Normalized (Term(TAbs))
-import Unison.Pattern (PatternP(..))
+import qualified Unison.Pattern as P
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.MCode (emitCombs)
@@ -122,7 +122,7 @@ denormalizeMatch b
   | MatchIntegral m df <- b
   = (dcase (ipat Ty.intRef) <$> mapToList m) ++ dfcase df
   | MatchText m df <- b
-  = (dcase (const $ TextP ()) <$> Map.toList m) ++ dfcase df
+  = (dcase (const $ P.Text ()) <$> Map.toList m) ++ dfcase df
   | MatchData r cs Nothing <- b
   , [(0, ([UN], zb))] <- mapToList cs
   , TAbs i (TMatch j (MatchIntegral m df))  <- zb
@@ -134,16 +134,16 @@ denormalizeMatch b
   | MatchSum _ <- b = error "MatchSum not a compilation target"
   where
   dfcase (Just d)
-    = [Term.MatchCase (UnboundP ()) Nothing $ denormalize d]
+    = [Term.MatchCase (P.Unbound ()) Nothing $ denormalize d]
   dfcase Nothing = []
 
   dcase p (t, br) = Term.MatchCase (p n t) Nothing dbr
    where (n, dbr) = denormalizeBranch br
 
   ipat r _ i
-    | r == Ty.natRef = NatP () $ fromIntegral i
-    | otherwise = IntP () $ fromIntegral i
-  dpat r n t = ConstructorP () r (fromEnum t) (replicate n $ VarP ())
+    | r == Ty.natRef = P.Nat () $ fromIntegral i
+    | otherwise = P.Int () $ fromIntegral i
+  dpat r n t = P.Constructor () r (fromEnum t) (replicate n $ P.Var ())
 
 denormalizeBranch (TAbs v br) = (n+1, ABT.abs v dbr)
  where (n, dbr) = denormalizeBranch br
@@ -165,8 +165,8 @@ denormalizeHandler cs df = dcs
    where (_, db) = denormalizeBranch df
   rf r rcs = foldMapWithKey (cf $ backReference r) rcs
   cf r t b = [ Term.MatchCase
-                 (EffectBindP () r (fromEnum t)
-                   (replicate n $ VarP ()) (VarP ()))
+                 (P.EffectBind () r (fromEnum t)
+                   (replicate n $ P.Var ()) (P.Var ()))
                  Nothing
                  db
              ]

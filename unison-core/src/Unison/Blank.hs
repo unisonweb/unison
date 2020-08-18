@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveFunctor #-}
-
 module Unison.Blank where
 
 loc :: Recorded loc -> loc

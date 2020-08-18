@@ -1,6 +1,3 @@
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE PatternSynonyms            #-}
-
 module Unison.Util.ColorText (
   ColorText, Color(..), style, toANSI, toPlain, toHTML, defaultColors,
   black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold, underline,

@@ -1,5 +1,3 @@
-{-# LANGUAGE BlockArguments #-}
-
 module Unison.Util.Cache where
 
 import Prelude hiding (lookup)

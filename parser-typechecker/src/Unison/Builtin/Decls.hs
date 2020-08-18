@@ -298,10 +298,10 @@ unTupleType t = case t of
   Type.Ref' UnitRef -> Just []
   _ -> Nothing
 
-unTuplePattern :: Pattern.PatternP loc -> Maybe [Pattern.PatternP loc]
+unTuplePattern :: Pattern.Pattern loc -> Maybe [Pattern.Pattern loc]
 unTuplePattern p = case p of
-  Pattern.ConstructorP _ PairRef 0 [fst, snd] -> (fst : ) <$> unTuplePattern snd
-  Pattern.ConstructorP _ UnitRef 0 [] -> Just []
+  Pattern.Constructor _ PairRef 0 [fst, snd] -> (fst : ) <$> unTuplePattern snd
+  Pattern.Constructor _ UnitRef 0 [] -> Just []
   _ -> Nothing
 
 unUnitRef,unPairRef,unOptionalRef:: Reference -> Bool

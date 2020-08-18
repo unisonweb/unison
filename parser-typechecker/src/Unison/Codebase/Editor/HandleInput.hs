@@ -1,15 +1,10 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ApplicativeDo       #-}
-{-# LANGUAGE BlockArguments      #-}
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE PatternSynonyms     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
@@ -610,12 +605,7 @@ loop = do
           let matchingTypes = toList (getHQ'Types hq)
           case (matchingTerms, matchingTypes) of
             ([], []) -> respond (NameNotFound hq)
-            -- delete one term
-            ([r], []) -> goMany (Set.singleton r) Set.empty
-            -- delete one type
-            ([], [r]) -> goMany Set.empty (Set.singleton r)
-            (Set.fromList -> tms, Set.fromList -> tys) ->
-              ifConfirmed (goMany tms tys) (nameConflicted hq tms tys)
+            (Set.fromList -> tms, Set.fromList -> tys) -> goMany tms tys
           where
           resolvedPath = resolveSplit' (HQ'.toName <$> hq)
           goMany tms tys = do
@@ -1836,10 +1826,6 @@ doDisplay outputLoc names r = do
     loadDecl _ = pure Nothing
   rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm evalTerm loadDecl tm
   respond $ DisplayRendered loc rendered
-  -- We set latestFile to be programmatically generated, if we
-  -- are viewing these definitions to a file - this will skip the
-  -- next update for that file (which will happen immediately)
-  latestFile .= ((, True) <$> loc)
 
 getLinks :: (Var v, Monad m)
          => Input

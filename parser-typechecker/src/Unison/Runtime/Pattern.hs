@@ -26,6 +26,7 @@ import Unison.ABT
 import Unison.Builtin.Decls (builtinDataDecls, builtinEffectDecls)
 import Unison.DataDeclaration (declFields)
 import Unison.Pattern
+import qualified Unison.Pattern as P
 import Unison.Reference (Reference(..))
 import Unison.Symbol (Symbol)
 import Unison.Term hiding (Term)
@@ -47,7 +48,7 @@ type Ctx v = Map v Reference
 
 data PatternRow v
   = PR
-  { matches :: [PatternP v]
+  { matches :: [Pattern v]
   , guard :: Maybe (Term v)
   , body :: Term v
   } deriving (Show)
@@ -73,34 +74,34 @@ choose (h:hs) m
   | Just i <- h m = i
   | otherwise = choose hs m
 
-refutable :: PatternP a -> Bool
-refutable (UnboundP _) = False
-refutable (VarP _) = False
+refutable :: P.Pattern a -> Bool
+refutable (P.Unbound _) = False
+refutable (P.Var _) = False
 refutable _ = True
 
 rowIrrefutable :: PatternRow v -> Bool
 rowIrrefutable (PR ps _ _) = null ps
 
-firstRow :: ([PatternP v] -> Maybe v) -> Heuristic v
+firstRow :: ([P.Pattern v] -> Maybe v) -> Heuristic v
 firstRow f (PM (r:_)) = f $ matches r
 firstRow _ _ = Nothing
 
 heuristics :: [Heuristic v]
 heuristics = [firstRow $ fmap loc . listToMaybe]
 
-extractVar :: Var v => PatternP v -> Maybe v
+extractVar :: Var v => P.Pattern v -> Maybe v
 extractVar p
-  | UnboundP{} <- p = Nothing
+  | P.Unbound{} <- p = Nothing
   | otherwise = Just (loc p)
 
-extractVars :: Var v => [PatternP v] -> [v]
+extractVars :: Var v => [P.Pattern v] -> [v]
 extractVars = catMaybes . fmap extractVar
 
 decomposePattern
   :: Var v
-  => Int -> Int -> PatternP v
-  -> [[PatternP v]]
-decomposePattern t nfields p@(ConstructorP _ _ u ps)
+  => Int -> Int -> P.Pattern v
+  -> [[P.Pattern v]]
+decomposePattern t nfields p@(P.Constructor _ _ u ps)
   | t == u
   = if length ps == nfields
     then [ps]
@@ -108,7 +109,7 @@ decomposePattern t nfields p@(ConstructorP _ _ u ps)
   where
   err = "decomposePattern: wrong number of constructor fields: "
      ++ show (nfields, p)
-decomposePattern t nfields p@(EffectBindP _ _ u ps pk)
+decomposePattern t nfields p@(P.EffectBind _ _ u ps pk)
   | t == u
   = if length ps == nfields
     then [ps ++ [pk]]
@@ -116,107 +117,107 @@ decomposePattern t nfields p@(EffectBindP _ _ u ps pk)
   where
   err = "decomposePattern: wrong number of ability fields: "
      ++ show (nfields, p)
-decomposePattern t _ (EffectPureP _ p)
+decomposePattern t _ (P.EffectPure _ p)
   | t == -1 = [[p]]
-decomposePattern _ nfields (VarP _)
-  = [replicate nfields (UnboundP (typed Pattern))]
-decomposePattern _ nfields (UnboundP _)
-  = [replicate nfields (UnboundP (typed Pattern))]
-decomposePattern _ _ (SequenceLiteralP _ _)
+decomposePattern _ nfields (P.Var _)
+  = [replicate nfields (P.Unbound (typed Pattern))]
+decomposePattern _ nfields (P.Unbound _)
+  = [replicate nfields (P.Unbound (typed Pattern))]
+decomposePattern _ _ (P.SequenceLiteral _ _)
   = error "decomposePattern: sequence literal"
 decomposePattern _ _ _ = []
 
-matchBuiltin :: PatternP a -> Maybe (PatternP ())
-matchBuiltin (VarP _) = Just $ UnboundP ()
-matchBuiltin (UnboundP _) = Just $ UnboundP ()
-matchBuiltin (NatP _ n) = Just $ NatP () n
-matchBuiltin (IntP _ n) = Just $ IntP () n
-matchBuiltin (TextP _ t) = Just $ TextP () t
-matchBuiltin (CharP _ c) = Just $ CharP () c
-matchBuiltin (FloatP _ d) = Just $ FloatP () d
+matchBuiltin :: P.Pattern a -> Maybe (P.Pattern ())
+matchBuiltin (P.Var _) = Just $ P.Unbound ()
+matchBuiltin (P.Unbound _) = Just $ P.Unbound ()
+matchBuiltin (P.Nat _ n) = Just $ P.Nat () n
+matchBuiltin (P.Int _ n) = Just $ P.Int () n
+matchBuiltin (P.Text _ t) = Just $ P.Text () t
+matchBuiltin (P.Char _ c) = Just $ P.Char () c
+matchBuiltin (P.Float _ d) = Just $ P.Float () d
 matchBuiltin _ = Nothing
 
 data SeqMatch = E | C | S | L Int | R Int | DL Int | DR Int
   deriving (Eq,Ord,Show)
 
-seqPSize :: PatternP v -> Maybe Int
-seqPSize (SequenceLiteralP _ l) = Just $ length l
-seqPSize (SequenceOpP _ _ Cons r) = (1+) <$> seqPSize r
-seqPSize (SequenceOpP _ l Snoc _) = (1+) <$> seqPSize l
-seqPSize (SequenceOpP _ l Concat r) = (+) <$> seqPSize l <*> seqPSize r
+seqPSize :: P.Pattern v -> Maybe Int
+seqPSize (P.SequenceLiteral _ l) = Just $ length l
+seqPSize (P.SequenceOp _ _ Cons r) = (1+) <$> seqPSize r
+seqPSize (P.SequenceOp _ l Snoc _) = (1+) <$> seqPSize l
+seqPSize (P.SequenceOp _ l Concat r) = (+) <$> seqPSize l <*> seqPSize r
 seqPSize _ = Nothing
 
-decideSeqPat :: [PatternP v] -> [SeqMatch]
+decideSeqPat :: [P.Pattern v] -> [SeqMatch]
 decideSeqPat = go False
   where
   go _ [] = [E,C]
-  go _ (SequenceLiteralP{} : ps) = go True ps
-  go _ (SequenceOpP _ _ Snoc _ : _) = [E,S]
-  go _ (SequenceOpP _ _ Cons _ : _) = [E,C]
+  go _ (P.SequenceLiteral{} : ps) = go True ps
+  go _ (P.SequenceOp _ _ Snoc _ : _) = [E,S]
+  go _ (P.SequenceOp _ _ Cons _ : _) = [E,C]
 
-  go guard (SequenceOpP _ l Concat r : _)
+  go guard (P.SequenceOp _ l Concat r : _)
     | guard = [E,C] -- prefer prior literals
     | Just n <- seqPSize l = [L n, DL n]
     | Just n <- seqPSize r = [R n, DR n]
-  go b (UnboundP _ : ps) = go b ps
-  go b (VarP _ : ps) = go b ps
+  go b (P.Unbound _ : ps) = go b ps
+  go b (P.Var _ : ps) = go b ps
   go _ (p:_)
     = error $ "Cannot process sequence pattern: " ++ show p
 
 data SeqCover v
-  = Cover [PatternP v]
+  = Cover [P.Pattern v]
   | Disjoint
   | Overlap
 
-decomposeSeqP :: Var v => Set v -> SeqMatch -> PatternP v -> SeqCover v
-decomposeSeqP _ E (SequenceLiteralP _ []) = Cover []
+decomposeSeqP :: Var v => Set v -> SeqMatch -> P.Pattern v -> SeqCover v
+decomposeSeqP _ E (P.SequenceLiteral _ []) = Cover []
 decomposeSeqP _ E _ = Disjoint
 
-decomposeSeqP _ C (SequenceOpP _ l Cons r) = Cover [l,r]
-decomposeSeqP _ C (SequenceOpP _ _ Concat _) = Overlap
-decomposeSeqP _ C (SequenceLiteralP _ []) = Disjoint
-decomposeSeqP avoid C (SequenceLiteralP _ (p:ps))
-  = Cover [p, SequenceLiteralP u ps]
+decomposeSeqP _ C (P.SequenceOp _ l Cons r) = Cover [l,r]
+decomposeSeqP _ C (P.SequenceOp _ _ Concat _) = Overlap
+decomposeSeqP _ C (P.SequenceLiteral _ []) = Disjoint
+decomposeSeqP avoid C (P.SequenceLiteral _ (p:ps))
+  = Cover [p, P.SequenceLiteral u ps]
   where u = freshIn avoid $ typed Pattern
 
-decomposeSeqP _ S (SequenceOpP _ l Snoc r) = Cover [l,r]
-decomposeSeqP _ S (SequenceOpP _ _ Concat _) = Overlap
-decomposeSeqP _ S (SequenceLiteralP _ []) = Disjoint
-decomposeSeqP avoid S (SequenceLiteralP _ ps)
-  = Cover [SequenceLiteralP u (init ps), last ps]
+decomposeSeqP _ S (P.SequenceOp _ l Snoc r) = Cover [l,r]
+decomposeSeqP _ S (P.SequenceOp _ _ Concat _) = Overlap
+decomposeSeqP _ S (P.SequenceLiteral _ []) = Disjoint
+decomposeSeqP avoid S (P.SequenceLiteral _ ps)
+  = Cover [P.SequenceLiteral u (init ps), last ps]
   where u = freshIn avoid $ typed Pattern
 
-decomposeSeqP _ (L n) (SequenceOpP _ l Concat r)
+decomposeSeqP _ (L n) (P.SequenceOp _ l Concat r)
   | Just m <- seqPSize l
   , n == m
   = Cover [l,r]
   | otherwise = Overlap
-decomposeSeqP avoid (L n) (SequenceLiteralP _ ps)
+decomposeSeqP avoid (L n) (P.SequenceLiteral _ ps)
   | length ps >= n
   , (pl, pr) <- splitAt n ps
-  = Cover $ SequenceLiteralP u <$> [pl,pr]
+  = Cover $ P.SequenceLiteral u <$> [pl,pr]
   | otherwise = Disjoint
   where u = freshIn avoid $ typed Pattern
 
-decomposeSeqP _ (R n) (SequenceOpP _ l Concat r)
+decomposeSeqP _ (R n) (P.SequenceOp _ l Concat r)
   | Just m <- seqPSize r
   , n == m
   = Cover [l,r]
-decomposeSeqP avoid (R n) (SequenceLiteralP _ ps)
+decomposeSeqP avoid (R n) (P.SequenceLiteral _ ps)
   | length ps >= n
   , (pl, pr) <- splitAt (length ps - n) ps
-  = Cover $ SequenceLiteralP u <$> [pl,pr]
+  = Cover $ P.SequenceLiteral u <$> [pl,pr]
   | otherwise = Disjoint
   where u = freshIn avoid $ typed Pattern
 
-decomposeSeqP _ (DL n) (SequenceOpP _ l Concat _)
+decomposeSeqP _ (DL n) (P.SequenceOp _ l Concat _)
   | Just m <- seqPSize l , n == m = Disjoint
-decomposeSeqP _ (DL n) (SequenceLiteralP _ ps)
+decomposeSeqP _ (DL n) (P.SequenceLiteral _ ps)
   | length ps >= n = Disjoint
 
-decomposeSeqP _ (DR n) (SequenceOpP _ _ Concat r)
+decomposeSeqP _ (DR n) (P.SequenceOp _ _ Concat r)
   | Just m <- seqPSize r , n == m = Disjoint
-decomposeSeqP _ (DR n) (SequenceLiteralP _ ps)
+decomposeSeqP _ (DR n) (P.SequenceLiteral _ ps)
   | length ps >= n = Disjoint
 
 decomposeSeqP _ _ _ = Overlap
@@ -227,7 +228,7 @@ splitRow
   -> Int
   -> Int
   -> PatternRow v
-  -> [([PatternP v], PatternRow v)]
+  -> [([P.Pattern v], PatternRow v)]
 splitRow v t nfields (PR (break ((==v).loc) -> (pl, sp : pr)) g b)
   = decomposePattern t nfields sp
       <&> \subs -> (subs, PR (pl ++ filter refutable subs ++ pr) g b)
@@ -237,18 +238,18 @@ splitRowBuiltin
   :: Var v
   => v
   -> PatternRow v
-  -> [(PatternP (), [([PatternP v], PatternRow v)])]
+  -> [(P.Pattern (), [([P.Pattern v], PatternRow v)])]
 splitRowBuiltin v (PR (break ((==v).loc) -> (pl, sp : pr)) g b)
   | Just p <- matchBuiltin sp = [(p, [([], PR (pl ++ pr) g b)])]
   | otherwise = []
-splitRowBuiltin _ r = [(UnboundP (), [([], r)])]
+splitRowBuiltin _ r = [(P.Unbound (), [([], r)])]
 
 splitRowSeq
   :: Var v
   => v
   -> SeqMatch
   -> PatternRow v
-  -> [([PatternP v], PatternRow v)]
+  -> [([P.Pattern v], PatternRow v)]
 splitRowSeq v m r@(PR (break ((==v).loc) -> (pl, sp : pr)) g b)
   = case decomposeSeqP avoid m sp of
       Cover sps -> 
@@ -268,15 +269,15 @@ renameRow m (PR p0 g0 b0) = PR p g b
   g = changeVars m <$> g0
   b = changeVars m b0
 
-chooseVars :: Var v => [[PatternP v]] -> [v]
+chooseVars :: Var v => [[P.Pattern v]] -> [v]
 chooseVars [] = []
 chooseVars ([]:rs) = chooseVars rs
-chooseVars ((UnboundP{} : _) : rs) = chooseVars rs
+chooseVars ((P.Unbound{} : _) : rs) = chooseVars rs
 chooseVars (r : _) = extractVars r
 
 buildMatrix
   :: Var v
-  => [([PatternP v], PatternRow v)]
+  => [([P.Pattern v], PatternRow v)]
   -> ([(v,Reference)], PatternMatrix v)
 buildMatrix [] = ([], PM [])
 buildMatrix vrs = (zip cvs rs, PM $ fixRow <$> vrs)
@@ -290,7 +291,7 @@ splitMatrixBuiltin
   :: Var v
   => v
   -> PatternMatrix v
-  -> [(PatternP (), [(v,Reference)], PatternMatrix v)]
+  -> [(P.Pattern (), [(v,Reference)], PatternMatrix v)]
 splitMatrixBuiltin v (PM rs)
   = fmap (\(a,(b,c)) -> (a,b,c))
   . toList
@@ -298,24 +299,24 @@ splitMatrixBuiltin v (PM rs)
   . fromListWith (++)
   $ splitRowBuiltin v =<< rs
 
-matchPattern :: [(v,Reference)] -> SeqMatch -> PatternP ()
+matchPattern :: [(v,Reference)] -> SeqMatch -> P.Pattern ()
 matchPattern vrs = \case
     E -> sz 0
-    C -> SequenceOpP () vr Cons vr
-    S -> SequenceOpP () vr Snoc vr
-    L n -> SequenceOpP () (sz n) Concat (VarP ())
-    R n -> SequenceOpP () (VarP ()) Concat (sz n)
-    DL _ -> UnboundP ()
-    DR _ -> UnboundP ()
+    C -> P.SequenceOp () vr Cons vr
+    S -> P.SequenceOp () vr Snoc vr
+    L n -> P.SequenceOp () (sz n) Concat (P.Var ())
+    R n -> P.SequenceOp () (P.Var ()) Concat (sz n)
+    DL _ -> P.Unbound ()
+    DR _ -> P.Unbound ()
   where
-  vr | [] <- vrs = UnboundP () | otherwise = VarP ()
-  sz n = SequenceLiteralP () . replicate n $ UnboundP ()
+  vr | [] <- vrs = P.Unbound () | otherwise = P.Var ()
+  sz n = P.SequenceLiteral () . replicate n $ P.Unbound ()
 
 splitMatrixSeq
   :: Var v
   => v
   -> PatternMatrix v
-  -> [(PatternP (), [(v,Reference)], PatternMatrix v)]
+  -> [(P.Pattern (), [(v,Reference)], PatternMatrix v)]
 splitMatrixSeq v (PM rs)
   = cases
   where
@@ -357,70 +358,70 @@ renameTo to from
       , insertWith (error "renameTo: duplicate rename") from to rn
       )
 
-normalizeSeqP :: PatternP a -> PatternP a
-normalizeSeqP (AsP a p) = AsP a (normalizeSeqP p)
-normalizeSeqP (EffectPureP a p) = EffectPureP a $ normalizeSeqP p
-normalizeSeqP (EffectBindP a r i ps k)
-  = EffectBindP a r i (normalizeSeqP <$> ps) (normalizeSeqP k)
-normalizeSeqP (ConstructorP a r i ps)
-  = ConstructorP a r i $ normalizeSeqP <$> ps
-normalizeSeqP (SequenceLiteralP a ps)
-  = SequenceLiteralP a $ normalizeSeqP <$> ps
-normalizeSeqP (SequenceOpP a p0 op q0)
+normalizeSeqP :: P.Pattern a -> P.Pattern a
+normalizeSeqP (P.As a p) = P.As a (normalizeSeqP p)
+normalizeSeqP (P.EffectPure a p) = P.EffectPure a $ normalizeSeqP p
+normalizeSeqP (P.EffectBind a r i ps k)
+  = P.EffectBind a r i (normalizeSeqP <$> ps) (normalizeSeqP k)
+normalizeSeqP (P.Constructor a r i ps)
+  = P.Constructor a r i $ normalizeSeqP <$> ps
+normalizeSeqP (P.SequenceLiteral a ps)
+  = P.SequenceLiteral a $ normalizeSeqP <$> ps
+normalizeSeqP (P.SequenceOp a p0 op q0)
   = case (op, normalizeSeqP p0, normalizeSeqP q0) of
-      (Cons, p, SequenceLiteralP _ ps)
-        -> SequenceLiteralP a (p:ps)
-      (Snoc, SequenceLiteralP _ ps, p)
-        -> SequenceLiteralP a (ps ++ [p])
-      (Concat, SequenceLiteralP _ ps, SequenceLiteralP _ qs)
-        -> SequenceLiteralP a (ps ++ qs)
-      (Concat, SequenceLiteralP _ ps, q)
-        -> foldr (\p r -> SequenceOpP a p Cons r) q ps
-      (Concat, p, SequenceLiteralP _ qs)
-        -> foldl (\r q -> SequenceOpP a r Snoc q) p qs
-      (op, p, q) -> SequenceOpP a p op q
+      (Cons, p, P.SequenceLiteral _ ps)
+        -> P.SequenceLiteral a (p:ps)
+      (Snoc, P.SequenceLiteral _ ps, p)
+        -> P.SequenceLiteral a (ps ++ [p])
+      (Concat, P.SequenceLiteral _ ps, P.SequenceLiteral _ qs)
+        -> P.SequenceLiteral a (ps ++ qs)
+      (Concat, P.SequenceLiteral _ ps, q)
+        -> foldr (\p r -> P.SequenceOp a p Cons r) q ps
+      (Concat, p, P.SequenceLiteral _ qs)
+        -> foldl (\r q -> P.SequenceOp a r Snoc q) p qs
+      (op, p, q) -> P.SequenceOp a p op q
 normalizeSeqP p = p
 
-prepareAs :: Var v => PatternP a -> v -> PPM v (PatternP v)
-prepareAs (UnboundP _) u = pure $ VarP u
-prepareAs (AsP _ p) u = prepareAs p u <* (renameTo u =<< useVar)
-prepareAs (VarP _) u = VarP u <$ (renameTo u =<< useVar)
-prepareAs (ConstructorP _ r i ps) u = do
-  ConstructorP u r i <$> traverse preparePattern ps
-prepareAs (EffectPureP _ p) u = do
-  EffectPureP u <$> preparePattern p
-prepareAs (EffectBindP _ r i ps k) u = do
-  EffectBindP u r i
+prepareAs :: Var v => P.Pattern a -> v -> PPM v (P.Pattern v)
+prepareAs (P.Unbound _) u = pure $ P.Var u
+prepareAs (P.As _ p) u = prepareAs p u <* (renameTo u =<< useVar)
+prepareAs (P.Var _) u = P.Var u <$ (renameTo u =<< useVar)
+prepareAs (P.Constructor _ r i ps) u = do
+  P.Constructor u r i <$> traverse preparePattern ps
+prepareAs (P.EffectPure _ p) u = do
+  P.EffectPure u <$> preparePattern p
+prepareAs (P.EffectBind _ r i ps k) u = do
+  P.EffectBind u r i
     <$> traverse preparePattern ps
     <*> preparePattern k
-prepareAs (SequenceLiteralP _ ps) u = do
-  SequenceLiteralP u <$> traverse preparePattern ps
-prepareAs (SequenceOpP _ p op q) u = do
-  flip (SequenceOpP u) op
+prepareAs (P.SequenceLiteral _ ps) u = do
+  P.SequenceLiteral u <$> traverse preparePattern ps
+prepareAs (P.SequenceOp _ p op q) u = do
+  flip (P.SequenceOp u) op
     <$> preparePattern p
     <*> preparePattern q
 prepareAs p u = pure $ u <$ p
 
-preparePattern :: Var v => PatternP a -> PPM v (PatternP v)
-preparePattern (UnboundP _) = VarP <$> freshVar
-preparePattern (VarP _) = VarP <$> useVar
-preparePattern (AsP _ p) = prepareAs p =<< useVar
+preparePattern :: Var v => P.Pattern a -> PPM v (P.Pattern v)
+preparePattern (P.Unbound _) = P.Var <$> freshVar
+preparePattern (P.Var _) = P.Var <$> useVar
+preparePattern (P.As _ p) = prepareAs p =<< useVar
 preparePattern p = prepareAs p =<< freshVar
 
-buildPattern :: Bool -> Reference -> Int -> [v] -> Int -> PatternP ()
+buildPattern :: Bool -> Reference -> Int -> [v] -> Int -> P.Pattern ()
 buildPattern ef r t vs nfields =
   case ef of
-    False -> ConstructorP () r t vps
-    True | t == -1 -> EffectPureP () (VarP ())
-         | otherwise -> EffectBindP () r t aps kp
+    False -> P.Constructor () r t vps
+    True | t == -1 -> P.EffectPure () (P.Var ())
+         | otherwise -> P.EffectBind () r t aps kp
      where
      (aps,kp) | [] <- vps = error "too few patterns for effect bind"
               | otherwise = (init vps, last vps)
   where
   vps | length vs < nfields
-      = replicate nfields $ UnboundP ()
+      = replicate nfields $ P.Unbound ()
       | otherwise
-      = VarP () <$ vs
+      = P.Var () <$ vs
 
 compile :: Var v => DataSpec -> Ctx v -> PatternMatrix v -> Term v
 compile _ _ (PM []) = blank ()
@@ -452,7 +453,7 @@ buildCaseBuiltin
   :: Var v
   => DataSpec
   -> Ctx v
-  -> (PatternP (), [(v,Reference)], PatternMatrix v)
+  -> (P.Pattern (), [(v,Reference)], PatternMatrix v)
   -> MatchCase () (Term v)
 buildCaseBuiltin spec ctx0 (p, vrs, m)
   = MatchCase p Nothing . absChain' vs $ compile spec ctx m
@@ -543,18 +544,18 @@ builtinCase
 defaultRef :: Reference
 defaultRef = Builtin "PatternMatchUnknown"
 
-determineType :: Show a => [PatternP a] -> Reference
+determineType :: Show a => [P.Pattern a] -> Reference
 determineType ps = fromMaybe defaultRef . foldr ((<|>) . f) Nothing $ ps
   where
-  f (AsP _ p) = f p
-  f IntP{} = Just Rf.intRef
-  f NatP{} = Just Rf.natRef
-  f FloatP{} = Just Rf.floatRef
-  f BooleanP{} = Just Rf.booleanRef
-  f TextP{} = Just Rf.textRef
-  f CharP{} = Just Rf.charRef
-  f SequenceLiteralP{} = Just Rf.vectorRef
-  f SequenceOpP{} = Just Rf.vectorRef
-  f (ConstructorP _ r _ _) = Just r
-  f (EffectBindP _ r _ _ _) = Just r
+  f (P.As _ p) = f p
+  f P.Int{} = Just Rf.intRef
+  f P.Nat{} = Just Rf.natRef
+  f P.Float{} = Just Rf.floatRef
+  f P.Boolean{} = Just Rf.booleanRef
+  f P.Text{} = Just Rf.textRef
+  f P.Char{} = Just Rf.charRef
+  f P.SequenceLiteral{} = Just Rf.vectorRef
+  f P.SequenceOp{} = Just Rf.vectorRef
+  f (P.Constructor _ r _ _) = Just r
+  f (P.EffectBind _ r _ _ _) = Just r
   f _ = Nothing
