@@ -158,7 +158,7 @@ denormalizeHandler cs df = dcs
   where
   dcs = foldMapWithKey rf cs <> dfc
   dfc = [ Term.MatchCase
-            (EffectPureP () (VarP ()))
+            (P.EffectPure () (P.Var ()))
             Nothing
             db
         ]
