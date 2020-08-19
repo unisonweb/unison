@@ -10,10 +10,8 @@ import           Data.Text                      (Text)
 import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType         as CT
 import qualified Unison.DataDeclaration as DD
-import           Unison.DataDeclaration         ( DataDeclaration'
-                                                    (DataDeclaration)
-                                                , Modifier
-                                                    (Structural, Unique)
+import           Unison.DataDeclaration         ( DataDeclaration(..)
+                                                , Modifier(Structural, Unique)
                                                 , hashDecls )
 import qualified Unison.Pattern                 as Pattern
 import           Unison.Reference               (Reference)
@@ -77,7 +75,7 @@ failConstructorReferent = Referent.Con testResultRef failConstructorId CT.Data
 
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
-builtinDataDecls :: Var v => [(v, Reference.Id, DataDeclaration' v ())]
+builtinDataDecls :: Var v => [(v, Reference.Id, DataDeclaration v ())]
 builtinDataDecls = rs1 ++ rs
  where
   rs1 = case hashDecls $ Map.fromList
@@ -219,7 +217,7 @@ builtinDataDecls = rs1 ++ rs
     , ((), v "Link.Type", Type.typeLink () `arr` var "Link")
     ]
 
-builtinEffectDecls :: [(v, Reference.Id, DD.EffectDeclaration' v ())]
+builtinEffectDecls :: [(v, Reference.Id, DD.EffectDeclaration v ())]
 builtinEffectDecls = []
 
 pattern UnitRef <- (unUnitRef -> True)

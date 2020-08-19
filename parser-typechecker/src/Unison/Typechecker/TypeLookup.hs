@@ -8,10 +8,8 @@ import Unison.Type (Type)
 import qualified Data.Map as Map
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
+import Unison.DataDeclaration (EffectDeclaration, DataDeclaration)
 import qualified Unison.Referent as Referent
-
-type DataDeclaration v a = DD.DataDeclaration' v a
-type EffectDeclaration v a = DD.EffectDeclaration' v a
 
 -- Used for typechecking.
 data TypeLookup v a =

@@ -11,7 +11,7 @@ import           Control.Monad.Reader (local, asks)
 import qualified Data.Map as Map
 import           Prelude hiding (readFile)
 import qualified Text.Megaparsec as P
-import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
+import           Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Lexer as L
 import           Unison.Parser
@@ -146,8 +146,8 @@ closed = P.try $ do
 type Accessors v = [(L.Token v, [(L.Token v, Type v Ann)])]
 
 declarations :: Var v => P v
-                         (Map v (DataDeclaration' v Ann),
-                          Map v (EffectDeclaration' v Ann),
+                         (Map v (DataDeclaration v Ann),
+                          Map v (EffectDeclaration v Ann),
                           Accessors v)
 declarations = do
   declarations <- many $ declaration <* optional semi
@@ -183,8 +183,8 @@ modifier = do
       pure (DD.Unique uid <$ tok)
 
 declaration :: Var v
-            => P v (Either (v, DataDeclaration' v Ann, Accessors v)
-                           (v, EffectDeclaration' v Ann))
+            => P v (Either (v, DataDeclaration v Ann, Accessors v)
+                           (v, EffectDeclaration v Ann))
 declaration = do
   mod <- modifier
   fmap Right (effectDeclaration mod) <|> fmap Left (dataDeclaration mod)
@@ -193,7 +193,7 @@ dataDeclaration
   :: forall v
    . Var v
   => L.Token DD.Modifier
-  -> P v (v, DataDeclaration' v Ann, Accessors v)
+  -> P v (v, DataDeclaration v Ann, Accessors v)
 dataDeclaration mod = do
   _                <- fmap void (reserved "type") <|> openBlockWith "type"
   (name, typeArgs) <-
@@ -237,7 +237,7 @@ dataDeclaration mod = do
         accessors)
 
 effectDeclaration
-  :: Var v => L.Token DD.Modifier -> P v (v, EffectDeclaration' v Ann)
+  :: Var v => L.Token DD.Modifier -> P v (v, EffectDeclaration v Ann)
 effectDeclaration mod = do
   _        <- fmap void (reserved "ability") <|> openBlockWith "ability"
   name     <- TermParser.verifyRelativeVarName prefixDefinitionName

@@ -43,14 +43,13 @@ import qualified Unison.ConstructorType as CT
 
 type ConstructorId = Term.ConstructorId
 
-type DataDeclaration v = DataDeclaration' v ()
-type Decl v a = Either (EffectDeclaration' v a) (DataDeclaration' v a)
+type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
 data DeclOrBuiltin v a =
   Builtin CT.ConstructorType | Decl (Decl v a)
   deriving (Eq, Show)
 
-asDataDecl :: Decl v a -> DataDeclaration' v a
+asDataDecl :: Decl v a -> DataDeclaration v a
 asDataDecl = either toDataDecl id
 
 declDependencies :: Ord v => Decl v a -> Set Reference
@@ -64,12 +63,27 @@ constructorType = \case
 data Modifier = Structural | Unique Text --  | Opaque (Set Reference)
   deriving (Eq, Ord, Show)
 
-data DataDeclaration' v a = DataDeclaration {
+data DataDeclaration v a = DataDeclaration {
   modifier :: Modifier,
   annotation :: a,
   bound :: [v],
   constructors' :: [(a, v, Type v a)]
 } deriving (Eq, Show, Functor)
+
+newtype EffectDeclaration v a = EffectDeclaration {
+  toDataDecl :: DataDeclaration v a
+} deriving (Eq,Show,Functor)
+
+withEffectDecl
+  :: (DataDeclaration v a -> DataDeclaration v' a')
+  -> (EffectDeclaration v a -> EffectDeclaration v' a')
+withEffectDecl f e = EffectDeclaration (f . toDataDecl $ e)
+
+withEffectDeclM :: Functor f
+                => (DataDeclaration v a -> f (DataDeclaration v' a'))
+                -> EffectDeclaration v a
+                -> f (EffectDeclaration v' a')
+withEffectDeclM f = fmap EffectDeclaration . f . toDataDecl
 
 generateConstructorRefs
   :: (Reference -> ConstructorId -> Reference)
@@ -140,7 +154,7 @@ constructorTerms
   :: (Reference -> ConstructorId -> Reference)
   -> (a -> Reference -> ConstructorId -> Term v a)
   -> Reference.Id
-  -> DataDeclaration' v a
+  -> DataDeclaration v a
   -> [(Reference.Id, Term v a, Type v a)]
 constructorTerms hashCtor f rid dd =
   (\((a, _, t), (i, re@(Reference.DerivedId r))) -> (r, f a re i, t)) <$> zip
@@ -150,19 +164,19 @@ constructorTerms hashCtor f rid dd =
 dataConstructorTerms
   :: Ord v
   => Reference.Id
-  -> DataDeclaration' v a
+  -> DataDeclaration v a
   -> [(Reference.Id, Term v a, Type v a)]
 dataConstructorTerms = constructorTerms Term.hashConstructor Term.constructor
 
 effectConstructorTerms
   :: Ord v
   => Reference.Id
-  -> EffectDeclaration' v a
+  -> EffectDeclaration v a
   -> [(Reference.Id, Term v a, Type v a)]
 effectConstructorTerms rid ed =
   constructorTerms Term.hashRequest Term.request rid $ toDataDecl ed
 
-constructorTypes :: DataDeclaration' v a -> [Type v a]
+constructorTypes :: DataDeclaration v a -> [Type v a]
 constructorTypes = (snd <$>) . constructors
 
 declFields :: Var v => Decl v a -> Either [Int] [Int]
@@ -173,16 +187,16 @@ declFields = bimap cf cf . first toDataDecl
   fields (Type.Arrows' spine) = length spine - 1
   fields _ = 0
 
-typeOfConstructor :: DataDeclaration' v a -> ConstructorId -> Maybe (Type v a)
+typeOfConstructor :: DataDeclaration v a -> ConstructorId -> Maybe (Type v a)
 typeOfConstructor dd i = constructorTypes dd `atMay` i
 
-constructors :: DataDeclaration' v a -> [(v, Type v a)]
+constructors :: DataDeclaration v a -> [(v, Type v a)]
 constructors (DataDeclaration _ _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
 
-constructorVars :: DataDeclaration' v a -> [v]
+constructorVars :: DataDeclaration v a -> [v]
 constructorVars dd = fst <$> constructors dd
 
-constructorNames :: Var v => DataDeclaration' v a -> [Text]
+constructorNames :: Var v => DataDeclaration v a -> [Text]
 constructorNames dd = Var.name <$> constructorVars dd
 
 declConstructorReferents :: Reference.Id -> Decl v a -> [Referent.Id]
@@ -190,12 +204,12 @@ declConstructorReferents rid decl =
   [ Referent.Con' rid i ct | i <- constructorIds (asDataDecl decl) ]
   where ct = constructorType decl
 
-constructorIds :: DataDeclaration' v a -> [Int]
+constructorIds :: DataDeclaration v a -> [Int]
 constructorIds dd = [0 .. length (constructors dd) - 1]
 
 -- | All variables mentioned in the given data declaration.
 -- Includes both term and type variables, both free and bound.
-allVars :: Ord v => DataDeclaration' v a -> Set v
+allVars :: Ord v => DataDeclaration v a -> Set v
 allVars (DataDeclaration _ _ bound ctors) = Set.unions $
   Set.fromList bound : [ Set.insert v (Set.fromList $ ABT.allVars tp) | (_,v,tp) <- ctors ]
 
@@ -207,14 +221,14 @@ allVars' = allVars . either toDataDecl id
 bindNames :: Var v
           => Set v
           -> Names0
-          -> DataDeclaration' v a
-          -> Names.ResolutionResult v a (DataDeclaration' v a)
+          -> DataDeclaration v a
+          -> Names.ResolutionResult v a (DataDeclaration v a)
 bindNames keepFree names (DataDeclaration m a bound constructors) = do
   constructors <- for constructors $ \(a, v, ty) ->
     (a,v,) <$> Type.bindNames keepFree names ty
   pure $ DataDeclaration m a bound constructors
 
-dependencies :: Ord v => DataDeclaration' v a -> Set Reference
+dependencies :: Ord v => DataDeclaration v a -> Set Reference
 dependencies dd =
   Set.unions (Type.dependencies <$> constructorTypes dd)
 
@@ -222,7 +236,7 @@ third :: (a -> b) -> (x,y,a) -> (x,y,b)
 third f (x,y,a) = (x, y, f a)
 
 -- implementation of dataDeclToNames and effectDeclToNames
-toNames0 :: Var v => CT.ConstructorType -> v -> Reference.Id -> DataDeclaration' v a -> Names0
+toNames0 :: Var v => CT.ConstructorType -> v -> Reference.Id -> DataDeclaration v a -> Names0
 toNames0 ct typeSymbol (Reference.DerivedId -> r) dd =
   -- constructor names
   foldMap names (constructorVars dd `zip` [0 ..])
@@ -232,50 +246,33 @@ toNames0 ct typeSymbol (Reference.DerivedId -> r) dd =
   names (ctor, i) =
     Names.names0 (Rel.singleton (Name.fromVar ctor) (Referent.Con r i ct)) mempty
 
-dataDeclToNames :: Var v => v -> Reference.Id -> DataDeclaration' v a -> Names0
+dataDeclToNames :: Var v => v -> Reference.Id -> DataDeclaration v a -> Names0
 dataDeclToNames = toNames0 CT.Data
 
-effectDeclToNames :: Var v => v -> Reference.Id -> EffectDeclaration' v a -> Names0
+effectDeclToNames :: Var v => v -> Reference.Id -> EffectDeclaration v a -> Names0
 effectDeclToNames typeSymbol r ed = toNames0 CT.Effect typeSymbol r $ toDataDecl ed
 
-dataDeclToNames' :: Var v => (v, (Reference.Id, DataDeclaration' v a)) -> Names0
+dataDeclToNames' :: Var v => (v, (Reference.Id, DataDeclaration v a)) -> Names0
 dataDeclToNames' (v,(r,d)) = dataDeclToNames v r d
 
-effectDeclToNames' :: Var v => (v, (Reference.Id, EffectDeclaration' v a)) -> Names0
+effectDeclToNames' :: Var v => (v, (Reference.Id, EffectDeclaration v a)) -> Names0
 effectDeclToNames' (v, (r, d)) = effectDeclToNames v r d
 
-type EffectDeclaration v = EffectDeclaration' v ()
-
-newtype EffectDeclaration' v a = EffectDeclaration {
-  toDataDecl :: DataDeclaration' v a
-} deriving (Eq,Show,Functor)
-
-withEffectDecl
-  :: (DataDeclaration' v a -> DataDeclaration' v' a')
-  -> (EffectDeclaration' v a -> EffectDeclaration' v' a')
-withEffectDecl f e = EffectDeclaration (f . toDataDecl $ e)
-
-withEffectDeclM :: Functor f
-                => (DataDeclaration' v a -> f (DataDeclaration' v' a'))
-                -> EffectDeclaration' v a
-                -> f (EffectDeclaration' v' a')
-withEffectDeclM f = fmap EffectDeclaration . f . toDataDecl
-
 mkEffectDecl'
-  :: Modifier -> a -> [v] -> [(a, v, Type v a)] -> EffectDeclaration' v a
+  :: Modifier -> a -> [v] -> [(a, v, Type v a)] -> EffectDeclaration v a
 mkEffectDecl' m a b cs = EffectDeclaration (DataDeclaration m a b cs)
 
-mkEffectDecl :: Modifier -> [v] -> [(v, Type v ())] -> EffectDeclaration' v ()
+mkEffectDecl :: Modifier -> [v] -> [(v, Type v ())] -> EffectDeclaration v ()
 mkEffectDecl m b cs = mkEffectDecl' m () b $ map (\(v, t) -> ((), v, t)) cs
 
 mkDataDecl'
-  :: Modifier -> a -> [v] -> [(a, v, Type v a)] -> DataDeclaration' v a
+  :: Modifier -> a -> [v] -> [(a, v, Type v a)] -> DataDeclaration v a
 mkDataDecl' = DataDeclaration
 
-mkDataDecl :: Modifier -> [v] -> [(v, Type v ())] -> DataDeclaration' v ()
+mkDataDecl :: Modifier -> [v] -> [(v, Type v ())] -> DataDeclaration v ()
 mkDataDecl m b cs = mkDataDecl' m () b $ map (\(v,t) -> ((),v,t)) cs
 
-constructorArities :: DataDeclaration' v a -> [Int]
+constructorArities :: DataDeclaration v a -> [Int]
 constructorArities (DataDeclaration _ _a _bound ctors) =
   Type.arity . (\(_,_,t) -> t) <$> ctors
 
@@ -336,7 +333,7 @@ unsafeUnwrapType typ = ABT.transform f typ
   where f (Type t) = t
         f _ = error $ "Tried to unwrap a type that wasn't a type: " ++ show typ
 
-toABT :: Var v => DataDeclaration v -> ABT.Term F v ()
+toABT :: Var v => DataDeclaration v () -> ABT.Term F v ()
 toABT dd = ABT.tm $ Modified (modifier dd) dd'
   where
   dd' = ABT.absChain (bound dd) $ ABT.cycle
@@ -379,7 +376,7 @@ unhashComponent m
       second unhash2 <$> m'
 
 -- Implementation detail of `hashDecls`, works with unannotated data decls
-hashDecls0 :: (Eq v, Var v) => Map v (DataDeclaration' v ()) -> [(v, Reference.Id)]
+hashDecls0 :: (Eq v, Var v) => Map v (DataDeclaration v ()) -> [(v, Reference.Id)]
 hashDecls0 decls =
   let abts = toABT <$> decls
       ref r = ABT.tm (Type (Type.Ref (Reference.DerivedId r)))
@@ -399,8 +396,8 @@ hashDecls0 decls =
 -- affect the hash.
 hashDecls
   :: (Eq v, Var v)
-  => Map v (DataDeclaration' v a)
-  -> Names.ResolutionResult v a [(v, Reference.Id, DataDeclaration' v a)]
+  => Map v (DataDeclaration v a)
+  -> Names.ResolutionResult v a [(v, Reference.Id, DataDeclaration v a)]
 hashDecls decls = do
   -- todo: make sure all other external references are resolved before calling this
   let varToRef = hashDecls0 (void <$> decls)

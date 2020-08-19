@@ -28,9 +28,6 @@ import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Unison.ConstructorType        as CT
 import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
-import           Unison.DataDeclaration         ( DataDeclaration'
-                                                , EffectDeclaration'
-                                                )
 import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Parser                  ( Ann(..) )
@@ -47,8 +44,8 @@ import qualified Unison.Names3 as Names3
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
 
-type DataDeclaration v = DataDeclaration' v Ann
-type EffectDeclaration v = EffectDeclaration' v Ann
+type DataDeclaration v = DD.DataDeclaration v Ann
+type EffectDeclaration v = DD.EffectDeclaration v Ann
 type Type v = Type.Type v ()
 
 names :: Names

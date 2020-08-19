@@ -259,6 +259,7 @@ toPlainUnbroken p = CT.toPlain (renderUnbroken p)
 syntaxToColor :: Pretty ST.SyntaxText -> Pretty ColorText
 syntaxToColor = fmap $ annotateMaybe . fmap CT.defaultColors
 
+-- set the syntax, overriding any present syntax
 withSyntax :: ST.Element -> Pretty ST.SyntaxText -> Pretty ST.SyntaxText
 withSyntax e = fmap $ ST.syntax e
 

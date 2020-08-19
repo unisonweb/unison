@@ -53,16 +53,14 @@ import           Data.List
 import           Data.List.NonEmpty             ( NonEmpty )
 import qualified Data.Map                      as Map
 import qualified Data.Sequence                 as Seq
-import           Data.Sequence.NonEmpty         ( NonEmptySeq
-                                                , appendSeq
-                                                , nonEmptySeqToSeq
-                                                )
+import           Data.Sequence.NonEmpty         ( NESeq )
+import qualified Data.Sequence.NonEmpty        as NESeq
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Blank                  as B
-import           Unison.DataDeclaration         ( DataDeclaration'
-                                                , EffectDeclaration'
+import           Unison.DataDeclaration         ( DataDeclaration
+                                                , EffectDeclaration
                                                 )
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Pattern                 ( Pattern )
@@ -115,11 +113,11 @@ instance (Ord loc, Var v) => Eq (Element v loc) where
 
 data Env v loc = Env { freshId :: Word64, ctx :: Context v loc }
 
-type DataDeclarations v loc = Map Reference (DataDeclaration' v loc)
-type EffectDeclarations v loc = Map Reference (EffectDeclaration' v loc)
+type DataDeclarations v loc = Map Reference (DataDeclaration v loc)
+type EffectDeclarations v loc = Map Reference (EffectDeclaration v loc)
 
 data Result v loc a = Success (Seq (InfoNote v loc)) a
-                    | TypeError (NonEmptySeq (ErrorNote v loc)) (Seq (InfoNote v loc))
+                    | TypeError (NESeq (ErrorNote v loc)) (Seq (InfoNote v loc))
                     | CompilerBug (CompilerBug v loc)
                                   (Seq (ErrorNote v loc)) -- type errors before hitting the bug
                                   (Seq (InfoNote v loc))  -- info notes before hitting the bug
@@ -129,7 +127,7 @@ instance Applicative (Result v loc) where
   pure = Success mempty
   CompilerBug bug es is <*> _                       = CompilerBug bug es is
   r                     <*> CompilerBug bug es' is' = CompilerBug bug (typeErrors r <> es') (infoNotes r <> is')
-  TypeError es is       <*> r'                      = TypeError (appendSeq es (typeErrors r')) (is <> infoNotes r')
+  TypeError es is       <*> r'                      = TypeError (es NESeq.|>< (typeErrors r')) (is <> infoNotes r')
   Success is _          <*> TypeError es' is'       = TypeError es' (is <> is')
   Success is f          <*> Success is' a           = Success (is <> is') (f a)
 
@@ -149,7 +147,7 @@ compilerBug bug = CompilerBug bug mempty mempty
 
 typeErrors :: Result v loc a -> Seq (ErrorNote v loc)
 typeErrors = \case
-  TypeError es _     -> nonEmptySeqToSeq es
+  TypeError es _     -> NESeq.toSeq es
   CompilerBug _ es _ -> es
   Success _ _        -> mempty
 
@@ -199,8 +197,8 @@ modEnv' f = MT (\menv -> pure . f $ env menv)
 data Unknown = Data | Effect deriving Show
 
 data CompilerBug v loc
-  = UnknownDecl Unknown Reference (Map Reference (DataDeclaration' v loc))
-  | UnknownConstructor Unknown Reference Int (DataDeclaration' v loc)
+  = UnknownDecl Unknown Reference (Map Reference (DataDeclaration v loc))
+  | UnknownConstructor Unknown Reference Int (DataDeclaration v loc)
   | UndeclaredTermVariable v (Context v loc)
   | RetractFailure (Element v loc) (Context v loc)
   | EmptyLetRec (Term v loc) -- the body of the empty let rec
@@ -633,14 +631,14 @@ failWith cause = liftResult $ typeError cause
 compilerCrashResult :: CompilerBug v loc -> Result v loc a
 compilerCrashResult bug = CompilerBug bug mempty mempty
 
-getDataDeclaration :: Reference -> M v loc (DataDeclaration' v loc)
+getDataDeclaration :: Reference -> M v loc (DataDeclaration v loc)
 getDataDeclaration r = do
   decls <- getDataDeclarations
   case Map.lookup r decls of
     Nothing -> compilerCrash (UnknownDecl Data r decls)
     Just decl -> pure decl
 
-getEffectDeclaration :: Reference -> M v loc (EffectDeclaration' v loc)
+getEffectDeclaration :: Reference -> M v loc (EffectDeclaration v loc)
 getEffectDeclaration r = do
   decls <- getEffectDeclarations
   case Map.lookup r decls of
@@ -658,7 +656,7 @@ getEffectConstructorType = getConstructorType' Effect go where
 -- should have been detected earlier though.
 getConstructorType' :: Var v
                     => Unknown
-                    -> (Reference -> M v loc (DataDeclaration' v loc))
+                    -> (Reference -> M v loc (DataDeclaration v loc))
                     -> Reference
                     -> Int
                     -> M v loc (Type v loc)

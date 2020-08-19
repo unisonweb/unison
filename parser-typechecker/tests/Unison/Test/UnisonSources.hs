@@ -20,11 +20,7 @@ import qualified Unison.Builtin         as Builtin
 import           Unison.Codebase.Runtime          ( Runtime, evaluateWatches )
 import           Unison.Codebase.Serialization    ( getFromBytes, putBytes )
 import qualified Unison.Codebase.Serialization.V1 as V1
-import           Unison.DataDeclaration ( DataDeclaration
-                                        , DataDeclaration'
-                                        , EffectDeclaration
-                                        , EffectDeclaration'
-                                        )
+import           Unison.DataDeclaration (EffectDeclaration, DataDeclaration)
 import           Unison.Parser          as Parser
 import qualified Unison.Parsers         as Parsers
 import qualified Unison.PrettyPrintEnv  as PPE
@@ -169,16 +165,16 @@ serializationTest uf = scope "serialization" . tests . concat $
     putUnit () = pure ()
     getUnit :: Monad m => m ()
     getUnit = pure ()
-    testDataDeclaration :: (Symbol, (Reference, DataDeclaration' Symbol Ann)) -> Test ()
+    testDataDeclaration :: (Symbol, (Reference, DataDeclaration Symbol Ann)) -> Test ()
     testDataDeclaration (name, (_, decl)) = scope (Var.nameStr name) $
-      let decl' :: DataDeclaration Symbol
+      let decl' :: DataDeclaration Symbol ()
           decl' = void decl
           bytes = putBytes (V1.putDataDeclaration V1.putSymbol putUnit) decl'
           decl'' = getFromBytes (V1.getDataDeclaration V1.getSymbol getUnit) bytes
       in expectEqual decl'' (Just decl')
-    testEffectDeclaration :: (Symbol, (Reference, EffectDeclaration' Symbol Ann)) -> Test ()
+    testEffectDeclaration :: (Symbol, (Reference, EffectDeclaration Symbol Ann)) -> Test ()
     testEffectDeclaration (name, (_, decl)) = scope (Var.nameStr name) $
-      let decl' :: EffectDeclaration Symbol
+      let decl' :: EffectDeclaration Symbol ()
           decl' = void decl
           bytes = putBytes (V1.putEffectDeclaration V1.putSymbol putUnit) decl'
           decl'' = getFromBytes (V1.getEffectDeclaration V1.getSymbol getUnit) bytes

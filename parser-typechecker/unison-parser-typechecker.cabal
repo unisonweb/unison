@@ -215,7 +215,7 @@ library
     mutable-containers,
     network,
     network-simple,
-    non-empty-sequence,
+    nonempty-containers,
     process,
     primitive,
     random,
