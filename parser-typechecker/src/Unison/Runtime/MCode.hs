@@ -332,38 +332,56 @@ bcount _ = 0
 {-# inline bcount #-}
 
 data UPrim1
-  = DECI | INCI | NEGI | SGNI | LZRO | TZRO | COMN
-  | ABSF | EXPF | LOGF | SQRT
-  | COSF | ACOS | COSH | ACSH
-  | SINF | ASIN | SINH | ASNH
-  | TANF | ATAN | TANH | ATNH
-  | ITOF | NTOF | CEIL | FLOR | TRNF | RNDF
+  -- integral
+  = DECI | INCI | NEGI | SGNI -- decrement,increment,negate,signum
+  | LZRO | TZRO | COMN        -- leading/trailingZeroes,complement
+  -- floating
+  | ABSF | EXPF | LOGF | SQRT -- abs,exp,log,sqrt
+  | COSF | ACOS | COSH | ACSH -- cos,acos,cosh,acosh
+  | SINF | ASIN | SINH | ASNH -- sin,asin,sinh,asinh
+  | TANF | ATAN | TANH | ATNH -- tan,atan,tanh,atanh
+  | ITOF | NTOF | CEIL | FLOR -- intToFloat,natToFloat,ceiling,floor
+  | TRNF | RNDF               -- truncate,round
   deriving (Show, Eq, Ord)
 
 data UPrim2
-  = ADDI | SUBI | MULI | DIVI | MODI
-  | ADDF | SUBF | MULF | DIVF | ATN2
-  | SHLI | SHRI | SHRN | POWI
-  | EQLI | LEQI | LEQN | EQLF | LEQF
-  | POWF | LOGB | MAXF | MINF
-  | ANDN | IORN | XORN
+  -- integral
+  = ADDI | SUBI | MULI | DIVI | MODI -- +,-,*,/,mod
+  | SHLI | SHRI | SHRN | POWI        -- shiftl,shiftr,shiftr,pow
+  | EQLI | LEQI | LEQN               -- ==,<=,<=
+  | ANDN | IORN | XORN               -- and,or,xor
+  -- floating
+  | EQLF | LEQF                      -- ==,<=
+  | ADDF | SUBF | MULF | DIVF | ATN2 -- +,-,*,/,atan2
+  | POWF | LOGB | MAXF | MINF        -- pow,low,max,min
   deriving (Show, Eq, Ord)
 
 data BPrim1
-  = SIZT | USNC | UCNS
-  | ITOT | NTOT | FTOT
-  | TTOI | TTON | TTOF
-  | VWLS | VWRS
-  | SIZS | THRO
-  | PAKT | UPKT | PAKB | UPKB | SIZB | FLTB
+  -- text
+  = SIZT | USNC | UCNS -- size,unsnoc,uncons
+  | ITOT | NTOT | FTOT -- intToText,natToText,floatToText
+  | TTOI | TTON | TTOF -- textToInt,textToNat,textToFloat
+  | PAKT | UPKT        -- pack,unpack
+  -- sequence
+  | VWLS | VWRS | SIZS -- viewl,viewr,size
+  | PAKB | UPKB | SIZB -- pack,unpack,size
+  | FLTB               -- flatten
+  -- general
+  | THRO               -- throw
   deriving (Show, Eq, Ord)
 
 data BPrim2
-  = EQLU | CMPU
-  | DRPT | CATT | TAKT
-  | EQLT | LEQT | LEST
-  | DRPS | CATS | TAKS | CONS | SNOC | IDXS | SPLL | SPLR
-  | TAKB | DRPB | IDXB | CATB
+  -- universal
+  = EQLU | CMPU -- ==,compare
+  -- text
+  | DRPT | CATT | TAKT -- drop,append,take
+  | EQLT | LEQT | LEST -- ==,<=,<
+  -- sequence
+  | DRPS | CATS | TAKS -- drop,append,take
+  | CONS | SNOC | IDXS -- cons,snoc,index
+  | SPLL | SPLR        -- splitLeft,splitRight
+  -- bytes
+  | TAKB | DRPB | IDXB | CATB -- take,drop,index,append
   deriving (Show, Eq, Ord)
 
 data MLit
@@ -479,8 +497,11 @@ data Section
   -- the first are lost on return to the second.
   | Let !Section !Section
 
+  -- Throw an exception with the given message
   | Die String
 
+  -- Immediately stop a thread of interpretation. This is more of
+  -- a debugging tool than a proper operation to target.
   | Exit
   deriving (Show, Eq, Ord)
 
@@ -512,9 +533,15 @@ data Branch
           !(M.Map Text Section)
   deriving (Show, Eq, Ord)
 
+-- Convenience patterns for matches used in the algorithms below.
 pattern MatchW i d cs = Match i (TestW d cs)
 pattern MatchT i d cs = Match i (TestT d cs)
 
+-- Representation of the variable context available in the current
+-- frame. This tracks tags that have been dumped to the stack for
+-- proper indexing. The `Block` constructor is used to mark when we
+-- go into the first portion of a `Let`, to track the size of that
+-- sub-frame.
 data Ctx v
   = ECtx
   | Block (Ctx v)
@@ -522,11 +549,20 @@ data Ctx v
   | Var v Mem (Ctx v)
   deriving (Show)
 
+-- Represents the context formed by the top-level let rec around a
+-- set of definitions. Previous steps have normalized the term to
+-- only contain a single recursive binding group. The variables in
+-- this binding group are resolved to numbered combinators rather
+-- than stack positions.
 type RCtx v = M.Map v Word64
 
+-- Add a sequence of variables and corresponding calling conventions
+-- to the context.
 ctx :: [v] -> [Mem] -> Ctx v
 ctx vs cs = pushCtx (zip vs cs) ECtx
 
+-- Look up a variable in the context, getting its position on the
+-- relevant stack and its calling convention if it is there.
 ctxResolve :: Var v => Ctx v -> v -> Maybe (Int,Mem)
 ctxResolve ctx v = walk 0 0 ctx
   where
@@ -539,15 +575,18 @@ ctxResolve ctx v = walk 0 0 ctx
     where
     (ui', bi') = case m of BX -> (ui,bi+1) ; UN -> (ui+1,bi)
 
+-- Add a sequence of variables and calling conventions to the context.
 pushCtx :: [(v,Mem)] -> Ctx v -> Ctx v
 pushCtx new old = foldr (uncurry Var) old new
 
+-- Concatenate two contexts
 catCtx :: Ctx v -> Ctx v -> Ctx v
 catCtx ECtx r = r
 catCtx (Tag l) r = Tag $ catCtx l r
 catCtx (Block l) r = Block $ catCtx l r
 catCtx (Var v m l) r = Var v m $ catCtx l r
 
+-- Split the context after a particular variable
 breakAfter :: Eq v => (v -> Bool) -> Ctx v -> (Ctx v, Ctx v)
 breakAfter _ ECtx = (ECtx, ECtx)
 breakAfter p (Tag vs) = first Tag $ breakAfter p vs
@@ -558,14 +597,20 @@ breakAfter p (Var v m vs) = (Var v m lvs, rvs)
     | p v       = (ECtx, vs)
     | otherwise = breakAfter p vs
 
+-- Modify the context to contain the variables introduced by an
+-- unboxed sum
 sumCtx :: Var v => Ctx v -> v -> [(v,Mem)] -> Ctx v
 sumCtx ctx v vcs
   | (lctx, rctx) <- breakAfter (== v) ctx
   = catCtx lctx $ pushCtx vcs rctx
 
+-- Look up a variable in the top let rec context
 rctxResolve :: Var v => RCtx v -> v -> Maybe Word64
 rctxResolve ctx u = M.lookup u ctx
 
+-- Compile a top-level definition group to a collection of combinators.
+-- The values in the recursive group are numbered according to the
+-- provided word.
 emitCombs
   :: Var v => Word64 -> SuperGroup v
   -> (Comb, EnumMap Word64 Comb, Word64)
@@ -588,6 +633,8 @@ instance Applicative Counted where
   pure = C 0 0
   C u0 b0 f <*> C u1 b1 x = C (max u0 u1) (max b0 b1) (f x)
 
+-- Counts the stack space used by a context and annotates a value
+-- with it.
 countCtx :: Ctx v -> a -> Counted a
 countCtx = go 0 0
   where
@@ -605,6 +652,7 @@ emitComb rec (Lambda ccs (TAbss vs bd))
 addCount :: Int -> Int -> Counted a -> Counted a
 addCount i j (C u b x) = C (u+i) (b+j) x
 
+-- Emit a machine code section from an ANF term
 emitSection
   :: Var v
   => RCtx v -> Ctx v -> ANormal v
@@ -691,6 +739,7 @@ emitSection _   ctx (TFrc v)
   | otherwise = emitSectionVErr v
 emitSection _ _ tm = error $ "emitSection: unhandled code: " ++ show tm
 
+-- Emit the code for a function call
 emitFunction :: Var v => RCtx v -> Ctx v -> Func v -> Args -> Section
 emitFunction rec ctx (FVar v) as
   | Just (i,BX) <- ctxResolve ctx v
@@ -720,6 +769,7 @@ emitFunction _   ctx (FCont k) as
 emitFunction _ _ (FPrim _) _
   = error "emitFunction: impossible"
 
+-- Modify function arguments for packing into a request
 reqArgs :: Args -> Args
 reqArgs = \case
   ZArgs -> UArg1 0
@@ -784,6 +834,9 @@ litArg ANF.LM{} = BArg1 0
 litArg ANF.LY{} = BArg1 0
 litArg _       = UArg1 0
 
+-- Emit machine code for a let expression. Some expressions do not
+-- require a machine code Let, which uses more complicated stack
+-- manipulation.
 emitLet
   :: Var v
   => RCtx v -> Ctx v -> ANormalT v
@@ -803,8 +856,11 @@ emitLet _   ctx (AApp (FPrim p) args)
 emitLet rec ctx bnd
   = liftA2 Let (emitSection rec (Block ctx) (TTm bnd))
 
--- Float
+-- Translate from ANF prim ops to machine code operations. The
+-- machine code operations are divided with respect to more detailed
+-- information about expected number and types of arguments.
 emitPOp :: ANF.POp -> Args -> Instr
+-- Integral
 emitPOp ANF.ADDI = emitP2 ADDI
 emitPOp ANF.ADDN = emitP2 ADDI
 emitPOp ANF.SUBI = emitP2 SUBI
@@ -839,6 +895,7 @@ emitPOp ANF.IORN = emitP2 IORN
 emitPOp ANF.XORN = emitP2 XORN
 emitPOp ANF.COMN = emitP1 COMN
 
+-- Float
 emitPOp ANF.ADDF = emitP2 ADDF
 emitPOp ANF.SUBF = emitP2 SUBF
 emitPOp ANF.MULF = emitP2 MULF
@@ -875,6 +932,7 @@ emitPOp ANF.ASNH = emitP1 ASNH
 emitPOp ANF.ATNH = emitP1 ATNH
 emitPOp ANF.ATN2 = emitP2 ATN2
 
+-- conversions
 emitPOp ANF.ITOF = emitP1 ITOF
 emitPOp ANF.NTOF = emitP1 NTOF
 emitPOp ANF.ITOT = emitBP1 ITOT
@@ -884,6 +942,7 @@ emitPOp ANF.TTON = emitBP1 TTON
 emitPOp ANF.TTOI = emitBP1 TTOI
 emitPOp ANF.TTOF = emitBP1 TTOF
 
+-- text
 emitPOp ANF.CATT = emitBP2 CATT
 emitPOp ANF.TAKT = emitBP2 TAKT
 emitPOp ANF.DRPT = emitBP2 DRPT
@@ -895,6 +954,7 @@ emitPOp ANF.LEQT = emitBP2 LEQT
 emitPOp ANF.PAKT = emitBP1 PAKT
 emitPOp ANF.UPKT = emitBP1 UPKT
 
+-- sequence
 emitPOp ANF.CATS = emitBP2 CATS
 emitPOp ANF.TAKS = emitBP2 TAKS
 emitPOp ANF.DRPS = emitBP2 DRPS
@@ -907,6 +967,7 @@ emitPOp ANF.VWRS = emitBP1 VWRS
 emitPOp ANF.SPLL = emitBP2 SPLL
 emitPOp ANF.SPLR = emitBP2 SPLR
 
+-- bytes
 emitPOp ANF.PAKB = emitBP1 PAKB
 emitPOp ANF.UPKB = emitBP1 UPKB
 emitPOp ANF.TAKB = emitBP2 TAKB
@@ -916,11 +977,14 @@ emitPOp ANF.SIZB = emitBP1 SIZB
 emitPOp ANF.FLTB = emitBP1 FLTB
 emitPOp ANF.CATB = emitBP2 CATB
 
+-- universal comparison
 emitPOp ANF.EQLU = emitBP2 EQLU
 emitPOp ANF.CMPU = emitBP2 CMPU
 
+-- error call
 emitPOp ANF.EROR = emitBP1 THRO
 
+-- non-prim translations
 emitPOp ANF.BLDS = Seq
 emitPOp ANF.FORK = \case
   BArg1 i -> Fork $ App True (Stk i) ZArgs
@@ -933,6 +997,10 @@ emitPOp ANF.INFO = \case
   _ -> error "info takes no arguments"
 -- handled in emitSection because Die is not an instruction
 
+-- Emit machine code for ANF IO operations. These are all translated
+-- to 'foreing function' calls, but there is a special case for the
+-- standard handle access function, because it does not yield an
+-- explicit error.
 emitIOp :: ANF.IOp -> Args -> Instr
 emitIOp iop@ANF.STDHND = ForeignCall False (iopToForeign iop)
 emitIOp iop = ForeignCall True (iopToForeign iop)
@@ -973,7 +1041,7 @@ maybeResult' _ Nothing = [Left 0]
 maybeResult' f (Just x)
   | (i, r) <- f x = Left (i+1) : r
 
-
+-- Implementations of ANF IO operations
 iopToForeign :: ANF.IOp -> ForeignFunc
 iopToForeign ANF.OPENFI
   = foreign2 $ \fp mo -> handleResult <$> openFile fp mo
@@ -1071,6 +1139,8 @@ hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny
 hostPreference (Just host) = SYS.Host $ Text.unpack host
 
+-- Helper functions for packing the variable argument representation
+-- into the indexes stored in prim op instructions
 emitP1 :: UPrim1 -> Args -> Instr
 emitP1 p (UArg1 i) = UPrim1 p i
 emitP1 p a
@@ -1114,6 +1184,11 @@ emitDataMatching rec ctx cs df
   edf | Just co <- df = emitSection rec ctx co
       | otherwise = countCtx ctx $ Die "missing data case"
 
+-- Emits code corresponding to an unboxed sum match.
+-- The match is against a tag on the stack, and cases introduce
+-- variables to the middle of the context, because the fields were
+-- already there, but it was unknown how many there were until
+-- branching on the tag.
 emitSumMatching
   :: Var v
   => RCtx v
@@ -1194,6 +1269,13 @@ emitLit l = Lit $ case l of
   ANF.LM r -> MM r
   ANF.LY r -> MY r
 
+-- Emits some fix-up code for calling functions. Some of the
+-- variables in scope come from the top-level let rec, but these
+-- are definitions, not values on the stack. These definitions cannot
+-- be passed directly as function arguments, and must have a
+-- corresponding stack entry allocated first. So, this function inserts
+-- these allocations and passes the appropriate context into the
+-- provided continuation.
 emitClosures
   :: Var v
   => RCtx v -> Ctx v -> [v]
@@ -1216,6 +1298,8 @@ emitArgs ctx args
   | otherwise
   = error $ "could not resolve argument variables: " ++ show args
 
+-- Turns a list of stack positions and calling conventions into the
+-- argument format expected in the machine code.
 demuxArgs :: [(Int,Mem)] -> Args
 demuxArgs as0
   = case bimap (fmap fst) (fmap fst) $ partition ((==UN).snd) as0 of
