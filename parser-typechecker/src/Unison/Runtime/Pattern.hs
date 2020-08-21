@@ -40,12 +40,21 @@ import Data.Map.Strict
 import qualified Data.Map.Strict as Map
 
 type Term v = Tm.Term v ()
+
+-- Represents the number of fields of constructors of a data type/
+-- ability in order of constructors
 type Cons = [Int]
 
+-- Maps references to the constructor information for abilities (left)
+-- and data types (right)
 type DataSpec = Map Reference (Either Cons Cons)
 
 type Ctx v = Map v Reference
 
+-- Representation of a row in a pattern compilation matrix.
+-- There is a list of patterns annotated with the variables they
+-- are matching against, an optional guard, and the body of the
+-- 'match' clause associated with this row.
 data PatternRow v
   = PR
   { matches :: [Pattern v]
@@ -53,6 +62,8 @@ data PatternRow v
   , body :: Term v
   } deriving (Show)
 
+-- This is the data and ability 'constructor' information for all
+-- the things defined in Haskell source code.
 builtinDataSpec :: DataSpec
 builtinDataSpec = Map.fromList decls
  where
@@ -61,10 +72,18 @@ builtinDataSpec = Map.fromList decls
       ++ [ (DerivedId x, declFields $ Left y)
          | (_,x,y) <- builtinEffectDecls @Symbol ]
 
+-- A pattern compilation matrix is just a list of rows. There is
+-- no need for the rows to have uniform length; the variable
+-- annotations on the patterns in the rows keep track of what
+-- should be matched against when decomposing a matrix.
 data PatternMatrix v
   = PM { _rows :: [PatternRow v] }
   deriving Show
 
+-- Heuristics guide the pattern compilation. They inspect the
+-- pattern matrix and (may) choose a variable to split on next.
+-- The full strategy will consist of multiple heuristics composed
+-- in series.
 type Heuristic v = PatternMatrix v -> Maybe v
 
 choose :: [Heuristic v] -> PatternMatrix v -> v
@@ -97,6 +116,16 @@ extractVar p
 extractVars :: Var v => [P.Pattern v] -> [v]
 extractVars = catMaybes . fmap extractVar
 
+-- Splits a data type pattern, yielding its subpatterns. The provided
+-- integers are the tag and number of fields for the constructor being
+-- matched against. A constructor pattern thus only yields results if
+-- it matches the tag (and number of subpatterns as a consistency
+-- check), while variables can also match and know how many subpatterns
+-- to yield.
+--
+-- The outer list indicates success of the match. It could be Maybe,
+-- but elsewhere these results are added to a list, so it is more
+-- convenient to yield a list here.
 decomposePattern
   :: Var v
   => Int -> Int -> P.Pattern v
@@ -137,6 +166,15 @@ matchBuiltin (P.Char _ c) = Just $ P.Char () c
 matchBuiltin (P.Float _ d) = Just $ P.Float () d
 matchBuiltin _ = Nothing
 
+-- Represents the various cases that that may occur when performing
+-- a sequence match. These fall into two groups:
+--
+--   E, C, S: empty, cons, snoc
+--   L, R, DL, DR: split left/right, insufficient elements
+--
+-- These groups correspond to different sorts of matches we can compile
+-- to. We can view the left/right end of a sequence, or attempt to
+-- split a sequence at a specified offset from the left/right side.
 data SeqMatch = E | C | S | L Int | R Int | DL Int | DR Int
   deriving (Eq,Ord,Show)
 
@@ -147,6 +185,11 @@ seqPSize (P.SequenceOp _ l Snoc _) = (1+) <$> seqPSize l
 seqPSize (P.SequenceOp _ l Concat r) = (+) <$> seqPSize l <*> seqPSize r
 seqPSize _ = Nothing
 
+-- Decides a sequence matching operation to perform based on a column
+-- of patterns that match against it. Literals do not really force a
+-- bias, so the decision of which side to view is postponed to
+-- subsequent patterns if we encounter a literal first. A literal with
+-- priority does block a splitting pattern, though.
 decideSeqPat :: [P.Pattern v] -> [SeqMatch]
 decideSeqPat = go False
   where
@@ -164,11 +207,18 @@ decideSeqPat = go False
   go _ (p:_)
     = error $ "Cannot process sequence pattern: " ++ show p
 
+-- Represents the possible correspondences between a sequence pattern
+-- and a sequence matching compilation target. Unlike data matching,
+-- where a pattern either matches or is disjoint from a tag, sequence
+-- patterns can overlap in non-trivial ways where it would be difficult
+-- to avoid re-testing the original list.
 data SeqCover v
   = Cover [P.Pattern v]
   | Disjoint
   | Overlap
 
+-- Determines how a pattern corresponds to a sequence matching
+-- compilation target.
 decomposeSeqP :: Var v => Set v -> SeqMatch -> P.Pattern v -> SeqCover v
 decomposeSeqP _ E (P.SequenceLiteral _ []) = Cover []
 decomposeSeqP _ E _ = Disjoint
@@ -222,6 +272,11 @@ decomposeSeqP _ (DR n) (P.SequenceLiteral _ ps)
 
 decomposeSeqP _ _ _ = Overlap
 
+-- Splits a pattern row with respect to matching a variable against a
+-- data type constructor. If the row would match the specified
+-- constructor, the subpatterns and resulting row are yielded. A list
+-- is used as the result value to indicate success or failure to match,
+-- because these results are accumulated into a larger list elsewhere.
 splitRow
   :: Var v
   => v
@@ -234,6 +289,12 @@ splitRow v t nfields (PR (break ((==v).loc) -> (pl, sp : pr)) g b)
       <&> \subs -> (subs, PR (pl ++ filter refutable subs ++ pr) g b)
 splitRow _ _ _ row = [([],row)]
 
+-- Splits a row with respect to a variable, expecting that the
+-- variable will be matched against a builtin pattern (non-data type,
+-- non-request, non-sequence). In addition to returning the
+-- subpatterns and new row, returns a version of the pattern that was
+-- matched against the variable that may be collected to determine the
+-- cases the built-in value is matched against.
 splitRowBuiltin
   :: Var v
   => v
@@ -244,6 +305,11 @@ splitRowBuiltin v (PR (break ((==v).loc) -> (pl, sp : pr)) g b)
   | otherwise = []
 splitRowBuiltin _ r = [(P.Unbound (), [([], r)])]
 
+-- Splits a row with respect to a variable, expecting that the
+-- variable will be matched against a sequence matching operation.
+-- Yields the subpatterns and a new row to be used in subsequent
+-- compilation. The outer list result is used to indicate success or
+-- failure.
 splitRowSeq
   :: Var v
   => v
@@ -259,6 +325,8 @@ splitRowSeq v m r@(PR (break ((==v).loc) -> (pl, sp : pr)) g b)
   where avoid = maybe mempty freeVars g <> freeVars b
 splitRowSeq _ _ r = [([], r)]
 
+-- Renames the variables annotating the patterns in a row, for once a
+-- canonical choice has been made.
 renameRow :: Var v => Map v v -> PatternRow v -> PatternRow v
 renameRow m (PR p0 g0 b0) = PR p g b
   where
@@ -269,12 +337,21 @@ renameRow m (PR p0 g0 b0) = PR p g b
   g = changeVars m <$> g0
   b = changeVars m b0
 
+-- Chooses a common set of variables for use when decomposing
+-- patterns into multiple sub-patterns. It is too naive to simply use
+-- the variables in the first row, because it may have been generated
+-- by decomposing a variable or unbound pattern, which will make up
+-- variables for subpatterns.
 chooseVars :: Var v => [[P.Pattern v]] -> [v]
 chooseVars [] = []
 chooseVars ([]:rs) = chooseVars rs
 chooseVars ((P.Unbound{} : _) : rs) = chooseVars rs
 chooseVars (r : _) = extractVars r
 
+-- Creates a pattern matrix from many rows with the subpatterns
+-- introduced during the splitting that generated those rows. Also
+-- yields an indication of the type of the variables that the
+-- subpatterns match against, if possible.
 buildMatrix
   :: Var v
   => [([P.Pattern v], PatternRow v)]
@@ -287,6 +364,11 @@ buildMatrix vrs = (zip cvs rs, PM $ fixRow <$> vrs)
   fixRow (extractVars -> rvs, pr)
     = renameRow (fromListWith const . zip rvs $ cvs) pr
 
+-- Splits a pattern matrix on a given variable, expected to be matched
+-- against builtin type patterns. Yields the cases covered and
+-- corresponding matrices for those cases, with types for any new
+-- variables (although currently builtin patterns do not introduce
+-- variables).
 splitMatrixBuiltin
   :: Var v
   => v
@@ -312,6 +394,10 @@ matchPattern vrs = \case
   vr | [] <- vrs = P.Unbound () | otherwise = P.Var ()
   sz n = P.SequenceLiteral () . replicate n $ P.Unbound ()
 
+-- Splits a matrix at a given variable with respect to sequence
+-- patterns. Yields the appropriate patterns for the covered cases,
+-- variables introduced for each case with their types, and new
+-- matricies for subsequent compilation.
 splitMatrixSeq
   :: Var v
   => v
@@ -329,6 +415,9 @@ splitMatrixSeq v (PM rs)
         (vrs, pm) = buildMatrix frs
     in (matchPattern vrs m, hint m vrs, pm)
 
+-- Splits a matrix at a given variable with respect to a data type or
+-- ability match. Yields a new matrix for each constructor, with
+-- variables introduced and their types for each case.
 splitMatrix
   :: Var v
   => v
@@ -341,6 +430,9 @@ splitMatrix v econs (PM rs)
   cons = either (((-1,1):) . zip [0..]) (zip [0..]) econs
   mmap = fmap (\(t,fs) -> (t, splitRow v t fs =<< rs)) cons
 
+-- Monad for pattern preparation. It is a state monad carrying a fresh
+-- variable source, the list of variables bound the the pattern being
+-- prepared, and a variable renaming mapping.
 type PPM v a = State (Word64, [v], Map v v) a
 
 freshVar :: Var v => PPM v v
@@ -358,6 +450,8 @@ renameTo to from
       , insertWith (error "renameTo: duplicate rename") from to rn
       )
 
+-- Tries to rewrite sequence patterns into a format that can be
+-- matched most flexibly.
 normalizeSeqP :: P.Pattern a -> P.Pattern a
 normalizeSeqP (P.As a p) = P.As a (normalizeSeqP p)
 normalizeSeqP (P.EffectPure a p) = P.EffectPure a $ normalizeSeqP p
@@ -382,6 +476,10 @@ normalizeSeqP (P.SequenceOp a p0 op q0)
       (op, p, q) -> P.SequenceOp a p op q
 normalizeSeqP p = p
 
+-- Prepares a pattern for compilation, like `preparePattern`. This
+-- function, however, is used when a candidate variable for a pattern
+-- has already been chosen, as with an As pattern. This allows turning
+-- redundant names (like with the pattern u@v) into renamings.
 prepareAs :: Var v => P.Pattern a -> v -> PPM v (P.Pattern v)
 prepareAs (P.Unbound _) u = pure $ P.Var u
 prepareAs (P.As _ p) u = prepareAs p u <* (renameTo u =<< useVar)
@@ -402,6 +500,11 @@ prepareAs (P.SequenceOp _ p op q) u = do
     <*> preparePattern q
 prepareAs p u = pure $ u <$ p
 
+-- Prepares a pattern for compilation. This removes the existing
+-- annotations and replaces them with a choice of variable that the
+-- pattern is matching against. As patterns are eliminated and the
+-- variables they bind are used as candidates for what that level of
+-- the pattern matches against.
 preparePattern :: Var v => P.Pattern a -> PPM v (P.Pattern v)
 preparePattern (P.Unbound _) = P.Var <$> freshVar
 preparePattern (P.Var _) = P.Var <$> useVar

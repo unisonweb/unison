@@ -66,12 +66,18 @@ info ctx x = infos ctx (show x)
 infos :: String -> String -> IO ()
 infos ctx s = putStrLn $ ctx ++ ": " ++ s
 
+-- Entry point for evaluating a section
 eval0 :: REnv -> Env -> Section -> IO ()
 eval0 renv !env !co = do
   ustk <- alloc
   bstk <- alloc
   mask $ \unmask -> eval unmask renv env mempty ustk bstk KE co
 
+-- Entry point for evaluating a numbered combinator.
+-- An optional callback for the base of the stack may be supplied.
+--
+-- This is the entry point actually used in the interactive
+-- environment currently.
 apply0
   :: Maybe (Stack 'UN -> Stack 'BX -> IO ())
   -> REnv -> Env -> Word64 -> IO ()
