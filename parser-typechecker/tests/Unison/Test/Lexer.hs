@@ -1,7 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Unison.Test.Lexer where
 
 import           EasyTest
 import           Unison.Lexer
+import qualified Unison.ShortHash as ShortHash
 
 test :: Test ()
 test =
@@ -77,6 +80,10 @@ test =
         , simpleWordyId ".foo.bar.baz"
         ]
       , t ".Foo.Bar.+" [simpleSymbolyId ".Foo.Bar.+"]
+
+      -- idents with hashes
+      , t "foo#bar" [WordyId "foo" (Just (ShortHash.unsafeFromText "#bar"))]
+      , t "+#bar" [SymbolyId "+" (Just (ShortHash.unsafeFromText "#bar"))]
 
   -- note - these are all the same, just with different spacing
       , let ex1 = "if x then y else z"
