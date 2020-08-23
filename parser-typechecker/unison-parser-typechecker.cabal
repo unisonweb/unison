@@ -238,7 +238,7 @@ executable unison
   import: unison-common
   main-is: Main.hs
   hs-source-dirs: unison
-  ghc-options: -Wall -threaded -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -rtsopts -optP-Wno-nonportable-include-path
+  ghc-options: -Wall -threaded -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
   other-modules:
     System.Path
     Version
