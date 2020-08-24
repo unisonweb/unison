@@ -43,6 +43,8 @@ testHandleOps newRt =
 ```
 
 ```unison
+use io IO
+
 main : '{IO} ()
 main = 'let
   fp = ${Text.pack myFile}
