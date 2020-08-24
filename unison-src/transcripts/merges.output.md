@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #gjkmcnvfuh
+  ⊙ #krakhj8q5b
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #kqloe7510g
+  ⊙ #j0lfs5asc7
   
     + Adds / updates:
     
@@ -129,34 +129,30 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #aj79ekpoo3
+  ⊙ #ej6ll3ac1h
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #tlh9bnckss
+  ⊙ #gidrg9pool
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #om14e19o1o
+  ⊙ #sdinucmq5a
   
     + Adds / updates:
     
       x
   
-  ⊙ #1ggq0kemne
+  ⊙ #pc4d0e58h3
   
     + Adds / updates:
     
-      builtin.AlreadyExists builtin.Boolean builtin.Boolean.not
-      builtin.BufferMode builtin.BufferMode.BlockBuffering
-      builtin.BufferMode.LineBuffering
-      builtin.BufferMode.NoBuffering
-      builtin.BufferMode.SizedBlockBuffering builtin.Bytes
+      builtin.Boolean builtin.Boolean.not builtin.Bytes
       builtin.Bytes.++ builtin.Bytes.at builtin.Bytes.drop
       builtin.Bytes.empty builtin.Bytes.flatten
       builtin.Bytes.fromList builtin.Bytes.size
@@ -164,15 +160,12 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Char.fromNat builtin.Char.toNat
       builtin.Debug.watch builtin.Doc builtin.Doc.Blob
       builtin.Doc.Evaluate builtin.Doc.Join builtin.Doc.Link
-      builtin.Doc.Signature builtin.Doc.Source builtin.EOF
-      builtin.Either builtin.Either.Left builtin.Either.Right
-      builtin.FileMode builtin.FileMode.Append
-      builtin.FileMode.Read builtin.FileMode.ReadWrite
-      builtin.FileMode.Write builtin.Float builtin.Float.*
-      builtin.Float.+ builtin.Float.- builtin.Float./
-      builtin.Float.abs builtin.Float.acos builtin.Float.acosh
-      builtin.Float.asin builtin.Float.asinh builtin.Float.atan
-      builtin.Float.atan2 builtin.Float.atanh
+      builtin.Doc.Signature builtin.Doc.Source builtin.Either
+      builtin.Either.Left builtin.Either.Right builtin.Float
+      builtin.Float.* builtin.Float.+ builtin.Float.-
+      builtin.Float./ builtin.Float.abs builtin.Float.acos
+      builtin.Float.acosh builtin.Float.asin builtin.Float.asinh
+      builtin.Float.atan builtin.Float.atan2 builtin.Float.atanh
       builtin.Float.ceiling builtin.Float.cos builtin.Float.cosh
       builtin.Float.eq builtin.Float.exp builtin.Float.floor
       builtin.Float.fromText builtin.Float.gt builtin.Float.gteq
@@ -181,25 +174,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Float.pow builtin.Float.round builtin.Float.sin
       builtin.Float.sinh builtin.Float.sqrt builtin.Float.tan
       builtin.Float.tanh builtin.Float.toText
-      builtin.Float.truncate builtin.IO.clientSocket
-      builtin.IO.closeFile builtin.IO.closeSocket
-      builtin.IO.createDirectory builtin.IO.fileExists
-      builtin.IO.forkComp builtin.IO.getBuffering
-      builtin.IO.getCurrentDirectory builtin.IO.getFileSize
-      builtin.IO.getFileTimestamp builtin.IO.getLine
-      builtin.IO.getTempDirectory builtin.IO.getText
-      builtin.IO.handlePosition builtin.IO.isDirectory
-      builtin.IO.isFileEOF builtin.IO.isFileOpen
-      builtin.IO.isSeekable builtin.IO.listen
-      builtin.IO.openFile builtin.IO.putText
-      builtin.IO.removeDirectory builtin.IO.removeFile
-      builtin.IO.renameDirectory builtin.IO.renameFile
-      builtin.IO.seekHandle builtin.IO.serverSocket
-      builtin.IO.setBuffering builtin.IO.setCurrentDirectory
-      builtin.IO.socketAccept builtin.IO.socketReceive
-      builtin.IO.socketSend builtin.IO.stdHandle
-      builtin.IO.systemTime builtin.IOError
-      builtin.IllegalOperation builtin.Int builtin.Int.*
+      builtin.Float.truncate builtin.Int builtin.Int.*
       builtin.Int.+ builtin.Int.- builtin.Int./ builtin.Int.and
       builtin.Int.complement builtin.Int.eq builtin.Int.fromText
       builtin.Int.gt builtin.Int.gteq builtin.Int.increment
@@ -225,16 +200,14 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Nat.pow builtin.Nat.shiftLeft
       builtin.Nat.shiftRight builtin.Nat.sub builtin.Nat.toFloat
       builtin.Nat.toInt builtin.Nat.toText
-      builtin.Nat.trailingZeros builtin.Nat.xor
-      builtin.NoSuchThing builtin.Optional builtin.Optional.None
-      builtin.Optional.Some builtin.PermissionDenied
-      builtin.Request builtin.ResourceBusy
-      builtin.ResourceExhausted builtin.SeqView
-      builtin.SeqView.VElem builtin.SeqView.VEmpty
-      builtin.Test.Result builtin.Test.Result.Fail
-      builtin.Test.Result.Ok builtin.Text builtin.Text.!=
-      builtin.Text.++ builtin.Text.drop builtin.Text.empty
-      builtin.Text.eq builtin.Text.fromCharList builtin.Text.gt
+      builtin.Nat.trailingZeros builtin.Nat.xor builtin.Optional
+      builtin.Optional.None builtin.Optional.Some
+      builtin.Request builtin.SeqView builtin.SeqView.VElem
+      builtin.SeqView.VEmpty builtin.Test.Result
+      builtin.Test.Result.Fail builtin.Test.Result.Ok
+      builtin.Text builtin.Text.!= builtin.Text.++
+      builtin.Text.drop builtin.Text.empty builtin.Text.eq
+      builtin.Text.fromCharList builtin.Text.gt
       builtin.Text.gteq builtin.Text.lt builtin.Text.lteq
       builtin.Text.size builtin.Text.take
       builtin.Text.toCharList builtin.Text.uncons
@@ -242,8 +215,42 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Unit builtin.Unit.Unit builtin.Universal.<
       builtin.Universal.<= builtin.Universal.==
       builtin.Universal.> builtin.Universal.>=
-      builtin.Universal.compare builtin.UserError builtin.bug
-      builtin.todo
+      builtin.Universal.compare builtin.bug
+      builtin.io2.BufferMode
+      builtin.io2.BufferMode.BlockBuffering
+      builtin.io2.BufferMode.LineBuffering
+      builtin.io2.BufferMode.NoBuffering
+      builtin.io2.BufferMode.SizedBlockBuffering
+      builtin.io2.FileMode builtin.io2.FileMode.Append
+      builtin.io2.FileMode.Read builtin.io2.FileMode.ReadWrite
+      builtin.io2.FileMode.Write builtin.io2.Handle
+      builtin.io2.IO builtin.io2.IO.clientSocket
+      builtin.io2.IO.closeFile builtin.io2.IO.closeSocket
+      builtin.io2.IO.createDirectory builtin.io2.IO.fileExists
+      builtin.io2.IO.forkComp builtin.io2.IO.getBuffering
+      builtin.io2.IO.getCurrentDirectory
+      builtin.io2.IO.getFileSize builtin.io2.IO.getFileTimestamp
+      builtin.io2.IO.getLine builtin.io2.IO.getTempDirectory
+      builtin.io2.IO.getText builtin.io2.IO.handlePosition
+      builtin.io2.IO.isDirectory builtin.io2.IO.isFileEOF
+      builtin.io2.IO.isFileOpen builtin.io2.IO.isSeekable
+      builtin.io2.IO.listen builtin.io2.IO.openFile
+      builtin.io2.IO.putText builtin.io2.IO.removeDirectory
+      builtin.io2.IO.removeFile builtin.io2.IO.renameDirectory
+      builtin.io2.IO.renameFile builtin.io2.IO.seekHandle
+      builtin.io2.IO.serverSocket builtin.io2.IO.setBuffering
+      builtin.io2.IO.setCurrentDirectory
+      builtin.io2.IO.socketAccept builtin.io2.IO.socketReceive
+      builtin.io2.IO.socketSend builtin.io2.IO.stdHandle
+      builtin.io2.IO.systemTime builtin.io2.IOError
+      builtin.io2.IOError.AlreadyExists builtin.io2.IOError.EOF
+      builtin.io2.IOError.IllegalOperation
+      builtin.io2.IOError.NoSuchThing
+      builtin.io2.IOError.PermissionDenied
+      builtin.io2.IOError.ResourceBusy
+      builtin.io2.IOError.ResourceExhausted
+      builtin.io2.IOError.UserError builtin.io2.Socket
+      builtin.io2.ThreadId builtin.todo
   
   □ #7asfbtqmoj (start of history)
 
