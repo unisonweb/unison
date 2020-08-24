@@ -41,9 +41,9 @@ fileModeRef, bufferModeRef, seqViewRef :: Reference
       [(_, doc , _)] = filter (\(v, _, _) -> v == Var.named "Doc") decls
 
       [(_,ethr,_)] = filter (\(v,_,_) -> v == Var.named "Either") decls
-      [(_,ioerr,_)] = filter (\(v,_,_) -> v == Var.named "IOError") decls
-      [(_,fmode,_)] = filter (\(v,_,_) -> v == Var.named "FileMode") decls
-      [(_,bmode,_)] = filter (\(v,_,_) -> v == Var.named "BufferMode") decls
+      [(_,ioerr,_)] = filter (\(v,_,_) -> v == Var.named "io2.IOError") decls
+      [(_,fmode,_)] = filter (\(v,_,_) -> v == Var.named "io2.FileMode") decls
+      [(_,bmode,_)] = filter (\(v,_,_) -> v == Var.named "io2.BufferMode") decls
       [(_,seqv,_)] = filter (\(v,_,_) -> v == Var.named "SeqView") decls
       r = Reference.DerivedId
   in (r unit, r pair, r opt, r testResult, r link, r doc, r ethr, r ioerr, r fmode, r bmode, r seqv)
@@ -88,11 +88,11 @@ builtinDataDecls = rs1 ++ rs
     , (v "Either"         , eith)
     , (v "Test.Result"    , tr)
     , (v "Doc"            , doc)
-    , (v "FileMode"       , fmode)
-    , (v "BufferMode"     , bmode)
+    , (v "io2.FileMode"   , fmode)
+    , (v "io2.BufferMode" , bmode)
     , (v "SeqView"        , seqview)
 
-    , (v "IOError"        , ioerr)
+    , (v "io2.IOError"    , ioerr)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
   [(_, linkRef, _)] = rs1
   v = Var.named
@@ -145,50 +145,51 @@ builtinDataDecls = rs1 ++ rs
       )
     ]
   fmode = DataDeclaration
-    Structural
+    (Unique "3c11ba4f0a5d8fedd427b476cdd2d7673197d11e")
     ()
     []
-    [ ((), v "FileMode.Read", var "FileMode")
-    , ((), v "FileMode.Write", var "FileMode")
-    , ((), v "FileMode.Append", var "FileMode")
-    , ((), v "FileMode.ReadWrite", var "FileMode")
+    [ ((), v "io2.FileMode.Read", var "io2.FileMode")
+    , ((), v "io2.FileMode.Write", var "io2.FileMode")
+    , ((), v "io2.FileMode.Append", var "io2.FileMode")
+    , ((), v "io2.FileMode.ReadWrite", var "io2.FileMode")
     ]
   bmode = DataDeclaration
-    Structural
+    (Unique "7dd9560d3826c21e5e6a7e08f575b61adcddf849")
     ()
     []
-    [ ((), v "BufferMode.NoBuffering", var "BufferMode")
-    , ((), v "BufferMode.LineBuffering", var "BufferMode")
-    , ((), v "BufferMode.BlockBuffering", var "BufferMode")
-    , ((), v "BufferMode.SizedBlockBuffering"
-      , Type.nat () `arr` var "BufferMode")
+    [ ((), v "io2.BufferMode.NoBuffering", var "io2.BufferMode")
+    , ((), v "io2.BufferMode.LineBuffering", var "io2.BufferMode")
+    , ((), v "io2.BufferMode.BlockBuffering", var "io2.BufferMode")
+    , ((), v "io2.BufferMode.SizedBlockBuffering"
+      , Type.nat () `arr` var "io2.BufferMode")
     ]
   ioerr = DataDeclaration
-    Structural
+    (Unique "5915e25ac83205f7885395cc6c6c988bc5ec69a1")
     ()
     []
-    [ ((), v "AlreadyExists", var "IOError")
-    , ((), v "NoSuchThing", var "IOError")
-    , ((), v "ResourceBusy", var "IOError")
-    , ((), v "ResourceExhausted", var "IOError")
-    , ((), v "EOF", var "IOError")
-    , ((), v "IllegalOperation", var "IOError")
-    , ((), v "PermissionDenied", var "IOError")
-    , ((), v "UserError", var "IOError")
+    [ ((), v "io2.IOError.AlreadyExists", var "io2.IOError")
+    , ((), v "io2.IOError.NoSuchThing", var "io2.IOError")
+    , ((), v "io2.IOError.ResourceBusy", var "io2.IOError")
+    , ((), v "io2.IOError.ResourceExhausted", var "io2.IOError")
+    , ((), v "io2.IOError.EOF", var "io2.IOError")
+    , ((), v "io2.IOError.IllegalOperation", var "io2.IOError")
+    , ((), v "io2.IOError.PermissionDenied", var "io2.IOError")
+    , ((), v "io2.IOError.UserError", var "io2.IOError")
     ]
   seqview = DataDeclaration
     Structural
     ()
-    [v "a"]
+    [v "a", v "b"]
     [ ( ()
       , v "SeqView.VEmpty"
-      , Type.foralls () [v "a"]
-          (Type.apps' (var "SeqView") [var "a"])
+      , Type.foralls () [v "a", v "b"]
+          (Type.apps' (var "SeqView") [var "a", var "b"])
       )
     , ( ()
       , v "SeqView.VElem"
-      , let sv = Type.apps' (var "SeqView") [var "a"]
-         in Type.foralls () [v "a"] (var "a" `arr` (sv `arr` sv))
+      , let sv = Type.apps' (var "SeqView") [var "a", var "b"]
+         in Type.foralls () [v "a", v "b"]
+              (var "a" `arr` (var "b" `arr` sv))
       )
     ]
   tr = DataDeclaration

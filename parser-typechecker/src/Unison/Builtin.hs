@@ -156,6 +156,10 @@ builtinTypesSrc =
   , B' "Bytes" CT.Data
   , B' "Link.Term" CT.Data
   , B' "Link.Type" CT.Data
+  , B' "IO" CT.Effect, Rename' "IO" "io2.IO"
+  , B' "Handle" CT.Data, Rename' "Handle" "io2.Handle"
+  , B' "Socket" CT.Data, Rename' "Socket" "io2.Socket"
+  , B' "ThreadId" CT.Data, Rename' "ThreadId" "io2.ThreadId"
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -390,42 +394,6 @@ builtinsSrc =
   , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optional a)
 
   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
-
-  , B "IO.openFile" $ text --> ioe handle
-  , B "IO.closeFile" $ handle --> ioe unit
-  , B "IO.isFileEOF" $ handle --> ioe boolean
-  , B "IO.isFileOpen" $ handle --> ioe boolean
-  , B "IO.isSeekable" $ handle --> ioe boolean
-  , B "IO.seekHandle" $ handle --> fmode --> int --> ioe unit
-  , B "IO.handlePosition" $ handle --> ioe int
-  , B "IO.getBuffering" $ handle --> ioe bmode
-  , B "IO.setBuffering" $ handle --> bmode --> ioe unit
-  , B "IO.getLine" $ handle --> ioe text
-  , B "IO.getText" $ handle --> ioe text
-  , B "IO.putText" $ handle --> text --> ioe unit
-  , B "IO.systemTime" $ unit --> ioe nat
-  , B "IO.getTempDirectory" $ unit --> ioe text
-  , B "IO.getCurrentDirectory" $ unit --> ioe text
-  , B "IO.setCurrentDirectory" $ text --> ioe unit
-  , B "IO.fileExists" $ text --> ioe boolean
-  , B "IO.isDirectory" $ text --> ioe boolean
-  , B "IO.createDirectory" $ text --> ioe unit
-  , B "IO.removeDirectory" $ text --> ioe unit
-  , B "IO.renameDirectory" $ text --> text --> ioe unit
-  , B "IO.removeFile" $ text --> ioe unit
-  , B "IO.renameFile" $ text --> text --> ioe unit
-  , B "IO.getFileTimestamp" $ text --> ioe nat
-  , B "IO.getFileSize" $ text --> ioe nat
-  , B "IO.serverSocket" $ text --> text --> ioe socket
-  , B "IO.listen" $ socket --> ioe unit
-  , B "IO.clientSocket" $ text --> text --> ioe socket
-  , B "IO.closeSocket" $ socket --> ioe unit
-  , B "IO.socketAccept" $ socket --> ioe socket
-  , B "IO.socketSend" $ socket --> bytes --> ioe unit
-  , B "IO.socketReceive" $ socket --> nat --> ioe bytes
-  , B "IO.forkComp"
-      $ forall1 "a" $ \a -> (unit --> ioe a) --> ioe threadId
-  , B "IO.stdHandle" $ nat --> optional handle
   ] ++
   -- avoid name conflicts with Universal == < > <= >=
   [ Rename (t <> "." <> old) (t <> "." <> new)
@@ -435,7 +403,8 @@ builtinsSrc =
                   ,("<=", "lteq")
                   ,(">" , "gt")
                   ,(">=", "gteq")]
-  ]
+  ] ++
+  (ioBuiltins >>= \(n,ty) -> [B n ty, Rename n ("io2." <> n)])
   where
     int = Type.int ()
     nat = Type.nat ()
@@ -444,20 +413,6 @@ builtinsSrc =
     text = Type.text ()
     bytes = Type.bytes ()
     char = Type.char ()
-
-    either :: Ord v => Type v -> Type v -> Type v
-    either l r = DD.eitherType () `app` l `app` r
-
-    fmode = DD.fileModeType ()
-    bmode = DD.bufferModeType ()
-
-    ioe = Type.effect1 () (Type.builtinIO ())
-        . either (DD.ioErrorType ())
-
-    socket = Type.socket ()
-    threadId = Type.threadId ()
-    handle = Type.fileHandle ()
-    unit = DD.unitType ()
 
     (-->) :: Ord v => Type v -> Type v -> Type v
     a --> b = Type.arrow () a b
@@ -486,3 +441,78 @@ builtinsSrc =
     pair :: Ord v => Type v -> Type v -> Type v
     pair l r = DD.pairType () `app` l `app` r
 
+ioBuiltins :: Var v => [(Text, Type v)]
+ioBuiltins =
+  [ ("IO.openFile", text --> ioe handle)
+  , ("IO.closeFile", handle --> ioe unit)
+  , ("IO.isFileEOF", handle --> ioe boolean)
+  , ("IO.isFileOpen", handle --> ioe boolean)
+  , ("IO.isSeekable", handle --> ioe boolean)
+  , ("IO.seekHandle", handle --> fmode --> int --> ioe unit)
+  , ("IO.handlePosition", handle --> ioe int)
+  , ("IO.getBuffering", handle --> ioe bmode)
+  , ("IO.setBuffering", handle --> bmode --> ioe unit)
+  , ("IO.getLine", handle --> ioe text)
+  , ("IO.getText", handle --> ioe text)
+  , ("IO.putText", handle --> text --> ioe unit)
+  , ("IO.systemTime", unit --> ioe nat)
+  , ("IO.getTempDirectory", unit --> ioe text)
+  , ("IO.getCurrentDirectory", unit --> ioe text)
+  , ("IO.setCurrentDirectory", text --> ioe unit)
+  , ("IO.fileExists", text --> ioe boolean)
+  , ("IO.isDirectory", text --> ioe boolean)
+  , ("IO.createDirectory", text --> ioe unit)
+  , ("IO.removeDirectory", text --> ioe unit)
+  , ("IO.renameDirectory", text --> text --> ioe unit)
+  , ("IO.removeFile", text --> ioe unit)
+  , ("IO.renameFile", text --> text --> ioe unit)
+  , ("IO.getFileTimestamp", text --> ioe nat)
+  , ("IO.getFileSize", text --> ioe nat)
+  , ("IO.serverSocket", text --> text --> ioe socket)
+  , ("IO.listen", socket --> ioe unit)
+  , ("IO.clientSocket", text --> text --> ioe socket)
+  , ("IO.closeSocket", socket --> ioe unit)
+  , ("IO.socketAccept", socket --> ioe socket)
+  , ("IO.socketSend", socket --> bytes --> ioe unit)
+  , ("IO.socketReceive", socket --> nat --> ioe bytes)
+  , ("IO.forkComp"
+    , forall1 "a" $ \a -> (unit --> ioe a) --> ioe threadId)
+  , ("IO.stdHandle", nat --> optional handle)
+  ]
+  where
+  (-->) :: Ord v => Type v -> Type v -> Type v
+  a --> b = Type.arrow () a b
+  infixr -->
+
+  forall1 :: Var v => Text -> (Type v -> Type v) -> Type v
+  forall1 name body =
+    let
+      a = Var.named name
+    in Type.forall () a (body $ Type.var () a)
+
+
+  either :: Ord v => Type v -> Type v -> Type v
+  either l r = DD.eitherType () `app` l `app` r
+
+  ioe = Type.effect1 () (Type.builtinIO ())
+      . either (DD.ioErrorType ())
+
+  socket = Type.socket ()
+  threadId = Type.threadId ()
+  handle = Type.fileHandle ()
+  unit = DD.unitType ()
+
+  fmode = DD.fileModeType ()
+  bmode = DD.bufferModeType ()
+
+  app :: Ord v => Type v -> Type v -> Type v
+  app = Type.app ()
+
+  int = Type.int ()
+  nat = Type.nat ()
+  bytes = Type.bytes ()
+  text = Type.text ()
+  boolean = Type.boolean ()
+
+  optional :: Ord v => Type v -> Type v
+  optional arg = DD.optionalType () `app` arg
