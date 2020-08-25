@@ -122,12 +122,21 @@ library
     Unison.PrintError
     Unison.Result
     Unison.Runtime.ANF
+    Unison.Runtime.Builtin
+    Unison.Runtime.Debug
+    Unison.Runtime.Decompile
+    Unison.Runtime.Foreign
+    Unison.Runtime.Interface
     Unison.Runtime.IR
+    Unison.Runtime.MCode
+    Unison.Runtime.Machine
+    Unison.Runtime.Pattern
     Unison.Runtime.Rt1
     Unison.Runtime.Rt1IO
     Unison.Runtime.IOSource
     Unison.Runtime.Vector
     Unison.Runtime.SparseVector
+    Unison.Runtime.Stack
     Unison.TermParser
     Unison.TermPrinter
     Unison.TypeParser
@@ -144,6 +153,7 @@ library
     Unison.Util.Bytes
     Unison.Util.Cache
     Unison.Util.ColorText
+    Unison.Util.EnumContainers
     Unison.Util.Exception
     Unison.Util.Free
     Unison.Util.Find
@@ -207,6 +217,7 @@ library
     network-simple,
     nonempty-containers,
     process,
+    primitive,
     random,
     raw-strings-qq,
     regex-base,
@@ -229,7 +240,7 @@ library
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
   if flag(optimized)
-    ghc-options: -funbox-strict-fields
+    ghc-options: -funbox-strict-fields -O2
 
   if flag(quiet)
     ghc-options: -v0
@@ -282,6 +293,7 @@ executable tests
     easytest
   other-modules:
     Unison.Test.ABT
+    Unison.Test.ANF
     Unison.Test.Cache
     Unison.Test.Codebase
     Unison.Test.Codebase.Causal
@@ -294,6 +306,7 @@ executable tests
     Unison.Test.Git
     Unison.Test.Lexer
     Unison.Test.IO
+    Unison.Test.MCode
     Unison.Test.Range
     Unison.Test.Referent
     Unison.Test.Term
@@ -353,5 +366,17 @@ executable transcripts
     shellmet,
     process,
     text,
+    unison-core,
+    unison-parser-typechecker
+
+benchmark runtime
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  ghc-options: -O2
+  hs-source-dirs: benchmarks/runtime
+  build-depends:
+    base,
+    criterion,
+    containers,
     unison-core,
     unison-parser-typechecker

@@ -53,6 +53,11 @@ rawName typ = case typ of
   Inference TypeConstructorArg -> "𝕦"
   MissingResult -> "_"
   Blank -> "_"
+  Eta -> "_eta"
+  ANFBlank -> "_anf"
+  Float -> "_float"
+  Pattern -> "_pattern"
+  Irrelevant -> "_irrelevant"
   UnnamedWatch k guid -> fromString k <> "." <> guid
 
 name :: Var v => v -> Text
@@ -102,6 +107,17 @@ data Type
   --  > 1 + 1
   --    has kind ""
   | UnnamedWatch WatchKind Text -- guid
+  -- An unnamed variable for constructor eta expansion
+  | Eta
+  -- An unnamed variable introduced by ANF transformation
+  | ANFBlank
+  -- An unnamed variable for a floated lambda
+  | Float
+  -- An unnamed variable introduced from pattern compilation
+  | Pattern
+  -- A variable for situations where we need to make up one that
+  -- definitely won't be used.
+  | Irrelevant
   deriving (Eq,Ord,Show)
 
 type WatchKind = String

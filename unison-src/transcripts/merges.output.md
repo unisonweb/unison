@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #1pdgtsicq9
+  ⊙ #krakhj8q5b
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #9e8gvv7r3e
+  ⊙ #j0lfs5asc7
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #6sqsddkikv
+  ⊙ #ej6ll3ac1h
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #loe9apjdis
+  ⊙ #gidrg9pool
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #p90pbjip7l
+  ⊙ #sdinucmq5a
   
     + Adds / updates:
     
       x
   
-  ⊙ #givahf3f6f
+  ⊙ #pc4d0e58h3
   
     + Adds / updates:
     
@@ -160,7 +160,8 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Char.fromNat builtin.Char.toNat
       builtin.Debug.watch builtin.Doc builtin.Doc.Blob
       builtin.Doc.Evaluate builtin.Doc.Join builtin.Doc.Link
-      builtin.Doc.Signature builtin.Doc.Source builtin.Float
+      builtin.Doc.Signature builtin.Doc.Source builtin.Either
+      builtin.Either.Left builtin.Either.Right builtin.Float
       builtin.Float.* builtin.Float.+ builtin.Float.-
       builtin.Float./ builtin.Float.abs builtin.Float.acos
       builtin.Float.acosh builtin.Float.asin builtin.Float.asinh
@@ -201,7 +202,8 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Nat.toInt builtin.Nat.toText
       builtin.Nat.trailingZeros builtin.Nat.xor builtin.Optional
       builtin.Optional.None builtin.Optional.Some
-      builtin.Request builtin.Test.Result
+      builtin.Request builtin.SeqView builtin.SeqView.VElem
+      builtin.SeqView.VEmpty builtin.Test.Result
       builtin.Test.Result.Fail builtin.Test.Result.Ok
       builtin.Text builtin.Text.!= builtin.Text.++
       builtin.Text.drop builtin.Text.empty builtin.Text.eq
@@ -213,7 +215,42 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Unit builtin.Unit.Unit builtin.Universal.<
       builtin.Universal.<= builtin.Universal.==
       builtin.Universal.> builtin.Universal.>=
-      builtin.Universal.compare builtin.bug builtin.todo
+      builtin.Universal.compare builtin.bug
+      builtin.io2.BufferMode
+      builtin.io2.BufferMode.BlockBuffering
+      builtin.io2.BufferMode.LineBuffering
+      builtin.io2.BufferMode.NoBuffering
+      builtin.io2.BufferMode.SizedBlockBuffering
+      builtin.io2.FileMode builtin.io2.FileMode.Append
+      builtin.io2.FileMode.Read builtin.io2.FileMode.ReadWrite
+      builtin.io2.FileMode.Write builtin.io2.Handle
+      builtin.io2.IO builtin.io2.IO.clientSocket
+      builtin.io2.IO.closeFile builtin.io2.IO.closeSocket
+      builtin.io2.IO.createDirectory builtin.io2.IO.fileExists
+      builtin.io2.IO.forkComp builtin.io2.IO.getBuffering
+      builtin.io2.IO.getCurrentDirectory
+      builtin.io2.IO.getFileSize builtin.io2.IO.getFileTimestamp
+      builtin.io2.IO.getLine builtin.io2.IO.getTempDirectory
+      builtin.io2.IO.getText builtin.io2.IO.handlePosition
+      builtin.io2.IO.isDirectory builtin.io2.IO.isFileEOF
+      builtin.io2.IO.isFileOpen builtin.io2.IO.isSeekable
+      builtin.io2.IO.listen builtin.io2.IO.openFile
+      builtin.io2.IO.putText builtin.io2.IO.removeDirectory
+      builtin.io2.IO.removeFile builtin.io2.IO.renameDirectory
+      builtin.io2.IO.renameFile builtin.io2.IO.seekHandle
+      builtin.io2.IO.serverSocket builtin.io2.IO.setBuffering
+      builtin.io2.IO.setCurrentDirectory
+      builtin.io2.IO.socketAccept builtin.io2.IO.socketReceive
+      builtin.io2.IO.socketSend builtin.io2.IO.stdHandle
+      builtin.io2.IO.systemTime builtin.io2.IOError
+      builtin.io2.IOError.AlreadyExists builtin.io2.IOError.EOF
+      builtin.io2.IOError.IllegalOperation
+      builtin.io2.IOError.NoSuchThing
+      builtin.io2.IOError.PermissionDenied
+      builtin.io2.IOError.ResourceBusy
+      builtin.io2.IOError.ResourceExhausted
+      builtin.io2.IOError.UserError builtin.io2.Socket
+      builtin.io2.ThreadId builtin.todo
   
   □ #7asfbtqmoj (start of history)
 

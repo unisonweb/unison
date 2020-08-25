@@ -27,8 +27,10 @@ import qualified Unison.Var                     as Var
 import           Unison.Var                     (Var)
 
 
-unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef :: Reference
-(unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef) =
+unitRef, pairRef, optionalRef, eitherRef :: Reference
+testResultRef, linkRef, docRef, ioErrorRef :: Reference
+fileModeRef, bufferModeRef, seqViewRef :: Reference
+(unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef, eitherRef, ioErrorRef, fileModeRef, bufferModeRef, seqViewRef) =
   let decls          = builtinDataDecls @Symbol
       [(_, unit, _)] = filter (\(v, _, _) -> v == Var.named "Unit") decls
       [(_, pair, _)] = filter (\(v, _, _) -> v == Var.named "Tuple") decls
@@ -37,8 +39,14 @@ unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef :: Reference
         filter (\(v, _, _) -> v == Var.named "Test.Result") decls
       [(_, link , _)] = filter (\(v, _, _) -> v == Var.named "Link") decls
       [(_, doc , _)] = filter (\(v, _, _) -> v == Var.named "Doc") decls
+
+      [(_,ethr,_)] = filter (\(v,_,_) -> v == Var.named "Either") decls
+      [(_,ioerr,_)] = filter (\(v,_,_) -> v == Var.named "io2.IOError") decls
+      [(_,fmode,_)] = filter (\(v,_,_) -> v == Var.named "io2.FileMode") decls
+      [(_,bmode,_)] = filter (\(v,_,_) -> v == Var.named "io2.BufferMode") decls
+      [(_,seqv,_)] = filter (\(v,_,_) -> v == Var.named "SeqView") decls
       r = Reference.DerivedId
-  in  (r unit, r pair, r opt, r testResult, r link, r doc)
+  in (r unit, r pair, r opt, r testResult, r link, r doc, r ethr, r ioerr, r fmode, r bmode, r seqv)
 
 pairCtorRef, unitCtorRef :: Referent
 pairCtorRef = Referent.Con pairRef 0 CT.Data
@@ -77,8 +85,14 @@ builtinDataDecls = rs1 ++ rs
     [ (v "Unit"           , unit)
     , (v "Tuple"          , tuple)
     , (v "Optional"       , opt)
+    , (v "Either"         , eith)
     , (v "Test.Result"    , tr)
     , (v "Doc"            , doc)
+    , (v "io2.FileMode"   , fmode)
+    , (v "io2.BufferMode" , bmode)
+    , (v "SeqView"        , seqview)
+
+    , (v "io2.IOError"    , ioerr)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
   [(_, linkRef, _)] = rs1
   v = Var.named
@@ -113,6 +127,69 @@ builtinDataDecls = rs1 ++ rs
       , Type.foralls ()
                      [v "a"]
                      (var "a" `arr` Type.app' (var "Optional") (var "a"))
+      )
+    ]
+  eith = DataDeclaration
+    Structural
+    ()
+    [v "a", v "b"]
+    [ ( ()
+      , v "Either.Left"
+      , Type.foralls () [v "a", v "b"]
+          (var "a" `arr` Type.apps' (var "Either") [var "a", var "b"])
+      )
+    , ( ()
+      , v "Either.Right"
+      , Type.foralls () [v "a", v "b"]
+          (var "b" `arr` Type.apps' (var "Either") [var "a", var "b"])
+      )
+    ]
+  fmode = DataDeclaration
+    (Unique "3c11ba4f0a5d8fedd427b476cdd2d7673197d11e")
+    ()
+    []
+    [ ((), v "io2.FileMode.Read", var "io2.FileMode")
+    , ((), v "io2.FileMode.Write", var "io2.FileMode")
+    , ((), v "io2.FileMode.Append", var "io2.FileMode")
+    , ((), v "io2.FileMode.ReadWrite", var "io2.FileMode")
+    ]
+  bmode = DataDeclaration
+    (Unique "7dd9560d3826c21e5e6a7e08f575b61adcddf849")
+    ()
+    []
+    [ ((), v "io2.BufferMode.NoBuffering", var "io2.BufferMode")
+    , ((), v "io2.BufferMode.LineBuffering", var "io2.BufferMode")
+    , ((), v "io2.BufferMode.BlockBuffering", var "io2.BufferMode")
+    , ((), v "io2.BufferMode.SizedBlockBuffering"
+      , Type.nat () `arr` var "io2.BufferMode")
+    ]
+  ioerr = DataDeclaration
+    (Unique "5915e25ac83205f7885395cc6c6c988bc5ec69a1")
+    ()
+    []
+    [ ((), v "io2.IOError.AlreadyExists", var "io2.IOError")
+    , ((), v "io2.IOError.NoSuchThing", var "io2.IOError")
+    , ((), v "io2.IOError.ResourceBusy", var "io2.IOError")
+    , ((), v "io2.IOError.ResourceExhausted", var "io2.IOError")
+    , ((), v "io2.IOError.EOF", var "io2.IOError")
+    , ((), v "io2.IOError.IllegalOperation", var "io2.IOError")
+    , ((), v "io2.IOError.PermissionDenied", var "io2.IOError")
+    , ((), v "io2.IOError.UserError", var "io2.IOError")
+    ]
+  seqview = DataDeclaration
+    Structural
+    ()
+    [v "a", v "b"]
+    [ ( ()
+      , v "SeqView.VEmpty"
+      , Type.foralls () [v "a", v "b"]
+          (Type.apps' (var "SeqView") [var "a", var "b"])
+      )
+    , ( ()
+      , v "SeqView.VElem"
+      , let sv = Type.apps' (var "SeqView") [var "a", var "b"]
+         in Type.foralls () [v "a", v "b"]
+              (var "a" `arr` (var "b" `arr` sv))
       )
     ]
   tr = DataDeclaration
@@ -172,12 +249,17 @@ pattern LinkRef <- ((== linkRef) -> True)
 pattern LinkTerm tm <- Term.App' (Term.Constructor' LinkRef LinkTermId) tm
 pattern LinkType ty <- Term.App' (Term.Constructor' LinkRef LinkTypeId) ty
 
-unitType, pairType, optionalType, testResultType
-  :: Ord v => a -> Type v a
+unitType, pairType, optionalType, testResultType,
+  eitherType, ioErrorType, fileModeType, bufferModeType
+    :: Ord v => a -> Type v a
 unitType a = Type.ref a unitRef
 pairType a = Type.ref a pairRef
 testResultType a = Type.app a (Type.vector a) (Type.ref a testResultRef)
 optionalType a = Type.ref a optionalRef
+eitherType a = Type.ref a eitherRef
+ioErrorType a = Type.ref a ioErrorRef
+fileModeType a = Type.ref a fileModeRef
+bufferModeType a = Type.ref a bufferModeRef
 
 unitTerm :: Var v => a -> Term v a
 unitTerm ann = Term.constructor ann unitRef 0

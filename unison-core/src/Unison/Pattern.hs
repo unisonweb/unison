@@ -30,7 +30,7 @@ data Pattern loc
   | EffectBind loc !Reference !Int [Pattern loc] (Pattern loc)
   | SequenceLiteral loc [Pattern loc]
   | SequenceOp loc (Pattern loc) !SeqOp (Pattern loc)
-    deriving (Generic,Functor,Foldable,Traversable)
+    deriving (Ord,Generic,Functor,Foldable,Traversable)
 
 data SeqOp = Cons
            | Snoc

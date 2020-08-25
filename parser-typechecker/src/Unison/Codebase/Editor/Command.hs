@@ -187,3 +187,5 @@ data Command m i v a where
   Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> Command m i v ()
 
   CreateAuthorInfo :: Text -> Command m i v (AuthorInfo v Ann)
+
+  RuntimeMain :: Command m i v (Type v Ann)
