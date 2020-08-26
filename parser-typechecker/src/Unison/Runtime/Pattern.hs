@@ -143,33 +143,35 @@ extractVars = catMaybes . fmap extractVar
 -- convenient to yield a list here.
 decomposePattern
   :: Var v
-  => Int -> Int -> P.Pattern v
+  => Reference -> Int -> Int -> P.Pattern v
   -> [[P.Pattern v]]
-decomposePattern t nfields p@(P.Constructor _ _ u ps)
+decomposePattern rf0 t nfields p@(P.Constructor _ rf u ps)
   | t == u
+  , rf0 == rf
   = if length ps == nfields
     then [ps]
     else error err
   where
   err = "decomposePattern: wrong number of constructor fields: "
      ++ show (nfields, p)
-decomposePattern t nfields p@(P.EffectBind _ _ u ps pk)
+decomposePattern rf0 t nfields p@(P.EffectBind _ rf u ps pk)
   | t == u
+  , rf0 == rf
   = if length ps == nfields
     then [ps ++ [pk]]
     else error err
   where
   err = "decomposePattern: wrong number of ability fields: "
      ++ show (nfields, p)
-decomposePattern t _ (P.EffectPure _ p)
+decomposePattern _ t _ (P.EffectPure _ p)
   | t == -1 = [[p]]
-decomposePattern _ nfields (P.Var _)
+decomposePattern _ _ nfields (P.Var _)
   = [replicate nfields (P.Unbound (typed Pattern))]
-decomposePattern _ nfields (P.Unbound _)
+decomposePattern _ _ nfields (P.Unbound _)
   = [replicate nfields (P.Unbound (typed Pattern))]
-decomposePattern _ _ (P.SequenceLiteral _ _)
+decomposePattern _ _ _ (P.SequenceLiteral _ _)
   = error "decomposePattern: sequence literal"
-decomposePattern _ _ _ = []
+decomposePattern _ _ _ _ = []
 
 matchBuiltin :: P.Pattern a -> Maybe (P.Pattern ())
 matchBuiltin (P.Var _) = Just $ P.Unbound ()
@@ -295,14 +297,15 @@ decomposeSeqP _ _ _ = Overlap
 splitRow
   :: Var v
   => v
+  -> Reference
   -> Int
   -> Int
   -> PatternRow v
   -> [([P.Pattern v], PatternRow v)]
-splitRow v t nfields (PR (break ((==v).loc) -> (pl, sp : pr)) g b)
-  = decomposePattern t nfields sp
+splitRow v rf t nfields (PR (break ((==v).loc) -> (pl, sp : pr)) g b)
+  = decomposePattern rf t nfields sp
       <&> \subs -> (subs, PR (pl ++ filter refutable subs ++ pr) g b)
-splitRow _ _ _ row = [([],row)]
+splitRow _ _ _ _ row = [([],row)]
 
 -- Splits a row with respect to a variable, expecting that the
 -- variable will be matched against a builtin pattern (non-data type,
@@ -436,13 +439,14 @@ splitMatrixSeq v (PM rs)
 splitMatrix
   :: Var v
   => v
+  -> Reference
   -> NCons
   -> PatternMatrix v
   -> [(Int, [(v,PType)], PatternMatrix v)]
-splitMatrix v cons (PM rs)
+splitMatrix v rf cons (PM rs)
   = fmap (\(a, (b, c)) -> (a,b,c)) . (fmap.fmap) buildMatrix $ mmap
   where
-  mmap = fmap (\(t,fs) -> (t, splitRow v t fs =<< rs)) cons
+  mmap = fmap (\(t,fs) -> (t, splitRow v rf t fs =<< rs)) cons
 
 -- Monad for pattern preparation. It is a state monad carrying a fresh
 -- variable source, the list of variables bound the the pattern being
@@ -575,17 +579,17 @@ compile spec ctx m@(PM (r:rs))
       Right cons ->
         match () (var () v)
           $ buildCase spec rf False cons ctx
-         <$> splitMatrix v (numberCons cons) m
+         <$> splitMatrix v rf (numberCons cons) m
       Left err -> error err
   | PReq rfs <- ty
   = match () (var () v) $
-      [ buildCasePure spec ctx m
-      | m <- splitMatrix v [(-1,1)] m
+      [ buildCasePure spec ctx tup
+      | tup <- splitMatrix v undefined [(-1,1)] m
       ] ++
-      [ buildCase spec rf True cons ctx m
+      [ buildCase spec rf True cons ctx tup
       | rf <- Set.toList rfs
       , Right cons <- [lookupAbil rf spec]
-      , m <- splitMatrix v (numberCons cons) m
+      , tup <- splitMatrix v rf (numberCons cons) m
       ]
   | Unknown <- ty
   = error "unknown pattern compilation type"
