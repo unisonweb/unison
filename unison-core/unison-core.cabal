@@ -96,6 +96,7 @@ library
     cryptonite,
     either,
     extra,
+    generic-lens,
     lens,
     prelude-extras,
     memory,

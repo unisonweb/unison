@@ -9,13 +9,14 @@ import Unison.Prelude hiding (empty, toList)
 
 import           Data.Bifunctor                 ( first )
 import           Data.List.Extra                ( stripPrefix, dropPrefix )
-import           Data.Proxy (Proxy)
+import           Data.Proxy (Proxy(Proxy))
 import Control.Lens hiding (unsnoc, cons, snoc)
 import qualified Control.Lens as Lens
 import qualified Data.Foldable as Foldable
 import qualified Data.Text                     as Text
 import           Data.Sequence                  (Seq((:<|),(:|>) ))
 import qualified Data.Sequence                 as Seq
+import qualified Data.Sequence.NonEmpty        as NESeq
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import Unison.Util.Monoid (intercalateMap)
@@ -100,42 +101,15 @@ prefix (Absolute (Path prefix)) (Path' p) = case p of
 -- libs.blah.poo is Relative
 -- Left is some parse error tbd
 parsePath' :: String -> Either String Path'
-parsePath' p = case parsePathImpl' p of
-  Left  e       -> Left e
-  Right (p, "") -> Right p
-  Right (p, rem) ->
-    case (first show . (Lexer.wordyId0 <> Lexer.symbolyId0) <> unit') rem of
-      Right (seg, "") -> Right (unsplit' (p, seg))
-      Right (_, rem) ->
-        Left ("extra characters after " <> show p <> ": " <> show rem)
-      Left e -> Left e
-
--- implementation detail of parsePath' and parseSplit'
--- foo.bar.baz.34 becomes `Right (foo.bar.baz, "34")
--- foo.bar.baz    becomes `Right (foo.bar, "baz")
--- baz            becomes `Right (, "baz")
--- foo.bar.baz#a8fj becomes `Left`; we don't hash-qualify paths.
--- TODO: Get rid of this thing.
-parsePathImpl' :: String -> Either String (Path', String)
-parsePathImpl' p = case p of
-  _ -> undefined
-  -- "."     -> Right (Path' . Left $ absoluteEmpty, "")
-  -- '.' : p -> over _1 (Path' . Left . Absolute . fromList) <$> segs p
-  -- p       -> over _1 (Path' . Right . Relative . fromList) <$> segs p
- where
-  -- go :: (String -> Either String (Lexer.IdentF Proxy, String)) -> String -> Either String (Lexer.IdentF Proxy, String)
-  -- go f p = case f p of
-  --   Right (ident, "") -> case Lens.unsnoc (Name.segments' $ Text.pack a) of
-  --     Nothing           -> Left "empty path"
-  --     Just (segs, last) -> Right (NameSegment <$> segs, Text.unpack last)
-  --   Right (segs, '.' : rem) ->
-  --     let segs' = Name.segments' (Text.pack segs)
-  --     in  Right (NameSegment <$> segs', rem)
-  --   Right (segs, rem) ->
-  --     Left $ "extra characters after " <> segs <> ": " <> show rem
-  --   Left e -> Left e
-  segs :: String -> Either String (Lexer.Ident Proxy, String)
-  segs = undefined -- go (first show . (Lexer.symbolyId <> Lexer.wordyId) <> unit')
+parsePath' = \case
+  "." -> Right absoluteEmpty'
+  s ->
+    case Lexer.pathyId s of
+      Left err -> Left (show err)
+      Right (Lexer.Ident isAbsolute segments Proxy, "") ->
+        Right ((if isAbsolute then absoluteFromSegments' else relativeFromSegments') (NESeq.toSeq segments))
+      Right (id, rem) ->
+        Left ("extra characters after " <> Lexer.prettyIdent id <> ": " <> show rem)
 
 wordyNameSegment :: String -> Either String NameSegment
 wordyNameSegment s = case Lexer.wordyId0 s of
@@ -160,7 +134,6 @@ unit s = case unit' s of
   Right (_, rem) -> Left $ "trailing characters after (): " <> show rem
   Left  _        -> Left $ "I don't know how to parse " <> s
 
-
 definitionNameSegment :: String -> Either String NameSegment
 definitionNameSegment s = wordyNameSegment s <> symbolyNameSegment s <> unit s
  where
@@ -177,30 +150,32 @@ parseSplit' :: (String -> Either String NameSegment)
             -> String
             -> Either String Split'
 parseSplit' lastSegment p = do
-  (p', rem) <- parsePathImpl' p
-  seg <- lastSegment rem
-  pure (p', seg)
+  undefined
+  -- (p', rem) <- parsePathImpl' p
+  -- seg <- lastSegment rem
+  -- pure (p', seg)
 
 parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash HQSplit')
 parseShortHashOrHQSplit' s =
-  case Text.breakOn "#" $ Text.pack s of
-    ("","") -> error $ "encountered empty string parsing '" <> s <> "'"
-    (n,"") -> do
-      (p, rem) <- parsePathImpl' (Text.unpack n)
-      seg <- definitionNameSegment rem
-      pure $ Right (p, HQ'.NameOnly seg)
-    ("", sh) -> do
-      sh <- maybeToRight (shError s) . SH.fromText $ sh
-      pure $ Left sh
-    (n, sh) -> do
-      (p, rem) <- parsePathImpl' (Text.unpack n)
-      seg <- definitionNameSegment rem
-      hq <- maybeToRight (shError s) .
-        fmap (\sh -> (p, HQ'.HashQualified seg sh)) .
-        SH.fromText $ sh
-      pure $ Right hq
-  where
-  shError s = "couldn't parse shorthash from " <> s
+  undefined
+  -- case Text.breakOn "#" $ Text.pack s of
+  --   ("","") -> error $ "encountered empty string parsing '" <> s <> "'"
+  --   (n,"") -> do
+  --     (p, rem) <- parsePathImpl' (Text.unpack n)
+  --     seg <- definitionNameSegment rem
+  --     pure $ Right (p, HQ'.NameOnly seg)
+  --   ("", sh) -> do
+  --     sh <- maybeToRight (shError s) . SH.fromText $ sh
+  --     pure $ Left sh
+  --   (n, sh) -> do
+  --     (p, rem) <- parsePathImpl' (Text.unpack n)
+  --     seg <- definitionNameSegment rem
+  --     hq <- maybeToRight (shError s) .
+  --       fmap (\sh -> (p, HQ'.HashQualified seg sh)) .
+  --       SH.fromText $ sh
+  --     pure $ Right hq
+  -- where
+  -- shError s = "couldn't parse shorthash from " <> s
 
 parseHQSplit :: String -> Either String HQSplit
 parseHQSplit s = case parseHQSplit' s of
@@ -210,27 +185,28 @@ parseHQSplit s = case parseHQSplit' s of
   Left e -> Left e
 
 parseHQSplit' :: String -> Either String HQSplit'
-parseHQSplit' s = case Text.breakOn "#" $ Text.pack s of
-  ("", "") -> error $ "encountered empty string parsing '" <> s <> "'"
-  ("", _ ) -> Left "Sorry, you can't use a hash-only reference here."
-  (n , "") -> do
-    (p, rem) <- parsePath n
-    seg      <- definitionNameSegment rem
-    pure (p, HQ'.NameOnly seg)
-  (n, sh) -> do
-    (p, rem) <- parsePath n
-    seg      <- definitionNameSegment rem
-    maybeToRight (shError s)
-      . fmap (\sh -> (p, HQ'.HashQualified seg sh))
-      . SH.fromText
-      $ sh
- where
-  shError s = "couldn't parse shorthash from " <> s
-  parsePath n = do
-    x <- parsePathImpl' $ Text.unpack n
-    pure $ case x of
-      (Path' (Left e), "") | e == absoluteEmpty -> (relativeEmpty', ".")
-      x -> x
+parseHQSplit' = undefined
+-- parseHQSplit' s = case Text.breakOn "#" $ Text.pack s of
+--   ("", "") -> error $ "encountered empty string parsing '" <> s <> "'"
+--   ("", _ ) -> Left "Sorry, you can't use a hash-only reference here."
+--   (n , "") -> do
+--     (p, rem) <- parsePath n
+--     seg      <- definitionNameSegment rem
+--     pure (p, HQ'.NameOnly seg)
+--   (n, sh) -> do
+--     (p, rem) <- parsePath n
+--     seg      <- definitionNameSegment rem
+--     maybeToRight (shError s)
+--       . fmap (\sh -> (p, HQ'.HashQualified seg sh))
+--       . SH.fromText
+--       $ sh
+--  where
+--   shError s = "couldn't parse shorthash from " <> s
+--   parsePath n = do
+--     x <- parsePathImpl' $ Text.unpack n
+--     pure $ case x of
+--       (Path' (Left e), "") | e == absoluteEmpty -> (relativeEmpty', ".")
+--       x -> x
 
 toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
 toAbsoluteSplit a (p, s) = (resolve a p, s)
@@ -245,11 +221,30 @@ fromAbsoluteSplit (Absolute p, a) = (p, a)
 absoluteEmpty :: Absolute
 absoluteEmpty = Absolute empty
 
+absoluteEmpty' :: Path'
+absoluteEmpty' = Path' (Left absoluteEmpty)
+
+absoluteFromSegments :: Seq NameSegment -> Absolute
+absoluteFromSegments =
+  Absolute . Path
+
+absoluteFromSegments' :: Seq NameSegment -> Path'
+absoluteFromSegments' =
+  Path' . Left . Absolute . Path
+
 relativeEmpty' :: Path'
 relativeEmpty' = Path' (Right (Relative empty))
 
 relativeSingleton :: NameSegment -> Relative
 relativeSingleton = Relative . Path . Seq.singleton
+
+relativeFromSegments :: Seq NameSegment -> Relative
+relativeFromSegments =
+  Relative . Path
+
+relativeFromSegments' :: Seq NameSegment -> Path'
+relativeFromSegments' =
+  Path' . Right . Relative . Path
 
 toPath' :: Path -> Path'
 toPath' = \case

@@ -204,7 +204,6 @@ library
     hashable,
     hashtables,
     haskeline,
-    hkd,
     io-streams,
     lens,
     ListLike,

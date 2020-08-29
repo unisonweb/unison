@@ -15,6 +15,7 @@ import Data.Either.Combinators as X (mapLeft, maybeToRight)
 import Data.Foldable as X (asum, fold, foldl', for_, toList, traverse_)
 import Data.Function as X ((&))
 import Data.Functor as X
+import Data.Generics.Labels as X
 import Data.Int as X
 import Data.List as X (foldl1', sortOn)
 import Data.Map as X (Map)

@@ -1,4 +1,6 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes #-}
@@ -8,12 +10,11 @@
 module Unison.Lexer.Ident
   ( Ident (..),
     prettyIdent,
-    prettyIdentWithoutHash,
   )
 where
 
-import Data.HKD (FFunctor (..))
-import Data.Proxy (Proxy (Proxy))
+import Control.Lens ((.~))
+import Data.Proxy (Proxy)
 import Data.Sequence.NonEmpty (NESeq)
 import qualified Data.Text as Text
 import Unison.NameSegment (NameSegment)
@@ -24,13 +25,12 @@ import qualified Unison.ShortHash as SH
 
 -- foo.bar = Ident False ["foo", "bar"] Nothing
 -- .foo#hhh = Ident True ["foo"] (Just "hhh")
-data Ident f
-  = Ident Bool {- is absolute -} (NESeq NameSegment) (f ShortHash)
-
-instance FFunctor Ident where
-  ffmap :: (forall x. f x -> g x) -> Ident f -> Ident g
-  ffmap f (Ident isAbsolute segments sh) =
-    Ident isAbsolute segments (f sh)
+data Ident f = Ident
+  { isAbsolute :: Bool,
+    segments :: NESeq NameSegment,
+    hash :: f ShortHash
+  }
+  deriving stock (Generic)
 
 deriving instance (forall a. Eq a => Eq (f a)) => Eq (Ident f)
 
@@ -38,14 +38,21 @@ deriving instance Ord (Ident Maybe) -- ahh, why doesn't the quantified constrain
 
 deriving instance (forall a. Show a => Show (f a)) => Show (Ident f)
 
-prettyIdent :: Ident Maybe -> String
-prettyIdent (Ident isAbsolute segments maybeHash) =
-  (Text.unpack . mconcat)
-    [ if isAbsolute then "." else "",
-      Text.intercalate "." (map NameSegment.toText (toList segments)),
-      maybe "" SH.toText maybeHash
-    ]
+-- | Eh, one-off type class so it's not so tedious to render an ident as a string. This could be made into 3-4 separate
+-- functions if the type class starts to get in the way for some reason.
+class PrettyIdent f where
+  prettyIdent :: Ident f -> String
 
-prettyIdentWithoutHash :: Ident Proxy -> String
-prettyIdentWithoutHash (Ident isAbsolute segments Proxy) =
-  prettyIdent (Ident isAbsolute segments Nothing)
+instance PrettyIdent Maybe where
+  prettyIdent :: Ident Maybe -> String
+  prettyIdent (Ident isAbsolute segments maybeHash) =
+    (Text.unpack . mconcat)
+      [ if isAbsolute then "." else "",
+        Text.intercalate "." (map NameSegment.toText (toList segments)),
+        maybe "" SH.toText maybeHash
+      ]
+
+instance PrettyIdent Proxy where
+  prettyIdent :: Ident Proxy -> String
+  prettyIdent id =
+    prettyIdent (id & #hash .~ Nothing)
