@@ -114,7 +114,7 @@ todo = InputPattern
   )
   (\case
     patchStr : ws -> mapLeft (warn . fromString) $ do
-      patch  <- Path.parseSplit' Path.definitionNameSegment patchStr
+      patch  <- Path.parseSplit' patchStr
       branch <- case ws of
         []        -> pure Path.relativeEmpty'
         [pathStr] -> Path.parsePath' pathStr
@@ -209,7 +209,7 @@ update = InputPattern "update"
   )
   (\case
     patchStr : ws -> do
-      patch <- first fromString $ Path.parseSplit' Path.definitionNameSegment patchStr
+      patch <- first fromString $ Path.parseSplit' patchStr
       case traverse HQ'.fromString ws of
         Just ws -> Right $ Input.UpdateI (Just patch) ws
         Nothing ->
@@ -252,7 +252,7 @@ patch = InputPattern
   )
   (\case
     patchStr : ws -> first fromString $ do
-      patch  <- Path.parseSplit' Path.definitionNameSegment patchStr
+      patch  <- Path.parseSplit' patchStr
       branch <- case ws of
         [pathStr] -> Path.parsePath' pathStr
         _         -> pure Path.relativeEmpty'
@@ -389,7 +389,7 @@ renameTerm = InputPattern "move.term" ["rename.term"]
     (\case
       [oldName, newName] -> first fromString $ do
         src <- Path.parseHQSplit' oldName
-        target <- Path.parseSplit' Path.definitionNameSegment newName
+        target <- Path.parseSplit' newName
         pure $ Input.MoveTermI src target
       _ -> Left . P.warnCallout $ P.wrap
         "`rename.term` takes two arguments, like `rename.term oldname newname`.")
@@ -402,7 +402,7 @@ renameType = InputPattern "move.type" ["rename.type"]
     (\case
       [oldName, newName] -> first fromString $ do
         src <- Path.parseHQSplit' oldName
-        target <- Path.parseSplit' Path.definitionNameSegment newName
+        target <- Path.parseSplit' newName
         pure $ Input.MoveTypeI src target
       _ -> Left . P.warnCallout $ P.wrap
         "`rename.type` takes two arguments, like `rename.type oldname newname`.")
@@ -468,7 +468,7 @@ deleteReplacement isTerm = InputPattern
     query : patch -> do
       patch <-
         first fromString
-        . traverse (Path.parseSplit' Path.definitionNameSegment)
+        . traverse Path.parseSplit'
         $ listToMaybe patch
       q <- parseHashQualifiedName query
       pure $ input q patch
@@ -517,7 +517,7 @@ aliasTerm = InputPattern "alias.term" []
     (\case
       [oldName, newName] -> first fromString $ do
         source <- Path.parseShortHashOrHQSplit' oldName
-        target <- Path.parseSplit' Path.definitionNameSegment newName
+        target <- Path.parseSplit' newName
         pure $ Input.AliasTermI source target
       _ -> Left . warn $ P.wrap
         "`alias.term` takes two arguments, like `alias.term oldname newname`."
@@ -530,7 +530,7 @@ aliasType = InputPattern "alias.type" []
     (\case
       [oldName, newName] -> first fromString $ do
         source <- Path.parseShortHashOrHQSplit' oldName
-        target <- Path.parseSplit' Path.definitionNameSegment newName
+        target <- Path.parseSplit' newName
         pure $ Input.AliasTypeI source target
       _ -> Left . warn $ P.wrap
         "`alias.type` takes two arguments, like `alias.type oldname newname`."
@@ -586,7 +586,7 @@ deleteBranch = InputPattern "delete.namespace" [] [(Required, pathArg)]
         ["."] -> first fromString .
           pure $ Input.DeleteBranchI Nothing
         [p] -> first fromString $ do
-          p <- Path.parseSplit' Path.definitionNameSegment p
+          p <- Path.parseSplit' p
           pure . Input.DeleteBranchI $ Just p
         _ -> Left (I.help deleteBranch)
       )
@@ -596,21 +596,21 @@ deletePatch = InputPattern "delete.patch" [] [(Required, patchArg)]
   "`delete.patch <foo>` deletes the patch `foo`"
    (\case
         [p] -> first fromString $ do
-          p <- Path.parseSplit' Path.definitionNameSegment p
+          p <- Path.parseSplit' p
           pure . Input.DeletePatchI $ p
         _ -> Left (I.help deletePatch)
       )
 
 movePatch :: String -> String -> Either (P.Pretty CT.ColorText) Input
 movePatch src dest = first fromString $ do
-  src <- Path.parseSplit' Path.definitionNameSegment src
-  dest <- Path.parseSplit' Path.definitionNameSegment dest
+  src <- Path.parseSplit' src
+  dest <- Path.parseSplit' dest
   pure $ Input.MovePatchI src dest
 
 copyPatch' :: String -> String -> Either (P.Pretty CT.ColorText) Input
 copyPatch' src dest = first fromString $ do
-  src <- Path.parseSplit' Path.definitionNameSegment src
-  dest <- Path.parseSplit' Path.definitionNameSegment dest
+  src <- Path.parseSplit' src
+  dest <- Path.parseSplit' dest
   pure $ Input.CopyPatchI src dest
 
 copyPatch :: InputPattern
@@ -640,11 +640,11 @@ renameBranch = InputPattern "move.namespace"
    "`move.namespace foo bar` renames the path `bar` to `foo`."
     (\case
       [".", dest] -> first fromString $ do
-        dest <- Path.parseSplit' Path.definitionNameSegment dest
+        dest <- Path.parseSplit' dest
         pure $ Input.MoveBranchI Nothing dest
       [src, dest] -> first fromString $ do
-        src <- Path.parseSplit' Path.definitionNameSegment src
-        dest <- Path.parseSplit' Path.definitionNameSegment dest
+        src <- Path.parseSplit' src
+        dest <- Path.parseSplit' dest
         pure $ Input.MoveBranchI (Just src) dest
       _ -> Left (I.help renameBranch)
     )
@@ -1001,7 +1001,7 @@ replaceEdit f s = self
       source : target : patch -> do
         patch <-
           first fromString
-          <$> traverse (Path.parseSplit' Path.definitionNameSegment)
+          <$> traverse Path.parseSplit'
           $   listToMaybe patch
         sourcehq <- parseHashQualifiedName source
         targethq <- parseHashQualifiedName target
@@ -1191,7 +1191,7 @@ viewPatch = InputPattern "view.patch" [] [(Required, patchArg)]
   (\case
     []         -> Right $ Input.ListEditsI Nothing
     [patchStr] -> mapLeft fromString $ do
-      patch <- Path.parseSplit' Path.definitionNameSegment patchStr
+      patch <- Path.parseSplit' patchStr
       Right $ Input.ListEditsI (Just patch)
     _ -> Left $ warn "`view.patch` takes a patch and that's it."
    )

@@ -143,17 +143,10 @@ definitionNameSegment s = wordyNameSegment s <> symbolyNameSegment s <> unit s
     Right (a, rem) ->
       Left $ "trailing characters after " <> show a <> ": " <> show rem
 
--- parseSplit' wordyNameSegment "foo.bar.baz" returns Right (foo.bar, baz)
--- parseSplit' wordyNameSegment "foo.bar.+" returns Left err
--- parseSplit' definitionNameSegment "foo.bar.+" returns Right (foo.bar, +)
-parseSplit' :: (String -> Either String NameSegment)
-            -> String
-            -> Either String Split'
-parseSplit' lastSegment p = do
-  undefined
-  -- (p', rem) <- parsePathImpl' p
-  -- seg <- lastSegment rem
-  -- pure (p', seg)
+parseSplit' :: String -> Either String Split'
+parseSplit' s = do
+  path <- parsePath' s
+  maybe (Left "empty path") Right (unsnoc' path)
 
 parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash HQSplit')
 parseShortHashOrHQSplit' s =
@@ -286,6 +279,11 @@ snoc' = Lens.snoc
 
 unsnoc :: Path -> Maybe (Path, NameSegment)
 unsnoc = Lens.unsnoc
+
+unsnoc' :: Path' -> Maybe (Path', NameSegment)
+unsnoc' = \case
+  Path' (Left (Lens.unsnoc -> Just (ss, s))) -> Just (Path' (Left ss), s)
+  Path' (Right (Lens.unsnoc -> Just (ss, s))) -> Just (Path' (Right ss), s)
 
 uncons :: Path -> Maybe (NameSegment, Path)
 uncons = Lens.uncons
