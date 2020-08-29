@@ -1005,14 +1005,14 @@ prettyParseError s = \case
        then dupDataAndAbilitiesMsg
        else if null dupDataAndAbilities then unknownTypesMsg
        else unknownTypesMsg <> "\n\n" <> dupDataAndAbilitiesMsg
-  go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId "::" Nothing)))
-    = mconcat
-      [ "This looks like the start of an expression here but I was expecting a binding."
-      , "\nDid you mean to use a single " <> style Code ":"
-      , " here for a type signature?"
-      , "\n\n"
-      , tokenAsErrorSite s t
-      ]
+  go _ = undefined -- (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId "::" Nothing)))
+    -- = mconcat
+    --   [ "This looks like the start of an expression here but I was expecting a binding."
+    --   , "\nDid you mean to use a single " <> style Code ":"
+    --   , " here for a type signature?"
+    --   , "\n\n"
+    --   , tokenAsErrorSite s t
+    --   ]
   go (Parser.DidntExpectExpression tok _nextTok) = mconcat
     [ "This looks like the start of an expression here \n\n"
     , tokenAsErrorSite s tok

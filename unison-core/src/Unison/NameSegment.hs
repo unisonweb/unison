@@ -8,6 +8,7 @@ import qualified Data.Text                     as Text
 import qualified Unison.Hashable               as H
 
 -- Represents the parts of a name between the `.`s
+-- Invariant: non-empty
 newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord)
 
 -- Split text into segments. A smarter version of `Text.splitOn` that handles
@@ -24,6 +25,11 @@ segments' n = go split
 instance H.Hashable NameSegment where
   tokens s = [H.Text (toText s)]
 
+-- | Safe due to invariant that 'NameSegment' is non-empty.
+head :: NameSegment -> Char
+head (NameSegment s) =
+  Text.head s
+
 isEmpty :: NameSegment -> Bool
 isEmpty ns = toText ns == mempty
 
@@ -38,4 +44,3 @@ instance Show NameSegment where
 
 instance IsString NameSegment where
   fromString = NameSegment . Text.pack
-

@@ -106,10 +106,11 @@ arrow rec =
 
 -- "forall a b . List a -> List b -> Maybe Text"
 forall :: Var v => TypeP v -> TypeP v
-forall rec = do
-    kw <- reserved "forall" <|> reserved "∀"
-    vars <- fmap (fmap L.payload) . some $ prefixDefinitionName
-    _ <- matchToken $ L.SymbolyId "." Nothing
-    t <- rec
-    pure $ Type.foralls (ann kw <> ann t) vars t
+forall = undefined
+-- forall rec = do
+--     kw <- reserved "forall" <|> reserved "∀"
+--     vars <- fmap (fmap L.payload) . some $ prefixDefinitionName
+--     _ <- matchToken $ L.SymbolyId "." Nothing
+--     t <- rec
+--     pure $ Type.foralls (ann kw <> ann t) vars t
 

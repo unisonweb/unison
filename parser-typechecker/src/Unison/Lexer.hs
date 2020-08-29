@@ -4,27 +4,42 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Lexer where
+module Unison.Lexer
+  ( module Unison.Lexer
+  , module Unison.Lexer.Ident
+  ) where
 
 import Unison.Prelude
 
+import           Control.Lens (_1, over)
 import           Control.Lens.TH (makePrisms)
 import qualified Control.Monad.State as S
 import           Data.Char
+import           Data.HKD (ffmap)
 import           Data.List
 import qualified Data.List.NonEmpty as Nel
+import           Data.Proxy (Proxy(Proxy))
 import Unison.Util.Monoid (intercalateMap)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import           GHC.Exts (sortWith)
 import           Text.Megaparsec.Error (ShowToken(..))
+import           Unison.Lexer.Ident
 import           Unison.ShortHash ( ShortHash )
 import qualified Unison.ShortHash as SH
+import Unison.NameSegment (NameSegment)
+import qualified Unison.NameSegment as NameSegment
+import Data.Sequence.NonEmpty (NESeq)
+import qualified Data.Sequence.NonEmpty as NESeq
+import qualified Data.Text as Text
 
 data Err
   = InvalidWordyId String
   | InvalidSymbolyId String
+  | InvalidPathyId String
   | InvalidShortHash String
   | Both Err Err
   | MissingFractional String -- ex `1.` rather than `1.04`
@@ -47,9 +62,9 @@ data Lexeme
   | Reserved String  -- reserved tokens such as `{`, `(`, `type`, `of`, etc
   | Textual String   -- text literals, `"foo bar"`
   | Character Char   -- character literals, `?X`
-  | Backticks String (Maybe ShortHash) -- an identifier in backticks
-  | WordyId String   (Maybe ShortHash) -- a (non-infix) identifier
-  | SymbolyId String (Maybe ShortHash) -- an infix identifier
+  | Backticks (Ident Maybe)
+  | WordyId (Ident Maybe) -- a (non-infix) identifier
+  | SymbolyId (Ident Maybe) -- an infix identifier
   | Blank String     -- a typed hole or placeholder
   | Numeric String   -- numeric literals, left unparsed
   | Hash ShortHash   -- hash literals
@@ -60,11 +75,11 @@ type IsVirtual = Bool -- is it a virtual semi or an actual semi?
 
 makePrisms ''Lexeme
 
-simpleWordyId :: String -> Lexeme
-simpleWordyId = flip WordyId Nothing
+-- simpleWordyId :: String -> Lexeme
+-- simpleWordyId = flip WordyId Nothing
 
-simpleSymbolyId :: String -> Lexeme
-simpleSymbolyId = flip SymbolyId Nothing
+-- simpleSymbolyId :: String -> Lexeme
+-- simpleSymbolyId = flip SymbolyId Nothing
 
 data Token a = Token {
   payload :: a,
@@ -95,10 +110,9 @@ instance ShowToken (Token Lexeme) where
         case showEscapeChar c of
           Just c -> "?\\" ++ [c]
           Nothing -> '?' : [c]
-      pretty (Backticks n h) =
-        '`' : n ++ (toList h >>= SH.toString) ++ ['`']
-      pretty (WordyId n h) = n ++ (toList h >>= SH.toString)
-      pretty (SymbolyId n h) = n ++ (toList h >>= SH.toString)
+      pretty (Backticks id) = '`' : prettyIdent id ++ ['`']
+      pretty (WordyId id) = prettyIdent id
+      pretty (SymbolyId id) = prettyIdent id
       pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
       pretty (Hash sh) = show sh
@@ -248,7 +262,7 @@ lexer0 scope rem =
     tweak (h@(payload -> Reserved _):t) = h : tweak t
     tweak (t1:t2@(payload -> Numeric num):rem)
       | notLayout t1 && touches t1 t2 && isSigned num =
-        t1 : Token (SymbolyId (take 1 num) Nothing)
+        t1 : Token (SymbolyId (Ident False (NESeq.singleton (fromString (take 1 num))) Nothing))
                    (start t2)
                    (inc $ start t2)
            : Token (Numeric (drop 1 num)) (inc $ start t2) (end t2)
@@ -379,8 +393,11 @@ lexer0 scope rem =
       '_' : rem | hasSep rem ->
         Token (Blank "") pos (inc pos) : goWhitespace l (inc pos) rem
       '_' : (wordyId -> Right (id, rem)) ->
-        let pos' = incBy id $ inc pos
-        in Token (Blank id) pos pos' : goWhitespace l pos' rem
+        let -- undo the wordyId parsing, because it's just a blank
+            -- FIXME should Blank contain an Ident?
+            s = prettyIdentWithoutHash id
+            pos' = incBy s $ inc pos
+        in Token (Blank s) pos pos' : goWhitespace l pos' rem
       '&' : '&' : rem ->
         let end = incBy "&&" pos
         in Token (Reserved "&&") pos end : goWhitespace l end rem
@@ -415,20 +432,11 @@ lexer0 scope rem =
         Left (TextLiteralMissingClosingQuote _) ->
           [Token (Err $ TextLiteralMissingClosingQuote rem) pos pos]
         Left err -> [Token (Err err) pos pos]
-      '`' : rem -> case wordyId rem of
+      '`' : rem -> case hqIdent wordyId rem of
         Left e -> Token (Err e) pos pos : recover l pos rem
         Right (id, rem) ->
-          if ['#'] `isPrefixOf` rem then
-             case shortHash rem of
-               Left e -> Token (Err e) pos pos : recover l pos rem
-               Right (h, rem) ->
-                 let end = inc . incBy id . incBy (SH.toString h) . inc $ pos
-                  in Token (Backticks id (Just h)) pos end
-                     : goWhitespace l end (pop rem)
-          else
-           let end = inc . incBy id . inc $ pos
-            in Token (Backticks id Nothing) pos end
-                 : goWhitespace l end (pop rem)
+          let end = inc . incBy (prettyIdent id) . inc $ pos
+           in Token (Backticks id) pos end : goWhitespace l end (pop rem)
 
       rem@('#' : _) -> case shortHash rem of
          Left e -> Token (Err e) pos pos : recover l pos rem
@@ -436,30 +444,16 @@ lexer0 scope rem =
            let end = incBy (SH.toString h) pos
            in Token (Hash h) pos end : goWhitespace l end rem
       -- keywords and identifiers
-      (symbolyId -> Right (id, rem')) -> case numericLit rem of
+      (hqIdent symbolyId -> Right (id, rem')) -> case numericLit rem of
         Right (Just (num, rem)) ->
           let end = incBy num pos
           in Token (Numeric num) pos end : goWhitespace l end rem
-        _ -> if ['#'] `isPrefixOf` rem' then
-               case shortHash rem' of
-                 Left e -> Token (Err e) pos pos : recover l pos rem'
-                 Right (h, rem) ->
-                   let end = incBy id . incBy (SH.toString h) $ pos
-                    in Token (SymbolyId id (Just h)) pos end
-                       : goWhitespace l end rem
-             else
-              let end = incBy id pos
-               in Token (SymbolyId id Nothing) pos end : goWhitespace l end rem'
-      (wordyId -> Right (id, rem)) ->
-        if ['#'] `isPrefixOf` rem then
-          case shortHash rem of
-            Left e -> Token (Err e) pos pos : recover l pos rem
-            Right (h, rem) ->
-              let end = incBy id . incBy (SH.toString h) $ pos
-               in Token (WordyId id (Just h)) pos end
-                  : goWhitespace l end rem
-        else let end = incBy id pos
-              in Token (WordyId id Nothing) pos end : goWhitespace l end rem
+        _ ->
+          let end = incBy (prettyIdent id) pos
+          in Token (SymbolyId id) pos end : goWhitespace l end rem'
+      (hqIdent wordyId -> Right (id, rem)) ->
+        let end = incBy (prettyIdent id) pos
+        in Token (WordyId id) pos end : goWhitespace l end rem
       (matchKeyword -> Just (kw,rem)) ->
         let end = incBy kw pos in
               case kw of
@@ -528,14 +522,10 @@ lexer0 scope rem =
     hqToken pos rem = case rem of
       (shortHash -> Right (h, rem)) ->
         Just (Token (Hash h) pos (incBy (SH.toString h) pos), rem)
-      (wordyId -> Right (id, rem)) -> case rem of
-        (shortHash -> Right (h, rem)) ->
-          Just (Token (WordyId id $ Just h) pos (incBy id . incBy (SH.toString h) $ pos), rem)
-        _ -> Just (Token (WordyId id Nothing) pos (incBy id pos), rem)
-      (symbolyId -> Right (id, rem)) -> case rem of
-        (shortHash -> Right (h, rem)) ->
-          Just (Token (SymbolyId id $ Just h) pos (incBy id . incBy (SH.toString h) $ pos), rem)
-        _ -> Just (Token (SymbolyId id Nothing) pos (incBy id pos), rem)
+      (hqIdent wordyId -> Right (id, rem)) ->
+        Just (Token (WordyId id) pos (incBy (prettyIdent id) pos), rem)
+      (hqIdent symbolyId -> Right (id, rem)) ->
+        Just (Token (SymbolyId id) pos (incBy (prettyIdent id) pos), rem)
       _ -> Nothing
 
     recover _l _pos _rem = []
@@ -604,11 +594,11 @@ numericLit = go
       (fractional@(_:_), []) ->
         pure $ pure (sign ++ num ++ "." ++ fractional, [])
       (fractional@(_:_), c:rem)
-        | c `elem` "eE" -> goExp (sign ++ num ++ "." ++ fractional) rem
+        | c `elem` ("eE" :: [Char]) -> goExp (sign ++ num ++ "." ++ fractional) rem
         | isSep c -> pure $ pure (sign ++ num ++ "." ++ fractional, c:rem)
         | otherwise -> pure Nothing
       ([], _) -> Left (MissingFractional (sign ++ num ++ "."))
-    (num@(_:_), c:rem) | c `elem` "eE" -> goExp (sign ++ num) rem
+    (num@(_:_), c:rem) | c `elem` ("eE" :: [Char]) -> goExp (sign ++ num) rem
     (num@(_:_), c:rem) -> pure $ pure (sign ++ num, c:rem)
     ([], _) -> pure Nothing
   goExp signNum rem = case rem of
@@ -631,11 +621,12 @@ hasSep [] = True
 hasSep (ch:_) = isSep ch
 
 -- Not a keyword, '.' delimited list of wordyId0 (should not include a trailing '.')
-wordyId0 :: String -> Either Err (String, String)
+-- TODO remove me
+wordyId0 :: String -> Either Err (NameSegment, String)
 wordyId0 s = span' wordyIdChar s $ \case
   (id@(ch:_), rem) | not (Set.member id keywords)
                     && wordyIdStartChar ch
-                    -> Right (id, rem)
+                    -> Right (fromString id, rem)
   (id, _rem) -> Left (InvalidWordyId id)
 
 wordyIdStartChar :: Char -> Bool
@@ -643,40 +634,27 @@ wordyIdStartChar ch = isAlpha ch || isEmoji ch || ch == '_'
 
 wordyIdChar :: Char -> Bool
 wordyIdChar ch =
-  isAlphaNum ch || isEmoji ch || ch `elem` "_!'"
+  isAlphaNum ch || isEmoji ch || ch `elem` ("_!'" :: [Char])
 
 isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F300' && c <= '\x1FAFF'
 
-symbolyId :: String -> Either Err (String, String)
-symbolyId r@('.':s)
-  | s == ""              = symbolyId0 r --
-  | isSpace (head s)     = symbolyId0 r -- lone dot treated as an operator
-  | isDelimiter (head s) = symbolyId0 r --
-  | otherwise            = (\(s, rem) -> ('.':s, rem)) <$> symbolyId' s
-symbolyId s = symbolyId' s
+symbolyId :: String -> Either Err (Ident Proxy, String)
+symbolyId =
+  pathyId_ symbolyIdChar
 
--- Is a '.' delimited list of wordyId, with a final segment of `symbolyId0`
-symbolyId' :: String -> Either Err (String, String)
-symbolyId' s = case wordyId0 s of
-  Left _ -> symbolyId0 s
-  Right (wid, '.':rem) -> case symbolyId rem of
-    Left e -> Left e
-    Right (rest, rem) -> Right (wid <> "." <> rest, rem)
-  Right (w,_) -> Left (InvalidSymbolyId w)
+wordyId :: String -> Either Err (Ident Proxy, String)
+wordyId =
+  pathyId_ wordyIdStartChar
 
-wordyId :: String -> Either Err (String, String)
-wordyId ('.':s) = (\(s,rem) -> ('.':s,rem)) <$> wordyId' s
-wordyId s = wordyId' s
-
--- Is a '.' delimited list of wordyId
-wordyId' :: String -> Either Err (String, String)
-wordyId' s = case wordyId0 s of
-  Left e -> Left e
-  Right (wid, '.':rem@(ch:_)) | wordyIdStartChar ch -> case wordyId rem of
-    Left e -> Left e
-    Right (rest, rem) -> Right (wid <> "." <> rest, rem)
-  Right (w,rem) -> Right (w,rem)
+pathyId_ :: (Char -> Bool) -> String -> Either Err (Ident Proxy, String)
+pathyId_ f s = do
+  (id@(Ident _ segments _), rem) <- pathyId s
+  -- Peek at the first character of the last segment to see if it's wordy/symboly
+  if f (NameSegment.head (NESeq.last segments)) then
+    Right (id, rem)
+  else
+    Left (InvalidWordyId (prettyIdent (ffmap (\Proxy -> Nothing) id)))
 
 -- Is a `ShortHash`
 shortHash :: String -> Either Err (ShortHash, String)
@@ -686,16 +664,59 @@ shortHash s = case SH.fromString potentialHash of
   where (potentialHash, rem) = break ((||) <$> isSpace <*> (== '`')) s
 
 -- Returns either an error or an id and a remainder
-symbolyId0 :: String -> Either Err (String, String)
+-- TODO remove me
+symbolyId0 :: String -> Either Err (NameSegment, String)
 symbolyId0 s = span' symbolyIdChar s $ \case
-  (id@(_:_), rem) | not (Set.member id reservedOperators) -> Right (id, rem)
+  (id@(_:_), rem) | not (Set.member id reservedOperators) -> Right (fromString id, rem)
   (id, _rem) -> Left (InvalidSymbolyId id)
 
 symbolyIdChar :: Char -> Bool
 symbolyIdChar ch = Set.member ch symbolyIdChars
 
+-- | Parse a list of '.'-delimited segments that are wordy or symboly.
+pathyId :: String -> Either Err (Ident Proxy, String)
+pathyId (stripLeadingDot -> (absolute, s)) =
+  pathyId' s <&> over _1 (\s -> Ident absolute s Proxy)
+
+-- | Try to strip the leading '.' from a string, and return whether it was stripped.
+stripLeadingDot :: String -> (Bool, String)
+stripLeadingDot = \case
+  '.' : s -> (True, s)
+  s -> (False, s)
+
+-- | Parse a list of '.'-delimited segments that are wordy or symboly.
+pathyId' :: String -> Either Err (NESeq NameSegment, String)
+pathyId' s =
+  case span wordyIdChar s of
+    ([], _) -> undefined
+      case span symbolyIdChar s of
+        ([], _) -> Left (InvalidWordyId "") -- bit of a lie; invalid "pathy"
+        (id, s') ->
+          if Set.notMember id reservedOperators then
+            go id s'
+          else
+            Left (InvalidSymbolyId id)
+    (id, s') ->
+      if Set.notMember id keywords && wordyIdStartChar (head id) then
+        go id s'
+      else
+        Left (InvalidWordyId id)
+  where
+    go :: String -> String -> Either Err (NESeq NameSegment, String)
+    go id = \case
+      '.':s'@(_:_) -> over _1 (fromString id NESeq.<|) <$> pathyId' s'
+      s' -> Right (NESeq.singleton (fromString id), s')
+
+hqIdent :: (String -> Either Err (Ident Proxy, String)) -> String -> Either Err (Ident Maybe, String)
+hqIdent f s = do
+  (Ident isAbsolute segments Proxy, rem) <- f s
+  if "#" `isPrefixOf` rem then
+    shortHash rem <&> over _1 \h -> Ident isAbsolute segments (Just h)
+  else
+    Right (Ident isAbsolute segments Nothing, rem)
+
 symbolyIdChars :: Set Char
-symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:"
+symbolyIdChars = Set.fromList "!$%^&*-=+<>~\\/|:"
 
 keywords :: Set String
 keywords = Set.fromList [
@@ -751,6 +772,9 @@ reservedOperators = Set.fromList ["->", ":", "&&", "||"]
 
 inc :: Pos -> Pos
 inc (Pos line col) = Pos line (col + 1)
+
+incN :: Int -> Pos -> Pos
+incN n (Pos line col) = Pos line (col + n)
 
 incBy :: String -> Pos -> Pos
 incBy rem pos@(Pos line col) = case rem of

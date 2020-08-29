@@ -113,6 +113,7 @@ library
     Unison.FileParser
     Unison.FileParsers
     Unison.Lexer
+    Unison.Lexer.Ident
     Unison.NamePrinter
     Unison.Parser
     Unison.Parsers
@@ -203,6 +204,7 @@ library
     hashable,
     hashtables,
     haskeline,
+    hkd,
     io-streams,
     lens,
     ListLike,
@@ -215,7 +217,7 @@ library
     mutable-containers,
     network,
     network-simple,
-    nonempty-containers,
+    nonempty-containers >= 0.3.4.1,
     process,
     primitive,
     random,

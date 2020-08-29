@@ -265,9 +265,10 @@ matchToken x = P.satisfy ((==) x . L.payload)
 
 -- The package name that refers to the root, literally just `.`
 importDotId :: Ord v => P v (L.Token Name)
-importDotId = queryToken go where
-  go (L.SymbolyId "." Nothing) = Just (Name.fromString ".")
-  go _ = Nothing
+importDotId = undefined
+-- importDotId = queryToken go where
+--   go (L.SymbolyId "." Nothing) = Just (Name.fromString ".")
+--   go _ = Nothing
 
 -- Consume a virtual semicolon
 semi :: Ord v => P v (L.Token ())
@@ -280,9 +281,10 @@ closeBlock :: Ord v => P v (L.Token ())
 closeBlock = void <$> matchToken L.Close
 
 wordyPatternName :: Var v => P v (L.Token v)
-wordyPatternName = queryToken $ \case
-  L.WordyId s Nothing -> Just $ Var.nameds s
-  _                   -> Nothing
+wordyPatternName = undefined
+-- wordyPatternName = queryToken $ \case
+--   L.WordyId s Nothing -> Just $ Var.nameds s
+--   _                   -> Nothing
 
 -- Parse an prefix identifier e.g. Foo or (+), discarding any hash
 prefixDefinitionName :: Var v => P v (L.Token v)
@@ -291,16 +293,18 @@ prefixDefinitionName =
 
 -- Parse a wordy identifier e.g. Foo, discarding any hash
 wordyDefinitionName :: Var v => P v (L.Token v)
-wordyDefinitionName = queryToken $ \case
-  L.WordyId s _            -> Just $ Var.nameds s
-  L.Blank s                -> Just $ Var.nameds ("_" <> s)
-  _                        -> Nothing
+wordyDefinitionName = undefined
+-- wordyDefinitionName = queryToken $ \case
+--   L.WordyId s _            -> Just $ Var.nameds s
+--   L.Blank s                -> Just $ Var.nameds ("_" <> s)
+--   _                        -> Nothing
 
 -- Parse a wordyId as a String, rejecting any hash
 wordyIdString :: Ord v => P v (L.Token String)
-wordyIdString = queryToken $ \case
-  L.WordyId s Nothing -> Just s
-  _                   -> Nothing
+wordyIdString = undefined
+-- wordyIdString = queryToken $ \case
+--   L.WordyId s Nothing -> Just s
+--   _                   -> Nothing
 
 -- Parse a wordyId as a Name, rejecting any hash
 importWordyId :: Ord v => P v (L.Token Name)
@@ -312,23 +316,26 @@ importSymbolyId = (fmap . fmap) Name.fromString symbolyIdString
 
 -- Parse a symbolyId as a String, rejecting any hash
 symbolyIdString :: Ord v => P v (L.Token String)
-symbolyIdString = queryToken $ \case
-  L.SymbolyId s Nothing -> Just s
-  _                     -> Nothing
+symbolyIdString = undefined
+-- symbolyIdString = queryToken $ \case
+--   L.SymbolyId s Nothing -> Just s
+--   _                     -> Nothing
 
 -- Parse an infix id e.g. + or `cons`, discarding any hash
 infixDefinitionName :: Var v => P v (L.Token v)
-infixDefinitionName = symbolyDefinitionName <|> backticked where
-  backticked :: Var v => P v (L.Token v)
-  backticked = queryToken $ \case
-    L.Backticks s _ -> Just $ Var.nameds s
-    _               -> Nothing
+infixDefinitionName = undefined
+-- infixDefinitionName = symbolyDefinitionName <|> backticked where
+--   backticked :: Var v => P v (L.Token v)
+--   backticked = queryToken $ \case
+--     L.Backticks s _ -> Just $ Var.nameds s
+--     _               -> Nothing
 
 -- Parse a symboly ID like >>= or &&, discarding any hash
 symbolyDefinitionName :: Var v => P v (L.Token v)
-symbolyDefinitionName = queryToken $ \case
-  L.SymbolyId s _ -> Just $ Var.nameds s
-  _               -> Nothing
+symbolyDefinitionName = undefined
+-- symbolyDefinitionName = queryToken $ \case
+--   L.SymbolyId s _ -> Just $ Var.nameds s
+--   _               -> Nothing
 
 parenthesize :: Ord v => P v a -> P v a
 parenthesize p = P.try (openBlockWith "(" *> p) <* closeBlock
@@ -339,28 +346,31 @@ hqInfixId = hqSymbolyId_ <|> hqBacktickedId_
 
 -- Parse a hash-qualified alphanumeric identifier
 hqWordyId_ :: Ord v => P v (L.Token HQ.HashQualified)
-hqWordyId_ = queryToken $ \case
-  L.WordyId "" (Just h) -> Just $ HQ.HashOnly h
-  L.WordyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
-  L.WordyId s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
-  L.Hash h              -> Just $ HQ.HashOnly h
-  L.Blank s | not (null s) -> Just $ HQ.NameOnly (Name.fromString ("_" <> s))
-  _ -> Nothing
+hqWordyId_ = undefined
+-- hqWordyId_ = queryToken $ \case
+--   L.WordyId "" (Just h) -> Just $ HQ.HashOnly h
+--   L.WordyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
+--   L.WordyId s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
+--   L.Hash h              -> Just $ HQ.HashOnly h
+--   L.Blank s | not (null s) -> Just $ HQ.NameOnly (Name.fromString ("_" <> s))
+--   _ -> Nothing
 
 -- Parse a hash-qualified symboly ID like >>=#foo or &&
 hqSymbolyId_ :: Ord v => P v (L.Token HQ.HashQualified)
-hqSymbolyId_ = queryToken $ \case
-  L.SymbolyId "" (Just h) -> Just $ HQ.HashOnly h
-  L.SymbolyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
-  L.SymbolyId s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
-  _ -> Nothing
+hqSymbolyId_ = undefined
+-- hqSymbolyId_ = queryToken $ \case
+--   L.SymbolyId "" (Just h) -> Just $ HQ.HashOnly h
+--   L.SymbolyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
+--   L.SymbolyId s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
+--   _ -> Nothing
 
 hqBacktickedId_ :: Ord v => P v (L.Token HQ.HashQualified)
-hqBacktickedId_ = queryToken $ \case
-  L.Backticks "" (Just h) -> Just $ HQ.HashOnly h
-  L.Backticks s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
-  L.Backticks s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
-  _ -> Nothing
+hqBacktickedId_ = undefined
+-- hqBacktickedId_ = queryToken $ \case
+--   L.Backticks "" (Just h) -> Just $ HQ.HashOnly h
+--   L.Backticks s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
+--   L.Backticks s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
+--   _ -> Nothing
 
 -- Parse a reserved word
 reserved :: Ord v => String -> P v (L.Token String)

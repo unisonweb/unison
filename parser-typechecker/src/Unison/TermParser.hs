@@ -641,10 +641,11 @@ var :: Var v => L.Token v -> Term v Ann
 var t = Term.var (ann t) (L.payload t)
 
 seqOp :: Ord v => P v Pattern.SeqOp
-seqOp =
-  (Pattern.Snoc <$ matchToken (L.SymbolyId ":+" Nothing))
-  <|> (Pattern.Cons <$ matchToken (L.SymbolyId "+:" Nothing))
-  <|> (Pattern.Concat <$ matchToken (L.SymbolyId "++" Nothing))
+seqOp = undefined
+-- seqOp =
+--   (Pattern.Snoc <$ matchToken (L.SymbolyId ":+" Nothing))
+--   <|> (Pattern.Cons <$ matchToken (L.SymbolyId "+:" Nothing))
+--   <|> (Pattern.Concat <$ matchToken (L.SymbolyId "++" Nothing))
 
 term4 :: Var v => TermP v
 term4 = f <$> some termLeaf
@@ -891,11 +892,12 @@ number' i u f = fmap go numeric
                           | otherwise                                             = u (read <$> num)
 
 tupleOrParenthesizedTerm :: Var v => TermP v
-tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term DD.unitTerm pair
-  where
-    pair t1 t2 =
-      Term.app (ann t1 <> ann t2)
-        (Term.app (ann t1)
-                  (Term.constructor (ann t1 <> ann t2) DD.pairRef 0)
-                  t1)
-        t2
+tupleOrParenthesizedTerm = undefined
+-- tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term DD.unitTerm pair
+--   where
+--     pair t1 t2 =
+--       Term.app (ann t1 <> ann t2)
+--         (Term.app (ann t1)
+--                   (Term.constructor (ann t1 <> ann t2) DD.pairRef 0)
+--                   t1)
+--         t2
