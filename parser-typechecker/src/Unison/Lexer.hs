@@ -60,9 +60,9 @@ data Lexeme
   | Reserved String -- reserved tokens such as `{`, `(`, `type`, `of`, etc
   | Textual String -- text literals, `"foo bar"`
   | Character Char -- character literals, `?X`
-  | Backticks (Ident Maybe)
-  | WordyId (Ident Maybe) -- a (non-infix) identifier
-  | SymbolyId (Ident Maybe) -- an infix identifier
+  | Backticks (Ident NESeq Maybe)
+  | WordyId (Ident NESeq Maybe) -- a (non-infix) identifier
+  | SymbolyId (Ident NESeq Maybe) -- an infix identifier
   | Blank String -- a typed hole or placeholder
   | Numeric String -- numeric literals, left unparsed
   | Hash ShortHash -- hash literals
@@ -663,15 +663,15 @@ wordyIdChar ch =
 isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F300' && c <= '\x1FAFF'
 
-symbolyId :: String -> Either Err (Ident Proxy, String)
+symbolyId :: String -> Either Err (Ident NESeq Proxy, String)
 symbolyId =
   pathyId_ symbolyIdChar
 
-wordyId :: String -> Either Err (Ident Proxy, String)
+wordyId :: String -> Either Err (Ident NESeq Proxy, String)
 wordyId =
   pathyId_ wordyIdStartChar
 
-pathyId_ :: (Char -> Bool) -> String -> Either Err (Ident Proxy, String)
+pathyId_ :: (Char -> Bool) -> String -> Either Err (Ident NESeq Proxy, String)
 pathyId_ f s = do
   (id@(Ident _ segments _), rem) <- pathyId s
   -- Peek at the first character of the last segment to see if it's wordy/symboly
@@ -698,7 +698,7 @@ symbolyIdChar :: Char -> Bool
 symbolyIdChar ch = Set.member ch symbolyIdChars
 
 -- | Parse a list of '.'-delimited segments that are wordy or symboly.
-pathyId :: String -> Either Err (Ident Proxy, String)
+pathyId :: String -> Either Err (Ident NESeq Proxy, String)
 pathyId (stripLeadingDot -> (absolute, s)) =
   pathyId' s <&> over _1 (\s -> Ident absolute s Proxy)
 
@@ -729,7 +729,7 @@ pathyId' s =
       '.' : s'@(_ : _) -> over _1 (fromString id NESeq.<|) <$> pathyId' s'
       s' -> Right (NESeq.singleton (fromString id), s')
 
-hqIdent :: (String -> Either Err (Ident Proxy, String)) -> String -> Either Err (Ident Maybe, String)
+hqIdent :: (String -> Either Err (Ident f Proxy, String)) -> String -> Either Err (Ident f Maybe, String)
 hqIdent f s = do
   (Ident isAbsolute segments Proxy, rem) <- f s
   if "#" `isPrefixOf` rem

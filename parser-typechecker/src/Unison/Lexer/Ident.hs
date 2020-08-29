@@ -25,26 +25,26 @@ import qualified Unison.ShortHash as SH
 
 -- foo.bar = Ident False ["foo", "bar"] Nothing
 -- .foo#hhh = Ident True ["foo"] (Just "hhh")
-data Ident f = Ident
+data Ident f g = Ident
   { isAbsolute :: Bool,
-    segments :: NESeq NameSegment,
-    hash :: f ShortHash
+    segments :: f NameSegment,
+    hash :: g ShortHash
   }
   deriving stock (Generic)
 
-deriving instance (forall a. Eq a => Eq (f a)) => Eq (Ident f)
+deriving instance (forall a. Eq a => Eq (f a), forall a. Eq a => Eq (g a)) => Eq (Ident f g)
 
-deriving instance Ord (Ident Maybe) -- ahh, why doesn't the quantified constraints version work?
+deriving instance Ord (Ident NESeq Maybe) -- ahh, why doesn't the quantified constraints version work?
 
-deriving instance (forall a. Show a => Show (f a)) => Show (Ident f)
+deriving instance (forall a. Show a => Show (f a), forall a. Show a => Show (g a)) => Show (Ident f g)
 
 -- | Eh, one-off type class so it's not so tedious to render an ident as a string. This could be made into 3-4 separate
 -- functions if the type class starts to get in the way for some reason.
-class PrettyIdent f where
-  prettyIdent :: Ident f -> String
+class PrettyIdent f g where
+  prettyIdent :: Ident f g -> String
 
-instance PrettyIdent Maybe where
-  prettyIdent :: Ident Maybe -> String
+instance PrettyIdent NESeq Maybe where
+  prettyIdent :: Ident NESeq Maybe -> String
   prettyIdent (Ident isAbsolute segments maybeHash) =
     (Text.unpack . mconcat)
       [ if isAbsolute then "." else "",
@@ -52,7 +52,7 @@ instance PrettyIdent Maybe where
         maybe "" SH.toText maybeHash
       ]
 
-instance PrettyIdent Proxy where
-  prettyIdent :: Ident Proxy -> String
+instance PrettyIdent NESeq Proxy where
+  prettyIdent :: Ident NESeq Proxy -> String
   prettyIdent id =
     prettyIdent (id & #hash .~ Nothing)
