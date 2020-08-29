@@ -106,7 +106,7 @@ parsePath' = \case
   s ->
     case Lexer.pathyId s of
       Left err -> Left (show err)
-      Right (Lexer.Ident isAbsolute segments Proxy, "") ->
+      Right (Lexer.Ident (Identity isAbsolute) segments Proxy, "") ->
         Right ((if isAbsolute then absoluteFromSegments' else relativeFromSegments') (NESeq.toSeq segments))
       Right (id, rem) ->
         Left ("extra characters after " <> Lexer.prettyIdent id <> ": " <> show rem)

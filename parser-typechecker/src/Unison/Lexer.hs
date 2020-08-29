@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -13,13 +14,14 @@ module Unison.Lexer
   )
 where
 
-import Control.Lens (_1, over)
+import Control.Lens ((.~), _1, over)
 import Control.Lens.TH (makePrisms)
 import qualified Control.Monad.State as S
 import Data.Char
 import Data.List
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map.Strict as Map
+import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy (Proxy))
 import Data.Sequence.NonEmpty (NESeq)
 import qualified Data.Sequence.NonEmpty as NESeq
@@ -60,9 +62,9 @@ data Lexeme
   | Reserved String -- reserved tokens such as `{`, `(`, `type`, `of`, etc
   | Textual String -- text literals, `"foo bar"`
   | Character Char -- character literals, `?X`
-  | Backticks (Ident NESeq Maybe)
-  | WordyId (Ident NESeq Maybe) -- a (non-infix) identifier
-  | SymbolyId (Ident NESeq Maybe) -- an infix identifier
+  | Backticks (Ident Identity NESeq Maybe)
+  | WordyId (Ident Identity NESeq Maybe) -- a (non-infix) identifier
+  | SymbolyId (Ident Identity NESeq Maybe) -- an infix identifier
   | Blank String -- a typed hole or placeholder
   | Numeric String -- numeric literals, left unparsed
   | Hash ShortHash -- hash literals
@@ -270,7 +272,7 @@ lexer0 scope rem =
       | notLayout t1 && touches t1 t2 && isSigned num =
         t1
           : Token
-            (SymbolyId (Ident False (NESeq.singleton (fromString (take 1 num))) Nothing))
+            (SymbolyId (Ident (Identity False) (NESeq.singleton (fromString (take 1 num))) Nothing))
             (start t2)
             (inc $ start t2)
           : Token (Numeric (drop 1 num)) (inc $ start t2) (end t2)
@@ -663,15 +665,15 @@ wordyIdChar ch =
 isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F300' && c <= '\x1FAFF'
 
-symbolyId :: String -> Either Err (Ident NESeq Proxy, String)
+symbolyId :: String -> Either Err (Ident Identity NESeq Proxy, String)
 symbolyId =
   pathyId_ symbolyIdChar
 
-wordyId :: String -> Either Err (Ident NESeq Proxy, String)
+wordyId :: String -> Either Err (Ident Identity NESeq Proxy, String)
 wordyId =
   pathyId_ wordyIdStartChar
 
-pathyId_ :: (Char -> Bool) -> String -> Either Err (Ident NESeq Proxy, String)
+pathyId_ :: (Char -> Bool) -> String -> Either Err (Ident Identity NESeq Proxy, String)
 pathyId_ f s = do
   (id@(Ident _ segments _), rem) <- pathyId s
   -- Peek at the first character of the last segment to see if it's wordy/symboly
@@ -698,9 +700,9 @@ symbolyIdChar :: Char -> Bool
 symbolyIdChar ch = Set.member ch symbolyIdChars
 
 -- | Parse a list of '.'-delimited segments that are wordy or symboly.
-pathyId :: String -> Either Err (Ident NESeq Proxy, String)
+pathyId :: String -> Either Err (Ident Identity NESeq Proxy, String)
 pathyId (stripLeadingDot -> (absolute, s)) =
-  pathyId' s <&> over _1 (\s -> Ident absolute s Proxy)
+  pathyId' s <&> over _1 (\s -> Ident (Identity absolute) s Proxy)
 
 -- | Try to strip the leading '.' from a string, and return whether it was stripped.
 stripLeadingDot :: String -> (Bool, String)
@@ -729,12 +731,12 @@ pathyId' s =
       '.' : s'@(_ : _) -> over _1 (fromString id NESeq.<|) <$> pathyId' s'
       s' -> Right (NESeq.singleton (fromString id), s')
 
-hqIdent :: (String -> Either Err (Ident f Proxy, String)) -> String -> Either Err (Ident f Maybe, String)
+hqIdent :: (String -> Either Err (Ident f g Proxy, String)) -> String -> Either Err (Ident f g Maybe, String)
 hqIdent f s = do
-  (Ident isAbsolute segments Proxy, rem) <- f s
+  (id, rem) <- f s
   if "#" `isPrefixOf` rem
-    then shortHash rem <&> over _1 \h -> Ident isAbsolute segments (Just h)
-    else Right (Ident isAbsolute segments Nothing, rem)
+    then shortHash rem <&> over _1 \h -> id & #hash .~ Just h
+    else Right (id & #hash .~ Nothing, rem)
 
 symbolyIdChars :: Set Char
 symbolyIdChars = Set.fromList "!$%^&*-=+<>~\\/|:"
