@@ -16,6 +16,7 @@ import qualified Data.Foldable as Foldable
 import qualified Data.Text                     as Text
 import           Data.Sequence                  (Seq((:<|),(:|>) ))
 import qualified Data.Sequence                 as Seq
+import Data.Sequence.NonEmpty (NESeq)
 import qualified Data.Sequence.NonEmpty        as NESeq
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
@@ -34,6 +35,22 @@ newtype Absolute = Absolute { unabsolute :: Path } deriving (Eq,Ord)
 newtype Relative = Relative { unrelative :: Path } deriving (Eq,Ord)
 newtype Path' = Path' { unPath' :: Either Absolute Relative }
   deriving (Eq,Ord)
+
+{-
+type Path              = Lexer.Ident Proxy    Seq   Proxy
+type Absolute          = Lexer.Ident Abs      Seq   Proxy
+type Relative          = Lexer.Ident Rel      Seq   Proxy
+type Path'             = Lexer.Ident Identity Seq   Proxy
+type Split             = Lexer.Ident Proxy    NESeq Proxy
+type HQSplit           = Lexer.Ident Proxy    NESeq Maybe
+type Split'            = Lexer.Ident Identity NESeq Proxy
+type HQSplit'          = Lexer.Ident Identity NESeq Maybe
+type SplitAbsolute     = Lexer.Ident Abs      NESeq Proxy
+type HQSplitAbsolute   = Lexer.Ident Abs      NESeq Maybe
+--
+data Abs a             = Abs
+data Rel a             = Rel
+-}
 
 isCurrentPath :: Path' -> Bool
 isCurrentPath p = p == currentPath
