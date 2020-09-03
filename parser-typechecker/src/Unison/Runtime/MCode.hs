@@ -64,6 +64,7 @@ import Unison.Runtime.ANF
   , pattern TLit
   , pattern TApp
   , pattern TPrm
+  , pattern TIOp
   , pattern THnd
   , pattern TFrc
   , pattern TShift
@@ -639,6 +640,11 @@ emitSection _   ctx (TPrm p args)
   -- a prim op will need for its results.
   = addCount 3 3 . countCtx ctx
   . Ins (emitPOp p $ emitArgs ctx args) . Yield $ DArgV i j
+  where
+  (i, j) = countBlock ctx
+emitSection _   ctx (TIOp p args)
+  = addCount 3 3 . countCtx ctx
+  . Ins (emitIOp p $ emitArgs ctx args) . Yield $ DArgV i j
   where
   (i, j) = countBlock ctx
 emitSection rec ctx (TApp f args)
