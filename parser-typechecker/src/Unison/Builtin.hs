@@ -451,7 +451,15 @@ ioBuiltins =
 mvarBuiltins :: forall v. Var v => [(Text, Type v)]
 mvarBuiltins =
   [ ("MVar.new", forall1 "a" $ \a -> a --> io (mvar a))
+  , ("MVar.newEmpty", forall1 "a" $ \a -> io (mvar a))
   , ("MVar.take", forall1 "a" $ \a -> mvar a --> ioe a)
+  , ("MVar.tryTake", forall1 "a" $ \a -> mvar a --> io (optionalt a))
+  , ("MVar.put", forall1 "a" $ \a -> mvar a --> a --> ioe unit)
+  , ("MVar.tryPut", forall1 "a" $ \a -> mvar a --> a --> io boolean)
+  , ("MVar.swap", forall1 "a" $ \a -> mvar a --> a --> ioe a)
+  , ("MVar.isEmpty", forall1 "a" $ \a -> mvar a --> io boolean)
+  , ("MVar.read", forall1 "a" $ \a -> mvar a --> ioe a)
+  , ("MVar.tryRead", forall1 "a" $ \a -> mvar a --> io (optionalt a))
   ]
   where
   mvar :: Type v -> Type v
