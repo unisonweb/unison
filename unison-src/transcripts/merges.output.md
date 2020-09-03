@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #krakhj8q5b
+  ⊙ #mbok83u09o
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #j0lfs5asc7
+  ⊙ #u53od2so90
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #ej6ll3ac1h
+  ⊙ #drgfm4pkk8
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #gidrg9pool
+  ⊙ #kt6vuoajil
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #sdinucmq5a
+  ⊙ #n187cml1um
   
     + Adds / updates:
     
       x
   
-  ⊙ #pc4d0e58h3
+  ⊙ #r3il860k10
   
     + Adds / updates:
     
@@ -249,8 +249,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.IOError.PermissionDenied
       builtin.io2.IOError.ResourceBusy
       builtin.io2.IOError.ResourceExhausted
-      builtin.io2.IOError.UserError builtin.io2.Socket
-      builtin.io2.ThreadId builtin.todo
+      builtin.io2.IOError.UserError builtin.io2.MVar
+      builtin.io2.MVar.isEmpty builtin.io2.MVar.new
+      builtin.io2.MVar.newEmpty builtin.io2.MVar.put
+      builtin.io2.MVar.read builtin.io2.MVar.swap
+      builtin.io2.MVar.take builtin.io2.MVar.tryPut
+      builtin.io2.MVar.tryRead builtin.io2.MVar.tryTake
+      builtin.io2.Socket builtin.io2.ThreadId builtin.todo
   
   □ #7asfbtqmoj (start of history)
 

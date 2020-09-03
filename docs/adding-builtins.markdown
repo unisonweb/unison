@@ -179,3 +179,11 @@ functions that apply (un)wrappers from another convention.
 
 With these in place, the functions should now be usable in the new
 runtime.
+
+## Transcripts
+
+One last thing remains. The additional builtin operations will have
+changed some of the transcript output. The transcript runner should be
+executed, and modified files should be checked and committed, so that
+CI tests will pass (which check transcripts against an expected
+result).
