@@ -10,7 +10,7 @@ module Unison.Runtime.MCode
   , Args(..)
   , MLit(..)
   , Instr(..)
-  , Section(..)
+  , Section(.., MatchT, MatchW)
   , Comb(..)
   , Ref(..)
   , UPrim1(..)
@@ -22,6 +22,7 @@ module Unison.Runtime.MCode
   , ucount
   , emitCombs
   , emitComb
+  , argsToLists
   , prettyCombs
   , prettyComb
   ) where
@@ -41,14 +42,11 @@ import qualified Data.Map.Strict as M
 import Unison.Util.EnumContainers as EC
 
 import Data.Text (Text)
-import qualified Data.Text as Text
 
 import Unison.Var (Var)
 import Unison.ABT.Normalized (pattern TAbss)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import qualified Unison.Type as Rf
-import qualified Unison.Runtime.IOSource as Rf
 import Unison.Runtime.ANF
   ( ANormal
   , ANormalT
@@ -75,62 +73,6 @@ import Unison.Runtime.ANF
   , pattern TMatch
   )
 import qualified Unison.Runtime.ANF as ANF
-import Unison.Runtime.Foreign
-import Unison.Util.Bytes as Bytes
-
-import Network.Socket as SYS
-  ( accept
-  )
-import Network.Simple.TCP as SYS
-  ( HostPreference(..)
-  , bindSock
-  , connectSock
-  , listenSock
-  , closeSock
-  , send
-  , recv
-  )
-import System.IO as SYS
-  ( BufferMode(..)
-  , Handle
-  , openFile
-  , hClose
-  , hGetBuffering
-  , hSetBuffering
-  , hIsEOF
-  , hIsOpen
-  , hIsSeekable
-  , hSeek
-  , hTell
-  , stdin, stdout, stderr
-  )
-import Data.Text.IO as SYS
-  ( hGetLine
-  , hPutStr
-  )
-import Control.Concurrent as SYS
-  ( threadDelay
-  , killThread
-  )
-import Data.Time.Clock.POSIX as SYS
-  ( getPOSIXTime
-  , utcTimeToPOSIXSeconds
-  )
-import System.Directory as SYS
-  ( getCurrentDirectory
-  , setCurrentDirectory
-  , getTemporaryDirectory
-  , getDirectoryContents
-  , doesPathExist
-  -- , doesDirectoryExist
-  , renameDirectory
-  , removeFile
-  , renameFile
-  , createDirectoryIfMissing
-  , removeDirectoryRecursive
-  , getModificationTime
-  , getFileSize
-  )
 
 -- This outlines some of the ideas/features in this core
 -- language, and how they may be used to implement features of
@@ -312,6 +254,21 @@ data Args
   | DArgV !Int !Int
   deriving (Show, Eq, Ord)
 
+argsToLists :: Args -> ([Int], [Int])
+argsToLists ZArgs = ([],[])
+argsToLists (UArg1 i) = ([i],[])
+argsToLists (UArg2 i j) = ([i,j],[])
+argsToLists (BArg1 i) = ([],[i])
+argsToLists (BArg2 i j) = ([],[i,j])
+argsToLists (DArg2 i j) = ([i],[j])
+argsToLists (UArgR i l) = (take l [i..], [])
+argsToLists (BArgR i l) = ([], take l [i..])
+argsToLists (DArgR ui ul bi bl) = (take ul [ui..], take bl [bi..])
+argsToLists (BArgN bs) = ([], primArrayToList bs)
+argsToLists (UArgN us) = (primArrayToList us, [])
+argsToLists (DArgN us bs) = (primArrayToList us, primArrayToList bs)
+argsToLists (DArgV _ _) = error "argsToLists: DArgV"
+
 ucount, bcount :: Args -> Int
 
 ucount (UArg1 _) = 1
@@ -415,9 +372,9 @@ data Instr
 
   -- Call out to a Haskell function. This is considerably slower
   -- for very simple operations, hence the primops.
-  | ForeignCall !Bool        -- catch exceptions
-                !ForeignFunc -- FFI call
-                !Args        -- arguments
+  | ForeignCall !Bool   -- catch exceptions
+                !Word64 -- FFI call
+                !Args   -- arguments
 
   -- Set the value of a dynamic reference
   | SetDyn !Word64 -- the prompt tag of the reference
@@ -1002,142 +959,7 @@ emitPOp ANF.INFO = \case
 -- standard handle access function, because it does not yield an
 -- explicit error.
 emitIOp :: ANF.IOp -> Args -> Instr
-emitIOp iop@ANF.STDHND = ForeignCall False (iopToForeign iop)
-emitIOp iop = ForeignCall True (iopToForeign iop)
-
-bufferModeResult :: BufferMode -> ForeignRslt
-bufferModeResult NoBuffering = [Left 0]
-bufferModeResult LineBuffering = [Left 1]
-bufferModeResult (BlockBuffering Nothing) = [Left 3]
-bufferModeResult (BlockBuffering (Just n)) = [Left 4, Left n]
-
-booleanResult :: Bool -> ForeignRslt
-booleanResult b = [Left $ fromEnum b]
-
-intResult :: Int -> ForeignRslt
-intResult i = [Left i]
-
--- TODO: this seems questionable, but the existing IO source is
--- saying that these things return Nat, not arbitrary precision
--- integers.
-intg2natResult :: Integer -> ForeignRslt
-intg2natResult i = [Left $ fromInteger i]
-
-stringResult :: String -> ForeignRslt
-stringResult = wrappedResult Rf.textRef . Text.pack
-
-wrappedResult :: Reference -> a -> ForeignRslt
-wrappedResult r x = [Right $ Wrap r x]
-
-handleResult :: Handle -> ForeignRslt
-handleResult h = [Right $ Wrap Rf.handleReference h]
-
-timeResult :: RealFrac r => r -> ForeignRslt
-timeResult t = intResult $ round t
-
-maybeResult'
-  :: (a -> (Int, ForeignRslt)) -> Maybe a -> ForeignRslt
-maybeResult' _ Nothing = [Left 0]
-maybeResult' f (Just x)
-  | (i, r) <- f x = Left (i+1) : r
-
--- Implementations of ANF IO operations
-iopToForeign :: ANF.IOp -> ForeignFunc
-iopToForeign ANF.OPENFI
-  = foreign2 $ \fp mo -> handleResult <$> openFile fp mo
-iopToForeign ANF.CLOSFI
-  = foreign1 $ \h -> [] <$ hClose h
-iopToForeign ANF.ISFEOF
-  = foreign1 $ \h -> booleanResult <$> hIsEOF h
-iopToForeign ANF.ISFOPN
-  = foreign1 $ \h -> booleanResult <$> hIsOpen h
-iopToForeign ANF.ISSEEK
-  = foreign1 $ \h -> booleanResult <$> hIsSeekable h
-iopToForeign ANF.SEEKFI
-  = foreign3 $ \h sm n -> [] <$ hSeek h sm (fromIntegral (n :: Int))
-iopToForeign ANF.POSITN
-  = foreign1 $ \h -> intg2natResult <$> hTell h
-iopToForeign ANF.GBUFFR
-  = foreign1 $ \h -> bufferModeResult <$> hGetBuffering h
-iopToForeign ANF.SBUFFR
-  = foreign2 $ \h bm -> [] <$ hSetBuffering h bm
-iopToForeign ANF.GTLINE
-  = foreign1 $ \h -> wrappedResult Rf.textRef <$> hGetLine h
-iopToForeign ANF.GTTEXT
-  = error "todo" -- foreign1 $ \h -> pure . Right . Wrap <$> hGetText h
-iopToForeign ANF.PUTEXT
-  = foreign2 $ \h t -> [] <$ hPutStr h t
-iopToForeign ANF.SYTIME
-  = foreign0 $ timeResult <$> getPOSIXTime
-iopToForeign ANF.GTMPDR
-  = foreign0 $ stringResult <$> getTemporaryDirectory
-iopToForeign ANF.GCURDR
-  = foreign0 $ stringResult <$> getCurrentDirectory
-iopToForeign ANF.SCURDR
-  = foreign1 $ \fp -> [] <$ setCurrentDirectory (Text.unpack fp)
-iopToForeign ANF.DCNTNS
-  = foreign1 $ \fp ->
-      error "todo" <$ getDirectoryContents (Text.unpack fp)
-iopToForeign ANF.FEXIST
-  = foreign1 $ \fp -> booleanResult <$> doesPathExist (Text.unpack fp)
-iopToForeign ANF.ISFDIR = error "todo"
-iopToForeign ANF.CRTDIR
-  = foreign1 $ \fp ->
-      [] <$ createDirectoryIfMissing True (Text.unpack fp)
-iopToForeign ANF.REMDIR
-  = foreign1 $ \fp -> [] <$ removeDirectoryRecursive (Text.unpack fp)
-iopToForeign ANF.RENDIR
-  = foreign2 $ \fmp top ->
-      [] <$ renameDirectory (Text.unpack fmp) (Text.unpack top)
-iopToForeign ANF.REMOFI
-  = foreign1 $ \fp -> [] <$ removeFile (Text.unpack fp)
-iopToForeign ANF.RENAFI
-  = foreign2 $ \fmp top ->
-      [] <$ renameFile (Text.unpack fmp) (Text.unpack top)
-iopToForeign ANF.GFTIME
-  = foreign1 $ \fp ->
-      timeResult . utcTimeToPOSIXSeconds
-        <$> getModificationTime (Text.unpack fp)
-iopToForeign ANF.GFSIZE
-  = foreign1 $ \fp -> intg2natResult <$> getFileSize (Text.unpack fp)
-iopToForeign ANF.SRVSCK
-  = foreign2 $ \mhst port ->
-      wrappedResult Rf.socketReference
-        <$> SYS.bindSock (hostPreference mhst) (Text.unpack port)
-iopToForeign ANF.LISTEN
-  = foreign1 $ \sk ->
-      [] <$ SYS.listenSock sk 2048
-iopToForeign ANF.CLISCK
-  = foreign2 $ \ho po ->
-      wrappedResult Rf.socketReference
-        <$> SYS.connectSock (Text.unpack ho) (Text.unpack po)
-iopToForeign ANF.CLOSCK
-  = foreign1 $ \sk -> [] <$ SYS.closeSock sk
-iopToForeign ANF.SKACPT
-  = foreign1 $ \sk ->
-      wrappedResult Rf.socketReference <$> SYS.accept sk
-iopToForeign ANF.SKSEND
-  = foreign2 $ \sk bs ->
-      [] <$ SYS.send sk (Bytes.toByteString bs)
-iopToForeign ANF.SKRECV
-  = foreign2 $ \hs n ->
-      maybeResult' ((0,) . wrappedResult Rf.bytesRef)
-        . fmap Bytes.fromByteString
-        <$> SYS.recv hs n
-iopToForeign ANF.THKILL
-  = foreign1 $ \tid -> [] <$ killThread tid
-iopToForeign ANF.THDELY
-  = foreign1 $ \n -> [] <$ threadDelay n
-iopToForeign ANF.STDHND
-  = foreign1 $ \(n :: Int) -> case n of
-      0 -> pure [Left 1, Right . Wrap Rf.handleReference $ SYS.stdin]
-      1 -> pure [Left 1, Right . Wrap Rf.handleReference $ SYS.stdout]
-      2 -> pure [Left 1, Right . Wrap Rf.handleReference $ SYS.stderr]
-      _ -> pure [Left 0]
-
-hostPreference :: Maybe Text -> SYS.HostPreference
-hostPreference Nothing = SYS.HostAny
-hostPreference (Just host) = SYS.Host $ Text.unpack host
+emitIOp iop = ForeignCall True (fromIntegral $ fromEnum iop)
 
 -- Helper functions for packing the variable argument representation
 -- into the indexes stored in prim op instructions

@@ -1,32 +1,23 @@
 {-# language GADTs #-}
 {-# language BangPatterns #-}
 {-# language PatternGuards #-}
+{-# language ScopedTypeVariables #-}
 
 module Unison.Runtime.Foreign
   ( Foreign(..)
-  , ForeignArgs
-  , ForeignRslt
-  , ForeignFunc(..)
   , unwrapForeign
   , maybeUnwrapForeign
-  , foreign0
-  , foreign1
-  , foreign2
-  , foreign3
-  , wrapText
-  , unwrapText
-  , wrapBytes
-  , unwrapBytes
+  , wrapBuiltin
+  , maybeUnwrapBuiltin
+  , unwrapBuiltin
+  , BuiltinForeign(..)
   ) where
 
-import GHC.Stack (HasCallStack)
-
-import Data.Bifunctor
-
 import Control.Concurrent (ThreadId)
-import Data.Text (Text,unpack)
+import Data.Text (Text)
+import Data.Tagged (Tagged(..))
 import Network.Socket (Socket)
-import System.IO (BufferMode(..), SeekMode, Handle, IOMode)
+import System.IO (Handle)
 import Unison.Util.Bytes (Bytes)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
@@ -36,22 +27,6 @@ import Unsafe.Coerce
 
 data Foreign where
   Wrap :: Reference -> e -> Foreign
-
-wrapText :: Text -> Foreign
-wrapText = Wrap Ty.textRef
-
-wrapBytes :: Bytes -> Foreign
-wrapBytes = Wrap Ty.bytesRef
-
-unwrapText :: Foreign -> Maybe Text
-unwrapText (Wrap r v)
-  | r == Ty.textRef = Just $ unsafeCoerce v
-  | otherwise = Nothing
-
-unwrapBytes :: Foreign -> Maybe Bytes
-unwrapBytes (Wrap r v)
-  | r == Ty.bytesRef = Just $ unsafeCoerce v
-  | otherwise = Nothing
 
 promote :: (a -> a -> r) -> b -> c -> r
 promote (~~) x y = unsafeCoerce x ~~ unsafeCoerce y
@@ -85,80 +60,6 @@ instance Show Foreign where
     = showParen (p>9)
     $ showString "Wrap " . showsPrec 10 r . showString " _"
 
-type ForeignArgs = [Foreign]
-type ForeignRslt = [Either Int Foreign]
-
-newtype ForeignFunc = FF (ForeignArgs -> IO ForeignRslt)
-
-instance Show ForeignFunc where
-  show _ = "ForeignFunc"
-instance Eq ForeignFunc where
-  _ == _ = error "Eq ForeignFunc"
-instance Ord ForeignFunc where
-  compare _ _ = error "Ord ForeignFunc"
-
-decodeForeignEnum :: Enum a => [Foreign] -> (a,[Foreign])
-decodeForeignEnum = first toEnum . decodeForeign
-
-class ForeignConvention a where
-  decodeForeign :: [Foreign] -> (a, [Foreign])
-  decodeForeign (f:fs) = (unwrapForeign f, fs)
-  decodeForeign _ = foreignCCError
-
-instance ForeignConvention Int
-instance ForeignConvention Text
-instance ForeignConvention Bytes
-instance ForeignConvention Handle
-instance ForeignConvention Socket
-instance ForeignConvention ThreadId
-
-instance ForeignConvention FilePath where
-  decodeForeign = first unpack . decodeForeign
-instance ForeignConvention SeekMode where
-  decodeForeign = decodeForeignEnum
-instance ForeignConvention IOMode where
-  decodeForeign = decodeForeignEnum
-
-instance ForeignConvention a => ForeignConvention (Maybe a) where
-  decodeForeign (f:fs)
-    | 0 <- unwrapForeign f = (Nothing, fs)
-    | 1 <- unwrapForeign f
-    , (x, fs) <- decodeForeign fs = (Just x, fs)
-  decodeForeign _ = foreignCCError
-
-instance (ForeignConvention a, ForeignConvention b)
-      => ForeignConvention (a,b)
-  where
-  decodeForeign fs
-    | (x,fs) <- decodeForeign fs
-    , (y,fs) <- decodeForeign fs
-    = ((x,y), fs)
-
-instance ( ForeignConvention a
-         , ForeignConvention b
-         , ForeignConvention c
-         )
-      => ForeignConvention (a,b,c)
-  where
-  decodeForeign fs
-    | (x, fs) <- decodeForeign fs
-    , (y, fs) <- decodeForeign fs
-    , (z, fs) <- decodeForeign fs
-    = ((x,y,z), fs)
-
-instance ForeignConvention BufferMode where
-  decodeForeign (f:fs)
-    | 0 <- unwrapForeign f = (NoBuffering,fs)
-    | 1 <- unwrapForeign f = (LineBuffering,fs)
-    | 2 <- unwrapForeign f = (BlockBuffering Nothing, fs)
-    | 3 <- unwrapForeign f
-    , (n,fs) <- decodeForeign fs
-    = (BlockBuffering $ Just n, fs)
-  decodeForeign _ = foreignCCError
-
-foreignCCError :: HasCallStack => a
-foreignCCError = error "mismatched foreign calling convention"
-
 unwrapForeign :: Foreign -> a
 unwrapForeign (Wrap _ e) = unsafeCoerce e
 
@@ -167,39 +68,26 @@ maybeUnwrapForeign rt (Wrap r e)
   | rt == r = Just (unsafeCoerce e)
   | otherwise = Nothing
 
-foreign0 :: IO [Either Int Foreign] -> ForeignFunc
-foreign0 e = FF $ \[] -> e
+class BuiltinForeign f where
+  foreignRef :: Tagged f Reference
 
-foreign1
-  :: ForeignConvention a
-  => (a -> IO [Either Int Foreign])
-  -> ForeignFunc
-foreign1 f = FF $ \case
-  fs | (x,[]) <- decodeForeign fs
-    -> f x
-     | otherwise -> foreignCCError
+instance BuiltinForeign Text where foreignRef = Tagged Ty.textRef
+instance BuiltinForeign Bytes where foreignRef = Tagged Ty.bytesRef
+instance BuiltinForeign Handle where foreignRef = Tagged Ty.fileHandleRef
+instance BuiltinForeign Socket where foreignRef = Tagged Ty.socketRef
+instance BuiltinForeign ThreadId where foreignRef = Tagged Ty.threadIdRef
 
-foreign2
-  :: ForeignConvention a
-  => ForeignConvention b
-  => (a -> b -> IO [Either Int Foreign])
-  -> ForeignFunc
-foreign2 f = FF $ \case
-  fs | (x,fs) <- decodeForeign fs
-     , (y,[]) <- decodeForeign fs
-    -> f x y
-     | otherwise -> foreignCCError
+wrapBuiltin :: forall f. BuiltinForeign f => f -> Foreign
+wrapBuiltin x = Wrap r x
+  where
+  Tagged r = foreignRef :: Tagged f Reference
 
-foreign3
-  :: ForeignConvention a
-  => ForeignConvention b
-  => ForeignConvention c
-  => (a -> b -> c -> IO [Either Int Foreign])
-  -> ForeignFunc
-foreign3 f = FF $ \case
-  fs | (x,fs) <- decodeForeign fs
-     , (y,fs) <- decodeForeign fs
-     , (z,[]) <- decodeForeign fs
-    -> f x y z
-     | otherwise -> foreignCCError
+unwrapBuiltin :: BuiltinForeign f => Foreign -> f
+unwrapBuiltin (Wrap _ x) = unsafeCoerce x
 
+maybeUnwrapBuiltin :: forall f. BuiltinForeign f => Foreign -> Maybe f
+maybeUnwrapBuiltin (Wrap r x)
+  | r == r0 = Just (unsafeCoerce x)
+  | otherwise = Nothing
+  where
+  Tagged r0 = foreignRef :: Tagged f Reference

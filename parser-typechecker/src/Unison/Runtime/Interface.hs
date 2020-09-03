@@ -37,7 +37,8 @@ import Unison.TermPrinter
 import Unison.Runtime.ANF
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile
-import Unison.Runtime.Machine
+import Unison.Runtime.Exception
+import Unison.Runtime.Machine (SEnv(SEnv), apply0)
 import Unison.Runtime.MCode
 import Unison.Runtime.Pattern
 import Unison.Runtime.Stack
@@ -184,11 +185,6 @@ compileTerm w tm ctx
 watchHook :: IORef Closure -> Stack 'UN -> Stack 'BX -> IO ()
 watchHook r _ bstk = peek bstk >>= writeIORef r
 
-combEnv :: EvalCtx v -> Word64 -> Comb
-combEnv ctx w
-  | Just c <- EC.lookup w (combs ctx) = c
-  | otherwise = error $ "bad combinator reference: " ++ show w
-
 evalInContext
   :: Var v
   => PrettyPrintEnv
@@ -198,10 +194,14 @@ evalInContext
 evalInContext ppe ctx w = do
   r <- newIORef BlackHole
   let hook = watchHook r
-      renv = Refs (backrefTy ctx) (backrefComb ctx)
+      senv = SEnv
+               (combs ctx)
+               builtinForeigns
+               (backrefComb ctx)
+               (backrefTy ctx)
   result <- traverse (const $ readIORef r)
           . first prettyError
-        <=< try $ apply0 (Just hook) renv (combEnv ctx) w
+        <=< try $ apply0 (Just hook) senv w
   pure $ decom =<< result
   where
   decom = decompile (`EC.lookup`backrefTy ctx) (`EC.lookup`backrefTm ctx)

@@ -125,7 +125,9 @@ library
     Unison.Runtime.Builtin
     Unison.Runtime.Debug
     Unison.Runtime.Decompile
+    Unison.Runtime.Exception
     Unison.Runtime.Foreign
+    Unison.Runtime.Foreign.Function
     Unison.Runtime.Interface
     Unison.Runtime.IR
     Unison.Runtime.MCode
@@ -227,6 +229,7 @@ library
     split,
     stm,
     strings,
+    tagged,
     terminal-size,
     text,
     time,

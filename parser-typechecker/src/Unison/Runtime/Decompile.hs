@@ -25,7 +25,7 @@ import Unison.Reference (Reference)
 
 import Unison.Runtime.ANF (RTag, CTag, Tag(..))
 import Unison.Runtime.Foreign
-  (Foreign, unwrapText, unwrapBytes, maybeUnwrapForeign)
+  (Foreign, maybeUnwrapBuiltin, maybeUnwrapForeign)
 import Unison.Runtime.Stack
   (Closure(..), pattern DataC, pattern PApV, IComb(..))
 
@@ -105,8 +105,8 @@ decompileForeign
   -> Foreign
   -> Either Error (Term v ())
 decompileForeign tyRef topTerms f
-  | Just t <- unwrapText f = Right $ text () t
-  | Just b <- unwrapBytes f = Right $ decompileBytes b
+  | Just t <- maybeUnwrapBuiltin f = Right $ text () t
+  | Just b <- maybeUnwrapBuiltin f = Right $ decompileBytes b
   | Just s <- unwrapSeq f
   = seq' () <$> traverse (decompile tyRef topTerms) s
 decompileForeign _ _ _ = err "cannot decompile Foreign"

@@ -9,7 +9,6 @@ import EasyTest
 import qualified Data.Map.Strict as Map
 
 import Data.Bits (bit)
-import Data.Maybe (fromMaybe)
 import Data.Word (Word64)
 
 import Unison.Util.EnumContainers as EC
@@ -33,13 +32,13 @@ import Unison.Runtime.MCode
   )
 import Unison.Runtime.Builtin
 import Unison.Runtime.Machine
-  ( REnv(..), eval0 )
+  ( SEnv(..), eval0 )
 
 import Unison.Test.Common (tm)
 
-testEval0 :: (Word64 -> Comb) -> Section -> Test ()
+testEval0 :: EnumMap Word64 Comb -> Section -> Test ()
 testEval0 env sect = do
-  io $ eval0 (Refs mempty mempty) env sect
+  io $ eval0 (SEnv env builtinForeigns mempty mempty) sect
   ok
 
 builtins :: Reference -> Word64
@@ -51,13 +50,8 @@ builtins r
 cenv :: EnumMap Word64 Comb
 cenv = fmap (emitComb mempty) $ numberedTermLookup @Symbol
 
-benv :: Word64 -> Maybe Comb
-benv i
-  | i == bit 64 = Just $ Lam 0 1 2 1 asrt
-  | otherwise = EC.lookup i cenv
-
-env :: EnumMap Word64 Comb -> Word64 -> Comb
-env m n = fromMaybe (m ! n) $ benv n
+env :: EnumMap Word64 Comb -> EnumMap Word64 Comb
+env m = m <> mapInsert (bit 64) (Lam 0 1 2 1 asrt) cenv
 
 asrt :: Section
 asrt = Ins (Unpack 0)

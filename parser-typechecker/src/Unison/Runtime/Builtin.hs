@@ -12,14 +12,19 @@ module Unison.Runtime.Builtin
   , builtinTypeNumbering
   , builtinTermBackref
   , builtinTypeBackref
+  , builtinForeigns
   , numberedTermLookup
   ) where
 
+import Control.Exception (IOException, try)
+import Control.Monad (void)
+
 import Unison.ABT.Normalized hiding (TTm)
 import Unison.Reference
-import Unison.Runtime.ANF
+import Unison.Runtime.ANF as ANF
 import Unison.Var
 import Unison.Symbol
+import Unison.Runtime.Foreign.Function
 import Unison.Runtime.IOSource
 
 import qualified Unison.Type as Ty
@@ -28,11 +33,66 @@ import qualified Unison.Builtin.Decls as Ty
 import Unison.Util.EnumContainers as EC
 
 import Data.Word (Word64)
+import Data.Text as Text (Text, pack, unpack)
 
 import Data.Set (Set, insert)
 
 import Data.Map (Map)
 import qualified Data.Map as Map
+
+import qualified Unison.Util.Bytes as Bytes
+import Network.Socket as SYS
+  ( accept
+  )
+import Network.Simple.TCP as SYS
+  ( HostPreference(..)
+  , bindSock
+  , connectSock
+  , listenSock
+  , closeSock
+  , send
+  , recv
+  )
+import System.IO as SYS
+  ( openFile
+  , hClose
+  , hGetBuffering
+  , hSetBuffering
+  , hIsEOF
+  , hIsOpen
+  , hIsSeekable
+  , hSeek
+  , hTell
+  , stdin, stdout, stderr
+  )
+import Data.Text.IO as SYS
+  ( hGetLine
+  , hPutStr
+  )
+import Control.Concurrent as SYS
+  ( threadDelay
+  , killThread
+  )
+import Data.Time.Clock.POSIX as SYS
+  ( getPOSIXTime
+  , utcTimeToPOSIXSeconds
+  )
+import System.Directory as SYS
+  ( getCurrentDirectory
+  , setCurrentDirectory
+  , getTemporaryDirectory
+  , getDirectoryContents
+  , doesPathExist
+  -- , doesDirectoryExist
+  , renameDirectory
+  , removeFile
+  , renameFile
+  , createDirectoryIfMissing
+  , removeDirectoryRecursive
+  , getModificationTime
+  , getFileSize
+  )
+
 
 freshes :: Var v => Int -> [v]
 freshes = freshes' mempty
@@ -1149,10 +1209,90 @@ builtinLookup
   , ("IO.socketReceive", ioComb socket'receive)
   , ("IO.forkComp", ioComb fork'comp)
   , ("IO.stdHandle", ioComb standard'handle)
+
+  , ("MVar.new", ioComb mvar'new)
   ]
 
 ioComb :: Var v => IOOP -> SuperNormal v
 ioComb ioop = uncurry Lambda (ioop mempty)
+
+mkForeignIOE
+  :: (ForeignConvention a, ForeignConvention r)
+  => (a -> IO r) -> ForeignFunc
+mkForeignIOE f = mkForeign $ \a -> tryIOE (f a)
+  where
+  tryIOE :: IO a -> IO (Either IOException a)
+  tryIOE = try
+
+dummyFF :: ForeignFunc
+dummyFF = FF ee ee ee
+  where
+  ee = error "dummyFF"
+
+-- Implementations of ANF IO operations
+iopToForeign :: ANF.IOp -> ForeignFunc
+iopToForeign ANF.OPENFI = mkForeignIOE $ uncurry openFile
+iopToForeign ANF.CLOSFI = mkForeignIOE hClose
+iopToForeign ANF.ISFEOF = mkForeignIOE hIsEOF
+iopToForeign ANF.ISFOPN = mkForeignIOE hIsOpen
+iopToForeign ANF.ISSEEK = mkForeignIOE hIsSeekable
+iopToForeign ANF.SEEKFI
+  = mkForeignIOE $ \(h,sm,n) -> hSeek h sm (fromIntegral (n :: Int))
+iopToForeign ANF.POSITN
+  -- TODO: truncating integer
+  = mkForeignIOE $ \h -> fromInteger @Word64 <$> hTell h
+iopToForeign ANF.GBUFFR = mkForeignIOE hGetBuffering
+iopToForeign ANF.SBUFFR = mkForeignIOE $ uncurry hSetBuffering
+iopToForeign ANF.GTLINE = mkForeignIOE hGetLine
+iopToForeign ANF.GTTEXT
+  = dummyFF -- mkForeignIOE $ \h -> pure . Right . Wrap <$> hGetText h
+iopToForeign ANF.PUTEXT = mkForeignIOE $ uncurry hPutStr
+iopToForeign ANF.SYTIME = mkForeignIOE $ \() -> getPOSIXTime
+iopToForeign ANF.GTMPDR = mkForeignIOE $ \() -> getTemporaryDirectory
+iopToForeign ANF.GCURDR = mkForeignIOE $ \() -> getCurrentDirectory
+iopToForeign ANF.SCURDR = mkForeignIOE setCurrentDirectory
+iopToForeign ANF.DCNTNS
+  = mkForeignIOE $ fmap (fmap Text.pack) . getDirectoryContents
+iopToForeign ANF.FEXIST = mkForeignIOE doesPathExist
+iopToForeign ANF.ISFDIR = dummyFF
+iopToForeign ANF.CRTDIR
+  = mkForeignIOE $ createDirectoryIfMissing True
+iopToForeign ANF.REMDIR = mkForeignIOE removeDirectoryRecursive
+iopToForeign ANF.RENDIR = mkForeignIOE $ uncurry renameDirectory
+iopToForeign ANF.REMOFI = mkForeignIOE removeFile
+iopToForeign ANF.RENAFI = mkForeignIOE $ uncurry renameFile
+iopToForeign ANF.GFTIME
+  = mkForeignIOE $ fmap utcTimeToPOSIXSeconds . getModificationTime
+iopToForeign ANF.GFSIZE
+  -- TODO: truncating integer
+  = mkForeignIOE $ \fp -> fromInteger @Word64 <$> getFileSize fp
+iopToForeign ANF.SRVSCK
+  = mkForeignIOE $ \(mhst,port) ->
+      () <$ SYS.bindSock (hostPreference mhst) port
+iopToForeign ANF.LISTEN = mkForeignIOE $ \sk -> SYS.listenSock sk 2048
+iopToForeign ANF.CLISCK
+  = mkForeignIOE $ void . uncurry SYS.connectSock
+iopToForeign ANF.CLOSCK = mkForeignIOE SYS.closeSock
+iopToForeign ANF.SKACPT
+  = mkForeignIOE $ void . SYS.accept
+iopToForeign ANF.SKSEND
+  = mkForeignIOE $ \(sk,bs) -> SYS.send sk (Bytes.toByteString bs)
+iopToForeign ANF.SKRECV
+  = mkForeignIOE $ \(hs,n) ->
+      fmap Bytes.fromByteString <$> SYS.recv hs n
+iopToForeign ANF.THKILL = mkForeignIOE killThread
+iopToForeign ANF.THDELY = mkForeignIOE threadDelay
+iopToForeign ANF.STDHND
+  = mkForeign $ \(n :: Int) -> case n of
+      0 -> pure (Just SYS.stdin)
+      1 -> pure (Just SYS.stdout)
+      2 -> pure (Just SYS.stderr)
+      _ -> pure Nothing
+iopToForeign ANF.MVNEWF = dummyFF
+
+hostPreference :: Maybe Text -> SYS.HostPreference
+hostPreference Nothing = SYS.HostAny
+hostPreference (Just host) = SYS.Host $ Text.unpack host
 
 typeReferences :: [(Reference, RTag)]
 typeReferences
@@ -1198,3 +1338,9 @@ builtinTypeNumbering = Map.fromList typeReferences
 builtinTypeBackref :: EnumMap RTag Reference
 builtinTypeBackref = mapFromList $ swap <$> typeReferences
   where swap (x, y) = (y, x)
+
+builtinForeigns :: EnumMap Word64 ForeignFunc
+builtinForeigns
+  = mapFromList
+  . fmap (\iop -> (fromIntegral $ fromEnum iop, iopToForeign iop))
+  $ [minBound..maxBound]
