@@ -24,6 +24,7 @@ import Unison.Reference
 import Unison.Runtime.ANF as ANF
 import Unison.Var
 import Unison.Symbol
+import Unison.Runtime.Stack (Closure)
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.IOSource
 
@@ -73,6 +74,7 @@ import Control.Concurrent as SYS
   ( threadDelay
   , killThread
   )
+import Control.Concurrent.MVar as SYS
 import Data.Time.Clock.POSIX as SYS
   ( getPOSIXTime
   , utcTimeToPOSIXSeconds
@@ -1011,6 +1013,22 @@ fork'comp avoid
   where
   [lz] = freshes' avoid 3
 
+mvar'new :: IOOP
+mvar'new avoid
+  = ([BX],)
+  . TAbs init
+  $ TIOp MVNEWF [init]
+  where
+  [init] = freshes' avoid 1
+
+mvar'take :: IOOP
+mvar'take avoid
+  = ([BX],)
+  . TAbs mv
+  $ io'error'result'direct MVTAKE [mv] ior e r
+  where
+  [mv,ior,e,r] = freshes' avoid 4
+
 builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
 builtinLookup
   = Map.fromList
@@ -1211,6 +1229,7 @@ builtinLookup
   , ("IO.stdHandle", ioComb standard'handle)
 
   , ("MVar.new", ioComb mvar'new)
+  , ("MVar.take", ioComb mvar'take)
   ]
 
 ioComb :: Var v => IOOP -> SuperNormal v
@@ -1288,7 +1307,10 @@ iopToForeign ANF.STDHND
       1 -> pure (Just SYS.stdout)
       2 -> pure (Just SYS.stderr)
       _ -> pure Nothing
-iopToForeign ANF.MVNEWF = dummyFF
+iopToForeign ANF.MVNEWF
+  = mkForeign $ \(c :: Closure) -> newMVar c
+iopToForeign ANF.MVTAKE
+  = mkForeignIOE $ \(mv :: MVar Closure) -> takeMVar mv
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny
@@ -1322,7 +1344,6 @@ numberedTermLookup
 rtag :: Reference -> RTag
 rtag r | Just x <- Map.lookup r builtinTypeNumbering = x
        | otherwise = error $ "rtag: unknown reference: " ++ show r
-
 
 builtinTermNumbering :: Map Reference Word64
 builtinTermNumbering

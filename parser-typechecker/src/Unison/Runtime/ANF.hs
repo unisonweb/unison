@@ -857,6 +857,7 @@ data IOp
   | SRVSCK | LISTEN | CLISCK | CLOSCK
   | SKACPT | SKSEND | SKRECV
   | THKILL | THDELY
+  | MVNEWF | MVTAKE
   deriving (Show,Eq,Ord,Enum,Bounded)
 
 type ANormal = ABTN.Term ANormalBF

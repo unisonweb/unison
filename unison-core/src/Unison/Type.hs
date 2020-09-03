@@ -226,6 +226,9 @@ fileHandleRef = Reference.Builtin "Handle"
 threadIdRef = Reference.Builtin "ThreadId"
 socketRef = Reference.Builtin "Socket"
 
+mvarRef :: Reference
+mvarRef = Reference.Builtin "MVar"
+
 builtin :: Ord v => a -> Text -> Type v a
 builtin a = ref a . Reference.Builtin
 

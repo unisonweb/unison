@@ -13,6 +13,7 @@ module Unison.Runtime.Foreign.Function
 import GHC.IO.Exception (IOException(..), IOErrorType(..))
 
 import Control.Concurrent (ThreadId)
+import Control.Concurrent.MVar (MVar)
 import Data.Foldable (toList)
 import Data.Text (Text, pack, unpack)
 import Data.Time.Clock.POSIX (POSIXTime)
@@ -21,6 +22,8 @@ import Data.Word (Word64)
 import Network.Socket (Socket)
 import System.IO (BufferMode(..), SeekMode, Handle, IOMode)
 import Unison.Util.Bytes (Bytes)
+
+import Unison.Type (mvarRef)
 
 import Unison.Runtime.ANF (Mem(..))
 import Unison.Runtime.MCode
@@ -288,6 +291,9 @@ instance ForeignConvention [Closure] where
     bstk <- bump bstk
     (ustk,bstk) <$ pokeS bstk (Sq.fromList l)
 
+instance ForeignConvention (MVar Closure) where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap mvarRef)
 
 instance {-# overlappable #-} BuiltinForeign b => ForeignConvention [b]
   where
