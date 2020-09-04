@@ -15,4 +15,34 @@ a1 = handle
     x
   with unA
 
-> a1 -- should be 42
+ability B where
+  zing : {B} Int
+
+abh = cases
+  {r} -> r
+  {A.woot -> k} -> handle k 10 with abh
+  {B.zing -> k} -> handle k (+11) with abh
+
+ab1 = handle
+    x = 32
+    y = A.woot
+    z = B.zing
+    x + y + truncate0 z
+  with abh
+
+nh = cases
+  {r} -> r
+
+ab2 =
+  handle
+    handle
+      x = 22
+      y = A.woot
+      z = B.zing
+      x + y + truncate0 z
+    with nh
+  with abh
+
+
+> (a1, ab1, ab2) -- should be (42, 53, 43)
+
