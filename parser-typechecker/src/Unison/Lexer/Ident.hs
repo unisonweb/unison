@@ -9,7 +9,7 @@
 
 module Unison.Lexer.Ident
   ( Ident (..),
-    Position(..),
+    Position (..),
     unPosition,
     absolute,
     relative,
@@ -19,8 +19,7 @@ module Unison.Lexer.Ident
   )
 where
 
-import Control.Lens ((.~))
-import Data.Functor.Identity (Identity (..))
+import Control.Lens ((%~), (.~), (^.))
 import Data.Proxy (Proxy)
 import Data.Sequence.NonEmpty (NESeq)
 import qualified Data.Text as Text
@@ -37,6 +36,7 @@ data Ident f g = Ident
   deriving stock (Generic)
 
 deriving instance (forall a. Eq a => Eq (f a), forall a. Eq a => Eq (g a)) => Eq (Ident f g)
+
 deriving instance (forall a. Show a => Show (f a), forall a. Show a => Show (g a)) => Show (Ident f g)
 
 -- ahh, why doesn't the quantified constraints version work?
@@ -60,12 +60,10 @@ relative :: f a -> Position f a
 relative =
   PosRelative . Relative
 
-newtype Absolute f a
-  = Absolute { unAbsolute :: f a }
+newtype Absolute f a = Absolute {unAbsolute :: f a}
   deriving stock (Eq, Ord, Show)
 
-newtype Relative f a
-  = Relative { unRelative :: f a }
+newtype Relative f a = Relative {unRelative :: f a}
   deriving stock (Eq, Ord, Show)
 
 -- | Eh, one-off type class so it's not so tedious to render an ident as a string. This could be made into 3-4
@@ -73,19 +71,28 @@ newtype Relative f a
 class PrettyIdent f g where
   prettyIdent :: Ident f g -> String
 
-instance PrettyIdent f g where
-  prettyIdent = undefined
+instance Foldable f => PrettyIdent (Absolute f) Maybe where
+  prettyIdent :: Ident (Absolute f) Maybe -> String
+  prettyIdent id =
+    prettyIdent (id & #segments %~ PosAbsolute)
 
--- instance PrettyIdent  Maybe where
---   prettyIdent :: Ident f Maybe -> String
---   prettyIdent (Ident (Identity isAbsolute) segments maybeHash) =
---     (Text.unpack . mconcat)
---       [ if isAbsolute then "." else "",
---         Text.intercalate "." (map NameSegment.toText (toList segments)),
---         maybe "" SH.toText maybeHash
---       ]
+instance Foldable f => PrettyIdent (Position f) Maybe where
+  prettyIdent :: Ident (Position f) Maybe -> String
+  prettyIdent id =
+    (Text.unpack . mconcat)
+      [ case id ^. #segments of
+          PosAbsolute _ -> "."
+          PosRelative _ -> "",
+        Text.intercalate "." (map NameSegment.toText (toList (unPosition (id ^. #segments)))),
+        maybe "" SH.toText (id ^. #hash)
+      ]
 
--- instance Foldable g => PrettyIdent Identity g Proxy where
---   prettyIdent :: Ident Identity g Proxy -> String
---   prettyIdent id =
---     prettyIdent (id & #hash .~ Nothing)
+instance Foldable f => PrettyIdent (Relative f) Maybe where
+  prettyIdent :: Ident (Relative f) Maybe -> String
+  prettyIdent id =
+    prettyIdent (id & #segments %~ PosRelative)
+
+instance PrettyIdent f Maybe => PrettyIdent f Proxy where
+  prettyIdent :: Ident f Proxy -> String
+  prettyIdent id =
+    prettyIdent (id & #hash .~ Nothing)

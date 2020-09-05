@@ -22,7 +22,6 @@ import Data.Char
 import Data.List
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map.Strict as Map
-import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy (Proxy))
 import qualified Data.Sequence as Seq
 import Data.Sequence.NonEmpty (NESeq)

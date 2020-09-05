@@ -169,45 +169,27 @@ parseSplit' s = do
   path <- parsePath' s
   maybe (Left "empty path") Right (unsnoc' path)
 
--- parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash HQSplit')
--- parseShortHashOrHQSplit' s =
---   undefined
-  -- case Text.breakOn "#" $ Text.pack s of
-  --   ("","") -> error $ "encountered empty string parsing '" <> s <> "'"
-  --   (n,"") -> do
-  --     (p, rem) <- parsePathImpl' (Text.unpack n)
-  --     seg <- definitionNameSegment rem
-  --     pure $ Right (p, HQ'.NameOnly seg)
-  --   ("", sh) -> do
-  --     sh <- maybeToRight (shError s) . SH.fromText $ sh
-  --     pure $ Left sh
-  --   (n, sh) -> do
-  --     (p, rem) <- parsePathImpl' (Text.unpack n)
-  --     seg <- definitionNameSegment rem
-  --     hq <- maybeToRight (shError s) .
-  --       fmap (\sh -> (p, HQ'.HashQualified seg sh)) .
-  --       SH.fromText $ sh
-  --     pure $ Right hq
-  -- where
-  -- shError s = "couldn't parse shorthash from " <> s
-  
 parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash HQSplit')
 parseShortHashOrHQSplit' s =
-  case Text.breakOn "#" $ Text.pack s of
-    ("","") -> error $ "encountered empty string parsing '" <> s <> "'"
-    (n,"") -> Right . over _2 HQ'.NameOnly <$> parseSplit' (Text.unpack n)
-    ("", sh) -> do
-      sh <- maybeToRight (shError s) . SH.fromText $ sh
-      pure $ Left sh
-    -- (n, sh) -> do
-    --   (p, rem) <- parsePathImpl' (Text.unpack n)
-    --   seg <- definitionNameSegment rem
-    --   hq <- maybeToRight (shError s) .
-    --     fmap (\sh -> (p, HQ'.HashQualified seg sh)) .
-    --     SH.fromText $ sh
-    --   pure $ Right hq
-  where
-  shError s = "couldn't parse shorthash from " <> s
+  case Lexer.genericId s of
+    Left err -> Left (show err)
+    Right (id, "") ->
+      case id ^. #hash of
+        Nothing -> Left ("expected hash-qualified identifier, but found " ++ Lexer.prettyIdent id)
+        Just h ->
+          case id ^. #segments of
+            Lexer.PosAbsolute xs ->
+              Right $
+                case Lens.unsnoc (Lexer.unAbsolute xs) of
+                  Nothing -> Left h
+                  Just (ys, y) -> Right (absoluteFromSegments' ys, HQ'.HashQualified y h)
+            Lexer.PosRelative xs ->
+              Right $
+                case Lens.unsnoc (Lexer.unRelative xs) of
+                  Nothing -> Left h
+                  Just (ys, y) -> Right (relativeFromSegments' ys, HQ'.HashQualified y h)
+    Right (id, rem) ->
+      Left $ "trailing characters after " <> Lexer.prettyIdent id <> ": " <> show rem
 
 parseHQSplit :: String -> Either String HQSplit
 parseHQSplit s = case parseHQSplit' s of
