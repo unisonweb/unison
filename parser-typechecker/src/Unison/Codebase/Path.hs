@@ -8,17 +8,13 @@ module Unison.Codebase.Path where
 
 import Unison.Prelude hiding (empty, toList)
 
-import           Data.Bifunctor                 ( first )
 import           Data.List.Extra                ( stripPrefix, dropPrefix )
-import           Data.Proxy (Proxy(Proxy))
 import Control.Lens hiding (unsnoc, cons, snoc)
 import qualified Control.Lens as Lens
 import qualified Data.Foldable as Foldable
 import qualified Data.Text                     as Text
 import           Data.Sequence                  (Seq((:<|),(:|>) ))
 import qualified Data.Sequence                 as Seq
-import Data.Sequence.NonEmpty (NESeq)
-import qualified Data.Sequence.NonEmpty        as NESeq
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import Unison.Util.Monoid (intercalateMap)
@@ -119,18 +115,15 @@ prefix (Absolute (Path prefix)) (Path' p) = case p of
 -- libs.blah.poo is Relative
 -- Left is some parse error tbd
 parsePath' :: String -> Either String Path'
-parsePath' s =
-  case Lexer.genericId s of
-    Left err -> Left (show err)
-    Right (id, "") ->
-      case id ^. #hash of
-        Nothing ->
-          Right $
-            case id ^. #segments of
-              Lexer.PosAbsolute x -> absoluteFromSegments' (Lexer.unAbsolute x)
-              Lexer.PosRelative x -> relativeFromSegments' (Lexer.unRelative x)
-        Just _ -> Left "a path cannot be hash-qualified"
-    Right (id, rem) -> Left ("extra characters after " <> Lexer.prettyIdent id <> ": " <> show rem)
+parsePath' =
+  parseGenericId \id ->
+    case id ^. #hash of
+      Nothing ->
+        Right $
+          case id ^. #segments of
+            Lexer.PosAbsolute x -> absoluteFromSegments' (Lexer.unAbsolute x)
+            Lexer.PosRelative x -> relativeFromSegments' (Lexer.unRelative x)
+      Just _ -> Left "a path cannot be hash-qualified"
 
 wordyNameSegment :: String -> Either String NameSegment
 wordyNameSegment s = case Lexer.wordyId0 s of
@@ -170,26 +163,22 @@ parseSplit' s = do
   maybe (Left "empty path") Right (unsnoc' path)
 
 parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash HQSplit')
-parseShortHashOrHQSplit' s =
-  case Lexer.genericId s of
-    Left err -> Left (show err)
-    Right (id, "") ->
-      case id ^. #hash of
-        Nothing -> Left ("expected hash-qualified identifier, but found " ++ Lexer.prettyIdent id)
-        Just h ->
-          case id ^. #segments of
-            Lexer.PosAbsolute xs ->
-              Right $
-                case Lens.unsnoc (Lexer.unAbsolute xs) of
-                  Nothing -> Left h
-                  Just (ys, y) -> Right (absoluteFromSegments' ys, HQ'.HashQualified y h)
-            Lexer.PosRelative xs ->
-              Right $
-                case Lens.unsnoc (Lexer.unRelative xs) of
-                  Nothing -> Left h
-                  Just (ys, y) -> Right (relativeFromSegments' ys, HQ'.HashQualified y h)
-    Right (id, rem) ->
-      Left $ "trailing characters after " <> Lexer.prettyIdent id <> ": " <> show rem
+parseShortHashOrHQSplit' =
+  parseGenericId \id ->
+    case id ^. #hash of
+      Nothing -> Left ("expected hash-qualified identifier, but found " ++ Lexer.prettyIdent id)
+      Just h ->
+        case id ^. #segments of
+          Lexer.PosAbsolute xs ->
+            Right $
+              case Lens.unsnoc (Lexer.unAbsolute xs) of
+                Nothing -> Left h
+                Just (ys, y) -> Right (absoluteFromSegments' ys, HQ'.HashQualified y h)
+          Lexer.PosRelative xs ->
+            Right $
+              case Lens.unsnoc (Lexer.unRelative xs) of
+                Nothing -> Left h
+                Just (ys, y) -> Right (relativeFromSegments' ys, HQ'.HashQualified y h)
 
 parseHQSplit :: String -> Either String HQSplit
 parseHQSplit s = case parseHQSplit' s of
@@ -199,28 +188,30 @@ parseHQSplit s = case parseHQSplit' s of
   Left e -> Left e
 
 parseHQSplit' :: String -> Either String HQSplit'
-parseHQSplit' = undefined
--- parseHQSplit' s = case Text.breakOn "#" $ Text.pack s of
---   ("", "") -> error $ "encountered empty string parsing '" <> s <> "'"
---   ("", _ ) -> Left "Sorry, you can't use a hash-only reference here."
---   (n , "") -> do
---     (p, rem) <- parsePath n
---     seg      <- definitionNameSegment rem
---     pure (p, HQ'.NameOnly seg)
---   (n, sh) -> do
---     (p, rem) <- parsePath n
---     seg      <- definitionNameSegment rem
---     maybeToRight (shError s)
---       . fmap (\sh -> (p, HQ'.HashQualified seg sh))
---       . SH.fromText
---       $ sh
---  where
---   shError s = "couldn't parse shorthash from " <> s
---   parsePath n = do
---     x <- parsePathImpl' $ Text.unpack n
---     pure $ case x of
---       (Path' (Left e), "") | e == absoluteEmpty -> (relativeEmpty', ".")
---       x -> x
+parseHQSplit' =
+  parseGenericId \id ->
+    case id ^. #hash of
+      Nothing -> failure id
+      Just h ->
+        case id ^. #segments of
+          Lexer.PosAbsolute xs ->
+            case Lens.unsnoc (Lexer.unAbsolute xs) of
+              Nothing -> failure id
+              Just (ys, y) -> Right (absoluteFromSegments' ys, HQ'.HashQualified y h)
+          Lexer.PosRelative xs ->
+            case Lens.unsnoc (Lexer.unRelative xs) of
+              Nothing -> failure id
+              Just (ys, y) -> Right (relativeFromSegments' ys, HQ'.HashQualified y h)
+  where
+    failure id =
+      Left ("expected hash-qualified identifier, but found " ++ Lexer.prettyIdent id)
+
+parseGenericId :: (Lexer.Ident (Lexer.Position Seq) Maybe -> Either String a) -> String -> Either String a
+parseGenericId f s =
+  case Lexer.genericId s of
+    Left err -> Left (show err)
+    Right (id, "") -> f id
+    Right (id, rem) -> Left ("trailing characters after " <> Lexer.prettyIdent id <> " (" <> show rem <> ")")
 
 toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
 toAbsoluteSplit a (p, s) = (resolve a p, s)
@@ -305,6 +296,7 @@ unsnoc' :: Path' -> Maybe (Path', NameSegment)
 unsnoc' = \case
   Path' (Left (Lens.unsnoc -> Just (ss, s))) -> Just (Path' (Left ss), s)
   Path' (Right (Lens.unsnoc -> Just (ss, s))) -> Just (Path' (Right ss), s)
+  _ -> Nothing
 
 uncons :: Path -> Maybe (NameSegment, Path)
 uncons = Lens.uncons
