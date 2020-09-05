@@ -5,6 +5,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -14,7 +15,7 @@ module Unison.Lexer
   )
 where
 
-import Control.Lens ((.~), _1, over)
+import Control.Lens ((^.), (.~), _1, over)
 import Control.Lens.TH (makePrisms)
 import qualified Control.Monad.State as S
 import Data.Char
@@ -64,9 +65,9 @@ data Lexeme
   | Reserved String -- reserved tokens such as `{`, `(`, `type`, `of`, etc
   | Textual String -- text literals, `"foo bar"`
   | Character Char -- character literals, `?X`
-  | Backticks (Ident Identity NESeq Maybe)
-  | WordyId (Ident Identity NESeq Maybe) -- a (non-infix) identifier
-  | SymbolyId (Ident Identity NESeq Maybe) -- an infix identifier
+  | Backticks (Ident (Position NESeq) Maybe)
+  | WordyId (Ident (Position NESeq) Maybe) -- a (non-infix) identifier
+  | SymbolyId (Ident (Position NESeq) Maybe) -- an infix identifier
   | Blank String -- a typed hole or placeholder
   | Numeric String -- numeric literals, left unparsed
   | Hash ShortHash -- hash literals
@@ -274,7 +275,7 @@ lexer0 scope rem =
       | notLayout t1 && touches t1 t2 && isSigned num =
         t1
           : Token
-            (SymbolyId (Ident (Identity False) (NESeq.singleton (fromString (take 1 num))) Nothing))
+            (SymbolyId (Ident (relative (NESeq.singleton (fromString (take 1 num)))) Nothing))
             (start t2)
             (inc $ start t2)
           : Token (Numeric (drop 1 num)) (inc $ start t2) (end t2)
@@ -667,19 +668,19 @@ wordyIdChar ch =
 isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F300' && c <= '\x1FAFF'
 
-symbolyId :: String -> Either Err (Ident Identity NESeq Proxy, String)
+symbolyId :: String -> Either Err (Ident (Position NESeq) Proxy, String)
 symbolyId =
   pathyId_ symbolyIdChar
 
-wordyId :: String -> Either Err (Ident Identity NESeq Proxy, String)
+wordyId :: String -> Either Err (Ident (Position NESeq) Proxy, String)
 wordyId =
   pathyId_ wordyIdStartChar
 
-pathyId_ :: (Char -> Bool) -> String -> Either Err (Ident Identity NESeq Proxy, String)
+pathyId_ :: (Char -> Bool) -> String -> Either Err (Ident (Position NESeq) Proxy, String)
 pathyId_ f s = do
-  (id@(Ident _ segments _), rem) <- pathyId s
+  (id, rem) <- pathyId s
   -- Peek at the first character of the last segment to see if it's wordy/symboly
-  if f (NameSegment.head (NESeq.last segments))
+  if f (NameSegment.head (NESeq.last (unPosition (id ^. #segments))))
     then Right (id, rem)
     else Left (InvalidWordyId (prettyIdent id))
 
@@ -702,9 +703,9 @@ symbolyIdChar :: Char -> Bool
 symbolyIdChar ch = Set.member ch symbolyIdChars
 
 -- | Parse a list of '.'-delimited segments that are wordy or symboly.
-pathyId :: String -> Either Err (Ident Identity NESeq Proxy, String)
-pathyId (stripLeadingDot -> (absolute, s)) =
-  pathyId' s <&> over _1 \s -> Ident (Identity absolute) s Proxy
+pathyId :: String -> Either Err (Ident (Position NESeq) Proxy, String)
+pathyId (stripLeadingDot -> (stripped, s)) =
+  pathyId' s <&> over _1 \s -> Ident (if stripped then absolute s else relative s) Proxy
 
 -- | Try to strip the leading '.' from a string, and return whether it was stripped.
 stripLeadingDot :: String -> (Bool, String)
@@ -738,26 +739,26 @@ pathyId' s =
 --     * May be absolute or relative
 --     * May have any number of wordy/symboly name segments (including 0)
 --     * May or may not have a hash
-genericId :: String -> Either Err (Ident Identity Seq Maybe, String)
+genericId :: String -> Either Err (Ident (Position Seq) Maybe, String)
 genericId = \case
   "" -> Left (InvalidId "")
   '.' : s ->
     if null s
-      then Right (Ident (Identity True) Seq.empty Nothing, "")
-      else genericId' True s
-  s -> genericId' False s
+      then Right (Ident (absolute Seq.empty) Nothing, "")
+      else genericId' absolute s
+  s -> genericId' relative s
   where
     -- Invariant: string is non-empty
-    genericId' :: Bool -> String -> Either Err (Ident Identity Seq Maybe, String)
-    genericId' isAbsolute =
-      hqIdent \s -> loop0 s <&> over _1 \segments -> Ident (Identity isAbsolute) segments Proxy
+    genericId' :: (forall f a. f a -> Position f a) -> String -> Either Err (Ident (Position Seq) Maybe, String)
+    genericId' toPosition =
+      hqIdent \s -> loop0 s <&> over _1 \segments -> Ident (toPosition segments) Proxy
       where
         loop0 :: String -> Either Err (Seq NameSegment, String)
         loop0 s =
           if wordyIdStartChar (head s) || symbolyIdChar (head s)
             then
               case loop1 [] s of
-                Left acc -> Left (InvalidId (prettyIdent (Ident (Identity isAbsolute) (reverse acc) Proxy)))
+                Left acc -> Left (InvalidId (prettyIdent (Ident (toPosition (reverse acc)) Proxy)))
                 Right (segments, rem) -> Right (NESeq.toSeq segments, rem)
             else Right (Seq.empty, s)
         loop1 :: [NameSegment] -> String -> Either [NameSegment] (NESeq NameSegment, String)
@@ -782,7 +783,7 @@ genericId = \case
 
         -- pathyId' s <&> over _1 \segments -> Ident (Identity isAbsolute) (NESeq.toSeq segments) Proxy
 
-hqIdent :: (String -> Either Err (Ident f g Proxy, String)) -> String -> Either Err (Ident f g Maybe, String)
+hqIdent :: (String -> Either Err (Ident f Proxy, String)) -> String -> Either Err (Ident f Maybe, String)
 hqIdent f s = do
   (id, rem) <- f s
   if "#" `isPrefixOf` rem

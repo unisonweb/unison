@@ -126,20 +126,11 @@ parsePath' s =
       case id ^. #hash of
         Nothing ->
           Right $
-            if runIdentity (id ^. #isAbsolute)
-              then absoluteFromSegments' (id ^. #segments)
-              else relativeFromSegments' (id ^. #segments)
+            case id ^. #segments of
+              Lexer.PosAbsolute x -> absoluteFromSegments' (Lexer.unAbsolute x)
+              Lexer.PosRelative x -> relativeFromSegments' (Lexer.unRelative x)
         Just _ -> Left "a path cannot be hash-qualified"
     Right (id, rem) -> Left ("extra characters after " <> Lexer.prettyIdent id <> ": " <> show rem)
-
-  -- "." -> Right absoluteEmpty'
-  -- s ->
-  --   case Lexer.pathyId s of
-  --     Left err -> Left (show err)
-  --     Right (Lexer.Ident (Identity isAbsolute) segments Proxy, "") ->
-  --       Right ((if isAbsolute then absoluteFromSegments' else relativeFromSegments') (NESeq.toSeq segments))
-  --     Right (id, rem) ->
-  --       Left ("extra characters after " <> Lexer.prettyIdent id <> ": " <> show rem)
 
 wordyNameSegment :: String -> Either String NameSegment
 wordyNameSegment s = case Lexer.wordyId0 s of
