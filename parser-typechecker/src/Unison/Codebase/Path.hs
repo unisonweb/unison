@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
@@ -118,15 +119,27 @@ prefix (Absolute (Path prefix)) (Path' p) = case p of
 -- libs.blah.poo is Relative
 -- Left is some parse error tbd
 parsePath' :: String -> Either String Path'
-parsePath' = \case
-  "." -> Right absoluteEmpty'
-  s ->
-    case Lexer.pathyId s of
-      Left err -> Left (show err)
-      Right (Lexer.Ident (Identity isAbsolute) segments Proxy, "") ->
-        Right ((if isAbsolute then absoluteFromSegments' else relativeFromSegments') (NESeq.toSeq segments))
-      Right (id, rem) ->
-        Left ("extra characters after " <> Lexer.prettyIdent id <> ": " <> show rem)
+parsePath' s =
+  case Lexer.genericId s of
+    Left err -> Left (show err)
+    Right (id, "") ->
+      case id ^. #hash of
+        Nothing ->
+          Right $
+            if runIdentity (id ^. #isAbsolute)
+              then absoluteFromSegments' (id ^. #segments)
+              else relativeFromSegments' (id ^. #segments)
+        Just _ -> Left "a path cannot be hash-qualified"
+    Right (id, rem) -> Left ("extra characters after " <> Lexer.prettyIdent id <> ": " <> show rem)
+
+  -- "." -> Right absoluteEmpty'
+  -- s ->
+  --   case Lexer.pathyId s of
+  --     Left err -> Left (show err)
+  --     Right (Lexer.Ident (Identity isAbsolute) segments Proxy, "") ->
+  --       Right ((if isAbsolute then absoluteFromSegments' else relativeFromSegments') (NESeq.toSeq segments))
+  --     Right (id, rem) ->
+  --       Left ("extra characters after " <> Lexer.prettyIdent id <> ": " <> show rem)
 
 wordyNameSegment :: String -> Either String NameSegment
 wordyNameSegment s = case Lexer.wordyId0 s of
@@ -165,9 +178,9 @@ parseSplit' s = do
   path <- parsePath' s
   maybe (Left "empty path") Right (unsnoc' path)
 
-parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash HQSplit')
-parseShortHashOrHQSplit' s =
-  undefined
+-- parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash HQSplit')
+-- parseShortHashOrHQSplit' s =
+--   undefined
   -- case Text.breakOn "#" $ Text.pack s of
   --   ("","") -> error $ "encountered empty string parsing '" <> s <> "'"
   --   (n,"") -> do
@@ -186,6 +199,24 @@ parseShortHashOrHQSplit' s =
   --     pure $ Right hq
   -- where
   -- shError s = "couldn't parse shorthash from " <> s
+  
+parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash HQSplit')
+parseShortHashOrHQSplit' s =
+  case Text.breakOn "#" $ Text.pack s of
+    ("","") -> error $ "encountered empty string parsing '" <> s <> "'"
+    (n,"") -> Right . over _2 HQ'.NameOnly <$> parseSplit' (Text.unpack n)
+    ("", sh) -> do
+      sh <- maybeToRight (shError s) . SH.fromText $ sh
+      pure $ Left sh
+    -- (n, sh) -> do
+    --   (p, rem) <- parsePathImpl' (Text.unpack n)
+    --   seg <- definitionNameSegment rem
+    --   hq <- maybeToRight (shError s) .
+    --     fmap (\sh -> (p, HQ'.HashQualified seg sh)) .
+    --     SH.fromText $ sh
+    --   pure $ Right hq
+  where
+  shError s = "couldn't parse shorthash from " <> s
 
 parseHQSplit :: String -> Either String HQSplit
 parseHQSplit s = case parseHQSplit' s of

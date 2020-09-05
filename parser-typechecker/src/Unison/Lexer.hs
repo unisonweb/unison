@@ -23,6 +23,7 @@ import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map.Strict as Map
 import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy (Proxy))
+import qualified Data.Sequence as Seq
 import Data.Sequence.NonEmpty (NESeq)
 import qualified Data.Sequence.NonEmpty as NESeq
 import qualified Data.Set as Set
@@ -41,6 +42,7 @@ data Err
   | InvalidSymbolyId String
   | InvalidPathyId String
   | InvalidShortHash String
+  | InvalidId String
   | Both Err Err
   | MissingFractional String -- ex `1.` rather than `1.04`
   | MissingExponent String -- ex `1e` rather than `1e3`
@@ -702,7 +704,7 @@ symbolyIdChar ch = Set.member ch symbolyIdChars
 -- | Parse a list of '.'-delimited segments that are wordy or symboly.
 pathyId :: String -> Either Err (Ident Identity NESeq Proxy, String)
 pathyId (stripLeadingDot -> (absolute, s)) =
-  pathyId' s <&> over _1 (\s -> Ident (Identity absolute) s Proxy)
+  pathyId' s <&> over _1 \s -> Ident (Identity absolute) s Proxy
 
 -- | Try to strip the leading '.' from a string, and return whether it was stripped.
 stripLeadingDot :: String -> (Bool, String)
@@ -714,7 +716,7 @@ stripLeadingDot = \case
 pathyId' :: String -> Either Err (NESeq NameSegment, String)
 pathyId' s =
   case span wordyIdChar s of
-    ([], _) -> undefined
+    ([], _) ->
       case span symbolyIdChar s of
         ([], _) -> Left (InvalidWordyId "") -- bit of a lie; invalid "pathy"
         (id, s') ->
@@ -730,6 +732,55 @@ pathyId' s =
     go id = \case
       '.' : s'@(_ : _) -> over _1 (fromString id NESeq.<|) <$> pathyId' s'
       s' -> Right (NESeq.singleton (fromString id), s')
+
+-- | Parse a "generic" identifier, which:
+--
+--     * May be absolute or relative
+--     * May have any number of wordy/symboly name segments (including 0)
+--     * May or may not have a hash
+genericId :: String -> Either Err (Ident Identity Seq Maybe, String)
+genericId = \case
+  "" -> Left (InvalidId "")
+  '.' : s ->
+    if null s
+      then Right (Ident (Identity True) Seq.empty Nothing, "")
+      else genericId' True s
+  s -> genericId' False s
+  where
+    -- Invariant: string is non-empty
+    genericId' :: Bool -> String -> Either Err (Ident Identity Seq Maybe, String)
+    genericId' isAbsolute =
+      hqIdent \s -> loop0 s <&> over _1 \segments -> Ident (Identity isAbsolute) segments Proxy
+      where
+        loop0 :: String -> Either Err (Seq NameSegment, String)
+        loop0 s =
+          if wordyIdStartChar (head s) || symbolyIdChar (head s)
+            then
+              case loop1 [] s of
+                Left acc -> Left (InvalidId (prettyIdent (Ident (Identity isAbsolute) (reverse acc) Proxy)))
+                Right (segments, rem) -> Right (NESeq.toSeq segments, rem)
+            else Right (Seq.empty, s)
+        loop1 :: [NameSegment] -> String -> Either [NameSegment] (NESeq NameSegment, String)
+        loop1 acc s =
+          case span wordyIdChar s of
+            ([], _) ->
+              case span symbolyIdChar s of
+                ([], _) -> Left acc
+                (id, s') ->
+                  if Set.notMember id reservedOperators
+                    then go acc (fromString id) s'
+                    else Left (fromString id : acc)
+            (id, s') ->
+              if Set.notMember id keywords && wordyIdStartChar (head id)
+                then go acc (fromString id) s'
+                else Left (fromString id : acc)
+          where
+            go :: [NameSegment] -> NameSegment -> String -> Either [NameSegment] (NESeq NameSegment, String)
+            go acc id = \case
+              '.' : s'@(_ : _) -> over _1 (id NESeq.<|) <$> loop1 (id : acc) s'
+              s' -> Right (NESeq.singleton id, s')
+
+        -- pathyId' s <&> over _1 \segments -> Ident (Identity isAbsolute) (NESeq.toSeq segments) Proxy
 
 hqIdent :: (String -> Either Err (Ident f g Proxy, String)) -> String -> Either Err (Ident f g Maybe, String)
 hqIdent f s = do

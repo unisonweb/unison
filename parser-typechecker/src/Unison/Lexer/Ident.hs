@@ -24,8 +24,25 @@ import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 
--- foo.bar = Ident False ["foo", "bar"] Nothing
--- .foo#hhh = Ident True ["foo"] (Just "hhh")
+-- | An "identifier" is a generic structure that consists of three parts:
+--
+--     * Whether it is absolute or relative to the current context (ucm).
+--     * A name segment.
+--     * A hash.
+--
+-- Each part is parameterized on a different functor, which allows us to reuse this type to cover many different similar
+-- cases.
+--
+-- For example, an identifier that *may*, *must*, or *must not* be hash-qualified can simply be instantiated with
+-- `Maybe`, `Identity`, or `Proxy` in its third argument.
+--
+-- The name segment functor is typically just `Seq` or `NESeq` (non-empty sequence), but could also be `Proxy` for
+-- representing something like "just a hash".
+--
+-- "Is absolute" has a few variants: `Identity` indicates we don't know in the type system whether the identifier is
+-- absolute or relative - we must check at runtime. `Proxy` indicates we don't even track this. One-off, well-named
+-- functors isomorphic to `Proxy` like `data Abs a = Abs` and `data Rel a = Rel` could be used to indicate absolute and
+-- relative, respectively.
 data Ident f g h = Ident
   { isAbsolute :: f Bool,
     segments :: g NameSegment,
@@ -50,13 +67,13 @@ deriving instance
   ) =>
   Show (Ident f g h)
 
--- | Eh, one-off type class so it's not so tedious to render an ident as a string. This could be made into 3-4 separate
--- functions if the type class starts to get in the way for some reason.
+-- | Eh, one-off type class so it's not so tedious to render an ident as a string. This could be made into 3-4
+-- separate functions if the type class starts to get in the way for some reason.
 class PrettyIdent f g h where
   prettyIdent :: Ident f g h -> String
 
-instance PrettyIdent Identity NESeq Maybe where
-  prettyIdent :: Ident Identity NESeq Maybe -> String
+instance Foldable g => PrettyIdent Identity g Maybe where
+  prettyIdent :: Ident Identity g Maybe -> String
   prettyIdent (Ident (Identity isAbsolute) segments maybeHash) =
     (Text.unpack . mconcat)
       [ if isAbsolute then "." else "",
@@ -64,7 +81,7 @@ instance PrettyIdent Identity NESeq Maybe where
         maybe "" SH.toText maybeHash
       ]
 
-instance PrettyIdent Identity NESeq Proxy where
-  prettyIdent :: Ident Identity NESeq Proxy -> String
+instance Foldable g => PrettyIdent Identity g Proxy where
+  prettyIdent :: Ident Identity g Proxy -> String
   prettyIdent id =
     prettyIdent (id & #hash .~ Nothing)
