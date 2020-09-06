@@ -9,11 +9,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Lexer
-  ( module Unison.Lexer,
-    module Unison.Lexer.Ident,
-  )
-where
+module Unison.Lexer where
 
 import Control.Lens ((^.), (.~), _1, over)
 import Control.Lens.TH (makePrisms)
@@ -29,7 +25,7 @@ import qualified Data.Sequence.NonEmpty as NESeq
 import qualified Data.Set as Set
 import GHC.Exts (sortWith)
 import Text.Megaparsec.Error (ShowToken (..))
-import Unison.Lexer.Ident
+import Unison.Ident
 import Unison.NameSegment (NameSegment)
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude

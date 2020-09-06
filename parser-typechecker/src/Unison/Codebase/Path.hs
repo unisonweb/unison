@@ -19,6 +19,8 @@ import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Lexer                  as Lexer
+import Unison.Ident (Ident)
+import qualified Unison.Ident as Ident
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.ShortHash as SH
 
@@ -34,19 +36,16 @@ newtype Path' = Path' { unPath' :: Either Absolute Relative }
   deriving (Eq,Ord)
 
 {-
-type Path              = Lexer.Ident Proxy    Seq   Proxy
-type Absolute          = Lexer.Ident Abs      Seq   Proxy
-type Relative          = Lexer.Ident Rel      Seq   Proxy
-type Path'             = Lexer.Ident Identity Seq   Proxy
-type Split             = Lexer.Ident Proxy    NESeq Proxy
-type HQSplit           = Lexer.Ident Proxy    NESeq Maybe
-type Split'            = Lexer.Ident Identity NESeq Proxy
-type HQSplit'          = Lexer.Ident Identity NESeq Maybe
-type SplitAbsolute     = Lexer.Ident Abs      NESeq Proxy
-type HQSplitAbsolute   = Lexer.Ident Abs      NESeq Maybe
---
-data Abs a             = Abs
-data Rel a             = Rel
+type Path            = Ident                   Seq  Proxy
+type Absolute        = Ident (Ident.Absolute   Seq) Proxy
+type Relative        = Ident (Ident.Relative   Seq) Proxy
+type Path'           = Ident (Ident.Position   Seq) Proxy
+type Split           = Ident                 NESeq  Proxy
+type HQSplit         = Ident                 NESeq  Maybe
+type Split'          = Ident (Ident.Position NESeq) Proxy
+type HQSplit'        = Ident (Ident.Position NESeq) Maybe
+type SplitAbsolute   = Ident (Ident.Absolute NESeq) Proxy
+type HQSplitAbsolute = Ident (Ident.Absolute NESeq) Maybe
 -}
 
 isCurrentPath :: Path' -> Bool
@@ -121,8 +120,8 @@ parsePath' =
       Nothing ->
         Right $
           case id ^. #segments of
-            Lexer.PosAbsolute x -> absoluteFromSegments' (Lexer.unAbsolute x)
-            Lexer.PosRelative x -> relativeFromSegments' (Lexer.unRelative x)
+            Ident.PosAbsolute x -> absoluteFromSegments' (Ident.unAbsolute x)
+            Ident.PosRelative x -> relativeFromSegments' (Ident.unRelative x)
       Just _ -> Left "a path cannot be hash-qualified"
 
 wordyNameSegment :: String -> Either String NameSegment
@@ -166,17 +165,17 @@ parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash HQSplit
 parseShortHashOrHQSplit' =
   parseGenericId \id ->
     case id ^. #hash of
-      Nothing -> Left ("expected hash-qualified identifier, but found " ++ Lexer.prettyIdent id)
+      Nothing -> Left ("expected hash-qualified identifier, but found " ++ Ident.prettyIdent id)
       Just h ->
         case id ^. #segments of
-          Lexer.PosAbsolute xs ->
+          Ident.PosAbsolute xs ->
             Right $
-              case Lens.unsnoc (Lexer.unAbsolute xs) of
+              case Lens.unsnoc (Ident.unAbsolute xs) of
                 Nothing -> Left h
                 Just (ys, y) -> Right (absoluteFromSegments' ys, HQ'.HashQualified y h)
-          Lexer.PosRelative xs ->
+          Ident.PosRelative xs ->
             Right $
-              case Lens.unsnoc (Lexer.unRelative xs) of
+              case Lens.unsnoc (Ident.unRelative xs) of
                 Nothing -> Left h
                 Just (ys, y) -> Right (relativeFromSegments' ys, HQ'.HashQualified y h)
 
@@ -194,24 +193,24 @@ parseHQSplit' =
       Nothing -> failure id
       Just h ->
         case id ^. #segments of
-          Lexer.PosAbsolute xs ->
-            case Lens.unsnoc (Lexer.unAbsolute xs) of
+          Ident.PosAbsolute xs ->
+            case Lens.unsnoc (Ident.unAbsolute xs) of
               Nothing -> failure id
               Just (ys, y) -> Right (absoluteFromSegments' ys, HQ'.HashQualified y h)
-          Lexer.PosRelative xs ->
-            case Lens.unsnoc (Lexer.unRelative xs) of
+          Ident.PosRelative xs ->
+            case Lens.unsnoc (Ident.unRelative xs) of
               Nothing -> failure id
               Just (ys, y) -> Right (relativeFromSegments' ys, HQ'.HashQualified y h)
   where
     failure id =
-      Left ("expected hash-qualified identifier, but found " ++ Lexer.prettyIdent id)
+      Left ("expected hash-qualified identifier, but found " ++ Ident.prettyIdent id)
 
-parseGenericId :: (Lexer.Ident (Lexer.Position Seq) Maybe -> Either String a) -> String -> Either String a
+parseGenericId :: (Ident (Ident.Position Seq) Maybe -> Either String a) -> String -> Either String a
 parseGenericId f s =
   case Lexer.genericId s of
     Left err -> Left (show err)
     Right (id, "") -> f id
-    Right (id, rem) -> Left ("trailing characters after " <> Lexer.prettyIdent id <> " (" <> show rem <> ")")
+    Right (id, rem) -> Left ("trailing characters after " <> Ident.prettyIdent id <> " (" <> show rem <> ")")
 
 toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
 toAbsoluteSplit a (p, s) = (resolve a p, s)

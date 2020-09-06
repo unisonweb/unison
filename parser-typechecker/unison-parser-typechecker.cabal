@@ -113,7 +113,6 @@ library
     Unison.FileParser
     Unison.FileParsers
     Unison.Lexer
-    Unison.Lexer.Ident
     Unison.NamePrinter
     Unison.Parser
     Unison.Parsers

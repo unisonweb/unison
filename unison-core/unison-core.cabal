@@ -62,6 +62,7 @@ library
     Unison.HashQualified
     Unison.HashQualified'
     Unison.Hashable
+    Unison.Ident
     Unison.Kind
     Unison.LabeledDependency
     Unison.Name

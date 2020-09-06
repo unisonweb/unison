@@ -7,7 +7,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Unison.Lexer.Ident
+module Unison.Ident
   ( Ident (..),
     Position (..),
     unPosition,
@@ -68,6 +68,8 @@ newtype Relative f a = Relative {unRelative :: f a}
 
 -- | Eh, one-off type class so it's not so tedious to render an ident as a string. This could be made into 3-4
 -- separate functions if the type class starts to get in the way for some reason.
+--
+-- FIXME This pretty-printing stuff belongs in some syntax-specific part of the code, not unison-core.
 class PrettyIdent f g where
   prettyIdent :: Ident f g -> String
 
