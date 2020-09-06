@@ -64,7 +64,6 @@ data Lexeme
   | Reserved String -- reserved tokens such as `{`, `(`, `type`, `of`, etc
   | Textual String -- text literals, `"foo bar"`
   | Character Char -- character literals, `?X`
-  | Backticks (Ident (Position NESeq) Maybe)
   | WordyId (Ident (Position NESeq) Maybe) -- a (non-infix) identifier
   | SymbolyId (Ident (Position NESeq) Maybe) -- an infix identifier
   | Blank String -- a typed hole or placeholder
@@ -113,7 +112,6 @@ instance ShowToken (Token Lexeme) where
         case showEscapeChar c of
           Just c -> "?\\" ++ [c]
           Nothing -> '?' : [c]
-      pretty (Backticks id) = '`' : prettyIdent id ++ ['`']
       pretty (WordyId id) = prettyIdent id
       pretty (SymbolyId id) = prettyIdent id
       pretty (Blank s) = "_" ++ s
@@ -450,11 +448,6 @@ lexer0 scope rem =
         Left (TextLiteralMissingClosingQuote _) ->
           [Token (Err $ TextLiteralMissingClosingQuote rem) pos pos]
         Left err -> [Token (Err err) pos pos]
-      '`' : rem -> case hqIdent wordyId rem of
-        Left e -> Token (Err e) pos pos : recover l pos rem
-        Right (id, rem) ->
-          let end = inc . incBy (prettyIdent id) . inc $ pos
-           in Token (Backticks id) pos end : goWhitespace l end (pop rem)
       rem@('#' : _) -> case shortHash rem of
         Left e -> Token (Err e) pos pos : recover l pos rem
         Right (h, rem) ->
