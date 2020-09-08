@@ -1010,8 +1010,8 @@ anfBlock (Match' scrut cas) = do
       error "anfBlock: AccumRequest without default"
     AccumPure (ABTN.TAbss us bd)
       | [u] <- us
-      , TBinds' bx bd <- ABTN.rename u v bd
-     -> pure (sctx ++ cx ++ bx, bd)
+      , TBinds' bx bd <- bd
+     -> pure (sctx ++ cx ++ [ST1 u BX (AFrc v)] ++ bx, bd)
       | otherwise -> error "pure handler with too many variables"
     AccumRequest abr (Just df) -> do
       (r, vs) <- do
