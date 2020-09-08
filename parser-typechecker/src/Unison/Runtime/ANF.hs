@@ -1011,7 +1011,10 @@ anfBlock (Match' scrut cas) = do
     AccumPure (ABTN.TAbss us bd)
       | [u] <- us
       , TBinds' bx bd <- bd
-     -> pure (sctx ++ cx ++ [ST1 u BX (AFrc v)] ++ bx, bd)
+     -> case cx of
+          [] -> pure (sctx ++ [ST1 u BX (AFrc v)] ++ bx, bd)
+          [ST1 _ BX tm] -> pure (sctx ++ [ST1 u BX tm] ++ bx, bd)
+          _ -> error "anfBlock|AccumPure: impossible"
       | otherwise -> error "pure handler with too many variables"
     AccumRequest abr (Just df) -> do
       (r, vs) <- do
