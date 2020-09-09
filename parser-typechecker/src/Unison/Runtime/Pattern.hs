@@ -11,15 +11,15 @@ module Unison.Runtime.Pattern
   , builtinDataSpec
   ) where
 
-import Control.Applicative ((<|>))
 import Control.Lens ((<&>))
 import Control.Monad.State (State, state, evalState, runState, modify)
 
 import Data.List (transpose)
-import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
+import Data.Maybe (catMaybes, listToMaybe)
 import Data.Word (Word64)
 
-import Data.Set as Set (Set, fromList, member)
+import Data.Set (Set, member)
+import qualified Data.Set as Set
 
 import Unison.ABT
   (absChain', visitPure, pattern AbsN', changeVars)
@@ -44,12 +44,27 @@ type Term v = Tm.Term v ()
 -- Represents the number of fields of constructors of a data type/
 -- ability in order of constructors
 type Cons = [Int]
+type NCons = [(Int,Int)]
 
 -- Maps references to the constructor information for abilities (left)
 -- and data types (right)
 type DataSpec = Map Reference (Either Cons Cons)
 
-type Ctx v = Map v Reference
+data PType = PData Reference | PReq (Set Reference) | Unknown
+
+instance Semigroup PType where
+  Unknown <> r = r
+  l <> Unknown = l
+  t@(PData l) <> PData r
+    | l == r = t
+  PReq l <> PReq r = PReq (l <> r)
+  _ <> _ = error "inconsistent pattern matching types"
+
+instance Monoid PType where
+  mempty = Unknown
+  mappend = (<>)
+
+type Ctx v = Map v PType
 
 -- Representation of a row in a pattern compilation matrix.
 -- There is a list of patterns annotated with the variables they
@@ -128,33 +143,35 @@ extractVars = catMaybes . fmap extractVar
 -- convenient to yield a list here.
 decomposePattern
   :: Var v
-  => Int -> Int -> P.Pattern v
+  => Reference -> Int -> Int -> P.Pattern v
   -> [[P.Pattern v]]
-decomposePattern t nfields p@(P.Constructor _ _ u ps)
+decomposePattern rf0 t nfields p@(P.Constructor _ rf u ps)
   | t == u
+  , rf0 == rf
   = if length ps == nfields
     then [ps]
     else error err
   where
   err = "decomposePattern: wrong number of constructor fields: "
      ++ show (nfields, p)
-decomposePattern t nfields p@(P.EffectBind _ _ u ps pk)
+decomposePattern rf0 t nfields p@(P.EffectBind _ rf u ps pk)
   | t == u
+  , rf0 == rf
   = if length ps == nfields
     then [ps ++ [pk]]
     else error err
   where
   err = "decomposePattern: wrong number of ability fields: "
      ++ show (nfields, p)
-decomposePattern t _ (P.EffectPure _ p)
+decomposePattern _ t _ (P.EffectPure _ p)
   | t == -1 = [[p]]
-decomposePattern _ nfields (P.Var _)
+decomposePattern _ _ nfields (P.Var _)
   = [replicate nfields (P.Unbound (typed Pattern))]
-decomposePattern _ nfields (P.Unbound _)
+decomposePattern _ _ nfields (P.Unbound _)
   = [replicate nfields (P.Unbound (typed Pattern))]
-decomposePattern _ _ (P.SequenceLiteral _ _)
+decomposePattern _ _ _ (P.SequenceLiteral _ _)
   = error "decomposePattern: sequence literal"
-decomposePattern _ _ _ = []
+decomposePattern _ _ _ _ = []
 
 matchBuiltin :: P.Pattern a -> Maybe (P.Pattern ())
 matchBuiltin (P.Var _) = Just $ P.Unbound ()
@@ -280,14 +297,15 @@ decomposeSeqP _ _ _ = Overlap
 splitRow
   :: Var v
   => v
+  -> Reference
   -> Int
   -> Int
   -> PatternRow v
   -> [([P.Pattern v], PatternRow v)]
-splitRow v t nfields (PR (break ((==v).loc) -> (pl, sp : pr)) g b)
-  = decomposePattern t nfields sp
+splitRow v rf t nfields (PR (break ((==v).loc) -> (pl, sp : pr)) g b)
+  = decomposePattern rf t nfields sp
       <&> \subs -> (subs, PR (pl ++ filter refutable subs ++ pr) g b)
-splitRow _ _ _ row = [([],row)]
+splitRow _ _ _ _ row = [([],row)]
 
 -- Splits a row with respect to a variable, expecting that the
 -- variable will be matched against a builtin pattern (non-data type,
@@ -355,7 +373,7 @@ chooseVars (r : _) = extractVars r
 buildMatrix
   :: Var v
   => [([P.Pattern v], PatternRow v)]
-  -> ([(v,Reference)], PatternMatrix v)
+  -> ([(v,PType)], PatternMatrix v)
 buildMatrix [] = ([], PM [])
 buildMatrix vrs = (zip cvs rs, PM $ fixRow <$> vrs)
   where
@@ -373,7 +391,7 @@ splitMatrixBuiltin
   :: Var v
   => v
   -> PatternMatrix v
-  -> [(P.Pattern (), [(v,Reference)], PatternMatrix v)]
+  -> [(P.Pattern (), [(v,PType)], PatternMatrix v)]
 splitMatrixBuiltin v (PM rs)
   = fmap (\(a,(b,c)) -> (a,b,c))
   . toList
@@ -381,7 +399,7 @@ splitMatrixBuiltin v (PM rs)
   . fromListWith (++)
   $ splitRowBuiltin v =<< rs
 
-matchPattern :: [(v,Reference)] -> SeqMatch -> P.Pattern ()
+matchPattern :: [(v,PType)] -> SeqMatch -> P.Pattern ()
 matchPattern vrs = \case
     E -> sz 0
     C -> P.SequenceOp () vr Cons vr
@@ -402,14 +420,14 @@ splitMatrixSeq
   :: Var v
   => v
   -> PatternMatrix v
-  -> [(P.Pattern (), [(v,Reference)], PatternMatrix v)]
+  -> [(P.Pattern (), [(v,PType)], PatternMatrix v)]
 splitMatrixSeq v (PM rs)
   = cases
   where
   ms = decideSeqPat $ take 1 . dropWhile ((/=v).loc) . matches =<< rs
   hint m vrs
     | m `elem` [E,C,S] = vrs
-    | otherwise = (fmap.fmap) (const Rf.vectorRef) vrs
+    | otherwise = (fmap.fmap) (const $ PData Rf.vectorRef) vrs
   cases = ms <&> \m ->
     let frs = rs >>= splitRowSeq v m
         (vrs, pm) = buildMatrix frs
@@ -421,14 +439,14 @@ splitMatrixSeq v (PM rs)
 splitMatrix
   :: Var v
   => v
-  -> Either Cons Cons
+  -> Reference
+  -> NCons
   -> PatternMatrix v
-  -> [(Int, [(v,Reference)], PatternMatrix v)]
-splitMatrix v econs (PM rs)
+  -> [(Int, [(v,PType)], PatternMatrix v)]
+splitMatrix v rf cons (PM rs)
   = fmap (\(a, (b, c)) -> (a,b,c)) . (fmap.fmap) buildMatrix $ mmap
   where
-  cons = either (((-1,1):) . zip [0..]) (zip [0..]) econs
-  mmap = fmap (\(t,fs) -> (t, splitRow v t fs =<< rs)) cons
+  mmap = fmap (\(t,fs) -> (t, splitRow v rf t fs =<< rs)) cons
 
 -- Monad for pattern preparation. It is a state monad carrying a fresh
 -- variable source, the list of variables bound the the pattern being
@@ -512,19 +530,32 @@ preparePattern (P.As _ p) = prepareAs p =<< useVar
 preparePattern p = prepareAs p =<< freshVar
 
 buildPattern :: Bool -> Reference -> Int -> [v] -> Int -> P.Pattern ()
-buildPattern ef r t vs nfields =
-  case ef of
-    False -> P.Constructor () r t vps
-    True | t == -1 -> P.EffectPure () (P.Var ())
-         | otherwise -> P.EffectBind () r t aps kp
-     where
-     (aps,kp) | [] <- vps = error "too few patterns for effect bind"
-              | otherwise = (init vps, last vps)
+buildPattern effect r t vs nfields
+  | effect, [] <- vps = error "too few patterns for effect bind"
+  | effect = P.EffectBind () r t (init vps) (last vps)
+  | otherwise = P.Constructor () r t vps
   where
   vps | length vs < nfields
       = replicate nfields $ P.Unbound ()
       | otherwise
       = P.Var () <$ vs
+
+numberCons :: Cons -> NCons
+numberCons = zip [0..]
+
+lookupData :: Reference -> DataSpec -> Either String Cons
+lookupData rf (Map.lookup rf -> Just econs)
+  = case econs of
+      Left _ -> Left $ "data type matching on ability: " ++ show rf
+      Right cs -> Right cs
+lookupData rf _ = Left $ "unknown data reference: " ++ show rf
+
+lookupAbil :: Reference -> DataSpec -> Either String Cons
+lookupAbil rf (Map.lookup rf -> Just econs)
+  = case econs of
+      Right _ -> Left $ "ability matching on data: " ++ show rf
+      Left cs -> Right cs
+lookupAbil rf _ = Left $ "unknown ability reference: " ++ show rf
 
 compile :: Var v => DataSpec -> Ctx v -> PatternMatrix v -> Term v
 compile _ _ (PM []) = blank ()
@@ -533,30 +564,44 @@ compile spec ctx m@(PM (r:rs))
   = case guard r of
       Nothing -> body r
       Just g -> iff mempty g (body r) $ compile spec ctx (PM rs)
-  | rf == Rf.vectorRef
+  | PData rf <- ty
+  , rf == Rf.vectorRef
   = match () (var () v)
       $ buildCaseBuiltin spec ctx
      <$> splitMatrixSeq v m
-  | rf `member` builtinCase
+  | PData rf <- ty
+  , rf `member` builtinCase
   = match () (var () v)
       $ buildCaseBuiltin spec ctx
      <$> splitMatrixBuiltin v m
-  | otherwise
-  = case Map.lookup rf spec of
-      Just cons ->
+  | PData rf <- ty
+  = case lookupData rf spec of
+      Right cons ->
         match () (var () v)
-          $ buildCase spec rf cons ctx
-         <$> splitMatrix v cons m
-      Nothing -> error $ "unknown data reference: " ++ show r
+          $ buildCase spec rf False cons ctx
+         <$> splitMatrix v rf (numberCons cons) m
+      Left err -> error err
+  | PReq rfs <- ty
+  = match () (var () v) $
+      [ buildCasePure spec ctx tup
+      | tup <- splitMatrix v undefined [(-1,1)] m
+      ] ++
+      [ buildCase spec rf True cons ctx tup
+      | rf <- Set.toList rfs
+      , Right cons <- [lookupAbil rf spec]
+      , tup <- splitMatrix v rf (numberCons cons) m
+      ]
+  | Unknown <- ty
+  = error "unknown pattern compilation type"
   where
   v = choose heuristics m
-  rf = Map.findWithDefault defaultRef v ctx
+  ty = Map.findWithDefault Unknown v ctx
 
 buildCaseBuiltin
   :: Var v
   => DataSpec
   -> Ctx v
-  -> (P.Pattern (), [(v,Reference)], PatternMatrix v)
+  -> (P.Pattern (), [(v,PType)], PatternMatrix v)
   -> MatchCase () (Term v)
 buildCaseBuiltin spec ctx0 (p, vrs, m)
   = MatchCase p Nothing . absChain' vs $ compile spec ctx m
@@ -564,21 +609,34 @@ buildCaseBuiltin spec ctx0 (p, vrs, m)
   vs = ((),) . fst <$> vrs
   ctx = Map.fromList vrs <> ctx0
 
+buildCasePure
+  :: Var v
+  => DataSpec
+  -> Ctx v
+  -> (Int, [(v,PType)], PatternMatrix v)
+  -> MatchCase () (Term v)
+buildCasePure spec ctx0 (_, vts, m)
+  = MatchCase pat Nothing . absChain' vs $ compile spec ctx m
+  where
+  pat = P.EffectPure () (P.Var ())
+  vs = ((),) . fst <$> vts
+  ctx = Map.fromList vts <> ctx0
+
 buildCase
   :: Var v
   => DataSpec
   -> Reference
-  -> Either Cons Cons
+  -> Bool
+  -> Cons
   -> Ctx v
-  -> (Int, [(v,Reference)], PatternMatrix v)
+  -> (Int, [(v,PType)], PatternMatrix v)
   -> MatchCase () (Term v)
-buildCase spec r econs ctx0 (t, vrs, m)
+buildCase spec r eff cons ctx0 (t, vts, m)
   = MatchCase pat Nothing . absChain' vs $ compile spec ctx m
   where
-  (eff, cons) = either (True,) (False,) econs
   pat = buildPattern eff r t vs $ cons !! t
-  vs = ((),) . fst <$> vrs
-  ctx = Map.fromList vrs <> ctx0
+  vs = ((),) . fst <$> vts
+  ctx = Map.fromList vts <> ctx0
 
 mkRow
   :: Var v
@@ -603,10 +661,10 @@ mkRow _ _ = error "mkRow: impossible"
 
 initialize
   :: Var v
-  => Reference
+  => PType
   -> Term v
   -> [MatchCase () (Term v)]
-  -> (Maybe v, (v, Reference), PatternMatrix v)
+  -> (Maybe v, (v, PType), PatternMatrix v)
 initialize r sc cs
   = ( lv
     , (sv, r)
@@ -620,8 +678,8 @@ initialize r sc cs
 splitPatterns :: Var v => DataSpec -> Term v -> Term v
 splitPatterns spec0 = visitPure $ \case
   Match' sc0 cs0
-    | r <- determineType $ p <$> cs0
-    , (lv, scrut, pm) <- initialize r sc cs
+    | ty <- determineType $ p <$> cs0
+    , (lv, scrut, pm) <- initialize ty sc cs
     , body <- compile spec (uncurry Map.singleton scrut) pm
    -> Just $ case lv of
         Just v -> let1 False [(((),v), sc)] body
@@ -636,7 +694,7 @@ splitPatterns spec0 = visitPure $ \case
 
 builtinCase :: Set Reference
 builtinCase
-  = fromList
+  = Set.fromList
   [ Rf.intRef
   , Rf.natRef
   , Rf.floatRef
@@ -644,21 +702,19 @@ builtinCase
   , Rf.charRef
   ]
 
-defaultRef :: Reference
-defaultRef = Builtin "PatternMatchUnknown"
-
-determineType :: Show a => [P.Pattern a] -> Reference
-determineType ps = fromMaybe defaultRef . foldr ((<|>) . f) Nothing $ ps
+determineType :: Show a => [P.Pattern a] -> PType
+determineType = foldMap f
   where
   f (P.As _ p) = f p
-  f P.Int{} = Just Rf.intRef
-  f P.Nat{} = Just Rf.natRef
-  f P.Float{} = Just Rf.floatRef
-  f P.Boolean{} = Just Rf.booleanRef
-  f P.Text{} = Just Rf.textRef
-  f P.Char{} = Just Rf.charRef
-  f P.SequenceLiteral{} = Just Rf.vectorRef
-  f P.SequenceOp{} = Just Rf.vectorRef
-  f (P.Constructor _ r _ _) = Just r
-  f (P.EffectBind _ r _ _ _) = Just r
-  f _ = Nothing
+  f P.Int{} = PData Rf.intRef
+  f P.Nat{} = PData Rf.natRef
+  f P.Float{} = PData Rf.floatRef
+  f P.Boolean{} = PData Rf.booleanRef
+  f P.Text{} = PData Rf.textRef
+  f P.Char{} = PData Rf.charRef
+  f P.SequenceLiteral{} = PData Rf.vectorRef
+  f P.SequenceOp{} = PData Rf.vectorRef
+  f (P.Constructor _ r _ _) = PData r
+  f (P.EffectBind _ r _ _ _) = PReq $ Set.singleton r
+  f P.EffectPure{} = PReq mempty
+  f _ = Unknown

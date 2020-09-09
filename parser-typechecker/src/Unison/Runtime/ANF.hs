@@ -692,6 +692,7 @@ data BranchAccum v
       (Maybe (ANormal v))
       (Map.Map Text (ANormal v))
   | AccumDefault (ANormal v)
+  | AccumPure (ANormal v)
   | AccumRequest
       (EnumMap RTag (EnumMap CTag ([Mem],ANormal v)))
       (Maybe (ANormal v))
@@ -731,6 +732,10 @@ instance Semigroup (BranchAccum v) where
     = AccumText (dl <|> Just dr) cl
   AccumData rl dl cl <> AccumDefault dr
     = AccumData rl (dl <|> Just dr) cl
+  l@(AccumPure _) <> AccumPure _ = l
+  AccumPure dl <> AccumRequest hr _ = AccumRequest hr (Just dl)
+  AccumRequest hl dl <> AccumPure dr
+    = AccumRequest hl (dl <|> Just dr)
   AccumRequest hl dl <> AccumRequest hr dr
     = AccumRequest hm $ dl <|> dr
     where
@@ -954,6 +959,14 @@ floatableCtx = all p
   q (ACon _ _ _) = True
   q _ = False
 
+anfHandled :: Var v => Term v a -> ANFM v (Ctx v, ANormalT v)
+anfHandled body = anfBlock body >>= \case
+  (ctx, t@ACon{}) -> fresh <&> \v -> (ctx ++ [ST1 v BX t], AVar v)
+  (ctx, t@(ALit l)) -> fresh <&> \v -> (ctx ++ [ST1 v cc t], AVar v)
+    where
+    cc = case l of T{} -> BX ; LM{} -> BX ; LY{} -> BX ; _ -> UN
+  p -> pure p
+
 anfBlock :: Var v => Term v a -> ANFM v (Ctx v, ANormalT v)
 anfBlock (Var' v) = pure ([], AVar v)
 anfBlock (If' c t f) = do
@@ -978,7 +991,7 @@ anfBlock (Or' l r) = do
   pure (lctx ++ rctx, ACom i [vl, vr])
 anfBlock (Handle' h body)
   = anfArg h >>= \(hctx, vh) ->
-    anfBlock body >>= \case
+    anfHandled body >>= \case
       (ctx, ACom f as) | floatableCtx ctx -> do
         v <- fresh
         pure (hctx ++ ctx ++ [LZ v (Left f) as], AApp (FVar vh) [v])
@@ -998,6 +1011,14 @@ anfBlock (Match' scrut cas) = do
       pure (sctx ++ cx ++ dctx, df)
     AccumRequest _ Nothing ->
       error "anfBlock: AccumRequest without default"
+    AccumPure (ABTN.TAbss us bd)
+      | [u] <- us
+      , TBinds' bx bd <- bd
+     -> case cx of
+          [] -> pure (sctx ++ [ST1 u BX (AFrc v)] ++ bx, bd)
+          [ST1 _ BX tm] -> pure (sctx ++ [ST1 u BX tm] ++ bx, bd)
+          _ -> error "anfBlock|AccumPure: impossible"
+      | otherwise -> error "pure handler with too many variables"
     AccumRequest abr (Just df) -> do
       (r, vs) <- do
         r <- fresh
@@ -1137,7 +1158,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
       <$> anfBody bd
   | P.EffectPure _ q <- p = do
     us <- expandBindings [q] vs
-    AccumRequest mempty . Just . ABTN.TAbss us <$> anfBody bd
+    AccumPure . ABTN.TAbss us <$> anfBody bd
   | P.EffectBind _ r t ps pk <- p = do
     exp <- expandBindings (snoc ps pk) vs
     let (us, uk)
