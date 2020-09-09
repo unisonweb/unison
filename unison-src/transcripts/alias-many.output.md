@@ -264,9 +264,20 @@ Let's try it!
   226. io2.IOError.ResourceBusy : IOError
   227. io2.IOError.ResourceExhausted : IOError
   228. io2.IOError.UserError : IOError
-  229. builtin type io2.Socket
-  230. builtin type io2.ThreadId
-  231. todo : a -> b
+  229. builtin type io2.MVar
+  230. io2.MVar.isEmpty : MVar a ->{IO} Boolean
+  231. io2.MVar.new : a ->{IO} MVar a
+  232. io2.MVar.newEmpty : {IO} (MVar a)
+  233. io2.MVar.put : MVar a -> a ->{IO} Either IOError ()
+  234. io2.MVar.read : MVar a ->{IO} Either IOError a
+  235. io2.MVar.swap : MVar a -> a ->{IO} Either IOError a
+  236. io2.MVar.take : MVar a ->{IO} Either IOError a
+  237. io2.MVar.tryPut : MVar a -> a ->{IO} Boolean
+  238. io2.MVar.tryRead : MVar a ->{IO} Optional a
+  239. io2.MVar.tryTake : MVar a ->{IO} Optional a
+  240. builtin type io2.Socket
+  241. builtin type io2.ThreadId
+  242. todo : a -> b
   
 
 .builtin> alias.many 94-104 .mylib

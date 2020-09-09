@@ -44,7 +44,7 @@ The `builtins.merge` command adds the known builtins to a `builtin` subnamespace
   33. Unit/      (1 definition)
   34. Universal/ (6 definitions)
   35. bug        (a -> b)
-  36. io2/       (57 definitions)
+  36. io2/       (68 definitions)
   37. todo       (a -> b)
 
 ```

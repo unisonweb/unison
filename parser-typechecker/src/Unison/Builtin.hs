@@ -160,6 +160,7 @@ builtinTypesSrc =
   , B' "Handle" CT.Data, Rename' "Handle" "io2.Handle"
   , B' "Socket" CT.Data, Rename' "Socket" "io2.Socket"
   , B' "ThreadId" CT.Data, Rename' "ThreadId" "io2.ThreadId"
+  , B' "MVar" CT.Data, Rename' "MVar" "io2.MVar"
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -251,7 +252,7 @@ builtinsSrc =
   , B "Int.shiftRight" $ int --> nat --> int
   , B "Int.truncate0" $ int --> nat
   , B "Int.toText" $ int --> text
-  , B "Int.fromText" $ text --> optional int
+  , B "Int.fromText" $ text --> optionalt int
   , B "Int.toFloat" $ int --> float
   , B "Int.trailingZeros" $ int --> nat
 
@@ -268,7 +269,7 @@ builtinsSrc =
   , B "Nat.xor" $ nat --> nat --> nat
   , B "Nat.complement" $ nat --> nat
   , B "Nat.drop" $ nat --> nat --> nat
-  , B "Nat.fromText" $ text --> optional nat
+  , B "Nat.fromText" $ text --> optionalt nat
   , B "Nat.increment" $ nat --> nat
   , B "Nat.isEven" $ nat --> boolean
   , B "Nat.isOdd" $ nat --> boolean
@@ -330,7 +331,7 @@ builtinsSrc =
   , B "Float.max" $ float --> float --> float
   , B "Float.min" $ float --> float --> float
   , B "Float.toText" $ float --> text
-  , B "Float.fromText" $ text --> optional float
+  , B "Float.fromText" $ text --> optionalt float
 
   , B "Universal.==" $ forall1 "a" (\a -> a --> a --> boolean)
   -- Don't we want a Universal.!= ?
@@ -363,8 +364,8 @@ builtinsSrc =
   , B "Text.>=" $ text --> text --> boolean
   , B "Text.<" $ text --> text --> boolean
   , B "Text.>" $ text --> text --> boolean
-  , B "Text.uncons" $ text --> optional (tuple [char, text])
-  , B "Text.unsnoc" $ text --> optional (tuple [text, char])
+  , B "Text.uncons" $ text --> optionalt (tuple [char, text])
+  , B "Text.unsnoc" $ text --> optionalt (tuple [text, char])
 
   , B "Text.toCharList" $ text --> list char
   , B "Text.fromCharList" $ list char --> text
@@ -377,7 +378,7 @@ builtinsSrc =
   , B "Bytes.++" $ bytes --> bytes --> bytes
   , B "Bytes.take" $ nat --> bytes --> bytes
   , B "Bytes.drop" $ nat --> bytes --> bytes
-  , B "Bytes.at" $ nat --> bytes --> optional nat
+  , B "Bytes.at" $ nat --> bytes --> optionalt nat
   , B "Bytes.toList" $ bytes --> list nat
   , B "Bytes.size" $ bytes --> nat
   , B "Bytes.flatten" $ bytes --> bytes
@@ -391,7 +392,7 @@ builtinsSrc =
   , B "List.drop" $ forall1 "a" (\a -> nat --> list a --> list a)
   , B "List.++" $ forall1 "a" (\a -> list a --> list a --> list a)
   , B "List.size" $ forall1 "a" (\a -> list a --> nat)
-  , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optional a)
+  , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optionalt a)
 
   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
   ] ++
@@ -403,43 +404,10 @@ builtinsSrc =
                   ,("<=", "lteq")
                   ,(">" , "gt")
                   ,(">=", "gteq")]
-  ] ++
-  (ioBuiltins >>= \(n,ty) -> [B n ty, Rename n ("io2." <> n)])
-  where
-    int = Type.int ()
-    nat = Type.nat ()
-    boolean = Type.boolean ()
-    float = Type.float ()
-    text = Type.text ()
-    bytes = Type.bytes ()
-    char = Type.char ()
+  ] ++ io2List ioBuiltins ++ io2List mvarBuiltins
 
-    (-->) :: Ord v => Type v -> Type v -> Type v
-    a --> b = Type.arrow () a b
-
-    infixr -->
-
-    forall1 :: Var v => Text -> (Type v -> Type v) -> Type v
-    forall1 name body =
-      let
-        a = Var.named name
-      in Type.forall () a (body $ Type.var () a)
-
-    app :: Ord v => Type v -> Type v -> Type v
-    app = Type.app ()
-
-    list :: Ord v => Type v -> Type v
-    list arg = Type.vector () `app` arg
-
-    optional :: Ord v => Type v -> Type v
-    optional arg = DD.optionalType () `app` arg
-
-    tuple :: Ord v => [Type v] -> Type v
-    tuple [t] = t
-    tuple ts = foldr pair (DD.unitType ()) ts
-
-    pair :: Ord v => Type v -> Type v -> Type v
-    pair l r = DD.pairType () `app` l `app` r
+io2List :: [(Text, Type v)] -> [BuiltinDSL v]
+io2List bs = bs >>= \(n,ty) -> [B n ty, Rename n ("io2." <> n)]
 
 ioBuiltins :: Var v => [(Text, Type v)]
 ioBuiltins =
@@ -477,42 +445,73 @@ ioBuiltins =
   , ("IO.socketReceive", socket --> nat --> ioe bytes)
   , ("IO.forkComp"
     , forall1 "a" $ \a -> (unit --> ioe a) --> ioe threadId)
-  , ("IO.stdHandle", nat --> optional handle)
+  , ("IO.stdHandle", nat --> optionalt handle)
+  ]
+
+mvarBuiltins :: forall v. Var v => [(Text, Type v)]
+mvarBuiltins =
+  [ ("MVar.new", forall1 "a" $ \a -> a --> io (mvar a))
+  , ("MVar.newEmpty", forall1 "a" $ \a -> io (mvar a))
+  , ("MVar.take", forall1 "a" $ \a -> mvar a --> ioe a)
+  , ("MVar.tryTake", forall1 "a" $ \a -> mvar a --> io (optionalt a))
+  , ("MVar.put", forall1 "a" $ \a -> mvar a --> a --> ioe unit)
+  , ("MVar.tryPut", forall1 "a" $ \a -> mvar a --> a --> io boolean)
+  , ("MVar.swap", forall1 "a" $ \a -> mvar a --> a --> ioe a)
+  , ("MVar.isEmpty", forall1 "a" $ \a -> mvar a --> io boolean)
+  , ("MVar.read", forall1 "a" $ \a -> mvar a --> ioe a)
+  , ("MVar.tryRead", forall1 "a" $ \a -> mvar a --> io (optionalt a))
   ]
   where
-  (-->) :: Ord v => Type v -> Type v -> Type v
-  a --> b = Type.arrow () a b
-  infixr -->
+  mvar :: Type v -> Type v
+  mvar a = Type.ref () Type.mvarRef `app` a
 
-  forall1 :: Var v => Text -> (Type v -> Type v) -> Type v
-  forall1 name body =
-    let
-      a = Var.named name
-    in Type.forall () a (body $ Type.var () a)
+forall1 :: Var v => Text -> (Type v -> Type v) -> Type v
+forall1 name body =
+  let
+    a = Var.named name
+  in Type.forall () a (body $ Type.var () a)
 
+app :: Ord v => Type v -> Type v -> Type v
+app = Type.app ()
 
-  either :: Ord v => Type v -> Type v -> Type v
+list :: Ord v => Type v -> Type v
+list arg = Type.vector () `app` arg
+
+optionalt :: Ord v => Type v -> Type v
+optionalt arg = DD.optionalType () `app` arg
+
+tuple :: Ord v => [Type v] -> Type v
+tuple [t] = t
+tuple ts = foldr pair (DD.unitType ()) ts
+
+pair :: Ord v => Type v -> Type v -> Type v
+pair l r = DD.pairType () `app` l `app` r
+
+(-->) :: Ord v => Type v -> Type v -> Type v
+a --> b = Type.arrow () a b
+infixr -->
+
+io, ioe :: Var v => Type v -> Type v
+io = Type.effect1 () (Type.builtinIO ())
+ioe = io . either (DD.ioErrorType ())
+  where
   either l r = DD.eitherType () `app` l `app` r
 
-  ioe = Type.effect1 () (Type.builtinIO ())
-      . either (DD.ioErrorType ())
+socket, threadId, handle, unit :: Var v => Type v
+socket = Type.socket ()
+threadId = Type.threadId ()
+handle = Type.fileHandle ()
+unit = DD.unitType ()
 
-  socket = Type.socket ()
-  threadId = Type.threadId ()
-  handle = Type.fileHandle ()
-  unit = DD.unitType ()
+fmode, bmode :: Var v => Type v
+fmode = DD.fileModeType ()
+bmode = DD.bufferModeType ()
 
-  fmode = DD.fileModeType ()
-  bmode = DD.bufferModeType ()
-
-  app :: Ord v => Type v -> Type v -> Type v
-  app = Type.app ()
-
-  int = Type.int ()
-  nat = Type.nat ()
-  bytes = Type.bytes ()
-  text = Type.text ()
-  boolean = Type.boolean ()
-
-  optional :: Ord v => Type v -> Type v
-  optional arg = DD.optionalType () `app` arg
+int, nat, bytes, text, boolean, float, char :: Var v => Type v
+int = Type.int ()
+nat = Type.nat ()
+bytes = Type.bytes ()
+text = Type.text ()
+boolean = Type.boolean ()
+float = Type.float ()
+char = Type.char ()

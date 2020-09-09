@@ -857,7 +857,10 @@ data IOp
   | SRVSCK | LISTEN | CLISCK | CLOSCK
   | SKACPT | SKSEND | SKRECV
   | THKILL | THDELY
-  deriving (Show,Eq,Ord)
+  | MVNEWF | MVNEWE | MVTAKE | MVTAKT -- new,new empty,take,trytake
+  | MVPUTB | MVPUTT | MVSWAP | MVEMPT -- put,tryput,swap,isempty
+  | MVREAD | MVREAT                   -- read,tryread
+  deriving (Show,Eq,Ord,Enum,Bounded)
 
 type ANormal = ABTN.Term ANormalBF
 type ANormalT v = ANormalTF v (ANormal v)

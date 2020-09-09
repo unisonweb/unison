@@ -30,13 +30,13 @@ module Unison.Runtime.Stack
   , peekOffN
   , pokeN
   , pokeOffN
+  , peekBi
+  , peekOffBi
+  , pokeBi
+  , pokeOffBi
   , peekOffS
   , pokeS
   , pokeOffS
-  , peekOffT
-  , pokeT
-  , peekOffB
-  , pokeB
   , uscount
   , bscount
   ) where
@@ -55,19 +55,17 @@ import Data.Primitive.PrimArray
 import Data.Primitive.Array
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Sq
-import Data.Text (Text)
 import Data.Word
 
 import Unison.Reference (Reference)
 
 import Unison.Runtime.ANF (Mem(..), unpackTags, RTag)
-import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
+import Unison.Runtime.Foreign
 
 import qualified Unison.Type as Ty
 
 import Unison.Util.EnumContainers as EC
-import Unison.Util.Bytes (Bytes)
 
 import GHC.Stack (HasCallStack)
 
@@ -472,21 +470,21 @@ pokeOffD :: Stack 'UN -> Int -> Double -> IO ()
 pokeOffD (US _ _ sp stk) i d = writeByteArray stk (sp-i) d
 {-# inline pokeOffD #-}
 
-peekOffT :: Stack 'BX -> Int -> IO Text
-peekOffT bstk i =
-  unwrapForeign . marshalToForeign <$> peekOff bstk i
-{-# inline peekOffT #-}
+pokeBi :: BuiltinForeign b => Stack 'BX -> b -> IO ()
+pokeBi bstk x = poke bstk (Foreign $ wrapBuiltin x)
+{-# inline pokeBi #-}
 
-pokeT :: Stack 'BX -> Text -> IO ()
-pokeT bstk t = poke bstk (Foreign $ wrapText t)
-{-# inline pokeT #-}
+pokeOffBi :: BuiltinForeign b => Stack 'BX -> Int -> b -> IO ()
+pokeOffBi bstk i x = pokeOff bstk i (Foreign $ wrapBuiltin x)
+{-# inline pokeOffBi #-}
 
-peekOffB :: Stack 'BX -> Int -> IO Bytes
-peekOffB bstk i = unwrapForeign . marshalToForeign <$> peekOff bstk i
-{-# inline peekOffB #-}
+peekBi :: BuiltinForeign b => Stack 'BX -> IO b
+peekBi bstk = unwrapForeign . marshalToForeign <$> peek bstk
+{-# inline peekBi #-}
 
-pokeB :: Stack 'BX -> Bytes -> IO ()
-pokeB bstk b = poke bstk (Foreign $ wrapBytes b)
+peekOffBi :: BuiltinForeign b => Stack 'BX -> Int -> IO b
+peekOffBi bstk i = unwrapForeign . marshalToForeign <$> peekOff bstk i
+{-# inline peekOffBi #-}
 
 peekOffS :: Stack 'BX -> Int -> IO (Seq Closure)
 peekOffS bstk i =
