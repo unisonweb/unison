@@ -14,8 +14,10 @@ referred to by `Reference`. Builtin, opaque data types use the
 use are listed in the `Unison.Type` module, so we'll add a definition
 there:
 
-> mvarRef :: Reference
-> mvarRef = Reference.Builtin "MVar"
+```haskell
+mvarRef :: Reference
+mvarRef = Reference.Builtin "MVar"
+```
 
 This definition alone won't do anything, however. It is merely
 something for other definitions to refer to. If the reference is used
@@ -30,14 +32,18 @@ values that describe various builtin type related actions to be
 performed during that command. In this case, we will add two values to
 the list:
 
-> B' "MVar" CT.Data
+```haskell
+B' "MVar" CT.Data
+```
 
 This specifies that there should be a builtin data type referring to
 the `Builtin "MVar"` reference. The codebase name assigned to this is
 the same as the reference (MVar here), but nested in the `builtin`
 namespace. However, we will also add the value:
 
-> Rename' "MVar" "io2.MVar"
+```haskell
+Rename' "MVar" "io2.MVar"
+```
 
 because this is a type to be used with the new IO functions, which are
 currently nested under the `io2` namespace. With both of these added
@@ -67,10 +73,12 @@ Builtin functions also have an associated type as part of the initial
 declaration. So for the complete specification of a function, we will
 add declarations similar to:
 
-> B "MVar.new" $ forall1 "a" (\a -> a --> io (mvar a))
-> Rename "MVar.new" "io2.MVar.new"
-> B "MVar.take" $ forall1 "a" (\a -> mvar a --> ioe a)
-> Rename "MVar.take" "io2.MVar.take"
+```haskell
+B "MVar.new" $ forall1 "a" (\a -> a --> io (mvar a))
+Rename "MVar.new" "io2.MVar.new"
+B "MVar.take" $ forall1 "a" (\a -> mvar a --> ioe a)
+Rename "MVar.take" "io2.MVar.take"
+```
 
 The `forall1`, `io`, `ioe` and `-->` functions are local definitions
 in `Unison.Builtin` for assistance in writing the types. `ioe`
@@ -78,8 +86,10 @@ indicates that an error result may be returned, while `io` should
 always succeed.  `mvar` can be defined locally using some other
 helpers in scope:
 
-> mvar :: Var v => Type v -> Type v
-> mvar a = Type.ref () Type.mvarRef `app` a
+```haskell
+mvar :: Var v => Type v -> Type v
+mvar a = Type.ref () Type.mvarRef `app` a
+```
 
 For the actual `MVar` implementation, we'll be doing many definitions
 followed by renames, so it'll be factored into a list of the name and
@@ -98,8 +108,10 @@ The first step is to add to the builtin operations list in
 in `Unison.Builtin` with intermediate code forms that the new runtime
 should use. In this case we can add:
 
-> ("MVar.new", ioComb mvar'new)
-> ("MVar.take", ioComb mvar'take)
+```haskell
+("MVar.new", ioComb mvar'new)
+("MVar.take", ioComb mvar'take)
+```
 
 and plan to implement `mvar'new` and `mvar'take`. `ioComb` is a helper
 function that factors out some of the repetitive aspects of dealing
@@ -116,21 +128,23 @@ an `MVar`.
 
 Then we must wrap these 'opcodes' like so:
 
-> mvar'new :: IOOP
-> mvar'new avoid
->   = ([BX],)
->   . TAbs init
->   $ TIOp MVNEWF [init]
->   where
->   [init] = freshes' avoid 1
+```haskell
+mvar'new :: IOOP
+mvar'new avoid
+  = ([BX],)
+  . TAbs init
+  $ TIOp MVNEWF [init]
+  where
+  [init] = freshes' avoid 1
 
-> mvar'take :: IOOP
-> mvar'take avoid
->   = ([BX],)
->   . TAbs mv
->   $ io'error'result'direct MVTAKE [mv] ior e r
->   where
->   [mv,ior,e,r] = freshes' avoid 4
+mvar'take :: IOOP
+mvar'take avoid
+  = ([BX],)
+  . TAbs mv
+  $ io'error'result'direct MVTAKE [mv] ior e r
+  where
+  [mv,ior,e,r] = freshes' avoid 4
+```
 
 The breakdown of what is happening here is as follows:
 - `avoid` is a set of variables that are not fresh, and should be
@@ -156,9 +170,11 @@ Finally, we need to provide an implementation for the 'opcode' we
 defined. In this case, we need to add a case to `iopToForeign` also in
 `Unison.Runtime.Builtin`. This will be simple, just:
 
-> iopToForeign ANF.MVNEWF = mkForeign $ \(c :: Closure) -> newMVar c
-> iopToForeign ANF.MVTAKE
->   = mkForeignIOE $ \(mv :: MVar Closure) -> takeMVar mv
+```haskell
+iopToForeign ANF.MVNEWF = mkForeign $ \(c :: Closure) -> newMVar c
+iopToForeign ANF.MVTAKE
+  = mkForeignIOE $ \(mv :: MVar Closure) -> takeMVar mv
+```
 
 The `mkForeignIOE` function inserts some code for catching exceptions
 and explicitly returning them from the function.
@@ -170,9 +186,11 @@ instance in `Unison.Runtime.Foreign.Function` that specifies how to
 automatically marshal `MVar Closure`, which is the representation
 we'll be using.
 
-> instance ForeignConvention (MVar Closure) where
->   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
->   writeForeign = writeForeignAs (Foreign . Wrap mvarRef)
+```haskell
+instance ForeignConvention (MVar Closure) where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap mvarRef)
+```
 
 This takes advantage of the `Closure` instance, and uses helper
 functions that apply (un)wrappers from another convention.
