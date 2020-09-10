@@ -139,6 +139,7 @@ library
     Unison.Runtime.Vector
     Unison.Runtime.SparseVector
     Unison.Runtime.Stack
+    Unison.Server.CodebaseServer
     Unison.TermParser
     Unison.TermPrinter
     Unison.TypeParser
@@ -176,6 +177,7 @@ library
     Unison.Util.CyclicOrd
 
   build-depends:
+    aeson,
     ansi-terminal,
     async,
     base,
@@ -225,6 +227,7 @@ library
     regex-base,
     regex-tdfa,
     safe,
+    servant,
     shellmet,
     split,
     stm,
@@ -237,8 +240,9 @@ library
     unison-core,
     unliftio,
     util,
+    unicode-show,
     vector,
-    unicode-show
+    warp
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
