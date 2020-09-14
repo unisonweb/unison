@@ -1,54 +1,55 @@
 {-# Language GADTs #-}
+{-# Language TypeOperators #-}
 
 module Unison.Runtime.Vector where
 
 import Unison.Prelude
+import qualified Data.Vector as V
+-- import qualified Data.Vector.Unboxed as UV
 
-import qualified Data.MemoCombinators as Memo
-import qualified Data.Vector.Unboxed as UV
+data Vector ix a = Vector { bounds :: ix, at :: ix -> Maybe a }
 
--- A `Vec a` denotes a `Nat -> Maybe a`
-data Vec a where
-  Scalar :: a -> Vec a
-  Vec :: UV.Unbox a => UV.Vector a -> Vec a
-  Pair :: Vec a -> Vec b -> Vec (a, b)
-  Choose :: Vec Bool -> Vec a -> Vec a -> Vec a
-  Mux :: Vec Nat -> Vec (Vec a) -> Vec a
+data a :. b = a :. b
 
--- todo: maybe make representation `(UV.Vector Nat -> UnboxedMap Nat a, Bound)`
--- `UnboxedMap Nat a = (UV.Vector Nat, UV.Vector a)`
--- UnboxedMap Nat could be implemented as an `UArray`
--- `Bound` is Nat, max possible index
--- then easy to implement `+`, `-`, etc
+unsnoc :: (a :. b) -> a
+unsnoc (a :. _) = a
 
-type Nat = Word64
+fromList :: [a] -> Vector (() :. Int) a
+fromList as =
+  Vector (() :. V.length vs) (\(() :. i) -> vs V.!? i)
+  where vs = V.fromList as
 
-mu :: Vec a -> Nat -> Maybe a
-mu v = case v of
-  Scalar a -> const (Just a)
-  Vec vs -> \i -> vs UV.!? fromIntegral i
-  Choose cond t f -> let
-    (condr, tr, tf) = (mu cond, mu t, mu f)
-    in \i -> condr i >>= \b -> if b then tr i else tf i
-  Mux mux branches -> let
-    muxr = mu mux
-    branchesr = Memo.integral $ let f = mu branches in \i -> mu <$> f i
-    in \i -> do j <- muxr i; b <- branchesr j; b i
-  Pair v1 v2 -> let
-    (v1r, v2r) = (mu v1, mu v2)
-    in \i -> liftA2 (,) (v1r i) (v2r i)
+compose :: Vector ix ix2 -> Vector ix2 a -> Vector ix a
+compose v1 v2 = Vector (bounds v1) at' where
+  at' ix = at v2 =<< at v1 ix
 
--- Returns the maximum `Nat` for which `mu v` may return `Just`.
-bound :: Nat -> Vec a -> Nat
-bound width v = case v of
-  Scalar _ -> width
-  Vec vs -> fromIntegral $ UV.length vs
-  Pair v1 v2 -> bound width v1 `min` bound width v2
-  Choose cond _ _ -> bound width cond
-  Mux mux _ -> bound width mux
+replicate :: Ord i => i -> Vector ix a -> Vector (ix :. i) a
+replicate imax v = Vector (bounds v :. imax) at' where
+  at' (ix :. i) | i <= imax = at v ix
+                | otherwise = Nothing
 
-toList :: Vec a -> [a]
-toList v = let
-  n = bound maxBound v
-  muv = mu v
-  in catMaybes $ muv <$> [0..n]
+scalar :: a -> Vector () a
+scalar a = Vector () (const $ Just a)
+
+pmap :: (a -> Maybe b) -> Vector ix a -> Vector ix b
+pmap f v = Vector (bounds v) (\ix -> at v ix >>= f)
+
+instance Functor (Vector ix) where
+  fmap f = pmap (Just . f)
+
+plus, minus, times :: (Ord ix, Num a) => Vector ix a -> Vector ix a -> Vector ix a
+v1 `plus` v2 = Vector (bounds v1 `min` bounds v2) at' where
+  at' ix = (+) <$> at v1 ix <*> at v2 ix
+v1 `minus` v2 = Vector (bounds v1 `min` bounds v2) at' where
+  at' ix = (-) <$> at v1 ix <*> at v2 ix
+v1 `times` v2 = Vector (bounds v1 `min` bounds v2) at' where
+  at' ix = (*) <$> at v1 ix <*> at v2 ix
+
+prefixSum :: Num a => Vector (ix :. Int) a -> Vector (ix :. Int) a
+prefixSum _v = undefined
+
+sum :: Num a => Vector (ix :. Int) a -> Vector ix a
+sum v = Vector (unsnoc (bounds v)) at' where
+  at' ix = Just $ foldl' (+) 0 [ a | i <- [0..maxi], Just a <- [at v (ix :. i)] ]
+  maxi = case bounds v of
+    _ :. i -> i
