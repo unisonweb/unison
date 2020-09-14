@@ -9,6 +9,10 @@ import qualified Data.Vector as V
 
 data Vector ix a = Vector { bounds :: ix, at :: ix -> Maybe a }
 
+-- data Vector ix a = Vector { bounds :: ix, at :: UV.Vector ix -> UV.Vector (ix, a) }
+-- fromSum :: (Unbox a, Unbox b) => [Either a b] -> Vector (() :. Int) (Either a b)
+-- fromList :: Unbox a => [a] -> Vector (() :. Int) a
+
 data a :. b = a :. b
 
 unsnoc :: (a :. b) -> a
