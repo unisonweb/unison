@@ -1025,6 +1025,23 @@ fork'comp avoid
   where
   [lz] = freshes' avoid 3
 
+delay'thread :: IOOP
+delay'thread avoid
+  = ([BX],)
+  . TAbs n0
+  . unbox n0 Ty.natRef n
+  $ io'error'result'unit THDELY [n] ior e r
+  where
+  [n0,n,ior,e,r] = freshes' avoid 5
+
+kill'thread :: IOOP
+kill'thread avoid
+  = ([BX],)
+  . TAbs tid
+  $ io'error'result'unit THKILL [tid] ior e r
+  where
+  [tid,ior,e,r] = freshes' avoid 4
+
 mvar'new :: IOOP
 mvar'new avoid
   = ([BX],)
@@ -1301,6 +1318,8 @@ builtinLookup
   , ("IO.socketSend", ioComb socket'send)
   , ("IO.socketReceive", ioComb socket'receive)
   , ("IO.forkComp", ioComb fork'comp)
+  , ("IO.delay", ioComb delay'thread)
+  , ("IO.kill", ioComb kill'thread)
   , ("IO.stdHandle", ioComb standard'handle)
 
   , ("MVar.new", ioComb mvar'new)

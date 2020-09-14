@@ -446,6 +446,8 @@ ioBuiltins =
   , ("IO.forkComp"
     , forall1 "a" $ \a -> (unit --> ioe a) --> ioe threadId)
   , ("IO.stdHandle", nat --> optionalt handle)
+  , ("IO.delay", nat --> ioe unit)
+  , ("IO.kill", threadId --> ioe unit)
   ]
 
 mvarBuiltins :: forall v. Var v => [(Text, Type v)]
