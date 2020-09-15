@@ -1,8 +1,0 @@
-use Float ceiling floor round truncate
-
-> (ceiling 1.1,
-   floor 1.7,
-   round 1.1,
-   round 1.7,
-   truncate 1.1,
-   truncate -1.1)

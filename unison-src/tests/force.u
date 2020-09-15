@@ -1,9 +1,0 @@
-ability Woot where woot : {Woot} Text
-
-force : '{e} a ->{e} a
-force a = !a
-
-ex : '{Woot} Text
-ex = '(force 'Woot.woot)
-
-> ex

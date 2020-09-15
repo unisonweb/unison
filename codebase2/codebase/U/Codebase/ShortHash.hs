@@ -1,0 +1,15 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+
+module U.Codebase.ShortHash where
+
+import Data.Text (Text)
+import Data.Word (Word64)
+
+data ShortHash
+  = Builtin Text
+  | ShortHash { prefix :: Text, cycle :: Maybe Word64, cid :: Maybe Word64 }
+  deriving (Eq, Ord, Show)
+
+data ShortBranchHash = ShortBranchHash { toText :: Text } deriving (Eq, Ord, Show)

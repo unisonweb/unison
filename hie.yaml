@@ -1,37 +1,31 @@
 cradle:
-  multi:
-    - path: "./"
-      config:
-        cradle:
-          stack:
-            - path: "./parser-typechecker/src"
-              component: "unison-parser-typechecker:lib"
-            - path: "./parser-typechecker/unison"
-              component: "unison-parser-typechecker:exe:unison"
-            - path: "./parser-typechecker/prettyprintdemo"
-              component: "unison-parser-typechecker:exe:prettyprintdemo"
-            - path: "./parser-typechecker/tests"
-              component: "unison-parser-typechecker:exe:tests"
-            - path: "./parser-typechecker/transcripts"
-              component: "unison-parser-typechecker:exe:transcripts"
+  stack:
+    - path: "codebase1/codebase/."
+      component: "unison-codebase1:lib"
 
-            - path: "./unison-core/src"
-              component: "unison-core:lib"
+    - path: "codebase2/codebase/."
+      component: "unison-codebase:lib"
 
-            - path: "./yaks/easytest/src"
-              component: "easytest:lib"
-            - path: "./yaks/easytest/tests"
-              component: "easytest:exe:runtests"
+    - path: "codebase2/codebase-sqlite/."
+      component: "unison-codebase-sqlite:lib"
 
-    # Attempt to skip ./unison-src/parser-tests/GenerateErrors.hs
-    # which doesn't have a corresponding cabal file.
-    #
-    # This is the skipping strategy suggested by:
-    # https://github.com/mpickering/hie-bios/tree/7f298424e30e0453dc21062ffa543998a2145ab6#ignoring-directories
-    # but it isn't working for some reason.
-    #
-    # Until it does you can expect to see "1 file failed" in the ghcide output.
-    - path: "./unison-src"
-      config:
-        cradle:
-          none:
+    - path: "codebase2/core/."
+      component: "unison-core:lib"
+
+    - path: "codebase2/editor/."
+      component: "unison-editor:lib"
+
+    - path: "codebase2/language/."
+      component: "unison-language:lib"
+
+    - path: "codebase2/runtime/."
+      component: "unison-runtime:lib"
+
+    - path: "codebase2/syntax/."
+      component: "unison-syntax:lib"
+
+    - path: "codebase2/util/."
+      component: "unison-util:lib"
+
+    - path: "codebase2/util-serialization/."
+      component: "unison-util-serialization:lib"

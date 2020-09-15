@@ -1,4 +1,0 @@
-f2 : forall a . a -> a -> a
-f2 x = x
-
-()

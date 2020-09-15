@@ -1,3 +1,0 @@
-if-without-condition.u:1:10:
-unexpected then
-    1 | foo = if then 4 else 8

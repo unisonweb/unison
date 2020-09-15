@@ -1,3 +1,0 @@
-empty-match-list.u:3:5:
-unexpected =
-    3 | bar = 3

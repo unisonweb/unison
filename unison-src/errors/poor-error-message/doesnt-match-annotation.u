@@ -1,5 +1,0 @@
-crazyTuple : a -> b -> (a,b)-- -> (a,b)
-crazyTuple a b c = c
-
-()
-

@@ -1,3 +1,0 @@
-arrow : Int -> Int -> Int
-arrow a = 3
-()

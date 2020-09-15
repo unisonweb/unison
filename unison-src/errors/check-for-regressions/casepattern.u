@@ -1,3 +1,0 @@
-match 3 with
-  3 -> "Great!"
-  "Great" -> "Terrible."

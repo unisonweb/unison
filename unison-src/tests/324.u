@@ -1,7 +1,0 @@
-foo a b =
-  if a Text.== "" then
-    match Text.size b with
-      1 -> false
-      _ -> true
-  else
-    true

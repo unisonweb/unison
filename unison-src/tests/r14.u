@@ -1,4 +1,0 @@
-r14 : (forall a . a -> a) -> (Nat, Text)
-r14 id = (id 10, id "foo")
-
-

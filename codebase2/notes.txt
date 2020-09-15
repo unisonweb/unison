@@ -1,0 +1,3 @@
+Decision: 
+ Try to reuse ABT.hashComponent stuff as-is? 
+ Or rejigger it to be more general/lovely/etc.? <-- choosing

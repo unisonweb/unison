@@ -1,3 +1,0 @@
-test : [a] -> ([a], [a])
-test l = match l with
-  x ++ y -> (x, y)

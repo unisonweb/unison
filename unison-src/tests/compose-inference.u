@@ -1,4 +1,0 @@
-
-f `compose` g = x -> f (g x)
-
-> compose

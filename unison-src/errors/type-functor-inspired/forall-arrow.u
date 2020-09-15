@@ -1,3 +1,0 @@
-id : forall a . a -> a
-id x = 3
-()

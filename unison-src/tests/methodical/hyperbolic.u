@@ -1,8 +1,0 @@
-use Float acosh asinh atanh cosh sinh tanh
-
-> (acosh 1.0,
-   asinh 0.0,
-   atanh 0.0,
-   cosh 0.0,
-   sinh 0.0,
-   tanh 0.0)

@@ -1,3 +1,0 @@
-foo n = match n with
-
-bar = 3

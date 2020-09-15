@@ -1,3 +1,0 @@
-match 3 with
-  3 -> 4
-  4 -> "Surprise!"

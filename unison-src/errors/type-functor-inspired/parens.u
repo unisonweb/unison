@@ -1,4 +1,0 @@
-type Optional a = Some a | None
-y : (Optional Int)
-y = 3
-()
