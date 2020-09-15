@@ -4,9 +4,39 @@
 module Unison.Runtime.Vector where
 
 import Unison.Prelude
-import qualified Data.Vector as V
--- import qualified Data.Vector.Unboxed as UV
+-- import qualified Data.Vector as V
+import qualified Data.Vector.Unboxed as UV
 
+data Vec a where
+  Ints    :: UV.Vector Int -> Vec Int
+  Words   :: UV.Vector Word -> Vec Word
+  Bytes   :: UV.Vector Word8 -> Vec Word8
+  Bools   :: UV.Vector Bool -> Vec Bool
+  Pair    :: Vec a -> Vec b -> Vec (a, b)
+  Units   :: Int -> Vec ()
+  -- to get kth index, get the kth element of the Vector Int:
+  --   if negative, it's `Left`, value is found in 1-based index into the `Vec a`
+  --   if positive, it's `Right`, value is found in 1-based index into the `Vec b`
+  Eithers :: UV.Vector Int -> Vec a -> Vec b -> Vec (Either a b)
+
+data Tensor ix a = Tensor { bounds :: ix, at :: Vec ix -> Vec (ix, a) }
+
+_1 :: Vec (a,b) -> Vec a
+_1 (Pair a _) = a
+
+_2 :: Vec (a,b) -> Vec b
+_2 (Pair _ b) = b
+
+compose :: Tensor ix ix2 -> Tensor ix2 a -> Tensor ix a
+compose v1 v2 = Tensor (bounds v1) at' where
+  at' ix = let ix2s = at v1 ix
+               as   = at v2 (_2 ix2s)
+           -- not quite right since the second `at` may drop
+           -- further elements - want to do some inner-join kind of thing here
+           -- maybe have at return (Vec a, Vec Int) of indices dropped
+           in Pair (_1 ix2s) (_2 as)
+
+{-
 data Vector ix a = Vector { bounds :: ix, at :: ix -> Maybe a }
 
 -- data Vector ix a = Vector { bounds :: ix, at :: UV.Vector ix -> UV.Vector (ix, a) }
@@ -57,3 +87,4 @@ sum v = Vector (unsnoc (bounds v)) at' where
   at' ix = Just $ foldl' (+) 0 [ a | i <- [0..maxi], Just a <- [at v (ix :. i)] ]
   maxi = case bounds v of
     _ :. i -> i
+-}
