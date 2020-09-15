@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #mbok83u09o
+  ⊙ #bof7ljhk4e
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #u53od2so90
+  ⊙ #f10e7ivnt7
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #drgfm4pkk8
+  ⊙ #ckoq0pumq4
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #kt6vuoajil
+  ⊙ #hjs0h1o8po
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #n187cml1um
+  ⊙ #qhckem9e6s
   
     + Adds / updates:
     
       x
   
-  ⊙ #r3il860k10
+  ⊙ #7v5brelc5r
   
     + Adds / updates:
     
@@ -226,19 +226,21 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.FileMode.Write builtin.io2.Handle
       builtin.io2.IO builtin.io2.IO.clientSocket
       builtin.io2.IO.closeFile builtin.io2.IO.closeSocket
-      builtin.io2.IO.createDirectory builtin.io2.IO.fileExists
-      builtin.io2.IO.forkComp builtin.io2.IO.getBuffering
+      builtin.io2.IO.createDirectory builtin.io2.IO.delay
+      builtin.io2.IO.fileExists builtin.io2.IO.forkComp
+      builtin.io2.IO.getBuffering
       builtin.io2.IO.getCurrentDirectory
       builtin.io2.IO.getFileSize builtin.io2.IO.getFileTimestamp
       builtin.io2.IO.getLine builtin.io2.IO.getTempDirectory
       builtin.io2.IO.getText builtin.io2.IO.handlePosition
       builtin.io2.IO.isDirectory builtin.io2.IO.isFileEOF
       builtin.io2.IO.isFileOpen builtin.io2.IO.isSeekable
-      builtin.io2.IO.listen builtin.io2.IO.openFile
-      builtin.io2.IO.putText builtin.io2.IO.removeDirectory
-      builtin.io2.IO.removeFile builtin.io2.IO.renameDirectory
-      builtin.io2.IO.renameFile builtin.io2.IO.seekHandle
-      builtin.io2.IO.serverSocket builtin.io2.IO.setBuffering
+      builtin.io2.IO.kill builtin.io2.IO.listen
+      builtin.io2.IO.openFile builtin.io2.IO.putText
+      builtin.io2.IO.removeDirectory builtin.io2.IO.removeFile
+      builtin.io2.IO.renameDirectory builtin.io2.IO.renameFile
+      builtin.io2.IO.seekHandle builtin.io2.IO.serverSocket
+      builtin.io2.IO.setBuffering
       builtin.io2.IO.setCurrentDirectory
       builtin.io2.IO.socketAccept builtin.io2.IO.socketReceive
       builtin.io2.IO.socketSend builtin.io2.IO.stdHandle
