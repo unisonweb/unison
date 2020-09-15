@@ -222,4 +222,5 @@ startRuntime = do
            ctx <- pure $ compileTerm init tm ctx
            evalInContext ppe ctx init
        , mainType = builtinMain External
+       , needsContainment = True
        }
