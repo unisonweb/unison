@@ -8,32 +8,34 @@
 module U.Util.Serialization where
 
 import Control.Monad (replicateM)
-import Data.Bits (setBit, shiftR, clearBit, (.|.), shiftL, testBit, Bits)
+import Data.Bits ((.|.), Bits, clearBit, setBit, shiftL, shiftR, testBit)
 import Data.ByteString (ByteString, readFile, writeFile)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Short as BSS
 import Data.ByteString.Short (ShortByteString)
-import Data.Bytes.Get (getWord8, MonadGet, getByteString, getBytes, runGetS, skip)
-import Data.Bytes.Put (putWord8, MonadPut, putByteString, runPutS)
-import Data.Bytes.VarInt (VarInt(VarInt))
+import Data.Bytes.Get (MonadGet, getByteString, getBytes, getWord8, runGetS, skip)
+import Data.Bytes.Put (MonadPut, putByteString, putWord8, runPutS)
+import Data.Bytes.VarInt (VarInt (VarInt))
 import Data.Foldable (Foldable (toList), traverse_)
 import Data.List.Extra (dropEnd)
+import Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Data.Vector (Vector)
-import qualified Data.Vector as Vector
 import Data.Text.Short (ShortText)
 import qualified Data.Text.Short as TS
 import qualified Data.Text.Short.Unsafe as TSU
+import Data.Vector (Vector)
+import qualified Data.Vector as Vector
+import Data.Word (Word8)
 import System.FilePath (takeDirectory)
 import UnliftIO (MonadIO, liftIO)
 import UnliftIO.Directory (createDirectoryIfMissing, doesFileExist)
 import Prelude hiding (readFile, writeFile)
-import Data.Word (Word8)
 
 type Get a = forall m. MonadGet m => m a
-type Put a = forall m. MonadPut m => a -> m ()
 
+type Put a = forall m. MonadPut m => a -> m ()
 
 -- todo: do we use this?
 data Format a = Format
@@ -74,15 +76,15 @@ putVarInt n
 {-# INLINE putVarInt #-}
 
 getVarInt :: (MonadGet m, Num b, Bits b) => m b
-getVarInt = getWord8 >>= getVarInt 
+getVarInt = getWord8 >>= getVarInt
   where
-  getVarInt :: (MonadGet m, Num b, Bits b) => Word8 -> m b
-  getVarInt n
-    | testBit n 7 = do
-      VarInt m <- getWord8 >>= getVarInt
-      return $ shiftL m 7 .|. clearBit (fromIntegral n) 7
-    | otherwise = return $ fromIntegral n
-  {-# INLINE getVarInt #-}
+    getVarInt :: (MonadGet m, Num b, Bits b) => Word8 -> m b
+    getVarInt n
+      | testBit n 7 = do
+        VarInt m <- getWord8 >>= getVarInt
+        return $ shiftL m 7 .|. clearBit (fromIntegral n) 7
+      | otherwise = return $ fromIntegral n
+    {-# INLINE getVarInt #-}
 {-# INLINE getVarInt #-}
 
 putText :: MonadPut m => Text -> m ()
@@ -137,6 +139,11 @@ getVector :: MonadGet m => m a -> m (Vector a)
 getVector getA = do
   length <- getVarInt
   Vector.replicateM length getA
+
+getSequence :: MonadGet m => m a -> m (Seq a)
+getSequence getA = do
+  length <- getVarInt
+  Seq.replicateM length getA
 
 getFramed :: MonadGet m => Get a -> m (Maybe a)
 getFramed get = do

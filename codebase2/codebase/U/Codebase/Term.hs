@@ -14,11 +14,11 @@ import Data.Int (Int64)
 import Data.Sequence (Seq)
 import Data.Text (Text)
 import Data.Word (Word64)
-import U.Util.Hash (Hash)
 import GHC.Generics (Generic, Generic1)
 import U.Codebase.Reference (Reference, Reference')
 import U.Codebase.Referent (Referent')
 import U.Codebase.Type (TypeR)
+import U.Util.Hash (Hash)
 import qualified U.Core.ABT as ABT
 import qualified U.Util.Hashable as H
 
@@ -74,29 +74,29 @@ data F' text termRef typeRef termLink typeLink vt a
     --   Match x
     --     [ (Constructor 0 [Var], ABT.abs n rhs1)
     --     , (Constructor 1 [], rhs2) ]
-    Match a [MatchCase typeRef a]
+    Match a [MatchCase text typeRef a]
   | TermLink termLink
   | TypeLink typeLink
   deriving (Foldable, Functor, Traversable)
 
-data MatchCase r a = MatchCase (Pattern r) (Maybe a) a
+data MatchCase t r a = MatchCase (Pattern t r) (Maybe a) a
   deriving (Foldable, Functor, Generic, Generic1, Traversable)
 
-data Pattern r
+data Pattern t r
   = PUnbound
   | PVar
   | PBoolean !Bool
   | PInt !Int64
   | PNat !Word64
   | PFloat !Double
-  | PText !Text
+  | PText !t
   | PChar !Char
-  | PConstructor !r !Int [Pattern r]
-  | PAs (Pattern r)
-  | PEffectPure (Pattern r)
-  | PEffectBind !r !Int [Pattern r] (Pattern r)
-  | PSequenceLiteral [Pattern r]
-  | PSequenceOp (Pattern r) !SeqOp (Pattern r)
+  | PConstructor !r !Int [Pattern t r]
+  | PAs (Pattern t r)
+  | PEffectPure (Pattern t r)
+  | PEffectBind !r !Int [Pattern t r] (Pattern t r)
+  | PSequenceLiteral [Pattern t r]
+  | PSequenceOp (Pattern t r) !SeqOp (Pattern t r)
   deriving (Generic, Functor, Foldable, Traversable)
 
 data SeqOp
