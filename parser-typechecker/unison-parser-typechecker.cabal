@@ -181,6 +181,7 @@ library
     base,
     base16 >= 0.2.1.0,
     bifunctors,
+    bitvec,
     bytes,
     bytestring,
     cereal,
