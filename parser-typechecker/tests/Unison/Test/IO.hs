@@ -22,8 +22,8 @@ import Unison.Symbol (Symbol)
 
 -- * IO Tests
 
-test :: Bool -> Test ()
-test newRt = scope "IO" . tests $ [ testHandleOps newRt ]
+test :: Test ()
+test = scope "IO" . tests $ [ testHandleOps ]
 
 -- * Implementation
 
@@ -31,13 +31,13 @@ test newRt = scope "IO" . tests $ [ testHandleOps newRt ]
 --
 -- The transcript writes expectedText to a file, reads the same file and
 -- writes the read text to the result file which is then checked by the haskell.
-testHandleOps :: Bool -> Test ()
-testHandleOps newRt =
+testHandleOps :: Test ()
+testHandleOps =
   withScopeAndTempDir "handleOps" $ \workdir codebase cache -> do
   let myFile = workdir </> "handleOps.txt"
       resultFile = workdir </> "handleOps.result"
       expectedText = "Good Job!" :: Text.Text
-  runTranscript_ newRt workdir codebase cache [iTrim|
+  runTranscript_ False workdir codebase cache [iTrim|
 ```ucm:hide
 .> builtins.mergeio
 ```
