@@ -32,6 +32,9 @@ import System.FilePath (takeDirectory)
 import UnliftIO (MonadIO, liftIO)
 import UnliftIO.Directory (createDirectoryIfMissing, doesFileExist)
 import Prelude hiding (readFile, writeFile)
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Control.Applicative (Applicative(liftA2))
 
 type Get a = forall m. MonadGet m => m a
 
@@ -196,3 +199,15 @@ unsafeFramedArrayLookup getA index = do
   offsets <- getVector getVarInt
   skip (Vector.unsafeIndex offsets index)
   getA
+
+putMap :: MonadPut m => (a -> m ()) -> (b -> m ()) -> Map a b -> m ()
+putMap putA putB m = putFoldable (putPair putA putB) (Map.toList m)
+
+getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
+getMap getA getB = Map.fromList <$> getList (getPair getA getB)
+
+putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()
+putPair putA putB (a,b) = putA a *> putB b
+
+getPair :: MonadGet m => m a -> m b -> m (a,b)
+getPair = liftA2 (,)

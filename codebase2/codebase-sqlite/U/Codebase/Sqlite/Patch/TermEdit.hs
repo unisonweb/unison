@@ -1,8 +1,8 @@
 module U.Codebase.Sqlite.Patch.TermEdit where
 
-import U.Codebase.Sqlite.Reference (Reference)
+import U.Codebase.Sqlite.Referent (Referent)
 
-data TermEdit = Replace Reference Typing | Deprecate
+data TermEdit = Replace Referent Typing | Deprecate
   deriving (Eq, Ord, Show)
 
 -- Replacements with the Same type can be automatically propagated.

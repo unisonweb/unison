@@ -18,6 +18,6 @@ newtype TextId = TextId Word64 deriving (Eq, Ord, Show) deriving (Num, Real, Enu
 
 newtype TermId = TermId Word64 deriving (Eq, Ord, Show) deriving (Hashable, FromField, ToField) via ObjectId
 newtype DeclId = DeclId Word64 deriving (Eq, Ord, Show) deriving (Hashable, FromField, ToField) via ObjectId
-newtype PatchId = PatchId Word64 deriving (Eq, Ord, Show) deriving (Hashable, FromField, ToField) via ObjectId
+newtype PatchId = PatchId Word64 deriving (Eq, Ord, Show) deriving (Num, Real, Enum, Integral, Bits, Hashable, FromField, ToField) via ObjectId
 
-newtype BranchId = BranchId Word64 deriving (Eq, Ord, Show) deriving (Hashable, FromField, ToField) via Word64
+newtype BranchId = BranchId Word64 deriving (Eq, Ord, Show) deriving (Num, Real, Enum, Integral, Bits, Hashable, FromField, ToField) via Word64

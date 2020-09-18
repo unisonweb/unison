@@ -19,7 +19,7 @@ type ConstructorIndex = Word64
 data Referent' rTm rTp
   = Ref rTm
   | Con rTp ConstructorIndex
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 instance Hashable Referent where
   tokens (Ref r) = Hashable.Tag 0 : Hashable.tokens r
@@ -29,5 +29,5 @@ type Id = Id' Hash Hash
 data Id' hTm hTp
   = RefId (Reference.Id' hTm)
   | ConId (Reference.Id' hTp) ConstructorIndex
-  deriving (Eq, Ord, Functor)
+  deriving (Eq, Ord, Show, Functor)
 

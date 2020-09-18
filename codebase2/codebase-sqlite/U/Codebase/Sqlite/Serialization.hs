@@ -20,8 +20,9 @@ import qualified U.Codebase.Reference as Reference
 import U.Codebase.Referent (Referent')
 import qualified U.Codebase.Referent as Referent
 import U.Codebase.Sqlite.LocalIds
-import qualified U.Codebase.Sqlite.Term.Format as TermFormat
+import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
+import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import U.Codebase.Sqlite.Symbol
 import qualified U.Codebase.Term as Term
 import qualified U.Codebase.Type as Type
@@ -29,6 +30,12 @@ import qualified U.Core.ABT as ABT
 import U.Util.Serialization
 import Prelude hiding (getChar, putChar)
 import qualified U.Codebase.Decl as Decl
+import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
+import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
+import qualified U.Codebase.Sqlite.Patch.Diff as PatchDiff
+import qualified U.Codebase.Sqlite.Branch.MetadataSet as MetadataSet
+import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
+import qualified U.Codebase.Sqlite.Patch.TypeEdit as TypeEdit
 
 putABT ::
   (MonadPut m, Foldable f, Functor f, Ord v) =>
@@ -93,11 +100,11 @@ put/get/write/read
 - [x][x][ ][ ] term component
 - [x][x][ ][ ] types of terms
 - [x][x][ ][ ] decl component
-- [ ][ ][ ][ ] causal
-- [ ][ ][ ][ ] full branch
-- [ ][ ][ ][ ] diff branch
+- [-][-][ ][ ] causal
+- [x][ ][ ][ ] full branch
+- [x][ ][ ][ ] diff branch
 - [ ][ ][ ][ ] full patch
-- [ ][ ][ ][ ] diff patch
+- [x][ ][ ][ ] diff patch
 - [ ] O(1) framed array access?
 
 - [ ] add to dependents index
@@ -182,20 +189,11 @@ putTermComponent TermFormat.LocallyIndexedComponent {..} = do
       Term.Char c ->
         putWord8 19 *> putChar c
       Term.TermLink r ->
-        putWord8 20 *> putReferent r
+        putWord8 20 *> putReferent putRecursiveReference putReference r
       Term.TypeLink r ->
         putWord8 21 *> putReference r
     putTermElement :: MonadPut m => TermFormat.Term -> m ()
     putTermElement = putABT putSymbol putUnit putF
-    putReferent :: MonadPut m => Referent' TermFormat.TermRef TermFormat.TypeRef -> m ()
-    putReferent = \case
-      Referent.Ref r -> do
-        putWord8 0
-        putRecursiveReference r
-      Referent.Con r i -> do
-        putWord8 1
-        putReference r
-        putVarInt i
     putMatchCase :: MonadPut m => (a -> m ()) -> Term.MatchCase TermFormat.LocalTextId TermFormat.TypeRef a -> m ()
     putMatchCase putChild (Term.MatchCase pat guard body) =
       putPattern pat *> putMaybe putChild guard *> putChild body
@@ -333,51 +331,117 @@ getType getReference = getABT getSymbol getUnit go
 putDeclFormat :: MonadPut m => DeclFormat.DeclFormat -> m ()
 putDeclFormat = \case
   DeclFormat.Decl c -> putWord8 0 *> putDeclComponent c
+  where
+    -- |These use a framed array for randomer access
+    putDeclComponent :: MonadPut m => DeclFormat.LocallyIndexedComponent -> m ()
+    putDeclComponent DeclFormat.LocallyIndexedComponent {..} = do
+      putLocalIds lookup
+      putFramedArray putDeclElement component
+      where
+        putDeclElement DeclFormat.DataDeclaration{..} = do
+          putDeclType declType
+          putModifier modifier
+          putFoldable putSymbol bound
+          putFoldable (putType putRecursiveReference putSymbol) constructors
+        putDeclType Decl.Data = putWord8 0
+        putDeclType Decl.Effect = putWord8 1
+        putModifier Decl.Structural = putWord8 0
+        putModifier (Decl.Unique t) = putWord8 1 *> putText t
 
 getDeclFormat :: MonadGet m => m DeclFormat.DeclFormat
 getDeclFormat = getWord8 >>= \case
   0 -> DeclFormat.Decl <$> getDeclComponent
   other -> unknownTag "DeclFormat" other
-
--- |These use a framed array for randomer access
-putDeclComponent :: MonadPut m => DeclFormat.LocallyIndexedComponent -> m ()
-putDeclComponent DeclFormat.LocallyIndexedComponent {..} = do
-  putLocalIds lookup
-  putFramedArray putDeclElement component
   where
-    putDeclElement DeclFormat.DataDeclaration{..} = do
-      putDeclType declType
-      putModifier modifier
-      putFoldable putSymbol bound
-      putFoldable (putType putRecursiveReference putSymbol) constructors
-    putDeclType Decl.Data = putWord8 0
-    putDeclType Decl.Effect = putWord8 1
-    putModifier Decl.Structural = putWord8 0
-    putModifier (Decl.Unique t) = putWord8 1 *> putText t
+    getDeclComponent :: MonadGet m => m DeclFormat.LocallyIndexedComponent
+    getDeclComponent = 
+      DeclFormat.LocallyIndexedComponent <$> getLocalIds <*> getFramedArray getDeclElement
+      where
+        getDeclElement = DeclFormat.DataDeclaration 
+          <$> getDeclType
+          <*> getModifier
+          <*> getList getSymbol
+          <*> getList (getType getRecursiveReference)
+        getDeclType = getWord8 >>= \case
+          0 -> pure Decl.Data
+          1 -> pure Decl.Effect
+          other -> unknownTag "DeclType" other
+        getModifier = getWord8 >>= \case
+          0 -> pure Decl.Structural
+          1 -> Decl.Unique <$> getText
+          other -> unknownTag "DeclModifier" other
 
-getDeclComponent :: MonadGet m => m DeclFormat.LocallyIndexedComponent
-getDeclComponent = 
-  DeclFormat.LocallyIndexedComponent <$> getLocalIds <*> getFramedArray getDeclElement
+putBranchFormat :: MonadPut m => BranchFormat.BranchFormat -> m ()
+putBranchFormat = \case
+  BranchFormat.Full b -> putWord8 0 *> putBranchFull b
+  BranchFormat.Diff d -> putWord8 1 *> putBranchDiff d
   where
-    getDeclElement = DeclFormat.DataDeclaration 
-      <$> getDeclType
-      <*> getModifier
-      <*> getList getSymbol
-      <*> getList (getType getRecursiveReference)
-    getDeclType = getWord8 >>= \case
-      0 -> pure Decl.Data
-      1 -> pure Decl.Effect
-      other -> unknownTag "DeclType" other
-    getModifier = getWord8 >>= \case
-      0 -> pure Decl.Structural
-      1 -> Decl.Unique <$> getText
-      other -> unknownTag "DeclModifier" other
-    
+    putReferent' = putReferent putReference putReference
+    putBranchFull (BranchFull.Branch terms types patches children) = do
+      putMap putVarInt (putMap putReferent' putMetadataSetFormat) terms
+      putMap putVarInt (putMap putReference putMetadataSetFormat) types
+      putMap putVarInt putVarInt patches
+      putMap putVarInt putVarInt children
+    putMetadataSetFormat = \case
+      MetadataSet.Inline s -> putWord8 0 *> putFoldable putReference s
+    putBranchDiff (BranchDiff.Diff ref terms types termMD typeMD patches) = do
+      putVarInt ref
+      putMap putVarInt (putAddRemove putReferent') terms
+      putMap putVarInt (putAddRemove putReference) types
+      putMap putVarInt (putMap putReferent' (putAddRemove putReference)) termMD
+      putMap putVarInt (putMap putReference (putAddRemove putReference)) typeMD
+      putMap putVarInt putPatchOp patches
+      where
+        putAddRemove put (BranchDiff.AddRemove adds removes) = do
+          putFoldable put adds
+          putFoldable put removes
+        putPatchOp BranchDiff.PatchRemove = putWord8 0
+        putPatchOp BranchDiff.PatchAdd = putWord8 1
+        putPatchOp (BranchDiff.PatchEdit (PatchDiff.PatchDiff r atm atp rtm rtp)) = do 
+          putWord8 2
+          putVarInt r
+          putMap putReferent' putTermEdit atm
+          putMap putReference putTypeEdit atp
+          putFoldable putReferent' rtm
+          putFoldable putReference rtp
+
+putTermEdit :: MonadPut m => TermEdit.TermEdit -> m ()
+putTermEdit TermEdit.Deprecate = putWord8 0
+putTermEdit (TermEdit.Replace r t) = putWord8 1 *> putReferent' r *> putTyping t
+  where 
+    putTyping TermEdit.Same = putWord8 0
+    putTyping TermEdit.Subtype = putWord8 1
+    putTyping TermEdit.Different = putWord8 2
+    putReferent' = putReferent putReference putReference
+
+putTypeEdit :: MonadPut m => TypeEdit.TypeEdit -> m ()
+putTypeEdit TypeEdit.Deprecate = putWord8 0
+putTypeEdit (TypeEdit.Replace r) = putWord8 1 *> putReference r
+
+getBranchFormat :: MonadGet m => m BranchFormat.BranchFormat
+getBranchFormat = getWord8 >>= \case
+  0 -> getBranchFull
+  1 -> getBranchDiff
+  other -> unknownTag "BranchFormat" other
+  where
+    getBranchFull = error "todo"
+    getBranchDiff = error "todo"
+
 getSymbol :: MonadGet m => m Symbol
 getSymbol = Symbol <$> getVarInt <*> getText
 
 putSymbol :: MonadPut m => Symbol -> m ()
 putSymbol (Symbol n t) = putVarInt n >> putText t
+
+putReferent :: MonadPut m => (r1 -> m ()) -> (r2 -> m ()) -> Referent' r1 r2 -> m ()
+putReferent putRefRef putConRef = \case
+  Referent.Ref r -> do
+    putWord8 0
+    putRefRef r
+  Referent.Con r i -> do
+    putWord8 1
+    putConRef r
+    putVarInt i
 
 putReference ::
   (MonadPut m, Integral t, Bits t, Integral r, Bits r) =>

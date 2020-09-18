@@ -6,11 +6,12 @@ import U.Codebase.Sqlite.Reference
 import U.Codebase.Sqlite.Patch.TermEdit
 import U.Codebase.Sqlite.Patch.TypeEdit
 import U.Codebase.Sqlite.DbId
+import Data.Set (Set)
 
 data PatchDiff = PatchDiff
   { reference :: PatchId
   , addedTermEdits :: Map Referent TermEdit
   , addedTypeEdits :: Map Reference TypeEdit
-  , removedTermEdits :: Map Referent TermEdit
-  , removedTypeEdits :: Map Reference TypeEdit
+  , removedTermEdits :: Set Referent
+  , removedTypeEdits :: Set Reference
   } deriving (Eq, Ord, Show)
