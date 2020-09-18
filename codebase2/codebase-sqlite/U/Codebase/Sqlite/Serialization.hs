@@ -21,11 +21,14 @@ import U.Codebase.Referent (Referent')
 import qualified U.Codebase.Referent as Referent
 import U.Codebase.Sqlite.LocalIds
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
+import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
+import U.Codebase.Sqlite.Symbol
 import qualified U.Codebase.Term as Term
 import qualified U.Codebase.Type as Type
 import qualified U.Core.ABT as ABT
 import U.Util.Serialization
 import Prelude hiding (getChar, putChar)
+import qualified U.Codebase.Decl as Decl
 
 putABT ::
   (MonadPut m, Foldable f, Functor f, Ord v) =>
@@ -86,15 +89,16 @@ getABT getVar getA getF = getList getVar >>= go []
         _ -> unknownTag "getABT" tag
 
 {-
-Write/Read
-- [x][x] term component
-- [x][ ] types of terms
-- [ ][ ] decl component
-- [ ][ ] causal
-- [ ][ ] full branch
-- [ ][ ] diff branch
-- [ ][ ] full patch
-- [ ][ ] diff patch
+put/get/write/read
+- [x][x][ ][ ] term component
+- [x][x][ ][ ] types of terms
+- [x][x][ ][ ] decl component
+- [ ][ ][ ][ ] causal
+- [ ][ ][ ][ ] full branch
+- [ ][ ][ ][ ] diff branch
+- [ ][ ][ ][ ] full patch
+- [ ][ ][ ][ ] diff patch
+- [ ] O(1) framed array access?
 
 - [ ] add to dependents index
 - [ ] add to type index
@@ -183,8 +187,6 @@ putTermComponent TermFormat.LocallyIndexedComponent {..} = do
         putWord8 21 *> putReference r
     putTermElement :: MonadPut m => TermFormat.Term -> m ()
     putTermElement = putABT putSymbol putUnit putF
-    putSymbol :: MonadPut m => TermFormat.Symbol -> m ()
-    putSymbol (TermFormat.Symbol n t) = putVarInt n >> putText t
     putReferent :: MonadPut m => Referent' TermFormat.TermRef TermFormat.TypeRef -> m ()
     putReferent = \case
       Referent.Ref r -> do
@@ -309,7 +311,7 @@ getTermComponent =
           2 -> pure Term.PConcat
           tag -> unknownTag "SeqOp" tag
 
-getType :: MonadGet m => m r -> m (Type.TypeR r TermFormat.Symbol)
+getType :: MonadGet m => m r -> m (Type.TypeR r Symbol)
 getType getReference = getABT getSymbol getUnit go
   where
     go getChild = getWord8 >>= \case
@@ -328,8 +330,54 @@ getType getReference = getABT getSymbol getUnit go
       1 -> Kind.Arrow <$> getKind <*> getKind
       tag -> unknownTag "getKind" tag
 
-getSymbol :: MonadGet m => m TermFormat.Symbol
-getSymbol = TermFormat.Symbol <$> getVarInt <*> getText
+putDeclFormat :: MonadPut m => DeclFormat.DeclFormat -> m ()
+putDeclFormat = \case
+  DeclFormat.Decl c -> putWord8 0 *> putDeclComponent c
+
+getDeclFormat :: MonadGet m => m DeclFormat.DeclFormat
+getDeclFormat = getWord8 >>= \case
+  0 -> DeclFormat.Decl <$> getDeclComponent
+  other -> unknownTag "DeclFormat" other
+
+-- |These use a framed array for randomer access
+putDeclComponent :: MonadPut m => DeclFormat.LocallyIndexedComponent -> m ()
+putDeclComponent DeclFormat.LocallyIndexedComponent {..} = do
+  putLocalIds lookup
+  putFramedArray putDeclElement component
+  where
+    putDeclElement DeclFormat.DataDeclaration{..} = do
+      putDeclType declType
+      putModifier modifier
+      putFoldable putSymbol bound
+      putFoldable (putType putRecursiveReference putSymbol) constructors
+    putDeclType Decl.Data = putWord8 0
+    putDeclType Decl.Effect = putWord8 1
+    putModifier Decl.Structural = putWord8 0
+    putModifier (Decl.Unique t) = putWord8 1 *> putText t
+
+getDeclComponent :: MonadGet m => m DeclFormat.LocallyIndexedComponent
+getDeclComponent = 
+  DeclFormat.LocallyIndexedComponent <$> getLocalIds <*> getFramedArray getDeclElement
+  where
+    getDeclElement = DeclFormat.DataDeclaration 
+      <$> getDeclType
+      <*> getModifier
+      <*> getList getSymbol
+      <*> getList (getType getRecursiveReference)
+    getDeclType = getWord8 >>= \case
+      0 -> pure Decl.Data
+      1 -> pure Decl.Effect
+      other -> unknownTag "DeclType" other
+    getModifier = getWord8 >>= \case
+      0 -> pure Decl.Structural
+      1 -> Decl.Unique <$> getText
+      other -> unknownTag "DeclModifier" other
+    
+getSymbol :: MonadGet m => m Symbol
+getSymbol = Symbol <$> getVarInt <*> getText
+
+putSymbol :: MonadPut m => Symbol -> m ()
+putSymbol (Symbol n t) = putVarInt n >> putText t
 
 putReference ::
   (MonadPut m, Integral t, Bits t, Integral r, Bits r) =>
