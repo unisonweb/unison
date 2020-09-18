@@ -16,10 +16,8 @@ data DeclFormat = Decl LocallyIndexedComponent
 
 -- | V1: Decls included `Hash`es inline
 --   V2: Instead of `Hash`, we use a smaller index.
-data LocallyIndexedComponent = LocallyIndexedComponent
-  { lookup :: LocalIds,
-    component :: Vector (Decl Symbol)
-  }
+data LocallyIndexedComponent = 
+  LocallyIndexedComponent (Vector (LocalIds, Decl Symbol))
 
 data Decl v = DataDeclaration
   { declType :: DeclType,

@@ -22,10 +22,8 @@ type TermRef = Reference' LocalTextId (Maybe LocalTermId)
 
 type TypeRef = Reference' LocalTextId LocalTypeId
 
-data LocallyIndexedComponent = LocallyIndexedComponent
-  { lookup :: LocalIds,
-    component :: Vector Term
-  }
+data LocallyIndexedComponent = 
+  LocallyIndexedComponent (Vector (LocalIds, Term))
 
 type F =
   Term.F' LocalTextId TermRef TypeRef (Referent' TermRef TypeRef) TypeRef Symbol
