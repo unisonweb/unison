@@ -161,6 +161,7 @@ builtinTypesSrc =
   , B' "Socket" CT.Data, Rename' "Socket" "io2.Socket"
   , B' "ThreadId" CT.Data, Rename' "ThreadId" "io2.ThreadId"
   , B' "MVar" CT.Data, Rename' "MVar" "io2.MVar"
+  , B' "Array" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -404,7 +405,23 @@ builtinsSrc =
                   ,("<=", "lteq")
                   ,(">" , "gt")
                   ,(">=", "gteq")]
-  ] ++ io2List ioBuiltins ++ io2List mvarBuiltins
+  ] ++ io2List ioBuiltins ++ io2List mvarBuiltins ++ arrayBuiltins
+
+arrayBuiltins :: Var v => [BuiltinDSL v]
+arrayBuiltins =
+  [ B "Array.at" $ forall2 "ix" "a" (\ix a -> ix --> array ix a --> optionalt a)
+  , B "Array.unsafeAt" $ forall2 "ix" "a" (\ix a -> ix --> array ix a --> a)
+  , B "Array.size" $ forall2 "ix" "a" (\ix a -> array ix a --> ix)
+  , B "Array.toList" $ forall2 "ix" "a" (\ix a -> array ix a --> list a)
+  , B "Array.fromNats" $ list nat --> array nat nat
+  , B "Array.fromInts" $ list int --> array nat int
+  , B "Array.fromFloats" $ list float --> array nat float
+  , B "Array.fromBits" $ list boolean --> array nat boolean
+  ]
+  where
+  array :: Ord v => Type v -> Type v -> Type v
+  array ix a = Type.ref () Type.arrayRef `app` ix `app` a
+
 
 io2List :: [(Text, Type v)] -> [BuiltinDSL v]
 io2List bs = bs >>= \(n,ty) -> [B n ty, Rename n ("io2." <> n)]
@@ -470,6 +487,13 @@ forall1 name body =
   let
     a = Var.named name
   in Type.forall () a (body $ Type.var () a)
+
+forall2 :: Var v => Text -> Text -> (Type v -> Type v -> Type v) -> Type v
+forall2 name name2 body =
+  let
+    a = Var.named name
+    b = Var.named name2
+  in Type.forall () a (Type.forall () b (body (Type.var () a) (Type.var () b)))
 
 app :: Ord v => Type v -> Type v -> Type v
 app = Type.app ()

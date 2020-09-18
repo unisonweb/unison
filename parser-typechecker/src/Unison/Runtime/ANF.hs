@@ -468,6 +468,7 @@ fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
   go e@(Ann' tm typ) = Term.ann (ann e) (go tm) typ
   go e = error $ "ANF.term: I thought we got all of these\n" <> show e
 
+-- `UN` is unboxed, `BX` is boxed
 data Mem = UN | BX deriving (Eq,Ord,Show,Enum)
 
 -- Context entries with evaluation strategy
