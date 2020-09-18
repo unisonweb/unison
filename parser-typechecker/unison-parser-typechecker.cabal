@@ -209,6 +209,7 @@ library
     io-streams,
     lens,
     ListLike,
+    massiv,
     megaparsec >= 5.0.0 && < 7.0.0,
     memory,
     mmorph,
