@@ -185,8 +185,8 @@ getFramedArray getA = do
 -- | Look up a 0-based index in a framed array, O(num array elements),
 --  because it reads the start indices for all elements first.
 --  This could be skipped if the indices had a fixed size instead of varint
-framedArrayLookup :: MonadGet m => Get a -> Int -> m (Maybe a)
-framedArrayLookup getA index = do
+lookupFramedArray :: MonadGet m => m a -> Int -> m (Maybe a)
+lookupFramedArray getA index = do
   offsets <- getVector getVarInt
   if index > Vector.length offsets
     then pure Nothing
@@ -194,7 +194,7 @@ framedArrayLookup getA index = do
       skip (Vector.unsafeIndex offsets index)
       Just <$> getA
 
-unsafeFramedArrayLookup :: MonadGet m => Get a -> Int -> m a
+unsafeFramedArrayLookup :: MonadGet m => m a -> Int -> m a
 unsafeFramedArrayLookup getA index = do
   offsets <- getVector getVarInt
   skip (Vector.unsafeIndex offsets index)

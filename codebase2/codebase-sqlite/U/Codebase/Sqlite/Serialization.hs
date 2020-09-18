@@ -310,9 +310,9 @@ getTermElement = getABT getSymbol getUnit getF
               2 -> pure Term.PConcat
               tag -> unknownTag "SeqOp" tag
 
--- getNthTermElement :: MonadGet m => Int -> m (LocalIds, TermFormat.Term)
--- getNthTermElement i = do
-
+lookupTermElement :: MonadGet m => Reference.ComponentIndex -> m (LocalIds, TermFormat.Term)
+lookupTermElement = 
+  unsafeFramedArrayLookup (getPair getLocalIds getTermElement) . fromIntegral
 
 getType :: MonadGet m => m r -> m (Type.TypeR r Symbol)
 getType getReference = getABT getSymbol getUnit go
@@ -361,20 +361,27 @@ getDeclFormat = getWord8 >>= \case
     getDeclComponent = 
       DeclFormat.LocallyIndexedComponent <$> 
         getFramedArray (getPair getLocalIds getDeclElement)
-      where
-        getDeclElement = DeclFormat.DataDeclaration 
-          <$> getDeclType
-          <*> getModifier
-          <*> getList getSymbol
-          <*> getList (getType getRecursiveReference)
-        getDeclType = getWord8 >>= \case
-          0 -> pure Decl.Data
-          1 -> pure Decl.Effect
-          other -> unknownTag "DeclType" other
-        getModifier = getWord8 >>= \case
-          0 -> pure Decl.Structural
-          1 -> Decl.Unique <$> getText
-          other -> unknownTag "DeclModifier" other
+
+getDeclElement :: MonadGet m => m (DeclFormat.Decl Symbol)
+getDeclElement = DeclFormat.DataDeclaration 
+  <$> getDeclType
+  <*> getModifier
+  <*> getList getSymbol
+  <*> getList (getType getRecursiveReference)
+  where
+  getDeclType = getWord8 >>= \case
+    0 -> pure Decl.Data
+    1 -> pure Decl.Effect
+    other -> unknownTag "DeclType" other
+  getModifier = getWord8 >>= \case
+    0 -> pure Decl.Structural
+    1 -> Decl.Unique <$> getText
+    other -> unknownTag "DeclModifier" other
+ 
+lookupDeclElement :: 
+  MonadGet m => Reference.ComponentIndex -> m (LocalIds, DeclFormat.Decl Symbol)
+lookupDeclElement = 
+  unsafeFramedArrayLookup (getPair getLocalIds getDeclElement) . fromIntegral
 
 putBranchFormat :: MonadPut m => BranchFormat.BranchFormat -> m ()
 putBranchFormat = \case
