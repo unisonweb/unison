@@ -95,7 +95,7 @@ endif
 syn match   uLineComment      "---*\([^-!#$%&\*\+./<=>\?@\\^|~].*\)\?$"
 syn region  uBlockComment     start="{-"  end="-}" contains=uBlockComment
 syn region  uPragma	       start="{-#" end="#-}"
-syn region  uBelowFold	       start="^---- " skip="." end="." contains=uBelowFold
+syn region  uBelowFold	       start="^---" skip="." end="." contains=uBelowFold
 
 " Docs
 syn region  uDocBlock         start="\[:" end=":]" contains=uLink,uDocDirective
