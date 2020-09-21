@@ -1023,7 +1023,7 @@ fork'comp avoid
   . TAbs lz
   $ TPrm FORK [lz]
   where
-  [lz] = freshes' avoid 3
+  [lz] = freshes' avoid 1
 
 delay'thread :: IOOP
 delay'thread avoid
