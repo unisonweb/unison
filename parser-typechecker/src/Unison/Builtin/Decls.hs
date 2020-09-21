@@ -28,9 +28,9 @@ import           Unison.Var                     (Var)
 
 
 unitRef, pairRef, optionalRef, eitherRef :: Reference
-testResultRef, linkRef, docRef, ioErrorRef :: Reference
+testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef :: Reference
 fileModeRef, bufferModeRef, seqViewRef :: Reference
-(unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef, eitherRef, ioErrorRef, fileModeRef, bufferModeRef, seqViewRef) =
+(unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef, eitherRef, ioErrorRef, stdHandleRef, fileModeRef, bufferModeRef, seqViewRef) =
   let decls          = builtinDataDecls @Symbol
       [(_, unit, _)] = filter (\(v, _, _) -> v == Var.named "Unit") decls
       [(_, pair, _)] = filter (\(v, _, _) -> v == Var.named "Tuple") decls
@@ -42,11 +42,12 @@ fileModeRef, bufferModeRef, seqViewRef :: Reference
 
       [(_,ethr,_)] = filter (\(v,_,_) -> v == Var.named "Either") decls
       [(_,ioerr,_)] = filter (\(v,_,_) -> v == Var.named "io2.IOError") decls
+      [(_,stdhnd,_)] = filter (\(v,_,_) -> v == Var.named "io2.StdHandle") decls
       [(_,fmode,_)] = filter (\(v,_,_) -> v == Var.named "io2.FileMode") decls
       [(_,bmode,_)] = filter (\(v,_,_) -> v == Var.named "io2.BufferMode") decls
       [(_,seqv,_)] = filter (\(v,_,_) -> v == Var.named "SeqView") decls
       r = Reference.DerivedId
-  in (r unit, r pair, r opt, r testResult, r link, r doc, r ethr, r ioerr, r fmode, r bmode, r seqv)
+  in (r unit, r pair, r opt, r testResult, r link, r doc, r ethr, r ioerr, r stdhnd, r fmode, r bmode, r seqv)
 
 pairCtorRef, unitCtorRef :: Referent
 pairCtorRef = Referent.Con pairRef 0 CT.Data
@@ -93,6 +94,7 @@ builtinDataDecls = rs1 ++ rs
     , (v "SeqView"        , seqview)
 
     , (v "io2.IOError"    , ioerr)
+    , (v "io2.StdHandle"  , stdhnd)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
   [(_, linkRef, _)] = rs1
   v = Var.named
@@ -176,6 +178,14 @@ builtinDataDecls = rs1 ++ rs
     , ((), v "io2.IOError.PermissionDenied", var "io2.IOError")
     , ((), v "io2.IOError.UserError", var "io2.IOError")
     ]
+  stdhnd = DataDeclaration
+    (Unique "67bf7a8e517cbb1e9f42bc078e35498212d3be3c")
+    ()
+    []
+    [ ((), v "io2.StdHandle.StdIn", var "io2.StdHandle")
+    , ((), v "io2.StdHandle.StdOut", var "io2.StdHandle")
+    , ((), v "io2.StdHandle.StdErr", var "io2.StdHandle")
+    ]
   seqview = DataDeclaration
     Structural
     ()
@@ -250,7 +260,7 @@ pattern LinkTerm tm <- Term.App' (Term.Constructor' LinkRef LinkTermId) tm
 pattern LinkType ty <- Term.App' (Term.Constructor' LinkRef LinkTypeId) ty
 
 unitType, pairType, optionalType, testResultType,
-  eitherType, ioErrorType, fileModeType, bufferModeType
+  eitherType, ioErrorType, fileModeType, bufferModeType, stdHandleType
     :: Ord v => a -> Type v a
 unitType a = Type.ref a unitRef
 pairType a = Type.ref a pairRef
@@ -260,6 +270,7 @@ eitherType a = Type.ref a eitherRef
 ioErrorType a = Type.ref a ioErrorRef
 fileModeType a = Type.ref a fileModeRef
 bufferModeType a = Type.ref a bufferModeRef
+stdHandleType a = Type.ref a stdHandleRef
 
 unitTerm :: Var v => a -> Term v a
 unitTerm ann = Term.constructor ann unitRef 0

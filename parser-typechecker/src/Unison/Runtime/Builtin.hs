@@ -717,16 +717,11 @@ is'seekable avoid
 standard'handle :: IOOP
 standard'handle avoid
   = ([BX],)
-  . TAbss [n0]
-  . unbox n0 Ty.natRef n
-  . TLet r UN (AIOp STDHND [n])
-  . TMatch r . MatchSum
-  $ mapFromList
-  [ (0, ([], TCon optionTag 0 []))
-  , (1, ([BX], TAbs h $ TCon optionTag 1 [h]))
-  ]
+  . TAbss [h0]
+  . unenum 3 h0 Ty.stdHandleRef h
+  $ TIOp STDHND [h]
   where
-  [n0,n,h,r] = freshes' avoid 4
+  [h0,h] = freshes' avoid 2
 
 seek'handle :: IOOP
 seek'handle avoid

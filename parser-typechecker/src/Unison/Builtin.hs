@@ -445,7 +445,7 @@ ioBuiltins =
   , ("IO.socketReceive", socket --> nat --> ioe bytes)
   , ("IO.forkComp"
     , forall1 "a" $ \a -> (unit --> ioe a) --> io threadId)
-  , ("IO.stdHandle", nat --> optionalt handle)
+  , ("IO.stdHandle", stdhandle --> handle)
   , ("IO.delay", nat --> ioe unit)
   , ("IO.kill", threadId --> ioe unit)
   ]
@@ -505,9 +505,10 @@ threadId = Type.threadId ()
 handle = Type.fileHandle ()
 unit = DD.unitType ()
 
-fmode, bmode :: Var v => Type v
+fmode, bmode, stdhandle :: Var v => Type v
 fmode = DD.fileModeType ()
 bmode = DD.bufferModeType ()
+stdhandle = DD.stdHandleType ()
 
 int, nat, bytes, text, boolean, float, char :: Var v => Type v
 int = Type.int ()
