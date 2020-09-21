@@ -7,6 +7,10 @@ CREATE TABLE hash (
 );
 CREATE INDEX hash_base32 ON hash(base32);
 
+CREATE TABLE text (
+  id INTEGER PRIMARY KEY,
+  text TEXT UNIQUE NOT NULL
+);
 -- just came up with this, a layer of indirection to allow multiple hash_ids to
 -- reference the same object.
 -- so: SELECT object.id, bytes FROM object
@@ -33,8 +37,8 @@ INSERT INTO object_type_description (id, description) VALUES
     (1, "Types of Term Component"), -- [Nat -> Nat]
     (2, "Decl Component"), -- unique type Animal = Cat | Dog | Mouse
     (3, "Namespace"), -- a one-level slice
-    (4, "Patch"), -- replace term #abc with term #def
-    (5, "Local Text/Object Lookup")
+    (4, "Patch") -- replace term #abc with term #def
+    -- (5, "Local Text/Object Lookup") -- future
     ;
 
 -- How should objects be linked to hashes?  (and old hashes)
@@ -88,17 +92,17 @@ CREATE TABLE causal_old (
   new_hash_id INTEGER NOT NULL REFERENCES hash(id)
 );
 
--- |Links a referent to its type's object
-CREATE TABLE type_of_referent (
-  object_id INTEGER NOT NULL REFERENCES object(id),
-  component_index INTEGER NOT NULL,
-  constructor_index INTEGER NULL,
-  bytes BLOB NOT NULL,
-  PRIMARY KEY (object_id, component_index, constructor_index)
-);
+-- -- |Links a referent to its type's object
+-- CREATE TABLE type_of_referent (
+--   object_id INTEGER NOT NULL REFERENCES object(id),
+--   component_index INTEGER NOT NULL,
+--   constructor_index INTEGER NULL,
+--   bytes BLOB NOT NULL,
+--   PRIMARY KEY (object_id, component_index, constructor_index)
+-- );
 
---CREATE TABLE type_of_referent (
---  referent_derived_id INTEGER NOT NULL PRIMARY KEY REFERENCES referent_derived(id),
---  type_object_id INTEGER NOT NULL REFERENCES object(id)
---);
---CREATE INDEX type_of_referent_object_id ON type_of_referent(type_object_id);
+-- --CREATE TABLE type_of_referent (
+-- --  referent_derived_id INTEGER NOT NULL PRIMARY KEY REFERENCES referent_derived(id),
+-- --  type_object_id INTEGER NOT NULL REFERENCES object(id)
+-- --);
+-- --CREATE INDEX type_of_referent_object_id ON type_of_referent(type_object_id);

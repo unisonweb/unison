@@ -3,7 +3,7 @@
 
 
 module U.Util.Base32Hex 
-  (Base32Hex, fromByteString, toByteString, toText, textToByteString) 
+  (Base32Hex(UnsafeBase32Hex), fromByteString, toByteString, toText, textToByteString) 
 where
 
 import Data.Text (Text)
@@ -13,7 +13,7 @@ import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Data.Maybe (fromJust)
 
-newtype Base32Hex = Base32Hex { toText :: Text }
+newtype Base32Hex = UnsafeBase32Hex { toText :: Text }
   deriving (Eq, Ord, Show)
 
 -- | Return the lowercase unpadded base32Hex encoding of this 'ByteString'.
@@ -22,7 +22,7 @@ fromByteString :: ByteString -> Base32Hex
 fromByteString bs =
   -- we're using an uppercase encoder that adds padding, so we drop the
   -- padding and convert it to lowercase
-  Base32Hex . Text.toLower . Text.dropWhileEnd (== '=') . decodeUtf8 $
+  UnsafeBase32Hex . Text.toLower . Text.dropWhileEnd (== '=') . decodeUtf8 $
   Codec.Binary.Base32Hex.encode bs
 
 -- by not exporting the Base32Hex constructor, we can trust that it's valid

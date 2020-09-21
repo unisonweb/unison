@@ -1,0 +1,21 @@
+module U.Codebase.Sqlite.ObjectType where
+
+import Database.SQLite.Simple.FromField (FromField(..))
+import Database.SQLite.Simple.ToField (ToField(..))
+import Database.SQLite.Simple (SQLData(SQLInteger))
+
+-- |Don't reorder these, they are part of the database
+data ObjectType
+  = TermComponent -- 0
+  | TermComponentTypes -- 1
+  | DeclComponent -- 2
+  | Namespace -- 3
+  | Patch -- 4
+  -- -- | LocalIds -- 5 -- future?
+  deriving (Eq, Ord, Show, Enum)
+
+instance ToField ObjectType where
+  toField = SQLInteger . fromIntegral . fromEnum
+
+instance FromField ObjectType where
+  fromField = fmap toEnum . fromField
