@@ -37,6 +37,8 @@ import Unison.Runtime.MCode
 import qualified Unison.Type as Rf
 import qualified Unison.Runtime.IOSource as Rf
 
+import qualified Unison.Util.Pretty as Pr
+
 import qualified Unison.Util.Bytes as By
 import Unison.Util.EnumContainers as EC
 
@@ -86,6 +88,19 @@ apply0 !callback !env !i
   | otherwise = die $ "apply0: unknown combinator: " ++ show i
   where
   k0 = maybe KE (CB . Hook) callback
+
+-- Apply helper currently used for forking. Creates the new stacks
+-- necessary to evaluate a closure with the provided information.
+apply1
+  :: (Stack 'UN -> Stack 'BX -> IO ())
+  -> Unmask -> SEnv -> Closure -> IO ()
+apply1 callback unmask env clo = do
+  ustk <- alloc
+  bstk <- alloc
+  apply unmask env mempty ustk bstk k0 True ZArgs clo
+  where
+  k0 = CB $ Hook callback
+
 
 lookupDenv :: Word64 -> DEnv -> Closure
 lookupDenv p denv = fromMaybe BlackHole $ EC.lookup p denv
@@ -194,10 +209,8 @@ exec unmask !env !denv !ustk !bstk !k (ForeignCall _ w args)
       unmask (arg ustk bstk args >>= ev >>= res ustk bstk)
   | otherwise
   = die $ "reference to unknown foreign function: " ++ show w
-exec unmask !env !denv !ustk !bstk !k (Fork lz) = do
-  tid <-
-    unmask $
-      forkEval env denv k lz <$> duplicate ustk <*> duplicate bstk
+exec unmask !env !denv !ustk !bstk !k (Fork i) = do
+  tid <- unmask . forkEval env =<< peekOff bstk i
   bstk <- bump bstk
   poke bstk . Foreign . Wrap Rf.threadIdReference $ tid
   pure (denv, ustk, bstk, k)
@@ -242,12 +255,19 @@ eval _      !_   !_    !_    !_    !_ Exit = pure ()
 eval _      !_   !_    !_    !_    !_ (Die s) = die s
 {-# noinline eval #-}
 
-forkEval
-  :: SEnv -> DEnv
-  -> K -> Section -> Stack 'UN -> Stack 'BX -> IO ThreadId
-forkEval env denv k nx ustk bstk = forkIOWithUnmask $ \unmask -> do
-  (denv, ustk, bstk, k) <- discardCont denv ustk bstk k 0
-  eval unmask env denv ustk bstk k nx
+forkEval :: SEnv -> Closure -> IO ThreadId
+forkEval env clo
+  = forkIOWithUnmask $ \unmask ->
+      unmask (apply1 err unmask env clo) `catch` \case
+        PE e -> putStrLn "runtime exception"
+             >> print (Pr.render 70 e)
+        BU _ -> putStrLn $ "unison exception reached top level"
+  where
+  err :: Stack 'UN -> Stack 'BX -> IO ()
+  err _ bstk = peek bstk >>= \case
+    -- Left e
+    DataB1 720896 e -> throwIO $ BU e
+    _ -> pure ()
 {-# inline forkEval #-}
 
 -- fast path application

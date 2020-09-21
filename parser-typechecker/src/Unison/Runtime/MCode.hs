@@ -411,7 +411,7 @@ data Instr
   -- Put a delimiter on the continuation
   | Reset !(EnumSet Word64) -- prompt ids
 
-  | Fork !Section
+  | Fork !Int
   | Seq !Args
   deriving (Show, Eq, Ord)
 
@@ -950,7 +950,7 @@ emitPOp ANF.EROR = emitBP1 THRO
 -- non-prim translations
 emitPOp ANF.BLDS = Seq
 emitPOp ANF.FORK = \case
-  BArg1 i -> Fork $ App True (Stk i) ZArgs
+  BArg1 i -> Fork i
   _ -> error "fork takes exactly one boxed argument"
 emitPOp ANF.PRNT = \case
   BArg1 i -> Print i

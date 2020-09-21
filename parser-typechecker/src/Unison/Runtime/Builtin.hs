@@ -1020,10 +1020,12 @@ socket'receive avoid
 fork'comp :: IOOP
 fork'comp avoid
   = ([BX],)
-  . TAbs lz
+  . TAbs act
+  . TLet unit BX (ACon (rtag Ty.unitRef) 0 [])
+  . TName lz (Right act) [unit]
   $ TPrm FORK [lz]
   where
-  [lz] = freshes' avoid 1
+  [act,unit,lz] = freshes' avoid 3
 
 delay'thread :: IOOP
 delay'thread avoid
