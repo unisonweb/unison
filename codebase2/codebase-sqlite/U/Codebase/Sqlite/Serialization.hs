@@ -12,30 +12,32 @@ import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
 import Data.Int (Int64)
 import Data.List (elemIndex)
 import qualified Data.Set as Set
-import U.Codebase.Kind (Kind)
 import Data.Word (Word64)
+import qualified U.Codebase.Decl as Decl
+import U.Codebase.Kind (Kind)
 import qualified U.Codebase.Kind as Kind
 import U.Codebase.Reference (Reference' (ReferenceBuiltin, ReferenceDerived))
 import qualified U.Codebase.Reference as Reference
 import U.Codebase.Referent (Referent')
 import qualified U.Codebase.Referent as Referent
-import U.Codebase.Sqlite.LocalIds
+import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
 import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
+import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
+import qualified U.Codebase.Sqlite.Branch.MetadataSet as MetadataSet
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
-import qualified U.Codebase.Sqlite.Term.Format as TermFormat
+import U.Codebase.Sqlite.LocalIds
+import qualified U.Codebase.Sqlite.Patch.Diff as PatchDiff
+import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
+import qualified U.Codebase.Sqlite.Patch.Full as PatchFull
+import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
+import qualified U.Codebase.Sqlite.Patch.TypeEdit as TypeEdit
 import U.Codebase.Sqlite.Symbol
+import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import qualified U.Codebase.Term as Term
 import qualified U.Codebase.Type as Type
 import qualified U.Core.ABT as ABT
 import U.Util.Serialization
 import Prelude hiding (getChar, putChar)
-import qualified U.Codebase.Decl as Decl
-import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
-import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
-import qualified U.Codebase.Sqlite.Patch.Diff as PatchDiff
-import qualified U.Codebase.Sqlite.Branch.MetadataSet as MetadataSet
-import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
-import qualified U.Codebase.Sqlite.Patch.TypeEdit as TypeEdit
 
 putABT ::
   (MonadPut m, Foldable f, Functor f, Ord v) =>
@@ -101,11 +103,14 @@ put/get/write/read
 - [x][x][ ][ ] types of terms
 - [x][x][ ][ ] decl component
 - [-][-][ ][ ] causal
+- [x][x][ ][ ] BranchFormat
 - [x][ ][ ][ ] full branch
 - [x][ ][ ][ ] diff branch
-- [ ][ ][ ][ ] full patch
+- [x][ ][ ][ ] PatchFormat
+- [x][ ][ ][ ] full patch
 - [x][ ][ ][ ] diff patch
 - [ ] O(1) framed array access?
+- [ ] tests for framed array access
 
 - [ ] add to dependents index
 - [ ] add to type index
@@ -311,7 +316,7 @@ getTermElement = getABT getSymbol getUnit getF
               tag -> unknownTag "SeqOp" tag
 
 lookupTermElement :: MonadGet m => Reference.ComponentIndex -> m (LocalIds, TermFormat.Term)
-lookupTermElement = 
+lookupTermElement =
   unsafeFramedArrayLookup (getPair getLocalIds getTermElement) . fromIntegral
 
 getType :: MonadGet m => m r -> m (Type.TypeR r Symbol)
@@ -337,12 +342,12 @@ putDeclFormat :: MonadPut m => DeclFormat.DeclFormat -> m ()
 putDeclFormat = \case
   DeclFormat.Decl c -> putWord8 0 *> putDeclComponent c
   where
-    -- |These use a framed array for randomer access
+    -- These use a framed array for randomer access
     putDeclComponent :: MonadPut m => DeclFormat.LocallyIndexedComponent -> m ()
     putDeclComponent (DeclFormat.LocallyIndexedComponent v) =
       putFramedArray (putPair putLocalIds putDeclElement) v
       where
-        putDeclElement DeclFormat.DataDeclaration{..} = do
+        putDeclElement DeclFormat.DataDeclaration {..} = do
           putDeclType declType
           putModifier modifier
           putFoldable putSymbol bound
@@ -358,29 +363,30 @@ getDeclFormat = getWord8 >>= \case
   other -> unknownTag "DeclFormat" other
   where
     getDeclComponent :: MonadGet m => m DeclFormat.LocallyIndexedComponent
-    getDeclComponent = 
-      DeclFormat.LocallyIndexedComponent <$> 
-        getFramedArray (getPair getLocalIds getDeclElement)
+    getDeclComponent =
+      DeclFormat.LocallyIndexedComponent
+        <$> getFramedArray (getPair getLocalIds getDeclElement)
 
 getDeclElement :: MonadGet m => m (DeclFormat.Decl Symbol)
-getDeclElement = DeclFormat.DataDeclaration 
-  <$> getDeclType
-  <*> getModifier
-  <*> getList getSymbol
-  <*> getList (getType getRecursiveReference)
+getDeclElement =
+  DeclFormat.DataDeclaration
+    <$> getDeclType
+    <*> getModifier
+    <*> getList getSymbol
+    <*> getList (getType getRecursiveReference)
   where
-  getDeclType = getWord8 >>= \case
-    0 -> pure Decl.Data
-    1 -> pure Decl.Effect
-    other -> unknownTag "DeclType" other
-  getModifier = getWord8 >>= \case
-    0 -> pure Decl.Structural
-    1 -> Decl.Unique <$> getText
-    other -> unknownTag "DeclModifier" other
- 
-lookupDeclElement :: 
+    getDeclType = getWord8 >>= \case
+      0 -> pure Decl.Data
+      1 -> pure Decl.Effect
+      other -> unknownTag "DeclType" other
+    getModifier = getWord8 >>= \case
+      0 -> pure Decl.Structural
+      1 -> Decl.Unique <$> getText
+      other -> unknownTag "DeclModifier" other
+
+lookupDeclElement ::
   MonadGet m => Reference.ComponentIndex -> m (LocalIds, DeclFormat.Decl Symbol)
-lookupDeclElement = 
+lookupDeclElement =
   unsafeFramedArrayLookup (getPair getLocalIds getDeclElement) . fromIntegral
 
 putBranchFormat :: MonadPut m => BranchFormat.BranchFormat -> m ()
@@ -409,18 +415,34 @@ putBranchFormat = \case
           putFoldable put removes
         putPatchOp BranchDiff.PatchRemove = putWord8 0
         putPatchOp BranchDiff.PatchAdd = putWord8 1
-        putPatchOp (BranchDiff.PatchEdit (PatchDiff.PatchDiff r atm atp rtm rtp)) = do 
-          putWord8 2
-          putVarInt r
-          putMap putReferent' putTermEdit atm
-          putMap putReference putTypeEdit atp
-          putFoldable putReferent' rtm
-          putFoldable putReference rtp
+        putPatchOp (BranchDiff.PatchEdit d) = putWord8 2 *> putPatchDiff d
+
+putPatchFormat :: MonadPut m => PatchFormat.PatchFormat -> m ()
+putPatchFormat = \case
+  PatchFormat.Full p -> putWord8 0 *> putPatchFull p
+  PatchFormat.Diff p -> putWord8 1 *> putPatchDiff p
+
+putPatchFull :: MonadPut m => PatchFull.Patch -> m ()
+putPatchFull (PatchFull.Patch termEdits typeEdits) = do
+  putMap putReferent' putTermEdit termEdits
+  putMap putReference putTypeEdit typeEdits
+  where
+    putReferent' = putReferent putReference putReference
+
+putPatchDiff :: MonadPut m => PatchDiff.PatchDiff -> m ()
+putPatchDiff (PatchDiff.PatchDiff r atm atp rtm rtp) = do
+  putVarInt r
+  putMap putReferent' putTermEdit atm
+  putMap putReference putTypeEdit atp
+  putFoldable putReferent' rtm
+  putFoldable putReference rtp
+  where
+    putReferent' = putReferent putReference putReference
 
 putTermEdit :: MonadPut m => TermEdit.TermEdit -> m ()
 putTermEdit TermEdit.Deprecate = putWord8 0
 putTermEdit (TermEdit.Replace r t) = putWord8 1 *> putReferent' r *> putTyping t
-  where 
+  where
     putTyping TermEdit.Same = putWord8 0
     putTyping TermEdit.Subtype = putWord8 1
     putTyping TermEdit.Different = putWord8 2
