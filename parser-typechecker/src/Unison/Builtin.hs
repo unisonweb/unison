@@ -444,7 +444,7 @@ ioBuiltins =
   , ("IO.socketSend", socket --> bytes --> ioe unit)
   , ("IO.socketReceive", socket --> nat --> ioe bytes)
   , ("IO.forkComp"
-    , forall1 "a" $ \a -> (unit --> ioe a) --> ioe threadId)
+    , forall1 "a" $ \a -> (unit --> ioe a) --> io threadId)
   , ("IO.stdHandle", nat --> optionalt handle)
   , ("IO.delay", nat --> ioe unit)
   , ("IO.kill", threadId --> ioe unit)
