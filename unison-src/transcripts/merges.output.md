@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #bof7ljhk4e
+  ⊙ #ntbr7f6ppm
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #f10e7ivnt7
+  ⊙ #0h6am45pvd
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #ckoq0pumq4
+  ⊙ #5l1bo7srpn
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #hjs0h1o8po
+  ⊙ #2c0uj33ads
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #qhckem9e6s
+  ⊙ #m85pufflci
   
     + Adds / updates:
     
       x
   
-  ⊙ #7v5brelc5r
+  ⊙ #i4g24av44u
   
     + Adds / updates:
     
@@ -257,7 +257,10 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.MVar.read builtin.io2.MVar.swap
       builtin.io2.MVar.take builtin.io2.MVar.tryPut
       builtin.io2.MVar.tryRead builtin.io2.MVar.tryTake
-      builtin.io2.Socket builtin.io2.ThreadId builtin.todo
+      builtin.io2.Socket builtin.io2.StdHandle
+      builtin.io2.StdHandle.StdErr builtin.io2.StdHandle.StdIn
+      builtin.io2.StdHandle.StdOut builtin.io2.ThreadId
+      builtin.todo
   
   □ #7asfbtqmoj (start of history)
 
