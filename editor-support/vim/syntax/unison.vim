@@ -95,6 +95,7 @@ endif
 syn match   uLineComment      "---*\([^-!#$%&\*\+./<=>\?@\\^|~].*\)\?$"
 syn region  uBlockComment     start="{-"  end="-}" contains=uBlockComment
 syn region  uPragma	       start="{-#" end="#-}"
+syn region  uBelowFold	       start="^---" skip="." end="." contains=uBelowFold
 
 " Docs
 syn region  uDocBlock         start="\[:" end=":]" contains=uLink,uDocDirective
@@ -132,6 +133,7 @@ if version >= 508 || !exists("did_u_syntax_inits")
   HiLink uBlockComment		  uComment
   HiLink uLineComment			  uComment
   HiLink uComment			  Comment
+  HiLink uBelowFold			  Comment
   HiLink uDocBlock                String
   HiLink uLink                    uType
   HiLink uDocDirective            uImport
@@ -145,6 +147,7 @@ if version >= 508 || !exists("did_u_syntax_inits")
 
   delcommand HiLink
 endif
+
 
 let b:current_syntax = "unison"
 
