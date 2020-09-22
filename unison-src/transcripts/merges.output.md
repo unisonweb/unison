@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #ntbr7f6ppm
+  ⊙ #0njtem0mcm
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #0h6am45pvd
+  ⊙ #itl1uomklh
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #5l1bo7srpn
+  ⊙ #94tplgq85t
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #2c0uj33ads
+  ⊙ #fr2k0al9mk
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #m85pufflci
+  ⊙ #p8dvir508b
   
     + Adds / updates:
     
       x
   
-  ⊙ #i4g24av44u
+  ⊙ #bc44avko8b
   
     + Adds / updates:
     
@@ -257,10 +257,12 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.MVar.read builtin.io2.MVar.swap
       builtin.io2.MVar.take builtin.io2.MVar.tryPut
       builtin.io2.MVar.tryRead builtin.io2.MVar.tryTake
-      builtin.io2.Socket builtin.io2.StdHandle
-      builtin.io2.StdHandle.StdErr builtin.io2.StdHandle.StdIn
-      builtin.io2.StdHandle.StdOut builtin.io2.ThreadId
-      builtin.todo
+      builtin.io2.SeekMode builtin.io2.SeekMode.AbsoluteSeek
+      builtin.io2.SeekMode.RelativeSeek
+      builtin.io2.SeekMode.SeekFromEnd builtin.io2.Socket
+      builtin.io2.StdHandle builtin.io2.StdHandle.StdErr
+      builtin.io2.StdHandle.StdIn builtin.io2.StdHandle.StdOut
+      builtin.io2.ThreadId builtin.todo
   
   □ #7asfbtqmoj (start of history)
 
