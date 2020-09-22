@@ -211,8 +211,7 @@ Let's try it!
   189. io2.IO.createDirectory : Text ->{IO} Either IOError ()
   190. io2.IO.delay : Nat ->{IO} Either IOError ()
   191. io2.IO.fileExists : Text ->{IO} Either IOError Boolean
-  192. io2.IO.forkComp : '{IO} Either IOError a
-                         ->{IO} Either IOError ThreadId
+  192. io2.IO.forkComp : '{IO} Either IOError a ->{IO} ThreadId
   193. io2.IO.getBuffering : Handle
                              ->{IO} Either IOError BufferMode
   194. io2.IO.getCurrentDirectory : '{IO} Either IOError Text
@@ -228,7 +227,9 @@ Let's try it!
   204. io2.IO.isSeekable : Handle ->{IO} Either IOError Boolean
   205. io2.IO.kill : ThreadId ->{IO} Either IOError ()
   206. io2.IO.listen : Socket ->{IO} Either IOError ()
-  207. io2.IO.openFile : Text ->{IO} Either IOError Handle
+  207. io2.IO.openFile : Text
+                         -> FileMode
+                         ->{IO} Either IOError Handle
   208. io2.IO.putText : Handle -> Text ->{IO} Either IOError ()
   209. io2.IO.removeDirectory : Text ->{IO} Either IOError ()
   210. io2.IO.removeFile : Text ->{IO} Either IOError ()
@@ -237,7 +238,7 @@ Let's try it!
                                 ->{IO} Either IOError ()
   212. io2.IO.renameFile : Text -> Text ->{IO} Either IOError ()
   213. io2.IO.seekHandle : Handle
-                           -> FileMode
+                           -> SeekMode
                            -> Int
                            ->{IO} Either IOError ()
   214. io2.IO.serverSocket : Text
@@ -255,7 +256,7 @@ Let's try it!
   219. io2.IO.socketSend : Socket
                            -> Bytes
                            ->{IO} Either IOError ()
-  220. io2.IO.stdHandle : Nat -> Optional Handle
+  220. io2.IO.stdHandle : StdHandle -> Handle
   221. io2.IO.systemTime : '{IO} Either IOError Nat
   222. unique type io2.IOError
   223. io2.IOError.AlreadyExists : IOError
@@ -277,9 +278,17 @@ Let's try it!
   239. io2.MVar.tryPut : MVar a -> a ->{IO} Boolean
   240. io2.MVar.tryRead : MVar a ->{IO} Optional a
   241. io2.MVar.tryTake : MVar a ->{IO} Optional a
-  242. builtin type io2.Socket
-  243. builtin type io2.ThreadId
-  244. todo : a -> b
+  242. unique type io2.SeekMode
+  243. io2.SeekMode.AbsoluteSeek : SeekMode
+  244. io2.SeekMode.RelativeSeek : SeekMode
+  245. io2.SeekMode.SeekFromEnd : SeekMode
+  246. builtin type io2.Socket
+  247. unique type io2.StdHandle
+  248. io2.StdHandle.StdErr : StdHandle
+  249. io2.StdHandle.StdIn : StdHandle
+  250. io2.StdHandle.StdOut : StdHandle
+  251. builtin type io2.ThreadId
+  252. todo : a -> b
   
 
 .builtin> alias.many 94-104 .mylib

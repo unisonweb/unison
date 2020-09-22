@@ -717,22 +717,17 @@ is'seekable avoid
 standard'handle :: IOOP
 standard'handle avoid
   = ([BX],)
-  . TAbss [n0]
-  . unbox n0 Ty.natRef n
-  . TLet r UN (AIOp STDHND [n])
-  . TMatch r . MatchSum
-  $ mapFromList
-  [ (0, ([], TCon optionTag 0 []))
-  , (1, ([BX], TAbs h $ TCon optionTag 1 [h]))
-  ]
+  . TAbss [h0]
+  . unenum 3 h0 Ty.stdHandleRef h
+  $ TIOp STDHND [h]
   where
-  [n0,n,h,r] = freshes' avoid 4
+  [h0,h] = freshes' avoid 2
 
 seek'handle :: IOOP
 seek'handle avoid
   = ([BX,BX,BX],)
   . TAbss [h,sm0,po0]
-  . unenum 3 sm0 seekModeReference sm
+  . unenum 3 sm0 Ty.seekModeRef sm
   . unbox po0 Ty.natRef po
   $ io'error'result'unit SEEKFI [h,sm,po] ior e r
   where
@@ -1020,10 +1015,12 @@ socket'receive avoid
 fork'comp :: IOOP
 fork'comp avoid
   = ([BX],)
-  . TAbs lz
+  . TAbs act
+  . TLet unit BX (ACon (rtag Ty.unitRef) 0 [])
+  . TName lz (Right act) [unit]
   $ TPrm FORK [lz]
   where
-  [lz] = freshes' avoid 3
+  [act,unit,lz] = freshes' avoid 3
 
 delay'thread :: IOOP
 delay'thread avoid
