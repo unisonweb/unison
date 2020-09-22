@@ -1142,6 +1142,9 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   = AccumIntegral Ty.intRef Nothing . EC.mapSingleton i <$> anfBody bd
   | P.Nat _ i <- p
   = AccumIntegral Ty.natRef Nothing . EC.mapSingleton i <$> anfBody bd
+  | P.Char _ c <- p
+  , w <- fromIntegral $ fromEnum c
+  = AccumIntegral Ty.charRef Nothing . EC.mapSingleton w <$> anfBody bd
   | P.Boolean _ b <- p
   , t <- if b then 1 else 0
   = AccumData Ty.booleanRef Nothing
