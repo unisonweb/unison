@@ -7,7 +7,6 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Text.Megaparsec.Char as C
 import Data.Text as Text
 
-import Data.Text (Text)
 import Unison.Codebase.Path (Path(..))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Editor.RemoteRepo (RemoteRepo(..), RemoteNamespace)
@@ -15,7 +14,7 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
 import Unison.Prelude
 import qualified Unison.Hash as Hash
 import qualified Unison.Lexer
-import Unison.Codebase.NameSegment (NameSegment(..))
+import Unison.NameSegment (NameSegment(..))
 import Data.Sequence as Seq
 import Data.Char (isAlphaNum, isSpace, isDigit)
 

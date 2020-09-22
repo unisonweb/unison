@@ -1,5 +1,4 @@
 {-# Language OverloadedStrings #-}
-{-# Language TypeApplications #-}
 
 module Unison.Test.Term where
 

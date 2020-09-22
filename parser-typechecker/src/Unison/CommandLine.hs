@@ -1,8 +1,5 @@
-{-# LANGUAGE DoAndIfThenElse     #-}
-{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
 
 

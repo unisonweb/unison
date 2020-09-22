@@ -1,16 +1,13 @@
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Runtime.Rt1IO where
 
 import Unison.Prelude
 
-import           Control.Exception              ( try
-                                                , throwIO
+import           Control.Exception              ( throwIO
                                                 , AsyncException(UserInterrupt)
                                                 , finally
                                                 , bracket
@@ -43,6 +40,7 @@ import           Data.GUID                      ( genText )
 import qualified Data.Map                      as Map
 import qualified Data.Sequence as Seq
 import           Data.Text                     as Text
+import qualified Data.Text.IO                  as TextIO
 import           Data.Time.Clock.POSIX         as Time
 import qualified Network.Simple.TCP            as Net
 import qualified Network.Socket                as Sock
@@ -53,13 +51,10 @@ import           System.IO                      ( Handle
                                                 , BufferMode(..)
                                                 , openFile
                                                 , hClose
-                                                , hPutStr
                                                 , stdin
                                                 , stdout
                                                 , stderr
                                                 , hIsEOF
-                                                , hGetLine
-                                                , hGetContents
                                                 , hIsSeekable
                                                 , hSeek
                                                 , hTell
@@ -84,6 +79,7 @@ import qualified System.IO.Error               as SysError
 import           Type.Reflection                ( Typeable )
 import           Unison.Builtin.Decls          as DD
 import           Unison.Symbol
+import           Unison.Parser                  ( Ann(External) )
 import qualified Unison.Reference              as R
 import qualified Unison.Runtime.Rt1            as RT
 import qualified Unison.Runtime.IR             as IR
@@ -92,6 +88,7 @@ import qualified Unison.Term                   as Term
 -- import qualified Unison.Util.Pretty            as Pretty
 -- import           Unison.TermPrinter             ( pretty )
 import           Unison.Codebase.Runtime        ( Runtime(Runtime) )
+import           Unison.Codebase.MainTerm       ( nullaryMain )
 import qualified Unison.Runtime.IOSource       as IOSrc
 import qualified Unison.Util.Bytes             as Bytes
 import qualified Unison.Var                    as Var
@@ -303,15 +300,15 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
     IR.B . isJust <$> getHaskellHandle handle
   go "io.IO.getLine_" [IR.Data _ 0 [IR.T handle]] = do
     hh   <- getHaskellHandleOrThrow handle
-    line <- reraiseIO $ hGetLine hh
-    pure . IR.T $ Text.pack line
+    line <- reraiseIO $ TextIO.hGetLine hh
+    pure . IR.T $ line
   go "io.IO.getText_" [IR.Data _ 0 [IR.T handle]] = do
     hh   <- getHaskellHandleOrThrow handle
-    text <- reraiseIO $ hGetContents hh
-    pure . IR.T $ Text.pack text
+    text <- reraiseIO $ TextIO.hGetContents hh
+    pure . IR.T $ text
   go "io.IO.putText_" [IR.Data _ 0 [IR.T handle], IR.T string] = do
     hh <- getHaskellHandleOrThrow handle
-    reraiseIO . hPutStr hh $ Text.unpack string
+    reraiseIO . TextIO.hPutStr hh $ string
     pure IR.unit
   go "io.IO.throw" [IR.Data _ _ [IR.Data _ _ [], IR.T message]] =
     liftIO . throwIO $ UnisonRuntimeException message
@@ -459,7 +456,7 @@ lamToHask cenv s ir val = RT.run (handleIO' cenv s) cenv $ task val
   where task x = IR.Let (Var.named "_") (IR.Leaf (IR.Val x)) ir mempty
 
 runtime :: Runtime Symbol
-runtime = Runtime terminate eval
+runtime = Runtime terminate eval (nullaryMain External)
  where
   terminate :: IO ()
   terminate = pure ()

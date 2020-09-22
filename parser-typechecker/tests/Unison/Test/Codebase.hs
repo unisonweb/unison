@@ -1,5 +1,4 @@
 {-# Language OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Test.Codebase where

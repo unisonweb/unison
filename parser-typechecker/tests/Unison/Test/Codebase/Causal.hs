@@ -1,5 +1,4 @@
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Unison.Test.Codebase.Causal where
 
@@ -95,16 +94,16 @@ test =
       , scope "threeWayMerge.idempotent"
         .  expect
         $  testIdempotent oneCausal -- == oneCausal
-        -- $  prop_mergeIdempotent
+        --  $  prop_mergeIdempotent
 
       , scope "threeWayMerge.identity"
         .  expect
         $  testIdentity oneCausal emptyCausal
-        -- $  prop_mergeIdentity
+        --  $  prop_mergeIdentity
       , scope "threeWayMerge.commutative"
         .  expect
         $  testCommutative (Set.fromList [3,4]) oneRemoved
-        -- $  prop_mergeCommutative
+        --  $  prop_mergeCommutative
           {- , scope "threeWayMerge.commonAncestor"
         .  expect
         $  testCommonAncestor

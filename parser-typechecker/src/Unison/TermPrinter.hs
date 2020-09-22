@@ -1,7 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.TermPrinter where
@@ -9,10 +7,9 @@ module Unison.TermPrinter where
 import Unison.Prelude
 
 import           Data.List
-import           Data.List.Extra                ( dropEnd )
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
-import           Data.Text                      ( splitOn, unpack )
+import           Data.Text                      ( unpack )
 import qualified Data.Text                     as Text
 import qualified Text.Show.Unicode             as U
 import           Data.Vector                    ( )
@@ -23,10 +20,10 @@ import qualified Unison.HashQualified          as HQ
 import           Unison.Lexer                   ( symbolyId, showEscapeChar )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
+import qualified Unison.NameSegment            as NameSegment
 import           Unison.NamePrinter             ( styleHashQualified'' )
 import qualified Unison.Pattern                as Pattern
-import           Unison.PatternP                ( Pattern )
-import qualified Unison.PatternP               as PatternP
+import           Unison.Pattern                 ( Pattern )
 import           Unison.Reference               ( Reference )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Util.SyntaxText        as S
@@ -165,13 +162,13 @@ pretty0
     Var' v -> parenIfInfix name ic $ styleHashQualified'' (fmt S.Var) name
       -- OK since all term vars are user specified, any freshening was just added during typechecking
       where name = elideFQN im $ HQ.unsafeFromVar (Var.reset v)
-    Ref' r -> parenIfInfix name ic $ styleHashQualified'' (fmt S.Reference) name
+    Ref' r -> parenIfInfix name ic $ styleHashQualified'' (fmt $ S.Reference r) name
       where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
     TermLink' r -> parenIfInfix name ic $
-      fmt S.LinkKeyword "termLink " <> styleHashQualified'' (fmt S.Reference) name
+      fmt S.LinkKeyword "termLink " <> styleHashQualified'' (fmt $ S.Referent r) name
       where name = elideFQN im $ PrettyPrintEnv.termName n r
     TypeLink' r -> parenIfInfix name ic $
-      fmt S.LinkKeyword "typeLink " <> styleHashQualified'' (fmt S.Reference) name
+      fmt S.LinkKeyword "typeLink " <> styleHashQualified'' (fmt $ S.Reference r) name
       where name = elideFQN im $ PrettyPrintEnv.typeName n r
     Ann' tm t ->
       paren (p >= 0)
@@ -198,7 +195,7 @@ pretty0
     Request' ref i -> styleHashQualified'' (fmt S.Request) $
       elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Effect)
     Handle' h body -> paren (p >= 2) $
-      if height > 0 then PP.lines [
+      if PP.isMultiLine pb || PP.isMultiLine ph then PP.lines [
         (fmt S.ControlKeyword "handle") `PP.hang` pb,
         (fmt S.ControlKeyword "with") `PP.hang` ph
        ]
@@ -208,7 +205,6 @@ pretty0
           <> (fmt S.ControlKeyword "with") `PP.hang` ph
       ]
       where
-        height = PP.preferredHeight pb `max` PP.preferredHeight ph
         pb = pblock body
         ph = pblock h
         pblock tm = let (im', uses) = calcImports im tm
@@ -225,16 +221,15 @@ pretty0
           <> optSpace <> (fmt S.DelimiterChar $ l "]")
       where optSpace = PP.orElse "" " "
     If' cond t f -> paren (p >= 2) $
-      if height > 0 then PP.lines [
+      if PP.isMultiLine pt || PP.isMultiLine pf then PP.lines [
         (fmt S.ControlKeyword "if ") <> pcond <> (fmt S.ControlKeyword " then") `PP.hang` pt,
         (fmt S.ControlKeyword "else") `PP.hang` pf
        ]
       else PP.spaced [
-        (fmt S.ControlKeyword "if") `PP.hang` pcond <> ((fmt S.ControlKeyword " then") `PP.hang` pt),
+        ((fmt S.ControlKeyword "if") `PP.hang` pcond) <> ((fmt S.ControlKeyword " then") `PP.hang` pt),
         (fmt S.ControlKeyword "else") `PP.hang` pf
        ]
      where
-       height = PP.preferredHeight pt `max` PP.preferredHeight pf
        pcond  = pretty0 n (ac 2 Block im doc) cond
        pt     = branch t
        pf     = branch f
@@ -254,13 +249,12 @@ pretty0
       ]
     LetBlock bs e -> printLet bc bs e im' uses
     Match' scrutinee branches -> paren (p >= 2) $
-      if height > 0 then PP.lines [
+      if PP.isMultiLine ps then PP.lines [
         (fmt S.ControlKeyword "match ") `PP.hang` ps,
         (fmt S.ControlKeyword " with") `PP.hang` pbs
        ]
       else ((fmt S.ControlKeyword "match ") <> ps <> (fmt S.ControlKeyword " with")) `PP.hang` pbs
-      where height = PP.preferredHeight ps
-            ps = pretty0 n (ac 2 Normal im doc) scrutinee
+      where ps = pretty0 n (ac 2 Normal im doc) scrutinee
             pbs = printCase n im doc branches
 
     t -> l "error: " <> l (show t)
@@ -371,35 +365,35 @@ prettyPattern
 -- tail of variables it doesn't use.  This tail is the second component of
 -- the return value.
 prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
-  PatternP.Char    _ c -> (fmt S.CharLiteral $ l $ case showEscapeChar c of
+  Pattern.Char    _ c -> (fmt S.CharLiteral $ l $ case showEscapeChar c of
     Just c -> "?\\" ++ [c]
     Nothing -> '?': [c], vs)
-  PatternP.Unbound _   -> (fmt S.DelimiterChar $ l "_", vs)
-  PatternP.Var     _   -> let (v : tail_vs) = vs in (fmt S.Var $ l $ Var.nameStr v, tail_vs)
-  PatternP.Boolean _ b -> (fmt S.BooleanLiteral $ if b then l "true" else l "false", vs)
-  PatternP.Int     _ i -> (fmt S.NumericLiteral $ (if i >= 0 then l "+" else mempty) <> (l $ show i), vs)
-  PatternP.Nat     _ u -> (fmt S.NumericLiteral $ l $ show u, vs)
-  PatternP.Float   _ f -> (fmt S.NumericLiteral $ l $ show f, vs)
-  PatternP.Text    _ t -> (fmt S.TextLiteral $ l $ show t, vs)
+  Pattern.Unbound _   -> (fmt S.DelimiterChar $ l "_", vs)
+  Pattern.Var     _   -> let (v : tail_vs) = vs in (fmt S.Var $ l $ Var.nameStr v, tail_vs)
+  Pattern.Boolean _ b -> (fmt S.BooleanLiteral $ if b then l "true" else l "false", vs)
+  Pattern.Int     _ i -> (fmt S.NumericLiteral $ (if i >= 0 then l "+" else mempty) <> (l $ show i), vs)
+  Pattern.Nat     _ u -> (fmt S.NumericLiteral $ l $ show u, vs)
+  Pattern.Float   _ f -> (fmt S.NumericLiteral $ l $ show f, vs)
+  Pattern.Text    _ t -> (fmt S.TextLiteral $ l $ show t, vs)
   TuplePattern pats | length pats /= 1 ->
     let (pats_printed, tail_vs) = patterns (-1) vs pats
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
-  PatternP.Constructor _ ref i [] ->
+  Pattern.Constructor _ ref i [] ->
     (styleHashQualified'' (fmt S.Constructor) $ elideFQN im (PrettyPrintEnv.patternName n ref i), vs)
-  PatternP.Constructor _ ref i pats ->
+  Pattern.Constructor _ ref i pats ->
     let (pats_printed, tail_vs) = patternsSep 10 PP.softbreak vs pats
     in  ( paren (p >= 10)
           $ styleHashQualified'' (fmt S.Constructor) (elideFQN im (PrettyPrintEnv.patternName n ref i))
             `PP.hang` pats_printed
         , tail_vs)
-  PatternP.As _ pat ->
+  Pattern.As _ pat ->
     let (v : tail_vs)            = vs
         (printed, eventual_tail) = prettyPattern n c 11 tail_vs pat
     in  (paren (p >= 11) $ ((fmt S.Var $ l $ Var.nameStr v) <> (fmt S.DelimiterChar $ l "@") <> printed), eventual_tail)
-  PatternP.EffectPure _ pat ->
+  Pattern.EffectPure _ pat ->
     let (printed, eventual_tail) = prettyPattern n c (-1) vs pat
     in  (PP.sep " " [fmt S.DelimiterChar "{", printed, fmt S.DelimiterChar "}"], eventual_tail)
-  PatternP.EffectBind _ ref i pats k_pat ->
+  Pattern.EffectBind _ ref i pats k_pat ->
     let (pats_printed , tail_vs      ) = patternsSep 10 PP.softbreak vs pats
         (k_pat_printed, eventual_tail) = prettyPattern n c 0 tail_vs k_pat
     in  ((fmt S.DelimiterChar "{" ) <>
@@ -410,18 +404,17 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
             k_pat_printed]) <>
          (fmt S.DelimiterChar "}")
         , eventual_tail)
-  PatternP.SequenceLiteral _ pats ->
+  Pattern.SequenceLiteral _ pats ->
     let (pats_printed, tail_vs) = patternsSep (-1) (fmt S.DelimiterChar ", ") vs pats
     in  ((fmt S.DelimiterChar "[") <> pats_printed <> (fmt S.DelimiterChar "]"), tail_vs)
-  PatternP.SequenceOp _ l op r ->
+  Pattern.SequenceOp _ l op r ->
     let (pl, lvs) = prettyPattern n c p vs l
         (pr, rvs) = prettyPattern n c (p + 1) lvs r
-        f i s = (paren (p >= i) (pl <> " " <> (fmt S.Reference s) <> " " <> pr), rvs)
+        f i s = (paren (p >= i) (pl <> " " <> (fmt (S.Op op) s) <> " " <> pr), rvs)
     in case op of
       Pattern.Cons -> f 9 "+:"
       Pattern.Snoc -> f 9 ":+"
       Pattern.Concat -> f 9 "++"
-  t -> (l "error: " <> l (show t), vs)
  where
   l :: IsString s => String -> s
   l = fromString
@@ -529,7 +522,7 @@ prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = 
         x : y : _ -> PP.sep
           " "
           [ fmt S.Var $ PP.text (Var.name x)
-          , styleHashQualified'' (fmt S.Reference) $ elideFQN im v
+          , styleHashQualified'' (fmt $ S.HashQualifier v) $ elideFQN im v
           , fmt S.Var $ PP.text (Var.name y)
           ]
         _ -> l "error"
@@ -538,7 +531,7 @@ prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = 
     args = PP.spacedMap $ fmt S.Var . PP.text . Var.name
     renderName n =
       let n' = elideFQN im n
-      in  parenIfInfix n' NonInfix $ styleHashQualified'' (fmt S.Reference) n'
+      in  parenIfInfix n' NonInfix $ styleHashQualified'' (fmt $ S.HashQualifier n') n'
   symbolic = isSymbolic v
   isBinary = \case
     Ann'              tm _ -> isBinary tm
@@ -569,9 +562,9 @@ prettyDoc n im term = mconcat [ fmt S.DocDelimiter $ l "[: "
   go (DD.DocJoin segs) = foldMap go segs
   go (DD.DocBlob txt) = PP.paragraphyText (escaped txt)
   go (DD.DocLink (DD.LinkTerm (TermLink' r))) =
-    (fmt S.DocDelimiter $ l "@") <> (fmt S.Reference $ fmtTerm r)
+    (fmt S.DocDelimiter $ l "@") <> ((fmt $ S.Referent r) $ fmtTerm r)
   go (DD.DocLink (DD.LinkType (TypeLink' r))) =
-    (fmt S.DocDelimiter $ l "@") <> (fmt S.Reference $ fmtType r)
+    (fmt S.DocDelimiter $ l "@") <> ((fmt $ S.Reference r) $ fmtType r)
   go (DD.DocSource (DD.LinkTerm (TermLink' r))) =
     atKeyword "source" <> fmtTerm r
   go (DD.DocSource (DD.LinkType (TypeLink' r))) =
@@ -582,7 +575,7 @@ prettyDoc n im term = mconcat [ fmt S.DocDelimiter $ l "[: "
     atKeyword "evaluate" <> fmtTerm r
   go (Ref' r) = atKeyword "include" <> fmtTerm (Referent.Ref r)
   go _ = l $ "(invalid doc literal: " ++ show term ++ ")"
-  fmtName s = styleHashQualified'' (fmt S.Reference) $ elideFQN im s
+  fmtName s = styleHashQualified'' (fmt $ S.HashQualifier s) $ elideFQN im s
   fmtTerm r = fmtName $ PrettyPrintEnv.termName n r
   fmtType r = fmtName $ PrettyPrintEnv.typeName n r
   atKeyword w =
@@ -624,7 +617,8 @@ ac prec bc im doc = AmbientContext prec bc NonInfix im doc
 fmt :: S.Element -> Pretty S.SyntaxText -> Pretty S.SyntaxText
 fmt = PP.withSyntax
 
-{- # FQN elision
+{-
+   # FQN elision
 
    The term pretty-printer inserts `use` statements in some circumstances, to
    avoid the need for using fully-qualified names (FQNs) everywhere.  The
@@ -795,20 +789,20 @@ countTypeUsages n t = snd $ annotation $ reannotateUp (suffixCounterType n) t
 countPatternUsages :: PrettyPrintEnv -> Pattern loc -> PrintAnnotation
 countPatternUsages n p = Pattern.foldMap' f p where
   f = \case
-    Pattern.UnboundP _            -> mempty
-    Pattern.VarP _                -> mempty
-    Pattern.BooleanP _ _          -> mempty
-    Pattern.IntP _ _              -> mempty
-    Pattern.NatP _ _              -> mempty
-    Pattern.FloatP _ _            -> mempty
-    Pattern.TextP _ _             -> mempty
-    Pattern.CharP _ _             -> mempty
-    Pattern.AsP _ _               -> mempty
-    Pattern.SequenceLiteralP _ _  -> mempty
-    Pattern.SequenceOpP _ _ _ _   -> mempty
-    Pattern.EffectPureP _ _       -> mempty
-    Pattern.EffectBindP _ r i _ _ -> countHQ $ PrettyPrintEnv.patternName n r i
-    Pattern.ConstructorP _ r i _  ->
+    Pattern.Unbound _            -> mempty
+    Pattern.Var _                -> mempty
+    Pattern.Boolean _ _          -> mempty
+    Pattern.Int _ _              -> mempty
+    Pattern.Nat _ _              -> mempty
+    Pattern.Float _ _            -> mempty
+    Pattern.Text _ _             -> mempty
+    Pattern.Char _ _             -> mempty
+    Pattern.As _ _               -> mempty
+    Pattern.SequenceLiteral _ _  -> mempty
+    Pattern.SequenceOp _ _ _ _   -> mempty
+    Pattern.EffectPure _ _       -> mempty
+    Pattern.EffectBind _ r i _ _ -> countHQ $ PrettyPrintEnv.patternName n r i
+    Pattern.Constructor _ r i _  ->
       if noImportRefs r then mempty
       else countHQ $ PrettyPrintEnv.patternName n r i
 
@@ -819,12 +813,12 @@ countName :: Name -> PrintAnnotation
 countName n = let f = \(p, s) -> (s, Map.singleton p 1)
               in PrintAnnotation { usages = Map.fromList $ map f $ splitName n}
 
+-- Generates all valid splits of a name into a prefix and suffix.
+-- See examples in Unison.Test.TermPrinter
 splitName :: Name -> [(Prefix, Suffix)]
-splitName n = let ns = splitOn "." (Name.toText n)
-              in dropEnd 1 ((inits ns) `zip` (map dotConcat $ tails ns))
--- > splitName "x" == [([], "x")]
--- > splitName "A.x" == [(["A"], "x")]
--- > splitName "A.B.x" == [(["A"], "B.x"), (["A.B"], "x")]
+splitName n =
+  let ns = NameSegment.toText <$> Name.segments n
+  in  filter (not . Text.null . snd) $ inits ns `zip` map dotConcat (tails ns)
 
 joinName :: Prefix -> Suffix -> Name
 joinName p s = Name.unsafeFromText $ dotConcat $ p ++ [s]

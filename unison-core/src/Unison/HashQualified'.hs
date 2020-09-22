@@ -8,6 +8,7 @@ import qualified Data.Text                     as Text
 import           Prelude                 hiding ( take )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
+import           Unison.NameSegment             ( NameSegment )
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent )
@@ -18,6 +19,8 @@ import qualified Unison.HashQualified          as HQ
 
 data HashQualified' n = NameOnly n | HashQualified n ShortHash
   deriving (Eq, Functor)
+
+type HQSegment = HashQualified' NameSegment
 
 type HashQualified = HashQualified' Name
 
@@ -31,6 +34,13 @@ fromHQ = \case
   HQ.NameOnly n -> Just $ NameOnly n
   HQ.HashQualified n sh -> Just $ HashQualified n sh
   HQ.HashOnly{} -> Nothing
+
+-- Like fromHQ, but turns hashes into hash-qualified empty names
+fromHQ' :: Monoid n => HQ.HashQualified' n -> HashQualified' n
+fromHQ' = \case
+  HQ.NameOnly n -> NameOnly n
+  HQ.HashQualified n sh -> HashQualified n sh
+  HQ.HashOnly h -> HashQualified mempty h
 
 toName :: HashQualified' n -> n
 toName = \case

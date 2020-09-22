@@ -6,14 +6,12 @@ module Unison.Builtin.Decls where
 
 import           Data.List                      ( elemIndex, find )
 import qualified Data.Map                       as Map
-import           Data.Text                      (Text)
+import           Data.Text                      (Text,unpack)
 import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType         as CT
 import qualified Unison.DataDeclaration as DD
-import           Unison.DataDeclaration         ( DataDeclaration'
-                                                    (DataDeclaration)
-                                                , Modifier
-                                                    (Structural, Unique)
+import           Unison.DataDeclaration         ( DataDeclaration(..)
+                                                , Modifier(Structural, Unique)
                                                 , hashDecls )
 import qualified Unison.Pattern                 as Pattern
 import           Unison.Reference               (Reference)
@@ -28,19 +26,32 @@ import           Unison.Type                    (Type)
 import qualified Unison.Var                     as Var
 import           Unison.Var                     (Var)
 
+lookupDeclRef :: Text -> Reference
+lookupDeclRef str
+  | [(_, d, _)] <- filter (\(v,_,_) -> v == Var.named str) decls
+  = Reference.DerivedId d
+  | otherwise
+  = error $ "lookupDeclRef: missing \"" ++ unpack str ++ "\""
+  where decls = builtinDataDecls @Symbol
 
-unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef :: Reference
-(unitRef, pairRef, optionalRef, testResultRef, linkRef, docRef) =
-  let decls          = builtinDataDecls @Symbol
-      [(_, unit, _)] = filter (\(v, _, _) -> v == Var.named "Unit") decls
-      [(_, pair, _)] = filter (\(v, _, _) -> v == Var.named "Tuple") decls
-      [(_, opt , _)] = filter (\(v, _, _) -> v == Var.named "Optional") decls
-      [(_, testResult, _)] =
-        filter (\(v, _, _) -> v == Var.named "Test.Result") decls
-      [(_, link , _)] = filter (\(v, _, _) -> v == Var.named "Link") decls
-      [(_, doc , _)] = filter (\(v, _, _) -> v == Var.named "Doc") decls
-      r = Reference.DerivedId
-  in  (r unit, r pair, r opt, r testResult, r link, r doc)
+unitRef, pairRef, optionalRef, eitherRef :: Reference
+unitRef = lookupDeclRef "Unit"
+pairRef = lookupDeclRef "Tuple"
+optionalRef = lookupDeclRef "Optional"
+eitherRef = lookupDeclRef "Either"
+
+testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef :: Reference
+testResultRef = lookupDeclRef "Test.Result"
+linkRef = lookupDeclRef "Link"
+docRef = lookupDeclRef "Doc"
+ioErrorRef = lookupDeclRef "io2.IOError"
+stdHandleRef = lookupDeclRef "io2.StdHandle"
+
+fileModeRef, bufferModeRef, seekModeRef, seqViewRef :: Reference
+fileModeRef = lookupDeclRef "io2.FileMode"
+bufferModeRef = lookupDeclRef "io2.BufferMode"
+seekModeRef = lookupDeclRef "io2.SeekMode"
+seqViewRef = lookupDeclRef "SeqView"
 
 pairCtorRef, unitCtorRef :: Referent
 pairCtorRef = Referent.Con pairRef 0 CT.Data
@@ -67,14 +78,9 @@ okConstructorReferent, failConstructorReferent :: Referent.Referent
 okConstructorReferent = Referent.Con testResultRef okConstructorId CT.Data
 failConstructorReferent = Referent.Con testResultRef failConstructorId CT.Data
 
-failResult :: (Ord v, Monoid a) => a -> Text -> Term v a
-failResult ann msg =
-  Term.app ann (Term.request ann testResultRef failConstructorId)
-               (Term.text ann msg)
-
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
-builtinDataDecls :: Var v => [(v, Reference.Id, DataDeclaration' v ())]
+builtinDataDecls :: Var v => [(v, Reference.Id, DataDeclaration v ())]
 builtinDataDecls = rs1 ++ rs
  where
   rs1 = case hashDecls $ Map.fromList
@@ -84,8 +90,16 @@ builtinDataDecls = rs1 ++ rs
     [ (v "Unit"           , unit)
     , (v "Tuple"          , tuple)
     , (v "Optional"       , opt)
+    , (v "Either"         , eith)
     , (v "Test.Result"    , tr)
     , (v "Doc"            , doc)
+    , (v "io2.FileMode"   , fmode)
+    , (v "io2.BufferMode" , bmode)
+    , (v "io2.SeekMode"   , smode)
+    , (v "SeqView"        , seqview)
+
+    , (v "io2.IOError"    , ioerr)
+    , (v "io2.StdHandle"  , stdhnd)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
   [(_, linkRef, _)] = rs1
   v = Var.named
@@ -122,6 +136,85 @@ builtinDataDecls = rs1 ++ rs
                      (var "a" `arr` Type.app' (var "Optional") (var "a"))
       )
     ]
+  eith = DataDeclaration
+    Structural
+    ()
+    [v "a", v "b"]
+    [ ( ()
+      , v "Either.Left"
+      , Type.foralls () [v "a", v "b"]
+          (var "a" `arr` Type.apps' (var "Either") [var "a", var "b"])
+      )
+    , ( ()
+      , v "Either.Right"
+      , Type.foralls () [v "a", v "b"]
+          (var "b" `arr` Type.apps' (var "Either") [var "a", var "b"])
+      )
+    ]
+  fmode = DataDeclaration
+    (Unique "3c11ba4f0a5d8fedd427b476cdd2d7673197d11e")
+    ()
+    []
+    [ ((), v "io2.FileMode.Read", var "io2.FileMode")
+    , ((), v "io2.FileMode.Write", var "io2.FileMode")
+    , ((), v "io2.FileMode.Append", var "io2.FileMode")
+    , ((), v "io2.FileMode.ReadWrite", var "io2.FileMode")
+    ]
+  bmode = DataDeclaration
+    (Unique "7dd9560d3826c21e5e6a7e08f575b61adcddf849")
+    ()
+    []
+    [ ((), v "io2.BufferMode.NoBuffering", var "io2.BufferMode")
+    , ((), v "io2.BufferMode.LineBuffering", var "io2.BufferMode")
+    , ((), v "io2.BufferMode.BlockBuffering", var "io2.BufferMode")
+    , ((), v "io2.BufferMode.SizedBlockBuffering"
+      , Type.nat () `arr` var "io2.BufferMode")
+    ]
+  smode = DataDeclaration
+    (Unique "453a764f73cb4c7371d9af23b2d5ed646bf9e57c")
+    ()
+    []
+    [ ((), v "io2.SeekMode.AbsoluteSeek", var "io2.SeekMode")
+    , ((), v "io2.SeekMode.RelativeSeek", var "io2.SeekMode")
+    , ((), v "io2.SeekMode.SeekFromEnd", var "io2.SeekMode")
+    ]
+  ioerr = DataDeclaration
+    (Unique "5915e25ac83205f7885395cc6c6c988bc5ec69a1")
+    ()
+    []
+    [ ((), v "io2.IOError.AlreadyExists", var "io2.IOError")
+    , ((), v "io2.IOError.NoSuchThing", var "io2.IOError")
+    , ((), v "io2.IOError.ResourceBusy", var "io2.IOError")
+    , ((), v "io2.IOError.ResourceExhausted", var "io2.IOError")
+    , ((), v "io2.IOError.EOF", var "io2.IOError")
+    , ((), v "io2.IOError.IllegalOperation", var "io2.IOError")
+    , ((), v "io2.IOError.PermissionDenied", var "io2.IOError")
+    , ((), v "io2.IOError.UserError", var "io2.IOError")
+    ]
+  stdhnd = DataDeclaration
+    (Unique "67bf7a8e517cbb1e9f42bc078e35498212d3be3c")
+    ()
+    []
+    [ ((), v "io2.StdHandle.StdIn", var "io2.StdHandle")
+    , ((), v "io2.StdHandle.StdOut", var "io2.StdHandle")
+    , ((), v "io2.StdHandle.StdErr", var "io2.StdHandle")
+    ]
+  seqview = DataDeclaration
+    Structural
+    ()
+    [v "a", v "b"]
+    [ ( ()
+      , v "SeqView.VEmpty"
+      , Type.foralls () [v "a", v "b"]
+          (Type.apps' (var "SeqView") [var "a", var "b"])
+      )
+    , ( ()
+      , v "SeqView.VElem"
+      , let sv = Type.apps' (var "SeqView") [var "a", var "b"]
+         in Type.foralls () [v "a", v "b"]
+              (var "a" `arr` (var "b" `arr` sv))
+      )
+    ]
   tr = DataDeclaration
     (Unique "70621e539cd802b2ad53105697800930411a3ebc")
     ()
@@ -148,7 +241,7 @@ builtinDataDecls = rs1 ++ rs
     , ((), v "Link.Type", Type.typeLink () `arr` var "Link")
     ]
 
-builtinEffectDecls :: [(v, Reference.Id, DD.EffectDeclaration' v ())]
+builtinEffectDecls :: [(v, Reference.Id, DD.EffectDeclaration v ())]
 builtinEffectDecls = []
 
 pattern UnitRef <- (unUnitRef -> True)
@@ -179,12 +272,20 @@ pattern LinkRef <- ((== linkRef) -> True)
 pattern LinkTerm tm <- Term.App' (Term.Constructor' LinkRef LinkTermId) tm
 pattern LinkType ty <- Term.App' (Term.Constructor' LinkRef LinkTypeId) ty
 
-unitType, pairType, optionalType, testResultType
-  :: Ord v => a -> Type v a
+unitType, pairType, optionalType, testResultType,
+  eitherType, ioErrorType, fileModeType, bufferModeType, seekModeType,
+  stdHandleType
+    :: Ord v => a -> Type v a
 unitType a = Type.ref a unitRef
 pairType a = Type.ref a pairRef
 testResultType a = Type.app a (Type.vector a) (Type.ref a testResultRef)
 optionalType a = Type.ref a optionalRef
+eitherType a = Type.ref a eitherRef
+ioErrorType a = Type.ref a ioErrorRef
+fileModeType a = Type.ref a fileModeRef
+bufferModeType a = Type.ref a bufferModeRef
+seekModeType a = Type.ref a seekModeRef
+stdHandleType a = Type.ref a stdHandleRef
 
 unitTerm :: Var v => a -> Term v a
 unitTerm ann = Term.constructor ann unitRef 0
@@ -222,10 +323,10 @@ unTupleType t = case t of
   Type.Ref' UnitRef -> Just []
   _ -> Nothing
 
-unTuplePattern :: Pattern.PatternP loc -> Maybe [Pattern.PatternP loc]
+unTuplePattern :: Pattern.Pattern loc -> Maybe [Pattern.Pattern loc]
 unTuplePattern p = case p of
-  Pattern.ConstructorP _ PairRef 0 [fst, snd] -> (fst : ) <$> unTuplePattern snd
-  Pattern.ConstructorP _ UnitRef 0 [] -> Just []
+  Pattern.Constructor _ PairRef 0 [fst, snd] -> (fst : ) <$> unTuplePattern snd
+  Pattern.Constructor _ UnitRef 0 [] -> Just []
   _ -> Nothing
 
 unUnitRef,unPairRef,unOptionalRef:: Reference -> Bool

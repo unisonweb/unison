@@ -1,8 +1,6 @@
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Unison.Builtin
   (codeLookup
@@ -30,9 +28,6 @@ import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Unison.ConstructorType        as CT
 import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
-import           Unison.DataDeclaration         ( DataDeclaration'
-                                                , EffectDeclaration'
-                                                )
 import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Parser                  ( Ann(..) )
@@ -49,8 +44,8 @@ import qualified Unison.Names3 as Names3
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
 
-type DataDeclaration v = DataDeclaration' v Ann
-type EffectDeclaration v = EffectDeclaration' v Ann
+type DataDeclaration v = DD.DataDeclaration v Ann
+type EffectDeclaration v = DD.EffectDeclaration v Ann
 type Type v = Type.Type v ()
 
 names :: Names
@@ -161,6 +156,11 @@ builtinTypesSrc =
   , B' "Bytes" CT.Data
   , B' "Link.Term" CT.Data
   , B' "Link.Type" CT.Data
+  , B' "IO" CT.Effect, Rename' "IO" "io2.IO"
+  , B' "Handle" CT.Data, Rename' "Handle" "io2.Handle"
+  , B' "Socket" CT.Data, Rename' "Socket" "io2.Socket"
+  , B' "ThreadId" CT.Data, Rename' "ThreadId" "io2.ThreadId"
+  , B' "MVar" CT.Data, Rename' "MVar" "io2.MVar"
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -252,7 +252,7 @@ builtinsSrc =
   , B "Int.shiftRight" $ int --> nat --> int
   , B "Int.truncate0" $ int --> nat
   , B "Int.toText" $ int --> text
-  , B "Int.fromText" $ text --> optional int
+  , B "Int.fromText" $ text --> optionalt int
   , B "Int.toFloat" $ int --> float
   , B "Int.trailingZeros" $ int --> nat
 
@@ -269,7 +269,7 @@ builtinsSrc =
   , B "Nat.xor" $ nat --> nat --> nat
   , B "Nat.complement" $ nat --> nat
   , B "Nat.drop" $ nat --> nat --> nat
-  , B "Nat.fromText" $ text --> optional nat
+  , B "Nat.fromText" $ text --> optionalt nat
   , B "Nat.increment" $ nat --> nat
   , B "Nat.isEven" $ nat --> boolean
   , B "Nat.isOdd" $ nat --> boolean
@@ -331,7 +331,7 @@ builtinsSrc =
   , B "Float.max" $ float --> float --> float
   , B "Float.min" $ float --> float --> float
   , B "Float.toText" $ float --> text
-  , B "Float.fromText" $ text --> optional float
+  , B "Float.fromText" $ text --> optionalt float
 
   , B "Universal.==" $ forall1 "a" (\a -> a --> a --> boolean)
   -- Don't we want a Universal.!= ?
@@ -364,8 +364,8 @@ builtinsSrc =
   , B "Text.>=" $ text --> text --> boolean
   , B "Text.<" $ text --> text --> boolean
   , B "Text.>" $ text --> text --> boolean
-  , B "Text.uncons" $ text --> optional (tuple [char, text])
-  , B "Text.unsnoc" $ text --> optional (tuple [text, char])
+  , B "Text.uncons" $ text --> optionalt (tuple [char, text])
+  , B "Text.unsnoc" $ text --> optionalt (tuple [text, char])
 
   , B "Text.toCharList" $ text --> list char
   , B "Text.fromCharList" $ list char --> text
@@ -378,7 +378,7 @@ builtinsSrc =
   , B "Bytes.++" $ bytes --> bytes --> bytes
   , B "Bytes.take" $ nat --> bytes --> bytes
   , B "Bytes.drop" $ nat --> bytes --> bytes
-  , B "Bytes.at" $ nat --> bytes --> optional nat
+  , B "Bytes.at" $ nat --> bytes --> optionalt nat
   , B "Bytes.toList" $ bytes --> list nat
   , B "Bytes.size" $ bytes --> nat
   , B "Bytes.flatten" $ bytes --> bytes
@@ -392,7 +392,7 @@ builtinsSrc =
   , B "List.drop" $ forall1 "a" (\a -> nat --> list a --> list a)
   , B "List.++" $ forall1 "a" (\a -> list a --> list a --> list a)
   , B "List.size" $ forall1 "a" (\a -> list a --> nat)
-  , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optional a)
+  , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optionalt a)
 
   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
   ] ++
@@ -404,40 +404,118 @@ builtinsSrc =
                   ,("<=", "lteq")
                   ,(">" , "gt")
                   ,(">=", "gteq")]
+  ] ++ io2List ioBuiltins ++ io2List mvarBuiltins
+
+io2List :: [(Text, Type v)] -> [BuiltinDSL v]
+io2List bs = bs >>= \(n,ty) -> [B n ty, Rename n ("io2." <> n)]
+
+ioBuiltins :: Var v => [(Text, Type v)]
+ioBuiltins =
+  [ ("IO.openFile", text --> fmode --> ioe handle)
+  , ("IO.closeFile", handle --> ioe unit)
+  , ("IO.isFileEOF", handle --> ioe boolean)
+  , ("IO.isFileOpen", handle --> ioe boolean)
+  , ("IO.isSeekable", handle --> ioe boolean)
+  , ("IO.seekHandle", handle --> smode --> int --> ioe unit)
+  , ("IO.handlePosition", handle --> ioe int)
+  , ("IO.getBuffering", handle --> ioe bmode)
+  , ("IO.setBuffering", handle --> bmode --> ioe unit)
+  , ("IO.getLine", handle --> ioe text)
+  , ("IO.getText", handle --> ioe text)
+  , ("IO.putText", handle --> text --> ioe unit)
+  , ("IO.systemTime", unit --> ioe nat)
+  , ("IO.getTempDirectory", unit --> ioe text)
+  , ("IO.getCurrentDirectory", unit --> ioe text)
+  , ("IO.setCurrentDirectory", text --> ioe unit)
+  , ("IO.fileExists", text --> ioe boolean)
+  , ("IO.isDirectory", text --> ioe boolean)
+  , ("IO.createDirectory", text --> ioe unit)
+  , ("IO.removeDirectory", text --> ioe unit)
+  , ("IO.renameDirectory", text --> text --> ioe unit)
+  , ("IO.removeFile", text --> ioe unit)
+  , ("IO.renameFile", text --> text --> ioe unit)
+  , ("IO.getFileTimestamp", text --> ioe nat)
+  , ("IO.getFileSize", text --> ioe nat)
+  , ("IO.serverSocket", text --> text --> ioe socket)
+  , ("IO.listen", socket --> ioe unit)
+  , ("IO.clientSocket", text --> text --> ioe socket)
+  , ("IO.closeSocket", socket --> ioe unit)
+  , ("IO.socketAccept", socket --> ioe socket)
+  , ("IO.socketSend", socket --> bytes --> ioe unit)
+  , ("IO.socketReceive", socket --> nat --> ioe bytes)
+  , ("IO.forkComp"
+    , forall1 "a" $ \a -> (unit --> ioe a) --> io threadId)
+  , ("IO.stdHandle", stdhandle --> handle)
+  , ("IO.delay", nat --> ioe unit)
+  , ("IO.kill", threadId --> ioe unit)
+  ]
+
+mvarBuiltins :: forall v. Var v => [(Text, Type v)]
+mvarBuiltins =
+  [ ("MVar.new", forall1 "a" $ \a -> a --> io (mvar a))
+  , ("MVar.newEmpty", forall1 "a" $ \a -> io (mvar a))
+  , ("MVar.take", forall1 "a" $ \a -> mvar a --> ioe a)
+  , ("MVar.tryTake", forall1 "a" $ \a -> mvar a --> io (optionalt a))
+  , ("MVar.put", forall1 "a" $ \a -> mvar a --> a --> ioe unit)
+  , ("MVar.tryPut", forall1 "a" $ \a -> mvar a --> a --> io boolean)
+  , ("MVar.swap", forall1 "a" $ \a -> mvar a --> a --> ioe a)
+  , ("MVar.isEmpty", forall1 "a" $ \a -> mvar a --> io boolean)
+  , ("MVar.read", forall1 "a" $ \a -> mvar a --> ioe a)
+  , ("MVar.tryRead", forall1 "a" $ \a -> mvar a --> io (optionalt a))
   ]
   where
-    int = Type.int ()
-    nat = Type.nat ()
-    boolean = Type.boolean ()
-    float = Type.float ()
-    text = Type.text ()
-    bytes = Type.bytes ()
-    char = Type.char ()
+  mvar :: Type v -> Type v
+  mvar a = Type.ref () Type.mvarRef `app` a
 
-    (-->) :: Ord v => Type v -> Type v -> Type v
-    a --> b = Type.arrow () a b
+forall1 :: Var v => Text -> (Type v -> Type v) -> Type v
+forall1 name body =
+  let
+    a = Var.named name
+  in Type.forall () a (body $ Type.var () a)
 
-    infixr -->
+app :: Ord v => Type v -> Type v -> Type v
+app = Type.app ()
 
-    forall1 :: Var v => Text -> (Type v -> Type v) -> Type v
-    forall1 name body =
-      let
-        a = Var.named name
-      in Type.forall () a (body $ Type.var () a)
+list :: Ord v => Type v -> Type v
+list arg = Type.vector () `app` arg
 
-    app :: Ord v => Type v -> Type v -> Type v
-    app = Type.app ()
+optionalt :: Ord v => Type v -> Type v
+optionalt arg = DD.optionalType () `app` arg
 
-    list :: Ord v => Type v -> Type v
-    list arg = Type.vector () `app` arg
+tuple :: Ord v => [Type v] -> Type v
+tuple [t] = t
+tuple ts = foldr pair (DD.unitType ()) ts
 
-    optional :: Ord v => Type v -> Type v
-    optional arg = DD.optionalType () `app` arg
+pair :: Ord v => Type v -> Type v -> Type v
+pair l r = DD.pairType () `app` l `app` r
 
-    tuple :: Ord v => [Type v] -> Type v
-    tuple [t] = t
-    tuple ts = foldr pair (DD.unitType ()) ts
+(-->) :: Ord v => Type v -> Type v -> Type v
+a --> b = Type.arrow () a b
+infixr -->
 
-    pair :: Ord v => Type v -> Type v -> Type v
-    pair l r = DD.pairType () `app` l `app` r
+io, ioe :: Var v => Type v -> Type v
+io = Type.effect1 () (Type.builtinIO ())
+ioe = io . either (DD.ioErrorType ())
+  where
+  either l r = DD.eitherType () `app` l `app` r
 
+socket, threadId, handle, unit :: Var v => Type v
+socket = Type.socket ()
+threadId = Type.threadId ()
+handle = Type.fileHandle ()
+unit = DD.unitType ()
+
+fmode, bmode, smode, stdhandle :: Var v => Type v
+fmode = DD.fileModeType ()
+bmode = DD.bufferModeType ()
+smode = DD.seekModeType ()
+stdhandle = DD.stdHandleType ()
+
+int, nat, bytes, text, boolean, float, char :: Var v => Type v
+int = Type.int ()
+nat = Type.nat ()
+bytes = Type.bytes ()
+text = Type.text ()
+boolean = Type.boolean ()
+float = Type.float ()
+char = Type.char ()

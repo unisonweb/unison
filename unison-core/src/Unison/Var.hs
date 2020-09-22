@@ -1,7 +1,6 @@
 {-# Language OverloadedStrings #-}
 {-# Language ViewPatterns #-}
 {-# Language PatternSynonyms #-}
-{-# Language ScopedTypeVariables #-}
 
 module Unison.Var where
 
@@ -11,6 +10,8 @@ import Data.Char (toLower, isLower)
 import Data.Text (pack)
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
+import qualified Unison.NameSegment as Name
+
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Reference (Reference)
 import qualified Unison.Reference as R
@@ -52,6 +53,11 @@ rawName typ = case typ of
   Inference TypeConstructorArg -> "𝕦"
   MissingResult -> "_"
   Blank -> "_"
+  Eta -> "_eta"
+  ANFBlank -> "_anf"
+  Float -> "_float"
+  Pattern -> "_pattern"
+  Irrelevant -> "_irrelevant"
   UnnamedWatch k guid -> fromString k <> "." <> guid
 
 name :: Var v => v -> Text
@@ -101,6 +107,17 @@ data Type
   --  > 1 + 1
   --    has kind ""
   | UnnamedWatch WatchKind Text -- guid
+  -- An unnamed variable for constructor eta expansion
+  | Eta
+  -- An unnamed variable introduced by ANF transformation
+  | ANFBlank
+  -- An unnamed variable for a floated lambda
+  | Float
+  -- An unnamed variable introduced from pattern compilation
+  | Pattern
+  -- A variable for situations where we need to make up one that
+  -- definitely won't be used.
+  | Irrelevant
   deriving (Eq,Ord,Show)
 
 type WatchKind = String
@@ -119,13 +136,13 @@ data InferenceType =
 reset :: Var v => v -> v
 reset v = typed (typeOf v)
 
+unqualifiedName :: Var v => v -> Text
+unqualifiedName = last . Name.segments' . name
+
 unqualified :: Var v => v -> v
 unqualified v = case typeOf v of
   User _ -> named . unqualifiedName $ v
   _ -> v
-
-unqualifiedName :: Var v => v -> Text
-unqualifiedName = last . Text.splitOn "." . name
 
 namespaced :: Var v => [v] -> v
 namespaced vs = named $ intercalateMap "." name vs

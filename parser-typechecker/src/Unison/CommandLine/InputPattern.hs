@@ -1,9 +1,6 @@
-{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE DoAndIfThenElse     #-}
 
 
 module Unison.CommandLine.InputPattern where

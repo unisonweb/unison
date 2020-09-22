@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -128,8 +127,8 @@ import           Unison.Codebase.Causal         ( Causal
                                                 )
 import           Unison.Codebase.Path           ( Path(..) )
 import qualified Unison.Codebase.Path          as Path
-import           Unison.Codebase.NameSegment    ( NameSegment )
-import qualified Unison.Codebase.NameSegment   as NameSegment
+import           Unison.NameSegment             ( NameSegment )
+import qualified Unison.NameSegment            as NameSegment
 import qualified Unison.Codebase.Metadata      as Metadata
 import qualified Unison.Hash                   as Hash
 import           Unison.Hashable                ( Hashable )
@@ -350,11 +349,11 @@ deepEdits' b = go id b where
   -- can change this to an actual prefix once Name is a [NameSegment]
   go :: (Name -> Name) -> Branch0 m -> Map Name (EditHash, m Patch)
   go addPrefix Branch0{..} =
-    Map.mapKeysMonotonic (addPrefix . NameSegment.toName) _edits
+    Map.mapKeysMonotonic (addPrefix . Name.fromSegment) _edits
       <> foldMap f (Map.toList _children)
     where
     f :: (NameSegment, Branch m) -> Map Name (EditHash, m Patch)
-    f (c, b) =  go (addPrefix . Name.joinDot (NameSegment.toName c)) (head b)
+    f (c, b) =  go (addPrefix . Name.joinDot (Name.fromSegment c)) (head b)
 
 data MergeMode = RegularMerge | SquashMerge deriving (Eq,Ord,Show)
 

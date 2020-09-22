@@ -21,7 +21,7 @@ prettyName :: IsString s => Name -> Pretty s
 prettyName = PP.text . Name.toText
 
 prettyHashQualified :: HQ.HashQualified -> Pretty SyntaxText
-prettyHashQualified = styleHashQualified' id (fmt S.HashQualifier)
+prettyHashQualified hq = styleHashQualified' id (fmt $ S.HashQualifier hq) hq
 
 prettyHashQualified' :: HQ'.HashQualified -> Pretty SyntaxText
 prettyHashQualified' = prettyHashQualified . HQ'.toHQ
@@ -75,7 +75,7 @@ styleHashQualified' nameStyle hashStyle = \case
 styleHashQualified'' :: (Pretty SyntaxText -> Pretty SyntaxText)
                      -> HQ.HashQualified
                      -> Pretty SyntaxText
-styleHashQualified'' nameStyle = styleHashQualified' nameStyle (fmt S.HashQualifier)
+styleHashQualified'' nameStyle hq = styleHashQualified' nameStyle (fmt $ S.HashQualifier hq) hq
 
 fmt :: S.Element -> Pretty S.SyntaxText -> Pretty S.SyntaxText
 fmt = PP.withSyntax

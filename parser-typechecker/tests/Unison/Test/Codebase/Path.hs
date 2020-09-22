@@ -6,7 +6,7 @@ import EasyTest
 import Unison.Codebase.Path
 import Data.Sequence
 import Data.Text
-import Unison.Codebase.NameSegment
+import Unison.NameSegment
 import Data.Either
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.ShortHash as SH

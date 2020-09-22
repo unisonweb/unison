@@ -19,7 +19,6 @@ import qualified Unison.Hashable               as H
 import           Unison.Reference               ( Reference )
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation           ( Relation )
-import           Data.Foldable                  ( toList )
 import qualified Unison.LabeledDependency      as LD
 import           Unison.LabeledDependency       ( LabeledDependency )
 

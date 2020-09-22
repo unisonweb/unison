@@ -1,11 +1,9 @@
 -- Based on: http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html
 {-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.ABT where
@@ -711,7 +709,7 @@ subtract _ t1s t2s =
 instance (Show1 f, Show v) => Show (Term f v a) where
   -- annotations not shown
   showsPrec p (Term _ _ out) = case out of
-    Var v -> \x -> "Var " ++ show v ++ x
+    Var v -> showParen (p>=9) $ \x -> "Var " ++ show v ++ x
     Cycle body -> ("Cycle " ++) . showsPrec p body
     Abs v body -> showParen True $ (show v ++) . showString ". " . showsPrec p body
     Tm f -> showsPrec1 p f

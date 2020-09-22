@@ -1,10 +1,6 @@
-{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
 module Unison.PrintError where

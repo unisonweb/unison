@@ -1,7 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -10,6 +9,7 @@ module Unison.Codebase.FileCodebase.Common
   , SyncToDir
   , SimpleLens
   , codebaseExists
+  , codebasePath
   , hashExists
   -- dirs (parent of all the files)
   , branchHeadDir
@@ -74,14 +74,11 @@ import           Control.Error (runExceptT, ExceptT(..))
 import           Control.Lens (Lens, use, to, (%=))
 import           Control.Monad.Catch (catch)
 import           Control.Monad.State (MonadState)
+import qualified Data.ByteString.Base16 as ByteString (decodeBase16, encodeBase16)
 import qualified Data.Char                     as Char
-import qualified Data.Hex                      as Hex
 import           Data.List                      ( isPrefixOf )
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
-import           Data.Text.Encoding             ( encodeUtf8
-                                                , decodeUtf8
-                                                )
 import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 , doesFileExist
                                                 , removeFile
@@ -89,8 +86,7 @@ import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 )
 import           UnliftIO.IO.File               (writeBinaryFile)
 import qualified System.Directory
-import           System.FilePath                ( FilePath
-                                                , takeBaseName
+import           System.FilePath                ( takeBaseName
                                                 , takeDirectory
                                                 , (</>)
                                                 )
@@ -214,8 +210,8 @@ decodeFileName = let
   go (hd:tl) = hd : go tl
   go [] = []
   decodeHex :: String -> String
-  decodeHex s = maybe s (Text.unpack . decodeUtf8)
-              . Hex.unhex . encodeUtf8 . Text.pack $ s
+  decodeHex s = either (const s) (Text.unpack . decodeUtf8)
+              . ByteString.decodeBase16 . encodeUtf8 . Text.pack $ s
   in \case
     "$dot$" -> "."
     "$dotdot$" -> ".."
@@ -238,7 +234,9 @@ encodeFileName = let
                  = "$x" <> encodeHex [c] <> "$" <> go rem
                | otherwise = c : go rem
   go [] = []
-  encodeHex = Text.unpack . decodeUtf8 . Hex.hex . encodeUtf8 . Text.pack
+  encodeHex :: String -> String
+  encodeHex = Text.unpack . Text.toUpper . ByteString.encodeBase16 .
+              encodeUtf8 . Text.pack
   in \case
     "." -> "$dot$"
     ".." -> "$dotdot$"
@@ -579,7 +577,7 @@ branchHashesByPrefix codebasePath p =
       _ -> Nothing
 
 failWith :: MonadIO m => Err -> m a
-failWith = fail . show
+failWith = liftIO . fail . show
 
 -- | A version of listDirectory that returns mempty if the directory doesn't exist
 listDirectory :: MonadIO m => FilePath -> m [FilePath]

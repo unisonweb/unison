@@ -1,7 +1,6 @@
 {-# Language BangPatterns #-}
 {-# Language Strict #-}
 {-# Language StrictData #-}
-{-# Language DoAndIfThenElse #-}
 
 module Unison.Util.CyclicEq where
 

@@ -1,7 +1,5 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE FlexibleContexts    #-}
 
 module Unison.TypePrinter where
 
@@ -78,7 +76,7 @@ prettyRaw n im p tp = go n im p tp
     Var' v     -> fmt S.Var $ PP.text (Var.name v)
     DD.TupleType' xs | length xs /= 1 -> PP.parenthesizeCommas $ map (go n im 0) xs
     -- Would be nice to use a different SyntaxHighlights color if the reference is an ability.
-    Ref' r     -> styleHashQualified'' (fmt S.DataType) $ elideFQN im (PrettyPrintEnv.typeName n r)
+    Ref' r     -> styleHashQualified'' (fmt $ S.Reference r) $ elideFQN im (PrettyPrintEnv.typeName n r)
     Cycle' _ _ -> fromString "error: TypeParser does not currently emit Cycle"
     Abs' _     -> fromString "error: TypeParser does not currently emit Abs"
     Ann' _ _   -> fromString "error: TypeParser does not currently emit Ann"
@@ -115,7 +113,7 @@ prettyRaw n im p tp = go n im p tp
       <> effects mes
       <> if (isJust mes) || (not delay) && (not first) then " " else mempty
 
-  arrows delay first [(mes, Ref' DD.UnitRef)] = arrow delay first mes <> (fmt S.DataType "()")
+  arrows delay first [(mes, Ref' DD.UnitRef)] = arrow delay first mes <> (fmt S.Unit "()")
   arrows delay first ((mes, Ref' DD.UnitRef) : rest) =
     arrow delay first mes <> (parenNoGroup delay $ arrows True True rest)
   arrows delay first ((mes, arg) : rest) =
@@ -143,7 +141,7 @@ prettySignatures'
   -> [(HashQualified, Type v a)]
   -> [Pretty ColorText]
 prettySignatures' env ts = map PP.syntaxToColor $ PP.align
-  [ ( styleHashQualified'' (fmt S.DataType) name
+  [ ( styleHashQualified'' (fmt $ S.HashQualifier name) name
     , (fmt S.TypeAscriptionColon ": " <> pretty0 env Map.empty (-1) typ)
       `PP.orElse` (  fmt S.TypeAscriptionColon ": "
                   <> PP.indentNAfterNewline 2 (pretty0 env Map.empty (-1) typ)
@@ -158,7 +156,7 @@ prettySignaturesAlt'
   -> [([HashQualified], Type v a)]
   -> [Pretty ColorText]
 prettySignaturesAlt' env ts = map PP.syntaxToColor $ PP.align
-  [ ( PP.commas . fmap (styleHashQualified'' (fmt S.DataType)) $ names
+  [ ( PP.commas . fmap (\name -> styleHashQualified'' (fmt $ S.HashQualifier name) name) $ names
     , (fmt S.TypeAscriptionColon ": " <> pretty0 env Map.empty (-1) typ)
       `PP.orElse` (  fmt S.TypeAscriptionColon ": "
                   <> PP.indentNAfterNewline 2 (pretty0 env Map.empty (-1) typ)

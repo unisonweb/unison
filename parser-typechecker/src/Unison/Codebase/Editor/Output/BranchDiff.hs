@@ -1,4 +1,4 @@
-{-# Language DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
+{-# Language DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -25,7 +25,6 @@ import Unison.HashQualified' (HashQualified)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Referent as Referent
 import Unison.Referent (Referent)
-import Data.Set (Set)
 import qualified Unison.Names2 as Names2
 import Unison.Names3 (Names0)
 import Unison.DataDeclaration (DeclOrBuiltin)

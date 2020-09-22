@@ -3,11 +3,8 @@
 {-# Language Strict #-}
 {-# Language StrictData #-}
 {-# Language RankNTypes #-}
-{-# Language TupleSections #-}
 {-# Language PatternSynonyms #-}
 {-# Language ViewPatterns #-}
-{-# Language ScopedTypeVariables #-}
-{-# Language DoAndIfThenElse #-}
 
 
 module Unison.Runtime.Rt1 where
@@ -520,8 +517,8 @@ run ioHandler env ir = do
       BitOrI i j -> do x <- ati size i m; y <- ati size j m; done (I ((.|.) (fromIntegral x) (fromIntegral y)))
       BitXorI i j -> do x <- ati size i m; y <- ati size j m; done (I (xor (fromIntegral x) (fromIntegral y)))
       ComplementI i -> do x <- ati size i m; done (I (fromIntegral (complement x)))
-      LeadZeroI i -> do x <- ati size i m; done (I (fromIntegral (countLeadingZeros x)))
-      TrailZeroI i -> do x <- ati size i m; done (I (fromIntegral (countTrailingZeros x)))
+      LeadZeroI i -> do x <- ati size i m; done (N (fromIntegral (countLeadingZeros x)))
+      TrailZeroI i -> do x <- ati size i m; done (N (fromIntegral (countTrailingZeros x)))
 
       AddN i j -> do x <- atn size i m; y <- atn size j m; done (N (x + y))
       -- cast to `Int` and subtract

@@ -101,8 +101,14 @@ tcBinding width v mtp tm expected
         ]
 
 test :: Test ()
-test = scope "termprinter" . tests $
-  [ tc "if true then +2 else -2"
+test = scope "termprinter" $ tests
+  [ scope "splitName" $ tests
+      [ scope "x" $ expectEqual (splitName "x") [([], "x")]
+      , scope "A.x" $ expectEqual (splitName "A.x") [([],"A.x"),(["A"],"x")]
+      , scope "A.B.x"
+        $ expectEqual (splitName "A.B.x") [([],"A.B.x"),(["A"],"B.x"),(["A","B"],"x")]
+      ]
+  , tc "if true then +2 else -2"
   , tc "[2, 3, 4]"
   , tc "[2]"
   , tc "[]"

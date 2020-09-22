@@ -1,4 +1,3 @@
-{-# Language DeriveFunctor #-}
 {-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Typechecker.TypeVar where

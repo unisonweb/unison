@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternSynonyms, FlexibleContexts #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Codecs where
 
@@ -16,7 +16,6 @@ import qualified Data.ByteString as B
 import           Data.ByteString.Builder (doubleBE, int64BE, toLazyByteString)
 import qualified Data.ByteString.Lazy as BL
 import           Data.Bytes.Put
-import           Data.Text.Encoding (encodeUtf8)
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as Blank
 import qualified Unison.DataDeclaration as DD
@@ -29,8 +28,8 @@ import           Unison.UnisonFile (UnisonFile, pattern UnisonFile)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import Unison.PatternP (Pattern)
-import qualified Unison.PatternP as Pattern
+import Unison.Pattern (Pattern)
+import qualified Unison.Pattern as Pattern
 
 type Pos = Word64
 

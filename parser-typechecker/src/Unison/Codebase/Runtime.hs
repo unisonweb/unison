@@ -1,5 +1,4 @@
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Codebase.Runtime where
@@ -13,7 +12,9 @@ import qualified Data.Set                      as Set
 import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.Codebase               as Codebase
 import           Unison.UnisonFile              ( UnisonFile )
+import           Unison.Parser                  ( Ann )
 import qualified Unison.Term                   as Term
+import           Unison.Type                    ( Type )
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Reference               ( Reference )
@@ -33,6 +34,7 @@ data Runtime v = Runtime
       -> PPE.PrettyPrintEnv
       -> Term v
       -> IO (Either Error (Term v))
+  , mainType :: Type v Ann
   }
 
 type IsCacheHit = Bool
@@ -95,7 +97,7 @@ evaluateWatches code ppe evaluationCache rt uf = do
         (bindings, results) = case out of
           TupleTerm' results -> (mempty, results)
           Term.LetRecNamed' bs (TupleTerm' results) -> (bs, results)
-          _ -> fail $ "Evaluation should produce a tuple, but gave: " ++ show out
+          _ -> error $ "Evaluation should produce a tuple, but gave: " ++ show out
       let go v eval (ref, a, uneval, isHit) =
             (a, Map.findWithDefault (die v) v watchKinds,
              ref, uneval, Term.etaNormalForm eval, isHit)

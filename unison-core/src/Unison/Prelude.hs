@@ -5,14 +5,14 @@ module Unison.Prelude
 import Control.Applicative as X
 import Control.Exception as X (Exception, SomeException, IOException, try)
 import Control.Monad as X
-import Control.Monad.Extra as X (ifM, unlessM, whenM)
+import Control.Monad.Extra as X (ifM, mapMaybeM, unlessM, whenM)
 import Control.Monad.IO.Class as X (MonadIO(liftIO))
 import Control.Monad.Trans as X (MonadTrans(lift))
 import Control.Monad.Trans.Maybe as X (MaybeT(MaybeT, runMaybeT))
 import Data.ByteString as X (ByteString)
 import Data.Either as X
 import Data.Either.Combinators as X (mapLeft, maybeToRight)
-import Data.Foldable as X (asum, fold, foldl', for_, forM_, toList, traverse_)
+import Data.Foldable as X (asum, fold, foldl', for_, toList, traverse_)
 import Data.Functor as X
 import Data.Int as X
 import Data.List as X (foldl1', sortOn)

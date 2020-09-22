@@ -1,6 +1,5 @@
 module Unison.Codebase.Serialization.PutT where
 
-import qualified Data.Bytes.Put                as Put
 import           Data.Bytes.Put
 import qualified Data.Serialize.Put            as Ser
 import           Data.Serialize.Put             ( PutM

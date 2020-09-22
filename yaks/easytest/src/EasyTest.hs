@@ -1,5 +1,4 @@
 {-# Language BangPatterns #-}
-{-# Language DoAndIfThenElse #-}
 {-# Language FunctionalDependencies #-}
 {-# Language GeneralizedNewtypeDeriving #-}
 
@@ -10,8 +9,6 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
-import Control.Monad.Fail (MonadFail)
-import qualified Control.Monad.Fail
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Data.List
@@ -358,7 +355,7 @@ nologging :: HasCallStack => Test a -> Test a
 nologging (Test t) = Test $ do
   env <- ask
   liftIO $ runReaderT t (env {note_ = \_ -> pure ()})
-  
+
 -- | Run a test under a new scope, without logs and suppressing all output
 attempt :: Test a -> Test (Maybe a)
 attempt (Test t) = nologging $ do
@@ -394,7 +391,6 @@ instance MonadReader Env Test where
   reader f = Test (Just <$> reader f)
 
 instance Monad Test where
-  fail = Control.Monad.Fail.fail
   return a = Test $ do
     allow <- asks (null . allow)
     pure $ if allow then Just a else Nothing

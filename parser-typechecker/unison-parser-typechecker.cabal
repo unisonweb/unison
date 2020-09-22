@@ -1,8 +1,8 @@
+cabal-version: 2.2
 name:          unison-parser-typechecker
 category:      Compiler
 version:       0.1
 license:       MIT
-cabal-version: >= 1.8
 license-file:  LICENSE
 author:        Unison Computing, public benefit corp
 maintainer:    Paul Chiusano <paul.chiusano@gmail.com>, Runar Bjarnason <runarorama@gmail.com>, Arya Irani <arya.irani@gmail.com>
@@ -30,7 +30,26 @@ flag quiet
   manual: True
   default: False
 
+-- NOTE: Keep in sync throughout repo.
+common unison-common
+  default-language: Haskell2010
+  default-extensions:
+    ApplicativeDo,
+    BlockArguments,
+    DeriveFunctor,
+    DerivingStrategies,
+    DoAndIfThenElse,
+    FlexibleContexts,
+    FlexibleInstances,
+    LambdaCase,
+    MultiParamTypeClasses,
+    ScopedTypeVariables,
+    TupleSections,
+    TypeApplications
+
 library
+  import: unison-common
+
   hs-source-dirs: src
 
   exposed-modules:
@@ -103,12 +122,23 @@ library
     Unison.PrintError
     Unison.Result
     Unison.Runtime.ANF
+    Unison.Runtime.Builtin
+    Unison.Runtime.Debug
+    Unison.Runtime.Decompile
+    Unison.Runtime.Exception
+    Unison.Runtime.Foreign
+    Unison.Runtime.Foreign.Function
+    Unison.Runtime.Interface
     Unison.Runtime.IR
+    Unison.Runtime.MCode
+    Unison.Runtime.Machine
+    Unison.Runtime.Pattern
     Unison.Runtime.Rt1
     Unison.Runtime.Rt1IO
     Unison.Runtime.IOSource
     Unison.Runtime.Vector
     Unison.Runtime.SparseVector
+    Unison.Runtime.Stack
     Unison.TermParser
     Unison.TermPrinter
     Unison.TypeParser
@@ -125,6 +155,7 @@ library
     Unison.Util.Bytes
     Unison.Util.Cache
     Unison.Util.ColorText
+    Unison.Util.EnumContainers
     Unison.Util.Exception
     Unison.Util.Free
     Unison.Util.Find
@@ -132,6 +163,7 @@ library
     Unison.Util.Logger
     Unison.Util.Map
     Unison.Util.Menu
+    Unison.Util.PinBoard
     Unison.Util.Pretty
     Unison.Util.Range
     Unison.Util.Star3
@@ -147,6 +179,7 @@ library
     ansi-terminal,
     async,
     base,
+    base16 >= 0.2.1.0,
     bifunctors,
     bytes,
     bytestring,
@@ -168,12 +201,10 @@ library
     fingertree,
     free,
     fsnotify,
-    fsutils,
     generic-monoid,
     hashable,
     hashtables,
     haskeline,
-    hex,
     io-streams,
     lens,
     ListLike,
@@ -186,8 +217,9 @@ library
     mutable-containers,
     network,
     network-simple,
-    non-empty-sequence,
+    nonempty-containers,
     process,
+    primitive,
     random,
     raw-strings-qq,
     regex-base,
@@ -197,6 +229,7 @@ library
     split,
     stm,
     strings,
+    tagged,
     terminal-size,
     text,
     time,
@@ -208,32 +241,20 @@ library
     unicode-show
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
-  default-extensions:
-    ApplicativeDo,
-    DeriveFunctor,
-    DoAndIfThenElse,
-    FlexibleContexts,
-    FlexibleInstances,
-    LambdaCase,
-    MultiParamTypeClasses,
-    -- OverloadedStrings,
-    -- RecordWildCards,
-    ScopedTypeVariables,
-    TupleSections
-    TypeApplications
-    -- ViewPatterns
 
   if flag(optimized)
-    ghc-options: -funbox-strict-fields
+    ghc-options: -funbox-strict-fields -O2
 
   if flag(quiet)
     ghc-options: -v0
 
 executable unison
+  import: unison-common
   main-is: Main.hs
   hs-source-dirs: unison
-  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  ghc-options: -Wall -threaded -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
   other-modules:
+    System.Path
     Version
   build-depends:
     base,
@@ -242,7 +263,6 @@ executable unison
     directory,
     errors,
     filepath,
-    fsutils,
     megaparsec,
     safe,
     shellmet,
@@ -250,10 +270,13 @@ executable unison
     temporary,
     text,
     unison-core,
-    unison-parser-typechecker,
-    unix
+    unison-parser-typechecker
+  if !os(windows)
+    build-depends:
+      unix
 
 executable prettyprintdemo
+  import: unison-common
   main-is: Main.hs
   hs-source-dirs: prettyprintdemo
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
@@ -264,14 +287,16 @@ executable prettyprintdemo
     unison-parser-typechecker
 
 executable tests
+  import:         unison-common
   main-is:        Suite.hs
   hs-source-dirs: tests
-  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
+  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
     base,
     easytest
   other-modules:
     Unison.Test.ABT
+    Unison.Test.ANF
     Unison.Test.Cache
     Unison.Test.Codebase
     Unison.Test.Codebase.Causal
@@ -283,6 +308,8 @@ executable tests
     Unison.Test.FileParser
     Unison.Test.Git
     Unison.Test.Lexer
+    Unison.Test.IO
+    Unison.Test.MCode
     Unison.Test.Range
     Unison.Test.Referent
     Unison.Test.Term
@@ -297,6 +324,8 @@ executable tests
     Unison.Test.UnisonSources
     Unison.Test.UriParser
     Unison.Test.Util.Bytes
+    Unison.Test.Util.PinBoard
+    Unison.Test.Util.Pretty
     Unison.Test.Var
     Unison.Test.VersionParser
     Unison.Core.Test.Name
@@ -327,6 +356,7 @@ executable tests
     unison-parser-typechecker
 
 executable transcripts
+  import:         unison-common
   main-is:        Transcripts.hs
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: transcripts
@@ -339,5 +369,17 @@ executable transcripts
     shellmet,
     process,
     text,
+    unison-core,
+    unison-parser-typechecker
+
+benchmark runtime
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  ghc-options: -O2
+  hs-source-dirs: benchmarks/runtime
+  build-depends:
+    base,
+    criterion,
+    containers,
     unison-core,
     unison-parser-typechecker

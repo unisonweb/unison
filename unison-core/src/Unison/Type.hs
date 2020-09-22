@@ -1,13 +1,9 @@
 {-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Type where
@@ -16,7 +12,6 @@ import Unison.Prelude
 
 import qualified Control.Monad.Writer.Strict as Writer
 import Data.Functor.Identity (runIdentity)
-import Data.Functor.Const (Const(..), getConst)
 import Data.Monoid (Any(..))
 import           Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
@@ -225,6 +220,15 @@ effectRef = Reference.Builtin "Effect"
 termLinkRef = Reference.Builtin "Link.Term"
 typeLinkRef = Reference.Builtin "Link.Type"
 
+builtinIORef, fileHandleRef, threadIdRef, socketRef :: Reference
+builtinIORef = Reference.Builtin "IO"
+fileHandleRef = Reference.Builtin "Handle"
+threadIdRef = Reference.Builtin "ThreadId"
+socketRef = Reference.Builtin "Socket"
+
+mvarRef :: Reference
+mvarRef = Reference.Builtin "MVar"
+
 builtin :: Ord v => a -> Text -> Type v a
 builtin a = ref a . Reference.Builtin
 
@@ -245,6 +249,18 @@ text a = ref a textRef
 
 char :: Ord v => a -> Type v a
 char a = ref a charRef
+
+fileHandle :: Ord v => a -> Type v a
+fileHandle a = ref a fileHandleRef
+
+threadId :: Ord v => a -> Type v a
+threadId a = ref a threadIdRef
+
+builtinIO :: Ord v => a -> Type v a
+builtinIO a = ref a builtinIORef
+
+socket :: Ord v => a -> Type v a
+socket a = ref a socketRef
 
 vector :: Ord v => a -> Type v a
 vector a = ref a vectorRef

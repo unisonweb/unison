@@ -1,14 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DoAndIfThenElse #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Typechecker.Context
@@ -60,20 +53,18 @@ import           Data.List
 import           Data.List.NonEmpty             ( NonEmpty )
 import qualified Data.Map                      as Map
 import qualified Data.Sequence                 as Seq
-import           Data.Sequence.NonEmpty         ( NonEmptySeq
-                                                , appendSeq
-                                                , nonEmptySeqToSeq
-                                                )
+import           Data.Sequence.NonEmpty         ( NESeq )
+import qualified Data.Sequence.NonEmpty        as NESeq
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Blank                  as B
-import           Unison.DataDeclaration         ( DataDeclaration'
-                                                , EffectDeclaration'
+import           Unison.DataDeclaration         ( DataDeclaration
+                                                , EffectDeclaration
                                                 )
 import qualified Unison.DataDeclaration        as DD
-import           Unison.PatternP                ( Pattern )
-import qualified Unison.PatternP               as Pattern
+import           Unison.Pattern                 ( Pattern )
+import qualified Unison.Pattern                as Pattern
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
 import qualified Unison.Term                   as Term
@@ -123,11 +114,11 @@ instance (Ord loc, Var v) => Eq (Element v loc) where
 
 data Env v loc = Env { freshId :: Word64, ctx :: Context v loc }
 
-type DataDeclarations v loc = Map Reference (DataDeclaration' v loc)
-type EffectDeclarations v loc = Map Reference (EffectDeclaration' v loc)
+type DataDeclarations v loc = Map Reference (DataDeclaration v loc)
+type EffectDeclarations v loc = Map Reference (EffectDeclaration v loc)
 
 data Result v loc a = Success (Seq (InfoNote v loc)) a
-                    | TypeError (NonEmptySeq (ErrorNote v loc)) (Seq (InfoNote v loc))
+                    | TypeError (NESeq (ErrorNote v loc)) (Seq (InfoNote v loc))
                     | CompilerBug (CompilerBug v loc)
                                   (Seq (ErrorNote v loc)) -- type errors before hitting the bug
                                   (Seq (InfoNote v loc))  -- info notes before hitting the bug
@@ -137,7 +128,7 @@ instance Applicative (Result v loc) where
   pure = Success mempty
   CompilerBug bug es is <*> _                       = CompilerBug bug es is
   r                     <*> CompilerBug bug es' is' = CompilerBug bug (typeErrors r <> es') (infoNotes r <> is')
-  TypeError es is       <*> r'                      = TypeError (appendSeq es (typeErrors r')) (is <> infoNotes r')
+  TypeError es is       <*> r'                      = TypeError (es NESeq.|>< (typeErrors r')) (is <> infoNotes r')
   Success is _          <*> TypeError es' is'       = TypeError es' (is <> is')
   Success is f          <*> Success is' a           = Success (is <> is') (f a)
 
@@ -157,7 +148,7 @@ compilerBug bug = CompilerBug bug mempty mempty
 
 typeErrors :: Result v loc a -> Seq (ErrorNote v loc)
 typeErrors = \case
-  TypeError es _     -> nonEmptySeqToSeq es
+  TypeError es _     -> NESeq.toSeq es
   CompilerBug _ es _ -> es
   Success _ _        -> mempty
 
@@ -207,8 +198,8 @@ modEnv' f = MT (\menv -> pure . f $ env menv)
 data Unknown = Data | Effect deriving Show
 
 data CompilerBug v loc
-  = UnknownDecl Unknown Reference (Map Reference (DataDeclaration' v loc))
-  | UnknownConstructor Unknown Reference Int (DataDeclaration' v loc)
+  = UnknownDecl Unknown Reference (Map Reference (DataDeclaration v loc))
+  | UnknownConstructor Unknown Reference Int (DataDeclaration v loc)
   | UndeclaredTermVariable v (Context v loc)
   | RetractFailure (Element v loc) (Context v loc)
   | EmptyLetRec (Term v loc) -- the body of the empty let rec
@@ -631,14 +622,14 @@ failWith cause = liftResult $ typeError cause
 compilerCrashResult :: CompilerBug v loc -> Result v loc a
 compilerCrashResult bug = CompilerBug bug mempty mempty
 
-getDataDeclaration :: Reference -> M v loc (DataDeclaration' v loc)
+getDataDeclaration :: Reference -> M v loc (DataDeclaration v loc)
 getDataDeclaration r = do
   decls <- getDataDeclarations
   case Map.lookup r decls of
     Nothing -> compilerCrash (UnknownDecl Data r decls)
     Just decl -> pure decl
 
-getEffectDeclaration :: Reference -> M v loc (EffectDeclaration' v loc)
+getEffectDeclaration :: Reference -> M v loc (EffectDeclaration v loc)
 getEffectDeclaration r = do
   decls <- getEffectDeclarations
   case Map.lookup r decls of
@@ -656,7 +647,7 @@ getEffectConstructorType = getConstructorType' Effect go where
 -- should have been detected earlier though.
 getConstructorType' :: Var v
                     => Unknown
-                    -> (Reference -> M v loc (DataDeclaration' v loc))
+                    -> (Reference -> M v loc (DataDeclaration v loc))
                     -> Reference
                     -> Int
                     -> M v loc (Type v loc)
@@ -1042,10 +1033,8 @@ checkPattern scrutineeType0 p =
                 Pattern.Snoc -> isConstLen l
                 Pattern.Cons -> isConstLen r
                 Pattern.Concat -> isConstLen l && isConstLen r
-                c -> error $ "unpossible Pattern.SeqOp: " <> show c
               Pattern.As _ p -> isConstLen p
               _ -> False
-        c -> error $ "unpossible Pattern.SeqOp: " <> show c
     -- TODO: provide a scope here for giving a good error message
     Pattern.Boolean loc _ ->
       lift $ subtype (Type.boolean loc) scrutineeType $> mempty
@@ -1123,7 +1112,6 @@ checkPattern scrutineeType0 p =
             _ -> lift . compilerCrash $ PatternMatchFailure
         _ -> lift . compilerCrash $ EffectConstructorHadMultipleEffects
           ctorOutputType
-    _ -> lift . compilerCrash $ MalformedPattern p
  where
 
   getAdvance :: Pattern loc -> StateT [v] (M v loc) v

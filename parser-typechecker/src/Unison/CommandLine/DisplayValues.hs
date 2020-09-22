@@ -1,4 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# Language PatternSynonyms #-}
 {-# Language OverloadedStrings #-}
 
@@ -88,10 +87,10 @@ displayDoc pped terms typeOf evaluated types = go
 
 termName :: PPE.PrettyPrintEnv -> Referent -> Pretty
 termName ppe r = P.syntaxToColor $
-  NP.styleHashQualified'' (NP.fmt S.Reference) name
+  NP.styleHashQualified'' (NP.fmt $ S.Referent r) name
   where name = PPE.termName ppe r
 
 typeName :: PPE.PrettyPrintEnv -> Reference -> Pretty
 typeName ppe r = P.syntaxToColor $
-  NP.styleHashQualified'' (NP.fmt S.Reference) name
+  NP.styleHashQualified'' (NP.fmt $ S.Reference r) name
   where name = PPE.typeName ppe r

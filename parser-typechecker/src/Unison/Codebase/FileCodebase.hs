@@ -1,7 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.FileCodebase
@@ -31,16 +30,17 @@ import qualified Data.Text.IO                  as TextIO
 import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 , doesDirectoryExist
                                                 )
-import           System.FilePath                ( FilePath
-                                                , takeFileName
+import           System.FilePath                ( takeFileName
                                                 )
 import           System.Directory               ( getHomeDirectory
                                                 , canonicalizePath
                                                 )
+import           System.Environment             ( getProgName )
 import           System.Exit                    ( exitFailure, exitSuccess )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase                ( Codebase(Codebase)
                                                 , BuiltinAnnotation
+                                                , CodebasePath
                                                 )
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
@@ -61,7 +61,6 @@ import qualified Unison.Util.Pretty            as P
 import qualified Unison.PrettyTerminal         as PT
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Codebase.FileCodebase.Common as Common
-import           Unison.Codebase                (CodebasePath)
 import Unison.Codebase.FileCodebase.Common
   ( Err(CantParseBranchHead)
   , codebaseExists
@@ -131,32 +130,31 @@ initCodebase cache path = do
 getCodebaseOrExit :: Branch.Cache IO -> Maybe FilePath -> IO (Codebase IO Symbol Ann)
 getCodebaseOrExit cache mdir = do
   dir <- getCodebaseDir mdir
+  progName <- getProgName
   prettyDir <- P.string <$> canonicalizePath dir
-  let errMsg = getNoCodebaseErrorMsg prettyDir mdir
+  let errMsg = getNoCodebaseErrorMsg ((P.text . Text.pack) progName) prettyDir mdir
   let theCodebase = codebase1 cache V1.formatSymbol formatAnn dir
   unlessM (codebaseExists dir) $ do
     PT.putPrettyLn' errMsg
     exitFailure
   theCodebase
 
-getNoCodebaseErrorMsg :: IsString s => P.Pretty s -> Maybe FilePath -> P.Pretty s
-getNoCodebaseErrorMsg prettyDir mdir =
+getNoCodebaseErrorMsg :: IsString s => P.Pretty s -> P.Pretty s -> Maybe FilePath -> P.Pretty s
+getNoCodebaseErrorMsg executable prettyDir mdir =
   let secondLine =
         case mdir of
-          Just dir  -> "Run `ucm -codebase " <> fromString dir
+          Just dir  -> "Run `" <> executable <> " -codebase " <> fromString dir
                      <> " init` to create one, then try again!"
-          Nothing -> "Run `ucm init` to create one there,"
+          Nothing -> "Run `" <> executable <> " init` to create one there,"
                      <> " then try again;"
-                     <> " or `ucm -codebase <dir>` to load a codebase from someplace else!"
+                     <> " or `" <> executable <> " -codebase <dir>` to load a codebase from someplace else!"
   in
     P.lines
         [ "No codebase exists in " <> prettyDir <> "."
         , secondLine ]
 
 getCodebaseDir :: Maybe FilePath -> IO FilePath
-getCodebaseDir mdir =
-  case mdir of Just dir -> pure dir
-               Nothing  -> getHomeDirectory
+getCodebaseDir = maybe getHomeDirectory pure
 
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`
 codebase1

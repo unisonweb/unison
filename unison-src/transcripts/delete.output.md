@@ -1,7 +1,6 @@
 # Delete
 
-The delete command can delete both terms and types, as long as it's given an
-unambiguous name.
+The delete command can delete both terms and types.
 
 First, let's make sure it complains when we try to delete a name that doesn't
 exist.
@@ -102,24 +101,7 @@ foo = 2
        merge.
 
 ```
-```ucm
-.a> delete foo
-
-  🤔
-  
-  That name is ambiguous. It could refer to any of the following
-  definitions:
-  
-    foo#0ja1qfpej6
-    foo#jk19sm5bf8
-  
-  You may:
-  
-    * Delete one by an unambiguous name, given above.
-    * Delete them all by re-issuing the previous command.
-
-```
-I can force my delete through by re-issuing the command.
+A delete should remove both versions of the term.
 
 ```ucm
 .a> delete foo
@@ -183,32 +165,15 @@ type Foo = Foo Boolean
     3. └ type Foo#gq9inhvg9h
            
     
-    4. Foo.Foo#d97e0jhkmd#0 : Nat -> Foo
+    4. Foo.Foo#d97e0jhkmd#0 : Nat -> Foo#d97e0jhkmd
        ↓
-    5. ┌ Foo.Foo#d97e0jhkmd#0 : Nat -> Foo
-    6. └ Foo.Foo#gq9inhvg9h#0 : Boolean -> b.Foo
+    5. ┌ Foo.Foo#d97e0jhkmd#0 : Nat -> Foo#d97e0jhkmd
+    6. └ Foo.Foo#gq9inhvg9h#0 : Boolean -> Foo#gq9inhvg9h
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
-
-```
-```ucm
-.a> delete Foo
-
-  🤔
-  
-  That name is ambiguous. It could refer to any of the following
-  definitions:
-  
-    Foo#d97e0jhkmd
-    Foo#gq9inhvg9h
-  
-  You may:
-  
-    * Delete one by an unambiguous name, given above.
-    * Delete them all by re-issuing the previous command.
 
 ```
 ```ucm
@@ -225,23 +190,6 @@ type Foo = Foo Boolean
     4. b.Foo            ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
-
-```
-```ucm
-.a> delete Foo.Foo
-
-  🤔
-  
-  That name is ambiguous. It could refer to any of the following
-  definitions:
-  
-    Foo.Foo#d97e0jhkmd#0
-    Foo.Foo#gq9inhvg9h#0
-  
-  You may:
-  
-    * Delete one by an unambiguous name, given above.
-    * Delete them all by re-issuing the previous command.
 
 ```
 ```ucm
@@ -274,23 +222,6 @@ type foo = Foo Nat
   
     type foo
     foo : Nat
-
-```
-```ucm
-.> delete foo
-
-  🤔
-  
-  That name is ambiguous. It could refer to any of the following
-  definitions:
-  
-    foo#jk19sm5bf8
-    foo#d97e0jhkmd
-  
-  You may:
-  
-    * Delete one by an unambiguous name, given above.
-    * Delete them all by re-issuing the previous command.
 
 ```
 ```ucm
