@@ -90,6 +90,20 @@ nested
     \        m@n -> n\n\
     \  ##todo (##Nat.== x 2)"
 
+matching'arguments :: String
+matching'arguments
+  = "let\n\
+    \  f x y z = y\n\
+    \  g x = f x\n\
+    \  blorf = let\n\
+    \    a = 0\n\
+    \    b = 1\n\
+    \    d = 2\n\
+    \    h = g a b\n\
+    \    c = 2\n\
+    \    h c\n\
+    \  ##todo (##Nat.== blorf 1)"
+
 test :: Test ()
 test = scope "mcode" . tests $
   [ scope "2=2" $ testEval "##todo (##Nat.== 2 2)"
@@ -102,4 +116,6 @@ test = scope "mcode" . tests $
   , scope "5*1000=5000 rec" $ testEval multRec
   , scope "nested"
   $ testEval nested
+  , scope "matching arguments"
+  $ testEval matching'arguments
   ]
