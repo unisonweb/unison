@@ -411,12 +411,12 @@ io2List bs = bs >>= \(n,ty) -> [B n ty, Rename n ("io2." <> n)]
 
 ioBuiltins :: Var v => [(Text, Type v)]
 ioBuiltins =
-  [ ("IO.openFile", text --> ioe handle)
+  [ ("IO.openFile", text --> fmode --> ioe handle)
   , ("IO.closeFile", handle --> ioe unit)
   , ("IO.isFileEOF", handle --> ioe boolean)
   , ("IO.isFileOpen", handle --> ioe boolean)
   , ("IO.isSeekable", handle --> ioe boolean)
-  , ("IO.seekHandle", handle --> fmode --> int --> ioe unit)
+  , ("IO.seekHandle", handle --> smode --> int --> ioe unit)
   , ("IO.handlePosition", handle --> ioe int)
   , ("IO.getBuffering", handle --> ioe bmode)
   , ("IO.setBuffering", handle --> bmode --> ioe unit)
@@ -505,9 +505,10 @@ threadId = Type.threadId ()
 handle = Type.fileHandle ()
 unit = DD.unitType ()
 
-fmode, bmode, stdhandle :: Var v => Type v
+fmode, bmode, smode, stdhandle :: Var v => Type v
 fmode = DD.fileModeType ()
 bmode = DD.bufferModeType ()
+smode = DD.seekModeType ()
 stdhandle = DD.stdHandleType ()
 
 int, nat, bytes, text, boolean, float, char :: Var v => Type v

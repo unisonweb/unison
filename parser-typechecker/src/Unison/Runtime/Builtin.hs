@@ -727,7 +727,7 @@ seek'handle :: IOOP
 seek'handle avoid
   = ([BX,BX,BX],)
   . TAbss [h,sm0,po0]
-  . unenum 3 sm0 seekModeReference sm
+  . unenum 3 sm0 Ty.seekModeRef sm
   . unbox po0 Ty.natRef po
   $ io'error'result'unit SEEKFI [h,sm,po] ior e r
   where
