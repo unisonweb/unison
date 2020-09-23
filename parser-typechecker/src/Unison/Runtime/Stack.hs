@@ -37,6 +37,7 @@ module Unison.Runtime.Stack
   , peekOffS
   , pokeS
   , pokeOffS
+  , frameView
   , uscount
   , bscount
   ) where
@@ -631,6 +632,24 @@ instance MEM 'BX where
   {-# inline fsize #-}
 
   asize (BS ap fp _ _) = fp-ap
+
+frameView :: MEM b => Show (Elem b) => Stack b -> IO ()
+frameView stk = putStr "|" >> gof False 0
+  where
+  fsz = fsize stk
+  asz = asize stk
+  gof delim n
+    | n >= fsz = putStr "|" >> goa False 0
+    | otherwise = do
+      when delim $ putStr ","
+      putStr . show =<< peekOff stk n
+      gof True (n+1)
+  goa delim n
+    | n >= asz = putStrLn "|.."
+    | otherwise = do
+      when delim $ putStr ","
+      putStr . show =<< peekOff stk (fsz+n)
+      goa True (n+1)
 
 uscount :: Seg 'UN -> Int
 uscount seg = words $ sizeofByteArray seg
