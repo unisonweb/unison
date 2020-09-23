@@ -412,11 +412,11 @@ delete = InputPattern "delete" []
     [(OnePlus, definitionQueryArg)]
     "`delete foo` removes the term or type name `foo` from the namespace."
     (\case
-      [query] -> first fromString $ do
-        p <- Path.parseHQSplit' query
-        pure $ Input.DeleteI p
-      _ -> Left . P.warnCallout $ P.wrap
-        "`delete` takes an argument, like `delete name`."
+      [] -> Left . P.warnCallout $ P.wrap
+        "`delete` takes one or more arguments, like `delete name`."
+      queries -> first fromString $ do
+        ps <- traverse Path.parseHQSplit' queries
+        pure $ Input.DeleteI ps
     )
 
 deleteTerm :: InputPattern
@@ -424,11 +424,11 @@ deleteTerm = InputPattern "delete.term" []
     [(OnePlus, exactDefinitionTermQueryArg)]
     "`delete.term foo` removes the term name `foo` from the namespace."
     (\case
-      [query] -> first fromString $ do
-        p <- Path.parseHQSplit' query
-        pure $ Input.DeleteTermI p
-      _ -> Left . P.warnCallout $ P.wrap
-        "`delete.term` takes an argument, like `delete.term name`."
+      [] -> Left . P.warnCallout $ P.wrap
+        "`delete.term` takes one or more arguments, like `delete.term name`."
+      queries -> first fromString $ do
+        ps <- traverse Path.parseHQSplit' queries
+        pure $ Input.DeleteTermI ps
     )
 
 deleteType :: InputPattern
@@ -436,11 +436,11 @@ deleteType = InputPattern "delete.type" []
     [(OnePlus, exactDefinitionTypeQueryArg)]
     "`delete.type foo` removes the type name `foo` from the namespace."
     (\case
-      [query] -> first fromString $ do
-        p <- Path.parseHQSplit' query
-        pure $ Input.DeleteTypeI p
-      _ -> Left . P.warnCallout $ P.wrap
-        "`delete.type` takes an argument, like `delete.type name`."
+      [] -> Left . P.warnCallout $ P.wrap
+        "`delete.type` takes one or more arguments, like `delete.type name`."
+      queries -> first fromString $ do
+        ps <- traverse Path.parseHQSplit' queries
+        pure $ Input.DeleteTypeI ps
     )
 
 deleteTermReplacementCommand :: String

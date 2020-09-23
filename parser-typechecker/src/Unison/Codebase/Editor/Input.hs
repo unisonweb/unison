@@ -74,9 +74,9 @@ data Input
     | MovePatchI Path.Split' Path.Split'
     | CopyPatchI Path.Split' Path.Split'
     -- delete = unname
-    | DeleteI Path.HQSplit'
-    | DeleteTermI Path.HQSplit'
-    | DeleteTypeI Path.HQSplit'
+    | DeleteI [Path.HQSplit']
+    | DeleteTermI [Path.HQSplit']
+    | DeleteTypeI [Path.HQSplit']
     | DeleteBranchI (Maybe Path.Split')
     | DeletePatchI Path.Split'
     -- resolving naming conflicts within `branchpath`

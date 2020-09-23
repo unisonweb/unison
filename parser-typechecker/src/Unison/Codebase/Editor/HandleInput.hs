@@ -410,9 +410,9 @@ loop = do
           MoveBranchI src dest -> "move.namespace " <> ops' src <> " " <> ps' dest
           MovePatchI src dest -> "move.patch " <> ps' src <> " " <> ps' dest
           CopyPatchI src dest -> "copy.patch " <> ps' src <> " " <> ps' dest
-          DeleteI thing -> "delete " <> hqs' thing
-          DeleteTermI def -> "delete.term " <> hqs' def
-          DeleteTypeI def -> "delete.type " <> hqs' def
+          DeleteI things -> "delete " <> intercalateMap " " hqs' things
+          DeleteTermI defs -> "delete.term " <> intercalateMap " " hqs' defs
+          DeleteTypeI defs -> "delete.type " <> intercalateMap " " hqs' defs
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
           DeletePatchI path -> "delete.patch " <> ps' path
           ReplaceTermI src target p ->
@@ -1111,9 +1111,9 @@ loop = do
         p = resolveSplit' (HQ'.toName <$> src)
         mdSrc r = BranchUtil.getTypeMetadataAt p r root0
 
-      DeleteI     hq -> delete getHQ'Terms       getHQ'Types       hq
-      DeleteTypeI hq -> delete (const Set.empty) getHQ'Types       hq
-      DeleteTermI hq -> delete getHQ'Terms       (const Set.empty) hq
+      DeleteI     hqs -> traverse_ (delete getHQ'Terms       getHQ'Types)       hqs
+      DeleteTypeI hqs -> traverse_ (delete (const Set.empty) getHQ'Types)       hqs
+      DeleteTermI hqs -> traverse_ (delete getHQ'Terms       (const Set.empty)) hqs
 
       DisplayI outputLoc hq -> do
         parseNames0 <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
