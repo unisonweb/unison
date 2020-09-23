@@ -402,7 +402,7 @@ instance MEM 'UN where
   augSeg mode (US ap fp sp stk) seg margs = do
     cop <- newByteArray $ ssz+psz+asz
     copyByteArray cop soff seg 0 ssz
-    copyMutableByteArray cop 0 stk ap psz
+    copyMutableByteArray cop 0 stk (bytes $ ap+1) psz
     for_ margs $ uargOnto stk sp cop (words poff + pix - 1)
     unsafeFreezeByteArray cop
    where
@@ -600,7 +600,7 @@ instance MEM 'BX where
   augSeg mode (BS ap fp sp stk) seg margs = do
     cop <- newArray (ssz+psz+asz) BlackHole
     copyArray cop soff seg 0 ssz
-    copyMutableArray cop poff stk ap psz
+    copyMutableArray cop poff stk (ap+1) psz
     for_ margs $ bargOnto stk sp cop (poff+psz-1)
     unsafeFreezeArray cop
    where
