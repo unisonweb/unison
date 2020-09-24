@@ -1289,9 +1289,9 @@ sink v mtm tm = dive $ freeVarsT tm
 indent :: Int -> ShowS
 indent ind = showString (replicate (ind*2) ' ')
 
-prettyGroup :: Var v => SuperGroup v -> ShowS
-prettyGroup (Rec grp ent)
-  = showString "let rec\n"
+prettyGroup :: Var v => String -> SuperGroup v -> ShowS
+prettyGroup s (Rec grp ent)
+  = showString ("let rec[" ++ s ++ "]\n")
   . foldr f id grp
   . showString "entry"
   . prettySuperNormal 1 ent

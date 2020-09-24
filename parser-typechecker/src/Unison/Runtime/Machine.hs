@@ -48,7 +48,7 @@ type DEnv = EnumMap Word64 Closure
 -- static environment
 data SEnv
   = SEnv
-  { combs :: !(EnumMap Word64 Comb)
+  { combs :: !(EnumMap Word64 Combs)
   , foreignFuncs :: !(EnumMap Word64 ForeignFunc)
   , combRefs :: !(EnumMap Word64 Reference)
   , tagRefs :: !(EnumMap RTag Reference)
@@ -77,13 +77,14 @@ apply0
   :: Maybe (Stack 'UN -> Stack 'BX -> IO ())
   -> SEnv -> Word64 -> IO ()
 apply0 !callback !env !i
-  | Just cmb <- EC.lookup i (combs env) = do
+  | Just cmbs <- EC.lookup i (combs env)
+  , Just cmb <- EC.lookup 0 cmbs = do
     ustk <- alloc
     bstk <- alloc
     mask $ \unmask ->
       apply unmask env mempty ustk bstk k0 True ZArgs
         $ PAp (IC i cmb) unull bnull
-  | otherwise = die $ "apply0: unknown combinator: " ++ show i
+  | otherwise = die $ "apply0: unknown combinator/entry: " ++ show i
   where
   k0 = maybe KE (CB . Hook) callback
 
@@ -226,7 +227,8 @@ eval unmask !env !denv !ustk !bstk !k (App ck r args) =
   resolve env denv bstk r
     >>= apply unmask env denv ustk bstk k ck args
 eval unmask !env !denv !ustk !bstk !k (Call ck n args)
-  | Just cmb <- EC.lookup n (combs env)
+  | Just cmbs <- EC.lookup n (combs env)
+  , Just cmb <- EC.lookup 0 cmbs
   = enter unmask env denv ustk bstk k ck args cmb
   | otherwise = die $ "eval: unknown combinator: " ++ show n
 eval unmask !env !denv !ustk !bstk !k (Jump i args) =
@@ -1248,9 +1250,13 @@ discardCont denv ustk bstk k p
 {-# inline discardCont #-}
 
 resolve :: SEnv -> DEnv -> Stack 'BX -> Ref -> IO Closure
-resolve env _ _ (Env i) = case EC.lookup i (combs env) of
-  Just cmb -> return $ PAp (IC i cmb) unull bnull
-  _ -> die $ "resolve: looked up unknown combinator: " ++ show i
+resolve env _ _ (Env n i) = case EC.lookup n (combs env) of
+  Just cmbs -> case EC.lookup i cmbs of
+    Just cmb -> return $ PAp (IC n cmb) unull bnull
+    _ -> die
+       $ "resolve: looked up an unknown combinator section: "
+      ++ show (n, i)
+  _ -> die $ "resolve: looked up unknown combinator: " ++ show n
 resolve _ _ bstk (Stk i) = peekOff bstk i
 resolve _ denv _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo

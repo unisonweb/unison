@@ -54,7 +54,7 @@ testANF s
   anf = runANF $ anfTerm t0
 
 testLift :: String -> Test ()
-testLift s = case cs of (!_, !_, _) -> ok
+testLift s = case cs of !_ -> ok
   where
   cs = emitCombs 0 . superNormalize (const 0) (const 0) . lamLift $ tm s
 

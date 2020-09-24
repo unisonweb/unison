@@ -26,6 +26,7 @@ import Unison.Runtime.MCode
   , Instr(..)
   , Args(..)
   , Comb(..)
+  , Combs
   , Branch(..)
   , emitComb
   , emitCombs
@@ -36,7 +37,7 @@ import Unison.Runtime.Machine
 
 import Unison.Test.Common (tm)
 
-testEval0 :: EnumMap Word64 Comb -> Section -> Test ()
+testEval0 :: EnumMap Word64 Combs -> Section -> Test ()
 testEval0 env sect = do
   io $ eval0 (SEnv env builtinForeigns mempty mempty) sect
   ok
@@ -47,11 +48,14 @@ builtins r
   | Just i <- Map.lookup r builtinTermNumbering = i
   | otherwise = error $ "builtins: " ++ show r
 
-cenv :: EnumMap Word64 Comb
-cenv = fmap (emitComb mempty) $ numberedTermLookup @Symbol
+cenv :: EnumMap Word64 Combs
+cenv = fmap (mapSingleton 0 . emitComb 0 mempty)
+     $ numberedTermLookup @Symbol
 
-env :: EnumMap Word64 Comb -> EnumMap Word64 Comb
-env m = m <> mapInsert (bit 64) (Lam 0 1 2 1 asrt) cenv
+env :: Combs -> EnumMap Word64 Combs
+env m = mapInsert (bit 24) m
+      . mapInsert (bit 64) (mapSingleton 0 $ Lam 0 1 2 1 asrt)
+      $ cenv
 
 asrt :: Section
 asrt = Ins (Unpack 0)
@@ -68,17 +72,15 @@ multRec
     \    _ -> f (##Nat.+ acc n) (##Nat.sub i 1)\n\
     \  ##todo (##Nat.== (f 0 1000) 5000)"
 
-dataSpec :: DataSpec
-dataSpec = mempty
-
 testEval :: String -> Test ()
 testEval s = testEval0 (env aux) main
   where
-  (Lam 0 0 _ _ main, aux, _)
+  Lam 0 0 _ _ main = aux ! 0
+  aux
     = emitCombs (bit 24)
     . superNormalize builtins (builtinTypeNumbering Map.!)
     . lamLift
-    . splitPatterns dataSpec
+    . splitPatterns builtinDataSpec
     . unannotate
     $ tm s
 
