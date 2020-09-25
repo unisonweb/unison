@@ -22,8 +22,8 @@ type MetadataValue = Reference
 -- `(Type, Value)` is the metadata value itself along with its type.
 type Star r n = Star3 r n MetadataType (MetadataType, MetadataValue)
 
-newtype EditHash = EditHash Hash.Hash
-newtype BranchHash = BranchHash Hash.Hash deriving Show
+newtype EditHash = EditHash Hash.Hash deriving (Eq, Ord, Show)
+newtype BranchHash = BranchHash Hash.Hash deriving (Eq, Ord, Show)
 
 -- The raw Branch
 data Raw = Raw

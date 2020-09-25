@@ -1,5 +1,11 @@
 cradle:
   stack:
+    - path: "codebase-convert-1to2/app/Main.hs"
+      component: "unison-codebase-convert-1to2:exe:uconvert12"
+
+    - path: "codebase-convert-1to2/lib"
+      component: "unison-codebase-convert-1to2:lib"
+
     - path: "codebase1/codebase/."
       component: "unison-codebase1:lib"
 
