@@ -614,12 +614,14 @@ letRec' isTop bindings body =
 
 consLetRec
   :: Ord v
-  => a
-  -> v
+  => Bool
+  -> a
+  -> (a, v, Term' vt v a)
   -> Term' vt v a
   -> Term' vt v a
-  -> Term' vt v a
-consLetRec = undefined
+consLetRec isTop a (ab, vb, b) body = case body of
+  LetRecNamedAnnotated' _ bs body -> letRec isTop a (((ab,vb), b) : bs) body
+  _ -> letRec isTop a [((ab,vb),b)] body
 
 letRec
   :: Ord v

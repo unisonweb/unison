@@ -214,192 +214,189 @@ unique[e1d94401fde8b2546d6dfc54e93f11e6a9285a7ea765d3255da19122a42715d3] type
 
 -- Builtin handles: standard in, out, error
 
-use io Error Mode Handle IO Socket ThreadId HostName FilePath EpochTime
-       BufferMode SeekMode ServiceName
+use io Error Mode Handle IO Socket ThreadId HostName FilePath EpochTime BufferMode SeekMode ServiceName
+use io.Handle
 
-use io.Handle Handle
+io.stdin : Handle
+io.stdin = Handle "stdin"
 
-namespace io where
-  stdin : Handle
-  stdin = Handle "stdin"
+io.stdout : Handle
+io.stdout = Handle "stdout"
 
-  stdout : Handle
-  stdout = Handle "stdout"
+io.stderr : Handle
+io.stderr = Handle "stderr"
 
-  stderr : Handle
-  stderr = Handle "stderr"
-
-  -- Throw an I/O error on the left as an effect in `IO`
-  rethrow : (Either io.Error a) -> {IO} a
-  rethrow x = match x with
+-- Throw an I/O error on the left as an effect in `IO`
+io.rethrow : (Either Error a) -> {IO} a
+io.rethrow x = match x with
     Either.Left e -> io.IO.throw e
     Either.Right a -> a
 
-  -- Print a line to the standard output
-  printLine : Text ->{IO} ()
-  printLine t =
-    putText stdout t
-    putText stdout "\n"
+-- Print a line to the standard output
+io.printLine : Text ->{IO} ()
+io.printLine t =
+  io.putText stdout t
+  io.putText stdout "\n"
 
-  -- Read a line from the standard input
-  readLine : '{IO} Text
-  readLine = '(getLine stdin)
+-- Read a line from the standard input
+io.readLine : '{IO} Text
+io.readLine = '(io.getLine stdin)
 
-  -- Built-ins
+-- Built-ins
 
-  -- Open a named file in the given mode, yielding an open file handle
-  openFile : FilePath -> Mode ->{IO} Handle
-  openFile f m = rethrow (io.IO.openFile_ f m)
+-- Open a named file in the given mode, yielding an open file handle
+io.openFile : io.FilePath -> io.Mode ->{IO} Handle
+io.openFile f m = io.rethrow (io.IO.openFile_ f m)
 
-  -- Close an open file handle
-  closeFile : Handle ->{IO} ()
-  closeFile f = rethrow (io.IO.closeFile_ f)
+-- Close an open file handle
+io.closeFile : Handle ->{IO} ()
+io.closeFile f = io.rethrow (io.IO.closeFile_ f)
 
-  -- Check whether a file handle has reached the end of the file
-  isFileEOF : Handle ->{IO} Boolean
-  isFileEOF h = rethrow (io.IO.isFileEOF_ h)
+-- Check whether a file handle has reached the end of the file
+io.isFileEOF : Handle ->{IO} Boolean
+io.isFileEOF h = io.rethrow (io.IO.isFileEOF_ h)
 
-  -- Check whether a file handle is open
-  isFileOpen : Handle ->{IO} Boolean
-  isFileOpen h = rethrow (io.IO.isFileOpen_ h)
+-- Check whether a file handle is open
+io.isFileOpen : Handle ->{IO} Boolean
+io.isFileOpen h = io.rethrow (io.IO.isFileOpen_ h)
 
-  -- Get a line of text from a text file handle
-  getLine : Handle ->{IO} Text
-  getLine h = rethrow (io.IO.getLine_ h)
+-- Get a line of text from a text file handle
+io.getLine : Handle ->{IO} Text
+io.getLine h = io.rethrow (io.IO.getLine_ h)
 
-  -- Get the entire contents of a file as a single block of text
-  getText : Handle ->{IO} Text
-  getText h = rethrow (io.IO.getText_ h)
+-- Get the entire contents of a file as a single block of text
+io.getText : Handle ->{IO} Text
+io.getText h = io.rethrow (io.IO.getText_ h)
 
-  -- Write some text to a file
-  putText : Handle -> Text ->{IO} ()
-  putText h t = rethrow (io.IO.putText_ h t)
+-- Write some text to a file
+io.putText : Handle -> Text ->{IO} ()
+io.putText h t = io.rethrow (io.IO.putText_ h t)
 
-  -- Get epoch system time
-  systemTime : '{IO} EpochTime
-  systemTime = '(rethrow (io.IO.systemTime_))
+-- Get epoch system time
+io.systemTime : '{IO} io.EpochTime
+io.systemTime = '(io.rethrow (io.IO.systemTime_))
 
-  -- Does the file handle support `seek`?
-  isSeekable : Handle -> {IO} Boolean
-  isSeekable h = rethrow (io.IO.isSeekable_ h)
+-- Does the file handle support `seek`?
+io.isSeekable : Handle -> {IO} Boolean
+io.isSeekable h = io.rethrow (io.IO.isSeekable_ h)
 
-  -- Seek to a position in a file handle
-  seek : Handle -> SeekMode -> Int ->{IO} ()
-  seek h m i = rethrow (io.IO.seek_ h m i)
+-- Seek to a position in a file handle
+io.seek : Handle -> io.SeekMode -> Int ->{IO} ()
+io.seek h m i = io.rethrow (io.IO.seek_ h m i)
 
-  -- Ask for the position of a file handle
-  position : Handle ->{IO} Int
-  position h = rethrow (io.IO.position_ h)
+-- Ask for the position of a file handle
+io.position : Handle ->{IO} Int
+io.position h = io.rethrow (io.IO.position_ h)
 
-  -- Get the buffer mode of a file handle
-  getBuffering : Handle ->{IO} (Optional BufferMode)
-  getBuffering h = rethrow (io.IO.getBuffering_ h)
+-- Get the buffer mode of a file handle
+io.getBuffering : Handle ->{IO} (Optional BufferMode)
+io.getBuffering h = io.rethrow (io.IO.getBuffering_ h)
 
-  -- Set the buffer mode for a file handle
-  setBuffering : Handle -> Optional BufferMode ->{IO} ()
-  setBuffering h bm = rethrow (io.IO.setBuffering_ h bm)
+-- Set the buffer mode for a file handle
+io.setBuffering : Handle -> Optional BufferMode ->{IO} ()
+io.setBuffering h bm = io.rethrow (io.IO.setBuffering_ h bm)
 
-  -- Get the path to a temporary directory managed by the operating system
-  getTemporaryDirectory : '{IO} FilePath
-  getTemporaryDirectory = '(rethrow (io.IO.getTemporaryDirectory_))
+-- Get the path to a temporary directory managed by the operating system
+io.getTemporaryDirectory : '{IO} FilePath
+io.getTemporaryDirectory = '(io.rethrow (io.IO.getTemporaryDirectory_))
 
-  -- Get the current working directory
-  getCurrentDirectory : '{IO} FilePath
-  getCurrentDirectory = '(rethrow (io.IO.getCurrentDirectory_))
+-- Get the current working directory
+io.getCurrentDirectory : '{IO} FilePath
+io.getCurrentDirectory = '(io.rethrow (io.IO.getCurrentDirectory_))
 
-  -- Set the current working directory
-  setCurrentDirectory : FilePath -> {IO} ()
-  setCurrentDirectory d = rethrow (io.IO.setCurrentDirectory_ d)
+-- Set the current working directory
+io.setCurrentDirectory : FilePath -> {IO} ()
+io.setCurrentDirectory d = io.rethrow (io.IO.setCurrentDirectory_ d)
 
-  -- List the contents of a directory
-  directoryContents : FilePath -> {IO} [FilePath]
-  directoryContents d = rethrow (io.IO.directoryContents_ d)
+-- List the contents of a directory
+io.directoryContents : FilePath -> {IO} [FilePath]
+io.directoryContents d = io.rethrow (io.IO.directoryContents_ d)
 
-  -- Check if a path exists
-  fileExists : FilePath -> {IO} Boolean
-  fileExists d = rethrow (io.IO.fileExists_ d)
+-- Check if a path exists
+io.fileExists : FilePath -> {IO} Boolean
+io.fileExists d = io.rethrow (io.IO.fileExists_ d)
 
-  -- Check if a path is a directory
-  isDirectory : FilePath -> {IO} Boolean
-  isDirectory d = rethrow (io.IO.isDirectory_ d)
+-- Check if a path is a directory
+io.isDirectory : FilePath -> {IO} Boolean
+io.isDirectory d = io.rethrow (io.IO.isDirectory_ d)
 
-  -- Create a directory at the given path, including parent directories
-  createDirectory : FilePath -> {IO} ()
-  createDirectory d = rethrow (io.IO.createDirectory_ d)
+-- Create a directory at the given path, including parent directories
+io.createDirectory : FilePath -> {IO} ()
+io.createDirectory d = io.rethrow (io.IO.createDirectory_ d)
 
-  -- Remove the directory at the given path
-  removeDirectory : FilePath -> {IO} ()
-  removeDirectory d = rethrow (io.IO.removeDirectory_ d)
+-- Remove the directory at the given path
+io.removeDirectory : FilePath -> {IO} ()
+io.removeDirectory d = io.rethrow (io.IO.removeDirectory_ d)
 
-  -- Move a directory from one path to another
-  renameDirectory : FilePath -> FilePath -> {IO} ()
-  renameDirectory from to = rethrow (io.IO.renameDirectory_ from to)
+-- Move a directory from one path to another
+io.renameDirectory : FilePath -> FilePath -> {IO} ()
+io.renameDirectory from to = io.rethrow (io.IO.renameDirectory_ from to)
 
-  -- Remove a file from the file system
-  removeFile : FilePath -> {IO} ()
-  removeFile d = rethrow (io.IO.removeFile_ d)
+-- Remove a file from the file system
+io.removeFile : FilePath -> {IO} ()
+io.removeFile d = io.rethrow (io.IO.removeFile_ d)
 
-  -- Move a file from one path to another
-  renameFile : FilePath -> FilePath -> {IO} ()
-  renameFile from to = rethrow (io.IO.renameFile_ from to)
+-- Move a file from one path to another
+io.renameFile : FilePath -> FilePath -> {IO} ()
+io.renameFile from to = io.rethrow (io.IO.renameFile_ from to)
 
-  -- Get the timestamp of a file
-  getFileTimestamp : FilePath -> {IO} EpochTime
-  getFileTimestamp d = rethrow (io.IO.getFileTimestamp_ d)
+-- Get the timestamp of a file
+io.getFileTimestamp : io.FilePath -> {IO} io.EpochTime
+io.getFileTimestamp d = io.rethrow (io.IO.getFileTimestamp_ d)
 
-  -- Get the size of a file in bytes
-  getFileSize : FilePath -> {IO} Nat
-  getFileSize d = rethrow (io.IO.getFileSize_ d)
+-- Get the size of a file in bytes
+io.getFileSize : io.FilePath -> {IO} Nat
+io.getFileSize d = io.rethrow (io.IO.getFileSize_ d)
 
-  -- Create a socket bound to the given local port/service.
-  -- If a hostname is not given, this will use any available host.
-  serverSocket : Optional HostName -> ServiceName -> {IO} Socket
-  serverSocket host service = rethrow (io.IO.serverSocket_ host service)
+-- Create a socket bound to the given local port/service.
+-- If a hostname is not given, this will use any available host.
+io.serverSocket : Optional HostName -> io.ServiceName -> {IO} Socket
+io.serverSocket host service = io.rethrow (io.IO.serverSocket_ host service)
 
-  -- Start listening for connections on the given socket.
-  listen : Socket -> {IO} ()
-  listen s = rethrow (io.IO.listen_ s)
+-- Start listening for connections on the given socket.
+io.listen : Socket -> {IO} ()
+io.listen s = io.rethrow (io.IO.listen_ s)
 
-  -- Create a socket connected to the given remote address.
-  clientSocket : HostName -> ServiceName -> {IO} Socket
-  clientSocket host service = rethrow (io.IO.clientSocket_ host service)
+-- Create a socket connected to the given remote address.
+io.clientSocket : HostName -> io.ServiceName -> {IO} Socket
+io.clientSocket host service = io.rethrow (io.IO.clientSocket_ host service)
 
-  -- Close a socket and all connections to it.
-  closeSocket : Socket -> {IO} ()
-  closeSocket s = rethrow (io.IO.closeSocket_ s)
+-- Close a socket and all connections to it.
+io.closeSocket : Socket -> {IO} ()
+io.closeSocket s = io.rethrow (io.IO.closeSocket_ s)
 
-  -- Accept a connection on a socket.
-  -- Returns a socket that can send and receive data on a new connection
-  accept : Socket -> {IO} Socket
-  accept s = rethrow (io.IO.accept_ s)
+-- Accept a connection on a socket.
+-- Returns a socket that can send and receive data on a new connection
+io.accept : Socket -> {IO} Socket
+io.accept s = io.rethrow (io.IO.accept_ s)
 
-  -- Send some bytes to a socket.
-  send : Socket -> Bytes -> {IO} ()
-  send s bs = rethrow (io.IO.send_ s bs)
+-- Send some bytes to a socket.
+io.send : Socket -> Bytes -> {IO} ()
+io.send s bs = io.rethrow (io.IO.send_ s bs)
 
-  -- Read the specified number of bytes from a socket.
-  receive : Socket -> Nat ->{IO} (Optional Bytes)
-  receive s n = rethrow (io.IO.receive_ s n)
+-- Read the specified number of bytes from a socket.
+io.receive : Socket -> Nat ->{IO} (Optional Bytes)
+io.receive s n = io.rethrow (io.IO.receive_ s n)
 
-  -- Fork a new thread.
-  fork : '{IO} a -> {IO} ThreadId
-  fork a = rethrow (io.IO.fork_ a)
+-- Fork a new thread.
+io.fork : '{IO} a -> {IO} ThreadId
+io.fork a = io.rethrow (io.IO.fork_ a)
 
-  -- Kill a running thread.
-  kill : ThreadId -> {IO} ()
-  kill t = rethrow (io.IO.kill_ t)
+-- Kill a running thread.
+io.kill : ThreadId -> {IO} ()
+io.kill t = io.rethrow (io.IO.kill_ t)
 
-  -- Suspend the current thread for a number of microseconds.
-  delay : Nat -> {IO} ()
-  delay n = rethrow (io.IO.delay_ n)
+-- Suspend the current thread for a number of microseconds.
+io.delay : Nat -> {IO} ()
+io.delay n = io.rethrow (io.IO.delay_ n)
 
-  -- Safely acquire and release a resource
-  bracket : '{IO} a -> (a ->{IO} b) -> (a ->{IO} c) -> {IO} c
-  bracket acquire release what = rethrow (io.IO.bracket_ acquire release what)
+-- Safely acquire and release a resource
+io.bracket : '{IO} a -> (a ->{IO} b) -> (a ->{IO} c) -> {IO} c
+io.bracket acquire release what = io.rethrow (io.IO.bracket_ acquire release what)
 
   -- Run the given computation, and if it throws an error
   -- handle the error with the given handler.
-  -- catch : '{IO} a -> (io.Error ->{IO} a) ->{IO} a
+  -- catch : '{IO} a -> (Error ->{IO} a) ->{IO} a
   -- catch c h =
   --   k io = match io with
   --            { IO.throw e } -> h e
@@ -457,87 +454,87 @@ unique[a38186de35c9fcd29d2b359b2148f9f890732413d91575af39d025fcded67e89] type
 ability io.IO where
 
   -- Basic file IO
-  openFile_ : io.FilePath -> io.Mode -> (Either io.Error io.Handle)
-  closeFile_ : io.Handle -> (Either io.Error ())
-  isFileEOF_ : io.Handle -> (Either io.Error Boolean)
-  isFileOpen_ : io.Handle -> (Either io.Error Boolean)
+  openFile_ : FilePath -> Mode -> (Either Error Handle)
+  closeFile_ : Handle -> (Either Error ())
+  isFileEOF_ : Handle -> (Either Error Boolean)
+  isFileOpen_ : Handle -> (Either Error Boolean)
 
   -- Text input and output
 
-  --getChar : io.Handle -> Char
-  getLine_ : io.Handle -> (Either io.Error Text)
+  --getChar : Handle -> Char
+  getLine_ : Handle -> (Either Error Text)
   -- Get the entire contents of the file as text
-  getText_ : io.Handle -> (Either io.Error Text)
-  -- putChar : io.Handle -> Char -> ()
-  putText_ : io.Handle -> Text -> (Either io.Error ())
+  getText_ : Handle -> (Either Error Text)
+  -- putChar : Handle -> Char -> ()
+  putText_ : Handle -> Text -> (Either Error ())
 
   -- Throw an error as an `io.IO` effect
-  throw : io.Error -> a
+  throw : Error -> a
 
   -- File positioning
-  isSeekable_ : io.Handle -> (Either io.Error Boolean)
-  seek_ : io.Handle -> io.SeekMode -> Int -> (Either io.Error ())
-  position_ : io.Handle -> (Either io.Error Int)
+  isSeekable_ : Handle -> (Either Error Boolean)
+  seek_ : Handle -> io.SeekMode -> Int -> (Either Error ())
+  position_ : Handle -> (Either Error Int)
 
   -- File buffering
-  getBuffering_ : io.Handle -> Either io.Error (Optional io.BufferMode)
-  setBuffering_ : io.Handle -> Optional io.BufferMode -> (Either io.Error ())
+  getBuffering_ : Handle -> Either Error (Optional io.BufferMode)
+  setBuffering_ : Handle -> Optional io.BufferMode -> (Either Error ())
 
   -- Should we expose mutable arrays for byte buffering?
   -- Inclined to say no, although that sounds a lot like
   -- a decision to just be slow.
   -- We'll need a byte buffer manipulation library in that case.
 
-  -- getBytes : io.Handle -> Nat -> Bytes
-  -- putBytes : io.Handle -> Bytes -> ()
+  -- getBytes : Handle -> Nat -> Bytes
+  -- putBytes : Handle -> Bytes -> ()
 
-  -- getBytes : io.Handle -> Nat -> ByteArray -> Nat
-  -- putBytes : io.Handle -> Nat -> ByteArray -> ()
+  -- getBytes : Handle -> Nat -> ByteArray -> Nat
+  -- putBytes : Handle -> Nat -> ByteArray -> ()
 
-  systemTime_ :  (Either io.Error io.EpochTime)
+  systemTime_ :  (Either Error io.EpochTime)
 
   -- File system operations
-  getTemporaryDirectory_ :  (Either io.Error io.FilePath)
-  getCurrentDirectory_ :  (Either io.Error io.FilePath)
-  setCurrentDirectory_ : io.FilePath -> (Either io.Error ())
-  directoryContents_ : io.FilePath -> Either io.Error [io.FilePath]
-  fileExists_ : io.FilePath ->  (Either io.Error Boolean)
-  isDirectory_ : io.FilePath -> (Either io.Error Boolean)
-  createDirectory_ : io.FilePath -> (Either io.Error ())
-  removeDirectory_ : io.FilePath -> (Either io.Error ())
-  renameDirectory_ : io.FilePath -> io.FilePath ->  (Either io.Error ())
-  removeFile_ : io.FilePath -> (Either io.Error ())
-  renameFile_ : io.FilePath -> io.FilePath -> (Either io.Error ())
-  getFileTimestamp_ : io.FilePath -> (Either io.Error io.EpochTime)
-  getFileSize_ : io.FilePath -> (Either io.Error Nat)
+  getTemporaryDirectory_ :  (Either Error io.FilePath)
+  getCurrentDirectory_ :  (Either Error io.FilePath)
+  setCurrentDirectory_ : io.FilePath -> (Either Error ())
+  directoryContents_ : io.FilePath -> Either Error [io.FilePath]
+  fileExists_ : io.FilePath ->  (Either Error Boolean)
+  isDirectory_ : io.FilePath -> (Either Error Boolean)
+  createDirectory_ : io.FilePath -> (Either Error ())
+  removeDirectory_ : io.FilePath -> (Either Error ())
+  renameDirectory_ : io.FilePath -> io.FilePath ->  (Either Error ())
+  removeFile_ : io.FilePath -> (Either Error ())
+  renameFile_ : io.FilePath -> io.FilePath -> (Either Error ())
+  getFileTimestamp_ : io.FilePath -> (Either Error io.EpochTime)
+  getFileSize_ : io.FilePath -> (Either Error Nat)
 
   -- Simple TCP Networking
 
   -- Create a socket bound to the given local address.
   -- If a hostname is not given, this will use any available host.
-  serverSocket_ : Optional io.HostName ->
-                 io.ServiceName ->  (Either io.Error io.Socket)
+  serverSocket_ : Optional HostName ->
+                 ServiceName ->  (Either Error Socket)
   -- Start listening for connections
-  listen_ : io.Socket -> (Either io.Error ())
+  listen_ : Socket -> (Either Error ())
 
   -- Create a socket connected to the given remote address
-  clientSocket_ : io.HostName ->
-                  io.ServiceName -> (Either io.Error io.Socket)
+  clientSocket_ : HostName ->
+                  ServiceName -> (Either Error Socket)
 
-  closeSocket_ : io.Socket -> (Either io.Error ())
+  closeSocket_ : Socket -> (Either Error ())
 
-  --socketToio.Handle : Socket -> Mode -> (Either io.Error io.Handle)
-  --handleToSocket : io.Handle -> (Either io.Error Socket)
+  --socketToHandle : Socket -> Mode -> (Either Error Handle)
+  --handleToSocket : Handle -> (Either Error Socket)
 
   -- Accept a connection on a socket.
   -- Returns a socket that can send and receive data on a new connection
-  accept_ : io.Socket -> (Either io.Error io.Socket)
+  accept_ : Socket -> (Either Error Socket)
 
   -- Send some bytes to a socket.
-  send_ : io.Socket -> Bytes -> (Either io.Error ())
+  send_ : Socket -> Bytes -> (Either Error ())
 
   -- Read the spefified number of bytes from the socket.
-  receive_ : io.Socket -> Nat -> (Either io.Error (Optional Bytes))
+  receive_ : Socket -> Nat -> (Either Error (Optional Bytes))
 
   -- scatter/gather mode network I/O
   -- sendMany : Socket -> [Bytes] -> Int
@@ -545,15 +542,15 @@ ability io.IO where
   -- Threading --
 
   -- Fork a thread
-  fork_ : '{io.IO} a -> (Either io.Error io.ThreadId)
+  fork_ : '{io.IO} a -> (Either Error ThreadId)
 
   -- Kill a running thread
-  kill_ : io.ThreadId -> (Either io.Error ())
+  kill_ : ThreadId -> (Either Error ())
 
   -- Suspend the current thread for a number of microseconds.
-  delay_ : Nat -> (Either io.Error ())
+  delay_ : Nat -> (Either Error ())
 
   -- Safely acquire and release a resource
-  bracket_ : '{io.IO} a -> (a ->{io.IO} b) -> (a ->{io.IO} c) ->{io.IO} (Either io.Error c)
+  bracket_ : '{io.IO} a -> (a ->{io.IO} b) -> (a ->{io.IO} c) ->{io.IO} (Either Error c)
 
 |]
