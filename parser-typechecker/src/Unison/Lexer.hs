@@ -440,7 +440,7 @@ lexer0 scope rem =
         Right (Just (num, rem)) ->
           let end = incBy num pos
           in Token (Numeric num) pos end : goWhitespace l end rem
-        _ -> if ['#'] `isPrefixOf` rem then
+        _ -> if ['#'] `isPrefixOf` rem' then
                case shortHash rem' of
                  Left e -> Token (Err e) pos pos : recover l pos rem'
                  Right (h, rem) ->

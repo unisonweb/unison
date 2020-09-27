@@ -166,12 +166,16 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
+    RuntimeMain -> pure $ Runtime.mainType rt
 
 --    Todo b -> doTodo codebase (Branch.head b)
 --    Propagate b -> do
 --      b0 <- Codebase.propagate codebase (Branch.head b)
 --      pure $ Branch.append b0 b
-    Execute ppe uf -> void $ evalUnisonFile ppe uf
+    Execute ppe uf ->
+      evalUnisonFile ppe uf >>= \case
+        Left e -> notifyUser (EvaluationFailure e) 
+        _ -> pure ()
     AppendToReflog reason old new -> Codebase.appendReflog codebase reason old new
     LoadReflog -> Codebase.getReflog codebase
     CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Parser.External t

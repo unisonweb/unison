@@ -54,6 +54,7 @@ library
 
   exposed-modules:
     Unison.ABT
+    Unison.ABT.Normalized
     Unison.Blank
     Unison.ConstructorType
     Unison.DataDeclaration

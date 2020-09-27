@@ -21,7 +21,7 @@ where
 
 import           Unison.Prelude
 
-import Unison.Codebase.MainTerm ( nullaryMain, mainTypes, getMainTerm )
+import Unison.Codebase.MainTerm ( getMainTerm )
 import qualified Unison.Codebase.MainTerm as MainTerm
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
@@ -1615,7 +1615,8 @@ loop = do
         Nothing -> do
           names0 <- basicPrettyPrintNames0
           ppe <- prettyPrintEnv (Names3.Names names0 mempty)
-          respond $ NoMainFunction main ppe (mainTypes External)
+          mainType <- eval RuntimeMain
+          respond $ NoMainFunction main ppe [mainType]
         Just unisonFile -> do
           ppe <- executePPE unisonFile
           eval $ Execute ppe unisonFile
@@ -2820,29 +2821,32 @@ addRunMain
 addRunMain mainName Nothing = do
   parseNames0 <- basicParseNames0
   let loadTypeOfTerm ref = eval $ LoadTypeOfTerm ref
-  mainToFile <$> getMainTerm loadTypeOfTerm parseNames0 mainName
+  mainType <- eval RuntimeMain
+  mainToFile <$>
+    getMainTerm loadTypeOfTerm parseNames0 mainName mainType
   where
     mainToFile (MainTerm.NotAFunctionName _) = Nothing
     mainToFile (MainTerm.NotFound _) = Nothing
     mainToFile (MainTerm.BadType _) = Nothing
     mainToFile (MainTerm.Success hq tm typ) = Just $
       let v = Var.named (HQ.toText hq) in
-      UF.typecheckedUnisonFile mempty mempty [[(v, tm, typ)]] mempty
+      UF.typecheckedUnisonFile mempty mempty mempty [("main",[(v, tm, typ)])] -- mempty
 addRunMain mainName (Just uf) = do
   let components = join $ UF.topLevelComponents uf
   let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
+  mainType <- eval RuntimeMain
   case mainComponent of
     [(v, tm, ty)] -> pure $ let
       v2 = Var.freshIn (Set.fromList [v]) v
       a = ABT.annotation tm
       in
-      if Typechecker.isSubtype ty (nullaryMain a) then Just $ let
+      if Typechecker.isSubtype ty mainType then Just $ let
         runMain = DD.forceTerm a a (Term.var a v)
         in UF.typecheckedUnisonFile
              (UF.dataDeclarationsId' uf)
              (UF.effectDeclarationsId' uf)
-             (UF.topLevelComponents' uf <> [[(v2, runMain, nullaryMain a)]])
-             (UF.watchComponents uf)
+             (UF.topLevelComponents' uf)
+             (UF.watchComponents uf <> [("main", [(v2, runMain, mainType)])])
       else Nothing
     _ -> addRunMain mainName Nothing
 

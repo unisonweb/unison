@@ -34,6 +34,7 @@ import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified System.IO as IO
+import qualified Data.Configurator as Config
 import qualified Crypto.Random as Random
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase as Codebase
@@ -44,6 +45,7 @@ import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.CommandLine.InputPattern as IP
 import qualified Unison.Runtime.Rt1IO as Rt1
+import qualified Unison.Runtime.Interface as RTI
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import qualified Unison.Codebase.Editor.Output as Output
@@ -107,10 +109,9 @@ parse srcName txt = case P.parse (stanzas <* P.eof) srcName txt of
   Right a -> Right a
   Left e -> Left (show e)
 
-run :: FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> Branch.Cache IO -> IO Text
-run dir configFile stanzas codebase branchCache = do
+run :: Maybe Bool -> FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> Branch.Cache IO -> IO Text
+run newRt dir configFile stanzas codebase branchCache = do
   let initialPath = Path.absoluteEmpty
-  let startRuntime = pure Rt1.runtime
   putPrettyLn $ P.lines [
     asciiartUnison, "",
     "Running the provided transcript file...",
@@ -118,7 +119,6 @@ run dir configFile stanzas codebase branchCache = do
     ]
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   do
-    runtime                  <- startRuntime
     pathRef                  <- newIORef initialPath
     numberedArgsRef          <- newIORef []
     inputQueue               <- Q.newIO
@@ -132,6 +132,9 @@ run dir configFile stanzas codebase branchCache = do
     (config, cancelConfig)   <-
       catchIOError (watchConfig configFile) $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
+    runtime                  <- do
+      b <- maybe (Config.lookupDefault False config "new-runtime") pure newRt
+      if b then RTI.startRuntime else pure Rt1.runtime
     traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1..])
     let patternMap =
           Map.fromList

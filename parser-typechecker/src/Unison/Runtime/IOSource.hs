@@ -69,7 +69,7 @@ abilityNamedId s =
 ioHash :: R.Id
 ioHash = abilityNamedId "io.IO"
 
-ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, isPropagatedReference, filePathReference
+ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, isPropagatedReference, filePathReference, hostNameReference, serviceNameReference
   :: R.Reference
 ioReference = R.DerivedId ioHash
 bufferModeReference = typeNamed "io.BufferMode"
@@ -86,6 +86,8 @@ epochTimeReference = typeNamed "io.EpochTime"
 isTestReference = typeNamed "IsTest"
 isPropagatedReference = typeNamed "IsPropagated"
 filePathReference = typeNamed "io.FilePath"
+hostNameReference = typeNamed "io.HostName"
+serviceNameReference = typeNamed "io.ServiceName"
 
 isTest :: (R.Reference, R.Reference)
 isTest = (isTestReference, termNamed "metadata.isTest")

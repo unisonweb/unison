@@ -13,7 +13,7 @@ import Unison.Prelude
 import Control.Lens (_3, over)
 import Control.Monad.State (evalState)
 
-import Data.Bifunctor (first, second)
+import Data.Bifunctor (first, second, bimap)
 import qualified Unison.Util.Relation as Rel
 import           Unison.Hash                    ( Hash )
 import qualified Data.Map                      as Map
@@ -178,6 +178,14 @@ effectConstructorTerms rid ed =
 
 constructorTypes :: DataDeclaration v a -> [Type v a]
 constructorTypes = (snd <$>) . constructors
+
+declFields :: Var v => Decl v a -> Either [Int] [Int]
+declFields = bimap cf cf . first toDataDecl
+  where
+  cf = fmap fields . constructorTypes
+  fields (Type.ForallsNamed' _ ty) = fields ty
+  fields (Type.Arrows' spine) = length spine - 1
+  fields _ = 0
 
 typeOfConstructor :: DataDeclaration v a -> ConstructorId -> Maybe (Type v a)
 typeOfConstructor dd i = constructorTypes dd `atMay` i

@@ -34,10 +34,12 @@ import qualified Unison.Test.Util.Bytes as Bytes
 import qualified Unison.Test.Util.PinBoard as PinBoard
 import qualified Unison.Test.Util.Pretty as Pretty
 import qualified Unison.Test.Var as Var
+import qualified Unison.Test.ANF as ANF
+import qualified Unison.Test.MCode as MCode
 import qualified Unison.Test.VersionParser as VersionParser
 
-test :: Test ()
-test = tests
+test :: Bool -> Test ()
+test rt = tests
   [ Cache.test
   , Lexer.test
   , Term.test
@@ -46,7 +48,7 @@ test = tests
   , Type.test
   , TypeError.test
   , TypePrinter.test
-  , UnisonSources.test
+  , UnisonSources.test rt
   , FileParser.test
   , DataDeclaration.test
   , Range.test
@@ -57,6 +59,8 @@ test = tests
   , Referent.test
   , FileCodebase.test
   , ABT.test
+  , ANF.test
+  , MCode.test
   , Var.test
   , Codebase.test
   , Typechecker.test
@@ -72,9 +76,12 @@ test = tests
 
 main :: IO ()
 main = do
-  args <- getArgs
+  args0 <- getArgs
+  let (rt, args)
+        | "--new-runtime":rest <- args0 = (True, rest)
+        | otherwise = (False, args0)
   mapM_ (`hSetEncoding` utf8) [stdout, stdin, stderr]
   case args of
-    [] -> runOnly "" test
-    [prefix] -> runOnly prefix test
-    [seed, prefix] -> rerunOnly (read seed) prefix test
+    [] -> runOnly "" (test rt)
+    [prefix] -> runOnly prefix (test rt)
+    [seed, prefix] -> rerunOnly (read seed) prefix (test rt)
