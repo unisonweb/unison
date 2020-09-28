@@ -700,12 +700,20 @@ verifyRelativeName' name = do
 --
 destructuringBind :: forall v. Var v => P v (Ann, Term v Ann -> Term v Ann)
 destructuringBind = do
-  (p, boundVars) <- parsePattern
-  let boundVars' = snd <$> boundVars
-  guard <- optional $ reserved "|" *> infixAppOrBooleanOp
+  -- We have to look ahead as far as the `=` to know if this is a bind or
+  -- just an action, for instance:
+  --   Some 42
+  --   vs
+  --   Some 42 = List.head elems
+  (p, boundVars, guard) <- P.try $ do
+    (p, boundVars) <- parsePattern
+    let boundVars' = snd <$> boundVars
+    guard <- optional $ reserved "|" *> infixAppOrBooleanOp
+    P.lookAhead (openBlockWith "=")
+    pure (p, boundVars', guard)
   scrute <- block "=" -- Dwight K. Scrute ("The People's Scrutinee")
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
-      thecase t = Term.MatchCase p (fmap (absChain boundVars') guard) $ absChain boundVars' t
+      thecase t = Term.MatchCase p (fmap (absChain boundVars) guard) $ absChain boundVars t
   pure $ (ann p, \t ->
     let a = ann p <> ann t
     in Term.match a scrute [thecase t])
@@ -788,17 +796,6 @@ data BlockElement v
   | DestructuringBind (Ann, Term v Ann -> Term v Ann)
   | Action (Term v Ann)
 
-{-
-toBindings :: forall v . Var v => [BlockElement v] -> [((Ann,v), Term v Ann)]
-toBindings b = let
-  expand (Binding ((a, v), e)) = [((a, Just v), e)]
-  expand (Action e) = [((ann e, Nothing), e)]
-  v `orBlank` i = fromMaybe (Var.nameds $ "_" ++ show i) v
-  finishBindings bs =
-    [((a, v `orBlank` i), e) | (((a,v), e), i) <- bs `zip` [(1::Int)..]]
-  in finishBindings (expand =<< b)
--}
-
 -- subst
 -- use Foo.Bar + blah
 -- use Bar.Baz zonk zazzle
@@ -836,7 +833,7 @@ block' isTop s openBlock closeBlock = do
     _ <- closeBlock
     substImports names imports <$> go open statements
   where
-    statement = asum [ Binding <$> binding, {-DestructuringBind <$> destructuringBind,-} Action <$> blockTerm ]
+    statement = asum [ Binding <$> binding, DestructuringBind <$> destructuringBind, Action <$> blockTerm ]
     go :: L.Token () -> [BlockElement v] -> P v (Term v Ann)
     go open bs
       = let
