@@ -46,3 +46,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Ludvig Sundström (@lsund)
 * Mohamed Elsharnouby (@sharno)
 * Jared Forsyth (@jaredly) - Documentation generation
+* Hakim Cassimally (@osfameron) - vim support

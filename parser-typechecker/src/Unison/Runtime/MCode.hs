@@ -64,7 +64,7 @@ import Unison.Runtime.ANF
   , pattern TLit
   , pattern TApp
   , pattern TPrm
-  , pattern TIOp
+  , pattern TFOp
   , pattern THnd
   , pattern TFrc
   , pattern TShift
@@ -411,7 +411,7 @@ data Instr
   -- Put a delimiter on the continuation
   | Reset !(EnumSet Word64) -- prompt ids
 
-  | Fork !Section
+  | Fork !Int
   | Seq !Args
   deriving (Show, Eq, Ord)
 
@@ -642,9 +642,9 @@ emitSection _   ctx (TPrm p args)
   . Ins (emitPOp p $ emitArgs ctx args) . Yield $ DArgV i j
   where
   (i, j) = countBlock ctx
-emitSection _   ctx (TIOp p args)
+emitSection _   ctx (TFOp p args)
   = addCount 3 3 . countCtx ctx
-  . Ins (emitIOp p $ emitArgs ctx args) . Yield $ DArgV i j
+  . Ins (emitFOp p $ emitArgs ctx args) . Yield $ DArgV i j
   where
   (i, j) = countBlock ctx
 emitSection rec ctx (TApp f args)
@@ -815,7 +815,7 @@ emitLet _    ctx (AApp (FComb n) args)
 emitLet _   ctx (AApp (FCon r n) args)
   = fmap (Ins . Pack (packTags r n) $ emitArgs ctx args)
 emitLet _   ctx (AApp (FPrim p) args)
-  = fmap (Ins . either emitPOp emitIOp p $ emitArgs ctx args)
+  = fmap (Ins . either emitPOp emitFOp p $ emitArgs ctx args)
 emitLet rec ctx bnd
   = liftA2 Let (emitSection rec (Block ctx) (TTm bnd))
 
@@ -950,7 +950,7 @@ emitPOp ANF.EROR = emitBP1 THRO
 -- non-prim translations
 emitPOp ANF.BLDS = Seq
 emitPOp ANF.FORK = \case
-  BArg1 i -> Fork $ App True (Stk i) ZArgs
+  BArg1 i -> Fork i
   _ -> error "fork takes exactly one boxed argument"
 emitPOp ANF.PRNT = \case
   BArg1 i -> Print i
@@ -964,8 +964,8 @@ emitPOp ANF.INFO = \case
 -- to 'foreing function' calls, but there is a special case for the
 -- standard handle access function, because it does not yield an
 -- explicit error.
-emitIOp :: ANF.IOp -> Args -> Instr
-emitIOp iop = ForeignCall True (fromIntegral $ fromEnum iop)
+emitFOp :: ANF.FOp -> Args -> Instr
+emitFOp fop = ForeignCall True (fromIntegral $ fromEnum fop)
 
 -- Helper functions for packing the variable argument representation
 -- into the indexes stored in prim op instructions

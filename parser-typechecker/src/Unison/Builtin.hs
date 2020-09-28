@@ -411,12 +411,12 @@ io2List bs = bs >>= \(n,ty) -> [B n ty, Rename n ("io2." <> n)]
 
 ioBuiltins :: Var v => [(Text, Type v)]
 ioBuiltins =
-  [ ("IO.openFile", text --> ioe handle)
+  [ ("IO.openFile", text --> fmode --> ioe handle)
   , ("IO.closeFile", handle --> ioe unit)
   , ("IO.isFileEOF", handle --> ioe boolean)
   , ("IO.isFileOpen", handle --> ioe boolean)
   , ("IO.isSeekable", handle --> ioe boolean)
-  , ("IO.seekHandle", handle --> fmode --> int --> ioe unit)
+  , ("IO.seekHandle", handle --> smode --> int --> ioe unit)
   , ("IO.handlePosition", handle --> ioe int)
   , ("IO.getBuffering", handle --> ioe bmode)
   , ("IO.setBuffering", handle --> bmode --> ioe unit)
@@ -444,8 +444,10 @@ ioBuiltins =
   , ("IO.socketSend", socket --> bytes --> ioe unit)
   , ("IO.socketReceive", socket --> nat --> ioe bytes)
   , ("IO.forkComp"
-    , forall1 "a" $ \a -> (unit --> ioe a) --> ioe threadId)
-  , ("IO.stdHandle", nat --> optionalt handle)
+    , forall1 "a" $ \a -> (unit --> ioe a) --> io threadId)
+  , ("IO.stdHandle", stdhandle --> handle)
+  , ("IO.delay", nat --> ioe unit)
+  , ("IO.kill", threadId --> ioe unit)
   ]
 
 mvarBuiltins :: forall v. Var v => [(Text, Type v)]
@@ -503,9 +505,11 @@ threadId = Type.threadId ()
 handle = Type.fileHandle ()
 unit = DD.unitType ()
 
-fmode, bmode :: Var v => Type v
+fmode, bmode, smode, stdhandle :: Var v => Type v
 fmode = DD.fileModeType ()
 bmode = DD.bufferModeType ()
+smode = DD.seekModeType ()
+stdhandle = DD.stdHandleType ()
 
 int, nat, bytes, text, boolean, float, char :: Var v => Type v
 int = Type.int ()
