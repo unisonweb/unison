@@ -64,7 +64,7 @@ import Unison.Runtime.ANF
   , pattern TLit
   , pattern TApp
   , pattern TPrm
-  , pattern TIOp
+  , pattern TFOp
   , pattern THnd
   , pattern TFrc
   , pattern TShift
@@ -642,9 +642,9 @@ emitSection _   ctx (TPrm p args)
   . Ins (emitPOp p $ emitArgs ctx args) . Yield $ DArgV i j
   where
   (i, j) = countBlock ctx
-emitSection _   ctx (TIOp p args)
+emitSection _   ctx (TFOp p args)
   = addCount 3 3 . countCtx ctx
-  . Ins (emitIOp p $ emitArgs ctx args) . Yield $ DArgV i j
+  . Ins (emitFOp p $ emitArgs ctx args) . Yield $ DArgV i j
   where
   (i, j) = countBlock ctx
 emitSection rec ctx (TApp f args)
@@ -815,7 +815,7 @@ emitLet _    ctx (AApp (FComb n) args)
 emitLet _   ctx (AApp (FCon r n) args)
   = fmap (Ins . Pack (packTags r n) $ emitArgs ctx args)
 emitLet _   ctx (AApp (FPrim p) args)
-  = fmap (Ins . either emitPOp emitIOp p $ emitArgs ctx args)
+  = fmap (Ins . either emitPOp emitFOp p $ emitArgs ctx args)
 emitLet rec ctx bnd
   = liftA2 Let (emitSection rec (Block ctx) (TTm bnd))
 
@@ -964,8 +964,8 @@ emitPOp ANF.INFO = \case
 -- to 'foreing function' calls, but there is a special case for the
 -- standard handle access function, because it does not yield an
 -- explicit error.
-emitIOp :: ANF.IOp -> Args -> Instr
-emitIOp iop = ForeignCall True (fromIntegral $ fromEnum iop)
+emitFOp :: ANF.FOp -> Args -> Instr
+emitFOp fop = ForeignCall True (fromIntegral $ fromEnum fop)
 
 -- Helper functions for packing the variable argument representation
 -- into the indexes stored in prim op instructions

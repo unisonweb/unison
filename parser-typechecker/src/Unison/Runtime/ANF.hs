@@ -22,7 +22,7 @@ module Unison.Runtime.ANF
   , pattern TKon
   , pattern TReq
   , pattern TPrm
-  , pattern TIOp
+  , pattern TFOp
   , pattern THnd
   , pattern TLet
   , pattern TFrc
@@ -39,13 +39,13 @@ module Unison.Runtime.ANF
   , SuperNormal(..)
   , SuperGroup(..)
   , POp(..)
-  , IOp(..)
+  , FOp
   , close
   , saturate
   , float
   , lamLift
   , ANormalBF(..)
-  , ANormalTF(.., AApv, ACom, ACon, AKon, AReq, APrm, AIOp)
+  , ANormalTF(.., AApv, ACom, ACon, AKon, AReq, APrm, AFOp)
   , ANormal
   , ANormalT
   , RTag
@@ -619,8 +619,8 @@ pattern AReq r t args = AApp (FReq r t) args
 pattern TReq r t args = TApp (FReq r t) args
 pattern APrm p args = AApp (FPrim (Left p)) args
 pattern TPrm p args = TApp (FPrim (Left p)) args
-pattern AIOp p args = AApp (FPrim (Right p)) args
-pattern TIOp p args = TApp (FPrim (Right p)) args
+pattern AFOp p args = AApp (FPrim (Right p)) args
+pattern TFOp p args = TApp (FPrim (Right p)) args
 
 pattern THnd rs h b = TTm (AHnd rs h b)
 pattern TShift i v e = TTm (AShift i (ABTN.TAbs v e))
@@ -634,7 +634,7 @@ pattern TVar v = TTm (AVar v)
 {-# complete
       TLet, TName,
       TVar, TFrc,
-      TApv, TCom, TCon, TKon, TReq, TPrm, TIOp,
+      TApv, TCom, TCon, TKon, TReq, TPrm, TFOp,
       TLit, THnd, TShift, TMatch
   #-}
 
@@ -770,6 +770,9 @@ instance Semigroup (BranchAccum v) where
 instance Monoid (BranchAccum e) where
   mempty = AccumEmpty
 
+-- Foreign operation, indexed by words
+type FOp = Word64
+
 data Func v
   -- variable
   = FVar v
@@ -782,7 +785,7 @@ data Func v
   -- ability request
   | FReq !RTag !CTag
   -- prim op
-  | FPrim (Either POp IOp)
+  | FPrim (Either POp FOp)
   deriving (Show, Functor, Foldable, Traversable)
 
 data Lit
@@ -849,23 +852,6 @@ data POp
   -- Debug
   | PRNT | INFO
   deriving (Show,Eq,Ord)
-
-data IOp
-  = OPENFI | CLOSFI | ISFEOF | ISFOPN
-  | ISSEEK | SEEKFI | POSITN | STDHND
-  | GBUFFR | SBUFFR
-  | GTLINE | GTTEXT | PUTEXT
-  | SYTIME | GTMPDR | GCURDR | SCURDR
-  | DCNTNS | FEXIST | ISFDIR
-  | CRTDIR | REMDIR | RENDIR
-  | REMOFI | RENAFI | GFTIME | GFSIZE
-  | SRVSCK | LISTEN | CLISCK | CLOSCK
-  | SKACPT | SKSEND | SKRECV
-  | THKILL | THDELY
-  | MVNEWF | MVNEWE | MVTAKE | MVTAKT -- new,new empty,take,trytake
-  | MVPUTB | MVPUTT | MVSWAP | MVEMPT -- put,tryput,swap,isempty
-  | MVREAD | MVREAT                   -- read,tryread
-  deriving (Show,Eq,Ord,Enum,Bounded)
 
 type ANormal = ABTN.Term ANormalBF
 type ANormalT v = ANormalTF v (ANormal v)

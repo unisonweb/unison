@@ -100,86 +100,86 @@ rename.
 
 What we have done so far only declares the functions and their types.
 There is nothing yet implementing them. This section will proceed
-through the implementation backing the declaration of the `MVar.new`
-declared above.
+through the implementation backing the declarations of the `MVar.new`
+and `MVar.take` above.
 
-The first step is to add to the builtin operations list in
-`Unison.Runtime.Builtin`. This is a list associating the name chosen
-in `Unison.Builtin` with intermediate code forms that the new runtime
-should use. In this case we can add:
+In this case, we will implement the operations using the 'foreign
+function' machinery. This path is somewhat less optimized, but
+doesn't require inventing opcodes and modifying the runtime at
+quite as low a level. The builtin 'foreign' functions are declared
+in `Unison.Runtime.Builtin`, in a definition `declareForeigns`. We
+can declare our builtins there by adding:
 
 ```haskell
-("MVar.new", ioComb mvar'new)
-("MVar.take", ioComb mvar'take)
+  declareForeign "MVar.new" mvar'new
+    . mkForeign $ \(c :: Closure) -> newMVar c
+  declareForeign "MVar.take" mvar'take
+    . mkForeignIOE $ \(mv :: MVar Closure) -> takeMVar mv
 ```
 
-and plan to implement `mvar'new` and `mvar'take`. `ioComb` is a helper
-function that factors out some of the repetitive aspects of dealing
-with IO builtins, which `MVar` functions will need.
+These lines do multiple things at once. The first argument to
+`declareForeign` must match the name from `Unison.Builtin`, as this
+is how they are associated. The second argument is wrapper code
+that actually defines the unison function that will be called, and
+the definitions for these two cases will be shown later. The last
+argument is the actual Haskell implementation of the operation.
+However, the format for foreign functions is somewhat more limited
+than 'any Haskell function,' so the `mkForeign` and `mkForeignIOE`
+helpers assist in wrapping Haskell functions correctly. The latter
+will catch some exceptions and yield them as explicit results.
 
-To actually implement the intermediate code, we will need to add
-constructors to the `IOp` type in `Unison.Runtime.ANF`, which lists
-all the builtin operations that will compile to the runtime's 'foreign
-function' format, which is less efficient than e.g. arithemtic
-operations, but is very flexible. The convention for this type is to
-make constructors look sort of like opcode names, so we'll pick
-`MVNEWF` for allocating a new filled `MVar`, and `MVTAKE` for taking
-an `MVar`.
-
-Then we must wrap these 'opcodes' like so:
+The wrapper code for these two operations looks like:
 
 ```haskell
-mvar'new :: IOOP
-mvar'new avoid
+mvar'new :: ForeignOp
+mvar'new instr
   = ([BX],)
   . TAbs init
-  $ TIOp MVNEWF [init]
+  $ TFOp instr [init]
   where
-  [init] = freshes' avoid 1
+  [init] = freshes 1
 
-mvar'take :: IOOP
-mvar'take avoid
+mvar'take :: ForeignOp
+mvar'take instr
   = ([BX],)
   . TAbs mv
-  $ io'error'result'direct MVTAKE [mv] ior e r
+  $ io'error'result'direct instr [mv] ior e r
   where
-  [mv,ior,e,r] = freshes' avoid 4
+  [mv,ior,e,r] = freshes 4
 ```
 
 The breakdown of what is happening here is as follows:
-- `avoid` is a set of variables that are not fresh, and should be
-  avoided
-- An `IOOP` may take many arguments, and the list in the tuple section
-  specifies the calling convention for them. `[BX]` means one boxed
-  argument, which in this case is the value of type `a`. `[BX,BX]`
-  would be two boxed arguments, and `[BX,UN]` would be one boxed and
-  one unboxed argument.
+- `instr` is an identifier that is used to decouple the wrapper
+  code from the actual Haskell implementation functions. It is
+  made up in `declareForeign` and passed to the wrapper to use as a
+  sort of instruction code.
+- A `ForeignOp` may take many arguments, and the list in the tuple
+  section specifies the calling convention for them. `[BX]` means
+  one boxed argument, which in this case is the value of type `a`.
+  `[BX,BX]` would be two boxed arguments, and `[BX,UN]` would be
+  one boxed and one unboxed argument. Builtin wrappers will
+  currently be taking all boxed arguments, because there is no way
+  to talk about unboxed values in the surface syntax where they are
+  called.
 - `TAbs init` abstracts the argument variable, which we got from
   `freshes'` at the bottom. Multiple arguments may be abstracted with
   e.g. `TAbss [x,y,z]`
-- `io'error'result'direct` is a helper function for calling an `IOp`
-  and wrapping up a possible error result. The first argument is the
-  `IOp` to call, the list is the arguments, and the last three
-  arguments are variables used in the common result handling code.
+- `io'error'result'direct` is a helper function for calling the
+  instruction and wrapping up a possible error result. The first
+  argument is the identifier to call, the list is the arguments,
+  and the last three arguments are variables used in the common
+  result handling code.
+- `TFOp` simply calls the instruction with the assumption that the
+  result value is acceptable for directly returning. `MVar` values
+  will be represented directly by their Haskell values wrapped into
+  a closure, so the `mvar'new` code doesn't need to do any
+  processing of the results of its foreign function.
 
 Other builtins use slightly different implementations, so looking at
 other parts of the file may be instructive, depending on what is being
 added.
 
-Finally, we need to provide an implementation for the 'opcode' we
-defined. In this case, we need to add a case to `iopToForeign` also in
-`Unison.Runtime.Builtin`. This will be simple, just:
-
-```haskell
-iopToForeign ANF.MVNEWF = mkForeign $ \(c :: Closure) -> newMVar c
-iopToForeign ANF.MVTAKE
-  = mkForeignIOE $ \(mv :: MVar Closure) -> takeMVar mv
-```
-
-The `mkForeignIOE` function inserts some code for catching exceptions
-and explicitly returning them from the function.
-
-However, at first this will cause an error, because some of the
+At first, our declarations will cause an error, because some of the
 automatic machinery for creating builtin 'foreign' functions does not
 exist for `MVar`. To rectify this, we can add a `ForeignConvention`
 instance in `Unison.Runtime.Foreign.Function` that specifies how to
@@ -197,6 +197,24 @@ functions that apply (un)wrappers from another convention.
 
 With these in place, the functions should now be usable in the new
 runtime.
+
+## Decompilation
+
+If it makes sense for an added type, it is possible to add to Unison's
+ability to decompile runtime values or test for universal
+equality/ordering. Directly embedded Haskell types are wrapped in the
+`Foreign` type, and are decompiled in `Unison.Runtime.Decompile` using
+the `decompileForeign` function. For instance, `Text` is decompiled in
+the case:
+
+```haskell
+  | Just t <- maybeUnwrapBuiltin f = Right $ text () t
+```
+
+Further cases may be added using the `maybeUnwrapBuiltin`, which just
+requires adding an instance to the `BuiltinForeign` class in
+`Unison.Runtime.Foreign`, specifying which builtin reference
+corresponds to the type.
 
 ## Transcripts
 
