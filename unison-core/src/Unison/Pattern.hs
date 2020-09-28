@@ -37,6 +37,16 @@ data SeqOp = Cons
            | Concat
            deriving (Eq, Show, Ord)
 
+isLiteral :: Pattern loc -> Bool
+isLiteral p = case p of
+  Int _ _ -> True
+  Boolean _ _ -> True
+  Nat _ _ -> True
+  Float _ _ -> True
+  Text _ _ -> True
+  Char _ _ -> True
+  _ -> False
+
 instance H.Hashable SeqOp where
   tokens Cons = [H.Tag 0]
   tokens Snoc = [H.Tag 1]

@@ -248,6 +248,28 @@ pretty0
         pretty0 n (ac 10 Normal im doc) y
       ]
     LetBlock bs e -> printLet bc bs e im' uses
+    -- Some matches are rendered as a destructuring bind, like
+    --   match foo with (a,b) -> blah
+    -- becomes
+    --   (a,b) = foo
+    --   blah
+    -- See `isDestructuringBind` definition.
+    Match' scrutinee cs@[MatchCase pat guard (AbsN' vs body)]
+      | p < 1 && isDestructuringBind scrutinee cs -> letIntro $ uses [
+          (lhs <> eq) `PP.hang` rhs,
+          pretty0 n (ac (-1) Block im' doc) body
+          ]
+      where
+      letIntro = case bc of
+        Block  -> id
+        Normal -> \x -> (fmt S.ControlKeyword "let") `PP.hang` x
+      lhs = PP.group (fst (prettyPattern n (ac 0 Block im' doc) (-1) vs pat))
+         <> printGuard guard
+      printGuard Nothing = mempty
+      printGuard (Just g') = let (_,g) = ABT.unabs g' in
+        PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 n (ac 2 Normal im' doc) g]
+      eq = fmt S.BindingEquals " ="
+      rhs = pretty0 n (ac (-1) Block im' doc) scrutinee
     Match' scrutinee branches -> paren (p >= 2) $
       if PP.isMultiLine ps then PP.lines [
         (fmt S.ControlKeyword "match ") `PP.hang` ps,
@@ -446,13 +468,10 @@ printCase env im doc ms = PP.lines $ map each gridArrowsAligned where
     lhs = PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
        <> printGuard guard
     arrow = fmt S.ControlKeyword "->"
-    printGuard (Just g0) = let
+    printGuard (Just g') = let (_, g) = ABT.unabs g' in
       -- strip off any Abs-chain around the guard, guard variables are rendered
       -- like any other variable, ex: case Foo x y | x < y -> ...
-      g = case g0 of
-        AbsN' _ g' -> g'
-        _ -> g0
-      in PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 env (ac 2 Normal im doc) g]
+      PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 env (ac 2 Normal im doc) g]
     printGuard Nothing  = mempty
     (im', uses) = calcImports im body
   go _ = (l "error", mempty, mempty)
@@ -988,7 +1007,9 @@ immediateChildBlockTerms = \case
     Handle' handler body -> [handler, body]
     If' _ t f -> [t, f]
     LetBlock bs _ -> concat $ map doLet bs
-    Match' _ branches -> concat $ map doCase branches
+    Match' scrute branches ->
+      if isDestructuringBind scrute branches then [scrute]
+      else concat $ map doCase branches
     _ -> []
   where
     doCase (MatchCase _ _ (AbsN' _ body)) = [body]
@@ -998,6 +1019,22 @@ immediateChildBlockTerms = \case
                                       then []
                                       else [body]
     doLet t = error (show t) []
+
+-- Matches with a single case, no variable shadowing, and where the pattern
+-- isn't a literal are treated as destructuring bind, for instance:
+--   match blah with (x,y) -> body
+-- BECOMES
+--   (x,y) = blah
+--   body
+-- BUT
+--   match (y,x) with (x,y) -> body
+-- Has shadowing, is rendered as a regular `match`.
+--   match blah with 42 -> body
+-- Pattern is a literal, rendered as a regular match (rather than `42 = blah; body`)
+isDestructuringBind :: Ord v => ABT.Term f v a -> [MatchCase loc (ABT.Term f v a)] -> Bool
+isDestructuringBind scrutinee [MatchCase pat _ (ABT.AbsN' vs _)]
+  = all (`Set.notMember` ABT.freeVars scrutinee) vs && not (Pattern.isLiteral pat)
+isDestructuringBind _ _ = False
 
 pattern LetBlock bindings body <- (unLetBlock -> Just (bindings, body))
 
