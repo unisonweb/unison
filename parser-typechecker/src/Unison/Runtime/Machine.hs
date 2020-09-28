@@ -1,6 +1,7 @@
 {-# language DataKinds #-}
 {-# language RankNTypes #-}
 {-# language BangPatterns #-}
+{-# language ViewPatterns #-}
 {-# language PatternGuards #-}
 
 module Unison.Runtime.Machine where
@@ -76,15 +77,12 @@ eval0 !env !co = do
 apply0
   :: Maybe (Stack 'UN -> Stack 'BX -> IO ())
   -> SEnv -> Word64 -> IO ()
-apply0 !callback !env !i
-  | Just cmbs <- EC.lookup i (combs env)
-  , Just cmb <- EC.lookup 0 cmbs = do
+apply0 !callback !env !i = do
     ustk <- alloc
     bstk <- alloc
     mask $ \unmask ->
       apply unmask env mempty ustk bstk k0 True ZArgs
-        $ PAp (IC i cmb) unull bnull
-  | otherwise = die $ "apply0: unknown combinator/entry: " ++ show i
+        $ PAp (CIx i 0) unull bnull
   where
   k0 = maybe KE (CB . Hook) callback
 
@@ -101,8 +99,8 @@ exec _      !_   !denv !ustk !bstk !k (Info tx) = do
   info tx bstk
   info tx k
   pure (denv, ustk, bstk, k)
-exec _      !env !denv !ustk !bstk !k (Name r args) = do
-  bstk <- name ustk bstk args =<< resolve env denv bstk r
+exec _      !_   !denv !ustk !bstk !k (Name r args) = do
+  bstk <- name ustk bstk args =<< resolve denv bstk r
   pure (denv, ustk, bstk, k)
 exec _      !_   !denv !ustk !bstk !k (SetDyn p i) = do
   clo <- peekOff bstk i
@@ -224,7 +222,7 @@ eval unmask !env !denv !ustk !bstk !k (Yield args)
     bstk <- frameArgs bstk
     yield unmask env denv ustk bstk k
 eval unmask !env !denv !ustk !bstk !k (App ck r args) =
-  resolve env denv bstk r
+  resolve denv bstk r
     >>= apply unmask env denv ustk bstk k ck args
 eval unmask !env !denv !ustk !bstk !k (Call ck n args)
   | Just cmbs <- EC.lookup n (combs env)
@@ -283,7 +281,7 @@ apply
   :: Unmask -> SEnv -> DEnv -> Stack 'UN -> Stack 'BX -> K
   -> Bool -> Args -> Closure -> IO ()
 apply unmask !env !denv !ustk !bstk !k !ck !args clo = case clo of
-  PAp comb@(Lam_ ua ba uf bf entry) useg bseg
+  PAp comb@(combSection env -> Lam ua ba uf bf entry) useg bseg
     | ck || ua <= uac && ba <= bac -> do
       ustk <- ensure ustk uf
       bstk <- ensure bstk bf
@@ -1249,15 +1247,20 @@ discardCont denv ustk bstk k p
   <&> \(_, denv, ustk, bstk, _, _, k) -> (denv, ustk, bstk, k)
 {-# inline discardCont #-}
 
-resolve :: SEnv -> DEnv -> Stack 'BX -> Ref -> IO Closure
-resolve env _ _ (Env n i) = case EC.lookup n (combs env) of
-  Just cmbs -> case EC.lookup i cmbs of
-    Just cmb -> return $ PAp (IC n cmb) unull bnull
-    _ -> die
-       $ "resolve: looked up an unknown combinator section: "
-      ++ show (n, i)
-  _ -> die $ "resolve: looked up unknown combinator: " ++ show n
-resolve _ _ bstk (Stk i) = peekOff bstk i
-resolve _ denv _ (Dyn i) = case EC.lookup i denv of
+resolve :: DEnv -> Stack 'BX -> Ref -> IO Closure
+resolve _ _ (Env n i) = pure $ PAp (CIx n i) unull bnull
+resolve _ bstk (Stk i) = peekOff bstk i
+resolve denv _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo
   _ -> die $ "resolve: looked up bad dynamic: " ++ show i
+
+combSection :: SEnv -> CombIx -> Comb
+combSection env (CIx n i)
+  = case EC.lookup n (combs env) of
+      Just cmbs -> case EC.lookup i cmbs of
+        Just cmb -> cmb
+        Nothing -> error $ "unknown section `" ++ show i
+                ++ "` of combinator `" ++ show n ++ "`."
+      Nothing -> error $ "unknown combinator `" ++ show n ++ "`."
+
+

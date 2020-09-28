@@ -8,7 +8,7 @@
 
 module Unison.Runtime.Stack
   ( K(..)
-  , IComb(.., Lam_)
+  , CombIx(..)
   , Closure(.., DataC, PApV, CapV)
   , Callback(..)
   , Augment(..)
@@ -93,22 +93,13 @@ data K
          !K
   deriving (Eq, Ord)
 
--- Comb with an identifier
-data IComb
-  = IC !Word64 !Comb
-  deriving (Show)
-
-instance Eq IComb where
-  IC i _ == IC j _ = i == j
-
-pattern Lam_ ua ba uf bf entry <- IC _ (Lam ua ba uf bf entry)
-
--- TODO: more reliable ordering for combinators
-instance Ord IComb where
-  compare (IC i _) (IC j _) = compare i j
+data CombIx
+  = CIx !Word64 -- top level
+        !Word64 -- section
+  deriving (Eq, Ord, Show)
 
 data Closure
-  = PAp {-# unpack #-} !IComb     -- code
+  = PAp {-# unpack #-} !CombIx    -- reference
         {-# unpack #-} !(Seg 'UN) -- unboxed args
         {-  unpack  -} !(Seg 'BX) -- boxed args
   | Enum !Word64
@@ -162,7 +153,7 @@ universalCompare
   -> Closure
   -> Closure
   -> Ordering
-universalCompare comb tag frn = cmpc
+universalCompare _    tag frn = cmpc
   where
   cmpl cm l r
     = compare (length l) (length r) <> fold (zipWith cm l r)
@@ -171,8 +162,8 @@ universalCompare comb tag frn = cmpc
    <> compare ct1 ct2
    <> cmpl compare us1 us2
    <> cmpl cmpc bs1 bs2
-  cmpc (PApV (IC i1 _) us1 bs1) (PApV (IC i2 _) us2 bs2)
-    = compare (comb i1) (comb i2)
+  cmpc (PApV i1 us1 bs1) (PApV i2 us2 bs2)
+    = compare i1 i2
    <> cmpl compare us1 us2
    <> cmpl cmpc bs1 bs2
   cmpc (CapV k1 us1 bs1) (CapV k2 us2 bs2)

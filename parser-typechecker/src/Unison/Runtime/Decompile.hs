@@ -27,7 +27,7 @@ import Unison.Runtime.ANF (RTag, CTag, Tag(..))
 import Unison.Runtime.Foreign
   (Foreign, maybeUnwrapBuiltin, maybeUnwrapForeign)
 import Unison.Runtime.Stack
-  (Closure(..), pattern DataC, pattern PApV, IComb(..))
+  (Closure(..), pattern DataC, pattern PApV, CombIx(..))
 
 import Unison.Codebase.Runtime (Error)
 import Unison.Util.Pretty (lit)
@@ -58,7 +58,7 @@ decompile tyRef _ (DataC rt ct [i] [])
 decompile tyRef topTerms (DataC rt ct [] bs)
   | Just rf <- tyRef rt
   = apps' (con rf ct) <$> traverse (decompile tyRef topTerms) bs
-decompile tyRef topTerms (PApV (IC rt _) [] bs)
+decompile tyRef topTerms (PApV (CIx rt _) [] bs)
   | Just t <- topTerms rt
   = substitute t <$> traverse (decompile tyRef topTerms) bs
   | otherwise
