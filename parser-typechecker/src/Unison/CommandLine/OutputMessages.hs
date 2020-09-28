@@ -11,6 +11,8 @@ module Unison.CommandLine.OutputMessages where
 
 import Unison.Prelude hiding (unlessM)
 
+import qualified Unison.Codebase               as Codebase
+import           Unison.Server.Backend          ( ShallowListEntry(..) )
 import           Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output           as E
 import qualified Unison.Codebase.Editor.Output           as Output
@@ -248,7 +250,23 @@ prettyRemoteNamespace =
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
-  Success     -> pure $ P.bold "Done."
+  Success         -> pure $ P.bold "Done."
+  BadRootBranch e -> case e of
+    Codebase.NoRootBranch ->
+      pure . P.fatalCallout $ "I couldn't find the codebase root!"
+    Codebase.CouldntParseRootBranch s ->
+      pure
+        .  P.warnCallout
+        $  "I coulnd't parse a valid namespace from "
+        <> P.string (show s)
+        <> "."
+    Codebase.CouldntLoadRootBranch h ->
+      pure
+        .  P.warnCallout
+        $  "I couldn't find a root namespace with the hash "
+        <> prettySBH (SBH.fullFromHash h)
+        <> "."
+
   WarnIncomingRootBranch current hashes -> pure $
     if null hashes then P.wrap $
       "Please let someone know I generated an empty IncomingRootBranch"

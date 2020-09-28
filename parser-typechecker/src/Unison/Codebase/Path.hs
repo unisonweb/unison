@@ -48,6 +48,8 @@ isRoot = Seq.null . toSeq . unabsolute
 absoluteToPath' :: Absolute -> Path'
 absoluteToPath' abs = Path' (Left abs)
 
+
+
 instance Show Path' where
   show (Path' (Left abs)) = show abs
   show (Path' (Right rel)) = show rel
@@ -250,6 +252,12 @@ toPath' :: Path -> Path'
 toPath' = \case
   Path (NameSegment "" :<| tail) -> Path' . Left . Absolute . Path $ tail
   p -> Path' . Right . Relative $ p
+
+-- Forget whether the path is absolute or relative
+fromPath' :: Path' -> Path
+fromPath' (Path' e) = case e of
+  Left  (Absolute p) -> p
+  Right (Relative p) -> p
 
 toList :: Path -> [NameSegment]
 toList = Foldable.toList . toSeq

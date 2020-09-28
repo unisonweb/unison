@@ -40,8 +40,8 @@ import           Unison.ShortHash               ( ShortHash )
 import           Unison.Type                    ( Type )
 import           Unison.Codebase.ShortBranchHash
                                                 ( ShortBranchHash )
+import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
-
 
 type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
@@ -57,7 +57,12 @@ type TypecheckingResult v =
          (Either Names0 (UF.TypecheckedUnisonFile v Ann))
 
 data Command m i v a where
+  -- Escape hatch.
   Eval :: m a -> Command m i v a
+
+  -- Escape hatch. Temporarily here while we replace this file with calls
+  -- into Server.Backend.
+  WithCodebase :: (Codebase m v Ann -> a) -> Command m i v a
 
   ConfigLookup :: Configured a => Text -> Command m i v (Maybe a)
 

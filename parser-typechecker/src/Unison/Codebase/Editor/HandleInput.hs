@@ -21,6 +21,8 @@ where
 
 import           Unison.Prelude
 
+import qualified Unison.Server.Backend as Backend
+import Unison.Server.Backend (ShallowListEntry(..), Backend)
 import Unison.Codebase.MainTerm ( getMainTerm )
 import qualified Unison.Codebase.MainTerm as MainTerm
 import Unison.Codebase.Editor.Command
@@ -43,7 +45,7 @@ import           Data.Bifunctor                 ( second, first )
 import           Data.Configurator              ()
 import qualified Data.List                      as List
 import           Data.List                      ( partition )
-import           Data.List.Extra                ( nubOrd, sort )
+import           Data.List.Extra                ( nubOrd )
 import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
 import qualified Text.Megaparsec               as P
@@ -107,7 +109,6 @@ import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE
 import           Unison.Runtime.IOSource       ( isTest )
 import qualified Unison.Runtime.IOSource as IOSource
-import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Monoid            as Monoid
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
@@ -231,6 +232,9 @@ loop = do
         HQ.HashQualified _ sh -> hashOnly sh
         where
         hashOnly sh = eval $ TermReferentsByShortHash sh
+
+      basicPrettyPrintNames0 =
+        Backend.basicPrettyPrintNames0 root' (Path.unabsolute currentPath')
 
       resolveHHQS'Types :: HashOrHQSplit' -> Action' m v (Set Reference)
       resolveHHQS'Types = either
@@ -597,8 +601,10 @@ loop = do
                   getTypes p = BranchUtil.getType (resolveSplit' p) r0
                   !srcle = toList . getTerms =<< srcs
                   !srclt = toList . getTypes =<< srcs
-              names0 <- basicPrettyPrintNames0
-              ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (Names names0 mempty)
+                  ppe = Backend.basicSuffixifiedNames
+                          sbhLength
+                          newRoot
+                          (Path.unabsolute currentPath')
               case mdl of
                 [r@(Referent.Ref mdValue)] -> do
                   mdType <- eval $ LoadTypeOfTerm mdValue
@@ -996,9 +1002,9 @@ loop = do
                 Names.filterByHQs (Set.singleton $ HQ'.HashQualified n sh) parseNames0
               HQ.NameOnly n ->
                 Names.filterByHQs (Set.singleton $ HQ'.NameOnly n) parseNames0
-        printNames0 <- basicPrettyPrintNames0
-        let printNames = Names printNames0 mempty
-        let terms' ::Set (Referent, Set HQ'.HashQualified)
+        let printNames0 = basicPrettyPrintNames0
+            printNames = Names printNames0 mempty
+            terms' ::Set (Referent, Set HQ'.HashQualified)
             terms' = (`Set.map` Names.termReferents filtered) $
                         \r -> (r, Names3.termName hqLength r printNames)
             types' :: Set (Reference, Set HQ'.HashQualified)
@@ -1048,7 +1054,7 @@ loop = do
         (ppe, out) <- getLinks input src (Left $ Set.singleton DD.docRef)
         lift case out of
           [(_name, ref, _tm)] -> do
-            names <- basicPrettyPrintNames0
+            let names = basicPrettyPrintNames0
             doDisplay ConsoleLocation (Names3.Names names mempty) (Referent.Ref ref)
           out -> do
             numberedArgs .= fmap (HQ.toString . view _1) out
@@ -1116,10 +1122,10 @@ loop = do
       DeleteTermI hq -> delete getHQ'Terms       (const Set.empty) hq
 
       DisplayI outputLoc hq -> do
-        parseNames0 <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
-        -- use suffixed names for resolving the argument to display
-        let parseNames = Names3.suffixify parseNames0
-        let results = Names3.lookupHQTerm hq parseNames
+        let parseNames0 = (`Names3.Names` mempty) $ basicPrettyPrintNames0
+            -- use suffixed names for resolving the argument to display
+            parseNames = Names3.suffixify parseNames0
+            results = Names3.lookupHQTerm hq parseNames
         if Set.null results then
           respond $ SearchTermsNotFound [hq]
         else if Set.size results > 1 then
@@ -1201,86 +1207,55 @@ loop = do
         numberedArgs .= fmap Name.toString patches
 
       FindShallowI pathArg -> do
-        prettyPrintNames0 <- basicPrettyPrintNames0
-        ppe <- fmap PPE.suffixifiedPPE . prettyPrintEnvDecl $ Names prettyPrintNames0 mempty
         let pathArgAbs = resolveToAbsolute pathArg
-        b0 <- Branch.head <$> getAt pathArgAbs
-        let
-          hqTerm b0 ns r =
-            let refs = Star3.lookupD1 ns . _terms $ b0
-            in case length refs of
-              1 -> HQ'.fromName ns
-              _ -> HQ'.take hqLength $ HQ'.fromNamedReferent ns r
-          hqType b0 ns r =
-            let refs = Star3.lookupD1 ns . _types $ b0
-            in case length refs of
-              1 -> HQ'.fromName ns
-              _ -> HQ'.take hqLength $ HQ'.fromNamedReference ns r
-          defnCount b =
-            (R.size . deepTerms $ Branch.head b) +
-            (R.size . deepTypes $ Branch.head b)
-
-        termEntries <- for (R.toList . Star3.d1 $ _terms b0) $
-          \(r, ns) -> do
-            ot <- loadReferentType r
-            pure $ ShallowTermEntry r (hqTerm b0 ns r) ot
-        let
-          typeEntries =
-            [ ShallowTypeEntry r (hqType b0 ns r)
-            | (r, ns) <- R.toList . Star3.d1 $ _types b0 ]
-          branchEntries =
-            [ ShallowBranchEntry ns (defnCount b)
-            | (ns, b) <- Map.toList $ _children b0 ]
-          patchEntries =
-            [ ShallowPatchEntry ns
-            | (ns, (_h, _mp)) <- Map.toList $ _edits b0 ]
-        let
-          entries :: [ShallowListEntry v Ann]
-          entries = sort $ termEntries ++ typeEntries ++ branchEntries ++ patchEntries
+            ppe = Backend.basicSuffixifiedNames sbhLength root' (Path.fromPath' pathArg)
+        findOp <- eval $ WithCodebase \c -> Backend.findShallow c pathArgAbs
+        entries <- handleBackend findOp
+        -- caching the result as an absolute path, for easier jumping around
+        numberedArgs .= fmap entryToHQString entries
+        respond $ ListShallow ppe entries
+        where
           entryToHQString :: ShallowListEntry v Ann -> String
-          -- caching the result as an absolute path, for easier jumping around
           entryToHQString e = fixup $ case e of
             ShallowTypeEntry _ hq   -> HQ'.toString hq
             ShallowTermEntry _ hq _ -> HQ'.toString hq
             ShallowBranchEntry ns _ -> NameSegment.toString ns
             ShallowPatchEntry ns    -> NameSegment.toString ns
-            where
-            fixup s =
-              if last pathArgStr == '.'
+           where
+            fixup s = if last pathArgStr == '.'
               then pathArgStr ++ s
               else pathArgStr ++ "." ++ s
-            pathArgStr = show pathArgAbs
-        numberedArgs .= fmap entryToHQString entries
-        respond $ ListShallow ppe entries
-        where
+            pathArgStr = show pathArg
 
       SearchByNameI isVerbose _showAll ws -> do
-        prettyPrintNames0 <- basicPrettyPrintNames0
+        let prettyPrintNames0 = basicPrettyPrintNames0
         unlessError do
           results <- case ws of
             -- no query, list everything
             [] -> pure . listBranch $ Branch.head currentBranch'
 
             -- type query
-            ":" : ws -> ExceptT (parseSearchType input (unwords ws)) >>= \typ -> ExceptT $ do
-              let named = Branch.deepReferents root0
-              matches <- fmap toList . eval $ GetTermsOfType typ
-              matches <- filter (`Set.member` named) <$>
-                if null matches then do
-                  respond NoExactTypeMatches
-                  fmap toList . eval $ GetTermsMentioningType typ
-                else pure matches
-              let results =
-                    -- in verbose mode, aliases are shown, so we collapse all
-                    -- aliases to a single search result; in non-verbose mode,
-                    -- a separate result may be shown for each alias
-                    (if isVerbose then uniqueBy SR.toReferent else id) $
-                    searchResultsFor prettyPrintNames0 matches []
-              pure . pure $ results
+            ":" : ws ->
+              ExceptT (parseSearchType input (unwords ws)) >>= \typ ->
+                ExceptT $ do
+                  let named = Branch.deepReferents root0
+                  matches <- fmap toList . eval $ GetTermsOfType typ
+                  matches <- filter (`Set.member` named) <$>
+                    if null matches then do
+                      respond NoExactTypeMatches
+                      fmap toList . eval $ GetTermsMentioningType typ
+                    else pure matches
+                  let results =
+                      -- in verbose mode, aliases are shown, so we collapse all
+                      -- aliases to a single search result; in non-verbose mode,
+                      -- a separate result may be shown for each alias
+                        (if isVerbose then uniqueBy SR.toReferent else id) $
+                        searchResultsFor prettyPrintNames0 matches []
+                  pure . pure $ results
 
             -- name query
             (map HQ.unsafeFromString -> qs) -> do
-              ns <- lift basicPrettyPrintNames0
+              let ns = basicPrettyPrintNames0
               let srs = searchBranchScored ns fuzzyNameDistance qs
               pure $ uniqueBy SR.toReferent srs
           lift do
@@ -1613,7 +1588,7 @@ loop = do
 
       ExecuteI main -> addRunMain main uf >>= \case
         Nothing -> do
-          names0 <- basicPrettyPrintNames0
+          let names0 = basicPrettyPrintNames0
           ppe <- prettyPrintEnv (Names3.Names names0 mempty)
           mainType <- eval RuntimeMain
           respond $ NoMainFunction main ppe [mainType]
@@ -2146,6 +2121,17 @@ searchBranchExact len names queries = let
       SR.termResult primaryName r aliases
   in [ searchTypes q <> searchTerms q | q <- queries ]
 
+handleBackend :: Backend m a -> Action m i v a
+handleBackend b = _liftToAction (runExceptT b) >>= \case
+  Left e -> case e of
+    Backend.NoSuchNamespace path -> do
+      respond . BranchNotFound $ Path.absoluteToPath' path
+      fail mempty
+    Backend.BadRootBranch e -> do
+      respond $ BadRootBranch e
+      fail mempty
+  Right a -> pure a
+
 respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
@@ -2603,12 +2589,16 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
       oldMd = BranchUtil.getTermMetadataAt split (Referent.Ref old) b0
   errorEmptyVar = error "encountered an empty var name"
 
-loadSearchResults :: Ord v => [SR.SearchResult] -> Action m i v [SearchResult' v Ann]
+loadSearchResults
+  :: (Var v, Applicative m)
+  => [SR.SearchResult]
+  -> Action m i v [SearchResult' v Ann]
 loadSearchResults = traverse loadSearchResult
-  where
+ where
   loadSearchResult = \case
     SR.Tm (SR.TermResult name r aliases) -> do
-      typ <- loadReferentType r
+      typ <- join . eval . WithCodebase $ \c ->
+        _liftToAction $ Backend.loadReferentType c r
       pure $ SR'.Tm name typ r aliases
     SR.Tp (SR.TypeResult name r aliases) -> do
       dt <- loadTypeDisplayThing r
@@ -2623,20 +2613,6 @@ loadDisplayInfo refs = do
   terms <- forM termRefs $ \r -> (r,) <$> eval (LoadTypeOfTerm r)
   types <- forM typeRefs $ \r -> (r,) <$> loadTypeDisplayThing r
   pure (terms, types)
-
-loadReferentType :: Referent -> Action m i v (Maybe (Type v Ann))
-loadReferentType = \case
-  Referent.Ref r -> eval $ LoadTypeOfTerm r
-  Referent.Con r cid _ -> getTypeOfConstructor r cid
-  where
-  getTypeOfConstructor :: Reference -> Int -> Action m i v (Maybe (Type v Ann))
-  getTypeOfConstructor (Reference.DerivedId r) cid = do
-    maybeDecl <- eval $ LoadType r
-    pure $ case maybeDecl of
-      Nothing -> Nothing
-      Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-  getTypeOfConstructor r cid =
-    error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
 
 loadTypeDisplayThing :: Reference -> Action m i v (DisplayThing (DD.Decl v Ann))
 loadTypeDisplayThing = \case
@@ -2724,6 +2700,9 @@ findHistoricalHQs lexedHQs0 = do
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
   pure rawHistoricalNames
 
+basicPrettyPrintNames0 :: Functor m => Action' m v Names0
+basicPrettyPrintNames0 = snd <$> basicNames0'
+
 makeShadowedPrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Names0 -> Action' m v Names
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
@@ -2770,9 +2749,8 @@ makeHistoricalParsingNames lexedHQs = do
                (Names3.makeAbsolute0 rawHistoricalNames <>
                  fixupNamesRelative currentPath rawHistoricalNames)
 
-basicParseNames0, basicPrettyPrintNames0, slurpResultNames0 :: Functor m => Action' m v Names0
+basicParseNames0, slurpResultNames0 :: Functor m => Action' m v Names0
 basicParseNames0 = fst <$> basicNames0'
-basicPrettyPrintNames0 = snd <$> basicNames0'
 -- we check the file against everything in the current path
 slurpResultNames0 = currentPathNames0
 
@@ -2782,30 +2760,12 @@ currentPathNames0 = do
   currentBranch' <- getAt currentPath'
   pure $ Branch.toNames0 (Branch.head currentBranch')
 
--- implementation detail of baseicParseNames0 and basicPrettyPrintNames0
+-- implementation detail of basicParseNames0 and basicPrettyPrintNames0
 basicNames0' :: Functor m => Action' m v (Names0, Names0)
 basicNames0' = do
   root' <- use root
   currentPath' <- use currentPath
-  currentBranch' <- getAt currentPath'
-  let root0 = Branch.head root'
-      absoluteRootNames0 = Names3.makeAbsolute0 (Branch.toNames0 root0)
-      currentBranch0 = Branch.head currentBranch'
-      currentPathNames0 = Branch.toNames0 currentBranch0
-      -- all names, but with local names in their relative form only, rather
-      -- than absolute; external names appear as absolute
-      currentAndExternalNames0 = currentPathNames0 `Names3.unionLeft0` absDot externalNames where
-        absDot = Names.prefix0 (Name.unsafeFromText "")
-        externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
-        rootNames = Branch.toNames0 root0
-        pathPrefixed = case Path.unabsolute currentPath' of
-          Path.Path (toList -> []) -> id
-          p -> Names.prefix0 (Path.toName p)
-      -- parsing should respond to local and absolute names
-      parseNames00 = currentPathNames0 <> absoluteRootNames0
-      -- pretty-printing should use local names where available
-      prettyPrintNames00 = currentAndExternalNames0
-  pure (parseNames00, prettyPrintNames00)
+  pure $ Backend.basicNames0' root' (Path.unabsolute currentPath')
 
 -- Given a typechecked file with a main function called `mainName`
 -- of the type `'{IO} ()`, adds an extra binding which

@@ -57,10 +57,11 @@ module Unison.Codebase.Branch
   , stepManyAtM
   , modifyAtM
 
-    -- * Branch terms/types
-    -- ** Term/type lenses
+    -- * Branch terms/types/edits
+    -- ** Term/type/edits lenses
   , terms
   , types
+  , edits
     -- ** Term/type queries
   , deepReferents
   , deepTypeReferences

@@ -140,6 +140,7 @@ library
     Unison.Runtime.SparseVector
     Unison.Runtime.Stack
     Unison.Server.CodebaseServer
+    Unison.Server.Backend
     Unison.TermParser
     Unison.TermPrinter
     Unison.TypeParser
@@ -228,6 +229,7 @@ library
     regex-tdfa,
     safe,
     servant,
+    servant-server,
     shellmet,
     split,
     stm,
@@ -239,6 +241,7 @@ library
     transformers,
     unison-core,
     unliftio,
+    unliftio-core,
     util,
     unicode-show,
     vector,

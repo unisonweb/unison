@@ -174,11 +174,12 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
 --      pure $ Branch.append b0 b
     Execute ppe uf ->
       evalUnisonFile ppe uf >>= \case
-        Left e -> notifyUser (EvaluationFailure e) 
+        Left e -> notifyUser (EvaluationFailure e)
         _ -> pure ()
     AppendToReflog reason old new -> Codebase.appendReflog codebase reason old new
     LoadReflog -> Codebase.getReflog codebase
     CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Parser.External t
+    WithCodebase k -> pure (k codebase)
 
   eval1 :: PPE.PrettyPrintEnv -> Term v Ann -> _
   eval1 ppe tm = do
