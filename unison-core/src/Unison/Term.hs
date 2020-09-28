@@ -612,12 +612,23 @@ letRec' isTop bindings body =
     [ ((ABT.annotation b, v), b) | (v,b) <- bindings ]
     body
 
+-- Prepend a binding to form a (bigger) let rec. Useful when
+-- building up a block incrementally using a right fold.
+--
+-- For example:
+--   consLetRec (x = 42) "hi"
+--   =>
+--   let rec x = 42 in "hi"
+--
+--   consLetRec (x = 42) (let rec y = "hi" in (x,y))
+--   =>
+--   let rec x = 42; y = "hi" in (x,y)
 consLetRec
   :: Ord v
-  => Bool
-  -> a
-  -> (a, v, Term' vt v a)
-  -> Term' vt v a
+  => Bool                 -- isTop parameter
+  -> a                    -- annotation for overall let rec
+  -> (a, v, Term' vt v a) -- the binding
+  -> Term' vt v a         -- the body
   -> Term' vt v a
 consLetRec isTop a (ab, vb, b) body = case body of
   LetRecNamedAnnotated' _ bs body -> letRec isTop a (((ab,vb), b) : bs) body

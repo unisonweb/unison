@@ -1033,7 +1033,16 @@ immediateChildBlockTerms = \case
 -- Pattern is a literal, rendered as a regular match (rather than `42 = blah; body`)
 isDestructuringBind :: Ord v => ABT.Term f v a -> [MatchCase loc (ABT.Term f v a)] -> Bool
 isDestructuringBind scrutinee [MatchCase pat _ (ABT.AbsN' vs _)]
-  = all (`Set.notMember` ABT.freeVars scrutinee) vs && not (Pattern.isLiteral pat)
+  = all (`Set.notMember` ABT.freeVars scrutinee) vs && not (isLiteralPattern pat)
+    where
+    isLiteralPattern p = case p of
+      Pattern.Int _ _ -> True
+      Pattern.Boolean _ _ -> True
+      Pattern.Nat _ _ -> True
+      Pattern.Float _ _ -> True
+      Pattern.Text _ _ -> True
+      Pattern.Char _ _ -> True
+      _ -> False
 isDestructuringBind _ _ = False
 
 pattern LetBlock bindings body <- (unLetBlock -> Just (bindings, body))
