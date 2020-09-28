@@ -264,9 +264,8 @@ test = scope "termprinter" $ tests
             \  true && true\n\
             \  12\n\
             \else\n\
-            \  namespace baz where\n\
-            \    f : Int -> Int\n\
-            \    f x = x\n\
+            \  baz.f : Int -> Int\n\
+            \  baz.f x = x\n\
             \  13"
             "if foo then\n\
             \  true && true\n\
