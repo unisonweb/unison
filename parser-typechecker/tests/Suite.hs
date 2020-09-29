@@ -67,7 +67,7 @@ test rt = tests
   , UriParser.test
   , Context.test
   , Git.test
-  , TestIO.test rt
+  , TestIO.test
   , Name.test
   , VersionParser.test
   , Pretty.test

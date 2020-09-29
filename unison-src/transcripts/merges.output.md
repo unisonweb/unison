@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #mbok83u09o
+  ⊙ #0njtem0mcm
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #u53od2so90
+  ⊙ #itl1uomklh
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #drgfm4pkk8
+  ⊙ #94tplgq85t
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #kt6vuoajil
+  ⊙ #fr2k0al9mk
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #n187cml1um
+  ⊙ #p8dvir508b
   
     + Adds / updates:
     
       x
   
-  ⊙ #r3il860k10
+  ⊙ #bc44avko8b
   
     + Adds / updates:
     
@@ -226,19 +226,21 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.FileMode.Write builtin.io2.Handle
       builtin.io2.IO builtin.io2.IO.clientSocket
       builtin.io2.IO.closeFile builtin.io2.IO.closeSocket
-      builtin.io2.IO.createDirectory builtin.io2.IO.fileExists
-      builtin.io2.IO.forkComp builtin.io2.IO.getBuffering
+      builtin.io2.IO.createDirectory builtin.io2.IO.delay
+      builtin.io2.IO.fileExists builtin.io2.IO.forkComp
+      builtin.io2.IO.getBuffering
       builtin.io2.IO.getCurrentDirectory
       builtin.io2.IO.getFileSize builtin.io2.IO.getFileTimestamp
       builtin.io2.IO.getLine builtin.io2.IO.getTempDirectory
       builtin.io2.IO.getText builtin.io2.IO.handlePosition
       builtin.io2.IO.isDirectory builtin.io2.IO.isFileEOF
       builtin.io2.IO.isFileOpen builtin.io2.IO.isSeekable
-      builtin.io2.IO.listen builtin.io2.IO.openFile
-      builtin.io2.IO.putText builtin.io2.IO.removeDirectory
-      builtin.io2.IO.removeFile builtin.io2.IO.renameDirectory
-      builtin.io2.IO.renameFile builtin.io2.IO.seekHandle
-      builtin.io2.IO.serverSocket builtin.io2.IO.setBuffering
+      builtin.io2.IO.kill builtin.io2.IO.listen
+      builtin.io2.IO.openFile builtin.io2.IO.putText
+      builtin.io2.IO.removeDirectory builtin.io2.IO.removeFile
+      builtin.io2.IO.renameDirectory builtin.io2.IO.renameFile
+      builtin.io2.IO.seekHandle builtin.io2.IO.serverSocket
+      builtin.io2.IO.setBuffering
       builtin.io2.IO.setCurrentDirectory
       builtin.io2.IO.socketAccept builtin.io2.IO.socketReceive
       builtin.io2.IO.socketSend builtin.io2.IO.stdHandle
@@ -255,7 +257,12 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.MVar.read builtin.io2.MVar.swap
       builtin.io2.MVar.take builtin.io2.MVar.tryPut
       builtin.io2.MVar.tryRead builtin.io2.MVar.tryTake
-      builtin.io2.Socket builtin.io2.ThreadId builtin.todo
+      builtin.io2.SeekMode builtin.io2.SeekMode.AbsoluteSeek
+      builtin.io2.SeekMode.RelativeSeek
+      builtin.io2.SeekMode.SeekFromEnd builtin.io2.Socket
+      builtin.io2.StdHandle builtin.io2.StdHandle.StdErr
+      builtin.io2.StdHandle.StdIn builtin.io2.StdHandle.StdOut
+      builtin.io2.ThreadId builtin.todo
   
   □ #7asfbtqmoj (start of history)
 

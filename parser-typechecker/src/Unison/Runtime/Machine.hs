@@ -38,6 +38,8 @@ import Unison.Runtime.MCode
 import qualified Unison.Type as Rf
 import qualified Unison.Runtime.IOSource as Rf
 
+import qualified Unison.Util.Pretty as Pr
+
 import qualified Unison.Util.Bytes as By
 import Unison.Util.EnumContainers as EC
 
@@ -55,8 +57,6 @@ data SEnv
   , tagRefs :: !(EnumMap RTag Reference)
   }
 
-type Unmask = forall a. IO a -> IO a
-
 info :: Show a => String -> a -> IO ()
 info ctx x = infos ctx (show x)
 infos :: String -> String -> IO ()
@@ -67,7 +67,7 @@ eval0 :: SEnv -> Section -> IO ()
 eval0 !env !co = do
   ustk <- alloc
   bstk <- alloc
-  mask $ \unmask -> eval unmask env mempty ustk bstk KE co
+  eval env mempty ustk bstk KE co
 
 -- Entry point for evaluating a numbered combinator.
 -- An optional callback for the base of the stack may be supplied.
@@ -80,46 +80,58 @@ apply0
 apply0 !callback !env !i = do
     ustk <- alloc
     bstk <- alloc
-    mask $ \unmask ->
-      apply unmask env mempty ustk bstk k0 True ZArgs
-        $ PAp (CIx i 0) unull bnull
+    apply env mempty ustk bstk k0 True ZArgs
+      $ PAp (CIx i 0) unull bnull
   where
   k0 = maybe KE (CB . Hook) callback
+
+-- Apply helper currently used for forking. Creates the new stacks
+-- necessary to evaluate a closure with the provided information.
+apply1
+  :: (Stack 'UN -> Stack 'BX -> IO ())
+  -> SEnv -> Closure -> IO ()
+apply1 callback env clo = do
+  ustk <- alloc
+  bstk <- alloc
+  apply env mempty ustk bstk k0 True ZArgs clo
+  where
+  k0 = CB $ Hook callback
+
 
 lookupDenv :: Word64 -> DEnv -> Closure
 lookupDenv p denv = fromMaybe BlackHole $ EC.lookup p denv
 
 exec
-  :: Unmask -> SEnv -> DEnv
+  :: SEnv -> DEnv
   -> Stack 'UN -> Stack 'BX -> K
   -> Instr
   -> IO (DEnv, Stack 'UN, Stack 'BX, K)
-exec _      !_   !denv !ustk !bstk !k (Info tx) = do
+exec !_   !denv !ustk !bstk !k (Info tx) = do
   info tx ustk
   info tx bstk
   info tx k
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (Name r args) = do
+exec !_   !denv !ustk !bstk !k (Name r args) = do
   bstk <- name ustk bstk args =<< resolve denv bstk r
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (SetDyn p i) = do
+exec !_   !denv !ustk !bstk !k (SetDyn p i) = do
   clo <- peekOff bstk i
   pure (EC.mapInsert p clo denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (Capture p) = do
+exec !_   !denv !ustk !bstk !k (Capture p) = do
   (sk,denv,ustk,bstk,useg,bseg,k) <- splitCont denv ustk bstk k p
   bstk <- bump bstk
   poke bstk $ Captured sk useg bseg
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (UPrim1 op i) = do
+exec !_   !denv !ustk !bstk !k (UPrim1 op i) = do
   ustk <- uprim1 ustk op i
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (UPrim2 op i j) = do
+exec !_   !denv !ustk !bstk !k (UPrim2 op i j) = do
   ustk <- uprim2 ustk op i j
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (BPrim1 op i) = do
+exec !_   !denv !ustk !bstk !k (BPrim1 op i) = do
   (ustk,bstk) <- bprim1 ustk bstk op i
   pure (denv, ustk, bstk, k)
-exec _      !env !denv !ustk !bstk !k (BPrim2 EQLU i j) = do
+exec !env !denv !ustk !bstk !k (BPrim2 EQLU i j) = do
   x <- peekOff bstk i
   y <- peekOff bstk j
   ustk <- bump ustk
@@ -133,7 +145,7 @@ exec _      !env !denv !ustk !bstk !k (BPrim2 EQLU i j) = do
         | otherwise = error $ "exec: unknown combinator: " ++ show w
   tag t | Just r <- EC.lookup t (tagRefs env) = r
         | otherwise = error $ "exec: unknown data: " ++ show t
-exec _      !env !denv !ustk !bstk !k (BPrim2 CMPU i j) = do
+exec !env !denv !ustk !bstk !k (BPrim2 CMPU i j) = do
   x <- peekOff bstk i
   y <- peekOff bstk j
   ustk <- bump ustk
@@ -144,59 +156,57 @@ exec _      !env !denv !ustk !bstk !k (BPrim2 CMPU i j) = do
         | otherwise = error $ "exec: unknown combinator: " ++ show w
   tag t | Just r <- EC.lookup t (tagRefs env) = r
         | otherwise = error $ "exec: unknown data: " ++ show t
-exec _      !_   !denv !ustk !bstk !k (BPrim2 op i j) = do
+exec !_   !denv !ustk !bstk !k (BPrim2 op i j) = do
   (ustk,bstk) <- bprim2 ustk bstk op i j
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (Pack t args) = do
+exec !_   !denv !ustk !bstk !k (Pack t args) = do
   clo <- buildData ustk bstk t args
   bstk <- bump bstk
   poke bstk clo
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (Unpack i) = do
+exec !_   !denv !ustk !bstk !k (Unpack i) = do
   (ustk, bstk) <- dumpData ustk bstk =<< peekOff bstk i
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (Print i) = do
+exec !_   !denv !ustk !bstk !k (Print i) = do
   t <- peekOffBi bstk i
   Tx.putStrLn t
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (Lit (MI n)) = do
+exec !_   !denv !ustk !bstk !k (Lit (MI n)) = do
   ustk <- bump ustk
   poke ustk n
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (Lit (MD d)) = do
+exec !_   !denv !ustk !bstk !k (Lit (MD d)) = do
   ustk <- bump ustk
   pokeD ustk d
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (Lit (MT t)) = do
+exec !_   !denv !ustk !bstk !k (Lit (MT t)) = do
   bstk <- bump bstk
   poke bstk (Foreign (Wrap Rf.textRef t))
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (Lit (MM r)) = do
+exec !_   !denv !ustk !bstk !k (Lit (MM r)) = do
   bstk <- bump bstk
   poke bstk (Foreign (Wrap Rf.termLinkRef r))
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (Lit (MY r)) = do
+exec !_   !denv !ustk !bstk !k (Lit (MY r)) = do
   bstk <- bump bstk
   poke bstk (Foreign (Wrap Rf.typeLinkRef r))
   pure (denv, ustk, bstk, k)
-exec _      !_   !denv !ustk !bstk !k (Reset ps) = do
+exec !_   !denv !ustk !bstk !k (Reset ps) = do
   pure (denv, ustk, bstk, Mark ps clos k)
  where clos = EC.restrictKeys denv ps
-exec _      !_   !denv !ustk !bstk !k (Seq as) = do
+exec !_   !denv !ustk !bstk !k (Seq as) = do
   l <- closureArgs bstk as
   bstk <- bump bstk
   pokeS bstk $ Sq.fromList l
   pure (denv, ustk, bstk, k)
-exec unmask !env !denv !ustk !bstk !k (ForeignCall _ w args)
+exec !env !denv !ustk !bstk !k (ForeignCall _ w args)
   | Just (FF arg res ev) <- EC.lookup w (foreignFuncs env)
   = uncurry (denv,,,k) <$>
-      unmask (arg ustk bstk args >>= ev >>= res ustk bstk)
+      (arg ustk bstk args >>= ev >>= res ustk bstk)
   | otherwise
   = die $ "reference to unknown foreign function: " ++ show w
-exec unmask !env !denv !ustk !bstk !k (Fork lz) = do
-  tid <-
-    unmask $
-      forkEval env denv k lz <$> duplicate ustk <*> duplicate bstk
+exec !env !denv !ustk !bstk !k (Fork i) = do
+  tid <- forkEval env =<< peekOff bstk i
   bstk <- bump bstk
   poke bstk . Foreign . Wrap Rf.threadIdReference $ tid
   pure (denv, ustk, bstk, k)
@@ -205,62 +215,69 @@ exec unmask !env !denv !ustk !bstk !k (Fork lz) = do
 maskTag :: Word64 -> Word64
 maskTag i = i .&. 0xFFFF
 
-eval :: Unmask -> SEnv -> DEnv
+eval :: SEnv -> DEnv
      -> Stack 'UN -> Stack 'BX -> K -> Section -> IO ()
-eval unmask !env !denv !ustk !bstk !k (Match i (TestT df cs)) = do
+eval !env !denv !ustk !bstk !k (Match i (TestT df cs)) = do
   t <- peekOffBi bstk i
-  eval unmask env denv ustk bstk k $ selectTextBranch t df cs
-eval unmask !env !denv !ustk !bstk !k (Match i br) = do
+  eval env denv ustk bstk k $ selectTextBranch t df cs
+eval !env !denv !ustk !bstk !k (Match i br) = do
   n <- peekOffN ustk i
-  eval unmask env denv ustk bstk k $ selectBranch n br
-eval unmask !env !denv !ustk !bstk !k (Yield args)
+  eval env denv ustk bstk k $ selectBranch n br
+eval !env !denv !ustk !bstk !k (Yield args)
   | asize ustk + asize bstk > 0 , BArg1 i <- args = do
-    peekOff bstk i >>= apply unmask env denv ustk bstk k False ZArgs
+    peekOff bstk i >>= apply env denv ustk bstk k False ZArgs
   | otherwise = do
     (ustk, bstk) <- moveArgs ustk bstk args
     ustk <- frameArgs ustk
     bstk <- frameArgs bstk
-    yield unmask env denv ustk bstk k
-eval unmask !env !denv !ustk !bstk !k (App ck r args) =
+    yield env denv ustk bstk k
+eval !env !denv !ustk !bstk !k (App ck r args) =
   resolve denv bstk r
-    >>= apply unmask env denv ustk bstk k ck args
-eval unmask !env !denv !ustk !bstk !k (Call ck n args)
+    >>= apply env denv ustk bstk k ck args
+eval !env !denv !ustk !bstk !k (Call ck n args)
   | Just cmbs <- EC.lookup n (combs env)
   , Just cmb <- EC.lookup 0 cmbs
-  = enter unmask env denv ustk bstk k ck args cmb
+  = enter env denv ustk bstk k ck args cmb
   | otherwise = die $ "eval: unknown combinator: " ++ show n
-eval unmask !env !denv !ustk !bstk !k (Jump i args) =
-  peekOff bstk i >>= jump unmask env denv ustk bstk k args
-eval unmask !env !denv !ustk !bstk !k (Let nw nx) = do
+eval !env !denv !ustk !bstk !k (Jump i args) =
+  peekOff bstk i >>= jump env denv ustk bstk k args
+eval !env !denv !ustk !bstk !k (Let nw nx) = do
   (ustk, ufsz, uasz) <- saveFrame ustk
   (bstk, bfsz, basz) <- saveFrame bstk
-  eval unmask env denv ustk bstk (Push ufsz bfsz uasz basz nx k) nw
-eval unmask !env !denv !ustk !bstk !k (Ins i nx) = do
-  (denv, ustk, bstk, k) <- exec unmask env denv ustk bstk k i
-  eval unmask env denv ustk bstk k nx
-eval _      !_   !_    !_    !_    !_ Exit = pure ()
-eval _      !_   !_    !_    !_    !_ (Die s) = die s
+  eval env denv ustk bstk (Push ufsz bfsz uasz basz nx k) nw
+eval !env !denv !ustk !bstk !k (Ins i nx) = do
+  (denv, ustk, bstk, k) <- exec env denv ustk bstk k i
+  eval env denv ustk bstk k nx
+eval !_   !_    !_    !_    !_ Exit = pure ()
+eval !_   !_    !_    !_    !_ (Die s) = die s
 {-# noinline eval #-}
 
-forkEval
-  :: SEnv -> DEnv
-  -> K -> Section -> Stack 'UN -> Stack 'BX -> IO ThreadId
-forkEval env denv k nx ustk bstk = forkIOWithUnmask $ \unmask -> do
-  (denv, ustk, bstk, k) <- discardCont denv ustk bstk k 0
-  eval unmask env denv ustk bstk k nx
+forkEval :: SEnv -> Closure -> IO ThreadId
+forkEval env clo
+  = forkIOWithUnmask $ \unmask ->
+      unmask (apply1 err env clo) `catch` \case
+        PE e -> putStrLn "runtime exception"
+             >> print (Pr.render 70 e)
+        BU _ -> putStrLn $ "unison exception reached top level"
+  where
+  err :: Stack 'UN -> Stack 'BX -> IO ()
+  err _ bstk = peek bstk >>= \case
+    -- Left e
+    DataB1 720896 e -> throwIO $ BU e
+    _ -> pure ()
 {-# inline forkEval #-}
 
 -- fast path application
 enter
-  :: Unmask -> SEnv -> DEnv -> Stack 'UN -> Stack 'BX -> K
+  :: SEnv -> DEnv -> Stack 'UN -> Stack 'BX -> K
   -> Bool -> Args -> Comb -> IO ()
-enter unmask !env !denv !ustk !bstk !k !ck !args !comb = do
+enter !env !denv !ustk !bstk !k !ck !args !comb = do
   ustk <- if ck then ensure ustk uf else pure ustk
   bstk <- if ck then ensure bstk bf else pure bstk
   (ustk, bstk) <- moveArgs ustk bstk args
   ustk <- acceptArgs ustk ua
   bstk <- acceptArgs bstk ba
-  eval unmask env denv ustk bstk k entry
+  eval env denv ustk bstk k entry
   where
   Lam ua ba uf bf entry = comb
 {-# inline enter #-}
@@ -278,9 +295,9 @@ name !ustk !bstk !args clo = case clo of
 
 -- slow path application
 apply
-  :: Unmask -> SEnv -> DEnv -> Stack 'UN -> Stack 'BX -> K
+  :: SEnv -> DEnv -> Stack 'UN -> Stack 'BX -> K
   -> Bool -> Args -> Closure -> IO ()
-apply unmask !env !denv !ustk !bstk !k !ck !args clo = case clo of
+apply !env !denv !ustk !bstk !k !ck !args clo = case clo of
   PAp comb@(combSection env -> Lam ua ba uf bf entry) useg bseg
     | ck || ua <= uac && ba <= bac -> do
       ustk <- ensure ustk uf
@@ -290,14 +307,14 @@ apply unmask !env !denv !ustk !bstk !k !ck !args clo = case clo of
       bstk <- dumpSeg bstk bseg A
       ustk <- acceptArgs ustk ua
       bstk <- acceptArgs bstk ba
-      eval unmask env denv ustk bstk k entry
+      eval env denv ustk bstk k entry
     | otherwise -> do
       (useg, bseg) <- closeArgs C ustk bstk useg bseg args
       ustk <- discardFrame =<< frameArgs ustk
       bstk <- discardFrame =<< frameArgs bstk
       bstk <- bump bstk
       poke bstk $ PAp comb useg bseg
-      yield unmask env denv ustk bstk k
+      yield env denv ustk bstk k
    where
    uac = asize ustk + ucount args + uscount useg
    bac = asize bstk + bcount args + bscount bseg
@@ -306,31 +323,31 @@ apply unmask !env !denv !ustk !bstk !k !ck !args clo = case clo of
         bstk <- discardFrame bstk
         bstk <- bump bstk
         poke bstk clo
-        yield unmask env denv ustk bstk k
+        yield env denv ustk bstk k
       | otherwise -> die $ "applying non-function: " ++ show clo
 {-# inline apply #-}
 
 jump
-  :: Unmask -> SEnv -> DEnv
+  :: SEnv -> DEnv
   -> Stack 'UN -> Stack 'BX -> K
   -> Args -> Closure -> IO ()
-jump unmask !env !denv !ustk !bstk !k !args clo = case clo of
+jump !env !denv !ustk !bstk !k !args clo = case clo of
   Captured sk useg bseg -> do
     (useg, bseg) <- closeArgs K ustk bstk useg bseg args
     ustk <- discardFrame ustk
     bstk <- discardFrame bstk
     ustk <- dumpSeg ustk useg . F $ ucount args
     bstk <- dumpSeg bstk bseg . F $ bcount args
-    repush unmask env ustk bstk denv sk k
+    repush env ustk bstk denv sk k
   _ -> die "jump: non-cont"
 {-# inline jump #-}
 
 repush
-  :: Unmask -> SEnv
+  :: SEnv
   -> Stack 'UN -> Stack 'BX -> DEnv -> K -> K -> IO ()
-repush unmask !env !ustk !bstk = go
+repush !env !ustk !bstk = go
  where
- go !denv KE !k = yield unmask env denv ustk bstk k
+ go !denv KE !k = yield env denv ustk bstk k
  go !denv (Mark ps cs sk) !k = go denv' sk $ Mark ps cs' k
   where
   denv' = cs <> EC.withoutKeys denv ps
@@ -1180,19 +1197,19 @@ bprim2 !ustk !bstk CMPU _ _ = pure (ustk, bstk) -- impossible
 {-# inline bprim2 #-}
 
 yield
-  :: Unmask -> SEnv -> DEnv
+  :: SEnv -> DEnv
   -> Stack 'UN -> Stack 'BX -> K -> IO ()
-yield unmask !env !denv !ustk !bstk !k = leap denv k
+yield !env !denv !ustk !bstk !k = leap denv k
  where
  leap !denv0 (Mark ps cs k) = do
    let denv = cs <> EC.withoutKeys denv0 ps
        clo = denv0 EC.! EC.findMin ps
    poke bstk . DataB1 0 =<< peek bstk
-   apply unmask env denv ustk bstk k False (BArg1 0) clo
+   apply env denv ustk bstk k False (BArg1 0) clo
  leap !denv (Push ufsz bfsz uasz basz nx k) = do
    ustk <- restoreFrame ustk ufsz uasz
    bstk <- restoreFrame bstk bfsz basz
-   eval unmask env denv ustk bstk k nx
+   eval env denv ustk bstk k nx
  leap _ (CB (Hook f)) = f ustk bstk
  leap _ KE = pure ()
 {-# inline yield #-}
