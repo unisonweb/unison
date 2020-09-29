@@ -33,6 +33,7 @@ import qualified Unison.Type as Ty
 import qualified Unison.Builtin as Ty (builtinTypes)
 import qualified Unison.Builtin.Decls as Ty
 import qualified Crypto.Hash as Hash
+import qualified Data.ByteArray as BA
 
 import Unison.Util.EnumContainers as EC
 
@@ -1121,6 +1122,22 @@ mvar'try'read instr
 sha3_512'new :: ForeignOp
 sha3_512'new instr = ([],) $ TFOp instr []
 
+sha3_512'appendBytes :: ForeignOp
+sha3_512'appendBytes instr
+  = ([BX,BX],)
+  . TAbss [sha3,v]
+  $ TFOp instr [sha3,v]
+  where
+  [sha3,v] = freshes 2
+
+sha3_512'finish :: ForeignOp
+sha3_512'finish instr
+  = ([BX],)
+  . TAbss [sha3]
+  $ TFOp instr [sha3]
+  where
+  [sha3] = freshes 1
+
 builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
 builtinLookup
   = Map.fromList
@@ -1407,6 +1424,12 @@ declareForeigns = do
 
   declareForeign "Sha3_512.new" sha3_512'new
     . mkForeign $ \() -> pure (Hash.hashInit :: Hash.Context Hash.SHA3_512)
+  declareForeign "Sha3_512.appendBytes" sha3_512'appendBytes
+    . mkForeign $ \(ctx :: Hash.Context Hash.SHA3_512, b :: Bytes.Bytes) ->
+        pure (Hash.hashUpdates ctx (Bytes.chunks b))
+  declareForeign "Sha3_512.finish" sha3_512'finish
+    . mkForeign $ \(ctx :: Hash.Context Hash.SHA3_512) ->
+        pure (Bytes.fromByteString . BA.convert $ Hash.hashFinalize ctx)
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny
