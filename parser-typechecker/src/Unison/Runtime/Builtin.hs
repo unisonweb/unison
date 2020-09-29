@@ -31,6 +31,8 @@ import Unison.Runtime.IOSource
 
 import qualified Unison.Type as Ty
 import qualified Unison.Builtin.Decls as Ty
+import qualified Unison.Builtin as Builtin
+import qualified Crypto.Hash as Hash
 
 import Unison.Util.EnumContainers as EC
 
@@ -1116,6 +1118,9 @@ mvar'try'read instr
   where
   [mv,t,r] = freshes 3
 
+sha3_512'new :: ForeignOp
+sha3_512'new instr = ([],) $ TFOp instr []
+
 builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
 builtinLookup
   = Map.fromList
@@ -1399,6 +1404,9 @@ declareForeigns = do
     . mkForeignIOE $ \(mv :: MVar Closure) -> readMVar mv
   declareForeign "MVar.tryRead" mvar'try'read
     . mkForeign $ \(mv :: MVar Closure) -> tryReadMVar mv
+
+  declareForeign "Sha3_512.new" sha3_512'new
+    . mkForeign $ \() -> pure (Hash.hashInit :: Hash.Context Hash.SHA3_512)
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny

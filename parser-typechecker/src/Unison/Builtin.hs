@@ -161,6 +161,7 @@ builtinTypesSrc =
   , B' "Socket" CT.Data, Rename' "Socket" "io2.Socket"
   , B' "ThreadId" CT.Data, Rename' "ThreadId" "io2.ThreadId"
   , B' "MVar" CT.Data, Rename' "MVar" "io2.MVar"
+  , B' "Sha3_512" CT.Data, Rename' "Sha3_512" "crypto.hash.Sha3_512"
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -404,10 +405,20 @@ builtinsSrc =
                   ,("<=", "lteq")
                   ,(">" , "gt")
                   ,(">=", "gteq")]
-  ] ++ io2List ioBuiltins ++ io2List mvarBuiltins
+  ] ++ moveUnder "io2" ioBuiltins
+    ++ moveUnder "io2" mvarBuiltins
+    ++ moveUnder "crypto.hash" hashBuiltins
 
-io2List :: [(Text, Type v)] -> [BuiltinDSL v]
-io2List bs = bs >>= \(n,ty) -> [B n ty, Rename n ("io2." <> n)]
+moveUnder :: Text -> [(Text, Type v)] -> [BuiltinDSL v]
+moveUnder prefix bs = bs >>= \(n,ty) -> [B n ty, Rename n (prefix <> "." <> n)]
+
+hashBuiltins :: Var v => [(Text, Type v)]
+hashBuiltins =
+  [ ("Sha3_512.new", sha3_512)
+  , ("Sha3_512.append" , forall1 "a" (\a -> sha3_512 --> a --> sha3_512))
+  , ("Sha3_512.appendBytes" , sha3_512 --> bytes --> sha3_512)
+  , ("Sha3_512.finish" , sha3_512 --> bytes)
+  ]
 
 ioBuiltins :: Var v => [(Text, Type v)]
 ioBuiltins =
@@ -519,3 +530,6 @@ text = Type.text ()
 boolean = Type.boolean ()
 float = Type.float ()
 char = Type.char ()
+
+sha3_512 :: Var v => Type v
+sha3_512 = Type.sha3_512()

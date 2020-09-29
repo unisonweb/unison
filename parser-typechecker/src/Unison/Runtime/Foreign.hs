@@ -22,6 +22,7 @@ import Unison.Util.Bytes (Bytes)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Type as Ty
+import qualified Crypto.Hash as Hash
 
 import Unsafe.Coerce
 
@@ -76,6 +77,7 @@ instance BuiltinForeign Bytes where foreignRef = Tagged Ty.bytesRef
 instance BuiltinForeign Handle where foreignRef = Tagged Ty.fileHandleRef
 instance BuiltinForeign Socket where foreignRef = Tagged Ty.socketRef
 instance BuiltinForeign ThreadId where foreignRef = Tagged Ty.threadIdRef
+instance BuiltinForeign (Hash.Context Hash.SHA3_512) where foreignRef = Tagged Ty.sha3_512Ref
 
 wrapBuiltin :: forall f. BuiltinForeign f => f -> Foreign
 wrapBuiltin x = Wrap r x

@@ -229,6 +229,12 @@ socketRef = Reference.Builtin "Socket"
 mvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
 
+sha3_512Ref :: Reference
+sha3_512Ref = Reference.Builtin "Sha3_512"
+
+sha3_512 :: Ord v => a -> Type v a
+sha3_512 a = ref a sha3_512Ref
+
 builtin :: Ord v => a -> Text -> Type v a
 builtin a = ref a . Reference.Builtin
 
