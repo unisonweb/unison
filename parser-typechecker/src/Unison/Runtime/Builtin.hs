@@ -32,7 +32,6 @@ import Unison.Runtime.IOSource
 import qualified Unison.Type as Ty
 import qualified Unison.Builtin as Ty (builtinTypes)
 import qualified Unison.Builtin.Decls as Ty
-import qualified Unison.Builtin as Builtin
 import qualified Crypto.Hash as Hash
 
 import Unison.Util.EnumContainers as EC
