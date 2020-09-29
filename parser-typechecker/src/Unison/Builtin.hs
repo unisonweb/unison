@@ -11,6 +11,7 @@ module Unison.Builtin
   ,builtinEffectDecls
   ,builtinConstructorType
   ,builtinTypeDependents
+  ,builtinTypes
   ,builtinTermsByType
   ,builtinTermsByTypeMention
   ,intrinsicTermReferences

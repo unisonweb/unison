@@ -30,6 +30,7 @@ import Unison.Runtime.Foreign.Function
 import Unison.Runtime.IOSource
 
 import qualified Unison.Type as Ty
+import qualified Unison.Builtin as Ty (builtinTypes)
 import qualified Unison.Builtin.Decls as Ty
 import qualified Unison.Builtin as Builtin
 import qualified Crypto.Hash as Hash
@@ -1413,25 +1414,11 @@ hostPreference Nothing = SYS.HostAny
 hostPreference (Just host) = SYS.Host $ Text.unpack host
 
 typeReferences :: [(Reference, RTag)]
-typeReferences
-  = zip
-  [ Ty.natRef
-  , Ty.optionalRef
-  , Ty.unitRef
-  , Ty.pairRef
-  , Ty.booleanRef
-  , Ty.intRef
-  , Ty.floatRef
-  , Ty.booleanRef
-  , Ty.textRef
-  , Ty.charRef
-  , eitherReference
-  , filePathReference
-  , bufferModeReference
-  , Ty.effectRef
-  , Ty.vectorRef
-  , Ty.seqViewRef
-  ] [1..]
+typeReferences = zip rs [1..]
+  where
+  rs = [ r | (_,r) <- Ty.builtinTypes ]
+    ++ [ DerivedId i | (_,i,_) <- Ty.builtinDataDecls @Symbol ]
+    ++ [ DerivedId i | (_,i,_) <- Ty.builtinEffectDecls @Symbol ]
 
 foreignDeclResults
   :: Var v
