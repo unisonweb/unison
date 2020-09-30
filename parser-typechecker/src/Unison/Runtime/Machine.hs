@@ -28,7 +28,8 @@ import Text.Read (readMaybe)
 
 import Unison.Reference (Reference)
 
-import Unison.Runtime.ANF (Mem(..), RTag)
+import Unison.Runtime.ANF (Mem(..), RTag, packTags)
+import Unison.Runtime.Builtin (charTag,natTag,eitherTag)
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
@@ -263,7 +264,7 @@ forkEval env clo
   err :: Stack 'UN -> Stack 'BX -> IO ()
   err _ bstk = peek bstk >>= \case
     -- Left e
-    DataB1 720896 e -> throwIO $ BU e
+    DataB1 t e | t == leftDTag -> throwIO $ BU e
     _ -> pure ()
 {-# inline forkEval #-}
 
@@ -887,6 +888,11 @@ uprim2 !ustk XORN !i !j = do
   pure ustk
 {-# inline uprim2 #-}
 
+charDTag, natDTag, leftDTag :: Word64
+charDTag = packTags charTag 0
+natDTag = packTags natTag 0
+leftDTag = packTags eitherTag 0
+
 bprim1
   :: Stack 'UN -> Stack 'BX -> BPrim1 -> Int
   -> IO (Stack 'UN, Stack 'BX)
@@ -1009,13 +1015,13 @@ bprim1 !ustk !bstk PAKT i = do
   pokeBi bstk . Tx.pack . toList $ clo2char <$> s
   pure (ustk, bstk)
   where
-  clo2char (DataU1 655360 i) = toEnum i
+  clo2char (DataU1 t i) | charDTag == t = toEnum i
   clo2char c = error $ "pack text: non-character closure: " ++ show c
 bprim1 !ustk !bstk UPKT i = do
   t <- peekOffBi bstk i
   bstk <- bump bstk
   pokeS bstk . Sq.fromList
-    . fmap (DataU1 655360 . fromEnum) . Tx.unpack $ t
+    . fmap (DataU1 charDTag . fromEnum) . Tx.unpack $ t
   pure (ustk, bstk)
 bprim1 !ustk !bstk PAKB i = do
   s <- peekOffS bstk i
@@ -1023,12 +1029,12 @@ bprim1 !ustk !bstk PAKB i = do
   pokeBi bstk . By.fromWord8s . fmap clo2w8 $ toList s
   pure (ustk, bstk)
   where
-  clo2w8 (DataU1 65536 n) = toEnum n
+  clo2w8 (DataU1 t n) | natDTag == t = toEnum n
   clo2w8 c = error $ "pack bytes: non-natural closure: " ++ show c
 bprim1 !ustk !bstk UPKB i = do
   b <- peekOffBi bstk i
   bstk <- bump bstk
-  pokeS bstk . Sq.fromList . fmap (DataU1 65536 . fromEnum)
+  pokeS bstk . Sq.fromList . fmap (DataU1 natDTag . fromEnum)
     $ By.toWord8s b
   pure (ustk, bstk)
 bprim1 !ustk !bstk SIZB i = do
