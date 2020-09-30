@@ -162,8 +162,10 @@ builtinTypesSrc =
   , B' "Socket" CT.Data, Rename' "Socket" "io2.Socket"
   , B' "ThreadId" CT.Data, Rename' "ThreadId" "io2.ThreadId"
   , B' "MVar" CT.Data, Rename' "MVar" "io2.MVar"
-  , B' "Sha3_512" CT.Data, Rename' "Sha3_512" "crypto.hash.Sha3_512"
-  ]
+  ] ++ moveTypeUnder "crypto.hash" [
+        "Sha3_512", "Sha3_256", "Sha2_512", "Sha2_256",
+        "Blake2s_256", "Blake2b_512", "Blake2b_256"
+       ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
 -- stuff that intrinsics depend on.
@@ -413,13 +415,54 @@ builtinsSrc =
 moveUnder :: Text -> [(Text, Type v)] -> [BuiltinDSL v]
 moveUnder prefix bs = bs >>= \(n,ty) -> [B n ty, Rename n (prefix <> "." <> n)]
 
+moveTypeUnder :: Text -> [Text] -> [BuiltinTypeDSL]
+moveTypeUnder prefix bs = bs >>= \n -> [B' n CT.Data, Rename' n (prefix <> "." <> n)]
+
 hashBuiltins :: Var v => [(Text, Type v)]
 hashBuiltins =
   [ ("Sha3_512.new", sha3_512)
   , ("Sha3_512.append" , forall1 "a" (\a -> sha3_512 --> a --> sha3_512))
   , ("Sha3_512.appendBytes" , sha3_512 --> bytes --> sha3_512)
   , ("Sha3_512.finish" , sha3_512 --> bytes)
+
+  , ("Sha3_256.new", sha3_256)
+  , ("Sha3_256.append" , forall1 "a" (\a -> sha3_256 --> a --> sha3_256))
+  , ("Sha3_256.appendBytes" , sha3_256 --> bytes --> sha3_256)
+  , ("Sha3_256.finish" , sha3_256 --> bytes)
+
+  , ("Sha2_512.new", sha2_512)
+  , ("Sha2_512.append" , forall1 "a" (\a -> sha2_512 --> a --> sha2_512))
+  , ("Sha2_512.appendBytes" , sha2_512 --> bytes --> sha2_512)
+  , ("Sha2_512.finish" , sha2_512 --> bytes)
+
+  , ("Sha2_256.new", sha2_256)
+  , ("Sha2_256.append" , forall1 "a" (\a -> sha2_256 --> a --> sha2_256))
+  , ("Sha2_256.appendBytes" , sha2_256 --> bytes --> sha2_256)
+  , ("Sha2_256.finish" , sha2_256 --> bytes)
+
+  , ("Blake2b_512.new", blake2b_512)
+  , ("Blake2b_512.append" , forall1 "a" (\a -> blake2b_512 --> a --> blake2b_512))
+  , ("Blake2b_512.appendBytes" , blake2b_512 --> bytes --> blake2b_512)
+  , ("Blake2b_512.finish" , blake2b_512 --> bytes)
+
+  , ("Blake2b_256.new", blake2b_256)
+  , ("Blake2b_256.append" , forall1 "a" (\a -> blake2b_256 --> a --> blake2b_256))
+  , ("Blake2b_256.appendBytes" , blake2b_256 --> bytes --> blake2b_256)
+  , ("Blake2b_256.finish" , blake2b_256 --> bytes)
+
+  , ("Blake2s_256.new", blake2s_256)
+  , ("Blake2s_256.append" , forall1 "a" (\a -> blake2s_256 --> a --> blake2s_256))
+  , ("Blake2s_256.appendBytes" , blake2s_256 --> bytes --> blake2s_256)
+  , ("Blake2s_256.finish" , blake2s_256 --> bytes)
   ]
+  where
+  sha3_512 = Type.ref() Type.sha3_512Ref
+  sha3_256 = Type.ref() Type.sha3_256Ref
+  sha2_512 = Type.ref() Type.sha2_512Ref
+  sha2_256 = Type.ref() Type.sha2_256Ref
+  blake2s_256 = Type.ref() Type.blake2s_256Ref
+  blake2b_512 = Type.ref() Type.blake2b_512Ref
+  blake2b_256 = Type.ref() Type.blake2b_256Ref
 
 ioBuiltins :: Var v => [(Text, Type v)]
 ioBuiltins =
@@ -532,5 +575,3 @@ boolean = Type.boolean ()
 float = Type.float ()
 char = Type.char ()
 
-sha3_512 :: Var v => Type v
-sha3_512 = Type.sha3_512()

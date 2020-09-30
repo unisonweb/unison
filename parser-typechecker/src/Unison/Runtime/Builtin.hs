@@ -36,7 +36,6 @@ import qualified Unison.Type as Ty
 import qualified Unison.Builtin as Ty (builtinTypes)
 import qualified Unison.Builtin.Decls as Ty
 import qualified Crypto.Hash as Hash
-import qualified Data.ByteArray as BA
 
 import Unison.Util.EnumContainers as EC
 
@@ -1122,24 +1121,27 @@ mvar'try'read instr
   where
   [mv,t,r] = freshes 3
 
-sha3_512'new :: ForeignOp
-sha3_512'new instr = ([],) $ TFOp instr []
-
-sha3_512'appendBytes :: ForeignOp
-sha3_512'appendBytes instr
+-- Pure ForeignOp taking two boxed values
+pfopbb :: ForeignOp
+pfopbb instr
   = ([BX,BX],)
-  . TAbss [sha3,v]
-  $ TFOp instr [sha3,v]
+  . TAbss [b1,b2]
+  $ TFOp instr [b1,b2]
   where
-  [sha3,v] = freshes 2
+  [b1,b2] = freshes 2
 
-sha3_512'finish :: ForeignOp
-sha3_512'finish instr
+-- Pure ForeignOp taking no values
+pfop0 :: ForeignOp
+pfop0 instr = ([],) $ TFOp instr []
+
+-- Pure ForeignOp taking 1 boxed value
+pfopb :: ForeignOp
+pfopb instr
   = ([BX],)
-  . TAbss [sha3]
-  $ TFOp instr [sha3]
+  . TAbss [b]
+  $ TFOp instr [b]
   where
-  [sha3] = freshes 1
+  [b] = freshes 1
 
 builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
 builtinLookup
@@ -1391,10 +1393,10 @@ declareForeigns = do
   declareForeign "IO.socketAccept" socket'accept
     . mkForeignIOE $ void . SYS.accept
   declareForeign "IO.socketSend" socket'send
-    . mkForeignIOE $ \(sk,bs) -> SYS.send sk (Bytes.toByteString bs)
+    . mkForeignIOE $ \(sk,bs) -> SYS.send sk (Bytes.toArray bs)
   declareForeign "IO.socketReceive" socket'receive
     . mkForeignIOE $ \(hs,n) ->
-        fmap Bytes.fromByteString <$> SYS.recv hs n
+        fmap Bytes.fromArray <$> SYS.recv hs n
   declareForeign "IO.kill" kill'thread $ mkForeignIOE killThread
   declareForeign "IO.delay" delay'thread $ mkForeignIOE threadDelay
   declareForeign "IO.stdHandle" standard'handle
@@ -1425,14 +1427,68 @@ declareForeigns = do
   declareForeign "MVar.tryRead" mvar'try'read
     . mkForeign $ \(mv :: MVar Closure) -> tryReadMVar mv
 
-  declareForeign "Sha3_512.new" sha3_512'new
+  declareForeign "Sha3_512.new" pfop0
     . mkForeign $ \() -> pure (Hash.hashInit :: Hash.Context Hash.SHA3_512)
-  declareForeign "Sha3_512.appendBytes" sha3_512'appendBytes
+  declareForeign "Sha3_512.appendBytes" pfopbb
     . mkForeign $ \(ctx :: Hash.Context Hash.SHA3_512, b :: Bytes.Bytes) ->
         pure (Hash.hashUpdates ctx (Bytes.chunks b))
-  declareForeign "Sha3_512.finish" sha3_512'finish
+  declareForeign "Sha3_512.finish" pfopb
     . mkForeign $ \(ctx :: Hash.Context Hash.SHA3_512) ->
-        pure (Bytes.fromByteString . BA.convert $ Hash.hashFinalize ctx)
+        pure (Bytes.fromArray $ Hash.hashFinalize ctx)
+
+  declareForeign "Sha3_256.new" pfop0
+    . mkForeign $ \() -> pure (Hash.hashInit :: Hash.Context Hash.SHA3_256)
+  declareForeign "Sha3_256.appendBytes" pfopbb
+    . mkForeign $ \(ctx :: Hash.Context Hash.SHA3_256, b :: Bytes.Bytes) ->
+        pure (Hash.hashUpdates ctx (Bytes.chunks b))
+  declareForeign "Sha3_256.finish" pfopb
+    . mkForeign $ \(ctx :: Hash.Context Hash.SHA3_256) ->
+        pure (Bytes.fromArray $ Hash.hashFinalize ctx)
+
+  declareForeign "Sha2_512.new" pfop0
+    . mkForeign $ \() -> pure (Hash.hashInit :: Hash.Context Hash.SHA512)
+  declareForeign "Sha2_512.appendBytes" pfopbb
+    . mkForeign $ \(ctx :: Hash.Context Hash.SHA512, b :: Bytes.Bytes) ->
+        pure (Hash.hashUpdates ctx (Bytes.chunks b))
+  declareForeign "Sha2_512.finish" pfopb
+    . mkForeign $ \(ctx :: Hash.Context Hash.SHA512) ->
+        pure (Bytes.fromArray $ Hash.hashFinalize ctx)
+
+  declareForeign "Sha2_256.new" pfop0
+    . mkForeign $ \() -> pure (Hash.hashInit :: Hash.Context Hash.SHA256)
+  declareForeign "Sha2_256.appendBytes" pfopbb
+    . mkForeign $ \(ctx :: Hash.Context Hash.SHA256, b :: Bytes.Bytes) ->
+        pure (Hash.hashUpdates ctx (Bytes.chunks b))
+  declareForeign "Sha2_256.finish" pfopb
+    . mkForeign $ \(ctx :: Hash.Context Hash.SHA256) ->
+        pure (Bytes.fromArray $ Hash.hashFinalize ctx)
+
+  declareForeign "Blake2b_512.new" pfop0
+    . mkForeign $ \() -> pure (Hash.hashInit :: Hash.Context Hash.Blake2b_512)
+  declareForeign "Blake2b_512.appendBytes" pfopbb
+    . mkForeign $ \(ctx :: Hash.Context Hash.Blake2b_512, b :: Bytes.Bytes) ->
+        pure (Hash.hashUpdates ctx (Bytes.chunks b))
+  declareForeign "Blake2b_512.finish" pfopb
+    . mkForeign $ \(ctx :: Hash.Context Hash.Blake2b_512) ->
+        pure (Bytes.fromArray $ Hash.hashFinalize ctx)
+
+  declareForeign "Blake2b_256.new" pfop0
+    . mkForeign $ \() -> pure (Hash.hashInit :: Hash.Context Hash.Blake2b_256)
+  declareForeign "Blake2b_256.appendBytes" pfopbb
+    . mkForeign $ \(ctx :: Hash.Context Hash.Blake2b_256, b :: Bytes.Bytes) ->
+        pure (Hash.hashUpdates ctx (Bytes.chunks b))
+  declareForeign "Blake2b_256.finish" pfopb
+    . mkForeign $ \(ctx :: Hash.Context Hash.Blake2b_256) ->
+        pure (Bytes.fromArray $ Hash.hashFinalize ctx)
+
+  declareForeign "Blake2s_256.new" pfop0
+    . mkForeign $ \() -> pure (Hash.hashInit :: Hash.Context Hash.Blake2s_256)
+  declareForeign "Blake2s_256.appendBytes" pfopbb
+    . mkForeign $ \(ctx :: Hash.Context Hash.Blake2s_256, b :: Bytes.Bytes) ->
+        pure (Hash.hashUpdates ctx (Bytes.chunks b))
+  declareForeign "Blake2s_256.finish" pfopb
+    . mkForeign $ \(ctx :: Hash.Context Hash.Blake2s_256) ->
+        pure (Bytes.fromArray $ Hash.hashFinalize ctx)
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny

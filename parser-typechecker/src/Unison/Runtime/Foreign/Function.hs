@@ -2,6 +2,7 @@
 {-# language DataKinds #-}
 {-# language ViewPatterns #-}
 {-# language RecordWildCards #-}
+{-# language UndecidableInstances #-}
 
 module Unison.Runtime.Foreign.Function
   ( ForeignFunc(..)
@@ -18,7 +19,6 @@ import Data.Foldable (toList)
 import Data.Text (Text, pack, unpack)
 import Data.Time.Clock.POSIX (POSIXTime)
 import qualified Data.Sequence as Sq
-import qualified Crypto.Hash as Hash
 import Data.Word (Word64)
 import Network.Socket (Socket)
 import System.IO (BufferMode(..), SeekMode, Handle, IOMode)
@@ -296,7 +296,7 @@ instance ForeignConvention (MVar Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap mvarRef)
 
-instance ForeignConvention (Hash.Context Hash.SHA3_512) where
+instance {-# overlappable #-} BuiltinForeign b => ForeignConvention b where
   readForeign = readForeignBuiltin
   writeForeign = writeForeignBuiltin
 
