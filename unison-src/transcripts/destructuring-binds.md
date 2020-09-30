@@ -15,6 +15,7 @@ ex1 tup =
 
 ```ucm
 .> add
+.> view ex1
 ```
 
 A destructuring bind is just syntax for a single branch pattern match. Notice that Unison detects this function as an alias of `ex1`:

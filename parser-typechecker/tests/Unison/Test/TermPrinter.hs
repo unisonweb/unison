@@ -352,7 +352,7 @@ test = scope "termprinter" $ tests
   , pending $ tc "match x with [a] -> a"     -- ditto
   , pending $ tc "match x with [] -> a"      -- ditto
   , tcDiff "match x with Optional.Some (Optional.Some _) -> ()"
-           "let\n  use Optional Some\n  Some (Some _) = x\n  ()" -- Issue #695
+           "let\n  Optional.Some (Optional.Some _) = x\n  ()"
   -- need an actual effect constructor to test the following
   , pending $ tc "match x with { SomeRequest (Optional.Some _) -> k } -> ()"
   , tcBinding 50 "foo" (Just "Int") "3" "foo : Int\n\
@@ -482,7 +482,7 @@ test = scope "termprinter" $ tests
                 \  else y\n\
                 \with foo"  -- missing break before 'then', issue #518
   , tcDiff "match x with () ->\n  use A y\n  f y y"
-           "let\n  use A y\n  () = x\n  f y y"
+           "let\n  () = x\n  f A.y A.y"
   , tcBreaks 12 "let\n\
                  \  use A x\n\
                  \  f x x\n\
@@ -552,6 +552,11 @@ test = scope "termprinter" $ tests
                  \    f q q\n\
                  \    f r r\n\
                  \  foo"
+  , tcBreaks 13 "let\n\
+                \  (x, y) =\n\
+                \    use A p\n\
+                \    f p p\n\
+                \  x"
   -- The following behaviour is possibly not ideal.  Note how the `use A B.x`
   -- would have the same effect if it was under the `c =`.  It doesn't actually
   -- need to be above the `b =`, because all the usages of A.B.X in that tree are

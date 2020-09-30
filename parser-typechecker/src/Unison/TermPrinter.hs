@@ -247,7 +247,9 @@ pretty0
         fmt S.ControlKeyword "||",
         pretty0 n (ac 10 Normal im doc) y
       ]
-    LetBlock bs e -> printLet bc bs e im' uses
+    LetBlock bs e ->
+      let (im', uses) = calcImports im term
+      in printLet bc bs e im' uses
     -- Some matches are rendered as a destructuring bind, like
     --   match foo with (a,b) -> blah
     -- becomes
@@ -255,21 +257,28 @@ pretty0
     --   blah
     -- See `isDestructuringBind` definition.
     Match' scrutinee cs@[MatchCase pat guard (AbsN' vs body)]
-      | p < 1 && isDestructuringBind scrutinee cs -> letIntro $ uses [
+      | p < 1 && isDestructuringBind scrutinee cs -> letIntro $ PP.lines [
           (lhs <> eq) `PP.hang` rhs,
-          pretty0 n (ac (-1) Block im' doc) body
+          pretty0 n (ac (-1) Block im doc) body
           ]
       where
       letIntro = case bc of
         Block  -> id
-        Normal -> \x -> (fmt S.ControlKeyword "let") `PP.hang` x
-      lhs = PP.group (fst (prettyPattern n (ac 0 Block im' doc) (-1) vs pat))
+        Normal -> \x ->
+          -- We don't call calcImports here, because we can't easily do the
+          -- corequisite step in immediateChildBlockTerms (because it doesn't
+          -- know bc.)  So we'll fail to take advantage of any opportunity
+          -- this let block provides to add a use statement.  Not so bad.
+          (fmt S.ControlKeyword "let") `PP.hang` x
+      lhs = PP.group (fst (prettyPattern n (ac 0 Block im doc) (-1) vs pat))
          <> printGuard guard
       printGuard Nothing = mempty
       printGuard (Just g') = let (_,g) = ABT.unabs g' in
-        PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 n (ac 2 Normal im' doc) g]
+        PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 n (ac 2 Normal im doc) g]
       eq = fmt S.BindingEquals " ="
-      rhs = pretty0 n (ac (-1) Block im' doc) scrutinee
+      rhs =
+        let (im', uses) = calcImports im scrutinee in
+        uses $ [pretty0 n (ac (-1) Block im' doc) scrutinee]
     Match' scrutinee branches -> paren (p >= 2) $
       if PP.isMultiLine ps then PP.lines [
         (fmt S.ControlKeyword "match ") `PP.hang` ps,
@@ -319,15 +328,15 @@ pretty0
            -> Imports
            -> ([Pretty SyntaxText] -> Pretty SyntaxText)
            -> Pretty SyntaxText
-  printLet sc bs e im' uses =
+  printLet sc bs e im uses =
     paren ((sc /= Block) && p >= 12)
       $  letIntro
       $  (uses [(PP.lines (map printBinding bs ++
-                            [PP.group $ pretty0 n (ac 0 Normal im' doc) e]))])
+                            [PP.group $ pretty0 n (ac 0 Normal im doc) e]))])
    where
     printBinding (v, binding) = if isBlank $ Var.nameStr v
-      then pretty0 n (ac (-1) Normal im' doc) binding
-      else prettyBinding0 n (ac (-1) Normal im' doc) (HQ.unsafeFromVar v) binding
+      then pretty0 n (ac (-1) Normal im doc) binding
+      else prettyBinding0 n (ac (-1) Normal im doc) (HQ.unsafeFromVar v) binding
     letIntro = case sc of
       Block  -> id
       Normal -> \x -> (fmt S.ControlKeyword "let") `PP.hang` x
@@ -372,8 +381,6 @@ pretty0
     ps = join $ [r a f | (a, f) <- reverse xs ]
     r a f = [pretty0 n (ac 3 Normal im doc) a,
              pretty0 n (AmbientContext 10 Normal Infix im doc) f]
-
-  (im', uses) = calcImports im term
 
 prettyPattern
   :: forall v loc . Var v

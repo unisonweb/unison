@@ -27,6 +27,14 @@ ex1 tup =
   
     ex1 : (a, b, (Nat, Nat)) -> Nat
 
+.> view ex1
+
+  ex1 : (a, b, (Nat, Nat)) -> Nat
+  ex1 = cases
+    (a, b, (c, d)) ->
+      use Nat +
+      c + d
+
 ```
 A destructuring bind is just syntax for a single branch pattern match. Notice that Unison detects this function as an alias of `ex1`:
 
