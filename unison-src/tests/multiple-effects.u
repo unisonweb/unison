@@ -6,11 +6,10 @@ ability Console where
   read : {Console} (Optional Text)
   write : Text -> {Console} ()
 
-namespace Console where
-  state : s -> Request (State s) a -> a
-  state s = cases
-    {State.get -> k} -> handle k s with state s
-    {State.set s' -> k} -> handle k () with state s'
+Console.state : s -> Request (State s) a -> a
+Console.state s = cases
+    {State.get -> k} -> handle k s with Console.state s
+    {State.set s' -> k} -> handle k () with Console.state s'
     {a} -> a
 
 multiHandler : s -> [w] -> Nat -> Request {State s, Console} a -> ()

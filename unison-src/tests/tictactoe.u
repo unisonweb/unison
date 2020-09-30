@@ -12,19 +12,10 @@ orElse a b =
     None -> b
     a -> a
 
-namespace P where
-  (/=) : P -> P -> Boolean
-  a /= b = not (a == b)
-  (==) : P -> P -> Boolean
-  a == b = match (a,b) with
-    (X,X) -> true
-    (O,O) -> true
-    _ -> false
-
 isWin : Board -> Optional P
 isWin board =
   same : P -> P -> P -> Optional P
-  same a b c = if ((a P.== b) && (a P.== c)) && (a P./= E)
+  same a b c = if (a == b) && (a == c) && (not (a == E))
                then Some a
                else None
   match board with
