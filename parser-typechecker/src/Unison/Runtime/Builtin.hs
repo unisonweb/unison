@@ -14,6 +14,9 @@ module Unison.Runtime.Builtin
   , builtinTypeBackref
   , builtinForeigns
   , numberedTermLookup
+  , charTag
+  , natTag
+  , eitherTag
   ) where
 
 import Control.Exception (IOException, try)
