@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #0njtem0mcm
+  ⊙ #apa4kvi6ij
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #itl1uomklh
+  ⊙ #qmp7kom4r6
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #94tplgq85t
+  ⊙ #6a8iu469ff
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #fr2k0al9mk
+  ⊙ #rc0mqev8pe
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #p8dvir508b
+  ⊙ #27q13qu8ev
   
     + Adds / updates:
     
       x
   
-  ⊙ #bc44avko8b
+  ⊙ #h0lvit0onc
   
     + Adds / updates:
     
@@ -216,7 +216,41 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Universal.<= builtin.Universal.==
       builtin.Universal.> builtin.Universal.>=
       builtin.Universal.compare builtin.bug
-      builtin.io2.BufferMode
+      builtin.crypto.hash.Blake2b_256
+      builtin.crypto.hash.Blake2b_256.append
+      builtin.crypto.hash.Blake2b_256.appendBytes
+      builtin.crypto.hash.Blake2b_256.finish
+      builtin.crypto.hash.Blake2b_256.new
+      builtin.crypto.hash.Blake2b_512
+      builtin.crypto.hash.Blake2b_512.append
+      builtin.crypto.hash.Blake2b_512.appendBytes
+      builtin.crypto.hash.Blake2b_512.finish
+      builtin.crypto.hash.Blake2b_512.new
+      builtin.crypto.hash.Blake2s_256
+      builtin.crypto.hash.Blake2s_256.append
+      builtin.crypto.hash.Blake2s_256.appendBytes
+      builtin.crypto.hash.Blake2s_256.finish
+      builtin.crypto.hash.Blake2s_256.new
+      builtin.crypto.hash.Sha2_256
+      builtin.crypto.hash.Sha2_256.append
+      builtin.crypto.hash.Sha2_256.appendBytes
+      builtin.crypto.hash.Sha2_256.finish
+      builtin.crypto.hash.Sha2_256.new
+      builtin.crypto.hash.Sha2_512
+      builtin.crypto.hash.Sha2_512.append
+      builtin.crypto.hash.Sha2_512.appendBytes
+      builtin.crypto.hash.Sha2_512.finish
+      builtin.crypto.hash.Sha2_512.new
+      builtin.crypto.hash.Sha3_256
+      builtin.crypto.hash.Sha3_256.append
+      builtin.crypto.hash.Sha3_256.appendBytes
+      builtin.crypto.hash.Sha3_256.finish
+      builtin.crypto.hash.Sha3_256.new
+      builtin.crypto.hash.Sha3_512
+      builtin.crypto.hash.Sha3_512.append
+      builtin.crypto.hash.Sha3_512.appendBytes
+      builtin.crypto.hash.Sha3_512.finish
+      builtin.crypto.hash.Sha3_512.new builtin.io2.BufferMode
       builtin.io2.BufferMode.BlockBuffering
       builtin.io2.BufferMode.LineBuffering
       builtin.io2.BufferMode.NoBuffering
