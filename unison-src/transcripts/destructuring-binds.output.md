@@ -3,6 +3,11 @@
 Here's a couple examples:
 
 ```unison
+ex0 : Nat -> Nat
+ex0 n =
+  (a, _, (c,d)) = ("uno", "dos", (n, 7))
+  c + d
+
 ex1 : (a,b,(Nat,Nat)) -> Nat
 ex1 tup =
   (a, b, (c,d)) = tup
@@ -17,6 +22,7 @@ ex1 tup =
   
     ⍟ These new definitions are ok to `add`:
     
+      ex0 : Nat -> Nat
       ex1 : (a, b, (Nat, Nat)) -> Nat
 
 ```
@@ -25,10 +31,17 @@ ex1 tup =
 
   ⍟ I've added these definitions:
   
+    ex0 : Nat -> Nat
     ex1 : (a, b, (Nat, Nat)) -> Nat
 
-.> view ex1
+.> view ex0 ex1
 
+  ex0 : Nat -> Nat
+  ex0 n =
+    use Nat +
+    (a, _, (c, d)) = ("uno", "dos", (n, 7))
+    c + d
+  
   ex1 : (a, b, (Nat, Nat)) -> Nat
   ex1 = cases
     (a, b, (c, d)) ->
@@ -36,6 +49,8 @@ ex1 tup =
       c + d
 
 ```
+Notice that `ex0` is printed using the `cases` syntax (but `ex1` is not). The pretty-printer currently prefers the `cases` syntax if definition can be printed using either destructuring bind or `cases`.
+
 A destructuring bind is just syntax for a single branch pattern match. Notice that Unison detects this function as an alias of `ex1`:
 
 ```unison
@@ -84,27 +99,53 @@ ex4 =
   
 
 ```
-Even though the parser accepts any pattern on the LHS of a bind, it looks pretty weird to see things like `12 = x`, so we avoid showing a destructuring bind when the LHS is a "literal" pattern (like `42` or "hi").
+Even though the parser accepts any pattern on the LHS of a bind, it looks pretty weird to see things like `12 = x`, so we avoid showing a destructuring bind when the LHS is a "literal" pattern (like `42` or "hi"). Again these examples wouldn't compile with coverage checking.
 
 ```unison
-ex5 x = match x with
+ex5 : 'Text
+ex5 _ = match 99 + 1 with
   12 -> "Hi"
+
+ex5a : 'Text
+ex5a _ = match (99 + 1, "hi") with
+  (x, "hi") -> "Not printed as a destructuring bind."
 ```
 
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      ex5  : 'Text
+      ex5a : 'Text
+
+```
 ```ucm
 .> add
 
   ⍟ I've added these definitions:
   
-    ex5 : Nat -> Text
+    ex5  : 'Text
+    ex5a : 'Text
 
-.> view ex5
+.> view ex5 ex5a
 
-  ex5 : Nat -> Text
-  ex5 = cases 12 -> "Hi"
+  ex5 : 'Text
+  ex5 _ =
+    use Nat +
+    match 99 + 1 with 12 -> "Hi"
+  
+  ex5a : 'Text
+  ex5a _ =
+    use Nat +
+    match (99 + 1, "hi") with
+      (x, "hi") -> "Not printed as a destructuring bind."
 
 ```
-Notice how it prints as an ordinary match.
+Notice how it prints both an ordinary match.
 
 Also, for clarity, the pretty-printer shows a single-branch match if the match shadows free variables of the scrutinee, for example:
 

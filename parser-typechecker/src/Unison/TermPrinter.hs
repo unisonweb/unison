@@ -1028,7 +1028,7 @@ immediateChildBlockTerms = \case
     doLet t = error (show t) []
 
 -- Matches with a single case, no variable shadowing, and where the pattern
--- isn't a literal are treated as destructuring bind, for instance:
+-- has no literals are treated as destructuring bind, for instance:
 --   match blah with (x,y) -> body
 -- BECOMES
 --   (x,y) = blah
@@ -1037,19 +1037,26 @@ immediateChildBlockTerms = \case
 --   match (y,x) with (x,y) -> body
 -- Has shadowing, is rendered as a regular `match`.
 --   match blah with 42 -> body
--- Pattern is a literal, rendered as a regular match (rather than `42 = blah; body`)
+-- Pattern has (is) a literal, rendered as a regular match (rather than `42 = blah; body`)
 isDestructuringBind :: Ord v => ABT.Term f v a -> [MatchCase loc (ABT.Term f v a)] -> Bool
 isDestructuringBind scrutinee [MatchCase pat _ (ABT.AbsN' vs _)]
-  = all (`Set.notMember` ABT.freeVars scrutinee) vs && not (isLiteralPattern pat)
+  = all (`Set.notMember` ABT.freeVars scrutinee) vs && not (hasLiteral pat)
     where
-    isLiteralPattern p = case p of
+    hasLiteral p = case p of
       Pattern.Int _ _ -> True
       Pattern.Boolean _ _ -> True
       Pattern.Nat _ _ -> True
       Pattern.Float _ _ -> True
       Pattern.Text _ _ -> True
       Pattern.Char _ _ -> True
-      _ -> False
+      Pattern.Constructor _ _ _ ps -> any hasLiteral ps
+      Pattern.As _ p -> hasLiteral p
+      Pattern.EffectPure _ p -> hasLiteral p
+      Pattern.EffectBind _ _ _ ps pk -> any hasLiteral (pk : ps)
+      Pattern.SequenceLiteral _ ps -> any hasLiteral ps
+      Pattern.SequenceOp _ p _ p2 -> hasLiteral p || hasLiteral p2
+      Pattern.Var _ -> False
+      Pattern.Unbound _ -> False
 isDestructuringBind _ _ = False
 
 pattern LetBlock bindings body <- (unLetBlock -> Just (bindings, body))
