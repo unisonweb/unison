@@ -229,15 +229,8 @@ socketRef = Reference.Builtin "Socket"
 mvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
 
-sha3_512Ref, sha3_256Ref, sha2_512Ref, sha2_256Ref,
-  blake2s_256Ref, blake2b_512Ref, blake2b_256Ref :: Reference
-sha3_512Ref = Reference.Builtin "Sha3_512"
-sha3_256Ref = Reference.Builtin "Sha3_256"
-sha2_512Ref = Reference.Builtin "Sha2_512"
-sha2_256Ref = Reference.Builtin "Sha2_256"
-blake2s_256Ref = Reference.Builtin "Blake2s_256"
-blake2b_512Ref = Reference.Builtin "Blake2b_512"
-blake2b_256Ref = Reference.Builtin "Blake2b_256"
+hasherRef :: Reference
+hasherRef = Reference.Builtin "crypto.Hash"
 
 builtin :: Ord v => a -> Text -> Type v a
 builtin a = ref a . Reference.Builtin

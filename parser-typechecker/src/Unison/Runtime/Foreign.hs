@@ -5,6 +5,7 @@
 
 module Unison.Runtime.Foreign
   ( Foreign(..)
+  , Hasher(..)
   , unwrapForeign
   , maybeUnwrapForeign
   , wrapBuiltin
@@ -23,7 +24,6 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Type as Ty
 import qualified Crypto.Hash as Hash
-
 import Unsafe.Coerce
 
 data Foreign where
@@ -77,13 +77,11 @@ instance BuiltinForeign Bytes where foreignRef = Tagged Ty.bytesRef
 instance BuiltinForeign Handle where foreignRef = Tagged Ty.fileHandleRef
 instance BuiltinForeign Socket where foreignRef = Tagged Ty.socketRef
 instance BuiltinForeign ThreadId where foreignRef = Tagged Ty.threadIdRef
-instance BuiltinForeign (Hash.Context Hash.SHA3_512) where foreignRef = Tagged Ty.sha3_512Ref
-instance BuiltinForeign (Hash.Context Hash.SHA3_256) where foreignRef = Tagged Ty.sha3_256Ref
-instance BuiltinForeign (Hash.Context Hash.SHA512) where foreignRef = Tagged Ty.sha2_512Ref
-instance BuiltinForeign (Hash.Context Hash.SHA256) where foreignRef = Tagged Ty.sha2_256Ref
-instance BuiltinForeign (Hash.Context Hash.Blake2s_256) where foreignRef = Tagged Ty.blake2s_256Ref
-instance BuiltinForeign (Hash.Context Hash.Blake2b_512) where foreignRef = Tagged Ty.blake2b_512Ref
-instance BuiltinForeign (Hash.Context Hash.Blake2b_256) where foreignRef = Tagged Ty.blake2b_256Ref
+
+data Hasher where
+  Hasher :: Hash.HashAlgorithm a => Reference -> Hash.Context a -> Hasher
+
+instance BuiltinForeign Hasher where foreignRef = Tagged Ty.hasherRef
 
 wrapBuiltin :: forall f. BuiltinForeign f => f -> Foreign
 wrapBuiltin x = Wrap r x

@@ -19,6 +19,7 @@ module Unison.Runtime.Builtin
   , eitherTag
   ) where
 
+import Unsafe.Coerce (unsafeCoerce)
 import Control.Exception (IOException, try)
 import Control.Monad.State.Strict (State, modify, execState)
 import Control.Monad (void)
@@ -31,6 +32,7 @@ import Unison.Symbol
 import Unison.Runtime.Stack (Closure)
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.IOSource
+import Unison.Runtime.Foreign (Hasher(..))
 
 import qualified Unison.Type as Ty
 import qualified Unison.Builtin as Ty (builtinTypes)
@@ -41,6 +43,7 @@ import Unison.Util.EnumContainers as EC
 
 import Data.Word (Word64)
 import Data.Text as Text (Text, unpack)
+import qualified Data.ByteArray as BA
 
 import Data.Set (Set, insert)
 
@@ -1427,68 +1430,38 @@ declareForeigns = do
   declareForeign "MVar.tryRead" mvar'try'read
     . mkForeign $ \(mv :: MVar Closure) -> tryReadMVar mv
 
-  declareForeign "Sha3_512.new" pfop0
-    . mkForeign $ \() -> pure (Hash.hashInit :: Hash.Context Hash.SHA3_512)
-  declareForeign "Sha3_512.appendBytes" pfopbb
-    . mkForeign $ \(ctx :: Hash.Context Hash.SHA3_512, b :: Bytes.Bytes) ->
-        pure (Hash.hashUpdates ctx (Bytes.chunks b))
-  declareForeign "Sha3_512.finish" pfopb
-    . mkForeign $ \(ctx :: Hash.Context Hash.SHA3_512) ->
-        pure (Bytes.fromArray $ Hash.hashFinalize ctx)
+  -- Hashing functions
+  let hasher :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()
+      hasher txt _ = do
+        let ctx = Hash.hashInit @alg
+            properLength = BA.length $ (unsafeCoerce :: Hash.Context alg -> BA.Bytes) ctx
+            fromState = "crypto.Hash.internals." <> txt <> ".fromState"
+            ref = Builtin fromState
+        declareForeign ("crypto.Hash." <> txt) pfop0 . mkForeign $ \() -> pure (Hasher @alg ref ctx)
+        declareForeign fromState pfopb
+          . mkForeign $ \(b :: Bytes.Bytes) ->
+              if Bytes.size b == properLength then
+                pure . Just . Hasher ref . (unsafeCoerce :: BA.Bytes -> Hash.Context alg) $ Bytes.toArray b
+              else
+                pure Nothing
 
-  declareForeign "Sha3_256.new" pfop0
-    . mkForeign $ \() -> pure (Hash.hashInit :: Hash.Context Hash.SHA3_256)
-  declareForeign "Sha3_256.appendBytes" pfopbb
-    . mkForeign $ \(ctx :: Hash.Context Hash.SHA3_256, b :: Bytes.Bytes) ->
-        pure (Hash.hashUpdates ctx (Bytes.chunks b))
-  declareForeign "Sha3_256.finish" pfopb
-    . mkForeign $ \(ctx :: Hash.Context Hash.SHA3_256) ->
-        pure (Bytes.fromArray $ Hash.hashFinalize ctx)
+  hasher "Sha3_512" Hash.SHA3_512
+  hasher "Sha3_256" Hash.SHA3_256
+  hasher "Sha2_512" Hash.SHA512
+  hasher "Sha2_256" Hash.SHA256
+  hasher "Blake2b_512" Hash.Blake2b_512
+  hasher "Blake2b_256" Hash.Blake2b_256
+  hasher "Blake2s_256" Hash.Blake2s_256
 
-  declareForeign "Sha2_512.new" pfop0
-    . mkForeign $ \() -> pure (Hash.hashInit :: Hash.Context Hash.SHA512)
-  declareForeign "Sha2_512.appendBytes" pfopbb
-    . mkForeign $ \(ctx :: Hash.Context Hash.SHA512, b :: Bytes.Bytes) ->
-        pure (Hash.hashUpdates ctx (Bytes.chunks b))
-  declareForeign "Sha2_512.finish" pfopb
-    . mkForeign $ \(ctx :: Hash.Context Hash.SHA512) ->
-        pure (Bytes.fromArray $ Hash.hashFinalize ctx)
+  declareForeign "crypto.Hash.addBytes" pfopbb . mkForeign $
+    \(b :: Bytes.Bytes, Hasher ref ctx) ->
+        pure (Hasher ref $ Hash.hashUpdates ctx (Bytes.chunks b))
 
-  declareForeign "Sha2_256.new" pfop0
-    . mkForeign $ \() -> pure (Hash.hashInit :: Hash.Context Hash.SHA256)
-  declareForeign "Sha2_256.appendBytes" pfopbb
-    . mkForeign $ \(ctx :: Hash.Context Hash.SHA256, b :: Bytes.Bytes) ->
-        pure (Hash.hashUpdates ctx (Bytes.chunks b))
-  declareForeign "Sha2_256.finish" pfopb
-    . mkForeign $ \(ctx :: Hash.Context Hash.SHA256) ->
-        pure (Bytes.fromArray $ Hash.hashFinalize ctx)
+  -- declareForeign "Hash.add" pfopbb . mkForeign $
+  --   \(Hasher ctx, x :: Closure) -> error "todo - Hash.add universal function"
 
-  declareForeign "Blake2b_512.new" pfop0
-    . mkForeign $ \() -> pure (Hash.hashInit :: Hash.Context Hash.Blake2b_512)
-  declareForeign "Blake2b_512.appendBytes" pfopbb
-    . mkForeign $ \(ctx :: Hash.Context Hash.Blake2b_512, b :: Bytes.Bytes) ->
-        pure (Hash.hashUpdates ctx (Bytes.chunks b))
-  declareForeign "Blake2b_512.finish" pfopb
-    . mkForeign $ \(ctx :: Hash.Context Hash.Blake2b_512) ->
-        pure (Bytes.fromArray $ Hash.hashFinalize ctx)
-
-  declareForeign "Blake2b_256.new" pfop0
-    . mkForeign $ \() -> pure (Hash.hashInit :: Hash.Context Hash.Blake2b_256)
-  declareForeign "Blake2b_256.appendBytes" pfopbb
-    . mkForeign $ \(ctx :: Hash.Context Hash.Blake2b_256, b :: Bytes.Bytes) ->
-        pure (Hash.hashUpdates ctx (Bytes.chunks b))
-  declareForeign "Blake2b_256.finish" pfopb
-    . mkForeign $ \(ctx :: Hash.Context Hash.Blake2b_256) ->
-        pure (Bytes.fromArray $ Hash.hashFinalize ctx)
-
-  declareForeign "Blake2s_256.new" pfop0
-    . mkForeign $ \() -> pure (Hash.hashInit :: Hash.Context Hash.Blake2s_256)
-  declareForeign "Blake2s_256.appendBytes" pfopbb
-    . mkForeign $ \(ctx :: Hash.Context Hash.Blake2s_256, b :: Bytes.Bytes) ->
-        pure (Hash.hashUpdates ctx (Bytes.chunks b))
-  declareForeign "Blake2s_256.finish" pfopb
-    . mkForeign $ \(ctx :: Hash.Context Hash.Blake2s_256) ->
-        pure (Bytes.fromArray $ Hash.hashFinalize ctx)
+  declareForeign "crypto.Hash.finish" pfopb
+    . mkForeign $ \(Hasher _ ctx) -> pure (Bytes.fromArray $ Hash.hashFinalize ctx)
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny
