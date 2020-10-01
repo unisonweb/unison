@@ -53,7 +53,9 @@ decompile _ (DataC rf ct [i] [])
   = decompileUnboxed rf ct i
 decompile topTerms (DataC rf ct [] bs)
   = apps' (con rf ct) <$> traverse (decompile topTerms) bs
-decompile topTerms (PApV (CIx _ rt _) [] bs)
+decompile _ (PApV (CIx _ _ n) _ _) | n > 0
+  = err "cannot decompile an application to a local recusive binding"
+decompile topTerms (PApV (CIx _ rt 0) [] bs)
   | Just t <- topTerms rt
   = substitute t <$> traverse (decompile topTerms) bs
   | otherwise
