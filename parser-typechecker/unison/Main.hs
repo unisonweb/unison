@@ -6,7 +6,10 @@
 module Main where
 
 import Unison.Prelude
-import           Control.Concurrent             ( mkWeakThreadId, myThreadId )
+import           Control.Concurrent             ( mkWeakThreadId
+                                                , myThreadId
+                                                , forkIO
+                                                )
 import           Control.Error.Safe             (rightMay)
 import           Control.Exception              ( throwTo, AsyncException(UserInterrupt) )
 import           Data.Configurator.Types        ( Config )
@@ -27,6 +30,7 @@ import qualified Unison.Runtime.Interface      as RTI
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Util.Cache             as Cache
+import qualified Unison.Server.CodebaseServer as Server
 import qualified Version
 import qualified Unison.Codebase.TranscriptParser as TR
 import qualified System.Path as Path
@@ -151,6 +155,7 @@ main = do
   case restargs of
     [] -> do
       theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
+      _ <- forkIO $ Server.start theCodebase 8081
       launch currentDir mNewRun config theCodebase branchCache []
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe

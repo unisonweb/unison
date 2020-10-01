@@ -18,6 +18,7 @@ import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import qualified Data.Text.Encoding            as Text
 import           GHC.Generics
+import           Network.Wai.Handler.Warp       ( run )
 import           Servant.API
 import           Servant.Server
 import           Servant                        ( throwError )
@@ -39,7 +40,6 @@ import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
 import qualified Unison.Server.Backend         as Backend
 import           Unison.ShortHash               ( ShortHash )
-import           Unison.Symbol                  ( Symbol(..) )
 import           Unison.Type                    ( Type )
 import           Unison.Util.Pretty             ( render
                                                 , Width
@@ -48,6 +48,7 @@ import           Unison.Util.SyntaxText         ( SyntaxText' )
 import qualified Unison.Util.SyntaxText        as SyntaxText
 import           Unison.Var                     ( Var )
 import qualified Unison.TypePrinter            as TypePrinter
+
 
 --import GHC.TypeLits
 --import Network.Wai.Handler.Warp
@@ -102,7 +103,6 @@ instance ToJSON NamedTerm
 data NamedType = NamedType
   { typeName :: HashQualifiedName
   , typeHash :: UnisonHash
-  , typeKind :: Maybe KindExpression
   } deriving Generic
 
 instance ToJSON NamedType
@@ -155,7 +155,6 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
   Backend.ShallowTypeEntry r name -> TypeObject $ NamedType
     { typeName = HQ'.toText name
     , typeHash = Reference.toText r
-    , typeKind = Nothing
     }
   Backend.ShallowBranchEntry name size -> Subnamespace $ NamedNamespace
     { namespaceName = NameSegment.toText name
@@ -210,16 +209,19 @@ noSuchNamespace namespace =
 api :: Proxy API
 api = Proxy
 
-app :: Codebase IO Symbol Ann -> Application
+app :: Var v => Codebase IO v Ann -> Application
 app codebase = serve api $ server codebase
 
-server :: Codebase IO Symbol Ann -> Server API
+start :: Var v => Codebase IO v Ann -> Int -> IO ()
+start codebase port = run port $ app codebase
+
+server :: Var v => Codebase IO v Ann -> Server API
 server codebase = serveNamespace :<|> foo
  where
   foo = pure ()
   serveNamespace :: Maybe HashQualifiedName -> Handler NamespaceListing
   serveNamespace hqn = case hqn of
-    Nothing  -> undefined -- list the root
+    Nothing  -> serveNamespace $ Just ""
     -- parse client-specified hash-qualified name
     Just hqn -> case HQ.fromText hqn of
       Nothing -> throwError $ badHQN hqn
@@ -260,3 +262,4 @@ server codebase = serveNamespace :<|> foo
         -- error if path not found
         -- gather the immediate children under the path
         -- list them out
+
