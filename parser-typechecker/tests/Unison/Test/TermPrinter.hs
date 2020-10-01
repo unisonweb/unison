@@ -165,9 +165,9 @@ test = scope "termprinter" $ tests
   , pending $ tc "match x with Pair t 0 -> foo t" -- TODO hitting UnknownDataConstructor when parsing pattern
   , pending $ tc "match x with Pair t 0 | pred t -> foo t" -- ditto
   , pending $ tc "match x with Pair t 0 | pred t -> foo t; Pair t 0 -> foo' t; Pair t u -> bar;" -- ditto
-  , tc "match x with () -> foo"
-  , tc "match x with _ -> foo"
-  , tc "match x with y -> y"
+  , tcDiffRtt False "match x with () -> foo" "let\n  () = x\n  foo" 0
+  , tcDiffRtt False "match x with _ -> foo" "let\n  _ = x\n  foo" 0
+  , tcDiffRtt False "match x with y -> y" "let\n  y = x\n  y" 0
   , tc "match x with 1 -> foo"
   , tc "match x with +1 -> foo"
   , tc "match x with -1 -> foo"
@@ -183,9 +183,9 @@ test = scope "termprinter" $ tests
                  \  true  -> foo\n\
                  \  false -> bar"
   , tc "match x with false -> foo"
-  , tc "match x with y@() -> y"
-  , tc "match x with a@(b@(c@())) -> c"
-  , tc "match e with { a } -> z"
+  , tcDiff "match x with y@() -> y" "let\n  y@() = x\n  y"
+  , tcDiff "match x with a@(b@(c@())) -> c" "let\n  a@(b@(c@())) = x\n  c"
+  , tcDiff "match e with { a } -> z" "let\n  { a } = e\n  z"
   , pending $ tc "match e with { () -> k } -> z" -- TODO doesn't parse since 'many leaf' expected before the "-> k"
                                                  -- need an actual effect constructor to test this with
   , tc "cases x -> x"
@@ -264,9 +264,8 @@ test = scope "termprinter" $ tests
             \  true && true\n\
             \  12\n\
             \else\n\
-            \  namespace baz where\n\
-            \    f : Int -> Int\n\
-            \    f x = x\n\
+            \  baz.f : Int -> Int\n\
+            \  baz.f x = x\n\
             \  13"
             "if foo then\n\
             \  true && true\n\
@@ -347,12 +346,13 @@ test = scope "termprinter" $ tests
                                                      -- parser can't distinguish between a constructor
                                                      -- called 'Pair' and a function called 'Pair'.
   , pending $ tc "Pair 2 ()"  -- unary tuple; fails for same reason as above
-  , tc "match x with (a, b) -> a"
-  , tc "match x with () -> foo"
+  , tcDiff "match x with (a, b) -> a" "let\n  (a, b) = x\n  a"
+  , tcDiff "match x with () -> foo" "let\n  () = x\n  foo"
   , pending $ tc "match x with [a, b] -> a"  -- issue #266
   , pending $ tc "match x with [a] -> a"     -- ditto
   , pending $ tc "match x with [] -> a"      -- ditto
-  , tc "match x with Optional.Some (Optional.Some _) -> ()" -- Issue #695
+  , tcDiff "match x with Optional.Some (Optional.Some _) -> ()"
+           "let\n  Optional.Some (Optional.Some _) = x\n  ()"
   -- need an actual effect constructor to test the following
   , pending $ tc "match x with { SomeRequest (Optional.Some _) -> k } -> ()"
   , tcBinding 50 "foo" (Just "Int") "3" "foo : Int\n\
@@ -377,8 +377,8 @@ test = scope "termprinter" $ tests
                  \      Optional.None     -> 0\n\
                  \      Optional.Some hd1 -> 0\n\
                  \  go [] a b"
-  , tcBreaks 30 "match x with\n\
-                 \  (Optional.None, _) -> foo"
+  , tcDiff "match x with (Optional.None, _) -> foo"
+           "let\n  (Optional.None, _) = x\n  foo"
   , tcBreaks 50 "if true then match x with 12 -> x else x"
   , tcBreaks 50 "if true then x else match x with 12 -> x"
   , pending $ tcBreaks 80 "x -> (if c then t else f)"  -- TODO 'unexpected )', surplus parens
@@ -481,10 +481,8 @@ test = scope "termprinter" $ tests
                 \    x\n\
                 \  else y\n\
                 \with foo"  -- missing break before 'then', issue #518
-  , tcBreaks 20 "match x with\n\
-                 \  () ->\n\
-                 \    use A y\n\
-                 \    f y y"
+  , tcDiff "match x with () ->\n  use A y\n  f y y"
+           "let\n  () = x\n  f A.y A.y"
   , tcBreaks 12 "let\n\
                  \  use A x\n\
                  \  f x x\n\
@@ -536,7 +534,7 @@ test = scope "termprinter" $ tests
   , tcBreaks 20 "let\n\
                  \  a =\n\
                  \    match x with\n\
-                 \      () ->\n\
+                 \      42 ->\n\
                  \        use A x\n\
                  \        f x x\n\
                  \  bar"
@@ -554,6 +552,11 @@ test = scope "termprinter" $ tests
                  \    f q q\n\
                  \    f r r\n\
                  \  foo"
+  , tcBreaks 13 "let\n\
+                \  (x, y) =\n\
+                \    use A p\n\
+                \    f p p\n\
+                \  x"
   -- The following behaviour is possibly not ideal.  Note how the `use A B.x`
   -- would have the same effect if it was under the `c =`.  It doesn't actually
   -- need to be above the `b =`, because all the usages of A.B.X in that tree are

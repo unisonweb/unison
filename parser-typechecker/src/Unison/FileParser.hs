@@ -104,7 +104,7 @@ getVars = \case
   Bindings bs -> [ v | ((_,v), _) <- bs ]
 
 stanza :: Var v => P v (Stanza v (Term v Ann))
-stanza = watchExpression <|> unexpectedAction <|> binding <|> namespace
+stanza = watchExpression <|> unexpectedAction <|> binding
   where
   unexpectedAction = failureIf (TermParser.blockTerm $> getErr) binding
   getErr = do
@@ -118,8 +118,6 @@ stanza = watchExpression <|> unexpectedAction <|> binding <|> namespace
       WatchBinding kind ann <$> TermParser.binding,
       WatchExpression kind guid ann <$> TermParser.blockTerm ]
   binding = Binding <$> TermParser.binding
-  namespace = tweak <$> TermParser.namespaceBlock where
-    tweak ns = Bindings (TermParser.toBindings [ns])
 
 watched :: Var v => P v (UF.WatchKind, Text, Ann)
 watched = P.try $ do
