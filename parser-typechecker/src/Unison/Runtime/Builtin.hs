@@ -38,8 +38,11 @@ import qualified Unison.Builtin.Decls as Ty
 
 import Unison.Util.EnumContainers as EC
 
+import Data.Either.Combinators (mapLeft)
+import Data.Text.Encoding (encodeUtf8, decodeUtf8')
+import Data.ByteString (hGet, hPut)
 import Data.Word (Word64)
-import Data.Text as Text (Text, unpack)
+import Data.Text as Text (Text, pack, unpack)
 
 import Data.Set (Set, insert)
 
@@ -71,10 +74,7 @@ import System.IO as SYS
   , hTell
   , stdin, stdout, stderr
   )
-import Data.Text.IO as SYS
-  ( hGetLine
-  , hPutStr
-  )
+import Data.Text.IO as SYS (hGetLine)
 import Control.Concurrent as SYS
   ( threadDelay
   , killThread
@@ -626,16 +626,30 @@ watch
 
 type ForeignOp = forall v. Var v => FOp -> ([Mem], ANormal v)
 
+
 maybe'result'direct
   :: Var v
   => FOp -> [v]
   -> v -> v
   -> ANormal v
+
 maybe'result'direct ins args t r
   = TLet t UN (AFOp ins args)
   . TMatch t . MatchSum $ mapFromList
   [ (0, ([], TCon optionTag 0 []))
   , (1, ([BX], TAbs r $ TCon optionTag 1 [r]))
+  ]
+
+either'result'direct
+  :: Var v
+  => FOp -> [v]
+  -> v -> v
+  -> ANormal v
+either'result'direct ins args t r
+  = TLet t UN (AFOp ins args)
+  . TMatch t . MatchSum $ mapFromList
+  [ (0, ([BX], TAbs r $ TCon eitherTag 0 [r]))
+  , (1, ([BX], TAbs r $ TCon eitherTag 1 [r]))
   ]
 
 io'error'result0
@@ -827,16 +841,17 @@ get'line instr
   where
   [h,ior,e,r] = freshes 4
 
-get'text :: ForeignOp
-get'text instr
-  = ([BX],)
-  . TAbss [h]
-  $ io'error'result'direct instr [h] ior e r
+get'bytes :: ForeignOp
+get'bytes instr
+  = ([BX, BX],)
+  . TAbss [h,n0]
+  . unbox n0 Ty.natRef n
+  $ io'error'result'direct instr [h,n] ior e r
   where
-  [h,ior,e,r] = freshes 4
+  [h,n0,n,ior,e,r] = freshes 6
 
-put'text :: ForeignOp
-put'text instr
+put'bytes :: ForeignOp
+put'bytes instr
   = ([BX,BX],)
   . TAbss [h,tx]
   $ io'error'result'direct instr [h,tx] ior e r
@@ -1120,6 +1135,20 @@ mvar'try'read instr
   where
   [mv,t,r] = freshes 3
 
+text'to'utf8 :: ForeignOp
+text'to'utf8 instr
+  = ([BX],)
+  . TAbs t
+  $ TFOp instr [t]
+  where [t] = freshes 1
+
+text'try'from'utf8 :: ForeignOp
+text'try'from'utf8 instr
+  = ([BX],)
+  . TAbs tx
+  $ either'result'direct instr [tx] t r
+  where [tx, t, r] = freshes 3
+
 builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
 builtinLookup
   = Map.fromList
@@ -1328,9 +1357,8 @@ declareForeigns = do
   declareForeign "IO.setBuffering" set'buffering
     . mkForeignIOE $ uncurry hSetBuffering
   declareForeign "IO.getLine" get'line $ mkForeignIOE hGetLine
-  declareForeign "IO.getText" get'text $
-    dummyFF -- mkForeignIOE $ \h -> pure . Right . Wrap <$> hGetText h
-  declareForeign "IO.putText" put'text . mkForeignIOE $ uncurry hPutStr
+  declareForeign "IO.getBytes" get'bytes .  mkForeignIOE $ \(h,n) -> fmap Bytes.fromByteString $ hGet h n
+  declareForeign "IO.putBytes" put'bytes .  mkForeignIOE $ \(h,bs) -> hPut h (Bytes.toByteString bs)
   declareForeign "IO.systemTime" system'time
     $ mkForeignIOE $ \() -> getPOSIXTime
   declareForeign "IO.getTempDirectory" get'temp'directory
@@ -1403,6 +1431,10 @@ declareForeigns = do
     . mkForeignIOE $ \(mv :: MVar Closure) -> readMVar mv
   declareForeign "MVar.tryRead" mvar'try'read
     . mkForeign $ \(mv :: MVar Closure) -> tryReadMVar mv
+  declareForeign "Text.toUtf8" text'to'utf8
+    . mkForeign $ return . Bytes.fromByteString . encodeUtf8
+  declareForeign "Text.tryFromUtf8" text'try'from'utf8
+    . mkForeign $ return . mapLeft (pack . show) . decodeUtf8' . Bytes.toByteString
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny

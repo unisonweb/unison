@@ -367,9 +367,10 @@ builtinsSrc =
   , B "Text.>" $ text --> text --> boolean
   , B "Text.uncons" $ text --> optionalt (tuple [char, text])
   , B "Text.unsnoc" $ text --> optionalt (tuple [text, char])
-
   , B "Text.toCharList" $ text --> list char
   , B "Text.fromCharList" $ list char --> text
+  , B "Text.toUtf8" $ text --> bytes
+  , B "Text.tryFromUtf8" $ bytes --> eithert text text
 
   , B "Char.toNat" $ char --> nat
   , B "Char.fromNat" $ nat --> char
@@ -422,8 +423,8 @@ ioBuiltins =
   , ("IO.getBuffering", handle --> ioe bmode)
   , ("IO.setBuffering", handle --> bmode --> ioe unit)
   , ("IO.getLine", handle --> ioe text)
-  , ("IO.getText", handle --> ioe text)
-  , ("IO.putText", handle --> text --> ioe unit)
+  , ("IO.getBytes", handle --> nat --> ioe text)
+  , ("IO.putBytes", handle --> bytes --> ioe unit)
   , ("IO.systemTime", unit --> ioe nat)
   , ("IO.getTempDirectory", unit --> ioe text)
   , ("IO.getCurrentDirectory", unit --> ioe text)
@@ -482,6 +483,9 @@ list arg = Type.vector () `app` arg
 
 optionalt :: Ord v => Type v -> Type v
 optionalt arg = DD.optionalType () `app` arg
+
+eithert :: Ord v => Type v -> Type v -> Type v
+eithert l r = DD.eitherType () `app` l `app` r
 
 tuple :: Ord v => [Type v] -> Type v
 tuple [t] = t

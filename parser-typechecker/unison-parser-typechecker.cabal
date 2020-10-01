@@ -190,6 +190,7 @@ library
     configurator,
     cryptonite,
     directory,
+    either,
     guid,
     data-memocombinators,
     edit-distance,
