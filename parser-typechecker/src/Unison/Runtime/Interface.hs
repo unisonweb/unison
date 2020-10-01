@@ -50,13 +50,13 @@ type Term v = Tm.Term v ()
 
 data EvalCtx v
   = ECtx
-  { freshTy :: Int
+  { freshTy :: Word64
   , freshTm :: Word64
-  , refTy :: Map.Map RF.Reference RTag
+  , refTy :: Map.Map RF.Reference Word64
   , refTm :: Map.Map RF.Reference Word64
   , combs :: EnumMap Word64 Combs
   , dspec :: DataSpec
-  , backrefTy :: EnumMap RTag RF.Reference
+  , backrefTy :: EnumMap Word64 RF.Reference
   , backrefTm :: EnumMap Word64 (Term v)
   , backrefComb :: EnumMap Word64 RF.Reference
   }
@@ -73,7 +73,9 @@ baseContext
   , freshTm = ftm
   , refTy = builtinTypeNumbering
   , refTm = builtinTermNumbering
-  , combs = mapSingleton 0 . emitComb @v 0 mempty <$> numberedTermLookup
+  , combs = mapSingleton 0
+          . emitComb @v emptyRNs 0 mempty
+        <$> numberedTermLookup
   , dspec = builtinDataSpec
   , backrefTy = builtinTypeBackref
   , backrefTm = Tm.ref () <$> builtinTermBackref
@@ -81,7 +83,7 @@ baseContext
   }
   where
   ftm = 1 + maximum builtinTermNumbering
-  fty = (1+) . fromEnum $ maximum builtinTypeNumbering
+  fty = 1 + maximum builtinTypeNumbering
 
 allocTerm
   :: Var v
@@ -89,16 +91,23 @@ allocTerm
   -> RF.Reference
   -> Term v
   -> EvalCtx v
-allocTerm ctx r tm
-  | Nothing <- Map.lookup r (refTm ctx)
-  , rt <- freshTm ctx
-  = ctx
-  { refTm = Map.insert r rt $ refTm ctx
-  , backrefTm = mapInsert rt tm $ backrefTm ctx
-  , backrefComb = mapInsert rt r $ backrefComb ctx
-  , freshTm = rt+1
-  }
-  | otherwise = ctx
+allocTerm ctx r tm = snd $ allocTerm' ctx r tm
+
+allocTerm'
+  :: Var v
+  => EvalCtx v
+  -> RF.Reference
+  -> Term v
+  -> (Word64, EvalCtx v)
+allocTerm' ctx r tm
+  | Just w <- Map.lookup r (refTm ctx) = (w, ctx)
+  | rt <- freshTm ctx
+  = (rt, ctx
+       { refTm = Map.insert r rt $ refTm ctx
+       , backrefTm = mapInsert rt tm $ backrefTm ctx
+       , backrefComb = mapInsert rt r $ backrefComb ctx
+       , freshTm = rt+1
+       })
 
 allocTermRef
   :: Var v
@@ -130,7 +139,7 @@ allocType ctx r cons
   where
   (rt, fresh)
     | Just rt <- Map.lookup r $ refTy ctx = (rt, freshTy ctx)
-    | frsh <- freshTy ctx = (toEnum $ frsh, frsh + 1)
+    | frsh <- freshTy ctx = (frsh, frsh + 1)
 
 collectDeps
   :: Var v
@@ -196,8 +205,8 @@ compileTerm
   :: HasCallStack => Var v => Word64 -> Term v -> EvalCtx v -> EvalCtx v
 compileTerm w tm ctx
   = addCombs ctx w
-  . emitCombs w
-  . superNormalize (ref $ refTm ctx) (ref $ refTy ctx)
+  . emitCombs (RN (ref $ refTy ctx) (ref $ refTm ctx)) w
+  . superNormalize
   . lamLift
   . splitPatterns (dspec ctx)
   . saturate (uncurryDspec $ dspec ctx)
@@ -205,19 +214,21 @@ compileTerm w tm ctx
 
 prepareEvaluation
   :: HasCallStack => Var v => Term v -> EvalCtx v -> (EvalCtx v, Word64)
-prepareEvaluation (Tm.LetRecNamed' bs mn0) ctx0 = (ctx3, mid)
+prepareEvaluation (Tm.LetRecNamed' bs mn0) ctx0 = (ctx4, mid)
   where
   hcs = fmap (first RF.DerivedId) . Tm.hashComponents $ Map.fromList bs
   mn = Tm.substs (Map.toList $ Tm.ref () . fst <$> hcs) mn0
+  rmn = RF.DerivedId $ Tm.hashClosedTerm mn
 
   ctx1 = foldl (uncurry . allocTerm) ctx0 hcs
   ctx2 = foldl (\ctx (r, _) -> compileAllocated ctx r) ctx1 hcs
-  mid = freshTm ctx2
-  ctx3 = compileTerm mid mn (ctx2 { freshTm = mid+1 })
-prepareEvaluation mn ctx0 = (ctx1, mid)
+  (mid, ctx3) = allocTerm' ctx2 rmn mn
+  ctx4 = compileTerm mid mn ctx3
+prepareEvaluation mn ctx0 = (ctx2, mid)
   where
-  mid = freshTm ctx0
-  ctx1 = compileTerm mid mn (ctx0 { freshTm = mid+1 })
+  rmn = RF.DerivedId $ Tm.hashClosedTerm mn
+  (mid, ctx1) = allocTerm' ctx0 rmn mn
+  ctx2 = compileTerm mid mn ctx1
 
 
 watchHook :: IORef Closure -> Stack 'UN -> Stack 'BX -> IO ()
@@ -242,7 +253,7 @@ evalInContext ppe ctx w = do
         <=< try $ apply0 (Just hook) senv w
   pure $ decom =<< result
   where
-  decom = decompile (`EC.lookup`backrefTy ctx) (`EC.lookup`backrefTm ctx)
+  decom = decompile (`EC.lookup`backrefTm ctx)
   prettyError (PE p) = p
   prettyError (BU c) = either id (pretty ppe) $ decom c
 

@@ -28,6 +28,7 @@ import Unison.Runtime.MCode
   , Comb(..)
   , Combs
   , Branch(..)
+  , RefNums(..)
   , emitComb
   , emitCombs
   )
@@ -37,9 +38,12 @@ import Unison.Runtime.Machine
 
 import Unison.Test.Common (tm)
 
+dummyRef :: Reference
+dummyRef = Builtin "dummy"
+
 testEval0 :: EnumMap Word64 Combs -> Section -> Test ()
 testEval0 env sect = do
-  io $ eval0 (SEnv env builtinForeigns mempty mempty) sect
+  io $ eval0 (SEnv env builtinForeigns (dummyRef <$ env) mempty) sect
   ok
 
 builtins :: Reference -> Word64
@@ -49,7 +53,7 @@ builtins r
   | otherwise = error $ "builtins: " ++ show r
 
 cenv :: EnumMap Word64 Combs
-cenv = fmap (mapSingleton 0 . emitComb 0 mempty)
+cenv = fmap (mapSingleton 0 . emitComb numbering 0 mempty)
      $ numberedTermLookup @Symbol
 
 env :: Combs -> EnumMap Word64 Combs
@@ -72,13 +76,16 @@ multRec
     \    _ -> f (##Nat.+ acc n) (##Nat.sub i 1)\n\
     \  ##todo (##Nat.== (f 0 1000) 5000)"
 
+numbering :: RefNums
+numbering = RN (builtinTypeNumbering Map.!) builtins
+
 testEval :: String -> Test ()
 testEval s = testEval0 (env aux) main
   where
   Lam 0 0 _ _ main = aux ! 0
   aux
-    = emitCombs (bit 24)
-    . superNormalize builtins (builtinTypeNumbering Map.!)
+    = emitCombs numbering (bit 24)
+    . superNormalize
     . lamLift
     . splitPatterns builtinDataSpec
     . unannotate

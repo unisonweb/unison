@@ -28,8 +28,7 @@ import Text.Read (readMaybe)
 
 import Unison.Reference (Reference)
 
-import Unison.Runtime.ANF (Mem(..), RTag, packTags)
-import Unison.Runtime.Builtin (charTag,natTag,eitherTag)
+import Unison.Runtime.ANF (Mem(..))
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
@@ -55,7 +54,7 @@ data SEnv
   { combs :: !(EnumMap Word64 Combs)
   , foreignFuncs :: !(EnumMap Word64 ForeignFunc)
   , combRefs :: !(EnumMap Word64 Reference)
-  , tagRefs :: !(EnumMap RTag Reference)
+  , tagRefs :: !(EnumMap Word64 Reference)
   }
 
 info :: Show a => String -> a -> IO ()
@@ -81,8 +80,11 @@ apply0
 apply0 !callback !env !i = do
     ustk <- alloc
     bstk <- alloc
+    r <- case EC.lookup i $ combRefs env of
+           Just r -> pure r
+           Nothing -> die "apply0: missing reference to entry point"
     apply env mempty ustk bstk k0 True ZArgs
-      $ PAp (CIx i 0) unull bnull
+      $ PAp (CIx r i 0) unull bnull
   where
   k0 = maybe KE (CB . Hook) callback
 
@@ -112,8 +114,8 @@ exec !_   !denv !ustk !bstk !k (Info tx) = do
   info tx bstk
   info tx k
   pure (denv, ustk, bstk, k)
-exec !_   !denv !ustk !bstk !k (Name r args) = do
-  bstk <- name ustk bstk args =<< resolve denv bstk r
+exec !env !denv !ustk !bstk !k (Name r args) = do
+  bstk <- name ustk bstk args =<< resolve env denv bstk r
   pure (denv, ustk, bstk, k)
 exec !_   !denv !ustk !bstk !k (SetDyn p i) = do
   clo <- peekOff bstk i
@@ -132,36 +134,26 @@ exec !_   !denv !ustk !bstk !k (UPrim2 op i j) = do
 exec !_   !denv !ustk !bstk !k (BPrim1 op i) = do
   (ustk,bstk) <- bprim1 ustk bstk op i
   pure (denv, ustk, bstk, k)
-exec !env !denv !ustk !bstk !k (BPrim2 EQLU i j) = do
+exec !_   !denv !ustk !bstk !k (BPrim2 EQLU i j) = do
   x <- peekOff bstk i
   y <- peekOff bstk j
   ustk <- bump ustk
   poke ustk
-    $ case universalCompare cmb tag compare x y of
+    $ case universalCompare compare x y of
         EQ -> 1
         _ -> 0
   pure (denv, ustk, bstk, k)
-  where
-  cmb w | Just r <- EC.lookup w (combRefs env) = r
-        | otherwise = error $ "exec: unknown combinator: " ++ show w
-  tag t | Just r <- EC.lookup t (tagRefs env) = r
-        | otherwise = error $ "exec: unknown data: " ++ show t
-exec !env !denv !ustk !bstk !k (BPrim2 CMPU i j) = do
+exec !_   !denv !ustk !bstk !k (BPrim2 CMPU i j) = do
   x <- peekOff bstk i
   y <- peekOff bstk j
   ustk <- bump ustk
-  poke ustk . fromEnum $ universalCompare cmb tag compare x y
+  poke ustk . fromEnum $ universalCompare compare x y
   pure (denv, ustk, bstk, k)
-  where
-  cmb w | Just r <- EC.lookup w (combRefs env) = r
-        | otherwise = error $ "exec: unknown combinator: " ++ show w
-  tag t | Just r <- EC.lookup t (tagRefs env) = r
-        | otherwise = error $ "exec: unknown data: " ++ show t
 exec !_   !denv !ustk !bstk !k (BPrim2 op i j) = do
   (ustk,bstk) <- bprim2 ustk bstk op i j
   pure (denv, ustk, bstk, k)
-exec !_   !denv !ustk !bstk !k (Pack t args) = do
-  clo <- buildData ustk bstk t args
+exec !_   !denv !ustk !bstk !k (Pack r t args) = do
+  clo <- buildData ustk bstk r t args
   bstk <- bump bstk
   poke bstk clo
   pure (denv, ustk, bstk, k)
@@ -213,9 +205,6 @@ exec !env !denv !ustk !bstk !k (Fork i) = do
   pure (denv, ustk, bstk, k)
 {-# inline exec #-}
 
-maskTag :: Word64 -> Word64
-maskTag i = i .&. 0xFFFF
-
 eval :: SEnv -> DEnv
      -> Stack 'UN -> Stack 'BX -> K -> Section -> IO ()
 eval !env !denv !ustk !bstk !k (Match i (TestT df cs)) = do
@@ -233,7 +222,7 @@ eval !env !denv !ustk !bstk !k (Yield args)
     bstk <- frameArgs bstk
     yield env denv ustk bstk k
 eval !env !denv !ustk !bstk !k (App ck r args) =
-  resolve denv bstk r
+  resolve env denv bstk r
     >>= apply env denv ustk bstk k ck args
 eval !env !denv !ustk !bstk !k (Call ck n args)
   | Just cmbs <- EC.lookup n (combs env)
@@ -264,7 +253,7 @@ forkEval env clo
   err :: Stack 'UN -> Stack 'BX -> IO ()
   err _ bstk = peek bstk >>= \case
     -- Left e
-    DataB1 t e | t == leftDTag -> throwIO $ BU e
+    DataB1 _ 0 e -> throwIO $ BU e
     _ -> pure ()
 {-# inline forkEval #-}
 
@@ -440,54 +429,54 @@ closureArgs !_    _
 {-# inline closureArgs #-}
 
 buildData
-  :: Stack 'UN -> Stack 'BX -> Tag -> Args -> IO Closure
-buildData !_    !_    !t ZArgs = pure $ Enum t
-buildData !ustk !_    !t (UArg1 i) = do
+  :: Stack 'UN -> Stack 'BX -> Reference -> Tag -> Args -> IO Closure
+buildData !_    !_    !r !t ZArgs = pure $ Enum r t
+buildData !ustk !_    !r !t (UArg1 i) = do
   x <- peekOff ustk i
-  pure $ DataU1 t x
-buildData !ustk !_    !t (UArg2 i j) = do
+  pure $ DataU1 r t x
+buildData !ustk !_    !r !t (UArg2 i j) = do
   x <- peekOff ustk i
   y <- peekOff ustk j
-  pure $ DataU2 t x y
-buildData !_    !bstk !t (BArg1 i) = do
+  pure $ DataU2 r t x y
+buildData !_    !bstk !r !t (BArg1 i) = do
   x <- peekOff bstk i
-  pure $ DataB1 t x
-buildData !_    !bstk !t (BArg2 i j) = do
+  pure $ DataB1 r t x
+buildData !_    !bstk !r !t (BArg2 i j) = do
   x <- peekOff bstk i
   y <- peekOff bstk j
-  pure $ DataB2 t x y
-buildData !ustk !bstk !t (DArg2 i j) = do
+  pure $ DataB2 r t x y
+buildData !ustk !bstk !r !t (DArg2 i j) = do
   x <- peekOff ustk i
   y <- peekOff bstk j
-  pure $ DataUB t x y
-buildData !ustk !_    !t (UArgR i l) = do
+  pure $ DataUB r t x y
+buildData !ustk !_    !r !t (UArgR i l) = do
   useg <- augSeg I ustk unull (Just $ ArgR i l)
-  pure $ DataG t useg bnull
-buildData !_    !bstk !t (BArgR i l) = do
+  pure $ DataG r t useg bnull
+buildData !_    !bstk !r !t (BArgR i l) = do
   bseg <- augSeg I bstk bnull (Just $ ArgR i l)
-  pure $ DataG t unull bseg
-buildData !ustk !bstk !t (DArgR ui ul bi bl) = do
+  pure $ DataG r t unull bseg
+buildData !ustk !bstk !r !t (DArgR ui ul bi bl) = do
   useg <- augSeg I ustk unull (Just $ ArgR ui ul)
   bseg <- augSeg I bstk bnull (Just $ ArgR bi bl)
-  pure $ DataG t useg bseg
-buildData !ustk !_    !t (UArgN as) = do
+  pure $ DataG r t useg bseg
+buildData !ustk !_    !r !t (UArgN as) = do
   useg <- augSeg I ustk unull (Just $ ArgN as)
-  pure $ DataG t useg bnull
-buildData !_    !bstk !t (BArgN as) = do
+  pure $ DataG r t useg bnull
+buildData !_    !bstk !r !t (BArgN as) = do
   bseg <- augSeg I bstk bnull (Just $ ArgN as)
-  pure $ DataG t unull bseg
-buildData !ustk !bstk !t (DArgN us bs) = do
+  pure $ DataG r t unull bseg
+buildData !ustk !bstk !r !t (DArgN us bs) = do
   useg <- augSeg I ustk unull (Just $ ArgN us)
   bseg <- augSeg I bstk bnull (Just $ ArgN bs)
-  pure $ DataG t useg bseg
-buildData !ustk !bstk !t (DArgV ui bi) = do
+  pure $ DataG r t useg bseg
+buildData !ustk !bstk !r !t (DArgV ui bi) = do
   useg <- if ul > 0
             then augSeg I ustk unull (Just $ ArgR 0 ul)
             else pure unull
   bseg <- if bl > 0
             then augSeg I bstk bnull (Just $ ArgR 0 bl)
             else pure bnull
-  pure $ DataG t useg bseg
+  pure $ DataG r t useg bseg
   where
   ul = fsize ustk - ui
   bl = fsize bstk - bi
@@ -495,46 +484,46 @@ buildData !ustk !bstk !t (DArgV ui bi) = do
 
 dumpData
   :: Stack 'UN -> Stack 'BX -> Closure -> IO (Stack 'UN, Stack 'BX)
-dumpData !ustk !bstk (Enum t) = do
+dumpData !ustk !bstk (Enum _ t) = do
   ustk <- bump ustk
-  pokeN ustk $ maskTag t
+  pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataU1 t x) = do
+dumpData !ustk !bstk (DataU1 _ t x) = do
   ustk <- bumpn ustk 2
   pokeOff ustk 1 x
-  pokeN ustk $ maskTag t
+  pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataU2 t x y) = do
+dumpData !ustk !bstk (DataU2 _ t x y) = do
   ustk <- bumpn ustk 3
   pokeOff ustk 2 y
   pokeOff ustk 1 x
-  pokeN ustk $ maskTag t
+  pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataB1 t x) = do
+dumpData !ustk !bstk (DataB1 _ t x) = do
   ustk <- bump ustk
   bstk <- bump bstk
   poke bstk x
-  pokeN ustk $ maskTag t
+  pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataB2 t x y) = do
+dumpData !ustk !bstk (DataB2 _ t x y) = do
   ustk <- bump ustk
   bstk <- bumpn bstk 2
   pokeOff bstk 1 y
   poke bstk x
-  pokeN ustk $ maskTag t
+  pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataUB t x y) = do
+dumpData !ustk !bstk (DataUB _ t x y) = do
   ustk <- bumpn ustk 2
   bstk <- bump bstk
   pokeOff ustk 1 x
   poke bstk y
-  pokeN ustk $ maskTag t
+  pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataG t us bs) = do
+dumpData !ustk !bstk (DataG _ t us bs) = do
   ustk <- dumpSeg ustk us S
   bstk <- dumpSeg bstk bs S
   ustk <- bump ustk
-  pokeN ustk $ maskTag t
+  pokeN ustk t
   pure (ustk, bstk)
 dumpData !_    !_  clo = die $ "dumpData: bad closure: " ++ show clo
 {-# inline dumpData #-}
@@ -888,11 +877,6 @@ uprim2 !ustk XORN !i !j = do
   pure ustk
 {-# inline uprim2 #-}
 
-charDTag, natDTag, leftDTag :: Word64
-charDTag = packTags charTag 0
-natDTag = packTags natTag 0
-leftDTag = packTags eitherTag 0
-
 bprim1
   :: Stack 'UN -> Stack 'BX -> BPrim1 -> Int
   -> IO (Stack 'UN, Stack 'BX)
@@ -1015,13 +999,13 @@ bprim1 !ustk !bstk PAKT i = do
   pokeBi bstk . Tx.pack . toList $ clo2char <$> s
   pure (ustk, bstk)
   where
-  clo2char (DataU1 t i) | charDTag == t = toEnum i
+  clo2char (DataU1 _ 0 i) = toEnum i
   clo2char c = error $ "pack text: non-character closure: " ++ show c
 bprim1 !ustk !bstk UPKT i = do
   t <- peekOffBi bstk i
   bstk <- bump bstk
   pokeS bstk . Sq.fromList
-    . fmap (DataU1 charDTag . fromEnum) . Tx.unpack $ t
+    . fmap (DataU1 Rf.charRef 0 . fromEnum) . Tx.unpack $ t
   pure (ustk, bstk)
 bprim1 !ustk !bstk PAKB i = do
   s <- peekOffS bstk i
@@ -1029,12 +1013,12 @@ bprim1 !ustk !bstk PAKB i = do
   pokeBi bstk . By.fromWord8s . fmap clo2w8 $ toList s
   pure (ustk, bstk)
   where
-  clo2w8 (DataU1 t n) | natDTag == t = toEnum n
+  clo2w8 (DataU1 _ 0 n) = toEnum n
   clo2w8 c = error $ "pack bytes: non-natural closure: " ++ show c
 bprim1 !ustk !bstk UPKB i = do
   b <- peekOffBi bstk i
   bstk <- bump bstk
-  pokeS bstk . Sq.fromList . fmap (DataU1 natDTag . fromEnum)
+  pokeS bstk . Sq.fromList . fmap (DataU1 Rf.natRef 0 . fromEnum)
     $ By.toWord8s b
   pure (ustk, bstk)
 bprim1 !ustk !bstk SIZB i = do
@@ -1210,7 +1194,7 @@ yield !env !denv !ustk !bstk !k = leap denv k
  leap !denv0 (Mark ps cs k) = do
    let denv = cs <> EC.withoutKeys denv0 ps
        clo = denv0 EC.! EC.findMin ps
-   poke bstk . DataB1 0 =<< peek bstk
+   poke bstk . DataB1 Rf.effectRef 0 =<< peek bstk
    apply env denv ustk bstk k False (BArg1 0) clo
  leap !denv (Push ufsz bfsz uasz basz nx k) = do
    ustk <- restoreFrame ustk ufsz uasz
@@ -1270,15 +1254,18 @@ discardCont denv ustk bstk k p
   <&> \(_, denv, ustk, bstk, _, _, k) -> (denv, ustk, bstk, k)
 {-# inline discardCont #-}
 
-resolve :: DEnv -> Stack 'BX -> Ref -> IO Closure
-resolve _ _ (Env n i) = pure $ PAp (CIx n i) unull bnull
-resolve _ bstk (Stk i) = peekOff bstk i
-resolve denv _ (Dyn i) = case EC.lookup i denv of
+resolve :: SEnv -> DEnv -> Stack 'BX -> Ref -> IO Closure
+resolve env _ _ (Env n i)
+  | Just r <- EC.lookup n $ combRefs env
+  = pure $ PAp (CIx r n i) unull bnull
+  | otherwise = die $ "resolve: missing reference for comb: " ++ show n
+resolve _ _ bstk (Stk i) = peekOff bstk i
+resolve _ denv _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo
   _ -> die $ "resolve: looked up bad dynamic: " ++ show i
 
 combSection :: SEnv -> CombIx -> Comb
-combSection env (CIx n i)
+combSection env (CIx _ n i)
   = case EC.lookup n (combs env) of
       Just cmbs -> case EC.lookup i cmbs of
         Just cmb -> cmb

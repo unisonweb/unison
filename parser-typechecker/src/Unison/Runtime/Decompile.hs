@@ -23,7 +23,6 @@ import Unison.Type
 import Unison.Var (Var)
 import Unison.Reference (Reference)
 
-import Unison.Runtime.ANF (RTag, CTag, Tag(..))
 import Unison.Runtime.Foreign
   (Foreign, maybeUnwrapBuiltin, maybeUnwrapForeign)
 import Unison.Runtime.Stack
@@ -36,47 +35,42 @@ import qualified Unison.Util.Bytes as By
 
 import Unsafe.Coerce -- for Int -> Double
 
-con :: Var v => Reference -> CTag -> Term v ()
-con rf ct = constructor () rf . fromIntegral $ rawTag ct
+con :: Var v => Reference -> Word64 -> Term v ()
+con rf ct = constructor () rf $ fromIntegral ct
 
 err :: String -> Either Error a
 err = Left . lit . fromString
 
 decompile
   :: Var v
-  => (RTag -> Maybe Reference)
-  -> (Word64 -> Maybe (Term v ()))
+  => (Word64 -> Maybe (Term v ()))
   -> Closure
   -> Either Error (Term v ())
-decompile tyRef _ (DataC rt ct [] [])
-  | Just rf <- tyRef rt
-  , rf == booleanRef
+decompile _ (DataC rf ct [] [])
+  | rf == booleanRef
   = boolean () <$> tag2bool ct
-decompile tyRef _ (DataC rt ct [i] [])
-  | Just rf <- tyRef rt
+decompile _ (DataC rf ct [i] [])
   = decompileUnboxed rf ct i
-decompile tyRef topTerms (DataC rt ct [] bs)
-  | Just rf <- tyRef rt
-  = apps' (con rf ct) <$> traverse (decompile tyRef topTerms) bs
-decompile tyRef topTerms (PApV (CIx rt _) [] bs)
+decompile topTerms (DataC rf ct [] bs)
+  = apps' (con rf ct) <$> traverse (decompile topTerms) bs
+decompile topTerms (PApV (CIx _ rt _) [] bs)
   | Just t <- topTerms rt
-  = substitute t <$> traverse (decompile tyRef topTerms) bs
+  = substitute t <$> traverse (decompile topTerms) bs
   | otherwise
   = err "reference to unknown combinator"
-decompile _ _ cl@(PAp _ _ _)
+decompile _ cl@(PAp _ _ _)
   = err $ "cannot decompile a partial application to unboxed values: "
        ++ show cl
-decompile _ _ (DataC{})
+decompile _ (DataC{})
   = err "cannot decompile data type with multiple unboxed fields"
-decompile _ _ BlackHole = err "exception"
-decompile _ _ (Captured{}) = err "decompiling a captured continuation"
-decompile tyRef topTerms (Foreign f) = decompileForeign tyRef topTerms f
+decompile _ BlackHole = err "exception"
+decompile _ (Captured{}) = err "decompiling a captured continuation"
+decompile topTerms (Foreign f) = decompileForeign topTerms f
 
-tag2bool :: CTag -> Either Error Bool
-tag2bool c = case rawTag c of
-  0 -> Right False
-  1 -> Right True
-  _ -> err "bad boolean tag"
+tag2bool :: Word64 -> Either Error Bool
+tag2bool 0 = Right False
+tag2bool 1 = Right True
+tag2bool _ = err "bad boolean tag"
 
 substitute :: Var v => Term v () -> [Term v ()] -> Term v ()
 substitute (AbsN' vs bd) ts = align [] vs ts
@@ -89,7 +83,7 @@ substitute (AbsN' vs bd) ts = align [] vs ts
 substitute _ _ = error "impossible"
 
 decompileUnboxed
-  :: Var v => Reference -> CTag -> Int -> Either Error (Term v ())
+  :: Var v => Reference -> Word64 -> Int -> Either Error (Term v ())
 decompileUnboxed r _ i
   | r == natRef = pure . nat () $ fromIntegral i
   | r == intRef = pure . int () $ fromIntegral i
@@ -100,16 +94,15 @@ decompileUnboxed r _ _
 
 decompileForeign
   :: Var v
-  => (RTag -> Maybe Reference)
-  -> (Word64 -> Maybe (Term v ()))
+  => (Word64 -> Maybe (Term v ()))
   -> Foreign
   -> Either Error (Term v ())
-decompileForeign tyRef topTerms f
+decompileForeign topTerms f
   | Just t <- maybeUnwrapBuiltin f = Right $ text () t
   | Just b <- maybeUnwrapBuiltin f = Right $ decompileBytes b
   | Just s <- unwrapSeq f
-  = seq' () <$> traverse (decompile tyRef topTerms) s
-decompileForeign _ _ _ = err "cannot decompile Foreign"
+  = seq' () <$> traverse (decompile topTerms) s
+decompileForeign _ _ = err "cannot decompile Foreign"
 
 decompileBytes :: Var v => By.Bytes -> Term v ()
 decompileBytes

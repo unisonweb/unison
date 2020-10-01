@@ -60,7 +60,7 @@ import Data.Word
 
 import Unison.Reference (Reference)
 
-import Unison.Runtime.ANF (Mem(..), unpackTags, RTag)
+import Unison.Runtime.ANF (Mem(..))
 import Unison.Runtime.MCode
 import Unison.Runtime.Foreign
 
@@ -94,34 +94,35 @@ data K
   deriving (Eq, Ord)
 
 data CombIx
-  = CIx !Word64 -- top level
-        !Word64 -- section
+  = CIx !Reference -- top reference
+        !Word64    -- top level
+        !Word64    -- section
   deriving (Eq, Ord, Show)
 
 data Closure
   = PAp {-# unpack #-} !CombIx    -- reference
         {-# unpack #-} !(Seg 'UN) -- unboxed args
         {-  unpack  -} !(Seg 'BX) -- boxed args
-  | Enum !Word64
-  | DataU1 !Word64 !Int
-  | DataU2 !Word64 !Int !Int
-  | DataB1 !Word64 !Closure
-  | DataB2 !Word64 !Closure !Closure
-  | DataUB !Word64 !Int !Closure
-  | DataG !Word64 !(Seg 'UN) !(Seg 'BX)
+  | Enum !Reference !Word64
+  | DataU1 !Reference !Word64 !Int
+  | DataU2 !Reference !Word64 !Int !Int
+  | DataB1 !Reference !Word64 !Closure
+  | DataB2 !Reference !Word64 !Closure !Closure
+  | DataUB !Reference !Word64 !Int !Closure
+  | DataG !Reference !Word64 !(Seg 'UN) !(Seg 'BX)
   | Captured !K {-# unpack #-} !(Seg 'UN) !(Seg 'BX)
   | Foreign !Foreign
   | BlackHole
   deriving (Show, Eq, Ord)
 
-splitData :: Closure -> Maybe (Word64, [Int], [Closure])
-splitData (Enum t) = Just (t, [], [])
-splitData (DataU1 t i) = Just (t, [i], [])
-splitData (DataU2 t i j) = Just (t, [i,j], [])
-splitData (DataB1 t x) = Just (t, [], [x])
-splitData (DataB2 t x y) = Just (t, [], [x,y])
-splitData (DataUB t i y) = Just (t, [i], [y])
-splitData (DataG t us bs) = Just (t, ints us, toList bs)
+splitData :: Closure -> Maybe (Reference, Word64, [Int], [Closure])
+splitData (Enum r t) = Just (r, t, [], [])
+splitData (DataU1 r t i) = Just (r, t, [i], [])
+splitData (DataU2 r t i j) = Just (r, t, [i,j], [])
+splitData (DataB1 r t x) = Just (r, t, [], [x])
+splitData (DataB2 r t x y) = Just (r, t, [], [x,y])
+splitData (DataUB r t i y) = Just (r, t, [i], [y])
+splitData (DataG r t us bs) = Just (r, t, ints us, toList bs)
 splitData _ = Nothing
 
 ints :: ByteArray -> [Int]
@@ -129,8 +130,8 @@ ints ba = fmap (indexByteArray ba) [0..n-1]
   where
   n = sizeofByteArray ba `div` 8
 
-pattern DataC rt ct us bs <-
-  (splitData -> Just (unpackTags -> (rt, ct), us, bs))
+pattern DataC rf ct us bs <-
+  (splitData -> Just (rf, ct, us, bs))
 
 pattern PApV ic us bs <- PAp ic (ints -> us) (toList -> bs)
 pattern CapV k us bs <- Captured k (ints -> us) (toList -> bs)
@@ -147,35 +148,33 @@ closureNum Foreign{} = 3
 closureNum BlackHole{} = error "BlackHole"
 
 universalCompare
-  :: (Word64 -> Reference)
-  -> (RTag -> Reference)
-  -> (Foreign -> Foreign -> Ordering)
+  :: (Foreign -> Foreign -> Ordering)
   -> Closure
   -> Closure
   -> Ordering
-universalCompare _    tag frn = cmpc
+universalCompare frn = cmpc False
   where
   cmpl cm l r
     = compare (length l) (length r) <> fold (zipWith cm l r)
-  cmpc (DataC rt1 ct1 us1 bs1) (DataC rt2 ct2 us2 bs2)
-    = compare (tag rt1) (tag rt2)
+  cmpc tyEq (DataC rf1 ct1 us1 bs1) (DataC rf2 ct2 us2 bs2)
+    = (if tyEq then compare rf1 rf2 else EQ)
    <> compare ct1 ct2
    <> cmpl compare us1 us2
-   <> cmpl cmpc bs1 bs2
-  cmpc (PApV i1 us1 bs1) (PApV i2 us2 bs2)
+   <> cmpl (cmpc tyEq) bs1 bs2
+  cmpc tyEq (PApV i1 us1 bs1) (PApV i2 us2 bs2)
     = compare i1 i2
    <> cmpl compare us1 us2
-   <> cmpl cmpc bs1 bs2
-  cmpc (CapV k1 us1 bs1) (CapV k2 us2 bs2)
+   <> cmpl (cmpc tyEq) bs1 bs2
+  cmpc _ (CapV k1 us1 bs1) (CapV k2 us2 bs2)
     = compare k1 k2
    <> cmpl compare us1 us2
-   <> cmpl cmpc bs1 bs2
-  cmpc (Foreign fl) (Foreign fr)
+   <> cmpl (cmpc True) bs1 bs2
+  cmpc tyEq (Foreign fl) (Foreign fr)
     | Just sl <- maybeUnwrapForeign Ty.vectorRef fl
     , Just sr <- maybeUnwrapForeign Ty.vectorRef fr
-    = comparing Sq.length sl sr <> fold (Sq.zipWith cmpc sl sr)
+    = comparing Sq.length sl sr <> fold (Sq.zipWith (cmpc tyEq) sl sr)
     | otherwise = frn fl fr
-  cmpc c d = comparing closureNum c d
+  cmpc _ c d = comparing closureNum c d
 
 marshalToForeign :: HasCallStack => Closure -> Foreign
 marshalToForeign (Foreign x) = x

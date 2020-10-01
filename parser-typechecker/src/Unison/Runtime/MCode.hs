@@ -8,6 +8,7 @@
 module Unison.Runtime.MCode
   ( Args'(..)
   , Args(..)
+  , RefNums(..)
   , MLit(..)
   , Instr(..)
   , Section(.., MatchT, MatchW)
@@ -23,6 +24,7 @@ module Unison.Runtime.MCode
   , ucount
   , emitCombs
   , emitComb
+  , emptyRNs
   , argsToLists
   , prettyCombs
   , prettyComb
@@ -57,10 +59,8 @@ import Unison.Runtime.ANF
   , Mem(..)
   , SuperNormal(..)
   , SuperGroup(..)
-  , RTag
   , CTag
   , Tag(..)
-  , packTags
   , pattern TVar
   , pattern TLit
   , pattern TApp
@@ -398,8 +398,9 @@ data Instr
 
   -- Pack a data type value into a closure and place it
   -- on the stack.
-  | Pack !Word64 -- tag
-         !Args   -- arguments to pack
+  | Pack !Reference -- data type reference
+         !Word64    -- tag
+         !Args      -- arguments to pack
 
   -- Unpack the contents of a data type onto the stack
   | Unpack !Int -- stack index of data to unpack
@@ -464,6 +465,15 @@ data Section
   -- a debugging tool than a proper operation to target.
   | Exit
   deriving (Show, Eq, Ord)
+
+data RefNums
+  = RN { dnum :: Reference -> Word64
+       , cnum :: Reference -> Word64
+       }
+
+emptyRNs :: RefNums
+emptyRNs = RN mt mt
+  where mt _ = error "RefNums: empty"
 
 data Comb
   = Lam !Int -- Number of unboxed arguments
@@ -577,15 +587,16 @@ rctxResolve ctx u = M.lookup u ctx
 -- the global entry point.
 emitCombs
   :: Var v
-  => Word64
+  => RefNums
+  -> Word64
   -> SuperGroup v
   -> EnumMap Word64 Comb
-emitCombs lcl (Rec grp ent)
-  = mapInsert 0 (emitComb lcl rec ent) (EC.mapFromList aux)
+emitCombs rns lcl (Rec grp ent)
+  = mapInsert 0 (emitComb rns lcl rec ent) (EC.mapFromList aux)
   where
   (rvs, cmbs) = unzip grp
   rec = M.fromList $ zip rvs [1..]
-  aux = zip [1..] $ emitComb lcl rec <$> cmbs
+  aux = zip [1..] $ emitComb rns lcl rec <$> cmbs
 
 -- Type for aggregating the necessary stack frame size. First field is
 -- unboxed size, second is boxed. The Applicative instance takes the
@@ -609,10 +620,11 @@ countCtx = go 0 0
   go  ui  bi (Block ctx) = go ui bi ctx
   go  ui  bi ECtx = C ui bi
 
-emitComb :: Var v => Word64 -> RCtx v -> SuperNormal v -> Comb
-emitComb lcl rec (Lambda ccs (TAbss vs bd))
+emitComb
+  :: Var v => RefNums -> Word64 -> RCtx v -> SuperNormal v -> Comb
+emitComb rns lcl rec (Lambda ccs (TAbss vs bd))
   = Lam 0 (length vs) u b s
-  where C u b s = emitSection lcl rec (ctx vs ccs) bd
+  where C u b s = emitSection rns lcl rec (ctx vs ccs) bd
 
 addCount :: Int -> Int -> Counted a -> Counted a
 addCount i j (C u b x) = C (u+i) (b+j) x
@@ -620,69 +632,75 @@ addCount i j (C u b x) = C (u+i) (b+j) x
 -- Emit a machine code section from an ANF term
 emitSection
   :: Var v
-  => Word64 -> RCtx v -> Ctx v -> ANormal v
+  => RefNums -> Word64 -> RCtx v -> Ctx v -> ANormal v
   -> Counted Section
-emitSection lcl rec ctx (TLets us ms bu bo)
-  = emitLet lcl rec ctx bu $ emitSection lcl rec ectx bo
+emitSection rns lcl rec ctx (TLets us ms bu bo)
+  = emitLet rns lcl rec ctx bu $ emitSection rns lcl rec ectx bo
   where
   ectx = pushCtx (zip us ms) ctx
-emitSection lcl rec ctx (TName u (Left f) args bo)
+emitSection rns lcl rec ctx (TName u (Left f) args bo)
   = emitClosures lcl rec ctx args $ \ctx as
- -> Ins (Name (Env f 0) as) <$> emitSection lcl rec (Var u BX ctx) bo
-emitSection lcl rec ctx (TName u (Right v) args bo)
+ -> Ins (Name (Env (cnum rns f) 0) as)
+ <$> emitSection rns lcl rec (Var u BX ctx) bo
+emitSection rns lcl rec ctx (TName u (Right v) args bo)
   | Just (i,BX) <- ctxResolve ctx v
   = emitClosures lcl rec ctx args $ \ctx as
- -> Ins (Name (Stk i) as) <$> emitSection lcl rec (Var u BX ctx) bo
+ -> Ins (Name (Stk i) as)
+ <$> emitSection rns lcl rec (Var u BX ctx) bo
   | Just n <- rctxResolve rec v
   = emitClosures lcl rec ctx args $ \ctx as
- -> Ins (Name (Env lcl n) as) <$> emitSection lcl rec (Var u BX ctx) bo
+ -> Ins (Name (Env lcl n) as)
+ <$> emitSection rns lcl rec (Var u BX ctx) bo
   | otherwise = emitSectionVErr v
-emitSection lcl rec ctx (TVar v)
+emitSection _   lcl rec ctx (TVar v)
   | Just (i,BX) <- ctxResolve ctx v = countCtx ctx . Yield $ BArg1 i
   | Just (i,UN) <- ctxResolve ctx v = countCtx ctx . Yield $ UArg1 i
   | Just j <- rctxResolve rec v
   = countCtx ctx $ App False (Env lcl j) ZArgs
   | otherwise = emitSectionVErr v
-emitSection _   _   ctx (TPrm p args)
+emitSection _   _   _   ctx (TPrm p args)
   -- 3 is a conservative estimate of how many extra stack slots
   -- a prim op will need for its results.
   = addCount 3 3 . countCtx ctx
   . Ins (emitPOp p $ emitArgs ctx args) . Yield $ DArgV i j
   where
   (i, j) = countBlock ctx
-emitSection _   _   ctx (TFOp p args)
+emitSection _   _   _   ctx (TFOp p args)
   = addCount 3 3 . countCtx ctx
   . Ins (emitFOp p $ emitArgs ctx args) . Yield $ DArgV i j
   where
   (i, j) = countBlock ctx
-emitSection lcl rec ctx (TApp f args)
+emitSection rns lcl rec ctx (TApp f args)
   = emitClosures lcl rec ctx args $ \ctx as
- -> countCtx ctx $ emitFunction lcl rec ctx f as
-emitSection _   _   ctx (TLit l)
+ -> countCtx ctx $ emitFunction rns lcl rec ctx f as
+emitSection _   _   _   ctx (TLit l)
   = c . countCtx ctx . Ins (emitLit l) . Yield $ litArg l
   where
   c | ANF.T{} <- l = addCount 0 1
     | ANF.LM{} <- l = addCount 0 1
     | ANF.LY{} <- l = addCount 0 1
     | otherwise = addCount 1 0
-emitSection lcl rec ctx (TMatch v bs)
+emitSection rns lcl rec ctx (TMatch v bs)
   | Just (i,BX) <- ctxResolve ctx v
   , MatchData _ cs df <- bs
   =  Ins (Unpack i)
- <$> emitDataMatching lcl rec ctx cs df
+ <$> emitDataMatching rns lcl rec ctx cs df
   | Just (i,BX) <- ctxResolve ctx v
-  , MatchRequest hs df <- bs
+  , MatchRequest hs0 df <- bs
+  , hs <- mapFromList $ first (dnum rns) <$> M.toList hs0
   =  Ins (Unpack i)
- <$> emitRequestMatching lcl rec ctx hs df
+ <$> emitRequestMatching rns lcl rec ctx hs df
   | Just (i,UN) <- ctxResolve ctx v
   , MatchIntegral cs df <- bs
-  = emitIntegralMatching lcl rec ctx i cs df
+  = emitLitMatching MatchW "missing integral case"
+      rns lcl rec ctx i cs df
   | Just (i,BX) <- ctxResolve ctx v
   , MatchText cs df <- bs
-  = emitTextMatching lcl rec ctx i cs df
+  = emitLitMatching MatchT "missing text case"
+      rns lcl rec ctx i cs df
   | Just (i,UN) <- ctxResolve ctx v
   , MatchSum cs <- bs
-  = emitSumMatching lcl rec ctx v i cs
+  = emitSumMatching rns lcl rec ctx v i cs
   | Just (_,cc) <- ctxResolve ctx v
   = error
   $ "emitSection: mismatched calling convention for match: "
@@ -690,56 +708,66 @@ emitSection lcl rec ctx (TMatch v bs)
   | otherwise
   = error
   $ "emitSection: could not resolve match variable: " ++ show (ctx,v)
-emitSection lcl rec ctx (THnd rts h b)
+emitSection rns lcl rec ctx (THnd rs h b)
   | Just (i,BX) <- ctxResolve ctx h
-  =  Ins (Reset (EC.setFromList rs))
-  .  flip (foldr (\r -> Ins (SetDyn r i))) rs
- <$> emitSection lcl rec ctx b
+  =  Ins (Reset (EC.setFromList ws))
+  .  flip (foldr (\r -> Ins (SetDyn r i))) ws
+ <$> emitSection rns lcl rec ctx b
   | otherwise = emitSectionVErr h
   where
-  rs = rawTag <$> rts
+  ws = dnum rns <$> rs
 
-emitSection lcl rec ctx (TShift i v e)
-  =  Ins (Capture $ rawTag i)
- <$> emitSection lcl rec (Var v BX ctx) e
-emitSection _   _   ctx (TFrc v)
+emitSection rns lcl rec ctx (TShift r v e)
+  =  Ins (Capture $ dnum rns r)
+ <$> emitSection rns lcl rec (Var v BX ctx) e
+emitSection _   _   _   ctx (TFrc v)
   | Just (i,BX) <- ctxResolve ctx v
   = countCtx ctx $ App False (Stk i) ZArgs
   | Just _ <- ctxResolve ctx v = error
   $ "emitSection: values to be forced must be boxed: " ++ show v
   | otherwise = emitSectionVErr v
-emitSection _ _ _ tm
+emitSection _   _ _ _ tm
   = error $ "emitSection: unhandled code: " ++ show tm
 
 -- Emit the code for a function call
 emitFunction
-  :: Var v => Word64 -> RCtx v -> Ctx v -> Func v -> Args -> Section
-emitFunction lcl rec ctx (FVar v) as
+  :: Var v
+  => RefNums
+  -> Word64  -- self combinator number
+  -> RCtx v  -- recursive binding group
+  -> Ctx v   -- local context
+  -> Func v
+  -> Args
+  -> Section
+emitFunction _   lcl rec ctx (FVar v) as
   | Just (i,BX) <- ctxResolve ctx v
   = App False (Stk i) as
   | Just j <- rctxResolve rec v
   = App False (Env lcl j) as
   | otherwise = emitSectionVErr v
-emitFunction _   _   _   (FComb n) as
+emitFunction rns _   _   _   (FComb r) as
   | False -- known saturated call
   = Call False n as
   | False -- known unsaturated call
   = Ins (Name (Env n 0) as) $ Yield (BArg1 0)
   | otherwise -- slow path
   = App False (Env n 0) as
-emitFunction _   _   _   (FCon r t) as
-  = Ins (Pack (packTags r t) as)
+  where n = cnum rns r
+emitFunction _   _   _   _   (FCon r t) as
+  = Ins (Pack r (rawTag t) as)
   . Yield $ BArg1 0
-emitFunction _   _   _   (FReq a e) as
+emitFunction rns _   _   _   (FReq r e) as
   -- Currently implementing packed calling convention for abilities
   = Ins (Lit (MI . fromIntegral $ rawTag e))
-  . Ins (Pack (rawTag a) (reqArgs as))
-  . App True (Dyn $ rawTag a) $ BArg1 0
-emitFunction _   _   ctx (FCont k) as
+  . Ins (Pack r a (reqArgs as))
+  . App True (Dyn a) $ BArg1 0
+  where
+  a = dnum rns r
+emitFunction _   _   _   ctx (FCont k) as
   | Just (i, BX) <- ctxResolve ctx k = Jump i as
   | Nothing <- ctxResolve ctx k = emitFunctionVErr k
   | otherwise = error $ "emitFunction: continuations are boxed"
-emitFunction _ _ _ (FPrim _) _
+emitFunction _ _ _ _ (FPrim _) _
   = error "emitFunction: impossible"
 
 -- Modify function arguments for packing into a request
@@ -812,22 +840,24 @@ litArg _       = UArg1 0
 -- manipulation.
 emitLet
   :: Var v
-  => Word64 -> RCtx v -> Ctx v -> ANormalT v
+  => RefNums -> Word64 -> RCtx v -> Ctx v -> ANormalT v
   -> Counted Section
   -> Counted Section
-emitLet _   _   _   (ALit l)
+emitLet _   _   _   _   (ALit l)
   = fmap (Ins $ emitLit l)
-emitLet _   _    ctx (AApp (FComb n) args)
+emitLet rns _   _    ctx (AApp (FComb r) args)
   -- We should be able to tell if we are making a saturated call
   -- or not here. We aren't carrying the information here yet, though.
   | False -- not saturated
   = fmap (Ins . Name (Env n 0) $ emitArgs ctx args)
-emitLet _   _   ctx (AApp (FCon r n) args)
-  = fmap (Ins . Pack (packTags r n) $ emitArgs ctx args)
-emitLet _   _   ctx (AApp (FPrim p) args)
+  where
+  n = cnum rns r
+emitLet _   _   _   ctx (AApp (FCon r n) args)
+  = fmap (Ins . Pack r (rawTag n) $ emitArgs ctx args)
+emitLet _   _   _   ctx (AApp (FPrim p) args)
   = fmap (Ins . either emitPOp emitFOp p $ emitArgs ctx args)
-emitLet lcl rec ctx bnd
-  = liftA2 Let (emitSection lcl rec (Block ctx) (TTm bnd))
+emitLet rns lcl rec ctx bnd
+  = liftA2 Let (emitSection rns lcl rec (Block ctx) (TTm bnd))
 
 -- Translate from ANF prim ops to machine code operations. The
 -- machine code operations are divided with respect to more detailed
@@ -1008,19 +1038,20 @@ emitBP2 p a
 
 emitDataMatching
   :: Var v
-  => Word64
+  => RefNums
+  -> Word64
   -> RCtx v
   -> Ctx v
   -> EnumMap CTag ([Mem], ANormal v)
   -> Maybe (ANormal v)
   -> Counted Section
-emitDataMatching lcl rec ctx cs df
-  = MatchW 0 <$> edf <*> traverse (emitCase lcl rec ctx) (coerce cs)
+emitDataMatching rns lcl rec ctx cs df
+  = MatchW 0 <$> edf <*> traverse (emitCase rns lcl rec ctx) (coerce cs)
   where
   -- Note: this is not really accurate. A default data case needs
   -- stack space corresponding to the actual data that shows up there.
   -- However, we currently don't use default cases for data.
-  edf | Just co <- df = emitSection lcl rec ctx co
+  edf | Just co <- df = emitSection rns lcl rec ctx co
       | otherwise = countCtx ctx $ Die "missing data case"
 
 -- Emits code corresponding to an unboxed sum match.
@@ -1030,77 +1061,68 @@ emitDataMatching lcl rec ctx cs df
 -- branching on the tag.
 emitSumMatching
   :: Var v
-  => Word64
+  => RefNums
+  -> Word64
   -> RCtx v
   -> Ctx v
   -> v
   -> Int
   -> EnumMap Word64 ([Mem], ANormal v)
   -> Counted Section
-emitSumMatching lcl rec ctx v i cs
-  = MatchW i edf <$> traverse (emitSumCase lcl rec ctx v) cs
+emitSumMatching rns lcl rec ctx v i cs
+  = MatchW i edf <$> traverse (emitSumCase rns lcl rec ctx v) cs
   where
   edf = Die "uncovered unboxed sum case"
 
 emitRequestMatching
   :: Var v
-  => Word64
+  => RefNums
+  -> Word64
   -> RCtx v
   -> Ctx v
-  -> EnumMap RTag (EnumMap CTag ([Mem], ANormal v))
+  -> EnumMap Word64 (EnumMap CTag ([Mem], ANormal v))
   -> ANormal v
   -> Counted Section
-emitRequestMatching lcl rec ctx hs df = MatchW 0 edf <$> tops
+emitRequestMatching rns lcl rec ctx hs df = MatchW 0 edf <$> tops
   where
   tops = mapInsert 0
-           <$> emitCase lcl rec ctx ([BX], df)
+           <$> emitCase rns lcl rec ctx ([BX], df)
            <*> traverse f (coerce hs)
-  f cs = MatchW 1 edf <$> traverse (emitCase lcl rec ctx) cs
+  f cs = MatchW 1 edf <$> traverse (emitCase rns lcl rec ctx) cs
   edf = Die "unhandled ability"
 
-emitIntegralMatching
+emitLitMatching
   :: Var v
-  => Word64
+  => Traversable f
+  => (Int -> Section -> f Section -> Section)
+  -> String
+  -> RefNums
+  -> Word64
   -> RCtx v
   -> Ctx v
   -> Int
-  -> EnumMap Word64 (ANormal v)
+  -> f (ANormal v)
   -> Maybe (ANormal v)
   -> Counted Section
-emitIntegralMatching lcl rec ctx i cs df
-  = MatchW i <$> edf <*> traverse (emitCase lcl rec ctx . ([],)) cs
+emitLitMatching con err rns lcl rec ctx i cs df
+  = con i <$> edf <*> traverse (emitCase rns lcl rec ctx . ([],)) cs
   where
-  edf | Just co <- df = emitSection lcl rec ctx co
-      | otherwise = countCtx ctx $ Die "missing integral case"
-
-emitTextMatching
-  :: Var v
-  => Word64
-  -> RCtx v
-  -> Ctx v
-  -> Int
-  -> M.Map Text (ANormal v)
-  -> Maybe (ANormal v)
-  -> Counted Section
-emitTextMatching lcl rec ctx i cs df
-  = MatchT i <$> edf <*> traverse (emitCase lcl rec ctx . ([],)) cs
-  where
-  edf | Just co <- df = emitSection lcl rec ctx co
-      | otherwise = countCtx ctx $ Die "missing text case"
+  edf | Just co <- df = emitSection rns lcl rec ctx co
+      | otherwise = countCtx ctx $ Die err
 
 emitCase
   :: Var v
-  => Word64 -> RCtx v -> Ctx v -> ([Mem], ANormal v)
+  => RefNums -> Word64 -> RCtx v -> Ctx v -> ([Mem], ANormal v)
   -> Counted Section
-emitCase lcl rec ctx (ccs, TAbss vs bo)
-  = emitSection lcl rec (Tag $ pushCtx (zip vs ccs) ctx) bo
+emitCase rns lcl rec ctx (ccs, TAbss vs bo)
+  = emitSection rns lcl rec (Tag $ pushCtx (zip vs ccs) ctx) bo
 
 emitSumCase
   :: Var v
-  => Word64 -> RCtx v -> Ctx v -> v -> ([Mem], ANormal v)
+  => RefNums -> Word64 -> RCtx v -> Ctx v -> v -> ([Mem], ANormal v)
   -> Counted Section
-emitSumCase lcl rec ctx v (ccs, TAbss vs bo)
-  = emitSection lcl rec (sumCtx ctx v $ zip vs ccs) bo
+emitSumCase rns lcl rec ctx v (ccs, TAbss vs bo)
+  = emitSection rns lcl rec (sumCtx ctx v $ zip vs ccs) bo
 
 emitLit :: ANF.Lit -> Instr
 emitLit l = Lit $ case l of
@@ -1220,8 +1242,9 @@ bx :: ShowS
 bx = ('B':)
 
 prettyIns :: Instr -> ShowS
-prettyIns (Pack i as)
-  = showString "Pack " . shows i . (' ':) . prettyArgs as
+prettyIns (Pack r i as)
+  = showString "Pack " . showsPrec 10 r
+  . (' ':) . shows i . (' ':) . prettyArgs as
 prettyIns i = shows i
 
 prettyArgs :: Args -> ShowS
