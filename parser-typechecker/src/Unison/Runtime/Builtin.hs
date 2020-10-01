@@ -32,12 +32,13 @@ import Unison.Symbol
 import Unison.Runtime.Stack (Closure)
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.IOSource
-import Unison.Runtime.Foreign (Hasher(..))
+import Unison.Runtime.Foreign (Hasher(..), Hmacinator(..), HashAlgorithm(..))
 
 import qualified Unison.Type as Ty
 import qualified Unison.Builtin as Ty (builtinTypes)
 import qualified Unison.Builtin.Decls as Ty
 import qualified Crypto.Hash as Hash
+import qualified Crypto.MAC.HMAC as HMAC
 
 import Unison.Util.EnumContainers as EC
 
@@ -1133,6 +1134,14 @@ pfopbb instr
   where
   [b1,b2] = freshes 2
 
+pfopbbb :: ForeignOp
+pfopbbb instr
+  = ([BX,BX,BX],)
+  . TAbss [b1,b2,b3]
+  $ TFOp instr [b1,b2,b3]
+  where
+  [b1,b2,b3] = freshes 3
+
 -- Pure ForeignOp taking no values
 pfop0 :: ForeignOp
 pfop0 instr = ([],) $ TFOp instr []
@@ -1432,18 +1441,10 @@ declareForeigns = do
 
   -- Hashing functions
   let hasher :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()
-      hasher txt _ = do
-        let ctx = Hash.hashInit @alg
-            properLength = BA.length $ (unsafeCoerce :: Hash.Context alg -> BA.Bytes) ctx
-            fromState = "crypto.Hash.internals." <> txt <> ".fromState"
-            ref = Builtin fromState
-        declareForeign ("crypto.Hash." <> txt) pfop0 . mkForeign $ \() -> pure (Hasher @alg ref ctx)
-        declareForeign fromState pfopb
-          . mkForeign $ \(b :: Bytes.Bytes) ->
-              if Bytes.size b == properLength then
-                pure . Just . Hasher ref . (unsafeCoerce :: BA.Bytes -> Hash.Context alg) $ Bytes.toArray b
-              else
-                pure Nothing
+      hasher txt alg = do
+        let algoRef = Builtin ("crypto.Hash." <> txt)
+        declareForeign ("crypto.Hash." <> txt) pfop0 . mkForeign $ \() ->
+          pure (HashAlgorithm algoRef alg)
 
   hasher "Sha3_512" Hash.SHA3_512
   hasher "Sha3_256" Hash.SHA3_256
@@ -1452,6 +1453,9 @@ declareForeigns = do
   hasher "Blake2b_512" Hash.Blake2b_512
   hasher "Blake2b_256" Hash.Blake2b_256
   hasher "Blake2s_256" Hash.Blake2s_256
+
+  declareForeign ("crypto.Hash.new") pfopb . mkForeign $ \(HashAlgorithm ref alg) ->
+    pure (Hasher ref $ Hash.hashInitWith alg)
 
   declareForeign "crypto.Hash.addBytes" pfopbb . mkForeign $
     \(b :: Bytes.Bytes, Hasher ref ctx) ->
@@ -1462,6 +1466,52 @@ declareForeigns = do
 
   declareForeign "crypto.Hash.finish" pfopb
     . mkForeign $ \(Hasher _ ctx) -> pure (Bytes.fromArray $ Hash.hashFinalize ctx)
+
+  let
+    -- todo: ensure the given bytes represent valid
+    -- state for the hashing algorithm, otherwise the C code
+    -- backing the algorithm's implementation will do who knows what
+    validateState :: Hash.HashAlgorithm a => a -> Bytes.Bytes -> Bool
+    validateState _a _bs = True --
+      -- toBytes :: Hash.Context a -> BA.Bytes = unsafeCoerce
+
+  declareForeign "crypto.Hash._internal.init" pfopbb . mkForeign $
+    \(HashAlgorithm r alg, b :: Bytes.Bytes) ->
+       let unify :: a -> Hash.Context a -> Hash.Context a
+           unify _ a = a
+       in if validateState alg b then
+            pure . Hasher r . unify alg . unsafeCoerce . Bytes.toArray @BA.Bytes $ b
+          else
+            fail $ "invalid argument to crypto.Hash._internal.init " <> show b
+
+  declareForeign "crypto.Hmac.new" pfopbb
+    . mkForeign $ \(HashAlgorithm r alg, key :: Bytes.Bytes) -> do
+        let unify :: a -> HMAC.Context a -> HMAC.Context a
+            unify _ a = a
+        pure (Hmacinator r (unify alg (HMAC.initialize (Bytes.toArray @BA.Bytes key))))
+
+  declareForeign "crypto.Hmac.addBytes" pfopbb . mkForeign $
+    \(b :: Bytes.Bytes, Hmacinator ref ctx) ->
+        pure (Hmacinator ref $ HMAC.updates ctx (Bytes.chunks b))
+
+  declareForeign "crypto.Hmac._internal.init" pfopbbb . mkForeign $
+    \(HashAlgorithm ref a, b1 :: Bytes.Bytes, b2 :: Bytes.Bytes) -> do
+        let hctx b = unify a (cast (Bytes.toArray b))
+            unify :: a -> Hash.Context a -> Hash.Context a
+            unify _ a = a
+            cast :: BA.Bytes -> Hash.Context x
+            cast = unsafeCoerce
+        -- todo: proper validation logic
+        if validateState a b1 && validateState a b2 then
+          pure . Hmacinator ref $ HMAC.Context (hctx b1) (hctx b2)
+        else
+          fail $ "invalid argument to crypto.Hmac._internal.init " <> show (b1,b2)
+
+  -- declareForeign "crypto.Hmac.add" pfopbb . mkForeign $
+  --   \(Hmacinator r ctx, x :: Closure) -> error "todo - Hmac.add universal function"
+
+  declareForeign "crypto.Hmac.finish" pfopb
+    . mkForeign $ \(Hmacinator _ ctx) -> pure (Bytes.fromArray $ HMAC.finalize ctx)
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny

@@ -10,22 +10,21 @@ import Prelude hiding (seq)
 import Unison.Prelude
 import qualified Data.ByteArray
 
-import Unison.ABT (absChain, substs, var, pattern AbsN')
+import Unison.ABT (absChain, substs, pattern AbsN')
 import Unison.Term
   ( Term
   , nat, int, char, float, boolean, constructor, app, apps', text, ref
-  , seq, seq', builtin, match, MatchCase(..),
+  , seq, seq', builtin
   )
 import Unison.Type
   ( natRef, intRef, charRef, floatRef, booleanRef, vectorRef
   )
 import Unison.Var (Var)
-import qualified Unison.Var as Var
 import Unison.Reference (Reference)
 
 import Unison.Runtime.ANF (RTag, CTag, Tag(..))
 import Unison.Runtime.Foreign
-  (Foreign, Hasher(..), maybeUnwrapBuiltin, maybeUnwrapForeign)
+  (Foreign, Hasher(..), HashAlgorithm(..), Hmacinator(..), maybeUnwrapBuiltin, maybeUnwrapForeign)
 import Unison.Runtime.Stack
   (Closure(..), pattern DataC, pattern PApV, IComb(..))
 
@@ -33,9 +32,7 @@ import Unison.Codebase.Runtime (Error)
 import Unison.Util.Pretty (lit)
 
 import qualified Unison.Util.Bytes as By
-import qualified Unison.Pattern as Pat
-import Unison.Runtime.IOSource (noneId, someId)
-import Unison.Builtin.Decls (optionalRef)
+import qualified Crypto.MAC.HMAC as HMAC
 
 import Unsafe.Coerce -- for Int -> Double
 
@@ -111,6 +108,8 @@ decompileForeign tyRef topTerms f
   | Just t <- maybeUnwrapBuiltin f = Right $ text () t
   | Just b <- maybeUnwrapBuiltin f = Right $ decompileBytes b
   | Just h <- maybeUnwrapBuiltin f = Right $ decompileHasher h
+  | Just h <- maybeUnwrapBuiltin f = Right $ decompileHashAlgorithm h
+  | Just h <- maybeUnwrapBuiltin f = Right $ decompileHmacinator h
   | Just s <- unwrapSeq f
   = seq' () <$> traverse (decompile tyRef topTerms) s
 decompileForeign _ _ _ = err "cannot decompile Foreign"
@@ -120,21 +119,28 @@ decompileBytes
   = app () (builtin () $ fromString "Bytes.fromList")
   . seq () . fmap (nat () . fromIntegral) . By.toWord8s
 
+decompileHashAlgorithm :: Var v => HashAlgorithm -> Term v ()
+decompileHashAlgorithm (HashAlgorithm r _) = ref () r
+
+decompileHmacinator :: Var v => Hmacinator -> Term v ()
+decompileHmacinator (Hmacinator r (HMAC.Context a b)) =
+  apps' (builtin () "crypto.Hmac._internal.init") [
+    ref () r,
+    decompileBytes $ bs a,
+    decompileBytes $ bs b
+    ]
+  where
+  -- NB: a hashing context is just `newtype Context a = Context Data.ByteArray.Bytes`
+  -- but cryptonite doesn't expose the constructor sadly
+  bs ctx = By.fromArray (unsafeCoerce ctx :: Data.ByteArray.Bytes)
+
 decompileHasher :: Var v => Hasher -> Term v ()
 decompileHasher (Hasher r ctx) =
-  decompileFromJust "invalid hasher state" (app () (ref () r) (decompileBytes bs))
+  apps' (builtin () "crypto.Hash._internal.init") [ref () r, decompileBytes bs]
   where
   -- NB: a hashing context is just `newtype Context a = Context Data.ByteArray.Bytes`
   -- but cryptonite doesn't expose the constructor sadly
   bs = By.fromArray (unsafeCoerce ctx :: Data.ByteArray.Bytes)
-
-decompileFromJust :: Var v => Text -> Term v () -> Term v ()
-decompileFromJust msg opt = match () opt [
-  MatchCase (Pat.Constructor () optionalRef someId [Pat.Var ()]) Nothing $
-    absChain [Var.named "x"] (var (Var.named "x")),
-  MatchCase (Pat.Constructor () optionalRef noneId []) Nothing $
-    app () (builtin () "bug") (text () msg)
-  ]
 
 unwrapSeq :: Foreign -> Maybe (Seq Closure)
 unwrapSeq = maybeUnwrapForeign vectorRef

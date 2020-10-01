@@ -408,21 +408,31 @@ builtinsSrc =
                   ,(">=", "gteq")]
   ] ++ moveUnder "io2" ioBuiltins
     ++ moveUnder "io2" mvarBuiltins
-    ++ [ B name typ | (name,typ) <- hashBuiltins ]
+    ++ hashBuiltins
 
 moveUnder :: Text -> [(Text, Type v)] -> [BuiltinDSL v]
 moveUnder prefix bs = bs >>= \(n,ty) -> [B n ty, Rename n (prefix <> "." <> n)]
 
-hashBuiltins :: Var v => [(Text, Type v)]
+hashBuiltins :: Var v => [BuiltinDSL v]
 hashBuiltins =
-  [ ("crypto.Hash.add" , forall1 "a" (\a -> a --> hash --> hash))
-  , ("crypto.Hash.addBytes" , bytes --> hash --> hash)
-  , ("crypto.Hash.finish" , hash --> bytes)
+  [ B "crypto.Hash.new" $ hashAlgo --> hash
+  , B "crypto.Hash.add" $ forall1 "a" (\a -> a --> hash --> hash)
+  , B "crypto.Hash.addBytes" $ bytes --> hash --> hash
+  , B "crypto.Hash.finish" $ hash --> bytes
+  , D "crypto.Hash._internal.init" $ hashAlgo --> bytes --> hash
+
+  , B "crypto.Hmac.new" $ hashAlgo --> bytes --> hmac
+  , B "crypto.Hmac.add" $ forall1 "a" (\a -> a --> hmac --> hmac)
+  , B "crypto.Hmac.addBytes" $ bytes --> hmac --> hmac
+  , B "crypto.Hmac.finish" $ hmac --> bytes
+  , D "crypto.Hmac._internal.init" $ hashAlgo --> bytes --> bytes --> hmac
   ] ++
-  (h =<< [ "Sha3_512", "Sha3_256", "Sha2_512", "Sha2_256", "Blake2b_512", "Blake2b_256", "Blake2s_256" ])
+  map h [ "Sha3_512", "Sha3_256", "Sha2_512", "Sha2_256", "Blake2b_512", "Blake2b_256", "Blake2s_256" ]
   where
   hash = Type.ref() Type.hasherRef
-  h name = [("crypto.Hash."<>name, hash), ("crypto.Hash.internals."<>name<>".fromState", bytes --> optionalt hash)]
+  hmac = Type.ref() Type.hmacRef
+  hashAlgo = Type.ref() Type.hashAlgorithmRef
+  h name = B ("crypto.Hash."<>name) $ hashAlgo
 
 ioBuiltins :: Var v => [(Text, Type v)]
 ioBuiltins =

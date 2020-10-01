@@ -232,6 +232,12 @@ mvarRef = Reference.Builtin "MVar"
 hasherRef :: Reference
 hasherRef = Reference.Builtin "crypto.Hash"
 
+hashAlgorithmRef :: Reference
+hashAlgorithmRef = Reference.Builtin "crypto.HashAlgorithm"
+
+hmacRef :: Reference
+hmacRef = Reference.Builtin "crypto.Hmac"
+
 builtin :: Ord v => a -> Text -> Type v a
 builtin a = ref a . Reference.Builtin
 
