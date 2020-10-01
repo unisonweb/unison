@@ -64,7 +64,7 @@ module Unison.Runtime.ANF
 
 import Unison.Prelude
 
-import Control.Monad.Reader (ReaderT(..), asks, local)
+import Control.Monad.Reader (ReaderT(..), ask, local)
 import Control.Monad.State (State, runState, MonadState(..), modify, gets)
 import Control.Lens (snoc, unsnoc)
 
@@ -473,22 +473,22 @@ data Mem = UN | BX deriving (Eq,Ord,Show,Enum)
 -- Context entries with evaluation strategy
 data CTE v s
   = ST [v] [Mem] s
-  | LZ v (Either Word64 v) [v]
+  | LZ v (Either Reference v) [v]
   deriving (Show)
 
 pattern ST1 v m s = ST [v] [m] s
 
 data ANormalBF v e
   = ALet [Mem] (ANormalTF v e) e
-  | AName (Either Word64 v) [v] e
+  | AName (Either Reference v) [v] e
   | ATm (ANormalTF v e)
   deriving (Show)
 
 data ANormalTF v e
   = ALit Lit
   | AMatch v (Branched e)
-  | AShift RTag e
-  | AHnd [RTag] v e
+  | AShift Reference e
+  | AHnd [Reference] v e
   | AApp (Func v) [v]
   | AFrc v
   | AVar v
@@ -676,7 +676,7 @@ data SeqEnd = SLeft | SRight
 data Branched e
   = MatchIntegral (EnumMap Word64 e) (Maybe e)
   | MatchText (Map.Map Text e) (Maybe e)
-  | MatchRequest (EnumMap RTag (EnumMap CTag ([Mem], e))) e
+  | MatchRequest (Map Reference (EnumMap CTag ([Mem], e))) e
   | MatchEmpty
   | MatchData Reference (EnumMap CTag ([Mem], e)) (Maybe e)
   | MatchSum (EnumMap Word64 ([Mem], e))
@@ -694,7 +694,7 @@ data BranchAccum v
   | AccumDefault (ANormal v)
   | AccumPure (ANormal v)
   | AccumRequest
-      (EnumMap RTag (EnumMap CTag ([Mem],ANormal v)))
+      (Map Reference (EnumMap CTag ([Mem],ANormal v)))
       (Maybe (ANormal v))
   | AccumData
       Reference
@@ -739,7 +739,7 @@ instance Semigroup (BranchAccum v) where
   AccumRequest hl dl <> AccumRequest hr dr
     = AccumRequest hm $ dl <|> dr
     where
-    hm = EC.unionWith (<>) hl hr
+    hm = Map.unionWith (<>) hl hr
   l@(AccumSeqEmpty _) <> AccumSeqEmpty _ = l
   AccumSeqEmpty eml <> AccumSeqView er _ cnr
     = AccumSeqView er (Just eml) cnr
@@ -777,13 +777,13 @@ data Func v
   -- variable
   = FVar v
   -- top-level combinator
-  | FComb !Word64
+  | FComb !Reference
   -- continuation jump
   | FCont v
   -- data constructor
-  | FCon !RTag !CTag
+  | FCon !Reference !CTag
   -- ability request
-  | FReq !RTag !CTag
+  | FReq !Reference !CTag
   -- prim op
   | FPrim (Either POp FOp)
   deriving (Show, Functor, Foldable, Traversable)
@@ -869,22 +869,13 @@ data SuperGroup v
   , entry :: SuperNormal v
   } deriving (Show)
 
-type ANFM v
-  = ReaderT (Set v, Reference -> Word64, Reference -> RTag)
-      (State (Word64, [(v, SuperNormal v)]))
-
-resolveTerm :: Reference -> ANFM v Word64
-resolveTerm r = asks $ \(_, rtm, _) -> rtm r
-
-resolveType :: Reference -> ANFM v RTag
-resolveType r = asks $ \(_, _, rty) -> rty r
+type ANFM v = ReaderT (Set v) (State (Word64, [(v, SuperNormal v)]))
 
 groupVars :: ANFM v (Set v)
-groupVars = asks $ \(grp, _, _) -> grp
+groupVars = ask
 
 bindLocal :: Ord v => [v] -> ANFM v r -> ANFM v r
-bindLocal vs
-  = local $ \(gr, rw, rt) -> (gr Set.\\ Set.fromList vs, rw, rt)
+bindLocal vs = local (Set.\\ Set.fromList vs)
 
 freshANF :: Var v => Word64 -> v
 freshANF fr = Var.freshenId fr $ typed Var.ANFBlank
@@ -903,19 +894,14 @@ contextualize tm = fresh <&> \fv -> ([ST1 fv BX tm], fv)
 record :: Var v => (v, SuperNormal v) -> ANFM v ()
 record p = modify $ \(fr, to) -> (fr, p:to)
 
-superNormalize
-  :: Var v
-  => (Reference -> Word64)
-  -> (Reference -> RTag)
-  -> Term v a
-  -> SuperGroup v
-superNormalize rtm rty tm = Rec l c
+superNormalize :: Var v => Term v a -> SuperGroup v
+superNormalize tm = Rec l c
   where
   (bs, e) | LetRecNamed' bs e <- tm = (bs, e)
           | otherwise = ([], tm)
   grp = Set.fromList $ fst <$> bs
   comp = traverse_ superBinding bs *> toSuperNormal e
-  subc = runReaderT comp (grp, rtm, rty)
+  subc = runReaderT comp grp
   (c, (_,l)) = runState subc (0, [])
 
 superBinding :: Var v => (v, Term v a) -> ANFM v ()
@@ -968,12 +954,12 @@ anfBlock (If' c t f) = do
 anfBlock (And' l r) = do
   (lctx, vl) <- anfArg l
   (rctx, vr) <- anfArg r
-  i <- resolveTerm $ Builtin "Boolean.and"
+  let i = Builtin "Boolean.and"
   pure (lctx ++ rctx, ACom i [vl, vr])
 anfBlock (Or' l r) = do
   (lctx, vl) <- anfArg l
   (rctx, vr) <- anfArg r
-  i <- resolveTerm $ Builtin "Boolean.or"
+  let i = Builtin "Boolean.or"
   pure (lctx ++ rctx, ACom i [vl, vr])
 anfBlock (Handle' h body)
   = anfArg h >>= \(hctx, vh) ->
@@ -1019,7 +1005,7 @@ anfBlock (Match' scrut cas) = do
               | [ST _ _ _] <- cx = error "anfBlock: impossible"
               | otherwise = AFrc v
       pure ( sctx ++ [LZ hv (Right r) vs]
-           , AHnd (EC.keys abr) hv . TTm $ msc
+           , AHnd (Map.keys abr) hv . TTm $ msc
            )
     AccumText df cs ->
       pure (sctx ++ cx, AMatch v $ MatchText cs df)
@@ -1036,9 +1022,8 @@ anfBlock (Match' scrut cas) = do
       error "anfBlock: non-exhaustive AccumSeqEmpty"
     AccumSeqView en (Just em) bd -> do
       r <- fresh
-      op <- case en of
-       SLeft -> resolveTerm $ Builtin "List.viewl"
-       _ -> resolveTerm $ Builtin "List.viewr"
+      let op | SLeft <- en = Builtin "List.viewl"
+             | otherwise   = Builtin "List.viewr"
       pure ( sctx ++ cx ++ [ST1 r BX (ACom op [v])]
            , AMatch r
            $ MatchData Ty.seqViewRef
@@ -1080,21 +1065,16 @@ anfBlock (Apps' f args) = do
   (actx, cas) <- anfArgs args
   pure (fctx ++ actx, AApp cf cas)
 anfBlock (Constructor' r t)
-  = resolveType r <&> \rt -> ([], ACon rt (toEnum t) [])
-anfBlock (Request' r t) = do
-  r <- resolveType r
-  pure ([], AReq r (toEnum t) [])
-anfBlock (Boolean' b) =
-  resolveType Ty.booleanRef <&> \rt -> 
-    ([], ACon rt (if b then 1 else 0) [])
+  = pure ([], ACon r (toEnum t) [])
+anfBlock (Request' r t) = pure ([], AReq r (toEnum t) [])
+anfBlock (Boolean' b)
+  = pure ([], ACon Ty.booleanRef (if b then 1 else 0) [])
 anfBlock (Lit' l@(T _)) =
   pure ([], ALit l)
 anfBlock (Lit' l) = do
   lv <- fresh
-  rt <- resolveType $ litRef l
-  pure ([ST1 lv UN $ ALit l], ACon rt 0 [lv])
-anfBlock (Ref' r) =
-  resolveTerm r <&> \n -> ([], ACom n [])
+  pure ([ST1 lv UN $ ALit l], ACon (litRef l) 0 [lv])
+anfBlock (Ref' r) = pure ([], ACom r [])
 anfBlock (Blank' _) = do
   ev <- fresh
   pure ([ST1 ev BX (ALit (T "Blank"))], APrm EROR [ev])
@@ -1153,15 +1133,14 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
     let (us, uk)
           = maybe (error "anfInitCase: unsnoc impossible") id
           $ unsnoc exp
-    n <- resolveType r
-    jn <- resolveTerm $ Builtin "jumpCont"
+    let jn = Builtin "jumpCont"
     kf <- fresh
     flip AccumRequest Nothing
-       . EC.mapSingleton n
+       . Map.singleton r
        . EC.mapSingleton (toEnum t)
        . (BX<$us,)
        . ABTN.TAbss us
-       . TShift n kf
+       . TShift r kf
        . TName uk (Left jn) [kf]
       <$> anfBody bd
   | P.SequenceLiteral _ [] <- p
@@ -1223,12 +1202,9 @@ anfCases u = fmap fold . traverse (anfInitCase u)
 
 anfFunc :: Var v => Term v a -> ANFM v (Ctx v, Func v)
 anfFunc (Var' v) = pure ([], FVar v)
-anfFunc (Ref' r)
-  = resolveTerm r <&> \n -> ([], FComb n)
-anfFunc (Constructor' r t)
-  = resolveType r <&> \rt -> ([], FCon rt $ toEnum t)
-anfFunc (Request' r t)
-  = resolveType r <&> \rt -> ([], FReq rt $ toEnum t)
+anfFunc (Ref' r) = pure ([], FComb r)
+anfFunc (Constructor' r t) = pure ([], FCon r $ toEnum t)
+anfFunc (Request' r t) = pure ([], FReq r $ toEnum t)
 anfFunc tm = do
   (fctx, ctm) <- anfBlock tm
   (cx, v) <- contextualize ctm
@@ -1278,9 +1254,9 @@ sink v mtm tm = dive $ freeVarsT tm
 indent :: Int -> ShowS
 indent ind = showString (replicate (ind*2) ' ')
 
-prettyGroup :: Var v => SuperGroup v -> ShowS
-prettyGroup (Rec grp ent)
-  = showString "let rec\n"
+prettyGroup :: Var v => String -> SuperGroup v -> ShowS
+prettyGroup s (Rec grp ent)
+  = showString ("let rec[" ++ s ++ "]\n")
   . foldr f id grp
   . showString "entry"
   . prettySuperNormal 1 ent
@@ -1358,17 +1334,17 @@ prettyANFT m ind tm = prettySpace m ind . case tm of
        . prettyVars vs . showString "."
        . prettyANF False (ind+1) bo
     AHnd rs v bo
-      -> showString "handle" . prettyTags rs
+      -> showString "handle" . prettyRefs rs
        . prettyANF False (ind+1) bo
        . showString " with " . pvar v
 
-prettyLZF :: Var v => Either Word64 v -> ShowS
+prettyLZF :: Var v => Either Reference v -> ShowS
 prettyLZF (Left w) = showString "ENV(" . shows w . showString ") "
 prettyLZF (Right v) = pvar v . showString " "
 
-prettyTags :: [RTag] -> ShowS
-prettyTags [] = showString "{}"
-prettyTags (r:rs)
+prettyRefs :: [Reference] -> ShowS
+prettyRefs [] = showString "{}"
+prettyRefs (r:rs)
   = showString "{" . shows r
   . foldr (\t r -> shows t . showString "," . r) id rs
   . showString "}"
@@ -1404,7 +1380,7 @@ prettyBranches ind bs = case bs of
     -> foldr (\(r,m) s ->
          foldr (\(c,e) -> prettyCase ind (prettyReq r c) e)
            s (mapToList $ snd <$> m))
-         (prettyCase ind (prettyReq 0 0) df id) (mapToList bs)
+         (prettyCase ind (prettyReq 0 0) df id) (Map.toList bs)
   MatchSum bs
     -> foldr (uncurry $ prettyCase ind . shows) id
          (mapToList $ snd <$> bs)
