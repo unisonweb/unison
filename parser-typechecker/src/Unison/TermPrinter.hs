@@ -614,7 +614,7 @@ isBlank _ = False
 ac :: Int -> BlockContext -> Imports -> DocLiteralContext -> AmbientContext
 ac prec bc im doc = AmbientContext prec bc NonInfix im doc
 
-fmt :: S.Element -> Pretty S.SyntaxText -> Pretty S.SyntaxText
+fmt :: (S.Element r) -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = PP.withSyntax
 
 {-

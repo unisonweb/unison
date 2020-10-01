@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.HashQualified where
@@ -19,7 +20,7 @@ import qualified Unison.Var                    as Var
 
 data HashQualified' n
   = NameOnly n | HashOnly ShortHash | HashQualified n ShortHash
-  deriving (Eq, Functor, Show)
+  deriving (Eq, Functor, Show, Generic)
 
 type HashQualified = HashQualified' Name
 

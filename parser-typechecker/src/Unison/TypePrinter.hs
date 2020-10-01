@@ -132,7 +132,7 @@ prettyRaw n im p tp = go n im p tp
   parenNoGroup True  s = ( fmt S.Parenthesis "(" ) <> s <> ( fmt S.Parenthesis ")" )
   parenNoGroup False s = s
 
-fmt :: S.Element -> Pretty S.SyntaxText -> Pretty S.SyntaxText
+fmt :: S.Element r -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = PP.withSyntax
 
 -- todo: provide sample output in comment

@@ -77,5 +77,5 @@ styleHashQualified'' :: (Pretty SyntaxText -> Pretty SyntaxText)
                      -> Pretty SyntaxText
 styleHashQualified'' nameStyle hq = styleHashQualified' nameStyle (fmt $ S.HashQualifier hq) hq
 
-fmt :: S.Element -> Pretty S.SyntaxText -> Pretty S.SyntaxText
+fmt :: S.Element r -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = PP.withSyntax

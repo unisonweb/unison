@@ -35,7 +35,7 @@ data Pattern loc
 data SeqOp = Cons
            | Snoc
            | Concat
-           deriving (Eq, Show, Ord)
+           deriving (Eq, Show, Ord, Generic)
 
 instance H.Hashable SeqOp where
   tokens Cons = [H.Tag 0]

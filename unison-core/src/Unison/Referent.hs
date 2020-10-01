@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 
@@ -29,7 +30,7 @@ pattern Con r i t = Con' r i t
 type Id = Referent' R.Id
 
 data Referent' r = Ref' r | Con' r Int ConstructorType
-  deriving (Show, Ord, Eq, Functor)
+  deriving (Show, Ord, Eq, Functor, Generic)
 
 type Pos = Word64
 type Size = Word64
@@ -42,7 +43,7 @@ toShortHash :: Referent -> ShortHash
 toShortHash = \case
   Ref r -> R.toShortHash r
   Con r i _ -> patternShortHash r i
-  
+
 toShortHashId :: Id -> ShortHash
 toShortHashId = toShortHash . fromId
 
@@ -84,9 +85,9 @@ toReference' :: Referent' r -> r
 toReference' = \case
   Ref' r -> r
   Con' r _i _t -> r
-  
+
 fromId :: Id -> Referent
-fromId = fmap R.DerivedId  
+fromId = fmap R.DerivedId
 
 toTypeReference :: Referent -> Maybe Reference
 toTypeReference = \case

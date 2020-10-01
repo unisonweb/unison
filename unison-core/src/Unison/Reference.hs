@@ -51,6 +51,7 @@ pattern Derived h i n = DerivedId (Id h i n)
 -- A good idea, but causes a weird problem with view patterns in PatternP.hs in ghc 8.4.3
 --{-# COMPLETE Builtin, Derived #-}
 
+-- Pos is a position into a cycle of size Size, as cycles are hashed together.
 data Id = Id H.Hash Pos Size deriving (Eq,Ord,Generic)
 
 unsafeId :: Reference -> Id

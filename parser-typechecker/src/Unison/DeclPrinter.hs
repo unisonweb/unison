@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.DeclPrinter where
@@ -183,5 +184,5 @@ prettyDeclOrBuiltinHeader name (DD.Builtin ctype) = case ctype of
   CT.Effect -> fmt S.DataTypeKeyword "builtin ability " <> styleHashQualified'' (fmt $ S.HashQualifier name) name
 prettyDeclOrBuiltinHeader name (DD.Decl e) = prettyDeclHeader name e
 
-fmt :: S.Element -> Pretty S.SyntaxText -> Pretty S.SyntaxText
+fmt :: S.Element r -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = P.withSyntax

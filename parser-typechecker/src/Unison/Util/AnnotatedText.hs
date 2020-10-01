@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFoldable             #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
@@ -22,7 +23,7 @@ import qualified Data.ListLike      as LL
 -- type AnnotatedText a = AnnotatedText (Maybe a)
 
 newtype AnnotatedText a = AnnotatedText (Seq (String, Maybe a))
-  deriving (Eq, Functor, Foldable, Show)
+  deriving (Eq, Functor, Foldable, Show, Generic)
 
 instance Semigroup (AnnotatedText a) where
   AnnotatedText (as :|> ("", _)) <> bs = AnnotatedText as <> bs

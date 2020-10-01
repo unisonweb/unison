@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -45,7 +46,8 @@ import qualified Unison.Var                    as Var
 import qualified Data.RFC5051                  as RFC5051
 import           Data.List                      ( sortBy, tails )
 
-newtype Name = Name { toText :: Text } deriving (Eq, Ord, Monoid, Semigroup)
+newtype Name = Name { toText :: Text }
+  deriving (Eq, Ord, Monoid, Semigroup, Generic)
 
 sortNames :: [Name] -> [Name]
 sortNames = sortNamed id

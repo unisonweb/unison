@@ -95,7 +95,7 @@ toANSI (AnnotatedText chunks) =
     Bold     -> [ANSI.SetConsoleIntensity ANSI.BoldIntensity]
     Underline -> [ANSI.SetUnderlining ANSI.SingleUnderline]
 
-defaultColors :: ST.Element -> Maybe Color
+defaultColors :: ST.Element r -> Maybe Color
 defaultColors = \case
   ST.NumericLiteral      -> Nothing
   ST.TextLiteral         -> Nothing
