@@ -102,14 +102,13 @@ prefix (Absolute (Path prefix)) (Path' p) = case p of
 -- Left is some parse error tbd
 parsePath' :: String -> Either String Path'
 parsePath' p = case parsePathImpl' p of
-  Left  e       -> Left e
-  Right (p, "") -> Right p
-  Right (p, rem) ->
-    case (first show . (Lexer.wordyId0 <> Lexer.symbolyId0) <> unit') rem of
-      Right (seg, "") -> Right (unsplit' (p, NameSegment . Text.pack $ seg))
-      Right (_, rem) ->
-        Left ("extra characters after " <> show p <> ": " <> show rem)
-      Left e -> Left e
+  Left  e        -> Left e
+  Right (p, "" ) -> Right p
+  Right (p, rem) -> case parseSegment rem of
+    Right (seg, "") -> Right (unsplit' (p, NameSegment . Text.pack $ seg))
+    Right (_, rem) ->
+      Left ("extra characters after " <> show p <> ": " <> show rem)
+    Left e -> Left e
 
 -- implementation detail of parsePath' and parseSplit'
 -- foo.bar.baz.34 becomes `Right (foo.bar.baz, "34")
@@ -133,7 +132,15 @@ parsePathImpl' p = case p of
     Right (segs, rem) ->
       Left $ "extra characters after " <> segs <> ": " <> show rem
     Left e -> Left e
-  segs p = go (first show . (Lexer.symbolyId <> Lexer.wordyId) <> unit') p
+  segs p = go parseSegment p
+
+parseSegment :: String -> Either String (String, String)
+parseSegment s =
+  first show
+    .  (Lexer.wordyId0 <> Lexer.symbolyId0)
+    <> unit'
+    <> const (Left ("I expected an identifier but found " <> s))
+    $  s
 
 wordyNameSegment, definitionNameSegment :: String -> Either String NameSegment
 wordyNameSegment s = case Lexer.wordyId0 s of
