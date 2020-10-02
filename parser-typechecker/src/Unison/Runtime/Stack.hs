@@ -19,6 +19,7 @@ module Unison.Runtime.Stack
   , SZ
   , FP
   , universalCompare
+  , universalHash
   , marshalToForeign
   , unull
   , bnull
@@ -43,20 +44,18 @@ module Unison.Runtime.Stack
   ) where
 
 import Prelude hiding (words)
+import Unison.Prelude
 
-import Control.Monad (when)
 import Control.Monad.Primitive
 
 import Data.Ord (comparing)
-import Data.Foldable (fold)
 
-import Data.Foldable (toList, for_)
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
 import Data.Primitive.Array
-import Data.Sequence (Seq)
 import qualified Data.Sequence as Sq
-import Data.Word
+import qualified Data.ByteArray as BA
+import qualified Data.Text as Text
 
 import Unison.Reference (Reference)
 
@@ -69,6 +68,9 @@ import qualified Unison.Type as Ty
 import Unison.Util.EnumContainers as EC
 
 import GHC.Stack (HasCallStack)
+
+import qualified Crypto.Hash as Hash
+import qualified Crypto.Hash.IO as Hash
 
 newtype Callback = Hook (Stack 'UN -> Stack 'BX -> IO ())
 
@@ -175,6 +177,51 @@ universalCompare frn = cmpc False
     = comparing Sq.length sl sr <> fold (Sq.zipWith (cmpc tyEq) sl sr)
     | otherwise = frn fl fr
   cmpc _ c d = comparing closureNum c d
+
+-- formats
+-- TODO: fill these in
+refToBytes :: Reference -> BA.Bytes
+refToBytes = undefined
+ctorToBytes :: Word64 -> BA.Bytes
+ctorToBytes = undefined
+intToBytes :: Int -> BA.Bytes
+intToBytes = undefined
+textToBytes :: Text.Text -> BA.Bytes
+textToBytes = undefined
+
+universalHash :: forall a . Hash.HashAlgorithm a
+              => (Hash.MutableContext a -> Foreign -> IO ())
+              -> Hash.MutableContext a
+              -> Closure
+              -> IO ()
+universalHash hashForeign ctx = go
+  where
+  mix = Hash.hashMutableUpdate ctx
+  mixf = hashForeign ctx
+  go :: Closure -> IO ()
+  go (DataC rf ct us bs)
+    =  mix (refToBytes rf)
+    *> mix (ctorToBytes ct)
+    *> traverse_ (mix . intToBytes) us
+    *> traverse_ go bs
+  go (PApV (CIx rf _ _) us bs)
+    =  mix (refToBytes rf)
+    *> traverse_ (mix . intToBytes) us
+    *> traverse_ go bs
+  go (CapV k us bs)
+    = gok k *> traverse_ (mix . intToBytes) us *> traverse_ go bs
+  go (Foreign f)
+    | Just s <- maybeUnwrapForeign Ty.vectorRef f
+    = mix seqRefBytes *> mix (intToBytes (Sq.length s)) *> traverse_ go s
+    | Just t <- maybeUnwrapForeign Ty.textRef f
+    = mix textRefBytes *> mix (textToBytes t)
+    | otherwise = mixf f
+  go BlackHole{}
+    = fail "An error occurred while hashing. The value being hashed contains a black hole."
+  gok :: K -> IO ()
+  gok _k = error "todo - hashing of continuations"
+  seqRefBytes = refToBytes Ty.vectorRef
+  textRefBytes = refToBytes Ty.textRef
 
 marshalToForeign :: HasCallStack => Closure -> Foreign
 marshalToForeign (Foreign x) = x
