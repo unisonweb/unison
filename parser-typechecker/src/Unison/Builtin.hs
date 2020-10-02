@@ -385,6 +385,15 @@ builtinsSrc =
   , B "Bytes.size" $ bytes --> nat
   , B "Bytes.flatten" $ bytes --> bytes
 
+  , B "Bytes.toBase16" $ bytes --> bytes
+  , B "Bytes.toBase32" $ bytes --> bytes
+  , B "Bytes.toBase64" $ bytes --> bytes
+  , B "Bytes.toBase64UrlUnpadded" $ bytes --> bytes
+  , B "Bytes.fromBase16" $ bytes --> eithert text bytes
+  , B "Bytes.fromBase32" $ bytes --> eithert text bytes
+  , B "Bytes.fromBase64" $ bytes --> eithert text bytes
+  , B "Bytes.fromBase64UrlUnpadded" $ bytes --> eithert text bytes
+
   , B "List.empty" $ forall1 "a" list
   , B "List.cons" $ forall1 "a" (\a -> a --> list a --> list a)
   , Alias "List.cons" "List.+:"
@@ -511,9 +520,10 @@ infixr -->
 
 io, ioe :: Var v => Type v -> Type v
 io = Type.effect1 () (Type.builtinIO ())
-ioe = io . either (DD.ioErrorType ())
-  where
-  either l r = DD.eitherType () `app` l `app` r
+ioe = io . eithert (DD.ioErrorType ())
+
+eithert :: Var v => Type v -> Type v -> Type v
+eithert l r = DD.eitherType () `app` l `app` r
 
 socket, threadId, handle, unit :: Var v => Type v
 socket = Type.socket ()

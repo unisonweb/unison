@@ -1146,7 +1146,6 @@ pfop0 :: ForeignOp
 pfop0 instr = ([],) $ TFOp instr []
 
 -- Pure ForeignOp taking 1 boxed value
-{-
 pfopb :: ForeignOp
 pfopb instr
   = ([BX],)
@@ -1154,7 +1153,6 @@ pfopb instr
   $ TFOp instr [b]
   where
   [b] = freshes 1
--}
 
 builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
 builtinLookup
@@ -1469,6 +1467,16 @@ declareForeigns = do
             u :: a -> HMAC.HMAC a -> HMAC.HMAC a
             u _ h = h -- to help typechecker along
         in pure $ Bytes.fromArray out
+
+  declareForeign "Bytes.toBase16" pfopb . mkForeign $ pure . Bytes.toBase16
+  declareForeign "Bytes.toBase32" pfopb . mkForeign $ pure . Bytes.toBase32
+  declareForeign "Bytes.toBase64" pfopb . mkForeign $ pure . Bytes.toBase64
+  declareForeign "Bytes.toBase64UrlUnpadded" pfopb . mkForeign $ pure . Bytes.toBase64UrlUnpadded
+
+  declareForeign "Bytes.fromBase16" pfopb . mkForeign $ pure . Bytes.fromBase16
+  declareForeign "Bytes.fromBase32" pfopb . mkForeign $ pure . Bytes.fromBase32
+  declareForeign "Bytes.fromBase64" pfopb . mkForeign $ pure . Bytes.fromBase64
+  declareForeign "Bytes.fromBase64UrlUnpadded" pfopb . mkForeign $ pure . Bytes.fromBase64UrlUnpadded
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny
