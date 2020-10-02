@@ -26,7 +26,9 @@ import Unison.Runtime.MCode
   , Instr(..)
   , Args(..)
   , Comb(..)
+  , Combs
   , Branch(..)
+  , RefNums(..)
   , emitComb
   , emitCombs
   )
@@ -36,9 +38,12 @@ import Unison.Runtime.Machine
 
 import Unison.Test.Common (tm)
 
-testEval0 :: EnumMap Word64 Comb -> Section -> Test ()
+dummyRef :: Reference
+dummyRef = Builtin "dummy"
+
+testEval0 :: EnumMap Word64 Combs -> Section -> Test ()
 testEval0 env sect = do
-  io $ eval0 (SEnv env builtinForeigns mempty mempty) sect
+  io $ eval0 (SEnv env builtinForeigns (dummyRef <$ env) mempty) sect
   ok
 
 builtins :: Reference -> Word64
@@ -47,11 +52,14 @@ builtins r
   | Just i <- Map.lookup r builtinTermNumbering = i
   | otherwise = error $ "builtins: " ++ show r
 
-cenv :: EnumMap Word64 Comb
-cenv = fmap (emitComb mempty) $ numberedTermLookup @Symbol
+cenv :: EnumMap Word64 Combs
+cenv = fmap (mapSingleton 0 . emitComb numbering 0 mempty)
+     $ numberedTermLookup @Symbol
 
-env :: EnumMap Word64 Comb -> EnumMap Word64 Comb
-env m = m <> mapInsert (bit 64) (Lam 0 1 2 1 asrt) cenv
+env :: Combs -> EnumMap Word64 Combs
+env m = mapInsert (bit 24) m
+      . mapInsert (bit 64) (mapSingleton 0 $ Lam 0 1 2 1 asrt)
+      $ cenv
 
 asrt :: Section
 asrt = Ins (Unpack 0)
@@ -68,17 +76,18 @@ multRec
     \    _ -> f (##Nat.+ acc n) (##Nat.sub i 1)\n\
     \  ##todo (##Nat.== (f 0 1000) 5000)"
 
-dataSpec :: DataSpec
-dataSpec = mempty
+numbering :: RefNums
+numbering = RN (builtinTypeNumbering Map.!) builtins
 
 testEval :: String -> Test ()
 testEval s = testEval0 (env aux) main
   where
-  (Lam 0 0 _ _ main, aux, _)
-    = emitCombs (bit 24)
-    . superNormalize builtins (builtinTypeNumbering Map.!)
+  Lam 0 0 _ _ main = aux ! 0
+  aux
+    = emitCombs numbering (bit 24)
+    . superNormalize
     . lamLift
-    . splitPatterns dataSpec
+    . splitPatterns builtinDataSpec
     . unannotate
     $ tm s
 
@@ -89,6 +98,20 @@ nested
     \        0 -> ##Nat.+ 0 1\n\
     \        m@n -> n\n\
     \  ##todo (##Nat.== x 2)"
+
+matching'arguments :: String
+matching'arguments
+  = "let\n\
+    \  f x y z = y\n\
+    \  g x = f x\n\
+    \  blorf = let\n\
+    \    a = 0\n\
+    \    b = 1\n\
+    \    d = 2\n\
+    \    h = g a b\n\
+    \    c = 2\n\
+    \    h c\n\
+    \  ##todo (##Nat.== blorf 1)"
 
 test :: Test ()
 test = scope "mcode" . tests $
@@ -102,4 +125,6 @@ test = scope "mcode" . tests $
   , scope "5*1000=5000 rec" $ testEval multRec
   , scope "nested"
   $ testEval nested
+  , scope "matching arguments"
+  $ testEval matching'arguments
   ]

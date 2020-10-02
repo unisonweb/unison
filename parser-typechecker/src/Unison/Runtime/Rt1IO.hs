@@ -456,7 +456,7 @@ lamToHask cenv s ir val = RT.run (handleIO' cenv s) cenv $ task val
   where task x = IR.Let (Var.named "_") (IR.Leaf (IR.Val x)) ir mempty
 
 runtime :: Runtime Symbol
-runtime = Runtime terminate eval (nullaryMain External)
+runtime = Runtime terminate eval (nullaryMain External) True
  where
   terminate :: IO ()
   terminate = pure ()

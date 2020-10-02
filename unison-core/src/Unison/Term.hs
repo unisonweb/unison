@@ -961,6 +961,9 @@ hashComponents
   :: Var v => Map v (Term v a) -> Map v (Reference.Id, Term v a)
 hashComponents = ReferenceUtil.hashComponents $ refId ()
 
+hashClosedTerm :: Var v => Term v a -> Reference.Id
+hashClosedTerm tm = Reference.Id (ABT.hash tm) 0 1
+
 -- The hash for a constructor
 hashConstructor'
   :: (Reference -> ConstructorId -> Term0 Symbol) -> Reference -> ConstructorId -> Reference
