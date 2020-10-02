@@ -19,7 +19,6 @@ module Unison.Runtime.Builtin
   , eitherTag
   ) where
 
-import Unsafe.Coerce (unsafeCoerce)
 import Control.Exception (IOException, try)
 import Control.Monad.State.Strict (State, modify, execState)
 import Control.Monad (void)
@@ -32,7 +31,7 @@ import Unison.Symbol
 import Unison.Runtime.Stack (Closure)
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.IOSource
-import Unison.Runtime.Foreign (Hasher(..), Hmacinator(..), HashAlgorithm(..))
+import Unison.Runtime.Foreign (HashAlgorithm(..))
 
 import qualified Unison.Type as Ty
 import qualified Unison.Builtin as Ty (builtinTypes)
@@ -1147,6 +1146,7 @@ pfop0 :: ForeignOp
 pfop0 instr = ([],) $ TFOp instr []
 
 -- Pure ForeignOp taking 1 boxed value
+{-
 pfopb :: ForeignOp
 pfopb instr
   = ([BX],)
@@ -1154,6 +1154,7 @@ pfopb instr
   $ TFOp instr [b]
   where
   [b] = freshes 1
+-}
 
 builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
 builtinLookup
@@ -1440,78 +1441,34 @@ declareForeigns = do
     . mkForeign $ \(mv :: MVar Closure) -> tryReadMVar mv
 
   -- Hashing functions
-  let hasher :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()
-      hasher txt alg = do
-        let algoRef = Builtin ("crypto.Hash." <> txt)
+  let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()
+      declareHashAlgorithm txt alg = do
+        let algoRef = Builtin ("crypto.HashAlgorithm." <> txt)
         declareForeign ("crypto.Hash." <> txt) pfop0 . mkForeign $ \() ->
           pure (HashAlgorithm algoRef alg)
 
-  hasher "Sha3_512" Hash.SHA3_512
-  hasher "Sha3_256" Hash.SHA3_256
-  hasher "Sha2_512" Hash.SHA512
-  hasher "Sha2_256" Hash.SHA256
-  hasher "Blake2b_512" Hash.Blake2b_512
-  hasher "Blake2b_256" Hash.Blake2b_256
-  hasher "Blake2s_256" Hash.Blake2s_256
+  declareHashAlgorithm "Sha3_512" Hash.SHA3_512
+  declareHashAlgorithm "Sha3_256" Hash.SHA3_256
+  declareHashAlgorithm "Sha2_512" Hash.SHA512
+  declareHashAlgorithm "Sha2_256" Hash.SHA256
+  declareHashAlgorithm "Blake2b_512" Hash.Blake2b_512
+  declareHashAlgorithm "Blake2b_256" Hash.Blake2b_256
+  declareHashAlgorithm "Blake2s_256" Hash.Blake2s_256
 
-  declareForeign ("crypto.Hash.new") pfopb . mkForeign $ \(HashAlgorithm ref alg) ->
-    pure (Hasher ref $ Hash.hashInitWith alg)
+  declareForeign ("crypto.hash") pfopbb . mkForeign $ \(HashAlgorithm _ref _alg, _a :: Closure) ->
+    pure $ Bytes.empty -- todo : implement me
 
-  declareForeign "crypto.Hash.addBytes" pfopbb . mkForeign $
-    \(b :: Bytes.Bytes, Hasher ref ctx) ->
-        pure (Hasher ref $ Hash.hashUpdates ctx (Bytes.chunks b))
+  declareForeign "crypto.hashBytes" pfopbb . mkForeign $
+    \(HashAlgorithm _ alg, b :: Bytes.Bytes) ->
+        let ctx = Hash.hashInitWith alg
+        in pure . Bytes.fromArray . Hash.hashFinalize $ Hash.hashUpdates ctx (Bytes.chunks b)
 
-  -- declareForeign "Hash.add" pfopbb . mkForeign $
-  --   \(Hasher ctx, x :: Closure) -> error "todo - Hash.add universal function"
-
-  declareForeign "crypto.Hash.finish" pfopb
-    . mkForeign $ \(Hasher _ ctx) -> pure (Bytes.fromArray $ Hash.hashFinalize ctx)
-
-  let
-    -- todo: ensure the given bytes represent valid
-    -- state for the hashing algorithm, otherwise the C code
-    -- backing the algorithm's implementation will do who knows what
-    validateState :: Hash.HashAlgorithm a => a -> Bytes.Bytes -> Bool
-    validateState _a _bs = True --
-      -- toBytes :: Hash.Context a -> BA.Bytes = unsafeCoerce
-
-  declareForeign "crypto.Hash._internal.init" pfopbb . mkForeign $
-    \(HashAlgorithm r alg, b :: Bytes.Bytes) ->
-       let unify :: a -> Hash.Context a -> Hash.Context a
-           unify _ a = a
-       in if validateState alg b then
-            pure . Hasher r . unify alg . unsafeCoerce . Bytes.toArray @BA.Bytes $ b
-          else
-            fail $ "invalid argument to crypto.Hash._internal.init " <> show b
-
-  declareForeign "crypto.Hmac.new" pfopbb
-    . mkForeign $ \(HashAlgorithm r alg, key :: Bytes.Bytes) -> do
-        let unify :: a -> HMAC.Context a -> HMAC.Context a
-            unify _ a = a
-        pure (Hmacinator r (unify alg (HMAC.initialize (Bytes.toArray @BA.Bytes key))))
-
-  declareForeign "crypto.Hmac.addBytes" pfopbb . mkForeign $
-    \(b :: Bytes.Bytes, Hmacinator ref ctx) ->
-        pure (Hmacinator ref $ HMAC.updates ctx (Bytes.chunks b))
-
-  declareForeign "crypto.Hmac._internal.init" pfopbbb . mkForeign $
-    \(HashAlgorithm ref a, b1 :: Bytes.Bytes, b2 :: Bytes.Bytes) -> do
-        let hctx b = unify a (cast (Bytes.toArray b))
-            unify :: a -> Hash.Context a -> Hash.Context a
-            unify _ a = a
-            cast :: BA.Bytes -> Hash.Context x
-            cast = unsafeCoerce
-        -- todo: proper validation logic
-        if validateState a b1 && validateState a b2 then
-          pure . Hmacinator ref $ HMAC.Context (hctx b1) (hctx b2)
-        else
-          fail $ "invalid argument to crypto.Hmac._internal.init " <> show (b1,b2)
-
-  -- declareForeign "crypto.Hmac.add" pfopbb . mkForeign $
-  --   \(Hmacinator r ctx, x :: Closure) -> error "todo - Hmac.add universal function"
-
-  declareForeign "crypto.Hmac.finish" pfopb
-    . mkForeign $ \(Hmacinator _ ctx) -> pure (Bytes.fromArray $ HMAC.finalize ctx)
+  declareForeign "crypto.hmacBytes" pfopbbb
+    . mkForeign $ \(HashAlgorithm _ alg, key :: Bytes.Bytes, msg :: Bytes.Bytes) ->
+        let out = u alg $ HMAC.hmac (Bytes.toArray @BA.Bytes key) (Bytes.toArray @BA.Bytes msg)
+            u :: a -> HMAC.HMAC a -> HMAC.HMAC a
+            u _ h = h -- to help typechecker along
+        in pure $ Bytes.fromArray out
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny

@@ -5,8 +5,6 @@
 
 module Unison.Runtime.Foreign
   ( Foreign(..)
-  , Hasher(..)
-  , Hmacinator(..)
   , HashAlgorithm(..)
   , unwrapForeign
   , maybeUnwrapForeign
@@ -26,7 +24,6 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Type as Ty
 import qualified Crypto.Hash as Hash
-import qualified Crypto.MAC.HMAC as HMAC
 import Unsafe.Coerce
 
 data Foreign where
@@ -85,17 +82,7 @@ data HashAlgorithm where
   -- Reference is a reference to the hash algorithm
   HashAlgorithm :: Hash.HashAlgorithm a => Reference -> a -> HashAlgorithm
 
-data Hasher where
-  -- Reference is a reference to the hash algorithm
-  Hasher :: Hash.HashAlgorithm a => Reference -> Hash.Context a -> Hasher
-
-data Hmacinator where
-  -- Reference is a reference to the hash algorithm
-  Hmacinator :: Hash.HashAlgorithm a => Reference -> HMAC.Context a -> Hmacinator
-
 instance BuiltinForeign HashAlgorithm where foreignRef = Tagged Ty.hashAlgorithmRef
-instance BuiltinForeign Hasher where foreignRef = Tagged Ty.hasherRef
-instance BuiltinForeign Hmacinator where foreignRef = Tagged Ty.hmacRef
 
 wrapBuiltin :: forall f. BuiltinForeign f => f -> Foreign
 wrapBuiltin x = Wrap r x

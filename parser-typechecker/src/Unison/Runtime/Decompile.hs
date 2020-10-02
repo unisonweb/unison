@@ -8,7 +8,6 @@ module Unison.Runtime.Decompile
 
 import Prelude hiding (seq)
 import Unison.Prelude
-import qualified Data.ByteArray
 
 import Unison.ABT (absChain, substs, pattern AbsN')
 import Unison.Term
@@ -24,7 +23,7 @@ import Unison.Reference (Reference)
 
 import Unison.Runtime.ANF (RTag, CTag, Tag(..))
 import Unison.Runtime.Foreign
-  (Foreign, Hasher(..), HashAlgorithm(..), Hmacinator(..), maybeUnwrapBuiltin, maybeUnwrapForeign)
+  (Foreign, HashAlgorithm(..), maybeUnwrapBuiltin, maybeUnwrapForeign)
 import Unison.Runtime.Stack
   (Closure(..), pattern DataC, pattern PApV, IComb(..))
 
@@ -32,7 +31,6 @@ import Unison.Codebase.Runtime (Error)
 import Unison.Util.Pretty (lit)
 
 import qualified Unison.Util.Bytes as By
-import qualified Crypto.MAC.HMAC as HMAC
 
 import Unsafe.Coerce -- for Int -> Double
 
@@ -107,9 +105,7 @@ decompileForeign
 decompileForeign tyRef topTerms f
   | Just t <- maybeUnwrapBuiltin f = Right $ text () t
   | Just b <- maybeUnwrapBuiltin f = Right $ decompileBytes b
-  | Just h <- maybeUnwrapBuiltin f = Right $ decompileHasher h
   | Just h <- maybeUnwrapBuiltin f = Right $ decompileHashAlgorithm h
-  | Just h <- maybeUnwrapBuiltin f = Right $ decompileHmacinator h
   | Just s <- unwrapSeq f
   = seq' () <$> traverse (decompile tyRef topTerms) s
 decompileForeign _ _ _ = err "cannot decompile Foreign"
@@ -121,26 +117,6 @@ decompileBytes
 
 decompileHashAlgorithm :: Var v => HashAlgorithm -> Term v ()
 decompileHashAlgorithm (HashAlgorithm r _) = ref () r
-
-decompileHmacinator :: Var v => Hmacinator -> Term v ()
-decompileHmacinator (Hmacinator r (HMAC.Context a b)) =
-  apps' (builtin () "crypto.Hmac._internal.init") [
-    ref () r,
-    decompileBytes $ bs a,
-    decompileBytes $ bs b
-    ]
-  where
-  -- NB: a hashing context is just `newtype Context a = Context Data.ByteArray.Bytes`
-  -- but cryptonite doesn't expose the constructor sadly
-  bs ctx = By.fromArray (unsafeCoerce ctx :: Data.ByteArray.Bytes)
-
-decompileHasher :: Var v => Hasher -> Term v ()
-decompileHasher (Hasher r ctx) =
-  apps' (builtin () "crypto.Hash._internal.init") [ref () r, decompileBytes bs]
-  where
-  -- NB: a hashing context is just `newtype Context a = Context Data.ByteArray.Bytes`
-  -- but cryptonite doesn't expose the constructor sadly
-  bs = By.fromArray (unsafeCoerce ctx :: Data.ByteArray.Bytes)
 
 unwrapSeq :: Foreign -> Maybe (Seq Closure)
 unwrapSeq = maybeUnwrapForeign vectorRef
