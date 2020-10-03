@@ -56,8 +56,11 @@ import Data.Primitive.Array
 import qualified Data.Sequence as Sq
 import qualified Data.ByteArray as BA
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 
-import Unison.Reference (Reference)
+import Unison.Reference (Reference(..))
+import qualified Unison.Hash as UnisonHash
+import qualified Unison.Reference as Reference
 
 import Unison.Runtime.ANF (Mem(..))
 import Unison.Runtime.MCode
@@ -68,6 +71,8 @@ import qualified Unison.Type as Ty
 import Unison.Util.EnumContainers as EC
 
 import GHC.Stack (HasCallStack)
+
+import Unsafe.Coerce (unsafeCoerce)
 
 import qualified Crypto.Hash as Hash
 import qualified Crypto.Hash.IO as Hash
@@ -178,17 +183,6 @@ universalCompare frn = cmpc False
     | otherwise = frn fl fr
   cmpc _ c d = comparing closureNum c d
 
--- formats
--- TODO: fill these in
-refToBytes :: Reference -> BA.Bytes
-refToBytes = undefined
-ctorToBytes :: Word64 -> BA.Bytes
-ctorToBytes = undefined
-intToBytes :: Int -> BA.Bytes
-intToBytes = undefined
-textToBytes :: Text.Text -> BA.Bytes
-textToBytes = undefined
-
 universalHash :: forall a . Hash.HashAlgorithm a
               => (Hash.MutableContext a -> Foreign -> IO ())
               -> Hash.MutableContext a
@@ -196,32 +190,47 @@ universalHash :: forall a . Hash.HashAlgorithm a
               -> IO ()
 universalHash hashForeign ctx = go
   where
-  mix = Hash.hashMutableUpdate ctx
-  mixf = hashForeign ctx
+  hash :: BA.ByteArray bs => bs -> IO ()
+  hash = Hash.hashMutableUpdate ctx
   go :: Closure -> IO ()
   go (DataC rf ct us bs)
-    =  mix (refToBytes rf)
-    *> mix (ctorToBytes ct)
-    *> traverse_ (mix . intToBytes) us
-    *> traverse_ go bs
+    = hashByte 0 *> hashRef rf *> hashCtor ct *> traverse_ hashInt us *> traverse_ go bs
   go (PApV (CIx rf _ _) us bs)
-    =  mix (refToBytes rf)
-    *> traverse_ (mix . intToBytes) us
-    *> traverse_ go bs
+    = hashByte 1 *> hashRef rf *> traverse_ hashInt us *> traverse_ go bs
   go (CapV k us bs)
-    = gok k *> traverse_ (mix . intToBytes) us *> traverse_ go bs
+    = hashByte 2 *> gok k *> traverse_ hashInt us *> traverse_ go bs
   go (Foreign f)
-    | Just s <- maybeUnwrapForeign Ty.vectorRef f
-    = mix seqRefBytes *> mix (intToBytes (Sq.length s)) *> traverse_ go s
     | Just t <- maybeUnwrapForeign Ty.textRef f
-    = mix textRefBytes *> mix (textToBytes t)
-    | otherwise = mixf f
+    = hashByte 3 *> hashText t
+    | Just s <- maybeUnwrapForeign Ty.vectorRef f
+    = hashByte 4 *> hashWord (fromIntegral (Sq.length s)) *> traverse_ go s
+    | otherwise = hashByte 5 *> hashForeign ctx f
   go BlackHole{}
     = fail "An error occurred while hashing. The value being hashed contains a black hole."
   gok :: K -> IO ()
   gok _k = error "todo - hashing of continuations"
-  seqRefBytes = refToBytes Ty.vectorRef
-  textRefBytes = refToBytes Ty.textRef
+
+  -- formats
+  hashByte :: Word8 -> IO ()
+  hashByte b = Hash.hashMutableUpdate ctx (BA.singleton b :: BA.Bytes)
+  hashCtor :: Word64 -> IO ()
+  hashCtor = hashWord
+  hashText :: Text.Text -> IO ()
+  hashText txt = do
+    let bs = Text.encodeUtf8 txt
+    hashInt (BA.length bs)
+    hash bs
+  hashWord :: Word64 -> IO ()
+  hashWord _n = undefined -- hash BS.toLazyByteString (BS.word64BE n)
+  hashInt :: Int -> IO ()
+  hashInt n = hashInt64 (fromIntegral n)
+  hashInt64 :: Int64 -> IO ()
+  hashInt64 n = hashWord (unsafeCoerce n)
+  hashRef (Reference.Builtin r) =
+    hashByte 0 *> hashText r
+  hashRef (Reference.DerivedId (Reference.Id h n _cycleSize)) = do
+    hashByte 1 *> hash (UnisonHash.toBytes h)
+               *> hashWord n -- ignoring cycle size for the hash
 
 marshalToForeign :: HasCallStack => Closure -> Foreign
 marshalToForeign (Foreign x) = x
