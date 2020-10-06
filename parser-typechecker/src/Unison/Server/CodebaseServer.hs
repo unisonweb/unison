@@ -249,11 +249,8 @@ serveNamespace codebase mayHQN = case mayHQN of
               (Name.toText n)
               (Hash.base32Hex . Causal.unRawHash $ Branch.headHash root)
           $ fmap (backendListEntryToNamespaceObject ppe Nothing) entries
-      HQ.HashOnly h        -> undefined h
-          -- if hash present, look up branch by hash in codebase
-      HQ.HashQualified _ h -> undefined h
-            -- if hash present, look up branch by hash in codebase
-
+      HQ.HashOnly _        -> hashOnlyNotSupported
+      HQ.HashQualified _ _ -> hashQualifiedNotSupported
  where
   errFromMaybe e = maybe (throwError e) pure
   errFromEither f = either (throwError . f) pure
@@ -262,5 +259,11 @@ serveNamespace codebase mayHQN = case mayHQN of
   findShallow p = do
     ea <- liftIO . runExceptT $ Backend.findShallow codebase p
     errFromEither backendError ea
-
+  hashOnlyNotSupported = throwError $ err400
+    { errBody = "This server does not yet support searching namespaces by hash."
+    }
+  hashQualifiedNotSupported = throwError $ err400
+    { errBody = "This server does not yet support searching namespaces by "
+                  <> "hash-qualified name."
+    }
 
