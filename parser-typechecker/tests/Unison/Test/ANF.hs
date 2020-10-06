@@ -9,11 +9,13 @@ import Unison.ABT.Normalized (Term(TAbs))
 import qualified Unison.Pattern as P
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF
-import Unison.Runtime.MCode (emitCombs)
+import Unison.Runtime.MCode (emitCombs, RefNums(..))
 import Unison.Type as Ty
 import Unison.Var as Var
 
 import Unison.Util.EnumContainers as EC
+
+import Data.Word (Word64)
 
 import qualified Data.Set as Set
 import qualified Data.Map as Map
@@ -41,9 +43,7 @@ simpleRefs r
   | otherwise = 100
 
 runANF :: Var v => ANFM v a -> a
-runANF m = evalState (runReaderT m env) (0, [])
- where
- env = (Set.empty, const 0, simpleRefs)
+runANF m = evalState (runReaderT m Set.empty) (0, [])
 
 testANF :: String -> Test ()
 testANF s
@@ -54,9 +54,12 @@ testANF s
   anf = runANF $ anfTerm t0
 
 testLift :: String -> Test ()
-testLift s = case cs of (!_, !_, _) -> ok
+testLift s = case cs of !_ -> ok
   where
-  cs = emitCombs 0 . superNormalize (const 0) (const 0) . lamLift $ tm s
+  cs = emitCombs (RN (const 0) (const 0)) 0
+     . superNormalize
+     . lamLift
+     $ tm s
 
 denormalize :: Var v => ANormal v -> Term.Term0 v
 denormalize (TVar v) = Term.var () v
@@ -84,8 +87,7 @@ denormalize (TName _ _ _ _)
 denormalize (TMatch v cs)
   = Term.match () (ABT.var v) $ denormalizeMatch cs
 denormalize (TApp f args)
-  | FCon rt 0 <- f
-  , r <- denormalizeRef rt
+  | FCon r 0 <- f
   , r `elem` [Ty.natRef, Ty.intRef]
   , [v] <- args
   = Term.var () v
@@ -95,9 +97,9 @@ denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
     FVar v -> Term.var () v
     FComb _ -> error "FComb"
     FCon r n ->
-      Term.constructor () (denormalizeRef r) (fromIntegral $ rawTag n)
+      Term.constructor () r (fromIntegral $ rawTag n)
     FReq r n ->
-      Term.request () (denormalizeRef r) (fromIntegral $ rawTag n)
+      Term.request () r (fromIntegral $ rawTag n)
     FPrim _ -> error "FPrim"
     FCont _ -> error "denormalize FCont"
 denormalize (TFrc _) = error "denormalize TFrc"
@@ -112,7 +114,7 @@ denormalizeRef r
   | 5 <- rawTag r = Ty.charRef
   | otherwise = error "denormalizeRef"
 
-backReference :: RTag -> Reference
+backReference :: Word64 -> Reference
 backReference _ = error "backReference"
 
 denormalizeMatch
@@ -151,19 +153,19 @@ denormalizeBranch tm = (0, denormalize tm)
 
 denormalizeHandler
   :: Var v
-  => EnumMap RTag (EnumMap CTag ([Mem], ANormal v))
+  => Map.Map Reference (EnumMap CTag ([Mem], ANormal v))
   -> ANormal v
   -> [Term.MatchCase () (Term.Term0 v)]
 denormalizeHandler cs df = dcs
   where
-  dcs = foldMapWithKey rf cs <> dfc
+  dcs = Map.foldMapWithKey rf cs <> dfc
   dfc = [ Term.MatchCase
             (P.EffectPure () (P.Var ()))
             Nothing
             db
         ]
    where (_, db) = denormalizeBranch df
-  rf r rcs = foldMapWithKey (cf $ backReference r) rcs
+  rf r rcs = foldMapWithKey (cf r) rcs
   cf r t b = [ Term.MatchCase
                  (P.EffectBind () r (fromEnum t)
                    (replicate n $ P.Var ()) (P.Var ()))

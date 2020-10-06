@@ -190,13 +190,16 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
   evalUnisonFile :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> _
   evalUnisonFile ppe (UF.discardTypes -> unisonFile) = do
     let codeLookup = Codebase.toCodeLookup codebase
-    selfContained <- Codebase.makeSelfContained' codeLookup unisonFile
+    evalFile <-
+      if Runtime.needsContainment rt
+        then Codebase.makeSelfContained' codeLookup unisonFile
+        else pure unisonFile
     let watchCache (Reference.DerivedId h) = do
           m1 <- Codebase.getWatch codebase UF.RegularWatch h
           m2 <- maybe (Codebase.getWatch codebase UF.TestWatch h) (pure . Just) m1
           pure $ Term.amap (const ()) <$> m2
         watchCache Reference.Builtin{} = pure Nothing
-    r <- Runtime.evaluateWatches codeLookup ppe watchCache rt selfContained
+    r <- Runtime.evaluateWatches codeLookup ppe watchCache rt evalFile
     case r of
       Left e -> pure (Left e)
       Right rs@(_,map) -> do

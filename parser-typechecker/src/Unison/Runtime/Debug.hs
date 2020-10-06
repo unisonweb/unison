@@ -24,14 +24,15 @@ type Term v = Tm.Term v ()
 
 traceComb :: Bool -> Word64 -> Comb -> Bool
 traceComb False _ _ = True
-traceComb True  w c = trace (prettyComb w c "\n") True
+traceComb True  w c = trace (prettyComb w 0 c "\n") True
 
 traceCombs
-  :: Bool
-  -> (Comb, EnumMap Word64 Comb, Word64)
-  -> (Comb, EnumMap Word64 Comb, Word64)
-traceCombs False c = c
-traceCombs True  c = trace (prettyCombs c "") c
+  :: Word64
+  -> Bool
+  -> EnumMap Word64 Comb
+  -> EnumMap Word64 Comb
+traceCombs _ False c = c
+traceCombs w True  c = trace (prettyCombs w c "") c
 
 tracePretty
   :: Var v
@@ -44,9 +45,10 @@ tracePretty ppe True tm = trace (toANSI 50 $ pretty ppe tm) tm
 
 tracePrettyGroup
   :: Var v
-  => Bool
+  => Word64
+  -> Bool
   -> SuperGroup v
   -> SuperGroup v
-tracePrettyGroup False g = g
-tracePrettyGroup True g = trace (prettyGroup g "") g
+tracePrettyGroup _ False g = g
+tracePrettyGroup w True g = trace (prettyGroup (show w) g "") g
 

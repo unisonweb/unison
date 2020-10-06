@@ -35,6 +35,7 @@ data Runtime v = Runtime
       -> Term v
       -> IO (Either Error (Term v))
   , mainType :: Type v Ann
+  , needsContainment :: Bool
   }
 
 type IsCacheHit = Bool
@@ -125,8 +126,11 @@ evaluateTerm
 evaluateTerm codeLookup ppe rt tm = do
   let uf = UF.UnisonFileId mempty mempty mempty
              (Map.singleton UF.RegularWatch [(Var.nameds "result", tm)])
-  selfContained <- Codebase.makeSelfContained' codeLookup uf
-  r <- evaluateWatches codeLookup ppe noCache rt selfContained
+  runnable <-
+    if needsContainment rt
+      then Codebase.makeSelfContained' codeLookup uf
+      else pure uf
+  r <- evaluateWatches codeLookup ppe noCache rt runnable
   pure $ r <&> \(_,map) ->
     let [(_loc, _kind, _hash, _src, value, _isHit)] = Map.elems map
     in value
