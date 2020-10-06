@@ -12,6 +12,7 @@ module U.Core.ABT where
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Foldable as Foldable
+import Prelude hiding (abs,cycle)
 
 data ABT f v r
   = Var v
@@ -21,7 +22,9 @@ data ABT f v r
 
 -- | At each level in the tree, we store the set of free variables and
 -- a value of type `a`. Variables are of type `v`.
+
 data Term f v a = Term { freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a) }
+  deriving (Functor, Foldable, Traversable)
 
 -- instance (Show1 f, Show v) => Show (Term f v a) where
 --   -- annotations not shown
@@ -30,6 +33,13 @@ data Term f v a = Term { freeVars :: Set v, annotation :: a, out :: ABT f v (Ter
 --     Cycle body -> ("Cycle " ++) . showsPrec p body
 --     Abs v body -> showParen True $ (show v ++) . showString ". " . showsPrec p body
 --     Tm f -> showsPrec1 p f
+
+vmap :: (Functor f, Foldable f, Ord v') => (v -> v') -> Term f v a -> Term f v' a
+vmap f (Term _ a out) = case out of
+  Var v -> annotatedVar a (f v)
+  Tm fa -> tm a (fmap (vmap f) fa)
+  Cycle r -> cycle a (vmap f r)
+  Abs v body -> abs a (f v) (vmap f body)
 
 extraMap :: Functor g => (forall k . f k -> g k) -> Term f v a -> Term g v a
 extraMap p (Term fvs a sub) = Term fvs a (go p sub) where

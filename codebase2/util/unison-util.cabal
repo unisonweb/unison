@@ -16,12 +16,14 @@ category:            Development
 library
   exposed-modules:
     U.Util.Base32Hex
+    U.Util.Components
     U.Util.Hash
     U.Util.Hashable
+    U.Util.Monoid
     U.Util.Relation
   -- other-modules:
   -- other-extensions:
-  build-depends:       
+  build-depends:
     base,
     bytestring,
     containers,

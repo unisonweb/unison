@@ -1,16 +1,83 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE BlockArguments #-}
+
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
+{-# OPTIONS_GHC -Wno-unused-local-binds #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
+
 module U.Codebase.Convert.SyncV1V2 where
 
 import qualified U.Util.Hashable as H
 import Database.SQLite.Simple.FromField (FromField)
 import U.Util.Hash (Hash)
+import qualified Unison.Codebase.V1.FileCodebase as V1
 import qualified Unison.Codebase.V1.Branch.Raw as V1
 import Data.Text (Text)
 import Database.SQLite.Simple.ToField (ToField)
 import qualified Unison.Codebase.V1.Reference as V1.Reference
+import UnliftIO (liftIO, MonadIO)
+import Database.SQLite.Simple (Connection)
+import qualified Database.SQLite.Simple as SQLite
+import Control.Monad.Except (MonadError, throwError, runExceptT)
+import Control.Monad.Reader (ReaderT(runReaderT))
+import qualified U.Util.Base32Hex as Base32Hex
+import qualified U.Util.Hash as Hash
+import qualified Data.Text as Text
+import UnliftIO.Directory (listDirectory)
+import Data.Functor ((<&>))
+import qualified U.Codebase.Reference as V2.Reference
+import qualified U.Codebase.Sqlite.Reference as V2S.Reference
+import Unison.Codebase.V1.FileCodebase (CodebasePath)
+import U.Codebase.Sqlite.Queries (DB)
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Control.Monad.Extra (ifM)
+import Data.String.Here.Uninterpolated (here)
+import qualified U.Codebase.Sqlite.Queries as Db
+import qualified Unison.Codebase.V1.Symbol as V1.Symbol
+import qualified Unison.Codebase.V1.Term as V1.Term
+import qualified Unison.Codebase.V1.Type as V1.Type
+import qualified Unison.Codebase.V1.DataDeclaration as V1.DD
+import qualified U.Codebase.Sqlite.Term.Format as V2.TermFormat
+import qualified U.Codebase.Term as V2.Term
+import qualified U.Codebase.Sqlite.Symbol as V2.Symbol
+import qualified U.Codebase.Type as V2.Type
+import qualified U.Codebase.Decl as V2.Decl
+import qualified U.Codebase.Sqlite.Decl.Format as V2.DeclFormat
+import qualified Unison.Codebase.V1.FileCodebase as V1.FC
+import qualified Unison.Codebase.V1.Serialization.Serialization as V1.S
+import qualified Unison.Codebase.V1.Serialization.V1 as V1.S
+import Data.Bytes.Get (MonadGet)
+import Data.Foldable (for_, Foldable(toList))
+import Data.Traversable (for)
+import qualified Unison.Codebase.V1.LabeledDependency as V1.LD
+import Data.List.Extra (nubOrd)
+import Data.Either (partitionEithers)
+import U.Util.Base32Hex (Base32Hex)
+import Data.Bifunctor (Bifunctor(first))
+import qualified U.Codebase.Referent as V2.Referent
+import qualified U.Codebase.Sqlite.ObjectType as V2.OT
+import qualified U.Util.Serialization as S
+import qualified U.Codebase.Sqlite.Serialization as S.V2
+import U.Util.Monoid (foldMapM)
+import Data.Foldable (Foldable(foldl'))
+import qualified Unison.Codebase.V1.ABT as V1.ABT
+import qualified Data.Set as Set
+import qualified Unison.Codebase.V1.Type.Kind as V1.Kind
+import qualified U.Codebase.Kind as V2.Kind
+import qualified U.Core.ABT as V2.ABT
+import qualified Unison.Codebase.V1.Term.Pattern as V1.Pattern
+import qualified Unison.Codebase.V1.Referent as V1.Referent
 
 newtype V1 a = V1 {runV1 :: a} deriving (Eq, Ord, Show)
 
@@ -21,16 +88,16 @@ newtype V2 a = V2 {runV2 :: a}
 data V1EntityRef
   = Decl1 (V1 Hash) -- this will refer to the whole component
   | Term1 (V1 Hash) -- ditto
-  | Patch1 (V1 V1.EditHash)
-  | Branch1 (V1 V1.BranchHash)
+  | Patch1 V1.EditHash
+  | Branch1 V1.BranchHash
   deriving (Eq, Ord, Show)
 
 v1EntityRefToHash :: V1EntityRef -> V1 Hash
 v1EntityRefToHash = \case
   Decl1 h -> h
   Term1 h -> h
-  Patch1 (V1 (V1.EditHash h)) -> V1 h
-  Branch1 (V1 (V1.BranchHash h)) -> V1 h
+  Patch1 (V1.EditHash h) -> V1 h
+  Branch1 (V1.BranchHash h) -> V1 h
 
 newtype Base32HexPrefix = Base32HexPrefix Text
   deriving (Show) via Text
@@ -41,6 +108,13 @@ newtype Base32HexPrefix = Base32HexPrefix Text
 -- newtype NamespaceHash h = NamespaceHash h
 newtype CausalHash h = CausalHash h
 
+-- 1. Load a V1 component (Hash, [V1Term])
+-- 2. Convert its dependencies before continuing
+-- 3. Construct the hashable data structure
+-- 4. Serialize the hashable data structure
+
+-- unhashTermComponent :: V1 Hash -> [V1Term.Term] -> [V2.Term Symbol]
+
 -- -- |things that appear in a deserialized RawBranch
 -- type V2EntityRef =
 --   V2EntityRefH
@@ -49,20 +123,20 @@ newtype CausalHash h = CausalHash h
 --     (NamespaceHash Hash)
 --     (CausalHash Hash)
 
--- -- -- |things that appear in a serialized RawBranch
--- -- type V2EntityRefS =
--- --     V2EntityRefH
--- --       Db.ObjectId
--- --       (PatchHash Db.ObjectId)
--- --       (NamespaceHash Db.NamespaceHashId)
--- --       (CausalHash Db.CausalHashId)
+-- |things that appear in a serialized RawBranch
+-- type V2EntityRefS =
+--     V2EntityRef
+--       Db.ObjectId
+--       (PatchHash Db.ObjectId)
+--       (NamespaceHash Db.NamespaceHashId)
+--       (CausalHash Db.CausalHashId)
 
--- -- data V2EntityRefH hr hp hn hc
--- --   = Decl2 V2.ReferenceId
--- --   | Term2 Reference.Id
--- --   | Patch2 PatchHash
--- --   | NamespaceHash2 NamespaceHash
--- --   | CausalHash2 CausalHash
+-- data V2EntityRef hr hp hn hc
+--   = Decl2 V2.Reference.Id
+--   | Term2 V2.Reference.Id
+--   | Patch2 PatchHash
+--   | NamespaceHash2 V2NamespaceHash
+--   | CausalHash2 CausalHash
 
 -- initializeV2DB :: MonadIO m => m ()
 -- initializeV2DB = error "todo"
@@ -82,40 +156,39 @@ data FatalError
   | InvalidTypeOfTerm V1.Reference.Id
   | InvalidDecl V1.Reference.Id
 
--- type Type = Type.Type Symbol Ann
+type V1Type = V1.Type.Type V1.Symbol.Symbol ()
+type V1Term = V1.Term.Term V1.Symbol.Symbol ()
+type V1Decl = V1.DD.Decl V1.Symbol.Symbol ()
 
--- type Term = Term.Term Symbol Ann
+type V2TermH = V2.Term.Term V2.Symbol.Symbol
+type V2TypeT = V2.Type.TypeT V2.Symbol.Symbol
+type V2TermComponentH = [V2TermH]
+type V2TermComponentS = V2.TermFormat.LocallyIndexedComponent
 
--- type Decl = DD.Decl Symbol Ann
+type V2DeclH = V2.Decl.Decl V2.Symbol.Symbol
+type V2DeclComponentH = [V2DeclH]
+type V2DeclComponentS = V2.DeclFormat.LocallyIndexedComponent
 
 -- type Patch = Patch.Patch V1.Reference
-
 -- -- the H stands for "for hashing"
 -- -- the S stands for "for serialization"
 -- type Term2ComponentH = [Term2 Hash]
-
 -- type Term2ComponentS = [Term2 Db.ObjectId]
-
 -- type Decl2ComponentH = [Decl2 (Maybe Hash)]
-
 -- type Decl2S = Decl2 Db.ObjectId
 -- type Decl2ComponentS = [Decl2S]
 
 
 -- -- these have maybes in them to indicate a self-component reference
 -- type Term2 h = V2.Term h
-
 -- type Decl2 h = DD.DeclR (V2.Reference h) Symbol ()
 
 -- -- for indexing
 -- type Decl2I = DD.DeclR (V2.Reference Db.ObjectId) Symbol ()
-
 -- type Term2S = Term2 Db.ObjectId
-
 -- type Type2S = V2.Type Db.ObjectId
 
 -- -- what about referent types in the index?
-
 -- -- type CtorType2S = Type.TypeH Db.ObjectId Symbol Ann
 -- -- type Term2S = Term.TermH (Maybe Db.ObjectId) Symbol Ann
 -- type Patch2S = Patch.Patch (V2.Reference Db.ObjectId)
@@ -142,76 +215,76 @@ data FatalError
 -- putA :: S.Put Ann
 -- putA = S.put fmtA
 
--- -- todo: this just converts a whole codebase, which we need to do locally \
--- --       but we also want some code that imports just a particular sub-branch.
--- syncV1V2 :: forall m. MonadIO m => Connection -> CodebasePath -> m (Either FatalError ())
--- syncV1V2 c rootDir = liftIO $ SQLite.withTransaction c . runExceptT . flip runReaderT c $ do
---   v1RootHash <- getV1RootBranchHash rootDir >>= maybe (throwError NoRootBranch) pure
---   -- starting from the root namespace, convert all entities you can find
---   convertEntities [Branch1 v1RootHash]
---   v2RootHash <- v2CausalHashForV1BranchHash v1RootHash
---   setV2Root v2RootHash
---   error "todo: compressEntities and vacuum db" v2RootHash
+-- todo: this just converts a whole codebase, which we need to do locally \
+--       but we also want some code that imports just a particular sub-branch.
+syncV1V2 :: forall m. MonadIO m => Connection -> CodebasePath -> m (Either FatalError ())
+syncV1V2 c rootDir = liftIO $ SQLite.withTransaction c . runExceptT . flip runReaderT c $ do
+  v1RootHash <- getV1RootBranchHash rootDir >>= maybe (throwError NoRootBranch) pure
+  -- starting from the root namespace, convert all entities you can find
+  convertEntities [Branch1 v1RootHash]
+  v2RootHash <- v2CausalHashForV1BranchHash v1RootHash
+  setV2Root v2RootHash
+  error "todo: compressEntities and vacuum db" v2RootHash
 
---   -- Incorporating diff construction into the conversion is tough because
---   -- a) I was thinking we'd represent an older version as a diff against the
---   --    newer version, but the newer version hasn't been fully constructed
---   --    until the older versions have been converted and hashed.
---   -- b) If we just store all the old versions uncompressed, it might be too big.
---   --    (But no bigger than the v1 db.) But if that is okay, we can compress and
---   --    vacuum them afterwards.
+  -- Incorporating diff construction into the conversion is tough because
+  -- a) I was thinking we'd represent an older version as a diff against the
+  --    newer version, but the newer version hasn't been fully constructed
+  --    until the older versions have been converted and hashed.
+  -- b) If we just store all the old versions uncompressed, it might be too big.
+  --    (But no bigger than the v1 db.) But if that is okay, we can compress and
+  --    vacuum them afterwards.
 
---   pure ()
---   where
---     setV2Root = error "todo: setV2Root"
---     v2CausalHashForV1BranchHash = error "todo: v2CausalHashForV1BranchHash"
---     convertEntities ::
---       forall m.
---       DB m =>
---       MonadError FatalError m =>
---       [V1EntityRef] ->
---       m ()
---     convertEntities [] = pure ()
---     convertEntities all@(h : rest) = do
---       termDirComponents <- componentMapForDir (V1.termsDir rootDir)
---       declsDirComponents <- componentMapForDir (V1.typesDir rootDir)
---       case h of
---         Term1 h ->
---           -- if this hash is already associated to an object
---           ifM (existsObjectWithHash (runV1 h)) (convertEntities rest) $ do
---             -- load a cycle from disk
---             e <- loadTerm1 rootDir termDirComponents h
---             matchTerm1Dependencies h e >>= \case
---               Left missing -> convertEntities (missing ++ all)
---               Right lookup -> do
---                 convertTerm1 lookup h e
---                 convertEntities rest
---         Decl1 h ->
---           ifM (existsObjectWithHash (runV1 h)) (convertEntities rest) $ do
---             d <- loadDecl1 rootDir declsDirComponents h
---             matchDecl1Dependencies h d >>= \case
---               Left missing -> convertEntities (missing ++ all)
---               Right lookup -> do
---                 convertDecl1 (error "todo: lookup") h d
---                 convertEntities rest
---         Patch1 h ->
---           ifM (existsObjectWithHash (runV1 h)) (convertEntities rest) $ do
---             p <- loadPatch1 rootDir h
---             matchPatch1Dependencies ("patch " ++ show h) p >>= \case
---               Left missing -> convertEntities (missing ++ all)
---               Right lookup -> do
---                 -- hashId <- Db.saveHashByteString (runV1 h)
---                 -- savePatch hashId (Patch.hmap (lookup . V1) p)
---                 error "todo"
---                 convertEntities rest
---         Branch1 (V1.unRawHash -> h) ->
---           ifM (existsObjectWithHash h) (convertEntities rest) $ do
---             cb <- loadCausalBranch1 rootDir (V1 h)
---             matchCausalBranch1Dependencies ("branch " ++ show h) cb >>= \case
---               Left missing -> convertEntities (missing ++ all)
---               Right (lookupObject, lookupCausal) -> do
---                 convertCausalBranch1 lookupObject lookupCausal cb
---                 convertEntities rest
+  pure ()
+  where
+    setV2Root = error "todo: setV2Root"
+    v2CausalHashForV1BranchHash = error "todo: v2CausalHashForV1BranchHash"
+    convertEntities ::
+      forall m.
+      DB m =>
+      MonadError FatalError m =>
+      [V1EntityRef] ->
+      m ()
+    convertEntities [] = pure ()
+    convertEntities all@(h : rest) = do
+      termDirComponents <- componentMapForDir (V1.termsDir rootDir)
+      declsDirComponents <- componentMapForDir (V1.typesDir rootDir)
+      case h of
+        Term1 h ->
+          -- if this hash is already associated to an object
+          ifM (existsObjectWithHash (runV1 h)) (convertEntities rest) $ do
+            -- load a cycle from disk
+            e <- loadTerm1 rootDir termDirComponents h
+            matchTerm1Dependencies h e >>= \case
+              Left missing -> convertEntities (missing ++ all)
+              Right (getHash, getObjId, getTextId) -> do
+                convertTerm1 getHash getObjId getTextId h e
+                convertEntities rest
+        -- Decl1 h ->
+        --   ifM (existsObjectWithHash (runV1 h)) (convertEntities rest) $ do
+        --     d <- loadDecl1 rootDir declsDirComponents h
+        --     matchDecl1Dependencies h d >>= \case
+        --       Left missing -> convertEntities (missing ++ all)
+        --       Right lookup -> do
+        --         convertDecl1 (error "todo: lookup") h d
+        --         convertEntities rest
+        -- Patch1 h ->
+        --   ifM (existsObjectWithHash (runV1 h)) (convertEntities rest) $ do
+        --     p <- loadPatch1 rootDir h
+        --     matchPatch1Dependencies ("patch " ++ show h) p >>= \case
+        --       Left missing -> convertEntities (missing ++ all)
+        --       Right lookup -> do
+        --         -- hashId <- Db.saveHashByteString (runV1 h)
+        --         -- savePatch hashId (Patch.hmap (lookup . V1) p)
+        --         error "todo"
+        --         convertEntities rest
+        -- Branch1 (V1.BranchHash h) ->
+        --   ifM (existsObjectWithHash h) (convertEntities rest) $ do
+        --     cb <- loadCausalBranch1 rootDir (V1 h)
+        --     matchCausalBranch1Dependencies ("branch " ++ show h) cb >>= \case
+        --       Left missing -> convertEntities (missing ++ all)
+        --       Right (lookupObject, lookupCausal) -> do
+        --         convertCausalBranch1 lookupObject lookupCausal cb
+        --         convertEntities rest
 
 -- -- | load a causal branch raw thingo
 -- loadCausalBranch1 ::
@@ -320,18 +393,18 @@ data FatalError
 --       H.accumulateToken (parents c)
 --     ]
 
--- getV1RootBranchHash :: MonadIO m => CodebasePath -> m (Maybe V1.Branch.Hash)
--- getV1RootBranchHash root = listDirectory (V1.branchHeadDir root) <&> \case
---   [single] -> Just . V1.Branch.Hash . Hash.unsafeFromBase32Hex $ Text.pack single
---   _ -> Nothing
+getV1RootBranchHash :: MonadIO m => CodebasePath -> m (Maybe V1.BranchHash)
+getV1RootBranchHash root = listDirectory (V1.branchHeadDir root) <&> \case
+  [single] -> Just . V1.BranchHash . Hash.fromBase32Hex . Base32Hex.UnsafeBase32Hex $ Text.pack single
+  _ -> Nothing
 
--- -- | Look for an ObjectId corresponding to the provided V1 hash.
--- --  Returns Left if not found.
--- lookupObject :: DB m => V1EntityRef -> m (Either V1EntityRef (V1 Hash, (V2 Hash, Db.ObjectId)))
--- lookupObject r@(runV1 . v1EntityRefToHash -> h) =
---   getObjectIdByBase32Hex (Base32Hex.fromHash h) <&> \case
---     Nothing -> Left r
---     Just i -> Right (V1 h, i)
+-- | Look for an ObjectId corresponding to the provided V1 hash.
+--  Returns Left if not found.
+lookupObject :: DB m => V1EntityRef -> m (Either V1EntityRef (V1 Hash, (V2 Hash, Db.ObjectId)))
+lookupObject r@(runV1 . v1EntityRefToHash -> h) =
+  getObjectIdByBase32Hex (Hash.toBase32Hex h) <&> \case
+    Nothing -> Left r
+    Just i -> Right (V1 h, i)
 
 -- -- | Look for a CausalHashId corresponding to the provided V1 hash.
 -- --  Returns Left if not found.
@@ -356,19 +429,10 @@ data FatalError
 --   let blob = S.putBytes (S.V1.putTypeR (V2.putReference V2.putObjectId) putV V2.putUnit) type2s
 --    in Db.saveTypeOfReferent r blob
 
--- -- | Multiple hashes can map to a single object!
--- getObjectIdByBase32Hex :: DB m => Base32Hex -> m (Maybe (V2 Hash, Db.ObjectId))
--- getObjectIdByBase32Hex h =
---   fmap (first (V2 . Base32Hex.toHash)) <$> Db.queryMaybe sql (Only h)
---   where
---     sql =
---       [here|
---     SELECT object.id
---     FROM hash
---     INNER JOIN hash_object ON hash_object.hash_id = hash.id
---     INNER JOIN object ON hash_object.object_id = object.id
---     WHERE hash.base32 = ?
---   |]
+-- | Multiple hashes can map to a single object!
+getObjectIdByBase32Hex :: DB m => Base32Hex -> m (Maybe (V2 Hash, Db.ObjectId))
+getObjectIdByBase32Hex h =
+  fmap (first (V2 . Hash.fromBase32Hex)) <$> Db.objectAndPrimaryHashByAnyHash h
 
 -- augmentLookup :: Ord a => (a -> b) -> Map a b -> a -> b
 -- augmentLookup f m a = fromMaybe (f a) (Map.lookup a m)
@@ -376,30 +440,30 @@ data FatalError
 -- saveReferenceAsReference2 :: DB m => Reference -> m (V2.Reference Db.HashId)
 -- saveReferenceAsReference2 = mapMOf Db.referenceTraversal Db.saveHashByteString
 
--- -- | load a term component by its hash.
--- --  A v1 term component is split across an arbitrary number of files.
--- --  We have to 1) figure out what all the filenames are (preloaded into
--- --  `termDirComponents`), 2) load them all,
--- loadTerm1 ::
---   MonadIO m =>
---   MonadError FatalError m =>
---   CodebasePath ->
---   Map (V1 Hash) [Reference.Id] ->
---   V1 Hash ->
---   m [(Term, Type)]
--- loadTerm1 rootDir componentsFromDir h = case Map.lookup h componentsFromDir of
---   Nothing -> throwError $ MissingTermHash h
---   Just set -> case toList set of
---     [] -> error "Just [] shouldn't occur here."
---     Reference.Id h _i n : _etc -> for [0 .. n -1] \i -> do
---       let r = Reference.Id h i n
---       term <-
---         V1.FC.getTerm (S.get fmtV) (S.get fmtA) rootDir r
---           >>= maybe (throwError $ MissingTerm r) pure
---       typeOfTerm <-
---         V1.FC.getTypeOfTerm (S.get fmtV) (S.get fmtA) rootDir r
---           >>= maybe (throwError $ MissingTypeOfTerm r) pure
---       pure (term, typeOfTerm)
+-- | load a term component by its hash.
+--  A v1 term component is split across an arbitrary number of files.
+--  We have to 1) figure out what all the filenames are (preloaded into
+--  `termDirComponents`), 2) load them all,
+loadTerm1 ::
+  MonadIO m =>
+  MonadError FatalError m =>
+  CodebasePath ->
+  Map (V1 Hash) [V1.Reference.Id] ->
+  V1 Hash ->
+  m [(V1Term, V1Type)]
+loadTerm1 rootDir componentsFromDir h = case Map.lookup h componentsFromDir of
+  Nothing -> throwError $ MissingTermHash h
+  Just set -> case toList set of
+    [] -> error "Just [] shouldn't occur here."
+    V1.Reference.Id h _i n : _etc -> for [0 .. n -1] \i -> do
+      let r = V1.Reference.Id h i n
+      term <-
+        V1.FC.getTerm rootDir r
+          >>= maybe (throwError $ MissingTerm r) pure
+      typeOfTerm <-
+        V1.FC.getTypeOfTerm rootDir r
+          >>= maybe (throwError $ MissingTypeOfTerm r) pure
+      pure (term, typeOfTerm)
 
 -- loadDecl1 ::
 --   MonadIO m =>
@@ -429,36 +493,37 @@ data FatalError
 --     )
 --     (throwError $ MissingPatch h)
 
--- -- 3) figure out what their combined dependencies are
--- matchTerm1Dependencies ::
---   DB m =>
---   V1 Hash ->
---   [(Term, Type)] ->
---   m (Either [V1EntityRef] (V1 Hash -> (V2 Hash, Db.ObjectId)))
--- matchTerm1Dependencies componentHash tms =
---   let -- Get a list of Eithers corresponding to the non-self dependencies of this term.
---       lookupDependencyObjects ::
---         DB m => (Term, Type) -> m [Either V1EntityRef (V1 Hash, (V2 Hash, Db.ObjectId))]
---       lookupDependencyObjects (term, typeOfTerm) = traverse lookupObject deps
---         where
---           (termTypeDeps, termTermDeps) =
---             partitionEithers
---               . map LD.toReference
---               . toList
---               $ Term.labeledDependencies term
---           deps =
---             nubOrd $
---               [Decl1 (V1 h) | Reference.Derived h _i _n <- toList $ Type.dependencies typeOfTerm]
---                 <> [Decl1 (V1 h) | Reference.Derived h _i _n <- termTypeDeps]
---                 <> [ Term1 (V1 h) | Reference.Derived h _i _n <- termTermDeps, h /= runV1 componentHash -- don't include self-refs 😬
---                    ]
---    in do
---         -- check the lefts, if empty then everything is on the right;
---         -- else return left.
---         (missing, found) <- partitionEithers <$> foldMapM lookupDependencyObjects tms
---         pure $ case missing of
---           [] -> Right (makeLookup found $ "term " ++ show componentHash)
---           missing -> Left missing
+-- 3) figure out what their combined dependencies are
+matchTerm1Dependencies ::
+  DB m =>
+  V1 Hash ->
+  [(V1Term, V1Type)] ->
+  m (Either [V1EntityRef] (V1 Hash -> V2 Hash, V2 Hash -> Db.ObjectId, Text -> Db.TextId))
+matchTerm1Dependencies componentHash tms =
+  let -- Get a list of Eithers corresponding to the non-self dependencies of this term.
+      lookupDependencyObjects ::
+        DB m => (V1Term, V1Type) -> m [Either V1EntityRef (V1 Hash, (V2 Hash, Db.ObjectId))]
+      lookupDependencyObjects (term, typeOfTerm) = traverse lookupObject deps
+        where
+          (termTypeDeps, termTermDeps) =
+            partitionEithers
+              . map V1.LD.toReference
+              . toList
+              $ V1.Term.labeledDependencies term
+          deps =
+            nubOrd $
+              [Decl1 (V1 h) | V1.Reference.Derived h _i _n <- toList $ V1.Type.dependencies typeOfTerm]
+                <> [Decl1 (V1 h) | V1.Reference.Derived h _i _n <- termTypeDeps]
+                <> [ Term1 (V1 h) | V1.Reference.Derived h _i _n <- termTermDeps, h /= runV1 componentHash -- don't include self-refs 😬
+                   ]
+   in do
+        -- check the lefts, if empty then everything is on the right;
+        -- else return left.
+        (missing, found) <- partitionEithers <$> foldMapM lookupDependencyObjects tms
+        -- pure $ case missing of
+        --   [] -> Right (makeLookup found $ "term " ++ show componentHash)
+        --   missing -> Left missing
+        error "todo"
 
 -- matchDecl1Dependencies ::
 --   DB m => V1 Hash -> [Decl] -> m (Either [V1EntityRef] (V1 Hash -> Db.ObjectId))
@@ -558,17 +623,17 @@ data FatalError
 --               ++ " in the map for "
 --               ++ description
 
--- makeLookup :: [(V1 Hash, (V2 Hash, Db.ObjectId))] -> String -> V1 Hash -> (V2 Hash, Db.ObjectId)
--- makeLookup l lookupDescription a =
---   let m = Map.fromList l
---    in case Map.lookup a m of
---         Just b -> b
---         Nothing ->
---           error $
---             "Somehow I don't have the ObjectId for "
---               ++ show (Base32Hex.fromHash (runV1 a))
---               ++ " in the map for "
---               ++ lookupDescription
+makeLookup :: [(V1 Hash, (V2 Hash, Db.ObjectId))] -> String -> V1 Hash -> (V2 Hash, Db.ObjectId)
+makeLookup l lookupDescription a =
+  let m = Map.fromList l
+   in case Map.lookup a m of
+        Just b -> b
+        Nothing ->
+          error $
+            "Somehow I don't have the ObjectId for "
+              ++ show (Hash.toBase32Hex (runV1 a))
+              ++ " in the map for "
+              ++ lookupDescription
 
 -- --
 -- createTypeSearchIndicesForReferent :: DB m => (V2.ReferentId Db.ObjectId) -> Type -> m ()
@@ -621,16 +686,16 @@ data FatalError
 --     . DD.declDependencies
 --     $ DD.rmapDecl (fmap $ fromMaybe selfId) decl
 
--- saveTermComponent :: DB m => V1 Hash -> V2 Hash -> Term2ComponentS -> m Db.ObjectId
--- saveTermComponent h1 h2 component = do
---   h1Id <- Db.saveHashByteString (runV1 h1)
---   h2Id <- Db.saveHashByteString (runV2 h2)
---   o <- Db.saveObject h2Id V2.TermComponent blob
---   Db.saveHashObject h1Id o 1
---   Db.saveHashObject h2Id o 2
---   pure o
---   where
---     blob = S.putBytes (S.V1.putFoldable V2.putTerm) component
+saveTermComponent :: DB m => V1 Hash -> V2 Hash -> V2TermComponentS -> m Db.ObjectId
+saveTermComponent h1 h2 component = do
+  h1Id <- Db.saveHashHash (runV1 h1)
+  h2Id <- Db.saveHashHash (runV2 h2)
+  o <- Db.saveObject h2Id V2.OT.TermComponent blob
+  Db.saveHashObject h1Id o 1
+  Db.saveHashObject h2Id o 2
+  pure o
+  where
+    blob = S.putBytes S.V2.putTermFormat (V2.TermFormat.Term component)
 
 -- saveDeclComponent :: DB m => Db.HashId -> [Decl2S] -> m Db.ObjectId
 -- saveDeclComponent h component = error "todo" -- do
@@ -647,56 +712,170 @@ data FatalError
 
 -- -- saveBranch :: DB m => Db.HashId ->
 
--- -- | Loads a dir with format <root>/base32-encoded-reference.id...
--- --  into a map from Hash to component references
--- componentMapForDir :: forall m. MonadIO m => FilePath -> m (Map (V1 Hash) [Reference.Id])
--- componentMapForDir root = listDirectory root <&> foldl' insert mempty
---   where
---     insert m filename = case V1.componentIdFromString filename of
---       Nothing -> m -- skip silently
---       Just r@(Reference.Id h _i _n) ->
---         Map.unionWith (<>) m (Map.singleton (V1 h) [r])
+-- | Loads a dir with format <root>/base32-encoded-reference.id...
+--  into a map from Hash to component references
+componentMapForDir :: forall m. MonadIO m => FilePath -> m (Map (V1 Hash) [V1.Reference.Id])
+componentMapForDir root = listDirectory root <&> foldl' insert mempty
+  where
+    insert m filename = case V1.componentIdFromString filename of
+      Nothing -> m -- skip silently
+      Just r@(V1.Reference.Id h _i _n) ->
+        Map.unionWith (<>) m (Map.singleton (V1 h) [r])
 
--- existsObjectWithHash :: DB m => Hash -> m Bool
--- existsObjectWithHash h = Db.queryExists sql [Base32Hex.fromHash h]
---   where
---     sql =
---       [here|
---     SELECT 1
---     FROM hash INNER JOIN hash_object ON hash.id = hash_object.hash_id
---     WHERE base32 = ?
---   |]
+existsObjectWithHash :: DB m => Hash -> m Bool
+existsObjectWithHash = Db.objectExistsWithHash . Hash.toBase32Hex
 
--- -- | Given a V1 term component, convert and save it to the V2 codebase
--- -- Pre-requisite: all hash-identified entities in the V1 component have
--- -- already been converted and added to the V2 codebase, apart from self-
--- -- references.
--- convertTerm1 :: DB m => (V1 Hash -> (V2 Hash, Db.ObjectId)) -> V1 Hash -> [(Term, Type)] -> m ()
--- convertTerm1 lookup hash1 v1component = do
+convertABT :: forall f v a f' v' a' . Ord v' => (f (V1.ABT.Term f v a) -> f' (V2.ABT.Term f' v' a')) -> (v -> v') -> (a -> a') -> V1.ABT.Term f v a -> V2.ABT.Term f' v' a'
+convertABT ff fv fa = goTerm where
+  goTerm :: V1.ABT.Term f v a -> V2.ABT.Term f' v' a'
+  goTerm (V1.ABT.Term vs a out) = V2.ABT.Term (Set.map fv vs) (fa a) (goABT out)
+  goABT :: V1.ABT.ABT f v (V1.ABT.Term f v a) -> V2.ABT.ABT f' v' (V2.ABT.Term f' v' a')
+  goABT = \case
+    V1.ABT.Var v -> V2.ABT.Var (fv v)
+    V1.ABT.Cycle t -> V2.ABT.Cycle (goTerm t)
+    V1.ABT.Abs v t -> V2.ABT.Abs (fv v) (goTerm t)
+    V1.ABT.Tm ft -> V2.ABT.Tm (ff ft)
 
---   -- construct v2 term component for hashing
---   let v2componentH :: Term2ComponentH =
---         map (buildTerm2H (fst . lookup) hash1 . fst) v1component
---   -- note: we'd need some special care here if we want to make sure that this
---     -- hash function is identity for simple references
---   let hash2 = V2 (H.accumulate' v2componentH)
+convertSymbol :: V1.Symbol.Symbol -> V2.Symbol.Symbol
+convertSymbol (V1.Symbol.Symbol id name) = V2.Symbol.Symbol id name
 
---   -- construct v2 term component for serializing
---   let v2componentS :: [Term2 Db.ObjectId] =
---         map (buildTerm2S (snd . lookup) hash1 . fst) v1component
+convertKind :: V1.Kind.Kind -> V2.Kind.Kind
+convertKind = \case
+  V1.Kind.Star -> V2.Kind.Star
+  V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)
 
---   -- serialize the v2 term component
---   componentObjectId :: Db.ObjectId <- saveTermComponent hash1 hash2 v2componentS
+-- | Given a V1 term component, convert and save it to the V2 codebase
+-- Pre-requisite: all hash-identified entities in the V1 component have
+-- already been converted and added to the V2 codebase, apart from self-
+-- references.
+convertTerm1 :: DB m => (V1 Hash -> V2 Hash) -> (V2 Hash -> Db.ObjectId) -> (Text -> Db.TextId) -> V1 Hash -> [(V1Term, V1Type)] -> m ()
+convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
 
---   -- construct v2 types for each component element, and save the types to the
---   -- to the indices
---   for_ (zip3 [0 ..] v1component v2componentS) $ \(i, (_term1, typ1), term2) -> do
---     let r = V2.ReferenceId componentObjectId i
---     let rt = V2.ReferentIdRef r
+  -- construct v2 term component for hashing
+  let
+    buildTermType2H :: (V1 Hash -> V2 Hash) -> V1Type -> V2TypeT
+    buildTermType2H lookup = goType where
+      goType :: V1Type -> V2TypeT
+      goType = convertABT goABT convertSymbol (const ())
+      goABT :: V1.Type.F V1Type -> V2.Type.FT V2TypeT
+      goABT = \case
+        V1.Type.Ref r -> V2.Type.Ref case r of
+          V1.Reference.Builtin t ->
+            V2.Reference.ReferenceBuiltin t
+          V1.Reference.Derived h i _n ->
+            V2.Reference.ReferenceDerived
+              (V2.Reference.Id (runV2 . lookup $ V1 h) i)
+        V1.Type.Arrow i o -> V2.Type.Arrow (goType i) (goType o)
+        V1.Type.Ann a k -> V2.Type.Ann (goType a) (convertKind k)
+        V1.Type.App f x -> V2.Type.App (goType f) (goType x)
+        V1.Type.Effect e b -> V2.Type.Effect (goType e) (goType b)
+        V1.Type.Effects as -> V2.Type.Effects (goType <$> as)
+        V1.Type.Forall a -> V2.Type.Forall (goType a)
+        V1.Type.IntroOuter a -> V2.Type.IntroOuter (goType a)
+    buildTerm2H :: (V1 Hash -> V2 Hash) -> V1 Hash -> V1Term -> V2TermH
+    buildTerm2H lookup self = goTerm where
+      goTerm = convertABT goABT convertSymbol (const ())
+      goABT :: V1.Term.F V1.Symbol.Symbol () V1Term -> V2.Term.F V2.Symbol.Symbol V2TermH
+      lookupTermLink = \case
+        V1.Referent.Ref r -> V2.Referent.Ref (lookupTerm r)
+        V1.Referent.Con r i _ct -> V2.Referent.Con (lookupType r) (fromIntegral i)
+      lookupTerm = \case
+        V1.Reference.Builtin t -> V2.Reference.ReferenceBuiltin t
+        V1.Reference.Derived h i _n ->
+          V2.Reference.ReferenceDerived
+            (V2.Reference.Id
+              (if V1 h == self then Nothing
+                else (Just . runV2.lookup $ V1 h)) i)
+      lookupType = \case
+        V1.Reference.Builtin t -> V2.Reference.ReferenceBuiltin t
+        V1.Reference.Derived h i _n ->
+          V2.Reference.ReferenceDerived
+            (V2.Reference.Id (runV2 . lookup $ V1 h) i)
+      goABT = \case
+        V1.Term.Int i -> V2.Term.Int i
+        V1.Term.Nat n -> V2.Term.Nat n
+        V1.Term.Float f -> V2.Term.Float f
+        V1.Term.Boolean b -> V2.Term.Boolean b
+        V1.Term.Text t -> V2.Term.Text t
+        V1.Term.Char c -> V2.Term.Char c
+        V1.Term.Ref r -> V2.Term.Ref (lookupTerm r)
+        V1.Term.Constructor r i ->
+          V2.Term.Constructor (lookupType r) (fromIntegral i)
+        V1.Term.Request r i ->
+          V2.Term.Constructor (lookupType r) (fromIntegral i)
+        V1.Term.Handle b h -> V2.Term.Handle (goTerm b) (goTerm h)
+        V1.Term.App f a -> V2.Term.App (goTerm f) (goTerm a)
+        V1.Term.Ann e t -> V2.Term.Ann (goTerm e) (buildTermType2H lookup t)
+        V1.Term.Sequence as -> V2.Term.Sequence (goTerm <$> as)
+        V1.Term.If c t f -> V2.Term.If (goTerm c) (goTerm t) (goTerm f)
+        V1.Term.And a b -> V2.Term.And (goTerm a) (goTerm b)
+        V1.Term.Or a b -> V2.Term.Or (goTerm a) (goTerm b)
+        V1.Term.Lam a -> V2.Term.Lam (goTerm a)
+        V1.Term.LetRec _ bs body -> V2.Term.LetRec (goTerm <$> bs) (goTerm body)
+        V1.Term.Let _ b body -> V2.Term.Let (goTerm b) (goTerm body)
+        V1.Term.Match e cases -> V2.Term.Match (goTerm e) (goCase <$> cases)
+        V1.Term.TermLink r -> V2.Term.TermLink (lookupTermLink r)
+        V1.Term.TypeLink r -> V2.Term.TypeLink (lookupType r)
+      goCase (V1.Term.MatchCase p g b) =
+        V2.Term.MatchCase (goPat p) (goTerm <$> g) (goTerm b)
+      goPat = \case
+        V1.Pattern.Unbound -> V2.Term.PUnbound
+        V1.Pattern.Var -> V2.Term.PVar
+        V1.Pattern.Boolean b -> V2.Term.PBoolean b
+        V1.Pattern.Int i -> V2.Term.PInt i
+        V1.Pattern.Nat n -> V2.Term.PNat n
+        V1.Pattern.Float d -> V2.Term.PFloat d
+        V1.Pattern.Text t -> V2.Term.PText t
+        V1.Pattern.Char c -> V2.Term.PChar c
+        V1.Pattern.Constructor r i ps ->
+          V2.Term.PConstructor (lookupType r) i (goPat <$> ps)
+        V1.Pattern.As p -> V2.Term.PAs (goPat p)
+        V1.Pattern.EffectPure p -> V2.Term.PEffectPure (goPat p)
+        V1.Pattern.EffectBind r i ps k ->
+          V2.Term.PEffectBind (lookupType r) i (goPat <$> ps) (goPat k)
+        V1.Pattern.SequenceLiteral ps -> V2.Term.PSequenceLiteral (goPat <$> ps)
+        V1.Pattern.SequenceOp p op p2 ->
+          V2.Term.PSequenceOp (goPat p) (goSeqOp op) (goPat p2)
+      goSeqOp = \case
+        V1.Pattern.Cons -> V2.Term.PCons
+        V1.Pattern.Snoc -> V2.Term.PSnoc
+        V1.Pattern.Concat -> V2.Term.PConcat
 
---     saveTypeBlobForReferent rt (buildTermType2S (snd . lookup) typ1)
---     createTypeSearchIndicesForReferent rt typ1
---     createDependencyIndexForTerm r term2
+    -- |this function assumes that the terms are already in their canonical order
+    buildTermComponent2S :: (V2 Hash -> Db.ObjectId) -> V2 Hash -> V2TermComponentH -> V2TermComponentS
+    buildTermComponent2S getId h terms =
+      -- collect the local id values
+      error "not implemented"
+
+    v2types :: [V2TypeT] =
+      map (buildTermType2H lookup1 . snd) v1component
+
+    -- |may need an extra pass to put them into their canonical order
+    -- or a proof that none is needed
+    v2componentH :: V2TermComponentH = error "todo" $
+      map (buildTerm2H lookup1 hash1 . fst) v1component
+
+    -- note: we'd need some special care here if we want to make sure that this
+    -- hash function is identity for simple references
+    hash2 = error "todo" -- V2 (H.accumulate' v2componentH)
+
+    -- construct v2 term component for serializing
+    v2componentS :: V2TermComponentS =
+      buildTermComponent2S lookup2 hash2 v2componentH
+
+  -- -- serialize the v2 term component
+  -- componentObjectId :: Db.ObjectId <- saveTermComponent hash1 hash2 v2componentS
+
+  -- -- construct v2 types for each component element, and save the types to the
+  -- -- to the indices
+  -- for_ (zip3 [0 ..] v1component v2componentS) $ \(i, (_term1, typ1), term2) -> do
+  --   let r = V2.Reference.Id componentObjectId i
+  --   let rt = V2.Referent.RefId r
+
+  --   saveTypeBlobForReferent rt (buildTermType2S (snd . lookup) typ1)
+  --   createTypeSearchIndicesForReferent rt typ1
+  --   createDependencyIndexForTerm r term2
+  error "todo"
 
 -- convertDecl1 :: DB m => (V1 Hash -> (V2 Hash, Db.ObjectId)) -> V1 Hash -> [Decl] -> m ()
 -- convertDecl1 lookup hash1 v1component = do

@@ -55,6 +55,8 @@ library
     unliftio,
     unison-core,
     unison-codebase1,
+    unison-codebase,
     unison-codebase-sqlite,
-    unison-util
+    unison-util,
+    unison-util-serialization
   default-language:    Haskell2010

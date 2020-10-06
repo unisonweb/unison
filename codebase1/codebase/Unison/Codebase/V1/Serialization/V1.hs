@@ -171,12 +171,12 @@ getABT getVar getA getF = getList getVar >>= go []
             0 -> ABT.annotatedVar a . (env !!) <$> getLength
             1 -> ABT.annotatedVar a . (fvs !!) <$> getLength
             _ -> unknownTag "getABT.Var" tag
-        1 -> ABT.tm' a <$> getF (go env fvs)
+        1 -> ABT.tm a <$> getF (go env fvs)
         2 -> do
           v <- getVar
           body <- go (v : env) fvs
-          pure $ ABT.abs' a v body
-        3 -> ABT.cycle' a <$> go env fvs
+          pure $ ABT.abs a v body
+        3 -> ABT.cycle a <$> go env fvs
         _ -> unknownTag "getABT" tag
 
 getKind :: MonadGet m => m Kind
@@ -185,12 +185,15 @@ getKind = getWord8 >>= \tag -> case tag of
   1 -> Kind.Arrow <$> getKind <*> getKind
   _ -> unknownTag "getKind" tag
 
-getType ::
+getType :: MonadGet m => m (Type Symbol ())
+getType = getType' getSymbol (pure ())
+
+getType' ::
   (MonadGet m, Ord v) =>
   m v ->
   m a ->
   m (Type v a)
-getType getVar getA = getABT getVar getA go
+getType' getVar getA = getABT getVar getA go
   where
     go getChild = getWord8 >>= \tag -> case tag of
       0 -> Type.Ref <$> getReference
@@ -245,12 +248,15 @@ getPattern getA = getWord8 >>= \tag -> case tag of
   13 -> Pattern.Char <$ getA <*> getChar
   _ -> unknownTag "Pattern" tag
 
-getTerm ::
+getTerm :: MonadGet m => m (Term Symbol ())
+getTerm = getTerm' getSymbol (pure ())
+
+getTerm' ::
   (MonadGet m, Ord v) =>
   m v ->
   m a ->
   m (Term v a)
-getTerm getVar getA = getABT getVar getA go
+getTerm' getVar getA = getABT getVar getA go
   where
     go getChild = getWord8 >>= \tag -> case tag of
       0 -> Term.Int <$> getInt
@@ -263,7 +269,7 @@ getTerm getVar getA = getABT getVar getA go
       7 -> Term.Request <$> getReference <*> getLength
       8 -> Term.Handle <$> getChild <*> getChild
       9 -> Term.App <$> getChild <*> getChild
-      10 -> Term.Ann <$> getChild <*> getType getVar getA
+      10 -> Term.Ann <$> getChild <*> getType' getVar getA
       11 -> Term.Sequence . Sequence.fromList <$> getList getChild
       12 -> Term.If <$> getChild <*> getChild <*> getChild
       13 -> Term.And <$> getChild <*> getChild
@@ -347,13 +353,16 @@ getRawBranch =
     <*> getMap getNameSegment (Branch.BranchHash <$> getHash)
     <*> getMap getNameSegment (Branch.EditHash <$> getHash)
 
-getDataDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (DataDeclaration v a)
-getDataDeclaration getV getA =
+getDataDeclaration :: MonadGet m => m (DataDeclaration Symbol ())
+getDataDeclaration = getDataDeclaration' getSymbol (pure ())
+
+getDataDeclaration' :: (MonadGet m, Ord v) => m v -> m a -> m (DataDeclaration v a)
+getDataDeclaration' getV getA =
   DataDeclaration.DataDeclaration
     <$> getModifier
     <*> getA
     <*> getList getV
-    <*> getList (getTuple3 getA getV (getType getV getA))
+    <*> getList (getTuple3 getA getV (getType' getV getA))
 
 getModifier :: MonadGet m => m DataDeclaration.Modifier
 getModifier = getWord8 >>= \case
@@ -361,9 +370,13 @@ getModifier = getWord8 >>= \case
   1 -> DataDeclaration.Unique <$> getText
   tag -> unknownTag "DataDeclaration.Modifier" tag
 
-getEffectDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (EffectDeclaration v a)
-getEffectDeclaration getV getA =
-  DataDeclaration.EffectDeclaration <$> getDataDeclaration getV getA
+getEffectDeclaration :: MonadGet m => m (EffectDeclaration Symbol ())
+getEffectDeclaration =
+  DataDeclaration.EffectDeclaration <$> getDataDeclaration
+
+getEffectDeclaration' :: (MonadGet m, Ord v) => m v -> m a -> m (EffectDeclaration v a)
+getEffectDeclaration' getV getA =
+  DataDeclaration.EffectDeclaration <$> getDataDeclaration' getV getA
 
 getEither :: MonadGet m => m a -> m b -> m (Either a b)
 getEither getL getR = getWord8 >>= \case

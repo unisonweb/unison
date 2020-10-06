@@ -27,6 +27,8 @@ data Reference
 pattern Derived :: H.Hash -> Pos -> Size -> Reference
 pattern Derived h i n = DerivedId (Id h i n)
 
+{-# COMPLETE Builtin, Derived #-}
+
 type Pos = Word64
 type Size = Word64
 

@@ -36,9 +36,10 @@ data F' r a
       -- variables
   deriving (Foldable, Functor, Eq, Ord, Traversable)
 
--- | Types are represented as ABTs over the base functor F, with variables in `v`
+-- | Non-recursive type
 type TypeT v = ABT.Term FT v ()
 
+-- | Potentially-recursive type
 type TypeD v = ABT.Term FD v ()
 
 type TypeR r v = ABT.Term (F' r) v ()

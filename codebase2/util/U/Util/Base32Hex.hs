@@ -2,16 +2,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 
-module U.Util.Base32Hex 
-  (Base32Hex(UnsafeBase32Hex), fromByteString, toByteString, toText, textToByteString) 
-where
+module U.Util.Base32Hex where
 
 import Data.Text (Text)
 import qualified Codec.Binary.Base32Hex
 import Data.ByteString (ByteString)
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
-import Data.Maybe (fromJust)
+import Data.Maybe (fromMaybe)
 
 newtype Base32Hex = UnsafeBase32Hex { toText :: Text }
   deriving (Eq, Ord, Show)
@@ -25,13 +23,19 @@ fromByteString bs =
   UnsafeBase32Hex . Text.toLower . Text.dropWhileEnd (== '=') . decodeUtf8 $
   Codec.Binary.Base32Hex.encode bs
 
--- by not exporting the Base32Hex constructor, we can trust that it's valid
 toByteString :: Base32Hex -> ByteString
-toByteString = fromJust . textToByteString . toText
+toByteString = fromMaybe err . textToByteString . toText
+  where err = "invalid base32Hex presumably created via \"unsafe\" constructors"
+
+fromText :: Text -> Maybe Base32Hex
+fromText = fmap fromByteString . textToByteString
+
+unsafeFromText :: Text -> Base32Hex
+unsafeFromText = UnsafeBase32Hex
 
 -- | Produce a 'Hash' from a base32hex-encoded version of its binary representation
 textToByteString :: Text -> Maybe ByteString
-textToByteString txt = 
+textToByteString txt =
   case Codec.Binary.Base32Hex.decode (encodeUtf8 $ Text.toUpper txt <> paddingChars) of
     Left (_, _rem) -> Nothing
     Right h -> pure h

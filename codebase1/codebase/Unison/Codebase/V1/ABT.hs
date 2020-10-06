@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 -- Based on: http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -13,6 +14,10 @@ import qualified Data.Foldable as Foldable
 import qualified Data.Set as Set
 import Data.Set (Set)
 import Prelude hiding (abs, cycle)
+-- import U.Util.Hashable (Accumulate, Hashable1)
+-- import qualified Data.Map as Map
+-- import qualified U.Util.Hashable as Hashable
+-- import Data.Functor (void)
 
 data ABT f v r
   = Var v
@@ -144,14 +149,14 @@ class Ord v => Var v where
 -- instance Functor f => Functor (Term f v) where
 --   fmap f (Term fvs a sub) = Term fvs (f a) (fmap (fmap f) sub)
 
--- extraMap :: Functor g => (forall k . f k -> g k) -> Term f v a -> Term g v a
--- extraMap p (Term fvs a sub) = Term fvs a (go p sub) where
---   go :: Functor g => (forall k . f k -> g k) -> ABT f v (Term f v a) -> ABT g v (Term g v a)
---   go p = \case
---     Var v -> Var v
---     Cycle r -> Cycle (extraMap p r)
---     Abs v r -> Abs v (extraMap p r)
---     Tm x -> Tm (fmap (extraMap p) (p x))
+extraMap :: Functor g => (forall k . f k -> g k) -> Term f v a -> Term g v a
+extraMap p (Term fvs a sub) = Term fvs a (go p sub) where
+  go :: Functor g => (forall k . f k -> g k) -> ABT f v (Term f v a) -> ABT g v (Term g v a)
+  go p = \case
+    Var v -> Var v
+    Cycle r -> Cycle (extraMap p r)
+    Abs v r -> Abs v (extraMap p r)
+    Tm x -> Tm (fmap (extraMap p) (p x))
 
 -- pattern Var' v <- Term _ _ (Var v)
 -- pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs t))
@@ -179,11 +184,8 @@ class Ord v => Var v where
 annotatedVar :: a -> v -> Term f v a
 annotatedVar a v = Term (Set.singleton v) a (Var v)
 
--- abs :: Ord v => v -> Term f v () -> Term f v ()
--- abs = abs' ()
-
-abs' :: Ord v => a -> v -> Term f v a -> Term f v a
-abs' a v body = Term (Set.delete v (freeVars body)) a (Abs v body)
+abs :: Ord v => a -> v -> Term f v a -> Term f v a
+abs a v body = Term (Set.delete v (freeVars body)) a (Abs v body)
 
 -- absr :: (Functor f, Foldable f, Var v) => v -> Term f (V v) () -> Term f (V v) ()
 -- absr = absr' ()
@@ -201,17 +203,11 @@ abs' a v body = Term (Set.delete v (freeVars body)) a (Abs v body)
 -- absChain' :: Ord v => [(a, v)] -> Term f v a -> Term f v a
 -- absChain' vs t = foldr (\(a,v) t -> abs' a v t) t vs
 
--- tm :: (Foldable f, Ord v) => f (Term f v ()) -> Term f v ()
--- tm = tm' ()
+tm :: (Foldable f, Ord v) => a -> f (Term f v a) -> Term f v a
+tm a t = Term (Set.unions (fmap freeVars (Foldable.toList t))) a (Tm t)
 
-tm' :: (Foldable f, Ord v) => a -> f (Term f v a) -> Term f v a
-tm' a t = Term (Set.unions (fmap freeVars (Foldable.toList t))) a (Tm t)
-
--- cycle :: Term f v () -> Term f v ()
--- cycle = cycle' ()
-
-cycle' :: a -> Term f v a -> Term f v a
-cycle' a t = Term (freeVars t) a (Cycle t)
+cycle :: a -> Term f v a -> Term f v a
+cycle a t = Term (freeVars t) a (Cycle t)
 
 -- cycler' :: (Functor f, Foldable f, Var v) => a -> [v] -> Term f (V v) a -> Term f (V v) a
 -- cycler' a vs t = cycle' a $ foldr (absr' a) t vs
@@ -423,9 +419,9 @@ visit ::
   g (Term f v a)
 visit f t = flip fromMaybe (f t) $ case out t of
   Var _ -> pure t
-  Cycle body -> cycle' (annotation t) <$> visit f body
-  Abs x e -> abs' (annotation t) x <$> visit f e
-  Tm body -> tm' (annotation t) <$> traverse (visit f) body
+  Cycle body -> cycle (annotation t) <$> visit f body
+  Abs x e -> abs (annotation t) x <$> visit f e
+  Tm body -> tm (annotation t) <$> traverse (visit f) body
 
 -- | Apply an effectful function to an ABT tree top down, sequencing the results.
 visit' ::
@@ -435,9 +431,9 @@ visit' ::
   g (Term f v a)
 visit' f t = case out t of
   Var _ -> pure t
-  Cycle body -> cycle' (annotation t) <$> visit' f body
-  Abs x e -> abs' (annotation t) x <$> visit' f e
-  Tm body -> f body >>= (fmap (tm' (annotation t)) . traverse (visit' f))
+  Cycle body -> cycle (annotation t) <$> visit' f body
+  Abs x e -> abs (annotation t) x <$> visit' f e
+  Tm body -> f body >>= (fmap (tm (annotation t)) . traverse (visit' f))
 
 -- -- | `visit` specialized to the `Identity` effect.
 -- visitPure :: (Traversable f, Ord v)
@@ -596,6 +592,7 @@ visit' f t = case out t of
 --   isCyclic [(v,b)] = Set.member v (freeVars b)
 --   isCyclic bs      = length bs > 1
 
+-- -- todo:
 -- -- Hash a strongly connected component and sort its definitions into a canonical order.
 -- hashComponent ::
 --   (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Var v, Ord h, Accumulate h)
@@ -604,11 +601,18 @@ visit' f t = case out t of
 --   ts = Map.toList byName
 --   embeds = [ (v, void (transform Embed t)) | (v,t) <- ts ]
 --   vs = fst <$> ts
+--   -- make closed terms for each element of the component
+--   -- [ let x = ..., y = ..., in x
+--   -- , let x = ..., y = ..., in y ]
+--   -- so that we can then hash them (closed terms can be hashed)
+--   -- so that we can sort them by hash. this is the "canonical, name-agnostic"
+--   --   hash that yields the canonical ordering of the component.
 --   tms = [ (v, absCycle vs (tm $ Component (snd <$> embeds) (var v))) | v <- vs ]
 --   hashed  = [ ((v,t), hash t) | (v,t) <- tms ]
 --   sortedHashed = sortOn snd hashed
 --   overallHash = Hashable.accumulate (Hashable.Hashed . snd <$> sortedHashed)
 --   in (overallHash, [ (v, t) | ((v, _),_) <- sortedHashed, Just t <- [Map.lookup v byName] ])
+
 
 -- -- Group the definitions into strongly connected components and hash
 -- -- each component. Substitute the hash of each component into subsequent

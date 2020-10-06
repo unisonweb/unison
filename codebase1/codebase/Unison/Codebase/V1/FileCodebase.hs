@@ -5,19 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.V1.FileCodebase
-  ( getRootBranch, -- used by Git module
-    codebaseExists, -- used by Main
-    getCodebaseDir,
-    termsDir,
-    reflogPath,
-    getTerm,
-    getTypeOfTerm,
-    getDecl,
-    getWatch,
-    deserializeEdits,
-  )
-where
+module Unison.Codebase.V1.FileCodebase where
 
 import Control.Error (ExceptT (..), runExceptT)
 import Control.Monad.Catch (catch)
@@ -39,14 +27,20 @@ import Unison.Codebase.V1.Reference (Reference)
 import qualified Unison.Codebase.V1.Reference as Reference
 import qualified Unison.Codebase.V1.Serialization.Serialization as S
 import qualified Unison.Codebase.V1.Serialization.V1 as V1
-import Unison.Codebase.V1.Term (Term)
-import Unison.Codebase.V1.Type (Type)
+import qualified Unison.Codebase.V1.Term (Term)
+import qualified Unison.Codebase.V1.Type (Type)
 import UnliftIO (MonadIO)
 import UnliftIO (IOException)
 import UnliftIO (MonadIO (liftIO))
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
+import Data.Text (Text)
+import Data.Maybe (fromMaybe)
+import Data.Char (isDigit)
+import Unison.Codebase.V1.Symbol (Symbol)
 
-newtype CodebasePath = CodebasePath FilePath
+type CodebasePath = FilePath
+type Term = Unison.Codebase.V1.Term.Term Symbol ()
+type Type = Unison.Codebase.V1.Type.Type Symbol ()
 
 data WatchKind = RegularWatch | TestWatch deriving (Eq, Ord, Show)
 
@@ -66,18 +60,18 @@ codebasePath :: FilePath
 codebasePath = ".unison" </> "v1"
 
 termsDir, typesDir, branchesDir, branchHeadDir, editsDir :: CodebasePath -> FilePath
-termsDir (CodebasePath root) = root </> codebasePath </> "terms"
-typesDir (CodebasePath root) = root </> codebasePath </> "types"
-branchesDir (CodebasePath root) = root </> codebasePath </> "paths"
+termsDir root = root </> codebasePath </> "terms"
+typesDir root = root </> codebasePath </> "types"
+branchesDir root = root </> codebasePath </> "paths"
 branchHeadDir root = branchesDir root </> "_head"
-editsDir (CodebasePath root) = root </> codebasePath </> "patches"
+editsDir root = root </> codebasePath </> "patches"
 
 termDir, declDir :: CodebasePath -> Reference.Id -> FilePath
 termDir root r = termsDir root </> componentIdToString r
 declDir root r = typesDir root </> componentIdToString r
 
 watchesDir :: CodebasePath -> WatchKind -> FilePath
-watchesDir (CodebasePath root) k =
+watchesDir root k =
   root </> codebasePath </> "watches" </> case k of
     RegularWatch -> "_cache"
     TestWatch -> "test"
@@ -98,7 +92,7 @@ editsPath :: CodebasePath -> EditHash -> FilePath
 editsPath root (EditHash h) = editsDir root </> hashToString h ++ ".up"
 
 reflogPath :: CodebasePath -> FilePath
-reflogPath (CodebasePath root) = root </> codebasePath </> "reflog"
+reflogPath root = root </> codebasePath </> "reflog"
 
 -- checks if `path` looks like a unison codebase
 minimalCodebaseStructure :: CodebasePath -> [FilePath]
@@ -176,8 +170,40 @@ componentIdToString :: Reference.Id -> String
 componentIdToString = Text.unpack . Reference.toText . Reference.DerivedId
 
 -- here
--- componentIdFromString :: String -> Maybe Reference.Id
--- componentIdFromString = Reference.idFromText . Text.pack
+componentIdFromString :: String -> Maybe Reference.Id
+componentIdFromString = idFromText . Text.pack where
+  idFromText :: Text.Text -> Maybe Reference.Id
+  idFromText s = case fromText s of
+    Left _ -> Nothing
+    Right (Reference.Builtin _) -> Nothing
+    Right (Reference.DerivedId id) -> pure id
+
+-- examples:
+-- `##Text.take` — builtins don’t have cycles
+-- `#2tWjVAuc7` — derived, no cycle
+-- `#y9ycWkiC1.y9` — derived, part of cycle
+-- todo: take a (Reference -> CycleSize) so that `readSuffix` doesn't have to parse the size from the text.
+fromText :: Text -> Either String Reference
+fromText t = case Text.split (=='#') t of
+  [_, "", b] -> Right (Reference.Builtin b)
+  [_, h]     -> case Text.split (=='.') h of
+    [hash]         -> Right (derivedBase32Hex hash 0 1)
+    [hash, suffix] -> uncurry (derivedBase32Hex hash) <$> readSuffix suffix
+    _ -> bail
+  _ -> bail
+  where
+    bail = Left $ "couldn't parse a Reference from " <> Text.unpack t
+    derivedBase32Hex :: Text -> Reference.Pos -> Reference.Size -> Reference
+    derivedBase32Hex b32Hex i n = Reference.DerivedId (Reference.Id (fromMaybe msg h) i n)
+      where
+      msg = error $ "Reference.derivedBase32Hex " <> show h
+      h = Hash.fromBase32Hex <$> Base32Hex.fromText b32Hex
+    readSuffix :: Text -> Either String (Reference.Pos, Reference.Size)
+    readSuffix t = case Text.breakOn "c" t of
+      (pos, Text.drop 1 -> size) | Text.all isDigit pos && Text.all isDigit size ->
+        Right (read (Text.unpack pos), read (Text.unpack size))
+      _ -> Left "suffix decoding error"
+
 
 -- here
 -- referentFromString :: String -> Maybe Referent
@@ -193,39 +219,32 @@ componentIdToString = Text.unpack . Reference.toText . Reference.DerivedId
 -- referentToString :: Referent -> String
 -- referentToString = Text.unpack . Referent.toText
 
-getTerm :: (MonadIO m, Ord v) => S.Get v -> S.Get a -> CodebasePath -> Reference.Id -> m (Maybe (Term v a))
-getTerm getV getA path h = S.getFromFile (V1.getTerm getV getA) (termPath path h)
+getTerm :: MonadIO m => CodebasePath -> Reference.Id -> m (Maybe Term)
+getTerm path h = S.getFromFile V1.getTerm (termPath path h)
 
-getTypeOfTerm :: (MonadIO m, Ord v) => S.Get v -> S.Get a -> CodebasePath -> Reference.Id -> m (Maybe (Type v a))
-getTypeOfTerm getV getA path h = S.getFromFile (V1.getType getV getA) (typePath path h)
+getTypeOfTerm :: MonadIO m => CodebasePath -> Reference.Id -> m (Maybe Type)
+getTypeOfTerm path h = S.getFromFile V1.getType (typePath path h)
 
 getDecl ::
-  (MonadIO m, Ord v) =>
-  S.Get v ->
-  S.Get a ->
+  MonadIO m =>
   CodebasePath ->
   Reference.Id ->
-  m (Maybe (DD.Decl v a))
-getDecl getV getA root h =
+  m (Maybe (DD.Decl Symbol ()))
+getDecl root h =
   S.getFromFile
-    ( V1.getEither
-        (V1.getEffectDeclaration getV getA)
-        (V1.getDataDeclaration getV getA)
-    )
+    (V1.getEither V1.getEffectDeclaration V1.getDataDeclaration)
     (declPath root h)
 
 getWatch ::
-  (MonadIO m, Ord v) =>
-  S.Get v ->
-  S.Get a ->
+  MonadIO m =>
   CodebasePath ->
   WatchKind ->
   Reference.Id ->
-  m (Maybe (Term v a))
-getWatch getV getA path k id = do
+  m (Maybe Term)
+getWatch path k id = do
   let wp = watchesDir path k
   createDirectoryIfMissing True wp
-  S.getFromFile (V1.getTerm getV getA) (watchPath path k id)
+  S.getFromFile V1.getTerm (watchPath path k id)
 
 failWith :: MonadIO m => Err -> m a
 failWith = liftIO . fail . show

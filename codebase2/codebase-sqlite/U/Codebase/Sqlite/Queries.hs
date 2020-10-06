@@ -30,6 +30,8 @@ import qualified U.Codebase.Referent as Referent
 import U.Codebase.Sqlite.ObjectType
 import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hashable (Hashable)
+import U.Util.Hash (Hash)
+import qualified U.Util.Hash as Hash
 
 -- * types
 type DB m = (MonadIO m, MonadReader Connection m)
@@ -52,6 +54,9 @@ type DerivedReference = Reference.Id' ObjectId
 saveHash :: DB m => Base32Hex -> m HashId
 saveHash base32 = execute sql (Only base32) >> queryOne (loadHash base32)
   where sql = [here| INSERT OR IGNORE INTO hash (base32) VALUES (?) |]
+
+saveHashHash :: DB m => Hash -> m HashId
+saveHashHash = saveHash . Hash.toBase32Hex
 
 loadHash :: DB m => Base32Hex -> m (Maybe HashId)
 loadHash base32 = queryOnly sql (Only base32)
@@ -98,6 +103,23 @@ objectByPrimaryHashId :: DB m => HashId -> m (Maybe ObjectId)
 objectByPrimaryHashId h = queryOnly sql (Only h) where sql = [here|
   SELECT id FROM object WHERE primary_hash_id = ?
 |]
+
+objectAndPrimaryHashByAnyHash :: DB m => Base32Hex -> m (Maybe (Base32Hex, ObjectId))
+objectAndPrimaryHashByAnyHash h = queryMaybe sql (Only h) where sql = [here|
+  SELECT object.id
+  FROM hash
+  INNER JOIN hash_object ON hash_object.hash_id = hash.id
+  INNER JOIN object ON hash_object.objectId = object.id
+  WHERE hash.base32 = ?
+|]
+
+objectExistsWithHash :: DB m => Base32Hex -> m Bool
+objectExistsWithHash h = queryExists sql (Only h) where
+  sql = [here|
+    SELECT 1
+    FROM hash INNER JOIN hash_object ON hash.id = hash_object.hash_id
+    WHERE base32 = ?
+  |]
 
 updateObjectBlob :: DB m => ObjectId -> ByteString -> m ()
 updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|

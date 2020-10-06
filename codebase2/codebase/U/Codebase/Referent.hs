@@ -15,7 +15,6 @@ import qualified U.Util.Hashable as Hashable
 type Referent = Referent' (Reference' Text Hash) (Reference' Text Hash)
 type ConstructorIndex = Word64
 
-
 data Referent' rTm rTp
   = Ref rTm
   | Con rTp ConstructorIndex

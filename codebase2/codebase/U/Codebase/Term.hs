@@ -7,6 +7,8 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 
 module U.Codebase.Term where
 
@@ -21,6 +23,7 @@ import U.Codebase.Type (TypeR)
 import U.Util.Hash (Hash)
 import qualified U.Core.ABT as ABT
 import qualified U.Util.Hashable as H
+import qualified U.Codebase.Type as Type
 
 type ConstructorId = Word64
 
@@ -105,6 +108,8 @@ data SeqOp
   | PConcat
   deriving (Eq, Show)
 
+-- getHashesAndTextF ::
+
 -- rmap ::
 --   (termRef -> termRef') ->
 --   (typeRef -> typeRef') ->
@@ -114,16 +119,59 @@ data SeqOp
 -- rmap fTermRef fTypeRef fTermLink t =
 --   extraMap fTermRef fTypeRef fTermLink fTypeRef (Type.rmap fTypeRef) undefined id t
 
--- rmapPattern :: (r -> r') -> Pattern r loc -> Pattern r' loc
--- rmapPattern f = \case
---   PConstructor loc r i ps -> PConstructor loc (f r) i (rmap f <$> ps)
---   PAs loc p -> PAs loc (rmap f p)
---   PEffectPure loc p -> PEffectPure loc (rmap f p)
---   PEffectBind loc r i ps p -> PEffectBind loc (f r) i (rmap f <$> ps) (rmap f p)
---   PSequenceLiteral loc ps -> PSequenceLiteral loc (rmap f <$> ps)
---   PSequenceOp loc p1 op p2 -> PSequenceOp loc (rmap f p1) op (rmap f p2)
---   -- cover all cases having references or subpatterns above; the rest are fine
---   x -> unsafeCoerce x
+extraMap :: forall text termRef typeRef termLink typeLink vt
+                   text' termRef' typeRef' termLink' typeLink' vt' v a. Ord vt'
+         => (text -> text') -> (termRef -> termRef') -> (typeRef -> typeRef')
+         -> (termLink -> termLink') -> (typeLink -> typeLink') -> (vt -> vt')
+         -> ABT.Term (F' text termRef typeRef termLink typeLink vt) v a
+         -> ABT.Term (F' text' termRef' typeRef' termLink' typeLink' vt') v a
+extraMap ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go' where
+ go' = ABT.extraMap go
+ go :: forall x. F' text termRef typeRef termLink typeLink vt x -> F' text' termRef' typeRef' termLink' typeLink' vt' x
+ go = \case
+  Int i -> Int i
+  Nat n -> Nat n
+  Float d -> Float d
+  Boolean b -> Boolean b
+  Text t -> Text (ftext t)
+  Char c -> Char c
+  Ref r -> Ref (ftermRef r)
+  Constructor r cid -> Constructor (ftypeRef r) cid
+  Request r cid -> Request (ftypeRef r) cid
+  Handle e h -> Handle e h
+  App f a -> App f a
+  Ann a typ -> Ann a (Type.rmap ftypeRef $ ABT.vmap fvt typ)
+  Sequence s -> Sequence s
+  If c t f -> If c t f
+  And p q -> And p q
+  Or p q -> Or p q
+  Lam b -> Lam b
+  LetRec bs b -> LetRec bs b
+  Let a b -> Let a b
+  Match s cs -> Match s (goCase <$> cs)
+  TermLink r -> TermLink (ftermLink r)
+  TypeLink r -> TypeLink (ftypeLink r)
+ goCase :: MatchCase text typeRef x -> MatchCase text' typeRef' x
+ goCase (MatchCase p g b) = MatchCase (goPat p) g b
+ goPat = rmapPattern ftext ftypeRef
+
+rmapPattern :: (t -> t') -> (r -> r') -> Pattern t r -> Pattern t' r'
+rmapPattern ft fr = go where
+ go = \case
+  PUnbound -> PUnbound
+  PVar -> PVar
+  PBoolean b -> PBoolean b
+  PInt i -> PInt i
+  PNat n -> PNat n
+  PFloat d -> PFloat d
+  PText t -> PText (ft t)
+  PChar c -> PChar c
+  PConstructor r i ps -> PConstructor (fr r) i (go <$> ps)
+  PAs p -> PAs (go p)
+  PEffectPure p -> PEffectPure (go p)
+  PEffectBind r i ps p -> PEffectBind (fr r) i (go <$> ps) (go p)
+  PSequenceLiteral ps -> PSequenceLiteral (go <$> ps)
+  PSequenceOp p1 op p2 -> PSequenceOp (go p1) op (go p2)
 
 instance H.Hashable SeqOp where
   tokens PCons = [H.Tag 0]
