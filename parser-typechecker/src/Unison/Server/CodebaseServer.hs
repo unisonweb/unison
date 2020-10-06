@@ -32,6 +32,7 @@ import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.ConstructorType         ( ConstructorType )
 import           Unison.Name                    ( Name(..) )
+import qualified Unison.Name                   as Name
 import qualified Unison.NameSegment            as NameSegment
 import           Unison.Parser                  ( Ann )
 import           Unison.Pattern                 ( SeqOp )
@@ -216,50 +217,50 @@ start :: Var v => Codebase IO v Ann -> Int -> IO ()
 start codebase port = run port $ app codebase
 
 server :: Var v => Codebase IO v Ann -> Server API
-server codebase = serveNamespace :<|> foo
+server codebase = serveNamespace codebase :<|> foo
  where
   foo = pure ()
-  serveNamespace :: Maybe HashQualifiedName -> Handler NamespaceListing
-  serveNamespace hqn = case hqn of
-    Nothing  -> serveNamespace $ Just ""
-    -- parse client-specified hash-qualified name
-    Just hqn -> case HQ.fromText hqn of
-      Nothing -> throwError $ badHQN hqn
-      -- Check if namespace path is present in client input
-      -- by parsing client-specified namespace path
-      Just (HQ.NameOnly (Name (Text.unpack -> n))) -> case Path.parsePath' n of
-        Left  e     -> throwError $ badNamespace e n
-        Right path' -> do
-          -- get the root namespace of the codebase
-          gotRoot <- liftIO $ Codebase.getRootBranch codebase
-          case gotRoot of
-            Left  e    -> throwError $ rootBranchError e
-            Right root -> case Branch.getAt (Path.fromPath' path') root of
-              Nothing                 -> throwError $ noSuchNamespace hqn
-              Just (Branch.head -> _) -> do
-                hashLength <- liftIO $ Codebase.hashLength codebase
-                let
-                  p = either id (Path.Absolute . Path.unrelative)
-                    $ Path.unPath' path'
-                  ppe = Backend.basicSuffixifiedNames hashLength root
-                    $ Path.fromPath' path'
-                ea <- liftIO . runExceptT $ Backend.findShallow codebase p
-                either
-                  (throwError . backendError)
-                  ( pure
-                  . NamespaceListing
-                      (Text.pack n)
-                      (Hash.base32Hex . Causal.unRawHash $ Branch.headHash
-                        root
-                      )
-                  . fmap (backendListEntryToNamespaceObject ppe Nothing)
-                  )
-                  ea
-      Just (HQ.HashOnly h       ) -> undefined h
+
+discard :: Applicative m => a -> m ()
+discard = const $ pure ()
+
+serveNamespace
+  :: Var v
+  => Codebase IO v Ann
+  -> Maybe HashQualifiedName
+  -> Handler NamespaceListing
+serveNamespace codebase mayHQN = case mayHQN of
+  Nothing  -> serveNamespace codebase $ Just "."
+  Just hqn -> do
+    parsedName <- parseHQN hqn
+    case parsedName of
+      HQ.NameOnly n -> do
+        path'      <- parsePath $ Name.toString n
+        gotRoot    <- liftIO $ Codebase.getRootBranch codebase
+        root       <- errFromEither rootBranchError gotRoot
+        hashLength <- liftIO $ Codebase.hashLength codebase
+        let
+          p = either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
+          ppe =
+            Backend.basicSuffixifiedNames hashLength root $ Path.fromPath' path'
+        entries <- findShallow p
+        pure
+          . NamespaceListing
+              (Name.toText n)
+              (Hash.base32Hex . Causal.unRawHash $ Branch.headHash root)
+          $ fmap (backendListEntryToNamespaceObject ppe Nothing) entries
+      HQ.HashOnly h        -> undefined h
           -- if hash present, look up branch by hash in codebase
-      Just (HQ.HashQualified _ h) -> undefined h
+      HQ.HashQualified _ h -> undefined h
             -- if hash present, look up branch by hash in codebase
-        -- error if path not found
-        -- gather the immediate children under the path
-        -- list them out
+
+ where
+  errFromMaybe e = maybe (throwError e) pure
+  errFromEither f = either (throwError . f) pure
+  parseHQN hqn = errFromMaybe (badHQN hqn) $ HQ.fromText hqn
+  parsePath p = errFromEither (flip badNamespace p) $ Path.parsePath' p
+  findShallow p = do
+    ea <- liftIO . runExceptT $ Backend.findShallow codebase p
+    errFromEither backendError ea
+
 
