@@ -385,10 +385,19 @@ builtinsSrc =
   , B "Bytes.size" $ bytes --> nat
   , B "Bytes.flatten" $ bytes --> bytes
 
+   {- These are all `Bytes -> Bytes`, rather than `Bytes -> Text`.
+      This is intentional: it avoids a round trip to `Text` if all
+      you are doing with the bytes is dumping them to a file or a
+      network socket.
+
+      You can always `Text.tryFromUtf8` the results of these functions
+      to get some `Text`.
+    -}
   , B "Bytes.toBase16" $ bytes --> bytes
   , B "Bytes.toBase32" $ bytes --> bytes
   , B "Bytes.toBase64" $ bytes --> bytes
   , B "Bytes.toBase64UrlUnpadded" $ bytes --> bytes
+
   , B "Bytes.fromBase16" $ bytes --> eithert text bytes
   , B "Bytes.fromBase32" $ bytes --> eithert text bytes
   , B "Bytes.fromBase64" $ bytes --> eithert text bytes
