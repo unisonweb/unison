@@ -1,3 +1,5 @@
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -40,9 +42,10 @@ import qualified U.Codebase.Sqlite.Reference as V2S.Reference
 import Unison.Codebase.V1.FileCodebase (CodebasePath)
 import U.Codebase.Sqlite.Queries (DB)
 import Data.Map (Map)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import Control.Monad.Extra (ifM)
 import Data.String.Here.Uninterpolated (here)
+import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Queries as Db
 import qualified Unison.Codebase.V1.Symbol as V1.Symbol
 import qualified Unison.Codebase.V1.Term as V1.Term
@@ -64,7 +67,7 @@ import qualified Unison.Codebase.V1.LabeledDependency as V1.LD
 import Data.List.Extra (nubOrd)
 import Data.Either (partitionEithers)
 import U.Util.Base32Hex (Base32Hex)
-import Data.Bifunctor (Bifunctor(first))
+import Data.Bifunctor (second, Bifunctor(first))
 import qualified U.Codebase.Referent as V2.Referent
 import qualified U.Codebase.Sqlite.ObjectType as V2.OT
 import qualified U.Util.Serialization as S
@@ -78,6 +81,13 @@ import qualified U.Codebase.Kind as V2.Kind
 import qualified U.Core.ABT as V2.ABT
 import qualified Unison.Codebase.V1.Term.Pattern as V1.Pattern
 import qualified Unison.Codebase.V1.Referent as V1.Referent
+import qualified Control.Monad.State as State
+import Control.Monad.State (State)
+import qualified U.Codebase.Sqlite.LocalIds as V2.LocalIds
+import Data.Vector (Vector)
+import qualified Data.Vector as Vector
+import qualified Data.List as List
+import Data.Tuple (swap)
 
 newtype V1 a = V1 {runV1 :: a} deriving (Eq, Ord, Show)
 
@@ -744,13 +754,30 @@ convertKind = \case
   V1.Kind.Star -> V2.Kind.Star
   V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)
 
+type LocalIdState =
+  (Map Text V2.TermFormat.LocalTextId, Map (V2 Hash) V2.TermFormat.LocalDefnId)
+
+rewriteType ::
+    (V2.Reference.Reference ->
+      State.State LocalIdState V2.TermFormat.TypeRef) ->
+    V2TypeT -> State LocalIdState V2.TermFormat.Type
+rewriteType doRef = V2.ABT.transformM go where
+  go :: V2.Type.FT k -> State LocalIdState (V2.TermFormat.FT k)
+  go = \case
+    V2.Type.Ref r -> (V2.Type.Ref <$> doRef r)
+    V2.Type.Arrow l r -> pure $ V2.Type.Arrow l r
+    V2.Type.Ann a kind -> pure $ V2.Type.Ann a kind
+    V2.Type.Effect e b -> pure $ V2.Type.Effect e b
+    V2.Type.Effects es -> pure $ V2.Type.Effects es
+    V2.Type.Forall a -> pure $ V2.Type.Forall a
+    V2.Type.IntroOuter a -> pure $ V2.Type.IntroOuter a
+
 -- | Given a V1 term component, convert and save it to the V2 codebase
 -- Pre-requisite: all hash-identified entities in the V1 component have
 -- already been converted and added to the V2 codebase, apart from self-
 -- references.
 convertTerm1 :: DB m => (V1 Hash -> V2 Hash) -> (V2 Hash -> Db.ObjectId) -> (Text -> Db.TextId) -> V1 Hash -> [(V1Term, V1Type)] -> m ()
 convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
-
   -- construct v2 term component for hashing
   let
     buildTermType2H :: (V1 Hash -> V2 Hash) -> V1Type -> V2TypeT
@@ -840,13 +867,82 @@ convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
         V1.Pattern.Cons -> V2.Term.PCons
         V1.Pattern.Snoc -> V2.Term.PSnoc
         V1.Pattern.Concat -> V2.Term.PConcat
+    buildTermComponent2S :: (V2 Hash -> Db.ObjectId)
+                         -> V2 Hash
+                         -> V2TermComponentH
+                         -> V2TermComponentS
+    buildTermComponent2S getId h0 terms = let
+      rewrittenTerms ::
+        [(V2.TermFormat.Term, LocalIdState)] =
 
-    -- |this function assumes that the terms are already in their canonical order
-    buildTermComponent2S :: (V2 Hash -> Db.ObjectId) -> V2 Hash -> V2TermComponentH -> V2TermComponentS
-    buildTermComponent2S getId h terms =
-      -- collect the local id values
-      error "not implemented"
-
+            map (flip State.runState mempty . rewriteTerm) terms
+      rewriteTerm :: V2TermH -> State.State LocalIdState V2.TermFormat.Term
+      rewriteTerm = V2.ABT.transformM go where
+        doText :: Text -> State.State LocalIdState V2.TermFormat.LocalTextId
+        doText t = do
+          (textMap, objectMap) <- State.get
+          case Map.lookup t textMap of
+            Nothing -> do
+              let id = V2.TermFormat.LocalTextId
+                      . fromIntegral
+                      $ Map.size textMap
+              State.put (Map.insert t id textMap, objectMap)
+              pure id
+            Just id -> pure id
+        doHash :: Hash -> State.State LocalIdState V2.TermFormat.LocalDefnId
+        doHash (V2 -> h) = do
+          (textMap, objectMap) <- State.get
+          case Map.lookup h objectMap of
+            Nothing -> do
+              let id = V2.TermFormat.LocalDefnId
+                      . fromIntegral
+                      $ Map.size objectMap
+              State.put (textMap, Map.insert h id objectMap)
+              pure id
+            Just id -> pure id
+        doRecRef :: V2.Reference.Reference' Text (Maybe Hash) -> State.State LocalIdState V2.TermFormat.TermRef
+        doRecRef = \case
+          V2.Reference.ReferenceBuiltin t ->
+            V2.Reference.ReferenceBuiltin <$> doText t
+          V2.Reference.ReferenceDerived r ->
+            V2.Reference.ReferenceDerived <$> case r of
+              V2.Reference.Id h i -> V2.Reference.Id <$> traverse doHash h <*> pure i
+        doRef :: V2.Reference.Reference -> State.State LocalIdState V2.TermFormat.TypeRef
+        doRef = \case
+          V2.Reference.ReferenceBuiltin t ->
+            V2.Reference.ReferenceBuiltin <$> doText t
+          V2.Reference.ReferenceDerived (V2.Reference.Id h i) ->
+            V2.Reference.ReferenceDerived <$>
+                  (V2.Reference.Id <$> doHash h <*> pure i)
+        go :: V2.Term.F V2.Symbol.Symbol k -> State LocalIdState (V2.TermFormat.F k)
+        go = \case
+          V2.Term.Int i -> pure $ V2.Term.Int i
+          V2.Term.Nat n -> pure $ V2.Term.Nat n
+          V2.Term.Float d -> pure $ V2.Term.Float d
+          V2.Term.Boolean b -> pure $ V2.Term.Boolean b
+          V2.Term.Text t -> V2.Term.Text <$> doText t
+          V2.Term.Char c -> pure $ V2.Term.Char c
+          V2.Term.Ref r -> V2.Term.Ref <$> doRecRef r
+          V2.Term.Constructor r cid ->
+            V2.Term.Constructor <$> doRef r <*> pure cid
+          V2.Term.Request r cid -> V2.Term.Request <$> doRef r <*> pure cid
+          V2.Term.Handle e h -> pure $ V2.Term.Handle e h
+          V2.Term.App f a -> pure $ V2.Term.App f a
+          V2.Term.Ann e typ -> V2.Term.Ann e <$> rewriteType doRef typ
+      mapToVec :: Ord i => (a -> b) -> Map a i -> Vector b
+      mapToVec f = Vector.fromList . map (f . fst) . List.sortOn snd . Map.toList
+      stateToIds :: LocalIdState -> V2.LocalIds.LocalIds
+      stateToIds (t, o) =
+        V2.LocalIds.LocalIds (mapToVec lookupText t) (mapToVec lookup2 o)
+      -- state : (Map Text Int, Map Hash Int)
+      -- Term.app Nat.+ 7 #8sf73g
+      -- ["Nat.+"] [#8sf73g]
+      -- [lookupText "Nat.+"] [lookup #8sf73g]
+      -- Term.app (Builtin 0) 7 (Hash 0)
+      in V2.TermFormat.LocallyIndexedComponent
+        . Vector.fromList
+        . fmap swap
+        . fmap (second stateToIds) $ rewrittenTerms
     v2types :: [V2TypeT] =
       map (buildTermType2H lookup1 . snd) v1component
 

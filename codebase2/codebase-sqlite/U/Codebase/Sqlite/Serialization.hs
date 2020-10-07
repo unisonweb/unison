@@ -64,7 +64,7 @@ putABT putVar putA putF abt =
                 ABT.Abs v body -> ABT.abs a v (go (v : env) body)
                 ABT.Cycle body -> ABT.cycle a (go env body)
                 ABT.Tm f -> ABT.tm a (go env <$> f)
-                ABT.Var v -> ABT.annotatedVar a v
+                ABT.Var v -> ABT.var a v
     putVarRef env v = case v `elemIndex` env of
       Just i -> putWord8 0 *> putVarInt i
       Nothing -> case v `elemIndex` fvs of
@@ -86,8 +86,8 @@ getABT getVar getA getF = getList getVar >>= go []
         0 -> do
           tag <- getWord8
           case tag of
-            0 -> ABT.annotatedVar a . (env !!) <$> getVarInt
-            1 -> ABT.annotatedVar a . (fvs !!) <$> getVarInt
+            0 -> ABT.var a . (env !!) <$> getVarInt
+            1 -> ABT.var a . (fvs !!) <$> getVarInt
             _ -> unknownTag "getABT.Var" tag
         1 -> ABT.tm a <$> getF (go env fvs)
         2 -> do

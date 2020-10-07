@@ -120,13 +120,14 @@ data SeqOp
 --   extraMap fTermRef fTypeRef fTermLink fTypeRef (Type.rmap fTypeRef) undefined id t
 
 extraMap :: forall text termRef typeRef termLink typeLink vt
-                   text' termRef' typeRef' termLink' typeLink' vt' v a. Ord vt'
+                   text' termRef' typeRef' termLink' typeLink' vt' v a
+                   . (Ord v, Ord vt')
          => (text -> text') -> (termRef -> termRef') -> (typeRef -> typeRef')
          -> (termLink -> termLink') -> (typeLink -> typeLink') -> (vt -> vt')
          -> ABT.Term (F' text termRef typeRef termLink typeLink vt) v a
          -> ABT.Term (F' text' termRef' typeRef' termLink' typeLink' vt') v a
 extraMap ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go' where
- go' = ABT.extraMap go
+ go' = ABT.transform go
  go :: forall x. F' text termRef typeRef termLink typeLink vt x -> F' text' termRef' typeRef' termLink' typeLink' vt' x
  go = \case
   Int i -> Int i

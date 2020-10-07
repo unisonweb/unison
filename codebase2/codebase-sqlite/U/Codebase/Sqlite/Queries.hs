@@ -32,14 +32,13 @@ import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hashable (Hashable)
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
+import U.Codebase.Sqlite.DbId
 
 -- * types
 type DB m = (MonadIO m, MonadReader Connection m)
 
 newtype HashId = HashId Word64 deriving (Eq, Ord) deriving (Hashable, FromField, ToField) via Word64
-newtype TextId = TextId Word64 deriving (Eq, Ord) deriving (Hashable, FromField, ToField) via Word64
 
-newtype ObjectId = ObjectId Word64 deriving (Eq, Ord, Hashable, FromField, ToField) via Word64
 newtype TypeId = TypeId ObjectId deriving (FromField, ToField) via ObjectId
 newtype TermId = TermCycleId ObjectId deriving (FromField, ToField) via ObjectId
 newtype DeclId = DeclCycleId ObjectId deriving (FromField, ToField) via ObjectId

@@ -7,6 +7,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE BlockArguments #-}
 
 module U.Codebase.Type where
 
@@ -44,7 +45,7 @@ type TypeD v = ABT.Term FD v ()
 
 type TypeR r v = ABT.Term (F' r) v ()
 
-rmap :: (r -> r') -> ABT.Term (F' r) v a -> ABT.Term (F' r') v a
-rmap f = ABT.extraMap $ \case
+rmap :: Ord v => (r -> r') -> ABT.Term (F' r) v a -> ABT.Term (F' r') v a
+rmap f = ABT.transform \case
   Ref r -> Ref (f r)
   x -> unsafeCoerce x

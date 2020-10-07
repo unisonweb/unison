@@ -26,6 +26,7 @@ library
       base,
       containers,
       text,
+      vector,
       unison-util
   hs-source-dirs:      .
   default-language:    Haskell2010
