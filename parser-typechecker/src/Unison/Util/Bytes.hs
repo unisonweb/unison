@@ -9,13 +9,12 @@ import Foreign.Ptr (plusPtr)
 import System.IO.Unsafe (unsafeDupablePerformIO)
 import Unison.Prelude hiding (ByteString, empty)
 import qualified Data.ByteArray as B
-import qualified Data.ByteString as BS
 import qualified Data.ByteArray.Encoding as BE
 import qualified Data.FingerTree as T
 import qualified Data.Text as Text
 
 -- todo: would like to switch this to something unpinned
-type ByteString = BS.ByteString
+type ByteString = B.Bytes
 
 -- Bytes type represented as a finger tree of ByteStrings.
 -- Can be efficiently sliced and indexed, using the byte count
