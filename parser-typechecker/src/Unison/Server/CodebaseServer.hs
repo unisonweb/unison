@@ -15,10 +15,13 @@ import qualified Data.ByteString.Lazy          as LZ
 import           Data.Maybe                     ( fromMaybe )
 import           Data.Proxy
 import           Data.Text                      ( Text )
-import qualified Data.Text                     as Text
-import qualified Data.Text.Encoding            as Text
+import qualified Data.Text.Lazy                as Text
+import qualified Data.Text.Lazy.Encoding       as Text
 import           GHC.Generics
 import           Network.Wai.Handler.Warp       ( run )
+import           Network.HTTP.Types.Status      ( ok200 )
+import           Network.Wai                    ( responseLBS )
+import           Servant.Docs
 import           Servant.API
 import           Servant.Server
 import           Servant                        ( throwError )
@@ -65,15 +68,34 @@ type UnisonHash = Text
 type NamespaceAPI
   = "list" :> QueryParam "namespace" HashQualifiedName :> Get '[JSON] NamespaceListing
 
-type FooAPI = "foo" :> Get '[JSON] ()
+type UnisonAPI = NamespaceAPI :<|> Raw
 
-type API = NamespaceAPI :<|> FooAPI
+instance ToParam (QueryParam "namespace" Text) where
+  toParam _ = DocQueryParam
+    "namespace"
+    [".", ".base.List", "foo.bar"]
+    "The fully qualified name of a namespace. The leading `.` is optional."
+    Normal
+
+instance ToSample NamespaceListing where
+  toSamples _ =
+    [ ( "When no value is provided for `namespace`, the root namespace `.` is listed by default"
+      , NamespaceListing
+        "."
+        "gjlk0dna8dongct6lsd19d1o9hi5n642t8jttga5e81e91fviqjdffem0tlddj7ahodjo5"
+        [Subnamespace $ NamedNamespace "base" 1244]
+      )
+    ]
+
+docsBS :: LZ.ByteString
+docsBS = mungeString . markdown $ docsWithIntros [intro] api
+  where intro = DocIntro "Unison Codebase Manager API Server" []
 
 data NamespaceListing = NamespaceListing
   { namespaceListingName :: UnisonName
   , namespaceListingHash :: UnisonHash
   , namespaceListingChildren :: [NamespaceObject]
-  } deriving Generic
+  } deriving (Generic, Show)
 
 instance ToJSON NamespaceListing
 
@@ -82,14 +104,14 @@ data NamespaceObject
   | TermObject NamedTerm
   | TypeObject NamedType
   | PatchObject NamedPatch
-  deriving Generic
+  deriving (Generic, Show)
 
 instance ToJSON NamespaceObject
 
 data NamedNamespace = NamedNamespace
   { namespaceName :: UnisonName
   , namespaceSize :: Size
-  } deriving Generic
+  } deriving (Generic, Show)
 
 instance ToJSON NamedNamespace
 
@@ -97,25 +119,25 @@ data NamedTerm = NamedTerm
   { termName :: HashQualifiedName
   , termHash :: UnisonHash
   , termType :: Maybe (SyntaxText' ShortHash)
-  } deriving Generic
+  } deriving (Generic, Show)
 
 instance ToJSON NamedTerm
 
 data NamedType = NamedType
   { typeName :: HashQualifiedName
   , typeHash :: UnisonHash
-  } deriving Generic
+  } deriving (Generic, Show)
 
 instance ToJSON NamedType
 
 data NamedPatch = NamedPatch
   { patchName :: HashQualifiedName
-  } deriving Generic
+  } deriving (Generic, Show)
 
 instance ToJSON NamedPatch
 
 newtype KindExpression = KindExpression { kindExpressionText :: Text }
-  deriving Generic
+  deriving (Generic, Show)
 
 instance ToJSON KindExpression
 
@@ -165,17 +187,17 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
     PatchObject . NamedPatch $ NameSegment.toText name
 
 munge :: Text -> LZ.ByteString
-munge = LZ.fromStrict . Text.encodeUtf8
+munge = Text.encodeUtf8 . Text.fromStrict
 
 mungeShow :: Show s => s -> LZ.ByteString
 mungeShow = mungeString . show
 
 mungeString :: String -> LZ.ByteString
-mungeString = munge . Text.pack
+mungeString = Text.encodeUtf8 . Text.pack
 
 badHQN :: HashQualifiedName -> ServerError
 badHQN hqn = err400
-  { errBody = munge hqn
+  { errBody = Text.encodeUtf8 (Text.fromStrict hqn)
               <> " is not a well-formed name, hash, or hash-qualified name. "
               <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
   }
@@ -204,10 +226,13 @@ badNamespace err namespace = err400
   }
 
 noSuchNamespace :: HashQualifiedName -> ServerError
-noSuchNamespace namespace =
-  err404 { errBody = "The namespace " <> munge namespace <> " does not exist." }
+noSuchNamespace namespace = err404
+  { errBody = "The namespace "
+              <> munge namespace
+              <> " does not exist."
+  }
 
-api :: Proxy API
+api :: Proxy UnisonAPI
 api = Proxy
 
 app :: Var v => Codebase IO v Ann -> Application
@@ -216,10 +241,11 @@ app codebase = serve api $ server codebase
 start :: Var v => Codebase IO v Ann -> Int -> IO ()
 start codebase port = run port $ app codebase
 
-server :: Var v => Codebase IO v Ann -> Server API
-server codebase = serveNamespace codebase :<|> foo
+server :: Var v => Codebase IO v Ann -> Server UnisonAPI
+server codebase = serveNamespace codebase :<|> Tagged serveDocs
  where
-  foo = pure ()
+  serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
+  plain = ("Content-Type", "text/plain")
 
 discard :: Applicative m => a -> m ()
 discard = const $ pure ()

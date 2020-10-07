@@ -208,6 +208,7 @@ library
     hashable,
     hashtables,
     haskeline,
+    http-types,
     io-streams,
     lens,
     ListLike,
@@ -229,6 +230,7 @@ library
     regex-tdfa,
     safe,
     servant,
+    servant-docs,
     servant-server,
     shellmet,
     split,
@@ -245,6 +247,7 @@ library
     util,
     unicode-show,
     vector,
+    wai,
     warp
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
