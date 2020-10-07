@@ -44,6 +44,7 @@ ref2cmp r
   | r == Ty.textRef = Just $ promote (compare @Text)
   | r == Ty.termLinkRef = Just $ promote (compare @Referent)
   | r == Ty.typeLinkRef = Just $ promote (compare @Reference)
+  | r == Ty.bytesRef = Just $ promote (compare @Bytes)
   | otherwise = Nothing
 
 instance Eq Foreign where
@@ -54,7 +55,9 @@ instance Eq Foreign where
 instance Ord Foreign where
   Wrap rl t `compare` Wrap rr u
     | rl == rr, Just cmp <- ref2cmp rl = cmp t u
-  compare _ _ = error "Ord Foreign"
+  compare (Wrap rl1 _) (Wrap rl2 _) =
+    error $ "Attempting to compare two values of different types: "
+         <> show (rl1, rl2)
 
 instance Show Foreign where
   showsPrec p !(Wrap r _)

@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #apa4kvi6ij
+  ⊙ #70soik1og2
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #qmp7kom4r6
+  ⊙ #hm2opil978
   
     + Adds / updates:
     
@@ -129,45 +129,50 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #6a8iu469ff
+  ⊙ #v66fup9qub
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #rc0mqev8pe
+  ⊙ #gspgkkujs4
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #27q13qu8ev
+  ⊙ #bmg3t60dhp
   
     + Adds / updates:
     
       x
   
-  ⊙ #h0lvit0onc
+  ⊙ #mj9vgnc1ro
   
     + Adds / updates:
     
       builtin.Boolean builtin.Boolean.not builtin.Bytes
       builtin.Bytes.++ builtin.Bytes.at builtin.Bytes.drop
       builtin.Bytes.empty builtin.Bytes.flatten
-      builtin.Bytes.fromList builtin.Bytes.size
-      builtin.Bytes.take builtin.Bytes.toList builtin.Char
-      builtin.Char.fromNat builtin.Char.toNat
-      builtin.Debug.watch builtin.Doc builtin.Doc.Blob
-      builtin.Doc.Evaluate builtin.Doc.Join builtin.Doc.Link
-      builtin.Doc.Signature builtin.Doc.Source builtin.Either
-      builtin.Either.Left builtin.Either.Right builtin.Float
-      builtin.Float.* builtin.Float.+ builtin.Float.-
-      builtin.Float./ builtin.Float.abs builtin.Float.acos
-      builtin.Float.acosh builtin.Float.asin builtin.Float.asinh
-      builtin.Float.atan builtin.Float.atan2 builtin.Float.atanh
-      builtin.Float.ceiling builtin.Float.cos builtin.Float.cosh
-      builtin.Float.eq builtin.Float.exp builtin.Float.floor
+      builtin.Bytes.fromBase16 builtin.Bytes.fromBase32
+      builtin.Bytes.fromBase64
+      builtin.Bytes.fromBase64UrlUnpadded builtin.Bytes.fromList
+      builtin.Bytes.size builtin.Bytes.take
+      builtin.Bytes.toBase16 builtin.Bytes.toBase32
+      builtin.Bytes.toBase64 builtin.Bytes.toBase64UrlUnpadded
+      builtin.Bytes.toList builtin.Char builtin.Char.fromNat
+      builtin.Char.toNat builtin.Debug.watch builtin.Doc
+      builtin.Doc.Blob builtin.Doc.Evaluate builtin.Doc.Join
+      builtin.Doc.Link builtin.Doc.Signature builtin.Doc.Source
+      builtin.Either builtin.Either.Left builtin.Either.Right
+      builtin.Float builtin.Float.* builtin.Float.+
+      builtin.Float.- builtin.Float./ builtin.Float.abs
+      builtin.Float.acos builtin.Float.acosh builtin.Float.asin
+      builtin.Float.asinh builtin.Float.atan builtin.Float.atan2
+      builtin.Float.atanh builtin.Float.ceiling
+      builtin.Float.cos builtin.Float.cosh builtin.Float.eq
+      builtin.Float.exp builtin.Float.floor
       builtin.Float.fromText builtin.Float.gt builtin.Float.gteq
       builtin.Float.log builtin.Float.logBase builtin.Float.lt
       builtin.Float.lteq builtin.Float.max builtin.Float.min
@@ -216,41 +221,16 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Universal.<= builtin.Universal.==
       builtin.Universal.> builtin.Universal.>=
       builtin.Universal.compare builtin.bug
-      builtin.crypto.hash.Blake2b_256
-      builtin.crypto.hash.Blake2b_256.append
-      builtin.crypto.hash.Blake2b_256.appendBytes
-      builtin.crypto.hash.Blake2b_256.finish
-      builtin.crypto.hash.Blake2b_256.new
-      builtin.crypto.hash.Blake2b_512
-      builtin.crypto.hash.Blake2b_512.append
-      builtin.crypto.hash.Blake2b_512.appendBytes
-      builtin.crypto.hash.Blake2b_512.finish
-      builtin.crypto.hash.Blake2b_512.new
-      builtin.crypto.hash.Blake2s_256
-      builtin.crypto.hash.Blake2s_256.append
-      builtin.crypto.hash.Blake2s_256.appendBytes
-      builtin.crypto.hash.Blake2s_256.finish
-      builtin.crypto.hash.Blake2s_256.new
-      builtin.crypto.hash.Sha2_256
-      builtin.crypto.hash.Sha2_256.append
-      builtin.crypto.hash.Sha2_256.appendBytes
-      builtin.crypto.hash.Sha2_256.finish
-      builtin.crypto.hash.Sha2_256.new
-      builtin.crypto.hash.Sha2_512
-      builtin.crypto.hash.Sha2_512.append
-      builtin.crypto.hash.Sha2_512.appendBytes
-      builtin.crypto.hash.Sha2_512.finish
-      builtin.crypto.hash.Sha2_512.new
-      builtin.crypto.hash.Sha3_256
-      builtin.crypto.hash.Sha3_256.append
-      builtin.crypto.hash.Sha3_256.appendBytes
-      builtin.crypto.hash.Sha3_256.finish
-      builtin.crypto.hash.Sha3_256.new
-      builtin.crypto.hash.Sha3_512
-      builtin.crypto.hash.Sha3_512.append
-      builtin.crypto.hash.Sha3_512.appendBytes
-      builtin.crypto.hash.Sha3_512.finish
-      builtin.crypto.hash.Sha3_512.new builtin.io2.BufferMode
+      builtin.crypto.HashAlgorithm
+      builtin.crypto.HashAlgorithm.Blake2b_256
+      builtin.crypto.HashAlgorithm.Blake2b_512
+      builtin.crypto.HashAlgorithm.Blake2s_256
+      builtin.crypto.HashAlgorithm.Sha2_256
+      builtin.crypto.HashAlgorithm.Sha2_512
+      builtin.crypto.HashAlgorithm.Sha3_256
+      builtin.crypto.HashAlgorithm.Sha3_512 builtin.crypto.hash
+      builtin.crypto.hashBytes builtin.crypto.hmac
+      builtin.crypto.hmacBytes builtin.io2.BufferMode
       builtin.io2.BufferMode.BlockBuffering
       builtin.io2.BufferMode.LineBuffering
       builtin.io2.BufferMode.NoBuffering

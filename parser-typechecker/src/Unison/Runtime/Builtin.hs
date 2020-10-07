@@ -1129,7 +1129,7 @@ pfopbbb instr
 pfop0 :: ForeignOp
 pfop0 instr = ([],) $ TFOp instr []
 
--- Pure ForeignOp taking 1 boxed value
+-- Pure ForeignOp taking 1 boxed value and returning 1 boxed value
 pfopb :: ForeignOp
 pfopb instr
   = ([BX],)
@@ -1137,6 +1137,20 @@ pfopb instr
   $ TFOp instr [b]
   where
   [b] = freshes 1
+
+-- Pure ForeignOp taking 1 boxed value and returning 1 Either, both sides boxed
+pfopb_ebb :: ForeignOp
+pfopb_ebb instr
+  = ([BX],)
+  . TAbss [b]
+  . TLet e UN (AFOp instr [b])
+  . TMatch e . MatchSum
+  $ mapFromList
+  [ (0, ([BX], TAbs ev $ TCon eitherReference 0 [ev]))
+  , (1, ([BX], TAbs ev $ TCon eitherReference 1 [ev]))
+  ]
+  where
+  [e,b,ev] = freshes 3
 
 builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
 builtinLookup
@@ -1426,7 +1440,7 @@ declareForeigns = do
   let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()
       declareHashAlgorithm txt alg = do
         let algoRef = Builtin ("crypto.HashAlgorithm." <> txt)
-        declareForeign ("crypto.Hash." <> txt) pfop0 . mkForeign $ \() ->
+        declareForeign ("crypto.HashAlgorithm." <> txt) pfop0 . mkForeign $ \() ->
           pure (HashAlgorithm algoRef alg)
 
   declareHashAlgorithm "Sha3_512" Hash.SHA3_512
@@ -1437,8 +1451,8 @@ declareForeigns = do
   declareHashAlgorithm "Blake2b_256" Hash.Blake2b_256
   declareHashAlgorithm "Blake2s_256" Hash.Blake2s_256
 
-  declareForeign ("crypto.hash") pfopbb . mkForeign $ \(HashAlgorithm _ref _alg, _a :: Closure) ->
-    pure $ Bytes.empty -- todo : implement me
+  -- declareForeign ("crypto.hash") pfopbb . mkForeign $ \(HashAlgorithm _ref _alg, _a :: Closure) ->
+  --   pure $ Bytes.empty -- todo : implement me
 
   declareForeign "crypto.hashBytes" pfopbb . mkForeign $
     \(HashAlgorithm _ alg, b :: Bytes.Bytes) ->
@@ -1457,9 +1471,9 @@ declareForeigns = do
   declareForeign "Bytes.toBase64" pfopb . mkForeign $ pure . Bytes.toBase64
   declareForeign "Bytes.toBase64UrlUnpadded" pfopb . mkForeign $ pure . Bytes.toBase64UrlUnpadded
 
-  declareForeign "Bytes.fromBase16" pfopb . mkForeign $ pure . Bytes.fromBase16
-  declareForeign "Bytes.fromBase32" pfopb . mkForeign $ pure . Bytes.fromBase32
-  declareForeign "Bytes.fromBase64" pfopb . mkForeign $ pure . Bytes.fromBase64
+  declareForeign "Bytes.fromBase16" pfopb_ebb . mkForeign $ pure . Bytes.fromBase16
+  declareForeign "Bytes.fromBase32" pfopb_ebb . mkForeign $ pure . Bytes.fromBase32
+  declareForeign "Bytes.fromBase64" pfopb_ebb . mkForeign $ pure . Bytes.fromBase64
   declareForeign "Bytes.fromBase64UrlUnpadded" pfopb . mkForeign $ pure . Bytes.fromBase64UrlUnpadded
 
 hostPreference :: Maybe Text -> SYS.HostPreference

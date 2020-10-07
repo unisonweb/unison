@@ -1,10 +1,5 @@
 # Hashing and HMAC builtins
 
-```ucm:hide
-.> builtins.merge
-.> cd builtin
-```
-
 Unison has cryptographic builtins for hashing and computing [HMACs](https://en.wikipedia.org/wiki/HMAC) (hash-based message authentication codes). This transcript shows their usage and has some test cases.
 
 ## Setup
@@ -13,11 +8,29 @@ You can skip this section, which is just needed to make the transcript self-cont
 
 ```ucm
 .builtin> ls Bytes
-```
 
+  1.  ++                    (Bytes -> Bytes -> Bytes)
+  2.  at                    (Nat -> Bytes -> Optional Nat)
+  3.  drop                  (Nat -> Bytes -> Bytes)
+  4.  empty                 (Bytes)
+  5.  flatten               (Bytes -> Bytes)
+  6.  fromBase16            (Bytes -> Either Text Bytes)
+  7.  fromBase32            (Bytes -> Either Text Bytes)
+  8.  fromBase64            (Bytes -> Either Text Bytes)
+  9.  fromBase64UrlUnpadded (Bytes -> Either Text Bytes)
+  10. fromList              ([Nat] -> Bytes)
+  11. size                  (Bytes -> Nat)
+  12. take                  (Nat -> Bytes -> Bytes)
+  13. toBase16              (Bytes -> Bytes)
+  14. toBase32              (Bytes -> Bytes)
+  15. toBase64              (Bytes -> Bytes)
+  16. toBase64UrlUnpadded   (Bytes -> Bytes)
+  17. toList                (Bytes -> [Nat])
+
+```
 Notice the `fromBase16` and `toBase16` functions. Here's some (somewhat inefficient) convenience functions for converting `Bytes` to and from base-16 `Text`. These could be replaced by use of `Text.toUtf8` and `Text.tryFromUtf8` once those builtins exist:
 
-```unison:hide
+```unison
 a |> f = f a
 
 List.map f as =
@@ -56,16 +69,20 @@ test> hex.tests.ex1 = check let
          hex (fromHex s) == s
 ```
 
-```ucm:hide
-.scratch> add
-```
-
 The test shows that `hex (fromHex str) == str` as expected.
 
 ```ucm
 .scratch> test
-```
 
+  Cached test results (`help testcache` to learn more)
+  
+  ◉ hex.tests.ex1   Passed.
+  
+  ✅ 1 test(s) passing
+  
+  Tip: Use view hex.tests.ex1 to view the source of a test.
+
+```
 ## API overview
 
 Here's a few usage examples:
@@ -91,23 +108,67 @@ ex3 = fromHex "50d3ab"
 > ex3
 ```
 
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      ex1      : Text
+      ex2      : Text
+      ex3      : Text
+      mysecret : Bytes
+  
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    16 | > ex1
+           ⧩
+           "f3c342040674c50ab45cb1874b6dbc81447af5958201ed4127e03b56725664d7cc44b88b9afadb371898fcaf5d0adeff60837ef93b514f99da43539d79820c99"
+  
+    17 | > ex2
+           ⧩
+           "84bb437497f26fc33c51e57e64c37958c3918d50dfe75b91c661a85c2f8f8304"
+  
+    18 | > ex3
+           ⧩
+           "c692fc54df921f7fa51aad9178327c5a097784b02212d571fb40facdfff881fd"
+
+```
 And here's the full API:
 
 ```ucm
 .builtin.crypto> find
-```
 
+  1.  builtin type HashAlgorithm
+  2.  HashAlgorithm.Blake2b_256 : HashAlgorithm
+  3.  HashAlgorithm.Blake2b_512 : HashAlgorithm
+  4.  HashAlgorithm.Blake2s_256 : HashAlgorithm
+  5.  HashAlgorithm.Sha2_256 : HashAlgorithm
+  6.  HashAlgorithm.Sha2_512 : HashAlgorithm
+  7.  HashAlgorithm.Sha3_256 : HashAlgorithm
+  8.  HashAlgorithm.Sha3_512 : HashAlgorithm
+  9.  hash : HashAlgorithm -> a -> Bytes
+  10. hashBytes : HashAlgorithm -> Bytes -> Bytes
+  11. hmac : HashAlgorithm -> Bytes -> a -> Bytes
+  12. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
+  
+
+```
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
 
 ```
 > crypto.hash Sha3_256 (fromHex "3849238492")
+
 ```
 
 ## Hashing tests
 
 Here are some test vectors (taken from [here](https://www.di-mgt.com.au/sha_testvectors.html) and [here](https://en.wikipedia.org/wiki/BLAKE_(hash_function))) for the various hashing algorithms:
 
-```unison:hide
+```unison
 ex alg input expected = check let
   hashBytes alg (ascii input) ==
   fromHex expected
@@ -213,14 +274,39 @@ test> blake2b_512.tests.ex3 =
     "ab6b007747d8068c02e25a6008db8a77c218d94f3b40d2291a7dc8a62090a744c082ea27af01521a102e42f480a31e9844053f456b4b41e8aa78bbe5c12957bb"
 ```
 
-```ucm:hide
-.scratch> add
-```
-
 ```ucm
 .scratch> test
-```
 
+  Cached test results (`help testcache` to learn more)
+  
+  ◉ blake2s_256.tests.ex1   Passed.
+  ◉ sha2_256.tests.ex2      Passed.
+  ◉ hex.tests.ex1           Passed.
+  ◉ sha2_256.tests.ex3      Passed.
+  ◉ sha3_512.tests.ex2      Passed.
+  ◉ blake2b_512.tests.ex1   Passed.
+  ◉ sha3_512.tests.ex1      Passed.
+  ◉ sha3_256.tests.ex2      Passed.
+  ◉ sha3_512.tests.ex3      Passed.
+  ◉ sha2_512.tests.ex1      Passed.
+  ◉ sha2_256.tests.ex4      Passed.
+  ◉ blake2b_512.tests.ex3   Passed.
+  ◉ sha3_256.tests.ex1      Passed.
+  ◉ sha2_512.tests.ex4      Passed.
+  ◉ sha3_256.tests.ex4      Passed.
+  ◉ sha3_256.tests.ex3      Passed.
+  ◉ sha3_512.tests.ex4      Passed.
+  ◉ sha2_256.tests.ex1      Passed.
+  ◉ sha2_512.tests.ex3      Passed.
+  ◉ blake2b_512.tests.ex2   Passed.
+  ◉ sha2_512.tests.ex2      Passed.
+  
+  ✅ 21 test(s) passing
+  
+  Tip: Use view blake2s_256.tests.ex1 to view the source of a
+       test.
+
+```
 ## HMAC tests
 
 These test vectors are taken from [RFC 4231](https://tools.ietf.org/html/rfc4231#section-4.3).
@@ -255,10 +341,78 @@ test> hmac_sha2_512.tests.ex2 =
     "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737"
 ```
 
-```ucm:hide
-.scratch> add
-```
+```ucm
 
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      ex'                     : HashAlgorithm
+                                -> Text
+                                -> Text
+                                -> Text
+                                -> [Result]
+      hmac_sha2_256.tests.ex1 : [Result]
+      hmac_sha2_256.tests.ex2 : [Result]
+      hmac_sha2_512.tests.ex1 : [Result]
+      hmac_sha2_512.tests.ex2 : [Result]
+  
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    6 |   ex' Sha2_256
+    
+    ✅ Passed Passed.
+  
+    12 |   ex' Sha2_512
+    
+    ✅ Passed Passed.
+  
+    18 |   ex' Sha2_256
+    
+    ✅ Passed Passed.
+  
+    24 |   ex' Sha2_512
+    
+    ✅ Passed Passed.
+
+```
 ```ucm
 .scratch> test
+
+  Cached test results (`help testcache` to learn more)
+  
+  ◉ blake2s_256.tests.ex1     Passed.
+  ◉ sha2_256.tests.ex2        Passed.
+  ◉ hex.tests.ex1             Passed.
+  ◉ hmac_sha2_256.tests.ex1   Passed.
+  ◉ sha2_256.tests.ex3        Passed.
+  ◉ sha3_512.tests.ex2        Passed.
+  ◉ blake2b_512.tests.ex1     Passed.
+  ◉ sha3_512.tests.ex1        Passed.
+  ◉ sha3_256.tests.ex2        Passed.
+  ◉ sha3_512.tests.ex3        Passed.
+  ◉ sha2_512.tests.ex1        Passed.
+  ◉ sha2_256.tests.ex4        Passed.
+  ◉ blake2b_512.tests.ex3     Passed.
+  ◉ sha3_256.tests.ex1        Passed.
+  ◉ hmac_sha2_512.tests.ex1   Passed.
+  ◉ sha2_512.tests.ex4        Passed.
+  ◉ hmac_sha2_256.tests.ex2   Passed.
+  ◉ sha3_256.tests.ex4        Passed.
+  ◉ sha3_256.tests.ex3        Passed.
+  ◉ sha3_512.tests.ex4        Passed.
+  ◉ hmac_sha2_512.tests.ex2   Passed.
+  ◉ sha2_256.tests.ex1        Passed.
+  ◉ sha2_512.tests.ex3        Passed.
+  ◉ blake2b_512.tests.ex2     Passed.
+  ◉ sha2_512.tests.ex2        Passed.
+  
+  ✅ 25 test(s) passing
+  
+  Tip: Use view blake2s_256.tests.ex1 to view the source of a
+       test.
+
 ```
