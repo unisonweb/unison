@@ -139,8 +139,11 @@ library
     Unison.Runtime.Vector
     Unison.Runtime.SparseVector
     Unison.Runtime.Stack
-    Unison.Server.CodebaseServer
     Unison.Server.Backend
+    Unison.Server.CodebaseServer
+    Unison.Server.Endpoints.ListNamespace
+    Unison.Server.Errors
+    Unison.Server.Types
     Unison.TermParser
     Unison.TermPrinter
     Unison.TypeParser
