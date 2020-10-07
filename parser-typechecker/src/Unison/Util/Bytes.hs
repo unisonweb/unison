@@ -8,13 +8,14 @@ import Data.Monoid (Sum(..))
 import Foreign.Ptr (plusPtr)
 import System.IO.Unsafe (unsafeDupablePerformIO)
 import Unison.Prelude hiding (ByteString, empty)
+import Basement.Block (Block)
 import qualified Data.ByteArray as B
 import qualified Data.ByteArray.Encoding as BE
 import qualified Data.FingerTree as T
 import qualified Data.Text as Text
 
--- todo: would like to switch this to something unpinned
-type ByteString = B.Bytes
+-- Block is just `newtype Block a = Block ByteArray#`
+type ByteString = Block Word8
 
 -- Bytes type represented as a finger tree of ByteStrings.
 -- Can be efficiently sliced and indexed, using the byte count
