@@ -7,16 +7,20 @@ import Data.Memory.PtrMethods (memCompare, memEqual)
 import Data.Monoid (Sum(..))
 import Foreign.Ptr (plusPtr)
 import System.IO.Unsafe (unsafeDupablePerformIO)
-import Unison.Prelude hiding (empty)
+import Unison.Prelude hiding (ByteString, empty)
 import qualified Data.ByteArray as B
+import qualified Data.ByteString as BS
 import qualified Data.ByteArray.Encoding as BE
 import qualified Data.FingerTree as T
 import qualified Data.Text as Text
 
+-- todo: would like to switch this to something unpinned
+type ByteString = BS.ByteString
+
 -- Bytes type represented as a finger tree of ByteStrings.
 -- Can be efficiently sliced and indexed, using the byte count
 -- annotation at each subtree.
-newtype Bytes = Bytes (T.FingerTree (Sum Int) (View B.Bytes))
+newtype Bytes = Bytes (T.FingerTree (Sum Int) (View ByteString))
 
 null :: Bytes -> Bool
 null (Bytes bs) = T.null bs
@@ -33,13 +37,13 @@ toArray b = B.concat (map B.convert (chunks b) :: [bo])
 size :: Bytes -> Int
 size (Bytes bs) = getSum (T.measure bs)
 
-chunks :: Bytes -> [View B.Bytes]
+chunks :: Bytes -> [View ByteString]
 chunks (Bytes b) = toList b
 
-fromChunks :: [View B.Bytes] -> Bytes
+fromChunks :: [View ByteString] -> Bytes
 fromChunks = foldl' snocView empty
 
-snocView :: Bytes -> View B.Bytes -> Bytes
+snocView :: Bytes -> View ByteString -> Bytes
 snocView bs b | B.null b = bs
 snocView (Bytes bs) b = Bytes (bs T.|> b)
 
@@ -52,7 +56,7 @@ snoc bs b | B.null b = bs
 snoc (Bytes bs) b = Bytes (bs T.|> view (B.convert b))
 
 flatten :: Bytes -> Bytes
-flatten b = snoc mempty (B.concat (chunks b) :: B.Bytes)
+flatten b = snoc mempty (B.concat (chunks b) :: ByteString)
 
 take :: Int -> Bytes -> Bytes
 take n (Bytes bs) = go (T.split (> Sum n) bs) where
@@ -79,14 +83,14 @@ at i bs = case Unison.Util.Bytes.drop i bs of
 
 toBase16 :: Bytes -> Bytes
 toBase16 bs = foldl' step empty (chunks bs) where
-  step bs b = snoc bs (BE.convertToBase BE.Base16 b :: B.Bytes)
+  step bs b = snoc bs (BE.convertToBase BE.Base16 b :: ByteString)
 
 fromBase16 :: Bytes -> Either Text.Text Bytes
 fromBase16 bs = case traverse convert (chunks bs) of
   Left e -> Left (Text.pack e)
   Right bs -> Right (fromChunks (map view bs))
   where
-    convert b = BE.convertFromBase BE.Base16 b :: Either String B.Bytes
+    convert b = BE.convertFromBase BE.Base16 b :: Either String ByteString
 
 toBase32, toBase64, toBase64UrlUnpadded :: Bytes -> Bytes
 toBase32 = toBase BE.Base32
@@ -99,18 +103,18 @@ fromBase64 = fromBase BE.Base64
 fromBase64UrlUnpadded = fromBase BE.Base64URLUnpadded
 
 fromBase :: BE.Base -> Bytes -> Either Text.Text Bytes
-fromBase e bs = case BE.convertFromBase e (toArray bs :: B.Bytes) of
+fromBase e bs = case BE.convertFromBase e (toArray bs :: ByteString) of
   Left e -> Left (Text.pack e)
   Right b -> Right $ snocView empty (view b)
 
 toBase :: BE.Base -> Bytes -> Bytes
-toBase e bs = snoc empty (BE.convertToBase e (toArray bs :: B.Bytes) :: B.Bytes)
+toBase e bs = snoc empty (BE.convertToBase e (toArray bs :: ByteString) :: ByteString)
 
 toWord8s :: Bytes -> [Word8]
 toWord8s bs = chunks bs >>= B.unpack
 
 fromWord8s :: [Word8] -> Bytes
-fromWord8s bs = fromArray (view $ B.pack bs :: View B.Bytes)
+fromWord8s bs = fromArray (view $ B.pack bs :: View ByteString)
 
 instance Monoid Bytes where
   mempty = Bytes mempty
@@ -118,7 +122,7 @@ instance Monoid Bytes where
 
 instance Semigroup Bytes where (<>) = mappend
 
-instance T.Measured (Sum Int) (View B.Bytes) where
+instance T.Measured (Sum Int) (View ByteString) where
   measure b = Sum (B.length b)
 
 instance Show Bytes where
