@@ -2,6 +2,7 @@
 {-# language DataKinds #-}
 {-# language ViewPatterns #-}
 {-# language RecordWildCards #-}
+{-# language UndecidableInstances #-}
 
 module Unison.Runtime.Foreign.Function
   ( ForeignFunc(..)
@@ -294,6 +295,10 @@ instance ForeignConvention [Closure] where
 instance ForeignConvention (MVar Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap mvarRef)
+
+instance {-# overlappable #-} BuiltinForeign b => ForeignConvention b where
+  readForeign = readForeignBuiltin
+  writeForeign = writeForeignBuiltin
 
 instance {-# overlappable #-} BuiltinForeign b => ForeignConvention [b]
   where
