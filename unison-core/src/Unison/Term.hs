@@ -612,6 +612,28 @@ letRec' isTop bindings body =
     [ ((ABT.annotation b, v), b) | (v,b) <- bindings ]
     body
 
+-- Prepend a binding to form a (bigger) let rec. Useful when
+-- building up a block incrementally using a right fold.
+--
+-- For example:
+--   consLetRec (x = 42) "hi"
+--   =>
+--   let rec x = 42 in "hi"
+--
+--   consLetRec (x = 42) (let rec y = "hi" in (x,y))
+--   =>
+--   let rec x = 42; y = "hi" in (x,y)
+consLetRec
+  :: Ord v
+  => Bool                 -- isTop parameter
+  -> a                    -- annotation for overall let rec
+  -> (a, v, Term' vt v a) -- the binding
+  -> Term' vt v a         -- the body
+  -> Term' vt v a
+consLetRec isTop a (ab, vb, b) body = case body of
+  LetRecNamedAnnotated' _ bs body -> letRec isTop a (((ab,vb), b) : bs) body
+  _ -> letRec isTop a [((ab,vb),b)] body
+
 letRec
   :: Ord v
   => Bool
@@ -938,6 +960,9 @@ unhashComponent m = let
 hashComponents
   :: Var v => Map v (Term v a) -> Map v (Reference.Id, Term v a)
 hashComponents = ReferenceUtil.hashComponents $ refId ()
+
+hashClosedTerm :: Var v => Term v a -> Reference.Id
+hashClosedTerm tm = Reference.Id (ABT.hash tm) 0 1
 
 -- The hash for a constructor
 hashConstructor'

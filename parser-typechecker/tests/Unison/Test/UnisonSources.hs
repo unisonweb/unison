@@ -3,6 +3,7 @@
 
 module Unison.Test.UnisonSources where
 
+import           Control.Exception      (throwIO)
 import           Control.Lens           ( view )
 import           Control.Lens.Tuple     ( _5 )
 import           Control.Monad          (void)
@@ -37,6 +38,7 @@ import           Unison.Test.Common     (parseAndSynthesizeAsFile, parsingEnv)
 import           Unison.Type            ( Type )
 import qualified Unison.UnisonFile      as UF
 import           Unison.Util.Monoid     (intercalateMap)
+import           Unison.Util.Pretty     (toPlain)
 import qualified Unison.Var             as Var
 import qualified Unison.Test.Common as Common
 import qualified Unison.Names3
@@ -137,7 +139,8 @@ resultTest rt uf filepath = do
       values <- io $ unpack <$> Data.Text.IO.readFile valueFile
       let untypedFile = UF.discardTypes uf
       let term        = Parsers.parseTerm values parsingEnv
-      (bindings, watches) <- io $ either undefined id <$>
+      let report e = throwIO (userError $ toPlain 10000 e)
+      (bindings, watches) <- io $ either report pure =<<
         evaluateWatches Builtin.codeLookup
                         mempty
                         (const $ pure Nothing)

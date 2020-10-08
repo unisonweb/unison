@@ -299,7 +299,7 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "List.size"  ats (pure . N) (fromIntegral . Sequence.length)
 
     , mk1 "Bytes.fromList" ats (pure . Bs) (\s ->
-        Bytes.fromByteString (BS.pack [ fromIntegral n | N n <- toList s]))
+        Bytes.fromArray (BS.pack [ fromIntegral n | N n <- toList s]))
     , mk2 "Bytes.++"  atbs atbs (pure . Bs) (<>)
     , mk2 "Bytes.take" atn atbs (pure . Bs) (\n b -> Bytes.take (fromIntegral n) b)
     , mk2 "Bytes.drop" atn atbs (pure . Bs) (\n b -> Bytes.drop (fromIntegral n) b)
