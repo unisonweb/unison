@@ -1,3 +1,5 @@
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE KindSignatures #-}
@@ -15,6 +17,8 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 import Servant (Get, JSON, QueryParam, ServerError (errBody), err400, throwError, (:>))
 import Servant.Docs (DocQueryParam (..), ParamKind (Normal), ToParam (..), ToSample (..))
+import OpenAPI ( ToOpenAPISchema )
+import Servant.OpenAPI ()
 import Servant.Server (Handler)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
@@ -79,6 +83,7 @@ data NamespaceListing = NamespaceListing
   deriving (Generic, Show)
 
 instance ToJSON NamespaceListing
+deriving instance ToOpenAPISchema NamespaceListing
 
 data NamespaceObject
   = Subnamespace NamedNamespace
@@ -88,6 +93,7 @@ data NamespaceObject
   deriving (Generic, Show)
 
 instance ToJSON NamespaceObject
+deriving instance ToOpenAPISchema NamespaceObject
 
 data NamedNamespace = NamedNamespace
   { namespaceName :: UnisonName,
@@ -96,6 +102,7 @@ data NamedNamespace = NamedNamespace
   deriving (Generic, Show)
 
 instance ToJSON NamedNamespace
+deriving instance ToOpenAPISchema NamedNamespace
 
 data NamedTerm = NamedTerm
   { termName :: HashQualifiedName,
@@ -105,6 +112,7 @@ data NamedTerm = NamedTerm
   deriving (Generic, Show)
 
 instance ToJSON NamedTerm
+deriving instance ToOpenAPISchema NamedTerm
 
 data NamedType = NamedType
   { typeName :: HashQualifiedName,
@@ -113,6 +121,7 @@ data NamedType = NamedType
   deriving (Generic, Show)
 
 instance ToJSON NamedType
+deriving instance ToOpenAPISchema NamedType
 
 data NamedPatch = NamedPatch
   { patchName :: HashQualifiedName
@@ -120,11 +129,13 @@ data NamedPatch = NamedPatch
   deriving (Generic, Show)
 
 instance ToJSON NamedPatch
+deriving instance ToOpenAPISchema NamedPatch
 
 newtype KindExpression = KindExpression {kindExpressionText :: Text}
   deriving (Generic, Show)
 
 instance ToJSON KindExpression
+deriving instance ToOpenAPISchema KindExpression
 
 formatType ::
   Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText' ShortHash
@@ -136,14 +147,19 @@ formatType ppe w =
       (-1)
 
 instance ToJSON ConstructorType
+deriving instance ToOpenAPISchema ConstructorType
 
 instance ToJSON SeqOp
+deriving instance ToOpenAPISchema SeqOp
 
 instance ToJSON r => ToJSON (Referent.Referent' r)
+deriving instance ToOpenAPISchema r => ToOpenAPISchema (Referent.Referent' r)
 
 instance ToJSON r => ToJSON (SyntaxText.Element r)
+deriving instance ToOpenAPISchema r => ToOpenAPISchema (SyntaxText.Element r)
 
 instance ToJSON r => ToJSON (SyntaxText' r)
+deriving instance ToOpenAPISchema r => ToOpenAPISchema (SyntaxText' r)
 
 backendListEntryToNamespaceObject ::
   Var v =>

@@ -8,7 +8,7 @@ import Unison.Referent (Referent')
 import Unison.HashQualified (HashQualified)
 import Unison.Pattern (SeqOp)
 
-import Unison.Util.AnnotatedText      ( AnnotatedText(..), annotate )
+import Unison.Util.AnnotatedText      ( AnnotatedText(..), annotate, theString )
 
 type SyntaxText = SyntaxText' Reference
 type SyntaxText' r = AnnotatedText (Element r)
@@ -62,4 +62,4 @@ syntax = annotate
 
 -- Convert a `SyntaxText` to a `String`, ignoring syntax markup
 toPlain :: SyntaxText' r -> String
-toPlain (AnnotatedText at) = join (toList $ fst <$> at)
+toPlain (AnnotatedText at) = join (toList $ theString <$> at)
