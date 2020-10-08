@@ -14,7 +14,7 @@ module Unison.Runtime.Foreign
   ) where
 
 import Control.Concurrent (ThreadId)
-import Data.Text (Text)
+import Data.Text (Text, unpack)
 import Data.Tagged (Tagged(..))
 import Network.Socket (Socket)
 import System.IO (Handle)
@@ -56,9 +56,13 @@ instance Ord Foreign where
   compare _ _ = error "Ord Foreign"
 
 instance Show Foreign where
-  showsPrec p !(Wrap r _)
+  showsPrec p !(Wrap r v)
     = showParen (p>9)
-    $ showString "Wrap " . showsPrec 10 r . showString " _"
+    $ showString "Wrap " . showsPrec 10 r . showString " " . contents
+    where
+    contents
+      | r == Ty.textRef = shows (unpack (unsafeCoerce v))
+      | otherwise = showString "_"
 
 unwrapForeign :: Foreign -> a
 unwrapForeign (Wrap _ e) = unsafeCoerce e

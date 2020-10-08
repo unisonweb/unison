@@ -18,7 +18,6 @@ module Unison.Runtime.Builtin
 
 import Control.Exception (IOException, try)
 import Control.Monad.State.Strict (State, modify, execState)
-import Control.Monad (void)
 
 import Unison.ABT.Normalized hiding (TTm)
 import Unison.Reference
@@ -36,7 +35,7 @@ import qualified Unison.Builtin.Decls as Ty
 import Unison.Util.EnumContainers as EC
 
 import Data.Word (Word64)
-import Data.Text as Text (Text, unpack)
+import Data.Text as Text (Text, unpack, pack)
 
 import Data.Set (Set, insert)
 
@@ -622,6 +621,14 @@ maybe'result'direct ins args t r
   , (1, ([BX], TAbs r $ TCon Ty.optionalRef 1 [r]))
   ]
 
+enum'decode :: Var v => Reference -> String -> Int -> v -> ANormalT v
+enum'decode rf err n v
+  = AMatch v $ MatchIntegral cases (Just dflt)
+  where
+  dflt = TLet v BX (ALit . T $ pack err) $ TPrm EROR [v]
+  cases = mapFromList $ fmap mkCase $ [0..n]
+  mkCase i = (toEnum i, TCon rf (toEnum i) [])
+
 io'error'result0
   :: Var v
   => FOp -> [v]
@@ -631,9 +638,13 @@ io'error'result0 ins args ior ccs vs e nx
   = TLet ior UN (AFOp ins args)
   . TMatch ior . MatchSum
   $ mapFromList
-  [ (0, ([BX], TAbs e $ TCon eitherReference 0 [e]))
+  [ (0, ([UN], TAbs e
+             . TLet e BX (enum'decode Ty.ioErrorRef err 7 e)
+             $ TCon eitherReference 0 [e]))
   , (1, (ccs, TAbss vs nx))
   ]
+  where
+  err = "unrecognized IOError"
 
 io'error'result'let
   :: Var v
@@ -1344,15 +1355,15 @@ declareForeigns = do
     . mkForeignIOE $ \fp -> fromInteger @Word64 <$> getFileSize fp
   declareForeign "IO.serverSocket" server'socket
     . mkForeignIOE $ \(mhst,port) ->
-        () <$ SYS.bindSock (hostPreference mhst) port
+        fst <$> SYS.bindSock (hostPreference mhst) port
   declareForeign "IO.listen" listen
     . mkForeignIOE $ \sk -> SYS.listenSock sk 2048
   declareForeign "IO.clientSocket" client'socket
-    . mkForeignIOE $ void . uncurry SYS.connectSock
+    . mkForeignIOE $ fmap fst . uncurry SYS.connectSock
   declareForeign "IO.closeSocket" close'socket
     $ mkForeignIOE SYS.closeSock
   declareForeign "IO.socketAccept" socket'accept
-    . mkForeignIOE $ void . SYS.accept
+    . mkForeignIOE $ fmap fst . SYS.accept
   declareForeign "IO.socketSend" socket'send
     . mkForeignIOE $ \(sk,bs) -> SYS.send sk (Bytes.toByteString bs)
   declareForeign "IO.socketReceive" socket'receive
