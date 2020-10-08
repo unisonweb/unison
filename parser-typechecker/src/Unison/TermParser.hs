@@ -729,12 +729,12 @@ binding = label "binding" $ do
         arg2 <- prefixDefinitionName
         pure (ann arg1, op, [arg1, arg2])
   let prefixLhs = do
-        v  <- prefixDefinitionName
-        vs <- many prefixDefinitionName
+        v  <- (prefixDefinitionName P.<?> "variable")
+        vs <- many (prefixDefinitionName P.<?> "variable") 
         pure (ann v, v, vs)
   let
     lhs :: P v (Ann, L.Token v, [L.Token v])
-    lhs = infixLhs <|> prefixLhs
+    lhs = P.try (infixLhs <|> prefixLhs) <|> customFailure DidntExpectPattern
   case typ of
     Nothing -> do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
@@ -751,9 +751,9 @@ binding = label "binding" $ do
       pure $ fmap (\e -> Term.ann (ann nameT <> ann e) e typ)
                   (mkBinding (ann nameT) (L.payload name) args body)
   where
-  mkBinding loc f [] body = ((loc, f), body)
-  mkBinding loc f args body =
-    ((loc, f), Term.lam' (loc <> ann body) (L.payload <$> args) body)
+    mkBinding loc f [] body = ((loc, f), body)
+    mkBinding loc f args body =
+      ((loc, f), Term.lam' (loc <> ann body) (L.payload <$> args) body)
 
 
 customFailure :: P.MonadParsec e s m => e -> m a

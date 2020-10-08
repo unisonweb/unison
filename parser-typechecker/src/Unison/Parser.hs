@@ -8,12 +8,11 @@ import Unison.Prelude
 
 import qualified Crypto.Random        as Random
 import           Data.Bytes.Put                 (runPutS)
-import           Data.Bytes.Serial              ( serialize )
-import           Data.Bytes.VarInt              ( VarInt(..) )
+import           Data.Bytes.Serial              (serialize)
+import           Data.Bytes.VarInt              (VarInt(..))
 import           Data.Bifunctor       (bimap)
 import qualified Data.Char            as Char
 import           Data.List.NonEmpty   (NonEmpty (..))
--- import           Data.Maybe
 import qualified Data.Set             as Set
 import qualified Data.Text            as Text
 import           Data.Typeable        (Proxy (..))
@@ -25,7 +24,7 @@ import qualified Unison.Hash          as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer         as L
 import           Unison.Pattern       (Pattern)
-import qualified Unison.Pattern      as Pattern
+import qualified Unison.Pattern       as Pattern
 import           Unison.Term          (MatchCase (..))
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
@@ -98,6 +97,7 @@ data Error v
   | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
   | UseEmpty (L.Token String) -- an empty `use` statement
   | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
+  | DidntExpectPattern -- TODO: (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
   | TypeDeclarationErrors [UF.Error v Ann]
   | ResolutionFailures [Names.ResolutionFailure v Ann]
   | DuplicateTypeNames [(v, [Ann])]
@@ -340,12 +340,12 @@ hqInfixId = hqSymbolyId_ <|> hqBacktickedId_
 -- Parse a hash-qualified alphanumeric identifier
 hqWordyId_ :: Ord v => P v (L.Token HQ.HashQualified)
 hqWordyId_ = queryToken $ \case
-  L.WordyId "" (Just h) -> Just $ HQ.HashOnly h
-  L.WordyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
-  L.WordyId s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
-  L.Hash h              -> Just $ HQ.HashOnly h
+  L.WordyId "" (Just h)    -> Just $ HQ.HashOnly h
+  L.WordyId s  (Just h)    -> Just $ HQ.HashQualified (Name.fromString s) h
+  L.WordyId s  Nothing     -> Just $ HQ.NameOnly (Name.fromString s)
+  L.Hash h                 -> Just $ HQ.HashOnly h
   L.Blank s | not (null s) -> Just $ HQ.NameOnly (Name.fromString ("_" <> s))
-  _ -> Nothing
+  _                        -> Nothing
 
 -- Parse a hash-qualified symboly ID like >>=#foo or &&
 hqSymbolyId_ :: Ord v => P v (L.Token HQ.HashQualified)
@@ -353,14 +353,14 @@ hqSymbolyId_ = queryToken $ \case
   L.SymbolyId "" (Just h) -> Just $ HQ.HashOnly h
   L.SymbolyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
   L.SymbolyId s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
-  _ -> Nothing
+  _                       -> Nothing
 
 hqBacktickedId_ :: Ord v => P v (L.Token HQ.HashQualified)
 hqBacktickedId_ = queryToken $ \case
   L.Backticks "" (Just h) -> Just $ HQ.HashOnly h
   L.Backticks s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
   L.Backticks s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
-  _ -> Nothing
+  _                       -> Nothing
 
 -- Parse a reserved word
 reserved :: Ord v => String -> P v (L.Token String)
