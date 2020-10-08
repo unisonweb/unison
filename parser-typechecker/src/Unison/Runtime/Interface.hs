@@ -11,9 +11,11 @@ import GHC.Stack (HasCallStack)
 import Control.Exception (try)
 import Control.Monad (foldM, (<=<))
 
-import Data.Bifunctor (first,second)
+import Data.Bifunctor (first)
 import Data.Foldable
 import Data.IORef
+import Data.Set as Set (Set, (\\), singleton, map, notMember, filter)
+import Data.Traversable (for)
 import Data.Word (Word64)
 
 import qualified Data.Map.Strict as Map
@@ -22,7 +24,7 @@ import qualified Unison.ABT as Tm (substs)
 import qualified Unison.Term as Tm
 import Unison.Var (Var)
 
-import Unison.DataDeclaration (declFields)
+import Unison.DataDeclaration (declFields, declDependencies, Decl)
 import qualified Unison.LabeledDependency as RF
 import Unison.Reference (Reference)
 import qualified Unison.Reference as RF
@@ -141,17 +143,58 @@ allocType ctx r cons
     | Just rt <- Map.lookup r $ refTy ctx = (rt, freshTy ctx)
     | frsh <- freshTy ctx = (frsh, frsh + 1)
 
+recursiveDeclDeps
+  :: Var v
+  => Set RF.LabeledDependency
+  -> CodeLookup v IO ()
+  -> Decl v ()
+  -> IO (Set Reference, Set Reference)
+recursiveDeclDeps seen0 cl d = do
+    rec <- for (toList newDeps) $ \case
+      RF.DerivedId i -> getTypeDeclaration cl i >>= \case
+        Just d -> recursiveDeclDeps seen cl d
+        Nothing -> pure mempty
+      _ -> pure mempty
+    pure $ (deps, mempty) <> fold rec
+  where
+  deps = declDependencies d
+  newDeps = Set.filter (\r -> notMember (RF.typeRef r) seen0) deps
+  seen = seen0 <> Set.map RF.typeRef deps
+
+categorize :: RF.LabeledDependency -> (Set Reference, Set Reference)
+categorize
+  = either ((,mempty) . singleton) ((mempty,) . singleton)
+  . RF.toReference
+
+recursiveTermDeps
+  :: Var v
+  => Set RF.LabeledDependency
+  -> CodeLookup v IO ()
+  -> Term v
+  -> IO (Set Reference, Set Reference)
+recursiveTermDeps seen0 cl tm = do
+    rec <- for (RF.toReference <$> toList (deps \\ seen0)) $ \case
+      Left (RF.DerivedId i) -> getTypeDeclaration cl i >>= \case
+        Just d -> recursiveDeclDeps seen cl d
+        Nothing -> pure mempty
+      Right (RF.DerivedId i) -> getTerm cl i >>= \case
+        Just tm -> recursiveTermDeps seen cl tm
+        Nothing -> pure mempty
+      _ -> pure mempty
+    pure $ foldMap categorize deps <> fold rec
+  where
+  deps = Tm.labeledDependencies tm
+  seen = seen0 <> deps
+
 collectDeps
   :: Var v
   => CodeLookup v IO ()
   -> Term v
   -> IO ([(Reference, Either [Int] [Int])], [Reference])
-collectDeps cl tm
-  = (,tms) <$> traverse getDecl tys
+collectDeps cl tm = do
+  (tys, tms) <- recursiveTermDeps mempty cl tm
+  (, toList tms) <$> traverse getDecl (toList tys)
   where
-  chld = toList $ Tm.labeledDependencies tm
-  categorize = either (first . (:)) (second . (:)) . RF.toReference
-  (tys, tms) = foldr categorize ([],[]) chld
   getDecl ty@(RF.DerivedId i) =
     (ty,) . maybe (Right []) declFields
       <$> getTypeDeclaration cl i
@@ -166,9 +209,9 @@ loadDeps
 loadDeps cl ctx tm = do
   (tys, tms) <- collectDeps cl tm
   -- TODO: terms
-  ctx <- foldM (uncurry . allocType) ctx $ filter p tys
-  ctx <- foldM (allocTermRef cl) ctx $ filter q tms
-  pure $ foldl' compileAllocated ctx $ filter q tms
+  ctx <- foldM (uncurry . allocType) ctx $ Prelude.filter p tys
+  ctx <- foldM (allocTermRef cl) ctx $ Prelude.filter q tms
+  pure $ foldl' compileAllocated ctx $ Prelude.filter q tms
   where
   p (r@RF.DerivedId{},_)
     =  r `Map.notMember` dspec ctx
