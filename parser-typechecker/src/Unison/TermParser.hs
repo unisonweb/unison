@@ -285,14 +285,17 @@ checkCasesArities cases = go Nothing cases where
 lamCase = do
   start <- openBlockWith "cases"
   cases <- sepBy1 semi matchCase
-  (_arity, cases) <- checkCasesArities cases
+  (arity, cases) <- checkCasesArities cases
   -- TODO: Add error for empty match list
   _ <- closeBlock
-  lamvar <- Parser.uniqueName 10
-  let lamvarTerm = Term.var (ann start) (Var.named lamvar)
+  lamvars <- replicateM arity (Parser.uniqueName 10)
+  let vars = Var.named <$> lamvars
+      lamvarTerms = Term.var (ann start) <$> vars
+      lamvarTerm = case lamvarTerms of
+        [e] -> e
+        es -> DD.tupleTerm es
       matchTerm = Term.match (ann start <> ann (last cases)) lamvarTerm cases
-  pure $ Term.lam (ann start <> ann (last cases)) (Var.named lamvar) matchTerm
-
+  pure $ Term.lam' (ann start <> ann (last cases)) vars matchTerm
 
 ifthen = label "if" $ do
   start <- peekAny
