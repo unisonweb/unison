@@ -13,7 +13,7 @@ Let's look at some examples. We'll start with a namespace with just the builtins
   
   
   
-  □ #ttlhvqf3s4 (start of history)
+  □ #8npfd2k318 (start of history)
 
 .> fork builtin builtin2
 
@@ -42,21 +42,21 @@ Now suppose we `fork` a copy of builtin, then rename `Nat.+` to `frobnicate`, th
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #v024k3597g
+  ⊙ #1r8tns0vp3
   
     > Moves:
     
       Original name  New name
       Nat.frobnicate Nat.+
   
-  ⊙ #ci3d83ckgf
+  ⊙ #850oic6dhv
   
     > Moves:
     
       Original name New name
       Nat.+         Nat.frobnicate
   
-  □ #ttlhvqf3s4 (start of history)
+  □ #8npfd2k318 (start of history)
 
 ```
 If we merge that back into `builtin`, we get that same chain of history:
@@ -71,21 +71,21 @@ If we merge that back into `builtin`, we get that same chain of history:
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #v024k3597g
+  ⊙ #1r8tns0vp3
   
     > Moves:
     
       Original name  New name
       Nat.frobnicate Nat.+
   
-  ⊙ #ci3d83ckgf
+  ⊙ #850oic6dhv
   
     > Moves:
     
       Original name New name
       Nat.+         Nat.frobnicate
   
-  □ #ttlhvqf3s4 (start of history)
+  □ #8npfd2k318 (start of history)
 
 ```
 Let's try again, but using a `merge.squash` (or just `squash`) instead. The history will be unchanged:
@@ -106,7 +106,7 @@ Let's try again, but using a `merge.squash` (or just `squash`) instead. The hist
   
   
   
-  □ #ttlhvqf3s4 (start of history)
+  □ #8npfd2k318 (start of history)
 
 ```
 The churn that happened in `mybuiltin` namespace ended up back in the same spot, so the squash merge of that namespace with our original namespace had no effect.

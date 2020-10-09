@@ -186,132 +186,138 @@ Let's try it!
   166. Text.size : Text -> Nat
   167. Text.take : Nat -> Text -> Text
   168. Text.toCharList : Text -> [Char]
-  169. Text.uncons : Text -> Optional (Char, Text)
-  170. Text.unsnoc : Text -> Optional (Text, Char)
-  171. type Tuple a b
-  172. Tuple.Cons : a -> b -> Tuple a b
-  173. type Unit
-  174. Unit.Unit : ()
-  175. Universal.< : a -> a -> Boolean
-  176. Universal.<= : a -> a -> Boolean
-  177. Universal.== : a -> a -> Boolean
-  178. Universal.> : a -> a -> Boolean
-  179. Universal.>= : a -> a -> Boolean
-  180. Universal.compare : a -> a -> Int
-  181. bug : a -> b
-  182. builtin type crypto.HashAlgorithm
-  183. crypto.HashAlgorithm.Blake2b_256 : HashAlgorithm
-  184. crypto.HashAlgorithm.Blake2b_512 : HashAlgorithm
-  185. crypto.HashAlgorithm.Blake2s_256 : HashAlgorithm
-  186. crypto.HashAlgorithm.Sha2_256 : HashAlgorithm
-  187. crypto.HashAlgorithm.Sha2_512 : HashAlgorithm
-  188. crypto.HashAlgorithm.Sha3_256 : HashAlgorithm
-  189. crypto.HashAlgorithm.Sha3_512 : HashAlgorithm
-  190. crypto.hash : HashAlgorithm -> a -> Bytes
-  191. crypto.hashBytes : HashAlgorithm -> Bytes -> Bytes
-  192. crypto.hmac : HashAlgorithm -> Bytes -> a -> Bytes
-  193. crypto.hmacBytes : HashAlgorithm
+  169. Text.toUtf8 : Text -> Bytes
+  170. Text.tryFromUtf8 : Bytes -> Either Text Text
+  171. Text.uncons : Text -> Optional (Char, Text)
+  172. Text.unsnoc : Text -> Optional (Text, Char)
+  173. type Tuple a b
+  174. Tuple.Cons : a -> b -> Tuple a b
+  175. type Unit
+  176. Unit.Unit : ()
+  177. Universal.< : a -> a -> Boolean
+  178. Universal.<= : a -> a -> Boolean
+  179. Universal.== : a -> a -> Boolean
+  180. Universal.> : a -> a -> Boolean
+  181. Universal.>= : a -> a -> Boolean
+  182. Universal.compare : a -> a -> Int
+  183. bug : a -> b
+  184. builtin type crypto.HashAlgorithm
+  185. crypto.HashAlgorithm.Blake2b_256 : HashAlgorithm
+  186. crypto.HashAlgorithm.Blake2b_512 : HashAlgorithm
+  187. crypto.HashAlgorithm.Blake2s_256 : HashAlgorithm
+  188. crypto.HashAlgorithm.Sha2_256 : HashAlgorithm
+  189. crypto.HashAlgorithm.Sha2_512 : HashAlgorithm
+  190. crypto.HashAlgorithm.Sha3_256 : HashAlgorithm
+  191. crypto.HashAlgorithm.Sha3_512 : HashAlgorithm
+  192. crypto.hash : HashAlgorithm -> a -> Bytes
+  193. crypto.hashBytes : HashAlgorithm -> Bytes -> Bytes
+  194. crypto.hmac : HashAlgorithm -> Bytes -> a -> Bytes
+  195. crypto.hmacBytes : HashAlgorithm
                           -> Bytes
                           -> Bytes
                           -> Bytes
-  194. unique type io2.BufferMode
-  195. io2.BufferMode.BlockBuffering : BufferMode
-  196. io2.BufferMode.LineBuffering : BufferMode
-  197. io2.BufferMode.NoBuffering : BufferMode
-  198. io2.BufferMode.SizedBlockBuffering : Nat -> BufferMode
-  199. unique type io2.FileMode
-  200. io2.FileMode.Append : FileMode
-  201. io2.FileMode.Read : FileMode
-  202. io2.FileMode.ReadWrite : FileMode
-  203. io2.FileMode.Write : FileMode
-  204. builtin type io2.Handle
-  205. builtin type io2.IO
-  206. io2.IO.clientSocket : Text
+  196. unique type io2.BufferMode
+  197. io2.BufferMode.BlockBuffering : BufferMode
+  198. io2.BufferMode.LineBuffering : BufferMode
+  199. io2.BufferMode.NoBuffering : BufferMode
+  200. io2.BufferMode.SizedBlockBuffering : Nat -> BufferMode
+  201. unique type io2.FileMode
+  202. io2.FileMode.Append : FileMode
+  203. io2.FileMode.Read : FileMode
+  204. io2.FileMode.ReadWrite : FileMode
+  205. io2.FileMode.Write : FileMode
+  206. builtin type io2.Handle
+  207. builtin type io2.IO
+  208. io2.IO.clientSocket : Text
                              -> Text
                              ->{IO} Either IOError Socket
-  207. io2.IO.closeFile : Handle ->{IO} Either IOError ()
-  208. io2.IO.closeSocket : Socket ->{IO} Either IOError ()
-  209. io2.IO.createDirectory : Text ->{IO} Either IOError ()
-  210. io2.IO.delay : Nat ->{IO} Either IOError ()
-  211. io2.IO.fileExists : Text ->{IO} Either IOError Boolean
-  212. io2.IO.forkComp : '{IO} Either IOError a ->{IO} ThreadId
-  213. io2.IO.getBuffering : Handle
+  209. io2.IO.closeFile : Handle ->{IO} Either IOError ()
+  210. io2.IO.closeSocket : Socket ->{IO} Either IOError ()
+  211. io2.IO.createDirectory : Text ->{IO} Either IOError ()
+  212. io2.IO.delay : Nat ->{IO} Either IOError ()
+  213. io2.IO.fileExists : Text ->{IO} Either IOError Boolean
+  214. io2.IO.forkComp : '{IO} Either IOError a ->{IO} ThreadId
+  215. io2.IO.getBuffering : Handle
                              ->{IO} Either IOError BufferMode
-  214. io2.IO.getCurrentDirectory : '{IO} Either IOError Text
-  215. io2.IO.getFileSize : Text ->{IO} Either IOError Nat
-  216. io2.IO.getFileTimestamp : Text ->{IO} Either IOError Nat
-  217. io2.IO.getLine : Handle ->{IO} Either IOError Text
-  218. io2.IO.getTempDirectory : '{IO} Either IOError Text
-  219. io2.IO.getText : Handle ->{IO} Either IOError Text
-  220. io2.IO.handlePosition : Handle ->{IO} Either IOError Int
-  221. io2.IO.isDirectory : Text ->{IO} Either IOError Boolean
-  222. io2.IO.isFileEOF : Handle ->{IO} Either IOError Boolean
-  223. io2.IO.isFileOpen : Handle ->{IO} Either IOError Boolean
-  224. io2.IO.isSeekable : Handle ->{IO} Either IOError Boolean
-  225. io2.IO.kill : ThreadId ->{IO} Either IOError ()
-  226. io2.IO.listen : Socket ->{IO} Either IOError ()
-  227. io2.IO.openFile : Text
+  216. io2.IO.getBytes : Handle
+                         -> Nat
+                         ->{IO} Either IOError Text
+  217. io2.IO.getCurrentDirectory : '{IO} Either IOError Text
+  218. io2.IO.getFileSize : Text ->{IO} Either IOError Nat
+  219. io2.IO.getFileTimestamp : Text ->{IO} Either IOError Nat
+  220. io2.IO.getLine : Handle ->{IO} Either IOError Text
+  221. io2.IO.getTempDirectory : '{IO} Either IOError Text
+  222. io2.IO.handlePosition : Handle ->{IO} Either IOError Int
+  223. io2.IO.isDirectory : Text ->{IO} Either IOError Boolean
+  224. io2.IO.isFileEOF : Handle ->{IO} Either IOError Boolean
+  225. io2.IO.isFileOpen : Handle ->{IO} Either IOError Boolean
+  226. io2.IO.isSeekable : Handle ->{IO} Either IOError Boolean
+  227. io2.IO.kill : ThreadId ->{IO} Either IOError ()
+  228. io2.IO.listen : Socket ->{IO} Either IOError ()
+  229. io2.IO.openFile : Text
                          -> FileMode
                          ->{IO} Either IOError Handle
-  228. io2.IO.putText : Handle -> Text ->{IO} Either IOError ()
-  229. io2.IO.removeDirectory : Text ->{IO} Either IOError ()
-  230. io2.IO.removeFile : Text ->{IO} Either IOError ()
-  231. io2.IO.renameDirectory : Text
+  230. io2.IO.putBytes : Handle
+                         -> Bytes
+                         ->{IO} Either IOError ()
+  231. io2.IO.removeDirectory : Text ->{IO} Either IOError ()
+  232. io2.IO.removeFile : Text ->{IO} Either IOError ()
+  233. io2.IO.renameDirectory : Text
                                 -> Text
                                 ->{IO} Either IOError ()
-  232. io2.IO.renameFile : Text -> Text ->{IO} Either IOError ()
-  233. io2.IO.seekHandle : Handle
+  234. io2.IO.renameFile : Text -> Text ->{IO} Either IOError ()
+  235. io2.IO.seekHandle : Handle
                            -> SeekMode
                            -> Int
                            ->{IO} Either IOError ()
-  234. io2.IO.serverSocket : Text
+  236. io2.IO.serverSocket : Text
                              -> Text
                              ->{IO} Either IOError Socket
-  235. io2.IO.setBuffering : Handle
+  237. io2.IO.setBuffering : Handle
                              -> BufferMode
                              ->{IO} Either IOError ()
-  236. io2.IO.setCurrentDirectory : Text
+  238. io2.IO.setCurrentDirectory : Text
                                     ->{IO} Either IOError ()
-  237. io2.IO.socketAccept : Socket ->{IO} Either IOError Socket
-  238. io2.IO.socketReceive : Socket
+  239. io2.IO.socketAccept : Socket ->{IO} Either IOError Socket
+  240. io2.IO.socketReceive : Socket
                               -> Nat
                               ->{IO} Either IOError Bytes
-  239. io2.IO.socketSend : Socket
+  241. io2.IO.socketSend : Socket
                            -> Bytes
                            ->{IO} Either IOError ()
-  240. io2.IO.stdHandle : StdHandle -> Handle
-  241. io2.IO.systemTime : '{IO} Either IOError Nat
-  242. unique type io2.IOError
-  243. io2.IOError.AlreadyExists : IOError
-  244. io2.IOError.EOF : IOError
-  245. io2.IOError.IllegalOperation : IOError
-  246. io2.IOError.NoSuchThing : IOError
-  247. io2.IOError.PermissionDenied : IOError
-  248. io2.IOError.ResourceBusy : IOError
-  249. io2.IOError.ResourceExhausted : IOError
-  250. io2.IOError.UserError : IOError
-  251. builtin type io2.MVar
-  252. io2.MVar.isEmpty : MVar a ->{IO} Boolean
-  253. io2.MVar.new : a ->{IO} MVar a
-  254. io2.MVar.newEmpty : {IO} (MVar a)
-  255. io2.MVar.put : MVar a -> a ->{IO} Either IOError ()
-  256. io2.MVar.read : MVar a ->{IO} Either IOError a
-  257. io2.MVar.swap : MVar a -> a ->{IO} Either IOError a
-  258. io2.MVar.take : MVar a ->{IO} Either IOError a
-  259. io2.MVar.tryPut : MVar a -> a ->{IO} Boolean
-  260. io2.MVar.tryRead : MVar a ->{IO} Optional a
-  261. io2.MVar.tryTake : MVar a ->{IO} Optional a
-  262. unique type io2.SeekMode
-  263. io2.SeekMode.AbsoluteSeek : SeekMode
-  264. io2.SeekMode.RelativeSeek : SeekMode
-  265. io2.SeekMode.SeekFromEnd : SeekMode
-  266. builtin type io2.Socket
-  267. unique type io2.StdHandle
-  268. io2.StdHandle.StdErr : StdHandle
-  269. io2.StdHandle.StdIn : StdHandle
-  270. io2.StdHandle.StdOut : StdHandle
-  271. builtin type io2.ThreadId
-  272. todo : a -> b
+  242. io2.IO.stdHandle : StdHandle -> Handle
+  243. io2.IO.systemTime : '{IO} Either IOError Nat
+  244. unique type io2.IOError
+  245. io2.IOError.AlreadyExists : IOError
+  246. io2.IOError.EOF : IOError
+  247. io2.IOError.IllegalOperation : IOError
+  248. io2.IOError.NoSuchThing : IOError
+  249. io2.IOError.PermissionDenied : IOError
+  250. io2.IOError.ResourceBusy : IOError
+  251. io2.IOError.ResourceExhausted : IOError
+  252. io2.IOError.UserError : IOError
+  253. builtin type io2.MVar
+  254. io2.MVar.isEmpty : MVar a ->{IO} Boolean
+  255. io2.MVar.new : a ->{IO} MVar a
+  256. io2.MVar.newEmpty : {IO} (MVar a)
+  257. io2.MVar.put : MVar a -> a ->{IO} Either IOError ()
+  258. io2.MVar.read : MVar a ->{IO} Either IOError a
+  259. io2.MVar.swap : MVar a -> a ->{IO} Either IOError a
+  260. io2.MVar.take : MVar a ->{IO} Either IOError a
+  261. io2.MVar.tryPut : MVar a -> a ->{IO} Boolean
+  262. io2.MVar.tryRead : MVar a ->{IO} Optional a
+  263. io2.MVar.tryTake : MVar a ->{IO} Optional a
+  264. unique type io2.SeekMode
+  265. io2.SeekMode.AbsoluteSeek : SeekMode
+  266. io2.SeekMode.RelativeSeek : SeekMode
+  267. io2.SeekMode.SeekFromEnd : SeekMode
+  268. builtin type io2.Socket
+  269. unique type io2.StdHandle
+  270. io2.StdHandle.StdErr : StdHandle
+  271. io2.StdHandle.StdIn : StdHandle
+  272. io2.StdHandle.StdOut : StdHandle
+  273. builtin type io2.ThreadId
+  274. todo : a -> b
   
 
 .builtin> alias.many 94-104 .mylib
