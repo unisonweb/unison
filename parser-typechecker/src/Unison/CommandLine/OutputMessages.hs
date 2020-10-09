@@ -1538,7 +1538,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
         leftNamePad :: Int = foldl1' max $
           map (foldl1' max . map HQ'.nameLength . toList . view _3) terms <>
           map (foldl1' max . map HQ'.nameLength . toList . view _3) types
-        prettyGroup :: ((Referent, b, Set HQ'.HashQualified, Set HQ'.HashQualified), Int)
+        prettyGroup :: ((Referent, b, Set (HQ'.HashQualified Name), Set (HQ'.HashQualified Name)), Int)
                     -> Numbered Pretty
         prettyGroup ((r, _, olds, news),i) = let
           -- [ "peach  ┐"
@@ -1624,7 +1624,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
       let (nums, decls) = unzip pairs
       let boxLeft = case hqmds of _:_:_ -> P.boxLeft; _ -> id
       pure . P.column2 $ zip nums (boxLeft decls)
-    prettyLine :: Reference -> Maybe (DD.DeclOrBuiltin v a) -> (HQ'.HashQualified, [OBD.MetadataDisplay v a]) -> Numbered (Pretty, Pretty)
+    prettyLine :: Reference -> Maybe (DD.DeclOrBuiltin v a) -> (HQ'.HashQualified Name, [OBD.MetadataDisplay v a]) -> Numbered (Pretty, Pretty)
     prettyLine r odecl (hq, mds) = do
       n <- numHQ' newPath hq (Referent.Ref r)
       pure . (n,) $ prettyDecl hq odecl <> case length mds of
@@ -1765,7 +1765,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
     where
     hq' = HQ.requalify (fmap (Name.makeAbsolute . Path.prefixName prefix) hq) r
 
-  numHQ' :: Path.Absolute -> HQ'.HashQualified -> Referent -> Numbered Pretty
+  numHQ' :: Path.Absolute -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
   numHQ' prefix hq r = addNumberedArg (HQ'.toString hq')
     where
     hq' = HQ'.requalify (fmap (Name.makeAbsolute . Path.prefixName prefix) hq) r

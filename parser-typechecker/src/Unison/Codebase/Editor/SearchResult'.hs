@@ -14,6 +14,7 @@ import qualified Unison.Type as Type
 import Unison.DataDeclaration (Decl)
 import Unison.Codebase.Editor.DisplayThing (DisplayThing)
 import Unison.Type (Type)
+import Unison.Name (Name)
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 
@@ -22,10 +23,16 @@ data SearchResult' v a
   | Tp' (TypeResult' v a)
   deriving (Eq, Show)
 data TermResult' v a =
-  TermResult' HQ'.HashQualified (Maybe (Type v a)) Referent (Set HQ'.HashQualified)
+  TermResult' (HQ'.HashQualified Name)
+              (Maybe (Type v a))
+              Referent
+              (Set (HQ'.HashQualified Name))
   deriving (Eq, Show)
 data TypeResult' v a =
-  TypeResult' HQ'.HashQualified (DisplayThing (Decl v a)) Reference (Set HQ'.HashQualified)
+  TypeResult' (HQ'.HashQualified Name)
+              (DisplayThing (Decl v a))
+              Reference
+              (Set (HQ'.HashQualified Name))
   deriving (Eq, Show)
 
 pattern Tm n t r as = Tm' (TermResult' n t r as)

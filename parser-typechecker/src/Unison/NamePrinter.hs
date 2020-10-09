@@ -23,7 +23,7 @@ prettyName = PP.text . Name.toText
 prettyHashQualified :: HQ.HashQualified Name -> Pretty SyntaxText
 prettyHashQualified hq = styleHashQualified' id (fmt $ S.HashQualifier hq) hq
 
-prettyHashQualified' :: HQ'.HashQualified -> Pretty SyntaxText
+prettyHashQualified' :: HQ'.HashQualified Name -> Pretty SyntaxText
 prettyHashQualified' = prettyHashQualified . HQ'.toHQ
 
 prettyHashQualified0 :: IsString s => HQ.HashQualified Name -> Pretty s

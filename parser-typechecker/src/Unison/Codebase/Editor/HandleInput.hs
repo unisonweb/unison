@@ -1004,10 +1004,10 @@ loop = do
                 Names.filterByHQs (Set.singleton $ HQ'.NameOnly n) parseNames0
         let printNames0 = basicPrettyPrintNames0
             printNames = Names printNames0 mempty
-            terms' ::Set (Referent, Set HQ'.HashQualified)
+            terms' ::Set (Referent, Set (HQ'.HashQualified Name))
             terms' = (`Set.map` Names.termReferents filtered) $
                         \r -> (r, Names3.termName hqLength r printNames)
-            types' :: Set (Reference, Set HQ'.HashQualified)
+            types' :: Set (Reference, Set (HQ'.HashQualified Name))
             types' = (`Set.map` Names.typeReferences filtered) $
                         \r -> (r, Names3.typeName hqLength r printNames)
         respond $ ListNames hqLength (toList types') (toList terms')
@@ -2333,8 +2333,13 @@ getEndangeredDependents getDependents toDelete root = do
 -- meaning that adds/updates should only contain the selection or its transitive
 -- dependencies, any unselected transitive dependencies of the selection will
 -- be added to `extraDefinitions`.
-applySelection :: forall v a. Var v =>
-  [HQ'.HashQualified] -> UF.TypecheckedUnisonFile v a -> SlurpResult v -> SlurpResult v
+applySelection
+  :: forall v a
+   . Var v
+  => [HQ'.HashQualified Name]
+  -> UF.TypecheckedUnisonFile v a
+  -> SlurpResult v
+  -> SlurpResult v
 applySelection [] _ = id
 applySelection hqs file = \sr@SlurpResult{..} ->
   sr { adds = adds `SC.intersection` closed

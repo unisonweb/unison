@@ -75,24 +75,24 @@ isEmpty BranchDiffOutput{..} =
 -- Need to be able to turn a (Name,Reference) into a HashQualified relative to... what.
 -- the new namespace?
 
-type TermDisplay v a = (HashQualified, Referent, Maybe (Type v a), MetadataDiff (MetadataDisplay v a))
-type TypeDisplay v a = (HashQualified, Reference, Maybe (DeclOrBuiltin v a), MetadataDiff (MetadataDisplay v a))
+type TermDisplay v a = (HashQualified Name, Referent, Maybe (Type v a), MetadataDiff (MetadataDisplay v a))
+type TypeDisplay v a = (HashQualified Name, Reference, Maybe (DeclOrBuiltin v a), MetadataDiff (MetadataDisplay v a))
 
-type AddedTermDisplay v a = ([(HashQualified, [MetadataDisplay v a])], Referent, Maybe (Type v a))
-type AddedTypeDisplay v a = ([(HashQualified, [MetadataDisplay v a])], Reference, Maybe (DeclOrBuiltin v a))
+type AddedTermDisplay v a = ([(HashQualified Name, [MetadataDisplay v a])], Referent, Maybe (Type v a))
+type AddedTypeDisplay v a = ([(HashQualified Name, [MetadataDisplay v a])], Reference, Maybe (DeclOrBuiltin v a))
 
-type RemovedTermDisplay v a = ([HashQualified], Referent, Maybe (Type v a))
-type RemovedTypeDisplay v a = ([HashQualified], Reference, Maybe (DeclOrBuiltin v a))
+type RemovedTermDisplay v a = ([HashQualified Name], Referent, Maybe (Type v a))
+type RemovedTypeDisplay v a = ([HashQualified Name], Reference, Maybe (DeclOrBuiltin v a))
 
-type SimpleTermDisplay v a = (HashQualified, Referent, Maybe (Type v a))
-type SimpleTypeDisplay v a = (HashQualified, Reference, Maybe (DeclOrBuiltin v a))
+type SimpleTermDisplay v a = (HashQualified Name, Referent, Maybe (Type v a))
+type SimpleTypeDisplay v a = (HashQualified Name, Reference, Maybe (DeclOrBuiltin v a))
 
 type UpdateTermDisplay v a = (Maybe [SimpleTermDisplay v a], [TermDisplay v a])
 type UpdateTypeDisplay v a = (Maybe [SimpleTypeDisplay v a], [TypeDisplay v a])
 
 type MetadataDisplay v a = (HQ.HashQualified Name, Referent, Maybe (Type v  a))
-type RenameTermDisplay v a = (Referent, Maybe (Type v a), Set HashQualified, Set HashQualified)
-type RenameTypeDisplay v a = (Reference, Maybe (DeclOrBuiltin v a), Set HashQualified, Set HashQualified)
+type RenameTermDisplay v a = (Referent, Maybe (Type v a), Set (HashQualified Name), Set (HashQualified Name))
+type RenameTypeDisplay v a = (Reference, Maybe (DeclOrBuiltin v a), Set (HashQualified Name), Set (HashQualified Name))
 type PatchDisplay = (Name, P.PatchDiff)
 
 toOutput :: forall m v a
@@ -246,7 +246,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
                       | n <- toList ns ]
          ]
     for typeAdds $ \(r, nsmd) -> do
-      hqmds :: [(HashQualified, [MetadataDisplay v a])] <-
+      hqmds :: [(HashQualified Name, [MetadataDisplay v a])] <-
         for nsmd $ \(n, mdRefs) ->
           (,) <$> pure (Names2.hqTypeName hqLen names2 n r)
               <*> fillMetadata ppe mdRefs

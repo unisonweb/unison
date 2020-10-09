@@ -15,44 +15,45 @@ import           Unison.Referent       (Referent)
 import qualified Unison.Referent       as Referent
 import qualified Unison.Util.Relation  as R
 
--- this Ord instance causes types < terms
 data SearchResult = Tp TypeResult | Tm TermResult deriving (Eq, Ord, Show)
 
 data TermResult = TermResult
-  { termName    :: HashQualified
+  { termName    :: HashQualified Name
   , referent    :: Referent
-  , termAliases :: Set HashQualified
+  , termAliases :: Set (HashQualified Name)
   } deriving (Eq, Ord, Show)
 
 data TypeResult = TypeResult
-  { typeName    :: HashQualified
+  { typeName    :: HashQualified Name
   , reference   :: Reference
-  , typeAliases :: Set HashQualified
+  , typeAliases :: Set (HashQualified Name)
   } deriving (Eq, Ord, Show)
 
 pattern Tm' hq r as = Tm (TermResult hq r as)
 pattern Tp' hq r as = Tp (TypeResult hq r as)
 
-termResult :: HashQualified -> Referent -> Set HashQualified -> SearchResult
+termResult
+  :: HashQualified Name -> Referent -> Set (HashQualified Name) -> SearchResult
 termResult hq r as = Tm (TermResult hq r as)
 
 termSearchResult :: Names0 -> Name -> Referent -> SearchResult
 termSearchResult b n r =
   termResult (Names._hqTermName b n r) r (Names._hqTermAliases b n r)
 
-typeResult :: HashQualified -> Reference -> Set HashQualified -> SearchResult
+typeResult
+  :: HashQualified Name -> Reference -> Set (HashQualified Name) -> SearchResult
 typeResult hq r as = Tp (TypeResult hq r as)
 
 typeSearchResult :: Names0 -> Name -> Reference -> SearchResult
 typeSearchResult b n r =
   typeResult (Names._hqTypeName b n r) r (Names._hqTypeAliases b n r)
 
-name :: SearchResult -> HashQualified
+name :: SearchResult -> HashQualified Name
 name = \case
   Tm t -> termName t
   Tp t -> typeName t
 
-aliases :: SearchResult -> Set HashQualified
+aliases :: SearchResult -> Set (HashQualified Name)
 aliases = \case
   Tm t -> termAliases t
   Tp t -> typeAliases t

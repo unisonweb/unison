@@ -14,7 +14,7 @@ import qualified Unison.Referent as Referent
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import Unison.Reference (Reference)
-import Unison.HashQualified' (HashQualified'(NameOnly, HashQualified))
+import Unison.HashQualified' (HashQualified(NameOnly, HashQualified))
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.ShortHash as SH
 import qualified Unison.Util.Relation as R

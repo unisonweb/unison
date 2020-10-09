@@ -88,10 +88,10 @@ data Input
     | ResolveTypeNameI Path.HQSplit'
   -- edits stuff:
     | LoadI (Maybe FilePath)
-    | AddI [HQ'.HashQualified]
-    | PreviewAddI [HQ'.HashQualified]
-    | UpdateI (Maybe PatchPath) [HQ'.HashQualified]
-    | PreviewUpdateI [HQ'.HashQualified]
+    | AddI [HQ'.HashQualified Name]
+    | PreviewAddI [HQ'.HashQualified Name]
+    | UpdateI (Maybe PatchPath) [HQ'.HashQualified Name]
+    | PreviewUpdateI [HQ'.HashQualified Name]
     | TodoI (Maybe PatchPath) Path'
     | PropagatePatchI PatchPath Path'
     | ListEditsI (Maybe PatchPath)

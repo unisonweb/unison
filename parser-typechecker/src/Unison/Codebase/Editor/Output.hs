@@ -131,8 +131,8 @@ data Output v
   | DeleteEverythingConfirmation
   | DeletedEverything
   | ListNames Int -- hq length to print References
-              [(Reference, Set HQ'.HashQualified)] -- type match, type names
-              [(Referent, Set HQ'.HashQualified)] -- term match, term names
+              [(Reference, Set (HQ'.HashQualified Name))] -- type match, type names
+              [(Referent, Set (HQ'.HashQualified Name))] -- term match, term names
   -- list of all the definitions within this branch
   | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
   | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type v Ann))]

@@ -67,10 +67,10 @@ unsplit' (Path' (Right (Relative p)), seg) = Path' (Right (Relative (unsplit (p,
 unsplit :: Split -> Path
 unsplit (Path p, a) = Path (p :|> a)
 
-unsplitHQ :: HQSplit -> HQ'.HashQualified' Path
+unsplitHQ :: HQSplit -> HQ'.HashQualified Path
 unsplitHQ (p, a) = fmap (snoc p) a
 
-unsplitHQ' :: HQSplit' -> HQ'.HashQualified' Path'
+unsplitHQ' :: HQSplit' -> HQ'.HashQualified Path'
 unsplitHQ' (p, a) = fmap (snoc' p) a
 
 type Split = (Path, NameSegment)
