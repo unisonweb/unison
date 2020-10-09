@@ -289,7 +289,9 @@ lamCase = do
   -- TODO: Add error for empty match list
   _ <- closeBlock
   lamvars <- replicateM arity (Parser.uniqueName 10)
-  let vars = Var.named <$> lamvars
+  let vars = Var.named <$> [ tweak v i | (v,i) <- lamvars `zip` [(1::Int)..] ]
+      tweak v 0 = v
+      tweak v i = v <> Text.pack (show i)
       lamvarTerms = Term.var (ann start) <$> vars
       lamvarTerm = case lamvarTerms of
         [e] -> e

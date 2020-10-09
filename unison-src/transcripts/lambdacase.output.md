@@ -50,7 +50,7 @@ Notice that Unison detects this as an alias of `isEmpty`, and if we view `isEmpt
     _  -> false
 
 ```
-it shows the definition using `cases` syntax opportunistically, even if the code was originally written without that syntax.
+it shows the definition using `cases` syntax opportunistically, even though the code was originally written without that syntax.
 
 ## Multi-argument cases
 
@@ -95,30 +95,13 @@ merge2 = cases
     ⍟ These new definitions are ok to `add`:
     
       merge2 : [a] ->{𝕖} [a] ->{𝕖} [a]
+        (also named merge)
 
 ```
-Notice that Unison detects this as an alias of `merge` (it doesn't, but should), and if we view `merge`
+Notice that Unison detects this as an alias of `merge`, and if we view `merge`
 
 ```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    merge2 : [a] ->{𝕖} [a] ->{𝕖} [a]
-
-.> names merge
-
-  Term
-  Hash:   #eesob77j7q
-  Names:  merge
-
-.> names merge2
-
-  Term
-  Hash:   #ouo7ronu9q
-  Names:  merge2
-
-.> view merge2 merge
+.> view merge
 
   merge : [a] -> [a] -> [a]
   merge = cases
@@ -127,14 +110,6 @@ Notice that Unison detects this as an alias of `merge` (it doesn't, but should),
     (h +: t) (h2 +: t2) ->
       if h <= h2 then h +: merge t (h2 +: t2)
       else h2 +: merge (h +: t) t2
-  
-  merge2 : [a] -> [a] -> [a]
-  merge2 = cases
-    [] ys               -> ys
-    xs []               -> xs
-    (h +: t) (h2 +: t2) ->
-      if h <= h2 then h +: merge2 t (h2 +: t2)
-      else h2 +: merge2 (h +: t) t2
 
 ```
 it again shows the definition using the multi-argument `cases syntax opportunistically, even though the code was originally written without that syntax.

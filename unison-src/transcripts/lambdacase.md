@@ -30,7 +30,7 @@ Notice that Unison detects this as an alias of `isEmpty`, and if we view `isEmpt
 .> view isEmpty
 ```
 
-it shows the definition using `cases` syntax opportunistically, even if the code was originally written without that syntax.
+it shows the definition using `cases` syntax opportunistically, even though the code was originally written without that syntax.
 
 ## Multi-argument cases
 
@@ -62,13 +62,10 @@ merge2 = cases
     else            h2 +: merge2 (h +: t) t2
 ```
 
-Notice that Unison detects this as an alias of `merge` (it doesn't, but should), and if we view `merge`
+Notice that Unison detects this as an alias of `merge`, and if we view `merge`
 
 ```ucm
-.> add
-.> names merge
-.> names merge2
-.> view merge2 merge
+.> view merge
 ```
 
 it again shows the definition using the multi-argument `cases` syntax opportunistically, even though the code was originally written without that syntax.
