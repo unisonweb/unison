@@ -1,20 +1,18 @@
 {-# language PatternGuards #-}
 {-# language TupleSections #-}
 {-# language PatternSynonyms #-}
+{-# language OverloadedStrings #-}
 
 module Unison.Runtime.Decompile
   ( decompile ) where
 
 import Prelude hiding (seq)
-
-import Data.String (fromString)
-import Data.Sequence (Seq)
-import Data.Word (Word64)
+import Unison.Prelude
 
 import Unison.ABT (absChain, substs, pattern AbsN')
 import Unison.Term
   ( Term
-  , nat, int, char, float, boolean, constructor, app, apps', text
+  , nat, int, char, float, boolean, constructor, app, apps', text, ref
   , seq, seq', builtin
   )
 import Unison.Type
@@ -24,7 +22,7 @@ import Unison.Var (Var)
 import Unison.Reference (Reference)
 
 import Unison.Runtime.Foreign
-  (Foreign, maybeUnwrapBuiltin, maybeUnwrapForeign)
+  (Foreign, HashAlgorithm(..), maybeUnwrapBuiltin, maybeUnwrapForeign)
 import Unison.Runtime.Stack
   (Closure(..), pattern DataC, pattern PApV, CombIx(..))
 
@@ -102,6 +100,7 @@ decompileForeign
 decompileForeign topTerms f
   | Just t <- maybeUnwrapBuiltin f = Right $ text () t
   | Just b <- maybeUnwrapBuiltin f = Right $ decompileBytes b
+  | Just h <- maybeUnwrapBuiltin f = Right $ decompileHashAlgorithm h
   | Just s <- unwrapSeq f
   = seq' () <$> traverse (decompile topTerms) s
 decompileForeign _ _ = err "cannot decompile Foreign"
@@ -110,6 +109,9 @@ decompileBytes :: Var v => By.Bytes -> Term v ()
 decompileBytes
   = app () (builtin () $ fromString "Bytes.fromList")
   . seq () . fmap (nat () . fromIntegral) . By.toWord8s
+
+decompileHashAlgorithm :: Var v => HashAlgorithm -> Term v ()
+decompileHashAlgorithm (HashAlgorithm r _) = ref () r
 
 unwrapSeq :: Foreign -> Maybe (Seq Closure)
 unwrapSeq = maybeUnwrapForeign vectorRef

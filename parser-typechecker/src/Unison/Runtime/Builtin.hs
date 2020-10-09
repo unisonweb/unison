@@ -27,15 +27,19 @@ import Unison.Symbol
 import Unison.Runtime.Stack (Closure)
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.IOSource
+import Unison.Runtime.Foreign (HashAlgorithm(..))
 
 import qualified Unison.Type as Ty
 import qualified Unison.Builtin as Ty (builtinTypes)
 import qualified Unison.Builtin.Decls as Ty
+import qualified Crypto.Hash as Hash
+import qualified Crypto.MAC.HMAC as HMAC
 
 import Unison.Util.EnumContainers as EC
 
 import Data.Word (Word64)
 import Data.Text as Text (Text, unpack, pack)
+import qualified Data.ByteArray as BA
 
 import Data.Set (Set, insert)
 
@@ -1115,6 +1119,50 @@ mvar'try'read instr
   where
   [mv,t,r] = freshes 3
 
+-- Pure ForeignOp taking two boxed values
+pfopbb :: ForeignOp
+pfopbb instr
+  = ([BX,BX],)
+  . TAbss [b1,b2]
+  $ TFOp instr [b1,b2]
+  where
+  [b1,b2] = freshes 2
+
+pfopbbb :: ForeignOp
+pfopbbb instr
+  = ([BX,BX,BX],)
+  . TAbss [b1,b2,b3]
+  $ TFOp instr [b1,b2,b3]
+  where
+  [b1,b2,b3] = freshes 3
+
+-- Pure ForeignOp taking no values
+pfop0 :: ForeignOp
+pfop0 instr = ([],) $ TFOp instr []
+
+-- Pure ForeignOp taking 1 boxed value and returning 1 boxed value
+pfopb :: ForeignOp
+pfopb instr
+  = ([BX],)
+  . TAbss [b]
+  $ TFOp instr [b]
+  where
+  [b] = freshes 1
+
+-- Pure ForeignOp taking 1 boxed value and returning 1 Either, both sides boxed
+pfopb_ebb :: ForeignOp
+pfopb_ebb instr
+  = ([BX],)
+  . TAbss [b]
+  . TLet e UN (AFOp instr [b])
+  . TMatch e . MatchSum
+  $ mapFromList
+  [ (0, ([BX], TAbs ev $ TCon eitherReference 0 [ev]))
+  , (1, ([BX], TAbs ev $ TCon eitherReference 1 [ev]))
+  ]
+  where
+  [e,b,ev] = freshes 3
+
 builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
 builtinLookup
   = Map.fromList
@@ -1365,10 +1413,10 @@ declareForeigns = do
   declareForeign "IO.socketAccept" socket'accept
     . mkForeignIOE $ fmap fst . SYS.accept
   declareForeign "IO.socketSend" socket'send
-    . mkForeignIOE $ \(sk,bs) -> SYS.send sk (Bytes.toByteString bs)
+    . mkForeignIOE $ \(sk,bs) -> SYS.send sk (Bytes.toArray bs)
   declareForeign "IO.socketReceive" socket'receive
     . mkForeignIOE $ \(hs,n) ->
-        fmap Bytes.fromByteString <$> SYS.recv hs n
+        fmap Bytes.fromArray <$> SYS.recv hs n
   declareForeign "IO.kill" kill'thread $ mkForeignIOE killThread
   declareForeign "IO.delay" delay'thread $ mkForeignIOE threadDelay
   declareForeign "IO.stdHandle" standard'handle
@@ -1398,6 +1446,46 @@ declareForeigns = do
     . mkForeignIOE $ \(mv :: MVar Closure) -> readMVar mv
   declareForeign "MVar.tryRead" mvar'try'read
     . mkForeign $ \(mv :: MVar Closure) -> tryReadMVar mv
+
+  -- Hashing functions
+  let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()
+      declareHashAlgorithm txt alg = do
+        let algoRef = Builtin ("crypto.HashAlgorithm." <> txt)
+        declareForeign ("crypto.HashAlgorithm." <> txt) pfop0 . mkForeign $ \() ->
+          pure (HashAlgorithm algoRef alg)
+
+  declareHashAlgorithm "Sha3_512" Hash.SHA3_512
+  declareHashAlgorithm "Sha3_256" Hash.SHA3_256
+  declareHashAlgorithm "Sha2_512" Hash.SHA512
+  declareHashAlgorithm "Sha2_256" Hash.SHA256
+  declareHashAlgorithm "Blake2b_512" Hash.Blake2b_512
+  declareHashAlgorithm "Blake2b_256" Hash.Blake2b_256
+  declareHashAlgorithm "Blake2s_256" Hash.Blake2s_256
+
+  -- declareForeign ("crypto.hash") pfopbb . mkForeign $ \(HashAlgorithm _ref _alg, _a :: Closure) ->
+  --   pure $ Bytes.empty -- todo : implement me
+
+  declareForeign "crypto.hashBytes" pfopbb . mkForeign $
+    \(HashAlgorithm _ alg, b :: Bytes.Bytes) ->
+        let ctx = Hash.hashInitWith alg
+        in pure . Bytes.fromArray . Hash.hashFinalize $ Hash.hashUpdates ctx (Bytes.chunks b)
+
+  declareForeign "crypto.hmacBytes" pfopbbb
+    . mkForeign $ \(HashAlgorithm _ alg, key :: Bytes.Bytes, msg :: Bytes.Bytes) ->
+        let out = u alg $ HMAC.hmac (Bytes.toArray @BA.Bytes key) (Bytes.toArray @BA.Bytes msg)
+            u :: a -> HMAC.HMAC a -> HMAC.HMAC a
+            u _ h = h -- to help typechecker along
+        in pure $ Bytes.fromArray out
+
+  declareForeign "Bytes.toBase16" pfopb . mkForeign $ pure . Bytes.toBase16
+  declareForeign "Bytes.toBase32" pfopb . mkForeign $ pure . Bytes.toBase32
+  declareForeign "Bytes.toBase64" pfopb . mkForeign $ pure . Bytes.toBase64
+  declareForeign "Bytes.toBase64UrlUnpadded" pfopb . mkForeign $ pure . Bytes.toBase64UrlUnpadded
+
+  declareForeign "Bytes.fromBase16" pfopb_ebb . mkForeign $ pure . Bytes.fromBase16
+  declareForeign "Bytes.fromBase32" pfopb_ebb . mkForeign $ pure . Bytes.fromBase32
+  declareForeign "Bytes.fromBase64" pfopb_ebb . mkForeign $ pure . Bytes.fromBase64
+  declareForeign "Bytes.fromBase64UrlUnpadded" pfopb . mkForeign $ pure . Bytes.fromBase64UrlUnpadded
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny

@@ -24,6 +24,11 @@ testBuilder ucm dir transcript = scope transcript $ do
   io $ fromString ucm ["transcript", pack (dir </> transcript)]
   ok
 
+testBuilderNewRuntime :: FilePath -> FilePath -> String -> Test ()
+testBuilderNewRuntime ucm dir transcript = scope transcript $ do
+  io $ fromString ucm ["--new-runtime", "transcript", pack (dir </> transcript)]
+  ok
+
 testBuilder' :: FilePath -> FilePath -> String -> Test ()
 testBuilder' ucm dir transcript = scope transcript $ do
   let input = pack (dir </> transcript)
@@ -79,7 +84,8 @@ cleanup = do
 
 test :: Test ()
 test = do
-  buildTests testBuilder  $"unison-src" </> "transcripts"
+  buildTests testBuilder $ "unison-src" </> "transcripts"
+  buildTests testBuilderNewRuntime $ "unison-src" </> "new-runtime-transcripts"
   buildTests testBuilder' $"unison-src" </> "transcripts" </> "errors"
   cleanup
 
