@@ -6,6 +6,8 @@ module Unison.TermPrinter where
 
 import Unison.Prelude
 
+import           Control.Monad.State            (evalState)
+import qualified Control.Monad.State           as State
 import           Data.List
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
@@ -479,7 +481,11 @@ printCase env im doc ms = PP.lines $ map each gridArrowsAligned where
     where
     lhs = (case pats of
             [pat] -> PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
-            pats  -> PP.group $ PP.spaced [p | (p, _) <- prettyPattern env (ac 0 Block im doc) 10 vs <$> pats])
+            pats  -> PP.group . PP.spaced . (`evalState` vs) . for pats $ \pat -> do
+              vs <- State.get
+              let (p, rem) = prettyPattern env (ac 0 Block im doc) 10 vs pat
+              State.put rem
+              pure p)
        <> printGuard guard
     arrow = fmt S.ControlKeyword "->"
     printGuard (Just g') = let (_, g) = ABT.unabs g' in
