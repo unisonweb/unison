@@ -6,6 +6,8 @@
 
 module Unison.Runtime.Machine where
 
+import GHC.Stack
+
 import Data.Maybe (fromMaybe)
 
 import Data.Bits
@@ -231,10 +233,10 @@ eval !env !denv !ustk !bstk !k (Call ck n args)
   | otherwise = die $ "eval: unknown combinator: " ++ show n
 eval !env !denv !ustk !bstk !k (Jump i args) =
   peekOff bstk i >>= jump env denv ustk bstk k args
-eval !env !denv !ustk !bstk !k (Let nw nx) = do
+eval !env !denv !ustk !bstk !k (Let nw cix) = do
   (ustk, ufsz, uasz) <- saveFrame ustk
   (bstk, bfsz, basz) <- saveFrame bstk
-  eval env denv ustk bstk (Push ufsz bfsz uasz basz nx k) nw
+  eval env denv ustk bstk (Push ufsz bfsz uasz basz cix k) nw
 eval !env !denv !ustk !bstk !k (Ins i nx) = do
   (denv, ustk, bstk, k) <- exec env denv ustk bstk k i
   eval env denv ustk bstk k nx
@@ -1196,10 +1198,11 @@ yield !env !denv !ustk !bstk !k = leap denv k
        clo = denv0 EC.! EC.findMin ps
    poke bstk . DataB1 Rf.effectRef 0 =<< peek bstk
    apply env denv ustk bstk k False (BArg1 0) clo
- leap !denv (Push ufsz bfsz uasz basz nx k) = do
-   ustk <- restoreFrame ustk ufsz uasz
-   bstk <- restoreFrame bstk bfsz basz
-   eval env denv ustk bstk k nx
+ leap !denv (Push ufsz bfsz uasz basz cix k)
+   | Lam _ _ _ _ nx <- combSection env cix = do
+     ustk <- restoreFrame ustk ufsz uasz
+     bstk <- restoreFrame bstk bfsz basz
+     eval env denv ustk bstk k nx
  leap _ (CB (Hook f)) = f ustk bstk
  leap _ KE = pure ()
 {-# inline yield #-}
@@ -1264,7 +1267,7 @@ resolve _ denv _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo
   _ -> die $ "resolve: looked up bad dynamic: " ++ show i
 
-combSection :: SEnv -> CombIx -> Comb
+combSection :: HasCallStack => SEnv -> CombIx -> Comb
 combSection env (CIx _ n i)
   = case EC.lookup n (combs env) of
       Just cmbs -> case EC.lookup i cmbs of

@@ -25,8 +25,9 @@ import Unison.Reference (Reference)
 
 import Unison.Runtime.Foreign
   (Foreign, maybeUnwrapBuiltin, maybeUnwrapForeign)
+import Unison.Runtime.MCode (CombIx(..))
 import Unison.Runtime.Stack
-  (Closure(..), pattern DataC, pattern PApV, CombIx(..))
+  (Closure(..), pattern DataC, pattern PApV)
 
 import Unison.Codebase.Runtime (Error)
 import Unison.Util.Pretty (lit)

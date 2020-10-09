@@ -8,7 +8,6 @@
 
 module Unison.Runtime.Stack
   ( K(..)
-  , CombIx(..)
   , Closure(.., DataC, PApV, CapV)
   , Callback(..)
   , Augment(..)
@@ -89,15 +88,9 @@ data K
          !Int -- boxed frame size
          !Int -- pending unboxed args
          !Int -- pending boxed args
-         !Section -- code
+         !CombIx -- local continuation reference
          !K
   deriving (Eq, Ord)
-
-data CombIx
-  = CIx !Reference -- top reference
-        !Word64    -- top level
-        !Word64    -- section
-  deriving (Eq, Ord, Show)
 
 data Closure
   = PAp {-# unpack #-} !CombIx    -- reference

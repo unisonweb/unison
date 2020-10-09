@@ -10,6 +10,7 @@ import GHC.Stack (HasCallStack)
 
 import Control.Exception (try)
 import Control.Monad (foldM, (<=<))
+import Control.Monad.State.Strict (evalState)
 
 import Data.Bifunctor (first,second)
 import Data.Foldable
@@ -73,9 +74,7 @@ baseContext
   , freshTm = ftm
   , refTy = builtinTypeNumbering
   , refTm = builtinTermNumbering
-  , combs = mapSingleton 0
-          . emitComb @v emptyRNs 0 mempty
-        <$> numberedTermLookup
+  , combs = combs
   , dspec = builtinDataSpec
   , backrefTy = builtinTypeBackref
   , backrefTm = Tm.ref () <$> builtinTermBackref
@@ -84,6 +83,11 @@ baseContext
   where
   ftm = 1 + maximum builtinTermNumbering
   fty = 1 + maximum builtinTypeNumbering
+
+  combs
+    = mapWithKey
+        (\k v -> evalState (emitComb @v emptyRNs k mempty (0,v)) 1)
+        numberedTermLookup
 
 allocTerm
   :: Var v

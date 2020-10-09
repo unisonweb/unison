@@ -17,6 +17,7 @@ module Unison.Util.EnumContainers
   , member
   , lookup
   , lookupWithDefault
+  , mapWithKey
   , foldMapWithKey
   , mapToList
   , (!)
@@ -101,6 +102,9 @@ lookup e (EM m) = IM.lookup (keyToInt e) m
 
 lookupWithDefault :: EnumKey k => a -> k -> EnumMap k a -> a
 lookupWithDefault d e (EM m) = IM.findWithDefault d (keyToInt e) m
+
+mapWithKey :: EnumKey k => (k -> a -> b) -> EnumMap k a -> EnumMap k b
+mapWithKey f (EM m) = EM $ IM.mapWithKey (f . intToKey) m
 
 foldMapWithKey :: EnumKey k => Monoid m => (k -> a -> m) -> EnumMap k a -> m
 foldMapWithKey f (EM m) = IM.foldMapWithKey (f . intToKey) m
