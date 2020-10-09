@@ -1049,10 +1049,10 @@ mvar'take instr
 mvar'try'take :: ForeignOp
 mvar'try'take instr
   = ([BX],)
-  . TAbss [mv,x]
-  $ maybe'result'direct instr [mv,x] t r
+  . TAbs mv
+  $ maybe'result'direct instr [mv] t r
   where
-  [mv,x,t,r] = freshes 4
+  [mv,t,r] = freshes 3
 
 mvar'put :: ForeignOp
 mvar'put instr
