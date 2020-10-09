@@ -12,11 +12,8 @@ import Unison.Prelude
 import qualified System.Console.ANSI       as ANSI
 import           Unison.Util.AnnotatedText      ( AnnotatedText(..)
                                                 , annotate
-                                                , pattern (:|)
-                                                , theString
-                                                , theAnnotation
+                                                , Segment(..)
                                                 , toPair
-                                                , AnnotatedString
                                                 )
 import qualified Unison.Util.SyntaxText    as ST hiding (toPlain)
 
@@ -53,7 +50,7 @@ style = annotate
 
 toHTML :: String -> ColorText -> String
 toHTML cssPrefix (AnnotatedText at) = toList at >>= \case
-  s :| color -> wrap color (s >>= newlineToBreak)
+  Segment s color -> wrap color (s >>= newlineToBreak)
   where
   newlineToBreak '\n' = "<br/>\n"
   newlineToBreak ch   = [ch]
@@ -64,7 +61,7 @@ toHTML cssPrefix (AnnotatedText at) = toList at >>= \case
 
 -- Convert a `ColorText` to a `String`, ignoring colors
 toPlain :: ColorText -> String
-toPlain (AnnotatedText at) = join (toList $ theString <$> at)
+toPlain (AnnotatedText at) = join (toList $ segment <$> at)
 
 -- Convert a `ColorText` to a `String`, using ANSI codes to produce colors
 toANSI :: ColorText -> String
@@ -73,7 +70,7 @@ toANSI (AnnotatedText chunks) =
  where
   go
     :: (Maybe Color, Seq String)
-    -> AnnotatedString Color
+    -> Segment Color
     -> (Maybe Color, Seq String)
   go (prev, r) (toPair -> (text, new)) = if prev == new
     then (prev, r <> pure text)

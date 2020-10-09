@@ -1,9 +1,9 @@
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -13,12 +13,12 @@ module Unison.Server.Endpoints.ListNamespace where
 import Control.Error (runExceptT)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Aeson (ToJSON)
+import Data.OpenApi (ToSchema)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Servant (Get, JSON, QueryParam, ServerError (errBody), err400, throwError, (:>))
 import Servant.Docs (DocQueryParam (..), ParamKind (Normal), ToParam (..), ToSample (..))
-import OpenAPI ( ToOpenAPISchema )
-import Servant.OpenAPI ()
+import Servant.OpenApi ()
 import Servant.Server (Handler)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
@@ -83,7 +83,8 @@ data NamespaceListing = NamespaceListing
   deriving (Generic, Show)
 
 instance ToJSON NamespaceListing
-deriving instance ToOpenAPISchema NamespaceListing
+
+deriving instance ToSchema NamespaceListing
 
 data NamespaceObject
   = Subnamespace NamedNamespace
@@ -93,7 +94,8 @@ data NamespaceObject
   deriving (Generic, Show)
 
 instance ToJSON NamespaceObject
-deriving instance ToOpenAPISchema NamespaceObject
+
+deriving instance ToSchema NamespaceObject
 
 data NamedNamespace = NamedNamespace
   { namespaceName :: UnisonName,
@@ -102,7 +104,8 @@ data NamedNamespace = NamedNamespace
   deriving (Generic, Show)
 
 instance ToJSON NamedNamespace
-deriving instance ToOpenAPISchema NamedNamespace
+
+deriving instance ToSchema NamedNamespace
 
 data NamedTerm = NamedTerm
   { termName :: HashQualifiedName,
@@ -112,7 +115,8 @@ data NamedTerm = NamedTerm
   deriving (Generic, Show)
 
 instance ToJSON NamedTerm
-deriving instance ToOpenAPISchema NamedTerm
+
+deriving instance ToSchema NamedTerm
 
 data NamedType = NamedType
   { typeName :: HashQualifiedName,
@@ -121,7 +125,8 @@ data NamedType = NamedType
   deriving (Generic, Show)
 
 instance ToJSON NamedType
-deriving instance ToOpenAPISchema NamedType
+
+deriving instance ToSchema NamedType
 
 data NamedPatch = NamedPatch
   { patchName :: HashQualifiedName
@@ -129,13 +134,15 @@ data NamedPatch = NamedPatch
   deriving (Generic, Show)
 
 instance ToJSON NamedPatch
-deriving instance ToOpenAPISchema NamedPatch
+
+deriving instance ToSchema NamedPatch
 
 newtype KindExpression = KindExpression {kindExpressionText :: Text}
   deriving (Generic, Show)
 
 instance ToJSON KindExpression
-deriving instance ToOpenAPISchema KindExpression
+
+deriving instance ToSchema KindExpression
 
 formatType ::
   Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText' ShortHash
@@ -147,19 +154,24 @@ formatType ppe w =
       (-1)
 
 instance ToJSON ConstructorType
-deriving instance ToOpenAPISchema ConstructorType
+
+deriving instance ToSchema ConstructorType
 
 instance ToJSON SeqOp
-deriving instance ToOpenAPISchema SeqOp
 
-instance ToJSON r => ToJSON (Referent.Referent' r)
-deriving instance ToOpenAPISchema r => ToOpenAPISchema (Referent.Referent' r)
+deriving instance ToSchema SeqOp
+
+instance ToJSON r => ToJSON (Referent.TermRef r)
+
+deriving instance ToSchema r => ToSchema (Referent.TermRef r)
 
 instance ToJSON r => ToJSON (SyntaxText.Element r)
-deriving instance ToOpenAPISchema r => ToOpenAPISchema (SyntaxText.Element r)
+
+deriving instance ToSchema r => ToSchema (SyntaxText.Element r)
 
 instance ToJSON r => ToJSON (SyntaxText' r)
-deriving instance ToOpenAPISchema r => ToOpenAPISchema (SyntaxText' r)
+
+deriving instance ToSchema r => ToSchema (SyntaxText' r)
 
 backendListEntryToNamespaceObject ::
   Var v =>

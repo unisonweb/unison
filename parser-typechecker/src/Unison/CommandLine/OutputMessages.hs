@@ -1092,7 +1092,7 @@ prettySBH :: IsString s => ShortBranchHash -> P.Pretty s
 prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
 
 formatMissingStuff :: (Show tm, Show typ) =>
-  [(HQ.HashQualified, tm)] -> [(HQ.HashQualified, typ)] -> Pretty
+  [(HQ.HashQualified Name, tm)] -> [(HQ.HashQualified Name, typ)] -> Pretty
 formatMissingStuff terms types =
   (unlessM (null terms) . P.fatalCallout $
     P.wrap "The following terms have a missing or corrupted type signature:"
@@ -1268,7 +1268,7 @@ prettyTypeResultHeaderFull' (SR'.TypeResult' (HQ'.toHQ -> name) dt r (Set.map HQ
     where greyHash = styleHashQualified' id P.hiBlack
 
 prettyDeclTriple :: Var v =>
-  (HQ.HashQualified, Reference.Reference, DisplayThing (DD.Decl v a))
+  (HQ.HashQualified Name, Reference.Reference, DisplayThing (DD.Decl v a))
   -> Pretty
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
    BuiltinThing -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (P.syntaxToColor $ prettyHashQualified name)
@@ -1409,7 +1409,7 @@ listOfDefinitions ppe detailed results =
   pure $ listOfDefinitions' ppe detailed results
 
 listOfLinks ::
-  Var v => PPE.PrettyPrintEnv -> [(HQ.HashQualified, Maybe (Type v a))] -> IO Pretty
+  Var v => PPE.PrettyPrintEnv -> [(HQ.HashQualified Name, Maybe (Type v a))] -> IO Pretty
 listOfLinks _ [] = pure . P.callout "😶" . P.wrap $
   "No results. Try using the " <>
   IP.makeExample IP.link [] <>
@@ -1760,7 +1760,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
   numPatch prefix name =
     addNumberedArg . Name.toString . Name.makeAbsolute $ Path.prefixName prefix name
 
-  numHQ :: Path.Absolute -> HQ.HashQualified -> Referent -> Numbered Pretty
+  numHQ :: Path.Absolute -> HQ.HashQualified Name -> Referent -> Numbered Pretty
   numHQ prefix hq r = addNumberedArg (HQ.toString hq')
     where
     hq' = HQ.requalify (fmap (Name.makeAbsolute . Path.prefixName prefix) hq) r

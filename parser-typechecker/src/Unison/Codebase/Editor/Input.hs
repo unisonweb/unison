@@ -19,8 +19,10 @@ import           Unison.ShortHash (ShortHash)
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import           Unison.Codebase.SyncMode       ( SyncMode )
-import qualified Data.Text as Text
+import           Unison.Name                    ( Name )
 import           Unison.NameSegment             ( NameSegment )
+
+import qualified Data.Text as Text
 
 data Event
   = UnisonFileChanged SourceName Source
@@ -63,7 +65,7 @@ data Input
     -- > names .foo.bar
     -- > names .foo.bar#asdflkjsdf
     -- > names #sdflkjsdfhsdf
-    | NamesI HQ.HashQualified
+    | NamesI (HQ.HashQualified Name)
     | AliasTermI HashOrHQSplit' Path.Split'
     | AliasTypeI HashOrHQSplit' Path.Split'
     | AliasManyI [Path.HQSplit] Path'
@@ -96,10 +98,10 @@ data Input
     -- -- create and remove update directives
     | DeprecateTermI PatchPath Path.HQSplit'
     | DeprecateTypeI PatchPath Path.HQSplit'
-    | ReplaceTermI HQ.HashQualified HQ.HashQualified (Maybe PatchPath)
-    | ReplaceTypeI HQ.HashQualified HQ.HashQualified (Maybe PatchPath)
-    | RemoveTermReplacementI HQ.HashQualified (Maybe PatchPath)
-    | RemoveTypeReplacementI HQ.HashQualified (Maybe PatchPath)
+    | ReplaceTermI (HQ.HashQualified Name) (HQ.HashQualified Name) (Maybe PatchPath)
+    | ReplaceTypeI (HQ.HashQualified Name) (HQ.HashQualified Name) (Maybe PatchPath)
+    | RemoveTermReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
+    | RemoveTypeReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
   | UndoI
   -- First `Maybe Int` is cap on number of results, if any
   -- Second `Maybe Int` is cap on diff elements shown, if any
@@ -109,26 +111,26 @@ data Input
   | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
   -- `link metadata definitions` (adds metadata to all of `definitions`)
-  | LinkI HQ.HashQualified [Path.HQSplit']
+  | LinkI (HQ.HashQualified Name) [Path.HQSplit']
   -- `unlink metadata definitions` (removes metadata from all of `definitions`)
-  | UnlinkI HQ.HashQualified [Path.HQSplit']
+  | UnlinkI (HQ.HashQualified Name) [Path.HQSplit']
   -- links from <type>
   | LinksI Path.HQSplit' (Maybe String)
   | CreateAuthorI NameSegment {- identifier -} Text {- name -}
-  | DisplayI OutputLocation HQ.HashQualified
+  | DisplayI OutputLocation (HQ.HashQualified Name)
   | DocsI Path.HQSplit'
   -- other
   | SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
   | FindShallowI Path'
   | FindPatchI
-  | ShowDefinitionI OutputLocation [HQ.HashQualified]
-  | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified]
+  | ShowDefinitionI OutputLocation [HQ.HashQualified Name]
+  | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified Name]
   | ShowReflogI
   | UpdateBuiltinsI
   | MergeBuiltinsI
   | MergeIOBuiltinsI
-  | ListDependenciesI HQ.HashQualified
-  | ListDependentsI HQ.HashQualified
+  | ListDependenciesI (HQ.HashQualified Name)
+  | ListDependentsI (HQ.HashQualified Name)
   | DebugNumberedArgsI
   | DebugBranchHistoryI
   | DebugTypecheckedUnisonFileI

@@ -20,13 +20,13 @@ import qualified Unison.Util.Pretty   as PP
 prettyName :: IsString s => Name -> Pretty s
 prettyName = PP.text . Name.toText
 
-prettyHashQualified :: HQ.HashQualified -> Pretty SyntaxText
+prettyHashQualified :: HQ.HashQualified Name -> Pretty SyntaxText
 prettyHashQualified hq = styleHashQualified' id (fmt $ S.HashQualifier hq) hq
 
 prettyHashQualified' :: HQ'.HashQualified -> Pretty SyntaxText
 prettyHashQualified' = prettyHashQualified . HQ'.toHQ
 
-prettyHashQualified0 :: IsString s => HQ.HashQualified -> Pretty s
+prettyHashQualified0 :: IsString s => HQ.HashQualified Name -> Pretty s
 prettyHashQualified0 = PP.text . HQ.toText
 
 -- | Pretty-print a reference as a name and the given number of characters of
@@ -58,13 +58,13 @@ prettyShortHash :: IsString s => ShortHash -> Pretty s
 prettyShortHash = fromString . SH.toString
 
 styleHashQualified ::
-  IsString s => (Pretty s -> Pretty s) -> HQ.HashQualified -> Pretty s
+  IsString s => (Pretty s -> Pretty s) -> HQ.HashQualified Name -> Pretty s
 styleHashQualified style hq = styleHashQualified' style id hq
 
 styleHashQualified' ::
   IsString s => (Pretty s -> Pretty s)
              -> (Pretty s -> Pretty s)
-             -> HQ.HashQualified
+             -> HQ.HashQualified Name
              -> Pretty s
 styleHashQualified' nameStyle hashStyle = \case
   HQ.NameOnly n -> nameStyle (prettyName n)
@@ -72,10 +72,12 @@ styleHashQualified' nameStyle hashStyle = \case
   HQ.HashQualified n h ->
     PP.group $ nameStyle (prettyName n) <> hashStyle (prettyShortHash h)
 
-styleHashQualified'' :: (Pretty SyntaxText -> Pretty SyntaxText)
-                     -> HQ.HashQualified
-                     -> Pretty SyntaxText
-styleHashQualified'' nameStyle hq = styleHashQualified' nameStyle (fmt $ S.HashQualifier hq) hq
+styleHashQualified''
+  :: (Pretty SyntaxText -> Pretty SyntaxText)
+  -> HQ.HashQualified Name
+  -> Pretty SyntaxText
+styleHashQualified'' nameStyle hq =
+  styleHashQualified' nameStyle (fmt $ S.HashQualifier hq) hq
 
 fmt :: S.Element r -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = PP.withSyntax

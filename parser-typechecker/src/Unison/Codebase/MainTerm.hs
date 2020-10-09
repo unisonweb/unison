@@ -15,6 +15,7 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.Referent               as Referent
+import           Unison.Name                    ( Name )
 import qualified Unison.Names3                 as Names3
 import           Unison.Reference               ( Reference )
 import qualified Unison.Type                   as Type
@@ -26,7 +27,7 @@ data MainTerm v
   = NotAFunctionName String
   | NotFound String
   | BadType String
-  | Success HQ.HashQualified (Term v Ann) (Type v Ann)
+  | Success (HQ.HashQualified Name) (Term v Ann) (Type v Ann)
 
 getMainTerm
   :: (Monad m, Var v)

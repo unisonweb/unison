@@ -25,19 +25,19 @@ type HQSegment = HashQualified' NameSegment
 
 type HashQualified = HashQualified' Name
 
-toHQ :: HashQualified' n -> HQ.HashQualified' n
+toHQ :: HashQualified' n -> HQ.HashQualified n
 toHQ = \case
   NameOnly n -> HQ.NameOnly n
   HashQualified n sh -> HQ.HashQualified n sh
 
-fromHQ :: HQ.HashQualified' n -> Maybe (HashQualified' n)
+fromHQ :: HQ.HashQualified n -> Maybe (HashQualified' n)
 fromHQ = \case
   HQ.NameOnly n -> Just $ NameOnly n
   HQ.HashQualified n sh -> Just $ HashQualified n sh
   HQ.HashOnly{} -> Nothing
 
 -- Like fromHQ, but turns hashes into hash-qualified empty names
-fromHQ' :: Monoid n => HQ.HashQualified' n -> HashQualified' n
+fromHQ' :: Monoid n => HQ.HashQualified n -> HashQualified' n
 fromHQ' = \case
   HQ.NameOnly n -> NameOnly n
   HQ.HashQualified n sh -> HashQualified n sh

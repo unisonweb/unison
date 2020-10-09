@@ -220,7 +220,7 @@ loop = do
       getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
       getHQ'Types :: Path.HQSplit' -> Set Reference
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
-      getHQTerms :: HQ.HashQualified -> Action' m v (Set Referent)
+      getHQTerms :: HQ.HashQualified Name -> Action' m v (Set Referent)
       getHQTerms hq = case hq of
         HQ.NameOnly n -> let
           -- absolute-ify the name, then lookup in deepTerms of root
@@ -571,7 +571,7 @@ loop = do
         --   e.g. `Metadata.insert` is passed to add metadata links.
         manageLinks :: Bool
                     -> [(Path', HQ'.HQSegment)]
-                    -> [HQ.HashQualified]
+                    -> [HQ.HashQualified Name]
                     -> (forall r. Ord r
                         => (r, Metadata.Type, Metadata.Value)
                         ->  Branch.Star r NameSegment
@@ -990,7 +990,7 @@ loop = do
             (Nothing, Just as) -> (missingSrcs, actions ++ as)
             (Just as1, Just as2) -> (missingSrcs, actions ++ as1 ++ as2)
 
-        fixupOutput :: Path.HQSplit -> HQ.HashQualified
+        fixupOutput :: Path.HQSplit -> HQ.HashQualified Name
         fixupOutput = fmap Path.toName . HQ'.toHQ . Path.unsplitHQ
 
       NamesI thing -> do
@@ -1789,7 +1789,7 @@ loop = do
     _ -> pure ()
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
-resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified -> Action' m v (Set LabeledDependency)
+resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified Name -> Action' m v (Set LabeledDependency)
 resolveHQToLabeledDependencies = \case
   HQ.NameOnly n -> do
     parseNames <- Names3.suffixify0 <$> basicParseNames0
@@ -1833,7 +1833,7 @@ getLinks :: (Var v, Monad m)
                     (Action' m v)
                     (PPE.PrettyPrintEnv,
                        --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
-                       [(HQ.HashQualified, Reference, Maybe (Type v Ann))])
+                       [(HQ.HashQualified Name, Reference, Maybe (Type v Ann))])
 getLinks input src mdTypeStr = ExceptT $ do
   let go = fmap Right . getLinks' src
   case mdTypeStr of
@@ -1848,7 +1848,7 @@ getLinks' :: (Var v, Monad m)
          -> Maybe (Set Reference) -- return all metadata if empty
          -> Action' m v (PPE.PrettyPrintEnv,
                           --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
-                         [(HQ.HashQualified, Reference, Maybe (Type v Ann))])
+                         [(HQ.HashQualified Name, Reference, Maybe (Type v Ann))])
 getLinks' src selection0 = do
   root0 <- Branch.head <$> use root
   currentPath' <- use currentPath
@@ -2038,16 +2038,16 @@ searchResultsFor ns terms types =
 searchBranchScored :: forall score. (Ord score)
               => Names0
               -> (Name -> Name -> Maybe score)
-              -> [HQ.HashQualified]
+              -> [HQ.HashQualified Name]
               -> [SearchResult]
 searchBranchScored names0 score queries =
   nubOrd . fmap snd . toList $ searchTermNamespace <> searchTypeNamespace
   where
   searchTermNamespace = foldMap do1query queries
     where
-    do1query :: HQ.HashQualified -> Set (Maybe score, SearchResult)
+    do1query :: HQ.HashQualified Name -> Set (Maybe score, SearchResult)
     do1query q = foldMap (score1hq q) (R.toList . Names.terms $ names0)
-    score1hq :: HQ.HashQualified -> (Name, Referent) -> Set (Maybe score, SearchResult)
+    score1hq :: HQ.HashQualified Name -> (Name, Referent) -> Set (Maybe score, SearchResult)
     score1hq query (name, ref) = case query of
       HQ.NameOnly qn ->
         pair qn
@@ -2063,9 +2063,9 @@ searchBranchScored names0 score queries =
         Nothing -> mempty
   searchTypeNamespace = foldMap do1query queries
     where
-    do1query :: HQ.HashQualified -> Set (Maybe score, SearchResult)
+    do1query :: HQ.HashQualified Name -> Set (Maybe score, SearchResult)
     do1query q = foldMap (score1hq q) (R.toList . Names.types $ names0)
-    score1hq :: HQ.HashQualified -> (Name, Reference) -> Set (Maybe score, SearchResult)
+    score1hq :: HQ.HashQualified Name -> (Name, Reference) -> Set (Maybe score, SearchResult)
     score1hq query (name, ref) = case query of
       HQ.NameOnly qn ->
         pair qn
@@ -2095,9 +2095,9 @@ collateReferences (toList -> types) (toList -> terms) =
   in  (Set.fromList types' <> Set.fromList types, Set.fromList terms')
 
 -- | The output list (of lists) corresponds to the query list.
-searchBranchExact :: Int -> Names -> [HQ.HashQualified] -> [[SearchResult]]
+searchBranchExact :: Int -> Names -> [HQ.HashQualified Name] -> [[SearchResult]]
 searchBranchExact len names queries = let
-  searchTypes :: HQ.HashQualified -> [SearchResult]
+  searchTypes :: HQ.HashQualified Name -> [SearchResult]
   searchTypes query =
     -- a bunch of references will match a HQ ref.
     let refs = toList $ Names3.lookupHQType query names in
@@ -2108,7 +2108,7 @@ searchBranchExact len names queries = let
                  $ toList hqNames in
       let aliases = Set.delete primaryName hqNames in
       SR.typeResult primaryName r aliases
-  searchTerms :: HQ.HashQualified -> [SearchResult]
+  searchTerms :: HQ.HashQualified Name -> [SearchResult]
   searchTerms query =
     -- a bunch of references will match a HQ ref.
     let refs = toList $ Names3.lookupHQTerm query names in
@@ -2678,7 +2678,7 @@ getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
 
 -- discards inputs that aren't hashqualified;
 -- I'd enforce it with finer-grained types if we had them.
-findHistoricalHQs :: Monad m => Set HQ.HashQualified -> Action' m v Names0
+findHistoricalHQs :: Monad m => Set (HQ.HashQualified Name) -> Action' m v Names0
 findHistoricalHQs lexedHQs0 = do
   root <- use root
   currentPath <- use currentPath
@@ -2703,7 +2703,7 @@ findHistoricalHQs lexedHQs0 = do
 basicPrettyPrintNames0 :: Functor m => Action' m v Names0
 basicPrettyPrintNames0 = snd <$> basicNames0'
 
-makeShadowedPrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Names0 -> Action' m v Names
+makeShadowedPrintNamesFromHQ :: Monad m => Set (HQ.HashQualified Name) -> Names0 -> Action' m v Names
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames0 <- basicPrettyPrintNames0
@@ -2740,7 +2740,7 @@ fixupNamesRelative currentPath' = Names3.map0 fixName where
     fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
 
 makeHistoricalParsingNames ::
-  Monad m => Set HQ.HashQualified -> Action' m v Names
+  Monad m => Set (HQ.HashQualified Name) -> Action' m v Names
 makeHistoricalParsingNames lexedHQs = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames0 <- basicParseNames0

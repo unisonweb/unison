@@ -394,8 +394,8 @@ referentFromString = Referent.fromText . Text.pack
 
 referentIdFromString :: String -> Maybe Referent.Id
 referentIdFromString s = referentFromString s >>= \case
-  Referent.Ref (Reference.DerivedId r) -> Just $ Referent.Ref' r
-  Referent.Con (Reference.DerivedId r) i t -> Just $ Referent.Con' r i t
+  Referent.Ref (Reference.DerivedId r) -> Just $ Referent.IdRef r
+  Referent.Con (Reference.DerivedId r) i t -> Just $ Referent.ConRef r i t
   _ -> Nothing
 
 -- here
@@ -540,7 +540,7 @@ termReferentsByPrefix :: MonadIO m
   -> ShortHash
   -> m (Set Referent.Id)
 termReferentsByPrefix _ root sh@SH.Builtin{} =
-  Set.map Referent.Ref' <$> termReferencesByPrefix root sh
+  Set.map Referent.IdRef <$> termReferencesByPrefix root sh
   -- builtin types don't provide any referents we could match against,
   -- only decl types do. Those get handled in the next case.
 termReferentsByPrefix getDecl root sh@SH.ShortHash{} = do
@@ -549,7 +549,7 @@ termReferentsByPrefix getDecl root sh@SH.ShortHash{} = do
     -- clear out any CID from the SH, so we can use it to find a type decl
     types <- typeReferencesByPrefix root sh { SH.cid = Nothing }
     foldMapM collectCtors types
-  pure (Set.map Referent.Ref' terms <> ctors)
+  pure (Set.map Referent.IdRef terms <> ctors)
   where
   -- load up the Decl for `ref` to see how many constructors it has,
   -- and what constructor type
@@ -558,7 +558,7 @@ termReferentsByPrefix getDecl root sh@SH.ShortHash{} = do
     Just decl ->
       Set.fromList [ con
                    | i <- [0 .. ctorCount-1]
-                   , let con = Referent.Con' ref i ct
+                   , let con = Referent.ConRef ref i ct
                    , SH.isPrefixOf sh $ Referent.toShortHashId con]
       where ct = either (const CT.Effect) (const CT.Data) decl
             ctorCount = length . DD.constructors' $ DD.asDataDecl decl

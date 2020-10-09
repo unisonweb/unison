@@ -14,12 +14,12 @@ import Data.Sequence (Seq(..))
 import Data.Text (Text)
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
-import OpenAPI ( ToOpenAPISchema(..) )
+import Data.OpenApi ( ToSchema(..) )
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.ShortHash (ShortHash)
 import Unison.Util.Pretty (Width)
-import Unison.Util.AnnotatedText ( AnnotatedString )
+import Unison.Util.AnnotatedText ( Segment )
 
 type HashQualifiedName = Text
 
@@ -30,19 +30,19 @@ type UnisonName = Text
 type UnisonHash = Text
 
 instance ToJSON Name
-deriving instance ToOpenAPISchema Name
+deriving instance ToSchema Name
 
 instance ToJSON ShortHash
-deriving instance ToOpenAPISchema ShortHash
+deriving instance ToSchema ShortHash
 
-instance ToJSON HQ.HashQualified
-deriving instance ToOpenAPISchema HQ.HashQualified
+instance ToJSON n => ToJSON (HQ.HashQualified n)
+deriving instance ToSchema n => ToSchema (HQ.HashQualified n)
 
-instance ToJSON a => ToJSON (AnnotatedString a)
-instance ToOpenAPISchema a => ToOpenAPISchema (AnnotatedString a)
+instance ToJSON a => ToJSON (Segment a)
+instance ToSchema a => ToSchema (Segment a)
 
-instance ToOpenAPISchema r => ToOpenAPISchema (Seq r) where
-  toSchema _ = toSchema (Proxy @[r])
+instance ToSchema r => ToSchema (Seq r) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @[r])
 
 munge :: Text -> LZ.ByteString
 munge = Text.encodeUtf8 . Text.fromStrict

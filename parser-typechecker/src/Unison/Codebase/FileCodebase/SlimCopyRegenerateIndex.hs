@@ -283,9 +283,9 @@ syncToDirectory' getV getA srcPath destPath mode newRoot =
             dependentsIndex <>=
               Relation.fromManyDom (typeDeps ++ typeDeps' ++ termDeps) h
             typeIndex <>=
-              Relation.singleton typeReference (Referent.Ref' h)
+              Relation.singleton typeReference (Referent.IdRef h)
             typeMentionsIndex <>=
-              Relation.fromManyDom typeMentions (Referent.Ref' h)
+              Relation.fromManyDom typeMentions (Referent.IdRef h)
             let newDecls = [ i | Reference.DerivedId i <- typeDeps ++ typeDeps']
             let newTerms = [ i | Reference.DerivedId i <- termDeps ]
             pure (newTerms, newDecls)

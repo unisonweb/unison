@@ -297,7 +297,7 @@ hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
 -- If the hash qualified is name only, it is treated as a var, if it
 -- has a short hash, we resolve that short hash immediately and fail
 -- committed if that short hash can't be found in the current environment
-resolveHashQualified :: Var v => L.Token HQ.HashQualified -> TermP v
+resolveHashQualified :: Var v => L.Token (HQ.HashQualified Name) -> TermP v
 resolveHashQualified tok = do
   names <- asks names
   case L.payload tok of

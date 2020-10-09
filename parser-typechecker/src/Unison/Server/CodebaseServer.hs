@@ -8,60 +8,67 @@
 
 module Unison.Server.CodebaseServer where
 
-import Data.Aeson ()
-import qualified Data.ByteString.Lazy as LZ
-import Data.Proxy (Proxy (..))
-import GHC.Generics ()
-import Network.HTTP.Types.Status (ok200)
-import Network.Wai (responseLBS)
-import Network.Wai.Handler.Warp (run)
-import OpenAPI (InfoObject (..), LicenseObject (..), OpenAPI)
-import Servant.API
-  ((:>), Get, JSON,  Raw,
-    type (:<|>) (..),
-  )
-import Servant.Docs
-  ( DocIntro (DocIntro),
-    docsWithIntros,
-    markdown,
-  )
-import Servant.OpenAPI (blankInfo, toOpenAPI)
-import Servant.Server
-  ( Application,
-    Server,
-    Tagged (Tagged),
-    serve,
-  )
-import Unison.Codebase (Codebase)
-import Unison.Parser (Ann)
-import Unison.Server.Endpoints.ListNamespace
-  ( NamespaceAPI,
-    serveNamespace,
-  )
-import Unison.Server.Types (mungeString)
-import Unison.Var (Var)
+import           Data.Aeson                     ( )
+import qualified Data.ByteString.Lazy          as LZ
+import           Data.OpenApi                   ( URL(..)
+                                                , Info(..)
+                                                , License(..)
+                                                , OpenApi
+                                                )
+import           Data.Proxy                     ( Proxy(..) )
+import           GHC.Generics                   ( )
+import           Network.HTTP.Types.Status      ( ok200 )
+import           Network.Wai                    ( responseLBS )
+import           Network.Wai.Handler.Warp       ( run )
+import           Servant.API                    (Headers,  Get
+                                                , JSON
+                                                , Raw
+                                                , (:>)
+                                                , type (:<|>)(..)
+                                                )
+import           Servant.Docs                   ( DocIntro(DocIntro)
+                                                , docsWithIntros
+                                                , markdown
+                                                )
+import           Servant.Server                 ( Application
+                                                , Server
+                                                , Tagged(Tagged)
+                                                , serve
+                                                )
+import           Unison.Codebase                ( Codebase )
+import           Unison.Parser                  ( Ann )
+import           Unison.Server.Endpoints.ListNamespace
+                                                ( NamespaceAPI
+                                                , serveNamespace
+                                                )
+import           Unison.Server.Types            ( mungeString )
+import           Unison.Var                     ( Var )
+import           Servant.OpenApi                ( HasOpenApi(toOpenApi) )
+import           Servant                        ( Header, addHeader )
 
-type OpenApiJSON = "openapi.json" :> Get '[JSON] OpenAPI
+type OpenApiJSON = "openapi.json"
+  :> Get '[JSON] (Headers '[Header "Access-Control-Allow-Origin" String] OpenApi)
 
 type DocAPI = UnisonAPI :<|> OpenApiJSON :<|> Raw
 
 type UnisonAPI = NamespaceAPI
 
-openAPI :: OpenAPI
-openAPI = toOpenAPI api infoObject
+openAPI :: OpenApi
+openAPI = toOpenApi api
 
-infoObject :: InfoObject
-infoObject =
-  blankInfo
-    { title = "Unison Codebase API",
-      description = Just "Provides operations for querying and manipulating a Unison codebase.",
-      license = Just . LicenseObject "MIT" $ Just "https://github.com/unisonweb/unison/blob/trunk/LICENSE"
-    }
+infoObject :: Info
+infoObject = mempty
+  { _infoTitle       = "Unison Codebase API"
+  , _infoDescription = Just
+    "Provides operations for querying and manipulating a Unison codebase."
+  , _infoLicense     = Just . License "MIT" . Just $ URL
+                         "https://github.com/unisonweb/unison/blob/trunk/LICENSE"
+  , _infoVersion     = "1.0"
+  }
 
 docsBS :: LZ.ByteString
 docsBS = mungeString . markdown $ docsWithIntros [intro] api
-  where
-    intro = DocIntro "Unison Codebase Manager API Server" []
+  where intro = DocIntro "Unison Codebase Manager API Server" []
 
 docAPI :: Proxy DocAPI
 docAPI = Proxy
@@ -76,8 +83,12 @@ start :: Var v => Codebase IO v Ann -> Int -> IO ()
 start codebase port = run port $ app codebase
 
 server :: Var v => Codebase IO v Ann -> Server DocAPI
-server codebase = serveNamespace codebase :<|> serveOpenAPI :<|> Tagged serveDocs
-  where
-    serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
-    serveOpenAPI = pure openAPI
-    plain = ("Content-Type", "text/plain")
+server codebase =
+  serveNamespace codebase
+    :<|> addHeader "*"
+    <$>  serveOpenAPI
+    :<|> Tagged serveDocs
+ where
+  serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
+  serveOpenAPI = pure openAPI
+  plain        = ("Content-Type", "text/plain")

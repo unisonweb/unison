@@ -106,10 +106,10 @@ data Output v
   | ParseResolutionFailures String [Names.ResolutionFailure v Ann]
   | TypeHasFreeVars (Type v Ann)
   | TermAlreadyExists Path.Split' (Set Referent)
-  | LabeledReferenceAmbiguous Int HQ.HashQualified (Set LabeledDependency)
-  | LabeledReferenceNotFound HQ.HashQualified
+  | LabeledReferenceAmbiguous Int (HQ.HashQualified Name) (Set LabeledDependency)
+  | LabeledReferenceNotFound (HQ.HashQualified Name)
   | DeleteNameAmbiguous Int Path.HQSplit' (Set Referent) (Set Reference)
-  | TermAmbiguous HQ.HashQualified (Set Referent)
+  | TermAmbiguous (HQ.HashQualified Name) (Set Referent)
   | HashAmbiguous ShortHash (Set Referent)
   | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
   | BranchNotFound Path'
@@ -119,7 +119,7 @@ data Output v
   | TermNotFound Path.HQSplit'
   | TypeNotFound' ShortHash
   | TermNotFound' ShortHash
-  | SearchTermsNotFound [HQ.HashQualified]
+  | SearchTermsNotFound [HQ.HashQualified Name]
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
   -- with whatever named definitions would not have any remaining names if
@@ -135,7 +135,7 @@ data Output v
               [(Referent, Set HQ'.HashQualified)] -- term match, term names
   -- list of all the definitions within this branch
   | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
-  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified, Reference, Maybe (Type v Ann))]
+  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type v Ann))]
   | ListShallow PPE.PrettyPrintEnv [ShallowListEntry v Ann]
   | ListOfPatches (Set Name)
   -- show the result of add/update
@@ -180,7 +180,7 @@ data Output v
                (Map Reference (DisplayThing (Decl v Ann)))
                (Map Reference (DisplayThing (Term v Ann)))
   | MetadataMissingType PPE.PrettyPrintEnv Referent
-  | MetadataAmbiguous HQ.HashQualified PPE.PrettyPrintEnv [Referent]
+  | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
   -- todo: tell the user to run `todo` on the same patch they just used
   | NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree

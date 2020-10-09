@@ -3,12 +3,13 @@
 module Unison.Util.SyntaxText where
 
 import Unison.Prelude
+import Unison.Name (Name)
 import Unison.Reference (Reference)
-import Unison.Referent (Referent')
+import Unison.Referent (TermRef)
 import Unison.HashQualified (HashQualified)
 import Unison.Pattern (SeqOp)
 
-import Unison.Util.AnnotatedText      ( AnnotatedText(..), annotate, theString )
+import Unison.Util.AnnotatedText      ( AnnotatedText(..), annotate, segment)
 
 type SyntaxText = SyntaxText' Reference
 type SyntaxText' r = AnnotatedText (Element r)
@@ -21,7 +22,7 @@ data Element r = NumericLiteral
              | Blank
              | Var
              | Reference r
-             | Referent (Referent' r)
+             | Referent (TermRef r)
              | Op SeqOp
              | Constructor
              | Request
@@ -42,7 +43,7 @@ data Element r = NumericLiteral
              | UseKeyword
              | UsePrefix
              | UseSuffix
-             | HashQualifier HashQualified
+             | HashQualifier (HashQualified Name)
              | DelayForceChar
              -- ? , ` [ ] @ |
              -- Currently not all commas in the pretty-print output are marked up as DelimiterChar - we miss
@@ -62,4 +63,5 @@ syntax = annotate
 
 -- Convert a `SyntaxText` to a `String`, ignoring syntax markup
 toPlain :: SyntaxText' r -> String
-toPlain (AnnotatedText at) = join (toList $ theString <$> at)
+toPlain (AnnotatedText at) = join (toList $ segment <$> at)
+

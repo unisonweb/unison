@@ -123,7 +123,7 @@ makeAbsolute0:: Names0 -> Names0
 makeAbsolute0 = map0 Name.makeAbsolute
 
 -- do a prefix match on currentNames and, if no match, then check oldNames.
-lookupHQType :: HashQualified -> Names -> Set Reference
+lookupHQType :: HashQualified Name -> Names -> Set Reference
 lookupHQType hq Names{..} = case hq of
   HQ.NameOnly n -> R.lookupDom n (Names.types currentNames)
   HQ.HashQualified n sh -> case matches sh currentNames of
@@ -143,7 +143,7 @@ hasTermNamed n ns = not (Set.null $ lookupHQTerm (HQ.NameOnly n) ns)
 hasTypeNamed :: Name -> Names -> Bool
 hasTypeNamed n ns = not (Set.null $ lookupHQType (HQ.NameOnly n) ns)
 
-lookupHQTerm :: HashQualified -> Names -> Set Referent
+lookupHQTerm :: HashQualified Name -> Names -> Set Referent
 lookupHQTerm hq Names{..} = case hq of
   HQ.NameOnly n -> R.lookupDom n (Names.terms currentNames)
   HQ.HashQualified n sh -> case matches sh currentNames of
@@ -182,7 +182,7 @@ termName length r Names{..} =
 -- Set HashQualified -> Branch m -> Free (Command m i v) Names
 -- Set HashQualified -> Branch m -> Command m i v Names
 -- populate historical names
-lookupHQPattern :: HQ.HashQualified -> Names -> Set (Reference, Int)
+lookupHQPattern :: HQ.HashQualified Name -> Names -> Set (Reference, Int)
 lookupHQPattern hq names = Set.fromList
   [ (r, cid) | Referent.Con r cid _ <- toList $ lookupHQTerm hq names ]
 

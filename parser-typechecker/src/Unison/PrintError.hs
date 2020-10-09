@@ -24,6 +24,7 @@ import qualified Unison.HashQualified         as HQ
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
 import qualified Unison.Lexer                 as L
+import           Unison.Name                  ( Name )
 import           Unison.Parser                (Ann (..), Annotated, ann)
 import qualified Unison.Parser                as Parser
 import qualified Unison.Reference             as R
@@ -1096,7 +1097,7 @@ prettyParseError s = \case
   go (Parser.ResolutionFailures        failures) =
     Pr.border 2 . prettyResolutionFailures s $ failures
   unknownConstructor
-    :: String -> L.Token HashQualified -> Pretty ColorText
+    :: String -> L.Token (HashQualified Name) -> Pretty ColorText
   unknownConstructor ctorType tok = Pr.lines [
     (Pr.wrap . mconcat) [ "I don't know about any "
     , fromString ctorType

@@ -15,46 +15,23 @@ import qualified Data.Foldable      as Foldable
 import qualified Data.Map           as Map
 import           Data.Sequence      (Seq ((:|>), (:<|)))
 import qualified Data.Sequence      as Seq
-import           Data.Tuple.Extra   (second)
 import           Unison.Lexer       (Line, Pos (..))
 import           Unison.Util.Monoid (intercalateMap)
 import           Unison.Util.Range  (Range (..), inRange)
 import qualified Data.ListLike      as LL
 
-pattern (:|) :: String -> Maybe a -> AnnotatedString a
-pattern s :| a <- (toPair -> (s, a))
-  where s :| Nothing = Unannotated s
-        s :| Just a = Annotated s a
-
-{-# COMPLETE (:|) #-}
-
-data AnnotatedString a = Unannotated String
-                       | Annotated String a
+data Segment a = Segment { segment :: String, annotation :: Maybe a }
   deriving (Eq, Show, Functor, Foldable, Generic)
 
-theString :: AnnotatedString a -> String
-theString (Unannotated s) = s
-theString (Annotated s _) = s
+toPair :: Segment a -> (String, Maybe a)
+toPair (Segment s a) = (s, a)
 
-theAnnotation :: AnnotatedString a -> Maybe a
-theAnnotation (Annotated _ a) = Just a
-theAnnotation _ = Nothing
-
-toPair :: AnnotatedString a -> (String, Maybe a)
-toPair (Unannotated s) = (s, Nothing)
-toPair (Annotated s a) = (s, Just a)
-
-maybeAnnotate :: String -> Maybe a -> AnnotatedString a
-maybeAnnotate s a = case a of
-  Nothing -> Unannotated s
-  Just a -> Annotated s a
-
-newtype AnnotatedText a = AnnotatedText (Seq (AnnotatedString a))
+newtype AnnotatedText a = AnnotatedText (Seq (Segment a))
   deriving (Eq, Functor, Foldable, Show, Generic)
 
 instance Semigroup (AnnotatedText a) where
-  AnnotatedText (as :|> "" :| _) <> bs = AnnotatedText as <> bs
-  as <> AnnotatedText ("" :| _ :<| bs) = as <> AnnotatedText bs
+  AnnotatedText (as :|> Segment "" _) <> bs = AnnotatedText as <> bs
+  as <> AnnotatedText (Segment "" _ :<| bs) = as <> AnnotatedText bs
   AnnotatedText as <> AnnotatedText bs = AnnotatedText (as <> bs)
 
 instance Monoid (AnnotatedText a) where
@@ -62,43 +39,44 @@ instance Monoid (AnnotatedText a) where
 
 instance LL.FoldableLL (AnnotatedText a) Char where
   foldl' f z (AnnotatedText at) = Foldable.foldl' f' z at where
-    f' z (str :| _) = L.foldl' f z str
+    f' z (Segment str _) = L.foldl' f z str
   foldl = LL.foldl
   foldr f z (AnnotatedText at) = Foldable.foldr f' z at where
-    f' (str :| _) z = L.foldr f z str
+    f' (Segment str _) z = L.foldr f z str
 
 instance LL.ListLike (AnnotatedText a) Char where
   singleton ch = fromString [ch]
   uncons (AnnotatedText at) = case at of
-    s :| a :<| tl -> case L.uncons s of
-      Nothing -> LL.uncons (AnnotatedText tl)
-      Just (hd,s) -> Just (hd, AnnotatedText $ s :| a :<| tl)
+    Segment s a :<| tl -> case L.uncons s of
+      Nothing      -> LL.uncons (AnnotatedText tl)
+      Just (hd, s) -> Just (hd, AnnotatedText $ Segment s a :<| tl)
     Seq.Empty -> Nothing
   break f at = (LL.takeWhile (not . f) at, LL.dropWhile (not . f) at)
   takeWhile f (AnnotatedText at) = case at of
     Seq.Empty -> AnnotatedText Seq.Empty
-    s :| a :<| tl -> let s' = L.takeWhile f s in
-      if length s' == length s then
-        AnnotatedText (pure $ s :| a) <> LL.takeWhile f (AnnotatedText tl)
-      else
-        AnnotatedText (pure $ s' :| a)
+    Segment s a :<| tl ->
+      let s' = L.takeWhile f s
+      in  if length s' == length s
+            then AnnotatedText (pure $ Segment s a)
+              <> LL.takeWhile f (AnnotatedText tl)
+            else AnnotatedText (pure $ Segment s' a)
   dropWhile f (AnnotatedText at) = case at of
-    Seq.Empty -> AnnotatedText Seq.Empty
-    s :| a :<| tl -> case L.dropWhile f s of
+    Seq.Empty     -> AnnotatedText Seq.Empty
+    Segment s a :<| tl -> case L.dropWhile f s of
       [] -> LL.dropWhile f (AnnotatedText tl)
-      s  -> AnnotatedText $ (s :| a) :<| tl
+      s  -> AnnotatedText $ (Segment s a) :<| tl
   take n (AnnotatedText at) = case at of
-    Seq.Empty -> AnnotatedText Seq.Empty
-    s :| a :<| tl ->
-      if n <= length s then AnnotatedText $ pure (take n s :| a)
-      else AnnotatedText (pure (s :| a)) <>
-           LL.take (n - length s) (AnnotatedText tl)
+    Seq.Empty     -> AnnotatedText Seq.Empty
+    Segment s a :<| tl -> if n <= length s
+      then AnnotatedText $ pure (Segment (take n s) a)
+      else AnnotatedText (pure (Segment s a))
+        <> LL.take (n - length s) (AnnotatedText tl)
   drop n (AnnotatedText at) = case at of
-    Seq.Empty -> AnnotatedText Seq.Empty
-    s :| a :<| tl ->
-      if n <= length s then AnnotatedText $ (drop n s :| a) :<| tl
+    Seq.Empty     -> AnnotatedText Seq.Empty
+    Segment s a :<| tl -> if n <= length s
+      then AnnotatedText $ (Segment (drop n s) a) :<| tl
       else LL.drop (n - length s) (AnnotatedText tl)
-  null (AnnotatedText at) = all (null . theString) at
+  null (AnnotatedText at) = all (null . segment) at
 
   -- Quoted text (indented, with source line numbers) with annotated portions.
 data AnnotatedExcerpt a = AnnotatedExcerpt
@@ -109,7 +87,7 @@ data AnnotatedExcerpt a = AnnotatedExcerpt
 
 annotate' :: Maybe b -> AnnotatedText a -> AnnotatedText b
 annotate' a (AnnotatedText at) =
-  AnnotatedText $ (\(theString -> s) -> maybeAnnotate s a) <$> at
+  AnnotatedText $ (\(Segment s _) -> Segment s a) <$> at
 
 deannotate :: AnnotatedText a -> AnnotatedText b
 deannotate = annotate' Nothing
@@ -117,14 +95,14 @@ deannotate = annotate' Nothing
 -- Replace the annotation (whether existing or no) with the given annotation
 annotate :: a -> AnnotatedText a -> AnnotatedText a
 annotate a (AnnotatedText at) =
-  AnnotatedText $ (\(theString -> s) -> Annotated s a) <$> at
+  AnnotatedText $ (\(Segment s _) -> Segment s (Just a)) <$> at
 
 annotateMaybe :: AnnotatedText (Maybe a) -> AnnotatedText a
-annotateMaybe (AnnotatedText s) =
-  AnnotatedText (fmap (uncurry maybeAnnotate . second join . toPair) s)
+annotateMaybe (AnnotatedText segments) =
+  AnnotatedText (fmap (\(Segment s a) -> Segment s (join a)) segments)
 
 trailingNewLine :: AnnotatedText a -> Bool
-trailingNewLine (AnnotatedText (init :|> (s :| _))) =
+trailingNewLine (AnnotatedText (init :|> (Segment s _))) =
   case lastMay s of
          Just '\n' -> True
          Just _    -> False
@@ -222,7 +200,7 @@ snipWithContext margin source =
           else (Just r0, taken, Map.insert r1 a1 rest)
 
 instance IsString (AnnotatedText a) where
-  fromString s = AnnotatedText . pure $ Unannotated s
+  fromString s = AnnotatedText . pure $ Segment s Nothing
 
 instance IsString (AnnotatedExcerpt a) where
   fromString s = AnnotatedExcerpt 1 s mempty
