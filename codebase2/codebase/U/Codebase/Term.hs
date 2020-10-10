@@ -1,3 +1,6 @@
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
@@ -17,13 +20,16 @@ import Data.Sequence (Seq)
 import Data.Text (Text)
 import Data.Word (Word64)
 import GHC.Generics (Generic, Generic1)
-import U.Codebase.Reference (Reference, Reference')
+import U.Codebase.Reference (Reference, Reference'(ReferenceBuiltin, ReferenceDerived))
+import qualified U.Codebase.Reference as Reference
 import U.Codebase.Referent (Referent')
 import U.Codebase.Type (TypeR)
 import U.Util.Hash (Hash)
 import qualified U.Core.ABT as ABT
 import qualified U.Util.Hashable as H
 import qualified U.Codebase.Type as Type
+import qualified U.Util.Hash as Hash
+import qualified Data.Foldable as Foldable
 
 type ConstructorId = Word64
 
@@ -174,7 +180,91 @@ rmapPattern ft fr = go where
   PSequenceLiteral ps -> PSequenceLiteral (go <$> ps)
   PSequenceOp p1 op p2 -> PSequenceOp (go p1) op (go p2)
 
+-- * Instances
+
 instance H.Hashable SeqOp where
   tokens PCons = [H.Tag 0]
   tokens PSnoc = [H.Tag 1]
   tokens PConcat = [H.Tag 2]
+
+instance H.Hashable (Pattern Text Reference) where
+  tokens (PUnbound) = [H.Tag 0]
+  tokens (PVar) = [H.Tag 1]
+  tokens (PBoolean b) = H.Tag 2 : [H.Tag $ if b then 1 else 0]
+  tokens (PInt n) = H.Tag 3 : [H.Int n]
+  tokens (PNat n) = H.Tag 4 : [H.Nat n]
+  tokens (PFloat f) = H.Tag 5 : H.tokens f
+  tokens (PConstructor r n args) =
+    [H.Tag 6, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args]
+  tokens (PEffectPure p) = H.Tag 7 : H.tokens p
+  tokens (PEffectBind r n args k) =
+    [H.Tag 8, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args, H.accumulateToken k]
+  tokens (PAs p) = H.Tag 9 : H.tokens p
+  tokens (PText t) = H.Tag 10 : H.tokens t
+  tokens (PSequenceLiteral ps) = H.Tag 11 : concatMap H.tokens ps
+  tokens (PSequenceOp l op r) = H.Tag 12 : H.tokens op ++ H.tokens l ++ H.tokens r
+  tokens (PChar c) = H.Tag 13 : H.tokens c
+
+instance (Eq v, Show v) => H.Hashable1 (F v) where
+  hash1 hashCycle hash e
+    = let (tag, hashed, varint) =
+            (H.Tag, H.Hashed, H.Nat . fromIntegral)
+      in
+        case e of
+        -- So long as `Reference.Derived` ctors are created using the same
+        -- hashing function as is used here, this case ensures that references
+        -- are 'transparent' wrt hash and hashing is unaffected by whether
+        -- expressions are linked. So for example `x = 1 + 1` and `y = x` hash
+        -- the same.
+          Ref (Reference.Derived (Just h) 0) -> H.fromBytes (Hash.toBytes h)
+          Ref (Reference.Derived h i) -> H.accumulate
+            [ tag 1 -- it's a term
+            , tag 1 -- it's a derived reference
+            , H.accumulateToken (Hash.toBytes <$> h)
+            , H.Nat i
+            ]
+          -- Note: start each layer with leading `1` byte, to avoid collisions
+          -- with types, which start each layer with leading `0`.
+          -- See `Hashable1 Type.F`
+          _ ->
+            H.accumulate
+              $ tag 1 -- it's a term
+              : case e of
+                  Nat     n -> tag 64 : H.tokens n
+                  Int     i -> tag 65 : H.tokens i
+                  Float   d -> tag 66 : H.tokens d
+                  Boolean b -> tag 67 : H.tokens b
+                  Text    t -> tag 68 : H.tokens t
+                  Char    c -> tag 69 : H.tokens c
+                  Ref (ReferenceBuiltin name) -> [tag 2, H.accumulateToken name]
+                  Ref ReferenceDerived {} ->
+                    error "handled above, but GHC can't figure this out"
+                  App a a2  -> [tag 3, hashed (hash a), hashed (hash a2)]
+                  Ann a t   -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
+                  Sequence as -> tag 5 : varint (fromIntegral (length as)) : map
+                    (hashed . hash)
+                    (Foldable.toList as)
+                  Lam a         -> [tag 6, hashed (hash a)]
+                  -- note: we use `hashCycle` to ensure result is independent of
+                  -- let binding order
+                  LetRec as a -> case hashCycle as of
+                    (hs, hash) -> tag 7 : hashed (hash a) : map hashed hs
+                  -- here, order is significant, so don't use hashCycle
+                  Let b a -> [tag 8, hashed $ hash b, hashed $ hash a]
+                  If b t f ->
+                    [tag 9, hashed $ hash b, hashed $ hash t, hashed $ hash f]
+                  Request     r n -> [tag 10, H.accumulateToken r, varint n]
+                  Constructor r n -> [tag 12, H.accumulateToken r, varint n]
+                  Match e branches ->
+                    tag 13 : hashed (hash e) : concatMap h branches
+                   where
+                    h (MatchCase pat guard branch) = concat
+                      [ [H.accumulateToken pat]
+                      , Foldable.toList @Maybe (hashed . hash <$> guard)
+                      , [hashed (hash branch)]
+                      ]
+                  Handle h b -> [tag 15, hashed $ hash h, hashed $ hash b]
+                  And    x y -> [tag 16, hashed $ hash x, hashed $ hash y]
+                  Or     x y -> [tag 17, hashed $ hash x, hashed $ hash y]
+                  TermLink r -> [tag 18, H.accumulateToken r]
+                  TypeLink r -> [tag 19, H.accumulateToken r]

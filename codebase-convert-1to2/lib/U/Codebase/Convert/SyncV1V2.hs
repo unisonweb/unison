@@ -88,6 +88,7 @@ import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import qualified Data.List as List
 import Data.Tuple (swap)
+import Data.Either.Extra (mapLeft)
 
 newtype V1 a = V1 {runV1 :: a} deriving (Eq, Ord, Show)
 
@@ -772,6 +773,34 @@ rewriteType doRef = V2.ABT.transformM go where
     V2.Type.Forall a -> pure $ V2.Type.Forall a
     V2.Type.IntroOuter a -> pure $ V2.Type.IntroOuter a
 
+-- | rewrite Vars and Tms 🙃
+mapTermToVar :: (Foldable f, Functor f, Ord v2)
+    => (v -> v2)
+    -> (a -> f (V2.ABT.Term f v a) -> Maybe (V2.ABT.Term f v2 a))
+    -> V2.ABT.Term f v a
+    -> V2.ABT.Term f v2 a
+mapTermToVar fv ft t@(V2.ABT.Term _ a abt) = case abt of
+  V2.ABT.Var v -> V2.ABT.var a (fv v)
+  V2.ABT.Cycle body -> V2.ABT.cycle a (mapTermToVar fv ft body)
+  V2.ABT.Abs x e -> V2.ABT.abs a (fv x) (mapTermToVar fv ft e)
+  V2.ABT.Tm body ->
+    case ft a body of
+      Nothing -> V2.ABT.tm a (mapTermToVar fv ft `fmap` body)
+      Just t' -> t'
+
+mapVarToTerm :: (Foldable f, Functor f, Ord v2) =>
+  (v -> v2) ->
+  (v -> Either (f (V2.ABT.Term f v2 a)) v2) ->
+  V2.ABT.Term f v a ->
+  V2.ABT.Term f v2 a
+mapVarToTerm fAbs fVar t@(V2.ABT.Term _ a abt) = case abt of
+  V2.ABT.Var v -> case fVar v of
+    Left tm -> V2.ABT.tm a tm
+    Right v2 -> V2.ABT.var a v2
+  V2.ABT.Cycle body -> V2.ABT.cycle a (mapVarToTerm fAbs fVar body)
+  V2.ABT.Abs x e -> V2.ABT.abs a (fAbs x) (mapVarToTerm fAbs fVar e)
+  V2.ABT.Tm body -> V2.ABT.tm a (mapVarToTerm fAbs fVar <$> body)
+
 -- | Given a V1 term component, convert and save it to the V2 codebase
 -- Pre-requisite: all hash-identified entities in the V1 component have
 -- already been converted and added to the V2 codebase, apart from self-
@@ -943,21 +972,59 @@ convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
         . Vector.fromList
         . fmap swap
         . fmap (second stateToIds) $ rewrittenTerms
+    -- | converts v to (Right v) and converts (Ref Nothing i) to (Left i)
+    refToVarTerm :: Ord v =>
+      V2.ABT.Term (V2.Term.F' text (V2.Reference.Reference' t (Maybe h)) typeRef termLink typeLink vt) v a ->
+      V2.ABT.Term (V2.Term.F' text (V2.Reference.Reference' t (Maybe h)) typeRef termLink typeLink vt) (Either (V1 Int) v) a
+    refToVarTerm = mapTermToVar Right \a body -> case body of
+      V2.Term.Ref (V2.Reference.ReferenceDerived (V2.Reference.Id Nothing i)) ->
+        Just $ V2.ABT.var a (Left (V1 (fromIntegral i)))
+      _ -> Nothing
+    varToRefTerm :: (Show v, Ord v) => Map (V1 Int) (V2 Int) ->
+      V2.ABT.Term (V2.Term.F' text (V2.Reference.Reference' t (Maybe h)) typeRef termLink typeLink vt) (Either (V1 Int) v) a ->
+      V2.ABT.Term (V2.Term.F' text (V2.Reference.Reference' t (Maybe h)) typeRef termLink typeLink vt) v a
+    varToRefTerm lookup = let
+      fromLeft :: Show a => Either a b -> b
+      fromLeft = flip either id \r ->
+        error ("encountered a reference pseudovar " ++ show r ++ " in ABT.Abs")
+      in mapVarToTerm fromLeft $ mapLeft \(V1 i) ->
+          V2.Term.Ref (V2.Reference.Derived Nothing (fromIntegral i))
+
     v2types :: [V2TypeT] =
       map (buildTermType2H lookup1 . snd) v1component
 
+    -- foo :: Map (Either Int V2.Symbol.Symbol) V2TermH =
+
     -- |may need an extra pass to put them into their canonical order
-    -- or a proof that none is needed
-    v2componentH :: V2TermComponentH = error "todo" $
-      map (buildTerm2H lookup1 hash1 . fst) v1component
+    (hash2 :: V2 Hash, v2component0) = let
+      v1terms :: [V1Term] = map fst v1component
+      indexVars = Left . V1 <$> [0..]
+      namedTerms1 :: [(Either (V1 Int) V2.Symbol.Symbol, V1Term)]
+      namedTerms1 = zip indexVars v1terms
+      namedTerms2 :: [(Either (V1 Int) V2.Symbol.Symbol, V2TermH)]
+      namedTerms2 = fmap (second (buildTerm2H lookup1 hash1)) namedTerms1
+      namedTermMap :: Map (Either (V1 Int) V2.Symbol.Symbol) V2TermH
+      namedTermMap = Map.fromList namedTerms2
+      bar :: Show a => Either (V1 Int) a -> V1 Int
+      bar = either id (\x -> error $ "impossibly " ++ show x)
+      hash2 :: V2 Hash
+      v1Index :: [V1 Int]
+      (hash2, unzip -> (fmap (either id (\x -> error $ "impossibly " ++ show x)) -> v1Index, v2Terms)) =
+        V2.ABT.hashComponent (refToVarTerm <$> namedTermMap)
+        -- (h, ([2, 0, 1], [t2, t0, t1])
+      indexMap :: Map (V1 Int) (V2 Int)
+      indexMap = Map.fromList (zip v1Index (V2 <$> [0 :: Int ..]))
+      in (hash2, varToRefTerm indexMap <$> v2Terms)
+
+    v2ComponentH :: V2TermComponentH = error "todo"
 
     -- note: we'd need some special care here if we want to make sure that this
     -- hash function is identity for simple references
-    hash2 = error "todo" -- V2 (H.accumulate' v2componentH)
+    -- hash2 = V2.ABT.hashComponent error "todo" -- V2 (H.accumulate' v2componentH)
 
     -- construct v2 term component for serializing
-    v2componentS :: V2TermComponentS =
-      buildTermComponent2S lookup2 hash2 v2componentH
+    -- v2componentS :: V2TermComponentS =
+    --   buildTermComponent2S lookup2 hash2 v2componentH
 
   -- -- serialize the v2 term component
   -- componentObjectId :: Db.ObjectId <- saveTermComponent hash1 hash2 v2componentS

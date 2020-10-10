@@ -69,6 +69,40 @@ cycle a t = Term (freeVars t) a (Cycle t)
 tm :: (Foldable f, Ord v) => a -> f (Term f v a) -> Term f v a
 tm a t = Term (Set.unions (fmap freeVars (Foldable.toList t))) a (Tm t)
 
+-- | We ignore annotations in the `Term`, as these should never affect the
+-- meaning of the term.
+hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Show v, Ord h, Accumulate h)
+    => Term f v a -> h
+hash = hash' [] where
+  hash' :: [Either [v] v] -> Term f v a -> h
+  hash' env (Term _ _ t) = case t of
+    Var v -> maybe die hashInt ind
+      where lookup (Left cycle) = v `elem` cycle
+            lookup (Right v') = v == v'
+            ind = List.findIndex lookup env
+            hashInt :: Int -> h
+            hashInt i = Hashable.accumulate [Hashable.Nat $ fromIntegral i]
+            die = error $ "unknown var in environment: " ++ show v
+                        ++ " environment = " ++ show env
+    Cycle (unabs -> (vs, t)) -> hash' (Left vs : env) t
+    Abs v t -> hash' (Right v : env) t
+    Tm t -> Hashable.hash1 (hashCycle env) (hash' env) t
+  unabs :: Term f v a -> ([v], Term f v a)
+  unabs = \case
+    Term _ _ (Abs hd body) ->
+      let (tl, body') = unabs body in (hd : tl, body')
+    t -> ([], t)
+  hashCycle :: [Either [v] v] -> [Term f v a] -> ([h], Term f v a -> h)
+  hashCycle env@(Left cycle : envTl) ts | length cycle == length ts =
+    let
+      permute p xs = case Vector.fromList xs of xs -> map (xs Vector.!) p
+      hashed = map (\(i,t) -> ((i,t), hash' env t)) (zip [0..] ts)
+      pt = fst <$> List.sortOn snd hashed
+      (p,ts') = unzip pt
+    in case map Right (permute p cycle) ++ envTl of
+      env -> (map (hash' env) ts', hash' env)
+  hashCycle env ts = (map (hash' env) ts, hash' env)
+
 -- Hash a strongly connected component and sort its definitions into a canonical order.
 hashComponent ::
   (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Ord v, Ord h, Accumulate h)
@@ -93,39 +127,6 @@ hashComponent byName = let
   absChain vs t = foldr (abs ()) t vs
   absCycle :: Ord v => [v] -> Term f v () -> Term f v ()
   absCycle vs t = cycle () $ absChain vs t
-  -- | We ignore annotations in the `Term`, as these should never affect the
-  -- meaning of the term.
-  hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Show v, Ord h, Accumulate h)
-      => Term f v a -> h
-  hash = hash' [] where
-    hash' :: [Either [v] v] -> Term f v a -> h
-    hash' env (Term _ _ t) = case t of
-      Var v -> maybe die hashInt ind
-        where lookup (Left cycle) = v `elem` cycle
-              lookup (Right v') = v == v'
-              ind = List.findIndex lookup env
-              hashInt :: Int -> h
-              hashInt i = Hashable.accumulate [Hashable.Nat $ fromIntegral i]
-              die = error $ "unknown var in environment: " ++ show v
-                          ++ " environment = " ++ show env
-      Cycle (unabs -> (vs, t)) -> hash' (Left vs : env) t
-      Abs v t -> hash' (Right v : env) t
-      Tm t -> Hashable.hash1 (hashCycle env) (hash' env) t
-    unabs :: Term f v a -> ([v], Term f v a)
-    unabs = \case
-      Term _ _ (Abs hd body) ->
-        let (tl, body') = unabs body in (hd : tl, body')
-      t -> ([], t)
-    hashCycle :: [Either [v] v] -> [Term f v a] -> ([h], Term f v a -> h)
-    hashCycle env@(Left cycle : envTl) ts | length cycle == length ts =
-      let
-        permute p xs = case Vector.fromList xs of xs -> map (xs Vector.!) p
-        hashed = map (\(i,t) -> ((i,t), hash' env t)) (zip [0..] ts)
-        pt = fst <$> List.sortOn snd hashed
-        (p,ts') = unzip pt
-      in case map Right (permute p cycle) ++ envTl of
-        env -> (map (hash' env) ts', hash' env)
-    hashCycle env ts = (map (hash' env) ts, hash' env)
 
 -- Implementation detail of hashComponent
 data Component f a = Component [a] a | Embed (f a) deriving (Functor, Traversable, Foldable)
@@ -136,4 +137,3 @@ instance (Hashable1 f, Functor f) => Hashable1 (Component f) where
       toks = Hashable.Hashed <$> hs
       in Hashable.accumulate $ (Hashable.Tag 1 : toks) ++ [Hashable.Hashed (hash a)]
     Embed fa -> Hashable.hash1 hashCycle hash fa
-
