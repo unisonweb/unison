@@ -171,14 +171,14 @@ type V1Type = V1.Type.Type V1.Symbol.Symbol ()
 type V1Term = V1.Term.Term V1.Symbol.Symbol ()
 type V1Decl = V1.DD.Decl V1.Symbol.Symbol ()
 
-type V2TermH = V2.Term.Term V2.Symbol.Symbol
-type V2TypeT = V2.Type.TypeT V2.Symbol.Symbol
-type V2TermComponentH = [V2TermH]
-type V2TermComponentS = V2.TermFormat.LocallyIndexedComponent
+type V2HashTerm = V2.Term.Term V2.Symbol.Symbol
+type V2TypeOfTerm = V2.Type.TypeT V2.Symbol.Symbol
+type V2HashTermComponent = [V2HashTerm]
+type V2DiskTermComponent = V2.TermFormat.LocallyIndexedComponent
 
-type V2DeclH = V2.Decl.Decl V2.Symbol.Symbol
-type V2DeclComponentH = [V2DeclH]
-type V2DeclComponentS = V2.DeclFormat.LocallyIndexedComponent
+type V2HashDecl = V2.Decl.Decl V2.Symbol.Symbol
+type V2HashDeclComponent = [V2HashDecl]
+type V2DiskDeclComponent = V2.DeclFormat.LocallyIndexedComponent
 
 -- type Patch = Patch.Patch V1.Reference
 -- -- the H stands for "for hashing"
@@ -697,7 +697,7 @@ makeLookup l lookupDescription a =
 --     . DD.declDependencies
 --     $ DD.rmapDecl (fmap $ fromMaybe selfId) decl
 
-saveTermComponent :: DB m => V1 Hash -> V2 Hash -> V2TermComponentS -> m Db.ObjectId
+saveTermComponent :: DB m => V1 Hash -> V2 Hash -> V2DiskTermComponent -> m Db.ObjectId
 saveTermComponent h1 h2 component = do
   h1Id <- Db.saveHashHash (runV1 h1)
   h2Id <- Db.saveHashHash (runV2 h2)
@@ -761,7 +761,7 @@ type LocalIdState =
 rewriteType ::
     (V2.Reference.Reference ->
       State.State LocalIdState V2.TermFormat.TypeRef) ->
-    V2TypeT -> State LocalIdState V2.TermFormat.Type
+    V2TypeOfTerm -> State LocalIdState V2.TermFormat.Type
 rewriteType doRef = V2.ABT.transformM go where
   go :: V2.Type.FT k -> State LocalIdState (V2.TermFormat.FT k)
   go = \case
@@ -809,11 +809,11 @@ convertTerm1 :: DB m => (V1 Hash -> V2 Hash) -> (V2 Hash -> Db.ObjectId) -> (Tex
 convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
   -- construct v2 term component for hashing
   let
-    buildTermType2H :: (V1 Hash -> V2 Hash) -> V1Type -> V2TypeT
+    buildTermType2H :: (V1 Hash -> V2 Hash) -> V1Type -> V2TypeOfTerm
     buildTermType2H lookup = goType where
-      goType :: V1Type -> V2TypeT
+      goType :: V1Type -> V2TypeOfTerm
       goType = convertABT goABT convertSymbol (const ())
-      goABT :: V1.Type.F V1Type -> V2.Type.FT V2TypeT
+      goABT :: V1.Type.F V1Type -> V2.Type.FT V2TypeOfTerm
       goABT = \case
         V1.Type.Ref r -> V2.Type.Ref case r of
           V1.Reference.Builtin t ->
@@ -828,10 +828,10 @@ convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
         V1.Type.Effects as -> V2.Type.Effects (goType <$> as)
         V1.Type.Forall a -> V2.Type.Forall (goType a)
         V1.Type.IntroOuter a -> V2.Type.IntroOuter (goType a)
-    buildTerm2H :: (V1 Hash -> V2 Hash) -> V1 Hash -> V1Term -> V2TermH
+    buildTerm2H :: (V1 Hash -> V2 Hash) -> V1 Hash -> V1Term -> V2HashTerm
     buildTerm2H lookup self = goTerm where
       goTerm = convertABT goABT convertSymbol (const ())
-      goABT :: V1.Term.F V1.Symbol.Symbol () V1Term -> V2.Term.F V2.Symbol.Symbol V2TermH
+      goABT :: V1.Term.F V1.Symbol.Symbol () V1Term -> V2.Term.F V2.Symbol.Symbol V2HashTerm
       lookupTermLink = \case
         V1.Referent.Ref r -> V2.Referent.Ref (lookupTerm r)
         V1.Referent.Con r i _ct -> V2.Referent.Con (lookupType r) (fromIntegral i)
@@ -896,16 +896,12 @@ convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
         V1.Pattern.Cons -> V2.Term.PCons
         V1.Pattern.Snoc -> V2.Term.PSnoc
         V1.Pattern.Concat -> V2.Term.PConcat
-    buildTermComponent2S :: (V2 Hash -> Db.ObjectId)
-                         -> V2 Hash
-                         -> V2TermComponentH
-                         -> V2TermComponentS
+    buildTermComponent2S ::
+      (V2 Hash -> Db.ObjectId) -> V2 Hash -> V2HashTermComponent -> V2DiskTermComponent
     buildTermComponent2S getId h0 terms = let
-      rewrittenTerms ::
-        [(V2.TermFormat.Term, LocalIdState)] =
-
-            map (flip State.runState mempty . rewriteTerm) terms
-      rewriteTerm :: V2TermH -> State.State LocalIdState V2.TermFormat.Term
+      rewrittenTerms :: [(V2.TermFormat.Term, LocalIdState)] =
+        map (flip State.runState mempty . rewriteTerm) terms
+      rewriteTerm :: V2HashTerm -> State.State LocalIdState V2.TermFormat.Term
       rewriteTerm = V2.ABT.transformM go where
         doText :: Text -> State.State LocalIdState V2.TermFormat.LocalTextId
         doText t = do
@@ -983,69 +979,65 @@ convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
     varToRefTerm :: (Show v, Ord v) => Map (V1 Int) (V2 Int) ->
       V2.ABT.Term (V2.Term.F' text (V2.Reference.Reference' t (Maybe h)) typeRef termLink typeLink vt) (Either (V1 Int) v) a ->
       V2.ABT.Term (V2.Term.F' text (V2.Reference.Reference' t (Maybe h)) typeRef termLink typeLink vt) v a
-    varToRefTerm lookup = let
+    varToRefTerm lookup = mapVarToTerm fromLeft $ mapLeft \(V1 i) ->
+        V2.Term.Ref (V2.Reference.Derived Nothing (fromIntegral i))
+      where
       fromLeft :: Show a => Either a b -> b
       fromLeft = flip either id \r ->
         error ("encountered a reference pseudovar " ++ show r ++ " in ABT.Abs")
-      in mapVarToTerm fromLeft $ mapLeft \(V1 i) ->
-          V2.Term.Ref (V2.Reference.Derived Nothing (fromIntegral i))
 
-    v2types :: [V2TypeT] =
-      map (buildTermType2H lookup1 . snd) v1component
-
-    -- foo :: Map (Either Int V2.Symbol.Symbol) V2TermH =
-
-    -- |may need an extra pass to put them into their canonical order
-    (hash2 :: V2 Hash, v2component0) = let
-      v1terms :: [V1Term] = map fst v1component
+    rehashComponent :: (V1 Hash -> V2 Hash) -> V1 Hash -> [V1Term] -> (V2 Hash, V2HashTermComponent)
+    rehashComponent lookup1 hash1 v1terms =
+      let fromLeft = either id (\x -> error $ "impossibly " ++ show x)
+      in let
       indexVars = Left . V1 <$> [0..]
       namedTerms1 :: [(Either (V1 Int) V2.Symbol.Symbol, V1Term)]
       namedTerms1 = zip indexVars v1terms
-      namedTerms2 :: [(Either (V1 Int) V2.Symbol.Symbol, V2TermH)]
+      namedTerms2 :: [(Either (V1 Int) V2.Symbol.Symbol, V2HashTerm)]
       namedTerms2 = fmap (second (buildTerm2H lookup1 hash1)) namedTerms1
-      namedTermMap :: Map (Either (V1 Int) V2.Symbol.Symbol) V2TermH
+      namedTermMap :: Map (Either (V1 Int) V2.Symbol.Symbol) V2HashTerm
       namedTermMap = Map.fromList namedTerms2
-      bar :: Show a => Either (V1 Int) a -> V1 Int
-      bar = either id (\x -> error $ "impossibly " ++ show x)
       hash2 :: V2 Hash
       v1Index :: [V1 Int]
-      (hash2, unzip -> (fmap (either id (\x -> error $ "impossibly " ++ show x)) -> v1Index, v2Terms)) =
+      -- (h, ([2, 0, 1], [t2, t0, t1])
+      (hash2, unzip -> (fmap fromLeft -> v1Index, v2Terms)) =
         V2.ABT.hashComponent (refToVarTerm <$> namedTermMap)
-        -- (h, ([2, 0, 1], [t2, t0, t1])
       indexMap :: Map (V1 Int) (V2 Int)
       indexMap = Map.fromList (zip v1Index (V2 <$> [0 :: Int ..]))
       in (hash2, varToRefTerm indexMap <$> v2Terms)
 
-    v2ComponentH :: V2TermComponentH = error "todo"
+    v2types :: [V2TypeOfTerm] =
+      map (buildTermType2H lookup1 . snd) v1component
 
-    -- note: we'd need some special care here if we want to make sure that this
-    -- hash function is identity for simple references
-    -- hash2 = V2.ABT.hashComponent error "todo" -- V2 (H.accumulate' v2componentH)
+    -- |rehash and reorder component
+    hash2 :: V2 Hash
+    v2hashComponent :: V2HashTermComponent
+    (hash2, v2hashComponent) = rehashComponent lookup1 hash1 (map fst v1component)
 
     -- construct v2 term component for serializing
-    -- v2componentS :: V2TermComponentS =
-    --   buildTermComponent2S lookup2 hash2 v2componentH
+    v2componentS :: V2DiskTermComponent =
+      buildTermComponent2S lookup2 hash2 v2hashComponent
 
-  -- -- serialize the v2 term component
-  -- componentObjectId :: Db.ObjectId <- saveTermComponent hash1 hash2 v2componentS
+  -- serialize the v2 term component
+  componentObjectId :: Db.ObjectId <- saveTermComponent hash1 hash2 v2componentS
 
   -- -- construct v2 types for each component element, and save the types to the
   -- -- to the indices
-  -- for_ (zip3 [0 ..] v1component v2componentS) $ \(i, (_term1, typ1), term2) -> do
+  -- for_ (zip [0 ..] v2types) $ \(i, type2) -> do
   --   let r = V2.Reference.Id componentObjectId i
   --   let rt = V2.Referent.RefId r
 
   --   saveTypeBlobForReferent rt (buildTermType2S (snd . lookup) typ1)
   --   createTypeSearchIndicesForReferent rt typ1
   --   createDependencyIndexForTerm r term2
-  error "todo"
+  error "todo: save types and create type indices for component"
 
 -- convertDecl1 :: DB m => (V1 Hash -> (V2 Hash, Db.ObjectId)) -> V1 Hash -> [Decl] -> m ()
 -- convertDecl1 lookup hash1 v1component = do
 --   -- construct v2 decl component for hashing
---   let v2componentH :: Decl2ComponentH =
+--   let v2hashComponent :: Decl2ComponentH =
 --         map (buildDecl2H (fst . lookup) hash1) v1component
---   let hash2 = V2 (H.hash v2componentH)
+--   let hash2 = V2 (H.hash v2hashComponent)
 
 --   let v2componentS :: Decl2ComponentS =
 --         map (buildDecl2S (snd . lookup) hash1) v1component
@@ -1053,7 +1045,7 @@ convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
 --   componentObjectId :: Db.ObjectId <- saveDeclComponent hash1 hash2 v2ComponentS
 
 --   let v2componentI :: [Decl2I] =
---         map (buildDecl2I hash2) v2componentH
+--         map (buildDecl2I hash2) v2hashComponent
 
 --   for_ (zip v2componentI [0..]) $ \(decl2, i) -> do
 --     let r = V2.ReferenceId componentObjectId i
