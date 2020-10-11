@@ -177,6 +177,7 @@ type V2HashTermComponent = [V2HashTerm]
 type V2DiskTermComponent = V2.TermFormat.LocallyIndexedComponent
 
 type V2HashDecl = V2.Decl.Decl V2.Symbol.Symbol
+type V2TypeOfConstructor = V2.Type.TypeD V2.Symbol.Symbol
 type V2HashDeclComponent = [V2HashDecl]
 type V2DiskDeclComponent = V2.DeclFormat.LocallyIndexedComponent
 
@@ -708,8 +709,8 @@ saveTermComponent h1 h2 component = do
   where
     blob = S.putBytes S.V2.putTermFormat (V2.TermFormat.Term component)
 
--- saveDeclComponent :: DB m => Db.HashId -> [Decl2S] -> m Db.ObjectId
--- saveDeclComponent h component = error "todo" -- do
+saveDeclComponent :: DB m => V1 Hash -> V2 Hash -> V2DiskDeclComponent -> m Db.ObjectId
+saveDeclComponent h component = error "todo" -- do
 -- -- o <- Db.saveObject h V2.DeclComponent blob
 -- -- Db.saveHashObject h o 2
 -- -- pure o
@@ -1015,11 +1016,11 @@ convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
     (hash2, v2hashComponent) = rehashComponent lookup1 hash1 (map fst v1component)
 
     -- construct v2 term component for serializing
-    v2componentS :: V2DiskTermComponent =
+    v2diskComponent :: V2DiskTermComponent =
       buildTermComponent2S lookup2 hash2 v2hashComponent
 
   -- serialize the v2 term component
-  componentObjectId :: Db.ObjectId <- saveTermComponent hash1 hash2 v2componentS
+  componentObjectId :: Db.ObjectId <- saveTermComponent hash1 hash2 v2diskComponent
 
   -- -- construct v2 types for each component element, and save the types to the
   -- -- to the indices
@@ -1032,17 +1033,19 @@ convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
   --   createDependencyIndexForTerm r term2
   error "todo: save types and create type indices for component"
 
--- convertDecl1 :: DB m => (V1 Hash -> (V2 Hash, Db.ObjectId)) -> V1 Hash -> [Decl] -> m ()
--- convertDecl1 lookup hash1 v1component = do
---   -- construct v2 decl component for hashing
---   let v2hashComponent :: Decl2ComponentH =
---         map (buildDecl2H (fst . lookup) hash1) v1component
---   let hash2 = V2 (H.hash v2hashComponent)
-
---   let v2componentS :: Decl2ComponentS =
---         map (buildDecl2S (snd . lookup) hash1) v1component
-
---   componentObjectId :: Db.ObjectId <- saveDeclComponent hash1 hash2 v2ComponentS
+convertDecl1 :: DB m => (V1 Hash -> V2 Hash) -> (V2 Hash -> Db.ObjectId) -> V1 Hash -> [V1Decl] -> m ()
+convertDecl1 lookup1 lookup2 hash1 v1component = do
+  let
+    -- convert constructor type (similar to buildTermType2H)
+    v2ctorTypes :: [V2TypeOfConstructor] = error "todo"
+    -- rehash and reorder component
+    hash2 :: V2 Hash
+    v2hashComponent :: V2HashDeclComponent
+    (hash2, v2hashComponent) = error "todo: rehashComponent lookup1 hash1 v1component"
+    -- convert decl component
+    v2diskComponent :: V2DiskDeclComponent = error "todo"
+  componentObjectId :: Db.ObjectId <- saveDeclComponent hash1 hash2 v2diskComponent
+  error "todo: create type indices for each decl in the component"
 
 --   let v2componentI :: [Decl2I] =
 --         map (buildDecl2I hash2) v2hashComponent

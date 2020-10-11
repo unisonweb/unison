@@ -23,10 +23,10 @@ class Accumulate h where
   toBytes :: h -> ByteString
 
 accumulateToken :: (Accumulate h, Hashable t) => t -> Token h
-accumulateToken = Hashed . accumulate'
+accumulateToken = Hashed . hash
 
-accumulate' :: (Accumulate h, Hashable t) => t -> h
-accumulate' = accumulate . tokens
+hash :: (Accumulate h, Hashable t) => t -> h
+hash = accumulate . tokens
 
 class Hashable t where
   tokens :: Accumulate h => t -> [Token h]
