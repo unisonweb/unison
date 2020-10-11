@@ -1115,7 +1115,10 @@ pattern LamsNamedMatch' vs branches <- (unLamsMatch' -> Just (vs, branches))
 --     (h +: t) -> "nonempty"
 --
 -- this function will return Just ([x,y], [[] -> "empty", (h +: t) -> "nonempty"])
--- and it would be rendered as `x y -> cases [] -> "empty"`
+-- and it would be rendered as
+--
+--   x y -> cases []     -> "empty"
+--                h +: t -> "nonempty"
 --
 -- Given this term
 --
