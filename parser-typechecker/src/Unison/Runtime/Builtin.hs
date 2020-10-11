@@ -1438,7 +1438,7 @@ declareForeigns = do
     . mkForeign $ \(mv :: MVar Closure) -> tryReadMVar mv
 
   declareForeign "Text.toUtf8" pfopb . mkForeign $ pure . Bytes.fromArray . encodeUtf8
-  declareForeign "Text.tryFromUtf8" pfopb_ebb . mkForeign $ pure . mapLeft (pack . show) . decodeUtf8' . Bytes.toArray
+  declareForeign "Text.fromUtf8" pfopb_ebb . mkForeign $ pure . mapLeft (pack . show) . decodeUtf8' . Bytes.toArray
 
   -- Hashing functions
   let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()

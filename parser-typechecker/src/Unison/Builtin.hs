@@ -371,7 +371,7 @@ builtinsSrc =
   , B "Text.toCharList" $ text --> list char
   , B "Text.fromCharList" $ list char --> text
   , B "Text.toUtf8" $ text --> bytes
-  , B "Text.tryFromUtf8" $ bytes --> eithert text text
+  , B "Text.fromUtf8" $ bytes --> eithert text text
 
   , B "Char.toNat" $ char --> nat
   , B "Char.fromNat" $ nat --> char
@@ -391,7 +391,7 @@ builtinsSrc =
       you are doing with the bytes is dumping them to a file or a
       network socket.
 
-      You can always `Text.tryFromUtf8` the results of these functions
+      You can always `Text.fromUtf8` the results of these functions
       to get some `Text`.
     -}
   , B "Bytes.toBase16" $ bytes --> bytes
