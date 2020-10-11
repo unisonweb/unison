@@ -28,7 +28,7 @@ You can skip this section, which is just needed to make the transcript self-cont
   17. toList                (Bytes -> [Nat])
 
 ```
-Notice the `fromBase16` and `toBase16` functions. Here's some (somewhat inefficient) convenience functions for converting `Bytes` to and from base-16 `Text`. These could be replaced by use of `Text.toUtf8` and `Text.tryFromUtf8`.
+Notice the `fromBase16` and `toBase16` functions. Here's some (somewhat inefficient) convenience functions for converting `Bytes` to and from base-16 `Text`. These could be replaced by use of `Text.toUtf8` and `Text.fromUtf8`.
 
 ```unison
 a |> f = f a

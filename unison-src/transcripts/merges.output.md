@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #6okt309aca
+  ⊙ #p1bbbaaimg
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #innun3vu4h
+  ⊙ #6lfehn18aq
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #bkebrou185
+  ⊙ #l2ogfn128u
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #huvrakmaan
+  ⊙ #k47m5dspdm
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #pl6dcjov1v
+  ⊙ #hu33p33ksi
   
     + Adds / updates:
     
       x
   
-  ⊙ #dk4cmj83el
+  ⊙ #m29q8q72c3
   
     + Adds / updates:
     
@@ -212,16 +212,15 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Test.Result.Fail builtin.Test.Result.Ok
       builtin.Text builtin.Text.!= builtin.Text.++
       builtin.Text.drop builtin.Text.empty builtin.Text.eq
-      builtin.Text.fromCharList builtin.Text.gt
-      builtin.Text.gteq builtin.Text.lt builtin.Text.lteq
-      builtin.Text.size builtin.Text.take
+      builtin.Text.fromCharList builtin.Text.fromUtf8
+      builtin.Text.gt builtin.Text.gteq builtin.Text.lt
+      builtin.Text.lteq builtin.Text.size builtin.Text.take
       builtin.Text.toCharList builtin.Text.toUtf8
-      builtin.Text.tryFromUtf8 builtin.Text.uncons
-      builtin.Text.unsnoc builtin.Tuple builtin.Tuple.Cons
-      builtin.Unit builtin.Unit.Unit builtin.Universal.<
-      builtin.Universal.<= builtin.Universal.==
-      builtin.Universal.> builtin.Universal.>=
-      builtin.Universal.compare builtin.bug
+      builtin.Text.uncons builtin.Text.unsnoc builtin.Tuple
+      builtin.Tuple.Cons builtin.Unit builtin.Unit.Unit
+      builtin.Universal.< builtin.Universal.<=
+      builtin.Universal.== builtin.Universal.>
+      builtin.Universal.>= builtin.Universal.compare builtin.bug
       builtin.crypto.HashAlgorithm
       builtin.crypto.HashAlgorithm.Blake2b_256
       builtin.crypto.HashAlgorithm.Blake2b_512

@@ -179,15 +179,15 @@ Let's try it!
   159. Text.empty : Text
   160. Text.eq : Text -> Text -> Boolean
   161. Text.fromCharList : [Char] -> Text
-  162. Text.gt : Text -> Text -> Boolean
-  163. Text.gteq : Text -> Text -> Boolean
-  164. Text.lt : Text -> Text -> Boolean
-  165. Text.lteq : Text -> Text -> Boolean
-  166. Text.size : Text -> Nat
-  167. Text.take : Nat -> Text -> Text
-  168. Text.toCharList : Text -> [Char]
-  169. Text.toUtf8 : Text -> Bytes
-  170. Text.tryFromUtf8 : Bytes -> Either Text Text
+  162. Text.fromUtf8 : Bytes -> Either Text Text
+  163. Text.gt : Text -> Text -> Boolean
+  164. Text.gteq : Text -> Text -> Boolean
+  165. Text.lt : Text -> Text -> Boolean
+  166. Text.lteq : Text -> Text -> Boolean
+  167. Text.size : Text -> Nat
+  168. Text.take : Nat -> Text -> Text
+  169. Text.toCharList : Text -> [Char]
+  170. Text.toUtf8 : Text -> Bytes
   171. Text.uncons : Text -> Optional (Char, Text)
   172. Text.unsnoc : Text -> Optional (Text, Char)
   173. type Tuple a b

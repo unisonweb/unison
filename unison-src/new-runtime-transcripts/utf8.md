@@ -36,7 +36,7 @@ We can check that encoding and then decoding should give us back the same `Text`
 checkRoundTrip: Text -> [Result]
 checkRoundTrip t = 
   bytes = toUtf8 t
-  match tryFromUtf8 bytes with 
+  match fromUtf8 bytes with 
     Left e -> [Result.Fail "could not decode"]
     Right t' -> if t == t' then [Result.Ok "Passed"] else [Result.Fail ("Got: " ++ t' ++ " Expected: " ++ t)]
 
@@ -52,6 +52,6 @@ greek_bytes = Bytes.fromList [206, 145, 206, 146, 206, 147, 206, 148, 206]
 
 
 -- Its an error if we drop the first byte
-> tryFromUtf8 (drop 1 greek_bytes)
+> fromUtf8 (drop 1 greek_bytes)
 
 ```
