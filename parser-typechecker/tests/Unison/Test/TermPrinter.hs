@@ -162,6 +162,17 @@ test = scope "termprinter" $ tests
         \    0 -> 0\n\
         \    x -> x\n\
         \  !f 1"
+  , tc "let\n\
+        \  f = cases\n\
+        \    0 x -> 0\n\
+        \    x 0 -> x\n\
+        \  f y"
+  , tc "let\n\
+        \  interleave = cases\n\
+        \    [] x                -> x\n\
+        \    x []                -> y\n\
+        \    (h +: t) (h2 +: t2) -> [h, h2] ++ interleave t t2\n\
+        \  f y"
   , pending $ tc "match x with Pair t 0 -> foo t" -- TODO hitting UnknownDataConstructor when parsing pattern
   , pending $ tc "match x with Pair t 0 | pred t -> foo t" -- ditto
   , pending $ tc "match x with Pair t 0 | pred t -> foo t; Pair t 0 -> foo' t; Pair t u -> bar;" -- ditto

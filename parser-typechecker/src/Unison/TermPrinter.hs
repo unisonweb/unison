@@ -6,6 +6,8 @@ module Unison.TermPrinter where
 
 import Unison.Prelude
 
+import           Control.Monad.State            (evalState)
+import qualified Control.Monad.State           as State
 import           Data.List
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
@@ -286,7 +288,7 @@ pretty0
        ]
       else ((fmt S.ControlKeyword "match ") <> ps <> (fmt S.ControlKeyword " with")) `PP.hang` pbs
       where ps = pretty0 n (ac 2 Normal im doc) scrutinee
-            pbs = printCase n im doc branches
+            pbs = printCase n im doc (arity1Branches branches) -- don't print with `cases` syntax
 
     t -> l "error: " <> l (show t)
  where
@@ -456,12 +458,17 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   patternsSep p sep vs pats = case patterns p vs pats of
     (printed, tail_vs) -> (PP.sep sep printed, tail_vs)
 
+type MatchCase' ann tm = ([Pattern ann], Maybe tm, tm)
+
+arity1Branches :: [MatchCase ann tm] -> [MatchCase' ann tm]
+arity1Branches bs = [ ([pat], guard, body) | MatchCase pat guard body <- bs ]
+
 printCase
   :: Var v
   => PrettyPrintEnv
   -> Imports
   -> DocLiteralContext
-  -> [MatchCase () (Term3 v PrintAnnotation)]
+  -> [MatchCase' () (Term3 v PrintAnnotation)]
   -> Pretty SyntaxText
 printCase env im doc ms = PP.lines $ map each gridArrowsAligned where
   each (lhs, arrow, body) = PP.group $ (lhs <> arrow) `PP.hang` body
@@ -469,10 +476,16 @@ printCase env im doc ms = PP.lines $ map each gridArrowsAligned where
   gridArrowsAligned = tidy <$> zip (PP.align' (f <$> grid)) grid where
     f (a, b, _) = (a, Just b)
     tidy ((a', b'), (_, _, c)) = (a', b', c)
-  go (MatchCase pat guard (AbsN' vs body)) =
+  go (pats, guard, (AbsN' vs body)) =
     (lhs, arrow, (uses [pretty0 env (ac 0 Block im' doc) body]))
     where
-    lhs = PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
+    lhs = (case pats of
+            [pat] -> PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
+            pats  -> PP.group . PP.spaced . (`evalState` vs) . for pats $ \pat -> do
+              vs <- State.get
+              let (p, rem) = prettyPattern env (ac 0 Block im doc) 10 vs pat
+              State.put rem
+              pure p)
        <> printGuard guard
     arrow = fmt S.ControlKeyword "->"
     printGuard (Just g') = let (_, g) = ABT.unabs g' in
@@ -1087,3 +1100,81 @@ unLetBlock t = rec t where
         Just (innerBindings, innerBody) | dontIntersect bindings innerBindings ->
           Just (bindings ++ innerBindings, innerBody)
         _ -> Just (bindings, body)
+
+pattern LamsNamedMatch' vs branches <- (unLamsMatch' -> Just (vs, branches))
+
+-- This function is used to detect places where lambda case syntax can be used.
+-- When given lambdas of a form that corresponds to a lambda case, it returns
+-- `Just (varsBeforeCases, branches)`. Leading vars are the vars that should be
+-- shown to the left of the `-> cases`.
+--
+-- For instance, if given this term:
+--
+--   x y z -> match z with
+--     [] -> "empty"
+--     (h +: t) -> "nonempty"
+--
+-- this function will return Just ([x,y], [[] -> "empty", (h +: t) -> "nonempty"])
+-- and it would be rendered as
+--
+--   x y -> cases []     -> "empty"
+--                h +: t -> "nonempty"
+--
+-- Given this term
+--
+--   x y z -> match (y, z) with
+--     ("a", "b") -> "abba"
+--     (x, y) -> y ++ x
+--
+-- this function will return Just ([x], [ "a" "b" -> "abba", x y -> y ++ x])
+-- and it would be rendered as `x -> cases "a" "b" -> "abba"
+--                                         x    y  -> y ++ x
+--
+-- This function returns `Nothing` in cases where the term it is given isn't
+-- a lambda, or when the lambda isn't in the correct form for lambda cases.
+-- (For instance, `x -> match (x, 42) with ...` can't be written using
+-- lambda case)
+unLamsMatch'
+  :: Var v
+  => Term2 vt at ap v a
+  -> Maybe ([v], [([Pattern ap], Maybe (Term2 vt at ap v a), Term2 vt at ap v a)])
+unLamsMatch' t = case unLamsUntilDelay' t of
+    -- x -> match x with pat -> ...
+    --   becomes
+    -- cases pat -> ...
+    Just (reverse -> (v1:vs), Match' (Var' v1') branches) |
+      -- if `v1'` is referenced in any of the branches, we can't use lambda case
+      -- syntax as we need to keep the `v1'` name that was introduced
+      (v1 == v1') && Set.notMember v1' (Set.unions $ freeVars <$> branches) ->
+        Just (reverse vs, [ ([p], guard, body) | MatchCase p guard body <- branches ])
+    -- x y z -> match (x,y,z) with (pat1, pat2, pat3) -> ...
+    --   becomes
+    -- cases pat1 pat2 pat3 -> ...`
+    Just (reverse -> vs@(_:_), Match' (TupleTerm' scrutes) branches) |
+      multiway vs (reverse scrutes) &&
+      -- (as above) if any of the vars are referenced in any of the branches,
+      -- we need to keep the names introduced by the lambda and can't use
+      -- lambda case syntax
+      all notFree (take len vs) &&
+      all isRightArity branches && -- all patterns need to match arity of scrutes
+      len /= 0 ->
+        Just (reverse (drop len vs), branches')
+        where
+          isRightArity (MatchCase (TuplePattern ps) _ _) = length ps == len
+          isRightArity (MatchCase {}) = False
+          len = length scrutes
+          fvs = Set.unions $ freeVars <$> branches
+          notFree v = Set.notMember v fvs
+          branches' = [ (ps, guard, body) | MatchCase (TuplePattern ps) guard body <- branches ]
+    _ -> Nothing
+  where
+    -- multiway vs tms checks that length tms <= length vs, and their common prefix
+    -- is all matching variables
+    multiway _ [] = True
+    multiway (h:t) (Var' h2:t2) | h == h2 = multiway t t2
+    multiway _ _ = False
+    freeVars (MatchCase _ g rhs) =
+      let guardVars = (fromMaybe Set.empty $ ABT.freeVars <$> g)
+          rhsVars = (ABT.freeVars rhs)
+      in Set.union guardVars rhsVars
+
