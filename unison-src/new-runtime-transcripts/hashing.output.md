@@ -33,7 +33,6 @@ Notice the `fromBase16` and `toBase16` functions. Here's some convenience functi
 ```unison
 a |> f = f a
 
--- not very efficient, but okay for testing
 hex : Bytes -> Text
 hex b =
   match Bytes.toBase16 b |> fromUtf8
