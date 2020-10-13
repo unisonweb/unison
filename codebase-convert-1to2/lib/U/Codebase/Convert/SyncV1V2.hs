@@ -28,8 +28,7 @@ import Data.Bifunctor (Bifunctor (first), second)
 import Data.Bytes.Get (MonadGet)
 import Data.Either (partitionEithers)
 import Data.Either.Extra (mapLeft)
-import Data.Foldable (Foldable (toList), for_)
-import Data.Foldable (Foldable (foldl'))
+import Data.Foldable (Foldable (foldl', toList), for_, traverse_)
 import Data.Functor ((<&>))
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
@@ -676,31 +675,18 @@ createTypeSearchIndicesForReferent r typ = do
   typeReferenceForIndexing :: V2.Sqlite.Reference.ReferenceH <-
     saveReferenceAsReference2 (TypeUtil.toReference typeForIndexing)
 
-  -- Db.addToFindByTypeIndex r typeReferenceForIndexing
+  Db.addToTypeIndex typeReferenceForIndexing r
 
-  -- -- add the term to the type mentions index
-  -- typeMentionsForIndexing :: [V2.Sqlite.Reference.ReferenceH] <-
-  --   traverse
-  --     saveReferenceAsReference2
-  --     (toList $ Type.toReferenceMentions typeForIndexing)
+  -- add the term to the type mentions index
+  typeMentionsForIndexing :: [V2.Sqlite.Reference.ReferenceH] <-
+    traverse
+      saveReferenceAsReference2
+      (toList $ TypeUtil.toReferenceMentions typeForIndexing)
 
-  -- traverse_ (Db.addToFindByTypeMentionsIndex r) typeMentionsForIndexing
-  error "todo"
-  -- where
-  --   addTermToFindByTypeIndex :: DB m => (V2.ReferentId Db.ObjectId) -> Reference -> m ()
-  --   addTermToFindByTypeIndex termRef typeRef = do
-  --     typeRef2 :: (V2.Reference Db.HashId) <-
-  --       saveReferenceAsReference2 typeRef
-  --     Db.addToFindByTypeIndex termRef typeRef2
-  --   addTermToTypeMentionsIndex ::
-  --     (DB m, Foldable f) => (V2.ReferentId Db.ObjectId) -> f Reference -> m ()
-  --   addTermToTypeMentionsIndex termRef typeRefs = do
-  --     typeRefs2 :: [V2.Reference Db.HashId] <-
-  --       traverse saveReferenceAsReference2 (toList typeRefs)
-  --     traverse_ (Db.addToFindByTypeMentionsIndex termRef) typeRefs2
+  traverse_ (flip Db.addToTypeMentionsIndex r) typeMentionsForIndexing
 
--- createDependencyIndexForTerm :: DB m => V2.ReferenceId Db.ObjectId -> Term2 Db.ObjectId-> m ()
--- createDependencyIndexForTerm tmRef@(V2.ReferenceId selfId _i) tm = error "todo"
+createDependencyIndexForTerm :: DB m => V2.Sqlite.Reference.Id -> V2HashTerm -> m ()
+createDependencyIndexForTerm tmRef@(V2.Reference.Id selfId _i) tm = error "todo"
 
 -- -- let
 -- --   -- get the term dependencies
@@ -1058,8 +1044,8 @@ convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
     let rt = V2.Referent.RefId r
 
     saveTypeBlobForTerm r (buildTermType2S lookupText lookup2 type2)
-  -- createTypeSearchIndicesForReferent rt type2
-  -- createDependencyIndexForTerm r term2
+    createTypeSearchIndicesForReferent rt type2
+    -- createDependencyIndexForTerm r term2
   error "todo: save types and create type indices for component"
 
 convertDecl1 :: DB m => (V1 Hash -> V2 Hash) -> (V2 Hash -> Db.ObjectId) -> V1 Hash -> [V1Decl] -> m ()
