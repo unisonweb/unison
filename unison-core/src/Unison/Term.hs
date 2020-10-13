@@ -441,7 +441,6 @@ pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
 pattern LamsNamedOpt' vs body <- (unLamsOpt' -> Just (vs, body))
 pattern LamsNamedPred' vs body <- (unLamsPred' -> Just (vs, body))
 pattern LamsNamedOrDelay' vs body <- (unLamsUntilDelay' -> Just (vs, body))
-pattern LamsNamedMatch' vs branches <- (unLamsMatch' -> Just (vs, branches))
 pattern Let1' b subst <- (unLet1 -> Just (_, b, subst))
 pattern Let1Top' top b subst <- (unLet1 -> Just (top, b, subst))
 pattern Let1Named' v b e <- (ABT.Tm' (Let _ b (ABT.out -> ABT.Abs v e)))
@@ -805,23 +804,6 @@ unLamsUntilDelay'
 unLamsUntilDelay' t = case unLamsPred' (t, (/=) $ Var.named "()") of
   r@(Just _) -> r
   Nothing    -> Just ([], t)
-
--- Same as unLamsUntilDelay', but only matches if the lambda body is a match
--- expression, where the scrutinee is also the last argument of the lambda
-unLamsMatch'
-  :: Var v
-  => Term2 vt at ap v a
-  -> Maybe ([v], [MatchCase ap (Term2 vt at ap v a)])
-unLamsMatch' t = case unLamsUntilDelay' t of
-    Just (reverse -> (v1:vs), Match' (Var' v1') branches) |
-      (v1 == v1') && not (Set.member v1' (Set.unions $ freeVars <$> branches)) ->
-        Just (reverse vs, branches)
-    _ -> Nothing
-  where
-    freeVars (MatchCase _ g rhs) =
-      let guardVars = (fromMaybe Set.empty $ ABT.freeVars <$> g)
-          rhsVars = (ABT.freeVars rhs)
-      in Set.union guardVars rhsVars
 
 -- Same as unLams' but taking a predicate controlling whether we match on a given binary function.
 unLamsPred' :: (Term2 vt at ap v a, v -> Bool) ->
