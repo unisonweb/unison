@@ -47,18 +47,18 @@ check b = if b then [Result.Ok "Passed."]
 Here's a few usage examples:
 
 ```unison
-ex1 = toUtf8 "2947db"
+ex1 = Bytes.fromList [41, 71, 219]
         |> crypto.hashBytes Sha3_512
         |> hex
 
-ex2 = toUtf8 "02f3ab"
+ex2 = Bytes.fromList [2, 243, 171]
         |> crypto.hashBytes Blake2b_256
         |> hex
 
 mysecret : Bytes
-mysecret = toUtf8 "237be2"
+mysecret = Bytes.fromList [35, 123, 226]
 
-ex3 = toUtf8 "50d3ab"
+ex3 = Bytes.fromList [80, 211, 171]
         |> crypto.hmacBytes Sha2_256 mysecret
         |> hex
 

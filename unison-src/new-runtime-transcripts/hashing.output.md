@@ -56,18 +56,18 @@ check b = if b then [Result.Ok "Passed."]
 Here's a few usage examples:
 
 ```unison
-ex1 = toUtf8 "2947db"
+ex1 = Bytes.fromList [41, 71, 219]
         |> crypto.hashBytes Sha3_512
         |> hex
 
-ex2 = toUtf8 "02f3ab"
+ex2 = Bytes.fromList [2, 243, 171]
         |> crypto.hashBytes Blake2b_256
         |> hex
 
 mysecret : Bytes
-mysecret = toUtf8 "237be2"
+mysecret = Bytes.fromList [35, 123, 226]
 
-ex3 = toUtf8 "50d3ab"
+ex3 = Bytes.fromList [80, 211, 171]
         |> crypto.hmacBytes Sha2_256 mysecret
         |> hex
 
@@ -94,15 +94,15 @@ ex3 = toUtf8 "50d3ab"
 
     16 | > ex1
            ⧩
-           "fe09ff8ec1f14508f4c8dfce68ad21fc62492ea5698cdd6bf0df92f1cc8f5e2ee011b0653aa7775395724051e57e6e08217b2c5e05a0e1c894baa69ae6109f16"
+           "f3c342040674c50ab45cb1874b6dbc81447af5958201ed4127e03b56725664d7cc44b88b9afadb371898fcaf5d0adeff60837ef93b514f99da43539d79820c99"
   
     17 | > ex2
            ⧩
-           "a9d3ac6df178e4b4f59be8a36c30e8ff91b4fa04c766560ada002683d3013c59"
+           "84bb437497f26fc33c51e57e64c37958c3918d50dfe75b91c661a85c2f8f8304"
   
     18 | > ex3
            ⧩
-           "f453d8343a7a33730a1bd2b84e826ec957e8a91074a2370f3d56770d5846990b"
+           "c692fc54df921f7fa51aad9178327c5a097784b02212d571fb40facdfff881fd"
 
 ```
 And here's the full API:
