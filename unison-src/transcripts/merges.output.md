@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #70soik1og2
+  ⊙ #p1bbbaaimg
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #hm2opil978
+  ⊙ #6lfehn18aq
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #v66fup9qub
+  ⊙ #l2ogfn128u
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #gspgkkujs4
+  ⊙ #k47m5dspdm
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #bmg3t60dhp
+  ⊙ #hu33p33ksi
   
     + Adds / updates:
     
       x
   
-  ⊙ #mj9vgnc1ro
+  ⊙ #m29q8q72c3
   
     + Adds / updates:
     
@@ -212,15 +212,15 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Test.Result.Fail builtin.Test.Result.Ok
       builtin.Text builtin.Text.!= builtin.Text.++
       builtin.Text.drop builtin.Text.empty builtin.Text.eq
-      builtin.Text.fromCharList builtin.Text.gt
-      builtin.Text.gteq builtin.Text.lt builtin.Text.lteq
-      builtin.Text.size builtin.Text.take
-      builtin.Text.toCharList builtin.Text.uncons
-      builtin.Text.unsnoc builtin.Tuple builtin.Tuple.Cons
-      builtin.Unit builtin.Unit.Unit builtin.Universal.<
-      builtin.Universal.<= builtin.Universal.==
-      builtin.Universal.> builtin.Universal.>=
-      builtin.Universal.compare builtin.bug
+      builtin.Text.fromCharList builtin.Text.fromUtf8
+      builtin.Text.gt builtin.Text.gteq builtin.Text.lt
+      builtin.Text.lteq builtin.Text.size builtin.Text.take
+      builtin.Text.toCharList builtin.Text.toUtf8
+      builtin.Text.uncons builtin.Text.unsnoc builtin.Tuple
+      builtin.Tuple.Cons builtin.Unit builtin.Unit.Unit
+      builtin.Universal.< builtin.Universal.<=
+      builtin.Universal.== builtin.Universal.>
+      builtin.Universal.>= builtin.Universal.compare builtin.bug
       builtin.crypto.HashAlgorithm
       builtin.crypto.HashAlgorithm.Blake2b_256
       builtin.crypto.HashAlgorithm.Blake2b_512
@@ -242,19 +242,18 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.IO.closeFile builtin.io2.IO.closeSocket
       builtin.io2.IO.createDirectory builtin.io2.IO.delay
       builtin.io2.IO.fileExists builtin.io2.IO.forkComp
-      builtin.io2.IO.getBuffering
+      builtin.io2.IO.getBuffering builtin.io2.IO.getBytes
       builtin.io2.IO.getCurrentDirectory
       builtin.io2.IO.getFileSize builtin.io2.IO.getFileTimestamp
       builtin.io2.IO.getLine builtin.io2.IO.getTempDirectory
-      builtin.io2.IO.getText builtin.io2.IO.handlePosition
-      builtin.io2.IO.isDirectory builtin.io2.IO.isFileEOF
-      builtin.io2.IO.isFileOpen builtin.io2.IO.isSeekable
-      builtin.io2.IO.kill builtin.io2.IO.listen
-      builtin.io2.IO.openFile builtin.io2.IO.putText
-      builtin.io2.IO.removeDirectory builtin.io2.IO.removeFile
-      builtin.io2.IO.renameDirectory builtin.io2.IO.renameFile
-      builtin.io2.IO.seekHandle builtin.io2.IO.serverSocket
-      builtin.io2.IO.setBuffering
+      builtin.io2.IO.handlePosition builtin.io2.IO.isDirectory
+      builtin.io2.IO.isFileEOF builtin.io2.IO.isFileOpen
+      builtin.io2.IO.isSeekable builtin.io2.IO.kill
+      builtin.io2.IO.listen builtin.io2.IO.openFile
+      builtin.io2.IO.putBytes builtin.io2.IO.removeDirectory
+      builtin.io2.IO.removeFile builtin.io2.IO.renameDirectory
+      builtin.io2.IO.renameFile builtin.io2.IO.seekHandle
+      builtin.io2.IO.serverSocket builtin.io2.IO.setBuffering
       builtin.io2.IO.setCurrentDirectory
       builtin.io2.IO.socketAccept builtin.io2.IO.socketReceive
       builtin.io2.IO.socketSend builtin.io2.IO.stdHandle

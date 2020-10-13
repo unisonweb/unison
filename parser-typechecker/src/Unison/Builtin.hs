@@ -368,9 +368,10 @@ builtinsSrc =
   , B "Text.>" $ text --> text --> boolean
   , B "Text.uncons" $ text --> optionalt (tuple [char, text])
   , B "Text.unsnoc" $ text --> optionalt (tuple [text, char])
-
   , B "Text.toCharList" $ text --> list char
   , B "Text.fromCharList" $ list char --> text
+  , B "Text.toUtf8" $ text --> bytes
+  , B "Text.fromUtf8" $ bytes --> eithert text text
 
   , B "Char.toNat" $ char --> nat
   , B "Char.fromNat" $ nat --> char
@@ -390,7 +391,7 @@ builtinsSrc =
       you are doing with the bytes is dumping them to a file or a
       network socket.
 
-      You can always `Text.tryFromUtf8` the results of these functions
+      You can always `Text.fromUtf8` the results of these functions
       to get some `Text`.
     -}
   , B "Bytes.toBase16" $ bytes --> bytes
@@ -455,8 +456,8 @@ ioBuiltins =
   , ("IO.getBuffering", handle --> ioe bmode)
   , ("IO.setBuffering", handle --> bmode --> ioe unit)
   , ("IO.getLine", handle --> ioe text)
-  , ("IO.getText", handle --> ioe text)
-  , ("IO.putText", handle --> text --> ioe unit)
+  , ("IO.getBytes", handle --> nat --> ioe text)
+  , ("IO.putBytes", handle --> bytes --> ioe unit)
   , ("IO.systemTime", unit --> ioe nat)
   , ("IO.getTempDirectory", unit --> ioe text)
   , ("IO.getCurrentDirectory", unit --> ioe text)

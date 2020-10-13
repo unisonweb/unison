@@ -37,8 +37,11 @@ import qualified Crypto.MAC.HMAC as HMAC
 
 import Unison.Util.EnumContainers as EC
 
+import Data.Either.Combinators (mapLeft)
+import Data.Text.Encoding (encodeUtf8, decodeUtf8')
+import Data.ByteString (hGet, hPut)
 import Data.Word (Word64)
-import Data.Text as Text (Text, unpack, pack)
+import Data.Text as Text (Text, pack, unpack)
 import qualified Data.ByteArray as BA
 
 import Data.Set (Set, insert)
@@ -71,10 +74,7 @@ import System.IO as SYS
   , hTell
   , stdin, stdout, stderr
   )
-import Data.Text.IO as SYS
-  ( hGetLine
-  , hPutStr
-  )
+import Data.Text.IO as SYS (hGetLine)
 import Control.Concurrent as SYS
   ( threadDelay
   , killThread
@@ -613,11 +613,13 @@ watch
 
 type ForeignOp = forall v. Var v => FOp -> ([Mem], ANormal v)
 
+
 maybe'result'direct
   :: Var v
   => FOp -> [v]
   -> v -> v
   -> ANormal v
+
 maybe'result'direct ins args t r
   = TLet t UN (AFOp ins args)
   . TMatch t . MatchSum $ mapFromList
@@ -826,16 +828,17 @@ get'line instr
   where
   [h,ior,e,r] = freshes 4
 
-get'text :: ForeignOp
-get'text instr
-  = ([BX],)
-  . TAbss [h]
-  $ io'error'result'direct instr [h] ior e r
+get'bytes :: ForeignOp
+get'bytes instr
+  = ([BX, BX],)
+  . TAbss [h,n0]
+  . unbox n0 Ty.natRef n
+  $ io'error'result'direct instr [h,n] ior e r
   where
-  [h,ior,e,r] = freshes 4
+  [h,n0,n,ior,e,r] = freshes 6
 
-put'text :: ForeignOp
-put'text instr
+put'bytes :: ForeignOp
+put'bytes instr
   = ([BX,BX],)
   . TAbss [h,tx]
   $ io'error'result'direct instr [h,tx] ior e r
@@ -1144,10 +1147,9 @@ pfop0 instr = ([],) $ TFOp instr []
 pfopb :: ForeignOp
 pfopb instr
   = ([BX],)
-  . TAbss [b]
-  $ TFOp instr [b]
-  where
-  [b] = freshes 1
+  . TAbs t
+  $ TFOp instr [t]
+  where [t] = freshes 1
 
 -- Pure ForeignOp taking 1 boxed value and returning 1 Either, both sides boxed
 pfopb_ebb :: ForeignOp
@@ -1371,9 +1373,8 @@ declareForeigns = do
   declareForeign "IO.setBuffering" set'buffering
     . mkForeignIOE $ uncurry hSetBuffering
   declareForeign "IO.getLine" get'line $ mkForeignIOE hGetLine
-  declareForeign "IO.getText" get'text $
-    dummyFF -- mkForeignIOE $ \h -> pure . Right . Wrap <$> hGetText h
-  declareForeign "IO.putText" put'text . mkForeignIOE $ uncurry hPutStr
+  declareForeign "IO.getBytes" get'bytes .  mkForeignIOE $ \(h,n) -> fmap Bytes.fromArray $ hGet h n
+  declareForeign "IO.putBytes" put'bytes .  mkForeignIOE $ \(h,bs) -> hPut h (Bytes.toArray bs)
   declareForeign "IO.systemTime" system'time
     $ mkForeignIOE $ \() -> getPOSIXTime
   declareForeign "IO.getTempDirectory" get'temp'directory
@@ -1446,6 +1447,9 @@ declareForeigns = do
     . mkForeignIOE $ \(mv :: MVar Closure) -> readMVar mv
   declareForeign "MVar.tryRead" mvar'try'read
     . mkForeign $ \(mv :: MVar Closure) -> tryReadMVar mv
+
+  declareForeign "Text.toUtf8" pfopb . mkForeign $ pure . Bytes.fromArray . encodeUtf8
+  declareForeign "Text.fromUtf8" pfopb_ebb . mkForeign $ pure . mapLeft (pack . show) . decodeUtf8' . Bytes.toArray
 
   -- Hashing functions
   let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()
