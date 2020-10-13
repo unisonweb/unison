@@ -7,11 +7,9 @@ import Database.SQLite.Simple (SQLData(SQLInteger))
 -- |Don't reorder these, they are part of the database
 data ObjectType
   = TermComponent -- 0
-  | TermComponentTypes -- 1
-  | DeclComponent -- 2
-  | Namespace -- 3
-  | Patch -- 4
-  -- -- | LocalIds -- 5 -- future?
+  | DeclComponent -- 1
+  | Namespace -- 2
+  | Patch -- 3
   deriving (Eq, Ord, Show, Enum)
 
 instance ToField ObjectType where

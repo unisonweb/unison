@@ -16,6 +16,7 @@ category:            Development
 library
   exposed-modules:
     U.Core.ABT
+    U.Core.ABT.Var
     -- U.Core.Reference
     -- U.Core.Referent
     -- U.Core.Term

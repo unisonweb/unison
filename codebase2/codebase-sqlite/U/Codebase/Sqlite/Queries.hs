@@ -20,24 +20,22 @@ import Data.Maybe (fromJust)
 import Data.String.Here.Uninterpolated (here)
 import Data.Text (Text)
 import qualified Database.SQLite.Simple as SQLite
-import Database.SQLite.Simple ((:.) (..), Connection, FromRow, Only (..), SQLData (SQLNull), ToRow (..))
-import Data.Word (Word64)
+import Database.SQLite.Simple (SQLData, (:.) (..), Connection, FromRow, Only (..), ToRow (..))
 import Database.SQLite.Simple.FromField
 import Database.SQLite.Simple.ToField
-import U.Codebase.Reference (Reference' (ReferenceBuiltin, ReferenceDerived))
-import qualified U.Codebase.Reference as Reference
-import qualified U.Codebase.Referent as Referent
+import qualified U.Codebase.Sqlite.Reference as Reference
+import qualified U.Codebase.Sqlite.Referent as Referent
 import U.Codebase.Sqlite.ObjectType
 import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hashable (Hashable)
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import U.Codebase.Sqlite.DbId
+import U.Codebase.Reference (Reference')
 
 -- * types
 type DB m = (MonadIO m, MonadReader Connection m)
 
-newtype HashId = HashId Word64 deriving (Eq, Ord) deriving (Hashable, FromField, ToField) via Word64
 
 newtype TypeId = TypeId ObjectId deriving (FromField, ToField) via ObjectId
 newtype TermId = TermCycleId ObjectId deriving (FromField, ToField) via ObjectId
@@ -46,8 +44,9 @@ newtype CausalHashId = CausalHashId HashId deriving (Hashable, FromField, ToFiel
 newtype CausalOldHashId = CausalOldHashId HashId deriving (Hashable, FromField, ToField) via HashId
 newtype NamespaceHashId = NamespaceHashId ObjectId deriving (Hashable, FromField, ToField) via ObjectId
 
-type DerivedReferent = Referent.Id' ObjectId ObjectId
-type DerivedReference = Reference.Id' ObjectId
+-- type DerivedReferent = Referent.Id ObjectId ObjectId
+-- type DerivedReference = Reference.Id ObjectId
+type TypeHashReference = Reference' TextId HashId
 -- * main squeeze
 
 saveHash :: DB m => Base32Hex -> m HashId
@@ -165,8 +164,20 @@ loadCausalParents h = queryList sql (Only h) where sql = [here|
   SELECT parent_id FROM causal_parent WHERE causal_id = ?
 |]
 
+saveTypeOfTerm :: DB m => Reference.Id -> ByteString -> m ()
+saveTypeOfTerm r blob = execute sql (r :. Only blob) where sql = [here|
+    INSERT OR IGNORE INTO type_of_term
+    VALUES (?, ?, ?)
+  |]
+
+loadTypeOfTerm :: DB m => Reference.Id -> m (Maybe ByteString)
+loadTypeOfTerm r = queryOnly sql r where sql = [here|
+  SELECT bytes FROM type_of_term
+  WHERE object_id = ? AND component_index = ?
+|]
+
 -- * Index-building
-addToTypeIndex :: DB m => Reference' TextId HashId -> DerivedReferent -> m ()
+addToTypeIndex :: DB m => Reference' TextId HashId -> Referent.Id -> m ()
 addToTypeIndex tp tm = execute sql (tp :. tm) where sql = [here|
   INSERT OR IGNORE INTO find_type_index (
     type_reference_builtin,
@@ -178,7 +189,7 @@ addToTypeIndex tp tm = execute sql (tp :. tm) where sql = [here|
   ) VALUES (?, ?, ?, ?, ?, ?)
 |]
 
-addToTypeMentionsIndex :: DB m => Reference' TextId HashId -> DerivedReferent -> m ()
+addToTypeMentionsIndex :: DB m => Reference' TextId HashId -> Referent.Id -> m ()
 addToTypeMentionsIndex tp tm = execute sql (tp :. tm) where sql = [here|
   INSERT OR IGNORE INTO find_type_mentions_index (
     type_reference_builtin,
@@ -190,7 +201,7 @@ addToTypeMentionsIndex tp tm = execute sql (tp :. tm) where sql = [here|
   ) VALUES (?, ?, ?, ?, ?, ?)
 |]
 
-addToDependentsIndex :: DB m => Reference' TextId ObjectId -> DerivedReference -> m ()
+addToDependentsIndex :: DB m => Reference' TextId ObjectId -> Reference.Id -> m ()
 addToDependentsIndex dependency dependent = execute sql (dependency :. dependent)
   where sql = [here|
     INSERT OR IGNORE INTO dependents_index (
@@ -230,26 +241,3 @@ headMay (a:_) = Just a
 -- * orphan instances
 deriving via Text instance ToField Base32Hex
 deriving via Text instance FromField Base32Hex
-
-instance ToRow (Reference' TextId HashId) where
-  -- | builtinId, hashId, componentIndex
-  toRow = \case
-    ReferenceBuiltin t -> toRow (Only t) ++ [SQLNull, SQLNull]
-    ReferenceDerived (Reference.Id h i) -> SQLNull : toRow (Only h) ++ toRow (Only i)
-
-instance ToRow (Reference' TextId ObjectId) where
-  -- | builtinId, hashId, componentIndex
-  toRow = \case
-    ReferenceBuiltin t -> toRow (Only t) ++ [SQLNull, SQLNull]
-    ReferenceDerived (Reference.Id h i) -> SQLNull : toRow (Only h) ++ toRow (Only i)
-
-instance ToRow (Reference.Id' ObjectId) where
-  -- | builtinId, hashId, componentIndex
-  toRow = \case
-    Reference.Id h i -> toRow (Only h) ++ toRow (Only i)
-
-instance ToRow DerivedReferent where
-  -- | objectId, componentIndex, constructorIndex
-  toRow = \case
-    Referent.RefId (Reference.Id h i) -> toRow (Only h) ++ toRow (Only i) ++ [SQLNull]
-    Referent.ConId (Reference.Id h i) cid -> toRow (Only h) ++ toRow (Only i) ++ toRow (Only cid)

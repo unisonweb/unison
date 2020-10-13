@@ -1,0 +1,385 @@
+cabal-version: 2.2
+name:          unison-parser-typechecker
+category:      Compiler
+version:       0.1
+license:       MIT
+license-file:  LICENSE
+author:        Unison Computing, public benefit corp
+maintainer:    Paul Chiusano <paul.chiusano@gmail.com>, Runar Bjarnason <runarorama@gmail.com>, Arya Irani <arya.irani@gmail.com>
+stability:     provisional
+homepage:      http://unisonweb.org
+bug-reports:   https://github.com/unisonweb/unison/issues
+copyright:     Copyright (C) 2013-2018 Unison Computing, PBC and contributors
+synopsis:      Parser and typechecker for the Unison language
+description:
+
+build-type:    Simple
+extra-source-files:
+data-files:
+
+source-repository head
+  type: git
+  location: git://github.com/unisonweb/unison.git
+
+-- `cabal install -foptimized` enables optimizations
+flag optimized
+  manual: True
+  default: False
+
+flag quiet
+  manual: True
+  default: False
+
+-- NOTE: Keep in sync throughout repo.
+common unison-common
+  default-language: Haskell2010
+  default-extensions:
+    ApplicativeDo,
+    BlockArguments,
+    DeriveFunctor,
+    DerivingStrategies,
+    DoAndIfThenElse,
+    FlexibleContexts,
+    FlexibleInstances,
+    LambdaCase,
+    MultiParamTypeClasses,
+    ScopedTypeVariables,
+    TupleSections,
+    TypeApplications
+
+library
+  import: unison-common
+
+  hs-source-dirs: src
+
+  exposed-modules:
+    Unison.Builtin
+    Unison.Builtin.Decls
+    Unison.Codecs
+    Unison.Codebase
+    Unison.Codebase.Branch
+    Unison.Codebase.Branch.Dependencies
+    Unison.Codebase.BranchDiff
+    Unison.Codebase.BranchUtil
+    Unison.Codebase.Causal
+    Unison.Codebase.Classes
+    Unison.Codebase.CodeLookup
+    Unison.Codebase.Editor.AuthorInfo
+    Unison.Codebase.Editor.Command
+    Unison.Codebase.Editor.DisplayThing
+    Unison.Codebase.Editor.Git
+    Unison.Codebase.Editor.HandleInput
+    Unison.Codebase.Editor.HandleCommand
+    Unison.Codebase.Editor.Input
+    Unison.Codebase.Editor.Output
+    Unison.Codebase.Editor.Output.BranchDiff
+    Unison.Codebase.Editor.Propagate
+    Unison.Codebase.Editor.RemoteRepo
+    Unison.Codebase.Editor.SearchResult'
+    Unison.Codebase.Editor.SlurpResult
+    Unison.Codebase.Editor.SlurpComponent
+    Unison.Codebase.Editor.TodoOutput
+    Unison.Codebase.Editor.UriParser
+    Unison.Codebase.Editor.VersionParser
+    Unison.Codebase.FileCodebase
+    Unison.Codebase.FileCodebase.Common
+    Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex
+    Unison.Codebase.GitError
+    Unison.Codebase.Metadata
+    Unison.Codebase.NameEdit
+    Unison.Codebase.Path
+    Unison.Codebase.Patch
+    Unison.Codebase.Reflog
+    Unison.Codebase.Runtime
+    Unison.Codebase.SearchResult
+    Unison.Codebase.Serialization
+    Unison.Codebase.Serialization.PutT
+    Unison.Codebase.Serialization.V1
+    Unison.Codebase.ShortBranchHash
+    Unison.Codebase.SyncMode
+    Unison.Codebase.TermEdit
+    Unison.Codebase.TranscriptParser
+    Unison.Codebase.TypeEdit
+    Unison.Codebase.Watch
+    Unison.Codebase.Execute
+    Unison.Codebase.MainTerm
+    Unison.CommandLine
+    Unison.CommandLine.DisplayValues
+    Unison.CommandLine.InputPattern
+    Unison.CommandLine.InputPatterns
+    Unison.CommandLine.Main
+    Unison.CommandLine.OutputMessages
+    Unison.DeclPrinter
+    Unison.FileParser
+    Unison.FileParsers
+    Unison.Lexer
+    Unison.NamePrinter
+    Unison.Parser
+    Unison.Parsers
+    Unison.Path
+    Unison.PrettyPrintEnv
+    Unison.PrettyTerminal
+    Unison.PrintError
+    Unison.Result
+    Unison.Runtime.ANF
+    Unison.Runtime.Builtin
+    Unison.Runtime.Debug
+    Unison.Runtime.Decompile
+    Unison.Runtime.Exception
+    Unison.Runtime.Foreign
+    Unison.Runtime.Foreign.Function
+    Unison.Runtime.Interface
+    Unison.Runtime.IR
+    Unison.Runtime.MCode
+    Unison.Runtime.Machine
+    Unison.Runtime.Pattern
+    Unison.Runtime.Rt1
+    Unison.Runtime.Rt1IO
+    Unison.Runtime.IOSource
+    Unison.Runtime.Vector
+    Unison.Runtime.SparseVector
+    Unison.Runtime.Stack
+    Unison.TermParser
+    Unison.TermPrinter
+    Unison.TypeParser
+    Unison.TypePrinter
+    Unison.Typechecker
+    Unison.Typechecker.Components
+    Unison.Typechecker.Context
+    Unison.Typechecker.Extractor
+    Unison.Typechecker.TypeError
+    Unison.Typechecker.TypeLookup
+    Unison.Typechecker.TypeVar
+    Unison.UnisonFile
+    Unison.Util.AnnotatedText
+    Unison.Util.Bytes
+    Unison.Util.Cache
+    Unison.Util.ColorText
+    Unison.Util.EnumContainers
+    Unison.Util.Exception
+    Unison.Util.Free
+    Unison.Util.Find
+    Unison.Util.Less
+    Unison.Util.Logger
+    Unison.Util.Map
+    Unison.Util.Menu
+    Unison.Util.PinBoard
+    Unison.Util.Pretty
+    Unison.Util.Range
+    Unison.Util.Star3
+    Unison.Util.SyntaxText
+    Unison.Util.Timing
+    Unison.Util.TQueue
+    Unison.Util.TransitiveClosure
+    Unison.Util.CycleTable
+    Unison.Util.CyclicEq
+    Unison.Util.CyclicOrd
+
+  build-depends:
+    ansi-terminal,
+    async,
+    base,
+    base16 >= 0.2.1.0,
+    bifunctors,
+    bytes,
+    bytestring,
+    cereal,
+    containers,
+    comonad,
+    concurrent-supply,
+    configurator,
+    cryptonite,
+    directory,
+    guid,
+    data-memocombinators,
+    edit-distance,
+    errors,
+    exceptions,
+    extra,
+    filepath,
+    filepattern,
+    fingertree,
+    free,
+    fsnotify,
+    generic-monoid,
+    hashable,
+    hashtables,
+    haskeline,
+    io-streams,
+    lens,
+    ListLike,
+    megaparsec >= 5.0.0 && < 7.0.0,
+    memory,
+    mmorph,
+    monad-loops,
+    mtl,
+    murmur-hash,
+    mutable-containers,
+    network,
+    network-simple,
+    nonempty-containers,
+    process,
+    primitive,
+    random,
+    raw-strings-qq,
+    regex-base,
+    regex-tdfa,
+    safe,
+    shellmet,
+    split,
+    stm,
+    strings,
+    tagged,
+    terminal-size,
+    text,
+    time,
+    transformers,
+    unison-core,
+    unliftio,
+    util,
+    vector,
+    unicode-show
+
+  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+
+  if flag(quiet)
+    ghc-options: -v0
+
+executable unison
+  import: unison-common
+  main-is: Main.hs
+  hs-source-dirs: unison
+  ghc-options: -Wall -threaded -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
+  other-modules:
+    System.Path
+    Version
+  build-depends:
+    base,
+    containers,
+    configurator,
+    directory,
+    errors,
+    filepath,
+    megaparsec,
+    safe,
+    shellmet,
+    template-haskell,
+    temporary,
+    text,
+    unison-core,
+    unison-parser-typechecker
+  if !os(windows)
+    build-depends:
+      unix
+
+executable prettyprintdemo
+  import: unison-common
+  main-is: Main.hs
+  hs-source-dirs: prettyprintdemo
+  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  build-depends:
+    base,
+    safe,
+    text,
+    unison-parser-typechecker
+
+executable tests
+  import:         unison-common
+  main-is:        Suite.hs
+  hs-source-dirs: tests
+  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+  build-depends:
+    base,
+    easytest
+  other-modules:
+    Unison.Test.ABT
+    Unison.Test.ANF
+    Unison.Test.Cache
+    Unison.Test.Codebase
+    Unison.Test.Codebase.Causal
+    Unison.Test.Codebase.FileCodebase
+    Unison.Test.Codebase.Path
+    Unison.Test.ColorText
+    Unison.Test.Common
+    Unison.Test.DataDeclaration
+    Unison.Test.FileParser
+    Unison.Test.Git
+    Unison.Test.Lexer
+    Unison.Test.IO
+    Unison.Test.MCode
+    Unison.Test.Range
+    Unison.Test.Referent
+    Unison.Test.Term
+    Unison.Test.TermParser
+    Unison.Test.TermPrinter
+    Unison.Test.Type
+    Unison.Test.TypePrinter
+    Unison.Test.Typechecker
+    Unison.Test.Typechecker.Components
+    Unison.Test.Typechecker.Context
+    Unison.Test.Typechecker.TypeError
+    Unison.Test.UnisonSources
+    Unison.Test.UriParser
+    Unison.Test.Util.Bytes
+    Unison.Test.Util.PinBoard
+    Unison.Test.Util.Pretty
+    Unison.Test.Var
+    Unison.Test.VersionParser
+    Unison.Core.Test.Name
+
+  build-depends:
+    async,
+    base,
+    bytestring,
+    containers,
+    directory,
+    easytest,
+    errors,
+    extra,
+    filepath,
+    filemanip,
+    here,
+    lens,
+    megaparsec,
+    mtl,
+    raw-strings-qq,
+    stm,
+    shellmet,
+    split,
+    temporary,
+    text,
+    transformers,
+    unison-core,
+    unison-parser-typechecker
+
+executable transcripts
+  import:         unison-common
+  main-is:        Transcripts.hs
+  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
+  hs-source-dirs: transcripts
+  other-modules:
+  build-depends:
+    base,
+    directory,
+    easytest,
+    filepath,
+    shellmet,
+    process,
+    text,
+    unison-core,
+    unison-parser-typechecker
+
+benchmark runtime
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  ghc-options: -O2
+  hs-source-dirs: benchmarks/runtime
+  build-depends:
+    base,
+    criterion,
+    containers,
+    unison-core,
+    unison-parser-typechecker

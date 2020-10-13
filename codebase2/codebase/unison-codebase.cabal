@@ -16,7 +16,7 @@ category:            Development
 library
   exposed-modules:
     U.Codebase.Branch
-    U.Codebase.Causal    
+    U.Codebase.Causal
     U.Codebase.Codebase
     U.Codebase.Decl
     U.Codebase.Kind
@@ -34,6 +34,7 @@ library
   build-depends:
       base,
       containers,
+      lens,
       text,
       unison-core,
       unison-util

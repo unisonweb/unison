@@ -1,16 +1,15 @@
-{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE EmptyCase #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE BlockArguments #-}
-
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
@@ -19,76 +18,80 @@
 
 module U.Codebase.Convert.SyncV1V2 where
 
-import qualified U.Util.Hashable as H
-import Database.SQLite.Simple.FromField (FromField)
-import U.Util.Hash (Hash)
-import qualified Unison.Codebase.V1.FileCodebase as V1
-import qualified Unison.Codebase.V1.Branch.Raw as V1
-import Data.Text (Text)
-import Database.SQLite.Simple.ToField (ToField)
-import qualified Unison.Codebase.V1.Reference as V1.Reference
-import UnliftIO (liftIO, MonadIO)
-import Database.SQLite.Simple (Connection)
-import qualified Database.SQLite.Simple as SQLite
-import Control.Monad.Except (MonadError, throwError, runExceptT)
-import Control.Monad.Reader (ReaderT(runReaderT))
-import qualified U.Util.Base32Hex as Base32Hex
-import qualified U.Util.Hash as Hash
-import qualified Data.Text as Text
-import UnliftIO.Directory (listDirectory)
+import Control.Lens (mapMOf, over)
+import Control.Monad.Except (MonadError, runExceptT, throwError)
+import Control.Monad.Extra ((>=>), ifM)
+import Control.Monad.Reader (ReaderT (runReaderT))
+import qualified Control.Monad.State as State
+import Control.Monad.State (State)
+import Data.Bifunctor (Bifunctor (first), second)
+import Data.Bytes.Get (MonadGet)
+import Data.Either (partitionEithers)
+import Data.Either.Extra (mapLeft)
+import Data.Foldable (Foldable (toList), for_)
+import Data.Foldable (Foldable (foldl'))
 import Data.Functor ((<&>))
-import qualified U.Codebase.Reference as V2.Reference
-import qualified U.Codebase.Sqlite.Reference as V2S.Reference
-import Unison.Codebase.V1.FileCodebase (CodebasePath)
-import U.Codebase.Sqlite.Queries (DB)
+import qualified Data.List as List
+import Data.List.Extra (nubOrd)
 import Data.Map (Map)
 import qualified Data.Map.Strict as Map
-import Control.Monad.Extra (ifM)
+import qualified Data.Set as Set
+import Data.Text (Text)
+import qualified Data.Text as Text
+import Data.Traversable (for)
+import Data.Tuple (swap)
+import Data.Vector (Vector)
+import qualified Data.Vector as Vector
+import Database.SQLite.Simple (Connection)
+import qualified Database.SQLite.Simple as SQLite
+import Database.SQLite.Simple.FromField (FromField)
+import Database.SQLite.Simple.ToField (ToField)
+import qualified U.Codebase.Convert.TypeUtil as TypeUtil
+import qualified U.Codebase.Decl as V2.Decl
+import qualified U.Codebase.Kind as V2.Kind
+import qualified U.Codebase.Reference as V2.Reference
+import qualified U.Codebase.Referent as V2.Referent
+import qualified U.Codebase.Referent as V2.Sqlite.Referent
 import Data.String.Here.Uninterpolated (here)
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Queries as Db
-import qualified Unison.Codebase.V1.Symbol as V1.Symbol
-import qualified Unison.Codebase.V1.Term as V1.Term
-import qualified Unison.Codebase.V1.Type as V1.Type
-import qualified Unison.Codebase.V1.DataDeclaration as V1.DD
+import qualified U.Codebase.Sqlite.Reference as V2S.Reference
+import qualified U.Codebase.Sqlite.Reference as V2.Sqlite.Reference
+import qualified U.Codebase.Sqlite.Serialization as S.V2
+import qualified U.Codebase.Sqlite.Symbol as V2.Symbol
 import qualified U.Codebase.Sqlite.Term.Format as V2.TermFormat
 import qualified U.Codebase.Term as V2.Term
-import qualified U.Codebase.Sqlite.Symbol as V2.Symbol
-import qualified U.Codebase.Type as V2.Type
-import qualified U.Codebase.Decl as V2.Decl
 import qualified U.Codebase.Sqlite.Decl.Format as V2.DeclFormat
+import qualified U.Codebase.Sqlite.LocalIds as V2.LocalIds
+import qualified U.Codebase.Sqlite.ObjectType as V2.OT
+import U.Codebase.Sqlite.Queries (DB)
+import qualified U.Codebase.Type as V2.Type
+import qualified U.Core.ABT as V2.ABT
+import qualified U.Util.Base32Hex as Base32Hex
+import U.Util.Base32Hex (Base32Hex)
+import U.Util.Hash (Hash)
+import qualified U.Util.Hash as Hash
+import qualified U.Util.Hashable as H
+import U.Util.Monoid (foldMapM)
+import qualified U.Util.Serialization as S
+import qualified Unison.Codebase.V1.ABT as V1.ABT
+import qualified Unison.Codebase.V1.Branch.Raw as V1
+import qualified Unison.Codebase.V1.DataDeclaration as V1.DD
+import qualified Unison.Codebase.V1.FileCodebase as V1
+import Unison.Codebase.V1.FileCodebase (CodebasePath)
 import qualified Unison.Codebase.V1.FileCodebase as V1.FC
+import qualified Unison.Codebase.V1.LabeledDependency as V1.LD
+import qualified Unison.Codebase.V1.Reference as V1.Reference
+import qualified Unison.Codebase.V1.Referent as V1.Referent
 import qualified Unison.Codebase.V1.Serialization.Serialization as V1.S
 import qualified Unison.Codebase.V1.Serialization.V1 as V1.S
-import Data.Bytes.Get (MonadGet)
-import Data.Foldable (for_, Foldable(toList))
-import Data.Traversable (for)
-import qualified Unison.Codebase.V1.LabeledDependency as V1.LD
-import Data.List.Extra (nubOrd)
-import Data.Either (partitionEithers)
-import U.Util.Base32Hex (Base32Hex)
-import Data.Bifunctor (second, Bifunctor(first))
-import qualified U.Codebase.Referent as V2.Referent
-import qualified U.Codebase.Sqlite.ObjectType as V2.OT
-import qualified U.Util.Serialization as S
-import qualified U.Codebase.Sqlite.Serialization as S.V2
-import U.Util.Monoid (foldMapM)
-import Data.Foldable (Foldable(foldl'))
-import qualified Unison.Codebase.V1.ABT as V1.ABT
-import qualified Data.Set as Set
-import qualified Unison.Codebase.V1.Type.Kind as V1.Kind
-import qualified U.Codebase.Kind as V2.Kind
-import qualified U.Core.ABT as V2.ABT
+import qualified Unison.Codebase.V1.Symbol as V1.Symbol
+import qualified Unison.Codebase.V1.Term as V1.Term
 import qualified Unison.Codebase.V1.Term.Pattern as V1.Pattern
-import qualified Unison.Codebase.V1.Referent as V1.Referent
-import qualified Control.Monad.State as State
-import Control.Monad.State (State)
-import qualified U.Codebase.Sqlite.LocalIds as V2.LocalIds
-import Data.Vector (Vector)
-import qualified Data.Vector as Vector
-import qualified Data.List as List
-import Data.Tuple (swap)
-import Data.Either.Extra (mapLeft)
+import qualified Unison.Codebase.V1.Type as V1.Type
+import qualified Unison.Codebase.V1.Type.Kind as V1.Kind
+import UnliftIO (MonadIO, liftIO)
+import UnliftIO.Directory (listDirectory)
 
 newtype V1 a = V1 {runV1 :: a} deriving (Eq, Ord, Show)
 
@@ -134,13 +137,13 @@ newtype CausalHash h = CausalHash h
 --     (NamespaceHash Hash)
 --     (CausalHash Hash)
 
--- |things that appear in a serialized RawBranch
--- type V2EntityRefS =
---     V2EntityRef
---       Db.ObjectId
---       (PatchHash Db.ObjectId)
---       (NamespaceHash Db.NamespaceHashId)
---       (CausalHash Db.CausalHashId)
+-- | things that appear in a serialized RawBranch
+--  type V2EntityRefS =
+--      V2EntityRef
+--        Db.ObjectId
+--        (PatchHash Db.ObjectId)
+--        (NamespaceHash Db.NamespaceHashId)
+--        (CausalHash Db.CausalHashId)
 
 -- data V2EntityRef hr hp hn hc
 --   = Decl2 V2.Reference.Id
@@ -167,29 +170,38 @@ data FatalError
   | InvalidTypeOfTerm V1.Reference.Id
   | InvalidDecl V1.Reference.Id
 
+
 type V1Type = V1.Type.Type V1.Symbol.Symbol ()
 type V1Term = V1.Term.Term V1.Symbol.Symbol ()
+
 type V1Decl = V1.DD.Decl V1.Symbol.Symbol ()
 
 type V2HashTerm = V2.Term.Term V2.Symbol.Symbol
-type V2TypeOfTerm = V2.Type.TypeT V2.Symbol.Symbol
+type V2HashTypeOfTerm = V2.Type.TypeT V2.Symbol.Symbol
+
+type V2DiskTypeOfTerm = V2.Type.TypeR V2.Sqlite.Reference.Reference V2.Symbol.Symbol
 type V2HashTermComponent = [V2HashTerm]
+
 type V2DiskTermComponent = V2.TermFormat.LocallyIndexedComponent
+
 
 type V2HashDecl = V2.Decl.Decl V2.Symbol.Symbol
 type V2TypeOfConstructor = V2.Type.TypeD V2.Symbol.Symbol
+
 type V2HashDeclComponent = [V2HashDecl]
 type V2DiskDeclComponent = V2.DeclFormat.LocallyIndexedComponent
 
 -- type Patch = Patch.Patch V1.Reference
+
 -- -- the H stands for "for hashing"
 -- -- the S stands for "for serialization"
+
 -- type Term2ComponentH = [Term2 Hash]
 -- type Term2ComponentS = [Term2 Db.ObjectId]
+
 -- type Decl2ComponentH = [Decl2 (Maybe Hash)]
 -- type Decl2S = Decl2 Db.ObjectId
 -- type Decl2ComponentS = [Decl2S]
-
 
 -- -- these have maybes in them to indicate a self-component reference
 -- type Term2 h = V2.Term h
@@ -271,32 +283,33 @@ syncV1V2 c rootDir = liftIO $ SQLite.withTransaction c . runExceptT . flip runRe
               Right (getHash, getObjId, getTextId) -> do
                 convertTerm1 getHash getObjId getTextId h e
                 convertEntities rest
-        -- Decl1 h ->
-        --   ifM (existsObjectWithHash (runV1 h)) (convertEntities rest) $ do
-        --     d <- loadDecl1 rootDir declsDirComponents h
-        --     matchDecl1Dependencies h d >>= \case
-        --       Left missing -> convertEntities (missing ++ all)
-        --       Right lookup -> do
-        --         convertDecl1 (error "todo: lookup") h d
-        --         convertEntities rest
-        -- Patch1 h ->
-        --   ifM (existsObjectWithHash (runV1 h)) (convertEntities rest) $ do
-        --     p <- loadPatch1 rootDir h
-        --     matchPatch1Dependencies ("patch " ++ show h) p >>= \case
-        --       Left missing -> convertEntities (missing ++ all)
-        --       Right lookup -> do
-        --         -- hashId <- Db.saveHashByteString (runV1 h)
-        --         -- savePatch hashId (Patch.hmap (lookup . V1) p)
-        --         error "todo"
-        --         convertEntities rest
-        -- Branch1 (V1.BranchHash h) ->
-        --   ifM (existsObjectWithHash h) (convertEntities rest) $ do
-        --     cb <- loadCausalBranch1 rootDir (V1 h)
-        --     matchCausalBranch1Dependencies ("branch " ++ show h) cb >>= \case
-        --       Left missing -> convertEntities (missing ++ all)
-        --       Right (lookupObject, lookupCausal) -> do
-        --         convertCausalBranch1 lookupObject lookupCausal cb
-        --         convertEntities rest
+-- Decl1 h ->
+--   ifM (existsObjectWithHash (runV1 h)) (convertEntities rest) $ do
+--     d <- loadDecl1 rootDir declsDirComponents h
+--     matchDecl1Dependencies h d >>= \case
+--       Left missing -> convertEntities (missing ++ all)
+--       Right lookup -> do
+--         convertDecl1 (error "todo: lookup") h d
+--         convertEntities rest
+-- Patch1 h ->
+--   ifM (existsObjectWithHash (runV1 h)) (convertEntities rest) $ do
+--     p <- loadPatch1 rootDir h
+--     matchPatch1Dependencies ("patch " ++ show h) p >>= \case
+--       Left missing -> convertEntities (missing ++ all)
+--       Right lookup -> do
+--         -- hashId <- Db.saveHashByteString (runV1 h)
+--         -- savePatch hashId (Patch.hmap (lookup . V1) p)
+--         error "todo"
+--         convertEntities rest
+-- Branch1 (V1.BranchHash h) ->
+--   ifM (existsObjectWithHash h) (convertEntities rest) $ do
+--     cb <- loadCausalBranch1 rootDir (V1 h)
+--     matchCausalBranch1Dependencies ("branch " ++ show h) cb >>= \case
+--       Left missing -> convertEntities (missing ++ all)
+--       Right (lookupObject, lookupCausal) -> do
+--         convertCausalBranch1 lookupObject lookupCausal cb
+--         convertEntities rest
+
 
 -- -- | load a causal branch raw thingo
 -- loadCausalBranch1 ::
@@ -435,6 +448,11 @@ lookupObject r@(runV1 . v1EntityRefToHash -> h) =
 --     WHERE old_hash.base32 = ?
 --   |]
 
+saveTypeBlobForTerm :: DB m => V2.Sqlite.Reference.Id -> V2DiskTypeOfTerm -> m ()
+saveTypeBlobForTerm r typ = Db.saveTypeOfTerm r blob
+  where
+    blob = S.putBytes (S.V2.putType S.V2.putReference S.V2.putSymbol) typ
+
 -- -- | no Maybes here, as all relevant ObjectId can be known in advance
 -- saveTypeBlobForReferent :: DB m => V2.ReferentId Db.ObjectId -> Type2S -> m ()
 -- saveTypeBlobForReferent r type2s =
@@ -449,8 +467,11 @@ getObjectIdByBase32Hex h =
 -- augmentLookup :: Ord a => (a -> b) -> Map a b -> a -> b
 -- augmentLookup f m a = fromMaybe (f a) (Map.lookup a m)
 
--- saveReferenceAsReference2 :: DB m => Reference -> m (V2.Reference Db.HashId)
--- saveReferenceAsReference2 = mapMOf Db.referenceTraversal Db.saveHashByteString
+-- Control.Monad (>=>) :: Monad m => (a -> m b) -> (b -> m c) -> a -> m c
+saveReferenceAsReference2 :: DB m => V2.Reference.Reference -> m V2.Sqlite.Reference.ReferenceH
+saveReferenceAsReference2 =
+  mapMOf V2.Reference.h Db.saveHashHash >=>
+  mapMOf V2.Reference.t Db.saveText
 
 -- | load a term component by its hash.
 --  A v1 term component is split across an arbitrary number of files.
@@ -647,36 +668,36 @@ makeLookup l lookupDescription a =
               ++ " in the map for "
               ++ lookupDescription
 
--- --
--- createTypeSearchIndicesForReferent :: DB m => (V2.ReferentId Db.ObjectId) -> Type -> m ()
--- createTypeSearchIndicesForReferent r typ = do
---   let typeForIndexing = Type.removeAllEffectVars typ
+createTypeSearchIndicesForReferent :: DB m => V2.Sqlite.Referent.Id -> V2HashTypeOfTerm -> m ()
+createTypeSearchIndicesForReferent r typ = do
+  let typeForIndexing = TypeUtil.removeAllEffectVars typ
 
---   -- add the term to the type index
---   typeReferenceForIndexing :: (V2.Reference Db.HashId) <-
---     saveReferenceAsReference2 (Type.toReference typeForIndexing)
+  -- add the term to the type index
+  typeReferenceForIndexing :: V2.Sqlite.Reference.ReferenceH <-
+    saveReferenceAsReference2 (TypeUtil.toReference typeForIndexing)
 
---   Db.addToFindByTypeIndex r typeReferenceForIndexing
+  -- Db.addToFindByTypeIndex r typeReferenceForIndexing
 
---   -- add the term to the type mentions index
---   typeMentionsForIndexing :: [V2.Reference Db.HashId] <-
---     traverse
---       saveReferenceAsReference2
---       (toList $ Type.toReferenceMentions typeForIndexing)
+  -- -- add the term to the type mentions index
+  -- typeMentionsForIndexing :: [V2.Sqlite.Reference.ReferenceH] <-
+  --   traverse
+  --     saveReferenceAsReference2
+  --     (toList $ Type.toReferenceMentions typeForIndexing)
 
---   traverse_ (Db.addToFindByTypeMentionsIndex r) typeMentionsForIndexing
---   where
---     addTermToFindByTypeIndex :: DB m => (V2.ReferentId Db.ObjectId) -> Reference -> m ()
---     addTermToFindByTypeIndex termRef typeRef = do
---       typeRef2 :: (V2.Reference Db.HashId) <-
---         saveReferenceAsReference2 typeRef
---       Db.addToFindByTypeIndex termRef typeRef2
---     addTermToTypeMentionsIndex ::
---       (DB m, Foldable f) => (V2.ReferentId Db.ObjectId) -> f Reference -> m ()
---     addTermToTypeMentionsIndex termRef typeRefs = do
---       typeRefs2 :: [V2.Reference Db.HashId] <-
---         traverse saveReferenceAsReference2 (toList typeRefs)
---       traverse_ (Db.addToFindByTypeMentionsIndex termRef) typeRefs2
+  -- traverse_ (Db.addToFindByTypeMentionsIndex r) typeMentionsForIndexing
+  error "todo"
+  -- where
+  --   addTermToFindByTypeIndex :: DB m => (V2.ReferentId Db.ObjectId) -> Reference -> m ()
+  --   addTermToFindByTypeIndex termRef typeRef = do
+  --     typeRef2 :: (V2.Reference Db.HashId) <-
+  --       saveReferenceAsReference2 typeRef
+  --     Db.addToFindByTypeIndex termRef typeRef2
+  --   addTermToTypeMentionsIndex ::
+  --     (DB m, Foldable f) => (V2.ReferentId Db.ObjectId) -> f Reference -> m ()
+  --   addTermToTypeMentionsIndex termRef typeRefs = do
+  --     typeRefs2 :: [V2.Reference Db.HashId] <-
+  --       traverse saveReferenceAsReference2 (toList typeRefs)
+  --     traverse_ (Db.addToFindByTypeMentionsIndex termRef) typeRefs2
 
 -- createDependencyIndexForTerm :: DB m => V2.ReferenceId Db.ObjectId -> Term2 Db.ObjectId-> m ()
 -- createDependencyIndexForTerm tmRef@(V2.ReferenceId selfId _i) tm = error "todo"
@@ -711,11 +732,11 @@ saveTermComponent h1 h2 component = do
 
 saveDeclComponent :: DB m => V1 Hash -> V2 Hash -> V2DiskDeclComponent -> m Db.ObjectId
 saveDeclComponent h component = error "todo" -- do
--- -- o <- Db.saveObject h V2.DeclComponent blob
--- -- Db.saveHashObject h o 2
--- -- pure o
--- -- where
--- -- blob = S.putBytes (S.V1.putFoldable (V2.putDecl putObjectId putV putA)) component
+    -- -- o <- Db.saveObject h V2.DeclComponent blob
+    -- -- Db.saveHashObject h o 2
+    -- -- pure o
+    -- -- where
+    -- -- blob = S.putBytes (S.V1.putFoldable (V2.putDecl putObjectId putV putA)) component
 
 -- savePatch :: DB m => Db.HashId -> Patch2S -> m ()
 -- savePatch h p = do
@@ -737,16 +758,17 @@ componentMapForDir root = listDirectory root <&> foldl' insert mempty
 existsObjectWithHash :: DB m => Hash -> m Bool
 existsObjectWithHash = Db.objectExistsWithHash . Hash.toBase32Hex
 
-convertABT :: forall f v a f' v' a' . Ord v' => (f (V1.ABT.Term f v a) -> f' (V2.ABT.Term f' v' a')) -> (v -> v') -> (a -> a') -> V1.ABT.Term f v a -> V2.ABT.Term f' v' a'
-convertABT ff fv fa = goTerm where
-  goTerm :: V1.ABT.Term f v a -> V2.ABT.Term f' v' a'
-  goTerm (V1.ABT.Term vs a out) = V2.ABT.Term (Set.map fv vs) (fa a) (goABT out)
-  goABT :: V1.ABT.ABT f v (V1.ABT.Term f v a) -> V2.ABT.ABT f' v' (V2.ABT.Term f' v' a')
-  goABT = \case
-    V1.ABT.Var v -> V2.ABT.Var (fv v)
-    V1.ABT.Cycle t -> V2.ABT.Cycle (goTerm t)
-    V1.ABT.Abs v t -> V2.ABT.Abs (fv v) (goTerm t)
-    V1.ABT.Tm ft -> V2.ABT.Tm (ff ft)
+convertABT :: forall f v a f' v' a'. Ord v' => (f (V1.ABT.Term f v a) -> f' (V2.ABT.Term f' v' a')) -> (v -> v') -> (a -> a') -> V1.ABT.Term f v a -> V2.ABT.Term f' v' a'
+convertABT ff fv fa = goTerm
+  where
+    goTerm :: V1.ABT.Term f v a -> V2.ABT.Term f' v' a'
+    goTerm (V1.ABT.Term vs a out) = V2.ABT.Term (Set.map fv vs) (fa a) (goABT out)
+    goABT :: V1.ABT.ABT f v (V1.ABT.Term f v a) -> V2.ABT.ABT f' v' (V2.ABT.Term f' v' a')
+    goABT = \case
+      V1.ABT.Var v -> V2.ABT.Var (fv v)
+      V1.ABT.Cycle t -> V2.ABT.Cycle (goTerm t)
+      V1.ABT.Abs v t -> V2.ABT.Abs (fv v) (goTerm t)
+      V1.ABT.Tm ft -> V2.ABT.Tm (ff ft)
 
 convertSymbol :: V1.Symbol.Symbol -> V2.Symbol.Symbol
 convertSymbol (V1.Symbol.Symbol id name) = V2.Symbol.Symbol id name
@@ -760,26 +782,28 @@ type LocalIdState =
   (Map Text V2.TermFormat.LocalTextId, Map (V2 Hash) V2.TermFormat.LocalDefnId)
 
 rewriteType ::
-    (V2.Reference.Reference ->
-      State.State LocalIdState V2.TermFormat.TypeRef) ->
-    V2TypeOfTerm -> State LocalIdState V2.TermFormat.Type
-rewriteType doRef = V2.ABT.transformM go where
-  go :: V2.Type.FT k -> State LocalIdState (V2.TermFormat.FT k)
-  go = \case
-    V2.Type.Ref r -> (V2.Type.Ref <$> doRef r)
-    V2.Type.Arrow l r -> pure $ V2.Type.Arrow l r
-    V2.Type.Ann a kind -> pure $ V2.Type.Ann a kind
-    V2.Type.Effect e b -> pure $ V2.Type.Effect e b
-    V2.Type.Effects es -> pure $ V2.Type.Effects es
-    V2.Type.Forall a -> pure $ V2.Type.Forall a
-    V2.Type.IntroOuter a -> pure $ V2.Type.IntroOuter a
+  (V2.Reference.Reference -> State.State LocalIdState V2.TermFormat.TypeRef) ->
+  V2HashTypeOfTerm ->
+  State LocalIdState V2.TermFormat.Type
+rewriteType doRef = V2.ABT.transformM go
+  where
+    go :: V2.Type.FT k -> State LocalIdState (V2.TermFormat.FT k)
+    go = \case
+      V2.Type.Ref r -> (V2.Type.Ref <$> doRef r)
+      V2.Type.Arrow l r -> pure $ V2.Type.Arrow l r
+      V2.Type.Ann a kind -> pure $ V2.Type.Ann a kind
+      V2.Type.Effect e b -> pure $ V2.Type.Effect e b
+      V2.Type.Effects es -> pure $ V2.Type.Effects es
+      V2.Type.Forall a -> pure $ V2.Type.Forall a
+      V2.Type.IntroOuter a -> pure $ V2.Type.IntroOuter a
 
 -- | rewrite Vars and Tms 🙃
-mapTermToVar :: (Foldable f, Functor f, Ord v2)
-    => (v -> v2)
-    -> (a -> f (V2.ABT.Term f v a) -> Maybe (V2.ABT.Term f v2 a))
-    -> V2.ABT.Term f v a
-    -> V2.ABT.Term f v2 a
+mapTermToVar ::
+  (Foldable f, Functor f, Ord v2) =>
+  (v -> v2) ->
+  (a -> f (V2.ABT.Term f v a) -> Maybe (V2.ABT.Term f v2 a)) ->
+  V2.ABT.Term f v a ->
+  V2.ABT.Term f v2 a
 mapTermToVar fv ft t@(V2.ABT.Term _ a abt) = case abt of
   V2.ABT.Var v -> V2.ABT.var a (fv v)
   V2.ABT.Cycle body -> V2.ABT.cycle a (mapTermToVar fv ft body)
@@ -789,7 +813,8 @@ mapTermToVar fv ft t@(V2.ABT.Term _ a abt) = case abt of
       Nothing -> V2.ABT.tm a (mapTermToVar fv ft `fmap` body)
       Just t' -> t'
 
-mapVarToTerm :: (Foldable f, Functor f, Ord v2) =>
+mapVarToTerm ::
+  (Foldable f, Functor f, Ord v2) =>
   (v -> v2) ->
   (v -> Either (f (V2.ABT.Term f v2 a)) v2) ->
   V2.ABT.Term f v a ->
@@ -809,241 +834,244 @@ mapVarToTerm fAbs fVar t@(V2.ABT.Term _ a abt) = case abt of
 convertTerm1 :: DB m => (V1 Hash -> V2 Hash) -> (V2 Hash -> Db.ObjectId) -> (Text -> Db.TextId) -> V1 Hash -> [(V1Term, V1Type)] -> m ()
 convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
   -- construct v2 term component for hashing
-  let
-    buildTermType2H :: (V1 Hash -> V2 Hash) -> V1Type -> V2TypeOfTerm
-    buildTermType2H lookup = goType where
-      goType :: V1Type -> V2TypeOfTerm
-      goType = convertABT goABT convertSymbol (const ())
-      goABT :: V1.Type.F V1Type -> V2.Type.FT V2TypeOfTerm
-      goABT = \case
-        V1.Type.Ref r -> V2.Type.Ref case r of
-          V1.Reference.Builtin t ->
-            V2.Reference.ReferenceBuiltin t
-          V1.Reference.Derived h i _n ->
-            V2.Reference.ReferenceDerived
-              (V2.Reference.Id (runV2 . lookup $ V1 h) i)
-        V1.Type.Arrow i o -> V2.Type.Arrow (goType i) (goType o)
-        V1.Type.Ann a k -> V2.Type.Ann (goType a) (convertKind k)
-        V1.Type.App f x -> V2.Type.App (goType f) (goType x)
-        V1.Type.Effect e b -> V2.Type.Effect (goType e) (goType b)
-        V1.Type.Effects as -> V2.Type.Effects (goType <$> as)
-        V1.Type.Forall a -> V2.Type.Forall (goType a)
-        V1.Type.IntroOuter a -> V2.Type.IntroOuter (goType a)
-    buildTerm2H :: (V1 Hash -> V2 Hash) -> V1 Hash -> V1Term -> V2HashTerm
-    buildTerm2H lookup self = goTerm where
-      goTerm = convertABT goABT convertSymbol (const ())
-      goABT :: V1.Term.F V1.Symbol.Symbol () V1Term -> V2.Term.F V2.Symbol.Symbol V2HashTerm
-      lookupTermLink = \case
-        V1.Referent.Ref r -> V2.Referent.Ref (lookupTerm r)
-        V1.Referent.Con r i _ct -> V2.Referent.Con (lookupType r) (fromIntegral i)
-      lookupTerm = \case
-        V1.Reference.Builtin t -> V2.Reference.ReferenceBuiltin t
-        V1.Reference.Derived h i _n ->
-          V2.Reference.ReferenceDerived
-            (V2.Reference.Id
-              (if V1 h == self then Nothing
-                else (Just . runV2.lookup $ V1 h)) i)
-      lookupType = \case
-        V1.Reference.Builtin t -> V2.Reference.ReferenceBuiltin t
-        V1.Reference.Derived h i _n ->
-          V2.Reference.ReferenceDerived
-            (V2.Reference.Id (runV2 . lookup $ V1 h) i)
-      goABT = \case
-        V1.Term.Int i -> V2.Term.Int i
-        V1.Term.Nat n -> V2.Term.Nat n
-        V1.Term.Float f -> V2.Term.Float f
-        V1.Term.Boolean b -> V2.Term.Boolean b
-        V1.Term.Text t -> V2.Term.Text t
-        V1.Term.Char c -> V2.Term.Char c
-        V1.Term.Ref r -> V2.Term.Ref (lookupTerm r)
-        V1.Term.Constructor r i ->
-          V2.Term.Constructor (lookupType r) (fromIntegral i)
-        V1.Term.Request r i ->
-          V2.Term.Constructor (lookupType r) (fromIntegral i)
-        V1.Term.Handle b h -> V2.Term.Handle (goTerm b) (goTerm h)
-        V1.Term.App f a -> V2.Term.App (goTerm f) (goTerm a)
-        V1.Term.Ann e t -> V2.Term.Ann (goTerm e) (buildTermType2H lookup t)
-        V1.Term.Sequence as -> V2.Term.Sequence (goTerm <$> as)
-        V1.Term.If c t f -> V2.Term.If (goTerm c) (goTerm t) (goTerm f)
-        V1.Term.And a b -> V2.Term.And (goTerm a) (goTerm b)
-        V1.Term.Or a b -> V2.Term.Or (goTerm a) (goTerm b)
-        V1.Term.Lam a -> V2.Term.Lam (goTerm a)
-        V1.Term.LetRec _ bs body -> V2.Term.LetRec (goTerm <$> bs) (goTerm body)
-        V1.Term.Let _ b body -> V2.Term.Let (goTerm b) (goTerm body)
-        V1.Term.Match e cases -> V2.Term.Match (goTerm e) (goCase <$> cases)
-        V1.Term.TermLink r -> V2.Term.TermLink (lookupTermLink r)
-        V1.Term.TypeLink r -> V2.Term.TypeLink (lookupType r)
-      goCase (V1.Term.MatchCase p g b) =
-        V2.Term.MatchCase (goPat p) (goTerm <$> g) (goTerm b)
-      goPat = \case
-        V1.Pattern.Unbound -> V2.Term.PUnbound
-        V1.Pattern.Var -> V2.Term.PVar
-        V1.Pattern.Boolean b -> V2.Term.PBoolean b
-        V1.Pattern.Int i -> V2.Term.PInt i
-        V1.Pattern.Nat n -> V2.Term.PNat n
-        V1.Pattern.Float d -> V2.Term.PFloat d
-        V1.Pattern.Text t -> V2.Term.PText t
-        V1.Pattern.Char c -> V2.Term.PChar c
-        V1.Pattern.Constructor r i ps ->
-          V2.Term.PConstructor (lookupType r) i (goPat <$> ps)
-        V1.Pattern.As p -> V2.Term.PAs (goPat p)
-        V1.Pattern.EffectPure p -> V2.Term.PEffectPure (goPat p)
-        V1.Pattern.EffectBind r i ps k ->
-          V2.Term.PEffectBind (lookupType r) i (goPat <$> ps) (goPat k)
-        V1.Pattern.SequenceLiteral ps -> V2.Term.PSequenceLiteral (goPat <$> ps)
-        V1.Pattern.SequenceOp p op p2 ->
-          V2.Term.PSequenceOp (goPat p) (goSeqOp op) (goPat p2)
-      goSeqOp = \case
-        V1.Pattern.Cons -> V2.Term.PCons
-        V1.Pattern.Snoc -> V2.Term.PSnoc
-        V1.Pattern.Concat -> V2.Term.PConcat
-    buildTermComponent2S ::
-      (V2 Hash -> Db.ObjectId) -> V2 Hash -> V2HashTermComponent -> V2DiskTermComponent
-    buildTermComponent2S getId h0 terms = let
-      rewrittenTerms :: [(V2.TermFormat.Term, LocalIdState)] =
-        map (flip State.runState mempty . rewriteTerm) terms
-      rewriteTerm :: V2HashTerm -> State.State LocalIdState V2.TermFormat.Term
-      rewriteTerm = V2.ABT.transformM go where
-        doText :: Text -> State.State LocalIdState V2.TermFormat.LocalTextId
-        doText t = do
-          (textMap, objectMap) <- State.get
-          case Map.lookup t textMap of
-            Nothing -> do
-              let id = V2.TermFormat.LocalTextId
-                      . fromIntegral
-                      $ Map.size textMap
-              State.put (Map.insert t id textMap, objectMap)
-              pure id
-            Just id -> pure id
-        doHash :: Hash -> State.State LocalIdState V2.TermFormat.LocalDefnId
-        doHash (V2 -> h) = do
-          (textMap, objectMap) <- State.get
-          case Map.lookup h objectMap of
-            Nothing -> do
-              let id = V2.TermFormat.LocalDefnId
-                      . fromIntegral
-                      $ Map.size objectMap
-              State.put (textMap, Map.insert h id objectMap)
-              pure id
-            Just id -> pure id
-        doRecRef :: V2.Reference.Reference' Text (Maybe Hash) -> State.State LocalIdState V2.TermFormat.TermRef
-        doRecRef = \case
-          V2.Reference.ReferenceBuiltin t ->
-            V2.Reference.ReferenceBuiltin <$> doText t
-          V2.Reference.ReferenceDerived r ->
-            V2.Reference.ReferenceDerived <$> case r of
-              V2.Reference.Id h i -> V2.Reference.Id <$> traverse doHash h <*> pure i
-        doRef :: V2.Reference.Reference -> State.State LocalIdState V2.TermFormat.TypeRef
-        doRef = \case
-          V2.Reference.ReferenceBuiltin t ->
-            V2.Reference.ReferenceBuiltin <$> doText t
-          V2.Reference.ReferenceDerived (V2.Reference.Id h i) ->
-            V2.Reference.ReferenceDerived <$>
-                  (V2.Reference.Id <$> doHash h <*> pure i)
-        go :: V2.Term.F V2.Symbol.Symbol k -> State LocalIdState (V2.TermFormat.F k)
-        go = \case
-          V2.Term.Int i -> pure $ V2.Term.Int i
-          V2.Term.Nat n -> pure $ V2.Term.Nat n
-          V2.Term.Float d -> pure $ V2.Term.Float d
-          V2.Term.Boolean b -> pure $ V2.Term.Boolean b
-          V2.Term.Text t -> V2.Term.Text <$> doText t
-          V2.Term.Char c -> pure $ V2.Term.Char c
-          V2.Term.Ref r -> V2.Term.Ref <$> doRecRef r
-          V2.Term.Constructor r cid ->
-            V2.Term.Constructor <$> doRef r <*> pure cid
-          V2.Term.Request r cid -> V2.Term.Request <$> doRef r <*> pure cid
-          V2.Term.Handle e h -> pure $ V2.Term.Handle e h
-          V2.Term.App f a -> pure $ V2.Term.App f a
-          V2.Term.Ann e typ -> V2.Term.Ann e <$> rewriteType doRef typ
-      mapToVec :: Ord i => (a -> b) -> Map a i -> Vector b
-      mapToVec f = Vector.fromList . map (f . fst) . List.sortOn snd . Map.toList
-      stateToIds :: LocalIdState -> V2.LocalIds.LocalIds
-      stateToIds (t, o) =
-        V2.LocalIds.LocalIds (mapToVec lookupText t) (mapToVec lookup2 o)
-      -- state : (Map Text Int, Map Hash Int)
-      -- Term.app Nat.+ 7 #8sf73g
-      -- ["Nat.+"] [#8sf73g]
-      -- [lookupText "Nat.+"] [lookup #8sf73g]
-      -- Term.app (Builtin 0) 7 (Hash 0)
-      in V2.TermFormat.LocallyIndexedComponent
-        . Vector.fromList
-        . fmap swap
-        . fmap (second stateToIds) $ rewrittenTerms
-    -- | converts v to (Right v) and converts (Ref Nothing i) to (Left i)
-    refToVarTerm :: Ord v =>
-      V2.ABT.Term (V2.Term.F' text (V2.Reference.Reference' t (Maybe h)) typeRef termLink typeLink vt) v a ->
-      V2.ABT.Term (V2.Term.F' text (V2.Reference.Reference' t (Maybe h)) typeRef termLink typeLink vt) (Either (V1 Int) v) a
-    refToVarTerm = mapTermToVar Right \a body -> case body of
-      V2.Term.Ref (V2.Reference.ReferenceDerived (V2.Reference.Id Nothing i)) ->
-        Just $ V2.ABT.var a (Left (V1 (fromIntegral i)))
-      _ -> Nothing
-    varToRefTerm :: (Show v, Ord v) => Map (V1 Int) (V2 Int) ->
-      V2.ABT.Term (V2.Term.F' text (V2.Reference.Reference' t (Maybe h)) typeRef termLink typeLink vt) (Either (V1 Int) v) a ->
-      V2.ABT.Term (V2.Term.F' text (V2.Reference.Reference' t (Maybe h)) typeRef termLink typeLink vt) v a
-    varToRefTerm lookup = mapVarToTerm fromLeft $ mapLeft \(V1 i) ->
+  let buildTermType2H :: (V1 Hash -> V2 Hash) -> V1Type -> V2HashTypeOfTerm
+      buildTermType2H lookup = goType
+        where
+          goType :: V1Type -> V2HashTypeOfTerm
+          goType = convertABT goABT convertSymbol (const ())
+          goABT :: V1.Type.F V1Type -> V2.Type.FT V2HashTypeOfTerm
+          goABT = \case
+            V1.Type.Ref r -> V2.Type.Ref case r of
+              V1.Reference.Builtin t ->
+                V2.Reference.ReferenceBuiltin t
+              V1.Reference.Derived h i _n ->
+                V2.Reference.ReferenceDerived
+                  (V2.Reference.Id (runV2 . lookup $ V1 h) i)
+            V1.Type.Arrow i o -> V2.Type.Arrow (goType i) (goType o)
+            V1.Type.Ann a k -> V2.Type.Ann (goType a) (convertKind k)
+            V1.Type.App f x -> V2.Type.App (goType f) (goType x)
+            V1.Type.Effect e b -> V2.Type.Effect (goType e) (goType b)
+            V1.Type.Effects as -> V2.Type.Effects (goType <$> as)
+            V1.Type.Forall a -> V2.Type.Forall (goType a)
+            V1.Type.IntroOuter a -> V2.Type.IntroOuter (goType a)
+      buildTerm2H :: (V1 Hash -> V2 Hash) -> V1 Hash -> V1Term -> V2HashTerm
+      buildTerm2H lookup self = goTerm
+        where
+          goTerm = convertABT goABT convertSymbol (const ())
+          goABT :: V1.Term.F V1.Symbol.Symbol () V1Term -> V2.Term.F V2.Symbol.Symbol V2HashTerm
+          lookupTermLink = \case
+            V1.Referent.Ref r -> V2.Referent.Ref (lookupTerm r)
+            V1.Referent.Con r i _ct -> V2.Referent.Con (lookupType r) (fromIntegral i)
+          lookupTerm = \case
+            V1.Reference.Builtin t -> V2.Reference.ReferenceBuiltin t
+            V1.Reference.Derived h i _n ->
+              let h' = if V1 h == self then
+                         Nothing
+                       else Just . runV2 . lookup $ V1 h
+              in V2.Reference.ReferenceDerived (V2.Reference.Id h' i)
+          lookupType = \case
+            V1.Reference.Builtin t -> V2.Reference.ReferenceBuiltin t
+            V1.Reference.Derived h i _n ->
+              V2.Reference.ReferenceDerived
+                (V2.Reference.Id (runV2 . lookup $ V1 h) i)
+          goABT = \case
+            V1.Term.Int i -> V2.Term.Int i
+            V1.Term.Nat n -> V2.Term.Nat n
+            V1.Term.Float f -> V2.Term.Float f
+            V1.Term.Boolean b -> V2.Term.Boolean b
+            V1.Term.Text t -> V2.Term.Text t
+            V1.Term.Char c -> V2.Term.Char c
+            V1.Term.Ref r -> V2.Term.Ref (lookupTerm r)
+            V1.Term.Constructor r i ->
+              V2.Term.Constructor (lookupType r) (fromIntegral i)
+            V1.Term.Request r i ->
+              V2.Term.Constructor (lookupType r) (fromIntegral i)
+            V1.Term.Handle b h -> V2.Term.Handle (goTerm b) (goTerm h)
+            V1.Term.App f a -> V2.Term.App (goTerm f) (goTerm a)
+            V1.Term.Ann e t -> V2.Term.Ann (goTerm e) (buildTermType2H lookup t)
+            V1.Term.Sequence as -> V2.Term.Sequence (goTerm <$> as)
+            V1.Term.If c t f -> V2.Term.If (goTerm c) (goTerm t) (goTerm f)
+            V1.Term.And a b -> V2.Term.And (goTerm a) (goTerm b)
+            V1.Term.Or a b -> V2.Term.Or (goTerm a) (goTerm b)
+            V1.Term.Lam a -> V2.Term.Lam (goTerm a)
+            V1.Term.LetRec _ bs body -> V2.Term.LetRec (goTerm <$> bs) (goTerm body)
+            V1.Term.Let _ b body -> V2.Term.Let (goTerm b) (goTerm body)
+            V1.Term.Match e cases -> V2.Term.Match (goTerm e) (goCase <$> cases)
+            V1.Term.TermLink r -> V2.Term.TermLink (lookupTermLink r)
+            V1.Term.TypeLink r -> V2.Term.TypeLink (lookupType r)
+          goCase (V1.Term.MatchCase p g b) =
+            V2.Term.MatchCase (goPat p) (goTerm <$> g) (goTerm b)
+          goPat = \case
+            V1.Pattern.Unbound -> V2.Term.PUnbound
+            V1.Pattern.Var -> V2.Term.PVar
+            V1.Pattern.Boolean b -> V2.Term.PBoolean b
+            V1.Pattern.Int i -> V2.Term.PInt i
+            V1.Pattern.Nat n -> V2.Term.PNat n
+            V1.Pattern.Float d -> V2.Term.PFloat d
+            V1.Pattern.Text t -> V2.Term.PText t
+            V1.Pattern.Char c -> V2.Term.PChar c
+            V1.Pattern.Constructor r i ps ->
+              V2.Term.PConstructor (lookupType r) i (goPat <$> ps)
+            V1.Pattern.As p -> V2.Term.PAs (goPat p)
+            V1.Pattern.EffectPure p -> V2.Term.PEffectPure (goPat p)
+            V1.Pattern.EffectBind r i ps k ->
+              V2.Term.PEffectBind (lookupType r) i (goPat <$> ps) (goPat k)
+            V1.Pattern.SequenceLiteral ps -> V2.Term.PSequenceLiteral (goPat <$> ps)
+            V1.Pattern.SequenceOp p op p2 ->
+              V2.Term.PSequenceOp (goPat p) (goSeqOp op) (goPat p2)
+          goSeqOp = \case
+            V1.Pattern.Cons -> V2.Term.PCons
+            V1.Pattern.Snoc -> V2.Term.PSnoc
+            V1.Pattern.Concat -> V2.Term.PConcat
+      buildTermComponent2S ::
+        (V2 Hash -> Db.ObjectId) -> V2 Hash -> V2HashTermComponent -> V2DiskTermComponent
+      buildTermComponent2S getId h0 terms =
+        let rewrittenTerms :: [(V2.TermFormat.Term, LocalIdState)] =
+              map (flip State.runState mempty . rewriteTerm) terms
+            rewriteTerm :: V2HashTerm -> State.State LocalIdState V2.TermFormat.Term
+            rewriteTerm = V2.ABT.transformM go
+              where
+                doText :: Text -> State.State LocalIdState V2.TermFormat.LocalTextId
+                doText t = do
+                  (textMap, objectMap) <- State.get
+                  case Map.lookup t textMap of
+                    Nothing -> do
+                      let id =
+                            V2.TermFormat.LocalTextId
+                              . fromIntegral
+                              $ Map.size textMap
+                      State.put (Map.insert t id textMap, objectMap)
+                      pure id
+                    Just id -> pure id
+                doHash :: Hash -> State.State LocalIdState V2.TermFormat.LocalDefnId
+                doHash (V2 -> h) = do
+                  (textMap, objectMap) <- State.get
+                  case Map.lookup h objectMap of
+                    Nothing -> do
+                      let id =
+                            V2.TermFormat.LocalDefnId
+                              . fromIntegral
+                              $ Map.size objectMap
+                      State.put (textMap, Map.insert h id objectMap)
+                      pure id
+                    Just id -> pure id
+                doRecRef :: V2.Reference.Reference' Text (Maybe Hash) -> State.State LocalIdState V2.TermFormat.TermRef
+                doRecRef = \case
+                  V2.Reference.ReferenceBuiltin t ->
+                    V2.Reference.ReferenceBuiltin <$> doText t
+                  V2.Reference.ReferenceDerived r ->
+                    V2.Reference.ReferenceDerived <$> case r of
+                      V2.Reference.Id h i -> V2.Reference.Id <$> traverse doHash h <*> pure i
+                doRef :: V2.Reference.Reference -> State.State LocalIdState V2.TermFormat.TypeRef
+                doRef = \case
+                  V2.Reference.ReferenceBuiltin t ->
+                    V2.Reference.ReferenceBuiltin <$> doText t
+                  V2.Reference.ReferenceDerived (V2.Reference.Id h i) ->
+                    V2.Reference.ReferenceDerived
+                      <$> (V2.Reference.Id <$> doHash h <*> pure i)
+                go :: V2.Term.F V2.Symbol.Symbol k -> State LocalIdState (V2.TermFormat.F k)
+                go = \case
+                  V2.Term.Int i -> pure $ V2.Term.Int i
+                  V2.Term.Nat n -> pure $ V2.Term.Nat n
+                  V2.Term.Float d -> pure $ V2.Term.Float d
+                  V2.Term.Boolean b -> pure $ V2.Term.Boolean b
+                  V2.Term.Text t -> V2.Term.Text <$> doText t
+                  V2.Term.Char c -> pure $ V2.Term.Char c
+                  V2.Term.Ref r -> V2.Term.Ref <$> doRecRef r
+                  V2.Term.Constructor r cid ->
+                    V2.Term.Constructor <$> doRef r <*> pure cid
+                  V2.Term.Request r cid -> V2.Term.Request <$> doRef r <*> pure cid
+                  V2.Term.Handle e h -> pure $ V2.Term.Handle e h
+                  V2.Term.App f a -> pure $ V2.Term.App f a
+                  V2.Term.Ann e typ -> V2.Term.Ann e <$> rewriteType doRef typ
+            mapToVec :: Ord i => (a -> b) -> Map a i -> Vector b
+            mapToVec f = Vector.fromList . map (f . fst) . List.sortOn snd . Map.toList
+            stateToIds :: LocalIdState -> V2.LocalIds.LocalIds
+            stateToIds (t, o) =
+              V2.LocalIds.LocalIds (mapToVec lookupText t) (mapToVec lookup2 o)
+            -- state : (Map Text Int, Map Hash Int)
+            -- Term.app Nat.+ 7 #8sf73g
+            -- ["Nat.+"] [#8sf73g]
+            -- [lookupText "Nat.+"] [lookup #8sf73g]
+            -- Term.app (Builtin 0) 7 (Hash 0)
+         in V2.TermFormat.LocallyIndexedComponent
+              . Vector.fromList
+              . fmap swap
+              . fmap (second stateToIds)
+              $ rewrittenTerms
+      refToVarTerm ::
+        Ord v =>
+        V2.ABT.Term (V2.Term.F' text (V2.Reference.Reference' t (Maybe h)) typeRef termLink typeLink vt) v a ->
+        V2.ABT.Term (V2.Term.F' text (V2.Reference.Reference' t (Maybe h)) typeRef termLink typeLink vt) (Either (V1 Int) v) a
+      refToVarTerm = mapTermToVar Right \a body -> case body of
+        V2.Term.Ref (V2.Reference.ReferenceDerived (V2.Reference.Id Nothing i)) ->
+          Just $ V2.ABT.var a (Left (V1 (fromIntegral i)))
+        _ -> Nothing
+      varToRefTerm ::
+        (Show v, Ord v) =>
+        Map (V1 Int) (V2 Int) ->
+        V2.ABT.Term (V2.Term.F' text (V2.Reference.Reference' t (Maybe h)) typeRef termLink typeLink vt) (Either (V1 Int) v) a ->
+        V2.ABT.Term (V2.Term.F' text (V2.Reference.Reference' t (Maybe h)) typeRef termLink typeLink vt) v a
+      varToRefTerm lookup = mapVarToTerm fromLeft $ mapLeft \(V1 i) ->
         V2.Term.Ref (V2.Reference.Derived Nothing (fromIntegral i))
-      where
-      fromLeft :: Show a => Either a b -> b
-      fromLeft = flip either id \r ->
-        error ("encountered a reference pseudovar " ++ show r ++ " in ABT.Abs")
-
-    rehashComponent :: (V1 Hash -> V2 Hash) -> V1 Hash -> [V1Term] -> (V2 Hash, V2HashTermComponent)
-    rehashComponent lookup1 hash1 v1terms =
-      let fromLeft = either id (\x -> error $ "impossibly " ++ show x)
-      in let
-      indexVars = Left . V1 <$> [0..]
-      namedTerms1 :: [(Either (V1 Int) V2.Symbol.Symbol, V1Term)]
-      namedTerms1 = zip indexVars v1terms
-      namedTerms2 :: [(Either (V1 Int) V2.Symbol.Symbol, V2HashTerm)]
-      namedTerms2 = fmap (second (buildTerm2H lookup1 hash1)) namedTerms1
-      namedTermMap :: Map (Either (V1 Int) V2.Symbol.Symbol) V2HashTerm
-      namedTermMap = Map.fromList namedTerms2
+        where
+          fromLeft :: Show a => Either a b -> b
+          fromLeft = flip either id \r ->
+            error ("encountered a reference pseudovar " ++ show r ++ " in ABT.Abs")
+      rehashComponent :: (V1 Hash -> V2 Hash) -> V1 Hash -> [(V1Term, V1Type)] -> (V2 Hash, [V2HashTypeOfTerm], V2HashTermComponent)
+      rehashComponent lookup1 hash1 (unzip -> (v1terms, v1types)) =
+        let fromLeft = either id (\x -> error $ "impossibly " ++ show x)
+         in let indexVars = Left . V1 <$> [0 ..]
+                namedTerms1 :: [(Either (V1 Int) V2.Symbol.Symbol, V1Term)]
+                namedTerms1 = zip indexVars v1terms
+                namedTerms2 :: [(Either (V1 Int) V2.Symbol.Symbol, V2HashTerm)]
+                namedTerms2 = fmap (second (buildTerm2H lookup1 hash1)) namedTerms1
+                namedTermMap :: Map (Either (V1 Int) V2.Symbol.Symbol) V2HashTerm
+                namedTermMap = Map.fromList namedTerms2
+                hash2 :: V2 Hash
+                v1Index :: [V1 Int]
+                -- (h, ([2, 0, 1], [t2, t0, t1])
+                (hash2, unzip -> (fmap fromLeft -> v1Index, v2Terms)) =
+                  V2.ABT.hashComponent (refToVarTerm <$> namedTermMap)
+                indexMap :: Map (V1 Int) (V2 Int)
+                indexMap = Map.fromList (zip v1Index (V2 <$> [0 :: Int ..]))
+                convertedTypes, permutedTypes :: [V2HashTypeOfTerm]
+                convertedTypes = map (buildTermType2H lookup1) v1types
+                -- the first element of v1Index is the V1 index of the first V2 element
+                permutedTypes = map (((!!) convertedTypes) . runV1) v1Index
+             in (hash2, permutedTypes, varToRefTerm indexMap <$> v2Terms)
       hash2 :: V2 Hash
-      v1Index :: [V1 Int]
-      -- (h, ([2, 0, 1], [t2, t0, t1])
-      (hash2, unzip -> (fmap fromLeft -> v1Index, v2Terms)) =
-        V2.ABT.hashComponent (refToVarTerm <$> namedTermMap)
-      indexMap :: Map (V1 Int) (V2 Int)
-      indexMap = Map.fromList (zip v1Index (V2 <$> [0 :: Int ..]))
-      in (hash2, varToRefTerm indexMap <$> v2Terms)
-
-    v2types :: [V2TypeOfTerm] =
-      map (buildTermType2H lookup1 . snd) v1component
-
-    -- |rehash and reorder component
-    hash2 :: V2 Hash
-    v2hashComponent :: V2HashTermComponent
-    (hash2, v2hashComponent) = rehashComponent lookup1 hash1 (map fst v1component)
-
-    -- construct v2 term component for serializing
-    v2diskComponent :: V2DiskTermComponent =
-      buildTermComponent2S lookup2 hash2 v2hashComponent
+      v2types :: [V2HashTypeOfTerm]
+      v2hashComponent :: V2HashTermComponent
+      (hash2, v2types, v2hashComponent) = rehashComponent lookup1 hash1 v1component
+      -- construct v2 term component for serializing
+      v2diskComponent :: V2DiskTermComponent =
+        buildTermComponent2S lookup2 hash2 v2hashComponent
 
   -- serialize the v2 term component
   componentObjectId :: Db.ObjectId <- saveTermComponent hash1 hash2 v2diskComponent
 
-  -- -- construct v2 types for each component element, and save the types to the
-  -- -- to the indices
-  -- for_ (zip [0 ..] v2types) $ \(i, type2) -> do
-  --   let r = V2.Reference.Id componentObjectId i
-  --   let rt = V2.Referent.RefId r
+  -- construct v2 types for each component element, and save the types to the
+  -- to the indices
+  for_ (zip [0 ..] v2types) $ \(i, type2) -> do
+    let r = V2.Reference.Id componentObjectId i
+    let rt = V2.Referent.RefId r
 
-  --   saveTypeBlobForReferent rt (buildTermType2S (snd . lookup) typ1)
-  --   createTypeSearchIndicesForReferent rt typ1
-  --   createDependencyIndexForTerm r term2
+    saveTypeBlobForTerm r (buildTermType2S lookupText lookup2 type2)
+  -- createTypeSearchIndicesForReferent rt type2
+  -- createDependencyIndexForTerm r term2
   error "todo: save types and create type indices for component"
 
 convertDecl1 :: DB m => (V1 Hash -> V2 Hash) -> (V2 Hash -> Db.ObjectId) -> V1 Hash -> [V1Decl] -> m ()
 convertDecl1 lookup1 lookup2 hash1 v1component = do
-  let
-    -- convert constructor type (similar to buildTermType2H)
-    v2ctorTypes :: [V2TypeOfConstructor] = error "todo"
-    -- rehash and reorder component
-    hash2 :: V2 Hash
-    v2hashComponent :: V2HashDeclComponent
-    (hash2, v2hashComponent) = error "todo: rehashComponent lookup1 hash1 v1component"
-    -- convert decl component
-    v2diskComponent :: V2DiskDeclComponent = error "todo"
+  let -- convert constructor type (similar to buildTermType2H)
+      v2ctorTypes :: [V2TypeOfConstructor] = error "todo"
+      -- rehash and reorder component
+      hash2 :: V2 Hash
+      v2hashComponent :: V2HashDeclComponent
+      (hash2, v2hashComponent) = error "todo: rehashComponent lookup1 hash1 v1component"
+      -- convert decl component
+      v2diskComponent :: V2DiskDeclComponent = error "todo"
   componentObjectId :: Db.ObjectId <- saveDeclComponent hash1 hash2 v2diskComponent
   error "todo: create type indices for each decl in the component"
 
@@ -1253,9 +1281,9 @@ convertDecl1 lookup1 lookup2 hash1 v1component = do
 --     lookupType :: V1 Hash -> Db.ObjectId
 --     lookupType = lookup
 
--- buildTermType2S :: (V1 Hash -> Db.ObjectId) -> Type -> Type2S
--- buildTermType2S lookup =
---   void . Type.rmap (over Db.referenceTraversal (lookup . V1))
+buildTermType2S :: (Text -> Db.TextId) -> (V2 Hash -> Db.ObjectId) -> V2HashTypeOfTerm -> V2DiskTypeOfTerm
+buildTermType2S lookupText lookup2 = V2.Type.rmap
+  (over V2.Reference.t lookupText . over V2.Reference.h (lookup2 . V2))
 
 -- buildDecl2H :: (V1 Hash -> V2 Hash) -> V1 Hash -> Decl -> Decl2 Hash
 -- buildDecl2H lookup =

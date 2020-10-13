@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -11,6 +12,7 @@ import qualified U.Util.Hash as Hash
 import U.Util.Hash (Hash)
 import U.Util.Hashable (Hashable (..))
 import qualified U.Util.Hashable as Hashable
+import Control.Lens (Traversal)
 
 -- |This is the canonical representation of Reference
 type Reference = Reference' Text Hash
@@ -29,6 +31,16 @@ pattern Derived h i = ReferenceDerived (Id h i)
 type ComponentIndex = Word64
 data Id' h = Id h ComponentIndex
   deriving (Eq, Ord, Show, Functor)
+
+t :: Traversal (Reference' t h) (Reference' t' h) t t'
+t f = \case
+  ReferenceBuiltin t -> ReferenceBuiltin <$> f t
+  ReferenceDerived id -> pure (ReferenceDerived id)
+
+h :: Traversal (Reference' t h) (Reference' t h') h h'
+h f = \case
+  ReferenceBuiltin t -> pure (ReferenceBuiltin t)
+  Derived h i -> Derived <$> f h <*> pure i
 
 instance Hashable Reference where
   tokens (ReferenceBuiltin txt) =

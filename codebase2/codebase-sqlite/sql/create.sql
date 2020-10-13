@@ -34,23 +34,11 @@ CREATE TABLE object_type_description (
 );
 INSERT INTO object_type_description (id, description) VALUES
     (0, "Term Component"), -- foo x = x + 1
-    (1, "Types of Term Component"), -- [Nat -> Nat]
-    (2, "Decl Component"), -- unique type Animal = Cat | Dog | Mouse
-    (3, "Namespace"), -- a one-level slice
-    (4, "Patch") -- replace term #abc with term #def
-    -- (5, "Local Text/Object Lookup") -- future
+    (1, "Decl Component"), -- unique type Animal = Cat | Dog | Mouse
+    (2, "Namespace"), -- a one-level slice
+    (3, "Patch") -- replace term #abc with term #def
     ;
 
--- How should objects be linked to hashes?  (and old hashes)
--- And which id should be linked into blobs?
---   a) object.id -- no: I ran into an issue in serializing a type annotation
---                   within a term; there wasn't enough info here to properly
---                   ser/des a type annotation that includes a self-ref, and I
---                   couldn't convince myself that the situation wouldn't come up
---   b) hash.id -- ~~no: multiple hashes may refer to one object~~
---              -- though, I guess that's true even when they are represented as
---              -- inline bytestrings.  so I'm going with this option.
---
 CREATE TABLE object (
   id INTEGER PRIMARY KEY,
   primary_hash_id UNIQUE INTEGER NOT NULL REFERENCES hash(id),
@@ -92,14 +80,12 @@ CREATE TABLE causal_old (
   new_hash_id INTEGER NOT NULL REFERENCES hash(id)
 );
 
--- -- |Links a referent to its type's object
--- CREATE TABLE type_of_referent (
---   object_id INTEGER NOT NULL REFERENCES object(id),
---   component_index INTEGER NOT NULL,
---   constructor_index INTEGER NULL,
---   bytes BLOB NOT NULL,
---   PRIMARY KEY (object_id, component_index, constructor_index)
--- );
+CREATE TABLE type_of_term (
+  object_id INTEGER NOT NULL REFERENCES object(id),
+  component_index INTEGER NOT NULL,
+  bytes BLOB NOT NULL,
+  PRIMARY KEY (object_id, component_index)
+);
 
 -- --CREATE TABLE type_of_referent (
 -- --  referent_derived_id INTEGER NOT NULL PRIMARY KEY REFERENCES referent_derived(id),

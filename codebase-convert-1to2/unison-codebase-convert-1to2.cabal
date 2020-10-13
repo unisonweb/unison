@@ -26,6 +26,7 @@ executable uconvert12
     -- directory,
     -- errors,
     -- filepath,
+    lens,
     -- megaparsec,
     -- safe,
     -- shellmet,
@@ -38,6 +39,7 @@ library
   hs-source-dirs: lib
   exposed-modules:
     U.Codebase.Convert.SyncV1V2
+    U.Codebase.Convert.TypeUtil
   -- other-modules:
   -- other-extensions:
   build-depends:

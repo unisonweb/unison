@@ -22,6 +22,9 @@ import qualified U.Util.Hashable as Hashable
 import Data.Functor (void)
 import qualified Data.List as List
 import qualified Data.Vector as Vector
+import Control.Monad (join)
+import Data.Functor.Identity (Identity(runIdentity))
+import Data.Maybe (fromMaybe)
 
 data ABT f v r
   = Var v
@@ -137,3 +140,69 @@ instance (Hashable1 f, Functor f) => Hashable1 (Component f) where
       toks = Hashable.Hashed <$> hs
       in Hashable.accumulate $ (Hashable.Tag 1 : toks) ++ [Hashable.Hashed (hash a)]
     Embed fa -> Hashable.hash1 hashCycle hash fa
+
+-- * Traversals
+-- | `visit f t` applies an effectful function to each subtree of
+-- `t` and sequences the results. When `f` returns `Nothing`, `visit`
+-- descends into the children of the current subtree. When `f` returns
+-- `Just t2`, `visit` replaces the current subtree with `t2`. Thus:
+-- `visit (const Nothing) t == pure t` and
+-- `visit (const (Just (pure t2))) t == pure t2`
+visit
+  :: (Traversable f, Applicative g, Ord v)
+  => (Term f v a -> Maybe (g (Term f v a)))
+  -> Term f v a
+  -> g (Term f v a)
+visit f t = flip fromMaybe (f t) $ case out t of
+  Var   _    -> pure t
+  Cycle body -> cycle (annotation t) <$> visit f body
+  Abs x e    -> abs (annotation t) x <$> visit f e
+  Tm body    -> tm (annotation t) <$> traverse (visit f) body
+
+-- | Apply an effectful function to an ABT tree top down, sequencing the results.
+visit' :: (Traversable f, Applicative g, Monad g, Ord v)
+       => (f (Term f v a) -> g (f (Term f v a)))
+       -> Term f v a
+       -> g (Term f v a)
+visit' f t = case out t of
+  Var _ -> pure t
+  Cycle body -> cycle (annotation t) <$> visit' f body
+  Abs x e -> abs (annotation t) x <$> visit' f e
+  Tm body -> f body >>= (fmap (tm (annotation t)) . traverse (visit' f))
+
+-- | `visit` specialized to the `Identity` effect.
+visitPure :: (Traversable f, Ord v)
+      => (Term f v a -> Maybe (Term f v a)) -> Term f v a -> Term f v a
+visitPure f = runIdentity . visit (fmap pure . f)
+
+foreachSubterm
+  :: (Traversable f, Applicative g, Ord v)
+  => (Term f v a -> g b)
+  -> Term f v a
+  -> g [b]
+foreachSubterm f e = case out e of
+  Var   _    -> pure <$> f e
+  Cycle body -> (:) <$> f e <*> foreachSubterm f body
+  Abs _ body -> (:) <$> f e <*> foreachSubterm f body
+  Tm body ->
+    (:)
+      <$> f e
+      <*> (join . Foldable.toList <$> traverse (foreachSubterm f) body)
+
+subterms :: (Ord v, Traversable f) => Term f v a -> [Term f v a]
+subterms t = runIdentity $ foreachSubterm pure t
+
+-- * Patterns
+pattern Var' :: v -> Term f v a
+pattern Var' v <- Term _ _ (Var v)
+pattern Cycle' :: [v] -> Term f v a -> Term f v a
+pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs t))
+pattern AbsN' :: [v] -> Term f v a -> Term f v a
+pattern AbsN' vs body <- (unabs -> (vs, body))
+pattern Tm' :: f (Term f v a) -> Term f v a
+pattern Tm' f <- Term _ _ (Tm f)
+
+unabs :: Term f v a -> ([v], Term f v a)
+unabs (Term _ _ (Abs hd body)) =
+  let (tl, body') = unabs body in (hd : tl, body')
+unabs t = ([], t)
