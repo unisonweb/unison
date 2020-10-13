@@ -39,7 +39,6 @@ List.map f as =
     (h +: t) -> go (acc :+ f h) t
   go [] as
 
--- not very efficient, but okay for testing
 hex : Bytes -> Text
 hex b =
   Bytes.toBase16 b
@@ -47,59 +46,28 @@ hex b =
     |> List.map Char.fromNat
     |> Text.fromCharList
 
-ascii : Text -> Bytes
-ascii t = Text.toCharList t |> List.map Char.toNat |> Bytes.fromList
-
-fromHex : Text -> Bytes
-fromHex txt =
-  match Text.toCharList txt
-          |> List.map Char.toNat
-          |> Bytes.fromList
-          |> Bytes.fromBase16
-  with
-    Left e -> bug e
-    Right bs -> bs
-
 check : Boolean -> [Result]
 check b = if b then [Result.Ok "Passed."]
           else [Result.Fail "Failed."]
-
-test> hex.tests.ex1 = check let
-         s = "3984af9b"
-         hex (fromHex s) == s
 ```
 
-The test shows that `hex (fromHex str) == str` as expected.
-
-```ucm
-.scratch> test
-
-  Cached test results (`help testcache` to learn more)
-  
-  ◉ hex.tests.ex1   Passed.
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view hex.tests.ex1 to view the source of a test.
-
-```
 ## API overview
 
 Here's a few usage examples:
 
 ```unison
-ex1 = fromHex "2947db"
+ex1 = toUtf8 "2947db"
         |> crypto.hashBytes Sha3_512
         |> hex
 
-ex2 = fromHex "02f3ab"
+ex2 = toUtf8 "02f3ab"
         |> crypto.hashBytes Blake2b_256
         |> hex
 
 mysecret : Bytes
-mysecret = fromHex "237be2"
+mysecret = toUtf8 "237be2"
 
-ex3 = fromHex "50d3ab"
+ex3 = toUtf8 "50d3ab"
         |> crypto.hmacBytes Sha2_256 mysecret
         |> hex
 
@@ -126,15 +94,15 @@ ex3 = fromHex "50d3ab"
 
     16 | > ex1
            ⧩
-           "f3c342040674c50ab45cb1874b6dbc81447af5958201ed4127e03b56725664d7cc44b88b9afadb371898fcaf5d0adeff60837ef93b514f99da43539d79820c99"
+           "fe09ff8ec1f14508f4c8dfce68ad21fc62492ea5698cdd6bf0df92f1cc8f5e2ee011b0653aa7775395724051e57e6e08217b2c5e05a0e1c894baa69ae6109f16"
   
     17 | > ex2
            ⧩
-           "84bb437497f26fc33c51e57e64c37958c3918d50dfe75b91c661a85c2f8f8304"
+           "a9d3ac6df178e4b4f59be8a36c30e8ff91b4fa04c766560ada002683d3013c59"
   
     18 | > ex3
            ⧩
-           "c692fc54df921f7fa51aad9178327c5a097784b02212d571fb40facdfff881fd"
+           "f453d8343a7a33730a1bd2b84e826ec957e8a91074a2370f3d56770d5846990b"
 
 ```
 And here's the full API:
@@ -160,7 +128,7 @@ And here's the full API:
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
 
 ```
-> crypto.hash Sha3_256 (fromHex "3849238492")
+> crypto.hash Sha3_256 (toUtf8 "3849238492")
 
 ```
 
@@ -170,8 +138,8 @@ Here are some test vectors (taken from [here](https://www.di-mgt.com.au/sha_test
 
 ```unison
 ex alg input expected = check let
-  hashBytes alg (ascii input) ==
-  fromHex expected
+  hex (hashBytes alg (toUtf8 input)) ==
+  expected
 
 test> sha3_512.tests.ex1 =
   ex Sha3_512
@@ -279,32 +247,30 @@ test> blake2b_512.tests.ex3 =
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ blake2s_256.tests.ex1   Passed.
-  ◉ sha2_256.tests.ex2      Passed.
-  ◉ hex.tests.ex1           Passed.
   ◉ sha2_256.tests.ex3      Passed.
-  ◉ sha3_512.tests.ex2      Passed.
-  ◉ blake2b_512.tests.ex1   Passed.
-  ◉ sha3_512.tests.ex1      Passed.
-  ◉ sha3_256.tests.ex2      Passed.
-  ◉ sha3_512.tests.ex3      Passed.
-  ◉ sha2_512.tests.ex1      Passed.
-  ◉ sha2_256.tests.ex4      Passed.
-  ◉ blake2b_512.tests.ex3   Passed.
-  ◉ sha3_256.tests.ex1      Passed.
-  ◉ sha2_512.tests.ex4      Passed.
   ◉ sha3_256.tests.ex4      Passed.
-  ◉ sha3_256.tests.ex3      Passed.
+  ◉ sha3_512.tests.ex2      Passed.
   ◉ sha3_512.tests.ex4      Passed.
+  ◉ sha2_512.tests.ex1      Passed.
   ◉ sha2_256.tests.ex1      Passed.
-  ◉ sha2_512.tests.ex3      Passed.
-  ◉ blake2b_512.tests.ex2   Passed.
+  ◉ sha3_512.tests.ex3      Passed.
+  ◉ sha2_256.tests.ex4      Passed.
   ◉ sha2_512.tests.ex2      Passed.
+  ◉ blake2b_512.tests.ex2   Passed.
+  ◉ sha3_256.tests.ex3      Passed.
+  ◉ sha2_256.tests.ex2      Passed.
+  ◉ sha3_512.tests.ex1      Passed.
+  ◉ blake2b_512.tests.ex1   Passed.
+  ◉ sha3_256.tests.ex2      Passed.
+  ◉ blake2s_256.tests.ex1   Passed.
+  ◉ sha3_256.tests.ex1      Passed.
+  ◉ sha2_512.tests.ex3      Passed.
+  ◉ blake2b_512.tests.ex3   Passed.
+  ◉ sha2_512.tests.ex4      Passed.
   
-  ✅ 21 test(s) passing
+  ✅ 20 test(s) passing
   
-  Tip: Use view blake2s_256.tests.ex1 to view the source of a
-       test.
+  Tip: Use view sha2_256.tests.ex3 to view the source of a test.
 
 ```
 ## HMAC tests
@@ -313,30 +279,33 @@ These test vectors are taken from [RFC 4231](https://tools.ietf.org/html/rfc4231
 
 ```unison
 ex' alg secret msg expected = check let
-  hmacBytes alg (fromHex secret) (ascii msg) ==
-  fromHex expected
+  hex (hmacBytes alg secret (toUtf8 msg)) ==
+  expected
+
+key1 = Bytes.fromList [11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11]
+key2 = Bytes.fromList [74, 101, 102, 101]
 
 test> hmac_sha2_256.tests.ex1 =
   ex' Sha2_256
-    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
+    key1
     "Hi There"
     "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
 
 test> hmac_sha2_512.tests.ex1 =
   ex' Sha2_512
-    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
+    key1
     "Hi There"
     "87aa7cdea5ef619d4ff0b4241a1d6cb02379f4e2ce4ec2787ad0b30545e17cdedaa833b7d6b8a702038b274eaea3f4e4be9d914eeb61f1702e696c203a126854"
 
 test> hmac_sha2_256.tests.ex2 =
   ex' Sha2_256
-    "4a656665"
+    key2
     "what do ya want for nothing?"
     "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
 
 test> hmac_sha2_512.tests.ex2 =
   ex' Sha2_512
-    "4a656665"
+    key2
     "what do ya want for nothing?"
     "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737"
 ```
@@ -350,7 +319,7 @@ test> hmac_sha2_512.tests.ex2 =
     ⍟ These new definitions are ok to `add`:
     
       ex'                     : HashAlgorithm
-                                -> Text
+                                -> Bytes
                                 -> Text
                                 -> Text
                                 -> [Result]
@@ -358,23 +327,25 @@ test> hmac_sha2_512.tests.ex2 =
       hmac_sha2_256.tests.ex2 : [Result]
       hmac_sha2_512.tests.ex1 : [Result]
       hmac_sha2_512.tests.ex2 : [Result]
+      key1                    : Bytes
+      key2                    : Bytes
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    6 |   ex' Sha2_256
+    9 |   ex' Sha2_256
     
     ✅ Passed Passed.
   
-    12 |   ex' Sha2_512
+    15 |   ex' Sha2_512
     
     ✅ Passed Passed.
   
-    18 |   ex' Sha2_256
+    21 |   ex' Sha2_256
     
     ✅ Passed Passed.
   
-    24 |   ex' Sha2_512
+    27 |   ex' Sha2_512
     
     ✅ Passed Passed.
 
@@ -384,35 +355,33 @@ test> hmac_sha2_512.tests.ex2 =
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ blake2s_256.tests.ex1     Passed.
-  ◉ sha2_256.tests.ex2        Passed.
-  ◉ hex.tests.ex1             Passed.
-  ◉ hmac_sha2_256.tests.ex1   Passed.
   ◉ sha2_256.tests.ex3        Passed.
-  ◉ sha3_512.tests.ex2        Passed.
-  ◉ blake2b_512.tests.ex1     Passed.
-  ◉ sha3_512.tests.ex1        Passed.
-  ◉ sha3_256.tests.ex2        Passed.
-  ◉ sha3_512.tests.ex3        Passed.
-  ◉ sha2_512.tests.ex1        Passed.
-  ◉ sha2_256.tests.ex4        Passed.
-  ◉ blake2b_512.tests.ex3     Passed.
-  ◉ sha3_256.tests.ex1        Passed.
-  ◉ hmac_sha2_512.tests.ex1   Passed.
-  ◉ sha2_512.tests.ex4        Passed.
   ◉ hmac_sha2_256.tests.ex2   Passed.
   ◉ sha3_256.tests.ex4        Passed.
-  ◉ sha3_256.tests.ex3        Passed.
+  ◉ sha3_512.tests.ex2        Passed.
   ◉ sha3_512.tests.ex4        Passed.
-  ◉ hmac_sha2_512.tests.ex2   Passed.
+  ◉ sha2_512.tests.ex1        Passed.
   ◉ sha2_256.tests.ex1        Passed.
-  ◉ sha2_512.tests.ex3        Passed.
-  ◉ blake2b_512.tests.ex2     Passed.
+  ◉ sha3_512.tests.ex3        Passed.
+  ◉ sha2_256.tests.ex4        Passed.
   ◉ sha2_512.tests.ex2        Passed.
+  ◉ blake2b_512.tests.ex2     Passed.
+  ◉ sha3_256.tests.ex3        Passed.
+  ◉ hmac_sha2_512.tests.ex2   Passed.
+  ◉ sha2_256.tests.ex2        Passed.
+  ◉ sha3_512.tests.ex1        Passed.
+  ◉ blake2b_512.tests.ex1     Passed.
+  ◉ sha3_256.tests.ex2        Passed.
+  ◉ blake2s_256.tests.ex1     Passed.
+  ◉ sha3_256.tests.ex1        Passed.
+  ◉ hmac_sha2_512.tests.ex1   Passed.
+  ◉ sha2_512.tests.ex3        Passed.
+  ◉ blake2b_512.tests.ex3     Passed.
+  ◉ hmac_sha2_256.tests.ex1   Passed.
+  ◉ sha2_512.tests.ex4        Passed.
   
-  ✅ 25 test(s) passing
+  ✅ 24 test(s) passing
   
-  Tip: Use view blake2s_256.tests.ex1 to view the source of a
-       test.
+  Tip: Use view sha2_256.tests.ex3 to view the source of a test.
 
 ```
