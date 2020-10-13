@@ -51,12 +51,12 @@ import qualified U.Codebase.Decl as V2.Decl
 import qualified U.Codebase.Kind as V2.Kind
 import qualified U.Codebase.Reference as V2.Reference
 import qualified U.Codebase.Referent as V2.Referent
-import qualified U.Codebase.Referent as V2.Sqlite.Referent
 import Data.String.Here.Uninterpolated (here)
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Queries as Db
 import qualified U.Codebase.Sqlite.Reference as V2S.Reference
 import qualified U.Codebase.Sqlite.Reference as V2.Sqlite.Reference
+import qualified U.Codebase.Sqlite.Referent as V2.Sqlite.Referent
 import qualified U.Codebase.Sqlite.Serialization as S.V2
 import qualified U.Codebase.Sqlite.Symbol as V2.Symbol
 import qualified U.Codebase.Sqlite.Term.Format as V2.TermFormat
