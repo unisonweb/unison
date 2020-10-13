@@ -178,11 +178,9 @@ run newRt dir configFile stanzas codebase branchCache = do
                 case Map.lookup cmd patternMap of
                   -- invalid command is treated as a failure
                   Nothing ->
-                    dieWithMsg
+                    dieWithMsg $ "invalid command name: " <> cmd
                   Just pat -> case IP.parse pat args of
-                    Left msg -> do
-                      output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
-                      dieWithMsg
+                    Left msg -> dieWithMsg $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
                     Right input -> pure $ Right input
 
           Nothing -> do
@@ -239,7 +237,7 @@ run newRt dir configFile stanzas codebase branchCache = do
         output rendered
         when (Output.isFailure o) $
           if errOk then writeIORef hasErrors True
-          else dieWithMsg
+          else dieWithMsg rendered
 
       printNumbered o = do
         let (msg, numberedArgs) = notifyNumbered o
@@ -248,7 +246,7 @@ run newRt dir configFile stanzas codebase branchCache = do
         output rendered
         when (Output.isNumberedFailure o) $
           if errOk then writeIORef hasErrors True
-          else dieWithMsg
+          else dieWithMsg rendered
         pure numberedArgs
 
       -- Looks at the current stanza and decides if it is contained in the
@@ -262,14 +260,15 @@ run newRt dir configFile stanzas codebase branchCache = do
           modifyIORef' out (\acc -> acc <> pure stnz)
 
       -- output ``` and new lines then call transcriptFailure
-      dieWithMsg :: forall a. IO a
-      dieWithMsg = do
+      dieWithMsg :: forall a. String -> IO a
+      dieWithMsg msg = do
         executable <- getProgName
         output "\n```\n\n"
         appendFailingStanza
         transcriptFailure out $ Text.unlines [
           "\128721", "",
           "The transcript failed due to an error encountered in the stanza above.", "",
+          "The error is:", "", Text.pack msg, "",
           "Run `" <> Text.pack executable <> " -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       dieUnexpectedSuccess :: IO ()
