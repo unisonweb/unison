@@ -15,31 +15,44 @@ You can skip this section, which is just needed to make the transcript self-cont
 .builtin> ls Bytes
 ```
 
-Notice the `fromBase16` and `toBase16` functions. Here's some (somewhat inefficient) convenience functions for converting `Bytes` to and from base-16 `Text`. These could be replaced by use of `Text.toUtf8` and `Text.fromUtf8`.
+Notice the `fromBase16` and `toBase16` functions. Here's some convenience functions for converting `Bytes` to and from base-16 `Text`.
 
 ```unison:hide
 a |> f = f a
 
-List.map f as =
-  go acc = cases
-    [] -> acc
-    (h +: t) -> go (acc :+ f h) t
-  go [] as
-
+-- not very efficient, but okay for testing
 hex : Bytes -> Text
 hex b =
-  Bytes.toBase16 b
-    |> Bytes.toList
-    |> List.map Char.fromNat
-    |> Text.fromCharList
+  match Bytes.toBase16 b |> fromUtf8
+  with Left e -> bug e
+       Right t -> t
+
+ascii : Text -> Bytes
+ascii = toUtf8
+
+fromHex : Text -> Bytes
+fromHex txt =
+  match toUtf8 txt |> Bytes.fromBase16
+  with Left e -> bug e
+       Right bs -> bs
 
 check : Boolean -> [Result]
 check b = if b then [Result.Ok "Passed."]
           else [Result.Fail "Failed."]
+
+test> hex.tests.ex1 = check let
+         s = "3984af9b"
+         hex (fromHex s) == s
 ```
 
 ```ucm:hide
 .scratch> add
+```
+
+The test shows that `hex (fromHex str) == str` as expected.
+
+```ucm
+.scratch> test
 ```
 
 ## API overview
@@ -47,18 +60,18 @@ check b = if b then [Result.Ok "Passed."]
 Here's a few usage examples:
 
 ```unison
-ex1 = Bytes.fromList [41, 71, 219]
+ex1 = fromHex "2947db"
         |> crypto.hashBytes Sha3_512
         |> hex
 
-ex2 = Bytes.fromList [2, 243, 171]
+ex2 = fromHex "02f3ab"
         |> crypto.hashBytes Blake2b_256
         |> hex
 
 mysecret : Bytes
-mysecret = Bytes.fromList [35, 123, 226]
+mysecret = fromHex "237be2"
 
-ex3 = Bytes.fromList [80, 211, 171]
+ex3 = fromHex "50d3ab"
         |> crypto.hmacBytes Sha2_256 mysecret
         |> hex
 
@@ -76,7 +89,7 @@ And here's the full API:
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
 
 ```
-> crypto.hash Sha3_256 (toUtf8 "3849238492")
+> crypto.hash Sha3_256 (fromHex "3849238492")
 ```
 
 ## Hashing tests
@@ -85,8 +98,8 @@ Here are some test vectors (taken from [here](https://www.di-mgt.com.au/sha_test
 
 ```unison:hide
 ex alg input expected = check let
-  hex (hashBytes alg (toUtf8 input)) ==
-  expected
+  hashBytes alg (ascii input) ==
+  fromHex expected
 
 test> sha3_512.tests.ex1 =
   ex Sha3_512
@@ -203,33 +216,30 @@ These test vectors are taken from [RFC 4231](https://tools.ietf.org/html/rfc4231
 
 ```unison
 ex' alg secret msg expected = check let
-  hex (hmacBytes alg secret (toUtf8 msg)) ==
-  expected
-
-key1 = Bytes.fromList [11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11]
-key2 = Bytes.fromList [74, 101, 102, 101]
+  hmacBytes alg (fromHex secret) (ascii msg) ==
+  fromHex expected
 
 test> hmac_sha2_256.tests.ex1 =
   ex' Sha2_256
-    key1
+    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
     "Hi There"
     "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
 
 test> hmac_sha2_512.tests.ex1 =
   ex' Sha2_512
-    key1
+    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
     "Hi There"
     "87aa7cdea5ef619d4ff0b4241a1d6cb02379f4e2ce4ec2787ad0b30545e17cdedaa833b7d6b8a702038b274eaea3f4e4be9d914eeb61f1702e696c203a126854"
 
 test> hmac_sha2_256.tests.ex2 =
   ex' Sha2_256
-    key2
+    "4a656665"
     "what do ya want for nothing?"
     "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
 
 test> hmac_sha2_512.tests.ex2 =
   ex' Sha2_512
-    key2
+    "4a656665"
     "what do ya want for nothing?"
     "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737"
 ```
@@ -241,3 +251,4 @@ test> hmac_sha2_512.tests.ex2 =
 ```ucm
 .scratch> test
 ```
+
