@@ -267,8 +267,8 @@ run newRt dir configFile stanzas codebase branchCache = do
         appendFailingStanza
         transcriptFailure out $ Text.unlines [
           "\128721", "",
-          "The transcript failed due to an error encountered in the stanza above.", "",
-          "The error is:", "", Text.pack msg, "",
+          "The transcript failed due to an error in the stanza above. The error is:", "",
+          Text.pack msg, "",
           "Run `" <> Text.pack executable <> " -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       dieUnexpectedSuccess :: IO ()
