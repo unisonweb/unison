@@ -1019,14 +1019,9 @@ socket'receive instr
   = ([BX,BX],)
   . TAbss [sk,n0]
   . unbox n0 Ty.natRef n
-  . io'error'result'let instr [sk,n] ior [UN] [mt] e r
-  . AMatch mt . MatchSum
-  $ mapFromList
-  [ (0, ([], TCon Ty.optionalRef 0 []))
-  , (1, ([BX], TAbs b $ TCon Ty.optionalRef 1 [b]))
-  ]
+  $ io'error'result'direct instr [sk,n] ior e r
   where
-  [n0,sk,n,ior,e,r,b,mt] = freshes 8
+  [n0,sk,n,ior,e,r] = freshes 6
 
 delay'thread :: ForeignOp
 delay'thread instr
@@ -1416,8 +1411,8 @@ declareForeigns = do
   declareForeign "IO.socketSend" socket'send
     . mkForeignIOE $ \(sk,bs) -> SYS.send sk (Bytes.toArray bs)
   declareForeign "IO.socketReceive" socket'receive
-    . mkForeignIOE $ \(hs,n) ->
-        fmap Bytes.fromArray <$> SYS.recv hs n
+    . mkForeignIOE $ \(hs,n) -> 
+       fmap (maybe Bytes.empty Bytes.fromArray) $ SYS.recv hs n 
   declareForeign "IO.kill" kill'thread $ mkForeignIOE killThread
   declareForeign "IO.delay" delay'thread $ mkForeignIOE threadDelay
   declareForeign "IO.stdHandle" standard'handle
