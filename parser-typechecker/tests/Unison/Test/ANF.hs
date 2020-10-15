@@ -43,7 +43,7 @@ simpleRefs r
   | otherwise = 100
 
 runANF :: Var v => ANFM v a -> a
-runANF m = evalState (runReaderT m Set.empty) (0, [])
+runANF m = evalState (runReaderT m Set.empty) (0, 1, [])
 
 testANF :: String -> Test ()
 testANF s
@@ -80,7 +80,7 @@ denormalize (TLet v _ bn bo)
   | typeOf v == ANFBlank = ABT.subst v dbn dbo
   | otherwise = Term.let1_ False [(v, dbn)] dbo
   where
-  dbn = denormalize $ TTm bn
+  dbn = denormalize bn
   dbo = denormalize bo
 denormalize (TName _ _ _ _)
   = error "can't denormalize by-name bindings"

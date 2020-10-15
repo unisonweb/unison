@@ -55,8 +55,6 @@ import Unison.Reference (Reference(..))
 import Unison.Referent (Referent)
 import Unison.Runtime.ANF
   ( ANormal
-  , ANormalT
-  , ANormalTF(..)
   , Branched(..)
   , Func(..)
   , Mem(..)
@@ -74,7 +72,6 @@ import Unison.Runtime.ANF
   , pattern TShift
   , pattern TLets
   , pattern TName
-  , pattern TTm
   , pattern TMatch
   )
 import qualified Unison.Runtime.ANF as ANF
@@ -887,25 +884,25 @@ litArg _       = UArg1 0
 -- manipulation.
 emitLet
   :: Var v
-  => RefNums -> Word64 -> RCtx v -> [(v,Mem)] -> Ctx v -> ANormalT v
+  => RefNums -> Word64 -> RCtx v -> [(v,Mem)] -> Ctx v -> ANormal v
   -> Emit Section
   -> Emit Section
-emitLet _   _   _   _   _   (ALit l)
+emitLet _   _   _   _   _   (TLit l)
   = fmap (Ins $ emitLit l)
-emitLet rns grp _   _   ctx (AApp (FComb r) args)
+emitLet rns grp _   _   ctx (TApp (FComb r) args)
   -- We should be able to tell if we are making a saturated call
   -- or not here. We aren't carrying the information here yet, though.
   | False -- not saturated
   = fmap (Ins . Name (Env n 0) $ emitArgs grp ctx args)
   where
   n = cnum rns r
-emitLet _   grp _   _   ctx (AApp (FCon r n) args)
+emitLet _   grp _   _   ctx (TApp (FCon r n) args)
   = fmap (Ins . Pack r (rawTag n) $ emitArgs grp ctx args)
-emitLet _   grp _   _   ctx (AApp (FPrim p) args)
+emitLet _   grp _   _   ctx (TApp (FPrim p) args)
   = fmap (Ins . either emitPOp emitFOp p $ emitArgs grp ctx args)
 emitLet rns grpn rec vcs ctx bnd
   = \esect ->
-      f <$> emitSection rns grpn rec (Block ctx) (TTm bnd)
+      f <$> emitSection rns grpn rec (Block ctx) bnd
         <*> record (pushCtx vcs ctx) esect
   where
   f s w = Let s (CIx contRef grpn w)

@@ -29,9 +29,7 @@ module Unison.Runtime.ANF
   , pattern TLets
   , pattern TName
   , pattern TBind
-  , pattern TTm
   , pattern TBinds
-  , pattern TBinds'
   , pattern TShift
   , pattern TMatch
   , Mem(..)
@@ -44,10 +42,8 @@ module Unison.Runtime.ANF
   , saturate
   , float
   , lamLift
-  , ANormalBF(..)
-  , ANormalTF(.., AApv, ACom, ACon, AKon, AReq, APrm, AFOp)
+  , ANormalF(.., AApv, ACom, ACon, AKon, AReq, APrm, AFOp)
   , ANormal
-  , ANormalT
   , RTag
   , CTag
   , Tag(..)
@@ -58,7 +54,6 @@ module Unison.Runtime.ANF
   , Func(..)
   , superNormalize
   , anfTerm
-  , sink
   , prettyGroup
   ) where
 
@@ -478,14 +473,10 @@ data CTE v s
 
 pattern ST1 v m s = ST [v] [m] s
 
-data ANormalBF v e
-  = ALet [Mem] (ANormalTF v e) e
+data ANormalF v e
+  = ALet [Mem] e e
   | AName (Either Reference v) [v] e
-  | ATm (ANormalTF v e)
-  deriving (Show)
-
-data ANormalTF v e
-  = ALit Lit
+  | ALit Lit
   | AMatch v (Branched e)
   | AShift Reference e
   | AHnd [Reference] v e
@@ -547,42 +538,33 @@ instance Num CTag where
   signum = error "CTag: signum"
   negate = error "CTag: negate"
 
-instance Functor (ANormalBF v) where
-  fmap f (ALet m bn bo) = ALet m (f <$> bn) $ f bo
-  fmap f (AName n as bo) = AName n as $ f bo
-  fmap f (ATm tm) = ATm $ f <$> tm
-
-instance Bifunctor ANormalBF where
-  bimap f g (ALet m bn bo) = ALet m (bimap f g bn) $ g bo
-  bimap f g (AName n as bo) = AName (f <$> n) (f <$> as) $ g bo
-  bimap f g (ATm tm) = ATm (bimap f g tm)
-
-instance Bifoldable ANormalBF where
-  bifoldMap f g (ALet _ b e) = bifoldMap f g b <> g e
-  bifoldMap f g (AName n as e) = foldMap f n <> foldMap f as <> g e
-  bifoldMap f g (ATm e) = bifoldMap f g e
-
-instance Functor (ANormalTF v) where
+instance Functor (ANormalF v) where
   fmap _ (AVar v) = AVar v
   fmap _ (ALit l) = ALit l
+  fmap f (ALet m bn bo) = ALet m (f bn) (f bo)
+  fmap f (AName n as bo) = AName n as $ f bo
   fmap f (AMatch v br) = AMatch v $ f <$> br
   fmap f (AHnd rs h e) = AHnd rs h $ f e
   fmap f (AShift i e) = AShift i $ f e
   fmap _ (AFrc v) = AFrc v
   fmap _ (AApp f args) = AApp f args
 
-instance Bifunctor ANormalTF where
+instance Bifunctor ANormalF where
   bimap f _ (AVar v) = AVar (f v)
   bimap _ _ (ALit l) = ALit l
+  bimap _ g (ALet m bn bo) = ALet m (g bn) (g bo)
+  bimap f g (AName n as bo) = AName (f <$> n) (f <$> as) $ g bo
   bimap f g (AMatch v br) = AMatch (f v) $ fmap g br
   bimap f g (AHnd rs v e) = AHnd rs (f v) $ g e
   bimap _ g (AShift i e) = AShift i $ g e
   bimap f _ (AFrc v) = AFrc (f v)
   bimap f _ (AApp fu args) = AApp (fmap f fu) $ fmap f args
 
-instance Bifoldable ANormalTF where
+instance Bifoldable ANormalF where
   bifoldMap f _ (AVar v) = f v
   bifoldMap _ _ (ALit _) = mempty
+  bifoldMap _ g (ALet _ b e) = g b <> g e
+  bifoldMap f g (AName n as e) = foldMap f n <> foldMap f as <> g e
   bifoldMap f g (AMatch v br) = f v <> foldMap g br
   bifoldMap f g (AHnd _ h e) = f h <> g e
   bifoldMap _ g (AShift _ e) = g e
@@ -597,16 +579,14 @@ matchLit (Text' t) = Just $ T t
 matchLit (Char' c) = Just $ C c
 matchLit _ = Nothing
 
-pattern Lit' l <- (matchLit -> Just l)
 pattern TLet v m bn bo = ABTN.TTm (ALet [m] bn (ABTN.TAbs v bo))
 pattern TLets vs ms bn bo = ABTN.TTm (ALet ms bn (ABTN.TAbss vs bo))
 pattern TName v f as bo = ABTN.TTm (AName f as (ABTN.TAbs v bo))
-pattern TTm e = ABTN.TTm (ATm e)
-{-# complete TLets, TName, TTm #-}
 
-pattern TLit l = TTm (ALit l)
+pattern Lit' l <- (matchLit -> Just l)
 
-pattern TApp f args = TTm (AApp f args)
+pattern TLit l = ABTN.TTm (ALit l)
+pattern TApp f args = ABTN.TTm (AApp f args)
 pattern AApv v args = AApp (FVar v) args
 pattern TApv v args = TApp (FVar v) args
 pattern ACom r args = AApp (FComb r) args
@@ -622,11 +602,11 @@ pattern TPrm p args = TApp (FPrim (Left p)) args
 pattern AFOp p args = AApp (FPrim (Right p)) args
 pattern TFOp p args = TApp (FPrim (Right p)) args
 
-pattern THnd rs h b = TTm (AHnd rs h b)
-pattern TShift i v e = TTm (AShift i (ABTN.TAbs v e))
-pattern TMatch v cs = TTm (AMatch v cs)
-pattern TFrc v = TTm (AFrc v)
-pattern TVar v = TTm (AVar v)
+pattern THnd rs h b = ABTN.TTm (AHnd rs h b)
+pattern TShift i v e = ABTN.TTm (AShift i (ABTN.TAbs v e))
+pattern TMatch v cs = ABTN.TTm (AMatch v cs)
+pattern TFrc v = ABTN.TTm (AFrc v)
+pattern TVar v = ABTN.TTm (AVar v)
 
 {-# complete
     TLet, TName, TVar, TApp, TFrc, TLit, THnd, TShift, TMatch
@@ -652,23 +632,13 @@ unbinds (TLets us ms bu (unbinds -> (ctx, bd))) = (ST us ms bu:ctx, bd)
 unbinds (TName u f as (unbinds -> (ctx, bd))) = (LZ u f as:ctx, bd)
 unbinds tm = ([], tm)
 
-unbinds' :: Var v => ANormal v -> (Ctx v, ANormalT v)
-unbinds' (TLets us ms bu (unbinds' -> (ctx, bd))) = (ST us ms bu:ctx, bd)
-unbinds' (TName u f as (unbinds' -> (ctx, bd))) = (LZ u f as:ctx, bd)
-unbinds' (TTm tm) = ([], tm)
-
 pattern TBind bn bd <- (unbind -> Just (bn, bd))
   where TBind bn bd = bind bn bd
 
 pattern TBinds :: Var v => Ctx v -> ANormal v -> ANormal v
 pattern TBinds ctx bd <- (unbinds -> (ctx, bd))
   where TBinds ctx bd = foldr bind bd ctx
-
-pattern TBinds' :: Var v => Ctx v -> ANormalT v -> ANormal v
-pattern TBinds' ctx bd <- (unbinds' -> (ctx, bd))
-  where TBinds' ctx bd = foldr bind (TTm bd) ctx
-
-{-# complete TBinds' #-}
+{-# complete TBinds #-}
 
 data SeqEnd = SLeft | SRight
   deriving (Eq, Ord, Enum, Show)
@@ -853,10 +823,9 @@ data POp
   | PRNT | INFO
   deriving (Show,Eq,Ord)
 
-type ANormal = ABTN.Term ANormalBF
-type ANormalT v = ANormalTF v (ANormal v)
+type ANormal = ABTN.Term ANormalF
 
-type Cte v = CTE v (ANormalT v)
+type Cte v = CTE v (ANormal v)
 type Ctx v = [Cte v]
 
 -- Should be a completely closed term
@@ -869,7 +838,9 @@ data SuperGroup v
   , entry :: SuperNormal v
   } deriving (Show)
 
-type ANFM v = ReaderT (Set v) (State (Word64, [(v, SuperNormal v)]))
+type ANFM v
+  = ReaderT (Set v)
+      (State (Word64, Word16, [(v, SuperNormal v)]))
 
 groupVars :: ANFM v (Set v)
 groupVars = ask
@@ -881,18 +852,22 @@ freshANF :: Var v => Word64 -> v
 freshANF fr = Var.freshenId fr $ typed Var.ANFBlank
 
 fresh :: Var v => ANFM v v
-fresh = state $ \(fr, cs) -> (freshANF fr, (fr+1, cs))
+fresh = state $ \(fr, bnd, cs) -> (freshANF fr, (fr+1, bnd, cs))
 
-contextualize :: Var v => ANormalT v -> ANFM v (Ctx v, v)
-contextualize (AVar cv) = do
+contextualize :: Var v => ANormal v -> ANFM v (Ctx v, v)
+contextualize (TVar cv) = do
   gvs <- groupVars
   if cv `Set.notMember` gvs
     then pure ([], cv)
-    else do fresh <&> \bv ->  ([ST1 bv BX $ AApv cv []], bv)
+    else do bv <- fresh
+            pure ([ST1 bv BX $ TApv cv []], bv)
 contextualize tm = fresh <&> \fv -> ([ST1 fv BX tm], fv)
 
+-- binder :: ANFM v Word16
+-- binder = state $ \(fr, bnd, cs) -> (bnd, (fr, bnd+1, cs))
+
 record :: Var v => (v, SuperNormal v) -> ANFM v ()
-record p = modify $ \(fr, to) -> (fr, p:to)
+record p = modify $ \(fr, bnd, to) -> (fr, bnd, p:to)
 
 superNormalize :: Var v => Term v a -> SuperGroup v
 superNormalize tm = Rec l c
@@ -902,12 +877,12 @@ superNormalize tm = Rec l c
   grp = Set.fromList $ fst <$> bs
   comp = traverse_ superBinding bs *> toSuperNormal e
   subc = runReaderT comp grp
-  (c, (_,l)) = runState subc (0, [])
+  (c, (_,_,l)) = runState subc (0, 1, [])
 
 superBinding :: Var v => (v, Term v a) -> ANFM v ()
 superBinding (v, tm) = do
   nf <- toSuperNormal tm
-  modify $ \(cvs, ctx) -> (cvs, (v,nf):ctx)
+  modify $ \(cvs, bnd, ctx) -> (cvs, bnd, (v,nf):ctx)
 
 toSuperNormal :: Var v => Term v a -> ANFM v (SuperNormal v)
 toSuperNormal tm = do
@@ -919,28 +894,32 @@ toSuperNormal tm = do
   (vs, body) = fromMaybe ([], tm) $ unLams' tm
 
 anfTerm :: Var v => Term v a -> ANFM v (ANormal v)
-anfTerm tm = uncurry TBinds' <$> anfBlock tm
+anfTerm tm = uncurry TBinds <$> anfBlock tm
 
-floatableCtx :: Ctx v -> Bool
+floatableCtx :: Var v => Ctx v -> Bool
 floatableCtx = all p
   where
   p (LZ _ _ _) = True
   p (ST _ _ tm) = q tm
-  q (ALit _) = True
-  q (AVar _) = True
-  q (ACon _ _ _) = True
+  q (TLit _) = True
+  q (TVar _) = True
+  q (TCon _ _ _) = True
   q _ = False
 
-anfHandled :: Var v => Term v a -> ANFM v (Ctx v, ANormalT v)
+anfHandled :: Var v => Term v a -> ANFM v (Ctx v, ANormal v)
 anfHandled body = anfBlock body >>= \case
-  (ctx, t@ACon{}) -> fresh <&> \v -> (ctx ++ [ST1 v BX t], AVar v)
-  (ctx, t@(ALit l)) -> fresh <&> \v -> (ctx ++ [ST1 v cc t], AVar v)
+  (ctx, t@TCon{}) -> fresh <&> \v -> (ctx ++ [ST1 v BX t], TVar v)
+  (ctx, t@(TLit l)) -> fresh <&> \v -> (ctx ++ [ST1 v cc t], TVar v)
     where
     cc = case l of T{} -> BX ; LM{} -> BX ; LY{} -> BX ; _ -> UN
   p -> pure p
 
-anfBlock :: Var v => Term v a -> ANFM v (Ctx v, ANormalT v)
-anfBlock (Var' v) = pure ([], AVar v)
+fls, tru :: Var v => ANormal v
+fls = TCon Ty.booleanRef 0 []
+tru = TCon Ty.booleanRef 0 []
+
+anfBlock :: Var v => Term v a -> ANFM v (Ctx v, ANormal v)
+anfBlock (Var' v) = pure ([], TVar v)
 anfBlock (If' c t f) = do
   (cctx, cc) <- anfBlock c
   cf <- anfTerm f
@@ -950,28 +929,36 @@ anfBlock (If' c t f) = do
                 (Builtin $ Text.pack "Boolean")
                 (EC.mapSingleton 0 ([], cf))
                 (Just ct)
-  pure (cctx ++ cx, AMatch v cases)
+  pure (cctx ++ cx, TMatch v cases)
 anfBlock (And' l r) = do
   (lctx, vl) <- anfArg l
-  (rctx, vr) <- anfArg r
-  let i = Builtin "Boolean.and"
-  pure (lctx ++ rctx, ACom i [vl, vr])
+  tmr <- anfTerm r
+  let tree = TMatch vl . flip (MatchData Ty.booleanRef) Nothing
+           $ mapFromList
+           [ (0, ([], fls))
+           , (1, ([], tmr))
+           ]
+  pure (lctx, tree)
 anfBlock (Or' l r) = do
   (lctx, vl) <- anfArg l
-  (rctx, vr) <- anfArg r
-  let i = Builtin "Boolean.or"
-  pure (lctx ++ rctx, ACom i [vl, vr])
+  tmr <- anfTerm r
+  let tree = TMatch vl . flip (MatchData Ty.booleanRef) Nothing
+           $ mapFromList
+           [ (1, ([], tru))
+           , (0, ([], tmr))
+           ]
+  pure (lctx, tree)
 anfBlock (Handle' h body)
   = anfArg h >>= \(hctx, vh) ->
     anfHandled body >>= \case
-      (ctx, ACom f as) | floatableCtx ctx -> do
+      (ctx, TCom f as) | floatableCtx ctx -> do
         v <- fresh
-        pure (hctx ++ ctx ++ [LZ v (Left f) as], AApp (FVar vh) [v])
-      (ctx, AApv f as) | floatableCtx ctx -> do
+        pure (hctx ++ ctx ++ [LZ v (Left f) as], TApp (FVar vh) [v])
+      (ctx, TApv f as) | floatableCtx ctx -> do
         v <- fresh
-        pure (hctx ++ ctx ++ [LZ v (Right f) as], AApp (FVar vh) [v])
-      (ctx, AVar v) | floatableCtx ctx -> do
-        pure (hctx ++ ctx, AApp (FVar vh) [v])
+        pure (hctx ++ ctx ++ [LZ v (Right f) as], TApp (FVar vh) [v])
+      (ctx, TVar v) | floatableCtx ctx -> do
+        pure (hctx ++ ctx, TApp (FVar vh) [v])
       p@(_, _) ->
         error $ "handle body should be a simple call: " ++ show p
 anfBlock (Match' scrut cas) = do
@@ -979,15 +966,15 @@ anfBlock (Match' scrut cas) = do
   (cx, v) <- contextualize sc
   brn <- anfCases v cas
   case brn of
-    AccumDefault (TBinds' dctx df) -> do
+    AccumDefault (TBinds dctx df) -> do
       pure (sctx ++ cx ++ dctx, df)
     AccumRequest _ Nothing ->
       error "anfBlock: AccumRequest without default"
     AccumPure (ABTN.TAbss us bd)
       | [u] <- us
-      , TBinds' bx bd <- bd
+      , TBinds bx bd <- bd
      -> case cx of
-          [] -> pure (sctx ++ [ST1 u BX (AFrc v)] ++ bx, bd)
+          [] -> pure (sctx ++ [ST1 u BX (TFrc v)] ++ bx, bd)
           [ST1 _ BX tm] -> pure (sctx ++ [ST1 u BX tm] ++ bx, bd)
           _ -> error "anfBlock|AccumPure: impossible"
       | otherwise -> error "pure handler with too many variables"
@@ -1003,29 +990,29 @@ anfBlock (Match' scrut cas) = do
       hv <- fresh
       let msc | [ST1 _ BX tm] <- cx = tm
               | [ST _ _ _] <- cx = error "anfBlock: impossible"
-              | otherwise = AFrc v
+              | otherwise = TFrc v
       pure ( sctx ++ [LZ hv (Right r) vs]
-           , AHnd (Map.keys abr) hv . TTm $ msc
+           , THnd (Map.keys abr) hv $ msc
            )
     AccumText df cs ->
-      pure (sctx ++ cx, AMatch v $ MatchText cs df)
+      pure (sctx ++ cx, TMatch v $ MatchText cs df)
     AccumIntegral r df cs -> do
       i <- fresh
       let dcs = MatchData r
                   (EC.mapSingleton 0 ([UN], ABTN.TAbss [i] ics))
                   Nothing
           ics = TMatch i $ MatchIntegral cs df
-      pure (sctx ++ cx, AMatch v dcs)
+      pure (sctx ++ cx, TMatch v dcs)
     AccumData r df cs ->
-      pure (sctx ++ cx, AMatch v $ MatchData r cs df)
+      pure (sctx ++ cx, TMatch v $ MatchData r cs df)
     AccumSeqEmpty _ ->
       error "anfBlock: non-exhaustive AccumSeqEmpty"
     AccumSeqView en (Just em) bd -> do
       r <- fresh
       let op | SLeft <- en = Builtin "List.viewl"
              | otherwise   = Builtin "List.viewr"
-      pure ( sctx ++ cx ++ [ST1 r BX (ACom op [v])]
-           , AMatch r
+      pure ( sctx ++ cx ++ [ST1 r BX (TCom op [v])]
+           , TMatch r
            $ MatchData Ty.seqViewRef
                (EC.mapFromList
                   [ (0, ([], em))
@@ -1041,21 +1028,21 @@ anfBlock (Match' scrut cas) = do
         r <- fresh
         t <- fresh
         pure ( sctx ++ cx ++ [lit i, split i r]
-             , AMatch r . MatchSum $ mapFromList
+             , TMatch r . MatchSum $ mapFromList
              [ (0, ([], df t))
              , (1, ([BX,BX], bd))
              ])
       where
       op | SLeft <- en = SPLL
          | otherwise = SPLR
-      lit i = ST1 i UN (ALit . N $ fromIntegral n)
-      split i r = ST1 r UN (APrm op [i,v])
+      lit i = ST1 i UN (TLit . N $ fromIntegral n)
+      split i r = ST1 r UN (TPrm op [i,v])
       df t
         = fromMaybe
-            ( TLet t BX (ALit (T "non-exhaustive split"))
+            ( TLet t BX (TLit (T "non-exhaustive split"))
             $ TPrm EROR [t])
             mdf
-    AccumEmpty -> pure (sctx ++ cx, AMatch v MatchEmpty)
+    AccumEmpty -> pure (sctx ++ cx, TMatch v MatchEmpty)
 anfBlock (Let1Named' v b e)
   = anfBlock b >>= \(bctx, cb) -> bindLocal [v] $ do
       (ectx, ce) <- anfBlock e
@@ -1063,24 +1050,24 @@ anfBlock (Let1Named' v b e)
 anfBlock (Apps' f args) = do
   (fctx, cf) <- anfFunc f
   (actx, cas) <- anfArgs args
-  pure (fctx ++ actx, AApp cf cas)
+  pure (fctx ++ actx, TApp cf cas)
 anfBlock (Constructor' r t)
-  = pure ([], ACon r (toEnum t) [])
-anfBlock (Request' r t) = pure ([], AReq r (toEnum t) [])
+  = pure ([], TCon r (toEnum t) [])
+anfBlock (Request' r t) = pure ([], TReq r (toEnum t) [])
 anfBlock (Boolean' b)
-  = pure ([], ACon Ty.booleanRef (if b then 1 else 0) [])
+  = pure ([], TCon Ty.booleanRef (if b then 1 else 0) [])
 anfBlock (Lit' l@(T _)) =
-  pure ([], ALit l)
+  pure ([], TLit l)
 anfBlock (Lit' l) = do
   lv <- fresh
-  pure ([ST1 lv UN $ ALit l], ACon (litRef l) 0 [lv])
-anfBlock (Ref' r) = pure ([], ACom r [])
+  pure ([ST1 lv UN $ TLit l], TCon (litRef l) 0 [lv])
+anfBlock (Ref' r) = pure ([], TCom r [])
 anfBlock (Blank' _) = do
   ev <- fresh
-  pure ([ST1 ev BX (ALit (T "Blank"))], APrm EROR [ev])
-anfBlock (TermLink' r) = pure ([], ALit (LM r))
-anfBlock (TypeLink' r) = pure ([], ALit (LY r))
-anfBlock (Sequence' as) = fmap (APrm BLDS) <$> anfArgs tms
+  pure ([ST1 ev BX (TLit (T "Blank"))], TPrm EROR [ev])
+anfBlock (TermLink' r) = pure ([], TLit (LM r))
+anfBlock (TypeLink' r) = pure ([], TLit (LY r))
+anfBlock (Sequence' as) = fmap (TPrm BLDS) <$> anfArgs tms
   where
   tms = toList as
 anfBlock t = error $ "anf: unhandled term: " ++ show t
@@ -1189,9 +1176,9 @@ expandBindings' _ _ _
 
 expandBindings :: Var v => [P.Pattern p] -> [v] -> ANFM v [v]
 expandBindings ps vs
-  = state $ \(fr,co) -> case expandBindings' fr ps vs of
+  = state $ \(fr,bnd,co) -> case expandBindings' fr ps vs of
       Left err -> error $ err ++ " " ++ show (ps, vs)
-      Right (fr,l) -> (l, (fr,co))
+      Right (fr,l) -> (l, (fr,bnd,co))
 
 anfCases
   :: Var v
@@ -1218,38 +1205,6 @@ anfArg tm = do
 
 anfArgs :: Var v => [Term v a] -> ANFM v (Ctx v, [v])
 anfArgs tms = first concat . unzip <$> traverse anfArg tms
-
-sink :: Var v => v -> Mem -> ANormalT v -> ANormal v -> ANormal v
-sink v mtm tm = dive $ freeVarsT tm
-  where
-  frsh l r = Var.freshIn (l <> r) $ Var.typed Var.ANFBlank
-
-  directVars = bifoldMap Set.singleton (const mempty)
-  freeVarsT = bifoldMap Set.singleton ABTN.freeVars
-
-  dive _ exp | v `Set.notMember` ABTN.freeVars exp = exp
-  dive avoid exp@(TName u f as bo)
-    | v `elem` as
-    = let w = frsh avoid (ABTN.freeVars exp)
-       in TLet w mtm tm $ ABTN.rename v w exp
-    | otherwise
-    = TName u f as (dive avoid' bo)
-    where avoid' = Set.insert u avoid
-  dive avoid exp@(TLets us ms bn bo)
-    | v `Set.member` directVars bn -- we need to stop here
-    = let w = frsh avoid (ABTN.freeVars exp)
-       in TLet w mtm tm $ ABTN.rename v w exp
-    | otherwise
-    = TLets us ms bn' $ dive avoid' bo
-    where
-    avoid' = Set.fromList us <> avoid
-    bn' | v `Set.notMember` freeVarsT bn = bn
-        | otherwise = dive avoid' <$> bn
-  dive avoid exp@(TTm tm)
-    | v `Set.member` directVars tm -- same as above
-    = let w = frsh avoid (ABTN.freeVars exp)
-       in TLet w mtm tm $ ABTN.rename v w exp
-    | otherwise = TTm $ dive avoid <$> tm
 
 indent :: Int -> ShowS
 indent ind = showString (replicate (ind*2) ' ')
@@ -1294,49 +1249,45 @@ prettySuperNormal ind (Lambda ccs (ABTN.TAbss vs tm))
   . showString "="
   . prettyANF False (ind+1) tm
 
+reqSpace :: Var v => Bool -> ANormal v -> Bool
+reqSpace _ TLets{} = True
+reqSpace _ TName{} = True
+reqSpace b _ = b
+
 prettyANF :: Var v => Bool -> Int -> ANormal v -> ShowS
-prettyANF m ind tm = case tm of
+prettyANF m ind tm = prettySpace (reqSpace m tm) ind . case tm of
   TLets vs _ bn bo
-    -> showString "\n"
-     . indent ind
-     . prettyRBind vs
+    -> prettyRBind vs
      . showString " ="
-     . prettyANFT False (ind+1) bn
+     . prettyANF False (ind+1) bn
      . prettyANF True ind bo
   TName v f vs bo
-    -> showString "\n"
-     . indent ind
-     . prettyRBind [v]
+    -> prettyRBind [v]
      . showString " := "
      . prettyLZF f
      . prettyVars vs
      . prettyANF True ind bo
-  TTm tm
-    -> prettyANFT m ind tm
+  TLit l -> shows l
+  TFrc v -> showString "!" . pvar v
+  TVar v -> pvar v
+  TApp f vs -> prettyFunc f . prettyVars vs
+  TMatch v bs
+    -> showString "match "
+     . pvar v . showString " with"
+     . prettyBranches (ind+1) bs
+  TShift r v bo
+    -> showString "shift[" . shows r . showString "]"
+     . prettyVars [v] . showString "."
+     . prettyANF False (ind+1) bo
+  THnd rs v bo
+    -> showString "handle" . prettyRefs rs
+     . prettyANF False (ind+1) bo
+     . showString " with " . pvar v
   _ -> shows tm
 
 prettySpace :: Bool -> Int -> ShowS
 prettySpace False _   = showString " "
 prettySpace True  ind = showString "\n" . indent ind
-
-prettyANFT :: Var v => Bool -> Int -> ANormalT v -> ShowS
-prettyANFT m ind tm = prettySpace m ind . case tm of
-    ALit l -> shows l
-    AFrc v -> showString "!" . pvar v
-    AVar v -> pvar v
-    AApp f vs -> prettyFunc f . prettyVars vs
-    AMatch v bs
-      -> showString "match "
-       . pvar v . showString " with"
-       . prettyBranches (ind+1) bs
-    AShift r (ABTN.TAbss vs bo)
-      -> showString "shift[" . shows r . showString "]"
-       . prettyVars vs . showString "."
-       . prettyANF False (ind+1) bo
-    AHnd rs v bo
-      -> showString "handle" . prettyRefs rs
-       . prettyANF False (ind+1) bo
-       . showString " with " . pvar v
 
 prettyLZF :: Var v => Either Reference v -> ShowS
 prettyLZF (Left w) = showString "ENV(" . shows w . showString ") "
