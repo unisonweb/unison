@@ -201,7 +201,7 @@ addToTypeMentionsIndex tp tm = execute sql (tp :. tm) where sql = [here|
   ) VALUES (?, ?, ?, ?, ?, ?)
 |]
 
-addToDependentsIndex :: DB m => Reference' TextId ObjectId -> Reference.Id -> m ()
+addToDependentsIndex :: DB m => Reference.Reference -> Reference.Id -> m ()
 addToDependentsIndex dependency dependent = execute sql (dependency :. dependent)
   where sql = [here|
     INSERT OR IGNORE INTO dependents_index (

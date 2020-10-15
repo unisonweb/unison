@@ -44,6 +44,13 @@ vmap f (Term _ a out) = case out of
   Cycle r -> cycle a (vmap f r)
   Abs v body -> abs a (f v) (vmap f body)
 
+vtraverse :: (Traversable f, Applicative g, Ord v') => (v -> g v') -> Term f v a -> g (Term f v' a)
+vtraverse g (Term _ a out) = case out of
+  Var v -> var a <$> g v
+  Cycle r -> cycle a <$> vtraverse g r
+  Abs v r -> abs a <$> g v <*> vtraverse g r
+  Tm fa -> tm a <$> traverse (vtraverse g) fa
+
 transform :: (Ord v, Foldable g, Functor g)
           => (forall a. f a -> g a) -> Term f v a -> Term g v a
 transform f t = case out t of
@@ -169,6 +176,18 @@ visit' f t = case out t of
   Cycle body -> cycle (annotation t) <$> visit' f body
   Abs x e -> abs (annotation t) x <$> visit' f e
   Tm body -> f body >>= (fmap (tm (annotation t)) . traverse (visit' f))
+
+-- | Apply an effectful function to an ABT tree top down, sequencing the results.
+visit_ :: (Traversable f, Applicative g, Monad g, Ord v)
+       => (f (Term f v a) -> g ())
+       -> Term f v a
+       -> g (Term f v a)
+visit_ f t = case out t of
+  Var _ -> pure t
+  Cycle body -> cycle (annotation t) <$> visit_ f body
+  Abs x e -> abs (annotation t) x <$> visit_ f e
+  Tm body -> f body >> tm (annotation t) <$> traverse (visit_ f) body
+
 
 -- | `visit` specialized to the `Identity` effect.
 visitPure :: (Traversable f, Ord v)

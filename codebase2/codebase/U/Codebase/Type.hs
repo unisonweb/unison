@@ -52,6 +52,11 @@ rmap f = ABT.transform \case
   Ref r -> Ref (f r)
   x -> unsafeCoerce x
 
+rtraverse :: (Monad g, Ord v) => (r -> g r') -> ABT.Term (F' r) v a -> g (ABT.Term (F' r') v a)
+rtraverse g = ABT.transformM \case
+  Ref r -> Ref <$> g r
+  x -> pure $ unsafeCoerce x
+
 instance Hashable r => Hashable1 (F' r) where
   hash1 hashCycle hash e =
     let

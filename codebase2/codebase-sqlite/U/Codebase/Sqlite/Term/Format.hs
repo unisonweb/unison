@@ -20,7 +20,7 @@ type TermRef = Reference' LocalTextId (Maybe LocalDefnId)
 
 type TypeRef = Reference' LocalTextId LocalDefnId
 
-data LocallyIndexedComponent =
+newtype LocallyIndexedComponent =
   LocallyIndexedComponent (Vector (LocalIds, Term))
 
 type F =

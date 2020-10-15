@@ -39,6 +39,7 @@ library
   hs-source-dirs: lib
   exposed-modules:
     U.Codebase.Convert.SyncV1V2
+    U.Codebase.Convert.TermUtil
     U.Codebase.Convert.TypeUtil
   -- other-modules:
   -- other-extensions:

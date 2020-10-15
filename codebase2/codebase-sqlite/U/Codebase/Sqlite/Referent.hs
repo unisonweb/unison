@@ -8,12 +8,12 @@ module U.Codebase.Sqlite.Referent where
 import Database.SQLite.Simple (SQLData(..), Only(..), ToRow(..))
 
 import U.Codebase.Referent (Id', Referent')
-import U.Codebase.Sqlite.Reference (Reference)
+import qualified U.Codebase.Sqlite.Reference as Sqlite
 import U.Codebase.Sqlite.DbId (ObjectId)
 import qualified U.Codebase.Referent as Referent
 import qualified U.Codebase.Reference as Reference
 
-type Referent = Referent' Reference Reference
+type Referent = Referent' Sqlite.Reference Sqlite.Reference
 type Id = Id' ObjectId ObjectId
 
 instance ToRow Id where

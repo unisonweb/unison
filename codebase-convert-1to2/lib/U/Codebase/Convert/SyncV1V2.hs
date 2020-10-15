@@ -45,6 +45,7 @@ import Database.SQLite.Simple (Connection)
 import qualified Database.SQLite.Simple as SQLite
 import Database.SQLite.Simple.FromField (FromField)
 import Database.SQLite.Simple.ToField (ToField)
+import qualified U.Codebase.Convert.TermUtil as TermUtil
 import qualified U.Codebase.Convert.TypeUtil as TypeUtil
 import qualified U.Codebase.Decl as V2.Decl
 import qualified U.Codebase.Kind as V2.Kind
@@ -91,6 +92,8 @@ import qualified Unison.Codebase.V1.Type as V1.Type
 import qualified Unison.Codebase.V1.Type.Kind as V1.Kind
 import UnliftIO (MonadIO, liftIO)
 import UnliftIO.Directory (listDirectory)
+import Data.Set (Set)
+import Data.Bifunctor (Bifunctor(bimap))
 
 newtype V1 a = V1 {runV1 :: a} deriving (Eq, Ord, Show)
 
@@ -685,18 +688,50 @@ createTypeSearchIndicesForReferent r typ = do
 
   traverse_ (flip Db.addToTypeMentionsIndex r) typeMentionsForIndexing
 
-createDependencyIndexForTerm :: DB m => V2.Sqlite.Reference.Id -> V2HashTerm -> m ()
-createDependencyIndexForTerm tmRef@(V2.Reference.Id selfId _i) tm = error "todo"
+-- todo:
+createDependencyIndexForTerm :: DB m => V2.Sqlite.Reference.Id -> V2DiskTermComponent -> m ()
+createDependencyIndexForTerm tmRef@(V2.Reference.Id selfId i) (V2.TermFormat.LocallyIndexedComponent c) =
+-- newtype LocallyIndexedComponent =
+--   LocallyIndexedComponent (Vector (LocalIds, Term))
+  let
+    -- | get the ith element from the term component
+    (localIds, localTerm) = c Vector.! fromIntegral i
 
--- -- let
--- --   -- get the term dependencies
--- --   dependencies :: Set (Reference.ReferenceH Db.ObjectId)
--- --   dependencies = Term.dependencies $ Term.hmap (fromMaybe selfId) tm
--- --   -- and convert them to Reference2
--- --   dependencies2 :: [V2.Reference Db.ObjectId]
--- --   dependencies2 = over Db.referenceTraversal id <$> toList dependencies
--- --   -- and then add all of these to the dependency index
--- -- in traverse_ (Db.addDependencyToIndex tmRef) dependencies2
+    -- get the term dependencies as localids
+    termRefs :: [V2.TermFormat.TermRef]
+    typeRefs :: [V2.TermFormat.TypeRef]
+    termLinks :: [V2.Referent.Referent' V2.TermFormat.TermRef V2.TermFormat.TypeRef]
+    typeLinks :: [V2.TermFormat.TypeRef]
+    (termRefs, typeRefs, termLinks, typeLinks) = TermUtil.dependencies localTerm
+
+    -- and convert them to Reference' TextId ObjectId
+    localToDbTextId :: V2.TermFormat.LocalTextId -> Db.TextId
+    localToDbTextId (V2.TermFormat.LocalTextId n) =
+      V2.LocalIds.textLookup localIds Vector.! fromIntegral n
+    localToDbDefnId :: V2.TermFormat.LocalDefnId -> Db.ObjectId
+    localToDbDefnId (V2.TermFormat.LocalDefnId n)=
+      V2.LocalIds.objectLookup localIds Vector.! fromIntegral n
+    localToDbTermRef :: V2.TermFormat.TermRef -> V2.Sqlite.Reference.Reference
+    localToDbTermRef = bimap localToDbTextId (maybe selfId localToDbDefnId)
+    localToDbTypeRef :: V2.TermFormat.TypeRef -> V2.Sqlite.Reference.Reference
+    localToDbTypeRef = bimap localToDbTextId localToDbDefnId
+    localFoo :: V2.Referent.Referent' V2.TermFormat.TermRef V2.TermFormat.TypeRef -> V2.Sqlite.Reference.Reference
+    localFoo = \case
+      V2.Referent.Ref tm -> localToDbTermRef tm
+      V2.Referent.Con tp _ -> localToDbTypeRef tp
+    dependencies :: [V2.Sqlite.Reference.Reference]
+    dependencies =  map localToDbTermRef termRefs
+                 <> map localToDbTypeRef typeRefs
+                 <> map localFoo termLinks
+                 <> map localToDbTypeRef typeLinks
+  -- and then add all of these to the dependency index
+  in traverse_ (flip Db.addToDependentsIndex tmRef) dependencies
+
+localDefnIdToObjectId :: V2.LocalIds.LocalIds -> V2.TermFormat.LocalDefnId -> Db.ObjectId
+localDefnIdToObjectId (V2.LocalIds.LocalIds _t d) (V2.TermFormat.LocalDefnId id) = d Vector.! fromIntegral id
+
+localTextIdToObjectId :: V2.LocalIds.LocalIds -> V2.TermFormat.LocalTextId -> Db.TextId
+localTextIdToObjectId (V2.LocalIds.LocalIds t _d) (V2.TermFormat.LocalTextId id) = t Vector.! fromIntegral id
 
 -- createDependencyIndexForDecl :: DB m => V2.ReferenceId Db.ObjectId -> Decl2S -> m ()
 -- createDependencyIndexForDecl tmRef@(V2.ReferenceId selfId _i) decl =
@@ -1045,8 +1080,7 @@ convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
 
     saveTypeBlobForTerm r (buildTermType2S lookupText lookup2 type2)
     createTypeSearchIndicesForReferent rt type2
-    -- createDependencyIndexForTerm r term2
-  error "todo: save types and create type indices for component"
+    createDependencyIndexForTerm r v2diskComponent
 
 convertDecl1 :: DB m => (V1 Hash -> V2 Hash) -> (V2 Hash -> Db.ObjectId) -> V1 Hash -> [V1Decl] -> m ()
 convertDecl1 lookup1 lookup2 hash1 v1component = do

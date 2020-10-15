@@ -12,7 +12,7 @@ import qualified U.Util.Hash as Hash
 import U.Util.Hash (Hash)
 import U.Util.Hashable (Hashable (..))
 import qualified U.Util.Hashable as Hashable
-import Control.Lens (Traversal)
+import Control.Lens (Bifunctor(..), Traversal)
 
 -- |This is the canonical representation of Reference
 type Reference = Reference' Text Hash
@@ -41,6 +41,10 @@ h :: Traversal (Reference' t h) (Reference' t h') h h'
 h f = \case
   ReferenceBuiltin t -> pure (ReferenceBuiltin t)
   Derived h i -> Derived <$> f h <*> pure i
+
+instance Bifunctor Reference' where
+  bimap fl _ (ReferenceBuiltin t) = ReferenceBuiltin (fl t)
+  bimap _ fr (ReferenceDerived id) = ReferenceDerived (fr <$> id)
 
 instance Hashable Reference where
   tokens (ReferenceBuiltin txt) =

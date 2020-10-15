@@ -8,4 +8,3 @@ data LocalIds = LocalIds
   { textLookup :: Vector TextId,
     objectLookup :: Vector ObjectId
   }
-

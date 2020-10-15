@@ -114,17 +114,6 @@ data SeqOp
   | PConcat
   deriving (Eq, Show)
 
--- getHashesAndTextF ::
-
--- rmap ::
---   (termRef -> termRef') ->
---   (typeRef -> typeRef') ->
---   (termLink -> termLink') ->
---   TermR termRef typeRef termLink typeRef (TypeR typeRef vt at) blankRepr ap v a ->
---   TermR termRef' typeRef' termLink' typeRef' (TypeR typeRef' vt at) blankRepr ap v a
--- rmap fTermRef fTypeRef fTermLink t =
---   extraMap fTermRef fTypeRef fTermLink fTypeRef (Type.rmap fTypeRef) undefined id t
-
 extraMap :: forall text termRef typeRef termLink typeLink vt
                    text' termRef' typeRef' termLink' typeLink' vt' v a
                    . (Ord v, Ord vt')
