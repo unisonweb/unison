@@ -52,13 +52,13 @@ sortNames :: [Name] -> [Name]
 sortNames = sortNamed id
 
 sortNamed :: (a -> Name) -> [a] -> [a]
-sortNamed by as = let
-  as' = [ (a, Text.unpack (toText (by a))) | a <- as ]
-  comp (_,s) (_,s2) = RFC5051.compareUnicode s s2
-  in fst <$> sortBy comp as'
+sortNamed by = sortByText (toText . by)
 
 sortByText :: (a -> Text) -> [a] -> [a]
-sortByText by = sortNamed (Name . by)
+sortByText by as = let
+  as' = [ (a, Text.unpack (by a)) | a <- as ]
+  comp (_,s) (_,s2) = RFC5051.compareUnicode s s2
+  in fst <$> sortBy comp as'
 
 -- | Like sortNamed, but takes an additional backup comparison function if two
 -- names are equal.
