@@ -267,31 +267,31 @@ test> blake2b_512.tests.ex3 =
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ blake2b_512.tests.ex3   Passed.
-  ◉ sha3_512.tests.ex1      Passed.
-  ◉ hex.tests.ex1           Passed.
-  ◉ sha2_512.tests.ex2      Passed.
-  ◉ sha2_512.tests.ex4      Passed.
-  ◉ sha3_256.tests.ex3      Passed.
-  ◉ sha2_512.tests.ex1      Passed.
-  ◉ sha2_256.tests.ex4      Passed.
-  ◉ sha3_256.tests.ex2      Passed.
   ◉ blake2b_512.tests.ex1   Passed.
-  ◉ sha3_512.tests.ex2      Passed.
-  ◉ blake2s_256.tests.ex1   Passed.
-  ◉ sha2_256.tests.ex3      Passed.
-  ◉ sha2_512.tests.ex3      Passed.
-  ◉ sha3_256.tests.ex1      Passed.
   ◉ blake2b_512.tests.ex2   Passed.
-  ◉ sha3_256.tests.ex4      Passed.
-  ◉ sha3_512.tests.ex4      Passed.
-  ◉ sha3_512.tests.ex3      Passed.
-  ◉ sha2_256.tests.ex2      Passed.
+  ◉ blake2b_512.tests.ex3   Passed.
+  ◉ blake2s_256.tests.ex1   Passed.
+  ◉ hex.tests.ex1           Passed.
   ◉ sha2_256.tests.ex1      Passed.
+  ◉ sha2_256.tests.ex2      Passed.
+  ◉ sha2_256.tests.ex3      Passed.
+  ◉ sha2_256.tests.ex4      Passed.
+  ◉ sha2_512.tests.ex1      Passed.
+  ◉ sha2_512.tests.ex2      Passed.
+  ◉ sha2_512.tests.ex3      Passed.
+  ◉ sha2_512.tests.ex4      Passed.
+  ◉ sha3_256.tests.ex1      Passed.
+  ◉ sha3_256.tests.ex2      Passed.
+  ◉ sha3_256.tests.ex3      Passed.
+  ◉ sha3_256.tests.ex4      Passed.
+  ◉ sha3_512.tests.ex1      Passed.
+  ◉ sha3_512.tests.ex2      Passed.
+  ◉ sha3_512.tests.ex3      Passed.
+  ◉ sha3_512.tests.ex4      Passed.
   
   ✅ 21 test(s) passing
   
-  Tip: Use view blake2b_512.tests.ex3 to view the source of a
+  Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.
 
 ```
@@ -372,35 +372,35 @@ test> hmac_sha2_512.tests.ex2 =
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ blake2b_512.tests.ex3     Passed.
-  ◉ sha3_512.tests.ex1        Passed.
-  ◉ hex.tests.ex1             Passed.
-  ◉ hmac_sha2_256.tests.ex2   Passed.
-  ◉ hmac_sha2_512.tests.ex2   Passed.
-  ◉ sha2_512.tests.ex2        Passed.
-  ◉ sha2_512.tests.ex4        Passed.
-  ◉ sha3_256.tests.ex3        Passed.
-  ◉ sha2_512.tests.ex1        Passed.
-  ◉ sha2_256.tests.ex4        Passed.
-  ◉ sha3_256.tests.ex2        Passed.
   ◉ blake2b_512.tests.ex1     Passed.
-  ◉ sha3_512.tests.ex2        Passed.
-  ◉ blake2s_256.tests.ex1     Passed.
-  ◉ sha2_256.tests.ex3        Passed.
-  ◉ sha2_512.tests.ex3        Passed.
-  ◉ hmac_sha2_512.tests.ex1   Passed.
-  ◉ sha3_256.tests.ex1        Passed.
   ◉ blake2b_512.tests.ex2     Passed.
-  ◉ sha3_256.tests.ex4        Passed.
-  ◉ sha3_512.tests.ex4        Passed.
-  ◉ sha3_512.tests.ex3        Passed.
-  ◉ sha2_256.tests.ex2        Passed.
+  ◉ blake2b_512.tests.ex3     Passed.
+  ◉ blake2s_256.tests.ex1     Passed.
+  ◉ hex.tests.ex1             Passed.
   ◉ hmac_sha2_256.tests.ex1   Passed.
+  ◉ hmac_sha2_256.tests.ex2   Passed.
+  ◉ hmac_sha2_512.tests.ex1   Passed.
+  ◉ hmac_sha2_512.tests.ex2   Passed.
   ◉ sha2_256.tests.ex1        Passed.
+  ◉ sha2_256.tests.ex2        Passed.
+  ◉ sha2_256.tests.ex3        Passed.
+  ◉ sha2_256.tests.ex4        Passed.
+  ◉ sha2_512.tests.ex1        Passed.
+  ◉ sha2_512.tests.ex2        Passed.
+  ◉ sha2_512.tests.ex3        Passed.
+  ◉ sha2_512.tests.ex4        Passed.
+  ◉ sha3_256.tests.ex1        Passed.
+  ◉ sha3_256.tests.ex2        Passed.
+  ◉ sha3_256.tests.ex3        Passed.
+  ◉ sha3_256.tests.ex4        Passed.
+  ◉ sha3_512.tests.ex1        Passed.
+  ◉ sha3_512.tests.ex2        Passed.
+  ◉ sha3_512.tests.ex3        Passed.
+  ◉ sha3_512.tests.ex4        Passed.
   
   ✅ 25 test(s) passing
   
-  Tip: Use view blake2b_512.tests.ex3 to view the source of a
+  Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.
 
 ```
