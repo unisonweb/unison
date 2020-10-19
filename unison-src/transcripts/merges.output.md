@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #p1bbbaaimg
+  ⊙ #9vqvq27unq
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #6lfehn18aq
+  ⊙ #0tai2hvoep
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #l2ogfn128u
+  ⊙ #ld3npmrd4b
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #k47m5dspdm
+  ⊙ #c82mcefcqb
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #hu33p33ksi
+  ⊙ #onh9bsr0dl
   
     + Adds / updates:
     
       x
   
-  ⊙ #m29q8q72c3
+  ⊙ #gibpnb86qp
   
     + Adds / updates:
     
@@ -186,7 +186,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Int.isEven builtin.Int.isOdd
       builtin.Int.leadingZeros builtin.Int.lt builtin.Int.lteq
       builtin.Int.mod builtin.Int.negate builtin.Int.or
-      builtin.Int.pow builtin.Int.shiftLeft
+      builtin.Int.popCount builtin.Int.pow builtin.Int.shiftLeft
       builtin.Int.shiftRight builtin.Int.signum
       builtin.Int.toFloat builtin.Int.toText
       builtin.Int.trailingZeros builtin.Int.truncate0
@@ -202,7 +202,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Nat.gteq builtin.Nat.increment builtin.Nat.isEven
       builtin.Nat.isOdd builtin.Nat.leadingZeros builtin.Nat.lt
       builtin.Nat.lteq builtin.Nat.mod builtin.Nat.or
-      builtin.Nat.pow builtin.Nat.shiftLeft
+      builtin.Nat.popCount builtin.Nat.pow builtin.Nat.shiftLeft
       builtin.Nat.shiftRight builtin.Nat.sub builtin.Nat.toFloat
       builtin.Nat.toInt builtin.Nat.toText
       builtin.Nat.trailingZeros builtin.Nat.xor builtin.Optional

@@ -257,6 +257,7 @@ builtinsSrc =
   , B "Int.fromText" $ text --> optionalt int
   , B "Int.toFloat" $ int --> float
   , B "Int.trailingZeros" $ int --> nat
+  , B "Int.popCount" $ int --> nat
 
   , B "Nat.*" $ nat --> nat --> nat
   , B "Nat.+" $ nat --> nat --> nat
@@ -285,6 +286,7 @@ builtinsSrc =
   , B "Nat.toInt" $ nat --> int
   , B "Nat.toText" $ nat --> text
   , B "Nat.trailingZeros" $ nat --> nat
+  , B "Nat.popCount" $ nat --> nat
 
   , B "Float.+" $ float --> float --> float
   , B "Float.-" $ float --> float --> float

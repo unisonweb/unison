@@ -815,7 +815,7 @@ data POp
   | INCI | DECI | LEQI | EQLI -- inc,dec,<=,==
   -- Nat
   | ADDN | SUBN | MULN | DIVN -- +,-,*,/
-  | MODN | TZRO | LZRO        -- mod,trailing/leadingZeros
+  | MODN | TZRO | LZRO | POPC -- mod,trailing/leadingZeros,popCount
   | POWN | SHLN | SHRN        -- pow,shiftl,shiftr
   | ANDN | IORN | XORN | COMN -- and,or,xor,complement
   | INCN | DECN | LEQN | EQLN -- inc,dec,<=,==
