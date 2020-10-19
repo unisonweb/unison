@@ -180,6 +180,7 @@ library
     async,
     base,
     base16 >= 0.2.1.0,
+    basement,
     bifunctors,
     bytes,
     bytestring,
@@ -190,6 +191,7 @@ library
     configurator,
     cryptonite,
     directory,
+    either,
     guid,
     data-memocombinators,
     edit-distance,
@@ -269,7 +271,7 @@ executable unison
     template-haskell,
     temporary,
     text,
-    unison-core,
+    unison-core1,
     unison-parser-typechecker
   if !os(windows)
     build-depends:
@@ -352,7 +354,7 @@ executable tests
     temporary,
     text,
     transformers,
-    unison-core,
+    unison-core1,
     unison-parser-typechecker
 
 executable transcripts
@@ -369,7 +371,7 @@ executable transcripts
     shellmet,
     process,
     text,
-    unison-core,
+    unison-core1,
     unison-parser-typechecker
 
 benchmark runtime
@@ -381,5 +383,5 @@ benchmark runtime
     base,
     criterion,
     containers,
-    unison-core,
+    unison-core1,
     unison-parser-typechecker

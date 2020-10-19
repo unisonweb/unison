@@ -33,8 +33,13 @@ before_install:
 install:
 - stack ghc -- --version
 - stack --no-terminal build
-# - stack --no-terminal exec tests
-# - stack --no-terminal exec transcripts
+- stack --no-terminal exec tests
+- stack --no-terminal exec tests -- --new-runtime
+- stack --no-terminal exec transcripts
+# fail if running transcripts modified any versioned files
+- git diff
+- x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi'
+- stack --no-terminal exec transcripts -- --new-runtime
 # fail if running transcripts modified any versioned files
 - git diff
 - x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi'

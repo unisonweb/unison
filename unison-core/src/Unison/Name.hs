@@ -12,6 +12,7 @@ module Unison.Name
   , parent
   , sortNames
   , sortNamed
+  , sortByText
   , sortNamed'
   , stripNamePrefix
   , stripPrefixes
@@ -51,8 +52,11 @@ sortNames :: [Name] -> [Name]
 sortNames = sortNamed id
 
 sortNamed :: (a -> Name) -> [a] -> [a]
-sortNamed by as = let
-  as' = [ (a, Text.unpack (toText (by a))) | a <- as ]
+sortNamed by = sortByText (toText . by)
+
+sortByText :: (a -> Text) -> [a] -> [a]
+sortByText by as = let
+  as' = [ (a, Text.unpack (by a)) | a <- as ]
   comp (_,s) (_,s2) = RFC5051.compareUnicode s s2
   in fst <$> sortBy comp as'
 

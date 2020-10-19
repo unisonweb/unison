@@ -42,7 +42,7 @@ toShortHash :: Referent -> ShortHash
 toShortHash = \case
   Ref r -> R.toShortHash r
   Con r i _ -> patternShortHash r i
-
+  
 toShortHashId :: Id -> ShortHash
 toShortHashId = toShortHash . fromId
 
@@ -62,9 +62,7 @@ ctorTypeText :: CT.ConstructorType -> Text
 ctorTypeText CT.Effect = EffectCtor
 ctorTypeText CT.Data = DataCtor
 
-pattern EffectCtor :: (Eq a, IsString a) => a
 pattern EffectCtor = "a"
-pattern DataCtor :: (Eq a, IsString a) => a
 pattern DataCtor = "d"
 
 toString :: Referent -> String
@@ -86,9 +84,9 @@ toReference' :: Referent' r -> r
 toReference' = \case
   Ref' r -> r
   Con' r _i _t -> r
-
+  
 fromId :: Id -> Referent
-fromId = fmap R.DerivedId
+fromId = fmap R.DerivedId  
 
 toTypeReference :: Referent -> Maybe Reference
 toTypeReference = \case

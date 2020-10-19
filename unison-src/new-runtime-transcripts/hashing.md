@@ -15,37 +15,25 @@ You can skip this section, which is just needed to make the transcript self-cont
 .builtin> ls Bytes
 ```
 
-Notice the `fromBase16` and `toBase16` functions. Here's some (somewhat inefficient) convenience functions for converting `Bytes` to and from base-16 `Text`. These could be replaced by use of `Text.toUtf8` and `Text.tryFromUtf8` once those builtins exist:
+Notice the `fromBase16` and `toBase16` functions. Here's some convenience functions for converting `Bytes` to and from base-16 `Text`.
 
 ```unison:hide
 a |> f = f a
 
-List.map f as =
-  go acc = cases
-    [] -> acc
-    (h +: t) -> go (acc :+ f h) t
-  go [] as
-
--- not very efficient, but okay for testing
 hex : Bytes -> Text
 hex b =
-  Bytes.toBase16 b
-    |> Bytes.toList
-    |> List.map Char.fromNat
-    |> Text.fromCharList
+  match Bytes.toBase16 b |> fromUtf8
+  with Left e -> bug e
+       Right t -> t
 
 ascii : Text -> Bytes
-ascii t = Text.toCharList t |> List.map Char.toNat |> Bytes.fromList
+ascii = toUtf8
 
 fromHex : Text -> Bytes
 fromHex txt =
-  match Text.toCharList txt
-          |> List.map Char.toNat
-          |> Bytes.fromList
-          |> Bytes.fromBase16
-  with
-    Left e -> bug e
-    Right bs -> bs
+  match toUtf8 txt |> Bytes.fromBase16
+  with Left e -> bug e
+       Right bs -> bs
 
 check : Boolean -> [Result]
 check b = if b then [Result.Ok "Passed."]
@@ -262,3 +250,4 @@ test> hmac_sha2_512.tests.ex2 =
 ```ucm
 .scratch> test
 ```
+

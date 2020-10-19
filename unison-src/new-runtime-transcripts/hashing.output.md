@@ -28,37 +28,25 @@ You can skip this section, which is just needed to make the transcript self-cont
   17. toList                (Bytes -> [Nat])
 
 ```
-Notice the `fromBase16` and `toBase16` functions. Here's some (somewhat inefficient) convenience functions for converting `Bytes` to and from base-16 `Text`. These could be replaced by use of `Text.toUtf8` and `Text.tryFromUtf8` once those builtins exist:
+Notice the `fromBase16` and `toBase16` functions. Here's some convenience functions for converting `Bytes` to and from base-16 `Text`.
 
 ```unison
 a |> f = f a
 
-List.map f as =
-  go acc = cases
-    [] -> acc
-    (h +: t) -> go (acc :+ f h) t
-  go [] as
-
--- not very efficient, but okay for testing
 hex : Bytes -> Text
 hex b =
-  Bytes.toBase16 b
-    |> Bytes.toList
-    |> List.map Char.fromNat
-    |> Text.fromCharList
+  match Bytes.toBase16 b |> fromUtf8
+  with Left e -> bug e
+       Right t -> t
 
 ascii : Text -> Bytes
-ascii t = Text.toCharList t |> List.map Char.toNat |> Bytes.fromList
+ascii = toUtf8
 
 fromHex : Text -> Bytes
 fromHex txt =
-  match Text.toCharList txt
-          |> List.map Char.toNat
-          |> Bytes.fromList
-          |> Bytes.fromBase16
-  with
-    Left e -> bug e
-    Right bs -> bs
+  match toUtf8 txt |> Bytes.fromBase16
+  with Left e -> bug e
+       Right bs -> bs
 
 check : Boolean -> [Result]
 check b = if b then [Result.Ok "Passed."]
@@ -279,31 +267,31 @@ test> blake2b_512.tests.ex3 =
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ blake2s_256.tests.ex1   Passed.
-  ◉ sha2_256.tests.ex2      Passed.
-  ◉ hex.tests.ex1           Passed.
-  ◉ sha2_256.tests.ex3      Passed.
-  ◉ sha3_512.tests.ex2      Passed.
   ◉ blake2b_512.tests.ex1   Passed.
-  ◉ sha3_512.tests.ex1      Passed.
-  ◉ sha3_256.tests.ex2      Passed.
-  ◉ sha3_512.tests.ex3      Passed.
-  ◉ sha2_512.tests.ex1      Passed.
-  ◉ sha2_256.tests.ex4      Passed.
-  ◉ blake2b_512.tests.ex3   Passed.
-  ◉ sha3_256.tests.ex1      Passed.
-  ◉ sha2_512.tests.ex4      Passed.
-  ◉ sha3_256.tests.ex4      Passed.
-  ◉ sha3_256.tests.ex3      Passed.
-  ◉ sha3_512.tests.ex4      Passed.
-  ◉ sha2_256.tests.ex1      Passed.
-  ◉ sha2_512.tests.ex3      Passed.
   ◉ blake2b_512.tests.ex2   Passed.
+  ◉ blake2b_512.tests.ex3   Passed.
+  ◉ blake2s_256.tests.ex1   Passed.
+  ◉ hex.tests.ex1           Passed.
+  ◉ sha2_256.tests.ex1      Passed.
+  ◉ sha2_256.tests.ex2      Passed.
+  ◉ sha2_256.tests.ex3      Passed.
+  ◉ sha2_256.tests.ex4      Passed.
+  ◉ sha2_512.tests.ex1      Passed.
   ◉ sha2_512.tests.ex2      Passed.
+  ◉ sha2_512.tests.ex3      Passed.
+  ◉ sha2_512.tests.ex4      Passed.
+  ◉ sha3_256.tests.ex1      Passed.
+  ◉ sha3_256.tests.ex2      Passed.
+  ◉ sha3_256.tests.ex3      Passed.
+  ◉ sha3_256.tests.ex4      Passed.
+  ◉ sha3_512.tests.ex1      Passed.
+  ◉ sha3_512.tests.ex2      Passed.
+  ◉ sha3_512.tests.ex3      Passed.
+  ◉ sha3_512.tests.ex4      Passed.
   
   ✅ 21 test(s) passing
   
-  Tip: Use view blake2s_256.tests.ex1 to view the source of a
+  Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.
 
 ```
@@ -384,35 +372,35 @@ test> hmac_sha2_512.tests.ex2 =
 
   Cached test results (`help testcache` to learn more)
   
+  ◉ blake2b_512.tests.ex1     Passed.
+  ◉ blake2b_512.tests.ex2     Passed.
+  ◉ blake2b_512.tests.ex3     Passed.
   ◉ blake2s_256.tests.ex1     Passed.
-  ◉ sha2_256.tests.ex2        Passed.
   ◉ hex.tests.ex1             Passed.
   ◉ hmac_sha2_256.tests.ex1   Passed.
-  ◉ sha2_256.tests.ex3        Passed.
-  ◉ sha3_512.tests.ex2        Passed.
-  ◉ blake2b_512.tests.ex1     Passed.
-  ◉ sha3_512.tests.ex1        Passed.
-  ◉ sha3_256.tests.ex2        Passed.
-  ◉ sha3_512.tests.ex3        Passed.
-  ◉ sha2_512.tests.ex1        Passed.
-  ◉ sha2_256.tests.ex4        Passed.
-  ◉ blake2b_512.tests.ex3     Passed.
-  ◉ sha3_256.tests.ex1        Passed.
-  ◉ hmac_sha2_512.tests.ex1   Passed.
-  ◉ sha2_512.tests.ex4        Passed.
   ◉ hmac_sha2_256.tests.ex2   Passed.
-  ◉ sha3_256.tests.ex4        Passed.
-  ◉ sha3_256.tests.ex3        Passed.
-  ◉ sha3_512.tests.ex4        Passed.
+  ◉ hmac_sha2_512.tests.ex1   Passed.
   ◉ hmac_sha2_512.tests.ex2   Passed.
   ◉ sha2_256.tests.ex1        Passed.
-  ◉ sha2_512.tests.ex3        Passed.
-  ◉ blake2b_512.tests.ex2     Passed.
+  ◉ sha2_256.tests.ex2        Passed.
+  ◉ sha2_256.tests.ex3        Passed.
+  ◉ sha2_256.tests.ex4        Passed.
+  ◉ sha2_512.tests.ex1        Passed.
   ◉ sha2_512.tests.ex2        Passed.
+  ◉ sha2_512.tests.ex3        Passed.
+  ◉ sha2_512.tests.ex4        Passed.
+  ◉ sha3_256.tests.ex1        Passed.
+  ◉ sha3_256.tests.ex2        Passed.
+  ◉ sha3_256.tests.ex3        Passed.
+  ◉ sha3_256.tests.ex4        Passed.
+  ◉ sha3_512.tests.ex1        Passed.
+  ◉ sha3_512.tests.ex2        Passed.
+  ◉ sha3_512.tests.ex3        Passed.
+  ◉ sha3_512.tests.ex4        Passed.
   
   ✅ 25 test(s) passing
   
-  Tip: Use view blake2s_256.tests.ex1 to view the source of a
+  Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.
 
 ```

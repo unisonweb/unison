@@ -229,6 +229,9 @@ socketRef = Reference.Builtin "Socket"
 mvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
 
+hashAlgorithmRef :: Reference
+hashAlgorithmRef = Reference.Builtin "crypto.HashAlgorithm"
+
 builtin :: Ord v => a -> Text -> Type v a
 builtin a = ref a . Reference.Builtin
 

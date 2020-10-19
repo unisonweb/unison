@@ -608,7 +608,7 @@ orderedComponents bs0 = tweak =<< orderedComponents' bs0 where
 
 -- Hash a strongly connected component and sort its definitions into a canonical order.
 hashComponent ::
-  (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Var v, Ord h, Accumulate h)
+  (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Ord v, Ord h, Accumulate h)
   => Map.Map v (Term f v a) -> (h, [(v, Term f v a)])
 hashComponent byName = let
   ts = Map.toList byName
@@ -661,7 +661,7 @@ instance (Hashable1 f, Functor f) => Hashable1 (Component f) where
 
 -- | We ignore annotations in the `Term`, as these should never affect the
 -- meaning of the term.
-hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Show v, Var v, Ord h, Accumulate h)
+hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Show v, Ord h, Accumulate h)
      => Term f v a -> h
 hash = hash' [] where
   hash' :: [Either [v] v] -> Term f v a -> h
@@ -691,7 +691,7 @@ hash = hash' [] where
   hashCycle env ts = (map (hash' env) ts, hash' env)
 
 -- | Use the `hash` function to efficiently remove duplicates from the list, preserving order.
-distinct :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Show v, Var v, Ord h, Accumulate h)
+distinct :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Show v, Ord h, Accumulate h)
          => proxy h
          -> [Term f v a] -> [Term f v a]
 distinct _ ts = fst <$> sortOn snd m
@@ -699,7 +699,7 @@ distinct _ ts = fst <$> sortOn snd m
         hashes = map hash ts :: [h]
 
 -- | Use the `hash` function to remove elements from `t1s` that exist in `t2s`, preserving order.
-subtract :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Show v, Var v, Ord h, Accumulate h)
+subtract :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Show v, Ord h, Accumulate h)
          => proxy h
          -> [Term f v a] -> [Term f v a] -> [Term f v a]
 subtract _ t1s t2s =

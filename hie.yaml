@@ -1,9 +1,9 @@
 cradle:
   stack:
-    - path: "codebase-convert-1to2/app/Main.hs"
+    - path: "codebase-convert-1to2/app/."
       component: "unison-codebase-convert-1to2:exe:uconvert12"
 
-    - path: "codebase-convert-1to2/lib"
+    - path: "codebase-convert-1to2/lib/."
       component: "unison-codebase-convert-1to2:lib"
 
     - path: "codebase1/codebase/."
@@ -36,179 +36,29 @@ cradle:
     - path: "codebase2/util-serialization/."
       component: "unison-util-serialization:lib"
 
-    - path: "parser-typechecker/src"
+    - path: "parser-typechecker/src/."
       component: "unison-parser-typechecker:lib"
 
-    - path: "parser-typechecker/unison/Main.hs"
+    - path: "parser-typechecker/unison/."
       component: "unison-parser-typechecker:exe:unison"
 
-    - path: "parser-typechecker/unison/System.Path.hs"
-      component: "unison-parser-typechecker:exe:unison"
-
-    - path: "parser-typechecker/unison/Version.hs"
-      component: "unison-parser-typechecker:exe:unison"
-
-    - path: "parser-typechecker/prettyprintdemo/Main.hs"
+    - path: "parser-typechecker/prettyprintdemo/."
       component: "unison-parser-typechecker:exe:prettyprintdemo"
 
-    - path: "parser-typechecker/tests/Suite.hs"
+    - path: "parser-typechecker/tests/."
       component: "unison-parser-typechecker:exe:tests"
 
-    - path: "parser-typechecker/tests/Unison.Test.ABT.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.ANF.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Cache.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Codebase.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Codebase.Causal.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Codebase.FileCodebase.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Codebase.Path.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.ColorText.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Common.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.DataDeclaration.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.FileParser.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Git.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Lexer.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.IO.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.MCode.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Range.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Referent.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Term.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.TermParser.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.TermPrinter.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Type.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.TypePrinter.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Typechecker.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Typechecker.Components.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Typechecker.Context.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Typechecker.TypeError.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.UnisonSources.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.UriParser.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Util.Bytes.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Util.PinBoard.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Util.Pretty.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.Var.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Test.VersionParser.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/tests/Unison.Core.Test.Name.hs"
-      component: "unison-parser-typechecker:exe:tests"
-
-    - path: "parser-typechecker/transcripts/Transcripts.hs"
+    - path: "parser-typechecker/transcripts/."
       component: "unison-parser-typechecker:exe:transcripts"
 
-    - path: "parser-typechecker/transcripts/build-depends:.hs"
-      component: "unison-parser-typechecker:exe:transcripts"
-
-    - path: "parser-typechecker/transcripts/base.hs"
-      component: "unison-parser-typechecker:exe:transcripts"
-
-    - path: "parser-typechecker/transcripts/directory.hs"
-      component: "unison-parser-typechecker:exe:transcripts"
-
-    - path: "parser-typechecker/transcripts/easytest.hs"
-      component: "unison-parser-typechecker:exe:transcripts"
-
-    - path: "parser-typechecker/transcripts/filepath.hs"
-      component: "unison-parser-typechecker:exe:transcripts"
-
-    - path: "parser-typechecker/transcripts/shellmet.hs"
-      component: "unison-parser-typechecker:exe:transcripts"
-
-    - path: "parser-typechecker/transcripts/process.hs"
-      component: "unison-parser-typechecker:exe:transcripts"
-
-    - path: "parser-typechecker/transcripts/text.hs"
-      component: "unison-parser-typechecker:exe:transcripts"
-
-    - path: "parser-typechecker/transcripts/unison-core.hs"
-      component: "unison-parser-typechecker:exe:transcripts"
-
-    - path: "parser-typechecker/transcripts/unison-parser-typechecker.hs"
-      component: "unison-parser-typechecker:exe:transcripts"
-
-    - path: "parser-typechecker/benchmarks/runtime/Main.hs"
+    - path: "parser-typechecker/benchmarks/runtime/."
       component: "unison-parser-typechecker:bench:runtime"
 
-    - path: "unison-core/src"
+    - path: "unison-core/src/."
       component: "unison-core1:lib"
 
-    - path: "yaks/easytest/src"
+    - path: "yaks/easytest/src/."
       component: "easytest:lib"
 
-    - path: "yaks/easytest/tests/Suite.hs"
-      component: "easytest:exe:runtests"
-
-    - path: "yaks/easytest/tests/build-depends:.hs"
-      component: "easytest:exe:runtests"
-
-    - path: "yaks/easytest/tests/base.hs"
-      component: "easytest:exe:runtests"
-
-    - path: "yaks/easytest/tests/easytest.hs"
-      component: "easytest:exe:runtests"
-
-    - path: "yaks/easytest/tests"
+      - path: "yaks/easytest/tests/."
       component: "easytest:test:tests"

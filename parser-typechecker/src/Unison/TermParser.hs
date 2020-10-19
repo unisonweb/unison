@@ -127,19 +127,34 @@ match = do
   _ <- P.try (openBlockWith "with") <|> do
          t <- anyToken
          P.customFailure (ExpectedBlockOpen "with" t)
-  cases <- sepBy1 semi matchCase
+  (_arities, cases) <- unzip <$> sepBy1 semi matchCase
   -- TODO: Add error for empty match list
   _ <- closeBlock
   pure $ Term.match (ann start <> ann (last cases)) scrutinee cases
 
-matchCase :: Var v => P v (Term.MatchCase Ann (Term v Ann))
+-- Returns the arity of the pattern and the `MatchCase`. Examples:
+--
+--   (a, b) -> a - b -- arity 1
+--   foo (hd +: tl) -> foo tl -- arity 2
+--
+-- Cases with arity greater than 1 are desugared to matching on tuples,
+-- so the following are parsed the same:
+--
+--   42 x -> ...
+--   (42, x) -> ...
+matchCase :: Var v => P v (Int, Term.MatchCase Ann (Term v Ann))
 matchCase = do
-  (p, boundVars) <- parsePattern
-  let boundVars' = snd <$> boundVars
+  pats <- some parsePattern
+  let boundVars' = [ v | (_,vs) <- pats, (_ann,v) <- vs ]
+      pat = case fst <$> pats of
+        [p] -> p
+        pats -> foldr pair (unit (ann . last $ pats)) pats
+      unit ann = Pattern.Constructor ann DD.unitRef 0 []
+      pair p1 p2 = Pattern.Constructor (ann p1 <> ann p2) DD.pairRef 0 [p1, p2]
   guard <- optional $ reserved "|" *> infixAppOrBooleanOp
   t <- block "->"
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
-  pure . Term.MatchCase p (fmap (absChain boundVars') guard) $ absChain boundVars' t
+  pure $ (length pats, Term.MatchCase pat (fmap (absChain boundVars') guard) (absChain boundVars' t))
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
 parsePattern = root
@@ -257,16 +272,32 @@ handle = label "handle" $ do
   handler <- block "with"
   pure $ Term.handle (ann b) handler b
 
+checkCasesArities :: (Ord v, Annotated a) => [(Int, a)] -> P v (Int, [a])
+checkCasesArities cases = go Nothing cases where
+  go arity [] = case arity of
+    Nothing -> fail "empty list of cases"
+    Just a -> pure (a, map snd cases)
+  go Nothing ((i,_):t) = go (Just i) t
+  go (Just i) ((j,a):t) =
+    if i == j then go (Just i) t
+    else P.customFailure $ PatternArityMismatch i j (ann a)
+
 lamCase = do
   start <- openBlockWith "cases"
   cases <- sepBy1 semi matchCase
+  (arity, cases) <- checkCasesArities cases
   -- TODO: Add error for empty match list
   _ <- closeBlock
-  lamvar <- Parser.uniqueName 10
-  let lamvarTerm = Term.var (ann start) (Var.named lamvar)
+  lamvars <- replicateM arity (Parser.uniqueName 10)
+  let vars = Var.named <$> [ tweak v i | (v,i) <- lamvars `zip` [(1::Int)..] ]
+      tweak v 0 = v
+      tweak v i = v <> Text.pack (show i)
+      lamvarTerms = Term.var (ann start) <$> vars
+      lamvarTerm = case lamvarTerms of
+        [e] -> e
+        es -> DD.tupleTerm es
       matchTerm = Term.match (ann start <> ann (last cases)) lamvarTerm cases
-  pure $ Term.lam (ann start <> ann (last cases)) (Var.named lamvar) matchTerm
-
+  pure $ Term.lam' (ann start <> ann (last cases)) vars matchTerm
 
 ifthen = label "if" $ do
   start <- peekAny
@@ -687,6 +718,37 @@ verifyRelativeName' name = do
   when (Text.isPrefixOf "." txt && txt /= ".") $
     failCommitted (DisallowedAbsoluteName name)
 
+-- example:
+--   (x, y)   = foo
+--   hd +: tl | hd < 10 = [1,2,3]
+--   stuff
+--
+-- desugars to:
+--
+--   match foo with
+--     (x,y) -> match [1,2,3] with
+--       hd +: tl | hd < 10 -> stuff
+--
+destructuringBind :: forall v. Var v => P v (Ann, Term v Ann -> Term v Ann)
+destructuringBind = do
+  -- We have to look ahead as far as the `=` to know if this is a bind or
+  -- just an action, for instance:
+  --   Some 42
+  --   vs
+  --   Some 42 = List.head elems
+  (p, boundVars, guard) <- P.try $ do
+    (p, boundVars) <- parsePattern
+    let boundVars' = snd <$> boundVars
+    guard <- optional $ reserved "|" *> infixAppOrBooleanOp
+    P.lookAhead (openBlockWith "=")
+    pure (p, boundVars', guard)
+  scrute <- block "=" -- Dwight K. Scrute ("The People's Scrutinee")
+  let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
+      thecase t = Term.MatchCase p (fmap (absChain boundVars) guard) $ absChain boundVars t
+  pure $ (ann p, \t ->
+    let a = ann p <> ann t
+    in Term.match a scrute [thecase t])
+
 binding :: forall v. Var v => P v ((Ann, v), Term v Ann)
 binding = label "binding" $ do
   typ <- optional typedecl
@@ -760,50 +822,10 @@ importp = do
       suffix <- L.payload <$> suffixes
       pure (suffix, Name.joinDot (L.payload prefix) suffix)
 
---module Monoid where
---  -- we replace all the binding names with Monoid.op, and
---  -- if `op` is free in the body of any binding, we replace it with `Monoid.op`
---  op : Monoid a -> (a -> a -> a)
---  op m = case m of Monoid
-
 data BlockElement v
   = Binding ((Ann, v), Term v Ann)
+  | DestructuringBind (Ann, Term v Ann -> Term v Ann)
   | Action (Term v Ann)
-  | Namespace String [BlockElement v]
-
-namespaceBlock :: Var v => P v (BlockElement v)
-namespaceBlock = do
-  _ <- reserved "namespace"
-  -- need a version of verifyRelativeName that takes a `Token Name`
-  name <- verifyRelativeName importWordyId
-  let statement = (Binding <$> binding) <|> namespaceBlock
-  _ <- openBlockWith "where"
-  elems <- sepBy semi statement
-  _ <- closeBlock
-  pure $ Namespace (Name.toString $ L.payload name) elems
-
-toBindings :: forall v . Var v => [BlockElement v] -> [((Ann,v), Term v Ann)]
-toBindings b = let
-  expand (Binding ((a, v), e)) = [((a, Just v), e)]
-  expand (Action e) = [((ann e, Nothing), e)]
-  expand (Namespace name bs) = scope name $ expand =<< bs
-  v `orBlank` i = fromMaybe (Var.nameds $ "_" ++ show i) v
-  finishBindings bs =
-    [((a, v `orBlank` i), e) | (((a,v), e), i) <- bs `zip` [(1::Int)..]]
-
-  scope :: String -> [((Ann, Maybe v), Term v Ann)]
-                  -> [((Ann, Maybe v), Term v Ann)]
-  scope name bs = let
-    vs :: [Maybe v]
-    vs = snd . fst <$> bs
-    prefix :: v -> v
-    prefix v = Var.named (Text.pack name `mappend` "." `mappend` Var.name v)
-    vs' :: [Maybe v]
-    vs' = fmap prefix <$> vs
-    substs = [ (v, Term.var () v') | (Just v, Just v') <- vs `zip` vs' ]
-    sub = ABT.substsInheritAnnotation substs
-    in [ ((a, v'), sub e) | (((a,_),e), v') <- bs `zip` vs' ]
-  in finishBindings (expand =<< b)
 
 -- subst
 -- use Foo.Bar + blah
@@ -842,36 +864,38 @@ block' isTop s openBlock closeBlock = do
     _ <- closeBlock
     substImports names imports <$> go open statements
   where
-    statement = namespaceBlock <|>
-      asum [ Binding <$> binding, Action <$> blockTerm ]
+    statement = asum [ Binding <$> binding, DestructuringBind <$> destructuringBind, Action <$> blockTerm ]
     go :: L.Token () -> [BlockElement v] -> P v (Term v Ann)
     go open bs
       = let
-          startAnnotation = (fst . fst . head $ toBindings bs)
-          endAnnotation   = (fst . fst . last $ toBindings bs)
           finish tm = case Components.minimize' tm of
             Left dups -> customFailure $ DuplicateTermNames (toList dups)
             Right tm -> pure tm
-        in
-          case reverse bs of
-            Namespace _v _ : _ -> finish $ Term.letRec
-              isTop
-              (startAnnotation <> endAnnotation)
-              (toBindings bs)
-              (Term.var endAnnotation
-                        (positionalVar endAnnotation Var.missingResult)
-              )
-            Binding ((a, _v), _) : _ -> finish $ Term.letRec
-              isTop
-              (startAnnotation <> endAnnotation)
-              (toBindings bs)
-              (Term.var a (positionalVar endAnnotation Var.missingResult))
-            Action e : bs -> finish $ Term.letRec
-              isTop
-              (startAnnotation <> ann e)
-              (toBindings $ reverse bs)
-              e
+          toTm bs = do
+            body <- body bs
+            finish $ foldr step body (init bs)
+            where
+            step :: BlockElement v -> Term v Ann -> Term v Ann
+            step elem body = case elem of
+              Binding ((a,v), tm) -> Term.consLetRec
+                isTop
+                (ann a <> ann body)
+                (a,v,tm)
+                body
+              Action tm -> Term.consLetRec
+                isTop
+                (ann tm <> ann body)
+                (ann tm, positionalVar (ann tm) (Var.named "_"), tm)
+                body
+              DestructuringBind (_, f) -> f body
+          body bs = case reverse bs of
+            Binding ((a, _v), _) : _ -> pure $
+              Term.var a (positionalVar a Var.missingResult)
+            Action e : _ -> pure e
+            DestructuringBind (a, _) : _ -> pure $
+              Term.var a (positionalVar a Var.missingResult)
             [] -> customFailure $ EmptyBlock (const s <$> open)
+        in toTm bs
 
 number :: Var v => TermP v
 number = number' (tok Term.int) (tok Term.nat) (tok Term.float)

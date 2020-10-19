@@ -6,20 +6,25 @@ module Unison.Runtime.Interface
   ( startRuntime
   ) where
 
+import GHC.Stack (HasCallStack)
+
 import Control.Exception (try)
 import Control.Monad (foldM, (<=<))
 
-import Data.Bifunctor (first,second)
+import Data.Bifunctor (first)
 import Data.Foldable
 import Data.IORef
+import Data.Set as Set (Set, (\\), singleton, map, notMember, filter)
+import Data.Traversable (for)
 import Data.Word (Word64)
 
 import qualified Data.Map.Strict as Map
 
+import qualified Unison.ABT as Tm (substs)
 import qualified Unison.Term as Tm
 import Unison.Var (Var)
 
-import Unison.DataDeclaration (declFields)
+import Unison.DataDeclaration (declFields, declDependencies, Decl)
 import qualified Unison.LabeledDependency as RF
 import Unison.Reference (Reference)
 import qualified Unison.Reference as RF
@@ -47,13 +52,13 @@ type Term v = Tm.Term v ()
 
 data EvalCtx v
   = ECtx
-  { freshTy :: Int
+  { freshTy :: Word64
   , freshTm :: Word64
-  , refTy :: Map.Map RF.Reference RTag
+  , refTy :: Map.Map RF.Reference Word64
   , refTm :: Map.Map RF.Reference Word64
-  , combs :: EnumMap Word64 Comb
+  , combs :: EnumMap Word64 Combs
   , dspec :: DataSpec
-  , backrefTy :: EnumMap RTag RF.Reference
+  , backrefTy :: EnumMap Word64 RF.Reference
   , backrefTm :: EnumMap Word64 (Term v)
   , backrefComb :: EnumMap Word64 RF.Reference
   }
@@ -63,11 +68,6 @@ uncurryDspec = Map.fromList . concatMap f . Map.toList
   where
   f (r,l) = zipWith (\n c -> ((r,n),c)) [0..] $ either id id l
 
-numberLetRec :: Word64 -> Term v -> EnumMap Word64 (Term v)
-numberLetRec frsh (Tm.LetRecNamed' bs e)
-  = mapFromList . zip [frsh..] $ e : map snd bs
-numberLetRec _ _ = error "impossible"
-
 baseContext :: forall v. Var v => EvalCtx v
 baseContext
   = ECtx
@@ -75,7 +75,9 @@ baseContext
   , freshTm = ftm
   , refTy = builtinTypeNumbering
   , refTm = builtinTermNumbering
-  , combs = emitComb @v mempty <$> numberedTermLookup
+  , combs = mapSingleton 0
+          . emitComb @v emptyRNs 0 mempty
+        <$> numberedTermLookup
   , dspec = builtinDataSpec
   , backrefTy = builtinTypeBackref
   , backrefTm = Tm.ref () <$> builtinTermBackref
@@ -83,18 +85,44 @@ baseContext
   }
   where
   ftm = 1 + maximum builtinTermNumbering
-  fty = (1+) . fromEnum $ maximum builtinTypeNumbering
+  fty = 1 + maximum builtinTypeNumbering
 
--- allocTerm
---   :: Var v
---   => CodeLookup v m ()
---   -> EvalCtx v
---   -> RF.Reference
---   -> IO (EvalCtx v)
--- allocTerm _  _   b@(RF.Builtin _)
---   = die $ "Unknown builtin term reference: " ++ show b
--- allocTerm _  _   (RF.DerivedId _)
---   = die $ "TODO: allocTerm: hash reference"
+allocTerm
+  :: Var v
+  => EvalCtx v
+  -> RF.Reference
+  -> Term v
+  -> EvalCtx v
+allocTerm ctx r tm = snd $ allocTerm' ctx r tm
+
+allocTerm'
+  :: Var v
+  => EvalCtx v
+  -> RF.Reference
+  -> Term v
+  -> (Word64, EvalCtx v)
+allocTerm' ctx r tm
+  | Just w <- Map.lookup r (refTm ctx) = (w, ctx)
+  | rt <- freshTm ctx
+  = (rt, ctx
+       { refTm = Map.insert r rt $ refTm ctx
+       , backrefTm = mapInsert rt tm $ backrefTm ctx
+       , backrefComb = mapInsert rt r $ backrefComb ctx
+       , freshTm = rt+1
+       })
+
+allocTermRef
+  :: Var v
+  => CodeLookup v IO ()
+  -> EvalCtx v
+  -> RF.Reference
+  -> IO (EvalCtx v)
+allocTermRef _  _   b@(RF.Builtin _)
+  = die $ "Unknown builtin term reference: " ++ show b
+allocTermRef cl ctx r@(RF.DerivedId i)
+  = getTerm cl i >>= \case
+      Nothing -> die $ "Unknown term reference: " ++ show r
+      Just tm -> pure $ allocTerm ctx r tm
 
 allocType
   :: EvalCtx v
@@ -113,19 +141,60 @@ allocType ctx r cons
   where
   (rt, fresh)
     | Just rt <- Map.lookup r $ refTy ctx = (rt, freshTy ctx)
-    | frsh <- freshTy ctx = (toEnum $ frsh, frsh + 1)
+    | frsh <- freshTy ctx = (frsh, frsh + 1)
+
+recursiveDeclDeps
+  :: Var v
+  => Set RF.LabeledDependency
+  -> CodeLookup v IO ()
+  -> Decl v ()
+  -> IO (Set Reference, Set Reference)
+recursiveDeclDeps seen0 cl d = do
+    rec <- for (toList newDeps) $ \case
+      RF.DerivedId i -> getTypeDeclaration cl i >>= \case
+        Just d -> recursiveDeclDeps seen cl d
+        Nothing -> pure mempty
+      _ -> pure mempty
+    pure $ (deps, mempty) <> fold rec
+  where
+  deps = declDependencies d
+  newDeps = Set.filter (\r -> notMember (RF.typeRef r) seen0) deps
+  seen = seen0 <> Set.map RF.typeRef deps
+
+categorize :: RF.LabeledDependency -> (Set Reference, Set Reference)
+categorize
+  = either ((,mempty) . singleton) ((mempty,) . singleton)
+  . RF.toReference
+
+recursiveTermDeps
+  :: Var v
+  => Set RF.LabeledDependency
+  -> CodeLookup v IO ()
+  -> Term v
+  -> IO (Set Reference, Set Reference)
+recursiveTermDeps seen0 cl tm = do
+    rec <- for (RF.toReference <$> toList (deps \\ seen0)) $ \case
+      Left (RF.DerivedId i) -> getTypeDeclaration cl i >>= \case
+        Just d -> recursiveDeclDeps seen cl d
+        Nothing -> pure mempty
+      Right (RF.DerivedId i) -> getTerm cl i >>= \case
+        Just tm -> recursiveTermDeps seen cl tm
+        Nothing -> pure mempty
+      _ -> pure mempty
+    pure $ foldMap categorize deps <> fold rec
+  where
+  deps = Tm.labeledDependencies tm
+  seen = seen0 <> deps
 
 collectDeps
   :: Var v
   => CodeLookup v IO ()
   -> Term v
   -> IO ([(Reference, Either [Int] [Int])], [Reference])
-collectDeps cl tm
-  = (,tms) <$> traverse getDecl tys
+collectDeps cl tm = do
+  (tys, tms) <- recursiveTermDeps mempty cl tm
+  (, toList tms) <$> traverse getDecl (toList tys)
   where
-  chld = toList $ Tm.labeledDependencies tm
-  categorize = either (first . (:)) (second . (:)) . RF.toReference
-  (tys, tms) = foldr categorize ([],[]) chld
   getDecl ty@(RF.DerivedId i) =
     (ty,) . maybe (Right []) declFields
       <$> getTypeDeclaration cl i
@@ -138,49 +207,72 @@ loadDeps
   -> Term v
   -> IO (EvalCtx v)
 loadDeps cl ctx tm = do
-  (tys, _  ) <- collectDeps cl tm
+  (tys, tms) <- collectDeps cl tm
   -- TODO: terms
-  foldM (uncurry . allocType) ctx $ filter p tys
+  ctx <- foldM (uncurry . allocType) ctx $ Prelude.filter p tys
+  ctx <- foldM (allocTermRef cl) ctx $ Prelude.filter q tms
+  pure $ foldl' compileAllocated ctx $ Prelude.filter q tms
   where
   p (r@RF.DerivedId{},_)
     =  r `Map.notMember` dspec ctx
     || r `Map.notMember` refTy ctx
   p _ = False
 
-addCombs :: EnumMap Word64 Comb -> EvalCtx v -> EvalCtx v
-addCombs m ctx = ctx { combs = m <> combs ctx }
+  q r@RF.DerivedId{} = r `Map.notMember` refTm ctx
+  q _ = False
 
-addTermBackrefs :: EnumMap Word64 (Term v) -> EvalCtx v -> EvalCtx v
-addTermBackrefs refs ctx = ctx { backrefTm = refs <> backrefTm ctx }
+compileAllocated
+  :: HasCallStack => Var v => EvalCtx v -> Reference -> EvalCtx v
+compileAllocated ctx r
+  | Just w <- Map.lookup r (refTm ctx)
+  , Just tm <- EC.lookup w (backrefTm ctx)
+  = compileTerm w tm ctx
+  | otherwise
+  = error "compileAllocated: impossible"
 
-refresh :: Word64 -> EvalCtx v -> EvalCtx v
-refresh w ctx = ctx { freshTm = w }
+addCombs :: EvalCtx v -> Word64 -> Combs -> EvalCtx v
+addCombs ctx w m = ctx { combs = mapInsert w m $ combs ctx }
 
-ref :: Ord k => Show k => Map.Map k v -> k -> v
+-- addTermBackrefs :: EnumMap Word64 (Term v) -> EvalCtx v -> EvalCtx v
+-- addTermBackrefs refs ctx = ctx { backrefTm = refs <> backrefTm ctx }
+
+-- refresh :: Word64 -> EvalCtx v -> EvalCtx v
+-- refresh w ctx = ctx { freshTm = w }
+
+ref :: HasCallStack => Ord k => Show k => Map.Map k v -> k -> v
 ref m k
   | Just x <- Map.lookup k m = x
   | otherwise = error $ "unknown reference: " ++ show k
 
 compileTerm
-  :: Var v => Word64 -> Term v -> EvalCtx v -> EvalCtx v
+  :: HasCallStack => Var v => Word64 -> Term v -> EvalCtx v -> EvalCtx v
 compileTerm w tm ctx
-  = finish
-  . fmap
-      ( emitCombs frsh
-      . superNormalize (ref $ refTm ctx) (ref $ refTy ctx))
-  . bkrf
+  = addCombs ctx w
+  . emitCombs (RN (ref $ refTy ctx) (ref $ refTm ctx)) w
+  . superNormalize
   . lamLift
   . splitPatterns (dspec ctx)
   . saturate (uncurryDspec $ dspec ctx)
   $ tm
+
+prepareEvaluation
+  :: HasCallStack => Var v => Term v -> EvalCtx v -> (EvalCtx v, Word64)
+prepareEvaluation (Tm.LetRecNamed' bs mn0) ctx0 = (ctx4, mid)
   where
-  frsh = freshTm ctx
-  bkrf tm = (numberLetRec frsh tm, tm)
-  finish (recs, (main, aux, frsh'))
-    = refresh frsh'
-    . addTermBackrefs recs
-    . addCombs (mapInsert w main aux)
-    $ ctx
+  hcs = fmap (first RF.DerivedId) . Tm.hashComponents $ Map.fromList bs
+  mn = Tm.substs (Map.toList $ Tm.ref () . fst <$> hcs) mn0
+  rmn = RF.DerivedId $ Tm.hashClosedTerm mn
+
+  ctx1 = foldl (uncurry . allocTerm) ctx0 hcs
+  ctx2 = foldl (\ctx (r, _) -> compileAllocated ctx r) ctx1 hcs
+  (mid, ctx3) = allocTerm' ctx2 rmn mn
+  ctx4 = compileTerm mid mn ctx3
+prepareEvaluation mn ctx0 = (ctx2, mid)
+  where
+  rmn = RF.DerivedId $ Tm.hashClosedTerm mn
+  (mid, ctx1) = allocTerm' ctx0 rmn mn
+  ctx2 = compileTerm mid mn ctx1
+
 
 watchHook :: IORef Closure -> Stack 'UN -> Stack 'BX -> IO ()
 watchHook r _ bstk = peek bstk >>= writeIORef r
@@ -204,7 +296,7 @@ evalInContext ppe ctx w = do
         <=< try $ apply0 (Just hook) senv w
   pure $ decom =<< result
   where
-  decom = decompile (`EC.lookup`backrefTy ctx) (`EC.lookup`backrefTm ctx)
+  decom = decompile (`EC.lookup`backrefTm ctx)
   prettyError (PE p) = p
   prettyError (BU c) = either id (pretty ppe) $ decom c
 
@@ -217,9 +309,8 @@ startRuntime = do
            ctx <- readIORef ctxVar
            ctx <- loadDeps cl ctx tm
            writeIORef ctxVar ctx
-           let init = freshTm ctx
-           ctx <- pure $ refresh (init+1) ctx
-           ctx <- pure $ compileTerm init tm ctx
+           (ctx, init) <- pure $ prepareEvaluation tm ctx
            evalInContext ppe ctx init
        , mainType = builtinMain External
+       , needsContainment = False
        }
