@@ -1,0 +1,24 @@
+--Line 13, columns 44-46 has a type mismatch (in red below):
+--
+--   13 |   {Ask.ask _ -> k} -> handle k () with supply t
+--
+--The two types involved are:
+--
+--  () (an intrinsic, in blue)
+--  Text (line 8, columns 30-34, in green)
+--
+--    8 | supply : Text -> Request (Ask Text) a -> a
+--
+-- Verbiage could be improved, but also the `()` location should
+-- point to line 22, the `k ()` call.
+ability Ask foo where
+  ask : () -> {Ask a} a
+
+supply : Text -> Request (Ask Text) a -> a
+supply t = cases
+  {a} -> a
+  -- `k` should be of type `Text -> Request Ask a`,
+  -- so calling it with `()` here should be a type error
+  {Ask.ask _ -> k} -> handle k () with supply t
+
+supply

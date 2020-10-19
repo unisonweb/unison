@@ -1,0 +1,8 @@
+type Choice = First | Second
+type Wrapper = Wrapper Choice
+
+broken = match Wrapper.Wrapper Choice.Second with
+    Wrapper.Wrapper Choice.First -> true
+    _ -> false
+
+> broken

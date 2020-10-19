@@ -1,0 +1,47 @@
+
+-- A corner case in the runtime is when a function is being overapplied and
+-- the exactly applied function requests an ability (and returns a new function)
+
+ability Zing where
+  zing : Nat -> {Zing} (Nat -> Nat)
+  zing2 : Nat -> Nat ->{Zing} (Nat -> Nat -> [Nat])
+
+unzing = cases
+  {a} -> a
+  {Zing.zing n -> k} -> handle k (x -> x `drop` n) with unzing
+  {Zing.zing2 n1 n2 -> k} -> handle k (n3 n4 -> [n1, n2, n3, n4]) with unzing
+
+exacth = handle
+  f = Zing.zing 3
+  f 20 + 1
+  with unzing
+
+overapplyh = handle
+  Zing.zing 3 20 + 1
+  with unzing
+
+-- SEQUENCES with abilities
+
+sequence1 = handle [Zing.zing 1 4] with unzing
+sequence2 = handle [Zing.zing 1 4, Zing.zing 1 4] with unzing
+sequence3 = handle [Zing.zing 1 4, Zing.zing 2 4, Zing.zing 3 4, Zing.zing 4 4] with unzing
+
+-- Overapply of requests
+
+overapplyh2 = handle Zing.zing2 1 2 3 4 with unzing
+
+overapplyh3a = handle Zing.zing2 1 2 3 4 ++ [5] with unzing
+
+overapplyh3b = handle Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 8] with unzing
+
+overapplyh3c = handle Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 7 + 1] with unzing
+
+> (exacth,
+   overapplyh,
+   sequence1,
+   sequence2,
+   sequence3,
+   overapplyh2,
+   overapplyh3a,
+   overapplyh3b,
+   overapplyh3c)

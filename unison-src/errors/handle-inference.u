@@ -1,0 +1,22 @@
+--handle inference
+ability State s where
+  get : ∀ s . () -> {State s} s
+  set : ∀ s . s -> {State s} ()
+state : ∀ a s . s -> Request (State s) a -> a
+state s = cases
+  {a} -> a
+  {State.get _ -> k} -> handle k s with state s
+  {State.set s -> k} -> handle k () with state s
+-- modify : ∀ s . (s -> s) -> {State s} ()
+-- modify f = State.set (f (State.get()))
+ex : () -> {State Nat} Nat
+ex blah =
+  State.get() Nat.+ 42
+-- note this currently succeeds, the handle block
+-- gets an inferred type of ∀ a . a, it appears that
+-- the existential `a` which gets instantiated for the
+-- state call never gets refined, most likely due to
+-- missing a subtype check in handle
+y : Text
+y = handle ex () with state 5
+()

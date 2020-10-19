@@ -1,0 +1,16 @@
+
+use Nat drop >=
+use Optional None Some
+
+search : (Nat -> Int) -> Nat -> Nat -> Optional Nat
+search hit bot top =
+  go : Nat -> Nat -> Optional Nat
+  go bot top =
+    if bot >= top then None
+    else
+      mid = (bot + top) / 2
+      match hit mid with
+        +0 -> Some mid
+        -1 -> go bot (mid `drop` 1)
+        +1 -> go (mid + 1) top
+  go bot top

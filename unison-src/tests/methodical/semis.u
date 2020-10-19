@@ -1,0 +1,13 @@
+
+-- explicit semicolons allowed inside the block parser
+-- no need for a space either before or after
+x = 0; 1
+y = 0;1
+z = x;y
+(**) = x ; y
+a = (**);(**);z
+p = 1;-- comments are okay after a semi
+    1 -- and you can put a semi between lines,
+      -- even if a virtual semi would have been emitted
+
+> (x,y,z,(**),a,p)

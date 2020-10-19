@@ -1,0 +1,4 @@
+f x = x
+
+> (f false) && false
+-- and false false

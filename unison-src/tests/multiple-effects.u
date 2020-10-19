@@ -1,0 +1,16 @@
+ability State s where
+  get : {State s} s
+  set : s -> {State s} ()
+
+ability Console where
+  read : {Console} (Optional Text)
+  write : Text -> {Console} ()
+
+Console.state : s -> Request (State s) a -> a
+Console.state s = cases
+    {State.get -> k} -> handle k s with Console.state s
+    {State.set s' -> k} -> handle k () with Console.state s'
+    {a} -> a
+
+multiHandler : s -> [w] -> Nat -> Request {State s, Console} a -> ()
+multiHandler _ _ _ _ = ()

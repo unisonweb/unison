@@ -1,0 +1,23 @@
+
+-- This file shows that any unique suffix can be used to refer
+-- to a definition.
+
+-- no imports needed here, even though FQN is builtin.Int
+foo : Int
+foo = +1
+
+-- no imports needed here, even though FQNs are builtin.Optional.{None,Some}
+ex1 = cases
+  None -> 0
+  Some a -> a + 1
+
+-- you can still use the
+ex2 = cases
+  Optional.None -> 99
+  Optional.Some _ -> 0
+
+ex3 = builtin.Optional.None
+
+-- TDNR would have handled this one before, but TDNR can't do
+-- type resolution or pattern resolution
+zoink = Some 42

@@ -1,0 +1,5 @@
+r0 : Nat
+r0 = match Optional.Some 3 with
+  x -> 1
+
+> r0

@@ -1,0 +1,4 @@
+-- Should resolve + with Type-directeded name resolution
+
+x : Nat
+x = 4 + 2

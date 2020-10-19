@@ -1,0 +1,15 @@
+-- Used to fail on the guard
+--
+-- typechecker.tests/caseguard.u FAILURE I'm not sure what x means at line 3, columns 9-10
+--
+--    3 |     x | x == "woot" -> false
+--
+-- Whatever it is, it has a type that conforms to Text.
+
+use Universal ==
+
+f = cases
+  x | x == "woot" -> false
+  y | y == "foo" -> true
+
+-- > f "woot"

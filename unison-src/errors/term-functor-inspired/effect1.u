@@ -1,0 +1,9 @@
+ability State s where
+  get : () -> {State s} s
+  set : s -> {State s} ()
+
+x : {State Nat} Nat
+x =
+  State.get ()
+
+()

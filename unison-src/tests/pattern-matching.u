@@ -1,0 +1,36 @@
+type Foo0 = Foo0
+type Foo1 a = Foo1 a
+type Foo2 a b = Foo2 a b
+type Foo3 a b c = Foo3 a b c
+type List a = Nil | Cons a (List a)
+
+use Foo0 Foo0
+use Foo1 Foo1
+use Foo2 Foo2
+
+x = match Foo0 with
+  Foo0 -> 1
+
+y = match Foo1 1 with
+  Foo1 1 -> 0
+  Foo1 _ -> 10
+
+z = match Foo2 1 "hi" with
+  Foo2 x _ -> x
+  Foo2 1 _ -> 1
+
+w = match Foo3.Foo3 1 2 "bye" with
+  Foo3.Foo3 1 2 x -> x Text.++ "bye"
+  _ -> ""
+
+w2 = cases
+  Foo3.Foo3 1 4 x -> x Text.++ "bye"
+  Foo3.Foo3 x y z -> z Text.++ z
+  _ -> "hi"
+
+len : List a -> Nat
+len = cases
+  List.Nil -> 0
+  List.Cons _ t -> len t + 1
+
+> (w, w2, len)

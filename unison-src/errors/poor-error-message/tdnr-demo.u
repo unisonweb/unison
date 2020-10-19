@@ -1,0 +1,55 @@
+left = take 3 (fromNat 5)
+right = take 10 (fromNat 100)
+sum = reduce 0 (+)
+
+iterate : a -> Nat -> (a -> a) -> Sequence a
+iterate a n f =
+  iterate0 a n f acc =
+    if n > 0 then
+      a' = f a
+      iterate0 a' (n `drop` 1) f (snoc acc a')
+    else acc
+  iterate0 a n f []
+
+use Optional Some None
+reduce : a -> (a -> a -> a) -> Sequence a -> a
+reduce a0 f s = match at 0 s with
+  Optional.None -> a0
+  Optional.Some a1 -> reduce (f a0 a1) f (drop 1 s)
+
+pseudo-Stream : Sequence Nat
+pseudo-Stream = iterate 0 200 increment
+left2 = take 3 (drop 3 pseudo-Stream)
+right2 = take 10 (drop 99 pseudo-Stream)
+sum2 = reduce 0 (+)
+
+(sum (append left right)) == (sum2 (left2 ++ right2))
+
+-- local definition of `reduce` for Sequence understandably breaks TDNR
+-- of Stream.reduce on line 3, which makes `sum` on line 3 expect
+-- `Sequence Nat`, which constrains `append` on line 26 to return
+-- `Sequence Nat`, so it no longer matches `Stream Nat -> Stream Nat -> 'a`,
+-- which breaks TDNR of Stream.append, resulting in the error message:
+
+    --Sorry, you hit an error we didn't make a nice message for yet.
+    --
+    --Here is a summary of the Note:
+    --  simple cause:
+    --    SolvedBlank: Resolve "append" Line 26, columns 7-13 v=_170 t=Stream Nat -> Stream Nat -> [Nat]
+    --  path:
+    --    InSynthesize e=(let reduce1 0 (UInt...
+    --    InSynthesize e=(let (Sequence.take:...
+    --    InSynthesize e=(let (Sequence.take:...
+    --    InSynthesize e=(let (iterate:(𝛆. (a...
+    --    InSynthesize e=(let (λ (a. (λ (n. (...
+    --    InSynthesize e=(let reduce1 0 (UInt...
+    --    InSynthesize e=Cycle (left. (right....
+    --
+    --
+    --I'm not sure what append means at Line 26, columns 7-13
+    --
+    --   26 | (sum (append left right)) == (sum2 (left2 ++ right2))
+    --
+    --Whatever it is, it has a type that conforms to Stream Nat -> Stream Nat -> [Nat]
+
+-- Commenting out the local definition of `reduce` mysteriously fixes TDNR of `append` for the above reasons.

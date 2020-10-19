@@ -1,0 +1,9 @@
+type Foo a b = Foo a b
+use Foo Foo
+use Optional Some
+setA : Foo a b -> Optional a -> Foo a b
+setA foo a = match (foo, a) with
+  (Foo _ b, Some a) -> Foo a b
+  _ -> foo
+
+setA (Foo "hello" 3) (Some 7)

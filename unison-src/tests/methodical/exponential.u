@@ -1,0 +1,5 @@
+use Float exp log logBase
+
+> (exp 0.0,
+   log (exp 1.0),
+   logBase 10.0 100.0)

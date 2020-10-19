@@ -1,0 +1,115 @@
+
+type Future a = Future ('{Remote} a)
+
+-- A simple distributed computation ability
+ability Remote where
+
+  -- Spawn a new node
+  spawn : {Remote} Node
+
+  -- Start evaluating a computation on another node
+  at : Node -> '{Remote} a ->{Remote} Future a
+
+type Node = Node Nat -- more realistic would be perhaps a (Hostname, PublicKey) pair
+
+force : Future a ->{Remote} a
+force = cases Future.Future r -> !r
+
+-- Let's test out this beast! do we need to deploy our code to some EC2 instances??
+-- Gak, no not yet, we just want to test locally, let's write a handler
+-- for the `Remote` ability that simulates everything locally!
+
+use Future Future
+use Optional None Some
+use Monoid Monoid
+use List ++ at
+use Universal <
+
+List.map : (a ->{e} b) -> [a] ->{e} [b]
+List.map f as =
+  go f acc as i = match at i as with
+    None -> acc
+    Some a -> go f (acc `snoc` f a) as (i + 1)
+  go f [] as 0
+
+type Monoid a = Monoid (a -> a -> a) a
+
+Monoid.zero = cases Monoid.Monoid op z -> z
+Monoid.op   = cases Monoid.Monoid op z -> op
+
+Monoid.orElse m = cases
+  None -> Monoid.zero m
+  Some a -> a
+
+uncons : [a] -> Optional (a, [a])
+uncons as = match at 0 as with
+  None -> None
+  Some hd -> Some (hd, drop 1 as)
+
+dreduce : Monoid a -> [a] ->{Remote} a
+dreduce m a =
+  if size a < 2 then Monoid.orElse m (List.at 0 a)
+  else
+    l = Remote.at Remote.spawn '(dreduce m (take (size a / 2) a))
+    r = Remote.at Remote.spawn '(dreduce m (drop (size a / 2) a))
+    Monoid.op m (force l) (force r)
+
+dmapReduce : (a ->{Remote} b) -> Monoid b -> [a] ->{Remote} b
+dmapReduce f m as = dreduce m (List.map f as)
+
+dsort2 : (a -> a -> Boolean) -> [a] ->{Remote} [a]
+dsort2 lte as =
+  dreduce (Monoid (merge lte) [])
+          (List.map (a -> [a]) as)
+
+halve : [a] -> ([a], [a])
+halve s = splitAt (size s / 2) s
+
+splitAt : Nat -> [a] -> ([a], [a])
+splitAt n as = (take n as, drop n as)
+
+Node.increment : Node -> Node
+Node.increment n =
+  use Node.Node -- the constructor
+  match n with Node n -> Node (n + 1)
+
+Remote.runLocal : '{Remote} a -> a
+Remote.runLocal r =
+  step nid = cases
+    {Remote.spawn -> k} -> handle k nid with step (Node.increment nid)
+    {Remote.at _ t -> k} -> handle k (Future t) with step nid
+    {a} -> a -- the pure case
+  handle !r with step (Node.Node 0)
+
+merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]
+merge lte a b =
+  go out a b = match (uncons a, uncons b) with
+    (None,_) -> out ++ b
+    (_,None) -> out ++ a
+    (Some (hA, tA), Some (hB, tB)) ->
+      if hA `lte` hB then go (out `snoc` hA) tA b
+      else go (out `snoc` hB) a tB
+  go [] a b
+
+> merge (<) [1,3,4,99,504,799] [0,19,22,23]
+
+sort : (a -> a -> Boolean) -> [a] -> [a]
+sort lte as =
+  if size as < 2 then as
+  else match halve as with (left, right) ->
+    l = sort lte left
+    r = sort lte right
+    merge lte l r
+
+dsort : (a -> a -> Boolean) -> [a] ->{Remote} [a]
+dsort lte as =
+  use Remote at spawn
+  if size as < 2 then as
+  else match halve as with (left, right) ->
+    r1 = at spawn '(dsort lte left)
+    r2 = at spawn '(dsort lte right)
+    merge lte (force r1) (force r2)
+
+> sort (<) [1,2,3,234,6,2,4,66,2,33,4,2,57]
+
+> Remote.runLocal '(dsort (<) [1,2,3,234,6,2,4,66,2,33,4,2,57])

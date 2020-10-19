@@ -1,0 +1,69 @@
+-- A data structure that allows giving computations weight such that the
+-- lowest-cost computation will be returned first. Allows searching
+-- infinite spaces productively.
+--
+-- Adapted from http://hackage.haskell.org/package/weighted-search-0.1.0.1
+use Universal == < >
+
+type Weighted a
+  = Fail
+  | Yield a (Weighted a)
+  | Weight Nat (() -> Weighted a)
+
+namespace Weighted where
+
+  weight : Nat ->{e} (() ->{e} Weighted a) ->{e} Weighted a
+  weight w ws = Weight w ws
+
+  map : (a ->{e} b) -> Weighted a ->{e} Weighted b
+  map f = cases
+    Weighted.Fail -> Weighted.Fail
+    Weighted.Yield x w -> Yield (f x) (map f w)
+    Weighted.Weight a w -> weight a '(map f !w)
+
+  yield : a -> Weighted a
+  yield a = Yield a Fail
+
+  flatMap : (a -> Weighted b) -> Weighted a -> Weighted b
+  flatMap f = cases
+    Weighted.Fail -> Weighted.Fail
+    Weighted.Yield x m -> f x <|> flatMap f m
+    Weighted.Weight w m -> Weight w '(flatMap f !m)
+
+  mergeWith : (a -> b -> c) -> Weighted a -> Weighted b -> Weighted c
+  mergeWith f as bs =
+    flatMap (a -> map (b -> f a b) bs) as
+
+  (<|>): Weighted a -> Weighted a -> Weighted a
+  (<|>) m n = match (m, n) with
+    (Weighted.Fail, n) -> n
+    (Weighted.Yield x m, n) -> Yield x (m <|> n)
+    (Weighted.Weight w m, Weighted.Fail) -> Weight w m
+    (Weighted.Weight w m, Weighted.Yield x n) ->
+      Yield x (Weight w m <|> n)
+    (Weighted.Weight w m, Weighted.Weight w' n) ->
+      if w < w' then Weight w '(!m <|> Weight (w' `drop` w) n)
+      else if w == w' then Weight w '(!m <|> !n)
+      else Weight w '(Weight (w `drop` w') m <|> !n)
+
+  sample : Nat -> Weighted a -> [a]
+  sample n wsa =
+    if n > 0 then
+      match wsa with
+        Weighted.Fail -> []
+        Weighted.Yield a ms -> cons a (sample (n `drop` 1) ms)
+        Weighted.Weight _ w -> sample n !w
+    else []
+
+  nats : Weighted Nat
+  nats = let
+    go n = yield n <|> weight 1 '(go (n + 1))
+    go 0
+
+  lists : Weighted a -> Weighted [a]
+  lists w = yield [] <|> weight 1 '(mergeWith cons w (lists w))
+
+  fromList : [a] -> Weighted a
+  fromList = cases
+    [] -> Weighted.Fail
+    a +: as -> yield a <|> weight 1 '(fromList as)

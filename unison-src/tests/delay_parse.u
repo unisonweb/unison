@@ -1,0 +1,20 @@
+ability T where
+  foo : {T} ()
+
+-- parses fine
+a : () -> {T} ()
+a x = ()
+
+-- parses fine
+b : () -> '()
+b = x -> (y -> ())
+
+-- parse error
+c : () -> {T} '()
+c = x -> (y -> ())
+
+-- parses fine with extra parentheses
+d : () -> {T} ('())
+d = x -> (y -> ())
+
+

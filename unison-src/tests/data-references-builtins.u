@@ -1,0 +1,4 @@
+--data references builtins
+type StringOrInt = S Text | I Nat
+> [StringOrInt.S "YO", StringOrInt.I 1]
+

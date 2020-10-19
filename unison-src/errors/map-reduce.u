@@ -1,0 +1,102 @@
+
+-- A simple distributed computation ability
+ability Remote n where
+
+  -- Spawn a new node, of type `n`
+  spawn : {Remote n} n
+
+  -- Sequentially evaluate the given thunk on another node
+  -- then return to the current node when it completes
+  at : n -> '{Remote n} a -> {Remote n} a
+
+  -- Start a computation running, returning an `r` that can be forced to
+  -- await the result of the computation
+  fork : '{Remote n} a -> {Remote n} ('{Remote n} a)
+
+type Monoid a = Monoid (a -> a -> a) a
+
+use Nat + - * / == <
+use Sequence map take drop size foldLeft halve
+use Optional None Some
+use Monoid.Monoid -- import the constructor
+use Remote fork spawn at
+
+namespace Monoid where
+
+  zero : Monoid a -> a
+  zero = cases Monoid _ z -> z
+
+  op : Monoid a -> a -> a -> a
+  op = cases Monoid op _ -> op
+
+  foldMap : (a -> {e} b) -> Monoid b -> [a] -> {e} b
+  foldMap f m as =
+    op = Monoid.op m
+    -- this line has a type error, `op` is (b -> b -> b)
+    -- and `zero m` is of type `b`, but `as` is of type `[a]`
+    --                                                 👇
+    if size as < 2 then Sequence.foldLeft op (zero m) as
+    else match Sequence.halve as with (l, r) -> foldMap f m l `op` foldMap f m r
+
+  par : Monoid a -> Monoid ('{Remote n} a)
+  par m =
+    o = op m
+    z = zero m
+    -- note - does not typecheck if flip the order of the constructor!
+    -- the 'z has type 'a, which fails to match the later remote thunk
+    Monoid (a1 a2 -> parApply o a1 a2) 'z
+
+force : '{e} a -> {e} a
+force a = !a
+
+mapReduce : (a -> {Remote n} b) -> Monoid b -> [a] -> {Remote n} b
+mapReduce f m a =
+  force <| Monoid.foldMap (a -> fork '(f a)) (Monoid.par m) a
+
+namespace Sequence where
+
+  foldLeft : (b -> a -> b) -> b -> [a] -> b
+  foldLeft f z as = _todo2
+
+  halve : [a] -> ([a], [a])
+  halve as = (take (size as / 2) as, drop (size as / 2) as)
+
+ex : '{Remote n} Nat
+ex = 'let
+  alice = spawn
+  bob = spawn
+  f1 = fork '(1 + 1)
+  f2 = fork '(2 + 2)
+  !f1 + !f2
+
+parApply : (a -> b -> c) -> '{Remote n} a -> '{Remote n} b -> '{Remote n} c
+parApply f a b = 'let
+  x = fork a
+  y = fork b
+  f !x !y
+
+-- this currently crashes the compiler
+Remote.runLocal : '{Remote Nat} a -> a
+Remote.runLocal r =
+  step : Nat -> Request (Remote Nat) a -> a
+  step nid = cases
+    {a} -> a
+    {Remote.fork t -> k} -> handle k t with step nid
+    {Remote.spawn -> k} -> handle k nid with step (nid + 1)
+    {Remote.at _ t -> k} -> handle k !t with step (nid + 1)
+
+  handle !r with step 0
+
+uno : '{e} a -> '{e} a -> {e} a
+uno a a2 = !a
+
+dos : (a -> a -> a) -> '{e} a -> '{e} a -> {e} a
+dos f a a2 = f !a !a2
+
+(<|) : (i -> o) -> i -> o
+f <| i = f i
+i |> f = f i
+
+Stream.fromNat 1
+  |> Stream.take 15
+  |> Stream.toSequence

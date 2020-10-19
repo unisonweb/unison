@@ -1,0 +1,50 @@
+--State2 ability
+
+type Optional a = None | Some a
+
+ability State s where
+  put : s -> {State s} ()
+  get : {State s} s
+
+state : s -> Request (State s) a -> (s, a)
+state s = cases
+  { State.get -> k } -> handle k s with state s
+  { State.put snew -> k } -> handle k () with state snew
+  { a } -> (s, a)
+
+modify : (s ->{} s) ->{State s} ()
+modify f =
+  s = State.get
+  s2 = f s
+  State.put s2
+
+increment : '{State Nat} ()
+increment = '(modify ((+) 1))
+
+second : (a, b) -> b
+second = cases (_,b) -> b
+
+first : (a, b) -> a
+first = cases (a,_) -> a
+
+ex : Text
+ex =
+  result : (Nat, Text)
+  result = handle
+      State.put (11 + 1)
+      x = State.get
+      State.put (5 + 5)
+      "hello"
+    with state 10
+
+  second result
+
+> ex
+
+modify2 : (s -> s) ->{State s} ()
+modify2 f =
+  s = State.get
+  s2 = f s
+  State.put s2
+
+---

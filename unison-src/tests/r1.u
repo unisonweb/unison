@@ -1,0 +1,6 @@
+--r1
+type Optional a = None | Some a
+r1 : Nat
+r1 = match Optional.Some 3 with
+  x -> 1
+

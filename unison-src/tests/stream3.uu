@@ -1,0 +1,71 @@
+ability Emit a where
+  emit : a ->{Emit a} ()
+
+type Stream e a r = Stream ('{e, Emit a} r)
+
+use Stream Stream
+use Optional None Some
+use Universal ==
+
+namespace Stream where
+
+  step :
+    (a ->{e} b) ->
+    Request {Emit a} r ->{e, Emit b} r
+  step f = cases
+    {r} -> r
+    {Emit.emit a -> k} ->
+      Emit.emit (f a)
+      handle k () with step f
+
+
+  -- map : (a -> b) -> Stream {e} a r -> Stream {e} b r
+  -- map : (a ->{e} b)
+  --     -> Stream {e} a r
+  --     -> Stream {e} b r
+  -- 0. this gets a weird type
+  map f s = Stream ' handle run s with step f
+
+  -- 1. inferred type of `map` required an `o -> o` for some reason
+  map1 f s =
+    step f = cases
+      {r} -> r
+      {Emit.emit a -> k} ->
+        Emit.emit (f a)
+        handle k () with step f
+    Stream ' handle run s with step f
+
+  -- 2. gets the same weird type
+  map2 f s =
+    step :
+      (a ->{e} b) ->
+      Request {Emit a} r ->{e, Emit b} r
+    step f = cases
+      {r} -> r
+      {Emit.emit a -> k} ->
+        Emit.emit (f a)
+        handle k () with step f
+    Stream ' handle run s with step f
+
+  run : Stream e a r ->{e, Emit a} r
+  run = cases Stream c -> !c
+
+ability Abort where
+  abort : {Abort} a
+
+---
+-- x : Stream {Abort} Nat ()
+x = Stream 'let
+  Emit.emit 1
+  Abort.abort
+  Emit.emit 2
+
+---
+I found a value of type Var User "a"-94 where I expected to find one of type b96:
+
+   24 |      -> Stream {e} b r
+   25 |   map f s = Stream ' handle run s with step f
+
+  from right here:
+
+   22 |   map : (a ->{e} b)

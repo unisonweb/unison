@@ -1,0 +1,10 @@
+
+blah : a -> a -> a
+blah a a2 = a2
+
+ability Foo where
+  foo : {Foo} Text
+
+-- previously this didn't work as first argument was pure
+-- and second argument was impure
+> blah '("hello!") 'Foo.foo

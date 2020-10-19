@@ -1,0 +1,12 @@
+
+-- LITERALS
+ln = 10
+li = +10
+lf = 10.0
+lt = "text"
+lc = ?ひ
+lb = true
+sn = [1,2,3,4,5,6,ln]
+
+-- Make sure we can compile all literals
+> (ln, li, lf, lt, lc, lb, sn)

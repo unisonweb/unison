@@ -1,0 +1,11 @@
+
+ability Foo where
+  foo : {Foo} Nat
+
+type Wrap a = Wrap Nat
+
+blah : Wrap {Foo} -> Nat
+blah = cases
+  Wrap.Wrap n -> n + 1
+
+> blah (Wrap 99)

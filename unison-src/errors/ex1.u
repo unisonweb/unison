@@ -1,0 +1,49 @@
+use Optional None Some
+
+foo : Optional a -> [a]
+foo = cases
+  None -> []
+  Some a -> [a]
+
+"hello" `Sequence.cons` foo (Some 3)
+
+-- Sequence.cons has type `a -> [a] -> [a]`
+--  `a` was determined to be `Text` because "hello" had type `Text`.
+-- Therefore `foo (Some 3)` was checked against `[Text]`
+-- but it actually had type `[Nat]`. Use `> why err1` for more detail.
+-- type Extractor v loc a = Note v loc -> Maybe a
+-- do
+--   e <- errorTerm
+--   b <- isFunctionCall
+--   if b then do
+        --
+
+
+-- in reply to `> why err1`:
+-- `foo` has type `Optional a -> [a]`
+--   `a` was determined to be `Nat` because
+--   `Some 3` has type `Optional Nat`. Use `> why err2` for more detail
+
+-- in reply to `> why err2`:
+-- `Some` has type `a -> Optional a`
+--   `a` was determinewd to be `Nat` because `3` has type `Nat`
+
+x = 3
+
+and x 4
+------------- generic synthesizeApp possibility
+-- `and` has type `Boolean -> Boolean -> Boolean`
+--    .. (no typevars to explain, so skip)
+-- Therefore `3` was checked against `Boolean`,
+-- but it actually had type `Nat`.
+
+------------- specialized "and" possibility
+-- The arguments to `and` must be of type `Boolean`,
+-- but `x` has type `Nat`. Use `> why err1` for more detail.
+
+and 3 4
+-- but the literal `3` has type `Nat`.
+
+match 3 with
+  3 -> "text"
+  4 -> 4.0

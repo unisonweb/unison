@@ -1,0 +1,4 @@
+use Float pow sqrt
+
+> (pow 10.0 2.0,
+   sqrt 4.0)

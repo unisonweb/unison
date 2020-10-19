@@ -1,0 +1,444 @@
+namespace Nat where
+  maxNat = 18446744073709551615
+
+  (-) : Nat -> Nat -> Int
+  (-) = Nat.sub
+
+namespace Int where
+  maxInt = +9223372036854775807
+  minInt = -9223372036854775808
+
+use Universal == < > >=
+use Optional None Some
+
+-- Function composition
+dot : (b -> c) -> (a -> b) -> a -> c
+dot f g x = f (g x)
+
+-- Function composition
+andThen : (a -> b) -> (b -> c) -> a -> c
+andThen f g x = g (f x)
+
+const : a -> b -> a
+const a _ = a
+
+use Tuple Cons
+
+namespace Tuple where
+  at1 : Tuple a b -> a
+  at1 = cases Cons a _ -> a
+
+  at2 : Tuple a (Tuple b c) -> b
+  at2 = cases Cons _ (Cons b _) -> b
+
+  at3 : Tuple a (Tuple b (Tuple c d)) -> c
+  at3 = cases Cons _ (Cons _ (Cons c _)) -> c
+
+  at4 : Tuple a (Tuple b (Tuple c (Tuple d e))) -> d
+  at4 = cases Cons _ (Cons _ (Cons _ (Cons d _))) -> d
+
+namespace List where
+
+  map : (a -> b) -> [a] -> [b]
+  map f a =
+    go i as acc = match List.at i as with
+      None -> acc
+      Some a -> go (i + 1) as (acc `snoc` f a)
+    go 0 a []
+
+  zip : [a] -> [b] -> [(a,b)]
+  zip as bs =
+    go acc i = match (at i as, at i bs) with
+      (None,_) -> acc
+      (_,None) -> acc
+      (Some a, Some b) -> go (acc `snoc` (a,b)) (i + 1)
+    go [] 0
+
+  insert : Nat -> a -> [a] -> [a]
+  insert i a as = take i as ++ [a] ++ drop i as
+
+  replace : Nat -> a -> [a] -> [a]
+  replace i a as = take i as ++ [a] ++ drop (i + 1) as
+
+  slice : Nat -> Nat -> [a] -> [a]
+  slice start stopExclusive s =
+    take (stopExclusive `Nat.drop` start) (drop start s)
+
+  unsafeAt : Nat -> [a] -> a
+  unsafeAt n as = match at n as with
+    Some a -> a
+    None -> Debug.watch "oh noes" (unsafeAt n as) -- Debug.crash "oh noes!"
+
+  foldl : (b -> a -> b) -> b -> [a] -> b
+  foldl f b as =
+    go b i = match List.at i as with
+      None -> b
+      Some a -> go (f b a) (i + 1)
+    go b 0
+
+  foldb : (a -> b) -> (b -> b -> b) -> b -> [a] -> b
+  foldb f op z as =
+    if List.size as == 0 then z
+    else if List.size as == 1 then f (unsafeAt 0 as)
+    else match halve as with (left, right) ->
+       foldb f op z left `op` foldb f op z right
+
+  reverse : [a] -> [a]
+  reverse as = foldl (acc a -> List.cons a acc) [] as
+
+  indexed : [a] -> [(a, Nat)]
+  indexed as = as `zip` range 0 (size as)
+
+  sortBy : (a -> b) -> [a] -> [a]
+  sortBy f as =
+    tweak p = match p with (p1,p2) -> (f p1, p2, p1)
+    Heap.sort (map tweak (indexed as)) |> map Tuple.at3
+
+  halve : [a] -> ([a], [a])
+  halve s =
+    n = size s / 2
+    (take n s, drop n s)
+
+  unfold : s -> (s -> Optional (a, s)) -> [a]
+  unfold s0 f =
+    go f s acc = match f s with
+      None -> acc
+      Some (a, s) -> go f s (acc `snoc` a)
+    go f s0 []
+
+  uncons : [a] -> Optional (a, [a])
+  uncons as = match at 0 as with
+    None -> None
+    Some a -> Some (a, drop 1 as)
+
+  unsnoc : [a] -> Optional ([a], a)
+  unsnoc as =
+    i = size (drop 1 as)
+    match at i as with
+      None -> None
+      Some a -> Some (take i as, a)
+
+  join : [[a]] -> [a]
+  join = foldl (++) []
+
+  flatMap : (a -> [b]) -> [a] -> [b]
+  flatMap f as = join (map f as)
+
+  range : Nat -> Nat -> [Nat]
+  range start stopExclusive =
+    f i = if i < stopExclusive then Some (i, i + 1) else None
+    unfold start f
+
+  distinct : [a] -> [a]
+  distinct as =
+    go i seen acc = match List.at i as with
+      None -> acc
+      Some a -> if Set.contains a seen then go (i + 1) seen acc
+                else go (i + 1) (Set.insert a seen) (acc `snoc` a)
+    go 0 Set.empty []
+
+  -- Joins a list of lists in a "fair diagonal" fashion.
+  -- Adapted from the Haskell version written by Luke Palmer.
+  diagonal : [[a]] -> [a]
+  diagonal =
+    let
+      x = 23
+      stripe = cases
+        [] -> []
+        [] +: xxs -> stripe xxs
+        (x +: xs) +: xxs -> cons [x] (zipCons xs (stripe xxs))
+      zipCons xs ys = match (xs, ys) with
+        ([], ys) -> ys
+        (xs, []) -> map (x -> [x]) xs
+        (x +: xs, y +: ys) -> cons (cons x y) (zipCons xs ys)
+      List.join `dot` stripe
+
+-- > List.foldb "" (t t2 -> "(" ++ t ++ " " ++ t2 ++ ")") (x -> x) ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank", "Gerald", "Henry"]
+
+-- Sorted maps, represented as a pair of sequences
+-- Use binary search to do lookups and find insertion points
+-- This relies on the underlying sequence having efficient
+-- slicing and concatenation
+type Map k v = Map [k] [v]
+
+use Map Map
+
+namespace Search where
+
+  indexOf : a -> [a] -> Optional Nat
+  indexOf a s =
+    ao = Some a
+    Search.exact (i -> ao `compare` List.at i s) 0 (size s)
+
+  lubIndexOf' : a -> Nat -> [a] -> Nat
+  lubIndexOf' a start s =
+    ao = Some a
+    Search.lub (i -> ao `compare` List.at i s) start (size s)
+
+  lubIndexOf : a -> [a] -> Nat
+  lubIndexOf a s = lubIndexOf' a 0 s
+
+  lub : (Nat -> Int) -> Nat -> Nat -> Nat
+  lub hit bot top =
+    if bot >= top then top
+    else
+      mid = (bot + top) / 2
+      match hit mid with
+        +0 -> mid
+        -1 -> lub hit bot mid
+        +1 -> lub hit (mid + 1) top
+
+  exact : (Nat -> Int) -> Nat -> Nat -> Optional Nat
+  exact hit bot top =
+    if bot >= top then None
+    else
+      mid = (bot + top) / 2
+      match hit mid with
+        +0 -> Some mid
+        -1 -> exact hit bot mid
+        +1 -> exact hit (mid + 1) top
+
+-- > ex = [0,2,4,6,77,192,3838,12000]
+-- > List.map (e -> indexOf e ex) ex
+-- > lubIndexOf 193 ex
+
+
+(|>) : a -> (a -> b) -> b
+a |> f = f a
+
+(<|) : (a -> b) -> a -> b
+f <| a = f a
+
+id : a -> a
+id a = a
+
+namespace Map where
+
+  empty : Map k v
+  empty = Map [] []
+
+  singleton : k -> v -> Map k v
+  singleton k v = Map [k] [v]
+
+  fromList : [(k,v)] -> Map k v
+  fromList kvs =
+    go acc i = match List.at i kvs with
+      None -> acc
+      Some (k,v) -> go (insert k v acc) (i + 1)
+    go empty 0
+
+  toList : Map k v -> [(k,v)]
+  toList m = List.zip (keys m) (values m)
+
+  size : Map k v -> Nat
+  size s = List.size (keys s)
+
+  lookup : k -> Map k v -> Optional v
+  lookup k = cases
+    Map ks vs -> match Search.indexOf k ks with
+      None -> None
+      Some i -> at i vs
+
+  contains : k -> Map k v -> Boolean
+  contains k cases Map ks _ -> match Search.indexOf k ks with
+    None -> false
+    _ -> true
+
+  insert : k -> v -> Map k v -> Map k v
+  insert k v = cases Map ks vs ->
+    use Search lubIndexOf
+    i = lubIndexOf k ks
+    match at i ks with
+      Some k' ->
+        if k == k' then Map ks (List.replace i v vs)
+        else Map (List.insert i k ks) (List.insert i v vs)
+      None -> Map (ks `snoc` k) (vs `snoc` v)
+
+  map : (v -> v2) -> Map k v -> Map k v2
+  map f m = Map (keys m) (List.map f (values m))
+
+  mapKeys : (k -> k2) -> Map k v -> Map k2 v
+  mapKeys f m = Map (List.map f (keys m)) (values m)
+
+  union : Map k v -> Map k v -> Map k v
+  union = unionWith (_ v -> v)
+
+  unionWith : (v -> v -> v) -> Map k v -> Map k v -> Map k v
+  unionWith f m1 m2 = match (m1, m2) with (Map k1 v1, Map k2 v2) ->
+    go i j ko vo = match (at i k1, at j k2) with
+      (None, _) -> Map (ko ++ drop j k2) (vo ++ drop j v2)
+      (_, None) -> Map (ko ++ drop i k1) (vo ++ drop i v1)
+      (Some kx, Some ky) ->
+        use List slice unsafeAt
+        use Search lubIndexOf'
+        if kx == ky then
+          go (i + 1) (j + 1)
+             (ko `snoc` kx)
+             (vo `snoc` f (unsafeAt i v1) (unsafeAt j v2))
+        else if kx < ky then
+          i' = lubIndexOf' ky i k1
+          go i' j (ko ++ slice i i' k1) (vo ++ slice i i' v1)
+        else
+          j' = lubIndexOf' kx j k2
+          go i j' (ko ++ slice j j' k2) (vo ++ slice j j' v2)
+    go 0 0 [] []
+
+  intersect : Map k v -> Map k v -> Map k v
+  intersect = intersectWith (_ v -> v)
+
+  intersectWith : (v -> v -> v2) -> Map k v -> Map k v -> Map k v2
+  intersectWith f m1 m2 = match (m1, m2) with (Map k1 v1, Map k2 v2) ->
+    go i j ko vo = match (at i k1, at j k2) with
+      (None, _) -> Map ko vo
+      (_, None) -> Map ko vo
+      (Some kx, Some ky) ->
+        if kx == ky then
+          go (i + 1) (j + 1)
+             (ko `snoc` kx)
+             (vo `snoc` f (List.unsafeAt i v1) (List.unsafeAt j v2))
+        else if kx < ky then
+          i' = Search.lubIndexOf' ky i k1
+          go i' j ko vo
+        else
+          j' = Search.lubIndexOf' kx j k2
+          go i j' ko vo
+    go 0 0 [] []
+
+  keys : Map k v -> [k]
+  keys = cases Map ks _ -> ks
+
+  values : Map k v -> [v]
+  values = cases Map _ vs -> vs
+
+namespace Multimap where
+
+  insert : k -> v -> Map k [v] -> Map k [v]
+  insert k v m = match Map.lookup k m with
+    None -> Map.insert k [v] m
+    Some vs -> Map.insert k (vs `snoc` v) m
+
+  lookup : k -> Map k [v] -> [v]
+  lookup k m = Optional.orDefault [] (Map.lookup k m)
+
+type Set a = Set (Map a ())
+use Set Set
+
+namespace Set where
+
+  empty : Set k
+  empty = Set Map.empty
+
+  underlying : Set k -> Map k ()
+  underlying = cases Set s -> s
+
+  toMap : (k -> v) -> Set k -> Map k v
+  toMap f = cases Set (Map ks vs) -> Map ks (List.map f ks)
+
+  fromList : [k] -> Set k
+  fromList ks = Set (Map.fromList (List.map (k -> (k,())) ks))
+
+  toList : Set k -> [k]
+  toList = cases Set (Map ks _) -> ks
+
+  contains : k -> Set k -> Boolean
+  contains k = cases Set m -> Map.contains k m
+
+  insert : k -> Set k -> Set k
+  insert k = cases Set s -> Set (Map.insert k () s)
+
+  union : Set k -> Set k -> Set k
+  union s1 s2 = Set (Map.union (underlying s1) (underlying s2))
+
+  size : Set k -> Nat
+  size s = Map.size (underlying s)
+
+  intersect : Set k -> Set k -> Set k
+  intersect s1 s2 = Set (Map.intersect (underlying s1) (underlying s2))
+
+type Heap k v = Heap Nat k v [Heap k v]
+use Heap Heap
+
+namespace Heap where
+
+  singleton : k -> v -> Heap k v
+  singleton k v = Heap 1 k v []
+
+  size : Heap k v -> Nat
+  size = cases Heap n _ _ _ -> n
+
+  union : Heap k v -> Heap k v -> Heap k v
+  union h1 h2 = match (h1, h2) with
+    (Heap n k1 v1 hs1, Heap m k2 v2 hs2) ->
+      if k1 >= k2 then Heap (n + m) k1 v1 (cons h2 hs1)
+      else Heap (n + m) k2 v2 (cons h1 hs2)
+
+  pop : Heap k v -> Optional (Heap k v)
+  pop h =
+    go h subs =
+      use List drop size unsafeAt
+      if size subs == 0 then h
+      else if size subs == 1 then h `union` unsafeAt 0 subs
+      else union h (unsafeAt 0 subs) `union` go (unsafeAt 1 subs) (drop 2 subs)
+    match List.uncons (children h) with
+      None -> None
+      Some (s0, subs) -> Some (go s0 subs)
+
+  children : Heap k v -> [Heap k v]
+  children = cases Heap _ _ _ cs -> cs
+
+  max : Heap k v -> (k, v)
+  max = cases Heap _ k v _ -> (k, v)
+
+  maxKey : Heap k v -> k
+  maxKey = cases Heap _ k _ _ -> k
+
+  fromList : [(k,v)] -> Optional (Heap k v)
+  fromList kvs =
+    op a b = match a with
+      None -> b
+      Some a -> match b with
+        None -> Some a
+        Some b -> Some (union a b)
+    single = cases
+      (k, v) -> Some (singleton k v)
+    List.foldb single op None kvs
+
+  fromKeys : [a] -> Optional (Heap a a)
+  fromKeys as = fromList (List.map (a -> (a,a)) as)
+
+  sortDescending : [a] -> [a]
+  sortDescending as =
+    step = cases
+      None -> None
+      Some h -> Some (max h, pop h)
+    List.unfold (fromKeys as) step |> List.map Tuple.at1
+
+  sort : [a] -> [a]
+  sort as = sortDescending as |> List.reverse
+
+-- > sort [11,9,8,4,5,6,7,3,2,10,1]
+
+namespace Optional where
+
+  map : (a -> b) -> Optional a -> Optional b
+  map f = cases
+    None -> None
+    Some a -> Some (f a)
+
+  orDefault : a -> Optional a -> a
+  orDefault a = cases
+    None -> a
+    Some a -> a
+
+  orElse : Optional a -> Optional a -> Optional a
+  orElse a b = match a with
+    None -> b
+    Some _ -> a
+
+  flatMap : (a -> Optional b) -> Optional a -> Optional b
+  flatMap f = cases
+    None -> None
+    Some a -> f a
+
+  map2 : (a -> b -> c) -> Optional a -> Optional b -> Optional c
+  map2 f oa ob = flatMap (a -> map (f a) ob) oa

@@ -1,0 +1,39 @@
+type Trie k v = { head : Optional v, tail : Map k (Trie k v) }
+
+namespace Trie where
+  empty : Trie k v
+  empty = Trie None Map.empty
+
+  lookup : [k] -> Trie k v -> Optional v
+  lookup path t = match path with
+    [] -> Trie.head t
+    p +: ps -> flatMap (lookup ps) (Map.lookup p (Trie.tail t))
+
+  unionWith : (v -> v -> v) -> Trie k v -> Trie k v -> Trie k v
+  unionWith f t1 t2 =
+    h1 = Trie.head t1
+    h2 = Trie.head t2
+    Trie (map2 f h1 h2 `orElse` h1 `orElse` h2)
+         (Map.unionWith (unionWith f) (Trie.tail t1) (Trie.tail t2))
+
+Trie.union : Trie k v -> Trie k v -> Trie k v
+Trie.union = Trie.unionWith const
+
+Trie.insert : [k] -> v -> Trie k v -> Trie k v
+Trie.insert path v t =
+  Trie.unionWith const (Trie.singleton path v) t
+
+Trie.singleton : [k] -> v -> Trie k v
+Trie.singleton path v =
+  match path with
+    [] -> Trie (Some v) empty
+    k +: ks -> Trie None (Map.fromList [(k, Trie.singleton ks v)])
+
+use Trie tail head
+
+Trie.map : (v1 -> v2) -> Trie k v1 -> Trie k v2
+Trie.map f t = Trie (map f (head t)) (map (Trie.map f) (tail t))
+
+Trie.mapKeys : (k1 -> k2) -> Trie k1 v -> Trie k2 v
+Trie.mapKeys f t =
+  Trie (head t) (Map.mapKeys f (Map.map (Trie.mapKeys f) (tail t)))

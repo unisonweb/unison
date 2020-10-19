@@ -1,0 +1,6 @@
+-- Empty files and all-comment files parse fine, so this one should too.
+---- Anything below this line is ignored by Unison.
+
+-- /Users/arya/unison/unison-src/tests/empty-above-the-fold.u:1:1:
+-- unexpected end of input
+-- expecting ability, ability, or use

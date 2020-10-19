@@ -1,0 +1,24 @@
+use Int increment isEven isOdd signum negate mod pow shiftLeft shiftRight truncate0 toText fromText toFloat leadingZeros trailingZeros and or xor complement
+
+withDefault : Optional a -> a -> a
+withDefault opt d = match opt with
+                      Some x -> x
+                      None   -> d
+
+> (increment +3,
+   isEven +3,
+   isOdd +3,
+   signum +3,
+   negate +3,
+   mod +10 +3,
+   pow +10 3,
+   shiftLeft +7 2,
+   shiftRight +7 2,
+   truncate0 +3,
+   truncate0 -3,
+   withDefault (fromText "3x") -1,
+   withDefault (fromText "+3") -1,
+   leadingZeros +0,
+   leadingZeros +1,
+   leadingZeros +8,
+   toFloat +3)

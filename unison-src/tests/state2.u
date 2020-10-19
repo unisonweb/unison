@@ -1,0 +1,11 @@
+--State2 ability
+ability State se2 where
+  put : ∀ se . se -> {State se} ()
+  get : ∀ se . () -> {State se} se
+state : ∀ s a . s -> Request (State s) a -> (s, a)
+state woot = cases
+  { State.get () -> k } -> handle k woot with state woot
+  { State.put snew -> k } -> handle k () with state snew
+  { a } -> (woot, a)
+
+> ()

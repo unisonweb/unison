@@ -1,0 +1,88 @@
+
+use Universal == <
+
+type Future a = Future ('{Remote} a)
+
+-- A simple distributed computation ability
+ability Remote where
+
+  -- Spawn a new node
+  spawn : {Remote} Node
+
+  -- Sequentially evaluate the given thunk on another node
+  -- then return to the current node when it completes
+  at : n -> '{Remote} a -> {Remote} a
+
+  -- Start a computation running, returning an `r` that can be forced to
+  -- await the result of the computation
+  fork : '{Remote} a ->{Remote} Future a
+
+type Node = Node Nat -- more realistic would be perhaps a (Hostname, PublicKey) pair
+
+force : Future a ->{Remote} a
+force = cases Future.Future r -> !r
+
+-- Let's test out this beast! do we need to deploy our code to some EC2 instances??
+-- Gak, no not yet, we just want to test locally, let's write a handler
+-- for the `Remote` ability that simulates everything locally!
+
+Remote.runLocal : '{Remote} a -> a
+Remote.runLocal r =
+  use Future Future
+  step nid = cases
+    {a} -> a
+    {Remote.fork t -> k} -> handle k (Future t) with step nid
+    {Remote.spawn -> k} -> handle k nid with step (Node.increment nid)
+    {Remote.at _ t -> k} -> handle k !t with step nid
+  handle !r with step (Node.Node 0)
+
+Remote.forkAt : Node -> '{Remote} a ->{Remote} (Future a)
+Remote.forkAt node r = Remote.fork '(Remote.at node r)
+
+use Optional None Some
+use Monoid Monoid
+use List ++
+
+List.map : (a ->{e} b) -> [a] ->{e} [b]
+List.map f as =
+  go f acc as i = match List.at i as with
+    None -> acc
+    Some a -> go f (acc `snoc` f a) as (i + 1)
+  go f [] as 0
+
+merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]
+merge lte a b =
+  go acc a b = match at 0 a with
+    None -> acc ++ b
+    Some hd1 -> match at 0 b with
+      None -> acc ++ a
+      Some hd2 ->
+        if hd1 `lte` hd2 then go (acc `snoc` hd1) (drop 1 a) b
+        else go (acc `snoc` hd2) a (drop 1 b)
+  go [] a b
+
+dsort2 : (a -> a -> Boolean) -> [a] ->{Remote} [a]
+dsort2 lte as =
+  if size as < 2 then as
+  else match halve as with
+    None -> as
+    Some (left, right) ->
+      use Remote forkAt spawn
+      l = forkAt spawn '(dsort2 lte left)
+      r = forkAt spawn '(dsort2 lte right)
+      merge lte (force l) (force r)
+
+isEmpty : [a] -> Boolean
+isEmpty a = size a == 0
+
+halve : [a] -> Optional ([a], [a])
+halve as =
+  if isEmpty as then None
+  else Some (take (size as / 2) as, drop (size as / 2) as)
+
+Node.increment : Node -> Node
+Node.increment n =
+  use Node Node -- the constructor
+  match n with Node n -> Node (n + 1)
+
+> Remote.runLocal '(dsort2 (<) [3,2,1,1,2,3,9182,1,2,34,1,23])

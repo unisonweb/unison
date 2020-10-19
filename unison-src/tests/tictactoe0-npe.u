@@ -1,0 +1,17 @@
+-- board piece
+type P = X | O | E
+
+type Board = Board P P P P P P P P P
+
+use Board Board
+use P O X E
+
+whatevs a b c = a
+
+b = Board X O X O X X O E X
+x = 1
+y = 2
+z = 3
+
+ex = match b with
+  Board a b c d e f g h i -> a

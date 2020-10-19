@@ -1,0 +1,10 @@
+-- + Should get resolved to Nat.+, making this fail
+
+x : Nat
+x = 42
+
+Foo.z : Float
+Foo.z = 4.0
+
+a = x + z
+

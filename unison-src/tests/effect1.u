@@ -1,0 +1,8 @@
+
+eff : forall a b . (a -> b) -> b -> Request Abort a -> b
+eff f z = cases
+  { Abort.Abort _ -> k } -> z
+  { a } -> f a
+
+ability Abort where
+  Abort : forall a . () -> {Abort} a

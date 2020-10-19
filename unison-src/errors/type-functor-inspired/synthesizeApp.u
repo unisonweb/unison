@@ -1,0 +1,4 @@
+foo : a -> a -> Nat
+foo x z = 42
+
+foo +1 "hi"

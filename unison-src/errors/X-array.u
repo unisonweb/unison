@@ -1,0 +1,6 @@
+type X = S Text | I Nat
+
+foo : a -> b -> c -> X
+foo x y z = X.S ""
+
+[foo +1 1 1.0, 1]

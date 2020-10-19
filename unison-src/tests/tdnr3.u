@@ -1,0 +1,6 @@
+-- Local definitions should be resolved by type
+
+Foo.bar x = x + 1
+
+z = bar 99
+

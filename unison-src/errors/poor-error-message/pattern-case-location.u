@@ -1,0 +1,10 @@
+-- The location of the error is imprecise. It should point to
+-- the pattern `Bar.Bar`.
+
+unique type Foo = Foo
+unique type Bar = Bar
+
+foo : Foo -> Foo
+foo = cases
+  Foo.Foo -> Foo
+  Bar.Bar -> Foo

@@ -1,0 +1,30 @@
+--State3 ability
+ability State se2 where
+  put : ∀ se . se -> {State se} ()
+  get : ∀ se . () -> {State se} se
+
+state : ∀ s a . s -> Request (State s) a -> (s, a)
+state woot = cases
+  { State.get () -> k } -> handle k woot with state woot
+  { State.put snew -> k } -> handle k () with state snew
+  { a } -> (woot, a)
+
+ex1 : (Nat, Nat)
+ex1 = handle State.get () with state 42
+
+ex1a : (Nat, Nat)
+ex1a = handle 49 with state 42
+
+ex1b = handle 0 with x -> 10
+
+ex1c : Nat
+ex1c = handle 0 with x -> 10
+
+ex1d = handle 49 with state 42
+
+ex2 = handle State.get () with state 42
+
+ex3 : (Nat, Nat)
+ex3 = ex2
+
+> ex3

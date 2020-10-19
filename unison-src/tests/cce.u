@@ -1,0 +1,116 @@
+use Universal <
+
+type Future a = Future ('{Remote} a)
+
+-- A simple distributed computation ability
+ability Remote where
+
+  -- Spawn a new node
+  spawn : {Remote} Node
+
+  -- Sequentially evaluate the given thunk on another node
+  -- then return to the current node when it completes
+  at : n -> '{Remote} a -> {Remote} a
+
+  -- Start a computation running, returning an `r` that can be forced to
+  -- await the result of the computation
+  fork : '{Remote} a ->{Remote} Future a
+
+type Node = Node Nat -- more realistic would be perhaps a (Hostname, PublicKey) pair
+
+force : Future a ->{Remote} a
+force = cases Future.Future r -> !r
+
+Future.fromThunk : '{Remote} a -> Future a
+Future.fromThunk = Future.Future
+
+-- Let's test out this beast! do we need to deploy our code to some EC2 instances??
+-- Gak, no not yet, we just want to test locally, let's write a handler
+-- for the `Remote` ability that simulates everything locally!
+
+Remote.runLocal : '{Remote} a -> a
+Remote.runLocal r =
+  step nid = cases
+    {a} -> a
+    {Remote.fork t -> k} -> handle k (Future.fromThunk t) with step nid
+    {Remote.spawn -> k} -> handle k nid with step (Node.increment nid)
+    {Remote.at _ t -> k} -> handle k !t with step nid
+  handle !r with step (Node.Node 0)
+
+Remote.forkAt : Node -> '{Remote} a ->{Remote} (Future a)
+Remote.forkAt node r = Remote.fork '(Remote.at node r)
+
+use Optional None Some
+use Monoid Monoid
+use List ++
+
+List.map : (a ->{e} b) -> [a] ->{e} [b]
+List.map f as =
+  go f acc as i = match List.at i as with
+    None -> acc
+    Some a -> go f (acc `snoc` f a) as (i + 1)
+  go f [] as 0
+
+type Monoid a = Monoid (a -> a -> a) a
+
+Monoid.zero = cases Monoid.Monoid op z -> z
+Monoid.op   = cases Monoid.Monoid op z -> op
+
+Monoid.orElse m = cases
+  None -> Monoid.zero m
+  Some a -> a
+
+merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]
+merge lte a b =
+  go acc a b = match List.at 0 a with
+    None -> acc ++ b
+    Some hd1 -> match at 0 b with
+      None -> acc ++ a
+      Some hd2 ->
+        if hd1 `lte` hd2 then go (acc `snoc` hd1) (drop 1 a) b
+        else go (acc `snoc` hd2) a (drop 1 b)
+  go [] a b
+
+dmap : (a ->{Remote} b) -> [a] ->{Remote} [b]
+dmap f as =
+  bs = List.map (a -> Remote.forkAt Remote.spawn '(f a)) as
+  List.map force bs
+
+dreduce : Monoid a -> [a] ->{Remote} a
+dreduce m a =
+  if size a < 2 then Monoid.orElse m (List.at 0 a)
+  else
+    l = Remote.forkAt Remote.spawn '(dreduce m (List.take (size a / 2) a))
+    r = Remote.forkAt Remote.spawn '(dreduce m (List.drop (size a / 2) a))
+    Monoid.op m (force l) (force r)
+
+dmapReduce : (a ->{Remote} b) -> Monoid b -> [a] ->{Remote} b
+dmapReduce f m as = dreduce m (dmap f as)
+
+dsort : (a -> a -> Boolean) -> [a] ->{Remote} [a]
+dsort lte a =
+  dmapReduce (a -> [a]) (Monoid (merge lte) []) a
+
+sort : (a -> a -> Boolean) -> [a] -> [a]
+sort lte a =
+  if List.size a < 2 then a
+  else
+    l = sort lte (take (size a / 2) a)
+    r = sort lte (drop (size a / 2) a)
+    merge lte l r
+
+Node.increment : Node -> Node
+Node.increment n =
+  use Node Node -- the constructor
+  match n with Node n -> Node (n + 1)
+
+> Remote.runLocal '(dsort (<) [3,2,1,1,2,3,9182,1,2,34,1,23])
+
+----
+
+java.lang.ClassCastException: org.unisonweb.UnboxedType$Nat$ cannot be cast to org.unisonweb.Value$Lambda
+	at org.unisonweb.compilation.package$.org$unisonweb$compilation$package$$$anonfun$dynamicCall$1(compilation.scala:747)
+	at org.unisonweb.compilation.package$$anonfun$dynamicCall$2.apply(compilation.scala:714)
+	at org.unisonweb.compilation.package$.org$unisonweb$compilation$package$$$anonfun$compileMatchCase$3(compilation.scala:332)
+	at org.unisonweb.compilation.package$$anonfun$compileMatchCase$6.apply(compilation.scala:324)
+	at org.unisonweb.compilation.package$.org$unisonweb$compilation$package$$$anonfun$compile$12(compilation.scala:1070)

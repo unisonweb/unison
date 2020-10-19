@@ -1,0 +1,4 @@
+foo : Nat -> Nat -> Nat -> Nat -> Nat -> Nat
+foo a b c d e = a + b + c + d + e
+
+foo 1 2 3 "ha" 5

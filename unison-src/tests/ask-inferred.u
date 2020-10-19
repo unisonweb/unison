@@ -1,0 +1,23 @@
+--Ask inferred
+
+ability Ask a where
+  ask : {Ask a} a
+
+ability AskU where
+  ask : {AskU} Nat
+
+use Nat +
+
+ability AskT where
+  ask : {AskT} Text
+
+x = '(Ask.ask + 1)
+x2 = '(Ask.ask + AskU.ask)
+
+x3 = '(Ask.ask + AskU.ask + size AskT.ask)
+
+y : '{Ask Nat} Nat
+y = '(!x)
+
+y2 : '{Ask Nat, AskU} Nat
+y2 = x2

@@ -1,0 +1,17 @@
+--State2 ability
+ability State s where
+  put : s -> {State s} ()
+
+state : s -> Request (State s) a -> a
+state s = cases
+  { State.put snew -> k } -> handle k () with state snew
+  { a } -> a
+
+ex : Text
+ex = handle
+  State.put (11 + 1)
+  State.put (5 + 5)
+  "hello"
+  with state 10
+
+> ex

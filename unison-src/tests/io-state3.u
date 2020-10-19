@@ -1,0 +1,10 @@
+--IO3 ability
+ability IO where
+  launchMissiles : () -> {IO} ()
+-- binding IS guarded, so its body can access whatever abilities
+-- are declared by the type of the binding
+-- ambient abilities (which will be empty)
+ex1 : () -> {IO} ()
+ex1 unit = IO.launchMissiles()
+
+

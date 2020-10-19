@@ -1,0 +1,13 @@
+x : Nat
+x = 42 + 2
+
+y : Int
+y = +42 + -2
+
+z : Float
+z = 42.0 - 2.0
+
+foo a b = (a + b) + 3
+
+bar a b = 3 + b + a
+

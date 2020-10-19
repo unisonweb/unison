@@ -1,0 +1,20 @@
+ability T where
+  a : Unknown -> {T} ()
+
+--b : Unknown
+--b = ()
+
+----
+
+unison: can't hashComponents if bindings have free variables:
+  ["Unknown"]
+  ["T"]
+CallStack (from HasCallStack):
+  error, called at src/Unison/ABT.hs:504:11 in unison-parser-typechecker-0.1-I7C95FdIglBGnISbV534LW:Unison.ABT
+
+-- Typechecker emits a helpful error about b's use of an unknown type, but not a's.
+--
+-- Error for b:
+--   typechecker.tests/ability_unknown_type.u FAILURE I don't know about the type Unknown.  Make sure it's imported and spelled correctly:
+--
+--   22 | b : Unknown

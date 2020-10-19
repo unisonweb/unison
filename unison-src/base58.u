@@ -1,0 +1,60 @@
+-- TODO: Characters
+-- TODO: Bytes
+
+type Optional a = Some a | None
+
+type Words = Words (List Nat)
+type Integer = Integer
+
+Integer.zero : Integer
+Integer.zero = _
+
+shiftLeft : Nat -> Integer -> Integer
+shiftLeft x y = _
+
+(+) : Integer -> Integer -> Integer
+(+) x y = _
+
+unfoldRight : ∀ a b . (a -> Optional (a, b)) -> a -> List b
+unfoldRight f z = _
+
+foldLeft : ∀ a b . a -> (a -> b -> a) -> List b -> a
+foldLeft z f s = _
+
+toInteger : Nat -> Integer
+toInteger x = _
+
+bigEndian : Words -> Integer
+bigEndian = cases
+  Words.Words s ->
+    foldLeft Integer.zero (acc w -> shiftLeft 8 acc + toInteger w) s
+
+-- TODO: Need some conversions between integers and machine integers
+divmod : Integer -> Nat -> (Integer, Nat)
+divmod x y = _
+
+(|>) : ∀ a b c . (a -> b) -> (b -> c) -> a -> c
+(|>) g f x = f (g x)
+
+(==) : Integer -> Nat -> Boolean
+(==) a b = _
+
+charAt : Nat -> Text -> Text
+charAt n = Text.drop n |> Text.take 1
+
+codeString : Text
+codeString = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+base58Encode : Words -> Text
+base58Encode ws =
+  x = bigEndian ws
+  base58 : Integer -> Optional (Integer, Text)
+  base58 a =
+    if a == 0
+    then Optional.None
+    else match divmod a 58 with
+           (d, m) -> Optional.Some (d, charAt m codeString)
+  foldLeft "" Text.concatenate (unfoldRight base58 x)
+
+base58Decode : Text -> Words
+base58Decode txt = _

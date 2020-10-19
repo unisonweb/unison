@@ -1,0 +1,3 @@
+r4 : Int -> Int
+r4 = cases
+  +1 -> +1

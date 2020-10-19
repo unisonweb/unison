@@ -1,0 +1,15 @@
+--State2 ability
+ability State s where
+  put : s -> {State s} ()
+
+state : s -> Request (State s) a -> s
+state s = cases
+  { State.put snew -> k } -> handle k () with state snew
+  { a } -> s
+
+> handle
+  State.put (11 + 1)
+  State.put (5 + 15)
+  ()
+  with state 10
+  -- should be 20

@@ -1,0 +1,15 @@
+use Float abs max min toText fromText
+use Optional Some None
+
+withDefault : Optional a -> a -> a
+withDefault opt d = match opt with
+                      Some x -> x
+                      None   -> d
+
+> (abs 1.1,
+   abs -1.1,
+   max 1.1 1.5,
+   min 1.1 1.5,
+   toText 1.1,
+   withDefault (fromText "1.5") -1.0,
+   withDefault (fromText "Hello world!") -1.0)

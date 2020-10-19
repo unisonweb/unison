@@ -1,0 +1,21 @@
+-- Getting the error
+--The guard expression for a case has to be Boolean, but this one is a7:
+--
+--   13 |   {Ask.ask -> k} -> handle k () with supply t
+--
+--  from right here:
+--
+--    8 | supply : Text -> Request (Ask Text) a -> a
+--
+--
+-- even though this program doesn't use guards!
+
+ability Ask a where
+  ask : {Ask a} a
+
+supply : Text -> Request (Ask Text) a -> a
+supply t = cases
+  {a} -> "foo" -- a
+  {Ask.ask -> k} -> handle k () with supply t
+
+()

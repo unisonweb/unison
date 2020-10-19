@@ -1,0 +1,29 @@
+
+ex1 : x -> y -> x
+ex1 a b =
+  temp : x -- refers to the variable in the outer scope
+  temp = a
+  a
+
+ex2 : x -> y -> x
+ex2 a b =
+  id : ∀ x . x -> x -- doesn't refer the variable in outer scope
+  id x = x
+  id 42
+  id a
+
+merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]
+merge lte a b =
+  use List ++ drop at snoc
+  use Optional None Some
+  go : [a] -> [a] -> [a] -> [a] -- refers to the outer `a` type
+  go acc a b = match at 0 a with
+    None -> acc ++ b
+    Some hd1 -> match at 0 b with
+      None -> acc ++ a
+      Some hd2 ->
+        if hd1 `lte` hd2 then
+          go (acc `snoc` hd1) (drop 1 a) b
+        else
+          go (acc `snoc` hd2) a (drop 1 b)
+  go [] a b

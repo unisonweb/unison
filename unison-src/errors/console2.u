@@ -1,0 +1,29 @@
+ability State s where
+  get : {State s} s
+  set : s -> {State s} ()
+
+ability Console where
+  read : {Console} (Optional Text)
+  write : Text -> {Console} ()
+
+fst = cases Tuple.Cons a _ -> a
+
+snd = cases Tuple.Cons _ (Tuple.Cons b _) -> b
+
+namespace Console where
+
+  simulate : Request Console a -> {State ([Text], [Text])} a
+  simulate = cases
+    {Console.read -> k} ->
+      io = State.get
+      ins = fst io
+      outs = snd io
+      State.set (drop 1 ins, outs)
+      k (at 0 ins) -- this is missing recursive call to handle
+    {Console.write t -> k} ->
+      io = State.get
+      ins = fst io
+      outs = snd io
+      k (State.set (ins, cons t outs)) -- this is missing recursive call
+
+()

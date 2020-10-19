@@ -1,0 +1,5 @@
+type Optional a = Some a | None
+z' : (Optional Int, Optional Text, Optional Float)
+z' = (None, 3)
+
+()

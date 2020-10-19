@@ -1,0 +1,2 @@
+match 3 with
+  3 | (3 : Boolean) -> 4

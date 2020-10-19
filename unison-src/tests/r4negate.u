@@ -1,0 +1,5 @@
+r4 : Int -> Int
+r4 x = match x with
+  +1 -> -1
+  _  -> Int.negate x
+

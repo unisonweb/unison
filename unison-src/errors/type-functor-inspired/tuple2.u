@@ -1,0 +1,3 @@
+y : (Nat, Optional Int, Text)
+y = (42, 3, "")
+y

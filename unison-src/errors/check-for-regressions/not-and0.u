@@ -1,0 +1,9 @@
+and (3 : Boolean) true
+
+-- InSubtype t1=Nat, t2=Boolean
+-- InCheck e=3, t=Boolean
+-- InSynthesize e=3:Boolean
+-- InCheck e=3:Boolean, t=Boolean
+-- InSynthesizeApp t=Boolean -> Boolean -> Boolean, e=3:Boolean, n=1
+-- InAndApp
+-- InSynthesize e=and 3:Boolean true

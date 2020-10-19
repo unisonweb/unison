@@ -1,0 +1,13 @@
+
+drop1 = Text.drop 1
+
+> drop1 "heyo"
+
+---
+
+gives a runtime error - 
+
+unison: user error (type error, expecting N, got "heyo")
+
+which indicates it is going to the runtime stack to get that `1` value, 
+rather than pulling it from the arguments

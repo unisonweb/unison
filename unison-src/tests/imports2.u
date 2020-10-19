@@ -1,0 +1,12 @@
+-- This gives the error:
+--   I'm not sure what Optional.orElse means at Line 12
+-- which is weird because it means Optional.orElse, which is defined here.
+
+use Optional Some None orElse
+
+Optional.orElse a b =
+  match a with
+    None -> b
+    a -> a
+
+> orElse

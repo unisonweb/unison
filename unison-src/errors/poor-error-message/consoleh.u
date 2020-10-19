@@ -1,0 +1,57 @@
+-- Token {payload = Semi, start = Pos 51 1, end = Pos 51 1} :| []
+-- bootstrap: unison-src/tests/console.uu:51:1:
+-- unexpected Semi
+-- expecting : or the rest of infixApp
+--    51 | ()
+
+ability State s where
+  get : {State s} s
+  set : s -> {State s} ()
+
+ability Console where
+  read : {Console} (Optional Text)
+  write : Text -> {Console} ()
+
+fst = cases Tuple.Cons a _ -> a
+
+snd = cases Tuple.Cons _ (Tuple.Cons b _) -> b
+
+namespace Console where
+
+  state : s -> Request (State s) a -> a
+  state s = cases
+    {State.get -> k} -> handle k s with state s
+    {State.set s' -> k} -> handle k () with state s'
+    {a} -> a
+
+  simulate : Request Console d -> {State ([Text], [Text])} d
+  simulate = cases
+    {Console.read -> k} ->
+      io = State.get
+      ins = fst io
+      outs = snd io
+      State.set (drop 1 ins, outs)
+      -- this really should typecheck but doesn't for some reason
+      -- error is that `simulate` doesn't check against `Request Console c -> r`,
+      -- but seems like that `r` should get instantiated as `{State (..)} c`.
+      handle k (at 0 ins) with simulate
+    {Console.write t -> k} ->
+      io = State.get
+      ins = fst io
+      outs = snd io
+      -- same deal here
+      handle k (State.set (ins, cons t outs)) with simulate
+    {a} -> a
+
+(++) = concatenate
+
+handle
+  handle
+    use Console read write
+    use Optional Some None
+    write "What's your name?"
+    match read with
+      Some name -> write ("Hello" ++ name)
+      None -> write "Fine, be that way."
+  with Console.simulate
+()

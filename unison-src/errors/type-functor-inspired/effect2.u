@@ -1,0 +1,11 @@
+ability Abort where
+  Abort : forall a . () -> {Abort} a
+
+ability Abort2 where
+  Abort2  : forall a . () -> {Abort2} a
+  Abort2' : forall a . () -> {Abort2} a
+
+ability' : Nat -> { Abort } Int
+ability' n = Abort2.Abort2 ()
+
+()

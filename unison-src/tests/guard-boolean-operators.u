@@ -1,0 +1,11 @@
+type Foo = Foo Boolean Boolean
+
+f : Foo -> Boolean
+f = cases
+  Foo.Foo a b | a || b -> true
+  _ -> false
+
+g : Foo -> Boolean
+g = cases
+  Foo.Foo a b | a && b -> true
+  _ -> false

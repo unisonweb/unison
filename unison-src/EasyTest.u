@@ -1,0 +1,263 @@
+use Test Success Status Report Test Scope
+use Test.Status Failed Expected Unexpected Pending
+use Test.Success Passed Proved
+use Test.Report Report
+use Test.Test Test
+use Test passed proved failed expected unexpected pending finished label
+use Test.Scope Scope
+use List flatMap
+
+type Test.Success = Passed Nat | Proved
+
+type Test.Status = Failed
+                 | Expected Test.Success
+                 | Unexpected Test.Success
+                 | Pending
+
+-- Current scope together with accumulated test report.
+type Test.Report = Report (Trie Text Test.Status)
+
+type Test.Test = Test (Test.Scope -> Test.Report)
+
+unique type Test.Scope = Scope [Text]
+
+foldSuccess : (Nat -> r) -> r -> Success -> r
+foldSuccess passed proved = cases
+  Passed n -> passed n
+  Proved -> proved
+
+foldStatus : r -> (Success -> r) -> (Success -> r) -> r -> Status -> r
+foldStatus failed expected unexpected pending = cases
+  Failed -> failed
+  Expected s -> expected s
+  Unexpected s -> unexpected s
+  Pending -> pending
+
+foldReport : (Trie Text Test.Status -> r) -> Report -> r
+foldReport k r = case r of Report t -> k t
+
+foldScope : ([Text] -> r) -> Scope -> r
+foldScope k = cases Scope ss -> k ss
+
+Scope.cons : Text -> Scope -> Scope
+Scope.cons n = foldScope (Scope . List.cons n)
+
+-- Basic building blocks of tests
+Test.finished : Status -> Test
+Test.finished st =
+  Test (Report . foldScope (sc -> Trie.singleton sc st))
+
+Test.failed : Test
+Test.failed = finished Failed
+
+Test.proved : Test
+Test.proved = finished <| Expected Proved
+
+Test.passed : Test
+Test.passed = finished . Expected <| Passed 1
+
+Test.passedUnexpectedly : Test
+Test.passedUnexpectedly = finished . Unexpected <| Passed 1
+
+Test.provedUnexpectedly : Test
+Test.provedUnexpectedly = finished <| Unexpected Proved
+
+-- Basic test combinators
+
+Test.modifyStatus : (Status -> Status) -> Test -> Test
+Test.modifyStatus f =
+  cases Test k -> Test (foldReport (Report . map f) . k)
+
+Test.label : Text -> Test -> Test
+Test.label n = cases
+  Test.Test.Test k -> Test (scope -> k <| Scope.cons n scope)
+
+use Test.Report combine
+
+(Test.&&) : Test -> Test -> Test
+(Test.&&) a b = match (a,b) with
+  (Test k1, Test k2) ->
+    Test (
+      scope ->
+        let r1 = k1 scope
+            r2 = k2 scope
+            combine r1 r2)
+
+Test.passedWith : Text -> Test
+Test.passedWith m = label m passed
+
+Test.provedWith : Text -> Test
+Test.provedWith m = label m proved
+
+Test.failedWith : Text -> Test
+Test.failedWith m = Test.label m Test.failed
+
+-- Report combinators
+
+Test.Report.combine : Report -> Report -> Report
+Test.Report.combine r1 r2 = match (r1, r2) with
+  (Test.Report.Report t1, Test.Report.Report t2) ->
+    Report <| Trie.unionWith Status.combine t1 t2
+
+Test.Report.empty : Report
+Test.Report.empty = Report empty
+
+Test.Report.toCLIResult : Report -> [Test.Result]
+Test.Report.toCLIResult r =
+  descend scope = cases (k, t) ->
+    go ((if scope != "" then (scope ++ ".") else "") ++ k) t
+  convert : Text -> Test.Status -> Test.Result
+  convert scope = cases
+    Test.Status.Failed -> Test.Result.Fail scope
+    Test.Status.Expected (Test.Success.Passed n) ->
+      Test.Result.Ok (scope ++ " : Passed " ++ Nat.toText n ++ " tests.")
+    Test.Status.Expected (Test.Success.Proved) ->
+      Test.Result.Ok (scope ++ " : Proved.")
+  go : Text -> Trie Text Test.Status -> [Test.Result]
+  go scope t =
+    rest = flatMap (descend scope) (Map.toList (tail t))
+    match head t with
+      Optional.Some status ->
+        cons (convert scope status) rest
+      Optional.None -> rest
+  match r with Test.Report.Report t -> go "" t
+
+Test.report : Test -> Report
+Test.report = cases Test k -> k (Scope [])
+
+-- Running tests
+
+Test.run : Test -> [Test.Result]
+Test.run = Test.Report.toCLIResult . Test.report
+
+Test.runAll : [Test] -> [Test.Result]
+Test.runAll = flatMap Test.run
+
+-- Status combinators
+
+Status.combine : Test.Status -> Test.Status -> Test.Status
+Status.combine s1 s2 = match (s1, s2) with
+  (_, Pending) -> Pending
+  (Pending, _) -> Pending
+  (Failed, _) -> Failed
+  (_, Failed) -> Failed
+  (Unexpected a, Unexpected b) -> Unexpected (Success.combine a b)
+  (Unexpected a, _) -> Unexpected a
+  (_, Unexpected b) -> Unexpected b
+  (Expected a, Expected b) -> Expected (Success.combine a b)
+
+
+Status.pending : Test.Status -> Test.Status
+Status.pending = cases
+  Failed -> Pending
+  Expected s -> Unexpected s
+  Unexpected s -> Pending
+  Pending -> Pending
+
+-- Make a test pending
+Test.pending : Test -> Test
+Test.pending = modifyStatus Status.pending
+
+Test.modifyScope : (Scope -> Scope) -> Test -> Test
+Test.modifyScope f = cases Test k -> Test (k . f)
+
+Success.combine s1 s2 = match (s1, s2) with
+  (Passed n, Passed m) -> Passed (n + m)
+  (Passed n, Proved) -> Passed n
+  (Proved, Passed n) -> Passed n
+  (Proved, Proved) -> Proved
+
+-- Test case generation
+
+-- A domain is either small, in which case we can exhaustively list all the
+-- values in the domain, or it's large, in which case we can ask for a value
+-- of a particular size.
+type Domain a = Small [a] | Large (Weighted a)
+
+-- The domain of natural numbers is large.
+Domain.nats : Domain Nat
+Domain.nats = Large Weighted.nats
+
+-- The domain of all integers
+Domain.ints : Domain Int
+Domain.ints = let
+  go n = yield n <|> weight 1
+          '(go (if n > +0 then negate n else increment (negate n)))
+  Large (List.foldl (a n -> a <|> yield n)
+                    Weighted.Fail
+                    [+0, +1, -1, maxInt, minInt] <|> go +2)
+
+use Universal == < >
+
+namespace Domain where
+
+  -- The threshold of "small" domains.
+  smallSize = 10000
+
+  -- The Boolean domain is small
+  boolean : Domain Boolean
+  boolean = Small [false, true]
+
+  -- The domain of lists of arbitrary data is large
+  listsOf : Domain a -> Domain [a]
+  listsOf d =
+    Large (Weighted.lists match d with
+      Domain.Small as -> Weighted.fromList as
+      Domain.Large w -> w)
+
+  lists : Domain [()]
+  lists = Domain.listsOf (Small [()])
+
+  sample : Nat -> Domain a -> [a]
+  sample n = cases
+    Domain.Large w -> Weighted.sample n w
+    Domain.Small xs -> take n xs
+
+  map : (a -> b) -> Domain a -> Domain b
+  map f = cases
+    Domain.Large w -> Domain.Large (Weighted.map f w)
+    Domain.Small as -> Domain.Small (List.map f as)
+
+  pairs : Domain a -> Domain (a,a)
+  pairs d = lift2 (a b -> (a,b)) d d
+
+  tuples : Domain a -> Domain b -> Domain (Pair a b)
+  tuples = lift2 (a b -> Pair a b)
+
+  lift2 : (a -> b -> c) -> Domain a -> Domain b -> Domain c
+  lift2 f da db = let
+    wa = weighted da
+    wb = weighted db
+    wc = mergeWith (a1 a2 -> f a1 a2) wa wb
+    match (da, db) with
+      (Domain.Small as, Domain.Small bs) | size as + size bs < smallSize ->
+        Small (Weighted.sample smallSize wc)
+      _ -> Large wc
+
+  weighted : Domain a -> Weighted a
+  weighted = cases
+    Domain.Small as -> Weighted.fromList as
+    Domain.Large w -> w
+
+-- Test a property for a given domain up to a maximum size
+Test.forAll' : Nat -> Domain a -> (a -> Boolean) -> Test
+Test.forAll' maxSize domain property =
+  check xs s =
+    List.map (
+      cases (c, i) ->
+             if property c then finished (Expected s)
+             else label ("test case " ++ Nat.toText i) (finished Failed)
+                 ) (indexed xs)
+  List.foldb id (Test.&&) proved <|
+    match domain with
+      Domain.Small xs -> check (take maxSize xs) Proved
+      Domain.Large _ -> check (sample maxSize domain) (Passed 1)
+
+Test.check' : Boolean -> Test
+Test.check' b = if b then Test.proved else Test.failed
+
+Test.forAll : Nat -> Domain a -> (a -> Boolean) -> [Test.Result]
+Test.forAll n d p = Test.run (Test.forAll' n d p)
+
+Test.check : Boolean -> [Test.Result]
+Test.check = Test.run . Test.check'

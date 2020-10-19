@@ -1,0 +1,13 @@
+
+type Any = Any (∀ r . (∀ a . a -> r) -> r)
+
+-- also typechecks as expected
+any : a -> Any
+any a = Any.Any (k -> k a)
+
+---
+This typechecks fine, as expected, but try to `add` to codebase, get:
+
+unison: unknown var in environment: "r" environment = [Right User "a"]
+CallStack (from HasCallStack):
+  error, called at src/Unison/ABT.hs:632:19 in unison-parser-typechecker-0.1-JxZSVhIPWTr4SazQ0mw03q:Unison.ABT

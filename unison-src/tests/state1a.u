@@ -1,0 +1,11 @@
+--State1a ability
+ability State se2 where
+  put : ∀ se . se -> {State se} ()
+  get : ∀ se . {State se} se
+id : Int -> Int
+id i = i
+foo : () -> {State Int} Int
+foo unit = id (State.get Int.+ State.get)
+
+> ()
+

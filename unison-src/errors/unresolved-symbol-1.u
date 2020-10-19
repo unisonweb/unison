@@ -1,0 +1,6 @@
+let
+  (|>) : a -> (a -> WHat) -> b -- unresolved symbol
+  a |> f = f a
+  Stream.fromInt -3
+    |> Stream.take 10
+    |> Stream.foldLeft +0 (Int.+)

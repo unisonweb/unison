@@ -1,0 +1,5 @@
+r7 : Nat
+r7 = match () with
+  x@() -> 1
+
+

@@ -1,0 +1,39 @@
+type Suit = Club | Spade | Heart | Diamond
+type Card = Card Rank Suit
+type Rank = A | K | Q | J | _10 | _9 | _8 | _7
+type NonEmpty a = NonEmpty a [a]
+
+use Rank A K Q J _10 _9 _8 _7
+use Suit Club Spade Heart Diamond
+use NonEmpty NonEmpty
+use Optional Some None
+
+namespace Suit where
+  all = [Club, Spade, Heart, Diamond]
+
+namespace Rank where
+  all = [A, _10, K, Q, J, _9, _8, _7]
+  points = cases
+    A -> 11
+    _10 -> 10
+    K -> 4
+    Q -> 3
+    J -> 2
+    _ -> 0
+  toText = cases
+    A -> "A"
+    K -> "K"
+    Q -> "Q"
+    J -> "J"
+    _10 -> "10"
+    _9 -> "9"
+    _8 -> "8"
+    _7 -> "7"
+
+namespace NonEmpty where
+  toList = cases
+    NonEmpty h t -> Sequence.cons h t
+  fromList : [a] -> Optional (NonEmpty a)
+  fromList l = match Sequence.at 0 l with
+    None -> None
+    Some a -> Some (NonEmpty a (Sequence.drop 1 l))

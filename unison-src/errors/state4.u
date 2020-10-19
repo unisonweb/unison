@@ -1,0 +1,13 @@
+--State4 ability
+ability State se2 where
+  put : ∀ se . se -> {State se} ()
+  get : ∀ se . () -> {State se} se
+-- binding is not guarded by a lambda, it only can access
+-- ambient abilities (which will be empty)
+ex1 : {State Int} ()
+ex1 =
+  y = State.get
+  State.put (y Int.+ +1)
+  ()
+()
+

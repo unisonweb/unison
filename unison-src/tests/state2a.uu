@@ -1,0 +1,30 @@
+--State2 ability
+
+type Optional a = None | Some a
+
+ability State s where
+  put : s -> {State s} ()
+  get : {State s} s
+
+state : s -> Request (State s) a -> (s, a)
+state s = cases
+  { State.get -> k } -> handle k s with state s
+  { State.put snew -> k } -> handle k () with state snew
+  { a } -> (s, a)
+
+modify3 : (s -> s) -> ()
+modify3 f =
+  s = State.get
+  s2 = f s
+  State.put s2
+
+---
+
+limitation here is that inferred ability vars can't refer to universal vars in
+the same type signature
+
+the inferred abilities are existentials, which are allocated up front, so
+they can't bind to the universals nor does that really make sense
+
+would need some nondeterminism or multiple phases in the typechecking process to
+do better

@@ -1,0 +1,14 @@
+notid : Int -> Boolean
+notid a = true
+and (notid 3) true
+
+-- InSubtype t1=Nat, t2=Int
+-- InCheck e=3, t=Int
+-- InSynthesizeApp t=Int -> Boolean, e=3, n=1
+-- InSynthesizeApps f=notid1 ft=Int -> Boolean, es=[3]
+-- InSynthesize e=notid1 3
+-- InCheck e=notid1 3, t=Boolean
+-- InSynthesizeApp t=Boolean -> Boolean -> Boolean, e=notid1 3, n=1
+-- InAndApp
+-- InSynthesize e=and notid1 3 true
+-- InSynthesize e=Cycle (notid. (let r...

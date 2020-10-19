@@ -1,0 +1,19 @@
+ability State s where
+  get : Nat -> {State s} s
+  set : s -> {State s} ()
+
+ability Console where
+  read : () -> {Console} (Optional Text)
+  write : Text -> {Console} ()
+
+fst = cases Tuple.Cons a _ -> a
+
+snd = cases Tuple.Cons _ (Tuple.Cons b _) -> b
+
+namespace Console where
+
+  simulate : Request Console a -> {State ([Text], [Text])} a
+  simulate = cases
+    {Console.read _ -> k} -> k Optional.None
+
+Console.simulate

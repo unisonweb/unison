@@ -1,0 +1,12 @@
+-- board piece
+
+type Board = Board Nat Nat Nat
+
+use Board Board
+
+-- uncommenting these gives errors from NPE to array index out of bounds -1, -2
+-- x = 1
+-- y = 2
+
+ex = match Board 77 88 99 with
+  Board a b c -> c

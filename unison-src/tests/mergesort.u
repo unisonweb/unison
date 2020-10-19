@@ -1,0 +1,26 @@
+use Universal <
+
+> sort (<) [9234,23,1,3,6,2,3,51,24,1,3,55,2,1]
+
+halveWith : ([a] -> [a] -> b) -> [a] -> b
+halveWith k a = k (take (size a / 2) a) (drop (size a / 2) a)
+
+sort : (a -> a -> Boolean) -> [a] -> [a]
+sort lte a =
+  if size a < 2 then a
+  else halveWith (l r -> merge lte (sort lte l) (sort lte r)) a
+
+merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]
+merge lte a b =
+  use List ++
+  use Optional None Some
+  go acc a b = match at 0 a with
+    None -> acc ++ b
+    Some hd1 -> match at 0 b with
+      None -> acc ++ a
+      Some hd2 ->
+        if hd1 `lte` hd2 then
+          go (acc `snoc` hd1) (drop 1 a) b
+        else
+          go (acc `snoc` hd2) a (drop 1 b)
+  go [] a b

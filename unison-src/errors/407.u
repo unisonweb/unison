@@ -1,0 +1,8 @@
+use Universal <
+
+foo : x -> x -> Nat
+foo x y = 42
+
+
+> foo "hi" 2
+

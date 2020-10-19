@@ -1,0 +1,35 @@
+ability Emit a where
+  emit : a ->{Emit a} ()
+
+type Stream a = Stream ('{Emit a} ())
+
+use Stream Stream
+use Optional None Some
+
+namespace Stream where
+
+  unfold : s -> (s -> Optional (a, s)) -> Stream a
+  unfold s f = Stream 'let
+    -- step : (s -> Optional (a,s)) -> s ->{Emit a} ()
+    step f s = match f s with
+      None        -> ()
+      Some (a, s) -> emit a
+                     step f s
+    step f s
+
+---
+
+I found a value of type a where I expected to find one of type a:
+
+   11 |   unfold : s -> (s -> Optional (a, s)) -> Stream a
+   12 |   unfold s f = Stream 'let
+   13 |     -- step : (s -> Optional (a,s)) -> s ->{Emit a} ()
+   14 |     step f s = match f s with
+   15 |       None        -> ()
+   16 |       Some (a, s) -> emit a
+   17 |                      step f s
+   18 |     step f s
+
+  from right here:
+
+    4 | type Stream a = Stream ('{Emit a} ())

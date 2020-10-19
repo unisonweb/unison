@@ -1,0 +1,2 @@
+> match at 0 [100] with
+  Optional.Some _ -> "Hooray!"

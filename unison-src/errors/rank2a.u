@@ -1,0 +1,8 @@
+
+-- We expect this to not typecheck since a `Nat -> Nat` cannot
+-- be passed where a `∀ a . a -> a` is expected.
+rank2a : (Nat -> Nat) -> Nat
+rank2a =
+  inner : (∀ a . a -> a) -> Nat
+  inner f = 42
+  inner

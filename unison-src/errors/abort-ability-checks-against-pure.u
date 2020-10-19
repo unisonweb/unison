@@ -1,0 +1,9 @@
+--Abort
+ability Abort where
+  Abort : forall a . () -> {Abort} a
+
+bork = u -> 1 + (Abort.Abort ())
+
+(bork : () -> {} Nat)
+
+-- failing to fail in commit 2819c206acf80f926c6d970a4ffd47c961fa4502

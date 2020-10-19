@@ -1,0 +1,23 @@
+--IO/State2 ability
+ability IO where
+  launchMissiles : {IO} ()
+
+foo : Int -> {IO} Int
+foo unit =
+  incBy : Int -> {IO, State Int} Int
+  incBy i =
+    IO.launchMissiles -- OK, since declared by `incBy` signature
+    y = State.get
+    State.put (y Int.+ i)
+    +42
+  +43
+
+type Optional a =
+  Some a | None
+
+ability State se2 where
+  put : ∀ se . se -> {State se} ()
+  get : ∀ se . {State se} se
+
+
+

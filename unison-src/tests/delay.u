@@ -1,0 +1,37 @@
+
+type Foo a = Foo a
+
+(+) = (Nat.+)
+
+-- The type 'a is sugar for `() -> a`.
+-- The term 'a is sugar for `() -> a`.
+-- !a forces a delayed expression (equivalent to `a()`)
+
+woot : 'Nat
+woot = '42
+
+-- A 'a can also be created by prefixing `let` with a '
+woot2 : 'Nat
+woot2 = 'let
+  x = 1
+  y = 2
+  x + y
+
+-- ' has higher precedence than -> in type signatures
+--   and a lower precedence than type application
+woot3 : 'Nat -> Nat
+woot3 x = !x + 1
+
+woot4 : ∀ a . 'Foo a -> Foo a
+woot4 foo = !foo
+
+woot4Usage = woot4 '(Foo.Foo 19)
+
+woot4Usage2 =
+  foo = 'let
+    x : Nat
+    x = 99
+    Foo.Foo (x + x)
+  woot4 foo
+
+> woot4Usage2

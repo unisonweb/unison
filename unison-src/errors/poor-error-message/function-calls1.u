@@ -1,0 +1,16 @@
+f1 : Int -> Int
+f1 n = n + +1
+
+f1 (3 Nat.+ 3)
+
+-- issues:
+-- - the highlight term is '3' but should be (3 + 3)
+-- -
+
+
+-- Paul Thought:
+  -- Whenever we synthesize a type, we can set the location
+  -- of the synthesized type to be the location of the
+  -- synthesized expression.
+-- Arya & Runar: isn't that what we already do
+-- Paul: No, we only something something when we refine an existential

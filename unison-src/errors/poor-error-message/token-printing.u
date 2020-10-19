@@ -1,0 +1,25 @@
+-- board piece
+
+type Board = Board Nat Nat Nat
+
+use Board.Board
+
+-- uncommenting these gives errors from NPE to array index out of bounds -1, -2
+-- x = 1
+-- y = 2
+
+ex = match Board 77 88 99
+  with Board a b c -> c
+
+-- yields:
+
+
+-- master>
+-- I was expecting an indented block following the`of` keyword
+-- but instead found an outdent:
+--
+--    12 |   with Board a b c -> c
+--   SourcePos {sourceName = "/Users/pchiusano/work/unison/unison-src/tests/tictactoe0-array-oob1.u", sourceLine = Pos 12, sourceColumn = Pos 3}
+
+-- What's with the `SourcePos` default show instance here?
+-- Expecting it to just color the token or something

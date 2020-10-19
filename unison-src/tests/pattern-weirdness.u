@@ -1,0 +1,16 @@
+go =
+  a = 1
+  match "" with
+    pos | false  -> a
+    _            -> a
+
+> go
+
+-- 7 | > go
+--       ⧩
+--       ""
+
+-- should be 1, not ""
+
+-- seems to have something to do with the wildcard + guard, as changing or
+-- or deleting that line makes the problem go away

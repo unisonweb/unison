@@ -1,0 +1,39 @@
+--State2 ability
+
+type Optional a = None | Some a
+
+ability State s where
+  put : s -> {State s} ()
+  get : {State s} s
+
+state : s -> Request (State s) a -> (s, a)
+state s = cases
+  { State.get -> k } -> handle k s with state s
+  { State.put snew -> k } -> handle k () with state snew
+  { a } -> (s, a)
+
+modify : (s ->{} s) -> {State s} ()
+modify f = State.put (f State.get)
+
+increment : '{State Nat} ()
+increment = '(modify ((+) 1))
+
+second : (a, b) -> b
+second = cases (_,b) -> b
+
+first : (a, b) -> a
+first = cases (a,_) -> a
+
+ex : Nat
+ex =
+  result = handle
+    State.put (11 + 1)
+    State.put (5 + 15)
+    ()
+    with state 10
+
+  first result
+
+-- should return `20`, but actually returns `12`
+-- seems like only one `put` is actually being run
+> ex

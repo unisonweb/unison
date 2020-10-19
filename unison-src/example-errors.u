@@ -1,0 +1,181 @@
+-- Each of the programs in this file generates an error of some sort.
+-- We want error messages to be awesome so for each wrong program we
+-- give "the ideal error message" and a uniform, simple algorithm for producing
+-- that message.
+
+ex1 : Int
+ex1 = "hello"
+
+{- Ideal error:
+
+   Type mismatch in example-errors.u, line 6: `Text` vs `Int`
+
+   |
+ 6 | ex1 = "hello"
+   |       ^^^^^^^
+
+   `Text` comes from a literal:
+   |
+ 6 | ex1 = "hello"
+   |       ^^^^^^^
+
+   `Int` comes from type signature:
+   |
+ 5 | ex1 : Int
+   |       ^^^^^
+
+  Thoughts:
+
+  * The first line marker is the _site of the error_
+  * The next two line markers are the _provenance of the mismatched types_
+  * In this case, the provenance of `Text` is the same location as the error,
+    but this won't always be the case. Optimized message just omits the
+    site of the error if it matches the provenance location of either of
+    the mismatched types.
+  * The backticks might be in color, formatted as bold, whatever, be
+    thoughtful about using visual indicators to draw attention to most important
+    aspects of the message.
+  * For implementation - when `check e t` hits `Term.Text'`, it does:
+     `subtype Type.text t`, but `Type.text` requires a `loc`, and we'll provide
+     `ABT.annotation e`.  This logic can go in synthesize.
+     * Q: should we just ALWAYS set the location of a synthesized type
+          to be the location of the term that type was synthesized from?
+     * A: No,
+
+        foo : Text
+        foo x =
+          y = x + 1
+          x
+
+
+       In this example, x will synthesize to the type `Int`, but the location
+       of that type shouldn't just be
+     * When you synthesize a type for a lambda, `x -> x`
+       the location of the synthesized type `∀ a . a -> a`
+       is just the location of `x -> x`.
+       The location of the `a` also needs to be this same location.
+       Might want to have a special kind of location which indicates
+       that the location came from an inferred type.
+-}
+
+ex2 : Int   -- `Int` comes from
+ex2 =
+  y = "hello" -- `Text` comes from "hello"
+  y
+
+{- Ideal error:
+
+example-errors.u contained errors:
+
+   The highlighted expression on line 42
+   |
+42 | y
+   | ^
+   was inferred to have type `Text` but was expected to have type `Int`
+
+   `Int` comes from type signature:
+   |
+39 | ex2 : Int
+   |       ^^^^^
+
+   `Text` was inferred from a literal:
+   |
+41 | y = "hello"
+   |     ^^^^^^^
+
+
+  Thoughts:
+  * `y` is the body of the block, and the body of the block is expected to
+        have type `Int`
+  * Maybe use bold or some visual indicator rather than the ^^^ nonsense
+  * Do we include parent scopes?
+-}
+
+ex3 =
+  x = 1 + 1
+  if x then 42 else "hkjh"
+
+{-
+
+example-errors.u contained 1 error:
+
+-- 1 -------------------------------------------------------
+
+   The highlighted expression on line 73
+   |
+73 | if x then 42 else -1
+   |    ^
+   has type `Nat` but was expected to have type `Boolean`
+
+   `Boolean` comes from `if`, whose first argument must be of type `Boolean`
+
+   `Nat` comes from line 72:
+   |
+72 | x = 1 + 1
+   |       ^
+   x = id 42
+       ^^^^^
+          ^^
+
+   * "The function <...> expects its <n>th argument to be of type <...>, but
+      on line <m> it appears to have type <...>."
+   * `synthesizeApp` can take an argument for what numberth argument it's
+      testing
+   * "An if-expression expects its condition to be of type Boolean, but
+   * In a `synthesizeApp`, report the function input type first, as the
+     "expected" type.
+   * `if` and other builtin syntax should have some special treatment.
+   * Might want signature of function whose application was involved in the
+     mismatched types. (But don't necessarily want to dump this on users up
+     front, like GHC tells you the type of every binding in the vicinity)
+   * Issue maybe not that you didn't know the function's type, but that
+     you were wrong about the types of the args you passed; also, you might
+     accidentally omit an argument, supply an extra argument, or supply
+     arguments in the wrong order.
+   * We don't bother reporting the other type errors in the same expression,
+     but we potentially could have an algorithm that could do more fine-grained
+     recovery.
+   * Not totally sure on the location of the `Nat`, but the thought
+     is that if `+` is monomorophic in its return type (always `Nat`),
+     then it makes sense to attribute the `Nat` of `x` to the `+` call site.
+     (why not attibute that to the definition site of `+`?)
+   * Is this inconsistent with treatment of `Boolean` location??
+   * Since `if` is monomorphic in its first arg, we could use the same logic to
+     say that the location of that Boolean argument type is the call site
+     rather than its definition site.
+   * When encounter an error for a variable x, can add that to an erroneous
+     variables set - if you ever encounter a subexpression that references
+     those variables, skip over it?
+-}
+
+ex4 f x =
+  if f x then f 42 else 50
+
+{-
+   Type mismatch on line <line>: `Nat` vs `Boolean`.
+
+   `Nat` comes from the literal:
+   |
+42 | if f x then f 42 else 50
+   |                       ^^
+   ∀ a -> [(a, Tree (Text a)) -> (a -> Text -> Text) -> Tree Text
+
+   ∀ a . Boolean -> a -> a
+
+   Not sure what to report for the origin of the `Boolean`:
+
+   `Boolean` comes from `f 42`??
+   `Boolean` comes from `f : Nat -> Boolean`??
+      But then why does `f` have that type?
+        Because `if` takes a `Boolean` as first arg..
+   `Boolean` comes from `if`
+
+   `f 42` has type `Boolean` because `f` had to have type `x -> Boolean`
+   because `f x` was passed as the first argument of `if`:
+
+   if f x then f 42 else 50
+      ^^^
+   Arya thought - when there's a type mismatch between A and B, and A and B
+   are both inferred types, might make sense to provide more info about provenance.
+-}
+

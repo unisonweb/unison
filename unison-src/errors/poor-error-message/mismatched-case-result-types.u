@@ -1,0 +1,20 @@
+--mismatched case result types
+type Optional a = None | Some a
+match Optional.Some 3 with
+  x -> 1
+  y -> "boo"
+
+-- as of 5ae98f7, produces this message:
+
+  --Each case of a match/with expression need to have the same type.
+  --  Here, one is Nat, and another is Text:
+  --
+  --    4 |   x -> 1         -- x is highlighted
+  --    5 |   y -> "boo"     -- "boo" is highlighted
+  --
+  --  from right here:
+  --
+  --    4 |   x -> 1         -- 1 is highlighted
+
+-- IMO, 1 should be highlighted instead of x on line 12;
+-- then lines 14-17 would be omitted.

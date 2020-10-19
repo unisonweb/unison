@@ -1,0 +1,40 @@
+--Parsing/typechecking...
+--Token {payload = Close, start = Pos 27 5, end = Pos 27 5} :| []
+--bootstrap: /Users/pchiusano/work/unison/unison-src/tests/state2.u:27:5:
+--unexpected Close
+--   27 |     let
+--
+
+type Optional a = None | Some a
+
+ability State s where
+  put : s -> {State s} ()
+  get : {State s} s
+
+state : s -> Request (State s) a -> (s, a)
+state woot = cases
+  { State.get -> k } -> handle k woot with state woot
+  { State.put snew -> k } -> handle k () with state snew
+  { a } -> (woot, a)
+
+modify : (s -> s) -> {State s} ()
+modify f = State.put (f State.get)
+
+increment : '{State Nat} ()
+increment = '(modify ((+) 1))
+
+first : (a, b) -> a
+first = cases (a,_) -> a
+
+ex : Nat
+ex =
+  result = handle (state 0)
+    let
+      x = State.get
+      !increment
+      !increment
+      ()
+
+  first result
+
+()

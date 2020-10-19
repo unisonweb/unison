@@ -1,0 +1,7 @@
+use Universal ==
+
+r11 : Nat
+r11 = match 1 with
+  1 | 2 == 3 -> 4
+  _ -> 5
+

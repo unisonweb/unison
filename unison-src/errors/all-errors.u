@@ -1,0 +1,43 @@
+type Optional a = Some a | None
+
+ability Abort where
+  Abort : forall a . () -> {Abort} a
+
+ability Abort2 where
+  Abort2  : forall a . () -> {Abort2} a
+  Abort2' : forall a . () -> {Abort2} a
+
+app : Optional Int
+app = Optional.Some 3
+
+app' : Optional Int
+app' = 3
+
+arrow : Int -> Int -> Int
+arrow a = 3
+
+ability' : Nat -> { Abort } Int
+ability' n = Abort2.Abort2 ()
+
+id : forall a . a -> a
+id x = 3
+
+f2 : forall a . a -> a -> a
+f2 x = x
+
+const : forall a b . a -> b -> a
+const a b = 3
+
+y : (Optional Int)
+y = 3
+
+z' : (Optional Int, Optional Text, Optional Float)
+z' = (None, 3)
+
+z : (Optional Int, Optional Text, Optional Float)
+z = 3
+
+x : ()
+x = 3
+
+()

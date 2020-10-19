@@ -1,0 +1,13 @@
+--Abort
+ability Abort where
+  Abort : forall a . () -> {Abort} a
+eff : forall a b . (a -> b) -> b -> Request Abort a -> b
+eff f z = cases
+  { Abort.Abort _ -> k } -> z
+  { a } -> f a
+-- heff : Nat
+heff = handle Abort.Abort () with eff (x -> x Nat.+ 2) 1
+hudy : Nat
+hudy = handle 42 with eff (x -> x Nat.+ 2) 1
+bork : () -> {Abort} Nat
+bork = u -> 1 Nat.+ (Abort.Abort ())

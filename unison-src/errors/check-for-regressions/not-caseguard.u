@@ -1,0 +1,4 @@
+notid : Int -> Boolean
+notid a = true
+match 3 with
+  3 | notid 3 -> 4

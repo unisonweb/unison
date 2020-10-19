@@ -1,0 +1,13 @@
+type Optional a = None | Some a
+
+Optional.isEmpty : Optional a -> Boolean
+Optional.isEmpty = cases
+  Optional.None -> true
+  Optional.Some _ -> false
+
+increment x = x + 1
+
+(|>) : forall a b . a -> (a -> b) -> b
+a |> f = f a
+
+> Optional.Some 4

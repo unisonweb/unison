@@ -1,0 +1,11 @@
+f1 : Int -> Int
+f1 n = n + +1
+
+f1 (3 Nat.+ 3)
+
+-- idea:
+  -- I was expecting Int
+  -- vs
+  -- f1 was expecting Int
+
+-- "In the call below" vs "In the call to `foo`"

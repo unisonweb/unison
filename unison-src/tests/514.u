@@ -1,0 +1,13 @@
+
+-- all these can be added
+
+idNat : Nat -> Nat
+idNat x = x
+
+idInt : Int -> Int
+idInt x = x
+
+idPoly x = x
+
+idPoly2 : x -> x
+idPoly2 y = y

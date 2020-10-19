@@ -1,0 +1,95 @@
+type Either a b = Left a | Right b
+type Status = Running | Finished | Canceled | Error Error
+type Duration = Seconds Nat
+-- type Abilities e = Abilities {e}
+
+ability Remote loc where
+  fork : loc {e}
+      -> '{e} a
+      -> {Remote loc} Future loc a
+
+forkRegistered : (Future loc a -> {e2} ()) -> loc {e} -> '{e} a
+              -> {Remote loc, e2} Future loc a
+forkRegistered register loc t =
+  future = Remote.fork loc t
+  register future
+  Future.begin future
+  future
+
+
+ability Error e where error : e ->{Error e} ()
+
+type Future loc a = Future
+  ('{Remote loc} ()                            -- begin
+  ,'{Remote loc} ()                            -- cancel
+  ,'{Remote loc} Status                        -- status
+  ,'{Remote loc, Error Future.Error} a         -- join
+  )
+type Future.Error = UnknownFuture | UnreachableLocation | UnresponsiveLocation | Terminated | AbilityCheckFailure
+
+-- Ability.check : Abilities {a} -> Request {b} x -> Boolean
+-- Ability.check = _
+
+-- Remote.server : (loc {e} -> {e} a) -> {e} a
+-- Remote.server computation =
+
+Future.join : Future loc a ->{Remote loc, Error Future.Error} a
+Future.join = cases Future.Future (b, c, s, j) -> !j
+
+Future.cancel : Future loc a ->{Remote loc} ()
+Future.cancel = cases Future.Future (b, c, s, j) -> !c
+
+Future.status : Future loc a ->{Remote loc} Status
+Future.status = cases Future.Future (b, c, s, j) -> !s
+
+Future.begin : Future loc a ->{Remote loc} ()
+Future.begin = cases Future.Future (b, c, s, j) -> !b
+
+
+type UnitLoc e = UnitLoc
+
+-- Remote.runSequential : '{Remote UnitLoc, Error e} a -> Either e a
+-- Remote.runSequential r =
+--   step : Request {Remote UnitLoc} a -> a
+--   step = cases
+--     {a} -> a
+--     {Remote.fork loc t -> k} ->
+--       join = Right !t
+--       cancel = ()
+--       status = Finished
+--       keepalive d = ()
+--       handle k (Future ('join, 'cancel, 'status, keepalive)) with step
+--   err : Request {Error e} a -> Either e a
+--   err = cases
+--     {a} -> Right a
+--     {Error.error t -> k} ->handle k (Left t) with err
+--   handle handle !r with step with err
+
+-- > Remote.runSequential
+
+-- use Optional Some None
+-- use Either Left Right
+-- Either.join : Either a (Either a b) -> Either a b
+-- Either.join = cases
+--   Left a -> Left a
+--   Right e -> e
+--
+-- parMergeSort : (a -> a -> Boolean) -> [a] ->{Remote UnitLoc, Error} [a]
+-- parMergeSort (<) as =
+--   -- merge : [a] -> [a] -> [a] -> [a]
+--   merge z l r =
+--     l0 = at 0 l
+--     r0 = at 0 r
+--     match (l0, r0) with
+--       (None, _) -> z ++ r
+--       (_, None) -> z ++ l
+--       (Some l0, Some r0) ->
+--         if l0 < r0
+--         then merge (z `snoc` l0) (drop 1 l) r
+--         else merge (z `snoc` r0) l (drop 1 r)
+--   split = size as / 2
+--   if split == 0 then as
+--   else
+--     fl = Remote.fork UnitLoc '(parMergeSort (<) (take split as))
+--     fr = Remote.fork UnitLoc '(parMergeSort (<) (drop split as))
+--     merge [] (Future.join fl) (Future.join fr)

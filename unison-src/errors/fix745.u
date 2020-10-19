@@ -1,0 +1,19 @@
+
+unique ability A where a : Nat
+unique ability B where b : Nat
+
+noGood : Nat ->{A} '{B} ()
+noGood n unit =
+  -- The A.a should be an ability check failure, since we are in the body
+  -- of an arrow which only has the {B} ability set.
+  A.a
+  B.b
+  ()
+
+ok : Nat ->{A} '{B} ()
+ok n =
+  -- This is okay, because the A.a is being evaluated in the body of an
+  -- arrow with {A}. The result of the body is another lambda which
+  -- is allowed {B} requests by type signature of `ok`.
+  A.a
+  'let B.b; ()

@@ -1,0 +1,5 @@
+--mismatched case result types
+type Optional a = None | Some a
+match Optional.Some 3 with
+  x -> 1
+  y -> "boo"

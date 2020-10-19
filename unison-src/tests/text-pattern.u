@@ -1,0 +1,6 @@
+foo = cases
+  "xyz" -> false
+  "abc" -> true
+  _ -> false
+
+> (foo "abc", foo "xyz", foo "hello, world")

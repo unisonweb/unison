@@ -1,0 +1,12 @@
+
+(|>) : a -> (a -> b) -> b
+a |> f = f a
+
+ex1 = "bob" |> (Text.++) "hi, "
+
+type Woot = Woot Text Int Nat
+
+ex2 = match 0 |> Woot "Zonk" +10 with
+  Woot.Woot _ i _ -> i
+
+> (ex1, ex2)

@@ -1,0 +1,27 @@
+reduce2 : a -> (a -> a -> a) -> Sequence a -> a
+reduce2 a0 f s = match at 0 s with
+  Optional.None -> a0
+  Optional.Some a1 -> reduce (f a0 a1) f (drop 1 s)
+
+()
+
+-- as of commit a48fa3b, we get the following error
+
+    --The expression at Line 18, columns 40-41 (in red below) is requesting
+    --    {𝛆3} abilitys, but this location only has access to
+    --    {}
+    --
+    --   18 |   Optional.Some a1 -> reduce (f a0 a1) f (drop 1 s)
+    --                                               ^
+    --  simple cause:
+    --    AbilityCheckFailure: ambient={} requested={𝛆3}
+
+-- The problem is that I've accidentally called `reduce` instead of `reduce2`,
+-- which TDNRs to `Stream.reduce`, which doesn't allow abilitys, and `f` isn't
+-- restricted to be pure.
+
+-- I'd like to know:
+--  a) reduce is the built-in
+--        Stream.reduce : a -> (a ->{} a ->{} a) -> Stream a -> a
+--  b) maybe those suggestions, like did you mean reduce2 instead of reduce,
+--     which would typecheck.  I understand that would not be a quick fix.

@@ -1,0 +1,46 @@
+use Optional None Some
+use Universal <
+
+uncons : [a] -> Optional (a, [a])
+uncons as = match at 0 as with
+  None -> None
+  Some hd -> Some (hd, drop 1 as)
+
+halve : [a] -> ([a], [a])
+halve s = splitAt (size s / 2) s
+
+splitAt : Nat -> [a] -> ([a], [a])
+splitAt n as = (take n as, drop n as)
+
+merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]
+merge lte a b =
+  use List ++
+  go out a b = match (uncons a, uncons b) with
+    (None,_) -> out ++ b
+    (_,None) -> out ++ a
+    (Some (hA, tA), Some (hB, tB)) ->
+      if hA `lte` hB then go (out `snoc` hA) tA b
+      else go (out `snoc` hB) a tB
+  go [] a b
+
+sort : (a -> a -> Boolean) -> [a] -> [a]
+sort lte as =
+  if size as < 2 then as
+  else match halve as with (left, right) ->
+    l = sort lte left
+    r = sort lte right
+    merge lte l r
+
+-- let's make sure it works
+
+> uncons [1, 2, 3]
+
+> sort (<) [3,2,1,1,2,3,9182,1,2,34,1,23]
+
+> sort (<) ["Dave", "Carol", "Eve", "Alice", "Bob", "Francis", "Hal", "Illy", "Joanna", "Greg", "Karen"]
+
+-- these programs have some type errors
+
+-- > sort (<) [3,2,1,1,2,3,9182,1,2,34,1,"oops"]
+
+-- > merge (<) [1,4,5,90,102] ["a", "b"]

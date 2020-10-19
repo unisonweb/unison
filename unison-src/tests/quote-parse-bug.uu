@@ -1,0 +1,6 @@
+
+blah : a -> a -> a
+blah a a2 = a2
+
+> blah '"hi" '"arya"
+

@@ -1,0 +1,30 @@
+--map/traverse
+ability Noop where
+  noop : ∀ a . a -> {Noop} a
+
+ability Noop2 where
+  noop2 : ∀ a . a -> a -> {Noop2} a
+
+type List a = Nil | Cons a (List a)
+
+map : ∀ a b e . (a -> {e} b) -> List a -> {e} (List b)
+map f = cases
+  List.Nil -> List.Nil
+  List.Cons h t -> List.Cons (f h) (map f t)
+
+c = List.Cons
+z : ∀ a . List a
+z = List.Nil
+
+ex = (c 1 (c 2 (c 3 z)))
+
+pureMap : List Text
+pureMap = map (a -> "hello") ex
+
+-- `map` is ability polymorphic
+zappy : () -> {Noop} (List Nat)
+zappy u = map (zap -> (Noop.noop (zap Nat.+ 1))) ex
+
+-- mixing multiple abilitys in a call to `map` works fine
+zappy2 : () -> {Noop, Noop2} (List Nat)
+zappy2 u = map (zap -> Noop.noop (zap Nat.+ Noop2.noop2 2 7)) ex

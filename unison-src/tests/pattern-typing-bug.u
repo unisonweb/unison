@@ -1,0 +1,9 @@
+type Value = String Text
+           | Bool Boolean
+
+f : Value -> Nat
+f = cases
+  Value.Bool true -> 3
+  _ -> 4
+
+> f (Value.String "foo")

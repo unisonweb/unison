@@ -1,0 +1,28 @@
+
+use Universal ==
+
+-- PATTERN MATCHING
+
+pat1 x y p = match p with x0 -> (x0, x, y, p)
+
+pat2 x y p = match p with _ -> (x, y, p)
+
+pat3 x y = cases (x, y) -> (y, x)
+
+pat4 x y = cases (p1, _) -> (x, y, p1)
+
+pat5 x y = cases (_, p2) -> (x, y, p2)
+
+pat6 x y = cases (p1, _) -> (x + y : Nat, p1)
+
+pat7 x y = cases
+  (p1, _) | p1 == 9 -> (x + y : Nat, p1)
+  (p1, _) | true    -> (0, p1)
+
+> (pat1 0 1 (2, 3),
+   pat2 0 1 "hi",
+   pat3 0 1 (2, 3),
+   pat4 0 1 (2, 3),
+   pat5 0 1 (3, 2),
+   pat6 1 2 (3, 4),
+   pat7 1 2 (20, 10))

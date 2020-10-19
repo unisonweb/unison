@@ -1,0 +1,41 @@
+-- This confusingly gives an error that
+-- it doesn't know what `Console.simulate` is.
+
+ability State s where
+  get : {State s} s
+  set : s -> {State s} ()
+
+ability Console where
+  read : {Console} (Optional Text)
+  write : Text -> {Console} ()
+
+fst = cases Tuple.Cons a _ -> a
+
+snd = cases Tuple.Cons _ (Tuple.Cons b _) -> b
+
+simulate : Request Console a -> {State ([Text], [Text])} a
+simulate = cases
+  {Console.read -> k} -> handle
+      io = State.get
+      ins = fst io
+      outs = snd io
+      State.set (drop 1 ins, outs)
+      k (at 0 ins)
+    with simulate
+
+  {Console.write t -> k} -> handle
+      io = State.get
+      ins = fst io
+      outs = snd io
+      State.set (ins, outs ++ [t])
+      k ()
+    with simulate
+
+e = 'let handle
+    use Console read write
+    use Optional Some None
+    write "What's your name?"
+    match read with
+      Some name -> write ("Hello" ++ name)
+      None -> write "Fine, be that way."
+  with simulate
