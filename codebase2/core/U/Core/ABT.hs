@@ -76,6 +76,12 @@ var a v = Term (Set.singleton v) a (Var v)
 cycle :: a -> Term f v a -> Term f v a
 cycle a t = Term (freeVars t) a (Cycle t)
 
+absChain' :: Ord v => [v] -> Term f v () -> Term f v ()
+absChain' vs t = foldr (\v t -> abs () v t) t vs
+
+absCycle' :: Ord v => [v] -> Term f v () -> Term f v ()
+absCycle' vs t = cycle () $ absChain' vs t
+
 tm :: (Foldable f, Ord v) => a -> f (Term f v a) -> Term f v a
 tm a t = Term (Set.unions (fmap freeVars (Foldable.toList t))) a (Tm t)
 
@@ -97,11 +103,6 @@ hash = hash' [] where
     Cycle (unabs -> (vs, t)) -> hash' (Left vs : env) t
     Abs v t -> hash' (Right v : env) t
     Tm t -> Hashable.hash1 (hashCycle env) (hash' env) t
-  unabs :: Term f v a -> ([v], Term f v a)
-  unabs = \case
-    Term _ _ (Abs hd body) ->
-      let (tl, body') = unabs body in (hd : tl, body')
-    t -> ([], t)
   hashCycle :: [Either [v] v] -> [Term f v a] -> ([h], Term f v a -> h)
   hashCycle env@(Left cycle : envTl) ts | length cycle == length ts =
     let
@@ -127,16 +128,11 @@ hashComponent byName = let
   -- so that we can then hash them (closed terms can be hashed)
   -- so that we can sort them by hash. this is the "canonical, name-agnostic"
   --   hash that yields the canonical ordering of the component.
-  tms = [ (v, absCycle vs (tm () $ Component (snd <$> embeds) (var () v))) | v <- vs ]
+  tms = [ (v, absCycle' vs (tm () $ Component (snd <$> embeds) (var () v))) | v <- vs ]
   hashed  = [ ((v,t), hash t) | (v,t) <- tms ]
   sortedHashed = List.sortOn snd hashed
   overallHash = Hashable.accumulate (Hashable.Hashed . snd <$> sortedHashed)
   in (overallHash, [ (v, t) | ((v, _),_) <- sortedHashed, Just t <- [Map.lookup v byName] ])
-  where
-  absChain :: Ord v => [v] -> Term f v () -> Term f v ()
-  absChain vs t = foldr (abs ()) t vs
-  absCycle :: Ord v => [v] -> Term f v () -> Term f v ()
-  absCycle vs t = cycle () $ absChain vs t
 
 -- Implementation detail of hashComponent
 data Component f a = Component [a] a | Embed (f a) deriving (Functor, Traversable, Foldable)

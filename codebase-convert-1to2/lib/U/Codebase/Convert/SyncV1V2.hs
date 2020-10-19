@@ -13,7 +13,7 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
-{-# OPTIONS_GHC -Wno-unused-local-binds #-}
+-- {-# OPTIONS_GHC -Wno-unused-local-binds #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 
 module U.Codebase.Convert.SyncV1V2 where
@@ -791,6 +791,25 @@ convertABT ff fv fa = goTerm
       V1.ABT.Abs v t -> V2.ABT.Abs (fv v) (goTerm t)
       V1.ABT.Tm ft -> V2.ABT.Tm (ff ft)
 
+convertABT0 :: Functor f => V1.ABT.Term f v a -> V2.ABT.Term f v a
+convertABT0 (V1.ABT.Term vs a out) = V2.ABT.Term vs a (goABT out) where
+  goABT = \case
+    V1.ABT.Var v -> V2.ABT.Var v
+    V1.ABT.Cycle t -> V2.ABT.Cycle (convertABT0 t)
+    V1.ABT.Abs v t -> V2.ABT.Abs v (convertABT0 t)
+    V1.ABT.Tm ft -> V2.ABT.Tm (convertABT0 <$> ft)
+
+convertType1to2 :: (V1.Reference.Reference -> r) -> V1.Type.F a -> V2.Type.F' r a
+convertType1to2 fr = \case
+  V1.Type.Ref r -> V2.Type.Ref (fr r)
+  V1.Type.Arrow i o -> V2.Type.Arrow i o
+  V1.Type.Ann a k -> V2.Type.Ann a (convertKind k)
+  V1.Type.App f x -> V2.Type.App f x
+  V1.Type.Effect e b -> V2.Type.Effect e b
+  V1.Type.Effects as -> V2.Type.Effects as
+  V1.Type.Forall a -> V2.Type.Forall a
+  V1.Type.IntroOuter a -> V2.Type.IntroOuter a
+
 convertSymbol :: V1.Symbol.Symbol -> V2.Symbol.Symbol
 convertSymbol (V1.Symbol.Symbol id name) = V2.Symbol.Symbol id name
 
@@ -855,31 +874,23 @@ mapVarToTerm fAbs fVar t@(V2.ABT.Term _ a abt) = case abt of
 convertTerm1 :: DB m => (V1 Hash -> V2 Hash) -> (V2 Hash -> Db.ObjectId) -> (Text -> Db.TextId) -> V1 Hash -> [(V1Term, V1Type)] -> m ()
 convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
   -- construct v2 term component for hashing
-  let buildTermType2H :: (V1 Hash -> V2 Hash) -> V1Type -> V2HashTypeOfTerm
-      buildTermType2H lookup = goType
+  let
+      buildTermType2H :: (V1 Hash -> V2 Hash) -> V1Type -> V2HashTypeOfTerm
+      buildTermType2H lookup
+        = V2.ABT.transform (convertType1to2 goRef)
+        . V2.ABT.vmap convertSymbol
+        . convertABT0
         where
-          goType :: V1Type -> V2HashTypeOfTerm
-          goType = convertABT goABT convertSymbol (const ())
-          goABT :: V1.Type.F V1Type -> V2.Type.FT V2HashTypeOfTerm
-          goABT = \case
-            V1.Type.Ref r -> V2.Type.Ref case r of
-              V1.Reference.Builtin t ->
-                V2.Reference.ReferenceBuiltin t
-              V1.Reference.Derived h i _n ->
-                V2.Reference.ReferenceDerived
-                  (V2.Reference.Id (runV2 . lookup $ V1 h) i)
-            V1.Type.Arrow i o -> V2.Type.Arrow (goType i) (goType o)
-            V1.Type.Ann a k -> V2.Type.Ann (goType a) (convertKind k)
-            V1.Type.App f x -> V2.Type.App (goType f) (goType x)
-            V1.Type.Effect e b -> V2.Type.Effect (goType e) (goType b)
-            V1.Type.Effects as -> V2.Type.Effects (goType <$> as)
-            V1.Type.Forall a -> V2.Type.Forall (goType a)
-            V1.Type.IntroOuter a -> V2.Type.IntroOuter (goType a)
+          goRef = \case
+            V1.Reference.Builtin t -> V2.Reference.ReferenceBuiltin t
+            V1.Reference.Derived h i _n ->
+              V2.Reference.ReferenceDerived
+                (V2.Reference.Id (runV2 . lookup $ V1 h) i)
       buildTerm2H :: (V1 Hash -> V2 Hash) -> V1 Hash -> V1Term -> V2HashTerm
       buildTerm2H lookup self = goTerm
         where
-          goTerm = convertABT goABT convertSymbol (const ())
-          goABT :: V1.Term.F V1.Symbol.Symbol () V1Term -> V2.Term.F V2.Symbol.Symbol V2HashTerm
+          goTerm = convertABT goTermF convertSymbol (const ())
+          goTermF :: V1.Term.F V1.Symbol.Symbol () V1Term -> V2.Term.F V2.Symbol.Symbol V2HashTerm
           lookupTermLink = \case
             V1.Referent.Ref r -> V2.Referent.Ref (lookupTerm r)
             V1.Referent.Con r i _ct -> V2.Referent.Con (lookupType r) (fromIntegral i)
@@ -895,7 +906,7 @@ convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
             V1.Reference.Derived h i _n ->
               V2.Reference.ReferenceDerived
                 (V2.Reference.Id (runV2 . lookup $ V1 h) i)
-          goABT = \case
+          goTermF = \case
             V1.Term.Int i -> V2.Term.Int i
             V1.Term.Nat n -> V2.Term.Nat n
             V1.Term.Float f -> V2.Term.Float f
@@ -1043,24 +1054,39 @@ convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
       rehashComponent lookup1 hash1 (unzip -> (v1terms, v1types)) =
         let fromLeft = either id (\x -> error $ "impossibly " ++ show x)
          in let indexVars = Left . V1 <$> [0 ..]
+                -- create a [(v, V1Term)]
                 namedTerms1 :: [(Either (V1 Int) V2.Symbol.Symbol, V1Term)]
                 namedTerms1 = zip indexVars v1terms
+                -- convert [(v, V1Term)] to [(v, V2Term)]
                 namedTerms2 :: [(Either (V1 Int) V2.Symbol.Symbol, V2HashTerm)]
                 namedTerms2 = fmap (second (buildTerm2H lookup1 hash1)) namedTerms1
+                -- convert the previous to a map
                 namedTermMap :: Map (Either (V1 Int) V2.Symbol.Symbol) V2HashTerm
                 namedTermMap = Map.fromList namedTerms2
+                -- convert the Map v V2Term to (hash, [v, V2Term]) where the list
+                -- has a new canonical ordering
                 hash2 :: V2 Hash
                 v1Index :: [V1 Int]
                 -- (h, ([2, 0, 1], [t2, t0, t1])
                 (hash2, unzip -> (fmap fromLeft -> v1Index, v2Terms)) =
                   V2.ABT.hashComponent (refToVarTerm <$> namedTermMap)
+
+                -- a mapping from the v1 canonical order to v2 canonical order
+                -- Q: Why do you need a map from V1 to V2 Ints?
+                -- A: the `v`s embed the component index of a self-reference,
+                --
                 indexMap :: Map (V1 Int) (V2 Int)
                 indexMap = Map.fromList (zip v1Index (V2 <$> [0 :: Int ..]))
+
+                -- convert the V1TypeOfTerm to V2TypeOfTerm,
+                -- and permute their order according to indexMap
                 convertedTypes, permutedTypes :: [V2HashTypeOfTerm]
                 convertedTypes = map (buildTermType2H lookup1) v1types
                 -- the first element of v1Index is the V1 index of the first V2 element
                 permutedTypes = map (((!!) convertedTypes) . runV1) v1Index
+             --
              in (hash2, permutedTypes, varToRefTerm indexMap <$> v2Terms)
+
       hash2 :: V2 Hash
       v2types :: [V2HashTypeOfTerm]
       v2hashComponent :: V2HashTermComponent
@@ -1085,14 +1111,32 @@ convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
 convertDecl1 :: DB m => (V1 Hash -> V2 Hash) -> (V2 Hash -> Db.ObjectId) -> V1 Hash -> [V1Decl] -> m ()
 convertDecl1 lookup1 lookup2 hash1 v1component = do
   let -- convert constructor type (similar to buildTermType2H)
-      v2ctorTypes :: [V2TypeOfConstructor] = error "todo"
-      -- rehash and reorder component
-      hash2 :: V2 Hash
-      v2hashComponent :: V2HashDeclComponent
-      (hash2, v2hashComponent) = error "todo: rehashComponent lookup1 hash1 v1component"
+
+      -- v2ctorTypes :: [V2TypeOfConstructor] = error "todo"
+
+      -- -- rehash and reorder component
+      -- hash2 :: V2 Hash
+      -- v2hashComponent :: V2HashDeclComponent
+      -- (hash2, v2hashComponent) = rehashComponent lookup1 hash1 v1component
+      --   where
+      --     -- take a look at existing DataDeclaration.hashDecls
+
+      --     -- |1. for each decl in a component, convert it to the new abt/functor
+      --     -- and swap out all its V1 Hashes for V2 Hashes, using `Nothing` for
+      --     -- a self-reference hash.
+      --     -- 2. lift the vars so that self-references are Left i
+      --     -- and local vars are Right Symbol
+      --     -- 3. call ABT.hashComponent to get a new hash and a new canonical ordering
+      --     -- 4. unlift the vars back, rewrite them to reflect the new canonical ordering
+      --     rehashComponent :: (V1 Hash -> V2 Hash) -> V1 Hash -> [V1Decl] -> (V2 Hash, V2HashDeclComponent)
+      --     rehashComponent = error "todo"
+
       -- convert decl component
-      v2diskComponent :: V2DiskDeclComponent = error "todo"
-  componentObjectId :: Db.ObjectId <- saveDeclComponent hash1 hash2 v2diskComponent
+      -- v2diskComponent :: V2DiskDeclComponent = error "todo"
+
+  -- serialize the v2 decl component
+  -- componentObjectId :: Db.ObjectId <- saveDeclComponent hash1 hash2 v2diskComponent
+
   error "todo: create type indices for each decl in the component"
 
 --   let v2componentI :: [Decl2I] =

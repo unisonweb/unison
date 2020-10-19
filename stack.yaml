@@ -5,9 +5,9 @@ flags: {}
 allow-different-user: true
 
 packages:
-# - yaks/easytest
-# - parser-typechecker
-# - unison-core
+- yaks/easytest
+- parser-typechecker
+- unison-core
 - codebase-convert-1to2
 - codebase1/codebase
 - codebase2/codebase
@@ -41,4 +41,4 @@ extra-deps:
 
 ghc-options:
  # All packages
- "$locals": -Wall -Wno-name-shadowing -Werror -Wno-type-defaults #-freverse-errors
+ "$locals": -Wall -Wno-name-shadowing -Werror -Wno-type-defaults -Wno-missing-pattern-synonym-signatures #-freverse-errors

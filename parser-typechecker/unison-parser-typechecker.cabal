@@ -234,7 +234,7 @@ library
     text,
     time,
     transformers,
-    unison-core,
+    unison-core1,
     unliftio,
     util,
     vector,

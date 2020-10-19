@@ -87,8 +87,23 @@ CREATE TABLE type_of_term (
   PRIMARY KEY (object_id, component_index)
 );
 
--- --CREATE TABLE type_of_referent (
--- --  referent_derived_id INTEGER NOT NULL PRIMARY KEY REFERENCES referent_derived(id),
--- --  type_object_id INTEGER NOT NULL REFERENCES object(id)
--- --);
--- --CREATE INDEX type_of_referent_object_id ON type_of_referent(type_object_id);
+CREATE TABLE watch (
+  object_id INTEGER NOT NULL REFERENCES object(id),
+  component_index INTEGER NOT NULL,
+  result BLOB NOT NULL,
+  PRIMARY KEY (object_id, component_index)
+);
+
+CREATE TABLE watch_kind (
+  object_id INTEGER NOT NULL REFERENCES object(id),
+  component_index INTEGER NOT NULL,
+  description_id INTEGER NOT NULL REFERENCES watch_kind_description(id),
+  PRIMARY KEY (object_id, component_index, watch_kind_id)
+);
+CREATE TABLE watch_kind_description (
+  id PRIMARY KEY INTEGER UNIQUE NOT NULL,
+  description TEXT UNIQUE NOT NULL
+);
+INSERT INTO watch_kind_description (id, description) VALUES
+  (0, "Regular"), -- won't be synced
+  (1, "Test"); -- will be synced

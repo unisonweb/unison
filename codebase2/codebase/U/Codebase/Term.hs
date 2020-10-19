@@ -30,7 +30,7 @@ import qualified U.Util.Hashable as H
 import qualified U.Codebase.Type as Type
 import qualified U.Util.Hash as Hash
 import qualified Data.Foldable as Foldable
-
+ 
 type ConstructorId = Word64
 
 type Term v = ABT.Term (F v) v ()

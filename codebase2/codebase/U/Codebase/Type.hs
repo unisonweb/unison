@@ -37,7 +37,7 @@ data F' r a
   | IntroOuter a -- binder like ∀, used to introduce variables that are
       -- bound by outer type signatures, to support scoped type
       -- variables
-  deriving (Foldable, Functor, Eq, Ord, Traversable)
+  deriving (Foldable, Functor, Eq, Ord, Show, Traversable)
 
 -- | Non-recursive type
 type TypeT v = ABT.Term FT v ()

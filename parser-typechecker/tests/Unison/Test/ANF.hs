@@ -145,6 +145,8 @@ denormalizeMatch b
     | otherwise = P.Int () $ fromIntegral i
   dpat r n t = P.Constructor () r (fromEnum t) (replicate n $ P.Var ())
 
+denormalizeBranch ::
+  (Num a, Var v) => Term ANormalBF v -> (a, ABT.Term (Term.F v () ()) v ())
 denormalizeBranch (TAbs v br) = (n+1, ABT.abs v dbr)
  where (n, dbr) = denormalizeBranch br
 denormalizeBranch tm = (0, denormalize tm)

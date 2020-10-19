@@ -1,5 +1,5 @@
 cabal-version: 2.2
-name:          unison-core
+name:          unison-core1
 category:      Compiler
 version:       0.1
 license:       MIT
