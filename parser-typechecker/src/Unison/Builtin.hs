@@ -247,7 +247,6 @@ builtinsSrc =
   , B "Int.signum" $ int --> int
   , B "Int.leadingZeros" $ int --> nat
   , B "Int.negate" $ int --> int
-  , B "Int.negate" $ int --> int
   , B "Int.mod" $ int --> int --> int
   , B "Int.pow" $ int --> nat --> int
   , B "Int.shiftLeft" $ int --> nat --> int
