@@ -203,7 +203,7 @@ enclose keep rec t@(LamsNamed' vs body)
   lamb = lam' a (evs ++ vs) lbody
 enclose keep rec t@(Handle' h body)
   | isStructured body
-  = Just . handle (ABT.annotation t) h $ apps' lamb args
+  = Just . handle (ABT.annotation t) (rec keep h) $ apps' lamb args
   where
   fvs = ABT.freeVars body
   evs = Set.toList $ Set.difference fvs keep
