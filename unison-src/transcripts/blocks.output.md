@@ -253,9 +253,9 @@ ex n =
 
 ```ucm
 
-  These definitions depend on each other cyclically but aren't guarded by a lambda: zap19, zap210
+  The expression in red needs the {SpaceAttack} ability, but this location does not have access to any abilities.
+  
       5 |   zap1 = launchMissiles "neptune" + zap2
-      6 |   zap2 = launchMissiles "pluto" + zap1
   
 
 ```
