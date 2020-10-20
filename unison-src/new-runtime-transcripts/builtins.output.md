@@ -1,5 +1,11 @@
 # Unit tests for builtin functions
 
+This transcript defines unit tests for builtin functions. There's a single `.> test` execution at the end that will fail the transcript with a nice report if any of the tests fail.
+
+## Setup
+
+You can skip this section, which just defines setup functions we'll use for testing.
+
 ```unison
 check : Boolean -> [Result]
 check b = if b then [Ok "Passed"] else [Fail "Failed"]
@@ -29,6 +35,8 @@ map f xs =
 ```unison
 use Int
 
+-- Note: you can make the tests more fine-grained if you
+-- want to be able to tell which one is failing
 test> Int.tests.arithmetic =
       checks [
         +1 + +1 `eq` +2,
@@ -158,6 +166,8 @@ test> Nat.tests.conversions =
 ```
 
 ## Run the tests
+
+Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.
 
 ```ucm
 .> test
