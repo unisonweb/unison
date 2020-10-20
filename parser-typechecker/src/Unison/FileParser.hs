@@ -45,6 +45,13 @@ file = do
     Left es -> resolutionFailures (toList es)
   let importNames = [(Name.fromVar v, Name.fromVar v2) | (v,v2) <- imports ]
   let locals = Names.importing0 importNames (UF.names env)
+  -- At this stage of the file parser, we've parsed all the type and ability
+  -- declarations. The `Names.push (Names.suffixify0 locals)` here has the effect
+  -- of making suffix-based name resolution prefer type and constructor names coming
+  -- from the local file.
+  --
+  -- There's some more complicated logic below to have suffix-based name resolution
+  -- make use of _terms_ from the local file.
   local (\e -> e { names = Names.push (Names.suffixify0 locals) namesStart }) $ do
     names <- asks names
     stanzas0 <- local (\e -> e { names = names }) $ sepBy semi stanza
