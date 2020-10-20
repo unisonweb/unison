@@ -62,27 +62,21 @@ loadTermByHash (C.Reference.Id h i) = runMaybeT do
   pure (C.Term.extraMap substText substTermRef substTypeRef substTermLink substTypeLink id term)
 
 loadTypeOfTermByTermHash :: DB m => C.Reference.Id -> m (Maybe (C.Term.Type Symbol))
-loadTypeOfTermByTermHash =
-  runMaybeT
-    . ( -- convert query reference by looking up db ids
-        C.Reference.idH
-          ( -- look up hash ids
-            m' "Q.loadHashId" Q.loadHashId . H.toBase32Hex
-              -- look up object ids
-              >=> m' "Q.objectIdByPrimaryHashId" Q.objectIdByPrimaryHashId
-          )
-          -- load "type of term" blob for the reference
-          >=> m' "Q.loadTypeOfTerm" Q.loadTypeOfTerm
-          -- deserialize the blob into the type
-          >=> m'
-            "getTypeFromBytes"
-            (fmap pure $ getFromBytes $ S.getType S.getReference)
-          -- convert the result type by looking up db ids
-          >=> C.Type.rtraverse
-            ( bitraverse
-                (m Q.loadTextById)
-                (fmap H.fromBase32Hex . m Q.loadPrimaryHashByObjectId)
-            )
-      )
+loadTypeOfTermByTermHash r = runMaybeT do
+  -- convert query reference by looking up db ids
+  let externalToDb =
+        m' "Q.loadHashId" Q.loadHashId . H.toBase32Hex
+          >=> m' "Q.objectIdByPrimaryHashId" Q.objectIdByPrimaryHashId
+  r' <- C.Reference.idH externalToDb r
+  -- load "type of term" blob for the reference
+  bytes <- m' "Q.loadTypeOfTerm" Q.loadTypeOfTerm r'
+  -- deserialize the blob into the type
+  typ <- m' "getTypeFromBytes" (fmap pure $ getFromBytes $ S.getType S.getReference) bytes
+  -- convert the result type by looking up db ids
+  let dbToExternal =
+        bitraverse
+          (m Q.loadTextById)
+          (fmap H.fromBase32Hex . m Q.loadPrimaryHashByObjectId)
+  C.Type.rtraverse dbToExternal typ
 
 -- loadLocallyIndexedComponentByHash
