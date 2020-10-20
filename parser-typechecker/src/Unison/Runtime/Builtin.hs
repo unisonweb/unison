@@ -242,10 +242,6 @@ gei = cmpopb LEQI Ty.intRef
 gtn = cmpopn LEQN Ty.intRef
 gen = cmpopb LEQN Ty.intRef
 
-neqi, neqn :: Var v => SuperNormal v
-neqi = cmpopn EQLI Ty.intRef
-neqn = cmpopn EQLN Ty.intRef
-
 inci, incn :: Var v => SuperNormal v
 inci = unop INCI Ty.intRef
 incn = unop INCN Ty.natRef
@@ -1177,7 +1173,6 @@ builtinLookup
   , ("Int./", divi)
   , ("Int.mod", modi)
   , ("Int.==", eqi)
-  , ("Int.!=", neqi)
   , ("Int.<", lti)
   , ("Int.<=", lei)
   , ("Int.>", gti)
@@ -1209,7 +1204,6 @@ builtinLookup
   , ("Nat./", divn)
   , ("Nat.mod", modn)
   , ("Nat.==", eqn)
-  , ("Nat.!=", neqn)
   , ("Nat.<", ltn)
   , ("Nat.<=", len)
   , ("Nat.>", gtn)
