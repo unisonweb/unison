@@ -60,14 +60,38 @@ file = do
           Bindings bs -> ([(v,Term.generalizeTypeSignatures at) | ((_,v), at) <- bs ] ++ terms, watches)
     let (terms, watches) = (reverse termsr, reverse watchesr)
     -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
-    -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar`
-    let curNames = Names.deleteTerms0 locals (Names.currentNames names)
-          where locals0 = stanzas0 >>= getVars
-                locals = [ n | v <- locals0, n <- Name.suffixes (Name.fromVar v) ]
-    terms <- case List.validate (traverse $ Term.bindSomeNames curNames) terms of
+    -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar` in codebase scope
+    let (curNames, resolveLocals) = (Names.deleteTerms0 locals (Names.currentNames names), resolveLocals)
+          where
+          -- All locally declared term variables, running example:
+          --   [foo.alice, bar.alice, zonk.bob]
+          locals0 :: [v]
+          locals0 = stanzas0 >>= getVars
+          -- Groups variables by their suffixes:
+          --   [ (foo.alice, [foo.alice]),
+          --     (bar.alice, [bar.alice])
+          --     (alice, [foo.alice, bar.alice]),
+          --     (zonk.bob, [zonk.bob]),
+          --     (bob, [zonk.bob]) ]
+          varsBySuffix :: Map Name.Name [v]
+          varsBySuffix = List.multimap [ (n, v) | v <- locals0, n <- Name.suffixes (Name.fromVar v) ]
+          -- Any unique suffix maps to the corresponding variable. Above, `alice` is not a unique
+          -- suffix, but `bob` is. `foo.alice` and `bob.alice` are both unique suffixes but
+          -- they map to themselves, so we ignore them. In our example, we'll just be left with
+          --   [(bob, Term.var() zonk.bob)]
+          replacements = [ (Name.toVar n, Term.var() v') | (n,[v']) <- Map.toList varsBySuffix
+                                                         , Name.toVar n /= v' ]
+          locals = Map.keys varsBySuffix
+          -- This will perform the actual variable replacements for suffixes
+          -- that uniquely identify definitions in the file. It will avoid
+          -- variable capture and respect local shadowing. For example, inside
+          -- `bob -> bob * 42`, `bob` will correctly refer to the lambda parameter.
+          -- and not the `zonk.bob` declared in the file.
+          resolveLocals = ABT.substsInheritAnnotation replacements
+    terms <- case List.validate (traverse $ Term.bindSomeNames curNames . resolveLocals) terms of
       Left es -> resolutionFailures (toList es)
       Right terms -> pure terms
-    watches <- case List.validate (traverse . traverse $ Term.bindSomeNames curNames) watches of
+    watches <- case List.validate (traverse . traverse $ Term.bindSomeNames curNames . resolveLocals) watches of
       Left es -> resolutionFailures (toList es)
       Right ws -> pure ws
     let toPair (tok, _) = (L.payload tok, ann tok)
