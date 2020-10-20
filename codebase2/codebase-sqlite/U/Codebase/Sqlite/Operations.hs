@@ -5,9 +5,10 @@
 
 module U.Codebase.Sqlite.Operations where
 
-import Control.Monad ((<=<))
+import Control.Monad ((<=<), (>=>))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import Data.Bifunctor (Bifunctor (bimap))
+import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.Functor ((<&>))
 import qualified Data.Vector as Vector
 import qualified U.Codebase.Reference as C.Reference
@@ -16,9 +17,10 @@ import U.Codebase.Sqlite.Queries (DB)
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Serialization as S
 import U.Codebase.Sqlite.Symbol (Symbol)
-import qualified U.Codebase.Sqlite.Term.Format as S
+import qualified U.Codebase.Sqlite.Term.Format as S.Term
 import qualified U.Codebase.Term as C
 import qualified U.Codebase.Term as C.Term
+import qualified U.Codebase.Type as C.Type
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Hash as H
 import U.Util.Serialization (getFromBytes)
@@ -40,7 +42,7 @@ loadTermByHash (C.Reference.Id h i) = runMaybeT do
   -- retrieve the blob
   (localIds, term) <-
     m'
-      ("getFromBytes $ S.lookupTermElement " ++ show i)
+      ("getTermElement: " ++ show i ++ ") fromBytes:")
       (fmap pure $ getFromBytes $ S.lookupTermElement i)
       <=< m' "Q.loadObjectById" Q.loadObjectById
       <=< m' "Q.objectIdByAnyHash" Q.objectIdByAnyHash
@@ -51,13 +53,36 @@ loadTermByHash (C.Reference.Id h i) = runMaybeT do
   hashes <- traverse (m' "Q.loadPrimaryHashByObjectId" Q.loadPrimaryHashByObjectId) $ LocalIds.objectLookup localIds
 
   -- substitute the text and hashes back into the term
-  let substText (S.LocalTextId w) = texts Vector.! fromIntegral w
-      substHash (S.LocalDefnId w) = H.fromBase32Hex $ hashes Vector.! fromIntegral w
+  let substText (S.Term.LocalTextId w) = texts Vector.! fromIntegral w
+      substHash (S.Term.LocalDefnId w) = H.fromBase32Hex $ hashes Vector.! fromIntegral w
       substTermRef = bimap substText (fmap substHash)
       substTypeRef = bimap substText substHash
       substTermLink = bimap substTermRef substTypeRef
       substTypeLink = substTypeRef
   pure (C.Term.extraMap substText substTermRef substTypeRef substTermLink substTypeLink id term)
 
+loadTypeOfTermByTermHash :: DB m => C.Reference.Id -> m (Maybe (C.Term.Type Symbol))
+loadTypeOfTermByTermHash =
+  runMaybeT
+    . ( -- convert query reference by looking up db ids
+        C.Reference.idH
+          ( -- look up hash ids
+            m' "Q.loadHashId" Q.loadHashId . H.toBase32Hex
+              -- look up object ids
+              >=> m' "Q.objectIdByPrimaryHashId" Q.objectIdByPrimaryHashId
+          )
+          -- load "type of term" blob for the reference
+          >=> m' "Q.loadTypeOfTerm" Q.loadTypeOfTerm
+          -- deserialize the blob into the type
+          >=> m'
+            "getTypeFromBytes"
+            (fmap pure $ getFromBytes $ S.getType S.getReference)
+          -- convert the result type by looking up db ids
+          >=> C.Type.rtraverse
+            ( bitraverse
+                (m Q.loadTextById)
+                (fmap H.fromBase32Hex . m Q.loadPrimaryHashByObjectId)
+            )
+      )
 
 -- loadLocallyIndexedComponentByHash

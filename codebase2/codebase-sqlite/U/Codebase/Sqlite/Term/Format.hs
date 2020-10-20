@@ -12,6 +12,7 @@ import U.Codebase.Sqlite.Symbol
 import qualified U.Codebase.Term as Term
 import qualified U.Core.ABT as ABT
 import qualified U.Codebase.Type as Type
+import qualified U.Codebase.Sqlite.Reference as Sqlite
 
 newtype LocalDefnId = LocalDefnId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
 newtype LocalTextId = LocalTextId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
@@ -33,6 +34,11 @@ type FT = Type.F' TypeRef
 
 type Term = ABT.Term F Symbol ()
 type Type = ABT.Term FT Symbol ()
+
+-- * Type of Term
+-- Maybe these should have a LocalIds index too; or share one with the term?
+type FTT = Type.F' Sqlite.Reference
+type TypeOfTerm = ABT.Term FTT Symbol ()
 
 data TermFormat
   = Term LocallyIndexedComponent

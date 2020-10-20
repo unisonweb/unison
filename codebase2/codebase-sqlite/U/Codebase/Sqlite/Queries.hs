@@ -50,14 +50,14 @@ type TypeHashReference = Reference' TextId HashId
 -- * main squeeze
 
 saveHash :: DB m => Base32Hex -> m HashId
-saveHash base32 = execute sql (Only base32) >> queryOne (loadHash base32)
+saveHash base32 = execute sql (Only base32) >> queryOne (loadHashId base32)
   where sql = [here| INSERT OR IGNORE INTO hash (base32) VALUES (?) |]
 
 saveHashHash :: DB m => Hash -> m HashId
 saveHashHash = saveHash . Hash.toBase32Hex
 
-loadHash :: DB m => Base32Hex -> m (Maybe HashId)
-loadHash base32 = queryOnly sql (Only base32)
+loadHashId :: DB m => Base32Hex -> m (Maybe HashId)
+loadHashId base32 = queryOnly sql (Only base32)
   where sql = [here| SELECT id FROM hash WHERE base32 = ? |]
 
 loadHashById :: DB m => HashId -> m (Maybe Base32Hex)

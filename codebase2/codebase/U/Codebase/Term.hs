@@ -34,6 +34,7 @@ import qualified Data.Foldable as Foldable
 type ConstructorId = Word64
 
 type Term v = ABT.Term (F v) v ()
+type Type v = TypeR TypeRef v
 type TermRef = Reference' Text (Maybe Hash)
 type TypeRef = Reference
 type TermLink = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
