@@ -85,7 +85,7 @@ saveHashObject hId oId version = execute sql (hId, oId, version) where
 
 saveObject :: DB m => HashId -> ObjectType -> ByteString -> m ObjectId
 saveObject h t blob =
-  execute sql (h, t, blob) >> queryOne (objectByPrimaryHashId h)
+  execute sql (h, t, blob) >> queryOne (objectIdByPrimaryHashId h)
   where
   sql = [here|
     INSERT OR IGNORE INTO object (primary_hash_id, type_id, bytes)
@@ -97,14 +97,30 @@ loadObjectById oId = queryOnly sql (Only oId) where sql = [here|
   SELECT bytes FROM object WHERE id = ?
 |]
 
-objectByPrimaryHashId :: DB m => HashId -> m (Maybe ObjectId)
-objectByPrimaryHashId h = queryOnly sql (Only h) where sql = [here|
+objectIdByPrimaryHashId :: DB m => HashId -> m (Maybe ObjectId)
+objectIdByPrimaryHashId h = queryOnly sql (Only h) where sql = [here|
   SELECT id FROM object WHERE primary_hash_id = ?
+|]
+
+objectIdByAnyHash :: DB m => Base32Hex -> m (Maybe ObjectId)
+objectIdByAnyHash h = queryOnly sql (Only h) where sql = [here|
+  SELECT object.id
+  FROM hash
+  INNER JOIN hash_object ON hash_object.hash_id = hash.id
+  INNER JOIN object ON hash_object.object_id = object.id
+  WHERE hash.base32 = ?
+|]
+
+loadPrimaryHashByObjectId :: DB m => ObjectId -> m (Maybe Base32Hex)
+loadPrimaryHashByObjectId oId = queryOnly sql (Only oId) where sql = [here|
+  SELECT hash.base32
+  FROM hash INNER JOIN hash_object ON hash_object.hash_id = hash.id
+  WHERE hash_object.object_id = ?
 |]
 
 objectAndPrimaryHashByAnyHash :: DB m => Base32Hex -> m (Maybe (Base32Hex, ObjectId))
 objectAndPrimaryHashByAnyHash h = queryMaybe sql (Only h) where sql = [here|
-  SELECT object.id
+  SELECT object.primary_hash_id, object.id
   FROM hash
   INNER JOIN hash_object ON hash_object.hash_id = hash.id
   INNER JOIN object ON hash_object.objectId = object.id

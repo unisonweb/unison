@@ -60,5 +60,5 @@ cradle:
     - path: "yaks/easytest/src/."
       component: "easytest:lib"
 
-      - path: "yaks/easytest/tests/."
+    - path: "yaks/easytest/tests/."
       component: "easytest:test:tests"

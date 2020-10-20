@@ -96,6 +96,7 @@ library
     Unison.Codebase.Serialization.PutT
     Unison.Codebase.Serialization.V1
     Unison.Codebase.ShortBranchHash
+    Unison.Codebase.SqliteCodebase
     Unison.Codebase.SyncMode
     Unison.Codebase.TermEdit
     Unison.Codebase.TranscriptParser
@@ -231,6 +232,7 @@ library
     split,
     stm,
     strings,
+    sqlite-simple,
     tagged,
     terminal-size,
     text,
@@ -240,7 +242,11 @@ library
     unliftio,
     util,
     vector,
-    unicode-show
+    unicode-show,
+    -- v2
+    unison-core,
+    unison-codebase,
+    unison-codebase-sqlite
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 

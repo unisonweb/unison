@@ -20,11 +20,14 @@ type TermRef = Reference' LocalTextId (Maybe LocalDefnId)
 
 type TypeRef = Reference' LocalTextId LocalDefnId
 
+type TermLink = Referent' TermRef TypeRef
+type TypeLink = TypeRef
+
 newtype LocallyIndexedComponent =
   LocallyIndexedComponent (Vector (LocalIds, Term))
 
 type F =
-  Term.F' LocalTextId TermRef TypeRef (Referent' TermRef TypeRef) TypeRef Symbol
+  Term.F' LocalTextId TermRef TypeRef TermLink TypeLink Symbol
 
 type FT = Type.F' TypeRef
 

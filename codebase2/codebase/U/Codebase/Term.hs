@@ -34,15 +34,19 @@ import qualified Data.Foldable as Foldable
 type ConstructorId = Word64
 
 type Term v = ABT.Term (F v) v ()
+type TermRef = Reference' Text (Maybe Hash)
+type TypeRef = Reference
+type TermLink = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
+type TypeLink = Reference
 
 -- | Base functor for terms in the Unison codebase
 type F vt =
   F'
-    Text -- text
-    (Reference' Text (Maybe Hash)) -- termRef
-    Reference -- typeRef
-    (Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)) -- termLink
-    Reference -- typeLink
+    Text
+    TermRef
+    TypeRef
+    TermLink
+    TypeLink
     vt
 
 -- | Generalized version.  We could generalize further to allow sharing within

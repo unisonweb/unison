@@ -176,4 +176,4 @@ instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
 
 instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]
-  tokens (DerivedId (Id h i n)) = [Hashable.Tag 1, Hashable.Bytes (H.toBytes h), Hashable.Nat i, Hashable.Nat n]
+  tokens (DerivedId (Id h i _n)) = [Hashable.Tag 1, Hashable.Bytes (H.toBytes h), Hashable.Nat i]
