@@ -45,7 +45,7 @@ file = do
     Left es -> resolutionFailures (toList es)
   let importNames = [(Name.fromVar v, Name.fromVar v2) | (v,v2) <- imports ]
   let locals = Names.importing0 importNames (UF.names env)
-  local (\e -> e { names = Names.push locals namesStart }) $ do
+  local (\e -> e { names = Names.push (Names.suffixify0 locals) namesStart }) $ do
     names <- asks names
     stanzas0 <- local (\e -> e { names = names }) $ sepBy semi stanza
     let stanzas = fmap (TermParser.substImports names imports) <$> stanzas0
@@ -59,9 +59,11 @@ file = do
           Binding ((_, v), at) -> ((v,Term.generalizeTypeSignatures at) : terms, watches)
           Bindings bs -> ([(v,Term.generalizeTypeSignatures at) | ((_,v), at) <- bs ] ++ terms, watches)
     let (terms, watches) = (reverse termsr, reverse watchesr)
-    -- local term bindings shadow any same-named thing from the outer codebase scope
-    let locals = stanzas0 >>= getVars
-    let curNames = Names.deleteTerms0 (Name.fromVar <$> locals) (Names.currentNames names)
+    -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
+    -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar`
+    let curNames = Names.deleteTerms0 locals (Names.currentNames names)
+          where locals0 = stanzas0 >>= getVars
+                locals = [ n | v <- locals0, n <- Name.suffixes (Name.fromVar v) ]
     terms <- case List.validate (traverse $ Term.bindSomeNames curNames) terms of
       Left es -> resolutionFailures (toList es)
       Right terms -> pure terms
