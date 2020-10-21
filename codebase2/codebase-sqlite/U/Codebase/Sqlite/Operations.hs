@@ -27,6 +27,11 @@ import qualified U.Codebase.Type as C.Type
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Hash as H
 import U.Util.Serialization (getFromBytes)
+import U.Codebase.WatchKind (WatchKind)
+import qualified U.Codebase.Reference as C
+import qualified U.Codebase.Referent as C.Referent
+import Data.Set (Set)
+import U.Codebase.ShortHash (ShortBranchHash, ShortHash)
 
 loadTermComponentByHash :: DB m => Base32Hex -> m (Maybe [C.Term Symbol])
 loadTermComponentByHash = error "todo"
@@ -99,3 +104,57 @@ loadDeclByHash (C.Reference.Id h i) = runMaybeT do
       substTypeRef :: S.Decl.TypeRef -> C.Decl.TypeRef
       substTypeRef = bimap substText (fmap substHash)
   pure (C.Decl.DataDeclaration dt m b (C.Type.rmap substTypeRef <$> ct)) -- lens might be nice here
+
+saveTerm :: DB m => C.Reference.Id -> C.Term Symbol -> C.Term.Type Symbol -> m ()
+saveTerm = error "todo"
+
+saveDecl :: DB m => C.Reference.Id -> C.Decl Symbol -> m ()
+saveDecl = error "todo"
+
+listWatches :: DB m => WatchKind -> m [C.Reference.Id]
+listWatches = error "todo"
+
+loadWatch :: DB m => WatchKind -> C.Reference.Id -> m (Maybe (C.Term Symbol))
+loadWatch = error "todo"
+
+saveWatch :: DB m => WatchKind -> C.Reference.Id -> C.Term Symbol -> m ()
+saveWatch = error "todo"
+
+termsHavingType :: DB m => C.Reference -> m (Set C.Referent.Id)
+termsHavingType = error "todo"
+
+termsMentioningType :: DB m => C.Reference -> m (Set C.Referent.Id)
+termsMentioningType = error "todo"
+
+termReferencesByPrefix :: DB m => ShortHash -> m (Set C.Reference.Id)
+termReferencesByPrefix = error "todo"
+
+typeReferencesByPrefix :: DB m => ShortHash -> m (Set C.Reference.Id)
+typeReferencesByPrefix = error "todo"
+
+termReferentsByPrefix :: DB m => ShortHash -> m (Set C.Referent.Id)
+termReferentsByPrefix = error "todo"
+
+branchHashesByPrefix :: DB m => ShortBranchHash -> m (Set C.Reference.Id)
+branchHashesByPrefix = error "todo"
+
+dependents :: DB m => C.Reference -> m (Maybe (Set C.Reference.Id))
+dependents = error "todo"
+
+termDependencies :: DB m => C.Reference.Id -> m (Maybe (Set C.Reference.Id))
+termDependencies = error "todo"
+
+declDependencies :: DB m => C.Reference.Id -> m (Maybe (Set C.Reference.Id))
+declDependencies = error "todo"
+
+
+-- getBranchByAnyHash ::
+-- getBranchByBranchHash :: DB m => BranchHash -> m (Maybe (Branch m))
+-- getBranchByCausalHash :: DB m => CausalHash -> m (Maybe (Branch m))
+
+-- lca              :: (forall he e. [Causal m CausalHash he e] -> m (Maybe BranchHash)),
+
+-- branchDependencies ::
+--   Branch.Hash -> m (Maybe (CausalHash, BD.Dependencies)),
+-- -- |the "new" terms and types mentioned in a patch
+-- patchDependencies :: EditHash -> m (Set Reference, Set Reference)
