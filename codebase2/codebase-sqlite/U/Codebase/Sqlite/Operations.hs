@@ -5,7 +5,7 @@
 
 module U.Codebase.Sqlite.Operations where
 
-import Control.Monad ((<=<), (>=>))
+import Control.Monad ((>=>))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
@@ -42,14 +42,13 @@ m' msg f a = MaybeT do
 
 loadTermByHash :: DB m => C.Reference.Id -> m (Maybe (C.Term Symbol))
 loadTermByHash (C.Reference.Id h i) = runMaybeT do
-  -- retrieve the blob
-  (localIds, term) <-
+  -- retrieve and deserialize the blob
+  (localIds, term) <- do
+    oId <- m' "Q.objectIdByAnyHash" (Q.objectIdByAnyHash . H.toBase32Hex) h
+    bytes <- m' "Q.loadObjectById" Q.loadObjectById oId
     m'
       ("getTermElement: " ++ show i ++ ") fromBytes:")
-      (fmap pure $ getFromBytes $ S.lookupTermElement i)
-      <=< m' "Q.loadObjectById" Q.loadObjectById
-      <=< m' "Q.objectIdByAnyHash" Q.objectIdByAnyHash
-      $ H.toBase32Hex h
+      (fmap pure $ getFromBytes $ S.lookupTermElement i) bytes
 
   -- look up the text and hashes that are used by the term
   texts <- traverse (m' "Q.loadTextById" Q.loadTextById) $ LocalIds.textLookup localIds
