@@ -242,10 +242,6 @@ gei = cmpopb LEQI Ty.intRef
 gtn = cmpopn LEQN Ty.intRef
 gen = cmpopb LEQN Ty.intRef
 
-neqi, neqn :: Var v => SuperNormal v
-neqi = cmpopn EQLI Ty.intRef
-neqn = cmpopn EQLN Ty.intRef
-
 inci, incn :: Var v => SuperNormal v
 inci = unop INCI Ty.intRef
 incn = unop INCN Ty.natRef
@@ -254,17 +250,24 @@ sgni, negi :: Var v => SuperNormal v
 sgni = unop SGNI Ty.intRef
 negi = unop NEGI Ty.intRef
 
-lzeron, tzeron, lzeroi, tzeroi :: Var v => SuperNormal v
+lzeron, tzeron, lzeroi, tzeroi, popn, popi :: Var v => SuperNormal v
 lzeron = unop LZRO Ty.natRef
 tzeron = unop TZRO Ty.natRef
+popn = unop POPC Ty.natRef
+popi = unop' POPC Ty.intRef Ty.natRef
 lzeroi = unop' LZRO Ty.intRef Ty.natRef
 tzeroi = unop' TZRO Ty.intRef Ty.natRef
 
-andn, orn, xorn, compln :: Var v => SuperNormal v
+
+andn, orn, xorn, compln, andi, ori, xori, compli :: Var v => SuperNormal v
 andn = binop ANDN Ty.natRef
 orn = binop IORN Ty.natRef
 xorn = binop XORN Ty.natRef
 compln = unop COMN Ty.natRef
+andi = binop ANDN Ty.intRef
+ori = binop IORN Ty.intRef
+xori = binop XORN Ty.intRef
+compli = unop COMN Ty.intRef
 
 addf, subf, mulf, divf, powf, sqrtf, logf, logbf
   :: Var v => SuperNormal v
@@ -1170,7 +1173,6 @@ builtinLookup
   , ("Int./", divi)
   , ("Int.mod", modi)
   , ("Int.==", eqi)
-  , ("Int.!=", neqi)
   , ("Int.<", lti)
   , ("Int.<=", lei)
   , ("Int.>", gti)
@@ -1185,10 +1187,15 @@ builtinLookup
   , ("Int.shiftRight", shri)
   , ("Int.trailingZeros", tzeroi)
   , ("Int.leadingZeros", lzeroi)
+  , ("Int.and", andi)
+  , ("Int.or", ori)
+  , ("Int.xor", xori)
+  , ("Int.complement", compli)
   , ("Int.pow", powi)
   , ("Int.toText", i2t)
   , ("Int.fromText", t2i)
   , ("Int.toFloat", i2f)
+  , ("Int.popCount", popi)
 
   , ("Nat.+", addn)
   , ("Nat.-", subn)
@@ -1197,7 +1204,6 @@ builtinLookup
   , ("Nat./", divn)
   , ("Nat.mod", modn)
   , ("Nat.==", eqn)
-  , ("Int.!=", neqn)
   , ("Nat.<", ltn)
   , ("Nat.<=", len)
   , ("Nat.>", gtn)
@@ -1219,6 +1225,7 @@ builtinLookup
   , ("Nat.toFloat", n2f)
   , ("Nat.toText", n2t)
   , ("Nat.fromText", t2n)
+  , ("Nat.popCount", popn)
 
   , ("Float.+", addf)
   , ("Float.-", subf)
@@ -1411,8 +1418,8 @@ declareForeigns = do
   declareForeign "IO.socketSend" socket'send
     . mkForeignIOE $ \(sk,bs) -> SYS.send sk (Bytes.toArray bs)
   declareForeign "IO.socketReceive" socket'receive
-    . mkForeignIOE $ \(hs,n) -> 
-       fmap (maybe Bytes.empty Bytes.fromArray) $ SYS.recv hs n 
+    . mkForeignIOE $ \(hs,n) ->
+       fmap (maybe Bytes.empty Bytes.fromArray) $ SYS.recv hs n
   declareForeign "IO.kill" kill'thread $ mkForeignIOE killThread
   declareForeign "IO.delay" delay'thread $ mkForeignIOE threadDelay
   declareForeign "IO.stdHandle" standard'handle
