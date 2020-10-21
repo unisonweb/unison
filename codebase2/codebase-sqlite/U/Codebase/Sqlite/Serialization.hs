@@ -347,11 +347,11 @@ putDeclFormat = \case
     putDeclComponent (DeclFormat.LocallyIndexedComponent v) =
       putFramedArray (putPair putLocalIds putDeclElement) v
       where
-        putDeclElement DeclFormat.DataDeclaration {..} = do
+        putDeclElement Decl.DataDeclaration {..} = do
           putDeclType declType
           putModifier modifier
           putFoldable putSymbol bound
-          putFoldable (putType putRecursiveReference putSymbol) constructors
+          putFoldable (putType putRecursiveReference putSymbol) constructorTypes
         putDeclType Decl.Data = putWord8 0
         putDeclType Decl.Effect = putWord8 1
         putModifier Decl.Structural = putWord8 0
@@ -369,7 +369,7 @@ getDeclFormat = getWord8 >>= \case
 
 getDeclElement :: MonadGet m => m (DeclFormat.Decl Symbol)
 getDeclElement =
-  DeclFormat.DataDeclaration
+  Decl.DataDeclaration
     <$> getDeclType
     <*> getModifier
     <*> getList getSymbol

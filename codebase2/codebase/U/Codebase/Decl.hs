@@ -16,41 +16,39 @@ type ConstructorId = Word64
 data DeclType = Data | Effect
   deriving (Eq, Ord, Show, Enum)
 
-type Decl v = DeclR (Reference' Text Hash) v
+type Decl v = DeclR TypeRef v
+type TypeRef = Reference' Text (Maybe Hash)
 
-data Modifier = Structural | Unique Text --  | Opaque (Set Reference)
+data Modifier = Structural | Unique Text
   deriving (Eq, Ord, Show)
 
 data DeclR r v = DataDeclaration {
   declType :: DeclType,
   modifier :: Modifier,
   bound :: [v],
-  constructors' :: [(v, TypeR r v)]
+  constructorTypes :: [TypeR r v]
 }
 
 -- instance Hashable ConstructorType where
 --   tokens b = [Tag . fromIntegral $ fromEnum b]
 
 -- * Hashing stuff
-constructors :: DeclR r v -> [v]
-constructors = fmap fst . constructors'
+data V v = Bound v | Ctor Int
 
-constructorTypes :: DeclR r v -> [TypeR r v]
-constructorTypes = fmap snd . constructors'
-
--- toABT :: Ord v => Decl v -> ABT.Term F v ()
--- toABT dd = ABT.tm () $ Modified (modifier dd) dd'
+-- toABT :: Ord v => Decl v -> ABT.Term F (V v) ()
+-- toABT (DataDeclaration dt m bound constructors) =
+--   ABT.tm () $ Modified dt m dd'
 --   where
---   dd' = ABT.absChain (bound dd) $
+--   dd' = ABT.absChain bound $
 --           ABT.absCycle
---             (constructors dd)
+--             constructors dd
 --             (ABT.tm () . Constructors $ ABT.transform Type <$> constructorTypes dd)
 
 data F a
   = Type (Type.FD a)
   | LetRec [a] a
   | Constructors [a]
-  | Modified Modifier a
+  | Modified DeclType Modifier a
   deriving (Functor, Foldable, Show)
 
 instance Hashable.Hashable1 F where
@@ -66,8 +64,12 @@ instance Hashable.Hashable1 F where
       Constructors cs ->
         let (hashes, _) = hashCycle cs
         in tag 2 :  map hashed hashes
-      Modified m t ->
-        [tag 3, Hashable.accumulateToken m, hashed $ hash t]
+      Modified dt m t ->
+        [tag 3, Hashable.accumulateToken dt, Hashable.accumulateToken m, hashed $ hash t]
+
+instance Hashable.Hashable DeclType where
+  tokens Data = [Hashable.Tag 0]
+  tokens Effect = [Hashable.Tag 1]
 
 instance Hashable.Hashable Modifier where
   tokens Structural = [Hashable.Tag 0]

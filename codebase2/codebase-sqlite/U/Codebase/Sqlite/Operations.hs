@@ -11,7 +11,10 @@ import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.Functor ((<&>))
 import qualified Data.Vector as Vector
+import qualified U.Codebase.Decl as C
+import qualified U.Codebase.Decl as C.Decl
 import qualified U.Codebase.Reference as C.Reference
+import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import U.Codebase.Sqlite.Queries (DB)
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -79,4 +82,21 @@ loadTypeOfTermByTermHash r = runMaybeT do
           (fmap H.fromBase32Hex . m Q.loadPrimaryHashByObjectId)
   C.Type.rtraverse dbToExternal typ
 
--- loadLocallyIndexedComponentByHash
+loadDeclByHash :: DB m => C.Reference.Id -> m (Maybe (C.Decl Symbol))
+loadDeclByHash (C.Reference.Id h i) = runMaybeT do
+  -- retrieve the blob
+  (localIds, C.Decl.DataDeclaration dt m b ct) <- do
+    oId <- m' "Q.objectIdByAnyHash" (Q.objectIdByAnyHash . H.toBase32Hex) h
+    bytes <- m' "Q.loadObjectById" Q.loadObjectById oId
+    m' ("getDeclElement: " ++ show i ++ ") fromBytes:") (pure . getFromBytes (S.lookupDeclElement i)) bytes
+
+  -- look up the text and hashes that are used by the term
+  texts <- traverse (m' "Q.loadTextById" Q.loadTextById) $ LocalIds.textLookup localIds
+  hashes <- traverse (m' "Q.loadPrimaryHashByObjectId" Q.loadPrimaryHashByObjectId) $ LocalIds.objectLookup localIds
+
+  -- substitute the text and hashes back into the term
+  let substText (S.Decl.LocalTextId w) = texts Vector.! fromIntegral w
+      substHash (S.Decl.LocalTypeId w) = H.fromBase32Hex $ hashes Vector.! fromIntegral w
+      substTypeRef :: S.Decl.TypeRef -> C.Decl.TypeRef
+      substTypeRef = bimap substText (fmap substHash)
+  pure (C.Decl.DataDeclaration dt m b (C.Type.rmap substTypeRef <$> ct)) -- lens might be nice here

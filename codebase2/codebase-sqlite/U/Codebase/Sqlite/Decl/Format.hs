@@ -1,7 +1,7 @@
 {-# LANGUAGE DerivingVia #-}
 module U.Codebase.Sqlite.Decl.Format where
 
-import U.Codebase.Decl (DeclType, Modifier)
+import U.Codebase.Decl (DeclR)
 import U.Codebase.Reference (Reference')
 import U.Codebase.Sqlite.Symbol
 import qualified U.Codebase.Type as Type
@@ -16,15 +16,10 @@ data DeclFormat = Decl LocallyIndexedComponent
 
 -- | V1: Decls included `Hash`es inline
 --   V2: Instead of `Hash`, we use a smaller index.
-data LocallyIndexedComponent = 
+data LocallyIndexedComponent =
   LocallyIndexedComponent (Vector (LocalIds, Decl Symbol))
 
-data Decl v = DataDeclaration
-  { declType :: DeclType,
-    modifier :: Modifier,
-    bound :: [v],
-    constructors :: [Type v]
-  }
+type Decl v = DeclR TypeRef v
 
 type Type v = ABT.Term (Type.F' TypeRef) v ()
 type TypeRef = Reference' LocalTextId (Maybe LocalTypeId)
