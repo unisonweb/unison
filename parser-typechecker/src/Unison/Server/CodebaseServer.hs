@@ -45,6 +45,10 @@ import           Unison.Server.Types            ( mungeString )
 import           Unison.Var                     ( Var )
 import           Servant.OpenApi                ( HasOpenApi(toOpenApi) )
 import           Servant                        ( Header, addHeader )
+import Control.Lens ( (&), (.~) )
+import Data.OpenApi.Lens (info)
+import qualified Data.Text as Text
+import Data.Foldable (Foldable(toList))
 
 type OpenApiJSON = "openapi.json"
   :> Get '[JSON] (Headers '[Header "Access-Control-Allow-Origin" String] OpenApi)
@@ -54,11 +58,11 @@ type DocAPI = UnisonAPI :<|> OpenApiJSON :<|> Raw
 type UnisonAPI = NamespaceAPI
 
 openAPI :: OpenApi
-openAPI = toOpenApi api
+openAPI = toOpenApi api & info .~ infoObject
 
 infoObject :: Info
 infoObject = mempty
-  { _infoTitle       = "Unison Codebase API"
+  { _infoTitle       = "Unison Codebase Manager API"
   , _infoDescription = Just
     "Provides operations for querying and manipulating a Unison codebase."
   , _infoLicense     = Just . License "MIT" . Just $ URL
@@ -68,7 +72,9 @@ infoObject = mempty
 
 docsBS :: LZ.ByteString
 docsBS = mungeString . markdown $ docsWithIntros [intro] api
-  where intro = DocIntro "Unison Codebase Manager API Server" []
+ where
+  intro = DocIntro (Text.unpack $ _infoTitle infoObject)
+                   (toList $ Text.unpack <$> _infoDescription infoObject)
 
 docAPI :: Proxy DocAPI
 docAPI = Proxy

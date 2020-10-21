@@ -67,11 +67,12 @@ instance ToParam (QueryParam "namespace" Text) where
 
 instance ToSample NamespaceListing where
   toSamples _ =
-    [ ( "When no value is provided for `namespace`, the root namespace `.` is listed by default",
-        NamespaceListing
-          "."
-          "gjlk0dna8dongct6lsd19d1o9hi5n642t8jttga5e81e91fviqjdffem0tlddj7ahodjo5"
-          [Subnamespace $ NamedNamespace "base" 1244]
+    [ ( "When no value is provided for `namespace`, the root namespace `.` is "
+        <> "listed by default"
+      , NamespaceListing
+        "."
+        "gjlk0dna8dongct6lsd19d1o9hi5n642t8jttga5e81e91fviqjdffem0tlddj7ahodjo5"
+        [Subnamespace $ NamedNamespace "base" 1244]
       )
     ]
 
