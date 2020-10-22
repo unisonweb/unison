@@ -495,6 +495,14 @@ transform f tm = case out tm of
     in tm' (annotation tm) (f subterms')
   Cycle body -> cycle' (annotation tm) (transform f body)
 
+transformM :: (Ord v, Monad m, Traversable g)
+          => (forall a. f a -> m (g a)) -> Term f v a -> m (Term g v a)
+transformM f t = case out t of
+  Var v -> pure $ annotatedVar (annotation t) v
+  Abs v body -> abs' (annotation t) v <$> (transformM f body)
+  Tm subterms -> tm' (annotation t) <$> (traverse (transformM f) =<< f subterms)
+  Cycle body -> cycle' (annotation t) <$> (transformM f body)
+
 -- Rebuild the tree annotations upward, starting from the leaves,
 -- using the Monoid to choose the annotation at intermediate nodes
 reannotateUp :: (Ord v, Foldable f, Functor f, Monoid b)

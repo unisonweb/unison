@@ -7,6 +7,7 @@ module U.Codebase.Sqlite.Reference where
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Reference (Reference'(ReferenceBuiltin, ReferenceDerived), Id'(Id))
 import Database.SQLite.Simple (SQLData(..), Only(..), ToRow(toRow))
+import Database.SQLite.Simple.FromRow (FromRow(fromRow), field)
 
 type Reference = Reference' TextId ObjectId
 type Id = Id' ObjectId
@@ -30,3 +31,6 @@ instance ToRow Id where
   -- | builtinId, hashId, componentIndex
   toRow = \case
     Id h i -> toRow (Only h) ++ toRow (Only i)
+
+instance FromRow Id where
+  fromRow = Id <$> field <*> field

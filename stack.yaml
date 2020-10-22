@@ -42,4 +42,4 @@ extra-deps:
 
 ghc-options:
  # All packages
- "$locals": -haddock -Wall -Wno-name-shadowing -Werror -Wno-type-defaults -Wno-missing-pattern-synonym-signatures #-freverse-errors
+ "$locals": -haddock -Wall -Wno-name-shadowing -Werror -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms #-freverse-errors

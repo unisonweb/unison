@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Hash (Hash, toBytes, base32Hex, base32Hexs, fromBase32Hex, fromBytes, unsafeFromBase32Hex, showBase32Hex, validBase32HexChars) where
+module Unison.Hash (Hash(Hash), toBytes, base32Hex, base32Hexs, fromBase32Hex, fromBytes, unsafeFromBase32Hex, showBase32Hex, validBase32HexChars) where
 
 import Unison.Prelude
 
@@ -106,4 +106,3 @@ fromBytes = Hash
 
 showBase32Hex :: H.Hashable t => t -> String
 showBase32Hex = base32Hexs . H.accumulate'
-

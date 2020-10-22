@@ -229,6 +229,14 @@ addToDependentsIndex dependency dependent = execute sql (dependency :. dependent
     ) VALUES (?, ?, ?, ?, ?)
   |]
 
+getDependentsForDependency :: DB m => Reference.Reference -> m [Reference.Id]
+getDependentsForDependency dependency = query sql dependency where sql = [here|
+  SELECT FROM dependents_index (
+    dependent_object_id, dependent_component_index
+  ) WHERE dependency_builtin = ?
+      AND dependency_object_id = ?
+      AND dependency_component_index = ?
+|]
 
 -- * helper functions
 queryList :: (DB f, ToRow q, FromField b) => SQLite.Query -> q -> f [b]

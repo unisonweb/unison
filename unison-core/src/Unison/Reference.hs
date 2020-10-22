@@ -9,6 +9,7 @@ module Unison.Reference
      pattern Derived,
      pattern DerivedId,
    Id(..),
+   Size,
    derivedBase32Hex,
    Component, members,
    components,
