@@ -177,7 +177,7 @@ no more = no more
   ⍟ I've added these definitions:
   
     babyDon'tHurtMe : Text
-    no              : more -> 𝕣
+    no              : more -> r
     whatIsLove      : Text
 
 ```
@@ -294,7 +294,7 @@ Alice then squash merges into `trunk`, as does Bob. It's as if Alice and Bob bot
   Added definitions:
   
     1. babyDon'tHurtMe : Text
-    2. no              : more -> 𝕣
+    2. no              : more -> r
     3. whatIsLove      : Text
   
   Tip: You can use `todo` to see if this generated any work to
@@ -397,7 +397,7 @@ This time, we'll first squash Alice and Bob's changes together before squashing 
   
     1. babyDon'tHurtMe   : Text
     2. bodaciousNumero   : Nat
-    3. no                : more -> 𝕣
+    3. no                : more -> r
     4. productionReadyId : x -> x
     5. superRadNumber    : Nat
     6. whatIsLove        : Text
