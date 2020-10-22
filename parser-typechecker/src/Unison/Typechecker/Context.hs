@@ -45,6 +45,7 @@ import           Control.Monad.State            ( get
                                                 , put
                                                 , StateT
                                                 , runStateT
+                                                , evalState
                                                 )
 import           Data.Bifunctor                 ( first
                                                 , second
@@ -266,26 +267,47 @@ data InfoNote v loc
   deriving (Show)
 
 topLevelComponent :: Var v => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> InfoNote v loc
-topLevelComponent = TopLevelComponent . fmap (over _2 varCleanup) where
-  varCleanup typ = ABT.vmap go typ
+topLevelComponent = TopLevelComponent . fmap (over _2 removeSyntheticTypeVars)
+
+-- The typechecker generates synthetic type variables as part of type inference.
+-- This function converts these synthetic type variables to regular named type
+-- variables guaranteed to not collide with any other type variables.
+--
+-- It also attempts to pick "nice" type variable names, based on what sort of
+-- synthetic type variable it is and what type variable names are not already
+-- being used.
+removeSyntheticTypeVars :: Var v => Type.Type v loc -> Type.Type v loc
+removeSyntheticTypeVars typ =
+  flip evalState (Set.fromList (ABT.allVars typ), mempty) $ ABT.vmapM go typ
+  where
+  go v | Var.User _ <- Var.typeOf v = pure v -- user-provided type variables left alone
+       | otherwise                  = do
+         (used,curMappings) <- get
+         case Map.lookup v curMappings of
+           Nothing -> do
+             let v' = pickName used (Var.typeOf v)
+             put (Set.insert v' used, Map.insert v v' curMappings)
+             pure v'
+           Just v' -> pure v'
+  pickName used vt = ABT.freshIn used . Var.named $ case vt of
+    -- for each type of variable, we have some preferred variable
+    -- names that we like, if they aren't already being used
+    Var.Inference Var.Ability -> pick ["g","h","m","p"]
+    Var.Inference Var.Input -> pick ["a","b","c","i","j"]
+    Var.Inference Var.Output -> pick ["r","o"]
+    Var.Inference Var.Other -> pick ["t","u","w"]
+    Var.Inference Var.TypeConstructor -> pick ["f","k","d"]
+    Var.Inference Var.TypeConstructorArg -> pick ["v","w","y"]
+    Var.User n -> n
+    _ -> defaultName
     where
-    go v | Var.User _ <- Var.typeOf v = v
-         | otherwise                  = pickName (Var.typeOf v) (Map.lookup v nonces)
-    nonces = Map.fromList (ABT.allVars typ `zip` [(0::Int)..])
-    used = Map.keysSet nonces
-    pickName typ nonce = ABT.freshIn used . Var.named $ case typ of
-      Var.User n -> n
-      Var.Inference Var.Ability -> "g"
-      Var.Inference Var.Input -> "a"
-      Var.Inference Var.Output -> "r"
-      Var.Inference Var.Other -> "b"
-      Var.Inference Var.PatternPureE -> "p"
-      Var.Inference Var.PatternPureV -> "v"
-      Var.Inference Var.PatternBindE -> "q"
-      Var.Inference Var.PatternBindV -> "t"
-      Var.Inference Var.TypeConstructor -> "f"
-      Var.Inference Var.TypeConstructorArg -> "y"
-      _ -> "x" <> maybe "" (Text.pack . show) nonce
+      used1CharVars = Set.fromList $ ABT.allVars typ >>= \v ->
+        case Text.unpack (Var.name . Var.reset $ v) of
+          [ch] -> [Text.singleton ch]
+          _ -> []
+      pick ns@(n:_) = fromMaybe n $ find (`Set.notMember` used1CharVars) ns
+      pick [] = error "impossible"
+      defaultName = "x"
 
 data Cause v loc
   = TypeMismatch (Context v loc)
