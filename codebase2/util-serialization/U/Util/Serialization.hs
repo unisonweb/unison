@@ -35,6 +35,7 @@ import Prelude hiding (readFile, writeFile)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Applicative (Applicative(liftA2))
+import GHC.Word (Word64)
 
 type Get a = forall m. MonadGet m => m a
 
@@ -193,6 +194,9 @@ lookupFramedArray getA index = do
     else do
       skip (Vector.unsafeIndex offsets index)
       Just <$> getA
+
+lengthFramedArray :: MonadGet m => m Word64
+lengthFramedArray = getVarInt
 
 unsafeFramedArrayLookup :: MonadGet m => m a -> Int -> m a
 unsafeFramedArrayLookup getA index = do

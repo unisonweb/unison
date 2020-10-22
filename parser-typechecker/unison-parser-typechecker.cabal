@@ -97,6 +97,7 @@ library
     Unison.Codebase.Serialization.V1
     Unison.Codebase.ShortBranchHash
     Unison.Codebase.SqliteCodebase
+    Unison.Codebase.SqliteCodebase.Conversions
     Unison.Codebase.SyncMode
     Unison.Codebase.TermEdit
     Unison.Codebase.TranscriptParser

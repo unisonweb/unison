@@ -40,6 +40,7 @@ import U.Codebase.WatchKind (WatchKind)
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Hash as H
 import U.Util.Serialization (getFromBytes)
+import qualified U.Util.Serialization as S
 
 loadTermComponentByHash :: DB m => Base32Hex -> m (Maybe [C.Term Symbol])
 loadTermComponentByHash = error "todo"
@@ -86,6 +87,10 @@ loadHashByObjectId =
   fmap H.fromBase32Hex
     . m' "Q.loadPrimaryHashByObjectId" Q.loadPrimaryHashByObjectId
 
+decodeComponentLengthOnly :: Applicative f => ByteString -> MaybeT f Word64
+decodeComponentLengthOnly = m' "decodeComponentLengthOnly"
+  (fmap pure $ getFromBytes S.lengthFramedArray)
+
 decodeTermElement :: Applicative f => Word64 -> ByteString -> MaybeT f (LocalIds, S.Term.Term)
 decodeTermElement i =
   m'
@@ -97,6 +102,14 @@ decodeDeclElement i =
   m'
     ("getDeclElement: " ++ show i ++ ") fromBytes:")
     (pure . getFromBytes (S.lookupDeclElement i))
+
+-- * legacy conversion helpers
+getCycleLen :: DB m => H.Hash -> MaybeT m Word64
+getCycleLen h = fmap fromIntegral $
+  hashToObjectId >=> loadObjectById >=> decodeComponentLengthOnly $ h
+
+getDeclTypeByReference :: DB m => C.Reference.Id -> MaybeT m C.Decl.DeclType
+getDeclTypeByReference = fmap C.Decl.declType . loadDeclByReference
 
 -- * meat and veggies
 
@@ -119,8 +132,8 @@ loadTermByReference (C.Reference.Id h i) = do
       substTypeLink = substTypeRef
   pure (C.Term.extraMap substText substTermRef substTypeRef substTermLink substTypeLink id term)
 
-loadTypeOfTermByTermHash :: DB m => C.Reference.Id -> MaybeT m (C.Term.Type Symbol)
-loadTypeOfTermByTermHash r = do
+loadTypeOfTermByTermReference :: DB m => C.Reference.Id -> MaybeT m (C.Term.Type Symbol)
+loadTypeOfTermByTermReference r = do
   -- convert query reference by looking up db ids
   r' <- C.Reference.idH hashToObjectId r
   -- load "type of term" blob for the reference
@@ -130,8 +143,8 @@ loadTypeOfTermByTermHash r = do
   -- convert the result type by looking up db ids
   C.Type.rtraverse s2cReference typ
 
-loadDeclByHash :: DB m => C.Reference.Id -> MaybeT m (C.Decl Symbol)
-loadDeclByHash (C.Reference.Id h i) = do
+loadDeclByReference :: DB m => C.Reference.Id -> MaybeT m (C.Decl Symbol)
+loadDeclByReference (C.Reference.Id h i) = do
   -- retrieve the blob
   (localIds, C.Decl.DataDeclaration dt m b ct) <- do
     hashToObjectId >=> loadObjectById >=> decodeDeclElement i $ h

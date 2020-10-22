@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 -- Based on: http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html
 {-# LANGUAGE DeriveFoldable #-}
@@ -36,6 +37,13 @@ data ABT f v r
 -- a value of type `a`. Variables are of type `v`.
 data Term f v a = Term { freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a) }
   deriving (Functor, Foldable, Traversable)
+
+amap :: (Functor f, Foldable f) => (a -> a') -> Term f v a -> Term f v a'
+amap f (Term fv a out) = Term fv (f a) $ case out of
+  Var v -> Var v
+  Tm fa -> Tm (amap f <$> fa)
+  Cycle r -> Cycle (amap f r)
+  Abs v body -> Abs v (amap f body)
 
 vmap :: (Functor f, Foldable f, Ord v') => (v -> v') -> Term f v a -> Term f v' a
 vmap f (Term _ a out) = case out of

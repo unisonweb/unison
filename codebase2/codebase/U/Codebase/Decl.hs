@@ -21,6 +21,7 @@ data DeclType = Data | Effect
 type Decl v = DeclR TypeRef v
 
 type TypeRef = Reference' Text (Maybe Hash)
+type Type v = TypeR TypeRef v
 
 data Modifier = Structural | Unique Text
   deriving (Eq, Ord, Show)
