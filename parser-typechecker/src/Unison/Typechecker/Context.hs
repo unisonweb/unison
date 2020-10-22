@@ -38,6 +38,7 @@ where
 
 import Unison.Prelude
 
+import           Control.Lens                   (over, _2)
 import qualified Control.Monad.Fail            as MonadFail
 import           Control.Monad.Reader.Class
 import           Control.Monad.State            ( get
@@ -263,6 +264,28 @@ data InfoNote v loc
   | Decision v loc (Term.Term v loc)
   | TopLevelComponent [(v, Type.Type v loc, RedundantTypeAnnotation)]
   deriving (Show)
+
+topLevelComponent :: Var v => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> InfoNote v loc
+topLevelComponent = TopLevelComponent . fmap (over _2 varCleanup) where
+  varCleanup typ = ABT.vmap go typ
+    where
+    go v | Var.User _ <- Var.typeOf v = v
+         | otherwise                  = pickName (Var.typeOf v) (Map.lookup v nonces)
+    nonces = Map.fromList (ABT.allVars typ `zip` [(0::Int)..])
+    used = Map.keysSet nonces
+    pickName typ nonce = ABT.freshIn used . Var.named $ case typ of
+      Var.User n -> n
+      Var.Inference Var.Ability -> "g"
+      Var.Inference Var.Input -> "a"
+      Var.Inference Var.Output -> "r"
+      Var.Inference Var.Other -> "b"
+      Var.Inference Var.PatternPureE -> "p"
+      Var.Inference Var.PatternPureV -> "v"
+      Var.Inference Var.PatternBindE -> "q"
+      Var.Inference Var.PatternBindV -> "t"
+      Var.Inference Var.TypeConstructor -> "f"
+      Var.Inference Var.TypeConstructorArg -> "y"
+      _ -> "x" <> maybe "" (Text.pack . show) nonce
 
 data Cause v loc
   = TypeMismatch (Context v loc)
@@ -799,14 +822,14 @@ noteTopLevelType e binding typ = case binding of
   Term.Ann' strippedBinding _ -> do
     inferred <- (Just <$> synthesize strippedBinding) `orElse` pure Nothing
     case inferred of
-      Nothing -> btw $ TopLevelComponent
+      Nothing -> btw $ topLevelComponent
         [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, False)]
       Just inferred -> do
         redundant <- isRedundant typ inferred
-        btw $ TopLevelComponent
+        btw $ topLevelComponent
           [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, redundant)]
   -- The signature didn't exist, so was definitely redundant
-  _ -> btw $ TopLevelComponent
+  _ -> btw $ topLevelComponent
     [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, True)]
 
 -- | Synthesize the type of the given term, updating the context in the process.
@@ -1168,10 +1191,10 @@ annotateLetRecBindings isTop letrec =
     case withoutAnnotations of
       Just (_, vts') -> do
         r <- and <$> zipWithM isRedundant (fmap snd vts) (fmap snd vts')
-        btw $ TopLevelComponent ((\(v,b) -> (Var.reset v, b,r)) . unTypeVar <$> vts)
+        btw $ topLevelComponent ((\(v,b) -> (Var.reset v, b,r)) . unTypeVar <$> vts)
       -- ...(1) we'll assume all the user-provided annotations were needed
       Nothing -> btw
-        $ TopLevelComponent ((\(v, b) -> (Var.reset v, b, False)) . unTypeVar <$> vts)
+        $ topLevelComponent ((\(v, b) -> (Var.reset v, b, False)) . unTypeVar <$> vts)
     pure body
   -- If this isn't a top-level letrec, then we don't have to do anything special
   else fst <$> annotateLetRecBindings' True
