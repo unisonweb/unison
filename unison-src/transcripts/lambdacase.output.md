@@ -16,7 +16,7 @@ isEmpty x = match x with
   
     ⍟ These new definitions are ok to `add`:
     
-      isEmpty : [𝕩] -> Boolean
+      isEmpty : [t] -> Boolean
 
 ```
 Here's the same function written using `cases` syntax:
@@ -35,7 +35,7 @@ isEmpty2 = cases
   
     ⍟ These new definitions are ok to `add`:
     
-      isEmpty2 : [𝕩] -> Boolean
+      isEmpty2 : [t] -> Boolean
         (also named isEmpty)
 
 ```
@@ -44,7 +44,7 @@ Notice that Unison detects this as an alias of `isEmpty`, and if we view `isEmpt
 ```ucm
 .> view isEmpty
 
-  isEmpty : [𝕩] -> Boolean
+  isEmpty : [t] -> Boolean
   isEmpty = cases
     [] -> true
     _  -> false
@@ -71,7 +71,7 @@ merge xs ys = match (xs, ys) with
 
   ⍟ I've added these definitions:
   
-    merge : [a] ->{𝕖} [a] ->{𝕖} [a]
+    merge : [a] ->{g} [a] ->{g} [a]
 
 ```
 Here's a version using `cases`:
@@ -94,7 +94,7 @@ merge2 = cases
   
     ⍟ These new definitions are ok to `add`:
     
-      merge2 : [a] ->{𝕖} [a] ->{𝕖} [a]
+      merge2 : [a] ->{g} [a] ->{g} [a]
         (also named merge)
 
 ```
