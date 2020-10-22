@@ -10,7 +10,6 @@ import GHC.Stack (HasCallStack)
 
 import Control.Exception (try)
 import Control.Monad (foldM, (<=<))
-import Control.Monad.State.Strict (evalState)
 
 import Data.Bifunctor (first,second)
 import Data.Foldable
@@ -86,7 +85,7 @@ baseContext
 
   combs
     = mapWithKey
-        (\k v -> evalState (emitComb @v emptyRNs k mempty (0,v)) 1)
+        (\k v -> emitComb @v emptyRNs k mempty (0,v))
         numberedTermLookup
 
 allocTerm

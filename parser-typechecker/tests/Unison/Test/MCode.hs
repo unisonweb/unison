@@ -6,8 +6,6 @@ module Unison.Test.MCode where
 
 import EasyTest
 
-import Control.Monad.State.Strict (evalState)
-
 import qualified Data.Map.Strict as Map
 
 import Data.Bits (bit)
@@ -55,7 +53,7 @@ builtins r
   | otherwise = error $ "builtins: " ++ show r
 
 cenv :: EnumMap Word64 Combs
-cenv = fmap (flip evalState 1 . emitComb numbering 0 mempty . (0,))
+cenv = fmap (emitComb numbering 0 mempty . (0,))
      $ numberedTermLookup @Symbol
 
 env :: Combs -> EnumMap Word64 Combs

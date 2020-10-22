@@ -51,7 +51,7 @@ testANF s
   | otherwise = crash $ show $ denormalize anf
   where
   t0 = const () `Term.amap` tm s
-  anf = runANF $ anfTerm t0
+  anf = snd . runANF $ anfTerm t0
 
 testLift :: String -> Test ()
 testLift s = case cs of !_ -> ok
@@ -76,7 +76,7 @@ denormalize (THnd _ _ _)
   -- = Term.match () (denormalize b) $ denormalizeHandler h
 denormalize (TShift _ _ _)
   = error "denormalize shift"
-denormalize (TLet v _ bn bo)
+denormalize (TLet _ v _ bn bo)
   | typeOf v == ANFBlank = ABT.subst v dbn dbo
   | otherwise = Term.let1_ False [(v, dbn)] dbo
   where

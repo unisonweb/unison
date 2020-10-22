@@ -34,13 +34,12 @@ module Unison.Runtime.MCode
 import GHC.Stack (HasCallStack)
 
 import Control.Applicative (liftA2)
-import Control.Monad.State.Strict
 
 import Data.Bifunctor (bimap,first)
+import Data.Bits (shiftL, (.|.))
 import Data.Coerce
-import Data.Foldable (fold)
 import Data.List (partition)
-import Data.Word (Word64)
+import Data.Word (Word16, Word64)
 
 import Data.Primitive.PrimArray
 
@@ -56,6 +55,7 @@ import Unison.Referent (Referent)
 import Unison.Runtime.ANF
   ( ANormal
   , Branched(..)
+  , Direction(..)
   , Func(..)
   , Mem(..)
   , SuperNormal(..)
@@ -598,12 +598,12 @@ emitCombs
   -> SuperGroup v
   -> EnumMap Word64 Comb
 emitCombs rns grpn (Rec grp ent)
-  = evalState (liftA2 (<>) (emitComb rns grpn rec (0, ent)) aux) init
+  = emitComb rns grpn rec (0, ent) <> aux
   where
   (rvs, cmbs) = unzip grp
-  init = fromIntegral $ length rvs + 1
-  rec = M.fromList $ zip rvs [1..]
-  aux = fold <$> traverse (emitComb rns grpn rec) (zip [1..] cmbs)
+  ixs = map (`shiftL` 16) [1..]
+  rec = M.fromList $ zip rvs ixs
+  aux = foldMap (emitComb rns grpn rec) (zip ixs cmbs)
 
 -- Type for aggregating the necessary stack frame size. First field is
 -- unboxed size, second is boxed. The Applicative instance takes the
@@ -616,37 +616,39 @@ instance Applicative Counted where
   pure = C 0 0
   C u0 b0 f <*> C u1 b1 x = C (max u0 u1) (max b0 b1) (f x)
 
-data Emit a
-  = EM (Word64 -> (EC.EnumMap Word64 Comb, Word64, Counted a))
+newtype Emit a
+  = EM (Word64 -> (EC.EnumMap Word64 Comb, Counted a))
   deriving (Functor)
 
+runEmit :: Word64 -> Emit a -> EC.EnumMap Word64 Comb
+runEmit w (EM e) = fst $ e w
+
 instance Applicative Emit where
-  pure x = EM $ \w -> (mempty, w, pure x)
-  EM f <*> EM x = EM $ \w0 ->
-    let (m1, w1, c1) = f w0
-        (m2, w2, c2) = x w1
-    in (m1 <> m2, w2, c1 <*> c2)
+  pure = EM . pure . pure . pure
+  EM ef <*> EM ex = EM $ (liftA2.liftA2) (<*>) ef ex
 
 counted :: Counted a -> Emit a
-counted cx = EM $ \w -> (mempty, w, cx)
+counted = EM . pure . pure
 
 onCount :: (Counted a -> Counted b) -> Emit a -> Emit b
-onCount f (EM e) = EM $ \w -> f <$> e w
+onCount f (EM e) = EM $ fmap f <$> e
 
-runEmit :: Emit a -> State Word64 (EC.EnumMap Word64 Comb, Counted a)
-runEmit (EM e) = state $ \w0 ->
-  let (m, w, c) = e w0 in ((m, c), w)
+letIndex :: Word16 -> Word64 -> Word64
+letIndex l c = c .|. fromIntegral l
 
-record :: Ctx v -> Emit Section -> Emit Word64
-record ctx (EM e) = EM $ \w0 ->
-  let (m, w, C u b s) = e (w0+1)
+record :: Ctx v -> Word16 -> Emit Section -> Emit Word64
+record ctx l (EM es) = EM $ \c ->
+  let (m, C u b s) = es c
       (au, ab) = countCtx0 0 0 ctx
-   in (EC.mapInsert w0 (Lam au ab u b s) m, w, C u b w0)
+      n = letIndex l c
+  in (EC.mapInsert n (Lam au ab u b s) m, C u b n)
 
-recordAs :: [v] -> Word64 -> Emit Section -> Emit ()
-recordAs vs n (EM e) = EM $ \w0 ->
-  let (m, w, C u b s) = e w0
-   in (EC.mapInsert n (Lam 0 (length vs) u b s) m, w, C u b ())
+recordTop :: [v] -> Word16 -> Emit Section -> Emit ()
+recordTop vs l (EM e) = EM $ \c ->
+  let (m , C u b s) = e c
+      ab = length vs
+      n = letIndex l c
+  in (EC.mapInsert n (Lam 0 ab u b s) m, C u b ())
 
 -- Counts the stack space used by a context and annotates a value
 -- with it.
@@ -662,11 +664,10 @@ countCtx0  ui  bi ECtx = (ui, bi)
 
 emitComb
   :: Var v => RefNums -> Word64 -> RCtx v -> (Word64, SuperNormal v)
-  -> State Word64 (EC.EnumMap Word64 Comb)
+  -> EC.EnumMap Word64 Comb
 emitComb rns grpn rec (n, Lambda ccs (TAbss vs bd))
-  = fmap fst
-  . runEmit
-  . recordAs vs n
+  = runEmit n
+  . recordTop vs 0
   $ emitSection rns grpn rec (ctx vs ccs) bd
 
 addCount :: Int -> Int -> Emit a -> Emit a
@@ -677,8 +678,8 @@ emitSection
   :: Var v
   => RefNums -> Word64 -> RCtx v -> Ctx v -> ANormal v
   -> Emit Section
-emitSection rns grpn rec ctx (TLets us ms bu bo)
-  = emitLet rns grpn rec (zip us ms) ctx bu
+emitSection rns grpn rec ctx (TLets d us ms bu bo)
+  = emitLet rns grpn rec d (zip us ms) ctx bu
   $ emitSection rns grpn rec ectx bo
   where
   ectx = pushCtx (zip us ms) ctx
@@ -884,28 +885,32 @@ litArg _       = UArg1 0
 -- manipulation.
 emitLet
   :: Var v
-  => RefNums -> Word64 -> RCtx v -> [(v,Mem)] -> Ctx v -> ANormal v
+  => RefNums -> Word64 -> RCtx v
+  -> Direction Word16 -> [(v,Mem)] -> Ctx v -> ANormal v
   -> Emit Section
   -> Emit Section
-emitLet _   _   _   _   _   (TLit l)
+emitLet _   _   _   _ _   _   (TLit l)
   = fmap (Ins $ emitLit l)
-emitLet rns grp _   _   ctx (TApp (FComb r) args)
+emitLet rns grp _   _ _   ctx (TApp (FComb r) args)
   -- We should be able to tell if we are making a saturated call
   -- or not here. We aren't carrying the information here yet, though.
   | False -- not saturated
   = fmap (Ins . Name (Env n 0) $ emitArgs grp ctx args)
   where
   n = cnum rns r
-emitLet _   grp _   _   ctx (TApp (FCon r n) args)
+emitLet _   grp _   _ _   ctx (TApp (FCon r n) args)
   = fmap (Ins . Pack r (rawTag n) $ emitArgs grp ctx args)
-emitLet _   grp _   _   ctx (TApp (FPrim p) args)
+emitLet _   grp _   _ _   ctx (TApp (FPrim p) args)
   = fmap (Ins . either emitPOp emitFOp p $ emitArgs grp ctx args)
-emitLet rns grpn rec vcs ctx bnd
+emitLet rns grp rec d vcs ctx bnd
+  | Direct <- d
+  = error $ "unsupported compound direct let" ++ show bnd
+  | Indirect w <- d
   = \esect ->
-      f <$> emitSection rns grpn rec (Block ctx) bnd
-        <*> record (pushCtx vcs ctx) esect
+      f <$> emitSection rns grp rec (Block ctx) bnd
+        <*> record (pushCtx vcs ctx) w esect
   where
-  f s w = Let s (CIx contRef grpn w)
+  f s w = Let s (CIx contRef grp w)
 
 contRef :: Reference
 contRef = Builtin (pack "Continuation")
