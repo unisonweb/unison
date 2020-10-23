@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #0njtem0mcm
+  ⊙ #9vqvq27unq
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #itl1uomklh
+  ⊙ #0tai2hvoep
   
     + Adds / updates:
     
@@ -129,45 +129,50 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #94tplgq85t
+  ⊙ #ld3npmrd4b
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #fr2k0al9mk
+  ⊙ #c82mcefcqb
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #p8dvir508b
+  ⊙ #onh9bsr0dl
   
     + Adds / updates:
     
       x
   
-  ⊙ #bc44avko8b
+  ⊙ #gibpnb86qp
   
     + Adds / updates:
     
       builtin.Boolean builtin.Boolean.not builtin.Bytes
       builtin.Bytes.++ builtin.Bytes.at builtin.Bytes.drop
       builtin.Bytes.empty builtin.Bytes.flatten
-      builtin.Bytes.fromList builtin.Bytes.size
-      builtin.Bytes.take builtin.Bytes.toList builtin.Char
-      builtin.Char.fromNat builtin.Char.toNat
-      builtin.Debug.watch builtin.Doc builtin.Doc.Blob
-      builtin.Doc.Evaluate builtin.Doc.Join builtin.Doc.Link
-      builtin.Doc.Signature builtin.Doc.Source builtin.Either
-      builtin.Either.Left builtin.Either.Right builtin.Float
-      builtin.Float.* builtin.Float.+ builtin.Float.-
-      builtin.Float./ builtin.Float.abs builtin.Float.acos
-      builtin.Float.acosh builtin.Float.asin builtin.Float.asinh
-      builtin.Float.atan builtin.Float.atan2 builtin.Float.atanh
-      builtin.Float.ceiling builtin.Float.cos builtin.Float.cosh
-      builtin.Float.eq builtin.Float.exp builtin.Float.floor
+      builtin.Bytes.fromBase16 builtin.Bytes.fromBase32
+      builtin.Bytes.fromBase64
+      builtin.Bytes.fromBase64UrlUnpadded builtin.Bytes.fromList
+      builtin.Bytes.size builtin.Bytes.take
+      builtin.Bytes.toBase16 builtin.Bytes.toBase32
+      builtin.Bytes.toBase64 builtin.Bytes.toBase64UrlUnpadded
+      builtin.Bytes.toList builtin.Char builtin.Char.fromNat
+      builtin.Char.toNat builtin.Debug.watch builtin.Doc
+      builtin.Doc.Blob builtin.Doc.Evaluate builtin.Doc.Join
+      builtin.Doc.Link builtin.Doc.Signature builtin.Doc.Source
+      builtin.Either builtin.Either.Left builtin.Either.Right
+      builtin.Float builtin.Float.* builtin.Float.+
+      builtin.Float.- builtin.Float./ builtin.Float.abs
+      builtin.Float.acos builtin.Float.acosh builtin.Float.asin
+      builtin.Float.asinh builtin.Float.atan builtin.Float.atan2
+      builtin.Float.atanh builtin.Float.ceiling
+      builtin.Float.cos builtin.Float.cosh builtin.Float.eq
+      builtin.Float.exp builtin.Float.floor
       builtin.Float.fromText builtin.Float.gt builtin.Float.gteq
       builtin.Float.log builtin.Float.logBase builtin.Float.lt
       builtin.Float.lteq builtin.Float.max builtin.Float.min
@@ -181,7 +186,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Int.isEven builtin.Int.isOdd
       builtin.Int.leadingZeros builtin.Int.lt builtin.Int.lteq
       builtin.Int.mod builtin.Int.negate builtin.Int.or
-      builtin.Int.pow builtin.Int.shiftLeft
+      builtin.Int.popCount builtin.Int.pow builtin.Int.shiftLeft
       builtin.Int.shiftRight builtin.Int.signum
       builtin.Int.toFloat builtin.Int.toText
       builtin.Int.trailingZeros builtin.Int.truncate0
@@ -197,7 +202,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Nat.gteq builtin.Nat.increment builtin.Nat.isEven
       builtin.Nat.isOdd builtin.Nat.leadingZeros builtin.Nat.lt
       builtin.Nat.lteq builtin.Nat.mod builtin.Nat.or
-      builtin.Nat.pow builtin.Nat.shiftLeft
+      builtin.Nat.popCount builtin.Nat.pow builtin.Nat.shiftLeft
       builtin.Nat.shiftRight builtin.Nat.sub builtin.Nat.toFloat
       builtin.Nat.toInt builtin.Nat.toText
       builtin.Nat.trailingZeros builtin.Nat.xor builtin.Optional
@@ -207,16 +212,25 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Test.Result.Fail builtin.Test.Result.Ok
       builtin.Text builtin.Text.!= builtin.Text.++
       builtin.Text.drop builtin.Text.empty builtin.Text.eq
-      builtin.Text.fromCharList builtin.Text.gt
-      builtin.Text.gteq builtin.Text.lt builtin.Text.lteq
-      builtin.Text.size builtin.Text.take
-      builtin.Text.toCharList builtin.Text.uncons
-      builtin.Text.unsnoc builtin.Tuple builtin.Tuple.Cons
-      builtin.Unit builtin.Unit.Unit builtin.Universal.<
-      builtin.Universal.<= builtin.Universal.==
-      builtin.Universal.> builtin.Universal.>=
-      builtin.Universal.compare builtin.bug
-      builtin.io2.BufferMode
+      builtin.Text.fromCharList builtin.Text.fromUtf8
+      builtin.Text.gt builtin.Text.gteq builtin.Text.lt
+      builtin.Text.lteq builtin.Text.size builtin.Text.take
+      builtin.Text.toCharList builtin.Text.toUtf8
+      builtin.Text.uncons builtin.Text.unsnoc builtin.Tuple
+      builtin.Tuple.Cons builtin.Unit builtin.Unit.Unit
+      builtin.Universal.< builtin.Universal.<=
+      builtin.Universal.== builtin.Universal.>
+      builtin.Universal.>= builtin.Universal.compare builtin.bug
+      builtin.crypto.HashAlgorithm
+      builtin.crypto.HashAlgorithm.Blake2b_256
+      builtin.crypto.HashAlgorithm.Blake2b_512
+      builtin.crypto.HashAlgorithm.Blake2s_256
+      builtin.crypto.HashAlgorithm.Sha2_256
+      builtin.crypto.HashAlgorithm.Sha2_512
+      builtin.crypto.HashAlgorithm.Sha3_256
+      builtin.crypto.HashAlgorithm.Sha3_512 builtin.crypto.hash
+      builtin.crypto.hashBytes builtin.crypto.hmac
+      builtin.crypto.hmacBytes builtin.io2.BufferMode
       builtin.io2.BufferMode.BlockBuffering
       builtin.io2.BufferMode.LineBuffering
       builtin.io2.BufferMode.NoBuffering
@@ -228,19 +242,18 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.IO.closeFile builtin.io2.IO.closeSocket
       builtin.io2.IO.createDirectory builtin.io2.IO.delay
       builtin.io2.IO.fileExists builtin.io2.IO.forkComp
-      builtin.io2.IO.getBuffering
+      builtin.io2.IO.getBuffering builtin.io2.IO.getBytes
       builtin.io2.IO.getCurrentDirectory
       builtin.io2.IO.getFileSize builtin.io2.IO.getFileTimestamp
       builtin.io2.IO.getLine builtin.io2.IO.getTempDirectory
-      builtin.io2.IO.getText builtin.io2.IO.handlePosition
-      builtin.io2.IO.isDirectory builtin.io2.IO.isFileEOF
-      builtin.io2.IO.isFileOpen builtin.io2.IO.isSeekable
-      builtin.io2.IO.kill builtin.io2.IO.listen
-      builtin.io2.IO.openFile builtin.io2.IO.putText
-      builtin.io2.IO.removeDirectory builtin.io2.IO.removeFile
-      builtin.io2.IO.renameDirectory builtin.io2.IO.renameFile
-      builtin.io2.IO.seekHandle builtin.io2.IO.serverSocket
-      builtin.io2.IO.setBuffering
+      builtin.io2.IO.handlePosition builtin.io2.IO.isDirectory
+      builtin.io2.IO.isFileEOF builtin.io2.IO.isFileOpen
+      builtin.io2.IO.isSeekable builtin.io2.IO.kill
+      builtin.io2.IO.listen builtin.io2.IO.openFile
+      builtin.io2.IO.putBytes builtin.io2.IO.removeDirectory
+      builtin.io2.IO.removeFile builtin.io2.IO.renameDirectory
+      builtin.io2.IO.renameFile builtin.io2.IO.seekHandle
+      builtin.io2.IO.serverSocket builtin.io2.IO.setBuffering
       builtin.io2.IO.setCurrentDirectory
       builtin.io2.IO.socketAccept builtin.io2.IO.socketReceive
       builtin.io2.IO.socketSend builtin.io2.IO.stdHandle

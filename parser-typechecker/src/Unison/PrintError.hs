@@ -933,6 +933,14 @@ prettyParseError s = \case
   errorVar v = style ErrorSite . fromString . Text.unpack $ Var.name v
   go :: Parser.Error v -> Pretty ColorText
   -- | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
+  go (Parser.PatternArityMismatch expected actual loc) = msg where
+    msg = Pr.indentN 2 . Pr.callout "😶" $ Pr.lines [
+      Pr.wrap $ "Not all the branches of this pattern matching have"
+             <> "the same number of arguments. I was assuming they'd all have "
+             <> Pr.hiBlue (Pr.shown expected) <> "arguments (based on the previous patterns)"
+             <> "but this one has " <> Pr.hiRed (Pr.shown actual) <> "arguments:",
+      annotatedAsErrorSite s loc
+      ]
   go (Parser.UseEmpty tok) = msg where
     msg = Pr.indentN 2 . Pr.callout "😶" $ Pr.lines [
       Pr.wrap $ "I was expecting something after the " <> Pr.hiRed "use" <> "keyword", "",

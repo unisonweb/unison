@@ -38,12 +38,14 @@ where
 
 import Unison.Prelude
 
+import           Control.Lens                   (over, _2)
 import qualified Control.Monad.Fail            as MonadFail
 import           Control.Monad.Reader.Class
 import           Control.Monad.State            ( get
                                                 , put
                                                 , StateT
                                                 , runStateT
+                                                , evalState
                                                 )
 import           Data.Bifunctor                 ( first
                                                 , second
@@ -263,6 +265,49 @@ data InfoNote v loc
   | Decision v loc (Term.Term v loc)
   | TopLevelComponent [(v, Type.Type v loc, RedundantTypeAnnotation)]
   deriving (Show)
+
+topLevelComponent :: Var v => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> InfoNote v loc
+topLevelComponent = TopLevelComponent . fmap (over _2 removeSyntheticTypeVars)
+
+-- The typechecker generates synthetic type variables as part of type inference.
+-- This function converts these synthetic type variables to regular named type
+-- variables guaranteed to not collide with any other type variables.
+--
+-- It also attempts to pick "nice" type variable names, based on what sort of
+-- synthetic type variable it is and what type variable names are not already
+-- being used.
+removeSyntheticTypeVars :: Var v => Type.Type v loc -> Type.Type v loc
+removeSyntheticTypeVars typ =
+  flip evalState (Set.fromList (ABT.allVars typ), mempty) $ ABT.vmapM go typ
+  where
+  go v | Var.User _ <- Var.typeOf v = pure v -- user-provided type variables left alone
+       | otherwise                  = do
+         (used,curMappings) <- get
+         case Map.lookup v curMappings of
+           Nothing -> do
+             let v' = pickName used (Var.typeOf v)
+             put (Set.insert v' used, Map.insert v v' curMappings)
+             pure v'
+           Just v' -> pure v'
+  pickName used vt = ABT.freshIn used . Var.named $ case vt of
+    -- for each type of variable, we have some preferred variable
+    -- names that we like, if they aren't already being used
+    Var.Inference Var.Ability -> pick ["g","h","m","p"]
+    Var.Inference Var.Input -> pick ["a","b","c","i","j"]
+    Var.Inference Var.Output -> pick ["r","o"]
+    Var.Inference Var.Other -> pick ["t","u","w"]
+    Var.Inference Var.TypeConstructor -> pick ["f","k","d"]
+    Var.Inference Var.TypeConstructorArg -> pick ["v","w","y"]
+    Var.User n -> n
+    _ -> defaultName
+    where
+      used1CharVars = Set.fromList $ ABT.allVars typ >>= \v ->
+        case Text.unpack (Var.name . Var.reset $ v) of
+          [ch] -> [Text.singleton ch]
+          _ -> []
+      pick ns@(n:_) = fromMaybe n $ find (`Set.notMember` used1CharVars) ns
+      pick [] = error "impossible"
+      defaultName = "x"
 
 data Cause v loc
   = TypeMismatch (Context v loc)
@@ -799,14 +844,14 @@ noteTopLevelType e binding typ = case binding of
   Term.Ann' strippedBinding _ -> do
     inferred <- (Just <$> synthesize strippedBinding) `orElse` pure Nothing
     case inferred of
-      Nothing -> btw $ TopLevelComponent
+      Nothing -> btw $ topLevelComponent
         [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, False)]
       Just inferred -> do
         redundant <- isRedundant typ inferred
-        btw $ TopLevelComponent
+        btw $ topLevelComponent
           [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, redundant)]
   -- The signature didn't exist, so was definitely redundant
-  _ -> btw $ TopLevelComponent
+  _ -> btw $ topLevelComponent
     [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, True)]
 
 -- | Synthesize the type of the given term, updating the context in the process.
@@ -1168,10 +1213,10 @@ annotateLetRecBindings isTop letrec =
     case withoutAnnotations of
       Just (_, vts') -> do
         r <- and <$> zipWithM isRedundant (fmap snd vts) (fmap snd vts')
-        btw $ TopLevelComponent ((\(v,b) -> (Var.reset v, b,r)) . unTypeVar <$> vts)
+        btw $ topLevelComponent ((\(v,b) -> (Var.reset v, b,r)) . unTypeVar <$> vts)
       -- ...(1) we'll assume all the user-provided annotations were needed
       Nothing -> btw
-        $ TopLevelComponent ((\(v, b) -> (Var.reset v, b, False)) . unTypeVar <$> vts)
+        $ topLevelComponent ((\(v, b) -> (Var.reset v, b, False)) . unTypeVar <$> vts)
     pure body
   -- If this isn't a top-level letrec, then we don't have to do anything special
   else fst <$> annotateLetRecBindings' True

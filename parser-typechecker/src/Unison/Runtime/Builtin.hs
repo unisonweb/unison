@@ -18,7 +18,6 @@ module Unison.Runtime.Builtin
 
 import Control.Exception (IOException, try)
 import Control.Monad.State.Strict (State, modify, execState)
-import Control.Monad (void)
 
 import Unison.ABT.Normalized hiding (TTm)
 import Unison.Reference
@@ -28,15 +27,22 @@ import Unison.Symbol
 import Unison.Runtime.Stack (Closure)
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.IOSource
+import Unison.Runtime.Foreign (HashAlgorithm(..))
 
 import qualified Unison.Type as Ty
 import qualified Unison.Builtin as Ty (builtinTypes)
 import qualified Unison.Builtin.Decls as Ty
+import qualified Crypto.Hash as Hash
+import qualified Crypto.MAC.HMAC as HMAC
 
 import Unison.Util.EnumContainers as EC
 
+import Data.Either.Combinators (mapLeft)
+import Data.Text.Encoding (encodeUtf8, decodeUtf8')
+import Data.ByteString (hGet, hPut)
 import Data.Word (Word64)
-import Data.Text as Text (Text, unpack)
+import Data.Text as Text (Text, pack, unpack)
+import qualified Data.ByteArray as BA
 
 import Data.Set (Set, insert)
 
@@ -68,10 +74,7 @@ import System.IO as SYS
   , hTell
   , stdin, stdout, stderr
   )
-import Data.Text.IO as SYS
-  ( hGetLine
-  , hPutStr
-  )
+import Data.Text.IO as SYS (hGetLine)
 import Control.Concurrent as SYS
   ( threadDelay
   , killThread
@@ -239,10 +242,6 @@ gei = cmpopb LEQI Ty.intRef
 gtn = cmpopn LEQN Ty.intRef
 gen = cmpopb LEQN Ty.intRef
 
-neqi, neqn :: Var v => SuperNormal v
-neqi = cmpopn EQLI Ty.intRef
-neqn = cmpopn EQLN Ty.intRef
-
 inci, incn :: Var v => SuperNormal v
 inci = unop INCI Ty.intRef
 incn = unop INCN Ty.natRef
@@ -251,17 +250,24 @@ sgni, negi :: Var v => SuperNormal v
 sgni = unop SGNI Ty.intRef
 negi = unop NEGI Ty.intRef
 
-lzeron, tzeron, lzeroi, tzeroi :: Var v => SuperNormal v
+lzeron, tzeron, lzeroi, tzeroi, popn, popi :: Var v => SuperNormal v
 lzeron = unop LZRO Ty.natRef
 tzeron = unop TZRO Ty.natRef
+popn = unop POPC Ty.natRef
+popi = unop' POPC Ty.intRef Ty.natRef
 lzeroi = unop' LZRO Ty.intRef Ty.natRef
 tzeroi = unop' TZRO Ty.intRef Ty.natRef
 
-andn, orn, xorn, compln :: Var v => SuperNormal v
+
+andn, orn, xorn, compln, andi, ori, xori, compli :: Var v => SuperNormal v
 andn = binop ANDN Ty.natRef
 orn = binop IORN Ty.natRef
 xorn = binop XORN Ty.natRef
 compln = unop COMN Ty.natRef
+andi = binop ANDN Ty.intRef
+ori = binop IORN Ty.intRef
+xori = binop XORN Ty.intRef
+compli = unop COMN Ty.intRef
 
 addf, subf, mulf, divf, powf, sqrtf, logf, logbf
   :: Var v => SuperNormal v
@@ -610,17 +616,27 @@ watch
 
 type ForeignOp = forall v. Var v => FOp -> ([Mem], ANormal v)
 
+
 maybe'result'direct
   :: Var v
   => FOp -> [v]
   -> v -> v
   -> ANormal v
+
 maybe'result'direct ins args t r
   = TLet t UN (AFOp ins args)
   . TMatch t . MatchSum $ mapFromList
   [ (0, ([], TCon Ty.optionalRef 0 []))
   , (1, ([BX], TAbs r $ TCon Ty.optionalRef 1 [r]))
   ]
+
+enum'decode :: Var v => Reference -> String -> Int -> v -> ANormalT v
+enum'decode rf err n v
+  = AMatch v $ MatchIntegral cases (Just dflt)
+  where
+  dflt = TLet v BX (ALit . T $ pack err) $ TPrm EROR [v]
+  cases = mapFromList $ fmap mkCase $ [0..n]
+  mkCase i = (toEnum i, TCon rf (toEnum i) [])
 
 io'error'result0
   :: Var v
@@ -631,9 +647,13 @@ io'error'result0 ins args ior ccs vs e nx
   = TLet ior UN (AFOp ins args)
   . TMatch ior . MatchSum
   $ mapFromList
-  [ (0, ([BX], TAbs e $ TCon eitherReference 0 [e]))
+  [ (0, ([UN], TAbs e
+             . TLet e BX (enum'decode Ty.ioErrorRef err 7 e)
+             $ TCon eitherReference 0 [e]))
   , (1, (ccs, TAbss vs nx))
   ]
+  where
+  err = "unrecognized IOError"
 
 io'error'result'let
   :: Var v
@@ -811,16 +831,17 @@ get'line instr
   where
   [h,ior,e,r] = freshes 4
 
-get'text :: ForeignOp
-get'text instr
-  = ([BX],)
-  . TAbss [h]
-  $ io'error'result'direct instr [h] ior e r
+get'bytes :: ForeignOp
+get'bytes instr
+  = ([BX, BX],)
+  . TAbss [h,n0]
+  . unbox n0 Ty.natRef n
+  $ io'error'result'direct instr [h,n] ior e r
   where
-  [h,ior,e,r] = freshes 4
+  [h,n0,n,ior,e,r] = freshes 6
 
-put'text :: ForeignOp
-put'text instr
+put'bytes :: ForeignOp
+put'bytes instr
   = ([BX,BX],)
   . TAbss [h,tx]
   $ io'error'result'direct instr [h,tx] ior e r
@@ -1001,14 +1022,9 @@ socket'receive instr
   = ([BX,BX],)
   . TAbss [sk,n0]
   . unbox n0 Ty.natRef n
-  . io'error'result'let instr [sk,n] ior [UN] [mt] e r
-  . AMatch mt . MatchSum
-  $ mapFromList
-  [ (0, ([], TCon Ty.optionalRef 0 []))
-  , (1, ([BX], TAbs b $ TCon Ty.optionalRef 1 [b]))
-  ]
+  $ io'error'result'direct instr [sk,n] ior e r
   where
-  [n0,sk,n,ior,e,r,b,mt] = freshes 8
+  [n0,sk,n,ior,e,r] = freshes 6
 
 delay'thread :: ForeignOp
 delay'thread instr
@@ -1104,6 +1120,49 @@ mvar'try'read instr
   where
   [mv,t,r] = freshes 3
 
+-- Pure ForeignOp taking two boxed values
+pfopbb :: ForeignOp
+pfopbb instr
+  = ([BX,BX],)
+  . TAbss [b1,b2]
+  $ TFOp instr [b1,b2]
+  where
+  [b1,b2] = freshes 2
+
+pfopbbb :: ForeignOp
+pfopbbb instr
+  = ([BX,BX,BX],)
+  . TAbss [b1,b2,b3]
+  $ TFOp instr [b1,b2,b3]
+  where
+  [b1,b2,b3] = freshes 3
+
+-- Pure ForeignOp taking no values
+pfop0 :: ForeignOp
+pfop0 instr = ([],) $ TFOp instr []
+
+-- Pure ForeignOp taking 1 boxed value and returning 1 boxed value
+pfopb :: ForeignOp
+pfopb instr
+  = ([BX],)
+  . TAbs t
+  $ TFOp instr [t]
+  where [t] = freshes 1
+
+-- Pure ForeignOp taking 1 boxed value and returning 1 Either, both sides boxed
+pfopb_ebb :: ForeignOp
+pfopb_ebb instr
+  = ([BX],)
+  . TAbss [b]
+  . TLet e UN (AFOp instr [b])
+  . TMatch e . MatchSum
+  $ mapFromList
+  [ (0, ([BX], TAbs ev $ TCon eitherReference 0 [ev]))
+  , (1, ([BX], TAbs ev $ TCon eitherReference 1 [ev]))
+  ]
+  where
+  [e,b,ev] = freshes 3
+
 builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
 builtinLookup
   = Map.fromList
@@ -1114,7 +1173,6 @@ builtinLookup
   , ("Int./", divi)
   , ("Int.mod", modi)
   , ("Int.==", eqi)
-  , ("Int.!=", neqi)
   , ("Int.<", lti)
   , ("Int.<=", lei)
   , ("Int.>", gti)
@@ -1129,10 +1187,15 @@ builtinLookup
   , ("Int.shiftRight", shri)
   , ("Int.trailingZeros", tzeroi)
   , ("Int.leadingZeros", lzeroi)
+  , ("Int.and", andi)
+  , ("Int.or", ori)
+  , ("Int.xor", xori)
+  , ("Int.complement", compli)
   , ("Int.pow", powi)
   , ("Int.toText", i2t)
   , ("Int.fromText", t2i)
   , ("Int.toFloat", i2f)
+  , ("Int.popCount", popi)
 
   , ("Nat.+", addn)
   , ("Nat.-", subn)
@@ -1141,7 +1204,6 @@ builtinLookup
   , ("Nat./", divn)
   , ("Nat.mod", modn)
   , ("Nat.==", eqn)
-  , ("Int.!=", neqn)
   , ("Nat.<", ltn)
   , ("Nat.<=", len)
   , ("Nat.>", gtn)
@@ -1163,6 +1225,7 @@ builtinLookup
   , ("Nat.toFloat", n2f)
   , ("Nat.toText", n2t)
   , ("Nat.fromText", t2n)
+  , ("Nat.popCount", popn)
 
   , ("Float.+", addf)
   , ("Float.-", subf)
@@ -1312,9 +1375,8 @@ declareForeigns = do
   declareForeign "IO.setBuffering" set'buffering
     . mkForeignIOE $ uncurry hSetBuffering
   declareForeign "IO.getLine" get'line $ mkForeignIOE hGetLine
-  declareForeign "IO.getText" get'text $
-    dummyFF -- mkForeignIOE $ \h -> pure . Right . Wrap <$> hGetText h
-  declareForeign "IO.putText" put'text . mkForeignIOE $ uncurry hPutStr
+  declareForeign "IO.getBytes" get'bytes .  mkForeignIOE $ \(h,n) -> fmap Bytes.fromArray $ hGet h n
+  declareForeign "IO.putBytes" put'bytes .  mkForeignIOE $ \(h,bs) -> hPut h (Bytes.toArray bs)
   declareForeign "IO.systemTime" system'time
     $ mkForeignIOE $ \() -> getPOSIXTime
   declareForeign "IO.getTempDirectory" get'temp'directory
@@ -1344,20 +1406,20 @@ declareForeigns = do
     . mkForeignIOE $ \fp -> fromInteger @Word64 <$> getFileSize fp
   declareForeign "IO.serverSocket" server'socket
     . mkForeignIOE $ \(mhst,port) ->
-        () <$ SYS.bindSock (hostPreference mhst) port
+        fst <$> SYS.bindSock (hostPreference mhst) port
   declareForeign "IO.listen" listen
     . mkForeignIOE $ \sk -> SYS.listenSock sk 2048
   declareForeign "IO.clientSocket" client'socket
-    . mkForeignIOE $ void . uncurry SYS.connectSock
+    . mkForeignIOE $ fmap fst . uncurry SYS.connectSock
   declareForeign "IO.closeSocket" close'socket
     $ mkForeignIOE SYS.closeSock
   declareForeign "IO.socketAccept" socket'accept
-    . mkForeignIOE $ void . SYS.accept
+    . mkForeignIOE $ fmap fst . SYS.accept
   declareForeign "IO.socketSend" socket'send
-    . mkForeignIOE $ \(sk,bs) -> SYS.send sk (Bytes.toByteString bs)
+    . mkForeignIOE $ \(sk,bs) -> SYS.send sk (Bytes.toArray bs)
   declareForeign "IO.socketReceive" socket'receive
     . mkForeignIOE $ \(hs,n) ->
-        fmap Bytes.fromByteString <$> SYS.recv hs n
+       fmap (maybe Bytes.empty Bytes.fromArray) $ SYS.recv hs n
   declareForeign "IO.kill" kill'thread $ mkForeignIOE killThread
   declareForeign "IO.delay" delay'thread $ mkForeignIOE threadDelay
   declareForeign "IO.stdHandle" standard'handle
@@ -1387,6 +1449,49 @@ declareForeigns = do
     . mkForeignIOE $ \(mv :: MVar Closure) -> readMVar mv
   declareForeign "MVar.tryRead" mvar'try'read
     . mkForeign $ \(mv :: MVar Closure) -> tryReadMVar mv
+
+  declareForeign "Text.toUtf8" pfopb . mkForeign $ pure . Bytes.fromArray . encodeUtf8
+  declareForeign "Text.fromUtf8" pfopb_ebb . mkForeign $ pure . mapLeft (pack . show) . decodeUtf8' . Bytes.toArray
+
+  -- Hashing functions
+  let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()
+      declareHashAlgorithm txt alg = do
+        let algoRef = Builtin ("crypto.HashAlgorithm." <> txt)
+        declareForeign ("crypto.HashAlgorithm." <> txt) pfop0 . mkForeign $ \() ->
+          pure (HashAlgorithm algoRef alg)
+
+  declareHashAlgorithm "Sha3_512" Hash.SHA3_512
+  declareHashAlgorithm "Sha3_256" Hash.SHA3_256
+  declareHashAlgorithm "Sha2_512" Hash.SHA512
+  declareHashAlgorithm "Sha2_256" Hash.SHA256
+  declareHashAlgorithm "Blake2b_512" Hash.Blake2b_512
+  declareHashAlgorithm "Blake2b_256" Hash.Blake2b_256
+  declareHashAlgorithm "Blake2s_256" Hash.Blake2s_256
+
+  -- declareForeign ("crypto.hash") pfopbb . mkForeign $ \(HashAlgorithm _ref _alg, _a :: Closure) ->
+  --   pure $ Bytes.empty -- todo : implement me
+
+  declareForeign "crypto.hashBytes" pfopbb . mkForeign $
+    \(HashAlgorithm _ alg, b :: Bytes.Bytes) ->
+        let ctx = Hash.hashInitWith alg
+        in pure . Bytes.fromArray . Hash.hashFinalize $ Hash.hashUpdates ctx (Bytes.chunks b)
+
+  declareForeign "crypto.hmacBytes" pfopbbb
+    . mkForeign $ \(HashAlgorithm _ alg, key :: Bytes.Bytes, msg :: Bytes.Bytes) ->
+        let out = u alg $ HMAC.hmac (Bytes.toArray @BA.Bytes key) (Bytes.toArray @BA.Bytes msg)
+            u :: a -> HMAC.HMAC a -> HMAC.HMAC a
+            u _ h = h -- to help typechecker along
+        in pure $ Bytes.fromArray out
+
+  declareForeign "Bytes.toBase16" pfopb . mkForeign $ pure . Bytes.toBase16
+  declareForeign "Bytes.toBase32" pfopb . mkForeign $ pure . Bytes.toBase32
+  declareForeign "Bytes.toBase64" pfopb . mkForeign $ pure . Bytes.toBase64
+  declareForeign "Bytes.toBase64UrlUnpadded" pfopb . mkForeign $ pure . Bytes.toBase64UrlUnpadded
+
+  declareForeign "Bytes.fromBase16" pfopb_ebb . mkForeign $ pure . Bytes.fromBase16
+  declareForeign "Bytes.fromBase32" pfopb_ebb . mkForeign $ pure . Bytes.fromBase32
+  declareForeign "Bytes.fromBase64" pfopb_ebb . mkForeign $ pure . Bytes.fromBase64
+  declareForeign "Bytes.fromBase64UrlUnpadded" pfopb . mkForeign $ pure . Bytes.fromBase64UrlUnpadded
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny

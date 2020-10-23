@@ -102,6 +102,7 @@ data Error v
   | ResolutionFailures [Names.ResolutionFailure v Ann]
   | DuplicateTypeNames [(v, [Ann])]
   | DuplicateTermNames [(v, [Ann])]
+  | PatternArityMismatch Int Int Ann -- PatternArityMismatch expectedArity actualArity location
   deriving (Show, Eq, Ord)
 
 data Ann

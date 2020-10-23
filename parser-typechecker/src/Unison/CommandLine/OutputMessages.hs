@@ -1203,23 +1203,26 @@ displayTestResults :: Bool -- whether to show the tip
                    -> [(Reference, Text)]
                    -> [(Reference, Text)]
                    -> Pretty
-displayTestResults showTip ppe oks fails = let
-  name r = P.text (HQ.toText $ PPE.termName ppe (Referent.Ref r))
+displayTestResults showTip ppe oksUnsorted failsUnsorted = let
+  oks   = Name.sortByText fst [ (name r, msg) | (r, msg) <- oksUnsorted ]
+  fails = Name.sortByText fst [ (name r, msg) | (r, msg) <- failsUnsorted ]
+  name r = HQ.toText $ PPE.termName ppe (Referent.Ref r)
   okMsg =
     if null oks then mempty
-    else P.column2 [ (P.green "◉ " <> name r, "  " <> P.green (P.text msg)) | (r, msg) <- oks ]
+    else P.column2 [ (P.green "◉ " <> P.text r, "  " <> P.green (P.text msg)) | (r, msg) <- oks ]
   okSummary =
     if null oks then mempty
     else "✅ " <> P.bold (P.num (length oks)) <> P.green " test(s) passing"
   failMsg =
     if null fails then mempty
-    else P.column2 [ (P.red "✗ " <> name r, "  " <> P.red (P.text msg)) | (r, msg) <- fails ]
+    else P.column2 [ (P.red "✗ " <> P.text r, "  " <> P.red (P.text msg)) | (r, msg) <- fails ]
   failSummary =
     if null fails then mempty
     else "🚫 " <> P.bold (P.num (length fails)) <> P.red " test(s) failing"
   tipMsg =
     if not showTip || (null oks && null fails) then mempty
-    else tip $ "Use " <> P.blue ("view " <> name (fst $ head (fails ++ oks))) <> "to view the source of a test."
+    else tip $ "Use " <> P.blue ("view " <> P.text (fst $ head (fails ++ oks)))
+            <> "to view the source of a test."
   in if null oks && null fails then "😶 No tests available."
      else P.sep "\n\n" . P.nonEmpty $ [
           okMsg, failMsg,
