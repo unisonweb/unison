@@ -19,7 +19,7 @@ import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import Unison.Codebase.SqliteCodebase.Conversions (decltype2to1, hash1to2, term2to1)
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.DataDeclaration (Decl)
 import Unison.Parser (Ann)
@@ -42,11 +42,7 @@ import U.Codebase.Sqlite.Queries (DB)
 sqliteCodebase :: CodebasePath -> IO (IO (), Codebase1.Codebase IO Symbol Ann)
 sqliteCodebase root = do
   conn :: Sqlite.Connection <- Sqlite.open $ root </> "v2" </> "unison.sqlite3"
-  let getTypeOfTermImpl :: Reference.Id -> IO (Maybe (Type Symbol Ann))
-      getTypeDeclaration :: Reference.Id -> IO (Maybe (Decl Symbol Ann))
-      putTerm :: Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> IO ()
-      putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> IO ()
-      getRootBranch :: IO (Either Codebase1.GetRootBranchError (Branch IO))
+  let getRootBranch :: IO (Either Codebase1.GetRootBranchError (Branch IO))
       putRootBranch :: Branch IO -> IO ()
       rootBranchUpdates :: IO (IO (), IO (Set Branch.Hash))
       getBranchForHash :: Branch.Hash -> IO (Maybe (Branch IO))
@@ -68,24 +64,41 @@ sqliteCodebase root = do
       branchHashesByPrefix :: ShortBranchHash -> IO (Set Branch.Hash)
 
       getTerm :: Reference.Id -> IO (Maybe (Term Symbol Ann))
-      getTerm (Reference.Id h1@(hash1to2 -> h2) i _n) =
-        runDB conn $ do
+      getTerm (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
+        runDB conn do
           term2 <- Ops.loadTermByReference (C.Reference.Id h2 i)
-          term2to1 h1 getCycleLen getDeclType term2
+          Cv.term2to1 h1 getCycleLen getDeclType term2
 
       getCycleLen :: DB m => Hash -> MaybeT m Reference.Size
-      getCycleLen = Ops.getCycleLen . hash1to2
+      getCycleLen = Ops.getCycleLen . Cv.hash1to2
+
       getDeclType :: DB m => C.Reference.Reference -> MaybeT m CT.ConstructorType
       getDeclType = \case
         C.Reference.ReferenceBuiltin t ->
           MaybeT (pure $ Map.lookup (Reference.Builtin t) Builtins.builtinConstructorType)
         C.Reference.ReferenceDerived i -> getDeclTypeById i
+
       getDeclTypeById :: DB m => C.Reference.Id -> MaybeT m CT.ConstructorType
-      getDeclTypeById = fmap decltype2to1 . Ops.getDeclTypeByReference
-      getTypeOfTermImpl = error "todo"
-      getTypeDeclaration = error "todo"
+      getDeclTypeById = fmap Cv.decltype2to1 . Ops.getDeclTypeByReference
+
+      getTypeOfTermImpl :: Reference.Id -> IO (Maybe (Type Symbol Ann))
+      getTypeOfTermImpl (Reference.Id (Cv.hash1to2 -> h2) i _n) =
+        runDB conn do
+          type2 <- Ops.loadTypeOfTermByTermReference (C.Reference.Id h2 i)
+          Cv.ttype2to1 getCycleLen type2
+
+      getTypeDeclaration :: Reference.Id -> IO (Maybe (Decl Symbol Ann))
+      getTypeDeclaration (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
+        runDB conn do
+          decl2 <- Ops.loadDeclByReference (C.Reference.Id h2 i)
+          Cv.decl2to1 h1 getCycleLen decl2
+
+      putTerm :: Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> IO ()
       putTerm = error "todo"
+
+      putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> IO ()
       putTypeDeclaration = error "todo"
+
       getRootBranch = error "todo"
       putRootBranch = error "todo"
       rootBranchUpdates = error "todo"

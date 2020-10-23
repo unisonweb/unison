@@ -21,21 +21,20 @@ import Data.String.Here.Uninterpolated (here)
 import Data.Text (Text)
 import qualified Database.SQLite.Simple as SQLite
 import Database.SQLite.Simple (SQLData, (:.) (..), Connection, FromRow, Only (..), ToRow (..))
-import Database.SQLite.Simple.FromField
-import Database.SQLite.Simple.ToField
+import Database.SQLite.Simple.FromField ( FromField )
+import Database.SQLite.Simple.ToField ( ToField )
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
-import U.Codebase.Sqlite.ObjectType
+import U.Codebase.Sqlite.ObjectType ( ObjectType )
 import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hashable (Hashable)
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
-import U.Codebase.Sqlite.DbId
+import U.Codebase.Sqlite.DbId ( HashId(..), ObjectId(..), TextId )
 import U.Codebase.Reference (Reference')
 
 -- * types
 type DB m = (MonadIO m, MonadReader Connection m)
-
 
 newtype TypeId = TypeId ObjectId deriving (FromField, ToField) via ObjectId
 newtype TermId = TermCycleId ObjectId deriving (FromField, ToField) via ObjectId
@@ -47,6 +46,7 @@ newtype NamespaceHashId = NamespaceHashId ObjectId deriving (Hashable, FromField
 -- type DerivedReferent = Referent.Id ObjectId ObjectId
 -- type DerivedReference = Reference.Id ObjectId
 type TypeHashReference = Reference' TextId HashId
+
 -- * main squeeze
 
 saveHash :: DB m => Base32Hex -> m HashId
@@ -231,12 +231,30 @@ addToDependentsIndex dependency dependent = execute sql (dependency :. dependent
 
 getDependentsForDependency :: DB m => Reference.Reference -> m [Reference.Id]
 getDependentsForDependency dependency = query sql dependency where sql = [here|
-  SELECT FROM dependents_index (
-    dependent_object_id, dependent_component_index
-  ) WHERE dependency_builtin = ?
-      AND dependency_object_id = ?
-      AND dependency_component_index = ?
+  SELECT dependent_object_id, dependent_component_index
+  FROM dependents_index
+  WHERE dependency_builtin = ?
+    AND dependency_object_id = ?
+    AND dependency_component_index = ?
 |]
+
+objectIdByBase32Prefix :: DB m => ObjectType -> Text -> m [ObjectId]
+objectIdByBase32Prefix objType prefix = queryList sql (objType, prefix <> "%") where sql = [here|
+  SELECT object.id FROM object
+  INNER JOIN hash_object ON hash_object.object_id = object.id
+  INNER JOIN hash ON hash_object.hash_id = hash.id
+  WHERE object.type_id = ?
+    AND hash.base32 LIKE ?
+|]
+-- alternatively
+-- [here|
+--   SELECT object.id
+--   FROM object, hash, hash_object
+--   WHERE object.id = hash_object.object_id
+--     AND hash.id = hash_object.hash_id
+--     AND object.type_id = ?
+--     AND hash.base32 LIKE ?
+-- |]
 
 -- * helper functions
 queryList :: (DB f, ToRow q, FromField b) => SQLite.Query -> q -> f [b]

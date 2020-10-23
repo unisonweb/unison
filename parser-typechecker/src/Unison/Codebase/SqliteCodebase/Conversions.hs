@@ -1,7 +1,7 @@
 module Unison.Codebase.SqliteCodebase.Conversions where
 
 import qualified Data.ByteString.Short as SBS
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import qualified U.Codebase.Decl as V2.Decl
 import qualified U.Codebase.Kind as V2.Kind
 import qualified U.Codebase.Reference as V2
@@ -15,6 +15,7 @@ import qualified U.Util.Hash as V2
 import qualified U.Util.Hash as V2.Hash
 import qualified Unison.ABT as V1.ABT
 import qualified Unison.ConstructorType as CT
+import qualified Unison.DataDeclaration as V1.Decl
 import Unison.Hash (Hash)
 import qualified Unison.Hash as V1
 import qualified Unison.Kind as V1.Kind
@@ -36,8 +37,8 @@ decltype2to1 = \case
 
 decltype1to2 :: CT.ConstructorType -> V2.Decl.DeclType
 decltype1to2 = \case
-   CT.Data -> V2.Decl.Data
-   CT.Effect -> V2.Decl.Effect
+  CT.Data -> V2.Decl.Data
+  CT.Effect -> V2.Decl.Effect
 
 term2to1 :: forall m. Monad m => Hash -> (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.Term V2.Symbol -> m (V1.Term.Term V1.Symbol Ann)
 term2to1 h lookupSize lookupCT tm =
@@ -45,6 +46,91 @@ term2to1 h lookupSize lookupCT tm =
     . V1.ABT.vmap symbol2to1
     . V1.ABT.amap (const Ann.External)
     $ abt2to1 tm
+  where
+    termF2to1 :: forall m a. Monad m => Hash -> (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.F V2.Symbol a -> m (V1.Term.F V1.Symbol Ann Ann a)
+    termF2to1 h lookupSize lookupCT = go
+      where
+        go :: V2.Term.F V2.Symbol a -> m (V1.Term.F V1.Symbol Ann Ann a)
+        go = \case
+          V2.Term.Int i -> pure $ V1.Term.Int i
+          V2.Term.Nat n -> pure $ V1.Term.Nat n
+          V2.Term.Float d -> pure $ V1.Term.Float d
+          V2.Term.Boolean b -> pure $ V1.Term.Boolean b
+          V2.Term.Text t -> pure $ V1.Term.Text t
+          V2.Term.Char c -> pure $ V1.Term.Char c
+          V2.Term.Ref r -> V1.Term.Ref <$> rreference2to1 h lookupSize r
+          V2.Term.Constructor r i ->
+            V1.Term.Constructor <$> reference2to1 lookupSize r <*> pure (fromIntegral i)
+          V2.Term.Request r i ->
+            V1.Term.Request <$> reference2to1 lookupSize r <*> pure (fromIntegral i)
+          V2.Term.Handle a a4 -> pure $ V1.Term.Handle a a4
+          V2.Term.App a a4 -> pure $ V1.Term.App a a4
+          V2.Term.Ann a t2 -> V1.Term.Ann a <$> ttype2to1 lookupSize t2
+          V2.Term.Sequence sa -> pure $ V1.Term.Sequence sa
+          V2.Term.If a a4 a5 -> pure $ V1.Term.If a a4 a5
+          V2.Term.And a a4 -> pure $ V1.Term.And a a4
+          V2.Term.Or a a4 -> pure $ V1.Term.Or a a4
+          V2.Term.Lam a -> pure $ V1.Term.Lam a
+          V2.Term.LetRec as a -> pure $ V1.Term.LetRec False as a
+          V2.Term.Let a a4 -> pure $ V1.Term.Let False a a4
+          V2.Term.Match a cases -> V1.Term.Match a <$> traverse goCase cases
+          V2.Term.TermLink rr -> V1.Term.TermLink <$> rreferent2to1 h lookupSize lookupCT rr
+          V2.Term.TypeLink r -> V1.Term.TypeLink <$> reference2to1 lookupSize r
+        goCase = \case
+          V2.Term.MatchCase pat cond body ->
+            V1.Term.MatchCase <$> (goPat pat) <*> pure cond <*> pure body
+        goPat = \case
+          V2.Term.PUnbound -> pure $ P.Unbound a
+          V2.Term.PVar -> pure $ P.Var a
+          V2.Term.PBoolean b -> pure $ P.Boolean a b
+          V2.Term.PInt i -> pure $ P.Int a i
+          V2.Term.PNat n -> pure $ P.Nat a n
+          V2.Term.PFloat d -> pure $ P.Float a d
+          V2.Term.PText t -> pure $ P.Text a t
+          V2.Term.PChar c -> pure $ P.Char a c
+          V2.Term.PConstructor r i ps ->
+            P.Constructor a <$> reference2to1 lookupSize r <*> pure i <*> (traverse goPat ps)
+          V2.Term.PAs p -> P.As a <$> goPat p
+          V2.Term.PEffectPure p -> P.EffectPure a <$> goPat p
+          V2.Term.PEffectBind r i ps p -> P.EffectBind a <$> reference2to1 lookupSize r <*> pure i <*> traverse goPat ps <*> goPat p
+          V2.Term.PSequenceLiteral ps -> P.SequenceLiteral a <$> traverse goPat ps
+          V2.Term.PSequenceOp p1 op p2 -> P.SequenceOp a <$> goPat p1 <*> pure (goOp op) <*> goPat p2
+        goOp = \case
+          V2.Term.PCons -> P.Cons
+          V2.Term.PSnoc -> P.Snoc
+          V2.Term.PConcat -> P.Concat
+        a = Ann.External
+
+decl2to1 :: Monad m => Hash -> (Hash -> m V1.Reference.Size) -> V2.Decl.Decl V2.Symbol -> m (V1.Decl.Decl V1.Symbol Ann)
+decl2to1 h lookupSize (V2.Decl.DataDeclaration dt m bound cts) =
+  goCT dt
+    <$> V1.Decl.DataDeclaration (goMod m) Ann.External (symbol2to1 <$> bound)
+    <$> cts'
+  where
+    goMod = \case
+      V2.Decl.Structural -> V1.Decl.Structural
+      V2.Decl.Unique t -> V1.Decl.Unique t
+    goCT = \case
+      V2.Decl.Data -> Right
+      V2.Decl.Effect -> Left . V1.Decl.EffectDeclaration
+    cts' = traverse mkCtor (zip cts [0 ..])
+    mkCtor (type1, i) = do
+      type2 <- dtype2to1 h lookupSize type1
+      pure $ (Ann.External, V1.symbol . pack $ "Constructor" ++ show i, type2)
+
+decl1to2 :: Hash -> V1.Decl.Decl V1.Symbol a -> V2.Decl.Decl V2.Symbol
+decl1to2 h decl1 = case V1.Decl.asDataDecl decl1 of
+  V1.Decl.DataDeclaration m _ann bound cts ->
+    V2.Decl.DataDeclaration
+      (decltype1to2 $ V1.Decl.constructorType decl1)
+      (goMod m)
+      (symbol1to2 <$> bound)
+      cts'
+    where
+      goMod = \case
+        V1.Decl.Structural -> V2.Decl.Structural
+        V1.Decl.Unique t -> V2.Decl.Unique t
+      cts' = [dtype1to2 h t | (_, _, t) <- cts]
 
 symbol2to1 :: V2.Symbol -> V1.Symbol
 symbol2to1 (V2.Symbol i t) = V1.Symbol i (Var.User t)
@@ -155,79 +241,30 @@ type2to1' convertRef =
           V2.Kind.Star -> V1.Kind.Star
           V2.Kind.Arrow i o -> V1.Kind.Arrow (convertKind i) (convertKind o)
 
+dtype1to2 :: Hash -> V1.Type.Type V1.Symbol a -> V2.Type.TypeD V2.Symbol
+dtype1to2 h = type1to2' (rreference1to2 h)
+
+ttype1to2 :: V1.Type.Type V1.Symbol a -> V2.Type.TypeT V2.Symbol
+ttype1to2 = type1to2' reference1to2
+
 type1to2' :: (V1.Reference -> r) -> V1.Type.Type V1.Symbol a -> V2.Type.TypeR r V2.Symbol
 type1to2' convertRef =
   V2.ABT.transform (typeF1to2' convertRef)
-  . V2.ABT.vmap symbol1to2
-  . V2.ABT.amap (const ())
-  . abt1to2
-
-typeF1to2' :: (V1.Reference -> r) -> V1.Type.F a -> V2.Type.F' r a
-typeF1to2' convertRef = \case
-  V1.Type.Ref r -> V2.Type.Ref (convertRef r)
-  V1.Type.Arrow i o -> V2.Type.Arrow i o
-  V1.Type.Ann a k -> V2.Type.Ann a (convertKind k)
-  V1.Type.App f x -> V2.Type.App f x
-  V1.Type.Effect e b -> V2.Type.Effect e b
-  V1.Type.Effects as -> V2.Type.Effects as
-  V1.Type.Forall a -> V2.Type.Forall a
-  V1.Type.IntroOuter a -> V2.Type.IntroOuter a
+    . V2.ABT.vmap symbol1to2
+    . V2.ABT.amap (const ())
+    . abt1to2
   where
-    convertKind = \case
-      V1.Kind.Star -> V2.Kind.Star
-      V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)
-
-
-termF2to1 :: forall m a. Monad m => Hash -> (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.F V2.Symbol a -> m (V1.Term.F V1.Symbol Ann Ann a)
-termF2to1 h lookupSize lookupCT = go
-  where
-    go :: V2.Term.F V2.Symbol a -> m (V1.Term.F V1.Symbol Ann Ann a)
-    go = \case
-      V2.Term.Int i -> pure $ V1.Term.Int i
-      V2.Term.Nat n -> pure $ V1.Term.Nat n
-      V2.Term.Float d -> pure $ V1.Term.Float d
-      V2.Term.Boolean b -> pure $ V1.Term.Boolean b
-      V2.Term.Text t -> pure $ V1.Term.Text t
-      V2.Term.Char c -> pure $ V1.Term.Char c
-      V2.Term.Ref r -> V1.Term.Ref <$> rreference2to1 h lookupSize r
-      V2.Term.Constructor r i ->
-        V1.Term.Constructor <$> reference2to1 lookupSize r <*> pure (fromIntegral i)
-      V2.Term.Request r i ->
-        V1.Term.Request <$> reference2to1 lookupSize r <*> pure (fromIntegral i)
-      V2.Term.Handle a a4 -> pure $ V1.Term.Handle a a4
-      V2.Term.App a a4 -> pure $ V1.Term.App a a4
-      V2.Term.Ann a t2 -> V1.Term.Ann a <$> ttype2to1 lookupSize t2
-      V2.Term.Sequence sa -> pure $ V1.Term.Sequence sa
-      V2.Term.If a a4 a5 -> pure $ V1.Term.If a a4 a5
-      V2.Term.And a a4 -> pure $ V1.Term.And a a4
-      V2.Term.Or a a4 -> pure $ V1.Term.Or a a4
-      V2.Term.Lam a -> pure $ V1.Term.Lam a
-      V2.Term.LetRec as a -> pure $ V1.Term.LetRec False as a
-      V2.Term.Let a a4 -> pure $ V1.Term.Let False a a4
-      V2.Term.Match a cases -> V1.Term.Match a <$> traverse goCase cases
-      V2.Term.TermLink rr -> V1.Term.TermLink <$> rreferent2to1 h lookupSize lookupCT rr
-      V2.Term.TypeLink r -> V1.Term.TypeLink <$> reference2to1 lookupSize r
-    goCase = \case
-      V2.Term.MatchCase pat cond body ->
-        V1.Term.MatchCase <$> (goPat pat) <*> pure cond <*> pure body
-    goPat = \case
-      V2.Term.PUnbound -> pure $ P.Unbound a
-      V2.Term.PVar -> pure $ P.Var a
-      V2.Term.PBoolean b -> pure $ P.Boolean a b
-      V2.Term.PInt i -> pure $ P.Int a i
-      V2.Term.PNat n -> pure $ P.Nat a n
-      V2.Term.PFloat d -> pure $ P.Float a d
-      V2.Term.PText t -> pure $ P.Text a t
-      V2.Term.PChar c -> pure $ P.Char a c
-      V2.Term.PConstructor r i ps ->
-        P.Constructor a <$> reference2to1 lookupSize r <*> pure i <*> (traverse goPat ps)
-      V2.Term.PAs p -> P.As a <$> goPat p
-      V2.Term.PEffectPure p -> P.EffectPure a <$> goPat p
-      V2.Term.PEffectBind r i ps p -> P.EffectBind a <$> reference2to1 lookupSize r <*> pure i <*> traverse goPat ps <*> goPat p
-      V2.Term.PSequenceLiteral ps -> P.SequenceLiteral a <$> traverse goPat ps
-      V2.Term.PSequenceOp p1 op p2 -> P.SequenceOp a <$> goPat p1 <*> pure (goOp op) <*> goPat p2
-    goOp = \case
-      V2.Term.PCons -> P.Cons
-      V2.Term.PSnoc -> P.Snoc
-      V2.Term.PConcat -> P.Concat
-    a = Ann.External
+    typeF1to2' :: (V1.Reference -> r) -> V1.Type.F a -> V2.Type.F' r a
+    typeF1to2' convertRef = \case
+      V1.Type.Ref r -> V2.Type.Ref (convertRef r)
+      V1.Type.Arrow i o -> V2.Type.Arrow i o
+      V1.Type.Ann a k -> V2.Type.Ann a (convertKind k)
+      V1.Type.App f x -> V2.Type.App f x
+      V1.Type.Effect e b -> V2.Type.Effect e b
+      V1.Type.Effects as -> V2.Type.Effects as
+      V1.Type.Forall a -> V2.Type.Forall a
+      V1.Type.IntroOuter a -> V2.Type.IntroOuter a
+      where
+        convertKind = \case
+          V1.Kind.Star -> V2.Kind.Star
+          V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)

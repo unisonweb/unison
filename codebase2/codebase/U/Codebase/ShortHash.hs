@@ -7,6 +7,14 @@ module U.Codebase.ShortHash where
 import Data.Text (Text)
 import Data.Word (Word64)
 
+
+-- ##Text.++
+--   ^^^^^^^-- builtin
+
+-- #abc123.a#0
+--  ^      ^ ^-cid
+--  |      \-cycle
+--  \-- prefix
 data ShortHash
   = Builtin Text
   | ShortHash { prefix :: Text, cycle :: Maybe Word64, cid :: Maybe Word64 }

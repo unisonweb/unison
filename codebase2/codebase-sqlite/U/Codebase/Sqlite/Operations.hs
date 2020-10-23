@@ -146,7 +146,7 @@ loadTypeOfTermByTermReference r = do
 loadDeclByReference :: DB m => C.Reference.Id -> MaybeT m (C.Decl Symbol)
 loadDeclByReference (C.Reference.Id h i) = do
   -- retrieve the blob
-  (localIds, C.Decl.DataDeclaration dt m b ct) <- do
+  (localIds, C.Decl.DataDeclaration dt m b ct) <-
     hashToObjectId >=> loadObjectById >=> decodeDeclElement i $ h
 
   -- look up the text and hashes that are used by the term
