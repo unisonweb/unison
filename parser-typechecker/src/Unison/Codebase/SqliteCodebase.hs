@@ -23,7 +23,7 @@ import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.DataDeclaration (Decl)
 import Unison.Parser (Ann)
-import Unison.Prelude (MaybeT (runMaybeT))
+import Unison.Prelude (fromMaybe, MaybeT (runMaybeT))
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
@@ -42,6 +42,11 @@ import qualified Unison.ShortHash as ShortHash
 import qualified Data.Set as Set
 import Control.Monad.Trans (MonadTrans(lift))
 import qualified U.Util.Monoid as Monoid
+import qualified U.Codebase.Sqlite.ObjectType as OT
+import Data.Word (Word64)
+import qualified U.Codebase.Decl as V2.Decl
+import Control.Monad (join)
+import qualified Data.Foldable as Foldable
 
 sqliteCodebase :: CodebasePath -> IO (IO (), Codebase1.Codebase IO Symbol Ann)
 sqliteCodebase root = do
@@ -61,7 +66,6 @@ sqliteCodebase root = do
       termsOfTypeImpl :: Reference -> IO (Set Referent.Id)
       termsMentioningTypeImpl :: Reference -> IO (Set Referent.Id)
       hashLength :: IO Int
-      termReferentsByPrefix :: ShortHash -> IO (Set Referent.Id)
       branchHashLength :: IO Int
       branchHashesByPrefix :: ShortBranchHash -> IO (Set Branch.Hash)
 
@@ -115,20 +119,43 @@ sqliteCodebase root = do
       appendReflog = error "todo"
       termsOfTypeImpl = error "todo"
       termsMentioningTypeImpl = error "todo"
-      hashLength = error "todo"
 
-      termReferencesByPrefix :: ShortHash -> IO (Set Reference.Id)
-      termReferencesByPrefix (ShortHash.Builtin _) = pure mempty
-      termReferencesByPrefix (ShortHash.ShortHash prefix cycle _cid) =
+      hashLength = pure 10
+      branchHashLength = pure 10
+
+      defnReferencesByPrefix :: OT.ObjectType -> ShortHash -> IO (Set Reference.Id)
+      defnReferencesByPrefix _ (ShortHash.Builtin _) = pure mempty
+      defnReferencesByPrefix ot (ShortHash.ShortHash prefix cycle _cid) =
         Monoid.fromMaybe <$> runDB conn do
-          refs <- lift $ Ops.termReferencesByPrefix prefix (Cv.shortHashSuffix1to2 <$> cycle)
+          refs <- lift $ Ops.componentReferencesByPrefix ot prefix (Cv.shortHashSuffix1to2 <$> cycle)
           Set.fromList <$> traverse (Cv.referenceid2to1 getCycleLen) (Set.toList refs)
 
-      typeReferencesByPrefix :: ShortHash -> IO (Set Reference.Id)
-      typeReferencesByPrefix = error "todo"
+      termReferencesByPrefix :: ShortHash -> IO (Set Reference.Id)
+      termReferencesByPrefix = defnReferencesByPrefix OT.TermComponent
 
-      termReferentsByPrefix = error "todo"
-      branchHashLength = error "todo"
+      declReferencesByPrefix :: ShortHash -> IO (Set Reference.Id)
+      declReferencesByPrefix = defnReferencesByPrefix OT.DeclComponent
+
+      -- this implementation is wrong; it should filter by ctor id if provided
+      termReferentsByPrefix :: ShortHash -> IO (Set Referent.Id)
+      termReferentsByPrefix sh = do
+        terms <- termReferencesByPrefix sh
+        let termReferents = Set.map Referent.Ref' terms
+        decls <- declReferencesByPrefix sh
+        declReferents <- Set.fromList . join <$> traverse go (Foldable.toList decls)
+        pure (termReferents <> declReferents)
+        where
+          getDeclCtorCount :: DB m => Reference.Id -> m (CT.ConstructorType, Word64)
+          getDeclCtorCount (Reference.Id (Cv.hash1to2 -> h2) i _n) = do
+            -- this is a database integrity error if the decl doesn't exist in the database
+            decl20 <- runMaybeT $ Ops.loadDeclByReference (C.Reference.Id h2 i)
+            let decl2 = fromMaybe (error "database integrity error") decl20
+            pure (Cv.decltype2to1 $ V2.Decl.declType decl2,
+              fromIntegral . length $ V2.Decl.constructorTypes decl2)
+          go rid = do
+            (ct, ctorCount) <- getDeclCtorCount rid
+            pure [Referent.Con' rid (fromIntegral cid) ct | cid <- [0..ctorCount - 1]]
+
       branchHashesByPrefix = error "todo"
   let finalizer = Sqlite.close conn
   pure $
@@ -155,7 +182,7 @@ sqliteCodebase root = do
         termsMentioningTypeImpl
         hashLength
         termReferencesByPrefix
-        typeReferencesByPrefix
+        declReferencesByPrefix
         termReferentsByPrefix
         branchHashLength
         branchHashesByPrefix
