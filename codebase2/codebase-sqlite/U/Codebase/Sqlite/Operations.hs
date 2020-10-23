@@ -5,8 +5,8 @@
 
 module U.Codebase.Sqlite.Operations where
 
-import Control.Monad ((>=>))
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
+import Control.Monad (join, (>=>))
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.ByteString (ByteString)
@@ -21,11 +21,12 @@ import qualified U.Codebase.Decl as C.Decl
 import qualified U.Codebase.Reference as C
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
-import U.Codebase.ShortHash (ShortBranchHash, ShortHash)
+import U.Codebase.ShortHash (ShortBranchHash)
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
 import U.Codebase.Sqlite.LocalIds (LocalIds)
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
+import qualified U.Codebase.Sqlite.ObjectType as OT
 import U.Codebase.Sqlite.Queries (DB)
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Reference as S
@@ -39,6 +40,7 @@ import qualified U.Codebase.Type as C.Type
 import U.Codebase.WatchKind (WatchKind)
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Hash as H
+import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (getFromBytes)
 import qualified U.Util.Serialization as S
 
@@ -88,8 +90,10 @@ loadHashByObjectId =
     . m' "Q.loadPrimaryHashByObjectId" Q.loadPrimaryHashByObjectId
 
 decodeComponentLengthOnly :: Applicative f => ByteString -> MaybeT f Word64
-decodeComponentLengthOnly = m' "decodeComponentLengthOnly"
-  (fmap pure $ getFromBytes S.lengthFramedArray)
+decodeComponentLengthOnly =
+  m'
+    "decodeComponentLengthOnly"
+    (fmap pure $ getFromBytes S.lengthFramedArray)
 
 decodeTermElement :: Applicative f => Word64 -> ByteString -> MaybeT f (LocalIds, S.Term.Term)
 decodeTermElement i =
@@ -104,9 +108,11 @@ decodeDeclElement i =
     (pure . getFromBytes (S.lookupDeclElement i))
 
 -- * legacy conversion helpers
+
 getCycleLen :: DB m => H.Hash -> MaybeT m Word64
-getCycleLen h = fmap fromIntegral $
-  hashToObjectId >=> loadObjectById >=> decodeComponentLengthOnly $ h
+getCycleLen h =
+  fmap fromIntegral $
+    hashToObjectId >=> loadObjectById >=> decodeComponentLengthOnly $ h
 
 getDeclTypeByReference :: DB m => C.Reference.Id -> MaybeT m C.Decl.DeclType
 getDeclTypeByReference = fmap C.Decl.declType . loadDeclByReference
@@ -181,14 +187,30 @@ termsHavingType = error "todo"
 termsMentioningType :: DB m => C.Reference -> m (Set C.Referent.Id)
 termsMentioningType = error "todo"
 
-termReferencesByPrefix :: DB m => ShortHash -> m (Set C.Reference.Id)
-termReferencesByPrefix = error "todo"
+componentReferencesByPrefix :: DB m => OT.ObjectType -> Text -> Maybe Word64 -> m (Set C.Reference.Id)
+componentReferencesByPrefix ot b32prefix componentIndex = do
+  oIds :: [Db.ObjectId] <- Q.objectIdByBase32Prefix ot b32prefix
+  let filteredComponent l = case componentIndex of
+        Nothing -> l
+        Just qi -> [x | x@(C.Reference.Id _ i) <- l, i == qi]
+  fmap Monoid.fromMaybe . runMaybeT $
+    Set.fromList . join
+      <$> traverse (fmap filteredComponent . componentByObjectId) oIds
 
-typeReferencesByPrefix :: DB m => ShortHash -> m (Set C.Reference.Id)
-typeReferencesByPrefix = error "todo"
+termReferencesByPrefix :: DB m => Text -> Maybe Word64 -> m (Set C.Reference.Id)
+termReferencesByPrefix = componentReferencesByPrefix OT.TermComponent
 
-termReferentsByPrefix :: DB m => ShortHash -> m (Set C.Referent.Id)
-termReferentsByPrefix = error "todo"
+declReferencesByPrefix :: DB m => Text -> Maybe Word64 -> m (Set C.Reference.Id)
+declReferencesByPrefix = componentReferencesByPrefix OT.DeclComponent
+
+componentByObjectId :: DB m => Db.ObjectId -> MaybeT m [C.Reference.Id]
+componentByObjectId id = do
+  len <- loadObjectById id >>= decodeComponentLengthOnly
+  hash <- loadHashByObjectId id
+  pure [C.Reference.Id hash i | i <- [0 .. len - 1]]
+
+-- termReferentsByPrefix :: DB m => ShortHash -> m (Set C.Referent.Id)
+-- termReferentsByPrefix = error "todo"
 
 branchHashesByPrefix :: DB m => ShortBranchHash -> m (Set C.Reference.Id)
 branchHashesByPrefix = error "todo"

@@ -38,6 +38,10 @@ import qualified Unison.Builtin as Builtins
 import qualified Data.Map as Map
 import Control.Monad.Trans.Maybe (MaybeT(MaybeT))
 import U.Codebase.Sqlite.Queries (DB)
+import qualified Unison.ShortHash as ShortHash
+import qualified Data.Set as Set
+import Control.Monad.Trans (MonadTrans(lift))
+import qualified U.Util.Monoid as Monoid
 
 sqliteCodebase :: CodebasePath -> IO (IO (), Codebase1.Codebase IO Symbol Ann)
 sqliteCodebase root = do
@@ -57,8 +61,6 @@ sqliteCodebase root = do
       termsOfTypeImpl :: Reference -> IO (Set Referent.Id)
       termsMentioningTypeImpl :: Reference -> IO (Set Referent.Id)
       hashLength :: IO Int
-      termReferencesByPrefix :: ShortHash -> IO (Set Reference.Id)
-      typeReferencesByPrefix :: ShortHash -> IO (Set Reference.Id)
       termReferentsByPrefix :: ShortHash -> IO (Set Referent.Id)
       branchHashLength :: IO Int
       branchHashesByPrefix :: ShortBranchHash -> IO (Set Branch.Hash)
@@ -114,8 +116,17 @@ sqliteCodebase root = do
       termsOfTypeImpl = error "todo"
       termsMentioningTypeImpl = error "todo"
       hashLength = error "todo"
-      termReferencesByPrefix = error "todo"
+
+      termReferencesByPrefix :: ShortHash -> IO (Set Reference.Id)
+      termReferencesByPrefix (ShortHash.Builtin _) = pure mempty
+      termReferencesByPrefix (ShortHash.ShortHash prefix cycle _cid) =
+        Monoid.fromMaybe <$> runDB conn do
+          refs <- lift $ Ops.termReferencesByPrefix prefix (Cv.shortHashSuffix1to2 <$> cycle)
+          Set.fromList <$> traverse (Cv.referenceid2to1 getCycleLen) (Set.toList refs)
+
+      typeReferencesByPrefix :: ShortHash -> IO (Set Reference.Id)
       typeReferencesByPrefix = error "todo"
+
       termReferentsByPrefix = error "todo"
       branchHashLength = error "todo"
       branchHashesByPrefix = error "todo"

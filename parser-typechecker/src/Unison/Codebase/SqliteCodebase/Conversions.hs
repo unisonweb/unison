@@ -1,6 +1,7 @@
 module Unison.Codebase.SqliteCodebase.Conversions where
 
 import qualified Data.ByteString.Short as SBS
+import Data.Either (fromRight)
 import Data.Text (Text, pack)
 import qualified U.Codebase.Decl as V2.Decl
 import qualified U.Codebase.Kind as V2.Kind
@@ -138,6 +139,12 @@ symbol2to1 (V2.Symbol i t) = V1.Symbol i (Var.User t)
 symbol1to2 :: V1.Symbol -> V2.Symbol
 symbol1to2 (V1.Symbol i (Var.User t)) = V2.Symbol i t
 symbol1to2 x = error $ "unimplemented: symbol1to2 " ++ show x
+
+shortHashSuffix1to2 :: Text -> V1.Reference.Pos
+shortHashSuffix1to2 =
+  fst
+    . fromRight (error "todo: move suffix parsing to frontend")
+    . V1.Reference.readSuffix
 
 abt2to1 :: Functor f => V2.ABT.Term f v a -> V1.ABT.Term f v a
 abt2to1 (V2.ABT.Term fv a out) = V1.ABT.Term fv a (go out)
