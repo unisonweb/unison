@@ -33,6 +33,7 @@ import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
 import qualified Unison.Typechecker.TypeLookup as TL
 import           Unison.Util.List           ( uniqueBy )
+import qualified Unison.Name                as Name
 
 type Name = Text
 
@@ -62,7 +63,7 @@ data NamedReference v loc =
 data Env v loc = Env
   { _ambientAbilities  :: [Type v loc]
   , _typeLookup        :: TL.TypeLookup v loc
-  , _unqualifiedTerms  :: Map Name [NamedReference v loc]
+  , _termsBySuffix     :: Map Name [NamedReference v loc]
   }
 
 makeLenses ''Env
@@ -232,8 +233,9 @@ typeDirectedNameResolution oldNotes oldType env = do
   addTypedComponent :: Context.InfoNote v loc -> State (Env v loc) ()
   addTypedComponent (Context.TopLevelComponent vtts)
     = for_ vtts $ \(v, typ, _) ->
-      unqualifiedTerms %= Map.insertWith (<>)
-                              (Var.unqualifiedName v)
+      for_ (Name.suffixes . Name.unsafeFromText . Var.name $ Var.reset v) $ \suffix ->
+        termsBySuffix %=
+          Map.insertWith (<>) (Name.toText suffix)
                               [NamedReference (Var.name v) typ (Left v)]
   addTypedComponent _ = pure ()
 
@@ -276,7 +278,7 @@ typeDirectedNameResolution oldNotes oldType env = do
       . join
       . maybeToList
       . Map.lookup (Text.pack n)
-      $ view unqualifiedTerms env
+      $ view termsBySuffix env
   resolveNote _ n = btw n >> pure Nothing
   dedupe :: [Context.Suggestion v loc] -> [Context.Suggestion v loc]
   dedupe = uniqueBy Context.suggestionReplacement

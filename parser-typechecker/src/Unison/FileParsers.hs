@@ -89,7 +89,7 @@ resolveNames typeLookupf preexistingNames uf = do
       possibleDeps = [ (Name.toText name, Var.name v, r) |
         (name, r) <- Rel.toList (Names.terms0 preexistingNames),
         v <- Set.toList (Term.freeVars tm),
-        Name.unqualified name == Name.unqualified (Name.fromVar v) ]
+        name `Name.endsWithSegments` Name.fromVar v ]
       possibleRefs = Referent.toReference . view _3 <$> possibleDeps
   tl <- lift . lift . fmap (UF.declsToTypeLookup uf <>)
       $ typeLookupf (deps <> Set.fromList possibleRefs)
@@ -98,10 +98,11 @@ resolveNames typeLookupf preexistingNames uf = do
           (name, shortname, r) <- possibleDeps,
           typ <- toList $ TL.typeOfReferent tl r,
           let nr = Typechecker.NamedReference name typ (Right r) ] <>
-        [ (shortname, nr) |
+        [ (Var.name v, nr) |
           (name, r) <- Rel.toList (Names.terms0 $ UF.toNames uf),
+          v <- Set.toList (Term.freeVars tm),
+          name `Name.endsWithSegments` Name.fromVar v,
           typ <- toList $ TL.typeOfReferent tl r,
-          let shortname = Name.toText $ Name.unqualified name,
           let nr = Typechecker.NamedReference (Name.toText name) typ (Right r) ]
   pure (tm, fqnsByShortName, tl)
 

@@ -1,1 +1,1 @@
-> .builtin.Nat.toFloat 4
+> Nat.toFloat 4

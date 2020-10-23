@@ -5,6 +5,7 @@
 
 module Unison.Name
   ( Name(Name)
+  , endsWithSegments
   , fromString
   , isPrefixOf
   , joinDot
@@ -86,6 +87,14 @@ toString = Text.unpack . toText
 
 isPrefixOf :: Name -> Name -> Bool
 a `isPrefixOf` b = toText a `Text.isPrefixOf` toText b
+
+-- foo.bar.baz `endsWithSegments` bar.baz == True
+-- foo.bar.baz `endsWithSegments` baz == True
+-- foo.bar.baz `endsWithSegments` az == False (not a full segment)
+-- foo.bar.baz `endsWithSegments` zonk == False (doesn't match any segment)
+-- foo.bar.baz `endsWithSegments` foo == False (matches a segment, but not at the end)
+endsWithSegments :: Name -> Name -> Bool
+endsWithSegments n ending = any (== ending) (suffixes n)
 
 -- stripTextPrefix a.b. a.b.c = Just c
 -- stripTextPrefix a.b  a.b.c = Just .c;  you probably don't want to do this
