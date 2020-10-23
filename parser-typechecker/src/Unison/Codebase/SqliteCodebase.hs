@@ -1,5 +1,6 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Codebase.SqliteCodebase where
 
@@ -47,6 +48,10 @@ import Data.Word (Word64)
 import qualified U.Codebase.Decl as V2.Decl
 import Control.Monad (join)
 import qualified Data.Foldable as Foldable
+import qualified Data.Text.IO as TextIO
+import qualified Data.Text as Text
+import UnliftIO (MonadUnliftIO, catchIO)
+import UnliftIO (MonadIO(liftIO))
 
 sqliteCodebase :: CodebasePath -> IO (IO (), Codebase1.Codebase IO Symbol Ann)
 sqliteCodebase root = do
@@ -61,12 +66,8 @@ sqliteCodebase root = do
       watches :: UF.WatchKind -> IO [Reference.Id]
       getWatch :: UF.WatchKind -> Reference.Id -> IO (Maybe (Term Symbol Ann))
       putWatch :: UF.WatchKind -> Reference.Id -> Term Symbol Ann -> IO ()
-      getReflog :: IO [Reflog.Entry]
-      appendReflog :: Text -> Branch IO -> Branch IO -> IO ()
       termsOfTypeImpl :: Reference -> IO (Set Referent.Id)
       termsMentioningTypeImpl :: Reference -> IO (Set Referent.Id)
-      hashLength :: IO Int
-      branchHashLength :: IO Int
       branchHashesByPrefix :: ShortBranchHash -> IO (Set Branch.Hash)
 
       getTerm :: Reference.Id -> IO (Maybe (Term Symbol Ann))
@@ -115,12 +116,38 @@ sqliteCodebase root = do
       watches = error "todo"
       getWatch = error "todo"
       putWatch = error "todo"
-      getReflog = error "todo"
-      appendReflog = error "todo"
+
+      getReflog :: IO [Reflog.Entry]
+      getReflog =
+        (do contents <- TextIO.readFile (reflogPath root)
+            let lines = Text.lines contents
+            let entries = parseEntry <$> lines
+            pure entries) `catchIO` const (pure [])
+        where
+          parseEntry t = fromMaybe (err t) (Reflog.fromText t)
+          err t = error $
+            "I couldn't understand this line in " ++ reflogPath root ++ "\n\n" ++
+            Text.unpack t
+
+      appendReflog :: Text -> Branch IO -> Branch IO -> IO ()
+      appendReflog reason old new =
+        let
+          t = Reflog.toText $
+            Reflog.Entry (Branch.headHash old) (Branch.headHash new) reason
+        in TextIO.appendFile (reflogPath root) (t <> "\n")
+
+
+      reflogPath :: CodebasePath -> FilePath
+      reflogPath root = root </> "reflog"
+
+
       termsOfTypeImpl = error "todo"
       termsMentioningTypeImpl = error "todo"
 
+      hashLength :: IO Int
       hashLength = pure 10
+
+      branchHashLength :: IO Int
       branchHashLength = pure 10
 
       defnReferencesByPrefix :: OT.ObjectType -> ShortHash -> IO (Set Reference.Id)
@@ -152,7 +179,7 @@ sqliteCodebase root = do
             let decl2 = fromMaybe (error "database integrity error") decl20
             pure (Cv.decltype2to1 $ V2.Decl.declType decl2,
               fromIntegral . length $ V2.Decl.constructorTypes decl2)
-          go rid = do
+          go rid = runDB' conn do
             (ct, ctorCount) <- getDeclCtorCount rid
             pure [Referent.Con' rid (fromIntegral cid) ct | cid <- [0..ctorCount - 1]]
 
@@ -193,3 +220,7 @@ sqliteCodebase root = do
 
 runDB :: Connection -> MaybeT (ReaderT Connection IO) a -> IO (Maybe a)
 runDB conn action = flip runReaderT conn $ runMaybeT action
+
+runDB' :: Connection -> MaybeT (ReaderT Connection IO) a -> IO a
+runDB' conn action = flip runReaderT conn $ fmap err $ runMaybeT action
+  where err = fromMaybe (error "database consistency error")
