@@ -1,19 +1,35 @@
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.SqliteCodebase where
 
 -- initCodebase :: Branch.Cache IO -> FilePath -> IO (Codebase IO Symbol Ann)
 
+import Control.Concurrent.STM
+import Control.Monad (join)
 import Control.Monad.Reader (ReaderT (runReaderT))
+import Control.Monad.Trans (MonadTrans (lift))
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
+import qualified Data.Foldable as Foldable
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
+import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
+import Data.Word (Word64)
 import Database.SQLite.Simple (Connection)
 import qualified Database.SQLite.Simple as Sqlite
 import System.FilePath ((</>))
+import qualified U.Codebase.Decl as V2.Decl
 import qualified U.Codebase.Reference as C.Reference
+import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Operations as Ops
+import U.Codebase.Sqlite.Queries (DB)
+import qualified U.Util.Monoid as Monoid
+import qualified Unison.Builtin as Builtins
 import Unison.Codebase (CodebasePath)
 import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch)
@@ -22,40 +38,49 @@ import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Codebase.SyncMode (SyncMode)
+import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
+import Unison.Hash (Hash)
 import Unison.Parser (Ann)
-import Unison.Prelude (fromMaybe, MaybeT (runMaybeT))
+import Unison.Prelude (MaybeT (runMaybeT), fromMaybe)
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
+import qualified Unison.ShortHash as ShortHash
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
-import Unison.Hash (Hash)
-import qualified Unison.ConstructorType as CT
-import qualified Unison.Builtin as Builtins
-import qualified Data.Map as Map
-import Control.Monad.Trans.Maybe (MaybeT(MaybeT))
-import U.Codebase.Sqlite.Queries (DB)
-import qualified Unison.ShortHash as ShortHash
-import qualified Data.Set as Set
-import Control.Monad.Trans (MonadTrans(lift))
-import qualified U.Util.Monoid as Monoid
-import qualified U.Codebase.Sqlite.ObjectType as OT
-import Data.Word (Word64)
-import qualified U.Codebase.Decl as V2.Decl
-import Control.Monad (join)
-import qualified Data.Foldable as Foldable
-import qualified Data.Text.IO as TextIO
-import qualified Data.Text as Text
-import UnliftIO (MonadUnliftIO, catchIO)
-import UnliftIO (MonadIO(liftIO))
+import UnliftIO (catchIO)
+
+-- 1) buffer up the component
+-- 2) in the event that the component is complete, then what?
+--  * can write component provided all of its dependency components are complete.
+--    if dependency not complete,
+--    register yourself to be written when that dependency is complete
+
+-- an entry for a single hash
+data BufferEntry a = BufferEntry
+  { -- First, you are waiting for the cycle to fill up with all elements
+    -- Then, you check: are all dependencies of the cycle in the db?
+    --   If yes: write yourself to database and trigger check of dependents
+    --   If no: just wait, do nothing
+    beComponentTargetSize :: Maybe Word64,
+    beComponent :: Map Reference.Pos a,
+    beMissingDependencies :: Set Hash,
+    beWaitingDependents :: Set Hash
+  }
+
+type TermBufferEntry = BufferEntry (Term Symbol Ann, Type Symbol Ann)
+
+type DeclBufferEntry = BufferEntry (Decl Symbol Ann)
 
 sqliteCodebase :: CodebasePath -> IO (IO (), Codebase1.Codebase IO Symbol Ann)
 sqliteCodebase root = do
   conn :: Sqlite.Connection <- Sqlite.open $ root </> "v2" </> "unison.sqlite3"
+  termBuffer :: TVar (Map Hash TermBufferEntry) <- newTVarIO Map.empty
+  declBuffer :: TVar (Map Hash DeclBufferEntry) <- newTVarIO Map.empty
   let getRootBranch :: IO (Either Codebase1.GetRootBranchError (Branch IO))
       putRootBranch :: Branch IO -> IO ()
       rootBranchUpdates :: IO (IO (), IO (Set Branch.Hash))
@@ -101,7 +126,30 @@ sqliteCodebase root = do
           Cv.decl2to1 h1 getCycleLen decl2
 
       putTerm :: Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> IO ()
-      putTerm = error "todo"
+      putTerm r@(Reference.Id h i n) = error "todo"
+        updateBufferEntry termBuffer h $ \be -> error "todo"
+
+-- data BufferEntry a = BufferEntry
+--   { -- First, you are waiting for the cycle to fill up with all elements
+--     -- Then, you check: are all dependencies of the cycle in the db?
+--     --   If yes: write yourself to database and trigger check of dependents
+--     --   If no: just wait, do nothing
+--     beComponentTargetSize :: Maybe Word64,
+--     beComponent :: Map Reference.Pos a,
+--     beMissingDependencies :: Set Hash,
+--     beWaitingDependents :: Set Hash
+--   }
+
+      updateBufferEntry ::
+        TVar (Map Hash (BufferEntry a)) ->
+        Hash ->
+        -- this signature may need to change
+        (BufferEntry a -> (BufferEntry a, b)) ->
+        IO [b]
+      updateBufferEntry = error "todo"
+
+      tryWriteBuffer :: Hash -> TVar (Map Hash (BufferEntry a)) -> IO ()
+      tryWriteBuffer = error "todo"
 
       putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> IO ()
       putTypeDeclaration = error "todo"
@@ -119,27 +167,29 @@ sqliteCodebase root = do
 
       getReflog :: IO [Reflog.Entry]
       getReflog =
-        (do contents <- TextIO.readFile (reflogPath root)
+        ( do
+            contents <- TextIO.readFile (reflogPath root)
             let lines = Text.lines contents
             let entries = parseEntry <$> lines
-            pure entries) `catchIO` const (pure [])
+            pure entries
+        )
+          `catchIO` const (pure [])
         where
           parseEntry t = fromMaybe (err t) (Reflog.fromText t)
-          err t = error $
-            "I couldn't understand this line in " ++ reflogPath root ++ "\n\n" ++
-            Text.unpack t
+          err t =
+            error $
+              "I couldn't understand this line in " ++ reflogPath root ++ "\n\n"
+                ++ Text.unpack t
 
       appendReflog :: Text -> Branch IO -> Branch IO -> IO ()
       appendReflog reason old new =
-        let
-          t = Reflog.toText $
-            Reflog.Entry (Branch.headHash old) (Branch.headHash new) reason
-        in TextIO.appendFile (reflogPath root) (t <> "\n")
-
+        let t =
+              Reflog.toText $
+                Reflog.Entry (Branch.headHash old) (Branch.headHash new) reason
+         in TextIO.appendFile (reflogPath root) (t <> "\n")
 
       reflogPath :: CodebasePath -> FilePath
       reflogPath root = root </> "reflog"
-
 
       termsOfTypeImpl = error "todo"
       termsMentioningTypeImpl = error "todo"
@@ -177,11 +227,13 @@ sqliteCodebase root = do
             -- this is a database integrity error if the decl doesn't exist in the database
             decl20 <- runMaybeT $ Ops.loadDeclByReference (C.Reference.Id h2 i)
             let decl2 = fromMaybe (error "database integrity error") decl20
-            pure (Cv.decltype2to1 $ V2.Decl.declType decl2,
-              fromIntegral . length $ V2.Decl.constructorTypes decl2)
+            pure
+              ( Cv.decltype2to1 $ V2.Decl.declType decl2,
+                fromIntegral . length $ V2.Decl.constructorTypes decl2
+              )
           go rid = runDB' conn do
             (ct, ctorCount) <- getDeclCtorCount rid
-            pure [Referent.Con' rid (fromIntegral cid) ct | cid <- [0..ctorCount - 1]]
+            pure [Referent.Con' rid (fromIntegral cid) ct | cid <- [0 .. ctorCount - 1]]
 
       branchHashesByPrefix = error "todo"
   let finalizer = Sqlite.close conn
@@ -223,4 +275,5 @@ runDB conn action = flip runReaderT conn $ runMaybeT action
 
 runDB' :: Connection -> MaybeT (ReaderT Connection IO) a -> IO a
 runDB' conn action = flip runReaderT conn $ fmap err $ runMaybeT action
-  where err = fromMaybe (error "database consistency error")
+  where
+    err = fromMaybe (error "database consistency error")
