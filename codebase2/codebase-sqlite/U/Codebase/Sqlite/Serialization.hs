@@ -315,7 +315,7 @@ getTermElement = getABT getSymbol getUnit getF
               2 -> pure Term.PConcat
               tag -> unknownTag "SeqOp" tag
 
-lookupTermElement :: MonadGet m => Reference.ComponentIndex -> m (LocalIds, TermFormat.Term)
+lookupTermElement :: MonadGet m => Reference.Pos -> m (LocalIds, TermFormat.Term)
 lookupTermElement =
   unsafeFramedArrayLookup (getPair getLocalIds getTermElement) . fromIntegral
 
@@ -385,7 +385,7 @@ getDeclElement =
       other -> unknownTag "DeclModifier" other
 
 lookupDeclElement ::
-  MonadGet m => Reference.ComponentIndex -> m (LocalIds, DeclFormat.Decl Symbol)
+  MonadGet m => Reference.Pos -> m (LocalIds, DeclFormat.Decl Symbol)
 lookupDeclElement =
   unsafeFramedArrayLookup (getPair getLocalIds getDeclElement) . fromIntegral
 

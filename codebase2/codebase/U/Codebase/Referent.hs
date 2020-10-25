@@ -11,26 +11,24 @@ import U.Codebase.Reference (Reference, Reference')
 import qualified U.Codebase.Reference as Reference
 import U.Util.Hash (Hash)
 import U.Util.Hashable (Hashable (..))
-import Data.Word (Word64)
 import qualified U.Util.Hashable as Hashable
 import Data.Bifunctor (Bifunctor(..))
 import Data.Bifoldable (Bifoldable(..))
 import Data.Bitraversable (Bitraversable(..))
+import U.Codebase.Decl (ConstructorId)
 
 type Referent = Referent' Reference Reference
 type ReferentH = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
 
-type ConstructorIndex = Word64
-
 data Referent' rTm rTp
   = Ref rTm
-  | Con rTp ConstructorIndex
+  | Con rTp ConstructorId
   deriving (Eq, Ord, Show, Bitraversable)
 
 type Id = Id' Hash Hash
 data Id' hTm hTp
   = RefId (Reference.Id' hTm)
-  | ConId (Reference.Id' hTp) ConstructorIndex
+  | ConId (Reference.Id' hTp) ConstructorId
   deriving (Eq, Ord, Show, Bitraversable)
 
 instance (Hashable rTm, Hashable rTp) => Hashable (Referent' rTm rTp) where

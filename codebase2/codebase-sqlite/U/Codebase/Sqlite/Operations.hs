@@ -1,21 +1,26 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module U.Codebase.Sqlite.Operations where
 
-import Control.Monad (join, (>=>))
+import Control.Monad (join)
+import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.ByteString (ByteString)
+import Data.Bytes.Get (runGetS)
 import Data.Functor ((<&>))
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Vector as Vector
 import Data.Word (Word64)
+import U.Codebase.Decl (ConstructorId)
 import qualified U.Codebase.Decl as C
 import qualified U.Codebase.Decl as C.Decl
 import qualified U.Codebase.Reference as C
@@ -41,8 +46,38 @@ import U.Codebase.WatchKind (WatchKind)
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Hash as H
 import qualified U.Util.Monoid as Monoid
-import U.Util.Serialization (getFromBytes)
+import U.Util.Serialization (Get, getFromBytes)
 import qualified U.Util.Serialization as S
+
+type Err m = MonadError Error m
+
+type EDB m = (Err m, DB m)
+
+type ErrString = String
+
+data DecodeError
+  = ErrTermElement Word64
+  | ErrDeclElement Word64
+  | ErrFramedArrayLen
+  deriving (Show)
+
+data Error
+  = DecodeError DecodeError ByteString ErrString
+  | DatabaseIntegrityError Q.Integrity
+  | LegacyUnknownCycleLen H.Hash
+  | LegacyUnknownConstructorType H.Hash C.Reference.Pos
+  deriving (Show)
+
+getFromBytesOr :: Err m => DecodeError -> Get a -> ByteString -> m a
+getFromBytesOr e get bs = case runGetS get bs of
+  Left err -> throwError (DecodeError e bs err)
+  Right a -> pure a
+
+liftQ :: Err m => ExceptT Q.Integrity m a -> m a
+liftQ a =
+  runExceptT a >>= \case
+    Left e -> throwError (DatabaseIntegrityError e)
+    Right a -> pure a
 
 loadTermComponentByHash :: DB m => Base32Hex -> m (Maybe [C.Term Symbol])
 loadTermComponentByHash = error "todo"
@@ -58,72 +93,65 @@ m' msg f a = MaybeT do
     Nothing -> error $ "nothing: " ++ msg ++ " " ++ show a
     Just b -> Just b
 
-c2sReference :: DB m => C.Reference -> MaybeT m S.Reference
+c2sReference :: EDB m => C.Reference -> MaybeT m S.Reference
 c2sReference = bitraverse lookupTextId hashToObjectId
 
-s2cReference :: DB m => S.Reference -> MaybeT m C.Reference
+s2cReference :: EDB m => S.Reference -> m C.Reference
 s2cReference = bitraverse loadTextById loadHashByObjectId
 
-c2sReferenceId :: DB m => C.Reference.Id -> MaybeT m S.Reference.Id
+c2sReferenceId :: EDB m => C.Reference.Id -> MaybeT m S.Reference.Id
 c2sReferenceId = C.Reference.idH hashToObjectId
 
-s2cReferenceId :: DB m => S.Reference.Id -> MaybeT m C.Reference.Id
+s2cReferenceId :: EDB m => S.Reference.Id -> m C.Reference.Id
 s2cReferenceId = C.Reference.idH loadHashByObjectId
 
 lookupTextId :: DB m => Text -> MaybeT m Db.TextId
-lookupTextId = m' "Q.loadText" Q.loadText
+lookupTextId = m Q.loadText
 
-loadTextById :: DB m => Db.TextId -> MaybeT m Text
-loadTextById = m' "Q.loadTextById" Q.loadTextById
+loadTextById :: EDB m => Db.TextId -> m Text
+loadTextById = liftQ . Q.loadTextById
 
-hashToObjectId :: DB m => H.Hash -> MaybeT m Db.ObjectId
-hashToObjectId =
-  m' "Q.loadHashId" Q.loadHashId . H.toBase32Hex
-    >=> m' "Q.objectIdByPrimaryHashId" Q.objectIdByPrimaryHashId
+-- ok to fail
+hashToObjectId :: EDB m => H.Hash -> MaybeT m Db.ObjectId
+hashToObjectId h = do
+  hashId <- MaybeT $ Q.loadHashId . H.toBase32Hex $ h
+  liftQ $ Q.objectIdByPrimaryHashId hashId
 
-loadObjectById :: DB m => Db.ObjectId -> MaybeT m ByteString
-loadObjectById = m' "Q.loadObjectById" Q.loadObjectById
+loadHashByObjectId :: EDB m => Db.ObjectId -> m H.Hash
+loadHashByObjectId = fmap H.fromBase32Hex . liftQ . Q.loadPrimaryHashByObjectId
 
-loadHashByObjectId :: DB m => Db.ObjectId -> MaybeT m H.Hash
-loadHashByObjectId =
-  fmap H.fromBase32Hex
-    . m' "Q.loadPrimaryHashByObjectId" Q.loadPrimaryHashByObjectId
+decodeComponentLengthOnly :: Err m => ByteString -> m Word64
+decodeComponentLengthOnly = getFromBytesOr ErrFramedArrayLen S.lengthFramedArray
 
-decodeComponentLengthOnly :: Applicative f => ByteString -> MaybeT f Word64
-decodeComponentLengthOnly =
-  m'
-    "decodeComponentLengthOnly"
-    (fmap pure $ getFromBytes S.lengthFramedArray)
+decodeTermElement :: Err m => C.Reference.Pos -> ByteString -> m (LocalIds, S.Term.Term)
+decodeTermElement i = getFromBytesOr (ErrTermElement i) (S.lookupTermElement i)
 
-decodeTermElement :: Applicative f => Word64 -> ByteString -> MaybeT f (LocalIds, S.Term.Term)
-decodeTermElement i =
-  m'
-    ("getTermElement: " ++ show i ++ ") fromBytes:")
-    (fmap pure $ getFromBytes $ S.lookupTermElement i)
-
-decodeDeclElement :: Applicative f => Word64 -> ByteString -> MaybeT f (LocalIds, S.Decl.Decl Symbol)
-decodeDeclElement i =
-  m'
-    ("getDeclElement: " ++ show i ++ ") fromBytes:")
-    (pure . getFromBytes (S.lookupDeclElement i))
+decodeDeclElement :: Err m => Word64 -> ByteString -> m (LocalIds, S.Decl.Decl Symbol)
+decodeDeclElement i = getFromBytesOr (ErrDeclElement i) (S.lookupDeclElement i)
 
 -- * legacy conversion helpers
 
-getCycleLen :: DB m => H.Hash -> MaybeT m Word64
-getCycleLen h =
-  fmap fromIntegral $
-    hashToObjectId >=> loadObjectById >=> decodeComponentLengthOnly $ h
+getCycleLen :: EDB m => H.Hash -> m Word64
+getCycleLen h = do
+  runMaybeT (hashToObjectId h)
+    >>= maybe (throwError $ LegacyUnknownCycleLen h) pure
+    >>= liftQ . Q.loadObjectById
+    >>= decodeComponentLengthOnly
+    >>= pure . fromIntegral
 
-getDeclTypeByReference :: DB m => C.Reference.Id -> MaybeT m C.Decl.DeclType
-getDeclTypeByReference = fmap C.Decl.declType . loadDeclByReference
+getDeclTypeByReference :: EDB m => C.Reference.Id -> m C.Decl.DeclType
+getDeclTypeByReference r@(C.Reference.Id h pos) =
+  runMaybeT (loadDeclByReference r)
+    >>= maybe (throwError $ LegacyUnknownConstructorType h pos) pure
+    >>= pure . C.Decl.declType
 
 -- * meat and veggies
 
-loadTermByReference :: DB m => C.Reference.Id -> MaybeT m (C.Term Symbol)
+loadTermByReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term Symbol)
 loadTermByReference (C.Reference.Id h i) = do
   -- retrieve and deserialize the blob
   (localIds, term) <-
-    hashToObjectId >=> loadObjectById >=> decodeTermElement i $ h
+    hashToObjectId h >>= liftQ . Q.loadObjectById >>= decodeTermElement i
 
   -- look up the text and hashes that are used by the term
   texts <- traverse loadTextById $ LocalIds.textLookup localIds
@@ -138,7 +166,7 @@ loadTermByReference (C.Reference.Id h i) = do
       substTypeLink = substTypeRef
   pure (C.Term.extraMap substText substTermRef substTypeRef substTermLink substTypeLink id term)
 
-loadTypeOfTermByTermReference :: DB m => C.Reference.Id -> MaybeT m (C.Term.Type Symbol)
+loadTypeOfTermByTermReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term.Type Symbol)
 loadTypeOfTermByTermReference r = do
   -- convert query reference by looking up db ids
   r' <- C.Reference.idH hashToObjectId r
@@ -149,11 +177,11 @@ loadTypeOfTermByTermReference r = do
   -- convert the result type by looking up db ids
   C.Type.rtraverse s2cReference typ
 
-loadDeclByReference :: DB m => C.Reference.Id -> MaybeT m (C.Decl Symbol)
+loadDeclByReference :: EDB m => C.Reference.Id -> MaybeT m (C.Decl Symbol)
 loadDeclByReference (C.Reference.Id h i) = do
   -- retrieve the blob
   (localIds, C.Decl.DataDeclaration dt m b ct) <-
-    hashToObjectId >=> loadObjectById >=> decodeDeclElement i $ h
+    hashToObjectId h >>= liftQ . Q.loadObjectById >>= decodeDeclElement i
 
   -- look up the text and hashes that are used by the term
   texts <- traverse loadTextById $ LocalIds.textLookup localIds
@@ -187,27 +215,72 @@ termsHavingType = error "todo"
 termsMentioningType :: DB m => C.Reference -> m (Set C.Referent.Id)
 termsMentioningType = error "todo"
 
-componentReferencesByPrefix :: DB m => OT.ObjectType -> Text -> Maybe Word64 -> m (Set C.Reference.Id)
-componentReferencesByPrefix ot b32prefix componentIndex = do
+-- something kind of funny here.  first, we don't need to enumerate all the reference pos if we're just picking one
+-- second, it would be nice if we could leave these as S.References a little longer
+-- so that we remember how to blow up if they're missing
+componentReferencesByPrefix :: EDB m => OT.ObjectType -> Text -> Maybe C.Reference.Pos -> m [S.Reference.Id]
+componentReferencesByPrefix ot b32prefix pos = do
   oIds :: [Db.ObjectId] <- Q.objectIdByBase32Prefix ot b32prefix
-  let filteredComponent l = case componentIndex of
-        Nothing -> l
-        Just qi -> [x | x@(C.Reference.Id _ i) <- l, i == qi]
+  let test = maybe (const True) (==) pos
+  let filterComponent l = [x | x@(C.Reference.Id _ pos) <- l, test pos]
   fmap Monoid.fromMaybe . runMaybeT $
-    Set.fromList . join
-      <$> traverse (fmap filteredComponent . componentByObjectId) oIds
+    join <$> traverse (fmap filterComponent . componentByObjectIdS) oIds
 
-termReferencesByPrefix :: DB m => Text -> Maybe Word64 -> m (Set C.Reference.Id)
-termReferencesByPrefix = componentReferencesByPrefix OT.TermComponent
+termReferencesByPrefix :: EDB m => Text -> Maybe Word64 -> m [C.Reference.Id]
+termReferencesByPrefix t w =
+  componentReferencesByPrefix OT.TermComponent t w
+    >>= traverse (C.Reference.idH loadHashByObjectId)
 
-declReferencesByPrefix :: DB m => Text -> Maybe Word64 -> m (Set C.Reference.Id)
-declReferencesByPrefix = componentReferencesByPrefix OT.DeclComponent
+declReferencesByPrefix :: EDB m => Text -> Maybe Word64 -> m [C.Reference.Id]
+declReferencesByPrefix t w =
+  componentReferencesByPrefix OT.DeclComponent t w
+    >>= traverse (C.Reference.idH loadHashByObjectId)
 
-componentByObjectId :: DB m => Db.ObjectId -> MaybeT m [C.Reference.Id]
+termReferentsByPrefix :: EDB m => Text -> Maybe Word64 -> m [C.Referent.Id]
+termReferentsByPrefix b32prefix pos =
+  fmap C.Referent.RefId <$> termReferencesByPrefix b32prefix pos
+
+-- todo: simplify this if we stop caring about constructor type
+-- todo: remove the cycle length once we drop it from Unison.Reference
+declReferentsByPrefix ::
+  EDB m =>
+  Text ->
+  Maybe C.Reference.Pos ->
+  Maybe ConstructorId ->
+  m [(H.Hash, C.Reference.Pos, Word64, C.DeclType, [C.Decl.ConstructorId])]
+declReferentsByPrefix b32prefix pos cid = do
+  componentReferencesByPrefix OT.DeclComponent b32prefix pos
+    >>= traverse (loadConstructors cid)
+  where
+    loadConstructors :: EDB m => Maybe Word64 -> S.Reference.Id -> m (H.Hash, C.Reference.Pos, Word64, C.DeclType, [ConstructorId])
+    loadConstructors cid rid@(C.Reference.Id oId pos) = do
+      (dt, len, ctorCount) <- getDeclCtorCount rid
+      h <- loadHashByObjectId oId
+      let test :: ConstructorId -> Bool
+          test = maybe (const True) (==) cid
+          cids = [cid | cid <- [0 :: ConstructorId .. ctorCount - 1], test cid]
+      pure (h, pos, len, dt, cids)
+    getDeclCtorCount :: EDB m => S.Reference.Id -> m (C.Decl.DeclType, Word64, ConstructorId)
+    getDeclCtorCount (C.Reference.Id r i) = do
+      bs <- liftQ (Q.loadObjectById r)
+      len <- decodeComponentLengthOnly bs
+      (_localIds, decl) <- decodeDeclElement i bs
+      pure (C.Decl.declType decl, len, fromIntegral $ length (C.Decl.constructorTypes decl))
+
+-- (localIds, C.Decl.DataDeclaration dt m b ct) <-
+--   hashToObjectId h >>= liftQ . Q.loadObjectById >>= decodeDeclElement i
+
+-- consider getting rid of this function, or making it produce [S.Reference.Id]
+componentByObjectId :: EDB m => Db.ObjectId -> m [C.Reference.Id]
 componentByObjectId id = do
-  len <- loadObjectById id >>= decodeComponentLengthOnly
+  len <- (liftQ . Q.loadObjectById) id >>= decodeComponentLengthOnly
   hash <- loadHashByObjectId id
   pure [C.Reference.Id hash i | i <- [0 .. len - 1]]
+
+componentByObjectIdS :: EDB m => Db.ObjectId -> m [S.Reference.Id]
+componentByObjectIdS id = do
+  len <- (liftQ . Q.loadObjectById) id >>= decodeComponentLengthOnly
+  pure [C.Reference.Id id i | i <- [0 .. len - 1]]
 
 -- termReferentsByPrefix :: DB m => ShortHash -> m (Set C.Referent.Id)
 -- termReferentsByPrefix = error "todo"
@@ -216,7 +289,7 @@ branchHashesByPrefix :: DB m => ShortBranchHash -> m (Set C.Reference.Id)
 branchHashesByPrefix = error "todo"
 
 -- | returns a list of known definitions referencing `r`
-dependents :: DB m => C.Reference -> MaybeT m (Set C.Reference.Id)
+dependents :: EDB m => C.Reference -> MaybeT m (Set C.Reference.Id)
 dependents r = do
   r' <- c2sReference r
   sIds :: [S.Reference.Id] <- Q.getDependentsForDependency r'

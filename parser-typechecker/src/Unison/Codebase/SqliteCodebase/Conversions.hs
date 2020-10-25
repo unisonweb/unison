@@ -8,6 +8,7 @@ import qualified U.Codebase.Kind as V2.Kind
 import qualified U.Codebase.Reference as V2
 import qualified U.Codebase.Reference as V2.Reference
 import qualified U.Codebase.Referent as V2
+import qualified U.Codebase.Referent as V2.Referent
 import qualified U.Codebase.Sqlite.Symbol as V2
 import qualified U.Codebase.Term as V2.Term
 import qualified U.Codebase.Type as V2.Type
@@ -26,6 +27,7 @@ import qualified Unison.Pattern as P
 import qualified Unison.Reference as V1
 import qualified Unison.Reference as V1.Reference
 import qualified Unison.Referent as V1
+import qualified Unison.Referent as V1.Referent
 import qualified Unison.Symbol as V1
 import qualified Unison.Term as V1.Term
 import qualified Unison.Type as V1.Type
@@ -216,6 +218,14 @@ rreferent1to2 :: Hash -> V1.Referent -> V2.ReferentH
 rreferent1to2 h = \case
   V1.Ref r -> V2.Ref (rreference1to2 h r)
   V1.Con r i _ct -> V2.Con (reference1to2 r) (fromIntegral i)
+
+referentid2to1 :: Applicative m => (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Referent.Id -> m V1.Referent.Id
+referentid2to1 lookupSize lookupCT = \case
+  V2.RefId r -> V1.Ref' <$> referenceid2to1 lookupSize r
+  V2.ConId r i ->
+    V1.Con' <$> referenceid2to1 lookupSize r
+      <*> pure (fromIntegral i)
+      <*> lookupCT (V2.ReferenceDerived r)
 
 hash2to1 :: V2.Hash.Hash -> Hash
 hash2to1 (V2.Hash.Hash sbs) = V1.Hash (SBS.fromShort sbs)

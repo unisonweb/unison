@@ -26,13 +26,13 @@ data Reference' t h
   | ReferenceDerived (Id' h)
   deriving (Eq, Ord, Show)
 
-pattern Derived :: h -> ComponentIndex -> Reference' t h
+pattern Derived :: h -> Pos -> Reference' t h
 pattern Derived h i = ReferenceDerived (Id h i)
 
 {-# COMPLETE ReferenceBuiltin, Derived #-}
 
-type ComponentIndex = Word64
-data Id' h = Id h ComponentIndex
+type Pos = Word64
+data Id' h = Id h Pos
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 t :: Traversal (Reference' t h) (Reference' t' h) t t'
