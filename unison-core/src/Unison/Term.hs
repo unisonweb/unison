@@ -822,6 +822,21 @@ unReqOrCtor _                         = Nothing
 dependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
 dependencies t = Set.map (LD.fold id Referent.toReference) (labeledDependencies t)
 
+termDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
+termDependencies =
+  Set.fromList
+    . mapMaybe
+      ( LD.fold
+          (\_typeRef -> Nothing)
+          ( Referent.fold
+              (\termRef -> Just termRef)
+              (\_typeConRef _i _ct -> Nothing)
+          )
+      )
+    . toList
+    . labeledDependencies
+
+-- gets types from annotations and constructors
 typeDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
 typeDependencies =
   Set.fromList . mapMaybe (LD.fold Just (const Nothing)) . toList . labeledDependencies

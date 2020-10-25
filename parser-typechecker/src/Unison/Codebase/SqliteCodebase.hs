@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -6,11 +7,13 @@ module Unison.Codebase.SqliteCodebase where
 
 -- initCodebase :: Branch.Cache IO -> FilePath -> IO (Codebase IO Symbol Ann)
 
-import Control.Concurrent.STM
-import Control.Monad ((>=>))
+import Control.Monad (filterM, (>=>))
 import Control.Monad.Except (ExceptT, runExceptT)
+import Control.Monad.Extra (ifM, unlessM)
 import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.Trans.Maybe (MaybeT)
+import Data.Bifunctor (Bifunctor (first), second)
+import Data.Foldable (traverse_)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
@@ -40,7 +43,7 @@ import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Parser (Ann)
-import Unison.Prelude (MaybeT (runMaybeT), fromMaybe)
+import Unison.Prelude (MaybeT (runMaybeT), fromMaybe, traceM)
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
@@ -49,9 +52,13 @@ import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
+import qualified Unison.Term as Term
 import Unison.Type (Type)
+import qualified Unison.Type as Type
 import qualified Unison.UnisonFile as UF
-import UnliftIO (catchIO)
+import UnliftIO (MonadIO, catchIO)
+import UnliftIO.STM
+import Data.Foldable (Foldable(toList))
 
 -- 1) buffer up the component
 -- 2) in the event that the component is complete, then what?
@@ -70,6 +77,7 @@ data BufferEntry a = BufferEntry
     beMissingDependencies :: Set Hash,
     beWaitingDependents :: Set Hash
   }
+  deriving (Show)
 
 type TermBufferEntry = BufferEntry (Term Symbol Ann, Type Symbol Ann)
 
@@ -79,7 +87,7 @@ sqliteCodebase :: CodebasePath -> IO (IO (), Codebase1.Codebase IO Symbol Ann)
 sqliteCodebase root = do
   conn :: Sqlite.Connection <- Sqlite.open $ root </> "v2" </> "unison.sqlite3"
   termBuffer :: TVar (Map Hash TermBufferEntry) <- newTVarIO Map.empty
-  _declBuffer :: TVar (Map Hash DeclBufferEntry) <- newTVarIO Map.empty
+  declBuffer :: TVar (Map Hash DeclBufferEntry) <- newTVarIO Map.empty
   let getRootBranch :: IO (Either Codebase1.GetRootBranchError (Branch IO))
       putRootBranch :: Branch IO -> IO ()
       rootBranchUpdates :: IO (IO (), IO (Set Branch.Hash))
@@ -110,7 +118,7 @@ sqliteCodebase root = do
                 error $
                   "I don't know about the builtin type ##"
                     ++ show t
-                    ++ ", but I need to know whether it's Data or Effect in order to construct a V1 TermLink for a constructor."
+                    ++ ", but I've been asked for it's ConstructorType."
            in pure . fromMaybe err $
                 Map.lookup (Reference.Builtin t) Builtins.builtinConstructorType
         C.Reference.ReferenceDerived i -> getDeclTypeById i
@@ -131,12 +139,32 @@ sqliteCodebase root = do
           Cv.decl2to1 h1 getCycleLen decl2
 
       putTerm :: Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> IO ()
-      putTerm _r@(Reference.Id h _i _n) = error
-        "todo"
-        updateBufferEntry
-        termBuffer
-        h
-        $ \_be -> error "todo"
+      putTerm _r@(Reference.Id h@(Cv.hash1to2 -> h2) i n) tm tp =
+        runDB conn $
+          unlessM
+            (Ops.objectExistsForHash h2)
+            ( withBuffer termBuffer h \(BufferEntry size comp missing waiting) -> do
+                let size' = Just n
+                pure $
+                  ifM
+                    ((==) <$> size <*> size')
+                    (pure ())
+                    (error $ "targetSize for term " ++ show h ++ " was " ++ show size ++ ", but now " ++ show size')
+                let comp' = Map.insert i (tm, tp) comp
+                missingTerms' <-
+                  filterM
+                    (fmap not . Ops.objectExistsForHash . Cv.hash1to2)
+                    [h | Reference.Derived h _i _n <- Set.toList $ Term.termDependencies tm]
+                missingTypes' <-
+                  filterM (fmap not . Ops.objectExistsForHash . Cv.hash1to2) $
+                    [h | Reference.Derived h _i _n <- Set.toList $ Term.typeDependencies tm]
+                      ++ [h | Reference.Derived h _i _n <- Set.toList $ Type.dependencies tp]
+                let missing' = missing <> Set.fromList (missingTerms' <> missingTypes')
+                traverse (addBufferDependent h termBuffer) missingTerms'
+                traverse (addBufferDependent h declBuffer) missingTypes'
+                putBuffer termBuffer h (BufferEntry size' comp' missing' waiting)
+                tryFlushTermBuffer h
+            )
 
       -- data BufferEntry a = BufferEntry
       --   { -- First, you are waiting for the cycle to fill up with all elements
@@ -148,17 +176,46 @@ sqliteCodebase root = do
       --     beMissingDependencies :: Set Hash,
       --     beWaitingDependents :: Set Hash
       --   }
+      putBuffer :: (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> BufferEntry a -> m ()
+      putBuffer tv h e = do
+        traceM $ "putBuffer " ++ show h ++ " " ++ show e
+        atomically $ modifyTVar tv (Map.insert h e)
 
-      updateBufferEntry ::
-        TVar (Map Hash (BufferEntry a)) ->
-        Hash ->
-        -- this signature may need to change
-        (BufferEntry a -> (BufferEntry a, b)) ->
-        IO b
-      updateBufferEntry = error "todo"
+      withBuffer :: MonadIO m => TVar (Map Hash (BufferEntry a)) -> Hash -> (BufferEntry a -> m b) -> m b
+      withBuffer tv h f =
+        Map.lookup h <$> readTVarIO tv >>= \case
+          Just e -> f e
+          Nothing -> f (BufferEntry Nothing Map.empty Set.empty Set.empty)
 
-      _tryWriteBuffer :: Hash -> TVar (Map Hash (BufferEntry a)) -> IO ()
-      _tryWriteBuffer _h = error "todo" --do
+      removeBuffer :: MonadIO m => TVar (Map Hash (BufferEntry a)) -> Hash -> m ()
+      removeBuffer tv h = atomically $ modifyTVar tv (Map.delete h)
+
+      addBufferDependent :: (MonadIO m, Show a) => Hash -> TVar (Map Hash (BufferEntry a)) -> Hash -> m ()
+      addBufferDependent dependent tv dependency = withBuffer tv dependency \be -> do
+        putBuffer tv dependency be {beWaitingDependents = Set.insert dependent $ beWaitingDependents be}
+      tryFlushTermBuffer :: EDB m => Hash -> m ()
+      tryFlushTermBuffer h@(Cv.hash1to2 -> h2) =
+        -- skip if it has already been flushed
+        unlessM (Ops.objectExistsForHash h2) $
+          withBuffer
+            termBuffer
+            h
+            \(BufferEntry size comp (Set.toList -> missing) waiting) -> do
+              missing' <-
+                filterM
+                  (fmap not . Ops.objectExistsForHash . Cv.hash1to2)
+                  missing
+              if null missing' && size == Just (fromIntegral (length comp))
+                then do
+                  Ops.saveTermComponent h2 $
+                    first (Cv.term1to2 h) . second Cv.ttype1to2 <$> toList comp
+                  removeBuffer termBuffer h
+                  traverse_ tryFlushTermBuffer waiting
+                else -- update
+
+                  putBuffer termBuffer h $
+                    BufferEntry size comp (Set.fromList missing') waiting
+
       -- isMissingDependencies <- allM
       putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> IO ()
       putTypeDeclaration = error "todo"

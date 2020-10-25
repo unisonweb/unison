@@ -123,6 +123,11 @@ fromText t = either (const Nothing) Just $
     cidPart' = Text.takeWhileEnd (/= '#') t
     cidPart = Text.drop 1 cidPart'
 
+fold :: (r -> a) -> (r -> Int -> ConstructorType -> a) -> Referent' r -> a
+fold fr fc = \case
+  Ref' r -> fr r
+  Con' r i ct -> fc r i ct
+
 instance Hashable Referent where
   tokens (Ref r) = [H.Tag 0] ++ H.tokens r
   tokens (Con r i dt) = [H.Tag 2] ++ H.tokens r ++ H.tokens (fromIntegral i :: Word64) ++ H.tokens dt

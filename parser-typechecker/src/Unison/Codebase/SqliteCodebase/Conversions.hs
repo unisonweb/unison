@@ -43,6 +43,14 @@ decltype1to2 = \case
   CT.Data -> V2.Decl.Data
   CT.Effect -> V2.Decl.Effect
 
+term1to2 :: Hash -> V1.Term.Term V1.Symbol Ann -> V2.Term.Term V2.Symbol
+term1to2 h =
+  V2.ABT.transform (termF1to2 h)
+    . V2.ABT.vmap symbol1to2
+    . V2.ABT.amap (const ())
+    . abt1to2
+  where termF1to2 = undefined
+
 term2to1 :: forall m. Monad m => Hash -> (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.Term V2.Symbol -> m (V1.Term.Term V1.Symbol Ann)
 term2to1 h lookupSize lookupCT tm =
   V1.ABT.transformM (termF2to1 h lookupSize lookupCT)

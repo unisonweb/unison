@@ -48,6 +48,7 @@ import qualified U.Util.Hash as H
 import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get, getFromBytes)
 import qualified U.Util.Serialization as S
+import Data.Maybe (isJust)
 
 type Err m = MonadError Error m
 
@@ -116,6 +117,9 @@ hashToObjectId :: EDB m => H.Hash -> MaybeT m Db.ObjectId
 hashToObjectId h = do
   hashId <- MaybeT $ Q.loadHashId . H.toBase32Hex $ h
   liftQ $ Q.objectIdByPrimaryHashId hashId
+
+objectExistsForHash :: EDB m => H.Hash -> m Bool
+objectExistsForHash h = isJust <$> runMaybeT (hashToObjectId h)
 
 loadHashByObjectId :: EDB m => Db.ObjectId -> m H.Hash
 loadHashByObjectId = fmap H.fromBase32Hex . liftQ . Q.loadPrimaryHashByObjectId
@@ -194,11 +198,11 @@ loadDeclByReference (C.Reference.Id h i) = do
       substTypeRef = bimap substText (fmap substHash)
   pure (C.Decl.DataDeclaration dt m b (C.Type.rmap substTypeRef <$> ct)) -- lens might be nice here
 
-saveTerm :: DB m => C.Reference.Id -> C.Term Symbol -> C.Term.Type Symbol -> m ()
-saveTerm = error "todo"
+saveTermComponent :: H.Hash -> [(C.Term Symbol, C.Term.Type Symbol)] -> m ()
+saveTermComponent = error "todo"
 
-saveDecl :: DB m => C.Reference.Id -> C.Decl Symbol -> m ()
-saveDecl = error "todo"
+saveDeclComponent :: DB m => H.Hash -> [C.Decl Symbol] -> m ()
+saveDeclComponent = error "todo"
 
 listWatches :: DB m => WatchKind -> m [C.Reference.Id]
 listWatches = error "todo"
@@ -224,7 +228,7 @@ componentReferencesByPrefix ot b32prefix pos = do
   let test = maybe (const True) (==) pos
   let filterComponent l = [x | x@(C.Reference.Id _ pos) <- l, test pos]
   fmap Monoid.fromMaybe . runMaybeT $
-    join <$> traverse (fmap filterComponent . componentByObjectIdS) oIds
+    join <$> traverse (fmap filterComponent . componentByObjectId) oIds
 
 termReferencesByPrefix :: EDB m => Text -> Maybe Word64 -> m [C.Reference.Id]
 termReferencesByPrefix t w =
@@ -270,15 +274,8 @@ declReferentsByPrefix b32prefix pos cid = do
 -- (localIds, C.Decl.DataDeclaration dt m b ct) <-
 --   hashToObjectId h >>= liftQ . Q.loadObjectById >>= decodeDeclElement i
 
--- consider getting rid of this function, or making it produce [S.Reference.Id]
-componentByObjectId :: EDB m => Db.ObjectId -> m [C.Reference.Id]
+componentByObjectId :: EDB m => Db.ObjectId -> m [S.Reference.Id]
 componentByObjectId id = do
-  len <- (liftQ . Q.loadObjectById) id >>= decodeComponentLengthOnly
-  hash <- loadHashByObjectId id
-  pure [C.Reference.Id hash i | i <- [0 .. len - 1]]
-
-componentByObjectIdS :: EDB m => Db.ObjectId -> m [S.Reference.Id]
-componentByObjectIdS id = do
   len <- (liftQ . Q.loadObjectById) id >>= decodeComponentLengthOnly
   pure [C.Reference.Id id i | i <- [0 .. len - 1]]
 
