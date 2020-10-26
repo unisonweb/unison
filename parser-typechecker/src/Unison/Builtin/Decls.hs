@@ -98,9 +98,10 @@ builtinDataDecls = rs1 ++ rs
     , (v "io2.BufferMode" , bmode)
     , (v "io2.SeekMode"   , smode)
     , (v "SeqView"        , seqview)
-
     , (v "io2.IOError"    , ioerr)
     , (v "io2.StdHandle"  , stdhnd)
+    , (v "io2.Failure"    , failure)
+    , (v "io2.TlsFailure" , tlsFailure)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
   [(_, linkRef, _)] = rs1
   v = Var.named

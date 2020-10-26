@@ -489,7 +489,7 @@ ioBuiltins =
   , ("Tls.newClient", tlsClientConfig --> socket --> iof tls)
   , ("Tls.newServer", tlsServerConfig --> socket --> iof tls)
   , ("Tls.handshake", tls --> iof unit)
-  , ("Tls.send", tls --> iof unit)
+  , ("Tls.send", tls --> bytes --> iof unit)
   , ("Tls.receive", tls --> iof bytes)
   , ("Tls.terminate", tls --> iof unit)
   , ("Tls.socket", tls --> socket)

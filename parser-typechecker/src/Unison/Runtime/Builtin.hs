@@ -43,6 +43,7 @@ import Data.Text.Encoding (encodeUtf8, decodeUtf8')
 import Data.ByteString (hGet, hPut)
 import Data.Word (Word64)
 import Data.Text as Text (Text, pack, unpack)
+import qualified System.X509 as X
 import qualified Data.ByteArray as BA
 
 import Data.Set (Set, insert)
@@ -53,6 +54,7 @@ import qualified Data.Map as Map
 import qualified Unison.Util.Bytes as Bytes
 import Network.Socket as SYS
   ( accept
+  , Socket
   )
 import Network.Simple.TCP as SYS
   ( HostPreference(..)
@@ -1164,6 +1166,20 @@ pfopb_ebb instr
   where
   [e,b,ev] = freshes 3
 
+-- Pure ForeignOp taking 2 boxed values and returning 1 Either, both sides boxed
+pfopbb_ebb :: ForeignOp
+pfopbb_ebb instr
+  = ([BX, BX],)
+  . TAbss [b, c]
+  . TLet e UN (AFOp instr [b, c])
+  . TMatch e . MatchSum
+  $ mapFromList
+  [ (0, ([BX], TAbs ev $ TCon eitherReference 0 [ev]))
+  , (1, ([BX], TAbs ev $ TCon eitherReference 1 [ev]))
+  ]
+  where
+  [e,b,c,ev] = freshes 4
+
 builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
 builtinLookup
   = Map.fromList
@@ -1348,6 +1364,22 @@ mkForeignIOE f = mkForeign $ \a -> tryIOE (f a)
   tryIOE :: IO a -> IO (Either IOException a)
   tryIOE = try
 
+mkForeignTls
+  :: forall a r.(ForeignConvention a, ForeignConvention r)
+  => (a -> IO r) -> ForeignFunc
+mkForeignTls f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
+  where
+  tryIO1 :: IO r -> IO (Either TLS.TLSException r)
+  tryIO1 = try
+
+  tryIO2 :: IO (Either TLS.TLSException r) -> IO (Either IOException (Either TLS.TLSException r))
+  tryIO2 = try
+
+  flatten :: Either IOException (Either TLS.TLSException r) -> Either Text r
+  flatten (Left e) = error (show e)
+  flatten (Right (Left e)) = error (show e)
+  flatten (Right (Right a)) = Right a
+
 dummyFF :: ForeignFunc
 dummyFF = FF ee ee ee
   where
@@ -1455,16 +1487,23 @@ declareForeigns = do
     defaultSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
 
   declareForeign "Tls.Config.defaultClient" pfopbb 
-    .  mkForeign $ \(hostName::Text, serverId:: Bytes.Bytes) ->
-       let defaultParams = (defaultParamsClient (unpack hostName) (Bytes.toArray serverId)) { TLS.clientSupported = defaultSupported }
-       in 
-         pure defaultParams
+    .  mkForeign $ \(hostName::Text, serverId:: Bytes.Bytes) -> do
+       store <- X.getSystemCertificateStore
+       let shared :: TLS.Shared
+           shared = def { TLS.sharedCAStore = store }
+           defaultParams = (defaultParamsClient (unpack hostName) (Bytes.toArray serverId)) { TLS.clientSupported = defaultSupported, TLS.clientShared = shared }
+       pure defaultParams
 
-  declareForeign "Tls.Config.defaultServer" pfop0 . mkForeign $ \() ->
-    let
-       defaultParams :: ServerParams
-       defaultParams = def { TLS.serverSupported = defaultSupported }
-    in pure defaultParams
+  declareForeign "Tls.Config.defaultServer" pfop0 . mkForeign $ \() -> do
+    pure $ (def :: ServerParams) { TLS.serverSupported = defaultSupported }
+
+  declareForeign "Tls.newClient" pfopbb_ebb . mkForeignTls $ \(config :: TLS.ClientParams, socket :: SYS.Socket) -> TLS.contextNew socket config
+
+  declareForeign "Tls.handshake" pfopb_ebb . mkForeignTls $  \(tls :: TLS.Context) ->
+    TLS.handshake tls
+
+  declareForeign "Tls.send" pfopbb_ebb . mkForeignTls $  \(tls :: TLS.Context, bytes :: Bytes.Bytes) ->
+    TLS.sendData tls (Bytes.toLazyByteString bytes)
 
   -- Hashing functions
   let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()

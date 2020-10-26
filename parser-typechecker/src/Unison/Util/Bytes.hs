@@ -9,6 +9,7 @@ import Foreign.Ptr (plusPtr)
 import System.IO.Unsafe (unsafeDupablePerformIO)
 import Unison.Prelude hiding (ByteString, empty)
 import Basement.Block (Block)
+import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteArray as B
 import qualified Data.ByteArray.Encoding as BE
 import qualified Data.FingerTree as T
@@ -34,11 +35,15 @@ fromArray = snoc empty
 toArray :: forall bo . B.ByteArray bo => Bytes -> bo
 toArray b = B.concat (map B.convert (chunks b) :: [bo])
 
+toLazyByteString :: Bytes -> LB.ByteString
+toLazyByteString b = LB.fromChunks $ map B.convert $ chunks b
+
 size :: Bytes -> Int
 size (Bytes bs) = getSum (T.measure bs)
 
 chunks :: Bytes -> [View ByteString]
 chunks (Bytes b) = toList b
+
 
 fromChunks :: [View ByteString] -> Bytes
 fromChunks = foldl' snocView empty
