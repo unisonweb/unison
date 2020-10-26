@@ -12,12 +12,14 @@ module Unison.Runtime.Foreign
   , maybeUnwrapBuiltin
   , unwrapBuiltin
   , BuiltinForeign(..)
+  , Tls(..)
   ) where
 
 import Control.Concurrent (ThreadId)
 import Data.Text (Text, unpack)
 import Data.Tagged (Tagged(..))
 import Network.Socket (Socket)
+import qualified Network.TLS as TLS (ClientParams, Context, ServerParams) 
 import System.IO (Handle)
 import Unison.Util.Bytes (Bytes)
 import Unison.Reference (Reference)
@@ -84,10 +86,14 @@ instance BuiltinForeign Bytes where foreignRef = Tagged Ty.bytesRef
 instance BuiltinForeign Handle where foreignRef = Tagged Ty.fileHandleRef
 instance BuiltinForeign Socket where foreignRef = Tagged Ty.socketRef
 instance BuiltinForeign ThreadId where foreignRef = Tagged Ty.threadIdRef
+instance BuiltinForeign TLS.ClientParams where foreignRef = Tagged Ty.tlsClientConfigRef
+instance BuiltinForeign TLS.ServerParams where foreignRef = Tagged Ty.tlsServerConfigRef
 
 data HashAlgorithm where
   -- Reference is a reference to the hash algorithm
   HashAlgorithm :: Hash.HashAlgorithm a => Reference -> a -> HashAlgorithm
+
+data Tls = Tls TLS.Context
 
 instance BuiltinForeign HashAlgorithm where foreignRef = Tagged Ty.hashAlgorithmRef
 

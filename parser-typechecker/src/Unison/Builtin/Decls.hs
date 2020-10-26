@@ -40,12 +40,13 @@ pairRef = lookupDeclRef "Tuple"
 optionalRef = lookupDeclRef "Optional"
 eitherRef = lookupDeclRef "Either"
 
-testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef :: Reference
+testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef, failureRef :: Reference
 testResultRef = lookupDeclRef "Test.Result"
 linkRef = lookupDeclRef "Link"
 docRef = lookupDeclRef "Doc"
 ioErrorRef = lookupDeclRef "io2.IOError"
 stdHandleRef = lookupDeclRef "io2.StdHandle"
+failureRef = lookupDeclRef "io2.Failure"
 
 fileModeRef, bufferModeRef, seekModeRef, seqViewRef :: Reference
 fileModeRef = lookupDeclRef "io2.FileMode"
@@ -191,6 +192,17 @@ builtinDataDecls = rs1 ++ rs
     , ((), v "io2.IOError.PermissionDenied", var "io2.IOError")
     , ((), v "io2.IOError.UserError", var "io2.IOError")
     ]
+  failure = DataDeclaration
+    (Unique "52ad89274a358b9c802792aa05915e25ac83205f7885395cc6c6c988bc5ec69a1")
+    ()
+    []
+    [ ((), v "io2.Failure.Failure", (Type.typeLink () `arr` (Type.text () `arr` var "io2.Failure")))
+    ]
+  tlsFailure = DataDeclaration
+    (Unique "df5ba835130b227ab83d02d1feff5402455a732d613b51dee32230d2f2d067c6")
+    ()
+    []
+    []
   stdhnd = DataDeclaration
     (Unique "67bf7a8e517cbb1e9f42bc078e35498212d3be3c")
     ()
@@ -274,7 +286,7 @@ pattern LinkType ty <- Term.App' (Term.Constructor' LinkRef LinkTypeId) ty
 
 unitType, pairType, optionalType, testResultType,
   eitherType, ioErrorType, fileModeType, bufferModeType, seekModeType,
-  stdHandleType
+  stdHandleType, failureType
     :: Ord v => a -> Type v a
 unitType a = Type.ref a unitRef
 pairType a = Type.ref a pairRef
@@ -286,6 +298,7 @@ fileModeType a = Type.ref a fileModeRef
 bufferModeType a = Type.ref a bufferModeRef
 seekModeType a = Type.ref a seekModeRef
 stdHandleType a = Type.ref a stdHandleRef
+failureType a = Type.ref a failureRef
 
 unitTerm :: Var v => a -> Term v a
 unitTerm ann = Term.constructor ann unitRef 0

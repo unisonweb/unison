@@ -229,6 +229,21 @@ socketRef = Reference.Builtin "Socket"
 mvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
 
+tlsRef :: Reference
+tlsRef = Reference.Builtin "Tls"
+
+tlsClientConfigRef :: Reference
+tlsClientConfigRef = Reference.Builtin "Tls.ClientConfig"
+
+tlsServerConfigRef :: Reference
+tlsServerConfigRef = Reference.Builtin "Tls.ServerConfig"
+
+tlsCiphersRef :: Reference
+tlsCiphersRef = Reference.Builtin "Tls.Ciphers"
+
+tlsVersionRef :: Reference
+tlsVersionRef = Reference.Builtin "Tls.Version"
+
 hashAlgorithmRef :: Reference
 hashAlgorithmRef = Reference.Builtin "crypto.HashAlgorithm"
 

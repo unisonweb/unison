@@ -37,6 +37,7 @@ import qualified Crypto.MAC.HMAC as HMAC
 
 import Unison.Util.EnumContainers as EC
 
+import Data.Default (def)
 import Data.Either.Combinators (mapLeft)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8')
 import Data.ByteString (hGet, hPut)
@@ -62,6 +63,9 @@ import Network.Simple.TCP as SYS
   , send
   , recv
   )
+import Network.TLS as TLS
+import Network.TLS.Extra.Cipher as Cipher
+
 import System.IO as SYS
   ( openFile
   , hClose
@@ -1445,6 +1449,22 @@ declareForeigns = do
 
   declareForeign "Text.toUtf8" pfopb . mkForeign $ pure . Bytes.fromArray . encodeUtf8
   declareForeign "Text.fromUtf8" pfopb_ebb . mkForeign $ pure . mapLeft (pack . show) . decodeUtf8' . Bytes.toArray
+
+  let
+    defaultSupported :: TLS.Supported
+    defaultSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
+
+  declareForeign "Tls.Config.defaultClient" pfopbb 
+    .  mkForeign $ \(hostName::Text, serverId:: Bytes.Bytes) ->
+       let defaultParams = (defaultParamsClient (unpack hostName) (Bytes.toArray serverId)) { TLS.clientSupported = defaultSupported }
+       in 
+         pure defaultParams
+
+  declareForeign "Tls.Config.defaultServer" pfop0 . mkForeign $ \() ->
+    let
+       defaultParams :: ServerParams
+       defaultParams = def { TLS.serverSupported = defaultSupported }
+    in pure defaultParams
 
   -- Hashing functions
   let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()

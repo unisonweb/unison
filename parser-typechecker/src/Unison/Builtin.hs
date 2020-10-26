@@ -163,6 +163,9 @@ builtinTypesSrc =
   , B' "ThreadId" CT.Data, Rename' "ThreadId" "io2.ThreadId"
   , B' "MVar" CT.Data, Rename' "MVar" "io2.MVar"
   , B' "crypto.HashAlgorithm" CT.Data
+  , B' "Tls" CT.Data, Rename' "Tls" "io2.Tls"
+  , B' "Tls.ClientConfig" CT.Data, Rename' "Tls.ClientConfig" "io2.Tls.ClientConfig"
+  , B' "Tls.ServerConfig" CT.Data, Rename' "Tls.ServerConfig" "io2.Tls.ServerConfig"
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -483,6 +486,15 @@ ioBuiltins =
   , ("IO.stdHandle", stdhandle --> handle)
   , ("IO.delay", nat --> ioe unit)
   , ("IO.kill", threadId --> ioe unit)
+  , ("Tls.newClient", tlsClientConfig --> socket --> iof tls)
+  , ("Tls.newServer", tlsServerConfig --> socket --> iof tls)
+  , ("Tls.handshake", tls --> iof unit)
+  , ("Tls.send", tls --> iof unit)
+  , ("Tls.receive", tls --> iof bytes)
+  , ("Tls.terminate", tls --> iof unit)
+  , ("Tls.socket", tls --> socket)
+  , ("Tls.Config.defaultClient", text --> bytes --> tlsClientConfig)
+  , ("Tls.Config.defaultServer", tlsServerConfig)
   ]
 
 mvarBuiltins :: forall v. Var v => [(Text, Type v)]
@@ -528,9 +540,10 @@ pair l r = DD.pairType () `app` l `app` r
 a --> b = Type.arrow () a b
 infixr -->
 
-io, ioe :: Var v => Type v -> Type v
+io, ioe, iof :: Var v => Type v -> Type v
 io = Type.effect1 () (Type.builtinIO ())
 ioe = io . eithert (DD.ioErrorType ())
+iof = io . eithert (DD.failureType ())
 
 eithert :: Var v => Type v -> Type v -> Type v
 eithert l r = DD.eitherType () `app` l `app` r
@@ -540,6 +553,13 @@ socket = Type.socket ()
 threadId = Type.threadId ()
 handle = Type.fileHandle ()
 unit = DD.unitType ()
+
+tls, tlsClientConfig, tlsServerConfig :: Var v => Type v
+tls = Type.ref () Type.tlsRef
+tlsClientConfig = Type.ref () Type.tlsClientConfigRef
+tlsServerConfig = Type.ref () Type.tlsServerConfigRef
+-- tlsVersion = Type.ref () Type.tlsVersionRef
+-- tlsCiphers = Type.ref () Type.tlsCiphersRef
 
 fmode, bmode, smode, stdhandle :: Var v => Type v
 fmode = DD.fileModeType ()
