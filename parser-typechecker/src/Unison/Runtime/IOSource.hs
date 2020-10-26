@@ -166,9 +166,9 @@ unique[b28d929d0a73d2c18eac86341a3bb9399f8550c11b5f35eabb2751e6803ccc20] type
 d1 Doc.++ d2 =
   use Doc
   match (d1,d2) with
-    (Join ds, Join ds2) -> Join (ds Sequence.++ ds2)
-    (Join ds, _) -> Join (ds `Sequence.snoc` d2)
-    (_, Join ds) -> Join (d1 `Sequence.cons` ds)
+    (Join ds, Join ds2) -> Join (ds List.++ ds2)
+    (Join ds, _) -> Join (ds `List.snoc` d2)
+    (_, Join ds) -> Join (d1 `List.cons` ds)
     _ -> Join [d1,d2]
 
 unique[q1905679b27a97a4098bc965574da880c1074183a2c55ff1d481619c7fb8a1e1] type

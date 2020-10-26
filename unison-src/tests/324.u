@@ -1,5 +1,5 @@
 foo a b =
-  if a Text.== "" then
+  if a `Text.eq` "" then
     match Text.size b with
       1 -> false
       _ -> true
