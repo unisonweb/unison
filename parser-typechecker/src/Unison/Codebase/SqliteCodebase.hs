@@ -13,7 +13,7 @@ import Control.Monad.Extra (ifM, unlessM)
 import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.Trans.Maybe (MaybeT)
 import Data.Bifunctor (Bifunctor (first), second)
-import Data.Foldable (traverse_)
+import Data.Foldable (Foldable (toList), traverse_)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
@@ -29,6 +29,7 @@ import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import U.Codebase.Sqlite.Operations (EDB)
 import qualified U.Codebase.Sqlite.Operations as Ops
+import qualified U.Util.Hash as H2
 import qualified U.Util.Monoid as Monoid
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase (CodebasePath)
@@ -41,6 +42,7 @@ import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Codebase.SyncMode (SyncMode)
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
+import qualified Unison.DataDeclaration as Decl
 import Unison.Hash (Hash)
 import Unison.Parser (Ann)
 import Unison.Prelude (MaybeT (runMaybeT), fromMaybe, traceM)
@@ -58,7 +60,6 @@ import qualified Unison.Type as Type
 import qualified Unison.UnisonFile as UF
 import UnliftIO (MonadIO, catchIO)
 import UnliftIO.STM
-import Data.Foldable (Foldable(toList))
 
 -- 1) buffer up the component
 -- 2) in the event that the component is complete, then what?
@@ -139,7 +140,7 @@ sqliteCodebase root = do
           Cv.decl2to1 h1 getCycleLen decl2
 
       putTerm :: Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> IO ()
-      putTerm _r@(Reference.Id h@(Cv.hash1to2 -> h2) i n) tm tp =
+      putTerm (Reference.Id h@(Cv.hash1to2 -> h2) i n) tm tp =
         runDB conn $
           unlessM
             (Ops.objectExistsForHash h2)
@@ -193,32 +194,74 @@ sqliteCodebase root = do
       addBufferDependent :: (MonadIO m, Show a) => Hash -> TVar (Map Hash (BufferEntry a)) -> Hash -> m ()
       addBufferDependent dependent tv dependency = withBuffer tv dependency \be -> do
         putBuffer tv dependency be {beWaitingDependents = Set.insert dependent $ beWaitingDependents be}
-      tryFlushTermBuffer :: EDB m => Hash -> m ()
-      tryFlushTermBuffer h@(Cv.hash1to2 -> h2) =
+
+      tryFlushBuffer ::
+        (EDB m, Show a) =>
+        TVar (Map Hash (BufferEntry a)) ->
+        (H2.Hash -> [a] -> m ()) ->
+        (Hash -> m ()) ->
+        Hash ->
+        m ()
+      tryFlushBuffer b saveComponent tryWaiting h@(Cv.hash1to2 -> h2) =
         -- skip if it has already been flushed
         unlessM (Ops.objectExistsForHash h2) $
-          withBuffer
-            termBuffer
-            h
-            \(BufferEntry size comp (Set.toList -> missing) waiting) -> do
-              missing' <-
-                filterM
-                  (fmap not . Ops.objectExistsForHash . Cv.hash1to2)
-                  missing
-              if null missing' && size == Just (fromIntegral (length comp))
-                then do
-                  Ops.saveTermComponent h2 $
-                    first (Cv.term1to2 h) . second Cv.ttype1to2 <$> toList comp
-                  removeBuffer termBuffer h
-                  traverse_ tryFlushTermBuffer waiting
-                else -- update
+          withBuffer b h try
+        where
+          try (BufferEntry size comp (Set.toList -> missing) waiting) = do
+            missing' <-
+              filterM
+                (fmap not . Ops.objectExistsForHash . Cv.hash1to2)
+                missing
+            if null missing' && size == Just (fromIntegral (length comp))
+              then do
+                saveComponent h2 (toList comp)
+                removeBuffer b h
+                traverse_ tryWaiting waiting
+              else -- update
 
-                  putBuffer termBuffer h $
-                    BufferEntry size comp (Set.fromList missing') waiting
+                putBuffer b h $
+                  BufferEntry size comp (Set.fromList missing') waiting
 
-      -- isMissingDependencies <- allM
+      tryFlushTermBuffer :: EDB m => Hash -> m ()
+      tryFlushTermBuffer h =
+        tryFlushBuffer
+          termBuffer
+          ( \h2 ->
+              Ops.saveTermComponent h2
+                . fmap (first (Cv.term1to2 h) . second Cv.ttype1to2)
+          )
+          tryFlushTermBuffer
+          h
+
+      tryFlushDeclBuffer :: EDB m => Hash -> m ()
+      tryFlushDeclBuffer h =
+        tryFlushBuffer
+          declBuffer
+          (\h2 -> Ops.saveDeclComponent h2 . fmap (Cv.decl1to2 h))
+          (\h -> tryFlushTermBuffer h >> tryFlushDeclBuffer h)
+          h
+
       putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> IO ()
-      putTypeDeclaration = error "todo"
+      putTypeDeclaration (Reference.Id h@(Cv.hash1to2 -> h2) i n) decl =
+        runDB conn $
+          unlessM
+            (Ops.objectExistsForHash h2)
+            ( withBuffer declBuffer h \(BufferEntry size comp missing waiting) -> do
+                let size' = Just n
+                pure $
+                  ifM
+                    ((==) <$> size <*> size')
+                    (pure ())
+                    (error $ "targetSize for term " ++ show h ++ " was " ++ show size ++ ", but now " ++ show size')
+                let comp' = Map.insert i decl comp
+                moreMissing <-
+                  filterM (fmap not . Ops.objectExistsForHash . Cv.hash1to2) $
+                    [h | Reference.Derived h _i _n <- Set.toList $ Decl.declDependencies decl]
+                let missing' = missing <> Set.fromList moreMissing
+                traverse (addBufferDependent h declBuffer) moreMissing
+                putBuffer declBuffer h (BufferEntry size' comp' missing' waiting)
+                tryFlushDeclBuffer h
+            )
 
       getRootBranch = error "todo"
       putRootBranch = error "todo"
