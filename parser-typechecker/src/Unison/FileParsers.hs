@@ -89,19 +89,31 @@ resolveNames typeLookupf preexistingNames uf = do
       possibleDeps = [ (Name.toText name, Var.name v, r) |
         (name, r) <- Rel.toList (Names.terms0 preexistingNames),
         v <- Set.toList (Term.freeVars tm),
-        Name.unqualified name == Name.unqualified (Name.fromVar v) ]
+        name `Name.endsWithSegments` Name.fromVar v ]
       possibleRefs = Referent.toReference . view _3 <$> possibleDeps
   tl <- lift . lift . fmap (UF.declsToTypeLookup uf <>)
       $ typeLookupf (deps <> Set.fromList possibleRefs)
+  -- For populating the TDNR environment, we pick definitions
+  -- from the namespace and from the local file whose full name
+  -- has a suffix that equals one of the free variables in the file.
+  -- Example, the namespace has [foo.bar.baz, qux.quaffle] and
+  -- the file has definitons [utils.zonk, utils.blah] and
+  -- the file has free variables [bar.baz, zonk].
+  --
+  -- In this case, [foo.bar.baz, utils.zonk] are used to create
+  -- the TDNR environment.
   let fqnsByShortName = List.multimap $
+        -- external TDNR possibilities
         [ (shortname, nr) |
           (name, shortname, r) <- possibleDeps,
           typ <- toList $ TL.typeOfReferent tl r,
           let nr = Typechecker.NamedReference name typ (Right r) ] <>
-        [ (shortname, nr) |
+        -- local file TDNR possibilities
+        [ (Var.name v, nr) |
           (name, r) <- Rel.toList (Names.terms0 $ UF.toNames uf),
+          v <- Set.toList (Term.freeVars tm),
+          name `Name.endsWithSegments` Name.fromVar v,
           typ <- toList $ TL.typeOfReferent tl r,
-          let shortname = Name.toText $ Name.unqualified name,
           let nr = Typechecker.NamedReference (Name.toText name) typ (Right r) ]
   pure (tm, fqnsByShortName, tl)
 
