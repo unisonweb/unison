@@ -44,7 +44,6 @@ size (Bytes bs) = getSum (T.measure bs)
 chunks :: Bytes -> [View ByteString]
 chunks (Bytes b) = toList b
 
-
 fromChunks :: [View ByteString] -> Bytes
 fromChunks = foldl' snocView empty
 

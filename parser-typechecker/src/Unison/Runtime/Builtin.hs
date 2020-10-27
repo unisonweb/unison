@@ -1497,13 +1497,24 @@ declareForeigns = do
   declareForeign "Tls.Config.defaultServer" pfop0 . mkForeign $ \() -> do
     pure $ (def :: ServerParams) { TLS.serverSupported = defaultSupported }
 
-  declareForeign "Tls.newClient" pfopbb_ebb . mkForeignTls $ \(config :: TLS.ClientParams, socket :: SYS.Socket) -> TLS.contextNew socket config
+  declareForeign "Tls.newClient" pfopbb_ebb . mkForeignTls $
+    \(config :: TLS.ClientParams,
+      socket :: SYS.Socket) -> TLS.contextNew socket config
 
-  declareForeign "Tls.handshake" pfopb_ebb . mkForeignTls $  \(tls :: TLS.Context) ->
-    TLS.handshake tls
+  declareForeign "Tls.handshake" pfopb_ebb . mkForeignTls $
+    \(tls :: TLS.Context) -> TLS.handshake tls
 
-  declareForeign "Tls.send" pfopbb_ebb . mkForeignTls $  \(tls :: TLS.Context, bytes :: Bytes.Bytes) ->
-    TLS.sendData tls (Bytes.toLazyByteString bytes)
+  declareForeign "Tls.send" pfopbb_ebb . mkForeignTls $
+    \(tls :: TLS.Context,
+      bytes :: Bytes.Bytes) -> TLS.sendData tls (Bytes.toLazyByteString bytes)
+
+  declareForeign "Tls.receive" pfopb_ebb . mkForeignTls $ 
+    \(tls :: TLS.Context) -> do
+      bs <- TLS.recvData tls
+      pure $ Bytes.fromArray bs
+
+  declareForeign "Tls.terminate" pfopb_ebb . mkForeignTls $
+    \(tls :: TLS.Context) -> TLS.bye tls
 
   -- Hashing functions
   let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()

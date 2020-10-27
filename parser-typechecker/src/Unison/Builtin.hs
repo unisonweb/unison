@@ -492,7 +492,6 @@ ioBuiltins =
   , ("Tls.send", tls --> bytes --> iof unit)
   , ("Tls.receive", tls --> iof bytes)
   , ("Tls.terminate", tls --> iof unit)
-  , ("Tls.socket", tls --> socket)
   , ("Tls.Config.defaultClient", text --> bytes --> tlsClientConfig)
   , ("Tls.Config.defaultServer", tlsServerConfig)
   ]
