@@ -195,6 +195,8 @@ sqliteCodebase root = do
       addBufferDependent dependent tv dependency = withBuffer tv dependency \be -> do
         putBuffer tv dependency be {beWaitingDependents = Set.insert dependent $ beWaitingDependents be}
 
+      -- |if all of the dependencies are in the codebase and this component is
+      -- complete, then save this component!
       tryFlushBuffer ::
         (EDB m, Show a) =>
         TVar (Map Hash (BufferEntry a)) ->
@@ -202,24 +204,22 @@ sqliteCodebase root = do
         (Hash -> m ()) ->
         Hash ->
         m ()
-      tryFlushBuffer b saveComponent tryWaiting h@(Cv.hash1to2 -> h2) =
+      tryFlushBuffer buf saveComponent tryWaiting h@(Cv.hash1to2 -> h2) =
         -- skip if it has already been flushed
-        unlessM (Ops.objectExistsForHash h2) $
-          withBuffer b h try
+        unlessM (Ops.objectExistsForHash h2) $ withBuffer buf h try
         where
-          try (BufferEntry size comp (Set.toList -> missing) waiting) = do
+          try (BufferEntry size comp (Set.delete h -> missing) waiting) = do
             missing' <-
               filterM
                 (fmap not . Ops.objectExistsForHash . Cv.hash1to2)
-                missing
+                (toList missing)
             if null missing' && size == Just (fromIntegral (length comp))
               then do
                 saveComponent h2 (toList comp)
-                removeBuffer b h
+                removeBuffer buf h
                 traverse_ tryWaiting waiting
               else -- update
-
-                putBuffer b h $
+                putBuffer buf h $
                   BufferEntry size comp (Set.fromList missing') waiting
 
       tryFlushTermBuffer :: EDB m => Hash -> m ()

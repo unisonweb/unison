@@ -23,7 +23,7 @@ import qualified Unison.Hash as V1
 import qualified Unison.Kind as V1.Kind
 import Unison.Parser (Ann)
 import qualified Unison.Parser as Ann
-import qualified Unison.Pattern as P
+import qualified Unison.Pattern as V1.Pattern
 import qualified Unison.Reference as V1
 import qualified Unison.Reference as V1.Reference
 import qualified Unison.Referent as V1
@@ -45,11 +45,62 @@ decltype1to2 = \case
 
 term1to2 :: Hash -> V1.Term.Term V1.Symbol Ann -> V2.Term.Term V2.Symbol
 term1to2 h =
-  V2.ABT.transform (termF1to2 h)
+  V2.ABT.transform termF1to2
     . V2.ABT.vmap symbol1to2
     . V2.ABT.amap (const ())
     . abt1to2
-  where termF1to2 = undefined
+  where
+    termF1to2 :: V1.Term.F V1.Symbol Ann Ann a -> V2.Term.F V2.Symbol a
+    termF1to2 = go
+    go = \case
+      V1.Term.Int i -> V2.Term.Int i
+      V1.Term.Nat n -> V2.Term.Nat n
+      V1.Term.Float f -> V2.Term.Float f
+      V1.Term.Boolean b -> V2.Term.Boolean b
+      V1.Term.Text t -> V2.Term.Text t
+      V1.Term.Char c -> V2.Term.Char c
+      V1.Term.Ref r -> V2.Term.Ref (rreference1to2 h r)
+      V1.Term.Constructor r i -> V2.Term.Constructor (reference1to2 r) (fromIntegral i)
+      V1.Term.Request r i -> V2.Term.Constructor (reference1to2 r) (fromIntegral i)
+      V1.Term.Handle b h -> V2.Term.Handle b h
+      V1.Term.App f a -> V2.Term.App f a
+      V1.Term.Ann e t -> V2.Term.Ann e (ttype1to2 t)
+      V1.Term.Sequence as -> V2.Term.Sequence as
+      V1.Term.If c t f -> V2.Term.If c t f
+      V1.Term.And a b -> V2.Term.And a b
+      V1.Term.Or a b -> V2.Term.Or a b
+      V1.Term.Lam a -> V2.Term.Lam a
+      V1.Term.LetRec _ bs body -> V2.Term.LetRec bs body
+      V1.Term.Let _ b body -> V2.Term.Let b body
+      V1.Term.Match e cases -> V2.Term.Match e (goCase <$> cases)
+      V1.Term.TermLink r -> V2.Term.TermLink (rreferent1to2 h r)
+      V1.Term.TypeLink r -> V2.Term.TypeLink (reference1to2 r)
+      V1.Term.Blank _ -> error "can't serialize term with blanks"
+    goCase (V1.Term.MatchCase p g b) =
+      V2.Term.MatchCase (goPat p) g b
+    goPat :: V1.Pattern.Pattern a -> V2.Term.Pattern Text V2.Reference
+    goPat = \case
+      V1.Pattern.Unbound _ -> V2.Term.PUnbound
+      V1.Pattern.Var _ -> V2.Term.PVar
+      V1.Pattern.Boolean _ b -> V2.Term.PBoolean b
+      V1.Pattern.Int _ i -> V2.Term.PInt i
+      V1.Pattern.Nat _ n -> V2.Term.PNat n
+      V1.Pattern.Float _ d -> V2.Term.PFloat d
+      V1.Pattern.Text _ t -> V2.Term.PText t
+      V1.Pattern.Char _ c -> V2.Term.PChar c
+      V1.Pattern.Constructor _ r i ps ->
+        V2.Term.PConstructor (reference1to2 r) i (goPat <$> ps)
+      V1.Pattern.As _ p -> V2.Term.PAs (goPat p)
+      V1.Pattern.EffectPure _ p -> V2.Term.PEffectPure (goPat p)
+      V1.Pattern.EffectBind _ r i ps k ->
+        V2.Term.PEffectBind (reference1to2 r) i (goPat <$> ps) (goPat k)
+      V1.Pattern.SequenceLiteral _ ps -> V2.Term.PSequenceLiteral (goPat <$> ps)
+      V1.Pattern.SequenceOp _ p op p2 ->
+        V2.Term.PSequenceOp (goPat p) (goSeqOp op) (goPat p2)
+    goSeqOp = \case
+      V1.Pattern.Cons -> V2.Term.PCons
+      V1.Pattern.Snoc -> V2.Term.PSnoc
+      V1.Pattern.Concat -> V2.Term.PConcat
 
 term2to1 :: forall m. Monad m => Hash -> (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.Term V2.Symbol -> m (V1.Term.Term V1.Symbol Ann)
 term2to1 h lookupSize lookupCT tm =
@@ -91,25 +142,25 @@ term2to1 h lookupSize lookupCT tm =
           V2.Term.MatchCase pat cond body ->
             V1.Term.MatchCase <$> (goPat pat) <*> pure cond <*> pure body
         goPat = \case
-          V2.Term.PUnbound -> pure $ P.Unbound a
-          V2.Term.PVar -> pure $ P.Var a
-          V2.Term.PBoolean b -> pure $ P.Boolean a b
-          V2.Term.PInt i -> pure $ P.Int a i
-          V2.Term.PNat n -> pure $ P.Nat a n
-          V2.Term.PFloat d -> pure $ P.Float a d
-          V2.Term.PText t -> pure $ P.Text a t
-          V2.Term.PChar c -> pure $ P.Char a c
+          V2.Term.PUnbound -> pure $ V1.Pattern.Unbound a
+          V2.Term.PVar -> pure $ V1.Pattern.Var a
+          V2.Term.PBoolean b -> pure $ V1.Pattern.Boolean a b
+          V2.Term.PInt i -> pure $ V1.Pattern.Int a i
+          V2.Term.PNat n -> pure $ V1.Pattern.Nat a n
+          V2.Term.PFloat d -> pure $ V1.Pattern.Float a d
+          V2.Term.PText t -> pure $ V1.Pattern.Text a t
+          V2.Term.PChar c -> pure $ V1.Pattern.Char a c
           V2.Term.PConstructor r i ps ->
-            P.Constructor a <$> reference2to1 lookupSize r <*> pure i <*> (traverse goPat ps)
-          V2.Term.PAs p -> P.As a <$> goPat p
-          V2.Term.PEffectPure p -> P.EffectPure a <$> goPat p
-          V2.Term.PEffectBind r i ps p -> P.EffectBind a <$> reference2to1 lookupSize r <*> pure i <*> traverse goPat ps <*> goPat p
-          V2.Term.PSequenceLiteral ps -> P.SequenceLiteral a <$> traverse goPat ps
-          V2.Term.PSequenceOp p1 op p2 -> P.SequenceOp a <$> goPat p1 <*> pure (goOp op) <*> goPat p2
+            V1.Pattern.Constructor a <$> reference2to1 lookupSize r <*> pure i <*> (traverse goPat ps)
+          V2.Term.PAs p -> V1.Pattern.As a <$> goPat p
+          V2.Term.PEffectPure p -> V1.Pattern.EffectPure a <$> goPat p
+          V2.Term.PEffectBind r i ps p -> V1.Pattern.EffectBind a <$> reference2to1 lookupSize r <*> pure i <*> traverse goPat ps <*> goPat p
+          V2.Term.PSequenceLiteral ps -> V1.Pattern.SequenceLiteral a <$> traverse goPat ps
+          V2.Term.PSequenceOp p1 op p2 -> V1.Pattern.SequenceOp a <$> goPat p1 <*> pure (goOp op) <*> goPat p2
         goOp = \case
-          V2.Term.PCons -> P.Cons
-          V2.Term.PSnoc -> P.Snoc
-          V2.Term.PConcat -> P.Concat
+          V2.Term.PCons -> V1.Pattern.Cons
+          V2.Term.PSnoc -> V1.Pattern.Snoc
+          V2.Term.PConcat -> V1.Pattern.Concat
         a = Ann.External
 
 decl2to1 :: Monad m => Hash -> (Hash -> m V1.Reference.Size) -> V2.Decl.Decl V2.Symbol -> m (V1.Decl.Decl V1.Symbol Ann)
