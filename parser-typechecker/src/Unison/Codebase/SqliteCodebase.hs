@@ -78,7 +78,7 @@ data BufferEntry a = BufferEntry
     beMissingDependencies :: Set Hash,
     beWaitingDependents :: Set Hash
   }
-  deriving (Show)
+  deriving (Eq, Show)
 
 type TermBufferEntry = BufferEntry (Term Symbol Ann, Type Symbol Ann)
 
@@ -350,7 +350,17 @@ sqliteCodebase root = do
       branchHashesByPrefix :: ShortBranchHash -> IO (Set Branch.Hash)
       branchHashesByPrefix = error "todo"
 
-  let finalizer = Sqlite.close conn
+  let finalizer = do
+        Sqlite.close conn
+        decls <- readTVarIO declBuffer
+        terms <- readTVarIO termBuffer
+        let printBuffer header b =
+              if b /= mempty
+                then putStrLn header >> putStrLn "" >> print b else pure ()
+        printBuffer "Decls:" decls
+        printBuffer "Terms:" terms
+
+
   pure $
     ( finalizer,
       Codebase1.Codebase
