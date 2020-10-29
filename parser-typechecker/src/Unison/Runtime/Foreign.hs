@@ -13,6 +13,7 @@ module Unison.Runtime.Foreign
   , unwrapBuiltin
   , BuiltinForeign(..)
   , Tls(..)
+  , Failure(..)
   ) where
 
 import Control.Concurrent (ThreadId)
@@ -90,12 +91,13 @@ instance BuiltinForeign TLS.ClientParams where foreignRef = Tagged Ty.tlsClientC
 instance BuiltinForeign TLS.ServerParams where foreignRef = Tagged Ty.tlsServerConfigRef
 instance BuiltinForeign TLS.Context where foreignRef = Tagged Ty.tlsRef
 
-
 data HashAlgorithm where
   -- Reference is a reference to the hash algorithm
   HashAlgorithm :: Hash.HashAlgorithm a => Reference -> a -> HashAlgorithm
 
-data Tls = Tls TLS.Context
+newtype Tls = Tls TLS.Context
+
+data Failure = Failure Reference Text
 
 instance BuiltinForeign HashAlgorithm where foreignRef = Tagged Ty.hashAlgorithmRef
 

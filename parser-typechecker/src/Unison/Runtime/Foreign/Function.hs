@@ -24,7 +24,8 @@ import Network.Socket (Socket)
 import System.IO (BufferMode(..), SeekMode, Handle, IOMode)
 import Unison.Util.Bytes (Bytes)
 
-import Unison.Type (mvarRef)
+import Unison.Reference (Reference)
+import Unison.Type (mvarRef, typeLinkRef)
 
 import Unison.Runtime.ANF (Mem(..))
 import Unison.Runtime.MCode
@@ -211,6 +212,14 @@ writeForeignBuiltin
   -> IO (Stack 'UN, Stack 'BX)
 writeForeignBuiltin = writeForeignAs (Foreign . wrapBuiltin)
 
+writeTypeLink :: Stack 'UN -> Stack 'BX -> Reference
+  -> IO (Stack 'UN, Stack 'BX)
+writeTypeLink = writeForeignAs (Foreign . Wrap typeLinkRef)
+
+readTypelink :: [Int] -> [Int] -> Stack 'UN -> Stack 'BX
+  -> IO ([Int], [Int], Reference)
+readTypelink = readForeignAs (unwrapForeign . marshalToForeign)
+
 instance ForeignConvention Double where
   readForeign (i:us) bs ustk _ = (us,bs,) <$> peekOffD ustk i
   readForeign _ _ _ _ = foreignCCError "Double"
@@ -246,6 +255,16 @@ instance (ForeignConvention a, ForeignConvention b)
   writeForeign ustk bstk (x, y) = do
     (ustk, bstk) <- writeForeign ustk bstk y
     writeForeign ustk bstk x
+
+instance ForeignConvention Failure where
+  readForeign us bs ustk bstk = do
+    (us,bs,typeref) <- readTypelink us bs ustk bstk
+    (us,bs,message) <- readForeign us bs ustk bstk
+    pure (us, bs, (Failure typeref message))
+
+  writeForeign ustk bstk (Failure typeref message) = do
+    (ustk, bstk) <- writeForeign ustk bstk message
+    writeTypeLink ustk bstk typeref
 
 instance ( ForeignConvention a
          , ForeignConvention b
