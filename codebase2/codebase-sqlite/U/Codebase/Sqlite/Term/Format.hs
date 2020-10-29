@@ -13,6 +13,7 @@ import qualified U.Codebase.Term as Term
 import qualified U.Core.ABT as ABT
 import qualified U.Codebase.Type as Type
 import qualified U.Codebase.Sqlite.Reference as Sqlite
+import U.Codebase.Sqlite.DbId (ObjectId, TextId)
 
 newtype LocalDefnId = LocalDefnId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
 newtype LocalTextId = LocalTextId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
@@ -24,8 +25,9 @@ type TypeRef = Reference' LocalTextId LocalDefnId
 type TermLink = Referent' TermRef TypeRef
 type TypeLink = TypeRef
 
-newtype LocallyIndexedComponent =
-  LocallyIndexedComponent (Vector (LocalIds, Term))
+type LocallyIndexedComponent = LocallyIndexedComponent' TextId ObjectId
+newtype LocallyIndexedComponent' t d =
+  LocallyIndexedComponent (Vector (LocalIds' t d, Term))
 
 type F =
   Term.F' LocalTextId TermRef TypeRef TermLink TypeLink Symbol

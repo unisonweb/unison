@@ -15,7 +15,7 @@ import Data.Bits (Bits)
 
 newtype ObjectId = ObjectId Word64 deriving (Eq, Ord, Show) deriving (Num, Real, Enum, Integral, Bits, Hashable, FromField, ToField) via Word64
 newtype TextId = TextId Word64 deriving (Eq, Ord, Show) deriving (Num, Real, Enum, Integral, Bits, Hashable, FromField, ToField) via Word64
-newtype HashId = HashId Word64 deriving (Eq, Ord, Show) deriving (Hashable, FromField, ToField) via Word64
+newtype HashId = HashId Word64 deriving (Eq, Ord, Show) deriving (Num, Real, Enum, Integral, Bits, Hashable, FromField, ToField) via Word64
 
 newtype PatchId = PatchId Word64 deriving (Eq, Ord, Show) deriving (Num, Real, Enum, Integral, Bits, Hashable, FromField, ToField) via ObjectId
 

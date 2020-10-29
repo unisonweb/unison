@@ -8,11 +8,14 @@ import U.Codebase.Sqlite.DbId
 import U.Codebase.Reference (Reference'(ReferenceBuiltin, ReferenceDerived), Id'(Id))
 import Database.SQLite.Simple (SQLData(..), Only(..), ToRow(toRow))
 import Database.SQLite.Simple.FromRow (FromRow(fromRow), field)
+import Database.SQLite.Simple.ToField (ToField)
+import Database.SQLite.Simple.FromField (FromField)
 
 type Reference = Reference' TextId ObjectId
 type Id = Id' ObjectId
 
 type ReferenceH = Reference' TextId HashId
+type IdH = Id' HashId
 
 -- * Orphan instances
 instance ToRow (Reference' TextId HashId) where
@@ -27,10 +30,9 @@ instance ToRow (Reference' TextId ObjectId) where
     ReferenceBuiltin t -> toRow (Only t) ++ [SQLNull, SQLNull]
     ReferenceDerived (Id h i) -> SQLNull : toRow (Only h) ++ toRow (Only i)
 
-instance ToRow Id where
-  -- | builtinId, hashId, componentIndex
+instance ToField h => ToRow (Id' h) where
   toRow = \case
     Id h i -> toRow (Only h) ++ toRow (Only i)
 
-instance FromRow Id where
+instance FromField h => FromRow (Id' h) where
   fromRow = Id <$> field <*> field

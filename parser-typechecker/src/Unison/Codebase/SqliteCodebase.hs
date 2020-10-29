@@ -89,21 +89,7 @@ sqliteCodebase root = do
   conn :: Sqlite.Connection <- Sqlite.open $ root </> "v2" </> "unison.sqlite3"
   termBuffer :: TVar (Map Hash TermBufferEntry) <- newTVarIO Map.empty
   declBuffer :: TVar (Map Hash DeclBufferEntry) <- newTVarIO Map.empty
-  let getRootBranch :: IO (Either Codebase1.GetRootBranchError (Branch IO))
-      putRootBranch :: Branch IO -> IO ()
-      rootBranchUpdates :: IO (IO (), IO (Set Branch.Hash))
-      getBranchForHash :: Branch.Hash -> IO (Maybe (Branch IO))
-      dependentsImpl :: Reference -> IO (Set Reference.Id)
-      syncFromDirectory :: Codebase1.CodebasePath -> SyncMode -> Branch IO -> IO ()
-      syncToDirectory :: Codebase1.CodebasePath -> SyncMode -> Branch IO -> IO ()
-      watches :: UF.WatchKind -> IO [Reference.Id]
-      getWatch :: UF.WatchKind -> Reference.Id -> IO (Maybe (Term Symbol Ann))
-      putWatch :: UF.WatchKind -> Reference.Id -> Term Symbol Ann -> IO ()
-      termsOfTypeImpl :: Reference -> IO (Set Referent.Id)
-      termsMentioningTypeImpl :: Reference -> IO (Set Referent.Id)
-      branchHashesByPrefix :: ShortBranchHash -> IO (Set Branch.Hash)
-
-      getTerm :: Reference.Id -> IO (Maybe (Term Symbol Ann))
+  let getTerm :: Reference.Id -> IO (Maybe (Term Symbol Ann))
       getTerm (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
         runDB' conn do
           term2 <- Ops.loadTermByReference (C.Reference.Id h2 i)
@@ -167,16 +153,6 @@ sqliteCodebase root = do
                 tryFlushTermBuffer h
             )
 
-      -- data BufferEntry a = BufferEntry
-      --   { -- First, you are waiting for the cycle to fill up with all elements
-      --     -- Then, you check: are all dependencies of the cycle in the db?
-      --     --   If yes: write yourself to database and trigger check of dependents
-      --     --   If no: just wait, do nothing
-      --     beComponentTargetSize :: Maybe Word64,
-      --     beComponent :: Map Reference.Pos a,
-      --     beMissingDependencies :: Set Hash,
-      --     beWaitingDependents :: Set Hash
-      --   }
       putBuffer :: (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> BufferEntry a -> m ()
       putBuffer tv h e = do
         traceM $ "putBuffer " ++ show h ++ " " ++ show e
@@ -194,9 +170,6 @@ sqliteCodebase root = do
       addBufferDependent :: (MonadIO m, Show a) => Hash -> TVar (Map Hash (BufferEntry a)) -> Hash -> m ()
       addBufferDependent dependent tv dependency = withBuffer tv dependency \be -> do
         putBuffer tv dependency be {beWaitingDependents = Set.insert dependent $ beWaitingDependents be}
-
-      -- |if all of the dependencies are in the codebase and this component is
-      -- complete, then save this component!
       tryFlushBuffer ::
         (EDB m, Show a) =>
         TVar (Map Hash (BufferEntry a)) ->
@@ -219,6 +192,7 @@ sqliteCodebase root = do
                 removeBuffer buf h
                 traverse_ tryWaiting waiting
               else -- update
+
                 putBuffer buf h $
                   BufferEntry size comp (Set.fromList missing') waiting
 
@@ -263,16 +237,46 @@ sqliteCodebase root = do
                 tryFlushDeclBuffer h
             )
 
+      getRootBranch :: IO (Either Codebase1.GetRootBranchError (Branch IO))
       getRootBranch = error "todo"
+
+      putRootBranch :: Branch IO -> IO ()
       putRootBranch = error "todo"
+
+      rootBranchUpdates :: IO (IO (), IO (Set Branch.Hash))
       rootBranchUpdates = error "todo"
+
+      getBranchForHash :: Branch.Hash -> IO (Maybe (Branch IO))
       getBranchForHash = error "todo"
+
+      dependentsImpl :: Reference -> IO (Set Reference.Id)
       dependentsImpl = error "todo"
+
+      syncFromDirectory :: Codebase1.CodebasePath -> SyncMode -> Branch IO -> IO ()
       syncFromDirectory = error "todo"
+
+      syncToDirectory :: Codebase1.CodebasePath -> SyncMode -> Branch IO -> IO ()
       syncToDirectory = error "todo"
-      watches = error "todo"
-      getWatch = error "todo"
-      putWatch = error "todo"
+
+      watches :: UF.WatchKind -> IO [Reference.Id]
+      watches w =
+        runDB conn $
+          Ops.listWatches (Cv.watchKind1to2 w)
+            >>= traverse (Cv.referenceid2to1 getCycleLen)
+
+      -- getWatch :: UF.WatchKind -> Reference.Id -> IO (Maybe (Term Symbol Ann))
+      getWatch k r@(Reference.Id h _i _n) =
+        runDB' conn $
+          Ops.loadWatch (Cv.watchKind1to2 k) (Cv.referenceid1to2 r)
+            >>= Cv.term2to1 h getCycleLen getDeclType
+
+      putWatch :: UF.WatchKind -> Reference.Id -> Term Symbol Ann -> IO ()
+      putWatch k r@(Reference.Id h _i _n) tm =
+        runDB conn $
+          Ops.saveWatch
+            (Cv.watchKind1to2 k)
+            (Cv.referenceid1to2 r)
+            (Cv.term1to2 h tm)
 
       getReflog :: IO [Reflog.Entry]
       getReflog =
@@ -300,7 +304,10 @@ sqliteCodebase root = do
       reflogPath :: CodebasePath -> FilePath
       reflogPath root = root </> "reflog"
 
+      termsOfTypeImpl :: Reference -> IO (Set Referent.Id)
       termsOfTypeImpl = error "todo"
+
+      termsMentioningTypeImpl :: Reference -> IO (Set Referent.Id)
       termsMentioningTypeImpl = error "todo"
 
       hashLength :: IO Int
@@ -340,7 +347,9 @@ sqliteCodebase root = do
               ]
         pure . Set.fromList $ termReferents <> declReferents
 
+      branchHashesByPrefix :: ShortBranchHash -> IO (Set Branch.Hash)
       branchHashesByPrefix = error "todo"
+
   let finalizer = Sqlite.close conn
   pure $
     ( finalizer,

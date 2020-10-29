@@ -117,10 +117,10 @@ put/get/write/read
 - [ ] add to type mentions index
 -}
 
-putLocalIds :: MonadPut m => LocalIds -> m ()
+putLocalIds :: (MonadPut m, Integral t, Bits t, Integral d, Bits d) => LocalIds' t d -> m ()
 putLocalIds LocalIds {..} = do
   putFoldable putVarInt textLookup
-  putFoldable putVarInt objectLookup
+  putFoldable putVarInt defnLookup
 
 getLocalIds :: MonadGet m => m LocalIds
 getLocalIds =
@@ -149,94 +149,93 @@ putTermComponent ::
   m ()
 putTermComponent (TermFormat.LocallyIndexedComponent v) =
   putFramedArray (putPair putLocalIds putTermElement) v
+
+putTermElement :: MonadPut m => TermFormat.Term -> m ()
+putTermElement = putABT putSymbol putUnit putF
   where
-    putF :: MonadPut m => (a -> m ()) -> TermFormat.F a -> m ()
-    putF putChild = \case
-      Term.Int n ->
-        putWord8 0 *> putInt n
-      Term.Nat n ->
-        putWord8 1 *> putNat n
-      Term.Float n ->
-        putWord8 2 *> putFloat n
-      Term.Boolean b ->
-        putWord8 3 *> putBoolean b
-      Term.Text t ->
-        putWord8 4 *> putVarInt t
-      Term.Ref r ->
-        putWord8 5 *> putRecursiveReference r
-      Term.Constructor r cid ->
-        putWord8 6 *> putReference r *> putVarInt cid
-      Term.Request r cid ->
-        putWord8 7 *> putReference r *> putVarInt cid
-      Term.Handle h a ->
-        putWord8 8 *> putChild h *> putChild a
-      Term.App f arg ->
-        putWord8 9 *> putChild f *> putChild arg
-      Term.Ann e t ->
-        putWord8 10 *> putChild e *> putType putReference putSymbol t
-      Term.Sequence vs ->
-        putWord8 11 *> putFoldable putChild vs
-      Term.If cond t f ->
-        putWord8 12 *> putChild cond *> putChild t *> putChild f
-      Term.And x y ->
-        putWord8 13 *> putChild x *> putChild y
-      Term.Or x y ->
-        putWord8 14 *> putChild x *> putChild y
-      Term.Lam body ->
-        putWord8 15 *> putChild body
-      Term.LetRec bs body ->
-        putWord8 16 *> putFoldable putChild bs *> putChild body
-      Term.Let b body ->
-        putWord8 17 *> putChild b *> putChild body
-      Term.Match s cases ->
-        putWord8 18 *> putChild s *> putFoldable (putMatchCase putChild) cases
-      Term.Char c ->
-        putWord8 19 *> putChar c
-      Term.TermLink r ->
-        putWord8 20 *> putReferent putRecursiveReference putReference r
-      Term.TypeLink r ->
-        putWord8 21 *> putReference r
-    putTermElement :: MonadPut m => TermFormat.Term -> m ()
-    putTermElement = putABT putSymbol putUnit putF
-    putMatchCase :: MonadPut m => (a -> m ()) -> Term.MatchCase TermFormat.LocalTextId TermFormat.TypeRef a -> m ()
-    putMatchCase putChild (Term.MatchCase pat guard body) =
-      putPattern pat *> putMaybe putChild guard *> putChild body
-      where
-        putPattern :: MonadPut m => Term.Pattern TermFormat.LocalTextId TermFormat.TypeRef -> m ()
-        putPattern p = case p of
-          Term.PUnbound -> putWord8 0
-          Term.PVar -> putWord8 1
-          Term.PBoolean b -> putWord8 2 *> putBoolean b
-          Term.PInt n -> putWord8 3 *> putInt n
-          Term.PNat n -> putWord8 4 *> putNat n
-          Term.PFloat n -> putWord8 5 *> putFloat n
-          Term.PConstructor r cid ps ->
-            putWord8 6
-              *> putReference r
-              *> putVarInt cid
-              *> putFoldable putPattern ps
-          Term.PAs p -> putWord8 7 *> putPattern p
-          Term.PEffectPure p -> putWord8 8 *> putPattern p
-          Term.PEffectBind r cid args k ->
-            putWord8 9
-              *> putReference r
-              *> putVarInt cid
-              *> putFoldable putPattern args
-              *> putPattern k
-          Term.PSequenceLiteral ps ->
-            putWord8 10 *> putFoldable putPattern ps
-          Term.PSequenceOp l op r ->
-            putWord8 11
-              *> putPattern l
-              *> putSeqOp op
-              *> putPattern r
-          Term.PText t -> putWord8 12 *> putVarInt t
-          Term.PChar c -> putWord8 13 *> putChar c
-          where
-            putSeqOp :: MonadPut m => Term.SeqOp -> m ()
-            putSeqOp Term.PCons = putWord8 0
-            putSeqOp Term.PSnoc = putWord8 1
-            putSeqOp Term.PConcat = putWord8 2
+  putF :: MonadPut m => (a -> m ()) -> TermFormat.F a -> m ()
+  putF putChild = \case
+    Term.Int n ->
+      putWord8 0 *> putInt n
+    Term.Nat n ->
+      putWord8 1 *> putNat n
+    Term.Float n ->
+      putWord8 2 *> putFloat n
+    Term.Boolean b ->
+      putWord8 3 *> putBoolean b
+    Term.Text t ->
+      putWord8 4 *> putVarInt t
+    Term.Ref r ->
+      putWord8 5 *> putRecursiveReference r
+    Term.Constructor r cid ->
+      putWord8 6 *> putReference r *> putVarInt cid
+    Term.Request r cid ->
+      putWord8 7 *> putReference r *> putVarInt cid
+    Term.Handle h a ->
+      putWord8 8 *> putChild h *> putChild a
+    Term.App f arg ->
+      putWord8 9 *> putChild f *> putChild arg
+    Term.Ann e t ->
+      putWord8 10 *> putChild e *> putType putReference putSymbol t
+    Term.Sequence vs ->
+      putWord8 11 *> putFoldable putChild vs
+    Term.If cond t f ->
+      putWord8 12 *> putChild cond *> putChild t *> putChild f
+    Term.And x y ->
+      putWord8 13 *> putChild x *> putChild y
+    Term.Or x y ->
+      putWord8 14 *> putChild x *> putChild y
+    Term.Lam body ->
+      putWord8 15 *> putChild body
+    Term.LetRec bs body ->
+      putWord8 16 *> putFoldable putChild bs *> putChild body
+    Term.Let b body ->
+      putWord8 17 *> putChild b *> putChild body
+    Term.Match s cases ->
+      putWord8 18 *> putChild s *> putFoldable (putMatchCase putChild) cases
+    Term.Char c ->
+      putWord8 19 *> putChar c
+    Term.TermLink r ->
+      putWord8 20 *> putReferent putRecursiveReference putReference r
+    Term.TypeLink r ->
+      putWord8 21 *> putReference r
+  putMatchCase :: MonadPut m => (a -> m ()) -> Term.MatchCase TermFormat.LocalTextId TermFormat.TypeRef a -> m ()
+  putMatchCase putChild (Term.MatchCase pat guard body) =
+    putPattern pat *> putMaybe putChild guard *> putChild body
+  putPattern :: MonadPut m => Term.Pattern TermFormat.LocalTextId TermFormat.TypeRef -> m ()
+  putPattern p = case p of
+    Term.PUnbound -> putWord8 0
+    Term.PVar -> putWord8 1
+    Term.PBoolean b -> putWord8 2 *> putBoolean b
+    Term.PInt n -> putWord8 3 *> putInt n
+    Term.PNat n -> putWord8 4 *> putNat n
+    Term.PFloat n -> putWord8 5 *> putFloat n
+    Term.PConstructor r cid ps ->
+      putWord8 6
+        *> putReference r
+        *> putVarInt cid
+        *> putFoldable putPattern ps
+    Term.PAs p -> putWord8 7 *> putPattern p
+    Term.PEffectPure p -> putWord8 8 *> putPattern p
+    Term.PEffectBind r cid args k ->
+      putWord8 9
+        *> putReference r
+        *> putVarInt cid
+        *> putFoldable putPattern args
+        *> putPattern k
+    Term.PSequenceLiteral ps ->
+      putWord8 10 *> putFoldable putPattern ps
+    Term.PSequenceOp l op r ->
+      putWord8 11
+        *> putPattern l
+        *> putSeqOp op
+        *> putPattern r
+    Term.PText t -> putWord8 12 *> putVarInt t
+    Term.PChar c -> putWord8 13 *> putChar c
+  putSeqOp :: MonadPut m => Term.SeqOp -> m ()
+  putSeqOp Term.PCons = putWord8 0
+  putSeqOp Term.PSnoc = putWord8 1
+  putSeqOp Term.PConcat = putWord8 2
 
 getTermComponent :: MonadGet m => m TermFormat.LocallyIndexedComponent
 getTermComponent =

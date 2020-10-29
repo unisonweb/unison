@@ -65,6 +65,12 @@ CREATE TABLE causal (
 -- causalHash : Hash = hash(new Causal(valueHash, parentCausalHashes))
 -- db.saveCausal(selfHash = causalHash, valueHash, parentCausalHashes)
 
+CREATE TABLE namespace_root (
+  -- a dummy pk because
+  -- id INTEGER PRIMARY KEY NOT NULL,
+  causal_id INTEGER PRIMARY KEY NOT NULL REFERENCES causal(self_hash_id)
+);
+
 CREATE TABLE causal_parent (
   id INTEGER PRIMARY KEY NOT NULL,
   causal_id INTEGER NOT NULL REFERENCES causal(self_hash_id),
@@ -87,19 +93,21 @@ CREATE TABLE type_of_term (
   PRIMARY KEY (object_id, component_index)
 );
 
-CREATE TABLE watch (
-  object_id INTEGER NOT NULL REFERENCES object(id),
+CREATE TABLE watch_result (
+  hash_id INTEGER NOT NULL REFERENCES object(id),
   component_index INTEGER NOT NULL,
   result BLOB NOT NULL,
-  PRIMARY KEY (object_id, component_index)
+  PRIMARY KEY (hash_id, component_index)
 );
 
-CREATE TABLE watch_kind (
-  object_id INTEGER NOT NULL REFERENCES object(id),
+CREATE TABLE watch (
+  hash_id INTEGER NOT NULL REFERENCES object(id),
   component_index INTEGER NOT NULL,
-  description_id INTEGER NOT NULL REFERENCES watch_kind_description(id),
-  PRIMARY KEY (object_id, component_index, watch_kind_id)
+  watch_kind_id INTEGER NOT NULL REFERENCES watch_kind_description(id),
+  PRIMARY KEY (hash_id, component_index, watch_kind_id)
 );
+CREATE INDEX watch_kind ON watch(watch_kind_id);
+
 CREATE TABLE watch_kind_description (
   id PRIMARY KEY INTEGER UNIQUE NOT NULL,
   description TEXT UNIQUE NOT NULL

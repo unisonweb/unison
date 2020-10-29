@@ -23,7 +23,7 @@ import Data.Text (Text)
 import qualified Database.SQLite.Simple as SQLite
 import Database.SQLite.Simple (SQLData, (:.) (..), Connection, FromRow, Only (..), ToRow (..))
 import Database.SQLite.Simple.FromField ( FromField )
-import Database.SQLite.Simple.ToField ( ToField )
+import Database.SQLite.Simple.ToField ( ToField(..) )
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
 import U.Codebase.Sqlite.ObjectType ( ObjectType )
@@ -35,6 +35,8 @@ import U.Codebase.Sqlite.DbId ( HashId(..), ObjectId(..), TextId )
 import U.Codebase.Reference (Reference')
 import Control.Monad.Trans.Maybe (runMaybeT, MaybeT(MaybeT))
 import Control.Monad.Except (runExceptT, ExceptT, throwError, MonadError)
+import U.Codebase.WatchKind (WatchKind)
+import qualified U.Codebase.WatchKind as WatchKind
 
 -- * types
 type DB m = (MonadIO m, MonadReader Connection m)
@@ -46,6 +48,8 @@ data Integrity
   | UnknownObjectId ObjectId
   | UnknownCausalOldHashId CausalOldHashId
   | NoObjectForHashId HashId
+  | NoNamespaceRoot
+  | MultipleNamespaceRoots [CausalHashId]
   deriving Show
 
 -- |discard errors that you're sure are impossible
@@ -215,17 +219,56 @@ loadCausalParents h = queryList sql (Only h) where sql = [here|
   SELECT parent_id FROM causal_parent WHERE causal_id = ?
 |]
 
+loadNamespaceRoot :: EDB m => m CausalHashId
+loadNamespaceRoot = queryList sql () >>= \case
+  [] -> throwError NoNamespaceRoot
+  [id] -> pure id
+  ids -> throwError (MultipleNamespaceRoots ids)
+ where sql = "SELECT causal_id FROM namespace_root"
+
+setNamespaceRoot :: DB m => CausalHashId -> m ()
+setNamespaceRoot id = execute sql (Only id) where sql = [here|
+  INSERT OR REPLACE INTO namespace_root VALUES (?)
+|]
+
 saveTypeOfTerm :: DB m => Reference.Id -> ByteString -> m ()
 saveTypeOfTerm r blob = execute sql (r :. Only blob) where sql = [here|
     INSERT OR IGNORE INTO type_of_term
     VALUES (?, ?, ?)
   |]
 
--- possible application error to return Nothing
 loadTypeOfTerm :: DB m => Reference.Id -> m (Maybe ByteString)
 loadTypeOfTerm r = queryOnly sql r where sql = [here|
   SELECT bytes FROM type_of_term
   WHERE object_id = ? AND component_index = ?
+|]
+
+--
+saveWatch :: DB m => WatchKind -> Reference.IdH -> ByteString -> m ()
+saveWatch k r blob = execute sql (r :. Only blob) >> execute sql2 (r :. Only k)
+  where
+    sql = [here|
+      INSERT OR IGNORE
+      INTO watch_result (hash_id, component_index, result)
+      VALUES (?, ?, ?)
+    |]
+    sql2 = [here|
+      INSERT OR IGNORE
+      INTO watch (hash_id, component_index, watch_kind_id)
+      VALUES (?, ?, ?)
+    |]
+
+loadWatch :: DB m => WatchKind -> Reference.IdH -> m (Maybe ByteString)
+loadWatch k r = queryOnly sql (Only k :. r) where sql = [here|
+    SELECT bytes FROM watch
+    WHERE watch_kind_id = ?
+      AND hash_id = ?
+      AND component_index = ?
+  |]
+
+loadWatchesByWatchKind :: DB m => WatchKind -> m [Reference.Id]
+loadWatchesByWatchKind k = query sql (Only k) where sql = [here|
+  SELECT object_id, component_index FROM watch WHERE watch_kind_id = ?
 |]
 
 -- * Index-building
@@ -307,7 +350,7 @@ queryOne = fmap fromJust
 queryExists :: (DB m, ToRow q) => SQLite.Query -> q -> m Bool
 queryExists q r = not . null . map (id @SQLData) <$> queryList q r
 
-query :: (DB m, ToRow q, SQLite.FromRow r) => SQLite.Query -> q -> m [r]
+query :: (DB m, ToRow q, FromRow r) => SQLite.Query -> q -> m [r]
 query q r = do c <- ask; liftIO $ SQLite.query c q r
 execute :: (DB m, ToRow q) => SQLite.Query -> q -> m ()
 execute q r = do c <- ask; liftIO $ SQLite.execute c q r
@@ -319,3 +362,8 @@ headMay (a:_) = Just a
 -- * orphan instances
 deriving via Text instance ToField Base32Hex
 deriving via Text instance FromField Base32Hex
+
+instance ToField WatchKind where
+  toField = \case
+    WatchKind.RegularWatch -> SQLite.SQLInteger 0
+    WatchKind.TestWatch -> SQLite.SQLInteger 1

@@ -32,6 +32,9 @@ import qualified Unison.Symbol as V1
 import qualified Unison.Term as V1.Term
 import qualified Unison.Type as V1.Type
 import qualified Unison.Var as Var
+import qualified Unison.Var as V1.Var
+import qualified U.Codebase.WatchKind as V2
+import qualified U.Codebase.WatchKind as V2.WatchKind
 
 decltype2to1 :: V2.Decl.DeclType -> CT.ConstructorType
 decltype2to1 = \case
@@ -42,6 +45,18 @@ decltype1to2 :: CT.ConstructorType -> V2.Decl.DeclType
 decltype1to2 = \case
   CT.Data -> V2.Decl.Data
   CT.Effect -> V2.Decl.Effect
+
+watchKind1to2 :: V1.Var.WatchKind -> V2.WatchKind
+watchKind1to2 = \case
+  V1.Var.RegularWatch -> V2.WatchKind.RegularWatch
+  V1.Var.TestWatch -> V2.WatchKind.TestWatch
+  other -> error $ "What kind of watchkind is " ++ other ++ "?"
+
+watchKind2to1 :: V2.WatchKind -> V1.Var.WatchKind
+watchKind2to1 = \case
+  V2.WatchKind.RegularWatch -> V1.Var.RegularWatch
+  V2.WatchKind.TestWatch -> V1.Var.TestWatch
+
 
 term1to2 :: Hash -> V1.Term.Term V1.Symbol Ann -> V2.Term.Term V2.Symbol
 term1to2 h =

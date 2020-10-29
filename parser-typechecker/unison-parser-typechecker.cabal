@@ -248,7 +248,8 @@ library
     unison-core,
     unison-codebase,
     unison-codebase-sqlite,
-    unison-util
+    unison-util,
+    unison-util-serialization
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 

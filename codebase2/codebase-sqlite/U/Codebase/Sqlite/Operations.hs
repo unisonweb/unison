@@ -7,14 +7,25 @@
 
 module U.Codebase.Sqlite.Operations where
 
+import Control.Lens (Lens')
+import qualified Control.Lens as Lens
 import Control.Monad (join)
 import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
+import Control.Monad.State (MonadState, evalStateT)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
+import Control.Monad.Writer (MonadWriter, runWriterT)
+import qualified Control.Monad.Writer as Writer
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.ByteString (ByteString)
 import Data.Bytes.Get (runGetS)
-import Data.Functor ((<&>))
+import qualified Data.Foldable as Foldable
+import Data.Functor (void, (<&>))
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Maybe (isJust)
+import Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -29,7 +40,7 @@ import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.ShortHash (ShortBranchHash)
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
-import U.Codebase.Sqlite.LocalIds (LocalIds)
+import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), WatchLocalIds)
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import U.Codebase.Sqlite.Queries (DB)
@@ -43,12 +54,12 @@ import qualified U.Codebase.Term as C
 import qualified U.Codebase.Term as C.Term
 import qualified U.Codebase.Type as C.Type
 import U.Codebase.WatchKind (WatchKind)
+import qualified U.Core.ABT as ABT
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Hash as H
 import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get, getFromBytes)
 import qualified U.Util.Serialization as S
-import Data.Maybe (isJust)
 
 type Err m = MonadError Error m
 
@@ -124,6 +135,9 @@ objectExistsForHash h = isJust <$> runMaybeT (hashToObjectId h)
 loadHashByObjectId :: EDB m => Db.ObjectId -> m H.Hash
 loadHashByObjectId = fmap H.fromBase32Hex . liftQ . Q.loadPrimaryHashByObjectId
 
+loadHashByHashId :: EDB m => Db.HashId -> m H.Hash
+loadHashByHashId = fmap H.fromBase32Hex . liftQ . Q.loadHashById
+
 decodeComponentLengthOnly :: Err m => ByteString -> m Word64
 decodeComponentLengthOnly = getFromBytesOr ErrFramedArrayLen S.lengthFramedArray
 
@@ -152,14 +166,24 @@ getDeclTypeByReference r@(C.Reference.Id h pos) =
 -- * meat and veggies
 
 loadTermByReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term Symbol)
-loadTermByReference (C.Reference.Id h i) = do
-  -- retrieve and deserialize the blob
-  (localIds, term) <-
-    hashToObjectId h >>= liftQ . Q.loadObjectById >>= decodeTermElement i
+loadTermByReference (C.Reference.Id h i) =
+  hashToObjectId h
+    >>= liftQ . Q.loadObjectById
+    -- retrieve and deserialize the blob
+    >>= decodeTermElement i
+    >>= uncurry s2cTerm
 
+s2cTerm :: EDB m => LocalIds -> S.Term.Term -> MaybeT m (C.Term Symbol)
+s2cTerm = x2cTerm loadTextById loadHashByObjectId
+
+w2cTerm :: EDB m => WatchLocalIds -> S.Term.Term -> MaybeT m (C.Term Symbol)
+w2cTerm = x2cTerm loadTextById loadHashByHashId
+
+x2cTerm :: Monad m => (t -> m Text) -> (d -> m H.Hash) -> LocalIds' t d -> S.Term.Term -> m (C.Term Symbol)
+x2cTerm loadText loadHash localIds term = do
   -- look up the text and hashes that are used by the term
-  texts <- traverse loadTextById $ LocalIds.textLookup localIds
-  hashes <- traverse loadHashByObjectId $ LocalIds.objectLookup localIds
+  texts <- traverse loadText $ LocalIds.textLookup localIds
+  hashes <- traverse loadHash $ LocalIds.defnLookup localIds
 
   -- substitute the text and hashes back into the term
   let substText (S.Term.LocalTextId w) = texts Vector.! fromIntegral w
@@ -169,6 +193,154 @@ loadTermByReference (C.Reference.Id h i) = do
       substTermLink = bimap substTermRef substTypeRef
       substTypeLink = substTypeRef
   pure (C.Term.extraMap substText substTermRef substTypeRef substTermLink substTypeLink id term)
+
+c2xTerm :: forall m t d. Monad m => (Text -> m t) -> (H.Hash -> m d) -> C.Term Symbol -> m (LocalIds' t d, S.Term.Term)
+c2xTerm saveText saveDefn tm =
+  done =<< (runWriterT . flip evalStateT mempty) (ABT.transformM go tm)
+  where
+    go :: forall m a. (MonadWriter (Seq Text, Seq H.Hash) m, MonadState (Map Text S.Term.LocalTextId, Map H.Hash S.Term.LocalDefnId) m) => C.Term.F Symbol a -> m (S.Term.F a)
+    go = \case
+      C.Term.Int n -> pure $ C.Term.Int n
+      C.Term.Nat n -> pure $ C.Term.Nat n
+      C.Term.Float n -> pure $ C.Term.Float n
+      C.Term.Boolean b -> pure $ C.Term.Boolean b
+      C.Term.Text t -> C.Term.Text <$> lookupText t
+      C.Term.Char ch -> pure $ C.Term.Char ch
+      C.Term.Ref r ->
+        C.Term.Ref <$> bitraverse lookupText (traverse lookupDefn) r
+      C.Term.Constructor typeRef cid ->
+        C.Term.Constructor
+          <$> bitraverse lookupText lookupDefn typeRef
+          <*> pure cid
+      C.Term.Request typeRef cid ->
+        C.Term.Request <$> bitraverse lookupText lookupDefn typeRef <*> pure cid
+      C.Term.Handle a a2 -> pure $ C.Term.Handle a a2
+      C.Term.App a a2 -> pure $ C.Term.App a a2
+      C.Term.Ann a typ -> C.Term.Ann a <$> ABT.transformM goType typ
+      C.Term.Sequence as -> pure $ C.Term.Sequence as
+      C.Term.If c t f -> pure $ C.Term.If c t f
+      C.Term.And a a2 -> pure $ C.Term.And a a2
+      C.Term.Or a a2 -> pure $ C.Term.Or a a2
+      C.Term.Lam a -> pure $ C.Term.Lam a
+      C.Term.LetRec bs a -> pure $ C.Term.LetRec bs a
+      C.Term.Let a a2 -> pure $ C.Term.Let a a2
+      C.Term.Match a cs -> C.Term.Match a <$> traverse goCase cs
+      C.Term.TermLink r ->
+        C.Term.TermLink
+          <$> bitraverse
+            (bitraverse lookupText (traverse lookupDefn))
+            (bitraverse lookupText lookupDefn)
+            r
+      C.Term.TypeLink r ->
+        C.Term.TypeLink <$> bitraverse lookupText lookupDefn r
+    goType ::
+      forall m a.
+      (MonadWriter (Seq Text, Seq H.Hash) m, MonadState (Map Text S.Term.LocalTextId, Map H.Hash S.Term.LocalDefnId) m) =>
+      C.Type.FT a ->
+      m (S.Term.FT a)
+    goType = \case
+      C.Type.Ref r -> C.Type.Ref <$> bitraverse lookupText lookupDefn r
+      C.Type.Arrow i o -> pure $ C.Type.Arrow i o
+      C.Type.Ann a k -> pure $ C.Type.Ann a k
+      C.Type.App f a -> pure $ C.Type.App f a
+      C.Type.Effect e a -> pure $ C.Type.Effect e a
+      C.Type.Effects es -> pure $ C.Type.Effects es
+      C.Type.Forall a -> pure $ C.Type.Forall a
+      C.Type.IntroOuter a -> pure $ C.Type.IntroOuter a
+    goCase ::
+      forall m w s a.
+      ( MonadState s m,
+        MonadWriter w m,
+        Lens.Field1 s s (Map Text S.Term.LocalTextId) (Map Text S.Term.LocalTextId),
+        Lens.Field1 w w (Seq Text) (Seq Text),
+        Lens.Field2 s s (Map H.Hash S.Term.LocalDefnId) (Map H.Hash S.Term.LocalDefnId),
+        Lens.Field2 w w (Seq H.Hash) (Seq H.Hash)
+      ) =>
+      C.Term.MatchCase Text C.Term.TypeRef a ->
+      m (C.Term.MatchCase S.Term.LocalTextId S.Term.TypeRef a)
+    goCase = \case
+      C.Term.MatchCase pat guard body ->
+        C.Term.MatchCase <$> goPat pat <*> pure guard <*> pure body
+    goPat ::
+      forall m s w.
+      ( MonadState s m,
+        MonadWriter w m,
+        Lens.Field1 s s (Map Text S.Term.LocalTextId) (Map Text S.Term.LocalTextId),
+        Lens.Field1 w w (Seq Text) (Seq Text),
+        Lens.Field2 s s (Map H.Hash S.Term.LocalDefnId) (Map H.Hash S.Term.LocalDefnId),
+        Lens.Field2 w w (Seq H.Hash) (Seq H.Hash)
+      ) =>
+      C.Term.Pattern Text C.Term.TypeRef ->
+      m (C.Term.Pattern S.Term.LocalTextId S.Term.TypeRef)
+    goPat = \case
+      C.Term.PUnbound -> pure $ C.Term.PUnbound
+      C.Term.PVar -> pure $ C.Term.PVar
+      C.Term.PBoolean b -> pure $ C.Term.PBoolean b
+      C.Term.PInt i -> pure $ C.Term.PInt i
+      C.Term.PNat n -> pure $ C.Term.PNat n
+      C.Term.PFloat d -> pure $ C.Term.PFloat d
+      C.Term.PText t -> C.Term.PText <$> lookupText t
+      C.Term.PChar c -> pure $ C.Term.PChar c
+      C.Term.PConstructor r i ps -> C.Term.PConstructor <$> bitraverse lookupText lookupDefn r <*> pure i <*> traverse goPat ps
+      C.Term.PAs p -> C.Term.PAs <$> goPat p
+      C.Term.PEffectPure p -> C.Term.PEffectPure <$> goPat p
+      C.Term.PEffectBind r i bindings k -> C.Term.PEffectBind <$> bitraverse lookupText lookupDefn r <*> pure i <*> traverse goPat bindings <*> goPat k
+      C.Term.PSequenceLiteral ps -> C.Term.PSequenceLiteral <$> traverse goPat ps
+      C.Term.PSequenceOp l op r -> C.Term.PSequenceOp <$> goPat l <*> pure op <*> goPat r
+    lookupText ::
+      forall m s w t.
+      ( MonadState s m,
+        MonadWriter w m,
+        Lens.Field1 s s (Map t S.Term.LocalTextId) (Map t S.Term.LocalTextId),
+        Lens.Field1 w w (Seq t) (Seq t),
+        Ord t
+      ) =>
+      t ->
+      m S.Term.LocalTextId
+    lookupText = lookup Lens._1 Lens._1 S.Term.LocalTextId
+    lookupDefn ::
+      forall m s w d.
+      ( MonadState s m,
+        MonadWriter w m,
+        Lens.Field2 s s (Map d S.Term.LocalDefnId) (Map d S.Term.LocalDefnId),
+        Lens.Field2 w w (Seq d) (Seq d),
+        Ord d
+      ) =>
+      d ->
+      m S.Term.LocalDefnId
+    lookupDefn = lookup Lens._2 Lens._2 S.Term.LocalDefnId
+    lookup ::
+      forall m s w t t'.
+      (MonadState s m, MonadWriter w m, Ord t) =>
+      Lens' s (Map t t') ->
+      Lens' w (Seq t) ->
+      (Word64 -> t') ->
+      t ->
+      m t'
+    lookup stateLens writerLens mk t = do
+      map <- Lens.use stateLens
+      case Map.lookup t map of
+        Nothing -> do
+          let id = mk . fromIntegral $ Map.size map
+          stateLens Lens.%= Map.insert t id
+          Writer.tell $ Lens.set writerLens (Seq.singleton t) mempty
+          pure id
+        Just t' -> pure t'
+    done :: (S.Term.Term, (Seq Text, Seq H.Hash)) -> m (LocalIds' t d, S.Term.Term)
+    done (tm, (localTextValues, localDefnValues)) = do
+      textIds <- traverse saveText localTextValues
+      defnIds <- traverse saveDefn localDefnValues
+      let ids =
+            LocalIds
+              (Vector.fromList (Foldable.toList textIds))
+              (Vector.fromList (Foldable.toList defnIds))
+      pure (ids, void tm)
+
+c2wTerm :: DB m => C.Term Symbol -> m (WatchLocalIds, S.Term.Term)
+c2wTerm = c2xTerm Q.saveText Q.saveHashHash
+
+c2sTerm :: EDB m => C.Term Symbol -> MaybeT m (LocalIds, S.Term.Term)
+c2sTerm = c2xTerm Q.saveText hashToObjectId
 
 loadTypeOfTermByTermReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term.Type Symbol)
 loadTypeOfTermByTermReference r = do
@@ -189,7 +361,7 @@ loadDeclByReference (C.Reference.Id h i) = do
 
   -- look up the text and hashes that are used by the term
   texts <- traverse loadTextById $ LocalIds.textLookup localIds
-  hashes <- traverse loadHashByObjectId $ LocalIds.objectLookup localIds
+  hashes <- traverse loadHashByObjectId $ LocalIds.defnLookup localIds
 
   -- substitute the text and hashes back into the term
   let substText (S.Decl.LocalTextId w) = texts Vector.! fromIntegral w
@@ -204,14 +376,22 @@ saveTermComponent = error "todo"
 saveDeclComponent :: DB m => H.Hash -> [C.Decl Symbol] -> m ()
 saveDeclComponent = error "todo"
 
-listWatches :: DB m => WatchKind -> m [C.Reference.Id]
-listWatches = error "todo"
+listWatches :: EDB m => WatchKind -> m [C.Reference.Id]
+listWatches k = Q.loadWatchesByWatchKind k >>= traverse s2cReferenceId
 
-loadWatch :: DB m => WatchKind -> C.Reference.Id -> m (Maybe (C.Term Symbol))
-loadWatch = error "todo"
+loadWatch :: EDB m => WatchKind -> C.Reference.Id -> MaybeT m (C.Term Symbol)
+loadWatch k r =
+  C.Reference.idH Q.saveHashHash r
+    >>= MaybeT . Q.loadWatch k
+    >>= MaybeT . pure . getFromBytes (S.getPair S.getLocalIds S.getTermElement)
+    >>= uncurry s2cTerm
 
-saveWatch :: DB m => WatchKind -> C.Reference.Id -> C.Term Symbol -> m ()
-saveWatch = error "todo"
+saveWatch :: EDB m => WatchKind -> C.Reference.Id -> C.Term Symbol -> m ()
+saveWatch w r t = do
+  rs <- C.Reference.idH Q.saveHashHash r
+  wterm <- c2wTerm t
+  let bytes = S.putBytes (S.putPair S.putLocalIds S.putTermElement) wterm
+  Q.saveWatch w rs bytes
 
 termsHavingType :: DB m => C.Reference -> m (Set C.Referent.Id)
 termsHavingType = error "todo"
