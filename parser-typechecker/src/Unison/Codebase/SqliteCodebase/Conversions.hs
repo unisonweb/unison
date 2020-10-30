@@ -9,13 +9,17 @@ import qualified U.Codebase.Reference as V2
 import qualified U.Codebase.Reference as V2.Reference
 import qualified U.Codebase.Referent as V2
 import qualified U.Codebase.Referent as V2.Referent
+import qualified U.Codebase.ShortHash as V2
 import qualified U.Codebase.Sqlite.Symbol as V2
 import qualified U.Codebase.Term as V2.Term
 import qualified U.Codebase.Type as V2.Type
+import qualified U.Codebase.WatchKind as V2
+import qualified U.Codebase.WatchKind as V2.WatchKind
 import qualified U.Core.ABT as V2.ABT
 import qualified U.Util.Hash as V2
 import qualified U.Util.Hash as V2.Hash
 import qualified Unison.ABT as V1.ABT
+import qualified Unison.Codebase.ShortBranchHash as V1
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as V1.Decl
 import Unison.Hash (Hash)
@@ -31,10 +35,11 @@ import qualified Unison.Referent as V1.Referent
 import qualified Unison.Symbol as V1
 import qualified Unison.Term as V1.Term
 import qualified Unison.Type as V1.Type
-import qualified Unison.Var as Var
 import qualified Unison.Var as V1.Var
-import qualified U.Codebase.WatchKind as V2
-import qualified U.Codebase.WatchKind as V2.WatchKind
+import qualified Unison.Var as Var
+
+sbh1to2 :: V1.ShortBranchHash -> V2.ShortBranchHash
+sbh1to2 (V1.ShortBranchHash b32) = V2.ShortBranchHash b32
 
 decltype2to1 :: V2.Decl.DeclType -> CT.ConstructorType
 decltype2to1 = \case

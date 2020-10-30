@@ -34,10 +34,11 @@ import Data.Word (Word64)
 import U.Codebase.Decl (ConstructorId)
 import qualified U.Codebase.Decl as C
 import qualified U.Codebase.Decl as C.Decl
+import U.Codebase.HashTags (CausalHash(..), BranchHash(..))
 import qualified U.Codebase.Reference as C
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
-import U.Codebase.ShortHash (ShortBranchHash)
+import U.Codebase.ShortHash (ShortBranchHash (ShortBranchHash))
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
 import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), WatchLocalIds)
@@ -459,11 +460,19 @@ componentByObjectId id = do
   len <- (liftQ . Q.loadObjectById) id >>= decodeComponentLengthOnly
   pure [C.Reference.Id id i | i <- [0 .. len - 1]]
 
--- termReferentsByPrefix :: DB m => ShortHash -> m (Set C.Referent.Id)
--- termReferentsByPrefix = error "todo"
+--  loadBranchById :: DB m => Db.BranchId -> m C.Branch
 
-branchHashesByPrefix :: DB m => ShortBranchHash -> m (Set C.Reference.Id)
-branchHashesByPrefix = error "todo"
+branchHashesByPrefix :: EDB m => ShortBranchHash -> m (Set BranchHash)
+branchHashesByPrefix (ShortBranchHash b32prefix) = do
+  hashIds <- Q.namespaceHashIdByBase32Prefix b32prefix
+  b32s <- traverse (liftQ . Q.loadHashById . Db.unBranchHashId) hashIds
+  pure $ Set.fromList . fmap BranchHash . fmap H.fromBase32Hex $ b32s
+
+causalHashesByPrefix :: EDB m => ShortBranchHash -> m (Set CausalHash)
+causalHashesByPrefix (ShortBranchHash b32prefix) = do
+  hashIds <- Q.causalHashIdByBase32Prefix b32prefix
+  b32s <- traverse (liftQ . Q.loadHashById . Db.unCausalHashId) hashIds
+  pure $ Set.fromList . fmap CausalHash . fmap H.fromBase32Hex $ b32s
 
 -- | returns a list of known definitions referencing `r`
 dependents :: EDB m => C.Reference -> MaybeT m (Set C.Reference.Id)

@@ -3,7 +3,7 @@
 module U.Codebase.Reflog where
 
 import Data.Text (Text)
-import U.Codebase.Branch (BranchHash)
+import U.Codebase.HashTags (BranchHash)
 
 data Entry = Entry {from :: BranchHash, to :: BranchHash, reason :: Text}
 

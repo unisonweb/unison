@@ -413,7 +413,7 @@ putBranchFormat = \case
           putFoldable put adds
           putFoldable put removes
         putPatchOp BranchDiff.PatchRemove = putWord8 0
-        putPatchOp BranchDiff.PatchAdd = putWord8 1
+        putPatchOp (BranchDiff.PatchAdd pId) = putWord8 1 *> putVarInt pId
         putPatchOp (BranchDiff.PatchEdit d) = putWord8 2 *> putPatchDiff d
 
 putPatchFormat :: MonadPut m => PatchFormat.PatchFormat -> m ()

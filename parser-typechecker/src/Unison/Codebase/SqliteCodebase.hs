@@ -60,6 +60,8 @@ import qualified Unison.Type as Type
 import qualified Unison.UnisonFile as UF
 import UnliftIO (MonadIO, catchIO)
 import UnliftIO.STM
+import qualified Unison.Codebase.Causal as Causal
+import U.Codebase.HashTags (CausalHash(unCausalHash))
 
 -- 1) buffer up the component
 -- 2) in the event that the component is complete, then what?
@@ -348,7 +350,17 @@ sqliteCodebase root = do
         pure . Set.fromList $ termReferents <> declReferents
 
       branchHashesByPrefix :: ShortBranchHash -> IO (Set Branch.Hash)
-      branchHashesByPrefix = error "todo"
+      branchHashesByPrefix sh = runDB conn do
+        -- bs <- Ops.branchHashesByPrefix sh
+        cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
+        pure $ Set.map (Causal.RawHash . Cv.hash2to1 . unCausalHash) cs
+
+        -- Do we want to include causal hashes here or just namespace hashes?
+        -- Could we expose just one or the other of them to the user?
+        -- Git uses commit hashes and tree hashes (analogous to causal hashes
+        -- and namespace hashes, respectively), but the user is presented
+        -- primarily with commit hashes.
+        -- Arya leaning towards doing the same for Unison.
 
   let finalizer = do
         Sqlite.close conn

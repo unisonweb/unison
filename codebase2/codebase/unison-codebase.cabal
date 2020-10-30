@@ -19,6 +19,7 @@ library
     U.Codebase.Causal
     U.Codebase.Codebase
     U.Codebase.Decl
+    U.Codebase.HashTags
     U.Codebase.Kind
     U.Codebase.Reference
     U.Codebase.Referent

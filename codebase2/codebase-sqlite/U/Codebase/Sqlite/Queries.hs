@@ -13,30 +13,29 @@
 
 module U.Codebase.Sqlite.Queries where
 
+import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader (MonadReader (ask))
-import Data.ByteString (ByteString)
 import Control.Monad.Trans (MonadIO (liftIO))
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
+import Data.ByteString (ByteString)
 import Data.Maybe (fromJust)
 import Data.String.Here.Uninterpolated (here)
 import Data.Text (Text)
+import Database.SQLite.Simple (Connection, FromRow, Only (..), SQLData, ToRow (..), (:.) (..))
 import qualified Database.SQLite.Simple as SQLite
-import Database.SQLite.Simple (SQLData, (:.) (..), Connection, FromRow, Only (..), ToRow (..))
-import Database.SQLite.Simple.FromField ( FromField )
-import Database.SQLite.Simple.ToField ( ToField(..) )
+import Database.SQLite.Simple.FromField (FromField)
+import Database.SQLite.Simple.ToField (ToField (..))
+import U.Codebase.Reference (Reference')
+import U.Codebase.Sqlite.DbId (BranchHashId, CausalHashId, CausalOldHashId, HashId (..), NamespaceHashId, ObjectId (..), TextId)
+import U.Codebase.Sqlite.ObjectType (ObjectType)
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
-import U.Codebase.Sqlite.ObjectType ( ObjectType )
-import U.Util.Base32Hex (Base32Hex (..))
-import U.Util.Hashable (Hashable)
-import U.Util.Hash (Hash)
-import qualified U.Util.Hash as Hash
-import U.Codebase.Sqlite.DbId ( HashId(..), ObjectId(..), TextId )
-import U.Codebase.Reference (Reference')
-import Control.Monad.Trans.Maybe (runMaybeT, MaybeT(MaybeT))
-import Control.Monad.Except (runExceptT, ExceptT, throwError, MonadError)
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WatchKind
+import U.Util.Base32Hex (Base32Hex (..))
+import U.Util.Hash (Hash)
+import qualified U.Util.Hash as Hash
 
 -- * types
 type DB m = (MonadIO m, MonadReader Connection m)
@@ -60,13 +59,6 @@ noError a = runExceptT a >>= \case
 
 orError :: MonadError Integrity m => (a -> Integrity) -> a -> Maybe b -> m b
 orError fe a = maybe (throwError $ fe a) pure
-
-newtype TypeId = TypeId ObjectId deriving Show deriving (FromField, ToField) via ObjectId
-newtype TermId = TermCycleId ObjectId deriving Show deriving (FromField, ToField) via ObjectId
-newtype DeclId = DeclCycleId ObjectId deriving Show deriving (FromField, ToField) via ObjectId
-newtype CausalHashId = CausalHashId HashId deriving Show deriving (Hashable, FromField, ToField) via HashId
-newtype CausalOldHashId = CausalOldHashId HashId deriving Show deriving (Hashable, FromField, ToField) via HashId
-newtype NamespaceHashId = NamespaceHashId ObjectId deriving Show deriving (Hashable, FromField, ToField) via ObjectId
 
 -- type DerivedReferent = Referent.Id ObjectId ObjectId
 -- type DerivedReference = Reference.Id ObjectId
@@ -325,15 +317,20 @@ objectIdByBase32Prefix objType prefix = queryList sql (objType, prefix <> "%") w
   WHERE object.type_id = ?
     AND hash.base32 LIKE ?
 |]
--- alternatively
--- [here|
---   SELECT object.id
---   FROM object, hash, hash_object
---   WHERE object.id = hash_object.object_id
---     AND hash.id = hash_object.hash_id
---     AND object.type_id = ?
---     AND hash.base32 LIKE ?
--- |]
+
+causalHashIdByBase32Prefix :: DB m => Text -> m [CausalHashId]
+causalHashIdByBase32Prefix prefix = queryList sql (Only $ prefix <> "%") where sql = [here|
+  SELECT self_hash_id FROM causal
+  INNER JOIN hash ON id = self_hash_id
+  WHERE base32 LIKE ?
+|]
+
+namespaceHashIdByBase32Prefix :: DB m => Text -> m [BranchHashId]
+namespaceHashIdByBase32Prefix prefix = queryList sql (Only $ prefix <> "%") where sql = [here|
+  SELECT value_hash_id FROM causal
+  INNER JOIN hash ON id = value_hash_id
+  WHERE base32 LIKE ?
+|]
 
 -- * helper functions
 queryList :: (DB f, ToRow q, FromField b) => SQLite.Query -> q -> f [b]
