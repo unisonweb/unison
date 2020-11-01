@@ -36,6 +36,8 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Applicative (Applicative(liftA2))
 import GHC.Word (Word64)
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 type Get a = forall m. MonadGet m => m a
 
@@ -209,6 +211,9 @@ putMap putA putB m = putFoldable (putPair putA putB) (Map.toList m)
 
 getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
 getMap getA getB = Map.fromList <$> getList (getPair getA getB)
+
+getSet :: (MonadGet m, Ord a) => m a -> m (Set a)
+getSet getA = Set.fromList <$> getList getA
 
 putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()
 putPair putA putB (a,b) = putA a *> putB b

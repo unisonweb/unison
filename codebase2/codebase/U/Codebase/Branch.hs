@@ -9,9 +9,9 @@ import U.Codebase.Referent (Referent)
 import U.Codebase.TermEdit (TermEdit)
 import U.Codebase.TypeEdit (TypeEdit)
 
-newtype NameSegment = NameSegment Text
+newtype NameSegment = NameSegment Text deriving (Eq, Ord, Show)
 
-newtype MdValues = MdValues (Set Reference)
+newtype MdValues = MdValues (Set Reference) deriving (Eq, Ord, Show)
 
 data Branch m = Branch
   { terms :: Map NameSegment (Map Referent (m MdValues)),
@@ -21,6 +21,6 @@ data Branch m = Branch
   }
 
 data Patch = Patch
-  { termEdits :: Map Referent TermEdit,
-    typeEdits :: Map Reference TypeEdit
+  { termEdits :: Map Referent (Set TermEdit),
+    typeEdits :: Map Reference (Set TypeEdit)
   }

@@ -21,4 +21,3 @@ instance Hashable Typing where
 instance Hashable TermEdit where
   tokens (Replace r t) = [H.Tag 0] ++ H.tokens r ++ H.tokens t
   tokens Deprecate = [H.Tag 1]
-

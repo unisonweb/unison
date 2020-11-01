@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -38,6 +39,7 @@ import qualified U.Codebase.Type as Type
 import qualified U.Core.ABT as ABT
 import U.Util.Serialization
 import Prelude hiding (getChar, putChar)
+import U.Codebase.Sqlite.DbId (PatchObjectId)
 
 putABT ::
   (MonadPut m, Foldable f, Functor f, Ord v) =>
@@ -391,7 +393,7 @@ lookupDeclElement =
 putBranchFormat :: MonadPut m => BranchFormat.BranchFormat -> m ()
 putBranchFormat = \case
   BranchFormat.Full b -> putWord8 0 *> putBranchFull b
-  BranchFormat.Diff d -> putWord8 1 *> putBranchDiff d
+  BranchFormat.Diff r d -> putWord8 1 *> putBranchDiff r d
   where
     putReferent' = putReferent putReference putReference
     putBranchFull (BranchFull.Branch terms types patches children) = do
@@ -401,51 +403,60 @@ putBranchFormat = \case
       putMap putVarInt putVarInt children
     putMetadataSetFormat = \case
       MetadataSet.Inline s -> putWord8 0 *> putFoldable putReference s
-    putBranchDiff (BranchDiff.Diff ref terms types termMD typeMD patches) = do
+    putBranchDiff ref (BranchDiff.Diff terms types patches children) = do
       putVarInt ref
-      putMap putVarInt (putAddRemove putReferent') terms
-      putMap putVarInt (putAddRemove putReference) types
-      putMap putVarInt (putMap putReferent' (putAddRemove putReference)) termMD
-      putMap putVarInt (putMap putReference (putAddRemove putReference)) typeMD
+      putMap putVarInt (putMap putReferent' putDiffOp) terms
+      putMap putVarInt (putMap putReference putDiffOp) types
       putMap putVarInt putPatchOp patches
+      putMap putVarInt putChildOp children
       where
-        putAddRemove put (BranchDiff.AddRemove adds removes) = do
+        putAddRemove put map = do
+          let (adds, removes) = BranchDiff.addsRemoves map
           putFoldable put adds
           putFoldable put removes
-        putPatchOp BranchDiff.PatchRemove = putWord8 0
-        putPatchOp (BranchDiff.PatchAdd pId) = putWord8 1 *> putVarInt pId
-        putPatchOp (BranchDiff.PatchEdit d) = putWord8 2 *> putPatchDiff d
+        putPatchOp = \case
+          BranchDiff.PatchRemove -> putWord8 0
+          BranchDiff.PatchAddReplace pId -> putWord8 1 *> putVarInt pId
+        putDiffOp = \case
+          BranchDiff.RemoveDef -> putWord8 0
+          BranchDiff.AddDefWithMetadata md -> putWord8 1 *> putFoldable putReference md
+          BranchDiff.AlterDefMetadata md -> putWord8 2 *> putAddRemove putReference md
+        putChildOp = \case
+          BranchDiff.ChildRemove -> putWord8 0
+          BranchDiff.ChildAddReplace b -> putWord8 1 *> putVarInt b
 
 putPatchFormat :: MonadPut m => PatchFormat.PatchFormat -> m ()
 putPatchFormat = \case
   PatchFormat.Full p -> putWord8 0 *> putPatchFull p
-  PatchFormat.Diff p -> putWord8 1 *> putPatchDiff p
+  PatchFormat.Diff r p -> putWord8 1 *> putPatchDiff r p
+
+getPatchFormat :: MonadGet m => m PatchFormat.PatchFormat
+getPatchFormat = error "todo"
 
 putPatchFull :: MonadPut m => PatchFull.Patch -> m ()
 putPatchFull (PatchFull.Patch termEdits typeEdits) = do
-  putMap putReferent' putTermEdit termEdits
-  putMap putReference putTypeEdit typeEdits
+  putMap putReferent' (putFoldable putTermEdit) termEdits
+  putMap putReference (putFoldable putTypeEdit) typeEdits
   where
     putReferent' = putReferent putReference putReference
 
-putPatchDiff :: MonadPut m => PatchDiff.PatchDiff -> m ()
-putPatchDiff (PatchDiff.PatchDiff r atm atp rtm rtp) = do
+putPatchDiff :: MonadPut m => PatchObjectId -> PatchDiff.PatchDiff -> m ()
+putPatchDiff r (PatchDiff.PatchDiff atm atp rtm rtp) = do
   putVarInt r
-  putMap putReferent' putTermEdit atm
-  putMap putReference putTypeEdit atp
-  putFoldable putReferent' rtm
-  putFoldable putReference rtp
+  putMap putReferent' (putFoldable putTermEdit) atm
+  putMap putReference (putFoldable putTypeEdit) atp
+  putMap putReferent' (putFoldable putTermEdit) rtm
+  putMap putReference (putFoldable putTypeEdit) rtp
   where
     putReferent' = putReferent putReference putReference
 
 putTermEdit :: MonadPut m => TermEdit.TermEdit -> m ()
 putTermEdit TermEdit.Deprecate = putWord8 0
-putTermEdit (TermEdit.Replace r t) = putWord8 1 *> putReferent' r *> putTyping t
+putTermEdit (TermEdit.Replace r t) = putWord8 1 *> putReference r *> putTyping t
   where
     putTyping TermEdit.Same = putWord8 0
     putTyping TermEdit.Subtype = putWord8 1
     putTyping TermEdit.Different = putWord8 2
-    putReferent' = putReferent putReference putReference
 
 putTypeEdit :: MonadPut m => TypeEdit.TypeEdit -> m ()
 putTypeEdit TypeEdit.Deprecate = putWord8 0

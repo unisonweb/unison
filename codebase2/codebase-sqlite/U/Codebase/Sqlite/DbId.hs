@@ -22,10 +22,10 @@ newtype TextId = TextId Word64 deriving (Eq, Ord, Show)
 newtype HashId = HashId Word64 deriving (Eq, Ord, Show)
   deriving (Num, Real, Enum, Integral, Bits, Hashable, FromField, ToField) via Word64
 
-newtype PatchObjectId = PatchObjectId Word64 deriving (Eq, Ord, Show)
+newtype PatchObjectId = PatchObjectId { unPatchObjectId :: ObjectId } deriving (Eq, Ord, Show)
   deriving (Num, Real, Enum, Integral, Bits, Hashable, FromField, ToField) via ObjectId
 
-newtype BranchObjectId = BranchObjectId ObjectId deriving (Eq, Ord, Show)
+newtype BranchObjectId = BranchObjectId { unBranchObjectId :: ObjectId } deriving (Eq, Ord, Show)
   deriving (Num, Real, Enum, Integral, Bits, Hashable, FromField, ToField) via ObjectId
 
 newtype BranchHashId = BranchHashId { unBranchHashId :: HashId } deriving (Eq, Ord, Show)
