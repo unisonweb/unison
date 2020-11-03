@@ -481,9 +481,9 @@ printCase env im doc ms = PP.lines $ map each gridArrowsAligned where
     where
     lhs = (case pats of
             [pat] -> PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
-            pats  -> PP.group . PP.spaced . (`evalState` vs) . for pats $ \pat -> do
+            pats  -> PP.group . PP.sep ("," <> PP.softbreak) . (`evalState` vs) . for pats $ \pat -> do
               vs <- State.get
-              let (p, rem) = prettyPattern env (ac 0 Block im doc) 10 vs pat
+              let (p, rem) = prettyPattern env (ac 0 Block im doc) (-1) vs pat
               State.put rem
               pure p)
        <> printGuard guard
@@ -1127,8 +1127,8 @@ pattern LamsNamedMatch' vs branches <- (unLamsMatch' -> Just (vs, branches))
 --     (x, y) -> y ++ x
 --
 -- this function will return Just ([x], [ "a" "b" -> "abba", x y -> y ++ x])
--- and it would be rendered as `x -> cases "a" "b" -> "abba"
---                                         x    y  -> y ++ x
+-- and it would be rendered as `x -> cases "a", "b" -> "abba"
+--                                         x,    y  -> y ++ x
 --
 -- This function returns `Nothing` in cases where the term it is given isn't
 -- a lambda, or when the lambda isn't in the correct form for lambda cases.

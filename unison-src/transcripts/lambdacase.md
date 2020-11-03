@@ -34,7 +34,7 @@ it shows the definition using `cases` syntax opportunistically, even though the 
 
 ## Multi-argument cases
 
-Functions that take multiple arguments and immediately match on a tuple of arguments can also be rewritten to use `cases`:
+Functions that take multiple arguments and immediately match on a tuple of arguments can also be rewritten to use `cases`. Here's a version using regular `match` syntax on a tuple:
 
 ```unison:hide
 merge : [a] -> [a] -> [a]
@@ -50,14 +50,14 @@ merge xs ys = match (xs, ys) with
 .> add
 ```
 
-Here's a version using `cases`:
+And here's a version using `cases`. The patterns are separated by commas:
 
 ```unison
 merge2 : [a] -> [a] -> [a]
 merge2 = cases
-  [] ys -> ys
-  xs [] -> xs
-  (h +: t) (h2 +: t2) ->
+  [], ys -> ys
+  xs, [] -> xs
+  h +: t, h2 +: t2 ->
     if h <= h2 then h  +: merge2 t (h2 +: t2)
     else            h2 +: merge2 (h +: t) t2
 ```
@@ -69,3 +69,16 @@ Notice that Unison detects this as an alias of `merge`, and if we view `merge`
 ```
 
 it again shows the definition using the multi-argument `cases` syntax opportunistically, even though the code was originally written without that syntax.
+
+Here's another example:
+
+```unison
+type B = T | F
+
+blah = cases
+  T, x -> "hi"
+  x, F -> "bye"
+
+> blah T F
+> blah F F
+```
