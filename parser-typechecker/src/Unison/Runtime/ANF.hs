@@ -56,6 +56,8 @@ module Unison.Runtime.ANF
   , Func(..)
   , superNormalize
   , anfTerm
+  , groupLinks
+  , normalLinks
   , prettyGroup
   ) where
 
@@ -1209,6 +1211,53 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   anfBody tm = Compose . bindLocal vs $ anfTerm tm
 anfInitCase _ (MatchCase p _ _)
   = error $ "anfInitCase: unexpected pattern: " ++ show p
+
+groupLinks :: Monoid a => (Bool -> Reference -> a) -> SuperGroup v -> a
+groupLinks f (Rec bs e)
+  = foldMap (foldMap (normalLinks f)) bs <> normalLinks f e
+
+normalLinks
+  :: Monoid a => (Bool -> Reference -> a) -> SuperNormal v -> a
+normalLinks f (Lambda _ e) = anfLinks f e
+
+anfLinks :: Monoid a => (Bool -> Reference -> a) -> ANormal v -> a
+anfLinks f (ABTN.Term _ (ABTN.Abs _ e)) = anfLinks f e
+anfLinks f (ABTN.Term _ (ABTN.Tm e)) = anfFLinks f (anfLinks f) e
+
+anfFLinks
+  :: Monoid a
+  => (Bool -> Reference -> a)
+  -> (e -> a)
+  -> ANormalF v e
+  -> a
+anfFLinks _ g (ALet _ _ b e) = g b <> g e
+anfFLinks f g (AName er _ e)
+  = bifoldMap (f False) (const mempty) er <> g e
+anfFLinks f g (AMatch _ bs) = branchLinks (f True) g bs
+anfFLinks f g (AShift r e) = f True r <> g e
+anfFLinks f g (AHnd rs _ e) = foldMap (f True) rs <> g e
+anfFLinks f _ (AApp fu _) = funcLinks (f False) fu
+anfFLinks _ _ _ = mempty
+
+branchLinks
+  :: Monoid a
+  => (Reference -> a)
+  -> (e -> a)
+  -> Branched e
+  -> a
+branchLinks f g bs = tyRefs f bs <> foldMap g bs
+
+tyRefs :: Monoid a => (Reference -> a) -> Branched e -> a
+tyRefs f (MatchRequest m _) = foldMap f (Map.keys m)
+tyRefs f (MatchData r _ _) = f r
+tyRefs _ _ = mempty
+
+funcLinks 
+  :: Monoid a
+  => (Reference -> a)
+  -> Func v -> a
+funcLinks f (FComb r) = f r
+funcLinks _ _ = mempty
 
 expandBindings'
   :: Var v

@@ -8,19 +8,20 @@ module Unison.Runtime.Interface
 
 import GHC.Stack (HasCallStack)
 
+import Control.Concurrent.STM as STM
 import Control.Exception (try)
 import Control.Monad (foldM, (<=<))
 
 import Data.Bifunctor (first,second)
-import Data.Foldable
+import Data.Functor ((<&>))
 import Data.IORef
+import Data.Foldable
 import Data.Word (Word64)
 
 import qualified Data.Map.Strict as Map
 
 import qualified Unison.ABT as Tm (substs)
 import qualified Unison.Term as Tm
-import Unison.Var (Var)
 
 import Unison.DataDeclaration (declFields)
 import qualified Unison.LabeledDependency as RF
@@ -35,30 +36,28 @@ import Unison.Codebase.MainTerm (builtinMain)
 
 import Unison.Parser (Ann(External))
 import Unison.PrettyPrintEnv
+import Unison.Symbol (Symbol)
 import Unison.TermPrinter
 
 import Unison.Runtime.ANF
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile
 import Unison.Runtime.Exception
-import Unison.Runtime.Machine (SEnv(SEnv), apply0)
-import Unison.Runtime.MCode
+import Unison.Runtime.Machine
+  ( apply0
+  , CCache(..), cacheAdd, baseCCache
+  , refNumTm, refNumsTm, refNumsTy
+  )
 import Unison.Runtime.Pattern
 import Unison.Runtime.Stack
 
 type Term v = Tm.Term v ()
 
-data EvalCtx v
+data EvalCtx
   = ECtx
-  { freshTy :: Word64
-  , freshTm :: Word64
-  , refTy :: Map.Map RF.Reference Word64
-  , refTm :: Map.Map RF.Reference Word64
-  , combs :: EnumMap Word64 Combs
-  , dspec :: DataSpec
-  , backrefTy :: EnumMap Word64 RF.Reference
-  , backrefTm :: EnumMap Word64 (Term v)
-  , backrefComb :: EnumMap Word64 RF.Reference
+  { dspec :: DataSpec
+  , decompTm :: Map.Map Reference (Term Symbol)
+  , ccache :: CCache
   }
 
 uncurryDspec :: DataSpec -> Map.Map (Reference,Int) Int
@@ -66,88 +65,40 @@ uncurryDspec = Map.fromList . concatMap f . Map.toList
   where
   f (r,l) = zipWith (\n c -> ((r,n),c)) [0..] $ either id id l
 
-baseContext :: forall v. Var v => EvalCtx v
-baseContext
-  = ECtx
-  { freshTy = fty
-  , freshTm = ftm
-  , refTy = builtinTypeNumbering
-  , refTm = builtinTermNumbering
-  , combs = combs
-  , dspec = builtinDataSpec
-  , backrefTy = builtinTypeBackref
-  , backrefTm = Tm.ref () <$> builtinTermBackref
-  , backrefComb = builtinTermBackref
-  }
-  where
-  ftm = 1 + maximum builtinTermNumbering
-  fty = 1 + maximum builtinTypeNumbering
+baseContext :: IO EvalCtx
+baseContext = baseCCache <&> \cc
+    -> ECtx
+     { dspec = builtinDataSpec
+     , decompTm = Map.fromList $
+         Map.keys builtinTermNumbering
+           <&> \r -> (r, Tm.ref () r)
+     , ccache = cc
+     }
 
-  combs
-    = mapWithKey
-        (\k v -> emitComb @v emptyRNs k mempty (0,v))
-        numberedTermLookup
-
-allocTerm
-  :: Var v
-  => EvalCtx v
+resolveTermRef
+  :: CodeLookup Symbol IO ()
   -> RF.Reference
-  -> Term v
-  -> EvalCtx v
-allocTerm ctx r tm = snd $ allocTerm' ctx r tm
-
-allocTerm'
-  :: Var v
-  => EvalCtx v
-  -> RF.Reference
-  -> Term v
-  -> (Word64, EvalCtx v)
-allocTerm' ctx r tm
-  | Just w <- Map.lookup r (refTm ctx) = (w, ctx)
-  | rt <- freshTm ctx
-  = (rt, ctx
-       { refTm = Map.insert r rt $ refTm ctx
-       , backrefTm = mapInsert rt tm $ backrefTm ctx
-       , backrefComb = mapInsert rt r $ backrefComb ctx
-       , freshTm = rt+1
-       })
-
-allocTermRef
-  :: Var v
-  => CodeLookup v IO ()
-  -> EvalCtx v
-  -> RF.Reference
-  -> IO (EvalCtx v)
-allocTermRef _  _   b@(RF.Builtin _)
+  -> IO (Term Symbol)
+resolveTermRef _  b@(RF.Builtin _)
   = die $ "Unknown builtin term reference: " ++ show b
-allocTermRef cl ctx r@(RF.DerivedId i)
+resolveTermRef cl r@(RF.DerivedId i)
   = getTerm cl i >>= \case
       Nothing -> die $ "Unknown term reference: " ++ show r
-      Just tm -> pure $ allocTerm ctx r tm
+      Just tm -> pure tm
 
 allocType
-  :: EvalCtx v
+  :: EvalCtx
   -> RF.Reference
   -> Either [Int] [Int]
-  -> IO (EvalCtx v)
+  -> IO EvalCtx
 allocType _ b@(RF.Builtin _) _
   = die $ "Unknown builtin type reference: " ++ show b
 allocType ctx r cons
-  = pure $ ctx
-         { refTy = Map.insert r rt $ refTy ctx
-         , backrefTy = mapInsert rt r $ backrefTy ctx
-         , dspec = Map.insert r cons $ dspec ctx
-         , freshTy = fresh
-         }
-  where
-  (rt, fresh)
-    | Just rt <- Map.lookup r $ refTy ctx = (rt, freshTy ctx)
-    | frsh <- freshTy ctx = (frsh, frsh + 1)
+  = pure $ ctx { dspec = Map.insert r cons $ dspec ctx }
 
 collectDeps
-  :: Var v
-  => CodeLookup v IO ()
-  -> Term v
+  :: CodeLookup Symbol IO ()
+  -> Term Symbol
   -> IO ([(Reference, Either [Int] [Int])], [Reference])
 collectDeps cl tm
   = (,tms) <$> traverse getDecl tys
@@ -161,115 +112,91 @@ collectDeps cl tm
   getDecl r = pure (r,Right [])
 
 loadDeps
-  :: Var v
-  => CodeLookup v IO ()
-  -> EvalCtx v
-  -> Term v
-  -> IO (EvalCtx v)
+  :: CodeLookup Symbol IO ()
+  -> EvalCtx
+  -> Term Symbol
+  -> IO EvalCtx
 loadDeps cl ctx tm = do
-  (tys, tms) <- collectDeps cl tm
-  -- TODO: terms
-  ctx <- foldM (uncurry . allocType) ctx $ filter p tys
-  ctx <- foldM (allocTermRef cl) ctx $ filter q tms
-  pure $ foldl' compileAllocated ctx $ filter q tms
-  where
-  p (r@RF.DerivedId{},_)
-    =  r `Map.notMember` dspec ctx
-    || r `Map.notMember` refTy ctx
-  p _ = False
+  (tyrs, tmrs) <- collectDeps cl tm
+  p <- refNumsTy (ccache ctx) <&> \m (r,_) -> case r of
+    RF.DerivedId{} -> r `Map.notMember` dspec ctx
+                   || r `Map.notMember` m
+    _ -> False
+  q <- refNumsTm (ccache ctx) <&> \m r -> case r of
+    RF.DerivedId{} -> r `Map.notMember` m
+    _ -> False
+  ctx <- foldM (uncurry . allocType) ctx $ filter p tyrs
+  rtms <- traverse (\r -> (,) r <$> resolveTermRef cl r) $ filter q tmrs
+  ctx <- pure $ ctx { decompTm = Map.fromList rtms <> decompTm ctx }
+  let rint = second (intermediateTerm ctx) <$> rtms
+  [] <- cacheAdd rint (ccache ctx)
+  pure ctx
 
-  q r@RF.DerivedId{} = r `Map.notMember` refTm ctx
-  q _ = False
-
-compileAllocated
-  :: HasCallStack => Var v => EvalCtx v -> Reference -> EvalCtx v
-compileAllocated ctx r
-  | Just w <- Map.lookup r (refTm ctx)
-  , Just tm <- EC.lookup w (backrefTm ctx)
-  = compileTerm w tm ctx
-  | otherwise
-  = error "compileAllocated: impossible"
-
-addCombs :: EvalCtx v -> Word64 -> Combs -> EvalCtx v
-addCombs ctx w m = ctx { combs = mapInsert w m $ combs ctx }
-
--- addTermBackrefs :: EnumMap Word64 (Term v) -> EvalCtx v -> EvalCtx v
--- addTermBackrefs refs ctx = ctx { backrefTm = refs <> backrefTm ctx }
-
--- refresh :: Word64 -> EvalCtx v -> EvalCtx v
--- refresh w ctx = ctx { freshTm = w }
-
-ref :: HasCallStack => Ord k => Show k => Map.Map k v -> k -> v
-ref m k
-  | Just x <- Map.lookup k m = x
-  | otherwise = error $ "unknown reference: " ++ show k
-
-compileTerm
-  :: HasCallStack => Var v => Word64 -> Term v -> EvalCtx v -> EvalCtx v
-compileTerm w tm ctx
-  = addCombs ctx w
-  . emitCombs (RN (ref $ refTy ctx) (ref $ refTm ctx)) w
-  . superNormalize
+intermediateTerm
+  :: HasCallStack => EvalCtx -> Term Symbol -> SuperGroup Symbol
+intermediateTerm ctx tm
+  = superNormalize
   . lamLift
   . splitPatterns (dspec ctx)
   . saturate (uncurryDspec $ dspec ctx)
   $ tm
 
 prepareEvaluation
-  :: HasCallStack => Var v => Term v -> EvalCtx v -> (EvalCtx v, Word64)
-prepareEvaluation (Tm.LetRecNamed' bs mn0) ctx0 = (ctx4, mid)
+  :: HasCallStack => Term Symbol -> EvalCtx -> IO (EvalCtx, Word64)
+prepareEvaluation tm ctx = do
+  ctx <- pure $ ctx { decompTm = Map.fromList rtms <> decompTm ctx }
+  [] <- cacheAdd rint (ccache ctx)
+  (,) ctx <$> refNumTm (ccache ctx) rmn
   where
-  hcs = fmap (first RF.DerivedId) . Tm.hashComponents $ Map.fromList bs
-  mn = Tm.substs (Map.toList $ Tm.ref () . fst <$> hcs) mn0
-  rmn = RF.DerivedId $ Tm.hashClosedTerm mn
+  (rmn, rtms)
+    | Tm.LetRecNamed' bs mn0 <- tm
+    , hcs <- fmap (first RF.DerivedId)
+           . Tm.hashComponents $ Map.fromList bs
+    , mn <- Tm.substs (Map.toList $ Tm.ref () . fst <$> hcs) mn0
+    , rmn <- RF.DerivedId $ Tm.hashClosedTerm mn
+    = (rmn , (rmn, mn) : Map.elems hcs)
 
-  ctx1 = foldl (uncurry . allocTerm) ctx0 hcs
-  ctx2 = foldl (\ctx (r, _) -> compileAllocated ctx r) ctx1 hcs
-  (mid, ctx3) = allocTerm' ctx2 rmn mn
-  ctx4 = compileTerm mid mn ctx3
-prepareEvaluation mn ctx0 = (ctx2, mid)
-  where
-  rmn = RF.DerivedId $ Tm.hashClosedTerm mn
-  (mid, ctx1) = allocTerm' ctx0 rmn mn
-  ctx2 = compileTerm mid mn ctx1
+    | rmn <- RF.DerivedId $ Tm.hashClosedTerm tm
+    = (rmn, [(rmn, tm)])
 
+  rint = second (intermediateTerm ctx) <$> rtms
 
 watchHook :: IORef Closure -> Stack 'UN -> Stack 'BX -> IO ()
 watchHook r _ bstk = peek bstk >>= writeIORef r
 
+backReferenceTm
+  :: EnumMap Word64 Reference
+  -> Map.Map Reference (Term Symbol)
+  -> Word64 -> Maybe (Term Symbol)
+backReferenceTm ws rs = (`Map.lookup` rs) <=< (`EC.lookup` ws)
+
 evalInContext
-  :: Var v
-  => PrettyPrintEnv
-  -> EvalCtx v
+  :: PrettyPrintEnv
+  -> EvalCtx
   -> Word64
-  -> IO (Either Error (Term v))
+  -> IO (Either Error (Term Symbol))
 evalInContext ppe ctx w = do
   r <- newIORef BlackHole
+  crs <- readTVarIO (combRefs $ ccache ctx)
   let hook = watchHook r
-      senv = SEnv
-               (combs ctx)
-               builtinForeigns
-               (backrefComb ctx)
-               (backrefTy ctx)
+      decom = decompile (backReferenceTm crs (decompTm ctx))
+      prettyError (PE p) = p
+      prettyError (BU c) = either id (pretty ppe) $ decom c
   result <- traverse (const $ readIORef r)
           . first prettyError
-        <=< try $ apply0 (Just hook) senv w
+        <=< try $ apply0 (Just hook) (ccache ctx) w
   pure $ decom =<< result
-  where
-  decom = decompile (`EC.lookup`backrefTm ctx)
-  prettyError (PE p) = p
-  prettyError (BU c) = either id (pretty ppe) $ decom c
 
-startRuntime :: Var v => IO (Runtime v)
+startRuntime :: IO (Runtime Symbol)
 startRuntime = do
-  ctxVar <- newIORef baseContext
+  ctxVar <- newIORef =<< baseContext
   pure $ Runtime
        { terminate = pure ()
        , evaluate = \cl ppe tm -> do
            ctx <- readIORef ctxVar
            ctx <- loadDeps cl ctx tm
            writeIORef ctxVar ctx
-           (ctx, init) <- pure $ prepareEvaluation tm ctx
+           (ctx, init) <- prepareEvaluation tm ctx
            evalInContext ppe ctx init
        , mainType = builtinMain External
        , needsContainment = False
