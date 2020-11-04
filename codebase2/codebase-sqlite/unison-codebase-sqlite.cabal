@@ -45,6 +45,7 @@ library
       bytes,
       bytestring,
       containers,
+      extra,
       here,
       lens,
       mtl,

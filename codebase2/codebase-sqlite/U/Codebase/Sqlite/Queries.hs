@@ -223,19 +223,6 @@ setNamespaceRoot id = execute sql (Only id) where sql = [here|
   INSERT OR REPLACE INTO namespace_root VALUES (?)
 |]
 
-saveTypeOfTerm :: DB m => Reference.Id -> ByteString -> m ()
-saveTypeOfTerm r blob = execute sql (r :. Only blob) where sql = [here|
-    INSERT OR IGNORE INTO type_of_term
-    VALUES (?, ?, ?)
-  |]
-
-loadTypeOfTerm :: DB m => Reference.Id -> m (Maybe ByteString)
-loadTypeOfTerm r = queryOnly sql r where sql = [here|
-  SELECT bytes FROM type_of_term
-  WHERE object_id = ? AND component_index = ?
-|]
-
---
 saveWatch :: DB m => WatchKind -> Reference.IdH -> ByteString -> m ()
 saveWatch k r blob = execute sql (r :. Only blob) >> execute sql2 (r :. Only k)
   where

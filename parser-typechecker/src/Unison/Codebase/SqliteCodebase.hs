@@ -14,6 +14,7 @@ import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.Trans.Maybe (MaybeT)
 import Data.Bifunctor (Bifunctor (first), second)
 import Data.Foldable (Foldable (toList), traverse_)
+import Data.Functor (void)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
@@ -25,6 +26,9 @@ import Data.Word (Word64)
 import Database.SQLite.Simple (Connection)
 import qualified Database.SQLite.Simple as Sqlite
 import System.FilePath ((</>))
+-- import qualified U.Codebase.Sqlite.Operations' as Ops
+
+import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import U.Codebase.Sqlite.Operations (EDB)
@@ -36,6 +40,7 @@ import Unison.Codebase (CodebasePath)
 import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
@@ -60,8 +65,6 @@ import qualified Unison.Type as Type
 import qualified Unison.UnisonFile as UF
 import UnliftIO (MonadIO, catchIO)
 import UnliftIO.STM
-import qualified Unison.Codebase.Causal as Causal
-import U.Codebase.HashTags (CausalHash(unCausalHash))
 
 -- 1) buffer up the component
 -- 2) in the event that the component is complete, then what?
@@ -203,7 +206,7 @@ sqliteCodebase root = do
         tryFlushBuffer
           termBuffer
           ( \h2 ->
-              Ops.saveTermComponent h2
+              void . Ops.saveTermComponent h2
                 . fmap (first (Cv.term1to2 h) . second Cv.ttype1to2)
           )
           tryFlushTermBuffer
@@ -355,12 +358,12 @@ sqliteCodebase root = do
         cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
         pure $ Set.map (Causal.RawHash . Cv.hash2to1 . unCausalHash) cs
 
-        -- Do we want to include causal hashes here or just namespace hashes?
-        -- Could we expose just one or the other of them to the user?
-        -- Git uses commit hashes and tree hashes (analogous to causal hashes
-        -- and namespace hashes, respectively), but the user is presented
-        -- primarily with commit hashes.
-        -- Arya leaning towards doing the same for Unison.
+  -- Do we want to include causal hashes here or just namespace hashes?
+  -- Could we expose just one or the other of them to the user?
+  -- Git uses commit hashes and tree hashes (analogous to causal hashes
+  -- and namespace hashes, respectively), but the user is presented
+  -- primarily with commit hashes.
+  -- Arya leaning towards doing the same for Unison.
 
   let finalizer = do
         Sqlite.close conn
@@ -368,10 +371,10 @@ sqliteCodebase root = do
         terms <- readTVarIO termBuffer
         let printBuffer header b =
               if b /= mempty
-                then putStrLn header >> putStrLn "" >> print b else pure ()
+                then putStrLn header >> putStrLn "" >> print b
+                else pure ()
         printBuffer "Decls:" decls
         printBuffer "Terms:" terms
-
 
   pure $
     ( finalizer,

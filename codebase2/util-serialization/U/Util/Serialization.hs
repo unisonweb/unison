@@ -34,7 +34,7 @@ import UnliftIO.Directory (createDirectoryIfMissing, doesFileExist)
 import Prelude hiding (readFile, writeFile)
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Control.Applicative (Applicative(liftA2))
+import Control.Applicative (liftA3, Applicative(liftA2))
 import GHC.Word (Word64)
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -151,11 +151,11 @@ getSequence getA = do
   length <- getVarInt
   Seq.replicateM length getA
 
-getFramed :: MonadGet m => Get a -> m (Maybe a)
+getFramed :: MonadGet m => Get a -> m a
 getFramed get = do
   size <- getVarInt
   bytes <- getByteString size
-  pure $ getFromBytes get bytes
+  either fail pure $ runGetS get bytes
 
 putFramed :: MonadPut m => Put a -> a -> m ()
 putFramed put a = do
@@ -220,3 +220,6 @@ putPair putA putB (a,b) = putA a *> putB b
 
 getPair :: MonadGet m => m a -> m b -> m (a,b)
 getPair = liftA2 (,)
+
+getTuple3 :: MonadGet m => m a -> m b -> m c -> m (a,b,c)
+getTuple3 = liftA3 (,,)

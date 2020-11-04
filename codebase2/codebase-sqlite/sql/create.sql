@@ -86,13 +86,6 @@ CREATE TABLE causal_old (
   new_hash_id INTEGER NOT NULL REFERENCES hash(id)
 );
 
-CREATE TABLE type_of_term (
-  object_id INTEGER NOT NULL REFERENCES object(id),
-  component_index INTEGER NOT NULL,
-  bytes BLOB NOT NULL,
-  PRIMARY KEY (object_id, component_index)
-);
-
 CREATE TABLE watch_result (
   hash_id INTEGER NOT NULL REFERENCES object(id),
   component_index INTEGER NOT NULL,

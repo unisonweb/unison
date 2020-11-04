@@ -1,7 +1,8 @@
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module U.Codebase.Sqlite.Serialization where
 
@@ -25,8 +26,9 @@ import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
 import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
 import qualified U.Codebase.Sqlite.Branch.MetadataSet as MetadataSet
+import U.Codebase.Sqlite.DbId (PatchObjectId)
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
-import U.Codebase.Sqlite.LocalIds
+import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId)
 import qualified U.Codebase.Sqlite.Patch.Diff as PatchDiff
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import qualified U.Codebase.Sqlite.Patch.Full as PatchFull
@@ -39,7 +41,6 @@ import qualified U.Codebase.Type as Type
 import qualified U.Core.ABT as ABT
 import U.Util.Serialization
 import Prelude hiding (getChar, putChar)
-import U.Codebase.Sqlite.DbId (PatchObjectId)
 
 putABT ::
   (MonadPut m, Foldable f, Functor f, Ord v) =>
@@ -52,11 +53,12 @@ putABT putVar putA putF abt =
   putFoldable putVar fvs *> go (annotateBound abt)
   where
     fvs = Set.toList $ ABT.freeVars abt
-    go (ABT.Term _ (a, env) abt) = putA a *> case abt of
-      ABT.Var v -> putWord8 0 *> putVarRef env v
-      ABT.Tm f -> putWord8 1 *> putF go f
-      ABT.Abs v body -> putWord8 2 *> putVar v *> go body
-      ABT.Cycle body -> putWord8 3 *> go body
+    go (ABT.Term _ (a, env) abt) =
+      putA a *> case abt of
+        ABT.Var v -> putWord8 0 *> putVarRef env v
+        ABT.Tm f -> putWord8 1 *> putF go f
+        ABT.Abs v body -> putWord8 2 *> putVar v *> go body
+        ABT.Cycle body -> putWord8 3 *> go body
     annotateBound :: (Ord v, Functor f, Foldable f) => ABT.Term f v a -> ABT.Term f v (a, [v])
     annotateBound = go []
       where
@@ -141,203 +143,226 @@ putTermFormat = \case
   TermFormat.Term c -> putWord8 0 *> putTermComponent c
 
 getTermFormat :: MonadGet m => m TermFormat.TermFormat
-getTermFormat = getWord8 >>= \case
-  0 -> TermFormat.Term <$> getTermComponent
-  other -> unknownTag "getTermFormat" other
+getTermFormat =
+  getWord8 >>= \case
+    0 -> TermFormat.Term <$> getTermComponent
+    other -> unknownTag "getTermFormat" other
 
 putTermComponent ::
   MonadPut m =>
   TermFormat.LocallyIndexedComponent ->
   m ()
 putTermComponent (TermFormat.LocallyIndexedComponent v) =
-  putFramedArray (putPair putLocalIds putTermElement) v
+  putFramedArray
+    ( \(localIds, term, typ) ->
+        putLocalIds localIds >> putFramed putTerm term >> putFramed putTType typ
+    )
+    v
 
-putTermElement :: MonadPut m => TermFormat.Term -> m ()
-putTermElement = putABT putSymbol putUnit putF
+putTerm :: MonadPut m => TermFormat.Term -> m ()
+putTerm = putABT putSymbol putUnit putF
   where
-  putF :: MonadPut m => (a -> m ()) -> TermFormat.F a -> m ()
-  putF putChild = \case
-    Term.Int n ->
-      putWord8 0 *> putInt n
-    Term.Nat n ->
-      putWord8 1 *> putNat n
-    Term.Float n ->
-      putWord8 2 *> putFloat n
-    Term.Boolean b ->
-      putWord8 3 *> putBoolean b
-    Term.Text t ->
-      putWord8 4 *> putVarInt t
-    Term.Ref r ->
-      putWord8 5 *> putRecursiveReference r
-    Term.Constructor r cid ->
-      putWord8 6 *> putReference r *> putVarInt cid
-    Term.Request r cid ->
-      putWord8 7 *> putReference r *> putVarInt cid
-    Term.Handle h a ->
-      putWord8 8 *> putChild h *> putChild a
-    Term.App f arg ->
-      putWord8 9 *> putChild f *> putChild arg
-    Term.Ann e t ->
-      putWord8 10 *> putChild e *> putType putReference putSymbol t
-    Term.Sequence vs ->
-      putWord8 11 *> putFoldable putChild vs
-    Term.If cond t f ->
-      putWord8 12 *> putChild cond *> putChild t *> putChild f
-    Term.And x y ->
-      putWord8 13 *> putChild x *> putChild y
-    Term.Or x y ->
-      putWord8 14 *> putChild x *> putChild y
-    Term.Lam body ->
-      putWord8 15 *> putChild body
-    Term.LetRec bs body ->
-      putWord8 16 *> putFoldable putChild bs *> putChild body
-    Term.Let b body ->
-      putWord8 17 *> putChild b *> putChild body
-    Term.Match s cases ->
-      putWord8 18 *> putChild s *> putFoldable (putMatchCase putChild) cases
-    Term.Char c ->
-      putWord8 19 *> putChar c
-    Term.TermLink r ->
-      putWord8 20 *> putReferent putRecursiveReference putReference r
-    Term.TypeLink r ->
-      putWord8 21 *> putReference r
-  putMatchCase :: MonadPut m => (a -> m ()) -> Term.MatchCase TermFormat.LocalTextId TermFormat.TypeRef a -> m ()
-  putMatchCase putChild (Term.MatchCase pat guard body) =
-    putPattern pat *> putMaybe putChild guard *> putChild body
-  putPattern :: MonadPut m => Term.Pattern TermFormat.LocalTextId TermFormat.TypeRef -> m ()
-  putPattern p = case p of
-    Term.PUnbound -> putWord8 0
-    Term.PVar -> putWord8 1
-    Term.PBoolean b -> putWord8 2 *> putBoolean b
-    Term.PInt n -> putWord8 3 *> putInt n
-    Term.PNat n -> putWord8 4 *> putNat n
-    Term.PFloat n -> putWord8 5 *> putFloat n
-    Term.PConstructor r cid ps ->
-      putWord8 6
-        *> putReference r
-        *> putVarInt cid
-        *> putFoldable putPattern ps
-    Term.PAs p -> putWord8 7 *> putPattern p
-    Term.PEffectPure p -> putWord8 8 *> putPattern p
-    Term.PEffectBind r cid args k ->
-      putWord8 9
-        *> putReference r
-        *> putVarInt cid
-        *> putFoldable putPattern args
-        *> putPattern k
-    Term.PSequenceLiteral ps ->
-      putWord8 10 *> putFoldable putPattern ps
-    Term.PSequenceOp l op r ->
-      putWord8 11
-        *> putPattern l
-        *> putSeqOp op
-        *> putPattern r
-    Term.PText t -> putWord8 12 *> putVarInt t
-    Term.PChar c -> putWord8 13 *> putChar c
-  putSeqOp :: MonadPut m => Term.SeqOp -> m ()
-  putSeqOp Term.PCons = putWord8 0
-  putSeqOp Term.PSnoc = putWord8 1
-  putSeqOp Term.PConcat = putWord8 2
+    putF :: MonadPut m => (a -> m ()) -> TermFormat.F a -> m ()
+    putF putChild = \case
+      Term.Int n ->
+        putWord8 0 *> putInt n
+      Term.Nat n ->
+        putWord8 1 *> putNat n
+      Term.Float n ->
+        putWord8 2 *> putFloat n
+      Term.Boolean b ->
+        putWord8 3 *> putBoolean b
+      Term.Text t ->
+        putWord8 4 *> putVarInt t
+      Term.Ref r ->
+        putWord8 5 *> putRecursiveReference r
+      Term.Constructor r cid ->
+        putWord8 6 *> putReference r *> putVarInt cid
+      Term.Request r cid ->
+        putWord8 7 *> putReference r *> putVarInt cid
+      Term.Handle h a ->
+        putWord8 8 *> putChild h *> putChild a
+      Term.App f arg ->
+        putWord8 9 *> putChild f *> putChild arg
+      Term.Ann e t ->
+        putWord8 10 *> putChild e *> putTType t
+      Term.Sequence vs ->
+        putWord8 11 *> putFoldable putChild vs
+      Term.If cond t f ->
+        putWord8 12 *> putChild cond *> putChild t *> putChild f
+      Term.And x y ->
+        putWord8 13 *> putChild x *> putChild y
+      Term.Or x y ->
+        putWord8 14 *> putChild x *> putChild y
+      Term.Lam body ->
+        putWord8 15 *> putChild body
+      Term.LetRec bs body ->
+        putWord8 16 *> putFoldable putChild bs *> putChild body
+      Term.Let b body ->
+        putWord8 17 *> putChild b *> putChild body
+      Term.Match s cases ->
+        putWord8 18 *> putChild s *> putFoldable (putMatchCase putChild) cases
+      Term.Char c ->
+        putWord8 19 *> putChar c
+      Term.TermLink r ->
+        putWord8 20 *> putReferent putRecursiveReference putReference r
+      Term.TypeLink r ->
+        putWord8 21 *> putReference r
+    putMatchCase :: MonadPut m => (a -> m ()) -> Term.MatchCase LocalTextId TermFormat.TypeRef a -> m ()
+    putMatchCase putChild (Term.MatchCase pat guard body) =
+      putPattern pat *> putMaybe putChild guard *> putChild body
+    putPattern :: MonadPut m => Term.Pattern LocalTextId TermFormat.TypeRef -> m ()
+    putPattern p = case p of
+      Term.PUnbound -> putWord8 0
+      Term.PVar -> putWord8 1
+      Term.PBoolean b -> putWord8 2 *> putBoolean b
+      Term.PInt n -> putWord8 3 *> putInt n
+      Term.PNat n -> putWord8 4 *> putNat n
+      Term.PFloat n -> putWord8 5 *> putFloat n
+      Term.PConstructor r cid ps ->
+        putWord8 6
+          *> putReference r
+          *> putVarInt cid
+          *> putFoldable putPattern ps
+      Term.PAs p -> putWord8 7 *> putPattern p
+      Term.PEffectPure p -> putWord8 8 *> putPattern p
+      Term.PEffectBind r cid args k ->
+        putWord8 9
+          *> putReference r
+          *> putVarInt cid
+          *> putFoldable putPattern args
+          *> putPattern k
+      Term.PSequenceLiteral ps ->
+        putWord8 10 *> putFoldable putPattern ps
+      Term.PSequenceOp l op r ->
+        putWord8 11
+          *> putPattern l
+          *> putSeqOp op
+          *> putPattern r
+      Term.PText t -> putWord8 12 *> putVarInt t
+      Term.PChar c -> putWord8 13 *> putChar c
+    putSeqOp :: MonadPut m => Term.SeqOp -> m ()
+    putSeqOp Term.PCons = putWord8 0
+    putSeqOp Term.PSnoc = putWord8 1
+    putSeqOp Term.PConcat = putWord8 2
 
 getTermComponent :: MonadGet m => m TermFormat.LocallyIndexedComponent
 getTermComponent =
   TermFormat.LocallyIndexedComponent
-    <$> getFramedArray (getPair getLocalIds getTermElement)
+    <$> getFramedArray (getTuple3 getLocalIds (getFramed getTerm) (getFramed getTType))
 
-getTermElement :: MonadGet m => m TermFormat.Term
-getTermElement = getABT getSymbol getUnit getF
+getTerm :: MonadGet m => m TermFormat.Term
+getTerm = getABT getSymbol getUnit getF
   where
     getF :: MonadGet m => m a -> m (TermFormat.F a)
-    getF getChild = getWord8 >>= \case
-      0 -> Term.Int <$> getInt
-      1 -> Term.Nat <$> getNat
-      2 -> Term.Float <$> getFloat
-      3 -> Term.Boolean <$> getBoolean
-      4 -> Term.Text <$> getVarInt
-      5 -> Term.Ref <$> getRecursiveReference
-      6 -> Term.Constructor <$> getReference <*> getVarInt
-      7 -> Term.Request <$> getReference <*> getVarInt
-      8 -> Term.Handle <$> getChild <*> getChild
-      9 -> Term.App <$> getChild <*> getChild
-      10 -> Term.Ann <$> getChild <*> getType getReference
-      11 -> Term.Sequence <$> getSequence getChild
-      12 -> Term.If <$> getChild <*> getChild <*> getChild
-      13 -> Term.And <$> getChild <*> getChild
-      14 -> Term.Or <$> getChild <*> getChild
-      15 -> Term.Lam <$> getChild
-      16 -> Term.LetRec <$> getList getChild <*> getChild
-      17 -> Term.Let <$> getChild <*> getChild
-      18 ->
-        Term.Match
-          <$> getChild
-          <*> getList
-            (Term.MatchCase <$> getPattern <*> getMaybe getChild <*> getChild)
-      19 -> Term.Char <$> getChar
-      20 -> Term.TermLink <$> getReferent
-      21 -> Term.TypeLink <$> getReference
-      tag -> unknownTag "getTerm" tag
+    getF getChild =
+      getWord8 >>= \case
+        0 -> Term.Int <$> getInt
+        1 -> Term.Nat <$> getNat
+        2 -> Term.Float <$> getFloat
+        3 -> Term.Boolean <$> getBoolean
+        4 -> Term.Text <$> getVarInt
+        5 -> Term.Ref <$> getRecursiveReference
+        6 -> Term.Constructor <$> getReference <*> getVarInt
+        7 -> Term.Request <$> getReference <*> getVarInt
+        8 -> Term.Handle <$> getChild <*> getChild
+        9 -> Term.App <$> getChild <*> getChild
+        10 -> Term.Ann <$> getChild <*> getType getReference
+        11 -> Term.Sequence <$> getSequence getChild
+        12 -> Term.If <$> getChild <*> getChild <*> getChild
+        13 -> Term.And <$> getChild <*> getChild
+        14 -> Term.Or <$> getChild <*> getChild
+        15 -> Term.Lam <$> getChild
+        16 -> Term.LetRec <$> getList getChild <*> getChild
+        17 -> Term.Let <$> getChild <*> getChild
+        18 ->
+          Term.Match
+            <$> getChild
+            <*> getList
+              (Term.MatchCase <$> getPattern <*> getMaybe getChild <*> getChild)
+        19 -> Term.Char <$> getChar
+        20 -> Term.TermLink <$> getReferent
+        21 -> Term.TypeLink <$> getReference
+        tag -> unknownTag "getTerm" tag
       where
         getReferent :: MonadGet m => m (Referent' TermFormat.TermRef TermFormat.TypeRef)
-        getReferent = getWord8 >>= \case
-          0 -> Referent.Ref <$> getRecursiveReference
-          1 -> Referent.Con <$> getReference <*> getVarInt
-          x -> unknownTag "getTermComponent" x
-        getPattern :: MonadGet m => m (Term.Pattern TermFormat.LocalTextId TermFormat.TypeRef)
-        getPattern = getWord8 >>= \case
-          0 -> pure Term.PUnbound
-          1 -> pure Term.PVar
-          2 -> Term.PBoolean <$> getBoolean
-          3 -> Term.PInt <$> getInt
-          4 -> Term.PNat <$> getNat
-          5 -> Term.PFloat <$> getFloat
-          6 -> Term.PConstructor <$> getReference <*> getVarInt <*> getList getPattern
-          7 -> Term.PAs <$> getPattern
-          8 -> Term.PEffectPure <$> getPattern
-          9 ->
-            Term.PEffectBind
-              <$> getReference
-              <*> getVarInt
-              <*> getList getPattern
-              <*> getPattern
-          10 -> Term.PSequenceLiteral <$> getList getPattern
-          11 ->
-            Term.PSequenceOp
-              <$> getPattern
-              <*> getSeqOp
-              <*> getPattern
-          12 -> Term.PText <$> getVarInt
-          13 -> Term.PChar <$> getChar
-          x -> unknownTag "Pattern" x
+        getReferent =
+          getWord8 >>= \case
+            0 -> Referent.Ref <$> getRecursiveReference
+            1 -> Referent.Con <$> getReference <*> getVarInt
+            x -> unknownTag "getTermComponent" x
+        getPattern :: MonadGet m => m (Term.Pattern LocalTextId TermFormat.TypeRef)
+        getPattern =
+          getWord8 >>= \case
+            0 -> pure Term.PUnbound
+            1 -> pure Term.PVar
+            2 -> Term.PBoolean <$> getBoolean
+            3 -> Term.PInt <$> getInt
+            4 -> Term.PNat <$> getNat
+            5 -> Term.PFloat <$> getFloat
+            6 -> Term.PConstructor <$> getReference <*> getVarInt <*> getList getPattern
+            7 -> Term.PAs <$> getPattern
+            8 -> Term.PEffectPure <$> getPattern
+            9 ->
+              Term.PEffectBind
+                <$> getReference
+                <*> getVarInt
+                <*> getList getPattern
+                <*> getPattern
+            10 -> Term.PSequenceLiteral <$> getList getPattern
+            11 ->
+              Term.PSequenceOp
+                <$> getPattern
+                <*> getSeqOp
+                <*> getPattern
+            12 -> Term.PText <$> getVarInt
+            13 -> Term.PChar <$> getChar
+            x -> unknownTag "Pattern" x
           where
             getSeqOp :: MonadGet m => m Term.SeqOp
-            getSeqOp = getWord8 >>= \case
-              0 -> pure Term.PCons
-              1 -> pure Term.PSnoc
-              2 -> pure Term.PConcat
-              tag -> unknownTag "SeqOp" tag
+            getSeqOp =
+              getWord8 >>= \case
+                0 -> pure Term.PCons
+                1 -> pure Term.PSnoc
+                2 -> pure Term.PConcat
+                tag -> unknownTag "SeqOp" tag
 
-lookupTermElement :: MonadGet m => Reference.Pos -> m (LocalIds, TermFormat.Term)
+lookupTermElement :: MonadGet m => Reference.Pos -> m (LocalIds, TermFormat.Term, TermFormat.Type)
 lookupTermElement =
-  unsafeFramedArrayLookup (getPair getLocalIds getTermElement) . fromIntegral
+  unsafeFramedArrayLookup (getTuple3 getLocalIds (getFramed getTerm) (getFramed getTType)) . fromIntegral
+
+lookupTermElementDiscardingType :: MonadGet m => Reference.Pos -> m (LocalIds, TermFormat.Term)
+lookupTermElementDiscardingType =
+  unsafeFramedArrayLookup ((,) <$> getLocalIds <*> getFramed getTerm <* skipFramed) . fromIntegral
+
+lookupTermElementDiscardingTerm :: MonadGet m => Reference.Pos -> m (LocalIds, TermFormat.Type)
+lookupTermElementDiscardingTerm =
+  unsafeFramedArrayLookup ((,) <$> getLocalIds <* skipFramed <*> getFramed getTType) . fromIntegral
+
+
+getTType :: MonadGet m => m TermFormat.Type
+getTType = getType getReference
 
 getType :: MonadGet m => m r -> m (Type.TypeR r Symbol)
 getType getReference = getABT getSymbol getUnit go
   where
-    go getChild = getWord8 >>= \case
-      0 -> Type.Ref <$> getReference
-      1 -> Type.Arrow <$> getChild <*> getChild
-      2 -> Type.Ann <$> getChild <*> getKind
-      3 -> Type.App <$> getChild <*> getChild
-      4 -> Type.Effect <$> getChild <*> getChild
-      5 -> Type.Effects <$> getList getChild
-      6 -> Type.Forall <$> getChild
-      7 -> Type.IntroOuter <$> getChild
-      tag -> unknownTag "getType" tag
+    go getChild =
+      getWord8 >>= \case
+        0 -> Type.Ref <$> getReference
+        1 -> Type.Arrow <$> getChild <*> getChild
+        2 -> Type.Ann <$> getChild <*> getKind
+        3 -> Type.App <$> getChild <*> getChild
+        4 -> Type.Effect <$> getChild <*> getChild
+        5 -> Type.Effects <$> getList getChild
+        6 -> Type.Forall <$> getChild
+        7 -> Type.IntroOuter <$> getChild
+        tag -> unknownTag "getType" tag
     getKind :: MonadGet m => m Kind
-    getKind = getWord8 >>= \case
-      0 -> pure Kind.Star
-      1 -> Kind.Arrow <$> getKind <*> getKind
-      tag -> unknownTag "getKind" tag
+    getKind =
+      getWord8 >>= \case
+        0 -> pure Kind.Star
+        1 -> Kind.Arrow <$> getKind <*> getKind
+        tag -> unknownTag "getKind" tag
 
 putDeclFormat :: MonadPut m => DeclFormat.DeclFormat -> m ()
 putDeclFormat = \case
@@ -352,16 +377,17 @@ putDeclFormat = \case
           putDeclType declType
           putModifier modifier
           putFoldable putSymbol bound
-          putFoldable (putType putRecursiveReference putSymbol) constructorTypes
+          putFoldable putDType constructorTypes
         putDeclType Decl.Data = putWord8 0
         putDeclType Decl.Effect = putWord8 1
         putModifier Decl.Structural = putWord8 0
         putModifier (Decl.Unique t) = putWord8 1 *> putText t
 
 getDeclFormat :: MonadGet m => m DeclFormat.DeclFormat
-getDeclFormat = getWord8 >>= \case
-  0 -> DeclFormat.Decl <$> getDeclComponent
-  other -> unknownTag "DeclFormat" other
+getDeclFormat =
+  getWord8 >>= \case
+    0 -> DeclFormat.Decl <$> getDeclComponent
+    other -> unknownTag "DeclFormat" other
   where
     getDeclComponent :: MonadGet m => m DeclFormat.LocallyIndexedComponent
     getDeclComponent =
@@ -376,14 +402,16 @@ getDeclElement =
     <*> getList getSymbol
     <*> getList (getType getRecursiveReference)
   where
-    getDeclType = getWord8 >>= \case
-      0 -> pure Decl.Data
-      1 -> pure Decl.Effect
-      other -> unknownTag "DeclType" other
-    getModifier = getWord8 >>= \case
-      0 -> pure Decl.Structural
-      1 -> Decl.Unique <$> getText
-      other -> unknownTag "DeclModifier" other
+    getDeclType =
+      getWord8 >>= \case
+        0 -> pure Decl.Data
+        1 -> pure Decl.Effect
+        other -> unknownTag "DeclType" other
+    getModifier =
+      getWord8 >>= \case
+        0 -> pure Decl.Structural
+        1 -> Decl.Unique <$> getText
+        other -> unknownTag "DeclModifier" other
 
 lookupDeclElement ::
   MonadGet m => Reference.Pos -> m (LocalIds, DeclFormat.Decl Symbol)
@@ -463,10 +491,11 @@ putTypeEdit TypeEdit.Deprecate = putWord8 0
 putTypeEdit (TypeEdit.Replace r) = putWord8 1 *> putReference r
 
 getBranchFormat :: MonadGet m => m BranchFormat.BranchFormat
-getBranchFormat = getWord8 >>= \case
-  0 -> getBranchFull
-  1 -> getBranchDiff
-  other -> unknownTag "BranchFormat" other
+getBranchFormat =
+  getWord8 >>= \case
+    0 -> getBranchFull
+    1 -> getBranchDiff
+    other -> unknownTag "BranchFormat" other
   where
     getBranchFull = error "todo"
     getBranchDiff = error "todo"
@@ -500,10 +529,11 @@ putReference = \case
 getReference ::
   (MonadGet m, Integral t, Bits t, Integral r, Bits r) =>
   m (Reference' t r)
-getReference = getWord8 >>= \case
-  0 -> ReferenceBuiltin <$> getVarInt
-  1 -> ReferenceDerived <$> (Reference.Id <$> getVarInt <*> getVarInt)
-  x -> unknownTag "getRecursiveReference" x
+getReference =
+  getWord8 >>= \case
+    0 -> ReferenceBuiltin <$> getVarInt
+    1 -> ReferenceDerived <$> (Reference.Id <$> getVarInt <*> getVarInt)
+    x -> unknownTag "getRecursiveReference" x
 
 putRecursiveReference ::
   (MonadPut m, Integral t, Bits t, Integral r, Bits r) =>
@@ -518,10 +548,11 @@ putRecursiveReference = \case
 getRecursiveReference ::
   (MonadGet m, Integral t, Bits t, Integral r, Bits r) =>
   m (Reference' t (Maybe r))
-getRecursiveReference = getWord8 >>= \case
-  0 -> ReferenceBuiltin <$> getVarInt
-  1 -> ReferenceDerived <$> (Reference.Id <$> getMaybe getVarInt <*> getVarInt)
-  x -> unknownTag "getRecursiveReference" x
+getRecursiveReference =
+  getWord8 >>= \case
+    0 -> ReferenceBuiltin <$> getVarInt
+    1 -> ReferenceDerived <$> (Reference.Id <$> getMaybe getVarInt <*> getVarInt)
+    x -> unknownTag "getRecursiveReference" x
 
 putInt :: MonadPut m => Int64 -> m ()
 putInt = serializeBE
@@ -546,10 +577,17 @@ putBoolean False = putWord8 0
 putBoolean True = putWord8 1
 
 getBoolean :: MonadGet m => m Bool
-getBoolean = getWord8 >>= \case
-  0 -> pure False
-  1 -> pure True
-  x -> unknownTag "Boolean" x
+getBoolean =
+  getWord8 >>= \case
+    0 -> pure False
+    1 -> pure True
+    x -> unknownTag "Boolean" x
+
+putTType :: MonadPut m => TermFormat.Type -> m ()
+putTType = putType putReference putSymbol
+
+putDType :: MonadPut m => DeclFormat.Type Symbol -> m ()
+putDType = putType putRecursiveReference putSymbol
 
 putType ::
   (MonadPut m, Ord v) =>
@@ -585,10 +623,11 @@ putMaybe putA = \case
   Just a -> putWord8 1 *> putA a
 
 getMaybe :: MonadGet m => m a -> m (Maybe a)
-getMaybe getA = getWord8 >>= \tag -> case tag of
-  0 -> pure Nothing
-  1 -> Just <$> getA
-  _ -> unknownTag "Maybe" tag
+getMaybe getA =
+  getWord8 >>= \tag -> case tag of
+    0 -> pure Nothing
+    1 -> Just <$> getA
+    _ -> unknownTag "Maybe" tag
 
 unknownTag :: (MonadGet m, Show a) => String -> a -> m x
 unknownTag msg tag =
