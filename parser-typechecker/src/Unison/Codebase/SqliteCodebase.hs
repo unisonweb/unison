@@ -216,7 +216,7 @@ sqliteCodebase root = do
       tryFlushDeclBuffer h =
         tryFlushBuffer
           declBuffer
-          (\h2 -> Ops.saveDeclComponent h2 . fmap (Cv.decl1to2 h))
+          (\h2 -> void . Ops.saveDeclComponent h2 . fmap (Cv.decl1to2 h))
           (\h -> tryFlushTermBuffer h >> tryFlushDeclBuffer h)
           h
 
