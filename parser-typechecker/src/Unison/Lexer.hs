@@ -21,6 +21,31 @@ import           GHC.Exts (sortWith)
 import           Text.Megaparsec.Error (ShowToken(..))
 import           Unison.ShortHash ( ShortHash )
 import qualified Unison.ShortHash as SH
+import qualified Text.Megaparsec as P
+import qualified Text.Megaparsec.Char as CP
+import Text.Megaparsec.Char (char)
+import qualified Text.Megaparsec.Char.Lexer as LP
+import qualified Unison.Util.Bytes as Bytes
+
+type Line = Int
+type Column = Int
+data Pos = Pos {-# Unpack #-} !Line {-# Unpack #-} !Column deriving (Eq,Ord,Show)
+type BlockName = String
+type Layout = [(BlockName,Column)]
+
+data Token a = Token {
+  payload :: a,
+  start :: !Pos,
+  end :: !Pos
+} deriving (Eq, Ord, Show, Functor)
+
+data ParsingEnv =
+  ParsingEnv { layout :: !Layout
+             , position :: !Pos
+             , inLayout :: !Bool
+             , opening :: Maybe String }
+
+type P = P.ParsecT Err String (S.State ParsingEnv)
 
 data Err
   = InvalidWordyId String
@@ -52,6 +77,7 @@ data Lexeme
   | SymbolyId String (Maybe ShortHash) -- an infix identifier
   | Blank String     -- a typed hole or placeholder
   | Numeric String   -- numeric literals, left unparsed
+  | Bytes Bytes.Bytes -- bytes literals
   | Hash ShortHash   -- hash literals
   | Err Err
   deriving (Eq,Show,Ord)
@@ -60,17 +86,193 @@ type IsVirtual = Bool -- is it a virtual semi or an actual semi?
 
 makePrisms ''Lexeme
 
+space :: P ()
+space = LP.space CP.space1 (LP.skipLineComment "--") (LP.skipBlockCommentNested "{-" "-}")
+
+lit :: String -> P String
+lit = LP.symbol space
+
+token :: P Lexeme -> P [Token Lexeme]
+token = token' (\a start end -> [Token a start end])
+
+pos :: P Pos
+pos = do
+  p <- P.getPosition
+  pure $ Pos (P.unPos (P.sourceLine p)) (P.unPos (P.sourceColumn p))
+
+token' :: (a -> Pos -> Pos -> [Token Lexeme]) -> P a -> P [Token Lexeme]
+token' tok p = LP.lexeme space $ do
+  start <- pos
+  env <- S.get
+  case opening env of
+    Nothing -> pure ()
+    Just blockname -> S.put $
+      env { layout = (blockname, column start) : layout env, opening = Nothing }
+  a <- p
+  layoutToks <- pops start
+  end <- pos
+  pure $ layoutToks ++ (tok a start end)
+  where
+    pops :: Pos -> P [Token Lexeme]
+    pops p = do
+      env <- S.get
+      let l = layout env
+      if inLayout env then
+        if top l == column p then pure [Token (Semi True) p p]
+        else if top l < column p || topHasClosePair l then pure []
+        else if top l > column p then
+          S.put (env { layout = (pop l) }) >> ((Token Close p p :) <$> pops p)
+        else error "impossible"
+      else
+        pure []
+
+lexer0' :: P [Token Lexeme]
+lexer0' = do
+  toks <- P.many lexemes
+  pure (join toks)
+
+-- todo: fill in the rest of the lexemes
+-- suggest commenting out a bunch of this and dealing with the errors one
+-- at a time
+lexemes :: P [Token Lexeme]
+lexemes = reserved
+      <|> eof
+      <|> (asum . map token) [semi, textual, character, backticks, wordyId, symbolyId, numeric, hash]
+  where
+  semi = char ';' $> Semi False
+
+  textual = Textual <$> (char '"' *> P.manyTill LP.charLiteral (char '"'))
+
+  character =
+    Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
+    where spEsc = P.try (char '\\' *> char 's')
+
+  backticks =
+    tick <$> (char '`' *> wordyId <* char '`')
+    where tick (WordyId n sh) = Backticks n sh
+          tick t = t
+
+  wordyId :: P Lexeme
+  wordyId = P.label wordyMsg . P.try $ do
+    dot <- P.optional (lit ".")
+    segs <- P.sepBy1 wordyIdSeg (char '.')
+    shorthash <- P.optional shorthash
+    pure $ WordyId (fromMaybe "" dot <> intercalate "." segs) shorthash
+
+  symbolyId :: P Lexeme
+  symbolyId = P.label symbolMsg . P.try $ do
+    dot <- P.optional (lit ".")
+    segs <- segs
+    shorthash <- P.optional shorthash
+    pure $ SymbolyId (fromMaybe "" dot <> segs) shorthash
+    where
+    segs = symbolyIdSeg <|> do
+      hd <- wordyIdSeg
+      _ <- char '.'
+      tl <- segs
+      pure (hd ++ tl)
+
+  wordyMsg = "identifier (ex: abba1, _zoink, .foo.bar#xyz, or 🚀)"
+  symbolMsg = "operator (ex: +, Float./, List.++#xyz)"
+
+  symbolyIdSeg :: P String
+  symbolyIdSeg = P.try $ do
+    id <- P.takeWhile1P (Just symbolMsg) symbolyIdChar
+    if Set.member id reservedOperators then fail "reserved operation"
+    else pure id
+
+  wordyIdSeg :: P String
+  wordyIdSeg = P.try $ do
+    ch <- CP.satisfy wordyIdStartChar
+    rest <- P.many (CP.satisfy wordyIdChar)
+    pure (ch : rest)
+
+  hashMsg = "hash (ex: #af3sj3)"
+  shorthash = P.label hashMsg $ do
+    P.lookAhead (char '#')
+    -- `foo#xyz` should parse
+    potentialHash <- P.takeWhile1P (Just hashMsg) (\ch -> not (isSep ch) && ch /= '`')
+    case SH.fromString potentialHash of
+      Nothing -> fail "invalid shorthash"
+      Just sh -> pure sh
+
+  numeric = intOrNat <|> float <|> bytes <|> otherbase
+    where
+      intOrNat = P.try $ num <$> sign <*> LP.decimal
+      float = P.try $ Numeric . show @Double <$> LP.float
+      bytes = P.try $ do
+        _ <- lit "0xs"
+        s <- map toLower <$> P.takeWhileP (Just "hexidecimal character") isHex
+        case Bytes.fromBase16 $ Bytes.fromWord8s (fromIntegral . ord <$> s) of
+          Left e -> fail (show e)
+          Right bs -> pure (Bytes bs)
+        where isHex ch | ch >= '0' && ch <= '9' = True
+                       | ch >= 'a' && ch <= 'f' = True
+                       | otherwise = False
+      otherbase = P.try $ num <$> sign <*> ((lit "0o" >> LP.octal) <|> (lit "0x" >> LP.hexadecimal))
+
+      num :: Maybe Char -> Integer -> Lexeme
+      num sign n = Numeric (maybe "" (:[]) sign ++ show n)
+      sign = P.optional (char '+' <|> char '-')
+
+  hash = Hash <$> P.try shorthash
+
+  reserved :: P [Token Lexeme]
+  reserved = token' (\ts _ _ -> ts) $
+    openBrace <|> closeBrace <|> openParen <|> closeParen <|>
+    delim <|> delayOrForce <|> kw "@" <|> kw "||" <|> kw "|" <|> kw "&&"
+    -- kw "->" <|> eq
+    where
+    -- look through all the keywords and make sure they are all handled appropriately
+    -- unique = kw "unique"
+    -- eq = undefined
+    openBrace = char '{' >> open "{"
+    closeBrace = char '}' >> close "{" "}"
+    openParen = char '(' >> open "("
+    closeParen = char ')' >> close "(" ")"
+    delim = do
+      ch <- CP.satisfy (`Set.member` delimiters)
+      pos <- pos
+      pure $ [Token (Reserved [ch]) pos (inc pos)]
+    delayOrForce = P.try $ do
+      op <- CP.satisfy isDelayOrForce
+      P.lookAhead (CP.satisfy ok)
+      pos <- pos
+      pure [Token (Reserved [op]) pos (inc pos)]
+      where
+        ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters
+    kw :: String -> P [Token Lexeme]
+    kw s = P.try $ do
+      pos1 <- pos
+      s <- lit s
+      P.lookAhead (P.eof <|> void (CP.satisfy ok))
+      pos2 <- pos
+      pure [Token (Reserved s) pos1 pos2]
+      where
+        ok :: Char -> Bool
+        ok c = isSpace c || Set.member c delimiters || isAlphaNum c
+
+  close :: String -> String -> P [Token Lexeme]
+  close open close = undefined open close
+
+  open :: String -> P [Token Lexeme]
+  open b = do
+    pos <- pos
+    env <- S.get
+    S.put (env { opening = Just b })
+    pure $ [Token (Open b) pos (incBy b pos)]
+
+  eof :: P [Token Lexeme]
+  eof = P.try $ do
+    p <- P.eof >> pos
+    l <- S.gets layout
+    pure $ replicate (length l) (Token Close p p)
+
 simpleWordyId :: String -> Lexeme
 simpleWordyId = flip WordyId Nothing
 
 simpleSymbolyId :: String -> Lexeme
 simpleSymbolyId = flip SymbolyId Nothing
-
-data Token a = Token {
-  payload :: a,
-  start :: Pos,
-  end :: Pos
-} deriving (Eq, Ord, Show, Functor)
 
 notLayout :: Token Lexeme -> Bool
 notLayout t = case payload t of
@@ -78,55 +280,6 @@ notLayout t = case payload t of
   Semi _ -> False
   Open _ -> False
   _ -> True
-
-instance ShowToken (Token Lexeme) where
-  showTokens xs =
-      join . Nel.toList . S.evalState (traverse go xs) . end $ Nel.head xs
-    where
-      go :: Token Lexeme -> S.State Pos String
-      go tok = do
-        prev <- S.get
-        S.put $ end tok
-        pure $ pad prev (start tok) ++ pretty (payload tok)
-      pretty (Open s) = s
-      pretty (Reserved w) = w
-      pretty (Textual t) = '"' : t ++ ['"']
-      pretty (Character c) =
-        case showEscapeChar c of
-          Just c -> "?\\" ++ [c]
-          Nothing -> '?' : [c]
-      pretty (Backticks n h) =
-        '`' : n ++ (toList h >>= SH.toString) ++ ['`']
-      pretty (WordyId n h) = n ++ (toList h >>= SH.toString)
-      pretty (SymbolyId n h) = n ++ (toList h >>= SH.toString)
-      pretty (Blank s) = "_" ++ s
-      pretty (Numeric n) = n
-      pretty (Hash sh) = show sh
-      pretty (Err e) = show e
-      pretty Close = "<outdent>"
-      pretty (Semi True) = "<virtual semicolon>"
-      pretty (Semi False) = ";"
-      pad (Pos line1 col1) (Pos line2 col2) =
-        if line1 == line2
-        then replicate (col2 - col1) ' '
-        else replicate (line2 - line1) '\n' ++ replicate col2 ' '
-
-instance Applicative Token where
-  pure a = Token a (Pos 0 0) (Pos 0 0)
-  Token f start _ <*> Token a _ end = Token (f a) start end
-
-type Line = Int
-type Column = Int
-
-data Pos = Pos {-# Unpack #-} !Line {-# Unpack #-} !Column deriving (Eq,Ord,Show)
-
-instance Semigroup Pos where (<>) = mappend
-
-instance Monoid Pos where
-  mempty = Pos 0 0
-  Pos line col `mappend` Pos line2 col2 =
-    if line2 == 0 then Pos line (col + col2)
-    else Pos (line + line2) col2
 
 line :: Pos -> Line
 line (Pos line _) = line
@@ -138,9 +291,6 @@ column (Pos _ column) = column
 touches :: Token a -> Token b -> Bool
 touches (end -> t) (start -> t2) =
   line t == line t2 && column t == column t2
-
-type BlockName = String
-type Layout = [(BlockName,Column)]
 
 top :: Layout -> Column
 top []    = 1
@@ -775,3 +925,49 @@ spanThru' :: (a -> Bool) -> [a] -> (([a],[a]) -> r) -> r
 spanThru' f a k = case span f a of
   (l, []) -> k (l, [])
   (l, lz:r) -> k (l ++ [lz], r)
+
+instance ShowToken (Token Lexeme) where
+  showTokens xs =
+      join . Nel.toList . S.evalState (traverse go xs) . end $ Nel.head xs
+    where
+      go :: Token Lexeme -> S.State Pos String
+      go tok = do
+        prev <- S.get
+        S.put $ end tok
+        pure $ pad prev (start tok) ++ pretty (payload tok)
+      pretty (Open s) = s
+      pretty (Reserved w) = w
+      pretty (Textual t) = '"' : t ++ ['"']
+      pretty (Character c) =
+        case showEscapeChar c of
+          Just c -> "?\\" ++ [c]
+          Nothing -> '?' : [c]
+      pretty (Backticks n h) =
+        '`' : n ++ (toList h >>= SH.toString) ++ ['`']
+      pretty (WordyId n h) = n ++ (toList h >>= SH.toString)
+      pretty (SymbolyId n h) = n ++ (toList h >>= SH.toString)
+      pretty (Blank s) = "_" ++ s
+      pretty (Numeric n) = n
+      pretty (Hash sh) = show sh
+      pretty (Err e) = show e
+      pretty (Bytes bs) = "0xs" <> show bs
+      pretty Close = "<outdent>"
+      pretty (Semi True) = "<virtual semicolon>"
+      pretty (Semi False) = ";"
+      pad (Pos line1 col1) (Pos line2 col2) =
+        if line1 == line2
+        then replicate (col2 - col1) ' '
+        else replicate (line2 - line1) '\n' ++ replicate col2 ' '
+
+instance Applicative Token where
+  pure a = Token a (Pos 0 0) (Pos 0 0)
+  Token f start _ <*> Token a _ end = Token (f a) start end
+
+instance Semigroup Pos where (<>) = mappend
+
+instance Monoid Pos where
+  mempty = Pos 0 0
+  Pos line col `mappend` Pos line2 col2 =
+    if line2 == 0 then Pos line (col + col2)
+    else Pos (line + line2) col2
+
