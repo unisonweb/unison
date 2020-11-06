@@ -45,7 +45,7 @@ data ParsingEnv =
              , inLayout :: !Bool
              , opening :: Maybe String }
 
-type P = P.ParsecT Err String (S.State ParsingEnv)
+type P = P.ParsecT (Token Err) String (S.State ParsingEnv)
 
 data Err
   = InvalidWordyId String
@@ -90,7 +90,7 @@ space :: P ()
 space = LP.space CP.space1 (LP.skipLineComment "--") (LP.skipBlockCommentNested "{-" "-}")
 
 lit :: String -> P String
-lit = LP.symbol space
+lit = P.try . LP.symbol space
 
 token :: P Lexeme -> P [Token Lexeme]
 token = token' (\a start end -> [Token a start end])
@@ -141,7 +141,8 @@ lexemes = reserved
   where
   semi = char ';' $> Semi False
 
-  textual = Textual <$> (char '"' *> P.manyTill LP.charLiteral (char '"'))
+  textual = Textual <$> quoted
+  quoted = char '"' *> P.manyTill LP.charLiteral (char '"')
 
   character =
     Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
@@ -182,10 +183,19 @@ lexemes = reserved
     else pure id
 
   wordyIdSeg :: P String
-  wordyIdSeg = P.try $ do
+  wordyIdSeg = litSeg <|> (P.try do
     ch <- CP.satisfy wordyIdStartChar
     rest <- P.many (CP.satisfy wordyIdChar)
-    pure (ch : rest)
+    pure (ch : rest))
+
+  -- ``an-identifier-with-dashes``
+  -- ```an identifier with dashes```
+  litSeg :: P String
+  litSeg = P.try $ do
+    ticks1 <- lit "``"
+    ticks2 <- P.many (char '`')
+    let ticks = ticks1 <> ticks2
+    P.manyTill (CP.satisfy (const True)) (lit ticks)
 
   hashMsg = "hash (ex: #af3sj3)"
   shorthash = P.label hashMsg $ do
@@ -218,18 +228,56 @@ lexemes = reserved
   hash = Hash <$> P.try shorthash
 
   reserved :: P [Token Lexeme]
-  reserved = token' (\ts _ _ -> ts) $
-    openBrace <|> closeBrace <|> openParen <|> closeParen <|>
-    delim <|> delayOrForce <|> kw "@" <|> kw "||" <|> kw "|" <|> kw "&&"
-    -- kw "->" <|> eq
+  reserved =
+    token' (\ts _ _ -> ts) $
+    braces <|> parens <|> delim <|> delayOrForce <|> keywords <|> layoutKeywords
     where
+    keywords = kw "@" <|> kw "||" <|> kw "|" <|> kw "&&" <|> kw "true" <|> kw "false"
+           <|> kw "use" <|> kw "if" <|> kw "forall" <|> kw "∀"
+           <|> kw "termLink" <|> kw "typeLink"
+
+    kw' k = do
+      pos <- pos
+      k <- lit k
+      P.lookAhead (CP.satisfy ok)
+      pure (k, pos, incBy k pos)
+      where
+        ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters
+
+    layoutKeywords =
+      ifElse <|> matchWith <|> handle <|> typ <|> ability <|> arr <|> eq <|>
+      openKw "cases" <|> openKw "where" <|> openKw "let"
+      where
+        matchWith = undefined
+        ifElse = undefined
+        handle = undefined
+        typ = undefined
+        ability = undefined
+
+        eq = do
+          (_, start, end) <- kw' "="
+          env <- S.get
+          case topBlockName (layout env) of
+            -- '=' does not open a layout block if within a type declaration
+            Just t | t == "type" || t == "unique" -> pure [Token (Reserved "=") start end]
+            Just _ -> S.put (env { opening = Just "=" }) >> pure [Token (Open "=") start end]
+            _ -> P.customFailure (Token LayoutError start end)
+
+        arr = do
+          (_, start, end) <- kw' "->"
+          env <- S.get
+          -- -> introduces a layout block if we're inside a `match with` or `cases`
+          case topBlockName (layout env) of
+            Just match | match == "match-with" || match == "cases" -> do
+              S.put (env { opening = Just "->" })
+              pure [Token (Open "->") start end]
+            _ -> pure [Token (Reserved "->") start end]
+
     -- look through all the keywords and make sure they are all handled appropriately
     -- unique = kw "unique"
     -- eq = undefined
-    openBrace = char '{' >> open "{"
-    closeBrace = char '}' >> close "{" "}"
-    openParen = char '(' >> open "("
-    closeParen = char ')' >> close "(" ")"
+    braces = open "{" <|> close "{" "}"
+    parens = open "(" <|> close "(" ")"
     delim = do
       ch <- CP.satisfy (`Set.member` delimiters)
       pos <- pos
@@ -241,8 +289,9 @@ lexemes = reserved
       pure [Token (Reserved [op]) pos (inc pos)]
       where
         ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters
+
     kw :: String -> P [Token Lexeme]
-    kw s = P.try $ do
+    kw s = do
       pos1 <- pos
       s <- lit s
       P.lookAhead (P.eof <|> void (CP.satisfy ok))
@@ -252,15 +301,38 @@ lexemes = reserved
         ok :: Char -> Bool
         ok c = isSpace c || Set.member c delimiters || isAlphaNum c
 
-  close :: String -> String -> P [Token Lexeme]
-  close open close = undefined open close
+    openKw :: String -> P [Token Lexeme]
+    openKw s = do
+      pos1 <- pos
+      s <- lit s
+      P.lookAhead (P.eof <|> void (CP.satisfy ok))
+      pos2 <- pos
+      env <- S.get
+      S.put (env { opening = Just s })
+      pure [Token (Open s) pos1 pos2]
+      where
+        ok :: Char -> Bool
+        ok c = isSpace c || Set.member c delimiters
 
-  open :: String -> P [Token Lexeme]
-  open b = do
-    pos <- pos
-    env <- S.get
-    S.put (env { opening = Just b })
-    pure $ [Token (Open b) pos (incBy b pos)]
+    close :: String -> String -> P [Token Lexeme]
+    close open close = do
+      pos1 <- pos
+      close <- lit close
+      pos2 <- pos
+      env <- S.get
+      case findClose open (layout env) of
+        Nothing -> P.customFailure (Token (CloseWithoutMatchingOpen open close) pos1 pos2)
+        Just n -> do
+          S.put (env { layout = drop n (layout env) })
+          pure $ replicate n $ Token Close pos1 pos2
+
+    open :: String -> P [Token Lexeme]
+    open b = do
+      pos <- pos
+      _ <- lit b
+      env <- S.get
+      S.put (env { opening = Just b })
+      pure [Token (Open b) pos (incBy b pos)]
 
   eof :: P [Token Lexeme]
   eof = P.try $ do
@@ -310,6 +382,13 @@ findNearest l ns =
   case topBlockName l of
     Just n -> if Set.member n ns then Just n else findNearest (pop l) ns
     Nothing -> Nothing
+
+-- Figure out how many elements must be popped from the layout stack
+-- before finding a matching `Open` token
+findClose :: String -> Layout -> Maybe Int
+findClose _ [] = Nothing
+findClose s ((h,_):tl) = if s == h then Just 1 else (1+) <$> findClose s tl
+
 
 pop :: [a] -> [a]
 pop = drop 1
@@ -461,12 +540,6 @@ lexer0 scope rem =
             popLayout0 ((b, col' + 1) : l) pos' rem
           else
             go ((b, col') : l) pos' rem
-
-    -- Figure out how many elements must be popped from the layout stack
-    -- before finding a matching `Open` token
-    findClose :: String -> Layout -> Maybe Int
-    findClose _ [] = Nothing
-    findClose s ((h,_):tl) = if s == h then Just 1 else (1+) <$> findClose s tl
 
     -- Closes a layout block with the given open/close pair, e.g `close "(" ")"`
     close :: String -> String -> Layout -> Pos -> String -> [Token Lexeme]
