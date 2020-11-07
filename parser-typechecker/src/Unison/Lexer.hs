@@ -126,14 +126,13 @@ token' tok p = LP.lexeme space $ do
       else
         pure []
 
+-- todo: implement function with same signature as the existing lexer function
+-- to set up initial state, run the parser, etc
 lexer0' :: P [Token Lexeme]
 lexer0' = do
   toks <- P.many lexemes
   pure (join toks)
 
--- todo: fill in the rest of the lexemes
--- suggest commenting out a bunch of this and dealing with the errors one
--- at a time
 lexemes :: P [Token Lexeme]
 lexemes = reserved
       <|> eof
