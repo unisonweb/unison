@@ -244,15 +244,25 @@ lexemes = reserved
       where
         ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters
 
+    layoutKeywords :: P [Token Lexeme]
     layoutKeywords =
-      ifElse <|> matchWith <|> handle <|> typ <|> ability <|> arr <|> eq <|>
+      ifElse <|> matchWith <|> handle <|> typ <|> arr <|> eq <|>
       openKw "cases" <|> openKw "where" <|> openKw "let"
       where
-        matchWith = undefined
-        ifElse = undefined
-        handle = undefined
-        typ = undefined
-        ability = undefined
+        matchWith = openKw "match" <|> close' True "match" "with"
+        ifElse = openKw "if" <|> close' True "if" "then" <|> close' True "then" "else"
+        handle = openKw "handle" <|> close' True "handle" "with"
+        typ = openKw1 "unique" <|> openKw1 "type" <|> openKw1 "ability"
+
+        -- layout keyword which bumps the layout column by 1, rather than looking ahead
+        -- to the next token to determine the layout column
+        openKw1 :: String -> P [Token Lexeme]
+        openKw1 kw = do
+          pos0 <- pos
+          kw <- lit kw
+          pos1 <- pos
+          S.modify (\env -> env { layout = (kw, column $ inc pos0) : layout env })
+          pure [Token (Open kw) pos0 pos1]
 
         eq = do
           (_, start, end) <- kw' "="
@@ -273,9 +283,6 @@ lexemes = reserved
               pure [Token (Open "->") start end]
             _ -> pure [Token (Reserved "->") start end]
 
-    -- look through all the keywords and make sure they are all handled appropriately
-    -- unique = kw "unique"
-    -- eq = undefined
     braces = open "{" <|> close "{" "}"
     parens = open "(" <|> close "(" ")"
     delim = do
@@ -314,8 +321,10 @@ lexemes = reserved
         ok :: Char -> Bool
         ok c = isSpace c || Set.member c delimiters
 
-    close :: String -> String -> P [Token Lexeme]
-    close open close = do
+    close = close' False
+
+    close' :: Bool -> String -> String -> P [Token Lexeme]
+    close' reopen open close = do
       pos1 <- pos
       close <- lit close
       pos2 <- pos
@@ -323,8 +332,12 @@ lexemes = reserved
       case findClose open (layout env) of
         Nothing -> P.customFailure (Token (CloseWithoutMatchingOpen open close) pos1 pos2)
         Just n -> do
-          S.put (env { layout = drop n (layout env) })
-          pure $ replicate n $ Token Close pos1 pos2
+          if reopen then
+            S.put (env { layout = drop n (layout env), opening = Just close })
+          else
+            S.put (env { layout = drop n (layout env) })
+          let opens = if reopen then [Token (Open close) pos1 pos2] else []
+          pure $ replicate n (Token Close pos1 pos2) ++ opens
 
     open :: String -> P [Token Lexeme]
     open b = do
