@@ -9,10 +9,10 @@ import Data.Bytes.Put
 import Data.Bytes.Get
 import Data.Bytes.VarInt
 import Data.Bytes.Serial
+import Data.ByteString (ByteString)
 import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
 import Data.Map as Map (Map, fromList, lookup)
-
 import Data.Word (Word8, Word16, Word64)
 
 import GHC.Stack
@@ -38,6 +38,9 @@ data MtTag
 
 data LtTag
   = IT | NT | FT | TT | CT | LMT | LYT
+
+data VaTag = PartialT | DataT | ContT
+data CoTag = KET | MarkT | PushT
 
 class Tag t where
   tag2word :: t -> Word8
@@ -125,6 +128,29 @@ instance Tag LtTag where
     5 -> LMT
     6 -> LYT
     _ -> error "unknown LtTag word"
+
+instance Tag VaTag where
+  tag2word = \case
+    PartialT -> 0
+    DataT -> 1
+    ContT -> 2
+
+  word2tag = \case
+    0 -> PartialT
+    1 -> DataT
+    2 -> ContT
+    _ -> error "unknown VaTag word"
+
+instance Tag CoTag where
+  tag2word = \case
+    KET -> 0
+    MarkT -> 1
+    PushT -> 2
+  word2tag = \case
+    0 -> KET
+    1 -> MarkT
+    2 -> PushT
+    _ -> error "unknown CoTag word"
 
 putTag :: MonadPut m => Tag t => t -> m ()
 putTag = putWord8 . tag2word
@@ -447,3 +473,88 @@ putCTag c = serialize (VarInt $ fromEnum c)
 
 getCTag :: MonadGet m => m CTag
 getCTag = toEnum . unVarInt <$> deserialize
+
+putGroupRef :: MonadPut m => GroupRef -> m ()
+putGroupRef (GR r n i)
+  = putReference r *> putWord64be n *> putWord64be i
+
+getGroupRef :: MonadGet m => m GroupRef
+getGroupRef = GR <$> getReference <*> getWord64be <*> getWord64be
+
+putValue :: MonadPut m => Value -> m ()
+putValue (Partial gr ws vs)
+  = putTag PartialT
+      *> putGroupRef gr
+      *> putFoldable putWord64be ws
+      *> putFoldable putValue vs
+putValue (Data r t ws vs)
+  = putTag DataT
+      *> putReference r
+      *> putWord64be t
+      *> putFoldable putWord64be ws
+      *> putFoldable putValue vs
+putValue (Cont us bs k)
+  = putTag ContT
+      *> putFoldable putWord64be us
+      *> putFoldable putValue bs
+      *> putCont k
+
+getValue :: MonadGet m => m Value
+getValue = getTag >>= \case
+  PartialT ->
+    Partial <$> getGroupRef <*> getList getWord64be <*> getList getValue
+  DataT ->
+    Data <$> getReference
+         <*> getWord64be
+         <*> getList getWord64be
+         <*> getList getValue
+  ContT -> Cont <$> getList getWord64be <*> getList getValue <*> getCont
+
+putCont :: MonadPut m => Cont -> m ()
+putCont KE = putTag KET
+putCont (Mark rs ds k)
+  = putTag MarkT
+      *> putFoldable putReference rs
+      *> putMap putReference putValue ds
+      *> putCont k
+putCont (Push i j m n gr k)
+  = putTag PushT
+      *> putWord64be i *> putWord64be j
+      *> putWord64be m *> putWord64be n
+      *> putGroupRef gr *> putCont k
+
+getCont :: MonadGet m => m Cont
+getCont = getTag >>= \case
+  KET -> pure KE
+  MarkT ->
+    Mark <$> getList getReference
+         <*> getMap getReference getValue
+         <*> getCont
+  PushT ->
+    Push <$> getWord64be <*> getWord64be
+         <*> getWord64be <*> getWord64be
+         <*> getGroupRef <*> getCont
+
+deserializeGroup :: Var v => ByteString -> Either String (SuperGroup v)
+deserializeGroup bs = runGetS (getVersion *> getGroup) bs
+  where
+  getVersion = getWord32be >>= \case
+    1 -> pure ()
+    n -> fail $ "deserializeGroup: unknown version: " ++ show n
+
+serializeGroup :: Var v => SuperGroup v -> ByteString
+serializeGroup sg = runPutS (putVersion *> putGroup sg)
+  where
+  putVersion = putWord32be 1
+
+deserializeValue :: ByteString -> Either String Value
+deserializeValue bs = runGetS (getVersion *> getValue) bs
+  where
+  getVersion = getWord32be >>= \case
+    1 -> pure ()
+    n -> fail $ "deserializeValue: unknown version: " ++ show n
+
+serializeValue :: Value -> ByteString
+serializeValue v = runPutS (putVersion *> putValue v)
+  where
+  putVersion = putWord32be 1

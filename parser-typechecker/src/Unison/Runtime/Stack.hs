@@ -43,13 +43,15 @@ module Unison.Runtime.Stack
 
 import Prelude hiding (words)
 
+import GHC.Exts as L (IsList(..))
+
 import Control.Monad (when)
 import Control.Monad.Primitive
 
 import Data.Ord (comparing)
 import Data.Foldable (fold)
 
-import Data.Foldable (toList, for_)
+import Data.Foldable as F (toList, for_)
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
 import Data.Primitive.Array
@@ -59,7 +61,7 @@ import Data.Word
 
 import Unison.Reference (Reference)
 
-import Unison.Runtime.ANF (Mem(..))
+import Unison.Runtime.ANF as ANF (Mem(..))
 import Unison.Runtime.MCode
 import Unison.Runtime.Foreign
 
@@ -115,7 +117,7 @@ splitData (DataU2 r t i j) = Just (r, t, [i,j], [])
 splitData (DataB1 r t x) = Just (r, t, [], [x])
 splitData (DataB2 r t x y) = Just (r, t, [], [x,y])
 splitData (DataUB r t i y) = Just (r, t, [i], [y])
-splitData (DataG r t us bs) = Just (r, t, ints us, toList bs)
+splitData (DataG r t us bs) = Just (r, t, ints us, F.toList bs)
 splitData _ = Nothing
 
 ints :: ByteArray -> [Int]
@@ -123,11 +125,33 @@ ints ba = fmap (indexByteArray ba) [0..n-1]
   where
   n = sizeofByteArray ba `div` 8
 
-pattern DataC rf ct us bs <-
-  (splitData -> Just (rf, ct, us, bs))
+useg :: [Int] -> Seg 'UN
+useg ws = case L.fromList ws of
+  PrimArray ba -> ByteArray ba
 
-pattern PApV ic us bs <- PAp ic (ints -> us) (toList -> bs)
-pattern CapV k us bs <- Captured k (ints -> us) (toList -> bs)
+formData :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
+formData r t [] [] = Enum r t
+formData r t [i] [] = DataU1 r t i
+formData r t [i,j] [] = DataU2 r t i j
+formData r t [] [x] = DataB1 r t x
+formData r t [] [x,y] = DataB2 r t x y
+formData r t [i] [x] = DataUB r t i x
+formData r t us bs = DataG r t (useg us) (L.fromList bs)
+
+pattern DataC :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
+pattern DataC rf ct us bs <- (splitData -> Just (rf, ct, us, bs))
+  where
+  DataC rf ct us bs = formData rf ct us bs
+
+pattern PApV :: CombIx -> [Int] -> [Closure] -> Closure
+pattern PApV ic us bs <- PAp ic (ints -> us) (L.toList -> bs)
+  where
+  PApV ic us bs = PAp ic (useg us) (L.fromList bs)
+
+pattern CapV :: K -> [Int] -> [Closure] -> Closure
+pattern CapV k us bs <- Captured k (ints -> us) (L.toList -> bs)
+  where
+  CapV k us bs = Captured k (useg us) (L.fromList bs)
 
 {-# complete DataC, PAp, Captured, Foreign, BlackHole #-}
 {-# complete DataC, PApV, Captured, Foreign, BlackHole #-}

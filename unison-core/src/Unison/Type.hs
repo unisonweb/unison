@@ -229,6 +229,10 @@ socketRef = Reference.Builtin "Socket"
 mvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
 
+codeRef, valueRef :: Reference
+codeRef = Reference.Builtin "Code"
+valueRef = Reference.Builtin "Value"
+
 builtin :: Ord v => a -> Text -> Type v a
 builtin a = ref a . Reference.Builtin
 
@@ -270,6 +274,10 @@ bytes a = ref a bytesRef
 
 effectType :: Ord v => a -> Type v a
 effectType a = ref a $ effectRef
+
+code, value :: Ord v => a -> Type v a
+code a = ref a codeRef
+value a = ref a valueRef
 
 app :: Ord v => a -> Type v a -> Type v a -> Type v a
 app a f arg = ABT.tm' a (App f arg)

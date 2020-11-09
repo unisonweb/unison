@@ -1,6 +1,7 @@
 {-# language RankNTypes #-}
 {-# language ViewPatterns #-}
 {-# language PatternGuards #-}
+{-# language PatternSynonyms #-}
 {-# language TypeApplications #-}
 {-# language OverloadedStrings #-}
 {-# language ScopedTypeVariables #-}
@@ -23,9 +24,12 @@ import Control.Monad (void)
 import Unison.ABT.Normalized hiding (TTm)
 import Unison.Reference
 import Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF.Serialize as ANF
+import Unison.Referent (pattern Ref)
 import Unison.Var
 import Unison.Symbol
 import Unison.Runtime.Stack (Closure)
+import Unison.Runtime.Foreign (Foreign(Wrap))
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.IOSource
 
@@ -608,6 +612,36 @@ watch
  -> TLets Direct [] [] (TPrm PRNT [t])
   $ TVar v
 
+code'missing :: Var v => SuperNormal v
+code'missing
+  = unop0 1 $ \[link,b]
+ -> TLetD b UN (TPrm MISS [link])
+  $ boolift b
+
+code'cache :: Var v => SuperNormal v
+code'cache = unop0 0 $ \[new] -> TPrm CACH [new]
+
+code'lookup :: Var v => SuperNormal v
+code'lookup
+  = unop0 2 $ \[link,t,r]
+ -> TLetD t UN (TPrm LKUP [link])
+  . TMatch t . MatchSum $ mapFromList
+  [ (0, ([], TCon Ty.optionalRef 0 []))
+  , (1, ([BX], TAbs r $ TCon Ty.optionalRef 1 [r]))
+  ]
+
+value'load :: Var v => SuperNormal v
+value'load
+  = unop0 2 $ \[vlu,t,r]
+ -> TLetD t UN (TPrm LOAD [vlu])
+  . TMatch t . MatchSum $ mapFromList
+  [ (0, ([BX], TAbs r $ TCon Ty.eitherRef 0 [r]))
+  , (1, ([BX], TAbs r $ TCon Ty.eitherRef 1 [r]))
+  ]
+
+value'create :: Var v => SuperNormal v
+value'create = unop0 0 $ \[x] -> TPrm VALU [x]
+
 type ForeignOp = forall v. Var v => FOp -> ([Mem], ANormal v)
 
 maybe'result'direct
@@ -620,6 +654,18 @@ maybe'result'direct ins args t r
   . TMatch t . MatchSum $ mapFromList
   [ (0, ([], TCon Ty.optionalRef 0 []))
   , (1, ([BX], TAbs r $ TCon Ty.optionalRef 1 [r]))
+  ]
+
+error'result'direct
+  :: Var v
+  => FOp -> [v]
+  -> v -> v
+  -> ANormal v
+error'result'direct ins args t r
+  = TLetD t UN (TFOp ins args)
+  . TMatch t . MatchSum $ mapFromList
+  [ (0, ([BX], TAbs r $ TCon Ty.eitherRef 0 [r]))
+  , (1, ([BX], TAbs r $ TCon Ty.eitherRef 1 [r]))
   ]
 
 io'error'result0
@@ -1104,6 +1150,54 @@ mvar'try'read instr
   where
   [mv,t,r] = freshes 3
 
+code'dependencies :: ForeignOp
+code'dependencies instr
+  = ([BX],)
+  . TAbs co
+  $ TFOp instr [co]
+  where
+  [co] = freshes 1
+
+code'serialize :: ForeignOp
+code'serialize instr
+  = ([BX],)
+  . TAbs co
+  $ TFOp instr [co]
+  where
+  [co] = freshes 1
+
+code'deserialize :: ForeignOp
+code'deserialize instr
+  = ([BX],)
+  . TAbs co
+  $ error'result'direct instr [co] t r
+  where
+  [co,t,r] = freshes 3
+
+value'serialize :: ForeignOp
+value'serialize instr
+  = ([BX],)
+  . TAbs va
+  $ TFOp instr [va]
+  where
+  [va] = freshes 1
+
+value'deserialize :: ForeignOp
+value'deserialize instr
+  = ([BX],)
+  . TAbs va
+  $ error'result'direct instr [va] t r
+  where
+  [va,t,r] = freshes 3
+
+value'dependencies :: ForeignOp
+value'dependencies instr
+  = ([BX],)
+  . TAbs va
+  $ TFOp instr [va]
+  where
+  [va] = freshes 1
+
 builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
 builtinLookup
   = Map.fromList
@@ -1269,6 +1363,12 @@ builtinLookup
   , ("jumpCont", jumpk)
 
   , ("IO.forkComp", fork'comp)
+
+  , ("Code.isMissing", code'missing)
+  , ("Code.cache_", code'cache)
+  , ("Code.lookup", code'lookup)
+  , ("Value.load", value'load)
+  , ("Value.value", value'create)
   ] ++ foreignWrappers
 
 type FDecl v
@@ -1387,6 +1487,22 @@ declareForeigns = do
     . mkForeignIOE $ \(mv :: MVar Closure) -> readMVar mv
   declareForeign "MVar.tryRead" mvar'try'read
     . mkForeign $ \(mv :: MVar Closure) -> tryReadMVar mv
+
+  declareForeign "Code.dependencies" code'dependencies
+    . mkForeign $ \(sg :: SuperGroup Symbol)
+        -> pure $ Wrap Ty.termLinkRef . Ref <$> groupTermLinks sg
+  declareForeign "Code.serialize" code'serialize
+    . mkForeign $ \(sg :: SuperGroup Symbol)
+        -> pure . Bytes.fromByteString $ serializeGroup sg
+  declareForeign "Code.deserialize" code'deserialize
+    . mkForeign $ pure . deserializeGroup @Symbol . Bytes.toByteString
+  declareForeign "Value.dependencies" value'dependencies
+    . mkForeign $
+        pure . fmap (Wrap Ty.termLinkRef . Ref) . valueTermLinks
+  declareForeign "Value.serialize" value'serialize
+    . mkForeign $ pure . deserializeValue . Bytes.toByteString
+  declareForeign "Value.deserialize" value'deserialize
+    . mkForeign $ pure . Bytes.fromByteString . serializeValue
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny

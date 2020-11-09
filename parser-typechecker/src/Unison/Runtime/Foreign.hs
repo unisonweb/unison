@@ -21,6 +21,8 @@ import System.IO (Handle)
 import Unison.Util.Bytes (Bytes)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
+import Unison.Runtime.ANF (SuperGroup, Value)
+import Unison.Symbol (Symbol)
 import qualified Unison.Type as Ty
 
 import Unsafe.Coerce
@@ -76,6 +78,9 @@ instance BuiltinForeign Bytes where foreignRef = Tagged Ty.bytesRef
 instance BuiltinForeign Handle where foreignRef = Tagged Ty.fileHandleRef
 instance BuiltinForeign Socket where foreignRef = Tagged Ty.socketRef
 instance BuiltinForeign ThreadId where foreignRef = Tagged Ty.threadIdRef
+instance BuiltinForeign (SuperGroup Symbol) where
+  foreignRef = Tagged Ty.codeRef
+instance BuiltinForeign Value where foreignRef = Tagged Ty.valueRef
 
 wrapBuiltin :: forall f. BuiltinForeign f => f -> Foreign
 wrapBuiltin x = Wrap r x

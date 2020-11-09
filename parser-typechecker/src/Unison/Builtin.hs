@@ -21,7 +21,8 @@ module Unison.Builtin
   ,termRefTypes
   ) where
 
-import Unison.Prelude
+import Prelude hiding (either)
+import Unison.Prelude hiding (either)
 
 import           Data.Bifunctor                 ( second, first )
 import qualified Data.Map                      as Map
@@ -162,6 +163,8 @@ builtinTypesSrc =
   , B' "Socket" CT.Data, Rename' "Socket" "io2.Socket"
   , B' "ThreadId" CT.Data, Rename' "ThreadId" "io2.ThreadId"
   , B' "MVar" CT.Data, Rename' "MVar" "io2.MVar"
+  , B' "Code" CT.Data
+  , B' "Value" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -406,6 +409,7 @@ builtinsSrc =
                   ,(">" , "gt")
                   ,(">=", "gteq")]
   ] ++ io2List ioBuiltins ++ io2List mvarBuiltins
+    ++ fmap (uncurry B) codeBuiltins
 
 io2List :: [(Text, Type v)] -> [BuiltinDSL v]
 io2List bs = bs >>= \(n,ty) -> [B n ty, Rename n ("io2." <> n)]
@@ -468,6 +472,22 @@ mvarBuiltins =
   mvar :: Type v -> Type v
   mvar a = Type.ref () Type.mvarRef `app` a
 
+codeBuiltins :: forall v. Var v => [(Text, Type v)]
+codeBuiltins =
+  [ ("Code.dependencies", code --> list termLink)
+  , ("Code.isMissing", termLink --> io boolean)
+  , ("Code.serialize", code --> bytes)
+  , ("Code.deserialize", bytes --> either text code)
+  , ("Code.cache_", list (pair termLink code) --> io (list termLink))
+  , ("Code.lookup", termLink --> io (optionalt code))
+  , ("Value.dependencies", value --> list termLink)
+  , ("Value.serialize", value --> bytes)
+  , ("Value.deserialize", bytes --> either text value)
+  , ("Value.value", forall1 "a" $ \a -> a --> value)
+  , ("Value.load"
+    , forall1 "a" $ \a -> value --> io (either (list termLink) a))
+  ]
+
 forall1 :: Var v => Text -> (Type v -> Type v) -> Type v
 forall1 name body =
   let
@@ -487,8 +507,9 @@ tuple :: Ord v => [Type v] -> Type v
 tuple [t] = t
 tuple ts = foldr pair (DD.unitType ()) ts
 
-pair :: Ord v => Type v -> Type v -> Type v
+pair, either :: Ord v => Type v -> Type v -> Type v
 pair l r = DD.pairType () `app` l `app` r
+either l r = DD.eitherType () `app` l `app` r
 
 (-->) :: Ord v => Type v -> Type v -> Type v
 a --> b = Type.arrow () a b
@@ -497,8 +518,6 @@ infixr -->
 io, ioe :: Var v => Type v -> Type v
 io = Type.effect1 () (Type.builtinIO ())
 ioe = io . either (DD.ioErrorType ())
-  where
-  either l r = DD.eitherType () `app` l `app` r
 
 socket, threadId, handle, unit :: Var v => Type v
 socket = Type.socket ()
@@ -520,3 +539,8 @@ text = Type.text ()
 boolean = Type.boolean ()
 float = Type.float ()
 char = Type.char ()
+
+code, value, termLink :: Var v => Type v
+code = Type.code ()
+value = Type.value ()
+termLink = Type.termLink ()

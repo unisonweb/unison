@@ -49,6 +49,9 @@ module Unison.Runtime.ANF
   , RTag
   , CTag
   , Tag(..)
+  , GroupRef(..)
+  , Value(..)
+  , Cont(..)
   , packTags
   , unpackTags
   , ANFM
@@ -56,6 +59,9 @@ module Unison.Runtime.ANF
   , Func(..)
   , superNormalize
   , anfTerm
+  , valueTermLinks
+  , valueLinks
+  , groupTermLinks
   , groupLinks
   , normalLinks
   , prettyGroup
@@ -826,6 +832,9 @@ data POp
   | FORK
   -- Universal operations
   | EQLU | CMPU | EROR
+  -- Code
+  | MISS | CACH | LKUP | LOAD -- isMissing,cache_,lookup,load
+  | VALU                      -- value
   -- Debug
   | PRNT | INFO
   deriving (Show,Eq,Ord)
@@ -871,6 +880,18 @@ type ANFM v
       (State (Word64, Word16, [(v, SuperNormal v)]))
 
 type ANFD v = Compose (ANFM v) (Directed ())
+
+data GroupRef = GR Reference Word64 Word64
+
+data Value
+  = Partial GroupRef [Word64] [Value]
+  | Data Reference Word64 [Word64] [Value]
+  | Cont [Word64] [Value] Cont
+
+data Cont
+  = KE
+  | Mark [Reference] (Map Reference Value) Cont
+  | Push Word64 Word64 Word64 Word64 GroupRef Cont
 
 groupVars :: ANFM v (Set v)
 groupVars = ask
@@ -1211,6 +1232,35 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   anfBody tm = Compose . bindLocal vs $ anfTerm tm
 anfInitCase _ (MatchCase p _ _)
   = error $ "anfInitCase: unexpected pattern: " ++ show p
+
+valueTermLinks :: Value -> [Reference]
+valueTermLinks = Set.toList . valueLinks f
+  where
+  f False r = Set.singleton r
+  f _ _ = Set.empty
+
+valueLinks :: Monoid a => (Bool -> Reference -> a) -> Value -> a
+valueLinks f (Partial (GR cr _ _) _ bs)
+  = f False cr <> foldMap (valueLinks f) bs
+valueLinks f (Data dr _ _ bs)
+  = f True dr <> foldMap (valueLinks f) bs
+valueLinks f (Cont _ bs k)
+  = foldMap (valueLinks f) bs <> contLinks f k
+
+contLinks :: Monoid a => (Bool -> Reference -> a) -> Cont -> a
+contLinks f (Push _ _ _ _ (GR cr _ _) k)
+  = f False cr <> contLinks f k
+contLinks f (Mark ps de k)
+  = foldMap (f True) ps
+  <> Map.foldMapWithKey (\k c -> f True k <> valueLinks f c) de
+  <> contLinks f k
+contLinks _ KE = mempty
+
+groupTermLinks :: SuperGroup v -> [Reference]
+groupTermLinks = Set.toList . groupLinks f
+  where
+  f False r = Set.singleton r
+  f _ _ = Set.empty
 
 groupLinks :: Monoid a => (Bool -> Reference -> a) -> SuperGroup v -> a
 groupLinks f (Rec bs e)

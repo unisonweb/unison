@@ -328,6 +328,9 @@ data BPrim1
   | FLTB               -- flatten
   -- general
   | THRO               -- throw
+  -- code
+  | MISS | CACH | LKUP | LOAD -- isMissing,cache_,lookup,load
+  | VALU                      -- value
   deriving (Show, Eq, Ord)
 
 data BPrim2
@@ -1039,6 +1042,13 @@ emitPOp ANF.CATB = emitBP2 CATB
 -- universal comparison
 emitPOp ANF.EQLU = emitBP2 EQLU
 emitPOp ANF.CMPU = emitBP2 CMPU
+
+-- code operations
+emitPOp ANF.MISS = emitBP1 MISS
+emitPOp ANF.CACH = emitBP1 CACH
+emitPOp ANF.LKUP = emitBP1 LKUP
+emitPOp ANF.LOAD = emitBP1 LOAD
+emitPOp ANF.VALU = emitBP1 VALU
 
 -- error call
 emitPOp ANF.EROR = emitBP1 THRO

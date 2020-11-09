@@ -7,6 +7,7 @@ module Unison.Util.EnumContainers
   , EnumKey(..)
   , mapFromList
   , setFromList
+  , setToList
   , mapSingleton
   , setSingleton
   , mapInsert
@@ -70,6 +71,9 @@ mapFromList = EM . IM.fromList . fmap (first keyToInt)
 
 setFromList :: EnumKey k => [k] -> EnumSet k
 setFromList = ES . IS.fromList . fmap keyToInt
+
+setToList :: EnumKey k => EnumSet k -> [k]
+setToList (ES s) = intToKey <$> IS.toList s
 
 mapSingleton :: EnumKey k => k -> a -> EnumMap k a
 mapSingleton e a = EM $ IM.singleton (keyToInt e) a

@@ -3,6 +3,7 @@
 {-# language BangPatterns #-}
 {-# language ViewPatterns #-}
 {-# language PatternGuards #-}
+{-# language PatternSynonyms #-}
 
 module Unison.Runtime.Machine where
 
@@ -32,9 +33,12 @@ import qualified Data.Primitive.PrimArray as PA
 import Text.Read (readMaybe)
 
 import Unison.Reference (Reference(Builtin))
+import Unison.Referent (pattern Ref)
 import Unison.Symbol (Symbol)
 
-import Unison.Runtime.ANF (Mem(..), SuperGroup, groupLinks)
+import Unison.Runtime.ANF
+  as ANF (Mem(..), SuperGroup, valueLinks, groupLinks)
+import qualified Unison.Runtime.ANF as ANF
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign
@@ -59,9 +63,9 @@ type DEnv = EnumMap Word64 Closure
 data CCache
   = CCache
   { foreignFuncs :: EnumMap Word64 ForeignFunc
-  -- , tagRefs :: EnumMap Word64 Reference
   , combs :: TVar (EnumMap Word64 Combs)
   , combRefs :: TVar (EnumMap Word64 Reference)
+  , tagRefs :: TVar (EnumMap Word64 Reference)
   , freshTm :: TVar Word64
   , freshTy :: TVar Word64
   , intermed :: TVar (M.Map Reference (SuperGroup Symbol))
@@ -93,6 +97,7 @@ baseCCache
   = CCache builtinForeigns
       <$> newTVarIO combs
       <*> newTVarIO builtinTermBackref
+      <*> newTVarIO builtinTypeBackref
       <*> newTVarIO ftm
       <*> newTVarIO fty
       <*> newTVarIO mempty
@@ -181,6 +186,51 @@ exec !_   !denv !ustk !bstk !k (UPrim1 op i) = do
   pure (denv, ustk, bstk, k)
 exec !_   !denv !ustk !bstk !k (UPrim2 op i j) = do
   ustk <- uprim2 ustk op i j
+  pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (BPrim1 MISS i) = do
+  clink <- peekOff bstk i
+  let Ref link = unwrapForeign $ marshalToForeign clink
+  m <- readTVarIO (intermed env)
+  ustk <- bump ustk
+  if (link `M.member` m) then poke ustk 1 else poke ustk 0
+  pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (BPrim1 CACH i) = do
+  arg <- peekOffS bstk i
+  news <- decodeCacheArgument arg
+  unknown <- cacheAdd news env
+  bstk <- bump bstk
+  pokeS bstk
+    (Sq.fromList $ Foreign . Wrap Rf.typeLinkRef . Ref <$> unknown)
+  pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (BPrim1 LKUP i) = do
+  clink <- peekOff bstk i
+  let Ref link = unwrapForeign $ marshalToForeign clink
+  m <- readTVarIO (intermed env)
+  ustk <- bump ustk
+  bstk <- case M.lookup link m of
+    Nothing -> bstk <$ poke ustk 0
+    Just sg -> do
+      poke ustk 1
+      bstk <- bump bstk
+      bstk <$ pokeBi bstk sg
+  pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (BPrim1 LOAD i) = do
+  v <- peekOffBi bstk i
+  ustk <- bump ustk
+  bstk <- bump bstk
+  reifyValue env v >>= \case
+    Left miss -> do
+      poke ustk 0
+      pokeS bstk $ Sq.fromList $ Foreign . Wrap Rf.termLinkRef <$> miss
+    Right x -> do
+      poke ustk 1
+      poke bstk x
+  pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (BPrim1 VALU i) = do
+  m <- readTVarIO (tagRefs env)
+  c <- peekOff bstk i
+  bstk <- bump bstk
+  pokeBi bstk =<< reflectValue m c
   pure (denv, ustk, bstk, k)
 exec !_   !denv !ustk !bstk !k (BPrim1 op i) = do
   (ustk,bstk) <- bprim1 ustk bstk op i
@@ -1084,6 +1134,12 @@ bprim1 !ustk !bstk FLTB i = do
   pure (ustk, bstk)
 bprim1 !_    !bstk THRO i
   = throwIO . BU =<< peekOff bstk i
+-- impossible
+bprim1 !ustk !bstk MISS _ = pure (ustk, bstk)
+bprim1 !ustk !bstk CACH _ = pure (ustk, bstk)
+bprim1 !ustk !bstk LKUP _ = pure (ustk, bstk)
+bprim1 !ustk !bstk LOAD _ = pure (ustk, bstk)
+bprim1 !ustk !bstk VALU _ = pure (ustk, bstk)
 {-# inline bprim1 #-}
 
 bprim2
@@ -1342,6 +1398,31 @@ refLookup s m r
   | otherwise
   = error $ "refLookup:" ++ s ++ ": unknown reference: " ++ show r
 
+decodeCacheArgument
+  :: Sq.Seq Closure -> IO [(Reference, SuperGroup Symbol)]
+decodeCacheArgument s = for (toList s) $ \case
+  DataB2 _ _ (Foreign x) (Foreign y)
+    -> pure (unwrapForeign x, unwrapForeign y)
+  _ -> die "decodeCacheArgument: unrecognized value"
+
+addRefs
+  :: TVar Word64
+  -> TVar (M.Map Reference Word64)
+  -> TVar (EnumMap Word64 Reference)
+  -> S.Set Reference
+  -> STM (M.Map Reference Word64)
+addRefs vfrsh vfrom vto rs = do
+  from0 <- readTVar vfrom
+  let new = S.filter (`M.notMember` from0) rs
+      sz = fromIntegral $ S.size new
+  frsh <- stateTVar vfrsh $ \i -> (i, i+sz)
+  let newl = S.toList new
+      from = M.fromList (zip newl [frsh..]) <> from0
+      nto = mapFromList (zip [frsh..] newl)
+  writeTVar vfrom from
+  modifyTVar vto (nto <>)
+  pure from
+
 cacheAdd0
   :: S.Set Reference
   -> [(Reference, SuperGroup Symbol)]
@@ -1349,16 +1430,10 @@ cacheAdd0
   -> IO ()
 cacheAdd0 ntys0 tml cc = atomically $ do
   have <- readTVar (intermed cc)
-  rty0 <- readTVar (refTy cc)
   let new = M.difference toAdd have
       sz = fromIntegral $ M.size new
       (rs,gs) = unzip $ M.toList new
-      ntys = S.filter (`M.notMember` rty0) ntys0
-      szty = fromIntegral $ S.size ntys
-      ntyl = S.toList ntys
-  nty <- stateTVar (freshTy cc) $ \i -> (i, i+szty)
-  let rty = M.fromList (zip ntyl [nty..]) <> rty0
-  writeTVar (refTy cc) rty
+  rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
   ntm <- stateTVar (freshTm cc) $ \i -> (i, i+sz)
   rtm <- updateMap (M.fromList $ zip rs [ntm..]) (refTm cc)
   -- check for missing references
@@ -1386,3 +1461,78 @@ cacheAdd l cc = do
   if S.null missing
     then [] <$ cacheAdd0 tys l' cc
     else pure $ S.toList missing
+
+reflectValue :: EnumMap Word64 Reference -> Closure -> IO ANF.Value
+reflectValue rty = goV
+  where
+  err s = "reflectValue: cannot prepare value for serialization: " ++ s
+  refTy w
+    | Just r <- EC.lookup w rty = pure r
+    | otherwise
+    = die $ err "unknown type reference"
+
+  goIx (CIx r n i) = ANF.GR r n i
+
+  goV (PApV cix ua ba)
+    = ANF.Partial (goIx cix) (fromIntegral <$> ua) <$> traverse goV ba
+  goV (DataC r t us bs)
+    = ANF.Data r t (fromIntegral <$> us) <$> traverse goV bs
+  goV (CapV k us bs)
+    = ANF.Cont (fromIntegral <$> us) <$> traverse goV bs <*> goK k
+  goV (Foreign _) = die $ err "foreign value"
+  goV BlackHole = die $ err "black hole"
+
+  goK (CB _) = die $ err "callback continuation"
+  goK KE = pure ANF.KE
+  goK (Mark ps de k) = do
+    ps <- traverse refTy (EC.setToList ps)
+    de <- traverse (\(k,v) -> (,) <$> refTy k <*> goV v) (mapToList de)
+    ANF.Mark ps (M.fromList de) <$> goK k
+  goK (Push uf bf ua ba cix k)
+    = ANF.Push
+          (fromIntegral uf) (fromIntegral bf)
+          (fromIntegral ua) (fromIntegral ba) (goIx cix)
+       <$> goK k
+
+reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
+reifyValue cc val = do
+  erc <- atomically $ readTVar (refTm cc) >>= \rtm ->
+    case S.toList $ S.filter (`M.notMember`rtm) tmLinks of
+      [] -> Right <$>
+              addRefs (freshTy cc) (refTy cc) (tagRefs cc) tyLinks
+      l -> pure (Left l)
+  traverse (\rty -> reifyValue0 rty val) erc
+  where
+  f False r = (mempty, S.singleton r)
+  f True  r = (S.singleton r, mempty)
+  (tyLinks, tmLinks) = valueLinks f val
+
+reifyValue0 :: M.Map Reference Word64 -> ANF.Value -> IO Closure
+reifyValue0 rty = goV
+  where
+  err s = "reifyValue: cannot restore value: " ++ s
+  refTy r
+    | Just w <- M.lookup r rty = pure w
+    | otherwise = die . err $ "unknown type reference: " ++ show r
+  goIx (ANF.GR r n i) = CIx r n i
+
+  goV (ANF.Partial gr ua ba)
+    = PApV (goIx gr) (fromIntegral <$> ua) <$> traverse goV ba
+  goV (ANF.Data r t us bs)
+    = DataC r t (fromIntegral <$> us) <$> traverse goV bs
+  goV (ANF.Cont us bs k) = cv <$> goK k <*> traverse goV bs
+    where
+    cv k bs = CapV k (fromIntegral <$> us) bs
+
+  goK ANF.KE = pure KE
+  goK (ANF.Mark ps de k) =
+    mrk <$> traverse refTy ps
+        <*> traverse (\(k,v) -> (,) <$> refTy k <*> goV v) (M.toList de)
+        <*> goK k
+    where
+    mrk ps de k = Mark (setFromList ps) (mapFromList de) k
+  goK (ANF.Push uf bf ua ba gr k)
+    = Push
+          (fromIntegral uf) (fromIntegral bf)
+          (fromIntegral ua) (fromIntegral ba) (goIx gr)
+        <$> goK k
