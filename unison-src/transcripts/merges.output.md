@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #0njtem0mcm
+  ⊙ #l02d9s8t7h
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #itl1uomklh
+  ⊙ #b6sso840jm
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #94tplgq85t
+  ⊙ #k445f24ur7
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #fr2k0al9mk
+  ⊙ #rtvlmg61q0
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #p8dvir508b
+  ⊙ #18662qbqvq
   
     + Adds / updates:
     
       x
   
-  ⊙ #bc44avko8b
+  ⊙ #f5b868o8ej
   
     + Adds / updates:
     
@@ -157,7 +157,10 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Bytes.empty builtin.Bytes.flatten
       builtin.Bytes.fromList builtin.Bytes.size
       builtin.Bytes.take builtin.Bytes.toList builtin.Char
-      builtin.Char.fromNat builtin.Char.toNat
+      builtin.Char.fromNat builtin.Char.toNat builtin.Code
+      builtin.Code.cache_ builtin.Code.dependencies
+      builtin.Code.deserialize builtin.Code.isMissing
+      builtin.Code.lookup builtin.Code.serialize
       builtin.Debug.watch builtin.Doc builtin.Doc.Blob
       builtin.Doc.Evaluate builtin.Doc.Join builtin.Doc.Link
       builtin.Doc.Signature builtin.Doc.Source builtin.Either
@@ -215,8 +218,10 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Unit builtin.Unit.Unit builtin.Universal.<
       builtin.Universal.<= builtin.Universal.==
       builtin.Universal.> builtin.Universal.>=
-      builtin.Universal.compare builtin.bug
-      builtin.io2.BufferMode
+      builtin.Universal.compare builtin.Value
+      builtin.Value.dependencies builtin.Value.deserialize
+      builtin.Value.load builtin.Value.serialize
+      builtin.Value.value builtin.bug builtin.io2.BufferMode
       builtin.io2.BufferMode.BlockBuffering
       builtin.io2.BufferMode.LineBuffering
       builtin.io2.BufferMode.NoBuffering
