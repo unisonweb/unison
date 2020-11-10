@@ -22,6 +22,7 @@ import           Text.Megaparsec.Error (ShowToken(..))
 import           Unison.ShortHash ( ShortHash )
 import qualified Unison.ShortHash as SH
 import qualified Text.Megaparsec as P
+import qualified Text.Megaparsec.Error as EP
 import qualified Text.Megaparsec.Char as CP
 import Text.Megaparsec.Char (char)
 import qualified Text.Megaparsec.Char.Lexer as LP
@@ -40,10 +41,9 @@ data Token a = Token {
 } deriving (Eq, Ord, Show, Functor)
 
 data ParsingEnv =
-  ParsingEnv { layout :: !Layout
-             , position :: !Pos
-             , inLayout :: !Bool
-             , opening :: Maybe String }
+  ParsingEnv { layout :: !Layout -- layout stack
+             , inLayout :: !Bool -- are we inside of a layout element, or in a [: :] block
+             , opening :: Maybe String } -- `Just b` if a block of type `b` is being opened
 
 type P = P.ParsecT (Token Err) String (S.State ParsingEnv)
 
@@ -59,6 +59,7 @@ data Err
   | InvalidEscapeCharacter Char
   | LayoutError
   | CloseWithoutMatchingOpen String String -- open, close
+  | Opaque String
   deriving (Eq,Ord,Show) -- richer algebra
 
 -- Design principle:
@@ -128,10 +129,34 @@ token' tok p = LP.lexeme space $ do
 
 -- todo: implement function with same signature as the existing lexer function
 -- to set up initial state, run the parser, etc
-lexer0' :: P [Token Lexeme]
-lexer0' = do
-  toks <- P.many lexemes
-  pure (join toks)
+lexer0' :: String -> String -> [Token Lexeme]
+lexer0' scope rem =
+  case flip S.evalState env0 $ P.runParserT parser scope rem of
+    Left e -> [Token (Err msg) topLeftCorner topLeftCorner]
+      where msg = Opaque $ EP.parseErrorPretty e
+    Right ts -> tweak (Token (Open scope) topLeftCorner topLeftCorner : ts)
+  where
+  env0 = ParsingEnv [] True (Just scope)
+  parser = join <$> P.many lexemes
+  -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
+  -- fix without adding more state to the lexer:
+  --   - 1+1 lexes as [1, +1], convert this to [1, +, 1]
+  --   - when a semi followed by a virtual semi, drop the virtual, lets you
+  --     write
+  --       foo x = action1;
+  --               2
+  tweak [] = []
+  tweak (h@(payload -> Semi False):(payload -> Semi True):t) = h : tweak t
+  tweak (h@(payload -> Reserved _):t) = h : tweak t
+  tweak (t1:t2@(payload -> Numeric num):rem)
+    | notLayout t1 && touches t1 t2 && isSigned num =
+      t1 : Token (SymbolyId (take 1 num) Nothing)
+                 (start t2)
+                 (inc $ start t2)
+         : Token (Numeric (drop 1 num)) (inc $ start t2) (end t2)
+         : tweak rem
+  tweak (h:t) = h : tweak t
+  isSigned num = all (\ch -> ch == '-' || ch == '+') $ take 1 num
 
 lexemes :: P [Token Lexeme]
 lexemes = reserved
@@ -139,25 +164,21 @@ lexemes = reserved
       <|> (asum . map token) [semi, textual, character, backticks, wordyId, symbolyId, numeric, hash]
   where
   semi = char ';' $> Semi False
-
   textual = Textual <$> quoted
   quoted = char '"' *> P.manyTill LP.charLiteral (char '"')
-
-  character =
-    Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
-    where spEsc = P.try (char '\\' *> char 's')
-
-  backticks =
-    tick <$> (char '`' *> wordyId <* char '`')
-    where tick (WordyId n sh) = Backticks n sh
-          tick t = t
-
+  character = Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
+              where spEsc = P.try (char '\\' *> char 's')
+  backticks = tick <$> (char '`' *> wordyId <* char '`')
+              where tick (WordyId n sh) = Backticks n sh
+                    tick t = t
   wordyId :: P Lexeme
   wordyId = P.label wordyMsg . P.try $ do
     dot <- P.optional (lit ".")
     segs <- P.sepBy1 wordyIdSeg (char '.')
     shorthash <- P.optional shorthash
     pure $ WordyId (fromMaybe "" dot <> intercalate "." segs) shorthash
+    where
+      wordyMsg = "identifier (ex: abba1, _zoink, .foo.bar#xyz, or 🚀)"
 
   symbolyId :: P Lexeme
   symbolyId = P.label symbolMsg . P.try $ do
@@ -172,7 +193,6 @@ lexemes = reserved
       tl <- segs
       pure (hd ++ tl)
 
-  wordyMsg = "identifier (ex: abba1, _zoink, .foo.bar#xyz, or 🚀)"
   symbolMsg = "operator (ex: +, Float./, List.++#xyz)"
 
   symbolyIdSeg :: P String
@@ -231,7 +251,8 @@ lexemes = reserved
     token' (\ts _ _ -> ts) $
     braces <|> parens <|> delim <|> delayOrForce <|> keywords <|> layoutKeywords
     where
-    keywords = kw "@" <|> kw "||" <|> kw "|" <|> kw "&&" <|> kw "true" <|> kw "false"
+    keywords = kw ":" <|> kw "@" <|> kw "||" <|> kw "|" <|> kw "&&"
+           <|> kw "true" <|> kw "false"
            <|> kw "use" <|> kw "if" <|> kw "forall" <|> kw "∀"
            <|> kw "termLink" <|> kw "typeLink"
 
@@ -307,6 +328,14 @@ lexemes = reserved
         ok :: Char -> Bool
         ok c = isSpace c || Set.member c delimiters || isAlphaNum c
 
+    open :: String -> P [Token Lexeme]
+    open b = do
+      pos <- pos
+      _ <- lit b
+      env <- S.get
+      S.put (env { opening = Just b })
+      pure [Token (Open b) pos (incBy b pos)]
+
     openKw :: String -> P [Token Lexeme]
     openKw s = do
       pos1 <- pos
@@ -337,14 +366,6 @@ lexemes = reserved
             S.put (env { layout = drop n (layout env) })
           let opens = if reopen then [Token (Open close) pos1 pos2] else []
           pure $ replicate n (Token Close pos1 pos2) ++ opens
-
-    open :: String -> P [Token Lexeme]
-    open b = do
-      pos <- pos
-      _ <- lit b
-      env <- S.get
-      S.put (env { opening = Just b })
-      pure [Token (Open b) pos (incBy b pos)]
 
   eof :: P [Token Lexeme]
   eof = P.try $ do
@@ -1010,6 +1031,17 @@ spanThru' :: (a -> Bool) -> [a] -> (([a],[a]) -> r) -> r
 spanThru' f a k = case span f a of
   (l, []) -> k (l, [])
   (l, lz:r) -> k (l ++ [lz], r)
+
+instance EP.ShowErrorComponent (Token Err) where
+  showErrorComponent (Token err _ _) = go err where
+    go = \case
+      Opaque msg -> msg
+      CloseWithoutMatchingOpen open close -> "I found a closing " <> close <> " with no matching " <> open <> "."
+      Both e1 e2 -> (go e1) <> "\n" <> (go e2)
+      LayoutError -> "Indentation error"
+      TextLiteralMissingClosingQuote s -> "This text literal missing a closing quote: " <> excerpt s
+      e -> show e
+    excerpt s = if length s < 15 then s else take 15 s <> "..."
 
 instance ShowToken (Token Lexeme) where
   showTokens xs =
