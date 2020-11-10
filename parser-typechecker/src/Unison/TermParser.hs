@@ -135,16 +135,16 @@ match = do
 -- Returns the arity of the pattern and the `MatchCase`. Examples:
 --
 --   (a, b) -> a - b -- arity 1
---   foo (hd +: tl) -> foo tl -- arity 2
+--   foo, hd +: tl -> foo tl -- arity 2
 --
 -- Cases with arity greater than 1 are desugared to matching on tuples,
 -- so the following are parsed the same:
 --
---   42 x -> ...
+--   42, x -> ...
 --   (42, x) -> ...
 matchCase :: Var v => P v (Int, Term.MatchCase Ann (Term v Ann))
 matchCase = do
-  pats <- some parsePattern
+  pats <- sepBy1 (reserved ",") parsePattern
   let boundVars' = [ v | (_,vs) <- pats, (_ann,v) <- vs ]
       pat = case fst <$> pats of
         [p] -> p

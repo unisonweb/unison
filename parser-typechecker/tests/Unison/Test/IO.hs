@@ -52,19 +52,19 @@ main = 'let
   expected = ${expectedText}
 
   -- Write to myFile
-  h1 = builtins.io.openFile (FilePath fp) Write
+  h1 = io.openFile (FilePath fp) Write
   putText h1 expected
-  builtins.io.closeFile h1
+  io.closeFile h1
 
   -- Read from myFile
-  h2 = builtins.io.openFile (FilePath fp) Read
+  h2 = builtin.io.openFile (FilePath fp) Read
   myC = getText h2
-  builtins.io.closeFile h2
+  io.closeFile h2
 
   -- Write what we read from myFile to resultFile
-  h3 = builtins.io.openFile (FilePath res) Write
+  h3 = io.openFile (FilePath res) Write
   putText h3 myC
-  builtins.io.closeFile h3
+  builtin.io.closeFile h3
 ```
 
 ```ucm
