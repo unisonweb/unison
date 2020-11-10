@@ -50,15 +50,18 @@ CREATE INDEX object_type_id ON object(type_id);
 
 -- `causal` references value hash ids instead of value ids, in case you want
 -- to be able to drop values and keep just the causal spine.
--- to be able to drop values and keep just the causal spine.
 -- This implementation keeps the hash of the dropped values, although I could
 -- see an argument to drop them too and just use NULL, but I thought it better
 -- to not lose their identities.
 CREATE TABLE causal (
   self_hash_id INTEGER PRIMARY KEY NOT NULL REFERENCES hash(id),
-  -- intentionally not object_id, see above
-  value_hash_id INTEGER NOT NULL REFERENCES hash(id)
+  value_hash_id INTEGER NOT NULL REFERENCES hash(id),
+  value_object_id INTEGER NULL REFERENCES object(id),
+  gc_generation INTEGER NOT NULL
 );
+CREATE INDEX causal_value_hash_id ON causal(value_hash_id);
+CREATE INDEX causal_gc_generation ON causal(gc_generation);
+
 
 -- valueHash : Hash = hash(value)
 -- db.saveValue(valueHash, value)

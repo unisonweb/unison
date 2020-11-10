@@ -16,6 +16,8 @@ import qualified U.Codebase.Reference as Reference
 type Referent = Referent' Sqlite.Reference Sqlite.Reference
 type Id = Id' ObjectId ObjectId
 
+type LocalReferent = Referent' Sqlite.LocalReference Sqlite.LocalReference
+
 instance ToRow Id where
   -- | objectId, componentIndex, constructorIndex
   toRow = \case

@@ -27,7 +27,7 @@ import qualified Database.SQLite.Simple as SQLite
 import Database.SQLite.Simple.FromField (FromField)
 import Database.SQLite.Simple.ToField (ToField (..))
 import U.Codebase.Reference (Reference')
-import U.Codebase.Sqlite.DbId (BranchHashId, CausalHashId, CausalOldHashId, HashId (..), NamespaceHashId, ObjectId (..), TextId)
+import U.Codebase.Sqlite.DbId (BranchObjectId(..), BranchHashId(..), CausalHashId, CausalOldHashId, HashId (..), ObjectId (..), TextId)
 import U.Codebase.Sqlite.ObjectType (ObjectType)
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
@@ -45,6 +45,7 @@ data Integrity
   = UnknownHashId HashId
   | UnknownTextId TextId
   | UnknownObjectId ObjectId
+  | UnknownCausalHashId CausalHashId
   | UnknownCausalOldHashId CausalOldHashId
   | NoObjectForHashId HashId
   | NoNamespaceRoot
@@ -52,13 +53,16 @@ data Integrity
   deriving Show
 
 -- |discard errors that you're sure are impossible
-noError :: (Monad m, Show e) => ExceptT e m a -> m a
-noError a = runExceptT a >>= \case
-  Left e -> error $ "unexpected error: " ++ show e
+noExcept :: (Monad m, Show e) => ExceptT e m a -> m a
+noExcept a = runExceptT a >>= \case
   Right a -> pure a
+  Left e -> error $ "unexpected error: " ++ show e
 
-orError :: MonadError Integrity m => (a -> Integrity) -> a -> Maybe b -> m b
-orError fe a = maybe (throwError $ fe a) pure
+-- noMaybe :: Maybe a -> a
+-- noMaybe = fromMaybe (error "unexpected Nothing")
+
+orError :: MonadError Integrity m => Integrity -> Maybe b -> m b
+orError e = maybe (throwError e) pure
 
 -- type DerivedReferent = Referent.Id ObjectId ObjectId
 -- type DerivedReference = Reference.Id ObjectId
@@ -78,20 +82,19 @@ loadHashId base32 = queryOnly sql (Only base32)
   where sql = [here| SELECT id FROM hash WHERE base32 = ? |]
 
 loadHashById :: EDB m => HashId -> m Base32Hex
-loadHashById h = queryOnly sql (Only h) >>= orError UnknownHashId h
+loadHashById h = queryOnly sql (Only h) >>= orError (UnknownHashId h)
   where sql = [here| SELECT base32 FROM hash WHERE id = ? |]
 
 saveText :: DB m => Text -> m TextId
 saveText t = execute sql (Only t) >> queryOne (loadText t)
   where sql = [here| INSERT OR IGNORE INTO text (text) VALUES (?) |]
 
--- ok to return Nothing
 loadText :: DB m => Text -> m (Maybe TextId)
 loadText t = queryOnly sql (Only t)
   where sql = [here| SELECT id FROM text WHERE text = ? |]
 
 loadTextById :: EDB m => TextId -> m Text
-loadTextById h = queryOnly sql (Only h) >>= orError UnknownTextId h
+loadTextById h = queryOnly sql (Only h) >>= orError (UnknownTextId h)
   where sql = [here| SELECT text FROM text WHERE id = ? |]
 
 saveHashObject :: DB m => HashId -> ObjectId -> Int -> m ()
@@ -103,7 +106,7 @@ saveHashObject hId oId version = execute sql (hId, oId, version) where
 
 saveObject :: DB m => HashId -> ObjectType -> ByteString -> m ObjectId
 saveObject h t blob =
-  execute sql (h, t, blob) >> noError (objectIdByPrimaryHashId h)
+  execute sql (h, t, blob) >> queryOne (maybeObjectIdPrimaryHashId h)
   where
   sql = [here|
     INSERT OR IGNORE INTO object (primary_hash_id, type_id, bytes)
@@ -111,45 +114,43 @@ saveObject h t blob =
   |]
 
 loadObjectById :: EDB m => ObjectId -> m ByteString
-loadObjectById oId = queryOnly sql (Only oId) >>= orError UnknownObjectId oId
+loadObjectById oId = queryOnly sql (Only oId) >>= orError (UnknownObjectId oId)
   where sql = [here|
   SELECT bytes FROM object WHERE id = ?
 |]
 
-objectIdByPrimaryHashId :: EDB m => HashId -> m ObjectId
-objectIdByPrimaryHashId h = queryOnly sql (Only h) >>= orError UnknownHashId h
-  where sql = [here|
+-- |Not all hashes have corresponding objects; e.g., hashes of term types
+expectObjectIdForPrimaryHashId :: EDB m => HashId -> m ObjectId
+expectObjectIdForPrimaryHashId h =
+  maybeObjectIdPrimaryHashId h >>= orError (UnknownHashId h)
+
+maybeObjectIdPrimaryHashId :: DB m => HashId -> m (Maybe ObjectId)
+maybeObjectIdPrimaryHashId h = queryOnly sql (Only h) where sql = [here|
   SELECT id FROM object WHERE primary_hash_id = ?
 |]
 
-objectIdByAnyHashId :: EDB m => HashId -> m ObjectId
-objectIdByAnyHashId h =
-  queryOnly sql (Only h) >>= orError NoObjectForHashId h where sql = [here|
+expectObjectIdForAnyHashId :: EDB m => HashId -> m ObjectId
+expectObjectIdForAnyHashId h =
+  maybeObjectIdForAnyHashId h >>= orError (NoObjectForHashId h)
+
+maybeObjectIdForAnyHashId :: DB m => HashId -> m (Maybe ObjectId)
+maybeObjectIdForAnyHashId h = queryOnly sql (Only h) where sql = [here|
     SELECT object_id FROM hash_object WHERE hash_id = ?
   |]
 
--- objectIdByAnyHash :: DB m => Base32Hex -> m (Maybe ObjectId)
--- objectIdByAnyHash h = queryOnly sql (Only h) where sql = [here|
---   SELECT object.id
---   FROM hash
---   INNER JOIN hash_object ON hash_object.hash_id = hash.id
---   INNER JOIN object ON hash_object.object_id = object.id
---   WHERE hash.base32 = ?
--- |]
-
--- error to return Nothing
+-- |All objects have corresponding hashes.
 loadPrimaryHashByObjectId :: EDB m => ObjectId -> m Base32Hex
-loadPrimaryHashByObjectId oId = queryOnly sql (Only oId) >>= orError UnknownObjectId oId
+loadPrimaryHashByObjectId oId = queryOnly sql (Only oId) >>= orError (UnknownObjectId oId)
  where sql = [here|
   SELECT hash.base32
-  FROM hash INNER JOIN hash_object ON hash_object.hash_id = hash.id
-  WHERE hash_object.object_id = ?
+  FROM hash INNER JOIN object ON object.primary_hash_id = hash.id
+  WHERE object.id = ?
 |]
 
 objectAndPrimaryHashByAnyHash :: EDB m => Base32Hex -> m (Maybe (Base32Hex, ObjectId))
 objectAndPrimaryHashByAnyHash h = runMaybeT do
-  hashId <- MaybeT $ loadHashId h
-  oId <- objectIdByAnyHashId hashId
+  hashId <- MaybeT $ loadHashId h -- hash may not exist
+  oId <- MaybeT $ maybeObjectIdForAnyHashId hashId -- hash may not correspond to object
   base32 <- loadPrimaryHashByObjectId oId
   pure (base32, oId)
 
@@ -168,15 +169,21 @@ updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
 
 -- |Maybe we would generalize this to something other than NamespaceHash if we
 -- end up wanting to store other kinds of Causals here too.
-saveCausal :: DB m => CausalHashId -> NamespaceHashId -> m ()
-saveCausal self value = execute sql (self, value) where sql = [here|
-  INSERT OR IGNORE INTO causal (self_hash_id, value_hash_id) VALUES (?, ?)
+saveCausal :: DB m => CausalHashId -> BranchHashId -> Maybe BranchObjectId -> m ()
+saveCausal self value oid = execute sql (self, value, oid) where sql = [here|
+  INSERT OR IGNORE INTO causal (self_hash_id, value_hash_id, value_object_id)
+  VALUES (?, ?,, ?)
 |]
 
--- error to return Nothing
-loadCausalValueHash :: DB m => CausalHashId -> m (Maybe NamespaceHashId)
-loadCausalValueHash hash = queryOnly sql (Only hash) where sql = [here|
+loadCausalValueHash :: EDB m => CausalHashId -> m BranchHashId
+loadCausalValueHash id =
+  queryOnly sql (Only id) >>= orError (UnknownCausalHashId id) where sql = [here|
   SELECT value_hash_id FROM causal WHERE self_hash_id = ?
+|]
+
+loadBranchObjectIdByCausalHashId :: EDB m => CausalHashId -> m (Maybe BranchObjectId)
+loadBranchObjectIdByCausalHashId id = queryOnly sql (Only id) where sql = [here|
+  SELECT value_object_id FROM causal WHERE self_hash_id = ?
 |]
 
 saveCausalOld :: DB m => HashId -> CausalHashId -> m ()
@@ -184,17 +191,15 @@ saveCausalOld v1 v2 = execute sql (v1, v2) where sql = [here|
   INSERT OR IGNORE INTO causal_old (old_hash_id, new_hash_id) VALUES (?, ?)
 |]
 
--- error to return Nothing
 loadCausalHashIdByCausalOldHash :: EDB m => CausalOldHashId -> m CausalHashId
 loadCausalHashIdByCausalOldHash id =
-  queryOnly sql (Only id) >>= orError UnknownCausalOldHashId id where sql = [here|
+  queryOnly sql (Only id) >>= orError (UnknownCausalOldHashId id) where sql = [here|
   SELECT new_hash_id FROM causal_old where old_hash_id = ?
 |]
 
--- error to return Nothing
-loadOldCausalValueHash :: EDB m => CausalOldHashId -> m NamespaceHashId
+loadOldCausalValueHash :: EDB m => CausalOldHashId -> m BranchHashId
 loadOldCausalValueHash id =
- queryOnly sql (Only id) >>= orError UnknownCausalOldHashId id where sql = [here|
+ queryOnly sql (Only id) >>= orError (UnknownCausalOldHashId id) where sql = [here|
   SELECT value_hash_id FROM causal
   INNER JOIN causal_old ON self_hash_id = new_hash_id
   WHERE old_hash_id = ?

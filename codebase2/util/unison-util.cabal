@@ -20,8 +20,10 @@ library
     U.Util.Hash
     U.Util.Hashable
     U.Util.Lens
+    U.Util.Map
     U.Util.Monoid
     U.Util.Relation
+    U.Util.Set
   -- other-modules:
   -- other-extensions:
   build-depends:

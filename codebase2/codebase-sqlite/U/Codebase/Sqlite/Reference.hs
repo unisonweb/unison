@@ -10,9 +10,13 @@ import Database.SQLite.Simple (SQLData(..), Only(..), ToRow(toRow))
 import Database.SQLite.Simple.FromRow (FromRow(fromRow), field)
 import Database.SQLite.Simple.ToField (ToField)
 import Database.SQLite.Simple.FromField (FromField)
+import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalTextId)
 
 type Reference = Reference' TextId ObjectId
 type Id = Id' ObjectId
+
+type LocalReference = Reference' LocalTextId LocalDefnId
+type LocalId = Id' LocalDefnId
 
 type ReferenceH = Reference' TextId HashId
 type IdH = Id' HashId

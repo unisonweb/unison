@@ -9,3 +9,10 @@ data Causal m hc he e = Causal
     parents :: Map hc (m (Causal m hc he e)),
     value :: m (Maybe e)
   }
+
+data CausalHead m hc he e = CausalHead
+  { headCausalHash :: hc,
+    headValueHash :: he,
+    headParents :: Map hc (m (Causal m hc he e)),
+    headValue :: m e
+  }

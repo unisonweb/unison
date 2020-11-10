@@ -26,6 +26,10 @@ newtype LocalTextId = LocalTextId Word64 deriving (Eq, Ord, Num, Real, Enum, Int
 -- | represents an index into a defnLookup
 newtype LocalDefnId = LocalDefnId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
 
+newtype LocalPatchObjectId = LocalPatchObjectId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
+newtype LocalBranchObjectId = LocalBranchObjectId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
+newtype LocalCausalHashId = LocalCausalHashId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
+
 instance Bitraversable LocalIds' where
   bitraverse f g (LocalIds t d) = LocalIds <$> traverse f t <*> traverse g d
 

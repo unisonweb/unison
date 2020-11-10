@@ -1,7 +1,17 @@
 module U.Codebase.Sqlite.Branch.Format where
 
-import U.Codebase.Sqlite.Branch.Diff ( Diff )
-import U.Codebase.Sqlite.Branch.Full ( Branch )
-import U.Codebase.Sqlite.DbId (BranchObjectId)
+import Data.Vector (Vector)
+import U.Codebase.Sqlite.Branch.Diff (LocalDiff)
+import U.Codebase.Sqlite.Branch.Full (LocalBranch)
+import U.Codebase.Sqlite.DbId (CausalHashId, BranchObjectId, ObjectId, PatchObjectId, TextId)
 
-data BranchFormat = Full Branch | Diff BranchObjectId Diff
+data BranchFormat
+  = Full BranchLocalIds LocalBranch
+  | Diff BranchObjectId BranchLocalIds LocalDiff
+
+data BranchLocalIds = LocalIds
+  { branchTextLookup :: Vector TextId,
+    branchDefnLookup :: Vector ObjectId,
+    branchPatchLookup :: Vector PatchObjectId,
+    branchChildLookup :: Vector CausalHashId
+  }

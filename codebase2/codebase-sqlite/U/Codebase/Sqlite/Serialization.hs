@@ -25,7 +25,6 @@ import qualified U.Codebase.Referent as Referent
 import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
 import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
-import qualified U.Codebase.Sqlite.Branch.MetadataSet as MetadataSet
 import U.Codebase.Sqlite.DbId (PatchObjectId)
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId)
@@ -420,19 +419,26 @@ lookupDeclElement =
 
 putBranchFormat :: MonadPut m => BranchFormat.BranchFormat -> m ()
 putBranchFormat = \case
-  BranchFormat.Full b -> putWord8 0 *> putBranchFull b
-  BranchFormat.Diff r d -> putWord8 1 *> putBranchDiff r d
+  BranchFormat.Full li b -> putWord8 0 *> putBranchFull li b
+  BranchFormat.Diff r li d -> putWord8 1 *> putBranchDiff r li d
   where
     putReferent' = putReferent putReference putReference
-    putBranchFull (BranchFull.Branch terms types patches children) = do
+    putBranchLocalIds (BranchFormat.LocalIds ts os ps cs) = do
+      putFoldable putVarInt ts
+      putFoldable putVarInt os
+      putFoldable putVarInt ps
+      putFoldable putVarInt cs
+    putBranchFull li (BranchFull.Branch terms types patches children) = do
+      putBranchLocalIds li
       putMap putVarInt (putMap putReferent' putMetadataSetFormat) terms
       putMap putVarInt (putMap putReference putMetadataSetFormat) types
       putMap putVarInt putVarInt patches
-      putMap putVarInt putVarInt children
+      putMap putVarInt (putPair putVarInt putVarInt) children
     putMetadataSetFormat = \case
-      MetadataSet.Inline s -> putWord8 0 *> putFoldable putReference s
-    putBranchDiff ref (BranchDiff.Diff terms types patches children) = do
+      BranchFull.Inline s -> putWord8 0 *> putFoldable putReference s
+    putBranchDiff ref li (BranchDiff.Diff terms types patches children) = do
       putVarInt ref
+      putBranchLocalIds li
       putMap putVarInt (putMap putReferent' putDiffOp) terms
       putMap putVarInt (putMap putReference putDiffOp) types
       putMap putVarInt putPatchOp patches
@@ -451,7 +457,7 @@ putBranchFormat = \case
           BranchDiff.AlterDefMetadata md -> putWord8 2 *> putAddRemove putReference md
         putChildOp = \case
           BranchDiff.ChildRemove -> putWord8 0
-          BranchDiff.ChildAddReplace b -> putWord8 1 *> putVarInt b
+          BranchDiff.ChildAddReplace b -> putWord8 1 *> putPair putVarInt putVarInt b
 
 putPatchFormat :: MonadPut m => PatchFormat.PatchFormat -> m ()
 putPatchFormat = \case
