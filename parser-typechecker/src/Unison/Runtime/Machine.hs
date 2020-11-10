@@ -812,6 +812,11 @@ uprim1 !ustk TZRO !i = do
   ustk <- bump ustk
   poke ustk (countTrailingZeros n)
   pure ustk
+uprim1 !ustk POPC !i = do
+  n <- peekOffN ustk i
+  ustk <- bump ustk
+  poke ustk (popCount n)
+  pure ustk
 uprim1 !ustk COMN !i = do
   n <- peekOffN ustk i
   ustk <- bump ustk

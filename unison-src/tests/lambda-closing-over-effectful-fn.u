@@ -7,4 +7,4 @@ unfold s f =
     Some (hd, s) -> go s (acc `List.snoc` hd)
   go s []
 
-> unfold 0 (n -> if n Nat.< 5 then Some (n, n + 1) else None)
+> unfold 0 (n -> if n < 5 then Some (n, n + 1) else None)

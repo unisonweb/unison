@@ -30,7 +30,7 @@ from n = unfold n (n -> Some (n, n + 1))
 take n s =
   step n = cases
     {Emit.emit a -> k} ->
-      if n Nat.== 0 then ()
+      if n == 0 then ()
       else
         Emit.emit a
         handle k () with step (n `drop` 1)

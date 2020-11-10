@@ -127,19 +127,34 @@ match = do
   _ <- P.try (openBlockWith "with") <|> do
          t <- anyToken
          P.customFailure (ExpectedBlockOpen "with" t)
-  cases <- sepBy1 semi matchCase
+  (_arities, cases) <- unzip <$> sepBy1 semi matchCase
   -- TODO: Add error for empty match list
   _ <- closeBlock
   pure $ Term.match (ann start <> ann (last cases)) scrutinee cases
 
-matchCase :: Var v => P v (Term.MatchCase Ann (Term v Ann))
+-- Returns the arity of the pattern and the `MatchCase`. Examples:
+--
+--   (a, b) -> a - b -- arity 1
+--   foo, hd +: tl -> foo tl -- arity 2
+--
+-- Cases with arity greater than 1 are desugared to matching on tuples,
+-- so the following are parsed the same:
+--
+--   42, x -> ...
+--   (42, x) -> ...
+matchCase :: Var v => P v (Int, Term.MatchCase Ann (Term v Ann))
 matchCase = do
-  (p, boundVars) <- parsePattern
-  let boundVars' = snd <$> boundVars
+  pats <- sepBy1 (reserved ",") parsePattern
+  let boundVars' = [ v | (_,vs) <- pats, (_ann,v) <- vs ]
+      pat = case fst <$> pats of
+        [p] -> p
+        pats -> foldr pair (unit (ann . last $ pats)) pats
+      unit ann = Pattern.Constructor ann DD.unitRef 0 []
+      pair p1 p2 = Pattern.Constructor (ann p1 <> ann p2) DD.pairRef 0 [p1, p2]
   guard <- optional $ reserved "|" *> infixAppOrBooleanOp
   t <- block "->"
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
-  pure . Term.MatchCase p (fmap (absChain boundVars') guard) $ absChain boundVars' t
+  pure $ (length pats, Term.MatchCase pat (fmap (absChain boundVars') guard) (absChain boundVars' t))
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
 parsePattern = root
@@ -257,16 +272,32 @@ handle = label "handle" $ do
   handler <- block "with"
   pure $ Term.handle (ann b) handler b
 
+checkCasesArities :: (Ord v, Annotated a) => [(Int, a)] -> P v (Int, [a])
+checkCasesArities cases = go Nothing cases where
+  go arity [] = case arity of
+    Nothing -> fail "empty list of cases"
+    Just a -> pure (a, map snd cases)
+  go Nothing ((i,_):t) = go (Just i) t
+  go (Just i) ((j,a):t) =
+    if i == j then go (Just i) t
+    else P.customFailure $ PatternArityMismatch i j (ann a)
+
 lamCase = do
   start <- openBlockWith "cases"
   cases <- sepBy1 semi matchCase
+  (arity, cases) <- checkCasesArities cases
   -- TODO: Add error for empty match list
   _ <- closeBlock
-  lamvar <- Parser.uniqueName 10
-  let lamvarTerm = Term.var (ann start) (Var.named lamvar)
+  lamvars <- replicateM arity (Parser.uniqueName 10)
+  let vars = Var.named <$> [ tweak v i | (v,i) <- lamvars `zip` [(1::Int)..] ]
+      tweak v 0 = v
+      tweak v i = v <> Text.pack (show i)
+      lamvarTerms = Term.var (ann start) <$> vars
+      lamvarTerm = case lamvarTerms of
+        [e] -> e
+        es -> DD.tupleTerm es
       matchTerm = Term.match (ann start <> ann (last cases)) lamvarTerm cases
-  pure $ Term.lam (ann start <> ann (last cases)) (Var.named lamvar) matchTerm
-
+  pure $ Term.lam' (ann start <> ann (last cases)) vars matchTerm
 
 ifthen = label "if" $ do
   start <- peekAny

@@ -1,4 +1,4 @@
-use Nat drop >=
+use Nat drop
 use Optional None Some
 
 search : (Nat -> Int) -> Nat -> Nat -> Optional Nat

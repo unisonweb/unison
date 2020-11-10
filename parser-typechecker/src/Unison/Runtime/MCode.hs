@@ -294,7 +294,7 @@ bcount _ = 0
 data UPrim1
   -- integral
   = DECI | INCI | NEGI | SGNI -- decrement,increment,negate,signum
-  | LZRO | TZRO | COMN        -- leading/trailingZeroes,complement
+  | LZRO | TZRO | COMN | POPC -- leading/trailingZeroes,complement
   -- floating
   | ABSF | EXPF | LOGF | SQRT -- abs,exp,log,sqrt
   | COSF | ACOS | COSH | ACSH -- cos,acos,cosh,acosh
@@ -952,6 +952,7 @@ emitPOp ANF.DECI = emitP1 DECI
 emitPOp ANF.DECN = emitP1 DECI
 emitPOp ANF.TZRO = emitP1 TZRO
 emitPOp ANF.LZRO = emitP1 LZRO
+emitPOp ANF.POPC = emitP1 POPC
 emitPOp ANF.ANDN = emitP2 ANDN
 emitPOp ANF.IORN = emitP2 IORN
 emitPOp ANF.XORN = emitP2 XORN

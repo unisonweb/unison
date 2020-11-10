@@ -209,7 +209,7 @@ enclose keep rec t@(LamsNamed' vs body)
   lamb = lam' a (evs ++ vs) lbody
 enclose keep rec t@(Handle' h body)
   | isStructured body
-  = Just . handle (ABT.annotation t) h $ apps' lamb args
+  = Just . handle (ABT.annotation t) (rec keep h) $ apps' lamb args
   where
   fvs = ABT.freeVars body
   evs = Set.toList $ Set.difference fvs keep
@@ -798,7 +798,7 @@ data POp
   | INCI | DECI | LEQI | EQLI -- inc,dec,<=,==
   -- Nat
   | ADDN | SUBN | MULN | DIVN -- +,-,*,/
-  | MODN | TZRO | LZRO        -- mod,trailing/leadingZeros
+  | MODN | TZRO | LZRO | POPC -- mod,trailing/leadingZeros,popCount
   | POWN | SHLN | SHRN        -- pow,shiftl,shiftr
   | ANDN | IORN | XORN | COMN -- and,or,xor,complement
   | INCN | DECN | LEQN | EQLN -- inc,dec,<=,==
