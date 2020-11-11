@@ -1017,6 +1017,15 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
     outputType <- applyM outputType
     scope InMatchBody $ check rhs' outputType
 
+-- For example:
+--   match scrute with
+--     (x, [42,y,Foo z]) -> blah x y z
+--
+-- scrutineeType will just be the type of `scrute`
+-- The starting state will be the variables [x,y,z] (extracted from the Abs-chain on the RHS of the ->)
+-- The output (assuming no type errors) is [(x,x'), (y,y'), (z,z')]
+-- where x', y', z' are freshened versions of x, y, z. These will be substituted
+-- into `blah x y z` to produce `blah x' y' z'` before typechecking it.
 checkPattern
   :: (Var v, Ord loc)
   => Type v loc
@@ -1031,11 +1040,13 @@ checkPattern scrutineeType0 p =
       v' <- lift $ freshenVar v
       lift . appendContext $ [Ann v' scrutineeType]
       pure [(v, v')]
+    -- Ex: [42, y, Foo z]
     Pattern.SequenceLiteral loc ps -> do
       vt <- lift $ do
         v <- freshenVar Var.inferOther
         let vt = existentialp loc v
         appendContext [existential v]
+        -- ['a] <: scrutineeType, where 'a is fresh existential
         subtype (Type.app loc (Type.vector loc) vt) scrutineeType
         applyM vt
       join <$> traverse (checkPattern vt) ps
@@ -1115,6 +1126,8 @@ checkPattern scrutineeType0 p =
       v' <- lift $ freshenVar v
       lift . appendContext $ [Ann v' scrutineeType]
       ((v, v') :) <$> checkPattern scrutineeType p'
+    -- ex: { a } -> a
+    -- ex: { (x, 42) } -> a
     Pattern.EffectPure loc p -> do
       vt <- lift $ do
         v <- freshenVar Var.inferPatternPureV
@@ -1125,6 +1138,7 @@ checkPattern scrutineeType0 p =
         subtype (Type.effectV loc (loc, et) (loc, vt)) scrutineeType
         applyM vt
       checkPattern vt p
+    -- ex: { Stream.emit x -> k } -> ...
     Pattern.EffectBind loc ref cid args k -> do
       -- scrutineeType should be a supertype of `Effect e vt`
       -- for fresh existentials `e` and `vt`
