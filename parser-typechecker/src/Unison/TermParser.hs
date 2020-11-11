@@ -202,6 +202,8 @@ parsePattern = root
     -- this might be a var, so we avoid consuming it at first
     tok <- P.try (P.lookAhead hqPrefixId)
     names <- asks names
+    -- probably should avoid looking up in `names` if `L.payload tok`
+    -- starts with a lowercase
     case Names.lookupHQPattern (L.payload tok) names of
       s | Set.null s     -> die tok s
         | Set.size s > 1 -> die tok s
