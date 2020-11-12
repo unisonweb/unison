@@ -13,10 +13,11 @@ import Unison.ABT (absChain, substs, pattern AbsN')
 import Unison.Term
   ( Term
   , nat, int, char, float, boolean, constructor, app, apps', text, ref
-  , seq, seq', builtin
+  , seq, seq', builtin, termLink, typeLink
   )
 import Unison.Type
   ( natRef, intRef, charRef, floatRef, booleanRef, vectorRef
+  , termLinkRef, typeLinkRef
   )
 import Unison.Var (Var)
 import Unison.Reference (Reference)
@@ -102,6 +103,10 @@ decompileForeign topTerms f
   | Just t <- maybeUnwrapBuiltin f = Right $ text () t
   | Just b <- maybeUnwrapBuiltin f = Right $ decompileBytes b
   | Just h <- maybeUnwrapBuiltin f = Right $ decompileHashAlgorithm h
+  | Just l <- maybeUnwrapForeign termLinkRef f
+  = Right $ termLink () l
+  | Just l <- maybeUnwrapForeign typeLinkRef f
+  = Right $ typeLink () l
   | Just s <- unwrapSeq f
   = seq' () <$> traverse (decompile topTerms) s
 decompileForeign _ _ = err "cannot decompile Foreign"

@@ -1502,9 +1502,9 @@ declareForeigns = do
     . mkForeign $
         pure . fmap (Wrap Ty.termLinkRef . Ref) . valueTermLinks
   declareForeign "Value.serialize" pfopb
-    . mkForeign $ pure . deserializeValue . Bytes.toArray
-  declareForeign "Value.deserialize" pfopb_ebb
     . mkForeign $ pure . Bytes.fromArray . serializeValue
+  declareForeign "Value.deserialize" pfopb_ebb
+    . mkForeign $ pure . deserializeValue . Bytes.toArray
   declareForeign "Text.toUtf8" pfopb . mkForeign $ pure . Bytes.fromArray . encodeUtf8
   declareForeign "Text.fromUtf8" pfopb_ebb . mkForeign $ pure . mapLeft (pack . show) . decodeUtf8' . Bytes.toArray
 
