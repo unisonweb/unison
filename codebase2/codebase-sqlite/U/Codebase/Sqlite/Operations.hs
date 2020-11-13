@@ -203,10 +203,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
       let patch :: EDB m => m C.Patch
           patch = do
             deserializePatchObject patchId >>= \case
-              S.PatchFormat.Full (S.Patch termEdits typeEdits) ->
-                C.Patch
-                  <$> Map.bitraverse s2cReferent (Set.traverse s2cTermEdit) termEdits
-                  <*> Map.bitraverse s2cReference (Set.traverse s2cTypeEdit) typeEdits
+              S.PatchFormat.Full p -> s2cPatch p
               S.PatchFormat.Diff ref d -> doDiff ref [d]
           doDiff ref ds =
             deserializePatchObject ref >>= \case
@@ -252,7 +249,10 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
           traverse loadBranchByObjectId boId
 
 s2cPatch :: EDB m => S.Patch -> m C.Patch
-s2cPatch = error "todo"
+s2cPatch (S.Patch termEdits typeEdits) =
+  C.Patch
+    <$> Map.bitraverse s2cReferent (Set.traverse s2cTermEdit) termEdits
+    <*> Map.bitraverse s2cReference (Set.traverse s2cTypeEdit) typeEdits
 
 lookupTextId :: EDB m => Text -> m Db.TextId
 lookupTextId t =
@@ -824,9 +824,6 @@ loadBranchByObjectId id = do
           S.Branch.Diff.AlterDefMetadata md' ->
             let (Set.fromList -> adds, Set.fromList -> removes) = S.BranchDiff.addsRemoves md'
              in Just . S.MetadataSet.Inline $ (Set.union adds $ Set.difference md removes)
-
-loadCausalHead :: (Db.BranchObjectId, Db.CausalHashId) -> C.CausalHead m CausalHash BranchHash (C.Branch m)
-loadCausalHead = error "not implemented"
 
 branchHashesByPrefix :: EDB m => ShortBranchHash -> m (Set BranchHash)
 branchHashesByPrefix (ShortBranchHash b32prefix) = do
