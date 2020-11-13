@@ -220,9 +220,10 @@ effectRef = Reference.Builtin "Effect"
 termLinkRef = Reference.Builtin "Link.Term"
 typeLinkRef = Reference.Builtin "Link.Type"
 
-builtinIORef, fileHandleRef, threadIdRef, socketRef :: Reference
+builtinIORef, fileHandleRef, filePathRef, threadIdRef, socketRef :: Reference
 builtinIORef = Reference.Builtin "IO"
 fileHandleRef = Reference.Builtin "Handle"
+filePathRef = Reference.Builtin "FilePath"
 threadIdRef = Reference.Builtin "ThreadId"
 socketRef = Reference.Builtin "Socket"
 

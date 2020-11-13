@@ -27,6 +27,7 @@ import           Data.Bifunctor                 ( second, first )
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
+import qualified Text.Regex.TDFA               as RE
 import qualified Unison.ConstructorType        as CT
 import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 import qualified Unison.Builtin.Decls          as DD
@@ -40,7 +41,7 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import Unison.Names3 (Names(Names), Names0)
+import           Unison.Names3 (Names(Names), Names0)
 import qualified Unison.Names3 as Names3
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
@@ -433,8 +434,19 @@ builtinsSrc =
     ++ moveUnder "io2" mvarBuiltins
     ++ hashBuiltins
 
+
 moveUnder :: Text -> [(Text, Type v)] -> [BuiltinDSL v]
-moveUnder prefix bs = bs >>= \(n,ty) -> [B n ty, Rename n (prefix <> "." <> n)]
+moveUnder prefix bs = bs >>= \(n,ty) -> [B n ty, Rename n (newName n)]
+  where
+    newName :: Text -> Text
+    newName name = newName' name $ RE.matchOnceText regex name
+
+    newName' _ (Just (before, _, _)) = prefix <> "." <> before
+    newName' name Nothing = prefix <> "." <> name
+    r :: String
+    r = "\\.v[0-9]+"
+    regex :: RE.Regex
+    regex = RE.makeRegexOpts (RE.defaultCompOpt { RE.caseSensitive = False }) RE.defaultExecOpt r
 
 hashBuiltins :: Var v => [BuiltinDSL v]
 hashBuiltins =
@@ -464,6 +476,7 @@ ioBuiltins =
   , ("IO.putBytes.v2", handle --> bytes --> iof unit)
   , ("IO.systemTime.v2", unit --> iof nat)
   , ("IO.getTempDirectory.v2", unit --> iof text)
+  , ("IO.createTempDirectory", text --> iof text)
   , ("IO.getCurrentDirectory.v2", unit --> iof text)
   , ("IO.setCurrentDirectory.v2", text --> iof unit)
   , ("IO.fileExists.v2", text --> iof boolean)

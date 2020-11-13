@@ -48,8 +48,9 @@ ioErrorRef = lookupDeclRef "io2.IOError"
 stdHandleRef = lookupDeclRef "io2.StdHandle"
 failureRef = lookupDeclRef "io2.Failure"
 
-fileModeRef, bufferModeRef, seekModeRef, seqViewRef :: Reference
+fileModeRef, filePathRef, bufferModeRef, seekModeRef, seqViewRef :: Reference
 fileModeRef = lookupDeclRef "io2.FileMode"
+filePathRef = lookupDeclRef "io2.FilePath"
 bufferModeRef = lookupDeclRef "io2.BufferMode"
 seekModeRef = lookupDeclRef "io2.SeekMode"
 seqViewRef = lookupDeclRef "SeqView"
@@ -286,7 +287,7 @@ pattern LinkTerm tm <- Term.App' (Term.Constructor' LinkRef LinkTermId) tm
 pattern LinkType ty <- Term.App' (Term.Constructor' LinkRef LinkTypeId) ty
 
 unitType, pairType, optionalType, testResultType,
-  eitherType, ioErrorType, fileModeType, bufferModeType, seekModeType,
+  eitherType, ioErrorType, fileModeType, filePathType, bufferModeType, seekModeType,
   stdHandleType, failureType
     :: Ord v => a -> Type v a
 unitType a = Type.ref a unitRef
@@ -296,6 +297,7 @@ optionalType a = Type.ref a optionalRef
 eitherType a = Type.ref a eitherRef
 ioErrorType a = Type.ref a ioErrorRef
 fileModeType a = Type.ref a fileModeRef
+filePathType a = Type.ref a filePathRef
 bufferModeType a = Type.ref a bufferModeRef
 seekModeType a = Type.ref a seekModeRef
 stdHandleType a = Type.ref a stdHandleRef

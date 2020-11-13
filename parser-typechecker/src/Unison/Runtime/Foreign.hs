@@ -89,6 +89,7 @@ instance BuiltinForeign Socket where foreignRef = Tagged Ty.socketRef
 instance BuiltinForeign ThreadId where foreignRef = Tagged Ty.threadIdRef
 instance BuiltinForeign TLS.ClientParams where foreignRef = Tagged Ty.tlsClientConfigRef
 instance BuiltinForeign TLS.ServerParams where foreignRef = Tagged Ty.tlsServerConfigRef
+instance BuiltinForeign FilePath where foreignRef = Tagged Ty.filePathRef
 instance BuiltinForeign TLS.Context where foreignRef = Tagged Ty.tlsRef
 
 data HashAlgorithm where

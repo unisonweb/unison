@@ -233,6 +233,7 @@ library
     stm,
     strings,
     tagged,
+    temporary,
     terminal-size,
     text,
     time,
