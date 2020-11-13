@@ -13,12 +13,12 @@ import Data.Set (Set)
 import U.Codebase.Reference (Reference')
 import U.Codebase.Referent (Referent')
 import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
-import U.Codebase.Sqlite.LocalIds (LocalBranchObjectId, LocalCausalHashId, LocalDefnId, LocalPatchObjectId, LocalTextId)
+import U.Codebase.Sqlite.LocalIds (LocalBranchChildId, LocalDefnId, LocalPatchObjectId, LocalTextId)
 import qualified U.Util.Map as Map
 import Data.Bifunctor (Bifunctor(bimap))
 import qualified Data.Set as Set
 
-type LocalDiff = Diff' LocalTextId LocalDefnId LocalPatchObjectId (LocalBranchObjectId, LocalCausalHashId)
+type LocalDiff = Diff' LocalTextId LocalDefnId LocalPatchObjectId LocalBranchChildId
 type Diff = Diff' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
 
 data DefinitionOp' r = RemoveDef | AddDefWithMetadata (Set r) | AlterDefMetadata (AddRemove r)
@@ -28,7 +28,7 @@ type AddRemove a = Map a Bool
 
 type LocalDefinitionOp = DefinitionOp' (Metadata LocalTextId LocalDefnId)
 type LocalPatchOp = PatchOp' LocalPatchObjectId
-type LocalChildOp = ChildOp' (LocalBranchObjectId, LocalCausalHashId)
+type LocalChildOp = ChildOp' LocalBranchChildId
 
 type DefinitionOp = DefinitionOp' (Metadata TextId ObjectId)
 type PatchOp = PatchOp' PatchObjectId
@@ -49,3 +49,20 @@ data Diff' t h p c = Diff
   }
 
 type Metadata t h = Reference' t h
+
+quadmap :: (Ord t', Ord h') => (t -> t') -> (h -> h') -> (p -> p') -> (c -> c') -> Diff' t h p c -> Diff' t' h' p' c'
+quadmap ft fh fp fc (Diff terms types patches children) =
+  Diff
+    (Map.bimap ft (Map.bimap doReferent doDefnOp) terms)
+    (Map.bimap ft (Map.bimap doReference doDefnOp) types)
+    (Map.bimap ft doPatchOp patches)
+    (Map.bimap ft doChildOp children)
+  where
+    doReferent = bimap doReference doReference
+    doReference = bimap ft fh
+    doDefnOp = \case
+      RemoveDef -> RemoveDef
+      AddDefWithMetadata rs -> AddDefWithMetadata (Set.map doReference rs)
+      AlterDefMetadata ar -> AlterDefMetadata (Map.mapKeys doReference ar)
+    doPatchOp = fmap fp
+    doChildOp = fmap fc

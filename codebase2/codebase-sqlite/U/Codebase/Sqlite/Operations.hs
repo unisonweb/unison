@@ -59,7 +59,7 @@ import qualified U.Codebase.Sqlite.Branch.Full as S.MetadataSet
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
 import U.Codebase.Sqlite.LocalIds
-  ( LocalCausalHashId (..),
+  (LocalBranchChildId (..),
     LocalDefnId (..),
     LocalIds,
     LocalIds' (..),
@@ -100,6 +100,7 @@ import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
+import U.Codebase.Sqlite.Branch.Format (BranchLocalIds)
 
 type Err m = MonadError Error m
 
@@ -612,15 +613,17 @@ componentByObjectId id = do
   len <- (liftQ . Q.loadObjectById) id >>= decodeComponentLengthOnly
   pure [C.Reference.Id id i | i <- [0 .. len - 1]]
 
-lookupLocalText :: S.BranchFormat.BranchLocalIds -> LocalTextId -> Db.TextId
+lookupLocalText :: S.BranchLocalIds -> LocalTextId -> Db.TextId
 lookupLocalText li (LocalTextId w) = S.BranchFormat.branchTextLookup li Vector.! fromIntegral w
 
-lookupLocalDefn :: S.BranchFormat.BranchLocalIds -> LocalDefnId -> Db.ObjectId
+lookupLocalDefn :: S.BranchLocalIds -> LocalDefnId -> Db.ObjectId
 lookupLocalDefn li (LocalDefnId w) = S.BranchFormat.branchDefnLookup li Vector.! fromIntegral w
 
+lookupLocalPatch :: BranchLocalIds -> LocalPatchObjectId -> Db.PatchObjectId
 lookupLocalPatch li (LocalPatchObjectId w) = S.BranchFormat.branchPatchLookup li Vector.! fromIntegral w
 
-lookupLocalChild li (LocalCausalHashId w) = S.BranchFormat.branchChildLookup li Vector.! fromIntegral w
+lookupLocalChild :: BranchLocalIds -> LocalBranchChildId -> (Db.BranchObjectId, Db.CausalHashId)
+lookupLocalChild li (LocalBranchChildId w) = S.BranchFormat.branchChildLookup li Vector.! fromIntegral w
 
 loadBranchByCausalHashId :: EDB m => Db.CausalHashId -> m (Maybe (C.Branch m))
 loadBranchByCausalHashId id = do
@@ -642,7 +645,8 @@ loadBranchByObjectId id = do
         >>= getFromBytesOr (ErrPatch id) S.getPatchFormat
 
     l2sFull :: S.BranchFormat.BranchLocalIds -> S.LocalBranch -> S.DbBranch
-    l2sFull li = error "todo"
+    l2sFull li =
+      S.Branch.Full.quadmap (lookupLocalText li) (lookupLocalDefn li) (lookupLocalPatch li) (lookupLocalChild li)
 
     doFull :: EDB m => S.Branch.Full.DbBranch -> m (C.Branch m)
     doFull (S.Branch.Full.Branch tms tps patches children) =
@@ -755,7 +759,7 @@ loadBranchByObjectId id = do
     --       doChildren = Map.bitraverse (fmap C.NameSegment . loadTextById) (pure . loadBranchByObjectId)
 
     l2sDiff :: S.BranchFormat.BranchLocalIds -> S.Branch.LocalDiff -> S.Branch.Diff
-    l2sDiff li = error "todo"
+    l2sDiff li = S.BranchDiff.quadmap (lookupLocalText li) (lookupLocalDefn li) (lookupLocalPatch li) (lookupLocalChild li)
 
     doDiff :: EDB m => Db.BranchObjectId -> [S.Branch.Diff] -> m (C.Branch m)
     doDiff ref lds =

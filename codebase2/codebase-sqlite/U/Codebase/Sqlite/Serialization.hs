@@ -427,13 +427,13 @@ putBranchFormat = \case
       putFoldable putVarInt ts
       putFoldable putVarInt os
       putFoldable putVarInt ps
-      putFoldable putVarInt cs
+      putFoldable (putPair putVarInt putVarInt) cs
     putBranchFull li (BranchFull.Branch terms types patches children) = do
       putBranchLocalIds li
       putMap putVarInt (putMap putReferent' putMetadataSetFormat) terms
       putMap putVarInt (putMap putReference putMetadataSetFormat) types
       putMap putVarInt putVarInt patches
-      putMap putVarInt (putPair putVarInt putVarInt) children
+      putMap putVarInt putVarInt children
     putMetadataSetFormat = \case
       BranchFull.Inline s -> putWord8 0 *> putFoldable putReference s
     putBranchDiff ref li (BranchDiff.Diff terms types patches children) = do
@@ -457,7 +457,7 @@ putBranchFormat = \case
           BranchDiff.AlterDefMetadata md -> putWord8 2 *> putAddRemove putReference md
         putChildOp = \case
           BranchDiff.ChildRemove -> putWord8 0
-          BranchDiff.ChildAddReplace b -> putWord8 1 *> putPair putVarInt putVarInt b
+          BranchDiff.ChildAddReplace b -> putWord8 1 *> putVarInt b
 
 putPatchFormat :: MonadPut m => PatchFormat.PatchFormat -> m ()
 putPatchFormat = \case

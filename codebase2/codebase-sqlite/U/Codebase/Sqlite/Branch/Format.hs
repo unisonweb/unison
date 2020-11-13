@@ -13,5 +13,5 @@ data BranchLocalIds = LocalIds
   { branchTextLookup :: Vector TextId,
     branchDefnLookup :: Vector ObjectId,
     branchPatchLookup :: Vector PatchObjectId,
-    branchChildLookup :: Vector CausalHashId
+    branchChildLookup :: Vector (BranchObjectId, CausalHashId)
   }
