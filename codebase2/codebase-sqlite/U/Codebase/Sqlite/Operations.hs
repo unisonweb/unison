@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ConstraintKinds #-}
@@ -12,7 +13,7 @@ module U.Codebase.Sqlite.Operations where
 
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
-import Control.Monad (join)
+import Control.Monad (join, (<=<))
 import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
 import Control.Monad.State (MonadState, evalStateT)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
@@ -51,6 +52,7 @@ import U.Codebase.ShortHash (ShortBranchHash (ShortBranchHash))
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch
 import qualified U.Codebase.Sqlite.Branch.Diff as S.Branch.Diff
 import qualified U.Codebase.Sqlite.Branch.Diff as S.BranchDiff
+import U.Codebase.Sqlite.Branch.Format (BranchLocalIds)
 import qualified U.Codebase.Sqlite.Branch.Format as S
 import qualified U.Codebase.Sqlite.Branch.Format as S.BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as S
@@ -59,7 +61,7 @@ import qualified U.Codebase.Sqlite.Branch.Full as S.MetadataSet
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
 import U.Codebase.Sqlite.LocalIds
-  (LocalBranchChildId (..),
+  ( LocalBranchChildId (..),
     LocalDefnId (..),
     LocalIds,
     LocalIds' (..),
@@ -100,7 +102,6 @@ import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
-import U.Codebase.Sqlite.Branch.Format (BranchLocalIds)
 
 type Err m = MonadError Error m
 
@@ -140,15 +141,6 @@ liftQ a =
 
 -- * helpers
 
-m :: (a -> f (Maybe b)) -> a -> MaybeT f b
-m = fmap MaybeT
-
-m' :: (Functor f, Show a) => String -> (a -> f (Maybe b)) -> a -> MaybeT f b
-m' msg f a = MaybeT do
-  f a <&> \case
-    Nothing -> error $ "nothing: " ++ msg ++ " " ++ show a
-    Just b -> Just b
-
 c2sReference :: EDB m => C.Reference -> MaybeT m S.Reference
 c2sReference = bitraverse lookupTextId hashToObjectId
 
@@ -181,7 +173,57 @@ s2cTypeEdit = \case
   S.TypeEdit.Deprecate -> pure C.TypeEdit.Deprecate
 
 s2cBranch :: EDB m => S.DbBranch -> m (C.Branch m)
-s2cBranch = error "todo"
+s2cBranch (S.Branch.Full.Branch tms tps patches children) =
+  C.Branch
+    <$> doTerms tms
+    <*> doTypes tps
+    <*> doPatches patches
+    <*> doChildren children
+  where
+    doTerms :: EDB m => Map Db.TextId (Map S.Referent S.DbMetadataSet) -> m (Map C.NameSegment (Map C.Referent (m C.MdValues)))
+    doTerms =
+      Map.bitraverse
+        (fmap C.NameSegment . loadTextById)
+        ( Map.bitraverse s2cReferent \case
+            S.MetadataSet.Inline rs ->
+              pure $ C.Branch.MdValues <$> Set.traverse s2cReference rs
+        )
+    doTypes :: EDB m => Map Db.TextId (Map S.Reference S.DbMetadataSet) -> m (Map C.NameSegment (Map C.Reference (m C.MdValues)))
+    doTypes =
+      Map.bitraverse
+        (fmap C.NameSegment . loadTextById)
+        ( Map.bitraverse s2cReference \case
+            S.MetadataSet.Inline rs ->
+              pure $ C.Branch.MdValues <$> Set.traverse s2cReference rs
+        )
+    doPatches :: Map Db.TextId Db.PatchObjectId -> m (Map C.NameSegment (PatchHash, m C.Patch))
+    doPatches = error "not implemented"
+
+    doChildren :: EDB m => Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) -> m (Map C.Branch.NameSegment (C.CausalHead m CausalHash BranchHash (C.Branch m)))
+    doChildren = Map.bitraverse (fmap C.NameSegment . loadTextById) \(boId, chId) ->
+      C.CausalHead <$> loadCausalHashById chId
+        <*> loadValueHashByCausalHashId chId
+        <*> headParents chId
+        <*> pure (loadBranchByObjectId boId)
+      where
+        headParents :: EDB m => Db.CausalHashId -> m (Map CausalHash (m (C.Causal m CausalHash BranchHash (C.Branch m))))
+        headParents chId = do
+          parentsChIds <- Q.loadCausalParents chId
+          fmap Map.fromList $ traverse pairParent parentsChIds
+        pairParent :: EDB m => Db.CausalHashId -> m (CausalHash, m (C.Causal m CausalHash BranchHash (C.Branch m)))
+        pairParent chId = do
+          h <- loadCausalHashById chId
+          pure (h, loadCausal chId)
+        loadCausal :: EDB m => Db.CausalHashId -> m (C.Causal m CausalHash BranchHash (C.Branch m))
+        loadCausal chId = do
+          C.Causal <$> loadCausalHashById chId
+            <*> loadValueHashByCausalHashId chId
+            <*> headParents chId
+            <*> pure (loadValue chId)
+        loadValue :: EDB m => Db.CausalHashId -> m (Maybe (C.Branch m))
+        loadValue chId = do
+          boId <- liftQ $ Q.loadBranchObjectIdByCausalHashId chId
+          traverse loadBranchByObjectId boId
 
 s2cPatch :: EDB m => S.Patch -> m C.Patch
 s2cPatch = error "todo"
@@ -209,6 +251,15 @@ loadHashByObjectId = fmap H.fromBase32Hex . liftQ . Q.loadPrimaryHashByObjectId
 
 loadHashByHashId :: EDB m => Db.HashId -> m H.Hash
 loadHashByHashId = fmap H.fromBase32Hex . liftQ . Q.loadHashById
+
+loadCausalHashById :: EDB m => Db.CausalHashId -> m CausalHash
+loadCausalHashById = fmap (CausalHash . H.fromBase32Hex) . liftQ . Q.loadHashById . Db.unCausalHashId
+
+loadValueHashByCausalHashId :: EDB m => Db.CausalHashId -> m BranchHash
+loadValueHashByCausalHashId = loadValueHashById <=< liftQ . Q.loadCausalValueHashId
+  where
+    loadValueHashById :: EDB m => Db.BranchHashId -> m BranchHash
+    loadValueHashById = fmap (BranchHash . H.fromBase32Hex) . liftQ . Q.loadHashById . Db.unBranchHashId
 
 decodeComponentLengthOnly :: Err m => ByteString -> m Word64
 decodeComponentLengthOnly = getFromBytesOr ErrFramedArrayLen S.lengthFramedArray

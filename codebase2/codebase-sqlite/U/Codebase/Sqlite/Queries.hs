@@ -175,8 +175,8 @@ saveCausal self value oid = execute sql (self, value, oid) where sql = [here|
   VALUES (?, ?,, ?)
 |]
 
-loadCausalValueHash :: EDB m => CausalHashId -> m BranchHashId
-loadCausalValueHash id =
+loadCausalValueHashId :: EDB m => CausalHashId -> m BranchHashId
+loadCausalValueHashId id =
   queryOnly sql (Only id) >>= orError (UnknownCausalHashId id) where sql = [here|
   SELECT value_hash_id FROM causal WHERE self_hash_id = ?
 |]
