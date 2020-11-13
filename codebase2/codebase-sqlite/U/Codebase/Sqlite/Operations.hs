@@ -1,4 +1,3 @@
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ConstraintKinds #-}
@@ -6,6 +5,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -72,6 +72,7 @@ import U.Codebase.Sqlite.LocalIds
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Patch.Diff as S
+import qualified U.Codebase.Sqlite.Patch.Format as S
 import qualified U.Codebase.Sqlite.Patch.Format as S.PatchFormat
 import qualified U.Codebase.Sqlite.Patch.Full as S
 import qualified U.Codebase.Sqlite.Patch.TermEdit as S
@@ -102,7 +103,6 @@ import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
-import qualified U.Codebase.Sqlite.Patch.Format as S
 
 type Err m = MonadError Error m
 
@@ -204,7 +204,9 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
           patch = do
             deserializePatchObject patchId >>= \case
               S.PatchFormat.Full (S.Patch termEdits typeEdits) ->
-                C.Patch <$> Map.bitraverse s2cReferent (Set.traverse s2cTermEdit) termEdits <*> Map.bitraverse s2cReference (Set.traverse s2cTypeEdit) typeEdits
+                C.Patch
+                  <$> Map.bitraverse s2cReferent (Set.traverse s2cTermEdit) termEdits
+                  <*> Map.bitraverse s2cReference (Set.traverse s2cTypeEdit) typeEdits
               S.PatchFormat.Diff ref d -> doDiff ref [d]
           doDiff ref ds =
             deserializePatchObject ref >>= \case
@@ -220,7 +222,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
               remove :: Ord b => Set b -> Set b -> Maybe (Set b)
               remove src del =
                 let diff = Set.difference src del
-                  in if diff == mempty then Nothing else Just diff
+                 in if diff == mempty then Nothing else Just diff
       pure (h, patch)
 
     doChildren :: EDB m => Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) -> m (Map C.Branch.NameSegment (C.CausalHead m CausalHash BranchHash (C.Branch m)))
@@ -724,116 +726,6 @@ loadBranchByObjectId id = do
     l2sFull :: S.BranchFormat.BranchLocalIds -> S.LocalBranch -> S.DbBranch
     l2sFull li =
       S.Branch.Full.quadmap (lookupLocalText li) (lookupLocalDefn li) (lookupLocalPatch li) (lookupLocalChild li)
-
-    doFull :: EDB m => S.Branch.Full.DbBranch -> m (C.Branch m)
-    doFull (S.Branch.Full.Branch tms tps patches children) =
-      C.Branch
-        <$> doTerms tms
-        <*> doTypes tps
-        <*> doPatches patches
-        <*> doChildren children
-      where
-        doTerms :: EDB m => Map Db.TextId (Map S.Referent S.DbMetadataSet) -> m (Map C.NameSegment (Map C.Referent (m C.MdValues)))
-        doTerms =
-          Map.bitraverse
-            (fmap C.Branch.NameSegment . loadTextById)
-            ( Map.bitraverse s2cReferent \case
-                S.MetadataSet.Inline rs -> pure $ C.Branch.MdValues <$> Set.traverse s2cReference rs
-            )
-        doTypes :: forall m. EDB m => Map Db.TextId (Map S.Reference S.DbMetadataSet) -> m (Map C.NameSegment (Map C.Reference (m C.MdValues)))
-        doTypes =
-          Map.bitraverse
-            (fmap C.Branch.NameSegment . loadTextById)
-            ( Map.bitraverse s2cReference \case
-                S.MetadataSet.Inline rs -> pure $ C.Branch.MdValues <$> Set.traverse s2cReference rs
-            )
-        doPatches :: forall m. EDB m => Map Db.TextId Db.PatchObjectId -> m (Map C.NameSegment (PatchHash, m C.Patch))
-        doPatches = Map.bitraverse (fmap C.Branch.NameSegment . loadTextById) \patchId -> do
-          h <- PatchHash <$> (loadHashByObjectId . Db.unPatchObjectId) patchId
-          let patch :: m C.Patch
-              patch = do
-                deserializePatchObject patchId >>= \case
-                  S.PatchFormat.Full (S.Patch termEdits typeEdits) ->
-                    C.Patch <$> Map.bitraverse s2cReferent (Set.traverse s2cTermEdit) termEdits <*> Map.bitraverse s2cReference (Set.traverse s2cTypeEdit) typeEdits
-                  S.PatchFormat.Diff ref d -> doDiff ref [d]
-              doDiff ref ds =
-                deserializePatchObject ref >>= \case
-                  S.PatchFormat.Full f -> s2cPatch (joinFull f ds)
-                  S.PatchFormat.Diff ref' d' -> doDiff ref' (d' : ds)
-              joinFull f [] = f
-              joinFull (S.Patch termEdits typeEdits) (S.PatchDiff addedTermEdits addedTypeEdits removedTermEdits removedTypeEdits : ds) = joinFull f' ds
-                where
-                  f' = S.Patch (addRemove addedTermEdits removedTermEdits termEdits) (addRemove addedTypeEdits removedTypeEdits typeEdits)
-                  addRemove :: (Ord a, Ord b) => Map a (Set b) -> Map a (Set b) -> Map a (Set b) -> Map a (Set b)
-                  addRemove add del src =
-                    (Map.unionWith (<>) add (Map.differenceWith remove src del))
-                  remove :: Ord b => Set b -> Set b -> Maybe (Set b)
-                  remove src del =
-                    let diff = Set.difference src del
-                     in if diff == mempty then Nothing else Just diff
-          pure (h, patch)
-
-        doChildren :: EDB m => Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) -> m (Map C.Branch.NameSegment (C.CausalHead m CausalHash BranchHash (C.Branch m)))
-        doChildren = Map.bitraverse (fmap C.NameSegment . loadTextById) (pure . loadCausalHead)
-    -- doFull :: EDB m => S.BranchFormat.BranchLocalIds -> S.Branch.Full.LocalBranch -> m (C.Branch m)
-    -- doFull li (S.Branch.Full.Branch tms tps patches children) =
-    --     C.Branch
-    --       <$> doTerms tms
-    --       <*> doTypes tps
-    --       <*> doPatches patches
-    --       <*> doChildren children
-    --     where
-    --       localToDbReference :: S.LocalReference -> S.Reference
-    --       localToDbReference = bitraverse (lookupLocalText li) (lookupLocalDefn li)
-    --       Map.bitraverse :: (Applicative f, Ord b) => (a -> f b) -> (c -> f d) -> Map a c -> f (Map b d)
-    --       Map.bitraverse f g = fmap Map.fromList . traverse (bitraverse f g) . Map.toList
-    --       Set.traverse :: (Applicative f, Ord b) => (a -> f b) -> Set a -> f (Set b)
-    --       Set.traverse f = fmap Set.fromList . traverse f . Set.toList
-    --       -- |convert the term namespace from localids to C. ones
-    --       doTerms :: EDB m => Map LocalTextId (Map S.LocalReferent S.LocalMetadataSet) -> m (Map C.Branch.NameSegment (Map C.Referent (m C.Branch.MdValues)))
-    --       doTerms =
-    --         Map.bitraverse
-    --           (fmap C.Branch.NameSegment . loadTextById . lookupLocalText)
-    --           ( Map.bitraverse s2cReferent \case
-    --               S.MetadataSet.Inline rs -> pure $ C.Branch.MdValues <$> Set.traverse (s2cReference . localToDbReference) rs
-    --           )
-    --       -- |convert the types namespace from localids to C. ones
-    --       doTypes :: forall m. EDB m => Map LocalTextId (Map S.LocalReference S.LocalMetadataSet) -> m (Map C.Branch.NameSegment (Map C.Reference (m C.Branch.MdValues)))
-    --       doTypes =
-    --         Map.bitraverse
-    --           (fmap C.Branch.NameSegment . loadTextById . lookupLocalText)
-    --           ( Map.bitraverse s2cReference \case
-    --               S.MetadataSet.Inline rs -> pure $ C.Branch.MdValues <$> Set.traverse (s2cReference . localToDbReference) rs
-    --           )
-    --       -- |convert the patches namespace from using localids to C. ones
-    --       doPatches :: forall m. EDB m => Map LocalTextId LocalPatchObjectId -> m (Map C.Branch.NameSegment (PatchHash, m C.Patch))
-    --       doPatches = Map.bitraverse (fmap C.Branch.NameSegment . loadTextById) \patchId -> do
-    --         h <- PatchHash <$> (loadHashByObjectId . Db.unPatchObjectId . lookupLocalPatch) patchId
-    --         let patch :: m C.Patch
-    --             patch = do
-    --               deserializePatchObject patchId >>= \case
-    --                 S.PatchFormat.Full (S.Patch termEdits typeEdits) ->
-    --                   C.Patch <$> Map.bitraverse s2cReferent (Set.traverse s2cTermEdit) termEdits <*> Map.bitraverse s2cReference (Set.traverse s2cTypeEdit) typeEdits
-    --                 S.PatchFormat.Diff ref d -> doDiff ref [d]
-    --             doDiff ref ds =
-    --               deserializePatchObject ref >>= \case
-    --                 S.PatchFormat.Full f -> s2cPatch (joinFull f ds)
-    --                 S.PatchFormat.Diff ref' d' -> doDiff ref' (d' : ds)
-    --             joinFull f [] = f
-    --             joinFull (S.Patch termEdits typeEdits) (S.PatchDiff addedTermEdits addedTypeEdits removedTermEdits removedTypeEdits : ds) = joinFull f' ds
-    --               where
-    --                 f' = S.Patch (addRemove addedTermEdits removedTermEdits termEdits) (addRemove addedTypeEdits removedTypeEdits typeEdits)
-    --                 addRemove :: (Ord a, Ord b) => Map a (Set b) -> Map a (Set b) -> Map a (Set b) -> Map a (Set b)
-    --                 addRemove add del src =
-    --                   (Map.unionWith (<>) add (Map.differenceWith remove src del))
-    --                 remove :: Ord b => Set b -> Set b -> Maybe (Set b)
-    --                 remove src del =
-    --                   let diff = Set.difference src del
-    --                    in if diff == mempty then Nothing else Just diff
-    --         pure (h, patch)
-
-    --       doChildren :: EDB m => Map Db.TextId Db.BranchObjectId -> m (Map C.Branch.NameSegment (m (C.Branch m)))
-    --       doChildren = Map.bitraverse (fmap C.NameSegment . loadTextById) (pure . loadBranchByObjectId)
 
     l2sDiff :: S.BranchFormat.BranchLocalIds -> S.Branch.LocalDiff -> S.Branch.Diff
     l2sDiff li = S.BranchDiff.quadmap (lookupLocalText li) (lookupLocalDefn li) (lookupLocalPatch li) (lookupLocalChild li)
