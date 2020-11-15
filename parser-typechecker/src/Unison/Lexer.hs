@@ -131,13 +131,12 @@ token' tok p = LP.lexeme space $ do
 -- to set up initial state, run the parser, etc
 lexer0' :: String -> String -> [Token Lexeme]
 lexer0' scope rem =
-  case flip S.evalState env0 $ P.runParserT parser scope rem of
+  case flip S.evalState env0 $ P.runParserT lexemes scope rem of
     Left e -> [Token (Err msg) topLeftCorner topLeftCorner]
       where msg = Opaque $ EP.parseErrorPretty e
     Right ts -> tweak (Token (Open scope) topLeftCorner topLeftCorner : ts)
   where
   env0 = ParsingEnv [] True (Just scope)
-  parser = join <$> P.many lexemes
   -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
   -- fix without adding more state to the lexer:
   --   - 1+1 lexes as [1, +1], convert this to [1, +, 1]
@@ -159,10 +158,13 @@ lexer0' scope rem =
   isSigned num = all (\ch -> ch == '-' || ch == '+') $ take 1 num
 
 lexemes :: P [Token Lexeme]
-lexemes = reserved
-      <|> eof
-      <|> (asum . map token) [semi, textual, character, backticks, wordyId, symbolyId, numeric, hash]
+lexemes = join <$> P.manyTill toks eof
   where
+  toks = fold
+     <|> reserved
+     <|> (asum . map token) [ semi, textual, character, backticks
+                            , wordyId, symbolyId, numeric, hash ]
+  fold = P.dbg "fold" . P.try $ lit "---" *> P.takeRest *> pure []
   semi = char ';' $> Semi False
   textual = Textual <$> quoted
   quoted = char '"' *> P.manyTill LP.charLiteral (char '"')
@@ -305,10 +307,10 @@ lexemes = reserved
 
     braces = open "{" <|> close "{" "}"
     parens = open "(" <|> close "(" ")"
-    delim = do
+    delim = P.try $ do
       ch <- CP.satisfy (`Set.member` delimiters)
       pos <- pos
-      pure $ [Token (Reserved [ch]) pos (inc pos)]
+      pure [Token (Reserved [ch]) pos (inc pos)]
     delayOrForce = P.try $ do
       op <- CP.satisfy isDelayOrForce
       P.lookAhead (CP.satisfy ok)
@@ -368,7 +370,7 @@ lexemes = reserved
           pure $ replicate n (Token Close pos1 pos2) ++ opens
 
   eof :: P [Token Lexeme]
-  eof = P.try $ do
+  eof = P.dbg "eof" . P.try $ do
     p <- P.eof >> pos
     l <- S.gets layout
     pure $ replicate (length l) (Token Close p p)
@@ -485,7 +487,7 @@ reorder = join . sortWith f . stanzas
 
 lexer :: String -> String -> [Token Lexeme]
 lexer scope rem =
-  let t = tree $ lexer0 scope rem
+  let t = tree $ lexer0' scope rem
       -- after reordering can end up with trailing semicolon at the end of
       -- a block, which we remove with this pass
       fixup ((payload -> Semi _) : t@(payload -> Close) : tl) = t : fixup tl
