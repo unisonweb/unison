@@ -286,9 +286,10 @@ lexemes = P.optional space >> do
       ifElse <|> matchWith <|> handle <|> typ <|> arr <|> eq <|>
       openKw "cases" <|> openKw "where" <|> openKw "let"
       where
-        matchWith = openKw "match" <|> close' True "match" "with"
-        ifElse = openKw "if" <|> close' True "if" "then" <|> close' True "then" "else"
-        handle = openKw "handle" <|> close' True "handle" "with"
+        withOpens = ["match","handle"]
+        matchWith = openKw "match" <|> close' True withOpens "with"
+        ifElse = openKw "if" <|> close' True ["if"] "then" <|> close' True ["then"] "else"
+        handle = openKw "handle" <|> close' True withOpens "with"
         typ = openKw1 "unique" <|> openKw1 "type" <|> openKw1 "ability"
 
         -- layout keyword which bumps the layout column by 1, rather than looking ahead
@@ -320,8 +321,8 @@ lexemes = P.optional space >> do
               pure [Token (Open "->") start end]
             _ -> pure [Token (Reserved "->") start end]
 
-    braces = open "{" <|> close "{" "}"
-    parens = open "(" <|> close "(" ")"
+    braces = open "{" <|> close ["{"] "}"
+    parens = open "(" <|> close ["("] ")"
     delim = P.try $ do
       ch <- CP.satisfy (`Set.member` delimiters)
       pos <- pos
@@ -357,14 +358,15 @@ lexemes = P.optional space >> do
 
     close = close' False
 
-    close' :: Bool -> String -> String -> P [Token Lexeme]
+    close' :: Bool -> [String] -> String -> P [Token Lexeme]
     close' reopen open close = do
       pos1 <- pos
       close <- lit close
       pos2 <- pos
       env <- S.get
       case findClose open (layout env) of
-        Nothing -> P.customFailure (Token (CloseWithoutMatchingOpen open close) pos1 pos2)
+        Nothing -> P.customFailure (Token (CloseWithoutMatchingOpen msgOpen close) pos1 pos2)
+          where msgOpen = intercalate " or " open
         Just n -> do
           if reopen then
             S.put (env { layout = drop n (layout env), opening = Just close })
@@ -372,6 +374,10 @@ lexemes = P.optional space >> do
             S.put (env { layout = drop n (layout env) })
           let opens = if reopen then [Token (Open close) pos1 pos2] else []
           pure $ replicate n (Token Close pos1 pos2) ++ opens
+
+    findClose :: [String] -> Layout -> Maybe Int
+    findClose _ [] = Nothing
+    findClose s ((h,_):tl) = if h `elem` s then Just 1 else (1+) <$> findClose s tl
 
   eof :: P [Token Lexeme]
   eof = P.try $ do
