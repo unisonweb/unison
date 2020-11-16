@@ -42,7 +42,7 @@ Let's try it!
   22.  Char.fromNat : Nat -> Char
   23.  Char.toNat : Char -> Nat
   24.  builtin type Code
-  25.  Code.cache_ : [Tuple Term Code] ->{IO} [Term]
+  25.  Code.cache_ : [(Term, Code)] ->{IO} [Term]
   26.  Code.dependencies : Code -> [Term]
   27.  Code.deserialize : Bytes -> Either Text Code
   28.  Code.isMissing : Term ->{IO} Boolean

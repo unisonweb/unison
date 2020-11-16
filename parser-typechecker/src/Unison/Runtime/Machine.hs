@@ -1406,7 +1406,7 @@ refLookup s m r
 decodeCacheArgument
   :: Sq.Seq Closure -> IO [(Reference, SuperGroup Symbol)]
 decodeCacheArgument s = for (toList s) $ \case
-  DataB2 _ _ (Foreign x) (Foreign y)
+  DataB2 _ _ (Foreign x) (DataB2 _ _ (Foreign y) _)
     -> pure (unwrapForeign x, unwrapForeign y)
   _ -> die "decodeCacheArgument: unrecognized value"
 

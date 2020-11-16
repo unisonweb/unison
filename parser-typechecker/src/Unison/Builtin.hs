@@ -512,7 +512,7 @@ codeBuiltins =
   , ("Code.isMissing", termLink --> io boolean)
   , ("Code.serialize", code --> bytes)
   , ("Code.deserialize", bytes --> eithert text code)
-  , ("Code.cache_", list (pair termLink code) --> io (list termLink))
+  , ("Code.cache_", list (tuple [termLink,code]) --> io (list termLink))
   , ("Code.lookup", termLink --> io (optionalt code))
   , ("Value.dependencies", value --> list termLink)
   , ("Value.serialize", value --> bytes)
