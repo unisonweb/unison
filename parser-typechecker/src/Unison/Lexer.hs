@@ -88,10 +88,13 @@ type IsVirtual = Bool -- is it a virtual semi or an actual semi?
 makePrisms ''Lexeme
 
 space :: P ()
-space = LP.space CP.space1 (LP.skipLineComment "--") (LP.skipBlockCommentNested "{-" "-}")
+space = LP.space CP.space1 (fold <|> LP.skipLineComment "--")
+                           (LP.skipBlockCommentNested "{-" "-}")
+  where
+  fold = P.try $ lit "---" *> P.takeRest *> pure ()
 
 lit :: String -> P String
-lit = P.try . LP.symbol space
+lit = P.try . LP.symbol (pure ())
 
 token :: P Lexeme -> P [Token Lexeme]
 token = token' (\a start end -> [Token a start end])
@@ -104,15 +107,15 @@ pos = do
 token' :: (a -> Pos -> Pos -> [Token Lexeme]) -> P a -> P [Token Lexeme]
 token' tok p = LP.lexeme space $ do
   start <- pos
+  layoutToks <- pops start
+  a <- p
+  end <- pos
   env <- S.get
   case opening env of
     Nothing -> pure ()
     Just blockname -> S.put $
       env { layout = (blockname, column start) : layout env, opening = Nothing }
-  a <- p
-  layoutToks <- pops start
-  end <- pos
-  pure $ layoutToks ++ (tok a start end)
+  pure $ layoutToks ++ tok a start end
   where
     pops :: Pos -> P [Token Lexeme]
     pops p = do
@@ -136,7 +139,7 @@ lexer0' scope rem =
       where msg = Opaque $ EP.parseErrorPretty e
     Right ts -> tweak (Token (Open scope) topLeftCorner topLeftCorner : ts)
   where
-  env0 = ParsingEnv [] True (Just scope)
+  env0 = ParsingEnv [(scope, 0)] True Nothing
   -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
   -- fix without adding more state to the lexer:
   --   - 1+1 lexes as [1, +1], convert this to [1, +, 1]
@@ -158,13 +161,14 @@ lexer0' scope rem =
   isSigned num = all (\ch -> ch == '-' || ch == '+') $ take 1 num
 
 lexemes :: P [Token Lexeme]
-lexemes = join <$> P.manyTill toks eof
+lexemes = P.optional space >> do
+  hd <- join <$> P.manyTill toks (P.lookAhead P.eof)
+  tl <- eof
+  pure $ hd <> tl
   where
-  toks = fold
-     <|> reserved
-     <|> (asum . map token) [ semi, textual, character, backticks
-                            , wordyId, symbolyId, numeric, hash ]
-  fold = P.dbg "fold" . P.try $ lit "---" *> P.takeRest *> pure []
+  toks = reserved
+     <|> (asum . map token) [ semi, textual, character, wordyId
+                            , backticks, symbolyId, numeric, hash ]
   semi = char ';' $> Semi False
   textual = Textual <$> quoted
   quoted = char '"' *> P.manyTill LP.charLiteral (char '"')
@@ -251,12 +255,23 @@ lexemes = join <$> P.manyTill toks eof
   reserved :: P [Token Lexeme]
   reserved =
     token' (\ts _ _ -> ts) $
-    braces <|> parens <|> delim <|> delayOrForce <|> keywords <|> layoutKeywords
+    braces <|> P.dbg "parens" parens <|> P.dbg "delim" delim <|> delayOrForce <|> keywords <|> layoutKeywords
     where
     keywords = kw ":" <|> kw "@" <|> kw "||" <|> kw "|" <|> kw "&&"
            <|> kw "true" <|> kw "false"
            <|> kw "use" <|> kw "if" <|> kw "forall" <|> kw "∀"
            <|> kw "termLink" <|> kw "typeLink"
+
+    kw :: String -> P [Token Lexeme]
+    kw s = P.dbg s $ do
+      pos1 <- pos
+      s <- lit s
+      P.dbg ("kw lookahead " <> s) $ P.lookAhead (P.eof <|> void (CP.satisfy ok))
+      pos2 <- pos
+      pure [Token (Reserved s) pos1 pos2]
+      where
+        ok :: Char -> Bool
+        ok c = isSpace c || Set.member c delimiters || isAlphaNum c
 
     kw' k = do
       pos <- pos
@@ -311,24 +326,13 @@ lexemes = join <$> P.manyTill toks eof
       ch <- CP.satisfy (`Set.member` delimiters)
       pos <- pos
       pure [Token (Reserved [ch]) pos (inc pos)]
-    delayOrForce = P.try $ do
+    delayOrForce = P.dbg "delayOrForce" . P.try $ do
       op <- CP.satisfy isDelayOrForce
       P.lookAhead (CP.satisfy ok)
       pos <- pos
       pure [Token (Reserved [op]) pos (inc pos)]
       where
         ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters
-
-    kw :: String -> P [Token Lexeme]
-    kw s = do
-      pos1 <- pos
-      s <- lit s
-      P.lookAhead (P.eof <|> void (CP.satisfy ok))
-      pos2 <- pos
-      pure [Token (Reserved s) pos1 pos2]
-      where
-        ok :: Char -> Bool
-        ok c = isSpace c || Set.member c delimiters || isAlphaNum c
 
     open :: String -> P [Token Lexeme]
     open b = do
@@ -370,7 +374,7 @@ lexemes = join <$> P.manyTill toks eof
           pure $ replicate n (Token Close pos1 pos2) ++ opens
 
   eof :: P [Token Lexeme]
-  eof = P.dbg "eof" . P.try $ do
+  eof = P.try $ do
     p <- P.eof >> pos
     l <- S.gets layout
     pure $ replicate (length l) (Token Close p p)
