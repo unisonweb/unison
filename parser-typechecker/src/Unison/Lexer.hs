@@ -212,20 +212,24 @@ lexemes = P.optional space >> do
     shorthash <- P.optional shorthash
     pure $ WordyId (fromMaybe "" dot <> intercalate "." segs) shorthash
     where
-      wordyMsg = "identifier (ex: abba1, _zoink, .foo.bar#xyz, or 🚀)"
+      wordyMsg = "identifier (ex: abba1, _zoink, .foo.bar#xyz, or 🌻)"
 
   symbolyId :: P Lexeme
   symbolyId = P.label symbolMsg . P.try $ do
     dot <- P.optional (lit ".")
-    segs <- segs
+    segs <- P.optional segs
     shorthash <- P.optional shorthash
-    pure $ SymbolyId (fromMaybe "" dot <> segs) shorthash
+    case (dot, segs) of
+      (_, Just segs)      -> pure $ SymbolyId (fromMaybe "" dot <> segs) shorthash
+      -- a single . or .#somehash is parsed as a symboly id
+      (Just dot, Nothing) -> pure $ SymbolyId dot shorthash
+      (Nothing, Nothing)  -> fail symbolMsg
     where
     segs = symbolyIdSeg <|> do
       hd <- wordyIdSeg
-      _ <- char '.'
+      dot <- char '.'
       tl <- segs
-      pure (hd ++ tl)
+      pure (hd <> [dot] <> tl)
 
   symbolMsg = "operator (ex: +, Float./, List.++#xyz)"
 
