@@ -161,7 +161,7 @@ lexer0' scope rem =
   case flip S.evalState env0 $ P.runParserT lexemes scope rem of
     Left e -> [Token (Err msg) topLeftCorner topLeftCorner]
       where msg = Opaque $ EP.parseErrorPretty e
-    Right ts -> Token (Open scope) topLeftCorner topLeftCorner : tweak0 ts
+    Right ts -> Token (Open scope) topLeftCorner topLeftCorner : tweak ts
   where
   env0 = ParsingEnv [] True (Just scope)
   -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
@@ -172,8 +172,6 @@ lexer0' scope rem =
   --       foo x = action1;
   --               2
   --   - semi immediately after first Open is ignored
-  tweak0 ((payload -> Semi True):t) = tweak t
-  tweak0 ts = tweak ts
   tweak [] = []
   tweak (h@(payload -> Semi False):(payload -> Semi True):t) = h : tweak t
   tweak (h@(payload -> Reserved _):t) = h : tweak t
@@ -200,7 +198,8 @@ lexemes = P.optional space >> do
      <|> (asum . map token) [ semi, textual, character, backticks, hash ]
   semi = char ';' $> Semi False
   textual = Textual <$> quoted
-  quoted = char '"' *> P.manyTill LP.charLiteral (char '"')
+  quoted = char '"' *> P.manyTill (LP.charLiteral <|> sp) (char '"')
+           where sp = lit "\\s" $> ' '
   character = Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
               where spEsc = P.try (char '\\' *> char 's')
   backticks = tick <$> (char '`' *> wordyId <* char '`')
@@ -303,29 +302,17 @@ lexemes = P.optional space >> do
     token' (\ts _ _ -> ts) $
     braces <|> parens <|> delim <|> delayOrForce <|> keywords <|> layoutKeywords
     where
-    keywords = kw ":" <|> kw "@" <|> kw "||" <|> kw "|" <|> kw "&&"
-           <|> kw "true" <|> kw "false"
-           <|> kw "use" <|> kw "if" <|> kw "forall" <|> kw "∀"
-           <|> kw "termLink" <|> kw "typeLink"
+    keywords = symbolyKw ":" <|> symbolyKw "@" <|> symbolyKw "||" <|> symbolyKw "|" <|> symbolyKw "&&"
+           <|> wordyKw "true" <|> wordyKw "false"
+           <|> wordyKw "use" <|> wordyKw "forall" <|> wordyKw "∀"
+           <|> wordyKw "termLink" <|> wordyKw "typeLink"
+
+    wordyKw s = separated (not . isAlphaNum) (kw s)
+    symbolyKw s = separated (not . symbolyIdChar) (kw s)
 
     kw :: String -> P [Token Lexeme]
-    kw s = do
-      pos1 <- pos
-      s <- lit s
-      P.lookAhead (P.eof <|> void (CP.satisfy ok))
-      pos2 <- pos
-      pure [Token (Reserved s) pos1 pos2]
-      where
-        ok :: Char -> Bool
-        ok c = not (isAlphaNum c)
-
-    kw' k = do
-      pos <- pos
-      k <- lit k
-      P.lookAhead (CP.satisfy ok)
-      pure (k, pos, incBy k pos)
-      where
-        ok c = not (isAlphaNum c)
+    kw s = do pos1 <- pos; s <- lit s; pos2 <- pos
+              pure [Token (Reserved s) pos1 pos2]
 
     layoutKeywords :: P [Token Lexeme]
     layoutKeywords =
@@ -349,7 +336,7 @@ lexemes = P.optional space >> do
           pure [Token (Open kw) pos0 pos1]
 
         eq = do
-          (_, start, end) <- kw' "="
+          [Token _ start end] <- symbolyKw "="
           env <- S.get
           case topBlockName (layout env) of
             -- '=' does not open a layout block if within a type declaration
@@ -358,11 +345,11 @@ lexemes = P.optional space >> do
             _ -> P.customFailure (Token LayoutError start end)
 
         arr = do
-          (_, start, end) <- kw' "->"
+          [Token _ start end] <- symbolyKw "->"
           env <- S.get
           -- -> introduces a layout block if we're inside a `match with` or `cases`
           case topBlockName (layout env) of
-            Just match | match == "match-with" || match == "cases" -> do
+            Just match | match == "match" || match == "cases" -> do
               S.put (env { opening = Just "->" })
               pure [Token (Open "->") start end]
             _ -> pure [Token (Reserved "->") start end]
@@ -370,7 +357,7 @@ lexemes = P.optional space >> do
     braces = open "{" <|> close ["{"] "}"
     parens = open "(" <|> close ["("] ")"
     delim = P.try $ do
-      ch <- CP.satisfy (`Set.member` delimiters)
+      ch <- CP.satisfy (\ch -> ch /= ';' && Set.member ch delimiters)
       pos <- pos
       pure [Token (Reserved [ch]) pos (inc pos)]
     delayOrForce = P.try $ do
