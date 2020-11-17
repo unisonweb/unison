@@ -268,7 +268,18 @@ lexemes = P.optional space >> do
     where
       sep = separated (\c -> isSpace c || not (isAlphaNum c))
       intOrNat = P.try $ num <$> sign <*> LP.decimal
-      float = P.try $ fnum <$> sign <*> LP.float
+      float = P.try $ do
+        sign <- fromMaybe "" <$> optional (lit "+" <|> lit "-")
+        base <- P.takeWhile1P (Just "base") isDigit
+        decimals <- P.optional $
+          liftA2 (<>) (lit ".") (P.takeWhile1P (Just "decimals") isDigit)
+        exp <- P.optional $ do
+          e <- map toLower <$> (lit "e" <|> lit "E")
+          sign <- fromMaybe "" <$> optional (lit "+" <|> lit "-")
+          exp <- P.takeWhile1P (Just "exponent") isDigit
+          pure $ e <> sign <> exp
+        pure $ Numeric (sign <> base <> fromMaybe "" decimals <> fromMaybe "" exp)
+
       bytes = P.try $ do
         _ <- lit "0xs"
         s <- map toLower <$> P.takeWhileP (Just "hexidecimal character") isHex
@@ -283,7 +294,6 @@ lexemes = P.optional space >> do
       num :: Maybe Char -> Integer -> Lexeme
       num sign n = Numeric (signStr sign <> show n)
       signStr = maybe "" (:[])
-      fnum sign n = Numeric (signStr sign <> show @Double n)
       sign = P.optional (char '+' <|> char '-')
 
   hash = Hash <$> P.try shorthash
