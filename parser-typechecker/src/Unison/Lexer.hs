@@ -104,16 +104,34 @@ pos = do
   p <- P.getPosition
   pure $ Pos (P.unPos (P.sourceLine p)) (P.unPos (P.sourceColumn p))
 
+-- Token parser: strips trailing whitespace and comments after a
+-- successful parse, and also takes care of emitting layout tokens
+-- (such as virtual semicolons and closing tokens).
 token' :: (a -> Pos -> Pos -> [Token Lexeme]) -> P a -> P [Token Lexeme]
 token' tok p = LP.lexeme space $ do
   start <- pos
+  -- We save the current state so we can backtrack the state if `p` fails.
   env <- S.get
-  layoutToks <- pops start
-  case opening env of
-    Nothing -> pure ()
-    Just blockname -> let
-      layout' = traceShowId $ (blockname, column start) : layout env
-      in S.put $ env { layout = layout', opening = Nothing }
+  layoutToks <- case opening env of
+    -- If we're opening a block of type b, we push (b, currentColumn) onto
+    -- the layout stack. Example:
+    --
+    --   blah = cases
+    --       {- A comment -}
+    --          -- A one-line comment
+    --     0 -> "hi"
+    --     1 -> "bye"
+    --
+    -- After the `cases` token, the state will be opening = Just "cases",
+    -- meaning the parser is searching for the next non-whitespace/comment
+    -- character to determine the leftmost column of the `cases` block.
+    -- That will be the column of the `0`.
+    Just blockname ->
+      let layout' = (blockname, column start) : layout env
+      in [] <$ S.put (env { layout = layout', opening = Nothing })
+    -- If we're not opening a block, we potentially pop from
+    -- the layout stack and/or emit virtual semicolons.
+    Nothing -> pops start
   a <- p <|> (S.put env >> fail "resetting state")
   end <- pos
   pure $ layoutToks ++ tok a start end
@@ -126,7 +144,8 @@ token' tok p = LP.lexeme space $ do
         if top l == column p then pure [Token (Semi True) p p]
         else if top l < column p || topHasClosePair l then pure []
         else if top l > column p then
-          S.put (env { layout = (pop l) }) >> ((Token Close p p :) <$> pops p)
+          traceShow (l, p) $
+          S.put (env { layout = pop l }) >> ((Token Close p p :) <$> pops p)
         else error "impossible"
       else
         pure []
@@ -140,7 +159,7 @@ lexer0' scope rem =
       where msg = Opaque $ EP.parseErrorPretty e
     Right ts -> Token (Open scope) topLeftCorner topLeftCorner : tweak0 ts
   where
-  env0 = ParsingEnv [(scope, 1)] True Nothing
+  env0 = ParsingEnv [] True (Just scope)
   -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
   -- fix without adding more state to the lexer:
   --   - 1+1 lexes as [1, +1], convert this to [1, +, 1]
@@ -425,6 +444,7 @@ topBlockName ((name,_):_) = Just name
 topHasClosePair :: Layout -> Bool
 topHasClosePair [] = False
 topHasClosePair ((name,_):_) = name == "{" || name == "("
+-- topHasClosePair ((name,_):_) = name == "{" || name == "(" || name == "match" || name = "handle"
 
 findNearest :: Layout -> Set BlockName -> Maybe BlockName
 findNearest l ns =
