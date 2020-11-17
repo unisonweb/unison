@@ -107,14 +107,15 @@ pos = do
 token' :: (a -> Pos -> Pos -> [Token Lexeme]) -> P a -> P [Token Lexeme]
 token' tok p = LP.lexeme space $ do
   start <- pos
-  layoutToks <- pops start
-  a <- p
-  end <- pos
   env <- S.get
+  layoutToks <- pops start
   case opening env of
     Nothing -> pure ()
-    Just blockname -> S.put $
-      env { layout = (blockname, column start) : layout env, opening = Nothing }
+    Just blockname -> let
+      layout' = traceShowId $ (blockname, column start) : layout env
+      in S.put $ env { layout = layout', opening = Nothing }
+  a <- p <|> (S.put env >> fail "resetting state")
+  end <- pos
   pure $ layoutToks ++ tok a start end
   where
     pops :: Pos -> P [Token Lexeme]
@@ -137,9 +138,9 @@ lexer0' scope rem =
   case flip S.evalState env0 $ P.runParserT lexemes scope rem of
     Left e -> [Token (Err msg) topLeftCorner topLeftCorner]
       where msg = Opaque $ EP.parseErrorPretty e
-    Right ts -> tweak (Token (Open scope) topLeftCorner topLeftCorner : ts)
+    Right ts -> Token (Open scope) topLeftCorner topLeftCorner : tweak0 ts
   where
-  env0 = ParsingEnv [(scope, 0)] True Nothing
+  env0 = ParsingEnv [(scope, 1)] True Nothing
   -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
   -- fix without adding more state to the lexer:
   --   - 1+1 lexes as [1, +1], convert this to [1, +, 1]
@@ -147,6 +148,9 @@ lexer0' scope rem =
   --     write
   --       foo x = action1;
   --               2
+  --   - semi immediately after first Open is ignored
+  tweak0 ((payload -> Semi True):t) = tweak t
+  tweak0 ts = tweak ts
   tweak [] = []
   tweak (h@(payload -> Semi False):(payload -> Semi True):t) = h : tweak t
   tweak (h@(payload -> Reserved _):t) = h : tweak t
@@ -255,7 +259,7 @@ lexemes = P.optional space >> do
   reserved :: P [Token Lexeme]
   reserved =
     token' (\ts _ _ -> ts) $
-    braces <|> P.dbg "parens" parens <|> P.dbg "delim" delim <|> delayOrForce <|> keywords <|> layoutKeywords
+    braces <|> parens <|> delim <|> delayOrForce <|> keywords <|> layoutKeywords
     where
     keywords = kw ":" <|> kw "@" <|> kw "||" <|> kw "|" <|> kw "&&"
            <|> kw "true" <|> kw "false"
@@ -263,10 +267,10 @@ lexemes = P.optional space >> do
            <|> kw "termLink" <|> kw "typeLink"
 
     kw :: String -> P [Token Lexeme]
-    kw s = P.dbg s $ do
+    kw s = do
       pos1 <- pos
       s <- lit s
-      P.dbg ("kw lookahead " <> s) $ P.lookAhead (P.eof <|> void (CP.satisfy ok))
+      P.lookAhead (P.eof <|> void (CP.satisfy ok))
       pos2 <- pos
       pure [Token (Reserved s) pos1 pos2]
       where
@@ -327,7 +331,7 @@ lexemes = P.optional space >> do
       ch <- CP.satisfy (`Set.member` delimiters)
       pos <- pos
       pure [Token (Reserved [ch]) pos (inc pos)]
-    delayOrForce = P.dbg "delayOrForce" . P.try $ do
+    delayOrForce = P.try $ do
       op <- CP.satisfy isDelayOrForce
       P.lookAhead (CP.satisfy ok)
       pos <- pos
