@@ -144,11 +144,15 @@ token' tok p = LP.lexeme space $ do
         if top l == column p then pure [Token (Semi True) p p]
         else if top l < column p || topHasClosePair l then pure []
         else if top l > column p then
-          traceShow (l, p) $
+          -- traceShow (l, p) $
           S.put (env { layout = pop l }) >> ((Token Close p p :) <$> pops p)
         else error "impossible"
       else
         pure []
+
+    topHasClosePair :: Layout -> Bool
+    topHasClosePair [] = False
+    topHasClosePair ((name,_):_) = name == "{" || name == "(" || name == "match" || name == "handle"
 
 -- todo: implement function with same signature as the existing lexer function
 -- to set up initial state, run the parser, etc
@@ -189,9 +193,11 @@ lexemes = P.optional space >> do
   tl <- eof
   pure $ hd <> tl
   where
-  toks = reserved
-     <|> (asum . map token) [ semi, textual, character, wordyId
-                            , backticks, symbolyId, numeric, hash ]
+  toks = token numeric
+     <|> token symbolyId
+     <|> token wordyId
+     <|> reserved
+     <|> (asum . map token) [ semi, textual, character, backticks, hash ]
   semi = char ';' $> Semi False
   textual = Textual <$> quoted
   quoted = char '"' *> P.manyTill LP.charLiteral (char '"')
@@ -234,6 +240,7 @@ lexemes = P.optional space >> do
   wordyIdSeg = litSeg <|> (P.try do
     ch <- CP.satisfy wordyIdStartChar
     rest <- P.many (CP.satisfy wordyIdChar)
+    when (Set.member (ch : rest) keywords) $ fail "identifier segment can't be a keyword"
     pure (ch : rest))
 
   -- ``an-identifier-with-dashes``
@@ -254,10 +261,14 @@ lexemes = P.optional space >> do
       Nothing -> fail "invalid shorthash"
       Just sh -> pure sh
 
-  numeric = intOrNat <|> float <|> bytes <|> otherbase
+  separated :: (Char -> Bool) -> P a -> P a
+  separated ok p = P.try $ p <* P.lookAhead (void (CP.satisfy ok) <|> P.eof)
+
+  numeric = sep (float <|> intOrNat <|> bytes <|> otherbase)
     where
+      sep = separated (\c -> isSpace c || not (isAlphaNum c))
       intOrNat = P.try $ num <$> sign <*> LP.decimal
-      float = P.try $ Numeric . show @Double <$> LP.float
+      float = P.try $ fnum <$> sign <*> LP.float
       bytes = P.try $ do
         _ <- lit "0xs"
         s <- map toLower <$> P.takeWhileP (Just "hexidecimal character") isHex
@@ -270,7 +281,9 @@ lexemes = P.optional space >> do
       otherbase = P.try $ num <$> sign <*> ((lit "0o" >> LP.octal) <|> (lit "0x" >> LP.hexadecimal))
 
       num :: Maybe Char -> Integer -> Lexeme
-      num sign n = Numeric (maybe "" (:[]) sign ++ show n)
+      num sign n = Numeric (signStr sign <> show n)
+      signStr = maybe "" (:[])
+      fnum sign n = Numeric (signStr sign <> show @Double n)
       sign = P.optional (char '+' <|> char '-')
 
   hash = Hash <$> P.try shorthash
@@ -294,7 +307,7 @@ lexemes = P.optional space >> do
       pure [Token (Reserved s) pos1 pos2]
       where
         ok :: Char -> Bool
-        ok c = isSpace c || Set.member c delimiters || isAlphaNum c
+        ok c = not (isAlphaNum c)
 
     kw' k = do
       pos <- pos
@@ -302,7 +315,7 @@ lexemes = P.optional space >> do
       P.lookAhead (CP.satisfy ok)
       pure (k, pos, incBy k pos)
       where
-        ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters
+        ok c = not (isAlphaNum c)
 
     layoutKeywords :: P [Token Lexeme]
     layoutKeywords =
@@ -388,8 +401,9 @@ lexemes = P.optional space >> do
       pos2 <- pos
       env <- S.get
       case findClose open (layout env) of
-        Nothing -> P.customFailure (Token (CloseWithoutMatchingOpen msgOpen close) pos1 pos2)
-          where msgOpen = intercalate " or " open
+        Nothing -> P.customFailure (Token (CloseWithoutMatchingOpen msgOpen (quote close)) pos1 pos2)
+          where msgOpen = intercalate " or " (quote <$> open)
+                quote s = "'" <> s <> "'"
         Just n -> do
           if reopen then
             S.put (env { layout = drop n (layout env), opening = Just close })
@@ -1072,8 +1086,8 @@ instance EP.ShowErrorComponent (Token Err) where
   showErrorComponent (Token err _ _) = go err where
     go = \case
       Opaque msg -> msg
-      CloseWithoutMatchingOpen open close -> "I found a closing " <> close <> " with no matching " <> open <> "."
-      Both e1 e2 -> (go e1) <> "\n" <> (go e2)
+      CloseWithoutMatchingOpen open close -> "I found a closing " <> close <> " but no matching " <> open <> "."
+      Both e1 e2 -> go e1 <> "\n" <> go e2
       LayoutError -> "Indentation error"
       TextLiteralMissingClosingQuote s -> "This text literal missing a closing quote: " <> excerpt s
       e -> show e
