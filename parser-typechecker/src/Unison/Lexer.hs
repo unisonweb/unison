@@ -205,8 +205,15 @@ lexemes = P.optional space >> do
   tl <- eof
   pure $ hd <> tl
   where
-  toks = token numeric <|> token symbolyId <|> token wordyId <|> token character
+  toks = token numeric <|> token symbolyId <|> token character
+     <|> token blank <|> token wordyId
      <|> reserved <|> (asum . map token) [ semi, textual, backticks, hash ]
+
+  blank = separated (\c -> isSpace c || not (isAlphaNum c)) $ do
+    char '_'
+    s <- P.optional wordyIdSeg
+    pure $ Blank (fromMaybe "" s)
+
   semi = char ';' $> Semi False
   textual = Textual <$> quoted
   quoted = char '"' *> P.manyTill (LP.charLiteral <|> sp) (char '"')
@@ -223,7 +230,7 @@ lexemes = P.optional space >> do
     shorthash <- P.optional shorthash
     pure $ WordyId (fromMaybe "" dot <> intercalate "." segs) shorthash
     where
-      wordyMsg = "identifier (ex: abba1, _zoink, .foo.bar#xyz, or 🌻)"
+      wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
 
   symbolyId :: P Lexeme
   symbolyId = P.label symbolMsg . P.try $ do
