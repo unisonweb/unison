@@ -51,6 +51,7 @@ import           Data.Bifunctor                 ( first
                                                 , second
                                                 )
 import qualified Data.Foldable                 as Foldable
+import           Data.Functor.Compose           ( Compose(..) )
 import           Data.List
 import           Data.List.NonEmpty             ( NonEmpty )
 import qualified Data.Map                      as Map
@@ -960,10 +961,7 @@ synthesize e = scope (InSynthesize e) $
     outputTypev <- freshenVar (Var.named "match-output")
     let outputType = existential' l B.Blank outputTypev
     appendContext [existential outputTypev]
-    case cases of -- only relevant with 2 or more cases, but 1 is safe too.
-      [] -> pure ()
-      Term.MatchCase _ _ t : _ -> scope (InMatch (ABT.annotation t)) $
-        Foldable.traverse_ (checkCase scrutineeType outputType) cases
+    checkCases scrutineeType outputType cases
     ctx <- getContext
     pure $ apply ctx outputType
   go (Term.Handle' h body) = do
@@ -993,6 +991,48 @@ synthesize e = scope (InSynthesize e) $
         pure o'
       _ -> failWith $ HandlerOfUnexpectedType (loc h) ht
   go _e = compilerCrash PatternMatchFailure
+
+checkCases
+  :: Var v
+  => Ord loc
+  => Type v loc
+  -> Type v loc
+  -> [Term.MatchCase loc (Term v loc)]
+  -> M v loc ()
+checkCases _ _ [] = pure ()
+checkCases scrutType outType cases@(Term.MatchCase _ _ t : _)
+  = scope (InMatch (ABT.annotation t)) $ do
+      mes <- requestType (cases <&> \(Term.MatchCase p _ _) -> p)
+      for_ mes $ \es -> applyM scrutType >>= \sty -> do
+        v <- freshenVar Var.inferPatternPureV
+        let lo = loc scrutType
+            vt = existentialp lo v
+        appendContext [existential v]
+        subtype (Type.effectV lo (lo, Type.effects lo es) (lo, vt)) sty
+      traverse_ (checkCase scrutType outType) cases
+
+getEffect
+  :: Var v => Ord loc => Reference -> Int -> M v loc (Type v loc)
+getEffect ref cid = do
+  ect <- getEffectConstructorType ref cid
+  uect <- ungeneralize ect
+  let final (Type.Arrow' _ o) = final o
+      final t = t
+  case final uect of
+    Type.Effect'' [et] _ -> pure et
+    t@(Type.Effect'' _ _) ->
+      compilerCrash $ EffectConstructorHadMultipleEffects t
+    _ -> compilerCrash PatternMatchFailure
+
+requestType
+  :: Var v => Ord loc => [Pattern loc] -> M v loc (Maybe [Type v loc])
+requestType ps = getCompose . fmap fold $ traverse single ps
+  where
+  single (Pattern.As _ p) = single p
+  single Pattern.EffectPure{} = Compose . pure . Just $ []
+  single (Pattern.EffectBind _ ref cid _ _)
+    = Compose $ Just . pure <$> getEffect ref cid
+  single _ = Compose $ pure Nothing
 
 checkCase :: forall v loc . (Var v, Ord loc)
           => Type v loc
