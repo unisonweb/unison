@@ -159,7 +159,8 @@ token' tok p = LP.lexeme space $ do
 
     topHasClosePair :: Layout -> Bool
     topHasClosePair [] = False
-    topHasClosePair ((name,_):_) = name == "{" || name == "(" || name == "match" || name == "handle"
+    topHasClosePair ((name,_):_) =
+      name == "{" || name == "(" || name == "match" || name == "handle" || name == "if" || name == "then"
 
 -- todo: implement function with same signature as the existing lexer function
 -- to set up initial state, run the parser, etc
@@ -398,7 +399,7 @@ lexemes = P.optional space >> do
       pure [Token (Open s) pos1 pos2]
       where
         ok :: Char -> Bool
-        ok c = isSpace c || Set.member c delimiters
+        ok c = not (isAlphaNum c)
 
     close = close' False
 
