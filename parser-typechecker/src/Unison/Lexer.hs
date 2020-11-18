@@ -130,7 +130,7 @@ token' tok p = LP.lexeme space $ do
       -- special case - handling of empty blocks, as in:
       --   foo =
       --   bar = 42
-      if column start <= top l && not (null l) && blockname /= "else" then do
+      if blockname == "=" && column start <= top l && not (null l) then do
         S.put (env { layout = (blockname, column start + 1) : l, opening = Nothing })
         pops start
       else [] <$ S.put (env { layout = layout', opening = Nothing })
@@ -205,11 +205,8 @@ lexemes = P.optional space >> do
   tl <- eof
   pure $ hd <> tl
   where
-  toks = token numeric
-     <|> token symbolyId
-     <|> token wordyId
-     <|> reserved
-     <|> (asum . map token) [ semi, textual, character, backticks, hash ]
+  toks = token numeric <|> token symbolyId <|> token wordyId <|> token character
+     <|> reserved <|> (asum . map token) [ semi, textual, backticks, hash ]
   semi = char ';' $> Semi False
   textual = Textual <$> quoted
   quoted = char '"' *> P.manyTill (LP.charLiteral <|> sp) (char '"')
@@ -338,9 +335,9 @@ lexemes = P.optional space >> do
       openKw "cases" <|> openKw "where" <|> openKw "let"
       where
         withOpens = ["match","handle"]
-        matchWith = openKw "match" <|> close' True withOpens "with"
-        ifElse = openKw "if" <|> close' True ["if"] "then" <|> close' True ["then"] "else"
-        handle = openKw "handle" <|> close' True withOpens "with"
+        matchWith = openKw "match" <|> close' (Just "match-with") withOpens "with"
+        ifElse = openKw "if" <|> close' (Just "then") ["if"] "then" <|> close' (Just "else") ["then"] "else"
+        handle = openKw "handle" <|> close' (Just "with") withOpens "with"
         typ = openKw1 "unique" <|> openKw1 "type" <|> openKw1 "ability"
 
         -- layout keyword which bumps the layout column by 1, rather than looking ahead
@@ -367,7 +364,7 @@ lexemes = P.optional space >> do
           env <- S.get
           -- -> introduces a layout block if we're inside a `match with` or `cases`
           case topBlockName (layout env) of
-            Just match | match == "match" || match == "cases" -> do
+            Just match | match == "match-with" || match == "cases" -> do
               S.put (env { opening = Just "->" })
               pure [Token (Open "->") start end]
             _ -> pure [Token (Reserved "->") start end]
@@ -407,10 +404,10 @@ lexemes = P.optional space >> do
         ok :: Char -> Bool
         ok c = not (isAlphaNum c)
 
-    close = close' False
+    close = close' Nothing
 
-    close' :: Bool -> [String] -> String -> P [Token Lexeme]
-    close' reopen open close = do
+    close' :: Maybe String -> [String] -> String -> P [Token Lexeme]
+    close' reopenBlockname open close = do
       pos1 <- pos
       close <- lit close
       pos2 <- pos
@@ -420,11 +417,8 @@ lexemes = P.optional space >> do
           where msgOpen = intercalate " or " (quote <$> open)
                 quote s = "'" <> s <> "'"
         Just n -> do
-          if reopen then
-            S.put (env { layout = drop n (layout env), opening = Just close })
-          else
-            S.put (env { layout = drop n (layout env) })
-          let opens = if reopen then [Token (Open close) pos1 pos2] else []
+          S.put (env { layout = drop n (layout env), opening = reopenBlockname })
+          let opens = maybe [] (const $ [Token (Open close) pos1 pos2]) reopenBlockname
           pure $ replicate n (Token Close pos1 pos2) ++ opens
 
     findClose :: [String] -> Layout -> Maybe Int
@@ -1069,7 +1063,7 @@ isDelimiter :: Char -> Bool
 isDelimiter ch = Set.member ch delimiters
 
 reservedOperators :: Set String
-reservedOperators = Set.fromList ["=", "->", ":", "&&", "||"]
+reservedOperators = Set.fromList ["=", "->", ":", "&&", "||", "|", "!", "'"]
 
 inc :: Pos -> Pos
 inc (Pos line col) = Pos line (col + 1)
