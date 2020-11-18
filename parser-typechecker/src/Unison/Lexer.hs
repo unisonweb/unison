@@ -130,7 +130,7 @@ token' tok p = LP.lexeme space $ do
       -- special case - handling of empty blocks, as in:
       --   foo =
       --   bar = 42
-      if column start <= top l && not (null l) then do
+      if column start <= top l && not (null l) && blockname /= "else" then do
         S.put (env { layout = (blockname, column start + 1) : l, opening = Nothing })
         pops start
       else [] <$ S.put (env { layout = layout', opening = Nothing })
