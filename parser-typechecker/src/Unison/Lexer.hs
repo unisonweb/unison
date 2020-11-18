@@ -159,8 +159,14 @@ token' tok p = LP.lexeme space $ do
 
     topHasClosePair :: Layout -> Bool
     topHasClosePair [] = False
-    topHasClosePair ((name,_):_) =
-      name == "{" || name == "(" || name == "match" || name == "handle" || name == "if" || name == "then"
+    topHasClosePair ((name,_):_) = case name of
+      "{" -> True
+      "(" -> True
+      "handle" -> True
+      "match" -> True
+      "if" -> True
+      "then" -> True
+      _ -> False
 
 -- todo: implement function with same signature as the existing lexer function
 -- to set up initial state, run the parser, etc
@@ -428,8 +434,9 @@ lexemes = P.optional space >> do
   eof :: P [Token Lexeme]
   eof = P.try $ do
     p <- P.eof >> pos
+    n <- maybe 0 (const 1) <$> S.gets opening
     l <- S.gets layout
-    pure $ replicate (length l) (Token Close p p)
+    pure $ replicate (length l + n) (Token Close p p)
 
 simpleWordyId :: String -> Lexeme
 simpleWordyId = flip WordyId Nothing
