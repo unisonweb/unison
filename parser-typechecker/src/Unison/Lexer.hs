@@ -127,8 +127,15 @@ token' tok p = LP.lexeme space $ do
     -- character to determine the leftmost column of the `cases` block.
     -- That will be the column of the `0`.
     Just blockname ->
-      [] <$ S.put (env { layout = layout', opening = Nothing })
-      where layout' = (blockname, column start) : layout env
+      -- special case - handling of empty blocks, as in:
+      --   foo =
+      --   bar = 42
+      if column start <= top l && not (null l) then do
+        S.put (env { layout = (blockname, column start + 1) : l, opening = Nothing })
+        pops start
+      else [] <$ S.put (env { layout = layout', opening = Nothing })
+      where layout' = (blockname, column start) : l
+            l = layout env
     -- If we're not opening a block, we potentially pop from
     -- the layout stack and/or emit virtual semicolons.
     Nothing -> pops start
