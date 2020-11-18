@@ -28,26 +28,22 @@ g = 'match Value.deserialize fSer with
   Right v -> match Value.load v with
     Left _ -> bug "missing deps"
     Right func -> func
+
+x : '{IO} Nat
+x _ = !g 5
+
+main : '{IO} ()
+main = 'let
+  y = !x
+  ()
 ```
 
-```ucm
-.> add
-```
-
-This takes advantage of an exhaustiveness loophole to run the IO code.
-Ideally it'd be better to be able to view some IO stuff in a transcript.
-
-```unison
-loophole : Request {io2.IO} a -> a
-loophole = cases
-  { a } -> a
-
-x : Nat
-x = handle !g 5 with loophole
-```
+This simply runs some functions to make sure there isn't a crash. Once
+we gain the ability to capture output in a transcript, it can be modified
+to actual show that the serialization works.
 
 ```ucm
 .> add
 .> display fDeps
-.> display x
+.> run main
 ```

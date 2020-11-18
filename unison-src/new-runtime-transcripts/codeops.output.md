@@ -23,6 +23,14 @@ g = 'match Value.deserialize fSer with
   Right v -> match Value.load v with
     Left _ -> bug "missing deps"
     Right func -> func
+
+x : '{IO} Nat
+x _ = !g 5
+
+main : '{IO} ()
+main = 'let
+  y = !x
+  ()
 ```
 
 ```ucm
@@ -38,8 +46,14 @@ g = 'match Value.deserialize fSer with
       fSer  : Bytes
       fVal  : Value
       g     : '{IO} (Nat -> Nat)
+      main  : '{IO} ()
+      x     : '{IO} Nat
 
 ```
+This simply runs some functions to make sure there isn't a crash. Once
+we gain the ability to capture output in a transcript, it can be modified
+to actual show that the serialization works.
+
 ```ucm
 .> add
 
@@ -50,46 +64,13 @@ g = 'match Value.deserialize fSer with
     fSer  : Bytes
     fVal  : Value
     g     : '{IO} (Nat -> Nat)
-
-```
-This takes advantage of an exhaustiveness loophole to run the IO code.
-Ideally it'd be better to be able to view some IO stuff in a transcript.
-
-```unison
-loophole : Request {io2.IO} a -> a
-loophole = cases
-  { a } -> a
-
-x : Nat
-x = handle !g 5 with loophole
-```
-
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      loophole : Request {IO} a -> a
-      x        : Nat
-
-```
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    loophole : Request {IO} a -> a
-    x        : Nat
+    main  : '{IO} ()
+    x     : '{IO} Nat
 
 .> display fDeps
 
   [termLink f]
 
-.> display x
-
-  10
+.> run main
 
 ```
