@@ -127,8 +127,8 @@ token' tok p = LP.lexeme space $ do
     -- character to determine the leftmost column of the `cases` block.
     -- That will be the column of the `0`.
     Just blockname ->
-      let layout' = (blockname, column start) : layout env
-      in [] <$ S.put (env { layout = layout', opening = Nothing })
+      [] <$ S.put (env { layout = layout', opening = Nothing })
+      where layout' = (blockname, column start) : layout env
     -- If we're not opening a block, we potentially pop from
     -- the layout stack and/or emit virtual semicolons.
     Nothing -> pops start
@@ -142,8 +142,8 @@ token' tok p = LP.lexeme space $ do
       let l = layout env
       if inLayout env then
         if top l == column p then pure [Token (Semi True) p p]
-        else if top l < column p || topHasClosePair l then pure []
-        else if top l > column p then
+        else if column p > top l || topHasClosePair l then pure []
+        else if column p < top l then
           -- traceShow (l, p) $
           S.put (env { layout = pop l }) >> ((Token Close p p :) <$> pops p)
         else error "impossible"
@@ -236,7 +236,7 @@ lexemes = P.optional space >> do
   symbolyIdSeg :: P String
   symbolyIdSeg = P.try $ do
     id <- P.takeWhile1P (Just symbolMsg) symbolyIdChar
-    if Set.member id reservedOperators then fail "reserved operation"
+    if Set.member id reservedOperators then fail "reserved operator"
     else pure id
 
   wordyIdSeg :: P String
@@ -1054,7 +1054,7 @@ isDelimiter :: Char -> Bool
 isDelimiter ch = Set.member ch delimiters
 
 reservedOperators :: Set String
-reservedOperators = Set.fromList ["->", ":", "&&", "||"]
+reservedOperators = Set.fromList ["=", "->", ":", "&&", "||"]
 
 inc :: Pos -> Pos
 inc (Pos line col) = Pos line (col + 1)
