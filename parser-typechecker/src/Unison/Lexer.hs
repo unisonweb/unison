@@ -232,7 +232,7 @@ lexemes = P.optional space >> do
   wordyId :: P Lexeme
   wordyId = P.label wordyMsg . P.try $ do
     dot <- P.optional (lit ".")
-    segs <- P.sepBy1 wordyIdSeg (char '.')
+    segs <- P.sepBy1 wordyIdSeg (P.try (char '.' <* P.lookAhead (CP.satisfy wordyIdChar)))
     shorthash <- P.optional shorthash
     pure $ WordyId (fromMaybe "" dot <> intercalate "." segs) shorthash
     where
