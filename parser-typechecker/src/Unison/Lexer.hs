@@ -323,7 +323,7 @@ lexemes = P.optional space >> do
   separated :: (Char -> Bool) -> P a -> P a
   separated ok p = P.try $ p <* P.lookAhead (void (CP.satisfy ok) <|> P.eof)
 
-  numeric = sep (float <|> intOrNat <|> bytes <|> otherbase)
+  numeric = sep (bytes <|> otherbase <|> float <|> intOrNat)
     where
       sep = separated (\c -> isSpace c || not (isAlphaNum c))
       intOrNat = P.try $ num <$> sign <*> LP.decimal

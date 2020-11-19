@@ -118,6 +118,7 @@ test = scope "termprinter" $ tests
   , tc "if _something then _foo else _blah"
   , tc "3.14159"
   , tc "+0"
+  , tc "0xsabba1234"
   , tc "\"some text\""
   , tc "\"they said \\\"hi\\\"\""
   , pending $ tc "\'they said \\\'hi\\\'\'" -- TODO lexer doesn't support strings with single quotes in

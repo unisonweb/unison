@@ -41,8 +41,9 @@ import qualified Unison.Parser as Parser (seq, uniqueName)
 import qualified Unison.Pattern as Pattern
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
-import qualified Unison.Typechecker.Components as Components
 import qualified Unison.TypeParser as TypeParser
+import qualified Unison.Typechecker.Components as Components
+import qualified Unison.Util.Bytes as Bytes
 import qualified Unison.Var as Var
 
 watch :: Show a => String -> a -> a
@@ -345,6 +346,7 @@ termLeaf =
     , text
     , char
     , number
+    , bytes
     , boolean
     , link
     , tupleOrParenthesizedTerm
@@ -899,6 +901,13 @@ block' isTop s openBlock closeBlock = do
 
 number :: Var v => TermP v
 number = number' (tok Term.int) (tok Term.nat) (tok Term.float)
+
+bytes :: Var v => TermP v
+bytes = do
+  b <- bytesToken
+  let a = ann b
+  pure $ Term.app a (Term.builtin a "Bytes.fromList")
+                    (Term.seq a $ Term.nat a . fromIntegral <$> Bytes.toWord8s (L.payload b))
 
 number'
   :: Ord v
