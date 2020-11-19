@@ -108,7 +108,10 @@ pos = do
 -- successful parse, and also takes care of emitting layout tokens
 -- (such as virtual semicolons and closing tokens).
 token' :: (a -> Pos -> Pos -> [Token Lexeme]) -> P a -> P [Token Lexeme]
-token' tok p = LP.lexeme space $ do
+token' tok p = LP.lexeme space (token'' tok p)
+
+token'' :: (a -> Pos -> Pos -> [Token Lexeme]) -> P a -> P [Token Lexeme]
+token'' tok p = do
   start <- pos
   -- We save the current state so we can backtrack the state if `p` fails.
   env <- S.get
@@ -219,10 +222,9 @@ lexemes = P.optional space >> do
   tok p = do start <- pos; a <- p; stop <- pos; pure [Token a start stop]
 
   doc :: P [Token Lexeme]
-  doc = open <+> (CP.space *> fmap merge body) <+> close' where
-    open = tok (Open <$> lit "[:")
+  doc = open <+> (CP.space *> fmap merge body) <+> (close <* space) where
+    open = token'' (\t _ _ -> t) $ tok (Open <$> lit "[:")
     close = tok (Close <$ lit ":]")
-    close' = token' (\ts _ _ -> ts) close -- consumes trailing spaces, comments
     at = lit "@"
     back = (Textual ":]" <$ lit "\\:]") <|> (Textual "@" <$ lit "\\@")
     merge [] = []
@@ -239,13 +241,14 @@ lexemes = P.optional space >> do
         txt = tok (Textual <$> P.manyTill CP.anyChar (P.lookAhead sep))
         sep = void at <|> void back <|> void close
         backk = tok back <+> body
-        ref = at *> (tok wordyId <|> tok symbolyId)
+        ref = at *> (tok wordyId <|> tok symbolyId <|> docTyp)
         atk = (ref <|> docTyp) <+> body
         docTyp = do
           _ <- lit "["
           typ <- tok (P.manyTill CP.anyChar (P.lookAhead (lit "]")))
           _ <- lit "]" *> CP.space
-          pure $ fmap Reserved <$> typ
+          t <- tok wordyId <|> tok symbolyId
+          pure $ (fmap Reserved <$> typ) <> t
 
   blank = separated wordySep $
     char '_' *> P.optional wordyIdSeg <&> (Blank . fromMaybe "")
