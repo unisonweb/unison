@@ -292,20 +292,24 @@ lexemes = P.optional space >> do
     else pure id
 
   wordyIdSeg :: P String
-  wordyIdSeg = litSeg <|> (P.try do
+  -- wordyIdSeg = litSeg <|> (P.try do -- todo
+  wordyIdSeg = P.try do
     ch <- CP.satisfy wordyIdStartChar
     rest <- P.many (CP.satisfy wordyIdChar)
     when (Set.member (ch : rest) keywords) $ fail "identifier segment can't be a keyword"
-    pure (ch : rest))
+    pure (ch : rest)
 
+  {-
   -- ``an-identifier-with-dashes``
-  -- ```an identifier with dashes```
+  -- ```an identifier with spaces```
   litSeg :: P String
   litSeg = P.try $ do
     ticks1 <- lit "``"
     ticks2 <- P.many (char '`')
     let ticks = ticks1 <> ticks2
-    P.manyTill (CP.satisfy (const True)) (lit ticks)
+    let escTick = lit "\\`" $> '`'
+    P.manyTill (LP.charLiteral <|> escTick) (lit ticks)
+  -}
 
   hashMsg = "hash (ex: #af3sj3)"
   shorthash = P.label hashMsg $ do
