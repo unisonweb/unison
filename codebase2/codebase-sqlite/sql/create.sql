@@ -56,7 +56,6 @@ CREATE INDEX object_type_id ON object(type_id);
 CREATE TABLE causal (
   self_hash_id INTEGER PRIMARY KEY NOT NULL REFERENCES hash(id),
   value_hash_id INTEGER NOT NULL REFERENCES hash(id),
-  value_object_id INTEGER NULL REFERENCES object(id),
   gc_generation INTEGER NOT NULL
 );
 CREATE INDEX causal_value_hash_id ON causal(value_hash_id);

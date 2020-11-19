@@ -35,6 +35,7 @@ library
     U.Codebase.Sqlite.Referent
     U.Codebase.Sqlite.Serialization
     U.Codebase.Sqlite.Symbol
+    U.Codebase.Sqlite.SyncEntity
     U.Codebase.Sqlite.Term.Format
     U.Codebase.Sqlite.Types
 

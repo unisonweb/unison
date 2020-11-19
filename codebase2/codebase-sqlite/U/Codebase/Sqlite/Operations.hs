@@ -43,7 +43,7 @@ import qualified U.Codebase.Causal as C
 import U.Codebase.Decl (ConstructorId)
 import qualified U.Codebase.Decl as C
 import qualified U.Codebase.Decl as C.Decl
-import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
+import U.Codebase.HashTags (BranchHash (..), CausalHash (..), DefnHash (..), EditHash, PatchHash (..))
 import qualified U.Codebase.Reference as C
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C
@@ -103,6 +103,7 @@ import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
+import qualified U.Codebase.Sqlite.SyncEntity as SE
 
 type Err m = MonadError Error m
 
@@ -118,6 +119,7 @@ data DecodeError
   | ErrWatch WatchKind C.Reference.Id
   | ErrBranch Db.BranchObjectId
   | ErrPatch Db.PatchObjectId
+  | ErrObjectDependencies OT.ObjectType Db.ObjectId
   deriving (Show)
 
 data Error
@@ -148,7 +150,7 @@ c2sReference = bitraverse lookupTextId hashToObjectId
 s2cReference :: EDB m => S.Reference -> m C.Reference
 s2cReference = bitraverse loadTextById loadHashByObjectId
 
-c2sReferenceId :: EDB m => C.Reference.Id -> MaybeT m S.Reference.Id
+c2sReferenceId :: EDB m => C.Reference.Id -> m S.Reference.Id
 c2sReferenceId = C.Reference.idH hashToObjectId
 
 s2cReferenceId :: EDB m => S.Reference.Id -> m C.Reference.Id
@@ -847,18 +849,31 @@ dependents r = do
   cIds <- traverse s2cReferenceId sIds
   pure $ Set.fromList cIds
 
+-- | returns empty set for unknown inputs; doesn't distinguish between term and decl
+derivedDependencies :: EDB m => C.Reference.Id -> m (Set C.Reference.Id)
+derivedDependencies cid = do
+  sid <- c2sReferenceId cid
+  sids <- Q.getDependencyIdsForDependent sid
+  cids <- traverse s2cReferenceId sids
+  pure $ Set.fromList cids
+
 -- * Sync-related dependency queries
-
-termDependencies :: DB m => C.Reference.Id -> m (Maybe (Set C.Reference.Id))
-termDependencies = error "todo"
-
-declDependencies :: DB m => C.Reference.Id -> m (Maybe (Set C.Reference.Id))
-declDependencies = error "todo"
+objectDependencies :: EDB m => Db.ObjectId -> m SE.SyncEntitySeq
+objectDependencies oid = do
+  (ot, bs) <- liftQ $ Q.loadObjectWithTypeById oid
+  let getOrError = getFromBytesOr (ErrObjectDependencies ot oid)
+  case ot of
+    OT.TermComponent -> getOrError S.getTermComponentSyncEntities bs
+    OT.DeclComponent -> getOrError S.getDeclComponentSyncEntities bs
+    OT.Namespace -> getOrError S.getBranchSyncEntities bs
+    OT.Patch -> getOrError S.getPatchSyncEntities bs
 
 -- branchDependencies ::
 --   Branch.Hash -> m (Maybe (CausalHash, BD.Dependencies)),
 -- -- |the "new" terms and types mentioned in a patch
--- patchDependencies :: EditHash -> m (Set Reference, Set Reference)
+
+-- patchDependencies :: EditHash -> m (Maybe (Set DefnHash))
+-- patchDependencies h = error "todo"
 
 -- getBranchByAnyHash ::
 -- getBranchByBranchHash :: DB m => BranchHash -> m (Maybe (Branch m))

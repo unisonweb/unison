@@ -1,7 +1,9 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module U.Codebase.Sqlite.Serialization where
@@ -13,7 +15,11 @@ import Data.Bytes.Serial (SerialEndian (serializeBE), deserialize, deserializeBE
 import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
 import Data.Int (Int64)
 import Data.List (elemIndex)
+import Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
+import Data.Vector (Vector)
+import qualified Data.Vector as Vector
 import Data.Word (Word64)
 import qualified U.Codebase.Decl as Decl
 import U.Codebase.Kind (Kind)
@@ -25,7 +31,7 @@ import qualified U.Codebase.Referent as Referent
 import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
 import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
-import U.Codebase.Sqlite.DbId (PatchObjectId)
+import U.Codebase.Sqlite.DbId (BranchObjectId, PatchObjectId, unBranchObjectId, unPatchObjectId)
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId)
 import qualified U.Codebase.Sqlite.Patch.Diff as PatchDiff
@@ -34,6 +40,7 @@ import qualified U.Codebase.Sqlite.Patch.Full as PatchFull
 import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
 import qualified U.Codebase.Sqlite.Patch.TypeEdit as TypeEdit
 import U.Codebase.Sqlite.Symbol
+import qualified U.Codebase.Sqlite.SyncEntity as SE
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import qualified U.Codebase.Term as Term
 import qualified U.Codebase.Type as Type
@@ -338,7 +345,6 @@ lookupTermElementDiscardingTerm :: MonadGet m => Reference.Pos -> m (LocalIds, T
 lookupTermElementDiscardingTerm =
   unsafeFramedArrayLookup ((,) <$> getLocalIds <* skipFramed <*> getFramed getTType) . fromIntegral
 
-
 getTType :: MonadGet m => m TermFormat.Type
 getTType = getType getReference
 
@@ -501,10 +507,96 @@ getBranchFormat =
   getWord8 >>= \case
     0 -> getBranchFull
     1 -> getBranchDiff
-    other -> unknownTag "BranchFormat" other
+    x -> unknownTag "getBranchFormat" x
   where
-    getBranchFull = error "todo"
-    getBranchDiff = error "todo"
+    getReferent' = getReferent getReference getReference
+    getBranchFull =
+      BranchFormat.Full <$> getBranchLocalIds <*> getLocalBranch
+      where
+        getLocalBranch =
+          BranchFull.Branch
+            <$> getMap getVarInt (getMap getReferent' getMetadataSetFormat)
+            <*> getMap getVarInt (getMap getReference getMetadataSetFormat)
+            <*> getMap getVarInt getVarInt
+            <*> getMap getVarInt getVarInt
+
+    getMetadataSetFormat =
+      getWord8 >>= \case
+        0 -> BranchFull.Inline <$> getSet getReference
+        x -> unknownTag "getMetadataSetFormat" x
+    getBranchDiff =
+      BranchFormat.Diff
+        <$> getVarInt
+        <*> getBranchLocalIds
+        <*> getLocalBranchDiff
+      where
+        getLocalBranchDiff =
+          BranchDiff.Diff
+            <$> getMap getVarInt (getMap getReferent' getDiffOp)
+            <*> getMap getVarInt (getMap getReference getDiffOp)
+            <*> getMap getVarInt getPatchOp
+            <*> getMap getVarInt getChildOp
+        getDiffOp =
+          getWord8 >>= \case
+            0 -> pure BranchDiff.RemoveDef
+            1 -> BranchDiff.AddDefWithMetadata <$> getSet getReference
+            2 -> BranchDiff.AlterDefMetadata <$> getAddRemove getReference
+            x -> unknownTag "getDiffOp" x
+        getAddRemove get = do
+          adds <- getMap get (pure True)
+          -- and removes:
+          addToExistingMap get (pure False) adds
+        getPatchOp = getWord8 >>= \case
+          0 -> pure BranchDiff.PatchRemove
+          1 -> BranchDiff.PatchAddReplace <$> getVarInt
+          x -> unknownTag "getPatchOp" x
+        getChildOp = getWord8 >>= \case
+          0 -> pure BranchDiff.ChildRemove
+          1 -> BranchDiff.ChildAddReplace <$> getVarInt
+          x -> unknownTag "getChildOp" x
+
+getBranchLocalIds :: MonadGet m => m BranchFormat.BranchLocalIds
+getBranchLocalIds =
+  BranchFormat.LocalIds
+    <$> getVector getVarInt
+    <*> getVector getVarInt
+    <*> getVector getVarInt
+    <*> getVector (getPair getVarInt getVarInt)
+
+getBranchSyncEntities :: MonadGet m => m SE.SyncEntitySeq
+getBranchSyncEntities =
+  getWord8 >>= \case
+    -- Full
+    0 -> getLocalIds
+    -- Diff
+    1 -> do
+      id <- getVarInt @_ @BranchObjectId
+      SE.addObjectId (unBranchObjectId id) <$> getLocalIds
+    x -> unknownTag "getBranchSyncEntities" x
+  where
+    getLocalIds = branchLocalIdsToLocalDeps <$> getBranchLocalIds
+    branchLocalIdsToLocalDeps (BranchFormat.LocalIds ts os ps bcs) =
+      SE.SyncEntity
+        (vec2seq ts)
+        ( vec2seq os
+            <> vec2seq (Vector.map unPatchObjectId ps)
+            <> vec2seq (Vector.map unBranchObjectId bos)
+        )
+        mempty
+        (vec2seq chs)
+      where
+        (bos, chs) = Vector.unzip bcs
+    vec2seq :: Vector a -> Seq a
+    vec2seq v = Seq.fromFunction (length v) (v Vector.!)
+
+getTermComponentSyncEntities :: m SE.SyncEntitySeq
+getTermComponentSyncEntities = error "not implemented"
+
+getDeclComponentSyncEntities :: m SE.SyncEntitySeq
+getDeclComponentSyncEntities = error "not implemented"
+
+getPatchSyncEntities :: m SE.SyncEntitySeq
+getPatchSyncEntities = error "not implemented"
 
 getSymbol :: MonadGet m => m Symbol
 getSymbol = Symbol <$> getVarInt <*> getText
@@ -531,6 +623,13 @@ putReference = \case
     putWord8 0 *> putVarInt t
   ReferenceDerived (Reference.Id r index) ->
     putWord8 1 *> putVarInt r *> putVarInt index
+
+getReferent :: MonadGet m => m r1 -> m r2 -> m (Referent' r1 r2)
+getReferent getRefRef getConRef =
+  getWord8 >>= \case
+    0 -> Referent.Ref <$> getRefRef
+    1 -> Referent.Con <$> getConRef <*> getVarInt
+    x -> unknownTag "getReferent" x
 
 getReference ::
   (MonadGet m, Integral t, Bits t, Integral r, Bits r) =>

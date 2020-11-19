@@ -7,19 +7,24 @@
 
 module U.Util.Serialization where
 
-import Control.Monad (replicateM)
-import Data.Bits ((.|.), Bits, clearBit, setBit, shiftL, shiftR, testBit)
+import Control.Applicative (Applicative (liftA2), liftA3)
+import Control.Monad (foldM, replicateM)
+import Data.Bits (Bits, clearBit, setBit, shiftL, shiftR, testBit, (.|.))
 import Data.ByteString (ByteString, readFile, writeFile)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Short as BSS
 import Data.ByteString.Short (ShortByteString)
+import qualified Data.ByteString.Short as BSS
 import Data.Bytes.Get (MonadGet, getByteString, getBytes, getWord8, runGetS, skip)
 import Data.Bytes.Put (MonadPut, putByteString, putWord8, runPutS)
 import Data.Bytes.VarInt (VarInt (VarInt))
 import Data.Foldable (Foldable (toList), traverse_)
 import Data.List.Extra (dropEnd)
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Short (ShortText)
@@ -28,16 +33,13 @@ import qualified Data.Text.Short.Unsafe as TSU
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import Data.Word (Word8)
+import GHC.Word (Word64)
 import System.FilePath (takeDirectory)
 import UnliftIO (MonadIO, liftIO)
 import UnliftIO.Directory (createDirectoryIfMissing, doesFileExist)
 import Prelude hiding (readFile, writeFile)
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Control.Applicative (liftA3, Applicative(liftA2))
-import GHC.Word (Word64)
-import Data.Set (Set)
-import qualified Data.Set as Set
+
+-- import qualified U.Util.Monoid as Monoid
 
 type Get a = forall m. MonadGet m => m a
 
@@ -151,6 +153,27 @@ getSequence getA = do
   length <- getVarInt
   Seq.replicateM length getA
 
+getSet :: (MonadGet m, Ord a) => m a -> m (Set a)
+getSet getA = do
+  length <- getVarInt
+  -- avoid materializing intermediate list
+  foldM (\s ma -> Set.insert <$> ma <*> pure s) mempty (replicate length getA)
+
+putMap :: MonadPut m => (a -> m ()) -> (b -> m ()) -> Map a b -> m ()
+putMap putA putB m = putFoldable (putPair putA putB) (Map.toList m)
+
+addToExistingMap :: (MonadGet m, Ord a) => m a -> m b -> Map a b -> m (Map a b)
+addToExistingMap getA getB map = do
+  length <- getVarInt
+  -- avoid materializing intermediate list
+  foldM
+    (\s (ma, mb) -> Map.insert <$> ma <*> mb <*> pure s)
+    map
+    (replicate length (getA, getB))
+
+getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
+getMap getA getB = addToExistingMap getA getB mempty
+
 getFramed :: MonadGet m => Get a -> m a
 getFramed get = do
   size <- getVarInt
@@ -206,20 +229,11 @@ unsafeFramedArrayLookup getA index = do
   skip (Vector.unsafeIndex offsets index)
   getA
 
-putMap :: MonadPut m => (a -> m ()) -> (b -> m ()) -> Map a b -> m ()
-putMap putA putB m = putFoldable (putPair putA putB) (Map.toList m)
+putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a, b) -> m ()
+putPair putA putB (a, b) = putA a *> putB b
 
-getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
-getMap getA getB = Map.fromList <$> getList (getPair getA getB)
-
-getSet :: (MonadGet m, Ord a) => m a -> m (Set a)
-getSet getA = Set.fromList <$> getList getA
-
-putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()
-putPair putA putB (a,b) = putA a *> putB b
-
-getPair :: MonadGet m => m a -> m b -> m (a,b)
+getPair :: MonadGet m => m a -> m b -> m (a, b)
 getPair = liftA2 (,)
 
-getTuple3 :: MonadGet m => m a -> m b -> m c -> m (a,b,c)
+getTuple3 :: MonadGet m => m a -> m b -> m c -> m (a, b, c)
 getTuple3 = liftA3 (,,)

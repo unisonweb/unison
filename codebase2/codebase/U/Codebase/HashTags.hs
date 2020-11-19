@@ -9,3 +9,5 @@ newtype CausalHash = CausalHash { unCausalHash :: Hash } deriving (Eq, Ord, Show
 newtype EditHash = EditHash { unEditHash :: Hash } deriving (Eq, Ord, Show)
 
 newtype PatchHash = PatchHash { unPatchHash :: Hash } deriving (Eq, Ord, Show)
+
+newtype DefnHash = DefnHash { unDefnHash :: Hash } deriving (Eq, Ord, Show)

@@ -36,6 +36,7 @@ import qualified U.Codebase.WatchKind as WatchKind
 import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
+import UnliftIO (withRunInIO, MonadUnliftIO)
 
 -- * types
 type DB m = (MonadIO m, MonadReader Connection m)
@@ -119,6 +120,12 @@ loadObjectById oId = queryOnly sql (Only oId) >>= orError (UnknownObjectId oId)
   SELECT bytes FROM object WHERE id = ?
 |]
 
+loadObjectWithTypeById :: EDB m => ObjectId -> m (ObjectType, ByteString)
+loadObjectWithTypeById oId = queryMaybe sql (Only oId) >>= orError (UnknownObjectId oId)
+  where sql = [here|
+    SELECT type_id, bytes FROM object WHERE id = ?
+  |]
+
 -- |Not all hashes have corresponding objects; e.g., hashes of term types
 expectObjectIdForPrimaryHashId :: EDB m => HashId -> m ObjectId
 expectObjectIdForPrimaryHashId h =
@@ -169,10 +176,10 @@ updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
 
 -- |Maybe we would generalize this to something other than NamespaceHash if we
 -- end up wanting to store other kinds of Causals here too.
-saveCausal :: DB m => CausalHashId -> BranchHashId -> Maybe BranchObjectId -> m ()
-saveCausal self value oid = execute sql (self, value, oid) where sql = [here|
-  INSERT OR IGNORE INTO causal (self_hash_id, value_hash_id, value_object_id)
-  VALUES (?, ?,, ?)
+saveCausal :: DB m => CausalHashId -> BranchHashId -> m ()
+saveCausal self value = execute sql (self, value) where sql = [here|
+  INSERT OR IGNORE INTO causal (self_hash_id, value_hash_id)
+  VALUES (?, ?)
 |]
 
 loadCausalValueHashId :: EDB m => CausalHashId -> m BranchHashId
@@ -301,6 +308,15 @@ getDependentsForDependency dependency = query sql dependency where sql = [here|
     AND dependency_component_index = ?
 |]
 
+getDependencyIdsForDependent :: DB m => Reference.Id -> m [Reference.Id]
+getDependencyIdsForDependent dependent = query sql dependent where sql = [here|
+  SELECT dependency_object_id, dependency_component_index
+  FROM dependents_index
+  WHERE dependency_builtin = NULL
+    AND dependent_object_id = ?
+    AND dependen_component_index = ?
+|]
+
 objectIdByBase32Prefix :: DB m => ObjectType -> Text -> m [ObjectId]
 objectIdByBase32Prefix objType prefix = queryList sql (objType, prefix <> "%") where sql = [here|
   SELECT object.id FROM object
@@ -343,6 +359,12 @@ query :: (DB m, ToRow q, FromRow r) => SQLite.Query -> q -> m [r]
 query q r = do c <- ask; liftIO $ SQLite.query c q r
 execute :: (DB m, ToRow q) => SQLite.Query -> q -> m ()
 execute q r = do c <- ask; liftIO $ SQLite.execute c q r
+
+-- |transaction that blocks
+withImmediateTransaction :: (DB m, MonadUnliftIO m) => m a -> m a
+withImmediateTransaction action = do
+  c <- ask
+  withRunInIO \run -> SQLite.withImmediateTransaction c (run action)
 
 headMay :: [a] -> Maybe a
 headMay [] = Nothing
