@@ -345,7 +345,15 @@ lexemes = P.optional space >> do
         matchWith = openKw "match" <|> close' (Just "match-with") withOpens "with"
         ifElse = openKw "if" <|> close' (Just "then") ["if"] "then" <|> close' (Just "else") ["then"] "else"
         handle = openKw "handle" <|> close' (Just "with") withOpens "with"
-        typ = openKw1 "unique" <|> openKw1 "type" <|> openKw1 "ability"
+        typ = openKw1 "unique" <|> openTypeKw1 "type" <|> openTypeKw1 "ability"
+
+        -- In `unique type` and `unique ability`, only the `unique` opens a layout block,
+        -- and `ability` and `type` are just keywords.
+        openTypeKw1 t = do
+          b <- S.gets (topBlockName . layout)
+          case b of
+            Just "unique" -> wordyKw t
+            _ -> openKw1 t
 
         -- layout keyword which bumps the layout column by 1, rather than looking ahead
         -- to the next token to determine the layout column
