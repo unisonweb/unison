@@ -199,6 +199,10 @@ lexer0' scope rem =
   tweak (h:t) = h : tweak t
   isSigned num = all (\ch -> ch == '-' || ch == '+') $ take 1 num
 
+infixl 2 <+>
+(<+>) :: Monoid a => P a -> P a -> P a
+p1 <+> p2 = do a1 <- p1; a2 <- p2; pure (a1 <> a2)
+
 lexemes :: P [Token Lexeme]
 lexemes = P.optional space >> do
   hd <- join <$> P.manyTill toks (P.lookAhead P.eof)
@@ -209,7 +213,9 @@ lexemes = P.optional space >> do
      <|> token blank <|> token wordyId
      <|> reserved <|> (asum . map token) [ semi, textual, backticks, hash ]
 
-  blank = separated (\c -> isSpace c || not (isAlphaNum c)) $ do
+  wordySep c = isSpace c || not (isAlphaNum c)
+
+  blank = separated wordySep $ do
     char '_'
     s <- P.optional wordyIdSeg
     pure $ Blank (fromMaybe "" s)
@@ -243,11 +249,7 @@ lexemes = P.optional space >> do
       (Just dot, Nothing) -> pure $ SymbolyId dot shorthash
       (Nothing, Nothing)  -> fail symbolMsg
     where
-    segs = symbolyIdSeg <|> do
-      hd <- wordyIdSeg
-      dot <- char '.'
-      tl <- segs
-      pure (hd <> [dot] <> tl)
+    segs = symbolyIdSeg <|> (wordyIdSeg <+> lit "." <+> segs)
 
   symbolMsg = "operator (ex: +, Float./, List.++#xyz)"
 
@@ -338,22 +340,31 @@ lexemes = P.optional space >> do
 
     layoutKeywords :: P [Token Lexeme]
     layoutKeywords =
-      ifElse <|> matchWith <|> handle <|> typ <|> arr <|> eq <|>
+      ifElse <|> withKw <|> openKw "match" <|> openKw "handle" <|> typ <|> arr <|> eq <|>
       openKw "cases" <|> openKw "where" <|> openKw "let"
       where
-        withOpens = ["match","handle"]
-        matchWith = openKw "match" <|> close' (Just "match-with") withOpens "with"
         ifElse = openKw "if" <|> close' (Just "then") ["if"] "then" <|> close' (Just "else") ["then"] "else"
-        handle = openKw "handle" <|> close' (Just "with") withOpens "with"
         typ = openKw1 "unique" <|> openTypeKw1 "type" <|> openTypeKw1 "ability"
+
+        withKw = do
+          (pos1, with, pos2) <- (,,) <$> pos <*> lit "with" <*> pos
+          env <- S.get
+          let l = layout env
+          case findClose ["handle","match"] l of
+            Nothing -> P.customFailure (Token (CloseWithoutMatchingOpen msgOpen "'with'") pos1 pos2)
+                       where msgOpen = "'handle' or 'match'"
+            Just (withBlock, n) -> do
+              let b = withBlock <> "-with"
+              S.put (env { layout = drop n l, opening = Just b })
+              let opens = [Token (Open with) pos1 pos2]
+              pure $ replicate n (Token Close pos1 pos2) ++ opens
 
         -- In `unique type` and `unique ability`, only the `unique` opens a layout block,
         -- and `ability` and `type` are just keywords.
         openTypeKw1 t = do
           b <- S.gets (topBlockName . layout)
-          case b of
-            Just "unique" -> wordyKw t
-            _ -> openKw1 t
+          case b of Just "unique" -> wordyKw t
+                    _             -> openKw1 t
 
         -- layout keyword which bumps the layout column by 1, rather than looking ahead
         -- to the next token to determine the layout column
@@ -431,14 +442,14 @@ lexemes = P.optional space >> do
         Nothing -> P.customFailure (Token (CloseWithoutMatchingOpen msgOpen (quote close)) pos1 pos2)
           where msgOpen = intercalate " or " (quote <$> open)
                 quote s = "'" <> s <> "'"
-        Just n -> do
+        Just (_, n) -> do
           S.put (env { layout = drop n (layout env), opening = reopenBlockname })
           let opens = maybe [] (const $ [Token (Open close) pos1 pos2]) reopenBlockname
           pure $ replicate n (Token Close pos1 pos2) ++ opens
 
-    findClose :: [String] -> Layout -> Maybe Int
+    findClose :: [String] -> Layout -> Maybe (String, Int)
     findClose _ [] = Nothing
-    findClose s ((h,_):tl) = if h `elem` s then Just 1 else (1+) <$> findClose s tl
+    findClose s ((h,_):tl) = if h `elem` s then Just (h, 1) else fmap (1+) <$> findClose s tl
 
   eof :: P [Token Lexeme]
   eof = P.try $ do
