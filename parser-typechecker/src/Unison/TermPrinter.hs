@@ -36,6 +36,7 @@ import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
+import qualified Unison.Util.Bytes             as Bytes
 import           Unison.Util.Monoid             ( intercalateMap )
 import qualified Unison.Util.Pretty             as PP
 import           Unison.Util.Pretty             ( Pretty, ColorText )
@@ -303,6 +304,8 @@ pretty0
       paren (p >= 10) $ pair `PP.hang`
         PP.spaced [pretty0 n (ac 10 Normal im doc) x, fmt S.Constructor "()" ]
     (TupleTerm' xs, _) -> paren True $ commaList xs
+    (Bytes' bs, _) ->
+      fmt S.BytesLiteral "0xs" <> (PP.shown $ Bytes.fromWord8s (map fromIntegral bs))
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
       binaryApps apps (pretty0 n (ac 3 Normal im doc) lastArg)
     _ -> case (term, nonForcePred) of
@@ -1177,4 +1180,13 @@ unLamsMatch' t = case unLamsUntilDelay' t of
       let guardVars = (fromMaybe Set.empty $ ABT.freeVars <$> g)
           rhsVars = (ABT.freeVars rhs)
       in Set.union guardVars rhsVars
+
+pattern Bytes' bs <- (toBytes -> Just bs)
+
+toBytes :: Term3 v PrintAnnotation -> Maybe [Word64]
+toBytes (App' (Builtin' "Bytes.fromList") (Sequence' bs)) =
+  toList <$> traverse go bs
+  where go (Nat' n) = Just n
+        go _ = Nothing
+toBytes _ = Nothing
 
