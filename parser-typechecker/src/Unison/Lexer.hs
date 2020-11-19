@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -50,7 +49,6 @@ data Token a = Token {
 
 data ParsingEnv =
   ParsingEnv { layout :: !Layout -- layout stack
-             , inLayout :: !Bool -- are we inside of a layout element, or in a [: :] block
              , opening :: Maybe String } -- `Just b` if a block of type `b` is being opened
 
 type P = P.ParsecT (Token Err) String (S.State ParsingEnv)
@@ -158,26 +156,16 @@ token'' tok p = do
     pops p = do
       env <- S.get
       let l = layout env
-      if inLayout env then
-        if top l == column p then pure [Token (Semi True) p p]
-        else if column p > top l || topHasClosePair l then pure []
-        else if column p < top l then
-          -- traceShow (l, p) $
-          S.put (env { layout = pop l }) >> ((Token Close p p :) <$> pops p)
-        else error "impossible"
-      else
-        pure []
+      if top l == column p then pure [Token (Semi True) p p]
+      else if column p > top l || topHasClosePair l then pure []
+      else if column p < top l then
+        -- traceShow (l, p) $
+        S.put (env { layout = pop l }) >> ((Token Close p p :) <$> pops p)
+      else error "impossible"
 
     topHasClosePair :: Layout -> Bool
     topHasClosePair [] = False
-    topHasClosePair ((name,_):_) = case name of
-      "{" -> True
-      "(" -> True
-      "handle" -> True
-      "match" -> True
-      "if" -> True
-      "then" -> True
-      _ -> False
+    topHasClosePair ((name,_):_) = name `elem` ["{", "(", "handle", "match", "if", "then"]
 
 -- todo: implement function with same signature as the existing lexer function
 -- to set up initial state, run the parser, etc
@@ -188,7 +176,7 @@ lexer0' scope rem =
       where msg = Opaque $ EP.parseErrorPretty e
     Right ts -> Token (Open scope) topLeftCorner topLeftCorner : tweak ts
   where
-  env0 = ParsingEnv [] True (Just scope)
+  env0 = ParsingEnv [] (Just scope)
   -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
   -- fix without adding more state to the lexer:
   --   - 1+1 lexes as [1, +1], convert this to [1, +, 1]
@@ -225,9 +213,11 @@ lexemes = P.optional space >> do
      <|> reserved <|> (asum . map token) [ semi, textual, backticks, hash ]
 
   wordySep c = isSpace c || not (isAlphaNum c)
+  positioned p = do start <- pos; a <- p; stop <- pos; pure (start, a, stop)
 
   tok :: P a -> P [Token a]
-  tok p = do start <- pos; a <- p; stop <- pos; pure [Token a start stop]
+  tok p = do (start,a,stop) <- positioned p
+             pure [Token a start stop]
 
   doc :: P [Token Lexeme]
   doc = open <+> (CP.space *> fmap merge body) <+> (close <* space) where
@@ -270,6 +260,7 @@ lexemes = P.optional space >> do
   backticks = tick <$> (char '`' *> wordyId <* char '`')
               where tick (WordyId n sh) = Backticks n sh
                     tick t = t
+
   wordyId :: P Lexeme
   wordyId = P.label wordyMsg . P.try $ do
     dot <- P.optional (lit ".")
@@ -372,12 +363,11 @@ lexemes = P.optional space >> do
            <|> wordyKw "use" <|> wordyKw "forall" <|> wordyKw "∀"
            <|> wordyKw "termLink" <|> wordyKw "typeLink"
 
-    wordyKw s = separated (not . isAlphaNum) (kw s)
+    wordyKw s = separated wordySep (kw s)
     symbolyKw s = separated (not . symbolyIdChar) (kw s)
 
     kw :: String -> P [Token Lexeme]
-    kw s = do pos1 <- pos; s <- lit s; pos2 <- pos
-              pure [Token (Reserved s) pos1 pos2]
+    kw s = positioned (lit s) <&> \(pos1,s,pos2) -> [Token (Reserved s) pos1 pos2]
 
     layoutKeywords :: P [Token Lexeme]
     layoutKeywords =
@@ -388,7 +378,7 @@ lexemes = P.optional space >> do
         typ = openKw1 "unique" <|> openTypeKw1 "type" <|> openTypeKw1 "ability"
 
         withKw = do
-          (pos1, with, pos2) <- (,,) <$> pos <*> lit "with" <*> pos
+          (pos1, with, pos2) <- positioned $ lit "with"
           env <- S.get
           let l = layout env
           case findClose ["handle","match"] l of
@@ -411,9 +401,7 @@ lexemes = P.optional space >> do
         -- to the next token to determine the layout column
         openKw1 :: String -> P [Token Lexeme]
         openKw1 kw = do
-          pos0 <- pos
-          kw <- lit kw
-          pos1 <- pos
+          (pos0, kw, pos1) <- positioned $ lit kw
           S.modify (\env -> env { layout = (kw, column $ inc pos0) : layout env })
           pure [Token (Open kw) pos0 pos1]
 
@@ -438,46 +426,36 @@ lexemes = P.optional space >> do
 
     braces = open "{" <|> close ["{"] "}"
     parens = open "(" <|> close ["("] ")"
+
     delim = P.try $ do
       ch <- CP.satisfy (\ch -> ch /= ';' && Set.member ch delimiters)
       pos <- pos
       pure [Token (Reserved [ch]) pos (inc pos)]
-    delayOrForce = P.try $ do
-      op <- CP.satisfy isDelayOrForce
-      P.lookAhead (CP.satisfy ok)
-      pos <- pos
-      pure [Token (Reserved [op]) pos (inc pos)]
-      where
-        ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters
+
+    delayOrForce = separated ok . P.try $ do
+      (start, op, end) <- positioned $ CP.satisfy isDelayOrForce
+      pure [Token (Reserved [op]) start end]
+      where ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters
 
     open :: String -> P [Token Lexeme]
     open b = do
-      pos <- pos
-      _ <- lit b
+      (start, _, end) <- positioned $ lit b
       env <- S.get
       S.put (env { opening = Just b })
-      pure [Token (Open b) pos (incBy b pos)]
+      pure [Token (Open b) start end]
 
     openKw :: String -> P [Token Lexeme]
-    openKw s = do
-      pos1 <- pos
-      s <- lit s
-      P.lookAhead (P.eof <|> void (CP.satisfy ok))
-      pos2 <- pos
+    openKw s = separated wordySep $ do
+      (pos1, s, pos2) <- positioned $ lit s
       env <- S.get
       S.put (env { opening = Just s })
       pure [Token (Open s) pos1 pos2]
-      where
-        ok :: Char -> Bool
-        ok c = not (isAlphaNum c)
 
     close = close' Nothing
 
     close' :: Maybe String -> [String] -> String -> P [Token Lexeme]
     close' reopenBlockname open close = do
-      pos1 <- pos
-      close <- lit close
-      pos2 <- pos
+      (pos1, close, pos2) <- positioned $ lit close
       env <- S.get
       case findClose open (layout env) of
         Nothing -> P.customFailure (Token (CloseWithoutMatchingOpen msgOpen (quote close)) pos1 pos2)
@@ -712,13 +690,6 @@ reservedOperators = Set.fromList ["=", "->", ":", "&&", "||", "|", "!", "'"]
 inc :: Pos -> Pos
 inc (Pos line col) = Pos line (col + 1)
 
-incBy :: String -> Pos -> Pos
-incBy rem pos@(Pos line col) = case rem of
-  []       -> pos
-  '\r':rem -> incBy rem $ Pos line col
-  '\n':rem -> incBy rem $ Pos (line + 1) 1
-  _:rem    -> incBy rem $ Pos line (col + 1)
-
 debugLex'' :: [Token Lexeme] -> String
 debugLex'' = show . fmap payload . tree
 
@@ -786,4 +757,3 @@ instance Monoid Pos where
   Pos line col `mappend` Pos line2 col2 =
     if line2 == 0 then Pos line (col + col2)
     else Pos (line + line2) col2
-
