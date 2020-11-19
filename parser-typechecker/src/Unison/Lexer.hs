@@ -209,16 +209,46 @@ lexemes = P.optional space >> do
   tl <- eof
   pure $ hd <> tl
   where
-  toks = token numeric <|> token symbolyId <|> token character
+  toks = doc <|> token numeric <|> token symbolyId <|> token character
      <|> token blank <|> token wordyId
      <|> reserved <|> (asum . map token) [ semi, textual, backticks, hash ]
 
   wordySep c = isSpace c || not (isAlphaNum c)
 
-  blank = separated wordySep $ do
-    char '_'
-    s <- P.optional wordyIdSeg
-    pure $ Blank (fromMaybe "" s)
+  tok :: P a -> P [Token a]
+  tok p = do start <- pos; a <- p; stop <- pos; pure [Token a start stop]
+
+  doc :: P [Token Lexeme]
+  doc = open <+> (CP.space *> fmap merge body) <+> close' where
+    open = tok (Open <$> lit "[:")
+    close = tok (Close <$ lit ":]")
+    close' = token' (\ts _ _ -> ts) close -- consumes trailing spaces, comments
+    at = lit "@"
+    back = (Textual ":]" <$ lit "\\:]") <|> (Textual "@" <$ lit "\\@")
+    merge [] = []
+    merge (Token (Textual t1) start _ : Token (Textual t2) _ stop : tl)
+      = merge (Token (Textual (t1 <> t2)) start stop : tl)
+    merge (Token (Textual (reverse -> txt)) start stop : [])
+      = [Token (Textual txt') start stop]
+      where txt' = reverse (dropWhile (\c -> isSpace c && not (c == '\n')) txt)
+    merge (h:t) = h : merge t
+
+    body :: P [Token Lexeme]
+    body = txt <+> (atk <|> backk <|> pure [])
+      where
+        txt = tok (Textual <$> P.manyTill CP.anyChar (P.lookAhead sep))
+        sep = void at <|> void back <|> void close
+        backk = tok back <+> body
+        ref = at *> (tok wordyId <|> tok symbolyId)
+        atk = (ref <|> docTyp) <+> body
+        docTyp = do
+          _ <- lit "["
+          typ <- tok (P.manyTill CP.anyChar (P.lookAhead (lit "]")))
+          _ <- lit "]" *> CP.space
+          pure $ fmap Reserved <$> typ
+
+  blank = separated wordySep $
+    char '_' *> P.optional wordyIdSeg <&> (Blank . fromMaybe "")
 
   semi = char ';' $> Semi False
   textual = Textual <$> quoted
