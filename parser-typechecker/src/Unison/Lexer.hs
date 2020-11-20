@@ -317,14 +317,14 @@ lexemes = P.optional space >> do
   symbolMsg = "operator (ex: +, Float./, List.++#xyz)"
 
   symbolyIdSeg :: P String
-  symbolyIdSeg = P.try $ do
+  symbolyIdSeg = do
     id <- P.takeWhile1P (Just symbolMsg) symbolyIdChar
     if Set.member id reservedOperators then fail "reserved operator"
     else pure id
 
   wordyIdSeg :: P String
   -- wordyIdSeg = litSeg <|> (P.try do -- todo
-  wordyIdSeg = P.try do
+  wordyIdSeg = do
     ch <- CP.satisfy wordyIdStartChar
     rest <- P.many (CP.satisfy wordyIdChar)
     when (Set.member (ch : rest) keywords) $ fail "identifier segment can't be a keyword"
@@ -473,7 +473,7 @@ lexemes = P.optional space >> do
       pos <- pos
       pure [Token (Reserved [ch]) pos (inc pos)]
 
-    delayOrForce = separated ok . P.try $ do
+    delayOrForce = separated ok $ do
       (start, op, end) <- positioned $ CP.satisfy isDelayOrForce
       pure [Token (Reserved [op]) start end]
       where ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters
