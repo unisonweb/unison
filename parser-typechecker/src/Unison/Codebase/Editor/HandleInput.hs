@@ -273,6 +273,11 @@ loop = do
             ppe <- prettyPrintEnv =<< makeShadowedPrintNamesFromHQ hqs errNames
             respond $
               TypeErrors text ppe [ err | Result.TypeError err <- toList notes ]
+            respond . CompilerBugs text ppe
+              $ [ bug
+                | Result.CompilerBug (Result.TypecheckerBug bug)
+                    <- toList notes
+                ]
           Just (Right uf) -> k uf
       loadUnisonFile sourceName text = do
         let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)

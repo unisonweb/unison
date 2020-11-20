@@ -33,6 +33,7 @@ module Unison.Typechecker.Context
   , isExact
   , typeErrors
   , infoNotes
+  , Unknown(..)
   )
 where
 
@@ -325,6 +326,7 @@ data Cause v loc
   | UnguardedLetRecCycle [v] [(v, Term v loc)]
   | ConcatPatternWithoutConstantLength loc (Type v loc)
   | HandlerOfUnexpectedType loc (Type v loc)
+  | DataEffectMismatch Unknown Reference (DataDeclaration v loc)
   deriving Show
 
 errorTerms :: ErrorNote v loc -> [Term v loc]
@@ -678,16 +680,26 @@ compilerCrashResult bug = CompilerBug bug mempty mempty
 
 getDataDeclaration :: Reference -> M v loc (DataDeclaration v loc)
 getDataDeclaration r = do
-  decls <- getDataDeclarations
-  case Map.lookup r decls of
-    Nothing -> compilerCrash (UnknownDecl Data r decls)
+  ddecls <- getDataDeclarations
+  case Map.lookup r ddecls of
+    Nothing -> getEffectDeclarations >>= \edecls ->
+      case Map.lookup r edecls of
+        Nothing -> compilerCrash (UnknownDecl Data r ddecls)
+        Just decl ->
+          liftResult . typeError
+            $ DataEffectMismatch Effect r (DD.toDataDecl decl)
     Just decl -> pure decl
 
 getEffectDeclaration :: Reference -> M v loc (EffectDeclaration v loc)
 getEffectDeclaration r = do
-  decls <- getEffectDeclarations
-  case Map.lookup r decls of
-    Nothing -> compilerCrash (UnknownDecl Effect r (DD.toDataDecl <$> decls))
+  edecls <- getEffectDeclarations
+  case Map.lookup r edecls of
+    Nothing -> getDataDeclarations >>= \ddecls ->
+      case Map.lookup r ddecls of
+        Nothing -> compilerCrash
+          $ UnknownDecl Effect r (DD.toDataDecl <$> edecls)
+        Just decl ->
+          liftResult . typeError $ DataEffectMismatch Data r decl
     Just decl -> pure decl
 
 getDataConstructorType :: (Var v, Ord loc) => Reference -> Int -> M v loc (Type v loc)
