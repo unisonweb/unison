@@ -50,7 +50,7 @@ data Token a = Token {
 
 data ParsingEnv =
   ParsingEnv { layout :: !Layout -- layout stack
-             , opening :: Maybe String } -- `Just b` if a block of type `b` is being opened
+             , opening :: Maybe BlockName } -- `Just b` if a block of type `b` is being opened
 
 type P = P.ParsecT (Token Err) String (S.State ParsingEnv)
 
@@ -69,7 +69,9 @@ data Err
   | InvalidEscapeCharacter Char
   | LayoutError
   | CloseWithoutMatchingOpen String String -- open, close
-  | Opaque String
+  | Opaque String -- Catch-all failure type, generally these will be
+                  -- automatically generated errors coming from megaparsec
+                  -- Try to avoid this for common errors a user is likely to see.
   deriving (Eq,Ord,Show) -- richer algebra
 
 -- Design principle:
@@ -124,6 +126,8 @@ token' tok p = LP.lexeme space (token'' tok p)
 err :: Pos -> Err -> P x
 err start t = do
   stop <- pos
+  -- This consumes a character and therefore produces committed failure,
+  -- so `err s t <|> p2` won't try `p2`
   _ <- void CP.anyChar <|> P.eof
   P.customFailure (Token t start stop)
 
@@ -147,7 +151,7 @@ token'' tok p = do
   -- We save the current state so we can backtrack the state if `p` fails.
   env <- S.get
   layoutToks <- case opening env of
-    -- If we're opening a block of type b, we push (b, currentColumn) onto
+    -- If we're opening a block named b, we push (b, currentColumn) onto
     -- the layout stack. Example:
     --
     --   blah = cases
