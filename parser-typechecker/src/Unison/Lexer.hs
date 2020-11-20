@@ -116,6 +116,8 @@ pos = do
 token' :: (a -> Pos -> Pos -> [Token Lexeme]) -> P a -> P [Token Lexeme]
 token' tok p = LP.lexeme space (token'' tok p)
 
+-- Token parser implementation which leaves trailing whitespace and comments
+-- but does emit layout tokens such as virtual semicolons and closing tokens.
 token'' :: (a -> Pos -> Pos -> [Token Lexeme]) -> P a -> P [Token Lexeme]
 token'' tok p = do
   start <- pos
@@ -220,25 +222,23 @@ lexemes = P.optional space >> do
              pure [Token a start stop]
 
   doc :: P [Token Lexeme]
-  doc = open <+> (CP.space *> fmap merge body) <+> (close <* space) where
+  doc = open <+> (CP.space *> fmap fixup body) <+> (close <* space) where
     open = token'' (\t _ _ -> t) $ tok (Open <$> lit "[:")
     close = tok (Close <$ lit ":]")
     at = lit "@"
-    back = (Textual ":]" <$ lit "\\:]") <|> (Textual "@" <$ lit "\\@")
-    merge [] = []
-    merge (Token (Textual t1) start _ : Token (Textual t2) _ stop : tl)
-      = merge (Token (Textual (t1 <> t2)) start stop : tl)
-    merge (Token (Textual (reverse -> txt)) start stop : [])
+    -- this removes some trailing whitespace from final textual segment
+    fixup [] = []
+    fixup (Token (Textual (reverse -> txt)) start stop : [])
       = [Token (Textual txt') start stop]
       where txt' = reverse (dropWhile (\c -> isSpace c && not (c == '\n')) txt)
-    merge (h:t) = h : merge t
+    fixup (h:t) = h : fixup t
 
     body :: P [Token Lexeme]
-    body = txt <+> (atk <|> backk <|> pure [])
+    body = txt <+> (atk <|> pure [])
       where
-        txt = tok (Textual <$> P.manyTill CP.anyChar (P.lookAhead sep))
-        sep = void at <|> void back <|> void close
-        backk = tok back <+> body
+        ch = (":]" <$ lit "\\:]") <|> ("@" <$ lit "\\@") <|> (pure <$> CP.anyChar)
+        txt = tok (Textual . join <$> P.manyTill ch (P.lookAhead sep))
+        sep = void at <|> void close
         ref = at *> (tok wordyId <|> tok symbolyId <|> docTyp)
         atk = (ref <|> docTyp) <+> body
         docTyp = do
