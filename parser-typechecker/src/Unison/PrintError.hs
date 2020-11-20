@@ -9,7 +9,7 @@ import Unison.Prelude
 
 import           Control.Lens                 ((%~))
 import           Control.Lens.Tuple           (_1, _2, _3)
-import           Data.List                    (intersperse)
+import           Data.List                    (find, intersperse)
 import           Data.List.Extra              (nubOrd)
 import qualified Data.List.NonEmpty           as Nel
 import qualified Data.Map                     as Map
@@ -888,8 +888,8 @@ _printArrowsAtPos s line column =
 pattern LexerError ts e <- Just (P.Tokens (firstLexerError -> Just (ts, e)))
 
 firstLexerError :: Foldable t => t (L.Token L.Lexeme) -> Maybe ([L.Token L.Lexeme], L.Err)
-firstLexerError (toList -> ts@((L.payload -> L.Err e) : _)) = Just (ts, e)
-firstLexerError _ = Nothing
+firstLexerError ts =
+  find (const True) [ (toList ts, e) | (L.payload -> L.Err e) <- toList ts ]
 
 prettyParseError
   :: forall v
@@ -898,10 +898,80 @@ prettyParseError
   -> Parser.Err v
   -> Pretty ColorText
 prettyParseError s = \case
-  P.TrivialError _ (LexerError ts (L.CloseWithoutMatchingOpen open close)) _ ->
-    "❗️ I found a closing " <> style ErrorSite (fromString close) <>
-    " here without a matching " <> style ErrorSite (fromString open) <> ".\n\n" <>
-    showSource s ((\t -> (rangeForToken t, ErrorSite)) <$> ts)
+  P.TrivialError _ (LexerError ts e) _ -> go e
+    where
+    excerpt = showSource s ((\t -> (rangeForToken t, ErrorSite)) <$> ts)
+    go = \case
+      L.CloseWithoutMatchingOpen open close ->
+        "I found a closing " <> style ErrorSite (fromString close) <>
+        " here without a matching " <> style ErrorSite (fromString open) <> ".\n\n" <>
+        excerpt
+      L.InvalidWordyId _id -> Pr.lines [
+        "This identifier isn't valid syntax: ", "",
+        excerpt, "",
+        "Here's a few examples of valid syntax: " <>
+        style Code "abba1', snake_case, Foo.zoink!, 🌻" ]
+      L.InvalidSymbolyId _id -> Pr.lines [
+        "This infix identifier isn't valid syntax: ", "",
+        excerpt, "",
+        "Here's a few valid examples: " <>
+        style Code "++, Float./, `List.map`" ]
+      L.InvalidBytesLiteral bs -> Pr.lines [
+        "This bytes literal isn't valid syntax: " <> style ErrorSite (fromString bs), "",
+        excerpt, "",
+        Pr.wrap $ "I was expecting an even number of hexidecimal characters"
+               <> "(one of" <> Pr.group (style Code "0123456789abcdefABCDEF" <> ")")
+               <> "after the" <> Pr.group (style ErrorSite "0xs" <> ".")
+        ]
+      L.InvalidHexLiteral -> Pr.lines [
+        "This number isn't valid syntax: ", "",
+        excerpt, "",
+        Pr.wrap $ "I was expecting only hexidecimal characters"
+               <> "(one of" <> Pr.group (style Code "0123456789abcdefABCDEF" <> ")")
+               <> "after the" <> Pr.group (style ErrorSite "0x" <> ".")
+        ]
+      L.InvalidOctalLiteral -> Pr.lines [
+        "This number isn't valid syntax: ", "",
+        excerpt, "",
+        Pr.wrap $ "I was expecting only octal characters"
+               <> "(one of" <> Pr.group (style Code "01234567" <> ")")
+               <> "after the" <> Pr.group (style ErrorSite "0o" <> ".")
+        ]
+      L.InvalidShortHash h -> Pr.lines [
+        "Invalid hash: " <> style ErrorSite (fromString h), "",
+        excerpt ]
+      L.Both e1 e2 -> Pr.lines [go e1, "", go e2]
+      L.UnknownLexeme -> Pr.lines [ "I couldn't parse this.", "", excerpt ]
+      L.MissingFractional n -> Pr.lines [
+        "This number isn't valid syntax: ", "",
+        excerpt, "",
+        Pr.wrap $ "I was expecting some digits after the '.',"
+               <> "for example: " <> style Code (n <> "0")
+               <> "or" <> Pr.group (style Code (n <> "1e37") <> ".")
+        ]
+      L.MissingExponent n -> Pr.lines [
+        "This number isn't valid syntax: ", "",
+        excerpt, "",
+        Pr.wrap $ "I was expecting some digits for the exponent,"
+               <> "for example: " <> style Code (n <> "-14")
+               <> "or" <> Pr.group (style Code (n <> "37") <> ".")
+        ]
+      L.TextLiteralMissingClosingQuote _txt -> Pr.lines [
+        "This text is missing a closing quote:", "",
+        excerpt
+        ]
+      L.InvalidEscapeCharacter c -> Pr.lines [
+        "This isn't a valid escape character: " <> style ErrorSite [c], "",
+        excerpt, "",
+        "I only know about the following escape characters:","",
+          let s ch = style Code (fromString $ "\\" <> [ch])
+          in Pr.indentN 2 $ intercalateMap "," s (fst <$> L.escapeChars)
+        ]
+      L.LayoutError -> Pr.lines [
+        "I found an indentation error somewhere in here:", "",
+        excerpt ]
+      L.Opaque msg -> style ErrorSite msg
+
   P.TrivialError sp unexpected expected
     -> fromString
         (P.parseErrorPretty @_ @Void (P.TrivialError sp unexpected expected))

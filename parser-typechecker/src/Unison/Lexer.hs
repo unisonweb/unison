@@ -8,6 +8,7 @@ module Unison.Lexer (
   Token(..), Line, Column, Err(..), Pos(..), Lexeme(..),
   lexer, simpleWordyId, simpleSymbolyId,
   line, column,
+  escapeChars,
   debugLex', debugLex'', debugLex''', showEscapeChar, touches,
   -- todo: these probably don't belong here
   wordyIdChar, wordyIdStartChar,
@@ -57,6 +58,9 @@ data Err
   = InvalidWordyId String
   | InvalidSymbolyId String
   | InvalidShortHash String
+  | InvalidBytesLiteral String
+  | InvalidHexLiteral
+  | InvalidOctalLiteral
   | Both Err Err
   | MissingFractional String -- ex `1.` rather than `1.04`
   | MissingExponent String -- ex `1e` rather than `1e3`
@@ -116,6 +120,25 @@ pos = do
 token' :: (a -> Pos -> Pos -> [Token Lexeme]) -> P a -> P [Token Lexeme]
 token' tok p = LP.lexeme space (token'' tok p)
 
+-- Committed failure
+err :: Pos -> Err -> P x
+err start t = do
+  stop <- pos
+  _ <- void CP.anyChar <|> P.eof
+  P.customFailure (Token t start stop)
+
+{-
+commitAfter :: P a -> (a -> P b) -> P b
+commitAfter a f = do
+  a <- P.try a
+  f a
+-}
+
+commitAfter2 :: P a -> P b -> (a -> b -> P c) -> P c
+commitAfter2 a b f = do
+  (a,b) <- P.try $ liftA2 (,) a b
+  f a b
+
 -- Token parser implementation which leaves trailing whitespace and comments
 -- but does emit layout tokens such as virtual semicolons and closing tokens.
 token'' :: (a -> Pos -> Pos -> [Token Lexeme]) -> P a -> P [Token Lexeme]
@@ -174,10 +197,18 @@ token'' tok p = do
 lexer0' :: String -> String -> [Token Lexeme]
 lexer0' scope rem =
   case flip S.evalState env0 $ P.runParserT lexemes scope rem of
-    Left e -> [Token (Err msg) topLeftCorner topLeftCorner]
-      where msg = Opaque $ EP.parseErrorPretty e
+    Left e -> case e of
+      P.FancyError _ (customErrs -> es) | not (null es) -> es
+      P.FancyError (top Nel.:| _) es ->
+        let msg = intercalateMap "\n" P.showErrorComponent es
+        in [Token (Err (Opaque msg)) (toPos top) (toPos top)]
+      P.TrivialError (top Nel.:| _) _ _ ->
+        let msg = Opaque $ EP.parseErrorPretty e
+        in [Token (Err msg) (toPos top) (toPos top)]
     Right ts -> Token (Open scope) topLeftCorner topLeftCorner : tweak ts
   where
+  customErrs es = [ Err <$> e | P.ErrorCustom e <- toList es ]
+  toPos (P.SourcePos _ line col) = Pos (P.unPos line) (P.unPos col)
   env0 = ParsingEnv [] (Just scope)
   -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
   -- fix without adding more state to the lexer:
@@ -315,9 +346,9 @@ lexemes = P.optional space >> do
   shorthash = P.label hashMsg $ do
     P.lookAhead (char '#')
     -- `foo#xyz` should parse
-    potentialHash <- P.takeWhile1P (Just hashMsg) (\ch -> not (isSep ch) && ch /= '`')
+    (start, potentialHash, _) <- positioned $ P.takeWhile1P (Just hashMsg) (\ch -> not (isSep ch) && ch /= '`')
     case SH.fromString potentialHash of
-      Nothing -> fail "invalid shorthash"
+      Nothing -> err start (InvalidShortHash potentialHash)
       Just sh -> pure sh
 
   separated :: (Char -> Bool) -> P a -> P a
@@ -326,34 +357,44 @@ lexemes = P.optional space >> do
   numeric = sep (bytes <|> otherbase <|> float <|> intOrNat)
     where
       sep = separated (\c -> isSpace c || not (isAlphaNum c))
-      intOrNat = P.try $ num <$> sign <*> LP.decimal
-      float = P.try $ do
-        sign <- fromMaybe "" <$> optional (lit "+" <|> lit "-")
+      intOrNat = num <$> sign <*> LP.decimal
+      float = do
+        _ <- P.try (P.lookAhead (sign >> LP.decimal >> (char '.' <|> char 'e' <|> char 'E'))) -- commit after this
+        start <- pos
+        sign <- fromMaybe "" <$> sign
         base <- P.takeWhile1P (Just "base") isDigit
-        decimals <- P.optional $
-          liftA2 (<>) (lit ".") (P.takeWhile1P (Just "decimals") isDigit)
+        decimals <- P.optional $ let
+          missingFractional = err start (MissingFractional base)
+          in liftA2 (<>) (lit ".") (P.takeWhile1P (Just "decimals") isDigit <|> missingFractional)
         exp <- P.optional $ do
           e <- map toLower <$> (lit "e" <|> lit "E")
           sign <- fromMaybe "" <$> optional (lit "+" <|> lit "-")
-          exp <- P.takeWhile1P (Just "exponent") isDigit
+          let missingExp = err start (MissingExponent $ base <> e <> sign)
+          exp <- P.takeWhile1P (Just "exponent") isDigit <|> missingExp
           pure $ e <> sign <> exp
         pure $ Numeric (sign <> base <> fromMaybe "" decimals <> fromMaybe "" exp)
 
-      bytes = P.try $ do
+      bytes = do
+        start <- pos
         _ <- lit "0xs"
         s <- map toLower <$> P.takeWhileP (Just "hexidecimal character") isHex
         case Bytes.fromBase16 $ Bytes.fromWord8s (fromIntegral . ord <$> s) of
-          Left e -> fail (show e)
+          Left _ -> err start (InvalidBytesLiteral $ "0xs" <> s)
           Right bs -> pure (Bytes bs)
         where isHex ch | ch >= '0' && ch <= '9' = True
                        | ch >= 'a' && ch <= 'f' = True
                        | otherwise = False
-      otherbase = P.try $ num <$> sign <*> ((lit "0o" >> LP.octal) <|> (lit "0x" >> LP.hexadecimal))
+      otherbase = octal <|> hex
+      octal = do start <- pos
+                 commitAfter2 sign (lit "0o") $ \sign _ ->
+                   fmap (num sign) LP.octal <|> err start InvalidOctalLiteral
+      hex = do start <- pos
+               commitAfter2 sign (lit "0x") $ \sign _ ->
+                 fmap (num sign) LP.hexadecimal <|> err start InvalidHexLiteral
 
-      num :: Maybe Char -> Integer -> Lexeme
-      num sign n = Numeric (signStr sign <> show n)
-      signStr = maybe "" (:[])
-      sign = P.optional (char '+' <|> char '-')
+      num :: Maybe String -> Integer -> Lexeme
+      num sign n = Numeric (fromMaybe "" sign <> show n)
+      sign = P.optional (lit "+" <|> lit "-")
 
   hash = Hash <$> P.try shorthash
 
@@ -386,7 +427,7 @@ lexemes = P.optional space >> do
           env <- S.get
           let l = layout env
           case findClose ["handle","match"] l of
-            Nothing -> P.customFailure (Token (CloseWithoutMatchingOpen msgOpen "'with'") pos1 pos2)
+            Nothing -> err pos1 (CloseWithoutMatchingOpen msgOpen "'with'")
                        where msgOpen = "'handle' or 'match'"
             Just (withBlock, n) -> do
               let b = withBlock <> "-with"
@@ -416,7 +457,7 @@ lexemes = P.optional space >> do
             -- '=' does not open a layout block if within a type declaration
             Just t | t == "type" || t == "unique" -> pure [Token (Reserved "=") start end]
             Just _ -> S.put (env { opening = Just "=" }) >> pure [Token (Open "=") start end]
-            _ -> P.customFailure (Token LayoutError start end)
+            _ -> err start LayoutError
 
         arr = do
           [Token _ start end] <- symbolyKw "->"
@@ -462,7 +503,7 @@ lexemes = P.optional space >> do
       (pos1, close, pos2) <- positioned $ lit close
       env <- S.get
       case findClose open (layout env) of
-        Nothing -> P.customFailure (Token (CloseWithoutMatchingOpen msgOpen (quote close)) pos1 pos2)
+        Nothing -> err pos1 (CloseWithoutMatchingOpen msgOpen (quote close))
           where msgOpen = intercalate " or " (quote <$> open)
                 quote s = "'" <> s <> "'"
         Just (_, n) -> do
