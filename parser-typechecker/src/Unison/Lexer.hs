@@ -354,22 +354,21 @@ lexemes = P.optional space >> do
   separated :: (Char -> Bool) -> P a -> P a
   separated ok p = P.try $ p <* P.lookAhead (void (CP.satisfy ok) <|> P.eof)
 
-  numeric = sep (bytes <|> otherbase <|> float <|> intOrNat)
+  numeric = bytes <|> otherbase <|> float <|> intOrNat
     where
-      sep = separated (\c -> isSpace c || not (isAlphaNum c))
-      intOrNat = num <$> sign <*> LP.decimal
+      intOrNat = P.try $ num <$> sign <*> LP.decimal
       float = do
         _ <- P.try (P.lookAhead (sign >> LP.decimal >> (char '.' <|> char 'e' <|> char 'E'))) -- commit after this
         start <- pos
         sign <- fromMaybe "" <$> sign
         base <- P.takeWhile1P (Just "base") isDigit
         decimals <- P.optional $ let
-          missingFractional = err start (MissingFractional base)
+          missingFractional = err start (MissingFractional $ base <> ".")
           in liftA2 (<>) (lit ".") (P.takeWhile1P (Just "decimals") isDigit <|> missingFractional)
         exp <- P.optional $ do
           e <- map toLower <$> (lit "e" <|> lit "E")
           sign <- fromMaybe "" <$> optional (lit "+" <|> lit "-")
-          let missingExp = err start (MissingExponent $ base <> e <> sign)
+          let missingExp = err start (MissingExponent $ base <> fromMaybe "" decimals <> e <> sign)
           exp <- P.takeWhile1P (Just "exponent") isDigit <|> missingExp
           pure $ e <> sign <> exp
         pure $ Numeric (sign <> base <> fromMaybe "" decimals <> fromMaybe "" exp)
@@ -377,13 +376,10 @@ lexemes = P.optional space >> do
       bytes = do
         start <- pos
         _ <- lit "0xs"
-        s <- map toLower <$> P.takeWhileP (Just "hexidecimal character") isHex
+        s <- map toLower <$> P.takeWhileP (Just "hexidecimal character") isAlphaNum
         case Bytes.fromBase16 $ Bytes.fromWord8s (fromIntegral . ord <$> s) of
           Left _ -> err start (InvalidBytesLiteral $ "0xs" <> s)
           Right bs -> pure (Bytes bs)
-        where isHex ch | ch >= '0' && ch <= '9' = True
-                       | ch >= 'a' && ch <= 'f' = True
-                       | otherwise = False
       otherbase = octal <|> hex
       octal = do start <- pos
                  commitAfter2 sign (lit "0o") $ \sign _ ->
