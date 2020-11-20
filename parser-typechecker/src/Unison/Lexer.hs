@@ -241,9 +241,9 @@ lexemes = P.optional space >> do
   tl <- eof
   pure $ hd <> tl
   where
-  toks = doc <|> token numeric <|> token symbolyId <|> token character
+  toks = doc <|> token numeric <|> token character <|> reserved <|> token symbolyId
      <|> token blank <|> token wordyId
-     <|> reserved <|> (asum . map token) [ semi, textual, backticks, hash ]
+     <|> (asum . map token) [ semi, textual, backticks, hash ]
 
   wordySep c = isSpace c || not (isAlphaNum c)
   positioned p = do start <- pos; a <- p; stop <- pos; pure (start, a, stop)
@@ -419,7 +419,7 @@ lexemes = P.optional space >> do
         typ = openKw1 "unique" <|> openTypeKw1 "type" <|> openTypeKw1 "ability"
 
         withKw = do
-          (pos1, with, pos2) <- positioned $ lit "with"
+          [Token _ pos1 pos2] <- wordyKw "with"
           env <- S.get
           let l = layout env
           case findClose ["handle","match"] l of
@@ -428,7 +428,7 @@ lexemes = P.optional space >> do
             Just (withBlock, n) -> do
               let b = withBlock <> "-with"
               S.put (env { layout = drop n l, opening = Just b })
-              let opens = [Token (Open with) pos1 pos2]
+              let opens = [Token (Open "with") pos1 pos2]
               pure $ replicate n (Token Close pos1 pos2) ++ opens
 
         -- In `unique type` and `unique ability`, only the `unique` opens a layout block,
