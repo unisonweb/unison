@@ -35,7 +35,7 @@ ascii = "ABCDE"
 
     4 | > toUtf8 ascii
           ⧩
-          fromList [65, 66, 67, 68, 69]
+          0xs4142434445
 
 ```
 non-ascii characters are encoded as multiple bytes.
@@ -62,8 +62,7 @@ greek = "ΑΒΓΔΕ"
 
     4 | > toUtf8 greek
           ⧩
-          fromList
-            [206, 145, 206, 146, 206, 147, 206, 148, 206, 149]
+          0xsce91ce92ce93ce94ce95
 
 ```
 We can check that encoding and then decoding should give us back the same `Text` we started with 

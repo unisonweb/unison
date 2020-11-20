@@ -16,6 +16,6 @@ This should render as `Bytes.fromList [1,2,3,4]`, not `##Bytes.fromSequence [1,2
 
     1 | > Bytes.fromList [1,2,3,4]
           ⧩
-          fromList [1, 2, 3, 4]
+          0xs01020304
 
 ```
