@@ -43,7 +43,7 @@ test1 = scope "termparser" . tests . map parses $
   , "-1.2e+3"
   , "-1.2e-3"
 
-  , "-4th"
+  , "-4 th"
   , "()"
   , "(0)"
   , "forty"

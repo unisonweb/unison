@@ -99,6 +99,7 @@ defaultColors :: ST.Element -> Maybe Color
 defaultColors = \case
   ST.NumericLiteral      -> Nothing
   ST.TextLiteral         -> Nothing
+  ST.BytesLiteral        -> Just HiBlack
   ST.CharLiteral         -> Nothing
   ST.BooleanLiteral      -> Nothing
   ST.Blank               -> Nothing

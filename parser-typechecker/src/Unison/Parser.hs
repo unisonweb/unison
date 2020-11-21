@@ -30,6 +30,7 @@ import           Unison.Term          (MatchCase (..))
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
 import qualified Unison.UnisonFile    as UF
+import Unison.Util.Bytes              (Bytes)
 import Unison.Name as Name
 import Unison.Names3 (Names)
 import qualified Unison.Names3 as Names
@@ -379,6 +380,11 @@ numeric :: Ord v => P v (L.Token String)
 numeric = queryToken getNumeric
   where getNumeric (L.Numeric s) = Just s
         getNumeric _             = Nothing
+
+bytesToken :: Ord v => P v (L.Token Bytes)
+bytesToken = queryToken getBytes
+  where getBytes (L.Bytes bs) = Just bs
+        getBytes _ = Nothing
 
 sepBy :: Ord v => P v a -> P v b -> P v [b]
 sepBy sep pb = P.sepBy pb sep
