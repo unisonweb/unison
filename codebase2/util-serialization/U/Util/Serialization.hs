@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
@@ -18,7 +19,6 @@ import Data.Bytes.Get (MonadGet, getByteString, getBytes, getWord8, runGetS, ski
 import Data.Bytes.Put (MonadPut, putByteString, putWord8, runPutS)
 import Data.Bytes.VarInt (VarInt (VarInt))
 import Data.Foldable (Foldable (toList), traverse_)
-import Data.List.Extra (dropEnd)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Sequence (Seq)
@@ -198,14 +198,15 @@ putFramedArray :: (MonadPut m, Foldable f) => Put a -> f a -> m ()
 putFramedArray put (toList -> as) = do
   let bss = fmap (putBytes put) as
   let lengths = fmap BS.length bss
-  let offsets = scanl (+) 0 (dropEnd 1 lengths)
+  let offsets = scanl (+) 0 lengths
   putFoldable putVarInt offsets
   traverse_ putByteString bss
 
 getFramedArray :: MonadGet m => m a -> m (Vector a)
 getFramedArray getA = do
   offsets :: [Int] <- getList getVarInt
-  let count = length offsets - 1
+  _end <- getVarInt @_ @Int
+  let count = length offsets
   Vector.replicateM count getA
 
 -- | Look up a 0-based index in a framed array, O(num array elements),
@@ -214,7 +215,7 @@ getFramedArray getA = do
 lookupFramedArray :: MonadGet m => m a -> Int -> m (Maybe a)
 lookupFramedArray getA index = do
   offsets <- getVector getVarInt
-  if index > Vector.length offsets
+  if index > Vector.length offsets - 1
     then pure Nothing
     else do
       skip (Vector.unsafeIndex offsets index)

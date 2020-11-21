@@ -1,7 +1,16 @@
 module U.Codebase.Sqlite.Patch.Format where
 
-import U.Codebase.Sqlite.Patch.Diff
-import U.Codebase.Sqlite.Patch.Full
-import U.Codebase.Sqlite.DbId (PatchObjectId)
+import Data.Vector (Vector)
+import U.Codebase.Sqlite.DbId (HashId, ObjectId, PatchObjectId, TextId)
+import U.Codebase.Sqlite.Patch.Diff (LocalPatchDiff)
+import U.Codebase.Sqlite.Patch.Full (LocalPatch)
 
-data PatchFormat = Full Patch | Diff PatchObjectId PatchDiff
+data PatchFormat
+  = Full PatchLocalIds LocalPatch
+  | Diff PatchObjectId PatchLocalIds LocalPatchDiff
+
+data PatchLocalIds = LocalIds
+  { patchTextLookup :: Vector TextId,
+    patchHashLookup :: Vector HashId,
+    patchDefnLookup :: Vector ObjectId
+  }

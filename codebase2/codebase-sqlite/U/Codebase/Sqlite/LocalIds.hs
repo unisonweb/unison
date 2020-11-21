@@ -26,6 +26,8 @@ newtype LocalTextId = LocalTextId Word64 deriving (Eq, Ord, Num, Real, Enum, Int
 -- | represents an index into a defnLookup
 newtype LocalDefnId = LocalDefnId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
 
+newtype LocalHashId = LocalHashId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
+
 newtype LocalPatchObjectId = LocalPatchObjectId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
 newtype LocalBranchChildId = LocalBranchChildId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
 

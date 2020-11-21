@@ -1,3 +1,7 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE RankNTypes #-}
+
 module U.Codebase.Sqlite.SyncEntity where
 
 import Data.Sequence (Seq)
@@ -22,3 +26,18 @@ type SyncEntitySeq = SyncEntity' Seq
 
 addObjectId :: Db.ObjectId -> SyncEntitySeq -> SyncEntitySeq
 addObjectId id s = s {objects = id Seq.<| objects s}
+
+append :: (forall a. f a -> f a -> f a) -> SyncEntity' f -> SyncEntity' f -> SyncEntity' f
+append (<>) a b =
+  SyncEntity
+    (text a <> text b)
+    (objects a <> objects b)
+    (hashes a <> hashes b)
+    (causals a <> causals b)
+
+instance Semigroup SyncEntitySeq where
+  (<>) = append (<>)
+
+instance Monoid SyncEntitySeq where
+  mempty = SyncEntity mempty mempty mempty mempty
+  mappend = (<>)

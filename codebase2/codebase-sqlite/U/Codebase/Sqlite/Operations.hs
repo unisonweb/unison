@@ -43,7 +43,7 @@ import qualified U.Codebase.Causal as C
 import U.Codebase.Decl (ConstructorId)
 import qualified U.Codebase.Decl as C
 import qualified U.Codebase.Decl as C.Decl
-import U.Codebase.HashTags (BranchHash (..), CausalHash (..), DefnHash (..), EditHash, PatchHash (..))
+import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import qualified U.Codebase.Reference as C
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C
@@ -86,6 +86,7 @@ import qualified U.Codebase.Sqlite.Reference as S.Reference
 import qualified U.Codebase.Sqlite.Referent as S
 import qualified U.Codebase.Sqlite.Serialization as S
 import U.Codebase.Sqlite.Symbol (Symbol)
+import qualified U.Codebase.Sqlite.SyncEntity as SE
 import qualified U.Codebase.Sqlite.Term.Format as S.Term
 import qualified U.Codebase.Term as C
 import qualified U.Codebase.Term as C.Term
@@ -103,7 +104,6 @@ import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
-import qualified U.Codebase.Sqlite.SyncEntity as SE
 
 type Err m = MonadError Error m
 
@@ -150,6 +150,9 @@ c2sReference = bitraverse lookupTextId hashToObjectId
 s2cReference :: EDB m => S.Reference -> m C.Reference
 s2cReference = bitraverse loadTextById loadHashByObjectId
 
+h2cReference :: EDB m => S.ReferenceH -> m C.Reference
+h2cReference = bitraverse loadTextById loadHashByHashId
+
 c2sReferenceId :: EDB m => C.Reference.Id -> m S.Reference.Id
 c2sReferenceId = C.Reference.idH hashToObjectId
 
@@ -158,6 +161,9 @@ s2cReferenceId = C.Reference.idH loadHashByObjectId
 
 s2cReferent :: EDB m => S.Referent -> m C.Referent
 s2cReferent = bitraverse s2cReference s2cReference
+
+h2cReferent :: EDB m => S.ReferentH -> m C.Referent
+h2cReferent = bitraverse h2cReference h2cReference
 
 s2cTermEdit :: EDB m => S.TermEdit -> m C.TermEdit
 s2cTermEdit = \case
@@ -203,18 +209,18 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
     doPatches = Map.bitraverse (fmap C.NameSegment . loadTextById) \patchId -> do
       h <- PatchHash <$> (loadHashByObjectId . Db.unPatchObjectId) patchId
       let patch :: EDB m => m C.Patch
-          patch = do
-            deserializePatchObject patchId >>= \case
-              S.PatchFormat.Full p -> s2cPatch p
-              S.PatchFormat.Diff ref d -> doDiff ref [d]
-          doDiff ref ds =
-            deserializePatchObject ref >>= \case
-              S.PatchFormat.Full f -> s2cPatch (joinFull f ds)
-              S.PatchFormat.Diff ref' d' -> doDiff ref' (d' : ds)
+          patch = error "todo"
+            -- deserializePatchObject patchId >>= \case
+            --   S.PatchFormat.Full p -> s2cPatch p
+            --   S.PatchFormat.Diff ref d -> doDiff ref [d]
+          doDiff ref ds = error "todo"
+            -- deserializePatchObject ref >>= \case
+            --   S.PatchFormat.Full f -> s2cPatch (joinFull f ds)
+            --   S.PatchFormat.Diff ref' d' -> doDiff ref' (d' : ds)
           joinFull f [] = f
           joinFull (S.Patch termEdits typeEdits) (S.PatchDiff addedTermEdits addedTypeEdits removedTermEdits removedTypeEdits : ds) = joinFull f' ds
             where
-              f' = S.Patch (addRemove addedTermEdits removedTermEdits termEdits) (addRemove addedTypeEdits removedTypeEdits typeEdits)
+              f' = error "todo" -- S.Patch (addRemove addedTermEdits removedTermEdits termEdits) (addRemove addedTypeEdits removedTypeEdits typeEdits)
               addRemove :: (Ord a, Ord b) => Map a (Set b) -> Map a (Set b) -> Map a (Set b) -> Map a (Set b)
               addRemove add del src =
                 (Map.unionWith (<>) add (Map.differenceWith remove src del))
@@ -253,8 +259,8 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
 s2cPatch :: EDB m => S.Patch -> m C.Patch
 s2cPatch (S.Patch termEdits typeEdits) =
   C.Patch
-    <$> Map.bitraverse s2cReferent (Set.traverse s2cTermEdit) termEdits
-    <*> Map.bitraverse s2cReference (Set.traverse s2cTypeEdit) typeEdits
+    <$> Map.bitraverse h2cReferent (Set.traverse s2cTermEdit) termEdits
+    <*> Map.bitraverse h2cReference (Set.traverse s2cTypeEdit) typeEdits
 
 lookupTextId :: EDB m => Text -> m Db.TextId
 lookupTextId t =
@@ -858,13 +864,14 @@ derivedDependencies cid = do
   pure $ Set.fromList cids
 
 -- * Sync-related dependency queries
+
 objectDependencies :: EDB m => Db.ObjectId -> m SE.SyncEntitySeq
 objectDependencies oid = do
   (ot, bs) <- liftQ $ Q.loadObjectWithTypeById oid
   let getOrError = getFromBytesOr (ErrObjectDependencies ot oid)
   case ot of
-    OT.TermComponent -> getOrError S.getTermComponentSyncEntities bs
-    OT.DeclComponent -> getOrError S.getDeclComponentSyncEntities bs
+    OT.TermComponent -> getOrError S.getComponentSyncEntities bs
+    OT.DeclComponent -> getOrError S.getComponentSyncEntities bs
     OT.Namespace -> getOrError S.getBranchSyncEntities bs
     OT.Patch -> getOrError S.getPatchSyncEntities bs
 

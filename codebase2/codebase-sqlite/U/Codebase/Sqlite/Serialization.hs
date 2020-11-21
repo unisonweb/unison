@@ -1,15 +1,16 @@
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module U.Codebase.Sqlite.Serialization where
 
 import Data.Bits (Bits)
-import Data.Bytes.Get (MonadGet, getWord8)
+import qualified Data.ByteString as BS
+import Data.Bytes.Get (MonadGet, getByteString, getWord8, runGetS)
 import Data.Bytes.Put (MonadPut, putWord8)
 import Data.Bytes.Serial (SerialEndian (serializeBE), deserialize, deserializeBE, serialize)
 import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
@@ -33,7 +34,7 @@ import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
 import U.Codebase.Sqlite.DbId (BranchObjectId, PatchObjectId, unBranchObjectId, unPatchObjectId)
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
-import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId)
+import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId, WatchLocalIds)
 import qualified U.Codebase.Sqlite.Patch.Diff as PatchDiff
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import qualified U.Codebase.Sqlite.Patch.Full as PatchFull
@@ -45,6 +46,7 @@ import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import qualified U.Codebase.Term as Term
 import qualified U.Codebase.Type as Type
 import qualified U.Core.ABT as ABT
+import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization
 import Prelude hiding (getChar, putChar)
 
@@ -211,7 +213,7 @@ putTerm = putABT putSymbol putUnit putF
       Term.Char c ->
         putWord8 19 *> putChar c
       Term.TermLink r ->
-        putWord8 20 *> putReferent putRecursiveReference putReference r
+        putWord8 20 *> putReferent' putRecursiveReference putReference r
       Term.TypeLink r ->
         putWord8 21 *> putReference r
     putMatchCase :: MonadPut m => (a -> m ()) -> Term.MatchCase LocalTextId TermFormat.TypeRef a -> m ()
@@ -428,7 +430,6 @@ putBranchFormat = \case
   BranchFormat.Full li b -> putWord8 0 *> putBranchFull li b
   BranchFormat.Diff r li d -> putWord8 1 *> putBranchDiff r li d
   where
-    putReferent' = putReferent putReference putReference
     putBranchLocalIds (BranchFormat.LocalIds ts os ps cs) = do
       putFoldable putVarInt ts
       putFoldable putVarInt os
@@ -436,7 +437,7 @@ putBranchFormat = \case
       putFoldable (putPair putVarInt putVarInt) cs
     putBranchFull li (BranchFull.Branch terms types patches children) = do
       putBranchLocalIds li
-      putMap putVarInt (putMap putReferent' putMetadataSetFormat) terms
+      putMap putVarInt (putMap putReferent putMetadataSetFormat) terms
       putMap putVarInt (putMap putReference putMetadataSetFormat) types
       putMap putVarInt putVarInt patches
       putMap putVarInt putVarInt children
@@ -445,7 +446,7 @@ putBranchFormat = \case
     putBranchDiff ref li (BranchDiff.Diff terms types patches children) = do
       putVarInt ref
       putBranchLocalIds li
-      putMap putVarInt (putMap putReferent' putDiffOp) terms
+      putMap putVarInt (putMap putReferent putDiffOp) terms
       putMap putVarInt (putMap putReference putDiffOp) types
       putMap putVarInt putPatchOp patches
       putMap putVarInt putChildOp children
@@ -467,30 +468,76 @@ putBranchFormat = \case
 
 putPatchFormat :: MonadPut m => PatchFormat.PatchFormat -> m ()
 putPatchFormat = \case
-  PatchFormat.Full p -> putWord8 0 *> putPatchFull p
-  PatchFormat.Diff r p -> putWord8 1 *> putPatchDiff r p
+  PatchFormat.Full ids p -> putWord8 0 *> putPatchFull ids p
+  PatchFormat.Diff r ids p -> putWord8 1 *> putPatchDiff r ids p
 
 getPatchFormat :: MonadGet m => m PatchFormat.PatchFormat
-getPatchFormat = error "todo"
+getPatchFormat =
+  getWord8 >>= \case
+    0 -> PatchFormat.Full <$> getPatchLocalIds <*> getPatchFull
+    1 -> PatchFormat.Diff <$> getVarInt <*> getPatchLocalIds <*> getPatchDiff
+    x -> unknownTag "getPatchFormat" x
+  where
+    getPatchFull :: MonadGet m => m PatchFull.LocalPatch
+    getPatchFull =
+      PatchFull.Patch
+        <$> getMap getReferent (getSet getTermEdit)
+        <*> getMap getReference (getSet getTypeEdit)
+    getPatchDiff :: MonadGet m => m PatchDiff.LocalPatchDiff
+    getPatchDiff =
+      PatchDiff.PatchDiff
+        <$> getMap getReferent (getSet getTermEdit)
+        <*> getMap getReference (getSet getTypeEdit)
+        <*> getMap getReferent (getSet getTermEdit)
+        <*> getMap getReference (getSet getTypeEdit)
+    getTermEdit :: MonadGet m => m TermEdit.LocalTermEdit
+    getTermEdit =
+      getWord8 >>= \case
+        0 -> pure TermEdit.Deprecate
+        1 -> TermEdit.Replace <$> getReference <*> getTyping
+        x -> unknownTag "getTermEdit" x
+    getTyping :: MonadGet m => m TermEdit.Typing
+    getTyping =
+      getWord8 >>= \case
+        0 -> pure TermEdit.Same
+        1 -> pure TermEdit.Subtype
+        2 -> pure TermEdit.Different
+        x -> unknownTag "getTyping" x
+    getTypeEdit :: MonadGet m => m TypeEdit.LocalTypeEdit
+    getTypeEdit = getWord8 >>= \case
+      0 -> pure TypeEdit.Deprecate
+      1 -> TypeEdit.Replace <$> getReference
+      x -> unknownTag "getTypeEdit" x
 
-putPatchFull :: MonadPut m => PatchFull.Patch -> m ()
-putPatchFull (PatchFull.Patch termEdits typeEdits) = do
-  putMap putReferent' (putFoldable putTermEdit) termEdits
+getPatchLocalIds :: MonadGet m => m PatchFormat.PatchLocalIds
+getPatchLocalIds =
+  PatchFormat.LocalIds
+    <$> getVector getVarInt
+    <*> getVector getVarInt
+    <*> getVector getVarInt
+
+putPatchFull :: MonadPut m => PatchFormat.PatchLocalIds -> PatchFull.LocalPatch -> m ()
+putPatchFull ids (PatchFull.Patch termEdits typeEdits) = do
+  putPatchLocalIds ids
+  putMap putReferent (putFoldable putTermEdit) termEdits
   putMap putReference (putFoldable putTypeEdit) typeEdits
-  where
-    putReferent' = putReferent putReference putReference
 
-putPatchDiff :: MonadPut m => PatchObjectId -> PatchDiff.PatchDiff -> m ()
-putPatchDiff r (PatchDiff.PatchDiff atm atp rtm rtp) = do
+putPatchDiff :: MonadPut m => PatchObjectId -> PatchFormat.PatchLocalIds -> PatchDiff.LocalPatchDiff -> m ()
+putPatchDiff r ids (PatchDiff.PatchDiff atm atp rtm rtp) = do
   putVarInt r
-  putMap putReferent' (putFoldable putTermEdit) atm
+  putPatchLocalIds ids
+  putMap putReferent (putFoldable putTermEdit) atm
   putMap putReference (putFoldable putTypeEdit) atp
-  putMap putReferent' (putFoldable putTermEdit) rtm
+  putMap putReferent (putFoldable putTermEdit) rtm
   putMap putReference (putFoldable putTypeEdit) rtp
-  where
-    putReferent' = putReferent putReference putReference
 
-putTermEdit :: MonadPut m => TermEdit.TermEdit -> m ()
+putPatchLocalIds :: MonadPut m => PatchFormat.PatchLocalIds -> m ()
+putPatchLocalIds (PatchFormat.LocalIds ts hs os) = do
+  putFoldable putVarInt ts
+  putFoldable putVarInt hs
+  putFoldable putVarInt os
+
+putTermEdit :: MonadPut m => TermEdit.LocalTermEdit -> m ()
 putTermEdit TermEdit.Deprecate = putWord8 0
 putTermEdit (TermEdit.Replace r t) = putWord8 1 *> putReference r *> putTyping t
   where
@@ -498,7 +545,7 @@ putTermEdit (TermEdit.Replace r t) = putWord8 1 *> putReference r *> putTyping t
     putTyping TermEdit.Subtype = putWord8 1
     putTyping TermEdit.Different = putWord8 2
 
-putTypeEdit :: MonadPut m => TypeEdit.TypeEdit -> m ()
+putTypeEdit :: MonadPut m => TypeEdit.LocalTypeEdit -> m ()
 putTypeEdit TypeEdit.Deprecate = putWord8 0
 putTypeEdit (TypeEdit.Replace r) = putWord8 1 *> putReference r
 
@@ -509,13 +556,12 @@ getBranchFormat =
     1 -> getBranchDiff
     x -> unknownTag "getBranchFormat" x
   where
-    getReferent' = getReferent getReference getReference
     getBranchFull =
       BranchFormat.Full <$> getBranchLocalIds <*> getLocalBranch
       where
         getLocalBranch =
           BranchFull.Branch
-            <$> getMap getVarInt (getMap getReferent' getMetadataSetFormat)
+            <$> getMap getVarInt (getMap getReferent getMetadataSetFormat)
             <*> getMap getVarInt (getMap getReference getMetadataSetFormat)
             <*> getMap getVarInt getVarInt
             <*> getMap getVarInt getVarInt
@@ -532,7 +578,7 @@ getBranchFormat =
       where
         getLocalBranchDiff =
           BranchDiff.Diff
-            <$> getMap getVarInt (getMap getReferent' getDiffOp)
+            <$> getMap getVarInt (getMap getReferent getDiffOp)
             <*> getMap getVarInt (getMap getReference getDiffOp)
             <*> getMap getVarInt getPatchOp
             <*> getMap getVarInt getChildOp
@@ -546,14 +592,16 @@ getBranchFormat =
           adds <- getMap get (pure True)
           -- and removes:
           addToExistingMap get (pure False) adds
-        getPatchOp = getWord8 >>= \case
-          0 -> pure BranchDiff.PatchRemove
-          1 -> BranchDiff.PatchAddReplace <$> getVarInt
-          x -> unknownTag "getPatchOp" x
-        getChildOp = getWord8 >>= \case
-          0 -> pure BranchDiff.ChildRemove
-          1 -> BranchDiff.ChildAddReplace <$> getVarInt
-          x -> unknownTag "getChildOp" x
+        getPatchOp =
+          getWord8 >>= \case
+            0 -> pure BranchDiff.PatchRemove
+            1 -> BranchDiff.PatchAddReplace <$> getVarInt
+            x -> unknownTag "getPatchOp" x
+        getChildOp =
+          getWord8 >>= \case
+            0 -> pure BranchDiff.ChildRemove
+            1 -> BranchDiff.ChildAddReplace <$> getVarInt
+            x -> unknownTag "getChildOp" x
 
 getBranchLocalIds :: MonadGet m => m BranchFormat.BranchLocalIds
 getBranchLocalIds =
@@ -567,15 +615,15 @@ getBranchSyncEntities :: MonadGet m => m SE.SyncEntitySeq
 getBranchSyncEntities =
   getWord8 >>= \case
     -- Full
-    0 -> getLocalIds
+    0 -> getDeps
     -- Diff
     1 -> do
       id <- getVarInt @_ @BranchObjectId
-      SE.addObjectId (unBranchObjectId id) <$> getLocalIds
+      SE.addObjectId (unBranchObjectId id) <$> getDeps
     x -> unknownTag "getBranchSyncEntities" x
   where
-    getLocalIds = branchLocalIdsToLocalDeps <$> getBranchLocalIds
-    branchLocalIdsToLocalDeps (BranchFormat.LocalIds ts os ps bcs) =
+    getDeps = localIdsToDeps <$> getBranchLocalIds
+    localIdsToDeps (BranchFormat.LocalIds ts os ps bcs) =
       SE.SyncEntity
         (vec2seq ts)
         ( vec2seq os
@@ -586,17 +634,44 @@ getBranchSyncEntities =
         (vec2seq chs)
       where
         (bos, chs) = Vector.unzip bcs
-    vec2seq :: Vector a -> Seq a
-    vec2seq v = Seq.fromFunction (length v) (v Vector.!)
 
-getTermComponentSyncEntities :: m SE.SyncEntitySeq
-getTermComponentSyncEntities = error "not implemented"
+vec2seq :: Vector a -> Seq a
+vec2seq v = Seq.fromFunction (length v) (v Vector.!)
 
-getDeclComponentSyncEntities :: m SE.SyncEntitySeq
-getDeclComponentSyncEntities = error "not implemented"
+localIdsToLocalDeps :: LocalIds -> SE.SyncEntitySeq
+localIdsToLocalDeps (LocalIds ts os) =
+  SE.SyncEntity (vec2seq ts) (vec2seq os) mempty mempty
 
-getPatchSyncEntities :: m SE.SyncEntitySeq
-getPatchSyncEntities = error "not implemented"
+watchLocalIdsToLocalDeps :: WatchLocalIds -> SE.SyncEntitySeq
+watchLocalIdsToLocalDeps (LocalIds ts hs) =
+  SE.SyncEntity (vec2seq ts) mempty (vec2seq hs) mempty
+
+-- the same implementation currently works for term component and type component
+getComponentSyncEntities :: MonadGet m => m SE.SyncEntitySeq
+getComponentSyncEntities = do
+  offsets <- getList (getVarInt @_ @Int)
+  componentBytes <- getByteString (last offsets)
+  let get1 (start, end) = do
+        let bytes = BS.drop start $ BS.take end componentBytes
+        either fail pure $ runGetS getLocalIds bytes
+  Monoid.foldMapM (fmap localIdsToLocalDeps . get1) (zip offsets (tail offsets))
+
+getPatchSyncEntities :: MonadGet m => m SE.SyncEntitySeq
+getPatchSyncEntities =
+  getWord8 >>= \case
+    0 -> getDeps
+    1 -> do
+      id <- getVarInt @_ @PatchObjectId
+      SE.addObjectId (unPatchObjectId id) <$> getDeps
+    x -> unknownTag "getPatchSyncEntities" x
+  where
+    getDeps = localIdsToDeps <$> getPatchLocalIds
+    localIdsToDeps (PatchFormat.LocalIds ts hs os) =
+      SE.SyncEntity
+        (vec2seq ts)
+        (vec2seq os)
+        (vec2seq hs)
+        mempty
 
 getSymbol :: MonadGet m => m Symbol
 getSymbol = Symbol <$> getVarInt <*> getText
@@ -604,8 +679,23 @@ getSymbol = Symbol <$> getVarInt <*> getText
 putSymbol :: MonadPut m => Symbol -> m ()
 putSymbol (Symbol n t) = putVarInt n >> putText t
 
-putReferent :: MonadPut m => (r1 -> m ()) -> (r2 -> m ()) -> Referent' r1 r2 -> m ()
-putReferent putRefRef putConRef = \case
+putReferent ::
+  ( MonadPut m,
+    Integral t1,
+    Integral h1,
+    Bits t1,
+    Bits h1,
+    Integral t2,
+    Integral h2,
+    Bits t2,
+    Bits h2
+  ) =>
+  Referent' (Reference' t1 h1) (Reference' t2 h2) ->
+  m ()
+putReferent = putReferent' putReference putReference
+
+putReferent' :: MonadPut m => (r1 -> m ()) -> (r2 -> m ()) -> Referent' r1 r2 -> m ()
+putReferent' putRefRef putConRef = \case
   Referent.Ref r -> do
     putWord8 0
     putRefRef r
@@ -624,12 +714,26 @@ putReference = \case
   ReferenceDerived (Reference.Id r index) ->
     putWord8 1 *> putVarInt r *> putVarInt index
 
-getReferent :: MonadGet m => m r1 -> m r2 -> m (Referent' r1 r2)
-getReferent getRefRef getConRef =
+getReferent' :: MonadGet m => m r1 -> m r2 -> m (Referent' r1 r2)
+getReferent' getRefRef getConRef =
   getWord8 >>= \case
     0 -> Referent.Ref <$> getRefRef
     1 -> Referent.Con <$> getConRef <*> getVarInt
     x -> unknownTag "getReferent" x
+
+getReferent ::
+  ( MonadGet m,
+    Integral t1,
+    Integral h1,
+    Bits t1,
+    Bits h1,
+    Integral t2,
+    Integral h2,
+    Bits t2,
+    Bits h2
+  ) =>
+  m (Referent' (Reference' t1 h1) (Reference' t2 h2))
+getReferent = getReferent' getReference getReference
 
 getReference ::
   (MonadGet m, Integral t, Bits t, Integral r, Bits r) =>

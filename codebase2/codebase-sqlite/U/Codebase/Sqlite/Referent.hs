@@ -14,6 +14,7 @@ import qualified U.Codebase.Referent as Referent
 import qualified U.Codebase.Reference as Reference
 
 type Referent = Referent' Sqlite.Reference Sqlite.Reference
+type ReferentH = Referent' Sqlite.ReferenceH Sqlite.ReferenceH
 type Id = Id' ObjectId ObjectId
 
 type LocalReferent = Referent' Sqlite.LocalReference Sqlite.LocalReference

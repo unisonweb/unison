@@ -1,8 +1,14 @@
 module U.Codebase.Sqlite.Patch.TermEdit where
 
-import U.Codebase.Sqlite.Reference (Reference)
+import U.Codebase.Reference (Reference')
+import qualified U.Codebase.Sqlite.DbId as Db
+import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalTextId)
 
-data TermEdit = Replace Reference Typing | Deprecate
+type TermEdit = TermEdit' Db.TextId Db.ObjectId
+
+type LocalTermEdit = TermEdit' LocalTextId LocalDefnId
+
+data TermEdit' t h = Replace (Reference' t h) Typing | Deprecate
   deriving (Eq, Ord, Show)
 
 -- Replacements with the Same type can be automatically propagated.
