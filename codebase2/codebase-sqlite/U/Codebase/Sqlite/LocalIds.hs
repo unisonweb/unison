@@ -26,10 +26,15 @@ newtype LocalTextId = LocalTextId Word64 deriving (Eq, Ord, Num, Real, Enum, Int
 -- | represents an index into a defnLookup
 newtype LocalDefnId = LocalDefnId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
 
+-- | a local index to a hash, used when the corresponding object is allowed to be absent
 newtype LocalHashId = LocalHashId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
 
 newtype LocalPatchObjectId = LocalPatchObjectId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
+
 newtype LocalBranchChildId = LocalBranchChildId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
+
+-- | causal hashes are treated differently from HashIds, which don't have dependencies
+newtype LocalCausalHashId = LocalCausalHashId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
 
 instance Bitraversable LocalIds' where
   bitraverse f g (LocalIds t d) = LocalIds <$> traverse f t <*> traverse g d

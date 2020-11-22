@@ -63,6 +63,7 @@ import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
 import U.Codebase.Sqlite.LocalIds
   ( LocalBranchChildId (..),
     LocalDefnId (..),
+    LocalHashId (..),
     LocalIds,
     LocalIds' (..),
     LocalPatchObjectId (..),
@@ -75,6 +76,7 @@ import qualified U.Codebase.Sqlite.Patch.Diff as S
 import qualified U.Codebase.Sqlite.Patch.Format as S
 import qualified U.Codebase.Sqlite.Patch.Format as S.PatchFormat
 import qualified U.Codebase.Sqlite.Patch.Full as S
+import qualified U.Codebase.Sqlite.Patch.Full as S.Patch.Full
 import qualified U.Codebase.Sqlite.Patch.TermEdit as S
 import qualified U.Codebase.Sqlite.Patch.TermEdit as S.TermEdit
 import qualified U.Codebase.Sqlite.Patch.TypeEdit as S
@@ -104,6 +106,7 @@ import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
+import qualified U.Codebase.Sqlite.Patch.Diff as S.PatchDiff
 
 type Err m = MonadError Error m
 
@@ -142,7 +145,42 @@ liftQ a =
     Left e -> throwError (DatabaseIntegrityError e)
     Right a -> pure a
 
--- * helpers
+-- * Database lookups
+
+lookupTextId :: EDB m => Text -> m Db.TextId
+lookupTextId t =
+  Q.loadText t >>= \case
+    Just textId -> pure textId
+    Nothing -> throwError $ UnknownText t
+
+loadTextById :: EDB m => Db.TextId -> m Text
+loadTextById = liftQ . Q.loadTextById
+
+hashToObjectId :: EDB m => H.Hash -> m Db.ObjectId
+hashToObjectId h = do
+  (Q.loadHashId . H.toBase32Hex) h >>= \case
+    Just hashId -> liftQ $ Q.expectObjectIdForPrimaryHashId hashId
+    Nothing -> throwError $ UnknownDependency h
+
+objectExistsForHash :: EDB m => H.Hash -> m Bool
+objectExistsForHash h = isJust <$> runMaybeT ((Q.loadHashId . H.toBase32Hex) h)
+
+loadHashByObjectId :: EDB m => Db.ObjectId -> m H.Hash
+loadHashByObjectId = fmap H.fromBase32Hex . liftQ . Q.loadPrimaryHashByObjectId
+
+loadHashByHashId :: EDB m => Db.HashId -> m H.Hash
+loadHashByHashId = fmap H.fromBase32Hex . liftQ . Q.loadHashById
+
+loadCausalHashById :: EDB m => Db.CausalHashId -> m CausalHash
+loadCausalHashById = fmap (CausalHash . H.fromBase32Hex) . liftQ . Q.loadHashById . Db.unCausalHashId
+
+loadValueHashByCausalHashId :: EDB m => Db.CausalHashId -> m BranchHash
+loadValueHashByCausalHashId = loadValueHashById <=< liftQ . Q.loadCausalValueHashId
+  where
+    loadValueHashById :: EDB m => Db.BranchHashId -> m BranchHash
+    loadValueHashById = fmap (BranchHash . H.fromBase32Hex) . liftQ . Q.loadHashById . Db.unBranchHashId
+
+-- * Reference transformations
 
 c2sReference :: EDB m => C.Reference -> MaybeT m S.Reference
 c2sReference = bitraverse lookupTextId hashToObjectId
@@ -150,20 +188,34 @@ c2sReference = bitraverse lookupTextId hashToObjectId
 s2cReference :: EDB m => S.Reference -> m C.Reference
 s2cReference = bitraverse loadTextById loadHashByObjectId
 
-h2cReference :: EDB m => S.ReferenceH -> m C.Reference
-h2cReference = bitraverse loadTextById loadHashByHashId
-
 c2sReferenceId :: EDB m => C.Reference.Id -> m S.Reference.Id
 c2sReferenceId = C.Reference.idH hashToObjectId
 
 s2cReferenceId :: EDB m => S.Reference.Id -> m C.Reference.Id
 s2cReferenceId = C.Reference.idH loadHashByObjectId
 
+h2cReference :: EDB m => S.ReferenceH -> m C.Reference
+h2cReference = bitraverse loadTextById loadHashByHashId
+
 s2cReferent :: EDB m => S.Referent -> m C.Referent
 s2cReferent = bitraverse s2cReference s2cReference
 
 h2cReferent :: EDB m => S.ReferentH -> m C.Referent
 h2cReferent = bitraverse h2cReference h2cReference
+
+saveReferent :: EDB m => C.Referent -> m S.Referent
+saveReferent = bitraverse saveReference saveReference
+
+saveReference :: EDB m => C.Reference -> m S.Reference
+saveReference = bitraverse Q.saveText hashToObjectId
+
+saveReferentH :: DB m => C.Referent -> m S.ReferentH
+saveReferentH = bitraverse saveReferenceH saveReferenceH
+
+saveReferenceH :: DB m => C.Reference -> m S.ReferenceH
+saveReferenceH = bitraverse Q.saveText Q.saveHashHash
+
+-- * Edits transformations
 
 s2cTermEdit :: EDB m => S.TermEdit -> m C.TermEdit
 s2cTermEdit = \case
@@ -176,11 +228,28 @@ s2cTyping = \case
   S.TermEdit.Subtype -> C.TermEdit.Subtype
   S.TermEdit.Different -> C.TermEdit.Different
 
+c2sTyping :: C.TermEdit.Typing -> S.TermEdit.Typing
+c2sTyping = \case
+  C.TermEdit.Same -> S.TermEdit.Same
+  C.TermEdit.Subtype -> S.TermEdit.Subtype
+  C.TermEdit.Different -> S.TermEdit.Different
+
 s2cTypeEdit :: EDB m => S.TypeEdit -> m C.TypeEdit
 s2cTypeEdit = \case
   S.TypeEdit.Replace r -> C.TypeEdit.Replace <$> s2cReference r
   S.TypeEdit.Deprecate -> pure C.TypeEdit.Deprecate
 
+saveTermEdit :: EDB m => C.TermEdit -> m S.TermEdit
+saveTermEdit = \case
+  C.TermEdit.Replace r t -> S.TermEdit.Replace <$> saveReference r <*> pure (c2sTyping t)
+  C.TermEdit.Deprecate -> pure S.TermEdit.Deprecate
+
+saveTypeEdit :: EDB m => C.TypeEdit -> m S.TypeEdit
+saveTypeEdit = \case
+  C.TypeEdit.Replace r -> S.TypeEdit.Replace <$> saveReference r
+  C.TypeEdit.Deprecate -> pure S.TypeEdit.Deprecate
+
+-- * Branch transformation
 s2cBranch :: EDB m => S.DbBranch -> m (C.Branch m)
 s2cBranch (S.Branch.Full.Branch tms tps patches children) =
   C.Branch
@@ -209,18 +278,20 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
     doPatches = Map.bitraverse (fmap C.NameSegment . loadTextById) \patchId -> do
       h <- PatchHash <$> (loadHashByObjectId . Db.unPatchObjectId) patchId
       let patch :: EDB m => m C.Patch
-          patch = error "todo"
-            -- deserializePatchObject patchId >>= \case
-            --   S.PatchFormat.Full p -> s2cPatch p
-            --   S.PatchFormat.Diff ref d -> doDiff ref [d]
-          doDiff ref ds = error "todo"
-            -- deserializePatchObject ref >>= \case
-            --   S.PatchFormat.Full f -> s2cPatch (joinFull f ds)
-            --   S.PatchFormat.Diff ref' d' -> doDiff ref' (d' : ds)
-          joinFull f [] = f
+          patch =
+            deserializePatchObject patchId >>= \case
+              S.PatchFormat.Full li p -> s2cPatch (l2sPatchFull li p)
+              S.PatchFormat.Diff ref li d -> doDiff ref [l2sPatchDiff li d]
+          doDiff :: EDB m => Db.PatchObjectId -> [S.PatchDiff] -> m C.Patch
+          doDiff ref ds =
+            deserializePatchObject ref >>= \case
+              S.PatchFormat.Full li f -> joinFull (l2sPatchFull li f) ds
+              S.PatchFormat.Diff ref' li' d' -> doDiff ref' (l2sPatchDiff li' d' : ds)
+          joinFull :: EDB m => S.Patch -> [S.PatchDiff] -> m C.Patch
+          joinFull f [] = s2cPatch f
           joinFull (S.Patch termEdits typeEdits) (S.PatchDiff addedTermEdits addedTypeEdits removedTermEdits removedTypeEdits : ds) = joinFull f' ds
             where
-              f' = error "todo" -- S.Patch (addRemove addedTermEdits removedTermEdits termEdits) (addRemove addedTypeEdits removedTypeEdits typeEdits)
+              f' = S.Patch (addRemove addedTermEdits removedTermEdits termEdits) (addRemove addedTypeEdits removedTypeEdits typeEdits)
               addRemove :: (Ord a, Ord b) => Map a (Set b) -> Map a (Set b) -> Map a (Set b) -> Map a (Set b)
               addRemove add del src =
                 (Map.unionWith (<>) add (Map.differenceWith remove src del))
@@ -256,44 +327,47 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
           boId <- liftQ $ Q.loadBranchObjectIdByCausalHashId chId
           traverse loadBranchByObjectId boId
 
+
+-- saveBranch :: EDB m => C.Branch m -> m S.DbBranch
+-- saveBranch = error "todo"
+
+-- * Patch transformation
 s2cPatch :: EDB m => S.Patch -> m C.Patch
 s2cPatch (S.Patch termEdits typeEdits) =
   C.Patch
     <$> Map.bitraverse h2cReferent (Set.traverse s2cTermEdit) termEdits
     <*> Map.bitraverse h2cReference (Set.traverse s2cTypeEdit) typeEdits
 
-lookupTextId :: EDB m => Text -> m Db.TextId
-lookupTextId t =
-  Q.loadText t >>= \case
-    Just textId -> pure textId
-    Nothing -> throwError $ UnknownText t
+savePatchHashes :: EDB m => C.Patch -> m S.Patch
+savePatchHashes (C.Patch termEdits typeEdits) =
+  S.Patch
+    <$> Map.bitraverse saveReferentH (Set.traverse saveTermEdit) termEdits
+    <*> Map.bitraverse saveReferenceH (Set.traverse saveTypeEdit) typeEdits
 
-loadTextById :: EDB m => Db.TextId -> m Text
-loadTextById = liftQ . Q.loadTextById
+-- implementation detail of loadPatchById?
+lookupPatchLocalText :: S.PatchLocalIds -> LocalTextId -> Db.TextId
+lookupPatchLocalText li (LocalTextId w) = S.PatchFormat.patchTextLookup li Vector.! fromIntegral w
 
-hashToObjectId :: EDB m => H.Hash -> m Db.ObjectId
-hashToObjectId h = do
-  (Q.loadHashId . H.toBase32Hex) h >>= \case
-    Just hashId -> liftQ $ Q.expectObjectIdForPrimaryHashId hashId
-    Nothing -> throwError $ UnknownDependency h
+lookupPatchLocalHash :: S.PatchLocalIds -> LocalHashId -> Db.HashId
+lookupPatchLocalHash li (LocalHashId w) = S.PatchFormat.patchHashLookup li Vector.! fromIntegral w
 
-objectExistsForHash :: EDB m => H.Hash -> m Bool
-objectExistsForHash h = isJust <$> runMaybeT (hashToObjectId h)
+lookupPatchLocalDefn :: S.PatchLocalIds -> LocalDefnId -> Db.ObjectId
+lookupPatchLocalDefn li (LocalDefnId w) = S.PatchFormat.patchDefnLookup li Vector.! fromIntegral w
 
-loadHashByObjectId :: EDB m => Db.ObjectId -> m H.Hash
-loadHashByObjectId = fmap H.fromBase32Hex . liftQ . Q.loadPrimaryHashByObjectId
+l2sPatchFull :: S.PatchFormat.PatchLocalIds -> S.LocalPatch -> S.Patch
+l2sPatchFull li =
+  S.Patch.Full.trimap
+    (lookupPatchLocalText li)
+    (lookupPatchLocalHash li)
+    (lookupPatchLocalDefn li)
 
-loadHashByHashId :: EDB m => Db.HashId -> m H.Hash
-loadHashByHashId = fmap H.fromBase32Hex . liftQ . Q.loadHashById
+l2sPatchDiff :: S.PatchFormat.PatchLocalIds -> S.LocalPatchDiff -> S.PatchDiff
+l2sPatchDiff li = S.PatchDiff.trimap
+    (lookupPatchLocalText li)
+    (lookupPatchLocalHash li)
+    (lookupPatchLocalDefn li)
 
-loadCausalHashById :: EDB m => Db.CausalHashId -> m CausalHash
-loadCausalHashById = fmap (CausalHash . H.fromBase32Hex) . liftQ . Q.loadHashById . Db.unCausalHashId
-
-loadValueHashByCausalHashId :: EDB m => Db.CausalHashId -> m BranchHash
-loadValueHashByCausalHashId = loadValueHashById <=< liftQ . Q.loadCausalValueHashId
-  where
-    loadValueHashById :: EDB m => Db.BranchHashId -> m BranchHash
-    loadValueHashById = fmap (BranchHash . H.fromBase32Hex) . liftQ . Q.loadHashById . Db.unBranchHashId
+-- * Deserialization helpers
 
 decodeComponentLengthOnly :: Err m => ByteString -> m Word64
 decodeComponentLengthOnly = getFromBytesOr ErrFramedArrayLen S.lengthFramedArray
@@ -326,7 +400,7 @@ getDeclTypeByReference r@(C.Reference.Id h pos) =
     >>= maybe (throwError $ LegacyUnknownConstructorType h pos) pure
     >>= pure . C.Decl.declType
 
--- * meat and veggies
+-- * Codebase operations
 
 loadTermWithTypeByReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term Symbol, C.Term.Type Symbol)
 loadTermWithTypeByReference (C.Reference.Id h i) =
@@ -698,17 +772,17 @@ componentByObjectId id = do
   len <- (liftQ . Q.loadObjectById) id >>= decodeComponentLengthOnly
   pure [C.Reference.Id id i | i <- [0 .. len - 1]]
 
-lookupLocalText :: S.BranchLocalIds -> LocalTextId -> Db.TextId
-lookupLocalText li (LocalTextId w) = S.BranchFormat.branchTextLookup li Vector.! fromIntegral w
+lookupBranchLocalText :: S.BranchLocalIds -> LocalTextId -> Db.TextId
+lookupBranchLocalText li (LocalTextId w) = S.BranchFormat.branchTextLookup li Vector.! fromIntegral w
 
-lookupLocalDefn :: S.BranchLocalIds -> LocalDefnId -> Db.ObjectId
-lookupLocalDefn li (LocalDefnId w) = S.BranchFormat.branchDefnLookup li Vector.! fromIntegral w
+lookupBranchLocalDefn :: S.BranchLocalIds -> LocalDefnId -> Db.ObjectId
+lookupBranchLocalDefn li (LocalDefnId w) = S.BranchFormat.branchDefnLookup li Vector.! fromIntegral w
 
-lookupLocalPatch :: BranchLocalIds -> LocalPatchObjectId -> Db.PatchObjectId
-lookupLocalPatch li (LocalPatchObjectId w) = S.BranchFormat.branchPatchLookup li Vector.! fromIntegral w
+lookupBranchLocalPatch :: BranchLocalIds -> LocalPatchObjectId -> Db.PatchObjectId
+lookupBranchLocalPatch li (LocalPatchObjectId w) = S.BranchFormat.branchPatchLookup li Vector.! fromIntegral w
 
-lookupLocalChild :: BranchLocalIds -> LocalBranchChildId -> (Db.BranchObjectId, Db.CausalHashId)
-lookupLocalChild li (LocalBranchChildId w) = S.BranchFormat.branchChildLookup li Vector.! fromIntegral w
+lookupBranchLocalChild :: BranchLocalIds -> LocalBranchChildId -> (Db.BranchObjectId, Db.CausalHashId)
+lookupBranchLocalChild li (LocalBranchChildId w) = S.BranchFormat.branchChildLookup li Vector.! fromIntegral w
 
 loadBranchByCausalHashId :: EDB m => Db.CausalHashId -> m (Maybe (C.Branch m))
 loadBranchByCausalHashId id = do
@@ -733,16 +807,16 @@ loadBranchByObjectId id = do
 
     l2sFull :: S.BranchFormat.BranchLocalIds -> S.LocalBranch -> S.DbBranch
     l2sFull li =
-      S.Branch.Full.quadmap (lookupLocalText li) (lookupLocalDefn li) (lookupLocalPatch li) (lookupLocalChild li)
+      S.Branch.Full.quadmap (lookupBranchLocalText li) (lookupBranchLocalDefn li) (lookupBranchLocalPatch li) (lookupBranchLocalChild li)
 
     l2sDiff :: S.BranchFormat.BranchLocalIds -> S.Branch.LocalDiff -> S.Branch.Diff
-    l2sDiff li = S.BranchDiff.quadmap (lookupLocalText li) (lookupLocalDefn li) (lookupLocalPatch li) (lookupLocalChild li)
+    l2sDiff li = S.BranchDiff.quadmap (lookupBranchLocalText li) (lookupBranchLocalDefn li) (lookupBranchLocalPatch li) (lookupBranchLocalChild li)
 
     doDiff :: EDB m => Db.BranchObjectId -> [S.Branch.Diff] -> m (C.Branch m)
-    doDiff ref lds =
+    doDiff ref ds =
       deserializeBranchObject ref >>= \case
-        S.BranchFormat.Full li f -> joinFull (l2sFull li f) lds
-        S.BranchFormat.Diff ref' li' d' -> doDiff ref' (l2sDiff li' d' : lds)
+        S.BranchFormat.Full li f -> joinFull (l2sFull li f) ds
+        S.BranchFormat.Diff ref' li' d' -> doDiff ref' (l2sDiff li' d' : ds)
       where
         joinFull :: EDB m => S.DbBranch -> [S.Branch.Diff] -> m (C.Branch m)
         joinFull f [] = s2cBranch f
