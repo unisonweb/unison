@@ -1,26 +1,34 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module U.Codebase.Sqlite.Referent where
 
-import Database.SQLite.Simple (SQLData(..), Only(..), ToRow(..))
-
-import U.Codebase.Referent (Id', Referent')
-import qualified U.Codebase.Sqlite.Reference as Sqlite
-import U.Codebase.Sqlite.DbId (ObjectId)
-import qualified U.Codebase.Referent as Referent
+import Control.Applicative (liftA3)
+import Database.SQLite.Simple (FromRow (..), Only (..), SQLData (..), ToRow (..), field)
 import qualified U.Codebase.Reference as Reference
+import U.Codebase.Referent (Id', Referent')
+import qualified U.Codebase.Referent as Referent
+import U.Codebase.Sqlite.DbId (ObjectId)
+import qualified U.Codebase.Sqlite.Reference as Sqlite
 
 type Referent = Referent' Sqlite.Reference Sqlite.Reference
+
 type ReferentH = Referent' Sqlite.ReferenceH Sqlite.ReferenceH
+
 type Id = Id' ObjectId ObjectId
 
 type LocalReferent = Referent' Sqlite.LocalReference Sqlite.LocalReference
 
 instance ToRow Id where
-  -- | objectId, componentIndex, constructorIndex
   toRow = \case
     Referent.RefId (Reference.Id h i) -> toRow (Only h) ++ toRow (Only i) ++ [SQLNull]
     Referent.ConId (Reference.Id h i) cid -> toRow (Only h) ++ toRow (Only i) ++ toRow (Only cid)
+
+instance FromRow Id where
+  fromRow = liftA3 mkId field field field
+    where
+      mkId h i mayCid = case mayCid of
+        Nothing -> Referent.RefId (Reference.Id h i)
+        Just cid -> Referent.ConId (Reference.Id h i) cid

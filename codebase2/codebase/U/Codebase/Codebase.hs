@@ -4,10 +4,10 @@ module U.Codebase.Codebase where
 
 import Data.Set (Set)
 import Data.Text (Text)
-import U.Codebase.Branch (Branch)
+import U.Codebase.Branch (Branch, Patch)
 import U.Codebase.Causal (Causal)
 import U.Codebase.Decl (Decl)
-import U.Codebase.HashTags (BranchHash, CausalHash)
+import U.Codebase.HashTags (BranchHash, CausalHash, PatchHash)
 import U.Codebase.Reference (Reference)
 import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Referent as Referent
@@ -28,6 +28,8 @@ data Codebase m v = Codebase
     getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v)),
     putTerm :: Reference.Id -> Term v -> TypeT v -> m (),
     putTypeDeclaration :: Reference.Id -> Decl v -> m (),
+    getPatch :: PatchHash -> m Patch,
+    putPatch :: PatchHash -> Patch -> m (),
     getBranch :: BranchHash -> m (Maybe (Branch m)),
     getRootBranch :: m (Either GetRootBranchError (Branch m)),
     putRootBranch :: Branch m -> m (),

@@ -11,6 +11,7 @@ import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalHashId, LocalTextId)
 import U.Codebase.Sqlite.Patch.TermEdit (TermEdit')
 import U.Codebase.Sqlite.Patch.TypeEdit (TypeEdit')
 import qualified U.Util.Map as Map
+import qualified Data.Monoid as Monoid
 
 type PatchDiff = PatchDiff' Db.TextId Db.HashId Db.ObjectId
 
@@ -18,13 +19,24 @@ type LocalPatchDiff = PatchDiff' LocalTextId LocalHashId LocalDefnId
 
 type Referent'' t h = Referent' (Reference' t h) (Reference' t h)
 
+-- | diff. = min. - sub.
 data PatchDiff' t h d = PatchDiff
-  { addedTermEdits :: Map (Referent'' t h) (Set (TermEdit' t d)),
+  { -- | elements present in min. but absent in sub.
+    addedTermEdits :: Map (Referent'' t h) (Set (TermEdit' t d)),
     addedTypeEdits :: Map (Reference' t h) (Set (TypeEdit' t d)),
+    -- | elements missing in min. but present in sub.
     removedTermEdits :: Map (Referent'' t h) (Set (TermEdit' t d)),
     removedTypeEdits :: Map (Reference' t h) (Set (TypeEdit' t d))
   }
   deriving (Eq, Ord, Show)
+
+-- | the number of dbids in the patch, an approximation to disk size
+idcount :: PatchDiff' t h d -> Int
+idcount (PatchDiff atm atp rtm rtp) =
+  go atm + go atp + go rtm + go rtp
+  where
+    go :: Foldable f => f (Set a) -> Int
+    go fsa = (Monoid.getSum . foldMap (Monoid.Sum . Set.size)) fsa + length fsa
 
 trimap ::
   (Ord t', Ord h', Ord d') =>

@@ -82,6 +82,9 @@ loadHashId :: DB m => Base32Hex -> m (Maybe HashId)
 loadHashId base32 = queryOnly sql (Only base32)
   where sql = [here| SELECT id FROM hash WHERE base32 = ? |]
 
+loadHashIdByHash :: DB m => Hash -> m (Maybe HashId)
+loadHashIdByHash = loadHashId . Hash.toBase32Hex
+
 loadHashById :: EDB m => HashId -> m Base32Hex
 loadHashById h = queryOnly sql (Only h) >>= orError (UnknownHashId h)
   where sql = [here| SELECT base32 FROM hash WHERE id = ? |]
@@ -275,6 +278,18 @@ addToTypeIndex tp tm = execute sql (tp :. tm) where sql = [here|
   ) VALUES (?, ?, ?, ?, ?, ?)
 |]
 
+getReferentsByType :: DB m => Reference' TextId HashId -> m [Referent.Id]
+getReferentsByType r = query sql r where sql = [here|
+  SELECT
+    term_referent_object_id,
+    term_referent_component_index,
+    term_referent_constructor_index
+  FROM find_type_index
+  WHERE type_reference_builtin = ?
+    AND type_reference_hash_id = ?
+    AND type_reference_component_index = ?
+|]
+
 addToTypeMentionsIndex :: DB m => Reference' TextId HashId -> Referent.Id -> m ()
 addToTypeMentionsIndex tp tm = execute sql (tp :. tm) where sql = [here|
   INSERT OR IGNORE INTO find_type_mentions_index (
@@ -285,6 +300,18 @@ addToTypeMentionsIndex tp tm = execute sql (tp :. tm) where sql = [here|
     term_referent_component_index,
     term_referent_constructor_index
   ) VALUES (?, ?, ?, ?, ?, ?)
+|]
+
+getReferentsByTypeMention :: DB m => Reference' TextId HashId -> m [Referent.Id]
+getReferentsByTypeMention r = query sql r where sql = [here|
+  SELECT
+    term_referent_object_id,
+    term_referent_component_index,
+    term_referent_constructor_index
+  FROM find_type_mentions_index
+  WHERE type_reference_builtin = ?
+    AND type_reference_hash_id = ?
+    AND type_reference_component_index = ?
 |]
 
 addToDependentsIndex :: DB m => Reference.Reference -> Reference.Id -> m ()

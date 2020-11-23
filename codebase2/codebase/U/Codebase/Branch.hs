@@ -14,11 +14,13 @@ newtype NameSegment = NameSegment Text deriving (Eq, Ord, Show)
 
 newtype MdValues = MdValues (Set Reference) deriving (Eq, Ord, Show)
 
+type Root m = CausalHead m CausalHash BranchHash (Branch m)
+
 data Branch m = Branch
   { terms :: Map NameSegment (Map Referent (m MdValues)),
     types :: Map NameSegment (Map Reference (m MdValues)),
     patches :: Map NameSegment (PatchHash, m Patch),
-    children :: Map NameSegment (CausalHead m CausalHash BranchHash (Branch m))
+    children :: Map NameSegment (Root m)
   }
 
 data Patch = Patch

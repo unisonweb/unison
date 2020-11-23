@@ -73,6 +73,7 @@ import U.Codebase.Sqlite.LocalIds
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Patch.Diff as S
+import qualified U.Codebase.Sqlite.Patch.Diff as S.PatchDiff
 import qualified U.Codebase.Sqlite.Patch.Format as S
 import qualified U.Codebase.Sqlite.Patch.Format as S.PatchFormat
 import qualified U.Codebase.Sqlite.Patch.Full as S
@@ -106,7 +107,8 @@ import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
-import qualified U.Codebase.Sqlite.Patch.Diff as S.PatchDiff
+import Data.Functor.Identity (Identity)
+import qualified U.Codebase.Sqlite.Referent as S.Referent
 
 type Err m = MonadError Error m
 
@@ -182,7 +184,9 @@ loadValueHashByCausalHashId = loadValueHashById <=< liftQ . Q.loadCausalValueHas
 
 -- * Reference transformations
 
-c2sReference :: EDB m => C.Reference -> MaybeT m S.Reference
+-- ** read existing references
+
+c2sReference :: EDB m => C.Reference -> m S.Reference
 c2sReference = bitraverse lookupTextId hashToObjectId
 
 s2cReference :: EDB m => S.Reference -> m C.Reference
@@ -197,15 +201,24 @@ s2cReferenceId = C.Reference.idH loadHashByObjectId
 h2cReference :: EDB m => S.ReferenceH -> m C.Reference
 h2cReference = bitraverse loadTextById loadHashByHashId
 
+c2hReference :: DB m => C.Reference -> MaybeT m S.ReferenceH
+c2hReference = bitraverse (MaybeT . Q.loadText) (MaybeT . Q.loadHashIdByHash)
+
 s2cReferent :: EDB m => S.Referent -> m C.Referent
 s2cReferent = bitraverse s2cReference s2cReference
+
+s2cReferentId :: EDB m => S.Referent.Id -> m C.Referent.Id
+s2cReferentId = bitraverse loadHashByObjectId loadHashByObjectId
 
 h2cReferent :: EDB m => S.ReferentH -> m C.Referent
 h2cReferent = bitraverse h2cReference h2cReference
 
+-- ** write new references
+
 saveReferent :: EDB m => C.Referent -> m S.Referent
 saveReferent = bitraverse saveReference saveReference
 
+-- | a referenced object must necessarily exist in the db already
 saveReference :: EDB m => C.Reference -> m S.Reference
 saveReference = bitraverse Q.saveText hashToObjectId
 
@@ -250,6 +263,7 @@ saveTypeEdit = \case
   C.TypeEdit.Deprecate -> pure S.TypeEdit.Deprecate
 
 -- * Branch transformation
+
 s2cBranch :: EDB m => S.DbBranch -> m (C.Branch m)
 s2cBranch (S.Branch.Full.Branch tms tps patches children) =
   C.Branch
@@ -277,29 +291,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
     doPatches :: EDB m => Map Db.TextId Db.PatchObjectId -> m (Map C.NameSegment (PatchHash, m C.Patch))
     doPatches = Map.bitraverse (fmap C.NameSegment . loadTextById) \patchId -> do
       h <- PatchHash <$> (loadHashByObjectId . Db.unPatchObjectId) patchId
-      let patch :: EDB m => m C.Patch
-          patch =
-            deserializePatchObject patchId >>= \case
-              S.PatchFormat.Full li p -> s2cPatch (l2sPatchFull li p)
-              S.PatchFormat.Diff ref li d -> doDiff ref [l2sPatchDiff li d]
-          doDiff :: EDB m => Db.PatchObjectId -> [S.PatchDiff] -> m C.Patch
-          doDiff ref ds =
-            deserializePatchObject ref >>= \case
-              S.PatchFormat.Full li f -> joinFull (l2sPatchFull li f) ds
-              S.PatchFormat.Diff ref' li' d' -> doDiff ref' (l2sPatchDiff li' d' : ds)
-          joinFull :: EDB m => S.Patch -> [S.PatchDiff] -> m C.Patch
-          joinFull f [] = s2cPatch f
-          joinFull (S.Patch termEdits typeEdits) (S.PatchDiff addedTermEdits addedTypeEdits removedTermEdits removedTypeEdits : ds) = joinFull f' ds
-            where
-              f' = S.Patch (addRemove addedTermEdits removedTermEdits termEdits) (addRemove addedTypeEdits removedTypeEdits typeEdits)
-              addRemove :: (Ord a, Ord b) => Map a (Set b) -> Map a (Set b) -> Map a (Set b) -> Map a (Set b)
-              addRemove add del src =
-                (Map.unionWith (<>) add (Map.differenceWith remove src del))
-              remove :: Ord b => Set b -> Set b -> Maybe (Set b)
-              remove src del =
-                let diff = Set.difference src del
-                 in if diff == mempty then Nothing else Just diff
-      pure (h, patch)
+      pure (h, loadPatchById patchId)
 
     doChildren :: EDB m => Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) -> m (Map C.Branch.NameSegment (C.CausalHead m CausalHash BranchHash (C.Branch m)))
     doChildren = Map.bitraverse (fmap C.NameSegment . loadTextById) \(boId, chId) ->
@@ -327,11 +319,42 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
           boId <- liftQ $ Q.loadBranchObjectIdByCausalHashId chId
           traverse loadBranchByObjectId boId
 
-
--- saveBranch :: EDB m => C.Branch m -> m S.DbBranch
--- saveBranch = error "todo"
+saveRootBranch :: EDB m => C.Branch.Root m -> m (Db.BranchObjectId, Db.CausalHashId)
+saveRootBranch (C.CausalHead _hc _he _parents _me) = error "todo"
+  where
+    _c2sBranch :: EDB m => C.Branch m -> m S.DbBranch
+    _c2sBranch = error "todo"
 
 -- * Patch transformation
+
+loadPatchById :: EDB m => Db.PatchObjectId -> m C.Patch
+loadPatchById patchId =
+  deserializePatchObject patchId >>= \case
+    S.PatchFormat.Full li p -> s2cPatch (l2sPatchFull li p)
+    S.PatchFormat.Diff ref li d -> doDiff ref [l2sPatchDiff li d]
+  where
+    doDiff :: EDB m => Db.PatchObjectId -> [S.PatchDiff] -> m C.Patch
+    doDiff ref ds =
+      deserializePatchObject ref >>= \case
+        S.PatchFormat.Full li f -> joinFull (l2sPatchFull li f) ds
+        S.PatchFormat.Diff ref' li' d' -> doDiff ref' (l2sPatchDiff li' d' : ds)
+    joinFull :: EDB m => S.Patch -> [S.PatchDiff] -> m C.Patch
+    joinFull f [] = s2cPatch f
+    joinFull (S.Patch termEdits typeEdits) (S.PatchDiff addedTermEdits addedTypeEdits removedTermEdits removedTypeEdits : ds) = joinFull f' ds
+      where
+        f' = S.Patch (addRemove addedTermEdits removedTermEdits termEdits) (addRemove addedTypeEdits removedTypeEdits typeEdits)
+        addRemove :: (Ord a, Ord b) => Map a (Set b) -> Map a (Set b) -> Map a (Set b) -> Map a (Set b)
+        addRemove add del src =
+          (Map.unionWith (<>) add (Map.differenceWith remove src del))
+        remove :: Ord b => Set b -> Set b -> Maybe (Set b)
+        remove src del =
+          let diff = Set.difference src del
+           in if diff == mempty then Nothing else Just diff
+
+savePatch :: DB m => C.Patch -> m Db.PatchObjectId
+savePatch (C.Patch termEdits typeEdits) = do
+  error "todo"
+
 s2cPatch :: EDB m => S.Patch -> m C.Patch
 s2cPatch (S.Patch termEdits typeEdits) =
   C.Patch
@@ -343,6 +366,25 @@ savePatchHashes (C.Patch termEdits typeEdits) =
   S.Patch
     <$> Map.bitraverse saveReferentH (Set.traverse saveTermEdit) termEdits
     <*> Map.bitraverse saveReferenceH (Set.traverse saveTypeEdit) typeEdits
+
+-- | produces a diff
+-- diff = full - ref; full = diff + ref
+diffPatch :: S.LocalPatch -> S.LocalPatch -> S.LocalPatchDiff
+diffPatch (S.Patch fullTerms fullTypes) (S.Patch refTerms refTypes) =
+  (S.PatchDiff addTermEdits addTypeEdits removeTermEdits removeTypeEdits)
+  where
+    -- add: present in full. but absent in ref.
+    addTermEdits = Map.merge Map.preserveMissing Map.dropMissing addDiffSet fullTerms refTerms
+    addTypeEdits = Map.merge Map.preserveMissing Map.dropMissing addDiffSet fullTypes refTypes
+    -- remove: present in ref. but absent in full.
+    removeTermEdits = Map.merge Map.dropMissing Map.preserveMissing removeDiffSet fullTerms refTerms
+    removeTypeEdits = Map.merge Map.dropMissing Map.preserveMissing removeDiffSet fullTypes refTypes
+    -- things that are present in full but absent in ref
+    addDiffSet, removeDiffSet ::
+      (Ord k, Ord a) => Map.WhenMatched Identity k (Set a) (Set a) (Set a)
+    addDiffSet = Map.zipWithMatched (const Set.difference)
+    removeDiffSet = Map.zipWithMatched (const (flip Set.difference))
+
 
 -- implementation detail of loadPatchById?
 lookupPatchLocalText :: S.PatchLocalIds -> LocalTextId -> Db.TextId
@@ -362,7 +404,8 @@ l2sPatchFull li =
     (lookupPatchLocalDefn li)
 
 l2sPatchDiff :: S.PatchFormat.PatchLocalIds -> S.LocalPatchDiff -> S.PatchDiff
-l2sPatchDiff li = S.PatchDiff.trimap
+l2sPatchDiff li =
+  S.PatchDiff.trimap
     (lookupPatchLocalText li)
     (lookupPatchLocalHash li)
     (lookupPatchLocalDefn li)
@@ -706,11 +749,25 @@ saveWatch w r t = do
   let bytes = S.putBytes (S.putPair S.putLocalIds S.putTerm) wterm
   Q.saveWatch w rs bytes
 
-termsHavingType :: DB m => C.Reference -> m (Set C.Referent.Id)
-termsHavingType = error "todo"
+termsHavingType :: EDB m => C.Reference -> m (Set C.Referent.Id)
+termsHavingType cTypeRef = do
+  maySet <- runMaybeT $ do
+    sTypeRef <- c2hReference cTypeRef
+    sIds <- Q.getReferentsByType sTypeRef
+    traverse s2cReferentId sIds
+  pure case maySet of
+    Nothing -> mempty
+    Just set -> Set.fromList set
 
-termsMentioningType :: DB m => C.Reference -> m (Set C.Referent.Id)
-termsMentioningType = error "todo"
+termsMentioningType :: EDB m => C.Reference -> m (Set C.Referent.Id)
+termsMentioningType cTypeRef = do
+  maySet <- runMaybeT $ do
+    sTypeRef <- c2hReference cTypeRef
+    sIds <- Q.getReferentsByTypeMention sTypeRef
+    traverse s2cReferentId sIds
+  pure case maySet of
+    Nothing -> mempty
+    Just set -> Set.fromList set
 
 -- something kind of funny here.  first, we don't need to enumerate all the reference pos if we're just picking one
 -- second, it would be nice if we could leave these as S.References a little longer
