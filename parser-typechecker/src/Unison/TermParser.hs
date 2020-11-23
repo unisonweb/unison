@@ -33,6 +33,7 @@ import qualified Data.Sequence as Sequence
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
+import qualified Unison.ConstructorType as CT
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
 import qualified Unison.Name as Name
@@ -197,14 +198,14 @@ parsePattern = root
       else pure (Pattern.Var (ann v), [tokenToPair v])
   unbound :: P v (Pattern Ann, [(Ann, v)])
   unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> blank
-  ctor :: _ -> P v (L.Token (Reference, Int))
-  ctor err = do
+  ctor :: CT.ConstructorType -> _ -> P v (L.Token (Reference, Int))
+  ctor ct err = do
     -- this might be a var, so we avoid consuming it at first
     tok <- P.try (P.lookAhead hqPrefixId)
     names <- asks names
     -- probably should avoid looking up in `names` if `L.payload tok`
     -- starts with a lowercase
-    case Names.lookupHQPattern (L.payload tok) names of
+    case Names.lookupHQPattern (L.payload tok) ct names of
       s | Set.null s     -> die tok s
         | Set.size s > 1 -> die tok s
         | otherwise      -> -- matched ctor name, consume the token
@@ -222,7 +223,7 @@ parsePattern = root
   unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
 
   effectBind0 = do
-    tok <- ctor UnknownAbilityConstructor
+    tok <- ctor CT.Effect UnknownAbilityConstructor
     leaves <- many leaf
     _ <- reserved "->"
     pure (tok, leaves)
@@ -246,12 +247,12 @@ parsePattern = root
 
   -- ex: unique type Day = Mon | Tue | ...
   nullaryCtor = P.try $ do
-    tok <- ctor UnknownAbilityConstructor
+    tok <- ctor CT.Data UnknownDataConstructor
     let (ref, cid) = L.payload tok
     pure (Pattern.Constructor (ann tok) ref cid [], [])
 
   constructor = do
-    tok <- ctor UnknownDataConstructor
+    tok <- ctor CT.Data UnknownDataConstructor
     let (ref,cid) = L.payload tok
         f patterns vs =
           let loc = foldl (<>) (ann tok) $ map ann patterns
