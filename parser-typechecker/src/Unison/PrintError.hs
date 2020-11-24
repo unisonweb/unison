@@ -27,8 +27,9 @@ import qualified Unison.Lexer                 as L
 import           Unison.Parser                (Ann (..), Annotated, ann)
 import qualified Unison.Parser                as Parser
 import qualified Unison.Reference             as R
-import           Unison.Referent              (Referent)
+import           Unison.Referent              (Referent, pattern Ref')
 import           Unison.Result                (Note (..))
+import qualified Unison.Result                as Result
 import qualified Unison.Settings              as Settings
 import qualified Unison.Term                  as Term
 import qualified Unison.Type                  as Type
@@ -669,6 +670,90 @@ renderTypeError e env src = case e of
       , renderType' env typ
       , "\n"
       ]
+    C.DataEffectMismatch actual rf _ -> mconcat
+      [ "DataEffectMismatch:\n"
+      , case actual of
+          C.Data -> "  data type used as effect"
+          C.Effect -> "  ability used as data type"
+      , "\n"
+      , "  reference="
+      , showTypeRef env rf
+      ]
+
+renderCompilerBug
+  :: (Var v, Annotated loc, Ord loc, Show loc)
+  => Env
+  -> String
+  -> C.CompilerBug v loc
+  -> Pretty ColorText
+renderCompilerBug env _src bug = mconcat $ case bug of
+  C.UnknownDecl sort rf _decls ->
+    [ "UnknownDecl:\n"
+    , case sort of
+        C.Data -> "  data type"
+        C.Effect -> "  ability"
+    , "\n"
+    , "  reerence = "
+    , showTypeRef env rf
+    ]
+  C.UnknownConstructor sort rf i _decl ->
+    [ "UnknownConstructor:\n"
+    , case sort of
+        C.Data -> "  data type\n"
+        C.Effect -> "  ability\n"
+    , "  reference = "
+    , showTypeRef env rf
+    , "\n"
+    , "  constructor index = "
+    , fromString (show i)
+    ]
+  C.UndeclaredTermVariable v ctx ->
+    [ "UndeclaredTermVariable:\n  "
+    , fromString $ renderVar' env ctx v
+    ]
+  C.RetractFailure elem ctx ->
+    [ "RetractFailure:\n"
+    , fromString $ show elem
+    , fromString $ show ctx
+    ]
+  C.EmptyLetRec tm ->
+    [ "EmptyLetRec:\n"
+    , renderTerm env tm
+    ]
+  C.PatternMatchFailure -> ["PatternMatchFailure"]
+  C.EffectConstructorHadMultipleEffects es ->
+    [ "EffectConstructorHadMultipleEffects:\n  "
+    , renderType' env es
+    ]
+  C.FreeVarsInTypeAnnotation vs ->
+    [ "FreeVarsInTypeAnnotation:\n  "
+    , intercalateMap ", " renderVar (toList vs)
+    ]
+  C.UnannotatedReference rf ->
+    [ "UnannotatedReference:\n"
+    , showTypeRef env rf -- term/type shouldn't matter, since unknown
+    ]
+  C.MalformedPattern p ->
+    [ "MalformedPattern:\n"
+    , fromString $ show p
+    ]
+  C.UnknownTermReference rf ->
+    [ "UnknownTermReference:\n"
+    , showTermRef env (Ref' rf)
+    ]
+  C.UnknownExistentialVariable v ctx ->
+    [ "UnknownExistentialVariable:\n"
+    , fromString $ renderVar' env ctx v
+    ]
+  C.IllegalContextExtension ctx el str ->
+    [ "IllegalContextExtension:\n"
+    , "  context:\n    "
+    , fromString $ show ctx
+    , "  element:\n    "
+    , fromString $ show el
+    , fromString str
+    ]
+  C.OtherBug str -> [ "OtherBug:\n" , fromString str ]
 
 renderContext
   :: (Var v, Ord loc) => Env -> C.Context v loc -> Pretty (AnnotatedText a)
@@ -868,6 +953,8 @@ printNoteWithSource _env s (InvalidPath path term) =
 printNoteWithSource _env s (UnknownSymbol v a) =
   fromString ("Unknown symbol `" ++ Text.unpack (Var.name v) ++ "`\n\n")
     <> annotatedAsErrorSite s a
+printNoteWithSource env s (CompilerBug (Result.TypecheckerBug c))
+  = renderCompilerBug env s c
 printNoteWithSource _env _s (CompilerBug c) =
   fromString $ "Compiler bug: " <> show c
 

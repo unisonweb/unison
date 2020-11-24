@@ -107,9 +107,6 @@ test1 = scope "termparser" . tests . map parses $
     "  Tuple.Cons x y -> x + y\n" ++
     "  Tuple.Cons (Tuple.Cons x y) _ -> x + y \n"
   , "match x with\n" ++
-    "  {Tuple.Cons x y} -> 1\n" ++
-    "  {Optional.Some 42 -> k} -> k 42\n"
-  , "match x with\n" ++
     "  0 ->\n" ++
     "    z = 0\n" ++
     "    z"
