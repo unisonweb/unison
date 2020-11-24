@@ -13,7 +13,7 @@ mapReduce loc fn ifEmpty reduce data = match split data with
   Two left right ->
     fl = at loc '(mapReduce loc fn ifEmpty reduce !left)
     fr = at loc '(mapReduce loc fn ifEmpty reduce !right)
-    op !fl !fr
+    reduce !fl !fr
 ```
 
 This function can be either simulated locally (possibly with faults injected for testing purposes), or run atop a distributed pool of compute. 
