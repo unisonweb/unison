@@ -200,8 +200,6 @@ ex n =
       3 |   ping = 42
   
 
-  
-
 ```
 This also won't compile; it's a cyclic reference that isn't guarded:
 
@@ -215,8 +213,6 @@ ex n =
 
   These definitions depend on each other cyclically but aren't guarded by a lambda: loop9
       2 |   loop = loop
-  
-
   
 
 ```
@@ -260,8 +256,6 @@ ex n =
   The expression in red needs the {SpaceAttack} ability, but this location does not have access to any abilities.
   
       5 |   zap1 = launchMissiles "neptune" + zap2
-  
-
   
 
 ```

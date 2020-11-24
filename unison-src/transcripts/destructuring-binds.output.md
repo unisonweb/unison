@@ -98,8 +98,6 @@ ex4 =
   Whatever it is, it has a type that conforms to builtin.Nat.
   
 
-  
-
 ```
 Even though the parser accepts any pattern on the LHS of a bind, it looks pretty weird to see things like `12 = x`, so we avoid showing a destructuring bind when the LHS is a "literal" pattern (like `42` or "hi"). Again these examples wouldn't compile with coverage checking.
 
