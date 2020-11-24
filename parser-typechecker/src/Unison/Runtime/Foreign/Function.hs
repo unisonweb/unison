@@ -25,8 +25,9 @@ import System.IO (BufferMode(..), SeekMode, Handle, IOMode)
 import Unison.Util.Bytes (Bytes)
 
 import Unison.Type (mvarRef)
+import Unison.Symbol (Symbol)
 
-import Unison.Runtime.ANF (Mem(..))
+import Unison.Runtime.ANF (SuperGroup, Mem(..), Value)
 import Unison.Runtime.MCode
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign
@@ -292,9 +293,25 @@ instance ForeignConvention [Closure] where
     bstk <- bump bstk
     (ustk,bstk) <$ pokeS bstk (Sq.fromList l)
 
+instance ForeignConvention [Foreign] where
+  readForeign = readForeignAs (fmap marshalToForeign)
+  writeForeign = writeForeignAs (fmap Foreign)
+
 instance ForeignConvention (MVar Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap mvarRef)
+
+instance ForeignConvention (SuperGroup Symbol) where
+  readForeign = readForeignBuiltin
+  writeForeign = writeForeignBuiltin
+
+instance ForeignConvention Value where
+  readForeign = readForeignBuiltin
+  writeForeign = writeForeignBuiltin
+
+instance ForeignConvention Foreign where
+  readForeign = readForeignAs marshalToForeign
+  writeForeign = writeForeignAs Foreign
 
 instance {-# overlappable #-} BuiltinForeign b => ForeignConvention b where
   readForeign = readForeignBuiltin

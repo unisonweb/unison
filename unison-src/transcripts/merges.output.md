@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #9vqvq27unq
+  ⊙ #8g1nb0so5t
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #0tai2hvoep
+  ⊙ #uuevo0a90a
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #ld3npmrd4b
+  ⊙ #38s398c7su
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #c82mcefcqb
+  ⊙ #03etmnkuq5
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #onh9bsr0dl
+  ⊙ #cp7dki0f73
   
     + Adds / updates:
     
       x
   
-  ⊙ #gibpnb86qp
+  ⊙ #3662ae22bk
   
     + Adds / updates:
     
@@ -162,7 +162,10 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Bytes.toBase16 builtin.Bytes.toBase32
       builtin.Bytes.toBase64 builtin.Bytes.toBase64UrlUnpadded
       builtin.Bytes.toList builtin.Char builtin.Char.fromNat
-      builtin.Char.toNat builtin.Debug.watch builtin.Doc
+      builtin.Char.toNat builtin.Code builtin.Code.cache_
+      builtin.Code.dependencies builtin.Code.deserialize
+      builtin.Code.isMissing builtin.Code.lookup
+      builtin.Code.serialize builtin.Debug.watch builtin.Doc
       builtin.Doc.Blob builtin.Doc.Evaluate builtin.Doc.Join
       builtin.Doc.Link builtin.Doc.Signature builtin.Doc.Source
       builtin.Either builtin.Either.Left builtin.Either.Right
@@ -220,7 +223,10 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Tuple.Cons builtin.Unit builtin.Unit.Unit
       builtin.Universal.< builtin.Universal.<=
       builtin.Universal.== builtin.Universal.>
-      builtin.Universal.>= builtin.Universal.compare builtin.bug
+      builtin.Universal.>= builtin.Universal.compare
+      builtin.Value builtin.Value.dependencies
+      builtin.Value.deserialize builtin.Value.load
+      builtin.Value.serialize builtin.Value.value builtin.bug
       builtin.crypto.HashAlgorithm
       builtin.crypto.HashAlgorithm.Blake2b_256
       builtin.crypto.HashAlgorithm.Blake2b_512
