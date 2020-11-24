@@ -10,8 +10,24 @@ Define a function, serialize it, then deserialize it back to an actual
 function. Also ask for its dependencies for display later.
 
 ```unison
-f : Nat -> Nat
-f x = x + 5
+type Three a b c = zero a | one b | two c
+
+ability Zap where
+  zap : Three Nat Nat Nat
+
+concatMap : (a -> [b]) -> [a] -> [b]
+concatMap f = cases
+  [] -> []
+  x +: xs -> f x ++ concatMap f xs
+
+h : Three Nat Nat Nat -> Nat -> Nat
+h y x = match y with
+  zero y -> x + y
+  one y -> x + y + y
+  two y -> x + 3*y
+
+f : Nat ->{Zap} Nat
+f x = h zap x
 
 fVal : Value
 fVal = Value.value f
@@ -22,20 +38,28 @@ fDeps = Value.dependencies fVal
 fSer : Bytes
 fSer = Value.serialize fVal
 
-g : '{io2.IO} (Nat -> Nat)
+g : '{io2.IO} (Nat ->{Zap} Nat)
 g = 'match Value.deserialize fSer with
   Left tx -> bug tx
   Right v -> match Value.load v with
     Left _ -> bug "missing deps"
     Right func -> func
 
-x : '{IO} Nat
-x _ = !g 5
+zapper : Request {Zap} r -> r
+zapper = cases
+  { r } -> r
+  { zap -> k } -> handle k (zero 5) with zapper
 
-main : '{IO} ()
-main = 'let
+x : '{IO} Nat
+x _ = handle !g 5 with zapper
+
+void : '{IO} a -> '{IO} ()
+void x = 'let
   y = !x
   ()
+
+main : '{IO} ()
+main = void x
 ```
 
 This simply runs some functions to make sure there isn't a crash. Once
