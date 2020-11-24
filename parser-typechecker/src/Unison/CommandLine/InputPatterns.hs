@@ -1320,6 +1320,22 @@ execute = InputPattern
     _   -> Left $ showPatternHelp execute
   )
 
+ioTest :: InputPattern
+ioTest = InputPattern
+  "io.test"
+  []
+  []
+  (P.wrapColumn2
+    [ ( "`io.test mystest`"
+      , "Runs `!mytest`, where `mytest` is searched for in the most recent"
+        <> "typechecked file, or in the codebase."
+      )
+    ]
+  )
+  (\case
+    [thing] -> fmap Input.IOTestI $ parseHashQualifiedName thing
+    _   -> Left $ showPatternHelp ioTest
+  )
 createAuthor :: InputPattern
 createAuthor = InputPattern "create.author" []
   [(Required, noCompletions), (Required, noCompletions)]
@@ -1397,6 +1413,7 @@ validInputs =
   , deleteTermReplacement
   , deleteTypeReplacement
   , test
+  , ioTest
   , execute
   , viewReflog
   , resetRoot

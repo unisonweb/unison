@@ -1333,7 +1333,7 @@ declareForeigns = do
   declareForeign "MVar.new" boxDirect
     . mkForeign $ \(c :: Closure) -> newMVar c
 
-  declareForeign "MVar.empty" unitDirect
+  declareForeign "MVar.newEmpty" unitDirect
     . mkForeign $ \() -> newEmptyMVar @Closure
 
   declareForeign "MVar.take.v2" boxToEFBox

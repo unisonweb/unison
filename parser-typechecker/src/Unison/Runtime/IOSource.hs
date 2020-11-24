@@ -96,6 +96,9 @@ ioFailureReference = typeNamed "io2.IOFailure"
 isTest :: (R.Reference, R.Reference)
 isTest = (isTestReference, termNamed "metadata.isTest")
 
+isIOTest :: (R.Reference, R.Reference)
+isIOTest = (isTestReference, termNamed "metadata.isIOTest")
+
 isPropagatedValue :: R.Reference
 isPropagatedValue = termNamed "metadata.isPropagated"
 

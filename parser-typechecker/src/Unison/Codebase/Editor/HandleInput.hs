@@ -21,7 +21,6 @@ where
 
 import           Unison.Prelude
 
-import Unison.Codebase.MainTerm ( getMainTerm )
 import qualified Unison.Codebase.MainTerm as MainTerm
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
@@ -430,6 +429,7 @@ loop = do
           PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
           UndoI{} -> "undo"
           ExecuteI s -> "execute " <> Text.pack s
+          IOTestI hq -> "io.test " <> HQ.toText hq
           LinkI md defs ->
             "link " <> HQ.toText md <> " " <> intercalateMap " " hqs' defs
           UnlinkI md defs ->
@@ -1589,6 +1589,7 @@ loop = do
                         respond $ TestIncrementalOutputEnd ppe (n,total) r tm'
                         pure [(r, tm')]
               r -> error $ "unpossible, tests can't be builtins: " <> show r
+
           let m = Map.fromList computedTests
           respond $ TestResults Output.NewlyComputed ppe showOk showFail (oks m) (fails m)
 
@@ -1619,7 +1620,68 @@ loop = do
           respond $ NoMainFunction main ppe [mainType]
         Just unisonFile -> do
           ppe <- executePPE unisonFile
-          eval $ Execute ppe unisonFile
+          e <- eval $ Execute ppe unisonFile
+
+          case e of
+            Left e -> respond $ EvaluationFailure e 
+            Right _ -> pure () -- TODO 
+
+      IOTestI main -> do
+        testType <- eval RuntimeTest
+        parseNames0 <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
+        ppe <- prettyPrintEnv parseNames0
+        -- use suffixed names for resolving the argument to display
+        let
+            parseNames = Names3.suffixify parseNames0
+
+            oks results =
+              [ (r, msg)
+              | (r, Term.Sequence' ts) <- results
+              , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
+              , cid == DD.okConstructorId && ref == DD.testResultRef ]
+            fails results =
+              [ (r, msg)
+              | (r, Term.Sequence' ts) <- results
+              , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
+              , cid == DD.failConstructorId && ref == DD.testResultRef ]
+
+            results = Names3.lookupHQTerm main parseNames in
+            case toList results of
+               [Referent.Ref ref] -> do
+                 typ <- loadTypeOfTerm (Referent.Ref ref)
+                 case typ of
+                   Just typ | Typechecker.isSubtype testType typ -> do
+                     let a = ABT.annotation tm
+                         tm = DD.forceTerm a a (Term.ref a ref) in do
+                         tm' <- eval $ Evaluate1 ppe tm
+                         case tm' of
+                           Left e -> respond (EvaluationFailure e)
+                           Right tm' -> 
+                               respond $ TestResults Output.NewlyComputed ppe True True (oks [(ref, tm')]) (fails [(ref, tm')])
+                   _ -> respond $ NoMainFunction "main" ppe [testType]
+               _ -> respond $ NoMainFunction "main" ppe [testType]
+
+
+--
+--        if Set.null results then
+--          respond $ SearchTermsNotFound [main]
+--        else if Set.size results > 1 then
+--          respond $ TermAmbiguous main results
+--        -- ... but use the unsuffixed names for display
+--        else do
+--
+--
+-- 
+--
+--
+--          ppe <- prettyPrintEnv parseNames
+--          testType <- eval RuntimeTest
+--          tm <- eval $ LoadTerm rid
+--          case tm of
+--          e <- eval $ Evaluate1 ppe (Set.findMin results)
+--          case e of
+--            Left e -> respond $ EvaluationFailure e
+--            Right res -> respond $ TestIncrementalOutputEnd ppe (0,0) "asdf" res
 
       -- UpdateBuiltinsI -> do
       --   stepAt updateBuiltins
@@ -2823,7 +2885,7 @@ addRunMain mainName Nothing = do
   let loadTypeOfTerm ref = eval $ LoadTypeOfTerm ref
   mainType <- eval RuntimeMain
   mainToFile <$>
-    getMainTerm loadTypeOfTerm parseNames0 mainName mainType
+    MainTerm.getMainTerm loadTypeOfTerm parseNames0 mainName mainType
   where
     mainToFile (MainTerm.NotAFunctionName _) = Nothing
     mainToFile (MainTerm.NotFound _) = Nothing
@@ -2840,7 +2902,7 @@ addRunMain mainName (Just uf) = do
       v2 = Var.freshIn (Set.fromList [v]) v
       a = ABT.annotation tm
       in
-      if Typechecker.isSubtype ty mainType then Just $ let
+      if Typechecker.isSubtype mainType ty then Just $ let
         runMain = DD.forceTerm a a (Term.var a v)
         in UF.typecheckedUnisonFile
              (UF.dataDeclarationsId' uf)
