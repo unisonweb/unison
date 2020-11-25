@@ -162,6 +162,9 @@ builtinTypesSrc =
   , B' "Socket" CT.Data, Rename' "Socket" "io2.Socket"
   , B' "ThreadId" CT.Data, Rename' "ThreadId" "io2.ThreadId"
   , B' "MVar" CT.Data, Rename' "MVar" "io2.MVar"
+  , B' "Code" CT.Data
+  , B' "Value" CT.Data
+  , B' "crypto.HashAlgorithm" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -246,7 +249,6 @@ builtinsSrc =
   , B "Int.signum" $ int --> int
   , B "Int.leadingZeros" $ int --> nat
   , B "Int.negate" $ int --> int
-  , B "Int.negate" $ int --> int
   , B "Int.mod" $ int --> int --> int
   , B "Int.pow" $ int --> nat --> int
   , B "Int.shiftLeft" $ int --> nat --> int
@@ -256,6 +258,7 @@ builtinsSrc =
   , B "Int.fromText" $ text --> optionalt int
   , B "Int.toFloat" $ int --> float
   , B "Int.trailingZeros" $ int --> nat
+  , B "Int.popCount" $ int --> nat
 
   , B "Nat.*" $ nat --> nat --> nat
   , B "Nat.+" $ nat --> nat --> nat
@@ -284,6 +287,7 @@ builtinsSrc =
   , B "Nat.toInt" $ nat --> int
   , B "Nat.toText" $ nat --> text
   , B "Nat.trailingZeros" $ nat --> nat
+  , B "Nat.popCount" $ nat --> nat
 
   , B "Float.+" $ float --> float --> float
   , B "Float.-" $ float --> float --> float
@@ -367,9 +371,10 @@ builtinsSrc =
   , B "Text.>" $ text --> text --> boolean
   , B "Text.uncons" $ text --> optionalt (tuple [char, text])
   , B "Text.unsnoc" $ text --> optionalt (tuple [text, char])
-
   , B "Text.toCharList" $ text --> list char
   , B "Text.fromCharList" $ list char --> text
+  , B "Text.toUtf8" $ text --> bytes
+  , B "Text.fromUtf8" $ bytes --> eithert text text
 
   , B "Char.toNat" $ char --> nat
   , B "Char.fromNat" $ nat --> char
@@ -383,6 +388,24 @@ builtinsSrc =
   , B "Bytes.toList" $ bytes --> list nat
   , B "Bytes.size" $ bytes --> nat
   , B "Bytes.flatten" $ bytes --> bytes
+
+   {- These are all `Bytes -> Bytes`, rather than `Bytes -> Text`.
+      This is intentional: it avoids a round trip to `Text` if all
+      you are doing with the bytes is dumping them to a file or a
+      network socket.
+
+      You can always `Text.fromUtf8` the results of these functions
+      to get some `Text`.
+    -}
+  , B "Bytes.toBase16" $ bytes --> bytes
+  , B "Bytes.toBase32" $ bytes --> bytes
+  , B "Bytes.toBase64" $ bytes --> bytes
+  , B "Bytes.toBase64UrlUnpadded" $ bytes --> bytes
+
+  , B "Bytes.fromBase16" $ bytes --> eithert text bytes
+  , B "Bytes.fromBase32" $ bytes --> eithert text bytes
+  , B "Bytes.fromBase64" $ bytes --> eithert text bytes
+  , B "Bytes.fromBase64UrlUnpadded" $ bytes --> eithert text bytes
 
   , B "List.empty" $ forall1 "a" list
   , B "List.cons" $ forall1 "a" (\a -> a --> list a --> list a)
@@ -405,10 +428,25 @@ builtinsSrc =
                   ,("<=", "lteq")
                   ,(">" , "gt")
                   ,(">=", "gteq")]
-  ] ++ io2List ioBuiltins ++ io2List mvarBuiltins
+  ] ++ moveUnder "io2" ioBuiltins
+    ++ moveUnder "io2" mvarBuiltins
+    ++ hashBuiltins
+    ++ fmap (uncurry B) codeBuiltins
 
-io2List :: [(Text, Type v)] -> [BuiltinDSL v]
-io2List bs = bs >>= \(n,ty) -> [B n ty, Rename n ("io2." <> n)]
+moveUnder :: Text -> [(Text, Type v)] -> [BuiltinDSL v]
+moveUnder prefix bs = bs >>= \(n,ty) -> [B n ty, Rename n (prefix <> "." <> n)]
+
+hashBuiltins :: Var v => [BuiltinDSL v]
+hashBuiltins =
+  [ B "crypto.hash" $ forall1 "a" (\a -> hashAlgo --> a --> bytes)
+  , B "crypto.hashBytes" $ hashAlgo --> bytes --> bytes
+  , B "crypto.hmac" $ forall1 "a" (\a -> hashAlgo --> bytes --> a --> bytes)
+  , B "crypto.hmacBytes" $ hashAlgo --> bytes --> bytes --> bytes
+  ] ++
+  map h [ "Sha3_512", "Sha3_256", "Sha2_512", "Sha2_256", "Blake2b_512", "Blake2b_256", "Blake2s_256" ]
+  where
+  hashAlgo = Type.ref() Type.hashAlgorithmRef
+  h name = B ("crypto.HashAlgorithm."<>name) $ hashAlgo
 
 ioBuiltins :: Var v => [(Text, Type v)]
 ioBuiltins =
@@ -422,8 +460,8 @@ ioBuiltins =
   , ("IO.getBuffering", handle --> ioe bmode)
   , ("IO.setBuffering", handle --> bmode --> ioe unit)
   , ("IO.getLine", handle --> ioe text)
-  , ("IO.getText", handle --> ioe text)
-  , ("IO.putText", handle --> text --> ioe unit)
+  , ("IO.getBytes", handle --> nat --> ioe text)
+  , ("IO.putBytes", handle --> bytes --> ioe unit)
   , ("IO.systemTime", unit --> ioe nat)
   , ("IO.getTempDirectory", unit --> ioe text)
   , ("IO.getCurrentDirectory", unit --> ioe text)
@@ -468,6 +506,22 @@ mvarBuiltins =
   mvar :: Type v -> Type v
   mvar a = Type.ref () Type.mvarRef `app` a
 
+codeBuiltins :: forall v. Var v => [(Text, Type v)]
+codeBuiltins =
+  [ ("Code.dependencies", code --> list termLink)
+  , ("Code.isMissing", termLink --> io boolean)
+  , ("Code.serialize", code --> bytes)
+  , ("Code.deserialize", bytes --> eithert text code)
+  , ("Code.cache_", list (tuple [termLink,code]) --> io (list termLink))
+  , ("Code.lookup", termLink --> io (optionalt code))
+  , ("Value.dependencies", value --> list termLink)
+  , ("Value.serialize", value --> bytes)
+  , ("Value.deserialize", bytes --> eithert text value)
+  , ("Value.value", forall1 "a" $ \a -> a --> value)
+  , ("Value.load"
+    , forall1 "a" $ \a -> value --> io (eithert (list termLink) a))
+  ]
+
 forall1 :: Var v => Text -> (Type v -> Type v) -> Type v
 forall1 name body =
   let
@@ -496,9 +550,10 @@ infixr -->
 
 io, ioe :: Var v => Type v -> Type v
 io = Type.effect1 () (Type.builtinIO ())
-ioe = io . either (DD.ioErrorType ())
-  where
-  either l r = DD.eitherType () `app` l `app` r
+ioe = io . eithert (DD.ioErrorType ())
+
+eithert :: Var v => Type v -> Type v -> Type v
+eithert l r = DD.eitherType () `app` l `app` r
 
 socket, threadId, handle, unit :: Var v => Type v
 socket = Type.socket ()
@@ -520,3 +575,8 @@ text = Type.text ()
 boolean = Type.boolean ()
 float = Type.float ()
 char = Type.char ()
+
+code, value, termLink :: Var v => Type v
+code = Type.code ()
+value = Type.value ()
+termLink = Type.termLink ()

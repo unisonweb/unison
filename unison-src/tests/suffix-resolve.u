@@ -6,17 +6,17 @@
 foo : Int
 foo = +1
 
--- no imports needed here, even though FQNs are builtin.Optional.{None,Some}
+-- no imports needed here, even though FQNs are Optional.{None,Some}
 ex1 = cases
   None -> 0
   Some a -> a + 1
 
--- you can still use the
+-- you can still use the FQN
 ex2 = cases
   Optional.None -> 99
   Optional.Some _ -> 0
 
-ex3 = builtin.Optional.None
+ex3 = List.at 0 [ 1, 2, 3, 4 ]
 
 -- TDNR would have handled this one before, but TDNR can't do
 -- type resolution or pattern resolution

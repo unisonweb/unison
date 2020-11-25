@@ -26,18 +26,18 @@ test = scope "util.bytes" . tests $ [
       b1 <- BS.pack <$> replicateM n word8
       b2 <- BS.pack <$> replicateM m word8
       b3 <- BS.pack <$> replicateM o word8
-      let [b1s, b2s, b3s] = Bytes.fromByteString <$> [b1, b2, b3]
+      let [b1s, b2s, b3s] = Bytes.fromArray <$> [b1, b2, b3]
       scope "associtivity" . expect' $
         b1s <> (b2s <> b3s) == (b1s <> b2s) <> b3s
       scope "<>" . expect' $
-        Bytes.toByteString (b1s <> b2s <> b3s) == b1 <> b2 <> b3
+        Bytes.toArray (b1s <> b2s <> b3s) == b1 <> b2 <> b3
       scope "Ord" . expect' $
         (b1 <> b2 <> b3) `compare` b3 ==
         (b1s <> b2s <> b3s) `compare` b3s
       scope "take" . expect' $
-        Bytes.toByteString (Bytes.take k (b1s <> b2s)) == BS.take k (b1 <> b2)
+        Bytes.toArray (Bytes.take k (b1s <> b2s)) == BS.take k (b1 <> b2)
       scope "drop" . expect' $
-        Bytes.toByteString (Bytes.drop k (b1s <> b2s)) == BS.drop k (b1 <> b2)
+        Bytes.toArray (Bytes.drop k (b1s <> b2s)) == BS.drop k (b1 <> b2)
       scope "at" $
         let bs = b1s <> b2s <> b3s
             b  = b1 <> b2 <> b3
@@ -55,8 +55,8 @@ test = scope "util.bytes" . tests $ [
           b3 = foldl' (<>) mempty (Bytes.fromWord8s <$> chunks)
           b  = BS.concat (BS.pack <$> chunks)
       expect' $ b1 == b2 && b2 == b3
-      expect' $ Bytes.toByteString b1 == b
-      expect' $ Bytes.toByteString b2 == b
-      expect' $ Bytes.toByteString b3 == b
+      expect' $ Bytes.toArray b1 == b
+      expect' $ Bytes.toArray b2 == b
+      expect' $ Bytes.toArray b3 == b
     ok
   ]

@@ -6,6 +6,8 @@ module Unison.Test.MCode where
 
 import EasyTest
 
+import Control.Concurrent.STM
+
 import qualified Data.Map.Strict as Map
 
 import Data.Bits (bit)
@@ -34,16 +36,22 @@ import Unison.Runtime.MCode
   )
 import Unison.Runtime.Builtin
 import Unison.Runtime.Machine
-  ( SEnv(..), eval0 )
+  ( CCache(..), eval0, baseCCache )
 
 import Unison.Test.Common (tm)
 
 dummyRef :: Reference
 dummyRef = Builtin "dummy"
 
+modifyTVarTest :: TVar a -> (a -> a) -> Test ()
+modifyTVarTest v f = io . atomically $ modifyTVar v f
+
 testEval0 :: EnumMap Word64 Combs -> Section -> Test ()
 testEval0 env sect = do
-  io $ eval0 (SEnv env builtinForeigns (dummyRef <$ env) mempty) sect
+  cc <- io baseCCache
+  modifyTVarTest (combs cc) (env <>)
+  modifyTVarTest (combRefs cc) ((dummyRef <$ env) <>)
+  io $ eval0 cc sect
   ok
 
 builtins :: Reference -> Word64
@@ -53,7 +61,7 @@ builtins r
   | otherwise = error $ "builtins: " ++ show r
 
 cenv :: EnumMap Word64 Combs
-cenv = fmap (mapSingleton 0 . emitComb numbering 0 mempty)
+cenv = fmap (emitComb numbering 0 mempty . (0,))
      $ numberedTermLookup @Symbol
 
 env :: Combs -> EnumMap Word64 Combs

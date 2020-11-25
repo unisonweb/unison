@@ -33,6 +33,7 @@ import qualified Data.Sequence as Sequence
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
+import qualified Unison.ConstructorType as CT
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
 import qualified Unison.Name as Name
@@ -41,8 +42,9 @@ import qualified Unison.Parser as Parser (seq, uniqueName)
 import qualified Unison.Pattern as Pattern
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
-import qualified Unison.Typechecker.Components as Components
 import qualified Unison.TypeParser as TypeParser
+import qualified Unison.Typechecker.Components as Components
+import qualified Unison.Util.Bytes as Bytes
 import qualified Unison.Var as Var
 
 watch :: Show a => String -> a -> a
@@ -127,19 +129,34 @@ match = do
   _ <- P.try (openBlockWith "with") <|> do
          t <- anyToken
          P.customFailure (ExpectedBlockOpen "with" t)
-  cases <- sepBy1 semi matchCase
+  (_arities, cases) <- unzip <$> sepBy1 semi matchCase
   -- TODO: Add error for empty match list
   _ <- closeBlock
   pure $ Term.match (ann start <> ann (last cases)) scrutinee cases
 
-matchCase :: Var v => P v (Term.MatchCase Ann (Term v Ann))
+-- Returns the arity of the pattern and the `MatchCase`. Examples:
+--
+--   (a, b) -> a - b -- arity 1
+--   foo, hd +: tl -> foo tl -- arity 2
+--
+-- Cases with arity greater than 1 are desugared to matching on tuples,
+-- so the following are parsed the same:
+--
+--   42, x -> ...
+--   (42, x) -> ...
+matchCase :: Var v => P v (Int, Term.MatchCase Ann (Term v Ann))
 matchCase = do
-  (p, boundVars) <- parsePattern
-  let boundVars' = snd <$> boundVars
+  pats <- sepBy1 (reserved ",") parsePattern
+  let boundVars' = [ v | (_,vs) <- pats, (_ann,v) <- vs ]
+      pat = case fst <$> pats of
+        [p] -> p
+        pats -> foldr pair (unit (ann . last $ pats)) pats
+      unit ann = Pattern.Constructor ann DD.unitRef 0 []
+      pair p1 p2 = Pattern.Constructor (ann p1 <> ann p2) DD.pairRef 0 [p1, p2]
   guard <- optional $ reserved "|" *> infixAppOrBooleanOp
   t <- block "->"
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
-  pure . Term.MatchCase p (fmap (absChain boundVars') guard) $ absChain boundVars' t
+  pure $ (length pats, Term.MatchCase pat (fmap (absChain boundVars') guard) (absChain boundVars' t))
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
 parsePattern = root
@@ -182,12 +199,14 @@ parsePattern = root
       else pure (Pattern.Var (ann v), [tokenToPair v])
   unbound :: P v (Pattern Ann, [(Ann, v)])
   unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> blank
-  ctor :: _ -> P v (L.Token (Reference, Int))
-  ctor err = do
+  ctor :: CT.ConstructorType -> _ -> P v (L.Token (Reference, Int))
+  ctor ct err = do
     -- this might be a var, so we avoid consuming it at first
     tok <- P.try (P.lookAhead hqPrefixId)
     names <- asks names
-    case Names.lookupHQPattern (L.payload tok) names of
+    -- probably should avoid looking up in `names` if `L.payload tok`
+    -- starts with a lowercase
+    case Names.lookupHQPattern (L.payload tok) ct names of
       s | Set.null s     -> die tok s
         | Set.size s > 1 -> die tok s
         | otherwise      -> -- matched ctor name, consume the token
@@ -205,7 +224,7 @@ parsePattern = root
   unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
 
   effectBind0 = do
-    tok <- ctor UnknownAbilityConstructor
+    tok <- ctor CT.Effect UnknownAbilityConstructor
     leaves <- many leaf
     _ <- reserved "->"
     pure (tok, leaves)
@@ -229,12 +248,12 @@ parsePattern = root
 
   -- ex: unique type Day = Mon | Tue | ...
   nullaryCtor = P.try $ do
-    tok <- ctor UnknownAbilityConstructor
+    tok <- ctor CT.Data UnknownDataConstructor
     let (ref, cid) = L.payload tok
     pure (Pattern.Constructor (ann tok) ref cid [], [])
 
   constructor = do
-    tok <- ctor UnknownDataConstructor
+    tok <- ctor CT.Data UnknownDataConstructor
     let (ref,cid) = L.payload tok
         f patterns vs =
           let loc = foldl (<>) (ann tok) $ map ann patterns
@@ -257,16 +276,32 @@ handle = label "handle" $ do
   handler <- block "with"
   pure $ Term.handle (ann b) handler b
 
+checkCasesArities :: (Ord v, Annotated a) => [(Int, a)] -> P v (Int, [a])
+checkCasesArities cases = go Nothing cases where
+  go arity [] = case arity of
+    Nothing -> fail "empty list of cases"
+    Just a -> pure (a, map snd cases)
+  go Nothing ((i,_):t) = go (Just i) t
+  go (Just i) ((j,a):t) =
+    if i == j then go (Just i) t
+    else P.customFailure $ PatternArityMismatch i j (ann a)
+
 lamCase = do
   start <- openBlockWith "cases"
   cases <- sepBy1 semi matchCase
+  (arity, cases) <- checkCasesArities cases
   -- TODO: Add error for empty match list
   _ <- closeBlock
-  lamvar <- Parser.uniqueName 10
-  let lamvarTerm = Term.var (ann start) (Var.named lamvar)
+  lamvars <- replicateM arity (Parser.uniqueName 10)
+  let vars = Var.named <$> [ tweak v i | (v,i) <- lamvars `zip` [(1::Int)..] ]
+      tweak v 0 = v
+      tweak v i = v <> Text.pack (show i)
+      lamvarTerms = Term.var (ann start) <$> vars
+      lamvarTerm = case lamvarTerms of
+        [e] -> e
+        es -> DD.tupleTerm es
       matchTerm = Term.match (ann start <> ann (last cases)) lamvarTerm cases
-  pure $ Term.lam (ann start <> ann (last cases)) (Var.named lamvar) matchTerm
-
+  pure $ Term.lam' (ann start <> ann (last cases)) vars matchTerm
 
 ifthen = label "if" $ do
   start <- peekAny
@@ -314,6 +349,7 @@ termLeaf =
     , text
     , char
     , number
+    , bytes
     , boolean
     , link
     , tupleOrParenthesizedTerm
@@ -868,6 +904,13 @@ block' isTop s openBlock closeBlock = do
 
 number :: Var v => TermP v
 number = number' (tok Term.int) (tok Term.nat) (tok Term.float)
+
+bytes :: Var v => TermP v
+bytes = do
+  b <- bytesToken
+  let a = ann b
+  pure $ Term.app a (Term.builtin a "Bytes.fromList")
+                    (Term.seq a $ Term.nat a . fromIntegral <$> Bytes.toWord8s (L.payload b))
 
 number'
   :: Ord v

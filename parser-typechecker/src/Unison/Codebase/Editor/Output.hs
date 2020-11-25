@@ -143,6 +143,7 @@ data Output v
   -- Original source, followed by the errors:
   | ParseErrors Text [Parser.Err v]
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
+  | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug v Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | EvaluationFailure Runtime.Error
   | Evaluated SourceFileContents
@@ -297,6 +298,7 @@ isFailure o = case o of
   SlurpOutput _ _ sr -> not $ SR.isOk sr
   ParseErrors{} -> True
   TypeErrors{} -> True
+  CompilerBugs{} -> True
   DisplayConflicts{} -> False
   EvaluationFailure{} -> True
   Evaluated{} -> False

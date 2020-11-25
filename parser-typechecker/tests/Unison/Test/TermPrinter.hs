@@ -118,6 +118,13 @@ test = scope "termprinter" $ tests
   , tc "if _something then _foo else _blah"
   , tc "3.14159"
   , tc "+0"
+  , tc "0xsabba1234"
+  , tcDiff "0x00000001" "1"
+  , tcDiff "+0x00001" "+1"
+  , tcDiff "-0x0001" "-1"
+  , tcDiff "0xff" "255"
+  , tcDiff "+0xff" "+255"
+  , tcDiff "0o77777777" "16777215" -- Each octal digit is 3 bits, 8 7s is 2^(8*3) - 1
   , tc "\"some text\""
   , tc "\"they said \\\"hi\\\"\""
   , pending $ tc "\'they said \\\'hi\\\'\'" -- TODO lexer doesn't support strings with single quotes in
@@ -162,6 +169,17 @@ test = scope "termprinter" $ tests
         \    0 -> 0\n\
         \    x -> x\n\
         \  !f 1"
+  , tc "let\n\
+        \  f = cases\n\
+        \    0, x -> 0\n\
+        \    x, 0 -> x\n\
+        \  f y"
+  , tc "let\n\
+        \  interleave = cases\n\
+        \    [], x            -> x\n\
+        \    x, []            -> y\n\
+        \    h +: t, h2 +: t2 -> [h, h2] ++ interleave t t2\n\
+        \  f y"
   , pending $ tc "match x with Pair t 0 -> foo t" -- TODO hitting UnknownDataConstructor when parsing pattern
   , pending $ tc "match x with Pair t 0 | pred t -> foo t" -- ditto
   , pending $ tc "match x with Pair t 0 | pred t -> foo t; Pair t 0 -> foo' t; Pair t u -> bar;" -- ditto

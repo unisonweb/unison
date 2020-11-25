@@ -3,8 +3,13 @@
 {-# language BangPatterns #-}
 {-# language ViewPatterns #-}
 {-# language PatternGuards #-}
+{-# language PatternSynonyms #-}
 
 module Unison.Runtime.Machine where
+
+import GHC.Stack
+
+import Control.Concurrent.STM as STM
 
 import Data.Maybe (fromMaybe)
 
@@ -17,6 +22,7 @@ import qualified Data.Text as Tx
 import qualified Data.Text.IO as Tx
 import qualified Data.Sequence as Sq
 import qualified Data.Map.Strict as M
+import qualified Data.Set as S
 
 import Control.Exception
 import Control.Lens ((<&>))
@@ -26,9 +32,14 @@ import qualified Data.Primitive.PrimArray as PA
 
 import Text.Read (readMaybe)
 
-import Unison.Reference (Reference)
+import Unison.Reference (Reference(Builtin))
+import Unison.Referent (pattern Ref)
+import Unison.Symbol (Symbol)
 
-import Unison.Runtime.ANF (Mem(..))
+import Unison.Runtime.ANF
+  as ANF (Mem(..), SuperGroup, valueLinks, groupLinks)
+import qualified Unison.Runtime.ANF as ANF
+import Unison.Runtime.Builtin
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
@@ -48,14 +59,58 @@ type Tag = Word64
 -- dynamic environment
 type DEnv = EnumMap Word64 Closure
 
--- static environment
-data SEnv
-  = SEnv
-  { combs :: !(EnumMap Word64 Combs)
-  , foreignFuncs :: !(EnumMap Word64 ForeignFunc)
-  , combRefs :: !(EnumMap Word64 Reference)
-  , tagRefs :: !(EnumMap Word64 Reference)
+-- code caching environment
+data CCache
+  = CCache
+  { foreignFuncs :: EnumMap Word64 ForeignFunc
+  , combs :: TVar (EnumMap Word64 Combs)
+  , combRefs :: TVar (EnumMap Word64 Reference)
+  , tagRefs :: TVar (EnumMap Word64 Reference)
+  , freshTm :: TVar Word64
+  , freshTy :: TVar Word64
+  , intermed :: TVar (M.Map Reference (SuperGroup Symbol))
+  , refTm :: TVar (M.Map Reference Word64)
+  , refTy :: TVar (M.Map Reference Word64)
   }
+
+refNumsTm :: CCache -> IO (M.Map Reference Word64)
+refNumsTm cc = readTVarIO (refTm cc)
+
+refNumsTy :: CCache -> IO (M.Map Reference Word64)
+refNumsTy cc = readTVarIO (refTy cc)
+
+refNumTm :: CCache -> Reference -> IO Word64
+refNumTm cc r = refNumsTm cc >>= \case
+  (M.lookup r -> Just w) -> pure w
+  _ -> die $ "refNumTm: unknown reference: " ++ show r
+
+refNumTy :: CCache -> Reference -> IO Word64
+refNumTy cc r = refNumsTy cc >>= \case
+  (M.lookup r -> Just w) -> pure w
+  _ -> die $ "refNumTy: unknown reference: " ++ show r
+
+refNumTy' :: CCache -> Reference -> IO (Maybe Word64)
+refNumTy' cc r = M.lookup r <$> refNumsTy cc
+
+baseCCache :: IO CCache
+baseCCache
+  = CCache builtinForeigns
+      <$> newTVarIO combs
+      <*> newTVarIO builtinTermBackref
+      <*> newTVarIO builtinTypeBackref
+      <*> newTVarIO ftm
+      <*> newTVarIO fty
+      <*> newTVarIO mempty
+      <*> newTVarIO builtinTermNumbering
+      <*> newTVarIO builtinTypeNumbering
+  where
+  ftm = 1 + maximum builtinTermNumbering
+  fty = 1 + maximum builtinTypeNumbering
+
+  combs
+    = mapWithKey
+        (\k v -> emitComb @Symbol emptyRNs k mempty (0,v))
+        numberedTermLookup
 
 info :: Show a => String -> a -> IO ()
 info ctx x = infos ctx (show x)
@@ -63,7 +118,7 @@ infos :: String -> String -> IO ()
 infos ctx s = putStrLn $ ctx ++ ": " ++ s
 
 -- Entry point for evaluating a section
-eval0 :: SEnv -> Section -> IO ()
+eval0 :: CCache -> Section -> IO ()
 eval0 !env !co = do
   ustk <- alloc
   bstk <- alloc
@@ -76,11 +131,12 @@ eval0 !env !co = do
 -- environment currently.
 apply0
   :: Maybe (Stack 'UN -> Stack 'BX -> IO ())
-  -> SEnv -> Word64 -> IO ()
+  -> CCache -> Word64 -> IO ()
 apply0 !callback !env !i = do
     ustk <- alloc
     bstk <- alloc
-    r <- case EC.lookup i $ combRefs env of
+    cmbrs <- readTVarIO $ combRefs env
+    r <- case EC.lookup i cmbrs of
            Just r -> pure r
            Nothing -> die "apply0: missing reference to entry point"
     apply env mempty ustk bstk k0 True ZArgs
@@ -92,7 +148,7 @@ apply0 !callback !env !i = do
 -- necessary to evaluate a closure with the provided information.
 apply1
   :: (Stack 'UN -> Stack 'BX -> IO ())
-  -> SEnv -> Closure -> IO ()
+  -> CCache -> Closure -> IO ()
 apply1 callback env clo = do
   ustk <- alloc
   bstk <- alloc
@@ -105,7 +161,7 @@ lookupDenv :: Word64 -> DEnv -> Closure
 lookupDenv p denv = fromMaybe BlackHole $ EC.lookup p denv
 
 exec
-  :: SEnv -> DEnv
+  :: CCache -> DEnv
   -> Stack 'UN -> Stack 'BX -> K
   -> Instr
   -> IO (DEnv, Stack 'UN, Stack 'BX, K)
@@ -130,6 +186,51 @@ exec !_   !denv !ustk !bstk !k (UPrim1 op i) = do
   pure (denv, ustk, bstk, k)
 exec !_   !denv !ustk !bstk !k (UPrim2 op i j) = do
   ustk <- uprim2 ustk op i j
+  pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (BPrim1 MISS i) = do
+  clink <- peekOff bstk i
+  let Ref link = unwrapForeign $ marshalToForeign clink
+  m <- readTVarIO (intermed env)
+  ustk <- bump ustk
+  if (link `M.member` m) then poke ustk 1 else poke ustk 0
+  pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (BPrim1 CACH i) = do
+  arg <- peekOffS bstk i
+  news <- decodeCacheArgument arg
+  unknown <- cacheAdd news env
+  bstk <- bump bstk
+  pokeS bstk
+    (Sq.fromList $ Foreign . Wrap Rf.typeLinkRef . Ref <$> unknown)
+  pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (BPrim1 LKUP i) = do
+  clink <- peekOff bstk i
+  let Ref link = unwrapForeign $ marshalToForeign clink
+  m <- readTVarIO (intermed env)
+  ustk <- bump ustk
+  bstk <- case M.lookup link m of
+    Nothing -> bstk <$ poke ustk 0
+    Just sg -> do
+      poke ustk 1
+      bstk <- bump bstk
+      bstk <$ pokeBi bstk sg
+  pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (BPrim1 LOAD i) = do
+  v <- peekOffBi bstk i
+  ustk <- bump ustk
+  bstk <- bump bstk
+  reifyValue env v >>= \case
+    Left miss -> do
+      poke ustk 0
+      pokeS bstk $ Sq.fromList $ Foreign . Wrap Rf.termLinkRef <$> miss
+    Right x -> do
+      poke ustk 1
+      poke bstk x
+  pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (BPrim1 VALU i) = do
+  m <- readTVarIO (tagRefs env)
+  c <- peekOff bstk i
+  bstk <- bump bstk
+  pokeBi bstk =<< reflectValue m c
   pure (denv, ustk, bstk, k)
 exec !_   !denv !ustk !bstk !k (BPrim1 op i) = do
   (ustk,bstk) <- bprim1 ustk bstk op i
@@ -194,10 +295,10 @@ exec !_   !denv !ustk !bstk !k (Seq as) = do
   pure (denv, ustk, bstk, k)
 exec !env !denv !ustk !bstk !k (ForeignCall _ w args)
   | Just (FF arg res ev) <- EC.lookup w (foreignFuncs env)
-  = uncurry (denv,,,k) <$>
-      (arg ustk bstk args >>= ev >>= res ustk bstk)
+  = uncurry (denv,,,k)
+      <$> (arg ustk bstk args >>= ev >>= res ustk bstk)
   | otherwise
-  = die $ "reference to unknown foreign function: " ++ show w
+    = die $ "reference to unknown foreign function: " ++ show w
 exec !env !denv !ustk !bstk !k (Fork i) = do
   tid <- forkEval env =<< peekOff bstk i
   bstk <- bump bstk
@@ -205,7 +306,7 @@ exec !env !denv !ustk !bstk !k (Fork i) = do
   pure (denv, ustk, bstk, k)
 {-# inline exec #-}
 
-eval :: SEnv -> DEnv
+eval :: CCache -> DEnv
      -> Stack 'UN -> Stack 'BX -> K -> Section -> IO ()
 eval !env !denv !ustk !bstk !k (Match i (TestT df cs)) = do
   t <- peekOffBi bstk i
@@ -224,17 +325,15 @@ eval !env !denv !ustk !bstk !k (Yield args)
 eval !env !denv !ustk !bstk !k (App ck r args) =
   resolve env denv bstk r
     >>= apply env denv ustk bstk k ck args
-eval !env !denv !ustk !bstk !k (Call ck n args)
-  | Just cmbs <- EC.lookup n (combs env)
-  , Just cmb <- EC.lookup 0 cmbs
-  = enter env denv ustk bstk k ck args cmb
-  | otherwise = die $ "eval: unknown combinator: " ++ show n
+eval !env !denv !ustk !bstk !k (Call ck n args) =
+  combSection env (CIx dummyRef n 0)
+    >>= enter env denv ustk bstk k ck args
 eval !env !denv !ustk !bstk !k (Jump i args) =
   peekOff bstk i >>= jump env denv ustk bstk k args
-eval !env !denv !ustk !bstk !k (Let nw nx) = do
+eval !env !denv !ustk !bstk !k (Let nw cix) = do
   (ustk, ufsz, uasz) <- saveFrame ustk
   (bstk, bfsz, basz) <- saveFrame bstk
-  eval env denv ustk bstk (Push ufsz bfsz uasz basz nx k) nw
+  eval env denv ustk bstk (Push ufsz bfsz uasz basz cix k) nw
 eval !env !denv !ustk !bstk !k (Ins i nx) = do
   (denv, ustk, bstk, k) <- exec env denv ustk bstk k i
   eval env denv ustk bstk k nx
@@ -242,7 +341,7 @@ eval !_   !_    !_    !_    !_ Exit = pure ()
 eval !_   !_    !_    !_    !_ (Die s) = die s
 {-# noinline eval #-}
 
-forkEval :: SEnv -> Closure -> IO ThreadId
+forkEval :: CCache -> Closure -> IO ThreadId
 forkEval env clo
   = forkIOWithUnmask $ \unmask ->
       unmask (apply1 err env clo) `catch` \case
@@ -259,7 +358,7 @@ forkEval env clo
 
 -- fast path application
 enter
-  :: SEnv -> DEnv -> Stack 'UN -> Stack 'BX -> K
+  :: CCache -> DEnv -> Stack 'UN -> Stack 'BX -> K
   -> Bool -> Args -> Comb -> IO ()
 enter !env !denv !ustk !bstk !k !ck !args !comb = do
   ustk <- if ck then ensure ustk uf else pure ustk
@@ -285,40 +384,42 @@ name !ustk !bstk !args clo = case clo of
 
 -- slow path application
 apply
-  :: SEnv -> DEnv -> Stack 'UN -> Stack 'BX -> K
+  :: CCache -> DEnv -> Stack 'UN -> Stack 'BX -> K
   -> Bool -> Args -> Closure -> IO ()
-apply !env !denv !ustk !bstk !k !ck !args clo = case clo of
-  PAp comb@(combSection env -> Lam ua ba uf bf entry) useg bseg
-    | ck || ua <= uac && ba <= bac -> do
-      ustk <- ensure ustk uf
-      bstk <- ensure bstk bf
-      (ustk, bstk) <- moveArgs ustk bstk args
-      ustk <- dumpSeg ustk useg A
-      bstk <- dumpSeg bstk bseg A
-      ustk <- acceptArgs ustk ua
-      bstk <- acceptArgs bstk ba
-      eval env denv ustk bstk k entry
-    | otherwise -> do
-      (useg, bseg) <- closeArgs C ustk bstk useg bseg args
-      ustk <- discardFrame =<< frameArgs ustk
-      bstk <- discardFrame =<< frameArgs bstk
-      bstk <- bump bstk
-      poke bstk $ PAp comb useg bseg
-      yield env denv ustk bstk k
-   where
-   uac = asize ustk + ucount args + uscount useg
-   bac = asize bstk + bcount args + bscount bseg
-  clo | ZArgs <- args, asize ustk == 0, asize bstk == 0 -> do
-        ustk <- discardFrame ustk
-        bstk <- discardFrame bstk
+apply !env !denv !ustk !bstk !k !ck !args (PAp comb useg bseg) =
+  combSection env comb >>= \case
+    Lam ua ba uf bf entry
+      | ck || ua <= uac && ba <= bac -> do
+        ustk <- ensure ustk uf
+        bstk <- ensure bstk bf
+        (ustk, bstk) <- moveArgs ustk bstk args
+        ustk <- dumpSeg ustk useg A
+        bstk <- dumpSeg bstk bseg A
+        ustk <- acceptArgs ustk ua
+        bstk <- acceptArgs bstk ba
+        eval env denv ustk bstk k entry
+      | otherwise -> do
+        (useg, bseg) <- closeArgs C ustk bstk useg bseg args
+        ustk <- discardFrame =<< frameArgs ustk
+        bstk <- discardFrame =<< frameArgs bstk
         bstk <- bump bstk
-        poke bstk clo
+        poke bstk $ PAp comb useg bseg
         yield env denv ustk bstk k
-      | otherwise -> die $ "applying non-function: " ++ show clo
+  where
+  uac = asize ustk + ucount args + uscount useg
+  bac = asize bstk + bcount args + bscount bseg
+apply !env !denv !ustk !bstk !k !_  !args clo
+  | ZArgs <- args, asize ustk == 0, asize bstk == 0 = do
+    ustk <- discardFrame ustk
+    bstk <- discardFrame bstk
+    bstk <- bump bstk
+    poke bstk clo
+    yield env denv ustk bstk k
+  | otherwise = die $ "applying non-function: " ++ show clo
 {-# inline apply #-}
 
 jump
-  :: SEnv -> DEnv
+  :: CCache -> DEnv
   -> Stack 'UN -> Stack 'BX -> K
   -> Args -> Closure -> IO ()
 jump !env !denv !ustk !bstk !k !args clo = case clo of
@@ -333,7 +434,7 @@ jump !env !denv !ustk !bstk !k !args clo = case clo of
 {-# inline jump #-}
 
 repush
-  :: SEnv
+  :: CCache
   -> Stack 'UN -> Stack 'BX -> DEnv -> K -> K -> IO ()
 repush !env !ustk !bstk = go
  where
@@ -711,6 +812,11 @@ uprim1 !ustk TZRO !i = do
   ustk <- bump ustk
   poke ustk (countTrailingZeros n)
   pure ustk
+uprim1 !ustk POPC !i = do
+  n <- peekOffN ustk i
+  ustk <- bump ustk
+  poke ustk (popCount n)
+  pure ustk
 uprim1 !ustk COMN !i = do
   n <- peekOffN ustk i
   ustk <- bump ustk
@@ -1033,6 +1139,12 @@ bprim1 !ustk !bstk FLTB i = do
   pure (ustk, bstk)
 bprim1 !_    !bstk THRO i
   = throwIO . BU =<< peekOff bstk i
+-- impossible
+bprim1 !ustk !bstk MISS _ = pure (ustk, bstk)
+bprim1 !ustk !bstk CACH _ = pure (ustk, bstk)
+bprim1 !ustk !bstk LKUP _ = pure (ustk, bstk)
+bprim1 !ustk !bstk LOAD _ = pure (ustk, bstk)
+bprim1 !ustk !bstk VALU _ = pure (ustk, bstk)
 {-# inline bprim1 #-}
 
 bprim2
@@ -1187,7 +1299,7 @@ bprim2 !ustk !bstk CMPU _ _ = pure (ustk, bstk) -- impossible
 {-# inline bprim2 #-}
 
 yield
-  :: SEnv -> DEnv
+  :: CCache -> DEnv
   -> Stack 'UN -> Stack 'BX -> K -> IO ()
 yield !env !denv !ustk !bstk !k = leap denv k
  where
@@ -1196,7 +1308,8 @@ yield !env !denv !ustk !bstk !k = leap denv k
        clo = denv0 EC.! EC.findMin ps
    poke bstk . DataB1 Rf.effectRef 0 =<< peek bstk
    apply env denv ustk bstk k False (BArg1 0) clo
- leap !denv (Push ufsz bfsz uasz basz nx k) = do
+ leap !denv (Push ufsz bfsz uasz basz cix k) = do
+   Lam _ _ _ _ nx <- combSection env cix
    ustk <- restoreFrame ustk ufsz uasz
    bstk <- restoreFrame bstk bfsz basz
    eval env denv ustk bstk k nx
@@ -1254,23 +1367,177 @@ discardCont denv ustk bstk k p
   <&> \(_, denv, ustk, bstk, _, _, k) -> (denv, ustk, bstk, k)
 {-# inline discardCont #-}
 
-resolve :: SEnv -> DEnv -> Stack 'BX -> Ref -> IO Closure
-resolve env _ _ (Env n i)
-  | Just r <- EC.lookup n $ combRefs env
-  = pure $ PAp (CIx r n i) unull bnull
-  | otherwise = die $ "resolve: missing reference for comb: " ++ show n
+resolve :: CCache -> DEnv -> Stack 'BX -> Ref -> IO Closure
+resolve env _ _ (Env n i) =
+  readTVarIO (combRefs env) >>= \rs -> case EC.lookup n rs of
+    Just r -> pure $ PAp (CIx r n i) unull bnull
+    Nothing -> die $ "resolve: missing reference for comb: " ++ show n
 resolve _ _ bstk (Stk i) = peekOff bstk i
 resolve _ denv _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo
   _ -> die $ "resolve: looked up bad dynamic: " ++ show i
 
-combSection :: SEnv -> CombIx -> Comb
-combSection env (CIx _ n i)
-  = case EC.lookup n (combs env) of
-      Just cmbs -> case EC.lookup i cmbs of
-        Just cmb -> cmb
-        Nothing -> error $ "unknown section `" ++ show i
-                ++ "` of combinator `" ++ show n ++ "`."
-      Nothing -> error $ "unknown combinator `" ++ show n ++ "`."
+combSection :: HasCallStack => CCache -> CombIx -> IO Comb
+combSection env (CIx _ n i) =
+  readTVarIO (combs env) >>= \cs -> case EC.lookup n cs of
+    Just cmbs -> case EC.lookup i cmbs of
+      Just cmb -> pure cmb
+      Nothing ->
+        die $ "unknown section `" ++ show i
+           ++ "` of combinator `" ++ show n ++ "`."
+    Nothing -> die $ "unknown combinator `" ++ show n ++ "`."
 
+dummyRef :: Reference
+dummyRef = Builtin (Tx.pack "dummy")
 
+reserveIds :: Word64 -> TVar Word64 -> IO Word64
+reserveIds n free = atomically . stateTVar free $ \i -> (i, i+n)
+
+updateMap :: Semigroup s => s -> TVar s -> STM s
+updateMap new r = stateTVar r $ \old ->
+  let total = new <> old in (total, total)
+
+refLookup :: String -> M.Map Reference Word64 -> Reference -> Word64
+refLookup s m r
+  | Just w <- M.lookup r m = w
+  | otherwise
+  = error $ "refLookup:" ++ s ++ ": unknown reference: " ++ show r
+
+decodeCacheArgument
+  :: Sq.Seq Closure -> IO [(Reference, SuperGroup Symbol)]
+decodeCacheArgument s = for (toList s) $ \case
+  DataB2 _ _ (Foreign x) (DataB2 _ _ (Foreign y) _)
+    -> pure (unwrapForeign x, unwrapForeign y)
+  _ -> die "decodeCacheArgument: unrecognized value"
+
+addRefs
+  :: TVar Word64
+  -> TVar (M.Map Reference Word64)
+  -> TVar (EnumMap Word64 Reference)
+  -> S.Set Reference
+  -> STM (M.Map Reference Word64)
+addRefs vfrsh vfrom vto rs = do
+  from0 <- readTVar vfrom
+  let new = S.filter (`M.notMember` from0) rs
+      sz = fromIntegral $ S.size new
+  frsh <- stateTVar vfrsh $ \i -> (i, i+sz)
+  let newl = S.toList new
+      from = M.fromList (zip newl [frsh..]) <> from0
+      nto = mapFromList (zip [frsh..] newl)
+  writeTVar vfrom from
+  modifyTVar vto (nto <>)
+  pure from
+
+cacheAdd0
+  :: S.Set Reference
+  -> [(Reference, SuperGroup Symbol)]
+  -> CCache
+  -> IO ()
+cacheAdd0 ntys0 tml cc = atomically $ do
+  have <- readTVar (intermed cc)
+  let new = M.difference toAdd have
+      sz = fromIntegral $ M.size new
+      (rs,gs) = unzip $ M.toList new
+  rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
+  ntm <- stateTVar (freshTm cc) $ \i -> (i, i+sz)
+  rtm <- updateMap (M.fromList $ zip rs [ntm..]) (refTm cc)
+  -- check for missing references
+  let rns = RN (refLookup "ty" rty) (refLookup "tm" rtm)
+      combinate n g = (n, emitCombs rns n g)
+  nrs <- updateMap (mapFromList $ zip [ntm..] rs) (combRefs cc)
+  ncs <- updateMap (mapFromList $ zipWith combinate [ntm..] gs) (combs cc)
+  pure $ rtm `seq` nrs `seq` ncs `seq` ()
+  where
+  toAdd = M.fromList tml
+
+cacheAdd
+  :: [(Reference, SuperGroup Symbol)]
+  -> CCache
+  -> IO [Reference]
+cacheAdd l cc = do
+  rtm <- readTVarIO (refTm cc)
+  rty <- readTVarIO (refTy cc)
+  let known = M.keysSet rtm <> S.fromList (fst <$> l)
+      f b r | not b, S.notMember r known = (S.singleton r, mempty)
+            | b, M.notMember r rty = (mempty, S.singleton r)
+            | otherwise = (mempty, mempty)
+      (missing, tys) = (foldMap.foldMap) (groupLinks f) l
+      l' = filter (\(r,_) -> M.notMember r rtm) l
+  if S.null missing
+    then [] <$ cacheAdd0 tys l' cc
+    else pure $ S.toList missing
+
+reflectValue :: EnumMap Word64 Reference -> Closure -> IO ANF.Value
+reflectValue rty = goV
+  where
+  err s = "reflectValue: cannot prepare value for serialization: " ++ s
+  refTy w
+    | Just r <- EC.lookup w rty = pure r
+    | otherwise
+    = die $ err "unknown type reference"
+
+  goIx (CIx r n i) = ANF.GR r n i
+
+  goV (PApV cix ua ba)
+    = ANF.Partial (goIx cix) (fromIntegral <$> ua) <$> traverse goV ba
+  goV (DataC r t us bs)
+    = ANF.Data r t (fromIntegral <$> us) <$> traverse goV bs
+  goV (CapV k us bs)
+    = ANF.Cont (fromIntegral <$> us) <$> traverse goV bs <*> goK k
+  goV (Foreign _) = die $ err "foreign value"
+  goV BlackHole = die $ err "black hole"
+
+  goK (CB _) = die $ err "callback continuation"
+  goK KE = pure ANF.KE
+  goK (Mark ps de k) = do
+    ps <- traverse refTy (EC.setToList ps)
+    de <- traverse (\(k,v) -> (,) <$> refTy k <*> goV v) (mapToList de)
+    ANF.Mark ps (M.fromList de) <$> goK k
+  goK (Push uf bf ua ba cix k)
+    = ANF.Push
+          (fromIntegral uf) (fromIntegral bf)
+          (fromIntegral ua) (fromIntegral ba) (goIx cix)
+       <$> goK k
+
+reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
+reifyValue cc val = do
+  erc <- atomically $ readTVar (refTm cc) >>= \rtm ->
+    case S.toList $ S.filter (`M.notMember`rtm) tmLinks of
+      [] -> Right <$>
+              addRefs (freshTy cc) (refTy cc) (tagRefs cc) tyLinks
+      l -> pure (Left l)
+  traverse (\rty -> reifyValue0 rty val) erc
+  where
+  f False r = (mempty, S.singleton r)
+  f True  r = (S.singleton r, mempty)
+  (tyLinks, tmLinks) = valueLinks f val
+
+reifyValue0 :: M.Map Reference Word64 -> ANF.Value -> IO Closure
+reifyValue0 rty = goV
+  where
+  err s = "reifyValue: cannot restore value: " ++ s
+  refTy r
+    | Just w <- M.lookup r rty = pure w
+    | otherwise = die . err $ "unknown type reference: " ++ show r
+  goIx (ANF.GR r n i) = CIx r n i
+
+  goV (ANF.Partial gr ua ba)
+    = PApV (goIx gr) (fromIntegral <$> ua) <$> traverse goV ba
+  goV (ANF.Data r t us bs)
+    = DataC r t (fromIntegral <$> us) <$> traverse goV bs
+  goV (ANF.Cont us bs k) = cv <$> goK k <*> traverse goV bs
+    where
+    cv k bs = CapV k (fromIntegral <$> us) bs
+
+  goK ANF.KE = pure KE
+  goK (ANF.Mark ps de k) =
+    mrk <$> traverse refTy ps
+        <*> traverse (\(k,v) -> (,) <$> refTy k <*> goV v) (M.toList de)
+        <*> goK k
+    where
+    mrk ps de k = Mark (setFromList ps) (mapFromList de) k
+  goK (ANF.Push uf bf ua ba gr k)
+    = Push
+          (fromIntegral uf) (fromIntegral bf)
+          (fromIntegral ua) (fromIntegral ba) (goIx gr)
+        <$> goK k
