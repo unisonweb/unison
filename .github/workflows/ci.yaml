@@ -22,13 +22,17 @@ jobs:
       - uses: actions/checkout@v2
 
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
+      # The "0" in "stack-0" is meant to be bumped as a crude means to clear a cache, in case it's misbehaving.
+      # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to purge one
+      # manually.
       - uses: actions/cache@v2
         name: cache ~/.stack
         with:
           path: ~/.stack
-          key: stack_${{matrix.os}}-${{hashFiles('stack.yaml')}}
+          key: stack-0_${{matrix.os}}-${{hashFiles('stack.yaml')}}
 
       # Cache each local package's ~/.stack-work for fast incremental builds in CI.
+      # See note above about "0" in "stack-work-0..."
       - uses: actions/cache@v2
         name: cache .stack-work
         with:
@@ -38,9 +42,9 @@ jobs:
             unison-core/.stack-work
             yaks/easytest/.stack-work
           # Main hash key: the branch + commit hash. This should always result in a cache miss...
-          key: stack-work-${{matrix.os}}-${{github.ref}}-${{github.sha}}
+          key: stack-work-0_${{matrix.os}}-${{github.ref}}-${{github.sha}}
           # ...but then fall back on the latest cache stored on that branch.
-          restore-keys: stack-work_${{matrix.os}}-${{github.ref}}-
+          restore-keys: stack-work-0_${{matrix.os}}-${{github.ref}}-
 
       # Install stack by downloading the binary from GitHub. The installation process is different for Linux and macOS,
       # so this is split into two steps, only one of which will run on any particular build.
