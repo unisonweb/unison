@@ -1160,7 +1160,7 @@ checkPattern scrutineeType0 p =
       lift $ subtype (Type.char loc) scrutineeType $> mempty
     Pattern.Constructor loc ref cid args -> do
       dct  <- lift $ getDataConstructorType ref cid
-      udct <- lift $ ungeneralize dct
+      udct <- lift $ skolemize forcedData dct
       unless (Type.arity udct == length args)
         . lift
         . failWith
@@ -1200,7 +1200,7 @@ checkPattern scrutineeType0 p =
                                  (loc, existentialp loc v)
       lift $ subtype evt scrutineeType
       ect  <- lift $ getEffectConstructorType ref cid
-      uect <- lift $ ungeneralize ect
+      uect <- lift $ skolemize forcedEffect ect
       unless (Type.arity uect == length args)
         . lift
         . failWith
@@ -1368,6 +1368,35 @@ ungeneralize' (Type.Forall' t) = do
   t <- pure $ ABT.bindInheritAnnotation t (existential' () B.Blank v)
   first (v:) <$> ungeneralize' t
 ungeneralize' t = pure ([], t)
+
+skolemize
+  :: Var v
+  => Ord loc
+  => (Type v loc -> Set (TypeVar v loc))
+  -> Type v loc
+  -> M v loc (Type v loc)
+skolemize forced (Type.ForallsNamed' vs ty) = do
+  urn <- for uvs $ \u -> (,) u <$> freshenTypeVar u
+  srn <- for svs $ \u -> (,) u <$> freshenTypeVar u
+  let uctx = existential . snd <$> urn
+      sctx = Universal . snd <$> srn
+      rn = (fmap (existential' () B.Blank) <$> urn)
+        ++ (fmap (universal' ()) <$> srn)
+  appendContext $ uctx ++ sctx
+  pure $ foldl (flip $ uncurry ABT.substInheritAnnotation) ty rn
+  where
+  fovs = forced ty
+  (uvs, svs) = partition (`Set.member` fovs) vs
+skolemize _ ty = pure ty
+
+forcedEffect :: Type v loc -> Set (TypeVar v loc)
+forcedEffect (Type.Arrow' _ o) = forcedEffect o
+forcedEffect (Type.Effect1' es _) = Type.freeVars es
+forcedEffect _ = Set.empty
+
+forcedData :: Type v loc -> Set (TypeVar v loc)
+forcedData (Type.Arrow' _ o) = forcedData o
+forcedData ty = Type.freeVars ty
 
 -- | Apply the context to the input type, then convert any unsolved existentials
 -- to universals.
