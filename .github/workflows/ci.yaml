@@ -1,7 +1,9 @@
 name: CI
 
+# Build on every push and every pull request (which tests the merge commit).
 on:
   pull_request:
+  push:
 
 jobs:
   build:
