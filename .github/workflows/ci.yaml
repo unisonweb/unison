@@ -68,22 +68,22 @@ jobs:
       # Build deps, then build local code. Splitting it into two steps just allows us to see how much time each step
       # takes.
       - name: build dependencies
-        run: stack --no-terminal --system-ghc build --fast --only-dependencies
+        run: stack --no-terminal build --fast --only-dependencies
       - name: build
-        run: stack --no-terminal --system-ghc build --fast
+        run: stack --no-terminal build --fast
 
       # Run each test suite (tests and transcripts) on each runtime
       - name: tests
-        run: stack --no-terminal --system-ghc exec tests
+        run: stack --no-terminal exec tests
       - name: tests (new runtime)
-        run: stack --no-terminal --system-ghc exec tests -- --new-runtime
+        run: stack --no-terminal exec tests -- --new-runtime
       - name: transcripts
         run: |
-          stack --no-terminal --system-ghc exec transcripts
+          stack --no-terminal exec transcripts
           git diff
           x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi'
       - name: transcripts (new runtime)
         run: |
-          stack --no-terminal --system-ghc exec transcripts -- --new-runtime
+          stack --no-terminal exec transcripts -- --new-runtime
           git diff
           x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi'
