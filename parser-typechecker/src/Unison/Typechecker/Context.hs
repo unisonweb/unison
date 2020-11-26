@@ -1215,6 +1215,13 @@ checkPattern scrutineeType0 p =
         -- an effect ctor should have exactly 1 effect!
         Type.Effect'' [et] it -> do
           -- expecting scrutineeType to be `Effect et vt`
+
+          -- ensure that the variables in `et` unify with those from
+          -- the scrutinee.
+          lift $ do
+            res <- Type.flattenEffects <$> applyM (existentialp loc e)
+            abilityCheck' res [et]
+
           st <- lift $ applyM scrutineeType
           case st of
             Type.App' _ vt ->
