@@ -1,15 +1,15 @@
 {-# LANGUAGE ViewPatterns #-}
+
 module Unison.Util.Relation where
 
+import Data.Bifunctor (first, second)
+import qualified Data.List as List
+import qualified Data.Map as M
+import qualified Data.Map as Map
+import qualified Data.Set as S
+import qualified Unison.Hashable as H
 import Unison.Prelude hiding (empty, toList)
-
-import           Prelude                 hiding ( null, map, filter )
-import           Data.Bifunctor                 ( first, second )
-import qualified Data.List                     as List
-import qualified Data.Map                      as M
-import qualified Data.Set                      as S
-import qualified Data.Map                      as Map
-import qualified Unison.Hashable               as H
+import Prelude hiding (filter, map, null)
 
 -- |
 -- This implementation avoids using @"Set (a,b)"@ because
@@ -28,12 +28,11 @@ import qualified Unison.Hashable               as H
 -- As a multi-map, each key is associated with a Set of values v.
 --
 -- We do not allow the associations with the 'empty' Set.
---
-
-data Relation a b  = Relation { domain ::  M.Map a (Set b)
-                              , range  ::  M.Map b (Set a)
-                              }
-    deriving (Eq, Ord)
+data Relation a b = Relation
+  { domain :: M.Map a (Set b),
+    range :: M.Map b (Set a)
+  }
+  deriving (Eq, Ord)
 
 instance (Show a, Show b) => Show (Relation a b) where
   show = show . toList
@@ -41,30 +40,33 @@ instance (Show a, Show b) => Show (Relation a b) where
 -- * Functions about relations
 
 difference :: (Ord a, Ord b) => Relation a b -> Relation a b -> Relation a b
-difference a b = fromList . S.toList $ diffSet where
-  diffSet = S.difference seta setb
-  seta = S.fromList . toList $ a
-  setb = S.fromList . toList $ b
+difference a b = fromList . S.toList $ diffSet
+  where
+    diffSet = S.difference seta setb
+    seta = S.fromList . toList $ a
+    setb = S.fromList . toList $ b
 
 -- The size is calculated using the domain.
+
 -- |  @size r@ returns the number of tuples in the relation.
-size    ::  Relation a b -> Int
-size r  =   M.foldr' ((+) . S.size) 0 (domain r)
+size :: Relation a b -> Int
+size r = M.foldr' ((+) . S.size) 0 (domain r)
 
 -- | Construct a relation with no elements.
-empty   ::  Relation a b
-empty   =   Relation M.empty M.empty
+empty :: Relation a b
+empty = Relation M.empty M.empty
 
 -- |
 -- The list must be formatted like: [(k1, v1), (k2, v2),..,(kn, vn)].
 fromList :: (Ord a, Ord b) => [(a, b)] -> Relation a b
-fromList xs = Relation
-  { domain = M.fromListWith S.union $ snd2Set xs
-  , range  = M.fromListWith S.union $ flipAndSet xs
-  }
- where
-  snd2Set    = List.map (\(x, y) -> (x, S.singleton y))
-  flipAndSet = List.map (\(x, y) -> (y, S.singleton x))
+fromList xs =
+  Relation
+    { domain = M.fromListWith S.union $ snd2Set xs,
+      range = M.fromListWith S.union $ flipAndSet xs
+    }
+  where
+    snd2Set = List.map (\(x, y) -> (x, S.singleton y))
+    flipAndSet = List.map (\(x, y) -> (y, S.singleton x))
 
 -- |
 -- Builds a List from a Relation.
@@ -79,66 +81,75 @@ toSet = S.fromList . toList
 -- |
 -- Builds a 'Relation' consiting of an association between: @x@ and @y@.
 singleton :: a -> b -> Relation a b
-singleton x y = Relation
-  { domain = M.singleton x (S.singleton y)
-  , range  = M.singleton y (S.singleton x)
-  }
+singleton x y =
+  Relation
+    { domain = M.singleton x (S.singleton y),
+      range = M.singleton y (S.singleton x)
+    }
 
 -- | The 'Relation' that results from the union of two relations: @r@ and @s@.
 union :: (Ord a, Ord b) => Relation a b -> Relation a b -> Relation a b
-union r s = Relation
-  { domain = M.unionWith S.union (domain r) (domain s)
-  , range  = M.unionWith S.union (range r) (range s)
-  }
+union r s =
+  Relation
+    { domain = M.unionWith S.union (domain r) (domain s),
+      range = M.unionWith S.union (range r) (range s)
+    }
 
 intersection :: (Ord a, Ord b) => Relation a b -> Relation a b -> Relation a b
 intersection r s
   | size r > size s = intersection s r
-  | otherwise       = filter (\(a, b) -> member a b s) r
+  | otherwise = filter (\(a, b) -> member a b s) r
 
-outerJoinDomMultimaps :: (Ord a, Ord b, Ord c)
-                      => Relation a b
-                      -> Relation a c
-                      -> Map a (Set b, Set c)
+outerJoinDomMultimaps ::
+  (Ord a, Ord b, Ord c) =>
+  Relation a b ->
+  Relation a c ->
+  Map a (Set b, Set c)
 outerJoinDomMultimaps b c =
   Map.fromList
-    [ (a, (lookupDom a b, lookupDom a c)) | a <- S.toList (dom b <> dom c) ]
+    [(a, (lookupDom a b, lookupDom a c)) | a <- S.toList (dom b <> dom c)]
 
-outerJoinRanMultimaps :: (Ord a, Ord b, Ord c)
-                      => Relation a c
-                      -> Relation b c
-                      -> Map c (Set a, Set b)
+outerJoinRanMultimaps ::
+  (Ord a, Ord b, Ord c) =>
+  Relation a c ->
+  Relation b c ->
+  Map c (Set a, Set b)
 outerJoinRanMultimaps a b = outerJoinDomMultimaps (swap a) (swap b)
 
-innerJoinDomMultimaps :: (Ord a, Ord b, Ord c)
-                      => Relation a b
-                      -> Relation a c
-                      -> Map a (Set b, Set c)
+innerJoinDomMultimaps ::
+  (Ord a, Ord b, Ord c) =>
+  Relation a b ->
+  Relation a c ->
+  Map a (Set b, Set c)
 innerJoinDomMultimaps b c =
   Map.fromList
     [ (a, (lookupDom a b, lookupDom a c))
-    | a <- S.toList $ dom b `S.intersection` dom c ]
+      | a <- S.toList $ dom b `S.intersection` dom c
+    ]
 
-innerJoinRanMultimaps :: (Ord a, Ord b, Ord c)
-                      => Relation a c
-                      -> Relation b c
-                      -> Map c (Set a, Set b)
+innerJoinRanMultimaps ::
+  (Ord a, Ord b, Ord c) =>
+  Relation a c ->
+  Relation b c ->
+  Map c (Set a, Set b)
 innerJoinRanMultimaps a b = innerJoinDomMultimaps (swap a) (swap b)
 
-joinDom :: (Ord a, Ord b, Ord c) => Relation a b -> Relation a c -> Relation a (b,c)
+joinDom :: (Ord a, Ord b, Ord c) => Relation a b -> Relation a c -> Relation a (b, c)
 joinDom b c = swap $ joinRan (swap b) (swap c)
 
 -- joinRan [(1, 'x'), (2, 'x'), (3, 'z')] [(true, 'x'), (true, 'y'), (false, 'z')]
 --      == [((1,true), 'x'), ((2,true), 'x'), ((3,false), 'z')]
-joinRan :: (Ord a, Ord b, Ord c) => Relation a c -> Relation b c -> Relation (a,b) c
-joinRan a b = fromList
-  [ ((a,b), c)
-  | c <- S.toList $ ran a `S.intersection` ran b
-  , a <- S.toList $ lookupRan c a
-  , b <- S.toList $ lookupRan c b
-  ]
+joinRan :: (Ord a, Ord b, Ord c) => Relation a c -> Relation b c -> Relation (a, b) c
+joinRan a b =
+  fromList
+    [ ((a, b), c)
+      | c <- S.toList $ ran a `S.intersection` ran b,
+        a <- S.toList $ lookupRan c a,
+        b <- S.toList $ lookupRan c b
+    ]
 
 ---------------------------------------------------------------
+
 -- |
 -- This fragment provided by:
 --
@@ -151,12 +162,11 @@ joinRan a b = fromList
 -- \  Stability   :  provisional
 -- \  Portability :  portable
 -- @
---
---
 foldlStrict :: (a -> b -> a) -> a -> [b] -> a
 foldlStrict f z xs = case xs of
-  []       -> z
+  [] -> z
   (x : xx) -> let z' = f z x in seq z' (foldlStrict f z' xx)
+
 ---------------------------------------------------------------
 
 -- | Union a list of relations using the 'empty' relation.
@@ -165,12 +175,12 @@ unions = foldlStrict union empty
 
 -- | Insert a relation @ x @ and @ y @ in the relation @ r @
 insert :: (Ord a, Ord b) => a -> b -> Relation a b -> Relation a b
-insert x y r =  -- r { domain = domain', range = range' }
-               Relation domain' range'
- where
-  domain' = M.insertWith S.union x (S.singleton y) (domain r)
-  range'  = M.insertWith S.union y (S.singleton x) (range r)
-
+insert x y r =
+  -- r { domain = domain', range = range' }
+  Relation domain' range'
+  where
+    domain' = M.insertWith S.union x (S.singleton y) (domain r)
+    range' = M.insertWith S.union y (S.singleton x) (range r)
 
 -- $deletenotes
 --
@@ -196,16 +206,14 @@ insert x y r =  -- r { domain = domain', range = range' }
 --    2. Working in the range:
 --       2a. Delete k from the Set VS associated with v.
 --       2b. If VS is empty, delete v in the range.
---
---
 
 -- |  Delete an association in the relation.
 delete :: (Ord a, Ord b) => a -> b -> Relation a b -> Relation a b
-delete x y r = r { domain = domain', range = range' }
- where
-  domain' = M.update (erase y) x (domain r)
-  range'  = M.update (erase x) y (range r)
-  erase e s = if S.singleton e == s then Nothing else Just $ S.delete e s
+delete x y r = r {domain = domain', range = range'}
+  where
+    domain' = M.update (erase y) x (domain r)
+    range' = M.update (erase x) y (range r)
+    erase e s = if S.singleton e == s then Nothing else Just $ S.delete e s
 
 -- | The Set of values associated with a value in the domain.
 lookupDom' :: Ord a => a -> Relation a b -> Maybe (Set b)
@@ -240,17 +248,14 @@ filterManyDom r = filterDom (`manyDom` r) r
 -- True if the relation @r@ is the 'empty' relation.
 null :: Relation a b -> Bool
 null r = M.null $ domain r
+
 -- Before 2010/11/09 null::Ord b =>  Relation a b -> Bool
-
-
 
 -- | True if the relation contains the association @x@ and @y@
 member :: (Ord a, Ord b) => a -> b -> Relation a b -> Bool
 member x y r = case lookupDom' x r of
-  Just s  -> S.member y s
+  Just s -> S.member y s
   Nothing -> False
-
-
 
 -- | True if the relation /does not/ contain the association @x@ and @y@
 notMember :: (Ord a, Ord b) => a -> b -> Relation a b -> Bool
@@ -258,22 +263,18 @@ notMember x y r = not $ member x y r
 
 -- | True if a value appears more than one time in the relation.
 manyDom :: Ord a => a -> Relation a b -> Bool
-manyDom a = (>1) . S.size . lookupDom a
+manyDom a = (> 1) . S.size . lookupDom a
 
 manyRan :: Ord b => b -> Relation a b -> Bool
-manyRan b = (>1) . S.size . lookupRan b
+manyRan b = (> 1) . S.size . lookupRan b
 
 -- | Returns the domain in the relation, as a Set, in its entirety.
 dom :: Relation a b -> Set a
 dom r = M.keysSet (domain r)
 
-
-
 -- | Returns the range of the relation, as a Set, in its entirety.
 ran :: Relation a b -> Set b
 ran r = M.keysSet (range r)
-
-
 
 -- |
 -- A compact set of sets the values of which can be @Just (Set x)@ or @Nothing@.
@@ -283,8 +284,6 @@ ran r = M.keysSet (range r)
 -- It is similar to 'concat'.
 compactSet :: Ord a => Set (Maybe (Set a)) -> Set a
 compactSet = S.fold (S.union . fromMaybe S.empty) S.empty
-
-
 
 -- $selectops
 --
@@ -325,55 +324,54 @@ compactSet = S.fold (S.union . fromMaybe S.empty) S.empty
 
 -- |
 -- @(Case b <| r a)@
---
 (<$|) :: (Ord a, Ord b) => Set a -> Set b -> Relation a b -> Set a
 (as <$| bs) r = as `S.intersection` generarAS bs
-  where generarAS = compactSet . S.map (`lookupRan'` r)
+  where
+    generarAS = compactSet . S.map (`lookupRan'` r)
 
-    -- The subsets of the domain (a) associated with each @b@
-    -- such that @b@ in @B@ and (b) are in the range of the relation.
-    -- The expression 'S.map' returns a set of @Either (Set a)@.
-
+-- The subsets of the domain (a) associated with each @b@
+-- such that @b@ in @B@ and (b) are in the range of the relation.
+-- The expression 'S.map' returns a set of @Either (Set a)@.
 
 -- |
 -- @( Case a |> r b )@
 (|$>) :: (Ord a, Ord b) => Set a -> Set b -> Relation a b -> Set b
 (as |$> bs) r = bs `S.intersection` generarBS as
-  where generarBS = compactSet . S.map (`lookupDom'` r)
-
-
+  where
+    generarBS = compactSet . S.map (`lookupDom'` r)
 
 -- | Domain restriction for a relation. Modeled on z.
 (<|), restrictDom :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
 restrictDom = (<|)
-s <| r = fromList
-  $ concatMap (\(x, y) -> zip (repeat x) (S.toList y)) (M.toList domain')
- where
-  domain' = M.unions . List.map filtrar . S.toList $ s
-  filtrar x = M.filterWithKey (\k _ -> k == x) dr
-  dr = domain r  -- just to memoize the value
+s <| r =
+  fromList $
+    concatMap (\(x, y) -> zip (repeat x) (S.toList y)) (M.toList domain')
+  where
+    domain' = M.unions . List.map filtrar . S.toList $ s
+    filtrar x = M.filterWithKey (\k _ -> k == x) dr
+    dr = domain r -- just to memoize the value
 
 -- | Range restriction for a relation. Modeled on z.
 (|>), restrictRan :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
 restrictRan = (|>)
-r |> t = fromList
-  $ concatMap (\(x, y) -> zip (S.toList y) (repeat x)) (M.toList range')
- where
-  range' = M.unions . List.map filtrar . S.toList $ t
-  filtrar x = M.filterWithKey (\k _ -> k == x) rr
-  rr = range r   -- just to memoize the value
-
+r |> t =
+  fromList $
+    concatMap (\(x, y) -> zip (S.toList y) (repeat x)) (M.toList range')
+  where
+    range' = M.unions . List.map filtrar . S.toList $ t
+    filtrar x = M.filterWithKey (\k _ -> k == x) rr
+    rr = range r -- just to memoize the value
 
 -- Restrict the range to not include these `b`s
 (||>) :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
-r ||> t = fromList [ (a,b) | (a,b) <- toList r, not (b `S.member` t)]
+r ||> t = fromList [(a, b) | (a, b) <- toList r, not (b `S.member` t)]
 
 subtractRan :: (Ord a, Ord b) => Set b -> Relation a b -> Relation a b
 subtractRan = flip (||>)
 
 -- Restrict the domain to not include these `a`
 (<||), subtractDom :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
-s <|| r = fromList [ (a,b) | (a,b) <- toList r, not (a `S.member` s)]
+s <|| r = fromList [(a, b) | (a, b) <- toList r, not (a `S.member` s)]
 subtractDom = (<||)
 
 -- Note:
@@ -385,12 +383,12 @@ subtractDom = (<||)
 --    It is enough to know one half of the Relation (the domain or
 --    the range) to create to other half.
 
-insertManyRan
-  :: (Foldable f, Ord a, Ord b) => a -> f b -> Relation a b -> Relation a b
+insertManyRan ::
+  (Foldable f, Ord a, Ord b) => a -> f b -> Relation a b -> Relation a b
 insertManyRan a bs r = foldl' (flip $ insert a) r bs
 
-insertManyDom
-  :: (Foldable f, Ord a, Ord b) => f a -> b -> Relation a b -> Relation a b
+insertManyDom ::
+  (Foldable f, Ord a, Ord b) => f a -> b -> Relation a b -> Relation a b
 insertManyDom as b r = foldl' (flip $ flip insert b) r as
 
 lookupRan :: Ord b => b -> Relation a b -> Set a
@@ -429,8 +427,11 @@ deleteDomWhere :: (Ord a, Ord b) => (a -> Bool) -> b -> Relation a b -> Relation
 deleteDomWhere f b r =
   foldl' (\r a -> if f a then delete a b r else r) r (lookupRan b r)
 
-map :: (Ord a, Ord b, Ord c, Ord d)
-    => ((a, b) -> (c, d)) -> Relation a b -> Relation c d
+map ::
+  (Ord a, Ord b, Ord c, Ord d) =>
+  ((a, b) -> (c, d)) ->
+  Relation a b ->
+  Relation c d
 map f = fromList . fmap f . toList
 
 -- aka first
@@ -454,28 +455,32 @@ toMultimap = domain
 -- Returns Nothing if Relation isn't one-to-one.
 toMap :: Ord a => Relation a b -> Maybe (Map a b)
 toMap r =
-  let mm = toMultimap r in
-  if all (\s -> S.size s == 1) mm
-  then Just (S.findMin <$> mm)
-  else Nothing
+  let mm = toMultimap r
+   in if all (\s -> S.size s == 1) mm
+        then Just (S.findMin <$> mm)
+        else Nothing
 
-fromSet :: (Ord a, Ord b) => Set (a,b) -> Relation a b
+fromSet :: (Ord a, Ord b) => Set (a, b) -> Relation a b
 fromSet = fromList . S.toList
 
-fromManyRan
-  :: (Foldable f, Ord a, Ord b) => a -> f b -> Relation a b
+fromManyRan ::
+  (Foldable f, Ord a, Ord b) => a -> f b -> Relation a b
 fromManyRan a bs = insertManyRan a bs mempty
 
-fromManyDom
-  :: (Foldable f, Ord a, Ord b) => f a -> b -> Relation a b
+fromManyDom ::
+  (Foldable f, Ord a, Ord b) => f a -> b -> Relation a b
 fromManyDom as b = insertManyDom as b mempty
 
 swap :: Relation a b -> Relation b a
 swap (Relation a b) = Relation b a
 
-bimap :: (Ord a, Ord b, Ord c, Ord d)
-      => (a -> c) -> (b -> d) -> Relation a b -> Relation c d
-bimap f g = fromList . fmap (\(a,b) -> (f a, g b)) . toList
+bimap ::
+  (Ord a, Ord b, Ord c, Ord d) =>
+  (a -> c) ->
+  (b -> d) ->
+  Relation a b ->
+  Relation c d
+bimap f g = fromList . fmap (\(a, b) -> (f a, g b)) . toList
 
 instance (Ord a, Ord b) => Monoid (Relation a b) where
   mempty = empty
@@ -488,9 +493,13 @@ instance (H.Hashable a, H.Hashable b) => H.Hashable (Relation a b) where
   tokens = H.tokens . toList
 
 toUnzippedMultimap ::
-  Ord a => Ord b => Ord c => Relation a (b,c) -> Map a (Set b, Set c)
+  Ord a => Ord b => Ord c => Relation a (b, c) -> Map a (Set b, Set c)
 toUnzippedMultimap r = (\s -> (S.map fst s, S.map snd s)) <$> toMultimap r
 
-collectRan :: Ord a => Ord c =>
-              (b -> Maybe c) -> Relation a b -> Relation a c
-collectRan f r = fromList [ (a, c) | (a, f -> Just c) <- toList r ]
+collectRan ::
+  Ord a =>
+  Ord c =>
+  (b -> Maybe c) ->
+  Relation a b ->
+  Relation a c
+collectRan f r = fromList [(a, c) | (a, f -> Just c) <- toList r]

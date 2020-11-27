@@ -1,37 +1,37 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms   #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.Path where
 
-import Unison.Prelude hiding (empty, toList)
-
-import           Data.Bifunctor                 ( first )
-import           Data.List.Extra                ( stripPrefix, dropPrefix )
-import Control.Lens hiding (unsnoc, cons, snoc)
+import Control.Lens hiding (cons, snoc, unsnoc)
 import qualified Control.Lens as Lens
+import Data.Bifunctor (first)
 import qualified Data.Foldable as Foldable
-import qualified Data.Text                     as Text
-import           Data.Sequence                  (Seq((:<|),(:|>) ))
-import qualified Data.Sequence                 as Seq
-import           Unison.Name                    ( Name )
-import qualified Unison.Name                   as Name
-import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Lexer                  as Lexer
+import Data.List.Extra (dropPrefix, stripPrefix)
+import Data.Sequence (Seq ((:<|), (:|>)))
+import qualified Data.Sequence as Seq
+import qualified Data.Text as Text
 import qualified Unison.HashQualified' as HQ'
+import qualified Unison.Lexer as Lexer
+import Unison.Name (Name)
+import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment (NameSegment))
+import qualified Unison.NameSegment as NameSegment
+import Unison.Prelude hiding (empty, toList)
 import qualified Unison.ShortHash as SH
-
-import           Unison.NameSegment             ( NameSegment(NameSegment))
-import qualified Unison.NameSegment            as NameSegment
+import Unison.Util.Monoid (intercalateMap)
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
-newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord)
+newtype Path = Path {toSeq :: Seq NameSegment} deriving (Eq, Ord)
 
-newtype Absolute = Absolute { unabsolute :: Path } deriving (Eq,Ord)
-newtype Relative = Relative { unrelative :: Path } deriving (Eq,Ord)
-newtype Path' = Path' { unPath' :: Either Absolute Relative }
-  deriving (Eq,Ord)
+newtype Absolute = Absolute {unabsolute :: Path} deriving (Eq, Ord)
+
+newtype Relative = Relative {unrelative :: Path} deriving (Eq, Ord)
+
+newtype Path' = Path' {unPath' :: Either Absolute Relative}
+  deriving (Eq, Ord)
 
 isCurrentPath :: Path' -> Bool
 isCurrentPath p = p == currentPath
@@ -72,12 +72,15 @@ unsplitHQ' :: HQSplit' -> HQ'.HashQualified' Path'
 unsplitHQ' (p, a) = fmap (snoc' p) a
 
 type Split = (Path, NameSegment)
+
 type HQSplit = (Path, HQ'.HQSegment)
 
 type Split' = (Path', NameSegment)
+
 type HQSplit' = (Path', HQ'.HQSegment)
 
 type SplitAbsolute = (Absolute, NameSegment)
+
 type HQSplitAbsolute = (Absolute, HQ'.HQSegment)
 
 -- examples:
@@ -100,7 +103,7 @@ prefix (Absolute (Path prefix)) (Path' p) = case p of
 -- Left is some parse error tbd
 parsePath' :: String -> Either String Path'
 parsePath' p = case parsePathImpl' p of
-  Left  e       -> Left e
+  Left e -> Left e
   Right (p, "") -> Right p
   Right (p, rem) ->
     case (first show . (Lexer.wordyId0 <> Lexer.symbolyId0) <> unit') rem of
@@ -117,21 +120,21 @@ parsePath' p = case parsePathImpl' p of
 -- TODO: Get rid of this thing.
 parsePathImpl' :: String -> Either String (Path', String)
 parsePathImpl' p = case p of
-  "."     -> Right (Path' . Left $ absoluteEmpty, "")
+  "." -> Right (Path' . Left $ absoluteEmpty, "")
   '.' : p -> over _1 (Path' . Left . Absolute . fromList) <$> segs p
-  p       -> over _1 (Path' . Right . Relative . fromList) <$> segs p
- where
-  go f p = case f p of
-    Right (a, "") -> case Lens.unsnoc (Name.segments' $ Text.pack a) of
-      Nothing           -> Left "empty path"
-      Just (segs, last) -> Right (NameSegment <$> segs, Text.unpack last)
-    Right (segs, '.' : rem) ->
-      let segs' = Name.segments' (Text.pack segs)
-      in  Right (NameSegment <$> segs', rem)
-    Right (segs, rem) ->
-      Left $ "extra characters after " <> segs <> ": " <> show rem
-    Left e -> Left e
-  segs p = go (first show . (Lexer.symbolyId <> Lexer.wordyId) <> unit') p
+  p -> over _1 (Path' . Right . Relative . fromList) <$> segs p
+  where
+    go f p = case f p of
+      Right (a, "") -> case Lens.unsnoc (Name.segments' $ Text.pack a) of
+        Nothing -> Left "empty path"
+        Just (segs, last) -> Right (NameSegment <$> segs, Text.unpack last)
+      Right (segs, '.' : rem) ->
+        let segs' = Name.segments' (Text.pack segs)
+         in Right (NameSegment <$> segs', rem)
+      Right (segs, rem) ->
+        Left $ "extra characters after " <> segs <> ": " <> show rem
+      Left e -> Left e
+    segs p = go (first show . (Lexer.symbolyId <> Lexer.wordyId) <> unit') p
 
 wordyNameSegment, definitionNameSegment :: String -> Either String NameSegment
 wordyNameSegment s = case Lexer.wordyId0 s of
@@ -142,35 +145,35 @@ wordyNameSegment s = case Lexer.wordyId0 s of
 
 optionalWordyNameSegment :: String -> Either String NameSegment
 optionalWordyNameSegment "" = Right $ NameSegment ""
-optionalWordyNameSegment s  = wordyNameSegment s
+optionalWordyNameSegment s = wordyNameSegment s
 
 -- Parse a name segment like "()"
 unit' :: String -> Either String (String, String)
 unit' s = case stripPrefix "()" s of
-  Nothing  -> Left $ "Expected () but found: " <> s
+  Nothing -> Left $ "Expected () but found: " <> s
   Just rem -> Right ("()", rem)
 
 unit :: String -> Either String NameSegment
 unit s = case unit' s of
-  Right (_, "" ) -> Right $ NameSegment "()"
+  Right (_, "") -> Right $ NameSegment "()"
   Right (_, rem) -> Left $ "trailing characters after (): " <> show rem
-  Left  _        -> Left $ "I don't know how to parse " <> s
-
+  Left _ -> Left $ "I don't know how to parse " <> s
 
 definitionNameSegment s = wordyNameSegment s <> symbolyNameSegment s <> unit s
- where
-  symbolyNameSegment s = case Lexer.symbolyId0 s of
-    Left  e       -> Left (show e)
-    Right (a, "") -> Right (NameSegment (Text.pack a))
-    Right (a, rem) ->
-      Left $ "trailing characters after " <> show a <> ": " <> show rem
+  where
+    symbolyNameSegment s = case Lexer.symbolyId0 s of
+      Left e -> Left (show e)
+      Right (a, "") -> Right (NameSegment (Text.pack a))
+      Right (a, rem) ->
+        Left $ "trailing characters after " <> show a <> ": " <> show rem
 
 -- parseSplit' wordyNameSegment "foo.bar.baz" returns Right (foo.bar, baz)
 -- parseSplit' wordyNameSegment "foo.bar.+" returns Left err
 -- parseSplit' definitionNameSegment "foo.bar.+" returns Right (foo.bar, +)
-parseSplit' :: (String -> Either String NameSegment)
-            -> String
-            -> Either String Split'
+parseSplit' ::
+  (String -> Either String NameSegment) ->
+  String ->
+  Either String Split'
 parseSplit' lastSegment p = do
   (p', rem) <- parsePathImpl' p
   seg <- lastSegment rem
@@ -179,8 +182,8 @@ parseSplit' lastSegment p = do
 parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash HQSplit')
 parseShortHashOrHQSplit' s =
   case Text.breakOn "#" $ Text.pack s of
-    ("","") -> error $ "encountered empty string parsing '" <> s <> "'"
-    (n,"") -> do
+    ("", "") -> error $ "encountered empty string parsing '" <> s <> "'"
+    (n, "") -> do
       (p, rem) <- parsePathImpl' (Text.unpack n)
       seg <- definitionNameSegment rem
       pure $ Right (p, HQ'.NameOnly seg)
@@ -190,42 +193,44 @@ parseShortHashOrHQSplit' s =
     (n, sh) -> do
       (p, rem) <- parsePathImpl' (Text.unpack n)
       seg <- definitionNameSegment rem
-      hq <- maybeToRight (shError s) .
-        fmap (\sh -> (p, HQ'.HashQualified seg sh)) .
-        SH.fromText $ sh
+      hq <-
+        maybeToRight (shError s)
+          . fmap (\sh -> (p, HQ'.HashQualified seg sh))
+          . SH.fromText
+          $ sh
       pure $ Right hq
   where
-  shError s = "couldn't parse shorthash from " <> s
+    shError s = "couldn't parse shorthash from " <> s
 
 parseHQSplit :: String -> Either String HQSplit
 parseHQSplit s = case parseHQSplit' s of
   Right (Path' (Right (Relative p)), hqseg) -> Right (p, hqseg)
-  Right (Path' Left{}, _) ->
+  Right (Path' Left {}, _) ->
     Left $ "Sorry, you can't use an absolute name like " <> s <> " here."
   Left e -> Left e
 
 parseHQSplit' :: String -> Either String HQSplit'
 parseHQSplit' s = case Text.breakOn "#" $ Text.pack s of
   ("", "") -> error $ "encountered empty string parsing '" <> s <> "'"
-  ("", _ ) -> Left "Sorry, you can't use a hash-only reference here."
-  (n , "") -> do
+  ("", _) -> Left "Sorry, you can't use a hash-only reference here."
+  (n, "") -> do
     (p, rem) <- parsePath n
-    seg      <- definitionNameSegment rem
+    seg <- definitionNameSegment rem
     pure (p, HQ'.NameOnly seg)
   (n, sh) -> do
     (p, rem) <- parsePath n
-    seg      <- definitionNameSegment rem
+    seg <- definitionNameSegment rem
     maybeToRight (shError s)
       . fmap (\sh -> (p, HQ'.HashQualified seg sh))
       . SH.fromText
       $ sh
- where
-  shError s = "couldn't parse shorthash from " <> s
-  parsePath n = do
-    x <- parsePathImpl' $ Text.unpack n
-    pure $ case x of
-      (Path' (Left e), "") | e == absoluteEmpty -> (relativeEmpty', ".")
-      x -> x
+  where
+    shError s = "couldn't parse shorthash from " <> s
+    parsePath n = do
+      x <- parsePathImpl' $ Text.unpack n
+      pure $ case x of
+        (Path' (Left e), "") | e == absoluteEmpty -> (relativeEmpty', ".")
+        x -> x
 
 toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
 toAbsoluteSplit a (p, s) = (resolve a p, s)
@@ -311,10 +316,10 @@ fromName = fromList . Name.segments
 fromName' :: Name -> Path'
 fromName' n = case take 1 (Name.toString n) of
   "." -> Path' . Left . Absolute $ Path seq
-  _   -> Path' . Right $ Relative path
- where
-  path = fromName n
-  seq  = toSeq path
+  _ -> Path' . Right $ Relative path
+  where
+    path = fromName n
+    seq = toSeq path
 
 toName :: Path -> Name
 toName = Name.unsafeFromText . toText
@@ -327,13 +332,15 @@ toName' = Name.unsafeFromText . toText'
 -- two inputs relativized to that ancestor.
 relativeToAncestor :: Path -> Path -> (Path, Path, Path)
 relativeToAncestor (Path a) (Path b) = case (a, b) of
-  (ha :<| ta, hb :<| tb) | ha == hb ->
-    let (ancestor, relA, relB) = relativeToAncestor (Path ta) (Path tb)
-    in (ha `cons` ancestor, relA, relB)
+  (ha :<| ta, hb :<| tb)
+    | ha == hb ->
+      let (ancestor, relA, relB) = relativeToAncestor (Path ta) (Path tb)
+       in (ha `cons` ancestor, relA, relB)
   -- nothing in common
   _ -> (empty, Path a, Path b)
 
 pattern Parent h t = Path (NameSegment h :<| t)
+
 pattern Empty = Path Seq.Empty
 
 empty :: Path
@@ -356,58 +363,60 @@ toText' = \case
   Path' (Right (Relative path)) -> toText path
 
 instance Cons Path Path NameSegment NameSegment where
-  _Cons = prism (uncurry cons) uncons where
-    cons :: NameSegment -> Path -> Path
-    cons ns (Path p) = Path (ns :<| p)
-    uncons :: Path -> Either Path (NameSegment, Path)
-    uncons p = case p of
-      Path (hd :<| tl) -> Right (hd, Path tl)
-      _ -> Left p
+  _Cons = prism (uncurry cons) uncons
+    where
+      cons :: NameSegment -> Path -> Path
+      cons ns (Path p) = Path (ns :<| p)
+      uncons :: Path -> Either Path (NameSegment, Path)
+      uncons p = case p of
+        Path (hd :<| tl) -> Right (hd, Path tl)
+        _ -> Left p
 
 instance Snoc Relative Relative NameSegment NameSegment where
   _Snoc = prism (uncurry snocRelative) $ \case
-    Relative (Lens.unsnoc -> Just (s,a)) -> Right (Relative s,a)
+    Relative (Lens.unsnoc -> Just (s, a)) -> Right (Relative s, a)
     e -> Left e
     where
-    snocRelative :: Relative -> NameSegment -> Relative
-    snocRelative r n = Relative . (`Lens.snoc` n) $ unrelative r
+      snocRelative :: Relative -> NameSegment -> Relative
+      snocRelative r n = Relative . (`Lens.snoc` n) $ unrelative r
 
 instance Snoc Absolute Absolute NameSegment NameSegment where
   _Snoc = prism (uncurry snocAbsolute) $ \case
-    Absolute (Lens.unsnoc -> Just (s,a)) -> Right (Absolute s, a)
+    Absolute (Lens.unsnoc -> Just (s, a)) -> Right (Absolute s, a)
     e -> Left e
     where
-    snocAbsolute :: Absolute -> NameSegment -> Absolute
-    snocAbsolute a n = Absolute . (`Lens.snoc` n) $ unabsolute a
+      snocAbsolute :: Absolute -> NameSegment -> Absolute
+      snocAbsolute a n = Absolute . (`Lens.snoc` n) $ unabsolute a
 
 instance Snoc Path Path NameSegment NameSegment where
   _Snoc = prism (uncurry snoc) unsnoc
     where
-    unsnoc :: Path -> Either Path (Path, NameSegment)
-    unsnoc = \case
-      Path (s Seq.:|> a) -> Right (Path s, a)
-      e -> Left e
-    snoc :: Path -> NameSegment -> Path
-    snoc (Path p) ns = Path (p <> pure ns)
+      unsnoc :: Path -> Either Path (Path, NameSegment)
+      unsnoc = \case
+        Path (s Seq.:|> a) -> Right (Path s, a)
+        e -> Left e
+      snoc :: Path -> NameSegment -> Path
+      snoc (Path p) ns = Path (p <> pure ns)
 
 instance Snoc Path' Path' NameSegment NameSegment where
   _Snoc = prism (uncurry snoc') $ \case
-    Path' (Left (Lens.unsnoc -> Just (s,a))) -> Right (Path' (Left s), a)
-    Path' (Right (Lens.unsnoc -> Just (s,a))) -> Right (Path' (Right s), a)
+    Path' (Left (Lens.unsnoc -> Just (s, a))) -> Right (Path' (Left s), a)
+    Path' (Right (Lens.unsnoc -> Just (s, a))) -> Right (Path' (Right s), a)
     e -> Left e
     where
-    snoc' :: Path' -> NameSegment -> Path'
-    snoc' (Path' e) n = case e of
-      Left abs -> Path' (Left . Absolute $ Lens.snoc (unabsolute abs) n)
-      Right rel -> Path' (Right . Relative $ Lens.snoc (unrelative rel) n)
+      snoc' :: Path' -> NameSegment -> Path'
+      snoc' (Path' e) n = case e of
+        Left abs -> Path' (Left . Absolute $ Lens.snoc (unabsolute abs) n)
+        Right rel -> Path' (Right . Relative $ Lens.snoc (unrelative rel) n)
 
 instance Snoc Split' Split' NameSegment NameSegment where
-  _Snoc = prism (uncurry snoc') $ \case -- unsnoc
+  _Snoc = prism (uncurry snoc') $ \case
+    -- unsnoc
     (Lens.unsnoc -> Just (s, a), ns) -> Right ((s, a), ns)
     e -> Left e
     where
-    snoc' :: Split' -> NameSegment -> Split'
-    snoc' (p, a) n = (Lens.snoc p a, n)
+      snoc' :: Split' -> NameSegment -> Split'
+      snoc' (p, a) n = (Lens.snoc p a, n)
 
 class Resolve l r o where
   resolve :: l -> r -> o
@@ -422,7 +431,7 @@ instance Resolve Absolute Relative Absolute where
   resolve (Absolute l) (Relative r) = Absolute (resolve l r)
 
 instance Resolve Path' Path' Path' where
-  resolve _ a@(Path' Left{}) = a
+  resolve _ a@(Path' Left {}) = a
   resolve (Path' (Left a)) (Path' (Right r)) = Path' (Left (resolve a r))
   resolve (Path' (Right r1)) (Path' (Right r2)) = Path' (Right (resolve r1 r2))
 

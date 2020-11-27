@@ -1,53 +1,53 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE OverloadedStrings   #-}
 
 module Unison.Name
-  ( Name(Name)
-  , endsWithSegments
-  , fromString
-  , isPrefixOf
-  , joinDot
-  , makeAbsolute
-  , parent
-  , sortNames
-  , sortNamed
-  , sortByText
-  , sortNamed'
-  , stripNamePrefix
-  , stripPrefixes
-  , segments
-  , segments'
-  , suffixes
-  , toString
-  , toText
-  , toVar
-  , unqualified
-  , unqualified'
-  , unsafeFromText
-  , unsafeFromString
-  , fromSegment
-  , fromVar
+  ( Name (Name),
+    endsWithSegments,
+    fromString,
+    isPrefixOf,
+    joinDot,
+    makeAbsolute,
+    parent,
+    sortNames,
+    sortNamed,
+    sortByText,
+    sortNamed',
+    stripNamePrefix,
+    stripPrefixes,
+    segments,
+    segments',
+    suffixes,
+    toString,
+    toText,
+    toVar,
+    unqualified,
+    unqualified',
+    unsafeFromText,
+    unsafeFromString,
+    fromSegment,
+    fromVar,
   )
 where
 
-import           Unison.Prelude
-import qualified Unison.NameSegment            as NameSegment
-import           Unison.NameSegment             ( NameSegment(NameSegment)
-                                                , segments'
-                                                )
+import Control.Lens (unsnoc)
+import qualified Control.Lens as Lens
+import Data.List (sortBy, tails)
+import qualified Data.RFC5051 as RFC5051
+import qualified Data.Text as Text
+import qualified Unison.Hashable as H
+import Unison.NameSegment
+  ( NameSegment (NameSegment),
+    segments',
+  )
+import qualified Unison.NameSegment as NameSegment
+import Unison.Prelude
+import Unison.Var (Var)
+import qualified Unison.Var as Var
 
-import           Control.Lens                   ( unsnoc )
-import qualified Control.Lens                  as Lens
-import qualified Data.Text                     as Text
-import qualified Unison.Hashable               as H
-import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
-import qualified Data.RFC5051                  as RFC5051
-import           Data.List                      ( sortBy, tails )
-
-newtype Name = Name { toText :: Text } deriving (Eq, Ord, Monoid, Semigroup)
+newtype Name = Name {toText :: Text} deriving (Eq, Ord, Monoid, Semigroup)
 
 sortNames :: [Name] -> [Name]
 sortNames = sortNamed id
@@ -56,18 +56,18 @@ sortNamed :: (a -> Name) -> [a] -> [a]
 sortNamed by = sortByText (toText . by)
 
 sortByText :: (a -> Text) -> [a] -> [a]
-sortByText by as = let
-  as' = [ (a, Text.unpack (by a)) | a <- as ]
-  comp (_,s) (_,s2) = RFC5051.compareUnicode s s2
-  in fst <$> sortBy comp as'
+sortByText by as =
+  let as' = [(a, Text.unpack (by a)) | a <- as]
+      comp (_, s) (_, s2) = RFC5051.compareUnicode s s2
+   in fst <$> sortBy comp as'
 
 -- | Like sortNamed, but takes an additional backup comparison function if two
 -- names are equal.
 sortNamed' :: (a -> Name) -> (a -> a -> Ordering) -> [a] -> [a]
-sortNamed' by by2 as = let
-  as' = [ (a, Text.unpack (toText (by a))) | a <- as ]
-  comp (a,s) (a2,s2) = RFC5051.compareUnicode s s2 <> by2 a a2
-  in fst <$> sortBy comp as'
+sortNamed' by by2 as =
+  let as' = [(a, Text.unpack (toText (by a))) | a <- as]
+      comp (a, s) (a2, s2) = RFC5051.compareUnicode s s2 <> by2 a a2
+   in fst <$> sortBy comp as'
 
 unsafeFromText :: Text -> Name
 unsafeFromText t =
@@ -113,7 +113,7 @@ stripNamePrefix :: Name -> Name -> Maybe Name
 stripNamePrefix prefix name =
   Name <$> Text.stripPrefix (toText prefix <> mid) (toText name)
   where
-  mid = if toText prefix == "." then "" else "."
+    mid = if toText prefix == "." then "" else "."
 
 -- a.b.c.d -> d
 stripPrefixes :: Name -> Name
@@ -121,8 +121,9 @@ stripPrefixes = fromSegment . last . segments
 
 joinDot :: Name -> Name -> Name
 joinDot prefix suffix =
-  if toText prefix == "." then Name (toText prefix <> toText suffix)
-  else Name (toText prefix <> "." <> toText suffix)
+  if toText prefix == "."
+    then Name (toText prefix <> toText suffix)
+    else Name (toText prefix <> "." <> toText suffix)
 
 unqualified :: Name -> Name
 unqualified = unsafeFromText . unqualified' . toText
@@ -134,8 +135,8 @@ unqualified = unsafeFromText . unqualified' . toText
 -- parent foo.bar.+ -> foo.bar
 parent :: Name -> Maybe Name
 parent n = case unsnoc (NameSegment.toText <$> segments n) of
-  Nothing        -> Nothing
-  Just ([]  , _) -> Nothing
+  Nothing -> Nothing
+  Just ([], _) -> Nothing
   Just (init, _) -> Just $ Name (Text.intercalate "." init)
 
 -- suffixes "" -> []
@@ -145,16 +146,18 @@ parent n = case unsnoc (NameSegment.toText <$> segments n) of
 -- suffixes ".base.." -> [base.., .]
 suffixes :: Name -> [Name]
 suffixes (Name "") = []
-suffixes (Name n ) = fmap up . filter (not . null) . tails $ segments' n
-  where up ns = Name (Text.intercalate "." ns)
+suffixes (Name n) = fmap up . filter (not . null) . tails $ segments' n
+  where
+    up ns = Name (Text.intercalate "." ns)
 
 unqualified' :: Text -> Text
 unqualified' = last . segments'
 
 makeAbsolute :: Name -> Name
-makeAbsolute n | toText n == "."                = Name ".."
-               | Text.isPrefixOf "." (toText n) = n
-               | otherwise                      = Name ("." <> toText n)
+makeAbsolute n
+  | toText n == "." = Name ".."
+  | Text.isPrefixOf "." (toText n) = n
+  | otherwise = Name ("." <> toText n)
 
 instance Show Name where
   show = toString
@@ -175,12 +178,12 @@ segments (Name n) = NameSegment <$> segments' n
 
 instance Lens.Snoc Name Name NameSegment NameSegment where
   _Snoc = Lens.prism snoc unsnoc
-   where
-    snoc :: (Name, NameSegment) -> Name
-    snoc (n, s) = joinDot n (fromSegment s)
-    unsnoc :: Name -> Either Name (Name, NameSegment)
-    unsnoc n@(segments -> ns) = case Lens.unsnoc (NameSegment.toText <$> ns) of
-      Nothing      -> Left n
-      Just ([], _) -> Left n
-      Just (init, last) ->
-        Right (Name (Text.intercalate "." init), NameSegment last)
+    where
+      snoc :: (Name, NameSegment) -> Name
+      snoc (n, s) = joinDot n (fromSegment s)
+      unsnoc :: Name -> Either Name (Name, NameSegment)
+      unsnoc n@(segments -> ns) = case Lens.unsnoc (NameSegment.toText <$> ns) of
+        Nothing -> Left n
+        Just ([], _) -> Left n
+        Just (init, last) ->
+          Right (Name (Text.intercalate "." init), NameSegment last)

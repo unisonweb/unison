@@ -9,4 +9,3 @@ toMaybe :: DisplayThing a -> Maybe a
 toMaybe = \case
   RegularThing a -> Just a
   _ -> Nothing
-

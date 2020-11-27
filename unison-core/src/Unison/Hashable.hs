@@ -1,9 +1,8 @@
 module Unison.Hashable where
 
-import Unison.Prelude
-
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Unison.Prelude
 
 data Token h
   = Tag !Word8
@@ -31,8 +30,8 @@ class Hashable t where
 instance Hashable a => Hashable [a] where
   tokens = map accumulateToken
 
-instance (Hashable a, Hashable b) => Hashable (a,b) where
-  tokens (a,b) = [accumulateToken a, accumulateToken b]
+instance (Hashable a, Hashable b) => Hashable (a, b) where
+  tokens (a, b) = [accumulateToken a, accumulateToken b]
 
 instance (Hashable a) => Hashable (Set.Set a) where
   tokens = tokens . Set.toList

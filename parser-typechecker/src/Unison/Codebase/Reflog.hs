@@ -8,12 +8,11 @@ import Unison.Codebase.Branch (Hash)
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Hash as Hash
 
-data Entry =
-  Entry
-    { from :: Hash
-    , to :: Hash
-    , reason :: Text
-    }
+data Entry = Entry
+  { from :: Hash,
+    to :: Hash,
+    reason :: Text
+  }
 
 fromText :: Text -> Maybe Entry
 fromText t =
@@ -22,9 +21,10 @@ fromText t =
       Just $ Entry (Causal.RawHash old) (Causal.RawHash new) reason
     _ -> Nothing
 
-
 toText :: Entry -> Text
 toText (Entry old new reason) =
-  Text.unwords [ Hash.base32Hex . Causal.unRawHash $ old
-               , Hash.base32Hex . Causal.unRawHash $ new
-               , reason ]
+  Text.unwords
+    [ Hash.base32Hex . Causal.unRawHash $ old,
+      Hash.base32Hex . Causal.unRawHash $ new,
+      reason
+    ]

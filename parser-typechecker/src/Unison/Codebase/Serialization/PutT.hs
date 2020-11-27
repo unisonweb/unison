@@ -1,12 +1,13 @@
 module Unison.Codebase.Serialization.PutT where
 
-import           Data.Bytes.Put
-import qualified Data.Serialize.Put            as Ser
-import           Data.Serialize.Put             ( PutM
-                                                , runPutM
-                                                )
+import Data.Bytes.Put
+import Data.Serialize.Put
+  ( PutM,
+    runPutM,
+  )
+import qualified Data.Serialize.Put as Ser
 
-newtype PutT m a = PutT { unPutT :: m (PutM a) }
+newtype PutT m a = PutT {unPutT :: m (PutM a)}
 
 instance Monad m => MonadPut (PutT m) where
   putWord8 = PutT . pure . putWord8
@@ -17,25 +18,25 @@ instance Monad m => MonadPut (PutT m) where
   {-# INLINE putLazyByteString #-}
   flush = PutT $ pure flush
   {-# INLINE flush #-}
-  putWord16le   = PutT . pure . putWord16le
+  putWord16le = PutT . pure . putWord16le
   {-# INLINE putWord16le #-}
-  putWord16be   = PutT . pure . putWord16be
+  putWord16be = PutT . pure . putWord16be
   {-# INLINE putWord16be #-}
   putWord16host = PutT . pure . putWord16host
   {-# INLINE putWord16host #-}
-  putWord32le   = PutT . pure . putWord32le
+  putWord32le = PutT . pure . putWord32le
   {-# INLINE putWord32le #-}
-  putWord32be   = PutT . pure . putWord32be
+  putWord32be = PutT . pure . putWord32be
   {-# INLINE putWord32be #-}
   putWord32host = PutT . pure . putWord32host
   {-# INLINE putWord32host #-}
-  putWord64le   = PutT . pure . putWord64le
+  putWord64le = PutT . pure . putWord64le
   {-# INLINE putWord64le #-}
-  putWord64be   = PutT . pure . putWord64be
+  putWord64be = PutT . pure . putWord64be
   {-# INLINE putWord64be #-}
   putWord64host = PutT . pure . putWord64host
   {-# INLINE putWord64host #-}
-  putWordhost   = PutT . pure . putWordhost
+  putWordhost = PutT . pure . putWordhost
   {-# INLINE putWordhost #-}
 
 instance Functor m => Functor (PutT m) where

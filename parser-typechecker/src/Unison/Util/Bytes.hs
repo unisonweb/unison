@@ -1,20 +1,20 @@
-{-# Language ViewPatterns #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Unison.Util.Bytes where
 
+import Basement.Block (Block)
+import qualified Data.ByteArray as B
+import qualified Data.ByteArray.Encoding as BE
+import qualified Data.ByteString.Lazy as LB
 import Data.Char
+import qualified Data.FingerTree as T
 import Data.Memory.PtrMethods (memCompare, memEqual)
-import Data.Monoid (Sum(..))
+import Data.Monoid (Sum (..))
+import qualified Data.Text as Text
 import Foreign.Ptr (plusPtr)
 import System.IO.Unsafe (unsafeDupablePerformIO)
 import Unison.Prelude hiding (ByteString, empty)
-import Basement.Block (Block)
-import qualified Data.ByteString.Lazy as LB
-import qualified Data.ByteArray as B
-import qualified Data.ByteArray.Encoding as BE
-import qualified Data.FingerTree as T
-import qualified Data.Text as Text
 
 -- Block is just `newtype Block a = Block ByteArray#`
 type ByteString = Block Word8
@@ -33,7 +33,7 @@ empty = Bytes mempty
 fromArray :: B.ByteArrayAccess ba => ba -> Bytes
 fromArray = snoc empty
 
-toArray :: forall bo . B.ByteArray bo => Bytes -> bo
+toArray :: forall bo. B.ByteArray bo => Bytes -> bo
 toArray b = B.concat (map B.convert (chunks b) :: [bo])
 
 toLazyByteString :: Bytes -> LB.ByteString
@@ -64,20 +64,24 @@ flatten :: Bytes -> Bytes
 flatten b = snoc mempty (B.concat (chunks b) :: ByteString)
 
 take :: Int -> Bytes -> Bytes
-take n (Bytes bs) = go (T.split (> Sum n) bs) where
-  go (ok, s) = Bytes $ case T.viewl s of
-    last T.:< _ ->
-      if T.measure ok == Sum n then ok
-      else ok T.|> takeView (n - getSum (T.measure ok)) last
-    _ -> ok
+take n (Bytes bs) = go (T.split (> Sum n) bs)
+  where
+    go (ok, s) = Bytes $ case T.viewl s of
+      last T.:< _ ->
+        if T.measure ok == Sum n
+          then ok
+          else ok T.|> takeView (n - getSum (T.measure ok)) last
+      _ -> ok
 
 drop :: Int -> Bytes -> Bytes
-drop n b0@(Bytes bs) = go (T.dropUntil (> Sum n) bs) where
-  go s = Bytes $ case T.viewl s of
-    head T.:< tail ->
-      if (size b0 - getSum (T.measure s)) == n then s
-      else dropView (n - (size b0 - getSum (T.measure s))) head T.<| tail
-    _ -> s
+drop n b0@(Bytes bs) = go (T.dropUntil (> Sum n) bs)
+  where
+    go s = Bytes $ case T.viewl s of
+      head T.:< tail ->
+        if (size b0 - getSum (T.measure s)) == n
+          then s
+          else dropView (n - (size b0 - getSum (T.measure s))) head T.<| tail
+      _ -> s
 
 at :: Int -> Bytes -> Maybe Word8
 at i bs = case Unison.Util.Bytes.drop i bs of
@@ -87,8 +91,9 @@ at i bs = case Unison.Util.Bytes.drop i bs of
   _ -> Nothing
 
 toBase16 :: Bytes -> Bytes
-toBase16 bs = foldl' step empty (chunks bs) where
-  step bs b = snoc bs (BE.convertToBase BE.Base16 b :: ByteString)
+toBase16 bs = foldl' step empty (chunks bs)
+  where
+    step bs b = snoc bs (BE.convertToBase BE.Base16 b :: ByteString)
 
 fromBase16 :: Bytes -> Either Text.Text Bytes
 fromBase16 bs = case traverse convert (chunks bs) of
@@ -137,24 +142,26 @@ instance Show Bytes where
 alignChunks :: B.ByteArrayAccess ba => [View ba] -> [View ba] -> ([View ba], [View ba])
 alignChunks bs1 bs2 = (cs1, cs2)
   where
-  cs1 = alignTo bs1 bs2
-  cs2 = alignTo bs2 cs1
-  alignTo :: B.ByteArrayAccess ba => [View ba] -> [View ba] -> [View ba]
-  alignTo bs1 [] = bs1
-  alignTo []  _  = []
-  alignTo (hd1:tl1) (hd2:tl2)
-    | len1 == len2 = hd1 : alignTo tl1 tl2
-    | len1 < len2  = hd1 : alignTo tl1 (dropView len1 hd2 : tl2)
-    | otherwise    = -- len1 > len2
-                     let (hd1',hd1rem) = (takeView len2 hd1, dropView len2 hd1)
-                     in hd1' : alignTo (hd1rem : tl1) tl2
-    where
-      len1 = B.length hd1
-      len2 = B.length hd2
+    cs1 = alignTo bs1 bs2
+    cs2 = alignTo bs2 cs1
+    alignTo :: B.ByteArrayAccess ba => [View ba] -> [View ba] -> [View ba]
+    alignTo bs1 [] = bs1
+    alignTo [] _ = []
+    alignTo (hd1 : tl1) (hd2 : tl2)
+      | len1 == len2 = hd1 : alignTo tl1 tl2
+      | len1 < len2 = hd1 : alignTo tl1 (dropView len1 hd2 : tl2)
+      | otherwise -- len1 > len2
+        =
+        let (hd1', hd1rem) = (takeView len2 hd1, dropView len2 hd1)
+         in hd1' : alignTo (hd1rem : tl1) tl2
+      where
+        len1 = B.length hd1
+        len2 = B.length hd2
 
 instance Eq Bytes where
-  b1 == b2 | size b1 == size b2 =
-    uncurry (==) (alignChunks (chunks b1) (chunks b2))
+  b1 == b2
+    | size b1 == size b2 =
+      uncurry (==) (alignChunks (chunks b1) (chunks b2))
   _ == _ = False
 
 -- Lexicographical ordering
@@ -181,26 +188,30 @@ takeView k (View i n bs) = View i (min k n) bs
 dropView k (View i n bs) = View (i + (k `min` n)) (n - (k `min` n)) bs
 
 data View bytes = View
-  { viewOffset :: !Int
-  , viewSize   :: !Int
-  , unView     :: !bytes
+  { viewOffset :: !Int,
+    viewSize :: !Int,
+    unView :: !bytes
   }
 
 instance B.ByteArrayAccess bytes => Eq (View bytes) where
-  v1 == v2 = viewSize v1 == viewSize v2 && unsafeDupablePerformIO (
-    B.withByteArray v1 $ \ptr1 ->
-    B.withByteArray v2 $ \ptr2 -> memEqual ptr1 ptr2 (viewSize v1))
+  v1 == v2 =
+    viewSize v1 == viewSize v2
+      && unsafeDupablePerformIO
+        ( B.withByteArray v1 $ \ptr1 ->
+            B.withByteArray v2 $ \ptr2 -> memEqual ptr1 ptr2 (viewSize v1)
+        )
 
 instance B.ByteArrayAccess bytes => Ord (View bytes) where
   compare v1 v2 = unsafeDupablePerformIO $
     B.withByteArray v1 $ \ptr1 ->
-    B.withByteArray v2 $ \ptr2 -> do
-      ret <- memCompare ptr1 ptr2 (min (viewSize v1) (viewSize v2))
-      return $ case ret of
-        EQ | B.length v1 >  B.length v2 -> GT
-           | B.length v1 <  B.length v2 -> LT
-           | B.length v1 == B.length v2 -> EQ
-        _                               -> ret
+      B.withByteArray v2 $ \ptr2 -> do
+        ret <- memCompare ptr1 ptr2 (min (viewSize v1) (viewSize v2))
+        return $ case ret of
+          EQ
+            | B.length v1 > B.length v2 -> GT
+            | B.length v1 < B.length v2 -> LT
+            | B.length v1 == B.length v2 -> EQ
+          _ -> ret
 
 instance B.ByteArrayAccess bytes => Show (View bytes) where
   show v = show (B.unpack v)
@@ -209,4 +220,3 @@ instance B.ByteArrayAccess bytes => B.ByteArrayAccess (View bytes) where
   length = viewSize
   withByteArray v f = B.withByteArray (unView v) $
     \ptr -> f (ptr `plusPtr` (viewOffset v))
-

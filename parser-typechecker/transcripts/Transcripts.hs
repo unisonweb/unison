@@ -2,20 +2,21 @@
 
 module Main where
 
-import           Unison.Prelude
-import           EasyTest
-import           Shellmet                       (($|))
-import           System.Directory
-import           System.FilePath                ( (</>)
-                                                , takeExtensions
-                                                , takeBaseName
-                                                )
-import           System.Process                 ( readProcessWithExitCode )
-
-import           Data.Text                      ( pack
-                                                , unpack
-                                                )
-import           Data.List
+import Data.List
+import Data.Text
+  ( pack,
+    unpack,
+  )
+import EasyTest
+import Shellmet (($|))
+import System.Directory
+import System.FilePath
+  ( takeBaseName,
+    takeExtensions,
+    (</>),
+  )
+import System.Process (readProcessWithExitCode)
+import Unison.Prelude
 
 type TestBuilder = FilePath -> FilePath -> String -> Test ()
 
@@ -48,15 +49,14 @@ testBuilder' ucm dir transcript = scope transcript $ do
     dropRunMessage :: String -> String
     dropRunMessage = unlines . reverse . drop 3 . reverse . lines
 
-
 buildTests :: TestBuilder -> FilePath -> Test ()
 buildTests testBuilder dir = do
   io
-     . putStrLn
-     . unlines
-     $ [ ""
-       , "Searching for transcripts to run in: " ++ dir
-       ]
+    . putStrLn
+    . unlines
+    $ [ "",
+        "Searching for transcripts to run in: " ++ dir
+      ]
   files <- io $ listDirectory dir
   let transcripts = sort . filter (\f -> takeExtensions f == ".md") $ files
   ucm <- io $ unpack <$> "stack" $| ["exec", "--", "which", "unison"] -- todo: what is it in windows?
@@ -77,16 +77,16 @@ cleanup = do
     io
       . putStrLn
       . unlines
-      $ [ ""
-        , "NOTE: All transcript codebases have been moved into"
-        , "the `test-output` directory. Feel free to delete it."
+      $ [ "",
+          "NOTE: All transcript codebases have been moved into",
+          "the `test-output` directory. Feel free to delete it."
         ]
 
 test :: Test ()
 test = do
   buildTests testBuilder $ "unison-src" </> "transcripts"
   buildTests testBuilderNewRuntime $ "unison-src" </> "new-runtime-transcripts"
-  buildTests testBuilder' $"unison-src" </> "transcripts" </> "errors"
+  buildTests testBuilder' $ "unison-src" </> "transcripts" </> "errors"
   cleanup
 
 main :: IO ()

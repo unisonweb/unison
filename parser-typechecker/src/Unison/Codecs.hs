@@ -4,41 +4,41 @@ module Unison.Codecs where
 
 -- A format for encoding runtime values, with sharing for compiled nodes.
 
-import Unison.Prelude
-
-import           Control.Arrow (second)
-import           Control.Monad.State
-import           Data.Bits (Bits)
-import qualified Data.Bytes.Serial as BS
-import           Data.Bytes.Signed (Unsigned)
-import           Data.Bytes.VarInt (VarInt(..))
+import Control.Arrow (second)
+import Control.Monad.State
+import Data.Bits (Bits)
 import qualified Data.ByteString as B
-import           Data.ByteString.Builder (doubleBE, int64BE, toLazyByteString)
+import Data.ByteString.Builder (doubleBE, int64BE, toLazyByteString)
 import qualified Data.ByteString.Lazy as BL
-import           Data.Bytes.Put
+import Data.Bytes.Put
+import qualified Data.Bytes.Serial as BS
+import Data.Bytes.Signed (Unsigned)
+import Data.Bytes.VarInt (VarInt (..))
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as Blank
+import qualified Unison.ConstructorType as ConstructorType
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
-import           Unison.Reference (Reference, pattern Builtin, pattern Derived)
-import qualified Unison.Referent as Referent
-import qualified Unison.ConstructorType as ConstructorType
-import           Unison.Term
-import           Unison.UnisonFile (UnisonFile, pattern UnisonFile)
-import qualified Unison.UnisonFile as UF
-import           Unison.Var (Var)
-import qualified Unison.Var as Var
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
+import Unison.Prelude
+import Unison.Reference (Reference, pattern Builtin, pattern Derived)
+import qualified Unison.Referent as Referent
+import Unison.Term
+import Unison.UnisonFile (UnisonFile, pattern UnisonFile)
+import qualified Unison.UnisonFile as UF
+import Unison.Var (Var)
+import qualified Unison.Var as Var
 
 type Pos = Word64
 
-serializeTerm :: (MonadPut m, MonadState Pos m, Var v)
-              => Term v a
-              -> m Pos
+serializeTerm ::
+  (MonadPut m, MonadState Pos m, Var v) =>
+  Term v a ->
+  m Pos
 serializeTerm x = do
   let putTag = do putWord8 111; putWord8 0
-  let incPosition = do pos <- get; modify' (+1); pure pos
+  let incPosition = do pos <- get; modify' (+ 1); pure pos
   case ABT.out x of
     ABT.Var v -> do
       putTag
@@ -168,8 +168,10 @@ serializeTerm x = do
         putLength $ length casePositions
         traverse_ serializeCase2 casePositions
         incPosition
-      Blank b -> error $ "cannot serialize program with blank " ++
-                         fromMaybe ""  (Blank.nameb b)
+      Blank b ->
+        error $
+          "cannot serialize program with blank "
+            ++ fromMaybe "" (Blank.nameb b)
       Handle h body -> do
         hpos <- serializeTerm h
         bpos <- serializeTerm body
@@ -258,8 +260,10 @@ serializeCase2 (MatchCase p guard body) = do
   serializeMaybe putBackref guard
   putBackref body
 
-serializeCase1 :: (Var v, MonadPut m, MonadState Pos m)
-               => MatchCase p (Term v a) -> m (MatchCase p Pos)
+serializeCase1 ::
+  (Var v, MonadPut m, MonadState Pos m) =>
+  MatchCase p (Term v a) ->
+  m (MatchCase p Pos)
 serializeCase1 (MatchCase p guard body) = do
   posg <- traverse serializeTerm guard
   posb <- serializeTerm body
@@ -268,9 +272,15 @@ serializeCase1 (MatchCase p guard body) = do
 putBackref :: MonadPut m => Pos -> m ()
 putBackref = BS.serialize . VarInt
 
-putLength :: (MonadPut m, Integral n, Integral (Unsigned n),
-                          Bits n,     Bits (Unsigned n))
-          => n -> m ()
+putLength ::
+  ( MonadPut m,
+    Integral n,
+    Integral (Unsigned n),
+    Bits n,
+    Bits (Unsigned n)
+  ) =>
+  n ->
+  m ()
 putLength = BS.serialize . VarInt
 
 serializeMaybe :: (MonadPut m) => (a -> m ()) -> Maybe a -> m ()
@@ -322,9 +332,11 @@ serializeConstructorArities r constructorArities = do
   serializeReference r
   serializeFoldable (putWord32be . fromIntegral) constructorArities
 
-serializeFile
-  :: (MonadPut m, MonadState Pos m, Monoid a, Var v)
-  => UnisonFile v a -> Term v a -> m ()
+serializeFile ::
+  (MonadPut m, MonadState Pos m, Monoid a, Var v) =>
+  UnisonFile v a ->
+  Term v a ->
+  m ()
 serializeFile uf@(UnisonFile dataDecls effectDecls _ _) tm = do
   let body = UF.uberTerm' uf tm
   let dataDecls' = second DD.constructorArities <$> toList dataDecls

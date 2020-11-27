@@ -1,49 +1,47 @@
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ViewPatterns        #-}
-
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.CommandLine where
 
+import Control.Concurrent (forkIO, killThread)
+import Control.Concurrent.STM (atomically)
+import qualified Control.Monad.Extra as Monad
+import qualified Control.Monad.Reader as Reader
+import qualified Control.Monad.State as State
+import Data.Configurator (autoConfig, autoReload)
+import Data.Configurator.Types (Config, Worth (..))
+import Data.List (isPrefixOf, isSuffixOf)
+import Data.ListLike (ListLike)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified System.Console.Haskeline as Line
+import System.FilePath (takeFileName)
+import Unison.Codebase (Codebase)
+import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Causal (Causal)
+import qualified Unison.Codebase.Causal as Causal
+import Unison.Codebase.Editor.Input (Event (..), Input (..))
+import qualified Unison.Codebase.SearchResult as SR
+import qualified Unison.Codebase.Watch as Watch
+import Unison.CommandLine.InputPattern (InputPattern (parse))
+import qualified Unison.HashQualified' as HQ
+import Unison.Names2 (Names0)
 import Unison.Prelude
-
-import           Control.Concurrent              (forkIO, killThread)
-import           Control.Concurrent.STM          (atomically)
-import qualified Control.Monad.Extra             as Monad
-import qualified Control.Monad.Reader            as Reader
-import qualified Control.Monad.State             as State
-import           Data.Configurator               (autoReload, autoConfig)
-import           Data.Configurator.Types         (Config, Worth (..))
-import           Data.List                       (isSuffixOf, isPrefixOf)
-import           Data.ListLike                   (ListLike)
-import qualified Data.Map                        as Map
-import qualified Data.Set                        as Set
-import qualified Data.Text                       as Text
-import           Prelude                         hiding (readFile, writeFile)
-import qualified System.Console.Haskeline        as Line
-import           System.FilePath                 ( takeFileName )
-import           Unison.Codebase                 (Codebase)
-import qualified Unison.Codebase                 as Codebase
-import qualified Unison.Codebase.Branch          as Branch
-import           Unison.Codebase.Causal          ( Causal )
-import qualified Unison.Codebase.Causal          as Causal
-import           Unison.Codebase.Editor.Input    (Event(..), Input(..))
-import qualified Unison.Codebase.SearchResult    as SR
-import qualified Unison.Codebase.Watch           as Watch
-import           Unison.CommandLine.InputPattern (InputPattern (parse))
-import qualified Unison.HashQualified'           as HQ
-import           Unison.Names2 (Names0)
-import qualified Unison.Util.ColorText           as CT
-import qualified Unison.Util.Find                as Find
-import qualified Unison.Util.Pretty              as P
-import           Unison.Util.TQueue              (TQueue)
-import qualified Unison.Util.TQueue              as Q
+import qualified Unison.Util.ColorText as CT
+import qualified Unison.Util.Find as Find
+import qualified Unison.Util.Pretty as P
+import Unison.Util.TQueue (TQueue)
+import qualified Unison.Util.TQueue as Q
+import Prelude hiding (readFile, writeFile)
 
 allow :: FilePath -> Bool
 allow p =
   -- ignore Emacs .# prefixed files, see https://github.com/unisonweb/unison/issues/457
-  not (".#" `isPrefixOf` takeFileName p) &&
-  (isSuffixOf ".u" p || isSuffixOf ".uu" p)
+  not (".#" `isPrefixOf` takeFileName p)
+    && (isSuffixOf ".u" p || isSuffixOf ".uu" p)
 
 watchConfig :: FilePath -> IO (Config, IO ())
 watchConfig path = do
@@ -80,24 +78,23 @@ watchBranchUpdates currentRoot q codebase = do
       atomically . Q.enqueue q . IncomingRootBranch $ Set.fromList notBefore
   pure (cancelExternalBranchUpdates >> killThread thread)
 
-
 -- `True` if `h` is found in the history of `c` within `maxDepth` path length
 -- from the tip of `c`
-beforeHash :: forall m h e . Monad m => Word -> Causal.RawHash h -> Causal m h e -> m Bool
+beforeHash :: forall m h e. Monad m => Word -> Causal.RawHash h -> Causal m h e -> m Bool
 beforeHash maxDepth h c =
   Reader.runReaderT (State.evalStateT (go c) Set.empty) (0 :: Word)
   where
-  go c | h == Causal.currentHash c = pure True
-  go c = do
-    currentDepth :: Word <- Reader.ask
-    if currentDepth >= maxDepth
-    then pure False
-    else do
-      seen <- State.get
-      cs <- lift . lift $ toList <$> sequence (Causal.children c)
-      let unseens = filter (\c -> c `Set.notMember` seen) cs
-      State.modify' (<> Set.fromList cs)
-      Monad.anyM (Reader.local (1+) . go) unseens
+    go c | h == Causal.currentHash c = pure True
+    go c = do
+      currentDepth :: Word <- Reader.ask
+      if currentDepth >= maxDepth
+        then pure False
+        else do
+          seen <- State.get
+          cs <- lift . lift $ toList <$> sequence (Causal.children c)
+          let unseens = filter (\c -> c `Set.notMember` seen) cs
+          State.modify' (<> Set.fromList cs)
+          Monad.anyM (Reader.local (1 +) . go) unseens
 
 warnNote :: String -> String
 warnNote s = "⚠️  " <> s
@@ -158,22 +155,28 @@ fuzzyCompleteHashQualified b q0@(HQ.fromString -> query) = case query of
     fixupCompletion q0 $
       makeCompletion <$> Find.fuzzyFindInBranch b query
   where
-  makeCompletion (sr, p) =
-    prettyCompletion' (HQ.toString . SR.name $ sr, p)
+    makeCompletion (sr, p) =
+      prettyCompletion' (HQ.toString . SR.name $ sr, p)
 
 fuzzyComplete :: String -> [String] -> [Line.Completion]
 fuzzyComplete q ss =
   fixupCompletion q (prettyCompletion' <$> Find.simpleFuzzyFinder q ss id)
 
 exactComplete :: String -> [String] -> [Line.Completion]
-exactComplete q ss = go <$> filter (isPrefixOf q) ss where
-  go s = prettyCompletion'' (s == q)
-           (s, P.hiBlack (P.string q) <> P.string (drop (length q) s))
+exactComplete q ss = go <$> filter (isPrefixOf q) ss
+  where
+    go s =
+      prettyCompletion''
+        (s == q)
+        (s, P.hiBlack (P.string q) <> P.string (drop (length q) s))
 
 prefixIncomplete :: String -> [String] -> [Line.Completion]
-prefixIncomplete q ss = go <$> filter (isPrefixOf q) ss where
-  go s = prettyCompletion'' False
-           (s, P.hiBlack (P.string q) <> P.string (drop (length q) s))
+prefixIncomplete q ss = go <$> filter (isPrefixOf q) ss
+  where
+    go s =
+      prettyCompletion''
+        False
+        (s, P.hiBlack (P.string q) <> P.string (drop (length q) s))
 
 -- workaround for https://github.com/judah/haskeline/issues/100
 -- if the common prefix of all the completions is smaller than
@@ -182,28 +185,28 @@ prefixIncomplete q ss = go <$> filter (isPrefixOf q) ss where
 fixupCompletion :: String -> [Line.Completion] -> [Line.Completion]
 fixupCompletion _q [] = []
 fixupCompletion _q [c] = [c]
-fixupCompletion q cs@(h:t) = let
-  commonPrefix (h1:t1) (h2:t2) | h1 == h2 = h1 : commonPrefix t1 t2
-  commonPrefix _ _             = ""
-  overallCommonPrefix =
-    foldl commonPrefix (Line.replacement h) (Line.replacement <$> t)
-  in if not (q `isPrefixOf` overallCommonPrefix)
-     then [ c { Line.replacement = q } | c <- cs ]
-     else cs
+fixupCompletion q cs@(h : t) =
+  let commonPrefix (h1 : t1) (h2 : t2) | h1 == h2 = h1 : commonPrefix t1 t2
+      commonPrefix _ _ = ""
+      overallCommonPrefix =
+        foldl commonPrefix (Line.replacement h) (Line.replacement <$> t)
+   in if not (q `isPrefixOf` overallCommonPrefix)
+        then [c {Line.replacement = q} | c <- cs]
+        else cs
 
-parseInput
-  :: Map String InputPattern -> [String] -> Either (P.Pretty CT.ColorText) Input
+parseInput ::
+  Map String InputPattern -> [String] -> Either (P.Pretty CT.ColorText) Input
 parseInput patterns ss = case ss of
-  []             -> Left ""
+  [] -> Left ""
   command : args -> case Map.lookup command patterns of
     Just pat -> parse pat args
     Nothing ->
       Left
-        .  warn
-        .  P.wrap
-        $  "I don't know how to "
-        <> P.group (fromString command <> ".")
-        <> "Type `help` or `?` to get help."
+        . warn
+        . P.wrap
+        $ "I don't know how to "
+          <> P.group (fromString command <> ".")
+          <> "Type `help` or `?` to get help."
 
 prompt :: String
 prompt = "> "

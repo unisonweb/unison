@@ -1,52 +1,52 @@
-{-# Language ViewPatterns #-}
-{-# Language PatternSynonyms #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# Language QuasiQuotes #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Runtime.IOSource where
 
-import Unison.Prelude
-
 import Control.Lens (view, _1)
-import Control.Monad.Identity (runIdentity, Identity)
+import Control.Monad.Identity (Identity, runIdentity)
 import Data.List (elemIndex, genericIndex)
-import Text.RawString.QQ (r)
-import Unison.Codebase.CodeLookup (CodeLookup(..))
-import Unison.FileParsers (parseAndSynthesizeFile)
-import Unison.Parser (Ann(..))
-import Unison.Symbol (Symbol)
 import qualified Data.Map as Map
+import Text.RawString.QQ (r)
 import qualified Unison.Builtin as Builtin
+import Unison.Codebase.CodeLookup (CodeLookup (..))
 import qualified Unison.Codebase.CodeLookup as CL
 import qualified Unison.DataDeclaration as DD
+import Unison.FileParsers (parseAndSynthesizeFile)
+import qualified Unison.Names3 as Names
+import Unison.Parser (Ann (..))
 import qualified Unison.Parser as Parser
+import Unison.Prelude
 import qualified Unison.Reference as R
 import qualified Unison.Result as Result
+import Unison.Symbol (Symbol)
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Var as Var
-import qualified Unison.Names3 as Names
 
 typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile = typecheckedFile'
 
 typecheckedFile' :: forall v. Var.Var v => UF.TypecheckedUnisonFile v Ann
-typecheckedFile' = let
-  tl :: a -> Identity (TL.TypeLookup v Ann)
-  tl = const $ pure (External <$ Builtin.typeLookup)
-  env = Parser.ParsingEnv mempty (Names.Names Builtin.names0 mempty)
-  r = parseAndSynthesizeFile [] tl env "<IO.u builtin>" source
-  in case runIdentity $ Result.runResultT r of
-    (Nothing, notes) -> error $ "parsing failed: " <> show notes
-    (Just Left{}, notes) -> error $ "typechecking failed" <> show notes
-    (Just (Right file), _) -> file
+typecheckedFile' =
+  let tl :: a -> Identity (TL.TypeLookup v Ann)
+      tl = const $ pure (External <$ Builtin.typeLookup)
+      env = Parser.ParsingEnv mempty (Names.Names Builtin.names0 mempty)
+      r = parseAndSynthesizeFile [] tl env "<IO.u builtin>" source
+   in case runIdentity $ Result.runResultT r of
+        (Nothing, notes) -> error $ "parsing failed: " <> show notes
+        (Just Left {}, notes) -> error $ "typechecking failed" <> show notes
+        (Just (Right file), _) -> file
 
 typecheckedFileTerms :: Map.Map Symbol R.Reference
 typecheckedFileTerms = view _1 <$> UF.hashTerms typecheckedFile
 
 termNamed :: String -> R.Reference
-termNamed s = fromMaybe (error $ "No builtin term called: " <> s)
-  $ Map.lookup (Var.nameds s) typecheckedFileTerms
+termNamed s =
+  fromMaybe (error $ "No builtin term called: " <> s) $
+    Map.lookup (Var.nameds s) typecheckedFileTerms
 
 codeLookup :: CodeLookup Symbol Identity Ann
 codeLookup = CL.fromUnisonFile $ UF.discardTypes typecheckedFile
@@ -69,8 +69,27 @@ abilityNamedId s =
 ioHash :: R.Id
 ioHash = abilityNamedId "io.IO"
 
-ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, isPropagatedReference, filePathReference, hostNameReference, serviceNameReference, failureReference, tlsFailureReference, ioFailureReference
-  :: R.Reference
+ioReference,
+  bufferModeReference,
+  eitherReference,
+  ioModeReference,
+  optionReference,
+  errorReference,
+  errorTypeReference,
+  seekModeReference,
+  threadIdReference,
+  socketReference,
+  handleReference,
+  epochTimeReference,
+  isTestReference,
+  isPropagatedReference,
+  filePathReference,
+  hostNameReference,
+  serviceNameReference,
+  failureReference,
+  tlsFailureReference,
+  ioFailureReference ::
+    R.Reference
 ioReference = R.DerivedId ioHash
 bufferModeReference = typeNamed "io.BufferMode"
 eitherReference = typeNamed "Either"
@@ -88,7 +107,6 @@ isPropagatedReference = typeNamed "IsPropagated"
 filePathReference = typeNamed "io.FilePath"
 hostNameReference = typeNamed "io.HostName"
 serviceNameReference = typeNamed "io.ServiceName"
-
 failureReference = typeNamed "io2.Failure"
 tlsFailureReference = typeNamed "io2.TlsFailure"
 ioFailureReference = typeNamed "io2.IOFailure"
@@ -119,8 +137,15 @@ filePathId = constructorNamed filePathReference "io.FilePath.FilePath"
 mkErrorType :: Text -> DD.ConstructorId
 mkErrorType = constructorNamed errorTypeReference
 
-alreadyExistsId, noSuchThingId, resourceBusyId, resourceExhaustedId, eofId, illegalOperationId, permissionDeniedId, userErrorId
-  :: DD.ConstructorId
+alreadyExistsId,
+  noSuchThingId,
+  resourceBusyId,
+  resourceExhaustedId,
+  eofId,
+  illegalOperationId,
+  permissionDeniedId,
+  userErrorId ::
+    DD.ConstructorId
 alreadyExistsId = mkErrorType "io.ErrorType.AlreadyExists"
 noSuchThingId = mkErrorType "io.ErrorType.NoSuchThing"
 resourceBusyId = mkErrorType "io.ErrorType.ResourceBusy"
@@ -130,23 +155,21 @@ illegalOperationId = mkErrorType "io.ErrorType.IllegalOperation"
 permissionDeniedId = mkErrorType "io.ErrorType.PermissionDenied"
 userErrorId = mkErrorType "io.ErrorType.UserError"
 
-
-
 constructorNamed :: R.Reference -> Text -> DD.ConstructorId
 constructorNamed ref name =
   case runIdentity . getTypeDeclaration codeLookup $ R.unsafeId ref of
     Nothing ->
-      error
-        $  "There's a bug in the Unison runtime. Couldn't find type "
-        <> show ref
+      error $
+        "There's a bug in the Unison runtime. Couldn't find type "
+          <> show ref
     Just decl ->
       fromMaybe
-          (  error
-          $  "Unison runtime bug. The type "
-          <> show ref
-          <> " has no constructor named "
-          <> show name
-          )
+        ( error $
+            "Unison runtime bug. The type "
+              <> show ref
+              <> " has no constructor named "
+              <> show name
+        )
         . elemIndex name
         . DD.constructorNames
         $ DD.asDataDecl decl
@@ -155,15 +178,17 @@ constructorName :: R.Reference -> DD.ConstructorId -> Text
 constructorName ref cid =
   case runIdentity . getTypeDeclaration codeLookup $ R.unsafeId ref of
     Nothing ->
-      error
-        $  "There's a bug in the Unison runtime. Couldn't find type "
-        <> show ref
+      error $
+        "There's a bug in the Unison runtime. Couldn't find type "
+          <> show ref
     Just decl -> genericIndex (DD.constructorNames $ DD.asDataDecl decl) cid
 
 -- .. todo - fill in the rest of these
 
 source :: Text
-source = fromString [r|
+source =
+  fromString
+    [r|
 
 type Either a b = Left a | Right b
 

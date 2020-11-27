@@ -3,8 +3,8 @@ module Unison.Codebase.TermEdit where
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as H
 import Unison.Reference (Reference)
-import qualified Unison.Typechecker as Typechecker
 import Unison.Type (Type)
+import qualified Unison.Typechecker as Typechecker
 import Unison.Var (Var)
 
 data TermEdit = Replace Reference Typing | Deprecate
@@ -31,7 +31,7 @@ instance Hashable TermEdit where
 
 toReference :: TermEdit -> Maybe Reference
 toReference (Replace r _) = Just r
-toReference Deprecate     = Nothing
+toReference Deprecate = Nothing
 
 isTypePreserving :: TermEdit -> Bool
 isTypePreserving e = case e of
@@ -42,10 +42,10 @@ isTypePreserving e = case e of
 isSame :: TermEdit -> Bool
 isSame e = case e of
   Replace _ Same -> True
-  _              -> False
+  _ -> False
 
 typing :: Var v => Type v loc -> Type v loc -> Typing
-typing newType oldType | Typechecker.isEqual newType oldType = Same
-                       | Typechecker.isSubtype newType oldType = Subtype
-                       | otherwise = Different
-
+typing newType oldType
+  | Typechecker.isEqual newType oldType = Same
+  | Typechecker.isSubtype newType oldType = Subtype
+  | otherwise = Different

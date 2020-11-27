@@ -1,11 +1,10 @@
-{-# Language GADTs #-}
+{-# LANGUAGE GADTs #-}
 
 module Unison.Runtime.Vector where
 
-import Unison.Prelude
-
 import qualified Data.MemoCombinators as Memo
 import qualified Data.Vector.Unboxed as UV
+import Unison.Prelude
 
 -- A `Vec a` denotes a `Nat -> Maybe a`
 data Vec a where
@@ -27,16 +26,16 @@ mu :: Vec a -> Nat -> Maybe a
 mu v = case v of
   Scalar a -> const (Just a)
   Vec vs -> \i -> vs UV.!? fromIntegral i
-  Choose cond t f -> let
-    (condr, tr, tf) = (mu cond, mu t, mu f)
-    in \i -> condr i >>= \b -> if b then tr i else tf i
-  Mux mux branches -> let
-    muxr = mu mux
-    branchesr = Memo.integral $ let f = mu branches in \i -> mu <$> f i
-    in \i -> do j <- muxr i; b <- branchesr j; b i
-  Pair v1 v2 -> let
-    (v1r, v2r) = (mu v1, mu v2)
-    in \i -> liftA2 (,) (v1r i) (v2r i)
+  Choose cond t f ->
+    let (condr, tr, tf) = (mu cond, mu t, mu f)
+     in \i -> condr i >>= \b -> if b then tr i else tf i
+  Mux mux branches ->
+    let muxr = mu mux
+        branchesr = Memo.integral $ let f = mu branches in \i -> mu <$> f i
+     in \i -> do j <- muxr i; b <- branchesr j; b i
+  Pair v1 v2 ->
+    let (v1r, v2r) = (mu v1, mu v2)
+     in \i -> liftA2 (,) (v1r i) (v2r i)
 
 -- Returns the maximum `Nat` for which `mu v` may return `Just`.
 bound :: Nat -> Vec a -> Nat
@@ -48,7 +47,7 @@ bound width v = case v of
   Mux mux _ -> bound width mux
 
 toList :: Vec a -> [a]
-toList v = let
-  n = bound maxBound v
-  muv = mu v
-  in catMaybes $ muv <$> [0..n]
+toList v =
+  let n = bound maxBound v
+      muv = mu v
+   in catMaybes $ muv <$> [0 .. n]

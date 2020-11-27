@@ -1,11 +1,12 @@
-{-# Language BangPatterns #-}
-{-# Language FunctionalDependencies #-}
-{-# Language GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module EasyTest where
 
 import Control.Applicative
 import Control.Concurrent
+import qualified Control.Concurrent.Async as A
 import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
@@ -13,11 +14,10 @@ import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Data.List
 import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Word
 import GHC.Stack
 import System.Random (Random)
-import qualified Control.Concurrent.Async as A
-import qualified Data.Map as Map
 import qualified System.Random as Random
 
 data Status = Failed | Passed !Int | Skipped | Pending
@@ -31,12 +31,13 @@ combineStatus Failed _ = Failed
 combineStatus _ Failed = Failed
 combineStatus (Passed n) (Passed m) = Passed (n + m)
 
-data Env =
-  Env { rng :: TVar Random.StdGen
-      , messages :: String
-      , results :: TBQueue (Maybe (TMVar (String, Status)))
-      , note_ :: String -> IO ()
-      , allow :: String }
+data Env = Env
+  { rng :: TVar Random.StdGen,
+    messages :: String,
+    results :: TBQueue (Maybe (TMVar (String, Status))),
+    note_ :: String -> IO (),
+    allow :: String
+  }
 
 newtype Test a = Test (ReaderT Env IO (Maybe a))
 
@@ -49,7 +50,7 @@ atomicLogger = do
   pure $ \msg ->
     -- force msg before acquiring lock
     let dummy = foldl' (\_ ch -> ch == 'a') True msg
-    in dummy `seq` bracket (takeMVar lock) (\_ -> putMVar lock ()) (\_ -> putStrLn msg)
+     in dummy `seq` bracket (takeMVar lock) (\_ -> putMVar lock ()) (\_ -> putStrLn msg)
 
 expect' :: HasCallStack => Bool -> Test ()
 expect' False = crash "unexpected"
@@ -60,13 +61,16 @@ expect False = crash "unexpected"
 expect True = ok
 
 expectEqual :: (Eq a, Show a) => a -> a -> Test ()
-expectEqual expected actual = if expected == actual then ok
-                  else crash $ unlines ["", show actual, "** did not equal expected value **", show expected]
+expectEqual expected actual =
+  if expected == actual
+    then ok
+    else crash $ unlines ["", show actual, "** did not equal expected value **", show expected]
 
 expectNotEqual :: (Eq a, Show a) => a -> a -> Test ()
 expectNotEqual forbidden actual =
-  if forbidden /= actual then ok
-  else crash $ unlines ["", show actual, "** did equal the forbidden value **", show forbidden]
+  if forbidden /= actual
+    then ok
+    else crash $ unlines ["", show actual, "** did equal the forbidden value **", show forbidden]
 
 expectJust :: HasCallStack => Maybe a -> Test a
 expectJust Nothing = crash "expected Just, got Nothing"
@@ -130,17 +134,16 @@ run' seed note allow (Test t) = do
   atomically $ writeTBQueue resultsQ Nothing
   _ <- A.waitCatch rs
   resultsMap <- readTVarIO results
-  let
-    resultsList = Map.toList resultsMap
-    succeededList = [ n | (_, Passed n) <- resultsList ]
-    succeeded = length succeededList
-    -- totalTestCases = foldl' (+) 0 succeededList
-    failures = [ a | (a, Failed) <- resultsList ]
-    failed = length failures
-    pendings = [ a | (a, Pending) <- resultsList ]
-    pending = length pendings
-    pendingSuffix = if pending == 0 then "👍 🎉" else ""
-    testsPlural n = show n ++ " " ++ if n == 1 then "test" else "tests"
+  let resultsList = Map.toList resultsMap
+      succeededList = [n | (_, Passed n) <- resultsList]
+      succeeded = length succeededList
+      -- totalTestCases = foldl' (+) 0 succeededList
+      failures = [a | (a, Failed) <- resultsList]
+      failed = length failures
+      pendings = [a | (a, Pending) <- resultsList]
+      pending = length pendings
+      pendingSuffix = if pending == 0 then "👍 🎉" else ""
+      testsPlural n = show n ++ " " ++ if n == 1 then "test" else "tests"
   note line
   note "\n"
   when (pending > 0) $ do
@@ -154,7 +157,7 @@ run' seed note allow (Test t) = do
           note "Tip: use `ok`, `expect`, or `crash` to record results"
           note "Tip: if running via `runOnly` or `rerunOnly`, check for typos"
         n -> note $ "✅  " ++ testsPlural n ++ " passed, no failures! " ++ pendingSuffix
-    (hd:_) -> do
+    (hd : _) -> do
       note $ "  " ++ show succeeded ++ (if failed == 0 then " PASSED" else " passed")
       note $ "  " ++ show (length failures) ++ (if failed == 0 then " failed" else " FAILED (failed scopes below)")
       note $ "    " ++ intercalate "\n    " (map (show . takeWhile (/= '\n')) failures)
@@ -172,11 +175,12 @@ run' seed note allow (Test t) = do
 scope :: String -> Test a -> Test a
 scope msg (Test t) = wrap . Test $ do
   env <- ask
-  let messages' = case messages env of [] -> msg; ms -> ms ++ ('.':msg)
+  let messages' = case messages env of [] -> msg; ms -> ms ++ ('.' : msg)
   if null (allow env) || take (length (allow env)) msg `isPrefixOf` allow env
-  then liftIO $
-    runReaderT t (env {messages = messages', allow = drop (length msg + 1) (allow env)})
-  else putResult Skipped >> pure Nothing
+    then
+      liftIO $
+        runReaderT t (env {messages = messages', allow = drop (length msg + 1) (allow env)})
+    else putResult Skipped >> pure Nothing
 
 -- | Log a message
 note :: String -> Test ()
@@ -205,7 +209,7 @@ random' lower upper = do
   rng <- asks rng
   liftIO . atomically $ do
     rng0 <- readTVar rng
-    let (a, rng1) = Random.randomR (lower,upper) rng0
+    let (a, rng1) = Random.randomR (lower, upper) rng0
     writeTVar rng rng1
     pure a
 
@@ -258,21 +262,24 @@ word8' = random'
 
 -- | Sample uniformly from the given list of possibilities
 pick :: [a] -> Test a
-pick as = let n = length as; ind = picker n as in do
-  i <- int' 0 (n - 1)
-  Just a <- pure (ind i)
-  pure a
+pick as =
+  let n = length as; ind = picker n as
+   in do
+        i <- int' 0 (n - 1)
+        Just a <- pure (ind i)
+        pure a
 
 picker :: Int -> [a] -> (Int -> Maybe a)
 picker _ [] = const Nothing
 picker _ [a] = \i -> if i == 0 then Just a else Nothing
-picker size as = go where
-  lsize = size `div` 2
-  rsize = size - lsize
-  (l,r) = splitAt lsize as
-  lpicker = picker lsize l
-  rpicker = picker rsize r
-  go i = if i < lsize then lpicker i else rpicker (i - lsize)
+picker size as = go
+  where
+    lsize = size `div` 2
+    rsize = size - lsize
+    (l, r) = splitAt lsize as
+    lpicker = picker lsize l
+    rpicker = picker rsize r
+    go i = if i < lsize then lpicker i else rpicker (i - lsize)
 
 -- | Alias for `replicateM`
 listOf :: Int -> Test a -> Test [a]
@@ -284,7 +291,7 @@ listsOf :: [Int] -> Test a -> Test [[a]]
 listsOf sizes gen = sizes `forM` \n -> listOf n gen
 
 -- | Alias for `liftA2 (,)`.
-pair :: Test a -> Test b -> Test (a,b)
+pair :: Test a -> Test b -> Test (a, b)
 pair = liftA2 (,)
 
 -- | Generate a `Data.Map k v` of the given size.
@@ -361,8 +368,8 @@ attempt :: Test a -> Test (Maybe a)
 attempt (Test t) = nologging $ do
   env <- ask
   let msg = "internal attempt"
-  let messages' = case messages env of [] -> msg; ms -> ms ++ ('.':msg)
-  liftIO $ runWrap env { messages = messages', allow = "not visible" } t
+  let messages' = case messages env of [] -> msg; ms -> ms ++ ('.' : msg)
+  liftIO $ runWrap env {messages = messages', allow = "not visible"} t
 
 -- | Placeholder wrapper for a failing test. The test being wrapped is expected/known to fail.
 -- Will produce a failure if the test being wrapped suddenly becomes a success.
@@ -413,10 +420,9 @@ instance Applicative Test where
 instance MonadIO Test where
   liftIO io = do
     s <- asks (null . allow)
-    if s then
-      wrap $ Test (Just <$> liftIO io)
-    else
-      Test (pure Nothing)
+    if s
+      then wrap $ Test (Just <$> liftIO io)
+      else Test (pure Nothing)
 
 instance Alternative Test where
   empty = Test (pure Nothing)
@@ -427,8 +433,8 @@ instance Alternative Test where
       let (rng1, rng2) = Random.split currentRng
       (,) <$> newTVar rng1 <*> newTVar rng2
     lift $ do
-      r1 <- runWrap (env { rng = rng1 }) t1
-      (<|> r1) <$> runWrap (env { rng = rng2 }) t2
+      r1 <- runWrap (env {rng = rng1}) t1
+      (<|> r1) <$> runWrap (env {rng = rng2}) t2
 
 instance MonadPlus Test where
   mzero = empty
@@ -454,5 +460,6 @@ fork' (Test t) = do
       Right a -> pure a
   pure $ do
     a <- liftIO (A.wait waiter)
-    case a of Nothing -> empty
-              Just a -> pure a
+    case a of
+      Nothing -> empty
+      Just a -> pure a

@@ -89,6 +89,16 @@ jobs:
           curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
           echo "$HOME/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
 
+      # install ormolu
+      - name: install ormolu (Linux)
+        if: runner.os == 'Linux'
+        run: curl -L https://github.com/tweag/ormolu/releases/download/0.1.4.1/ormolu-Linux --output "$HOME/.local/bin/ormolu"
+
+      # run ormolu
+      - name: run ormolu (Linux)
+        if: runner.os == 'Linux'
+        run: ./scripts/ormolu.sh check
+
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git username
         run: git config --global user.name "GitHub Actions"

@@ -1,29 +1,28 @@
-{-# Language OverloadedStrings #-}
-{-# Language QuasiQuotes #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module Unison.Test.IO where
 
-import Unison.Prelude
-import EasyTest
-import qualified System.IO.Temp as Temp
+import Data.String.Here (iTrim)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
+import EasyTest
 import Shellmet ()
-import Data.String.Here (iTrim)
-import System.FilePath ((</>))
 import System.Directory (removeDirectoryRecursive)
-
+import System.FilePath ((</>))
+import qualified System.IO.Temp as Temp
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.FileCodebase as FC
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Parser (Ann)
+import Unison.Prelude
 import Unison.Symbol (Symbol)
 
 -- * IO Tests
 
 test :: Test ()
-test = scope "IO" . tests $ [ testHandleOps ]
+test = scope "IO" . tests $ [testHandleOps]
 
 -- * Implementation
 
@@ -34,10 +33,15 @@ test = scope "IO" . tests $ [ testHandleOps ]
 testHandleOps :: Test ()
 testHandleOps =
   withScopeAndTempDir "handleOps" $ \workdir codebase cache -> do
-  let myFile = workdir </> "handleOps.txt"
-      resultFile = workdir </> "handleOps.result"
-      expectedText = "Good Job!" :: Text.Text
-  runTranscript_ False workdir codebase cache [iTrim|
+    let myFile = workdir </> "handleOps.txt"
+        resultFile = workdir </> "handleOps.result"
+        expectedText = "Good Job!" :: Text.Text
+    runTranscript_
+      False
+      workdir
+      codebase
+      cache
+      [iTrim|
 ```ucm:hide
 .> builtins.mergeio
 ```
@@ -72,10 +76,10 @@ main = 'let
 ```
 |]
 
-  res <- io $ TextIO.readFile (resultFile)
-  if res == expectedText
-    then ok
-    else crash $ "Failed to read expectedText from file: " ++ show myFile
+    res <- io $ TextIO.readFile (resultFile)
+    if res == expectedText
+      then ok
+      else crash $ "Failed to read expectedText from file: " ++ show myFile
 
 -- * Utilities
 
@@ -86,14 +90,14 @@ initCodebase branchCache tmpDir name = do
   pure (codebaseDir, c)
 
 -- run a transcript on an existing codebase
-runTranscript_
-  :: MonadIO m
-  => Bool
-  -> FilePath
-  -> Codebase IO Symbol Ann
-  -> Branch.Cache IO
-  -> String
-  -> m ()
+runTranscript_ ::
+  MonadIO m =>
+  Bool ->
+  FilePath ->
+  Codebase IO Symbol Ann ->
+  Branch.Cache IO ->
+  String ->
+  m ()
 runTranscript_ newRt tmpDir c branchCache transcript = do
   let configFile = tmpDir </> ".unisonConfig"
   let cwd = tmpDir </> "cwd"

@@ -3,7 +3,6 @@
 -- a treelike structure. We have a root or empty path, paths
 -- may be concatenated, and a pair of paths may be factored into
 -- paths relative to their lowest common ancestor in the tree.
-
 module Unison.Path where
 
 import Unison.Prelude
@@ -16,10 +15,13 @@ import Unison.Prelude
 class Path p where
   -- | The root or empty path
   root :: p
+
   -- | Concatenate two paths
   extend :: p -> p -> p
+
   -- | Extract the lowest common ancestor and the path from the LCA to each argument
-  factor :: p -> p -> (p,(p,p))
+  factor :: p -> p -> (p, (p, p))
+
   -- | Satisfies `factor (parent p) p == (parent p, (root, tl)` and
   --   `extend (parent p) tl == p`
   parent :: p -> p
@@ -37,7 +39,7 @@ instance Eq a => Path (Maybe a) where
   extend = (<|>)
   parent _ = Nothing
   factor p1 p2 | p1 == p2 = (p1, (Nothing, Nothing))
-  factor p1 p2 = (Nothing, (p1,p2))
+  factor p1 p2 = (Nothing, (p1, p2))
 
 instance Eq a => Path [a] where
   root = []
@@ -45,10 +47,11 @@ instance Eq a => Path [a] where
   parent p | null p = []
   parent p = init p
   factor p1 p2 = (take shared p1, (drop shared p1, drop shared p2))
-    where shared = length (takeWhile id $ zipWith (==) p1 p2)
+    where
+      shared = length (takeWhile id $ zipWith (==) p1 p2)
 
 instance Path () where
   root = ()
   parent _ = ()
   extend _ _ = ()
-  factor u _ = (u,(u,u))
+  factor u _ = (u, (u, u))

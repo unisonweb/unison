@@ -1,47 +1,46 @@
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 -- | Execute a computation of type '{IO} () that has been previously added to
 -- the codebase, without setting up an interactive environment.
 --
 -- This allows one to run standalone applications implemented in the Unison
 -- language.
-
 module Unison.Codebase.Execute where
 
+import Control.Exception (finally)
+import System.Exit (die)
+import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.MainTerm (getMainTerm)
+import qualified Unison.Codebase.MainTerm as MainTerm
+import Unison.Codebase.Runtime (Runtime)
+import qualified Unison.Codebase.Runtime as Runtime
+import qualified Unison.Names3 as Names3
+import Unison.Parser (Ann)
 import Unison.Prelude
+import qualified Unison.PrettyPrintEnv as PPE
+import Unison.Var (Var)
 
-import           Unison.Codebase.MainTerm      ( getMainTerm )
-import qualified Unison.Codebase.MainTerm      as MainTerm
-import qualified Unison.Codebase               as Codebase
-import           Unison.Parser                 ( Ann )
-import qualified Unison.Codebase.Runtime       as Runtime
-import           Unison.Codebase.Runtime       ( Runtime )
-import           Unison.Var                    ( Var )
-import qualified Unison.PrettyPrintEnv         as PPE
-import qualified Unison.Names3                 as Names3
-import qualified Unison.Codebase.Branch        as Branch
-import           System.Exit (die)
-import           Control.Exception (finally)
-
-execute
-  :: Var v
-  => Codebase.Codebase IO v Ann
-  -> Runtime v
-  -> String
-  -> IO ()
+execute ::
+  Var v =>
+  Codebase.Codebase IO v Ann ->
+  Runtime v ->
+  String ->
+  IO ()
 execute codebase runtime mainName =
   (`finally` Runtime.terminate runtime) $ do
-    root <- Codebase.getRootBranch codebase >>= \case
-      Right r -> pure r
-      Left Codebase.NoRootBranch ->
-        die ("Couldn't identify a root namespace.")
-      Left (Codebase.CouldntLoadRootBranch h) ->
-        die ("Couldn't load root branch " ++ show h)
-      Left (Codebase.CouldntParseRootBranch h) ->
-        die ("Couldn't parse root branch head " ++ show h)
+    root <-
+      Codebase.getRootBranch codebase >>= \case
+        Right r -> pure r
+        Left Codebase.NoRootBranch ->
+          die ("Couldn't identify a root namespace.")
+        Left (Codebase.CouldntLoadRootBranch h) ->
+          die ("Couldn't load root branch " ++ show h)
+        Left (Codebase.CouldntParseRootBranch h) ->
+          die ("Couldn't parse root branch head " ++ show h)
     let parseNames0 = Names3.makeAbsolute0 (Branch.toNames0 (Branch.head root))
         loadTypeOfTerm = Codebase.getTypeOfTerm codebase
     let mainType = Runtime.mainType runtime

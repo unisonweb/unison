@@ -2,20 +2,19 @@
 
 module Unison.HashQualified' where
 
+import qualified Data.Text as Text
+import qualified Unison.HashQualified as HQ
+import Unison.Name (Name)
+import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-
-import qualified Data.Text                     as Text
-import           Prelude                 hiding ( take )
-import           Unison.Name                    ( Name )
-import qualified Unison.Name                   as Name
-import           Unison.NameSegment             ( NameSegment )
-import           Unison.Reference               ( Reference )
-import qualified Unison.Reference              as Reference
-import           Unison.Referent                ( Referent )
-import qualified Unison.Referent               as Referent
-import           Unison.ShortHash               ( ShortHash )
-import qualified Unison.ShortHash              as SH
-import qualified Unison.HashQualified          as HQ
+import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
+import Unison.ShortHash (ShortHash)
+import qualified Unison.ShortHash as SH
+import Prelude hiding (take)
 
 data HashQualified' n = NameOnly n | HashQualified n ShortHash
   deriving (Eq, Functor)
@@ -33,7 +32,7 @@ fromHQ :: HQ.HashQualified' n -> Maybe (HashQualified' n)
 fromHQ = \case
   HQ.NameOnly n -> Just $ NameOnly n
   HQ.HashQualified n sh -> Just $ HashQualified n sh
-  HQ.HashOnly{} -> Nothing
+  HQ.HashOnly {} -> Nothing
 
 -- Like fromHQ, but turns hashes into hash-qualified empty names
 fromHQ' :: Monoid n => HQ.HashQualified' n -> HashQualified' n
@@ -44,15 +43,15 @@ fromHQ' = \case
 
 toName :: HashQualified' n -> n
 toName = \case
-  NameOnly name        ->  name
-  HashQualified name _ ->  name
+  NameOnly name -> name
+  HashQualified name _ -> name
 
 nameLength :: HashQualified' Name -> Int
 nameLength = Text.length . toText
 
 take :: Int -> HashQualified' n -> HashQualified' n
 take i = \case
-  n@(NameOnly _)    -> n
+  n@(NameOnly _) -> n
   HashQualified n s -> if i == 0 then NameOnly n else HashQualified n (SH.take i s)
 
 toNameOnly :: HashQualified' n -> HashQualified' n
@@ -60,7 +59,7 @@ toNameOnly = fromName . toName
 
 toHash :: HashQualified' n -> Maybe ShortHash
 toHash = \case
-  NameOnly _         -> Nothing
+  NameOnly _ -> Nothing
   HashQualified _ sh -> Just sh
 
 toString :: Show n => HashQualified' n -> String
@@ -69,21 +68,22 @@ toString = Text.unpack . toText
 -- Parses possibly-hash-qualified into structured type.
 fromText :: Text -> Maybe HashQualified
 fromText t = case Text.breakOn "#" t of
-  (name, ""  ) ->
+  (name, "") ->
     Just $ NameOnly (Name.unsafeFromText name) -- safe bc breakOn #
   (name, hash) ->
     HashQualified (Name.unsafeFromText name) <$> SH.fromText hash
 
 unsafeFromText :: Text -> HashQualified
-unsafeFromText txt = fromMaybe msg (fromText txt) where
-  msg = error ("HashQualified'.unsafeFromText " <> show txt)
+unsafeFromText txt = fromMaybe msg (fromText txt)
+  where
+    msg = error ("HashQualified'.unsafeFromText " <> show txt)
 
 fromString :: String -> Maybe HashQualified
 fromString = fromText . Text.pack
 
 toText :: Show n => HashQualified' n -> Text
 toText = \case
-  NameOnly name           -> Text.pack (show name)
+  NameOnly name -> Text.pack (show name)
   HashQualified name hash -> Text.pack (show name) <> SH.toText hash
 
 -- Returns the full referent in the hash.  Use HQ.take to just get a prefix
@@ -110,7 +110,7 @@ matchesNamedReference n r = \case
 -- Use `requalify hq . Referent.Ref` if you want to pass in a `Reference`.
 requalify :: HashQualified -> Referent -> HashQualified
 requalify hq r = case hq of
-  NameOnly n        -> fromNamedReferent n r
+  NameOnly n -> fromNamedReferent n r
   HashQualified n _ -> fromNamedReferent n r
 
 instance Ord n => Ord (HashQualified' n) where
@@ -120,7 +120,6 @@ instance Ord n => Ord (HashQualified' n) where
 
 instance IsString HashQualified where
   fromString = unsafeFromText . Text.pack
-
 
 instance Show n => Show (HashQualified' n) where
   show = Text.unpack . toText

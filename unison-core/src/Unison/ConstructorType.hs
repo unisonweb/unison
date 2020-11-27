@@ -1,6 +1,6 @@
 module Unison.ConstructorType where
 
-import Unison.Hashable (Hashable, Token(Tag), tokens)
+import Unison.Hashable (Hashable, Token (Tag), tokens)
 
 data ConstructorType = Data | Effect deriving (Eq, Ord, Show, Enum)
 

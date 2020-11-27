@@ -2,12 +2,11 @@
 
 module Unison.Kind where
 
-import Unison.Prelude
-
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as Hashable
+import Unison.Prelude
 
-data Kind = Star | Arrow Kind Kind deriving (Eq,Ord,Read,Show,Generic)
+data Kind = Star | Arrow Kind Kind deriving (Eq, Ord, Read, Show, Generic)
 
 instance Hashable Kind where
   tokens k = case k of

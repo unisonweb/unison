@@ -1,14 +1,13 @@
 module Unison.Codebase.ShortBranchHash where
 
+import qualified Data.Set as Set
+import Data.Text (Text)
+import qualified Data.Text as Text
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Hash as Hash
-import qualified Data.Text as Text
-import qualified Data.Set as Set
-import Data.Text (Text)
 
-newtype ShortBranchHash =
-  ShortBranchHash { toText :: Text } -- base32hex characters
+newtype ShortBranchHash = ShortBranchHash {toText :: Text} -- base32hex characters
   deriving (Eq, Ord)
 
 toString :: ShortBranchHash -> String
@@ -27,8 +26,9 @@ fullFromHash = ShortBranchHash . Hash.base32Hex . Causal.unRawHash
 -- abc -> SBH abc
 -- #abc -> SBH abc
 fromText :: Text -> Maybe ShortBranchHash
-fromText t | Text.all (`Set.member` Hash.validBase32HexChars) t =
-  Just . ShortBranchHash . Text.dropWhile (=='#') $ t
+fromText t
+  | Text.all (`Set.member` Hash.validBase32HexChars) t =
+    Just . ShortBranchHash . Text.dropWhile (== '#') $ t
 fromText _ = Nothing
 
 instance Show ShortBranchHash where

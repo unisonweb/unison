@@ -1,28 +1,27 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 -- | Find a computation of type '{IO} () in the codebase.
 module Unison.Codebase.MainTerm where
 
+import qualified Unison.Builtin.Decls as DD
+import qualified Unison.HashQualified as HQ
+import qualified Unison.Names3 as Names3
+import Unison.Parser (Ann)
+import qualified Unison.Parser as Parser
 import Unison.Prelude
-
-import           Unison.Parser                  ( Ann )
-import qualified Unison.Parser                 as Parser
-import qualified Unison.Term                   as Term
-import           Unison.Term                    ( Term )
-import qualified Unison.Var                    as Var
-import           Unison.Var                     ( Var )
-import qualified Unison.Builtin.Decls          as DD
-import qualified Unison.HashQualified          as HQ
-import qualified Unison.Referent               as Referent
-import qualified Unison.Names3                 as Names3
-import           Unison.Reference               ( Reference )
-import qualified Unison.Type                   as Type
-import           Unison.Type                    ( Type )
+import Unison.Reference (Reference)
+import qualified Unison.Referent as Referent
+import Unison.Runtime.IOSource (ioReference)
+import Unison.Term (Term)
+import qualified Unison.Term as Term
+import Unison.Type (Type)
+import qualified Unison.Type as Type
 import qualified Unison.Typechecker as Typechecker
-import           Unison.Runtime.IOSource        ( ioReference )
+import Unison.Var (Var)
+import qualified Unison.Var as Var
 
 data MainTerm v
   = NotAFunctionName String
@@ -30,13 +29,13 @@ data MainTerm v
   | BadType String
   | Success HQ.HashQualified (Term v Ann) (Type v Ann)
 
-getMainTerm
-  :: (Monad m, Var v)
-  => (Reference -> m (Maybe (Type v Ann)))
-  -> Names3.Names0
-  -> String
-  -> Type.Type v Ann
-  -> m (MainTerm v)
+getMainTerm ::
+  (Monad m, Var v) =>
+  (Reference -> m (Maybe (Type v Ann))) ->
+  Names3.Names0 ->
+  String ->
+  Type.Type v Ann ->
+  m (MainTerm v)
 getMainTerm loadTypeOfTerm parseNames0 mainName mainType =
   case HQ.fromString mainName of
     Nothing -> pure (NotAFunctionName mainName)
@@ -59,16 +58,17 @@ getMainTerm loadTypeOfTerm parseNames0 mainName mainType =
 nullaryMain :: Var v => a -> Type.Type v a
 nullaryMain a =
   Type.forall a v $ Type.arrow a (Type.ref a DD.unitRef) (io a)
-  where io a = Type.effect a [Type.ref a ioReference] (Type.var a v)
-        v = Var.named "a"
-
+  where
+    io a = Type.effect a [Type.ref a ioReference] (Type.var a v)
+    v = Var.named "a"
 
 -- forall a. '{io2.IO} a
 builtinMain :: Var v => a -> Type.Type v a
 builtinMain a =
   Type.forall a v $ Type.arrow a (Type.ref a DD.unitRef) (io a)
-  where io a = Type.effect1 a (Type.builtinIO a) (Type.var a v)
-        v = Var.named "a"
+  where
+    io a = Type.effect1 a (Type.builtinIO a) (Type.var a v)
+    v = Var.named "a"
 
 -- [Result]
 resultArr :: Ord v => a -> Type.Type v a
@@ -83,13 +83,13 @@ builtinResultArr a = Type.effect1 a (Type.builtinIO a) (resultArr a)
 
 -- '{IO} [Result]
 nullaryTest :: Ord v => a -> Type.Type v a
-nullaryTest a
-  = Type.arrow a (Type.ref a DD.unitRef) (ioResultArr a)
+nullaryTest a =
+  Type.arrow a (Type.ref a DD.unitRef) (ioResultArr a)
 
 -- '{io2.IO} [Result]
 builtinTest :: Ord v => a -> Type.Type v a
-builtinTest a
-  = Type.arrow a (Type.ref a DD.unitRef) (builtinResultArr a)
+builtinTest a =
+  Type.arrow a (Type.ref a DD.unitRef) (builtinResultArr a)
 
 mainTypes :: Var v => a -> [Type v a]
 mainTypes a = [nullaryMain a]

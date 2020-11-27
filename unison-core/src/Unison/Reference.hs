@@ -1,57 +1,60 @@
-{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms   #-}
-{-# LANGUAGE ViewPatterns   #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Reference
-  (Reference,
-     pattern Builtin,
-     pattern Derived,
-     pattern DerivedId,
-   Id(..),
-   derivedBase32Hex,
-   Component, members,
-   components,
-   groupByComponent,
-   componentFor,
-   unsafeFromText,
-   idFromText,
-   isPrefixOf,
-   fromShortHash,
-   fromText,
-   readSuffix,
-   showShort,
-   showSuffix,
-   toId,
-   toText,
-   unsafeId,
-   toShortHash) where
+  ( Reference,
+    pattern Builtin,
+    pattern Derived,
+    pattern DerivedId,
+    Id (..),
+    derivedBase32Hex,
+    Component,
+    members,
+    components,
+    groupByComponent,
+    componentFor,
+    unsafeFromText,
+    idFromText,
+    isPrefixOf,
+    fromShortHash,
+    fromText,
+    readSuffix,
+    showShort,
+    showSuffix,
+    toId,
+    toText,
+    unsafeId,
+    toShortHash,
+  )
+where
 
+import Data.Char (isDigit)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Unison.Hash as H
+import Unison.Hashable as Hashable
 import Unison.Prelude
-
-import qualified Data.Map        as Map
-import qualified Data.Set        as Set
-import qualified Data.Text       as Text
-import qualified Unison.Hash     as H
-import           Unison.Hashable as Hashable
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
-import Data.Char (isDigit)
 
 data Reference
   = Builtin Text.Text
-  -- `Derived` can be part of a strongly connected component.
-  -- The `Pos` refers to a particular element of the component
-  -- and the `Size` is the number of elements in the component.
-  -- Using an ugly name so no one tempted to use this
-  | DerivedId Id deriving (Eq,Ord,Generic)
+  | -- `Derived` can be part of a strongly connected component.
+    -- The `Pos` refers to a particular element of the component
+    -- and the `Size` is the number of elements in the component.
+    -- Using an ugly name so no one tempted to use this
+    DerivedId Id
+  deriving (Eq, Ord, Generic)
 
 pattern Derived h i n = DerivedId (Id h i n)
 
 -- A good idea, but causes a weird problem with view patterns in PatternP.hs in ghc 8.4.3
 --{-# COMPLETE Builtin, Derived #-}
 
-data Id = Id H.Hash Pos Size deriving (Eq,Ord,Generic)
+data Id = Id H.Hash Pos Size deriving (Eq, Ord, Generic)
 
 unsafeId :: Reference -> Id
 unsafeId (Builtin b) =
@@ -82,7 +85,7 @@ fromShortHash (SH.ShortHash prefix cycle Nothing) = do
   case cycle of
     Nothing -> Just (Derived h 0 1)
     Just t -> case Text.splitOn "c" t of
-      [i,n] -> Derived h <$> readMay (Text.unpack i) <*> readMay (Text.unpack n)
+      [i, n] -> Derived h <$> readMay (Text.unpack i) <*> readMay (Text.unpack n)
       _ -> Nothing
 fromShortHash (SH.ShortHash _prefix _cycle (Just _cid)) = Nothing
 
@@ -94,8 +97,9 @@ showSuffix i n = Text.pack $ show i <> "c" <> show n
 -- todo: don't read or return size; must also update showSuffix and fromText
 readSuffix :: Text -> Either String (Pos, Size)
 readSuffix t = case Text.breakOn "c" t of
-  (pos, Text.drop 1 -> size) | Text.all isDigit pos && Text.all isDigit size ->
-    Right (read (Text.unpack pos), read (Text.unpack size))
+  (pos, Text.drop 1 -> size)
+    | Text.all isDigit pos && Text.all isDigit size ->
+      Right (read (Text.unpack pos), read (Text.unpack size))
   _ -> Left "suffix decoding error"
 
 isPrefixOf :: ShortHash -> Reference -> Bool
@@ -108,23 +112,25 @@ showShort :: Int -> Reference -> Text
 showShort numHashChars = SH.toText . SH.take numHashChars . toShortHash
 
 type Pos = Word64
+
 type Size = Word64
 
-newtype Component = Component { members :: Set Reference }
+newtype Component = Component {members :: Set Reference}
 
 -- Gives the component (dependency cycle) that the reference is a part of
 componentFor :: Reference -> Component
-componentFor b@(Builtin        _         ) = Component (Set.singleton b)
-componentFor (  DerivedId (Id h _ n)) = Component
-  (Set.fromList
-    [ DerivedId (Id h i n) | i <- take (fromIntegral n) [0 ..] ]
-  )
+componentFor b@(Builtin _) = Component (Set.singleton b)
+componentFor (DerivedId (Id h _ n)) =
+  Component
+    ( Set.fromList
+        [DerivedId (Id h i n) | i <- take (fromIntegral n) [0 ..]]
+    )
 
 derivedBase32Hex :: Text -> Pos -> Size -> Reference
 derivedBase32Hex b32Hex i n = DerivedId (Id (fromMaybe msg h) i n)
   where
-  msg = error $ "Reference.derivedBase32Hex " <> show h
-  h = H.fromBase32Hex b32Hex
+    msg = error $ "Reference.derivedBase32Hex " <> show h
+    h = H.fromBase32Hex b32Hex
 
 unsafeFromText :: Text -> Reference
 unsafeFromText = either error id . fromText
@@ -137,7 +143,7 @@ idFromText s = case fromText s of
 
 toId :: Reference -> Maybe Id
 toId (DerivedId id) = Just id
-toId Builtin{} = Nothing
+toId Builtin {} = Nothing
 
 -- examples:
 -- `##Text.take` — builtins don’t have cycles
@@ -145,19 +151,20 @@ toId Builtin{} = Nothing
 -- `#y9ycWkiC1.y9` — derived, part of cycle
 -- todo: take a (Reference -> CycleSize) so that `readSuffix` doesn't have to parse the size from the text.
 fromText :: Text -> Either String Reference
-fromText t = case Text.split (=='#') t of
+fromText t = case Text.split (== '#') t of
   [_, "", b] -> Right (Builtin b)
-  [_, h]     -> case Text.split (=='.') h of
-    [hash]         -> Right (derivedBase32Hex hash 0 1)
+  [_, h] -> case Text.split (== '.') h of
+    [hash] -> Right (derivedBase32Hex hash 0 1)
     [hash, suffix] -> uncurry (derivedBase32Hex hash) <$> readSuffix suffix
     _ -> bail
   _ -> bail
-  where bail = Left $ "couldn't parse a Reference from " <> Text.unpack t
+  where
+    bail = Left $ "couldn't parse a Reference from " <> Text.unpack t
 
 component :: H.Hash -> [k] -> [(k, Id)]
-component h ks = let
-  size = fromIntegral (length ks)
-  in [ (k, (Id h i size)) | (k, i) <- ks `zip` [0..]]
+component h ks =
+  let size = fromIntegral (length ks)
+   in [(k, (Id h i size)) | (k, i) <- ks `zip` [0 ..]]
 
 components :: [(H.Hash, [k])] -> [(k, Id)]
 components sccs = uncurry component =<< sccs
@@ -166,12 +173,13 @@ groupByComponent :: [(k, Reference)] -> [[(k, Reference)]]
 groupByComponent refs = done $ foldl' insert Map.empty refs
   where
     insert m (k, r@(Derived h _ _)) =
-      Map.unionWith (<>) m (Map.fromList [(Right h, [(k,r)])])
+      Map.unionWith (<>) m (Map.fromList [(Right h, [(k, r)])])
     insert m (k, r) =
-      Map.unionWith (<>) m (Map.fromList [(Left r, [(k,r)])])
+      Map.unionWith (<>) m (Map.fromList [(Left r, [(k, r)])])
     done m = sortOn snd <$> toList m
 
 instance Show Id where show = SH.toString . SH.take 5 . toShortHash . DerivedId
+
 instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
 
 instance Hashable.Hashable Reference where

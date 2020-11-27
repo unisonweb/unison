@@ -2,35 +2,37 @@
 
 module Unison.Codebase.SearchResult where
 
-import Unison.Prelude
-
-import qualified Data.Set              as Set
-import           Unison.HashQualified' (HashQualified)
+import qualified Data.Set as Set
+import Unison.HashQualified' (HashQualified)
 import qualified Unison.HashQualified' as HQ
-import           Unison.Name           (Name)
-import           Unison.Names2         (Names'(Names), Names0)
-import qualified Unison.Names2         as Names
-import           Unison.Reference      (Reference)
-import           Unison.Referent       (Referent)
-import qualified Unison.Referent       as Referent
-import qualified Unison.Util.Relation  as R
+import Unison.Name (Name)
+import Unison.Names2 (Names' (Names), Names0)
+import qualified Unison.Names2 as Names
+import Unison.Prelude
+import Unison.Reference (Reference)
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
+import qualified Unison.Util.Relation as R
 
 -- this Ord instance causes types < terms
 data SearchResult = Tp TypeResult | Tm TermResult deriving (Eq, Ord, Show)
 
 data TermResult = TermResult
-  { termName    :: HashQualified
-  , referent    :: Referent
-  , termAliases :: Set HashQualified
-  } deriving (Eq, Ord, Show)
+  { termName :: HashQualified,
+    referent :: Referent,
+    termAliases :: Set HashQualified
+  }
+  deriving (Eq, Ord, Show)
 
 data TypeResult = TypeResult
-  { typeName    :: HashQualified
-  , reference   :: Reference
-  , typeAliases :: Set HashQualified
-  } deriving (Eq, Ord, Show)
+  { typeName :: HashQualified,
+    reference :: Reference,
+    typeAliases :: Set HashQualified
+  }
+  deriving (Eq, Ord, Show)
 
 pattern Tm' hq r as = Tm (TermResult hq r as)
+
 pattern Tp' hq r as = Tp (TypeResult hq r as)
 
 termResult :: HashQualified -> Referent -> Set HashQualified -> SearchResult
@@ -70,14 +72,17 @@ truncateAliases n = \case
 -- | You may want to sort this list differently afterward.
 fromNames :: Names0 -> [SearchResult]
 fromNames b =
-  map (uncurry (typeSearchResult b)) (R.toList . Names.types $ b) <>
-  map (uncurry (termSearchResult b)) (R.toList . Names.terms $ b)
+  map (uncurry (typeSearchResult b)) (R.toList . Names.types $ b)
+    <> map (uncurry (termSearchResult b)) (R.toList . Names.terms $ b)
 
 _fromNames :: Names0 -> [SearchResult]
-_fromNames n0@(Names terms types) = typeResults <> termResults where
-  typeResults =
-    [ typeResult (Names._hqTypeName n0 name r) r (Names._hqTypeAliases n0 name r)
-    | (name, r) <- R.toList types ]
-  termResults =
-    [ termResult (Names._hqTermName n0 name r) r (Names._hqTermAliases n0 name r)
-    | (name, r) <- R.toList terms]
+_fromNames n0@(Names terms types) = typeResults <> termResults
+  where
+    typeResults =
+      [ typeResult (Names._hqTypeName n0 name r) r (Names._hqTypeAliases n0 name r)
+        | (name, r) <- R.toList types
+      ]
+    termResults =
+      [ termResult (Names._hqTermName n0 name r) r (Names._hqTermAliases n0 name r)
+        | (name, r) <- R.toList terms
+      ]
