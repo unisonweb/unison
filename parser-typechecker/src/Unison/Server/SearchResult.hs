@@ -1,6 +1,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 
-module Unison.Codebase.SearchResult where
+module Unison.Server.SearchResult where
 
 import Unison.Prelude
 
@@ -82,3 +82,5 @@ _fromNames n0@(Names terms types) = typeResults <> termResults where
   termResults =
     [ termResult (Names._hqTermName n0 name r) r (Names._hqTermAliases n0 name r)
     | (name, r) <- R.toList terms]
+
+

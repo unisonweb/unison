@@ -1,12 +1,12 @@
-module Unison.Codebase.Editor.DisplayThing where
+module Unison.Codebase.Editor.DisplayObject where
 
 import Unison.Reference as Reference
 
-data DisplayThing a = BuiltinThing | MissingThing Reference.Id | RegularThing a
-  deriving (Eq, Ord, Show)
+data DisplayObject a = BuiltinObject | MissingObject Reference.Id | UserObject a
+  deriving (Eq, Ord, Show, Functor)
 
-toMaybe :: DisplayThing a -> Maybe a
+toMaybe :: DisplayObject a -> Maybe a
 toMaybe = \case
-  RegularThing a -> Just a
+  UserObject a -> Just a
   _ -> Nothing
 

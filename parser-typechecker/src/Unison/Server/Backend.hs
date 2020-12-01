@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Server.Backend where
@@ -153,3 +152,184 @@ findShallow codebase path' = do
           | (ns, (_h, _mp)) <- Map.toList $ Branch._edits b0
         ]
   pure . sort $ termEntries ++ typeEntries ++ branchEntries ++ patchEntries
+
+typeReferencesByShortHash codebase sh = do
+  fromCodebase <- Codebase.typeReferencesByPrefix codebase sh
+  let fromBuiltins = Set.filter (\r -> sh == Reference.toShortHash r)
+                                B.intrinsicTypeReferences
+  pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
+
+termReferencesByShortHash codebase sh = do
+  fromCodebase <- Codebase.termReferencesByPrefix codebase sh
+  let fromBuiltins = Set.filter (\r -> sh == Reference.toShortHash r)
+                                B.intrinsicTermReferences
+  pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
+
+termReferentsByShortHash codebase sh = do
+  fromCodebase <- Codebase.termReferentsByPrefix codebase sh
+  let fromBuiltins = Set.map Referent.Ref $ Set.filter
+        (\r -> sh == Reference.toShortHash r)
+        B.intrinsicTermReferences
+  pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase)
+
+hqNameQuery' doSuffixify hqs = do
+  let (hqnames, hashes) = partition (isJust . HQ.toName) hqs
+  termRefs <- filter (not . Set.null . snd) . zip hashes <$> traverse
+    (eval . TermReferentsByShortHash)
+    (catMaybes (HQ.toHash <$> hashes))
+  typeRefs <- filter (not . Set.null . snd) . zip hashes <$> traverse
+    (eval . TypeReferencesByShortHash)
+    (catMaybes (HQ.toHash <$> hashes))
+  parseNames0 <- makeHistoricalParsingNames $ Set.fromList hqnames
+  let
+    mkTermResult n r = SR.termResult (HQ'.fromHQ' n) r Set.empty
+    mkTypeResult n r = SR.typeResult (HQ'.fromHQ' n) r Set.empty
+    termResults =
+      (\(n, tms) -> (n, toList $ mkTermResult n <$> toList tms)) <$> termRefs
+    typeResults =
+      (\(n, tps) -> (n, toList $ mkTypeResult n <$> toList tps)) <$> typeRefs
+    parseNames = (if doSuffixify then Names3.suffixify else id) parseNames0
+    resultss   = searchBranchExact hqLength parseNames hqnames
+    missingRefs =
+      [ x
+      | x <- hashes
+      , isNothing (lookup x termRefs) && isNothing (lookup x typeRefs)
+      ]
+    (misses, hits) =
+      partition (\(_, results) -> null results) (zip hqs resultss)
+    results =
+      List.sort
+        .   uniqueBy SR.toReferent
+        $   (hits ++ termResults ++ typeResults)
+        >>= snd
+  pure (missingRefs ++ (fst <$> misses), results)
+
+hqNameQuery = hqNameQuery' False
+
+hqNameQuerySuffixify :: [HQ.HashQualified Name] -> QueryResult
+hqNameQuerySuffixify = hqNameQuery' True
+
+data DefinitionDisplayResults =
+  DefinitionDisplayResults
+    { termDefinitions :: Map Reference (DisplayObject SyntaxText)
+    , typeDefinitions :: Map Reference (DisplayObject SyntaxText)
+    , missingDefinitions :: HQ.HashQualified Name
+    } deriving (Eq, Ord, Show, Generic)
+
+definitionsBySuffixes
+  :: Codebase m v Ann -> [HQ.HashQualified Name] -> m DefinitionResults
+findBySuffixes codebase = do
+  -- First find the hashes by name and note any query misses.
+  (misses, results) <- hqNameQuerySuffixify query
+  -- Now load the terms/types for those hashes.
+  results'          <- loadSearchResults results
+  let termTypes :: Map.Map Reference (Type v Ann)
+      termTypes = Map.fromList
+        [ (r, t) | SR'.Tm _ (Just t) (Referent.Ref r) _ <- results' ]
+      (collatedTypes, collatedTerms) = collateReferences
+        (mapMaybe SR'.tpReference results')
+        (mapMaybe SR'.tmReferent results')
+  -- load the `collatedTerms` and types into a Map Reference.Id Term/Type
+  -- for later
+  loadedDerivedTerms <-
+    fmap (Map.fromList . catMaybes) . for (toList collatedTerms) $ \case
+      Reference.DerivedId i -> fmap (i, ) <$> Codebase.getTerm codebase i
+      Reference.Builtin{}   -> pure Nothing
+  loadedDerivedTypes <-
+    fmap (Map.fromList . catMaybes) . for (toList collatedTypes) $ \case
+      Reference.DerivedId i ->
+        fmap (i, ) <$> Codebase.getTypeDeclaration codebase i
+      Reference.Builtin{} -> pure Nothing
+  -- Populate DisplayObjects for the search results, in anticipation of
+  -- rendering the definitions.
+  loadedDisplayTerms :: Map Reference (DisplayObject (Term v Ann)) <-
+    fmap Map.fromList . for (toList collatedTerms) $ \case
+      r@(Reference.DerivedId i) -> do
+        let tm = Map.lookup i loadedDerivedTerms
+        -- We add a type annotation to the term using if it doesn't
+        -- already have one that the user provided
+        pure . (r, ) $ case liftA2 (,) tm (Map.lookup r termTypes) of
+          Nothing        -> MissingObject i
+          Just (tm, typ) -> case tm of
+            Term.Ann' _ _ -> UserObject tm
+            _             -> UserObject (Term.ann (ABT.annotation tm) tm typ)
+      r@(Reference.Builtin _) -> pure (r, BuiltinObject)
+  let loadedDisplayTypes :: Map Reference (DisplayObject (DD.Decl v Ann))
+      loadedDisplayTypes = Map.fromList . (`fmap` toList collatedTypes) $ \case
+        r@(Reference.DerivedId i) ->
+          (r, ) . maybe (MissingObject i) UserObject $ Map.lookup
+            i
+            loadedDerivedTypes
+        r@(Reference.Builtin _) -> (r, BuiltinObject)
+  let deps =
+        foldMap SR'.labeledDependencies results'
+          <> foldMap Term.labeledDependencies loadedDerivedTerms
+  -- Now let's pretty-print
+  printNames <- makePrintNamesFromLabeled' deps
+  -- We might like to make sure that the user search terms get used as
+  -- the names in the pretty-printer, but the current implementation
+  -- doesn't.
+  ppe        <- prettyPrintEnvDecl printNames
+  let renderedDisplayTerms = termsToSyntax ppe loadedDisplayTerms
+      renderedDisplayTypes = typesToSyntax ppe loadedDisplayTypes
+  pure $ DefinitionDisplayResults renderedDisplayTerms
+                                  renderedDisplayTypes
+                                  misses
+
+termsToSyntax
+  :: Var v
+  => Ord a
+  => Applicative m
+  => PPE.PrettyPrintEnvDecl
+  -> Map Reference.Reference (DisplayObject (Term v a))
+  -> Map
+       Reference.Reference
+       (DisplayObject (SyntaxText' ShortHash))
+termsToSyntax ppe0 terms = Map.fromList . map go . Map.toList $ Map.mapKeys
+  (first (PPE.termName ppeDecl . Referent.Ref) . dupe)
+  terms
+ where
+  ppeDecl = PPE.unsuffixifiedPPE ppe0
+  go ((n, r), dt) = (r, TermPrinter.prettyBinding (ppeBody r) n <$> dt)
+
+typesToSyntax
+  :: Var v
+  => Ord a
+  -> PPE.PrettyPrintEnvDecl
+  -> Map Reference.Reference (DisplayObject (DD.Decl v a1))
+  -> Map Reference.Reference (DisplayObject (SyntaxText' ShortHash))
+typesToSyntax ppe0 types = map go . Map.toList $ Map.mapKeys
+  (first (PPE.typeName ppeDecl) . dupe)
+  types
+ where
+  go2 ((n, r), dt) =
+    ( r
+    , (\case
+        Left  d -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
+        Right d -> DeclPrinter.prettyDataDecl (ppeBody r) r n d
+      )
+      <$> dt
+    )
+
+loadSearchResults
+  :: (Var v, Applicative m)
+  => Codebase m v Ann
+  -> [SR.SearchResult]
+  -> m [SearchResult' v Ann]
+loadSearchResults c = traverse loadSearchResult
+ where
+  loadSearchResult = \case
+    SR.Tm (SR.TermResult name r aliases) -> do
+      typ <- lift $ loadReferentType c r
+      pure $ SR'.Tm name typ r aliases
+    SR.Tp (SR.TypeResult name r aliases) -> do
+      dt <- loadTypeDisplayObject c r
+      pure $ SR'.Tp name dt r aliases
+
+loadTypeDisplayObject
+  :: Codebase m v Ann -> Reference -> m (DisplayObject (DD.Decl v Ann))
+loadTypeDisplayObject c = \case
+  Reference.Builtin _ -> pure BuiltinObject
+  Reference.DerivedId id ->
+    maybe (MissingObject id) UserObject <$> Codebase.getTypeDeclaration c id
+

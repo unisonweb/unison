@@ -28,7 +28,7 @@ import qualified Unison.Codebase.MainTerm as MainTerm
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
-import Unison.Codebase.Editor.DisplayThing
+import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import qualified Unison.Codebase.Editor.SlurpResult as Slurp
@@ -323,39 +323,6 @@ loop = do
         typeConflicted src = nameConflicted src Set.empty
         termConflicted src tms = nameConflicted src tms Set.empty
         hashConflicted src = respond . HashAmbiguous src
-        hqNameQuery' doSuffixify hqs = do
-          let (hqnames, hashes) = partition (isJust . HQ.toName) hqs
-          termRefs <- filter (not . Set.null . snd) . zip hashes <$> traverse
-            (eval . TermReferentsByShortHash)
-            (catMaybes (HQ.toHash <$> hashes))
-          typeRefs <- filter (not . Set.null . snd) . zip hashes <$> traverse
-            (eval . TypeReferencesByShortHash)
-            (catMaybes (HQ.toHash <$> hashes))
-          parseNames0 <- makeHistoricalParsingNames $ Set.fromList hqnames
-          let
-            mkTermResult n r = SR.termResult (HQ'.fromHQ' n) r Set.empty
-            mkTypeResult n r = SR.typeResult (HQ'.fromHQ' n) r Set.empty
-            termResults =
-              (\(n, tms) -> (n, toList $ mkTermResult n <$> toList tms)) <$> termRefs
-            typeResults =
-              (\(n, tps) -> (n, toList $ mkTypeResult n <$> toList tps)) <$> typeRefs
-            parseNames = (if doSuffixify then Names3.suffixify else id) parseNames0
-            resultss   = searchBranchExact hqLength parseNames hqnames
-            missingRefs =
-              [ x
-              | x <- hashes
-              , isNothing (lookup x termRefs) && isNothing (lookup x typeRefs)
-              ]
-            (misses, hits) =
-              partition (\(_, results) -> null results) (zip hqs resultss)
-            results =
-              List.sort
-                .   uniqueBy SR.toReferent
-                $   (hits ++ termResults ++ typeResults)
-                >>= snd
-          pure (missingRefs ++ (fst <$> misses), results)
-        hqNameQuery = hqNameQuery' False
-        hqNameQuerySuffixify = hqNameQuery' True
         typeReferences :: [SearchResult] -> [Reference]
         typeReferences rs
           = [ r | SR.Tp (SR.TypeResult _ r _) <- rs ]
@@ -1134,51 +1101,10 @@ loop = do
         else doDisplay outputLoc parseNames0 (Set.findMin results)
 
       ShowDefinitionI outputLoc query -> do
-        (misses, results) <- hqNameQuerySuffixify query
-        results' <- loadSearchResults results
-        let termTypes :: Map.Map Reference (Type v Ann)
-            termTypes =
-              Map.fromList
-                [ (r, t) | SR'.Tm _ (Just t) (Referent.Ref r) _ <- results' ]
-            (collatedTypes, collatedTerms) = collateReferences
-              (mapMaybe SR'.tpReference results')
-              (mapMaybe SR'.tmReferent results')
-        -- load the `collatedTerms` and types into a Map Reference.Id Term/Type
-        -- for later
-        loadedDerivedTerms <-
-          fmap (Map.fromList . catMaybes) . for (toList collatedTerms) $ \case
-            Reference.DerivedId i -> fmap (i,) <$> eval (LoadTerm i)
-            Reference.Builtin{} -> pure Nothing
-        loadedDerivedTypes <-
-          fmap (Map.fromList . catMaybes) . for (toList collatedTypes) $ \case
-            Reference.DerivedId i -> fmap (i,) <$> eval (LoadType i)
-            Reference.Builtin{} -> pure Nothing
-        -- Populate DisplayThings for the search results, in anticipation of
-        -- displaying the definitions.
-        loadedDisplayTerms :: Map Reference (DisplayThing (Term v Ann)) <-
-         fmap Map.fromList . for (toList collatedTerms) $ \case
-          r@(Reference.DerivedId i) -> do
-            let tm = Map.lookup i loadedDerivedTerms
-            -- We add a type annotation to the term using if it doesn't
-            -- already have one that the user provided
-            pure . (r, ) $ case liftA2 (,) tm (Map.lookup r termTypes) of
-              Nothing        -> MissingThing i
-              Just (tm, typ) -> case tm of
-                Term.Ann' _ _ -> RegularThing tm
-                _ -> RegularThing (Term.ann (ABT.annotation tm) tm typ)
-          r@(Reference.Builtin _) -> pure (r, BuiltinThing)
-        let loadedDisplayTypes :: Map Reference (DisplayThing (DD.Decl v Ann))
-            loadedDisplayTypes =
-              Map.fromList . (`fmap` toList collatedTypes) $ \case
-                r@(Reference.DerivedId i) ->
-                  (r,) . maybe (MissingThing i) RegularThing
-                       $ Map.lookup i loadedDerivedTypes
-                r@(Reference.Builtin _) -> (r, BuiltinThing)
-        -- the SR' deps include the result term/type names, and the
-        let deps = foldMap SR'.labeledDependencies results'
+        let deps =
+              foldMap SR'.labeledDependencies results'
                 <> foldMap Term.labeledDependencies loadedDerivedTerms
         printNames <- makePrintNamesFromLabeled' deps
-
         -- We might like to make sure that the user search terms get used as
         -- the names in the pretty-printer, but the current implementation
         -- doesn't.
@@ -2594,36 +2520,15 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
       oldMd = BranchUtil.getTermMetadataAt split (Referent.Ref old) b0
   errorEmptyVar = error "encountered an empty var name"
 
-loadSearchResults
-  :: (Var v, Applicative m)
-  => [SR.SearchResult]
-  -> Action m i v [SearchResult' v Ann]
-loadSearchResults = traverse loadSearchResult
- where
-  loadSearchResult = \case
-    SR.Tm (SR.TermResult name r aliases) -> do
-      typ <- join . eval . WithCodebase $ \c ->
-        _liftToAction $ Backend.loadReferentType c r
-      pure $ SR'.Tm name typ r aliases
-    SR.Tp (SR.TypeResult name r aliases) -> do
-      dt <- loadTypeDisplayThing r
-      pure $ SR'.Tp name dt r aliases
-
 loadDisplayInfo ::
   Set Reference -> Action m i v ([(Reference, Maybe (Type v Ann))]
-                                ,[(Reference, DisplayThing (DD.Decl v Ann))])
+                                ,[(Reference, DisplayObject (DD.Decl v Ann))])
 loadDisplayInfo refs = do
   termRefs <- filterM (eval . IsTerm) (toList refs)
   typeRefs <- filterM (eval . IsType) (toList refs)
   terms <- forM termRefs $ \r -> (r,) <$> eval (LoadTypeOfTerm r)
-  types <- forM typeRefs $ \r -> (r,) <$> loadTypeDisplayThing r
+  types <- forM typeRefs $ \r -> (r,) <$> loadTypeDisplayObject r
   pure (terms, types)
-
-loadTypeDisplayThing :: Reference -> Action m i v (DisplayThing (DD.Decl v Ann))
-loadTypeDisplayThing = \case
-  Reference.Builtin _ -> pure BuiltinThing
-  Reference.DerivedId id ->
-    maybe (MissingThing id) RegularThing <$> eval (LoadType id)
 
 lexedSource :: Monad m => SourceName -> Source -> Action' m v (Names, LexedSource)
 lexedSource name src = do

@@ -100,7 +100,7 @@ import qualified Unison.Util.Relation          as R
 import           Unison.Var                    (Var)
 import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
-import Unison.Codebase.Editor.DisplayThing (DisplayThing(MissingThing, BuiltinThing, RegularThing))
+import Unison.Codebase.Editor.DisplayObject (DisplayObject(MissingObject, BuiltinObject, UserObject))
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Hash as Hash
 import qualified Unison.Codebase.Causal as Causal
@@ -1103,10 +1103,44 @@ formatMissingStuff terms types =
     <> "\n\n"
     <> P.column2 [ (P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
 
+termsToSyntax
+  :: Var v
+  => Ord a
+  => Applicative m
+  => PPE.PrettyPrintEnvDecl
+  -> Map Reference.Reference (DisplayObject (Term v a))
+  -> Backend m SyntaxText' ShortHash
+termsToSyntax ppe0 terms = map go . Map.toList $ Map.mapKeys
+  (first (PPE.termName ppeDecl . Referent.Ref) . dupe)
+  terms
+ where
+  ppeDecl = PPE.unsuffixifiedPPE ppe0
+  go ((n, r), dt) = case dt of
+    MissingObject r -> missingTerm n r
+    BuiltinObject   -> builtinTerm n
+    UserObject tm   -> TermPrinter.prettyBinding (ppeBody r) n tm
+
+typesToSyntax
+  :: Var v
+  => Ord a
+  -> PPE.PrettyPrintEnvDecl
+  -> Map Reference.Reference (DisplayObject (DD.Decl v a1))
+  -> DisplayObject (SyntaxText' ShortHash)
+typesToSyntax ppe0 types = map go2 . Map.toList $ Map.mapKeys
+  (first (PPE.typeName ppeDecl) . dupe)
+  types
+ where
+  go2 ((n, r), dt) = case dt of
+    MissingObject r -> missing n r
+    BuiltinObject   -> builtin n
+    UserObject decl -> case decl of
+      Left  d -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
+      Right d -> DeclPrinter.prettyDataDecl (ppeBody r) r n d
+
 displayDefinitions' :: Var v => Ord a1
   => PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayThing (DD.Decl v a1))
-  -> Map Reference.Reference (DisplayThing (Term v a1))
+  -> Map Reference.Reference (DisplayObject (DD.Decl v a1))
+  -> Map Reference.Reference (DisplayObject (Term v a1))
   -> Pretty
 displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
   where
@@ -1119,14 +1153,14 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
               $ Map.mapKeys (first (PPE.typeName ppeDecl) . dupe) types
   go ((n, r), dt) =
     case dt of
-      MissingThing r -> missing n r
-      BuiltinThing -> builtin n
-      RegularThing tm -> TermPrinter.prettyBinding (ppeBody r) n tm
+      MissingObject r -> missing n r
+      BuiltinObject -> builtin n
+      UserObject tm -> TermPrinter.prettyBinding (ppeBody r) n tm
   go2 ((n, r), dt) =
     case dt of
-      MissingThing r -> missing n r
-      BuiltinThing -> builtin n
-      RegularThing decl -> case decl of
+      MissingObject r -> missing n r
+      BuiltinObject -> builtin n
+      UserObject decl -> case decl of
         Left d  -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
         Right d -> DeclPrinter.prettyDataDecl (ppeBody r) r n d
   builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
@@ -1163,8 +1197,8 @@ displayRendered outputLoc pp =
 displayDefinitions :: Var v => Ord a1 =>
   Maybe FilePath
   -> PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayThing (DD.Decl v a1))
-  -> Map Reference.Reference (DisplayThing (Term v a1))
+  -> Map Reference.Reference (DisplayObject (DD.Decl v a1))
+  -> Map Reference.Reference (DisplayObject (Term v a1))
   -> IO Pretty
 displayDefinitions _outputLoc _ppe types terms | Map.null types && Map.null terms =
   pure $ P.callout "😶" "No results to display."
@@ -1271,17 +1305,17 @@ prettyTypeResultHeaderFull' (SR'.TypeResult' (HQ'.toHQ -> name) dt r (Set.map HQ
     where greyHash = styleHashQualified' id P.hiBlack
 
 prettyDeclTriple :: Var v =>
-  (HQ.HashQualified Name, Reference.Reference, DisplayThing (DD.Decl v a))
+  (HQ.HashQualified Name, Reference.Reference, DisplayObject (DD.Decl v a))
   -> Pretty
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
-   BuiltinThing -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (P.syntaxToColor $ prettyHashQualified name)
-   MissingThing _ -> mempty -- these need to be handled elsewhere
-   RegularThing decl -> case decl of
+   BuiltinObject -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (P.syntaxToColor $ prettyHashQualified name)
+   MissingObject _ -> mempty -- these need to be handled elsewhere
+   UserObject decl -> case decl of
      Left ed -> P.syntaxToColor $ DeclPrinter.prettyEffectHeader name ed
      Right dd   -> P.syntaxToColor $ DeclPrinter.prettyDataHeader name dd
 
 prettyDeclPair :: Var v =>
-  PPE.PrettyPrintEnv -> (Reference, DisplayThing (DD.Decl v a))
+  PPE.PrettyPrintEnv -> (Reference, DisplayObject (DD.Decl v a))
   -> Pretty
 prettyDeclPair ppe (r, dt) = prettyDeclTriple (PPE.typeName ppe r, r, dt)
 
@@ -1349,7 +1383,7 @@ todoOutput ppe todo =
   corruptTerms =
     [ (PPE.termName ppeu (Referent.Ref r), r) | (r, Nothing) <- frontierTerms ]
   corruptTypes =
-    [ (PPE.typeName ppeu r, r) | (r, MissingThing _) <- frontierTypes ]
+    [ (PPE.typeName ppeu r, r) | (r, MissingObject _) <- frontierTypes ]
   goodTerms ts =
     [ (PPE.termName ppeu (Referent.Ref r), typ) | (r, Just typ) <- ts ]
   todoConflicts = if TO.noConflicts todo then mempty else P.lines . P.nonEmpty $
@@ -1675,7 +1709,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
     10. ┌ oldn'busted : Nat -> Nat -> Poop
     11. └ oldn'busted'
     12.  ability BadType
-    13.  patch defunctThingy
+    13.  patch defunctObjecty
 	-}
   prettyRemoveTypes :: [OBD.RemovedTypeDisplay v a] -> Numbered Pretty
   prettyRemoveTypes = fmap P.lines . traverse prettyGroup where
@@ -1820,7 +1854,7 @@ listOfDefinitions' ppe detailed results =
         else
           (unsafePrettyTermResultSig' ppe, prettyTypeResultHeader')
   missingType (SR'.Tm _ Nothing _ _)          = True
-  missingType (SR'.Tp _ (MissingThing _) _ _) = True
+  missingType (SR'.Tp _ (MissingObject _) _ _) = True
   missingType _                             = False
   -- termsWithTypes = [(name,t) | (name, Just t) <- sigs0 ]
   --   where sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
@@ -1829,7 +1863,7 @@ listOfDefinitions' ppe detailed results =
     | SR'.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results ]
   missingTypes = nubOrdOn snd $
     [ (HQ'.toHQ name, Reference.DerivedId r)
-    | SR'.Tp name (MissingThing r) _ _ <- results ] <>
+    | SR'.Tp name (MissingObject r) _ _ <- results ] <>
     [ (HQ'.toHQ name, r)
     | SR'.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results]
   missingBuiltins = results >>= \case

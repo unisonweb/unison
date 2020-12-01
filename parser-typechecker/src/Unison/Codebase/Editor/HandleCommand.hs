@@ -150,18 +150,9 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
             $ B.intrinsicTypeReferences
       pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
     -- all builtin and derived term references
-    TermReferencesByShortHash sh -> do
-      fromCodebase <- Codebase.termReferencesByPrefix codebase sh
-      let fromBuiltins = Set.filter (\r -> sh == Reference.toShortHash r)
-            $ B.intrinsicTermReferences
-      pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
+    TermReferencesByShortHash sh -> Backend.termReferencesByShortHash codebase sh
     -- all builtin and derived term references & type constructors
-    TermReferentsByShortHash sh -> do
-      fromCodebase <- Codebase.termReferentsByPrefix codebase sh
-      let fromBuiltins = Set.map Referent.Ref
-            . Set.filter (\r -> sh == Reference.toShortHash r)
-            $ B.intrinsicTermReferences
-      pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase)
+    TermReferentsByShortHash sh -> Backend.termReferentsByShortHash codebase sh
     BranchHashLength -> Codebase.branchHashLength codebase
     BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
     ParseType names (src, _) -> pure $

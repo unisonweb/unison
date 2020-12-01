@@ -5,7 +5,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Server.Endpoints.ListNamespace where
@@ -25,14 +24,12 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
-import Unison.ConstructorType (ConstructorType)
 import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Name as Name
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser (Ann)
-import Unison.Pattern (SeqOp)
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
@@ -129,7 +126,7 @@ instance ToJSON NamedType
 
 deriving instance ToSchema NamedType
 
-data NamedPatch = NamedPatch
+newtype NamedPatch = NamedPatch
   { patchName :: HashQualifiedName
   }
   deriving (Generic, Show)
@@ -145,107 +142,67 @@ instance ToJSON KindExpression
 
 deriving instance ToSchema KindExpression
 
-formatType ::
-  Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText' ShortHash
-formatType ppe w =
-  fmap (fmap Reference.toShortHash) . render w
-    . TypePrinter.pretty0
-      ppe
-      mempty
-      (-1)
-
-instance ToJSON ConstructorType
-
-deriving instance ToSchema ConstructorType
-
-instance ToJSON SeqOp
-
-deriving instance ToSchema SeqOp
-
-instance ToJSON r => ToJSON (Referent.TermRef r)
-
-deriving instance ToSchema r => ToSchema (Referent.TermRef r)
-
-instance ToJSON r => ToJSON (SyntaxText.Element r)
-
-deriving instance ToSchema r => ToSchema (SyntaxText.Element r)
-
-instance ToJSON r => ToJSON (SyntaxText' r)
-
-deriving instance ToSchema r => ToSchema (SyntaxText' r)
-
-backendListEntryToNamespaceObject ::
-  Var v =>
-  PPE.PrettyPrintEnv ->
-  Maybe Width ->
-  Backend.ShallowListEntry v a ->
-  NamespaceObject
+backendListEntryToNamespaceObject
+  :: Var v
+  => PPE.PrettyPrintEnv
+  -> Maybe Width
+  -> Backend.ShallowListEntry v a
+  -> NamespaceObject
 backendListEntryToNamespaceObject ppe typeWidth = \case
-  Backend.ShallowTermEntry r name mayType ->
-    TermObject $
-      NamedTerm
-        { termName = HQ'.toText name,
-          termHash = Referent.toText r,
-          termType = formatType ppe (mayDefault typeWidth) <$> mayType
-        }
-  Backend.ShallowTypeEntry r name ->
-    TypeObject $
-      NamedType
-        { typeName = HQ'.toText name,
-          typeHash = Reference.toText r
-        }
-  Backend.ShallowBranchEntry name size ->
-    Subnamespace $
-      NamedNamespace
-        { namespaceName = NameSegment.toText name,
-          namespaceSize = size
-        }
+  Backend.ShallowTermEntry r name mayType -> TermObject $ NamedTerm
+    { termName = HQ'.toText name
+    , termHash = Referent.toText r
+    , termType = formatType ppe (mayDefault typeWidth) <$> mayType
+    }
+  Backend.ShallowTypeEntry r name -> TypeObject
+    $ NamedType { typeName = HQ'.toText name, typeHash = Reference.toText r }
+  Backend.ShallowBranchEntry name size -> Subnamespace $ NamedNamespace
+    { namespaceName = NameSegment.toText name
+    , namespaceSize = size
+    }
   Backend.ShallowPatchEntry name ->
     PatchObject . NamedPatch $ NameSegment.toText name
 
-serveNamespace ::
-  Var v =>
-  Codebase IO v Ann ->
-  Maybe HashQualifiedName ->
-  Handler NamespaceListing
+serveNamespace
+  :: Var v
+  => Codebase IO v Ann
+  -> Maybe HashQualifiedName
+  -> Handler NamespaceListing
 serveNamespace codebase mayHQN = case mayHQN of
-  Nothing -> serveNamespace codebase $ Just "."
+  Nothing  -> serveNamespace codebase $ Just "."
   Just hqn -> do
     parsedName <- parseHQN hqn
     case parsedName of
       HQ.NameOnly n -> do
-        path' <- parsePath $ Name.toString n
-        gotRoot <- liftIO $ Codebase.getRootBranch codebase
-        root <- errFromEither rootBranchError gotRoot
+        path'      <- parsePath $ Name.toString n
+        gotRoot    <- liftIO $ Codebase.getRootBranch codebase
+        root       <- errFromEither rootBranchError gotRoot
         hashLength <- liftIO $ Codebase.hashLength codebase
-        let p = either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
-            ppe =
-              Backend.basicSuffixifiedNames hashLength root $ Path.fromPath' path'
+        let
+          p = either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
+          ppe =
+            Backend.basicSuffixifiedNames hashLength root $ Path.fromPath' path'
         entries <- findShallow p
         pure
           . NamespaceListing
-            (Name.toText n)
-            (Hash.base32Hex . Causal.unRawHash $ Branch.headHash root)
+              (Name.toText n)
+              (Hash.base32Hex . Causal.unRawHash $ Branch.headHash root)
           $ fmap (backendListEntryToNamespaceObject ppe Nothing) entries
-      HQ.HashOnly _ -> hashOnlyNotSupported
+      HQ.HashOnly _        -> hashOnlyNotSupported
       HQ.HashQualified _ _ -> hashQualifiedNotSupported
-  where
-    errFromMaybe e = maybe (throwError e) pure
-    errFromEither f = either (throwError . f) pure
-    parseHQN hqn = errFromMaybe (badHQN hqn) $ HQ.fromText hqn
-    parsePath p = errFromEither (flip badNamespace p) $ Path.parsePath' p
-    findShallow p = do
-      ea <- liftIO . runExceptT $ Backend.findShallow codebase p
-      errFromEither backendError ea
-    hashOnlyNotSupported =
-      throwError $
-        err400
-          { errBody = "This server does not yet support searching namespaces by hash."
-          }
-    hashQualifiedNotSupported =
-      throwError $
-        err400
-          { errBody =
-              "This server does not yet support searching namespaces by "
-                <> "hash-qualified name."
-          }
+ where
+  errFromMaybe e = maybe (throwError e) pure
+  errFromEither f = either (throwError . f) pure
+  parseHQN hqn = errFromMaybe (badHQN hqn) $ HQ.fromText hqn
+  parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
+  findShallow p = do
+    ea <- liftIO . runExceptT $ Backend.findShallow codebase p
+    errFromEither backendError ea
+  hashOnlyNotSupported = throwError $ err400
+    { errBody = "This server does not yet support searching namespaces by hash."
+    }
+  hashQualifiedNotSupported = throwError $ err400
+    { errBody = "This server does not yet support searching namespaces by "
+                  <> "hash-qualified name."
+    }
+
