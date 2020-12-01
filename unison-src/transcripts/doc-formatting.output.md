@@ -82,11 +82,9 @@ commented = [:
 
   commented : Doc
   commented =
-    [: 
-    example:
+    [: example:
     
-      -- a comment
-      f x = x + 1
+    -- a comment f x = x + 1
      :]
 
 ```
@@ -291,8 +289,7 @@ doc6 = [:
 
   doc6 : Doc
   doc6 =
-    [: 
-      - foo
+    [: - foo
       - bar
     and the rest.
      :]
@@ -382,9 +379,8 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 
   test1 : Doc
   test1 =
-    [: 
-    The internal logic starts to get hairy when you use the \@ features,
-    for example referencing a name like @List.take.  Internally,
+    [: The internal logic starts to get hairy when you use the \@
+    features, for example referencing a name like @List.take.  Internally,
     the text between each such usage is its own blob (blob ends here
     --> @List.take), so paragraph reflow has to be aware of multiple
     blobs to do paragraph reflow (or, more accurately, to do the
@@ -491,8 +487,7 @@ View is fine.
 
   test2 : Doc
   test2 =
-    [: 
-    Take a look at this:
+    [: Take a look at this:
     @[source] foo    ▶    bar
      :]
 
@@ -501,7 +496,6 @@ But note it's not obvious how display should best be handling this.  At the mome
 ```ucm
 .> display test2
 
-  
   Take a look at this:
   foo n =
     use Nat +

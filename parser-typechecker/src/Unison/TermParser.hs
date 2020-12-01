@@ -33,6 +33,7 @@ import qualified Data.Sequence as Sequence
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
+import qualified Unison.ConstructorType as CT
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
 import qualified Unison.Name as Name
@@ -41,8 +42,9 @@ import qualified Unison.Parser as Parser (seq, uniqueName)
 import qualified Unison.Pattern as Pattern
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
-import qualified Unison.Typechecker.Components as Components
 import qualified Unison.TypeParser as TypeParser
+import qualified Unison.Typechecker.Components as Components
+import qualified Unison.Util.Bytes as Bytes
 import qualified Unison.Var as Var
 
 watch :: Show a => String -> a -> a
@@ -197,12 +199,14 @@ parsePattern = root
       else pure (Pattern.Var (ann v), [tokenToPair v])
   unbound :: P v (Pattern Ann, [(Ann, v)])
   unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> blank
-  ctor :: _ -> P v (L.Token (Reference, Int))
-  ctor err = do
+  ctor :: CT.ConstructorType -> _ -> P v (L.Token (Reference, Int))
+  ctor ct err = do
     -- this might be a var, so we avoid consuming it at first
     tok <- P.try (P.lookAhead hqPrefixId)
     names <- asks names
-    case Names.lookupHQPattern (L.payload tok) names of
+    -- probably should avoid looking up in `names` if `L.payload tok`
+    -- starts with a lowercase
+    case Names.lookupHQPattern (L.payload tok) ct names of
       s | Set.null s     -> die tok s
         | Set.size s > 1 -> die tok s
         | otherwise      -> -- matched ctor name, consume the token
@@ -220,7 +224,7 @@ parsePattern = root
   unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
 
   effectBind0 = do
-    tok <- ctor UnknownAbilityConstructor
+    tok <- ctor CT.Effect UnknownAbilityConstructor
     leaves <- many leaf
     _ <- reserved "->"
     pure (tok, leaves)
@@ -244,12 +248,12 @@ parsePattern = root
 
   -- ex: unique type Day = Mon | Tue | ...
   nullaryCtor = P.try $ do
-    tok <- ctor UnknownAbilityConstructor
+    tok <- ctor CT.Data UnknownDataConstructor
     let (ref, cid) = L.payload tok
     pure (Pattern.Constructor (ann tok) ref cid [], [])
 
   constructor = do
-    tok <- ctor UnknownDataConstructor
+    tok <- ctor CT.Data UnknownDataConstructor
     let (ref,cid) = L.payload tok
         f patterns vs =
           let loc = foldl (<>) (ann tok) $ map ann patterns
@@ -345,6 +349,7 @@ termLeaf =
     , text
     , char
     , number
+    , bytes
     , boolean
     , link
     , tupleOrParenthesizedTerm
@@ -899,6 +904,13 @@ block' isTop s openBlock closeBlock = do
 
 number :: Var v => TermP v
 number = number' (tok Term.int) (tok Term.nat) (tok Term.float)
+
+bytes :: Var v => TermP v
+bytes = do
+  b <- bytesToken
+  let a = ann b
+  pure $ Term.app a (Term.builtin a "Bytes.fromList")
+                    (Term.seq a $ Term.nat a . fromIntegral <$> Bytes.toWord8s (L.payload b))
 
 number'
   :: Ord v

@@ -7,6 +7,7 @@ module Unison.Util.EnumContainers
   , EnumKey(..)
   , mapFromList
   , setFromList
+  , setToList
   , mapSingleton
   , setSingleton
   , mapInsert
@@ -17,6 +18,7 @@ module Unison.Util.EnumContainers
   , member
   , lookup
   , lookupWithDefault
+  , mapWithKey
   , foldMapWithKey
   , mapToList
   , (!)
@@ -70,6 +72,9 @@ mapFromList = EM . IM.fromList . fmap (first keyToInt)
 setFromList :: EnumKey k => [k] -> EnumSet k
 setFromList = ES . IS.fromList . fmap keyToInt
 
+setToList :: EnumKey k => EnumSet k -> [k]
+setToList (ES s) = intToKey <$> IS.toList s
+
 mapSingleton :: EnumKey k => k -> a -> EnumMap k a
 mapSingleton e a = EM $ IM.singleton (keyToInt e) a
 
@@ -101,6 +106,9 @@ lookup e (EM m) = IM.lookup (keyToInt e) m
 
 lookupWithDefault :: EnumKey k => a -> k -> EnumMap k a -> a
 lookupWithDefault d e (EM m) = IM.findWithDefault d (keyToInt e) m
+
+mapWithKey :: EnumKey k => (k -> a -> b) -> EnumMap k a -> EnumMap k b
+mapWithKey f (EM m) = EM $ IM.mapWithKey (f . intToKey) m
 
 foldMapWithKey :: EnumKey k => Monoid m => (k -> a -> m) -> EnumMap k a -> m
 foldMapWithKey f (EM m) = IM.foldMapWithKey (f . intToKey) m

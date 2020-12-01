@@ -33,6 +33,7 @@ module Unison.Typechecker.Context
   , isExact
   , typeErrors
   , infoNotes
+  , Unknown(..)
   )
 where
 
@@ -326,6 +327,7 @@ data Cause v loc
   | UnguardedLetRecCycle [v] [(v, Term v loc)]
   | ConcatPatternWithoutConstantLength loc (Type v loc)
   | HandlerOfUnexpectedType loc (Type v loc)
+  | DataEffectMismatch Unknown Reference (DataDeclaration v loc)
   deriving Show
 
 errorTerms :: ErrorNote v loc -> [Term v loc]
@@ -679,16 +681,26 @@ compilerCrashResult bug = CompilerBug bug mempty mempty
 
 getDataDeclaration :: Reference -> M v loc (DataDeclaration v loc)
 getDataDeclaration r = do
-  decls <- getDataDeclarations
-  case Map.lookup r decls of
-    Nothing -> compilerCrash (UnknownDecl Data r decls)
+  ddecls <- getDataDeclarations
+  case Map.lookup r ddecls of
+    Nothing -> getEffectDeclarations >>= \edecls ->
+      case Map.lookup r edecls of
+        Nothing -> compilerCrash (UnknownDecl Data r ddecls)
+        Just decl ->
+          liftResult . typeError
+            $ DataEffectMismatch Effect r (DD.toDataDecl decl)
     Just decl -> pure decl
 
 getEffectDeclaration :: Reference -> M v loc (EffectDeclaration v loc)
 getEffectDeclaration r = do
-  decls <- getEffectDeclarations
-  case Map.lookup r decls of
-    Nothing -> compilerCrash (UnknownDecl Effect r (DD.toDataDecl <$> decls))
+  edecls <- getEffectDeclarations
+  case Map.lookup r edecls of
+    Nothing -> getDataDeclarations >>= \ddecls ->
+      case Map.lookup r ddecls of
+        Nothing -> compilerCrash
+          $ UnknownDecl Effect r (DD.toDataDecl <$> edecls)
+        Just decl ->
+          liftResult . typeError $ DataEffectMismatch Data r decl
     Just decl -> pure decl
 
 getDataConstructorType :: (Var v, Ord loc) => Reference -> Int -> M v loc (Type v loc)
@@ -1057,6 +1069,15 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
     outputType <- applyM outputType
     scope InMatchBody $ check rhs' outputType
 
+-- For example:
+--   match scrute with
+--     (x, [42,y,Foo z]) -> blah x y z
+--
+-- scrutineeType will just be the type of `scrute`
+-- The starting state will be the variables [x,y,z] (extracted from the Abs-chain on the RHS of the ->)
+-- The output (assuming no type errors) is [(x,x'), (y,y'), (z,z')]
+-- where x', y', z' are freshened versions of x, y, z. These will be substituted
+-- into `blah x y z` to produce `blah x' y' z'` before typechecking it.
 checkPattern
   :: (Var v, Ord loc)
   => Type v loc
@@ -1071,11 +1092,13 @@ checkPattern scrutineeType0 p =
       v' <- lift $ freshenVar v
       lift . appendContext $ [Ann v' scrutineeType]
       pure [(v, v')]
+    -- Ex: [42, y, Foo z]
     Pattern.SequenceLiteral loc ps -> do
       vt <- lift $ do
         v <- freshenVar Var.inferOther
         let vt = existentialp loc v
         appendContext [existential v]
+        -- ['a] <: scrutineeType, where 'a is fresh existential
         subtype (Type.app loc (Type.vector loc) vt) scrutineeType
         applyM vt
       join <$> traverse (checkPattern vt) ps
@@ -1137,7 +1160,7 @@ checkPattern scrutineeType0 p =
       lift $ subtype (Type.char loc) scrutineeType $> mempty
     Pattern.Constructor loc ref cid args -> do
       dct  <- lift $ getDataConstructorType ref cid
-      udct <- lift $ ungeneralize dct
+      udct <- lift $ skolemize forcedData dct
       unless (Type.arity udct == length args)
         . lift
         . failWith
@@ -1155,6 +1178,8 @@ checkPattern scrutineeType0 p =
       v' <- lift $ freshenVar v
       lift . appendContext $ [Ann v' scrutineeType]
       ((v, v') :) <$> checkPattern scrutineeType p'
+    -- ex: { a } -> a
+    -- ex: { (x, 42) } -> a
     Pattern.EffectPure loc p -> do
       vt <- lift $ do
         v <- freshenVar Var.inferPatternPureV
@@ -1165,6 +1190,7 @@ checkPattern scrutineeType0 p =
         subtype (Type.effectV loc (loc, et) (loc, vt)) scrutineeType
         applyM vt
       checkPattern vt p
+    -- ex: { Stream.emit x -> k } -> ...
     Pattern.EffectBind loc ref cid args k -> do
       -- scrutineeType should be a supertype of `Effect e vt`
       -- for fresh existentials `e` and `vt`
@@ -1174,7 +1200,7 @@ checkPattern scrutineeType0 p =
                                  (loc, existentialp loc v)
       lift $ subtype evt scrutineeType
       ect  <- lift $ getEffectConstructorType ref cid
-      uect <- lift $ ungeneralize ect
+      uect <- lift $ skolemize forcedEffect ect
       unless (Type.arity uect == length args)
         . lift
         . failWith
@@ -1189,6 +1215,13 @@ checkPattern scrutineeType0 p =
         -- an effect ctor should have exactly 1 effect!
         Type.Effect'' [et] it -> do
           -- expecting scrutineeType to be `Effect et vt`
+
+          -- ensure that the variables in `et` unify with those from
+          -- the scrutinee.
+          lift $ do
+            res <- Type.flattenEffects <$> applyM (existentialp loc e)
+            abilityCheck' res [et]
+
           st <- lift $ applyM scrutineeType
           case st of
             Type.App' _ vt ->
@@ -1342,6 +1375,35 @@ ungeneralize' (Type.Forall' t) = do
   t <- pure $ ABT.bindInheritAnnotation t (existential' () B.Blank v)
   first (v:) <$> ungeneralize' t
 ungeneralize' t = pure ([], t)
+
+skolemize
+  :: Var v
+  => Ord loc
+  => (Type v loc -> Set (TypeVar v loc))
+  -> Type v loc
+  -> M v loc (Type v loc)
+skolemize forced (Type.ForallsNamed' vs ty) = do
+  urn <- for uvs $ \u -> (,) u <$> freshenTypeVar u
+  srn <- for svs $ \u -> (,) u <$> freshenTypeVar u
+  let uctx = existential . snd <$> urn
+      sctx = Universal . snd <$> srn
+      rn = (fmap (existential' () B.Blank) <$> urn)
+        ++ (fmap (universal' ()) <$> srn)
+  appendContext $ uctx ++ sctx
+  pure $ foldl (flip $ uncurry ABT.substInheritAnnotation) ty rn
+  where
+  fovs = forced ty
+  (uvs, svs) = partition (`Set.member` fovs) vs
+skolemize _ ty = pure ty
+
+forcedEffect :: Type v loc -> Set (TypeVar v loc)
+forcedEffect (Type.Arrow' _ o) = forcedEffect o
+forcedEffect (Type.Effect1' es _) = Type.freeVars es
+forcedEffect _ = Set.empty
+
+forcedData :: Type v loc -> Set (TypeVar v loc)
+forcedData (Type.Arrow' _ o) = forcedData o
+forcedData ty = Type.freeVars ty
 
 -- | Apply the context to the input type, then convert any unsolved existentials
 -- to universals.

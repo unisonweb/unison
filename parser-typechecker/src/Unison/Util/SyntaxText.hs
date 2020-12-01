@@ -17,6 +17,7 @@ type SyntaxText' r = AnnotatedText (Element r)
 -- The elements of the Unison grammar, for syntax highlighting purposes
 data Element r = NumericLiteral
              | TextLiteral
+             | BytesLiteral
              | CharLiteral
              | BooleanLiteral
              | Blank
