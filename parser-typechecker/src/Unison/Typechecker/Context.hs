@@ -894,12 +894,10 @@ synthesize e = scope (InSynthesize e) $
       existentializeArrows t
     s -> compilerCrash $ FreeVarsInTypeAnnotation s
   go (Term.Ref' h) = compilerCrash $ UnannotatedReference h
-  go (Term.Constructor' r cid) = do
-    t <- getDataConstructorType r cid
-    existentializeArrows t
-  go (Term.Request' r cid) = do
-    t <- ungeneralize =<< getEffectConstructorType r cid
-    existentializeArrows t
+  go (Term.Constructor' r cid) =
+    Type.purifyArrows <$> getDataConstructorType r cid
+  go (Term.Request' r cid) =
+    ungeneralize . Type.purifyArrows =<< getEffectConstructorType r cid
   go (Term.Ann' e t) = do
     t <- existentializeArrows t
     t <$ checkScoped e t
