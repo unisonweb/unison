@@ -376,7 +376,7 @@ builtinsSrc =
   , B "Text.toCharList" $ text --> list char
   , B "Text.fromCharList" $ list char --> text
   , B "Text.toUtf8" $ text --> bytes
-  , B "Text.fromUtf8" $ bytes --> eithert text text
+  , B "Text.fromUtf8.v2" $ bytes --> eithert failure text
 
   , B "Char.toNat" $ char --> nat
   , B "Char.fromNat" $ nat --> char
@@ -458,7 +458,7 @@ hashBuiltins =
   map h [ "Sha3_512", "Sha3_256", "Sha2_512", "Sha2_256", "Blake2b_512", "Blake2b_256", "Blake2s_256" ]
   where
   hashAlgo = Type.ref() Type.hashAlgorithmRef
-  h name = B ("crypto.HashAlgorithm."<>name) $ hashAlgo
+  h name = B ("crypto.HashAlgorithm."<>name) hashAlgo
 
 ioBuiltins :: Var v => [(Text, Type v)]
 ioBuiltins =
@@ -471,8 +471,7 @@ ioBuiltins =
   , ("IO.handlePosition.v2", handle --> iof int)
   , ("IO.getBuffering.v2", handle --> iof bmode)
   , ("IO.setBuffering.v2", handle --> bmode --> iof unit)
-  , ("IO.getLine.v2", handle --> iof text)
-  , ("IO.getBytes.v2", handle --> nat --> iof text)
+  , ("IO.getBytes.v2", handle --> nat --> iof bytes)
   , ("IO.putBytes.v2", handle --> bytes --> iof unit)
   , ("IO.systemTime.v2", unit --> iof nat)
   , ("IO.getTempDirectory.v2", unit --> iof text)
@@ -498,6 +497,7 @@ ioBuiltins =
   , ("IO.forkComp.v2"
     , forall1 "a" $ \a -> (unit --> iof a) --> io threadId)
   , ("IO.stdHandle", stdhandle --> handle)
+
   , ("IO.delay.v2", nat --> iof unit)
   , ("IO.kill.v2", threadId --> iof unit)
   , ("Tls.newClient", tlsClientConfig --> socket --> iof tls)
@@ -513,7 +513,7 @@ ioBuiltins =
 mvarBuiltins :: forall v. Var v => [(Text, Type v)]
 mvarBuiltins =
   [ ("MVar.new", forall1 "a" $ \a -> a --> io (mvar a))
-  , ("MVar.newEmpty", forall1 "a" $ \a -> io (mvar a))
+  , ("MVar.newEmpty.v2", forall1 "a" $ \a -> unit --> io (mvar a))
   , ("MVar.take.v2", forall1 "a" $ \a -> mvar a --> iof a)
   , ("MVar.tryTake", forall1 "a" $ \a -> mvar a --> io (optionalt a))
   , ("MVar.put.v2", forall1 "a" $ \a -> mvar a --> a --> iof unit)
@@ -555,7 +555,10 @@ infixr -->
 
 io, iof :: Var v => Type v -> Type v
 io = Type.effect1 () (Type.builtinIO ())
-iof = io . eithert (DD.failureType ())
+iof = io . eithert failure
+
+failure :: Var v => Type v
+failure = DD.failureType ()
 
 eithert :: Var v => Type v -> Type v -> Type v
 eithert l r = DD.eitherType () `app` l `app` r

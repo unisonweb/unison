@@ -1,10 +1,5 @@
 # tests for IO / MVar
 
-```ucm:hide
-.> builtins.merge
-.> builtins.mergeio
-.> cd builtin
-```
 Tests for IO builtins which wired to foreign haskell calls.
 
 ## Setup
@@ -14,7 +9,7 @@ You can skip the section which is just needed to make the transcript self-contai
 TempDirs/autoCleaned is an ability/hanlder which allows you to easily
 create a scratch directory which will automatically get cleaned up.
 
-```unison:hide
+```unison
 use .builtin.io2 Failure
 
 filter: (a -> Boolean) -> [a] -> [a]
@@ -129,10 +124,6 @@ runTest t = match evalTest t with
 
 ```
 
-```ucm:hide
-.> add
-```
-
 ## Who watches the watchers?
 
 First lets test our support code (which in turn will test some of our
@@ -158,10 +149,35 @@ testAutoClean _ =
 ```
 
 ```ucm
-.> add
-.> io.test testAutoClean
-```
 
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      testAutoClean : '{io2.IO} [Result]
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testAutoClean : '{io2.IO} [Result]
+
+.> io.test testAutoClean
+
+    New test results:
+  
+  ◉ testAutoClean   our temporary directory should exist
+  ◉ testAutoClean   our temporary directory should no longer exist
+  
+  ✅ 2 test(s) passing
+  
+  Tip: Use view testAutoClean to view the source of a test.
+
+```
 ## Basic File Functions
 
 ```unison
@@ -250,13 +266,72 @@ testSystemTime _ =
 ```
 
 ```ucm
-.> add
-.> io.test testCreateRename
-.> io.test testOpenClose
-.> io.test testSeek
-.> io.test testAppend
-```
 
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      testAppend       : '{io2.IO} [Result]
+      testCreateRename : '{io2.IO} [Result]
+      testOpenClose    : '{io2.IO} [Result]
+      testSeek         : '{io2.IO} [Result]
+      testSystemTime   : '{io2.IO} [Result]
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testAppend       : '{io2.IO} [Result]
+    testCreateRename : '{io2.IO} [Result]
+    testOpenClose    : '{io2.IO} [Result]
+    testSeek         : '{io2.IO} [Result]
+    testSystemTime   : '{io2.IO} [Result]
+
+.> io.test testCreateRename
+
+    New test results:
+  
+  ◉ testCreateRename   create a foo directory
+  ◉ testCreateRename   foo should no longer exist
+  ◉ testCreateRename   bar should now exist
+  
+  ✅ 3 test(s) passing
+  
+  Tip: Use view testCreateRename to view the source of a test.
+
+.> io.test testOpenClose
+
+    New test results:
+  
+  ◉ testOpenClose   file should be open
+  ◉ testOpenClose   file should be closed
+  
+  ✅ 2 test(s) passing
+  
+  Tip: Use view testOpenClose to view the source of a test.
+
+.> io.test testSeek
+
+    New test results:
+  
+  ◉ testSeek   readable file should be seekable
+  ◉ testSeek   shouldn't be the EOF
+  
+  ✅ 2 test(s) passing
+  
+  Tip: Use view testSeek to view the source of a test.
+
+.> io.test testAppend
+
+    New test results:
+  
+  😶 No tests available.
+
+```
 ## MVars
 
 ```unison
@@ -286,7 +361,41 @@ testMvars _ =
 
   runTest test
 ```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      testMvars : '{io2.IO} [Result]
+
+```
 ```ucm
 .> add
+
+  ⍟ I've added these definitions:
+  
+    testMvars : '{io2.IO} [Result]
+
 .> io.test testMvars
+
+    New test results:
+  
+  ◉ testMvars   ma should not be empty
+  ◉ testMvars   should reap what you sow
+  ◉ testMvars   ma should be empty
+  ◉ testMvars   swap returns old contents
+  ◉ testMvars   swap returns old contents
+  ◉ testMvars   tryTake should succeed when not empty
+  ◉ testMvars   tryTake should not succeed when empty
+  ◉ testMvars   ma2 should be empty
+  ◉ testMvars   tryTake should fail when empty
+  
+  ✅ 9 test(s) passing
+  
+  Tip: Use view testMvars to view the source of a test.
+
 ```

@@ -16,7 +16,6 @@ module Unison.Runtime.Builtin
   , numberedTermLookup
   ) where
 
-import Control.Exception (IOException, try)
 import Control.Monad.State.Strict (State, modify, execState)
 
 import Unison.ABT.Normalized hiding (TTm)
@@ -38,19 +37,17 @@ import qualified Crypto.MAC.HMAC as HMAC
 import Unison.Util.EnumContainers as EC
 
 import Data.Default (def)
-import Data.Either.Combinators (mapLeft)
-import Data.Text.Encoding (encodeUtf8, decodeUtf8')
 import Data.ByteString (hGet, hPut)
-import Data.Word (Word64)
-import Data.Text as Text (Text, pack, unpack)
+import Data.Text as Text (pack, unpack)
 import qualified System.X509 as X
 import qualified Data.ByteArray as BA
 
-import Data.Set (Set, insert)
+import Data.Set (insert)
 
-import Data.Map (Map)
 import qualified Data.Map as Map
 
+import Data.Text.Encoding (decodeUtf8')
+import Unison.Prelude
 import qualified Unison.Util.Bytes as Bytes
 import Network.Socket as SYS
   ( accept
@@ -80,7 +77,6 @@ import System.IO as SYS
   , hTell
   , stdin, stdout, stderr
   )
-import Data.Text.IO as SYS (hGetLine)
 import Control.Concurrent as SYS
   ( threadDelay
   , killThread
@@ -141,9 +137,13 @@ fresh7 :: Var v => (v, v, v, v, v, v, v)
 fresh7 = (v1, v2, v3, v4, v5, v6, v7) where
   [v1, v2, v3, v4, v5, v6, v7] = freshes 7
 
-fresh10 :: Var v => (v, v, v, v, v, v, v, v, v, v)
-fresh10 = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10) where
-  [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10] = freshes 10
+fresh8 :: Var v => (v, v, v, v, v, v, v, v)
+fresh8 = (v1, v2, v3, v4, v5, v6, v7, v8) where
+  [v1, v2, v3, v4, v5, v6, v7, v8] = freshes 8
+
+fresh11 :: Var v => (v, v, v, v, v, v, v, v, v, v, v)
+fresh11 = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11) where
+  [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11] = freshes 11
 
 fls, tru :: Var v => ANormal v
 fls = TCon Ty.booleanRef 0 []
@@ -663,11 +663,11 @@ seek'handle instr
   = ([BX,BX,BX],)
   . TAbss [arg1, arg2, arg3]
   . unenum 3 arg2 Ty.seekModeRef seek
-  . unbox arg3 Ty.natRef nat
-  . TLet result BX (AFOp instr [arg1, seek, nat])
-  $ outIoFailUnit stack1 stack2 unit fail result
+  . unbox arg3 Ty.intRef nat
+  . TLet result UN (AFOp instr [arg1, seek, nat])
+  $ outIoFailUnit stack1 stack2 stack3 unit fail result
   where
-    (arg1, arg2, arg3, seek, nat, stack1, stack2, unit, fail, result) = fresh10
+    (arg1, arg2, arg3, seek, nat, stack1, stack2, stack3, unit, fail, result) = fresh11
 
 get'buffering'output :: forall v. Var v => v -> v -> v -> v -> ANormal v
 get'buffering'output bu m n b =
@@ -675,7 +675,7 @@ get'buffering'output bu m n b =
   [ (0, ([], TCon Ty.optionalRef 0 []))
   , (1, ([], line))
   , (2, ([], block'nothing))
-  , (3, ([UN], TAbs n $ block'n))
+  , (3, ([UN], TAbs n block'n))
   ]
   where
   final = TCon Ty.optionalRef 1 [b]
@@ -744,11 +744,11 @@ inBxNat arg1 arg2 nat result cont instr =
   $ TLet result UN (AFOp instr [arg1, nat]) cont
 
 inBxIomr :: forall v. Var v => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
-inBxIomr arg1 arg2 enum result cont instr
+inBxIomr arg1 arg2 fm result cont instr
   = ([BX,BX],)
   . TAbss [arg1, arg2]
-  . unenum 4 arg2 ioModeReference enum
-  $ TLet result UN (AFOp instr [arg1]) cont
+  . unenum 4 arg2 ioModeReference fm
+  $ TLet result UN (AFOp instr [arg1, fm]) cont
 
 -- Accept three boxed args as input and evaluate `cont` with `result`
 -- bound to the result of the foreign `instr`
@@ -788,8 +788,7 @@ outMaybe maybe result =
 -- outIoFail :: Either IOException a -> Either Failure a
 outIoFail :: forall v. Var v => v -> v -> v -> v -> ANormal v
 outIoFail stack1 stack2 fail result =
-  TMatch result . MatchSum
-  $ mapFromList
+  TMatch result . MatchSum $ mapFromList
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
         . TLet fail BX (ACon failureReference 0 [stack1, stack2])
@@ -797,16 +796,16 @@ outIoFail stack1 stack2 fail result =
   , (1, ([BX], TAbs stack1 $ TCon eitherReference 1 [stack1]))
   ]
 
-outIoFailNat :: forall v. Var v => v -> v -> v -> v -> v -> ANormal v
-outIoFailNat stack1 stack2 fail nat result =
-  TMatch result . MatchSum  $ mapFromList
+outIoFailNat :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoFailNat stack1 stack2 stack3 fail nat result =
+  TMatch result . MatchSum $ mapFromList
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
         . TLet fail BX (ACon failureReference 0 [stack1, stack2])
         $ TCon eitherReference 0 [fail])
   , (1, ([UN],)
-        . TAbs stack1
-        . TLet nat UN (ACon Ty.natRef 0 [stack1])
+        . TAbs stack3
+        . TLet nat UN (ACon Ty.natRef 0 [stack3])
         $ TCon eitherReference 1 [nat])
   ]
 
@@ -823,8 +822,8 @@ outIoFailBox stack1 stack2 fail result =
   ]
 
 -- outIoFailUnit :: Either IOException a -> Either Failure Unit
-outIoFailUnit :: forall v. Var v => v -> v -> v -> v -> v -> ANormal v
-outIoFailUnit stack1 stack2 unit fail result =
+outIoFailUnit :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoFailUnit stack1 stack2 stack3 unit fail result =
   TMatch result . MatchSum
   $ mapFromList
   [ (0, ([BX, BX],)
@@ -832,13 +831,14 @@ outIoFailUnit stack1 stack2 unit fail result =
         . TLet fail BX (ACon failureReference 0 [stack1, stack2])
         $ TCon eitherReference 0 [fail])
   , (1, ([BX],)
+        . TAbss [stack3]
         . TLet unit UN (ACon Ty.unitRef 0 [])
         $ TCon eitherReference 1 [unit])
   ]
 
--- outIoFailUnit :: Either IOException a -> Either Failure Bool
-outIoFailBool :: forall v. Var v => v -> v -> v -> v -> v -> ANormal v
-outIoFailBool stack1 stack2 bool fail result =
+-- outIoFailBool :: Either IOException a -> Either Failure Bool
+outIoFailBool :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoFailBool stack1 stack2 stack3 bool fail result =
   TMatch result . MatchSum
   $ mapFromList
   [ (0, ([BX, BX],)
@@ -846,12 +846,10 @@ outIoFailBool stack1 stack2 bool fail result =
         . TLet fail BX (ACon failureReference 0 [stack1, stack2])
         $ TCon eitherReference 0 [fail])
   , (1, ([UN],)
-        . TAbs stack2
-        . TLet bool BX (boolift stack2)
+        . TAbs stack3
+        . TLet bool BX (boolift stack3)
         $ TCon eitherReference 1 [bool])
   ]
-
-
 
 -- Input / Output glue
 --
@@ -864,7 +862,8 @@ outIoFailBool stack1 stack2 bool fail result =
 -- Pure ForeignOp taking no values and returning the result directly
 -- pfop0 :: () -> Box
 unitDirect :: ForeignOp
-unitDirect instr = ([],) $ TFOp instr []
+unitDirect instr = ([BX],) . TAbs arg $ TFOp instr [] where arg = fresh1
+
 
 -- Pure ForeignOp taking one boxed value and directly returning the result
 -- pfob_unit :: Box -> Box
@@ -877,8 +876,8 @@ boxDirect instr =
 
 unitToEFNat :: ForeignOp
 unitToEFNat = inUnit unit result
-            $ outIoFailNat stack1 stack2 fail nat result
-  where (unit, stack1, stack2, fail, nat, result) = fresh6
+            $ outIoFailNat stack1 stack2 stack3 fail nat result
+  where (unit, stack1, stack2, stack3, fail, nat, result) = fresh7
 
 unitToEFBox :: ForeignOp
 unitToEFBox = inUnit unit result
@@ -919,12 +918,6 @@ boxToBool = inBx arg result
   where
     (arg, result) = fresh2
 
-boxBoxToBool :: ForeignOp
-boxBoxToBool = inBxBx arg1 arg2 result
-            $ outBool result
-  where
-    (arg1, arg2, result) = fresh3
-
 
 -- Pure ForeignOp taking two boxed values and returning the result directly
 boxBoxDirect :: ForeignOp
@@ -955,8 +948,7 @@ boxToEFBox =
 
 boxToMaybeBox :: ForeignOp
 boxToMaybeBox =
-  inBx arg result $
-    outMaybe maybe result
+  inBx arg result $ outMaybe maybe result
   where
     (arg, maybe, result) = fresh3
 
@@ -964,25 +956,33 @@ boxToMaybeBox =
 -- boxToEFBoxool :: Box -> Either Failure Box
 boxToEFBool :: ForeignOp
 boxToEFBool = inBx arg result
-             $ outIoFailBool stack1 stack2 bool fail result
+             $ outIoFailBool stack1 stack2 stack3 bool fail result
   where
-    (arg, stack1, stack2, bool, fail, result) = fresh6
+    (arg, stack1, stack2, stack3, bool, fail, result) = fresh7
+
+-- ForeignOp taking one boxed value and returning (Either Failure a)
+-- boxToEFBoxool :: Box -> Either Failure Box
+boxBoxToEFBool :: ForeignOp
+boxBoxToEFBool = inBxBx arg1 arg2 result
+             $ outIoFailBool stack1 stack2 stack3 bool fail result
+  where
+    (arg1, arg2, stack1, stack2, stack3, bool, fail, result) = fresh8
 
 -- ForeignOp taking one boxed value and returning (Either Failure ())
 -- boxDirect_efu :: Box -> Either Failure Unit
 boxToEF0 :: ForeignOp
 boxToEF0 = inBx arg result
-          $ outIoFailUnit stack1 stack2 unit fail result
+          $ outIoFailUnit stack1 stack2 stack3 unit fail result
   where
-    (arg, result, stack1, stack2, unit, fail) = fresh6
+    (arg, result, stack1, stack2, stack3, unit, fail) = fresh7
 
 -- ForeignOp taking one boxed value and returning (Either Failure Nat)
 -- boxDirect_nat :: Box -> Either Failure Box
 boxToEFNat :: ForeignOp
 boxToEFNat = inBx arg result
-          $ outIoFailNat stack1 stack2 nat fail result
+          $ outIoFailNat stack1 stack2 stack3 nat fail result
   where
-    (arg, result, stack1, stack2, nat, fail) = fresh6
+    (arg, result, stack1, stack2, stack3, nat, fail) = fresh7
 
 -- pfobb_efb :: Box -> Box -> Either Failure Box
 boxBoxToEFBox :: ForeignOp
@@ -994,9 +994,9 @@ boxBoxToEFBox = inBxBx arg1 arg2 result
 -- pfobb_efu :: Box -> Box -> Either Failure Unit
 boxBoxToEF0 :: ForeignOp
 boxBoxToEF0 = inBxBx arg1 arg2 result
-            $ outIoFailUnit stack1 stack2 fail unit result
+            $ outIoFailUnit stack1 stack2 stack3 fail unit result
   where
-    (arg1, arg2, result, stack1, stack2, fail, unit) = fresh7
+    (arg1, arg2, result, stack1, stack2, stack3, fail, unit) = fresh8
 
 
 -- pfobn_efb :: Box -> Nat -> Either Failure Box
@@ -1229,9 +1229,9 @@ declareForeigns = do
 
   declareForeign "IO.openFile.v2" boxIomrToEFBox $ mkForeignIOF (uncurry openFile)
   declareForeign "IO.closeFile.v2" boxToEF0 $ mkForeignIOF hClose
-  declareForeign "IO.isFileEOF.v2" boxToBool $ mkForeignIOF hIsEOF
-  declareForeign "IO.isFileOpen.v2" boxToBool $ mkForeignIOF hIsOpen
-  declareForeign "IO.isSeekable.v2" boxToBool $ mkForeignIOF hIsSeekable
+  declareForeign "IO.isFileEOF.v2" boxToEFBool $ mkForeignIOF hIsEOF
+  declareForeign "IO.isFileOpen.v2" boxToEFBool $ mkForeignIOF hIsOpen
+  declareForeign "IO.isSeekable.v2" boxToEFBool $ mkForeignIOF hIsSeekable
 
   declareForeign "IO.seekHandle.v2" seek'handle
     . mkForeignIOF $ \(h,sm,n) -> hSeek h sm (fromIntegral (n :: Int))
@@ -1245,8 +1245,6 @@ declareForeigns = do
 
   declareForeign "IO.setBuffering.v2" boxBoxToEF0
     . mkForeignIOF $ uncurry hSetBuffering
-
-  declareForeign "IO.getLine.v2" boxToEFBox $ mkForeignIOF hGetLine
 
   declareForeign "IO.getBytes.v2" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromArray <$> hGet h n
 
@@ -1333,7 +1331,7 @@ declareForeigns = do
   declareForeign "MVar.new" boxDirect
     . mkForeign $ \(c :: Closure) -> newMVar c
 
-  declareForeign "MVar.newEmpty" unitDirect
+  declareForeign "MVar.newEmpty.v2" unitDirect
     . mkForeign $ \() -> newEmptyMVar @Closure
 
   declareForeign "MVar.take.v2" boxToEFBox
@@ -1342,10 +1340,10 @@ declareForeigns = do
   declareForeign "MVar.tryTake" boxToMaybeBox
     . mkForeign $ \(mv :: MVar Closure) -> tryTakeMVar mv
 
-  declareForeign "MVar.put.v2 " boxBoxToEF0
+  declareForeign "MVar.put.v2" boxBoxToEF0
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> putMVar mv x
 
-  declareForeign "MVar.tryPut" boxBoxToBool
+  declareForeign "MVar.tryPut" boxBoxToEFBool
     . mkForeign $ \(mv :: MVar Closure, x) -> tryPutMVar mv x
 
   declareForeign "MVar.swap.v2" boxBoxToEFBox
@@ -1363,8 +1361,8 @@ declareForeigns = do
   declareForeign "Text.toUtf8" boxDirect . mkForeign
     $ pure . Bytes.fromArray . encodeUtf8
 
-  declareForeign "Text.fromUtf8" boxToEBoxBox . mkForeign
-    $ pure . mapLeft (pack . show) . decodeUtf8' . Bytes.toArray
+  declareForeign "Text.fromUtf8.v2" boxToEFBox . mkForeign
+    $ pure . mapLeft (Failure ioFailureReference . pack . show) . decodeUtf8' . Bytes.toArray
 
   let
     defaultSupported :: TLS.Supported
