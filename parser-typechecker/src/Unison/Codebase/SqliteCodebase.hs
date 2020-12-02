@@ -35,6 +35,7 @@ import U.Codebase.Sqlite.Operations (EDB)
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Util.Hash as H2
 import qualified U.Util.Monoid as Monoid
+import qualified U.Util.Set as Set
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase (CodebasePath)
 import qualified Unison.Codebase as Codebase1
@@ -255,7 +256,10 @@ sqliteCodebase root = do
       getBranchForHash = error "todo"
 
       dependentsImpl :: Reference -> IO (Set Reference.Id)
-      dependentsImpl = error "todo"
+      dependentsImpl r =
+        runDB conn $
+          Set.traverse (Cv.referenceid2to1 getCycleLen)
+            =<< Ops.dependents (Cv.reference1to2 r)
 
       syncFromDirectory :: Codebase1.CodebasePath -> SyncMode -> Branch IO -> IO ()
       syncFromDirectory = error "todo"

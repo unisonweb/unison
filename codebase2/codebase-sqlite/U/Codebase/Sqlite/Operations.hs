@@ -25,6 +25,7 @@ import Data.ByteString (ByteString)
 import Data.Bytes.Get (runGetS)
 import qualified Data.Foldable as Foldable
 import Data.Functor (void, (<&>))
+import Data.Functor.Identity (Identity)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as Map
@@ -87,6 +88,7 @@ import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Reference as S
 import qualified U.Codebase.Sqlite.Reference as S.Reference
 import qualified U.Codebase.Sqlite.Referent as S
+import qualified U.Codebase.Sqlite.Referent as S.Referent
 import qualified U.Codebase.Sqlite.Serialization as S
 import U.Codebase.Sqlite.Symbol (Symbol)
 import qualified U.Codebase.Sqlite.SyncEntity as SE
@@ -107,8 +109,6 @@ import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
-import Data.Functor.Identity (Identity)
-import qualified U.Codebase.Sqlite.Referent as S.Referent
 
 type Err m = MonadError Error m
 
@@ -213,21 +213,6 @@ s2cReferentId = bitraverse loadHashByObjectId loadHashByObjectId
 h2cReferent :: EDB m => S.ReferentH -> m C.Referent
 h2cReferent = bitraverse h2cReference h2cReference
 
--- ** write new references
-
-saveReferent :: EDB m => C.Referent -> m S.Referent
-saveReferent = bitraverse saveReference saveReference
-
--- | a referenced object must necessarily exist in the db already
-saveReference :: EDB m => C.Reference -> m S.Reference
-saveReference = bitraverse Q.saveText hashToObjectId
-
-saveReferentH :: DB m => C.Referent -> m S.ReferentH
-saveReferentH = bitraverse saveReferenceH saveReferenceH
-
-saveReferenceH :: DB m => C.Reference -> m S.ReferenceH
-saveReferenceH = bitraverse Q.saveText Q.saveHashHash
-
 -- * Edits transformations
 
 s2cTermEdit :: EDB m => S.TermEdit -> m C.TermEdit
@@ -251,16 +236,6 @@ s2cTypeEdit :: EDB m => S.TypeEdit -> m C.TypeEdit
 s2cTypeEdit = \case
   S.TypeEdit.Replace r -> C.TypeEdit.Replace <$> s2cReference r
   S.TypeEdit.Deprecate -> pure C.TypeEdit.Deprecate
-
-saveTermEdit :: EDB m => C.TermEdit -> m S.TermEdit
-saveTermEdit = \case
-  C.TermEdit.Replace r t -> S.TermEdit.Replace <$> saveReference r <*> pure (c2sTyping t)
-  C.TermEdit.Deprecate -> pure S.TermEdit.Deprecate
-
-saveTypeEdit :: EDB m => C.TypeEdit -> m S.TypeEdit
-saveTypeEdit = \case
-  C.TypeEdit.Replace r -> S.TypeEdit.Replace <$> saveReference r
-  C.TypeEdit.Deprecate -> pure S.TypeEdit.Deprecate
 
 -- * Branch transformation
 
@@ -351,9 +326,12 @@ loadPatchById patchId =
           let diff = Set.difference src del
            in if diff == mempty then Nothing else Just diff
 
-savePatch :: DB m => C.Patch -> m Db.PatchObjectId
-savePatch (C.Patch termEdits typeEdits) = do
-  error "todo"
+savePatch :: EDB m => PatchHash -> C.Patch -> m Db.PatchObjectId
+savePatch h c = do
+  (li, lPatch) <- c2lPatch c
+  hashId <- Q.saveHashHash (unPatchHash h)
+  let bytes = S.putBytes S.putPatchFormat $ S.PatchFormat.Full li lPatch
+  Db.PatchObjectId <$> Q.saveObject hashId OT.Patch bytes
 
 s2cPatch :: EDB m => S.Patch -> m C.Patch
 s2cPatch (S.Patch termEdits typeEdits) =
@@ -361,11 +339,74 @@ s2cPatch (S.Patch termEdits typeEdits) =
     <$> Map.bitraverse h2cReferent (Set.traverse s2cTermEdit) termEdits
     <*> Map.bitraverse h2cReference (Set.traverse s2cTypeEdit) typeEdits
 
-savePatchHashes :: EDB m => C.Patch -> m S.Patch
-savePatchHashes (C.Patch termEdits typeEdits) =
-  S.Patch
-    <$> Map.bitraverse saveReferentH (Set.traverse saveTermEdit) termEdits
-    <*> Map.bitraverse saveReferenceH (Set.traverse saveTypeEdit) typeEdits
+-- | assumes that all relevant values are already in the DB
+c2lPatch :: EDB m => C.Patch -> m (S.PatchLocalIds, S.LocalPatch)
+c2lPatch (C.Patch termEdits typeEdits) =
+  done =<< (runWriterT . flip evalStateT startState) do
+    S.Patch
+      <$> Map.bitraverse saveReferentH (Set.traverse saveTermEdit) termEdits
+      <*> Map.bitraverse saveReferenceH (Set.traverse saveTypeEdit) typeEdits
+  where
+    startState = mempty @(Map Text LocalTextId, Map H.Hash LocalHashId, Map H.Hash LocalDefnId)
+    done ::
+      EDB m =>
+      (a, (Seq Text, Seq H.Hash, Seq H.Hash)) ->
+      m (S.PatchFormat.PatchLocalIds, a)
+    done (lPatch, (textValues, hashValues, defnValues)) = do
+      textIds <- liftQ $ traverse Q.saveText textValues
+      hashIds <- liftQ $ traverse Q.saveHashHash hashValues
+      objectIds <- traverse hashToObjectId defnValues
+      let ids =
+            S.PatchFormat.LocalIds
+              (Vector.fromList (Foldable.toList textIds))
+              (Vector.fromList (Foldable.toList hashIds))
+              (Vector.fromList (Foldable.toList objectIds))
+      pure (ids, lPatch)
+
+    lookupText ::
+      ( MonadState s m,
+        MonadWriter w m,
+        Lens.Field1' s (Map t LocalTextId),
+        Lens.Field1' w (Seq t),
+        Ord t
+      ) =>
+      t ->
+      m LocalTextId
+    lookupText = lookup_ Lens._1 Lens._1 LocalTextId
+
+    lookupHash ::
+      ( MonadState s m,
+        MonadWriter w m,
+        Lens.Field2' s (Map d LocalHashId),
+        Lens.Field2' w (Seq d),
+        Ord d
+      ) =>
+      d ->
+      m LocalHashId
+    lookupHash = lookup_ Lens._2 Lens._2 LocalHashId
+
+    lookupDefn ::
+      ( MonadState s m,
+        MonadWriter w m,
+        Lens.Field3' s (Map d LocalDefnId),
+        Lens.Field3' w (Seq d),
+        Ord d
+      ) =>
+      d ->
+      m LocalDefnId
+    lookupDefn = lookup_ Lens._3 Lens._3 LocalDefnId
+
+    saveTermEdit = \case
+      C.TermEdit.Replace r t -> S.TermEdit.Replace <$> saveReference r <*> pure (c2sTyping t)
+      C.TermEdit.Deprecate -> pure S.TermEdit.Deprecate
+
+    saveTypeEdit = \case
+      C.TypeEdit.Replace r -> S.TypeEdit.Replace <$> saveReference r
+      C.TypeEdit.Deprecate -> pure S.TypeEdit.Deprecate
+
+    saveReference = bitraverse lookupText lookupDefn
+    saveReferenceH = bitraverse lookupText lookupHash
+    saveReferentH = bitraverse saveReferenceH saveReferenceH
 
 -- | produces a diff
 -- diff = full - ref; full = diff + ref
@@ -380,11 +421,11 @@ diffPatch (S.Patch fullTerms fullTypes) (S.Patch refTerms refTypes) =
     removeTermEdits = Map.merge Map.dropMissing Map.preserveMissing removeDiffSet fullTerms refTerms
     removeTypeEdits = Map.merge Map.dropMissing Map.preserveMissing removeDiffSet fullTypes refTypes
     -- things that are present in full but absent in ref
-    addDiffSet, removeDiffSet ::
-      (Ord k, Ord a) => Map.WhenMatched Identity k (Set a) (Set a) (Set a)
+    addDiffSet,
+      removeDiffSet ::
+        (Ord k, Ord a) => Map.WhenMatched Identity k (Set a) (Set a) (Set a)
     addDiffSet = Map.zipWithMatched (const Set.difference)
     removeDiffSet = Map.zipWithMatched (const (flip Set.difference))
-
 
 -- implementation detail of loadPatchById?
 lookupPatchLocalText :: S.PatchLocalIds -> LocalTextId -> Db.TextId
@@ -517,16 +558,16 @@ c2xTerm saveText saveDefn tm tp =
       C.Term.Nat n -> pure $ C.Term.Nat n
       C.Term.Float n -> pure $ C.Term.Float n
       C.Term.Boolean b -> pure $ C.Term.Boolean b
-      C.Term.Text t -> C.Term.Text <$> lookupText_ t
+      C.Term.Text t -> C.Term.Text <$> lookupText t
       C.Term.Char ch -> pure $ C.Term.Char ch
       C.Term.Ref r ->
-        C.Term.Ref <$> bitraverse lookupText_ (traverse lookupDefn_) r
+        C.Term.Ref <$> bitraverse lookupText (traverse lookupDefn) r
       C.Term.Constructor typeRef cid ->
         C.Term.Constructor
-          <$> bitraverse lookupText_ lookupDefn_ typeRef
+          <$> bitraverse lookupText lookupDefn typeRef
           <*> pure cid
       C.Term.Request typeRef cid ->
-        C.Term.Request <$> bitraverse lookupText_ lookupDefn_ typeRef <*> pure cid
+        C.Term.Request <$> bitraverse lookupText lookupDefn typeRef <*> pure cid
       C.Term.Handle a a2 -> pure $ C.Term.Handle a a2
       C.Term.App a a2 -> pure $ C.Term.App a a2
       C.Term.Ann a typ -> C.Term.Ann a <$> ABT.transformM goType typ
@@ -541,18 +582,18 @@ c2xTerm saveText saveDefn tm tp =
       C.Term.TermLink r ->
         C.Term.TermLink
           <$> bitraverse
-            (bitraverse lookupText_ (traverse lookupDefn_))
-            (bitraverse lookupText_ lookupDefn_)
+            (bitraverse lookupText (traverse lookupDefn))
+            (bitraverse lookupText lookupDefn)
             r
       C.Term.TypeLink r ->
-        C.Term.TypeLink <$> bitraverse lookupText_ lookupDefn_ r
+        C.Term.TypeLink <$> bitraverse lookupText lookupDefn r
     goType ::
       forall m a.
       (MonadWriter (Seq Text, Seq H.Hash) m, MonadState (Map Text LocalTextId, Map H.Hash LocalDefnId) m) =>
       C.Type.FT a ->
       m (S.Term.FT a)
     goType = \case
-      C.Type.Ref r -> C.Type.Ref <$> bitraverse lookupText_ lookupDefn_ r
+      C.Type.Ref r -> C.Type.Ref <$> bitraverse lookupText lookupDefn r
       C.Type.Arrow i o -> pure $ C.Type.Arrow i o
       C.Type.Ann a k -> pure $ C.Type.Ann a k
       C.Type.App f a -> pure $ C.Type.App f a
@@ -592,12 +633,12 @@ c2xTerm saveText saveDefn tm tp =
       C.Term.PInt i -> pure $ C.Term.PInt i
       C.Term.PNat n -> pure $ C.Term.PNat n
       C.Term.PFloat d -> pure $ C.Term.PFloat d
-      C.Term.PText t -> C.Term.PText <$> lookupText_ t
+      C.Term.PText t -> C.Term.PText <$> lookupText t
       C.Term.PChar c -> pure $ C.Term.PChar c
-      C.Term.PConstructor r i ps -> C.Term.PConstructor <$> bitraverse lookupText_ lookupDefn_ r <*> pure i <*> traverse goPat ps
+      C.Term.PConstructor r i ps -> C.Term.PConstructor <$> bitraverse lookupText lookupDefn r <*> pure i <*> traverse goPat ps
       C.Term.PAs p -> C.Term.PAs <$> goPat p
       C.Term.PEffectPure p -> C.Term.PEffectPure <$> goPat p
-      C.Term.PEffectBind r i bindings k -> C.Term.PEffectBind <$> bitraverse lookupText_ lookupDefn_ r <*> pure i <*> traverse goPat bindings <*> goPat k
+      C.Term.PEffectBind r i bindings k -> C.Term.PEffectBind <$> bitraverse lookupText lookupDefn r <*> pure i <*> traverse goPat bindings <*> goPat k
       C.Term.PSequenceLiteral ps -> C.Term.PSequenceLiteral <$> traverse goPat ps
       C.Term.PSequenceOp l op r -> C.Term.PSequenceOp <$> goPat l <*> pure op <*> goPat r
 
@@ -611,7 +652,8 @@ c2xTerm saveText saveDefn tm tp =
               (Vector.fromList (Foldable.toList defnIds))
       pure (ids, void tm, void <$> tp)
 
-lookupText_ ::
+lookupText ::
+  forall m s w t.
   ( MonadState s m,
     MonadWriter w m,
     Lens.Field1' s (Map t LocalTextId),
@@ -620,9 +662,10 @@ lookupText_ ::
   ) =>
   t ->
   m LocalTextId
-lookupText_ = lookup_ Lens._1 Lens._1 LocalTextId
+lookupText = lookup_ Lens._1 Lens._1 LocalTextId
 
-lookupDefn_ ::
+lookupDefn ::
+  forall m s w d.
   ( MonadState s m,
     MonadWriter w m,
     Lens.Field2' s (Map d LocalDefnId),
@@ -631,7 +674,7 @@ lookupDefn_ ::
   ) =>
   d ->
   m LocalDefnId
-lookupDefn_ = lookup_ Lens._2 Lens._2 LocalDefnId
+lookupDefn = lookup_ Lens._2 Lens._2 LocalDefnId
 
 -- | shared implementation of lookupTextHelper and lookupDefnHelper
 --  Look up a value in the LUT, or append it.
@@ -670,7 +713,7 @@ c2sDecl saveText saveDefn (C.Decl.DataDeclaration dt m b cts) = do
       C.Type.FD a ->
       m (S.Decl.F a)
     goType = \case
-      C.Type.Ref r -> C.Type.Ref <$> bitraverse lookupText_ (traverse lookupDefn_) r
+      C.Type.Ref r -> C.Type.Ref <$> bitraverse lookupText (traverse lookupDefn) r
       C.Type.Arrow i o -> pure $ C.Type.Arrow i o
       C.Type.Ann a k -> pure $ C.Type.Ann a k
       C.Type.App f a -> pure $ C.Type.App f a
