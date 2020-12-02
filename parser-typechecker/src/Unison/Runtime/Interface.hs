@@ -312,6 +312,6 @@ startRuntime = do
            (ctx, init) <- pure $ prepareEvaluation tm ctx
            evalInContext ppe ctx init
        , mainType = builtinMain External
-       , testType = builtinTest External
+       , ioTestType = builtinTest External
        , needsContainment = False
        }

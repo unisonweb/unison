@@ -35,7 +35,7 @@ data Runtime v = Runtime
       -> Term v
       -> IO (Either Error (Term v))
   , mainType :: Type v Ann
-  , testType :: Type v Ann
+  , ioTestType :: Type v Ann
   , needsContainment :: Bool
   }
 
