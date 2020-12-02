@@ -122,6 +122,7 @@ library
     Unison.PrintError
     Unison.Result
     Unison.Runtime.ANF
+    Unison.Runtime.ANF.Serialize
     Unison.Runtime.Builtin
     Unison.Runtime.Debug
     Unison.Runtime.Decompile

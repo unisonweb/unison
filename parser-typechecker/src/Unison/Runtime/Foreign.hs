@@ -25,6 +25,8 @@ import System.IO (Handle)
 import Unison.Util.Bytes (Bytes)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
+import Unison.Runtime.ANF (SuperGroup, Value)
+import Unison.Symbol (Symbol)
 import qualified Unison.Type as Ty
 import qualified Crypto.Hash as Hash
 import Unsafe.Coerce
@@ -91,6 +93,10 @@ instance BuiltinForeign TLS.ClientParams where foreignRef = Tagged Ty.tlsClientC
 instance BuiltinForeign TLS.ServerParams where foreignRef = Tagged Ty.tlsServerConfigRef
 instance BuiltinForeign FilePath where foreignRef = Tagged Ty.filePathRef
 instance BuiltinForeign TLS.Context where foreignRef = Tagged Ty.tlsRef
+instance BuiltinForeign (SuperGroup Symbol) where
+  foreignRef = Tagged Ty.codeRef
+instance BuiltinForeign Value where foreignRef = Tagged Ty.valueRef
+
 
 data HashAlgorithm where
   -- Reference is a reference to the hash algorithm

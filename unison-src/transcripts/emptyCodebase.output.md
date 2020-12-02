@@ -23,7 +23,11 @@ Technically, the definitions all exist, but they have no names. `builtins.merge`
 
 .foo> ls
 
+<<<<<<< HEAD
   1. builtin/ (290 definitions)
+=======
+  1. builtin/ (289 definitions)
+>>>>>>> trunk
 
 ```
 And for a limited time, you can get even more builtin goodies:
@@ -35,7 +39,11 @@ And for a limited time, you can get even more builtin goodies:
 
 .foo> ls
 
+<<<<<<< HEAD
   1. builtin/ (453 definitions)
+=======
+  1. builtin/ (452 definitions)
+>>>>>>> trunk
 
 ```
 More typically, you'd start out by pulling `base.

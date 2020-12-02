@@ -112,13 +112,21 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
+<<<<<<< HEAD
   ⊙ #rbqhjoa402
+=======
+  ⊙ #8g1nb0so5t
+>>>>>>> trunk
   
     - Deletes:
     
       feature1.y
   
+<<<<<<< HEAD
   ⊙ #sjfd4e0nu7
+=======
+  ⊙ #uuevo0a90a
+>>>>>>> trunk
   
     + Adds / updates:
     
@@ -129,26 +137,42 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
+<<<<<<< HEAD
   ⊙ #ukmoadt2d8
+=======
+  ⊙ #38s398c7su
+>>>>>>> trunk
   
     + Adds / updates:
     
       feature1.y
   
+<<<<<<< HEAD
   ⊙ #6lem2rtf9l
+=======
+  ⊙ #03etmnkuq5
+>>>>>>> trunk
   
     > Moves:
     
       Original name New name
       x             master.x
   
+<<<<<<< HEAD
   ⊙ #2p7dk5nk0p
+=======
+  ⊙ #cp7dki0f73
+>>>>>>> trunk
   
     + Adds / updates:
     
       x
   
+<<<<<<< HEAD
   ⊙ #npsgjle324
+=======
+  ⊙ #3662ae22bk
+>>>>>>> trunk
   
     + Adds / updates:
     
@@ -162,7 +186,10 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Bytes.toBase16 builtin.Bytes.toBase32
       builtin.Bytes.toBase64 builtin.Bytes.toBase64UrlUnpadded
       builtin.Bytes.toList builtin.Char builtin.Char.fromNat
-      builtin.Char.toNat builtin.Debug.watch builtin.Doc
+      builtin.Char.toNat builtin.Code builtin.Code.cache_
+      builtin.Code.dependencies builtin.Code.deserialize
+      builtin.Code.isMissing builtin.Code.lookup
+      builtin.Code.serialize builtin.Debug.watch builtin.Doc
       builtin.Doc.Blob builtin.Doc.Evaluate builtin.Doc.Join
       builtin.Doc.Link builtin.Doc.Signature builtin.Doc.Source
       builtin.Either builtin.Either.Left builtin.Either.Right
@@ -220,7 +247,10 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Tuple.Cons builtin.Unit builtin.Unit.Unit
       builtin.Universal.< builtin.Universal.<=
       builtin.Universal.== builtin.Universal.>
-      builtin.Universal.>= builtin.Universal.compare builtin.bug
+      builtin.Universal.>= builtin.Universal.compare
+      builtin.Value builtin.Value.dependencies
+      builtin.Value.deserialize builtin.Value.load
+      builtin.Value.serialize builtin.Value.value builtin.bug
       builtin.crypto.HashAlgorithm
       builtin.crypto.HashAlgorithm.Blake2b_256
       builtin.crypto.HashAlgorithm.Blake2b_512

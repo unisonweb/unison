@@ -3,6 +3,7 @@
 
 module Unison.Util.Bytes where
 
+import Data.Char
 import Data.Memory.PtrMethods (memCompare, memEqual)
 import Data.Monoid (Sum(..))
 import Foreign.Ptr (plusPtr)
@@ -130,7 +131,7 @@ instance T.Measured (Sum Int) (View ByteString) where
   measure b = Sum (B.length b)
 
 instance Show Bytes where
-  show bs = show (toWord8s bs)
+  show bs = toWord8s (toBase16 bs) >>= \w -> [chr (fromIntegral w)]
 
 -- Produces two lists where the chunks have the same length
 alignChunks :: B.ByteArrayAccess ba => [View ba] -> [View ba] -> ([View ba], [View ba])

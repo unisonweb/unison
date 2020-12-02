@@ -163,6 +163,8 @@ builtinTypesSrc =
   , B' "Socket" CT.Data, Rename' "Socket" "io2.Socket"
   , B' "ThreadId" CT.Data, Rename' "ThreadId" "io2.ThreadId"
   , B' "MVar" CT.Data, Rename' "MVar" "io2.MVar"
+  , B' "Code" CT.Data
+  , B' "Value" CT.Data
   , B' "crypto.HashAlgorithm" CT.Data
   , B' "Tls" CT.Data, Rename' "Tls" "io2.Tls"
   , B' "Tls.ClientConfig" CT.Data, Rename' "Tls.ClientConfig" "io2.Tls.ClientConfig"
@@ -434,6 +436,7 @@ builtinsSrc =
   ] ++ moveUnder "io2" ioBuiltins
     ++ moveUnder "io2" mvarBuiltins
     ++ hashBuiltins
+    ++ fmap (uncurry B) codeBuiltins
 
 
 moveUnder :: Text -> [(Text, Type v)] -> [BuiltinDSL v]
@@ -528,6 +531,22 @@ mvarBuiltins =
   mvar :: Type v -> Type v
   mvar a = Type.ref () Type.mvarRef `app` a
 
+codeBuiltins :: forall v. Var v => [(Text, Type v)]
+codeBuiltins =
+  [ ("Code.dependencies", code --> list termLink)
+  , ("Code.isMissing", termLink --> io boolean)
+  , ("Code.serialize", code --> bytes)
+  , ("Code.deserialize", bytes --> eithert text code)
+  , ("Code.cache_", list (tuple [termLink,code]) --> io (list termLink))
+  , ("Code.lookup", termLink --> io (optionalt code))
+  , ("Value.dependencies", value --> list termLink)
+  , ("Value.serialize", value --> bytes)
+  , ("Value.deserialize", bytes --> eithert text value)
+  , ("Value.value", forall1 "a" $ \a -> a --> value)
+  , ("Value.load"
+    , forall1 "a" $ \a -> value --> io (eithert (list termLink) a))
+  ]
+
 forall1 :: Var v => Text -> (Type v -> Type v) -> Type v
 forall1 name body =
   let
@@ -592,3 +611,7 @@ boolean = Type.boolean ()
 float = Type.float ()
 char = Type.char ()
 
+code, value, termLink :: Var v => Type v
+code = Type.code ()
+value = Type.value ()
+termLink = Type.termLink ()

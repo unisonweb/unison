@@ -59,6 +59,7 @@ y = 2
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
+<<<<<<< HEAD
     `fork #v05jsnqbib .old`   to make an old namespace
                               accessible again,
                               
@@ -69,6 +70,18 @@ y = 2
   1. #11nprfpqgo : add
   2. #v05jsnqbib : add
   3. #npsgjle324 : builtins.merge
+=======
+    `fork #5vgpg52rfo .old`   to make an old namespace
+                              accessible again,
+                              
+    `reset-root #5vgpg52rfo`  to reset the root namespace and
+                              its history to that of the
+                              specified namespace.
+  
+  1. #83c6vvg501 : add
+  2. #5vgpg52rfo : add
+  3. #3662ae22bk : builtins.merge
+>>>>>>> trunk
   4. #7asfbtqmoj : (initial reflogged namespace)
 
 ```
