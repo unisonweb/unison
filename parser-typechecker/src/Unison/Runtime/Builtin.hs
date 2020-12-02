@@ -869,7 +869,7 @@ outIoFailBool stack1 stack2 stack3 bool fail result =
         $ TCon eitherReference 0 [fail])
   , (1, ([UN],)
         . TAbs stack3
-        . TLetD bool BX (boolift stack3)
+        . TLet (Indirect 1) bool BX (boolift stack3)
         $ TCon eitherReference 1 [bool])
   ]
 
