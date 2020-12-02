@@ -377,6 +377,7 @@ builtinsSrc =
   , B "Text.fromCharList" $ list char --> text
   , B "Text.toUtf8" $ text --> bytes
   , B "Text.fromUtf8.v2" $ bytes --> eithert failure text
+  , Rename "Text.fromUtf8.v2" "Text.fromUtf8"
 
   , B "Char.toNat" $ char --> nat
   , B "Char.fromNat" $ nat --> char

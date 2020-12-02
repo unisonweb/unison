@@ -262,7 +262,7 @@ testSeek _ =
     toException (seekHandle handle3 AbsoluteSeek +1)
     expectU "we should be at position 1" +1 (toException (handlePosition handle3))
     bytes3a = toException (getBytes handle3 1000)
-    text3a = toException (Text.fromUtf8.v2 bytes3a)
+    text3a = toException (Text.fromUtf8 bytes3a)
     expectU "should be able to read our temporary file after seeking" "2345678" text3a
     closeFile handle3
 
@@ -286,7 +286,7 @@ testAppend _ =
 
     handle3 = toException (openFile fooFile FileMode.Read)
     bytes3 = toException (getBytes handle3 1000)
-    text3 = toException (Text.fromUtf8.v2 bytes3)
+    text3 = toException (Text.fromUtf8 bytes3)
     expectU "should be able to read our temporary file" "test1test2" text3
 
     closeFile handle3

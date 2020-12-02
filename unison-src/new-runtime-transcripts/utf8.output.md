@@ -5,7 +5,7 @@ Unison has function for converting between `Text` and a UTF-8 `Bytes` encoding o
 ```ucm
 .> find Utf8
 
-  1. builtin.Text.fromUtf8 : Bytes -> Either Text Text
+  1. builtin.Text.fromUtf8 : Bytes -> Either Failure Text
   2. builtin.Text.toUtf8 : Text -> Bytes
   
 
@@ -72,7 +72,7 @@ We can check that encoding and then decoding should give us back the same `Text`
 checkRoundTrip: Text -> [Result]
 checkRoundTrip t = 
   bytes = toUtf8 t
-  match fromUtf8 bytes with 
+  match Text.fromUtf8 bytes with 
     Left e -> [Result.Fail "could not decode"]
     Right t' -> if t == t' then [Result.Ok "Passed"] else [Result.Fail ("Got: " ++ t' ++ " Expected: " ++ t)]
 
@@ -108,7 +108,8 @@ greek_bytes = Bytes.fromList [206, 145, 206, 146, 206, 147, 206, 148, 206]
 
 
 -- Its an error if we drop the first byte
-> fromUtf8 (drop 1 greek_bytes)
+> match fromUtf8 (drop 1 greek_bytes) with
+  Left (Failure _ t) -> t
 
 ```
 
@@ -125,9 +126,8 @@ greek_bytes = Bytes.fromList [206, 145, 206, 146, 206, 147, 206, 148, 206]
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    5 | > fromUtf8 (drop 1 greek_bytes)
+    5 | > match fromUtf8 (drop 1 greek_bytes) with
           ⧩
-          Left
-            "Cannot decode byte '\\x91': Data.Text.Internal.Encoding.decodeUtf8: Invalid UTF-8 stream"
+          "Cannot decode byte '\\x91': Data.Text.Internal.Encoding.decodeUtf8: Invalid UTF-8 stream"
 
 ```

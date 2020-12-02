@@ -850,6 +850,10 @@ outIoFailBool stack1 stack2 stack3 bool fail result =
 -- result of the foreign call and turns it into a Unison type.
 --
 
+-- a
+direct :: ForeignOp
+direct instr = ([], TFOp instr [])
+
 --  () -> a
 unitDirect :: ForeignOp
 unitDirect instr = ([BX],) . TAbs arg $ TFOp instr [] where arg = fresh1
@@ -916,7 +920,7 @@ boxBoxDirect instr
   where
   (b1,b2) = fresh2
 
--- a -> b -> c -> dd
+-- a -> b -> c -> d
 boxBoxBoxDirect :: ForeignOp
 boxBoxBoxDirect instr
   = ([BX,BX,BX],)
@@ -1243,7 +1247,7 @@ declareForeigns = do
        temp <- getTemporaryDirectory
        createTempDirectory temp prefix
 
-  declareForeign "IO.getCurrentDirectory.v2" unitDirect
+  declareForeign "IO.getCurrentDirectory.v2" direct
     . mkForeignIOF $ \() -> getCurrentDirectory
 
   declareForeign "IO.setCurrentDirectory.v2" boxToEF0
@@ -1385,7 +1389,7 @@ declareForeigns = do
   let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()
       declareHashAlgorithm txt alg = do
         let algoRef = Builtin ("crypto.HashAlgorithm." <> txt)
-        declareForeign ("crypto.HashAlgorithm." <> txt) unitDirect . mkForeign $ \() ->
+        declareForeign ("crypto.HashAlgorithm." <> txt) direct . mkForeign $ \() ->
           pure (HashAlgorithm algoRef alg)
 
   declareHashAlgorithm "Sha3_512" Hash.SHA3_512
