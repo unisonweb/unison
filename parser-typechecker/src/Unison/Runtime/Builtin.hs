@@ -696,29 +696,35 @@ get'buffering = inBx arg1 result
     (arg1, result, m, n, b) = fresh5
 
 
--- Input Shapes
--- These will represent different argument lists a foreign might expect
+-- Input Shape -- these will represent different argument lists a
+-- foreign might expect
 --
--- These functions will usually have a few common parameters:
+-- They will be named according to their shape:
+--   inBx     : one boxed input arg
+--   inNat     : one Nat input arg
+--   inBxBx   : two boxed input args
+--
+-- All of these functions will have take (at least) the same three arguments
+--
+--   instr : the foreign instruction to call
 --   result : a variable containing the result of the foreign call
 --   cont : a term which will be evaluated when a result from the foreign call is on the stack
 --
--- They will be named according to their shape:
--- inBx     : one boxed arg
--- inBxBx   : two boxed args
 
--- Accept one boxed org as input and evaluate `cont` with `result`
--- bound to the result of the foreign `instr`
+
+-- () -> ...
 inUnit :: forall v. Var v => v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inUnit unit result cont instr
   = ([BX], TAbs unit $ TLet result UN (AFOp instr []) cont)
 
+-- a -> ...
 inBx :: forall v. Var v => v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inBx arg result cont instr =
   ([BX],)
   . TAbs arg
   $ TLet result UN (AFOp instr [arg]) cont
 
+-- Nat -> ...
 inNat :: forall v. Var v => v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inNat arg nat result cont instr =
   ([BX],)
@@ -726,16 +732,14 @@ inNat arg nat result cont instr =
   . unbox arg Ty.natRef nat
   $ TLet result UN (AFOp instr [nat]) cont
 
--- Accept two boxed args as input and evaluate `cont` with `result`
--- bound to the result of the foreign `instr`
+-- a -> b -> ...
 inBxBx :: forall v. Var v => v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inBxBx arg1 arg2 result cont instr =
   ([BX, BX],)
   . TAbss [arg1, arg2]
   $ TLet result UN (AFOp instr [arg1, arg2]) cont
 
--- Accept one boxed arg and one nat as input and evaluate `cont` with
--- `result` bound to the result of the foreign `instr`
+-- a -> Nat -> ...
 inBxNat ::  forall v. Var v => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inBxNat arg1 arg2 nat result cont instr =
   ([BX,BX],)
@@ -743,6 +747,7 @@ inBxNat arg1 arg2 nat result cont instr =
   . unbox arg2 Ty.natRef nat
   $ TLet result UN (AFOp instr [arg1, nat]) cont
 
+-- a -> IOMode -> ...
 inBxIomr :: forall v. Var v => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inBxIomr arg1 arg2 fm result cont instr
   = ([BX,BX],)
@@ -750,34 +755,23 @@ inBxIomr arg1 arg2 fm result cont instr
   . unenum 4 arg2 ioModeReference fm
   $ TLet result UN (AFOp instr [arg1, fm]) cont
 
--- Accept three boxed args as input and evaluate `cont` with `result`
--- bound to the result of the foreign `instr`
--- inBxBxBx :: forall v. Var v => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
--- inBxBxBx arg1 arg2 arg3 result cont instr =
---   ([BX, BX, BX],)
---   . TAbss [arg1, arg2, arg3]
---   $ TLet result UN (AFOp instr [arg1, arg2, arg3]) cont
-
--- Handling results of foreign calls
+-- Output Shape -- these will represent different ways of translating
+-- the result of a foreign call to a Unison Term
 --
--- These will represent Terms which are evaluated when the result of a
--- foreign call are is the stack. These functions will turn the result
--- into Unison values
+-- They will be named according to the output type
+--   outInt    : a foreign function returning an Int
+--   outBool   : a foreign function returning a boolean
+--   outIOFail : a function returning (Either Failure a)
 --
--- They will be named according to the Unison Type they return
+-- All of these functions will take a Var named result containing the
+-- result of the foreign call
 --
--- These should be passed as an argument to an input handler (such as
--- inBxBx, InBxUn, etc)
-
--- outInt :: Int -> Int
 outInt :: forall v. Var v => v -> ANormal v
 outInt i = TCon Ty.intRef 0 [i]
 
--- outBool :: Bool -> Bool
 outBool :: forall v. Var v => v -> ANormal v
 outBool result = TTm $ boolift result
 
--- outMaybe :: Either IOException a -> Either Failure a
 outMaybe :: forall v. Var v => v -> v -> ANormal v
 outMaybe maybe result =
   TMatch result . MatchSum $ mapFromList
@@ -785,7 +779,6 @@ outMaybe maybe result =
   , (1, ([BX], TAbs maybe $ TCon Ty.optionalRef 1 [maybe]))
   ]
 
--- outIoFail :: Either IOException a -> Either Failure a
 outIoFail :: forall v. Var v => v -> v -> v -> v -> ANormal v
 outIoFail stack1 stack2 fail result =
   TMatch result . MatchSum $ mapFromList
@@ -821,7 +814,6 @@ outIoFailBox stack1 stack2 fail result =
         $ TCon eitherReference 1 [stack1])
   ]
 
--- outIoFailUnit :: Either IOException a -> Either Failure Unit
 outIoFailUnit :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
 outIoFailUnit stack1 stack2 stack3 unit fail result =
   TMatch result . MatchSum
@@ -836,7 +828,6 @@ outIoFailUnit stack1 stack2 stack3 unit fail result =
         $ TCon eitherReference 1 [unit])
   ]
 
--- outIoFailBool :: Either IOException a -> Either Failure Bool
 outIoFailBool :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
 outIoFailBool stack1 stack2 stack3 bool fail result =
   TMatch result . MatchSum
@@ -859,14 +850,11 @@ outIoFailBool stack1 stack2 stack3 bool fail result =
 -- result of the foreign call and turns it into a Unison type.
 --
 
--- Pure ForeignOp taking no values and returning the result directly
--- pfop0 :: () -> Box
+--  () -> a
 unitDirect :: ForeignOp
 unitDirect instr = ([BX],) . TAbs arg $ TFOp instr [] where arg = fresh1
 
-
--- Pure ForeignOp taking one boxed value and directly returning the result
--- pfob_unit :: Box -> Box
+-- a -> b
 boxDirect :: ForeignOp
 boxDirect instr =
   ([BX],)
@@ -874,52 +862,52 @@ boxDirect instr =
   $ TFOp instr [arg] where
   arg = fresh1
 
+-- () -> Either Failure Nat
 unitToEFNat :: ForeignOp
 unitToEFNat = inUnit unit result
             $ outIoFailNat stack1 stack2 stack3 fail nat result
   where (unit, stack1, stack2, stack3, fail, nat, result) = fresh7
 
+-- () -> Either Failure a
 unitToEFBox :: ForeignOp
 unitToEFBox = inUnit unit result
             $ outIoFailBox stack1 stack2 fail result
   where (unit, stack1, stack2, fail, result) = fresh5
 
--- Pure ForeignOp taking one boxed value and returning an Int
--- pfobb_int :: Box -> Int
+-- a -> Int
 boxToInt :: ForeignOp
 boxToInt = inBx arg result
           $ outInt result
   where
     (arg, result) = fresh2
 
+-- a -> IOMode -> Either Failure b
 boxIomrToEFBox :: ForeignOp
 boxIomrToEFBox = inBxIomr arg1 arg2 enum result
               $ outIoFailBox stack1 stack2 fail result
   where
     (arg1, arg2, enum, stack1, stack2, fail, result) = fresh7
 
--- Pure ForeignOp taking one boxed value and returning unit
--- pfobb_unit :: Box -> Unit
+-- a -> ()
 boxTo0 :: ForeignOp
 boxTo0 = inBx arg result (TCon Ty.unitRef 0 [])
   where
     (arg, result) = fresh2
 
--- Pure ForeignOp taking Nat value and returning unit
--- pfobb_unit :: Box -> Unit
+-- Nat -> ()
 natToUnit :: ForeignOp
 natToUnit = inNat arg nat result (TCon Ty.unitRef 0 [])
   where
     (arg, nat, result) = fresh3
 
+-- a -> Bool
 boxToBool :: ForeignOp
 boxToBool = inBx arg result
           $ outBool result
   where
     (arg, result) = fresh2
 
-
--- Pure ForeignOp taking two boxed values and returning the result directly
+-- a -> b -> c
 boxBoxDirect :: ForeignOp
 boxBoxDirect instr
   = ([BX,BX],)
@@ -928,7 +916,7 @@ boxBoxDirect instr
   where
   (b1,b2) = fresh2
 
--- Pure ForeignOp taking three boxed values and returning the result directly
+-- a -> b -> c -> dd
 boxBoxBoxDirect :: ForeignOp
 boxBoxBoxDirect instr
   = ([BX,BX,BX],)
@@ -937,8 +925,7 @@ boxBoxBoxDirect instr
   where
   (b1,b2,b3) = fresh3
 
--- ForeignOp taking one boxed value and returning (Either Failure a)
--- boxDirect_efb :: Box -> Either Failure Box
+-- a -> Either Failure b
 boxToEFBox :: ForeignOp
 boxToEFBox =
   inBx arg result $
@@ -946,66 +933,62 @@ boxToEFBox =
   where
     (arg, result, stack1, stack2, fail) = fresh5
 
+-- a -> Maybe b
 boxToMaybeBox :: ForeignOp
 boxToMaybeBox =
   inBx arg result $ outMaybe maybe result
   where
     (arg, maybe, result) = fresh3
 
--- ForeignOp taking one boxed value and returning (Either Failure a)
--- boxToEFBoxool :: Box -> Either Failure Box
+-- a -> Either Failure Bool
 boxToEFBool :: ForeignOp
 boxToEFBool = inBx arg result
              $ outIoFailBool stack1 stack2 stack3 bool fail result
   where
     (arg, stack1, stack2, stack3, bool, fail, result) = fresh7
 
--- ForeignOp taking one boxed value and returning (Either Failure a)
--- boxToEFBoxool :: Box -> Either Failure Box
+-- a -> b -> Either Failure Bool
 boxBoxToEFBool :: ForeignOp
 boxBoxToEFBool = inBxBx arg1 arg2 result
              $ outIoFailBool stack1 stack2 stack3 bool fail result
   where
     (arg1, arg2, stack1, stack2, stack3, bool, fail, result) = fresh8
 
--- ForeignOp taking one boxed value and returning (Either Failure ())
--- boxDirect_efu :: Box -> Either Failure Unit
+-- a -> Either Failure ()
 boxToEF0 :: ForeignOp
 boxToEF0 = inBx arg result
           $ outIoFailUnit stack1 stack2 stack3 unit fail result
   where
     (arg, result, stack1, stack2, stack3, unit, fail) = fresh7
 
--- ForeignOp taking one boxed value and returning (Either Failure Nat)
--- boxDirect_nat :: Box -> Either Failure Box
-boxToEFNat :: ForeignOp
-boxToEFNat = inBx arg result
-          $ outIoFailNat stack1 stack2 stack3 nat fail result
-  where
-    (arg, result, stack1, stack2, stack3, nat, fail) = fresh7
-
--- pfobb_efb :: Box -> Box -> Either Failure Box
-boxBoxToEFBox :: ForeignOp
-boxBoxToEFBox = inBxBx arg1 arg2 result
-            $ outIoFail stack1 stack2 fail result
-  where
-    (arg1, arg2, result, stack1, stack2, fail) = fresh6
-
--- pfobb_efu :: Box -> Box -> Either Failure Unit
+-- a -> b -> Either Failure ()
 boxBoxToEF0 :: ForeignOp
 boxBoxToEF0 = inBxBx arg1 arg2 result
             $ outIoFailUnit stack1 stack2 stack3 fail unit result
   where
     (arg1, arg2, result, stack1, stack2, stack3, fail, unit) = fresh8
 
+-- a -> Either Failure Nat
+boxToEFNat :: ForeignOp
+boxToEFNat = inBx arg result
+          $ outIoFailNat stack1 stack2 stack3 nat fail result
+  where
+    (arg, result, stack1, stack2, stack3, nat, fail) = fresh7
 
--- pfobn_efb :: Box -> Nat -> Either Failure Box
+-- a -> b -> Either Failure c
+boxBoxToEFBox :: ForeignOp
+boxBoxToEFBox = inBxBx arg1 arg2 result
+            $ outIoFail stack1 stack2 fail result
+  where
+    (arg1, arg2, result, stack1, stack2, fail) = fresh6
+
+-- a -> Nat -> Either Failure
 boxNatToEFBox :: ForeignOp
 boxNatToEFBox = inBxNat arg1 arg2 nat result
            $ outIoFail stack1 stack2 fail result
   where (arg1, arg2, nat, stack1, stack2, fail, result) = fresh7
 
--- Pure ForeignOp taking 1 boxed value and returning 1 Either, both sides boxed
+-- a -> Either b c
 boxToEBoxBox :: ForeignOp
 boxToEBoxBox instr
   = ([BX],)

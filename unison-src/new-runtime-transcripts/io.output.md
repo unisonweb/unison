@@ -39,10 +39,15 @@ isNone = cases
   Some _ -> false
   None -> true
 
+-- An ability that facilitates creating temoporary directories that can be 
+-- automatically cleaned up
 ability TempDirs where
   newTempDir: Text -> Either Failure Text
   removeDir: Text -> Either Failure ()
 
+-- A handler for TempDirs which cleans up temporary directories
+-- This will be useful for IO tests which need to interact with 
+-- the filesystem
 autoCleaned.handler: '{io2.IO} (Request {TempDirs} r -> r)
 autoCleaned.handler _ =
   remover : [Text] -> {io2.IO} ()
@@ -110,6 +115,8 @@ expectU msg expected actual = expect msg (==) expected actual
 check: Text -> Boolean -> {Stream Result} ()
 check msg test = if test then emit (Ok msg) else emit (Fail msg)
 
+-- Run tests which might fail, might create temporary directores and Stream out
+-- results, returns the Results and the result of the test
 evalTest: '{Stream Result, Exception Failure, io2.IO, TempDirs} a -> ([Result], Either Failure a)
 evalTest a = handle
                (handle
@@ -117,6 +124,8 @@ evalTest a = handle
                with Stream.collect.handler)
              with !autoCleaned.handler
 
+-- Run tests which might fail, might create temporary directores and Stream out
+-- results, but ignore the produced value and only return the test Results
 runTest: '{Stream Result, Exception Failure, io2.IO, TempDirs} a -> [Result]
 runTest t = match evalTest t with
               (results, Right _) -> results
@@ -126,8 +135,8 @@ runTest t = match evalTest t with
 
 ## Who watches the watchers?
 
-First lets test our support code (which in turn will test some of our
-IO functions)
+First lets do some basic testing of our test harness to make sure its
+working.
 
 ```unison
 testAutoClean : '{io2.IO}[Result]
@@ -180,6 +189,14 @@ testAutoClean _ =
 ```
 ## Basic File Functions
 
+### Creating/Deleting/Renaming Directories
+
+Tests: createDirectory, 
+       isDirectory, 
+       fileExists, 
+       renameDirectory,
+       deleteDirectory
+
 ```unison
 testCreateRename : '{io2.IO} [Result]
 testCreateRename _ =
@@ -189,12 +206,64 @@ testCreateRename _ =
     barDir = tempDir ++ "/bar"
     toException let createDirectory fooDir
     check "create a foo directory" (toException (isDirectory fooDir))
+    check "directory should exist" (toException (fileExists fooDir))
     toException let renameDirectory fooDir barDir
     check "foo should no longer exist" (not (toException (fileExists fooDir)))
+    check "directory should no longer exist" (not (toException (fileExists fooDir)))
     check "bar should now exist" (toException (fileExists barDir))
 
-  runTest test
+    bazDir = barDir ++ "/baz"
+    toException let createDirectory bazDir
+    toException let removeDirectory barDir
 
+    check "removeDirectory works recursively" (not (toException (isDirectory barDir)))
+    check "removeDirectory works recursively" (not (toException (isDirectory bazDir)))
+
+  runTest test
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      testCreateRename : '{io2.IO} [Result]
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testCreateRename : '{io2.IO} [Result]
+
+.> io.test testCreateRename
+
+    New test results:
+  
+  ◉ testCreateRename   create a foo directory
+  ◉ testCreateRename   directory should exist
+  ◉ testCreateRename   foo should no longer exist
+  ◉ testCreateRename   directory should no longer exist
+  ◉ testCreateRename   bar should now exist
+  ◉ testCreateRename   removeDirectory works recursively
+  ◉ testCreateRename   removeDirectory works recursively
+  
+  ✅ 7 test(s) passing
+  
+  Tip: Use view testCreateRename to view the source of a test.
+
+```
+### Opening / Closing files
+
+Tests: openFile
+       closeFile
+       isFileOpen
+
+```unison
 testOpenClose : '{io2.IO} [Result]
 testOpenClose _ =
   test = 'let
@@ -206,7 +275,49 @@ testOpenClose _ =
     check "file should be closed" (not (toException (isFileOpen handle1)))
 
   runTest test
+```
 
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      testOpenClose : '{io2.IO} [Result]
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testOpenClose : '{io2.IO} [Result]
+
+.> io.test testOpenClose
+
+    New test results:
+  
+  ◉ testOpenClose   file should be open
+  ◉ testOpenClose   file should be closed
+  
+  ✅ 2 test(s) passing
+  
+  Tip: Use view testOpenClose to view the source of a test.
+
+```
+### Seeking in open files
+
+Tests: openFile
+       putBytes
+       closeFile
+       isSeekable
+       isFileEOF
+       seekHandle
+       getBytes
+
+```unison
 testSeek : '{io2.IO} [Result]
 testSeek _ =
   test = 'let
@@ -254,15 +365,6 @@ testAppend _ =
     closeFile handle3
 
   runTest test
-
-
-testSystemTime : '{io2.IO} [Result]
-testSystemTime _ =
-  test = 'let
-    t = toException !io2.IO.systemTime
-    check "systemTime should be sane" ((t > 1600000000) && (t > 2000000000))
-
-  runTest test
 ```
 
 ```ucm
@@ -273,11 +375,8 @@ testSystemTime _ =
   
     ⍟ These new definitions are ok to `add`:
     
-      testAppend       : '{io2.IO} [Result]
-      testCreateRename : '{io2.IO} [Result]
-      testOpenClose    : '{io2.IO} [Result]
-      testSeek         : '{io2.IO} [Result]
-      testSystemTime   : '{io2.IO} [Result]
+      testAppend : '{io2.IO} [Result]
+      testSeek   : '{io2.IO} [Result]
 
 ```
 ```ucm
@@ -285,34 +384,8 @@ testSystemTime _ =
 
   ⍟ I've added these definitions:
   
-    testAppend       : '{io2.IO} [Result]
-    testCreateRename : '{io2.IO} [Result]
-    testOpenClose    : '{io2.IO} [Result]
-    testSeek         : '{io2.IO} [Result]
-    testSystemTime   : '{io2.IO} [Result]
-
-.> io.test testCreateRename
-
-    New test results:
-  
-  ◉ testCreateRename   create a foo directory
-  ◉ testCreateRename   foo should no longer exist
-  ◉ testCreateRename   bar should now exist
-  
-  ✅ 3 test(s) passing
-  
-  Tip: Use view testCreateRename to view the source of a test.
-
-.> io.test testOpenClose
-
-    New test results:
-  
-  ◉ testOpenClose   file should be open
-  ◉ testOpenClose   file should be closed
-  
-  ✅ 2 test(s) passing
-  
-  Tip: Use view testOpenClose to view the source of a test.
+    testAppend : '{io2.IO} [Result]
+    testSeek   : '{io2.IO} [Result]
 
 .> io.test testSeek
 
@@ -332,7 +405,52 @@ testSystemTime _ =
   😶 No tests available.
 
 ```
+### SystemTime
+```unison
+testSystemTime : '{io2.IO} [Result]
+testSystemTime _ =
+  test = 'let
+    t = toException !io2.IO.systemTime
+    check "systemTime should be sane" ((t > 1600000000) && (t > 2000000000))
+
+  runTest test
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      testSystemTime : '{io2.IO} [Result]
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testSystemTime : '{io2.IO} [Result]
+
+.> io.test testSystemTime
+
+    New test results:
+  
+  ◉ testSystemTime   systemTime should be sane
+  
+  ✅ 1 test(s) passing
+  
+  Tip: Use view testSystemTime to view the source of a test.
+
+```
 ## MVars
+
+MVars are threadsafe mutable locations which at any time may or may not
+contain a signle typed value. They are a building block on which many
+concurrency primitives can be built that allow multiple threads to 
+synchronize and share data.
 
 ```unison
 testMvars: '{io2.IO}[Result]
