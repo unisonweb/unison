@@ -1661,28 +1661,6 @@ loop = do
                    _ -> respond $ NoMainFunction "main" ppe [testType]
                _ -> respond $ NoMainFunction "main" ppe [testType]
 
-
---
---        if Set.null results then
---          respond $ SearchTermsNotFound [main]
---        else if Set.size results > 1 then
---          respond $ TermAmbiguous main results
---        -- ... but use the unsuffixed names for display
---        else do
---
---
--- 
---
---
---          ppe <- prettyPrintEnv parseNames
---          testType <- eval RuntimeTest
---          tm <- eval $ LoadTerm rid
---          case tm of
---          e <- eval $ Evaluate1 ppe (Set.findMin results)
---          case e of
---            Left e -> respond $ EvaluationFailure e
---            Right res -> respond $ TestIncrementalOutputEnd ppe (0,0) "asdf" res
-
       -- UpdateBuiltinsI -> do
       --   stepAt updateBuiltins
       --   checkTodo
