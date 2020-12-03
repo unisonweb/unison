@@ -333,7 +333,7 @@ Since squash merges don't produce any merge nodes, we can `undo` a couple times 
 ```ucm
 .> undo
 
-  Here's the changes I undid
+  Here are the changes I undid
   
   Name changes:
   
@@ -346,7 +346,7 @@ Since squash merges don't produce any merge nodes, we can `undo` a couple times 
 
 .> undo
 
-  Here's the changes I undid
+  Here are the changes I undid
   
   Name changes:
   
