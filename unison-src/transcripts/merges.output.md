@@ -112,21 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-<<<<<<< HEAD
-  ⊙ #rbqhjoa402
-=======
-  ⊙ #8g1nb0so5t
->>>>>>> trunk
+  ⊙ #8u4viitfg1
   
     - Deletes:
     
       feature1.y
   
-<<<<<<< HEAD
-  ⊙ #sjfd4e0nu7
-=======
-  ⊙ #uuevo0a90a
->>>>>>> trunk
+  ⊙ #esplthtd3r
   
     + Adds / updates:
     
@@ -137,42 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-<<<<<<< HEAD
-  ⊙ #ukmoadt2d8
-=======
-  ⊙ #38s398c7su
->>>>>>> trunk
+  ⊙ #fr02t87ka1
   
     + Adds / updates:
     
       feature1.y
   
-<<<<<<< HEAD
-  ⊙ #6lem2rtf9l
-=======
-  ⊙ #03etmnkuq5
->>>>>>> trunk
+  ⊙ #cvhrlb3igt
   
     > Moves:
     
       Original name New name
       x             master.x
   
-<<<<<<< HEAD
-  ⊙ #2p7dk5nk0p
-=======
-  ⊙ #cp7dki0f73
->>>>>>> trunk
+  ⊙ #n7b9e06cpe
   
     + Adds / updates:
     
       x
   
-<<<<<<< HEAD
-  ⊙ #npsgjle324
-=======
-  ⊙ #3662ae22bk
->>>>>>> trunk
+  ⊙ #cnen8j13mo
   
     + Adds / updates:
     

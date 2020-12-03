@@ -13,11 +13,7 @@ Let's look at some examples. We'll start with a namespace with just the builtins
   
   
   
-<<<<<<< HEAD
-  □ #4vgpaoatui (start of history)
-=======
-  □ #rqbrt3f30e (start of history)
->>>>>>> trunk
+  □ #ncrd6iu704 (start of history)
 
 .> fork builtin builtin2
 
@@ -46,33 +42,21 @@ Now suppose we `fork` a copy of builtin, then rename `Nat.+` to `frobnicate`, th
   Note: The most recent namespace hash is immediately below this
         message.
   
-<<<<<<< HEAD
-  ⊙ #j19nli6iof
-=======
-  ⊙ #fgk71134s8
->>>>>>> trunk
+  ⊙ #1po4mi925s
   
     > Moves:
     
       Original name  New name
       Nat.frobnicate Nat.+
   
-<<<<<<< HEAD
-  ⊙ #rrh2aaep1b
-=======
-  ⊙ #q22oqee4lc
->>>>>>> trunk
+  ⊙ #e3quqaq9pu
   
     > Moves:
     
       Original name New name
       Nat.+         Nat.frobnicate
   
-<<<<<<< HEAD
-  □ #4vgpaoatui (start of history)
-=======
-  □ #rqbrt3f30e (start of history)
->>>>>>> trunk
+  □ #ncrd6iu704 (start of history)
 
 ```
 If we merge that back into `builtin`, we get that same chain of history:
@@ -87,33 +71,21 @@ If we merge that back into `builtin`, we get that same chain of history:
   Note: The most recent namespace hash is immediately below this
         message.
   
-<<<<<<< HEAD
-  ⊙ #j19nli6iof
-=======
-  ⊙ #fgk71134s8
->>>>>>> trunk
+  ⊙ #1po4mi925s
   
     > Moves:
     
       Original name  New name
       Nat.frobnicate Nat.+
   
-<<<<<<< HEAD
-  ⊙ #rrh2aaep1b
-=======
-  ⊙ #q22oqee4lc
->>>>>>> trunk
+  ⊙ #e3quqaq9pu
   
     > Moves:
     
       Original name New name
       Nat.+         Nat.frobnicate
   
-<<<<<<< HEAD
-  □ #4vgpaoatui (start of history)
-=======
-  □ #rqbrt3f30e (start of history)
->>>>>>> trunk
+  □ #ncrd6iu704 (start of history)
 
 ```
 Let's try again, but using a `merge.squash` (or just `squash`) instead. The history will be unchanged:
@@ -134,11 +106,7 @@ Let's try again, but using a `merge.squash` (or just `squash`) instead. The hist
   
   
   
-<<<<<<< HEAD
-  □ #4vgpaoatui (start of history)
-=======
-  □ #rqbrt3f30e (start of history)
->>>>>>> trunk
+  □ #ncrd6iu704 (start of history)
 
 ```
 The churn that happened in `mybuiltin` namespace ended up back in the same spot, so the squash merge of that namespace with our original namespace had no effect.
