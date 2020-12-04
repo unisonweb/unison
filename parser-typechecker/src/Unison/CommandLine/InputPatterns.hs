@@ -1326,7 +1326,7 @@ ioTest = InputPattern
   []
   []
   (P.wrapColumn2
-    [ ( "`io.test mystest`"
+    [ ( "`io.test mytest`"
       , "Runs `!mytest`, where `mytest` is searched for in the most recent"
         <> "typechecked file, or in the codebase."
       )

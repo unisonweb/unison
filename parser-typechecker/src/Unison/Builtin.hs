@@ -203,8 +203,14 @@ data BuiltinDSL v
   -- will overwrite newname
   | Alias Text Text
 
+
+instance Show (BuiltinDSL v) where
+  show (B t _) = Text.unpack $ "B" <> t
+  show (Rename from to) = Text.unpack $ "Rename " <> from <> " to " <> to
+  show _ = ""
+
 termNameRefs :: Map Name R.Reference
-termNameRefs = Map.mapKeys Name.unsafeFromText $ foldl' go mempty (builtinsSrc @Symbol) where
+termNameRefs = Map.mapKeys Name.unsafeFromText $ foldl' go mempty (stripVersion $ builtinsSrc @Symbol) where
   go m = \case
     B r _tp -> Map.insert r (R.Builtin r) m
     D r _tp -> Map.insert r (R.Builtin r) m
@@ -379,8 +385,6 @@ builtinsSrc =
   , B "Text.fromCharList" $ list char --> text
   , B "Text.toUtf8" $ text --> bytes
   , B "Text.fromUtf8.v2" $ bytes --> eithert failure text
-  , Rename "Text.fromUtf8.v2" "Text.fromUtf8"
-
   , B "Char.toNat" $ char --> nat
   , B "Char.fromNat" $ nat --> char
 
@@ -440,13 +444,41 @@ builtinsSrc =
 
 
 moveUnder :: Text -> [(Text, Type v)] -> [BuiltinDSL v]
-moveUnder prefix bs = bs >>= \(n,ty) -> [B n ty, Rename n (newName n)]
-  where
-    newName :: Text -> Text
-    newName name = newName' name $ RE.matchOnceText regex name
+moveUnder prefix bs = bs >>= \(n,ty) -> [B n ty, Rename n (prefix <> "." <> n)]
 
-    newName' _ (Just (before, _, _)) = prefix <> "." <> before
-    newName' name Nothing = prefix <> "." <> name
+-- builtins which have a version appended to their name (like the .v2 in IO.putBytes.v2)
+-- Should be renamed to not have the version suffix
+stripVersion :: [BuiltinDSL v] -> [BuiltinDSL v]
+stripVersion bs =
+  bs >>= rename where
+    rename :: BuiltinDSL v -> [BuiltinDSL v]
+    rename o@(B n _) = renameB o $ RE.matchOnceText regex n
+    rename o@(Rename _ _) = [renameRename o]
+    rename o = [o]
+
+    -- When we see a B declaraiton, we add an additional Rename in the
+    -- stream to rename it if it ahs a version string
+    renameB :: BuiltinDSL v -> Maybe (Text, RE.MatchText Text, Text) -> [BuiltinDSL v]
+    renameB o@(B n _) (Just (before, _, _)) = [o, Rename n before]
+    renameB (Rename n _) (Just (before, _, _)) = [Rename n before]
+    renameB x _ = [x]
+
+    -- if there is already a Rename in the stream, then both sides of the
+    -- rename need to have version stripped. This happens in when we move
+    -- builtin IO to the io2 namespace, we might end up with:
+    -- [ B IO.putBytes.v2 _, Rename IO.putBytes.v2 io2.IO.putBytes.v2]
+    -- and would be become:
+    -- [ B IO.putBytes.v2 _, Rename IO.putBytes.v2 IO.putBytes, Rename IO.putBytes io2.IO.putBytes ]
+    renameRename :: BuiltinDSL v -> BuiltinDSL v
+    renameRename (Rename before1 before2) = let after1 = renamed before1 (RE.matchOnceText regex before1)
+                                                after2 = renamed before2 (RE.matchOnceText regex before2) in
+                                                Rename after1 after2
+    renameRename x = x
+
+    renamed :: Text -> Maybe (Text, RE.MatchText Text, Text) -> Text
+    renamed _ (Just (before, _, _)) = before
+    renamed x _ = x
+
     r :: String
     r = "\\.v[0-9]+"
     regex :: RE.Regex

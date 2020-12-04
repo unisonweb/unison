@@ -37,7 +37,7 @@ We can check that encoding and then decoding should give us back the same `Text`
 checkRoundTrip: Text -> [Result]
 checkRoundTrip t = 
   bytes = toUtf8 t
-  match Text.fromUtf8 bytes with 
+  match fromUtf8 bytes with 
     Left e -> [Result.Fail "could not decode"]
     Right t' -> if t == t' then [Result.Ok "Passed"] else [Result.Fail ("Got: " ++ t' ++ " Expected: " ++ t)]
 
