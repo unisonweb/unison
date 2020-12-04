@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #8g1nb0so5t
+  ⊙ #8u4viitfg1
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #uuevo0a90a
+  ⊙ #esplthtd3r
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #38s398c7su
+  ⊙ #fr02t87ka1
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #03etmnkuq5
+  ⊙ #cvhrlb3igt
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #cp7dki0f73
+  ⊙ #n7b9e06cpe
   
     + Adds / updates:
     
       x
   
-  ⊙ #3662ae22bk
+  ⊙ #cnen8j13mo
   
     + Adds / updates:
     
@@ -241,17 +241,19 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.BufferMode.LineBuffering
       builtin.io2.BufferMode.NoBuffering
       builtin.io2.BufferMode.SizedBlockBuffering
+      builtin.io2.Failure builtin.io2.Failure.Failure
       builtin.io2.FileMode builtin.io2.FileMode.Append
       builtin.io2.FileMode.Read builtin.io2.FileMode.ReadWrite
       builtin.io2.FileMode.Write builtin.io2.Handle
       builtin.io2.IO builtin.io2.IO.clientSocket
       builtin.io2.IO.closeFile builtin.io2.IO.closeSocket
-      builtin.io2.IO.createDirectory builtin.io2.IO.delay
+      builtin.io2.IO.createDirectory
+      builtin.io2.IO.createTempDirectory builtin.io2.IO.delay
       builtin.io2.IO.fileExists builtin.io2.IO.forkComp
       builtin.io2.IO.getBuffering builtin.io2.IO.getBytes
       builtin.io2.IO.getCurrentDirectory
       builtin.io2.IO.getFileSize builtin.io2.IO.getFileTimestamp
-      builtin.io2.IO.getLine builtin.io2.IO.getTempDirectory
+      builtin.io2.IO.getTempDirectory
       builtin.io2.IO.handlePosition builtin.io2.IO.isDirectory
       builtin.io2.IO.isFileEOF builtin.io2.IO.isFileOpen
       builtin.io2.IO.isSeekable builtin.io2.IO.kill
@@ -281,7 +283,15 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.SeekMode.SeekFromEnd builtin.io2.Socket
       builtin.io2.StdHandle builtin.io2.StdHandle.StdErr
       builtin.io2.StdHandle.StdIn builtin.io2.StdHandle.StdOut
-      builtin.io2.ThreadId builtin.todo
+      builtin.io2.ThreadId builtin.io2.Tls
+      builtin.io2.Tls.ClientConfig
+      builtin.io2.Tls.Config.defaultClient
+      builtin.io2.Tls.Config.defaultServer
+      builtin.io2.Tls.ServerConfig builtin.io2.Tls.handshake
+      builtin.io2.Tls.newClient builtin.io2.Tls.newServer
+      builtin.io2.Tls.receive builtin.io2.Tls.send
+      builtin.io2.Tls.terminate builtin.io2.TlsFailure
+      builtin.todo
   
   □ #7asfbtqmoj (start of history)
 

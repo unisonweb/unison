@@ -34,7 +34,7 @@ import Unison.Util.EnumContainers as EC
 
 import Unison.Codebase.CodeLookup (CodeLookup(..))
 import Unison.Codebase.Runtime (Runtime(..), Error)
-import Unison.Codebase.MainTerm (builtinMain)
+import Unison.Codebase.MainTerm (builtinMain, builtinTest)
 
 import Unison.Parser (Ann(External))
 import Unison.PrettyPrintEnv
@@ -241,5 +241,6 @@ startRuntime = do
            (ctx, init) <- prepareEvaluation tm ctx
            evalInContext ppe ctx init
        , mainType = builtinMain External
+       , ioTestType = builtinTest External
        , needsContainment = False
        }

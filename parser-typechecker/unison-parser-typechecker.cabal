@@ -186,11 +186,12 @@ library
     bytes,
     bytestring,
     cereal,
-    containers,
+    containers >= 0.6.3,
     comonad,
     concurrent-supply,
     configurator,
     cryptonite,
+    data-default,
     directory,
     either,
     guid,
@@ -233,15 +234,18 @@ library
     stm,
     strings,
     tagged,
+    temporary,
     terminal-size,
     text,
     time,
+    tls,
     transformers,
     unison-core,
     unliftio,
     util,
     vector,
-    unicode-show
+    unicode-show,
+    x509-system
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 

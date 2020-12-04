@@ -35,6 +35,7 @@ data Runtime v = Runtime
       -> Term v
       -> IO (Either Error (Term v))
   , mainType :: Type v Ann
+  , ioTestType :: Type v Ann
   , needsContainment :: Bool
   }
 
@@ -42,6 +43,13 @@ type IsCacheHit = Bool
 
 noCache :: Reference -> IO (Maybe (Term v))
 noCache _ = pure Nothing
+
+type WatchResults v a = (Either Error
+         -- Bindings:
+       ( [(v, Term v)]
+         -- Map watchName (loc, hash, expression, value, isHit)
+       , Map v (a, UF.WatchKind, Reference, Term v, Term v, IsCacheHit)
+       ))
 
 -- Evaluates the watch expressions in the file, returning a `Map` of their
 -- results. This has to be a bit fancy to handle that the definitions in the
@@ -59,12 +67,8 @@ evaluateWatches
   -> (Reference -> IO (Maybe (Term v)))
   -> Runtime v
   -> UnisonFile v a
-  -> IO (Either Error
-       ( [(v, Term v)]
-         -- Map watchName (loc, hash, expression, value, isHit)
-       , Map v (a, UF.WatchKind, Reference, Term v, Term v, IsCacheHit)
-       ))
-  -- IO (bindings :: [v,Term v], map :: ^^^)
+  -> IO (WatchResults v a)
+
 evaluateWatches code ppe evaluationCache rt uf = do
   -- 1. compute hashes for everything in the file
   let m :: Map v (Reference, Term.Term v a)

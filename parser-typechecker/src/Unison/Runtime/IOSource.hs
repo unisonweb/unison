@@ -69,7 +69,7 @@ abilityNamedId s =
 ioHash :: R.Id
 ioHash = abilityNamedId "io.IO"
 
-ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, isPropagatedReference, filePathReference, hostNameReference, serviceNameReference
+ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, isPropagatedReference, filePathReference, hostNameReference, serviceNameReference, failureReference, tlsFailureReference, ioFailureReference
   :: R.Reference
 ioReference = R.DerivedId ioHash
 bufferModeReference = typeNamed "io.BufferMode"
@@ -89,8 +89,15 @@ filePathReference = typeNamed "io.FilePath"
 hostNameReference = typeNamed "io.HostName"
 serviceNameReference = typeNamed "io.ServiceName"
 
+failureReference = typeNamed "io2.Failure"
+tlsFailureReference = typeNamed "io2.TlsFailure"
+ioFailureReference = typeNamed "io2.IOFailure"
+
 isTest :: (R.Reference, R.Reference)
 isTest = (isTestReference, termNamed "metadata.isTest")
+
+isIOTest :: (R.Reference, R.Reference)
+isIOTest = (isTestReference, termNamed "metadata.isIOTest")
 
 isPropagatedValue :: R.Reference
 isPropagatedValue = termNamed "metadata.isPropagated"
@@ -122,6 +129,8 @@ eofId = mkErrorType "io.ErrorType.EOF"
 illegalOperationId = mkErrorType "io.ErrorType.IllegalOperation"
 permissionDeniedId = mkErrorType "io.ErrorType.PermissionDenied"
 userErrorId = mkErrorType "io.ErrorType.UserError"
+
+
 
 constructorNamed :: R.Reference -> Text -> DD.ConstructorId
 constructorNamed ref name =

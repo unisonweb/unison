@@ -106,6 +106,8 @@ data Input
   | HistoryI (Maybe Int) (Maybe Int) BranchId
   -- execute an IO thunk
   | ExecuteI String
+  -- execute an IO [Result]
+  | IOTestI HQ.HashQualified
   | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
   -- `link metadata definitions` (adds metadata to all of `definitions`)
