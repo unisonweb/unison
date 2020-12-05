@@ -31,7 +31,7 @@ newtype BranchObjectId = BranchObjectId { unBranchObjectId :: ObjectId } derivin
 newtype BranchHashId = BranchHashId { unBranchHashId :: HashId } deriving (Eq, Ord, Show)
   deriving (Num, Real, Enum, Integral, Bits, Hashable, FromField, ToField) via HashId
 
-newtype CausalHashId = CausalId { unCausalHashId :: HashId } deriving (Eq, Ord, Show)
+newtype CausalHashId = CausalHashId { unCausalHashId :: HashId } deriving (Eq, Ord, Show)
   deriving (Num, Real, Enum, Integral, Bits, Hashable, FromField, ToField) via HashId
 
 newtype CausalOldHashId = CausalOldHashId HashId deriving Show deriving (Hashable, FromField, ToField) via HashId

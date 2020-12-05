@@ -252,8 +252,12 @@ sqliteCodebase root = do
       rootBranchUpdates :: IO (IO (), IO (Set Branch.Hash))
       rootBranchUpdates = error "todo"
 
+      -- if this blows up on cromulent hashes, then switch from `hashToHashId`
+      -- to one that returns Maybe.
       getBranchForHash :: Branch.Hash -> IO (Maybe (Branch IO))
-      getBranchForHash = error "todo"
+      getBranchForHash _h = error "todo"
+        -- runDB conn $
+        --   Cv.causalbranch2to1 $ Ops.loadBranchByCausalHash (Cv.hash1to2 h)
 
       dependentsImpl :: Reference -> IO (Set Reference.Id)
       dependentsImpl r =
@@ -358,7 +362,9 @@ sqliteCodebase root = do
 
       branchHashesByPrefix :: ShortBranchHash -> IO (Set Branch.Hash)
       branchHashesByPrefix sh = runDB conn do
-        -- bs <- Ops.branchHashesByPrefix sh
+        ---- bs <- Ops.branchHashesByPrefix sh
+        -- given that a Branch is shallow, it's really `CausalHash` that you'd
+        -- refer to to specify a full namespace.
         cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
         pure $ Set.map (Causal.RawHash . Cv.hash2to1 . unCausalHash) cs
 

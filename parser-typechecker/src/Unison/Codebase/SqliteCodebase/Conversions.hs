@@ -1,9 +1,17 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module Unison.Codebase.SqliteCodebase.Conversions where
 
+import Data.Bifunctor (Bifunctor (bimap))
 import qualified Data.ByteString.Short as SBS
 import Data.Either (fromRight)
+import qualified Data.Map as Map
 import Data.Text (Text, pack)
+import qualified U.Codebase.Branch as V2
+import qualified U.Codebase.Branch as V2.Branch
+import qualified U.Codebase.Causal as V2
 import qualified U.Codebase.Decl as V2.Decl
+import qualified U.Codebase.HashTags as V2
 import qualified U.Codebase.Kind as V2.Kind
 import qualified U.Codebase.Reference as V2
 import qualified U.Codebase.Reference as V2.Reference
@@ -19,6 +27,8 @@ import qualified U.Core.ABT as V2.ABT
 import qualified U.Util.Hash as V2
 import qualified U.Util.Hash as V2.Hash
 import qualified Unison.ABT as V1.ABT
+import qualified Unison.Codebase.Branch as V1.Branch
+import qualified Unison.Codebase.Causal as V1.Causal
 import qualified Unison.Codebase.ShortBranchHash as V1
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as V1.Decl
@@ -61,7 +71,6 @@ watchKind2to1 :: V2.WatchKind -> V1.Var.WatchKind
 watchKind2to1 = \case
   V2.WatchKind.RegularWatch -> V1.Var.RegularWatch
   V2.WatchKind.TestWatch -> V1.Var.TestWatch
-
 
 term1to2 :: Hash -> V1.Term.Term V1.Symbol Ann -> V2.Term.Term V2.Symbol
 term1to2 h =
@@ -364,3 +373,30 @@ type1to2' convertRef =
         convertKind = \case
           V1.Kind.Star -> V2.Kind.Star
           V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)
+
+
+-- type Root m = CausalHead m CausalHash BranchHash (Branch m)
+-- newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
+causalbranch2to1 :: forall m. Applicative m => (V2.CausalHash -> m (V2.Branch.Root m)) -> V2.Branch.Root m -> m (V1.Branch.Branch m)
+causalbranch2to1 _loadParent (V2.CausalHead hc _he (Map.toList -> parents) me) = do
+  let currentHash = causalHash2to1 hc
+      causalHash2to1 :: V2.CausalHash -> V1.Causal.RawHash V1.Branch.Raw
+      causalHash2to1 = V1.Causal.RawHash . hash2to1 . V2.unCausalHash
+      loadParent1 ::
+        V2.Causal m V2.CausalHash V2.BranchHash (V2.Branch m) ->
+        V1.Causal.Causal m V1.Branch.Raw (V1.Branch.Branch0 m)
+      loadParent1 = error "todo"
+  V1.Branch.Branch <$> case parents of
+    [] -> V1.Causal.One currentHash <$> fmap branch2to1 me
+    [(hp, mp)] -> do
+      let parentHash = causalHash2to1 hp
+      V1.Causal.Cons currentHash
+        <$> fmap branch2to1 me
+        <*> pure (parentHash, loadParent1 <$> mp)
+    merge -> do
+      let tailsList = map (bimap causalHash2to1 (fmap loadParent1)) merge
+      e <- me
+      pure $ V1.Causal.Merge currentHash (branch2to1 e) (Map.fromList tailsList)
+
+branch2to1 :: V2.Branch m -> V1.Branch.Branch0 m
+branch2to1 = error "todo"

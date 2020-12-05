@@ -110,6 +110,7 @@ import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
 
+-- * Error handling
 type Err m = MonadError Error m
 
 type EDB m = (Err m, DB m)
@@ -158,14 +159,21 @@ lookupTextId t =
 loadTextById :: EDB m => Db.TextId -> m Text
 loadTextById = liftQ . Q.loadTextById
 
+-- | Q: Any Hash that UCM gets ahold of should already exist in the DB?
+-- because it came from a sync or from a save
+hashToHashId :: EDB m => H.Hash -> m Db.HashId
+hashToHashId = liftQ . Q.expectHashIdByHash
+
 hashToObjectId :: EDB m => H.Hash -> m Db.ObjectId
 hashToObjectId h = do
   (Q.loadHashId . H.toBase32Hex) h >>= \case
     Just hashId -> liftQ $ Q.expectObjectIdForPrimaryHashId hashId
     Nothing -> throwError $ UnknownDependency h
 
-objectExistsForHash :: EDB m => H.Hash -> m Bool
-objectExistsForHash h = isJust <$> runMaybeT ((Q.loadHashId . H.toBase32Hex) h)
+objectExistsForHash :: DB m => H.Hash -> m Bool
+objectExistsForHash h = isJust <$> runMaybeT do
+  id <- MaybeT . Q.loadHashId . H.toBase32Hex $ h
+  Q.maybeObjectIdForAnyHashId id
 
 loadHashByObjectId :: EDB m => Db.ObjectId -> m H.Hash
 loadHashByObjectId = fmap H.fromBase32Hex . liftQ . Q.loadPrimaryHashByObjectId
@@ -213,7 +221,7 @@ s2cReferentId = bitraverse loadHashByObjectId loadHashByObjectId
 h2cReferent :: EDB m => S.ReferentH -> m C.Referent
 h2cReferent = bitraverse h2cReference h2cReference
 
--- * Edits transformations
+-- ** Edits transformations
 
 s2cTermEdit :: EDB m => S.TermEdit -> m C.TermEdit
 s2cTermEdit = \case
@@ -236,108 +244,6 @@ s2cTypeEdit :: EDB m => S.TypeEdit -> m C.TypeEdit
 s2cTypeEdit = \case
   S.TypeEdit.Replace r -> C.TypeEdit.Replace <$> s2cReference r
   S.TypeEdit.Deprecate -> pure C.TypeEdit.Deprecate
-
--- * Branch transformation
-
-s2cBranch :: EDB m => S.DbBranch -> m (C.Branch m)
-s2cBranch (S.Branch.Full.Branch tms tps patches children) =
-  C.Branch
-    <$> doTerms tms
-    <*> doTypes tps
-    <*> doPatches patches
-    <*> doChildren children
-  where
-    doTerms :: EDB m => Map Db.TextId (Map S.Referent S.DbMetadataSet) -> m (Map C.NameSegment (Map C.Referent (m C.MdValues)))
-    doTerms =
-      Map.bitraverse
-        (fmap C.NameSegment . loadTextById)
-        ( Map.bitraverse s2cReferent \case
-            S.MetadataSet.Inline rs ->
-              pure $ C.Branch.MdValues <$> Set.traverse s2cReference rs
-        )
-    doTypes :: EDB m => Map Db.TextId (Map S.Reference S.DbMetadataSet) -> m (Map C.NameSegment (Map C.Reference (m C.MdValues)))
-    doTypes =
-      Map.bitraverse
-        (fmap C.NameSegment . loadTextById)
-        ( Map.bitraverse s2cReference \case
-            S.MetadataSet.Inline rs ->
-              pure $ C.Branch.MdValues <$> Set.traverse s2cReference rs
-        )
-    doPatches :: EDB m => Map Db.TextId Db.PatchObjectId -> m (Map C.NameSegment (PatchHash, m C.Patch))
-    doPatches = Map.bitraverse (fmap C.NameSegment . loadTextById) \patchId -> do
-      h <- PatchHash <$> (loadHashByObjectId . Db.unPatchObjectId) patchId
-      pure (h, loadPatchById patchId)
-
-    doChildren :: EDB m => Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) -> m (Map C.Branch.NameSegment (C.CausalHead m CausalHash BranchHash (C.Branch m)))
-    doChildren = Map.bitraverse (fmap C.NameSegment . loadTextById) \(boId, chId) ->
-      C.CausalHead <$> loadCausalHashById chId
-        <*> loadValueHashByCausalHashId chId
-        <*> headParents chId
-        <*> pure (loadBranchByObjectId boId)
-      where
-        headParents :: EDB m => Db.CausalHashId -> m (Map CausalHash (m (C.Causal m CausalHash BranchHash (C.Branch m))))
-        headParents chId = do
-          parentsChIds <- Q.loadCausalParents chId
-          fmap Map.fromList $ traverse pairParent parentsChIds
-        pairParent :: EDB m => Db.CausalHashId -> m (CausalHash, m (C.Causal m CausalHash BranchHash (C.Branch m)))
-        pairParent chId = do
-          h <- loadCausalHashById chId
-          pure (h, loadCausal chId)
-        loadCausal :: EDB m => Db.CausalHashId -> m (C.Causal m CausalHash BranchHash (C.Branch m))
-        loadCausal chId = do
-          C.Causal <$> loadCausalHashById chId
-            <*> loadValueHashByCausalHashId chId
-            <*> headParents chId
-            <*> pure (loadValue chId)
-        loadValue :: EDB m => Db.CausalHashId -> m (Maybe (C.Branch m))
-        loadValue chId = do
-          boId <- liftQ $ Q.loadBranchObjectIdByCausalHashId chId
-          traverse loadBranchByObjectId boId
-
-saveRootBranch :: EDB m => C.Branch.Root m -> m (Db.BranchObjectId, Db.CausalHashId)
-saveRootBranch (C.CausalHead _hc _he _parents _me) = error "todo"
-  where
-    _c2sBranch :: EDB m => C.Branch m -> m S.DbBranch
-    _c2sBranch = error "todo"
-
--- * Patch transformation
-
-loadPatchById :: EDB m => Db.PatchObjectId -> m C.Patch
-loadPatchById patchId =
-  deserializePatchObject patchId >>= \case
-    S.PatchFormat.Full li p -> s2cPatch (l2sPatchFull li p)
-    S.PatchFormat.Diff ref li d -> doDiff ref [l2sPatchDiff li d]
-  where
-    doDiff :: EDB m => Db.PatchObjectId -> [S.PatchDiff] -> m C.Patch
-    doDiff ref ds =
-      deserializePatchObject ref >>= \case
-        S.PatchFormat.Full li f -> joinFull (l2sPatchFull li f) ds
-        S.PatchFormat.Diff ref' li' d' -> doDiff ref' (l2sPatchDiff li' d' : ds)
-    joinFull :: EDB m => S.Patch -> [S.PatchDiff] -> m C.Patch
-    joinFull f [] = s2cPatch f
-    joinFull (S.Patch termEdits typeEdits) (S.PatchDiff addedTermEdits addedTypeEdits removedTermEdits removedTypeEdits : ds) = joinFull f' ds
-      where
-        f' = S.Patch (addRemove addedTermEdits removedTermEdits termEdits) (addRemove addedTypeEdits removedTypeEdits typeEdits)
-        addRemove :: (Ord a, Ord b) => Map a (Set b) -> Map a (Set b) -> Map a (Set b) -> Map a (Set b)
-        addRemove add del src =
-          (Map.unionWith (<>) add (Map.differenceWith remove src del))
-        remove :: Ord b => Set b -> Set b -> Maybe (Set b)
-        remove src del =
-          let diff = Set.difference src del
-           in if diff == mempty then Nothing else Just diff
-
-savePatch :: EDB m => PatchHash -> C.Patch -> m Db.PatchObjectId
-savePatch h c = do
-  (li, lPatch) <- c2lPatch c
-  hashId <- Q.saveHashHash (unPatchHash h)
-  let bytes = S.putBytes S.putPatchFormat $ S.PatchFormat.Full li lPatch
-  Db.PatchObjectId <$> Q.saveObject hashId OT.Patch bytes
-
-s2cPatch :: EDB m => S.Patch -> m C.Patch
-s2cPatch (S.Patch termEdits typeEdits) =
-  C.Patch
-    <$> Map.bitraverse h2cReferent (Set.traverse s2cTermEdit) termEdits
-    <*> Map.bitraverse h2cReference (Set.traverse s2cTypeEdit) typeEdits
 
 -- | assumes that all relevant values are already in the DB
 c2lPatch :: EDB m => C.Patch -> m (S.PatchLocalIds, S.LocalPatch)
@@ -427,30 +333,6 @@ diffPatch (S.Patch fullTerms fullTypes) (S.Patch refTerms refTypes) =
     addDiffSet = Map.zipWithMatched (const Set.difference)
     removeDiffSet = Map.zipWithMatched (const (flip Set.difference))
 
--- implementation detail of loadPatchById?
-lookupPatchLocalText :: S.PatchLocalIds -> LocalTextId -> Db.TextId
-lookupPatchLocalText li (LocalTextId w) = S.PatchFormat.patchTextLookup li Vector.! fromIntegral w
-
-lookupPatchLocalHash :: S.PatchLocalIds -> LocalHashId -> Db.HashId
-lookupPatchLocalHash li (LocalHashId w) = S.PatchFormat.patchHashLookup li Vector.! fromIntegral w
-
-lookupPatchLocalDefn :: S.PatchLocalIds -> LocalDefnId -> Db.ObjectId
-lookupPatchLocalDefn li (LocalDefnId w) = S.PatchFormat.patchDefnLookup li Vector.! fromIntegral w
-
-l2sPatchFull :: S.PatchFormat.PatchLocalIds -> S.LocalPatch -> S.Patch
-l2sPatchFull li =
-  S.Patch.Full.trimap
-    (lookupPatchLocalText li)
-    (lookupPatchLocalHash li)
-    (lookupPatchLocalDefn li)
-
-l2sPatchDiff :: S.PatchFormat.PatchLocalIds -> S.LocalPatchDiff -> S.PatchDiff
-l2sPatchDiff li =
-  S.PatchDiff.trimap
-    (lookupPatchLocalText li)
-    (lookupPatchLocalHash li)
-    (lookupPatchLocalDefn li)
-
 -- * Deserialization helpers
 
 decodeComponentLengthOnly :: Err m => ByteString -> m Word64
@@ -484,66 +366,22 @@ getDeclTypeByReference r@(C.Reference.Id h pos) =
     >>= maybe (throwError $ LegacyUnknownConstructorType h pos) pure
     >>= pure . C.Decl.declType
 
+componentByObjectId :: EDB m => Db.ObjectId -> m [S.Reference.Id]
+componentByObjectId id = do
+  len <- (liftQ . Q.loadObjectById) id >>= decodeComponentLengthOnly
+  pure [C.Reference.Id id i | i <- [0 .. len - 1]]
+
 -- * Codebase operations
 
-loadTermWithTypeByReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term Symbol, C.Term.Type Symbol)
-loadTermWithTypeByReference (C.Reference.Id h i) =
-  hashToObjectId h
-    >>= liftQ . Q.loadObjectById
-    -- retrieve and deserialize the blob
-    >>= decodeTermElementWithType i
-    >>= uncurry3 s2cTermWithType
+-- ** Saving & loading terms
+saveTermComponent :: EDB m => H.Hash -> [(C.Term Symbol, C.Term.Type Symbol)] -> m Db.ObjectId
+saveTermComponent h terms = do
+  sTermElements <- traverse (uncurry c2sTerm) terms
+  hashId <- Q.saveHashHash h
+  let bytes = S.putBytes S.putTermComponent (S.Term.LocallyIndexedComponent $ Vector.fromList sTermElements)
+  Q.saveObject hashId OT.TermComponent bytes
 
-loadTermByReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term Symbol)
-loadTermByReference (C.Reference.Id h i) =
-  hashToObjectId h
-    >>= liftQ . Q.loadObjectById
-    -- retrieve and deserialize the blob
-    >>= decodeTermElementDiscardingType i
-    >>= uncurry s2cTerm
-
-s2cTermWithType :: EDB m => LocalIds -> S.Term.Term -> S.Term.Type -> MaybeT m (C.Term Symbol, C.Term.Type Symbol)
-s2cTermWithType ids tm tp = do
-  (substText, substHash) <- localIdsToLookups loadTextById loadHashByObjectId ids
-  pure (x2cTerm substText substHash tm, x2cTType substText substHash tp)
-
-s2cTerm :: EDB m => LocalIds -> S.Term.Term -> MaybeT m (C.Term Symbol)
-s2cTerm ids tm = do
-  (substText, substHash) <- localIdsToLookups loadTextById loadHashByObjectId ids
-  pure $ x2cTerm substText substHash tm
-
-s2cTypeOfTerm :: EDB m => LocalIds -> S.Term.Type -> MaybeT m (C.Term.Type Symbol)
-s2cTypeOfTerm ids tp = do
-  (substText, substHash) <- localIdsToLookups loadTextById loadHashByObjectId ids
-  pure $ x2cTType substText substHash tp
-
-w2cTerm :: EDB m => WatchLocalIds -> S.Term.Term -> MaybeT m (C.Term Symbol)
-w2cTerm ids tm = do
-  (substText, substHash) <- localIdsToLookups loadTextById loadHashByHashId ids
-  pure $ x2cTerm substText substHash tm
-
-localIdsToLookups :: Monad m => (t -> m Text) -> (d -> m H.Hash) -> LocalIds' t d -> m (LocalTextId -> Text, LocalDefnId -> H.Hash)
-localIdsToLookups loadText loadHash localIds = do
-  texts <- traverse loadText $ LocalIds.textLookup localIds
-  hashes <- traverse loadHash $ LocalIds.defnLookup localIds
-  let substText (LocalTextId w) = texts Vector.! fromIntegral w
-      substHash (LocalDefnId w) = hashes Vector.! fromIntegral w
-  pure (substText, substHash)
-
-x2cTerm :: (LocalTextId -> Text) -> (LocalDefnId -> H.Hash) -> S.Term.Term -> C.Term Symbol
-x2cTerm substText substHash =
-  -- substitute the text and hashes back into the term
-  C.Term.extraMap substText substTermRef substTypeRef substTermLink substTypeLink id
-  where
-    substTermRef = bimap substText (fmap substHash)
-    substTypeRef = bimap substText substHash
-    substTermLink = bimap substTermRef substTypeRef
-    substTypeLink = substTypeRef
-
-x2cTType :: (LocalTextId -> Text) -> (LocalDefnId -> H.Hash) -> S.Term.Type -> C.Term.Type Symbol
-x2cTType substText substHash = C.Type.rmap (bimap substText substHash)
-
--- | Shared implementation for preparing term definition+type or watch expression result for database.
+-- | implementation detail of c2{s,w}Term
 --  The Type is optional, because we don't store them for watch expression results.
 c2xTerm :: forall m t d. Monad m => (Text -> m t) -> (H.Hash -> m d) -> C.Term Symbol -> Maybe (C.Term.Type Symbol) -> m (LocalIds' t d, S.Term.Term, Maybe (S.Term.Type))
 c2xTerm saveText saveDefn tm tp =
@@ -652,6 +490,69 @@ c2xTerm saveText saveDefn tm tp =
               (Vector.fromList (Foldable.toList defnIds))
       pure (ids, void tm, void <$> tp)
 
+loadTermWithTypeByReference :: EDB m => C.Reference.Id -> m (C.Term Symbol, C.Term.Type Symbol)
+loadTermWithTypeByReference (C.Reference.Id h i) =
+  hashToObjectId h
+    >>= liftQ . Q.loadObjectById
+    -- retrieve and deserialize the blob
+    >>= decodeTermElementWithType i
+    >>= uncurry3 s2cTermWithType
+
+loadTermByReference :: EDB m => C.Reference.Id -> m (C.Term Symbol)
+loadTermByReference (C.Reference.Id h i) =
+  hashToObjectId h
+    >>= liftQ . Q.loadObjectById
+    -- retrieve and deserialize the blob
+    >>= decodeTermElementDiscardingType i
+    >>= uncurry s2cTerm
+
+loadTypeOfTermByTermReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term.Type Symbol)
+loadTypeOfTermByTermReference (C.Reference.Id h i) =
+  hashToObjectId h
+    >>= liftQ . Q.loadObjectById
+    -- retrieve and deserialize the blob
+    >>= decodeTermElementDiscardingTerm i
+    >>= uncurry s2cTypeOfTerm
+
+s2cTermWithType :: EDB m => LocalIds -> S.Term.Term -> S.Term.Type -> m (C.Term Symbol, C.Term.Type Symbol)
+s2cTermWithType ids tm tp = do
+  (substText, substHash) <- localIdsToLookups loadTextById loadHashByObjectId ids
+  pure (x2cTerm substText substHash tm, x2cTType substText substHash tp)
+
+s2cTerm :: EDB m => LocalIds -> S.Term.Term -> m (C.Term Symbol)
+s2cTerm ids tm = do
+  (substText, substHash) <- localIdsToLookups loadTextById loadHashByObjectId ids
+  pure $ x2cTerm substText substHash tm
+
+s2cTypeOfTerm :: EDB m => LocalIds -> S.Term.Type -> m (C.Term.Type Symbol)
+s2cTypeOfTerm ids tp = do
+  (substText, substHash) <- localIdsToLookups loadTextById loadHashByObjectId ids
+  pure $ x2cTType substText substHash tp
+
+-- |implementation detail of {s,w}2c*Term*
+localIdsToLookups :: Monad m => (t -> m Text) -> (d -> m H.Hash) -> LocalIds' t d -> m (LocalTextId -> Text, LocalDefnId -> H.Hash)
+localIdsToLookups loadText loadHash localIds = do
+  texts <- traverse loadText $ LocalIds.textLookup localIds
+  hashes <- traverse loadHash $ LocalIds.defnLookup localIds
+  let substText (LocalTextId w) = texts Vector.! fromIntegral w
+      substHash (LocalDefnId w) = hashes Vector.! fromIntegral w
+  pure (substText, substHash)
+
+-- |implementation detail of {s,w}2c*Term*
+x2cTerm :: (LocalTextId -> Text) -> (LocalDefnId -> H.Hash) -> S.Term.Term -> C.Term Symbol
+x2cTerm substText substHash =
+  -- substitute the text and hashes back into the term
+  C.Term.extraMap substText substTermRef substTypeRef substTermLink substTypeLink id
+  where
+    substTermRef = bimap substText (fmap substHash)
+    substTypeRef = bimap substText substHash
+    substTermLink = bimap substTermRef substTypeRef
+    substTypeLink = substTypeRef
+
+-- |implementation detail of {s,w}2c*Term*
+x2cTType :: (LocalTextId -> Text) -> (LocalDefnId -> H.Hash) -> S.Term.Type -> C.Term.Type Symbol
+x2cTType substText substHash = C.Type.rmap (bimap substText substHash)
+
 lookupText ::
   forall m s w t.
   ( MonadState s m,
@@ -695,11 +596,49 @@ lookup_ stateLens writerLens mk t = do
       pure id
     Just t' -> pure t'
 
+c2sTerm :: EDB m => C.Term Symbol -> C.Term.Type Symbol -> m (LocalIds, S.Term.Term, S.Term.Type)
+c2sTerm tm tp = c2xTerm Q.saveText hashToObjectId tm (Just tp) <&> \(w, tm, Just tp) -> (w, tm, tp)
+
+-- *** Watch expressions
+listWatches :: EDB m => WatchKind -> m [C.Reference.Id]
+listWatches k = Q.loadWatchesByWatchKind k >>= traverse s2cReferenceId
+
+-- | returns Nothing is the expression isn't cached.
+loadWatch :: EDB m => WatchKind -> C.Reference.Id -> MaybeT m (C.Term Symbol)
+loadWatch k r =
+  C.Reference.idH Q.saveHashHash r
+    >>= MaybeT . Q.loadWatch k
+    >>= getFromBytesOr (ErrWatch k r) (S.getPair S.getLocalIds S.getTerm)
+    >>= uncurry s2cTerm
+
+saveWatch :: EDB m => WatchKind -> C.Reference.Id -> C.Term Symbol -> m ()
+saveWatch w r t = do
+  rs <- C.Reference.idH Q.saveHashHash r
+  wterm <- c2wTerm t
+  let bytes = S.putBytes (S.putPair S.putLocalIds S.putTerm) wterm
+  Q.saveWatch w rs bytes
+
 c2wTerm :: DB m => C.Term Symbol -> m (WatchLocalIds, S.Term.Term)
 c2wTerm tm = c2xTerm Q.saveText Q.saveHashHash tm Nothing <&> \(w, tm, _) -> (w, tm)
 
-c2sTerm :: EDB m => C.Term Symbol -> C.Term.Type Symbol -> m (LocalIds, S.Term.Term, S.Term.Type)
-c2sTerm tm tp = c2xTerm Q.saveText hashToObjectId tm (Just tp) <&> \(w, tm, Just tp) -> (w, tm, tp)
+w2cTerm :: EDB m => WatchLocalIds -> S.Term.Term -> m (C.Term Symbol)
+w2cTerm ids tm = do
+  (substText, substHash) <- localIdsToLookups loadTextById loadHashByHashId ids
+  pure $ x2cTerm substText substHash tm
+
+-- ** Saving & loading type decls
+
+saveDeclComponent :: EDB m => H.Hash -> [C.Decl Symbol] -> m Db.ObjectId
+saveDeclComponent h decls = do
+  sDeclElements <- traverse (c2sDecl Q.saveText hashToObjectId) decls
+  hashId <- Q.saveHashHash h
+  let bytes =
+        S.putBytes
+          S.putDeclFormat
+          ( S.Decl.Decl . S.Decl.LocallyIndexedComponent $
+              Vector.fromList sDeclElements
+          )
+  Q.saveObject hashId OT.DeclComponent bytes
 
 c2sDecl :: forall m t d. EDB m => (Text -> m t) -> (H.Hash -> m d) -> C.Decl Symbol -> m (LocalIds' t d, S.Decl.Decl Symbol)
 c2sDecl saveText saveDefn (C.Decl.DataDeclaration dt m b cts) = do
@@ -731,14 +670,6 @@ c2sDecl saveText saveDefn (C.Decl.DataDeclaration dt m b cts) = do
               (Vector.fromList (Foldable.toList defnIds))
       pure (ids, decl)
 
-loadTypeOfTermByTermReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term.Type Symbol)
-loadTypeOfTermByTermReference (C.Reference.Id h i) =
-  hashToObjectId h
-    >>= liftQ . Q.loadObjectById
-    -- retrieve and deserialize the blob
-    >>= decodeTermElementDiscardingTerm i
-    >>= uncurry s2cTypeOfTerm
-
 loadDeclByReference :: EDB m => C.Reference.Id -> MaybeT m (C.Decl Symbol)
 loadDeclByReference (C.Reference.Id h i) = do
   -- retrieve the blob
@@ -756,121 +687,68 @@ loadDeclByReference (C.Reference.Id h i) = do
       substTypeRef = bimap substText (fmap substHash)
   pure (C.Decl.DataDeclaration dt m b (C.Type.rmap substTypeRef <$> ct)) -- lens might be nice here
 
-saveTermComponent :: EDB m => H.Hash -> [(C.Term Symbol, C.Term.Type Symbol)] -> m Db.ObjectId
-saveTermComponent h terms = do
-  sTermElements <- traverse (uncurry c2sTerm) terms
-  hashId <- Q.saveHashHash h
-  let bytes = S.putBytes S.putTermComponent (S.Term.LocallyIndexedComponent $ Vector.fromList sTermElements)
-  Q.saveObject hashId OT.TermComponent bytes
+-- * Branch transformation
 
-saveDeclComponent :: EDB m => H.Hash -> [C.Decl Symbol] -> m Db.ObjectId
-saveDeclComponent h decls = do
-  sDeclElements <- traverse (c2sDecl Q.saveText hashToObjectId) decls
-  hashId <- Q.saveHashHash h
-  let bytes =
-        S.putBytes
-          S.putDeclFormat
-          ( S.Decl.Decl . S.Decl.LocallyIndexedComponent $
-              Vector.fromList sDeclElements
-          )
-  Q.saveObject hashId OT.DeclComponent bytes
-
-listWatches :: EDB m => WatchKind -> m [C.Reference.Id]
-listWatches k = Q.loadWatchesByWatchKind k >>= traverse s2cReferenceId
-
-loadWatch :: EDB m => WatchKind -> C.Reference.Id -> MaybeT m (C.Term Symbol)
-loadWatch k r =
-  C.Reference.idH Q.saveHashHash r
-    >>= MaybeT . Q.loadWatch k
-    >>= getFromBytesOr (ErrWatch k r) (S.getPair S.getLocalIds S.getTerm)
-    >>= uncurry s2cTerm
-
-saveWatch :: EDB m => WatchKind -> C.Reference.Id -> C.Term Symbol -> m ()
-saveWatch w r t = do
-  rs <- C.Reference.idH Q.saveHashHash r
-  wterm <- c2wTerm t
-  let bytes = S.putBytes (S.putPair S.putLocalIds S.putTerm) wterm
-  Q.saveWatch w rs bytes
-
-termsHavingType :: EDB m => C.Reference -> m (Set C.Referent.Id)
-termsHavingType cTypeRef = do
-  maySet <- runMaybeT $ do
-    sTypeRef <- c2hReference cTypeRef
-    sIds <- Q.getReferentsByType sTypeRef
-    traverse s2cReferentId sIds
-  pure case maySet of
-    Nothing -> mempty
-    Just set -> Set.fromList set
-
-termsMentioningType :: EDB m => C.Reference -> m (Set C.Referent.Id)
-termsMentioningType cTypeRef = do
-  maySet <- runMaybeT $ do
-    sTypeRef <- c2hReference cTypeRef
-    sIds <- Q.getReferentsByTypeMention sTypeRef
-    traverse s2cReferentId sIds
-  pure case maySet of
-    Nothing -> mempty
-    Just set -> Set.fromList set
-
--- something kind of funny here.  first, we don't need to enumerate all the reference pos if we're just picking one
--- second, it would be nice if we could leave these as S.References a little longer
--- so that we remember how to blow up if they're missing
-componentReferencesByPrefix :: EDB m => OT.ObjectType -> Text -> Maybe C.Reference.Pos -> m [S.Reference.Id]
-componentReferencesByPrefix ot b32prefix pos = do
-  oIds :: [Db.ObjectId] <- Q.objectIdByBase32Prefix ot b32prefix
-  let test = maybe (const True) (==) pos
-  let filterComponent l = [x | x@(C.Reference.Id _ pos) <- l, test pos]
-  fmap Monoid.fromMaybe . runMaybeT $
-    join <$> traverse (fmap filterComponent . componentByObjectId) oIds
-
-termReferencesByPrefix :: EDB m => Text -> Maybe Word64 -> m [C.Reference.Id]
-termReferencesByPrefix t w =
-  componentReferencesByPrefix OT.TermComponent t w
-    >>= traverse (C.Reference.idH loadHashByObjectId)
-
-declReferencesByPrefix :: EDB m => Text -> Maybe Word64 -> m [C.Reference.Id]
-declReferencesByPrefix t w =
-  componentReferencesByPrefix OT.DeclComponent t w
-    >>= traverse (C.Reference.idH loadHashByObjectId)
-
-termReferentsByPrefix :: EDB m => Text -> Maybe Word64 -> m [C.Referent.Id]
-termReferentsByPrefix b32prefix pos =
-  fmap C.Referent.RefId <$> termReferencesByPrefix b32prefix pos
-
--- todo: simplify this if we stop caring about constructor type
--- todo: remove the cycle length once we drop it from Unison.Reference
-declReferentsByPrefix ::
-  EDB m =>
-  Text ->
-  Maybe C.Reference.Pos ->
-  Maybe ConstructorId ->
-  m [(H.Hash, C.Reference.Pos, Word64, C.DeclType, [C.Decl.ConstructorId])]
-declReferentsByPrefix b32prefix pos cid = do
-  componentReferencesByPrefix OT.DeclComponent b32prefix pos
-    >>= traverse (loadConstructors cid)
+s2cBranch :: EDB m => S.DbBranch -> m (C.Branch m)
+s2cBranch (S.Branch.Full.Branch tms tps patches children) =
+  C.Branch
+    <$> doTerms tms
+    <*> doTypes tps
+    <*> doPatches patches
+    <*> doChildren children
   where
-    loadConstructors :: EDB m => Maybe Word64 -> S.Reference.Id -> m (H.Hash, C.Reference.Pos, Word64, C.DeclType, [ConstructorId])
-    loadConstructors cid rid@(C.Reference.Id oId pos) = do
-      (dt, len, ctorCount) <- getDeclCtorCount rid
-      h <- loadHashByObjectId oId
-      let test :: ConstructorId -> Bool
-          test = maybe (const True) (==) cid
-          cids = [cid | cid <- [0 :: ConstructorId .. ctorCount - 1], test cid]
-      pure (h, pos, len, dt, cids)
-    getDeclCtorCount :: EDB m => S.Reference.Id -> m (C.Decl.DeclType, Word64, ConstructorId)
-    getDeclCtorCount (C.Reference.Id r i) = do
-      bs <- liftQ (Q.loadObjectById r)
-      len <- decodeComponentLengthOnly bs
-      (_localIds, decl) <- decodeDeclElement i bs
-      pure (C.Decl.declType decl, len, fromIntegral $ length (C.Decl.constructorTypes decl))
+    doTerms :: EDB m => Map Db.TextId (Map S.Referent S.DbMetadataSet) -> m (Map C.NameSegment (Map C.Referent (m C.MdValues)))
+    doTerms =
+      Map.bitraverse
+        (fmap C.NameSegment . loadTextById)
+        ( Map.bitraverse s2cReferent \case
+            S.MetadataSet.Inline rs ->
+              pure $ C.Branch.MdValues <$> Set.traverse s2cReference rs
+        )
+    doTypes :: EDB m => Map Db.TextId (Map S.Reference S.DbMetadataSet) -> m (Map C.NameSegment (Map C.Reference (m C.MdValues)))
+    doTypes =
+      Map.bitraverse
+        (fmap C.NameSegment . loadTextById)
+        ( Map.bitraverse s2cReference \case
+            S.MetadataSet.Inline rs ->
+              pure $ C.Branch.MdValues <$> Set.traverse s2cReference rs
+        )
+    doPatches :: EDB m => Map Db.TextId Db.PatchObjectId -> m (Map C.NameSegment (PatchHash, m C.Patch))
+    doPatches = Map.bitraverse (fmap C.NameSegment . loadTextById) \patchId -> do
+      h <- PatchHash <$> (loadHashByObjectId . Db.unPatchObjectId) patchId
+      pure (h, loadPatchById patchId)
 
--- (localIds, C.Decl.DataDeclaration dt m b ct) <-
---   hashToObjectId h >>= liftQ . Q.loadObjectById >>= decodeDeclElement i
+    doChildren :: EDB m => Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) -> m (Map C.Branch.NameSegment (C.CausalHead m CausalHash BranchHash (C.Branch m)))
+    doChildren = Map.bitraverse (fmap C.NameSegment . loadTextById) \(boId, chId) ->
+      C.CausalHead <$> loadCausalHashById chId
+        <*> loadValueHashByCausalHashId chId
+        <*> headParents chId
+        <*> pure (loadBranchByObjectId boId)
+      where
+        headParents :: EDB m => Db.CausalHashId -> m (Map CausalHash (m (C.Causal m CausalHash BranchHash (C.Branch m))))
+        headParents chId = do
+          parentsChIds <- Q.loadCausalParents chId
+          fmap Map.fromList $ traverse pairParent parentsChIds
+        pairParent :: EDB m => Db.CausalHashId -> m (CausalHash, m (C.Causal m CausalHash BranchHash (C.Branch m)))
+        pairParent chId = do
+          h <- loadCausalHashById chId
+          pure (h, loadCausal chId)
+        loadCausal :: EDB m => Db.CausalHashId -> m (C.Causal m CausalHash BranchHash (C.Branch m))
+        loadCausal chId = do
+          C.Causal <$> loadCausalHashById chId
+            <*> loadValueHashByCausalHashId chId
+            <*> headParents chId
+            <*> pure (loadValue chId)
+        loadValue :: EDB m => Db.CausalHashId -> m (Maybe (C.Branch m))
+        loadValue chId = do
+          boId <- liftQ $ Q.loadBranchObjectIdByCausalHashId chId
+          traverse loadBranchByObjectId boId
 
-componentByObjectId :: EDB m => Db.ObjectId -> m [S.Reference.Id]
-componentByObjectId id = do
-  len <- (liftQ . Q.loadObjectById) id >>= decodeComponentLengthOnly
-  pure [C.Reference.Id id i | i <- [0 .. len - 1]]
+saveRootBranch :: EDB m => C.Branch.Root m -> m (Db.BranchObjectId, Db.CausalHashId)
+saveRootBranch (C.CausalHead _hc _he _parents _me) = error "todo"
+  where
+    _c2sBranch :: EDB m => C.Branch m -> m S.DbBranch
+    _c2sBranch = error "todo"
 
 lookupBranchLocalText :: S.BranchLocalIds -> LocalTextId -> Db.TextId
 lookupBranchLocalText li (LocalTextId w) = S.BranchFormat.branchTextLookup li Vector.! fromIntegral w
@@ -884,15 +762,15 @@ lookupBranchLocalPatch li (LocalPatchObjectId w) = S.BranchFormat.branchPatchLoo
 lookupBranchLocalChild :: BranchLocalIds -> LocalBranchChildId -> (Db.BranchObjectId, Db.CausalHashId)
 lookupBranchLocalChild li (LocalBranchChildId w) = S.BranchFormat.branchChildLookup li Vector.! fromIntegral w
 
+loadBranchByCausalHash :: EDB m => H.Hash -> m (Maybe (C.Branch.Root m))
+loadBranchByCausalHash = error "todo"
+  -- loadBranchByCausalHashId <=< (fmap Db.CausalHashId . liftQ . Q.expectHashIdByHash)
+
+-- | is this even a thing?  loading a branch by causal hash?  yes I guess so.
 loadBranchByCausalHashId :: EDB m => Db.CausalHashId -> m (Maybe (C.Branch m))
 loadBranchByCausalHashId id = do
   (liftQ . Q.loadBranchObjectIdByCausalHashId) id
     >>= traverse loadBranchByObjectId
-
-deserializePatchObject :: EDB m => Db.PatchObjectId -> m S.PatchFormat
-deserializePatchObject id =
-  (liftQ . Q.loadObjectById) (Db.unPatchObjectId id)
-    >>= getFromBytesOr (ErrPatch id) S.getPatchFormat
 
 loadBranchByObjectId :: EDB m => Db.BranchObjectId -> m (C.Branch m)
 loadBranchByObjectId id = do
@@ -1007,6 +885,163 @@ loadBranchByObjectId id = do
             let (Set.fromList -> adds, Set.fromList -> removes) = S.BranchDiff.addsRemoves md'
              in Just . S.MetadataSet.Inline $ (Set.union adds $ Set.difference md removes)
 
+    lookupBranchLocalText :: S.BranchLocalIds -> LocalTextId -> Db.TextId
+    lookupBranchLocalText li (LocalTextId w) = S.BranchFormat.branchTextLookup li Vector.! fromIntegral w
+
+    lookupBranchLocalDefn :: S.BranchLocalIds -> LocalDefnId -> Db.ObjectId
+    lookupBranchLocalDefn li (LocalDefnId w) = S.BranchFormat.branchDefnLookup li Vector.! fromIntegral w
+
+    lookupBranchLocalPatch :: BranchLocalIds -> LocalPatchObjectId -> Db.PatchObjectId
+    lookupBranchLocalPatch li (LocalPatchObjectId w) = S.BranchFormat.branchPatchLookup li Vector.! fromIntegral w
+
+    lookupBranchLocalChild :: BranchLocalIds -> LocalBranchChildId -> (Db.BranchObjectId, Db.CausalHashId)
+    lookupBranchLocalChild li (LocalBranchChildId w) = S.BranchFormat.branchChildLookup li Vector.! fromIntegral w
+
+-- * Patch transformation
+loadPatchById :: EDB m => Db.PatchObjectId -> m C.Patch
+loadPatchById patchId =
+  deserializePatchObject patchId >>= \case
+    S.PatchFormat.Full li p -> s2cPatch (l2sPatchFull li p)
+    S.PatchFormat.Diff ref li d -> doDiff ref [l2sPatchDiff li d]
+  where
+    doDiff :: EDB m => Db.PatchObjectId -> [S.PatchDiff] -> m C.Patch
+    doDiff ref ds =
+      deserializePatchObject ref >>= \case
+        S.PatchFormat.Full li f -> joinFull (l2sPatchFull li f) ds
+        S.PatchFormat.Diff ref' li' d' -> doDiff ref' (l2sPatchDiff li' d' : ds)
+    joinFull :: EDB m => S.Patch -> [S.PatchDiff] -> m C.Patch
+    joinFull f [] = s2cPatch f
+    joinFull (S.Patch termEdits typeEdits) (S.PatchDiff addedTermEdits addedTypeEdits removedTermEdits removedTypeEdits : ds) = joinFull f' ds
+      where
+        f' = S.Patch (addRemove addedTermEdits removedTermEdits termEdits) (addRemove addedTypeEdits removedTypeEdits typeEdits)
+        addRemove :: (Ord a, Ord b) => Map a (Set b) -> Map a (Set b) -> Map a (Set b) -> Map a (Set b)
+        addRemove add del src =
+          (Map.unionWith (<>) add (Map.differenceWith remove src del))
+        remove :: Ord b => Set b -> Set b -> Maybe (Set b)
+        remove src del =
+          let diff = Set.difference src del
+           in if diff == mempty then Nothing else Just diff
+
+    -- implementation detail of loadPatchById?
+    lookupPatchLocalText :: S.PatchLocalIds -> LocalTextId -> Db.TextId
+    lookupPatchLocalText li (LocalTextId w) = S.PatchFormat.patchTextLookup li Vector.! fromIntegral w
+
+    lookupPatchLocalHash :: S.PatchLocalIds -> LocalHashId -> Db.HashId
+    lookupPatchLocalHash li (LocalHashId w) = S.PatchFormat.patchHashLookup li Vector.! fromIntegral w
+
+    lookupPatchLocalDefn :: S.PatchLocalIds -> LocalDefnId -> Db.ObjectId
+    lookupPatchLocalDefn li (LocalDefnId w) = S.PatchFormat.patchDefnLookup li Vector.! fromIntegral w
+
+    l2sPatchFull :: S.PatchFormat.PatchLocalIds -> S.LocalPatch -> S.Patch
+    l2sPatchFull li =
+      S.Patch.Full.trimap
+        (lookupPatchLocalText li)
+        (lookupPatchLocalHash li)
+        (lookupPatchLocalDefn li)
+
+    l2sPatchDiff :: S.PatchFormat.PatchLocalIds -> S.LocalPatchDiff -> S.PatchDiff
+    l2sPatchDiff li =
+      S.PatchDiff.trimap
+        (lookupPatchLocalText li)
+        (lookupPatchLocalHash li)
+        (lookupPatchLocalDefn li)
+
+savePatch :: EDB m => PatchHash -> C.Patch -> m Db.PatchObjectId
+savePatch h c = do
+  (li, lPatch) <- c2lPatch c
+  hashId <- Q.saveHashHash (unPatchHash h)
+  let bytes = S.putBytes S.putPatchFormat $ S.PatchFormat.Full li lPatch
+  Db.PatchObjectId <$> Q.saveObject hashId OT.Patch bytes
+
+s2cPatch :: EDB m => S.Patch -> m C.Patch
+s2cPatch (S.Patch termEdits typeEdits) =
+  C.Patch
+    <$> Map.bitraverse h2cReferent (Set.traverse s2cTermEdit) termEdits
+    <*> Map.bitraverse h2cReference (Set.traverse s2cTypeEdit) typeEdits
+
+deserializePatchObject :: EDB m => Db.PatchObjectId -> m S.PatchFormat
+deserializePatchObject id =
+  (liftQ . Q.loadObjectById) (Db.unPatchObjectId id)
+    >>= getFromBytesOr (ErrPatch id) S.getPatchFormat
+
+
+-- * Searches
+
+termsHavingType :: EDB m => C.Reference -> m (Set C.Referent.Id)
+termsHavingType cTypeRef = do
+  maySet <- runMaybeT $ do
+    sTypeRef <- c2hReference cTypeRef
+    sIds <- Q.getReferentsByType sTypeRef
+    traverse s2cReferentId sIds
+  pure case maySet of
+    Nothing -> mempty
+    Just set -> Set.fromList set
+
+termsMentioningType :: EDB m => C.Reference -> m (Set C.Referent.Id)
+termsMentioningType cTypeRef = do
+  maySet <- runMaybeT $ do
+    sTypeRef <- c2hReference cTypeRef
+    sIds <- Q.getReferentsByTypeMention sTypeRef
+    traverse s2cReferentId sIds
+  pure case maySet of
+    Nothing -> mempty
+    Just set -> Set.fromList set
+
+-- something kind of funny here.  first, we don't need to enumerate all the reference pos if we're just picking one
+-- second, it would be nice if we could leave these as S.References a little longer
+-- so that we remember how to blow up if they're missing
+componentReferencesByPrefix :: EDB m => OT.ObjectType -> Text -> Maybe C.Reference.Pos -> m [S.Reference.Id]
+componentReferencesByPrefix ot b32prefix pos = do
+  oIds :: [Db.ObjectId] <- Q.objectIdByBase32Prefix ot b32prefix
+  let test = maybe (const True) (==) pos
+  let filterComponent l = [x | x@(C.Reference.Id _ pos) <- l, test pos]
+  fmap Monoid.fromMaybe . runMaybeT $
+    join <$> traverse (fmap filterComponent . componentByObjectId) oIds
+
+termReferencesByPrefix :: EDB m => Text -> Maybe Word64 -> m [C.Reference.Id]
+termReferencesByPrefix t w =
+  componentReferencesByPrefix OT.TermComponent t w
+    >>= traverse (C.Reference.idH loadHashByObjectId)
+
+declReferencesByPrefix :: EDB m => Text -> Maybe Word64 -> m [C.Reference.Id]
+declReferencesByPrefix t w =
+  componentReferencesByPrefix OT.DeclComponent t w
+    >>= traverse (C.Reference.idH loadHashByObjectId)
+
+termReferentsByPrefix :: EDB m => Text -> Maybe Word64 -> m [C.Referent.Id]
+termReferentsByPrefix b32prefix pos =
+  fmap C.Referent.RefId <$> termReferencesByPrefix b32prefix pos
+
+-- todo: simplify this if we stop caring about constructor type
+-- todo: remove the cycle length once we drop it from Unison.Reference
+declReferentsByPrefix ::
+  EDB m =>
+  Text ->
+  Maybe C.Reference.Pos ->
+  Maybe ConstructorId ->
+  m [(H.Hash, C.Reference.Pos, Word64, C.DeclType, [C.Decl.ConstructorId])]
+declReferentsByPrefix b32prefix pos cid = do
+  componentReferencesByPrefix OT.DeclComponent b32prefix pos
+    >>= traverse (loadConstructors cid)
+  where
+    loadConstructors :: EDB m => Maybe Word64 -> S.Reference.Id -> m (H.Hash, C.Reference.Pos, Word64, C.DeclType, [ConstructorId])
+    loadConstructors cid rid@(C.Reference.Id oId pos) = do
+      (dt, len, ctorCount) <- getDeclCtorCount rid
+      h <- loadHashByObjectId oId
+      let test :: ConstructorId -> Bool
+          test = maybe (const True) (==) cid
+          cids = [cid | cid <- [0 :: ConstructorId .. ctorCount - 1], test cid]
+      pure (h, pos, len, dt, cids)
+    getDeclCtorCount :: EDB m => S.Reference.Id -> m (C.Decl.DeclType, Word64, ConstructorId)
+    getDeclCtorCount (C.Reference.Id r i) = do
+      bs <- liftQ (Q.loadObjectById r)
+      len <- decodeComponentLengthOnly bs
+      (_localIds, decl) <- decodeDeclElement i bs
+      pure (C.Decl.declType decl, len, fromIntegral $ length (C.Decl.constructorTypes decl))
+
+-- (localIds, C.Decl.DataDeclaration dt m b ct) <-
+--   hashToObjectId h >>= liftQ . Q.loadObjectById >>= decodeDeclElement i
+
 branchHashesByPrefix :: EDB m => ShortBranchHash -> m (Set BranchHash)
 branchHashesByPrefix (ShortBranchHash b32prefix) = do
   hashIds <- Q.namespaceHashIdByBase32Prefix b32prefix
@@ -1020,7 +1055,7 @@ causalHashesByPrefix (ShortBranchHash b32prefix) = do
   pure $ Set.fromList . fmap CausalHash . fmap H.fromBase32Hex $ b32s
 
 -- | returns a list of known definitions referencing `r`
-dependents :: EDB m => C.Reference -> MaybeT m (Set C.Reference.Id)
+dependents :: EDB m => C.Reference -> m (Set C.Reference.Id)
 dependents r = do
   r' <- c2sReference r
   sIds :: [S.Reference.Id] <- Q.getDependentsForDependency r'
