@@ -1,6 +1,48 @@
-Task list:
-- [x] error reporting for deserialization failures
-- [x] error reporting for codebase consistency issues
+next steps:
+
+- [ ] fix up `Operations.loadBranchByCausalHash`; currently it's getting a single namespace, but we need to somewhere get the causal history.
+	- [ ] load a causal, allowing a missing value (C.Branch.Spine)
+	- [x] load a causal and require its value (C.Branch.Causal)
+	- [ ] load a causal, returning nothing if causal is unknown
+- [ ] `SqliteCodebase.getRootBranch`
+- [ ] `SqliteCodebase.getBranchForHash`
+- [ ] `SqliteCodebase.putRootBranch`
+- [ ] `SqliteCodebase.syncFromDirectory`
+- [ ] `SqliteCodebase.syncToDirectory`
+- [ ] `SqliteCodebase.rootBranchUpdates` Is there some Sqlite function for detecting external changes?
+
+### SqliteCodebase progress (V1 -> V2 adaptor)
+
+| operation               | status | notes |
+| ----------------------- | ------ | ----- |
+| getTerm                 | ✔      |       |
+| getTypeOfTerm           | ✔      |       |
+| getTypeDeclaration      | ✔      |       |
+| putTerm                 | ✔      |       |
+| putTypeDeclaration      | ✔      |       |
+| getRootBranch           | todo   |       |
+| putRootBranch           | todo   |       |
+| rootBranchUpdates       | todo   |       |
+| getBranchForHash        | todo   |       |
+| dependentsImpl          | ✔      |       |
+| syncFromDirectory       | todo   |       |
+| syncToDirectory         | todo   |       |
+| watches                 | ✔      |       |
+| getWatch                | ✔      |       |
+| putWatch                | ✔      |       |
+| getReflog               | ✔      |       |
+| appendRefLog            | ✔      |       |
+| termsOfTypeImpl         | ✔      |       |
+| termsMentioningTypeImpl | ✔      |       |
+| hashLength              | ✔      |       |
+| termReferencesByPrefix  | ✔      |       |
+| declReferencesByPrefix  | ✔      |       |
+| referentsByPrefix       | ✔      |       |
+| branchHashLength        | ✔      |       |
+| branchHashesByPrefix    | ✔      |       |
+
+
+## less organized stuff below 
 
 | thing | v1↔v2 | v2↔v2s | desc. |
 |-----|-----|-----|---|
@@ -74,18 +116,14 @@ Task list:
 
 ### Saving & loading?
 
-| Saving & loading objects              | name                         | notes                                                       |
-| ------------------------------------- | ---------------------------- | ----------------------------------------------------------- |
-| `Patch` ↔ `PatchObjectId`             | `savePatch`, `loadPatchById` |                                                             |
-| `H.Hash -> m (Maybe (Branch.Root m))` | `loadBranchByCausalHash`     | wip                                                         |
-| `CausalHashId -> m (Maybe Branch)`    | `loadBranchByCausalHashId`   | equivalent to old `Branch0`, *not sure if actually useful?* |
-| `BranchObjectId -> m (Branch m)`      | `loadBranchByObjectId`       | equivalent to old `Branch0`                                 |
+| Saving & loading objects                | name                         | notes                                                       |
+| --------------------------------------- | ---------------------------- | ----------------------------------------------------------- |
+| `Patch` ↔ `PatchObjectId`               | `savePatch`, `loadPatchById` |                                                             |
+| `H.Hash -> m (Maybe (Branch.Causal m))` | `loadBranchByCausalHash`     | wip                                                         |
+| `CausalHashId -> m (Maybe Branch)`      | `loadBranchByCausalHashId`   | equivalent to old `Branch0`, *not sure if actually useful?* |
+| `BranchObjectId -> m (Branch m)`        | `loadBranchByObjectId`       | equivalent to old `Branch0`                                 |
 
 ### Deserialization helpers
-
-|
-|
-|
 
 | Deserialization helpers                                      |                                                              | notes |
 | ------------------------------------------------------------ | ------------------------------------------------------------ | ----- |
@@ -119,50 +157,15 @@ Task list:
 | `termsMentioningType` | " ||
 | `termReferencesByPrefix` | `Text -> Maybe Word64 -> m [Reference.Id]` ||
 | `declReferencesByPrefix` | `Text -> Maybe Word64 -> m [Reference.Id]` ||
-| `saveRootBranch` | `Branch.Root m -> m (Db.BranchObjectId, Db.CausalHashId)` |wip|
+| `saveRootBranch` | `Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)` |wip|
 
-### SqliteCodebase
+## Questions:
 
-| operation               | status | notes |
-| ----------------------- | ------ | ----- |
-| getTerm                 | ✔      |       |
-| getTypeOfTerm           | ✔      |       |
-| getTypeDeclaration      | ✔      |       |
-| putTerm                 | ✔      |       |
-| putTypeDeclaration      | ✔      |       |
-| getRootBranch           | todo   |       |
-| putRootBranch           | todo   |       |
-| rootBranchUpdates       | todo   |       |
-| getBranchForHash        | todo   |       |
-| dependentsImpl          | ✔      |       |
-| syncFromDirectory       | todo   |       |
-| syncToDirectory         | todo   |       |
-| watches                 | ✔      |       |
-| getWatch                | ✔      |       |
-| putWatch                | ✔      |       |
-| getReflog               | ✔      |       |
-| appendRefLog            | ✔      |       |
-| termsOfTypeImpl         | todo   |       |
-| termsMentioningTypeImpl | todo   |       |
-| hashLength              | ✔      |       |
-| termReferencesByPrefix  | ✔      |       |
-| declReferencesByPrefix  | ✔      |       |
-| referentsByPrefix       | ✔      |       |
-| branchHashLength        | ✔      |       |
-| branchHashesByPrefix    | ✔      |       |
+Q: Should the dependents / dependency index include individual constructors?
 
+Against: No, that index is mainly for refactors; dependencies within objects
 
-
-
-
-
-Question: should the dependents / dependency index be a Relation Reference Reference (like now) a Relation Referent Reference?
-
-Example, if you have `type Foo = Blah | Blah2 Nat`,
-
-
-
-Advantages:
+For: e.g. `type Foo = Blah | Blah2 Nat`,
 
 * If patches can replace constructors (not just types or terms), then having the index keyed by `Referent` lets you efficiently target the definitions that use those constructors.
 * Also lets you find things that depend on `Blah2` (rather than depending on `Foo`).

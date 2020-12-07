@@ -48,6 +48,8 @@ data Integrity
   | UnknownObjectId ObjectId
   | UnknownCausalHashId CausalHashId
   | UnknownCausalOldHashId CausalOldHashId
+  | UnknownHash Hash
+  | UnknownText Text
   | NoObjectForHashId HashId
   | NoNamespaceRoot
   | MultipleNamespaceRoots [CausalHashId]
@@ -62,7 +64,7 @@ noExcept a = runExceptT a >>= \case
 -- noMaybe :: Maybe a -> a
 -- noMaybe = fromMaybe (error "unexpected Nothing")
 
-orError :: MonadError Integrity m => Integrity -> Maybe b -> m b
+orError :: MonadError e m => e -> Maybe b -> m b
 orError e = maybe (throwError e) pure
 
 -- type DerivedReferent = Referent.Id ObjectId ObjectId
@@ -85,6 +87,9 @@ loadHashId base32 = queryOnly sql (Only base32)
 loadHashIdByHash :: DB m => Hash -> m (Maybe HashId)
 loadHashIdByHash = loadHashId . Hash.toBase32Hex
 
+expectHashIdByHash :: EDB m => Hash -> m HashId
+expectHashIdByHash h = loadHashIdByHash h >>= orError (UnknownHash h)
+
 loadHashById :: EDB m => HashId -> m Base32Hex
 loadHashById h = queryOnly sql (Only h) >>= orError (UnknownHashId h)
   where sql = [here| SELECT base32 FROM hash WHERE id = ? |]
@@ -96,6 +101,9 @@ saveText t = execute sql (Only t) >> queryOne (loadText t)
 loadText :: DB m => Text -> m (Maybe TextId)
 loadText t = queryOnly sql (Only t)
   where sql = [here| SELECT id FROM text WHERE text = ? |]
+
+expectText :: EDB m => Text -> m TextId
+expectText t = loadText t >>= orError (UnknownText t)
 
 loadTextById :: EDB m => TextId -> m Text
 loadTextById h = queryOnly sql (Only h) >>= orError (UnknownTextId h)

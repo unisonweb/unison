@@ -14,7 +14,9 @@ import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.Trans.Maybe (MaybeT)
 import Data.Bifunctor (Bifunctor (first), second)
 import Data.Foldable (Foldable (toList), traverse_)
-import Data.Functor (void)
+-- import qualified U.Codebase.Sqlite.Operations' as Ops
+
+import Data.Functor (void, (<&>))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
@@ -26,8 +28,6 @@ import Data.Word (Word64)
 import Database.SQLite.Simple (Connection)
 import qualified Database.SQLite.Simple as Sqlite
 import System.FilePath ((</>))
--- import qualified U.Codebase.Sqlite.Operations' as Ops
-
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Sqlite.ObjectType as OT
@@ -255,9 +255,9 @@ sqliteCodebase root = do
       -- if this blows up on cromulent hashes, then switch from `hashToHashId`
       -- to one that returns Maybe.
       getBranchForHash :: Branch.Hash -> IO (Maybe (Branch IO))
-      getBranchForHash _h = error "todo"
-        -- runDB conn $
-        --   Cv.causalbranch2to1 $ Ops.loadBranchByCausalHash (Cv.hash1to2 h)
+      getBranchForHash h =
+        runDB conn $
+          Cv.causalbranch2to1 $ Ops.loadBranchByCausalHash (Cv.hash1to2 h)
 
       dependentsImpl :: Reference -> IO (Set Reference.Id)
       dependentsImpl r =
@@ -318,10 +318,16 @@ sqliteCodebase root = do
       reflogPath root = root </> "reflog"
 
       termsOfTypeImpl :: Reference -> IO (Set Referent.Id)
-      termsOfTypeImpl = error "todo"
+      termsOfTypeImpl r =
+        runDB conn $
+          Ops.termsHavingType (Cv.reference1to2 r)
+            >>= Set.traverse (Cv.referentid2to1 getCycleLen getDeclType)
 
       termsMentioningTypeImpl :: Reference -> IO (Set Referent.Id)
-      termsMentioningTypeImpl = error "todo"
+      termsMentioningTypeImpl r =
+        runDB conn $
+          Ops.termsMentioningType (Cv.reference1to2 r)
+            >>= Set.traverse (Cv.referentid2to1 getCycleLen getDeclType)
 
       hashLength :: IO Int
       hashLength = pure 10
