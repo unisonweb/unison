@@ -479,6 +479,15 @@ existentializeArrows freshVar = ABT.visit go
       pure $ arrow ann a (effect ann [var ann e] b)
   go _ = Nothing
 
+purifyArrows :: (Ord v) => Type v a -> Type v a
+purifyArrows = ABT.visitPure go
+  where
+  go t@(Arrow' a b) = case b of
+    Effect1' _ _ -> Nothing
+    _ -> Just $ arrow ann a (effect ann [] b)
+    where ann = ABT.annotation t
+  go _ = Nothing
+
 -- Remove free effect variables from the type that are in the set
 removeEffectVars :: ABT.Var v => Set v -> Type v a -> Type v a
 removeEffectVars removals t =
