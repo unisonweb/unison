@@ -16,7 +16,8 @@ import Data.Bifunctor (first,second)
 import Data.Functor ((<&>))
 import Data.IORef
 import Data.Foldable
-import Data.Set as Set (Set, (\\), singleton, map, notMember, filter)
+import Data.Set as Set
+  (Set, (\\), singleton, map, notMember, filter, fromList)
 import Data.Traversable (for)
 import Data.Word (Word64)
 
@@ -47,7 +48,7 @@ import Unison.Runtime.Decompile
 import Unison.Runtime.Exception
 import Unison.Runtime.Machine
   ( apply0
-  , CCache(..), cacheAdd, baseCCache
+  , CCache(..), cacheAdd, cacheAdd0, baseCCache
   , refNumTm, refNumsTm, refNumsTy
   )
 import Unison.Runtime.Pattern
@@ -171,7 +172,8 @@ loadDeps cl ctx tm = do
             $ Prelude.filter q tmrs
   ctx <- pure $ ctx { decompTm = Map.fromList rtms <> decompTm ctx }
   let rint = second (intermediateTerm ctx) <$> rtms
-  [] <- cacheAdd rint (ccache ctx)
+      tyAdd = Set.fromList $ fst <$> tyrs
+  cacheAdd0 tyAdd rint (ccache ctx)
   pure ctx
 
 intermediateTerm
