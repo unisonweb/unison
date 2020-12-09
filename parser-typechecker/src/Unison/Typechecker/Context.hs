@@ -1741,10 +1741,15 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
       -- 2b. If no:
       Nothing -> case r of
         -- It's an unsolved existential, instantiate it to all of ambient
-        Type.Var' (TypeVar.Existential b v) -> do
+        Type.Var' tv@(TypeVar.Existential b v) -> do
           let et2 = Type.effects (loc r) ambient
+              acyclic
+                | Set.member tv (Type.freeVars et2)
+                -- just need to trigger `orElse` in this case
+                = getContext >>= failWith . TypeMismatch
+                | otherwise = instantiateR et2 b v
           -- instantiate it to `{}` if can't cover all of ambient
-          instantiateR et2 b v
+          acyclic
             `orElse` instantiateR (Type.effects (loc r) []) b v
             `orElse` die1
           go ambient rs
