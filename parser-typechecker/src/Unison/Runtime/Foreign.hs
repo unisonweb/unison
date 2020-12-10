@@ -97,14 +97,13 @@ instance BuiltinForeign (SuperGroup Symbol) where
   foreignRef = Tagged Ty.codeRef
 instance BuiltinForeign Value where foreignRef = Tagged Ty.valueRef
 
-
 data HashAlgorithm where
   -- Reference is a reference to the hash algorithm
   HashAlgorithm :: Hash.HashAlgorithm a => Reference -> a -> HashAlgorithm
 
 newtype Tls = Tls TLS.Context
 
-data Failure = Failure Reference Text
+data Failure = Failure Reference Text -- todo: add Any
 
 instance BuiltinForeign HashAlgorithm where foreignRef = Tagged Ty.hashAlgorithmRef
 

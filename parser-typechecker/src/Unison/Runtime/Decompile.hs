@@ -17,7 +17,7 @@ import Unison.Term
   )
 import Unison.Type
   ( natRef, intRef, charRef, floatRef, booleanRef, vectorRef
-  , termLinkRef, typeLinkRef
+  , termLinkRef, typeLinkRef, anyRef
   )
 import Unison.Var (Var)
 import Unison.Reference (Reference)
@@ -107,6 +107,8 @@ decompileForeign topTerms f
   = Right $ termLink () l
   | Just l <- maybeUnwrapForeign typeLinkRef f
   = Right $ typeLink () l
+  | Just b <- maybeUnwrapForeign anyRef f
+  = decompile topTerms b <&> (\tm -> app () (ref () anyRef) tm)
   | Just s <- unwrapSeq f
   = seq' () <$> traverse (decompile topTerms) s
 decompileForeign _ _ = err "cannot decompile Foreign"

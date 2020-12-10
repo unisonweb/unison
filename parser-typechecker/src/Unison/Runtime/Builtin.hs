@@ -27,6 +27,7 @@ import Unison.Referent (pattern Ref)
 import Unison.Var
 import Unison.Symbol
 import Unison.Runtime.Stack (Closure)
+import qualified Unison.Runtime.Stack as Closure
 import Unison.Runtime.Foreign
     ( Foreign(Wrap), HashAlgorithm(..), Failure(..) )
 import Unison.Runtime.Foreign.Function
@@ -1437,6 +1438,8 @@ declareForeigns = do
     . mkForeign $ pure . Bytes.fromArray . serializeValue
   declareForeign "Value.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeValue . Bytes.toArray
+
+  declareForeign "Any" boxDirect . mkForeign $ \(a :: Closure) -> pure $ Closure.Foreign (Wrap Ty.anyRef a)
 
   -- Hashing functions
   let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()
