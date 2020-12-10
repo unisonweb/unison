@@ -12,14 +12,13 @@ module Unison.CommandLine.OutputMessages where
 import Unison.Prelude hiding (unlessM)
 
 import qualified Unison.Codebase               as Codebase
-import           Unison.Server.Backend          ( ShallowListEntry(..) )
 import           Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output           as E
 import qualified Unison.Codebase.Editor.Output           as Output
 import qualified Unison.Codebase.Editor.TodoOutput       as TO
-import qualified Unison.Codebase.Editor.SearchResult'    as SR'
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
-
+import qualified Unison.Server.SearchResult' as SR'
+import Unison.Server.Backend (ShallowListEntry(..))
 
 import           Control.Lens
 import qualified Control.Monad.State.Strict    as State
@@ -1106,39 +1105,39 @@ formatMissingStuff terms types =
     <> "\n\n"
     <> P.column2 [ (P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
 
-termsToSyntax
-  :: Var v
-  => Ord a
-  => Applicative m
-  => PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayObject (Term v a))
-  -> Backend m SyntaxText' ShortHash
-termsToSyntax ppe0 terms = map go . Map.toList $ Map.mapKeys
-  (first (PPE.termName ppeDecl . Referent.Ref) . dupe)
-  terms
- where
-  ppeDecl = PPE.unsuffixifiedPPE ppe0
-  go ((n, r), dt) = case dt of
-    MissingObject r -> missingTerm n r
-    BuiltinObject   -> builtinTerm n
-    UserObject tm   -> TermPrinter.prettyBinding (ppeBody r) n tm
+-- termsToSyntax
+--   :: Var v
+--   => Ord a
+--   => Applicative m
+--   => PPE.PrettyPrintEnvDecl
+--   -> Map Reference.Reference (DisplayObject (Term v a))
+--   -> Backend m (SyntaxText' ShortHash)
+-- termsToSyntax ppe0 terms = map go . Map.toList $ Map.mapKeys
+--   (first (PPE.termName ppeDecl . Referent.Ref) . dupe)
+--   terms
+--  where
+--   ppeDecl = PPE.unsuffixifiedPPE ppe0
+--   go ((n, r), dt) = case dt of
+--     MissingObject r -> missingTerm n r
+--     BuiltinObject   -> builtinTerm n
+--     UserObject tm   -> TermPrinter.prettyBinding (ppeBody r) n tm
 
-typesToSyntax
-  :: Var v
-  => Ord a
-  -> PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayObject (DD.Decl v a1))
-  -> DisplayObject (SyntaxText' ShortHash)
-typesToSyntax ppe0 types = map go2 . Map.toList $ Map.mapKeys
-  (first (PPE.typeName ppeDecl) . dupe)
-  types
- where
-  go2 ((n, r), dt) = case dt of
-    MissingObject r -> missing n r
-    BuiltinObject   -> builtin n
-    UserObject decl -> case decl of
-      Left  d -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
-      Right d -> DeclPrinter.prettyDataDecl (ppeBody r) r n d
+-- typesToSyntax
+--   :: Var v
+--   => Ord a
+--   -> PPE.PrettyPrintEnvDecl
+--   -> Map Reference.Reference (DisplayObject (DD.Decl v a))
+--   -> DisplayObject (SyntaxText' ShortHash)
+-- typesToSyntax ppe0 types = map go2 . Map.toList $ Map.mapKeys
+--   (first (PPE.typeName ppeDecl) . dupe)
+--   types
+--  where
+--   go2 ((n, r), dt) = case dt of
+--     MissingObject r -> missing n r
+--     BuiltinObject   -> builtin n
+--     UserObject decl -> case decl of
+--       Left  d -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
+--       Right d -> DeclPrinter.prettyDataDecl (ppeBody r) r n d
 
 displayDefinitions' :: Var v => Ord a1
   => PPE.PrettyPrintEnvDecl

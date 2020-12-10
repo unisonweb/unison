@@ -1,9 +1,7 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -16,12 +14,12 @@ import Unison.Codebase.Editor.Command
 
 import qualified Unison.Builtin                as B
 
+import qualified Unison.Server.Backend         as Backend
 import qualified Crypto.Random                 as Random
 import           Control.Monad.Except           ( runExceptT )
 import qualified Data.Configurator             as Config
 import           Data.Configurator.Types        ( Config )
 import qualified Data.Map                      as Map
-import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
@@ -32,7 +30,6 @@ import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.Parsers                as Parsers
 import qualified Unison.Reference              as Reference
-import qualified Unison.Referent               as Referent
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
 import qualified Unison.Term                   as Term
@@ -144,11 +141,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     GetTermsMentioningType ty -> Codebase.termsMentioningType codebase ty
     CodebaseHashLength -> Codebase.hashLength codebase
     -- all builtin and derived type references
-    TypeReferencesByShortHash sh -> do
-      fromCodebase <- Codebase.typeReferencesByPrefix codebase sh
-      let fromBuiltins = Set.filter (\r -> sh == Reference.toShortHash r)
-            $ B.intrinsicTypeReferences
-      pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
+    TypeReferencesByShortHash sh -> Backend.typeReferencesByShortHash codebase sh
     -- all builtin and derived term references
     TermReferencesByShortHash sh -> Backend.termReferencesByShortHash codebase sh
     -- all builtin and derived term references & type constructors
@@ -233,7 +226,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
 
 -- loadDefinitions :: Monad m => Codebase m v a -> Set Reference
 --                 -> m ( [(Reference, Maybe (Type v a))],
---                        [(Reference, DisplayThing (Decl v a))] )
+--                        [(Reference, DisplayObject (Decl v a))] )
 -- loadDefinitions code refs = do
 --   termRefs <- filterM (Codebase.isTerm code) (toList refs)
 --   terms <- forM termRefs $ \r -> (r,) <$> Codebase.getTypeOfTerm code r

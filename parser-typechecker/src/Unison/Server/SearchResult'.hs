@@ -7,27 +7,29 @@ import Unison.Prelude
 import Unison.Referent (Referent)
 import Unison.Reference (Reference)
 import qualified Unison.HashQualified' as HQ'
-import qualified Data.Set as Set
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Codebase.Editor.DisplayObject as DT
 import qualified Unison.Type as Type
 import Unison.DataDeclaration (Decl)
-import Unison.Codebase.Editor.DisplayObject (DisplayThing)
+import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Type (Type)
 import Unison.Name (Name)
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
+import qualified Data.Set as Set
 
 data SearchResult' v a
   = Tm' (TermResult' v a)
   | Tp' (TypeResult' v a)
   deriving (Eq, Show)
+
 data TermResult' v a =
   TermResult' (HQ'.HashQualified Name)
               (Maybe (Type v a))
               Referent
               (Set (HQ'.HashQualified Name))
   deriving (Eq, Show)
+
 data TypeResult' v a =
   TypeResult' (HQ'.HashQualified Name)
               (DisplayObject (Decl v a))
@@ -51,10 +53,10 @@ foldResult' f g = \case
 -- todo: comment me out, is this actually useful, given what we saw in ShowDefinitionI?
 -- namely, that it doesn't include the Term's deps, just the Decl's and the
 -- result Term/Type names.
--- labeledDependencies :: Ord v => SearchResult' v a -> Set LabeledDependency
--- labeledDependencies = \case
---   Tm' (TermResult' _ t r _) ->
---     Set.insert (LD.referent r) $ maybe mempty (Set.map LD.typeRef . Type.dependencies) t
---   Tp' (TypeResult' _ d r _) ->
---     Set.map LD.typeRef . Set.insert r $ maybe mempty DD.declDependencies (DT.toMaybe d)
+labeledDependencies :: Ord v => SearchResult' v a -> Set LabeledDependency
+labeledDependencies = \case
+  Tm' (TermResult' _ t r _) ->
+    Set.insert (LD.referent r) $ maybe mempty (Set.map LD.typeRef . Type.dependencies) t
+  Tp' (TypeResult' _ d r _) ->
+    Set.map LD.typeRef . Set.insert r $ maybe mempty DD.declDependencies (DT.toMaybe d)
 

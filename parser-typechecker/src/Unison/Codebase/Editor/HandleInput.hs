@@ -21,6 +21,7 @@ where
 
 import           Unison.Prelude
 
+import Unison.Server.Types (QueryResult (..))
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Backend (ShallowListEntry(..), Backend)
 import Unison.Codebase.MainTerm ( getMainTerm )
@@ -44,7 +45,6 @@ import           Control.Monad.Except           ( ExceptT(..), runExceptT, withE
 import           Data.Bifunctor                 ( second, first )
 import           Data.Configurator              ()
 import qualified Data.List                      as List
-import           Data.List                      ( partition )
 import           Data.List.Extra                ( nubOrd )
 import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
@@ -67,8 +67,9 @@ import           Unison.Codebase.Path           ( Path
                                                 , Path'(..) )
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Reflog        as Reflog
-import           Unison.Codebase.SearchResult   ( SearchResult )
-import qualified Unison.Codebase.SearchResult  as SR
+import           Unison.Server.SearchResult   ( SearchResult )
+import qualified Unison.Server.SearchResult  as SR
+import qualified Unison.Server.SearchResult'  as SR'
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.SyncMode      as SyncMode
 import qualified Unison.Builtin.Decls          as DD
@@ -113,11 +114,8 @@ import qualified Unison.Util.Monoid            as Monoid
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
 import qualified Unison.Lexer as L
-import Unison.Codebase.Editor.SearchResult' (SearchResult')
-import qualified Unison.Codebase.Editor.SearchResult' as SR'
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
-import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Builtin as Builtin
 import Unison.NameSegment (NameSegment(..))
@@ -184,6 +182,9 @@ type Action' m v = Action m (Either Event Input) v
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
 
+prettyPrintEnvDecl :: Names -> Action' m v PPE.PrettyPrintEnvDecl
+prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
+
 loop :: forall m v . (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
   uf           <- use latestTypecheckedFile
@@ -195,6 +196,10 @@ loop = do
   hqLength    <- eval CodebaseHashLength
   sbhLength   <- eval BranchHashLength
   let
+      currentPath'' = Path.unabsolute currentPath'
+      hqNameQuery q =
+        join . eval $ WithCodebase (\c ->
+          _liftToAction $ Backend.hqNameQuery (Just currentPath'') root' c q)
       sbh = SBH.fromHash sbhLength
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
@@ -265,7 +270,7 @@ loop = do
             L.Hash sh -> Just (HQ.HashOnly sh)
             _         -> Nothing
           hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-        parseNames :: Names <- makeHistoricalParsingNames hqs
+        let parseNames = Backend.getCurrentNames currentPath'' root'
         latestFile .= Just (Text.unpack sourceName, False)
         latestTypecheckedFile .= Nothing
         Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
@@ -339,7 +344,7 @@ loop = do
         doRemoveReplacement from patchPath isTerm = do
           let patchPath' = fromMaybe defaultPatchPath patchPath
           patch <- getPatchAt patchPath'
-          (misses', hits) <- hqNameQuery [from]
+          QueryResult misses' hits <- hqNameQuery [from]
           let tpRefs = Set.fromList $ typeReferences hits
               tmRefs = Set.fromList $ termReferences hits
               tmMisses = misses'
@@ -489,6 +494,8 @@ loop = do
         viewRemoteBranch ns = ExceptT . eval $ ViewRemoteBranch ns
         syncRemoteRootBranch repo b mode =
           ExceptT . eval $ SyncRemoteRootBranch repo b mode
+        loadSearchResults sr = join . eval . WithCodebase $ \c ->
+          _liftToAction $ Backend.loadSearchResults c sr
         handleFailedDelete failed failedDependents = do
           failed           <- loadSearchResults $ SR.fromNames failed
           failedDependents <- loadSearchResults $ SR.fromNames failedDependents
@@ -1106,28 +1113,25 @@ loop = do
         else doDisplay outputLoc parseNames0 (Set.findMin results)
 
       ShowDefinitionI outputLoc query -> do
-        let deps =
-              foldMap SR'.labeledDependencies results'
-                <> foldMap Term.labeledDependencies loadedDerivedTerms
-        printNames <- makePrintNamesFromLabeled' deps
-        -- We might like to make sure that the user search terms get used as
-        -- the names in the pretty-printer, but the current implementation
-        -- doesn't.
-        ppe <- prettyPrintEnvDecl printNames
+        Backend.DefinitionResults terms types misses <-
+          join . eval . WithCodebase $ \c -> handleBackend $
+            Backend.definitionsBySuffixes (Just currentPath'') root' c query
         let loc = case outputLoc of
               ConsoleLocation    -> Nothing
               FileLocation path  -> Just path
               LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
-        do
-          unless (null loadedDisplayTypes && null loadedDisplayTerms) $
-            eval . Notify $
-              DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
-          unless (null misses) $
-            eval . Notify $ SearchTermsNotFound misses
-          -- We set latestFile to be programmatically generated, if we
-          -- are viewing these definitions to a file - this will skip the
-          -- next update for that file (which will happen immediately)
-          latestFile .= ((, True) <$> loc)
+            printNames =
+              Backend.getCurrentNames currentPath'' root'
+            ppe = PPE.fromNamesDecl hqLength printNames
+        unless (null types && null terms) $
+          eval . Notify $
+            DisplayDefinitions loc ppe types terms
+        unless (null misses) $
+          eval . Notify $ SearchTermsNotFound misses
+        -- We set latestFile to be programmatically generated, if we
+        -- are viewing these definitions to a file - this will skip the
+        -- next update for that file (which will happen immediately)
+        latestFile .= ((, True) <$> loc)
 
       FindPatchI -> do
         let patches =
@@ -1140,7 +1144,7 @@ loop = do
       FindShallowI pathArg -> do
         let pathArgAbs = resolveToAbsolute pathArg
             ppe = Backend.basicSuffixifiedNames sbhLength root' (Path.fromPath' pathArg)
-        findOp <- eval $ WithCodebase \c -> Backend.findShallow c pathArgAbs
+        findOp <- eval $ WithCodebase (`Backend.findShallow` pathArgAbs)
         entries <- handleBackend findOp
         -- caching the result as an absolute path, for easier jumping around
         numberedArgs .= fmap entryToHQString entries
@@ -1217,8 +1221,8 @@ loop = do
       ReplaceTermI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
-        (fromMisses', fromHits) <- hqNameQuery [from]
-        (toMisses', toHits) <- hqNameQuery [to]
+        QueryResult fromMisses' fromHits <- hqNameQuery [from]
+        QueryResult toMisses' toHits <- hqNameQuery [to]
         let fromRefs = termReferences fromHits
             toRefs = termReferences toHits
             -- Type hits are term misses
@@ -1265,8 +1269,8 @@ loop = do
           (frs, _) -> ambiguous from frs
       ReplaceTypeI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
-        (fromMisses', fromHits) <- hqNameQuery [from]
-        (toMisses', toHits) <- hqNameQuery [to]
+        QueryResult fromMisses' fromHits <- hqNameQuery [from]
+        QueryResult toMisses' toHits <- hqNameQuery [to]
         patch <- getPatchAt patchPath'
         let fromRefs = typeReferences fromHits
             toRefs = typeReferences toHits
@@ -2011,47 +2015,6 @@ searchBranchScored names0 score queries =
         Just score -> Set.singleton (Just score, result)
         Nothing -> mempty
 
--- Separates type references from term references and returns types and terms,
--- respectively. For terms that are constructors, turns them into their data
--- types.
-collateReferences
-  :: Foldable f
-  => Foldable g
-  => f Reference -- types requested
-  -> g Referent -- terms requested, including ctors
-  -> (Set Reference, Set Reference)
-collateReferences (toList -> types) (toList -> terms) =
-  let terms' = [ r | Referent.Ref r <- terms ]
-      types' = [ r | Referent.Con r _ _ <- terms ]
-  in  (Set.fromList types' <> Set.fromList types, Set.fromList terms')
-
--- | The output list (of lists) corresponds to the query list.
-searchBranchExact :: Int -> Names -> [HQ.HashQualified Name] -> [[SearchResult]]
-searchBranchExact len names queries = let
-  searchTypes :: HQ.HashQualified Name -> [SearchResult]
-  searchTypes query =
-    -- a bunch of references will match a HQ ref.
-    let refs = toList $ Names3.lookupHQType query names in
-    refs <&> \r ->
-      let hqNames = Names3.typeName len r names in
-      let primaryName =
-            last . sortOn (\n -> HQ.matchesNamedReference (HQ'.toName n) r query)
-                 $ toList hqNames in
-      let aliases = Set.delete primaryName hqNames in
-      SR.typeResult primaryName r aliases
-  searchTerms :: HQ.HashQualified Name -> [SearchResult]
-  searchTerms query =
-    -- a bunch of references will match a HQ ref.
-    let refs = toList $ Names3.lookupHQTerm query names in
-    refs <&> \r ->
-      let hqNames = Names3.termName len r names in
-      let primaryName =
-            last . sortOn (\n -> HQ.matchesNamedReferent (HQ'.toName n) r query)
-                 $ toList hqNames in
-      let aliases = Set.delete primaryName hqNames in
-      SR.termResult primaryName r aliases
-  in [ searchTypes q <> searchTerms q | q <- queries ]
-
 handleBackend :: Backend m a -> Action m i v a
 handleBackend b = _liftToAction (runExceptT b) >>= \case
   Left e -> case e of
@@ -2060,6 +2023,10 @@ handleBackend b = _liftToAction (runExceptT b) >>= \case
       fail mempty
     Backend.BadRootBranch e -> do
       respond $ BadRootBranch e
+      fail mempty
+    Backend.NoBranchForHash h -> do
+      sbhLength <- eval BranchHashLength
+      respond . NoBranchWithHash $ SBH.fromHash sbhLength h
       fail mempty
   Right a -> pure a
 
@@ -2535,6 +2502,35 @@ loadDisplayInfo refs = do
   types <- forM typeRefs $ \r -> (r,) <$> loadTypeDisplayObject r
   pure (terms, types)
 
+-- Any absolute names in the input which have `currentPath` as a prefix
+-- are converted to names relative to current path. all other names are
+-- converted to absolute names. For example:
+--
+-- e.g. if currentPath = .foo.bar
+--      then name foo.bar.baz becomes baz
+--           name cat.dog     becomes .cat.dog
+fixupNamesRelative :: Path.Absolute -> Names0 -> Names0
+fixupNamesRelative currentPath' = Names3.map0 fixName where
+  prefix = Path.toName (Path.unabsolute currentPath')
+  fixName n = if currentPath' == Path.absoluteEmpty then n else
+    fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
+
+makeHistoricalParsingNames ::
+  Monad m => Set (HQ.HashQualified Name) -> Action' m v Names
+makeHistoricalParsingNames lexedHQs = do
+  rawHistoricalNames <- findHistoricalHQs lexedHQs
+  basicNames0 <- basicParseNames0
+  currentPath <- use currentPath
+  pure $ Names basicNames0
+               (Names3.makeAbsolute0 rawHistoricalNames <>
+                 fixupNamesRelative currentPath rawHistoricalNames)
+
+loadTypeDisplayObject :: Reference -> Action m i v (DisplayObject (DD.Decl v Ann))
+loadTypeDisplayObject = \case
+  Reference.Builtin _ -> pure BuiltinObject
+  Reference.DerivedId id ->
+    maybe (MissingObject id) UserObject <$> eval (LoadType id)
+
 lexedSource :: Monad m => SourceName -> Source -> Action' m v (Names, LexedSource)
 lexedSource name src = do
   let tokens = L.lexer (Text.unpack name) (Text.unpack src)
@@ -2550,9 +2546,6 @@ lexedSource name src = do
 
 prettyPrintEnv :: Names -> Action' m v PPE.PrettyPrintEnv
 prettyPrintEnv ns = eval CodebaseHashLength <&> (`PPE.fromNames` ns)
-
-prettyPrintEnvDecl :: Names -> Action' m v PPE.PrettyPrintEnvDecl
-prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
 
 parseSearchType :: (Monad m, Var v)
   => Input -> String -> Action' m v (Either (Output v) (Type v Ann))
@@ -2578,6 +2571,17 @@ makeShadowedPrintNamesFromLabeled
   :: Monad m => Set LabeledDependency -> Names0 -> Action' m v Names
 makeShadowedPrintNamesFromLabeled deps shadowing =
   Names3.shadowing shadowing <$> makePrintNamesFromLabeled' deps
+
+makePrintNamesFromLabeled'
+  :: Monad m => Set LabeledDependency -> Action' m v Names
+makePrintNamesFromLabeled' deps = do
+  root                           <- use root
+  currentPath                    <- use currentPath
+  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalRefs
+    deps
+    root
+  basicNames0 <- basicPrettyPrintNames0
+  pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
 
 getTermsIncludingHistorical
   :: Monad m => Path.HQSplit -> Branch0 m -> Action' m v (Set Referent)
@@ -2629,40 +2633,6 @@ makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
     Names3.shadowing
       shadowing
       (Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames))
-
-makePrintNamesFromLabeled'
-  :: Monad m => Set LabeledDependency -> Action' m v Names
-makePrintNamesFromLabeled' deps = do
-  root                           <- use root
-  currentPath                    <- use currentPath
-  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalRefs
-    deps
-    root
-  basicNames0 <- basicPrettyPrintNames0
-  pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
-
--- Any absolute names in the input which have `currentPath` as a prefix
--- are converted to names relative to current path. All other names are
--- converted to absolute names. For example:
---
--- e.g. if currentPath = .foo.bar
---      then name foo.bar.baz becomes baz
---           name cat.dog     becomes .cat.dog
-fixupNamesRelative :: Path.Absolute -> Names0 -> Names0
-fixupNamesRelative currentPath' = Names3.map0 fixName where
-  prefix = Path.toName (Path.unabsolute currentPath')
-  fixName n = if currentPath' == Path.absoluteEmpty then n else
-    fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
-
-makeHistoricalParsingNames ::
-  Monad m => Set (HQ.HashQualified Name) -> Action' m v Names
-makeHistoricalParsingNames lexedHQs = do
-  rawHistoricalNames <- findHistoricalHQs lexedHQs
-  basicNames0 <- basicParseNames0
-  currentPath <- use currentPath
-  pure $ Names basicNames0
-               (Names3.makeAbsolute0 rawHistoricalNames <>
-                 fixupNamesRelative currentPath rawHistoricalNames)
 
 basicParseNames0, slurpResultNames0 :: Functor m => Action' m v Names0
 basicParseNames0 = fst <$> basicNames0'

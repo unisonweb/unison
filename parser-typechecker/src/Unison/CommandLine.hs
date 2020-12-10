@@ -28,7 +28,7 @@ import qualified Unison.Codebase.Branch          as Branch
 import           Unison.Codebase.Causal          ( Causal )
 import qualified Unison.Codebase.Causal          as Causal
 import           Unison.Codebase.Editor.Input    (Event(..), Input(..))
-import qualified Unison.Codebase.SearchResult    as SR
+import qualified Unison.Server.SearchResult    as SR
 import qualified Unison.Codebase.Watch           as Watch
 import           Unison.CommandLine.InputPattern (InputPattern (parse))
 import qualified Unison.HashQualified'           as HQ

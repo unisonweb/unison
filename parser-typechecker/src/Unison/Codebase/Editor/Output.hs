@@ -44,9 +44,9 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
-import Unison.Codebase.Editor.DisplayThing (DisplayThing)
+import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
-import Unison.Codebase.Editor.SearchResult' (SearchResult')
+import Unison.Server.SearchResult' (SearchResult')
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Names3 as Names
@@ -155,8 +155,8 @@ data Output v
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
                        PPE.PrettyPrintEnvDecl
-                       (Map Reference (DisplayThing (Decl v Ann)))
-                       (Map Reference (DisplayThing (Term v Ann)))
+                       (Map Reference (DisplayObject (Decl v Ann)))
+                       (Map Reference (DisplayObject (Term v Ann)))
   -- | Invariant: there's at least one conflict or edit in the TodoOutput.
   | TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
@@ -178,8 +178,8 @@ data Output v
   | ConfiguredGitUrlParseError PushPull Path' Text String
   | ConfiguredGitUrlIncludesShortBranchHash PushPull RemoteRepo ShortBranchHash Path
   | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
-               (Map Reference (DisplayThing (Decl v Ann)))
-               (Map Reference (DisplayThing (Term v Ann)))
+               (Map Reference (DisplayObject (Decl v Ann)))
+               (Map Reference (DisplayObject (Term v Ann)))
   | MetadataMissingType PPE.PrettyPrintEnv Referent
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
   -- todo: tell the user to run `todo` on the same patch they just used

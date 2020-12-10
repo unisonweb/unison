@@ -29,9 +29,8 @@ import qualified Unison.Util.SyntaxText as SyntaxText
 import Unison.Var (Var)
 import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Type (Type)
-import Unison.Term (Term)
 import qualified Unison.TypePrinter as TypePrinter
-import qualified Unison.TermPrinter as TermPrinter
+import qualified Unison.Server.SearchResult as SR
 
 type HashQualifiedName = Text
 
@@ -87,15 +86,6 @@ formatType ppe w =
   fmap (fmap Reference.toShortHash) . render w . TypePrinter.pretty0 ppe
                                                                      mempty
                                                                      (-1)
-
-formatTerm
-  :: Var v
-  => PPE.PrettyPrintEnv
-  -> Width
-  -> Term3 v PrintAnnotation
-  -> SyntaxText' ShortHash
-formatTerm ppe w =
-  fmap (fmap Reference.toShortHash) . render w . TermPrinter.pretty0 ppe mempty
 
 munge :: Text -> LZ.ByteString
 munge = Text.encodeUtf8 . Text.fromStrict

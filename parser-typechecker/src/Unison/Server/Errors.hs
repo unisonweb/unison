@@ -1,9 +1,6 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Server.Errors where
@@ -32,8 +29,11 @@ badHQN hqn =
 
 backendError :: Backend.BackendError -> ServerError
 backendError = \case
-  Backend.NoSuchNamespace n -> noSuchNamespace . Path.toText $ Path.unabsolute n
+  Backend.NoSuchNamespace n ->
+    noSuchNamespace . Path.toText $ Path.unabsolute n
   Backend.BadRootBranch e -> rootBranchError e
+  Backend.NoBranchForHash h ->
+    noSuchNamespace . Text.toStrict . Text.pack $ show h
 
 rootBranchError :: Codebase.GetRootBranchError -> ServerError
 rootBranchError rbe =

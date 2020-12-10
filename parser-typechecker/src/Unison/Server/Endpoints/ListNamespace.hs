@@ -41,13 +41,11 @@ import Unison.Server.Types
     UnisonHash,
     UnisonName,
     mayDefault,
+    formatType
   )
 import Unison.ShortHash (ShortHash)
-import Unison.Type (Type)
-import qualified Unison.TypePrinter as TypePrinter
-import Unison.Util.Pretty (Width, render)
+import Unison.Util.Pretty (Width)
 import Unison.Util.SyntaxText (SyntaxText')
-import qualified Unison.Util.SyntaxText as SyntaxText
 import Unison.Var (Var)
 
 type NamespaceAPI =

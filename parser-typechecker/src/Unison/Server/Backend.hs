@@ -1,29 +1,38 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Server.Backend where
 
+import Control.Error.Util
 import Control.Monad.Except (ExceptT (..), throwError)
 import Data.Bifunctor (first)
-import Data.List.Extra (sort)
+import Data.Tuple.Extra (dupe)
+import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Unison.Builtin as B
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Path (Path)
+import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.DataDeclaration as DD
-import Unison.HashQualified' as HQ'
-    ( fromName,
-      fromNamedReference,
-      fromNamedReferent,
-      take,
-      HQSegment )
+import qualified Unison.Server.SearchResult as SR
+import qualified Unison.Server.SearchResult' as SR'
+import qualified Unison.ABT as ABT
+import Unison.Term (Term)
+import qualified Unison.Term as Term
+import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
 import Unison.Name as Name ( unsafeFromText )
 import Unison.NameSegment (NameSegment)
 import qualified Unison.Names2 as Names
+import Unison.Name (Name)
+import qualified Unison.Name as Name
 import Unison.Names3
   ( Names (..),
     Names0,
@@ -31,8 +40,8 @@ import Unison.Names3
 import qualified Unison.Names3 as Names3
 import Unison.Parser (Ann)
 import Unison.Prelude
-    ( toList, Generic, fromMaybe, for, MonadTrans(lift) )
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.Util.Pretty as Pretty
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -41,6 +50,12 @@ import Unison.Type (Type)
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Star3 as Star3
 import Unison.Var (Var)
+import Unison.Server.Types
+import Unison.Util.SyntaxText (SyntaxText)
+import Unison.Util.List (uniqueBy)
+import Unison.ShortHash
+import qualified Unison.TermPrinter as TermPrinter
+import qualified Unison.DeclPrinter as DeclPrinter
 
 data ShallowListEntry v a
   = ShallowTermEntry Referent HQ'.HQSegment (Maybe (Type v a))
@@ -52,6 +67,7 @@ data ShallowListEntry v a
 data BackendError
   = NoSuchNamespace Path.Absolute
   | BadRootBranch Codebase.GetRootBranchError
+  | NoBranchForHash Branch.Hash
 
 type Backend m a = ExceptT BackendError m a
 
@@ -110,27 +126,31 @@ loadReferentType codebase = \case
           ++ " "
           ++ show cid
 
-findShallow ::
-  (Monad m, Var v) =>
-  Codebase m v Ann ->
-  Path.Absolute ->
-  Backend m [ShallowListEntry v Ann]
+getRootBranch :: Functor m => Codebase m v Ann -> Backend m (Branch m)
+getRootBranch =
+  ExceptT . (first BadRootBranch <$>) . Codebase.getRootBranch
+
+findShallow
+  :: (Monad m, Var v)
+  => Codebase m v Ann
+  -> Path.Absolute
+  -> Backend m [ShallowListEntry v Ann]
 findShallow codebase path' = do
   let path = Path.unabsolute path'
   hashLength <- lift $ Codebase.hashLength codebase
-  root <- ExceptT . (first BadRootBranch <$>) $ Codebase.getRootBranch codebase
+  root <- getRootBranch codebase
   b0 <-
-    maybe (throwError . NoSuchNamespace $ Path.Absolute path) pure $
-      Branch.head
-        <$> Branch.getAt path root
+    maybe (throwError . NoSuchNamespace $ Path.Absolute path) pure
+    $   Branch.head
+    <$> Branch.getAt path root
   let hqTerm b0 ns r =
         let refs = Star3.lookupD1 ns . Branch._terms $ b0
-         in case length refs of
+        in  case length refs of
               1 -> HQ'.fromName ns
               _ -> HQ'.take hashLength $ HQ'.fromNamedReferent ns r
       hqType b0 ns r =
         let refs = Star3.lookupD1 ns . Branch._types $ b0
-         in case length refs of
+        in  case length refs of
               1 -> HQ'.fromName ns
               _ -> HQ'.take hashLength $ HQ'.fromNamedReference ns r
       defnCount b =
@@ -139,32 +159,39 @@ findShallow codebase path' = do
   termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) -> do
     ot <- lift $ loadReferentType codebase r
     pure $ ShallowTermEntry r (hqTerm b0 ns r) ot
-  let typeEntries =
-        [ ShallowTypeEntry r (hqType b0 ns r)
-          | (r, ns) <- R.toList . Star3.d1 $ Branch._types b0
-        ]
-      branchEntries =
-        [ ShallowBranchEntry ns (defnCount b)
-          | (ns, b) <- Map.toList $ Branch._children b0
-        ]
-      patchEntries =
-        [ ShallowPatchEntry ns
-          | (ns, (_h, _mp)) <- Map.toList $ Branch._edits b0
-        ]
-  pure . sort $ termEntries ++ typeEntries ++ branchEntries ++ patchEntries
+  let
+    typeEntries =
+      [ ShallowTypeEntry r (hqType b0 ns r)
+      | (r, ns) <- R.toList . Star3.d1 $ Branch._types b0
+      ]
+    branchEntries =
+      [ ShallowBranchEntry ns (defnCount b)
+      | (ns, b) <- Map.toList $ Branch._children b0
+      ]
+    patchEntries =
+      [ ShallowPatchEntry ns
+      | (ns, (_h, _mp)) <- Map.toList $ Branch._edits b0
+      ]
+  pure . List.sort $ termEntries ++ typeEntries ++ branchEntries ++ patchEntries
 
+termReferencesByShortHash
+  :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
 typeReferencesByShortHash codebase sh = do
   fromCodebase <- Codebase.typeReferencesByPrefix codebase sh
   let fromBuiltins = Set.filter (\r -> sh == Reference.toShortHash r)
                                 B.intrinsicTypeReferences
   pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
 
+typeReferencesByShortHash
+  :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
 termReferencesByShortHash codebase sh = do
   fromCodebase <- Codebase.termReferencesByPrefix codebase sh
   let fromBuiltins = Set.filter (\r -> sh == Reference.toShortHash r)
                                 B.intrinsicTermReferences
   pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
 
+termReferentsByShortHash
+  :: Monad m => Codebase m v a -> ShortHash -> m (Set Referent)
 termReferentsByShortHash codebase sh = do
   fromCodebase <- Codebase.termReferentsByPrefix codebase sh
   let fromBuiltins = Set.map Referent.Ref $ Set.filter
@@ -172,57 +199,212 @@ termReferentsByShortHash codebase sh = do
         B.intrinsicTermReferences
   pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase)
 
-hqNameQuery' doSuffixify hqs = do
-  let (hqnames, hashes) = partition (isJust . HQ.toName) hqs
-  termRefs <- filter (not . Set.null . snd) . zip hashes <$> traverse
-    (eval . TermReferentsByShortHash)
-    (catMaybes (HQ.toHash <$> hashes))
-  typeRefs <- filter (not . Set.null . snd) . zip hashes <$> traverse
-    (eval . TypeReferencesByShortHash)
-    (catMaybes (HQ.toHash <$> hashes))
-  parseNames0 <- makeHistoricalParsingNames $ Set.fromList hqnames
-  let
-    mkTermResult n r = SR.termResult (HQ'.fromHQ' n) r Set.empty
-    mkTypeResult n r = SR.typeResult (HQ'.fromHQ' n) r Set.empty
-    termResults =
-      (\(n, tms) -> (n, toList $ mkTermResult n <$> toList tms)) <$> termRefs
-    typeResults =
-      (\(n, tps) -> (n, toList $ mkTypeResult n <$> toList tps)) <$> typeRefs
-    parseNames = (if doSuffixify then Names3.suffixify else id) parseNames0
-    resultss   = searchBranchExact hqLength parseNames hqnames
-    missingRefs =
-      [ x
-      | x <- hashes
-      , isNothing (lookup x termRefs) && isNothing (lookup x typeRefs)
-      ]
-    (misses, hits) =
-      partition (\(_, results) -> null results) (zip hqs resultss)
-    results =
-      List.sort
-        .   uniqueBy SR.toReferent
-        $   (hits ++ termResults ++ typeResults)
-        >>= snd
-  pure (missingRefs ++ (fst <$> misses), results)
+-- currentPathNames0 :: Path -> Names0
+-- currentPathNames0 = Branch.toNames0 . Branch.head . Branch.getAt
 
+getCurrentNames :: Path -> Branch m -> Names
+getCurrentNames path root = Names (basicPrettyPrintNames0 root path) mempty
+
+-- Any absolute names in the input which have `root` as a prefix
+-- are converted to names relative to current path. All other names are
+-- converted to absolute names. For example:
+--
+-- e.g. if currentPath = .foo.bar
+--      then name foo.bar.baz becomes baz
+--           name cat.dog     becomes .cat.dog
+fixupNamesRelative :: Path.Absolute -> Names0 -> Names0
+fixupNamesRelative root = Names3.map0 fixName where
+  prefix = Path.toName $ Path.unabsolute root
+  fixName n = if root == Path.absoluteEmpty
+    then n
+    else fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
+
+-- | The output list (of lists) corresponds to the query list.
+searchBranchExact
+  :: Int -> Names -> [HQ.HashQualified Name] -> [[SR.SearchResult]]
+searchBranchExact len names queries =
+  let
+    searchTypes :: HQ.HashQualified Name -> [SR.SearchResult]
+    searchTypes query =
+      -- a bunch of references will match a HQ ref.
+      let refs = toList $ Names3.lookupHQType query names
+      in
+        refs <&> \r ->
+          let hqNames = Names3.typeName len r names
+          in  let primaryName =
+                      last
+                        . sortOn
+                            (\n -> HQ.matchesNamedReference (HQ'.toName n) r query
+                            )
+                        $ toList hqNames
+              in  let aliases = Set.delete primaryName hqNames
+                  in  SR.typeResult primaryName r aliases
+    searchTerms :: HQ.HashQualified Name -> [SR.SearchResult]
+    searchTerms query =
+      -- a bunch of references will match a HQ ref.
+      let refs = toList $ Names3.lookupHQTerm query names
+      in
+        refs <&> \r ->
+          let hqNames = Names3.termName len r names
+          in  let primaryName =
+                      last
+                        . sortOn
+                            (\n -> HQ.matchesNamedReferent (HQ'.toName n) r query)
+                        $ toList hqNames
+              in  let aliases = Set.delete primaryName hqNames
+                  in  SR.termResult primaryName r aliases
+  in
+    [ searchTypes q <> searchTerms q | q <- queries ]
+
+hqNameQuery'
+  :: Monad m
+  => Bool
+  -> Maybe Path
+  -> Branch m
+  -> Codebase m v Ann
+  -> [HQ.HashQualified Name]
+  -> m QueryResult
+hqNameQuery' doSuffixify relativeTo root codebase hqs = do
+  -- Split the query into hash-only and hash-qualified-name queries.
+  let (hqnames, hashes) = List.partition (isJust . HQ.toName) hqs
+  -- Find the terms with those hashes.
+  termRefs <- filter (not . Set.null . snd) . zip hashes <$> traverse
+    (termReferentsByShortHash codebase)
+    (catMaybes (HQ.toHash <$> hashes))
+  -- Find types with those hashes.
+  typeRefs <- filter (not . Set.null . snd) . zip hashes <$> traverse
+    (typeReferencesByShortHash codebase)
+    (catMaybes (HQ.toHash <$> hashes))
+  -- Now do the name queries.
+  -- The hq-name search needs a hash-qualifier length
+  hqLength <- Codebase.hashLength codebase
+  -- We need to construct the names that we want to use / search by.
+  let currentPath = fromMaybe Path.empty relativeTo
+      parseNames0 = getCurrentNames currentPath root
+      mkTermResult n r = SR.termResult (HQ'.fromHQ' n) r Set.empty
+      mkTypeResult n r = SR.typeResult (HQ'.fromHQ' n) r Set.empty
+      -- Transform the hash results a bit
+      termResults =
+        (\(n, tms) -> (n, toList $ mkTermResult n <$> toList tms)) <$> termRefs
+      typeResults =
+        (\(n, tps) -> (n, toList $ mkTypeResult n <$> toList tps)) <$> typeRefs
+      -- Suffixify the names
+      parseNames = (if doSuffixify then Names3.suffixify else id) parseNames0
+      -- Now do the actual name query
+      resultss   = searchBranchExact hqLength parseNames hqnames
+      -- Handle query misses correctly
+      missingRefs =
+        [ x
+        | x <- hashes
+        , isNothing (lookup x termRefs) && isNothing (lookup x typeRefs)
+        ]
+      (misses, hits) =
+        List.partition (\(_, results) -> null results) (zip hqs resultss)
+      -- Gather the results
+      results =
+        List.sort
+          .   uniqueBy SR.toReferent
+          $   (hits ++ termResults ++ typeResults)
+          >>= snd
+  pure $ QueryResult (missingRefs ++ (fst <$> misses)) results
+
+hqNameQuery
+  :: Monad m
+  => Maybe Path
+  -> Branch m
+  -> Codebase m v Ann
+  -> [HQ.HashQualified Name]
+  -> m QueryResult
 hqNameQuery = hqNameQuery' False
 
-hqNameQuerySuffixify :: [HQ.HashQualified Name] -> QueryResult
+hqNameQuerySuffixify
+  :: Monad m
+  => Maybe Path
+  -> Branch m
+  -> Codebase m v Ann
+  -> [HQ.HashQualified Name]
+  -> m QueryResult
 hqNameQuerySuffixify = hqNameQuery' True
 
 data DefinitionDisplayResults =
   DefinitionDisplayResults
     { termDefinitions :: Map Reference (DisplayObject SyntaxText)
     , typeDefinitions :: Map Reference (DisplayObject SyntaxText)
-    , missingDefinitions :: HQ.HashQualified Name
-    } deriving (Eq, Ord, Show, Generic)
+    , missingDefinitions :: [HQ.HashQualified Name]
+    } deriving (Eq, Show, Generic)
+
+data DefinitionResults v =
+  DefinitionResults
+    { termResults :: Map Reference (DisplayObject (Term v Ann))
+    , typeResults :: Map Reference (DisplayObject (DD.Decl v Ann))
+    , noResults :: [HQ.HashQualified Name]
+    }
+
+-- Separates type references from term references and returns types and terms,
+-- respectively. For terms that are constructors, turns them into their data
+-- types.
+collateReferences
+  :: Foldable f
+  => Foldable g
+  => f Reference -- types requested
+  -> g Referent -- terms requested, including ctors
+  -> (Set Reference, Set Reference)
+collateReferences (toList -> types) (toList -> terms) =
+  let terms' = [ r | Referent.Ref r <- terms ]
+      types' = [ r | Referent.Con r _ _ <- terms ]
+  in  (Set.fromList types' <> Set.fromList types, Set.fromList terms')
+
+prettyDefinitionsBySuffixes
+  :: Monad m
+  => Var v
+  => Maybe Path
+  -> Maybe Branch.Hash
+  -> Maybe Int
+  -> Codebase m v Ann
+  -> [HQ.HashQualified Name]
+  -> Backend m DefinitionDisplayResults
+prettyDefinitionsBySuffixes relativeTo root renderWidth codebase query = do
+  branch                               <- resolveBranchHash root codebase
+  DefinitionResults terms types misses <- definitionsBySuffixes relativeTo
+                                                                branch
+                                                                codebase
+                                                                query
+  hqLength <- lift $ Codebase.hashLength codebase
+  -- We might like to make sure that the user search terms get used as
+  -- the names in the pretty-printer, but the current implementation
+  -- doesn't.
+  let printNames = getCurrentNames (fromMaybe Path.empty relativeTo) branch
+      ppe                  = PPE.fromNamesDecl hqLength printNames
+      width                = mayDefault renderWidth
+      renderedDisplayTerms = termsToSyntax width ppe terms
+      renderedDisplayTypes = typesToSyntax width ppe types
+  pure $ DefinitionDisplayResults renderedDisplayTerms
+                                  renderedDisplayTypes
+                                  misses
+
+resolveBranchHash
+  :: Monad m => Maybe Branch.Hash -> Codebase m v Ann -> Backend m (Branch m)
+resolveBranchHash h codebase = case h of
+  Nothing    -> getRootBranch codebase
+  Just bhash -> do
+    mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
+    mayBranch ?? NoBranchForHash bhash
 
 definitionsBySuffixes
-  :: Codebase m v Ann -> [HQ.HashQualified Name] -> m DefinitionResults
-findBySuffixes codebase = do
+  :: forall m v
+   . Monad m
+  => Var v
+  => Maybe Path
+  -> Branch m
+  -> Codebase m v Ann
+  -> [HQ.HashQualified Name]
+  -> Backend m (DefinitionResults v)
+definitionsBySuffixes relativeTo branch codebase query = do
   -- First find the hashes by name and note any query misses.
-  (misses, results) <- hqNameQuerySuffixify query
+  QueryResult misses results <- lift
+    $ hqNameQuerySuffixify relativeTo branch codebase query
   -- Now load the terms/types for those hashes.
-  results'          <- loadSearchResults results
+  results' <- lift $ loadSearchResults codebase results
   let termTypes :: Map.Map Reference (Type v Ann)
       termTypes = Map.fromList
         [ (r, t) | SR'.Tm _ (Just t) (Referent.Ref r) _ <- results' ]
@@ -232,81 +414,73 @@ findBySuffixes codebase = do
   -- load the `collatedTerms` and types into a Map Reference.Id Term/Type
   -- for later
   loadedDerivedTerms <-
-    fmap (Map.fromList . catMaybes) . for (toList collatedTerms) $ \case
+    lift $ fmap (Map.fromList . catMaybes) . for (toList collatedTerms) $ \case
       Reference.DerivedId i -> fmap (i, ) <$> Codebase.getTerm codebase i
       Reference.Builtin{}   -> pure Nothing
   loadedDerivedTypes <-
-    fmap (Map.fromList . catMaybes) . for (toList collatedTypes) $ \case
+    lift $ fmap (Map.fromList . catMaybes) . for (toList collatedTypes) $ \case
       Reference.DerivedId i ->
         fmap (i, ) <$> Codebase.getTypeDeclaration codebase i
       Reference.Builtin{} -> pure Nothing
   -- Populate DisplayObjects for the search results, in anticipation of
   -- rendering the definitions.
-  loadedDisplayTerms :: Map Reference (DisplayObject (Term v Ann)) <-
-    fmap Map.fromList . for (toList collatedTerms) $ \case
-      r@(Reference.DerivedId i) -> do
-        let tm = Map.lookup i loadedDerivedTerms
-        -- We add a type annotation to the term using if it doesn't
-        -- already have one that the user provided
-        pure . (r, ) $ case liftA2 (,) tm (Map.lookup r termTypes) of
-          Nothing        -> MissingObject i
-          Just (tm, typ) -> case tm of
-            Term.Ann' _ _ -> UserObject tm
-            _             -> UserObject (Term.ann (ABT.annotation tm) tm typ)
-      r@(Reference.Builtin _) -> pure (r, BuiltinObject)
-  let loadedDisplayTypes :: Map Reference (DisplayObject (DD.Decl v Ann))
-      loadedDisplayTypes = Map.fromList . (`fmap` toList collatedTypes) $ \case
+  loadedDisplayTerms <- fmap Map.fromList . for (toList collatedTerms) $ \case
+    r@(Reference.DerivedId i) -> do
+      let tm = Map.lookup i loadedDerivedTerms
+      -- We add a type annotation to the term using if it doesn't
+      -- already have one that the user provided
+      pure . (r, ) $ case liftA2 (,) tm (Map.lookup r termTypes) of
+        Nothing        -> MissingObject i
+        Just (tm, typ) -> case tm of
+          Term.Ann' _ _ -> UserObject tm
+          _             -> UserObject (Term.ann (ABT.annotation tm) tm typ)
+    r@(Reference.Builtin _) -> pure (r, BuiltinObject)
+  let loadedDisplayTypes = Map.fromList . (`fmap` toList collatedTypes) $ \case
         r@(Reference.DerivedId i) ->
           (r, ) . maybe (MissingObject i) UserObject $ Map.lookup
             i
             loadedDerivedTypes
         r@(Reference.Builtin _) -> (r, BuiltinObject)
-  let deps =
-        foldMap SR'.labeledDependencies results'
-          <> foldMap Term.labeledDependencies loadedDerivedTerms
-  -- Now let's pretty-print
-  printNames <- makePrintNamesFromLabeled' deps
-  -- We might like to make sure that the user search terms get used as
-  -- the names in the pretty-printer, but the current implementation
-  -- doesn't.
-  ppe        <- prettyPrintEnvDecl printNames
-  let renderedDisplayTerms = termsToSyntax ppe loadedDisplayTerms
-      renderedDisplayTypes = typesToSyntax ppe loadedDisplayTypes
-  pure $ DefinitionDisplayResults renderedDisplayTerms
-                                  renderedDisplayTypes
-                                  misses
+  pure $ DefinitionResults loadedDisplayTerms loadedDisplayTypes misses
 
 termsToSyntax
   :: Var v
   => Ord a
-  => Applicative m
-  => PPE.PrettyPrintEnvDecl
+  => Int
+  -> PPE.PrettyPrintEnvDecl
   -> Map Reference.Reference (DisplayObject (Term v a))
-  -> Map
-       Reference.Reference
-       (DisplayObject (SyntaxText' ShortHash))
-termsToSyntax ppe0 terms = Map.fromList . map go . Map.toList $ Map.mapKeys
-  (first (PPE.termName ppeDecl . Referent.Ref) . dupe)
-  terms
+  -> Map Reference.Reference (DisplayObject SyntaxText)
+termsToSyntax width ppe0 terms =
+  Map.fromList . map go . Map.toList $ Map.mapKeys
+    (first (PPE.termName ppeDecl . Referent.Ref) . dupe)
+    terms
  where
+  ppeBody r = PPE.declarationPPE ppe0 r
   ppeDecl = PPE.unsuffixifiedPPE ppe0
-  go ((n, r), dt) = (r, TermPrinter.prettyBinding (ppeBody r) n <$> dt)
+  go ((n, r), dt) =
+    (r, Pretty.render width . TermPrinter.prettyBinding (ppeBody r) n <$> dt)
 
 typesToSyntax
   :: Var v
   => Ord a
+  => Int
   -> PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayObject (DD.Decl v a1))
-  -> Map Reference.Reference (DisplayObject (SyntaxText' ShortHash))
-typesToSyntax ppe0 types = map go . Map.toList $ Map.mapKeys
-  (first (PPE.typeName ppeDecl) . dupe)
-  types
+  -> Map Reference.Reference (DisplayObject (DD.Decl v a))
+  -> Map Reference.Reference (DisplayObject SyntaxText)
+typesToSyntax width ppe0 types =
+  Map.fromList $ map go . Map.toList $ Map.mapKeys
+    (first (PPE.typeName ppeDecl) . dupe)
+    types
  where
-  go2 ((n, r), dt) =
+  ppeBody r = PPE.declarationPPE ppe0 r
+  ppeDecl = PPE.unsuffixifiedPPE ppe0
+  go ((n, r), dt) =
     ( r
     , (\case
-        Left  d -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
-        Right d -> DeclPrinter.prettyDataDecl (ppeBody r) r n d
+        Left d ->
+          Pretty.render width $ DeclPrinter.prettyEffectDecl (ppeBody r) r n d
+        Right d ->
+          Pretty.render width $ DeclPrinter.prettyDataDecl (ppeBody r) r n d
       )
       <$> dt
     )
@@ -315,19 +489,22 @@ loadSearchResults
   :: (Var v, Applicative m)
   => Codebase m v Ann
   -> [SR.SearchResult]
-  -> m [SearchResult' v Ann]
+  -> m [SR'.SearchResult' v Ann]
 loadSearchResults c = traverse loadSearchResult
  where
   loadSearchResult = \case
     SR.Tm (SR.TermResult name r aliases) -> do
-      typ <- lift $ loadReferentType c r
+      typ <- loadReferentType c r
       pure $ SR'.Tm name typ r aliases
     SR.Tp (SR.TypeResult name r aliases) -> do
       dt <- loadTypeDisplayObject c r
       pure $ SR'.Tp name dt r aliases
 
 loadTypeDisplayObject
-  :: Codebase m v Ann -> Reference -> m (DisplayObject (DD.Decl v Ann))
+  :: Applicative m
+  => Codebase m v Ann
+  -> Reference
+  -> m (DisplayObject (DD.Decl v Ann))
 loadTypeDisplayObject c = \case
   Reference.Builtin _ -> pure BuiltinObject
   Reference.DerivedId id ->

@@ -28,7 +28,7 @@ import           Unison.Name                  ( Name )
 import           Unison.Parser                (Ann (..), Annotated, ann)
 import qualified Unison.Parser                as Parser
 import qualified Unison.Reference             as R
-import           Unison.Referent              (Referent, pattern Ref')
+import           Unison.Referent              (Referent, pattern Ref)
 import           Unison.Result                (Note (..))
 import qualified Unison.Result                as Result
 import qualified Unison.Settings              as Settings
@@ -740,7 +740,7 @@ renderCompilerBug env _src bug = mconcat $ case bug of
     ]
   C.UnknownTermReference rf ->
     [ "UnknownTermReference:\n"
-    , showTermRef env (Ref' rf)
+    , showTermRef env (Ref rf)
     ]
   C.UnknownExistentialVariable v ctx ->
     [ "UnknownExistentialVariable:\n"

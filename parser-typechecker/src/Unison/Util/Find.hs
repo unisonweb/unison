@@ -13,8 +13,8 @@ import qualified Data.Text                    as Text
 -- https://www.stackage.org/haddock/lts-13.9/regex-base-0.93.2/Text-Regex-Base-Context.html -- re-exported by TDFA
 -- https://www.stackage.org/haddock/lts-13.9/regex-tdfa-1.2.3.1/Text-Regex-TDFA.html
 import qualified Text.Regex.TDFA              as RE
-import           Unison.Codebase.SearchResult (SearchResult)
-import qualified Unison.Codebase.SearchResult as SR
+import           Unison.Server.SearchResult (SearchResult)
+import qualified Unison.Server.SearchResult as SR
 import           Unison.HashQualified'        (HashQualified)
 import qualified Unison.HashQualified'        as HQ
 import qualified Unison.Name                  as Name
