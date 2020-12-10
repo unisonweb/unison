@@ -259,10 +259,9 @@ library
     unicode-show,
     vector,
     wai,
-    warp
+    warp,
     unicode-show,
     x509-system
->>>>>>> bdbff15dcfb8fc4adc19e81d1194ee22968f908d
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 

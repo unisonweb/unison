@@ -109,7 +109,7 @@ data Input
   -- execute an IO thunk
   | ExecuteI String
   -- execute an IO [Result]
-  | IOTestI HQ.HashQualified
+  | IOTestI (HQ.HashQualified Name)
   | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
   -- `link metadata definitions` (adds metadata to all of `definitions`)

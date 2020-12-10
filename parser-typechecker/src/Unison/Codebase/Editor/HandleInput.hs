@@ -1538,7 +1538,7 @@ loop = do
 
       IOTestI main -> do
         testType <- eval RuntimeTest
-        parseNames0 <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0
+        parseNames0 <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0A
         ppe <- prettyPrintEnv parseNames0
         -- use suffixed names for resolving the argument to display
         let
@@ -2620,7 +2620,7 @@ makePrintNamesFromLabeled' deps = do
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalRefs
     deps
     root
-  basicNames0 <- basicPrettyPrintNames0
+  basicNames0 <- basicPrettyPrintNames0A
   pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
 
 getTermsIncludingHistorical
@@ -2659,13 +2659,13 @@ findHistoricalHQs lexedHQs0 = do
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
   pure rawHistoricalNames
 
-basicPrettyPrintNames0 :: Functor m => Action' m v Names0
-basicPrettyPrintNames0 = snd <$> basicNames0'
+basicPrettyPrintNames0A :: Functor m => Action' m v Names0
+basicPrettyPrintNames0A = snd <$> basicNames0'
 
 makeShadowedPrintNamesFromHQ :: Monad m => Set (HQ.HashQualified Name) -> Names0 -> Action' m v Names
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
-  basicNames0 <- basicPrettyPrintNames0
+  basicNames0 <- basicPrettyPrintNames0A
   currentPath <- use currentPath
   -- The basic names go into "current", but are shadowed by "shadowing".
   -- They go again into "historical" as a hack that makes them available HQ-ed.
@@ -2753,7 +2753,7 @@ diffHelper :: Monad m
 diffHelper before after = do
   hqLength <- eval CodebaseHashLength
   diff     <- eval . Eval $ BranchDiff.diff0 before after
-  names0 <- basicPrettyPrintNames0
+  names0 <- basicPrettyPrintNames0A
   ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (Names names0 mempty)
   (ppe,) <$>
     OBranchDiff.toOutput
