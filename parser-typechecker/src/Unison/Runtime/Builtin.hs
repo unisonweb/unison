@@ -128,6 +128,10 @@ fresh3 :: Var v => (v, v, v)
 fresh3 = (v1, v2, v3) where
   [v1, v2, v3] = freshes 3
 
+fresh4 :: Var v => (v, v, v, v)
+fresh4 = (v1, v2, v3, v4) where
+  [v1, v2, v3, v4] = freshes 4
+
 fresh5 :: Var v => (v, v, v, v, v)
 fresh5 = (v1, v2, v3, v4, v5) where
   [v1, v2, v3, v4, v5] = freshes 5
@@ -729,6 +733,23 @@ get'buffering = inBx arg1 result
   where
     (arg1, result, m, n, b) = fresh5
 
+crypto'hash :: ForeignOp
+crypto'hash instr
+  = ([BX,BX],)
+  . TAbss [alg,x]
+  . TLetD vl BX (TPrm VALU [x])
+  $ TFOp instr [alg,vl]
+  where
+  (alg,x,vl) = fresh3
+
+crypto'hmac :: ForeignOp
+crypto'hmac instr
+  = ([BX,BX,BX],)
+  . TAbss [alg,by,x]
+  . TLetD vl BX (TPrm VALU [x])
+  $ TFOp instr [alg,by,vl]
+  where
+  (alg,by,x,vl) = fresh4
 
 -- Input Shape -- these will represent different argument lists a
 -- foreign might expect
@@ -1467,6 +1488,23 @@ declareForeigns = do
             u :: a -> HMAC.HMAC a -> HMAC.HMAC a
             u _ h = h -- to help typechecker along
         in pure $ Bytes.fromArray out
+
+  declareForeign "crypto.hash" crypto'hash . mkForeign
+    $ \(HashAlgorithm _ alg, x)
+   -> let ctx = Hash.hashInitWith alg in
+      pure . Bytes.fromArray
+           . Hash.hashFinalize
+           . Hash.hashUpdate ctx
+           $ serializeValue x
+
+  declareForeign "crypto.hmac" crypto'hmac . mkForeign
+    $ \(HashAlgorithm _ alg, key, x)
+   -> let u :: a -> HMAC.HMAC a -> HMAC.HMAC a
+          u _ h = h
+          out = u alg $
+            HMAC.hmac (Bytes.toArray @BA.Bytes key) (serializeValue x)
+      in pure $ Bytes.fromArray out
+
 
   declareForeign "Bytes.toBase16" boxDirect . mkForeign $ pure . Bytes.toBase16
   declareForeign "Bytes.toBase32" boxDirect . mkForeign $ pure . Bytes.toBase32
