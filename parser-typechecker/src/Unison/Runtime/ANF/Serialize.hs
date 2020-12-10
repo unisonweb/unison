@@ -15,6 +15,8 @@ import Data.Functor ((<&>))
 import Data.Map as Map (Map, fromList, lookup)
 import Data.Word (Word8, Word16, Word64)
 
+import qualified Data.Sequence as Seq
+
 import GHC.Stack
 
 import Unison.Codebase.Serialization.V1 as V1
@@ -39,7 +41,9 @@ data MtTag
 data LtTag
   = IT | NT | FT | TT | CT | LMT | LYT
 
-data VaTag = PartialT | DataT | ContT
+data BLTag = TextT | ListT | TmLinkT | TyLinkT
+
+data VaTag = PartialT | DataT | ContT | BLitT
 data CoTag = KET | MarkT | PushT
 
 class Tag t where
@@ -129,16 +133,32 @@ instance Tag LtTag where
     6 -> LYT
     _ -> error "unknown LtTag word"
 
+instance Tag BLTag where
+  tag2word = \case
+    TextT -> 0
+    ListT -> 1
+    TmLinkT -> 2
+    TyLinkT -> 3
+
+  word2tag = \case
+    0 -> TextT
+    1 -> ListT
+    2 -> TmLinkT
+    3 -> TyLinkT
+    _ -> error "unknown BLTag word"
+
 instance Tag VaTag where
   tag2word = \case
     PartialT -> 0
     DataT -> 1
     ContT -> 2
+    BLitT -> 3
 
   word2tag = \case
     0 -> PartialT
     1 -> DataT
     2 -> ContT
+    3 -> BLitT
     _ -> error "unknown VaTag word"
 
 instance Tag CoTag where
@@ -391,6 +411,19 @@ getLit = getTag >>= \case
   LMT -> LM <$> getReferent
   LYT -> LY <$> getReference
 
+putBLit :: MonadPut m => BLit -> m ()
+putBLit (Text t) = putTag TextT *> putText t
+putBLit (List s) = putTag ListT *> putFoldable putValue s
+putBLit (TmLink r) = putTag TmLinkT *> putReferent r
+putBLit (TyLink r) = putTag TyLinkT *> putReference r
+
+getBLit :: MonadGet m => m BLit
+getBLit = getTag >>= \case
+  TextT -> Text <$> getText
+  ListT -> List . Seq.fromList <$> getList getValue
+  TmLinkT -> TmLink <$> getReferent
+  TyLinkT -> TyLink <$> getReference
+
 putRefs :: MonadPut m => [Reference] -> m ()
 putRefs rs = putFoldable putReference rs
 
@@ -498,6 +531,8 @@ putValue (Cont us bs k)
       *> putFoldable putWord64be us
       *> putFoldable putValue bs
       *> putCont k
+putValue (BLit l)
+  = putTag BLitT *> putBLit l
 
 getValue :: MonadGet m => m Value
 getValue = getTag >>= \case
@@ -509,6 +544,7 @@ getValue = getTag >>= \case
          <*> getList getWord64be
          <*> getList getValue
   ContT -> Cont <$> getList getWord64be <*> getList getValue <*> getCont
+  BLitT -> BLit <$> getBLit
 
 putCont :: MonadPut m => Cont -> m ()
 putCont KE = putTag KET
