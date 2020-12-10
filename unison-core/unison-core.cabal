@@ -92,7 +92,7 @@ library
   build-depends:
     base,
     bytestring,
-    containers,
+    containers >= 0.6.3,
     cryptonite,
     either,
     extra,

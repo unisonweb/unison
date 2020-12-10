@@ -40,15 +40,17 @@ pairRef = lookupDeclRef "Tuple"
 optionalRef = lookupDeclRef "Optional"
 eitherRef = lookupDeclRef "Either"
 
-testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef :: Reference
+testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef, failureRef :: Reference
 testResultRef = lookupDeclRef "Test.Result"
 linkRef = lookupDeclRef "Link"
 docRef = lookupDeclRef "Doc"
 ioErrorRef = lookupDeclRef "io2.IOError"
 stdHandleRef = lookupDeclRef "io2.StdHandle"
+failureRef = lookupDeclRef "io2.Failure"
 
-fileModeRef, bufferModeRef, seekModeRef, seqViewRef :: Reference
+fileModeRef, filePathRef, bufferModeRef, seekModeRef, seqViewRef :: Reference
 fileModeRef = lookupDeclRef "io2.FileMode"
+filePathRef = lookupDeclRef "io2.FilePath"
 bufferModeRef = lookupDeclRef "io2.BufferMode"
 seekModeRef = lookupDeclRef "io2.SeekMode"
 seqViewRef = lookupDeclRef "SeqView"
@@ -97,9 +99,10 @@ builtinDataDecls = rs1 ++ rs
     , (v "io2.BufferMode" , bmode)
     , (v "io2.SeekMode"   , smode)
     , (v "SeqView"        , seqview)
-
     , (v "io2.IOError"    , ioerr)
     , (v "io2.StdHandle"  , stdhnd)
+    , (v "io2.Failure"    , failure)
+    , (v "io2.TlsFailure" , tlsFailure)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
   [(_, linkRef, _)] = rs1
   v = Var.named
@@ -191,6 +194,17 @@ builtinDataDecls = rs1 ++ rs
     , ((), v "io2.IOError.PermissionDenied", var "io2.IOError")
     , ((), v "io2.IOError.UserError", var "io2.IOError")
     ]
+  failure = DataDeclaration
+    (Unique "52ad89274a358b9c802792aa05915e25ac83205f7885395cc6c6c988bc5ec69a1")
+    ()
+    []
+    [ ((), v "io2.Failure.Failure", (Type.typeLink () `arr` (Type.text () `arr` var "io2.Failure")))
+    ]
+  tlsFailure = DataDeclaration
+    (Unique "df5ba835130b227ab83d02d1feff5402455a732d613b51dee32230d2f2d067c6")
+    ()
+    []
+    []
   stdhnd = DataDeclaration
     (Unique "67bf7a8e517cbb1e9f42bc078e35498212d3be3c")
     ()
@@ -273,8 +287,8 @@ pattern LinkTerm tm <- Term.App' (Term.Constructor' LinkRef LinkTermId) tm
 pattern LinkType ty <- Term.App' (Term.Constructor' LinkRef LinkTypeId) ty
 
 unitType, pairType, optionalType, testResultType,
-  eitherType, ioErrorType, fileModeType, bufferModeType, seekModeType,
-  stdHandleType
+  eitherType, ioErrorType, fileModeType, filePathType, bufferModeType, seekModeType,
+  stdHandleType, failureType
     :: Ord v => a -> Type v a
 unitType a = Type.ref a unitRef
 pairType a = Type.ref a pairRef
@@ -283,9 +297,11 @@ optionalType a = Type.ref a optionalRef
 eitherType a = Type.ref a eitherRef
 ioErrorType a = Type.ref a ioErrorRef
 fileModeType a = Type.ref a fileModeRef
+filePathType a = Type.ref a filePathRef
 bufferModeType a = Type.ref a bufferModeRef
 seekModeType a = Type.ref a seekModeRef
 stdHandleType a = Type.ref a stdHandleRef
+failureType a = Type.ref a failureRef
 
 unitTerm :: Var v => a -> Term v a
 unitTerm ann = Term.constructor ann unitRef 0

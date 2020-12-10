@@ -220,14 +220,30 @@ effectRef = Reference.Builtin "Effect"
 termLinkRef = Reference.Builtin "Link.Term"
 typeLinkRef = Reference.Builtin "Link.Type"
 
-builtinIORef, fileHandleRef, threadIdRef, socketRef :: Reference
+builtinIORef, fileHandleRef, filePathRef, threadIdRef, socketRef :: Reference
 builtinIORef = Reference.Builtin "IO"
 fileHandleRef = Reference.Builtin "Handle"
+filePathRef = Reference.Builtin "FilePath"
 threadIdRef = Reference.Builtin "ThreadId"
 socketRef = Reference.Builtin "Socket"
 
 mvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
+
+tlsRef :: Reference
+tlsRef = Reference.Builtin "Tls"
+
+tlsClientConfigRef :: Reference
+tlsClientConfigRef = Reference.Builtin "Tls.ClientConfig"
+
+tlsServerConfigRef :: Reference
+tlsServerConfigRef = Reference.Builtin "Tls.ServerConfig"
+
+tlsCiphersRef :: Reference
+tlsCiphersRef = Reference.Builtin "Tls.Ciphers"
+
+tlsVersionRef :: Reference
+tlsVersionRef = Reference.Builtin "Tls.Version"
 
 hashAlgorithmRef :: Reference
 hashAlgorithmRef = Reference.Builtin "crypto.HashAlgorithm"
@@ -461,6 +477,15 @@ existentializeArrows freshVar = ABT.visit go
       b <- existentializeArrows freshVar b
       let ann = ABT.annotation t
       pure $ arrow ann a (effect ann [var ann e] b)
+  go _ = Nothing
+
+purifyArrows :: (Ord v) => Type v a -> Type v a
+purifyArrows = ABT.visitPure go
+  where
+  go t@(Arrow' a b) = case b of
+    Effect1' _ _ -> Nothing
+    _ -> Just $ arrow ann a (effect ann [] b)
+    where ann = ABT.annotation t
   go _ = Nothing
 
 -- Remove free effect variables from the type that are in the set

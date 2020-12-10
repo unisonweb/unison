@@ -17,7 +17,6 @@ module Unison.Runtime.Builtin
   , numberedTermLookup
   ) where
 
-import Control.Exception (IOException, try)
 import Control.Monad.State.Strict (State, modify, execState)
 
 import Unison.ABT.Normalized hiding (TTm)
@@ -28,10 +27,10 @@ import Unison.Referent (pattern Ref)
 import Unison.Var
 import Unison.Symbol
 import Unison.Runtime.Stack (Closure)
-import Unison.Runtime.Foreign (Foreign(Wrap))
+import Unison.Runtime.Foreign
+    ( Foreign(Wrap), HashAlgorithm(..), Failure(..) )
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.IOSource
-import Unison.Runtime.Foreign (HashAlgorithm(..))
 
 import qualified Unison.Type as Ty
 import qualified Unison.Builtin as Ty (builtinTypes)
@@ -41,21 +40,21 @@ import qualified Crypto.MAC.HMAC as HMAC
 
 import Unison.Util.EnumContainers as EC
 
+import Data.Default (def)
 import Data.ByteString (hGet, hPut)
-import Data.Either.Combinators (mapLeft)
-import Data.Text as Text (Text, pack, unpack)
-import Data.Text.Encoding (encodeUtf8, decodeUtf8')
-import Data.Word (Word64, Word16)
+import Data.Text as Text (pack, unpack)
+import Data.Text.Encoding ( decodeUtf8', decodeUtf8' )
 import qualified Data.ByteArray as BA
+import qualified System.X509 as X
 
-import Data.Set (Set, insert)
+import Data.Set (insert)
 
-import Data.Map (Map)
 import qualified Data.Map as Map
-
+import Unison.Prelude
 import qualified Unison.Util.Bytes as Bytes
 import Network.Socket as SYS
   ( accept
+  , Socket
   )
 import Network.Simple.TCP as SYS
   ( HostPreference(..)
@@ -66,6 +65,9 @@ import Network.Simple.TCP as SYS
   , send
   , recv
   )
+import Network.TLS as TLS
+import Network.TLS.Extra.Cipher as Cipher
+
 import System.IO as SYS
   ( openFile
   , hClose
@@ -78,7 +80,6 @@ import System.IO as SYS
   , hTell
   , stdin, stdout, stderr
   )
-import Data.Text.IO as SYS (hGetLine)
 import Control.Concurrent as SYS
   ( threadDelay
   , killThread
@@ -94,7 +95,7 @@ import System.Directory as SYS
   , getTemporaryDirectory
   -- , getDirectoryContents
   , doesPathExist
-  -- , doesDirectoryExist
+  , doesDirectoryExist
   , renameDirectory
   , removeFile
   , renameFile
@@ -103,6 +104,7 @@ import System.Directory as SYS
   , getModificationTime
   , getFileSize
   )
+import System.IO.Temp (createTempDirectory)
 
 freshes :: Var v => Int -> [v]
 freshes = freshes' mempty
@@ -114,6 +116,37 @@ freshes' avoid0 = go avoid0 []
   go avoid vs n
     = let v = freshIn avoid $ typed ANFBlank
        in go (insert v avoid) (v:vs) (n-1)
+
+fresh1 :: Var v => v
+fresh1 = head $ freshes 1
+
+fresh2 :: Var v => (v, v)
+fresh2 = (v1, v2) where
+  [v1, v2] = freshes 2
+
+fresh3 :: Var v => (v, v, v)
+fresh3 = (v1, v2, v3) where
+  [v1, v2, v3] = freshes 3
+
+fresh5 :: Var v => (v, v, v, v, v)
+fresh5 = (v1, v2, v3, v4, v5) where
+  [v1, v2, v3, v4, v5] = freshes 5
+
+fresh6 :: Var v => (v, v, v, v, v, v)
+fresh6 = (v1, v2, v3, v4, v5, v6) where
+  [v1, v2, v3, v4, v5, v6] = freshes 6
+
+fresh7 :: Var v => (v, v, v, v, v, v, v)
+fresh7 = (v1, v2, v3, v4, v5, v6, v7) where
+  [v1, v2, v3, v4, v5, v6, v7] = freshes 7
+
+fresh8 :: Var v => (v, v, v, v, v, v, v, v)
+fresh8 = (v1, v2, v3, v4, v5, v6, v7, v8) where
+  [v1, v2, v3, v4, v5, v6, v7, v8] = freshes 8
+
+fresh11 :: Var v => (v, v, v, v, v, v, v, v, v, v, v)
+fresh11 = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11) where
+  [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11] = freshes 11
 
 fls, tru :: Var v => ANormal v
 fls = TCon Ty.booleanRef 0 []
@@ -261,7 +294,6 @@ popn = unop POPC Ty.natRef
 popi = unop' POPC Ty.intRef Ty.natRef
 lzeroi = unop' LZRO Ty.intRef Ty.natRef
 tzeroi = unop' TZRO Ty.intRef Ty.natRef
-
 
 andn, orn, xorn, compln, andi, ori, xori, compli :: Var v => SuperNormal v
 andn = binop ANDN Ty.natRef
@@ -464,7 +496,7 @@ emptyb
   . TLetD es BX (TPrm BLDS [])
   $ TPrm PAKB [es]
   where
-  [es] = freshes 1
+  es = fresh1
 appendb = binop0 0 $ \[x,y] -> TPrm CATB [x,y]
 
 takeb, dropb, atb, sizeb, flattenb :: Var v => SuperNormal v
@@ -607,7 +639,7 @@ fork'comp
   . TName lz (Right act) [unit]
   $ TPrm FORK [lz]
   where
-  [act,unit,lz] = freshes 3
+  (act,unit,lz) = fresh3
 
 bug :: Var v => SuperNormal v
 bug = unop0 0 $ \[x] -> TPrm EROR [x]
@@ -650,122 +682,6 @@ value'create = unop0 0 $ \[x] -> TPrm VALU [x]
 
 type ForeignOp = forall v. Var v => FOp -> ([Mem], ANormal v)
 
-
-maybe'result'direct
-  :: Var v
-  => FOp -> [v]
-  -> v -> v
-  -> ANormal v
-
-maybe'result'direct ins args t r
-  = TLetD t UN (TFOp ins args)
-  . TMatch t . MatchSum $ mapFromList
-  [ (0, ([], TCon Ty.optionalRef 0 []))
-  , (1, ([BX], TAbs r $ TCon Ty.optionalRef 1 [r]))
-  ]
-
-enum'decode :: Var v => Reference -> String -> Int -> v -> ANormal v
-enum'decode rf err n v
-  = TMatch v $ MatchIntegral cases (Just dflt)
-  where
-  dflt = TLetD v BX (TLit . T $ pack err) $ TPrm EROR [v]
-  cases = mapFromList $ fmap mkCase $ [0..n]
-  mkCase i = (toEnum i, TCon rf (toEnum i) [])
-
-io'error'result0
-  :: Var v
-  => FOp -> [v]
-  -> v -> [Mem] -> [v] -> v
-  -> ANormal v -> ANormal v
-io'error'result0 ins args ior ccs vs e nx
-  = TLetD ior UN (TFOp ins args)
-  . TMatch ior . MatchSum
-  $ mapFromList
-  [ (0, ([UN], TAbs e
-             . TLet (Indirect 1) e BX (enum'decode Ty.ioErrorRef err 7 e)
-             $ TCon eitherReference 0 [e]))
-  , (1, (ccs, TAbss vs nx))
-  ]
-  where
-  err = "unrecognized IOError"
-
-io'error'result'let
-  :: Var v
-  => FOp -> [v]
-  -> v -> [Mem] -> [v] -> v -> v -> Direction Word16 -> ANormal v
-  -> ANormal v
-io'error'result'let ins args ior ccs vs e r d m
-  = io'error'result0 ins args ior ccs vs e
-  . TLet d r BX m
-  $ TCon eitherReference 1 [r]
-
-io'error'result'direct
-  :: Var v
-  => FOp -> [v]
-  -> v -> v -> v
-  -> ANormal v
-io'error'result'direct ins args ior e r
-  = io'error'result0 ins args ior [BX] [r] e
-  $ TCon eitherReference 1 [r]
-
-io'error'result'unit
-  :: Var v
-  => FOp -> [v]
-  -> v -> v -> v
-  -> ANormal v
-io'error'result'unit ins args ior e r
-  = io'error'result'let ins args ior [] [] e r Direct
-  $ TCon Ty.unitRef 0 []
-
-io'error'result'bool
-  :: Var v
-  => FOp -> [v]
-  -> v -> (v -> ANormal v) -> v -> v -> v -> ANormal v
-io'error'result'bool ins args ior encode b e r
-  = io'error'result'let ins args ior [UN] [b] e r (Indirect 1)
-  $ encode b
-
-open'file :: ForeignOp
-open'file instr
-  = ([BX,BX],)
-  . TAbss [fp,m0]
-  . unenum 4 m0 ioModeReference m
-  $ io'error'result'direct instr [fp,m] ior e r
-  where
-  [m0,fp,m,ior,e,r] = freshes 6
-
-close'file :: ForeignOp
-close'file instr
-  = ([BX],)
-  . TAbss [h]
-  $ io'error'result'unit instr [h] ior e r
-  where
-  [h,ior,e,r] = freshes 4
-
-is'file'eof :: ForeignOp
-is'file'eof instr
-  = ([BX],)
-  . TAbss [h]
-  $ io'error'result'bool instr [h] ior boolift b e r
-  where
-  [h,b,ior,e,r] = freshes 5
-
-is'file'open :: ForeignOp
-is'file'open instr
-  = ([BX],)
-  . TAbss [h]
-  $ io'error'result'bool instr [h] ior boolift b e r
-  where
-  [h,b,ior,e,r] = freshes 5
-
-is'seekable :: ForeignOp
-is'seekable instr
-  = ([BX],)
-  . TAbss [h]
-  $ io'error'result'bool instr [h] ior boolift b e r
-  where
-  [h,b,ior,e,r] = freshes 5
-
 standard'handle :: ForeignOp
 standard'handle instr
   = ([BX],)
@@ -773,41 +689,28 @@ standard'handle instr
   . unenum 3 h0 Ty.stdHandleRef h
   $ TFOp instr [h]
   where
-  [h0,h] = freshes 2
+  (h0,h) = fresh2
 
 seek'handle :: ForeignOp
 seek'handle instr
   = ([BX,BX,BX],)
-  . TAbss [h,sm0,po0]
-  . unenum 3 sm0 Ty.seekModeRef sm
-  . unbox po0 Ty.natRef po
-  $ io'error'result'unit instr [h,sm,po] ior e r
+  . TAbss [arg1, arg2, arg3]
+  . unenum 3 arg2 Ty.seekModeRef seek
+  . unbox arg3 Ty.intRef nat
+  . TLetD result UN (TFOp instr [arg1, seek, nat])
+  $ outIoFailUnit stack1 stack2 stack3 unit fail result
   where
-  [sm0,po0,h,sm,po,ior,e,r] = freshes 8
+    (arg1, arg2, arg3, seek, nat, stack1, stack2, stack3, unit, fail, result) = fresh11
 
-handle'position :: ForeignOp
-handle'position instr
-  = ([BX],)
-  . TAbss [h]
-  . io'error'result'let instr [h] ior [UN] [i] e r Direct
-  $ (TCon Ty.intRef 0 [i])
-  where
-  [h,i,ior,e,r] = freshes 5
-
-get'buffering :: ForeignOp
-get'buffering instr
-  = ([BX],)
-  . TAbss [h]
-  . io'error'result'let instr [h] ior [UN] [bu] e r (Indirect 1)
-  . TMatch bu . MatchSum
-  $ mapFromList
+get'buffering'output :: forall v. Var v => v -> v -> v -> v -> ANormal v
+get'buffering'output bu m n b =
+  TMatch bu . MatchSum  $ mapFromList
   [ (0, ([], TCon Ty.optionalRef 0 []))
   , (1, ([], line))
   , (2, ([], block'nothing))
-  , (3, ([UN], TAbs n $ block'n))
+  , (3, ([UN], TAbs n block'n))
   ]
   where
-  [h,bu,ior,e,r,m,n,b] = freshes 8
   final = TCon Ty.optionalRef 1 [b]
   block = TLetD b BX (TCon bufferModeReference 1 [m]) $ final
 
@@ -820,372 +723,309 @@ get'buffering instr
     = TLetD m BX (TCon Ty.optionalRef 1 [n])
     $ block
 
-set'buffering :: ForeignOp
-set'buffering instr
+get'buffering :: ForeignOp
+get'buffering = inBx arg1 result
+              $ get'buffering'output result m n b
+  where
+    (arg1, result, m, n, b) = fresh5
+
+
+-- Input Shape -- these will represent different argument lists a
+-- foreign might expect
+--
+-- They will be named according to their shape:
+--   inBx     : one boxed input arg
+--   inNat     : one Nat input arg
+--   inBxBx   : two boxed input args
+--
+-- All of these functions will have take (at least) the same three arguments
+--
+--   instr : the foreign instruction to call
+--   result : a variable containing the result of the foreign call
+--   cont : a term which will be evaluated when a result from the foreign call is on the stack
+--
+
+
+-- () -> ...
+inUnit :: forall v. Var v => v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inUnit unit result cont instr
+  = ([BX], TAbs unit $ TLetD result UN (TFOp instr []) cont)
+
+-- a -> ...
+inBx :: forall v. Var v => v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBx arg result cont instr =
+  ([BX],)
+  . TAbs arg
+  $ TLetD result UN (TFOp instr [arg]) cont
+
+-- Nat -> ...
+inNat :: forall v. Var v => v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inNat arg nat result cont instr =
+  ([BX],)
+  . TAbs arg
+  . unbox arg Ty.natRef nat
+  $ TLetD result UN (TFOp instr [nat]) cont
+
+-- a -> b -> ...
+inBxBx :: forall v. Var v => v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBxBx arg1 arg2 result cont instr =
+  ([BX, BX],)
+  . TAbss [arg1, arg2]
+  $ TLetD result UN (TFOp instr [arg1, arg2]) cont
+
+-- a -> Nat -> ...
+inBxNat ::  forall v. Var v => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBxNat arg1 arg2 nat result cont instr =
+  ([BX,BX],)
+  . TAbss [arg1, arg2]
+  . unbox arg2 Ty.natRef nat
+  $ TLetD result UN (TFOp instr [arg1, nat]) cont
+
+-- a -> IOMode -> ...
+inBxIomr :: forall v. Var v => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBxIomr arg1 arg2 fm result cont instr
   = ([BX,BX],)
-  . TAbss [h,bm0]
-  . TMatch bm0 . flip (MatchData Ty.optionalRef) Nothing
-  $ mapFromList
-  [ (0, ([], none'branch))
-  , (1, ([BX], TAbs bm just'branch'0))
+  . TAbss [arg1, arg2]
+  . unenum 4 arg2 ioModeReference fm
+  $ TLetD result UN (TFOp instr [arg1, fm]) cont
+
+-- Output Shape -- these will represent different ways of translating
+-- the result of a foreign call to a Unison Term
+--
+-- They will be named according to the output type
+--   outInt    : a foreign function returning an Int
+--   outBool   : a foreign function returning a boolean
+--   outIOFail : a function returning (Either Failure a)
+--
+-- All of these functions will take a Var named result containing the
+-- result of the foreign call
+--
+outInt :: forall v. Var v => v -> ANormal v
+outInt i = TCon Ty.intRef 0 [i]
+
+outMaybe :: forall v. Var v => v -> v -> ANormal v
+outMaybe maybe result =
+  TMatch result . MatchSum $ mapFromList
+  [ (0, ([], TCon Ty.optionalRef 0 []))
+  , (1, ([BX], TAbs maybe $ TCon Ty.optionalRef 1 [maybe]))
   ]
-  where
-  [t,ior,e,r,h,mbs,bs0,bs,bm0,bm] = freshes 10
-  none'branch
-    = TLetD t UN (TLit $ I 0)
-    $ io'error'result'unit instr [h,t] ior e r
-  just'branch'0
-    = TMatch bm . flip (MatchData bufferModeReference) Nothing
-    $ mapFromList
-    [ (0, ([]
-        , TLetD t UN (TLit $ I 1)
-        $ io'error'result'unit instr [h,t] ior e r
-        ))
-    , (1, ([BX], TAbs mbs just'branch'1))
-    ]
-  just'branch'1
-    = TMatch mbs
-      . flip (MatchData Ty.optionalRef) Nothing
-      $ mapFromList
-      [ (0, ([]
-          , TLetD t UN (TLit $ I 2)
-          $ io'error'result'unit instr [h,t] ior e r))
-      , (1, ([BX]
-          , TAbs bs0
-          . unbox bs0 Ty.natRef bs
-          . TLetD t UN (TLit $ I 3)
-          $ io'error'result'unit instr [h,t,bs] ior e r))
-      ]
 
-get'line :: ForeignOp
-get'line instr
-  = ([BX],)
-  . TAbss [h]
-  $ io'error'result'direct instr [h] ior e r
-  where
-  [h,ior,e,r] = freshes 4
-
-get'bytes :: ForeignOp
-get'bytes instr
-  = ([BX, BX],)
-  . TAbss [h,n0]
-  . unbox n0 Ty.natRef n
-  $ io'error'result'direct instr [h,n] ior e r
-  where
-  [h,n0,n,ior,e,r] = freshes 6
-
-put'bytes :: ForeignOp
-put'bytes instr
-  = ([BX,BX],)
-  . TAbss [h,tx]
-  $ io'error'result'direct instr [h,tx] ior e r
-  where
-  [h,tx,ior,e,r] = freshes 5
-
-system'time :: ForeignOp
-system'time instr
-  = ([],)
-  . io'error'result'let instr [] ior [UN] [n] e r Direct
-  $ TCon Ty.natRef 0 [n]
-  where
-  [n,ior,e,r] = freshes 4
-
-get'temp'directory :: ForeignOp
-get'temp'directory instr
-  = ([],)
-  . io'error'result'let instr [] ior [BX] [t] e r Direct
-  $ TCon filePathReference 0 [t]
-  where
-  [t,ior,e,r] = freshes 4
-
-get'current'directory :: ForeignOp
-get'current'directory instr
-  = ([],)
-  . io'error'result'let instr [] ior [BX] [t] e r Direct
-  $ TCon filePathReference 0 [r]
-  where
-  [t,e,r,ior] = freshes 4
-
-set'current'directory :: ForeignOp
-set'current'directory instr
-  = ([BX],)
-  . TAbs fp
-  $ io'error'result'unit instr [fp] ior e r
-  where
-  [fp,ior,e,r] = freshes 4
-
--- directory'contents
--- instr
---   directoryContents_ : io.FilePath -> Either io.Error [io.FilePath]
-
-
-file'exists :: ForeignOp
-file'exists instr
-  = ([BX],)
-  . TAbs fp
-  $ io'error'result'bool instr [fp] ior boolift b e r
-  where
-  [fp,b,ior,e,r] = freshes 5
-
-is'directory :: ForeignOp
-is'directory instr
-  = ([BX],)
-  . TAbs fp
-  $ io'error'result'bool instr [fp] ior boolift b e r
-  where
-  [fp,b,ior,e,r] = freshes 5
-
-create'directory :: ForeignOp
-create'directory instr
-  = ([BX],)
-  . TAbs fp
-  $ io'error'result'unit instr [fp] ior e r
-  where
-  [fp,ior,e,r] = freshes 4
-
-remove'directory :: ForeignOp
-remove'directory instr
-  = ([BX],)
-  . TAbs fp
-  $ io'error'result'unit instr [fp] ior e r
-  where
-  [fp,ior,e,r] = freshes 4
-
-rename'directory :: ForeignOp
-rename'directory instr
-  = ([BX,BX],)
-  . TAbss [from,to]
-  $ io'error'result'unit instr [from,to] ior e r
-  where
-  [from,to,ior,e,r] = freshes 5
-
-remove'file :: ForeignOp
-remove'file instr
-  = ([BX],)
-  . TAbs fp
-  $ io'error'result'unit instr [fp] ior e r
-  where
-  [fp,ior,e,r] = freshes 4
-
-rename'file :: ForeignOp
-rename'file instr
-  = ([BX,BX],)
-  . TAbss [from,to]
-  $ io'error'result'unit instr [from,to] ior e r
-  where
-  [from,to,ior,e,r] = freshes 5
-
-get'file'timestamp :: ForeignOp
-get'file'timestamp instr
-  = ([BX],)
-  . TAbs fp
-  . io'error'result'let instr [fp] ior [UN] [n] e r Direct
-  $ TCon Ty.natRef 0 [n]
-  where
-  [fp,n,ior,e,r] = freshes 5
-
-get'file'size :: ForeignOp
-get'file'size instr
-  = ([BX],)
-  . TAbs fp
-  . io'error'result'let instr [fp] ior [UN] [n] e r Direct
-  $ TCon Ty.natRef 0 [n]
-  where
-  [fp,n,ior,e,r] = freshes 5
-
-server'socket :: ForeignOp
-server'socket instr
-  = ([BX,BX],)
-  . TAbss [mhn,sn]
-  . TMatch mhn . flip (MatchData Ty.optionalRef) Nothing
-  $ mapFromList
-  [ (0, ([], none'branch))
-  , (1, ([BX], TAbs hn just'branch))
+outIoFail :: forall v. Var v => v -> v -> v -> v -> ANormal v
+outIoFail stack1 stack2 fail result =
+  TMatch result . MatchSum $ mapFromList
+  [ (0, ([BX, BX],)
+        . TAbss [stack1, stack2]
+        . TLetD fail BX (TCon failureReference 0 [stack1, stack2])
+        $ TCon eitherReference 0 [fail])
+  , (1, ([BX], TAbs stack1 $ TCon eitherReference 1 [stack1]))
   ]
+
+outIoFailNat :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoFailNat stack1 stack2 stack3 fail nat result =
+  TMatch result . MatchSum $ mapFromList
+  [ (0, ([BX, BX],)
+        . TAbss [stack1, stack2]
+        . TLetD fail BX (TCon failureReference 0 [stack1, stack2])
+        $ TCon eitherReference 0 [fail])
+  , (1, ([UN],)
+        . TAbs stack3
+        . TLetD nat UN (TCon Ty.natRef 0 [stack3])
+        $ TCon eitherReference 1 [nat])
+  ]
+
+outIoFailBox :: forall v. Var v => v -> v -> v -> v -> ANormal v
+outIoFailBox stack1 stack2 fail result =
+  TMatch result . MatchSum  $ mapFromList
+  [ (0, ([BX, BX],)
+        . TAbss [stack1, stack2]
+        . TLetD fail BX (TCon failureReference 0 [stack1, stack2])
+        $ TCon eitherReference 0 [fail])
+  , (1, ([BX],)
+        . TAbs stack1
+        $ TCon eitherReference 1 [stack1])
+  ]
+
+outIoFailUnit :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoFailUnit stack1 stack2 stack3 unit fail result =
+  TMatch result . MatchSum
+  $ mapFromList
+  [ (0, ([BX, BX],)
+        . TAbss [stack1, stack2]
+        . TLetD fail BX (TCon failureReference 0 [stack1, stack2])
+        $ TCon eitherReference 0 [fail])
+  , (1, ([BX],)
+        . TAbss [stack3]
+        . TLetD unit UN (TCon Ty.unitRef 0 [])
+        $ TCon eitherReference 1 [unit])
+  ]
+
+outIoFailBool :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoFailBool stack1 stack2 stack3 bool fail result =
+  TMatch result . MatchSum
+  $ mapFromList
+  [ (0, ([BX, BX],)
+        . TAbss [stack1, stack2]
+        . TLetD fail BX (TCon failureReference 0 [stack1, stack2])
+        $ TCon eitherReference 0 [fail])
+  , (1, ([UN],)
+        . TAbs stack3
+        . TLet (Indirect 1) bool BX (boolift stack3)
+        $ TCon eitherReference 1 [bool])
+  ]
+
+-- Input / Output glue
+--
+-- These are pairings of input and output functions to handle a
+-- foreign call.  The input function represents the numbers and types
+-- of the inputs to a forein call.  The output function takes the
+-- result of the foreign call and turns it into a Unison type.
+--
+
+-- a
+direct :: ForeignOp
+direct instr = ([], TFOp instr [])
+
+--  () -> a
+unitDirect :: ForeignOp
+unitDirect instr = ([BX],) . TAbs arg $ TFOp instr [] where arg = fresh1
+
+-- a -> b
+boxDirect :: ForeignOp
+boxDirect instr =
+  ([BX],)
+  . TAbs arg
+  $ TFOp instr [arg] where
+  arg = fresh1
+
+-- () -> Either Failure Nat
+unitToEFNat :: ForeignOp
+unitToEFNat = inUnit unit result
+            $ outIoFailNat stack1 stack2 stack3 fail nat result
+  where (unit, stack1, stack2, stack3, fail, nat, result) = fresh7
+
+-- () -> Either Failure a
+unitToEFBox :: ForeignOp
+unitToEFBox = inUnit unit result
+            $ outIoFailBox stack1 stack2 fail result
+  where (unit, stack1, stack2, fail, result) = fresh5
+
+-- a -> Int
+boxToInt :: ForeignOp
+boxToInt = inBx arg result
+          $ outInt result
   where
-  [mhn,sn,hn,t,ior,e,r] = freshes 7
-  none'branch
-    = TLetD t UN (TLit $ I 0)
-    $ io'error'result'direct instr [t,sn] ior e r
-  just'branch
-    = TLetD t UN (TLit $ I 1)
-    $ io'error'result'direct instr [t,hn,sn] ior e r
+    (arg, result) = fresh2
 
-listen :: ForeignOp
-listen instr
-  = ([BX],)
-  . TAbs sk
-  $ io'error'result'direct instr [sk] ior e r
+-- a -> IOMode -> Either Failure b
+boxIomrToEFBox :: ForeignOp
+boxIomrToEFBox = inBxIomr arg1 arg2 enum result
+              $ outIoFailBox stack1 stack2 fail result
   where
-  [sk,ior,e,r] = freshes 4
+    (arg1, arg2, enum, stack1, stack2, fail, result) = fresh7
 
-client'socket :: ForeignOp
-client'socket instr
-  = ([BX,BX],)
-  . TAbss [hn,sn]
-  $ io'error'result'direct instr [hn,sn] ior e r
+-- a -> ()
+boxTo0 :: ForeignOp
+boxTo0 = inBx arg result (TCon Ty.unitRef 0 [])
   where
-  [hn,sn,r,ior,e] = freshes 5
+    (arg, result) = fresh2
 
-close'socket :: ForeignOp
-close'socket instr
-  = ([BX,BX],)
-  . TAbs sk
-  $ io'error'result'unit instr [sk] ior e r
+-- Nat -> ()
+natToUnit :: ForeignOp
+natToUnit = inNat arg nat result (TCon Ty.unitRef 0 [])
   where
-  [sk,ior,e,r] = freshes 4
+    (arg, nat, result) = fresh3
 
-socket'accept :: ForeignOp
-socket'accept instr
-  = ([BX],)
-  . TAbs sk
-  $ io'error'result'direct instr [sk] ior e r
+-- a -> Bool
+boxToBool :: ForeignOp
+boxToBool = inBx arg result
+          $ boolift result
   where
-  [sk,r,e,ior] = freshes 4
+    (arg, result) = fresh2
 
-socket'send :: ForeignOp
-socket'send instr
-  = ([BX,BX],)
-  . TAbss [sk,by]
-  $ io'error'result'unit instr [sk,by] ior e r
-  where
-  [sk,by,ior,e,r] = freshes 5
-
-socket'receive :: ForeignOp
-socket'receive instr
-  = ([BX,BX],)
-  . TAbss [sk,n0]
-  . unbox n0 Ty.natRef n
-  $ io'error'result'direct instr [sk,n] ior e r
-  where
-  [n0,sk,n,ior,e,r] = freshes 6
-
-delay'thread :: ForeignOp
-delay'thread instr
-  = ([BX],)
-  . TAbs n0
-  . unbox n0 Ty.natRef n
-  $ io'error'result'unit instr [n] ior e r
-  where
-  [n0,n,ior,e,r] = freshes 5
-
-kill'thread :: ForeignOp
-kill'thread instr
-  = ([BX],)
-  . TAbs tid
-  $ io'error'result'unit instr [tid] ior e r
-  where
-  [tid,ior,e,r] = freshes 4
-
-mvar'new :: ForeignOp
-mvar'new instr
-  = ([BX],)
-  . TAbs init
-  $ TFOp instr [init]
-  where
-  [init] = freshes 1
-
-mvar'empty :: ForeignOp
-mvar'empty instr = ([],) $ TFOp instr []
-
-mvar'take :: ForeignOp
-mvar'take instr
-  = ([BX],)
-  . TAbs mv
-  $ io'error'result'direct instr [mv] ior e r
-  where
-  [mv,ior,e,r] = freshes 4
-
-mvar'try'take :: ForeignOp
-mvar'try'take instr
-  = ([BX],)
-  . TAbs mv
-  $ maybe'result'direct instr [mv] t r
-  where
-  [mv,t,r] = freshes 3
-
-mvar'put :: ForeignOp
-mvar'put instr
-  = ([BX,BX],)
-  . TAbss [mv,x]
-  $ io'error'result'unit instr [mv,x] ior e r
-  where
-  [mv,x,ior,e,r] = freshes 5
-
-mvar'try'put :: ForeignOp
-mvar'try'put instr
-  = ([BX,BX],)
-  . TAbss [mv,x]
-  . TLetD b UN (TFOp instr [mv,x])
-  $ boolift b
-  where
-  [mv,x,b] = freshes 3
-
-mvar'swap :: ForeignOp
-mvar'swap instr
-  = ([BX,BX],)
-  . TAbss [mv,x]
-  $ io'error'result'direct instr [mv,x] ior e r
-  where
-  [mv,x,ior,e,r] = freshes 5
-
-mvar'is'empty :: ForeignOp
-mvar'is'empty instr
-  = ([BX],)
-  . TAbs mv
-  . TLetD b UN (TFOp instr [mv])
-  $ boolift b
-  where
-  [mv,b] = freshes 2
-
-mvar'read :: ForeignOp
-mvar'read instr
-  = ([BX],)
-  . TAbs mv
-  $ io'error'result'direct instr [mv] ior e r
-  where
-  [mv,ior,e,r] = freshes 4
-
-mvar'try'read :: ForeignOp
-mvar'try'read instr
-  = ([BX],)
-  . TAbs mv
-  $ maybe'result'direct instr [mv] t r
-  where
-  [mv,t,r] = freshes 3
-
--- Pure ForeignOp taking two boxed values
-pfopbb :: ForeignOp
-pfopbb instr
+-- a -> b -> c
+boxBoxDirect :: ForeignOp
+boxBoxDirect instr
   = ([BX,BX],)
   . TAbss [b1,b2]
   $ TFOp instr [b1,b2]
   where
-  [b1,b2] = freshes 2
+  (b1,b2) = fresh2
 
-pfopbbb :: ForeignOp
-pfopbbb instr
+-- a -> b -> c -> d
+boxBoxBoxDirect :: ForeignOp
+boxBoxBoxDirect instr
   = ([BX,BX,BX],)
   . TAbss [b1,b2,b3]
   $ TFOp instr [b1,b2,b3]
   where
-  [b1,b2,b3] = freshes 3
+  (b1,b2,b3) = fresh3
 
--- Pure ForeignOp taking no values
-pfop0 :: ForeignOp
-pfop0 instr = ([],) $ TFOp instr []
+-- a -> Either Failure b
+boxToEFBox :: ForeignOp
+boxToEFBox =
+  inBx arg result $
+    outIoFail stack1 stack2 fail result
+  where
+    (arg, result, stack1, stack2, fail) = fresh5
 
--- Pure ForeignOp taking 1 boxed value and returning 1 boxed value
-pfopb :: ForeignOp
-pfopb instr
-  = ([BX],)
-  . TAbs t
-  $ TFOp instr [t]
-  where [t] = freshes 1
+-- a -> Maybe b
+boxToMaybeBox :: ForeignOp
+boxToMaybeBox =
+  inBx arg result $ outMaybe maybe result
+  where
+    (arg, maybe, result) = fresh3
 
--- Pure ForeignOp taking 1 boxed value and returning 1 Either, both sides boxed
-pfopb_ebb :: ForeignOp
-pfopb_ebb instr
+-- a -> Either Failure Bool
+boxToEFBool :: ForeignOp
+boxToEFBool = inBx arg result
+             $ outIoFailBool stack1 stack2 stack3 bool fail result
+  where
+    (arg, stack1, stack2, stack3, bool, fail, result) = fresh7
+
+-- a -> b -> Either Failure Bool
+boxBoxToEFBool :: ForeignOp
+boxBoxToEFBool = inBxBx arg1 arg2 result
+             $ outIoFailBool stack1 stack2 stack3 bool fail result
+  where
+    (arg1, arg2, stack1, stack2, stack3, bool, fail, result) = fresh8
+
+-- a -> Either Failure ()
+boxToEF0 :: ForeignOp
+boxToEF0 = inBx arg result
+          $ outIoFailUnit stack1 stack2 stack3 unit fail result
+  where
+    (arg, result, stack1, stack2, stack3, unit, fail) = fresh7
+
+-- a -> b -> Either Failure ()
+boxBoxToEF0 :: ForeignOp
+boxBoxToEF0 = inBxBx arg1 arg2 result
+            $ outIoFailUnit stack1 stack2 stack3 fail unit result
+  where
+    (arg1, arg2, result, stack1, stack2, stack3, fail, unit) = fresh8
+
+-- a -> Either Failure Nat
+boxToEFNat :: ForeignOp
+boxToEFNat = inBx arg result
+          $ outIoFailNat stack1 stack2 stack3 nat fail result
+  where
+    (arg, result, stack1, stack2, stack3, nat, fail) = fresh7
+
+-- a -> b -> Either Failure c
+boxBoxToEFBox :: ForeignOp
+boxBoxToEFBox = inBxBx arg1 arg2 result
+            $ outIoFail stack1 stack2 fail result
+  where
+    (arg1, arg2, result, stack1, stack2, fail) = fresh6
+
+-- a -> Nat -> Either Failure
+boxNatToEFBox :: ForeignOp
+boxNatToEFBox = inBxNat arg1 arg2 nat result
+           $ outIoFail stack1 stack2 fail result
+  where (arg1, arg2, nat, stack1, stack2, fail, result) = fresh7
+
+-- a -> Either b c
+boxToEBoxBox :: ForeignOp
+boxToEBoxBox instr
   = ([BX],)
   . TAbss [b]
   . TLetD e UN (TFOp instr [b])
@@ -1195,7 +1035,7 @@ pfopb_ebb instr
   , (1, ([BX], TAbs ev $ TCon eitherReference 1 [ev]))
   ]
   where
-  [e,b,ev] = freshes 3
+  (e,b,ev) = fresh3
 
 builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
 builtinLookup
@@ -1383,85 +1223,128 @@ declareForeign name op func
   = modify $ \(w, cs, fs)
       -> (w+1, (name, uncurry Lambda (op w)) : cs, mapInsert w func fs)
 
-mkForeignIOE
+mkForeignIOF
   :: (ForeignConvention a, ForeignConvention r)
   => (a -> IO r) -> ForeignFunc
-mkForeignIOE f = mkForeign $ \a -> tryIOE (f a)
+mkForeignIOF f = mkForeign $ \a -> tryIOE (f a)
   where
-  tryIOE :: IO a -> IO (Either IOException a)
-  tryIOE = try
+  tryIOE :: IO a -> IO (Either Failure a)
+  tryIOE = fmap handleIOE . try
+  handleIOE :: Either IOException a -> Either Failure a
+  handleIOE (Left e) = Left $ Failure ioFailureReference (pack (show e))
+  handleIOE (Right a) = Right a
 
-dummyFF :: ForeignFunc
-dummyFF = FF ee ee ee
+mkForeignTls
+  :: forall a r.(ForeignConvention a, ForeignConvention r)
+  => (a -> IO r) -> ForeignFunc
+mkForeignTls f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
   where
-  ee = error "dummyFF"
-
+  tryIO1 :: IO r -> IO (Either TLS.TLSException r)
+  tryIO1 = try
+  tryIO2 :: IO (Either TLS.TLSException r) -> IO (Either IOException (Either TLS.TLSException r))
+  tryIO2 = try
+  flatten :: Either IOException (Either TLS.TLSException r) -> Either Failure r
+  flatten (Left e) = Left (Failure ioFailureReference (pack (show e)))
+  flatten (Right (Left e)) = Left (Failure tlsFailureReference (pack (show e)))
+  flatten (Right (Right a)) = Right a
 
 declareForeigns :: Var v => FDecl v ()
 declareForeigns = do
-  declareForeign "IO.openFile" open'file
-    $ mkForeignIOE (uncurry openFile)
-  declareForeign "IO.closeFile" close'file $ mkForeignIOE hClose
-  declareForeign "IO.isFileEOF" is'file'eof $ mkForeignIOE hIsEOF
-  declareForeign "IO.isFileOpen" is'file'open $ mkForeignIOE hIsOpen
-  declareForeign "IO.isSeekable" is'seekable $ mkForeignIOE hIsSeekable
-  declareForeign "IO.seekHandle" seek'handle
-    . mkForeignIOE $ \(h,sm,n) -> hSeek h sm (fromIntegral (n :: Int))
-  declareForeign "IO.handlePosition" handle'position
+
+  declareForeign "IO.openFile.v2" boxIomrToEFBox $ mkForeignIOF (uncurry openFile)
+  declareForeign "IO.closeFile.v2" boxToEF0 $ mkForeignIOF hClose
+  declareForeign "IO.isFileEOF.v2" boxToEFBool $ mkForeignIOF hIsEOF
+  declareForeign "IO.isFileOpen.v2" boxToEFBool $ mkForeignIOF hIsOpen
+  declareForeign "IO.isSeekable.v2" boxToEFBool $ mkForeignIOF hIsSeekable
+
+  declareForeign "IO.seekHandle.v2" seek'handle
+    . mkForeignIOF $ \(h,sm,n) -> hSeek h sm (fromIntegral (n :: Int))
+
+  declareForeign "IO.handlePosition.v2" boxToInt
     -- TODO: truncating integer
-    . mkForeignIOE $ \h -> fromInteger @Word64 <$> hTell h
-  declareForeign "IO.getBuffering" get'buffering
-    $ mkForeignIOE hGetBuffering
-  declareForeign "IO.setBuffering" set'buffering
-    . mkForeignIOE $ uncurry hSetBuffering
-  declareForeign "IO.getLine" get'line $ mkForeignIOE hGetLine
-  declareForeign "IO.getBytes" get'bytes .  mkForeignIOE $ \(h,n) -> fmap Bytes.fromArray $ hGet h n
-  declareForeign "IO.putBytes" put'bytes .  mkForeignIOE $ \(h,bs) -> hPut h (Bytes.toArray bs)
-  declareForeign "IO.systemTime" system'time
-    $ mkForeignIOE $ \() -> getPOSIXTime
-  declareForeign "IO.getTempDirectory" get'temp'directory
-    $ mkForeignIOE $ \() -> getTemporaryDirectory
-  declareForeign "IO.getCurrentDirectory" get'current'directory
-    . mkForeignIOE $ \() -> getCurrentDirectory
-  declareForeign "IO.setCurrentDirectory" set'current'directory
-    $ mkForeignIOE setCurrentDirectory
-  -- declareForeign ANF.DCNTNS
-  --   . mkForeignIOE $ fmap (fmap Text.pack) . getDirectoryContents
-  declareForeign "IO.fileExists" file'exists
-    $ mkForeignIOE doesPathExist
-  declareForeign "IO.isDirectory" is'directory dummyFF
-  declareForeign "IO.createDirectory" create'directory
-    $ mkForeignIOE $ createDirectoryIfMissing True
-  declareForeign "IO.removeDirectory" remove'directory
-    $mkForeignIOE removeDirectoryRecursive
-  declareForeign "IO.renameDirectory" rename'directory
-    . mkForeignIOE $ uncurry renameDirectory
-  declareForeign "IO.removeFile" remove'file $ mkForeignIOE removeFile
-  declareForeign "IO.renameFile" rename'file
-    . mkForeignIOE $ uncurry renameFile
-  declareForeign "IO.getFileTimestamp" get'file'timestamp
-    . mkForeignIOE $ fmap utcTimeToPOSIXSeconds . getModificationTime
-  declareForeign "IO.getFileSize" get'file'size
+    . mkForeignIOF $ \h -> fromInteger @Word64 <$> hTell h
+
+  declareForeign "IO.getBuffering.v2" get'buffering
+    $ mkForeignIOF hGetBuffering
+
+  declareForeign "IO.setBuffering.v2" boxBoxToEF0
+    . mkForeignIOF $ uncurry hSetBuffering
+
+  declareForeign "IO.getBytes.v2" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromArray <$> hGet h n
+
+  declareForeign "IO.putBytes.v2" boxBoxToEFBox .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
+  declareForeign "IO.systemTime.v2" unitToEFNat
+    $ mkForeignIOF $ \() -> getPOSIXTime
+
+  declareForeign "IO.getTempDirectory.v2" unitToEFBox
+    $ mkForeignIOF $ \() -> getTemporaryDirectory
+
+  declareForeign "IO.createTempDirectory" boxToEFBox
+    $ mkForeignIOF $ \prefix -> do
+       temp <- getTemporaryDirectory
+       createTempDirectory temp prefix
+
+  declareForeign "IO.getCurrentDirectory.v2" direct
+    . mkForeignIOF $ \() -> getCurrentDirectory
+
+  declareForeign "IO.setCurrentDirectory.v2" boxToEF0
+    $ mkForeignIOF setCurrentDirectory
+
+  declareForeign "IO.fileExists.v2" boxToEFBool
+    $ mkForeignIOF doesPathExist
+
+  declareForeign "IO.isDirectory.v2" boxToEFBool
+    $ mkForeignIOF doesDirectoryExist
+
+  declareForeign "IO.createDirectory.v2" boxToEF0
+    $ mkForeignIOF $ createDirectoryIfMissing True
+
+  declareForeign "IO.removeDirectory.v2" boxToEF0
+    $ mkForeignIOF removeDirectoryRecursive
+
+  declareForeign "IO.renameDirectory.v2" boxBoxToEF0
+    $ mkForeignIOF $ uncurry renameDirectory
+
+  declareForeign "IO.removeFile.v2" boxToEF0
+    $ mkForeignIOF removeFile
+
+  declareForeign "IO.renameFile.v2" boxBoxToEF0
+    $ mkForeignIOF $ uncurry renameFile
+
+  declareForeign "IO.getFileTimestamp.v2" boxToEFNat
+    . mkForeignIOF $ fmap utcTimeToPOSIXSeconds . getModificationTime
+
+  declareForeign "IO.getFileSize.v2" boxToEFNat
     -- TODO: truncating integer
-    . mkForeignIOE $ \fp -> fromInteger @Word64 <$> getFileSize fp
-  declareForeign "IO.serverSocket" server'socket
-    . mkForeignIOE $ \(mhst,port) ->
+    . mkForeignIOF $ \fp -> fromInteger @Word64 <$> getFileSize fp
+
+  declareForeign "IO.serverSocket.v2" boxBoxToEFBox
+    . mkForeignIOF $ \(mhst,port) ->
         fst <$> SYS.bindSock (hostPreference mhst) port
-  declareForeign "IO.listen" listen
-    . mkForeignIOE $ \sk -> SYS.listenSock sk 2048
-  declareForeign "IO.clientSocket" client'socket
-    . mkForeignIOE $ fmap fst . uncurry SYS.connectSock
-  declareForeign "IO.closeSocket" close'socket
-    $ mkForeignIOE SYS.closeSock
-  declareForeign "IO.socketAccept" socket'accept
-    . mkForeignIOE $ fmap fst . SYS.accept
-  declareForeign "IO.socketSend" socket'send
-    . mkForeignIOE $ \(sk,bs) -> SYS.send sk (Bytes.toArray bs)
-  declareForeign "IO.socketReceive" socket'receive
-    . mkForeignIOE $ \(hs,n) ->
-       fmap (maybe Bytes.empty Bytes.fromArray) $ SYS.recv hs n
-  declareForeign "IO.kill" kill'thread $ mkForeignIOE killThread
-  declareForeign "IO.delay" delay'thread $ mkForeignIOE threadDelay
+
+  declareForeign "IO.listen.v2" boxToEF0
+    . mkForeignIOF $ \sk -> SYS.listenSock sk 2048
+
+  declareForeign "IO.clientSocket.v2" boxBoxDirect
+    . mkForeignIOF $ fmap fst . uncurry SYS.connectSock
+
+  declareForeign "IO.closeSocket.v2" boxToEF0
+    $ mkForeignIOF SYS.closeSock
+
+  declareForeign "IO.socketAccept.v2" boxDirect
+    . mkForeignIOF $ fmap fst . SYS.accept
+
+  declareForeign "IO.socketSend.v2" boxBoxToEF0
+    . mkForeignIOF $ \(sk,bs) -> SYS.send sk (Bytes.toArray bs)
+
+  declareForeign "IO.socketReceive.v2" boxNatToEFBox
+    . mkForeignIOF $ \(hs,n) ->
+    maybe Bytes.empty Bytes.fromArray <$> SYS.recv hs n
+
+  declareForeign "IO.kill.v2" boxTo0 $ mkForeignIOF killThread
+
+  declareForeign "IO.delay.v2" natToUnit $ mkForeignIOF threadDelay
+
   declareForeign "IO.stdHandle" standard'handle
     . mkForeign $ \(n :: Int) -> case n of
         0 -> pure (Just SYS.stdin)
@@ -1469,50 +1352,97 @@ declareForeigns = do
         2 -> pure (Just SYS.stderr)
         _ -> pure Nothing
 
-  declareForeign "MVar.new" mvar'new
+  declareForeign "MVar.new" boxDirect
     . mkForeign $ \(c :: Closure) -> newMVar c
-  declareForeign "MVar.empty" mvar'empty
+
+  declareForeign "MVar.newEmpty.v2" unitDirect
     . mkForeign $ \() -> newEmptyMVar @Closure
-  declareForeign "MVar.take" mvar'take
-    . mkForeignIOE $ \(mv :: MVar Closure) -> takeMVar mv
-  declareForeign "MVar.tryTake" mvar'try'take
+
+  declareForeign "MVar.take.v2" boxToEFBox
+    . mkForeignIOF $ \(mv :: MVar Closure) -> takeMVar mv
+
+  declareForeign "MVar.tryTake" boxToMaybeBox
     . mkForeign $ \(mv :: MVar Closure) -> tryTakeMVar mv
-  declareForeign "MVar.put" mvar'put
-    . mkForeignIOE $ \(mv :: MVar Closure, x) -> putMVar mv x
-  declareForeign "MVar.tryPut" mvar'try'put
+
+  declareForeign "MVar.put.v2" boxBoxToEF0
+    . mkForeignIOF $ \(mv :: MVar Closure, x) -> putMVar mv x
+
+  declareForeign "MVar.tryPut" boxBoxToEFBool
     . mkForeign $ \(mv :: MVar Closure, x) -> tryPutMVar mv x
-  declareForeign "MVar.swap" mvar'swap
-    . mkForeignIOE $ \(mv :: MVar Closure, x) -> swapMVar mv x
-  declareForeign "MVar.isEmpty" mvar'is'empty
+
+  declareForeign "MVar.swap.v2" boxBoxToEFBox
+    . mkForeignIOF $ \(mv :: MVar Closure, x) -> swapMVar mv x
+
+  declareForeign "MVar.isEmpty" boxToBool
     . mkForeign $ \(mv :: MVar Closure) -> isEmptyMVar mv
-  declareForeign "MVar.read" mvar'read
-    . mkForeignIOE $ \(mv :: MVar Closure) -> readMVar mv
-  declareForeign "MVar.tryRead" mvar'try'read
+
+  declareForeign "MVar.read.v2" boxBoxToEFBox
+    . mkForeignIOF $ \(mv :: MVar Closure) -> readMVar mv
+
+  declareForeign "MVar.tryRead" boxToMaybeBox
     . mkForeign $ \(mv :: MVar Closure) -> tryReadMVar mv
 
-  declareForeign "Code.dependencies" pfopb
+  declareForeign "Text.toUtf8" boxDirect . mkForeign
+    $ pure . Bytes.fromArray . encodeUtf8
+
+  declareForeign "Text.fromUtf8.v2" boxToEFBox . mkForeign
+    $ pure . mapLeft (Failure ioFailureReference . pack . show) . decodeUtf8' . Bytes.toArray
+
+  let
+    defaultSupported :: TLS.Supported
+    defaultSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
+
+  declareForeign "Tls.Config.defaultClient" boxBoxDirect
+    .  mkForeign $ \(hostName::Text, serverId:: Bytes.Bytes) -> do
+       store <- X.getSystemCertificateStore
+       let shared :: TLS.Shared
+           shared = def { TLS.sharedCAStore = store }
+           defaultParams = (defaultParamsClient (unpack hostName) (Bytes.toArray serverId)) { TLS.clientSupported = defaultSupported, TLS.clientShared = shared }
+       pure defaultParams
+
+  declareForeign "Tls.Config.defaultServer" unitDirect . mkForeign $ \() -> do
+    pure $ (def :: ServerParams) { TLS.serverSupported = defaultSupported }
+
+  declareForeign "Tls.newClient" boxBoxToEFBox . mkForeignTls $
+    \(config :: TLS.ClientParams,
+      socket :: SYS.Socket) -> TLS.contextNew socket config
+
+  declareForeign "Tls.handshake" boxToEFBox . mkForeignTls $
+    \(tls :: TLS.Context) -> TLS.handshake tls
+
+  declareForeign "Tls.send" boxBoxToEFBox . mkForeignTls $
+    \(tls :: TLS.Context,
+      bytes :: Bytes.Bytes) -> TLS.sendData tls (Bytes.toLazyByteString bytes)
+
+  declareForeign "Tls.receive" boxToEFBox . mkForeignTls $
+    \(tls :: TLS.Context) -> do
+      bs <- TLS.recvData tls
+      pure $ Bytes.fromArray bs
+
+  declareForeign "Tls.terminate" boxToEFBox . mkForeignTls $
+    \(tls :: TLS.Context) -> TLS.bye tls
+
+  declareForeign "Code.dependencies" boxDirect
     . mkForeign $ \(sg :: SuperGroup Symbol)
         -> pure $ Wrap Ty.termLinkRef . Ref <$> groupTermLinks sg
-  declareForeign "Code.serialize" pfopb
+  declareForeign "Code.serialize" boxDirect
     . mkForeign $ \(sg :: SuperGroup Symbol)
         -> pure . Bytes.fromArray $ serializeGroup sg
-  declareForeign "Code.deserialize" pfopb_ebb
+  declareForeign "Code.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeGroup @Symbol . Bytes.toArray
-  declareForeign "Value.dependencies" pfopb
+  declareForeign "Value.dependencies" boxDirect
     . mkForeign $
         pure . fmap (Wrap Ty.termLinkRef . Ref) . valueTermLinks
-  declareForeign "Value.serialize" pfopb
+  declareForeign "Value.serialize" boxDirect
     . mkForeign $ pure . Bytes.fromArray . serializeValue
-  declareForeign "Value.deserialize" pfopb_ebb
+  declareForeign "Value.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeValue . Bytes.toArray
-  declareForeign "Text.toUtf8" pfopb . mkForeign $ pure . Bytes.fromArray . encodeUtf8
-  declareForeign "Text.fromUtf8" pfopb_ebb . mkForeign $ pure . mapLeft (pack . show) . decodeUtf8' . Bytes.toArray
 
   -- Hashing functions
   let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()
       declareHashAlgorithm txt alg = do
         let algoRef = Builtin ("crypto.HashAlgorithm." <> txt)
-        declareForeign ("crypto.HashAlgorithm." <> txt) pfop0 . mkForeign $ \() ->
+        declareForeign ("crypto.HashAlgorithm." <> txt) direct . mkForeign $ \() ->
           pure (HashAlgorithm algoRef alg)
 
   declareHashAlgorithm "Sha3_512" Hash.SHA3_512
@@ -1523,30 +1453,30 @@ declareForeigns = do
   declareHashAlgorithm "Blake2b_256" Hash.Blake2b_256
   declareHashAlgorithm "Blake2s_256" Hash.Blake2s_256
 
-  -- declareForeign ("crypto.hash") pfopbb . mkForeign $ \(HashAlgorithm _ref _alg, _a :: Closure) ->
+  -- declareForeign ("crypto.hash") boxBoxDirect . mkForeign $ \(HashAlgorithm _ref _alg, _a :: Closure) ->
   --   pure $ Bytes.empty -- todo : implement me
 
-  declareForeign "crypto.hashBytes" pfopbb . mkForeign $
+  declareForeign "crypto.hashBytes" boxBoxDirect . mkForeign $
     \(HashAlgorithm _ alg, b :: Bytes.Bytes) ->
         let ctx = Hash.hashInitWith alg
         in pure . Bytes.fromArray . Hash.hashFinalize $ Hash.hashUpdates ctx (Bytes.chunks b)
 
-  declareForeign "crypto.hmacBytes" pfopbbb
+  declareForeign "crypto.hmacBytes" boxBoxBoxDirect
     . mkForeign $ \(HashAlgorithm _ alg, key :: Bytes.Bytes, msg :: Bytes.Bytes) ->
         let out = u alg $ HMAC.hmac (Bytes.toArray @BA.Bytes key) (Bytes.toArray @BA.Bytes msg)
             u :: a -> HMAC.HMAC a -> HMAC.HMAC a
             u _ h = h -- to help typechecker along
         in pure $ Bytes.fromArray out
 
-  declareForeign "Bytes.toBase16" pfopb . mkForeign $ pure . Bytes.toBase16
-  declareForeign "Bytes.toBase32" pfopb . mkForeign $ pure . Bytes.toBase32
-  declareForeign "Bytes.toBase64" pfopb . mkForeign $ pure . Bytes.toBase64
-  declareForeign "Bytes.toBase64UrlUnpadded" pfopb . mkForeign $ pure . Bytes.toBase64UrlUnpadded
+  declareForeign "Bytes.toBase16" boxDirect . mkForeign $ pure . Bytes.toBase16
+  declareForeign "Bytes.toBase32" boxDirect . mkForeign $ pure . Bytes.toBase32
+  declareForeign "Bytes.toBase64" boxDirect . mkForeign $ pure . Bytes.toBase64
+  declareForeign "Bytes.toBase64UrlUnpadded" boxDirect . mkForeign $ pure . Bytes.toBase64UrlUnpadded
 
-  declareForeign "Bytes.fromBase16" pfopb_ebb . mkForeign $ pure . Bytes.fromBase16
-  declareForeign "Bytes.fromBase32" pfopb_ebb . mkForeign $ pure . Bytes.fromBase32
-  declareForeign "Bytes.fromBase64" pfopb_ebb . mkForeign $ pure . Bytes.fromBase64
-  declareForeign "Bytes.fromBase64UrlUnpadded" pfopb . mkForeign $ pure . Bytes.fromBase64UrlUnpadded
+  declareForeign "Bytes.fromBase16" boxToEBoxBox . mkForeign $ pure . Bytes.fromBase16
+  declareForeign "Bytes.fromBase32" boxToEBoxBox . mkForeign $ pure . Bytes.fromBase32
+  declareForeign "Bytes.fromBase64" boxToEBoxBox . mkForeign $ pure . Bytes.fromBase64
+  declareForeign "Bytes.fromBase64UrlUnpadded" boxDirect . mkForeign $ pure . Bytes.fromBase64UrlUnpadded
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny

@@ -894,15 +894,11 @@ synthesize e = scope (InSynthesize e) $
       existentializeArrows t
     s -> compilerCrash $ FreeVarsInTypeAnnotation s
   go (Term.Ref' h) = compilerCrash $ UnannotatedReference h
-  go (Term.Constructor' r cid) = do
-    t <- getDataConstructorType r cid
-    existentializeArrows t
-  go (Term.Request' r cid) = do
-    t <- ungeneralize =<< getEffectConstructorType r cid
-    existentializeArrows t
-  go (Term.Ann' e t) = do
-    t <- existentializeArrows t
-    t <$ checkScoped e t
+  go (Term.Constructor' r cid) =
+    Type.purifyArrows <$> getDataConstructorType r cid
+  go (Term.Request' r cid) =
+    ungeneralize . Type.purifyArrows =<< getEffectConstructorType r cid
+  go (Term.Ann' e t) = checkScoped e t
   go (Term.Float' _) = pure $ Type.float l -- 1I=>
   go (Term.Int' _) = pure $ Type.int l -- 1I=>
   go (Term.Nat' _) = pure $ Type.nat l -- 1I=>
@@ -1408,36 +1404,58 @@ forcedData ty = Type.freeVars ty
 -- | Apply the context to the input type, then convert any unsolved existentials
 -- to universals.
 generalizeExistentials :: (Var v, Ord loc) => [Element v loc] -> Type v loc -> Type v loc
-generalizeExistentials ctx t =
-  foldr gen (applyCtx ctx t) unsolvedExistentials
+generalizeExistentials = generalizeP existentialP
+
+generalizeP
+  :: Var v
+  => Ord loc
+  => (Element v loc -> Maybe (TypeVar v loc, v))
+  -> [Element v loc]
+  -> Type v loc
+  -> Type v loc
+generalizeP p ctx0 ty = foldr gen (applyCtx ctx0 ty) ctx
   where
-    unsolvedExistentials = [ v | Var (TypeVar.Existential _ v) <- ctx ]
-    gen e t =
-      if TypeVar.Existential B.Blank e `ABT.isFreeIn` t
-      -- location of the forall is just the location of the input type
-      -- and the location of each quantified variable is just inherited from
-      -- its source location
-      then Type.forall (loc t)
-                       (TypeVar.Universal e)
-                       (ABT.substInheritAnnotation
-                           (TypeVar.Existential B.Blank e)
-                           (universal' () e)
-                           t)
-      else t -- don't bother introducing a forall if type variable is unused
+  ctx = mapMaybe p ctx0
+
+  gen (tv, v) t
+    | tv `ABT.isFreeIn` t
+    -- location of the forall is just the location of the input type
+    -- and the location of each quantified variable is just inherited
+    -- from its source location
+    = Type.forall (loc t) (TypeVar.Universal v)
+        (ABT.substInheritAnnotation tv (universal' () v) t)
+   -- don't bother introducing a forall if type variable is unused
+    | otherwise = t
+
+existentialP :: Element v loc -> Maybe (TypeVar v loc, v)
+existentialP (Var (TypeVar.Existential _ v))
+  = Just (TypeVar.Existential B.Blank v, v)
+existentialP _ = Nothing
+
+variableP :: Element v loc -> Maybe (TypeVar v loc, v)
+variableP (Var (TypeVar.Existential _ v))
+  = Just (TypeVar.Existential B.Blank v, v)
+variableP (Var tv@(TypeVar.Universal v)) = Just (tv, v)
+variableP _ = Nothing
 
 -- This checks `e` against the type `t`, but if `t` is a `∀`, any ∀-quantified
 -- variables are freshened and substituted into `e`. This should be called whenever
 -- a term is being checked against a type due to a user-provided signature on `e`.
 -- See its usage in `synthesize` and `annotateLetRecBindings`.
-checkScoped :: forall v loc . (Var v, Ord loc) => Term v loc -> Type v loc -> M v loc ()
-checkScoped e t = case t of
-  Type.Forall' body -> do -- ForallI
-    v <- ABT.freshen body freshenTypeVar
-    markThenRetract0 v $ do
-      x <- extendUniversal v
-      let e' = Term.substTypeVar (ABT.variable body) (universal' () x) e
-      checkScoped e' (ABT.bindInheritAnnotation body (universal' () x))
-  _ -> check e t
+checkScoped
+  :: forall v loc
+   . (Var v, Ord loc)
+  => Term v loc -> Type v loc -> M v loc (Type v loc)
+checkScoped e (Type.Forall' body) = do
+  v <- ABT.freshen body freshenTypeVar
+  (ty, pop) <- markThenRetract v $ do
+    x <- extendUniversal v
+    let e' = Term.substTypeVar (ABT.variable body) (universal' () x) e
+    checkScoped e' (ABT.bindInheritAnnotation body (universal' () x))
+  pure $ generalizeP variableP pop ty
+checkScoped e t = do
+  t <- existentializeArrows t
+  t <$ check e t
 
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
@@ -1723,10 +1741,15 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
       -- 2b. If no:
       Nothing -> case r of
         -- It's an unsolved existential, instantiate it to all of ambient
-        Type.Var' (TypeVar.Existential b v) -> do
+        Type.Var' tv@(TypeVar.Existential b v) -> do
           let et2 = Type.effects (loc r) ambient
+              acyclic
+                | Set.member tv (Type.freeVars et2)
+                -- just need to trigger `orElse` in this case
+                = getContext >>= failWith . TypeMismatch
+                | otherwise = instantiateR et2 b v
           -- instantiate it to `{}` if can't cover all of ambient
-          instantiateR et2 b v
+          acyclic
             `orElse` instantiateR (Type.effects (loc r) []) b v
             `orElse` die1
           go ambient rs

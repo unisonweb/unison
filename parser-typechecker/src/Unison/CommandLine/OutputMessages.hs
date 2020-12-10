@@ -193,7 +193,7 @@ notifyNumbered o = case o of
       ]) (showDiffNamespace ShowNumbers ppe destAbs destAbs diffOutput)
 
   ShowDiffAfterUndo ppe diffOutput ->
-    first (\p -> P.lines ["Here's the changes I undid", "", p ])
+    first (\p -> P.lines ["Here are the changes I undid", "", p ])
       (showDiffNamespace ShowNumbers ppe e e diffOutput)
 
   ShowDiffAfterPull dest' destAbs ppe diff ->

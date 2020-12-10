@@ -2,6 +2,7 @@ Test for new Text -> Bytes conversions explicitly using UTF-8 as the encoding
 
 ```ucm:hide
 .> builtins.merge
+.> builtins.mergeio
 .> cd builtin
 ```
 
@@ -52,6 +53,7 @@ greek_bytes = Bytes.fromList [206, 145, 206, 146, 206, 147, 206, 148, 206]
 
 
 -- Its an error if we drop the first byte
-> fromUtf8 (drop 1 greek_bytes)
+> match fromUtf8 (drop 1 greek_bytes) with
+  Left (Failure _ t) -> t
 
 ```
