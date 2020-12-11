@@ -45,6 +45,7 @@ import Data.ByteString (hGet, hPut)
 import Data.Text as Text (pack, unpack)
 import Data.Text.Encoding ( decodeUtf8', decodeUtf8' )
 import qualified Data.ByteArray as BA
+import qualified Data.ByteString.Lazy as L
 import qualified System.X509 as X
 
 import Data.Set (insert)
@@ -1491,19 +1492,22 @@ declareForeigns = do
 
   declareForeign "crypto.hash" crypto'hash . mkForeign
     $ \(HashAlgorithm _ alg, x)
-   -> let ctx = Hash.hashInitWith alg in
-      pure . Bytes.fromArray
-           . Hash.hashFinalize
-           . Hash.hashUpdate ctx
-           $ serializeValue x
+   -> let hashlazy
+            :: Hash.HashAlgorithm a
+            => a -> L.ByteString -> Hash.Digest a
+          hashlazy _ l = Hash.hashlazy l
+       in pure . Bytes.fromArray . hashlazy alg $ serializeValueLazy x
 
   declareForeign "crypto.hmac" crypto'hmac . mkForeign
     $ \(HashAlgorithm _ alg, key, x)
-   -> let u :: a -> HMAC.HMAC a -> HMAC.HMAC a
-          u _ h = h
-          out = u alg $
-            HMAC.hmac (Bytes.toArray @BA.Bytes key) (serializeValue x)
-      in pure $ Bytes.fromArray out
+   -> let hmac
+            :: Hash.HashAlgorithm a => a -> L.ByteString -> HMAC.HMAC a
+          hmac _ s
+            = HMAC.finalize
+            . HMAC.updates
+                (HMAC.initialize $ Bytes.toArray @BA.Bytes key)
+            $ L.toChunks s
+      in pure . Bytes.fromArray . hmac alg $ serializeValueLazy x
 
 
   declareForeign "Bytes.toBase16" boxDirect . mkForeign $ pure . Bytes.toBase16

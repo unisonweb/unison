@@ -13,9 +13,11 @@ import Data.ByteString (ByteString)
 import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
 import Data.Map as Map (Map, fromList, lookup)
+import Data.Serialize.Put (runPutLazy)
 import Data.Word (Word8, Word16, Word64)
 
 import qualified Data.Sequence as Seq
+import qualified Data.ByteString.Lazy as L
 
 import GHC.Stack
 
@@ -594,3 +596,7 @@ serializeValue :: Value -> ByteString
 serializeValue v = runPutS (putVersion *> putValue v)
   where
   putVersion = putWord32be 1
+
+serializeValueLazy :: Value -> L.ByteString
+serializeValueLazy v = runPutLazy (putVersion *> putValue v)
+  where putVersion = putWord32be 1
