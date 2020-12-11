@@ -186,7 +186,8 @@ test> Nat.tests.conversions =
 ```unison
 > [Any "hi", Any (41 + 1)]
 
--- test> Any.tests = check (Any "hi" == Any "hi")
+test> Any.test1 = check (Any "hi" == Any "hi")
+test> Any.test2 = check (not (Any "hi" == Any 42))
 ```
 
 ```ucm:hide

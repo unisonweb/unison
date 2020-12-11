@@ -6,7 +6,6 @@
 module Unison.Runtime.Foreign
   ( Foreign(..)
   , HashAlgorithm(..)
-  , Any(..)
   , unwrapForeign
   , maybeUnwrapForeign
   , wrapBuiltin
@@ -105,9 +104,7 @@ data HashAlgorithm where
 newtype Tls = Tls TLS.Context
 
 data Failure = Failure Reference Text -- todo: Failure a = Failure Reference Text (Any a)
-newtype Any a = Any a
 
-instance BuiltinForeign (Any a) where foreignRef = Tagged Ty.anyRef
 instance BuiltinForeign HashAlgorithm where foreignRef = Tagged Ty.hashAlgorithmRef
 
 wrapBuiltin :: forall f. BuiltinForeign f => f -> Foreign
