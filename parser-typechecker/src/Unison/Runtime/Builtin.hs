@@ -45,6 +45,7 @@ import Data.ByteString (hGet, hPut)
 import Data.Text as Text (pack, unpack)
 import Data.Text.Encoding ( decodeUtf8', decodeUtf8' )
 import qualified Data.ByteArray as BA
+import qualified Data.ByteString.Lazy as L
 import qualified System.X509 as X
 
 import Data.Set (insert)
@@ -127,6 +128,10 @@ fresh2 = (v1, v2) where
 fresh3 :: Var v => (v, v, v)
 fresh3 = (v1, v2, v3) where
   [v1, v2, v3] = freshes 3
+
+fresh4 :: Var v => (v, v, v, v)
+fresh4 = (v1, v2, v3, v4) where
+  [v1, v2, v3, v4] = freshes 4
 
 fresh5 :: Var v => (v, v, v, v, v)
 fresh5 = (v1, v2, v3, v4, v5) where
@@ -729,6 +734,23 @@ get'buffering = inBx arg1 result
   where
     (arg1, result, m, n, b) = fresh5
 
+crypto'hash :: ForeignOp
+crypto'hash instr
+  = ([BX,BX],)
+  . TAbss [alg,x]
+  . TLetD vl BX (TPrm VALU [x])
+  $ TFOp instr [alg,vl]
+  where
+  (alg,x,vl) = fresh3
+
+crypto'hmac :: ForeignOp
+crypto'hmac instr
+  = ([BX,BX,BX],)
+  . TAbss [alg,by,x]
+  . TLetD vl BX (TPrm VALU [x])
+  $ TFOp instr [alg,by,vl]
+  where
+  (alg,by,x,vl) = fresh4
 
 -- Input Shape -- these will represent different argument lists a
 -- foreign might expect
@@ -1467,6 +1489,26 @@ declareForeigns = do
             u :: a -> HMAC.HMAC a -> HMAC.HMAC a
             u _ h = h -- to help typechecker along
         in pure $ Bytes.fromArray out
+
+  declareForeign "crypto.hash" crypto'hash . mkForeign
+    $ \(HashAlgorithm _ alg, x)
+   -> let hashlazy
+            :: Hash.HashAlgorithm a
+            => a -> L.ByteString -> Hash.Digest a
+          hashlazy _ l = Hash.hashlazy l
+       in pure . Bytes.fromArray . hashlazy alg $ serializeValueLazy x
+
+  declareForeign "crypto.hmac" crypto'hmac . mkForeign
+    $ \(HashAlgorithm _ alg, key, x)
+   -> let hmac
+            :: Hash.HashAlgorithm a => a -> L.ByteString -> HMAC.HMAC a
+          hmac _ s
+            = HMAC.finalize
+            . HMAC.updates
+                (HMAC.initialize $ Bytes.toArray @BA.Bytes key)
+            $ L.toChunks s
+      in pure . Bytes.fromArray . hmac alg $ serializeValueLazy x
+
 
   declareForeign "Bytes.toBase16" boxDirect . mkForeign $ pure . Bytes.toBase16
   declareForeign "Bytes.toBase32" boxDirect . mkForeign $ pure . Bytes.toBase32

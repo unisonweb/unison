@@ -1484,7 +1484,7 @@ reflectValue rty = goV
     = ANF.Data r t (fromIntegral <$> us) <$> traverse goV bs
   goV (CapV k us bs)
     = ANF.Cont (fromIntegral <$> us) <$> traverse goV bs <*> goK k
-  goV (Foreign _) = die $ err "foreign value"
+  goV (Foreign f) = ANF.BLit <$> goF f
   goV BlackHole = die $ err "black hole"
 
   goK (CB _) = die $ err "callback continuation"
@@ -1498,6 +1498,18 @@ reflectValue rty = goV
           (fromIntegral uf) (fromIntegral bf)
           (fromIntegral ua) (fromIntegral ba) (goIx cix)
        <$> goK k
+
+  goF f
+    | Just t <- maybeUnwrapBuiltin f
+    = pure (ANF.Text t)
+    | Just s <- maybeUnwrapForeign Rf.vectorRef f
+    = ANF.List <$> traverse goV s
+    | Just l <- maybeUnwrapForeign Rf.termLinkRef f
+    = pure (ANF.TmLink l)
+    | Just l <- maybeUnwrapForeign Rf.typeLinkRef f
+    = pure (ANF.TyLink l)
+    | otherwise = die $ err "foreign value"
+
 
 reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
 reifyValue cc val = do
@@ -1528,6 +1540,7 @@ reifyValue0 rty = goV
   goV (ANF.Cont us bs k) = cv <$> goK k <*> traverse goV bs
     where
     cv k bs = CapV k (fromIntegral <$> us) bs
+  goV (ANF.BLit l) = goL l
 
   goK ANF.KE = pure KE
   goK (ANF.Mark ps de k) =
@@ -1541,3 +1554,8 @@ reifyValue0 rty = goV
           (fromIntegral uf) (fromIntegral bf)
           (fromIntegral ua) (fromIntegral ba) (goIx gr)
         <$> goK k
+
+  goL (ANF.Text t) = pure . Foreign $ Wrap Rf.textRef t
+  goL (ANF.List l) = Foreign . Wrap Rf.vectorRef <$> traverse goV l
+  goL (ANF.TmLink r) = pure . Foreign $ Wrap Rf.termLinkRef r
+  goL (ANF.TyLink r) = pure . Foreign $ Wrap Rf.typeLinkRef r
