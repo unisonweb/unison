@@ -17,7 +17,7 @@ import Unison.Term
   )
 import Unison.Type
   ( natRef, intRef, charRef, floatRef, booleanRef, vectorRef
-  , termLinkRef, typeLinkRef
+  , termLinkRef, typeLinkRef, anyRef
   )
 import Unison.Var (Var)
 import Unison.Reference (Reference)
@@ -51,6 +51,8 @@ decompile _ (DataC rf ct [] [])
   = boolean () <$> tag2bool ct
 decompile _ (DataC rf ct [i] [])
   = decompileUnboxed rf ct i
+decompile topTerms (DataC rf _ [] [b]) | rf == anyRef
+  = app () (builtin() "Any.Any") <$> decompile topTerms b
 decompile topTerms (DataC rf ct [] bs)
   = apps' (con rf ct) <$> traverse (decompile topTerms) bs
 decompile _ (PApV (CIx _ _ n) _ _) | n > 0

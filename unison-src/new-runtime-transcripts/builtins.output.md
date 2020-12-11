@@ -165,6 +165,42 @@ test> Nat.tests.conversions =
         ]
 ```
 
+## `Any` functions
+
+```unison
+> [Any "hi", Any (41 + 1)]
+
+test> Any.test1 = check (Any "hi" == Any "hi")
+test> Any.test2 = check (not (Any "hi" == Any 42))
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      Any.test1 : [Result]
+      Any.test2 : [Result]
+  
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    1 | > [Any "hi", Any (41 + 1)]
+          ⧩
+          [Any "hi", Any 42]
+  
+    3 | test> Any.test1 = check (Any "hi" == Any "hi")
+    
+    ✅ Passed Passed
+  
+    4 | test> Any.test2 = check (not (Any "hi" == Any 42))
+    
+    ✅ Passed Passed
+
+```
 ## Run the tests
 
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.
@@ -174,6 +210,8 @@ Now that all the tests have been added to the codebase, let's view the test repo
 
   Cached test results (`help testcache` to learn more)
   
+  ◉ Any.test1                Passed
+  ◉ Any.test2                Passed
   ◉ Int.tests.arithmetic     Passed
   ◉ Int.tests.bitTwiddling   Passed
   ◉ Int.tests.conversions    Passed
@@ -181,9 +219,8 @@ Now that all the tests have been added to the codebase, let's view the test repo
   ◉ Nat.tests.bitTwiddling   Passed
   ◉ Nat.tests.conversions    Passed
   
-  ✅ 6 test(s) passing
+  ✅ 8 test(s) passing
   
-  Tip: Use view Int.tests.arithmetic to view the source of a
-       test.
+  Tip: Use view Any.test1 to view the source of a test.
 
 ```
