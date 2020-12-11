@@ -23,7 +23,7 @@ import Unison.Var (Var)
 import Unison.Reference (Reference)
 
 import Unison.Runtime.Foreign
-  (Foreign, HashAlgorithm(..), maybeUnwrapBuiltin, maybeUnwrapForeign)
+  (Foreign, HashAlgorithm(..), Any(..), maybeUnwrapBuiltin, maybeUnwrapForeign)
 import Unison.Runtime.MCode (CombIx(..))
 import Unison.Runtime.Stack
   (Closure(..), pattern DataC, pattern PApV)
@@ -107,8 +107,8 @@ decompileForeign topTerms f
   = Right $ termLink () l
   | Just l <- maybeUnwrapForeign typeLinkRef f
   = Right $ typeLink () l
-  | Just b <- maybeUnwrapForeign anyRef f
-  = decompile topTerms b <&> (\tm -> app () (ref () anyRef) tm)
+  | Just (Any b) <- maybeUnwrapForeign anyRef f
+  = decompile topTerms b <&> (\tm -> app () (builtin () "Any.Any") tm)
   | Just s <- unwrapSeq f
   = seq' () <$> traverse (decompile topTerms) s
 decompileForeign _ _ = err "cannot decompile Foreign"

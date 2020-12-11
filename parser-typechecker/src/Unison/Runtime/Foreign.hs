@@ -6,6 +6,7 @@
 module Unison.Runtime.Foreign
   ( Foreign(..)
   , HashAlgorithm(..)
+  , Any(..)
   , unwrapForeign
   , maybeUnwrapForeign
   , wrapBuiltin
@@ -20,7 +21,7 @@ import Control.Concurrent (ThreadId)
 import Data.Text (Text, unpack)
 import Data.Tagged (Tagged(..))
 import Network.Socket (Socket)
-import qualified Network.TLS as TLS (ClientParams, Context, ServerParams) 
+import qualified Network.TLS as TLS (ClientParams, Context, ServerParams)
 import System.IO (Handle)
 import Unison.Util.Bytes (Bytes)
 import Unison.Reference (Reference)
@@ -103,8 +104,10 @@ data HashAlgorithm where
 
 newtype Tls = Tls TLS.Context
 
-data Failure = Failure Reference Text -- todo: add Any
+data Failure = Failure Reference Text -- todo: Failure a = Failure Reference Text (Any a)
+newtype Any a = Any a
 
+instance BuiltinForeign (Any a) where foreignRef = Tagged Ty.anyRef
 instance BuiltinForeign HashAlgorithm where foreignRef = Tagged Ty.hashAlgorithmRef
 
 wrapBuiltin :: forall f. BuiltinForeign f => f -> Foreign
