@@ -9,6 +9,7 @@ module Unison.Codebase.Branch
     Branch(..)
   , Branch0(..)
   , MergeMode(..)
+  , UnwrappedBranch
   , Raw(..)
   , Star
   , Hash
@@ -157,8 +158,9 @@ import Unison.HashQualified (HashQualified)
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 
-newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
+newtype Branch m = Branch { _history :: UnwrappedBranch m }
   deriving (Eq, Ord)
+type UnwrappedBranch m = Causal m Raw (Branch0 m)
 
 type Hash = Causal.RawHash Raw
 type EditHash = Hash.Hash

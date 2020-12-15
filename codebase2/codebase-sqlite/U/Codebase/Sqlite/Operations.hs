@@ -59,7 +59,6 @@ import qualified U.Codebase.Sqlite.Branch.Format as S.BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as S
 import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
 import qualified U.Codebase.Sqlite.Branch.Full as S.MetadataSet
-import U.Codebase.Sqlite.DbId (BranchHashId (unBranchHashId))
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
 import U.Codebase.Sqlite.LocalIds
@@ -767,39 +766,28 @@ lookupBranchLocalPatch li (LocalPatchObjectId w) = S.BranchFormat.branchPatchLoo
 lookupBranchLocalChild :: BranchLocalIds -> LocalBranchChildId -> (Db.BranchObjectId, Db.CausalHashId)
 lookupBranchLocalChild li (LocalBranchChildId w) = S.BranchFormat.branchChildLookup li Vector.! fromIntegral w
 
--- fix me...
--- [ ] load a causal, allowing a missing value (C.Branch.Spine)
--- [x] load a causal and require its value (C.Branch.Causal)
--- [ ] load a causal, returning nothing if causal is unknown
-
-loadCausalSpineByCausalHashId :: EDB m => Db.CausalHashId -> m (C.Branch.Spine m)
-loadCausalSpineByCausalHashId = error "todo"
-
 loadCausalBranchByCausalHashId :: EDB m => Db.CausalHashId -> m (C.Branch.Causal m)
 loadCausalBranchByCausalHashId id =
   loadCausalSpineByCausalHashId id <&> \case
     C.Causal hc he parents mme ->
       C.CausalHead hc he parents $ mme >>= (Q.orError $ ExpectedBranch hc he)
 
--- loadCausalBranchHeadByCausalHash :: EDB m => CausalHash -> m (Maybe (C.Branch.Causal m))
--- loadCausalBranchHeadByCausalHash hc = do
---   hId <- (fmap Db.CausalHashId . liftQ . Q.expectHashIdByHash . unCausalHash) hc
---   loadCausalBranchByCausalHashId hId
+loadCausalBranchByCausalHash :: EDB m => CausalHash -> m (Maybe (C.Branch.Causal m))
+loadCausalBranchByCausalHash hc = do
+  Q.loadCausalHashIdByCausalHash hc >>= \case
+    Just chId -> Just <$> loadCausalBranchByCausalHashId chId
+    Nothing -> pure Nothing
 
--- loadCausalBranchByCausalHashId :: EDB m => Db.CausalHashId -> m (Maybe (C.Branch.Spine m))
--- loadCausalBranchByCausalHashId id = runMaybeT do
---   namespace <- MaybeT loadBranchByCausalHashId id
---   parentHashIds <- Q.loadCausalParents id
---   loadParents <- for parentHashIds \hId -> do
---     h <- (fmap (CausalHash . H.fromBase32Hex) . liftQ . Q.loadHashById . Db.unCausalHashId) hId
---     pure (h, loadCausalBranchByCausalHashId hId >>= Q.orError )
---     error "todo"
-
---   hb <-
---     (fmap unBranchHashId . liftQ . Q.loadCausalValueHashId) id
---       >>= fmap (BranchHash . H.fromBase32Hex) . liftQ . Q.loadHashById
-
---   C.CausalHead hc hb parentsMap (pure namespace)
+loadCausalSpineByCausalHashId :: EDB m => Db.CausalHashId -> m (C.Branch.Spine m)
+loadCausalSpineByCausalHashId id = do
+  hc <- loadCausalHashById id
+  hb <- loadValueHashByCausalHashId id
+  let loadNamespace = loadBranchByCausalHashId id
+  parentHashIds <- Q.loadCausalParents id
+  loadParents <- for parentHashIds \hId -> do
+    h <- loadCausalHashById hId
+    pure (h, loadCausalSpineByCausalHashId hId)
+  pure $ C.Causal hc hb (Map.fromList loadParents) loadNamespace
 
 -- | is this even a thing?  loading a branch by causal hash?  yes I guess so.
 loadBranchByCausalHashId :: EDB m => Db.CausalHashId -> m (Maybe (C.Branch.Branch m))

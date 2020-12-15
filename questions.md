@@ -1,11 +1,13 @@
 next steps:
 
-- [ ] fix up `Operations.loadBranchByCausalHash`; currently it's getting a single namespace, but we need to somewhere get the causal history.
-	- [ ] load a causal, allowing a missing value (C.Branch.Spine)
+- [x] fix up `Operations.loadBranchByCausalHash`; currently it's getting a single namespace, but we need to somewhere get the causal history.
+	- [x] load a causal, allowing a missing value (C.Branch.Spine)
 	- [x] load a causal and require its value (C.Branch.Causal)
-	- [ ] load a causal, returning nothing if causal is unknown
+	- [x] load a causal, returning nothing if causal is unknown
+- [x] `SqliteCodebase.Conversions.unsafecausalbranch2to1`
 - [ ] `SqliteCodebase.getRootBranch`
-- [ ] `SqliteCodebase.getBranchForHash`
+- [x] `SqliteCodebase.getBranchForHash`
+- [ ] `SqliteCodebase.Conversions.causalbranch1to2`
 - [ ] `SqliteCodebase.putRootBranch`
 - [ ] `SqliteCodebase.syncFromDirectory`
 - [ ] `SqliteCodebase.syncToDirectory`
@@ -113,6 +115,7 @@ next steps:
 | User `Term` | `c2sTerm`, `s2cTermWithType`, `s2cTerm`, `s2cTypeOfTerm` |  |
 | watch expressions | `c2wTerm`, `w2cTerm` |  |
 | User `Decl` | `c2sDecl`, |  |
+| `Causal` |  | todo |
 
 ### Saving & loading?
 

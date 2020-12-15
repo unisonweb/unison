@@ -16,7 +16,7 @@ import Data.Bifunctor (Bifunctor (first), second)
 import Data.Foldable (Foldable (toList), traverse_)
 -- import qualified U.Codebase.Sqlite.Operations' as Ops
 
-import Data.Functor (void, (<&>))
+import Data.Functor (void)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
@@ -255,9 +255,12 @@ sqliteCodebase root = do
       -- if this blows up on cromulent hashes, then switch from `hashToHashId`
       -- to one that returns Maybe.
       getBranchForHash :: Branch.Hash -> IO (Maybe (Branch IO))
-      getBranchForHash h =
-        runDB conn $
-          Cv.causalbranch2to1 $ Ops.loadBranchByCausalHash (Cv.hash1to2 h)
+      getBranchForHash h = runDB conn do
+        Ops.loadCausalBranchByCausalHash (Cv.branchHash1to2 h) >>= \case
+          Just b ->
+            pure . Just . Branch.transform (runDB conn)
+              =<< Cv.unsafecausalbranch2to1 b
+          Nothing -> pure Nothing
 
       dependentsImpl :: Reference -> IO (Set Reference.Id)
       dependentsImpl r =

@@ -27,7 +27,7 @@ import qualified Database.SQLite.Simple as SQLite
 import Database.SQLite.Simple.FromField (FromField)
 import Database.SQLite.Simple.ToField (ToField (..))
 import U.Codebase.Reference (Reference')
-import U.Codebase.Sqlite.DbId (BranchObjectId(..), BranchHashId(..), CausalHashId, CausalOldHashId, HashId (..), ObjectId (..), TextId)
+import U.Codebase.Sqlite.DbId (CausalHashId(..), BranchObjectId(..), BranchHashId(..), CausalOldHashId, HashId (..), ObjectId (..), TextId)
 import U.Codebase.Sqlite.ObjectType (ObjectType)
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
@@ -37,6 +37,7 @@ import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import UnliftIO (withRunInIO, MonadUnliftIO)
+import U.Codebase.HashTags (unCausalHash, CausalHash)
 
 -- * types
 type DB m = (MonadIO m, MonadReader Connection m)
@@ -61,14 +62,9 @@ noExcept a = runExceptT a >>= \case
   Right a -> pure a
   Left e -> error $ "unexpected error: " ++ show e
 
--- noMaybe :: Maybe a -> a
--- noMaybe = fromMaybe (error "unexpected Nothing")
-
 orError :: MonadError e m => e -> Maybe b -> m b
 orError e = maybe (throwError e) pure
 
--- type DerivedReferent = Referent.Id ObjectId ObjectId
--- type DerivedReference = Reference.Id ObjectId
 type TypeHashReference = Reference' TextId HashId
 
 -- * main squeeze
@@ -81,17 +77,21 @@ saveHashHash :: DB m => Hash -> m HashId
 saveHashHash = saveHash . Hash.toBase32Hex
 
 loadHashId :: DB m => Base32Hex -> m (Maybe HashId)
-loadHashId base32 = queryOnly sql (Only base32)
+loadHashId base32 = queryAtom sql (Only base32)
   where sql = [here| SELECT id FROM hash WHERE base32 = ? |]
 
 loadHashIdByHash :: DB m => Hash -> m (Maybe HashId)
 loadHashIdByHash = loadHashId . Hash.toBase32Hex
 
+loadCausalHashIdByCausalHash :: DB m => CausalHash -> m (Maybe CausalHashId)
+loadCausalHashIdByCausalHash =
+  (fmap . fmap) CausalHashId . loadHashIdByHash . unCausalHash
+
 expectHashIdByHash :: EDB m => Hash -> m HashId
 expectHashIdByHash h = loadHashIdByHash h >>= orError (UnknownHash h)
 
 loadHashById :: EDB m => HashId -> m Base32Hex
-loadHashById h = queryOnly sql (Only h) >>= orError (UnknownHashId h)
+loadHashById h = queryAtom sql (Only h) >>= orError (UnknownHashId h)
   where sql = [here| SELECT base32 FROM hash WHERE id = ? |]
 
 saveText :: DB m => Text -> m TextId
@@ -99,14 +99,14 @@ saveText t = execute sql (Only t) >> queryOne (loadText t)
   where sql = [here| INSERT OR IGNORE INTO text (text) VALUES (?) |]
 
 loadText :: DB m => Text -> m (Maybe TextId)
-loadText t = queryOnly sql (Only t)
+loadText t = queryAtom sql (Only t)
   where sql = [here| SELECT id FROM text WHERE text = ? |]
 
 expectText :: EDB m => Text -> m TextId
 expectText t = loadText t >>= orError (UnknownText t)
 
 loadTextById :: EDB m => TextId -> m Text
-loadTextById h = queryOnly sql (Only h) >>= orError (UnknownTextId h)
+loadTextById h = queryAtom sql (Only h) >>= orError (UnknownTextId h)
   where sql = [here| SELECT text FROM text WHERE id = ? |]
 
 saveHashObject :: DB m => HashId -> ObjectId -> Int -> m ()
@@ -126,7 +126,7 @@ saveObject h t blob =
   |]
 
 loadObjectById :: EDB m => ObjectId -> m ByteString
-loadObjectById oId = queryOnly sql (Only oId) >>= orError (UnknownObjectId oId)
+loadObjectById oId = queryAtom sql (Only oId) >>= orError (UnknownObjectId oId)
   where sql = [here|
   SELECT bytes FROM object WHERE id = ?
 |]
@@ -143,7 +143,7 @@ expectObjectIdForPrimaryHashId h =
   maybeObjectIdPrimaryHashId h >>= orError (UnknownHashId h)
 
 maybeObjectIdPrimaryHashId :: DB m => HashId -> m (Maybe ObjectId)
-maybeObjectIdPrimaryHashId h = queryOnly sql (Only h) where sql = [here|
+maybeObjectIdPrimaryHashId h = queryAtom sql (Only h) where sql = [here|
   SELECT id FROM object WHERE primary_hash_id = ?
 |]
 
@@ -152,13 +152,13 @@ expectObjectIdForAnyHashId h =
   maybeObjectIdForAnyHashId h >>= orError (NoObjectForHashId h)
 
 maybeObjectIdForAnyHashId :: DB m => HashId -> m (Maybe ObjectId)
-maybeObjectIdForAnyHashId h = queryOnly sql (Only h) where sql = [here|
+maybeObjectIdForAnyHashId h = queryAtom sql (Only h) where sql = [here|
     SELECT object_id FROM hash_object WHERE hash_id = ?
   |]
 
 -- |All objects have corresponding hashes.
 loadPrimaryHashByObjectId :: EDB m => ObjectId -> m Base32Hex
-loadPrimaryHashByObjectId oId = queryOnly sql (Only oId) >>= orError (UnknownObjectId oId)
+loadPrimaryHashByObjectId oId = queryAtom sql (Only oId) >>= orError (UnknownObjectId oId)
  where sql = [here|
   SELECT hash.base32
   FROM hash INNER JOIN object ON object.primary_hash_id = hash.id
@@ -195,12 +195,12 @@ saveCausal self value = execute sql (self, value) where sql = [here|
 
 loadCausalValueHashId :: EDB m => CausalHashId -> m BranchHashId
 loadCausalValueHashId id =
-  queryOnly sql (Only id) >>= orError (UnknownCausalHashId id) where sql = [here|
+  queryAtom sql (Only id) >>= orError (UnknownCausalHashId id) where sql = [here|
   SELECT value_hash_id FROM causal WHERE self_hash_id = ?
 |]
 
 loadBranchObjectIdByCausalHashId :: EDB m => CausalHashId -> m (Maybe BranchObjectId)
-loadBranchObjectIdByCausalHashId id = queryOnly sql (Only id) where sql = [here|
+loadBranchObjectIdByCausalHashId id = queryAtom sql (Only id) where sql = [here|
   SELECT value_object_id FROM causal WHERE self_hash_id = ?
 |]
 
@@ -211,13 +211,13 @@ saveCausalOld v1 v2 = execute sql (v1, v2) where sql = [here|
 
 loadCausalHashIdByCausalOldHash :: EDB m => CausalOldHashId -> m CausalHashId
 loadCausalHashIdByCausalOldHash id =
-  queryOnly sql (Only id) >>= orError (UnknownCausalOldHashId id) where sql = [here|
+  queryAtom sql (Only id) >>= orError (UnknownCausalOldHashId id) where sql = [here|
   SELECT new_hash_id FROM causal_old where old_hash_id = ?
 |]
 
 loadOldCausalValueHash :: EDB m => CausalOldHashId -> m BranchHashId
 loadOldCausalValueHash id =
- queryOnly sql (Only id) >>= orError (UnknownCausalOldHashId id) where sql = [here|
+ queryAtom sql (Only id) >>= orError (UnknownCausalOldHashId id) where sql = [here|
   SELECT value_hash_id FROM causal
   INNER JOIN causal_old ON self_hash_id = new_hash_id
   WHERE old_hash_id = ?
@@ -230,12 +230,12 @@ saveCausalParent child parent = execute sql (child, parent) where
   |]
 
 loadCausalParents :: DB m => CausalHashId -> m [CausalHashId]
-loadCausalParents h = queryList sql (Only h) where sql = [here|
+loadCausalParents h = queryAtoms sql (Only h) where sql = [here|
   SELECT parent_id FROM causal_parent WHERE causal_id = ?
 |]
 
 loadNamespaceRoot :: EDB m => m CausalHashId
-loadNamespaceRoot = queryList sql () >>= \case
+loadNamespaceRoot = queryAtoms sql () >>= \case
   [] -> throwError NoNamespaceRoot
   [id] -> pure id
   ids -> throwError (MultipleNamespaceRoots ids)
@@ -261,7 +261,7 @@ saveWatch k r blob = execute sql (r :. Only blob) >> execute sql2 (r :. Only k)
     |]
 
 loadWatch :: DB m => WatchKind -> Reference.IdH -> m (Maybe ByteString)
-loadWatch k r = queryOnly sql (Only k :. r) where sql = [here|
+loadWatch k r = queryAtom sql (Only k :. r) where sql = [here|
     SELECT bytes FROM watch
     WHERE watch_kind_id = ?
       AND hash_id = ?
@@ -353,7 +353,7 @@ getDependencyIdsForDependent dependent = query sql dependent where sql = [here|
 |]
 
 objectIdByBase32Prefix :: DB m => ObjectType -> Text -> m [ObjectId]
-objectIdByBase32Prefix objType prefix = queryList sql (objType, prefix <> "%") where sql = [here|
+objectIdByBase32Prefix objType prefix = queryAtoms sql (objType, prefix <> "%") where sql = [here|
   SELECT object.id FROM object
   INNER JOIN hash_object ON hash_object.object_id = object.id
   INNER JOIN hash ON hash_object.hash_id = hash.id
@@ -362,33 +362,34 @@ objectIdByBase32Prefix objType prefix = queryList sql (objType, prefix <> "%") w
 |]
 
 causalHashIdByBase32Prefix :: DB m => Text -> m [CausalHashId]
-causalHashIdByBase32Prefix prefix = queryList sql (Only $ prefix <> "%") where sql = [here|
+causalHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") where sql = [here|
   SELECT self_hash_id FROM causal
   INNER JOIN hash ON id = self_hash_id
   WHERE base32 LIKE ?
 |]
 
 namespaceHashIdByBase32Prefix :: DB m => Text -> m [BranchHashId]
-namespaceHashIdByBase32Prefix prefix = queryList sql (Only $ prefix <> "%") where sql = [here|
+namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") where sql = [here|
   SELECT value_hash_id FROM causal
   INNER JOIN hash ON id = value_hash_id
   WHERE base32 LIKE ?
 |]
 
 -- * helper functions
-queryList :: (DB f, ToRow q, FromField b) => SQLite.Query -> q -> f [b]
-queryList q r = map fromOnly <$> query q r
+
+queryAtoms :: (DB f, ToRow q, FromField b) => SQLite.Query -> q -> f [b]
+queryAtoms q r = map fromOnly <$> query q r
 queryMaybe :: (DB f, ToRow q, FromRow b) => SQLite.Query -> q -> f (Maybe b)
 queryMaybe q r = headMay <$> query q r
 
-queryOnly :: (DB f, ToRow q, FromField b) => SQLite.Query -> q -> f (Maybe b)
-queryOnly q r = fmap fromOnly <$> queryMaybe q r
+queryAtom :: (DB f, ToRow q, FromField b) => SQLite.Query -> q -> f (Maybe b)
+queryAtom q r = fmap fromOnly <$> queryMaybe q r
 
 queryOne :: Functor f => f (Maybe b) -> f b
 queryOne = fmap fromJust
 
 queryExists :: (DB m, ToRow q) => SQLite.Query -> q -> m Bool
-queryExists q r = not . null . map (id @SQLData) <$> queryList q r
+queryExists q r = not . null . map (id @SQLData) <$> queryAtoms q r
 
 query :: (DB m, ToRow q, FromRow r) => SQLite.Query -> q -> m [r]
 query q r = do c <- ask; liftIO $ SQLite.query c q r

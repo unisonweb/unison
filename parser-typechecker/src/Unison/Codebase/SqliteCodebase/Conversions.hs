@@ -6,8 +6,8 @@ import Data.Bifunctor (Bifunctor (bimap))
 import qualified Data.ByteString.Short as SBS
 import Data.Either (fromRight)
 import qualified Data.Map as Map
+import Data.Maybe (fromJust)
 import Data.Text (Text, pack)
-import qualified U.Codebase.Branch as V2
 import qualified U.Codebase.Branch as V2.Branch
 import qualified U.Codebase.Causal as V2
 import qualified U.Codebase.Decl as V2.Decl
@@ -278,6 +278,9 @@ rreferenceid1to2 h (V1.Reference.Id h' i _n) = V2.Reference.Id oh i
 hash1to2 :: Hash -> V2.Hash
 hash1to2 (V1.Hash bs) = V2.Hash.Hash (SBS.toShort bs)
 
+branchHash1to2 :: V1.Branch.Hash -> V2.CausalHash
+branchHash1to2 = V2.CausalHash . hash1to2 . V1.Causal.unRawHash
+
 reference2to1 :: Applicative m => (Hash -> m V1.Reference.Size) -> V2.Reference -> m V1.Reference
 reference2to1 lookupSize = \case
   V2.ReferenceBuiltin t -> pure $ V1.Reference.Builtin t
@@ -374,29 +377,42 @@ type1to2' convertRef =
           V1.Kind.Star -> V2.Kind.Star
           V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)
 
-
--- type Root m = CausalHead m CausalHash BranchHash (Branch m)
--- newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
-causalbranch2to1 :: forall m. Applicative m => (V2.CausalHash -> m (V2.Branch.Root m)) -> V2.Branch.Root m -> m (V1.Branch.Branch m)
-causalbranch2to1 _loadParent (V2.CausalHead hc _he (Map.toList -> parents) me) = do
+-- |forces loading v1 branches even if they may not exist
+unsafecausalbranch2to1 :: Monad m => V2.Branch.Causal m -> m (V1.Branch.Branch m)
+unsafecausalbranch2to1 (V2.CausalHead hc _he (Map.toList -> parents) me) = do
   let currentHash = causalHash2to1 hc
       causalHash2to1 :: V2.CausalHash -> V1.Causal.RawHash V1.Branch.Raw
       causalHash2to1 = V1.Causal.RawHash . hash2to1 . V2.unCausalHash
-      loadParent1 ::
-        V2.Causal m V2.CausalHash V2.BranchHash (V2.Branch m) ->
-        V1.Causal.Causal m V1.Branch.Raw (V1.Branch.Branch0 m)
-      loadParent1 = error "todo"
   V1.Branch.Branch <$> case parents of
     [] -> V1.Causal.One currentHash <$> fmap branch2to1 me
     [(hp, mp)] -> do
       let parentHash = causalHash2to1 hp
       V1.Causal.Cons currentHash
         <$> fmap branch2to1 me
-        <*> pure (parentHash, loadParent1 <$> mp)
+        <*> pure (parentHash, unsafecausalspine2to1 =<< mp)
     merge -> do
-      let tailsList = map (bimap causalHash2to1 (fmap loadParent1)) merge
+      let tailsList = map (bimap causalHash2to1 (unsafecausalspine2to1 =<<)) merge
       e <- me
       pure $ V1.Causal.Merge currentHash (branch2to1 e) (Map.fromList tailsList)
 
-branch2to1 :: V2.Branch m -> V1.Branch.Branch0 m
+-- |force loading a v1 branch even when it may not exist
+unsafecausalspine2to1 :: forall m. Monad m => V2.Branch.Spine m -> m (V1.Branch.UnwrappedBranch m)
+unsafecausalspine2to1 (V2.Causal hc _he (Map.toList -> parents) me) = do
+  let currentHash = causalHash2to1 hc
+      causalHash2to1 :: V2.CausalHash -> V1.Causal.RawHash V1.Branch.Raw
+      causalHash2to1 = V1.Causal.RawHash . hash2to1 . V2.unCausalHash
+  case parents of
+    [] -> V1.Causal.One currentHash <$> fmap (branch2to1 . fromJust) me
+    [(hp, mp)] -> do
+      let parentHash = causalHash2to1 hp
+      head <- fmap (branch2to1 . fromJust) me
+      let loadParent = unsafecausalspine2to1 =<< mp
+      pure $
+        V1.Causal.Cons currentHash head (parentHash, loadParent)
+    merge -> do
+      let tailsList = map (bimap causalHash2to1 (unsafecausalspine2to1 =<<)) merge
+      e <- fromJust <$> me
+      pure $ V1.Causal.Merge currentHash (branch2to1 e) (Map.fromList tailsList)
+
+branch2to1 :: V2.Branch.Branch m -> V1.Branch.Branch0 m
 branch2to1 = error "todo"
