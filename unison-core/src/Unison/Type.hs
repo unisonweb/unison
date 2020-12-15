@@ -239,6 +239,9 @@ tlsClientConfigRef = Reference.Builtin "Tls.ClientConfig"
 tlsServerConfigRef :: Reference
 tlsServerConfigRef = Reference.Builtin "Tls.ServerConfig"
 
+tlsSignedCertRef :: Reference
+tlsSignedCertRef = Reference.Builtin "Tls.SigendCert"
+
 tlsCiphersRef :: Reference
 tlsCiphersRef = Reference.Builtin "Tls.Ciphers"
 

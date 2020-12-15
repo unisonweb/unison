@@ -222,6 +222,7 @@ library
     network,
     network-simple,
     nonempty-containers,
+    pem,
     process,
     primitive,
     random,
@@ -245,6 +246,8 @@ library
     util,
     vector,
     unicode-show,
+    x509,
+    x509-store,
     x509-system
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures

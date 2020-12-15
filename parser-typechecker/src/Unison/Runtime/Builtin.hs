@@ -46,7 +46,9 @@ import Data.Text as Text (pack, unpack)
 import Data.Text.Encoding ( decodeUtf8', decodeUtf8' )
 import qualified Data.ByteArray as BA
 import qualified System.X509 as X
-
+import qualified Data.X509 as X
+import qualified Data.X509.CertificateStore as X
+import Data.PEM (pemContent, pemParseLBS, PEM)
 import Data.Set (insert)
 
 import qualified Data.Map as Map
@@ -1392,7 +1394,7 @@ declareForeigns = do
     defaultSupported :: TLS.Supported
     defaultSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
 
-  declareForeign "Tls.Config.defaultClient" boxBoxDirect
+  declareForeign "Tls.ClientConfig.default" boxBoxDirect
     .  mkForeign $ \(hostName::Text, serverId:: Bytes.Bytes) -> do
        store <- X.getSystemCertificateStore
        let shared :: TLS.Shared
@@ -1400,8 +1402,14 @@ declareForeigns = do
            defaultParams = (defaultParamsClient (unpack hostName) (Bytes.toArray serverId)) { TLS.clientSupported = defaultSupported, TLS.clientShared = shared }
        pure defaultParams
 
-  declareForeign "Tls.Config.defaultServer" unitDirect . mkForeign $ \() -> do
+  declareForeign "Tls.ServerConfig.default" unitDirect . mkForeign $ \() -> do
     pure $ (def :: ServerParams) { TLS.serverSupported = defaultSupported }
+
+  let updateClient :: X.CertificateStore -> TLS.ClientParams -> TLS.ClientParams
+      updateClient certs client = client { TLS.clientShared = ((clientShared client) { TLS.sharedCAStore = certs }) } in
+
+        declareForeign "Tls.ClientConfig.certificates.set" boxBoxDirect . mkForeign $
+          \(certs :: [X.SignedCertificate], params :: ClientParams) -> pure $ updateClient (X.makeCertificateStore certs) params
 
   declareForeign "Tls.newClient" boxBoxToEFBox . mkForeignTls $
     \(config :: TLS.ClientParams,
@@ -1413,6 +1421,18 @@ declareForeigns = do
   declareForeign "Tls.send" boxBoxToEFBox . mkForeignTls $
     \(tls :: TLS.Context,
       bytes :: Bytes.Bytes) -> TLS.sendData tls (Bytes.toLazyByteString bytes)
+
+  let wrapFailure t = Failure tlsFailureReference (pack t)
+      decoded :: Bytes.Bytes -> Either String PEM
+      decoded bytes = fmap head $ pemParseLBS  $ Bytes.toLazyByteString bytes
+      asCert :: PEM -> Either String X.SignedCertificate
+      asCert pem = X.decodeSignedCertificate  $ pemContent pem
+    in
+      declareForeign "Tls.decodeCert" boxToEFBox . mkForeign $
+        \(bytes :: Bytes.Bytes) -> pure $ mapLeft wrapFailure $ (decoded >=> asCert) bytes
+
+  declareForeign "Tls.encodeCert" boxDirect . mkForeign $
+    \(cert :: X.SignedCertificate) -> pure $ Bytes.fromArray $ X.encodeSignedObject cert
 
   declareForeign "Tls.receive" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> do

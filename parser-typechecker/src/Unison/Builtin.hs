@@ -169,6 +169,7 @@ builtinTypesSrc =
   , B' "Tls" CT.Data, Rename' "Tls" "io2.Tls"
   , B' "Tls.ClientConfig" CT.Data, Rename' "Tls.ClientConfig" "io2.Tls.ClientConfig"
   , B' "Tls.ServerConfig" CT.Data, Rename' "Tls.ServerConfig" "io2.Tls.ServerConfig"
+  , B' "Tls.SignedCert" CT.Data, Rename' "Tls.SignedCert" "io2.Tls.SignedCert"
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -540,10 +541,14 @@ ioBuiltins =
   , ("Tls.newServer", tlsServerConfig --> socket --> iof tls)
   , ("Tls.handshake", tls --> iof unit)
   , ("Tls.send", tls --> bytes --> iof unit)
+  , ("Tls.decodeCert", bytes --> eithert failure tlsSignedCert)
+  , ("Tls.encodeCert", tlsSignedCert --> bytes)
   , ("Tls.receive", tls --> iof bytes)
   , ("Tls.terminate", tls --> iof unit)
-  , ("Tls.Config.defaultClient", text --> bytes --> tlsClientConfig)
-  , ("Tls.Config.defaultServer", tlsServerConfig)
+  , ("Tls.ClientConfig.default", text --> bytes --> tlsClientConfig)
+  , ("Tls.ServerConfig.default", tlsServerConfig)
+  , ("Tls.ClientConfig.certificates.set", list tlsSignedCert --> tlsClientConfig --> tlsClientConfig)
+  , ("Tls.ServerConfig.certificates.set", list tlsSignedCert --> tlsServerConfig --> tlsServerConfig)
   ]
 
 mvarBuiltins :: forall v. Var v => [(Text, Type v)]
@@ -625,8 +630,12 @@ tls, tlsClientConfig, tlsServerConfig :: Var v => Type v
 tls = Type.ref () Type.tlsRef
 tlsClientConfig = Type.ref () Type.tlsClientConfigRef
 tlsServerConfig = Type.ref () Type.tlsServerConfigRef
--- tlsVersion = Type.ref () Type.tlsVersionRef
--- tlsCiphers = Type.ref () Type.tlsCiphersRef
+
+tlsSignedCert :: Var v => Type v
+tlsSignedCert = Type.ref () Type.tlsSignedCertRef
+
+--tlsVersion = Type.ref () Type.tlsVersionRef
+--tlsCiphers = Type.ref () Type.tlsCiphersRef
 
 fmode, bmode, smode, stdhandle :: Var v => Type v
 fmode = DD.fileModeType ()
