@@ -74,9 +74,17 @@ ex3 = fromHex "50d3ab"
         |> crypto.hmacBytes Sha2_256 mysecret
         |> hex
 
+f x = x
+
+ex4 = crypto.hash Sha2_256 f |> hex
+
+ex5 = crypto.hmac Sha2_256 mysecret f |> hex
+
 > ex1
 > ex2
 > ex3
+> ex4
+> ex5
 ```
 
 And here's the full API:
