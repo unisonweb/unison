@@ -56,6 +56,7 @@ import Unison.Prelude
 import qualified Unison.Util.Bytes as Bytes
 import Network.Socket as SYS
   ( accept
+  , socketPort
   , Socket
   )
 import Network.Simple.TCP as SYS
@@ -768,6 +769,19 @@ inNat arg nat result cont instr =
   . unbox arg Ty.natRef nat
   $ TLetD result UN (TFOp instr [nat]) cont
 
+
+-- Maybe a -> b -> ...
+inMaybeBx :: forall v. Var v => v -> v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inMaybeBx arg1 arg2 arg3 mb result cont instr =
+  ([BX, BX],)
+  . TAbss [arg1, arg2]
+  . TMatch arg1 . flip (MatchData Ty.optionalRef) Nothing
+  $ mapFromList
+    [ (0, ([], TLetD mb UN (TLit $ I 0)
+               $ TLetD result UN (TFOp instr [mb, arg2]) cont))
+    , (1, ([BX], TAbs arg3 . TLetD mb UN (TLit $ I 1) $ TLetD result UN (TFOp instr [mb, arg3, arg2]) cont))
+    ]
+
 -- a -> b -> ...
 inBxBx :: forall v. Var v => v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inBxBx arg1 arg2 result cont instr =
@@ -831,7 +845,7 @@ outIoFailNat stack1 stack2 stack3 fail nat result =
         $ TCon eitherReference 0 [fail])
   , (1, ([UN],)
         . TAbs stack3
-        . TLetD nat UN (TCon Ty.natRef 0 [stack3])
+        . TLetD nat BX (TCon Ty.natRef 0 [stack3])
         $ TCon eitherReference 1 [nat])
   ]
 
@@ -1011,6 +1025,14 @@ boxToEFNat = inBx arg result
           $ outIoFailNat stack1 stack2 stack3 nat fail result
   where
     (arg, result, stack1, stack2, stack3, nat, fail) = fresh7
+
+-- Maybe a -> b -> Either Failure c
+maybeBoxToEFBox :: ForeignOp
+maybeBoxToEFBox = inMaybeBx arg1 arg2 arg3 mb result
+                $ outIoFail stack1 stack2 fail result
+  where
+    (arg1, arg2, arg3, mb, result, stack1, stack2, fail) = fresh8
+
 
 -- a -> b -> Either Failure c
 boxBoxToEFBox :: ForeignOp
@@ -1320,9 +1342,15 @@ declareForeigns = do
     -- TODO: truncating integer
     . mkForeignIOF $ \fp -> fromInteger @Word64 <$> getFileSize fp
 
-  declareForeign "IO.serverSocket.v2" boxBoxToEFBox
-    . mkForeignIOF $ \(mhst,port) ->
+  declareForeign "IO.serverSocket.v2" maybeBoxToEFBox
+    . mkForeignIOF $ \(mhst :: Maybe Text
+                      , port) ->
         fst <$> SYS.bindSock (hostPreference mhst) port
+
+  declareForeign "IO.socketPort" boxToEFNat
+    . mkForeignIOF $ \(handle :: Socket) -> do
+        n <- SYS.socketPort handle
+        return (fromIntegral n :: Word64)
 
   declareForeign "IO.listen.v2" boxToEF0
     . mkForeignIOF $ \sk -> SYS.listenSock sk 2048
