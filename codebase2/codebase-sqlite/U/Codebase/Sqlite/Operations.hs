@@ -192,6 +192,9 @@ loadValueHashByCausalHashId = loadValueHashById <=< liftQ . Q.loadCausalValueHas
     loadValueHashById :: EDB m => Db.BranchHashId -> m BranchHash
     loadValueHashById = fmap (BranchHash . H.fromBase32Hex) . liftQ . Q.loadHashById . Db.unBranchHashId
 
+-- loadRootCausalHash :: EDB m => m CausalHash
+-- loadRootCausalHash = loadCausalHashById =<< liftQ Q.loadNamespaceRoot
+
 -- * Reference transformations
 
 -- ** read existing references
@@ -765,6 +768,9 @@ lookupBranchLocalPatch li (LocalPatchObjectId w) = S.BranchFormat.branchPatchLoo
 
 lookupBranchLocalChild :: BranchLocalIds -> LocalBranchChildId -> (Db.BranchObjectId, Db.CausalHashId)
 lookupBranchLocalChild li (LocalBranchChildId w) = S.BranchFormat.branchChildLookup li Vector.! fromIntegral w
+
+loadRootCausal :: EDB m => m (C.Branch.Causal m)
+loadRootCausal = liftQ Q.loadNamespaceRoot >>= loadCausalBranchByCausalHashId
 
 loadCausalBranchByCausalHashId :: EDB m => Db.CausalHashId -> m (C.Branch.Causal m)
 loadCausalBranchByCausalHashId id =

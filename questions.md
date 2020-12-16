@@ -5,7 +5,7 @@ next steps:
 	- [x] load a causal and require its value (C.Branch.Causal)
 	- [x] load a causal, returning nothing if causal is unknown
 - [x] `SqliteCodebase.Conversions.unsafecausalbranch2to1`
-- [ ] `SqliteCodebase.getRootBranch`
+- [x] `SqliteCodebase.getRootBranch`
 - [x] `SqliteCodebase.getBranchForHash`
 - [ ] `SqliteCodebase.Conversions.causalbranch1to2`
 - [ ] `SqliteCodebase.putRootBranch`
@@ -161,6 +161,7 @@ next steps:
 | `termReferencesByPrefix` | `Text -> Maybe Word64 -> m [Reference.Id]` ||
 | `declReferencesByPrefix` | `Text -> Maybe Word64 -> m [Reference.Id]` ||
 | `saveRootBranch` | `Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)` |wip|
+| `loadRootCausal` | `m (C.Branch.Causal m)` ||
 
 ## Questions:
 

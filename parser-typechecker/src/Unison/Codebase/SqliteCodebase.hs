@@ -7,15 +7,16 @@ module Unison.Codebase.SqliteCodebase where
 
 -- initCodebase :: Branch.Cache IO -> FilePath -> IO (Codebase IO Symbol Ann)
 
+-- import qualified U.Codebase.Sqlite.Operations' as Ops
+
 import Control.Monad (filterM, (>=>))
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Monad.Extra (ifM, unlessM)
 import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.Trans.Maybe (MaybeT)
 import Data.Bifunctor (Bifunctor (first), second)
+import qualified Data.Either.Combinators as Either
 import Data.Foldable (Foldable (toList), traverse_)
--- import qualified U.Codebase.Sqlite.Operations' as Ops
-
 import Data.Functor (void)
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -66,6 +67,7 @@ import qualified Unison.Type as Type
 import qualified Unison.UnisonFile as UF
 import UnliftIO (MonadIO, catchIO)
 import UnliftIO.STM
+import qualified U.Codebase.Sqlite.Queries as Q
 
 -- 1) buffer up the component
 -- 2) in the event that the component is complete, then what?
@@ -244,7 +246,23 @@ sqliteCodebase root = do
             )
 
       getRootBranch :: IO (Either Codebase1.GetRootBranchError (Branch IO))
-      getRootBranch = error "todo"
+      getRootBranch =
+        fmap (Either.mapLeft err)
+          . runExceptT
+          . flip runReaderT conn
+          . fmap (Branch.transform (runDB conn))
+          $ Cv.unsafecausalbranch2to1 =<< Ops.loadRootCausal
+        where
+          err :: Ops.Error -> Codebase1.GetRootBranchError
+          err = \case
+            Ops.DatabaseIntegrityError Q.NoNamespaceRoot ->
+              Codebase1.NoRootBranch
+            Ops.DecodeError (Ops.ErrBranch oId) _bytes _msg ->
+              Codebase1.CouldntParseRootBranch $
+                "Couldn't decode " ++ show oId ++ ": " ++ _msg
+            Ops.ExpectedBranch ch _bh ->
+              Codebase1.CouldntLoadRootBranch $ Cv.causalHash2to1 ch
+            e -> error $ show e
 
       putRootBranch :: Branch IO -> IO ()
       putRootBranch = error "todo"

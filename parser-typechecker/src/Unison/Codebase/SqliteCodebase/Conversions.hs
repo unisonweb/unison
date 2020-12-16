@@ -321,6 +321,9 @@ referentid2to1 lookupSize lookupCT = \case
 hash2to1 :: V2.Hash.Hash -> Hash
 hash2to1 (V2.Hash.Hash sbs) = V1.Hash (SBS.fromShort sbs)
 
+causalHash2to1 :: V2.CausalHash -> V1.Causal.RawHash V1.Branch.Raw
+causalHash2to1 = V1.Causal.RawHash . hash2to1 . V2.unCausalHash
+
 ttype2to1 :: Monad m => (Hash -> m V1.Reference.Size) -> V2.Term.Type V2.Symbol -> m (V1.Type.Type V1.Symbol Ann)
 ttype2to1 lookupSize = type2to1' (reference2to1 lookupSize)
 
@@ -381,8 +384,6 @@ type1to2' convertRef =
 unsafecausalbranch2to1 :: Monad m => V2.Branch.Causal m -> m (V1.Branch.Branch m)
 unsafecausalbranch2to1 (V2.CausalHead hc _he (Map.toList -> parents) me) = do
   let currentHash = causalHash2to1 hc
-      causalHash2to1 :: V2.CausalHash -> V1.Causal.RawHash V1.Branch.Raw
-      causalHash2to1 = V1.Causal.RawHash . hash2to1 . V2.unCausalHash
   V1.Branch.Branch <$> case parents of
     [] -> V1.Causal.One currentHash <$> fmap branch2to1 me
     [(hp, mp)] -> do
@@ -399,8 +400,6 @@ unsafecausalbranch2to1 (V2.CausalHead hc _he (Map.toList -> parents) me) = do
 unsafecausalspine2to1 :: forall m. Monad m => V2.Branch.Spine m -> m (V1.Branch.UnwrappedBranch m)
 unsafecausalspine2to1 (V2.Causal hc _he (Map.toList -> parents) me) = do
   let currentHash = causalHash2to1 hc
-      causalHash2to1 :: V2.CausalHash -> V1.Causal.RawHash V1.Branch.Raw
-      causalHash2to1 = V1.Causal.RawHash . hash2to1 . V2.unCausalHash
   case parents of
     [] -> V1.Causal.One currentHash <$> fmap (branch2to1 . fromJust) me
     [(hp, mp)] -> do
