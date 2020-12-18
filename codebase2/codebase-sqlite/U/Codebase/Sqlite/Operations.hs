@@ -752,10 +752,23 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
           traverse loadBranchByObjectId boId
 
 saveRootBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
-saveRootBranch (C.CausalHead _hc _he _parents _me) = error "todo"
+saveRootBranch (C.CausalHead hc he _parents me) = do
+  chId <- liftQ (Q.saveCausalHash hc)
+  liftQ (Q.loadBranchObjectIdByCausalHashId chId) >>= \case
+    Just boId -> pure (boId, chId)
+    Nothing -> do
+      bhId <- liftQ (Q.saveBranchHash he)
+      sBranch <- c2sBranch =<< me
+      boId <- saveBranchObject bhId sBranch
+      liftQ (Q.saveCausal chId bhId)
+      pure (boId, chId)
+
   where
-    _c2sBranch :: EDB m => C.Branch.Branch m -> m S.DbBranch
-    _c2sBranch = error "todo"
+    saveBranchObject :: Db.BranchHashId -> S.DbBranch -> m Db.BranchObjectId
+    saveBranchObject = error "todo"
+    c2sBranch :: C.Branch.Branch m -> m S.DbBranch
+    c2sBranch (C.Branch.Branch terms types patches children) =
+      error "todo"
 
 lookupBranchLocalText :: S.BranchLocalIds -> LocalTextId -> Db.TextId
 lookupBranchLocalText li (LocalTextId w) = S.BranchFormat.branchTextLookup li Vector.! fromIntegral w

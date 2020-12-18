@@ -7,11 +7,14 @@ next steps:
 - [x] `SqliteCodebase.Conversions.unsafecausalbranch2to1`
 - [x] `SqliteCodebase.getRootBranch`
 - [x] `SqliteCodebase.getBranchForHash`
-- [ ] `SqliteCodebase.Conversions.causalbranch1to2`
-- [ ] `SqliteCodebase.putRootBranch`
-- [ ] `SqliteCodebase.syncFromDirectory`
-- [ ] `SqliteCodebase.syncToDirectory`
-- [ ] `SqliteCodebase.rootBranchUpdates` Is there some Sqlite function for detecting external changes?
+- [ ] Writing a branch
+  - [ ] `SqliteCodebase.Conversions.causalbranch1to2`
+  - [ ] `SqliteCodebase.putRootBranch`
+- [ ] Syncing a remote codebase
+  - [ ] `SqliteCodebase.syncFromDirectory`
+  - [ ] `SqliteCodebase.syncToDirectory`
+- [ ] Managing external edit events?
+  - [ ] `SqliteCodebase.rootBranchUpdates` Is there some Sqlite function for detecting external changes?
 
 ### SqliteCodebase progress (V1 -> V2 adaptor)
 

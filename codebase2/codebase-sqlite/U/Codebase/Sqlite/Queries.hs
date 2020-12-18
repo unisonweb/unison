@@ -26,8 +26,9 @@ import Database.SQLite.Simple (Connection, FromRow, Only (..), SQLData, ToRow (.
 import qualified Database.SQLite.Simple as SQLite
 import Database.SQLite.Simple.FromField (FromField)
 import Database.SQLite.Simple.ToField (ToField (..))
+import U.Codebase.HashTags (BranchHash, CausalHash, unBranchHash, unCausalHash)
 import U.Codebase.Reference (Reference')
-import U.Codebase.Sqlite.DbId (CausalHashId(..), BranchObjectId(..), BranchHashId(..), CausalOldHashId, HashId (..), ObjectId (..), TextId)
+import U.Codebase.Sqlite.DbId (BranchHashId (..), BranchObjectId (..), CausalHashId (..), CausalOldHashId, HashId (..), ObjectId (..), TextId)
 import U.Codebase.Sqlite.ObjectType (ObjectType)
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
@@ -36,8 +37,7 @@ import qualified U.Codebase.WatchKind as WatchKind
 import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
-import UnliftIO (withRunInIO, MonadUnliftIO)
-import U.Codebase.HashTags (unCausalHash, CausalHash)
+import UnliftIO (MonadUnliftIO, withRunInIO)
 
 -- * types
 type DB m = (MonadIO m, MonadReader Connection m)
@@ -82,6 +82,12 @@ loadHashId base32 = queryAtom sql (Only base32)
 
 loadHashIdByHash :: DB m => Hash -> m (Maybe HashId)
 loadHashIdByHash = loadHashId . Hash.toBase32Hex
+
+saveCausalHash :: DB m => CausalHash -> m CausalHashId
+saveCausalHash = fmap CausalHashId . saveHashHash . unCausalHash
+
+saveBranchHash :: DB m => BranchHash -> m BranchHashId
+saveBranchHash = fmap BranchHashId . saveHashHash . unBranchHash
 
 loadCausalHashIdByCausalHash :: DB m => CausalHash -> m (Maybe CausalHashId)
 loadCausalHashIdByCausalHash =
