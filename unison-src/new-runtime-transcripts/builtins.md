@@ -181,6 +181,19 @@ test> Nat.tests.conversions =
 .> add
 ```
 
+## `Any` functions
+
+```unison
+> [Any "hi", Any (41 + 1)]
+
+test> Any.test1 = check (Any "hi" == Any "hi")
+test> Any.test2 = check (not (Any "hi" == Any 42))
+```
+
+```ucm:hide
+.> add
+```
+
 ## Run the tests
 
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.

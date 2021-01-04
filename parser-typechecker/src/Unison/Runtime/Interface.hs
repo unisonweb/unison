@@ -8,9 +8,10 @@ module Unison.Runtime.Interface
 
 import GHC.Stack (HasCallStack)
 
+import Unison.Prelude (reportBug)
 import Control.Concurrent.STM as STM
 import Control.Exception (try)
-import Control.Monad (foldM, (<=<))
+import Control.Monad
 
 import Data.Bifunctor (first,second)
 import Data.Functor ((<&>))
@@ -189,7 +190,9 @@ prepareEvaluation
   :: HasCallStack => Term Symbol -> EvalCtx -> IO (EvalCtx, Word64)
 prepareEvaluation tm ctx = do
   ctx <- pure $ ctx { decompTm = Map.fromList rtms <> decompTm ctx }
-  [] <- cacheAdd rint (ccache ctx)
+  missing <- cacheAdd rint (ccache ctx)
+  when (not . null $ missing) . fail $
+    reportBug "E029347" $ "Error in prepareEvaluation, cache is missing: " <> show missing
   (,) ctx <$> refNumTm (ccache ctx) rmn
   where
   (rmn, rtms)

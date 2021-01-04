@@ -51,6 +51,7 @@ module Unison.Runtime.ANF
   , GroupRef(..)
   , Value(..)
   , Cont(..)
+  , BLit(..)
   , packTags
   , unpackTags
   , ANFM
@@ -79,7 +80,7 @@ import Data.Functor.Compose (Compose(..))
 import Data.List hiding (and,or)
 import Prelude hiding (abs,and,or,seq)
 import qualified Prelude
-import Unison.Term hiding (resolve, fresh, float)
+import Unison.Term hiding (resolve, fresh, float, Text, Ref)
 import Unison.Var (Var, typed)
 import Unison.Util.EnumContainers as EC
 import qualified Data.Map as Map
@@ -95,7 +96,7 @@ import Unison.Typechecker.Components (minimize')
 import Unison.Pattern (SeqOp(..))
 import qualified Unison.Pattern as P
 import Unison.Reference (Reference(..))
-import Unison.Referent (Referent)
+import Unison.Referent (Referent, pattern Ref, pattern Con)
 
 newtype ANF v a = ANF_ { term :: Term v a }
 
@@ -886,11 +887,18 @@ data Value
   = Partial GroupRef [Word64] [Value]
   | Data Reference Word64 [Word64] [Value]
   | Cont [Word64] [Value] Cont
+  | BLit BLit
 
 data Cont
   = KE
   | Mark [Reference] (Map Reference Value) Cont
   | Push Word64 Word64 Word64 Word64 GroupRef Cont
+
+data BLit
+  = Text Text
+  | List (Seq Value)
+  | TmLink Referent
+  | TyLink Reference
 
 groupVars :: ANFM v (Set v)
 groupVars = ask
@@ -1245,6 +1253,7 @@ valueLinks f (Data dr _ _ bs)
   = f True dr <> foldMap (valueLinks f) bs
 valueLinks f (Cont _ bs k)
   = foldMap (valueLinks f) bs <> contLinks f k
+valueLinks f (BLit l) = litLinks f l
 
 contLinks :: Monoid a => (Bool -> Reference -> a) -> Cont -> a
 contLinks f (Push _ _ _ _ (GR cr _ _) k)
@@ -1254,6 +1263,13 @@ contLinks f (Mark ps de k)
   <> Map.foldMapWithKey (\k c -> f True k <> valueLinks f c) de
   <> contLinks f k
 contLinks _ KE = mempty
+
+litLinks :: Monoid a => (Bool -> Reference -> a) -> BLit -> a
+litLinks _ (Text _) = mempty
+litLinks f (List s) = foldMap (valueLinks f) s
+litLinks f (TmLink (Ref r)) = f False r
+litLinks f (TmLink (Con r _ _)) = f True r
+litLinks f (TyLink r) = f True r
 
 groupTermLinks :: SuperGroup v -> [Reference]
 groupTermLinks = Set.toList . groupLinks f
