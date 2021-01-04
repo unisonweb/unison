@@ -65,7 +65,7 @@ complicatedMathStuff x = todo "Come back and to something with x here"
   
     ⍟ These new definitions are ok to `add`:
     
-      complicatedMathStuff : x -> 𝕣
+      complicatedMathStuff : x -> r
 
 ```
 ## Bug

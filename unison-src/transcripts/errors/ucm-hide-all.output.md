@@ -14,4 +14,10 @@ and surface a helpful message.
 
 🛑
 
-The transcript failed due to an error encountered in the stanza above.
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  ⚠️
+  
+  The namespace foo doesn't exist.
+

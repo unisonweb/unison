@@ -88,7 +88,7 @@ import qualified Unison.Term                   as Term
 -- import qualified Unison.Util.Pretty            as Pretty
 -- import           Unison.TermPrinter             ( pretty )
 import           Unison.Codebase.Runtime        ( Runtime(Runtime) )
-import           Unison.Codebase.MainTerm       ( nullaryMain )
+import           Unison.Codebase.MainTerm       ( nullaryMain, nullaryTest )
 import qualified Unison.Runtime.IOSource       as IOSrc
 import qualified Unison.Util.Bytes             as Bytes
 import qualified Unison.Var                    as Var
@@ -400,12 +400,12 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
     newUnisonSocket $ fst conn
   go "io.IO.send_" [IR.Data _ _ [IR.T socket], IR.Bs bs] = do
     hs <- getHaskellSocketOrThrow socket
-    reraiseIO . Net.send hs $ Bytes.toByteString bs
+    reraiseIO . Net.send hs $ Bytes.toArray bs
     pure IR.unit
   go "io.IO.receive_" [IR.Data _ _ [IR.T socket], IR.N n] = do
     hs <- getHaskellSocketOrThrow socket
     bs <- reraiseIO . Net.recv hs $ fromIntegral n
-    pure . convertMaybe $ IR.Bs . Bytes.fromByteString <$> bs
+    pure . convertMaybe $ IR.Bs . Bytes.fromArray <$> bs
   go "io.IO.fork_" [IR.Lam _ _ ir] = do
     s    <- ask
     t    <- liftIO genText
@@ -456,7 +456,7 @@ lamToHask cenv s ir val = RT.run (handleIO' cenv s) cenv $ task val
   where task x = IR.Let (Var.named "_") (IR.Leaf (IR.Val x)) ir mempty
 
 runtime :: Runtime Symbol
-runtime = Runtime terminate eval (nullaryMain External)
+runtime = Runtime terminate eval (nullaryMain External) (nullaryTest External) True
  where
   terminate :: IO ()
   terminate = pure ()

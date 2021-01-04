@@ -6,6 +6,8 @@ module Unison.TermPrinter where
 
 import Unison.Prelude
 
+import           Control.Monad.State            (evalState)
+import qualified Control.Monad.State           as State
 import           Data.List
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
@@ -34,6 +36,7 @@ import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
+import qualified Unison.Util.Bytes             as Bytes
 import           Unison.Util.Monoid             ( intercalateMap )
 import qualified Unison.Util.Pretty             as PP
 import           Unison.Util.Pretty             ( Pretty, ColorText )
@@ -247,7 +250,38 @@ pretty0
         fmt S.ControlKeyword "||",
         pretty0 n (ac 10 Normal im doc) y
       ]
-    LetBlock bs e -> printLet bc bs e im' uses
+    LetBlock bs e ->
+      let (im', uses) = calcImports im term
+      in printLet bc bs e im' uses
+    -- Some matches are rendered as a destructuring bind, like
+    --   match foo with (a,b) -> blah
+    -- becomes
+    --   (a,b) = foo
+    --   blah
+    -- See `isDestructuringBind` definition.
+    Match' scrutinee cs@[MatchCase pat guard (AbsN' vs body)]
+      | p < 1 && isDestructuringBind scrutinee cs -> letIntro $ PP.lines [
+          (lhs <> eq) `PP.hang` rhs,
+          pretty0 n (ac (-1) Block im doc) body
+          ]
+      where
+      letIntro = case bc of
+        Block  -> id
+        Normal -> \x ->
+          -- We don't call calcImports here, because we can't easily do the
+          -- corequisite step in immediateChildBlockTerms (because it doesn't
+          -- know bc.)  So we'll fail to take advantage of any opportunity
+          -- this let block provides to add a use statement.  Not so bad.
+          (fmt S.ControlKeyword "let") `PP.hang` x
+      lhs = PP.group (fst (prettyPattern n (ac 0 Block im doc) (-1) vs pat))
+         <> printGuard guard
+      printGuard Nothing = mempty
+      printGuard (Just g') = let (_,g) = ABT.unabs g' in
+        PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 n (ac 2 Normal im doc) g]
+      eq = fmt S.BindingEquals " ="
+      rhs =
+        let (im', uses) = calcImports im scrutinee in
+        uses $ [pretty0 n (ac (-1) Block im' doc) scrutinee]
     Match' scrutinee branches -> paren (p >= 2) $
       if PP.isMultiLine ps then PP.lines [
         (fmt S.ControlKeyword "match ") `PP.hang` ps,
@@ -255,7 +289,7 @@ pretty0
        ]
       else ((fmt S.ControlKeyword "match ") <> ps <> (fmt S.ControlKeyword " with")) `PP.hang` pbs
       where ps = pretty0 n (ac 2 Normal im doc) scrutinee
-            pbs = printCase n im doc branches
+            pbs = printCase n im doc (arity1Branches branches) -- don't print with `cases` syntax
 
     t -> l "error: " <> l (show t)
  where
@@ -270,6 +304,8 @@ pretty0
       paren (p >= 10) $ pair `PP.hang`
         PP.spaced [pretty0 n (ac 10 Normal im doc) x, fmt S.Constructor "()" ]
     (TupleTerm' xs, _) -> paren True $ commaList xs
+    (Bytes' bs, _) ->
+      fmt S.BytesLiteral "0xs" <> (PP.shown $ Bytes.fromWord8s (map fromIntegral bs))
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
       binaryApps apps (pretty0 n (ac 3 Normal im doc) lastArg)
     _ -> case (term, nonForcePred) of
@@ -297,15 +333,15 @@ pretty0
            -> Imports
            -> ([Pretty SyntaxText] -> Pretty SyntaxText)
            -> Pretty SyntaxText
-  printLet sc bs e im' uses =
+  printLet sc bs e im uses =
     paren ((sc /= Block) && p >= 12)
       $  letIntro
       $  (uses [(PP.lines (map printBinding bs ++
-                            [PP.group $ pretty0 n (ac 0 Normal im' doc) e]))])
+                            [PP.group $ pretty0 n (ac 0 Normal im doc) e]))])
    where
     printBinding (v, binding) = if isBlank $ Var.nameStr v
-      then pretty0 n (ac (-1) Normal im' doc) binding
-      else prettyBinding0 n (ac (-1) Normal im' doc) (HQ.unsafeFromVar v) binding
+      then pretty0 n (ac (-1) Normal im doc) binding
+      else prettyBinding0 n (ac (-1) Normal im doc) (HQ.unsafeFromVar v) binding
     letIntro = case sc of
       Block  -> id
       Normal -> \x -> (fmt S.ControlKeyword "let") `PP.hang` x
@@ -350,8 +386,6 @@ pretty0
     ps = join $ [r a f | (a, f) <- reverse xs ]
     r a f = [pretty0 n (ac 3 Normal im doc) a,
              pretty0 n (AmbientContext 10 Normal Infix im doc) f]
-
-  (im', uses) = calcImports im term
 
 prettyPattern
   :: forall v loc . Var v
@@ -427,12 +461,17 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   patternsSep p sep vs pats = case patterns p vs pats of
     (printed, tail_vs) -> (PP.sep sep printed, tail_vs)
 
+type MatchCase' ann tm = ([Pattern ann], Maybe tm, tm)
+
+arity1Branches :: [MatchCase ann tm] -> [MatchCase' ann tm]
+arity1Branches bs = [ ([pat], guard, body) | MatchCase pat guard body <- bs ]
+
 printCase
   :: Var v
   => PrettyPrintEnv
   -> Imports
   -> DocLiteralContext
-  -> [MatchCase () (Term3 v PrintAnnotation)]
+  -> [MatchCase' () (Term3 v PrintAnnotation)]
   -> Pretty SyntaxText
 printCase env im doc ms = PP.lines $ map each gridArrowsAligned where
   each (lhs, arrow, body) = PP.group $ (lhs <> arrow) `PP.hang` body
@@ -440,19 +479,22 @@ printCase env im doc ms = PP.lines $ map each gridArrowsAligned where
   gridArrowsAligned = tidy <$> zip (PP.align' (f <$> grid)) grid where
     f (a, b, _) = (a, Just b)
     tidy ((a', b'), (_, _, c)) = (a', b', c)
-  go (MatchCase pat guard (AbsN' vs body)) =
+  go (pats, guard, (AbsN' vs body)) =
     (lhs, arrow, (uses [pretty0 env (ac 0 Block im' doc) body]))
     where
-    lhs = PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
+    lhs = (case pats of
+            [pat] -> PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
+            pats  -> PP.group . PP.sep ("," <> PP.softbreak) . (`evalState` vs) . for pats $ \pat -> do
+              vs <- State.get
+              let (p, rem) = prettyPattern env (ac 0 Block im doc) (-1) vs pat
+              State.put rem
+              pure p)
        <> printGuard guard
     arrow = fmt S.ControlKeyword "->"
-    printGuard (Just g0) = let
+    printGuard (Just g') = let (_, g) = ABT.unabs g' in
       -- strip off any Abs-chain around the guard, guard variables are rendered
       -- like any other variable, ex: case Foo x y | x < y -> ...
-      g = case g0 of
-        AbsN' _ g' -> g'
-        _ -> g0
-      in PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 env (ac 2 Normal im doc) g]
+      PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 env (ac 2 Normal im doc) g]
     printGuard Nothing  = mempty
     (im', uses) = calcImports im body
   go _ = (l "error", mempty, mempty)
@@ -988,7 +1030,9 @@ immediateChildBlockTerms = \case
     Handle' handler body -> [handler, body]
     If' _ t f -> [t, f]
     LetBlock bs _ -> concat $ map doLet bs
-    Match' _ branches -> concat $ map doCase branches
+    Match' scrute branches ->
+      if isDestructuringBind scrute branches then [scrute]
+      else concat $ map doCase branches
     _ -> []
   where
     doCase (MatchCase _ _ (AbsN' _ body)) = [body]
@@ -998,6 +1042,38 @@ immediateChildBlockTerms = \case
                                       then []
                                       else [body]
     doLet t = error (show t) []
+
+-- Matches with a single case, no variable shadowing, and where the pattern
+-- has no literals are treated as destructuring bind, for instance:
+--   match blah with (x,y) -> body
+-- BECOMES
+--   (x,y) = blah
+--   body
+-- BUT
+--   match (y,x) with (x,y) -> body
+-- Has shadowing, is rendered as a regular `match`.
+--   match blah with 42 -> body
+-- Pattern has (is) a literal, rendered as a regular match (rather than `42 = blah; body`)
+isDestructuringBind :: Ord v => ABT.Term f v a -> [MatchCase loc (ABT.Term f v a)] -> Bool
+isDestructuringBind scrutinee [MatchCase pat _ (ABT.AbsN' vs _)]
+  = all (`Set.notMember` ABT.freeVars scrutinee) vs && not (hasLiteral pat)
+    where
+    hasLiteral p = case p of
+      Pattern.Int _ _ -> True
+      Pattern.Boolean _ _ -> True
+      Pattern.Nat _ _ -> True
+      Pattern.Float _ _ -> True
+      Pattern.Text _ _ -> True
+      Pattern.Char _ _ -> True
+      Pattern.Constructor _ _ _ ps -> any hasLiteral ps
+      Pattern.As _ p -> hasLiteral p
+      Pattern.EffectPure _ p -> hasLiteral p
+      Pattern.EffectBind _ _ _ ps pk -> any hasLiteral (pk : ps)
+      Pattern.SequenceLiteral _ ps -> any hasLiteral ps
+      Pattern.SequenceOp _ p _ p2 -> hasLiteral p || hasLiteral p2
+      Pattern.Var _ -> False
+      Pattern.Unbound _ -> False
+isDestructuringBind _ _ = False
 
 pattern LetBlock bindings body <- (unLetBlock -> Just (bindings, body))
 
@@ -1027,3 +1103,90 @@ unLetBlock t = rec t where
         Just (innerBindings, innerBody) | dontIntersect bindings innerBindings ->
           Just (bindings ++ innerBindings, innerBody)
         _ -> Just (bindings, body)
+
+pattern LamsNamedMatch' vs branches <- (unLamsMatch' -> Just (vs, branches))
+
+-- This function is used to detect places where lambda case syntax can be used.
+-- When given lambdas of a form that corresponds to a lambda case, it returns
+-- `Just (varsBeforeCases, branches)`. Leading vars are the vars that should be
+-- shown to the left of the `-> cases`.
+--
+-- For instance, if given this term:
+--
+--   x y z -> match z with
+--     [] -> "empty"
+--     (h +: t) -> "nonempty"
+--
+-- this function will return Just ([x,y], [[] -> "empty", (h +: t) -> "nonempty"])
+-- and it would be rendered as
+--
+--   x y -> cases []     -> "empty"
+--                h +: t -> "nonempty"
+--
+-- Given this term
+--
+--   x y z -> match (y, z) with
+--     ("a", "b") -> "abba"
+--     (x, y) -> y ++ x
+--
+-- this function will return Just ([x], [ "a" "b" -> "abba", x y -> y ++ x])
+-- and it would be rendered as `x -> cases "a", "b" -> "abba"
+--                                         x,    y  -> y ++ x
+--
+-- This function returns `Nothing` in cases where the term it is given isn't
+-- a lambda, or when the lambda isn't in the correct form for lambda cases.
+-- (For instance, `x -> match (x, 42) with ...` can't be written using
+-- lambda case)
+unLamsMatch'
+  :: Var v
+  => Term2 vt at ap v a
+  -> Maybe ([v], [([Pattern ap], Maybe (Term2 vt at ap v a), Term2 vt at ap v a)])
+unLamsMatch' t = case unLamsUntilDelay' t of
+    -- x -> match x with pat -> ...
+    --   becomes
+    -- cases pat -> ...
+    Just (reverse -> (v1:vs), Match' (Var' v1') branches) |
+      -- if `v1'` is referenced in any of the branches, we can't use lambda case
+      -- syntax as we need to keep the `v1'` name that was introduced
+      (v1 == v1') && Set.notMember v1' (Set.unions $ freeVars <$> branches) ->
+        Just (reverse vs, [ ([p], guard, body) | MatchCase p guard body <- branches ])
+    -- x y z -> match (x,y,z) with (pat1, pat2, pat3) -> ...
+    --   becomes
+    -- cases pat1 pat2 pat3 -> ...`
+    Just (reverse -> vs@(_:_), Match' (TupleTerm' scrutes) branches) |
+      multiway vs (reverse scrutes) &&
+      -- (as above) if any of the vars are referenced in any of the branches,
+      -- we need to keep the names introduced by the lambda and can't use
+      -- lambda case syntax
+      all notFree (take len vs) &&
+      all isRightArity branches && -- all patterns need to match arity of scrutes
+      len /= 0 ->
+        Just (reverse (drop len vs), branches')
+        where
+          isRightArity (MatchCase (TuplePattern ps) _ _) = length ps == len
+          isRightArity (MatchCase {}) = False
+          len = length scrutes
+          fvs = Set.unions $ freeVars <$> branches
+          notFree v = Set.notMember v fvs
+          branches' = [ (ps, guard, body) | MatchCase (TuplePattern ps) guard body <- branches ]
+    _ -> Nothing
+  where
+    -- multiway vs tms checks that length tms <= length vs, and their common prefix
+    -- is all matching variables
+    multiway _ [] = True
+    multiway (h:t) (Var' h2:t2) | h == h2 = multiway t t2
+    multiway _ _ = False
+    freeVars (MatchCase _ g rhs) =
+      let guardVars = (fromMaybe Set.empty $ ABT.freeVars <$> g)
+          rhsVars = (ABT.freeVars rhs)
+      in Set.union guardVars rhsVars
+
+pattern Bytes' bs <- (toBytes -> Just bs)
+
+toBytes :: Term3 v PrintAnnotation -> Maybe [Word64]
+toBytes (App' (Builtin' "Bytes.fromList") (Sequence' bs)) =
+  toList <$> traverse go bs
+  where go (Nat' n) = Just n
+        go _ = Nothing
+toBytes _ = Nothing
+

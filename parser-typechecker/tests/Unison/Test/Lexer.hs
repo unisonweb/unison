@@ -172,7 +172,8 @@ test =
         , simpleWordyId "x"
         , Close
         , Open "then"
-        , Reserved "else"
+        , Close
+        , Open "else"
         , Close
         ]
   -- Empty `else` clause

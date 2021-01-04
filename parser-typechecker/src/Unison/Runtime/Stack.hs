@@ -8,7 +8,6 @@
 
 module Unison.Runtime.Stack
   ( K(..)
-  , IComb(.., Lam_)
   , Closure(.., DataC, PApV, CapV)
   , Callback(..)
   , Augment(..)
@@ -37,11 +36,14 @@ module Unison.Runtime.Stack
   , peekOffS
   , pokeS
   , pokeOffS
+  , frameView
   , uscount
   , bscount
   ) where
 
 import Prelude hiding (words)
+
+import GHC.Exts as L (IsList(..))
 
 import Control.Monad (when)
 import Control.Monad.Primitive
@@ -49,7 +51,7 @@ import Control.Monad.Primitive
 import Data.Ord (comparing)
 import Data.Foldable (fold)
 
-import Data.Foldable (toList, for_)
+import Data.Foldable as F (toList, for_)
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
 import Data.Primitive.Array
@@ -59,7 +61,7 @@ import Data.Word
 
 import Unison.Reference (Reference)
 
-import Unison.Runtime.ANF (Mem(..), unpackTags, RTag)
+import Unison.Runtime.ANF as ANF (Mem(..))
 import Unison.Runtime.MCode
 import Unison.Runtime.Foreign
 
@@ -88,48 +90,34 @@ data K
          !Int -- boxed frame size
          !Int -- pending unboxed args
          !Int -- pending boxed args
-         !Section -- code
+         !CombIx -- local continuation reference
          !K
   deriving (Eq, Ord)
 
--- Comb with an identifier
-data IComb
-  = IC !Word64 !Comb
-  deriving (Show)
-
-instance Eq IComb where
-  IC i _ == IC j _ = i == j
-
-pattern Lam_ ua ba uf bf entry <- IC _ (Lam ua ba uf bf entry)
-
--- TODO: more reliable ordering for combinators
-instance Ord IComb where
-  compare (IC i _) (IC j _) = compare i j
-
 data Closure
-  = PAp {-# unpack #-} !IComb     -- code
+  = PAp {-# unpack #-} !CombIx    -- reference
         {-# unpack #-} !(Seg 'UN) -- unboxed args
         {-  unpack  -} !(Seg 'BX) -- boxed args
-  | Enum !Word64
-  | DataU1 !Word64 !Int
-  | DataU2 !Word64 !Int !Int
-  | DataB1 !Word64 !Closure
-  | DataB2 !Word64 !Closure !Closure
-  | DataUB !Word64 !Int !Closure
-  | DataG !Word64 !(Seg 'UN) !(Seg 'BX)
+  | Enum !Reference !Word64
+  | DataU1 !Reference !Word64 !Int
+  | DataU2 !Reference !Word64 !Int !Int
+  | DataB1 !Reference !Word64 !Closure
+  | DataB2 !Reference !Word64 !Closure !Closure
+  | DataUB !Reference !Word64 !Int !Closure
+  | DataG !Reference !Word64 !(Seg 'UN) !(Seg 'BX)
   | Captured !K {-# unpack #-} !(Seg 'UN) !(Seg 'BX)
   | Foreign !Foreign
   | BlackHole
   deriving (Show, Eq, Ord)
 
-splitData :: Closure -> Maybe (Word64, [Int], [Closure])
-splitData (Enum t) = Just (t, [], [])
-splitData (DataU1 t i) = Just (t, [i], [])
-splitData (DataU2 t i j) = Just (t, [i,j], [])
-splitData (DataB1 t x) = Just (t, [], [x])
-splitData (DataB2 t x y) = Just (t, [], [x,y])
-splitData (DataUB t i y) = Just (t, [i], [y])
-splitData (DataG t us bs) = Just (t, ints us, toList bs)
+splitData :: Closure -> Maybe (Reference, Word64, [Int], [Closure])
+splitData (Enum r t) = Just (r, t, [], [])
+splitData (DataU1 r t i) = Just (r, t, [i], [])
+splitData (DataU2 r t i j) = Just (r, t, [i,j], [])
+splitData (DataB1 r t x) = Just (r, t, [], [x])
+splitData (DataB2 r t x y) = Just (r, t, [], [x,y])
+splitData (DataUB r t i y) = Just (r, t, [i], [y])
+splitData (DataG r t us bs) = Just (r, t, ints us, F.toList bs)
 splitData _ = Nothing
 
 ints :: ByteArray -> [Int]
@@ -137,11 +125,33 @@ ints ba = fmap (indexByteArray ba) [0..n-1]
   where
   n = sizeofByteArray ba `div` 8
 
-pattern DataC rt ct us bs <-
-  (splitData -> Just (unpackTags -> (rt, ct), us, bs))
+useg :: [Int] -> Seg 'UN
+useg ws = case L.fromList ws of
+  PrimArray ba -> ByteArray ba
 
-pattern PApV ic us bs <- PAp ic (ints -> us) (toList -> bs)
-pattern CapV k us bs <- Captured k (ints -> us) (toList -> bs)
+formData :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
+formData r t [] [] = Enum r t
+formData r t [i] [] = DataU1 r t i
+formData r t [i,j] [] = DataU2 r t i j
+formData r t [] [x] = DataB1 r t x
+formData r t [] [x,y] = DataB2 r t x y
+formData r t [i] [x] = DataUB r t i x
+formData r t us bs = DataG r t (useg us) (L.fromList bs)
+
+pattern DataC :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
+pattern DataC rf ct us bs <- (splitData -> Just (rf, ct, us, bs))
+  where
+  DataC rf ct us bs = formData rf ct us bs
+
+pattern PApV :: CombIx -> [Int] -> [Closure] -> Closure
+pattern PApV ic us bs <- PAp ic (ints -> us) (L.toList -> bs)
+  where
+  PApV ic us bs = PAp ic (useg us) (L.fromList bs)
+
+pattern CapV :: K -> [Int] -> [Closure] -> Closure
+pattern CapV k us bs <- Captured k (ints -> us) (L.toList -> bs)
+  where
+  CapV k us bs = Captured k (useg us) (L.fromList bs)
 
 {-# complete DataC, PAp, Captured, Foreign, BlackHole #-}
 {-# complete DataC, PApV, Captured, Foreign, BlackHole #-}
@@ -155,35 +165,35 @@ closureNum Foreign{} = 3
 closureNum BlackHole{} = error "BlackHole"
 
 universalCompare
-  :: (Word64 -> Reference)
-  -> (RTag -> Reference)
-  -> (Foreign -> Foreign -> Ordering)
+  :: (Foreign -> Foreign -> Ordering)
   -> Closure
   -> Closure
   -> Ordering
-universalCompare comb tag frn = cmpc
+universalCompare frn = cmpc False
   where
   cmpl cm l r
     = compare (length l) (length r) <> fold (zipWith cm l r)
-  cmpc (DataC rt1 ct1 us1 bs1) (DataC rt2 ct2 us2 bs2)
-    = compare (tag rt1) (tag rt2)
+  cmpc tyEq (DataC rf1 ct1 us1 bs1) (DataC rf2 ct2 us2 bs2)
+    = (if tyEq then compare rf1 rf2 else EQ)
    <> compare ct1 ct2
    <> cmpl compare us1 us2
-   <> cmpl cmpc bs1 bs2
-  cmpc (PApV (IC i1 _) us1 bs1) (PApV (IC i2 _) us2 bs2)
-    = compare (comb i1) (comb i2)
+   -- when comparing corresponding `Any` values, which have
+   -- existentials inside check that type references match
+   <> cmpl (cmpc $ tyEq || rf1 == Ty.anyRef) bs1 bs2
+  cmpc tyEq (PApV i1 us1 bs1) (PApV i2 us2 bs2)
+    = compare i1 i2
    <> cmpl compare us1 us2
-   <> cmpl cmpc bs1 bs2
-  cmpc (CapV k1 us1 bs1) (CapV k2 us2 bs2)
+   <> cmpl (cmpc tyEq) bs1 bs2
+  cmpc _ (CapV k1 us1 bs1) (CapV k2 us2 bs2)
     = compare k1 k2
    <> cmpl compare us1 us2
-   <> cmpl cmpc bs1 bs2
-  cmpc (Foreign fl) (Foreign fr)
+   <> cmpl (cmpc True) bs1 bs2
+  cmpc tyEq (Foreign fl) (Foreign fr)
     | Just sl <- maybeUnwrapForeign Ty.vectorRef fl
     , Just sr <- maybeUnwrapForeign Ty.vectorRef fr
-    = comparing Sq.length sl sr <> fold (Sq.zipWith cmpc sl sr)
+    = comparing Sq.length sl sr <> fold (Sq.zipWith (cmpc tyEq) sl sr)
     | otherwise = frn fl fr
-  cmpc c d = comparing closureNum c d
+  cmpc _ c d = comparing closureNum c d
 
 marshalToForeign :: HasCallStack => Closure -> Foreign
 marshalToForeign (Foreign x) = x
@@ -402,7 +412,7 @@ instance MEM 'UN where
   augSeg mode (US ap fp sp stk) seg margs = do
     cop <- newByteArray $ ssz+psz+asz
     copyByteArray cop soff seg 0 ssz
-    copyMutableByteArray cop 0 stk ap psz
+    copyMutableByteArray cop 0 stk (bytes $ ap+1) psz
     for_ margs $ uargOnto stk sp cop (words poff + pix - 1)
     unsafeFreezeByteArray cop
    where
@@ -600,7 +610,7 @@ instance MEM 'BX where
   augSeg mode (BS ap fp sp stk) seg margs = do
     cop <- newArray (ssz+psz+asz) BlackHole
     copyArray cop soff seg 0 ssz
-    copyMutableArray cop poff stk ap psz
+    copyMutableArray cop poff stk (ap+1) psz
     for_ margs $ bargOnto stk sp cop (poff+psz-1)
     unsafeFreezeArray cop
    where
@@ -631,6 +641,24 @@ instance MEM 'BX where
   {-# inline fsize #-}
 
   asize (BS ap fp _ _) = fp-ap
+
+frameView :: MEM b => Show (Elem b) => Stack b -> IO ()
+frameView stk = putStr "|" >> gof False 0
+  where
+  fsz = fsize stk
+  asz = asize stk
+  gof delim n
+    | n >= fsz = putStr "|" >> goa False 0
+    | otherwise = do
+      when delim $ putStr ","
+      putStr . show =<< peekOff stk n
+      gof True (n+1)
+  goa delim n
+    | n >= asz = putStrLn "|.."
+    | otherwise = do
+      when delim $ putStr ","
+      putStr . show =<< peekOff stk (fsz+n)
+      goa True (n+1)
 
 uscount :: Seg 'UN -> Int
 uscount seg = words $ sizeofByteArray seg

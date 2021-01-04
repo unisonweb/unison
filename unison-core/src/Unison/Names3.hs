@@ -182,9 +182,16 @@ termName length r Names{..} =
 -- Set HashQualified -> Branch m -> Free (Command m i v) Names
 -- Set HashQualified -> Branch m -> Command m i v Names
 -- populate historical names
-lookupHQPattern :: HQ.HashQualified -> Names -> Set (Reference, Int)
-lookupHQPattern hq names = Set.fromList
-  [ (r, cid) | Referent.Con r cid _ <- toList $ lookupHQTerm hq names ]
+lookupHQPattern
+  :: HQ.HashQualified
+  -> CT.ConstructorType
+  -> Names
+  -> Set (Reference, Int)
+lookupHQPattern hq ctt names = Set.fromList
+  [ (r, cid)
+    | Referent.Con r cid ct <- toList $ lookupHQTerm hq names
+    , ct == ctt
+    ]
 
 -- Finds all the constructors for the given type in the `Names0`
 constructorsForType0 :: Reference -> Names0 -> [(Name,Referent)]

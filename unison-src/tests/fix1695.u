@@ -1,0 +1,7 @@
+
+ability G a where
+  get : a
+
+f x y =
+  g = G.get
+  g x

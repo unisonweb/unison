@@ -11,7 +11,7 @@ main = '(tell get)
 
 replicate : Nat -> '{e} () -> {e} ()
 replicate n x =
-  if n Nat.== 0 then () else
+  if n `Nat.eq` 0 then () else
     !x
     replicate (n `drop` 1) x
 

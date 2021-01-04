@@ -441,7 +441,6 @@ pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
 pattern LamsNamedOpt' vs body <- (unLamsOpt' -> Just (vs, body))
 pattern LamsNamedPred' vs body <- (unLamsPred' -> Just (vs, body))
 pattern LamsNamedOrDelay' vs body <- (unLamsUntilDelay' -> Just (vs, body))
-pattern LamsNamedMatch' vs branches <- (unLamsMatch' -> Just (vs, branches))
 pattern Let1' b subst <- (unLet1 -> Just (_, b, subst))
 pattern Let1Top' top b subst <- (unLet1 -> Just (top, b, subst))
 pattern Let1Named' v b e <- (ABT.Tm' (Let _ b (ABT.out -> ABT.Abs v e)))
@@ -611,6 +610,28 @@ letRec' isTop bindings body =
     (foldMap (ABT.annotation . snd) bindings <> ABT.annotation body)
     [ ((ABT.annotation b, v), b) | (v,b) <- bindings ]
     body
+
+-- Prepend a binding to form a (bigger) let rec. Useful when
+-- building up a block incrementally using a right fold.
+--
+-- For example:
+--   consLetRec (x = 42) "hi"
+--   =>
+--   let rec x = 42 in "hi"
+--
+--   consLetRec (x = 42) (let rec y = "hi" in (x,y))
+--   =>
+--   let rec x = 42; y = "hi" in (x,y)
+consLetRec
+  :: Ord v
+  => Bool                 -- isTop parameter
+  -> a                    -- annotation for overall let rec
+  -> (a, v, Term' vt v a) -- the binding
+  -> Term' vt v a         -- the body
+  -> Term' vt v a
+consLetRec isTop a (ab, vb, b) body = case body of
+  LetRecNamedAnnotated' _ bs body -> letRec isTop a (((ab,vb), b) : bs) body
+  _ -> letRec isTop a [((ab,vb),b)] body
 
 letRec
   :: Ord v
@@ -784,23 +805,6 @@ unLamsUntilDelay' t = case unLamsPred' (t, (/=) $ Var.named "()") of
   r@(Just _) -> r
   Nothing    -> Just ([], t)
 
--- Same as unLamsUntilDelay', but only matches if the lambda body is a match
--- expression, where the scrutinee is also the last argument of the lambda
-unLamsMatch'
-  :: Var v
-  => Term2 vt at ap v a
-  -> Maybe ([v], [MatchCase ap (Term2 vt at ap v a)])
-unLamsMatch' t = case unLamsUntilDelay' t of
-    Just (reverse -> (v1:vs), Match' (Var' v1') branches) |
-      (v1 == v1') && not (Set.member v1' (Set.unions $ freeVars <$> branches)) ->
-        Just (reverse vs, branches)
-    _ -> Nothing
-  where
-    freeVars (MatchCase _ g rhs) =
-      let guardVars = (fromMaybe Set.empty $ ABT.freeVars <$> g)
-          rhsVars = (ABT.freeVars rhs)
-      in Set.union guardVars rhsVars
-
 -- Same as unLams' but taking a predicate controlling whether we match on a given binary function.
 unLamsPred' :: (Term2 vt at ap v a, v -> Bool) ->
                  Maybe ([v], Term2 vt at ap v a)
@@ -938,6 +942,9 @@ unhashComponent m = let
 hashComponents
   :: Var v => Map v (Term v a) -> Map v (Reference.Id, Term v a)
 hashComponents = ReferenceUtil.hashComponents $ refId ()
+
+hashClosedTerm :: Var v => Term v a -> Reference.Id
+hashClosedTerm tm = Reference.Id (ABT.hash tm) 0 1
 
 -- The hash for a constructor
 hashConstructor'

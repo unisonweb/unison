@@ -9,7 +9,7 @@ import Unison.Prelude
 
 import           Control.Lens                 ((%~))
 import           Control.Lens.Tuple           (_1, _2, _3)
-import           Data.List                    (intersperse)
+import           Data.List                    (find, intersperse)
 import           Data.List.Extra              (nubOrd)
 import qualified Data.List.NonEmpty           as Nel
 import qualified Data.Map                     as Map
@@ -27,8 +27,9 @@ import qualified Unison.Lexer                 as L
 import           Unison.Parser                (Ann (..), Annotated, ann)
 import qualified Unison.Parser                as Parser
 import qualified Unison.Reference             as R
-import           Unison.Referent              (Referent)
+import           Unison.Referent              (Referent, pattern Ref')
 import           Unison.Result                (Note (..))
+import qualified Unison.Result                as Result
 import qualified Unison.Settings              as Settings
 import qualified Unison.Term                  as Term
 import qualified Unison.Type                  as Type
@@ -669,6 +670,90 @@ renderTypeError e env src = case e of
       , renderType' env typ
       , "\n"
       ]
+    C.DataEffectMismatch actual rf _ -> mconcat
+      [ "DataEffectMismatch:\n"
+      , case actual of
+          C.Data -> "  data type used as effect"
+          C.Effect -> "  ability used as data type"
+      , "\n"
+      , "  reference="
+      , showTypeRef env rf
+      ]
+
+renderCompilerBug
+  :: (Var v, Annotated loc, Ord loc, Show loc)
+  => Env
+  -> String
+  -> C.CompilerBug v loc
+  -> Pretty ColorText
+renderCompilerBug env _src bug = mconcat $ case bug of
+  C.UnknownDecl sort rf _decls ->
+    [ "UnknownDecl:\n"
+    , case sort of
+        C.Data -> "  data type"
+        C.Effect -> "  ability"
+    , "\n"
+    , "  reerence = "
+    , showTypeRef env rf
+    ]
+  C.UnknownConstructor sort rf i _decl ->
+    [ "UnknownConstructor:\n"
+    , case sort of
+        C.Data -> "  data type\n"
+        C.Effect -> "  ability\n"
+    , "  reference = "
+    , showTypeRef env rf
+    , "\n"
+    , "  constructor index = "
+    , fromString (show i)
+    ]
+  C.UndeclaredTermVariable v ctx ->
+    [ "UndeclaredTermVariable:\n  "
+    , fromString $ renderVar' env ctx v
+    ]
+  C.RetractFailure elem ctx ->
+    [ "RetractFailure:\n"
+    , fromString $ show elem
+    , fromString $ show ctx
+    ]
+  C.EmptyLetRec tm ->
+    [ "EmptyLetRec:\n"
+    , renderTerm env tm
+    ]
+  C.PatternMatchFailure -> ["PatternMatchFailure"]
+  C.EffectConstructorHadMultipleEffects es ->
+    [ "EffectConstructorHadMultipleEffects:\n  "
+    , renderType' env es
+    ]
+  C.FreeVarsInTypeAnnotation vs ->
+    [ "FreeVarsInTypeAnnotation:\n  "
+    , intercalateMap ", " renderVar (toList vs)
+    ]
+  C.UnannotatedReference rf ->
+    [ "UnannotatedReference:\n"
+    , showTypeRef env rf -- term/type shouldn't matter, since unknown
+    ]
+  C.MalformedPattern p ->
+    [ "MalformedPattern:\n"
+    , fromString $ show p
+    ]
+  C.UnknownTermReference rf ->
+    [ "UnknownTermReference:\n"
+    , showTermRef env (Ref' rf)
+    ]
+  C.UnknownExistentialVariable v ctx ->
+    [ "UnknownExistentialVariable:\n"
+    , fromString $ renderVar' env ctx v
+    ]
+  C.IllegalContextExtension ctx el str ->
+    [ "IllegalContextExtension:\n"
+    , "  context:\n    "
+    , fromString $ show ctx
+    , "  element:\n    "
+    , fromString $ show el
+    , fromString str
+    ]
+  C.OtherBug str -> [ "OtherBug:\n" , fromString str ]
 
 renderContext
   :: (Var v, Ord loc) => Env -> C.Context v loc -> Pretty (AnnotatedText a)
@@ -868,6 +953,8 @@ printNoteWithSource _env s (InvalidPath path term) =
 printNoteWithSource _env s (UnknownSymbol v a) =
   fromString ("Unknown symbol `" ++ Text.unpack (Var.name v) ++ "`\n\n")
     <> annotatedAsErrorSite s a
+printNoteWithSource env s (CompilerBug (Result.TypecheckerBug c))
+  = renderCompilerBug env s c
 printNoteWithSource _env _s (CompilerBug c) =
   fromString $ "Compiler bug: " <> show c
 
@@ -888,8 +975,8 @@ _printArrowsAtPos s line column =
 pattern LexerError ts e <- Just (P.Tokens (firstLexerError -> Just (ts, e)))
 
 firstLexerError :: Foldable t => t (L.Token L.Lexeme) -> Maybe ([L.Token L.Lexeme], L.Err)
-firstLexerError (toList -> ts@((L.payload -> L.Err e) : _)) = Just (ts, e)
-firstLexerError _ = Nothing
+firstLexerError ts =
+  find (const True) [ (toList ts, e) | (L.payload -> L.Err e) <- toList ts ]
 
 prettyParseError
   :: forall v
@@ -898,10 +985,79 @@ prettyParseError
   -> Parser.Err v
   -> Pretty ColorText
 prettyParseError s = \case
-  P.TrivialError _ (LexerError ts (L.CloseWithoutMatchingOpen open close)) _ ->
-    "❗️ I found a closing " <> style ErrorSite (fromString close) <>
-    " here without a matching " <> style ErrorSite (fromString open) <> ".\n\n" <>
-    showSource s ((\t -> (rangeForToken t, ErrorSite)) <$> ts)
+  P.TrivialError _ (LexerError ts e) _ -> go e
+    where
+    excerpt = showSource s ((\t -> (rangeForToken t, ErrorSite)) <$> ts)
+    go = \case
+      L.CloseWithoutMatchingOpen open close ->
+        "I found a closing " <> style ErrorSite (fromString close) <>
+        " here without a matching " <> style ErrorSite (fromString open) <> ".\n\n" <>
+        excerpt
+      L.InvalidWordyId _id -> Pr.lines [
+        "This identifier isn't valid syntax: ", "",
+        excerpt,
+        "Here's a few examples of valid syntax: " <>
+        style Code "abba1', snake_case, Foo.zoink!, 🌻" ]
+      L.InvalidSymbolyId _id -> Pr.lines [
+        "This infix identifier isn't valid syntax: ", "",
+        excerpt,
+        "Here's a few valid examples: " <>
+        style Code "++, Float./, `List.map`" ]
+      L.InvalidBytesLiteral bs -> Pr.lines [
+        "This bytes literal isn't valid syntax: " <> style ErrorSite (fromString bs), "",
+        excerpt,
+        Pr.wrap $ "I was expecting an even number of hexidecimal characters"
+               <> "(one of" <> Pr.group (style Code "0123456789abcdefABCDEF" <> ")")
+               <> "after the" <> Pr.group (style ErrorSite "0xs" <> ".")
+        ]
+      L.InvalidHexLiteral -> Pr.lines [
+        "This number isn't valid syntax: ", "",
+        excerpt,
+        Pr.wrap $ "I was expecting only hexidecimal characters"
+               <> "(one of" <> Pr.group (style Code "0123456789abcdefABCDEF" <> ")")
+               <> "after the" <> Pr.group (style ErrorSite "0x" <> ".")
+        ]
+      L.InvalidOctalLiteral -> Pr.lines [
+        "This number isn't valid syntax: ", "",
+        excerpt,
+        Pr.wrap $ "I was expecting only octal characters"
+               <> "(one of" <> Pr.group (style Code "01234567" <> ")")
+               <> "after the" <> Pr.group (style ErrorSite "0o" <> ".")
+        ]
+      L.InvalidShortHash h -> Pr.lines [
+        "Invalid hash: " <> style ErrorSite (fromString h), "",
+        excerpt ]
+      L.Both e1 e2 -> Pr.lines [go e1, "", go e2]
+      L.UnknownLexeme -> Pr.lines [ "I couldn't parse this.", "", excerpt ]
+      L.MissingFractional n -> Pr.lines [
+        "This number isn't valid syntax: ", "",
+        excerpt,
+        Pr.wrap $ "I was expecting some digits after the '.',"
+               <> "for example: " <> style Code (n <> "0")
+               <> "or" <> Pr.group (style Code (n <> "1e37") <> ".")
+        ]
+      L.MissingExponent n -> Pr.lines [
+        "This number isn't valid syntax: ", "",
+        excerpt,
+        Pr.wrap $ "I was expecting some digits for the exponent,"
+               <> "for example: " <> Pr.group (style Code (n <> "37") <> ".")
+        ]
+      L.TextLiteralMissingClosingQuote _txt -> Pr.lines [
+        "This text is missing a closing quote:", "",
+        excerpt
+        ]
+      L.InvalidEscapeCharacter c -> Pr.lines [
+        "This isn't a valid escape character: " <> style ErrorSite [c], "",
+        excerpt, "",
+        "I only know about the following escape characters:","",
+          let s ch = style Code (fromString $ "\\" <> [ch])
+          in Pr.indentN 2 $ intercalateMap "," s (fst <$> L.escapeChars)
+        ]
+      L.LayoutError -> Pr.lines [
+        "I found an indentation error somewhere in here:", "",
+        excerpt ]
+      L.Opaque msg -> style ErrorSite msg
+
   P.TrivialError sp unexpected expected
     -> fromString
         (P.parseErrorPretty @_ @Void (P.TrivialError sp unexpected expected))
@@ -932,6 +1088,14 @@ prettyParseError s = \case
   errorVar v = style ErrorSite . fromString . Text.unpack $ Var.name v
   go :: Parser.Error v -> Pretty ColorText
   -- | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
+  go (Parser.PatternArityMismatch expected actual loc) = msg where
+    msg = Pr.indentN 2 . Pr.callout "😶" $ Pr.lines [
+      Pr.wrap $ "Not all the branches of this pattern matching have"
+             <> "the same number of arguments. I was assuming they'd all have "
+             <> Pr.hiBlue (Pr.shown expected) <> "arguments (based on the previous patterns)"
+             <> "but this one has " <> Pr.hiRed (Pr.shown actual) <> "arguments:",
+      annotatedAsErrorSite s loc
+      ]
   go (Parser.UseEmpty tok) = msg where
     msg = Pr.indentN 2 . Pr.callout "😶" $ Pr.lines [
       Pr.wrap $ "I was expecting something after the " <> Pr.hiRed "use" <> "keyword", "",

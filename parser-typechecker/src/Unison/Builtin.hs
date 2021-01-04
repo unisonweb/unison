@@ -11,6 +11,7 @@ module Unison.Builtin
   ,builtinEffectDecls
   ,builtinConstructorType
   ,builtinTypeDependents
+  ,builtinTypes
   ,builtinTermsByType
   ,builtinTermsByTypeMention
   ,intrinsicTermReferences
@@ -26,6 +27,7 @@ import           Data.Bifunctor                 ( second, first )
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
+import qualified Text.Regex.TDFA               as RE
 import qualified Unison.ConstructorType        as CT
 import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 import qualified Unison.Builtin.Decls          as DD
@@ -39,7 +41,7 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import Unison.Names3 (Names(Names), Names0)
+import           Unison.Names3 (Names(Names), Names0)
 import qualified Unison.Names3 as Names3
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
@@ -161,6 +163,13 @@ builtinTypesSrc =
   , B' "Socket" CT.Data, Rename' "Socket" "io2.Socket"
   , B' "ThreadId" CT.Data, Rename' "ThreadId" "io2.ThreadId"
   , B' "MVar" CT.Data, Rename' "MVar" "io2.MVar"
+  , B' "Code" CT.Data
+  , B' "Value" CT.Data
+  , B' "Any" CT.Data
+  , B' "crypto.HashAlgorithm" CT.Data
+  , B' "Tls" CT.Data, Rename' "Tls" "io2.Tls"
+  , B' "Tls.ClientConfig" CT.Data, Rename' "Tls.ClientConfig" "io2.Tls.ClientConfig"
+  , B' "Tls.ServerConfig" CT.Data, Rename' "Tls.ServerConfig" "io2.Tls.ServerConfig"
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -195,8 +204,14 @@ data BuiltinDSL v
   -- will overwrite newname
   | Alias Text Text
 
+
+instance Show (BuiltinDSL v) where
+  show (B t _) = Text.unpack $ "B" <> t
+  show (Rename from to) = Text.unpack $ "Rename " <> from <> " to " <> to
+  show _ = ""
+
 termNameRefs :: Map Name R.Reference
-termNameRefs = Map.mapKeys Name.unsafeFromText $ foldl' go mempty (builtinsSrc @Symbol) where
+termNameRefs = Map.mapKeys Name.unsafeFromText $ foldl' go mempty (stripVersion $ builtinsSrc @Symbol) where
   go m = \case
     B r _tp -> Map.insert r (R.Builtin r) m
     D r _tp -> Map.insert r (R.Builtin r) m
@@ -245,7 +260,6 @@ builtinsSrc =
   , B "Int.signum" $ int --> int
   , B "Int.leadingZeros" $ int --> nat
   , B "Int.negate" $ int --> int
-  , B "Int.negate" $ int --> int
   , B "Int.mod" $ int --> int --> int
   , B "Int.pow" $ int --> nat --> int
   , B "Int.shiftLeft" $ int --> nat --> int
@@ -255,6 +269,7 @@ builtinsSrc =
   , B "Int.fromText" $ text --> optionalt int
   , B "Int.toFloat" $ int --> float
   , B "Int.trailingZeros" $ int --> nat
+  , B "Int.popCount" $ int --> nat
 
   , B "Nat.*" $ nat --> nat --> nat
   , B "Nat.+" $ nat --> nat --> nat
@@ -283,6 +298,7 @@ builtinsSrc =
   , B "Nat.toInt" $ nat --> int
   , B "Nat.toText" $ nat --> text
   , B "Nat.trailingZeros" $ nat --> nat
+  , B "Nat.popCount" $ nat --> nat
 
   , B "Float.+" $ float --> float --> float
   , B "Float.-" $ float --> float --> float
@@ -350,6 +366,7 @@ builtinsSrc =
 
   , B "bug" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b))
   , B "todo" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b))
+  , B "Any.Any" $ forall1 "a" (\a -> a --> anyt)
 
   , B "Boolean.not" $ boolean --> boolean
 
@@ -366,10 +383,10 @@ builtinsSrc =
   , B "Text.>" $ text --> text --> boolean
   , B "Text.uncons" $ text --> optionalt (tuple [char, text])
   , B "Text.unsnoc" $ text --> optionalt (tuple [text, char])
-
   , B "Text.toCharList" $ text --> list char
   , B "Text.fromCharList" $ list char --> text
-
+  , B "Text.toUtf8" $ text --> bytes
+  , B "Text.fromUtf8.v2" $ bytes --> eithert failure text
   , B "Char.toNat" $ char --> nat
   , B "Char.fromNat" $ nat --> char
 
@@ -382,6 +399,24 @@ builtinsSrc =
   , B "Bytes.toList" $ bytes --> list nat
   , B "Bytes.size" $ bytes --> nat
   , B "Bytes.flatten" $ bytes --> bytes
+
+   {- These are all `Bytes -> Bytes`, rather than `Bytes -> Text`.
+      This is intentional: it avoids a round trip to `Text` if all
+      you are doing with the bytes is dumping them to a file or a
+      network socket.
+
+      You can always `Text.fromUtf8` the results of these functions
+      to get some `Text`.
+    -}
+  , B "Bytes.toBase16" $ bytes --> bytes
+  , B "Bytes.toBase32" $ bytes --> bytes
+  , B "Bytes.toBase64" $ bytes --> bytes
+  , B "Bytes.toBase64UrlUnpadded" $ bytes --> bytes
+
+  , B "Bytes.fromBase16" $ bytes --> eithert text bytes
+  , B "Bytes.fromBase32" $ bytes --> eithert text bytes
+  , B "Bytes.fromBase64" $ bytes --> eithert text bytes
+  , B "Bytes.fromBase64UrlUnpadded" $ bytes --> eithert text bytes
 
   , B "List.empty" $ forall1 "a" list
   , B "List.cons" $ forall1 "a" (\a -> a --> list a --> list a)
@@ -404,68 +439,147 @@ builtinsSrc =
                   ,("<=", "lteq")
                   ,(">" , "gt")
                   ,(">=", "gteq")]
-  ] ++ io2List ioBuiltins ++ io2List mvarBuiltins
+  ] ++ moveUnder "io2" ioBuiltins
+    ++ moveUnder "io2" mvarBuiltins
+    ++ hashBuiltins
+    ++ fmap (uncurry B) codeBuiltins
 
-io2List :: [(Text, Type v)] -> [BuiltinDSL v]
-io2List bs = bs >>= \(n,ty) -> [B n ty, Rename n ("io2." <> n)]
+
+moveUnder :: Text -> [(Text, Type v)] -> [BuiltinDSL v]
+moveUnder prefix bs = bs >>= \(n,ty) -> [B n ty, Rename n (prefix <> "." <> n)]
+
+-- builtins which have a version appended to their name (like the .v2 in IO.putBytes.v2)
+-- Should be renamed to not have the version suffix
+stripVersion :: [BuiltinDSL v] -> [BuiltinDSL v]
+stripVersion bs =
+  bs >>= rename where
+    rename :: BuiltinDSL v -> [BuiltinDSL v]
+    rename o@(B n _) = renameB o $ RE.matchOnceText regex n
+    rename o@(Rename _ _) = [renameRename o]
+    rename o = [o]
+
+    -- When we see a B declaraiton, we add an additional Rename in the
+    -- stream to rename it if it ahs a version string
+    renameB :: BuiltinDSL v -> Maybe (Text, RE.MatchText Text, Text) -> [BuiltinDSL v]
+    renameB o@(B n _) (Just (before, _, _)) = [o, Rename n before]
+    renameB (Rename n _) (Just (before, _, _)) = [Rename n before]
+    renameB x _ = [x]
+
+    -- if there is already a Rename in the stream, then both sides of the
+    -- rename need to have version stripped. This happens in when we move
+    -- builtin IO to the io2 namespace, we might end up with:
+    -- [ B IO.putBytes.v2 _, Rename IO.putBytes.v2 io2.IO.putBytes.v2]
+    -- and would be become:
+    -- [ B IO.putBytes.v2 _, Rename IO.putBytes.v2 IO.putBytes, Rename IO.putBytes io2.IO.putBytes ]
+    renameRename :: BuiltinDSL v -> BuiltinDSL v
+    renameRename (Rename before1 before2) = let after1 = renamed before1 (RE.matchOnceText regex before1)
+                                                after2 = renamed before2 (RE.matchOnceText regex before2) in
+                                                Rename after1 after2
+    renameRename x = x
+
+    renamed :: Text -> Maybe (Text, RE.MatchText Text, Text) -> Text
+    renamed _ (Just (before, _, _)) = before
+    renamed x _ = x
+
+    r :: String
+    r = "\\.v[0-9]+"
+    regex :: RE.Regex
+    regex = RE.makeRegexOpts (RE.defaultCompOpt { RE.caseSensitive = False }) RE.defaultExecOpt r
+
+hashBuiltins :: Var v => [BuiltinDSL v]
+hashBuiltins =
+  [ B "crypto.hash" $ forall1 "a" (\a -> hashAlgo --> a --> bytes)
+  , B "crypto.hashBytes" $ hashAlgo --> bytes --> bytes
+  , B "crypto.hmac" $ forall1 "a" (\a -> hashAlgo --> bytes --> a --> bytes)
+  , B "crypto.hmacBytes" $ hashAlgo --> bytes --> bytes --> bytes
+  ] ++
+  map h [ "Sha3_512", "Sha3_256", "Sha2_512", "Sha2_256", "Blake2b_512", "Blake2b_256", "Blake2s_256" ]
+  where
+  hashAlgo = Type.ref() Type.hashAlgorithmRef
+  h name = B ("crypto.HashAlgorithm."<>name) hashAlgo
 
 ioBuiltins :: Var v => [(Text, Type v)]
 ioBuiltins =
-  [ ("IO.openFile", text --> fmode --> ioe handle)
-  , ("IO.closeFile", handle --> ioe unit)
-  , ("IO.isFileEOF", handle --> ioe boolean)
-  , ("IO.isFileOpen", handle --> ioe boolean)
-  , ("IO.isSeekable", handle --> ioe boolean)
-  , ("IO.seekHandle", handle --> smode --> int --> ioe unit)
-  , ("IO.handlePosition", handle --> ioe int)
-  , ("IO.getBuffering", handle --> ioe bmode)
-  , ("IO.setBuffering", handle --> bmode --> ioe unit)
-  , ("IO.getLine", handle --> ioe text)
-  , ("IO.getText", handle --> ioe text)
-  , ("IO.putText", handle --> text --> ioe unit)
-  , ("IO.systemTime", unit --> ioe nat)
-  , ("IO.getTempDirectory", unit --> ioe text)
-  , ("IO.getCurrentDirectory", unit --> ioe text)
-  , ("IO.setCurrentDirectory", text --> ioe unit)
-  , ("IO.fileExists", text --> ioe boolean)
-  , ("IO.isDirectory", text --> ioe boolean)
-  , ("IO.createDirectory", text --> ioe unit)
-  , ("IO.removeDirectory", text --> ioe unit)
-  , ("IO.renameDirectory", text --> text --> ioe unit)
-  , ("IO.removeFile", text --> ioe unit)
-  , ("IO.renameFile", text --> text --> ioe unit)
-  , ("IO.getFileTimestamp", text --> ioe nat)
-  , ("IO.getFileSize", text --> ioe nat)
-  , ("IO.serverSocket", text --> text --> ioe socket)
-  , ("IO.listen", socket --> ioe unit)
-  , ("IO.clientSocket", text --> text --> ioe socket)
-  , ("IO.closeSocket", socket --> ioe unit)
-  , ("IO.socketAccept", socket --> ioe socket)
-  , ("IO.socketSend", socket --> bytes --> ioe unit)
-  , ("IO.socketReceive", socket --> nat --> ioe bytes)
-  , ("IO.forkComp"
-    , forall1 "a" $ \a -> (unit --> ioe a) --> io threadId)
+  [ ("IO.openFile.v2", text --> fmode --> iof handle)
+  , ("IO.closeFile.v2", handle --> iof unit)
+  , ("IO.isFileEOF.v2", handle --> iof boolean)
+  , ("IO.isFileOpen.v2", handle --> iof boolean)
+  , ("IO.isSeekable.v2", handle --> iof boolean)
+  , ("IO.seekHandle.v2", handle --> smode --> int --> iof unit)
+  , ("IO.handlePosition.v2", handle --> iof int)
+  , ("IO.getBuffering.v2", handle --> iof bmode)
+  , ("IO.setBuffering.v2", handle --> bmode --> iof unit)
+  , ("IO.getBytes.v2", handle --> nat --> iof bytes)
+  , ("IO.putBytes.v2", handle --> bytes --> iof unit)
+  , ("IO.systemTime.v2", unit --> iof nat)
+  , ("IO.getTempDirectory.v2", unit --> iof text)
+  , ("IO.createTempDirectory", text --> iof text)
+  , ("IO.getCurrentDirectory.v2", unit --> iof text)
+  , ("IO.setCurrentDirectory.v2", text --> iof unit)
+  , ("IO.fileExists.v2", text --> iof boolean)
+  , ("IO.isDirectory.v2", text --> iof boolean)
+  , ("IO.createDirectory.v2", text --> iof unit)
+  , ("IO.removeDirectory.v2", text --> iof unit)
+  , ("IO.renameDirectory.v2", text --> text --> iof unit)
+  , ("IO.removeFile.v2", text --> iof unit)
+  , ("IO.renameFile.v2", text --> text --> iof unit)
+  , ("IO.getFileTimestamp.v2", text --> iof nat)
+  , ("IO.getFileSize.v2", text --> iof nat)
+  , ("IO.serverSocket.v2", text --> text --> iof socket)
+  , ("IO.listen.v2", socket --> iof unit)
+  , ("IO.clientSocket.v2", text --> text --> iof socket)
+  , ("IO.closeSocket.v2", socket --> iof unit)
+  , ("IO.socketAccept.v2", socket --> iof socket)
+  , ("IO.socketSend.v2", socket --> bytes --> iof unit)
+  , ("IO.socketReceive.v2", socket --> nat --> iof bytes)
+  , ("IO.forkComp.v2"
+    , forall1 "a" $ \a -> (unit --> iof a) --> io threadId)
   , ("IO.stdHandle", stdhandle --> handle)
-  , ("IO.delay", nat --> ioe unit)
-  , ("IO.kill", threadId --> ioe unit)
+
+  , ("IO.delay.v2", nat --> iof unit)
+  , ("IO.kill.v2", threadId --> iof unit)
+  , ("Tls.newClient", tlsClientConfig --> socket --> iof tls)
+  , ("Tls.newServer", tlsServerConfig --> socket --> iof tls)
+  , ("Tls.handshake", tls --> iof unit)
+  , ("Tls.send", tls --> bytes --> iof unit)
+  , ("Tls.receive", tls --> iof bytes)
+  , ("Tls.terminate", tls --> iof unit)
+  , ("Tls.Config.defaultClient", text --> bytes --> tlsClientConfig)
+  , ("Tls.Config.defaultServer", tlsServerConfig)
   ]
 
 mvarBuiltins :: forall v. Var v => [(Text, Type v)]
 mvarBuiltins =
   [ ("MVar.new", forall1 "a" $ \a -> a --> io (mvar a))
-  , ("MVar.newEmpty", forall1 "a" $ \a -> io (mvar a))
-  , ("MVar.take", forall1 "a" $ \a -> mvar a --> ioe a)
+  , ("MVar.newEmpty.v2", forall1 "a" $ \a -> unit --> io (mvar a))
+  , ("MVar.take.v2", forall1 "a" $ \a -> mvar a --> iof a)
   , ("MVar.tryTake", forall1 "a" $ \a -> mvar a --> io (optionalt a))
-  , ("MVar.put", forall1 "a" $ \a -> mvar a --> a --> ioe unit)
+  , ("MVar.put.v2", forall1 "a" $ \a -> mvar a --> a --> iof unit)
   , ("MVar.tryPut", forall1 "a" $ \a -> mvar a --> a --> io boolean)
-  , ("MVar.swap", forall1 "a" $ \a -> mvar a --> a --> ioe a)
+  , ("MVar.swap.v2", forall1 "a" $ \a -> mvar a --> a --> iof a)
   , ("MVar.isEmpty", forall1 "a" $ \a -> mvar a --> io boolean)
-  , ("MVar.read", forall1 "a" $ \a -> mvar a --> ioe a)
+  , ("MVar.read.v2", forall1 "a" $ \a -> mvar a --> iof a)
   , ("MVar.tryRead", forall1 "a" $ \a -> mvar a --> io (optionalt a))
   ]
   where
   mvar :: Type v -> Type v
   mvar a = Type.ref () Type.mvarRef `app` a
+
+codeBuiltins :: forall v. Var v => [(Text, Type v)]
+codeBuiltins =
+  [ ("Code.dependencies", code --> list termLink)
+  , ("Code.isMissing", termLink --> io boolean)
+  , ("Code.serialize", code --> bytes)
+  , ("Code.deserialize", bytes --> eithert text code)
+  , ("Code.cache_", list (tuple [termLink,code]) --> io (list termLink))
+  , ("Code.lookup", termLink --> io (optionalt code))
+  , ("Value.dependencies", value --> list termLink)
+  , ("Value.serialize", value --> bytes)
+  , ("Value.deserialize", bytes --> eithert text value)
+  , ("Value.value", forall1 "a" $ \a -> a --> value)
+  , ("Value.load"
+    , forall1 "a" $ \a -> value --> io (eithert (list termLink) a))
+  ]
 
 forall1 :: Var v => Text -> (Type v -> Type v) -> Type v
 forall1 name body =
@@ -493,17 +607,28 @@ pair l r = DD.pairType () `app` l `app` r
 a --> b = Type.arrow () a b
 infixr -->
 
-io, ioe :: Var v => Type v -> Type v
+io, iof :: Var v => Type v -> Type v
 io = Type.effect1 () (Type.builtinIO ())
-ioe = io . either (DD.ioErrorType ())
-  where
-  either l r = DD.eitherType () `app` l `app` r
+iof = io . eithert failure
+
+failure :: Var v => Type v
+failure = DD.failureType ()
+
+eithert :: Var v => Type v -> Type v -> Type v
+eithert l r = DD.eitherType () `app` l `app` r
 
 socket, threadId, handle, unit :: Var v => Type v
 socket = Type.socket ()
 threadId = Type.threadId ()
 handle = Type.fileHandle ()
 unit = DD.unitType ()
+
+tls, tlsClientConfig, tlsServerConfig :: Var v => Type v
+tls = Type.ref () Type.tlsRef
+tlsClientConfig = Type.ref () Type.tlsClientConfigRef
+tlsServerConfig = Type.ref () Type.tlsServerConfigRef
+-- tlsVersion = Type.ref () Type.tlsVersionRef
+-- tlsCiphers = Type.ref () Type.tlsCiphersRef
 
 fmode, bmode, smode, stdhandle :: Var v => Type v
 fmode = DD.fileModeType ()
@@ -519,3 +644,10 @@ text = Type.text ()
 boolean = Type.boolean ()
 float = Type.float ()
 char = Type.char ()
+
+anyt, code, value, termLink :: Var v => Type v
+anyt = Type.ref() Type.anyRef
+code = Type.code ()
+value = Type.value ()
+termLink = Type.termLink ()
+
