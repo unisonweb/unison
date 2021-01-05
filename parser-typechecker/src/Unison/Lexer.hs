@@ -30,6 +30,7 @@ import           Text.Megaparsec.Error (ShowToken(..))
 import           Unison.ShortHash ( ShortHash )
 import qualified Unison.ShortHash as SH
 import qualified Text.Megaparsec as P
+import qualified Text.Megaparsec.Internal as PI
 import qualified Text.Megaparsec.Error as EP
 import qualified Text.Megaparsec.Char as CP
 import Text.Megaparsec.Char (char)
@@ -50,9 +51,23 @@ data Token a = Token {
 
 data ParsingEnv =
   ParsingEnv { layout :: !Layout -- layout stack
-             , opening :: Maybe BlockName } -- `Just b` if a block of type `b` is being opened
+             , opening :: Maybe BlockName -- `Just b` if a block of type `b` is being opened
+             , inLayout :: Bool }
 
 type P = P.ParsecT (Token Err) String (S.State ParsingEnv)
+
+local :: (ParsingEnv -> ParsingEnv) -> P a -> P a
+local f p = do
+  env0 <- S.get
+  S.put (f env0)
+  e <- P.observing p
+  S.put env0
+  case e of
+    Left e -> parseFailure e
+    Right a -> pure a
+
+parseFailure :: EP.ParseError Char (Token Err) -> P a
+parseFailure e = PI.ParsecT $ \s _ _ _ eerr -> eerr e s
 
 data Err
   = InvalidWordyId String
@@ -176,7 +191,7 @@ token'' tok p = do
             l = layout env
     -- If we're not opening a block, we potentially pop from
     -- the layout stack and/or emit virtual semicolons.
-    Nothing -> pops start
+    Nothing -> if inLayout env then pops start else pure []
   a <- p <|> (S.put env >> fail "resetting state")
   end <- pos
   pure $ layoutToks ++ tok a start end
@@ -213,7 +228,7 @@ lexer0' scope rem =
   where
   customErrs es = [ Err <$> e | P.ErrorCustom e <- toList es ]
   toPos (P.SourcePos _ line col) = Pos (P.unPos line) (P.unPos col)
-  env0 = ParsingEnv [] (Just scope)
+  env0 = ParsingEnv [] (Just scope) True
   -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
   -- fix without adding more state to the lexer:
   --   - 1+1 lexes as [1, +1], convert this to [1, +, 1]
@@ -245,7 +260,7 @@ lexemes = P.optional space >> do
   tl <- eof
   pure $ hd <> tl
   where
-  toks = doc <|> token numeric <|> token character <|> reserved <|> token symbolyId
+  toks = doc2 <|> doc <|> token numeric <|> token character <|> reserved <|> token symbolyId
      <|> token blank <|> token wordyId
      <|> (asum . map token) [ semi, textual, backticks, hash ]
 
@@ -255,6 +270,12 @@ lexemes = P.optional space >> do
   tok :: P a -> P [Token a]
   tok p = do (start,a,stop) <- positioned p
              pure [Token a start stop]
+
+  doc2 :: P [Token Lexeme]
+  doc2 =
+    lit "{{" *> local (\env -> env { inLayout = False }) body <* lit "}}"
+    where
+    body = pure [] -- todo
 
   doc :: P [Token Lexeme]
   doc = open <+> (CP.space *> fmap fixup body) <+> (close <* space) where
