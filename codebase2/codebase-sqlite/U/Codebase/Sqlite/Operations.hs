@@ -3,6 +3,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
@@ -15,9 +16,10 @@ import Control.Lens (Lens')
 import qualified Control.Lens as Lens
 import Control.Monad (join, (<=<))
 import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
-import Control.Monad.State (MonadState, evalStateT)
+import Control.Monad.State (MonadState, StateT, evalStateT)
+import qualified Control.Monad.Trans as Monad
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
-import Control.Monad.Writer (MonadWriter, runWriterT)
+import Control.Monad.Writer (MonadWriter, WriterT, runWriterT)
 import qualified Control.Monad.Writer as Writer
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
@@ -109,6 +111,7 @@ import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
+import Control.Monad.Trans (MonadTrans(lift))
 
 -- * Error handling
 
@@ -165,11 +168,24 @@ loadTextById = liftQ . Q.loadTextById
 -- because it came from a sync or from a save
 -- hashToHashId :: EDB m => H.Hash -> m Db.HashId
 -- hashToHashId = liftQ . Q.expectHashIdByHash
-hashToObjectId :: EDB m => H.Hash -> m Db.ObjectId
-hashToObjectId h = do
+
+-- | look up an existing object by its primary hash
+primaryHashToExistingObjectId :: EDB m => H.Hash -> m Db.ObjectId
+primaryHashToExistingObjectId h = do
   (Q.loadHashId . H.toBase32Hex) h >>= \case
     Just hashId -> liftQ $ Q.expectObjectIdForPrimaryHashId hashId
     Nothing -> throwError $ UnknownDependency h
+
+primaryHashToExistingPatchObjectId :: EDB m => PatchHash -> m Db.PatchObjectId
+primaryHashToExistingPatchObjectId =
+  fmap Db.PatchObjectId  . primaryHashToExistingObjectId . unPatchHash
+
+primaryHashToMaybePatchObjectId :: EDB m => PatchHash -> m (Maybe Db.PatchObjectId)
+primaryHashToMaybePatchObjectId = error "todo"
+
+primaryHashToExistingBranchObjectId :: EDB m => BranchHash -> m Db.BranchObjectId
+primaryHashToExistingBranchObjectId =
+  fmap Db.BranchObjectId . primaryHashToExistingObjectId . unBranchHash
 
 objectExistsForHash :: DB m => H.Hash -> m Bool
 objectExistsForHash h =
@@ -200,13 +216,13 @@ loadValueHashByCausalHashId = loadValueHashById <=< liftQ . Q.loadCausalValueHas
 -- ** read existing references
 
 c2sReference :: EDB m => C.Reference -> m S.Reference
-c2sReference = bitraverse lookupTextId hashToObjectId
+c2sReference = bitraverse lookupTextId primaryHashToExistingObjectId
 
 s2cReference :: EDB m => S.Reference -> m C.Reference
 s2cReference = bitraverse loadTextById loadHashByObjectId
 
 c2sReferenceId :: EDB m => C.Reference.Id -> m S.Reference.Id
-c2sReferenceId = C.Reference.idH hashToObjectId
+c2sReferenceId = C.Reference.idH primaryHashToExistingObjectId
 
 s2cReferenceId :: EDB m => S.Reference.Id -> m C.Reference.Id
 s2cReferenceId = C.Reference.idH loadHashByObjectId
@@ -266,7 +282,7 @@ c2lPatch (C.Branch.Patch termEdits typeEdits) =
     done (lPatch, (textValues, hashValues, defnValues)) = do
       textIds <- liftQ $ traverse Q.saveText textValues
       hashIds <- liftQ $ traverse Q.saveHashHash hashValues
-      objectIds <- traverse hashToObjectId defnValues
+      objectIds <- traverse primaryHashToExistingObjectId defnValues
       let ids =
             S.PatchFormat.LocalIds
               (Vector.fromList (Foldable.toList textIds))
@@ -359,7 +375,7 @@ decodeDeclElement i = getFromBytesOr (ErrDeclElement i) (S.lookupDeclElement i)
 
 getCycleLen :: EDB m => H.Hash -> m Word64
 getCycleLen h = do
-  runMaybeT (hashToObjectId h)
+  runMaybeT (primaryHashToExistingObjectId h)
     >>= maybe (throwError $ LegacyUnknownCycleLen h) pure
     >>= liftQ . Q.loadObjectById
     >>= decodeComponentLengthOnly
@@ -498,7 +514,7 @@ c2xTerm saveText saveDefn tm tp =
 
 loadTermWithTypeByReference :: EDB m => C.Reference.Id -> m (C.Term Symbol, C.Term.Type Symbol)
 loadTermWithTypeByReference (C.Reference.Id h i) =
-  hashToObjectId h
+  primaryHashToExistingObjectId h
     >>= liftQ . Q.loadObjectById
     -- retrieve and deserialize the blob
     >>= decodeTermElementWithType i
@@ -506,7 +522,7 @@ loadTermWithTypeByReference (C.Reference.Id h i) =
 
 loadTermByReference :: EDB m => C.Reference.Id -> m (C.Term Symbol)
 loadTermByReference (C.Reference.Id h i) =
-  hashToObjectId h
+  primaryHashToExistingObjectId h
     >>= liftQ . Q.loadObjectById
     -- retrieve and deserialize the blob
     >>= decodeTermElementDiscardingType i
@@ -514,7 +530,7 @@ loadTermByReference (C.Reference.Id h i) =
 
 loadTypeOfTermByTermReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term.Type Symbol)
 loadTypeOfTermByTermReference (C.Reference.Id h i) =
-  hashToObjectId h
+  primaryHashToExistingObjectId h
     >>= liftQ . Q.loadObjectById
     -- retrieve and deserialize the blob
     >>= decodeTermElementDiscardingTerm i
@@ -603,7 +619,7 @@ lookup_ stateLens writerLens mk t = do
     Just t' -> pure t'
 
 c2sTerm :: EDB m => C.Term Symbol -> C.Term.Type Symbol -> m (LocalIds, S.Term.Term, S.Term.Type)
-c2sTerm tm tp = c2xTerm Q.saveText hashToObjectId tm (Just tp) <&> \(w, tm, Just tp) -> (w, tm, tp)
+c2sTerm tm tp = c2xTerm Q.saveText primaryHashToExistingObjectId tm (Just tp) <&> \(w, tm, Just tp) -> (w, tm, tp)
 
 -- *** Watch expressions
 
@@ -637,7 +653,7 @@ w2cTerm ids tm = do
 
 saveDeclComponent :: EDB m => H.Hash -> [C.Decl Symbol] -> m Db.ObjectId
 saveDeclComponent h decls = do
-  sDeclElements <- traverse (c2sDecl Q.saveText hashToObjectId) decls
+  sDeclElements <- traverse (c2sDecl Q.saveText primaryHashToExistingObjectId) decls
   hashId <- Q.saveHashHash h
   let bytes =
         S.putBytes
@@ -681,7 +697,7 @@ loadDeclByReference :: EDB m => C.Reference.Id -> MaybeT m (C.Decl Symbol)
 loadDeclByReference (C.Reference.Id h i) = do
   -- retrieve the blob
   (localIds, C.Decl.DataDeclaration dt m b ct) <-
-    hashToObjectId h >>= liftQ . Q.loadObjectById >>= decodeDeclElement i
+    primaryHashToExistingObjectId h >>= liftQ . Q.loadObjectById >>= decodeDeclElement i
 
   -- look up the text and hashes that are used by the term
   texts <- traverse loadTextById $ LocalIds.textLookup localIds
@@ -751,6 +767,12 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
           boId <- liftQ $ Q.loadBranchObjectIdByCausalHashId chId
           traverse loadBranchByObjectId boId
 
+-- this maps from the key used by C.Branch to a local id
+type BranchSavingState = (Map Text LocalTextId, Map H.Hash LocalDefnId, Map Db.PatchObjectId LocalPatchObjectId, Map (BranchHash, CausalHash) LocalBranchChildId)
+type BranchSavingWriter = (Seq Text, Seq H.Hash, Seq Db.PatchObjectId, Seq (BranchHash, CausalHash))
+type BranchSavingConstraint m = (MonadState BranchSavingState m, MonadWriter BranchSavingWriter m)
+type BranchSavingMonad m = StateT BranchSavingState (WriterT BranchSavingWriter m)
+
 saveRootBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
 saveRootBranch (C.CausalHead hc he _parents me) = do
   chId <- liftQ (Q.saveCausalHash hc)
@@ -758,17 +780,94 @@ saveRootBranch (C.CausalHead hc he _parents me) = do
     Just boId -> pure (boId, chId)
     Nothing -> do
       bhId <- liftQ (Q.saveBranchHash he)
-      sBranch <- c2sBranch =<< me
-      boId <- saveBranchObject bhId sBranch
+      (li, lBranch) <- c2lBranch =<< me
+      boId <- saveBranchObject bhId li lBranch
       liftQ (Q.saveCausal chId bhId)
       pure (boId, chId)
-
   where
-    saveBranchObject :: Db.BranchHashId -> S.DbBranch -> m Db.BranchObjectId
-    saveBranchObject = error "todo"
-    c2sBranch :: C.Branch.Branch m -> m S.DbBranch
-    c2sBranch (C.Branch.Branch terms types patches children) =
-      error "todo"
+    c2lBranch :: EDB m => C.Branch.Branch m -> m (BranchLocalIds, S.Branch.Full.LocalBranch)
+    c2lBranch (C.Branch.Branch terms types patches children) =
+      done =<< (runWriterT . flip evalStateT startState) do
+        S.Branch
+          <$> Map.bitraverse saveNameSegment (Map.bitraverse saveReferent saveMetadata) terms
+          <*> Map.bitraverse saveNameSegment (Map.bitraverse saveReference saveMetadata) types
+          <*> Map.bitraverse saveNameSegment savePatch' patches
+          <*> Map.bitraverse saveNameSegment saveChild children
+    saveNameSegment (C.Branch.NameSegment t) = lookupText t
+    saveReference :: BranchSavingConstraint m => C.Reference.Reference -> m S.Reference.LocalReference
+    saveReference = bitraverse lookupText lookupDefn
+    saveReferent :: BranchSavingConstraint m => C.Referent.Referent -> m S.Referent.LocalReferent
+    saveReferent = bitraverse saveReference saveReference
+    saveMetadata :: Monad m => m C.Branch.MdValues -> BranchSavingMonad m S.Branch.Full.LocalMetadataSet
+    saveMetadata mm = do
+      C.Branch.MdValues s <- (lift . lift) mm
+      S.Branch.Full.Inline <$> Set.traverse saveReference s
+    savePatch' :: EDB m => (PatchHash, m C.Branch.Patch) -> BranchSavingMonad m LocalPatchObjectId
+    savePatch' (h, mp) = do
+      patchOID <- primaryHashToMaybePatchObjectId h >>= \case
+        Just patchOID -> pure patchOID
+        Nothing -> savePatch h =<< (lift . lift) mp
+      lookupPatch patchOID
+    saveChild :: C.Branch.Causal m -> BranchSavingMonad m LocalBranchChildId
+    saveChild = error "todo: save child"
+    lookupText ::
+      ( MonadState s m,
+        MonadWriter w m,
+        Lens.Field1' s (Map t LocalTextId),
+        Lens.Field1' w (Seq t),
+        Ord t
+      ) =>
+      t ->
+      m LocalTextId
+    lookupText = lookup_ Lens._1 Lens._1 LocalTextId
+    lookupDefn ::
+      ( MonadState s m,
+        MonadWriter w m,
+        Lens.Field2' s (Map d LocalDefnId),
+        Lens.Field2' w (Seq d),
+        Ord d
+      ) =>
+      d ->
+      m LocalDefnId
+    lookupDefn = lookup_ Lens._2 Lens._2 LocalDefnId
+    lookupPatch ::
+      ( MonadState s m,
+        MonadWriter w m,
+        Lens.Field3' s (Map p LocalPatchObjectId),
+        Lens.Field3' w (Seq p),
+        Ord p
+      ) =>
+      p ->
+      m LocalPatchObjectId
+    lookupPatch = lookup_ Lens._3 Lens._3 LocalPatchObjectId
+    lookupChild ::
+      ( MonadState s m,
+        MonadWriter w m,
+        Lens.Field4' s (Map c LocalBranchChildId),
+        Lens.Field4' w (Seq c),
+        Ord c
+      ) =>
+      c ->
+      m LocalBranchChildId
+    lookupChild = lookup_ Lens._4 Lens._4 LocalBranchChildId
+    startState = mempty @BranchSavingState
+    saveBranchObject :: DB m => Db.BranchHashId -> BranchLocalIds -> S.Branch.Full.LocalBranch -> m Db.BranchObjectId
+    saveBranchObject (Db.unBranchHashId -> hashId) li lBranch = do
+      let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full li lBranch
+      Db.BranchObjectId <$> Q.saveObject hashId OT.Namespace bytes
+    done :: EDB m => (a, BranchSavingWriter) -> m (BranchLocalIds, a)
+    done (lBranch, (textValues, defnHashes, patchHashes, branchCausalHashes)) = do
+      textIds <- liftQ $ traverse Q.saveText textValues
+      defnObjectIds <- traverse primaryHashToExistingObjectId defnHashes
+      patchObjectIds <- pure patchHashes
+      branchCausalIds <- traverse (bitraverse primaryHashToExistingBranchObjectId (liftQ . Q.saveCausalHash)) branchCausalHashes
+      let ids =
+            S.BranchFormat.LocalIds
+              (Vector.fromList (Foldable.toList textIds))
+              (Vector.fromList (Foldable.toList defnObjectIds))
+              (Vector.fromList (Foldable.toList patchObjectIds))
+              (Vector.fromList (Foldable.toList branchCausalIds))
+      pure (ids, lBranch)
 
 lookupBranchLocalText :: S.BranchLocalIds -> LocalTextId -> Db.TextId
 lookupBranchLocalText li (LocalTextId w) = S.BranchFormat.branchTextLookup li Vector.! fromIntegral w
@@ -1082,7 +1181,7 @@ declReferentsByPrefix b32prefix pos cid = do
       pure (C.Decl.declType decl, len, fromIntegral $ length (C.Decl.constructorTypes decl))
 
 -- (localIds, C.Decl.DataDeclaration dt m b ct) <-
---   hashToObjectId h >>= liftQ . Q.loadObjectById >>= decodeDeclElement i
+--   primaryHashToExistingObjectId h >>= liftQ . Q.loadObjectById >>= decodeDeclElement i
 
 branchHashesByPrefix :: EDB m => ShortBranchHash -> m (Set BranchHash)
 branchHashesByPrefix (ShortBranchHash b32prefix) = do
