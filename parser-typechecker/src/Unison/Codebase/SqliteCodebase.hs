@@ -251,7 +251,7 @@ sqliteCodebase root = do
           . runExceptT
           . flip runReaderT conn
           . fmap (Branch.transform (runDB conn))
-          $ Cv.unsafecausalbranch2to1 =<< Ops.loadRootCausal
+          $ Cv.causalbranch2to1 =<< Ops.loadRootCausal
         where
           err :: Ops.Error -> Codebase1.GetRootBranchError
           err = \case
@@ -277,7 +277,7 @@ sqliteCodebase root = do
         Ops.loadCausalBranchByCausalHash (Cv.branchHash1to2 h) >>= \case
           Just b ->
             pure . Just . Branch.transform (runDB conn)
-              =<< Cv.unsafecausalbranch2to1 b
+              =<< Cv.causalbranch2to1 b
           Nothing -> pure Nothing
 
       dependentsImpl :: Reference -> IO (Set Reference.Id)

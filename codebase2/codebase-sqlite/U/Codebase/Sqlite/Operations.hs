@@ -907,7 +907,7 @@ loadCausalBranchByCausalHash hc = do
     Just chId -> Just <$> loadCausalByCausalHashId chId
     Nothing -> pure Nothing
 
-loadCausalByCausalHashId :: EDB m => Db.CausalHashId -> m (C.Branch.Spine m)
+loadCausalByCausalHashId :: EDB m => Db.CausalHashId -> m (C.Branch.Causal m)
 loadCausalByCausalHashId id = do
   hc <- loadCausalHashById id
   hb <- loadValueHashByCausalHashId id
