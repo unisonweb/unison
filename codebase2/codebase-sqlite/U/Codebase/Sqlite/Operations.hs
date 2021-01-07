@@ -17,7 +17,7 @@ import qualified Control.Lens as Lens
 import Control.Monad (join, (<=<))
 import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
 import Control.Monad.State (MonadState, StateT, evalStateT)
-import qualified Control.Monad.Trans as Monad
+import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Writer (MonadWriter, WriterT, runWriterT)
 import qualified Control.Monad.Writer as Writer
@@ -111,7 +111,6 @@ import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
-import Control.Monad.Trans (MonadTrans(lift))
 
 -- * Error handling
 
@@ -138,6 +137,7 @@ data Error
   | UnknownDependency H.Hash
   | UnknownText Text
   | ExpectedBranch CausalHash BranchHash
+  | ExpectedBranch' Db.CausalHashId
   | LegacyUnknownCycleLen H.Hash
   | LegacyUnknownConstructorType H.Hash C.Reference.Pos
   deriving (Show)
@@ -178,14 +178,15 @@ primaryHashToExistingObjectId h = do
 
 primaryHashToExistingPatchObjectId :: EDB m => PatchHash -> m Db.PatchObjectId
 primaryHashToExistingPatchObjectId =
-  fmap Db.PatchObjectId  . primaryHashToExistingObjectId . unPatchHash
+  fmap Db.PatchObjectId . primaryHashToExistingObjectId . unPatchHash
 
 primaryHashToMaybePatchObjectId :: EDB m => PatchHash -> m (Maybe Db.PatchObjectId)
 primaryHashToMaybePatchObjectId = error "todo"
 
-primaryHashToExistingBranchObjectId :: EDB m => BranchHash -> m Db.BranchObjectId
-primaryHashToExistingBranchObjectId =
-  fmap Db.BranchObjectId . primaryHashToExistingObjectId . unBranchHash
+primaryHashToMaybeBranchObjectId :: DB m => BranchHash -> m (Maybe Db.BranchObjectId)
+primaryHashToMaybeBranchObjectId = error "todo"
+
+-- (fmap . fmap) Db.BranchObjectId . liftQ . Q.maybeObjectIdPrimaryHashId . unBranchHash
 
 objectExistsForHash :: DB m => H.Hash -> m Bool
 objectExistsForHash h =
@@ -762,20 +763,37 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
             <*> loadValueHashByCausalHashId chId
             <*> headParents chId
             <*> pure (loadValue chId)
-        loadValue :: EDB m => Db.CausalHashId -> m (Maybe (C.Branch.Branch m))
-        loadValue chId = do
-          boId <- liftQ $ Q.loadBranchObjectIdByCausalHashId chId
-          traverse loadBranchByObjectId boId
+        loadValue :: EDB m => Db.CausalHashId -> m (C.Branch.Branch m)
+        loadValue chId =
+          liftQ (Q.loadBranchObjectIdByCausalHashId chId) >>= \case
+            Nothing -> throwError (ExpectedBranch' chId)
+            Just boId -> loadBranchByObjectId boId
 
 -- this maps from the key used by C.Branch to a local id
-type BranchSavingState = (Map Text LocalTextId, Map H.Hash LocalDefnId, Map Db.PatchObjectId LocalPatchObjectId, Map (BranchHash, CausalHash) LocalBranchChildId)
-type BranchSavingWriter = (Seq Text, Seq H.Hash, Seq Db.PatchObjectId, Seq (BranchHash, CausalHash))
+type BranchSavingState = (Map Text LocalTextId, Map H.Hash LocalDefnId, Map Db.PatchObjectId LocalPatchObjectId, Map (Db.BranchObjectId, Db.CausalHashId) LocalBranchChildId)
+
+type BranchSavingWriter = (Seq Text, Seq H.Hash, Seq Db.PatchObjectId, Seq (Db.BranchObjectId, Db.CausalHashId))
+
 type BranchSavingConstraint m = (MonadState BranchSavingState m, MonadWriter BranchSavingWriter m)
+
 type BranchSavingMonad m = StateT BranchSavingState (WriterT BranchSavingWriter m)
 
 saveRootBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
-saveRootBranch (C.CausalHead hc he _parents me) = do
+saveRootBranch (C.CausalHead hc he parents me) = do
+  -- check if we can skip the whole thing, by checking if there are causal parents for hc
   chId <- liftQ (Q.saveCausalHash hc)
+  liftQ (Q.loadCausalParents chId) >>= \case
+    [] -> do
+      parentCausalHashIds <- for (Map.toList parents) $ \(causalHash, mcausal) -> do
+        -- check if we can short circuit the parent before loading it,
+        -- by checking if there are causal parents for hc
+        parentChId <- liftQ (Q.saveCausalHash causalHash)
+        liftQ (Q.loadCausalParents parentChId) >>= \case
+          [] -> do c <- mcausal; snd <$> saveRootBranch c
+          _grandParents -> pure parentChId
+      liftQ (Q.saveCausalParents chId parentCausalHashIds)
+    _parents -> pure ()
+
   liftQ (Q.loadBranchObjectIdByCausalHashId chId) >>= \case
     Just boId -> pure (boId, chId)
     Nothing -> do
@@ -804,12 +822,13 @@ saveRootBranch (C.CausalHead hc he _parents me) = do
       S.Branch.Full.Inline <$> Set.traverse saveReference s
     savePatch' :: EDB m => (PatchHash, m C.Branch.Patch) -> BranchSavingMonad m LocalPatchObjectId
     savePatch' (h, mp) = do
-      patchOID <- primaryHashToMaybePatchObjectId h >>= \case
-        Just patchOID -> pure patchOID
-        Nothing -> savePatch h =<< (lift . lift) mp
+      patchOID <-
+        primaryHashToMaybePatchObjectId h >>= \case
+          Just patchOID -> pure patchOID
+          Nothing -> savePatch h =<< (lift . lift) mp
       lookupPatch patchOID
-    saveChild :: C.Branch.Causal m -> BranchSavingMonad m LocalBranchChildId
-    saveChild = error "todo: save child"
+    saveChild :: EDB m => C.Branch.Causal m -> BranchSavingMonad m LocalBranchChildId
+    saveChild c = (lift . lift) (saveRootBranch c) >>= lookupChild
     lookupText ::
       ( MonadState s m,
         MonadWriter w m,
@@ -856,11 +875,9 @@ saveRootBranch (C.CausalHead hc he _parents me) = do
       let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full li lBranch
       Db.BranchObjectId <$> Q.saveObject hashId OT.Namespace bytes
     done :: EDB m => (a, BranchSavingWriter) -> m (BranchLocalIds, a)
-    done (lBranch, (textValues, defnHashes, patchHashes, branchCausalHashes)) = do
+    done (lBranch, (textValues, defnHashes, patchObjectIds, branchCausalIds)) = do
       textIds <- liftQ $ traverse Q.saveText textValues
       defnObjectIds <- traverse primaryHashToExistingObjectId defnHashes
-      patchObjectIds <- pure patchHashes
-      branchCausalIds <- traverse (bitraverse primaryHashToExistingBranchObjectId (liftQ . Q.saveCausalHash)) branchCausalHashes
       let ids =
             S.BranchFormat.LocalIds
               (Vector.fromList (Foldable.toList textIds))
@@ -882,29 +899,25 @@ lookupBranchLocalChild :: BranchLocalIds -> LocalBranchChildId -> (Db.BranchObje
 lookupBranchLocalChild li (LocalBranchChildId w) = S.BranchFormat.branchChildLookup li Vector.! fromIntegral w
 
 loadRootCausal :: EDB m => m (C.Branch.Causal m)
-loadRootCausal = liftQ Q.loadNamespaceRoot >>= loadCausalBranchByCausalHashId
-
-loadCausalBranchByCausalHashId :: EDB m => Db.CausalHashId -> m (C.Branch.Causal m)
-loadCausalBranchByCausalHashId id =
-  loadCausalSpineByCausalHashId id <&> \case
-    C.Causal hc he parents mme ->
-      C.CausalHead hc he parents $ mme >>= (Q.orError $ ExpectedBranch hc he)
+loadRootCausal = liftQ Q.loadNamespaceRoot >>= loadCausalByCausalHashId
 
 loadCausalBranchByCausalHash :: EDB m => CausalHash -> m (Maybe (C.Branch.Causal m))
 loadCausalBranchByCausalHash hc = do
   Q.loadCausalHashIdByCausalHash hc >>= \case
-    Just chId -> Just <$> loadCausalBranchByCausalHashId chId
+    Just chId -> Just <$> loadCausalByCausalHashId chId
     Nothing -> pure Nothing
 
-loadCausalSpineByCausalHashId :: EDB m => Db.CausalHashId -> m (C.Branch.Spine m)
-loadCausalSpineByCausalHashId id = do
+loadCausalByCausalHashId :: EDB m => Db.CausalHashId -> m (C.Branch.Spine m)
+loadCausalByCausalHashId id = do
   hc <- loadCausalHashById id
   hb <- loadValueHashByCausalHashId id
-  let loadNamespace = loadBranchByCausalHashId id
+  let loadNamespace = loadBranchByCausalHashId id >>= \case
+        Nothing -> throwError (ExpectedBranch' id)
+        Just b -> pure b
   parentHashIds <- Q.loadCausalParents id
   loadParents <- for parentHashIds \hId -> do
     h <- loadCausalHashById hId
-    pure (h, loadCausalSpineByCausalHashId hId)
+    pure (h, loadCausalByCausalHashId hId)
   pure $ C.Causal hc hb (Map.fromList loadParents) loadNamespace
 
 -- | is this even a thing?  loading a branch by causal hash?  yes I guess so.

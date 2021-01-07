@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -230,7 +231,10 @@ loadOldCausalValueHash id =
 |]
 
 saveCausalParent :: DB m => CausalHashId -> CausalHashId -> m ()
-saveCausalParent child parent = execute sql (child, parent) where
+saveCausalParent child parent = saveCausalParents child [parent]
+
+saveCausalParents :: DB m => CausalHashId -> [CausalHashId] -> m ()
+saveCausalParents child parents = executeMany sql $ (child,) <$> parents where
   sql = [here|
     INSERT OR IGNORE INTO causal_parent (causal_id, parent_id) VALUES (?, ?)
   |]
@@ -401,6 +405,9 @@ query :: (DB m, ToRow q, FromRow r) => SQLite.Query -> q -> m [r]
 query q r = do c <- ask; liftIO $ SQLite.query c q r
 execute :: (DB m, ToRow q) => SQLite.Query -> q -> m ()
 execute q r = do c <- ask; liftIO $ SQLite.execute c q r
+
+executeMany :: (DB m, ToRow q) => SQLite.Query -> [q] -> m ()
+executeMany q r = do c <- ask; liftIO $ SQLite.executeMany c q r
 
 -- |transaction that blocks
 withImmediateTransaction :: (DB m, MonadUnliftIO m) => m a -> m a

@@ -15,6 +15,8 @@ next steps:
   - [ ] `SqliteCodebase.syncToDirectory`
 - [ ] Managing external edit events?
   - [ ] `SqliteCodebase.rootBranchUpdates` Is there some Sqlite function for detecting external changes?
+- [ ] Implement relational metadata
+- [ ] do the tag thing to make sure that causal hashes comes from a unique token string compared to other stuff in the codebase. (maybe `accumulate` should take a tag as its first argument, forcing us to audit all the call sites)
 
 ### SqliteCodebase progress (V1 -> V2 adaptor)
 
@@ -47,7 +49,7 @@ next steps:
 | branchHashesByPrefix    | ✔      |       |
 
 
-## less organized stuff below 
+## less organized stuff below
 
 | thing | v1↔v2 | v2↔v2s | desc. |
 |-----|-----|-----|---|
