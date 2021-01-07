@@ -882,7 +882,7 @@ type ANFM v
 
 type ANFD v = Compose (ANFM v) (Directed ())
 
-data GroupRef = GR Reference Word64 Word64
+data GroupRef = GR Reference Word64
 
 data Value
   = Partial GroupRef [Word64] [Value]
@@ -1248,7 +1248,7 @@ valueTermLinks = Set.toList . valueLinks f
   f _ _ = Set.empty
 
 valueLinks :: Monoid a => (Bool -> Reference -> a) -> Value -> a
-valueLinks f (Partial (GR cr _ _) _ bs)
+valueLinks f (Partial (GR cr _) _ bs)
   = f False cr <> foldMap (valueLinks f) bs
 valueLinks f (Data dr _ _ bs)
   = f True dr <> foldMap (valueLinks f) bs
@@ -1257,7 +1257,7 @@ valueLinks f (Cont _ bs k)
 valueLinks f (BLit l) = litLinks f l
 
 contLinks :: Monoid a => (Bool -> Reference -> a) -> Cont -> a
-contLinks f (Push _ _ _ _ (GR cr _ _) k)
+contLinks f (Push _ _ _ _ (GR cr _) k)
   = f False cr <> contLinks f k
 contLinks f (Mark ps de k)
   = foldMap (f True) ps

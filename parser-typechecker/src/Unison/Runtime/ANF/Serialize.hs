@@ -510,11 +510,11 @@ getCTag :: MonadGet m => m CTag
 getCTag = toEnum . unVarInt <$> deserialize
 
 putGroupRef :: MonadPut m => GroupRef -> m ()
-putGroupRef (GR r n i)
-  = putReference r *> putWord64be n *> putWord64be i
+putGroupRef (GR r i)
+  = putReference r *> putWord64be i
 
 getGroupRef :: MonadGet m => m GroupRef
-getGroupRef = GR <$> getReference <*> getWord64be <*> getWord64be
+getGroupRef = GR <$> getReference <*> getWord64be
 
 putValue :: MonadPut m => Value -> m ()
 putValue (Partial gr ws vs)
