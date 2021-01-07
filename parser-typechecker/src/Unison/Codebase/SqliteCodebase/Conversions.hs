@@ -387,16 +387,16 @@ causalbranch2to1' :: Monad m => V2.Branch.Causal m -> m (V1.Branch.UnwrappedBran
 causalbranch2to1' (V2.CausalHead hc _he (Map.toList -> parents) me) = do
   let currentHash = causalHash2to1 hc
   case parents of
-    [] -> V1.Causal.One currentHash <$> fmap branch2to1 me
+    [] -> V1.Causal.One currentHash <$> (me >>= branch2to1)
     [(hp, mp)] -> do
       let parentHash = causalHash2to1 hp
       V1.Causal.Cons currentHash
-        <$> fmap branch2to1 me
+        <$> (me >>= branch2to1)
         <*> pure (parentHash, causalbranch2to1' =<< mp)
     merge -> do
       let tailsList = map (bimap causalHash2to1 (causalbranch2to1' =<<)) merge
       e <- me
-      pure $ V1.Causal.Merge currentHash (branch2to1 e) (Map.fromList tailsList)
+      V1.Causal.Merge currentHash <$> branch2to1 e <*> pure (Map.fromList tailsList)
 
-branch2to1 :: V2.Branch.Branch m -> V1.Branch.Branch0 m
+branch2to1 :: V2.Branch.Branch m -> m (V1.Branch.Branch0 m)
 branch2to1 = error "todo"
