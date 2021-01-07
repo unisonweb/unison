@@ -143,7 +143,7 @@ tests =
    , identicality "ident float" 0.5
    , identicality "ident termlink" fDeps
    , identicality "ident bool" false
-   , identicality "ident bytes" (Bytes.empty)
+   , identicality "ident bytes" [fSer, Bytes.empty]
    ]
 ```
 

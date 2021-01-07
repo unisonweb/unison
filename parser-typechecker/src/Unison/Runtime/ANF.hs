@@ -84,6 +84,7 @@ import qualified Prelude
 import Unison.Term hiding (resolve, fresh, float, Text, Ref)
 import Unison.Var (Var, typed)
 import Unison.Util.EnumContainers as EC
+import Unison.Util.Bytes (Bytes)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -883,23 +884,28 @@ type ANFM v
 type ANFD v = Compose (ANFM v) (Directed ())
 
 data GroupRef = GR Reference Word64
+  deriving (Show)
 
 data Value
   = Partial GroupRef [Word64] [Value]
   | Data Reference Word64 [Word64] [Value]
   | Cont [Word64] [Value] Cont
   | BLit BLit
+  deriving (Show)
 
 data Cont
   = KE
   | Mark [Reference] (Map Reference Value) Cont
   | Push Word64 Word64 Word64 Word64 GroupRef Cont
+  deriving (Show)
 
 data BLit
   = Text Text
   | List (Seq Value)
   | TmLink Referent
   | TyLink Reference
+  | Bytes Bytes
+  deriving (Show)
 
 groupVars :: ANFM v (Set v)
 groupVars = ask
@@ -1267,6 +1273,7 @@ contLinks _ KE = mempty
 
 litLinks :: Monoid a => (Bool -> Reference -> a) -> BLit -> a
 litLinks _ (Text _) = mempty
+litLinks _ (Bytes _) = mempty
 litLinks f (List s) = foldMap (valueLinks f) s
 litLinks f (TmLink (Ref r)) = f False r
 litLinks f (TmLink (Con r _ _)) = f True r
