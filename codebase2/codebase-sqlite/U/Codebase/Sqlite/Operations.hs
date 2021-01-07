@@ -742,9 +742,9 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
       h <- PatchHash <$> (loadHashByObjectId . Db.unPatchObjectId) patchId
       pure (h, loadPatchById patchId)
 
-    doChildren :: EDB m => Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) -> m (Map C.Branch.NameSegment (C.CausalHead m CausalHash BranchHash (C.Branch.Branch m)))
+    doChildren :: EDB m => Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) -> m (Map C.Branch.NameSegment (C.Causal m CausalHash BranchHash (C.Branch.Branch m)))
     doChildren = Map.bitraverse (fmap C.Branch.NameSegment . loadTextById) \(boId, chId) ->
-      C.CausalHead <$> loadCausalHashById chId
+      C.Causal <$> loadCausalHashById chId
         <*> loadValueHashByCausalHashId chId
         <*> headParents chId
         <*> pure (loadBranchByObjectId boId)
@@ -779,7 +779,7 @@ type BranchSavingConstraint m = (MonadState BranchSavingState m, MonadWriter Bra
 type BranchSavingMonad m = StateT BranchSavingState (WriterT BranchSavingWriter m)
 
 saveRootBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
-saveRootBranch (C.CausalHead hc he parents me) = do
+saveRootBranch (C.Causal hc he parents me) = do
   -- check if we can skip the whole thing, by checking if there are causal parents for hc
   chId <- liftQ (Q.saveCausalHash hc)
   liftQ (Q.loadCausalParents chId) >>= \case

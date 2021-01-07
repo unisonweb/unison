@@ -384,7 +384,7 @@ causalbranch2to1 :: Monad m => V2.Branch.Causal m -> m (V1.Branch.Branch m)
 causalbranch2to1 = fmap V1.Branch.Branch . causalbranch2to1'
 
 causalbranch2to1' :: Monad m => V2.Branch.Causal m -> m (V1.Branch.UnwrappedBranch m)
-causalbranch2to1' (V2.CausalHead hc _he (Map.toList -> parents) me) = do
+causalbranch2to1' (V2.Causal hc _he (Map.toList -> parents) me) = do
   let currentHash = causalHash2to1 hc
   case parents of
     [] -> V1.Causal.One currentHash <$> (me >>= branch2to1)
