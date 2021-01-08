@@ -25,7 +25,8 @@ module Unison.Reference
    toId,
    toText,
    unsafeId,
-   toShortHash) where
+   toShortHash,
+   idToShortHash) where
 
 import Unison.Prelude
 
@@ -58,6 +59,9 @@ unsafeId :: Reference -> Id
 unsafeId (Builtin b) =
   error $ "Tried to get the hash of builtin " <> Text.unpack b <> "."
 unsafeId (DerivedId x) = x
+
+idToShortHash :: Id -> ShortHash
+idToShortHash = toShortHash . DerivedId
 
 -- todo: move these to ShortHash module?
 -- but Show Reference currently depends on SH

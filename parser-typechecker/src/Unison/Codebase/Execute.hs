@@ -1,5 +1,4 @@
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -37,7 +36,7 @@ execute codebase runtime mainName =
     root <- Codebase.getRootBranch codebase >>= \case
       Right r -> pure r
       Left Codebase.NoRootBranch ->
-        die ("Couldn't identify a root namespace.")
+        die "Couldn't identify a root namespace."
       Left (Codebase.CouldntLoadRootBranch h) ->
         die ("Couldn't load root branch " ++ show h)
       Left (Codebase.CouldntParseRootBranch h) ->

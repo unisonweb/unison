@@ -1,3 +1,5 @@
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -6,15 +8,14 @@ module Unison.Server.Types where
 
 -- Types common to endpoints --
 
-import Control.Error (fromMaybe)
-import Data.Aeson (ToJSON)
+import Unison.Prelude
+import Data.Aeson (ToJSON, ToJSONKey)
 import qualified Data.ByteString.Lazy as LZ
 import Data.Proxy (Proxy(..))
-import Data.Sequence (Seq(..))
-import Data.Text (Text)
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
-import Data.OpenApi ( ToSchema(..) )
+import Data.OpenApi ( ToSchema(..), ToParamSchema(..) )
+import Servant.API ( FromHttpApiData )
 import qualified Unison.HashQualified as HQ
 import Unison.ConstructorType (ConstructorType)
 import Unison.Name (Name)
@@ -22,6 +23,7 @@ import Unison.Pattern (SeqOp)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
+import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
 import Unison.Util.Pretty (Width, render)
 import Unison.Util.AnnotatedText ( Segment )
 import Unison.Util.SyntaxText (SyntaxText')
@@ -31,6 +33,7 @@ import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Type (Type)
 import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.Server.SearchResult as SR
+import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 
 type HashQualifiedName = Text
 
@@ -43,7 +46,14 @@ type UnisonHash = Text
 instance ToJSON Name
 deriving instance ToSchema Name
 
+deriving via Text instance FromHttpApiData ShortBranchHash
+deriving instance ToParamSchema ShortBranchHash
+
+instance ToJSON a => ToJSON (DisplayObject a)
+deriving instance ToSchema a => ToSchema (DisplayObject a)
+
 instance ToJSON ShortHash
+instance ToJSONKey ShortHash
 deriving instance ToSchema ShortHash
 
 instance ToJSON n => ToJSON (HQ.HashQualified n)
@@ -74,6 +84,17 @@ deriving instance ToSchema r => ToSchema (SyntaxText.Element r)
 instance ToJSON r => ToJSON (SyntaxText' r)
 
 deriving instance ToSchema r => ToSchema (SyntaxText' r)
+
+instance ToJSON DefinitionDisplayResults
+
+deriving instance ToSchema DefinitionDisplayResults
+
+data DefinitionDisplayResults =
+  DefinitionDisplayResults
+    { termDefinitions :: Map ShortHash (DisplayObject (SyntaxText' ShortHash))
+    , typeDefinitions :: Map ShortHash (DisplayObject (SyntaxText' ShortHash))
+    , missingDefinitions :: [HQ.HashQualified Name]
+    } deriving (Eq, Show, Generic)
 
 data QueryResult = QueryResult
   { misses :: [HQ.HashQualified Name]

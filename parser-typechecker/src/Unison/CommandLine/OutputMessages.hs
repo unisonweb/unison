@@ -1827,49 +1827,60 @@ noResults = P.callout "😶" $
     P.wrap $ "No results. Check your spelling, or try using tab completion "
           <> "to supply command arguments."
 
-listOfDefinitions' :: Var v
-                   => PPE.PrettyPrintEnv -- for printing types of terms :-\
-                   -> E.ListDetailed
-                   -> [SR'.SearchResult' v a]
-                   -> Pretty
-listOfDefinitions' ppe detailed results =
-  if null results then noResults
-  else P.lines . P.nonEmpty $ prettyNumberedResults :
-    [formatMissingStuff termsWithMissingTypes missingTypes
-    ,unlessM (null missingBuiltins) . bigproblem $ P.wrap
-      "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:" `P.hang`
-        P.column2 ( (P.bold "Name", P.bold "Built-in")
-                  -- : ("-", "-")
-                  : fmap (bimap (P.syntaxToColor . prettyHashQualified)
-                                (P.text . Referent.toText)) missingBuiltins)
-    ]
-  where
+listOfDefinitions'
+  :: Var v
+  => PPE.PrettyPrintEnv -- for printing types of terms :-\
+  -> E.ListDetailed
+  -> [SR'.SearchResult' v a]
+  -> Pretty
+listOfDefinitions' ppe detailed results = if null results
+  then noResults
+  else
+    P.lines
+    . P.nonEmpty
+    $ prettyNumberedResults
+    : [ formatMissingStuff termsWithMissingTypes missingTypes
+      , unlessM (null missingBuiltins)
+      .        bigproblem
+      $        P.wrap
+                 "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:"
+      `P.hang` P.column2
+                 ( (P.bold "Name", P.bold "Built-in")
+                                                          -- : ("-", "-")
+                 : fmap
+                     (bimap (P.syntaxToColor . prettyHashQualified)
+                            (P.text . Referent.toText)
+                     )
+                     missingBuiltins
+                 )
+      ]
+ where
   prettyNumberedResults = P.numberedList prettyResults
   -- todo: group this by namespace
-  prettyResults =
-    map (SR'.foldResult' renderTerm renderType)
-        (filter (not.missingType) results)
-    where
-      (renderTerm, renderType) =
-        if detailed then
-          (unsafePrettyTermResultSigFull' ppe, prettyTypeResultHeaderFull')
-        else
-          (unsafePrettyTermResultSig' ppe, prettyTypeResultHeader')
-  missingType (SR'.Tm _ Nothing _ _)          = True
+  prettyResults         = map (SR'.foldResult' renderTerm renderType)
+                              (filter (not . missingType) results)
+   where
+    (renderTerm, renderType) = if detailed
+      then (unsafePrettyTermResultSigFull' ppe, prettyTypeResultHeaderFull')
+      else (unsafePrettyTermResultSig' ppe, prettyTypeResultHeader')
+  missingType (SR'.Tm _ Nothing _ _) = True
   missingType (SR'.Tp _ (MissingObject _) _ _) = True
-  missingType _                             = False
+  missingType _ = False
   -- termsWithTypes = [(name,t) | (name, Just t) <- sigs0 ]
   --   where sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
   termsWithMissingTypes =
-    [ (HQ'.toHQ name, r)
-    | SR'.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results ]
-  missingTypes = nubOrdOn snd $
-    [ (HQ'.toHQ name, Reference.DerivedId r)
-    | SR'.Tp name (MissingObject r) _ _ <- results ] <>
-    [ (HQ'.toHQ name, r)
-    | SR'.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results]
+    [ (HQ'.toHQ name, Reference.idToShortHash r)
+    | SR'.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results
+    ]
+  missingTypes =
+    nubOrdOn snd
+      $  [ (HQ'.toHQ name, r) | SR'.Tp name (MissingObject r) _ _ <- results ]
+      <> [ (HQ'.toHQ name, Reference.toShortHash r)
+         | SR'.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results
+         ]
   missingBuiltins = results >>= \case
-    SR'.Tm name Nothing r@(Referent.Ref (Reference.Builtin _)) _ -> [(HQ'.toHQ name,r)]
+    SR'.Tm name Nothing r@(Referent.Ref (Reference.Builtin _)) _ ->
+      [(HQ'.toHQ name, r)]
     _ -> []
 
 watchPrinter

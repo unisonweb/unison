@@ -9,44 +9,56 @@
 
 module Unison.Server.Endpoints.ListNamespace where
 
-import Control.Error (runExceptT)
-import Control.Monad.IO.Class (MonadIO (liftIO))
-import Data.Aeson (ToJSON)
-import Data.OpenApi (ToSchema)
-import Data.Text (Text)
-import GHC.Generics (Generic)
-import Servant (Get, JSON, QueryParam, ServerError (errBody), err400, throwError, (:>))
-import Servant.Docs (DocQueryParam (..), ParamKind (Normal), ToParam (..), ToSample (..))
-import Servant.OpenApi ()
-import Servant.Server (Handler)
-import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Causal as Causal
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Hash as Hash
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
-import qualified Unison.Name as Name
-import qualified Unison.NameSegment as NameSegment
-import Unison.Parser (Ann)
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
-import qualified Unison.Server.Backend as Backend
-import Unison.Server.Errors (backendError, badHQN, badNamespace, rootBranchError)
-import Unison.Server.Types
-  ( HashQualifiedName,
-    Size,
-    UnisonHash,
-    UnisonName,
-    mayDefault,
-    formatType
-  )
-import Unison.ShortHash (ShortHash)
-import Unison.Util.Pretty (Width)
-import Unison.Util.SyntaxText (SyntaxText')
-import Unison.Var (Var)
+import           Control.Error                  ( runExceptT )
+import           Data.Aeson                     ( ToJSON )
+import           Data.OpenApi                   ( ToSchema )
+import           Servant                        ( Get
+                                                , JSON
+                                                , QueryParam
+                                                , ServerError(errBody)
+                                                , err400
+                                                , throwError
+                                                , (:>)
+                                                )
+import           Servant.Docs                   ( DocQueryParam(..)
+                                                , ParamKind(Normal)
+                                                , ToParam(..)
+                                                , ToSample(..)
+                                                )
+import           Servant.OpenApi                ( )
+import           Servant.Server                 ( Handler )
+import           Unison.Prelude
+import           Unison.Codebase                ( Codebase )
+import qualified Unison.Codebase               as Codebase
+import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.Causal        as Causal
+import qualified Unison.Codebase.Path          as Path
+import qualified Unison.Hash                   as Hash
+import qualified Unison.HashQualified          as HQ
+import qualified Unison.HashQualified'         as HQ'
+import qualified Unison.Name                   as Name
+import qualified Unison.NameSegment            as NameSegment
+import           Unison.Parser                  ( Ann )
+import qualified Unison.PrettyPrintEnv         as PPE
+import qualified Unison.Reference              as Reference
+import qualified Unison.Referent               as Referent
+import qualified Unison.Server.Backend         as Backend
+import           Unison.Server.Errors           ( backendError
+                                                , badHQN
+                                                , badNamespace
+                                                , rootBranchError
+                                                )
+import           Unison.Server.Types            ( HashQualifiedName
+                                                , Size
+                                                , UnisonHash
+                                                , UnisonName
+                                                , mayDefault
+                                                , formatType
+                                                )
+import           Unison.ShortHash               ( ShortHash )
+import           Unison.Util.Pretty             ( Width )
+import           Unison.Util.SyntaxText         ( SyntaxText' )
+import           Unison.Var                     ( Var )
 
 type NamespaceAPI =
   "list" :> QueryParam "namespace" HashQualifiedName

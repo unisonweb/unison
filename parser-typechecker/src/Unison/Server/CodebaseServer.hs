@@ -39,6 +39,10 @@ import           Unison.Server.Endpoints.ListNamespace
                                                 ( NamespaceAPI
                                                 , serveNamespace
                                                 )
+import           Unison.Server.Endpoints.GetDefinitions
+                                                ( DefinitionsAPI
+                                                , serveDefinitions
+                                                )
 import           Unison.Server.Types            ( mungeString )
 import           Unison.Var                     ( Var )
 import           Servant.OpenApi                ( HasOpenApi(toOpenApi) )
@@ -53,7 +57,7 @@ type OpenApiJSON = "openapi.json"
 
 type DocAPI = UnisonAPI :<|> OpenApiJSON :<|> Raw
 
-type UnisonAPI = NamespaceAPI
+type UnisonAPI = NamespaceAPI :<|> DefinitionsAPI
 
 openAPI :: OpenApi
 openAPI = toOpenApi api & info .~ infoObject
@@ -88,7 +92,7 @@ start codebase port = run port $ app codebase
 
 server :: Var v => Codebase IO v Ann -> Server DocAPI
 server codebase =
-  serveNamespace codebase
+  (serveNamespace codebase :<|> serveDefinitions codebase)
     :<|> addHeader "*"
     <$>  serveOpenAPI
     :<|> Tagged serveDocs

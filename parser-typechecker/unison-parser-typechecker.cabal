@@ -140,6 +140,7 @@ library
     Unison.Runtime.Stack
     Unison.Server.Backend
     Unison.Server.CodebaseServer
+    Unison.Server.Endpoints.GetDefinitions 
     Unison.Server.Endpoints.ListNamespace
     Unison.Server.Errors
     Unison.Server.SearchResult

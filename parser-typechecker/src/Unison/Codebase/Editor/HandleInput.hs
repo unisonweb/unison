@@ -2068,6 +2068,12 @@ handleBackend b = _liftToAction (runExceptT b) >>= \case
       sbhLength <- eval BranchHashLength
       respond . NoBranchWithHash $ SBH.fromHash sbhLength h
       fail mempty
+    Backend.CouldntExpandBranchHash sbh -> do
+      respond $ NoBranchWithHash sbh
+      fail mempty
+    Backend.AmbiguousBranchHash h hashes -> do
+      respond $ BranchHashAmbiguous h hashes
+      fail mempty
   Right a -> pure a
 
 respond :: Output v -> Action m i v ()
@@ -2565,11 +2571,13 @@ makeHistoricalParsingNames lexedHQs = do
                (Names3.makeAbsolute0 rawHistoricalNames <>
                  fixupNamesRelative currentPath rawHistoricalNames)
 
-loadTypeDisplayObject :: Reference -> Action m i v (DisplayObject (DD.Decl v Ann))
+loadTypeDisplayObject
+  :: Reference -> Action m i v (DisplayObject (DD.Decl v Ann))
 loadTypeDisplayObject = \case
   Reference.Builtin _ -> pure BuiltinObject
   Reference.DerivedId id ->
-    maybe (MissingObject id) UserObject <$> eval (LoadType id)
+    maybe (MissingObject $ Reference.idToShortHash id) UserObject
+      <$> eval (LoadType id)
 
 lexedSource :: Monad m => SourceName -> Source -> Action' m v (Names, LexedSource)
 lexedSource name src = do

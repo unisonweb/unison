@@ -1,9 +1,12 @@
+{-# LANGUAGE DeriveGeneric #-}
+
 module Unison.Codebase.Editor.DisplayObject where
 
-import Unison.Reference as Reference
+import Unison.Prelude
+import Unison.ShortHash
 
-data DisplayObject a = BuiltinObject | MissingObject Reference.Id | UserObject a
-  deriving (Eq, Ord, Show, Functor)
+data DisplayObject a = BuiltinObject | MissingObject ShortHash | UserObject a
+  deriving (Eq, Ord, Show, Functor, Generic)
 
 toMaybe :: DisplayObject a -> Maybe a
 toMaybe = \case

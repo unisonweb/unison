@@ -54,8 +54,11 @@ import Unison.Server.Types
 import Unison.Util.SyntaxText (SyntaxText)
 import Unison.Util.List (uniqueBy)
 import Unison.ShortHash
+import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.TermPrinter as TermPrinter
 import qualified Unison.DeclPrinter as DeclPrinter
+import Unison.Util.Pretty (Width)
 
 data ShallowListEntry v a
   = ShallowTermEntry Referent HQ'.HQSegment (Maybe (Type v a))
@@ -67,6 +70,8 @@ data ShallowListEntry v a
 data BackendError
   = NoSuchNamespace Path.Absolute
   | BadRootBranch Codebase.GetRootBranchError
+  | CouldntExpandBranchHash ShortBranchHash
+  | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
   | NoBranchForHash Branch.Hash
 
 type Backend m a = ExceptT BackendError m a
@@ -326,13 +331,6 @@ hqNameQuerySuffixify
   -> m QueryResult
 hqNameQuerySuffixify = hqNameQuery' True
 
-data DefinitionDisplayResults =
-  DefinitionDisplayResults
-    { termDefinitions :: Map Reference (DisplayObject SyntaxText)
-    , typeDefinitions :: Map Reference (DisplayObject SyntaxText)
-    , missingDefinitions :: [HQ.HashQualified Name]
-    } deriving (Eq, Show, Generic)
-
 data DefinitionResults v =
   DefinitionResults
     { termResults :: Map Reference (DisplayObject (Term v Ann))
@@ -354,12 +352,23 @@ collateReferences (toList -> types) (toList -> terms) =
       types' = [ r | Referent.Con r _ _ <- terms ]
   in  (Set.fromList types' <> Set.fromList types, Set.fromList terms')
 
+expandShortBranchHash
+  :: Monad m => Codebase m v a -> ShortBranchHash -> Backend m Branch.Hash
+expandShortBranchHash codebase hash = do
+  hashSet <- lift $ Codebase.branchHashesByPrefix codebase hash
+  len     <- lift $ Codebase.branchHashLength codebase
+  case Set.toList hashSet of
+    []  -> throwError $ CouldntExpandBranchHash hash
+    [h] -> pure h
+    _ ->
+      throwError . AmbiguousBranchHash hash $ Set.map (SBH.fromHash len) hashSet
+
 prettyDefinitionsBySuffixes
   :: Monad m
   => Var v
   => Maybe Path
   -> Maybe Branch.Hash
-  -> Maybe Int
+  -> Maybe Width
   -> Codebase m v Ann
   -> [HQ.HashQualified Name]
   -> Backend m DefinitionDisplayResults
@@ -374,13 +383,16 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth codebase query = do
   -- the names in the pretty-printer, but the current implementation
   -- doesn't.
   let printNames = getCurrentNames (fromMaybe Path.empty relativeTo) branch
-      ppe                  = PPE.fromNamesDecl hqLength printNames
-      width                = mayDefault renderWidth
-      renderedDisplayTerms = termsToSyntax width ppe terms
-      renderedDisplayTypes = typesToSyntax width ppe types
-  pure $ DefinitionDisplayResults renderedDisplayTerms
-                                  renderedDisplayTypes
-                                  misses
+      ppe        = PPE.fromNamesDecl hqLength printNames
+      width      = mayDefault renderWidth
+      renderedDisplayTerms =
+        Map.mapKeys Reference.toShortHash $ termsToSyntax width ppe terms
+      renderedDisplayTypes =
+        Map.mapKeys Reference.toShortHash $ typesToSyntax width ppe types
+  pure $ DefinitionDisplayResults
+    (Map.map (fmap (fmap (fmap Reference.toShortHash))) renderedDisplayTerms)
+    (Map.map (fmap (fmap (fmap Reference.toShortHash))) renderedDisplayTypes)
+    misses
 
 resolveBranchHash
   :: Monad m => Maybe Branch.Hash -> Codebase m v Ann -> Backend m (Branch m)
@@ -430,16 +442,16 @@ definitionsBySuffixes relativeTo branch codebase query = do
       -- We add a type annotation to the term using if it doesn't
       -- already have one that the user provided
       pure . (r, ) $ case liftA2 (,) tm (Map.lookup r termTypes) of
-        Nothing        -> MissingObject i
+        Nothing        -> MissingObject $ Reference.idToShortHash i
         Just (tm, typ) -> case tm of
           Term.Ann' _ _ -> UserObject tm
           _             -> UserObject (Term.ann (ABT.annotation tm) tm typ)
     r@(Reference.Builtin _) -> pure (r, BuiltinObject)
   let loadedDisplayTypes = Map.fromList . (`fmap` toList collatedTypes) $ \case
         r@(Reference.DerivedId i) ->
-          (r, ) . maybe (MissingObject i) UserObject $ Map.lookup
-            i
-            loadedDerivedTypes
+          (r, )
+            . maybe (MissingObject $ Reference.idToShortHash i) UserObject
+            $ Map.lookup i loadedDerivedTypes
         r@(Reference.Builtin _) -> (r, BuiltinObject)
   pure $ DefinitionResults loadedDisplayTerms loadedDisplayTypes misses
 
@@ -508,5 +520,6 @@ loadTypeDisplayObject
 loadTypeDisplayObject c = \case
   Reference.Builtin _ -> pure BuiltinObject
   Reference.DerivedId id ->
-    maybe (MissingObject id) UserObject <$> Codebase.getTypeDeclaration c id
+    maybe (MissingObject $ Reference.idToShortHash id) UserObject
+      <$> Codebase.getTypeDeclaration c id
 
