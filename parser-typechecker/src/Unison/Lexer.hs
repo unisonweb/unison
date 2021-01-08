@@ -52,7 +52,8 @@ data Token a = Token {
 data ParsingEnv =
   ParsingEnv { layout :: !Layout -- layout stack
              , opening :: Maybe BlockName -- `Just b` if a block of type `b` is being opened
-             , inLayout :: Bool }
+             , inLayout :: Bool -- are we inside a construct that uses layout?
+             , parentSection :: Int } -- the number of # in the enclosing section, initially 0
 
 type P = P.ParsecT (Token Err) String (S.State ParsingEnv)
 
@@ -211,8 +212,6 @@ token'' tok p = do
     topHasClosePair [] = False
     topHasClosePair ((name,_):_) = name `elem` ["{", "(", "handle", "match", "if", "then"]
 
--- todo: implement function with same signature as the existing lexer function
--- to set up initial state, run the parser, etc
 lexer0' :: String -> String -> [Token Lexeme]
 lexer0' scope rem =
   case flip S.evalState env0 $ P.runParserT lexemes scope rem of
@@ -228,7 +227,7 @@ lexer0' scope rem =
   where
   customErrs es = [ Err <$> e | P.ErrorCustom e <- toList es ]
   toPos (P.SourcePos _ line col) = Pos (P.unPos line) (P.unPos col)
-  env0 = ParsingEnv [] (Just scope) True
+  env0 = ParsingEnv [] (Just scope) True 0
   -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
   -- fix without adding more state to the lexer:
   --   - 1+1 lexes as [1, +1], convert this to [1, +, 1]
@@ -272,10 +271,52 @@ lexemes = P.optional space >> do
              pure [Token a start stop]
 
   doc2 :: P [Token Lexeme]
-  doc2 =
-    lit "{{" *> local (\env -> env { inLayout = False }) body <* lit "}}"
+  doc2 = do
+    _ <- lit "{{" >> CP.space
+    r <- local (\env -> env { inLayout = False }) body
+    _ <- lit "}}" >> space
+    pure r
     where
-    body = pure [] -- todo
+    tok = token'' (\txt start end -> [Token (Textual txt) start end])
+    word = wrap "doc.word" $ tok $ P.takeWhile1P (Just "word") (not . isSpace)
+    leaf = word -- todo: other stuff, like escapes {{ 1 + 1 }}, links @foo.bar, [markdown link](https://google.com)
+    sp =
+      P.takeWhile1P (Just "space") (\ch -> isSpace ch && ch /= '\n' && ch /= '\r') <*
+      P.optional (lit "\n")
+
+    paragraph = join <$> P.sepBy1 leaf sp
+    sectionElem = wrap "doc.element" (section <|> paragraph)
+    -- ## Section title
+    --
+    -- A paragraph under this section.
+    -- Part of the same paragraph. Blanklines separate paragraphs.
+    --
+    -- ### A subsection title
+    --
+    -- A paragraph under this subsection.
+    --
+    -- # A section title (not a subsection)
+    section :: P [Token Lexeme]
+    section = do
+      n <- S.gets parentSection
+      hashes <- P.try $ lit (replicate n '#') *> P.takeWhile1P Nothing (== '#') <* sp
+      title <- wrap "doc.title" $ (paragraph <* CP.space)
+      let m = length hashes + n
+      body <- local (\env -> env { parentSection = m }) $ P.sepBy sectionElem CP.space
+      pure $ title <> join body
+
+    body = join <$> P.sepBy sectionElem CP.space
+
+    wrap :: String -> P [Token Lexeme] -> P [Token Lexeme]
+    wrap o p = do
+      start <- pos
+      lexemes <- p
+      pure $ go start lexemes
+      where
+      go start [] = [Token (Open o) start start, Token Close start start]
+      go start ts@(Token _ x _ : _) =
+        Token (Open o) start x : (ts ++ [Token Close (end final) (end final)]) where
+        final = last ts
 
   doc :: P [Token Lexeme]
   doc = open <+> (CP.space *> fmap fixup body) <+> (close <* space) where
