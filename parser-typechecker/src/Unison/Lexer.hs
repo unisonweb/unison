@@ -277,14 +277,23 @@ lexemes = P.optional space >> do
     _ <- lit "}}" >> space
     pure r
     where
-    tok = token'' (\txt start end -> [Token (Textual txt) start end])
-    word = wrap "doc.word" $ tok $ P.takeWhile1P (Just "word") (not . isSpace)
-    leaf = word -- todo: other stuff, like escapes {{ 1 + 1 }}, links @foo.bar, [markdown link](https://google.com)
+    word = wrap "doc.word" $ tok $ Textual <$> P.takeWhile1P (Just "word") (not . isSpace)
+    leaf = link <|> externalLink <|> word -- todo: other stuff, like escapes {{ 1 + 1 }}, [markdown link](https://google.com)
+    link = wrap "doc.link" $ lit "@" *> tok (wordyId <|> symbolyId)
+    externalLink = wrap "doc.external-link" $ do
+      _ <- lit "["
+      p <- paragraph
+      _ <- lit "]"
+      _ <- lit "("
+      target <- word <|> link
+      _ <- lit ")"
+      pure (p <> target)
+
     sp =
       P.takeWhile1P (Just "space") (\ch -> isSpace ch && ch /= '\n' && ch /= '\r') <*
       P.optional (lit "\n")
 
-    paragraph = join <$> P.sepBy1 leaf sp
+    paragraph = wrap "doc.paragraph" $ join <$> P.sepBy1 leaf sp
     sectionElem = wrap "doc.element" (section <|> paragraph)
     -- ## Section title
     --
