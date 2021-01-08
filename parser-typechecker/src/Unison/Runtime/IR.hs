@@ -595,6 +595,8 @@ compile0 env bound t =
                                   "This code should never be reached as this constraint is " <>
                                   "applied in the typechecker."
 
+        _ -> error $ "todo - compilePattern " ++ show pat
+
 type DS = StateT (Map Symbol (Term Symbol), Set RefID) IO
 
 runDS :: DS (Term Symbol) -> IO (Term Symbol)

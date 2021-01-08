@@ -33,8 +33,8 @@ jobs:
         id: cache-ghc
         with:
           path: |
-            ~/.ghcup/bin/ghc-8.10.3
-            ~/.ghcup/ghc/8.10.3/bin/ghc
+            ~/.ghcup/bin/ghc-8.8.3
+            ~/.ghcup/ghc/8.8.3/bin/ghc
           key: ghcup-0_${{matrix.os}}
 
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
@@ -67,14 +67,14 @@ jobs:
           curl -L https://downloads.haskell.org/~ghcup/x86_64-linux-ghcup > "$HOME/.local/bin/ghcup"
           chmod +x "$HOME/.local/bin/ghcup"
 
-      # Install ghc 8.10.3 with ghcup
-      - name: install ghc 8.10.3
+      # Install ghc 8.8.3 with ghcup
+      - name: install ghc 8.8.3
         if: steps.cache-ghc.outputs.cache-hit != 'true'
-        run: ghcup install ghc 8.10.3
+        run: ghcup install ghc 8.8.3
 
-      # Add ~/.ghcup/ghc/8.10.3/bin to path
+      # Add ~/.ghcup/ghc/8.8.3/bin to path
       - name: add ghc to path
-        run: echo "$HOME/.ghcup/ghc/8.10.3/bin" >> $GITHUB_PATH
+        run: echo "$HOME/.ghcup/ghc/8.8.3/bin" >> $GITHUB_PATH
 
       # Install stack by downloading the binary from GitHub. The installation process is different for Linux and macOS,
       # so this is split into two steps, only one of which will run on any particular build.

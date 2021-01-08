@@ -57,7 +57,7 @@ sortNamed by = sortByText (toText . by)
 
 sortByText :: (a -> Text) -> [a] -> [a]
 sortByText by as = let
-  as' = [ (a, by a) | a <- as ]
+  as' = [ (a, Text.unpack (by a)) | a <- as ]
   comp (_,s) (_,s2) = RFC5051.compareUnicode s s2
   in fst <$> sortBy comp as'
 
@@ -65,7 +65,7 @@ sortByText by as = let
 -- names are equal.
 sortNamed' :: (a -> Name) -> (a -> a -> Ordering) -> [a] -> [a]
 sortNamed' by by2 as = let
-  as' = [ (a, toText (by a)) | a <- as ]
+  as' = [ (a, Text.unpack (toText (by a))) | a <- as ]
   comp (a,s) (a2,s2) = RFC5051.compareUnicode s s2 <> by2 a a2
   in fst <$> sortBy comp as'
 

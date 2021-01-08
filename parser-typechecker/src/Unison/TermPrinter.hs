@@ -804,6 +804,7 @@ suffixCounterTerm :: Var v => PrettyPrintEnv -> Term2 v at ap v a -> PrintAnnota
 suffixCounterTerm n = \case
     Var' v -> countHQ $ HQ.unsafeFromVar v
     Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
+    Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
     Constructor' r _ | noImportRefs r -> mempty
     Constructor' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Data)
     Request' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Effect)
@@ -1188,3 +1189,4 @@ toBytes (App' (Builtin' "Bytes.fromList") (Sequence' bs)) =
   where go (Nat' n) = Just n
         go _ = Nothing
 toBytes _ = Nothing
+
