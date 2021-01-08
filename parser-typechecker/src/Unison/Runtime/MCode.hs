@@ -894,13 +894,13 @@ emitLet
   -> Emit Section
 emitLet _   _   _   _ _   _   (TLit l)
   = fmap (Ins $ emitLit l)
-emitLet rns grp _   _ _   ctx (TApp (FComb r) args)
-  -- We should be able to tell if we are making a saturated call
-  -- or not here. We aren't carrying the information here yet, though.
-  | False -- not saturated
-  = fmap (Ins . Name (Env n 0) $ emitArgs grp ctx args)
-  where
-  n = cnum rns r
+-- emitLet rns grp _   _ _   ctx (TApp (FComb r) args)
+--   -- We should be able to tell if we are making a saturated call
+--   -- or not here. We aren't carrying the information here yet, though.
+--   | False -- not saturated
+--   = fmap (Ins . Name (Env n 0) $ emitArgs grp ctx args)
+--   where
+--   n = cnum rns r
 emitLet _   grp _   _ _   ctx (TApp (FCon r n) args)
   = fmap (Ins . Pack r (rawTag n) $ emitArgs grp ctx args)
 emitLet _   grp _   _ _   ctx (TApp (FPrim p) args)
