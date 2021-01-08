@@ -20,7 +20,7 @@ import Control.Concurrent (ThreadId)
 import Data.Text (Text, unpack)
 import Data.Tagged (Tagged(..))
 import Network.Socket (Socket)
-import qualified Network.TLS as TLS (ClientParams, Context, ServerParams) 
+import qualified Network.TLS as TLS (ClientParams, Context, ServerParams)
 import System.IO (Handle)
 import Unison.Util.Bytes (Bytes)
 import Unison.Reference (Reference)
@@ -97,14 +97,13 @@ instance BuiltinForeign (SuperGroup Symbol) where
   foreignRef = Tagged Ty.codeRef
 instance BuiltinForeign Value where foreignRef = Tagged Ty.valueRef
 
-
 data HashAlgorithm where
   -- Reference is a reference to the hash algorithm
   HashAlgorithm :: Hash.HashAlgorithm a => Reference -> a -> HashAlgorithm
 
 newtype Tls = Tls TLS.Context
 
-data Failure = Failure Reference Text
+data Failure = Failure Reference Text -- todo: Failure a = Failure Reference Text (Any a)
 
 instance BuiltinForeign HashAlgorithm where foreignRef = Tagged Ty.hashAlgorithmRef
 

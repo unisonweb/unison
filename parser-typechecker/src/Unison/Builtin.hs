@@ -165,6 +165,7 @@ builtinTypesSrc =
   , B' "MVar" CT.Data, Rename' "MVar" "io2.MVar"
   , B' "Code" CT.Data
   , B' "Value" CT.Data
+  , B' "Any" CT.Data
   , B' "crypto.HashAlgorithm" CT.Data
   , B' "Tls" CT.Data, Rename' "Tls" "io2.Tls"
   , B' "Tls.ClientConfig" CT.Data, Rename' "Tls.ClientConfig" "io2.Tls.ClientConfig"
@@ -365,6 +366,7 @@ builtinsSrc =
 
   , B "bug" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b))
   , B "todo" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b))
+  , B "Any.Any" $ forall1 "a" (\a -> a --> anyt)
 
   , B "Boolean.not" $ boolean --> boolean
 
@@ -643,7 +645,9 @@ boolean = Type.boolean ()
 float = Type.float ()
 char = Type.char ()
 
-code, value, termLink :: Var v => Type v
+anyt, code, value, termLink :: Var v => Type v
+anyt = Type.ref() Type.anyRef
 code = Type.code ()
 value = Type.value ()
 termLink = Type.termLink ()
+

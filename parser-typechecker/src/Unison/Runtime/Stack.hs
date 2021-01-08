@@ -177,7 +177,9 @@ universalCompare frn = cmpc False
     = (if tyEq then compare rf1 rf2 else EQ)
    <> compare ct1 ct2
    <> cmpl compare us1 us2
-   <> cmpl (cmpc tyEq) bs1 bs2
+   -- when comparing corresponding `Any` values, which have
+   -- existentials inside check that type references match
+   <> cmpl (cmpc $ tyEq || rf1 == Ty.anyRef) bs1 bs2
   cmpc tyEq (PApV i1 us1 bs1) (PApV i2 us2 bs2)
     = compare i1 i2
    <> cmpl compare us1 us2

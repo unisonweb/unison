@@ -26,9 +26,10 @@ import Unison.Runtime.ANF.Serialize as ANF
 import Unison.Referent (pattern Ref)
 import Unison.Var
 import Unison.Symbol
+import qualified Unison.Runtime.Stack as Closure
 import Unison.Runtime.Stack (Closure)
 import Unison.Runtime.Foreign
-    ( Foreign(Wrap), HashAlgorithm(..), Failure(..) )
+    ( Foreign(Wrap), HashAlgorithm(..), Failure(..))
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.IOSource
 
@@ -1459,6 +1460,9 @@ declareForeigns = do
     . mkForeign $ pure . Bytes.fromArray . serializeValue
   declareForeign "Value.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeValue . Bytes.toArray
+
+  declareForeign "Any.Any" boxDirect . mkForeign $ \(a :: Closure) ->
+    pure $ Closure.DataB1 Ty.anyRef 0 a
 
   -- Hashing functions
   let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()

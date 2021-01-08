@@ -10,7 +10,7 @@ packages:
 - unison-core
 
 #compiler-check: match-exact
-resolver: lts-15.15
+resolver: nightly-2021-01-02
 
 extra-deps:
 - github: unisonweb/configurator
@@ -25,6 +25,7 @@ extra-deps:
 - prelude-extras-0.4.0.3@sha256:1c10b0123ea13a6423d74a8fcbaeb2d5249b472588abde418a36b47b7c4f48c8,1163
 - sandi-0.5@sha256:b278d072ca717706ea38f9bd646e023f7f2576a778fb43565b434f93638849aa,3010
 - strings-1.1@sha256:0285dec4c8ab262359342b3e5ef1eb567074669461b9b38404f1cb870c881c5c,1617
+- ListLike-4.7.3
 
 ghc-options:
  # All packages
