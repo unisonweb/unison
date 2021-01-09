@@ -277,24 +277,32 @@ lexemes = P.optional space >> do
     _ <- lit "}}" >> space
     pure r
     where
-    word = wrap "doc.word" $ tok $ Textual <$> P.takeWhile1P (Just "word") (not . isSpace)
-    leaf = link <|> externalLink <|> word -- todo: other stuff, like escapes {{ 1 + 1 }}, [markdown link](https://google.com)
+    wordy ok = wrap "doc.word" $ tok $ Textual <$> P.takeWhile1P (Just "word") (\ch -> not (isSpace ch) && ok ch)
+    word = wordy (const True)
+    leaf = link <|> externalLink <|> word <|> expr
     link = wrap "doc.link" $ lit "@" *> tok (wordyId <|> symbolyId)
+    expr = lit "{{" *> CP.space *> lexemes <* lit "}}"
+    -- [this link](https://unisonweb.org)
     externalLink = wrap "doc.external-link" $ do
       _ <- lit "["
       p <- paragraph
       _ <- lit "]"
       _ <- lit "("
-      target <- word <|> link
+      target <- wordy (/= ')') <|> link
       _ <- lit ")"
       pure (p <> target)
 
     sp =
-      P.takeWhile1P (Just "space") (\ch -> isSpace ch && ch /= '\n' && ch /= '\r') <*
+      P.takeWhileP (Just "space") (\ch -> isSpace ch && ch /= '\n' && ch /= '\r') <*
       P.optional (lit "\n")
 
     paragraph = wrap "doc.paragraph" $ join <$> P.sepBy1 leaf sp
     sectionElem = wrap "doc.element" (section <|> paragraph)
+    --
+    -- bullets = wrap "doc.bullets" $ error "todo"
+    -- backticks = wrap "doc.backticks" $ error "todo"
+    --
+
     -- ## Section title
     --
     -- A paragraph under this section.
@@ -490,7 +498,8 @@ lexemes = P.optional space >> do
       ifElse <|> withKw <|> openKw "match" <|> openKw "handle" <|> typ <|> arr <|> eq <|>
       openKw "cases" <|> openKw "where" <|> openKw "let"
       where
-        ifElse = openKw "if" <|> close' (Just "then") ["if"] "then" <|> close' (Just "else") ["then"] "else"
+        ifElse = openKw "if" <|> close' (Just "then") ["if"] (lit "then")
+                             <|> close' (Just "else") ["then"] (lit "else")
         typ = openKw1 "unique" <|> openTypeKw1 "type" <|> openTypeKw1 "ability"
 
         withKw = do
@@ -540,8 +549,16 @@ lexemes = P.optional space >> do
               pure [Token (Open "->") start end]
             _ -> pure [Token (Reserved "->") start end]
 
-    braces = open "{" <|> close ["{"] "}"
-    parens = open "(" <|> close ["("] ")"
+    -- a bit of lookahead here to reserve }} for closing a documentation block
+    braces = open "{" <|> close ["{"] p where
+      p = do
+        l <- lit "}"
+        -- if we're within an existing {{ }} block, inLayout will be false
+        -- so we can actually allow }} to appear in normal code
+        inLayout <- S.gets inLayout
+        when (not inLayout) $ void $ P.lookAhead (CP.satisfy (/= '}'))
+        pure l
+    parens = open "(" <|> close ["("] (lit ")")
 
     delim = P.try $ do
       ch <- CP.satisfy (\ch -> ch /= ';' && Set.member ch delimiters)
@@ -569,9 +586,9 @@ lexemes = P.optional space >> do
 
     close = close' Nothing
 
-    close' :: Maybe String -> [String] -> String -> P [Token Lexeme]
-    close' reopenBlockname open close = do
-      (pos1, close, pos2) <- positioned $ lit close
+    close' :: Maybe String -> [String] -> P String -> P [Token Lexeme]
+    close' reopenBlockname open closeP = do
+      (pos1, close, pos2) <- positioned $ closeP
       env <- S.get
       case findClose open (layout env) of
         Nothing -> err pos1 (CloseWithoutMatchingOpen msgOpen (quote close))
