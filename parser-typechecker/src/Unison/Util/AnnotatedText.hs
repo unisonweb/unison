@@ -5,7 +5,6 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Util.AnnotatedText where
 
@@ -209,4 +208,4 @@ instance IsString (AnnotatedExcerpt a) where
 instance GHC.Exts.IsList (AnnotatedText a) where
   type Item (AnnotatedText a) = Char
   fromList s = fromString s
-  toList (AnnotatedText s) = join . Foldable.toList $ fmap fst s
+  toList (AnnotatedText s) = join . Foldable.toList $ fmap segment s
