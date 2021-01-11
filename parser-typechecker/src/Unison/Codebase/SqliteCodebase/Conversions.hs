@@ -2,10 +2,13 @@
 
 module Unison.Codebase.SqliteCodebase.Conversions where
 
+import Control.Monad (foldM)
 import Data.Bifunctor (Bifunctor (bimap))
 import qualified Data.ByteString.Short as SBS
 import Data.Either (fromRight)
+import Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Text (Text, pack)
 import qualified U.Codebase.Branch as V2.Branch
 import qualified U.Codebase.Causal as V2
@@ -25,15 +28,19 @@ import qualified U.Codebase.WatchKind as V2.WatchKind
 import qualified U.Core.ABT as V2.ABT
 import qualified U.Util.Hash as V2
 import qualified U.Util.Hash as V2.Hash
+import qualified U.Util.Map as Map
 import qualified Unison.ABT as V1.ABT
 import qualified Unison.Codebase.Branch as V1.Branch
 import qualified Unison.Codebase.Causal as V1.Causal
+import qualified Unison.Codebase.Metadata as V1.Metadata
+import qualified Unison.Codebase.Patch as V1
 import qualified Unison.Codebase.ShortBranchHash as V1
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as V1.Decl
 import Unison.Hash (Hash)
 import qualified Unison.Hash as V1
 import qualified Unison.Kind as V1.Kind
+import qualified Unison.NameSegment as V1
 import Unison.Parser (Ann)
 import qualified Unison.Parser as Ann
 import qualified Unison.Pattern as V1.Pattern
@@ -44,6 +51,8 @@ import qualified Unison.Referent as V1.Referent
 import qualified Unison.Symbol as V1
 import qualified Unison.Term as V1.Term
 import qualified Unison.Type as V1.Type
+import qualified Unison.Util.Relation as Relation
+import qualified Unison.Util.Star3 as V1.Star3
 import qualified Unison.Var as V1.Var
 import qualified Unison.Var as Var
 
@@ -309,6 +318,11 @@ rreferent1to2 h = \case
   V1.Ref r -> V2.Ref (rreference1to2 h r)
   V1.Con r i _ct -> V2.Con (reference1to2 r) (fromIntegral i)
 
+referent2to1 :: Applicative m => (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Referent -> m V1.Referent
+referent2to1 lookupSize lookupCT = \case
+  V2.Ref r -> V1.Ref <$> reference2to1 lookupSize r
+  V2.Con r i -> V1.Con <$> reference2to1 lookupSize r <*> pure (fromIntegral i) <*> lookupCT r
+
 referentid2to1 :: Applicative m => (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Referent.Id -> m V1.Referent.Id
 referentid2to1 lookupSize lookupCT = \case
   V2.RefId r -> V1.Ref' <$> referenceid2to1 lookupSize r
@@ -379,24 +393,86 @@ type1to2' convertRef =
           V1.Kind.Star -> V2.Kind.Star
           V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)
 
--- |forces loading v1 branches even if they may not exist
-causalbranch2to1 :: Monad m => V2.Branch.Causal m -> m (V1.Branch.Branch m)
-causalbranch2to1 = fmap V1.Branch.Branch . causalbranch2to1'
+-- | forces loading v1 branches even if they may not exist
+causalbranch2to1 :: Monad m => (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.Causal m -> m (V1.Branch.Branch m)
+causalbranch2to1 lookupSize lookupCT = fmap V1.Branch.Branch . causalbranch2to1' lookupSize lookupCT
 
-causalbranch2to1' :: Monad m => V2.Branch.Causal m -> m (V1.Branch.UnwrappedBranch m)
-causalbranch2to1' (V2.Causal hc _he (Map.toList -> parents) me) = do
+causalbranch2to1' :: Monad m => (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.Causal m -> m (V1.Branch.UnwrappedBranch m)
+causalbranch2to1' lookupSize lookupCT (V2.Causal hc _he (Map.toList -> parents) me) = do
   let currentHash = causalHash2to1 hc
   case parents of
-    [] -> V1.Causal.One currentHash <$> (me >>= branch2to1)
+    [] -> V1.Causal.One currentHash <$> (me >>= branch2to1 lookupSize lookupCT)
     [(hp, mp)] -> do
       let parentHash = causalHash2to1 hp
       V1.Causal.Cons currentHash
-        <$> (me >>= branch2to1)
-        <*> pure (parentHash, causalbranch2to1' =<< mp)
+        <$> (me >>= branch2to1 lookupSize lookupCT)
+        <*> pure (parentHash, causalbranch2to1' lookupSize lookupCT =<< mp)
     merge -> do
-      let tailsList = map (bimap causalHash2to1 (causalbranch2to1' =<<)) merge
+      let tailsList = map (bimap causalHash2to1 (causalbranch2to1' lookupSize lookupCT =<<)) merge
       e <- me
-      V1.Causal.Merge currentHash <$> branch2to1 e <*> pure (Map.fromList tailsList)
+      V1.Causal.Merge currentHash <$> branch2to1 lookupSize lookupCT e <*> pure (Map.fromList tailsList)
 
-branch2to1 :: V2.Branch.Branch m -> m (V1.Branch.Branch0 m)
-branch2to1 = error "todo"
+patch2to1 :: V2.Branch.Patch -> V1.Patch
+patch2to1 = undefined -- todo
+
+edithash2to1 :: V2.PatchHash -> V1.Branch.EditHash
+edithash2to1 = undefined -- todo
+
+namesegment2to1 :: V2.Branch.NameSegment -> V1.NameSegment
+namesegment2to1 = undefined -- todo
+
+--
+branch2to1 ::
+  Monad m =>
+  (Hash -> m V1.Reference.Size) ->
+  (V2.Reference -> m CT.ConstructorType) ->
+  V2.Branch.Branch m ->
+  m (V1.Branch.Branch0 m)
+branch2to1 lookupSize lookupCT (V2.Branch.Branch v2terms v2types v2patches v2children) = do
+  v1terms <- toStar (reference2to1 lookupSize) =<< Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (referent2to1 lookupSize lookupCT) id) v2terms
+  v1types <- toStar (reference2to1 lookupSize) =<< Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (reference2to1 lookupSize) id) v2types
+  let v1patches = Map.bimap namesegment2to1 (bimap edithash2to1 (fmap patch2to1)) v2patches
+  v1children <- Map.bitraverse (pure . namesegment2to1) (causalbranch2to1 lookupSize lookupCT) v2children
+  pure $ V1.Branch.branch0 v1terms v1types v1children v1patches
+  where
+    toStar :: forall m name ref. (Monad m, Ord name, Ord ref) => (V2.Reference -> m V1.Reference) -> Map name (Map ref V2.Branch.MdValues) -> m (V1.Metadata.Star ref name)
+    toStar mdref2to1 m = foldM insert mempty (Map.toList m)
+      where
+        insert star (name, m) = foldM (insert' name) star (Map.toList m)
+        insert' :: name -> V1.Metadata.Star ref name -> (ref, V2.Branch.MdValues) -> m (V1.Metadata.Star ref name)
+        insert' name star (ref, V2.Branch.MdValues mdvals) = do
+          let facts = Set.singleton ref
+              names = Relation.singleton ref name
+          types :: Relation.Relation ref V1.Metadata.Type <-
+            Relation.insertManyRan ref <$> traverse mdref2to1 (Map.elems mdvals) <*> pure mempty
+          vals :: Relation.Relation ref (V1.Metadata.Type, V1.Metadata.Value) <-
+            Relation.insertManyRan ref <$> (traverse (\(t, v) -> (,) <$> mdref2to1 v <*> mdref2to1 t) (Map.toList mdvals)) <*> pure mempty
+          pure $ star <> V1.Star3.Star3 facts names types vals
+
+-- V2.Branch0 should have the metadata types, could bulk load with relational operations
+-- type Star a n = Star3 a n Type (Type, Value)
+-- type Star a n = Star3 a n Type (Reference, Reference)
+-- MdValues is a Set V2.Reference
+
+-- (Name, TermRef, Metadata Type, Metadata Value)  <-- decided not this (because name was too long/repetitive?)
+-- (BranchId/Hash, TermRef, Metadata Type, Metadata Value) <-- what about this
+
+-- data V2.Branch m = Branch
+--   { terms :: Map NameSegment (Map Referent (m MdValues)),
+--     types :: Map NameSegment (Map Reference (m MdValues)),
+--     patches :: Map NameSegment (PatchHash, m Patch),
+--     children :: Map NameSegment (Causal m)
+--   }
+-- branch0 :: Metadata.Star Referent NameSegment
+--         -> Metadata.Star Reference NameSegment
+--         -> Map NameSegment (Branch m)
+--         -> Map NameSegment (EditHash, m Patch)
+--         -> Branch0 m
+
+-- type Metadata.Star a n = Star3 a n Type (Type, Value)
+
+-- data Star3 fact d1 d2 d3
+--   = Star3 { fact :: Set fact
+--           , d1 :: Relation fact d1
+--           , d2 :: Relation fact d2
+--           , d3 :: Relation fact d3 } deriving (Eq,Ord,Show)

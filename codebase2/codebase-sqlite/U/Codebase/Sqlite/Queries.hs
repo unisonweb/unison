@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
@@ -33,6 +34,7 @@ import U.Codebase.Sqlite.DbId (BranchHashId (..), BranchObjectId (..), CausalHas
 import U.Codebase.Sqlite.ObjectType (ObjectType)
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
+import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WatchKind
 import U.Util.Base32Hex (Base32Hex (..))
@@ -55,6 +57,7 @@ data Integrity
   | NoObjectForHashId HashId
   | NoNamespaceRoot
   | MultipleNamespaceRoots [CausalHashId]
+  | NoTypeIndexForTerm Referent.Id
   deriving Show
 
 -- |discard errors that you're sure are impossible
@@ -306,6 +309,20 @@ getReferentsByType r = query sql r where sql = [here|
   WHERE type_reference_builtin = ?
     AND type_reference_hash_id = ?
     AND type_reference_component_index = ?
+|]
+
+getTypeReferenceForReference :: EDB m => Reference.Id -> m (Reference' TextId HashId)
+getTypeReferenceForReference (C.Referent.RefId -> r) =
+  queryMaybe sql r >>= orError (NoTypeIndexForTerm r)
+  where sql = [here|
+  SELECT
+    type_reference_builtin,
+    type_reference_hash_id,
+    type_reference_component_index
+  FROM find_type_index
+  WHERE term_referent_object_id = ?
+    AND term_referent_component_index = ?
+    AND term_referent_constructor_index = ?
 |]
 
 addToTypeMentionsIndex :: DB m => Reference' TextId HashId -> Referent.Id -> m ()

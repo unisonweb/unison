@@ -140,6 +140,7 @@ data Error
   | ExpectedBranch' Db.CausalHashId
   | LegacyUnknownCycleLen H.Hash
   | LegacyUnknownConstructorType H.Hash C.Reference.Pos
+  | NeedTypeForBuiltinMetadata Text
   deriving (Show)
 
 getFromBytesOr :: Err m => DecodeError -> Get a -> ByteString -> m a
@@ -721,13 +722,21 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
     <*> doPatches patches
     <*> doChildren children
   where
+    loadMetadataType :: EDB m => S.Reference -> m C.Reference
+    loadMetadataType = \case
+      C.ReferenceBuiltin tId ->
+        loadTextById tId >>= throwError . NeedTypeForBuiltinMetadata
+      C.ReferenceDerived id ->
+        typeReferenceForTerm id >>= h2cReference
+
+    loadTypesForMetadata rs = Map.fromList <$> traverse (\r -> (,) <$> s2cReference r <*> loadMetadataType r) (Foldable.toList rs)
     doTerms :: EDB m => Map Db.TextId (Map S.Referent S.DbMetadataSet) -> m (Map C.Branch.NameSegment (Map C.Referent (m C.Branch.MdValues)))
     doTerms =
       Map.bitraverse
         (fmap C.Branch.NameSegment . loadTextById)
         ( Map.bitraverse s2cReferent \case
             S.MetadataSet.Inline rs ->
-              pure $ C.Branch.MdValues <$> Set.traverse s2cReference rs
+              pure $ C.Branch.MdValues <$> loadTypesForMetadata rs
         )
     doTypes :: EDB m => Map Db.TextId (Map S.Reference S.DbMetadataSet) -> m (Map C.Branch.NameSegment (Map C.Reference (m C.Branch.MdValues)))
     doTypes =
@@ -735,7 +744,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
         (fmap C.Branch.NameSegment . loadTextById)
         ( Map.bitraverse s2cReference \case
             S.MetadataSet.Inline rs ->
-              pure $ C.Branch.MdValues <$> Set.traverse s2cReference rs
+              pure $ C.Branch.MdValues <$> loadTypesForMetadata rs
         )
     doPatches :: EDB m => Map Db.TextId Db.PatchObjectId -> m (Map C.Branch.NameSegment (PatchHash, m C.Branch.Patch))
     doPatches = Map.bitraverse (fmap C.Branch.NameSegment . loadTextById) \patchId -> do
@@ -818,8 +827,8 @@ saveRootBranch (C.Causal hc he parents me) = do
     saveReferent = bitraverse saveReference saveReference
     saveMetadata :: Monad m => m C.Branch.MdValues -> BranchSavingMonad m S.Branch.Full.LocalMetadataSet
     saveMetadata mm = do
-      C.Branch.MdValues s <- (lift . lift) mm
-      S.Branch.Full.Inline <$> Set.traverse saveReference s
+      C.Branch.MdValues m <- (lift . lift) mm
+      S.Branch.Full.Inline <$> Set.traverse saveReference (Map.keysSet m)
     savePatch' :: EDB m => (PatchHash, m C.Branch.Patch) -> BranchSavingMonad m LocalPatchObjectId
     savePatch' (h, mp) = do
       patchOID <-
@@ -1130,6 +1139,9 @@ termsHavingType cTypeRef = do
   pure case maySet of
     Nothing -> mempty
     Just set -> Set.fromList set
+
+typeReferenceForTerm :: EDB m => S.Reference.Id -> m S.ReferenceH
+typeReferenceForTerm = liftQ . Q.getTypeReferenceForReference
 
 termsMentioningType :: EDB m => C.Reference -> m (Set C.Referent.Id)
 termsMentioningType cTypeRef = do
