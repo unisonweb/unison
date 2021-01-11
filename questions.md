@@ -8,7 +8,7 @@ next steps:
 - [x] `SqliteCodebase.getRootBranch`
 - [x] `SqliteCodebase.getBranchForHash`
 - [ ] Writing a branch
-  - [ ] `SqliteCodebase.Conversions.causalbranch1to2`
+  - [x] `SqliteCodebase.Conversions.causalbranch1to2`
   - [ ] `SqliteCodebase.putRootBranch`
 - [ ] Syncing a remote codebase
   - [ ] `SqliteCodebase.syncFromDirectory`
