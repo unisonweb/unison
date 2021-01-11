@@ -494,7 +494,7 @@ getPatchFormat =
     getTermEdit =
       getWord8 >>= \case
         0 -> pure TermEdit.Deprecate
-        1 -> TermEdit.Replace <$> getReference <*> getTyping
+        1 -> TermEdit.Replace <$> getReferent <*> getTyping
         x -> unknownTag "getTermEdit" x
     getTyping :: MonadGet m => m TermEdit.Typing
     getTyping =
@@ -539,7 +539,7 @@ putPatchLocalIds (PatchFormat.LocalIds ts hs os) = do
 
 putTermEdit :: MonadPut m => TermEdit.LocalTermEdit -> m ()
 putTermEdit TermEdit.Deprecate = putWord8 0
-putTermEdit (TermEdit.Replace r t) = putWord8 1 *> putReference r *> putTyping t
+putTermEdit (TermEdit.Replace r t) = putWord8 1 *> putReferent r *> putTyping t
   where
     putTyping TermEdit.Same = putWord8 0
     putTyping TermEdit.Subtype = putWord8 1

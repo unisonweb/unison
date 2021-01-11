@@ -1,10 +1,10 @@
 module U.Codebase.TermEdit where
 
 import U.Util.Hashable (Hashable)
-import U.Codebase.Reference (Reference)
+import U.Codebase.Referent (Referent)
 import qualified U.Util.Hashable as H
 
-data TermEdit = Replace Reference Typing | Deprecate
+data TermEdit = Replace Referent Typing | Deprecate
   deriving (Eq, Ord, Show)
 
 -- Replacements with the Same type can be automatically propagated.

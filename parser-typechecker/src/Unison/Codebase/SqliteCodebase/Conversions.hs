@@ -29,6 +29,7 @@ import qualified U.Core.ABT as V2.ABT
 import qualified U.Util.Hash as V2
 import qualified U.Util.Hash as V2.Hash
 import qualified U.Util.Map as Map
+import qualified U.Util.Set as Set
 import qualified Unison.ABT as V1.ABT
 import qualified Unison.Codebase.Branch as V1.Branch
 import qualified Unison.Codebase.Causal as V1.Causal
@@ -55,6 +56,11 @@ import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Star3 as V1.Star3
 import qualified Unison.Var as V1.Var
 import qualified Unison.Var as Var
+import Data.Bitraversable (Bitraversable(bitraverse))
+import qualified U.Codebase.TermEdit as V2.TermEdit
+import qualified Unison.Codebase.TermEdit as V1.TermEdit
+import qualified U.Codebase.TypeEdit as V2.TypeEdit
+import qualified Unison.Codebase.TypeEdit as V1.TypeEdit
 
 sbh1to2 :: V1.ShortBranchHash -> V2.ShortBranchHash
 sbh1to2 (V1.ShortBranchHash b32) = V2.ShortBranchHash b32
@@ -412,16 +418,42 @@ causalbranch2to1' lookupSize lookupCT (V2.Causal hc _he (Map.toList -> parents) 
       e <- me
       V1.Causal.Merge currentHash <$> branch2to1 lookupSize lookupCT e <*> pure (Map.fromList tailsList)
 
-patch2to1 :: V2.Branch.Patch -> V1.Patch
-patch2to1 = undefined -- todo
+patch2to1 ::
+  forall m.
+  Monad m =>
+  (Hash -> m V1.Reference.Size) ->
+  V2.Branch.Patch ->
+  m V1.Patch
+patch2to1 lookupSize (V2.Branch.Patch v2termedits v2typeedits) = do
+  termEdits <- Map.bitraverse referent2to1' (Set.traverse termedit2to1) v2termedits
+  typeEdits <- Map.bitraverse (reference2to1 lookupSize) (Set.traverse typeedit2to1) v2typeedits
+  pure $ V1.Patch (Relation.fromMultimap termEdits) (Relation.fromMultimap typeEdits)
+  where
+    referent2to1' :: V2.Referent -> m V1.Reference
+    referent2to1' = \case
+      V2.Referent.Ref r -> reference2to1 lookupSize r
+      V2.Referent.Con{} -> error "found referent on LHS when converting patch2to1"
+    termedit2to1 :: V2.TermEdit.TermEdit -> m V1.TermEdit.TermEdit
+    termedit2to1 = \case
+      V2.TermEdit.Replace (V2.Referent.Ref r) t ->
+        V1.TermEdit.Replace <$> reference2to1 lookupSize r <*> typing2to1 t
+      V2.TermEdit.Replace{} -> error "found referent on RHS when converting patch2to1"
+      V2.TermEdit.Deprecate -> pure V1.TermEdit.Deprecate
+    typeedit2to1 :: V2.TypeEdit.TypeEdit -> m V1.TypeEdit.TypeEdit
+    typeedit2to1 = \case
+      V2.TypeEdit.Replace r -> V1.TypeEdit.Replace <$> reference2to1 lookupSize r
+      V2.TypeEdit.Deprecate -> pure V1.TypeEdit.Deprecate
+    typing2to1 t = pure $ case t of
+      V2.TermEdit.Same -> V1.TermEdit.Same
+      V2.TermEdit.Subtype -> V1.TermEdit.Subtype
+      V2.TermEdit.Different -> V1.TermEdit.Different
 
 edithash2to1 :: V2.PatchHash -> V1.Branch.EditHash
-edithash2to1 = undefined -- todo
+edithash2to1 = hash2to1 . V2.unPatchHash
 
 namesegment2to1 :: V2.Branch.NameSegment -> V1.NameSegment
-namesegment2to1 = undefined -- todo
+namesegment2to1 (V2.Branch.NameSegment t) = V1.NameSegment t
 
---
 branch2to1 ::
   Monad m =>
   (Hash -> m V1.Reference.Size) ->
@@ -431,7 +463,7 @@ branch2to1 ::
 branch2to1 lookupSize lookupCT (V2.Branch.Branch v2terms v2types v2patches v2children) = do
   v1terms <- toStar (reference2to1 lookupSize) =<< Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (referent2to1 lookupSize lookupCT) id) v2terms
   v1types <- toStar (reference2to1 lookupSize) =<< Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (reference2to1 lookupSize) id) v2types
-  let v1patches = Map.bimap namesegment2to1 (bimap edithash2to1 (fmap patch2to1)) v2patches
+  v1patches <- Map.bitraverse (pure . namesegment2to1) (bitraverse (pure . edithash2to1) (fmap (patch2to1 lookupSize))) v2patches
   v1children <- Map.bitraverse (pure . namesegment2to1) (causalbranch2to1 lookupSize lookupCT) v2children
   pure $ V1.Branch.branch0 v1terms v1types v1children v1patches
   where

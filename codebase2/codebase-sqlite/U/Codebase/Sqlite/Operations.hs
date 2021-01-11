@@ -256,7 +256,7 @@ h2cReferent = bitraverse h2cReference h2cReference
 
 s2cTermEdit :: EDB m => S.TermEdit -> m C.TermEdit
 s2cTermEdit = \case
-  S.TermEdit.Replace r t -> C.TermEdit.Replace <$> s2cReference r <*> pure (s2cTyping t)
+  S.TermEdit.Replace r t -> C.TermEdit.Replace <$> s2cReferent r <*> pure (s2cTyping t)
   S.TermEdit.Deprecate -> pure C.TermEdit.Deprecate
 
 s2cTyping :: S.TermEdit.Typing -> C.TermEdit.Typing
@@ -334,7 +334,7 @@ c2lPatch (C.Branch.Patch termEdits typeEdits) =
     lookupDefn = lookup_ Lens._3 Lens._3 LocalDefnId
 
     saveTermEdit = \case
-      C.TermEdit.Replace r t -> S.TermEdit.Replace <$> saveReference r <*> pure (c2sTyping t)
+      C.TermEdit.Replace r t -> S.TermEdit.Replace <$> saveReferent r <*> pure (c2sTyping t)
       C.TermEdit.Deprecate -> pure S.TermEdit.Deprecate
 
     saveTypeEdit = \case
@@ -343,6 +343,7 @@ c2lPatch (C.Branch.Patch termEdits typeEdits) =
 
     saveReference = bitraverse lookupText lookupDefn
     saveReferenceH = bitraverse lookupText lookupHash
+    saveReferent = bitraverse saveReference saveReference
     saveReferentH = bitraverse saveReferenceH saveReferenceH
 
 -- | produces a diff
