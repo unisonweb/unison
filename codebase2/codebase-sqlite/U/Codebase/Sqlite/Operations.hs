@@ -177,15 +177,23 @@ primaryHashToExistingObjectId h = do
     Just hashId -> liftQ $ Q.expectObjectIdForPrimaryHashId hashId
     Nothing -> throwError $ UnknownDependency h
 
+primaryHashToMaybeObjectId :: DB m => H.Hash -> m (Maybe Db.ObjectId)
+primaryHashToMaybeObjectId h = do
+  (Q.loadHashId . H.toBase32Hex) h >>= \case
+    Just hashId -> Q.maybeObjectIdForPrimaryHashId hashId
+    Nothing -> pure Nothing
+
 primaryHashToExistingPatchObjectId :: EDB m => PatchHash -> m Db.PatchObjectId
 primaryHashToExistingPatchObjectId =
   fmap Db.PatchObjectId . primaryHashToExistingObjectId . unPatchHash
 
 primaryHashToMaybePatchObjectId :: EDB m => PatchHash -> m (Maybe Db.PatchObjectId)
-primaryHashToMaybePatchObjectId = error "todo"
+primaryHashToMaybePatchObjectId =
+  (fmap . fmap) Db.PatchObjectId . primaryHashToMaybeObjectId . unPatchHash
 
 primaryHashToMaybeBranchObjectId :: DB m => BranchHash -> m (Maybe Db.BranchObjectId)
-primaryHashToMaybeBranchObjectId = error "todo"
+primaryHashToMaybeBranchObjectId =
+  (fmap . fmap) Db.BranchObjectId . primaryHashToMaybeObjectId . unBranchHash
 
 -- (fmap . fmap) Db.BranchObjectId . liftQ . Q.maybeObjectIdPrimaryHashId . unBranchHash
 

@@ -128,7 +128,7 @@ saveHashObject hId oId version = execute sql (hId, oId, version) where
 
 saveObject :: DB m => HashId -> ObjectType -> ByteString -> m ObjectId
 saveObject h t blob =
-  execute sql (h, t, blob) >> queryOne (maybeObjectIdPrimaryHashId h)
+  execute sql (h, t, blob) >> queryOne (maybeObjectIdForPrimaryHashId h)
   where
   sql = [here|
     INSERT OR IGNORE INTO object (primary_hash_id, type_id, bytes)
@@ -150,10 +150,10 @@ loadObjectWithTypeById oId = queryMaybe sql (Only oId) >>= orError (UnknownObjec
 -- |Not all hashes have corresponding objects; e.g., hashes of term types
 expectObjectIdForPrimaryHashId :: EDB m => HashId -> m ObjectId
 expectObjectIdForPrimaryHashId h =
-  maybeObjectIdPrimaryHashId h >>= orError (UnknownHashId h)
+  maybeObjectIdForPrimaryHashId h >>= orError (UnknownHashId h)
 
-maybeObjectIdPrimaryHashId :: DB m => HashId -> m (Maybe ObjectId)
-maybeObjectIdPrimaryHashId h = queryAtom sql (Only h) where sql = [here|
+maybeObjectIdForPrimaryHashId :: DB m => HashId -> m (Maybe ObjectId)
+maybeObjectIdForPrimaryHashId h = queryAtom sql (Only h) where sql = [here|
   SELECT id FROM object WHERE primary_hash_id = ?
 |]
 
