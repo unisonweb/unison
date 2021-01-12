@@ -137,7 +137,7 @@ parsePathImpl' p = case p of
 parseSegment :: String -> Either String (String, String)
 parseSegment s =
   first show
-    .  (Lexer.wordyId0 <> Lexer.symbolyId0)
+    .  (Lexer.wordyId <> Lexer.symbolyId)
     <> unit'
     <> const (Left ("I expected an identifier but found " <> s))
     $  s
