@@ -69,7 +69,7 @@ abilityNamedId s =
 ioHash :: R.Id
 ioHash = abilityNamedId "io.IO"
 
-ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, isPropagatedReference, filePathReference, hostNameReference, serviceNameReference
+ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, isPropagatedReference, filePathReference, hostNameReference, serviceNameReference, failureReference, tlsFailureReference, ioFailureReference
   :: R.Reference
 ioReference = R.DerivedId ioHash
 bufferModeReference = typeNamed "io.BufferMode"
@@ -89,8 +89,15 @@ filePathReference = typeNamed "io.FilePath"
 hostNameReference = typeNamed "io.HostName"
 serviceNameReference = typeNamed "io.ServiceName"
 
+failureReference = typeNamed "io2.Failure"
+tlsFailureReference = typeNamed "io2.TlsFailure"
+ioFailureReference = typeNamed "io2.IOFailure"
+
 isTest :: (R.Reference, R.Reference)
 isTest = (isTestReference, termNamed "metadata.isTest")
+
+isIOTest :: (R.Reference, R.Reference)
+isIOTest = (isTestReference, termNamed "metadata.isIOTest")
 
 isPropagatedValue :: R.Reference
 isPropagatedValue = termNamed "metadata.isPropagated"
@@ -122,6 +129,8 @@ eofId = mkErrorType "io.ErrorType.EOF"
 illegalOperationId = mkErrorType "io.ErrorType.IllegalOperation"
 permissionDeniedId = mkErrorType "io.ErrorType.PermissionDenied"
 userErrorId = mkErrorType "io.ErrorType.UserError"
+
+
 
 constructorNamed :: R.Reference -> Text -> DD.ConstructorId
 constructorNamed ref name =
@@ -166,9 +175,9 @@ unique[b28d929d0a73d2c18eac86341a3bb9399f8550c11b5f35eabb2751e6803ccc20] type
 d1 Doc.++ d2 =
   use Doc
   match (d1,d2) with
-    (Join ds, Join ds2) -> Join (ds Sequence.++ ds2)
-    (Join ds, _) -> Join (ds `Sequence.snoc` d2)
-    (_, Join ds) -> Join (d1 `Sequence.cons` ds)
+    (Join ds, Join ds2) -> Join (ds List.++ ds2)
+    (Join ds, _) -> Join (ds `List.snoc` d2)
+    (_, Join ds) -> Join (d1 `List.cons` ds)
     _ -> Join [d1,d2]
 
 unique[q1905679b27a97a4098bc965574da880c1074183a2c55ff1d481619c7fb8a1e1] type

@@ -78,6 +78,7 @@ import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.PrintError              ( prettyParseError
                                                 , printNoteWithSource
                                                 , prettyResolutionFailures
+                                                , renderCompilerBug
                                                 )
 import qualified Unison.Reference              as Reference
 import           Unison.Reference              ( Reference )
@@ -191,7 +192,7 @@ notifyNumbered o = case o of
       ]) (showDiffNamespace ShowNumbers ppe destAbs destAbs diffOutput)
 
   ShowDiffAfterUndo ppe diffOutput ->
-    first (\p -> P.lines ["Here's the changes I undid", "", p ])
+    first (\p -> P.lines ["Here are the changes I undid", "", p ])
       (showDiffNamespace ShowNumbers ppe e e diffOutput)
 
   ShowDiffAfterPull dest' destAbs ppe diff ->
@@ -551,6 +552,8 @@ notifyUser dir o = case o of
           intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
             . map Result.TypeError
     pure . showNote $ notes
+  CompilerBugs src env bugs -> pure $ intercalateMap "\n\n" bug bugs
+    where bug = renderCompilerBug env (Text.unpack src)
   Evaluated fileContents ppe bindings watches ->
     if null watches then pure "\n"
     else

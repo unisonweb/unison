@@ -140,6 +140,13 @@ vmap f (Term _ a out) = case out of
   Cycle r -> cycle' a (vmap f r)
   Abs v body -> abs' a (f v) (vmap f body)
 
+vmapM :: (Applicative m, Traversable f, Foldable f, Ord v2) => (v -> m v2) -> Term f v a -> m (Term f v2 a)
+vmapM f (Term _ a out) = case out of
+  Var v -> annotatedVar a <$> f v
+  Tm fa -> tm' a <$> traverse (vmapM f) fa
+  Cycle r -> cycle' a <$> vmapM f r
+  Abs v body -> abs' a <$> f v <*> vmapM f body
+
 amap :: (Functor f, Foldable f, Ord v) => (a -> a2) -> Term f v a -> Term f v a2
 amap = amap' . const
 

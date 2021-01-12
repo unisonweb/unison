@@ -12,7 +12,7 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Arya Irani (@aryairani) - Ditto
 * Rúnar Bjarnason (@runarorama) - Typechecker, runtime, parser, code serialization
 * Chris Gibbs (@atacratic) - Pretty-printer
-* Noah Haasis (@noahhaasis) - Tool that makes improving the error messages easier
+* Noah Haasis (@noahhaasis)
 * Francis De Brabandere (@francisdb)
 * Matt Dziuban (@mrdziuban)
 * Ben Fradet (@BenFradet)
@@ -47,3 +47,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Mohamed Elsharnouby (@sharno)
 * Jared Forsyth (@jaredly) - Documentation generation
 * Hakim Cassimally (@osfameron) - vim support
+* Will Badart (@wbadart)

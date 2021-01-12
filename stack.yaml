@@ -1,6 +1,6 @@
 flags: {}
 
-# allow-newer: true # async package has needlessly strict upper bound
+allow-newer: true # async package has needlessly strict upper bound
 
 allow-different-user: true
 
@@ -22,7 +22,7 @@ packages:
 - codebase2/util-serialization
 
 #compiler-check: match-exact
-resolver: lts-15.15
+resolver: nightly-2021-01-02
 
 extra-deps:
 - github: unisonweb/configurator
@@ -31,7 +31,7 @@ extra-deps:
   commit: 2944b11d19ee034c48276edc991736105c9d6143
 - github: unisonweb/megaparsec
   commit: c4463124c578e8d1074c04518779b5ce5957af6b
-- base16-0.2.1.0@sha256:62e9abde29287913a775ec658b62ecba20270b9e1ac0a008e6acb4616b79a22d,2183
+- base16-0.3.0.1@sha256:22e62f1283adb1fbc81de95f404b0c4039e69e90d92dac8c1bfca0d04941a749,2303
 - concurrent-supply-0.1.8@sha256:9373f4868ad28936a7b93781b214ef4afdeacf377ef4ac729583073491c9f9fb,1627
 - guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1,1078
 - prelude-extras-0.4.0.3@sha256:1c10b0123ea13a6423d74a8fcbaeb2d5249b472588abde418a36b47b7c4f48c8,1163
@@ -39,6 +39,7 @@ extra-deps:
 - strings-1.1@sha256:0285dec4c8ab262359342b3e5ef1eb567074669461b9b38404f1cb870c881c5c,1617
 - sqlite-simple-0.4.18.0@sha256:3ceea56375c0a3590c814e411a4eb86943f8d31b93b110ca159c90689b6b39e5,3002
 - direct-sqlite-2.3.26@sha256:04e835402f1508abca383182023e4e2b9b86297b8533afbd4e57d1a5652e0c23,3718
+- ListLike-4.7.3
 
 ghc-options:
  # All packages

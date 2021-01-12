@@ -40,7 +40,7 @@ test = scope "> extractor" . tests $
         "  {a} -> 3\n" ++
         "  {Abort.abort -> k} ->\n" ++
         "    handle k 100 with xyz default\n"
-      ) Err.matchBody
+      ) Err.generalMismatch
   ]
   where y, n :: String -> ErrorExtractor Symbol Ann a -> Test ()
         y s ex = scope s $ expect $ yieldsError s ex

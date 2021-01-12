@@ -43,7 +43,7 @@ test1 = scope "termparser" . tests . map parses $
   , "-1.2e+3"
   , "-1.2e-3"
 
-  , "-4th"
+  , "-4 th"
   , "()"
   , "(0)"
   , "forty"
@@ -106,9 +106,6 @@ test1 = scope "termparser" . tests . map parses $
     "  _ -> 3\n" ++
     "  Tuple.Cons x y -> x + y\n" ++
     "  Tuple.Cons (Tuple.Cons x y) _ -> x + y \n"
-  , "match x with\n" ++
-    "  {Tuple.Cons x y} -> 1\n" ++
-    "  {Optional.Some 42 -> k} -> k 42\n"
   , "match x with\n" ++
     "  0 ->\n" ++
     "    z = 0\n" ++

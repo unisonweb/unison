@@ -36,6 +36,7 @@ import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
+import qualified Unison.Util.Bytes             as Bytes
 import           Unison.Util.Monoid             ( intercalateMap )
 import qualified Unison.Util.Pretty             as PP
 import           Unison.Util.Pretty             ( Pretty, ColorText )
@@ -303,6 +304,8 @@ pretty0
       paren (p >= 10) $ pair `PP.hang`
         PP.spaced [pretty0 n (ac 10 Normal im doc) x, fmt S.Constructor "()" ]
     (TupleTerm' xs, _) -> paren True $ commaList xs
+    (Bytes' bs, _) ->
+      fmt S.BytesLiteral "0xs" <> (PP.shown $ Bytes.fromWord8s (map fromIntegral bs))
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
       binaryApps apps (pretty0 n (ac 3 Normal im doc) lastArg)
     _ -> case (term, nonForcePred) of
@@ -481,9 +484,9 @@ printCase env im doc ms = PP.lines $ map each gridArrowsAligned where
     where
     lhs = (case pats of
             [pat] -> PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
-            pats  -> PP.group . PP.spaced . (`evalState` vs) . for pats $ \pat -> do
+            pats  -> PP.group . PP.sep ("," <> PP.softbreak) . (`evalState` vs) . for pats $ \pat -> do
               vs <- State.get
-              let (p, rem) = prettyPattern env (ac 0 Block im doc) 10 vs pat
+              let (p, rem) = prettyPattern env (ac 0 Block im doc) (-1) vs pat
               State.put rem
               pure p)
        <> printGuard guard
@@ -800,7 +803,6 @@ instance Monoid PrintAnnotation where
 suffixCounterTerm :: Var v => PrettyPrintEnv -> Term2 v at ap v a -> PrintAnnotation
 suffixCounterTerm n = \case
     Var' v -> countHQ $ HQ.unsafeFromVar v
-    Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
     Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
     Constructor' r _ | noImportRefs r -> mempty
     Constructor' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Data)
@@ -1127,8 +1129,8 @@ pattern LamsNamedMatch' vs branches <- (unLamsMatch' -> Just (vs, branches))
 --     (x, y) -> y ++ x
 --
 -- this function will return Just ([x], [ "a" "b" -> "abba", x y -> y ++ x])
--- and it would be rendered as `x -> cases "a" "b" -> "abba"
---                                         x    y  -> y ++ x
+-- and it would be rendered as `x -> cases "a", "b" -> "abba"
+--                                         x,    y  -> y ++ x
 --
 -- This function returns `Nothing` in cases where the term it is given isn't
 -- a lambda, or when the lambda isn't in the correct form for lambda cases.
@@ -1178,3 +1180,11 @@ unLamsMatch' t = case unLamsUntilDelay' t of
           rhsVars = (ABT.freeVars rhs)
       in Set.union guardVars rhsVars
 
+pattern Bytes' bs <- (toBytes -> Just bs)
+
+toBytes :: Term3 v PrintAnnotation -> Maybe [Word64]
+toBytes (App' (Builtin' "Bytes.fromList") (Sequence' bs)) =
+  toList <$> traverse go bs
+  where go (Nat' n) = Just n
+        go _ = Nothing
+toBytes _ = Nothing

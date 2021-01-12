@@ -124,6 +124,7 @@ library
     Unison.PrintError
     Unison.Result
     Unison.Runtime.ANF
+    Unison.Runtime.ANF.Serialize
     Unison.Runtime.Builtin
     Unison.Runtime.Debug
     Unison.Runtime.Decompile
@@ -187,11 +188,12 @@ library
     bytes,
     bytestring,
     cereal,
-    containers,
+    containers >= 0.6.3,
     comonad,
     concurrent-supply,
     configurator,
     cryptonite,
+    data-default,
     directory,
     either,
     guid,
@@ -235,15 +237,18 @@ library
     strings,
     sqlite-simple,
     tagged,
+    temporary,
     terminal-size,
     text,
     time,
+    tls,
     transformers,
     unison-core1,
     unliftio,
     util,
     vector,
     unicode-show,
+    x509-system,
     -- v2
     unison-core,
     unison-codebase,

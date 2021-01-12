@@ -3,12 +3,14 @@
 
 module Unison.Util.Bytes where
 
+import Data.Char
 import Data.Memory.PtrMethods (memCompare, memEqual)
 import Data.Monoid (Sum(..))
 import Foreign.Ptr (plusPtr)
 import System.IO.Unsafe (unsafeDupablePerformIO)
 import Unison.Prelude hiding (ByteString, empty)
 import Basement.Block (Block)
+import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteArray as B
 import qualified Data.ByteArray.Encoding as BE
 import qualified Data.FingerTree as T
@@ -33,6 +35,9 @@ fromArray = snoc empty
 
 toArray :: forall bo . B.ByteArray bo => Bytes -> bo
 toArray b = B.concat (map B.convert (chunks b) :: [bo])
+
+toLazyByteString :: Bytes -> LB.ByteString
+toLazyByteString b = LB.fromChunks $ map B.convert $ chunks b
 
 size :: Bytes -> Int
 size (Bytes bs) = getSum (T.measure bs)
@@ -126,7 +131,7 @@ instance T.Measured (Sum Int) (View ByteString) where
   measure b = Sum (B.length b)
 
 instance Show Bytes where
-  show bs = show (toWord8s bs)
+  show bs = toWord8s (toBase16 bs) >>= \w -> [chr (fromIntegral w)]
 
 -- Produces two lists where the chunks have the same length
 alignChunks :: B.ByteArrayAccess ba => [View ba] -> [View ba] -> ([View ba], [View ba])

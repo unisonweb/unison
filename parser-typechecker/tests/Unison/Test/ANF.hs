@@ -43,7 +43,7 @@ simpleRefs r
   | otherwise = 100
 
 runANF :: Var v => ANFM v a -> a
-runANF m = evalState (runReaderT m Set.empty) (0, [])
+runANF m = evalState (runReaderT m Set.empty) (0, 1, [])
 
 testANF :: String -> Test ()
 testANF s
@@ -51,7 +51,7 @@ testANF s
   | otherwise = crash $ show $ denormalize anf
   where
   t0 = const () `Term.amap` tm s
-  anf = runANF $ anfTerm t0
+  anf = snd . runANF $ anfTerm t0
 
 testLift :: String -> Test ()
 testLift s = case cs of !_ -> ok
@@ -76,11 +76,11 @@ denormalize (THnd _ _ _)
   -- = Term.match () (denormalize b) $ denormalizeHandler h
 denormalize (TShift _ _ _)
   = error "denormalize shift"
-denormalize (TLet v _ bn bo)
+denormalize (TLet _ v _ bn bo)
   | typeOf v == ANFBlank = ABT.subst v dbn dbo
   | otherwise = Term.let1_ False [(v, dbn)] dbo
   where
-  dbn = denormalize $ TTm bn
+  dbn = denormalize bn
   dbo = denormalize bo
 denormalize (TName _ _ _ _)
   = error "can't denormalize by-name bindings"
@@ -147,7 +147,8 @@ denormalizeMatch b
     | otherwise = P.Int () $ fromIntegral i
   dpat r n t = P.Constructor () r (fromEnum t) (replicate n $ P.Var ())
 
-denormalizeBranch :: (Num a, Var v) => Term ANormalBF v -> (a, ABT.Term (Term.F v () ()) v ())
+denormalizeBranch :: (Num a, Var v) =>
+                     Term ANormalF v -> (a, ABT.Term (Term.F v () ()) v ())
 denormalizeBranch (TAbs v br) = (n+1, ABT.abs v dbr)
  where (n, dbr) = denormalizeBranch br
 denormalizeBranch tm = (0, denormalize tm)

@@ -33,22 +33,26 @@ module Unison.Typechecker.Context
   , isExact
   , typeErrors
   , infoNotes
+  , Unknown(..)
   )
 where
 
 import Unison.Prelude
 
+import           Control.Lens                   (over, _2)
 import qualified Control.Monad.Fail            as MonadFail
 import           Control.Monad.Reader.Class
 import           Control.Monad.State            ( get
                                                 , put
                                                 , StateT
                                                 , runStateT
+                                                , evalState
                                                 )
 import           Data.Bifunctor                 ( first
                                                 , second
                                                 )
 import qualified Data.Foldable                 as Foldable
+import           Data.Functor.Compose           ( Compose(..) )
 import           Data.List
 import           Data.List.NonEmpty             ( NonEmpty )
 import qualified Data.Map                      as Map
@@ -264,6 +268,49 @@ data InfoNote v loc
   | TopLevelComponent [(v, Type.Type v loc, RedundantTypeAnnotation)]
   deriving (Show)
 
+topLevelComponent :: Var v => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> InfoNote v loc
+topLevelComponent = TopLevelComponent . fmap (over _2 removeSyntheticTypeVars)
+
+-- The typechecker generates synthetic type variables as part of type inference.
+-- This function converts these synthetic type variables to regular named type
+-- variables guaranteed to not collide with any other type variables.
+--
+-- It also attempts to pick "nice" type variable names, based on what sort of
+-- synthetic type variable it is and what type variable names are not already
+-- being used.
+removeSyntheticTypeVars :: Var v => Type.Type v loc -> Type.Type v loc
+removeSyntheticTypeVars typ =
+  flip evalState (Set.fromList (ABT.allVars typ), mempty) $ ABT.vmapM go typ
+  where
+  go v | Var.User _ <- Var.typeOf v = pure v -- user-provided type variables left alone
+       | otherwise                  = do
+         (used,curMappings) <- get
+         case Map.lookup v curMappings of
+           Nothing -> do
+             let v' = pickName used (Var.typeOf v)
+             put (Set.insert v' used, Map.insert v v' curMappings)
+             pure v'
+           Just v' -> pure v'
+  pickName used vt = ABT.freshIn used . Var.named $ case vt of
+    -- for each type of variable, we have some preferred variable
+    -- names that we like, if they aren't already being used
+    Var.Inference Var.Ability -> pick ["g","h","m","p"]
+    Var.Inference Var.Input -> pick ["a","b","c","i","j"]
+    Var.Inference Var.Output -> pick ["r","o"]
+    Var.Inference Var.Other -> pick ["t","u","w"]
+    Var.Inference Var.TypeConstructor -> pick ["f","k","d"]
+    Var.Inference Var.TypeConstructorArg -> pick ["v","w","y"]
+    Var.User n -> n
+    _ -> defaultName
+    where
+      used1CharVars = Set.fromList $ ABT.allVars typ >>= \v ->
+        case Text.unpack (Var.name . Var.reset $ v) of
+          [ch] -> [Text.singleton ch]
+          _ -> []
+      pick ns@(n:_) = fromMaybe n $ find (`Set.notMember` used1CharVars) ns
+      pick [] = error "impossible"
+      defaultName = "x"
+
 data Cause v loc
   = TypeMismatch (Context v loc)
   | IllFormedType (Context v loc)
@@ -280,6 +327,7 @@ data Cause v loc
   | UnguardedLetRecCycle [v] [(v, Term v loc)]
   | ConcatPatternWithoutConstantLength loc (Type v loc)
   | HandlerOfUnexpectedType loc (Type v loc)
+  | DataEffectMismatch Unknown Reference (DataDeclaration v loc)
   deriving Show
 
 errorTerms :: ErrorNote v loc -> [Term v loc]
@@ -633,16 +681,26 @@ compilerCrashResult bug = CompilerBug bug mempty mempty
 
 getDataDeclaration :: Reference -> M v loc (DataDeclaration v loc)
 getDataDeclaration r = do
-  decls <- getDataDeclarations
-  case Map.lookup r decls of
-    Nothing -> compilerCrash (UnknownDecl Data r decls)
+  ddecls <- getDataDeclarations
+  case Map.lookup r ddecls of
+    Nothing -> getEffectDeclarations >>= \edecls ->
+      case Map.lookup r edecls of
+        Nothing -> compilerCrash (UnknownDecl Data r ddecls)
+        Just decl ->
+          liftResult . typeError
+            $ DataEffectMismatch Effect r (DD.toDataDecl decl)
     Just decl -> pure decl
 
 getEffectDeclaration :: Reference -> M v loc (EffectDeclaration v loc)
 getEffectDeclaration r = do
-  decls <- getEffectDeclarations
-  case Map.lookup r decls of
-    Nothing -> compilerCrash (UnknownDecl Effect r (DD.toDataDecl <$> decls))
+  edecls <- getEffectDeclarations
+  case Map.lookup r edecls of
+    Nothing -> getDataDeclarations >>= \ddecls ->
+      case Map.lookup r ddecls of
+        Nothing -> compilerCrash
+          $ UnknownDecl Effect r (DD.toDataDecl <$> edecls)
+        Just decl ->
+          liftResult . typeError $ DataEffectMismatch Data r decl
     Just decl -> pure decl
 
 getDataConstructorType :: (Var v, Ord loc) => Reference -> Int -> M v loc (Type v loc)
@@ -799,14 +857,14 @@ noteTopLevelType e binding typ = case binding of
   Term.Ann' strippedBinding _ -> do
     inferred <- (Just <$> synthesize strippedBinding) `orElse` pure Nothing
     case inferred of
-      Nothing -> btw $ TopLevelComponent
+      Nothing -> btw $ topLevelComponent
         [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, False)]
       Just inferred -> do
         redundant <- isRedundant typ inferred
-        btw $ TopLevelComponent
+        btw $ topLevelComponent
           [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, redundant)]
   -- The signature didn't exist, so was definitely redundant
-  _ -> btw $ TopLevelComponent
+  _ -> btw $ topLevelComponent
     [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, True)]
 
 -- | Synthesize the type of the given term, updating the context in the process.
@@ -836,15 +894,11 @@ synthesize e = scope (InSynthesize e) $
       existentializeArrows t
     s -> compilerCrash $ FreeVarsInTypeAnnotation s
   go (Term.Ref' h) = compilerCrash $ UnannotatedReference h
-  go (Term.Constructor' r cid) = do
-    t <- getDataConstructorType r cid
-    existentializeArrows t
-  go (Term.Request' r cid) = do
-    t <- ungeneralize =<< getEffectConstructorType r cid
-    existentializeArrows t
-  go (Term.Ann' e t) = do
-    t <- existentializeArrows t
-    t <$ checkScoped e t
+  go (Term.Constructor' r cid) =
+    Type.purifyArrows <$> getDataConstructorType r cid
+  go (Term.Request' r cid) =
+    ungeneralize . Type.purifyArrows =<< getEffectConstructorType r cid
+  go (Term.Ann' e t) = checkScoped e t
   go (Term.Float' _) = pure $ Type.float l -- 1I=>
   go (Term.Int' _) = pure $ Type.int l -- 1I=>
   go (Term.Nat' _) = pure $ Type.nat l -- 1I=>
@@ -915,10 +969,7 @@ synthesize e = scope (InSynthesize e) $
     outputTypev <- freshenVar (Var.named "match-output")
     let outputType = existential' l B.Blank outputTypev
     appendContext [existential outputTypev]
-    case cases of -- only relevant with 2 or more cases, but 1 is safe too.
-      [] -> pure ()
-      Term.MatchCase _ _ t : _ -> scope (InMatch (ABT.annotation t)) $
-        Foldable.traverse_ (checkCase scrutineeType outputType) cases
+    checkCases scrutineeType outputType cases
     ctx <- getContext
     pure $ apply ctx outputType
   go (Term.Handle' h body) = do
@@ -949,6 +1000,48 @@ synthesize e = scope (InSynthesize e) $
       _ -> failWith $ HandlerOfUnexpectedType (loc h) ht
   go _e = compilerCrash PatternMatchFailure
 
+checkCases
+  :: Var v
+  => Ord loc
+  => Type v loc
+  -> Type v loc
+  -> [Term.MatchCase loc (Term v loc)]
+  -> M v loc ()
+checkCases _ _ [] = pure ()
+checkCases scrutType outType cases@(Term.MatchCase _ _ t : _)
+  = scope (InMatch (ABT.annotation t)) $ do
+      mes <- requestType (cases <&> \(Term.MatchCase p _ _) -> p)
+      for_ mes $ \es -> applyM scrutType >>= \sty -> do
+        v <- freshenVar Var.inferPatternPureV
+        let lo = loc scrutType
+            vt = existentialp lo v
+        appendContext [existential v]
+        subtype (Type.effectV lo (lo, Type.effects lo es) (lo, vt)) sty
+      traverse_ (checkCase scrutType outType) cases
+
+getEffect
+  :: Var v => Ord loc => Reference -> Int -> M v loc (Type v loc)
+getEffect ref cid = do
+  ect <- getEffectConstructorType ref cid
+  uect <- ungeneralize ect
+  let final (Type.Arrow' _ o) = final o
+      final t = t
+  case final uect of
+    Type.Effect'' [et] _ -> pure et
+    t@(Type.Effect'' _ _) ->
+      compilerCrash $ EffectConstructorHadMultipleEffects t
+    _ -> compilerCrash PatternMatchFailure
+
+requestType
+  :: Var v => Ord loc => [Pattern loc] -> M v loc (Maybe [Type v loc])
+requestType ps = getCompose . fmap fold $ traverse single ps
+  where
+  single (Pattern.As _ p) = single p
+  single Pattern.EffectPure{} = Compose . pure . Just $ []
+  single (Pattern.EffectBind _ ref cid _ _)
+    = Compose $ Just . pure <$> getEffect ref cid
+  single _ = Compose $ pure Nothing
+
 checkCase :: forall v loc . (Var v, Ord loc)
           => Type v loc
           -> Type v loc
@@ -972,6 +1065,15 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
     outputType <- applyM outputType
     scope InMatchBody $ check rhs' outputType
 
+-- For example:
+--   match scrute with
+--     (x, [42,y,Foo z]) -> blah x y z
+--
+-- scrutineeType will just be the type of `scrute`
+-- The starting state will be the variables [x,y,z] (extracted from the Abs-chain on the RHS of the ->)
+-- The output (assuming no type errors) is [(x,x'), (y,y'), (z,z')]
+-- where x', y', z' are freshened versions of x, y, z. These will be substituted
+-- into `blah x y z` to produce `blah x' y' z'` before typechecking it.
 checkPattern
   :: (Var v, Ord loc)
   => Type v loc
@@ -986,11 +1088,13 @@ checkPattern scrutineeType0 p =
       v' <- lift $ freshenVar v
       lift . appendContext $ [Ann v' scrutineeType]
       pure [(v, v')]
+    -- Ex: [42, y, Foo z]
     Pattern.SequenceLiteral loc ps -> do
       vt <- lift $ do
         v <- freshenVar Var.inferOther
         let vt = existentialp loc v
         appendContext [existential v]
+        -- ['a] <: scrutineeType, where 'a is fresh existential
         subtype (Type.app loc (Type.vector loc) vt) scrutineeType
         applyM vt
       join <$> traverse (checkPattern vt) ps
@@ -1052,7 +1156,7 @@ checkPattern scrutineeType0 p =
       lift $ subtype (Type.char loc) scrutineeType $> mempty
     Pattern.Constructor loc ref cid args -> do
       dct  <- lift $ getDataConstructorType ref cid
-      udct <- lift $ ungeneralize dct
+      udct <- lift $ skolemize forcedData dct
       unless (Type.arity udct == length args)
         . lift
         . failWith
@@ -1070,6 +1174,8 @@ checkPattern scrutineeType0 p =
       v' <- lift $ freshenVar v
       lift . appendContext $ [Ann v' scrutineeType]
       ((v, v') :) <$> checkPattern scrutineeType p'
+    -- ex: { a } -> a
+    -- ex: { (x, 42) } -> a
     Pattern.EffectPure loc p -> do
       vt <- lift $ do
         v <- freshenVar Var.inferPatternPureV
@@ -1080,6 +1186,7 @@ checkPattern scrutineeType0 p =
         subtype (Type.effectV loc (loc, et) (loc, vt)) scrutineeType
         applyM vt
       checkPattern vt p
+    -- ex: { Stream.emit x -> k } -> ...
     Pattern.EffectBind loc ref cid args k -> do
       -- scrutineeType should be a supertype of `Effect e vt`
       -- for fresh existentials `e` and `vt`
@@ -1089,7 +1196,7 @@ checkPattern scrutineeType0 p =
                                  (loc, existentialp loc v)
       lift $ subtype evt scrutineeType
       ect  <- lift $ getEffectConstructorType ref cid
-      uect <- lift $ ungeneralize ect
+      uect <- lift $ skolemize forcedEffect ect
       unless (Type.arity uect == length args)
         . lift
         . failWith
@@ -1104,6 +1211,13 @@ checkPattern scrutineeType0 p =
         -- an effect ctor should have exactly 1 effect!
         Type.Effect'' [et] it -> do
           -- expecting scrutineeType to be `Effect et vt`
+
+          -- ensure that the variables in `et` unify with those from
+          -- the scrutinee.
+          lift $ do
+            res <- Type.flattenEffects <$> applyM (existentialp loc e)
+            abilityCheck' res [et]
+
           st <- lift $ applyM scrutineeType
           case st of
             Type.App' _ vt ->
@@ -1168,10 +1282,10 @@ annotateLetRecBindings isTop letrec =
     case withoutAnnotations of
       Just (_, vts') -> do
         r <- and <$> zipWithM isRedundant (fmap snd vts) (fmap snd vts')
-        btw $ TopLevelComponent ((\(v,b) -> (Var.reset v, b,r)) . unTypeVar <$> vts)
+        btw $ topLevelComponent ((\(v,b) -> (Var.reset v, b,r)) . unTypeVar <$> vts)
       -- ...(1) we'll assume all the user-provided annotations were needed
       Nothing -> btw
-        $ TopLevelComponent ((\(v, b) -> (Var.reset v, b, False)) . unTypeVar <$> vts)
+        $ topLevelComponent ((\(v, b) -> (Var.reset v, b, False)) . unTypeVar <$> vts)
     pure body
   -- If this isn't a top-level letrec, then we don't have to do anything special
   else fst <$> annotateLetRecBindings' True
@@ -1258,39 +1372,90 @@ ungeneralize' (Type.Forall' t) = do
   first (v:) <$> ungeneralize' t
 ungeneralize' t = pure ([], t)
 
+skolemize
+  :: Var v
+  => Ord loc
+  => (Type v loc -> Set (TypeVar v loc))
+  -> Type v loc
+  -> M v loc (Type v loc)
+skolemize forced (Type.ForallsNamed' vs ty) = do
+  urn <- for uvs $ \u -> (,) u <$> freshenTypeVar u
+  srn <- for svs $ \u -> (,) u <$> freshenTypeVar u
+  let uctx = existential . snd <$> urn
+      sctx = Universal . snd <$> srn
+      rn = (fmap (existential' () B.Blank) <$> urn)
+        ++ (fmap (universal' ()) <$> srn)
+  appendContext $ uctx ++ sctx
+  pure $ foldl (flip $ uncurry ABT.substInheritAnnotation) ty rn
+  where
+  fovs = forced ty
+  (uvs, svs) = partition (`Set.member` fovs) vs
+skolemize _ ty = pure ty
+
+forcedEffect :: Type v loc -> Set (TypeVar v loc)
+forcedEffect (Type.Arrow' _ o) = forcedEffect o
+forcedEffect (Type.Effect1' es _) = Type.freeVars es
+forcedEffect _ = Set.empty
+
+forcedData :: Type v loc -> Set (TypeVar v loc)
+forcedData (Type.Arrow' _ o) = forcedData o
+forcedData ty = Type.freeVars ty
+
 -- | Apply the context to the input type, then convert any unsolved existentials
 -- to universals.
 generalizeExistentials :: (Var v, Ord loc) => [Element v loc] -> Type v loc -> Type v loc
-generalizeExistentials ctx t =
-  foldr gen (applyCtx ctx t) unsolvedExistentials
+generalizeExistentials = generalizeP existentialP
+
+generalizeP
+  :: Var v
+  => Ord loc
+  => (Element v loc -> Maybe (TypeVar v loc, v))
+  -> [Element v loc]
+  -> Type v loc
+  -> Type v loc
+generalizeP p ctx0 ty = foldr gen (applyCtx ctx0 ty) ctx
   where
-    unsolvedExistentials = [ v | Var (TypeVar.Existential _ v) <- ctx ]
-    gen e t =
-      if TypeVar.Existential B.Blank e `ABT.isFreeIn` t
-      -- location of the forall is just the location of the input type
-      -- and the location of each quantified variable is just inherited from
-      -- its source location
-      then Type.forall (loc t)
-                       (TypeVar.Universal e)
-                       (ABT.substInheritAnnotation
-                           (TypeVar.Existential B.Blank e)
-                           (universal' () e)
-                           t)
-      else t -- don't bother introducing a forall if type variable is unused
+  ctx = mapMaybe p ctx0
+
+  gen (tv, v) t
+    | tv `ABT.isFreeIn` t
+    -- location of the forall is just the location of the input type
+    -- and the location of each quantified variable is just inherited
+    -- from its source location
+    = Type.forall (loc t) (TypeVar.Universal v)
+        (ABT.substInheritAnnotation tv (universal' () v) t)
+   -- don't bother introducing a forall if type variable is unused
+    | otherwise = t
+
+existentialP :: Element v loc -> Maybe (TypeVar v loc, v)
+existentialP (Var (TypeVar.Existential _ v))
+  = Just (TypeVar.Existential B.Blank v, v)
+existentialP _ = Nothing
+
+variableP :: Element v loc -> Maybe (TypeVar v loc, v)
+variableP (Var (TypeVar.Existential _ v))
+  = Just (TypeVar.Existential B.Blank v, v)
+variableP (Var tv@(TypeVar.Universal v)) = Just (tv, v)
+variableP _ = Nothing
 
 -- This checks `e` against the type `t`, but if `t` is a `∀`, any ∀-quantified
 -- variables are freshened and substituted into `e`. This should be called whenever
 -- a term is being checked against a type due to a user-provided signature on `e`.
 -- See its usage in `synthesize` and `annotateLetRecBindings`.
-checkScoped :: forall v loc . (Var v, Ord loc) => Term v loc -> Type v loc -> M v loc ()
-checkScoped e t = case t of
-  Type.Forall' body -> do -- ForallI
-    v <- ABT.freshen body freshenTypeVar
-    markThenRetract0 v $ do
-      x <- extendUniversal v
-      let e' = Term.substTypeVar (ABT.variable body) (universal' () x) e
-      checkScoped e' (ABT.bindInheritAnnotation body (universal' () x))
-  _ -> check e t
+checkScoped
+  :: forall v loc
+   . (Var v, Ord loc)
+  => Term v loc -> Type v loc -> M v loc (Type v loc)
+checkScoped e (Type.Forall' body) = do
+  v <- ABT.freshen body freshenTypeVar
+  (ty, pop) <- markThenRetract v $ do
+    x <- extendUniversal v
+    let e' = Term.substTypeVar (ABT.variable body) (universal' () x) e
+    checkScoped e' (ABT.bindInheritAnnotation body (universal' () x))
+  pure $ generalizeP variableP pop ty
+checkScoped e t = do
+  t <- existentializeArrows t
+  t <$ check e t
 
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
@@ -1576,10 +1741,15 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
       -- 2b. If no:
       Nothing -> case r of
         -- It's an unsolved existential, instantiate it to all of ambient
-        Type.Var' (TypeVar.Existential b v) -> do
+        Type.Var' tv@(TypeVar.Existential b v) -> do
           let et2 = Type.effects (loc r) ambient
+              acyclic
+                | Set.member tv (Type.freeVars et2)
+                -- just need to trigger `orElse` in this case
+                = getContext >>= failWith . TypeMismatch
+                | otherwise = instantiateR et2 b v
           -- instantiate it to `{}` if can't cover all of ambient
-          instantiateR et2 b v
+          acyclic
             `orElse` instantiateR (Type.effects (loc r) []) b v
             `orElse` die1
           go ambient rs

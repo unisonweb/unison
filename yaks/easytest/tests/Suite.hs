@@ -14,7 +14,7 @@ suite1 = tests
 suite2 :: Test ()
 suite2 = tests
   [ scope "pending.failure" (pending (expectEqual True False))
-  --, scope "pending.success" (pending ok)
+  --, scope "pending.success" (pending ok) 
   ]
 
 reverseTest :: Test ()

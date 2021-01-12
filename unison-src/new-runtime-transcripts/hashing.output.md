@@ -91,9 +91,17 @@ ex3 = fromHex "50d3ab"
         |> crypto.hmacBytes Sha2_256 mysecret
         |> hex
 
+f x = x
+
+ex4 = crypto.hash Sha2_256 f |> hex
+
+ex5 = crypto.hmac Sha2_256 mysecret f |> hex
+
 > ex1
 > ex2
 > ex3
+> ex4
+> ex5
 ```
 
 ```ucm
@@ -107,22 +115,33 @@ ex3 = fromHex "50d3ab"
       ex1      : Text
       ex2      : Text
       ex3      : Text
+      ex4      : Text
+      ex5      : Text
+      f        : x -> x
       mysecret : Bytes
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    16 | > ex1
+    22 | > ex1
            ⧩
            "f3c342040674c50ab45cb1874b6dbc81447af5958201ed4127e03b56725664d7cc44b88b9afadb371898fcaf5d0adeff60837ef93b514f99da43539d79820c99"
   
-    17 | > ex2
+    23 | > ex2
            ⧩
            "84bb437497f26fc33c51e57e64c37958c3918d50dfe75b91c661a85c2f8f8304"
   
-    18 | > ex3
+    24 | > ex3
            ⧩
            "c692fc54df921f7fa51aad9178327c5a097784b02212d571fb40facdfff881fd"
+  
+    25 | > ex4
+           ⧩
+           "49d0146e0d6255d6c8ae05297319a312d52b7766b6205631d0e96be4053bc0a6"
+  
+    26 | > ex5
+           ⧩
+           "e330c8b15daf03526a04a6415e03fa37dc6cd8078d704cb54c993784c9654c13"
 
 ```
 And here's the full API:

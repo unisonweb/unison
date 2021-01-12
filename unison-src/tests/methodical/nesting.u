@@ -1,0 +1,9 @@
+
+h0 x s = handle !x with cases
+  { _ } -> s
+
+h1 x s = cases
+  { _ } -> handle !x with cases
+    { _ } -> s
+
+> (h0 (_ -> 5) 6, handle 8 with h1 (_ -> 5) 7)

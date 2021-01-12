@@ -87,7 +87,7 @@ ex thing =
   
     ⍟ These new definitions are ok to `add`:
     
-      ex : (Nat ->{𝕖} Nat) ->{𝕖} Nat
+      ex : (Nat ->{g} Nat) ->{g} Nat
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -117,7 +117,7 @@ ex thing =
   
     ⍟ These new definitions are ok to `add`:
     
-      ex : (Nat ->{𝕖} Nat) ->{𝕖} Nat
+      ex : (Nat ->{g} Nat) ->{g} Nat
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -154,7 +154,7 @@ ex n =
   
     ⍟ These new definitions are ok to `add`:
     
-      ex    : n -> 𝕣
+      ex    : n -> r
       sumTo : Nat -> Nat
 
 ```
@@ -232,7 +232,7 @@ ex n =
   
     ⍟ These new definitions are ok to `add`:
     
-      ex : n -> 𝕣
+      ex : n -> r
 
 ```
 Just don't try to run it as it's an infinite loop!
@@ -253,9 +253,9 @@ ex n =
 
 ```ucm
 
-  These definitions depend on each other cyclically but aren't guarded by a lambda: zap19, zap210
+  The expression in red needs the {SpaceAttack} ability, but this location does not have access to any abilities.
+  
       5 |   zap1 = launchMissiles "neptune" + zap2
-      6 |   zap2 = launchMissiles "pluto" + zap1
   
 
 ```
@@ -309,7 +309,7 @@ ex n =
     ⍟ These new definitions are ok to `add`:
     
       ability SpaceAttack
-      ex : n ->{SpaceAttack} 𝕣
+      ex : n ->{SpaceAttack} r
 
 ```
 This is actually parsed as if you moved `zap` after the cycle it find itself a part of:
@@ -334,6 +334,6 @@ ex n =
     ⍟ These new definitions are ok to `add`:
     
       ability SpaceAttack
-      ex : n ->{SpaceAttack} 𝕣
+      ex : n ->{SpaceAttack} r
 
 ```
