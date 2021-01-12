@@ -227,11 +227,15 @@ filePathRef = Reference.Builtin "FilePath"
 threadIdRef = Reference.Builtin "ThreadId"
 socketRef = Reference.Builtin "Socket"
 
-mvarRef :: Reference
+mvarRef, tvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
+tvarRef = Reference.Builtin "TVar"
 
 tlsRef :: Reference
 tlsRef = Reference.Builtin "Tls"
+
+stmRef :: Reference
+stmRef = Reference.Builtin "STM"
 
 tlsClientConfigRef :: Reference
 tlsClientConfigRef = Reference.Builtin "Tls.ClientConfig"

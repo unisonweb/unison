@@ -839,6 +839,8 @@ data POp
   | VALU                      -- value
   -- Debug
   | PRNT | INFO
+  -- STM
+  | ATOM
   deriving (Show,Eq,Ord)
 
 type ANormal = ABTN.Term ANormalF
