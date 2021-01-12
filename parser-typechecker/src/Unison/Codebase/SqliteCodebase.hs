@@ -270,7 +270,7 @@ sqliteCodebase root = do
         void . Ops.saveRootBranch . Cv.causalbranch1to2 $ Branch.transform (lift . lift) branch1
 
       rootBranchUpdates :: IO (IO (), IO (Set Branch.Hash))
-      rootBranchUpdates = error "todo"
+      rootBranchUpdates = pure (pure (), pure mempty)
 
       -- if this blows up on cromulent hashes, then switch from `hashToHashId`
       -- to one that returns Maybe.
