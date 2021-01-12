@@ -418,6 +418,16 @@ causalbranch2to1' lookupSize lookupCT (V2.Causal hc _he (Map.toList -> parents) 
       e <- me
       V1.Causal.Merge currentHash <$> branch2to1 lookupSize lookupCT e <*> pure (Map.fromList tailsList)
 
+causalbranch1to2 :: Monad m => V1.Branch.Branch m -> m (V2.Branch.Causal m)
+causalbranch1to2 = error "todo"
+
+-- data V2.Branch m = Branch
+--   { terms :: Map NameSegment (Map Referent (m MdValues)),
+--     types :: Map NameSegment (Map Reference (m MdValues)),
+--     patches :: Map NameSegment (PatchHash, m Patch),
+--     children :: Map NameSegment (Causal m)
+--   }
+
 patch2to1 ::
   forall m.
   Monad m =>

@@ -68,6 +68,7 @@ import qualified Unison.UnisonFile as UF
 import UnliftIO (MonadIO, catchIO)
 import UnliftIO.STM
 import qualified U.Codebase.Sqlite.Queries as Q
+import Control.Monad.Trans (MonadTrans(lift))
 
 -- 1) buffer up the component
 -- 2) in the event that the component is complete, then what?
@@ -265,7 +266,9 @@ sqliteCodebase root = do
             e -> error $ show e
 
       putRootBranch :: Branch IO -> IO ()
-      putRootBranch = error "todo"
+      putRootBranch branch1 = runDB conn do
+        branch2 <- Cv.causalbranch1to2 (Branch.transform (lift . lift) branch1)
+        void $ Ops.saveRootBranch branch2
 
       rootBranchUpdates :: IO (IO (), IO (Set Branch.Hash))
       rootBranchUpdates = error "todo"
