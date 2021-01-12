@@ -7,19 +7,22 @@ import Unison.Prelude
 
 import Prelude hiding (getChar, putChar)
 
+import Basement.Block (Block)
+
 -- import qualified Data.Text as Text
 import qualified Unison.Pattern                 as Pattern
 import           Unison.Pattern                 ( Pattern
                                                 , SeqOp
                                                 )
 import           Data.Bits                      ( Bits )
-import           Data.Bytes.Get
-import           Data.Bytes.Put
+import           Data.Bytes.Get                 as Ser
+import           Data.Bytes.Put                 as Ser
 import           Data.Bytes.Serial              ( serialize
                                                 , deserialize
                                                 , serializeBE
                                                 , deserializeBE
                                                 )
+import qualified Data.ByteArray                 as BA
 import           Data.Bytes.Signed              ( Unsigned )
 import           Data.Bytes.VarInt              ( VarInt(..) )
 import qualified Data.Map                      as Map
@@ -57,6 +60,7 @@ import           Unison.Referent               (Referent)
 import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
+import qualified Unison.Util.Bytes             as Bytes
 import           Unison.Util.Star3             ( Star3 )
 import qualified Unison.Util.Star3             as Star3
 import           Unison.Util.Relation           ( Relation )
@@ -177,13 +181,13 @@ putText text = do
 getText :: MonadGet m => m Text
 getText = do
   len <- getLength
-  bs <- B.copy <$> getBytes len
+  bs <- B.copy <$> Ser.getBytes len
   pure $ decodeUtf8 bs
 
 skipText :: MonadGet m => m ()
 skipText = do
   len <- getLength
-  void $ getBytes len
+  void $ Ser.getBytes len
 
 putFloat :: MonadPut m => Double -> m ()
 putFloat = serializeBE
@@ -222,7 +226,7 @@ putHash h = do
 getHash :: MonadGet m => m Hash
 getHash = do
   len <- getLength
-  bs <- B.copy <$> getBytes len
+  bs <- B.copy <$> Ser.getBytes len
   pure $ Hash.fromBytes bs
 
 putReference :: MonadPut m => Reference -> m ()
@@ -809,3 +813,15 @@ putEdits edits =
 getEdits :: MonadGet m => m Patch
 getEdits = Patch <$> getRelation getReference getTermEdit
                  <*> getRelation getReference getTypeEdit
+
+putBytes :: MonadPut m => Bytes.Bytes -> m ()
+putBytes = putFoldable putBlock . Bytes.chunks
+
+putBlock :: MonadPut m => Bytes.View (Block Word8) -> m ()
+putBlock b = putLength (BA.length b) *> putByteString (BA.convert b)
+
+getBytes :: MonadGet m => m Bytes.Bytes
+getBytes = Bytes.fromChunks <$> getList getBlock
+
+getBlock :: MonadGet m => m (Bytes.View (Block Word8))
+getBlock = getLength >>= fmap (Bytes.view . BA.convert) . getByteString
