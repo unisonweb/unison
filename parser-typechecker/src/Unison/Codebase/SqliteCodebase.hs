@@ -266,9 +266,8 @@ sqliteCodebase root = do
             e -> error $ show e
 
       putRootBranch :: Branch IO -> IO ()
-      putRootBranch branch1 = runDB conn do
-        branch2 <- Cv.causalbranch1to2 (Branch.transform (lift . lift) branch1)
-        void $ Ops.saveRootBranch branch2
+      putRootBranch branch1 = runDB conn .
+        void . Ops.saveRootBranch . Cv.causalbranch1to2 $ Branch.transform (lift . lift) branch1
 
       rootBranchUpdates :: IO (IO (), IO (Set Branch.Hash))
       rootBranchUpdates = error "todo"
