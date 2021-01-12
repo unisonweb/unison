@@ -439,15 +439,23 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
       V1.Causal.Cons (h1to22 -> (hc, hb)) e (ht, mt) -> V2.Causal hc hb (Map.singleton (h1to2 ht) (causal1to2 h1to22 h1to2 e1to2 <$> mt)) (e1to2 e)
       V1.Causal.Merge (h1to22 -> (hc, hb)) e parents -> V2.Causal hc hb (Map.bimap h1to2 (causal1to2 h1to22 h1to2 e1to2 <$>) parents) (e1to2 e)
 
-    branch1to2 :: forall m. V1.Branch.Branch0 m -> m (V2.Branch.Branch m)
-    branch1to2 = error "todo"
+    branch1to2 :: forall m. Applicative m => V1.Branch.Branch0 m -> m (V2.Branch.Branch m)
+    branch1to2 b = do
+      terms <- pure $ doTerms (V1.Branch._terms b)
+      types <- pure $ doTypes (V1.Branch._types b)
+      patches <- pure $ doPatches (V1.Branch._edits b)
+      children <- pure $ doChildren (V1.Branch._children b)
+      pure $ V2.Branch.Branch terms types patches children
+      where 
+        doTerms :: V1.Branch.Star V1.Referent.Referent V1.NameSegment -> Map V2.Branch.NameSegment (Map V2.Referent.Referent (m V2.Branch.MdValues))
+        doTypes :: V1.Branch.Star V1.Reference.Reference V1.NameSegment -> Map V2.Branch.NameSegment (Map V2.Reference.Reference (m V2.Branch.MdValues))
+        doPatches :: Map V1.NameSegment (V1.Branch.EditHash, m V1.Patch) -> Map V2.Branch.NameSegment (V2.PatchHash, m V2.Branch.Patch)
+        doChildren :: Map V1.NameSegment (V1.Branch.Branch m) -> Map V2.Branch.NameSegment (V2.Branch.Causal m)
+        doTerms = undefined
+        doTypes = undefined
+        doPatches = undefined
+        doChildren = undefined
 
--- data V2.Branch m = Branch
---   { terms :: Map NameSegment (Map Referent (m MdValues)),
---     types :: Map NameSegment (Map Reference (m MdValues)),
---     patches :: Map NameSegment (PatchHash, m Patch),
---     children :: Map NameSegment (Causal m)
---   }
 
 patch2to1 ::
   forall m.
