@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #aokhru3upu
+  ⊙ #jbhdljmi7v
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #07lio3nger
+  ⊙ #uakdcfm2u5
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #jh0ai3ctth
+  ⊙ #r5r1om842c
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #srgjtgfm9a
+  ⊙ #tu3rnqeadl
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #p7j317tb68
+  ⊙ #4jeq84bidc
   
     + Adds / updates:
     
       x
   
-  ⊙ #ce9gjk322r
+  ⊙ #ccsulaho8t
   
     + Adds / updates:
     
@@ -263,10 +263,11 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.IO.renameFile builtin.io2.IO.seekHandle
       builtin.io2.IO.serverSocket builtin.io2.IO.setBuffering
       builtin.io2.IO.setCurrentDirectory
-      builtin.io2.IO.socketAccept builtin.io2.IO.socketReceive
-      builtin.io2.IO.socketSend builtin.io2.IO.stdHandle
-      builtin.io2.IO.systemTime builtin.io2.IOError
-      builtin.io2.IOError.AlreadyExists builtin.io2.IOError.EOF
+      builtin.io2.IO.socketAccept builtin.io2.IO.socketPort
+      builtin.io2.IO.socketReceive builtin.io2.IO.socketSend
+      builtin.io2.IO.stdHandle builtin.io2.IO.systemTime
+      builtin.io2.IOError builtin.io2.IOError.AlreadyExists
+      builtin.io2.IOError.EOF
       builtin.io2.IOError.IllegalOperation
       builtin.io2.IOError.NoSuchThing
       builtin.io2.IOError.PermissionDenied
@@ -285,13 +286,19 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.StdHandle.StdIn builtin.io2.StdHandle.StdOut
       builtin.io2.ThreadId builtin.io2.Tls
       builtin.io2.Tls.ClientConfig
-      builtin.io2.Tls.Config.defaultClient
-      builtin.io2.Tls.Config.defaultServer
-      builtin.io2.Tls.ServerConfig builtin.io2.Tls.handshake
-      builtin.io2.Tls.newClient builtin.io2.Tls.newServer
-      builtin.io2.Tls.receive builtin.io2.Tls.send
-      builtin.io2.Tls.terminate builtin.io2.TlsFailure
-      builtin.todo
+      builtin.io2.Tls.ClientConfig.certificates.set
+      builtin.io2.Tls.ClientConfig.default
+      builtin.io2.Tls.ServerConfig
+      builtin.io2.Tls.ServerConfig.certificates.set
+      builtin.io2.Tls.ServerConfig.default
+      builtin.io2.Tls.SignedCert##Tls.SignedCert
+      builtin.io2.Tls.SignedCert#k0p
+      builtin.io2.Tls.SignedCert.SignedCert
+      builtin.io2.Tls.decodeCert builtin.io2.Tls.encodeCert
+      builtin.io2.Tls.handshake builtin.io2.Tls.newClient
+      builtin.io2.Tls.newServer builtin.io2.Tls.receive
+      builtin.io2.Tls.send builtin.io2.Tls.terminate
+      builtin.io2.TlsFailure builtin.todo
   
   □ #7asfbtqmoj (start of history)
 

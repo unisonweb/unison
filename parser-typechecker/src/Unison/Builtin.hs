@@ -535,7 +535,7 @@ ioBuiltins =
   , ("IO.socketSend.v2", socket --> bytes --> iof unit)
   , ("IO.socketReceive.v2", socket --> nat --> iof bytes)
   , ("IO.forkComp.v2"
-    , forall1 "a" $ \a -> (unit --> iof a) --> io threadId)
+    , forall1 "a" $ \a -> (unit --> io a) --> io threadId)
   , ("IO.stdHandle", stdhandle --> handle)
 
   , ("IO.delay.v2", nat --> iof unit)

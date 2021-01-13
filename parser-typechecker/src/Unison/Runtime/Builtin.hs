@@ -1252,7 +1252,7 @@ builtinLookup
 
   , ("jumpCont", jumpk)
 
-  , ("IO.forkComp", fork'comp)
+  , ("IO.forkComp.v2", fork'comp)
 
   , ("Code.isMissing", code'missing)
   , ("Code.cache_", code'cache)
@@ -1278,7 +1278,7 @@ mkForeignIOF f = mkForeign $ \a -> tryIOE (f a)
   tryIOE :: IO a -> IO (Either Failure a)
   tryIOE = fmap handleIOE . try
   handleIOE :: Either IOException a -> Either Failure a
-  handleIOE (Left e) = Left $ Failure ioFailureReference (pack (show e))
+  handleIOE (Left e) = Left $ traceShow e $ Failure ioFailureReference (pack (show e))
   handleIOE (Right a) = Right a
 
 mkForeignTls
@@ -1376,15 +1376,15 @@ declareForeigns = do
         return (fromIntegral n :: Word64)
 
   declareForeign "IO.listen.v2" boxToEF0
-    . mkForeignIOF $ \sk -> SYS.listenSock sk 2048
+    . mkForeignIOF $ \sk -> SYS.listenSock sk 2
 
-  declareForeign "IO.clientSocket.v2" boxBoxDirect
+  declareForeign "IO.clientSocket.v2" boxBoxToEFBox
     . mkForeignIOF $ fmap fst . uncurry SYS.connectSock
 
   declareForeign "IO.closeSocket.v2" boxToEF0
     $ mkForeignIOF SYS.closeSock
 
-  declareForeign "IO.socketAccept.v2" boxDirect
+  declareForeign "IO.socketAccept.v2" boxToEFBox
     . mkForeignIOF $ fmap fst . SYS.accept
 
   declareForeign "IO.socketSend.v2" boxBoxToEF0

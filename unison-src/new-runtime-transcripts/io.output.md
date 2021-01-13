@@ -411,7 +411,7 @@ testSystemTime : '{io2.IO} [Result]
 testSystemTime _ =
   test = 'let
     t = toException !io2.IO.systemTime
-    check "systemTime should be sane" ((t > 1600000000) && (t > 2000000000))
+    check "systemTime should be sane" ((t > 1600000000) && (t < 2000000000))
 
   runTest test
 ```
