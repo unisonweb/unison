@@ -306,8 +306,9 @@ exec !env !denv !ustk !bstk !k (Fork i) = do
   poke bstk . Foreign . Wrap Rf.threadIdReference $ tid
   pure (denv, ustk, bstk, k)
 exec !env !denv !ustk !bstk !k (Atomically i) = do
+  c <- peekOff bstk i
   bstk <- bump bstk
-  atomicEval env (poke bstk) =<< peekOff bstk i
+  atomicEval env (poke bstk) c
   pure (denv, ustk, bstk, k)
 {-# inline exec #-}
 
