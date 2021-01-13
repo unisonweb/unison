@@ -445,7 +445,7 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
       V1.Causal.Cons (h1to22 -> (hc, hb)) e (ht, mt) -> V2.Causal hc hb (Map.singleton (h1to2 ht) (causal1to2 h1to22 h1to2 e1to2 <$> mt)) (e1to2 e)
       V1.Causal.Merge (h1to22 -> (hc, hb)) e parents -> V2.Causal hc hb (Map.bimap h1to2 (causal1to2 h1to22 h1to2 e1to2 <$>) parents) (e1to2 e)
 
-    branch1to2 :: forall m. Applicative m => V1.Branch.Branch0 m -> m (V2.Branch.Branch m)
+    branch1to2 :: forall m. Monad m => V1.Branch.Branch0 m -> m (V2.Branch.Branch m)
     branch1to2 b = do
       terms <- pure $ doTerms (V1.Branch._terms b)
       types <- pure $ doTypes (V1.Branch._types b)
@@ -453,6 +453,7 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
       children <- pure $ doChildren (V1.Branch._children b)
       pure $ V2.Branch.Branch terms types patches children
       where
+        -- is there a more readable way to structure these that's also linear?
         doTerms :: V1.Branch.Star V1.Referent.Referent V1.NameSegment -> Map V2.Branch.NameSegment (Map V2.Referent.Referent (m V2.Branch.MdValues))
         doTerms s =
           Map.fromList
@@ -469,11 +470,25 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
             ]
 
         doTypes :: V1.Branch.Star V1.Reference.Reference V1.NameSegment -> Map V2.Branch.NameSegment (Map V2.Reference.Reference (m V2.Branch.MdValues))
+        doTypes s =
+          Map.fromList
+            [ (namesegment1to2 ns, m2)
+              | ns <- toList . Relation.ran $ V1.Star3.d1 s
+              , let m2 =
+                      Map.fromList
+                        [ (reference1to2 r, pure md)
+                          | r <- toList . Relation.lookupRan ns $ V1.Star3.d1 s
+                          , let 
+                              mdrefs1to2 (typeR1, valR1) = (reference1to2 valR1, reference1to2 typeR1)
+                              md = V2.Branch.MdValues . Map.fromList . map mdrefs1to2 . toList . Relation.lookupDom r $ V1.Star3.d3 s
+                        ]
+            ]
+
         doPatches :: Map V1.NameSegment (V1.Branch.EditHash, m V1.Patch) -> Map V2.Branch.NameSegment (V2.PatchHash, m V2.Branch.Patch)
+        doPatches = Map.bimap namesegment1to2 (bimap edithash1to2 (fmap patch1to2))
+
         doChildren :: Map V1.NameSegment (V1.Branch.Branch m) -> Map V2.Branch.NameSegment (V2.Branch.Causal m)
-        doTypes = undefined
-        doPatches = undefined
-        doChildren = undefined
+        doChildren = Map.bimap namesegment1to2 causalbranch1to2
 
 patch2to1 ::
   forall m.
@@ -505,8 +520,29 @@ patch2to1 lookupSize (V2.Branch.Patch v2termedits v2typeedits) = do
       V2.TermEdit.Subtype -> V1.TermEdit.Subtype
       V2.TermEdit.Different -> V1.TermEdit.Different
 
+patch1to2 :: V1.Patch -> V2.Branch.Patch
+patch1to2 (V1.Patch v1termedits v1typeedits) = V2.Branch.Patch v2termedits v2typeedits
+  where 
+    v2termedits = Map.bimap (V2.Referent.Ref . reference1to2) (Set.map termedit1to2) $ Relation.domain v1termedits
+    v2typeedits = Map.bimap reference1to2 (Set.map typeedit1to2) $ Relation.domain v1typeedits
+    termedit1to2 :: V1.TermEdit.TermEdit -> V2.TermEdit.TermEdit
+    termedit1to2 = \case
+      V1.TermEdit.Replace r t -> V2.TermEdit.Replace (V2.Referent.Ref (reference1to2 r)) (typing1to2 t)
+      V1.TermEdit.Deprecate -> V2.TermEdit.Deprecate
+    typeedit1to2 :: V1.TypeEdit.TypeEdit -> V2.TypeEdit.TypeEdit
+    typeedit1to2 = \case
+      V1.TypeEdit.Replace r -> V2.TypeEdit.Replace (reference1to2 r)
+      V1.TypeEdit.Deprecate -> V2.TypeEdit.Deprecate
+    typing1to2 = \case
+      V1.TermEdit.Same -> V2.TermEdit.Same
+      V1.TermEdit.Subtype -> V2.TermEdit.Subtype
+      V1.TermEdit.Different -> V2.TermEdit.Different
+
 edithash2to1 :: V2.PatchHash -> V1.Branch.EditHash
 edithash2to1 = hash2to1 . V2.unPatchHash
+
+edithash1to2 :: V1.Branch.EditHash -> V2.PatchHash
+edithash1to2 = V2.PatchHash . hash1to2
 
 namesegment2to1 :: V2.Branch.NameSegment -> V1.NameSegment
 namesegment2to1 (V2.Branch.NameSegment t) = V1.NameSegment t
