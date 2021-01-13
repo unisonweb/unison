@@ -4,8 +4,10 @@ module Unison.Codebase.SqliteCodebase.Conversions where
 
 import Control.Monad (foldM)
 import Data.Bifunctor (Bifunctor (bimap))
+import Data.Bitraversable (Bitraversable (bitraverse))
 import qualified Data.ByteString.Short as SBS
 import Data.Either (fromRight)
+import Data.Foldable (Foldable (toList))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -22,7 +24,9 @@ import qualified U.Codebase.Referent as V2.Referent
 import qualified U.Codebase.ShortHash as V2
 import qualified U.Codebase.Sqlite.Symbol as V2
 import qualified U.Codebase.Term as V2.Term
+import qualified U.Codebase.TermEdit as V2.TermEdit
 import qualified U.Codebase.Type as V2.Type
+import qualified U.Codebase.TypeEdit as V2.TypeEdit
 import qualified U.Codebase.WatchKind as V2
 import qualified U.Codebase.WatchKind as V2.WatchKind
 import qualified U.Core.ABT as V2.ABT
@@ -36,6 +40,8 @@ import qualified Unison.Codebase.Causal as V1.Causal
 import qualified Unison.Codebase.Metadata as V1.Metadata
 import qualified Unison.Codebase.Patch as V1
 import qualified Unison.Codebase.ShortBranchHash as V1
+import qualified Unison.Codebase.TermEdit as V1.TermEdit
+import qualified Unison.Codebase.TypeEdit as V1.TypeEdit
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as V1.Decl
 import Unison.Hash (Hash)
@@ -56,11 +62,6 @@ import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Star3 as V1.Star3
 import qualified Unison.Var as V1.Var
 import qualified Unison.Var as Var
-import Data.Bitraversable (Bitraversable(bitraverse))
-import qualified U.Codebase.TermEdit as V2.TermEdit
-import qualified Unison.Codebase.TermEdit as V1.TermEdit
-import qualified U.Codebase.TypeEdit as V2.TypeEdit
-import qualified Unison.Codebase.TypeEdit as V1.TypeEdit
 
 sbh1to2 :: V1.ShortBranchHash -> V2.ShortBranchHash
 sbh1to2 (V1.ShortBranchHash b32) = V2.ShortBranchHash b32
@@ -329,6 +330,11 @@ referent2to1 lookupSize lookupCT = \case
   V2.Ref r -> V1.Ref <$> reference2to1 lookupSize r
   V2.Con r i -> V1.Con <$> reference2to1 lookupSize r <*> pure (fromIntegral i) <*> lookupCT r
 
+referent1to2 :: V1.Referent -> V2.Referent
+referent1to2 = \case
+  V1.Ref r -> V2.Ref $ reference1to2 r
+  V1.Con r i _ct -> V2.Con (reference1to2 r) (fromIntegral i)
+
 referentid2to1 :: Applicative m => (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Referent.Id -> m V1.Referent.Id
 referentid2to1 lookupSize lookupCT = \case
   V2.RefId r -> V1.Ref' <$> referenceid2to1 lookupSize r
@@ -418,15 +424,15 @@ causalbranch2to1' lookupSize lookupCT (V2.Causal hc _he (Map.toList -> parents) 
       e <- me
       V1.Causal.Merge currentHash <$> branch2to1 lookupSize lookupCT e <*> pure (Map.fromList tailsList)
 
-
 causalbranch1to2 :: forall m. Monad m => V1.Branch.Branch m -> V2.Branch.Causal m
 causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1to2 c
-  where 
+  where
     hash1to2cb :: V1.Branch.Hash -> (V2.CausalHash, V2.BranchHash)
-    hash1to2cb (V1.Causal.RawHash h) = (hc, hb) where
-      h2 = hash1to2 h
-      hc = V2.CausalHash h2
-      hb = V2.BranchHash h2
+    hash1to2cb (V1.Causal.RawHash h) = (hc, hb)
+      where
+        h2 = hash1to2 h
+        hc = V2.CausalHash h2
+        hb = V2.BranchHash h2
 
     hash1to2c :: V1.Branch.Hash -> V2.CausalHash
     hash1to2c = V2.CausalHash . hash1to2 . V1.Causal.unRawHash
@@ -446,16 +452,28 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
       patches <- pure $ doPatches (V1.Branch._edits b)
       children <- pure $ doChildren (V1.Branch._children b)
       pure $ V2.Branch.Branch terms types patches children
-      where 
+      where
         doTerms :: V1.Branch.Star V1.Referent.Referent V1.NameSegment -> Map V2.Branch.NameSegment (Map V2.Referent.Referent (m V2.Branch.MdValues))
+        doTerms s =
+          Map.fromList
+            [ (namesegment1to2 ns, m2)
+              | ns <- toList . Relation.ran $ V1.Star3.d1 s
+              , let m2 =
+                      Map.fromList
+                        [ (referent1to2 r, pure md)
+                          | r <- toList . Relation.lookupRan ns $ V1.Star3.d1 s
+                          , let 
+                              mdrefs1to2 (typeR1, valR1) = (reference1to2 valR1, reference1to2 typeR1)
+                              md = V2.Branch.MdValues . Map.fromList . map mdrefs1to2 . toList . Relation.lookupDom r $ V1.Star3.d3 s
+                        ]
+            ]
+
         doTypes :: V1.Branch.Star V1.Reference.Reference V1.NameSegment -> Map V2.Branch.NameSegment (Map V2.Reference.Reference (m V2.Branch.MdValues))
         doPatches :: Map V1.NameSegment (V1.Branch.EditHash, m V1.Patch) -> Map V2.Branch.NameSegment (V2.PatchHash, m V2.Branch.Patch)
         doChildren :: Map V1.NameSegment (V1.Branch.Branch m) -> Map V2.Branch.NameSegment (V2.Branch.Causal m)
-        doTerms = undefined
         doTypes = undefined
         doPatches = undefined
         doChildren = undefined
-
 
 patch2to1 ::
   forall m.
@@ -471,12 +489,12 @@ patch2to1 lookupSize (V2.Branch.Patch v2termedits v2typeedits) = do
     referent2to1' :: V2.Referent -> m V1.Reference
     referent2to1' = \case
       V2.Referent.Ref r -> reference2to1 lookupSize r
-      V2.Referent.Con{} -> error "found referent on LHS when converting patch2to1"
+      V2.Referent.Con {} -> error "found referent on LHS when converting patch2to1"
     termedit2to1 :: V2.TermEdit.TermEdit -> m V1.TermEdit.TermEdit
     termedit2to1 = \case
       V2.TermEdit.Replace (V2.Referent.Ref r) t ->
         V1.TermEdit.Replace <$> reference2to1 lookupSize r <*> typing2to1 t
-      V2.TermEdit.Replace{} -> error "found referent on RHS when converting patch2to1"
+      V2.TermEdit.Replace {} -> error "found referent on RHS when converting patch2to1"
       V2.TermEdit.Deprecate -> pure V1.TermEdit.Deprecate
     typeedit2to1 :: V2.TypeEdit.TypeEdit -> m V1.TypeEdit.TypeEdit
     typeedit2to1 = \case
@@ -492,6 +510,9 @@ edithash2to1 = hash2to1 . V2.unPatchHash
 
 namesegment2to1 :: V2.Branch.NameSegment -> V1.NameSegment
 namesegment2to1 (V2.Branch.NameSegment t) = V1.NameSegment t
+
+namesegment1to2 :: V1.NameSegment -> V2.Branch.NameSegment
+namesegment1to2 (V1.NameSegment t) = V2.Branch.NameSegment t
 
 branch2to1 ::
   Monad m =>
