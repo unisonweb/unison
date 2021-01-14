@@ -1253,7 +1253,7 @@ builtinLookup
 
   , ("jumpCont", jumpk)
 
-  , ("IO.forkComp", fork'comp)
+  , ("IO.forkComp.v2", fork'comp)
 
   , ("Code.isMissing", code'missing)
   , ("Code.cache_", code'cache)
