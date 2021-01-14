@@ -1454,6 +1454,9 @@ declareForeigns = do
   declareForeign "TVar.readIO" boxDirect . mkForeign
     $ \(v :: STM.TVar Closure) -> STM.readTVarIO v
 
+  declareForeign "TVar.swap" boxBoxDirect . mkForeign
+    $ \(v, c :: Closure) -> unsafeSTMToIO $ STM.swapTVar v c
+
   declareForeign "STM.retry" unitDirect . mkForeign
     $ \() -> unsafeSTMToIO STM.retry :: IO Closure
 

@@ -590,6 +590,7 @@ stmBuiltins =
   , ("TVar.read", forall1 "a" $ \a -> tvar a --> stm a)
   , ("TVar.readIO", forall1 "a" $ \a -> tvar a --> io a)
   , ("TVar.write", forall1 "a" $ \a -> tvar a --> a --> stm unit)
+  , ("TVar.swap", forall1 "a" $ \a -> tvar a --> a --> stm a)
   , ("STM.retry", forall1 "a" $ \a -> unit --> stm a)
   , ("STM.atomically", forall1 "a" $ \a -> (unit --> stm a) --> io a)
   ]
