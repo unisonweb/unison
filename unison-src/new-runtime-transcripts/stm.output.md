@@ -112,18 +112,19 @@ spawn : Nat ->{IO} Result
 spawn k = let
   out1 = TVar.newIO None
   out2 = TVar.newIO None
-  counter = TVar.newIO 0
+  counter = atomically '(TVar.new 0)
   forkComp '(Right (body k out1 counter))
   forkComp '(Right (body k out2 counter))
   p = atomically 'let
     r1 = TVar.read out1
-    r2 = TVar.read out2
+    r2 = TVar.swap out2 None
     match (r1, r2) with
       (Some m, Some n) -> (m, n)
       _ -> !STM.retry
+  max = TVar.readIO counter
   match p with (m, n) ->
     sum : Nat
-    sum = k * drop (2*k) 1
+    sum = max * drop max 1 / 2
     if m+n == sum
     then Ok "verified"
     else Fail (display m n sum)
