@@ -10,6 +10,7 @@ module Unison.Runtime.Machine where
 import GHC.Stack
 
 import Control.Concurrent.STM as STM
+import GHC.Conc as STM (unsafeIOToSTM)
 
 import Data.Maybe (fromMaybe)
 
@@ -304,6 +305,11 @@ exec !env !denv !ustk !bstk !k (Fork i) = do
   bstk <- bump bstk
   poke bstk . Foreign . Wrap Rf.threadIdReference $ tid
   pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (Atomically i) = do
+  c <- peekOff bstk i
+  bstk <- bump bstk
+  atomicEval env (poke bstk) c
+  pure (denv, ustk, bstk, k)
 {-# inline exec #-}
 
 eval :: CCache -> DEnv
@@ -355,6 +361,14 @@ forkEval env clo
     DataB1 _ 0 e -> throwIO $ BU e
     _ -> pure ()
 {-# inline forkEval #-}
+
+atomicEval :: CCache -> (Closure -> IO ()) -> Closure -> IO ()
+atomicEval env write clo
+  = atomically . unsafeIOToSTM $ apply1 readBack env clo
+  where
+  readBack :: Stack 'UN -> Stack 'BX -> IO ()
+  readBack _ bstk = peek bstk >>= write
+{-# inline atomicEval #-}
 
 -- fast path application
 enter

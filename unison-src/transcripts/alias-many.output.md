@@ -327,35 +327,45 @@ Let's try it!
   280. io2.MVar.tryPut : MVar a -> a ->{IO} Boolean
   281. io2.MVar.tryRead : MVar a ->{IO} Optional a
   282. io2.MVar.tryTake : MVar a ->{IO} Optional a
-  283. unique type io2.SeekMode
-  284. io2.SeekMode.AbsoluteSeek : SeekMode
-  285. io2.SeekMode.RelativeSeek : SeekMode
-  286. io2.SeekMode.SeekFromEnd : SeekMode
-  287. builtin type io2.Socket
-  288. unique type io2.StdHandle
-  289. io2.StdHandle.StdErr : StdHandle
-  290. io2.StdHandle.StdIn : StdHandle
-  291. io2.StdHandle.StdOut : StdHandle
-  292. builtin type io2.ThreadId
-  293. builtin type io2.Tls
-  294. builtin type io2.Tls.ClientConfig
-  295. io2.Tls.Config.defaultClient : Text
+  283. builtin type io2.STM
+  284. io2.STM.atomically : '{STM} a ->{IO} a
+  285. io2.STM.retry : '{STM} a
+  286. unique type io2.SeekMode
+  287. io2.SeekMode.AbsoluteSeek : SeekMode
+  288. io2.SeekMode.RelativeSeek : SeekMode
+  289. io2.SeekMode.SeekFromEnd : SeekMode
+  290. builtin type io2.Socket
+  291. unique type io2.StdHandle
+  292. io2.StdHandle.StdErr : StdHandle
+  293. io2.StdHandle.StdIn : StdHandle
+  294. io2.StdHandle.StdOut : StdHandle
+  295. builtin type io2.TVar
+  296. io2.TVar.new : a ->{STM} TVar a
+  297. io2.TVar.newIO : a ->{IO} TVar a
+  298. io2.TVar.read : TVar a ->{STM} a
+  299. io2.TVar.readIO : TVar a ->{IO} a
+  300. io2.TVar.swap : TVar a -> a ->{STM} a
+  301. io2.TVar.write : TVar a -> a ->{STM} ()
+  302. builtin type io2.ThreadId
+  303. builtin type io2.Tls
+  304. builtin type io2.Tls.ClientConfig
+  305. io2.Tls.Config.defaultClient : Text
                                       -> Bytes
                                       -> ClientConfig
-  296. io2.Tls.Config.defaultServer : ServerConfig
-  297. builtin type io2.Tls.ServerConfig
-  298. io2.Tls.handshake : Tls ->{IO} Either Failure ()
-  299. io2.Tls.newClient : ClientConfig
+  306. io2.Tls.Config.defaultServer : ServerConfig
+  307. builtin type io2.Tls.ServerConfig
+  308. io2.Tls.handshake : Tls ->{IO} Either Failure ()
+  309. io2.Tls.newClient : ClientConfig
                            -> Socket
                            ->{IO} Either Failure Tls
-  300. io2.Tls.newServer : ServerConfig
+  310. io2.Tls.newServer : ServerConfig
                            -> Socket
                            ->{IO} Either Failure Tls
-  301. io2.Tls.receive : Tls ->{IO} Either Failure Bytes
-  302. io2.Tls.send : Tls -> Bytes ->{IO} Either Failure ()
-  303. io2.Tls.terminate : Tls ->{IO} Either Failure ()
-  304. unique type io2.TlsFailure
-  305. todo : a -> b
+  311. io2.Tls.receive : Tls ->{IO} Either Failure Bytes
+  312. io2.Tls.send : Tls -> Bytes ->{IO} Either Failure ()
+  313. io2.Tls.terminate : Tls ->{IO} Either Failure ()
+  314. unique type io2.TlsFailure
+  315. todo : a -> b
   
 
 .builtin> alias.many 94-104 .mylib

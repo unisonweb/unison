@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #aokhru3upu
+  ⊙ #jveabemtq1
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #07lio3nger
+  ⊙ #7b9hnqhg1a
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #jh0ai3ctth
+  ⊙ #9uq6gq1qom
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #srgjtgfm9a
+  ⊙ #ud99pde6kg
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #p7j317tb68
+  ⊙ #p2oj9d11gn
   
     + Adds / updates:
     
       x
   
-  ⊙ #ce9gjk322r
+  ⊙ #68eq6ets4v
   
     + Adds / updates:
     
@@ -278,13 +278,18 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.MVar.read builtin.io2.MVar.swap
       builtin.io2.MVar.take builtin.io2.MVar.tryPut
       builtin.io2.MVar.tryRead builtin.io2.MVar.tryTake
-      builtin.io2.SeekMode builtin.io2.SeekMode.AbsoluteSeek
+      builtin.io2.STM builtin.io2.STM.atomically
+      builtin.io2.STM.retry builtin.io2.SeekMode
+      builtin.io2.SeekMode.AbsoluteSeek
       builtin.io2.SeekMode.RelativeSeek
       builtin.io2.SeekMode.SeekFromEnd builtin.io2.Socket
       builtin.io2.StdHandle builtin.io2.StdHandle.StdErr
       builtin.io2.StdHandle.StdIn builtin.io2.StdHandle.StdOut
-      builtin.io2.ThreadId builtin.io2.Tls
-      builtin.io2.Tls.ClientConfig
+      builtin.io2.TVar builtin.io2.TVar.new
+      builtin.io2.TVar.newIO builtin.io2.TVar.read
+      builtin.io2.TVar.readIO builtin.io2.TVar.swap
+      builtin.io2.TVar.write builtin.io2.ThreadId
+      builtin.io2.Tls builtin.io2.Tls.ClientConfig
       builtin.io2.Tls.Config.defaultClient
       builtin.io2.Tls.Config.defaultServer
       builtin.io2.Tls.ServerConfig builtin.io2.Tls.handshake

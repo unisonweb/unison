@@ -417,7 +417,13 @@ data Instr
   -- Put a delimiter on the continuation
   | Reset !(EnumSet Word64) -- prompt ids
 
+  -- Fork thread evaluating delayed computation on boxed stack
   | Fork !Int
+
+  -- Atomic transaction evaluating delayed computation on boxed stack
+  | Atomically !Int
+
+  -- Build a sequence consisting of a variable number of arguments
   | Seq !Args
   deriving (Show, Eq, Ord)
 
@@ -1059,6 +1065,9 @@ emitPOp ANF.BLDS = Seq
 emitPOp ANF.FORK = \case
   BArg1 i -> Fork i
   _ -> error "fork takes exactly one boxed argument"
+emitPOp ANF.ATOM = \case
+  BArg1 i -> Atomically i
+  _ -> error "atomically takes exactly one boxed argument"
 emitPOp ANF.PRNT = \case
   BArg1 i -> Print i
   _ -> error "print takes exactly one boxed argument"
