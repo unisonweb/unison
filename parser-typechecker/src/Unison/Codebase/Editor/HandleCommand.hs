@@ -88,10 +88,9 @@ commandLine
   -> (SourceName -> IO LoadSourceResult)
   -> Codebase IO v Ann
   -> (Int -> IO gen)
-  -> Branch.Cache IO
   -> Free (Command IO i v) a
   -> IO a
-commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase rngGen branchCache =
+commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase rngGen =
  Free.foldWithIndex go
  where
   go :: forall x . Int -> Command IO i v x -> IO x
@@ -121,11 +120,11 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       setBranchRef branch
       Codebase.putRootBranch codebase branch
     ViewRemoteBranch ns ->
-      runExceptT $ Git.viewRemoteBranch branchCache ns
+      runExceptT $ Git.viewRemoteBranch undefined ns
     ImportRemoteBranch ns syncMode ->
-      runExceptT $ Git.importRemoteBranch codebase branchCache ns syncMode
+      runExceptT $ Git.importRemoteBranch codebase undefined ns syncMode
     SyncRemoteRootBranch repo branch syncMode ->
-      runExceptT $ Git.pushGitRootBranch codebase branchCache branch repo syncMode
+      runExceptT $ Git.pushGitRootBranch codebase undefined branch repo syncMode
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r

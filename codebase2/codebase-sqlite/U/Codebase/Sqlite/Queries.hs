@@ -15,6 +15,7 @@
 
 module U.Codebase.Sqlite.Queries where
 
+import Control.Monad (filterM)
 import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader (MonadReader (ask))
@@ -22,7 +23,7 @@ import Control.Monad.Trans (MonadIO (liftIO))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Data.ByteString (ByteString)
 import Data.Maybe (fromJust)
-import Data.String.Here.Uninterpolated (here)
+import Data.String.Here.Uninterpolated (here, hereFile)
 import Data.Text (Text)
 import Database.SQLite.Simple (Connection, FromRow, Only (..), SQLData, ToRow (..), (:.) (..))
 import qualified Database.SQLite.Simple as SQLite
@@ -73,6 +74,49 @@ type TypeHashReference = Reference' TextId HashId
 
 -- * main squeeze
 
+createSchema :: DB m => m ()
+createSchema = do
+  execute_ [hereFile|sql/create.sql|]
+  execute_ [hereFile|sql/create-index.sql|]
+
+setFlags :: DB m => m ()
+setFlags = execute_ [here|
+  PRAGMA foreign_keys = ON;
+|]
+
+type SchemaType = String
+type SchemaName = String
+checkForMissingSchema :: DB m => m [(SchemaType, SchemaName)]
+checkForMissingSchema = filterM missing schema
+  where
+    missing (t, n) = null @[] @(Only Int) <$> query sql (t,n)
+    sql = "SELECT 1 FROM sqlite_master WHERE type = ? and name = ?"
+    schema = 
+      [("table", "hash")
+      ,("index", "hash_base32")
+      ,("table", "text")
+      ,("table", "hash_object")
+      ,("index", "hash_object_hash_id")
+      ,("index", "hash_object_object_id")
+      ,("table", "object_type_description")
+      ,("table", "object")
+      ,("index", "object_hash_id")
+      ,("index", "object_type_id")
+      ,("table", "causal")
+      ,("index", "causal_value_hash_id")
+      ,("index", "causal_gc_generation")
+      ,("table", "namespace_root")
+      ,("table", "causal_parent")
+      ,("index", "causal_parent_causal_id")
+      ,("index", "causal_parent_parent_id")
+      -- ,("table", "causal_old")
+      ,("table", "watch_result")
+      ,("table", "watch")
+      ,("index", "watch_kind")
+      ,("table", "watch_kind_description")
+      ]
+
+{- ORMOLU_DISABLE -}
 saveHash :: DB m => Base32Hex -> m HashId
 saveHash base32 = execute sql (Only base32) >> queryOne (loadHashId base32)
   where sql = [here| INSERT OR IGNORE INTO hash (base32) VALUES (?) |]
@@ -401,6 +445,7 @@ namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") whe
   INNER JOIN hash ON id = value_hash_id
   WHERE base32 LIKE ?
 |]
+{- ORMOLU_ENABLE -}
 
 -- * helper functions
 
@@ -423,6 +468,9 @@ query q r = do c <- ask; liftIO $ SQLite.query c q r
 execute :: (DB m, ToRow q) => SQLite.Query -> q -> m ()
 execute q r = do c <- ask; liftIO $ SQLite.execute c q r
 
+execute_ :: DB m => SQLite.Query -> m ()
+execute_ q = do c <- ask; liftIO $ SQLite.execute_ c q
+
 executeMany :: (DB m, ToRow q) => SQLite.Query -> [q] -> m ()
 executeMany q r = do c <- ask; liftIO $ SQLite.executeMany c q r
 
@@ -444,3 +492,4 @@ instance ToField WatchKind where
   toField = \case
     WatchKind.RegularWatch -> SQLite.SQLInteger 0
     WatchKind.TestWatch -> SQLite.SQLInteger 1
+

@@ -13,11 +13,9 @@ import           Data.Configurator.Types        ( Config )
 import           System.Directory               ( getCurrentDirectory, removeDirectoryRecursive )
 import           System.Environment             ( getArgs, getProgName )
 import           System.Mem.Weak                ( deRefWeak )
-import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Editor.VersionParser as VP
 import           Unison.Codebase.Execute        ( execute )
-import qualified Unison.Codebase.FileCodebase  as FileCodebase
-import           Unison.Codebase.FileCodebase.Common ( codebasePath )
+import qualified Unison.Codebase.SqliteCodebase as SqliteCodebase
 import           Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 import           Unison.Codebase.Runtime        ( Runtime )
 import           Unison.CommandLine             ( watchConfig )
@@ -26,7 +24,6 @@ import qualified Unison.Runtime.Rt1IO          as Rt1
 import qualified Unison.Runtime.Interface      as RTI
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Codebase.Path          as Path
-import qualified Unison.Util.Cache             as Cache
 import qualified Version
 import qualified Unison.Codebase.TranscriptParser as TR
 import qualified System.Path as Path
@@ -143,81 +140,81 @@ main = do
            _ -> (Nothing, restargs0)
   currentDir <- getCurrentDirectory
   configFilePath <- getConfigFilePath mcodepath
-  config@(config_, _cancelConfig) <-
+  config <-
     catchIOError (watchConfig configFilePath) $ \_ ->
       Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
-  branchCacheSize :: Word <- Config.lookupDefault 4096 config_ "NamespaceCacheSize"
-  branchCache <- Cache.semispaceCache branchCacheSize
   case restargs of
     [] -> do
-      theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
-      launch currentDir mNewRun config theCodebase branchCache []
+      (closeCodebase, theCodebase) <- SqliteCodebase.getCodebaseOrExit mcodepath
+      launch currentDir mNewRun config theCodebase []
+      closeCodebase
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
-    ["init"] -> FileCodebase.initCodebaseAndExit mcodepath
+    ["init"] -> SqliteCodebase.initCodebaseAndExit mcodepath
     "run" : [mainName] -> do
-      theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
+      (closeCodebase, theCodebase) <- SqliteCodebase.getCodebaseOrExit mcodepath
       runtime <- join . getStartRuntime mNewRun $ fst config
       execute theCodebase runtime mainName
+      closeCodebase
     "run.file" : file : [mainName] | isDotU file -> do
       e <- safeReadUtf8 file
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
         Right contents -> do
-          theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
+          (closeCodebase, theCodebase) <- SqliteCodebase.getCodebaseOrExit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-          launch currentDir mNewRun config theCodebase branchCache [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+          launch currentDir mNewRun config theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+          closeCodebase
     "run.pipe" : [mainName] -> do
       e <- safeReadUtf8StdIn
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
-          theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
+          (closeCodebase, theCodebase) <- SqliteCodebase.getCodebaseOrExit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
-            currentDir mNewRun config theCodebase branchCache
+            currentDir mNewRun config theCodebase
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+          closeCodebase
     "transcript" : args' ->
       case args' of
-      "-save-codebase" : transcripts -> runTranscripts mNewRun branchCache False True mcodepath transcripts
-      _                              -> runTranscripts mNewRun branchCache False False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts mNewRun False True mcodepath transcripts
+      _                              -> runTranscripts mNewRun False False mcodepath args'
     "transcript.fork" : args' ->
       case args' of
-      "-save-codebase" : transcripts -> runTranscripts mNewRun branchCache True True mcodepath transcripts
-      _                              -> runTranscripts mNewRun branchCache True False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts mNewRun True True mcodepath transcripts
+      _                              -> runTranscripts mNewRun True False mcodepath args'
     _ -> do
       PT.putPrettyLn (usage progName)
       Exit.exitWith (Exit.ExitFailure 1)
 
-prepareTranscriptDir :: Branch.Cache IO -> Bool -> Maybe FilePath -> IO FilePath
-prepareTranscriptDir branchCache inFork mcodepath = do
+prepareTranscriptDir :: Bool -> Maybe FilePath -> IO FilePath
+prepareTranscriptDir inFork mcodepath = do
   tmp <- Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
   unless inFork $ do
     PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-    _ <- FileCodebase.initCodebase branchCache tmp
+    _ <- SqliteCodebase.initCodebase tmp
     pure()
 
-  when inFork $ FileCodebase.getCodebaseOrExit branchCache mcodepath >> do
-    path <- FileCodebase.getCodebaseDir mcodepath
+  when inFork $ SqliteCodebase.getCodebaseOrExit mcodepath >> do
+    path <- SqliteCodebase.getCodebaseDir mcodepath
     PT.putPrettyLn $ P.lines [
       P.wrap "Transcript will be run on a copy of the codebase at: ", "",
       P.indentN 2 (P.string path)
       ]
-    Path.copyDir (path FP.</> codebasePath) (tmp FP.</> codebasePath)
+    Path.copyDir (path FP.</> SqliteCodebase.codebasePath) (tmp FP.</> SqliteCodebase.codebasePath)
 
   pure tmp
 
 runTranscripts'
   :: Maybe Bool
-  -> Branch.Cache IO
   -> Maybe FilePath
   -> FilePath
   -> [String]
   -> IO Bool
-runTranscripts' mNewRun branchCache mcodepath transcriptDir args = do
+runTranscripts' mNewRun mcodepath transcriptDir args = do
   currentDir <- getCurrentDirectory
-  theCodebase <- FileCodebase.getCodebaseOrExit branchCache $ Just transcriptDir
   case args of
     args@(_:_) -> do
       for_ args $ \arg -> case arg of
@@ -231,7 +228,9 @@ runTranscripts' mNewRun branchCache mcodepath transcriptDir args = do
                   P.indentN 2 $ P.string err])
             Right stanzas -> do
               configFilePath <- getConfigFilePath mcodepath
-              mdOut <- TR.run mNewRun transcriptDir configFilePath stanzas theCodebase branchCache
+              (closeCodebase, theCodebase) <- SqliteCodebase.getCodebaseOrExit $ Just transcriptDir
+              mdOut <- TR.run mNewRun transcriptDir configFilePath stanzas theCodebase
+              closeCodebase
               let out = currentDir FP.</>
                          FP.addExtension (FP.dropExtension arg ++ ".output")
                                          (FP.takeExtension md)
@@ -248,17 +247,16 @@ runTranscripts' mNewRun branchCache mcodepath transcriptDir args = do
 
 runTranscripts
   :: Maybe Bool
-  -> Branch.Cache IO
   -> Bool
   -> Bool
   -> Maybe FilePath
   -> [String]
   -> IO ()
-runTranscripts mNewRun branchCache inFork keepTemp mcodepath args = do
+runTranscripts mNewRun inFork keepTemp mcodepath args = do
   progName <- getProgName
-  transcriptDir <- prepareTranscriptDir branchCache inFork mcodepath
+  transcriptDir <- prepareTranscriptDir inFork mcodepath
   completed <-
-    runTranscripts' mNewRun branchCache (Just transcriptDir) transcriptDir args
+    runTranscripts' mNewRun (Just transcriptDir) transcriptDir args
   when completed $ do
     unless keepTemp $ removeDirectoryRecursive transcriptDir
     when keepTemp $ PT.putPrettyLn $
@@ -288,12 +286,11 @@ launch
   -> Maybe Bool
   -> (Config, IO ())
   -> _
-  -> Branch.Cache IO
   -> [Either Input.Event Input.Input]
   -> IO ()
-launch dir newRun config code branchCache inputs = do
+launch dir newRun config code inputs = do
   startRuntime <- getStartRuntime newRun $ fst config
-  CommandLine.main dir defaultBaseLib initialPath config inputs startRuntime code branchCache Version.gitDescribe
+  CommandLine.main dir defaultBaseLib initialPath config inputs startRuntime code Version.gitDescribe
 
 isMarkdown :: String -> Bool
 isMarkdown md = case FP.takeExtension md of
@@ -310,7 +307,7 @@ isFlag :: String -> String -> Bool
 isFlag f arg = arg == f || arg == "-" ++ f || arg == "--" ++ f
 
 getConfigFilePath :: Maybe FilePath -> IO FilePath
-getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> FileCodebase.getCodebaseDir mcodepath
+getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> SqliteCodebase.getCodebaseDir mcodepath
 
 defaultBaseLib :: Maybe RemoteNamespace
 defaultBaseLib = rightMay $

@@ -7,9 +7,9 @@ next steps:
 - [x] `SqliteCodebase.Conversions.unsafecausalbranch2to1`
 - [x] `SqliteCodebase.getRootBranch`
 - [x] `SqliteCodebase.getBranchForHash`
-- [ ] Writing a branch
+- [x] Writing a branch
   - [x] `SqliteCodebase.Conversions.causalbranch1to2`
-  - [ ] `SqliteCodebase.putRootBranch`
+  - [x] `SqliteCodebase.putRootBranch`
 - [ ] Syncing a remote codebase
   - [ ] `SqliteCodebase.syncFromDirectory`
   - [ ] `SqliteCodebase.syncToDirectory`
@@ -27,10 +27,10 @@ next steps:
 | getTypeDeclaration      | ✔      |       |
 | putTerm                 | ✔      |       |
 | putTypeDeclaration      | ✔      |       |
-| getRootBranch           | todo   |       |
-| putRootBranch           | todo   |       |
-| rootBranchUpdates       | todo   |       |
-| getBranchForHash        | todo   |       |
+| getRootBranch           | ✔      |       |
+| putRootBranch           | ✔      |       |
+| rootBranchUpdates       | ✔      |       |
+| getBranchForHash        | ✔      |       |
 | dependentsImpl          | ✔      |       |
 | syncFromDirectory       | todo   |       |
 | syncToDirectory         | todo   |       |

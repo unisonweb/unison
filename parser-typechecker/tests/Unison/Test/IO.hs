@@ -14,8 +14,7 @@ import System.FilePath ((</>))
 import System.Directory (removeDirectoryRecursive)
 
 import Unison.Codebase (Codebase, CodebasePath)
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.FileCodebase as FC
+import qualified Unison.Codebase.SqliteCodebase as SqliteCodebase
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Parser (Ann)
 import Unison.Symbol (Symbol)
@@ -33,11 +32,11 @@ test = scope "IO" . tests $ [ testHandleOps ]
 -- writes the read text to the result file which is then checked by the haskell.
 testHandleOps :: Test ()
 testHandleOps =
-  withScopeAndTempDir "handleOps" $ \workdir codebase cache -> do
+  withScopeAndTempDir "handleOps" $ \workdir codebase -> do
   let myFile = workdir </> "handleOps.txt"
       resultFile = workdir </> "handleOps.result"
       expectedText = "Good Job!" :: Text.Text
-  runTranscript_ False workdir codebase cache [iTrim|
+  runTranscript_ False workdir codebase [iTrim|
 ```ucm:hide
 .> builtins.mergeio
 ```
@@ -79,11 +78,11 @@ main = 'let
 
 -- * Utilities
 
-initCodebase :: Branch.Cache IO -> FilePath -> String -> IO (CodebasePath, Codebase IO Symbol Ann)
-initCodebase branchCache tmpDir name = do
+initCodebase :: FilePath -> String -> IO (CodebasePath, IO (), Codebase IO Symbol Ann)
+initCodebase tmpDir name = do
   let codebaseDir = tmpDir </> name
-  c <- FC.initCodebase branchCache codebaseDir
-  pure (codebaseDir, c)
+  (finalize, c) <- SqliteCodebase.initCodebase codebaseDir
+  pure (codebaseDir, finalize, c)
 
 -- run a transcript on an existing codebase
 runTranscript_
@@ -91,10 +90,9 @@ runTranscript_
   => Bool
   -> FilePath
   -> Codebase IO Symbol Ann
-  -> Branch.Cache IO
   -> String
   -> m ()
-runTranscript_ newRt tmpDir c branchCache transcript = do
+runTranscript_ newRt tmpDir c transcript = do
   let configFile = tmpDir </> ".unisonConfig"
   let cwd = tmpDir </> "cwd"
   let err err = error $ "Parse error: \n" <> show err
@@ -102,13 +100,13 @@ runTranscript_ newRt tmpDir c branchCache transcript = do
   -- parse and run the transcript
   flip (either err) (TR.parse "transcript" (Text.pack transcript)) $ \stanzas ->
     void . liftIO $
-      TR.run (Just newRt) cwd configFile stanzas c branchCache
+      TR.run (Just newRt) cwd configFile stanzas c
         >>= traceM . Text.unpack
 
-withScopeAndTempDir :: String -> (FilePath -> Codebase IO Symbol Ann -> Branch.Cache IO -> Test ()) -> Test ()
+withScopeAndTempDir :: String -> (FilePath -> Codebase IO Symbol Ann -> Test ()) -> Test ()
 withScopeAndTempDir name body = scope name $ do
   tmp <- io (Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory name)
-  cache <- io $ Branch.boundedCache 4096
-  (_, codebase) <- io $ initCodebase cache tmp "user"
-  body tmp codebase cache
+  (_, closeCodebase, codebase) <- io $ initCodebase tmp "user"
+  body tmp codebase
+  io $ closeCodebase
   io $ removeDirectoryRecursive tmp

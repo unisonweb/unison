@@ -27,7 +27,6 @@ import Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex as SlimCopyRegenerat
 import Unison.Codebase.FileCodebase.Common (SyncToDir, formatAnn)
 import Unison.Parser (Ann)
 import Unison.Symbol (Symbol)
-import qualified Unison.Util.Cache as Cache
 import Unison.Var (Var)
 
 test :: Test ()
@@ -53,10 +52,9 @@ syncComplete = scope "syncComplete" $ do
     observe title expectation files = scope title . for_ files $ \path ->
       scope (makeTitle path) $ io (doesFileExist $ targetDir </> path) >>= expectation
 
-  cache <- io Cache.nullCache
-  codebase <- io $ snd <$> initCodebase cache tmp "codebase"
+  codebase <- io $ snd <$> initCodebase tmp "codebase"
 
-  runTranscript_ tmp codebase cache [iTrim|
+  runTranscript_ tmp codebase [iTrim|
 ```ucm:hide
 .builtin> alias.type ##Nat Nat
 .builtin> alias.term ##Nat.+ Nat.+
@@ -113,10 +111,9 @@ syncTestResults = scope "syncTestResults" $ do
   tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "syncTestResults"
 
   targetDir <- io $ Temp.createTempDirectory tmp "target"
-  cache <- io Cache.nullCache
-  codebase <- io $ snd <$> initCodebase cache tmp "codebase"
+  codebase <- io $ snd <$> initCodebase tmp "codebase"
 
-  runTranscript_ tmp codebase cache [iTrim|
+  runTranscript_ tmp codebase [iTrim|
 ```ucm
 .> builtins.merge
 ```
@@ -161,7 +158,6 @@ test> tests.x = [Ok "Great!"]
 -- dependencies
 testPull :: Test ()
 testPull = scope "pull" $ do
-  branchCache <- io $ Branch.boundedCache 4096
   -- let's push a broader set of stuff, pull a narrower one (to a fresh codebase)
   -- and verify that we have the definitions we expected and don't have some of
   -- the ones we didn't expect.
@@ -170,15 +166,15 @@ testPull = scope "pull" $ do
   tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "git-pull"
 
   -- initialize author and user codebases
-  authorCodebase <- io $ snd <$> initCodebase branchCache tmp "author"
-  (userDir, userCodebase) <- io $ initCodebase branchCache tmp "user"
+  authorCodebase <- io $ snd <$> initCodebase tmp "author"
+  (userDir, userCodebase) <- io $ initCodebase tmp "user"
 
   -- initialize git repo
   let repo = tmp </> "repo.git"
   io $ "git" ["init", "--bare", Text.pack repo]
 
   -- run author/push transcript
-  runTranscript_ tmp authorCodebase branchCache [iTrim|
+  runTranscript_ tmp authorCodebase [iTrim|
 ```ucm:hide
 .builtin> alias.type ##Nat Nat
 .builtin> alias.term ##Nat.+ Nat.+
@@ -207,7 +203,7 @@ inside.y = c + c
       scope (makeTitle path) $ io (doesFileExist $ tmp </> "repo" </> path) >>= expect
 
   -- run user/pull transcript
-  runTranscript_ tmp userCodebase branchCache [iTrim|
+  runTranscript_ tmp userCodebase [iTrim|
 ```ucm:hide
 .builtin> alias.type ##Nat Nat
 .builtin> alias.term ##Nat.+ Nat.+
@@ -290,18 +286,18 @@ inside.y = c + c
 -- no:  B, d: aocoe|52add|
 
 -- initialize a fresh codebase
-initCodebaseDir :: Branch.Cache IO -> FilePath -> String -> IO CodebasePath
-initCodebaseDir branchCache tmpDir name = fst <$> initCodebase branchCache tmpDir name
+initCodebaseDir :: FilePath -> String -> IO CodebasePath
+initCodebaseDir tmpDir name = fst <$> initCodebase tmpDir name
 
-initCodebase :: Branch.Cache IO -> FilePath -> String -> IO (CodebasePath, Codebase IO Symbol Ann)
-initCodebase branchCache tmpDir name = do
+initCodebase :: FilePath -> String -> IO (CodebasePath, Codebase IO Symbol Ann)
+initCodebase tmpDir name = do
   let codebaseDir = tmpDir </> name
-  c <- FC.initCodebase branchCache codebaseDir
+  c <- FC.initCodebase undefined codebaseDir
   pure (codebaseDir, c)
 
 -- run a transcript on an existing codebase
-runTranscript_ :: MonadIO m => FilePath -> Codebase IO Symbol Ann -> Branch.Cache IO -> String -> m ()
-runTranscript_ tmpDir c branchCache transcript = do
+runTranscript_ :: MonadIO m => FilePath -> Codebase IO Symbol Ann -> String -> m ()
+runTranscript_ tmpDir c transcript = do
   let configFile = tmpDir </> ".unisonConfig"
   -- transcript runner wants a "current directory" for I guess writing scratch files?
   let cwd = tmpDir </> "cwd"
@@ -309,7 +305,7 @@ runTranscript_ tmpDir c branchCache transcript = do
 
   -- parse and run the transcript
   flip (either err) (TR.parse "transcript" (Text.pack transcript)) $ \stanzas ->
-    void . liftIO $ TR.run Nothing cwd configFile stanzas c branchCache >>=
+    void . liftIO $ TR.run Nothing cwd configFile stanzas c >>=
                       when traceTranscriptOutput . traceM . Text.unpack
 
 -- goal of this test is to make sure that push works correctly:
@@ -318,15 +314,14 @@ runTranscript_ tmpDir c branchCache transcript = do
 -- dependents, type, and type mentions indices.
 testPush :: Test ()
 testPush = scope "push" $ do
-  branchCache <- io $ Branch.boundedCache 4096
   tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "git-push"
 
   -- initialize a fresh codebase named "c"
-  (codebasePath, c) <- io $ initCodebase branchCache tmp "c"
+  (codebasePath, c) <- io $ initCodebase tmp "c"
 
   -- Run the "setup transcript" to do the adds and updates; everything short of
   -- pushing.
-  runTranscript_ tmp c branchCache setupTranscript
+  runTranscript_ tmp c setupTranscript
 
   -- now we'll try pushing multiple ways.
   for_ pushImplementations $ \(implName, impl) -> scope implName $ do
@@ -335,8 +330,8 @@ testPush = scope "push" $ do
     io $ "git" ["init", "--bare", Text.pack repoGit]
 
     -- push one way!
-    codebase <- io $ FC.codebase1' impl branchCache V1.formatSymbol formatAnn codebasePath
-    runTranscript_ tmp codebase branchCache (pushTranscript repoGit)
+    codebase <- io $ FC.codebase1' impl (error "todo") V1.formatSymbol formatAnn codebasePath
+    runTranscript_ tmp codebase (pushTranscript repoGit)
 
     -- check out the resulting repo so we can inspect it
     io $ "git" ["clone", Text.pack repoGit, Text.pack $ tmp </> implName ]
