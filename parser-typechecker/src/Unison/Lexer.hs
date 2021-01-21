@@ -278,24 +278,34 @@ lexemes = P.optional space >> do
     pure r
     where
     wordy ok = wrap "doc.word" $ tok $ Textual <$> P.takeWhile1P (Just "word") (\ch -> not (isSpace ch) && ok ch)
-    word = wordy (const True)
-    leaf = link <|> externalLink <|> word <|> expr
+    leafy ok = link <|> externalLink <|> wordy ok <|> expr
+    leaf = leafy (const True)
     link = wrap "doc.link" $ lit "@" *> tok (wordyId <|> symbolyId)
     expr = lit "{{" *> CP.space *> lexemes <* lit "}}"
     -- [this link](https://unisonweb.org)
-    externalLink = wrap "doc.external-link" $ do
+    externalLink = wrap "doc.externalLink" $ do
       _ <- lit "["
-      p <- paragraph
+      p <- leafies (/= ']')
       _ <- lit "]"
       _ <- lit "("
       target <- wordy (/= ')') <|> link
       _ <- lit ")"
       pure (p <> target)
 
-    sp =
-      P.takeWhileP (Just "space") (\ch -> isSpace ch && ch /= '\n' && ch /= '\r') <*
-      P.optional (lit "\n")
+    newline = P.optional (lit "\r") *> lit "\n"
+    spaces = P.takeWhileP (Just "spaces") (\ch -> isSpace ch && ch /= '\n' && ch /= '\r')
 
+    -- blankline = P.try $ void $ sp *> newline *> sp *> newline
+
+    sp = P.try $ do
+      o <- spaces *> P.optional newline
+      maybe (pure ()) go o
+      where
+        go _ = do
+          o <- P.optional (P.try $ P.lookAhead (spaces *> newline))
+          maybe (pure ()) (const $ fail "space parser cannot consume a blankline") o
+
+    leafies close = wrap "doc.paragraph" $ join <$> P.sepBy1 (leafy close) sp
     paragraph = wrap "doc.paragraph" $ join <$> P.sepBy1 leaf sp
     sectionElem = wrap "doc.element" (section <|> paragraph)
     --
