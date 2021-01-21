@@ -22,7 +22,7 @@ import qualified U.Util.Base32Hex as Base32Hex
 import U.Util.Base32Hex (Base32Hex)
 
 -- | Hash which uniquely identifies a Unison type or term
-newtype Hash = Hash {toShort :: ShortByteString} deriving (Eq, Ord, Generic, Show)
+newtype Hash = Hash {toShort :: ShortByteString} deriving (Eq, Ord, Generic)
 
 toBase32Hex :: Hash -> Base32Hex
 toBase32Hex = Base32Hex.fromByteString . toBytes
@@ -57,3 +57,6 @@ instance H.Accumulate Hash where
 
 fromBytes :: ByteString -> Hash
 fromBytes = Hash . B.Short.toShort
+
+instance Show Hash where
+  show h = "fromBase32Hex " ++ (show . Base32Hex.toText . toBase32Hex) h

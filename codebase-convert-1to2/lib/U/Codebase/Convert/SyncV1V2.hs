@@ -244,7 +244,7 @@ type V2DiskDeclComponent = V2.DeclFormat.LocallyIndexedComponent
 -- todo: this just converts a whole codebase, which we need to do locally \
 --       but we also want some code that imports just a particular sub-branch.
 syncV1V2 :: forall m. MonadIO m => Connection -> CodebasePath -> m (Either FatalError ())
-syncV1V2 c rootDir = liftIO $ SQLite.withTransaction c . runExceptT . flip runReaderT c $ do
+syncV1V2 c rootDir = liftIO $ {- SQLite.withTransaction c . -} runExceptT . flip runReaderT c $ do
   v1RootHash <- getV1RootBranchHash rootDir >>= maybe (throwError NoRootBranch) pure
   -- starting from the root namespace, convert all entities you can find
   convertEntities [Branch1 v1RootHash]
@@ -1254,8 +1254,9 @@ convertDecl1 lookup1 lookup2 hash1 v1component = do
 -- --      rdId <- saveReferenceDerived idH
 -- --      Db.execute sql (Nothing, Just rdId)
 -- --  sql = [here|
--- --    INSERT OR IGNORE INTO reference (builtin, reference_derived_id)
+-- --    INSERT INTO reference (builtin, reference_derived_id)
 -- --    VALUES (?, ?)
+-- --    ON CONFLICT DO NOTHING
 -- --  |]
 
 -- --loadReferenceByHashId :: DB m => ReferenceH HashId -> m (Maybe ReferenceId)
@@ -1279,8 +1280,9 @@ convertDecl1 lookup1 lookup2 hash1 v1component = do
 -- --  insert hashId i >> fmap fromJust (loadReferenceDerivedByHashId r) where
 -- --  insert h i = liftIO $ execute sql (h, i) where
 -- --    sql = [here|
--- --      INSERT OR IGNORE INTO reference_derived (hash_id, component_index)
+-- --      INSERT INTO reference_derived (hash_id, component_index)
 -- --      VALUES (?, ?)
+-- --      ON CONFLICT DO NOTHING
 -- --    |]
 -- --
 -- --loadReferenceDerivedByHashId :: DB m => Reference.IdH Db.HashId -> m (Maybe Db.ReferenceDerivedId)
@@ -1302,10 +1304,11 @@ convertDecl1 lookup1 lookup2 hash1 v1component = do
 -- --  fmap fromJust (loadReferenceDerivedByReferenceDerivedId r)
 -- --  where
 -- --  sql = [here|
--- --    INSERT OR IGNORE INTO referent_derived
+-- --    INSERT INTO referent_derived
 -- --      (reference_derived_id, constructor_id, constructor_type)
 -- --    VALUES (?, ?, ?)
--- --  |]
+-- --    ON CONFLICT DO NOTHING
+-- --  |]s
 -- --loadReferentDerivedByReferenceDerivedId :: DB m => Referent' ReferenceDerivedId -> m (Maybe ReferentDerivedId)
 -- --loadReferentDerivedByReferenceDerivedId r =  queryMaybe . query sql r where
 -- --  sql = [here|

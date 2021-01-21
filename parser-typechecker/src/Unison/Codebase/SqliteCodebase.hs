@@ -1,8 +1,9 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Unison.Codebase.SqliteCodebase where
 
@@ -10,9 +11,11 @@ module Unison.Codebase.SqliteCodebase where
 
 -- import qualified U.Codebase.Sqlite.Operations' as Ops
 
+import qualified Control.Exception
 import Control.Monad (filterM, (>=>))
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Monad.Extra (ifM, unlessM)
+import qualified Control.Monad.Extra as Monad
 import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT)
@@ -24,12 +27,15 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.String (IsString (fromString))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Word (Word64)
 import Database.SQLite.Simple (Connection)
 import qualified Database.SQLite.Simple as Sqlite
+import System.Directory (canonicalizePath)
+import qualified System.Exit as SysExit
 import System.FilePath ((</>))
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
@@ -71,15 +77,10 @@ import qualified Unison.Type as Type
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
 import UnliftIO (MonadIO, catchIO)
-import UnliftIO.STM
-import UnliftIO.Directory (getHomeDirectory)
-import System.Directory (canonicalizePath)
+import UnliftIO.Directory (createDirectoryIfMissing, getHomeDirectory)
 import qualified UnliftIO.Environment as SysEnv
-import Data.String (IsString(fromString))
-import qualified System.Exit as SysExit
-import qualified Control.Monad.Extra as Monad
-import qualified Control.Exception
-
+import UnliftIO.STM
+import qualified System.FilePath as FilePath
 
 codebasePath :: FilePath
 codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
@@ -101,15 +102,19 @@ getNoCodebaseErrorMsg :: IsString s => P.Pretty s -> P.Pretty s -> Maybe FilePat
 getNoCodebaseErrorMsg executable prettyDir mdir =
   let secondLine =
         case mdir of
-          Just dir  -> "Run `" <> executable <> " -codebase " <> fromString dir
-                     <> " init` to create one, then try again!"
-          Nothing -> "Run `" <> executable <> " init` to create one there,"
-                     <> " then try again;"
-                     <> " or `" <> executable <> " -codebase <dir>` to load a codebase from someplace else!"
-  in
-    P.lines
-        [ "No codebase exists in " <> prettyDir <> "."
-        , secondLine ]
+          Just dir ->
+            "Run `" <> executable <> " -codebase " <> fromString dir
+              <> " init` to create one, then try again!"
+          Nothing ->
+            "Run `" <> executable <> " init` to create one there,"
+              <> " then try again;"
+              <> " or `"
+              <> executable
+              <> " -codebase <dir>` to load a codebase from someplace else!"
+   in P.lines
+        [ "No codebase exists in " <> prettyDir <> ".",
+          secondLine
+        ]
 
 initCodebaseAndExit :: Maybe FilePath -> IO ()
 initCodebaseAndExit mdir = do
@@ -121,6 +126,7 @@ initCodebaseAndExit mdir = do
 -- initializes a new codebase here (i.e. `ucm -codebase dir init`)
 initCodebase :: FilePath -> IO (IO (), Codebase1.Codebase IO Symbol Ann)
 initCodebase path = do
+  traceM $ "initCodebase " ++ path
   prettyDir <- P.string <$> canonicalizePath path
 
   Monad.whenM (codebaseExists path) do
@@ -133,14 +139,17 @@ initCodebase path = do
     . P.wrap
     $ "Initializing a new codebase in: "
       <> prettyDir
-  
+
   -- run sql create scripts
-  Control.Exception.bracket 
+  createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
+  Control.Exception.bracket
     (unsafeGetConnection path)
-    Sqlite.close 
+    Sqlite.close
     (runReaderT Q.createSchema)
 
-  Right (closeCodebase, theCodebase) <- sqliteCodebase path
+  (closeCodebase, theCodebase) <- sqliteCodebase path >>= \case
+    Right x -> pure x
+    Left x -> error $ show x ++ " :) "
   Codebase1.initializeCodebase theCodebase
   pure (closeCodebase, theCodebase)
 
@@ -149,9 +158,13 @@ getCodebaseDir = maybe getHomeDirectory pure
 
 -- checks if a db exists at `path` with the minimum schema
 codebaseExists :: CodebasePath -> IO Bool
-codebaseExists root = sqliteCodebase root >>= \case
-  Left _ -> pure False
-  Right (close, _codebase) -> close >> pure True
+codebaseExists root = do
+  traceM $ "codebaseExists " ++ root
+  Control.Exception.catch @Sqlite.SQLError
+    (sqliteCodebase root >>= \case
+      Left _ -> pure False
+      Right (close, _codebase) -> close >> pure True)
+    (const $ pure False)
 
 -- and <$> traverse doesDirectoryExist (minimalCodebaseStructure root)
 
@@ -180,12 +193,14 @@ type DeclBufferEntry = BufferEntry (Decl Symbol Ann)
 
 unsafeGetConnection :: CodebasePath -> IO Sqlite.Connection
 unsafeGetConnection root = do
+  traceM $ "unsafeGetconnection " ++ root ++ " -> " ++ (root </> codebasePath)
   conn <- Sqlite.open $ root </> codebasePath
   runReaderT Q.setFlags conn
   pure conn
 
 sqliteCodebase :: CodebasePath -> IO (Either [(Q.SchemaType, Q.SchemaName)] (IO (), Codebase1.Codebase IO Symbol Ann))
 sqliteCodebase root = do
+  traceM $ "sqliteCodebase " ++ root
   conn <- unsafeGetConnection root
   runReaderT Q.checkForMissingSchema conn >>= \case
     [] -> do
@@ -208,7 +223,7 @@ sqliteCodebase root = do
                       "I don't know about the builtin type ##"
                         ++ show t
                         ++ ", but I've been asked for it's ConstructorType."
-              in pure . fromMaybe err $
+               in pure . fromMaybe err $
                     Map.lookup (Reference.Builtin t) Builtins.builtinConstructorType
             C.Reference.ReferenceDerived i -> getDeclTypeById i
 
@@ -432,7 +447,7 @@ sqliteCodebase root = do
             let t =
                   Reflog.toText $
                     Reflog.Entry (Branch.headHash old) (Branch.headHash new) reason
-            in TextIO.appendFile (reflogPath root) (t <> "\n")
+             in TextIO.appendFile (reflogPath root) (t <> "\n")
 
           reflogPath :: CodebasePath -> FilePath
           reflogPath root = root </> "reflog"

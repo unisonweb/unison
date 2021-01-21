@@ -111,6 +111,7 @@ import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
+import Debug.Trace
 
 -- * Error handling
 
@@ -798,19 +799,19 @@ type BranchSavingMonad m = StateT BranchSavingState (WriterT BranchSavingWriter 
 
 saveRootBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
 saveRootBranch (C.Causal hc he parents me) = do
+  traceM $ "\nsaveRootBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
   -- check if we can skip the whole thing, by checking if there are causal parents for hc
   chId <- liftQ (Q.saveCausalHash hc)
-  liftQ (Q.loadCausalParents chId) >>= \case
+  parentCausalHashIds <- liftQ (Q.loadCausalParents chId) >>= \case
     [] -> do
-      parentCausalHashIds <- for (Map.toList parents) $ \(causalHash, mcausal) -> do
+      for (Map.toList parents) $ \(causalHash, mcausal) -> do
         -- check if we can short circuit the parent before loading it,
         -- by checking if there are causal parents for hc
         parentChId <- liftQ (Q.saveCausalHash causalHash)
         liftQ (Q.loadCausalParents parentChId) >>= \case
           [] -> do c <- mcausal; snd <$> saveRootBranch c
           _grandParents -> pure parentChId
-      liftQ (Q.saveCausalParents chId parentCausalHashIds)
-    _parents -> pure ()
+    parentCausalHashIds -> pure parentCausalHashIds
 
   liftQ (Q.loadBranchObjectIdByCausalHashId chId) >>= \case
     Just boId -> pure (boId, chId)
@@ -819,6 +820,8 @@ saveRootBranch (C.Causal hc he parents me) = do
       (li, lBranch) <- c2lBranch =<< me
       boId <- saveBranchObject bhId li lBranch
       liftQ (Q.saveCausal chId bhId)
+      -- save the link between child and parents      
+      liftQ (Q.saveCausalParents chId parentCausalHashIds)
       pure (boId, chId)
   where
     c2lBranch :: EDB m => C.Branch.Branch m -> m (BranchLocalIds, S.Branch.Full.LocalBranch)
