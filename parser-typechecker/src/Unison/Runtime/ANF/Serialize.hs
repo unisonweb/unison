@@ -6,7 +6,7 @@ module Unison.Runtime.ANF.Serialize where
 import Control.Monad
 
 import Data.Bytes.Put
-import Data.Bytes.Get
+import Data.Bytes.Get hiding (getBytes)
 import Data.Bytes.VarInt
 import Data.Bytes.Serial
 import Data.ByteString (ByteString)
@@ -43,7 +43,7 @@ data MtTag
 data LtTag
   = IT | NT | FT | TT | CT | LMT | LYT
 
-data BLTag = TextT | ListT | TmLinkT | TyLinkT
+data BLTag = TextT | ListT | TmLinkT | TyLinkT | BytesT
 
 data VaTag = PartialT | DataT | ContT | BLitT
 data CoTag = KET | MarkT | PushT
@@ -141,12 +141,14 @@ instance Tag BLTag where
     ListT -> 1
     TmLinkT -> 2
     TyLinkT -> 3
+    BytesT -> 4
 
   word2tag = \case
     0 -> TextT
     1 -> ListT
     2 -> TmLinkT
     3 -> TyLinkT
+    4 -> BytesT
     _ -> error "unknown BLTag word"
 
 instance Tag VaTag where
@@ -418,6 +420,7 @@ putBLit (Text t) = putTag TextT *> putText t
 putBLit (List s) = putTag ListT *> putFoldable putValue s
 putBLit (TmLink r) = putTag TmLinkT *> putReferent r
 putBLit (TyLink r) = putTag TyLinkT *> putReference r
+putBLit (Bytes b) = putTag BytesT *> putBytes b
 
 getBLit :: MonadGet m => m BLit
 getBLit = getTag >>= \case
@@ -425,6 +428,7 @@ getBLit = getTag >>= \case
   ListT -> List . Seq.fromList <$> getList getValue
   TmLinkT -> TmLink <$> getReferent
   TyLinkT -> TyLink <$> getReference
+  BytesT -> Bytes <$> getBytes
 
 putRefs :: MonadPut m => [Reference] -> m ()
 putRefs rs = putFoldable putReference rs
@@ -510,11 +514,11 @@ getCTag :: MonadGet m => m CTag
 getCTag = toEnum . unVarInt <$> deserialize
 
 putGroupRef :: MonadPut m => GroupRef -> m ()
-putGroupRef (GR r n i)
-  = putReference r *> putWord64be n *> putWord64be i
+putGroupRef (GR r i)
+  = putReference r *> putWord64be i
 
 getGroupRef :: MonadGet m => m GroupRef
-getGroupRef = GR <$> getReference <*> getWord64be <*> getWord64be
+getGroupRef = GR <$> getReference <*> getWord64be
 
 putValue :: MonadPut m => Value -> m ()
 putValue (Partial gr ws vs)

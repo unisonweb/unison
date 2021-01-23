@@ -10,6 +10,7 @@ module Unison.Runtime.Machine where
 import GHC.Stack
 
 import Control.Concurrent.STM as STM
+import GHC.Conc as STM (unsafeIOToSTM)
 
 import Data.Maybe (fromMaybe)
 
@@ -301,6 +302,11 @@ exec !env !denv !ustk !bstk !k (Fork i) = do
   bstk <- bump bstk
   poke bstk . Foreign . Wrap Rf.threadIdRef $ tid
   pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (Atomically i) = do
+  c <- peekOff bstk i
+  bstk <- bump bstk
+  atomicEval env (poke bstk) c
+  pure (denv, ustk, bstk, k)
 {-# inline exec #-}
 
 eval :: CCache -> DEnv
@@ -345,6 +351,14 @@ forkEval env clo
   err :: Stack 'UN -> Stack 'BX -> IO ()
   err _ _ = pure ()
 {-# inline forkEval #-}
+
+atomicEval :: CCache -> (Closure -> IO ()) -> Closure -> IO ()
+atomicEval env write clo
+  = atomically . unsafeIOToSTM $ apply1 readBack env clo
+  where
+  readBack :: Stack 'UN -> Stack 'BX -> IO ()
+  readBack _ bstk = peek bstk >>= write
+{-# inline atomicEval #-}
 
 -- fast path application
 enter
@@ -1466,7 +1480,7 @@ reflectValue rty = goV
     | otherwise
     = die $ err "unknown type reference"
 
-  goIx (CIx r n i) = ANF.GR r n i
+  goIx (CIx r _ i) = ANF.GR r i
 
   goV (PApV cix ua ba)
     = ANF.Partial (goIx cix) (fromIntegral <$> ua) <$> traverse goV ba
@@ -1492,6 +1506,8 @@ reflectValue rty = goV
   goF f
     | Just t <- maybeUnwrapBuiltin f
     = pure (ANF.Text t)
+    | Just b <- maybeUnwrapBuiltin f
+    = pure (ANF.Bytes b)
     | Just s <- maybeUnwrapForeign Rf.vectorRef f
     = ANF.List <$> traverse goV s
     | Just l <- maybeUnwrapForeign Rf.termLinkRef f
@@ -1505,26 +1521,33 @@ reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
 reifyValue cc val = do
   erc <- atomically $ readTVar (refTm cc) >>= \rtm ->
     case S.toList $ S.filter (`M.notMember`rtm) tmLinks of
-      [] -> Right <$>
+      [] -> Right . (,rtm) <$>
               addRefs (freshTy cc) (refTy cc) (tagRefs cc) tyLinks
       l -> pure (Left l)
-  traverse (\rty -> reifyValue0 rty val) erc
+  traverse (\rfs -> reifyValue0 rfs val) erc
   where
   f False r = (mempty, S.singleton r)
   f True  r = (S.singleton r, mempty)
   (tyLinks, tmLinks) = valueLinks f val
 
-reifyValue0 :: M.Map Reference Word64 -> ANF.Value -> IO Closure
-reifyValue0 rty = goV
+reifyValue0
+  :: (M.Map Reference Word64, M.Map Reference Word64)
+  -> ANF.Value
+  -> IO Closure
+reifyValue0 (rty, rtm) = goV
   where
   err s = "reifyValue: cannot restore value: " ++ s
   refTy r
     | Just w <- M.lookup r rty = pure w
     | otherwise = die . err $ "unknown type reference: " ++ show r
-  goIx (ANF.GR r n i) = CIx r n i
+  refTm r
+    | Just w <- M.lookup r rtm = pure w
+    | otherwise = die . err $ "unknown term reference: " ++ show r
+  goIx (ANF.GR r i) = refTm r <&> \n -> CIx r n i
 
   goV (ANF.Partial gr ua ba)
-    = PApV (goIx gr) (fromIntegral <$> ua) <$> traverse goV ba
+    = pap <$> (goIx gr) <*> traverse goV ba
+    where pap i = PApV i (fromIntegral <$> ua)
   goV (ANF.Data r t us bs)
     = DataC r t (fromIntegral <$> us) <$> traverse goV bs
   goV (ANF.Cont us bs k) = cv <$> goK k <*> traverse goV bs
@@ -1542,10 +1565,11 @@ reifyValue0 rty = goV
   goK (ANF.Push uf bf ua ba gr k)
     = Push
           (fromIntegral uf) (fromIntegral bf)
-          (fromIntegral ua) (fromIntegral ba) (goIx gr)
-        <$> goK k
+          (fromIntegral ua) (fromIntegral ba)
+        <$> (goIx gr) <*> goK k
 
   goL (ANF.Text t) = pure . Foreign $ Wrap Rf.textRef t
   goL (ANF.List l) = Foreign . Wrap Rf.vectorRef <$> traverse goV l
   goL (ANF.TmLink r) = pure . Foreign $ Wrap Rf.termLinkRef r
   goL (ANF.TyLink r) = pure . Foreign $ Wrap Rf.typeLinkRef r
+  goL (ANF.Bytes b) = pure . Foreign $ Wrap Rf.bytesRef b

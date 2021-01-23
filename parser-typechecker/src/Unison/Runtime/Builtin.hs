@@ -112,6 +112,11 @@ import System.Directory as SYS
   )
 import System.IO.Temp (createTempDirectory)
 
+import qualified Control.Concurrent.STM as STM
+import qualified GHC.Conc as STM
+
+import GHC.IO (IO(IO))
+
 freshes :: Var v => Int -> [v]
 freshes = freshes' mempty
 
@@ -690,6 +695,16 @@ value'load
 value'create :: Var v => SuperNormal v
 value'create = unop0 0 $ \[x] -> TPrm VALU [x]
 
+stm'atomic :: Var v => SuperNormal v
+stm'atomic
+  = Lambda [BX]
+  . TAbs act
+  . TLetD unit BX (TCon Ty.unitRef 0 [])
+  . TName lz (Right act) [unit]
+  $ TPrm ATOM [lz]
+  where
+  (act,unit,lz) = fresh3
+
 type ForeignOp = forall v. Var v => FOp -> ([Mem], ANormal v)
 
 standard'handle :: ForeignOp
@@ -968,6 +983,16 @@ boxTo0 :: ForeignOp
 boxTo0 = inBx arg result (TCon Ty.unitRef 0 [])
   where
     (arg, result) = fresh2
+
+-- a -> b ->{E} ()
+boxBoxTo0 :: ForeignOp
+boxBoxTo0 instr
+  = ([BX,BX],)
+  . TAbss [arg1,arg2]
+  . TLets Direct [] [] (TFOp instr [arg1,arg2])
+  $ TCon Ty.unitRef 0 []
+  where
+  (arg1, arg2) = fresh2
 
 -- Nat -> ()
 natToUnit :: ForeignOp
@@ -1260,6 +1285,8 @@ builtinLookup
   , ("Code.lookup", code'lookup)
   , ("Value.load", value'load)
   , ("Value.value", value'create)
+
+  , ("STM.atomically", stm'atomic)
   ] ++ foreignWrappers
 
 type FDecl v
@@ -1467,6 +1494,43 @@ declareForeigns = do
         declareForeign "Tls.ServerConfig.certificates.set" boxBoxDirect . mkForeign $
           \(certs :: [X.SignedCertificate], params :: ServerParams) -> pure $ updateServer (X.makeCertificateStore certs) params
 
+  declareForeign "TVar.new" boxDirect . mkForeign
+    $ \(c :: Closure) -> unsafeSTMToIO $ STM.newTVar c
+
+  declareForeign "TVar.read" boxDirect . mkForeign
+    $ \(v :: STM.TVar Closure) -> unsafeSTMToIO $ STM.readTVar v
+
+  declareForeign "TVar.write" boxBoxTo0 . mkForeign
+    $ \(v :: STM.TVar Closure, c :: Closure)
+        -> unsafeSTMToIO $ STM.writeTVar v c
+
+  declareForeign "TVar.newIO" boxDirect . mkForeign
+    $ \(c :: Closure) -> STM.newTVarIO c
+
+  declareForeign "TVar.readIO" boxDirect . mkForeign
+    $ \(v :: STM.TVar Closure) -> STM.readTVarIO v
+
+  declareForeign "TVar.swap" boxBoxDirect . mkForeign
+    $ \(v, c :: Closure) -> unsafeSTMToIO $ STM.swapTVar v c
+
+  declareForeign "STM.retry" unitDirect . mkForeign
+    $ \() -> unsafeSTMToIO STM.retry :: IO Closure
+
+  let
+    defaultSupported :: TLS.Supported
+    defaultSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
+
+  declareForeign "Tls.Config.defaultClient" boxBoxDirect
+    .  mkForeign $ \(hostName::Text, serverId:: Bytes.Bytes) -> do
+       store <- X.getSystemCertificateStore
+       let shared :: TLS.Shared
+           shared = def { TLS.sharedCAStore = store }
+           defaultParams = (defaultParamsClient (unpack hostName) (Bytes.toArray serverId)) { TLS.clientSupported = defaultSupported, TLS.clientShared = shared }
+       pure defaultParams
+
+  declareForeign "Tls.Config.defaultServer" unitDirect . mkForeign $ \() -> do
+    pure $ (def :: ServerParams) { TLS.serverSupported = defaultSupported }
+
   declareForeign "Tls.newClient" boxBoxToEFBox . mkForeignTls $
     \(config :: TLS.ClientParams,
       socket :: SYS.Socket) -> TLS.contextNew socket config
@@ -1627,3 +1691,6 @@ builtinTypeBackref = mapFromList $ swap <$> typeReferences
 
 builtinForeigns :: EnumMap Word64 ForeignFunc
 builtinForeigns | (_, _, m) <- foreignDeclResults @Symbol = m
+
+unsafeSTMToIO :: STM.STM a -> IO a
+unsafeSTMToIO (STM.STM m) = IO m

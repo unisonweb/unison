@@ -172,6 +172,8 @@ builtinTypesSrc =
   , B' "Tls.ServerConfig" CT.Data, Rename' "Tls.ServerConfig" "io2.Tls.ServerConfig"
   , B' "Tls.SignedCert" CT.Data, Rename' "Tls.SignedCert" "io2.Tls.SignedCert"
   , B' "Tls.PrivateKey" CT.Data, Rename' "Tls.PrivateKey" "io2.Tls.PrivateKey"
+  , B' "TVar" CT.Data, Rename' "TVar" "io2.TVar"
+  , B' "STM" CT.Effect, Rename' "STM" "io2.STM"
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -443,9 +445,9 @@ builtinsSrc =
                   ,(">=", "gteq")]
   ] ++ moveUnder "io2" ioBuiltins
     ++ moveUnder "io2" mvarBuiltins
+    ++ moveUnder "io2" stmBuiltins
     ++ hashBuiltins
     ++ fmap (uncurry B) codeBuiltins
-
 
 moveUnder :: Text -> [(Text, Type v)] -> [BuiltinDSL v]
 moveUnder prefix bs = bs >>= \(n,ty) -> [B n ty, Rename n (prefix <> "." <> n)]
@@ -595,6 +597,18 @@ codeBuiltins =
     , forall1 "a" $ \a -> value --> io (eithert (list termLink) a))
   ]
 
+stmBuiltins :: forall v. Var v => [(Text, Type v)]
+stmBuiltins =
+  [ ("TVar.new", forall1 "a" $ \a -> a --> stm (tvar a))
+  , ("TVar.newIO", forall1 "a" $ \a -> a --> io (tvar a))
+  , ("TVar.read", forall1 "a" $ \a -> tvar a --> stm a)
+  , ("TVar.readIO", forall1 "a" $ \a -> tvar a --> io a)
+  , ("TVar.write", forall1 "a" $ \a -> tvar a --> a --> stm unit)
+  , ("TVar.swap", forall1 "a" $ \a -> tvar a --> a --> stm a)
+  , ("STM.retry", forall1 "a" $ \a -> unit --> stm a)
+  , ("STM.atomically", forall1 "a" $ \a -> (unit --> stm a) --> io a)
+  ]
+
 forall1 :: Var v => Text -> (Type v -> Type v) -> Type v
 forall1 name body =
   let
@@ -667,3 +681,6 @@ code = Type.code ()
 value = Type.value ()
 termLink = Type.termLink ()
 
+stm, tvar :: Var v => Type v -> Type v
+stm = Type.effect1 () (Type.ref () Type.stmRef)
+tvar a = Type.ref () Type.tvarRef `app` a

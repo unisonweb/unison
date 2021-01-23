@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #suq47on34k
+  ⊙ #hdb2qmoob9
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #trcl8lj5r6
+  ⊙ #bg9tk5ai3i
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #oddqh6udcc
+  ⊙ #ak1kamiv9o
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #3ro66pat9g
+  ⊙ #o7jv334moc
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #ggpl9bg0eh
+  ⊙ #tab428em20
   
     + Adds / updates:
     
       x
   
-  ⊙ #ilh91mocfb
+  ⊙ #s8vqfp4ot8
   
     + Adds / updates:
     
@@ -279,13 +279,18 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.MVar.read builtin.io2.MVar.swap
       builtin.io2.MVar.take builtin.io2.MVar.tryPut
       builtin.io2.MVar.tryRead builtin.io2.MVar.tryTake
-      builtin.io2.SeekMode builtin.io2.SeekMode.AbsoluteSeek
+      builtin.io2.STM builtin.io2.STM.atomically
+      builtin.io2.STM.retry builtin.io2.SeekMode
+      builtin.io2.SeekMode.AbsoluteSeek
       builtin.io2.SeekMode.RelativeSeek
       builtin.io2.SeekMode.SeekFromEnd builtin.io2.Socket
       builtin.io2.StdHandle builtin.io2.StdHandle.StdErr
       builtin.io2.StdHandle.StdIn builtin.io2.StdHandle.StdOut
-      builtin.io2.ThreadId builtin.io2.Tls
-      builtin.io2.Tls.ClientConfig
+      builtin.io2.TVar builtin.io2.TVar.new
+      builtin.io2.TVar.newIO builtin.io2.TVar.read
+      builtin.io2.TVar.readIO builtin.io2.TVar.swap
+      builtin.io2.TVar.write builtin.io2.ThreadId
+      builtin.io2.Tls builtin.io2.Tls.ClientConfig
       builtin.io2.Tls.ClientConfig.certificates.set
       builtin.io2.Tls.ClientConfig.default
       builtin.io2.Tls.PrivateKey builtin.io2.Tls.ServerConfig

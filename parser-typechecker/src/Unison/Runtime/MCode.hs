@@ -417,7 +417,13 @@ data Instr
   -- Put a delimiter on the continuation
   | Reset !(EnumSet Word64) -- prompt ids
 
+  -- Fork thread evaluating delayed computation on boxed stack
   | Fork !Int
+
+  -- Atomic transaction evaluating delayed computation on boxed stack
+  | Atomically !Int
+
+  -- Build a sequence consisting of a variable number of arguments
   | Seq !Args
   deriving (Show, Eq, Ord)
 
@@ -894,13 +900,13 @@ emitLet
   -> Emit Section
 emitLet _   _   _   _ _   _   (TLit l)
   = fmap (Ins $ emitLit l)
-emitLet rns grp _   _ _   ctx (TApp (FComb r) args)
-  -- We should be able to tell if we are making a saturated call
-  -- or not here. We aren't carrying the information here yet, though.
-  | False -- not saturated
-  = fmap (Ins . Name (Env n 0) $ emitArgs grp ctx args)
-  where
-  n = cnum rns r
+-- emitLet rns grp _   _ _   ctx (TApp (FComb r) args)
+--   -- We should be able to tell if we are making a saturated call
+--   -- or not here. We aren't carrying the information here yet, though.
+--   | False -- not saturated
+--   = fmap (Ins . Name (Env n 0) $ emitArgs grp ctx args)
+--   where
+--   n = cnum rns r
 emitLet _   grp _   _ _   ctx (TApp (FCon r n) args)
   = fmap (Ins . Pack r (rawTag n) $ emitArgs grp ctx args)
 emitLet _   grp _   _ _   ctx (TApp (FPrim p) args)
@@ -1059,6 +1065,9 @@ emitPOp ANF.BLDS = Seq
 emitPOp ANF.FORK = \case
   BArg1 i -> Fork i
   _ -> error "fork takes exactly one boxed argument"
+emitPOp ANF.ATOM = \case
+  BArg1 i -> Atomically i
+  _ -> error "atomically takes exactly one boxed argument"
 emitPOp ANF.PRNT = \case
   BArg1 i -> Print i
   _ -> error "print takes exactly one boxed argument"

@@ -328,61 +328,71 @@ Let's try it!
   281. io2.MVar.tryPut : MVar a -> a ->{IO} Boolean
   282. io2.MVar.tryRead : MVar a ->{IO} Optional a
   283. io2.MVar.tryTake : MVar a ->{IO} Optional a
-  284. unique type io2.SeekMode
-  285. io2.SeekMode.AbsoluteSeek : SeekMode
-  286. io2.SeekMode.RelativeSeek : SeekMode
-  287. io2.SeekMode.SeekFromEnd : SeekMode
-  288. builtin type io2.Socket
-  289. unique type io2.StdHandle
-  290. io2.StdHandle.StdErr : StdHandle
-  291. io2.StdHandle.StdIn : StdHandle
-  292. io2.StdHandle.StdOut : StdHandle
-  293. builtin type io2.ThreadId
-  294. builtin type io2.Tls
-  295. builtin type io2.Tls.ClientConfig
-  296. io2.Tls.ClientConfig.certificates.set : [SignedCert]
+  284. builtin type io2.STM
+  285. io2.STM.atomically : '{STM} a ->{IO} a
+  286. io2.STM.retry : '{STM} a
+  287. unique type io2.SeekMode
+  288. io2.SeekMode.AbsoluteSeek : SeekMode
+  289. io2.SeekMode.RelativeSeek : SeekMode
+  290. io2.SeekMode.SeekFromEnd : SeekMode
+  291. builtin type io2.Socket
+  292. unique type io2.StdHandle
+  293. io2.StdHandle.StdErr : StdHandle
+  294. io2.StdHandle.StdIn : StdHandle
+  295. io2.StdHandle.StdOut : StdHandle
+  296. builtin type io2.TVar
+  297. io2.TVar.new : a ->{STM} TVar a
+  298. io2.TVar.newIO : a ->{IO} TVar a
+  299. io2.TVar.read : TVar a ->{STM} a
+  300. io2.TVar.readIO : TVar a ->{IO} a
+  301. io2.TVar.swap : TVar a -> a ->{STM} a
+  302. io2.TVar.write : TVar a -> a ->{STM} ()
+  303. builtin type io2.ThreadId
+  304. builtin type io2.Tls
+  305. builtin type io2.Tls.ClientConfig
+  306. io2.Tls.ClientConfig.certificates.set : [SignedCert]
                                                -> ClientConfig
                                                -> ClientConfig
-  297. io2.Tls.ClientConfig.default : Text
+  307. io2.Tls.ClientConfig.default : Text
                                       -> Bytes
                                       -> ClientConfig
-  298. builtin type io2.Tls.PrivateKey
-  299. builtin type io2.Tls.ServerConfig
-  300. io2.Tls.ServerConfig.certificates.set : [SignedCert]
+  308. builtin type io2.Tls.PrivateKey
+  309. builtin type io2.Tls.ServerConfig
+  310. io2.Tls.ServerConfig.certificates.set : [SignedCert]
                                                -> ServerConfig
                                                -> ServerConfig
-  301. io2.Tls.ServerConfig.default : [SignedCert]
+  311. io2.Tls.ServerConfig.default : [SignedCert]
                                       -> PrivateKey
                                       -> ServerConfig
-  302. builtin type io2.Tls.SignedCert
-  303. io2.Tls.decodeCert : Bytes -> Either Failure SignedCert
-  304. io2.Tls.decodePrivateKey : Bytes -> [PrivateKey]
-  305. io2.Tls.encodeCert : SignedCert -> Bytes
-  306. io2.Tls.encodePrivateKey : PrivateKey -> Bytes
-  307. io2.Tls.handshake : Tls ->{IO} Either Failure ()
-  308. io2.Tls.newClient : ClientConfig
+  312. builtin type io2.Tls.SignedCert
+  313. io2.Tls.decodeCert : Bytes -> Either Failure SignedCert
+  314. io2.Tls.decodePrivateKey : Bytes -> [PrivateKey]
+  315. io2.Tls.encodeCert : SignedCert -> Bytes
+  316. io2.Tls.encodePrivateKey : PrivateKey -> Bytes
+  317. io2.Tls.handshake : Tls ->{IO} Either Failure ()
+  318. io2.Tls.newClient : ClientConfig
                            -> Socket
                            ->{IO} Either Failure Tls
-  309. io2.Tls.newServer : ServerConfig
+  319. io2.Tls.newServer : ServerConfig
                            -> Socket
                            ->{IO} Either Failure Tls
-  310. io2.Tls.receive : Tls ->{IO} Either Failure Bytes
-  311. io2.Tls.send : Tls -> Bytes ->{IO} Either Failure ()
-  312. io2.Tls.terminate : Tls ->{IO} Either Failure ()
-  313. unique type io2.TlsFailure
-  314. io2.tls.ClientConfig.ciphers.set : [##Tls.Cipher]
+  320. io2.Tls.receive : Tls ->{IO} Either Failure Bytes
+  321. io2.Tls.send : Tls -> Bytes ->{IO} Either Failure ()
+  322. io2.Tls.terminate : Tls ->{IO} Either Failure ()
+  323. unique type io2.TlsFailure
+  324. io2.tls.ClientConfig.ciphers.set : [##Tls.Cipher]
                                           -> ClientConfig
                                           -> ClientConfig
-  315. io2.tls.ClientConfig.versions.set : [##Tls.Version]
+  325. io2.tls.ClientConfig.versions.set : [##Tls.Version]
                                            -> ClientConfig
                                            -> ClientConfig
-  316. io2.tls.ServerConfig.ciphers.set : [##Tls.Cipher]
+  326. io2.tls.ServerConfig.ciphers.set : [##Tls.Cipher]
                                           -> ServerConfig
                                           -> ServerConfig
-  317. io2.tls.ServerConfig.versions.set : [##Tls.Version]
+  327. io2.tls.ServerConfig.versions.set : [##Tls.Version]
                                            -> ServerConfig
                                            -> ServerConfig
-  318. todo : a -> b
+  328. todo : a -> b
   
 
 .builtin> alias.many 94-104 .mylib
