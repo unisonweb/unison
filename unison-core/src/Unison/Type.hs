@@ -240,10 +240,13 @@ tlsServerConfigRef :: Reference
 tlsServerConfigRef = Reference.Builtin "Tls.ServerConfig"
 
 tlsSignedCertRef :: Reference
-tlsSignedCertRef = Reference.Builtin "Tls.SigendCert"
+tlsSignedCertRef = Reference.Builtin "Tls.SignedCert"
 
-tlsCiphersRef :: Reference
-tlsCiphersRef = Reference.Builtin "Tls.Ciphers"
+tlsPrivateKeyRef :: Reference
+tlsPrivateKeyRef = Reference.Builtin "Tls.PrivateKey"
+
+tlsCipherRef :: Reference
+tlsCipherRef = Reference.Builtin "Tls.Cipher"
 
 tlsVersionRef :: Reference
 tlsVersionRef = Reference.Builtin "Tls.Version"

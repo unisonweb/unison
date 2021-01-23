@@ -20,7 +20,7 @@ import Control.Concurrent (ThreadId)
 import Data.Text (Text, unpack)
 import Data.Tagged (Tagged(..))
 import Network.Socket (Socket)
-import qualified Network.TLS as TLS (ClientParams, Context, ServerParams) 
+import qualified Network.TLS as TLS (ClientParams, Context, ServerParams)
 import qualified Data.X509 as X509
 import System.IO (Handle)
 import Unison.Util.Bytes (Bytes)
@@ -93,6 +93,7 @@ instance BuiltinForeign ThreadId where foreignRef = Tagged Ty.threadIdRef
 instance BuiltinForeign TLS.ClientParams where foreignRef = Tagged Ty.tlsClientConfigRef
 instance BuiltinForeign TLS.ServerParams where foreignRef = Tagged Ty.tlsServerConfigRef
 instance BuiltinForeign X509.SignedCertificate where foreignRef = Tagged Ty.tlsSignedCertRef
+instance BuiltinForeign X509.PrivKey where foreignRef = Tagged Ty.tlsPrivateKeyRef
 instance BuiltinForeign FilePath where foreignRef = Tagged Ty.filePathRef
 instance BuiltinForeign TLS.Context where foreignRef = Tagged Ty.tlsRef
 instance BuiltinForeign (SuperGroup Symbol) where

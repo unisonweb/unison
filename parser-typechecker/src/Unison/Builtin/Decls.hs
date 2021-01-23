@@ -40,7 +40,7 @@ pairRef = lookupDeclRef "Tuple"
 optionalRef = lookupDeclRef "Optional"
 eitherRef = lookupDeclRef "Either"
 
-testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef, failureRef, tlsSignedCertRef :: Reference
+testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef, failureRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
 testResultRef = lookupDeclRef "Test.Result"
 linkRef = lookupDeclRef "Link"
 docRef = lookupDeclRef "Doc"
@@ -48,6 +48,7 @@ ioErrorRef = lookupDeclRef "io2.IOError"
 stdHandleRef = lookupDeclRef "io2.StdHandle"
 failureRef = lookupDeclRef "io2.Failure"
 tlsSignedCertRef = lookupDeclRef "io2.Tls.SignedCert"
+tlsPrivateKeyRef = lookupDeclRef "io2.Tls.PrivateKey"
 
 fileModeRef, filePathRef, bufferModeRef, seekModeRef, seqViewRef :: Reference
 fileModeRef = lookupDeclRef "io2.FileMode"
@@ -104,7 +105,6 @@ builtinDataDecls = rs1 ++ rs
     , (v "io2.StdHandle"      , stdhnd)
     , (v "io2.Failure"        , failure)
     , (v "io2.TlsFailure"     , tlsFailure)
-    , (v "io2.Tls.SignedCert" , tlsSignedCert)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
   [(_, linkRef, _)] = rs1
   v = Var.named
@@ -207,13 +207,6 @@ builtinDataDecls = rs1 ++ rs
     ()
     []
     []
-  tlsSignedCert = DataDeclaration
-    (Unique "a482c0ad454590e44d4f1c299086236d54cf94b636cf7a3c4940f01892c43ae6")
-    ()
-    []
-    [ ((), v "io2.Tls.SignedCert.SignedCert", Type.bytes () `arr` var "io2.Tls.SignedCert")
-    ]
-
   stdhnd = DataDeclaration
     (Unique "67bf7a8e517cbb1e9f42bc078e35498212d3be3c")
     ()

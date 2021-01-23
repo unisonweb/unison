@@ -340,36 +340,49 @@ Let's try it!
   293. builtin type io2.ThreadId
   294. builtin type io2.Tls
   295. builtin type io2.Tls.ClientConfig
-  296. io2.Tls.ClientConfig.certificates.set : [##Tls.SigendCert]
+  296. io2.Tls.ClientConfig.certificates.set : [SignedCert]
                                                -> ClientConfig
                                                -> ClientConfig
   297. io2.Tls.ClientConfig.default : Text
                                       -> Bytes
                                       -> ClientConfig
-  298. builtin type io2.Tls.ServerConfig
-  299. io2.Tls.ServerConfig.certificates.set : [##Tls.SigendCert]
+  298. builtin type io2.Tls.PrivateKey
+  299. builtin type io2.Tls.ServerConfig
+  300. io2.Tls.ServerConfig.certificates.set : [SignedCert]
                                                -> ServerConfig
                                                -> ServerConfig
-  300. io2.Tls.ServerConfig.default : ServerConfig
-  301. builtin type io2.Tls.SignedCert##Tls.SignedCert
-  302. unique type io2.Tls.SignedCert#k0p
-  303. io2.Tls.SignedCert.SignedCert : Bytes
-                                       -> io2.Tls.SignedCert#k0p2quputb
-  304. io2.Tls.decodeCert : Bytes
-                            -> Either Failure ##Tls.SigendCert
-  305. io2.Tls.encodeCert : ##Tls.SigendCert -> Bytes
-  306. io2.Tls.handshake : Tls ->{IO} Either Failure ()
-  307. io2.Tls.newClient : ClientConfig
+  301. io2.Tls.ServerConfig.default : [SignedCert]
+                                      -> PrivateKey
+                                      -> ServerConfig
+  302. builtin type io2.Tls.SignedCert
+  303. io2.Tls.decodeCert : Bytes -> Either Failure SignedCert
+  304. io2.Tls.decodePrivateKey : Bytes -> [PrivateKey]
+  305. io2.Tls.encodeCert : SignedCert -> Bytes
+  306. io2.Tls.encodePrivateKey : PrivateKey -> Bytes
+  307. io2.Tls.handshake : Tls ->{IO} Either Failure ()
+  308. io2.Tls.newClient : ClientConfig
                            -> Socket
                            ->{IO} Either Failure Tls
-  308. io2.Tls.newServer : ServerConfig
+  309. io2.Tls.newServer : ServerConfig
                            -> Socket
                            ->{IO} Either Failure Tls
-  309. io2.Tls.receive : Tls ->{IO} Either Failure Bytes
-  310. io2.Tls.send : Tls -> Bytes ->{IO} Either Failure ()
-  311. io2.Tls.terminate : Tls ->{IO} Either Failure ()
-  312. unique type io2.TlsFailure
-  313. todo : a -> b
+  310. io2.Tls.receive : Tls ->{IO} Either Failure Bytes
+  311. io2.Tls.send : Tls -> Bytes ->{IO} Either Failure ()
+  312. io2.Tls.terminate : Tls ->{IO} Either Failure ()
+  313. unique type io2.TlsFailure
+  314. io2.tls.ClientConfig.ciphers.set : [##Tls.Cipher]
+                                          -> ClientConfig
+                                          -> ClientConfig
+  315. io2.tls.ClientConfig.versions.set : [##Tls.Version]
+                                           -> ClientConfig
+                                           -> ClientConfig
+  316. io2.tls.ServerConfig.ciphers.set : [##Tls.Cipher]
+                                          -> ServerConfig
+                                          -> ServerConfig
+  317. io2.tls.ServerConfig.versions.set : [##Tls.Version]
+                                           -> ServerConfig
+                                           -> ServerConfig
+  318. todo : a -> b
   
 
 .builtin> alias.many 94-104 .mylib

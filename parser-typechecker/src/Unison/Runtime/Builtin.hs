@@ -49,6 +49,7 @@ import qualified Data.ByteArray as BA
 import qualified Data.ByteString.Lazy as L
 import qualified System.X509 as X
 import qualified Data.X509 as X
+import qualified Data.X509.Memory as X
 import qualified Data.X509.CertificateStore as X
 import Data.PEM (pemContent, pemParseLBS, PEM)
 import Data.Set (insert)
@@ -1441,20 +1442,19 @@ declareForeigns = do
   declareForeign "Text.fromUtf8.v2" boxToEFBox . mkForeign
     $ pure . mapLeft (Failure ioFailureReference . pack . show) . decodeUtf8' . Bytes.toArray
 
-  let
-    defaultSupported :: TLS.Supported
-    defaultSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
-
-  declareForeign "Tls.ClientConfig.default" boxBoxDirect
-    .  mkForeign $ \(hostName::Text, serverId:: Bytes.Bytes) -> do
-       store <- X.getSystemCertificateStore
-       let shared :: TLS.Shared
-           shared = def { TLS.sharedCAStore = store }
-           defaultParams = (defaultParamsClient (unpack hostName) (Bytes.toArray serverId)) { TLS.clientSupported = defaultSupported, TLS.clientShared = shared }
-       pure defaultParams
-
-  declareForeign "Tls.ServerConfig.default" unitDirect . mkForeign $ \() -> do
-    pure $ (def :: ServerParams) { TLS.serverSupported = defaultSupported }
+  declareForeign "Tls.ClientConfig.default" boxBoxDirect .  mkForeign
+    $ \(hostName::Text, serverId:: Bytes.Bytes) ->
+        fmap (\store ->
+              (defaultParamsClient (unpack hostName) (Bytes.toArray serverId)) {
+                 TLS.clientSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong },
+                 TLS.clientShared = def { TLS.sharedCAStore = store }
+                 }) X.getSystemCertificateStore
+  
+  declareForeign "Tls.ServerConfig.default" boxBoxDirect $ mkForeign
+    $ \(certs :: [X.SignedCertificate], key :: X.PrivKey) ->
+        pure $ (def :: TLS.ServerParams) { TLS.serverSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
+                                         , TLS.serverShared = def { TLS.sharedCredentials = Credentials [((X.CertificateChain certs), key)] }
+                                         }
 
   let updateClient :: X.CertificateStore -> TLS.ClientParams -> TLS.ClientParams
       updateClient certs client = client { TLS.clientShared = ((clientShared client) { TLS.sharedCAStore = certs }) } in
@@ -1462,8 +1462,17 @@ declareForeigns = do
         declareForeign "Tls.ClientConfig.certificates.set" boxBoxDirect . mkForeign $
           \(certs :: [X.SignedCertificate], params :: ClientParams) -> pure $ updateClient (X.makeCertificateStore certs) params
 
+  let updateServer :: X.CertificateStore -> TLS.ServerParams -> TLS.ServerParams
+      updateServer certs client = client { TLS.serverShared = ((serverShared client) { TLS.sharedCAStore = certs }) } in
+        declareForeign "Tls.ServerConfig.certificates.set" boxBoxDirect . mkForeign $
+          \(certs :: [X.SignedCertificate], params :: ServerParams) -> pure $ updateServer (X.makeCertificateStore certs) params
+
   declareForeign "Tls.newClient" boxBoxToEFBox . mkForeignTls $
     \(config :: TLS.ClientParams,
+      socket :: SYS.Socket) -> TLS.contextNew socket config
+
+  declareForeign "Tls.newServer" boxBoxToEFBox . mkForeignTls $
+    \(config :: TLS.ServerParams,
       socket :: SYS.Socket) -> TLS.contextNew socket config
 
   declareForeign "Tls.handshake" boxToEFBox . mkForeignTls $
@@ -1485,6 +1494,12 @@ declareForeigns = do
   declareForeign "Tls.encodeCert" boxDirect . mkForeign $
     \(cert :: X.SignedCertificate) -> pure $ Bytes.fromArray $ X.encodeSignedObject cert
 
+  declareForeign "Tls.decodePrivateKey" boxDirect . mkForeign $
+    \(bytes :: Bytes.Bytes) -> pure $ X.readKeyFileFromMemory $ L.toStrict $ Bytes.toLazyByteString bytes
+
+  declareForeign "Tls.encodePrivateKey" boxDirect . mkForeign $
+    \(privateKey :: X.PrivKey) -> pure $ pack $ show privateKey
+  
   declareForeign "Tls.receive" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> do
       bs <- TLS.recvData tls

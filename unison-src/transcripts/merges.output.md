@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #jbhdljmi7v
+  ⊙ #suq47on34k
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #uakdcfm2u5
+  ⊙ #trcl8lj5r6
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #r5r1om842c
+  ⊙ #oddqh6udcc
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #tu3rnqeadl
+  ⊙ #3ro66pat9g
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #4jeq84bidc
+  ⊙ #ggpl9bg0eh
   
     + Adds / updates:
     
       x
   
-  ⊙ #ccsulaho8t
+  ⊙ #ilh91mocfb
   
     + Adds / updates:
     
@@ -288,17 +288,20 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.Tls.ClientConfig
       builtin.io2.Tls.ClientConfig.certificates.set
       builtin.io2.Tls.ClientConfig.default
-      builtin.io2.Tls.ServerConfig
+      builtin.io2.Tls.PrivateKey builtin.io2.Tls.ServerConfig
       builtin.io2.Tls.ServerConfig.certificates.set
       builtin.io2.Tls.ServerConfig.default
-      builtin.io2.Tls.SignedCert##Tls.SignedCert
-      builtin.io2.Tls.SignedCert#k0p
-      builtin.io2.Tls.SignedCert.SignedCert
-      builtin.io2.Tls.decodeCert builtin.io2.Tls.encodeCert
-      builtin.io2.Tls.handshake builtin.io2.Tls.newClient
-      builtin.io2.Tls.newServer builtin.io2.Tls.receive
-      builtin.io2.Tls.send builtin.io2.Tls.terminate
-      builtin.io2.TlsFailure builtin.todo
+      builtin.io2.Tls.SignedCert builtin.io2.Tls.decodeCert
+      builtin.io2.Tls.decodePrivateKey
+      builtin.io2.Tls.encodeCert
+      builtin.io2.Tls.encodePrivateKey builtin.io2.Tls.handshake
+      builtin.io2.Tls.newClient builtin.io2.Tls.newServer
+      builtin.io2.Tls.receive builtin.io2.Tls.send
+      builtin.io2.Tls.terminate builtin.io2.TlsFailure
+      builtin.io2.tls.ClientConfig.ciphers.set
+      builtin.io2.tls.ClientConfig.versions.set
+      builtin.io2.tls.ServerConfig.ciphers.set
+      builtin.io2.tls.ServerConfig.versions.set builtin.todo
   
   □ #7asfbtqmoj (start of history)
 

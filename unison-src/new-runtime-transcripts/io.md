@@ -321,34 +321,3 @@ contain a signle typed value. They are a building block on which many
 concurrency primitives can be built that allow multiple threads to 
 synchronize and share data.
 
-```unison
-testMvars: '{io2.IO}[Result]
-testMvars _ =
-  test = 'let
-    test = "test"
-    test2 = "test2"
-    ma = MVar.new test
-    check "ma should not be empty" (not (isEmpty ma))
-    test' = toException (take ma)
-    expectU "should reap what you sow" test test'
-    check "ma should be empty" (isEmpty ma)
-    toException (put ma test)
-    test'' = toException (swap ma test2)
-    expectU "swap returns old contents" test test''
-    test''' = toException (swap ma test)
-    expectU "swap returns old contents" test2 test'''
-
-    ma2 = !MVar.newEmpty
-    check "tryTake should succeed when not empty" (not (isNone (tryTake ma)))
-    check "tryTake should not succeed when empty" (isNone (tryTake ma))
-
-    check "ma2 should be empty" (isEmpty ma2)
-    check "tryTake should fail when empty" (isNone (tryTake ma2))
-
-
-  runTest test
-```
-```ucm
-.> add
-.> io.test testMvars
-```

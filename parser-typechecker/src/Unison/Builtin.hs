@@ -171,6 +171,7 @@ builtinTypesSrc =
   , B' "Tls.ClientConfig" CT.Data, Rename' "Tls.ClientConfig" "io2.Tls.ClientConfig"
   , B' "Tls.ServerConfig" CT.Data, Rename' "Tls.ServerConfig" "io2.Tls.ServerConfig"
   , B' "Tls.SignedCert" CT.Data, Rename' "Tls.SignedCert" "io2.Tls.SignedCert"
+  , B' "Tls.PrivateKey" CT.Data, Rename' "Tls.PrivateKey" "io2.Tls.PrivateKey"
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -546,12 +547,19 @@ ioBuiltins =
   , ("Tls.send", tls --> bytes --> iof unit)
   , ("Tls.decodeCert", bytes --> eithert failure tlsSignedCert)
   , ("Tls.encodeCert", tlsSignedCert --> bytes)
+  , ("Tls.decodePrivateKey", bytes --> list tlsPrivateKey)
+  , ("Tls.encodePrivateKey", tlsPrivateKey --> bytes)
   , ("Tls.receive", tls --> iof bytes)
   , ("Tls.terminate", tls --> iof unit)
   , ("Tls.ClientConfig.default", text --> bytes --> tlsClientConfig)
-  , ("Tls.ServerConfig.default", tlsServerConfig)
+  , ("Tls.ServerConfig.default", list tlsSignedCert --> tlsPrivateKey --> tlsServerConfig)
+  , ("tls.ClientConfig.ciphers.set", list tlsCipher --> tlsClientConfig --> tlsClientConfig)
+  , ("tls.ServerConfig.ciphers.set", list tlsCipher --> tlsServerConfig --> tlsServerConfig)
   , ("Tls.ClientConfig.certificates.set", list tlsSignedCert --> tlsClientConfig --> tlsClientConfig)
   , ("Tls.ServerConfig.certificates.set", list tlsSignedCert --> tlsServerConfig --> tlsServerConfig)
+  , ("tls.ClientConfig.versions.set", list tlsVersion --> tlsClientConfig --> tlsClientConfig)
+  , ("tls.ServerConfig.versions.set", list tlsVersion --> tlsServerConfig --> tlsServerConfig)
+
   ]
 
 mvarBuiltins :: forall v. Var v => [(Text, Type v)]
@@ -629,16 +637,14 @@ threadId = Type.threadId ()
 handle = Type.fileHandle ()
 unit = DD.unitType ()
 
-tls, tlsClientConfig, tlsServerConfig :: Var v => Type v
+tls, tlsClientConfig, tlsServerConfig, tlsSignedCert, tlsPrivateKey, tlsVersion, tlsCipher :: Var v => Type v
 tls = Type.ref () Type.tlsRef
 tlsClientConfig = Type.ref () Type.tlsClientConfigRef
 tlsServerConfig = Type.ref () Type.tlsServerConfigRef
-
-tlsSignedCert :: Var v => Type v
 tlsSignedCert = Type.ref () Type.tlsSignedCertRef
-
---tlsVersion = Type.ref () Type.tlsVersionRef
---tlsCiphers = Type.ref () Type.tlsCiphersRef
+tlsPrivateKey = Type.ref () Type.tlsPrivateKeyRef
+tlsVersion = Type.ref () Type.tlsVersionRef
+tlsCipher = Type.ref () Type.tlsCipherRef
 
 fmode, bmode, smode, stdhandle :: Var v => Type v
 fmode = DD.fileModeType ()
