@@ -81,6 +81,7 @@ import UnliftIO.Directory (createDirectoryIfMissing, getHomeDirectory)
 import qualified UnliftIO.Environment as SysEnv
 import UnliftIO.STM
 import qualified System.FilePath as FilePath
+import qualified Control.Concurrent
 
 codebasePath :: FilePath
 codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
@@ -382,7 +383,12 @@ sqliteCodebase root = do
               $ Branch.transform (lift . lift) branch1
 
           rootBranchUpdates :: IO (IO (), IO (Set Branch.Hash))
-          rootBranchUpdates = pure (pure (), pure mempty)
+          rootBranchUpdates = pure (cleanup, newRootsDiscovered) 
+            where
+              newRootsDiscovered = do
+                Control.Concurrent.threadDelay maxBound -- hold off on returning
+                pure mempty -- returning nothing
+              cleanup = pure ()
 
           -- if this blows up on cromulent hashes, then switch from `hashToHashId`
           -- to one that returns Maybe.
