@@ -21,20 +21,20 @@ type LocalIds = LocalIds' TextId ObjectId
 type WatchLocalIds = LocalIds' TextId HashId
 
 -- | represents an index into a textLookup
-newtype LocalTextId = LocalTextId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
+newtype LocalTextId = LocalTextId Word64 deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Bits) via Word64
 
 -- | represents an index into a defnLookup
-newtype LocalDefnId = LocalDefnId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
+newtype LocalDefnId = LocalDefnId Word64 deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Bits) via Word64
 
 -- | a local index to a hash, used when the corresponding object is allowed to be absent
-newtype LocalHashId = LocalHashId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
+newtype LocalHashId = LocalHashId Word64 deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Bits) via Word64
 
-newtype LocalPatchObjectId = LocalPatchObjectId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
+newtype LocalPatchObjectId = LocalPatchObjectId Word64 deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Bits) via Word64
 
-newtype LocalBranchChildId = LocalBranchChildId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
+newtype LocalBranchChildId = LocalBranchChildId Word64 deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Bits) via Word64
 
 -- | causal hashes are treated differently from HashIds, which don't have dependencies
-newtype LocalCausalHashId = LocalCausalHashId Word64 deriving (Eq, Ord, Num, Real, Enum, Integral, Bits) via Word64
+newtype LocalCausalHashId = LocalCausalHashId Word64 deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Bits) via Word64
 
 instance Bitraversable LocalIds' where
   bitraverse f g (LocalIds t d) = LocalIds <$> traverse f t <*> traverse g d
