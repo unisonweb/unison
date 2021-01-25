@@ -262,7 +262,7 @@ instance ForeignConvention Failure where
   readForeign us bs ustk bstk = do
     (us,bs,typeref) <- readTypelink us bs ustk bstk
     (us,bs,message) <- readForeign us bs ustk bstk
-    pure (us, bs, (Failure typeref message))
+    pure (us, bs, Failure typeref message)
 
   writeForeign ustk bstk (Failure typeref message) = do
     (ustk, bstk) <- writeForeign ustk bstk message

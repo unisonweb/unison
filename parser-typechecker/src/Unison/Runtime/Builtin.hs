@@ -48,7 +48,10 @@ import Data.Text.Encoding ( decodeUtf8', decodeUtf8' )
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString.Lazy as L
 import qualified System.X509 as X
-
+import qualified Data.X509 as X
+import qualified Data.X509.Memory as X
+import qualified Data.X509.CertificateStore as X
+import Data.PEM (pemContent, pemParseLBS, PEM)
 import Data.Set (insert)
 
 import qualified Data.Map as Map
@@ -56,6 +59,7 @@ import Unison.Prelude
 import qualified Unison.Util.Bytes as Bytes
 import Network.Socket as SYS
   ( accept
+  , socketPort
   , Socket
   )
 import Network.Simple.TCP as SYS
@@ -804,6 +808,19 @@ inNat arg nat result cont instr =
   . unbox arg Ty.natRef nat
   $ TLetD result UN (TFOp instr [nat]) cont
 
+
+-- Maybe a -> b -> ...
+inMaybeBx :: forall v. Var v => v -> v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inMaybeBx arg1 arg2 arg3 mb result cont instr =
+  ([BX, BX],)
+  . TAbss [arg1, arg2]
+  . TMatch arg1 . flip (MatchData Ty.optionalRef) Nothing
+  $ mapFromList
+    [ (0, ([], TLetD mb UN (TLit $ I 0)
+               $ TLetD result UN (TFOp instr [mb, arg2]) cont))
+    , (1, ([BX], TAbs arg3 . TLetD mb UN (TLit $ I 1) $ TLetD result UN (TFOp instr [mb, arg3, arg2]) cont))
+    ]
+
 -- a -> b -> ...
 inBxBx :: forall v. Var v => v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inBxBx arg1 arg2 result cont instr =
@@ -867,7 +884,7 @@ outIoFailNat stack1 stack2 stack3 fail nat result =
         $ TCon eitherReference 0 [fail])
   , (1, ([UN],)
         . TAbs stack3
-        . TLetD nat UN (TCon Ty.natRef 0 [stack3])
+        . TLetD nat BX (TCon Ty.natRef 0 [stack3])
         $ TCon eitherReference 1 [nat])
   ]
 
@@ -1057,6 +1074,14 @@ boxToEFNat = inBx arg result
           $ outIoFailNat stack1 stack2 stack3 nat fail result
   where
     (arg, result, stack1, stack2, stack3, nat, fail) = fresh7
+
+-- Maybe a -> b -> Either Failure c
+maybeBoxToEFBox :: ForeignOp
+maybeBoxToEFBox = inMaybeBx arg1 arg2 arg3 mb result
+                $ outIoFail stack1 stack2 fail result
+  where
+    (arg1, arg2, arg3, mb, result, stack1, stack2, fail) = fresh8
+
 
 -- a -> b -> Either Failure c
 boxBoxToEFBox :: ForeignOp
@@ -1281,7 +1306,7 @@ mkForeignIOF f = mkForeign $ \a -> tryIOE (f a)
   tryIOE :: IO a -> IO (Either Failure a)
   tryIOE = fmap handleIOE . try
   handleIOE :: Either IOException a -> Either Failure a
-  handleIOE (Left e) = Left $ Failure ioFailureReference (pack (show e))
+  handleIOE (Left e) = Left $ traceShow e $ Failure ioFailureReference (pack (show e))
   handleIOE (Right a) = Right a
 
 mkForeignTls
@@ -1368,20 +1393,26 @@ declareForeigns = do
     -- TODO: truncating integer
     . mkForeignIOF $ \fp -> fromInteger @Word64 <$> getFileSize fp
 
-  declareForeign "IO.serverSocket.v2" boxBoxToEFBox
-    . mkForeignIOF $ \(mhst,port) ->
+  declareForeign "IO.serverSocket.v2" maybeBoxToEFBox
+    . mkForeignIOF $ \(mhst :: Maybe Text
+                      , port) ->
         fst <$> SYS.bindSock (hostPreference mhst) port
 
-  declareForeign "IO.listen.v2" boxToEF0
-    . mkForeignIOF $ \sk -> SYS.listenSock sk 2048
+  declareForeign "IO.socketPort" boxToEFNat
+    . mkForeignIOF $ \(handle :: Socket) -> do
+        n <- SYS.socketPort handle
+        return (fromIntegral n :: Word64)
 
-  declareForeign "IO.clientSocket.v2" boxBoxDirect
+  declareForeign "IO.listen.v2" boxToEF0
+    . mkForeignIOF $ \sk -> SYS.listenSock sk 2
+
+  declareForeign "IO.clientSocket.v2" boxBoxToEFBox
     . mkForeignIOF $ fmap fst . uncurry SYS.connectSock
 
   declareForeign "IO.closeSocket.v2" boxToEF0
     $ mkForeignIOF SYS.closeSock
 
-  declareForeign "IO.socketAccept.v2" boxDirect
+  declareForeign "IO.socketAccept.v2" boxToEFBox
     . mkForeignIOF $ fmap fst . SYS.accept
 
   declareForeign "IO.socketSend.v2" boxBoxToEF0
@@ -1438,6 +1469,31 @@ declareForeigns = do
   declareForeign "Text.fromUtf8.v2" boxToEFBox . mkForeign
     $ pure . mapLeft (Failure ioFailureReference . pack . show) . decodeUtf8' . Bytes.toArray
 
+  declareForeign "Tls.ClientConfig.default" boxBoxDirect .  mkForeign
+    $ \(hostName::Text, serverId:: Bytes.Bytes) ->
+        fmap (\store ->
+              (defaultParamsClient (unpack hostName) (Bytes.toArray serverId)) {
+                 TLS.clientSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong },
+                 TLS.clientShared = def { TLS.sharedCAStore = store }
+                 }) X.getSystemCertificateStore
+  
+  declareForeign "Tls.ServerConfig.default" boxBoxDirect $ mkForeign
+    $ \(certs :: [X.SignedCertificate], key :: X.PrivKey) ->
+        pure $ (def :: TLS.ServerParams) { TLS.serverSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
+                                         , TLS.serverShared = def { TLS.sharedCredentials = Credentials [((X.CertificateChain certs), key)] }
+                                         }
+
+  let updateClient :: X.CertificateStore -> TLS.ClientParams -> TLS.ClientParams
+      updateClient certs client = client { TLS.clientShared = ((clientShared client) { TLS.sharedCAStore = certs }) } in
+
+        declareForeign "Tls.ClientConfig.certificates.set" boxBoxDirect . mkForeign $
+          \(certs :: [X.SignedCertificate], params :: ClientParams) -> pure $ updateClient (X.makeCertificateStore certs) params
+
+  let updateServer :: X.CertificateStore -> TLS.ServerParams -> TLS.ServerParams
+      updateServer certs client = client { TLS.serverShared = ((serverShared client) { TLS.sharedCAStore = certs }) } in
+        declareForeign "Tls.ServerConfig.certificates.set" boxBoxDirect . mkForeign $
+          \(certs :: [X.SignedCertificate], params :: ServerParams) -> pure $ updateServer (X.makeCertificateStore certs) params
+
   declareForeign "TVar.new" boxDirect . mkForeign
     $ \(c :: Closure) -> unsafeSTMToIO $ STM.newTVar c
 
@@ -1479,6 +1535,10 @@ declareForeigns = do
     \(config :: TLS.ClientParams,
       socket :: SYS.Socket) -> TLS.contextNew socket config
 
+  declareForeign "Tls.newServer" boxBoxToEFBox . mkForeignTls $
+    \(config :: TLS.ServerParams,
+      socket :: SYS.Socket) -> TLS.contextNew socket config
+
   declareForeign "Tls.handshake" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> TLS.handshake tls
 
@@ -1486,6 +1546,24 @@ declareForeigns = do
     \(tls :: TLS.Context,
       bytes :: Bytes.Bytes) -> TLS.sendData tls (Bytes.toLazyByteString bytes)
 
+  let wrapFailure t = Failure tlsFailureReference (pack t)
+      decoded :: Bytes.Bytes -> Either String PEM
+      decoded bytes = fmap head $ pemParseLBS  $ Bytes.toLazyByteString bytes
+      asCert :: PEM -> Either String X.SignedCertificate
+      asCert pem = X.decodeSignedCertificate  $ pemContent pem
+    in
+      declareForeign "Tls.decodeCert" boxToEFBox . mkForeign $
+        \(bytes :: Bytes.Bytes) -> pure $ mapLeft wrapFailure $ (decoded >=> asCert) bytes
+
+  declareForeign "Tls.encodeCert" boxDirect . mkForeign $
+    \(cert :: X.SignedCertificate) -> pure $ Bytes.fromArray $ X.encodeSignedObject cert
+
+  declareForeign "Tls.decodePrivateKey" boxDirect . mkForeign $
+    \(bytes :: Bytes.Bytes) -> pure $ X.readKeyFileFromMemory $ L.toStrict $ Bytes.toLazyByteString bytes
+
+  declareForeign "Tls.encodePrivateKey" boxDirect . mkForeign $
+    \(privateKey :: X.PrivKey) -> pure $ pack $ show privateKey
+  
   declareForeign "Tls.receive" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> do
       bs <- TLS.recvData tls

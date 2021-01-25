@@ -40,13 +40,15 @@ pairRef = lookupDeclRef "Tuple"
 optionalRef = lookupDeclRef "Optional"
 eitherRef = lookupDeclRef "Either"
 
-testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef, failureRef :: Reference
+testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef, failureRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
 testResultRef = lookupDeclRef "Test.Result"
 linkRef = lookupDeclRef "Link"
 docRef = lookupDeclRef "Doc"
 ioErrorRef = lookupDeclRef "io2.IOError"
 stdHandleRef = lookupDeclRef "io2.StdHandle"
 failureRef = lookupDeclRef "io2.Failure"
+tlsSignedCertRef = lookupDeclRef "io2.Tls.SignedCert"
+tlsPrivateKeyRef = lookupDeclRef "io2.Tls.PrivateKey"
 
 fileModeRef, filePathRef, bufferModeRef, seekModeRef, seqViewRef :: Reference
 fileModeRef = lookupDeclRef "io2.FileMode"
@@ -86,23 +88,23 @@ builtinDataDecls :: Var v => [(v, Reference.Id, DataDeclaration v ())]
 builtinDataDecls = rs1 ++ rs
  where
   rs1 = case hashDecls $ Map.fromList
-    [ (v "Link"           , link)
+    [ (v "Link"                , link)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
   rs = case hashDecls $ Map.fromList
-    [ (v "Unit"           , unit)
-    , (v "Tuple"          , tuple)
-    , (v "Optional"       , opt)
-    , (v "Either"         , eith)
-    , (v "Test.Result"    , tr)
-    , (v "Doc"            , doc)
-    , (v "io2.FileMode"   , fmode)
-    , (v "io2.BufferMode" , bmode)
-    , (v "io2.SeekMode"   , smode)
-    , (v "SeqView"        , seqview)
-    , (v "io2.IOError"    , ioerr)
-    , (v "io2.StdHandle"  , stdhnd)
-    , (v "io2.Failure"    , failure)
-    , (v "io2.TlsFailure" , tlsFailure)
+    [ (v "Unit"               , unit)
+    , (v "Tuple"              , tuple)
+    , (v "Optional"           , opt)
+    , (v "Either"             , eith)
+    , (v "Test.Result"        , tr)
+    , (v "Doc"                , doc)
+    , (v "io2.FileMode"       , fmode)
+    , (v "io2.BufferMode"     , bmode)
+    , (v "io2.SeekMode"       , smode)
+    , (v "SeqView"            , seqview)
+    , (v "io2.IOError"        , ioerr)
+    , (v "io2.StdHandle"      , stdhnd)
+    , (v "io2.Failure"        , failure)
+    , (v "io2.TlsFailure"     , tlsFailure)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
   [(_, linkRef, _)] = rs1
   v = Var.named
@@ -198,7 +200,7 @@ builtinDataDecls = rs1 ++ rs
     (Unique "52ad89274a358b9c802792aa05915e25ac83205f7885395cc6c6c988bc5ec69a1")
     ()
     []
-    [ ((), v "io2.Failure.Failure", (Type.typeLink () `arr` (Type.text () `arr` var "io2.Failure")))
+    [ ((), v "io2.Failure.Failure", Type.typeLink () `arr` (Type.text () `arr` var "io2.Failure"))
     ]
   tlsFailure = DataDeclaration
     (Unique "df5ba835130b227ab83d02d1feff5402455a732d613b51dee32230d2f2d067c6")
@@ -302,6 +304,9 @@ bufferModeType a = Type.ref a bufferModeRef
 seekModeType a = Type.ref a seekModeRef
 stdHandleType a = Type.ref a stdHandleRef
 failureType a = Type.ref a failureRef
+
+tlsSignedCertType :: Var v => a -> Type v a
+tlsSignedCertType a = Type.ref a tlsSignedCertRef
 
 unitTerm :: Var v => a -> Term v a
 unitTerm ann = Term.constructor ann unitRef 0
