@@ -1,6 +1,4 @@
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
@@ -23,13 +21,13 @@ type ReferentH = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
 data Referent' rTm rTp
   = Ref rTm
   | Con rTp ConstructorId
-  deriving (Eq, Ord, Show, Bitraversable)
+  deriving (Eq, Ord, Show)
 
 type Id = Id' Hash Hash
 data Id' hTm hTp
   = RefId (Reference.Id' hTm)
   | ConId (Reference.Id' hTp) ConstructorId
-  deriving (Eq, Ord, Show, Bitraversable)
+  deriving (Eq, Ord, Show)
 
 instance (Hashable rTm, Hashable rTp) => Hashable (Referent' rTm rTp) where
   tokens (Ref r) = Hashable.Tag 0 : Hashable.tokens r
@@ -45,6 +43,11 @@ instance Bifoldable Referent' where
     Ref r -> f r
     Con r _ -> g r
 
+instance Bitraversable Referent' where
+  bitraverse f g = \case
+    Ref r -> Ref <$> f r
+    Con r c -> flip Con c <$> g r
+
 instance Bifunctor Id' where
   bimap f g = \case
     RefId r -> RefId (fmap f r)
@@ -54,3 +57,8 @@ instance Bifoldable Id' where
   bifoldMap f g = \case
     RefId r -> foldMap f r
     ConId r _ -> foldMap g r
+
+instance Bitraversable Id' where
+  bitraverse f g = \case
+    RefId r -> RefId <$> traverse f r
+    ConId r c -> flip ConId c <$> traverse g r
