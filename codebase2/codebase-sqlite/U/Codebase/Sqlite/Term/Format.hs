@@ -22,6 +22,7 @@ type TypeLink = TypeRef
 type LocallyIndexedComponent = LocallyIndexedComponent' TextId ObjectId
 newtype LocallyIndexedComponent' t d =
   LocallyIndexedComponent (Vector (LocalIds' t d, Term, Type))
+  deriving Show
 
 type F =
   Term.F' LocalTextId TermRef TypeRef TermLink TypeLink Symbol

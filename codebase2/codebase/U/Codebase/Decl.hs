@@ -32,7 +32,7 @@ data DeclR r v = DataDeclaration
     bound :: [v],
     constructorTypes :: [TypeR r v]
   }
-
+  deriving Show
 -- instance Hashable ConstructorType where
 --   tokens b = [Tag . fromIntegral $ fromEnum b]
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 -- Based on: http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html
@@ -8,7 +9,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-
+{-# LANGUAGE QuantifiedConstraints #-}
 
 module U.Core.ABT where
 
@@ -37,6 +38,8 @@ data ABT f v r
 -- a value of type `a`. Variables are of type `v`.
 data Term f v a = Term { freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a) }
   deriving (Functor, Foldable, Traversable)
+
+deriving instance (forall q. Show q => Show (f q), Show v, Show a) => Show (Term f v a)
 
 amap :: (Functor f, Foldable f) => (a -> a') -> Term f v a -> Term f v a'
 amap f (Term fv a out) = Term fv (f a) $ case out of

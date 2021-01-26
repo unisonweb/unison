@@ -14,7 +14,7 @@ import U.Codebase.Sqlite.DbId
 data LocalIds' t h = LocalIds
   { textLookup :: Vector t,
     defnLookup :: Vector h
-  }
+  } deriving Show
 
 type LocalIds = LocalIds' TextId ObjectId
 

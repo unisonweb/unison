@@ -91,10 +91,10 @@ data F' text termRef typeRef termLink typeLink vt a
     Match a [MatchCase text typeRef a]
   | TermLink termLink
   | TypeLink typeLink
-  deriving (Foldable, Functor, Traversable)
+  deriving (Foldable, Functor, Traversable, Show)
 
 data MatchCase t r a = MatchCase (Pattern t r) (Maybe a) a
-  deriving (Foldable, Functor, Generic, Generic1, Traversable)
+  deriving (Foldable, Functor, Generic, Generic1, Traversable, Show)
 
 data Pattern t r
   = PUnbound
@@ -111,7 +111,7 @@ data Pattern t r
   | PEffectBind !r !Int [Pattern t r] (Pattern t r)
   | PSequenceLiteral [Pattern t r]
   | PSequenceOp (Pattern t r) !SeqOp (Pattern t r)
-  deriving (Generic, Functor, Foldable, Traversable)
+  deriving (Generic, Functor, Foldable, Traversable, Show)
 
 data SeqOp
   = PCons

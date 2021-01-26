@@ -49,6 +49,7 @@ import qualified U.Core.ABT as ABT
 import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization
 import Prelude hiding (getChar, putChar)
+import Debug.Trace (trace)
 
 putABT ::
   (MonadPut m, Foldable f, Functor f, Ord v) =>
@@ -160,6 +161,7 @@ putTermComponent ::
   MonadPut m =>
   TermFormat.LocallyIndexedComponent ->
   m ()
+putTermComponent t | trace ("putTermComponent " ++ show t) False = undefined
 putTermComponent (TermFormat.LocallyIndexedComponent v) =
   putFramedArray
     ( \(localIds, term, typ) ->
@@ -168,7 +170,8 @@ putTermComponent (TermFormat.LocallyIndexedComponent v) =
     v
 
 putTerm :: MonadPut m => TermFormat.Term -> m ()
-putTerm = putABT putSymbol putUnit putF
+putTerm _t | trace "putTerm" False = undefined
+putTerm t = putABT putSymbol putUnit putF t
   where
     putF :: MonadPut m => (a -> m ()) -> TermFormat.F a -> m ()
     putF putChild = \case
@@ -377,6 +380,8 @@ putDeclFormat = \case
   where
     -- These use a framed array for randomer access
     putDeclComponent :: MonadPut m => DeclFormat.LocallyIndexedComponent -> m ()
+    putDeclComponent t | trace ("putDeclComponent " ++ show t) False = undefined
+
     putDeclComponent (DeclFormat.LocallyIndexedComponent v) =
       putFramedArray (putPair putLocalIds putDeclElement) v
       where

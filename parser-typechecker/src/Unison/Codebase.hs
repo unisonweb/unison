@@ -246,7 +246,8 @@ makeSelfContained' code uf = do
 
 getTypeOfTerm :: (Applicative m, Var v, BuiltinAnnotation a) =>
   Codebase m v a -> Reference -> m (Maybe (Type v a))
-getTypeOfTerm c = \case
+getTypeOfTerm _c r | trace ("Codebase.getTypeOfTerm " ++ show r) False = undefined
+getTypeOfTerm c r = case r of
   Reference.DerivedId h -> getTypeOfTermImpl c h
   r@Reference.Builtin{} ->
     pure $   fmap (const builtinAnnotation)

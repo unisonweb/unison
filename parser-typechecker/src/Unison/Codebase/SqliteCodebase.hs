@@ -61,7 +61,7 @@ import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as Decl
 import Unison.Hash (Hash)
 import Unison.Parser (Ann)
-import Unison.Prelude (MaybeT (runMaybeT), fromMaybe, traceM)
+import Unison.Prelude (MaybeT (runMaybeT), fromMaybe, trace, traceM)
 import qualified Unison.PrettyTerminal as PT
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -232,6 +232,7 @@ sqliteCodebase root = do
           getDeclTypeById = fmap Cv.decltype2to1 . Ops.getDeclTypeByReference
 
           getTypeOfTermImpl :: Reference.Id -> IO (Maybe (Type Symbol Ann))
+          getTypeOfTermImpl id | trace ("getTypeOfTermImpl " ++ show id) False = undefined
           getTypeOfTermImpl (Reference.Id (Cv.hash1to2 -> h2) i _n) =
             runDB' conn do
               type2 <- Ops.loadTypeOfTermByTermReference (C.Reference.Id h2 i)

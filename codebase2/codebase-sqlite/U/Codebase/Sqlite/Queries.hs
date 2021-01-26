@@ -9,6 +9,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -32,7 +33,7 @@ import Database.SQLite.Simple (Connection, FromRow, Only (..), SQLData, ToRow (.
 import qualified Database.SQLite.Simple as SQLite
 import Database.SQLite.Simple.FromField (FromField)
 import Database.SQLite.Simple.ToField (ToField (..))
-import Debug.Trace (traceM)
+import Debug.Trace (trace, traceM)
 import U.Codebase.HashTags (BranchHash, CausalHash, unBranchHash, unCausalHash)
 import U.Codebase.Reference (Reference')
 import qualified U.Codebase.Referent as C.Referent
@@ -194,7 +195,11 @@ saveObject h t blob =
   |]
 
 loadObjectById :: EDB m => ObjectId -> m ByteString
-loadObjectById oId = queryAtom sql (Only oId) >>= orError (UnknownObjectId oId)
+loadObjectById id | trace ("loadObjectById " ++ show id) False = undefined
+loadObjectById oId = do
+ result <- queryAtom sql (Only oId) >>= orError (UnknownObjectId oId)
+ traceM $ "loadObjectById " ++ show oId ++ " = " ++ show result
+ pure result
   where sql = [here|
   SELECT bytes FROM object WHERE id = ?
 |]
@@ -318,10 +323,14 @@ loadNamespaceRoot = queryAtoms sql () >>= \case
   ids -> throwError (MultipleNamespaceRoots ids)
  where sql = "SELECT causal_id FROM namespace_root"
 
-setNamespaceRoot :: DB m => CausalHashId -> m ()
-setNamespaceRoot id = execute sql (Only id) where sql = [here|
-  INSERT OR REPLACE INTO namespace_root VALUES (?)
-|]
+setNamespaceRoot :: forall m. DB m => CausalHashId -> m ()
+setNamespaceRoot id =
+  query_ @m @(Only CausalHashId) "SELECT * FROM namespace_root" >>= \case
+    [] -> execute insert (Only id)
+    _ -> execute update (Only id)
+  where 
+    insert = "INSERT INTO namespace_root VALUES (?)"
+    update = "UPDATE namespace_root SET causal_id = ?"
 
 saveWatch :: DB m => WatchKind -> Reference.IdH -> ByteString -> m ()
 saveWatch k r blob = execute sql (r :. Only blob) >> execute sql2 (r :. Only k)
@@ -472,13 +481,13 @@ namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") whe
 
 -- * helper functions
 
-queryAtoms :: (DB f, ToRow q, FromField b, Show q) => SQLite.Query -> q -> f [b]
+queryAtoms :: (DB f, ToRow q, FromField b, Show q, Show b) => SQLite.Query -> q -> f [b]
 queryAtoms q r = map fromOnly <$> query q r
 
-queryMaybe :: (DB f, ToRow q, FromRow b, Show q) => SQLite.Query -> q -> f (Maybe b)
+queryMaybe :: (DB f, ToRow q, FromRow b, Show q, Show b) => SQLite.Query -> q -> f (Maybe b)
 queryMaybe q r = headMay <$> query q r
 
-queryAtom :: (DB f, ToRow q, FromField b, Show q) => SQLite.Query -> q -> f (Maybe b)
+queryAtom :: (DB f, ToRow q, FromField b, Show q, Show b) => SQLite.Query -> q -> f (Maybe b)
 queryAtom q r = fmap fromOnly <$> queryMaybe q r
 
 queryOne :: Functor f => f (Maybe b) -> f b
@@ -490,16 +499,31 @@ queryExists q r = not . null . map (id @SQLData) <$> queryAtoms q r
 debugQuery :: Bool
 debugQuery = True
 
-query :: (DB m, ToRow q, FromRow r, Show q) => SQLite.Query -> q -> m [r]
+query :: (DB m, ToRow q, FromRow r, Show q, Show r) => SQLite.Query -> q -> m [r]
 query q r = do 
   c <- ask
   liftIO . queryTrace "query" q r $ SQLite.query c q r
 
-queryTrace :: (Applicative m, Show q) => String -> SQLite.Query -> q -> m a -> m a
+query_ :: (DB m, FromRow r, Show r) => SQLite.Query -> m [r]
+query_ q = do
+  c <- ask
+  liftIO . queryTrace_ "query" q $ SQLite.query_ c q
+
+queryTrace :: (Monad m, Show q, Show a) => String -> SQLite.Query -> q -> m a -> m a
 queryTrace title query input m =
-  if debugQuery 
-    then (traceM $ title ++ " " ++ show input ++ " -> " ++ show query ) *> m
-    else m
+  if debugQuery then do
+    a <- m
+    traceM $ title ++ " " ++ show query ++ "\n  input: " ++ show input ++ "\n output: " ++ show a
+    pure a
+  else m
+
+queryTrace_ :: (Monad m, Show a) => String -> SQLite.Query -> m a -> m a
+queryTrace_ title query m =
+  if debugQuery then do
+    a <- m
+    traceM $ title ++ " " ++ show query ++ "\n output: " ++ show a
+    pure a
+  else m
 
 execute :: (DB m, ToRow q, Show q) => SQLite.Query -> q -> m ()
 execute q r = do c <- ask; liftIO . queryTrace "execute" q r $ SQLite.execute c q r

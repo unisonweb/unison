@@ -38,6 +38,7 @@ import System.FilePath (takeDirectory)
 import UnliftIO (MonadIO, liftIO)
 import UnliftIO.Directory (createDirectoryIfMissing, doesFileExist)
 import Prelude hiding (readFile, writeFile)
+import Debug.Trace (traceM)
 
 -- import qualified U.Util.Monoid as Monoid
 
@@ -186,6 +187,7 @@ putFramed put a = do
   -- 2. Put the length `len`
   -- 3. Put `a`
   let bs = putBytes put a
+  traceM $ "putFramed " ++ (show $ BS.length bs) ++ " bytes: " ++ show bs
   putVarInt (BS.length bs)
   putByteString bs
 

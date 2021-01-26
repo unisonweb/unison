@@ -12,11 +12,13 @@ import qualified U.Core.ABT as ABT
 
 -- | Add new formats here
 data DeclFormat = Decl LocallyIndexedComponent
+  deriving Show
 
 -- | V1: Decls included `Hash`es inline
 --   V2: Instead of `Hash`, we use a smaller index.
 data LocallyIndexedComponent
   = LocallyIndexedComponent (Vector (LocalIds, Decl Symbol))
+  deriving Show
 
 type Decl v = DeclR TypeRef v
 
