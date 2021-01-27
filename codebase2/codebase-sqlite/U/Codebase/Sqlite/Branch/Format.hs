@@ -9,6 +9,7 @@ import U.Codebase.Sqlite.DbId (CausalHashId, BranchObjectId, ObjectId, PatchObje
 data BranchFormat
   = Full BranchLocalIds LocalBranch
   | Diff BranchObjectId BranchLocalIds LocalDiff
+  deriving Show
 
 data BranchLocalIds = LocalIds
   { branchTextLookup :: Vector TextId,
@@ -16,3 +17,4 @@ data BranchLocalIds = LocalIds
     branchPatchLookup :: Vector PatchObjectId,
     branchChildLookup :: Vector (BranchObjectId, CausalHashId)
   }
+  deriving Show

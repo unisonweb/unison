@@ -21,9 +21,9 @@ import qualified Data.Set as Set
 type LocalDiff = Diff' LocalTextId LocalDefnId LocalPatchObjectId LocalBranchChildId
 type Diff = Diff' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
 
-data DefinitionOp' r = RemoveDef | AddDefWithMetadata (Set r) | AlterDefMetadata (AddRemove r)
-data PatchOp' p = PatchRemove | PatchAddReplace p deriving Functor
-data ChildOp' c = ChildRemove | ChildAddReplace c deriving Functor
+data DefinitionOp' r = RemoveDef | AddDefWithMetadata (Set r) | AlterDefMetadata (AddRemove r) deriving Show
+data PatchOp' p = PatchRemove | PatchAddReplace p deriving (Functor, Show)
+data ChildOp' c = ChildRemove | ChildAddReplace c deriving (Functor, Show)
 type AddRemove a = Map a Bool
 
 type LocalDefinitionOp = DefinitionOp' (Metadata LocalTextId LocalDefnId)
@@ -47,6 +47,7 @@ data Diff' t h p c = Diff
     patches :: Map t (PatchOp' p),
     children :: Map t (ChildOp' c)
   }
+  deriving Show
 
 type Metadata t h = Reference' t h
 

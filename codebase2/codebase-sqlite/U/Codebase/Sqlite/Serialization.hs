@@ -427,8 +427,10 @@ getDeclElement =
 
 lookupDeclElement ::
   MonadGet m => Reference.Pos -> m (LocalIds, DeclFormat.Decl Symbol)
-lookupDeclElement =
-  unsafeFramedArrayLookup (getPair getLocalIds getDeclElement) . fromIntegral
+lookupDeclElement i =
+  getWord8 >>= \case
+    0 -> unsafeFramedArrayLookup (getPair getLocalIds getDeclElement) $ fromIntegral i
+    other -> unknownTag "lookupDeclElement" other
 
 putBranchFormat :: MonadPut m => BranchFormat.BranchFormat -> m ()
 putBranchFormat = \case

@@ -14,7 +14,7 @@ module U.Codebase.Sqlite.Operations where
 
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
-import Control.Monad (join, (<=<))
+import Control.Monad (MonadPlus(mzero), join, (<=<))
 import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
 import Control.Monad.State (MonadState, StateT, evalStateT)
 import Control.Monad.Trans (MonadTrans (lift))
@@ -202,7 +202,7 @@ objectExistsForHash :: DB m => H.Hash -> m Bool
 objectExistsForHash h =
   isJust <$> runMaybeT do
     id <- MaybeT . Q.loadHashId . H.toBase32Hex $ h
-    Q.maybeObjectIdForAnyHashId id
+    MaybeT $ Q.maybeObjectIdForAnyHashId id
 
 loadHashByObjectId :: EDB m => Db.ObjectId -> m H.Hash
 loadHashByObjectId = fmap H.fromBase32Hex . liftQ . Q.loadPrimaryHashByObjectId
@@ -534,11 +534,12 @@ loadTermWithTypeByReference (C.Reference.Id h i) =
     >>= decodeTermElementWithType i
     >>= uncurry3 s2cTermWithType
 
-loadTermByReference :: EDB m => C.Reference.Id -> m (C.Term Symbol)
+loadTermByReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term Symbol)
 loadTermByReference id | trace ("loadTermByReference " ++ show id) False = undefined
 loadTermByReference (C.Reference.Id h i) =
   primaryHashToExistingObjectId h
-    >>= liftQ . Q.loadObjectById
+    >>= liftQ . Q.loadObjectWithTypeById
+    >>= \case (OT.TermComponent, blob) -> pure blob; _ -> mzero
     -- retrieve and deserialize the blob
     >>= decodeTermElementDiscardingType i
     >>= uncurry s2cTerm
@@ -547,7 +548,8 @@ loadTypeOfTermByTermReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term.Typ
 loadTypeOfTermByTermReference id | trace ("loadTypeOfTermByTermReference " ++ show id) False = undefined
 loadTypeOfTermByTermReference (C.Reference.Id h i) =
   primaryHashToExistingObjectId h
-    >>= liftQ . Q.loadObjectById
+    >>= liftQ . Q.loadObjectWithTypeById
+    >>= \case (OT.TermComponent, blob) -> pure blob; _ -> mzero
     -- retrieve and deserialize the blob
     >>= decodeTermElementDiscardingTerm i
     >>= uncurry s2cTypeOfTerm
@@ -714,7 +716,10 @@ loadDeclByReference id | trace ("loadDeclByReference " ++ show id) False = undef
 loadDeclByReference (C.Reference.Id h i) = do
   -- retrieve the blob
   (localIds, C.Decl.DataDeclaration dt m b ct) <-
-    primaryHashToExistingObjectId h >>= liftQ . Q.loadObjectById >>= decodeDeclElement i
+    primaryHashToExistingObjectId h 
+    >>= liftQ . Q.loadObjectWithTypeById
+    >>= \case (OT.DeclComponent, blob) -> pure blob; _ -> mzero
+    >>= decodeDeclElement i
 
   -- look up the text and hashes that are used by the term
   texts <- traverse loadTextById $ LocalIds.textLookup localIds
@@ -809,10 +814,13 @@ saveRootBranch (C.Causal hc he parents me) = do
   chId <- liftQ (Q.saveCausalHash hc)
   parentCausalHashIds <- liftQ (Q.loadCausalParents chId) >>= \case
     [] -> do
+      -- no parents means hc maybe hasn't been saved previously,
+      -- so try to save each parent (recursively) before continuing to save hc
       for (Map.toList parents) $ \(causalHash, mcausal) -> do
         -- check if we can short circuit the parent before loading it,
-        -- by checking if there are causal parents for hc
+        -- by checking if there are causal parents associated with hc
         parentChId <- liftQ (Q.saveCausalHash causalHash)
+        -- test if the parent has been saved previously:
         liftQ (Q.loadCausalParents parentChId) >>= \case
           [] -> do c <- mcausal; snd <$> saveRootBranch c
           _grandParents -> pure parentChId
@@ -903,7 +911,9 @@ saveRootBranch (C.Causal hc he parents me) = do
     saveBranchObject :: DB m => Db.BranchHashId -> BranchLocalIds -> S.Branch.Full.LocalBranch -> m Db.BranchObjectId
     saveBranchObject (Db.unBranchHashId -> hashId) li lBranch = do
       let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full li lBranch
-      Db.BranchObjectId <$> Q.saveObject hashId OT.Namespace bytes
+      oId <- Q.saveObject hashId OT.Namespace bytes
+      Q.saveHashObject hashId oId 1 -- todo: change me
+      pure $ Db.BranchObjectId oId
     done :: EDB m => (a, BranchSavingWriter) -> m (BranchLocalIds, a)
     done (lBranch, (textValues, defnHashes, patchObjectIds, branchCausalIds)) = do
       textIds <- liftQ $ traverse Q.saveText textValues

@@ -25,12 +25,14 @@ data Branch' t h p c = Branch
     patches :: Map t p,
     children :: Map t c
   }
+  deriving Show
 
 type LocalMetadataSet = MetadataSetFormat' LocalTextId LocalDefnId
 
 type DbMetadataSet = MetadataSetFormat' TextId ObjectId
 
 data MetadataSetFormat' t h = Inline (Set (Reference' t h))
+  deriving Show
 
 quadmap :: forall t h p c t' h' p' c'. (Ord t', Ord h') => (t -> t') -> (h -> h') -> (p -> p') -> (c -> c') -> Branch' t h p c -> Branch' t' h' p' c'
 quadmap ft fh fp fc (Branch terms types patches children) =

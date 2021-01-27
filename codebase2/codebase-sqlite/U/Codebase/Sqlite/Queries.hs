@@ -179,7 +179,7 @@ loadTextById h = queryAtom sql (Only h) >>= orError (UnknownTextId h)
 saveHashObject :: DB m => HashId -> ObjectId -> Int -> m ()
 saveHashObject hId oId version = execute sql (hId, oId, version) where
   sql = [here|
-    INSERT INTO hash_object (hash_id, object_id, version)
+    INSERT INTO hash_object (hash_id, object_id, hash_version)
     VALUES (?, ?, ?)
     ON CONFLICT DO NOTHING
   |]
@@ -348,10 +348,13 @@ saveWatch k r blob = execute sql (r :. Only blob) >> execute sql2 (r :. Only k)
 
 loadWatch :: DB m => WatchKind -> Reference.IdH -> m (Maybe ByteString)
 loadWatch k r = queryAtom sql (Only k :. r) where sql = [here|
-    SELECT bytes FROM watch
-    WHERE watch_kind_id = ?
-      AND hash_id = ?
-      AND component_index = ?
+    SELECT result FROM watch_result
+    INNER JOIN watch 
+      ON watch_result.hash_id = watch.hash_id 
+      AND watch_result.component_index = watch.component_index
+    WHERE watch.watch_kind_id = ?
+      AND watch.hash_id = ?
+      AND watch.component_index = ?
   |]
 
 loadWatchesByWatchKind :: DB m => WatchKind -> m [Reference.Id]
