@@ -1151,15 +1151,17 @@ loop = do
         respond $ ListShallow ppe entries
         where
           entryToHQString :: ShallowListEntry v Ann -> String
-          entryToHQString e = fixup $ case e of
-            ShallowTypeEntry _ hq   -> HQ'.toString hq
-            ShallowTermEntry _ hq _ -> HQ'.toString hq
-            ShallowBranchEntry ns _ -> NameSegment.toString ns
-            ShallowPatchEntry ns    -> NameSegment.toString ns
+          entryToHQString e =
+            fixup $ case e of
+              ShallowTypeEntry _ hq   -> HQ'.toString hq
+              ShallowTermEntry _ hq _ -> HQ'.toString hq
+              ShallowBranchEntry ns _ -> NameSegment.toString ns
+              ShallowPatchEntry ns    -> NameSegment.toString ns
            where
-            fixup s = if last pathArgStr == '.'
-              then pathArgStr ++ s
-              else pathArgStr ++ "." ++ s
+            fixup s = case pathArgStr of
+                       "" -> s
+                       p | last p == '.' -> p ++ s
+                       p -> p ++ "." ++ s
             pathArgStr = show pathArg
 
       SearchByNameI isVerbose _showAll ws -> do

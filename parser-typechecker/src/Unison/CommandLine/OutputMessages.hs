@@ -511,10 +511,12 @@ notifyUser dir o = case o of
   --
   --   Term (with hash #asldfkjsdlfkjsdf): .util.frobnicate, foo, blarg.mcgee
   --   Types (with hash #hsdflkjsdfsldkfj): Optional, Maybe, foo
-  ListShallow ppe entries -> pure $
+  ListShallow ppe entries -> do
     -- todo: make a version of prettyNumberedResult to support 3-columns
-    if null entries then P.lit "nothing to show"
-    else numberedEntries entries
+    x <- pure $ if null entries then P.lit "nothing to show"
+            else numberedEntries entries
+    traceM "Listed shallow"
+    pure x
     where
     numberedEntries :: [ShallowListEntry v a] -> P.Pretty P.ColorText
     numberedEntries entries =
@@ -540,7 +542,6 @@ notifyUser dir o = case o of
     isBuiltin = \case
       Reference.Builtin{} -> P.lit "(builtin type)"
       Reference.DerivedId{} -> P.lit "(type)"
-
   SlurpOutput input ppe s -> let
     isPast = case input of Input.AddI{} -> True
                            Input.UpdateI{} -> True

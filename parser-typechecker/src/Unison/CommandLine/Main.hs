@@ -74,23 +74,23 @@ getUserInput
   -> Path.Absolute
   -> [String]
   -> m Input
-getUserInput patterns codebase branch currentPath numberedArgs =
-  Line.runInputT settings go
+getUserInput patterns codebase branch currentPath numberedArgs = Line.runInputT
+  settings
+  go
  where
   go = do
-    line <- Line.getInputLine $
-      P.toANSI 80 ((P.green . P.shown) currentPath <> fromString prompt)
+    line <- Line.getInputLine
+      $ P.toANSI 80 ((P.green . P.shown) currentPath <> fromString prompt)
     case line of
       Nothing -> pure QuitI
-      Just l ->
-        case words l of
-          [] -> go
-          ws ->
-            case parseInput patterns . (>>= expandNumber numberedArgs) $ ws  of
-              Left msg -> do
-                liftIO $ putPrettyLn msg
-                go
-              Right i -> pure i
+      Just l  -> case words l of
+        [] -> go
+        ws ->
+          case parseInput patterns . (>>= expandNumber numberedArgs) $ ws of
+            Left msg -> do
+              liftIO $ putPrettyLn msg
+              go
+            Right i -> pure i
   settings    = Line.Settings tabComplete (Just ".unisonHistory") True
   tabComplete = Line.completeWordWithPrev Nothing " " $ \prev word ->
     -- User hasn't finished a command name, complete from command names
@@ -228,7 +228,7 @@ main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs startRun
                 writeIORef pageOutput True
                 pure x) `catch` interruptHandler
       interruptHandler (asyncExceptionFromException -> Just UserInterrupt) = awaitInput
-      interruptHandler _ = pure $ Right QuitI
+      interruptHandler e = error (show e)
       cleanup = do
         Runtime.terminate runtime
         cancelConfig
@@ -237,7 +237,6 @@ main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs startRun
       loop state = do
         writeIORef pathRef (view HandleInput.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
-
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (writeIORef rootRef)
                                      runtime

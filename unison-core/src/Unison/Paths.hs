@@ -165,7 +165,7 @@ insertTerm at ctx = do
   (parent,set,_) <- focus at' (Term ctx)
   case parent of
     Term (E.Sequence' vs) -> do
-      i <- listToMaybe [i | Index i <- [last at]]
+      i <- listToMaybe [i | Index i <- toList (lastMay at)]
       let v2 = E.seq'() ((E.vmap ABT.Bound <$> Sequence.take (i+1) vs) `mappend`
                           pure (E.blank ()) `mappend`
                           (E.vmap ABT.Bound <$> Sequence.drop (i+1) vs))

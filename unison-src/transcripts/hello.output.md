@@ -83,10 +83,15 @@ hmm = "Not, in fact, a number"
 
 ```ucm
 
-  I found a value of type builtin.Text where I expected to find one of type builtin.Nat:
   
-      1 | hmm : .builtin.Nat
-      2 | hmm = "Not, in fact, a number"
+    ❓
+    
+    I couldn't resolve any of these symbols:
+    
+        1 | hmm : .builtin.Nat
+    
+    Using these fully qualified names: .builtin.Nat
+    
   
 
 ```

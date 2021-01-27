@@ -95,6 +95,7 @@ data Error v
   | UnknownType (L.Token (HQ.HashQualified Name)) (Set Reference)
   | UnknownId (L.Token (HQ.HashQualified Name)) (Set Referent) (Set Reference)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
+  | EmptyMatch
   | EmptyWatch
   | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
   | UseEmpty (L.Token String) -- an empty `use` statement
@@ -155,7 +156,7 @@ instance P.Stream Input where
 
   advance1 _ _ cp = setPos cp . L.end
 
-  advanceN _ _ cp = setPos cp . L.end . last . inputStream
+  advanceN _ _ cp = maybe cp (setPos cp . L.end) . lastMay . inputStream
 
   take1_ (P.chunkToTokens proxy -> [])   = Nothing
   take1_ (P.chunkToTokens proxy -> t:ts) = Just (t, P.tokensToChunk proxy ts)

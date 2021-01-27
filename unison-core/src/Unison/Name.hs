@@ -119,7 +119,7 @@ stripNamePrefix prefix name =
 
 -- a.b.c.d -> d
 stripPrefixes :: Name -> Name
-stripPrefixes = fromSegment . last . segments
+stripPrefixes = maybe "" fromSegment . lastMay . segments
 
 joinDot :: Name -> Name -> Name
 joinDot prefix suffix =
@@ -151,7 +151,7 @@ suffixes (Name n ) = fmap up . filter (not . null) . tails $ segments' n
   where up ns = Name (Text.intercalate "." ns)
 
 unqualified' :: Text -> Text
-unqualified' = last . segments'
+unqualified' = fromMaybe "" . lastMay . segments'
 
 makeAbsolute :: Name -> Name
 makeAbsolute n | toText n == "."                = Name ".."

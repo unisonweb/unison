@@ -106,7 +106,7 @@ style :: s -> String -> Pretty (AnnotatedText s)
 style sty str = Pr.lit . AT.annotate sty $ fromString str
 
 stylePretty :: Color -> Pretty ColorText -> Pretty ColorText
-stylePretty sty str = Pr.map (AT.annotate sty) str
+stylePretty = Pr.map . AT.annotate
 
 describeStyle :: Color -> Pretty ColorText
 describeStyle ErrorSite = "in " <> style ErrorSite "red"
@@ -1218,6 +1218,13 @@ prettyParseError s = \case
     , "), "
     , "but there wasn't one.  Maybe check your indentation:\n"
     , tokenAsErrorSite s tok
+    ]
+  go Parser.EmptyMatch = mconcat
+    ["I expected some patterns after a "
+    , style ErrorSite "match"
+    , "/"
+    , style ErrorSite "with"
+    , " but I didn't find any."
     ]
   go Parser.EmptyWatch =
     "I expected a non-empty watch expression and not just \">\""

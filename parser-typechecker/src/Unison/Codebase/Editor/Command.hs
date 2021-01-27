@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 
 module Unison.Codebase.Editor.Command (
@@ -7,7 +8,8 @@ module Unison.Codebase.Editor.Command (
   Source,
   SourceName,
   TypecheckingResult,
-  LoadSourceResult(..)
+  LoadSourceResult(..),
+  commandName
   ) where
 
 import Unison.Prelude
@@ -195,3 +197,50 @@ data Command m i v a where
 
   RuntimeMain :: Command m i v (Type v Ann)
   RuntimeTest :: Command m i v (Type v Ann)
+
+commandName :: Command m i v a -> String
+commandName = \case
+  Eval{}                      -> "Eval"
+  WithCodebase{}              -> "WithCodebase"
+  ConfigLookup{}              -> "ConfigLookup"
+  Input                       -> "Input"
+  Notify{}                    -> "Notify"
+  NotifyNumbered{}            -> "NotifyNumbered"
+  AddDefsToCodebase{}         -> "AddDefsToCodebase"
+  CodebaseHashLength          -> "CodebaseHashLength"
+  TypeReferencesByShortHash{} -> "TypeReferencesByShortHash"
+  TermReferencesByShortHash{} -> "TermReferencesByShortHash"
+  TermReferentsByShortHash{}  -> "TermReferentsByShortHash"
+  BranchHashLength            -> "BranchHashLength"
+  BranchHashesByPrefix{}      -> "BranchHashesByPrefix"
+  ParseType{}                 -> "ParseType"
+  LoadSource{}                -> "LoadSource"
+  Typecheck{}                 -> "Typecheck"
+  TypecheckFile{}             -> "TypecheckFile"
+  Evaluate{}                  -> "Evaluate"
+  Evaluate1{}                 -> "Evaluate1"
+  PutWatch{}                  -> "PutWatch"
+  LoadWatches{}               -> "LoadWatches"
+  LoadLocalRootBranch         -> "LoadLocalRootBranch"
+  LoadLocalBranch{}           -> "LoadLocalBranch"
+  ViewRemoteBranch{}          -> "ViewRemoteBranch"
+  ImportRemoteBranch{}        -> "ImportRemoteBranch"
+  SyncLocalRootBranch{}       -> "SyncLocalRootBranch"
+  SyncRemoteRootBranch{}      -> "SyncRemoteRootBranch"
+  AppendToReflog{}            -> "AppendToReflog"
+  LoadReflog                  -> "LoadReflog"
+  LoadTerm{}                  -> "LoadTerm"
+  LoadType{}                  -> "LoadType"
+  LoadTypeOfTerm{}            -> "LoadTypeOfTerm"
+  PutTerm{}                   -> "PutTerm"
+  PutDecl{}                   -> "PutDecl"
+  IsTerm{}                    -> "IsTerm"
+  IsType{}                    -> "IsType"
+  GetDependents{}             -> "GetDependents"
+  GetTermsOfType{}            -> "GetTermsOfType"
+  GetTermsMentioningType{}    -> "GetTermsMentioningType"
+  Execute{}                   -> "Execute"
+  CreateAuthorInfo{}          -> "CreateAuthorInfo"
+  RuntimeMain                 -> "RuntimeMain"
+  RuntimeTest                 -> "RuntimeTest"
+

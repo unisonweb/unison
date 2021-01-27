@@ -233,31 +233,38 @@ searchBranchExact len names queries =
     searchTypes query =
       -- a bunch of references will match a HQ ref.
       let refs = toList $ Names3.lookupHQType query names
-      in
-        refs <&> \r ->
-          let hqNames = Names3.typeName len r names
-          in  let primaryName =
-                      last
-                        . sortOn
-                            (\n -> HQ.matchesNamedReference (HQ'.toName n) r query
-                            )
-                        $ toList hqNames
+          mayName r Nothing  = HQ'.fromNamedReference "" r
+          mayName _ (Just n) = n
+      in  refs <&> \r ->
+            let hqNames = Names3.typeName len r names
+            in
+              let primaryName =
+                    mayName r
+                      . lastMay
+                      . sortOn
+                          (\n -> HQ.matchesNamedReference (HQ'.toName n) r query
+                          )
+                      $ toList hqNames
               in  let aliases = Set.delete primaryName hqNames
                   in  SR.typeResult primaryName r aliases
     searchTerms :: HQ.HashQualified Name -> [SR.SearchResult]
     searchTerms query =
       -- a bunch of references will match a HQ ref.
       let refs = toList $ Names3.lookupHQTerm query names
-      in
-        refs <&> \r ->
-          let hqNames = Names3.termName len r names
-          in  let primaryName =
-                      last
-                        . sortOn
-                            (\n -> HQ.matchesNamedReferent (HQ'.toName n) r query)
-                        $ toList hqNames
-              in  let aliases = Set.delete primaryName hqNames
-                  in  SR.termResult primaryName r aliases
+          mayName r Nothing  = HQ'.fromNamedReferent "" r
+          mayName _ (Just n) = n
+      in  refs <&> \r ->
+            let hqNames = Names3.termName len r names
+            in  let primaryName =
+                        mayName r
+                          . lastMay
+                          . sortOn
+                              (\n ->
+                                HQ.matchesNamedReferent (HQ'.toName n) r query
+                              )
+                          $ toList hqNames
+                in  let aliases = Set.delete primaryName hqNames
+                    in  SR.termResult primaryName r aliases
   in
     [ searchTypes q <> searchTerms q | q <- queries ]
 
