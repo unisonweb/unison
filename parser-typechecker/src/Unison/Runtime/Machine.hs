@@ -10,6 +10,7 @@ module Unison.Runtime.Machine where
 import GHC.Stack
 
 import Control.Concurrent.STM as STM
+import GHC.Conc as STM (unsafeIOToSTM)
 
 import Data.Maybe (fromMaybe)
 
@@ -26,7 +27,7 @@ import qualified Data.Set as S
 
 import Control.Exception
 import Control.Lens ((<&>))
-import Control.Concurrent (forkIOWithUnmask, ThreadId)
+import Control.Concurrent (forkIO, ThreadId)
 
 import qualified Data.Primitive.PrimArray as PA
 
@@ -47,9 +48,6 @@ import Unison.Runtime.Stack
 import Unison.Runtime.MCode
 
 import qualified Unison.Type as Rf
-import qualified Unison.Runtime.IOSource as Rf
-
-import qualified Unison.Util.Pretty as Pr
 
 import qualified Unison.Util.Bytes as By
 import Unison.Util.EnumContainers as EC
@@ -302,7 +300,12 @@ exec !env !denv !ustk !bstk !k (ForeignCall _ w args)
 exec !env !denv !ustk !bstk !k (Fork i) = do
   tid <- forkEval env =<< peekOff bstk i
   bstk <- bump bstk
-  poke bstk . Foreign . Wrap Rf.threadIdReference $ tid
+  poke bstk . Foreign . Wrap Rf.threadIdRef $ tid
+  pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (Atomically i) = do
+  c <- peekOff bstk i
+  bstk <- bump bstk
+  atomicEval env (poke bstk) c
   pure (denv, ustk, bstk, k)
 {-# inline exec #-}
 
@@ -343,18 +346,19 @@ eval !_   !_    !_    !_    !_ (Die s) = die s
 
 forkEval :: CCache -> Closure -> IO ThreadId
 forkEval env clo
-  = forkIOWithUnmask $ \unmask ->
-      unmask (apply1 err env clo) `catch` \case
-        PE e -> putStrLn "runtime exception"
-             >> print (Pr.render 70 e)
-        BU _ -> putStrLn $ "unison exception reached top level"
+  = forkIO (apply1 err env clo)
   where
   err :: Stack 'UN -> Stack 'BX -> IO ()
-  err _ bstk = peek bstk >>= \case
-    -- Left e
-    DataB1 _ 0 e -> throwIO $ BU e
-    _ -> pure ()
+  err _ _ = pure ()
 {-# inline forkEval #-}
+
+atomicEval :: CCache -> (Closure -> IO ()) -> Closure -> IO ()
+atomicEval env write clo
+  = atomically . unsafeIOToSTM $ apply1 readBack env clo
+  where
+  readBack :: Stack 'UN -> Stack 'BX -> IO ()
+  readBack _ bstk = peek bstk >>= write
+{-# inline atomicEval #-}
 
 -- fast path application
 enter

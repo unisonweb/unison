@@ -227,11 +227,15 @@ filePathRef = Reference.Builtin "FilePath"
 threadIdRef = Reference.Builtin "ThreadId"
 socketRef = Reference.Builtin "Socket"
 
-mvarRef :: Reference
+mvarRef, tvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
+tvarRef = Reference.Builtin "TVar"
 
 tlsRef :: Reference
 tlsRef = Reference.Builtin "Tls"
+
+stmRef :: Reference
+stmRef = Reference.Builtin "STM"
 
 tlsClientConfigRef :: Reference
 tlsClientConfigRef = Reference.Builtin "Tls.ClientConfig"
@@ -239,8 +243,14 @@ tlsClientConfigRef = Reference.Builtin "Tls.ClientConfig"
 tlsServerConfigRef :: Reference
 tlsServerConfigRef = Reference.Builtin "Tls.ServerConfig"
 
-tlsCiphersRef :: Reference
-tlsCiphersRef = Reference.Builtin "Tls.Ciphers"
+tlsSignedCertRef :: Reference
+tlsSignedCertRef = Reference.Builtin "Tls.SignedCert"
+
+tlsPrivateKeyRef :: Reference
+tlsPrivateKeyRef = Reference.Builtin "Tls.PrivateKey"
+
+tlsCipherRef :: Reference
+tlsCipherRef = Reference.Builtin "Tls.Cipher"
 
 tlsVersionRef :: Reference
 tlsVersionRef = Reference.Builtin "Tls.Version"

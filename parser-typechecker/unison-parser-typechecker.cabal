@@ -231,6 +231,7 @@ library
     network-simple,
     nonempty-containers,
     openapi3,
+    pem,
     process,
     primitive,
     random,
@@ -262,6 +263,8 @@ library
     wai,
     warp,
     unicode-show,
+    x509,
+    x509-store,
     x509-system
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
