@@ -339,7 +339,7 @@ sqliteCodebase root = do
               h
 
           putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> IO ()
-          putTypeDeclaration (Reference.Id h@(Cv.hash1to2 -> h2) i n) decl =
+          putTypeDeclaration (Reference.Id h@(Cv.hash1to2 -> h2) i n') decl =
             runDB conn $
               unlessM
                 (Ops.objectExistsForHash h2)
