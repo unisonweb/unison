@@ -110,6 +110,9 @@ basicSuffixifiedNames hashLength root path =
 basicPrettyPrintNames0 :: Branch m -> Path -> Names0
 basicPrettyPrintNames0 root = snd . basicNames0' root
 
+basicParseNames0 :: Branch m -> Path -> Names0
+basicParseNames0 root = fst . basicNames0' root
+
 loadReferentType ::
   (Applicative m, Var v) =>
   Codebase m v Ann ->
@@ -210,6 +213,9 @@ termReferentsByShortHash codebase sh = do
 getCurrentNames :: Path -> Branch m -> Names
 getCurrentNames path root = Names (basicPrettyPrintNames0 root path) mempty
 
+getCurrentParseNames :: Path -> Branch m -> Names
+getCurrentParseNames path root = Names (basicParseNames0 root path) mempty
+
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are
 -- converted to absolute names. For example:
@@ -292,7 +298,7 @@ hqNameQuery' doSuffixify relativeTo root codebase hqs = do
   hqLength <- Codebase.hashLength codebase
   -- We need to construct the names that we want to use / search by.
   let currentPath = fromMaybe Path.empty relativeTo
-      parseNames0 = getCurrentNames currentPath root
+      parseNames0 = getCurrentParseNames currentPath root
       mkTermResult n r = SR.termResult (HQ'.fromHQ' n) r Set.empty
       mkTypeResult n r = SR.typeResult (HQ'.fromHQ' n) r Set.empty
       -- Transform the hash results a bit
