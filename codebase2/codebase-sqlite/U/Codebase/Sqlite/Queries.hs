@@ -185,8 +185,10 @@ saveHashObject hId oId version = execute sql (hId, oId, version) where
   |]
 
 saveObject :: DB m => HashId -> ObjectType -> ByteString -> m ObjectId
-saveObject h t blob =
-  execute sql (h, t, blob) >> queryOne (maybeObjectIdForPrimaryHashId h)
+saveObject h t blob = do
+  oId <- execute sql (h, t, blob) >> queryOne (maybeObjectIdForPrimaryHashId h)
+  saveHashObject h oId 1 -- todo: remove this from here, and add it to other relevant places once there are v1 and v2 hashes
+  pure oId
   where
   sql = [here|
     INSERT INTO object (primary_hash_id, type_id, bytes)

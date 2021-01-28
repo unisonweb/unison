@@ -912,7 +912,6 @@ saveRootBranch (C.Causal hc he parents me) = do
     saveBranchObject (Db.unBranchHashId -> hashId) li lBranch = do
       let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full li lBranch
       oId <- Q.saveObject hashId OT.Namespace bytes
-      Q.saveHashObject hashId oId 1 -- todo: change me
       pure $ Db.BranchObjectId oId
     done :: EDB m => (a, BranchSavingWriter) -> m (BranchLocalIds, a)
     done (lBranch, (textValues, defnHashes, patchObjectIds, branchCausalIds)) = do

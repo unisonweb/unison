@@ -9,6 +9,7 @@ import U.Codebase.Reference (Reference)
 import U.Codebase.Referent (Referent)
 import U.Codebase.TermEdit (TermEdit)
 import U.Codebase.TypeEdit (TypeEdit)
+import qualified Data.Map as Map
 
 newtype NameSegment = NameSegment Text deriving (Eq, Ord, Show)
 
@@ -30,3 +31,9 @@ data Patch = Patch
   { termEdits :: Map Referent (Set TermEdit),
     typeEdits :: Map Reference (Set TypeEdit)
   }
+
+instance Show (Branch m) where
+  show b = "Branch { terms = " ++ show (fmap Map.keys (terms b)) ++ 
+          ", types = " ++ show (fmap Map.keys (types b)) ++
+          ", patches = " ++ show (fmap fst (patches b)) ++
+          ", children = " ++ show (Map.keys (children b))

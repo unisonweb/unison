@@ -245,18 +245,19 @@ sqliteCodebase root = do
               Cv.decl2to1 h1 getCycleLen decl2
 
           putTerm :: Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> IO ()
-          putTerm (Reference.Id h@(Cv.hash1to2 -> h2) i n) tm tp =
+          putTerm (Reference.Id h@(Cv.hash1to2 -> h2) i n') tm tp =
             runDB conn $
               unlessM
-                (Ops.objectExistsForHash h2)
-                ( withBuffer termBuffer h \(BufferEntry size comp missing waiting) -> do
-                    let size' = Just n
-                    pure $
-                      ifM
-                        ((==) <$> size <*> size')
-                        (pure ())
-                        (error $ "targetSize for term " ++ show h ++ " was " ++ show size ++ ", but now " ++ show size')
+                (Ops.objectExistsForHash h2 >>= \b -> do traceM $ "objectExistsForHash " ++ show h2 ++ " = " ++ show b; pure b)
+                ( withBuffer termBuffer h \be@(BufferEntry size comp missing waiting) -> do
+                    let size' = Just n'
+                    -- if size was previously set, it's expected to match size'.
+                    case size of
+                      Just n | n /= n' ->
+                        error $ "targetSize for term " ++ show h ++ " was " ++ show size ++ ", but now " ++ show size'
+                      _ -> pure ()
                     let comp' = Map.insert i (tm, tp) comp
+                    -- for the component element that's been passed in, add its dependencies to missing'                    
                     missingTerms' <-
                       filterM
                         (fmap not . Ops.objectExistsForHash . Cv.hash1to2)
@@ -266,6 +267,7 @@ sqliteCodebase root = do
                         [h | Reference.Derived h _i _n <- Set.toList $ Term.typeDependencies tm]
                           ++ [h | Reference.Derived h _i _n <- Set.toList $ Type.dependencies tp]
                     let missing' = missing <> Set.fromList (missingTerms' <> missingTypes')
+                    -- notify each of the dependencies that h depends on them.
                     traverse (addBufferDependent h termBuffer) missingTerms'
                     traverse (addBufferDependent h declBuffer) missingTypes'
                     putBuffer termBuffer h (BufferEntry size' comp' missing' waiting)
@@ -300,20 +302,22 @@ sqliteCodebase root = do
             -- skip if it has already been flushed
             unlessM (Ops.objectExistsForHash h2) $ withBuffer buf h try
             where
-              try (BufferEntry size comp (Set.delete h -> missing) waiting) = do
-                missing' <-
-                  filterM
-                    (fmap not . Ops.objectExistsForHash . Cv.hash1to2)
-                    (toList missing)
-                if null missing' && size == Just (fromIntegral (length comp))
-                  then do
-                    saveComponent h2 (toList comp)
-                    removeBuffer buf h
-                    traverse_ tryWaiting waiting
-                  else -- update
-
-                    putBuffer buf h $
-                      BufferEntry size comp (Set.fromList missing') waiting
+              try (BufferEntry size comp (Set.delete h -> missing) waiting) = case size of
+                Just size -> do
+                  missing' <-
+                    filterM
+                      (fmap not . Ops.objectExistsForHash . Cv.hash1to2)
+                      (toList missing)
+                  if null missing' && size == fromIntegral (length comp)
+                    then do
+                      saveComponent h2 (toList comp)
+                      removeBuffer buf h
+                      traverse_ tryWaiting waiting
+                    else -- update
+                      putBuffer buf h $
+                        BufferEntry (Just size) comp (Set.fromList missing') waiting
+                Nothing -> -- it's never even been added, so there's nothing to do.
+                  pure ()
 
           tryFlushTermBuffer :: EDB m => Hash -> m ()
           tryFlushTermBuffer h =
@@ -340,12 +344,11 @@ sqliteCodebase root = do
               unlessM
                 (Ops.objectExistsForHash h2)
                 ( withBuffer declBuffer h \(BufferEntry size comp missing waiting) -> do
-                    let size' = Just n
-                    pure $
-                      ifM
-                        ((==) <$> size <*> size')
-                        (pure ())
-                        (error $ "targetSize for term " ++ show h ++ " was " ++ show size ++ ", but now " ++ show size')
+                    let size' = Just n'
+                    case size of
+                      Just n | n /= n' ->
+                        error $ "targetSize for type " ++ show h ++ " was " ++ show size ++ ", but now " ++ show size'
+                      _ -> pure ()
                     let comp' = Map.insert i decl comp
                     moreMissing <-
                       filterM (fmap not . Ops.objectExistsForHash . Cv.hash1to2) $
