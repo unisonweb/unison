@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #hdb2qmoob9
+  ⊙ #l54jkst87o
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #bg9tk5ai3i
+  ⊙ #gg2c791peb
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #ak1kamiv9o
+  ⊙ #rh4ohln22p
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #o7jv334moc
+  ⊙ #gga3q2lk71
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #tab428em20
+  ⊙ #97qcjhqv6q
   
     + Adds / updates:
     
       x
   
-  ⊙ #s8vqfp4ot8
+  ⊙ #tu6iqbnp9k
   
     + Adds / updates:
     
@@ -273,7 +273,9 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.IOError.PermissionDenied
       builtin.io2.IOError.ResourceBusy
       builtin.io2.IOError.ResourceExhausted
-      builtin.io2.IOError.UserError builtin.io2.MVar
+      builtin.io2.IOError.UserError
+      builtin.io2.IOFailure##IOFailure builtin.io2.IOFailure#ftp
+      builtin.io2.IOFailure.IoFailure builtin.io2.MVar
       builtin.io2.MVar.isEmpty builtin.io2.MVar.new
       builtin.io2.MVar.newEmpty builtin.io2.MVar.put
       builtin.io2.MVar.read builtin.io2.MVar.swap
@@ -286,27 +288,30 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.SeekMode.SeekFromEnd builtin.io2.Socket
       builtin.io2.StdHandle builtin.io2.StdHandle.StdErr
       builtin.io2.StdHandle.StdIn builtin.io2.StdHandle.StdOut
-      builtin.io2.TVar builtin.io2.TVar.new
-      builtin.io2.TVar.newIO builtin.io2.TVar.read
-      builtin.io2.TVar.readIO builtin.io2.TVar.swap
-      builtin.io2.TVar.write builtin.io2.ThreadId
-      builtin.io2.Tls builtin.io2.Tls.ClientConfig
+      builtin.io2.TLS.ClientConfig.ciphers.set builtin.io2.TVar
+      builtin.io2.TVar.new builtin.io2.TVar.newIO
+      builtin.io2.TVar.read builtin.io2.TVar.readIO
+      builtin.io2.TVar.swap builtin.io2.TVar.write
+      builtin.io2.ThreadId builtin.io2.Tls
+      builtin.io2.Tls.ClientConfig
       builtin.io2.Tls.ClientConfig.certificates.set
       builtin.io2.Tls.ClientConfig.default
+      builtin.io2.Tls.ClientConfig.versions.set
       builtin.io2.Tls.PrivateKey builtin.io2.Tls.ServerConfig
       builtin.io2.Tls.ServerConfig.certificates.set
+      builtin.io2.Tls.ServerConfig.ciphers.set
       builtin.io2.Tls.ServerConfig.default
+      builtin.io2.Tls.ServerConfig.versions.set
       builtin.io2.Tls.SignedCert builtin.io2.Tls.decodeCert
       builtin.io2.Tls.decodePrivateKey
       builtin.io2.Tls.encodeCert
       builtin.io2.Tls.encodePrivateKey builtin.io2.Tls.handshake
       builtin.io2.Tls.newClient builtin.io2.Tls.newServer
       builtin.io2.Tls.receive builtin.io2.Tls.send
-      builtin.io2.Tls.terminate builtin.io2.TlsFailure
-      builtin.io2.tls.ClientConfig.ciphers.set
-      builtin.io2.tls.ClientConfig.versions.set
-      builtin.io2.tls.ServerConfig.ciphers.set
-      builtin.io2.tls.ServerConfig.versions.set builtin.todo
+      builtin.io2.Tls.terminate
+      builtin.io2.TlsFailure##TlsFailure
+      builtin.io2.TlsFailure#kb5
+      builtin.io2.TlsFailure.TlsFailure builtin.todo
   
   □ #7asfbtqmoj (start of history)
 
