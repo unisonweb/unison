@@ -2,6 +2,7 @@
 .unison*
 test-output
 transcript-*
+scratch.u
 
 # Stack
 .stack-work

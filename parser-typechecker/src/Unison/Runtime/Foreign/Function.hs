@@ -15,6 +15,7 @@ import GHC.IO.Exception (IOException(..), IOErrorType(..))
 
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.MVar (MVar)
+import Control.Concurrent.STM (TVar)
 import Data.Foldable (toList)
 import Data.Text (Text, pack, unpack)
 import Data.Time.Clock.POSIX (POSIXTime)
@@ -25,7 +26,7 @@ import System.IO (BufferMode(..), SeekMode, Handle, IOMode)
 import Unison.Util.Bytes (Bytes)
 
 import Unison.Reference (Reference)
-import Unison.Type (mvarRef, typeLinkRef)
+import Unison.Type (mvarRef, tvarRef, typeLinkRef)
 import Unison.Symbol (Symbol)
 
 import Unison.Runtime.ANF (SuperGroup, Mem(..), Value)
@@ -261,7 +262,7 @@ instance ForeignConvention Failure where
   readForeign us bs ustk bstk = do
     (us,bs,typeref) <- readTypelink us bs ustk bstk
     (us,bs,message) <- readForeign us bs ustk bstk
-    pure (us, bs, (Failure typeref message))
+    pure (us, bs, Failure typeref message)
 
   writeForeign ustk bstk (Failure typeref message) = do
     (ustk, bstk) <- writeForeign ustk bstk message
@@ -319,6 +320,10 @@ instance ForeignConvention [Foreign] where
 instance ForeignConvention (MVar Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap mvarRef)
+
+instance ForeignConvention (TVar Closure) where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap tvarRef)
 
 instance ForeignConvention (SuperGroup Symbol) where
   readForeign = readForeignBuiltin

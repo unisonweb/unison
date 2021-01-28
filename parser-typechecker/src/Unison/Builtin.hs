@@ -170,6 +170,10 @@ builtinTypesSrc =
   , B' "Tls" CT.Data, Rename' "Tls" "io2.Tls"
   , B' "Tls.ClientConfig" CT.Data, Rename' "Tls.ClientConfig" "io2.Tls.ClientConfig"
   , B' "Tls.ServerConfig" CT.Data, Rename' "Tls.ServerConfig" "io2.Tls.ServerConfig"
+  , B' "Tls.SignedCert" CT.Data, Rename' "Tls.SignedCert" "io2.Tls.SignedCert"
+  , B' "Tls.PrivateKey" CT.Data, Rename' "Tls.PrivateKey" "io2.Tls.PrivateKey"
+  , B' "TVar" CT.Data, Rename' "TVar" "io2.TVar"
+  , B' "STM" CT.Effect, Rename' "STM" "io2.STM"
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -441,9 +445,9 @@ builtinsSrc =
                   ,(">=", "gteq")]
   ] ++ moveUnder "io2" ioBuiltins
     ++ moveUnder "io2" mvarBuiltins
+    ++ moveUnder "io2" stmBuiltins
     ++ hashBuiltins
     ++ fmap (uncurry B) codeBuiltins
-
 
 moveUnder :: Text -> [(Text, Type v)] -> [BuiltinDSL v]
 moveUnder prefix bs = bs >>= \(n,ty) -> [B n ty, Rename n (prefix <> "." <> n)]
@@ -525,15 +529,16 @@ ioBuiltins =
   , ("IO.renameFile.v2", text --> text --> iof unit)
   , ("IO.getFileTimestamp.v2", text --> iof nat)
   , ("IO.getFileSize.v2", text --> iof nat)
-  , ("IO.serverSocket.v2", text --> text --> iof socket)
+  , ("IO.serverSocket.v2", optionalt text --> text --> iof socket)
   , ("IO.listen.v2", socket --> iof unit)
   , ("IO.clientSocket.v2", text --> text --> iof socket)
   , ("IO.closeSocket.v2", socket --> iof unit)
+  , ("IO.socketPort", socket --> iof nat)
   , ("IO.socketAccept.v2", socket --> iof socket)
   , ("IO.socketSend.v2", socket --> bytes --> iof unit)
   , ("IO.socketReceive.v2", socket --> nat --> iof bytes)
   , ("IO.forkComp.v2"
-    , forall1 "a" $ \a -> (unit --> iof a) --> io threadId)
+    , forall1 "a" $ \a -> (unit --> io a) --> io threadId)
   , ("IO.stdHandle", stdhandle --> handle)
 
   , ("IO.delay.v2", nat --> iof unit)
@@ -542,10 +547,21 @@ ioBuiltins =
   , ("Tls.newServer", tlsServerConfig --> socket --> iof tls)
   , ("Tls.handshake", tls --> iof unit)
   , ("Tls.send", tls --> bytes --> iof unit)
+  , ("Tls.decodeCert", bytes --> eithert failure tlsSignedCert)
+  , ("Tls.encodeCert", tlsSignedCert --> bytes)
+  , ("Tls.decodePrivateKey", bytes --> list tlsPrivateKey)
+  , ("Tls.encodePrivateKey", tlsPrivateKey --> bytes)
   , ("Tls.receive", tls --> iof bytes)
   , ("Tls.terminate", tls --> iof unit)
-  , ("Tls.Config.defaultClient", text --> bytes --> tlsClientConfig)
-  , ("Tls.Config.defaultServer", tlsServerConfig)
+  , ("Tls.ClientConfig.default", text --> bytes --> tlsClientConfig)
+  , ("Tls.ServerConfig.default", list tlsSignedCert --> tlsPrivateKey --> tlsServerConfig)
+  , ("tls.ClientConfig.ciphers.set", list tlsCipher --> tlsClientConfig --> tlsClientConfig)
+  , ("tls.ServerConfig.ciphers.set", list tlsCipher --> tlsServerConfig --> tlsServerConfig)
+  , ("Tls.ClientConfig.certificates.set", list tlsSignedCert --> tlsClientConfig --> tlsClientConfig)
+  , ("Tls.ServerConfig.certificates.set", list tlsSignedCert --> tlsServerConfig --> tlsServerConfig)
+  , ("tls.ClientConfig.versions.set", list tlsVersion --> tlsClientConfig --> tlsClientConfig)
+  , ("tls.ServerConfig.versions.set", list tlsVersion --> tlsServerConfig --> tlsServerConfig)
+
   ]
 
 mvarBuiltins :: forall v. Var v => [(Text, Type v)]
@@ -579,6 +595,18 @@ codeBuiltins =
   , ("Value.value", forall1 "a" $ \a -> a --> value)
   , ("Value.load"
     , forall1 "a" $ \a -> value --> io (eithert (list termLink) a))
+  ]
+
+stmBuiltins :: forall v. Var v => [(Text, Type v)]
+stmBuiltins =
+  [ ("TVar.new", forall1 "a" $ \a -> a --> stm (tvar a))
+  , ("TVar.newIO", forall1 "a" $ \a -> a --> io (tvar a))
+  , ("TVar.read", forall1 "a" $ \a -> tvar a --> stm a)
+  , ("TVar.readIO", forall1 "a" $ \a -> tvar a --> io a)
+  , ("TVar.write", forall1 "a" $ \a -> tvar a --> a --> stm unit)
+  , ("TVar.swap", forall1 "a" $ \a -> tvar a --> a --> stm a)
+  , ("STM.retry", forall1 "a" $ \a -> unit --> stm a)
+  , ("STM.atomically", forall1 "a" $ \a -> (unit --> stm a) --> io a)
   ]
 
 forall1 :: Var v => Text -> (Type v -> Type v) -> Type v
@@ -623,12 +651,14 @@ threadId = Type.threadId ()
 handle = Type.fileHandle ()
 unit = DD.unitType ()
 
-tls, tlsClientConfig, tlsServerConfig :: Var v => Type v
+tls, tlsClientConfig, tlsServerConfig, tlsSignedCert, tlsPrivateKey, tlsVersion, tlsCipher :: Var v => Type v
 tls = Type.ref () Type.tlsRef
 tlsClientConfig = Type.ref () Type.tlsClientConfigRef
 tlsServerConfig = Type.ref () Type.tlsServerConfigRef
--- tlsVersion = Type.ref () Type.tlsVersionRef
--- tlsCiphers = Type.ref () Type.tlsCiphersRef
+tlsSignedCert = Type.ref () Type.tlsSignedCertRef
+tlsPrivateKey = Type.ref () Type.tlsPrivateKeyRef
+tlsVersion = Type.ref () Type.tlsVersionRef
+tlsCipher = Type.ref () Type.tlsCipherRef
 
 fmode, bmode, smode, stdhandle :: Var v => Type v
 fmode = DD.fileModeType ()
@@ -651,3 +681,6 @@ code = Type.code ()
 value = Type.value ()
 termLink = Type.termLink ()
 
+stm, tvar :: Var v => Type v -> Type v
+stm = Type.effect1 () (Type.ref () Type.stmRef)
+tvar a = Type.ref () Type.tvarRef `app` a

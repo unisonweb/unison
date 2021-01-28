@@ -18,6 +18,7 @@ import           Unison.Lexer       (Line, Pos (..))
 import           Unison.Util.Monoid (intercalateMap)
 import           Unison.Util.Range  (Range (..), inRange)
 import qualified Data.ListLike      as LL
+import qualified GHC.Exts
 
 -- type AnnotatedText a = AnnotatedText (Maybe a)
 
@@ -197,3 +198,8 @@ instance IsString (AnnotatedText a) where
 
 instance IsString (AnnotatedExcerpt a) where
   fromString s = AnnotatedExcerpt 1 s mempty
+
+instance GHC.Exts.IsList (AnnotatedText a) where
+  type Item (AnnotatedText a) = Char
+  fromList s = fromString s
+  toList (AnnotatedText s) = join . Foldable.toList $ fmap fst s
