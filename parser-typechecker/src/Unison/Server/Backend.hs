@@ -30,6 +30,7 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name as Name ( unsafeFromText )
 import Unison.NameSegment (NameSegment)
+import qualified Unison.NameSegment as NameSegment
 import qualified Unison.Names2 as Names
 import Unison.Name (Name)
 import qualified Unison.Name as Name
@@ -66,6 +67,13 @@ data ShallowListEntry v a
   | ShallowBranchEntry NameSegment Int -- number of child definitions
   | ShallowPatchEntry NameSegment
   deriving (Eq, Ord, Show, Generic)
+
+listEntryName :: ShallowListEntry v a -> Text
+listEntryName = \case
+  ShallowTermEntry _ s _ -> HQ'.toText s
+  ShallowTypeEntry   _ s -> HQ'.toText s
+  ShallowBranchEntry n _ -> NameSegment.toText n
+  ShallowPatchEntry n    -> NameSegment.toText n
 
 data BackendError
   = NoSuchNamespace Path.Absolute
@@ -146,8 +154,8 @@ findShallow
 findShallow codebase path' = do
   let path = Path.unabsolute path'
   hashLength <- lift $ Codebase.hashLength codebase
-  root <- getRootBranch codebase
-  b0 <-
+  root       <- getRootBranch codebase
+  b0         <-
     maybe (throwError . NoSuchNamespace $ Path.Absolute path) pure
     $   Branch.head
     <$> Branch.getAt path root
@@ -180,7 +188,12 @@ findShallow codebase path' = do
       [ ShallowPatchEntry ns
       | (ns, (_h, _mp)) <- Map.toList $ Branch._edits b0
       ]
-  pure . List.sort $ termEntries ++ typeEntries ++ branchEntries ++ patchEntries
+  pure
+    .  List.sortOn listEntryName
+    $  termEntries
+    ++ typeEntries
+    ++ branchEntries
+    ++ patchEntries
 
 termReferencesByShortHash
   :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
