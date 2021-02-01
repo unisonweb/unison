@@ -205,10 +205,10 @@ builtinDataDecls = rs1 ++ rs
     ]
 
   tlsFailure = DataDeclaration (Unique "df5ba835130b227ab83d02d1feff5402455a732d613b51dee32230d2f2d067c6")()[]
-    [((), v "io2.TlsFailure.TlsFailure", var "io2.TlsFailure")]
+    []
 
   ioFailure = DataDeclaration (Unique "009cb00e78cac9e47485cc3633c7a363939f63866ea07ab330346a2121d69a83")()[]
-    [((), v "io2.IOFailure.IoFailure", var "io2.IOFailure")]
+    []
 
   stdhnd = DataDeclaration
     (Unique "67bf7a8e517cbb1e9f42bc078e35498212d3be3c")

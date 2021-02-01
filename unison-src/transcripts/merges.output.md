@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #l54jkst87o
+  ⊙ #t6bsshdq9e
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #gg2c791peb
+  ⊙ #a52hdge0ur
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #rh4ohln22p
+  ⊙ #7cn7ulvqt4
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #gga3q2lk71
+  ⊙ #icg0klduhn
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #97qcjhqv6q
+  ⊙ #0ehm1cc89a
   
     + Adds / updates:
     
       x
   
-  ⊙ #tu6iqbnp9k
+  ⊙ #fahbg0pqso
   
     + Adds / updates:
     
@@ -274,16 +274,15 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.IOError.ResourceBusy
       builtin.io2.IOError.ResourceExhausted
       builtin.io2.IOError.UserError
-      builtin.io2.IOFailure##IOFailure builtin.io2.IOFailure#ftp
-      builtin.io2.IOFailure.IoFailure builtin.io2.MVar
-      builtin.io2.MVar.isEmpty builtin.io2.MVar.new
-      builtin.io2.MVar.newEmpty builtin.io2.MVar.put
-      builtin.io2.MVar.read builtin.io2.MVar.swap
-      builtin.io2.MVar.take builtin.io2.MVar.tryPut
-      builtin.io2.MVar.tryRead builtin.io2.MVar.tryTake
-      builtin.io2.STM builtin.io2.STM.atomically
-      builtin.io2.STM.retry builtin.io2.SeekMode
-      builtin.io2.SeekMode.AbsoluteSeek
+      builtin.io2.IOFailure##IOFailure builtin.io2.IOFailure#gro
+      builtin.io2.MVar builtin.io2.MVar.isEmpty
+      builtin.io2.MVar.new builtin.io2.MVar.newEmpty
+      builtin.io2.MVar.put builtin.io2.MVar.read
+      builtin.io2.MVar.swap builtin.io2.MVar.take
+      builtin.io2.MVar.tryPut builtin.io2.MVar.tryRead
+      builtin.io2.MVar.tryTake builtin.io2.STM
+      builtin.io2.STM.atomically builtin.io2.STM.retry
+      builtin.io2.SeekMode builtin.io2.SeekMode.AbsoluteSeek
       builtin.io2.SeekMode.RelativeSeek
       builtin.io2.SeekMode.SeekFromEnd builtin.io2.Socket
       builtin.io2.StdHandle builtin.io2.StdHandle.StdErr
@@ -310,8 +309,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.Tls.receive builtin.io2.Tls.send
       builtin.io2.Tls.terminate
       builtin.io2.TlsFailure##TlsFailure
-      builtin.io2.TlsFailure#kb5
-      builtin.io2.TlsFailure.TlsFailure builtin.todo
+      builtin.io2.TlsFailure#o6b builtin.todo
   
   □ #7asfbtqmoj (start of history)
 
