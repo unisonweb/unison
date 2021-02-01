@@ -29,7 +29,8 @@ import Unison.Symbol
 import qualified Unison.Runtime.Stack as Closure
 import Unison.Runtime.Stack (Closure)
 import Unison.Runtime.Foreign
-    ( Foreign(Wrap), HashAlgorithm(..), Failure(..))
+    ( Foreign(Wrap), HashAlgorithm(..), pattern Failure)
+import qualified Unison.Runtime.Foreign as F
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.IOSource
 
@@ -75,7 +76,8 @@ import Network.TLS as TLS
 import Network.TLS.Extra.Cipher as Cipher
 
 import System.IO as SYS
-  ( openFile
+  ( IOMode(..)
+  , openFile
   , hClose
   , hGetBuffering
   , hSetBuffering
@@ -116,6 +118,8 @@ import qualified Control.Concurrent.STM as STM
 import qualified GHC.Conc as STM
 
 import GHC.IO (IO(IO))
+
+type Failure = F.Failure Closure
 
 freshes :: Var v => Int -> [v]
 freshes = freshes' mempty
@@ -855,9 +859,6 @@ inBxIomr arg1 arg2 fm result cont instr
 -- All of these functions will take a Var named result containing the
 -- result of the foreign call
 --
-outInt :: forall v. Var v => v -> ANormal v
-outInt i = TCon Ty.intRef 0 [i]
-
 outMaybe :: forall v. Var v => v -> v -> ANormal v
 outMaybe maybe result =
   TMatch result . MatchSum $ mapFromList
@@ -964,14 +965,6 @@ unitToEFBox = inUnit unit result
             $ outIoFailBox stack1 stack2 fail result
   where (unit, stack1, stack2, fail, result) = fresh5
 
--- a -> Int
-boxToInt :: ForeignOp
-boxToInt = inBx arg result
-          $ outInt result
-  where
-    (arg, result) = fresh2
-
--- a -> IOMode -> Either Failure b
 boxIomrToEFBox :: ForeignOp
 boxIomrToEFBox = inBxIomr arg1 arg2 enum result
               $ outIoFailBox stack1 stack2 fail result
@@ -1306,8 +1299,11 @@ mkForeignIOF f = mkForeign $ \a -> tryIOE (f a)
   tryIOE :: IO a -> IO (Either Failure a)
   tryIOE = fmap handleIOE . try
   handleIOE :: Either IOException a -> Either Failure a
-  handleIOE (Left e) = Left $ traceShow e $ Failure ioFailureReference (pack (show e))
+  handleIOE (Left e) = Left $ Failure ioFailureReference (pack (show e)) unitValue
   handleIOE (Right a) = Right a
+
+unitValue :: Closure
+unitValue = Closure.Enum Ty.unitRef 0
 
 mkForeignTls
   :: forall a r.(ForeignConvention a, ForeignConvention r)
@@ -1318,40 +1314,48 @@ mkForeignTls f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
   tryIO1 = try
   tryIO2 :: IO (Either TLS.TLSException r) -> IO (Either IOException (Either TLS.TLSException r))
   tryIO2 = try
-  flatten :: Either IOException (Either TLS.TLSException r) -> Either Failure r
-  flatten (Left e) = Left (Failure ioFailureReference (pack (show e)))
-  flatten (Right (Left e)) = Left (Failure tlsFailureReference (pack (show e)))
+  flatten :: Either IOException (Either TLS.TLSException r) -> Either (Failure ) r
+  flatten (Left e) = Left (Failure ioFailureReference (pack (show e)) unitValue)
+  flatten (Right (Left e)) = Left (Failure tlsFailureReference (pack (show e)) (unitValue))
   flatten (Right (Right a)) = Right a
 
 declareForeigns :: Var v => FDecl v ()
 declareForeigns = do
+  declareForeign "IO.openFile.v3" boxIomrToEFBox $
+    mkForeignIOF $ \(fnameText :: Text, n :: Int) ->
+      let fname = (unpack fnameText)
+          mode = case n of
+            0 -> ReadMode
+            1 -> WriteMode
+            2 -> AppendMode
+            _ -> ReadWriteMode
+      in openFile fname mode
 
-  declareForeign "IO.openFile.v2" boxIomrToEFBox $ mkForeignIOF (uncurry openFile)
-  declareForeign "IO.closeFile.v2" boxToEF0 $ mkForeignIOF hClose
-  declareForeign "IO.isFileEOF.v2" boxToEFBool $ mkForeignIOF hIsEOF
-  declareForeign "IO.isFileOpen.v2" boxToEFBool $ mkForeignIOF hIsOpen
-  declareForeign "IO.isSeekable.v2" boxToEFBool $ mkForeignIOF hIsSeekable
+  declareForeign "IO.closeFile.v3" boxToEF0 $ mkForeignIOF hClose
+  declareForeign "IO.isFileEOF.v3" boxToEFBool $ mkForeignIOF hIsEOF
+  declareForeign "IO.isFileOpen.v3" boxToEFBool $ mkForeignIOF hIsOpen
+  declareForeign "IO.isSeekable.v3" boxToEFBool $ mkForeignIOF hIsSeekable
 
-  declareForeign "IO.seekHandle.v2" seek'handle
+  declareForeign "IO.seekHandle.v3" seek'handle
     . mkForeignIOF $ \(h,sm,n) -> hSeek h sm (fromIntegral (n :: Int))
 
-  declareForeign "IO.handlePosition.v2" boxToInt
+  declareForeign "IO.handlePosition.v3" boxToEFNat
     -- TODO: truncating integer
     . mkForeignIOF $ \h -> fromInteger @Word64 <$> hTell h
 
-  declareForeign "IO.getBuffering.v2" get'buffering
+  declareForeign "IO.getBuffering.v3" get'buffering
     $ mkForeignIOF hGetBuffering
 
-  declareForeign "IO.setBuffering.v2" boxBoxToEF0
+  declareForeign "IO.setBuffering.v3" boxBoxToEF0
     . mkForeignIOF $ uncurry hSetBuffering
 
-  declareForeign "IO.getBytes.v2" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromArray <$> hGet h n
+  declareForeign "IO.getBytes.v3" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromArray <$> hGet h n
 
-  declareForeign "IO.putBytes.v2" boxBoxToEFBox .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
-  declareForeign "IO.systemTime.v2" unitToEFNat
+  declareForeign "IO.putBytes.v3" boxBoxToEFBox .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
+  declareForeign "IO.systemTime.v3" unitToEFNat
     $ mkForeignIOF $ \() -> getPOSIXTime
 
-  declareForeign "IO.getTempDirectory.v2" unitToEFBox
+  declareForeign "IO.getTempDirectory.v3" unitToEFBox
     $ mkForeignIOF $ \() -> getTemporaryDirectory
 
   declareForeign "IO.createTempDirectory" boxToEFBox
@@ -1359,41 +1363,41 @@ declareForeigns = do
        temp <- getTemporaryDirectory
        createTempDirectory temp prefix
 
-  declareForeign "IO.getCurrentDirectory.v2" direct
+  declareForeign "IO.getCurrentDirectory.v3" direct
     . mkForeignIOF $ \() -> getCurrentDirectory
 
-  declareForeign "IO.setCurrentDirectory.v2" boxToEF0
+  declareForeign "IO.setCurrentDirectory.v3" boxToEF0
     $ mkForeignIOF setCurrentDirectory
 
-  declareForeign "IO.fileExists.v2" boxToEFBool
+  declareForeign "IO.fileExists.v3" boxToEFBool
     $ mkForeignIOF doesPathExist
 
-  declareForeign "IO.isDirectory.v2" boxToEFBool
+  declareForeign "IO.isDirectory.v3" boxToEFBool
     $ mkForeignIOF doesDirectoryExist
 
-  declareForeign "IO.createDirectory.v2" boxToEF0
+  declareForeign "IO.createDirectory.v3" boxToEF0
     $ mkForeignIOF $ createDirectoryIfMissing True
 
-  declareForeign "IO.removeDirectory.v2" boxToEF0
+  declareForeign "IO.removeDirectory.v3" boxToEF0
     $ mkForeignIOF removeDirectoryRecursive
 
-  declareForeign "IO.renameDirectory.v2" boxBoxToEF0
+  declareForeign "IO.renameDirectory.v3" boxBoxToEF0
     $ mkForeignIOF $ uncurry renameDirectory
 
-  declareForeign "IO.removeFile.v2" boxToEF0
+  declareForeign "IO.removeFile.v3" boxToEF0
     $ mkForeignIOF removeFile
 
-  declareForeign "IO.renameFile.v2" boxBoxToEF0
+  declareForeign "IO.renameFile.v3" boxBoxToEF0
     $ mkForeignIOF $ uncurry renameFile
 
-  declareForeign "IO.getFileTimestamp.v2" boxToEFNat
+  declareForeign "IO.getFileTimestamp.v3" boxToEFNat
     . mkForeignIOF $ fmap utcTimeToPOSIXSeconds . getModificationTime
 
-  declareForeign "IO.getFileSize.v2" boxToEFNat
+  declareForeign "IO.getFileSize.v3" boxToEFNat
     -- TODO: truncating integer
     . mkForeignIOF $ \fp -> fromInteger @Word64 <$> getFileSize fp
 
-  declareForeign "IO.serverSocket.v2" maybeBoxToEFBox
+  declareForeign "IO.serverSocket.v3" maybeBoxToEFBox
     . mkForeignIOF $ \(mhst :: Maybe Text
                       , port) ->
         fst <$> SYS.bindSock (hostPreference mhst) port
@@ -1403,28 +1407,28 @@ declareForeigns = do
         n <- SYS.socketPort handle
         return (fromIntegral n :: Word64)
 
-  declareForeign "IO.listen.v2" boxToEF0
+  declareForeign "IO.listen.v3" boxToEF0
     . mkForeignIOF $ \sk -> SYS.listenSock sk 2
 
-  declareForeign "IO.clientSocket.v2" boxBoxToEFBox
+  declareForeign "IO.clientSocket.v3" boxBoxToEFBox
     . mkForeignIOF $ fmap fst . uncurry SYS.connectSock
 
-  declareForeign "IO.closeSocket.v2" boxToEF0
+  declareForeign "IO.closeSocket.v3" boxToEF0
     $ mkForeignIOF SYS.closeSock
 
-  declareForeign "IO.socketAccept.v2" boxToEFBox
+  declareForeign "IO.socketAccept.v3" boxToEFBox
     . mkForeignIOF $ fmap fst . SYS.accept
 
-  declareForeign "IO.socketSend.v2" boxBoxToEF0
+  declareForeign "IO.socketSend.v3" boxBoxToEF0
     . mkForeignIOF $ \(sk,bs) -> SYS.send sk (Bytes.toArray bs)
 
-  declareForeign "IO.socketReceive.v2" boxNatToEFBox
+  declareForeign "IO.socketReceive.v3" boxNatToEFBox
     . mkForeignIOF $ \(hs,n) ->
     maybe Bytes.empty Bytes.fromArray <$> SYS.recv hs n
 
-  declareForeign "IO.kill.v2" boxTo0 $ mkForeignIOF killThread
+  declareForeign "IO.kill.v3" boxTo0 $ mkForeignIOF killThread
 
-  declareForeign "IO.delay.v2" natToUnit $ mkForeignIOF threadDelay
+  declareForeign "IO.delay.v3" natToUnit $ mkForeignIOF threadDelay
 
   declareForeign "IO.stdHandle" standard'handle
     . mkForeign $ \(n :: Int) -> case n of
@@ -1439,25 +1443,25 @@ declareForeigns = do
   declareForeign "MVar.newEmpty.v2" unitDirect
     . mkForeign $ \() -> newEmptyMVar @Closure
 
-  declareForeign "MVar.take.v2" boxToEFBox
+  declareForeign "MVar.take.v3" boxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> takeMVar mv
 
   declareForeign "MVar.tryTake" boxToMaybeBox
     . mkForeign $ \(mv :: MVar Closure) -> tryTakeMVar mv
 
-  declareForeign "MVar.put.v2" boxBoxToEF0
+  declareForeign "MVar.put.v3" boxBoxToEF0
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> putMVar mv x
 
   declareForeign "MVar.tryPut" boxBoxToEFBool
     . mkForeign $ \(mv :: MVar Closure, x) -> tryPutMVar mv x
 
-  declareForeign "MVar.swap.v2" boxBoxToEFBox
+  declareForeign "MVar.swap.v3" boxBoxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> swapMVar mv x
 
   declareForeign "MVar.isEmpty" boxToBool
     . mkForeign $ \(mv :: MVar Closure) -> isEmptyMVar mv
 
-  declareForeign "MVar.read.v2" boxBoxToEFBox
+  declareForeign "MVar.read.v3" boxBoxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> readMVar mv
 
   declareForeign "MVar.tryRead" boxToMaybeBox
@@ -1466,8 +1470,8 @@ declareForeigns = do
   declareForeign "Text.toUtf8" boxDirect . mkForeign
     $ pure . Bytes.fromArray . encodeUtf8
 
-  declareForeign "Text.fromUtf8.v2" boxToEFBox . mkForeign
-    $ pure . mapLeft (Failure ioFailureReference . pack . show) . decodeUtf8' . Bytes.toArray
+  declareForeign "Text.fromUtf8.v3" boxToEFBox . mkForeign
+    $ pure . mapLeft (\t -> Failure ioFailureReference (pack ( show t)) unitValue) . decodeUtf8' . Bytes.toArray
 
   declareForeign "Tls.ClientConfig.default" boxBoxDirect .  mkForeign
     $ \(hostName::Text, serverId:: Bytes.Bytes) ->
@@ -1546,7 +1550,7 @@ declareForeigns = do
     \(tls :: TLS.Context,
       bytes :: Bytes.Bytes) -> TLS.sendData tls (Bytes.toLazyByteString bytes)
 
-  let wrapFailure t = Failure tlsFailureReference (pack t)
+  let wrapFailure t = Failure tlsFailureReference (pack t) unitValue
       decoded :: Bytes.Bytes -> Either String PEM
       decoded bytes = fmap head $ pemParseLBS  $ Bytes.toLazyByteString bytes
       asCert :: PEM -> Either String X.SignedCertificate

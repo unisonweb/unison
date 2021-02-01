@@ -106,7 +106,7 @@ data HashAlgorithm where
 
 newtype Tls = Tls TLS.Context
 
-data Failure = Failure Reference Text -- todo: Failure a = Failure Reference Text (Any a)
+data Failure a = Failure Reference Text a
 
 instance BuiltinForeign HashAlgorithm where foreignRef = Tagged Ty.hashAlgorithmRef
 

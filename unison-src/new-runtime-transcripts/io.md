@@ -72,7 +72,7 @@ autoCleaned.handler _ =
         Left _ -> handle k dir with go dirs
 
    { TempDirs.removeDir dir -> k } ->
-     handle k (removeDirectory dir) with go (filter (d -> not (d == dir)) dirs)
+      handle k (removeDirectory dir) with go (filter (d -> not (d == dir)) dirs)
 
   go []
 
@@ -134,7 +134,7 @@ evalTest a = handle
 runTest: '{Stream Result, Exception Failure, io2.IO, TempDirs} a -> [Result]
 runTest t = match evalTest t with
               (results, Right _) -> results
-              (results, Left (Failure _ t)) -> results :+ (Fail t)
+              (results, Left (Failure _ t _)) -> results :+ (Fail t)
 
 ```
 
@@ -157,13 +157,13 @@ testAutoClean _ =
     dir
 
   match evalTest go with
-    (results, Left (Failure _ t)) -> results :+ (Fail t)
+    (results, Left (Failure _ t _)) -> results :+ (Fail t)
     (results, Right dir) ->
        match isDirectory dir with
          Right b -> if b
                     then results :+ (Fail "our temporary directory should no longer exist")
                     else results :+ (Ok "our temporary directory should no longer exist")
-         Left (Failure _ t) -> results :+ (Fail t)
+         Left (Failure _ t _) -> results :+ (Fail t)
 ```
 
 ```ucm
@@ -249,18 +249,19 @@ testSeek : '{io2.IO} [Result]
 testSeek _ =
   test = 'let
     tempDir = toException (newTempDir "seek")
+    emit (Ok "seeked")
     fooFile = tempDir ++ "/foo"
-    handle1 = toException (openFile fooFile FileMode.Write)
+    handle1 = toException (openFile fooFile FileMode.Append)
     putBytes handle1 (toUtf8 "12345678")
     closeFile handle1
 
     handle3 = toException (openFile fooFile FileMode.Read)
     check "readable file should be seekable" (toException (isSeekable handle3))
     check "shouldn't be the EOF" (not (toException (isFileEOF handle3)))
-    expectU "we should be at position 0" +0 (toException (handlePosition handle3))
+    expectU "we should be at position 0" 0 (toException (handlePosition handle3))
 
     toException (seekHandle handle3 AbsoluteSeek +1)
-    expectU "we should be at position 1" +1 (toException (handlePosition handle3))
+    expectU "we should be at position 1" 1 (toException (handlePosition handle3))
     bytes3a = toException (getBytes handle3 1000)
     text3a = toException (Text.fromUtf8 bytes3a)
     expectU "should be able to read our temporary file after seeking" "2345678" text3a
@@ -272,24 +273,23 @@ testAppend : '{io2.IO} [Result]
 testAppend _ =
   test = 'let
     tempDir = toException (newTempDir "openFile")
-
     fooFile = tempDir ++ "/foo"
     handle1 = toException (openFile fooFile FileMode.Write)
-    putBytes handle1 (toUtf8 "test1")
-    closeFile handle1
+    toException (putBytes handle1 (toUtf8 "test1"))
+    toException (closeFile handle1)
 
     handle2 = toException (openFile fooFile FileMode.Append)
-    putBytes handle2 (toUtf8 "test2")
-    expectU "we should be at position 4" +4 (toException (handlePosition handle2))
-    check "which is the EOF" (toException (isFileEOF handle2))
-    closeFile handle2
+    toException (putBytes handle2 (toUtf8 "test2"))
+    toException (closeFile handle2)
 
     handle3 = toException (openFile fooFile FileMode.Read)
     bytes3 = toException (getBytes handle3 1000)
     text3 = toException (Text.fromUtf8 bytes3)
+
     expectU "should be able to read our temporary file" "test1test2" text3
 
     closeFile handle3
+
 
   runTest test
 ```

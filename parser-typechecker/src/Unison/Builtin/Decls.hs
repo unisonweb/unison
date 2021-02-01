@@ -105,6 +105,7 @@ builtinDataDecls = rs1 ++ rs
     , (v "io2.StdHandle"      , stdhnd)
     , (v "io2.Failure"        , failure)
     , (v "io2.TlsFailure"     , tlsFailure)
+    , (v "io2.IOFailure"      , ioFailure)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
   [(_, linkRef, _)] = rs1
   v = Var.named
@@ -200,13 +201,15 @@ builtinDataDecls = rs1 ++ rs
     (Unique "52ad89274a358b9c802792aa05915e25ac83205f7885395cc6c6c988bc5ec69a1")
     ()
     []
-    [ ((), v "io2.Failure.Failure", Type.typeLink () `arr` (Type.text () `arr` var "io2.Failure"))
+    [ ((), v "io2.Failure.Failure", Type.typeLink () `arr` (Type.text () `arr` (Type.any () `arr` var "io2.Failure")))
     ]
-  tlsFailure = DataDeclaration
-    (Unique "df5ba835130b227ab83d02d1feff5402455a732d613b51dee32230d2f2d067c6")
-    ()
+
+  tlsFailure = DataDeclaration (Unique "df5ba835130b227ab83d02d1feff5402455a732d613b51dee32230d2f2d067c6")()[]
     []
+
+  ioFailure = DataDeclaration (Unique "009cb00e78cac9e47485cc3633c7a363939f63866ea07ab330346a2121d69a83")()[]
     []
+
   stdhnd = DataDeclaration
     (Unique "67bf7a8e517cbb1e9f42bc078e35498212d3be3c")
     ()
