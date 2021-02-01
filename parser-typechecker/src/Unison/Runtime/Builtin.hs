@@ -1321,7 +1321,7 @@ mkForeignTls f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
 
 declareForeigns :: Var v => FDecl v ()
 declareForeigns = do
-  declareForeign "IO.openFile.v3" boxIomrToEFBox $
+  declareForeign "IO.openFile.impl.v3" boxIomrToEFBox $
     mkForeignIOF $ \(fnameText :: Text, n :: Int) ->
       let fname = (unpack fnameText)
           mode = case n of
@@ -1331,31 +1331,31 @@ declareForeigns = do
             _ -> ReadWriteMode
       in openFile fname mode
 
-  declareForeign "IO.closeFile.v3" boxToEF0 $ mkForeignIOF hClose
-  declareForeign "IO.isFileEOF.v3" boxToEFBool $ mkForeignIOF hIsEOF
-  declareForeign "IO.isFileOpen.v3" boxToEFBool $ mkForeignIOF hIsOpen
-  declareForeign "IO.isSeekable.v3" boxToEFBool $ mkForeignIOF hIsSeekable
+  declareForeign "IO.closeFile.impl.v3" boxToEF0 $ mkForeignIOF hClose
+  declareForeign "IO.isFileEOF.impl.v3" boxToEFBool $ mkForeignIOF hIsEOF
+  declareForeign "IO.isFileOpen.impl.v3" boxToEFBool $ mkForeignIOF hIsOpen
+  declareForeign "IO.isSeekable.impl.v3" boxToEFBool $ mkForeignIOF hIsSeekable
 
-  declareForeign "IO.seekHandle.v3" seek'handle
+  declareForeign "IO.seekHandle.impl.v3" seek'handle
     . mkForeignIOF $ \(h,sm,n) -> hSeek h sm (fromIntegral (n :: Int))
 
-  declareForeign "IO.handlePosition.v3" boxToEFNat
+  declareForeign "IO.handlePosition.impl.v3" boxToEFNat
     -- TODO: truncating integer
     . mkForeignIOF $ \h -> fromInteger @Word64 <$> hTell h
 
-  declareForeign "IO.getBuffering.v3" get'buffering
+  declareForeign "IO.getBuffering.impl.v3" get'buffering
     $ mkForeignIOF hGetBuffering
 
-  declareForeign "IO.setBuffering.v3" boxBoxToEF0
+  declareForeign "IO.setBuffering.impl.v3" boxBoxToEF0
     . mkForeignIOF $ uncurry hSetBuffering
 
-  declareForeign "IO.getBytes.v3" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromArray <$> hGet h n
+  declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromArray <$> hGet h n
 
-  declareForeign "IO.putBytes.v3" boxBoxToEFBox .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
-  declareForeign "IO.systemTime.v3" unitToEFNat
+  declareForeign "IO.putBytes.impl.v3" boxBoxToEFBox .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
+  declareForeign "IO.systemTime.impl.v3" unitToEFNat
     $ mkForeignIOF $ \() -> getPOSIXTime
 
-  declareForeign "IO.getTempDirectory.v3" unitToEFBox
+  declareForeign "IO.getTempDirectory.impl.v3" unitToEFBox
     $ mkForeignIOF $ \() -> getTemporaryDirectory
 
   declareForeign "IO.createTempDirectory" boxToEFBox
@@ -1363,41 +1363,41 @@ declareForeigns = do
        temp <- getTemporaryDirectory
        createTempDirectory temp prefix
 
-  declareForeign "IO.getCurrentDirectory.v3" direct
+  declareForeign "IO.getCurrentDirectory.impl.v3" direct
     . mkForeignIOF $ \() -> getCurrentDirectory
 
-  declareForeign "IO.setCurrentDirectory.v3" boxToEF0
+  declareForeign "IO.setCurrentDirectory.impl.v3" boxToEF0
     $ mkForeignIOF setCurrentDirectory
 
-  declareForeign "IO.fileExists.v3" boxToEFBool
+  declareForeign "IO.fileExists.impl.v3" boxToEFBool
     $ mkForeignIOF doesPathExist
 
-  declareForeign "IO.isDirectory.v3" boxToEFBool
+  declareForeign "IO.isDirectory.impl.v3" boxToEFBool
     $ mkForeignIOF doesDirectoryExist
 
-  declareForeign "IO.createDirectory.v3" boxToEF0
+  declareForeign "IO.createDirectory.impl.v3" boxToEF0
     $ mkForeignIOF $ createDirectoryIfMissing True
 
-  declareForeign "IO.removeDirectory.v3" boxToEF0
+  declareForeign "IO.removeDirectory.impl.v3" boxToEF0
     $ mkForeignIOF removeDirectoryRecursive
 
-  declareForeign "IO.renameDirectory.v3" boxBoxToEF0
+  declareForeign "IO.renameDirectory.impl.v3" boxBoxToEF0
     $ mkForeignIOF $ uncurry renameDirectory
 
-  declareForeign "IO.removeFile.v3" boxToEF0
+  declareForeign "IO.removeFile.impl.v3" boxToEF0
     $ mkForeignIOF removeFile
 
-  declareForeign "IO.renameFile.v3" boxBoxToEF0
+  declareForeign "IO.renameFile.impl.v3" boxBoxToEF0
     $ mkForeignIOF $ uncurry renameFile
 
-  declareForeign "IO.getFileTimestamp.v3" boxToEFNat
+  declareForeign "IO.getFileTimestamp.impl.v3" boxToEFNat
     . mkForeignIOF $ fmap utcTimeToPOSIXSeconds . getModificationTime
 
-  declareForeign "IO.getFileSize.v3" boxToEFNat
+  declareForeign "IO.getFileSize.impl.v3" boxToEFNat
     -- TODO: truncating integer
     . mkForeignIOF $ \fp -> fromInteger @Word64 <$> getFileSize fp
 
-  declareForeign "IO.serverSocket.v3" maybeBoxToEFBox
+  declareForeign "IO.serverSocket.impl.v3" maybeBoxToEFBox
     . mkForeignIOF $ \(mhst :: Maybe Text
                       , port) ->
         fst <$> SYS.bindSock (hostPreference mhst) port
@@ -1407,28 +1407,28 @@ declareForeigns = do
         n <- SYS.socketPort handle
         return (fromIntegral n :: Word64)
 
-  declareForeign "IO.listen.v3" boxToEF0
+  declareForeign "IO.listen.impl.v3" boxToEF0
     . mkForeignIOF $ \sk -> SYS.listenSock sk 2
 
-  declareForeign "IO.clientSocket.v3" boxBoxToEFBox
+  declareForeign "IO.clientSocket.impl.v3" boxBoxToEFBox
     . mkForeignIOF $ fmap fst . uncurry SYS.connectSock
 
-  declareForeign "IO.closeSocket.v3" boxToEF0
+  declareForeign "IO.closeSocket.impl.v3" boxToEF0
     $ mkForeignIOF SYS.closeSock
 
-  declareForeign "IO.socketAccept.v3" boxToEFBox
+  declareForeign "IO.socketAccept.impl.v3" boxToEFBox
     . mkForeignIOF $ fmap fst . SYS.accept
 
-  declareForeign "IO.socketSend.v3" boxBoxToEF0
+  declareForeign "IO.socketSend.impl.v3" boxBoxToEF0
     . mkForeignIOF $ \(sk,bs) -> SYS.send sk (Bytes.toArray bs)
 
-  declareForeign "IO.socketReceive.v3" boxNatToEFBox
+  declareForeign "IO.socketReceive.impl.v3" boxNatToEFBox
     . mkForeignIOF $ \(hs,n) ->
     maybe Bytes.empty Bytes.fromArray <$> SYS.recv hs n
 
-  declareForeign "IO.kill.v3" boxTo0 $ mkForeignIOF killThread
+  declareForeign "IO.kill.impl.v3" boxTo0 $ mkForeignIOF killThread
 
-  declareForeign "IO.delay.v3" natToUnit $ mkForeignIOF threadDelay
+  declareForeign "IO.delay.impl.v3" natToUnit $ mkForeignIOF threadDelay
 
   declareForeign "IO.stdHandle" standard'handle
     . mkForeign $ \(n :: Int) -> case n of
@@ -1443,25 +1443,25 @@ declareForeigns = do
   declareForeign "MVar.newEmpty.v2" unitDirect
     . mkForeign $ \() -> newEmptyMVar @Closure
 
-  declareForeign "MVar.take.v3" boxToEFBox
+  declareForeign "MVar.take.impl.v3" boxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> takeMVar mv
 
   declareForeign "MVar.tryTake" boxToMaybeBox
     . mkForeign $ \(mv :: MVar Closure) -> tryTakeMVar mv
 
-  declareForeign "MVar.put.v3" boxBoxToEF0
+  declareForeign "MVar.put.impl.v3" boxBoxToEF0
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> putMVar mv x
 
   declareForeign "MVar.tryPut" boxBoxToEFBool
     . mkForeign $ \(mv :: MVar Closure, x) -> tryPutMVar mv x
 
-  declareForeign "MVar.swap.v3" boxBoxToEFBox
+  declareForeign "MVar.swap.impl.v3" boxBoxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> swapMVar mv x
 
   declareForeign "MVar.isEmpty" boxToBool
     . mkForeign $ \(mv :: MVar Closure) -> isEmptyMVar mv
 
-  declareForeign "MVar.read.v3" boxBoxToEFBox
+  declareForeign "MVar.read.impl.v3" boxBoxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> readMVar mv
 
   declareForeign "MVar.tryRead" boxToMaybeBox
@@ -1470,7 +1470,7 @@ declareForeigns = do
   declareForeign "Text.toUtf8" boxDirect . mkForeign
     $ pure . Bytes.fromArray . encodeUtf8
 
-  declareForeign "Text.fromUtf8.v3" boxToEFBox . mkForeign
+  declareForeign "Text.fromUtf8.impl.v3" boxToEFBox . mkForeign
     $ pure . mapLeft (\t -> Failure ioFailureReference (pack ( show t)) unitValue) . decodeUtf8' . Bytes.toArray
 
   declareForeign "Tls.ClientConfig.default" boxBoxDirect .  mkForeign

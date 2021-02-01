@@ -133,10 +133,10 @@ Below shows different examples of how we might specify the server coordinates.
 testExplicitHost : '{io2.IO} [Result]
 testExplicitHost _ = 
   test = 'let
-    sock = toException (io2.IO.serverSocket (Some "127.0.0.1") "1028")
+    sock = toException (io2.IO.serverSocket.impl (Some "127.0.0.1") "1028")
     emit (Ok "successfully created socket")
     port = toException (socketPort sock)
-    putBytes (stdHandle StdOut) (toUtf8 (toText port))
+    putBytes.impl (stdHandle StdOut) (toUtf8 (toText port))
     expectU Nat.toText "should have bound to port 1028" 1028 port 
 
   runTest test
@@ -144,10 +144,10 @@ testExplicitHost _ =
 testDefaultHost : '{io2.IO} [Result]
 testDefaultHost _ = 
   test = 'let
-    sock = toException (io2.IO.serverSocket None "1028")
+    sock = toException (io2.IO.serverSocket.impl None "1028")
     emit (Ok "successfully created socket")
     port = toException (socketPort sock)
-    putBytes (stdHandle StdOut) (toUtf8 (toText port))
+    toException (putBytes.impl (stdHandle StdOut) (toUtf8 (toText port)))
     expectU Nat.toText "should have bound to port 1028" 1028 port 
 
   runTest test
@@ -155,10 +155,10 @@ testDefaultHost _ =
 testDefaultPort : '{io2.IO} [Result]
 testDefaultPort _ = 
   test = 'let
-    sock = toException (io2.IO.serverSocket None "0")
+    sock = toException (io2.IO.serverSocket.impl None "0")
     emit (Ok "successfully created socket")
     port = toException (socketPort sock)
-    putBytes (stdHandle StdOut) (toUtf8 (toText port))
+    toException (putBytes.impl (stdHandle StdOut) (toUtf8 (toText port)))
     
     check "port should be > 1024" (1024 < port)
     check "port should be < 65536" (65536 > port)
@@ -207,13 +207,13 @@ This example demonstrates connecting a TCP client socket to a TCP server socket.
 serverThread: MVar Nat -> Text -> '{io2.IO}()
 serverThread portVar toSend = 'let
   go = 'let
-    sock = toException (serverSocket (Some "127.0.0.1") "0")
+    sock = toException (serverSocket.impl (Some "127.0.0.1") "0")
     port = toException (socketPort sock)
-    toException (put portVar port)
-    toException (listen sock)
-    sock' = toException (socketAccept sock)
-    toException (socketSend sock' (toUtf8 toSend))
-    toException (closeSocket sock')
+    toException (put.impl portVar port)
+    toException (listen.impl sock)
+    sock' = toException (socketAccept.impl sock)
+    toException (socketSend.impl sock' (toUtf8 toSend))
+    toException (closeSocket.impl sock')
 
   match (toEither go) with 
     Left (Failure _ t _) -> watch t ()
@@ -223,10 +223,10 @@ clientThread : MVar Nat -> MVar Text -> '{io2.IO}()
 clientThread portVar resultVar = 'let
   go : '{io2.IO, Exception Failure}()
   go = 'let
-    port = toException (take portVar)
-    sock = toException (clientSocket "127.0.0.1" (Nat.toText port))
-    msg = toException (fromUtf8 (toException (socketReceive sock 100)))
-    toException (MVar.put resultVar msg)
+    port = toException (take.impl portVar)
+    sock = toException (clientSocket.impl "127.0.0.1" (Nat.toText port))
+    msg = toException (fromUtf8.impl (toException (socketReceive.impl sock 100)))
+    toException (put.impl resultVar msg)
 
   match (toEither go) with
     Left (Failure _ t _) -> watch t ()
@@ -243,7 +243,7 @@ testTcpConnect = 'let
     forkComp (serverThread portVar toSend)
     forkComp (clientThread portVar resultVar)
     
-    received = toException (MVar.take resultVar)
+    received = toException (take.impl resultVar)
 
     expectU (a->a) "should have reaped what we've sown" toSend received
     

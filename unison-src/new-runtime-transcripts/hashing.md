@@ -22,7 +22,7 @@ a |> f = f a
 
 hex : Bytes -> Text
 hex b =
-  match Bytes.toBase16 b |> fromUtf8
+  match Bytes.toBase16 b |> fromUtf8.impl
   with Left e -> bug e
        Right t -> t
 

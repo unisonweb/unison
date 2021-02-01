@@ -16,7 +16,7 @@ use .builtin.io2 Failure
 a |> f = f a
 
 startsWith : Text -> Text -> Boolean
-startsWith prefix text = (eq (take (size prefix) text) prefix)
+startsWith prefix text = (eq (Text.take (size prefix) text) prefix)
 
 contains : Text -> Text -> Boolean
 contains needle haystack = if (size haystack) == 0 then false else
@@ -155,21 +155,21 @@ serverThread portVar toSend = 'let
 
        -- Open a TCP server port:
     -- we pass the special port "0" to mean "please find us an open port"
-    sock = serverSocket (Some "127.0.0.1") "0"      |> toException
+    sock = serverSocket.impl (Some "127.0.0.1") "0" |> toException
 
        -- find out what port we got
     port = socketPort sock                          |> toException
 
        -- report the port back so that the client knows where to connect
-    MVar.put portVar port                           |> toException
+    MVar.put.impl portVar port                      |> toException
 
        -- start listening to the socket so that it starts accepting connections
-    listen sock                                     |> toException
+    listen.impl sock                                |> toException
 
     watch ("server listening on port: " ++ (toText port)) ()
 
        -- accept a single connection on this socket
-    sock' = socketAccept sock                       |> toException
+    sock' = socketAccept.impl sock                  |> toException
 
        -- attach TLS to our TCP connection
     tls = newServer tlsconfig sock'                 |> toException
@@ -180,7 +180,7 @@ serverThread portVar toSend = 'let
        -- send our message over our tls channel
     send tls (toUtf8 toSend)                        |> toException
     terminate tls                                   |> toException
-    closeSocket sock'                               |> toException
+    closeSocket.impl sock'                               |> toException
 
   match (toEither go) with
     Left (Failure _ t _) -> watch ("error in server: " ++ t) ()
@@ -197,10 +197,10 @@ testClient cert hostname portVar _ =
     Some (cert) -> defaultClient |> ClientConfig.certificates.set [cert]
 
   -- wait to find out what port the server started on
-  port = take portVar                  |> toException
+  port = take.impl portVar                  |> toException
 
   -- create a tcp connection with the server
-  sock = clientSocket "127.0.0.1" (Nat.toText port) |> toException
+  sock = clientSocket.impl "127.0.0.1" (Nat.toText port) |> toException
 
   -- attach the TLS client to the TCP socket
   tls = newClient tlsconfig sock       |> toException
@@ -212,7 +212,7 @@ testClient cert hostname portVar _ =
   handshake tls                        |> toException
 
   -- receive a message from the server
-  fromUtf8 (toException (receive tls)) |> toException
+  fromUtf8.impl (toException (receive tls)) |> toException
 
 testConnectSelfSigned : '{io2.IO}[Result]
 testConnectSelfSigned _ =

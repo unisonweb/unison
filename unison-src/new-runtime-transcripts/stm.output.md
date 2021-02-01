@@ -15,7 +15,7 @@ stdout = stdHandle StdOut
 
 putLn : Text ->{IO} ()
 putLn t =
-  putBytes stdout (toUtf8 (t ++ "\n"))
+  putBytes.impl stdout (toUtf8 (t ++ "\n"))
   ()
 
 map : (a ->{e} b) -> [a] ->{e} [b]

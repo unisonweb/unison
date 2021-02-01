@@ -104,7 +104,7 @@ testBasicFork : '{io2.IO} [Result]
 testBasicFork = 'let
   test = 'let
     watch "I'm the parent thread" ()
-    threadId = io2.IO.forkComp otherThread
+    threadId = .builtin.io2.IO.forkComp otherThread
     emit (Ok "created thread")
 
   runTest test
@@ -123,8 +123,8 @@ thread1 : MVar Nat -> '{io2.IO}()
 thread1 mv = 'let
   go : '{io2.IO, Exception Failure} ()
   go = 'let
-    x = toException (take mv)
-    toException (put mv (increment x))
+    x = toException (take.impl mv)
+    toException (put.impl mv (increment x))
 
   match (toEither go) with 
     Left (Failure _ t _) -> watch t ()
@@ -136,8 +136,8 @@ testBasicMultiThreadMVar = 'let
   test: '{io2.IO, Exception Failure, Stream Result} ()
   test = 'let
     mv = new 10
-    forkComp (thread1 mv)
-    next = toException (take mv)
+    .builtin.io2.IO.forkComp (thread1 mv)
+    next = toException (take.impl mv)
     expectU Nat.toText "other thread should have incremented" 11 next
 
   runTest test
@@ -155,7 +155,7 @@ sendingThread: Nat -> MVar Nat -> '{io2.IO}()
 sendingThread toSend mv = 'let
   go : '{io2.IO, Exception Failure} ()
   go = 'let
-    toException (put mv (increment toSend))
+    toException (put.impl mv (increment toSend))
     
   match (toEither go) with
     Left (Failure _ t _) -> watch t ()
@@ -166,8 +166,8 @@ receivingThread: MVar Nat -> MVar Text -> '{io2.IO}()
 receivingThread recv send = 'let
   go : '{io2.IO, Exception Failure} ()
   go = 'let
-    recvd = toException (take recv)
-    toException (put send (toText recvd))
+    recvd = toException (take.impl recv)
+    toException (put.impl send (toText recvd))
     
   match (toEither go) with
     Left (Failure _ t _) -> watch t ()
@@ -179,10 +179,10 @@ testTwoThreads = 'let
     send = !MVar.newEmpty
     recv = !MVar.newEmpty
 
-    forkComp (sendingThread 6 send)
-    forkComp (receivingThread send recv)
+    .builtin.io2.IO.forkComp (sendingThread 6 send)
+    .builtin.io2.IO.forkComp (receivingThread send recv)
 
-    recvd = toException (take recv)
+    recvd = toException (take.impl recv)
 
     expectU (x->x) "" "7" recvd
 

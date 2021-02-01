@@ -57,7 +57,7 @@ autoCleaned.handler: '{io2.IO} (Request {TempDirs} r -> r)
 autoCleaned.handler _ =
   remover : [Text] -> {io2.IO} ()
   remover = cases
-    a +: as -> removeDirectory a
+    a +: as -> removeDirectory.impl a
                remover as
     [] -> ()
 
@@ -72,7 +72,7 @@ autoCleaned.handler _ =
         Left _ -> handle k dir with go dirs
 
    { TempDirs.removeDir dir -> k } ->
-      handle k (removeDirectory dir) with go (filter (d -> not (d == dir)) dirs)
+      handle k (removeDirectory.impl dir) with go (filter (d -> not (d == dir)) dirs)
 
   go []
 
@@ -109,7 +109,7 @@ Stream.collect s =
 
 stdout = IO.stdHandle StdErr
 printText : Text -> {io2.IO} Either Failure ()
-printText t = putBytes stdout (toUtf8 t)
+printText t = putBytes.impl stdout (toUtf8 t)
 
 expect : Text -> (a -> a -> Boolean) -> a -> a -> {Stream Result} ()
 expect msg compare expected actual = if compare expected actual then emit (Ok msg) else emit (Fail msg)
@@ -153,13 +153,13 @@ testAutoClean _ =
   go: '{Stream Result, Exception Failure, io2.IO, TempDirs} Text
   go _ =
     dir = toException (newTempDir "autoclean")
-    check "our temporary directory should exist" (toException (isDirectory dir))
+    check "our temporary directory should exist" (toException (isDirectory.impl dir))
     dir
 
   match evalTest go with
     (results, Left (Failure _ t _)) -> results :+ (Fail t)
     (results, Right dir) ->
-       match isDirectory dir with
+       match isDirectory.impl dir with
          Right b -> if b
                     then results :+ (Fail "our temporary directory should no longer exist")
                     else results :+ (Ok "our temporary directory should no longer exist")
@@ -188,20 +188,20 @@ testCreateRename _ =
     tempDir = toException (newTempDir "fileio")
     fooDir = tempDir ++ "/foo"
     barDir = tempDir ++ "/bar"
-    toException let createDirectory fooDir
-    check "create a foo directory" (toException (isDirectory fooDir))
-    check "directory should exist" (toException (fileExists fooDir))
-    toException let renameDirectory fooDir barDir
-    check "foo should no longer exist" (not (toException (fileExists fooDir)))
-    check "directory should no longer exist" (not (toException (fileExists fooDir)))
-    check "bar should now exist" (toException (fileExists barDir))
+    toException let createDirectory.impl fooDir
+    check "create a foo directory" (toException (isDirectory.impl fooDir))
+    check "directory should exist" (toException (fileExists.impl fooDir))
+    toException let renameDirectory.impl fooDir barDir
+    check "foo should no longer exist" (not (toException (fileExists.impl fooDir)))
+    check "directory should no longer exist" (not (toException (fileExists.impl fooDir)))
+    check "bar should now exist" (toException (fileExists.impl barDir))
 
     bazDir = barDir ++ "/baz"
-    toException let createDirectory bazDir
-    toException let removeDirectory barDir
+    toException let createDirectory.impl bazDir
+    toException let removeDirectory.impl barDir
 
-    check "removeDirectory works recursively" (not (toException (isDirectory barDir)))
-    check "removeDirectory works recursively" (not (toException (isDirectory bazDir)))
+    check "removeDirectory works recursively" (not (toException (isDirectory.impl barDir)))
+    check "removeDirectory works recursively" (not (toException (isDirectory.impl bazDir)))
 
   runTest test
 ```
@@ -222,10 +222,10 @@ testOpenClose _ =
   test = 'let
     tempDir = toException (newTempDir "seek")
     fooFile = tempDir ++ "/foo"
-    handle1 = toException (openFile fooFile FileMode.Write)
-    check "file should be open" (toException (isFileOpen handle1))
-    toException (closeFile handle1)
-    check "file should be closed" (not (toException (isFileOpen handle1)))
+    handle1 = toException (openFile.impl fooFile FileMode.Write)
+    check "file should be open" (toException (isFileOpen.impl handle1))
+    toException (closeFile.impl handle1)
+    check "file should be closed" (not (toException (isFileOpen.impl handle1)))
 
   runTest test
 ```
@@ -251,21 +251,21 @@ testSeek _ =
     tempDir = toException (newTempDir "seek")
     emit (Ok "seeked")
     fooFile = tempDir ++ "/foo"
-    handle1 = toException (openFile fooFile FileMode.Append)
-    putBytes handle1 (toUtf8 "12345678")
-    closeFile handle1
+    handle1 = toException (openFile.impl fooFile FileMode.Append)
+    putBytes.impl handle1 (toUtf8 "12345678")
+    closeFile.impl handle1
 
-    handle3 = toException (openFile fooFile FileMode.Read)
-    check "readable file should be seekable" (toException (isSeekable handle3))
-    check "shouldn't be the EOF" (not (toException (isFileEOF handle3)))
-    expectU "we should be at position 0" 0 (toException (handlePosition handle3))
+    handle3 = toException (openFile.impl fooFile FileMode.Read)
+    check "readable file should be seekable" (toException (isSeekable.impl handle3))
+    check "shouldn't be the EOF" (not (toException (isFileEOF.impl handle3)))
+    expectU "we should be at position 0" 0 (toException (handlePosition.impl handle3))
 
-    toException (seekHandle handle3 AbsoluteSeek +1)
-    expectU "we should be at position 1" 1 (toException (handlePosition handle3))
-    bytes3a = toException (getBytes handle3 1000)
-    text3a = toException (Text.fromUtf8 bytes3a)
+    toException (seekHandle.impl handle3 AbsoluteSeek +1)
+    expectU "we should be at position 1" 1 (toException (handlePosition.impl handle3))
+    bytes3a = toException (getBytes.impl handle3 1000)
+    text3a = toException (Text.fromUtf8.impl bytes3a)
     expectU "should be able to read our temporary file after seeking" "2345678" text3a
-    closeFile handle3
+    closeFile.impl handle3
 
   runTest test
 
@@ -274,21 +274,21 @@ testAppend _ =
   test = 'let
     tempDir = toException (newTempDir "openFile")
     fooFile = tempDir ++ "/foo"
-    handle1 = toException (openFile fooFile FileMode.Write)
-    toException (putBytes handle1 (toUtf8 "test1"))
-    toException (closeFile handle1)
+    handle1 = toException (openFile.impl fooFile FileMode.Write)
+    toException (putBytes.impl handle1 (toUtf8 "test1"))
+    toException (closeFile.impl handle1)
 
-    handle2 = toException (openFile fooFile FileMode.Append)
-    toException (putBytes handle2 (toUtf8 "test2"))
-    toException (closeFile handle2)
+    handle2 = toException (openFile.impl fooFile FileMode.Append)
+    toException (putBytes.impl handle2 (toUtf8 "test2"))
+    toException (closeFile.impl handle2)
 
-    handle3 = toException (openFile fooFile FileMode.Read)
-    bytes3 = toException (getBytes handle3 1000)
-    text3 = toException (Text.fromUtf8 bytes3)
+    handle3 = toException (openFile.impl fooFile FileMode.Read)
+    bytes3 = toException (getBytes.impl handle3 1000)
+    text3 = toException (Text.fromUtf8.impl bytes3)
 
     expectU "should be able to read our temporary file" "test1test2" text3
 
-    closeFile handle3
+    closeFile.impl handle3
 
 
   runTest test
@@ -304,7 +304,7 @@ testAppend _ =
 testSystemTime : '{io2.IO} [Result]
 testSystemTime _ =
   test = 'let
-    t = toException !io2.IO.systemTime
+    t = toException !io2.IO.systemTime.impl
     check "systemTime should be sane" ((t > 1600000000) && (t < 2000000000))
 
   runTest test

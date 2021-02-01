@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #t6bsshdq9e
+  ⊙ #eiauugfpli
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #a52hdge0ur
+  ⊙ #j1kkf261uj
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #7cn7ulvqt4
+  ⊙ #b1uat7hnf6
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #icg0klduhn
+  ⊙ #mbvbqnbq3r
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #0ehm1cc89a
+  ⊙ #bhp101lgb7
   
     + Adds / updates:
     
       x
   
-  ⊙ #fahbg0pqso
+  ⊙ #qbmfj6l0kh
   
     + Adds / updates:
     
@@ -215,7 +215,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Test.Result.Fail builtin.Test.Result.Ok
       builtin.Text builtin.Text.!= builtin.Text.++
       builtin.Text.drop builtin.Text.empty builtin.Text.eq
-      builtin.Text.fromCharList builtin.Text.fromUtf8
+      builtin.Text.fromCharList builtin.Text.fromUtf8.impl
       builtin.Text.gt builtin.Text.gteq builtin.Text.lt
       builtin.Text.lteq builtin.Text.size builtin.Text.take
       builtin.Text.toCharList builtin.Text.toUtf8
@@ -245,29 +245,38 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.FileMode builtin.io2.FileMode.Append
       builtin.io2.FileMode.Read builtin.io2.FileMode.ReadWrite
       builtin.io2.FileMode.Write builtin.io2.Handle
-      builtin.io2.IO builtin.io2.IO.clientSocket
-      builtin.io2.IO.closeFile builtin.io2.IO.closeSocket
-      builtin.io2.IO.createDirectory
-      builtin.io2.IO.createTempDirectory builtin.io2.IO.delay
-      builtin.io2.IO.fileExists builtin.io2.IO.forkComp
-      builtin.io2.IO.getBuffering builtin.io2.IO.getBytes
-      builtin.io2.IO.getCurrentDirectory
-      builtin.io2.IO.getFileSize builtin.io2.IO.getFileTimestamp
-      builtin.io2.IO.getTempDirectory
-      builtin.io2.IO.handlePosition builtin.io2.IO.isDirectory
-      builtin.io2.IO.isFileEOF builtin.io2.IO.isFileOpen
-      builtin.io2.IO.isSeekable builtin.io2.IO.kill
-      builtin.io2.IO.listen builtin.io2.IO.openFile
-      builtin.io2.IO.putBytes builtin.io2.IO.removeDirectory
-      builtin.io2.IO.removeFile builtin.io2.IO.renameDirectory
-      builtin.io2.IO.renameFile builtin.io2.IO.seekHandle
-      builtin.io2.IO.serverSocket builtin.io2.IO.setBuffering
-      builtin.io2.IO.setCurrentDirectory
-      builtin.io2.IO.socketAccept builtin.io2.IO.socketPort
-      builtin.io2.IO.socketReceive builtin.io2.IO.socketSend
-      builtin.io2.IO.stdHandle builtin.io2.IO.systemTime
-      builtin.io2.IOError builtin.io2.IOError.AlreadyExists
-      builtin.io2.IOError.EOF
+      builtin.io2.IO builtin.io2.IO.clientSocket.impl
+      builtin.io2.IO.closeFile.impl
+      builtin.io2.IO.closeSocket.impl
+      builtin.io2.IO.createDirectory.impl
+      builtin.io2.IO.createTempDirectory
+      builtin.io2.IO.delay.impl builtin.io2.IO.fileExists.impl
+      builtin.io2.IO.forkComp builtin.io2.IO.getBuffering.impl
+      builtin.io2.IO.getBytes.impl
+      builtin.io2.IO.getCurrentDirectory.impl
+      builtin.io2.IO.getFileSize.impl
+      builtin.io2.IO.getFileTimestamp.impl
+      builtin.io2.IO.getTempDirectory.impl
+      builtin.io2.IO.handlePosition.impl
+      builtin.io2.IO.isDirectory.impl
+      builtin.io2.IO.isFileEOF.impl
+      builtin.io2.IO.isFileOpen.impl
+      builtin.io2.IO.isSeekable.impl builtin.io2.IO.kill.impl
+      builtin.io2.IO.listen.impl builtin.io2.IO.openFile.impl
+      builtin.io2.IO.putBytes.impl
+      builtin.io2.IO.removeDirectory.impl
+      builtin.io2.IO.removeFile.impl
+      builtin.io2.IO.renameDirectory.impl
+      builtin.io2.IO.renameFile.impl
+      builtin.io2.IO.seekHandle.impl
+      builtin.io2.IO.serverSocket.impl
+      builtin.io2.IO.setBuffering.impl
+      builtin.io2.IO.setCurrentDirectory.impl
+      builtin.io2.IO.socketAccept.impl builtin.io2.IO.socketPort
+      builtin.io2.IO.socketReceive.impl
+      builtin.io2.IO.socketSend.impl builtin.io2.IO.stdHandle
+      builtin.io2.IO.systemTime.impl builtin.io2.IOError
+      builtin.io2.IOError.AlreadyExists builtin.io2.IOError.EOF
       builtin.io2.IOError.IllegalOperation
       builtin.io2.IOError.NoSuchThing
       builtin.io2.IOError.PermissionDenied
@@ -277,8 +286,8 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.IOFailure##IOFailure builtin.io2.IOFailure#gro
       builtin.io2.MVar builtin.io2.MVar.isEmpty
       builtin.io2.MVar.new builtin.io2.MVar.newEmpty
-      builtin.io2.MVar.put builtin.io2.MVar.read
-      builtin.io2.MVar.swap builtin.io2.MVar.take
+      builtin.io2.MVar.put.impl builtin.io2.MVar.read.impl
+      builtin.io2.MVar.swap.impl builtin.io2.MVar.take.impl
       builtin.io2.MVar.tryPut builtin.io2.MVar.tryRead
       builtin.io2.MVar.tryTake builtin.io2.STM
       builtin.io2.STM.atomically builtin.io2.STM.retry
