@@ -275,11 +275,11 @@ loadCausalValueHashId id =
   SELECT value_hash_id FROM causal WHERE self_hash_id = ?
 |]
 
--- todo: do a join here 
+-- todo: do a join here
 loadBranchObjectIdByCausalHashId :: EDB m => CausalHashId -> m (Maybe BranchObjectId)
 loadBranchObjectIdByCausalHashId id = queryAtom sql (Only id) where sql = [here|
   SELECT object_id FROM hash_object
-  INNER JOIN causal ON hash_id = causal.value_hash_id 
+  INNER JOIN causal ON hash_id = causal.value_hash_id
   WHERE causal.self_hash_id = ?
 |]
 
@@ -330,7 +330,7 @@ setNamespaceRoot id =
   query_ @m @(Only CausalHashId) "SELECT * FROM namespace_root" >>= \case
     [] -> execute insert (Only id)
     _ -> execute update (Only id)
-  where 
+  where
     insert = "INSERT INTO namespace_root VALUES (?)"
     update = "UPDATE namespace_root SET causal_id = ?"
 
@@ -351,8 +351,8 @@ saveWatch k r blob = execute sql (r :. Only blob) >> execute sql2 (r :. Only k)
 loadWatch :: DB m => WatchKind -> Reference.IdH -> m (Maybe ByteString)
 loadWatch k r = queryAtom sql (Only k :. r) where sql = [here|
     SELECT result FROM watch_result
-    INNER JOIN watch 
-      ON watch_result.hash_id = watch.hash_id 
+    INNER JOIN watch
+      ON watch_result.hash_id = watch.hash_id
       AND watch_result.component_index = watch.component_index
     WHERE watch.watch_kind_id = ?
       AND watch.hash_id = ?
@@ -505,7 +505,7 @@ debugQuery :: Bool
 debugQuery = True
 
 query :: (DB m, ToRow q, FromRow r, Show q, Show r) => SQLite.Query -> q -> m [r]
-query q r = do 
+query q r = do
   c <- ask
   liftIO . queryTrace "query" q r $ SQLite.query c q r
 
