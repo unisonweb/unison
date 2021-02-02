@@ -532,9 +532,9 @@ c2xTerm saveText saveDefn tm tp =
               (Vector.fromList (Foldable.toList defnIds))
       pure (ids, void tm, void <$> tp)
 
-loadTermWithTypeByReference :: EDB m => C.Reference.Id -> m (C.Term Symbol, C.Term.Type Symbol)
+loadTermWithTypeByReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term Symbol, C.Term.Type Symbol)
 loadTermWithTypeByReference (C.Reference.Id h i) =
-  primaryHashToExistingObjectId h
+  MaybeT (primaryHashToMaybeObjectId h)
     >>= liftQ . Q.loadObjectById
     -- retrieve and deserialize the blob
     >>= decodeTermElementWithType i
@@ -543,7 +543,7 @@ loadTermWithTypeByReference (C.Reference.Id h i) =
 loadTermByReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term Symbol)
 loadTermByReference id | trace ("loadTermByReference " ++ show id) False = undefined
 loadTermByReference (C.Reference.Id h i) =
-  primaryHashToExistingObjectId h
+  MaybeT (primaryHashToMaybeObjectId h)
     >>= liftQ . Q.loadObjectWithTypeById
     >>= \case (OT.TermComponent, blob) -> pure blob; _ -> mzero
     -- retrieve and deserialize the blob
@@ -553,7 +553,7 @@ loadTermByReference (C.Reference.Id h i) =
 loadTypeOfTermByTermReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term.Type Symbol)
 loadTypeOfTermByTermReference id | trace ("loadTypeOfTermByTermReference " ++ show id) False = undefined
 loadTypeOfTermByTermReference (C.Reference.Id h i) =
-  primaryHashToExistingObjectId h
+  MaybeT (primaryHashToMaybeObjectId h)
     >>= liftQ . Q.loadObjectWithTypeById
     >>= \case (OT.TermComponent, blob) -> pure blob; _ -> mzero
     -- retrieve and deserialize the blob
@@ -719,7 +719,7 @@ loadDeclByReference id | trace ("loadDeclByReference " ++ show id) False = undef
 loadDeclByReference (C.Reference.Id h i) = do
   -- retrieve the blob
   (localIds, C.Decl.DataDeclaration dt m b ct) <-
-    primaryHashToExistingObjectId h 
+    MaybeT (primaryHashToMaybeObjectId h)
     >>= liftQ . Q.loadObjectWithTypeById
     >>= \case (OT.DeclComponent, blob) -> pure blob; _ -> mzero
     >>= decodeDeclElement i
