@@ -14,8 +14,8 @@ module U.Codebase.Sqlite.Operations where
 
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
-import Control.Monad (MonadPlus (mzero), join, (<=<))
 import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
+import Control.Monad (MonadPlus (mzero), join, when, (<=<))
 import Control.Monad.State (MonadState, StateT, evalStateT)
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
@@ -113,7 +113,7 @@ import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
-import Control.Monad (when)
+import Data.Foldable (traverse_)
 
 -- * Error handling
 
@@ -427,7 +427,13 @@ saveTermComponent h terms = do
   hashId <- Q.saveHashHash h
   let li = S.Term.LocallyIndexedComponent $ Vector.fromList sTermElements
       bytes = S.putBytes S.putTermFormat $ S.Term.Term li
-  Q.saveObject hashId OT.TermComponent bytes
+  oId <- Q.saveObject hashId OT.TermComponent bytes
+  -- populate dependents index
+  error "todo: populate dependents index"
+  -- populate type indexes
+  error "todo: populate type index"
+  error "todo: populate type-mentions index"
+  pure oId
 
 -- | implementation detail of c2{s,w}Term
 --  The Type is optional, because we don't store them for watch expression results.
@@ -688,7 +694,23 @@ saveDeclComponent h decls = do
   hashId <- Q.saveHashHash h
   let li = S.Decl.LocallyIndexedComponent $ Vector.fromList sDeclElements
       bytes = S.putBytes S.putDeclFormat $ S.Decl.Decl li
-  Q.saveObject hashId OT.DeclComponent bytes
+  oId <- Q.saveObject hashId OT.DeclComponent bytes
+  -- populate dependents index
+  let dependencies :: Set (S.Reference.Reference, S.Reference.Id) = foldMap unlocalizeRefs (sDeclElements `zip` [0..])
+      unlocalizeRefs :: ((LocalIds' Db.TextId Db.ObjectId, S.Decl.Decl Symbol), Word64) -> Set (S.Reference.Reference, S.Reference.Id)
+      unlocalizeRefs ((LocalIds tIds oIds, decl), i) =
+        let self = C.Reference.Id oId i
+            dependencies :: Set (C.Reference.Reference' LocalTextId (Maybe LocalDefnId)) = C.Decl.dependencies decl
+            getSRef :: C.Reference.Reference' LocalTextId (Maybe LocalDefnId) -> Maybe S.Reference.Reference
+            getSRef (C.ReferenceBuiltin t) = Just (C.ReferenceBuiltin (tIds Vector.! fromIntegral t))
+            getSRef (C.Reference.Derived (Just h) i) = Just (C.Reference.Derived (oIds Vector.! fromIntegral h) i)
+            getSRef _selfCycleRef@(C.Reference.Derived Nothing _) = Nothing
+         in Set.mapMaybe (fmap (,self) . getSRef) dependencies
+  traverse_ (uncurry Q.addToDependentsIndex) dependencies
+  -- populate type indexes
+  error "todo: populate type index for constructors"
+  error "todo: populate type-mentions index for constructors"
+  pure oId
 
 c2sDecl :: forall m t d. EDB m => (Text -> m t) -> (H.Hash -> m d) -> C.Decl Symbol -> m (LocalIds' t d, S.Decl.Decl Symbol)
 c2sDecl saveText saveDefn (C.Decl.DataDeclaration dt m b cts) = do
@@ -735,8 +757,8 @@ loadDeclByReference (C.Reference.Id h i) = do
   hashes <- traverse loadHashByObjectId $ LocalIds.defnLookup localIds
 
   -- substitute the text and hashes back into the term
-  let substText (LocalTextId w) = texts Vector.! fromIntegral w
-      substHash (LocalDefnId w) = hashes Vector.! fromIntegral w
+  let substText tIdx = texts Vector.! fromIntegral tIdx
+      substHash hIdx = hashes Vector.! fromIntegral hIdx
       substTypeRef :: S.Decl.TypeRef -> C.Decl.TypeRef
       substTypeRef = bimap substText (fmap substHash)
   pure (C.Decl.DataDeclaration dt m b (C.Type.rmap substTypeRef <$> ct)) -- lens might be nice here

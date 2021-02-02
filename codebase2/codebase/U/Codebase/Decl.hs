@@ -1,8 +1,10 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module U.Codebase.Decl where
 
+import Data.Set (Set)
 import Data.Text (Text)
 import Data.Word (Word64)
 import U.Codebase.Reference (Reference')
@@ -21,6 +23,7 @@ data DeclType = Data | Effect
 type Decl v = DeclR TypeRef v
 
 type TypeRef = Reference' Text (Maybe Hash)
+
 type Type v = TypeR TypeRef v
 
 data Modifier = Structural | Unique Text
@@ -32,11 +35,12 @@ data DeclR r v = DataDeclaration
     bound :: [v],
     constructorTypes :: [TypeR r v]
   }
-  deriving Show
--- instance Hashable ConstructorType where
---   tokens b = [Tag . fromIntegral $ fromEnum b]
+  deriving (Show)
 
 -- * Hashing stuff
+
+dependencies :: (Ord r, Ord v) => DeclR r v -> Set r
+dependencies (DataDeclaration _ _ _ cts) = foldMap Type.dependencies cts
 
 data V v = Bound v | Ctor Int
 

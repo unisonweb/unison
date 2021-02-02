@@ -36,6 +36,7 @@ library
       base,
       containers,
       lens,
+      mtl,
       text,
       unison-core,
       unison-util
