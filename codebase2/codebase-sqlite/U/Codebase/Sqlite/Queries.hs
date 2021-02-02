@@ -514,21 +514,31 @@ query_ q = do
   c <- ask
   liftIO . queryTrace_ "query" q $ SQLite.query_ c q
 
-queryTrace :: (Monad m, Show q, Show a) => String -> SQLite.Query -> q -> m a -> m a
+queryTrace :: (MonadUnliftIO m, Show q, Show a) => String -> SQLite.Query -> q -> m a -> m a
 queryTrace title query input m =
-  if debugQuery then do
-    a <- m
-    traceM $ title ++ " " ++ show query ++ "\n  input: " ++ show input ++ "\n output: " ++ show a
-    pure a
-  else m
+  if debugQuery
+    then
+      try @_ @SQLite.SQLError m >>= \case
+        Right a -> do
+          traceM $ title ++ " " ++ show query ++ "\n  input: " ++ show input ++ "\n output: " ++ show a
+          pure a
+        Left e -> do
+          traceM $ title ++ " " ++ show query ++ "\n  input: " ++ show input ++ "\n(and crashed)\n"
+          throwIO e
+    else m
 
-queryTrace_ :: (Monad m, Show a) => String -> SQLite.Query -> m a -> m a
+queryTrace_ :: (MonadUnliftIO m, Show a) => String -> SQLite.Query -> m a -> m a
 queryTrace_ title query m =
-  if debugQuery then do
-    a <- m
-    traceM $ title ++ " " ++ show query ++ "\n output: " ++ show a
-    pure a
-  else m
+  if debugQuery
+    then
+      try @_ @SQLite.SQLError m >>= \case
+        Right a -> do
+          traceM $ title ++ " " ++ show query ++ "\n output: " ++ show a
+          pure a
+        Left e -> do
+          traceM $ title ++ " " ++ show query ++ "\n(and crashed)\n"
+          throwIO e
+    else m
 
 execute :: (DB m, ToRow q, Show q) => SQLite.Query -> q -> m ()
 execute q r = do c <- ask; liftIO . queryTrace "execute" q r $ SQLite.execute c q r
