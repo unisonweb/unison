@@ -90,14 +90,14 @@ CREATE TABLE causal_old (
 );
 
 CREATE TABLE watch_result (
-  hash_id INTEGER NOT NULL CONSTRAINT watch_result_fk1 REFERENCES object(id),
+  hash_id INTEGER NOT NULL CONSTRAINT watch_result_fk1 REFERENCES hash(id),
   component_index INTEGER NOT NULL,
   result BLOB NOT NULL,
   PRIMARY KEY (hash_id, component_index)
 );
 
 CREATE TABLE watch (
-  hash_id INTEGER NOT NULL CONSTRAINT watch_fk1 REFERENCES object(id),
+  hash_id INTEGER NOT NULL CONSTRAINT watch_fk1 REFERENCES hash(id),
   component_index INTEGER NOT NULL,
   watch_kind_id INTEGER NOT NULL CONSTRAINT watch_fk2 REFERENCES watch_kind_description(id),
   PRIMARY KEY (hash_id, component_index, watch_kind_id)
