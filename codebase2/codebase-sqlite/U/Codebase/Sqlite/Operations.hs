@@ -113,10 +113,15 @@ import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
+import Control.Monad (when)
 
 -- * Error handling
 
 type Err m = MonadError Error m
+debug :: Bool
+debug = False
+
+type Err m = (MonadError Error m, HasCallStack)
 
 type EDB m = (Err m, DB m)
 
@@ -387,7 +392,7 @@ decodeDeclElement i = getFromBytesOr (ErrDeclElement i) (S.lookupDeclElement i)
 -- * legacy conversion helpers
 
 getCycleLen :: EDB m => H.Hash -> m Word64
-getCycleLen id | trace ("getCycleLen " ++ show id) False = undefined
+getCycleLen id | debug && trace ("getCycleLen " ++ show id) False = undefined
 getCycleLen h = do
   runMaybeT (primaryHashToExistingObjectId h)
     >>= maybe (throwError $ LegacyUnknownCycleLen h) pure
@@ -406,7 +411,7 @@ getDeclTypeByReference r@(C.Reference.Id h pos) =
     >>= pure . C.Decl.declType
 
 componentByObjectId :: EDB m => Db.ObjectId -> m [S.Reference.Id]
-componentByObjectId id | trace ("componentByObjectId " ++ show id) False = undefined
+componentByObjectId id | debug && trace ("componentByObjectId " ++ show id) False = undefined
 componentByObjectId id = do
   len <- (liftQ . Q.loadObjectById) id >>= decodeComponentLengthOnly
   pure [C.Reference.Id id i | i <- [0 .. len - 1]]
@@ -416,6 +421,7 @@ componentByObjectId id = do
 -- ** Saving & loading terms
 
 saveTermComponent :: EDB m => H.Hash -> [(C.Term Symbol, C.Term.Type Symbol)] -> m Db.ObjectId
+saveTermComponent h _terms | debug && trace ("Operations.saveTermComponent " ++ show h) False = undefined
 saveTermComponent h terms = do
   sTermElements <- traverse (uncurry c2sTerm) terms
   hashId <- Q.saveHashHash h
@@ -541,7 +547,7 @@ loadTermWithTypeByReference (C.Reference.Id h i) =
     >>= uncurry3 s2cTermWithType
 
 loadTermByReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term Symbol)
-loadTermByReference id | trace ("loadTermByReference " ++ show id) False = undefined
+loadTermByReference id | debug && trace ("loadTermByReference " ++ show id) False = undefined
 loadTermByReference (C.Reference.Id h i) =
   MaybeT (primaryHashToMaybeObjectId h)
     >>= liftQ . Q.loadObjectWithTypeById
@@ -551,7 +557,7 @@ loadTermByReference (C.Reference.Id h i) =
     >>= uncurry s2cTerm
 
 loadTypeOfTermByTermReference :: EDB m => C.Reference.Id -> MaybeT m (C.Term.Type Symbol)
-loadTypeOfTermByTermReference id | trace ("loadTypeOfTermByTermReference " ++ show id) False = undefined
+loadTypeOfTermByTermReference id | debug && trace ("loadTypeOfTermByTermReference " ++ show id) False = undefined
 loadTypeOfTermByTermReference (C.Reference.Id h i) =
   MaybeT (primaryHashToMaybeObjectId h)
     >>= liftQ . Q.loadObjectWithTypeById
@@ -676,6 +682,7 @@ w2cTerm ids tm = do
 -- ** Saving & loading type decls
 
 saveDeclComponent :: EDB m => H.Hash -> [C.Decl Symbol] -> m Db.ObjectId
+saveDeclComponent h _decls | debug && trace ("Operations.saveDeclComponent " ++ show h) False = undefined
 saveDeclComponent h decls = do
   sDeclElements <- traverse (c2sDecl Q.saveText primaryHashToExistingObjectId) decls
   hashId <- Q.saveHashHash h
@@ -714,7 +721,7 @@ c2sDecl saveText saveDefn (C.Decl.DataDeclaration dt m b cts) = do
       pure (ids, decl)
 
 loadDeclByReference :: EDB m => C.Reference.Id -> MaybeT m (C.Decl Symbol)
-loadDeclByReference id | trace ("loadDeclByReference " ++ show id) False = undefined
+loadDeclByReference id | debug && trace ("loadDeclByReference " ++ show id) False = undefined
 loadDeclByReference (C.Reference.Id h i) = do
   -- retrieve the blob
   (localIds, C.Decl.DataDeclaration dt m b ct) <-
@@ -811,7 +818,7 @@ type BranchSavingMonad m = StateT BranchSavingState (WriterT BranchSavingWriter 
 
 saveRootBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
 saveRootBranch (C.Causal hc he parents me) = do
-  traceM $ "\nsaveRootBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
+  when debug $ traceM $ "\nsaveRootBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
   -- check if we can skip the whole thing, by checking if there are causal parents for hc
   chId <- liftQ (Q.saveCausalHash hc)
   parentCausalHashIds <-
@@ -976,7 +983,7 @@ loadBranchByObjectId id = do
     S.BranchFormat.Diff r li d -> doDiff r [l2sDiff li d]
   where
     deserializeBranchObject :: EDB m => Db.BranchObjectId -> m S.BranchFormat
-    deserializeBranchObject id | trace ("deserializeBranchObject " ++ show id) False = undefined
+    deserializeBranchObject id | debug && trace ("deserializeBranchObject " ++ show id) False = undefined
     deserializeBranchObject id =
       (liftQ . Q.loadObjectById) (Db.unBranchObjectId id)
         >>= getFromBytesOr (ErrBranch id) S.getBranchFormat
@@ -1159,7 +1166,7 @@ s2cPatch (S.Patch termEdits typeEdits) =
     <*> Map.bitraverse h2cReference (Set.traverse s2cTypeEdit) typeEdits
 
 deserializePatchObject :: EDB m => Db.PatchObjectId -> m S.PatchFormat
-deserializePatchObject id | trace ("deserializePatchObject " ++ show id) False = undefined
+deserializePatchObject id | debug && trace ("deserializePatchObject " ++ show id) False = undefined
 deserializePatchObject id =
   (liftQ . Q.loadObjectById) (Db.unPatchObjectId id)
     >>= getFromBytesOr (ErrPatch id) S.getPatchFormat
@@ -1235,7 +1242,7 @@ declReferentsByPrefix b32prefix pos cid = do
           cids = [cid | cid <- [0 :: ConstructorId .. ctorCount - 1], test cid]
       pure (h, pos, len, dt, cids)
     getDeclCtorCount :: EDB m => S.Reference.Id -> m (C.Decl.DeclType, Word64, ConstructorId)
-    getDeclCtorCount id | trace ("getDeclCtorCount " ++ show id) False = undefined
+    getDeclCtorCount id | debug && trace ("getDeclCtorCount " ++ show id) False = undefined
     getDeclCtorCount (C.Reference.Id r i) = do
       bs <- liftQ (Q.loadObjectById r)
       len <- decodeComponentLengthOnly bs

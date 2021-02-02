@@ -47,9 +47,12 @@ import qualified U.Codebase.Term as Term
 import qualified U.Codebase.Type as Type
 import qualified U.Core.ABT as ABT
 import qualified U.Util.Monoid as Monoid
-import U.Util.Serialization
+import U.Util.Serialization hiding (debug)
 import Prelude hiding (getChar, putChar)
 import Debug.Trace (trace)
+
+debug :: Bool
+debug = False
 
 putABT ::
   (MonadPut m, Foldable f, Functor f, Ord v) =>
@@ -161,7 +164,7 @@ putTermComponent ::
   MonadPut m =>
   TermFormat.LocallyIndexedComponent ->
   m ()
-putTermComponent t | trace ("putTermComponent " ++ show t) False = undefined
+putTermComponent t | debug && trace ("putTermComponent " ++ show t) False = undefined
 putTermComponent (TermFormat.LocallyIndexedComponent v) =
   putFramedArray
     ( \(localIds, term, typ) ->
@@ -170,7 +173,7 @@ putTermComponent (TermFormat.LocallyIndexedComponent v) =
     v
 
 putTerm :: MonadPut m => TermFormat.Term -> m ()
-putTerm _t | trace "putTerm" False = undefined
+putTerm _t | debug && trace "putTerm" False = undefined
 putTerm t = putABT putSymbol putUnit putF t
   where
     putF :: MonadPut m => (a -> m ()) -> TermFormat.F a -> m ()
@@ -385,7 +388,7 @@ putDeclFormat = \case
   where
     -- These use a framed array for randomer access
     putDeclComponent :: MonadPut m => DeclFormat.LocallyIndexedComponent -> m ()
-    putDeclComponent t | trace ("putDeclComponent " ++ show t) False = undefined
+    putDeclComponent t | debug && trace ("putDeclComponent " ++ show t) False = undefined
 
     putDeclComponent (DeclFormat.LocallyIndexedComponent v) =
       putFramedArray (putPair putLocalIds putDeclElement) v
@@ -438,7 +441,8 @@ lookupDeclElement i =
     other -> unknownTag "lookupDeclElement" other
 
 putBranchFormat :: MonadPut m => BranchFormat.BranchFormat -> m ()
-putBranchFormat = \case
+putBranchFormat b | debug && trace ("putBranchFormat " ++ show b) False = undefined
+putBranchFormat b = case b of
   BranchFormat.Full li b -> putWord8 0 *> putBranchFull li b
   BranchFormat.Diff r li d -> putWord8 1 *> putBranchDiff r li d
   where

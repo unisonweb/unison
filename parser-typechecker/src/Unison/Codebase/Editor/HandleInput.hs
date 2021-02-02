@@ -1691,7 +1691,7 @@ loop = do
                                           (Map.fromList Builtin.builtinEffectDecls)
                                           mempty mempty
         eval $ AddDefsToCodebase uf
-        -- these have not neceesarily been added yet
+        -- these have not necessarily been added yet
         eval $ AddDefsToCodebase IOSource.typecheckedFile'
 
         -- add the names; note, there are more names than definitions

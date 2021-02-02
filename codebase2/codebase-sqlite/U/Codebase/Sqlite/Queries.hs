@@ -47,6 +47,7 @@ import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import UnliftIO (MonadUnliftIO, throwIO, try, withRunInIO)
+import Control.Monad (when)
 
 -- * types
 
@@ -84,10 +85,13 @@ type TypeHashReference = Reference' TextId HashId
 
 createSchema :: (DB m, MonadUnliftIO m) => m ()
 createSchema = do
-  traceM "--- CREATING SCHEMA ---"
+  when debug $ traceM "--- CREATING SCHEMA ---"
   withImmediateTransaction . traverse_ (execute_ . fromString) $
     List.splitOn ";" [hereFile|sql/create.sql|]
       <> List.splitOn ";" [hereFile|sql/create-index.sql|]
+
+debug :: Bool
+debug = False
 
 setFlags :: DB m => m ()
 setFlags = execute_ "PRAGMA foreign_keys = ON;"
@@ -197,10 +201,10 @@ saveObject h t blob = do
   |]
 
 loadObjectById :: EDB m => ObjectId -> m ByteString
-loadObjectById id | trace ("loadObjectById " ++ show id) False = undefined
+loadObjectById id | debugQuery && trace ("loadObjectById " ++ show id) False = undefined
 loadObjectById oId = do
  result <- queryAtom sql (Only oId) >>= orError (UnknownObjectId oId)
- traceM $ "loadObjectById " ++ show oId ++ " = " ++ show result
+ when debugQuery $ traceM $ "loadObjectById " ++ show oId ++ " = " ++ show result
  pure result
   where sql = [here|
   SELECT bytes FROM object WHERE id = ?

@@ -95,6 +95,9 @@ data GetRootBranchError
   | CouldntParseRootBranch String
   | CouldntLoadRootBranch Branch.Hash
   deriving Show
+
+debug :: Bool
+debug = False
   
 data SyncFileCodebaseResult = SyncOk | UnknownDestinationRootBranch Branch.Hash | NotFastForward
 
@@ -113,7 +116,7 @@ initializeCodebase c = do
 
 -- Feel free to refactor this to use some other type than TypecheckedUnisonFile
 -- if it makes sense to later.
-addDefsToCodebase :: forall m v a. (Monad m, Var v)
+addDefsToCodebase :: forall m v a. (Monad m, Var v, Show a)
   => Codebase m v a -> UF.TypecheckedUnisonFile v a -> m ()
 addDefsToCodebase c uf = do
   traverse_ (goType Right) (UF.dataDeclarationsId' uf)
@@ -121,8 +124,10 @@ addDefsToCodebase c uf = do
   -- put terms
   traverse_ goTerm (UF.hashTermsId uf)
   where
+    goTerm t | debug && trace ("Codebase.addDefsToCodebase.goTerm " ++ show t) False = undefined
     goTerm (r, tm, tp) = putTerm c r tm tp
-    goType :: (t -> Decl v a) -> (Reference.Id, t) -> m ()
+    goType :: Show t => (t -> Decl v a) -> (Reference.Id, t) -> m ()
+    goType _f pair | debug && trace ("Codebase.addDefsToCodebase.goType " ++ show pair) False = undefined
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
 
 getTypeOfConstructor ::
@@ -138,7 +143,9 @@ getTypeOfConstructor _ r cid =
 typeLookupForDependencies
   :: (Monad m, Var v, BuiltinAnnotation a)
   => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
-typeLookupForDependencies codebase = foldM go mempty
+typeLookupForDependencies codebase s = do
+  when debug $ traceM $ "typeLookupForDependencies " ++ show s
+  foldM go mempty s
  where
   go tl ref@(Reference.DerivedId id) = fmap (tl <>) $
     getTypeOfTerm codebase ref >>= \case
@@ -246,7 +253,7 @@ makeSelfContained' code uf = do
 
 getTypeOfTerm :: (Applicative m, Var v, BuiltinAnnotation a) =>
   Codebase m v a -> Reference -> m (Maybe (Type v a))
-getTypeOfTerm _c r | trace ("Codebase.getTypeOfTerm " ++ show r) False = undefined
+getTypeOfTerm _c r | debug && trace ("Codebase.getTypeOfTerm " ++ show r) False = undefined
 getTypeOfTerm c r = case r of
   Reference.DerivedId h -> getTypeOfTermImpl c h
   r@Reference.Builtin{} ->

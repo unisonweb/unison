@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -82,6 +83,10 @@ import qualified UnliftIO.Environment as SysEnv
 import UnliftIO.STM
 import qualified System.FilePath as FilePath
 import qualified Control.Concurrent
+import qualified Data.List as List
+
+debug :: Bool
+debug = False
 
 codebasePath :: FilePath
 codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
@@ -127,7 +132,7 @@ initCodebaseAndExit mdir = do
 -- initializes a new codebase here (i.e. `ucm -codebase dir init`)
 initCodebase :: FilePath -> IO (IO (), Codebase1.Codebase IO Symbol Ann)
 initCodebase path = do
-  traceM $ "initCodebase " ++ path
+  Monad.when debug $ traceM $ "initCodebase " ++ path
   prettyDir <- P.string <$> canonicalizePath path
 
   Monad.whenM (codebaseExists path) do
@@ -160,7 +165,7 @@ getCodebaseDir = maybe getHomeDirectory pure
 -- checks if a db exists at `path` with the minimum schema
 codebaseExists :: CodebasePath -> IO Bool
 codebaseExists root = do
-  traceM $ "codebaseExists " ++ root
+  Monad.when debug $ traceM $ "codebaseExists " ++ root
   Control.Exception.catch @Sqlite.SQLError
     (sqliteCodebase root >>= \case
       Left _ -> pure False
@@ -188,20 +193,35 @@ data BufferEntry a = BufferEntry
   }
   deriving (Eq, Show)
 
+prettyBufferEntry :: Show a => Hash -> BufferEntry a -> String
+prettyBufferEntry (h :: Hash) BufferEntry{..} = 
+  "BufferEntry " ++ show h ++ "\n"
+    ++ "  { beComponentTargetSize = " ++ show beComponentTargetSize ++ "\n"
+    ++ "  , beComponent = "
+    ++ if Map.size beComponent < 2 then show $ Map.toList beComponent else mkString (Map.toList beComponent) (Just "\n      [ ") "      , " (Just "]\n")
+    ++ "  , beMissingDependencies ="
+    ++ if Set.size beMissingDependencies < 2 then show $ Set.toList beMissingDependencies else mkString (Set.toList beMissingDependencies) (Just "\n      [ ") "      , " (Just "]\n")
+    ++ "  , beWaitingDependents ="
+    ++ if Set.size beWaitingDependents < 2 then show $ Set.toList beWaitingDependents else mkString (Set.toList beWaitingDependents) (Just "\n      [ ") "      , " (Just "]\n")
+    ++ "  }"
+  where 
+    mkString :: (Foldable f, Show a) => f a -> Maybe String -> String -> Maybe String -> String
+    mkString as start middle end = fromMaybe "" start ++ List.intercalate middle (show <$> toList as) ++ fromMaybe "" end
+
 type TermBufferEntry = BufferEntry (Term Symbol Ann, Type Symbol Ann)
 
 type DeclBufferEntry = BufferEntry (Decl Symbol Ann)
 
 unsafeGetConnection :: CodebasePath -> IO Sqlite.Connection
 unsafeGetConnection root = do
-  traceM $ "unsafeGetconnection " ++ root ++ " -> " ++ (root </> codebasePath)
+  Monad.when debug $ traceM $ "unsafeGetconnection " ++ root ++ " -> " ++ (root </> codebasePath)
   conn <- Sqlite.open $ root </> codebasePath
   runReaderT Q.setFlags conn
   pure conn
 
 sqliteCodebase :: CodebasePath -> IO (Either [(Q.SchemaType, Q.SchemaName)] (IO (), Codebase1.Codebase IO Symbol Ann))
 sqliteCodebase root = do
-  traceM $ "sqliteCodebase " ++ root
+  Monad.when debug $ traceM $ "sqliteCodebase " ++ root
   conn <- unsafeGetConnection root
   runReaderT Q.checkForMissingSchema conn >>= \case
     [] -> do
@@ -232,7 +252,7 @@ sqliteCodebase root = do
           getDeclTypeById = fmap Cv.decltype2to1 . Ops.getDeclTypeByReference
 
           getTypeOfTermImpl :: Reference.Id -> IO (Maybe (Type Symbol Ann))
-          getTypeOfTermImpl id | trace ("getTypeOfTermImpl " ++ show id) False = undefined
+          getTypeOfTermImpl id | debug && trace ("getTypeOfTermImpl " ++ show id) False = undefined
           getTypeOfTermImpl (Reference.Id (Cv.hash1to2 -> h2) i _n) =
             runDB' conn do
               type2 <- Ops.loadTypeOfTermByTermReference (C.Reference.Id h2 i)
@@ -245,11 +265,13 @@ sqliteCodebase root = do
               Cv.decl2to1 h1 getCycleLen decl2
 
           putTerm :: Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> IO ()
+          putTerm id tm tp | debug && trace (show "SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
           putTerm (Reference.Id h@(Cv.hash1to2 -> h2) i n') tm tp =
             runDB conn $
               unlessM
-                (Ops.objectExistsForHash h2 >>= \b -> do traceM $ "objectExistsForHash " ++ show h2 ++ " = " ++ show b; pure b)
-                ( withBuffer termBuffer h \(BufferEntry size comp missing waiting) -> do
+                (Ops.objectExistsForHash h2 >>= if debug then \b -> do traceM $ "objectExistsForHash " ++ show h2 ++ " = " ++ show b; pure b else pure)
+                ( withBuffer termBuffer h \be@(BufferEntry size comp missing waiting) -> do
+                    Monad.when debug $ traceM $ "adding to BufferEntry" ++ show be
                     let size' = Just n'
                     -- if size was previously set, it's expected to match size'.
                     case size of
@@ -276,17 +298,27 @@ sqliteCodebase root = do
 
           putBuffer :: (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> BufferEntry a -> m ()
           putBuffer tv h e = do
-            traceM $ "putBuffer " ++ show h ++ " " ++ show e
+            Monad.when debug $ traceM $ "putBuffer " ++ prettyBufferEntry h e
             atomically $ modifyTVar tv (Map.insert h e)
 
-          withBuffer :: MonadIO m => TVar (Map Hash (BufferEntry a)) -> Hash -> (BufferEntry a -> m b) -> m b
-          withBuffer tv h f =
+          withBuffer :: (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> (BufferEntry a -> m b) -> m b
+          withBuffer tv h f = do
+            Monad.when debug $ readTVarIO tv >>= \tv -> traceM $ "tv = " ++ show tv
             Map.lookup h <$> readTVarIO tv >>= \case
-              Just e -> f e
-              Nothing -> f (BufferEntry Nothing Map.empty Set.empty Set.empty)
+              Just e -> do
+                Monad.when debug $ traceM $ "SqliteCodebase.withBuffer " ++ prettyBufferEntry h e
+                f e
+              Nothing -> do
+                Monad.when debug $ traceM $ "SqliteCodebase.with(new)Buffer " ++ show h
+                f (BufferEntry Nothing Map.empty Set.empty Set.empty)
 
-          removeBuffer :: MonadIO m => TVar (Map Hash (BufferEntry a)) -> Hash -> m ()
-          removeBuffer tv h = atomically $ modifyTVar tv (Map.delete h)
+          removeBuffer :: (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> m ()
+          removeBuffer _tv h | debug && trace ("removeBuffer " ++ show h) False = undefined
+          removeBuffer tv h = do
+            Monad.when debug $ readTVarIO tv >>= \tv -> traceM $ "before delete: " ++ show tv
+            atomically $ modifyTVar tv (Map.delete h)
+            Monad.when debug $ readTVarIO tv >>= \tv -> traceM $ "after delete: " ++ show tv
+
 
           addBufferDependent :: (MonadIO m, Show a) => Hash -> TVar (Map Hash (BufferEntry a)) -> Hash -> m ()
           addBufferDependent dependent tv dependency = withBuffer tv dependency \be -> do
@@ -298,6 +330,7 @@ sqliteCodebase root = do
             (Hash -> m ()) ->
             Hash ->
             m ()
+          tryFlushBuffer _ _ _ h | debug && trace ("tryFlushBuffer " ++ show h) False = undefined
           tryFlushBuffer buf saveComponent tryWaiting h@(Cv.hash1to2 -> h2) =
             -- skip if it has already been flushed
             unlessM (Ops.objectExistsForHash h2) $ withBuffer buf h try
@@ -308,10 +341,15 @@ sqliteCodebase root = do
                     filterM
                       (fmap not . Ops.objectExistsForHash . Cv.hash1to2)
                       (toList missing)
+                  Monad.when debug do 
+                    traceM $ "tryFlushBuffer.missing' = " ++ show missing'
+                    traceM $ "tryFlushBuffer.size = " ++ show size
+                    traceM $ "tryFlushBuffer.length comp = " ++ show (length comp)
                   if null missing' && size == fromIntegral (length comp)
                     then do
                       saveComponent h2 (toList comp)
                       removeBuffer buf h
+                      Monad.when debug $ traceM $ "tryFlushBuffer.notify waiting " ++ show waiting
                       traverse_ tryWaiting waiting
                     else -- update
                       putBuffer buf h $
@@ -320,6 +358,7 @@ sqliteCodebase root = do
                   pure ()
 
           tryFlushTermBuffer :: EDB m => Hash -> m ()
+          tryFlushTermBuffer h | debug && trace ("tryFlushTermBuffer " ++ show h) False = undefined
           tryFlushTermBuffer h =
             tryFlushBuffer
               termBuffer
@@ -331,6 +370,7 @@ sqliteCodebase root = do
               h
 
           tryFlushDeclBuffer :: EDB m => Hash -> m ()
+          tryFlushDeclBuffer h | debug && trace ("tryFlushDeclBuffer " ++ show h) False = undefined
           tryFlushDeclBuffer h =
             tryFlushBuffer
               declBuffer

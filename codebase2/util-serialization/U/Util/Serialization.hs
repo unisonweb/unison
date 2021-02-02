@@ -9,7 +9,7 @@
 module U.Util.Serialization where
 
 import Control.Applicative (Applicative (liftA2), liftA3)
-import Control.Monad (foldM, replicateM)
+import Control.Monad (foldM, replicateM, when)
 import Data.Bits (Bits, clearBit, setBit, shiftL, shiftR, testBit, (.|.))
 import Data.ByteString (ByteString, readFile, writeFile)
 import qualified Data.ByteString as BS
@@ -51,6 +51,9 @@ data Format a = Format
   { get :: Get a,
     put :: Put a
   }
+
+debug :: Bool
+debug = False
 
 getFromBytes :: Get a -> ByteString -> Maybe a
 getFromBytes getA bytes =
@@ -187,7 +190,7 @@ putFramed put a = do
   -- 2. Put the length `len`
   -- 3. Put `a`
   let bs = putBytes put a
-  traceM $ "putFramed " ++ (show $ BS.length bs) ++ " bytes: " ++ show bs
+  when debug $ traceM $ "putFramed " ++ (show $ BS.length bs) ++ " bytes: " ++ show bs
   putVarInt (BS.length bs)
   putByteString bs
 
