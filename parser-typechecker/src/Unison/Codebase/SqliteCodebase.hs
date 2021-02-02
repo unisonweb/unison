@@ -14,7 +14,7 @@ module Unison.Codebase.SqliteCodebase where
 import qualified Control.Exception
 import Control.Monad (filterM, (>=>))
 import Control.Monad.Except (ExceptT, runExceptT)
-import Control.Monad.Extra (ifM, unlessM)
+import Control.Monad.Extra (unlessM)
 import qualified Control.Monad.Extra as Monad
 import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.Trans (MonadTrans (lift))
@@ -249,7 +249,7 @@ sqliteCodebase root = do
             runDB conn $
               unlessM
                 (Ops.objectExistsForHash h2 >>= \b -> do traceM $ "objectExistsForHash " ++ show h2 ++ " = " ++ show b; pure b)
-                ( withBuffer termBuffer h \be@(BufferEntry size comp missing waiting) -> do
+                ( withBuffer termBuffer h \(BufferEntry size comp missing waiting) -> do
                     let size' = Just n'
                     -- if size was previously set, it's expected to match size'.
                     case size of

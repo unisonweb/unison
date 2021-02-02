@@ -14,7 +14,7 @@ module U.Codebase.Sqlite.Operations where
 
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
-import Control.Monad (MonadPlus(mzero), join, (<=<))
+import Control.Monad (MonadPlus (mzero), join, (<=<))
 import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
 import Control.Monad.State (MonadState, StateT, evalStateT)
 import Control.Monad.Trans (MonadTrans (lift))
@@ -25,6 +25,7 @@ import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.ByteString (ByteString)
 import Data.Bytes.Get (runGetS)
+import qualified Data.Bytes.Get as Get
 import qualified Data.Foldable as Foldable
 import Data.Functor (void, (<&>))
 import Data.Functor.Identity (Identity)
@@ -41,6 +42,7 @@ import Data.Traversable (for)
 import Data.Tuple.Extra (uncurry3)
 import qualified Data.Vector as Vector
 import Data.Word (Word64)
+import Debug.Trace
 import qualified U.Codebase.Branch as C.Branch
 import qualified U.Codebase.Causal as C
 import U.Codebase.Decl (ConstructorId)
@@ -111,7 +113,6 @@ import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
-import Debug.Trace
 
 -- * Error handling
 
@@ -369,7 +370,7 @@ diffPatch (S.Patch fullTerms fullTypes) (S.Patch refTerms refTypes) =
 -- * Deserialization helpers
 
 decodeComponentLengthOnly :: Err m => ByteString -> m Word64
-decodeComponentLengthOnly = getFromBytesOr ErrFramedArrayLen (S.skip 1 >> S.lengthFramedArray)
+decodeComponentLengthOnly = getFromBytesOr ErrFramedArrayLen (Get.skip 1 >> S.lengthFramedArray)
 
 decodeTermElementWithType :: Err m => C.Reference.Pos -> ByteString -> m (LocalIds, S.Term.Term, S.Term.Type)
 decodeTermElementWithType i = getFromBytesOr (ErrTermElement i) (S.lookupTermElement i)
@@ -391,9 +392,9 @@ getCycleLen h = do
   runMaybeT (primaryHashToExistingObjectId h)
     >>= maybe (throwError $ LegacyUnknownCycleLen h) pure
     >>= liftQ . Q.loadObjectById
-    -- todo: decodeComponentLengthOnly is unintentionally a hack that relies on the 
+    -- todo: decodeComponentLengthOnly is unintentionally a hack that relies on the
     -- fact the two things that have cycles (term and decl components) have the same basic
-    -- serialized structure: first a format byte that is always 0 for now, followed by 
+    -- serialized structure: first a format byte that is always 0 for now, followed by
     -- a framed array representing the component. :grimace:
     >>= decodeComponentLengthOnly
     >>= pure . fromIntegral
@@ -418,9 +419,8 @@ saveTermComponent :: EDB m => H.Hash -> [(C.Term Symbol, C.Term.Type Symbol)] ->
 saveTermComponent h terms = do
   sTermElements <- traverse (uncurry c2sTerm) terms
   hashId <- Q.saveHashHash h
-  let 
-    li = S.Term.LocallyIndexedComponent $ Vector.fromList sTermElements
-    bytes = S.putBytes S.putTermFormat $ S.Term.Term li
+  let li = S.Term.LocallyIndexedComponent $ Vector.fromList sTermElements
+      bytes = S.putBytes S.putTermFormat $ S.Term.Term li
   Q.saveObject hashId OT.TermComponent bytes
 
 -- | implementation detail of c2{s,w}Term
@@ -679,9 +679,8 @@ saveDeclComponent :: EDB m => H.Hash -> [C.Decl Symbol] -> m Db.ObjectId
 saveDeclComponent h decls = do
   sDeclElements <- traverse (c2sDecl Q.saveText primaryHashToExistingObjectId) decls
   hashId <- Q.saveHashHash h
-  let 
-    li = S.Decl.LocallyIndexedComponent $ Vector.fromList sDeclElements
-    bytes = S.putBytes S.putDeclFormat $ S.Decl.Decl li
+  let li = S.Decl.LocallyIndexedComponent $ Vector.fromList sDeclElements
+      bytes = S.putBytes S.putDeclFormat $ S.Decl.Decl li
   Q.saveObject hashId OT.DeclComponent bytes
 
 c2sDecl :: forall m t d. EDB m => (Text -> m t) -> (H.Hash -> m d) -> C.Decl Symbol -> m (LocalIds' t d, S.Decl.Decl Symbol)
@@ -720,9 +719,9 @@ loadDeclByReference (C.Reference.Id h i) = do
   -- retrieve the blob
   (localIds, C.Decl.DataDeclaration dt m b ct) <-
     MaybeT (primaryHashToMaybeObjectId h)
-    >>= liftQ . Q.loadObjectWithTypeById
-    >>= \case (OT.DeclComponent, blob) -> pure blob; _ -> mzero
-    >>= decodeDeclElement i
+      >>= liftQ . Q.loadObjectWithTypeById
+      >>= \case (OT.DeclComponent, blob) -> pure blob; _ -> mzero
+      >>= decodeDeclElement i
 
   -- look up the text and hashes that are used by the term
   texts <- traverse loadTextById $ LocalIds.textLookup localIds
@@ -815,34 +814,35 @@ saveRootBranch (C.Causal hc he parents me) = do
   traceM $ "\nsaveRootBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
   -- check if we can skip the whole thing, by checking if there are causal parents for hc
   chId <- liftQ (Q.saveCausalHash hc)
-  parentCausalHashIds <- liftQ (Q.loadCausalParents chId) >>= \case
-    [] -> do
-      -- no parents means hc maybe hasn't been saved previously,
-      -- so try to save each parent (recursively) before continuing to save hc
-      for (Map.toList parents) $ \(causalHash, mcausal) -> do
-        -- check if we can short circuit the parent before loading it,
-        -- by checking if there are causal parents associated with hc
-        parentChId <- liftQ (Q.saveCausalHash causalHash)
-        -- test if the parent has been saved previously:
-        liftQ (Q.loadCausalParents parentChId) >>= \case
-          [] -> do c <- mcausal; snd <$> saveRootBranch c
-          _grandParents -> pure parentChId
-    parentCausalHashIds -> pure parentCausalHashIds
+  parentCausalHashIds <-
+    liftQ (Q.loadCausalParents chId) >>= \case
+      [] -> do
+        -- no parents means hc maybe hasn't been saved previously,
+        -- so try to save each parent (recursively) before continuing to save hc
+        for (Map.toList parents) $ \(causalHash, mcausal) -> do
+          -- check if we can short circuit the parent before loading it,
+          -- by checking if there are causal parents associated with hc
+          parentChId <- liftQ (Q.saveCausalHash causalHash)
+          -- test if the parent has been saved previously:
+          liftQ (Q.loadCausalParents parentChId) >>= \case
+            [] -> do c <- mcausal; snd <$> saveRootBranch c
+            _grandParents -> pure parentChId
+      parentCausalHashIds -> pure parentCausalHashIds
 
-  boId <- liftQ (Q.loadBranchObjectIdByCausalHashId chId) >>= \case
-    Just boId -> pure boId
-    Nothing -> do
-      bhId <- liftQ (Q.saveBranchHash he)
-      (li, lBranch) <- c2lBranch =<< me
-      boId <- saveBranchObject bhId li lBranch
-      liftQ (Q.saveCausal chId bhId)
-      -- save the link between child and parents      
-      liftQ (Q.saveCausalParents chId parentCausalHashIds)
-      pure boId
-  
+  boId <-
+    liftQ (Q.loadBranchObjectIdByCausalHashId chId) >>= \case
+      Just boId -> pure boId
+      Nothing -> do
+        bhId <- liftQ (Q.saveBranchHash he)
+        (li, lBranch) <- c2lBranch =<< me
+        boId <- saveBranchObject bhId li lBranch
+        liftQ (Q.saveCausal chId bhId)
+        -- save the link between child and parents
+        liftQ (Q.saveCausalParents chId parentCausalHashIds)
+        pure boId
+
   Q.setNamespaceRoot chId
   pure (boId, chId)
-
   where
     c2lBranch :: EDB m => C.Branch.Branch m -> m (BranchLocalIds, S.Branch.Full.LocalBranch)
     c2lBranch (C.Branch.Branch terms types patches children) =
@@ -953,9 +953,10 @@ loadCausalByCausalHashId :: EDB m => Db.CausalHashId -> m (C.Branch.Causal m)
 loadCausalByCausalHashId id = do
   hc <- loadCausalHashById id
   hb <- loadValueHashByCausalHashId id
-  let loadNamespace = loadBranchByCausalHashId id >>= \case
-        Nothing -> throwError (ExpectedBranch' id)
-        Just b -> pure b
+  let loadNamespace =
+        loadBranchByCausalHashId id >>= \case
+          Nothing -> throwError (ExpectedBranch' id)
+          Just b -> pure b
   parentHashIds <- Q.loadCausalParents id
   loadParents <- for parentHashIds \hId -> do
     h <- loadCausalHashById hId

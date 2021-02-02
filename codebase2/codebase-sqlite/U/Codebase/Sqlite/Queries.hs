@@ -6,10 +6,10 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -46,7 +46,7 @@ import qualified U.Codebase.WatchKind as WatchKind
 import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
-import UnliftIO (MonadUnliftIO, withRunInIO)
+import UnliftIO (MonadUnliftIO, throwIO, try, withRunInIO)
 
 -- * types
 
@@ -502,7 +502,7 @@ queryExists :: (DB m, ToRow q, Show q) => SQLite.Query -> q -> m Bool
 queryExists q r = not . null . map (id @SQLData) <$> queryAtoms q r
 
 debugQuery :: Bool
-debugQuery = True
+debugQuery = False
 
 query :: (DB m, ToRow q, FromRow r, Show q, Show r) => SQLite.Query -> q -> m [r]
 query q r = do
