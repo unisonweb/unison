@@ -369,7 +369,7 @@ diffPatch (S.Patch fullTerms fullTypes) (S.Patch refTerms refTypes) =
 -- * Deserialization helpers
 
 decodeComponentLengthOnly :: Err m => ByteString -> m Word64
-decodeComponentLengthOnly = getFromBytesOr ErrFramedArrayLen S.lengthFramedArray
+decodeComponentLengthOnly = getFromBytesOr ErrFramedArrayLen (S.skip 1 >> S.lengthFramedArray)
 
 decodeTermElementWithType :: Err m => C.Reference.Pos -> ByteString -> m (LocalIds, S.Term.Term, S.Term.Type)
 decodeTermElementWithType i = getFromBytesOr (ErrTermElement i) (S.lookupTermElement i)
@@ -391,6 +391,10 @@ getCycleLen h = do
   runMaybeT (primaryHashToExistingObjectId h)
     >>= maybe (throwError $ LegacyUnknownCycleLen h) pure
     >>= liftQ . Q.loadObjectById
+    -- todo: decodeComponentLengthOnly is unintentionally a hack that relies on the 
+    -- fact the two things that have cycles (term and decl components) have the same basic
+    -- serialized structure: first a format byte that is always 0 for now, followed by 
+    -- a framed array representing the component. :grimace:
     >>= decodeComponentLengthOnly
     >>= pure . fromIntegral
 
@@ -414,7 +418,9 @@ saveTermComponent :: EDB m => H.Hash -> [(C.Term Symbol, C.Term.Type Symbol)] ->
 saveTermComponent h terms = do
   sTermElements <- traverse (uncurry c2sTerm) terms
   hashId <- Q.saveHashHash h
-  let bytes = S.putBytes S.putTermComponent (S.Term.LocallyIndexedComponent $ Vector.fromList sTermElements)
+  let 
+    li = S.Term.LocallyIndexedComponent $ Vector.fromList sTermElements
+    bytes = S.putBytes S.putTermFormat $ S.Term.Term li
   Q.saveObject hashId OT.TermComponent bytes
 
 -- | implementation detail of c2{s,w}Term
@@ -673,12 +679,9 @@ saveDeclComponent :: EDB m => H.Hash -> [C.Decl Symbol] -> m Db.ObjectId
 saveDeclComponent h decls = do
   sDeclElements <- traverse (c2sDecl Q.saveText primaryHashToExistingObjectId) decls
   hashId <- Q.saveHashHash h
-  let bytes =
-        S.putBytes
-          S.putDeclFormat
-          ( S.Decl.Decl . S.Decl.LocallyIndexedComponent $
-              Vector.fromList sDeclElements
-          )
+  let 
+    li = S.Decl.LocallyIndexedComponent $ Vector.fromList sDeclElements
+    bytes = S.putBytes S.putDeclFormat $ S.Decl.Decl li
   Q.saveObject hashId OT.DeclComponent bytes
 
 c2sDecl :: forall m t d. EDB m => (Text -> m t) -> (H.Hash -> m d) -> C.Decl Symbol -> m (LocalIds' t d, S.Decl.Decl Symbol)

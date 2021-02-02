@@ -338,17 +338,22 @@ getTerm = getABT getSymbol getUnit getF
                 2 -> pure Term.PConcat
                 tag -> unknownTag "SeqOp" tag
 
+
 lookupTermElement :: MonadGet m => Reference.Pos -> m (LocalIds, TermFormat.Term, TermFormat.Type)
-lookupTermElement =
-  unsafeFramedArrayLookup (getTuple3 getLocalIds (getFramed getTerm) (getFramed getTType)) . fromIntegral
+lookupTermElement i = getWord8 >>= \case
+  0 -> unsafeFramedArrayLookup (getTuple3 getLocalIds (getFramed getTerm) (getFramed getTType)) $ fromIntegral i
+  tag -> unknownTag "lookupTermElement" tag
+
 
 lookupTermElementDiscardingType :: MonadGet m => Reference.Pos -> m (LocalIds, TermFormat.Term)
-lookupTermElementDiscardingType =
-  unsafeFramedArrayLookup ((,) <$> getLocalIds <*> getFramed getTerm <* skipFramed) . fromIntegral
+lookupTermElementDiscardingType i = getWord8 >>= \case
+  0 -> unsafeFramedArrayLookup ((,) <$> getLocalIds <*> getFramed getTerm <* skipFramed) $ fromIntegral i
+  tag -> unknownTag "lookupTermElementDiscardingType" tag
 
 lookupTermElementDiscardingTerm :: MonadGet m => Reference.Pos -> m (LocalIds, TermFormat.Type)
-lookupTermElementDiscardingTerm =
-  unsafeFramedArrayLookup ((,) <$> getLocalIds <* skipFramed <*> getFramed getTType) . fromIntegral
+lookupTermElementDiscardingTerm i = getWord8 >>= \case
+  0 -> unsafeFramedArrayLookup ((,) <$> getLocalIds <* skipFramed <*> getFramed getTType) $ fromIntegral i
+  tag -> unknownTag "lookupTermElementDiscardingTerm" tag
 
 getTType :: MonadGet m => m TermFormat.Type
 getTType = getType getReference

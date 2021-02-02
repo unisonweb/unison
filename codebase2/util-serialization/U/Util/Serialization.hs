@@ -224,7 +224,7 @@ lookupFramedArray getA index = do
       Just <$> getA
 
 lengthFramedArray :: MonadGet m => m Word64
-lengthFramedArray = getVarInt
+lengthFramedArray = (\offsetsLen -> offsetsLen - 1) <$> getVarInt
 
 unsafeFramedArrayLookup :: MonadGet m => m a -> Int -> m a
 unsafeFramedArrayLookup getA index = do
