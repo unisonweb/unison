@@ -108,7 +108,7 @@ greek_bytes = Bytes.fromList [206, 145, 206, 146, 206, 147, 206, 148, 206]
 
 -- Its an error if we drop the first byte
 > match fromUtf8 (drop 1 greek_bytes) with
-  Left (Failure _ t) -> t
+  Left (Failure _ t _) -> t
 
 ```
 
