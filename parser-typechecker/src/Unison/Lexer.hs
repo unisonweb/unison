@@ -273,15 +273,17 @@ lexemes = P.optional space >> do
 
   doc2 :: P [Token Lexeme]
   doc2 = do
-    _ <- lit "{{" >> CP.space
+    _ <- P.dbg "open doc" $ lit "{{" >> CP.space
     r <- local (\env -> env { inLayout = False }) body
-    _ <- lit "}}" >> space
+    _ <- P.dbg "close doc" $ lit "}}" >> space
     pure r
     where
-    wordy ok = wrap "doc.word" $
-      tok $ Textual <$> P.takeWhile1P (Just "word") (\ch -> not (isSpace ch) && ok ch)
+    wordy ok = wrap "doc.word" . tok . fmap Textual . P.try $ do
+      word <- P.takeWhile1P (Just "word") (\ch -> not (isSpace ch) && ok ch)
+      guard (not $ isInfixOf "}}" word)
+      pure word
     leafy ok = link <|> externalLink <|> ticked <|> wordy ok <|> expr
-    leaf = leafy (const True)
+    leaf = P.dbg "doc.leaf" $ leafy (const True)
     ticked = wrap "doc.example" $ do
       n <- P.try $ do _ <- lit "`"
                       length <$> P.takeWhile1P (Just "backticks") (== '`')
@@ -301,22 +303,22 @@ lexemes = P.optional space >> do
       _ <- lit ")"
       pure (p <> target)
 
-    newline = P.optional (lit "\r") *> lit "\n"
-    spaces = P.takeWhileP (Just "spaces") (\ch -> isSpace ch && ch /= '\n' && ch /= '\r')
-
-    -- blankline = P.try $ void $ sp *> newline *> sp *> newline
+    -- newline = P.optional (lit "\r") *> lit "\n"
 
     sp = P.try $ do
-      o <- spaces *> P.optional newline
-      maybe (pure ()) go o
+      spaces <- P.takeWhile1P (Just "space") isSpace
+      close <- P.optional (P.lookAhead (lit "}}"))
+      case close of
+        Nothing -> guard $ ok spaces
+        Just _ -> pure ()
+      pure spaces
       where
-        go _ = do
-          o <- P.optional (P.try $ P.lookAhead (spaces *> newline))
-          maybe (pure ()) (const $ fail "space parser cannot consume a blankline") o
+        ok s = length [ ch | ch <- s, ch == '\n' ] < 2
 
-    leafies close = wrap "doc.paragraph" $ join <$> P.sepBy1 (leafy close) sp
-    paragraph = wrap "doc.paragraph" $ join <$> P.sepBy1 leaf sp
-    sectionElem = wrap "doc.element" (section <|> paragraph)
+    spaced p = P.some (p <* sp)
+    leafies close = wrap "doc.paragraph" $ join <$> spaced (leafy close)
+    paragraph = wrap "doc.paragraph" $ join <$> spaced leaf
+    sectionElem = P.dbg "sectionElem" $ wrap "doc.element" (section <|> paragraph)
     --
     -- bullets = wrap "doc.bullets" $ error "todo"
     -- backticks = wrap "doc.backticks" $ error "todo"
@@ -341,7 +343,7 @@ lexemes = P.optional space >> do
       body <- local (\env -> env { parentSection = m }) $ P.sepBy sectionElem CP.space
       pure $ title <> join body
 
-    body = join <$> P.sepBy sectionElem CP.space
+    body = P.dbg "body" $ join <$> P.sepBy sectionElem CP.space
 
     wrap :: String -> P [Token Lexeme] -> P [Token Lexeme]
     wrap o p = do
