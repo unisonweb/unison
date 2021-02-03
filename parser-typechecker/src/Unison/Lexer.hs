@@ -273,17 +273,18 @@ lexemes = P.optional space >> do
 
   doc2 :: P [Token Lexeme]
   doc2 = do
-    _ <- P.dbg "open doc" $ lit "{{" >> CP.space
+    _ <- lit "{{" >> CP.space
     r <- local (\env -> env { inLayout = False }) body
-    _ <- P.dbg "close doc" $ lit "}}" >> space
+    _ <- lit "}}" >> space
     pure r
     where
-    wordy ok = wrap "doc.word" . tok . fmap Textual . P.try $ do
-      word <- P.takeWhile1P (Just "word") (\ch -> not (isSpace ch) && ok ch)
+    wordy ok = P.dbg "wordy" . wrap "doc.word" . tok . fmap Textual . P.try $ do
+      word <- P.takeWhile1P (Just "wordsdlkfj") (\ch -> not (isSpace ch) && ok ch)
       guard (not $ isInfixOf "}}" word)
+      traceShowM ("word", word)
       pure word
     leafy ok = link <|> externalLink <|> ticked <|> wordy ok <|> expr
-    leaf = P.dbg "doc.leaf" $ leafy (const True)
+    leaf = leafy (const True)
     ticked = wrap "doc.example" $ do
       n <- P.try $ do _ <- lit "`"
                       length <$> P.takeWhile1P (Just "backticks") (== '`')
@@ -315,10 +316,10 @@ lexemes = P.optional space >> do
       where
         ok s = length [ ch | ch <- s, ch == '\n' ] < 2
 
-    spaced p = P.some (p <* sp)
+    spaced p = P.some (p <* P.optional sp)
     leafies close = wrap "doc.paragraph" $ join <$> spaced (leafy close)
     paragraph = wrap "doc.paragraph" $ join <$> spaced leaf
-    sectionElem = P.dbg "sectionElem" $ wrap "doc.element" (section <|> paragraph)
+    sectionElem = P.dbg "sectionElem" (section <|> paragraph)
     --
     -- bullets = wrap "doc.bullets" $ error "todo"
     -- backticks = wrap "doc.backticks" $ error "todo"
@@ -335,15 +336,16 @@ lexemes = P.optional space >> do
     --
     -- # A section title (not a subsection)
     section :: P [Token Lexeme]
-    section = do
+    section = wrap "doc.section" $ do
       n <- S.gets parentSection
       hashes <- P.try $ lit (replicate n '#') *> P.takeWhile1P Nothing (== '#') <* sp
       title <- wrap "doc.title" $ (paragraph <* CP.space)
       let m = length hashes + n
-      body <- local (\env -> env { parentSection = m }) $ P.sepBy sectionElem CP.space
+      body <- local (\env -> env { parentSection = m }) $
+              P.many (sectionElem <* CP.space)
       pure $ title <> join body
 
-    body = P.dbg "body" $ join <$> P.sepBy sectionElem CP.space
+    body = P.dbg "body" $ join <$> P.many (sectionElem <* CP.space)
 
     wrap :: String -> P [Token Lexeme] -> P [Token Lexeme]
     wrap o p = do
