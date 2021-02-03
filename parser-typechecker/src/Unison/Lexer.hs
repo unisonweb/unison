@@ -9,7 +9,8 @@ module Unison.Lexer (
   lexer, simpleWordyId, simpleSymbolyId,
   line, column,
   escapeChars,
-  debugLex', debugLex'', debugLex''', showEscapeChar, touches,
+  debugFileLex, debugLex', debugLex'', debugLex''',
+  showEscapeChar, touches,
   -- todo: these probably don't belong here
   wordyIdChar, wordyIdStartChar,
   wordyId, symbolyId, wordyId0, symbolyId0)
@@ -277,9 +278,17 @@ lexemes = P.optional space >> do
     _ <- lit "}}" >> space
     pure r
     where
-    wordy ok = wrap "doc.word" $ tok $ Textual <$> P.takeWhile1P (Just "word") (\ch -> not (isSpace ch) && ok ch)
-    leafy ok = link <|> externalLink <|> wordy ok <|> expr
+    wordy ok = wrap "doc.word" $
+      tok $ Textual <$> P.takeWhile1P (Just "word") (\ch -> not (isSpace ch) && ok ch)
+    leafy ok = link <|> externalLink <|> ticked <|> wordy ok <|> expr
     leaf = leafy (const True)
+    ticked = wrap "doc.example" $ do
+      n <- P.try $ do _ <- lit "`"
+                      length <$> P.takeWhile1P (Just "backticks") (== '`')
+      ex <- CP.space *> lexemes
+      _ <- lit (replicate (n+1) '`')
+      pure ex
+
     link = wrap "doc.link" $ lit "@" *> tok (wordyId <|> symbolyId)
     expr = lit "{{" *> CP.space *> lexemes <* lit "}}"
     -- [this link](https://unisonweb.org)
@@ -381,10 +390,10 @@ lexemes = P.optional space >> do
            where sp = lit "\\s" $> ' '
   character = Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
               where spEsc = P.try (char '\\' *> char 's' $> ' ')
-  backticks = tick <$> (char '`' *> wordyId <* char '`')
-              where tick (WordyId n sh) = Backticks n sh
-                    tick t = t
-
+  backticks = tick <$> (t *> wordyId <* t)
+    where tick (WordyId n sh) = Backticks n sh
+          tick t = t
+          t = char '`' <* P.notFollowedBy (char '`')
   wordyId :: P Lexeme
   wordyId = P.label wordyMsg . P.try $ do
     dot <- P.optional (lit ".")
@@ -832,6 +841,12 @@ reservedOperators = Set.fromList ["=", "->", ":", "&&", "||", "|", "!", "'"]
 
 inc :: Pos -> Pos
 inc (Pos line col) = Pos line (col + 1)
+
+debugFileLex :: String -> IO ()
+debugFileLex file = do
+  contents <- readFile file
+  let s = debugLex'' (lexer file contents)
+  putStrLn s
 
 debugLex'' :: [Token Lexeme] -> String
 debugLex'' = show . fmap payload . tree
