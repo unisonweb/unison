@@ -255,13 +255,24 @@ infixl 2 <+>
 p1 <+> p2 = do a1 <- p1; a2 <- p2; pure (a1 <> a2)
 
 lexemes :: P [Token Lexeme]
-lexemes = P.optional space >> do
-  hd <- join <$> P.manyTill toks (P.lookAhead P.eof)
+lexemes = lexemes' eof
+  where
+  eof :: P [Token Lexeme]
+  eof = P.try $ do
+    p <- P.eof >> pos
+    n <- maybe 0 (const 1) <$> S.gets opening
+    l <- S.gets layout
+    pure $ replicate (length l + n) (Token Close p p)
+
+
+lexemes' :: P [Token Lexeme] -> P [Token Lexeme]
+lexemes' eof = P.optional space >> do
+  hd <- join <$> P.manyTill toks (P.lookAhead eof)
   tl <- eof
   pure $ hd <> tl
   where
-  toks = doc2 <|> doc <|> token numeric <|> token character <|> reserved <|> token symbolyId
-     <|> token blank <|> token wordyId
+  toks = doc2 <|> doc <|> token numeric <|> token character <|> reserved
+     <|> token symbolyId <|> token blank <|> token wordyId
      <|> (asum . map token) [ semi, textual, backticks, hash ]
 
   wordySep c = isSpace c || not (isAlphaNum c)
@@ -278,12 +289,18 @@ lexemes = P.optional space >> do
     _ <- lit "}}" >> space
     pure r
     where
-    wordy ok = P.dbg "wordy" . wrap "doc.word" . tok . fmap Textual . P.try $ do
-      word <- P.takeWhile1P (Just "wordsdlkfj") (\ch -> not (isSpace ch) && ok ch)
-      guard (not $ isInfixOf "}}" word)
-      traceShowM ("word", word)
+    reserved pos word | traceShow (pos,word) False = undefined
+    reserved pos word =
+      isPrefixOf "}}" word ||
+      (column pos == 1 && isPrefixOf "#" word)
+
+    wordy ok = wrap "doc.word" . tok . fmap Textual . P.try $ do
+      let end = P.lookAhead $ void docClose <|> void (CP.satisfy isSpace)
+      pos <- pos
+      word <- P.someTill (CP.satisfy (\ch -> not (isSpace ch) && ok ch)) end
+      guard (not $ reserved pos word)
       pure word
-    leafy ok = link <|> externalLink <|> ticked <|> wordy ok <|> expr
+    leafy ok = link <|> externalLink <|> ticked <|> expr <|> wordy ok
     leaf = leafy (const True)
     ticked = wrap "doc.example" $ do
       n <- P.try $ do _ <- lit "`"
@@ -292,8 +309,10 @@ lexemes = P.optional space >> do
       _ <- lit (replicate (n+1) '`')
       pure ex
 
+    docClose = [] <$ lit "}}"
+    docOpen  = [] <$ lit "{{"
     link = wrap "doc.link" $ lit "@" *> tok (wordyId <|> symbolyId)
-    expr = lit "{{" *> CP.space *> lexemes <* lit "}}"
+    expr = wrap "doc.expr" $ docOpen *> lexemes' docClose
     -- [this link](https://unisonweb.org)
     externalLink = wrap "doc.externalLink" $ do
       _ <- lit "["
@@ -319,7 +338,7 @@ lexemes = P.optional space >> do
     spaced p = P.some (p <* P.optional sp)
     leafies close = wrap "doc.paragraph" $ join <$> spaced (leafy close)
     paragraph = wrap "doc.paragraph" $ join <$> spaced leaf
-    sectionElem = P.dbg "sectionElem" (section <|> paragraph)
+    sectionElem = section <|> paragraph
     --
     -- bullets = wrap "doc.bullets" $ error "todo"
     -- backticks = wrap "doc.backticks" $ error "todo"
@@ -337,15 +356,15 @@ lexemes = P.optional space >> do
     -- # A section title (not a subsection)
     section :: P [Token Lexeme]
     section = wrap "doc.section" $ do
-      n <- S.gets parentSection
-      hashes <- P.try $ lit (replicate n '#') *> P.takeWhile1P Nothing (== '#') <* sp
-      title <- wrap "doc.title" $ (paragraph <* CP.space)
+      n <- P.dbg "parentSection" $ S.gets parentSection
+      hashes <- P.dbg "section.hashes" $ P.try $ lit (replicate n '#') *> P.takeWhile1P Nothing (== '#') <* sp
+      title <- P.dbg "title" $ wrap "doc.title" $ (paragraph <* CP.space)
       let m = length hashes + n
       body <- local (\env -> env { parentSection = m }) $
               P.many (sectionElem <* CP.space)
       pure $ title <> join body
 
-    body = P.dbg "body" $ join <$> P.many (sectionElem <* CP.space)
+    body = join <$> P.many (sectionElem <* CP.space)
 
     wrap :: String -> P [Token Lexeme] -> P [Token Lexeme]
     wrap o p = do
@@ -625,13 +644,6 @@ lexemes = P.optional space >> do
     findClose :: [String] -> Layout -> Maybe (String, Int)
     findClose _ [] = Nothing
     findClose s ((h,_):tl) = if h `elem` s then Just (h, 1) else fmap (1+) <$> findClose s tl
-
-  eof :: P [Token Lexeme]
-  eof = P.try $ do
-    p <- P.eof >> pos
-    n <- maybe 0 (const 1) <$> S.gets opening
-    l <- S.gets layout
-    pure $ replicate (length l + n) (Token Close p p)
 
 simpleWordyId :: String -> Lexeme
 simpleWordyId = flip WordyId Nothing
