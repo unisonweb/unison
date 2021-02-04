@@ -295,7 +295,9 @@ lexemes' eof = P.optional space >> do
       (column pos == 1 && isPrefixOf "#" word)
 
     wordy ok = wrap "doc.word" . tok . fmap Textual . P.try $ do
-      let end = P.lookAhead $ void docClose <|> void (CP.satisfy isSpace)
+      let end = P.lookAhead $ void docClose
+                          <|> void (CP.satisfy isSpace)
+                          <|> void (CP.satisfy (not . ok))
       pos <- pos
       word <- P.someTill (CP.satisfy (\ch -> not (isSpace ch) && ok ch)) end
       guard (not $ reserved pos word)
@@ -316,10 +318,10 @@ lexemes' eof = P.optional space >> do
     -- [this link](https://unisonweb.org)
     externalLink = wrap "doc.externalLink" $ do
       _ <- lit "["
-      p <- leafies (/= ']')
+      p <- P.dbg "source" $ leafies (/= ']')
       _ <- lit "]"
       _ <- lit "("
-      target <- wordy (/= ')') <|> link
+      target <- P.dbg "target" $ wordy (/= ')') <|> link
       _ <- lit ")"
       pure (p <> target)
 
@@ -356,9 +358,9 @@ lexemes' eof = P.optional space >> do
     -- # A section title (not a subsection)
     section :: P [Token Lexeme]
     section = wrap "doc.section" $ do
-      n <- P.dbg "parentSection" $ S.gets parentSection
-      hashes <- P.dbg "section.hashes" $ P.try $ lit (replicate n '#') *> P.takeWhile1P Nothing (== '#') <* sp
-      title <- P.dbg "title" $ wrap "doc.title" $ (paragraph <* CP.space)
+      n <- S.gets parentSection
+      hashes <- P.try $ lit (replicate n '#') *> P.takeWhile1P Nothing (== '#') <* sp
+      title <- wrap "doc.title" $ (paragraph <* CP.space)
       let m = length hashes + n
       body <- local (\env -> env { parentSection = m }) $
               P.many (sectionElem <* CP.space)
