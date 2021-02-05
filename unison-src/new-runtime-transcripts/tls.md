@@ -126,7 +126,7 @@ self_signed_cert_pem = "-----BEGIN CERTIFICATE-----\nMIIDVTCCAj2gAwIBAgIUZI9WPZk
 First lets make sure we can load our cert and private key
 
 ```unison
-test> match (decodeCert (toUtf8 self_signed_cert_pem) with
+test> loadCertAndKey = match (decodeCert (toUtf8 self_signed_cert_pem) with
   Left (Failure _ t) -> [Fail t]
   Right _ -> [Ok "succesfully decoded self_signed_pem"]
 

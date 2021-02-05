@@ -116,7 +116,7 @@ self_signed_cert_pem = "-----BEGIN CERTIFICATE-----\nMIIDVTCCAj2gAwIBAgIUZI9WPZk
 First lets make sure we can load our cert and private key
 
 ```unison
-test> match (decodeCert (toUtf8 self_signed_cert_pem) with
+test> loadCertAndKey = match (decodeCert (toUtf8 self_signed_cert_pem) with
   Left (Failure _ t) -> [Fail t]
   Right _ -> [Ok "succesfully decoded self_signed_pem"]
 
@@ -130,12 +130,12 @@ test> match (decodeCert (toUtf8 self_signed_cert_pem) with
   
     ⍟ These new definitions are ok to `add`:
     
-    test.faj5ui4d7r (Unison bug, unknown term)
+      loadCertAndKey : [Result]
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    1 | test> match (decodeCert (toUtf8 self_signed_cert_pem) with
+    1 | test> loadCertAndKey = match (decodeCert (toUtf8 self_signed_cert_pem) with
     
     ✅ Passed succesfully decoded self_signed_pem
 
