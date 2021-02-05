@@ -3,7 +3,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module U.Codebase.Convert.TermUtil where
+module U.Util.Term where
 
 import qualified U.Core.ABT as ABT
 import qualified U.Codebase.Term as Term
@@ -43,12 +43,12 @@ dependencies = execWriter . ABT.visit_ \case
 
 
 
-fold :: Monad m =>
-  (text -> m ()) ->
-  (termRef -> m ()) ->
-  (typeRef -> m ()) ->
-  (termLink -> m ()) ->
-  (typeLink -> m ()) ->
-  ABT.Term (Term.F' text termRef typeRef termLink typeLink vt) v a ->
-  m ()
-fold = undefined
+-- fold :: Monad m =>
+--   (text -> m ()) ->
+--   (termRef -> m ()) ->
+--   (typeRef -> m ()) ->
+--   (termLink -> m ()) ->
+--   (typeLink -> m ()) ->
+--   ABT.Term (Term.F' text termRef typeRef termLink typeLink vt) v a ->
+--   m ()
+-- fold = error "todo: U.Util.TermUtil.fold"

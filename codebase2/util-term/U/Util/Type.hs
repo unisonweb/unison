@@ -2,7 +2,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE PatternSynonyms #-}
 
-module U.Codebase.Convert.TypeUtil where
+module U.Util.Type where
 
 import U.Codebase.Type (TypeT, F'(..), TypeR)
 import qualified U.Core.ABT.Var as ABT
