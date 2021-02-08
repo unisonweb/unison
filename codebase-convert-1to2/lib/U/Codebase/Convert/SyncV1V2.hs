@@ -45,8 +45,8 @@ import Database.SQLite.Simple (Connection)
 import qualified Database.SQLite.Simple as SQLite
 import Database.SQLite.Simple.FromField (FromField)
 import Database.SQLite.Simple.ToField (ToField)
-import qualified U.Codebase.Convert.TermUtil as TermUtil
-import qualified U.Codebase.Convert.TypeUtil as TypeUtil
+import qualified U.Util.Term as TermUtil
+import qualified U.Util.Type as TypeUtil
 import qualified U.Codebase.Decl as V2.Decl
 import qualified U.Codebase.Kind as V2.Kind
 import qualified U.Codebase.Reference as V2.Reference

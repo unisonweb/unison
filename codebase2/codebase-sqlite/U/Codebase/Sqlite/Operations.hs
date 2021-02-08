@@ -21,18 +21,21 @@ import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Writer (MonadWriter, WriterT, runWriterT)
 import qualified Control.Monad.Writer as Writer
+import Data.Bifoldable (bifoldMap)
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.ByteString (ByteString)
 import Data.Bytes.Get (runGetS)
 import qualified Data.Bytes.Get as Get
+import Data.Foldable (traverse_, for_)
 import qualified Data.Foldable as Foldable
 import Data.Functor (void, (<&>))
 import Data.Functor.Identity (Identity)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as Map
-import Data.Maybe (isJust)
+import Data.Maybe (catMaybes, isJust)
+import Data.Monoid (First (First, getFirst))
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import Data.Set (Set)
@@ -113,7 +116,8 @@ import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
-import Data.Foldable (traverse_)
+import qualified U.Util.Term as TermUtil
+import qualified U.Util.Type as TypeUtil
 
 -- * Error handling
 
@@ -429,10 +433,41 @@ saveTermComponent h terms = do
       bytes = S.putBytes S.putTermFormat $ S.Term.Term li
   oId <- Q.saveObject hashId OT.TermComponent bytes
   -- populate dependents index
-  error "todo: populate dependents index"
+  let dependencies :: Set (S.Reference.Reference, S.Reference.Id) = foldMap unlocalizeRefs (sTermElements `zip` [0 ..])
+      unlocalizeRefs :: ((LocalIds, S.Term.Term, S.Term.Type), C.Reference.Pos) -> Set (S.Reference.Reference, S.Reference.Id)
+      unlocalizeRefs ((LocalIds tIds oIds, tm, tp), i) =
+        let self = C.Reference.Id oId i
+            dependencies :: Set S.Reference =
+              let (tmRefs, tpRefs, tmLinks, tpLinks) = TermUtil.dependencies tm
+                  tpRefs' = Foldable.toList $ C.Type.dependencies tp
+                  getTermSRef :: S.Term.TermRef -> Maybe S.Reference
+                  getTermSRef (C.ReferenceBuiltin t) = Just (C.ReferenceBuiltin (tIds Vector.! fromIntegral t))
+                  getTermSRef (C.Reference.Derived (Just h) i) = Just (C.Reference.Derived (oIds Vector.! fromIntegral h) i)
+                  getTermSRef _selfCycleRef@(C.Reference.Derived Nothing _) = Nothing
+                  getTypeSRef :: S.Term.TypeRef -> S.Reference
+                  getTypeSRef (C.ReferenceBuiltin t) = C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
+                  getTypeSRef (C.Reference.Derived h i) = C.Reference.Derived (oIds Vector.! fromIntegral h) i
+                  getSTypeLink = getTypeSRef
+                  getSTermLink :: S.Term.TermLink -> Maybe S.Reference
+                  getSTermLink = getFirst . bifoldMap (First . getTermSRef) (First . Just . getTypeSRef)
+               in Set.fromList $
+                    catMaybes
+                      (fmap getTermSRef tmRefs ++ fmap getSTermLink tmLinks)
+                      ++ fmap getTypeSRef (tpRefs ++ tpRefs')
+                      ++ fmap getSTypeLink tpLinks
+         in Set.map (, self) dependencies
+  traverse_ (uncurry Q.addToDependentsIndex) dependencies
+
   -- populate type indexes
-  error "todo: populate type index"
-  error "todo: populate type-mentions index"
+  for_ (terms `zip` [0..]) \((_tm, tp), i) -> do
+    let self = C.Referent.RefId (C.Reference.Id oId i)
+        typeForIndexing = TypeUtil.removeAllEffectVars tp
+        typeMentionsForIndexing = TypeUtil.toReferenceMentions typeForIndexing
+        saveReferentH = bitraverse Q.saveText Q.saveHashHash
+    typeReferenceForIndexing <- saveReferentH $ TypeUtil.toReference typeForIndexing
+    Q.addToTypeIndex typeReferenceForIndexing self
+    traverse_ (flip Q.addToTypeMentionsIndex self <=< saveReferentH) typeMentionsForIndexing
+
   pure oId
 
 -- | implementation detail of c2{s,w}Term
@@ -696,20 +731,30 @@ saveDeclComponent h decls = do
       bytes = S.putBytes S.putDeclFormat $ S.Decl.Decl li
   oId <- Q.saveObject hashId OT.DeclComponent bytes
   -- populate dependents index
-  let dependencies :: Set (S.Reference.Reference, S.Reference.Id) = foldMap unlocalizeRefs (sDeclElements `zip` [0..])
-      unlocalizeRefs :: ((LocalIds' Db.TextId Db.ObjectId, S.Decl.Decl Symbol), Word64) -> Set (S.Reference.Reference, S.Reference.Id)
+  let dependencies :: Set (S.Reference.Reference, S.Reference.Id) = foldMap unlocalizeRefs (sDeclElements `zip` [0 ..])
+      unlocalizeRefs :: ((LocalIds, S.Decl.Decl Symbol), C.Reference.Pos) -> Set (S.Reference.Reference, S.Reference.Id)
       unlocalizeRefs ((LocalIds tIds oIds, decl), i) =
         let self = C.Reference.Id oId i
-            dependencies :: Set (C.Reference.Reference' LocalTextId (Maybe LocalDefnId)) = C.Decl.dependencies decl
+            dependencies :: Set S.Decl.TypeRef = C.Decl.dependencies decl
             getSRef :: C.Reference.Reference' LocalTextId (Maybe LocalDefnId) -> Maybe S.Reference.Reference
             getSRef (C.ReferenceBuiltin t) = Just (C.ReferenceBuiltin (tIds Vector.! fromIntegral t))
             getSRef (C.Reference.Derived (Just h) i) = Just (C.Reference.Derived (oIds Vector.! fromIntegral h) i)
             getSRef _selfCycleRef@(C.Reference.Derived Nothing _) = Nothing
          in Set.mapMaybe (fmap (,self) . getSRef) dependencies
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
+  
   -- populate type indexes
-  error "todo: populate type index for constructors"
-  error "todo: populate type-mentions index for constructors"
+  for_ (zip decls [0..]) 
+    \(C.DataDeclaration _ _ _ ctorTypes, i) -> for_ (zip ctorTypes [0..]) 
+      \(tp, j) -> do
+        let self = C.Referent.ConId (C.Reference.Id oId i) j
+            typeForIndexing :: C.Type.TypeT Symbol = TypeUtil.removeAllEffectVars (C.Type.typeD2T h tp)
+            typeReferenceForIndexing = TypeUtil.toReference typeForIndexing
+            typeMentionsForIndexing = TypeUtil.toReferenceMentions typeForIndexing
+            saveReferentH = bitraverse Q.saveText Q.saveHashHash
+        flip Q.addToTypeIndex self =<< saveReferentH typeReferenceForIndexing
+        traverse_ (flip Q.addToTypeMentionsIndex self <=< saveReferentH) typeMentionsForIndexing
+
   pure oId
 
 c2sDecl :: forall m t d. EDB m => (Text -> m t) -> (H.Hash -> m d) -> C.Decl Symbol -> m (LocalIds' t d, S.Decl.Decl Symbol)

@@ -23,6 +23,8 @@ import U.Util.Hashable (Hashable, Hashable1)
 import qualified U.Util.Hashable as Hashable
 import Unsafe.Coerce (unsafeCoerce)
 import Data.Functor (($>))
+import Data.Bifunctor (Bifunctor(bimap))
+import qualified Data.Maybe as Maybe
 
 -- | For standalone types, like those in Term.Ann
 type FT = F' Reference
@@ -60,6 +62,9 @@ rtraverse :: (Monad g, Ord v) => (r -> g r') -> ABT.Term (F' r) v a -> g (ABT.Te
 rtraverse g = ABT.transformM \case
   Ref r -> Ref <$> g r
   x -> pure $ unsafeCoerce x
+
+typeD2T :: Ord v => Hash -> TypeD v -> TypeT v
+typeD2T h = rmap $ bimap id $ Maybe.fromMaybe h
 
 dependencies :: (Ord v, Ord r) => ABT.Term (F' r) v a -> Set r
 dependencies = Writer.execWriter . ABT.visit' f

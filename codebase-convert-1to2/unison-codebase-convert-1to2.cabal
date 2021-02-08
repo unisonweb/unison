@@ -62,5 +62,6 @@ library
     unison-codebase,
     unison-codebase-sqlite,
     unison-util,
-    unison-util-serialization
+    unison-util-serialization,
+    unison-util-term
   default-language:    Haskell2010
