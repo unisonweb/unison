@@ -289,6 +289,10 @@ lexemes' eof = P.optional space >> do
     _ <- lit "}}" >> space
     pure r
     where
+    body = join <$> P.many (sectionElem <* CP.space)
+    sectionElem = section <|> paragraph
+    paragraph = wrap "doc.paragraph" $ join <$> spaced leaf
+
     reserved pos word | traceShow (pos,word) False = undefined
     reserved pos word =
       isPrefixOf "}}" word ||
@@ -302,28 +306,51 @@ lexemes' eof = P.optional space >> do
       word <- P.someTill (CP.satisfy (\ch -> not (isSpace ch) && ok ch)) end
       guard (not $ reserved pos word)
       pure word
-    leafy ok = link <|> externalLink <|> ticked <|> expr <|> wordy ok
+    leafy ok = link <|> externalLink <|> ticked <|> expr
+           <|> boldOrItalic ok <|> wordy ok
     leaf = leafy (const True)
-    ticked = wrap "doc.example" $ do
-      n <- P.try $ do _ <- lit "`"
-                      length <$> P.takeWhile1P (Just "backticks") (== '`')
-      ex <- CP.space *> lexemes
-      _ <- lit (replicate (n+1) '`')
-      pure ex
+    ticked =
+      P.label "inline code (``List.map f xs``, ``[1] :+ 2``)" $
+      wrap "doc.example" $ do
+        n <- P.try $ do _ <- lit "`"
+                        length <$> P.takeWhile1P (Just "backticks") (== '`')
+        let end :: P [Token Lexeme] = [] <$ lit (replicate (n+1) '`')
+        ex <- CP.space *> lexemes' end
+        pure ex
 
     docClose = [] <$ lit "}}"
     docOpen  = [] <$ lit "{{"
-    link = wrap "doc.link" $ lit "@" *> tok (wordyId <|> symbolyId)
-    expr = wrap "doc.expr" $ docOpen *> lexemes' docClose
-    -- [this link](https://unisonweb.org)
-    externalLink = wrap "doc.externalLink" $ do
-      _ <- lit "["
-      p <- P.dbg "source" $ leafies (/= ']')
-      _ <- lit "]"
-      _ <- lit "("
-      target <- P.dbg "target" $ wordy (/= ')') <|> link
-      _ <- lit ")"
-      pure (p <> target)
+
+    link =
+      P.label "link (examples: {List}, {Nat.+})" $
+      wrap "doc.link" $
+      P.try $ lit "{" *> tok (wordyId <|> symbolyId) <* lit "}"
+
+    expr =
+      P.label "transclusion (examples: {{ doc2 }}, {{ sepBy s [doc1, doc2] }})" $
+      wrap "doc.expr" $
+      docOpen *> lexemes' docClose
+
+    boldOrItalic ok = do
+      let start = some (CP.satisfy (== '*')) <|> some (CP.satisfy (== '_'))
+          name s = if length s > 1 then "doc.bold" else "doc.italic"
+      (end,ch) <- P.try $ do
+        end@(ch:_) <- start
+        P.lookAhead (CP.satisfy (not . isSpace))
+        pure (end,ch)
+      wrap (name end) $ join <$> P.someTill (leafy (\c -> ok c && c /= ch)) (lit end)
+
+    externalLink =
+      P.label "hyperlink (example: [link name](https://destination.com))" $
+      wrap "doc.externalLink" $ do
+        _ <- lit "["
+        p <- wrap "doc.externalLink.name" $ leafies (/= ']')
+        _ <- lit "]"
+        _ <- lit "("
+        target <- wrap "doc.externalLink.target" $
+                  link <|> fmap join (P.some (expr <|> wordy (/= ')')))
+        _ <- lit ")"
+        pure (p <> target)
 
     -- newline = P.optional (lit "\r") *> lit "\n"
 
@@ -339,8 +366,6 @@ lexemes' eof = P.optional space >> do
 
     spaced p = P.some (p <* P.optional sp)
     leafies close = wrap "doc.paragraph" $ join <$> spaced (leafy close)
-    paragraph = wrap "doc.paragraph" $ join <$> spaced leaf
-    sectionElem = section <|> paragraph
     --
     -- bullets = wrap "doc.bullets" $ error "todo"
     -- backticks = wrap "doc.backticks" $ error "todo"
@@ -365,8 +390,6 @@ lexemes' eof = P.optional space >> do
       body <- local (\env -> env { parentSection = m }) $
               P.many (sectionElem <* CP.space)
       pure $ title <> join body
-
-    body = join <$> P.many (sectionElem <* CP.space)
 
     wrap :: String -> P [Token Lexeme] -> P [Token Lexeme]
     wrap o p = do
