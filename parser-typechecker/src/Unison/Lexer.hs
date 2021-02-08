@@ -307,10 +307,25 @@ lexemes' eof = P.optional space >> do
       guard (not $ reserved pos word)
       pure word
     leafy ok = link <|> externalLink <|> ticked <|> expr
-           <|> boldOrItalic ok <|> wordy ok
+           <|> boldOrItalic ok <|> verbatim <|> wordy ok
     leaf = leafy (const True)
+
+    verbatim =
+      P.label "inline verbatim text (examples: ''**unformatted**'', '''_words_''')" $ do
+      (start,txt,stop) <- positioned $ do
+        quotes <- lit "''" *> many (CP.satisfy (== '\''))
+        P.someTill CP.anyChar (lit ("''" <> quotes))
+      if all isSpace $ takeWhile (/= '\n') txt
+      then wrap "doc.verbatimBlock" $ pure [Token (Textual (trim txt)) start stop]
+      else wrap "doc.verbatim" $ pure [Token (Textual txt) start stop]
+      where
+        trim = let f = reverse . dropThru (/= '\n') in f . f
+        dropThru f = drop1If (not . f) . dropWhile f
+        drop1If f (h:t) | f h = t
+        drop1If _ as = as
+
     ticked =
-      P.label "inline code (``List.map f xs``, ``[1] :+ 2``)" $
+      P.label "inline code (examples: ``List.map f xs``, ``[1] :+ 2``)" $
       wrap "doc.example" $ do
         n <- P.try $ do _ <- lit "`"
                         length <$> P.takeWhile1P (Just "backticks") (== '`')
