@@ -32,7 +32,6 @@ import Unison.Var (Var)
 import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Type (Type)
 import qualified Unison.TypePrinter as TypePrinter
-import qualified Unison.Server.SearchResult as SR
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 
 type HashQualifiedName = Text
@@ -95,11 +94,6 @@ data DefinitionDisplayResults =
     , typeDefinitions :: Map ShortHash (DisplayObject (SyntaxText' ShortHash))
     , missingDefinitions :: [HQ.HashQualified Name]
     } deriving (Eq, Show, Generic)
-
-data QueryResult = QueryResult
-  { misses :: [HQ.HashQualified Name]
-  , hits :: [SR.SearchResult]
-  }
 
 formatType
   :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText' ShortHash

@@ -52,6 +52,7 @@ import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Star3 as Star3
 import Unison.Var (Var)
 import Unison.Server.Types
+import Unison.Server.QueryResult
 import Unison.Util.SyntaxText (SyntaxText)
 import Unison.Util.List (uniqueBy)
 import Unison.ShortHash
@@ -357,6 +358,7 @@ hqNameQuerySuffixify
   -> m QueryResult
 hqNameQuerySuffixify = hqNameQuery' True
 
+-- TODO: Move this to its own module
 data DefinitionResults v =
   DefinitionResults
     { termResults :: Map Reference (DisplayObject (Term v Ann))

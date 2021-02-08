@@ -143,6 +143,7 @@ library
     Unison.Server.Endpoints.GetDefinitions 
     Unison.Server.Endpoints.ListNamespace
     Unison.Server.Errors
+    Unison.Server.QueryResult
     Unison.Server.SearchResult
     Unison.Server.SearchResult'
     Unison.Server.Types

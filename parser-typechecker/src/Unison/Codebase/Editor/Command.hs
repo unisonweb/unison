@@ -14,6 +14,11 @@ module Unison.Codebase.Editor.Command (
 
 import Unison.Prelude
 
+-- TODO: Don't import backend, but move dependencies to own modules
+import           Unison.Server.Backend          ( DefinitionResults
+                                                , ShallowListEntry
+                                                , BackendError
+                                                )
 import           Data.Configurator.Types        ( Configured )
 
 import           Unison.Codebase.Editor.Output
@@ -42,8 +47,14 @@ import           Unison.ShortHash               ( ShortHash )
 import           Unison.Type                    ( Type )
 import           Unison.Codebase.ShortBranchHash
                                                 ( ShortBranchHash )
-import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
+import Unison.Codebase.Path (Path)
+import qualified Unison.Codebase.Path as Path
+import qualified Unison.HashQualified as HQ
+import Unison.Name (Name)
+import Unison.Server.QueryResult (QueryResult)
+import qualified Unison.Server.SearchResult as SR
+import qualified Unison.Server.SearchResult' as SR'
 
 type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
@@ -62,9 +73,24 @@ data Command m i v a where
   -- Escape hatch.
   Eval :: m a -> Command m i v a
 
-  -- Escape hatch. Temporarily here while we replace this file with calls
-  -- into Server.Backend.
-  WithCodebase :: (Codebase m v Ann -> a) -> Command m i v a
+  HQNameQuery
+    :: Maybe Path
+    -> Branch m
+    -> [HQ.HashQualified Name]
+    -> Command m i v QueryResult
+
+  LoadSearchResults
+    :: [SR.SearchResult] -> Command m i v [SR'.SearchResult' v Ann]
+
+  GetDefinitionsBySuffixes
+    :: Maybe Path
+    -> Branch m
+    -> [HQ.HashQualified Name]
+    -> Command m i v (Either BackendError (DefinitionResults v))
+
+  FindShallow
+    :: Path.Absolute
+    -> Command m i v (Either BackendError [ShallowListEntry v Ann])
 
   ConfigLookup :: Configured a => Text -> Command m i v (Maybe a)
 
@@ -201,7 +227,6 @@ data Command m i v a where
 commandName :: Command m i v a -> String
 commandName = \case
   Eval{}                      -> "Eval"
-  WithCodebase{}              -> "WithCodebase"
   ConfigLookup{}              -> "ConfigLookup"
   Input                       -> "Input"
   Notify{}                    -> "Notify"
@@ -243,4 +268,7 @@ commandName = \case
   CreateAuthorInfo{}          -> "CreateAuthorInfo"
   RuntimeMain                 -> "RuntimeMain"
   RuntimeTest                 -> "RuntimeTest"
-
+  HQNameQuery{}               -> "HQNameQuery"
+  LoadSearchResults{}         -> "LoadSearchResults"
+  GetDefinitionsBySuffixes{}  -> "GetDefinitionsBySuffixes"
+  FindShallow{}               -> "FindShallow"

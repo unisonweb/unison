@@ -21,9 +21,10 @@ where
 
 import           Unison.Prelude
 
-import Unison.Server.Types (QueryResult (..))
+-- TODO: Don't import backend
 import qualified Unison.Server.Backend as Backend
-import Unison.Server.Backend (ShallowListEntry(..), Backend)
+import Unison.Server.QueryResult
+import Unison.Server.Backend (ShallowListEntry(..))
 import qualified Unison.Codebase.MainTerm as MainTerm
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
@@ -196,9 +197,7 @@ loop = do
   sbhLength   <- eval BranchHashLength
   let
       currentPath'' = Path.unabsolute currentPath'
-      hqNameQuery q =
-        join . eval $ WithCodebase (\c ->
-          _liftToAction $ Backend.hqNameQuery (Just currentPath'') root' c q)
+      hqNameQuery q = eval $ HQNameQuery (Just currentPath'') root' q
       sbh = SBH.fromHash sbhLength
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
@@ -494,8 +493,7 @@ loop = do
         viewRemoteBranch ns = ExceptT . eval $ ViewRemoteBranch ns
         syncRemoteRootBranch repo b mode =
           ExceptT . eval $ SyncRemoteRootBranch repo b mode
-        loadSearchResults sr = join . eval . WithCodebase $ \c ->
-          _liftToAction $ Backend.loadSearchResults c sr
+        loadSearchResults = eval . LoadSearchResults
         handleFailedDelete failed failedDependents = do
           failed           <- loadSearchResults $ SR.fromNames failed
           failedDependents <- loadSearchResults $ SR.fromNames failedDependents
@@ -1101,7 +1099,7 @@ loop = do
       DeleteTermI hq -> delete getHQ'Terms       (const Set.empty) hq
 
       DisplayI outputLoc hq -> do
-        let parseNames0 = (`Names3.Names` mempty) $ basicPrettyPrintNames0
+        let parseNames0 = (`Names3.Names` mempty) basicPrettyPrintNames0
             -- use suffixed names for resolving the argument to display
             parseNames = Names3.suffixify parseNames0
             results = Names3.lookupHQTerm hq parseNames
@@ -1113,26 +1111,27 @@ loop = do
         else doDisplay outputLoc parseNames0 (Set.findMin results)
 
       ShowDefinitionI outputLoc query -> do
-        Backend.DefinitionResults terms types misses <-
-          join . eval . WithCodebase $ \c -> handleBackend $
-            Backend.definitionsBySuffixes (Just currentPath'') root' c query
-        let loc = case outputLoc of
-              ConsoleLocation    -> Nothing
-              FileLocation path  -> Just path
-              LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
-            printNames =
-              Backend.getCurrentNames currentPath'' root'
-            ppe = PPE.fromNamesDecl hqLength printNames
-        unless (null types && null terms) $
-          eval . Notify $
-            DisplayDefinitions loc ppe types terms
-        unless (null misses) $
-          eval . Notify $ SearchTermsNotFound misses
-        -- We set latestFile to be programmatically generated, if we
-        -- are viewing these definitions to a file - this will skip the
-        -- next update for that file (which will happen immediately)
-        latestFile .= ((, True) <$> loc)
-
+        res <- eval $ GetDefinitionsBySuffixes (Just currentPath'') root' query
+        case res of
+          Left e -> handleBackendError e
+          Right (Backend.DefinitionResults terms types misses) -> do
+            let loc = case outputLoc of
+                  ConsoleLocation    -> Nothing
+                  FileLocation path  -> Just path
+                  LatestFileLocation ->
+                    fmap fst latestFile' <|> Just "scratch.u"
+                printNames =
+                  Backend.getCurrentNames currentPath'' root'
+                ppe = PPE.fromNamesDecl hqLength printNames
+            unless (null types && null terms) $
+              eval . Notify $
+                DisplayDefinitions loc ppe types terms
+            unless (null misses) $
+              eval . Notify $ SearchTermsNotFound misses
+            -- We set latestFile to be programmatically generated, if we
+            -- are viewing these definitions to a file - this will skip the
+            -- next update for that file (which will happen immediately)
+            latestFile .= ((, True) <$> loc)
       FindPatchI -> do
         let patches =
               [ Path.toName $ Path.snoc p seg
@@ -1143,26 +1142,31 @@ loop = do
 
       FindShallowI pathArg -> do
         let pathArgAbs = resolveToAbsolute pathArg
-            ppe = Backend.basicSuffixifiedNames sbhLength root' (Path.fromPath' pathArg)
-        findOp <- eval $ WithCodebase (`Backend.findShallow` pathArgAbs)
-        entries <- handleBackend findOp
-        -- caching the result as an absolute path, for easier jumping around
-        numberedArgs .= fmap entryToHQString entries
-        respond $ ListShallow ppe entries
-        where
-          entryToHQString :: ShallowListEntry v Ann -> String
-          entryToHQString e =
-            fixup $ case e of
-              ShallowTypeEntry _ hq   -> HQ'.toString hq
-              ShallowTermEntry _ hq _ -> HQ'.toString hq
-              ShallowBranchEntry ns _ -> NameSegment.toString ns
-              ShallowPatchEntry ns    -> NameSegment.toString ns
-           where
-            fixup s = case pathArgStr of
-                       "" -> s
-                       p | last p == '.' -> p ++ s
-                       p -> p ++ "." ++ s
-            pathArgStr = show pathArg
+            ppe = Backend.basicSuffixifiedNames
+                           sbhLength
+                           root'
+                           (Path.fromPath' pathArg)
+        res <- eval $ FindShallow pathArgAbs
+        case res of
+          Left e -> handleBackendError e
+          Right entries -> do
+            -- caching the result as an absolute path, for easier jumping around
+            numberedArgs .= fmap entryToHQString entries
+            respond $ ListShallow ppe entries
+            where
+              entryToHQString :: ShallowListEntry v Ann -> String
+              entryToHQString e =
+                fixup $ case e of
+                  ShallowTypeEntry _ hq   -> HQ'.toString hq
+                  ShallowTermEntry _ hq _ -> HQ'.toString hq
+                  ShallowBranchEntry ns _ -> NameSegment.toString ns
+                  ShallowPatchEntry ns    -> NameSegment.toString ns
+               where
+                fixup s = case pathArgStr of
+                           "" -> s
+                           p | last p == '.' -> p ++ s
+                           p -> p ++ "." ++ s
+                pathArgStr = show pathArg
 
       SearchByNameI isVerbose _showAll ws -> do
         let prettyPrintNames0 = basicPrettyPrintNames0
@@ -2057,26 +2061,17 @@ searchBranchScored names0 score queries =
         Just score -> Set.singleton (Just score, result)
         Nothing -> mempty
 
-handleBackend :: Backend m a -> Action m i v a
-handleBackend b = _liftToAction (runExceptT b) >>= \case
-  Left e -> case e of
-    Backend.NoSuchNamespace path -> do
-      respond . BranchNotFound $ Path.absoluteToPath' path
-      fail mempty
-    Backend.BadRootBranch e -> do
-      respond $ BadRootBranch e
-      fail mempty
-    Backend.NoBranchForHash h -> do
-      sbhLength <- eval BranchHashLength
-      respond . NoBranchWithHash $ SBH.fromHash sbhLength h
-      fail mempty
-    Backend.CouldntExpandBranchHash sbh -> do
-      respond $ NoBranchWithHash sbh
-      fail mempty
-    Backend.AmbiguousBranchHash h hashes -> do
-      respond $ BranchHashAmbiguous h hashes
-      fail mempty
-  Right a -> pure a
+handleBackendError :: Backend.BackendError -> Action m i v ()
+handleBackendError = \case
+  Backend.NoSuchNamespace path ->
+    respond . BranchNotFound $ Path.absoluteToPath' path
+  Backend.BadRootBranch   e -> respond $ BadRootBranch e
+  Backend.NoBranchForHash h -> do
+    sbhLength <- eval BranchHashLength
+    respond . NoBranchWithHash $ SBH.fromHash sbhLength h
+  Backend.CouldntExpandBranchHash sbh -> respond $ NoBranchWithHash sbh
+  Backend.AmbiguousBranchHash h hashes ->
+    respond $ BranchHashAmbiguous h hashes
 
 respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output

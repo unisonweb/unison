@@ -163,7 +163,12 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     AppendToReflog reason old new -> Codebase.appendReflog codebase reason old new
     LoadReflog -> Codebase.getReflog codebase
     CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Parser.External t
-    WithCodebase k -> pure (k codebase)
+    HQNameQuery mayPath branch query ->
+      Backend.hqNameQuery mayPath branch codebase query
+    LoadSearchResults srs -> Backend.loadSearchResults codebase srs
+    GetDefinitionsBySuffixes mayPath branch query ->
+      runExceptT $ Backend.definitionsBySuffixes mayPath branch codebase query
+    FindShallow path -> runExceptT $ Backend.findShallow codebase path
 
   eval1 :: PPE.PrettyPrintEnv -> Term v Ann -> _
   eval1 ppe tm = do
