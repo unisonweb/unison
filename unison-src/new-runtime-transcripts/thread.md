@@ -69,7 +69,7 @@ evalTest a = handle
 runTest: '{Stream Result, Exception Failure, io2.IO} a -> [Result]
 runTest t = match evalTest t with
               (results, Right _) -> results
-              (results, Left (Failure _ t)) -> results :+ (Fail t)
+              (results, Left (Failure _ t _)) -> results :+ (Fail t)
 
 
 --
@@ -127,7 +127,7 @@ thread1 mv = 'let
     toException (put mv (increment x))
 
   match (toEither go) with 
-    Left (Failure _ t) -> watch t ()
+    Left (Failure _ t _) -> watch t ()
     _ -> ()
 
 
@@ -158,7 +158,7 @@ sendingThread toSend mv = 'let
     toException (put mv (increment toSend))
     
   match (toEither go) with
-    Left (Failure _ t) -> watch t ()
+    Left (Failure _ t _) -> watch t ()
     _ -> ()
 
 
@@ -170,7 +170,7 @@ receivingThread recv send = 'let
     toException (put send (toText recvd))
     
   match (toEither go) with
-    Left (Failure _ t) -> watch t ()
+    Left (Failure _ t _) -> watch t ()
     _ -> ()
   
 testTwoThreads: '{io2.IO}[Result]

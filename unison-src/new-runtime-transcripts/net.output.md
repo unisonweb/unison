@@ -65,7 +65,7 @@ evalTest a = handle
 runTest: '{Stream Result, Exception Failure, io2.IO} a -> [Result]
 runTest t = match evalTest t with
               (results, Right _) -> results
-              (results, Left (Failure _ t)) -> results :+ (Fail t)
+              (results, Left (Failure _ t _)) -> results :+ (Fail t)
 
 
 --
@@ -216,7 +216,7 @@ serverThread portVar toSend = 'let
     toException (closeSocket sock')
 
   match (toEither go) with 
-    Left (Failure _ t) -> watch t ()
+    Left (Failure _ t _) -> watch t ()
     _ -> ()
 
 clientThread : MVar Nat -> MVar Text -> '{io2.IO}()
@@ -229,7 +229,7 @@ clientThread portVar resultVar = 'let
     toException (MVar.put resultVar msg)
 
   match (toEither go) with
-    Left (Failure _ t) -> watch t ()
+    Left (Failure _ t _) -> watch t ()
     _ -> ()
 
 testTcpConnect : '{io2.IO}[Result]

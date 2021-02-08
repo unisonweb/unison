@@ -83,7 +83,7 @@ evalTest a = handle
 runTest: '{Stream Result, Exception Failure, io2.IO} a -> [Result]
 runTest t = match evalTest t with
               (results, Right _) -> results
-              (results, Left (Failure _ t)) -> results :+ (Fail t)
+              (results, Left (Failure _ t _)) -> results :+ (Fail t)
 
 
 --
@@ -116,8 +116,16 @@ self_signed_cert_pem = "-----BEGIN CERTIFICATE-----\nMIIDVTCCAj2gAwIBAgIUZI9WPZk
 First lets make sure we can load our cert and private key
 
 ```unison
+<<<<<<< HEAD
 test> loadCertAndKey = match (decodeCert (toUtf8 self_signed_cert_pem) with
   Left (Failure _ t) -> [Fail t]
+||||||| e528dc51
+test> match (decodeCert (toUtf8 self_signed_cert_pem) with
+  Left (Failure _ t) -> [Fail t]
+=======
+test> match (decodeCert (toUtf8 self_signed_cert_pem) with
+  Left (Failure _ t _) -> [Fail t]
+>>>>>>> 7ceadd6e3d8f4ae8cc40fb3aaef516cf58ba12bc
   Right _ -> [Ok "succesfully decoded self_signed_pem"]
 
 ```
@@ -191,7 +199,7 @@ serverThread portVar toSend = 'let
     closeSocket sock'                               |> toException
 
   match (toEither go) with
-    Left (Failure _ t) -> watch ("error in server: " ++ t) ()
+    Left (Failure _ t _) -> watch ("error in server: " ++ t) ()
     _ -> watch "server finished" ()
 
 testClient : Optional SignedCert -> Text -> MVar Nat -> '{io2.IO, Exception Failure} Text
@@ -247,7 +255,7 @@ testCAReject _ =
   checkError : Either Failure a -> Result
   checkError = cases
     Right _ -> Fail "expected a handshake exception"
-    Left (Failure _ t) ->
+    Left (Failure _ t _) ->
       if contains "UnknownCa" t && contains "HandshakeFailed" t then Ok "correctly rejected self-signed cert" else
         Fail ("expected UnknownCa, got: " ++ t)
 
@@ -271,8 +279,7 @@ testCNReject _ =
   checkError : Either Failure a -> Result
   checkError = cases
     Right _ -> Fail "expected a handshake exception"
-    Left (Failure _ t) ->
-      if contains "NameMismatch" t && contains "HandshakeFailed" t then Ok "correctly rejected self-signed cert" else
+    Left (Failure _ t _) -> if contains "NameMismatch" t && contains "HandshakeFailed" t then Ok "correctly rejected self-signed cert" else
         Fail ("expected UnknownCa, got: " ++ t)
 
   test _ =
@@ -286,8 +293,6 @@ testCNReject _ =
 
 
   runTest test
-
-
 ```
 
 ```ucm
