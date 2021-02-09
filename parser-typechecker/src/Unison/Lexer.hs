@@ -205,7 +205,6 @@ token'' tok p = do
       if top l == column p then pure [Token (Semi True) p p]
       else if column p > top l || topHasClosePair l then pure []
       else if column p < top l then
-        -- traceShow (l, p) $
         S.put (env { layout = pop l }) >> ((Token Close p p :) <$> pops p)
       else error "impossible"
 
@@ -290,10 +289,9 @@ lexemes' eof = P.optional space >> do
     pure r
     where
     body = join <$> P.many (sectionElem <* CP.space)
-    sectionElem = section <|> paragraph
+    sectionElem = section <|> fencedBlock <|> paragraph
     paragraph = wrap "doc.paragraph" $ join <$> spaced leaf
 
-    reserved pos word | traceShow (pos,word) False = undefined
     reserved pos word =
       isPrefixOf "}}" word ||
       (column pos == 1 && isPrefixOf "#" word)
@@ -306,23 +304,38 @@ lexemes' eof = P.optional space >> do
       word <- P.someTill (CP.satisfy (\ch -> not (isSpace ch) && ok ch)) end
       guard (not $ reserved pos word)
       pure word
+
     leafy ok = link <|> externalLink <|> ticked <|> expr
-           <|> boldOrItalic ok <|> verbatim <|> wordy ok
+           <|> atDoc <|> boldOrItalic ok <|> verbatim <|> wordy ok
     leaf = leafy (const True)
+
+    atDoc = src <|> eval
+      where
+        src = wrap "doc.source" $ do
+          _ <- lit "@source" *> (lit " {" <|> lit "{")
+          s <- join <$> P.some (tok (wordyId <|> symbolyId) <* CP.space)
+          _ <- lit "}"
+          pure s
+        eval = wrap "doc.eval" $ do
+          _ <- lit "@eval" *> (lit " {" <|> lit "{") *> CP.space
+          s <- lexemes' inlineEvalClose
+          pure s
 
     verbatim =
       P.label "inline verbatim text (examples: ''**unformatted**'', '''_words_''')" $ do
       (start,txt,stop) <- positioned $ do
-        quotes <- lit "''" *> many (CP.satisfy (== '\''))
-        P.someTill CP.anyChar (lit ("''" <> quotes))
+        quotes <- lit "''" <+> many (CP.satisfy (== '\''))
+        P.someTill CP.anyChar (lit quotes)
       if all isSpace $ takeWhile (/= '\n') txt
       then wrap "doc.verbatimBlock" $ pure [Token (Textual (trim txt)) start stop]
       else wrap "doc.verbatim" $ pure [Token (Textual txt) start stop]
+
+    trim = f . f
       where
-        trim = let f = reverse . dropThru (/= '\n') in f . f
-        dropThru f = drop1If (not . f) . dropWhile f
-        drop1If f (h:t) | f h = t
-        drop1If _ as = as
+      f = reverse . dropThru
+      dropThru = dropNl . dropWhile (\ch -> isSpace ch && ch /= '\n')
+      dropNl ('\n':t) = t
+      dropNl as = as
 
     ticked =
       P.label "inline code (examples: ``List.map f xs``, ``[1] :+ 2``)" $
@@ -335,6 +348,7 @@ lexemes' eof = P.optional space >> do
 
     docClose = [] <$ lit "}}"
     docOpen  = [] <$ lit "{{"
+    inlineEvalClose  = [] <$ lit "}"
 
     link =
       P.label "link (examples: {List}, {Nat.+})" $
@@ -345,6 +359,32 @@ lexemes' eof = P.optional space >> do
       P.label "transclusion (examples: {{ doc2 }}, {{ sepBy s [doc1, doc2] }})" $
       wrap "doc.expr" $
       docOpen *> lexemes' docClose
+
+    nonNewlineSpace ch = isSpace ch && ch /= '\n' && ch /= '\r'
+
+    fencedBlock =
+      P.label "block eval (syntax: a fenced code block)" $
+      unison <|> other
+      where
+        unison = wrap "doc.evalBlock" $ do
+          -- commit after seeing that ``` is on its own line
+          fence <- P.try $ do
+            fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
+            b <- all isSpace <$> P.lookAhead (P.takeWhileP Nothing (/= '\n'))
+            fence <$ guard b
+          CP.space *>
+            local (\env -> env { inLayout = True, opening = Just "doc.evalBlock" })
+                  (lexemes' (end fence))
+          where end fence = do
+                  (start,_,end) <- positioned (lit fence)
+                  pure [Token Close start end]
+
+        other = wrap "doc.fenced" $ do
+          fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
+          name <- P.many (CP.satisfy nonNewlineSpace) *> tok wordyId
+          _ <- CP.space
+          verbatim <- tok $ Textual . trim <$> P.someTill CP.anyChar ([] <$ lit fence)
+          pure (name <> verbatim)
 
     boldOrItalic ok = do
       let start = some (CP.satisfy (== '*')) <|> some (CP.satisfy (== '_'))
