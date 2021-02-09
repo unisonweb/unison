@@ -54,7 +54,10 @@ data ParsingEnv =
   ParsingEnv { layout :: !Layout -- layout stack
              , opening :: Maybe BlockName -- `Just b` if a block of type `b` is being opened
              , inLayout :: Bool -- are we inside a construct that uses layout?
-             , parentSection :: Int } -- the number of # in the enclosing section, initially 0
+             , parentSection :: Int -- 1 means we are inside a # Heading 1
+             , parentListColumn :: Int -- 4 means we are inside a list starting
+                                       -- at the fourth column
+             }
 
 type P = P.ParsecT (Token Err) String (S.State ParsingEnv)
 
@@ -227,7 +230,7 @@ lexer0' scope rem =
   where
   customErrs es = [ Err <$> e | P.ErrorCustom e <- toList es ]
   toPos (P.SourcePos _ line col) = Pos (P.unPos line) (P.unPos col)
-  env0 = ParsingEnv [] (Just scope) True 0
+  env0 = ParsingEnv [] (Just scope) True 0 0
   -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
   -- fix without adding more state to the lexer:
   --   - 1+1 lexes as [1, +1], convert this to [1, +, 1]
@@ -289,8 +292,10 @@ lexemes' eof = P.optional space >> do
     pure r
     where
     body = join <$> P.many (sectionElem <* CP.space)
-    sectionElem = section <|> fencedBlock <|> paragraph
+    sectionElem = section <|> fencedBlock <|> list <|> paragraph
     paragraph = wrap "doc.paragraph" $ join <$> spaced leaf
+    oneLineParagraph = wrap "doc.paragraph" $
+      (join <$> P.some (leaf <* nonNewlineSpaces))
 
     reserved pos word =
       isPrefixOf "}}" word ||
@@ -330,8 +335,7 @@ lexemes' eof = P.optional space >> do
       then wrap "doc.verbatimBlock" $ pure [Token (Textual (trim txt)) start stop]
       else wrap "doc.verbatim" $ pure [Token (Textual txt) start stop]
 
-    trim = f . f
-      where
+    trim = f . f where
       f = reverse . dropThru
       dropThru = dropNl . dropWhile (\ch -> isSpace ch && ch /= '\n')
       dropNl ('\n':t) = t
@@ -361,6 +365,7 @@ lexemes' eof = P.optional space >> do
       docOpen *> lexemes' docClose
 
     nonNewlineSpace ch = isSpace ch && ch /= '\n' && ch /= '\r'
+    nonNewlineSpaces = P.takeWhileP Nothing nonNewlineSpace
 
     fencedBlock =
       P.label "block eval (syntax: a fenced code block)" $
@@ -421,10 +426,28 @@ lexemes' eof = P.optional space >> do
 
     spaced p = P.some (p <* P.optional sp)
     leafies close = wrap "doc.paragraph" $ join <$> spaced (leafy close)
-    --
-    -- bullets = wrap "doc.bullets" $ error "todo"
-    -- backticks = wrap "doc.backticks" $ error "todo"
-    --
+
+    list = bullets -- <|> numberedList
+
+    bullets = wrap "doc.bullets" $ join <$> P.sepBy1 bullet listSep
+    listSep = P.try $ newline *> P.lookAhead bulletStart
+
+    bulletStart = P.dbg "bulletStart" $ P.try $ do
+      nonNewlineSpaces
+      col <- column <$> pos
+      parentCol <- P.dbg "parentCol" $ S.gets parentListColumn
+      guard (col > parentCol)
+      col <$ (lit "*" <|> lit "-")
+
+    bullet = wrap "doc.bullet" . P.label "bullet (examples: * item1, - item2)" $ do
+      col <- bulletStart
+      p <- nonNewlineSpaces *> oneLineParagraph
+      subList <- P.dbg "subList" $
+        local (\e -> e { parentListColumn = col }) (P.optional $ listSep *> list)
+      pure (p <> fromMaybe [] subList)
+
+    newline = P.label "newline" $ lit "\n" <|> lit "\r\n"
+
 
     -- ## Section title
     --
@@ -434,7 +457,7 @@ lexemes' eof = P.optional space >> do
     -- ### A subsection title
     --
     -- A paragraph under this subsection.
-    --
+
     -- # A section title (not a subsection)
     section :: P [Token Lexeme]
     section = wrap "doc.section" $ do
@@ -445,6 +468,22 @@ lexemes' eof = P.optional space >> do
       body <- local (\env -> env { parentSection = m }) $
               P.many (sectionElem <* CP.space)
       pure $ title <> join body
+
+    {-
+    -- * this is a test
+    --   of the emerge
+    -- ** this is indented
+    bulleted :: P [Token Lexeme]
+    bulleted = wrap "doc.bulleted" $ do
+      n <- S.gets parentSection
+      hashes <- P.try $ lit (replicate n '*') *> P.takeWhile1P Nothing (== '#') <* sp
+      title <- wrap "doc.title" $ (paragraph <* CP.space)
+      let m = length hashes + n
+      subbullets <- local (\env -> env { parentSection = m }) $
+                          paragraph
+      pure $ title <> join body
+
+    -}
 
     wrap :: String -> P [Token Lexeme] -> P [Token Lexeme]
     wrap o p = do
