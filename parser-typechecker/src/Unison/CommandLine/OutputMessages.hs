@@ -1104,40 +1104,6 @@ formatMissingStuff terms types =
     <> "\n\n"
     <> P.column2 [ (P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
 
--- termsToSyntax
---   :: Var v
---   => Ord a
---   => Applicative m
---   => PPE.PrettyPrintEnvDecl
---   -> Map Reference.Reference (DisplayObject (Term v a))
---   -> Backend m (SyntaxText' ShortHash)
--- termsToSyntax ppe0 terms = map go . Map.toList $ Map.mapKeys
---   (first (PPE.termName ppeDecl . Referent.Ref) . dupe)
---   terms
---  where
---   ppeDecl = PPE.unsuffixifiedPPE ppe0
---   go ((n, r), dt) = case dt of
---     MissingObject r -> missingTerm n r
---     BuiltinObject   -> builtinTerm n
---     UserObject tm   -> TermPrinter.prettyBinding (ppeBody r) n tm
-
--- typesToSyntax
---   :: Var v
---   => Ord a
---   -> PPE.PrettyPrintEnvDecl
---   -> Map Reference.Reference (DisplayObject (DD.Decl v a))
---   -> DisplayObject (SyntaxText' ShortHash)
--- typesToSyntax ppe0 types = map go2 . Map.toList $ Map.mapKeys
---   (first (PPE.typeName ppeDecl) . dupe)
---   types
---  where
---   go2 ((n, r), dt) = case dt of
---     MissingObject r -> missing n r
---     BuiltinObject   -> builtin n
---     UserObject decl -> case decl of
---       Left  d -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
---       Right d -> DeclPrinter.prettyDataDecl (ppeBody r) r n d
-
 displayDefinitions' :: Var v => Ord a1
   => PPE.PrettyPrintEnvDecl
   -> Map Reference.Reference (DisplayObject (DD.Decl v a1))
