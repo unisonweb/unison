@@ -104,7 +104,7 @@ basicNames0' root path = (parseNames00, prettyPrintNames00)
         externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
         rootNames = Branch.toNames0 root0
         pathPrefixed = case path of
-          Path.Path (toList -> []) -> id
+          Path.Path (toList -> []) -> const mempty
           p -> Names.prefix0 (Path.toName p)
     -- parsing should respond to local and absolute names
     parseNames00 = currentPathNames0 <> absoluteRootNames0
@@ -226,8 +226,9 @@ termReferentsByShortHash codebase sh = do
 -- currentPathNames0 :: Path -> Names0
 -- currentPathNames0 = Branch.toNames0 . Branch.head . Branch.getAt
 
-getCurrentNames :: Path -> Branch m -> Names
-getCurrentNames path root = Names (basicPrettyPrintNames0 root path) mempty
+getCurrentPrettyNames :: Path -> Branch m -> Names
+getCurrentPrettyNames path root =
+  Names (basicPrettyPrintNames0 root path) mempty
 
 getCurrentParseNames :: Path -> Branch m -> Names
 getCurrentParseNames path root = Names (basicParseNames0 root path) mempty
@@ -412,9 +413,10 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth codebase query = do
   -- We might like to make sure that the user search terms get used as
   -- the names in the pretty-printer, but the current implementation
   -- doesn't.
-  let printNames = getCurrentNames (fromMaybe Path.empty relativeTo) branch
-      ppe        = PPE.fromNamesDecl hqLength printNames
-      width      = mayDefault renderWidth
+  let printNames =
+        getCurrentPrettyNames (fromMaybe Path.empty relativeTo) branch
+      ppe   = PPE.fromNamesDecl hqLength printNames
+      width = mayDefault renderWidth
       renderedDisplayTerms =
         Map.mapKeys Reference.toShortHash $ termsToSyntax width ppe terms
       renderedDisplayTypes =

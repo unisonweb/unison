@@ -268,7 +268,7 @@ loop = do
             L.Hash sh -> Just (HQ.HashOnly sh)
             _         -> Nothing
           hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-        let parseNames = Backend.getCurrentNames currentPath'' root'
+        let parseNames = Backend.getCurrentParseNames currentPath'' root'
         latestFile .= Just (Text.unpack sourceName, False)
         latestTypecheckedFile .= Nothing
         Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
@@ -1121,7 +1121,7 @@ loop = do
                   LatestFileLocation ->
                     fmap fst latestFile' <|> Just "scratch.u"
                 printNames =
-                  Backend.getCurrentNames currentPath'' root'
+                  Backend.getCurrentPrettyNames currentPath'' root'
                 ppe = PPE.fromNamesDecl hqLength printNames
             unless (null types && null terms) $
               eval . Notify $
