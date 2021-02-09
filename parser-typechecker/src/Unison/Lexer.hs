@@ -427,20 +427,42 @@ lexemes' eof = P.optional space >> do
     spaced p = P.some (p <* P.optional sp)
     leafies close = wrap "doc.paragraph" $ join <$> spaced (leafy close)
 
-    list = bullets -- <|> numberedList
+    list = bulletedList <|> numberedList
 
-    bullets = wrap "doc.bullets" $ join <$> P.sepBy1 bullet listSep
-    listSep = P.try $ newline *> P.lookAhead bulletStart
+    bulletedList = wrap "doc.bulletedList" $ join <$> P.sepBy1 bullet listSep
+    numberedList = wrap "doc.numberedList" $ join <$> P.sepBy1 numbered listSep
 
-    bulletStart = P.dbg "bulletStart" $ P.try $ do
+    listSep = P.try $ newline *> P.lookAhead (bulletedStart <|> numberedStart)
+
+    bulletedStart =
+      listItemStart' $ [] <$ CP.satisfy bulletChar
+      where
+        bulletChar ch = ch == '*' || ch == '-' || ch == '+'
+
+    numberedStart =
+      listItemStart' $ P.try (tok . fmap num $ LP.decimal <* lit ".")
+      where
+        num :: Word -> Lexeme
+        num n = Numeric (show n)
+
+    listItemStart' gutter = P.dbg "bulletStart" $ P.try $ do
       nonNewlineSpaces
       col <- column <$> pos
       parentCol <- P.dbg "parentCol" $ S.gets parentListColumn
       guard (col > parentCol)
-      col <$ (lit "*" <|> lit "-")
+      (col,) <$> gutter
 
-    bullet = wrap "doc.bullet" . P.label "bullet (examples: * item1, - item2)" $ do
-      col <- bulletStart
+    numbered = wrap "doc.listItem" . P.label msg $ do
+      (col,s) <- numberedStart
+      p <- nonNewlineSpaces *> oneLineParagraph
+      subList <- P.dbg "subList" $
+        local (\e -> e { parentListColumn = col }) (P.optional $ listSep *> list)
+      pure (s <> p <> fromMaybe [] subList)
+      where
+        msg = "numbered list (examples: 1. item1, 8. start numbering at '8')"
+
+    bullet = wrap "doc.listItem" . P.label "bullet (examples: * item1, - item2)" $ do
+      (col,_) <- bulletedStart
       p <- nonNewlineSpaces *> oneLineParagraph
       subList <- P.dbg "subList" $
         local (\e -> e { parentListColumn = col }) (P.optional $ listSep *> list)
@@ -468,22 +490,6 @@ lexemes' eof = P.optional space >> do
       body <- local (\env -> env { parentSection = m }) $
               P.many (sectionElem <* CP.space)
       pure $ title <> join body
-
-    {-
-    -- * this is a test
-    --   of the emerge
-    -- ** this is indented
-    bulleted :: P [Token Lexeme]
-    bulleted = wrap "doc.bulleted" $ do
-      n <- S.gets parentSection
-      hashes <- P.try $ lit (replicate n '*') *> P.takeWhile1P Nothing (== '#') <* sp
-      title <- wrap "doc.title" $ (paragraph <* CP.space)
-      let m = length hashes + n
-      subbullets <- local (\env -> env { parentSection = m }) $
-                          paragraph
-      pure $ title <> join body
-
-    -}
 
     wrap :: String -> P [Token Lexeme] -> P [Token Lexeme]
     wrap o p = do
