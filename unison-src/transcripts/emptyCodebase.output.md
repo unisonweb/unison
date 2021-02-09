@@ -9,9 +9,7 @@ BEHOLD!!!
 ```ucm
 .> ls
 
-  ⚠️
-  
-  The namespace . doesn't exist.
+  nothing to show
 
 ```
 Technically, the definitions all exist, but they have no names. `builtins.merge` brings them into existence, under the current namespace:
