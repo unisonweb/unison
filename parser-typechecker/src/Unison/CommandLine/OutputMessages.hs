@@ -1676,7 +1676,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
     10. ┌ oldn'busted : Nat -> Nat -> Poop
     11. └ oldn'busted'
     12.  ability BadType
-    13.  patch defunctObjecty
+    13.  patch defunctThingy
 	-}
   prettyRemoveTypes :: [OBD.RemovedTypeDisplay v a] -> Numbered Pretty
   prettyRemoveTypes = fmap P.lines . traverse prettyGroup where
