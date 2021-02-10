@@ -76,8 +76,7 @@ import U.Codebase.Sqlite.LocalIds
     LocalIds' (..),
     LocalPatchObjectId (..),
     LocalTextId (..),
-    WatchLocalIds,
-  )
+    )
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Patch.Diff as S
@@ -712,12 +711,12 @@ saveWatch w r t = do
   let bytes = S.putBytes (S.putPair S.putLocalIds S.putTerm) wterm
   Q.saveWatch w rs bytes
 
-c2wTerm :: DB m => C.Term Symbol -> m (WatchLocalIds, S.Term.Term)
-c2wTerm tm = c2xTerm Q.saveText Q.saveHashHash tm Nothing <&> \(w, tm, _) -> (w, tm)
+c2wTerm :: EDB m => C.Term Symbol -> m (LocalIds, S.Term.Term)
+c2wTerm tm = c2xTerm Q.saveText primaryHashToExistingObjectId tm Nothing <&> \(w, tm, _) -> (w, tm)
 
-w2cTerm :: EDB m => WatchLocalIds -> S.Term.Term -> m (C.Term Symbol)
+w2cTerm :: EDB m => LocalIds -> S.Term.Term -> m (C.Term Symbol)
 w2cTerm ids tm = do
-  (substText, substHash) <- localIdsToLookups loadTextById loadHashByHashId ids
+  (substText, substHash) <- localIdsToLookups loadTextById loadHashByObjectId ids
   pure $ x2cTerm substText substHash tm
 
 -- ** Saving & loading type decls

@@ -85,13 +85,9 @@ type TypeHashReference = Reference' TextId HashId
 
 createSchema :: (DB m, MonadUnliftIO m) => m ()
 createSchema = do
-  when debug $ traceM "--- CREATING SCHEMA ---"
   withImmediateTransaction . traverse_ (execute_ . fromString) $
     List.splitOn ";" [hereFile|sql/create.sql|]
       <> List.splitOn ";" [hereFile|sql/create-index.sql|]
-
-debug :: Bool
-debug = False
 
 setFlags :: DB m => m ()
 setFlags = execute_ "PRAGMA foreign_keys = ON;"
@@ -389,9 +385,9 @@ getReferentsByType r = query sql r where sql = [here|
     term_referent_component_index,
     term_referent_constructor_index
   FROM find_type_index
-  WHERE type_reference_builtin = ?
-    AND type_reference_hash_id = ?
-    AND type_reference_component_index = ?
+  WHERE type_reference_builtin IS ?
+    AND type_reference_hash_id IS ?
+    AND type_reference_component_index IS ?
 |]
 
 getTypeReferenceForReference :: EDB m => Reference.Id -> m (Reference' TextId HashId)
@@ -428,9 +424,9 @@ getReferentsByTypeMention r = query sql r where sql = [here|
     term_referent_component_index,
     term_referent_constructor_index
   FROM find_type_mentions_index
-  WHERE type_reference_builtin = ?
-    AND type_reference_hash_id = ?
-    AND type_reference_component_index = ?
+  WHERE type_reference_builtin IS ?
+    AND type_reference_hash_id IS ?
+    AND type_reference_component_index IS ?
 |]
 
 addToDependentsIndex :: DB m => Reference.Reference -> Reference.Id -> m ()
@@ -450,16 +446,16 @@ getDependentsForDependency :: DB m => Reference.Reference -> m [Reference.Id]
 getDependentsForDependency dependency = query sql dependency where sql = [here|
   SELECT dependent_object_id, dependent_component_index
   FROM dependents_index
-  WHERE dependency_builtin = ?
-    AND dependency_object_id = ?
-    AND dependency_component_index = ?
+  WHERE dependency_builtin IS ?
+    AND dependency_object_id IS ?
+    AND dependency_component_index IS ?
 |]
 
 getDependencyIdsForDependent :: DB m => Reference.Id -> m [Reference.Id]
 getDependencyIdsForDependent dependent = query sql dependent where sql = [here|
   SELECT dependency_object_id, dependency_component_index
   FROM dependents_index
-  WHERE dependency_builtin = NULL
+  WHERE dependency_builtin IS NULL
     AND dependent_object_id = ?
     AND dependen_component_index = ?
 |]
