@@ -1617,12 +1617,17 @@ loop = do
         unless updated (respond $ NothingToPatch patchPath scopePath)
 
       ExecuteI main -> addRunMain main uf >>= \case
-        Nothing -> do
+        NoTermWithThatName -> do
           names0 <- basicPrettyPrintNames0
           ppe <- prettyPrintEnv (Names3.Names names0 mempty)
           mainType <- eval RuntimeMain
           respond $ NoMainFunction main ppe [mainType]
-        Just unisonFile -> do
+        TermHasBadType ty -> do
+          names0 <- basicPrettyPrintNames0
+          ppe <- prettyPrintEnv (Names3.Names names0 mempty)
+          mainType <- eval RuntimeMain
+          respond $ BadMainFunction main ty ppe [mainType]
+        RunMainSuccess unisonFile -> do
           ppe <- executePPE unisonFile
           e <- eval $ Execute ppe unisonFile
 
@@ -2853,6 +2858,11 @@ basicNames0' = do
       prettyPrintNames00 = currentAndExternalNames0
   pure (parseNames00, prettyPrintNames00)
 
+data AddRunMainResult v
+  = NoTermWithThatName
+  | TermHasBadType (Type v Ann)
+  | RunMainSuccess (TypecheckedUnisonFile  v Ann)
+
 -- Given a typechecked file with a main function called `mainName`
 -- of the type `'{IO} ()`, adds an extra binding which
 -- forces the `main` function.
@@ -2863,7 +2873,7 @@ addRunMain
   :: (Monad m, Var v)
   => String
   -> Maybe (TypecheckedUnisonFile v Ann)
-  -> Action' m v (Maybe (TypecheckedUnisonFile v Ann))
+  -> Action' m v (AddRunMainResult v)
 addRunMain mainName Nothing = do
   parseNames0 <- basicParseNames0
   let loadTypeOfTerm ref = eval $ LoadTypeOfTerm ref
@@ -2871,10 +2881,10 @@ addRunMain mainName Nothing = do
   mainToFile <$>
     MainTerm.getMainTerm loadTypeOfTerm parseNames0 mainName mainType
   where
-    mainToFile (MainTerm.NotAFunctionName _) = Nothing
-    mainToFile (MainTerm.NotFound _) = Nothing
-    mainToFile (MainTerm.BadType _) = Nothing
-    mainToFile (MainTerm.Success hq tm typ) = Just $
+    mainToFile (MainTerm.NotAFunctionName _) = NoTermWithThatName
+    mainToFile (MainTerm.NotFound _) = NoTermWithThatName
+    mainToFile (MainTerm.BadType _ ty) = maybe NoTermWithThatName TermHasBadType ty
+    mainToFile (MainTerm.Success hq tm typ) = RunMainSuccess $
       let v = Var.named (HQ.toText hq) in
       UF.typecheckedUnisonFile mempty mempty mempty [("main",[(v, tm, typ)])] -- mempty
 addRunMain mainName (Just uf) = do
@@ -2886,14 +2896,14 @@ addRunMain mainName (Just uf) = do
       v2 = Var.freshIn (Set.fromList [v]) v
       a = ABT.annotation tm
       in
-      if Typechecker.isSubtype mainType ty then Just $ let
+      if Typechecker.isSubtype mainType ty then RunMainSuccess $ let
         runMain = DD.forceTerm a a (Term.var a v)
         in UF.typecheckedUnisonFile
              (UF.dataDeclarationsId' uf)
              (UF.effectDeclarationsId' uf)
              (UF.topLevelComponents' uf)
              (UF.watchComponents uf <> [("main", [(v2, runMain, mainType)])])
-      else Nothing
+      else TermHasBadType ty
     _ -> addRunMain mainName Nothing
 
 executePPE

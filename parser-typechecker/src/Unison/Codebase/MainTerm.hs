@@ -27,7 +27,7 @@ import           Unison.Runtime.IOSource        ( ioReference )
 data MainTerm v
   = NotAFunctionName String
   | NotFound String
-  | BadType String
+  | BadType String (Maybe (Type v Ann))
   | Success HQ.HashQualified (Term v Ann) (Type v Ann)
 
 getMainTerm
@@ -49,10 +49,12 @@ getMainTerm loadTypeOfTerm parseNames0 mainName mainType =
           typ <- loadTypeOfTerm ref
           traceShowM typ
           case typ of
-            Just typ | Typechecker.isSubtype mainType typ -> do
-              let tm = DD.forceTerm a a (Term.ref a ref)
-              return (Success hq tm typ)
-            _ -> pure (BadType mainName)
+            Just typ ->
+              if Typechecker.isSubtype mainType typ then do
+                let tm = DD.forceTerm a a (Term.ref a ref)
+                return (Success hq tm typ)
+              else pure (BadType mainName $ Just typ)
+            _ -> pure (BadType mainName Nothing)
         _ -> pure (NotFound mainName)
 
 -- forall a. '{IO} a

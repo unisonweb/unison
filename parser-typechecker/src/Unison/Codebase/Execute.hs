@@ -49,7 +49,7 @@ execute codebase runtime mainName =
     case mt of
       MainTerm.NotAFunctionName s -> die ("Not a function name: " ++ s)
       MainTerm.NotFound s -> die ("Not found: " ++ s)
-      MainTerm.BadType s -> die (s ++ " is not of type '{IO} ()")
+      MainTerm.BadType s _ -> die (s ++ " is not of type '{IO} ()")
       MainTerm.Success _ tm _ -> do
         let codeLookup = Codebase.toCodeLookup codebase
             ppe = PPE.PrettyPrintEnv (const Nothing) (const Nothing)
