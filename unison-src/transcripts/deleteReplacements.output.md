@@ -130,3 +130,75 @@ type Foo = Foo | Bar
   This patch is empty.
 
 ```
+```unison
+bar = 3
+type bar = Foo
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type bar
+      bar : ##Nat
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    type bar
+    bar : ##Nat
+
+```
+```unison
+type bar = Foo | Bar
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      type bar
+        (also named Foo)
+
+```
+```ucm
+.> update
+
+  ⍟ I've updated these names to your new definition:
+  
+    type bar
+      (also named Foo)
+
+.> view.patch
+
+  Edited Types: bar#568rsi7o3g -> Foo
+  
+  Tip: To remove entries from a patch, use
+       delete.term-replacement or delete.type-replacement, as
+       appropriate.
+
+.> delete.type-replacement bar
+
+  Done.
+
+.> view.patch
+
+  Edited Types: bar#568rsi7o3g -> Foo
+  
+  Tip: To remove entries from a patch, use
+       delete.term-replacement or delete.type-replacement, as
+       appropriate.
+
+```
