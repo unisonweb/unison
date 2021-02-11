@@ -360,8 +360,39 @@ termLeaf =
     , docBlock
     ]
 
-
+-- Syntax for documentation v2 blocks, which are surrounded by {{ }}.
+-- The lexer does most of the heavy lifting so there's not a lot for
+-- the parser to do. For instance, in
 --
+--   {{
+--   Hi there!
+--
+--   goodbye.
+--   }}
+--
+-- the lexer will produce:
+--
+-- [Open "syntax.doc.elements",
+--    Open "syntax.doc.paragraph",
+--      Open "syntax.doc.word", Textual "Hi", Close,
+--      Open "syntax.doc.word", Textual "there!", Close,
+--    Close
+--    Open "syntax.doc.paragraph",
+--      Open "syntax.doc.word", Textual "goodbye", Close,
+--    Close
+--  Close]
+--
+-- The parser will parse this into the Unison expression:
+--
+--   syntax.doc.elements [
+--     syntax.doc.paragraph [syntax.doc.word "Hi", syntax.doc.word "there!"],
+--     syntax.doc.paragraph [syntax.doc.word "goodbye"]
+--   ]
+--
+-- Where `syntax.doc.{elements,paragraph,...}` are all ordinary term variables
+-- that will be looked up in the environment like anything else. This means that
+-- the documentation syntax can have its meaning changed by overriding what functions
+-- the names `syntax.doc.*` correspond to.
 doc2Block :: forall v . Var v => TermP v
 doc2Block =
   P.lookAhead (openBlockWith "syntax.doc.elements") *> elem
@@ -370,13 +401,16 @@ doc2Block =
   elem = text <|> do
     t <- openBlock
     let
+      -- here, `t` will be something like `Open "syntax.doc.word"`
+      -- so `f` will be a term var with the name "syntax.doc.word".
       f = Term.var (ann t) (Var.nameds (L.payload t))
-      variadic = do
-        cs <- P.many elem <* closeBlock
-        pure $ Term.apps' f [Term.seq (ann cs) cs]
+      -- some common syntactic forms used for parsing child elements
       regular = do
         cs <- P.many elem <* closeBlock
         pure $ Term.apps' f cs
+      variadic = do
+        cs <- P.many elem <* closeBlock
+        pure $ Term.apps' f [Term.seq (ann cs) cs]
       sectionLike = do
         arg1 <- elem
         cs <- P.many elem <* closeBlock
@@ -410,7 +444,13 @@ doc2Block =
       "syntax.doc.source.type" -> do
         r <- typeLink'
         pure $ Term.apps' f [Term.typeLink (ann r) (L.payload r)]
-      "syntax.doc.example" -> undefined -- something fancy here, so ``List.map f xs``
+      "syntax.doc.example" -> term <&> \case
+        tm@(Term.Apps' f xs) ->
+          let fvs = List.Extra.nubOrd $ concatMap (toList . Term.freeVars) xs
+              n = Term.nat (ann tm) (1 + fromIntegral (length fvs))
+              lam = addDelay $ Term.lam' (ann tm) fvs tm
+          in  Term.apps' f [n, lam]
+        tm -> Term.apps' f [Term.nat (ann tm) 1, addDelay tm]
       "syntax.doc.transclude" -> evalLike id
       "syntax.doc.eval" -> evalLike addDelay
       "syntax.doc.evalBlock" -> do
