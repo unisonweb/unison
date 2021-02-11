@@ -360,6 +360,64 @@ termLeaf =
     , docBlock
     ]
 
+
+--
+doc2Block :: forall v . Var v => TermP v
+doc2Block =
+  P.lookAhead (openBlockWith "syntax.doc.elements") *> elem
+  where
+  elem :: TermP v
+  elem = text <|> do
+    t <- openBlock
+    let
+      f = Term.var (ann t) (Var.nameds (L.payload t))
+      variadic = do
+        cs <- P.many elem <* closeBlock
+        pure $ Term.apps' f [Term.seq (ann cs) cs]
+      regular = do
+        cs <- P.many elem <* closeBlock
+        pure $ Term.apps' f cs
+      sectionLike = do
+        arg1 <- elem
+        cs <- P.many elem <* closeBlock
+        pure $ Term.apps' f [arg1, Term.seq (ann cs) cs]
+      evalLike wrap = do
+        tm <- term <* closeBlock
+        pure $ Term.apps' f [wrap tm]
+      addDelay tm = Term.delay (ann tm) tm
+      nitem = do
+        _ <- openBlockWith "syntax.doc.listItem"
+        n <- number
+        paragraph <- elem
+        children <- P.many elem <* closeBlock
+        pure (n, Term.apps' f [paragraph, Term.seq (ann children) children])
+    case L.payload t of
+      "syntax.doc.elements" -> variadic
+      "syntax.doc.paragraph" -> variadic
+      "syntax.doc.bulletedList" -> sectionLike
+      "syntax.doc.numberedList" -> do
+        nitems@((n,_):_) <- P.some nitem <* closeBlock
+        let items = snd <$> nitems
+        pure $ Term.apps' f [n, Term.seq (ann items) items]
+      "syntax.doc.section" -> sectionLike
+      -- @source{ type Blah, foo, type Bar }
+      "syntax.doc.source" -> do
+        cs <- P.sepBy1 elem (reserved ",") <* closeBlock
+        pure $ Term.apps' f [Term.seq (ann cs) cs]
+      "syntax.doc.source.term" -> do
+        tm <- addDelay <$> hashQualifiedPrefixTerm
+        pure $ Term.apps' f [tm]
+      "syntax.doc.source.type" -> do
+        r <- typeLink'
+        pure $ Term.apps' f [Term.typeLink (ann r) (L.payload r)]
+      "syntax.doc.example" -> undefined -- something fancy here, so ``List.map f xs``
+      "syntax.doc.transclude" -> evalLike id
+      "syntax.doc.eval" -> evalLike addDelay
+      "syntax.doc.evalBlock" -> do
+        tm <- block' False "syntax.doc.evalBlock" (pure (void t)) closeBlock
+        pure $ Term.apps' f [addDelay tm]
+      _ -> regular
+
 docBlock :: Var v => TermP v
 docBlock = do
   openTok <- openBlockWith "[:"

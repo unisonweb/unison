@@ -285,7 +285,7 @@ lexemes' eof = P.optional space >> do
              pure [Token a start stop]
 
   doc2 :: P [Token Lexeme]
-  doc2 = do
+  doc2 = wrap "doc" $ do
     _ <- lit "{{" >> CP.space
     r <- local (\env -> env { inLayout = False }) body
     _ <- lit "}}" >> space
@@ -445,17 +445,17 @@ lexemes' eof = P.optional space >> do
         num :: Word -> Lexeme
         num n = Numeric (show n)
 
-    listItemStart' gutter = P.dbg "bulletStart" $ P.try $ do
+    listItemStart' gutter = P.try $ do
       nonNewlineSpaces
       col <- column <$> pos
-      parentCol <- P.dbg "parentCol" $ S.gets parentListColumn
+      parentCol <- S.gets parentListColumn
       guard (col > parentCol)
       (col,) <$> gutter
 
     numbered = wrap "doc.listItem" . P.label msg $ do
       (col,s) <- numberedStart
       p <- nonNewlineSpaces *> oneLineParagraph
-      subList <- P.dbg "subList" $
+      subList <-
         local (\e -> e { parentListColumn = col }) (P.optional $ listSep *> list)
       pure (s <> p <> fromMaybe [] subList)
       where
@@ -464,7 +464,7 @@ lexemes' eof = P.optional space >> do
     bullet = wrap "doc.listItem" . P.label "bullet (examples: * item1, - item2)" $ do
       (col,_) <- bulletedStart
       p <- nonNewlineSpaces *> oneLineParagraph
-      subList <- P.dbg "subList" $
+      subList <-
         local (\e -> e { parentListColumn = col }) (P.optional $ listSep *> list)
       pure (p <> fromMaybe [] subList)
 
