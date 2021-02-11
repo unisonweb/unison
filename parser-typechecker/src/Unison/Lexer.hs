@@ -884,13 +884,50 @@ stanzas = go [] where
 -- Moves type and effect declarations to the front of the token stream
 -- and move `use` statements to the front of each block
 reorder :: [T (Token Lexeme)] -> [T (Token Lexeme)]
-reorder = join . sortWith f . stanzas
+reorder = join . sortWith f . wrangle . debug . stanzas
   where
+    debug s | traceShow (fmap (fmap payload) <$> s) False = undefined
+    debug s = s
+    -- {{ some docs }}
+    -- type Foo
+    --
+    --   Becomes
+    --
+    -- Foo.doc = {{ some docs }}
+    -- type Foo
+    --
+    wrangle :: [[T (Token Lexeme)]] -> [[T (Token Lexeme)]]
+    wrangle [] = []
+    wrangle ((h1:t1):(h2@(symbolName -> Just name)):t) =
+      if payload (headToken h1) == Open "syntax.doc" then
+        let p = [ doc name <$ headToken h1, Open "=" <$ headToken h1 ]
+        in (consPreorder p h1 : t1) : h2 : wrangle t
+      else (h1:t1) : wrangle (h2:t)
+      where
+        doc (WordyId w _sh) = WordyId (w <> ".doc") Nothing
+        doc a = a
+        consPreorder :: [a] -> T a -> T a
+        consPreorder = go where
+          go [] t = t
+          go (h:hs) (L a) = go hs (T h [L a] [])
+          go (h:hs) (T root mid trail) = go hs (T h (L root : mid) trail)
+
+    wrangle (h:t) = h : wrangle t
+
+    symbolName :: [T (Token Lexeme)] -> Maybe Lexeme
+    symbolName ts = go (map payload . join $ toList <$> ts) where
+      go (Open "type" : h : _) = Just h
+      go (Open "ability" : h : _) = Just h
+      go (Open "unique" : Reserved _braceL : _guid : _braceR : _typ : h : _) = Just h
+      go (Open "unique" : _typ : h : _) = Just h
+      go _ = Nothing
+
     f [] = 3 :: Int
-    f (t : _) = case payload $ headToken t of
+    f (t0 : ts) = case payload $ headToken t0 of
       Open "type" -> 1
       Open "unique" -> 1
       Open "ability" -> 1
+      Open "syntax.doc" -> f ts
       Reserved "use" -> 0
       _ -> 3 :: Int
 
