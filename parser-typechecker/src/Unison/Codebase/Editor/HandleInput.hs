@@ -118,6 +118,7 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Builtin as Builtin
+import qualified Unison.Builtin.Terms          as Builtin
 import Unison.NameSegment (NameSegment(..))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -1675,7 +1676,8 @@ loop = do
         -- added again.
         let uf = UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
                                           (Map.fromList Builtin.builtinEffectDecls)
-                                          mempty mempty
+                                          [Builtin.builtinTermsSrc Intrinsic]
+                                          mempty
         eval $ AddDefsToCodebase uf
         -- add the names; note, there are more names than definitions
         -- due to builtin terms; so we don't just reuse `uf` above.
@@ -1689,7 +1691,8 @@ loop = do
         -- added again.
         let uf = UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
                                           (Map.fromList Builtin.builtinEffectDecls)
-                                          mempty mempty
+                                          [Builtin.builtinTermsSrc Intrinsic]
+                                          mempty
         eval $ AddDefsToCodebase uf
         -- these have not necessarily been added yet
         eval $ AddDefsToCodebase IOSource.typecheckedFile'
