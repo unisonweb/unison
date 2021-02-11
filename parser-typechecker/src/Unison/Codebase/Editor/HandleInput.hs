@@ -118,7 +118,7 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Builtin as Builtin
-import qualified Unison.Builtin.Terms          as Builtin
+import qualified Unison.Builtin.Terms as Builtin
 import Unison.NameSegment (NameSegment(..))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -1627,8 +1627,8 @@ loop = do
           e <- eval $ Execute ppe unisonFile
 
           case e of
-            Left e -> respond $ EvaluationFailure e 
-            Right _ -> pure () -- TODO 
+            Left e -> respond $ EvaluationFailure e
+            Right _ -> pure () -- TODO
 
       IOTestI main -> do
         testType <- eval RuntimeTest
@@ -1660,7 +1660,7 @@ loop = do
                          tm' <- eval $ Evaluate1 ppe tm
                          case tm' of
                            Left e -> respond (EvaluationFailure e)
-                           Right tm' -> 
+                           Right tm' ->
                                respond $ TestResults Output.NewlyComputed ppe True True (oks [(ref, tm')]) (fails [(ref, tm')])
                    _ -> respond $ NoMainFunction "main" ppe [testType]
                _ -> respond $ NoMainFunction "main" ppe [testType]

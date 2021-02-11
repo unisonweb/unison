@@ -100,10 +100,10 @@ data SyncFileCodebaseResult = SyncOk | UnknownDestinationRootBranch Branch.Hash 
 -- | Write all of the builtins types into the codebase and create empty namespace
 initializeCodebase :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
 initializeCodebase c = do
-  let uf = UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
-                                    (Map.fromList Builtin.builtinEffectDecls)
-                                    [Builtin.builtinTermsSrc Parser.Intrinsic]
-                                    mempty
+  let uf = (UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
+                                     (Map.fromList Builtin.builtinEffectDecls)
+                                     [Builtin.builtinTermsSrc Parser.Intrinsic]
+                                     mempty)
   addDefsToCodebase c uf
   putRootBranch c (Branch.one Branch.empty0)
 

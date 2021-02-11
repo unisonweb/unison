@@ -61,7 +61,8 @@ names0 = Names3.names0 terms types where
                  | (ct, (_,(r,decl))) <- ((CT.Data,) <$> builtinDataDecls @Symbol) <>
                     ((CT.Effect,) . (second . second) DD.toDataDecl <$> builtinEffectDecls)
                  , ((_,vc,_), cid) <- DD.constructors' decl `zip` [0..]] <>
-    Rel.fromList [ (Name.fromVar v, Referent.Ref (R.DerivedId i)) | (v,i) <- Map.toList $ TD.builtinTermsRef @Symbol Intrinsic]
+    Rel.fromList [ (Name.fromVar v, Referent.Ref (R.DerivedId i)) 
+                 | (v,i) <- Map.toList $ TD.builtinTermsRef @Symbol Intrinsic]
   types = Rel.fromList builtinTypes <>
     Rel.fromList [ (Name.fromVar v, R.DerivedId r)
                  | (v,(r,_)) <- builtinDataDecls @Symbol ] <>

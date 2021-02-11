@@ -31,4 +31,6 @@ v :: Var v => Text -> v
 v = Var.named
 
 builtinTermsRef :: Var v => a -> Map v Reference.Id
-builtinTermsRef a = fmap fst . Term.hashComponents . Map.fromList . fmap (\(v, tm, _tp) -> (v, tm)) $ builtinTermsSrc a
+builtinTermsRef a = fmap fst . Term.hashComponents . Map.fromList
+    . fmap (\(v, tm, _tp) -> (v, tm))
+    $ builtinTermsSrc a

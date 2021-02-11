@@ -40,7 +40,8 @@ pairRef = lookupDeclRef "Tuple"
 optionalRef = lookupDeclRef "Optional"
 eitherRef = lookupDeclRef "Either"
 
-isPropagatedRef, isTestRef, testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef, failureRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
+testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef, failureRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
+isPropagatedRef, isTestRef :: Reference
 isPropagatedRef = lookupDeclRef "IsPropagated"
 isTestRef = lookupDeclRef "IsTest"
 testResultRef = lookupDeclRef "Test.Result"
@@ -68,7 +69,8 @@ constructorId ref name = do
   (_,_,dd) <- find (\(_,r,_) -> Reference.DerivedId r == ref) (builtinDataDecls @Symbol)
   elemIndex name $ DD.constructorNames dd
 
-isPropagatedConstructorId, isTestConstructorId, okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId :: ConstructorId
+okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId :: ConstructorId
+isPropagatedConstructorId, isTestConstructorId :: ConstructorId 
 Just isPropagatedConstructorId = constructorId isPropagatedRef "IsPropagated.IsPropagated"
 Just isTestConstructorId = constructorId isTestRef "IsTest.IsTest"
 Just okConstructorId = constructorId testResultRef "Test.Result.Ok"
