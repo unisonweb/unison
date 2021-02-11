@@ -285,7 +285,7 @@ lexemes' eof = P.optional space >> do
              pure [Token a start stop]
 
   doc2 :: P [Token Lexeme]
-  doc2 = wrap "doc" $ do
+  doc2 = wrap "syntax.doc" $ do
     _ <- lit "{{" >> CP.space
     r <- local (\env -> env { inLayout = False }) body
     _ <- lit "}}" >> space
@@ -293,15 +293,15 @@ lexemes' eof = P.optional space >> do
     where
     body = join <$> P.many (sectionElem <* CP.space)
     sectionElem = section <|> fencedBlock <|> list <|> paragraph
-    paragraph = wrap "doc.paragraph" $ join <$> spaced leaf
-    oneLineParagraph = wrap "doc.paragraph" $
+    paragraph = wrap "syntax.doc.paragraph" $ join <$> spaced leaf
+    oneLineParagraph = wrap "syntax.doc.paragraph" $
       (join <$> P.some (leaf <* nonNewlineSpaces))
 
     reserved pos word =
       isPrefixOf "}}" word ||
       (column pos == 1 && isPrefixOf "#" word)
 
-    wordy ok = wrap "doc.word" . tok . fmap Textual . P.try $ do
+    wordy ok = wrap "syntax.doc.word" . tok . fmap Textual . P.try $ do
       let end = P.lookAhead $ void docClose
                           <|> void (CP.satisfy isSpace)
                           <|> void (CP.satisfy (not . ok))
@@ -310,21 +310,50 @@ lexemes' eof = P.optional space >> do
       guard (not $ reserved pos word)
       pure word
 
-    leafy ok = link <|> externalLink <|> ticked <|> expr
-           <|> atDoc <|> boldOrItalic ok <|> verbatim <|> wordy ok
+    leafy ok = groupy ok gs <|> atDoc <|> wordy ok
+          where
+          gs = link <|> externalLink <|> ticked <|> expr
+           <|> boldOrItalic ok <|> verbatim
+
     leaf = leafy (const True)
 
     atDoc = src <|> eval
       where
-        src = wrap "doc.source" $ do
+        comma = lit "," <* CP.space
+        src = wrap "syntax.doc.source" $ do
           _ <- lit "@source" *> (lit " {" <|> lit "{")
-          s <- join <$> P.some (tok (wordyId <|> symbolyId) <* CP.space)
+          s <- join <$> P.sepBy1 (typeLink <|> termLink) comma
           _ <- lit "}"
           pure s
-        eval = wrap "doc.eval" $ do
+        eval = wrap "syntax.doc.eval" $ do
           _ <- lit "@eval" *> (lit " {" <|> lit "{") *> CP.space
+          let inlineEvalClose  = [] <$ lit "}"
           s <- lexemes' inlineEvalClose
           pure s
+
+    typeLink = wrap "syntax.doc.typeLink" $ do
+      _ <- lit "type" <|> lit "ability"
+      tok (wordyId <|> symbolyId) <* CP.space
+
+    termLink = wrap "syntax.doc.termLink" $
+      tok (wordyId <|> symbolyId) <* CP.space
+
+    groupy ok p = do
+      (start,p,stop) <- positioned p
+      after <- P.optional . P.try $ do
+        t <- leafy ok
+        let
+          touches' [last] (h:_) = touches last h
+          touches' (_:t) s = touches' t s
+          touches' _ _ = False
+        guard (touches' p t)
+        pure t
+      pure $ case after of
+        Nothing -> p
+        Just after ->
+          [Token (Open "syntax.doc.group") start stop'] <> p <> after <>
+          [Token Close stop' stop']
+          where stop' = maybe stop end (lastMay after)
 
     verbatim =
       P.label "inline verbatim text (examples: ''**unformatted**'', '''_words_''')" $ do
@@ -332,8 +361,8 @@ lexemes' eof = P.optional space >> do
         quotes <- lit "''" <+> many (CP.satisfy (== '\''))
         P.someTill CP.anyChar (lit quotes)
       if all isSpace $ takeWhile (/= '\n') txt
-      then wrap "doc.verbatimBlock" $ pure [Token (Textual (trim txt)) start stop]
-      else wrap "doc.verbatim" $ pure [Token (Textual txt) start stop]
+      then wrap "syntax.doc.verbatimBlock" $ pure [Token (Textual (trim txt)) start stop]
+      else wrap "syntax.doc.verbatim" $ pure [Token (Textual txt) start stop]
 
     trim = f . f where
       f = reverse . dropThru
@@ -343,7 +372,7 @@ lexemes' eof = P.optional space >> do
 
     ticked =
       P.label "inline code (examples: ``List.map f xs``, ``[1] :+ 2``)" $
-      wrap "doc.example" $ do
+      wrap "syntax.doc.example" $ do
         n <- P.try $ do _ <- lit "`"
                         length <$> P.takeWhile1P (Just "backticks") (== '`')
         let end :: P [Token Lexeme] = [] <$ lit (replicate (n+1) '`')
@@ -352,16 +381,15 @@ lexemes' eof = P.optional space >> do
 
     docClose = [] <$ lit "}}"
     docOpen  = [] <$ lit "{{"
-    inlineEvalClose  = [] <$ lit "}"
 
     link =
-      P.label "link (examples: {List}, {Nat.+})" $
+      P.label "link (examples: {type List}, {Nat.+})" $
       wrap "doc.link" $
-      P.try $ lit "{" *> tok (wordyId <|> symbolyId) <* lit "}"
+      P.try $ lit "{" *> (typeLink <|> termLink) <* lit "}"
 
     expr =
       P.label "transclusion (examples: {{ doc2 }}, {{ sepBy s [doc1, doc2] }})" $
-      wrap "doc.expr" $
+      wrap "syntax.doc.transclude" $
       docOpen *> lexemes' docClose
 
     nonNewlineSpace ch = isSpace ch && ch /= '\n' && ch /= '\r'
@@ -371,7 +399,7 @@ lexemes' eof = P.optional space >> do
       P.label "block eval (syntax: a fenced code block)" $
       unison <|> other
       where
-        unison = wrap "doc.evalBlock" $ do
+        unison = wrap "syntax.doc.evalBlock" $ do
           -- commit after seeing that ``` is on its own line
           fence <- P.try $ do
             fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
@@ -384,7 +412,7 @@ lexemes' eof = P.optional space >> do
                   (start,_,end) <- positioned (lit fence)
                   pure [Token Close start end]
 
-        other = wrap "doc.fenced" $ do
+        other = wrap "syntax.doc.fenced" $ do
           fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
           name <- P.many (CP.satisfy nonNewlineSpace) *> tok wordyId
           _ <- CP.space
@@ -393,7 +421,7 @@ lexemes' eof = P.optional space >> do
 
     boldOrItalic ok = do
       let start = some (CP.satisfy (== '*')) <|> some (CP.satisfy (== '_'))
-          name s = if length s > 1 then "doc.bold" else "doc.italic"
+          name s = if length s > 1 then "syntax.doc.bold" else "syntax.doc.italic"
       (end,ch) <- P.try $ do
         end@(ch:_) <- start
         P.lookAhead (CP.satisfy (not . isSpace))
@@ -402,12 +430,12 @@ lexemes' eof = P.optional space >> do
 
     externalLink =
       P.label "hyperlink (example: [link name](https://destination.com))" $
-      wrap "doc.externalLink" $ do
+      wrap "syntax.doc.externalLink" $ do
         _ <- lit "["
-        p <- wrap "doc.externalLink.name" $ leafies (/= ']')
+        p <- wrap "syntax.doc.externalLink.name" $ leafies (/= ']')
         _ <- lit "]"
         _ <- lit "("
-        target <- wrap "doc.externalLink.target" $
+        target <- wrap "syntax.doc.externalLink.target" $
                   link <|> fmap join (P.some (expr <|> wordy (/= ')')))
         _ <- lit ")"
         pure (p <> target)
@@ -425,12 +453,12 @@ lexemes' eof = P.optional space >> do
         ok s = length [ ch | ch <- s, ch == '\n' ] < 2
 
     spaced p = P.some (p <* P.optional sp)
-    leafies close = wrap "doc.paragraph" $ join <$> spaced (leafy close)
+    leafies close = wrap "syntax.doc.paragraph" $ join <$> spaced (leafy close)
 
     list = bulletedList <|> numberedList
 
-    bulletedList = wrap "doc.bulletedList" $ join <$> P.sepBy1 bullet listSep
-    numberedList = wrap "doc.numberedList" $ join <$> P.sepBy1 numbered listSep
+    bulletedList = wrap "syntax.doc.bulletedList" $ join <$> P.sepBy1 bullet listSep
+    numberedList = wrap "syntax.doc.numberedList" $ join <$> P.sepBy1 numbered listSep
 
     listSep = P.try $ newline *> P.lookAhead (bulletedStart <|> numberedStart)
 
@@ -452,7 +480,7 @@ lexemes' eof = P.optional space >> do
       guard (col > parentCol)
       (col,) <$> gutter
 
-    numbered = wrap "doc.listItem" . P.label msg $ do
+    numbered = wrap "syntax.doc.listItem" . P.label msg $ do
       (col,s) <- numberedStart
       p <- nonNewlineSpaces *> oneLineParagraph
       subList <-
@@ -461,7 +489,7 @@ lexemes' eof = P.optional space >> do
       where
         msg = "numbered list (examples: 1. item1, 8. start numbering at '8')"
 
-    bullet = wrap "doc.listItem" . P.label "bullet (examples: * item1, - item2)" $ do
+    bullet = wrap "syntax.doc.listItem" . P.label "bullet (examples: * item1, - item2)" $ do
       (col,_) <- bulletedStart
       p <- nonNewlineSpaces *> oneLineParagraph
       subList <-
@@ -482,10 +510,10 @@ lexemes' eof = P.optional space >> do
 
     -- # A section title (not a subsection)
     section :: P [Token Lexeme]
-    section = wrap "doc.section" $ do
+    section = wrap "syntax.doc.section" $ do
       n <- S.gets parentSection
       hashes <- P.try $ lit (replicate n '#') *> P.takeWhile1P Nothing (== '#') <* sp
-      title <- wrap "doc.title" $ (paragraph <* CP.space)
+      title <- paragraph <* CP.space
       let m = length hashes + n
       body <- local (\env -> env { parentSection = m }) $
               P.many (sectionElem <* CP.space)

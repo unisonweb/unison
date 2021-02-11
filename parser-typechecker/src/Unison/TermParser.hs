@@ -404,35 +404,54 @@ doc2Block =
       -- here, `t` will be something like `Open "syntax.doc.word"`
       -- so `f` will be a term var with the name "syntax.doc.word".
       f = Term.var (ann t) (Var.nameds (L.payload t))
-      -- some common syntactic forms used for parsing child elements
+
+      -- follows are some common syntactic forms used for parsing child elements
+
+      -- regular is parsed into `f child1 child2 child3` for however many children
       regular = do
         cs <- P.many elem <* closeBlock
         pure $ Term.apps' f cs
+
+      -- variadic is parsed into: `f [child1, child2, ...]`
       variadic = do
         cs <- P.many elem <* closeBlock
         pure $ Term.apps' f [Term.seq (ann cs) cs]
+
+      -- sectionLike is parsed into: `f tm [child1, child2, ...]`
       sectionLike = do
         arg1 <- elem
         cs <- P.many elem <* closeBlock
         pure $ Term.apps' f [arg1, Term.seq (ann cs) cs]
+
       evalLike wrap = do
         tm <- term <* closeBlock
         pure $ Term.apps' f [wrap tm]
+
+      -- converts `tm` to `'tm`
+      --
+      -- Embedded examples like ``1 + 1`` are represented as terms,
+      -- but are wrapped in delays so they are left unevaluated for the
+      -- code which renders documents. (We want the doc display to get
+      -- the unevaluated expression `1 + 1` and not `2`)
       addDelay tm = Term.delay (ann tm) tm
-      nitem = do
-        _ <- openBlockWith "syntax.doc.listItem"
-        n <- number
-        paragraph <- elem
-        children <- P.many elem <* closeBlock
-        pure (n, Term.apps' f [paragraph, Term.seq (ann children) children])
+
     case L.payload t of
-      "syntax.doc.elements" -> variadic
+      "syntax.doc" -> variadic
       "syntax.doc.paragraph" -> variadic
+      "syntax.doc.group" -> variadic
       "syntax.doc.bulletedList" -> sectionLike
+      "syntax.doc.fenced" -> sectionLike
       "syntax.doc.numberedList" -> do
         nitems@((n,_):_) <- P.some nitem <* closeBlock
         let items = snd <$> nitems
         pure $ Term.apps' f [n, Term.seq (ann items) items]
+        where
+          nitem = do
+            _ <- openBlockWith "syntax.doc.listItem"
+            n <- number
+            paragraph <- elem
+            children <- P.many elem <* closeBlock
+            pure (n, Term.apps' f [paragraph, Term.seq (ann children) children])
       "syntax.doc.section" -> sectionLike
       -- @source{ type Blah, foo, type Bar }
       "syntax.doc.source" -> do
