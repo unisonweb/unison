@@ -1,11 +1,11 @@
-This transcript tests that UCM can always access the definition of 
+This transcript tests that UCM can always access the definition of
 `IsTest`/`isTest`, which is used internally.
 
 ```ucm
 .> builtins.merge
 ```
 
-```unison
+```unison:hide
 test> pass = [Ok "Passed"]
 ```
 

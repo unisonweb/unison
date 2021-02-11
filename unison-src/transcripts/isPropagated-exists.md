@@ -1,4 +1,4 @@
-This transcript tests that UCM can always access the definition of 
+This transcript tests that UCM can always access the definition of
 `IsPropagated`/`isPropagated`, which is used internally.
 
 ```ucm:hide
@@ -7,7 +7,7 @@ This transcript tests that UCM can always access the definition of
 ```
 
 `y` depends on `x`,
-```unison
+```unison:hide
 x = 3
 y = x + 1
 ```
@@ -16,10 +16,10 @@ y = x + 1
 .> add
 ```
 
-so the `update` of `x` causes a propagated update of `y`, and UCM links the 
+so the `update` of `x` causes a propagated update of `y`, and UCM links the
 `isPropagated` metadata to such resulting terms:
 
-```unison
+```unison:hide
 x = 4
 ```
 

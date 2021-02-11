@@ -1,4 +1,4 @@
-This transcript tests that UCM can always access the definition of 
+This transcript tests that UCM can always access the definition of
 `IsTest`/`isTest`, which is used internally.
 
 ```ucm
@@ -11,24 +11,6 @@ This transcript tests that UCM can always access the definition of
 test> pass = [Ok "Passed"]
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      pass : [Result]
-  
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
-
-    1 | test> pass = [Ok "Passed"]
-    
-    ✅ Passed Passed
-
-```
 ```ucm
 .> add
 
