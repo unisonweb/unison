@@ -48,19 +48,23 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.Type (Type)
+import qualified Unison.Type as Type
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Star3 as Star3
 import Unison.Var (Var)
 import Unison.Server.Types
 import Unison.Server.QueryResult
 import Unison.Util.SyntaxText (SyntaxText)
+import qualified Unison.Util.SyntaxText as SyntaxText
 import Unison.Util.List (uniqueBy)
 import Unison.ShortHash
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.TermPrinter as TermPrinter
+import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.DeclPrinter as DeclPrinter
 import Unison.Util.Pretty (Width)
+import qualified Data.Text as Text
 
 data ShallowListEntry v a
   = ShallowTermEntry Referent HQ'.HQSegment (Maybe (Type v a))
@@ -394,8 +398,12 @@ expandShortBranchHash codebase hash = do
     _ ->
       throwError . AmbiguousBranchHash hash $ Set.map (SBH.fromHash len) hashSet
 
+largeConstant :: Int
+largeConstant = 16777216
+
 prettyDefinitionsBySuffixes
-  :: Monad m
+  :: forall v m
+   . Monad m
   => Var v
   => Maybe Path
   -> Maybe Branch.Hash
@@ -415,16 +423,58 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth codebase query = do
   -- doesn't.
   let printNames =
         getCurrentPrettyNames (fromMaybe Path.empty relativeTo) branch
+      parseNames =
+        getCurrentParseNames (fromMaybe Path.empty relativeTo) branch
       ppe   = PPE.fromNamesDecl hqLength printNames
       width = mayDefault renderWidth
-      renderedDisplayTerms =
-        Map.mapKeys Reference.toShortHash $ termsToSyntax width ppe terms
-      renderedDisplayTypes =
-        Map.mapKeys Reference.toShortHash $ typesToSyntax width ppe types
-  pure $ DefinitionDisplayResults
-    (Map.map (fmap (fmap (fmap Reference.toShortHash))) renderedDisplayTerms)
-    (Map.map (fmap (fmap (fmap Reference.toShortHash))) renderedDisplayTypes)
-    misses
+      termFqns :: Map Reference (Set Text)
+      termFqns = Map.mapWithKey f terms
+       where
+        f k _ =
+          R.lookupRan (Referent.IdRef k)
+            . R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
+            . R.mapDom Name.toText
+            . Names.terms
+            $ currentNames parseNames
+      typeFqns = undefined
+      -- Map.mapWithKey
+      --   (\k _ -> R.lookupRan
+      --     k
+      --     ( R.filterDom (\n -> "." `isPrefixOf` n && n /= ".")
+      --     $ Names2.types parseNames
+      --     )
+      --   )
+      --   types
+      flatten  = Set.toList . fromMaybe Set.empty
+      mkTermDefinition r tm =
+        Definition
+            (flatten $ Map.lookup r termFqns)
+            ( Text.pack
+            . Pretty.render largeConstant
+            . fmap SyntaxText.toPlain
+            . TermPrinter.pretty0 @v (PPE.suffixifiedPPE ppe) TermPrinter.emptyAc
+            $ Term.ref mempty r
+            )
+          $ fmap (fmap (fmap Reference.toText)) tm
+      mkTypeDefinition r tp =
+        Definition
+            (flatten $ lookup r typeFqns)
+            ( Text.pack
+            . Pretty.render largeConstant
+            . fmap SyntaxText.toPlain
+            . TypePrinter.pretty0 @v (PPE.suffixifiedPPE ppe) mempty (-1)
+            $ Type.ref () r
+            )
+          $ fmap (fmap (fmap Reference.toText)) tp
+      termDefinitions =
+        Map.mapWithKey mkTermDefinition $ termsToSyntax width ppe terms
+      typeDefinitions =
+        Map.mapWithKey mkTypeDefinition $ typesToSyntax width ppe types
+      renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
+      renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
+  pure $ DefinitionDisplayResults renderedDisplayTerms
+                                  renderedDisplayTypes
+                                  misses
 
 resolveBranchHash
   :: Monad m => Maybe Branch.Hash -> Codebase m v Ann -> Backend m (Branch m)
