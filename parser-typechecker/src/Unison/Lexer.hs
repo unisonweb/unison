@@ -285,12 +285,15 @@ lexemes' eof = P.optional space >> do
              pure [Token a start stop]
 
   doc2 :: P [Token Lexeme]
-  doc2 = wrap "syntax.doc" $ do
-    _ <- lit "{{" >> CP.space
-    r <- local (\env -> env { inLayout = False }) body
-    _ <- lit "}}" >> space
-    pure r
+  doc2 = do
+    let start = token'' ignore (lit "{{")
+    P.lookAhead start <+> (wrap "syntax.doc" $ do
+      _ <- start <* CP.space
+      r <- local (\env -> env { inLayout = False }) (body <* lit "}}")
+      pure r)
+    <+> token' ignore (pure ())
     where
+    ignore _ _ _ = []
     body = join <$> P.many (sectionElem <* CP.space)
     sectionElem = section <|> fencedBlock <|> list <|> paragraph
     paragraph = wrap "syntax.doc.paragraph" $ join <$> spaced leaf
