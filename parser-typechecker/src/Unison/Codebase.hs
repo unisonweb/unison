@@ -11,13 +11,13 @@ import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Builtin                as Builtin
+import qualified Unison.Builtin.Terms          as Builtin
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SyncMode       ( SyncMode )
 import qualified Unison.DataDeclaration        as DD
-import qualified Unison.Names2                 as Names
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent as Referent
@@ -31,7 +31,6 @@ import qualified Unison.Util.Relation          as Rel
 import qualified Unison.Util.Set               as Set
 import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
-import qualified Unison.Runtime.IOSource       as IOSource
 import           Unison.Symbol                  ( Symbol )
 import Unison.DataDeclaration (Decl)
 import Unison.Term (Term)
@@ -98,16 +97,13 @@ data GetRootBranchError
   
 data SyncFileCodebaseResult = SyncOk | UnknownDestinationRootBranch Branch.Hash | NotFastForward
 
-bootstrapNames :: Names.Names0
-bootstrapNames =
-  Builtin.names0 <> UF.typecheckedToNames0 IOSource.typecheckedFile
-
 -- | Write all of the builtins types into the codebase and create empty namespace
 initializeCodebase :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
 initializeCodebase c = do
-  let uf = (UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
-                                     (Map.fromList Builtin.builtinEffectDecls)
-                                     mempty mempty)
+  let uf = UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
+                                    (Map.fromList Builtin.builtinEffectDecls)
+                                    [Builtin.builtinTermsSrc Parser.Intrinsic]
+                                    mempty
   addDefsToCodebase c uf
   putRootBranch c (Branch.one Branch.empty0)
 
