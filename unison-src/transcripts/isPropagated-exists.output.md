@@ -1,24 +1,12 @@
-This transcript tests that UCM can always access the definition of 
-`IsPropagated`, which is used internally.
+This transcript tests that UCM can always access the definition of
+`IsPropagated`/`isPropagated`, which is used internally.
 
-y depends on x
+`y` depends on `x`,
 ```unison
 x = 3
 y = x + 1
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      x : Nat
-      y : Nat
-
-```
 ```ucm
 .> add
 
@@ -28,24 +16,12 @@ y = x + 1
     y : Nat
 
 ```
+so the `update` of `x` causes a propagated update of `y`, and UCM links the
+`isPropagated` metadata to such resulting terms:
+
 ```unison
 x = 4
 ```
-
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      x : Nat
-
-```
-The `update` of `x` causes a propagated update of `y`, and UCM links the 
-`isPropagated` metadata to such resulting terms:
 
 ```ucm
 .> update

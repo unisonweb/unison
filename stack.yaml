@@ -41,6 +41,12 @@ extra-deps:
 - sqlite-simple-0.4.18.0@sha256:3ceea56375c0a3590c814e411a4eb86943f8d31b93b110ca159c90689b6b39e5,3002
 - direct-sqlite-2.3.26@sha256:04e835402f1508abca383182023e4e2b9b86297b8533afbd4e57d1a5652e0c23,3718
 - ListLike-4.7.3
+# remove these when stackage upgrades containers
+- containers-0.6.4.1
+- text-1.2.4.1
+- binary-0.8.8.0
+- parsec-3.1.14.0
+- Cabal-3.2.1.0
 
 ghc-options:
  # All packages

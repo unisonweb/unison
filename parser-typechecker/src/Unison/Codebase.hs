@@ -42,7 +42,7 @@ type DataDeclaration v a = DD.DataDeclaration v a
 type EffectDeclaration v a = DD.EffectDeclaration v a
 
 -- | this FileCodebase detail lives here, because the interface depends on it 🙃
-type CodebasePath = FilePath  
+type CodebasePath = FilePath
 
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
@@ -97,16 +97,16 @@ data GetRootBranchError
 
 debug :: Bool
 debug = False
-  
+
 data SyncFileCodebaseResult = SyncOk | UnknownDestinationRootBranch Branch.Hash | NotFastForward
 
 -- | Write all of the builtins types into the codebase and create empty namespace
 initializeCodebase :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
 initializeCodebase c = do
-  let uf = UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
-                                    (Map.fromList Builtin.builtinEffectDecls)
-                                    [Builtin.builtinTermsSrc Parser.Intrinsic]
-                                    mempty
+  let uf = (UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
+                                     (Map.fromList Builtin.builtinEffectDecls)
+                                     [Builtin.builtinTermsSrc Parser.Intrinsic]
+                                     mempty)
   addDefsToCodebase c uf
   putRootBranch c (Branch.one Branch.empty0)
 

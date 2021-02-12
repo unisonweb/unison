@@ -61,7 +61,8 @@ names0 = Names3.names0 terms types where
                  | (ct, (_,(r,decl))) <- ((CT.Data,) <$> builtinDataDecls @Symbol) <>
                     ((CT.Effect,) . (second . second) DD.toDataDecl <$> builtinEffectDecls)
                  , ((_,vc,_), cid) <- DD.constructors' decl `zip` [0..]] <>
-    Rel.fromList [ (Name.fromVar v, Referent.Ref (R.DerivedId i)) | (v,i) <- Map.toList $ TD.builtinTermsRef @Symbol Intrinsic]
+    Rel.fromList [ (Name.fromVar v, Referent.Ref (R.DerivedId i))
+                 | (v,i) <- Map.toList $ TD.builtinTermsRef @Symbol Intrinsic]
   types = Rel.fromList builtinTypes <>
     Rel.fromList [ (Name.fromVar v, R.DerivedId r)
                  | (v,(r,_)) <- builtinDataDecls @Symbol ] <>
@@ -169,9 +170,15 @@ builtinTypesSrc =
   , B' "Value" CT.Data
   , B' "Any" CT.Data
   , B' "crypto.HashAlgorithm" CT.Data
+  , B' "IOFailure" CT.Data, Rename' "IOFailure" "io2.IOFailure"
+  , B' "TlsFailure" CT.Data, Rename' "TlsFailure" "io2.TlsFailure"
   , B' "Tls" CT.Data, Rename' "Tls" "io2.Tls"
   , B' "Tls.ClientConfig" CT.Data, Rename' "Tls.ClientConfig" "io2.Tls.ClientConfig"
   , B' "Tls.ServerConfig" CT.Data, Rename' "Tls.ServerConfig" "io2.Tls.ServerConfig"
+  , B' "Tls.SignedCert" CT.Data, Rename' "Tls.SignedCert" "io2.Tls.SignedCert"
+  , B' "Tls.PrivateKey" CT.Data, Rename' "Tls.PrivateKey" "io2.Tls.PrivateKey"
+  , B' "TVar" CT.Data, Rename' "TVar" "io2.TVar"
+  , B' "STM" CT.Effect, Rename' "STM" "io2.STM"
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -388,7 +395,7 @@ builtinsSrc =
   , B "Text.toCharList" $ text --> list char
   , B "Text.fromCharList" $ list char --> text
   , B "Text.toUtf8" $ text --> bytes
-  , B "Text.fromUtf8.v2" $ bytes --> eithert failure text
+  , B "Text.fromUtf8.v3" $ bytes --> eithert failure text
   , B "Char.toNat" $ char --> nat
   , B "Char.fromNat" $ nat --> char
 
@@ -443,9 +450,9 @@ builtinsSrc =
                   ,(">=", "gteq")]
   ] ++ moveUnder "io2" ioBuiltins
     ++ moveUnder "io2" mvarBuiltins
+    ++ moveUnder "io2" stmBuiltins
     ++ hashBuiltins
     ++ fmap (uncurry B) codeBuiltins
-
 
 moveUnder :: Text -> [(Text, Type v)] -> [BuiltinDSL v]
 moveUnder prefix bs = bs >>= \(n,ty) -> [B n ty, Rename n (prefix <> "." <> n)]
@@ -502,65 +509,77 @@ hashBuiltins =
 
 ioBuiltins :: Var v => [(Text, Type v)]
 ioBuiltins =
-  [ ("IO.openFile.v2", text --> fmode --> iof handle)
-  , ("IO.closeFile.v2", handle --> iof unit)
-  , ("IO.isFileEOF.v2", handle --> iof boolean)
-  , ("IO.isFileOpen.v2", handle --> iof boolean)
-  , ("IO.isSeekable.v2", handle --> iof boolean)
-  , ("IO.seekHandle.v2", handle --> smode --> int --> iof unit)
-  , ("IO.handlePosition.v2", handle --> iof int)
-  , ("IO.getBuffering.v2", handle --> iof bmode)
-  , ("IO.setBuffering.v2", handle --> bmode --> iof unit)
-  , ("IO.getBytes.v2", handle --> nat --> iof bytes)
-  , ("IO.putBytes.v2", handle --> bytes --> iof unit)
-  , ("IO.systemTime.v2", unit --> iof nat)
-  , ("IO.getTempDirectory.v2", unit --> iof text)
+  [ ("IO.openFile.v3", text --> fmode --> iof handle)
+  , ("IO.closeFile.v3", handle --> iof unit)
+  , ("IO.isFileEOF.v3", handle --> iof boolean)
+  , ("IO.isFileOpen.v3", handle --> iof boolean)
+  , ("IO.isSeekable.v3", handle --> iof boolean)
+  , ("IO.seekHandle.v3", handle --> smode --> int --> iof unit)
+  , ("IO.handlePosition.v3", handle --> iof nat)
+  , ("IO.getBuffering.v3", handle --> iof bmode)
+  , ("IO.setBuffering.v3", handle --> bmode --> iof unit)
+  , ("IO.getBytes.v3", handle --> nat --> iof bytes)
+  , ("IO.putBytes.v3", handle --> bytes --> iof unit)
+  , ("IO.systemTime.v3", unit --> iof nat)
+  , ("IO.getTempDirectory.v3", unit --> iof text)
   , ("IO.createTempDirectory", text --> iof text)
-  , ("IO.getCurrentDirectory.v2", unit --> iof text)
-  , ("IO.setCurrentDirectory.v2", text --> iof unit)
-  , ("IO.fileExists.v2", text --> iof boolean)
-  , ("IO.isDirectory.v2", text --> iof boolean)
-  , ("IO.createDirectory.v2", text --> iof unit)
-  , ("IO.removeDirectory.v2", text --> iof unit)
-  , ("IO.renameDirectory.v2", text --> text --> iof unit)
-  , ("IO.removeFile.v2", text --> iof unit)
-  , ("IO.renameFile.v2", text --> text --> iof unit)
-  , ("IO.getFileTimestamp.v2", text --> iof nat)
-  , ("IO.getFileSize.v2", text --> iof nat)
-  , ("IO.serverSocket.v2", text --> text --> iof socket)
-  , ("IO.listen.v2", socket --> iof unit)
-  , ("IO.clientSocket.v2", text --> text --> iof socket)
-  , ("IO.closeSocket.v2", socket --> iof unit)
-  , ("IO.socketAccept.v2", socket --> iof socket)
-  , ("IO.socketSend.v2", socket --> bytes --> iof unit)
-  , ("IO.socketReceive.v2", socket --> nat --> iof bytes)
+  , ("IO.getCurrentDirectory.v3", unit --> iof text)
+  , ("IO.setCurrentDirectory.v3", text --> iof unit)
+  , ("IO.fileExists.v3", text --> iof boolean)
+  , ("IO.isDirectory.v3", text --> iof boolean)
+  , ("IO.createDirectory.v3", text --> iof unit)
+  , ("IO.removeDirectory.v3", text --> iof unit)
+  , ("IO.renameDirectory.v3", text --> text --> iof unit)
+  , ("IO.removeFile.v3", text --> iof unit)
+  , ("IO.renameFile.v3", text --> text --> iof unit)
+  , ("IO.getFileTimestamp.v3", text --> iof nat)
+  , ("IO.getFileSize.v3", text --> iof nat)
+  , ("IO.serverSocket.v3", optionalt text --> text --> iof socket)
+  , ("IO.listen.v3", socket --> iof unit)
+  , ("IO.clientSocket.v3", text --> text --> iof socket)
+  , ("IO.closeSocket.v3", socket --> iof unit)
+  , ("IO.socketPort", socket --> iof nat)
+  , ("IO.socketAccept.v3", socket --> iof socket)
+  , ("IO.socketSend.v3", socket --> bytes --> iof unit)
+  , ("IO.socketReceive.v3", socket --> nat --> iof bytes)
   , ("IO.forkComp.v2"
-    , forall1 "a" $ \a -> (unit --> iof a) --> io threadId)
+    , forall1 "a" $ \a -> (unit --> io a) --> io threadId)
   , ("IO.stdHandle", stdhandle --> handle)
 
-  , ("IO.delay.v2", nat --> iof unit)
-  , ("IO.kill.v2", threadId --> iof unit)
+  , ("IO.delay.v3", nat --> iof unit)
+  , ("IO.kill.v3", threadId --> iof unit)
   , ("Tls.newClient", tlsClientConfig --> socket --> iof tls)
   , ("Tls.newServer", tlsServerConfig --> socket --> iof tls)
   , ("Tls.handshake", tls --> iof unit)
   , ("Tls.send", tls --> bytes --> iof unit)
+  , ("Tls.decodeCert", bytes --> eithert failure tlsSignedCert)
+  , ("Tls.encodeCert", tlsSignedCert --> bytes)
+  , ("Tls.decodePrivateKey", bytes --> list tlsPrivateKey)
+  , ("Tls.encodePrivateKey", tlsPrivateKey --> bytes)
   , ("Tls.receive", tls --> iof bytes)
   , ("Tls.terminate", tls --> iof unit)
-  , ("Tls.Config.defaultClient", text --> bytes --> tlsClientConfig)
-  , ("Tls.Config.defaultServer", tlsServerConfig)
+  , ("Tls.ClientConfig.default", text --> bytes --> tlsClientConfig)
+  , ("Tls.ServerConfig.default", list tlsSignedCert --> tlsPrivateKey --> tlsServerConfig)
+  , ("TLS.ClientConfig.ciphers.set", list tlsCipher --> tlsClientConfig --> tlsClientConfig)
+  , ("Tls.ServerConfig.ciphers.set", list tlsCipher --> tlsServerConfig --> tlsServerConfig)
+  , ("Tls.ClientConfig.certificates.set", list tlsSignedCert --> tlsClientConfig --> tlsClientConfig)
+  , ("Tls.ServerConfig.certificates.set", list tlsSignedCert --> tlsServerConfig --> tlsServerConfig)
+  , ("Tls.ClientConfig.versions.set", list tlsVersion --> tlsClientConfig --> tlsClientConfig)
+  , ("Tls.ServerConfig.versions.set", list tlsVersion --> tlsServerConfig --> tlsServerConfig)
+
   ]
 
 mvarBuiltins :: forall v. Var v => [(Text, Type v)]
 mvarBuiltins =
   [ ("MVar.new", forall1 "a" $ \a -> a --> io (mvar a))
   , ("MVar.newEmpty.v2", forall1 "a" $ \a -> unit --> io (mvar a))
-  , ("MVar.take.v2", forall1 "a" $ \a -> mvar a --> iof a)
+  , ("MVar.take.v3", forall1 "a" $ \a -> mvar a --> iof a)
   , ("MVar.tryTake", forall1 "a" $ \a -> mvar a --> io (optionalt a))
-  , ("MVar.put.v2", forall1 "a" $ \a -> mvar a --> a --> iof unit)
+  , ("MVar.put.v3", forall1 "a" $ \a -> mvar a --> a --> iof unit)
   , ("MVar.tryPut", forall1 "a" $ \a -> mvar a --> a --> io boolean)
-  , ("MVar.swap.v2", forall1 "a" $ \a -> mvar a --> a --> iof a)
+  , ("MVar.swap.v3", forall1 "a" $ \a -> mvar a --> a --> iof a)
   , ("MVar.isEmpty", forall1 "a" $ \a -> mvar a --> io boolean)
-  , ("MVar.read.v2", forall1 "a" $ \a -> mvar a --> iof a)
+  , ("MVar.read.v3", forall1 "a" $ \a -> mvar a --> iof a)
   , ("MVar.tryRead", forall1 "a" $ \a -> mvar a --> io (optionalt a))
   ]
   where
@@ -581,6 +600,18 @@ codeBuiltins =
   , ("Value.value", forall1 "a" $ \a -> a --> value)
   , ("Value.load"
     , forall1 "a" $ \a -> value --> io (eithert (list termLink) a))
+  ]
+
+stmBuiltins :: forall v. Var v => [(Text, Type v)]
+stmBuiltins =
+  [ ("TVar.new", forall1 "a" $ \a -> a --> stm (tvar a))
+  , ("TVar.newIO", forall1 "a" $ \a -> a --> io (tvar a))
+  , ("TVar.read", forall1 "a" $ \a -> tvar a --> stm a)
+  , ("TVar.readIO", forall1 "a" $ \a -> tvar a --> io a)
+  , ("TVar.write", forall1 "a" $ \a -> tvar a --> a --> stm unit)
+  , ("TVar.swap", forall1 "a" $ \a -> tvar a --> a --> stm a)
+  , ("STM.retry", forall1 "a" $ \a -> unit --> stm a)
+  , ("STM.atomically", forall1 "a" $ \a -> (unit --> stm a) --> io a)
   ]
 
 forall1 :: Var v => Text -> (Type v -> Type v) -> Type v
@@ -625,12 +656,14 @@ threadId = Type.threadId ()
 handle = Type.fileHandle ()
 unit = DD.unitType ()
 
-tls, tlsClientConfig, tlsServerConfig :: Var v => Type v
+tls, tlsClientConfig, tlsServerConfig, tlsSignedCert, tlsPrivateKey, tlsVersion, tlsCipher :: Var v => Type v
 tls = Type.ref () Type.tlsRef
 tlsClientConfig = Type.ref () Type.tlsClientConfigRef
 tlsServerConfig = Type.ref () Type.tlsServerConfigRef
--- tlsVersion = Type.ref () Type.tlsVersionRef
--- tlsCiphers = Type.ref () Type.tlsCiphersRef
+tlsSignedCert = Type.ref () Type.tlsSignedCertRef
+tlsPrivateKey = Type.ref () Type.tlsPrivateKeyRef
+tlsVersion = Type.ref () Type.tlsVersionRef
+tlsCipher = Type.ref () Type.tlsCipherRef
 
 fmode, bmode, smode, stdhandle :: Var v => Type v
 fmode = DD.fileModeType ()
@@ -653,3 +686,6 @@ code = Type.code ()
 value = Type.value ()
 termLink = Type.termLink ()
 
+stm, tvar :: Var v => Type v -> Type v
+stm = Type.effect1 () (Type.ref () Type.stmRef)
+tvar a = Type.ref () Type.tvarRef `app` a

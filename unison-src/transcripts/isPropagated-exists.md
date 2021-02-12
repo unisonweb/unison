@@ -1,13 +1,13 @@
-This transcript tests that UCM can always access the definition of 
-`IsPropagated`, which is used internally.
+This transcript tests that UCM can always access the definition of
+`IsPropagated`/`isPropagated`, which is used internally.
 
 ```ucm:hide
 .> alias.term ##Nat.+ +
 .> alias.type ##Nat Nat
 ```
 
-y depends on x
-```unison
+`y` depends on `x`,
+```unison:hide
 x = 3
 y = x + 1
 ```
@@ -16,12 +16,12 @@ y = x + 1
 .> add
 ```
 
-```unison
+so the `update` of `x` causes a propagated update of `y`, and UCM links the
+`isPropagated` metadata to such resulting terms:
+
+```unison:hide
 x = 4
 ```
-
-The `update` of `x` causes a propagated update of `y`, and UCM links the 
-`isPropagated` metadata to such resulting terms:
 
 ```ucm
 .> update
@@ -37,4 +37,3 @@ by running `builtins.merge` to have UCM add names for them.
 .> links y
 .> view 1
 ```
-

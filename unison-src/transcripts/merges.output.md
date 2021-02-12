@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #aokhru3upu
+  ⊙ #rq3jrbg57r
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #07lio3nger
+  ⊙ #64jmhloeht
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #jh0ai3ctth
+  ⊙ #ncr9hv1q57
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #srgjtgfm9a
+  ⊙ #bbcrond13i
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #p7j317tb68
+  ⊙ #311k7aet5l
   
     + Adds / updates:
     
       x
   
-  ⊙ #ce9gjk322r
+  ⊙ #e3bhlpkn5h
   
     + Adds / updates:
     
@@ -193,19 +193,22 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Int.shiftRight builtin.Int.signum
       builtin.Int.toFloat builtin.Int.toText
       builtin.Int.trailingZeros builtin.Int.truncate0
-      builtin.Int.xor builtin.Link builtin.Link.Term##Link.Term
-      builtin.Link.Term#quh#0 builtin.Link.Type##Link.Type
-      builtin.Link.Type#quh#1 builtin.List builtin.List.++
-      builtin.List.+: builtin.List.:+ builtin.List.at
-      builtin.List.cons builtin.List.drop builtin.List.empty
-      builtin.List.size builtin.List.snoc builtin.List.take
-      builtin.Nat builtin.Nat.* builtin.Nat.+ builtin.Nat./
-      builtin.Nat.and builtin.Nat.complement builtin.Nat.drop
-      builtin.Nat.eq builtin.Nat.fromText builtin.Nat.gt
-      builtin.Nat.gteq builtin.Nat.increment builtin.Nat.isEven
-      builtin.Nat.isOdd builtin.Nat.leadingZeros builtin.Nat.lt
-      builtin.Nat.lteq builtin.Nat.mod builtin.Nat.or
-      builtin.Nat.popCount builtin.Nat.pow builtin.Nat.shiftLeft
+      builtin.Int.xor builtin.IsPropagated
+      builtin.IsPropagated.IsPropagated builtin.IsTest
+      builtin.IsTest.IsTest builtin.Link
+      builtin.Link.Term##Link.Term builtin.Link.Term#quh#0
+      builtin.Link.Type##Link.Type builtin.Link.Type#quh#1
+      builtin.List builtin.List.++ builtin.List.+:
+      builtin.List.:+ builtin.List.at builtin.List.cons
+      builtin.List.drop builtin.List.empty builtin.List.size
+      builtin.List.snoc builtin.List.take builtin.Nat
+      builtin.Nat.* builtin.Nat.+ builtin.Nat./ builtin.Nat.and
+      builtin.Nat.complement builtin.Nat.drop builtin.Nat.eq
+      builtin.Nat.fromText builtin.Nat.gt builtin.Nat.gteq
+      builtin.Nat.increment builtin.Nat.isEven builtin.Nat.isOdd
+      builtin.Nat.leadingZeros builtin.Nat.lt builtin.Nat.lteq
+      builtin.Nat.mod builtin.Nat.or builtin.Nat.popCount
+      builtin.Nat.pow builtin.Nat.shiftLeft
       builtin.Nat.shiftRight builtin.Nat.sub builtin.Nat.toFloat
       builtin.Nat.toInt builtin.Nat.toText
       builtin.Nat.trailingZeros builtin.Nat.xor builtin.Optional
@@ -263,35 +266,54 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.IO.renameFile builtin.io2.IO.seekHandle
       builtin.io2.IO.serverSocket builtin.io2.IO.setBuffering
       builtin.io2.IO.setCurrentDirectory
-      builtin.io2.IO.socketAccept builtin.io2.IO.socketReceive
-      builtin.io2.IO.socketSend builtin.io2.IO.stdHandle
-      builtin.io2.IO.systemTime builtin.io2.IOError
-      builtin.io2.IOError.AlreadyExists builtin.io2.IOError.EOF
+      builtin.io2.IO.socketAccept builtin.io2.IO.socketPort
+      builtin.io2.IO.socketReceive builtin.io2.IO.socketSend
+      builtin.io2.IO.stdHandle builtin.io2.IO.systemTime
+      builtin.io2.IOError builtin.io2.IOError.AlreadyExists
+      builtin.io2.IOError.EOF
       builtin.io2.IOError.IllegalOperation
       builtin.io2.IOError.NoSuchThing
       builtin.io2.IOError.PermissionDenied
       builtin.io2.IOError.ResourceBusy
       builtin.io2.IOError.ResourceExhausted
-      builtin.io2.IOError.UserError builtin.io2.MVar
-      builtin.io2.MVar.isEmpty builtin.io2.MVar.new
-      builtin.io2.MVar.newEmpty builtin.io2.MVar.put
-      builtin.io2.MVar.read builtin.io2.MVar.swap
-      builtin.io2.MVar.take builtin.io2.MVar.tryPut
-      builtin.io2.MVar.tryRead builtin.io2.MVar.tryTake
+      builtin.io2.IOError.UserError
+      builtin.io2.IOFailure##IOFailure builtin.io2.IOFailure#gro
+      builtin.io2.MVar builtin.io2.MVar.isEmpty
+      builtin.io2.MVar.new builtin.io2.MVar.newEmpty
+      builtin.io2.MVar.put builtin.io2.MVar.read
+      builtin.io2.MVar.swap builtin.io2.MVar.take
+      builtin.io2.MVar.tryPut builtin.io2.MVar.tryRead
+      builtin.io2.MVar.tryTake builtin.io2.STM
+      builtin.io2.STM.atomically builtin.io2.STM.retry
       builtin.io2.SeekMode builtin.io2.SeekMode.AbsoluteSeek
       builtin.io2.SeekMode.RelativeSeek
       builtin.io2.SeekMode.SeekFromEnd builtin.io2.Socket
       builtin.io2.StdHandle builtin.io2.StdHandle.StdErr
       builtin.io2.StdHandle.StdIn builtin.io2.StdHandle.StdOut
+      builtin.io2.TLS.ClientConfig.ciphers.set builtin.io2.TVar
+      builtin.io2.TVar.new builtin.io2.TVar.newIO
+      builtin.io2.TVar.read builtin.io2.TVar.readIO
+      builtin.io2.TVar.swap builtin.io2.TVar.write
       builtin.io2.ThreadId builtin.io2.Tls
       builtin.io2.Tls.ClientConfig
-      builtin.io2.Tls.Config.defaultClient
-      builtin.io2.Tls.Config.defaultServer
-      builtin.io2.Tls.ServerConfig builtin.io2.Tls.handshake
+      builtin.io2.Tls.ClientConfig.certificates.set
+      builtin.io2.Tls.ClientConfig.default
+      builtin.io2.Tls.ClientConfig.versions.set
+      builtin.io2.Tls.PrivateKey builtin.io2.Tls.ServerConfig
+      builtin.io2.Tls.ServerConfig.certificates.set
+      builtin.io2.Tls.ServerConfig.ciphers.set
+      builtin.io2.Tls.ServerConfig.default
+      builtin.io2.Tls.ServerConfig.versions.set
+      builtin.io2.Tls.SignedCert builtin.io2.Tls.decodeCert
+      builtin.io2.Tls.decodePrivateKey
+      builtin.io2.Tls.encodeCert
+      builtin.io2.Tls.encodePrivateKey builtin.io2.Tls.handshake
       builtin.io2.Tls.newClient builtin.io2.Tls.newServer
       builtin.io2.Tls.receive builtin.io2.Tls.send
-      builtin.io2.Tls.terminate builtin.io2.TlsFailure
-      builtin.todo
+      builtin.io2.Tls.terminate
+      builtin.io2.TlsFailure##TlsFailure
+      builtin.io2.TlsFailure#o6b builtin.metadata.isPropagated
+      builtin.metadata.isTest builtin.todo
   
   □ #7asfbtqmoj (start of history)
 

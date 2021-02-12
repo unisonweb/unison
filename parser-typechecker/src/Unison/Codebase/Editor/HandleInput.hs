@@ -118,7 +118,7 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Builtin as Builtin
-import qualified Unison.Builtin.Terms          as Builtin
+import qualified Unison.Builtin.Terms as Builtin
 import Unison.NameSegment (NameSegment(..))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -371,11 +371,9 @@ loop = do
           (misses', hits) <- hqNameQuery [from]
           let tpRefs = Set.fromList $ typeReferences hits
               tmRefs = Set.fromList $ termReferences hits
-              tmMisses = misses'
-                         <> (HQ'.toHQ . SR.termName <$> termResults hits)
-              tpMisses = misses'
-                         <> (HQ'.toHQ . SR.typeName <$> typeResults hits)
-              misses = if isTerm then tpMisses else tmMisses
+              misses = Set.difference (Set.fromList misses') if isTerm
+                then Set.fromList $ HQ'.toHQ . SR.termName <$> termResults hits
+                else Set.fromList $ HQ'.toHQ . SR.typeName <$> typeResults hits
               go :: Reference -> Action m (Either Event Input) v ()
               go fr = do
                 let termPatch =
@@ -391,8 +389,8 @@ loop = do
                              (const (if isTerm then termPatch else typePatch)))
                 -- Say something
                 success
-          unless (null misses) $
-            respond $ SearchTermsNotFound misses
+          unless (Set.null misses) $
+            respond $ SearchTermsNotFound (Set.toList misses)
           traverse_ go (if isTerm then tmRefs else tpRefs)
         branchExists dest _x = respond $ BranchAlreadyExists dest
         branchExistsSplit = branchExists . Path.unsplit'
@@ -1629,8 +1627,8 @@ loop = do
           e <- eval $ Execute ppe unisonFile
 
           case e of
-            Left e -> respond $ EvaluationFailure e 
-            Right _ -> pure () -- TODO 
+            Left e -> respond $ EvaluationFailure e
+            Right _ -> pure () -- TODO
 
       IOTestI main -> do
         testType <- eval RuntimeTest
@@ -1662,7 +1660,7 @@ loop = do
                          tm' <- eval $ Evaluate1 ppe tm
                          case tm' of
                            Left e -> respond (EvaluationFailure e)
-                           Right tm' -> 
+                           Right tm' ->
                                respond $ TestResults Output.NewlyComputed ppe True True (oks [(ref, tm')]) (fails [(ref, tm')])
                    _ -> respond $ NoMainFunction "main" ppe [testType]
                _ -> respond $ NoMainFunction "main" ppe [testType]

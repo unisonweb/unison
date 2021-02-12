@@ -225,6 +225,7 @@ library
     network,
     network-simple,
     nonempty-containers,
+    pem,
     process,
     primitive,
     random,
@@ -249,6 +250,8 @@ library
     util,
     vector,
     unicode-show,
+    x509,
+    x509-store,
     x509-system,
     -- v2
     unison-core,
