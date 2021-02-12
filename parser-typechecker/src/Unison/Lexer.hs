@@ -928,7 +928,6 @@ reorder = join . sortWith f . stanzas
       Open "type" -> 1
       Open "unique" -> 1
       Open "ability" -> 1
-      Open "syntax.doc" -> f ts
       Reserved "use" -> 0
       _ -> 3 :: Int
 
