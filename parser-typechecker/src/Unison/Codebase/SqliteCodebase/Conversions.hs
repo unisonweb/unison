@@ -105,7 +105,7 @@ term1to2 h =
       V1.Term.Char c -> V2.Term.Char c
       V1.Term.Ref r -> V2.Term.Ref (rreference1to2 h r)
       V1.Term.Constructor r i -> V2.Term.Constructor (reference1to2 r) (fromIntegral i)
-      V1.Term.Request r i -> V2.Term.Constructor (reference1to2 r) (fromIntegral i)
+      V1.Term.Request r i -> V2.Term.Request (reference1to2 r) (fromIntegral i)
       V1.Term.Handle b h -> V2.Term.Handle b h
       V1.Term.App f a -> V2.Term.App f a
       V1.Term.Ann e t -> V2.Term.Ann e (ttype1to2 t)

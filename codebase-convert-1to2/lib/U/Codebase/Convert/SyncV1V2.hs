@@ -917,7 +917,7 @@ convertTerm1 lookup1 lookup2 lookupText hash1 v1component = do
             V1.Term.Constructor r i ->
               V2.Term.Constructor (lookupType r) (fromIntegral i)
             V1.Term.Request r i ->
-              V2.Term.Constructor (lookupType r) (fromIntegral i)
+              V2.Term.Request (lookupType r) (fromIntegral i)
             V1.Term.Handle b h -> V2.Term.Handle (goTerm b) (goTerm h)
             V1.Term.App f a -> V2.Term.App (goTerm f) (goTerm a)
             V1.Term.Ann e t -> V2.Term.Ann (goTerm e) (buildTermType2H lookup t)
