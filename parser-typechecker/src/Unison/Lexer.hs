@@ -335,11 +335,11 @@ lexemes' eof = P.optional space >> do
           pure s
 
     typeLink = wrap "syntax.doc.typeLink" $ do
-      _ <- lit "type" <|> lit "ability"
-      tok (wordyId <|> symbolyId) <* CP.space
+      _ <- (lit "type" <|> lit "ability") <* CP.space
+      tok (symbolyId <|> wordyId) <* CP.space
 
     termLink = wrap "syntax.doc.termLink" $
-      tok (wordyId <|> symbolyId) <* CP.space
+      tok (symbolyId <|> wordyId) <* CP.space
 
     groupy ok p = do
       (start,p,stop) <- positioned p
@@ -595,7 +595,7 @@ lexemes' eof = P.optional space >> do
     where
     segs = symbolyIdSeg <|> (wordyIdSeg <+> lit "." <+> segs)
 
-  symbolMsg = "operator (ex: +, Float./, List.++#xyz)"
+  symbolMsg = "operator (examples: +, Float./, List.++#xyz)"
 
   symbolyIdSeg :: P String
   symbolyIdSeg = do
@@ -884,10 +884,11 @@ stanzas = go [] where
 -- Moves type and effect declarations to the front of the token stream
 -- and move `use` statements to the front of each block
 reorder :: [T (Token Lexeme)] -> [T (Token Lexeme)]
-reorder = join . sortWith f . wrangle . debug . stanzas
+reorder = join . sortWith f . stanzas
+-- reorder = join . sortWith f . wrangle . debug . stanzas
   where
-    debug s | traceShow (fmap (fmap payload) <$> s) False = undefined
-    debug s = s
+    -- debug s | traceShow (fmap (fmap payload) <$> s) False = undefined
+    -- debug s = s
     -- {{ some docs }}
     -- type Foo
     --
@@ -1058,7 +1059,13 @@ debugFileLex file = do
   putStrLn s
 
 debugLex'' :: [Token Lexeme] -> String
-debugLex'' = show . fmap payload . tree
+debugLex'' [Token (Err (Opaque msg)) start end] =
+  (if start == end then msg1 else msg2) <> ":\n" <> msg
+  where
+    msg1 = "Error on line " <> show (line start) <> ", column " <> show (column start)
+    msg2 = "Error on line " <> show (line start) <> ", column " <> show (column start)
+        <> " - line " <> show (line end) <> ", column " <> show (column end)
+debugLex'' ts = show . fmap payload . tree $ ts
 
 debugLex' :: String -> String
 debugLex' =  debugLex'' . lexer "debugLex"
