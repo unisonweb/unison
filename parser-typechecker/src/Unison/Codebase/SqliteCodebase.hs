@@ -194,7 +194,7 @@ data BufferEntry a = BufferEntry
   deriving (Eq, Show)
 
 prettyBufferEntry :: Show a => Hash -> BufferEntry a -> String
-prettyBufferEntry (h :: Hash) BufferEntry{..} = 
+prettyBufferEntry (h :: Hash) BufferEntry{..} =
   "BufferEntry " ++ show h ++ "\n"
     ++ "  { beComponentTargetSize = " ++ show beComponentTargetSize ++ "\n"
     ++ "  , beComponent = "
@@ -204,7 +204,7 @@ prettyBufferEntry (h :: Hash) BufferEntry{..} =
     ++ "  , beWaitingDependents ="
     ++ if Set.size beWaitingDependents < 2 then show $ Set.toList beWaitingDependents else mkString (Set.toList beWaitingDependents) (Just "\n      [ ") "      , " (Just "]\n")
     ++ "  }"
-  where 
+  where
     mkString :: (Foldable f, Show a) => f a -> Maybe String -> String -> Maybe String -> String
     mkString as start middle end = fromMaybe "" start ++ List.intercalate middle (show <$> toList as) ++ fromMaybe "" end
 
@@ -279,7 +279,7 @@ sqliteCodebase root = do
                         error $ "targetSize for term " ++ show h ++ " was " ++ show size ++ ", but now " ++ show size'
                       _ -> pure ()
                     let comp' = Map.insert i (tm, tp) comp
-                    -- for the component element that's been passed in, add its dependencies to missing'                    
+                    -- for the component element that's been passed in, add its dependencies to missing'
                     missingTerms' <-
                       filterM
                         (fmap not . Ops.objectExistsForHash . Cv.hash1to2)
@@ -341,7 +341,7 @@ sqliteCodebase root = do
                     filterM
                       (fmap not . Ops.objectExistsForHash . Cv.hash1to2)
                       (toList missing)
-                  Monad.when debug do 
+                  Monad.when debug do
                     traceM $ "tryFlushBuffer.missing' = " ++ show missing'
                     traceM $ "tryFlushBuffer.size = " ++ show size
                     traceM $ "tryFlushBuffer.length comp = " ++ show (length comp)
@@ -427,7 +427,7 @@ sqliteCodebase root = do
               $ Branch.transform (lift . lift) branch1
 
           rootBranchUpdates :: IO (IO (), IO (Set Branch.Hash))
-          rootBranchUpdates = pure (cleanup, newRootsDiscovered) 
+          rootBranchUpdates = pure (cleanup, newRootsDiscovered)
             where
               newRootsDiscovered = do
                 Control.Concurrent.threadDelay maxBound -- hold off on returning
