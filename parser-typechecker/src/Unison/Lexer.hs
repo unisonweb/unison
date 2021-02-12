@@ -316,7 +316,7 @@ lexemes' eof = P.optional space >> do
     leafy ok = groupy ok gs <|> atDoc <|> wordy ok
           where
           gs = link <|> externalLink <|> ticked <|> expr
-           <|> boldOrItalic ok <|> verbatim
+           <|> boldOrItalicOrStrikethrough ok <|> verbatim
 
     leaf = leafy (const True)
 
@@ -422,9 +422,11 @@ lexemes' eof = P.optional space >> do
           verbatim <- tok $ Textual . trim <$> P.someTill CP.anyChar ([] <$ lit fence)
           pure (name <> verbatim)
 
-    boldOrItalic ok = do
-      let start = some (CP.satisfy (== '*')) <|> some (CP.satisfy (== '_'))
-          name s = if length s > 1 then "syntax.doc.bold" else "syntax.doc.italic"
+    boldOrItalicOrStrikethrough ok = do
+      let start = some (CP.satisfy (== '*')) <|> some (CP.satisfy (== '_')) <|> some (CP.satisfy (== '~'))
+          name s = if take 1 s == "~" then "syntax.doc.strikethrough"
+                   else if length s > 1 then "syntax.doc.bold"
+                   else "syntax.doc.italic"
       (end,ch) <- P.try $ do
         end@(ch:_) <- start
         P.lookAhead (CP.satisfy (not . isSpace))
