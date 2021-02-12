@@ -40,7 +40,10 @@ import qualified Unison.Util.Bytes as Bytes
 
 type Line = Int
 type Column = Int
-data Pos = Pos {-# Unpack #-} !Line {-# Unpack #-} !Column deriving (Eq,Ord,Show)
+
+data Pos = Pos {-# Unpack #-} !Line {-# Unpack #-} !Column deriving (Eq,Ord)
+instance Show Pos where show (Pos line col) = "line " <> show line <> ", column " <> show col
+
 type BlockName = String
 type Layout = [(BlockName,Column)]
 
@@ -320,7 +323,7 @@ lexemes' eof = P.optional space >> do
 
     leaf = leafy (const True)
 
-    atDoc = src <|> eval
+    atDoc = src <|> eval <|> signature <|> inlineSignature
       where
         comma = lit "," <* CP.space
         src = wrap "syntax.doc.source" $ do
@@ -328,17 +331,27 @@ lexemes' eof = P.optional space >> do
           s <- join <$> P.sepBy1 (typeLink <|> termLink) comma
           _ <- lit "}"
           pure s
-        eval = wrap "syntax.doc.eval" $ do
+        signature = wrap "syntax.doc.signature" $ do
+          _ <- lit "@signatures" *> (lit " {" <|> lit "{")
+          s <- join <$> P.sepBy1 termLink comma
+          _ <- lit "}"
+          pure s
+        inlineSignature = wrap "syntax.doc.inlineSignature" $ do
+          _ <- lit "@signature" *> (lit " {" <|> lit "{")
+          s <- termLink
+          _ <- lit "}"
+          pure s
+        eval = wrap "syntax.doc.inlineEval" $ do
           _ <- lit "@eval" *> (lit " {" <|> lit "{") *> CP.space
           let inlineEvalClose  = [] <$ lit "}"
           s <- lexemes' inlineEvalClose
           pure s
 
-    typeLink = wrap "syntax.doc.typeLink" $ do
+    typeLink = wrap "syntax.doc.embedTypeLink" $ do
       _ <- (lit "type" <|> lit "ability") <* CP.space
       tok (symbolyId <|> wordyId) <* CP.space
 
-    termLink = wrap "syntax.doc.termLink" $
+    termLink = wrap "syntax.doc.embedTermLink" $
       tok (symbolyId <|> wordyId) <* CP.space
 
     groupy ok p = do
@@ -354,7 +367,7 @@ lexemes' eof = P.optional space >> do
       pure $ case after of
         Nothing -> p
         Just after ->
-          [Token (Open "syntax.doc.group") start stop'] <> p <> after <>
+          [Token (Open "syntax.doc.join") start stop'] <> p <> after <>
           [Token Close stop' stop']
           where stop' = maybe stop end (lastMay after)
 
@@ -364,8 +377,8 @@ lexemes' eof = P.optional space >> do
         quotes <- lit "''" <+> many (CP.satisfy (== '\''))
         P.someTill CP.anyChar (lit quotes)
       if all isSpace $ takeWhile (/= '\n') txt
-      then wrap "syntax.doc.verbatimBlock" $ pure [Token (Textual (trim txt)) start stop]
-      else wrap "syntax.doc.verbatim" $ pure [Token (Textual txt) start stop]
+      then wrap "syntax.doc.codeBlock" $ pure [Token (Textual (trim txt)) start stop]
+      else wrap "syntax.doc.code" $ pure [Token (Textual txt) start stop]
 
     trim = f . f where
       f = reverse . dropThru
@@ -387,7 +400,7 @@ lexemes' eof = P.optional space >> do
 
     link =
       P.label "link (examples: {type List}, {Nat.+})" $
-      wrap "doc.link" $
+      wrap "syntax.doc.link" $
       P.try $ lit "{" *> (typeLink <|> termLink) <* lit "}"
 
     expr =
@@ -415,7 +428,7 @@ lexemes' eof = P.optional space >> do
                   (start,_,end) <- positioned (lit fence)
                   pure [Token Close start end]
 
-        other = wrap "syntax.doc.fenced" $ do
+        other = wrap "syntax.doc.codeBlock" $ do
           fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
           name <- P.many (CP.satisfy nonNewlineSpace) *> tok wordyId
           _ <- CP.space
@@ -435,12 +448,12 @@ lexemes' eof = P.optional space >> do
 
     externalLink =
       P.label "hyperlink (example: [link name](https://destination.com))" $
-      wrap "syntax.doc.externalLink" $ do
+      wrap "syntax.doc.namedLink" $ do
         _ <- lit "["
-        p <- wrap "syntax.doc.externalLink.name" $ leafies (/= ']')
+        p <- leafies (/= ']')
         _ <- lit "]"
         _ <- lit "("
-        target <- wrap "syntax.doc.externalLink.target" $
+        target <- wrap "syntax.doc" $
                   link <|> fmap join (P.some (expr <|> wordy (/= ')')))
         _ <- lit ")"
         pure (p <> target)
@@ -607,10 +620,14 @@ lexemes' eof = P.optional space >> do
 
   wordyIdSeg :: P String
   -- wordyIdSeg = litSeg <|> (P.try do -- todo
-  wordyIdSeg = do
+  wordyIdSeg = P.try $ do
+    start <- pos
     ch <- CP.satisfy wordyIdStartChar
     rest <- P.many (CP.satisfy wordyIdChar)
-    when (Set.member (ch : rest) keywords) $ fail "identifier segment can't be a keyword"
+    when (Set.member (ch : rest) keywords) $ do
+      stop <- pos
+      let msg = show start <> ": Identifier segment can't be a keyword: " <> (ch:rest)
+      P.customFailure (Token (Opaque msg) start stop)
     pure (ch : rest)
 
   {-
@@ -899,6 +916,7 @@ reorder = join . sortWith f . stanzas
     -- Foo.doc = {{ some docs }}
     -- type Foo
     --
+    {-
     wrangle :: [[T (Token Lexeme)]] -> [[T (Token Lexeme)]]
     wrangle [] = []
     wrangle ((h1:t1):(h2@(symbolName -> Just name)):t) =
@@ -924,9 +942,10 @@ reorder = join . sortWith f . stanzas
       go (Open "unique" : Reserved _braceL : _guid : _braceR : _typ : h : _) = Just h
       go (Open "unique" : _typ : h : _) = Just h
       go _ = Nothing
+    -}
 
     f [] = 3 :: Int
-    f (t0 : ts) = case payload $ headToken t0 of
+    f (t0 : _) = case payload $ headToken t0 of
       Open "type" -> 1
       Open "unique" -> 1
       Open "ability" -> 1
@@ -1132,3 +1151,4 @@ instance Monoid Pos where
   Pos line col `mappend` Pos line2 col2 =
     if line2 == 0 then Pos line (col + col2)
     else Pos (line + line2) col2
+

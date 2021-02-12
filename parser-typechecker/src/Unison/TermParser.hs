@@ -358,6 +358,7 @@ termLeaf =
     , delayQuote
     , bang
     , docBlock
+    , doc2Block
     ]
 
 -- Syntax for documentation v2 blocks, which are surrounded by {{ }}.
@@ -372,7 +373,7 @@ termLeaf =
 --
 -- the lexer will produce:
 --
--- [Open "syntax.doc.elements",
+-- [Open "syntax.doc",
 --    Open "syntax.doc.paragraph",
 --      Open "syntax.doc.word", Textual "Hi", Close,
 --      Open "syntax.doc.word", Textual "there!", Close,
@@ -384,7 +385,7 @@ termLeaf =
 --
 -- The parser will parse this into the Unison expression:
 --
---   syntax.doc.elements [
+--   syntax.doc [
 --     syntax.doc.paragraph [syntax.doc.word "Hi", syntax.doc.word "there!"],
 --     syntax.doc.paragraph [syntax.doc.word "goodbye"]
 --   ]
