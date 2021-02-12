@@ -436,15 +436,15 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth codebase query = do
             . R.mapDom Name.toText
             . Names.terms
             $ currentNames parseNames
-      typeFqns = undefined
-      -- Map.mapWithKey
-      --   (\k _ -> R.lookupRan
-      --     k
-      --     ( R.filterDom (\n -> "." `isPrefixOf` n && n /= ".")
-      --     $ Names2.types parseNames
-      --     )
-      --   )
-      --   types
+      typeFqns :: Map Reference (Set Text)
+      typeFqns = Map.mapWithKey f types
+       where
+        f k _ =
+          R.lookupRan k
+            . R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
+            . R.mapDom Name.toText
+            . Names.types
+            $ currentNames parseNames
       flatten  = Set.toList . fromMaybe Set.empty
       mkTermDefinition r tm =
         Definition
@@ -458,7 +458,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth codebase query = do
           $ fmap (fmap (fmap Reference.toText)) tm
       mkTypeDefinition r tp =
         Definition
-            (flatten $ lookup r typeFqns)
+            (flatten $ Map.lookup r typeFqns)
             ( Text.pack
             . Pretty.render largeConstant
             . fmap SyntaxText.toPlain
