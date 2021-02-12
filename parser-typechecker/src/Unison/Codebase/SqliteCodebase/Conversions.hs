@@ -463,7 +463,7 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
                       Map.fromList
                         [ (referent1to2 r, pure md)
                           | r <- toList . Relation.lookupRan ns $ V1.Star3.d1 s
-                          , let 
+                          , let
                               mdrefs1to2 (typeR1, valR1) = (reference1to2 valR1, reference1to2 typeR1)
                               md = V2.Branch.MdValues . Map.fromList . map mdrefs1to2 . toList . Relation.lookupDom r $ V1.Star3.d3 s
                         ]
@@ -478,7 +478,7 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
                       Map.fromList
                         [ (reference1to2 r, pure md)
                           | r <- toList . Relation.lookupRan ns $ V1.Star3.d1 s
-                          , let 
+                          , let
                               mdrefs1to2 (typeR1, valR1) = (reference1to2 valR1, reference1to2 typeR1)
                               md = V2.Branch.MdValues . Map.fromList . map mdrefs1to2 . toList . Relation.lookupDom r $ V1.Star3.d3 s
                         ]
@@ -522,7 +522,7 @@ patch2to1 lookupSize (V2.Branch.Patch v2termedits v2typeedits) = do
 
 patch1to2 :: V1.Patch -> V2.Branch.Patch
 patch1to2 (V1.Patch v1termedits v1typeedits) = V2.Branch.Patch v2termedits v2typeedits
-  where 
+  where
     v2termedits = Map.bimap (V2.Referent.Ref . reference1to2) (Set.map termedit1to2) $ Relation.domain v1termedits
     v2typeedits = Map.bimap reference1to2 (Set.map typeedit1to2) $ Relation.domain v1typeedits
     termedit1to2 :: V1.TermEdit.TermEdit -> V2.TermEdit.TermEdit

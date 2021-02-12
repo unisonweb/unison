@@ -741,10 +741,10 @@ saveDeclComponent h decls = do
             getSRef _selfCycleRef@(C.Reference.Derived Nothing _) = Nothing
          in Set.mapMaybe (fmap (,self) . getSRef) dependencies
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
-  
+
   -- populate type indexes
-  for_ (zip decls [0..]) 
-    \(C.DataDeclaration _ _ _ ctorTypes, i) -> for_ (zip ctorTypes [0..]) 
+  for_ (zip decls [0..])
+    \(C.DataDeclaration _ _ _ ctorTypes, i) -> for_ (zip ctorTypes [0..])
       \(tp, j) -> do
         let self = C.Referent.ConId (C.Reference.Id oId i) j
             typeForIndexing :: C.Type.TypeT Symbol = TypeUtil.removeAllEffectVars (C.Type.typeD2T h tp)
