@@ -463,18 +463,22 @@ sqliteCodebase root = do
                 >>= traverse (Cv.referenceid2to1 getCycleLen)
 
           -- getWatch :: UF.WatchKind -> Reference.Id -> IO (Maybe (Term Symbol Ann))
-          getWatch k r@(Reference.Id h _i _n) =
+          getWatch k r@(Reference.Id h _i _n) | elem k standardWatchKinds =
             runDB' conn $
               Ops.loadWatch (Cv.watchKind1to2 k) (Cv.referenceid1to2 r)
                 >>= Cv.term2to1 h getCycleLen getDeclType
+          getWatch _unknownKind _ = pure Nothing
+
+          standardWatchKinds = [UF.RegularWatch, UF.TestWatch]
 
           putWatch :: UF.WatchKind -> Reference.Id -> Term Symbol Ann -> IO ()
-          putWatch k r@(Reference.Id h _i _n) tm =
+          putWatch k r@(Reference.Id h _i _n) tm | elem k standardWatchKinds =
             runDB conn $
               Ops.saveWatch
                 (Cv.watchKind1to2 k)
                 (Cv.referenceid1to2 r)
                 (Cv.term1to2 h tm)
+          putWatch _unknownKind _ _ = pure ()
 
           getReflog :: IO [Reflog.Entry]
           getReflog =
