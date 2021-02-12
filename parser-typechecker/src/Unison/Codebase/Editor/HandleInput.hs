@@ -2072,6 +2072,8 @@ handleBackendError = \case
   Backend.CouldntExpandBranchHash sbh -> respond $ NoBranchWithHash sbh
   Backend.AmbiguousBranchHash h hashes ->
     respond $ BranchHashAmbiguous h hashes
+  Backend.MissingSignatureForTerm r ->
+    respond $ TermMissingType r
 
 respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output

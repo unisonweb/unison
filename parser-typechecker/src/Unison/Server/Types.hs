@@ -84,24 +84,35 @@ instance ToJSON r => ToJSON (SyntaxText' r)
 
 deriving instance ToSchema r => ToSchema (SyntaxText' r)
 
-instance ToJSON Definition
+instance ToJSON TypeDefinition
 
-deriving instance ToSchema Definition
+deriving instance ToSchema TypeDefinition
+
+instance ToJSON TermDefinition
+
+deriving instance ToSchema TermDefinition
 
 instance ToJSON DefinitionDisplayResults
 
 deriving instance ToSchema DefinitionDisplayResults
 
-data Definition = Definition
-  { names :: [HashQualifiedName]
-  , bestName :: HashQualifiedName
-  , definition :: DisplayObject (SyntaxText' UnisonHash)
+data TermDefinition = TermDefinition
+  { termNames :: [HashQualifiedName]
+  , bestTermName :: HashQualifiedName
+  , termDefinition :: DisplayObject (SyntaxText' UnisonHash)
+  , signature :: SyntaxText' UnisonHash
+  } deriving (Eq, Show, Generic)
+
+data TypeDefinition = TypeDefinition
+  { typeNames :: [HashQualifiedName]
+  , bestTypeName :: HashQualifiedName
+  , typeDefinition :: DisplayObject (SyntaxText' UnisonHash)
   } deriving (Eq, Show, Generic)
 
 data DefinitionDisplayResults =
   DefinitionDisplayResults
-    { termDefinitions :: Map UnisonHash Definition
-    , typeDefinitions :: Map UnisonHash Definition
+    { termDefinitions :: Map UnisonHash TermDefinition
+    , typeDefinitions :: Map UnisonHash TypeDefinition
     , missingDefinitions :: [HQ.HashQualified Name]
     } deriving (Eq, Show, Generic)
 

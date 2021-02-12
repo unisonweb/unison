@@ -364,6 +364,15 @@ notifyUser dir o = case o of
     else putPretty' "  🚫  "
     pure mempty
 
+  TermMissingType ref ->
+    pure . P.fatalCallout . P.lines $ [
+      P.wrap $ "The type signature for reference "
+        <> P.blue (P.text (Reference.toText ref))
+        <> " is missing from the codebase! This means something might be wrong "
+        <> " with the codebase, or the term was deleted just now "
+        <> " by someone else. Trying your command again might fix it."
+    ]
+
   MetadataMissingType ppe ref -> pure . P.fatalCallout . P.lines $ [
     P.wrap $ "The metadata value " <> P.red (prettyTermName ppe ref)
           <> "is missing a type signature in the codebase.",
