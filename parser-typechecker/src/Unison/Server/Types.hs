@@ -117,11 +117,9 @@ data DefinitionDisplayResults =
     } deriving (Eq, Show, Generic)
 
 formatType
-  :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText' ShortHash
+  :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText' UnisonHash
 formatType ppe w =
-  fmap (fmap Reference.toShortHash) . render w . TypePrinter.pretty0 ppe
-                                                                     mempty
-                                                                     (-1)
+  fmap (fmap Reference.toText) . render w . TypePrinter.pretty0 ppe mempty (-1)
 
 munge :: Text -> LZ.ByteString
 munge = Text.encodeUtf8 . Text.fromStrict

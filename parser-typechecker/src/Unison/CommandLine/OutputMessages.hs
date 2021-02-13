@@ -538,10 +538,10 @@ notifyUser dir o = case o of
       ShallowTypeEntry r hq ->
         (P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq
         ,isBuiltin r)
-      ShallowBranchEntry ns count ->
+      ShallowBranchEntry ns _ count ->
         ((P.syntaxToColor . prettyName . Name.fromSegment) ns <> "/"
         ,case count of
-          1 -> P.lit ("(1 definition)")
+          1 -> P.lit "(1 definition)"
           _n -> P.lit "(" <> P.shown count <> P.lit " definitions)")
       ShallowPatchEntry ns ->
         ((P.syntaxToColor . prettyName . Name.fromSegment) ns

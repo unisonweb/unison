@@ -69,16 +69,17 @@ import qualified Data.Text as Text
 data ShallowListEntry v a
   = ShallowTermEntry Referent HQ'.HQSegment (Maybe (Type v a))
   | ShallowTypeEntry Reference HQ'.HQSegment
-  | ShallowBranchEntry NameSegment Int -- number of child definitions
+  -- The integer here represents the number of children
+  | ShallowBranchEntry NameSegment ShortBranchHash Int
   | ShallowPatchEntry NameSegment
   deriving (Eq, Ord, Show, Generic)
 
 listEntryName :: ShallowListEntry v a -> Text
 listEntryName = \case
-  ShallowTermEntry _ s _ -> HQ'.toText s
-  ShallowTypeEntry   _ s -> HQ'.toText s
-  ShallowBranchEntry n _ -> NameSegment.toText n
-  ShallowPatchEntry n    -> NameSegment.toText n
+  ShallowTermEntry _ s _   -> HQ'.toText s
+  ShallowTypeEntry _ s     -> HQ'.toText s
+  ShallowBranchEntry n _ _ -> NameSegment.toText n
+  ShallowPatchEntry n      -> NameSegment.toText n
 
 data BackendError
   = NoSuchNamespace Path.Absolute
@@ -189,7 +190,9 @@ findShallow codebase path' = do
           | (r, ns) <- R.toList . Star3.d1 $ Branch._types b0
           ]
         branchEntries =
-          [ ShallowBranchEntry ns (defnCount b)
+          [ ShallowBranchEntry ns
+                               (SBH.fullFromHash $ Branch.headHash b)
+                               (defnCount b)
           | (ns, b) <- Map.toList $ Branch._children b0
           ]
         patchEntries =
