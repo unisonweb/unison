@@ -373,7 +373,7 @@ termLeaf =
 --
 -- the lexer will produce:
 --
--- [Open "syntax.doc",
+-- [Open "syntax.doc.docs",
 --    Open "syntax.doc.paragraph",
 --      Open "syntax.doc.word", Textual "Hi", Close,
 --      Open "syntax.doc.word", Textual "there!", Close,
@@ -385,7 +385,7 @@ termLeaf =
 --
 -- The parser will parse this into the Unison expression:
 --
---   syntax.doc [
+--   syntax.doc.docs [
 --     syntax.doc.paragraph [syntax.doc.word "Hi", syntax.doc.word "there!"],
 --     syntax.doc.paragraph [syntax.doc.word "goodbye"]
 --   ]
@@ -396,7 +396,7 @@ termLeaf =
 -- the names `syntax.doc.*` correspond to.
 doc2Block :: forall v . Var v => TermP v
 doc2Block =
-  P.lookAhead (openBlockWith "syntax.doc.elements") *> elem
+  P.lookAhead (openBlockWith "syntax.doc.docs") *> elem
   where
   elem :: TermP v
   elem = text <|> do
@@ -437,31 +437,29 @@ doc2Block =
       addDelay tm = Term.delay (ann tm) tm
 
     case L.payload t of
-      "syntax.doc" -> variadic
+      "syntax.doc.docs" -> variadic
       "syntax.doc.paragraph" -> variadic
-      "syntax.doc.group" -> variadic
-      "syntax.doc.bulletedList" -> sectionLike
-      "syntax.doc.fenced" -> sectionLike
+      "syntax.doc.bulletedList" -> variadic
+      "syntax.doc.codeBlock" -> sectionLike
       "syntax.doc.numberedList" -> do
         nitems@((n,_):_) <- P.some nitem <* closeBlock
         let items = snd <$> nitems
         pure $ Term.apps' f [n, Term.seq (ann items) items]
         where
           nitem = do
-            _ <- openBlockWith "syntax.doc.listItem"
             n <- number
-            paragraph <- elem
-            children <- P.many elem <* closeBlock
-            pure (n, Term.apps' f [paragraph, Term.seq (ann children) children])
+            _ <- openBlockWith "syntax.doc.docs"
+            child <- elem <* closeBlock
+            pure (n, child)
       "syntax.doc.section" -> sectionLike
       -- @source{ type Blah, foo, type Bar }
       "syntax.doc.source" -> do
         cs <- P.sepBy1 elem (reserved ",") <* closeBlock
         pure $ Term.apps' f [Term.seq (ann cs) cs]
-      "syntax.doc.source.term" -> do
+      "syntax.doc.embedTermLink" -> do
         tm <- addDelay <$> hashQualifiedPrefixTerm
         pure $ Term.apps' f [tm]
-      "syntax.doc.source.type" -> do
+      "syntax.doc.embedTypeLink" -> do
         r <- typeLink'
         pure $ Term.apps' f [Term.typeLink (ann r) (L.payload r)]
       "syntax.doc.example" -> term <&> \case

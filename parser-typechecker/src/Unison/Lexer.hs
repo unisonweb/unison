@@ -290,7 +290,7 @@ lexemes' eof = P.optional space >> do
   doc2 :: P [Token Lexeme]
   doc2 = do
     let start = token'' ignore (lit "{{")
-    P.lookAhead start <+> (wrap "syntax.doc" $ do
+    P.lookAhead start <+> (wrap "syntax.doc.docs" $ do
       _ <- start <* CP.space
       r <- local (\env -> env { inLayout = False }) (body <* lit "}}")
       pure r)
@@ -367,7 +367,7 @@ lexemes' eof = P.optional space >> do
       pure $ case after of
         Nothing -> p
         Just after ->
-          [Token (Open "syntax.doc.join") start stop'] <> p <> after <>
+          [Token (Open "syntax.doc.docs") start stop'] <> p <> after <>
           [Token Close stop' stop']
           where stop' = maybe stop end (lastMay after)
 
@@ -444,7 +444,9 @@ lexemes' eof = P.optional space >> do
         end@(ch:_) <- start
         P.lookAhead (CP.satisfy (not . isSpace))
         pure (end,ch)
-      wrap (name end) $ join <$> P.someTill (leafy (\c -> ok c && c /= ch)) (lit end)
+      wrap (name end) . wrap "syntax.doc.docs" $
+        join <$> P.someTill (leafy (\c -> ok c && c /= ch) <* nonNewlineSpaces)
+                            (lit end)
 
     externalLink =
       P.label "hyperlink (example: [link name](https://destination.com))" $
@@ -453,7 +455,7 @@ lexemes' eof = P.optional space >> do
         p <- leafies (/= ']')
         _ <- lit "]"
         _ <- lit "("
-        target <- wrap "syntax.doc" $
+        target <- wrap "syntax.doc.docs" $
                   link <|> fmap join (P.some (expr <|> wordy (/= ')')))
         _ <- lit ")"
         pure (p <> target)
@@ -476,7 +478,7 @@ lexemes' eof = P.optional space >> do
     list = bulletedList <|> numberedList
 
     bulletedList = wrap "syntax.doc.bulletedList" $ join <$> P.sepBy1 bullet listSep
-    numberedList = wrap "syntax.doc.numberedList" $ join <$> P.sepBy1 numbered listSep
+    numberedList = wrap "syntax.doc.numberedList" $ join <$> P.sepBy1 numberedItem listSep
 
     listSep = P.try $ newline *> P.lookAhead (bulletedStart <|> numberedStart)
 
@@ -485,12 +487,6 @@ lexemes' eof = P.optional space >> do
       where
         bulletChar ch = ch == '*' || ch == '-' || ch == '+'
 
-    numberedStart =
-      listItemStart' $ P.try (tok . fmap num $ LP.decimal <* lit ".")
-      where
-        num :: Word -> Lexeme
-        num n = Numeric (show n)
-
     listItemStart' gutter = P.try $ do
       nonNewlineSpaces
       col <- column <$> pos
@@ -498,20 +494,27 @@ lexemes' eof = P.optional space >> do
       guard (col > parentCol)
       (col,) <$> gutter
 
-    numbered = wrap "syntax.doc.listItem" . P.label msg $ do
+    numberedStart =
+      listItemStart' $ P.try (tok . fmap num $ LP.decimal <* lit ".")
+      where
+        num :: Word -> Lexeme
+        num n = Numeric (show n)
+
+    numberedItem = P.label msg $ do
       (col,s) <- numberedStart
-      p <- nonNewlineSpaces *> oneLineParagraph
-      subList <-
-        local (\e -> e { parentListColumn = col }) (P.optional $ listSep *> list)
-      pure (s <> p <> fromMaybe [] subList)
+      pure s <+> (wrap "syntax.doc.docs" $ do
+        p <- nonNewlineSpaces *> oneLineParagraph
+        subList <-
+          local (\e -> e { parentListColumn = col }) (P.optional $ listSep *> list)
+        pure (p <> fromMaybe [] subList))
       where
         msg = "numbered list (examples: 1. item1, 8. start numbering at '8')"
 
-    bullet = wrap "syntax.doc.listItem" . P.label "bullet (examples: * item1, - item2)" $ do
+    bullet = wrap "syntax.doc.docs" . P.label "bullet (examples: * item1, - item2)" $ do
       (col,_) <- bulletedStart
       p <- nonNewlineSpaces *> oneLineParagraph
-      subList <-
-        local (\e -> e { parentListColumn = col }) (P.optional $ listSep *> list)
+      subList <- local (\e -> e { parentListColumn = col })
+                       (P.optional $ listSep *> list)
       pure (p <> fromMaybe [] subList)
 
     newline = P.label "newline" $ lit "\n" <|> lit "\r\n"
