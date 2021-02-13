@@ -372,13 +372,17 @@ lexemes' eof = P.optional space >> do
           where stop' = maybe stop end (lastMay after)
 
     verbatim =
-      P.label "inline verbatim text (examples: ''**unformatted**'', '''_words_''')" $ do
+      P.label "code (examples: ''**unformatted**'', '''_words_''')" $ do
       (start,txt,stop) <- positioned $ do
         quotes <- lit "''" <+> many (CP.satisfy (== '\''))
         P.someTill CP.anyChar (lit quotes)
       if all isSpace $ takeWhile (/= '\n') txt
-      then wrap "syntax.doc.codeBlock" $ pure [Token (Textual (trim txt)) start stop]
-      else wrap "syntax.doc.code" $ pure [Token (Textual txt) start stop]
+      then wrap "syntax.doc.verbatim" $
+           wrap "syntax.doc.word" $
+           pure [Token (Textual (trim txt)) start stop]
+      else wrap "syntax.doc.code" $
+           wrap "syntax.doc.word" $
+           pure [Token (Textual txt) start stop]
 
     trim = f . f where
       f = reverse . dropThru

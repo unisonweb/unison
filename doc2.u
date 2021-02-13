@@ -1,0 +1,245 @@
+unique[b7a4fb87e34569319591130bf3ec6e24c9955b6ae06b5f6895e908d58c3f6113] type Doc2
+  = Word Text
+  | Code Doc2
+  | CodeBlock Text Doc2 
+  | Bold Doc2
+  | Italic Doc2
+  | Strikethrough Doc2
+  -- style {{ myclass }} mydoc 
+  | Style Doc2 Doc2
+  | Blockquote Doc2
+  | Embed Any
+  | Blankline
+  | SectionBreak
+  | Aside (Optional Doc2) Doc2
+  -- callout icon title content
+  | Callout (Optional Doc2) (Optional Doc2) Doc2
+  | Folded Boolean Doc2 Doc2
+  | Paragraph [Doc2]
+  | BulletedList [Doc2]
+  | NumberedList Nat [Doc2]
+  | Section Doc2 [Doc2] 
+  | Source [Either Link.Type Any]
+  | NamedLink Doc2 Doc2
+  | Link [Either Link.Type Any]
+  | Signature [Any]
+  | Example Nat Any 
+  | InlineSignature Any
+  | InlineEval Any
+  | Eval Any
+  | Trace Any
+  | Docs [Doc2]
+
+syntax.doc.docs = cases [d] -> d
+                        ds -> Docs ds
+syntax.doc.word = Word
+syntax.doc.bold = Bold
+syntax.doc.italic = Italic
+syntax.doc.strikethrough = Strikethrough
+syntax.doc.paragraph = Paragraph
+syntax.doc.embedTermLink any = 
+  guid = "b7a4fb87e34569319591130bf3ec6e24"
+  Right any
+syntax.doc.embedTypeLink tl = 
+  guid = "b7a4fb87e34569319591130bf3ec6e24"
+  Left tl 
+syntax.doc.source = Source
+syntax.doc.signature = Signature
+syntax.doc.inlineSignature = InlineSignature
+syntax.doc.inlineEval = InlineEval
+syntax.doc.code c = Code c 
+syntax.doc.codeBlock typ c = CodeBlock typ c 
+syntax.doc.verbatim c = CodeBlock "raw" c 
+syntax.doc.evalBlock d = Eval (Any d)
+syntax.doc.eval a = InlineEval (Any a)
+syntax.doc.example n a = Example n (Any a)
+syntax.doc.link = Link
+syntax.doc.transclude d = 
+  guid = "b7a4fb87e34569319591130bf3ec6e24"
+  d
+syntax.doc.namedLink = NamedLink 
+syntax.doc.bulletedList = BulletedList
+syntax.doc.numberedList = NumberedList
+syntax.doc.section = Section
+
+name = {{ Alice }}
+baseUrl = {{ https://www.unisonweb.org }}
+
+doc1 = {{
+
+# Unison documentation v2 format
+
+The syntax tries to be close to markdown.
+
+## Basic formatting
+
+Paragraphs are separated by one or more blanklines. There's syntax for bold, italics, and strikethrough text:
+
+'''
+_italics_ or *italics*
+
+**bold text** or __moar bold text__
+
+~~striken text~~
+
+''some code''
+
+[The Unison website](https://unisonweb.org)
+'''
+
+Renders as:
+
+_italics_ or *italics*
+
+**bold text** or __moar bold text__
+
+~~striken text~~
+
+''some code''
+
+[The Unison website](https://unisonweb.org)
+
+## Sections
+
+'''
+# Important document title! 
+
+Intro paragraph
+
+## Section 1
+
+Some stuff. 
+
+## Section 2
+
+More stuff
+
+### Subsection 2.1
+'''
+
+Sections start with a title, then zero or more documents, separated by blanklines. Sections whose title starts with ''##'' are subsections of sections whose title starts with one ''#''. Sections may be nested arbitrarily.
+
+## Escaping formatting
+
+'''
+{{ syntax.doc.word "### Not a section title!" }}
+'''
+
+{{ syntax.doc.word "### Not a section title!" }}
+
+''''
+'''
+Not formatted. Rendered as a code block with no syntax highlighting.
+'''
+''''
+
+'''
+Not formatted. Rendered as a code block with no syntax highlighting.
+'''
+
+TODO
+
+'''
+``` Haskell
+reverse = foldl (flip (:)) []
+```
+'''
+
+## Lists
+
+### Bulleted lists
+
+Bulleted lists can use ''+'', ''-'', or ''*'' for the bullets. They can be nested, to any depth:
+
+'''
++ A
++ B
++ C
+  - C1
+  * C2
+'''
+
+Renders as:
+
++ A
++ B
++ C
+  - C1
+  * C2
+
+### Numbered lists
+
+'''
+1. A
+2. B
+3. C
+'''
+
+Renders as:
+
+1. A
+2. B
+3. C
+
+The first number of the list determines the starting number in the rendered output. The other numbers are ignored:
+
+'''
+10. A
+99. B
+102. C
+'''
+
+Renders as:
+
+10. A
+99. B
+102. C
+
+Numbered lists can be nested as well, and combined with bulleted lists:
+
+'''
+1. Wake up.
+  + What am I doing here?
+  + In this nested list. 
+2. Take shower.  
+3. Get dressed.
+'''
+
+TODO - bug with this
+
+## Evaluation 
+
+'''
+Expressions can be evaluated inline, for instance @eval{1 + 1}.
+
+Blocks of code can be evaluated as well, for instance:
+
+```
+id x = x
+
+id 99
+``` 
+'''
+
+Becomes:
+
+TODO
+
+```
+id x = x
+
+id 99
+``` 
+
+## Including other documents
+
+'''
+"And what is the use of a book," thought {{name}}, "without pictures or conversations?"
+
+* [The documentation]({{baseUrl}}/docs)
+'''
+
+"And what is the use of a book," thought {{name}}, "without pictures or conversations?"
+
+Hmm... why does it matter where we declare {{name}}?  
+}}

@@ -440,7 +440,6 @@ doc2Block =
       "syntax.doc.docs" -> variadic
       "syntax.doc.paragraph" -> variadic
       "syntax.doc.bulletedList" -> variadic
-      "syntax.doc.codeBlock" -> sectionLike
       "syntax.doc.numberedList" -> do
         nitems@((n,_):_) <- P.some nitem <* closeBlock
         let items = snd <$> nitems
@@ -470,7 +469,7 @@ doc2Block =
           in  Term.apps' f [n, lam]
         tm -> Term.apps' f [Term.nat (ann tm) 1, addDelay tm]
       "syntax.doc.transclude" -> evalLike id
-      "syntax.doc.eval" -> evalLike addDelay
+      "syntax.doc.eval" -> evalLike id
       "syntax.doc.evalBlock" -> do
         tm <- block' False "syntax.doc.evalBlock" (pure (void t)) closeBlock
         pure $ Term.apps' f [addDelay tm]
