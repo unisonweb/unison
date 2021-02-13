@@ -17,7 +17,7 @@ import           Data.Proxy                     ( Proxy(..) )
 import           GHC.Generics                   ( )
 import           Network.HTTP.Types.Status      ( ok200 )
 import           Network.Wai                    ( responseLBS )
-import           Network.Wai.Handler.Warp       ( run )
+import           Network.Wai.Handler.Warp       ( run, withApplication, Port )
 import           Servant.API                    (Headers,  Get
                                                 , JSON
                                                 , Raw
@@ -87,8 +87,11 @@ api = Proxy
 app :: Var v => Codebase IO v Ann -> Application
 app codebase = serve docAPI $ server codebase
 
-start :: Var v => Codebase IO v Ann -> Int -> IO ()
-start codebase port = run port $ app codebase
+startOnPort :: Var v => Codebase IO v Ann -> Port -> IO ()
+startOnPort codebase port = run port $ app codebase
+
+start :: Var v => Codebase IO v Ann -> (Port -> IO ()) -> IO ()
+start = withApplication . pure . app
 
 server :: Var v => Codebase IO v Ann -> Server DocAPI
 server codebase =

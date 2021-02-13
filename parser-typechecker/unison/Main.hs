@@ -8,7 +8,7 @@ module Main where
 import Unison.Prelude
 import           Control.Concurrent             ( mkWeakThreadId
                                                 , myThreadId
-                                                , forkIO
+                                                --, forkIO
                                                 )
 import           Control.Error.Safe             (rightMay)
 import           Control.Exception              ( throwTo, AsyncException(UserInterrupt) )
@@ -155,8 +155,11 @@ main = do
   case restargs of
     [] -> do
       theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
-      _ <- forkIO $ Server.start theCodebase 8081
-      launch currentDir mNewRun config theCodebase branchCache []
+      Server.start theCodebase $ \port -> do
+        PT.putPrettyLn .
+               P.string $ "I've started a codebase API server at http://127.0.0.1:"
+                 <> show port
+        launch currentDir mNewRun config theCodebase branchCache []
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
