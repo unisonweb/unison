@@ -48,3 +48,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Jared Forsyth (@jaredly) - Documentation generation
 * Hakim Cassimally (@osfameron) - vim support
 * Will Badart (@wbadart)
+* Sam Roberts (@samgqroberts)
