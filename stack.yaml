@@ -34,6 +34,13 @@ extra-deps:
 - servant-server-0.18
 - servant-docs-0.11.6
 - ListLike-4.7.3
+# remove these when stackage upgrades containers
+- containers-0.6.4.1
+- text-1.2.4.1
+- binary-0.8.8.0
+- parsec-3.1.14.0
+- Cabal-3.2.1.0
+
 ghc-options:
  # All packages
  "$locals": -Werror -Wno-type-defaults #-freverse-errors

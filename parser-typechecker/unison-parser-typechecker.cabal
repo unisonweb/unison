@@ -55,6 +55,7 @@ library
   exposed-modules:
     Unison.Builtin
     Unison.Builtin.Decls
+    Unison.Builtin.Terms
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase.Branch

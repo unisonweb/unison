@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #t6bsshdq9e
+  ⊙ #rq3jrbg57r
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #a52hdge0ur
+  ⊙ #64jmhloeht
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #7cn7ulvqt4
+  ⊙ #ncr9hv1q57
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #icg0klduhn
+  ⊙ #bbcrond13i
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #0ehm1cc89a
+  ⊙ #311k7aet5l
   
     + Adds / updates:
     
       x
   
-  ⊙ #fahbg0pqso
+  ⊙ #e3bhlpkn5h
   
     + Adds / updates:
     
@@ -193,19 +193,22 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Int.shiftRight builtin.Int.signum
       builtin.Int.toFloat builtin.Int.toText
       builtin.Int.trailingZeros builtin.Int.truncate0
-      builtin.Int.xor builtin.Link builtin.Link.Term##Link.Term
-      builtin.Link.Term#quh#0 builtin.Link.Type##Link.Type
-      builtin.Link.Type#quh#1 builtin.List builtin.List.++
-      builtin.List.+: builtin.List.:+ builtin.List.at
-      builtin.List.cons builtin.List.drop builtin.List.empty
-      builtin.List.size builtin.List.snoc builtin.List.take
-      builtin.Nat builtin.Nat.* builtin.Nat.+ builtin.Nat./
-      builtin.Nat.and builtin.Nat.complement builtin.Nat.drop
-      builtin.Nat.eq builtin.Nat.fromText builtin.Nat.gt
-      builtin.Nat.gteq builtin.Nat.increment builtin.Nat.isEven
-      builtin.Nat.isOdd builtin.Nat.leadingZeros builtin.Nat.lt
-      builtin.Nat.lteq builtin.Nat.mod builtin.Nat.or
-      builtin.Nat.popCount builtin.Nat.pow builtin.Nat.shiftLeft
+      builtin.Int.xor builtin.IsPropagated
+      builtin.IsPropagated.IsPropagated builtin.IsTest
+      builtin.IsTest.IsTest builtin.Link
+      builtin.Link.Term##Link.Term builtin.Link.Term#quh#0
+      builtin.Link.Type##Link.Type builtin.Link.Type#quh#1
+      builtin.List builtin.List.++ builtin.List.+:
+      builtin.List.:+ builtin.List.at builtin.List.cons
+      builtin.List.drop builtin.List.empty builtin.List.size
+      builtin.List.snoc builtin.List.take builtin.Nat
+      builtin.Nat.* builtin.Nat.+ builtin.Nat./ builtin.Nat.and
+      builtin.Nat.complement builtin.Nat.drop builtin.Nat.eq
+      builtin.Nat.fromText builtin.Nat.gt builtin.Nat.gteq
+      builtin.Nat.increment builtin.Nat.isEven builtin.Nat.isOdd
+      builtin.Nat.leadingZeros builtin.Nat.lt builtin.Nat.lteq
+      builtin.Nat.mod builtin.Nat.or builtin.Nat.popCount
+      builtin.Nat.pow builtin.Nat.shiftLeft
       builtin.Nat.shiftRight builtin.Nat.sub builtin.Nat.toFloat
       builtin.Nat.toInt builtin.Nat.toText
       builtin.Nat.trailingZeros builtin.Nat.xor builtin.Optional
@@ -309,7 +312,8 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.Tls.receive builtin.io2.Tls.send
       builtin.io2.Tls.terminate
       builtin.io2.TlsFailure##TlsFailure
-      builtin.io2.TlsFailure#o6b builtin.todo
+      builtin.io2.TlsFailure#o6b builtin.metadata.isPropagated
+      builtin.metadata.isTest builtin.todo
   
   □ #7asfbtqmoj (start of history)
 
