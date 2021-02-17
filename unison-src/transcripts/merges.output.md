@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #eiauugfpli
+  ⊙ #ihgvg7dndi
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #j1kkf261uj
+  ⊙ #rshc34rv0u
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #b1uat7hnf6
+  ⊙ #ejgt5u3t19
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #mbvbqnbq3r
+  ⊙ #b4tnmqte16
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #bhp101lgb7
+  ⊙ #oig1q629m6
   
     + Adds / updates:
     
       x
   
-  ⊙ #qbmfj6l0kh
+  ⊙ #ll5pknbt98
   
     + Adds / updates:
     
@@ -282,8 +282,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.IOError.PermissionDenied
       builtin.io2.IOError.ResourceBusy
       builtin.io2.IOError.ResourceExhausted
-      builtin.io2.IOError.UserError
-      builtin.io2.IOFailure##IOFailure builtin.io2.IOFailure#gro
+      builtin.io2.IOError.UserError builtin.io2.IOFailure
       builtin.io2.MVar builtin.io2.MVar.isEmpty
       builtin.io2.MVar.new builtin.io2.MVar.newEmpty
       builtin.io2.MVar.put.impl builtin.io2.MVar.read.impl
@@ -316,9 +315,8 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.Tls.encodePrivateKey builtin.io2.Tls.handshake
       builtin.io2.Tls.newClient builtin.io2.Tls.newServer
       builtin.io2.Tls.receive builtin.io2.Tls.send
-      builtin.io2.Tls.terminate
-      builtin.io2.TlsFailure##TlsFailure
-      builtin.io2.TlsFailure#o6b builtin.todo
+      builtin.io2.Tls.terminate builtin.io2.TlsFailure
+      builtin.todo
   
   □ #7asfbtqmoj (start of history)
 
