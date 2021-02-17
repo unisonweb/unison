@@ -169,14 +169,6 @@ type Either a b = Left a | Right b
 
 type Optional a = None | Some a
 
-ability Exception where
-  raise : Failure -> x
-
-Exception.reraise : Either Failure a -> {Exception} a
-Exception.reraise = cases
-  Left e -> Exception.raise e
-  Right a -> a
-
 unique[b28d929d0a73d2c18eac86341a3bb9399f8550c11b5f35eabb2751e6803ccc20] type
   IsPropagated = IsPropagated
 
