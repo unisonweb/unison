@@ -167,8 +167,6 @@ builtinTypesSrc =
   , B' "Value" CT.Data
   , B' "Any" CT.Data
   , B' "crypto.HashAlgorithm" CT.Data
-  , B' "IOFailure" CT.Data, Rename' "IOFailure" "io2.IOFailure"
-  , B' "TlsFailure" CT.Data, Rename' "TlsFailure" "io2.TlsFailure"
   , B' "Tls" CT.Data, Rename' "Tls" "io2.Tls"
   , B' "Tls.ClientConfig" CT.Data, Rename' "Tls.ClientConfig" "io2.Tls.ClientConfig"
   , B' "Tls.ServerConfig" CT.Data, Rename' "Tls.ServerConfig" "io2.Tls.ServerConfig"
