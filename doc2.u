@@ -211,7 +211,11 @@ Numbered lists can be nested as well, and combined with bulleted lists:
 3. Get dressed.
 '''
 
-TODO - bug with this
+1. Wake up.
+  + What am I doing here?
+  + In this nested list. 
+2. Take shower.  
+3. Get dressed.
 
 ## Evaluation 
 

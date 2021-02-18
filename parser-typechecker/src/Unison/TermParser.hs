@@ -404,7 +404,8 @@ doc2Block =
     let
       -- here, `t` will be something like `Open "syntax.doc.word"`
       -- so `f` will be a term var with the name "syntax.doc.word".
-      f = Term.var (ann t) (Var.nameds (L.payload t))
+      f = f' t
+      f' t = Term.var (ann t) (Var.nameds (L.payload t))
 
       -- follows are some common syntactic forms used for parsing child elements
 
@@ -414,7 +415,8 @@ doc2Block =
         pure $ Term.apps' f cs
 
       -- variadic is parsed into: `f [child1, child2, ...]`
-      variadic = do
+      variadic = variadic' f
+      variadic' f = do
         cs <- P.many elem <* closeBlock
         pure $ Term.apps' f [Term.seq (ann cs) cs]
 
@@ -447,8 +449,9 @@ doc2Block =
         where
           nitem = do
             n <- number
-            _ <- openBlockWith "syntax.doc.docs"
-            child <- elem <* closeBlock
+            t <- openBlockWith "syntax.doc.docs"
+            let f = f' ("syntax.doc.docs" <$ t)
+            child <- variadic' f
             pure (n, child)
       "syntax.doc.section" -> sectionLike
       -- @source{ type Blah, foo, type Bar }
