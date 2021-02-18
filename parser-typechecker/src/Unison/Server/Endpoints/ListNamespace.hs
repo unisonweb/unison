@@ -59,6 +59,7 @@ import           Unison.Util.Pretty             ( Width )
 import           Unison.Util.SyntaxText         ( SyntaxText' )
 import           Unison.Var                     ( Var )
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.ShortHash as ShortHash
 
 type NamespaceAPI =
   "list" :> QueryParam "namespace" HashQualifiedName
@@ -193,26 +194,33 @@ serveNamespace codebase mayHQN = case mayHQN of
           ppe =
             Backend.basicSuffixifiedNames hashLength root $ Path.fromPath' path'
         entries <- findShallow p
-        pure
-          . NamespaceListing
-              (Name.toText n)
-              (("#" <>) . Hash.base32Hex . Causal.unRawHash $ Branch.headHash
-                root
-              )
-          $ fmap (backendListEntryToNamespaceObject ppe Nothing) entries
-      HQ.HashOnly _        -> hashOnlyNotSupported
+        processEntries
+          (Name.toText name)
+          (("#" <>) . Hash.base32Hex . Causal.unRawHash $ Branch.headHash root)
+          entries
+      HQ.HashOnly sh -> case SBH.fromText $ ShortHash.toText sh of
+        Nothing ->
+          throwError
+            . badNamespace "Malformed branch hash."
+            $ ShortHash.toString sh
+        Just h -> doBackend $ do
+          hash    <- Backend.expandShortBranchHash codebase h
+          branch  <- Backend.resolveBranchHash (Just hash) codebase
+          entries <- Backend.findShallowInBranch codebase branch
+          processEntries entries
       HQ.HashQualified _ _ -> hashQualifiedNotSupported
  where
   errFromMaybe e = maybe (throwError e) pure
   errFromEither f = either (throwError . f) pure
   parseHQN hqn = errFromMaybe (badHQN hqn) $ HQ.fromText hqn
   parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
-  findShallow p = do
-    ea <- liftIO . runExceptT $ Backend.findShallow codebase p
+  doBackend a = do
+    ea <- liftIO $ runExceptT a
     errFromEither backendError ea
-  hashOnlyNotSupported = throwError $ err400
-    { errBody = "This server does not yet support searching namespaces by hash."
-    }
+  findShallow p = doBackend $ Backend.findShallow codebase p
+  processEntries name hash entries = pure . NamespaceListing name hash $ fmap
+    (backendListEntryToNamespaceObject ppe Nothing)
+    entries
   hashQualifiedNotSupported = throwError $ err400
     { errBody = "This server does not yet support searching namespaces by "
                   <> "hash-qualified name."
