@@ -15,7 +15,7 @@ import qualified Unison.Test.Codebase.Path as Path
 import qualified Unison.Test.ColorText as ColorText
 import qualified Unison.Test.DataDeclaration as DataDeclaration
 import qualified Unison.Test.FileParser as FileParser
-import qualified Unison.Test.Git as Git
+-- import qualified Unison.Test.Git as Git
 import qualified Unison.Test.Lexer as Lexer
 import qualified Unison.Test.IO as TestIO
 import qualified Unison.Test.Range as Range
@@ -66,7 +66,7 @@ test rt = tests
   , Typechecker.test
   , UriParser.test
   , Context.test
-  , Git.test
+  -- , Git.test
   , TestIO.test
   , Name.test
   , VersionParser.test
