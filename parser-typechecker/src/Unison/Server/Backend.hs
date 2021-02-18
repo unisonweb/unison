@@ -161,50 +161,58 @@ findShallow
   -> Backend m [ShallowListEntry v Ann]
 findShallow codebase path' = do
   let path = Path.unabsolute path'
-  hashLength <- lift $ Codebase.hashLength codebase
   root       <- getRootBranch codebase
-  let mayb0 = Branch.head <$> Branch.getAt path root
-  case mayb0 of
+  let mayb = Branch.getAt path root
+  case mayb of
     Nothing -> pure []
-    Just b0 -> do
-      let hqTerm b0 ns r =
-            let refs = Star3.lookupD1 ns . Branch._terms $ b0
-            in  case length refs of
-                  1 -> HQ'.fromName ns
-                  _ -> HQ'.take hashLength $ HQ'.fromNamedReferent ns r
-          hqType b0 ns r =
-            let refs = Star3.lookupD1 ns . Branch._types $ b0
-            in  case length refs of
-                  1 -> HQ'.fromName ns
-                  _ -> HQ'.take hashLength $ HQ'.fromNamedReference ns r
-          defnCount b =
-            (R.size . Branch.deepTerms $ Branch.head b)
-              + (R.size . Branch.deepTypes $ Branch.head b)
-      termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) ->
-        do
-          ot <- lift $ loadReferentType codebase r
-          pure $ ShallowTermEntry r (hqTerm b0 ns r) ot
-      let
-        typeEntries =
-          [ ShallowTypeEntry r (hqType b0 ns r)
-          | (r, ns) <- R.toList . Star3.d1 $ Branch._types b0
-          ]
-        branchEntries =
-          [ ShallowBranchEntry ns
-                               (SBH.fullFromHash $ Branch.headHash b)
-                               (defnCount b)
-          | (ns, b) <- Map.toList $ Branch._children b0
-          ]
-        patchEntries =
-          [ ShallowPatchEntry ns
-          | (ns, (_h, _mp)) <- Map.toList $ Branch._edits b0
-          ]
-      pure
-        .  List.sortOn listEntryName
-        $  termEntries
-        ++ typeEntries
-        ++ branchEntries
-        ++ patchEntries
+    Just b -> findShallowInBranch codebase b
+
+findShallowInBranch
+  :: (Monad m, Var v)
+  => Codebase m v Ann
+  -> Branch m
+  -> Backend m [ShallowListEntry v Ann]
+findShallowInBranch codebase b = do
+  hashLength <- lift $ Codebase.hashLength codebase
+  let hqTerm b0 ns r =
+        let refs = Star3.lookupD1 ns . Branch._terms $ b0
+        in  case length refs of
+              1 -> HQ'.fromName ns
+              _ -> HQ'.take hashLength $ HQ'.fromNamedReferent ns r
+      hqType b0 ns r =
+        let refs = Star3.lookupD1 ns . Branch._types $ b0
+        in  case length refs of
+              1 -> HQ'.fromName ns
+              _ -> HQ'.take hashLength $ HQ'.fromNamedReference ns r
+      defnCount b =
+        (R.size . Branch.deepTerms $ Branch.head b)
+          + (R.size . Branch.deepTypes $ Branch.head b)
+      b0 = Branch.head b
+  termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) -> do
+    ot <- lift $ loadReferentType codebase r
+    pure $ ShallowTermEntry r (hqTerm b0 ns r) ot
+  let
+    typeEntries =
+      [ ShallowTypeEntry r (hqType b0 ns r)
+      | (r, ns) <- R.toList . Star3.d1 $ Branch._types b0
+      ]
+    branchEntries =
+      [ ShallowBranchEntry ns
+                           (SBH.fullFromHash $ Branch.headHash b)
+                           (defnCount b)
+      | (ns, b) <- Map.toList $ Branch._children b0
+      ]
+    patchEntries =
+      [ ShallowPatchEntry ns
+      | (ns, (_h, _mp)) <- Map.toList $ Branch._edits b0
+      ]
+  pure
+    .  List.sortOn listEntryName
+    $  termEntries
+    ++ typeEntries
+    ++ branchEntries
+    ++ patchEntries
+
 
 termReferencesByShortHash
   :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
