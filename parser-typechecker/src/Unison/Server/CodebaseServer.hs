@@ -51,13 +51,27 @@ import Control.Lens ( (&), (.~) )
 import Data.OpenApi.Lens (info)
 import qualified Data.Text as Text
 import Data.Foldable (Foldable(toList))
+import qualified Data.ByteString.Random.MWC as MWC
+import qualified Data.ByteString.Base64 as Base64
 
 type OpenApiJSON = "openapi.json"
   :> Get '[JSON] (Headers '[Header "Access-Control-Allow-Origin" String] OpenApi)
 
-type DocAPI = UnisonAPI :<|> OpenApiJSON :<|> Raw
+type DocAPI = AuthProtect "token-auth" :> (UnisonAPI :<|> OpenApiJSON :<|> Raw)
 
 type UnisonAPI = NamespaceAPI :<|> DefinitionsAPI
+
+genAuthServerContext :: ByteString -> Context (AuthHandler Request ()': '[])
+genAuthServerContext token = authHandler token :. EmptyContext
+
+authHandler :: ByteString -> AuthHandler Request ()
+authHandler token = mkAuthHandler handler
+ where
+  throw401 msg = throwError $ err401 { errBody = msg }
+  handler req =
+    maybe (throw401 "Authentication token missing") (const $ pure ())
+      . lookup token
+      $ queryString req
 
 openAPI :: OpenApi
 openAPI = toOpenApi api & info .~ infoObject
@@ -65,8 +79,8 @@ openAPI = toOpenApi api & info .~ infoObject
 infoObject :: Info
 infoObject = mempty
   { _infoTitle       = "Unison Codebase Manager API"
-  , _infoDescription = Just
-    "Provides operations for querying and manipulating a Unison codebase."
+  , _infoDescription =
+    Just "Provides operations for querying and manipulating a Unison codebase."
   , _infoLicense     = Just . License "MIT" . Just $ URL
                          "https://github.com/unisonweb/unison/blob/trunk/LICENSE"
   , _infoVersion     = "1.0"
@@ -84,14 +98,19 @@ docAPI = Proxy
 api :: Proxy UnisonAPI
 api = Proxy
 
-app :: Var v => Codebase IO v Ann -> Application
-app codebase = serve docAPI $ server codebase
+app :: Var v => Codebase IO v Ann -> ByteString -> Application
+app codebase token =
+  serveWithContext docAPI (genAuthServerContext token) $ server codebase
 
 startOnPort :: Var v => Codebase IO v Ann -> Port -> IO ()
-startOnPort codebase port = run port $ app codebase
+startOnPort codebase token port = do
+  token <- Base64.encode $ MWC.random 64
+  run port $ app codebase token
 
 start :: Var v => Codebase IO v Ann -> (Port -> IO ()) -> IO ()
-start = withApplication . pure . app
+start codebase = do
+  token <- Base64.encode $ MWC.random 64
+  withApplication $ app codebase token
 
 server :: Var v => Codebase IO v Ann -> Server DocAPI
 server codebase =
