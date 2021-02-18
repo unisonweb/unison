@@ -434,7 +434,8 @@ lexemes' eof = P.optional space >> do
 
         other = wrap "syntax.doc.codeBlock" $ do
           fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
-          name <- P.many (CP.satisfy nonNewlineSpace) *> tok wordyId
+          name <- P.many (CP.satisfy nonNewlineSpace)
+               *> tok (Textual <$> P.takeWhile1P Nothing (not . isSpace))
           _ <- CP.space
           verbatim <- tok $ Textual . trim <$> P.someTill CP.anyChar ([] <$ lit fence)
           pure (name <> verbatim)

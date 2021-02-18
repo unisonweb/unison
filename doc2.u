@@ -48,7 +48,7 @@ syntax.doc.signature = Signature
 syntax.doc.inlineSignature = InlineSignature
 syntax.doc.inlineEval = InlineEval
 syntax.doc.code c = Code c 
-syntax.doc.codeBlock typ c = CodeBlock typ c 
+syntax.doc.codeBlock typ c = CodeBlock typ (word c)
 syntax.doc.verbatim c = CodeBlock "raw" c 
 syntax.doc.evalBlock d = Eval (Any d)
 syntax.doc.eval a = InlineEval (Any a)
@@ -102,22 +102,24 @@ _italics_ or *italics*
 ## Sections
 
 '''
-# Important document title! 
+# Section title! 
 
-Intro paragraph
+Sections consist of section titles followed by zero or more paragraphs or other section elements (such as subsections). 
 
-## Section 1
+## Subsection title 
 
-Some stuff. 
+* Item 1
+* Item 2
 
-## Section 2
-
-More stuff
+## An empty subsection!
 
 ### Subsection 2.1
+
+Some deeply nested content in subsection 2.1
 '''
 
 Sections start with a title, then zero or more documents, separated by blanklines. Sections whose title starts with ''##'' are subsections of sections whose title starts with one ''#''. Sections may be nested arbitrarily.
+
 
 ## Escaping formatting
 
@@ -137,13 +139,17 @@ Not formatted. Rendered as a code block with no syntax highlighting.
 Not formatted. Rendered as a code block with no syntax highlighting.
 '''
 
-TODO
-
 '''
 ``` Haskell
+-- A fenced code block which isn't parsed by Unison
 reverse = foldl (flip (:)) []
 ```
 '''
+
+``` Haskell
+-- A fenced code block which isn't parsed by Unison
+reverse = foldl (flip (:)) []
+```
 
 ## Lists
 
