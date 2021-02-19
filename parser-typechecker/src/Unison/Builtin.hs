@@ -30,6 +30,7 @@ import qualified Text.Regex.TDFA               as RE
 import qualified Unison.ConstructorType        as CT
 import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 import qualified Unison.Builtin.Decls          as DD
+import qualified Unison.Builtin.Terms          as TD
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Parser                  ( Ann(..) )
 import qualified Unison.Reference              as R
@@ -58,7 +59,9 @@ names0 = Names3.names0 terms types where
     Rel.fromList [ (Name.fromVar vc, Referent.Con (R.DerivedId r) cid ct)
                  | (ct, (_,(r,decl))) <- ((CT.Data,) <$> builtinDataDecls @Symbol) <>
                     ((CT.Effect,) . (second . second) DD.toDataDecl <$> builtinEffectDecls)
-                 , ((_,vc,_), cid) <- DD.constructors' decl `zip` [0..]]
+                 , ((_,vc,_), cid) <- DD.constructors' decl `zip` [0..]] <>
+    Rel.fromList [ (Name.fromVar v, Referent.Ref (R.DerivedId i)) 
+                 | (v,i) <- Map.toList $ TD.builtinTermsRef @Symbol Intrinsic]
   types = Rel.fromList builtinTypes <>
     Rel.fromList [ (Name.fromVar v, R.DerivedId r)
                  | (v,(r,_)) <- builtinDataDecls @Symbol ] <>

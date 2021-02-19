@@ -145,6 +145,10 @@ decomposePattern
   :: Var v
   => Reference -> Int -> Int -> P.Pattern v
   -> [[P.Pattern v]]
+decomposePattern rf0 t _       (P.Boolean _ b)
+  | rf0 == Rf.booleanRef
+  , t == if b then 1 else 0
+  = [[]]
 decomposePattern rf0 t nfields p@(P.Constructor _ rf u ps)
   | t == u
   , rf0 == rf
