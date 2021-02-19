@@ -1,5 +1,5 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -7,7 +7,8 @@
 module Unison.Server.CodebaseServer where
 
 import           Data.Aeson                     ( )
-import qualified Data.ByteString.Lazy          as LZ
+import qualified Data.ByteString.Lazy          as Lazy
+import qualified Data.ByteString               as Strict
 import           Data.OpenApi                   ( URL(..)
                                                 , Info(..)
                                                 , License(..)
@@ -16,7 +17,10 @@ import           Data.OpenApi                   ( URL(..)
 import           Data.Proxy                     ( Proxy(..) )
 import           GHC.Generics                   ( )
 import           Network.HTTP.Types.Status      ( ok200 )
-import           Network.Wai                    ( responseLBS )
+import           Network.Wai                    ( responseLBS
+                                                , Request
+                                                , queryString
+                                                )
 import           Network.Wai.Handler.Warp       ( run, withApplication, Port )
 import           Servant.API                    (Headers,  Get
                                                 , JSON
@@ -24,14 +28,22 @@ import           Servant.API                    (Headers,  Get
                                                 , (:>)
                                                 , type (:<|>)(..)
                                                 )
+import           Servant.API.Experimental.Auth  ( AuthProtect )
+import           Servant.Server.Experimental.Auth
+                                                ( AuthHandler
+                                                , AuthServerData
+                                                , mkAuthHandler
+                                                )
 import           Servant.Docs                   ( DocIntro(DocIntro)
                                                 , docsWithIntros
                                                 , markdown
                                                 )
 import           Servant.Server                 ( Application
+                                                , Context(..)
                                                 , Server
+                                                , ServerError(..)
                                                 , Tagged(Tagged)
-                                                , serve
+                                                , err401
                                                 )
 import           Unison.Codebase                ( Codebase )
 import           Unison.Parser                  ( Ann )
@@ -46,13 +58,22 @@ import           Unison.Server.Endpoints.GetDefinitions
 import           Unison.Server.Types            ( mungeString )
 import           Unison.Var                     ( Var )
 import           Servant.OpenApi                ( HasOpenApi(toOpenApi) )
-import           Servant                        ( Header, addHeader )
-import Control.Lens ( (&), (.~) )
-import Data.OpenApi.Lens (info)
-import qualified Data.Text as Text
-import Data.Foldable (Foldable(toList))
-import qualified Data.ByteString.Random.MWC as MWC
-import qualified Data.ByteString.Base64 as Base64
+import           Servant                        ( Header
+                                                , addHeader
+                                                , throwError
+                                                , serveWithContext
+                                                )
+import           Control.Lens                   ( (&)
+                                                , (.~)
+                                                )
+import           Data.OpenApi.Lens              ( info )
+import qualified Data.Text                     as Text
+import           Data.Foldable                  ( Foldable(toList) )
+import           System.Random.Stateful         ( getStdGen
+                                                , newAtomicGenM
+                                                , uniformByteStringM
+                                                )
+import qualified Data.ByteString.Base64        as Base64
 
 type OpenApiJSON = "openapi.json"
   :> Get '[JSON] (Headers '[Header "Access-Control-Allow-Origin" String] OpenApi)
@@ -61,10 +82,13 @@ type DocAPI = AuthProtect "token-auth" :> (UnisonAPI :<|> OpenApiJSON :<|> Raw)
 
 type UnisonAPI = NamespaceAPI :<|> DefinitionsAPI
 
-genAuthServerContext :: ByteString -> Context (AuthHandler Request ()': '[])
+type instance AuthServerData (AuthProtect "token-auth") = ()
+
+genAuthServerContext
+  :: Strict.ByteString -> Context (AuthHandler Request ()': '[])
 genAuthServerContext token = authHandler token :. EmptyContext
 
-authHandler :: ByteString -> AuthHandler Request ()
+authHandler :: Strict.ByteString -> AuthHandler Request ()
 authHandler token = mkAuthHandler handler
  where
   throw401 msg = throwError $ err401 { errBody = msg }
@@ -86,7 +110,7 @@ infoObject = mempty
   , _infoVersion     = "1.0"
   }
 
-docsBS :: LZ.ByteString
+docsBS :: Lazy.ByteString
 docsBS = mungeString . markdown $ docsWithIntros [intro] api
  where
   intro = DocIntro (Text.unpack $ _infoTitle infoObject)
@@ -98,22 +122,24 @@ docAPI = Proxy
 api :: Proxy UnisonAPI
 api = Proxy
 
-app :: Var v => Codebase IO v Ann -> ByteString -> Application
+app :: Var v => Codebase IO v Ann -> Strict.ByteString -> Application
 app codebase token =
   serveWithContext docAPI (genAuthServerContext token) $ server codebase
 
+genToken :: IO Strict.ByteString
+genToken = do
+  gen <- getStdGen
+  g   <- newAtomicGenM gen
+  Base64.encode <$> uniformByteStringM 64 g
+
 startOnPort :: Var v => Codebase IO v Ann -> Port -> IO ()
-startOnPort codebase token port = do
-  token <- Base64.encode $ MWC.random 64
-  run port $ app codebase token
+startOnPort codebase port = run port . app codebase =<< genToken
 
 start :: Var v => Codebase IO v Ann -> (Port -> IO ()) -> IO ()
-start codebase = do
-  token <- Base64.encode $ MWC.random 64
-  withApplication $ app codebase token
+start codebase = withApplication $ app codebase <$> genToken
 
 server :: Var v => Codebase IO v Ann -> Server DocAPI
-server codebase =
+server codebase _ =
   (serveNamespace codebase :<|> serveDefinitions codebase)
     :<|> addHeader "*"
     <$>  serveOpenAPI

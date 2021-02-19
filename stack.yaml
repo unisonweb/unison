@@ -4,6 +4,9 @@ allow-newer: true # async package has needlessly strict upper bound
 
 allow-different-user: true
 
+build:
+  interleaved-output: false
+
 packages:
 - yaks/easytest
 - parser-typechecker
@@ -34,6 +37,7 @@ extra-deps:
 - servant-server-0.18
 - servant-docs-0.11.6
 - ListLike-4.7.3
+- random-1.2.0
 ghc-options:
  # All packages
  "$locals": -Werror -Wno-type-defaults #-freverse-errors
