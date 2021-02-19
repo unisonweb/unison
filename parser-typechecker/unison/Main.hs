@@ -155,10 +155,10 @@ main = do
   case restargs of
     [] -> do
       theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
-      Server.start theCodebase $ \port -> do
+      Server.start theCodebase $ \token port -> do
         PT.putPrettyLn .
-               P.string $ "I've started a codebase API server at http://127.0.0.1:"
-                 <> show port
+         P.string $ "I've started a codebase API server at http://127.0.0.1:"
+           <> show port <> "?" <> show token
         launch currentDir mNewRun config theCodebase branchCache []
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe

@@ -132,11 +132,25 @@ genToken = do
   g   <- newAtomicGenM gen
   Base64.encode <$> uniformByteStringM 64 g
 
-startOnPort :: Var v => Codebase IO v Ann -> Port -> IO ()
-startOnPort codebase port = run port . app codebase =<< genToken
+-- Returns the auth token required for accessing the server.
+-- It expects the token as a query parameter. E.g. if the token is "abc"
+-- and `port` is 80, then the server can only be accessed at
+-- http://127.0.0.1:80?abc
+startOnPort :: Var v => Codebase IO v Ann -> Port -> IO Strict.ByteString
+startOnPort codebase port = do
+  token <- genToken
+  run port $ app codebase token
+  pure token
 
-start :: Var v => Codebase IO v Ann -> (Port -> IO ()) -> IO ()
-start codebase = withApplication $ app codebase <$> genToken
+-- The auth token required for accessing the server is passed to the function k
+start
+  :: Var v
+  => Codebase IO v Ann
+  -> (Strict.ByteString -> Port -> IO ())
+  -> IO ()
+start codebase k = do
+  token <- genToken
+  withApplication (pure $ app codebase token) (k token)
 
 server :: Var v => Codebase IO v Ann -> Server DocAPI
 server codebase _ =
