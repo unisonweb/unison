@@ -21,7 +21,13 @@ import           Network.Wai                    ( responseLBS
                                                 , Request
                                                 , queryString
                                                 )
-import           Network.Wai.Handler.Warp       ( run, withApplication, Port )
+import           Network.Wai.Handler.Warp       ( runSettings
+                                                , withApplicationSettings
+                                                , defaultSettings
+                                                , Port
+                                                , setPort
+                                                , setHost
+                                                )
 import           Servant.API                    (Headers,  Get
                                                 , JSON
                                                 , Raw
@@ -93,7 +99,8 @@ authHandler token = mkAuthHandler handler
  where
   throw401 msg = throwError $ err401 { errBody = msg }
   handler req =
-    maybe (throw401 "Authentication token missing") (const $ pure ())
+    maybe (throw401 "Authentication token missing or incorrect")
+          (const $ pure ())
       . lookup token
       $ queryString req
 
@@ -130,7 +137,7 @@ genToken :: IO Strict.ByteString
 genToken = do
   gen <- getStdGen
   g   <- newAtomicGenM gen
-  Base64.encode <$> uniformByteStringM 64 g
+  Base64.encode <$> uniformByteStringM 24 g
 
 -- Returns the auth token required for accessing the server.
 -- It expects the token as a query parameter. E.g. if the token is "abc"
@@ -139,18 +146,17 @@ genToken = do
 startOnPort :: Var v => Codebase IO v Ann -> Port -> IO Strict.ByteString
 startOnPort codebase port = do
   token <- genToken
-  run port $ app codebase token
+  let settings = setHost "127.0.0.1" $ setPort port defaultSettings
+  runSettings settings $ app codebase token
   pure token
 
 -- The auth token required for accessing the server is passed to the function k
 start
-  :: Var v
-  => Codebase IO v Ann
-  -> (Strict.ByteString -> Port -> IO ())
-  -> IO ()
+  :: Var v => Codebase IO v Ann -> (Strict.ByteString -> Port -> IO ()) -> IO ()
 start codebase k = do
   token <- genToken
-  withApplication (pure $ app codebase token) (k token)
+  let settings = setHost "127.0.0.1" defaultSettings
+  withApplicationSettings settings (pure $ app codebase token) (k token)
 
 server :: Var v => Codebase IO v Ann -> Server DocAPI
 server codebase _ =
