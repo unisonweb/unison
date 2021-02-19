@@ -344,7 +344,7 @@ lexemes' eof = P.optional space >> do
         eval = wrap "syntax.doc.inlineEval" $ do
           _ <- lit "@eval" *> (lit " {" <|> lit "{") *> CP.space
           let inlineEvalClose  = [] <$ lit "}"
-          s <- lexemes' inlineEvalClose
+          s <- P.dbg "Lexer.inlineEval" $ lexemes' inlineEvalClose
           pure s
 
     typeLink = wrap "syntax.doc.embedTypeLink" $ do

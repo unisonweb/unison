@@ -1,3 +1,4 @@
+
 unique[b7a4fb87e34569319591130bf3ec6e24c9955b6ae06b5f6895e908d58c3f6113] type Doc2
   = Word Text
   | Code Doc2
@@ -12,8 +13,8 @@ unique[b7a4fb87e34569319591130bf3ec6e24c9955b6ae06b5f6895e908d58c3f6113] type Do
   | Blankline
   | SectionBreak
   | Aside (Optional Doc2) Doc2
-  -- callout icon title content
-  | Callout (Optional Doc2) (Optional Doc2) Doc2
+  -- callout icon content
+  | Callout (Optional Doc2) Doc2
   | Folded Boolean Doc2 Doc2
   | Paragraph [Doc2]
   | BulletedList [Doc2]
@@ -25,10 +26,21 @@ unique[b7a4fb87e34569319591130bf3ec6e24c9955b6ae06b5f6895e908d58c3f6113] type Do
   | Signature [Any]
   | Example Nat Any 
   | InlineSignature Any
-  | InlineEval Any
-  | Eval Any
+  | InlineEval Doc2.Evaluation
+  | Eval Doc2.Evaluation
   | Trace Any
   | Docs [Doc2]
+
+unique type Doc2.Evaluation = Evaluation Any Any 
+
+Doc2.evaluate : 'a -> Evaluation
+Doc2.evaluate a = Doc2.Evaluation.Evaluation (Any a) (Any !a) 
+
+Doc2.Evaluation.source : Evaluation -> Any
+Doc2.Evaluation.source = cases Evaluation src _ -> src
+
+Doc2.Evaluation.result : Evaluation -> Any
+Doc2.Evaluation.result = cases Evaluation _ result -> result
 
 syntax.doc.docs = cases [d] -> d
                         ds -> Docs ds
@@ -46,12 +58,12 @@ syntax.doc.embedTypeLink tl =
 syntax.doc.source = Source
 syntax.doc.signature = Signature
 syntax.doc.inlineSignature = InlineSignature
-syntax.doc.inlineEval = InlineEval
+syntax.doc.inlineEval e = InlineEval (evaluate e)
 syntax.doc.code c = Code c 
 syntax.doc.codeBlock typ c = CodeBlock typ (word c)
 syntax.doc.verbatim c = CodeBlock "raw" c 
-syntax.doc.evalBlock d = Eval (Any d)
-syntax.doc.eval a = InlineEval (Any a)
+syntax.doc.evalBlock d = Eval (evaluate d)
+syntax.doc.eval a = InlineEval (evaluate a)
 syntax.doc.example n a = Example n (Any a)
 syntax.doc.link = Link
 syntax.doc.transclude d = 
@@ -65,9 +77,12 @@ syntax.doc.section = Section
 name = {{ Alice }}
 baseUrl = {{ https://www.unisonweb.org }}
 
+doc1 = {{ @eval{1 + 1} }}
+
+---
 doc1 = {{
 
-# Unison documentation v2 format
+# Unison documentation format
 
 The syntax tries to be close to markdown.
 
@@ -99,7 +114,29 @@ _italics_ or *italics*
 
 [The Unison website](https://unisonweb.org)
 
-## Sections
+### Escaping formatting
+
+If you want the text. 
+
+'''
+{{ syntax.doc.word "__not bold__"}}
+'''
+
+Renders as:
+
+{{ syntax.doc.word "__not bold__"}}
+
+If you have some inline text you want to leave unparsed and have it render in a monospace font, do:
+
+'''
+An example of bold text syntax: ''__some bold text__''
+'''
+
+Renders as:
+
+An example of bold text syntax: ''__some bold text__''
+
+## Sections and subsections
 
 '''
 # Section title! 
@@ -119,37 +156,6 @@ Some deeply nested content in subsection 2.1
 '''
 
 Sections start with a title, then zero or more documents, separated by blanklines. Sections whose title starts with ''##'' are subsections of sections whose title starts with one ''#''. Sections may be nested arbitrarily.
-
-
-## Escaping formatting
-
-'''
-{{ syntax.doc.word "### Not a section title!" }}
-'''
-
-{{ syntax.doc.word "### Not a section title!" }}
-
-''''
-'''
-Not formatted. Rendered as a code block with no syntax highlighting.
-'''
-''''
-
-'''
-Not formatted. Rendered as a code block with no syntax highlighting.
-'''
-
-'''
-``` Haskell
--- A fenced code block which isn't parsed by Unison
-reverse = foldl (flip (:)) []
-```
-'''
-
-``` Haskell
--- A fenced code block which isn't parsed by Unison
-reverse = foldl (flip (:)) []
-```
 
 ## Lists
 
@@ -221,6 +227,11 @@ Numbered lists can be nested as well, and combined with bulleted lists:
 
 '''
 Expressions can be evaluated inline, for instance @eval{1 + 1}.
+'''
+
+Renders as: TODO
+
+''Expressions can be evaluated inline, for instance @eval{1 + 1}.''
 
 Blocks of code can be evaluated as well, for instance:
 
@@ -231,15 +242,39 @@ id 99
 ``` 
 '''
 
-Becomes:
-
-TODO
+Renders as:
 
 ```
 id x = x
 
 id 99
 ``` 
+
+## Including Unison source code
+
+'''
+@source{ type Optional, id }
+'''
+
+Renders as: TODO
+
+''@source{ type Optional, id }''
+
+You can also render just the signatures of a collection of terms: 
+
+'''
+@signatures{ id, Some, None }
+'''
+
+You can reference a signature inline, like so 
+
+'''
+An inline signature @signature{id}.
+'''
+
+Renders as: TODO
+
+''An inline signature @signature{id}.''
 
 ## Including other documents
 
@@ -251,5 +286,49 @@ id 99
 
 "And what is the use of a book," thought {{name}}, "without pictures or conversations?"
 
-Hmm... why does it matter where we declare {{name}}?  
+TODO why do we have to declare ''name'' earlier in the file?
+
+## Non-unison code blocks 
+
+A code block with no syntax highlighting starts with at least two {{ code (word "'") }} characters, and is terminated by the same number of {{ code (word "'") }} characters. 
+
+''''
+'''
+Not formatted. Rendered as a code block with no syntax highlighting.
+'''
+''''
+
+Renders as:
+
+'''
+Not formatted. Rendered as a code block with no syntax highlighting.
+'''
+
+You can use triple (or greater) backticks plus a language name for blocks with syntax highlighting.
+
+'''
+``` Haskell
+-- A fenced code block which isn't parsed by Unison
+reverse = foldl (flip (:)) []
+```
+
+``` Scala
+// A fenced code block which isn't parsed by Unison
+def reverse[A](xs: List[A]) = 
+  xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
+```
+'''
+
+Renders as:
+
+``` Haskell
+-- A fenced code block which isn't parsed by Unison
+reverse = foldl (flip (:)) []
+```
+
+``` Scala
+// A fenced code block which isn't parsed by Unison
+def reverse[A](xs: List[A]) = 
+  xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
+```
 }}
