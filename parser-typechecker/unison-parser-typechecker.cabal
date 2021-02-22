@@ -242,7 +242,7 @@ library
     regex-base,
     regex-tdfa,
     safe,
-    servant >= 18,
+    servant,
     servant-docs,
     servant-openapi3,
     servant-server,
