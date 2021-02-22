@@ -3,7 +3,7 @@ cabal-version:       2.2
 -- 'cabal init'.  For further documentation, see
 -- http://haskell.org/cabal/users-guide/
 
-name:                unison-core
+name:                unison-codebase-sync-2to2
 version:             0.1.0.0
 -- synopsis:
 -- description:
@@ -14,22 +14,30 @@ copyright:           Unison Computing, PBC
 category:            Development
 
 library
+  hs-source-dirs: lib
   exposed-modules:
-    U.Core.ABT
-    U.Core.ABT.Var
-    -- U.Core.Reference
-    -- U.Core.Referent
-    -- U.Core.Term
-    -- U.Core2.Referent.Short
+    U.Codebase.Sync.V2V2
   -- other-modules:
   -- other-extensions:
   build-depends:
-      base,
-      containers,
-      text,
-      vector,
-      -- prelude-extras is deprecated in favor of base
-      prelude-extras,
-      unison-util
-  hs-source-dirs:      .
+    base,
+    -- bytes,
+    bytestring,
+    containers,
+    extra,
+    here,
+    lens,
+    mtl,
+    safe,
+    text,
+    sqlite-simple,
+    unliftio,
+    vector,
+    unison-core,
+    -- unison-codebase1,
+    -- unison-codebase,
+    -- unison-codebase-sqlite,
+    -- unison-util,
+    -- unison-util-serialization,
+    -- unison-util-term
   default-language:    Haskell2010

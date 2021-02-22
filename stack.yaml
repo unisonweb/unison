@@ -9,7 +9,7 @@ packages:
 - parser-typechecker
 - unison-core
 
-# - codebase-convert-1to2
+- codebase-convert-1to2
 - codebase1/codebase
 - codebase2/codebase
 - codebase2/codebase-sqlite

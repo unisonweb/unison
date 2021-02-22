@@ -40,15 +40,3 @@ dependencies = execWriter . ABT.visit_ \case
   typeRef r = tell (mempty, pure r, mempty, mempty)
   termLink r = tell (mempty, mempty, pure r, mempty)
   typeLink r = tell (mempty, mempty, mempty, pure r)
-
-
-
--- fold :: Monad m =>
---   (text -> m ()) ->
---   (termRef -> m ()) ->
---   (typeRef -> m ()) ->
---   (termLink -> m ()) ->
---   (typeLink -> m ()) ->
---   ABT.Term (Term.F' text termRef typeRef termLink typeLink vt) v a ->
---   m ()
--- fold = error "todo: U.Util.TermUtil.fold"
