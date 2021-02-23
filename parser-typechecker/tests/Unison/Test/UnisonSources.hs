@@ -153,7 +153,7 @@ resultTest rt uf filepath = do
               tm' = Term.letRec' False bindings watchResult
           -- note . show $ tm'
           -- note . show $ Term.amap (const ()) tm
-          expect $ tm' == Term.amap (const ()) tm
+          expectEqual tm' (Term.amap (const ()) tm)
         Left e -> crash $ show e
     else pure ()
 

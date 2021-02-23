@@ -258,13 +258,15 @@ instance (ForeignConvention a, ForeignConvention b)
     (ustk, bstk) <- writeForeign ustk bstk y
     writeForeign ustk bstk x
 
-instance ForeignConvention Failure where
+instance ForeignConvention a => ForeignConvention (Failure a) where
   readForeign us bs ustk bstk = do
     (us,bs,typeref) <- readTypelink us bs ustk bstk
     (us,bs,message) <- readForeign us bs ustk bstk
-    pure (us, bs, Failure typeref message)
+    (us,bs,any) <- readForeign us bs ustk bstk
+    pure (us, bs, Failure typeref message any)
 
-  writeForeign ustk bstk (Failure typeref message) = do
+  writeForeign ustk bstk (Failure typeref message any) = do
+    (ustk, bstk) <- writeForeign ustk bstk any
     (ustk, bstk) <- writeForeign ustk bstk message
     writeTypeLink ustk bstk typeref
 

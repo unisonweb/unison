@@ -90,7 +90,7 @@ test> checkRoundTrip greek
     
       checkRoundTrip : Text -> [Result]
       greek          : Text
-    test.kqfpde2g5a  (Unison bug, unknown term)
+    test.nm3cmq1utb  (Unison bug, unknown term)
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
@@ -108,7 +108,7 @@ greek_bytes = Bytes.fromList [206, 145, 206, 146, 206, 147, 206, 148, 206]
 
 -- Its an error if we drop the first byte
 > match fromUtf8 (drop 1 greek_bytes) with
-  Left (Failure _ t) -> t
+  Left (Failure _ t _) -> t
 
 ```
 

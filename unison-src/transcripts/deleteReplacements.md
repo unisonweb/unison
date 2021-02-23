@@ -44,3 +44,22 @@ type Foo = Foo | Bar
 .> view.patch
 ```
 
+```unison
+bar = 3
+type bar = Foo
+```
+
+```ucm
+.> add
+```
+
+```unison
+type bar = Foo | Bar
+```
+
+```ucm
+.> update
+.> view.patch
+.> delete.type-replacement bar
+.> view.patch
+```

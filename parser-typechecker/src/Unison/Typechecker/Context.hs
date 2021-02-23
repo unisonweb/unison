@@ -1747,6 +1747,10 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
       Just amb -> do
         subtype amb r `orElse` die1
         go ambient rs
+      -- Corner case where a unification caused `r` to expand to a
+      -- list of effects. This whole function should be restructured
+      -- such that this can go in a better spot.
+      Nothing | Type.Effects' es <- r -> go ambient (es ++ rs)
       -- 2b. If no:
       Nothing -> case r of
         -- It's an unsolved existential, instantiate it to all of ambient

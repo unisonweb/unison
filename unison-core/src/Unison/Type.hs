@@ -265,6 +265,9 @@ valueRef = Reference.Builtin "Value"
 anyRef :: Reference
 anyRef = Reference.Builtin "Any"
 
+any :: Ord v => a -> Type v a
+any a = ref a anyRef
+
 builtin :: Ord v => a -> Text -> Type v a
 builtin a = ref a . Reference.Builtin
 

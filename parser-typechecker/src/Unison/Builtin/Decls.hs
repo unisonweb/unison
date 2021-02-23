@@ -41,6 +41,9 @@ optionalRef = lookupDeclRef "Optional"
 eitherRef = lookupDeclRef "Either"
 
 testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef, failureRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
+isPropagatedRef, isTestRef :: Reference
+isPropagatedRef = lookupDeclRef "IsPropagated"
+isTestRef = lookupDeclRef "IsTest"
 testResultRef = lookupDeclRef "Test.Result"
 linkRef = lookupDeclRef "Link"
 docRef = lookupDeclRef "Doc"
@@ -67,6 +70,9 @@ constructorId ref name = do
   elemIndex name $ DD.constructorNames dd
 
 okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId :: ConstructorId
+isPropagatedConstructorId, isTestConstructorId :: ConstructorId 
+Just isPropagatedConstructorId = constructorId isPropagatedRef "IsPropagated.IsPropagated"
+Just isTestConstructorId = constructorId isTestRef "IsTest.IsTest"
 Just okConstructorId = constructorId testResultRef "Test.Result.Ok"
 Just failConstructorId = constructorId testResultRef "Test.Result.Fail"
 Just docBlobId = constructorId docRef "Doc.Blob"
@@ -96,6 +102,8 @@ builtinDataDecls = rs1 ++ rs
     , (v "Optional"           , opt)
     , (v "Either"             , eith)
     , (v "Test.Result"        , tr)
+    , (v "IsPropagated"       , isPropagated)
+    , (v "IsTest"             , isTest)
     , (v "Doc"                , doc)
     , (v "io2.FileMode"       , fmode)
     , (v "io2.BufferMode"     , bmode)
@@ -105,6 +113,7 @@ builtinDataDecls = rs1 ++ rs
     , (v "io2.StdHandle"      , stdhnd)
     , (v "io2.Failure"        , failure)
     , (v "io2.TlsFailure"     , tlsFailure)
+    , (v "io2.IOFailure"      , ioFailure)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
   [(_, linkRef, _)] = rs1
   v = Var.named
@@ -156,6 +165,18 @@ builtinDataDecls = rs1 ++ rs
           (var "b" `arr` Type.apps' (var "Either") [var "a", var "b"])
       )
     ]
+  isTest =
+    DataDeclaration
+      (Unique "e6dca08b40458b03ca1660cfbdaecaa7279b42d18257898b5fd1c34596aac36f")
+      ()
+      []
+      [((), v "IsTest.IsTest", var "IsTest")]
+  isPropagated =
+    DataDeclaration
+      (Unique "b28d929d0a73d2c18eac86341a3bb9399f8550c11b5f35eabb2751e6803ccc20")
+      ()
+      []
+      [((), v "IsPropagated.IsPropagated", var "IsPropagated")]
   fmode = DataDeclaration
     (Unique "3c11ba4f0a5d8fedd427b476cdd2d7673197d11e")
     ()
@@ -200,13 +221,15 @@ builtinDataDecls = rs1 ++ rs
     (Unique "52ad89274a358b9c802792aa05915e25ac83205f7885395cc6c6c988bc5ec69a1")
     ()
     []
-    [ ((), v "io2.Failure.Failure", Type.typeLink () `arr` (Type.text () `arr` var "io2.Failure"))
+    [ ((), v "io2.Failure.Failure", Type.typeLink () `arr` (Type.text () `arr` (Type.any () `arr` var "io2.Failure")))
     ]
-  tlsFailure = DataDeclaration
-    (Unique "df5ba835130b227ab83d02d1feff5402455a732d613b51dee32230d2f2d067c6")
-    ()
+
+  tlsFailure = DataDeclaration (Unique "df5ba835130b227ab83d02d1feff5402455a732d613b51dee32230d2f2d067c6")()[]
     []
+
+  ioFailure = DataDeclaration (Unique "009cb00e78cac9e47485cc3633c7a363939f63866ea07ab330346a2121d69a83")()[]
     []
+
   stdhnd = DataDeclaration
     (Unique "67bf7a8e517cbb1e9f42bc078e35498212d3be3c")
     ()
