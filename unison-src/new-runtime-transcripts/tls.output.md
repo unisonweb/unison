@@ -130,7 +130,7 @@ test> match (decodeCert (toUtf8 self_signed_cert_pem) with
   
     ⍟ These new definitions are ok to `add`:
     
-    test.ckc3ihvvem (Unison bug, unknown term)
+    test.ko630itb5m (Unison bug, unknown term)
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.

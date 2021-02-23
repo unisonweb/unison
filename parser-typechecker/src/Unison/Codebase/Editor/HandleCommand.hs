@@ -18,6 +18,7 @@ import qualified Unison.Builtin                as B
 
 import qualified Crypto.Random                 as Random
 import           Control.Monad.Except           ( runExceptT )
+import qualified Control.Monad.State           as State
 import qualified Data.Configurator             as Config
 import           Data.Configurator.Types        ( Config )
 import qualified Data.Map                      as Map
@@ -92,78 +93,80 @@ commandLine
   -> Free (Command IO i v) a
   -> IO a
 commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase rngGen branchCache =
- Free.foldWithIndex go
+ flip State.evalStateT 0 . Free.fold go
  where
-  go :: forall x . Int -> Command IO i v x -> IO x
-  go i x = case x of
+  go :: forall x . Command IO i v x -> State.StateT Int IO x
+  go x = case x of
     -- Wait until we get either user input or a unison file update
-    Eval m        -> m
-    Input         -> awaitInput
-    Notify output -> notifyUser output
-    NotifyNumbered output -> notifyNumbered output
+    Eval m        -> lift $ m
+    Input         -> lift $ awaitInput
+    Notify output -> lift $ notifyUser output
+    NotifyNumbered output -> lift $ notifyNumbered output
     ConfigLookup name ->
-      Config.lookup config name
-    LoadSource sourcePath -> loadSource sourcePath
+      lift $ Config.lookup config name
+    LoadSource sourcePath -> lift $ loadSource sourcePath
 
     Typecheck ambient names sourceName source -> do
       -- todo: if guids are being shown to users,
       -- not ideal to generate new guid every time
-      rng <- rngGen i
+      i <- State.get
+      State.modify' (+1)
+      rng <- lift $ rngGen i
       let namegen = Parser.uniqueBase32Namegen rng
           env = Parser.ParsingEnv namegen names
-      typecheck ambient codebase env sourceName source
-    TypecheckFile file ambient     -> typecheck' ambient codebase file
-    Evaluate ppe unisonFile        -> evalUnisonFile ppe unisonFile
-    Evaluate1 ppe term             -> eval1 ppe term
-    LoadLocalRootBranch        -> either (const Branch.empty) id <$> Codebase.getRootBranch codebase
-    LoadLocalBranch h          -> fromMaybe Branch.empty <$> Codebase.getBranchForHash codebase h
-    SyncLocalRootBranch branch -> do
+      lift $ typecheck ambient codebase env sourceName source
+    TypecheckFile file ambient     -> lift $ typecheck' ambient codebase file
+    Evaluate ppe unisonFile        -> lift $ evalUnisonFile ppe unisonFile
+    Evaluate1 ppe term             -> lift $ eval1 ppe term
+    LoadLocalRootBranch        -> lift $ either (const Branch.empty) id <$> Codebase.getRootBranch codebase
+    LoadLocalBranch h          -> lift $ fromMaybe Branch.empty <$> Codebase.getBranchForHash codebase h
+    SyncLocalRootBranch branch -> lift $ do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
     ViewRemoteBranch ns ->
-      runExceptT $ Git.viewRemoteBranch branchCache ns
+      lift $ runExceptT $ Git.viewRemoteBranch branchCache ns
     ImportRemoteBranch ns syncMode ->
-      runExceptT $ Git.importRemoteBranch codebase branchCache ns syncMode
+      lift $ runExceptT $ Git.importRemoteBranch codebase branchCache ns syncMode
     SyncRemoteRootBranch repo branch syncMode ->
-      runExceptT $ Git.pushGitRootBranch codebase branchCache branch repo syncMode
-    LoadTerm r -> Codebase.getTerm codebase r
-    LoadType r -> Codebase.getTypeDeclaration codebase r
-    LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r
-    PutTerm r tm tp -> Codebase.putTerm codebase r tm tp
-    PutDecl r decl -> Codebase.putTypeDeclaration codebase r decl
-    PutWatch kind r e -> Codebase.putWatch codebase kind r e
-    LoadWatches kind rs -> catMaybes <$> traverse go (toList rs) where
+      lift $ runExceptT $ Git.pushGitRootBranch codebase branchCache branch repo syncMode
+    LoadTerm r -> lift $ Codebase.getTerm codebase r
+    LoadType r -> lift $ Codebase.getTypeDeclaration codebase r
+    LoadTypeOfTerm r -> lift $ Codebase.getTypeOfTerm codebase r
+    PutTerm r tm tp -> lift $ Codebase.putTerm codebase r tm tp
+    PutDecl r decl -> lift $ Codebase.putTypeDeclaration codebase r decl
+    PutWatch kind r e -> lift $ Codebase.putWatch codebase kind r e
+    LoadWatches kind rs -> lift $ catMaybes <$> traverse go (toList rs) where
       go (Reference.Builtin _) = pure Nothing
       go r@(Reference.DerivedId rid) =
         fmap (r,) <$> Codebase.getWatch codebase kind rid
-    IsTerm r -> Codebase.isTerm codebase r
-    IsType r -> Codebase.isType codebase r
-    GetDependents r -> Codebase.dependents codebase r
-    AddDefsToCodebase unisonFile -> Codebase.addDefsToCodebase codebase unisonFile
-    GetTermsOfType ty -> Codebase.termsOfType codebase ty
-    GetTermsMentioningType ty -> Codebase.termsMentioningType codebase ty
-    CodebaseHashLength -> Codebase.hashLength codebase
+    IsTerm r -> lift $ Codebase.isTerm codebase r
+    IsType r -> lift $ Codebase.isType codebase r
+    GetDependents r -> lift $ Codebase.dependents codebase r
+    AddDefsToCodebase unisonFile -> lift $ Codebase.addDefsToCodebase codebase unisonFile
+    GetTermsOfType ty -> lift $ Codebase.termsOfType codebase ty
+    GetTermsMentioningType ty -> lift $ Codebase.termsMentioningType codebase ty
+    CodebaseHashLength -> lift $ Codebase.hashLength codebase
     -- all builtin and derived type references
     TypeReferencesByShortHash sh -> do
-      fromCodebase <- Codebase.typeReferencesByPrefix codebase sh
+      fromCodebase <- lift $ Codebase.typeReferencesByPrefix codebase sh
       let fromBuiltins = Set.filter (\r -> sh == Reference.toShortHash r)
             $ B.intrinsicTypeReferences
       pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
     -- all builtin and derived term references
     TermReferencesByShortHash sh -> do
-      fromCodebase <- Codebase.termReferencesByPrefix codebase sh
+      fromCodebase <- lift $ Codebase.termReferencesByPrefix codebase sh
       let fromBuiltins = Set.filter (\r -> sh == Reference.toShortHash r)
             $ B.intrinsicTermReferences
       pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
     -- all builtin and derived term references & type constructors
     TermReferentsByShortHash sh -> do
-      fromCodebase <- Codebase.termReferentsByPrefix codebase sh
+      fromCodebase <- lift $ Codebase.termReferentsByPrefix codebase sh
       let fromBuiltins = Set.map Referent.Ref
             . Set.filter (\r -> sh == Reference.toShortHash r)
             $ B.intrinsicTermReferences
       pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase)
-    BranchHashLength -> Codebase.branchHashLength codebase
-    BranchHashesByPrefix h -> Codebase.branchHashesByPrefix codebase h
+    BranchHashLength -> lift $ Codebase.branchHashLength codebase
+    BranchHashesByPrefix h -> lift $ Codebase.branchHashesByPrefix codebase h
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
     RuntimeMain -> pure $ Runtime.mainType rt
@@ -175,9 +178,9 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
 --      pure $ Branch.append b0 b
 
     Execute ppe uf ->
-      evalUnisonFile ppe uf
-    AppendToReflog reason old new -> Codebase.appendReflog codebase reason old new
-    LoadReflog -> Codebase.getReflog codebase
+      lift $ evalUnisonFile ppe uf
+    AppendToReflog reason old new -> lift $ Codebase.appendReflog codebase reason old new
+    LoadReflog -> lift $ Codebase.getReflog codebase
     CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Parser.External t
 
   eval1 :: PPE.PrettyPrintEnv -> Term v Ann -> _
