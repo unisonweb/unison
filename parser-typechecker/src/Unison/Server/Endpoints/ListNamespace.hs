@@ -55,10 +55,10 @@ import           Unison.Server.Types            ( HashQualifiedName
                                                 , mayDefault
                                                 , formatType
                                                 )
-import           Unison.ShortHash               ( ShortHash )
 import           Unison.Util.Pretty             ( Width )
 import           Unison.Util.SyntaxText         ( SyntaxText' )
 import           Unison.Var                     ( Var )
+import qualified Unison.Codebase.ShortBranchHash as SBH
 
 type NamespaceAPI =
   "list" :> QueryParam "namespace" HashQualifiedName
@@ -78,8 +78,8 @@ instance ToSample NamespaceListing where
         <> "listed by default"
       , NamespaceListing
         "."
-        "gjlk0dna8dongct6lsd19d1o9hi5n642t8jttga5e81e91fviqjdffem0tlddj7ahodjo5"
-        [Subnamespace $ NamedNamespace "base" 1244]
+        "#gjlk0dna8dongct6lsd19d1o9hi5n642t8jttga5e81e91fviqjdffem0tlddj7ahodjo5"
+        [Subnamespace $ NamedNamespace "base" "#19d1o9hi5n642t8jttg" 1244]
       )
     ]
 
@@ -106,8 +106,9 @@ instance ToJSON NamespaceObject
 deriving instance ToSchema NamespaceObject
 
 data NamedNamespace = NamedNamespace
-  { namespaceName :: UnisonName,
-    namespaceSize :: Size
+  { namespaceName :: UnisonName
+  , namespaceHash :: UnisonHash
+  , namespaceSize :: Size
   }
   deriving (Generic, Show)
 
@@ -116,9 +117,9 @@ instance ToJSON NamedNamespace
 deriving instance ToSchema NamedNamespace
 
 data NamedTerm = NamedTerm
-  { termName :: HashQualifiedName,
-    termHash :: UnisonHash,
-    termType :: Maybe (SyntaxText' ShortHash)
+  { termName :: HashQualifiedName
+  , termHash :: UnisonHash
+  , termType :: Maybe (SyntaxText' UnisonHash)
   }
   deriving (Generic, Show)
 
@@ -136,9 +137,7 @@ instance ToJSON NamedType
 
 deriving instance ToSchema NamedType
 
-newtype NamedPatch = NamedPatch
-  { patchName :: HashQualifiedName
-  }
+newtype NamedPatch = NamedPatch { patchName :: HashQualifiedName }
   deriving (Generic, Show)
 
 instance ToJSON NamedPatch
@@ -166,8 +165,9 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
     }
   Backend.ShallowTypeEntry r name -> TypeObject
     $ NamedType { typeName = HQ'.toText name, typeHash = Reference.toText r }
-  Backend.ShallowBranchEntry name size -> Subnamespace $ NamedNamespace
+  Backend.ShallowBranchEntry name hash size -> Subnamespace $ NamedNamespace
     { namespaceName = NameSegment.toText name
+    , namespaceHash = "#" <> SBH.toText hash
     , namespaceSize = size
     }
   Backend.ShallowPatchEntry name ->
@@ -196,7 +196,9 @@ serveNamespace codebase mayHQN = case mayHQN of
         pure
           . NamespaceListing
               (Name.toText n)
-              (Hash.base32Hex . Causal.unRawHash $ Branch.headHash root)
+              (("#" <>) . Hash.base32Hex . Causal.unRawHash $ Branch.headHash
+                root
+              )
           $ fmap (backendListEntryToNamespaceObject ppe Nothing) entries
       HQ.HashOnly _        -> hashOnlyNotSupported
       HQ.HashQualified _ _ -> hashQualifiedNotSupported

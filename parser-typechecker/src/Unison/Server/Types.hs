@@ -84,23 +84,42 @@ instance ToJSON r => ToJSON (SyntaxText' r)
 
 deriving instance ToSchema r => ToSchema (SyntaxText' r)
 
+instance ToJSON TypeDefinition
+
+deriving instance ToSchema TypeDefinition
+
+instance ToJSON TermDefinition
+
+deriving instance ToSchema TermDefinition
+
 instance ToJSON DefinitionDisplayResults
 
 deriving instance ToSchema DefinitionDisplayResults
 
+data TermDefinition = TermDefinition
+  { termNames :: [HashQualifiedName]
+  , bestTermName :: HashQualifiedName
+  , termDefinition :: DisplayObject (SyntaxText' UnisonHash)
+  , signature :: SyntaxText' UnisonHash
+  } deriving (Eq, Show, Generic)
+
+data TypeDefinition = TypeDefinition
+  { typeNames :: [HashQualifiedName]
+  , bestTypeName :: HashQualifiedName
+  , typeDefinition :: DisplayObject (SyntaxText' UnisonHash)
+  } deriving (Eq, Show, Generic)
+
 data DefinitionDisplayResults =
   DefinitionDisplayResults
-    { termDefinitions :: Map ShortHash (DisplayObject (SyntaxText' ShortHash))
-    , typeDefinitions :: Map ShortHash (DisplayObject (SyntaxText' ShortHash))
+    { termDefinitions :: Map UnisonHash TermDefinition
+    , typeDefinitions :: Map UnisonHash TypeDefinition
     , missingDefinitions :: [HQ.HashQualified Name]
     } deriving (Eq, Show, Generic)
 
 formatType
-  :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText' ShortHash
+  :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText' UnisonHash
 formatType ppe w =
-  fmap (fmap Reference.toShortHash) . render w . TypePrinter.pretty0 ppe
-                                                                     mempty
-                                                                     (-1)
+  fmap (fmap Reference.toText) . render w . TypePrinter.pretty0 ppe mempty (-1)
 
 munge :: Text -> LZ.ByteString
 munge = Text.encodeUtf8 . Text.fromStrict

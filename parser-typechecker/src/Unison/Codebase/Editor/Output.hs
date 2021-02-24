@@ -181,6 +181,7 @@ data Output v
                (Map Reference (DisplayObject (Decl v Ann)))
                (Map Reference (DisplayObject (Term v Ann)))
   | MetadataMissingType PPE.PrettyPrintEnv Referent
+  | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
   -- todo: tell the user to run `todo` on the same patch they just used
   | NothingToPatch PatchPath Path'
@@ -319,6 +320,7 @@ isFailure o = case o of
   NoOp -> False
   ListDependencies{} -> False
   ListDependents{} -> False
+  TermMissingType{} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
 
 isNumberedFailure :: NumberedOutput v -> Bool

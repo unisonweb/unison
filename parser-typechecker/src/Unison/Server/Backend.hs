@@ -48,33 +48,38 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.Type (Type)
+import qualified Unison.Type as Type
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Star3 as Star3
 import Unison.Var (Var)
 import Unison.Server.Types
 import Unison.Server.QueryResult
-import Unison.Util.SyntaxText (SyntaxText)
+import Unison.Util.SyntaxText (SyntaxText, SyntaxText')
+import qualified Unison.Util.SyntaxText as SyntaxText
 import Unison.Util.List (uniqueBy)
 import Unison.ShortHash
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.TermPrinter as TermPrinter
+import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.DeclPrinter as DeclPrinter
 import Unison.Util.Pretty (Width)
+import qualified Data.Text as Text
 
 data ShallowListEntry v a
   = ShallowTermEntry Referent HQ'.HQSegment (Maybe (Type v a))
   | ShallowTypeEntry Reference HQ'.HQSegment
-  | ShallowBranchEntry NameSegment Int -- number of child definitions
+  -- The integer here represents the number of children
+  | ShallowBranchEntry NameSegment ShortBranchHash Int
   | ShallowPatchEntry NameSegment
   deriving (Eq, Ord, Show, Generic)
 
 listEntryName :: ShallowListEntry v a -> Text
 listEntryName = \case
-  ShallowTermEntry _ s _ -> HQ'.toText s
-  ShallowTypeEntry   _ s -> HQ'.toText s
-  ShallowBranchEntry n _ -> NameSegment.toText n
-  ShallowPatchEntry n    -> NameSegment.toText n
+  ShallowTermEntry _ s _   -> HQ'.toText s
+  ShallowTypeEntry _ s     -> HQ'.toText s
+  ShallowBranchEntry n _ _ -> NameSegment.toText n
+  ShallowPatchEntry n      -> NameSegment.toText n
 
 data BackendError
   = NoSuchNamespace Path.Absolute
@@ -82,6 +87,7 @@ data BackendError
   | CouldntExpandBranchHash ShortBranchHash
   | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
   | NoBranchForHash Branch.Hash
+  | MissingSignatureForTerm Reference
 
 type Backend m a = ExceptT BackendError m a
 
@@ -184,7 +190,9 @@ findShallow codebase path' = do
           | (r, ns) <- R.toList . Star3.d1 $ Branch._types b0
           ]
         branchEntries =
-          [ ShallowBranchEntry ns (defnCount b)
+          [ ShallowBranchEntry ns
+                               (SBH.fullFromHash $ Branch.headHash b)
+                               (defnCount b)
           | (ns, b) <- Map.toList $ Branch._children b0
           ]
         patchEntries =
@@ -394,8 +402,24 @@ expandShortBranchHash codebase hash = do
     _ ->
       throwError . AmbiguousBranchHash hash $ Set.map (SBH.fromHash len) hashSet
 
+prettyType
+  :: Var v
+  => Width
+  -> PPE.PrettyPrintEnvDecl
+  -> Type v Ann
+  -> SyntaxText' UnisonHash
+prettyType width ppe =
+  mungeSyntaxText . Pretty.render width . TypePrinter.pretty0
+    (PPE.suffixifiedPPE ppe)
+    mempty
+    (-1)
+
+mungeSyntaxText :: Functor g => Functor h => g (h Reference) -> g (h Text)
+mungeSyntaxText = fmap $ fmap Reference.toText
+
 prettyDefinitionsBySuffixes
-  :: Monad m
+  :: forall v m
+   . Monad m
   => Var v
   => Maybe Path
   -> Maybe Branch.Hash
@@ -413,18 +437,65 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth codebase query = do
   -- We might like to make sure that the user search terms get used as
   -- the names in the pretty-printer, but the current implementation
   -- doesn't.
-  let printNames =
-        getCurrentPrettyNames (fromMaybe Path.empty relativeTo) branch
-      ppe   = PPE.fromNamesDecl hqLength printNames
-      width = mayDefault renderWidth
-      renderedDisplayTerms =
-        Map.mapKeys Reference.toShortHash $ termsToSyntax width ppe terms
-      renderedDisplayTypes =
-        Map.mapKeys Reference.toShortHash $ typesToSyntax width ppe types
-  pure $ DefinitionDisplayResults
-    (Map.map (fmap (fmap (fmap Reference.toShortHash))) renderedDisplayTerms)
-    (Map.map (fmap (fmap (fmap Reference.toShortHash))) renderedDisplayTypes)
-    misses
+  let
+    printNames = getCurrentPrettyNames (fromMaybe Path.empty relativeTo) branch
+    parseNames = getCurrentParseNames (fromMaybe Path.empty relativeTo) branch
+    ppe        = PPE.fromNamesDecl hqLength printNames
+    width      = mayDefault renderWidth
+    termFqns :: Map Reference (Set Text)
+    termFqns = Map.mapWithKey f terms
+     where
+      f k _ =
+        R.lookupRan (Referent.IdRef k)
+          . R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
+          . R.mapDom Name.toText
+          . Names.terms
+          $ currentNames parseNames
+    typeFqns :: Map Reference (Set Text)
+    typeFqns = Map.mapWithKey f types
+     where
+      f k _ =
+        R.lookupRan k
+          . R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
+          . R.mapDom Name.toText
+          . Names.types
+          $ currentNames parseNames
+    flatten = Set.toList . fromMaybe Set.empty
+    mkTermDefinition r tm = mk =<< lift (Codebase.getTypeOfTerm codebase r)
+     where
+      mk Nothing = throwError $ MissingSignatureForTerm r
+      mk (Just typeSig) =
+        pure
+          . TermDefinition
+              (flatten $ Map.lookup r termFqns)
+              ( Text.pack
+              . Pretty.render width
+              . fmap SyntaxText.toPlain
+              . TermPrinter.pretty0 @v (PPE.suffixifiedPPE ppe)
+                                       TermPrinter.emptyAc
+              $ Term.ref mempty r
+              )
+              (fmap mungeSyntaxText tm)
+          $ prettyType width ppe typeSig
+    mkTypeDefinition r tp =
+      TypeDefinition
+          (flatten $ Map.lookup r typeFqns)
+          ( Text.pack
+          . Pretty.render width
+          . fmap SyntaxText.toPlain
+          . TypePrinter.pretty0 @v (PPE.suffixifiedPPE ppe) mempty (-1)
+          $ Type.ref () r
+          )
+        $ fmap mungeSyntaxText tp
+    typeDefinitions =
+      Map.mapWithKey mkTypeDefinition $ typesToSyntax width ppe types
+  termDefinitions <- Map.traverseWithKey mkTermDefinition
+    $ termsToSyntax width ppe terms
+  let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
+      renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
+  pure $ DefinitionDisplayResults renderedDisplayTerms
+                                  renderedDisplayTypes
+                                  misses
 
 resolveBranchHash
   :: Monad m => Maybe Branch.Hash -> Codebase m v Ann -> Backend m (Branch m)

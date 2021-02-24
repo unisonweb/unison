@@ -47,11 +47,13 @@ import Unison.Builtin.Decls (pattern TuplePattern, pattern TupleTerm')
 import qualified Unison.ConstructorType as CT
 
 pretty :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
-pretty env tm = PP.syntaxToColor $ pretty0 env (ac (-1) Normal Map.empty MaybeDoc) (printAnnotate env tm)
+pretty env = PP.syntaxToColor . pretty0 env emptyAc . printAnnotate env
 
 pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> Term v a -> ColorText
-pretty' (Just width) n t = PP.render width $ PP.syntaxToColor $ pretty0 n (ac (-1) Normal Map.empty MaybeDoc) (printAnnotate n t)
-pretty' Nothing      n t = PP.renderUnbroken $ PP.syntaxToColor $ pretty0 n (ac (-1) Normal Map.empty MaybeDoc) (printAnnotate n t)
+pretty' (Just width) n t =
+  PP.render width $ PP.syntaxToColor $ pretty0 n emptyAc (printAnnotate n t)
+pretty' Nothing n t =
+  PP.renderUnbroken $ PP.syntaxToColor $ pretty0 n emptyAc (printAnnotate n t)
 
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
@@ -519,7 +521,7 @@ prettyBinding
   -> HQ.HashQualified Name
   -> Term2 v at ap v a
   -> Pretty SyntaxText
-prettyBinding n = prettyBinding0 n $ ac (-1) Block Map.empty MaybeDoc
+prettyBinding n = prettyBinding0 n emptyAc
 
 prettyBinding'
   :: Var v
@@ -660,6 +662,9 @@ isSymbolic' name = case symbolyId . Name.toString $ name of
 isBlank :: String -> Bool
 isBlank ('_' : rest) | (isJust ((readMaybe rest) :: Maybe Int)) = True
 isBlank _ = False
+
+emptyAc :: AmbientContext
+emptyAc = ac (-1) Block Map.empty MaybeDoc
 
 ac :: Int -> BlockContext -> Imports -> DocLiteralContext -> AmbientContext
 ac prec bc im doc = AmbientContext prec bc NonInfix im doc
