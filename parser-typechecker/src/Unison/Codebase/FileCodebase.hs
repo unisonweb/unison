@@ -56,7 +56,7 @@ import qualified Unison.Referent               as Referent
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
 import qualified Unison.UnisonFile             as UF
-import qualified Unison.Util.Cache             as Cache
+import qualified U.Util.Cache             as Cache
 import qualified Unison.Util.Pretty            as P
 import qualified Unison.PrettyTerminal         as PT
 import           Unison.Symbol                  ( Symbol )

@@ -157,7 +157,6 @@ library
     Unison.UnisonFile
     Unison.Util.AnnotatedText
     Unison.Util.Bytes
-    Unison.Util.Cache
     Unison.Util.ColorText
     Unison.Util.EnumContainers
     Unison.Util.Exception
@@ -373,7 +372,8 @@ executable tests
     text,
     transformers,
     unison-core1,
-    unison-parser-typechecker
+    unison-parser-typechecker,
+    unison-util
 
 executable transcripts
   import:         unison-common

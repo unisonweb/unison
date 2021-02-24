@@ -25,7 +25,7 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Data.ByteString (ByteString)
 import Data.Foldable (traverse_)
 import qualified Data.List.Extra as List
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, isJust)
 import Data.String (fromString)
 import Data.String.Here.Uninterpolated (here, hereFile)
 import Data.Text (Text)
@@ -37,7 +37,7 @@ import Debug.Trace (trace, traceM)
 import U.Codebase.HashTags (BranchHash, CausalHash, unBranchHash, unCausalHash)
 import U.Codebase.Reference (Reference')
 import qualified U.Codebase.Referent as C.Referent
-import U.Codebase.Sqlite.DbId (BranchHashId (..), BranchObjectId (..), CausalHashId (..), CausalOldHashId, HashId (..), ObjectId (..), TextId)
+import U.Codebase.Sqlite.DbId (BranchHashId (..), BranchObjectId (..), CausalHashId (..), CausalOldHashId, HashId (..), ObjectId (..), TextId, Generation(..))
 import U.Codebase.Sqlite.ObjectType (ObjectType)
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
@@ -48,6 +48,7 @@ import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import UnliftIO (MonadUnliftIO, throwIO, try, withRunInIO)
 import Control.Monad (when)
+import Data.Functor ((<&>))
 
 -- * types
 
@@ -263,17 +264,36 @@ updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
 -- |Maybe we would generalize this to something other than NamespaceHash if we
 -- end up wanting to store other kinds of Causals here too.
 saveCausal :: DB m => CausalHashId -> BranchHashId -> m ()
-saveCausal self value = execute sql (self, value) where sql = [here|
-  INSERT INTO causal (self_hash_id, value_hash_id)
-  VALUES (?, ?)
+saveCausal self value = execute sql (self, value, Generation 0) where sql = [here|
+  INSERT INTO causal (self_hash_id, value_hash_id, gc_generation)
+  VALUES (?, ?, ?)
   ON CONFLICT DO NOTHING
 |]
 
+-- maybe: look at whether parent causal is "committed"; if so, then increment;
+-- otherwise, don't.
+getNurseryGeneration :: DB m => m Generation
+getNurseryGeneration = query_ sql <&> \case
+  [] -> Generation 0
+  [fromOnly -> g] -> Generation g
+  (fmap fromOnly -> gs) ->
+    error $ "How did I get multiple values out of a MAX()? " ++ show gs
+  where sql = [here|
+    SELECT MAX(gc_generation) FROM causal;
+  |]
+
 loadCausalValueHashId :: EDB m => CausalHashId -> m BranchHashId
-loadCausalValueHashId id =
-  queryAtom sql (Only id) >>= orError (UnknownCausalHashId id) where sql = [here|
+loadCausalValueHashId chId@(CausalHashId id) =
+  loadMaybeCausalValueHashId (id) >>= orError (UnknownCausalHashId chId)
+
+loadMaybeCausalValueHashId :: DB m => HashId -> m (Maybe BranchHashId)
+loadMaybeCausalValueHashId id =
+  queryAtom sql (Only id) where sql = [here|
   SELECT value_hash_id FROM causal WHERE self_hash_id = ?
 |]
+
+isCausalHash :: DB m => HashId -> m Bool
+isCausalHash = fmap isJust . loadMaybeCausalValueHashId
 
 -- todo: do a join here
 loadBranchObjectIdByCausalHashId :: EDB m => CausalHashId -> m (Maybe BranchObjectId)

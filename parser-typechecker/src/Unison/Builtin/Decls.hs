@@ -4,11 +4,9 @@
 
 module Unison.Builtin.Decls where
 
-import Control.Monad (join)
 import Data.List (elemIndex, find)
 import qualified Data.Map as Map
 import Data.Text (Text, unpack)
-import Debug.Trace (trace)
 import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration

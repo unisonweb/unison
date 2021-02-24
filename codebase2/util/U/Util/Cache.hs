@@ -1,9 +1,12 @@
-module Unison.Util.Cache where
+{-# LANGUAGE LambdaCase #-}
+module U.Util.Cache where
 
 import Prelude hiding (lookup)
-import Unison.Prelude
-import UnliftIO (newTVarIO, modifyTVar', writeTVar, atomically, readTVar, readTVarIO)
+import UnliftIO (MonadIO, newTVarIO, modifyTVar', writeTVar, atomically, readTVar, readTVarIO)
 import qualified Data.Map as Map
+import Data.Functor (($>))
+import Control.Monad (when)
+import Data.Foldable (for_)
 
 data Cache m k v =
   Cache { lookup :: k -> m (Maybe v)

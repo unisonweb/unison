@@ -14,7 +14,7 @@ import qualified Data.Sequence                 as Seq
 import           Unison.Hash                    ( Hash )
 import qualified Unison.Hashable               as Hashable
 import           Unison.Hashable                ( Hashable )
-import qualified Unison.Util.Cache             as Cache
+import qualified U.Util.Cache             as Cache
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 

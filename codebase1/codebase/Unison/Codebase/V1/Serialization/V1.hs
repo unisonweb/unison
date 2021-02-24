@@ -168,8 +168,8 @@ getABT getVar getA getF = getList getVar >>= go []
         0 -> do
           tag <- getWord8
           case tag of
-            0 -> ABT.annotatedVar a . (env !!) <$> getLength
-            1 -> ABT.annotatedVar a . (fvs !!) <$> getLength
+            0 -> ABT.var a . (env !!) <$> getLength
+            1 -> ABT.var a . (fvs !!) <$> getLength
             _ -> unknownTag "getABT.Var" tag
         1 -> ABT.tm a <$> getF (go env fvs)
         2 -> do

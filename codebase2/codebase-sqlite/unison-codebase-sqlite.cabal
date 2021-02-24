@@ -35,6 +35,7 @@ library
     U.Codebase.Sqlite.Referent
     U.Codebase.Sqlite.Serialization
     U.Codebase.Sqlite.Symbol
+    U.Codebase.Sqlite.Sync22
     U.Codebase.Sqlite.SyncEntity
     U.Codebase.Sqlite.Term.Format
     U.Codebase.Sqlite.Types
@@ -56,6 +57,7 @@ library
       unliftio,
       vector,
       unison-codebase,
+      unison-codebase-sync,
       unison-core,
       unison-util,
       unison-util-serialization,

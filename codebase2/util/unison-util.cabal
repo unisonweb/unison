@@ -16,6 +16,7 @@ category:            Development
 library
   exposed-modules:
     U.Util.Base32Hex
+    U.Util.Cache
     U.Util.Components
     U.Util.Hash
     U.Util.Hashable
@@ -34,6 +35,7 @@ library
     lens,
     memory,
     text,
+    unliftio,
     sandi
   hs-source-dirs:      .
   default-language:    Haskell2010
