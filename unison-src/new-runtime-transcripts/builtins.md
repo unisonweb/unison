@@ -2,42 +2,6 @@
 
 This transcript defines unit tests for builtin functions. There's a single `.> test` execution at the end that will fail the transcript with a nice report if any of the tests fail.
 
-## Setup
-
-```ucm:hide
-.> builtins.merge
-```
-
-You can skip this section, which just defines setup functions we'll use for testing.
-
-```unison:hide
-check : Boolean -> [Result]
-check b = if b then [Ok "Passed"] else [Fail "Failed"]
-
-id x = x
-
-checks : [Boolean] -> [Result]
-checks bs =
-  if all id bs then [Ok "Passed"]
-  else [Fail "Failed"]
-
-all : (a ->{m} Boolean) -> [a] ->{m} Boolean
-all f = cases
-  [] -> true
-  h +: t -> f h && all f t
-
-map : (a ->{m} b) -> [a] ->{m} [b]
-map f xs =
-  go acc = cases
-    [] -> acc
-    h +: t -> go (acc :+ f h) t
-  go [] xs
-```
-
-```ucm:hide
-.> add
-```
-
 ## `Int` functions
 
 ```unison:hide
@@ -186,8 +150,8 @@ test> Nat.tests.conversions =
 ```unison
 > [Any "hi", Any (41 + 1)]
 
-test> Any.test1 = check (Any "hi" == Any "hi")
-test> Any.test2 = check (not (Any "hi" == Any 42))
+test> Any.test1 = checks [(Any "hi" == Any "hi")]
+test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 ```
 
 ```ucm:hide

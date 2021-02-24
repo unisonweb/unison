@@ -37,8 +37,41 @@ testMvars _ =
 
   runTest test
 ```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      testMvars : '{io2.IO} [Result]
+
+```
 ```ucm
 .> add
-.> io.test testMvars
-```
 
+  ⍟ I've added these definitions:
+  
+    testMvars : '{io2.IO} [Result]
+
+.> io.test testMvars
+
+    New test results:
+  
+  ◉ testMvars   ma should not be empty
+  ◉ testMvars   should reap what you sow
+  ◉ testMvars   ma should be empty
+  ◉ testMvars   swap returns old contents
+  ◉ testMvars   swap returns old contents
+  ◉ testMvars   tryTake should succeed when not empty
+  ◉ testMvars   tryTake should not succeed when empty
+  ◉ testMvars   ma2 should be empty
+  ◉ testMvars   tryTake should fail when empty
+  
+  ✅ 9 test(s) passing
+  
+  Tip: Use view testMvars to view the source of a test.
+
+```

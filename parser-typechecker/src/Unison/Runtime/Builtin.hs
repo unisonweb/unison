@@ -1358,7 +1358,7 @@ declareForeigns = do
   declareForeign "IO.getTempDirectory.impl.v3" unitToEFBox
     $ mkForeignIOF $ \() -> getTemporaryDirectory
 
-  declareForeign "IO.createTempDirectory" boxToEFBox
+  declareForeign "IO.createTempDirectory.impl.v3" boxToEFBox
     $ mkForeignIOF $ \prefix -> do
        temp <- getTemporaryDirectory
        createTempDirectory temp prefix
@@ -1402,7 +1402,7 @@ declareForeigns = do
                       , port) ->
         fst <$> SYS.bindSock (hostPreference mhst) port
 
-  declareForeign "IO.socketPort" boxToEFNat
+  declareForeign "IO.socketPort.impl.v3" boxToEFNat
     . mkForeignIOF $ \(handle :: Socket) -> do
         n <- SYS.socketPort handle
         return (fromIntegral n :: Word64)
@@ -1452,7 +1452,7 @@ declareForeigns = do
   declareForeign "MVar.put.impl.v3" boxBoxToEF0
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> putMVar mv x
 
-  declareForeign "MVar.tryPut" boxBoxToEFBool
+  declareForeign "MVar.tryPut.impl.v3" boxBoxToEFBool
     . mkForeign $ \(mv :: MVar Closure, x) -> tryPutMVar mv x
 
   declareForeign "MVar.swap.impl.v3" boxBoxToEFBox
@@ -1464,8 +1464,8 @@ declareForeigns = do
   declareForeign "MVar.read.impl.v3" boxBoxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> readMVar mv
 
-  declareForeign "MVar.tryRead" boxToMaybeBox
-    . mkForeign $ \(mv :: MVar Closure) -> tryReadMVar mv
+  declareForeign "MVar.tryRead.impl.v3" boxToEFBox
+    . mkForeignIOF $ \(mv :: MVar Closure) -> tryReadMVar mv
 
   declareForeign "Text.toUtf8" boxDirect . mkForeign
     $ pure . Bytes.fromArray . encodeUtf8
@@ -1535,18 +1535,18 @@ declareForeigns = do
   declareForeign "Tls.Config.defaultServer" unitDirect . mkForeign $ \() -> do
     pure $ (def :: ServerParams) { TLS.serverSupported = defaultSupported }
 
-  declareForeign "Tls.newClient" boxBoxToEFBox . mkForeignTls $
+  declareForeign "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
     \(config :: TLS.ClientParams,
       socket :: SYS.Socket) -> TLS.contextNew socket config
 
-  declareForeign "Tls.newServer" boxBoxToEFBox . mkForeignTls $
+  declareForeign "Tls.newServer.impl.v3" boxBoxToEFBox . mkForeignTls $
     \(config :: TLS.ServerParams,
       socket :: SYS.Socket) -> TLS.contextNew socket config
 
-  declareForeign "Tls.handshake" boxToEFBox . mkForeignTls $
+  declareForeign "Tls.handshake.impl.v3" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> TLS.handshake tls
 
-  declareForeign "Tls.send" boxBoxToEFBox . mkForeignTls $
+  declareForeign "Tls.send.impl.v3" boxBoxToEFBox . mkForeignTls $
     \(tls :: TLS.Context,
       bytes :: Bytes.Bytes) -> TLS.sendData tls (Bytes.toLazyByteString bytes)
 
@@ -1556,7 +1556,7 @@ declareForeigns = do
       asCert :: PEM -> Either String X.SignedCertificate
       asCert pem = X.decodeSignedCertificate  $ pemContent pem
     in
-      declareForeign "Tls.decodeCert" boxToEFBox . mkForeign $
+      declareForeign "Tls.decodeCert.impl.v3" boxToEFBox . mkForeign $
         \(bytes :: Bytes.Bytes) -> pure $ mapLeft wrapFailure $ (decoded >=> asCert) bytes
 
   declareForeign "Tls.encodeCert" boxDirect . mkForeign $
@@ -1568,12 +1568,12 @@ declareForeigns = do
   declareForeign "Tls.encodePrivateKey" boxDirect . mkForeign $
     \(privateKey :: X.PrivKey) -> pure $ pack $ show privateKey
   
-  declareForeign "Tls.receive" boxToEFBox . mkForeignTls $
+  declareForeign "Tls.receive.impl.v3" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> do
       bs <- TLS.recvData tls
       pure $ Bytes.fromArray bs
 
-  declareForeign "Tls.terminate" boxToEFBox . mkForeignTls $
+  declareForeign "Tls.terminate.impl.v3" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> TLS.bye tls
 
   declareForeign "Code.dependencies" boxDirect

@@ -1,99 +1,19 @@
-# Tests for network related builtins
-
-## Setup
-
-You can skip the section which is just needed to make the transcript self-contained.
-
-```ucm:hide
-.> builtins.merge
-.> builtins.mergeio
-.> cd builtin
-```
-
 ```unison:hide
-use .builtin.io2 Failure
-ability Exception e where raise : e ->{Exception e} a
-
-toException : Either e a ->{Exception e} a
-toException = cases
-    Left e  -> raise e
-    Right a -> a
-
-Exception.toEither.handler : Request {Exception e} a -> Either e a
-Exception.toEither.handler = cases
-    { a }          -> Right a
-    {raise e -> _} -> Left e
-
-Exception.toEither : '{g, Exception e} a ->{g} Either e a
-Exception.toEither a = handle !a with Exception.toEither.handler
-
-isNone = cases
-  Some _ -> false
-  None -> true
-
-ability Stream a where
-   emit: a -> ()
-
-Stream.toList.handler : Request {Stream a} r -> [a]
-Stream.toList.handler =
-  go : [a] -> Request {Stream a} r -> [a]
-  go acc = cases
-    { Stream.emit a -> k } -> handle !k with go (acc :+ a)
-    { _ } -> acc
-
-  go []
-
-Stream.toList : '{Stream a} r -> [a]
-Stream.toList s = handle !s with toList.handler
-
-Stream.collect.handler : Request {Stream a} r -> ([a],r)
-Stream.collect.handler =
-  go : [a] -> Request {Stream a} r -> ([a],r)
-  go acc = cases
-    { Stream.emit a -> k } -> handle !k with go (acc :+ a)
-    { r } -> (acc, r)
-
-  go []
-
-Stream.collect : '{e, Stream a} r -> {e} ([a],r)
-Stream.collect s =
-  handle !s with Stream.collect.handler
-
--- Run tests which might fail, might create temporary directores and Stream out
--- results, returns the Results and the result of the test
-evalTest: '{Stream Result, Exception Failure, io2.IO} a -> ([Result], Either Failure a)
-evalTest a = handle
-               (handle !a with Exception.toEither.handler)
-             with Stream.collect.handler
-
--- Run tests which might fail, might create temporary directores and Stream out
--- results, but ignore the produced value and only return the test Results
-runTest: '{Stream Result, Exception Failure, io2.IO} a -> [Result]
-runTest t = match evalTest t with
-              (results, Right _) -> results
-              (results, Left (Failure _ t _)) -> results :+ (Fail t)
-
-
---
--- convenience functions for emitting test results
---
-expect : (a -> Text) -> (a -> a -> Boolean) -> Text -> a -> a -> {Stream Result} ()
-expect toText compare msg expected actual = let
-  if (compare expected actual) then 
-    emit (Ok msg) 
-  else let
-    failMsg = msg ++ "expected : " ++ (toText expected) ++ " actual: " ++ (toText actual)
-    emit (Fail failMsg)
-
-expectU : (a -> Text) -> Text -> a -> a -> {Stream Result} ()
-expectU toText msg expected actual = expect toText (==) msg expected actual
-
-check: Text -> Boolean -> {Stream Result} ()
-check msg test = if test then emit (Ok msg) else emit (Fail msg)
+serverSocket = compose2 reraise serverSocket.impl
+socketPort = compose reraise socketPort.impl
+listen = compose reraise listen.impl
+closeSocket = compose reraise closeSocket.impl
+clientSocket = compose2 reraise clientSocket.impl
+socketSend = compose2 reraise socketSend.impl
+socketReceive = compose2 reraise socketReceive.impl
+socketAccept = compose reraise socketAccept.impl
 ```
+
 ```ucm:hide
 .> add
 ```
+
+# Tests for network related builtins
 
 ### Creating server sockets
 
@@ -140,32 +60,32 @@ Below shows different examples of how we might specify the server coordinates.
 testExplicitHost : '{io2.IO} [Result]
 testExplicitHost _ = 
   test = 'let
-    sock = toException (io2.IO.serverSocket.impl (Some "127.0.0.1") "1028")
+    sock = serverSocket (Some "127.0.0.1") "1028"
     emit (Ok "successfully created socket")
-    port = toException (socketPort sock)
-    putBytes.impl (stdHandle StdOut) (toUtf8 (toText port))
-    expectU Nat.toText "should have bound to port 1028" 1028 port 
+    port = socketPort sock
+    putBytes (stdHandle StdOut) (toUtf8 (toText port))
+    expectU "should have bound to port 1028" 1028 port 
 
   runTest test
 
 testDefaultHost : '{io2.IO} [Result]
 testDefaultHost _ = 
   test = 'let
-    sock = toException (io2.IO.serverSocket.impl None "1028")
+    sock = serverSocket None "1028"
     emit (Ok "successfully created socket")
-    port = toException (socketPort sock)
-    toException (putBytes.impl (stdHandle StdOut) (toUtf8 (toText port)))
-    expectU Nat.toText "should have bound to port 1028" 1028 port 
+    port = socketPort sock
+    putBytes (stdHandle StdOut) (toUtf8 (toText port))
+    expectU "should have bound to port 1028" 1028 port 
 
   runTest test
 
 testDefaultPort : '{io2.IO} [Result]
 testDefaultPort _ = 
   test = 'let
-    sock = toException (io2.IO.serverSocket.impl None "0")
+    sock = serverSocket None "0"
     emit (Ok "successfully created socket")
-    port = toException (socketPort sock)
-    toException (putBytes.impl (stdHandle StdOut) (toUtf8 (toText port)))
+    port = socketPort sock
+    putBytes (stdHandle StdOut) (toUtf8 (toText port))
     
     check "port should be > 1024" (1024 < port)
     check "port should be < 65536" (65536 > port)
@@ -183,14 +103,15 @@ This example demonstrates connecting a TCP client socket to a TCP server socket.
 
 serverThread: MVar Nat -> Text -> '{io2.IO}()
 serverThread portVar toSend = 'let
+  go : '{io2.IO, Exception}()
   go = 'let
-    sock = toException (serverSocket.impl (Some "127.0.0.1") "0")
-    port = toException (socketPort sock)
-    toException (put.impl portVar port)
-    toException (listen.impl sock)
-    sock' = toException (socketAccept.impl sock)
-    toException (socketSend.impl sock' (toUtf8 toSend))
-    toException (closeSocket.impl sock')
+    sock = serverSocket (Some "127.0.0.1") "0"
+    port = socketPort sock
+    put portVar port
+    listen sock
+    sock' = socketAccept sock
+    socketSend sock' (toUtf8 toSend)
+    closeSocket sock'
 
   match (toEither go) with 
     Left (Failure _ t _) -> watch t ()
@@ -198,12 +119,11 @@ serverThread portVar toSend = 'let
 
 clientThread : MVar Nat -> MVar Text -> '{io2.IO}()
 clientThread portVar resultVar = 'let
-  go : '{io2.IO, Exception Failure}()
   go = 'let
-    port = toException (take.impl portVar)
-    sock = toException (clientSocket.impl "127.0.0.1" (Nat.toText port))
-    msg = toException (fromUtf8.impl (toException (socketReceive.impl sock 100)))
-    toException (put.impl resultVar msg)
+    port = take portVar
+    sock = clientSocket "127.0.0.1" (Nat.toText port)
+    msg = fromUtf8 (socketReceive sock 100)
+    put resultVar msg
 
   match (toEither go) with
     Left (Failure _ t _) -> watch t ()
@@ -220,9 +140,9 @@ testTcpConnect = 'let
     forkComp (serverThread portVar toSend)
     forkComp (clientThread portVar resultVar)
     
-    received = toException (take.impl resultVar)
+    received = take resultVar
 
-    expectU (a->a) "should have reaped what we've sown" toSend received
+    expectU "should have reaped what we've sown" toSend received
     
   runTest test
     
