@@ -1,0 +1,10 @@
+unique ability S a where
+  s : a
+
+unique type R g = R ('{g} ())
+
+run : '{S (R g), g} ()
+run _ = todo ()
+
+run' : '{S (R {})} ()
+run' = run
