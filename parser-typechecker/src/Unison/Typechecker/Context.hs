@@ -1730,77 +1730,85 @@ solve ctx v t = case lookupSolved ctx v of
       else pure Nothing
     _ -> compilerCrash $ UnknownExistentialVariable v ctx
 
-abilityCheck' :: forall v loc . (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
-abilityCheck' [] [] = pure ()
-abilityCheck' ambient0 requested0 = go ambient0 requested0 where
-  go _ambient [] = pure ()
-  go ambient0 (r:rs) = do
-    -- Note: if applyM returns an existential, it's unsolved
-    ambient <- traverse applyM ambient0
-    r <- applyM r
-    -- 1. Look in ambient for exact match of head of `r`
-    --    Ex: given `State Nat`, `State` is the head
-    --    Ex: given `IO`,        `IO` is the head
-    --    Ex: given `a`, where there's an exact variable
-    case find (headMatch r) ambient of
-      -- 2a. If yes for `a` in ambient, do `subtype amb r` and done.
-      Just amb -> do
-        subtype amb r `orElse` die1
+-- This function deals with collecting up a list of used abilities
+-- during inference. Example: when inferring `x -> Stream.emit 42`, an
+-- ambient existential `e` ability is created for the lambda.  In the
+-- body of the lambda, requests are made for various abilities and
+-- this branch finds the first unsolved ambient ability, `e`, and
+-- solves that to `{r, e'}` where `e'` is another fresh existential.
+-- In this way, a lambda whose body uses multiple effects can be
+-- inferred properly.
+subAmbient
+  :: Var v
+  => Ord loc
+  => M v loc ()
+  -> [Type v loc]
+  -> Type v loc
+  -> M v loc ()
+subAmbient die ambient r
+  -- find unsolved existential, 'e, that appears in ambient
+  | (b, e'):_ <- unsolveds = do
+     -- introduce fresh existential 'e2 to context
+     e2' <- extendExistential e'
+     let et2 = Type.effects (loc r) [r, existentialp (loc r) e2']
+     instantiateR et2 b e' `orElse` die
+  | otherwise = die
+  where
+  unsolveds = (ambient >>= Type.flattenEffects >>= vars)
+  vars (Type.Var' (TypeVar.Existential b v _p)) = [(b,v)]
+  -- ^ todo: reviewme should polarity be used here?
+  vars _ = []
+
+abilityCheckSingle
+  :: Var v
+  => Ord loc
+  => M v loc ()
+  -> [Type v loc]
+  -> Type v loc
+  -> M v loc ()
+abilityCheckSingle die ambient r
+  -- Look in ambient for exact match of head of `r`
+  --   Ex: given `State Nat`, `State` is the head
+  --   Ex: given `IO`,        `IO` is the head
+  --   Ex: given `a`, where there's an exact variable
+  -- If yes for `a` in ambient, do `subtype a r` and done.
+  | Just a <- find (headMatch r) ambient
+  = subtype a r `orElse` die
+  -- It's an unsolved existential, instantiate it to all of ambient
+  | Type.Var' tv@(TypeVar.Existential b v _) <- r
+  = let et2 = Type.effects (loc r) ambient
+        acyclic
+          | Set.member tv (Type.freeVars et2)
+          -- just need to trigger `orElse` in this case
+          = getContext >>= failWith . TypeMismatch
+          | otherwise = instantiateR et2 b v
+    in -- instantiate it to `{}` if can't cover all of ambient
+       --
+       -- todo: reviewme to decide if should do something with
+       -- polarity here
+       acyclic
+         `orElse` instantiateR (Type.effects (loc r) []) b v
+         `orElse` instantiateL b v (Type.effects (loc r) ambient)
+         `orElse` die
+  | otherwise = subAmbient die ambient r
+
+headMatch :: Var v => Ord loc => Type v loc -> Type v loc -> Bool
+headMatch (Type.App' f _) (Type.App' f2 _) = headMatch f f2
+headMatch r r2 = r == r2
+
+abilityCheck'
+  :: Var v => Ord loc => [Type v loc] -> [Type v loc] -> M v loc ()
+abilityCheck' ambient0 requested0 = go ambient0 requested0
+  where
+  go _ [] = pure ()
+  go ambient0 (r0:rs) = applyM r0 >>= \case
+      Type.Effects' es -> go ambient0 (es ++ rs)
+      r -> do
+        ambient <- traverse applyM ambient0
+        abilityCheckSingle die ambient r
         go ambient rs
-      -- Corner case where a unification caused `r` to expand to a
-      -- list of effects. This whole function should be restructured
-      -- such that this can go in a better spot.
-      Nothing | Type.Effects' es <- r -> go ambient (es ++ rs)
-      -- 2b. If no:
-      Nothing -> case r of
-        -- It's an unsolved existential, instantiate it to all of ambient
-        Type.Var' tv@(TypeVar.Existential b v _) -> do -- todo: reviewme to decide if should do something with polarity here
-          let et2 = Type.effects (loc r) ambient
-              acyclic
-                | Set.member tv (Type.freeVars et2)
-                -- just need to trigger `orElse` in this case
-                = getContext >>= failWith . TypeMismatch
-                | otherwise = instantiateR et2 b v
-          -- instantiate it to `{}` if can't cover all of ambient
-          acyclic
-            `orElse` instantiateR (Type.effects (loc r) []) b v
-            `orElse` die1
-          go ambient rs
-        -- This branch deals with collecting up a list of used abilities
-        -- during inference. Example: when inferring `x -> Stream.emit 42`,
-        -- an ambient existential `e` ability is created for the lambda.
-        -- In the body of the lambda, requests are made for various abilities
-        -- and this branch finds the first unsolved ambient ability, `e`,
-        -- and solves that to `{r, e'}` where `e'` is another fresh existential.
-        -- In this way, a lambda whose body uses multiple effects can be inferred
-        -- properly.
-        _ -> -- find unsolved existential, 'e, that appears in ambient
-          let unsolveds = (ambient >>= Type.flattenEffects >>= vars)
-              vars (Type.Var' (TypeVar.Existential b v _p)) = [(b,v)] -- todo: reviewme should polarity be used here?
-              vars _ = []
-          in case listToMaybe unsolveds of
-            Just (b, e') -> do
-              -- introduce fresh existential 'e2 to context
-              e2' <- extendExistential e'
-              let et2 = Type.effects (loc r) [r, existentialp (loc r) e2']
-              instantiateR et2 b e' `orElse` die ambient r
-              go ambient rs
-            _ -> die ambient r
 
-  headMatch :: Type v loc -> Type v loc -> Bool
-  headMatch (Type.App' f _) (Type.App' f2 _) = headMatch f f2
-  headMatch r r2 = r == r2
-
-  -- as a last ditch effort, if the request is an existential and there are
-  -- no remaining unbound existentials left in ambient, we try to instantiate
-  -- the request to the ambient effect list
-  die ambient r = case r of
-    Type.Var' (TypeVar.Existential b v _) -> -- todo: reviewme to decide if should do something with polarity here
-      instantiateL b v (Type.effects (loc r) ambient) `orElse` die1
-      -- instantiateL b v (Type.effects (loc r) []) `orElse` die1
-    _ -> die1 -- and if that doesn't work, then we're really toast
-
-  die1 = do
+  die = do
     ctx <- getContext
     failWith $ AbilityCheckFailure (apply ctx <$> ambient0)
                                    (apply ctx <$> requested0)
