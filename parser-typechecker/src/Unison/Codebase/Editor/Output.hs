@@ -94,6 +94,8 @@ data Output v
   | SourceLoadFailed String
   -- No main function, the [Type v Ann] are the allowed types
   | NoMainFunction String PPE.PrettyPrintEnv [Type v Ann]
+  -- Main function found, but has improper type
+  | BadMainFunction String (Type v Ann) PPE.PrettyPrintEnv [Type v Ann]
   | BranchEmpty (Either ShortBranchHash Path')
   | BranchNotEmpty Path'
   | LoadPullRequest RemoteNamespace RemoteNamespace Path' Path' Path' Path'
@@ -262,6 +264,7 @@ isFailure o = case o of
   InvalidSourceName{} -> True
   SourceLoadFailed{} -> True
   NoMainFunction{} -> True
+  BadMainFunction{} -> True
   CreatedNewBranch{} -> False
   BranchAlreadyExists{} -> True
   PatchAlreadyExists{} -> True

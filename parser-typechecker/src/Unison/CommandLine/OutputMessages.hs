@@ -410,6 +410,15 @@ notifyUser dir o = case o of
     "",
     P.indentN 2 $ P.lines [ P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts ]
     ]
+  BadMainFunction main ty ppe ts -> pure . P.callout "😶" $ P.lines [
+    P.string "I found this function:",
+    "",
+    P.indentN 2 $ P.string main <> " : " <> TypePrinter.pretty ppe ty,
+    "",
+    P.wrap $ P.string "but in order for me to" <> P.backticked (P.string "run") <> "it it needs to have the type:",
+    "",
+    P.indentN 2 $ P.lines [ P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts ]
+    ]
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
     fileName <- renderFileName dir'
