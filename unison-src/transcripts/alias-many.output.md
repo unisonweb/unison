@@ -254,8 +254,9 @@ Let's try it!
   229. io2.IO.closeSocket.impl : Socket ->{IO} Either Failure ()
   230. io2.IO.createDirectory.impl : Text
                                      ->{IO} Either Failure ()
-  231. io2.IO.createTempDirectory : Text
-                                    ->{IO} Either Failure Text
+  231. io2.IO.createTempDirectory.impl : Text
+                                         ->{IO} Either
+                                           Failure Text
   232. io2.IO.delay.impl : Nat ->{IO} Either Failure ()
   233. io2.IO.fileExists.impl : Text
                                 ->{IO} Either Failure Boolean
@@ -314,7 +315,7 @@ Let's try it!
                                            Failure ()
   258. io2.IO.socketAccept.impl : Socket
                                   ->{IO} Either Failure Socket
-  259. io2.IO.socketPort : Socket ->{IO} Either Failure Nat
+  259. io2.IO.socketPort.impl : Socket ->{IO} Either Failure Nat
   260. io2.IO.socketReceive.impl : Socket
                                    -> Nat
                                    ->{IO} Either Failure Bytes
@@ -341,8 +342,12 @@ Let's try it!
   279. io2.MVar.read.impl : MVar a ->{IO} Either Failure a
   280. io2.MVar.swap.impl : MVar a -> a ->{IO} Either Failure a
   281. io2.MVar.take.impl : MVar a ->{IO} Either Failure a
-  282. io2.MVar.tryPut : MVar a -> a ->{IO} Boolean
-  283. io2.MVar.tryRead : MVar a ->{IO} Optional a
+  282. io2.MVar.tryPut.impl : MVar a
+                              -> a
+                              ->{IO} Either Failure Boolean
+  283. io2.MVar.tryRead.impl : MVar a
+                               ->{IO} Either
+                                 Failure (Optional a)
   284. io2.MVar.tryTake : MVar a ->{IO} Optional a
   285. builtin type io2.STM
   286. io2.STM.atomically : '{STM} a ->{IO} a
@@ -393,20 +398,21 @@ Let's try it!
                                            -> ServerConfig
                                            -> ServerConfig
   317. builtin type io2.Tls.SignedCert
-  318. io2.Tls.decodeCert : Bytes -> Either Failure SignedCert
+  318. io2.Tls.decodeCert.impl : Bytes
+                                 -> Either Failure SignedCert
   319. io2.Tls.decodePrivateKey : Bytes -> [PrivateKey]
   320. io2.Tls.encodeCert : SignedCert -> Bytes
   321. io2.Tls.encodePrivateKey : PrivateKey -> Bytes
-  322. io2.Tls.handshake : Tls ->{IO} Either Failure ()
-  323. io2.Tls.newClient : ClientConfig
-                           -> Socket
-                           ->{IO} Either Failure Tls
-  324. io2.Tls.newServer : ServerConfig
-                           -> Socket
-                           ->{IO} Either Failure Tls
-  325. io2.Tls.receive : Tls ->{IO} Either Failure Bytes
-  326. io2.Tls.send : Tls -> Bytes ->{IO} Either Failure ()
-  327. io2.Tls.terminate : Tls ->{IO} Either Failure ()
+  322. io2.Tls.handshake.impl : Tls ->{IO} Either Failure ()
+  323. io2.Tls.newClient.impl : ClientConfig
+                                -> Socket
+                                ->{IO} Either Failure Tls
+  324. io2.Tls.newServer.impl : ServerConfig
+                                -> Socket
+                                ->{IO} Either Failure Tls
+  325. io2.Tls.receive.impl : Tls ->{IO} Either Failure Bytes
+  326. io2.Tls.send.impl : Tls -> Bytes ->{IO} Either Failure ()
+  327. io2.Tls.terminate.impl : Tls ->{IO} Either Failure ()
   328. unique type io2.TlsFailure
   329. todo : a -> b
   

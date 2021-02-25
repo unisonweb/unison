@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #ihgvg7dndi
+  ⊙ #aq4ln4eubk
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #rshc34rv0u
+  ⊙ #3dd9rilp4d
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #ejgt5u3t19
+  ⊙ #bcens9nged
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #b4tnmqte16
+  ⊙ #cbkou656ou
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #oig1q629m6
+  ⊙ #id60mvqgud
   
     + Adds / updates:
     
       x
   
-  ⊙ #ll5pknbt98
+  ⊙ #pa8ctn231i
   
     + Adds / updates:
     
@@ -249,7 +249,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.IO.closeFile.impl
       builtin.io2.IO.closeSocket.impl
       builtin.io2.IO.createDirectory.impl
-      builtin.io2.IO.createTempDirectory
+      builtin.io2.IO.createTempDirectory.impl
       builtin.io2.IO.delay.impl builtin.io2.IO.fileExists.impl
       builtin.io2.IO.forkComp builtin.io2.IO.getBuffering.impl
       builtin.io2.IO.getBytes.impl
@@ -272,7 +272,8 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.IO.serverSocket.impl
       builtin.io2.IO.setBuffering.impl
       builtin.io2.IO.setCurrentDirectory.impl
-      builtin.io2.IO.socketAccept.impl builtin.io2.IO.socketPort
+      builtin.io2.IO.socketAccept.impl
+      builtin.io2.IO.socketPort.impl
       builtin.io2.IO.socketReceive.impl
       builtin.io2.IO.socketSend.impl builtin.io2.IO.stdHandle
       builtin.io2.IO.systemTime.impl builtin.io2.IOError
@@ -287,7 +288,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.MVar.new builtin.io2.MVar.newEmpty
       builtin.io2.MVar.put.impl builtin.io2.MVar.read.impl
       builtin.io2.MVar.swap.impl builtin.io2.MVar.take.impl
-      builtin.io2.MVar.tryPut builtin.io2.MVar.tryRead
+      builtin.io2.MVar.tryPut.impl builtin.io2.MVar.tryRead.impl
       builtin.io2.MVar.tryTake builtin.io2.STM
       builtin.io2.STM.atomically builtin.io2.STM.retry
       builtin.io2.SeekMode builtin.io2.SeekMode.AbsoluteSeek
@@ -309,13 +310,15 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.Tls.ServerConfig.ciphers.set
       builtin.io2.Tls.ServerConfig.default
       builtin.io2.Tls.ServerConfig.versions.set
-      builtin.io2.Tls.SignedCert builtin.io2.Tls.decodeCert
+      builtin.io2.Tls.SignedCert builtin.io2.Tls.decodeCert.impl
       builtin.io2.Tls.decodePrivateKey
       builtin.io2.Tls.encodeCert
-      builtin.io2.Tls.encodePrivateKey builtin.io2.Tls.handshake
-      builtin.io2.Tls.newClient builtin.io2.Tls.newServer
-      builtin.io2.Tls.receive builtin.io2.Tls.send
-      builtin.io2.Tls.terminate builtin.io2.TlsFailure
+      builtin.io2.Tls.encodePrivateKey
+      builtin.io2.Tls.handshake.impl
+      builtin.io2.Tls.newClient.impl
+      builtin.io2.Tls.newServer.impl
+      builtin.io2.Tls.receive.impl builtin.io2.Tls.send.impl
+      builtin.io2.Tls.terminate.impl builtin.io2.TlsFailure
       builtin.todo
   
   □ #7asfbtqmoj (start of history)
