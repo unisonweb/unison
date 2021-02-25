@@ -5,30 +5,27 @@ Define a function, serialize it, then deserialize it back to an actual
 function. Also ask for its dependencies for display later.
 
 ```unison
-ability Err where
-  throw : Text -> a
-
 save : a -> Bytes
 save x = Value.serialize (Value.value x)
 
-load : Bytes ->{io2.IO, Err} a
+load : Bytes ->{io2.IO, Throw Text} a
 load b = match Value.deserialize b with
   Left _ -> throw "could not deserialize value"
   Right v -> match Value.load v with
     Left _ -> throw "could not load value"
     Right x -> x
 
-roundtrip : a ->{io2.IO, Err} a
+roundtrip : a ->{io2.IO, Throw Text} a
 roundtrip x = load (save x)
 
-handleTest : Text -> Request {Err} a -> Result
+handleTest : Text -> Request {Throw Text} a -> Result
 handleTest t = let
   pfx = "(" ++ t ++ ") "
   cases
     { _ } -> Ok (pfx ++ "passed")
-    { throw s -> _ } -> Fail (pfx ++ s)
+    { Throw.throw s -> _ } -> Fail (pfx ++ s)
 
-identical : Text -> a -> a ->{Err} ()
+identical : Text -> a -> a ->{Throw Text} ()
 identical err x y =
   if x == y
   then ()
@@ -41,11 +38,6 @@ showThree = cases
   zero n -> "zero " ++ toText n
   one n -> "one " ++ toText n
   two n -> "two " ++ toText n
-
-map : (a -> b) -> [a] -> [b]
-map f = cases
-  [] -> []
-  x +: xs -> f x +: map f xs
 
 concatMap : (a -> [b]) -> [a] -> [b]
 concatMap f = cases
@@ -64,7 +56,7 @@ extensionals
    : (a -> b -> Text)
   -> (a -> b -> c)
   -> (a -> b -> c)
-  -> [(a,b)] ->{Err} ()
+  -> [(a,b)] ->{Throw Text} ()
 extensionals sh f g = cases
   [] -> ()
   (x,y) +: xs ->
@@ -74,7 +66,7 @@ extensionals sh f g = cases
 fib10 : [Nat]
 fib10 = [1,2,3,5,8,13,21,34,55,89]
 
-extensionality : Text -> (Three Nat Nat Nat -> Nat -> b) ->{IO} Result
+extensionality : Text -> (Three Nat Nat Nat -> Nat -> b) ->{io2.IO} Result
 extensionality t f = let
   sh t n = "(" ++ showThree t ++ ", " ++ toText n ++ ")"
   handle
@@ -82,7 +74,7 @@ extensionality t f = let
     extensionals sh f g (prod threes fib10)
   with handleTest t
 
-identicality : Text -> a ->{IO} Result
+identicality : Text -> a ->{io2.IO} Result
 identicality t x
   = handle identical "" x (roundtrip x) with handleTest t
 ```
@@ -95,27 +87,29 @@ identicality t x
   
     ⍟ These new definitions are ok to `add`:
     
-      ability Err
       type Three a b c
       concatMap      : (a ->{g} [b]) ->{g} [a] ->{g} [b]
       extensionality : Text
                        -> (Three Nat Nat Nat
-                       ->{Err} Nat
-                       ->{Err} b)
-                       ->{IO} Result
-      extensionals   : (a ->{Err} b ->{Err} Text)
-                       ->{Err} (a ->{Err} b ->{Err} c)
-                       ->{Err} (a ->{Err} b ->{Err} c)
-                       ->{Err} [(a, b)]
-                       ->{Err} ()
+                       ->{Throw Text} Nat
+                       ->{Throw Text} b)
+                       ->{io2.IO} Result
+      extensionals   : (a ->{Throw Text} b ->{Throw Text} Text)
+                       ->{Throw Text} (a
+                       ->{Throw Text} b
+                       ->{Throw Text} c)
+                       ->{Throw Text} (a
+                       ->{Throw Text} b
+                       ->{Throw Text} c)
+                       ->{Throw Text} [(a, b)]
+                       ->{Throw Text} ()
       fib10          : [Nat]
-      handleTest     : Text -> Request {Err} a -> Result
-      identical      : Text -> a -> a ->{Err} ()
-      identicality   : Text -> a ->{IO} Result
-      load           : Bytes ->{IO, Err} a
-      map            : (a ->{g} b) ->{g} [a] ->{g} [b]
+      handleTest     : Text -> Request {Throw Text} a -> Result
+      identical      : Text -> a -> a ->{Throw Text} ()
+      identicality   : Text -> a ->{io2.IO} Result
+      load           : Bytes ->{io2.IO, Throw Text} a
       prod           : [a] ->{g} [b] ->{g} [(a, b)]
-      roundtrip      : a ->{IO, Err} a
+      roundtrip      : a ->{io2.IO, Throw Text} a
       save           : a -> Bytes
       showThree      : Three Nat Nat Nat -> Text
       threes         : [Three Nat Nat Nat]
@@ -126,27 +120,29 @@ identicality t x
 
   ⍟ I've added these definitions:
   
-    ability Err
     type Three a b c
     concatMap      : (a ->{g} [b]) ->{g} [a] ->{g} [b]
     extensionality : Text
                      -> (Three Nat Nat Nat
-                     ->{Err} Nat
-                     ->{Err} b)
-                     ->{IO} Result
-    extensionals   : (a ->{Err} b ->{Err} Text)
-                     ->{Err} (a ->{Err} b ->{Err} c)
-                     ->{Err} (a ->{Err} b ->{Err} c)
-                     ->{Err} [(a, b)]
-                     ->{Err} ()
+                     ->{Throw Text} Nat
+                     ->{Throw Text} b)
+                     ->{io2.IO} Result
+    extensionals   : (a ->{Throw Text} b ->{Throw Text} Text)
+                     ->{Throw Text} (a
+                     ->{Throw Text} b
+                     ->{Throw Text} c)
+                     ->{Throw Text} (a
+                     ->{Throw Text} b
+                     ->{Throw Text} c)
+                     ->{Throw Text} [(a, b)]
+                     ->{Throw Text} ()
     fib10          : [Nat]
-    handleTest     : Text -> Request {Err} a -> Result
-    identical      : Text -> a -> a ->{Err} ()
-    identicality   : Text -> a ->{IO} Result
-    load           : Bytes ->{IO, Err} a
-    map            : (a ->{g} b) ->{g} [a] ->{g} [b]
+    handleTest     : Text -> Request {Throw Text} a -> Result
+    identical      : Text -> a -> a ->{Throw Text} ()
+    identicality   : Text -> a ->{io2.IO} Result
+    load           : Bytes ->{io2.IO, Throw Text} a
     prod           : [a] ->{g} [b] ->{g} [(a, b)]
-    roundtrip      : a ->{IO, Err} a
+    roundtrip      : a ->{io2.IO, Throw Text} a
     save           : a -> Bytes
     showThree      : Three Nat Nat Nat -> Text
     threes         : [Three Nat Nat Nat]
@@ -218,7 +214,7 @@ tests =
       fVal   : Value
       h      : Three Nat Nat Nat -> Nat -> Nat
       rotate : Three Nat Nat Nat -> Three Nat Nat Nat
-      tests  : '{IO} [Result]
+      tests  : '{io2.IO} [Result]
       zapper : Three Nat Nat Nat ->{g} Request {Zap} r ->{g} r
 
 ```
@@ -238,7 +234,7 @@ to actual show that the serialization works.
     fVal   : Value
     h      : Three Nat Nat Nat -> Nat -> Nat
     rotate : Three Nat Nat Nat -> Three Nat Nat Nat
-    tests  : '{IO} [Result]
+    tests  : '{io2.IO} [Result]
     zapper : Three Nat Nat Nat ->{g} Request {Zap} r ->{g} r
 
 .> display fDeps
