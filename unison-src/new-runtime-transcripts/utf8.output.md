@@ -92,7 +92,7 @@ test> checkRoundTrip greek
     
       checkRoundTrip : Text -> [Result]
       greek          : Text
-    test.kqfpde2g5a  (Unison bug, unknown term)
+    test.nm3cmq1utb  (Unison bug, unknown term)
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
