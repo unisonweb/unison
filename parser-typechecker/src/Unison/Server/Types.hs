@@ -8,31 +8,34 @@ module Unison.Server.Types where
 
 -- Types common to endpoints --
 
-import Unison.Prelude
-import Data.Aeson (ToJSON, ToJSONKey)
-import qualified Data.ByteString.Lazy as LZ
-import Data.Proxy (Proxy(..))
-import qualified Data.Text.Lazy as Text
-import qualified Data.Text.Lazy.Encoding as Text
-import Data.OpenApi ( ToSchema(..), ToParamSchema(..) )
-import Servant.API ( FromHttpApiData )
-import qualified Unison.HashQualified as HQ
-import Unison.ConstructorType (ConstructorType)
-import Unison.Name (Name)
-import Unison.Pattern (SeqOp)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
-import Unison.ShortHash (ShortHash)
-import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
-import Unison.Util.Pretty (Width, render)
-import Unison.Util.AnnotatedText ( Segment )
-import Unison.Util.SyntaxText (SyntaxText')
-import qualified Unison.Util.SyntaxText as SyntaxText
-import Unison.Var (Var)
-import qualified Unison.PrettyPrintEnv as PPE
-import Unison.Type (Type)
-import qualified Unison.TypePrinter as TypePrinter
-import Unison.Codebase.Editor.DisplayObject (DisplayObject)
+import           Unison.Prelude
+import           Data.Aeson                     ( ToJSON
+                                                , ToJSONKey
+                                                )
+import qualified Data.ByteString.Lazy          as LZ
+import qualified Data.Text.Lazy                as Text
+import qualified Data.Text.Lazy.Encoding       as Text
+import           Data.OpenApi                   ( ToSchema(..)
+                                                , ToParamSchema(..)
+                                                )
+import           Servant.API                    ( FromHttpApiData )
+import qualified Unison.HashQualified          as HQ
+import           Unison.ConstructorType         ( ConstructorType )
+import           Unison.Name                    ( Name )
+import           Unison.ShortHash               ( ShortHash )
+import           Unison.Codebase.ShortBranchHash
+                                                ( ShortBranchHash(..) )
+import           Unison.Util.Pretty             ( Width
+                                                , render
+                                                )
+import           Unison.Var                     ( Var )
+import qualified Unison.PrettyPrintEnv         as PPE
+import           Unison.Type                    ( Type )
+import qualified Unison.TypePrinter            as TypePrinter
+import           Unison.Codebase.Editor.DisplayObject
+                                                ( DisplayObject )
+import           Unison.Server.Syntax           ( SyntaxText )
+import qualified Unison.Server.Syntax          as Syntax
 
 type HashQualifiedName = Text
 
@@ -58,31 +61,9 @@ deriving instance ToSchema ShortHash
 instance ToJSON n => ToJSON (HQ.HashQualified n)
 deriving instance ToSchema n => ToSchema (HQ.HashQualified n)
 
-instance ToJSON a => ToJSON (Segment a)
-instance ToSchema a => ToSchema (Segment a)
-
-instance ToSchema r => ToSchema (Seq r) where
-  declareNamedSchema _ = declareNamedSchema (Proxy @[r])
-
 instance ToJSON ConstructorType
 
 deriving instance ToSchema ConstructorType
-
-instance ToJSON SeqOp
-
-deriving instance ToSchema SeqOp
-
-instance ToJSON r => ToJSON (Referent.TermRef r)
-
-deriving instance ToSchema r => ToSchema (Referent.TermRef r)
-
-instance ToJSON r => ToJSON (SyntaxText.Element r)
-
-deriving instance ToSchema r => ToSchema (SyntaxText.Element r)
-
-instance ToJSON r => ToJSON (SyntaxText' r)
-
-deriving instance ToSchema r => ToSchema (SyntaxText' r)
 
 instance ToJSON TypeDefinition
 
@@ -99,27 +80,26 @@ deriving instance ToSchema DefinitionDisplayResults
 data TermDefinition = TermDefinition
   { termNames :: [HashQualifiedName]
   , bestTermName :: HashQualifiedName
-  , termDefinition :: DisplayObject (SyntaxText' UnisonHash)
-  , signature :: SyntaxText' UnisonHash
+  , termDefinition :: DisplayObject SyntaxText
+  , signature :: SyntaxText
   } deriving (Eq, Show, Generic)
 
 data TypeDefinition = TypeDefinition
   { typeNames :: [HashQualifiedName]
   , bestTypeName :: HashQualifiedName
-  , typeDefinition :: DisplayObject (SyntaxText' UnisonHash)
+  , typeDefinition :: DisplayObject SyntaxText
   } deriving (Eq, Show, Generic)
 
 data DefinitionDisplayResults =
   DefinitionDisplayResults
     { termDefinitions :: Map UnisonHash TermDefinition
     , typeDefinitions :: Map UnisonHash TypeDefinition
-    , missingDefinitions :: [HQ.HashQualified Name]
+    , missingDefinitions :: [HashQualifiedName]
     } deriving (Eq, Show, Generic)
 
-formatType
-  :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText' UnisonHash
+formatType :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
 formatType ppe w =
-  fmap (fmap Reference.toText) . render w . TypePrinter.pretty0 ppe mempty (-1)
+  fmap Syntax.convertElement . render w . TypePrinter.pretty0 ppe mempty (-1)
 
 munge :: Text -> LZ.ByteString
 munge = Text.encodeUtf8 . Text.fromStrict

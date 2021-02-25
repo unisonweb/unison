@@ -5,7 +5,7 @@ module Unison.Util.SyntaxText where
 import Unison.Prelude
 import Unison.Name (Name)
 import Unison.Reference (Reference)
-import Unison.Referent (TermRef)
+import Unison.Referent (Referent')
 import Unison.HashQualified (HashQualified)
 import Unison.Pattern (SeqOp)
 
@@ -23,7 +23,7 @@ data Element r = NumericLiteral
              | Blank
              | Var
              | Reference r
-             | Referent (TermRef r)
+             | Referent (Referent' r)
              | Op SeqOp
              | Constructor
              | Request

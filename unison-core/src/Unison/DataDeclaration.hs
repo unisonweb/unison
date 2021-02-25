@@ -201,7 +201,7 @@ constructorNames dd = Var.name <$> constructorVars dd
 
 declConstructorReferents :: Reference.Id -> Decl v a -> [Referent.Id]
 declConstructorReferents rid decl =
-  [ Referent.ConRef rid i ct | i <- constructorIds (asDataDecl decl) ]
+  [ Referent.Con' rid i ct | i <- constructorIds (asDataDecl decl) ]
   where ct = constructorType decl
 
 constructorIds :: DataDeclaration v a -> [Int]

@@ -254,19 +254,13 @@ nonEmpty uf =
   any (not . null) (watchComponents uf)
 
 hashConstructors
-  :: forall v a . Ord v => TypecheckedUnisonFile v a -> Map v Referent.Id
+  :: forall v a. Ord v => TypecheckedUnisonFile v a -> Map v Referent.Id
 hashConstructors file =
-  let ctors1 = do
-        (ref, dd) <- Map.elems $ dataDeclarationsId' file
-        [ (v, Referent.ConRef ref i CT.Data)
-          | (v, i) <- DD.constructorVars dd `zip` [0 ..]
-          ]
-      ctors2 = do
-        (ref, dd) <- Map.elems $ effectDeclarationsId' file
-        [ (v, Referent.ConRef ref i CT.Effect)
-          | (v, i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..]
-          ]
-  in  Map.fromList $ ctors1 ++ ctors2
+  let ctors1 = Map.elems (dataDeclarationsId' file) >>= \(ref, dd) ->
+        [ (v, Referent.Con' ref i CT.Data) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
+      ctors2 = Map.elems (effectDeclarationsId' file) >>= \(ref, dd) ->
+        [ (v, Referent.Con' ref i CT.Effect) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
+  in Map.fromList (ctors1 ++ ctors2)
 
 type CtorLookup = Map String (Reference, Int)
 

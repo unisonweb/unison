@@ -147,6 +147,7 @@ library
     Unison.Server.QueryResult
     Unison.Server.SearchResult
     Unison.Server.SearchResult'
+    Unison.Server.Syntax
     Unison.Server.Types
     Unison.TermParser
     Unison.TermPrinter
