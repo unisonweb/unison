@@ -7,6 +7,7 @@ import           EasyTest
 import           Shellmet                       (($|))
 import           System.Directory
 import           System.FilePath                ( (</>)
+                                                , splitFileName
                                                 , takeExtensions
                                                 , takeBaseName
                                                 )
@@ -17,25 +18,32 @@ import           Data.Text                      ( pack
                                                 )
 import           Data.List
 
-type TestBuilder = FilePath -> FilePath -> String -> Test ()
+type TestBuilder = FilePath -> FilePath -> [String] -> String -> Test ()
 
-testBuilder :: FilePath -> FilePath -> String -> Test ()
-testBuilder ucm dir transcript = scope transcript $ do
-  io $ fromString ucm ["transcript", pack (dir </> transcript)]
-  ok
-
-testBuilderNewRuntime :: FilePath -> FilePath -> String -> Test ()
-testBuilderNewRuntime ucm dir transcript = scope transcript $ do
-  io $ fromString ucm ["--new-runtime", "transcript", pack (dir </> transcript)]
-  ok
-
-testBuilder' :: FilePath -> FilePath -> String -> Test ()
-testBuilder' ucm dir transcript = scope transcript $ do
-  let input = pack (dir </> transcript)
-  let output = dir </> takeBaseName transcript <> ".output.md"
-  io $ runAndCaptureError ucm ["transcript", input] output
+testBuilder :: FilePath -> FilePath -> [String] -> String -> Test ()
+testBuilder ucm dir prelude transcript = scope transcript $ do
+  io $ fromString ucm args
   ok
   where
+    files = fmap (pack . (dir </>)) (prelude ++ [transcript])
+    args = ["transcript"] ++ files
+
+testBuilderNewRuntime :: FilePath -> FilePath -> [String] -> String -> Test ()
+testBuilderNewRuntime ucm dir prelude transcript = scope transcript $ do
+  io $ fromString ucm args
+  ok
+  where
+    files = fmap (pack . (dir </>)) (prelude ++ [transcript])
+    args = ["--new-runtime", "transcript"] ++ files
+
+testBuilder' :: FilePath -> FilePath -> [String] -> String -> Test ()
+testBuilder' ucm dir prelude transcript = scope transcript $ do
+  let output = dir </> takeBaseName transcript <> ".output.md"
+  io $ runAndCaptureError ucm args output
+  ok
+  where
+    files = fmap (pack . (dir </>)) (prelude ++ [transcript])
+    args = ["transcript"] ++ files
     -- Given a command and arguments, run it and capture the standard error to a file
     -- regardless of success or failure.
     runAndCaptureError :: FilePath -> [Text] -> FilePath -> IO ()
@@ -58,9 +66,15 @@ buildTests testBuilder dir = do
        , "Searching for transcripts to run in: " ++ dir
        ]
   files <- io $ listDirectory dir
-  let transcripts = sort . filter (\f -> takeExtensions f == ".md") $ files
+  let 
+    -- Any files that start with _ are treated as prelude
+    (prelude, transcripts) =
+      partition ((isPrefixOf "_") . snd . splitFileName)
+      . sort
+      . filter (\f -> takeExtensions f == ".md") $ files
+
   ucm <- io $ unpack <$> "stack" $| ["exec", "--", "which", "unison"] -- todo: what is it in windows?
-  tests (testBuilder ucm dir <$> transcripts)
+  tests (testBuilder ucm dir prelude <$> transcripts)
 
 -- Transcripts that exit successfully get cleaned-up by the transcript parser.
 -- Any remaining folders matching "transcript-.*" are output directories
