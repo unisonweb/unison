@@ -521,7 +521,7 @@ prettyBinding
   -> HQ.HashQualified Name
   -> Term2 v at ap v a
   -> Pretty SyntaxText
-prettyBinding n = prettyBinding0 n emptyAc
+prettyBinding n = prettyBinding0 n $ ac (-1) Block Map.empty MaybeDoc
 
 prettyBinding'
   :: Var v
@@ -664,7 +664,7 @@ isBlank ('_' : rest) | (isJust ((readMaybe rest) :: Maybe Int)) = True
 isBlank _ = False
 
 emptyAc :: AmbientContext
-emptyAc = ac (-1) Block Map.empty MaybeDoc
+emptyAc = ac (-1) Normal Map.empty MaybeDoc
 
 ac :: Int -> BlockContext -> Imports -> DocLiteralContext -> AmbientContext
 ac prec bc im doc = AmbientContext prec bc NonInfix im doc
