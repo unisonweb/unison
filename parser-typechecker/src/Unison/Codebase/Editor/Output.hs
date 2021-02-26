@@ -122,6 +122,7 @@ data Output v
   | TypeNotFound' ShortHash
   | TermNotFound' ShortHash
   | SearchTermsNotFound [HQ.HashQualified]
+  | SearchTermsNotFound' Bool [HQ.HashQualified] [HQ.HashQualified]
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
   -- with whatever named definitions would not have any remaining names if
@@ -290,6 +291,7 @@ isFailure o = case o of
   TermNotFound{} -> True
   TermNotFound'{} -> True
   SearchTermsNotFound ts -> not (null ts)
+  SearchTermsNotFound' _ ts ts' -> not (null ts) || not (null ts')
   DeleteBranchConfirmation{} -> False
   CantDelete{} -> True
   DeleteEverythingConfirmation -> False

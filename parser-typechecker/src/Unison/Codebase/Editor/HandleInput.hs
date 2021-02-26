@@ -368,12 +368,11 @@ loop = do
         doRemoveReplacement from patchPath isTerm = do
           let patchPath' = fromMaybe defaultPatchPath patchPath
           patch <- getPatchAt patchPath'
-          (misses', hits) <- hqNameQuery [from]
+          (misses, hits) <- hqNameQuery [from]
           let tpRefs = Set.fromList $ typeReferences hits
               tmRefs = Set.fromList $ termReferences hits
-              misses = Set.difference (Set.fromList misses') if isTerm
-                then Set.fromList $ HQ'.toHQ . SR.termName <$> termResults hits
-                else Set.fromList $ HQ'.toHQ . SR.typeName <$> typeResults hits
+              tmResults = Set.fromList $ HQ'.toHQ . SR.termName <$> termResults hits
+              tpResults = Set.fromList $ HQ'.toHQ . SR.typeName <$> typeResults hits
               go :: Reference -> Action m (Either Event Input) v ()
               go fr = do
                 let termPatch =
@@ -389,8 +388,9 @@ loop = do
                              (const (if isTerm then termPatch else typePatch)))
                 -- Say something
                 success
-          unless (Set.null misses) $
-            respond $ SearchTermsNotFound (Set.toList misses)
+          when (null if isTerm then tmResults else tpResults) $
+            respond $ SearchTermsNotFound' isTerm misses $
+              Set.toList if isTerm then tpResults else tmResults
           traverse_ go (if isTerm then tmRefs else tpRefs)
         branchExists dest _x = respond $ BranchAlreadyExists dest
         branchExistsSplit = branchExists . Path.unsplit'

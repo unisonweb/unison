@@ -374,6 +374,22 @@ notifyUser dir o = case o of
       $  P.warnCallout "The following names were not found in the codebase. Check your spelling."
       <> P.newline
       <> (P.syntaxToColor $ P.indent "  " (P.lines (prettyHashQualified <$> hqs)))
+  SearchTermsNotFound' _ hqMisses otherHits | null hqMisses || null otherHits -> pure mempty
+  SearchTermsNotFound' wasTerm hqMisses otherHits ->
+    pure $
+      if null hqMisses then mempty else missMsg
+      <>
+      if null otherHits then mempty else hitMsg
+    where
+      typeOrTermMsg = if wasTerm
+        then "I was expecting the following names to be terms, though I found types instead."
+        else "I was expecting the following names to be types, though I found terms instead."
+      missMsg = P.warnCallout "The following names were not found in the codebase. Check your spelling."
+                <> P.newline
+                <> P.syntaxToColor (P.indent "  " (P.lines (prettyHashQualified <$> hqMisses)))
+      hitMsg  = P.warnCallout typeOrTermMsg
+                <> P.newline
+                <> P.syntaxToColor (P.indent "  " (P.lines (prettyHashQualified <$> hqMisses)))
   PatchNotFound _ ->
     pure . P.warnCallout $ "I don't know about that patch."
   NameNotFound _ ->
