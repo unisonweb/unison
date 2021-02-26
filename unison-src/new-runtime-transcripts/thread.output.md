@@ -32,10 +32,9 @@ testBasicFork = 'let
 See if we can get another thread to stuff a value into a MVar
 
 ```unison
-thread1 : MVar Nat -> '{io2.IO}()
-thread1 mv = 'let
+thread1 : Nat -> MVar Nat -> '{io2.IO}()
+thread1 x mv = 'let
   go = 'let
-    x = take mv
     put mv (increment x)
 
   match (toEither go) with 
@@ -46,8 +45,8 @@ thread1 mv = 'let
 testBasicMultiThreadMVar : '{io2.IO} [Result]
 testBasicMultiThreadMVar = 'let
   test = 'let
-    mv = new 10
-    .builtin.io2.IO.forkComp (thread1 mv)
+    mv = !newEmpty
+    .builtin.io2.IO.forkComp (thread1 10 mv)
     next = take mv
     expectU "other thread should have incremented" 11 next
 
@@ -65,7 +64,7 @@ testBasicMultiThreadMVar = 'let
     ⍟ These new definitions are ok to `add`:
     
       testBasicMultiThreadMVar : '{io2.IO} [Result]
-      thread1                  : MVar Nat -> '{io2.IO} ()
+      thread1                  : Nat -> MVar Nat -> '{io2.IO} ()
 
 ```
 ```ucm
@@ -74,7 +73,7 @@ testBasicMultiThreadMVar = 'let
   ⍟ I've added these definitions:
   
     testBasicMultiThreadMVar : '{io2.IO} [Result]
-    thread1                  : MVar Nat -> '{io2.IO} ()
+    thread1                  : Nat -> MVar Nat -> '{io2.IO} ()
 
 .> io.test testBasicMultiThreadMVar
 
@@ -136,6 +135,7 @@ testTwoThreads = 'let
     
       receivingThread : MVar Nat -> MVar Text -> '{io2.IO} ()
       sendingThread   : Nat -> MVar Nat -> '{io2.IO} ()
+        (also named thread1)
       testTwoThreads  : '{io2.IO} [Result]
 
 ```
@@ -146,6 +146,7 @@ testTwoThreads = 'let
   
     receivingThread : MVar Nat -> MVar Text -> '{io2.IO} ()
     sendingThread   : Nat -> MVar Nat -> '{io2.IO} ()
+      (also named thread1)
     testTwoThreads  : '{io2.IO} [Result]
 
 .> io.test testTwoThreads
