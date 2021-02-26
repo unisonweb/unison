@@ -24,10 +24,11 @@ import qualified Unison.HashQualified         as HQ
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
 import qualified Unison.Lexer                 as L
+import           Unison.Name                  ( Name )
 import           Unison.Parser                (Ann (..), Annotated, ann)
 import qualified Unison.Parser                as Parser
 import qualified Unison.Reference             as R
-import           Unison.Referent              (Referent, pattern Ref')
+import           Unison.Referent              (Referent, pattern Ref)
 import           Unison.Result                (Note (..))
 import qualified Unison.Result                as Result
 import qualified Unison.Settings              as Settings
@@ -105,7 +106,7 @@ style :: s -> String -> Pretty (AnnotatedText s)
 style sty str = Pr.lit . AT.annotate sty $ fromString str
 
 stylePretty :: Color -> Pretty ColorText -> Pretty ColorText
-stylePretty sty str = Pr.map (AT.annotate sty) str
+stylePretty = Pr.map . AT.annotate
 
 describeStyle :: Color -> Pretty ColorText
 describeStyle ErrorSite = "in " <> style ErrorSite "red"
@@ -739,7 +740,7 @@ renderCompilerBug env _src bug = mconcat $ case bug of
     ]
   C.UnknownTermReference rf ->
     [ "UnknownTermReference:\n"
-    , showTermRef env (Ref' rf)
+    , showTermRef env (Ref rf)
     ]
   C.UnknownExistentialVariable v ctx ->
     [ "UnknownExistentialVariable:\n"
@@ -1218,6 +1219,13 @@ prettyParseError s = \case
     , "but there wasn't one.  Maybe check your indentation:\n"
     , tokenAsErrorSite s tok
     ]
+  go Parser.EmptyMatch = mconcat
+    ["I expected some patterns after a "
+    , style ErrorSite "match"
+    , "/"
+    , style ErrorSite "with"
+    , " but I didn't find any."
+    ]
   go Parser.EmptyWatch =
     "I expected a non-empty watch expression and not just \">\""
   go (Parser.UnknownAbilityConstructor tok _referents) = unknownConstructor "ability" tok
@@ -1260,7 +1268,7 @@ prettyParseError s = \case
   go (Parser.ResolutionFailures        failures) =
     Pr.border 2 . prettyResolutionFailures s $ failures
   unknownConstructor
-    :: String -> L.Token HashQualified -> Pretty ColorText
+    :: String -> L.Token (HashQualified Name) -> Pretty ColorText
   unknownConstructor ctorType tok = Pr.lines [
     (Pr.wrap . mconcat) [ "I don't know about any "
     , fromString ctorType

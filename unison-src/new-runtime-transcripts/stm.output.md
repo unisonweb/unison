@@ -90,7 +90,7 @@ display m n s =
   "mismatch: " ++ toText m ++ " + " ++ toText n ++ " /= " ++ toText s
 
 nats : [Nat]
-nats = [89,100,116,144,169,188,200,233,256,300]
+nats = [8,10,11,14,16,18,20,23,25,30]
 
 tests : '{io2.IO} [Result]
 tests = '(map spawn nats)

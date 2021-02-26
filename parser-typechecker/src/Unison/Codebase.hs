@@ -42,7 +42,7 @@ type DataDeclaration v a = DD.DataDeclaration v a
 type EffectDeclaration v a = DD.EffectDeclaration v a
 
 -- | this FileCodebase detail lives here, because the interface depends on it 🙃
-type CodebasePath = FilePath  
+type CodebasePath = FilePath
 
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
@@ -94,7 +94,7 @@ data GetRootBranchError
   | CouldntParseRootBranch String
   | CouldntLoadRootBranch Branch.Hash
   deriving Show
-  
+
 data SyncFileCodebaseResult = SyncOk | UnknownDestinationRootBranch Branch.Hash | NotFastForward
 
 -- | Write all of the builtins types into the codebase and create empty namespace

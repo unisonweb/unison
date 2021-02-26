@@ -79,7 +79,7 @@ checkRoundTrip t =
 
 greek = "ΑΒΓΔΕ"
 
-test> checkRoundTrip greek
+test> greekTest = checkRoundTrip greek
 ```
 
 ```ucm
@@ -92,12 +92,12 @@ test> checkRoundTrip greek
     
       checkRoundTrip : Text -> [Result]
       greek          : Text
-    test.nm3cmq1utb  (Unison bug, unknown term)
+      greekTest      : [Result]
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    10 | test> checkRoundTrip greek
+    10 | test> greekTest = checkRoundTrip greek
     
     ✅ Passed Passed
 

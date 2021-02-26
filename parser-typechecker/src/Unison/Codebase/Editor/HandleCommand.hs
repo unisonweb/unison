@@ -1,9 +1,7 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -16,13 +14,13 @@ import Unison.Codebase.Editor.Command
 
 import qualified Unison.Builtin                as B
 
+import qualified Unison.Server.Backend         as Backend
 import qualified Crypto.Random                 as Random
 import           Control.Monad.Except           ( runExceptT )
 import qualified Control.Monad.State           as State
 import qualified Data.Configurator             as Config
 import           Data.Configurator.Types        ( Config )
 import qualified Data.Map                      as Map
-import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
@@ -33,7 +31,6 @@ import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.Parsers                as Parsers
 import qualified Unison.Reference              as Reference
-import qualified Unison.Referent               as Referent
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
 import qualified Unison.Term                   as Term
@@ -147,26 +144,18 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     GetTermsMentioningType ty -> lift $ Codebase.termsMentioningType codebase ty
     CodebaseHashLength -> lift $ Codebase.hashLength codebase
     -- all builtin and derived type references
-    TypeReferencesByShortHash sh -> do
-      fromCodebase <- lift $ Codebase.typeReferencesByPrefix codebase sh
-      let fromBuiltins = Set.filter (\r -> sh == Reference.toShortHash r)
-            $ B.intrinsicTypeReferences
-      pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
+    TypeReferencesByShortHash sh ->
+      lift $ Backend.typeReferencesByShortHash codebase sh
     -- all builtin and derived term references
-    TermReferencesByShortHash sh -> do
-      fromCodebase <- lift $ Codebase.termReferencesByPrefix codebase sh
-      let fromBuiltins = Set.filter (\r -> sh == Reference.toShortHash r)
-            $ B.intrinsicTermReferences
-      pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
+    TermReferencesByShortHash sh ->
+      lift $ Backend.termReferencesByShortHash codebase sh
     -- all builtin and derived term references & type constructors
-    TermReferentsByShortHash sh -> do
-      fromCodebase <- lift $ Codebase.termReferentsByPrefix codebase sh
-      let fromBuiltins = Set.map Referent.Ref
-            . Set.filter (\r -> sh == Reference.toShortHash r)
-            $ B.intrinsicTermReferences
-      pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase)
-    BranchHashLength -> lift $ Codebase.branchHashLength codebase
-    BranchHashesByPrefix h -> lift $ Codebase.branchHashesByPrefix codebase h
+    TermReferentsByShortHash sh ->
+      lift $ Backend.termReferentsByShortHash codebase sh
+    BranchHashLength ->
+      lift $ Codebase.branchHashLength codebase
+    BranchHashesByPrefix h ->
+      lift $ Codebase.branchHashesByPrefix codebase h
     ParseType names (src, _) -> pure $
       Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
     RuntimeMain -> pure $ Runtime.mainType rt
@@ -182,6 +171,12 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     AppendToReflog reason old new -> lift $ Codebase.appendReflog codebase reason old new
     LoadReflog -> lift $ Codebase.getReflog codebase
     CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Parser.External t
+    HQNameQuery mayPath branch query ->
+      lift $ Backend.hqNameQuery mayPath branch codebase query
+    LoadSearchResults srs -> lift $ Backend.loadSearchResults codebase srs
+    GetDefinitionsBySuffixes mayPath branch query ->
+      lift . runExceptT $ Backend.definitionsBySuffixes mayPath branch codebase query
+    FindShallow path -> lift . runExceptT $ Backend.findShallow codebase path
 
   eval1 :: PPE.PrettyPrintEnv -> Term v Ann -> _
   eval1 ppe tm = do
@@ -244,7 +239,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
 
 -- loadDefinitions :: Monad m => Codebase m v a -> Set Reference
 --                 -> m ( [(Reference, Maybe (Type v a))],
---                        [(Reference, DisplayThing (Decl v a))] )
+--                        [(Reference, DisplayObject (Decl v a))] )
 -- loadDefinitions code refs = do
 --   termRefs <- filterM (Codebase.isTerm code) (toList refs)
 --   terms <- forM termRefs $ \r -> (r,) <$> Codebase.getTypeOfTerm code r

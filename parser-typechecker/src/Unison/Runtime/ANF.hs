@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# Language OverloadedStrings #-}
@@ -192,7 +191,7 @@ enclose keep rec (Let1NamedTop' top v b@(LamsNamed' vs bd) e)
   = Just . let1' top [(v, lamb)] . rec (Set.insert v keep)
   $ ABT.subst v av e
   where
-  (_, av) = expandSimple keep (v, b) 
+  (_, av) = expandSimple keep (v, b)
   keep' = Set.difference keep $ Set.fromList vs
   fvs = ABT.freeVars b
   evs = Set.toList $ Set.difference fvs keep
@@ -1327,7 +1326,7 @@ tyRefs f (MatchRequest m _) = foldMap f (Map.keys m)
 tyRefs f (MatchData r _ _) = f r
 tyRefs _ _ = mempty
 
-funcLinks 
+funcLinks
   :: Monoid a
   => (Reference -> a)
   -> Func v -> a

@@ -22,11 +22,11 @@ import qualified Data.Set as Set
 
 data PrettyPrintEnv = PrettyPrintEnv {
   -- names for terms, constructors, and requests
-  terms :: Referent -> Maybe HashQualified,
+  terms :: Referent -> Maybe (HashQualified Name),
   -- names for types
-  types :: Reference -> Maybe HashQualified }
+  types :: Reference -> Maybe (HashQualified Name) }
 
-patterns :: PrettyPrintEnv -> Reference -> Int -> Maybe HashQualified
+patterns :: PrettyPrintEnv -> Reference -> Int -> Maybe (HashQualified Name)
 patterns ppe r cid = terms ppe (Referent.Con r cid CT.Data)
                   <|>terms ppe (Referent.Con r cid CT.Effect)
 
@@ -82,32 +82,31 @@ unionLeft e1 e2 = PrettyPrintEnv
   (\r -> terms e1 r <|> terms e2 r)
   (\r -> types e1 r <|> types e2 r)
 
-assignTermName :: Referent -> HashQualified -> PrettyPrintEnv -> PrettyPrintEnv
-assignTermName r name = (fromTermNames [(r,name)] `unionLeft`)
+assignTermName
+  :: Referent -> HashQualified Name -> PrettyPrintEnv -> PrettyPrintEnv
+assignTermName r name = (fromTermNames [(r, name)] `unionLeft`)
 
-fromTypeNames :: [(Reference,HashQualified)] -> PrettyPrintEnv
-fromTypeNames types = let
-  m = Map.fromList types
-  in PrettyPrintEnv (const Nothing) (`Map.lookup` m)
+fromTypeNames :: [(Reference, HashQualified Name)] -> PrettyPrintEnv
+fromTypeNames types =
+  let m = Map.fromList types in PrettyPrintEnv (const Nothing) (`Map.lookup` m)
 
-fromTermNames :: [(Referent,HashQualified)] -> PrettyPrintEnv
-fromTermNames tms = let
-  m = Map.fromList tms
-  in PrettyPrintEnv (`Map.lookup` m) (const Nothing)
+fromTermNames :: [(Referent, HashQualified Name)] -> PrettyPrintEnv
+fromTermNames tms =
+  let m = Map.fromList tms in PrettyPrintEnv (`Map.lookup` m) (const Nothing)
 
 -- todo: these need to be a dynamic length, but we need additional info
 todoHashLength :: Int
 todoHashLength = 10
 
-termName :: PrettyPrintEnv -> Referent -> HashQualified
+termName :: PrettyPrintEnv -> Referent -> HashQualified Name
 termName env r =
   fromMaybe (HQ.take todoHashLength $ HQ.fromReferent r) (terms env r)
 
-typeName :: PrettyPrintEnv -> Reference -> HashQualified
+typeName :: PrettyPrintEnv -> Reference -> HashQualified Name
 typeName env r =
   fromMaybe (HQ.take todoHashLength $ HQ.fromReference r) (types env r)
 
-patternName :: PrettyPrintEnv -> Reference -> Int -> HashQualified
+patternName :: PrettyPrintEnv -> Reference -> Int -> HashQualified Name
 patternName env r cid =
   case patterns env r cid of
     Just name -> name
@@ -131,7 +130,7 @@ type Prefix = [Text]
 type Imports = Map Name Suffix
 
 -- Give the shortened version of an FQN, if there's been a `use` statement for that FQN.
-elideFQN :: Imports -> HQ.HashQualified -> HQ.HashQualified
+elideFQN :: Imports -> HQ.HashQualified Name -> HQ.HashQualified Name
 elideFQN imports hq =
   let hash = HQ.toHash hq
       name' = do name <- HQ.toName hq

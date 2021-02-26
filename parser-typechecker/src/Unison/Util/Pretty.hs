@@ -260,7 +260,8 @@ syntaxToColor :: Pretty ST.SyntaxText -> Pretty ColorText
 syntaxToColor = fmap $ annotateMaybe . fmap CT.defaultColors
 
 -- set the syntax, overriding any present syntax
-withSyntax :: ST.Element -> Pretty ST.SyntaxText -> Pretty ST.SyntaxText
+withSyntax
+  :: ST.Element r -> Pretty (ST.SyntaxText' r) -> Pretty (ST.SyntaxText' r)
 withSyntax e = fmap $ ST.syntax e
 
 renderUnbroken :: (Monoid s, IsString s) => Pretty s -> s

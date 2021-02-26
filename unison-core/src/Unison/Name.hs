@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -47,7 +48,8 @@ import qualified Unison.Var                    as Var
 import qualified Data.RFC5051                  as RFC5051
 import           Data.List                      ( sortBy, tails )
 
-newtype Name = Name { toText :: Text } deriving (Eq, Ord, Monoid, Semigroup)
+newtype Name = Name { toText :: Text }
+  deriving (Eq, Ord, Monoid, Semigroup, Generic)
 
 sortNames :: [Name] -> [Name]
 sortNames = sortNamed id
@@ -117,7 +119,7 @@ stripNamePrefix prefix name =
 
 -- a.b.c.d -> d
 stripPrefixes :: Name -> Name
-stripPrefixes = fromSegment . last . segments
+stripPrefixes = maybe "" fromSegment . lastMay . segments
 
 joinDot :: Name -> Name -> Name
 joinDot prefix suffix =
@@ -149,7 +151,7 @@ suffixes (Name n ) = fmap up . filter (not . null) . tails $ segments' n
   where up ns = Name (Text.intercalate "." ns)
 
 unqualified' :: Text -> Text
-unqualified' = last . segments'
+unqualified' = fromMaybe "" . lastMay . segments'
 
 makeAbsolute :: Name -> Name
 makeAbsolute n | toText n == "."                = Name ".."

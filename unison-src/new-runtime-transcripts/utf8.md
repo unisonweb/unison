@@ -43,7 +43,7 @@ checkRoundTrip t =
 
 greek = "ΑΒΓΔΕ"
 
-test> checkRoundTrip greek
+test> greekTest = checkRoundTrip greek
 ```
 
 If we try to decode an invalid set of bytes, we get back `Text` explaining the decoding error:

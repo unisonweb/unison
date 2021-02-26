@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 
 module Unison.Codebase.Editor.Command (
@@ -7,11 +8,17 @@ module Unison.Codebase.Editor.Command (
   Source,
   SourceName,
   TypecheckingResult,
-  LoadSourceResult(..)
+  LoadSourceResult(..),
+  commandName
   ) where
 
 import Unison.Prelude
 
+-- TODO: Don't import backend, but move dependencies to own modules
+import           Unison.Server.Backend          ( DefinitionResults
+                                                , ShallowListEntry
+                                                , BackendError
+                                                )
 import           Data.Configurator.Types        ( Configured )
 
 import           Unison.Codebase.Editor.Output
@@ -41,7 +48,13 @@ import           Unison.Type                    ( Type )
 import           Unison.Codebase.ShortBranchHash
                                                 ( ShortBranchHash )
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
-
+import Unison.Codebase.Path (Path)
+import qualified Unison.Codebase.Path as Path
+import qualified Unison.HashQualified as HQ
+import Unison.Name (Name)
+import Unison.Server.QueryResult (QueryResult)
+import qualified Unison.Server.SearchResult as SR
+import qualified Unison.Server.SearchResult' as SR'
 
 type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
@@ -57,7 +70,27 @@ type TypecheckingResult v =
          (Either Names0 (UF.TypecheckedUnisonFile v Ann))
 
 data Command m i v a where
+  -- Escape hatch.
   Eval :: m a -> Command m i v a
+
+  HQNameQuery
+    :: Maybe Path
+    -> Branch m
+    -> [HQ.HashQualified Name]
+    -> Command m i v QueryResult
+
+  LoadSearchResults
+    :: [SR.SearchResult] -> Command m i v [SR'.SearchResult' v Ann]
+
+  GetDefinitionsBySuffixes
+    :: Maybe Path
+    -> Branch m
+    -> [HQ.HashQualified Name]
+    -> Command m i v (Either BackendError (DefinitionResults v))
+
+  FindShallow
+    :: Path.Absolute
+    -> Command m i v (Either BackendError [ShallowListEntry v Ann])
 
   ConfigLookup :: Configured a => Text -> Command m i v (Maybe a)
 
@@ -190,3 +223,52 @@ data Command m i v a where
 
   RuntimeMain :: Command m i v (Type v Ann)
   RuntimeTest :: Command m i v (Type v Ann)
+
+commandName :: Command m i v a -> String
+commandName = \case
+  Eval{}                      -> "Eval"
+  ConfigLookup{}              -> "ConfigLookup"
+  Input                       -> "Input"
+  Notify{}                    -> "Notify"
+  NotifyNumbered{}            -> "NotifyNumbered"
+  AddDefsToCodebase{}         -> "AddDefsToCodebase"
+  CodebaseHashLength          -> "CodebaseHashLength"
+  TypeReferencesByShortHash{} -> "TypeReferencesByShortHash"
+  TermReferencesByShortHash{} -> "TermReferencesByShortHash"
+  TermReferentsByShortHash{}  -> "TermReferentsByShortHash"
+  BranchHashLength            -> "BranchHashLength"
+  BranchHashesByPrefix{}      -> "BranchHashesByPrefix"
+  ParseType{}                 -> "ParseType"
+  LoadSource{}                -> "LoadSource"
+  Typecheck{}                 -> "Typecheck"
+  TypecheckFile{}             -> "TypecheckFile"
+  Evaluate{}                  -> "Evaluate"
+  Evaluate1{}                 -> "Evaluate1"
+  PutWatch{}                  -> "PutWatch"
+  LoadWatches{}               -> "LoadWatches"
+  LoadLocalRootBranch         -> "LoadLocalRootBranch"
+  LoadLocalBranch{}           -> "LoadLocalBranch"
+  ViewRemoteBranch{}          -> "ViewRemoteBranch"
+  ImportRemoteBranch{}        -> "ImportRemoteBranch"
+  SyncLocalRootBranch{}       -> "SyncLocalRootBranch"
+  SyncRemoteRootBranch{}      -> "SyncRemoteRootBranch"
+  AppendToReflog{}            -> "AppendToReflog"
+  LoadReflog                  -> "LoadReflog"
+  LoadTerm{}                  -> "LoadTerm"
+  LoadType{}                  -> "LoadType"
+  LoadTypeOfTerm{}            -> "LoadTypeOfTerm"
+  PutTerm{}                   -> "PutTerm"
+  PutDecl{}                   -> "PutDecl"
+  IsTerm{}                    -> "IsTerm"
+  IsType{}                    -> "IsType"
+  GetDependents{}             -> "GetDependents"
+  GetTermsOfType{}            -> "GetTermsOfType"
+  GetTermsMentioningType{}    -> "GetTermsMentioningType"
+  Execute{}                   -> "Execute"
+  CreateAuthorInfo{}          -> "CreateAuthorInfo"
+  RuntimeMain                 -> "RuntimeMain"
+  RuntimeTest                 -> "RuntimeTest"
+  HQNameQuery{}               -> "HQNameQuery"
+  LoadSearchResults{}         -> "LoadSearchResults"
+  GetDefinitionsBySuffixes{}  -> "GetDefinitionsBySuffixes"
+  FindShallow{}               -> "FindShallow"

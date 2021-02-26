@@ -57,10 +57,11 @@ module Unison.Codebase.Branch
   , stepManyAtM
   , modifyAtM
 
-    -- * Branch terms/types
-    -- ** Term/type lenses
+    -- * Branch terms/types/edits
+    -- ** Term/type/edits lenses
   , terms
   , types
+  , edits
     -- ** Term/type queries
   , deepReferents
   , deepTypeReferences
@@ -233,9 +234,9 @@ findHistoricalSHs = findInHistory
 -- This stops searching for a given HashQualified once it encounters
 -- any term or type in any Branch0 that satisfies that HashQualified.
 findHistoricalHQs :: Monad m
-                  => Set HashQualified
+                  => Set (HashQualified Name)
                   -> Branch m
-                  -> m (Set HashQualified, Names0)
+                  -> m (Set (HashQualified Name), Names0)
 findHistoricalHQs = findInHistory
   (\hq r n -> HQ.matchesNamedReferent n r hq)
   (\hq r n -> HQ.matchesNamedReference n r hq)

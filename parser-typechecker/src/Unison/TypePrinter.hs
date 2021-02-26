@@ -7,6 +7,7 @@ import Unison.Prelude
 
 import qualified Data.Map              as Map
 import           Unison.HashQualified  (HashQualified)
+import           Unison.Name           ( Name )
 import           Unison.NamePrinter    (styleHashQualified'')
 import           Unison.PrettyPrintEnv (PrettyPrintEnv, Imports, elideFQN)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
@@ -132,13 +133,13 @@ prettyRaw n im p tp = go n im p tp
   parenNoGroup True  s = ( fmt S.Parenthesis "(" ) <> s <> ( fmt S.Parenthesis ")" )
   parenNoGroup False s = s
 
-fmt :: S.Element -> Pretty S.SyntaxText -> Pretty S.SyntaxText
+fmt :: S.Element r -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = PP.withSyntax
 
 -- todo: provide sample output in comment
 prettySignatures'
   :: Var v => PrettyPrintEnv
-  -> [(HashQualified, Type v a)]
+  -> [(HashQualified Name, Type v a)]
   -> [Pretty ColorText]
 prettySignatures' env ts = map PP.syntaxToColor $ PP.align
   [ ( styleHashQualified'' (fmt $ S.HashQualifier name) name
@@ -153,7 +154,7 @@ prettySignatures' env ts = map PP.syntaxToColor $ PP.align
 -- todo: provide sample output in comment; different from prettySignatures'
 prettySignaturesAlt'
   :: Var v => PrettyPrintEnv
-  -> [([HashQualified], Type v a)]
+  -> [([HashQualified Name], Type v a)]
   -> [Pretty ColorText]
 prettySignaturesAlt' env ts = map PP.syntaxToColor $ PP.align
   [ ( PP.commas . fmap (\name -> styleHashQualified'' (fmt $ S.HashQualifier name) name) $ names
@@ -171,7 +172,7 @@ prettySignaturesAlt' env ts = map PP.syntaxToColor $ PP.align
 prettySignatures
   :: Var v
   => PrettyPrintEnv
-  -> [(HashQualified, Type v a)]
+  -> [(HashQualified Name, Type v a)]
   -> Pretty ColorText
 prettySignatures env ts = PP.lines $
   PP.group <$> prettySignatures' env ts
@@ -179,7 +180,7 @@ prettySignatures env ts = PP.lines $
 prettySignaturesAlt
   :: Var v
   => PrettyPrintEnv
-  -> [([HashQualified], Type v a)]
+  -> [([HashQualified Name], Type v a)]
   -> Pretty ColorText
 prettySignaturesAlt env ts = PP.lines $
   PP.group <$> prettySignaturesAlt' env ts
