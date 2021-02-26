@@ -29,7 +29,7 @@ module U.Codebase.Sync where
 
 import Data.Foldable (traverse_)
 
-data TrySyncResult h = Missing [h] | Done [h] | PreviouslyDone
+data TrySyncResult h = Missing [h] | Done | PreviouslyDone
 
 data Sync m h = Sync
   { roots :: m [h],
@@ -47,6 +47,6 @@ sync Sync{..} Progress{..} = do roots >>= go where
   go :: [h] -> m ()
   go (h : hs) = trySync h >>= \case
     Missing deps -> traverse_ need deps >> go (deps ++ h : hs)
-    Done externalDeps -> done h >> go (externalDeps ++ hs)
+    Done -> done h >> go hs
     PreviouslyDone -> go hs
   go [] = allDone

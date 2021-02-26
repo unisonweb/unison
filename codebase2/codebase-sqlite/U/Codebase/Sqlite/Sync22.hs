@@ -1,16 +1,21 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module U.Codebase.Sqlite.Sync22 where
 
-import Control.Monad (filterM, (<=<))
-import Control.Monad.Except (ExceptT, MonadError)
+import Control.Monad (filterM, join, (<=<))
+import Control.Monad.Except (ExceptT, MonadError (throwError))
 import Control.Monad.Extra (ifM)
 import Control.Monad.RWS (MonadIO, MonadReader (reader))
 import Control.Monad.Reader (ReaderT)
 import Control.Monad.Trans.Except (withExceptT)
+import Data.Foldable (toList)
 import Data.Functor ((<&>))
+import Data.List.Extra (nubOrd)
+import Data.Maybe (catMaybes, fromJust, isJust)
 import Data.Word (Word64)
 import Database.SQLite.Simple (Connection)
 import U.Codebase.Sqlite.DbId
@@ -19,11 +24,15 @@ import U.Codebase.Sync
 import qualified U.Codebase.Sync as Sync
 import U.Util.Cache (Cache)
 import qualified U.Util.Cache as Cache
-import Data.Foldable (toList)
 
 data Entity = O ObjectId | C CausalHashId
 
-data Error = SrcDB Q.Integrity | DestDB Q.Integrity
+data Error
+  = SrcDB Q.Integrity
+  | DestDB Q.Integrity
+  | -- | hashes corresponding to a single object in source codebase
+    --  correspond to multiple objects in destination codebase
+    HashObjectCorrespondence ObjectId [HashId] [ObjectId]
 
 data Env = Env
   { srcDB :: Connection,
@@ -49,15 +58,15 @@ data Env = Env
 --     roots = runSrc $ fmap (\h -> [C h]) Q.loadNamespaceRoot
 
 trySync ::
+  forall m.
   (MonadIO m, MonadError Error m, MonadReader Env m) =>
   Cache m TextId TextId ->
   Cache m HashId HashId ->
-  Cache m CausalHashId CausalHashId ->
   Cache m ObjectId ObjectId ->
   Generation ->
   Entity ->
   m (TrySyncResult Entity)
-trySync tCache hCache cCache oCache gc = \case
+trySync tCache hCache oCache gc = \case
   -- for causals, we need to get the value_hash_id of the thingo
   -- - maybe enqueue their parents
   -- - enqueue the self_ and value_ hashes
@@ -67,44 +76,89 @@ trySync tCache hCache cCache oCache gc = \case
     -- we're going to assume that if the dest has this in its
     -- causal table, then it's safe to short-circuit
     ifM
-      (runDest $ Q.isCausalHash chId')
+      (runDest $ Q.isCausalHash $ unCausalHashId chId')
       (pure Sync.PreviouslyDone)
       ( do
-          missingParents <- (fmap . fmap) C $
-            runSrc (Q.loadCausalParents chId)
-              >>= filterM (\p -> syncCausalHash p >>= runDest . Q.isCausalHash)
-          -- optionally get branch object id for this causal
-          mayBoId <- (fmap . fmap) O $
-            runSrc (Q.loadCausalValueHashId chId)
-            >>= runSrc . Q.maybeObjectIdForAnyHashId . unBranchHashId
-          -- the parents should probably be real like CausalIds, that "statically"
-          -- know they're in that Causal table; not just reuse the hash id.
-          -- that would make the missingParents real dependencies instead of weakrefs
-          pure (Sync.Done (toList mayBoId ++ toList missingParents))
+          bhId <- runSrc $ Q.loadCausalValueHashId chId
+          bhId' <- syncBranchHashId bhId
+
+          mayBoId <-
+            runSrc . Q.maybeObjectIdForAnyHashId $
+              unBranchHashId bhId
+          mayBoId' <- join <$> traverse (isSyncedObject) mayBoId
+
+          findMissingParents chId >>= \case
+            [] ->
+              -- if branch object is present at src and dest,
+              -- or absent from both src and dest
+              -- then we are done
+              if isJust mayBoId == isJust mayBoId'
+                then do
+                  runDest $ Q.saveCausal chId' bhId'
+                  pure Sync.Done
+                else -- else it's present at src but not at dest.,
+                -- so request it be copied, and revisit later
+                  pure $ Missing [O $ fromJust mayBoId]
+            missingParents ->
+              -- if branch object is present at src and dest,
+              -- or absent from both src and dest
+              -- but there are parents missing,
+              -- then request the parents be copied, and revisit later
+              if isJust mayBoId == isJust mayBoId'
+                then pure $ Missing missingParents
+                else -- otherwise request the branch and the parents be copied
+
+                  pure $ Missing $ (O $ fromJust mayBoId) : missingParents
       )
 
   -- objects are the hairiest. obviously, if they
   -- exist, we're done; otherwise we do some fancy stuff
-  O oId -> error "todo"
-  -- O oId -> Cache.lookup oCache oId >>= \case
-  --   Just{} -> pure Sync.PreviouslyDone
-  --   Nothing -> do
+  O oId -> do
+    error "todo: look for corresponding object using primary or any secondary hashes"
+    error "todo: copy non-primary hashes"
+    error "todo"
+    -- O oId -> Cache.lookup oCache oId >>= \case
+    --   Just{} -> pure Sync.PreviouslyDone
+    --   Nothing -> do
 
-  --     error "todo"
-  --     pure Sync.Done
+    --     error "todo"
+    --     pure Sync.Done
   where
+    syncTextLiteral :: TextId -> m TextId
     syncTextLiteral = Cache.apply tCache \tId -> do
       t <- runSrc $ Q.loadTextById tId
       runDest $ Q.saveText t
 
+    syncHashLiteral :: HashId -> m HashId
     syncHashLiteral = Cache.apply hCache \hId -> do
       b32hex <- runSrc $ Q.loadHashById hId
       runDest $ Q.saveHash b32hex
 
-    syncCausalHash = syncHashLiteral . unCausalHashId
+    syncCausalHash :: CausalHashId -> m CausalHashId
+    syncCausalHash = fmap CausalHashId . syncHashLiteral . unCausalHashId
+
+    syncBranchHashId :: BranchHashId -> m BranchHashId
     syncBranchHashId = fmap BranchHashId . syncHashLiteral . unBranchHashId
 
-    syncObject = error "todo"
+    findMissingParents chId = do
+      runSrc (Q.loadCausalParents chId)
+        >>= filterM isMissing
+        <&> fmap C
+      where
+        isMissing p =
+          syncCausalHash p
+            >>= runDest . Q.isCausalHash . unCausalHashId
+
+    isSyncedObject :: ObjectId -> m (Maybe ObjectId)
+    isSyncedObject = Cache.applyDefined oCache \oId -> do
+      hIds <- toList <$> runSrc (Q.hashIdsForObject oId)
+      ( nubOrd . catMaybes
+          <$> traverse (runDest . Q.maybeObjectIdForAnyHashId) hIds
+        )
+        >>= \case
+          [oId'] -> pure $ Just oId'
+          [] -> pure $ Nothing
+          oIds' -> throwError (HashObjectCorrespondence oId hIds oIds')
 
 -- syncCausal chId = do
 --   value

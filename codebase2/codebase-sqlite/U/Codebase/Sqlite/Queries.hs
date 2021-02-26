@@ -16,15 +16,18 @@
 
 module U.Codebase.Sqlite.Queries where
 
-import Control.Monad (filterM)
 import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
+import Control.Monad (filterM, when)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader (MonadReader (ask))
 import Control.Monad.Trans (MonadIO (liftIO))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Data.ByteString (ByteString)
 import Data.Foldable (traverse_)
+import Data.Functor ((<&>))
 import qualified Data.List.Extra as List
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as Nel
 import Data.Maybe (fromJust, isJust)
 import Data.String (fromString)
 import Data.String.Here.Uninterpolated (here, hereFile)
@@ -37,7 +40,7 @@ import Debug.Trace (trace, traceM)
 import U.Codebase.HashTags (BranchHash, CausalHash, unBranchHash, unCausalHash)
 import U.Codebase.Reference (Reference')
 import qualified U.Codebase.Referent as C.Referent
-import U.Codebase.Sqlite.DbId (BranchHashId (..), BranchObjectId (..), CausalHashId (..), CausalOldHashId, HashId (..), ObjectId (..), TextId, Generation(..))
+import U.Codebase.Sqlite.DbId (BranchHashId (..), BranchObjectId (..), CausalHashId (..), CausalOldHashId, Generation (..), HashId (..), ObjectId (..), TextId)
 import U.Codebase.Sqlite.ObjectType (ObjectType)
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
@@ -47,8 +50,6 @@ import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import UnliftIO (MonadUnliftIO, throwIO, try, withRunInIO)
-import Control.Monad (when)
-import Data.Functor ((<&>))
 
 -- * types
 
@@ -255,6 +256,15 @@ objectExistsWithHash h = queryExists sql (Only h) where
     FROM hash INNER JOIN hash_object ON hash.id = hash_object.hash_id
     WHERE base32 = ?
   |]
+
+hashIdsForObject :: DB m => ObjectId -> m (NonEmpty HashId)
+hashIdsForObject oId = do
+  primaryHashId <- queryOne $ queryAtom sql1 (Only oId)
+  hashIds <- queryAtoms sql2 (Only oId)
+  pure $ primaryHashId Nel.:| filter (/= primaryHashId) hashIds
+  where
+    sql1 = "SELECT primary_hash_id FROM object WHERE id = ?"
+    sql2 = "SELECT hash_id FROM hash_object WHERE object_id = ?"
 
 updateObjectBlob :: DB m => ObjectId -> ByteString -> m ()
 updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
@@ -506,29 +516,36 @@ namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") whe
 
 -- * helper functions
 
+-- | composite input, atomic List output
 queryAtoms :: (DB f, ToRow q, FromField b, Show q, Show b) => SQLite.Query -> q -> f [b]
 queryAtoms q r = map fromOnly <$> query q r
 
+-- | composite input, composite Maybe output
 queryMaybe :: (DB f, ToRow q, FromRow b, Show q, Show b) => SQLite.Query -> q -> f (Maybe b)
 queryMaybe q r = headMay <$> query q r
 
+-- | composite input, atomic Maybe output
 queryAtom :: (DB f, ToRow q, FromField b, Show q, Show b) => SQLite.Query -> q -> f (Maybe b)
 queryAtom q r = fmap fromOnly <$> queryMaybe q r
 
+-- | Just output
 queryOne :: Functor f => f (Maybe b) -> f b
 queryOne = fmap fromJust
 
+-- | composite input, Boolean output
 queryExists :: (DB m, ToRow q, Show q) => SQLite.Query -> q -> m Bool
 queryExists q r = not . null . map (id @SQLData) <$> queryAtoms q r
 
 debugQuery :: Bool
 debugQuery = False
 
+-- | composite input, composite List output
 query :: (DB m, ToRow q, FromRow r, Show q, Show r) => SQLite.Query -> q -> m [r]
 query q r = do
   c <- ask
   liftIO . queryTrace "query" q r $ SQLite.query c q r
 
+-- | no input, composite List output
 query_ :: (DB m, FromRow r, Show r) => SQLite.Query -> m [r]
 query_ q = do
   c <- ask
