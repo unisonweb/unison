@@ -36,3 +36,6 @@ extra-deps:
 ghc-options:
  # All packages
  "$locals": -Werror -Wno-type-defaults #-freverse-errors
+
+ # See https://github.com/haskell/haskell-language-server/issues/208
+ "$everything": -haddock
