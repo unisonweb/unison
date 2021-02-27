@@ -55,6 +55,7 @@ library
   exposed-modules:
     Unison.Builtin
     Unison.Builtin.Decls
+    Unison.Builtin.Terms
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase.Branch
@@ -146,6 +147,7 @@ library
     Unison.Server.QueryResult
     Unison.Server.SearchResult
     Unison.Server.SearchResult'
+    Unison.Server.Syntax
     Unison.Server.Types
     Unison.TermParser
     Unison.TermPrinter
@@ -189,6 +191,7 @@ library
     async,
     base,
     base16 >= 0.2.1.0,
+    base64-bytestring,
     basement,
     bifunctors,
     bytes,
@@ -235,7 +238,7 @@ library
     pem,
     process,
     primitive,
-    random,
+    random >= 1.2.0,
     raw-strings-qq,
     regex-base,
     regex-tdfa,
@@ -286,6 +289,7 @@ executable unison
     Version
   build-depends:
     base,
+    bytestring,
     containers,
     configurator,
     directory,
@@ -298,7 +302,8 @@ executable unison
     temporary,
     text,
     unison-core,
-    unison-parser-typechecker
+    unison-parser-typechecker,
+    uri-encode
   if !os(windows)
     build-depends:
       unix

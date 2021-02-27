@@ -56,12 +56,12 @@ import           Unison.Server.Types            ( HashQualifiedName
                                                 , formatType
                                                 )
 import           Unison.Util.Pretty             ( Width )
-import           Unison.Util.SyntaxText         ( SyntaxText' )
 import           Unison.Var                     ( Var )
 import qualified Unison.Codebase.ShortBranchHash
                                                as SBH
 import qualified Unison.ShortHash              as ShortHash
 import qualified Data.Text                     as Text
+import           Unison.Server.Syntax           ( SyntaxText )
 
 type NamespaceAPI =
   "list" :> QueryParam "namespace" HashQualifiedName
@@ -122,7 +122,7 @@ deriving instance ToSchema NamedNamespace
 data NamedTerm = NamedTerm
   { termName :: HashQualifiedName
   , termHash :: UnisonHash
-  , termType :: Maybe (SyntaxText' UnisonHash)
+  , termType :: Maybe SyntaxText
   }
   deriving (Generic, Show)
 

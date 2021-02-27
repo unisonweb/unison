@@ -5,66 +5,71 @@
 
 module Unison.Server.Backend where
 
-import Control.Error.Util
-import Control.Monad.Except (ExceptT (..), throwError)
-import Data.Bifunctor (first)
-import Data.Tuple.Extra (dupe)
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Unison.Builtin as B
-import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Path (Path)
-import Unison.Codebase.Editor.DisplayObject
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Server.SearchResult as SR
-import qualified Unison.Server.SearchResult' as SR'
-import qualified Unison.ABT as ABT
-import Unison.Term (Term)
-import qualified Unison.Term as Term
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
-import Unison.Name as Name ( unsafeFromText )
-import Unison.NameSegment (NameSegment)
-import qualified Unison.NameSegment as NameSegment
-import qualified Unison.Names2 as Names
-import Unison.Name (Name)
-import qualified Unison.Name as Name
-import Unison.Names3
-  ( Names (..),
-    Names0,
-  )
-import qualified Unison.Names3 as Names3
-import Unison.Parser (Ann)
-import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.Util.Pretty as Pretty
-import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Star3 as Star3
-import Unison.Var (Var)
-import Unison.Server.Types
-import Unison.Server.QueryResult
-import Unison.Util.SyntaxText (SyntaxText, SyntaxText')
-import qualified Unison.Util.SyntaxText as SyntaxText
-import Unison.Util.List (uniqueBy)
-import Unison.ShortHash
-import qualified Unison.Codebase.ShortBranchHash as SBH
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.TermPrinter as TermPrinter
-import qualified Unison.TypePrinter as TypePrinter
-import qualified Unison.DeclPrinter as DeclPrinter
-import Unison.Util.Pretty (Width)
-import qualified Data.Text as Text
+import           Control.Error.Util
+import           Control.Monad.Except           ( ExceptT(..)
+                                                , throwError
+                                                )
+import           Data.Bifunctor                 ( first )
+import           Data.Tuple.Extra               ( dupe )
+import qualified Data.List                     as List
+import qualified Data.Map                      as Map
+import qualified Data.Set                      as Set
+import qualified Unison.Builtin                as B
+import           Unison.Codebase                ( Codebase )
+import qualified Unison.Codebase               as Codebase
+import           Unison.Codebase.Branch         ( Branch )
+import qualified Unison.Codebase.Branch        as Branch
+import           Unison.Codebase.Path           ( Path )
+import           Unison.Codebase.Editor.DisplayObject
+import qualified Unison.Codebase.Path          as Path
+import qualified Unison.DataDeclaration        as DD
+import qualified Unison.Server.SearchResult    as SR
+import qualified Unison.Server.SearchResult'   as SR'
+import qualified Unison.ABT                    as ABT
+import           Unison.Term                    ( Term )
+import qualified Unison.Term                   as Term
+import qualified Unison.HashQualified          as HQ
+import qualified Unison.HashQualified'         as HQ'
+import           Unison.Name                   as Name
+                                                ( unsafeFromText )
+import           Unison.NameSegment             ( NameSegment )
+import qualified Unison.NameSegment            as NameSegment
+import qualified Unison.Names2                 as Names
+import           Unison.Name                    ( Name )
+import qualified Unison.Name                   as Name
+import           Unison.Names3                  ( Names(..)
+                                                , Names0
+                                                )
+import qualified Unison.Names3                 as Names3
+import           Unison.Parser                  ( Ann )
+import           Unison.Prelude
+import qualified Unison.PrettyPrintEnv         as PPE
+import qualified Unison.Util.Pretty            as Pretty
+import           Unison.Reference               ( Reference )
+import qualified Unison.Reference              as Reference
+import           Unison.Referent                ( Referent )
+import qualified Unison.Referent               as Referent
+import           Unison.Type                    ( Type )
+import qualified Unison.Type                   as Type
+import qualified Unison.Util.Relation          as R
+import qualified Unison.Util.Star3             as Star3
+import           Unison.Var                     ( Var )
+import           Unison.Server.Types
+import           Unison.Server.QueryResult
+import           Unison.Util.SyntaxText         ( SyntaxText )
+import qualified Unison.Util.SyntaxText        as SyntaxText
+import           Unison.Util.List               ( uniqueBy )
+import           Unison.ShortHash
+import qualified Unison.Codebase.ShortBranchHash
+                                               as SBH
+import           Unison.Codebase.ShortBranchHash
+                                                ( ShortBranchHash )
+import qualified Unison.TermPrinter            as TermPrinter
+import qualified Unison.TypePrinter            as TypePrinter
+import qualified Unison.DeclPrinter            as DeclPrinter
+import           Unison.Util.Pretty             ( Width )
+import qualified Data.Text                     as Text
+import qualified Unison.Server.Syntax          as Syntax
 
 data ShallowListEntry v a
   = ShallowTermEntry Referent HQ'.HQSegment (Maybe (Type v a))
@@ -415,15 +420,16 @@ prettyType
   => Width
   -> PPE.PrettyPrintEnvDecl
   -> Type v Ann
-  -> SyntaxText' UnisonHash
+  -> Syntax.SyntaxText
 prettyType width ppe =
   mungeSyntaxText . Pretty.render width . TypePrinter.pretty0
     (PPE.suffixifiedPPE ppe)
     mempty
     (-1)
 
-mungeSyntaxText :: Functor g => Functor h => g (h Reference) -> g (h Text)
-mungeSyntaxText = fmap $ fmap Reference.toText
+mungeSyntaxText
+  :: Functor g => g (SyntaxText.Element Reference) -> g Syntax.Element
+mungeSyntaxText = fmap Syntax.convertElement
 
 prettyDefinitionsBySuffixes
   :: forall v m
@@ -454,7 +460,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth codebase query = do
     termFqns = Map.mapWithKey f terms
      where
       f k _ =
-        R.lookupRan (Referent.IdRef k)
+        R.lookupRan (Referent.Ref' k)
           . R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
           . R.mapDom Name.toText
           . Names.terms
@@ -501,9 +507,10 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth codebase query = do
     $ termsToSyntax width ppe terms
   let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
       renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
+      renderedMisses = fmap HQ.toText misses
   pure $ DefinitionDisplayResults renderedDisplayTerms
                                   renderedDisplayTypes
-                                  misses
+                                  renderedMisses
 
 resolveBranchHash
   :: Monad m => Maybe Branch.Hash -> Codebase m v Ann -> Backend m (Branch m)

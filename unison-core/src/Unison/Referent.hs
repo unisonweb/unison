@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 
@@ -20,17 +19,17 @@ import qualified Unison.ConstructorType as CT
 
 -- Slightly odd naming. This is the "referent of term name in the codebase",
 -- rather than the target of a Reference.
-type Referent = TermRef Reference
+type Referent = Referent' Reference
 pattern Ref :: Reference -> Referent
-pattern Ref r = IdRef r
+pattern Ref r = Ref' r
 pattern Con :: Reference -> Int -> ConstructorType -> Referent
-pattern Con r i t = ConRef r i t
+pattern Con r i t = Con' r i t
 {-# COMPLETE Ref, Con #-}
 
-type Id = TermRef R.Id
+type Id = Referent' R.Id
 
-data TermRef r = IdRef r | ConRef r Int ConstructorType
-  deriving (Show, Ord, Eq, Functor, Generic)
+data Referent' r = Ref' r | Con' r Int ConstructorType
+  deriving (Show, Ord, Eq, Functor)
 
 type Pos = Word64
 type Size = Word64
@@ -81,10 +80,10 @@ toTermReference = \case
 toReference :: Referent -> Reference
 toReference = toReference'
 
-toReference' :: TermRef r -> r
+toReference' :: Referent' r -> r
 toReference' = \case
-  IdRef r -> r
-  ConRef r _i _t -> r
+  Ref' r -> r
+  Con' r _i _t -> r
 
 fromId :: Id -> Referent
 fromId = fmap R.DerivedId

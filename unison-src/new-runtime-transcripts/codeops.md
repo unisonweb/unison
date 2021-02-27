@@ -10,30 +10,27 @@ Define a function, serialize it, then deserialize it back to an actual
 function. Also ask for its dependencies for display later.
 
 ```unison
-ability Err where
-  throw : Text -> a
-
 save : a -> Bytes
 save x = Value.serialize (Value.value x)
 
-load : Bytes ->{io2.IO, Err} a
+load : Bytes ->{io2.IO, Throw Text} a
 load b = match Value.deserialize b with
   Left _ -> throw "could not deserialize value"
   Right v -> match Value.load v with
     Left _ -> throw "could not load value"
     Right x -> x
 
-roundtrip : a ->{io2.IO, Err} a
+roundtrip : a ->{io2.IO, Throw Text} a
 roundtrip x = load (save x)
 
-handleTest : Text -> Request {Err} a -> Result
+handleTest : Text -> Request {Throw Text} a -> Result
 handleTest t = let
   pfx = "(" ++ t ++ ") "
   cases
     { _ } -> Ok (pfx ++ "passed")
-    { throw s -> _ } -> Fail (pfx ++ s)
+    { Throw.throw s -> _ } -> Fail (pfx ++ s)
 
-identical : Text -> a -> a ->{Err} ()
+identical : Text -> a -> a ->{Throw Text} ()
 identical err x y =
   if x == y
   then ()
@@ -46,11 +43,6 @@ showThree = cases
   zero n -> "zero " ++ toText n
   one n -> "one " ++ toText n
   two n -> "two " ++ toText n
-
-map : (a -> b) -> [a] -> [b]
-map f = cases
-  [] -> []
-  x +: xs -> f x +: map f xs
 
 concatMap : (a -> [b]) -> [a] -> [b]
 concatMap f = cases
@@ -69,7 +61,7 @@ extensionals
    : (a -> b -> Text)
   -> (a -> b -> c)
   -> (a -> b -> c)
-  -> [(a,b)] ->{Err} ()
+  -> [(a,b)] ->{Throw Text} ()
 extensionals sh f g = cases
   [] -> ()
   (x,y) +: xs ->
@@ -79,7 +71,7 @@ extensionals sh f g = cases
 fib10 : [Nat]
 fib10 = [1,2,3,5,8,13,21,34,55,89]
 
-extensionality : Text -> (Three Nat Nat Nat -> Nat -> b) ->{IO} Result
+extensionality : Text -> (Three Nat Nat Nat -> Nat -> b) ->{io2.IO} Result
 extensionality t f = let
   sh t n = "(" ++ showThree t ++ ", " ++ toText n ++ ")"
   handle
@@ -87,7 +79,7 @@ extensionality t f = let
     extensionals sh f g (prod threes fib10)
   with handleTest t
 
-identicality : Text -> a ->{IO} Result
+identicality : Text -> a ->{io2.IO} Result
 identicality t x
   = handle identical "" x (roundtrip x) with handleTest t
 ```
