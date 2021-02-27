@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
@@ -26,7 +27,7 @@ import           Unison.NameSegment             ( NameSegment(NameSegment))
 import qualified Unison.NameSegment            as NameSegment
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
-newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord)
+newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord, Semigroup, Monoid)
 
 newtype Absolute = Absolute { unabsolute :: Path } deriving (Eq,Ord)
 newtype Relative = Relative { unrelative :: Path } deriving (Eq,Ord)
