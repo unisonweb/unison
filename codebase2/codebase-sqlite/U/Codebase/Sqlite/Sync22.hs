@@ -12,13 +12,14 @@ import Control.Monad.Extra (ifM)
 import Control.Monad.RWS (MonadIO, MonadReader (reader))
 import Control.Monad.Reader (ReaderT)
 import Control.Monad.Trans.Except (withExceptT)
-import Data.Foldable (toList)
+import Data.Foldable (toList, traverse_)
 import Data.Functor ((<&>))
 import Data.List.Extra (nubOrd)
 import Data.Maybe (catMaybes, fromJust, isJust)
 import Data.Word (Word64)
 import Database.SQLite.Simple (Connection)
 import U.Codebase.Sqlite.DbId
+import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Codebase.Sync
 import qualified U.Codebase.Sync as Sync
@@ -107,22 +108,25 @@ trySync tCache hCache oCache gc = \case
               if isJust mayBoId == isJust mayBoId'
                 then pure $ Missing missingParents
                 else -- otherwise request the branch and the parents be copied
-
                   pure $ Missing $ (O $ fromJust mayBoId) : missingParents
       )
-
   -- objects are the hairiest. obviously, if they
   -- exist, we're done; otherwise we do some fancy stuff
-  O oId -> do
-    error "todo: look for corresponding object using primary or any secondary hashes"
-    error "todo: copy non-primary hashes"
-    error "todo"
-    -- O oId -> Cache.lookup oCache oId >>= \case
-    --   Just{} -> pure Sync.PreviouslyDone
-    --   Nothing -> do
-
-    --     error "todo"
-    --     pure Sync.Done
+  O oId ->
+    isSyncedObject oId >>= \case
+      Just {} -> pure Sync.PreviouslyDone
+      Nothing -> do
+        (hId, objType, bytes) <- runSrc $ Q.loadObjectWithHashIdAndTypeById oId
+        hId' <- syncHashLiteral hId
+        bytes' <- case objType of
+          OT.TermComponent -> error "todo"
+          OT.DeclComponent -> error "todo"
+          OT.Namespace -> error "todo"
+          OT.Patch -> error "todo"
+        oId' <- runDest $ Q.saveObject hId' objType bytes'
+        syncSecondaryHashes oId oId'
+        Cache.insert oCache oId oId'
+        pure Sync.Done
   where
     syncTextLiteral :: TextId -> m TextId
     syncTextLiteral = Cache.apply tCache \tId -> do
@@ -140,6 +144,7 @@ trySync tCache hCache oCache gc = \case
     syncBranchHashId :: BranchHashId -> m BranchHashId
     syncBranchHashId = fmap BranchHashId . syncHashLiteral . unBranchHashId
 
+    findMissingParents :: CausalHashId -> m [Entity]
     findMissingParents chId = do
       runSrc (Q.loadCausalParents chId)
         >>= filterM isMissing
@@ -148,6 +153,13 @@ trySync tCache hCache oCache gc = \case
         isMissing p =
           syncCausalHash p
             >>= runDest . Q.isCausalHash . unCausalHashId
+
+    syncSecondaryHashes oId oId' =
+      runSrc (Q.hashIdWithVersionForObject oId) >>= traverse_ (go oId')
+      where
+        go oId' (hId, hashVersion) = do
+          hId' <- syncHashLiteral hId
+          runDest $ Q.saveHashObject hId' oId' hashVersion
 
     isSyncedObject :: ObjectId -> m (Maybe ObjectId)
     isSyncedObject = Cache.applyDefined oCache \oId -> do
@@ -177,6 +189,8 @@ runDest ::
   ReaderT Connection (ExceptT Q.Integrity m) a ->
   m a
 runDest = error "todo" -- withExceptT SrcDB . (reader fst >>=)
+
+-- applyDefined
 
 -- syncs coming from git:
 --  - pull a specified remote causal (Maybe CausalHash) into the local database

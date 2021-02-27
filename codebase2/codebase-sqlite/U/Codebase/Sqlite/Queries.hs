@@ -214,6 +214,12 @@ loadObjectWithTypeById oId = queryMaybe sql (Only oId) >>= orError (UnknownObjec
     SELECT type_id, bytes FROM object WHERE id = ?
   |]
 
+loadObjectWithHashIdAndTypeById :: EDB m => ObjectId -> m (HashId, ObjectType, ByteString)
+loadObjectWithHashIdAndTypeById oId = queryMaybe sql (Only oId) >>= orError (UnknownObjectId oId)
+  where sql = [here|
+    SELECT primary_hash_id, type_id, bytes FROM object WHERE id = ?
+  |]
+
 -- |Not all hashes have corresponding objects; e.g., hashes of term types
 expectObjectIdForPrimaryHashId :: EDB m => HashId -> m ObjectId
 expectObjectIdForPrimaryHashId h =
@@ -265,6 +271,11 @@ hashIdsForObject oId = do
   where
     sql1 = "SELECT primary_hash_id FROM object WHERE id = ?"
     sql2 = "SELECT hash_id FROM hash_object WHERE object_id = ?"
+
+hashIdWithVersionForObject :: DB m => ObjectId -> m [(HashId, Int)]
+hashIdWithVersionForObject = query sql . Only where sql = [here|
+  SELECT hash_id, hash_version FROM hash_object WHERE object_id = ?
+|]
 
 updateObjectBlob :: DB m => ObjectId -> ByteString -> m ()
 updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
