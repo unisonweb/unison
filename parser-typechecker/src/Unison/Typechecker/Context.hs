@@ -1788,7 +1788,6 @@ abilityCheckSingle die ambient r
        -- polarity here
        acyclic
          `orElse` instantiateR (Type.effects (loc r) []) b v
-         `orElse` instantiateL b v (Type.effects (loc r) ambient)
          `orElse` die
   | otherwise = subAmbient die ambient r
 
@@ -1804,7 +1803,9 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0
   go ambient0 (r0:rs) = applyM r0 >>= \case
       Type.Effects' es -> go ambient0 (es ++ rs)
       r -> do
-        ambient <- traverse applyM ambient0
+        ambient <-
+          concatMap Type.flattenEffects
+            <$> traverse applyM ambient0
         abilityCheckSingle die ambient r
         go ambient rs
 
