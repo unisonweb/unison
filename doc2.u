@@ -1,3 +1,14 @@
+{-
+- [ ] Debug the lexer/parser combination
+- [ ] Implement display logic for new doc type in DisplayValues
+- [ ] Write illustrative transcript (and possibly separate tests)
+- [ ] Pretty-printer should reverse the syntax
+- [ ] PR writeup
+- [ ] (Later) docs command should look for foo.doc if nothing is linked, or just have it do: display foo.doc
+- [ ] (Later) Top level types should allow anon doc blocks
+- [ ] (Later) Remove backticks syntax
+- [ ] (Later) Instant docs preview
+-}
 
 unique[b7a4fb87e34569319591130bf3ec6e24c9955b6ae06b5f6895e908d58c3f6113] type Doc2
   = Word Text
@@ -59,6 +70,9 @@ syntax.doc.source = Source
 syntax.doc.signature = Signature
 syntax.doc.inlineSignature = InlineSignature
 syntax.doc.inlineEval e = InlineEval (evaluate e)
+syntax.doc.embedSignatureLink tm =
+  guid = "d9a4fb87e34569319591130bf3ec6e24"
+  Any tm
 syntax.doc.code c = Code c 
 syntax.doc.codeBlock typ c = CodeBlock typ (word c)
 syntax.doc.verbatim c = CodeBlock "raw" c 
@@ -77,9 +91,6 @@ syntax.doc.section = Section
 name = {{ Alice }}
 baseUrl = {{ https://www.unisonweb.org }}
 
-doc1 = {{ @eval{1 + 1} }}
-
----
 doc1 = {{
 
 # Unison documentation format
@@ -108,7 +119,7 @@ _italics_ or *italics*
 
 **bold text** or __moar bold text__
 
-~~striken text~~
+~~stricken text~~
 
 ''some code''
 
@@ -124,7 +135,7 @@ If you want the text.
 
 Renders as:
 
-{{ syntax.doc.word "__not bold__"}}
+{{ syntax.doc.word "__not bold__" }}
 
 If you have some inline text you want to leave unparsed and have it render in a monospace font, do:
 
@@ -229,12 +240,13 @@ Numbered lists can be nested as well, and combined with bulleted lists:
 Expressions can be evaluated inline, for instance @eval{1 + 1}.
 '''
 
-Renders as: TODO
+Renders as:
 
-''Expressions can be evaluated inline, for instance @eval{1 + 1}.''
+Expressions can be evaluated inline, for instance @eval{1 + 1}.
 
 Blocks of code can be evaluated as well, for instance:
 
+'''
 ```
 id x = x
 
@@ -266,15 +278,19 @@ You can also render just the signatures of a collection of terms:
 @signatures{ id, Some, None }
 '''
 
+Renders as:
+
+@signatures{ id, Some, None }
+
 You can reference a signature inline, like so 
 
 '''
 An inline signature @signature{id}.
 '''
 
-Renders as: TODO
+Renders as:
 
-''An inline signature @signature{id}.''
+An inline signature @signature{id}.
 
 ## Including other documents
 

@@ -441,6 +441,7 @@ doc2Block =
     case L.payload t of
       "syntax.doc.docs" -> variadic
       "syntax.doc.paragraph" -> variadic
+      "syntax.doc.signature" -> variadic
       "syntax.doc.bulletedList" -> variadic
       "syntax.doc.numberedList" -> do
         nitems@((n,_):_) <- P.some nitem <* closeBlock
@@ -456,15 +457,18 @@ doc2Block =
       "syntax.doc.section" -> sectionLike
       -- @source{ type Blah, foo, type Bar }
       "syntax.doc.source" -> do
-        cs <- P.sepBy1 elem (reserved ",") <* closeBlock
-        pure $ Term.apps' f [Term.seq (ann cs) cs]
+        cs <- P.sepBy1 elem (reserved ",")
+        closeBlock $> Term.apps' f [Term.seq (ann cs) cs]
       "syntax.doc.embedTermLink" -> do
         tm <- addDelay <$> hashQualifiedPrefixTerm
-        pure $ Term.apps' f [tm]
+        closeBlock $> Term.apps' f [tm]
+      "syntax.doc.embedSignatureLink" -> do
+        tm <- addDelay <$> hashQualifiedPrefixTerm
+        closeBlock $> Term.apps' f [tm]
       "syntax.doc.embedTypeLink" -> do
         r <- typeLink'
-        pure $ Term.apps' f [Term.typeLink (ann r) (L.payload r)]
-      "syntax.doc.example" -> term <&> \case
+        closeBlock $> Term.apps' f [Term.typeLink (ann r) (L.payload r)]
+      "syntax.doc.example" -> (term <* closeBlock) <&> \case
         tm@(Term.Apps' f xs) ->
           let fvs = List.Extra.nubOrd $ concatMap (toList . Term.freeVars) xs
               n = Term.nat (ann tm) (1 + fromIntegral (length fvs))

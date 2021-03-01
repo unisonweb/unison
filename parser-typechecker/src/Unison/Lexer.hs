@@ -327,21 +327,21 @@ lexemes' eof = P.optional space >> do
       where
         comma = lit "," <* CP.space
         src = wrap "syntax.doc.source" $ do
-          _ <- lit "@source" *> (lit " {" <|> lit "{")
+          _ <- lit "@source" *> (lit " {" <|> lit "{") *> CP.space
           s <- join <$> P.sepBy1 (typeLink <|> termLink) comma
           _ <- lit "}"
           pure s
         signature = wrap "syntax.doc.signature" $ do
-          _ <- lit "@signatures" *> (lit " {" <|> lit "{")
-          s <- join <$> P.sepBy1 termLink comma
+          _ <- lit "@signatures" *> (lit " {" <|> lit "{") *> CP.space
+          s <- join <$> P.sepBy1 signatureLink comma
           _ <- lit "}"
           pure s
         inlineSignature = wrap "syntax.doc.inlineSignature" $ do
-          _ <- lit "@signature" *> (lit " {" <|> lit "{")
-          s <- termLink
+          _ <- lit "@signature" *> (lit " {" <|> lit "{") *> CP.space
+          s <- signatureLink
           _ <- lit "}"
           pure s
-        eval = wrap "syntax.doc.inlineEval" $ do
+        eval = P.dbg "@eval" $ wrap "syntax.doc.inlineEval" $ do
           _ <- lit "@eval" *> (lit " {" <|> lit "{") *> CP.space
           let inlineEvalClose  = [] <$ lit "}"
           s <- P.dbg "Lexer.inlineEval" $ lexemes' inlineEvalClose
@@ -352,6 +352,9 @@ lexemes' eof = P.optional space >> do
       tok (symbolyId <|> wordyId) <* CP.space
 
     termLink = wrap "syntax.doc.embedTermLink" $
+      tok (symbolyId <|> wordyId) <* CP.space
+
+    signatureLink = wrap "syntax.doc.embedSignatureLink" $
       tok (symbolyId <|> wordyId) <* CP.space
 
     groupy ok p = do
