@@ -178,11 +178,12 @@ addToExistingMap getA getB map = do
 getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
 getMap getA getB = addToExistingMap getA getB mempty
 
+getFramedByteString :: MonadGet m => m ByteString
+getFramedByteString = getVarInt >>= getByteString
+
 getFramed :: MonadGet m => Get a -> m a
-getFramed get = do
-  size <- getVarInt
-  bytes <- getByteString size
-  either fail pure $ runGetS get bytes
+getFramed get =
+  getFramedByteString >>= either fail pure . runGetS get
 
 putFramed :: MonadPut m => Put a -> a -> m ()
 putFramed put a = do

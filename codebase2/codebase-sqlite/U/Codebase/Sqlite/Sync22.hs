@@ -3,34 +3,54 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module U.Codebase.Sqlite.Sync22 where
 
-import Control.Monad (filterM, join, (<=<))
+import qualified Control.Lens as Lens
+import Control.Monad (filterM, foldM, join, (<=<))
 import Control.Monad.Except (ExceptT, MonadError (throwError))
 import Control.Monad.Extra (ifM)
 import Control.Monad.RWS (MonadIO, MonadReader (reader))
 import Control.Monad.Reader (ReaderT)
-import Control.Monad.Trans.Except (withExceptT)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (throwE, withExceptT)
+import qualified Control.Monad.Writer as Writer
+import Data.ByteString (ByteString)
+import Data.Bytes.Get (MonadGet, getByteString, getWord8, runGetS)
+import Data.Bytes.Put (putWord8, runPutS)
 import Data.Foldable (toList, traverse_)
 import Data.Functor ((<&>))
 import Data.List.Extra (nubOrd)
 import Data.Maybe (catMaybes, fromJust, isJust)
+import Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
+import Data.Traversable (for)
 import Data.Word (Word64)
 import Database.SQLite.Simple (Connection)
 import U.Codebase.Sqlite.DbId
+import qualified U.Codebase.Sqlite.LocalIds as L
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Queries as Q
+import qualified U.Codebase.Sqlite.Serialization as S
 import U.Codebase.Sync
 import qualified U.Codebase.Sync as Sync
 import U.Util.Cache (Cache)
 import qualified U.Util.Cache as Cache
+import qualified U.Util.Serialization as S
 
 data Entity = O ObjectId | C CausalHashId
 
+data DbTag = SrcDb | DestDb
+
+data DecodeError = ErrTermComponent | ErrDeclComponent
+
+type ErrString = String
+
 data Error
-  = SrcDB Q.Integrity
-  | DestDB Q.Integrity
+  = DbIntegrity Q.Integrity
+  | DecodeError DbTag DecodeError ByteString ErrString
   | -- | hashes corresponding to a single object in source codebase
     --  correspond to multiple objects in destination codebase
     HashObjectCorrespondence ObjectId [HashId] [ObjectId]
@@ -118,16 +138,70 @@ trySync tCache hCache oCache gc = \case
       Nothing -> do
         (hId, objType, bytes) <- runSrc $ Q.loadObjectWithHashIdAndTypeById oId
         hId' <- syncHashLiteral hId
-        bytes' <- case objType of
-          OT.TermComponent -> error "todo"
+        result <- case objType of
+          OT.TermComponent -> do
+            -- (fmt, termComponent) <-
+            --   either (throwError . DecodeError SrcDb ErrTermComponent bytes) pure -- 🤪
+            --     . flip runGetS bytes
+            --     $ (,) <$> getWord8 <*> S.decomposeTermComponent
+            (fmt, unzip3 -> (localIds, termBytes, typeBytes)) <-
+              case flip runGetS bytes do
+                tag <- getWord8
+                component <- S.decomposeTermComponent
+                pure (tag, component) of
+                Right x -> pure x
+                Left s -> throwError $ DecodeError SrcDb ErrTermComponent bytes s
+            -- termComponent' <-
+            -- S.decomposeTermComponent >>= traverse . Lens.mapMOf Lens._1 do
+            foldM foldLocalIds (Right mempty) localIds >>= \case
+              Left missingDeps -> pure $ Left missingDeps
+              Right (toList -> localIds') -> do
+                let bytes' =
+                      runPutS $
+                        putWord8 fmt
+                          >> S.recomposeTermComponent (zip3 localIds' termBytes typeBytes)
+                oId' <- runDest $ Q.saveObject hId' objType bytes'
+                error "todo: optionally copy watch cache entry"
+                error "todo: sync dependency index rows"
+                error "todo: sync type/mentions index rows"
+                error "todo"
+                pure $ Right oId'
           OT.DeclComponent -> error "todo"
           OT.Namespace -> error "todo"
           OT.Patch -> error "todo"
-        oId' <- runDest $ Q.saveObject hId' objType bytes'
-        syncSecondaryHashes oId oId'
-        Cache.insert oCache oId oId'
-        pure Sync.Done
+        case result of
+          Left deps -> pure . Sync.Missing $ toList deps
+          Right oId' -> do
+            syncSecondaryHashes oId oId'
+            Cache.insert oCache oId oId'
+            pure Sync.Done
   where
+    foldLocalIds :: Either (Seq Entity) (Seq L.LocalIds) -> L.LocalIds -> m (Either (Seq Entity) (Seq L.LocalIds))
+    foldLocalIds (Left missing) (L.LocalIds _tIds oIds) =
+      syncLocalObjectIds oIds <&> \case
+        Left missing2 -> Left (missing <> missing2)
+        Right _oIds' -> Left missing
+    foldLocalIds (Right localIdss') (L.LocalIds tIds oIds) =
+      syncLocalObjectIds oIds >>= \case
+        Left missing -> pure $ Left missing
+        Right oIds' -> do
+          tIds' <- traverse syncTextLiteral tIds
+          pure $ Right (localIdss' Seq.|> L.LocalIds tIds' oIds')
+
+    -- I want to collect all the failures, rather than short-circuiting after the first
+    syncLocalObjectIds :: Traversable t => t ObjectId -> m (Either (Seq Entity) (t ObjectId))
+    syncLocalObjectIds oIds = do
+      (mayOIds', missing) <- Writer.runWriterT do
+        for oIds \oId ->
+          lift (isSyncedObject oId) >>= \case
+            Just oId' -> pure oId'
+            Nothing -> do
+              Writer.tell . Seq.singleton $ O oId
+              pure $ error "Arya didn't think this would get eval'ed."
+      if null missing
+        then pure $ Right mayOIds'
+        else pure $ Left missing
+
     syncTextLiteral :: TextId -> m TextId
     syncTextLiteral = Cache.apply tCache \tId -> do
       t <- runSrc $ Q.loadTextById tId

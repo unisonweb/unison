@@ -11,7 +11,7 @@ module U.Codebase.Sqlite.Serialization where
 import Data.Bits (Bits)
 import qualified Data.ByteString as BS
 import Data.Bytes.Get (MonadGet, getByteString, getWord8, runGetS)
-import Data.Bytes.Put (MonadPut, putWord8)
+import Data.Bytes.Put (MonadPut (putByteString), putWord8)
 import Data.Bytes.Serial (SerialEndian (serializeBE), deserialize, deserializeBE, serialize)
 import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
 import Data.Int (Int64)
@@ -32,7 +32,7 @@ import qualified U.Codebase.Referent as Referent
 import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
 import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
-import U.Codebase.Sqlite.DbId (BranchObjectId, PatchObjectId, unBranchObjectId, unPatchObjectId)
+import U.Codebase.Sqlite.DbId (BranchObjectId, HashId, ObjectId, PatchObjectId, TextId, unBranchObjectId, unPatchObjectId)
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId, WatchLocalIds)
 import qualified U.Codebase.Sqlite.Patch.Diff as PatchDiff
@@ -341,22 +341,23 @@ getTerm = getABT getSymbol getUnit getF
                 2 -> pure Term.PConcat
                 tag -> unknownTag "SeqOp" tag
 
-
 lookupTermElement :: MonadGet m => Reference.Pos -> m (LocalIds, TermFormat.Term, TermFormat.Type)
-lookupTermElement i = getWord8 >>= \case
-  0 -> unsafeFramedArrayLookup (getTuple3 getLocalIds (getFramed getTerm) (getFramed getTType)) $ fromIntegral i
-  tag -> unknownTag "lookupTermElement" tag
-
+lookupTermElement i =
+  getWord8 >>= \case
+    0 -> unsafeFramedArrayLookup (getTuple3 getLocalIds (getFramed getTerm) (getFramed getTType)) $ fromIntegral i
+    tag -> unknownTag "lookupTermElement" tag
 
 lookupTermElementDiscardingType :: MonadGet m => Reference.Pos -> m (LocalIds, TermFormat.Term)
-lookupTermElementDiscardingType i = getWord8 >>= \case
-  0 -> unsafeFramedArrayLookup ((,) <$> getLocalIds <*> getFramed getTerm <* skipFramed) $ fromIntegral i
-  tag -> unknownTag "lookupTermElementDiscardingType" tag
+lookupTermElementDiscardingType i =
+  getWord8 >>= \case
+    0 -> unsafeFramedArrayLookup ((,) <$> getLocalIds <*> getFramed getTerm <* skipFramed) $ fromIntegral i
+    tag -> unknownTag "lookupTermElementDiscardingType" tag
 
 lookupTermElementDiscardingTerm :: MonadGet m => Reference.Pos -> m (LocalIds, TermFormat.Type)
-lookupTermElementDiscardingTerm i = getWord8 >>= \case
-  0 -> unsafeFramedArrayLookup ((,) <$> getLocalIds <* skipFramed <*> getFramed getTType) $ fromIntegral i
-  tag -> unknownTag "lookupTermElementDiscardingTerm" tag
+lookupTermElementDiscardingTerm i =
+  getWord8 >>= \case
+    0 -> unsafeFramedArrayLookup ((,) <$> getLocalIds <* skipFramed <*> getFramed getTType) $ fromIntegral i
+    tag -> unknownTag "lookupTermElementDiscardingTerm" tag
 
 getTType :: MonadGet m => m TermFormat.Type
 getTType = getType getReference
@@ -389,7 +390,6 @@ putDeclFormat = \case
     -- These use a framed array for randomer access
     putDeclComponent :: MonadPut m => DeclFormat.LocallyIndexedComponent -> m ()
     putDeclComponent t | debug && trace ("putDeclComponent " ++ show t) False = undefined
-
     putDeclComponent (DeclFormat.LocallyIndexedComponent v) =
       putFramedArray (putPair putLocalIds putDeclElement) v
       where
@@ -520,10 +520,11 @@ getPatchFormat =
         2 -> pure TermEdit.Different
         x -> unknownTag "getTyping" x
     getTypeEdit :: MonadGet m => m TypeEdit.LocalTypeEdit
-    getTypeEdit = getWord8 >>= \case
-      0 -> pure TypeEdit.Deprecate
-      1 -> TypeEdit.Replace <$> getReference
-      x -> unknownTag "getTypeEdit" x
+    getTypeEdit =
+      getWord8 >>= \case
+        0 -> pure TypeEdit.Deprecate
+        1 -> TypeEdit.Replace <$> getReference
+        x -> unknownTag "getTypeEdit" x
 
 getPatchLocalIds :: MonadGet m => m PatchFormat.PatchLocalIds
 getPatchLocalIds =
@@ -662,15 +663,39 @@ watchLocalIdsToLocalDeps :: WatchLocalIds -> SE.SyncEntitySeq
 watchLocalIdsToLocalDeps (LocalIds ts hs) =
   SE.SyncEntity (vec2seq ts) mempty (vec2seq hs) mempty
 
--- the same implementation currently works for term component and type component
-getComponentSyncEntities :: MonadGet m => m SE.SyncEntitySeq
-getComponentSyncEntities = do
+decomposeTermComponent :: MonadGet m => m [(LocalIds, BS.ByteString, BS.ByteString)]
+decomposeTermComponent = decomposeComponent do
+  ids <- getLocalIds
+  termBytes <- getFramedByteString
+  typeBytes <- getFramedByteString
+  pure [(ids, termBytes, typeBytes)]
+
+decomposeDeclComponent :: MonadGet m => m [(LocalIds, BS.ByteString)]
+decomposeDeclComponent = decomposeComponent do
+  ids <- getLocalIds
+  declBytes <- getFramedByteString
+  pure [(ids, declBytes)]
+
+recomposeTermComponent :: MonadPut m => [(LocalIds, BS.ByteString, BS.ByteString)] -> m ()
+recomposeTermComponent =
+  putFramedArray \(localIds, termBytes, typeBytes) -> do
+    putLocalIds localIds
+    putFramed putByteString termBytes
+    putFramed putByteString typeBytes
+
+decomposeComponent :: (MonadGet m, Monoid a) => Get a -> m a
+decomposeComponent split = do
   offsets <- getList (getVarInt @_ @Int)
   componentBytes <- getByteString (last offsets)
   let get1 (start, end) = do
         let bytes = BS.drop start $ BS.take end componentBytes
-        either fail pure $ runGetS getLocalIds bytes
-  Monoid.foldMapM (fmap localIdsToLocalDeps . get1) (zip offsets (tail offsets))
+        either fail pure $ runGetS split bytes
+  Monoid.foldMapM get1 (zip offsets (tail offsets))
+
+-- the same implementation currently works for term component and type component
+getComponentSyncEntities :: MonadGet m => m SE.SyncEntitySeq
+getComponentSyncEntities =
+  decomposeComponent $ fmap localIdsToLocalDeps getLocalIds
 
 getPatchSyncEntities :: MonadGet m => m SE.SyncEntitySeq
 getPatchSyncEntities =
