@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
@@ -26,7 +27,7 @@ import           Unison.NameSegment             ( NameSegment(NameSegment))
 import qualified Unison.NameSegment            as NameSegment
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
-newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord)
+newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord, Semigroup, Monoid)
 
 newtype Absolute = Absolute { unabsolute :: Path } deriving (Eq,Ord)
 newtype Relative = Relative { unrelative :: Path } deriving (Eq,Ord)
@@ -48,6 +49,8 @@ isRoot = Seq.null . toSeq . unabsolute
 absoluteToPath' :: Absolute -> Path'
 absoluteToPath' abs = Path' (Left abs)
 
+
+
 instance Show Path' where
   show (Path' (Left abs)) = show abs
   show (Path' (Right rel)) = show rel
@@ -65,10 +68,10 @@ unsplit' (Path' (Right (Relative p)), seg) = Path' (Right (Relative (unsplit (p,
 unsplit :: Split -> Path
 unsplit (Path p, a) = Path (p :|> a)
 
-unsplitHQ :: HQSplit -> HQ'.HashQualified' Path
+unsplitHQ :: HQSplit -> HQ'.HashQualified Path
 unsplitHQ (p, a) = fmap (snoc p) a
 
-unsplitHQ' :: HQSplit' -> HQ'.HashQualified' Path'
+unsplitHQ' :: HQSplit' -> HQ'.HashQualified Path'
 unsplitHQ' (p, a) = fmap (snoc' p) a
 
 type Split = (Path, NameSegment)
@@ -100,14 +103,13 @@ prefix (Absolute (Path prefix)) (Path' p) = case p of
 -- Left is some parse error tbd
 parsePath' :: String -> Either String Path'
 parsePath' p = case parsePathImpl' p of
-  Left  e       -> Left e
-  Right (p, "") -> Right p
-  Right (p, rem) ->
-    case (first show . (Lexer.wordyId0 <> Lexer.symbolyId0) <> unit') rem of
-      Right (seg, "") -> Right (unsplit' (p, NameSegment . Text.pack $ seg))
-      Right (_, rem) ->
-        Left ("extra characters after " <> show p <> ": " <> show rem)
-      Left e -> Left e
+  Left  e        -> Left e
+  Right (p, "" ) -> Right p
+  Right (p, rem) -> case parseSegment rem of
+    Right (seg, "") -> Right (unsplit' (p, NameSegment . Text.pack $ seg))
+    Right (_, rem) ->
+      Left ("extra characters after " <> show p <> ": " <> show rem)
+    Left e -> Left e
 
 -- implementation detail of parsePath' and parseSplit'
 -- foo.bar.baz.34 becomes `Right (foo.bar.baz, "34")
@@ -131,7 +133,15 @@ parsePathImpl' p = case p of
     Right (segs, rem) ->
       Left $ "extra characters after " <> segs <> ": " <> show rem
     Left e -> Left e
-  segs p = go (first show . (Lexer.symbolyId <> Lexer.wordyId) <> unit') p
+  segs p = go parseSegment p
+
+parseSegment :: String -> Either String (String, String)
+parseSegment s =
+  first show
+    .  (Lexer.wordyId <> Lexer.symbolyId)
+    <> unit'
+    <> const (Left ("I expected an identifier but found " <> s))
+    $  s
 
 wordyNameSegment, definitionNameSegment :: String -> Either String NameSegment
 wordyNameSegment s = case Lexer.wordyId0 s of
@@ -250,6 +260,12 @@ toPath' :: Path -> Path'
 toPath' = \case
   Path (NameSegment "" :<| tail) -> Path' . Left . Absolute . Path $ tail
   p -> Path' . Right . Relative $ p
+
+-- Forget whether the path is absolute or relative
+fromPath' :: Path' -> Path
+fromPath' (Path' e) = case e of
+  Left  (Absolute p) -> p
+  Right (Relative p) -> p
 
 toList :: Path -> [NameSegment]
 toList = Foldable.toList . toSeq

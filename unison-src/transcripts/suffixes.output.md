@@ -28,7 +28,7 @@ This also affects commands like find. Notice lack of qualified names in output:
   1. builtin.Bytes.take : Nat -> Bytes -> Bytes
   2. builtin.List.take : Nat -> [a] -> [a]
   3. builtin.Text.take : Nat -> Text -> Text
-  4. builtin.io2.MVar.take : MVar a ->{IO} Either Failure a
+  4. builtin.io2.MVar.take.impl : MVar a ->{IO} Either Failure a
   5. builtin.io2.MVar.tryTake : MVar a ->{IO} Optional a
   
 

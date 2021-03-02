@@ -34,6 +34,7 @@ import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Name as Name
+import           Unison.Name ( Name )
 import qualified Unison.Names2 as Names
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
@@ -497,7 +498,7 @@ deleteTypeReplacement :: InputPattern
 deleteTypeReplacement = deleteReplacement False
 
 parseHashQualifiedName
-  :: String -> Either (P.Pretty CT.ColorText) HQ.HashQualified
+  :: String -> Either (P.Pretty CT.ColorText) (HQ.HashQualified Name)
 parseHashQualifiedName s =
   maybe
       (  Left
@@ -969,7 +970,11 @@ previewMergeLocal = InputPattern
   )
 
 replaceEdit
-  :: (HQ.HashQualified -> HQ.HashQualified -> Maybe Input.PatchPath -> Input)
+  :: (  HQ.HashQualified Name
+     -> HQ.HashQualified Name
+     -> Maybe Input.PatchPath
+     -> Input
+     )
   -> String
   -> InputPattern
 replaceEdit f s = self

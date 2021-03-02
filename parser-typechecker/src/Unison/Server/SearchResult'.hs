@@ -1,31 +1,40 @@
 {-# LANGUAGE PatternSynonyms #-}
 
-module Unison.Codebase.Editor.SearchResult' where
+module Unison.Server.SearchResult' where
 
 import Unison.Prelude
 
 import Unison.Referent (Referent)
 import Unison.Reference (Reference)
 import qualified Unison.HashQualified' as HQ'
-import qualified Data.Set as Set
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.Codebase.Editor.DisplayThing as DT
+import qualified Unison.Codebase.Editor.DisplayObject as DT
 import qualified Unison.Type as Type
 import Unison.DataDeclaration (Decl)
-import Unison.Codebase.Editor.DisplayThing (DisplayThing)
+import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Type (Type)
+import Unison.Name (Name)
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
+import qualified Data.Set as Set
 
 data SearchResult' v a
   = Tm' (TermResult' v a)
   | Tp' (TypeResult' v a)
   deriving (Eq, Show)
+
 data TermResult' v a =
-  TermResult' HQ'.HashQualified (Maybe (Type v a)) Referent (Set HQ'.HashQualified)
+  TermResult' (HQ'.HashQualified Name)
+              (Maybe (Type v a))
+              Referent
+              (Set (HQ'.HashQualified Name))
   deriving (Eq, Show)
+
 data TypeResult' v a =
-  TypeResult' HQ'.HashQualified (DisplayThing (Decl v a)) Reference (Set HQ'.HashQualified)
+  TypeResult' (HQ'.HashQualified Name)
+              (DisplayObject (Decl v a))
+              Reference
+              (Set (HQ'.HashQualified Name))
   deriving (Eq, Show)
 
 pattern Tm n t r as = Tm' (TermResult' n t r as)
@@ -50,3 +59,4 @@ labeledDependencies = \case
     Set.insert (LD.referent r) $ maybe mempty (Set.map LD.typeRef . Type.dependencies) t
   Tp' (TypeResult' _ d r _) ->
     Set.map LD.typeRef . Set.insert r $ maybe mempty DD.declDependencies (DT.toMaybe d)
+

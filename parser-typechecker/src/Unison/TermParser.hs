@@ -123,16 +123,18 @@ blockTerm = lam term <|> infixAppOrBooleanOp
 
 match :: Var v => TermP v
 match = do
-  start <- openBlockWith "match"
+  start     <- openBlockWith "match"
   scrutinee <- term
-  _ <- closeBlock
-  _ <- P.try (openBlockWith "with") <|> do
-         t <- anyToken
-         P.customFailure (ExpectedBlockOpen "with" t)
+  _         <- closeBlock
+  _         <- P.try (openBlockWith "with") <|> do
+    t <- anyToken
+    P.customFailure (ExpectedBlockOpen "with" t)
   (_arities, cases) <- unzip <$> sepBy1 semi matchCase
-  -- TODO: Add error for empty match list
+  when (null cases) $ P.customFailure EmptyMatch
   _ <- closeBlock
-  pure $ Term.match (ann start <> ann (last cases)) scrutinee cases
+  pure $ Term.match (ann start <> maybe (ann start) ann (lastMay cases))
+                    scrutinee
+                    cases
 
 -- Returns the arity of the pattern and the `MatchCase`. Examples:
 --
@@ -287,27 +289,28 @@ checkCasesArities cases = go Nothing cases where
     else P.customFailure $ PatternArityMismatch i j (ann a)
 
 lamCase = do
-  start <- openBlockWith "cases"
-  cases <- sepBy1 semi matchCase
+  start          <- openBlockWith "cases"
+  cases          <- sepBy1 semi matchCase
   (arity, cases) <- checkCasesArities cases
-  -- TODO: Add error for empty match list
-  _ <- closeBlock
+  when (null cases) (P.customFailure EmptyMatch)
+  _       <- closeBlock
   lamvars <- replicateM arity (Parser.uniqueName 10)
-  let vars = Var.named <$> [ tweak v i | (v,i) <- lamvars `zip` [(1::Int)..] ]
+  let vars =
+        Var.named <$> [ tweak v i | (v, i) <- lamvars `zip` [(1 :: Int) ..] ]
       tweak v 0 = v
       tweak v i = v <> Text.pack (show i)
       lamvarTerms = Term.var (ann start) <$> vars
-      lamvarTerm = case lamvarTerms of
+      lamvarTerm  = case lamvarTerms of
         [e] -> e
-        es -> DD.tupleTerm es
-      matchTerm = Term.match (ann start <> ann (last cases)) lamvarTerm cases
-  pure $ Term.lam' (ann start <> ann (last cases)) vars matchTerm
-
+        es  -> DD.tupleTerm es
+      anns      = ann start <> maybe (ann start) ann (lastMay cases)
+      matchTerm = Term.match anns lamvarTerm cases
+  pure $ Term.lam' anns vars matchTerm
 ifthen = label "if" $ do
   start <- peekAny
-  c <- block "if"
-  t <- block "then"
-  f <- block "else"
+  c     <- block "if"
+  t     <- block "then"
+  f     <- block "else"
   pure $ Term.iff (ann start <> ann f) c t f
 
 text :: Var v => TermP v
@@ -332,7 +335,7 @@ hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
 -- If the hash qualified is name only, it is treated as a var, if it
 -- has a short hash, we resolve that short hash immediately and fail
 -- committed if that short hash can't be found in the current environment
-resolveHashQualified :: Var v => L.Token HQ.HashQualified -> TermP v
+resolveHashQualified :: Var v => L.Token (HQ.HashQualified Name) -> TermP v
 resolveHashQualified tok = do
   names <- asks names
   case L.payload tok of

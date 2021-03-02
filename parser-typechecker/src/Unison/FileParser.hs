@@ -251,8 +251,7 @@ dataDeclaration mod = do
         -- ctorType e.g. `a -> Optional a`
         --    or just `Optional a` in the case of `None`
         ctorType = foldr arrow ctorReturnType ctorArgs
-        ctorAnn = ann ctorName <>
-                  (if null ctorArgs then mempty else ann (last ctorArgs))
+        ctorAnn = ann ctorName <> maybe (ann ctorName) ann (lastMay ctorArgs)
         in (ann ctorName, Var.namespaced [L.payload name, L.payload ctorName],
             Type.foralls ctorAnn typeArgVs ctorType)
       prefixVar = TermParser.verifyRelativeVarName prefixDefinitionName

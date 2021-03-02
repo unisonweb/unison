@@ -5,7 +5,6 @@ module Unison.Codebase.Editor.Output
   , NumberedOutput(..)
   , NumberedArgs
   , ListDetailed
-  , ShallowListEntry(..)
   , HistoryTail(..)
   , TestReportStats(..)
   , UndoFailureReason(..)
@@ -18,7 +17,9 @@ module Unison.Codebase.Editor.Output
 
 import Unison.Prelude
 
+import Unison.Server.Backend (ShallowListEntry(..))
 import Unison.Codebase.Editor.Input
+import Unison.Codebase (GetRootBranchError)
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import Unison.Codebase.GitError
 import Unison.Codebase.Path (Path', Path)
@@ -43,16 +44,15 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
-import Unison.Codebase.Editor.DisplayThing (DisplayThing)
+import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
-import Unison.Codebase.Editor.SearchResult' (SearchResult')
+import Unison.Server.SearchResult' (SearchResult')
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Names3 as Names
 import qualified Data.Set as Set
 import Unison.NameSegment (NameSegment)
 import Unison.ShortHash (ShortHash)
-import Unison.Var (Var)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
@@ -94,6 +94,8 @@ data Output v
   | SourceLoadFailed String
   -- No main function, the [Type v Ann] are the allowed types
   | NoMainFunction String PPE.PrettyPrintEnv [Type v Ann]
+  -- Main function found, but has improper type
+  | BadMainFunction String (Type v Ann) PPE.PrettyPrintEnv [Type v Ann]
   | BranchEmpty (Either ShortBranchHash Path')
   | BranchNotEmpty Path'
   | LoadPullRequest RemoteNamespace RemoteNamespace Path' Path' Path' Path'
@@ -106,10 +108,10 @@ data Output v
   | ParseResolutionFailures String [Names.ResolutionFailure v Ann]
   | TypeHasFreeVars (Type v Ann)
   | TermAlreadyExists Path.Split' (Set Referent)
-  | LabeledReferenceAmbiguous Int HQ.HashQualified (Set LabeledDependency)
-  | LabeledReferenceNotFound HQ.HashQualified
+  | LabeledReferenceAmbiguous Int (HQ.HashQualified Name) (Set LabeledDependency)
+  | LabeledReferenceNotFound (HQ.HashQualified Name)
   | DeleteNameAmbiguous Int Path.HQSplit' (Set Referent) (Set Reference)
-  | TermAmbiguous HQ.HashQualified (Set Referent)
+  | TermAmbiguous (HQ.HashQualified Name) (Set Referent)
   | HashAmbiguous ShortHash (Set Referent)
   | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
   | BranchNotFound Path'
@@ -119,7 +121,7 @@ data Output v
   | TermNotFound Path.HQSplit'
   | TypeNotFound' ShortHash
   | TermNotFound' ShortHash
-  | SearchTermsNotFound [HQ.HashQualified]
+  | SearchTermsNotFound [HQ.HashQualified Name]
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
   -- with whatever named definitions would not have any remaining names if
@@ -131,11 +133,11 @@ data Output v
   | DeleteEverythingConfirmation
   | DeletedEverything
   | ListNames Int -- hq length to print References
-              [(Reference, Set HQ'.HashQualified)] -- type match, type names
-              [(Referent, Set HQ'.HashQualified)] -- term match, term names
+              [(Reference, Set (HQ'.HashQualified Name))] -- type match, type names
+              [(Referent, Set (HQ'.HashQualified Name))] -- term match, term names
   -- list of all the definitions within this branch
   | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
-  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified, Reference, Maybe (Type v Ann))]
+  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type v Ann))]
   | ListShallow PPE.PrettyPrintEnv [ShallowListEntry v Ann]
   | ListOfPatches (Set Name)
   -- show the result of add/update
@@ -155,8 +157,8 @@ data Output v
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
                        PPE.PrettyPrintEnvDecl
-                       (Map Reference (DisplayThing (Decl v Ann)))
-                       (Map Reference (DisplayThing (Term v Ann)))
+                       (Map Reference (DisplayObject (Decl v Ann)))
+                       (Map Reference (DisplayObject (Term v Ann)))
   -- | Invariant: there's at least one conflict or edit in the TodoOutput.
   | TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
@@ -178,10 +180,11 @@ data Output v
   | ConfiguredGitUrlParseError PushPull Path' Text String
   | ConfiguredGitUrlIncludesShortBranchHash PushPull RemoteRepo ShortBranchHash Path
   | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
-               (Map Reference (DisplayThing (Decl v Ann)))
-               (Map Reference (DisplayThing (Term v Ann)))
+               (Map Reference (DisplayObject (Decl v Ann)))
+               (Map Reference (DisplayObject (Term v Ann)))
   | MetadataMissingType PPE.PrettyPrintEnv Referent
-  | MetadataAmbiguous HQ.HashQualified PPE.PrettyPrintEnv [Referent]
+  | TermMissingType Reference
+  | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
   -- todo: tell the user to run `todo` on the same patch they just used
   | NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
@@ -204,37 +207,13 @@ data Output v
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
   | DefaultMetadataNotification
+  | BadRootBranch GetRootBranchError
   | NoOp
   deriving (Show)
 
 data ReflogEntry =
   ReflogEntry { hash :: ShortBranchHash, reason :: Text }
   deriving (Show)
-
-data ShallowListEntry v a
-  = ShallowTermEntry Referent HQ'.HQSegment (Maybe (Type v a))
-  | ShallowTypeEntry Reference HQ'.HQSegment
-  | ShallowBranchEntry NameSegment Int -- number of child definitions
-  | ShallowPatchEntry NameSegment
-  deriving (Eq, Show)
-
--- requires Var v to derive Eq, which is required by Ord though not by `compare`
-instance Var v => Ord (ShallowListEntry v a) where
-   compare x y = case compare (toNS x) (toNS y) of
-     EQ -> compare (toHash x) (toHash y)
-     c  -> c
-     where
-     toNS = \case
-       ShallowTermEntry _ hq _ -> HQ'.toName hq
-       ShallowTypeEntry _ hq   -> HQ'.toName hq
-       ShallowBranchEntry ns _ -> ns
-       ShallowPatchEntry  ns   -> ns
-     toHash :: ShallowListEntry v a -> Maybe ShortHash
-     toHash = \case
-       ShallowTermEntry _ hq _ -> HQ'.toHash hq
-       ShallowTypeEntry _ hq   -> HQ'.toHash hq
-       ShallowBranchEntry _  _ -> Nothing
-       ShallowPatchEntry _     -> Nothing
 
 data HistoryTail =
   EndOfLog ShortBranchHash |
@@ -258,10 +237,12 @@ type SourceFileContents = Text
 isFailure :: Ord v => Output v -> Bool
 isFailure o = case o of
   Success{} -> False
+  BadRootBranch{} -> True
   NoUnisonFile{} -> True
   InvalidSourceName{} -> True
   SourceLoadFailed{} -> True
   NoMainFunction{} -> True
+  BadMainFunction{} -> True
   CreatedNewBranch{} -> False
   BranchAlreadyExists{} -> True
   PatchAlreadyExists{} -> True
@@ -342,6 +323,7 @@ isFailure o = case o of
   NoOp -> False
   ListDependencies{} -> False
   ListDependents{} -> False
+  TermMissingType{} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
 
 isNumberedFailure :: NumberedOutput v -> Bool

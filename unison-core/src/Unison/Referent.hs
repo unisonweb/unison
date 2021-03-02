@@ -42,7 +42,7 @@ toShortHash :: Referent -> ShortHash
 toShortHash = \case
   Ref r -> R.toShortHash r
   Con r i _ -> patternShortHash r i
-  
+
 toShortHashId :: Id -> ShortHash
 toShortHashId = toShortHash . fromId
 
@@ -84,9 +84,9 @@ toReference' :: Referent' r -> r
 toReference' = \case
   Ref' r -> r
   Con' r _i _t -> r
-  
+
 fromId :: Id -> Referent
-fromId = fmap R.DerivedId  
+fromId = fmap R.DerivedId
 
 toTypeReference :: Referent -> Maybe Reference
 toTypeReference = \case

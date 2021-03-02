@@ -1,72 +1,19 @@
-
-```ucm
-.> builtins.merge
-
-  Done.
-
-```
-Standard helpful definitions
-
-```unison
-use io2
-
-stdout : Handle
-stdout = stdHandle StdOut
-
-putLn : Text ->{IO} ()
-putLn t =
-  putBytes stdout (toUtf8 (t ++ "\n"))
-  ()
-
-map : (a ->{e} b) -> [a] ->{e} [b]
-map f l = let
-  go acc = cases
-    [] -> acc
-    x +: xs -> go (acc :+ f x) xs
-  go [] l
-```
-
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      map    : (a ->{e} b) -> [a] ->{e} [b]
-      putLn  : Text ->{IO} ()
-      stdout : Handle
-
-```
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    map    : (a ->{e} b) -> [a] ->{e} [b]
-    putLn  : Text ->{IO} ()
-    stdout : Handle
-
-```
 Loops that access a shared counter variable, accessed in transactions.
 Some thread delaying is just accomplished by counting in a loop.
 ```unison
-use io2
-
 count : Nat -> ()
 count = cases
   0 -> ()
   n -> count (drop n 1)
 
-inc : TVar Nat ->{IO} Nat
+inc : TVar Nat ->{io2.IO} Nat
 inc v =
   atomically 'let
     x = TVar.read v
     TVar.write v (x+1)
     x
 
-loop : '{IO} Nat -> Nat -> Nat ->{IO} Nat
+loop : '{io2.IO} Nat -> Nat -> Nat ->{io2.IO} Nat
 loop grab acc = cases
   0 -> acc
   n ->
@@ -74,7 +21,7 @@ loop grab acc = cases
     count (m*10)
     loop grab (acc+m) (drop n 1)
 
-body : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
+body : Nat -> TVar (Optional Nat) -> TVar Nat ->{io2.IO} ()
 body k out v =
   n = loop '(inc v) 0 k
   atomically '(TVar.write out (Some n))
@@ -88,10 +35,16 @@ body k out v =
   
     ⍟ These new definitions are ok to `add`:
     
-      body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
+      body  : Nat
+              -> TVar (Optional Nat)
+              -> TVar Nat
+              ->{io2.IO} ()
       count : Nat -> ()
-      inc   : TVar Nat ->{IO} Nat
-      loop  : '{IO} Nat ->{IO} Nat ->{IO} Nat ->{IO} Nat
+      inc   : TVar Nat ->{io2.IO} Nat
+      loop  : '{io2.IO} Nat
+              ->{io2.IO} Nat
+              ->{io2.IO} Nat
+              ->{io2.IO} Nat
 
 ```
 ```ucm
@@ -99,16 +52,19 @@ body k out v =
 
   ⍟ I've added these definitions:
   
-    body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
+    body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{io2.IO} ()
     count : Nat -> ()
-    inc   : TVar Nat ->{IO} Nat
-    loop  : '{IO} Nat ->{IO} Nat ->{IO} Nat ->{IO} Nat
+    inc   : TVar Nat ->{io2.IO} Nat
+    loop  : '{io2.IO} Nat
+            ->{io2.IO} Nat
+            ->{io2.IO} Nat
+            ->{io2.IO} Nat
 
 ```
 Test case.
 
 ```unison
-spawn : Nat ->{IO} Result
+spawn : Nat ->{io2.IO} Result
 spawn k = let
   out1 = TVar.newIO None
   out2 = TVar.newIO None
@@ -134,9 +90,9 @@ display m n s =
   "mismatch: " ++ toText m ++ " + " ++ toText n ++ " /= " ++ toText s
 
 nats : [Nat]
-nats = [89,100,116,144,169,188,200,233,256,300]
+nats = [8,10,11,14,16,18,20,23,25,30]
 
-tests : '{IO} [Result]
+tests : '{io2.IO} [Result]
 tests = '(map spawn nats)
 ```
 
@@ -150,8 +106,8 @@ tests = '(map spawn nats)
     
       display : Nat -> Nat -> Nat -> Text
       nats    : [Nat]
-      spawn   : Nat ->{IO} Result
-      tests   : '{IO} [Result]
+      spawn   : Nat ->{io2.IO} Result
+      tests   : '{io2.IO} [Result]
 
 ```
 ```ucm
@@ -161,8 +117,8 @@ tests = '(map spawn nats)
   
     display : Nat -> Nat -> Nat -> Text
     nats    : [Nat]
-    spawn   : Nat ->{IO} Result
-    tests   : '{IO} [Result]
+    spawn   : Nat ->{io2.IO} Result
+    tests   : '{io2.IO} [Result]
 
 .> io.test tests
 

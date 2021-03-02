@@ -89,12 +89,13 @@ data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
   | DisallowedAbsoluteName (L.Token Name)
   | EmptyBlock (L.Token String)
-  | UnknownAbilityConstructor (L.Token HQ.HashQualified) (Set (Reference, Int))
-  | UnknownDataConstructor (L.Token HQ.HashQualified) (Set (Reference, Int))
-  | UnknownTerm (L.Token HQ.HashQualified) (Set Referent)
-  | UnknownType (L.Token HQ.HashQualified) (Set Reference)
-  | UnknownId (L.Token HQ.HashQualified) (Set Referent) (Set Reference)
+  | UnknownAbilityConstructor (L.Token (HQ.HashQualified Name)) (Set (Reference, Int))
+  | UnknownDataConstructor (L.Token (HQ.HashQualified Name)) (Set (Reference, Int))
+  | UnknownTerm (L.Token (HQ.HashQualified Name)) (Set Referent)
+  | UnknownType (L.Token (HQ.HashQualified Name)) (Set Reference)
+  | UnknownId (L.Token (HQ.HashQualified Name)) (Set Referent) (Set Reference)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
+  | EmptyMatch
   | EmptyWatch
   | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
   | UseEmpty (L.Token String) -- an empty `use` statement
@@ -155,7 +156,7 @@ instance P.Stream Input where
 
   advance1 _ _ cp = setPos cp . L.end
 
-  advanceN _ _ cp = setPos cp . L.end . last . inputStream
+  advanceN _ _ cp = maybe cp (setPos cp . L.end) . lastMay . inputStream
 
   take1_ (P.chunkToTokens proxy -> [])   = Nothing
   take1_ (P.chunkToTokens proxy -> t:ts) = Just (t, P.tokensToChunk proxy ts)
@@ -339,12 +340,12 @@ symbolyDefinitionName = queryToken $ \case
 parenthesize :: Ord v => P v a -> P v a
 parenthesize p = P.try (openBlockWith "(" *> p) <* closeBlock
 
-hqPrefixId, hqInfixId :: Ord v => P v (L.Token HQ.HashQualified)
+hqPrefixId, hqInfixId :: Ord v => P v (L.Token (HQ.HashQualified Name))
 hqPrefixId = hqWordyId_ <|> parenthesize hqSymbolyId_
 hqInfixId = hqSymbolyId_ <|> hqBacktickedId_
 
 -- Parse a hash-qualified alphanumeric identifier
-hqWordyId_ :: Ord v => P v (L.Token HQ.HashQualified)
+hqWordyId_ :: Ord v => P v (L.Token (HQ.HashQualified Name))
 hqWordyId_ = queryToken $ \case
   L.WordyId "" (Just h) -> Just $ HQ.HashOnly h
   L.WordyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
@@ -354,14 +355,14 @@ hqWordyId_ = queryToken $ \case
   _ -> Nothing
 
 -- Parse a hash-qualified symboly ID like >>=#foo or &&
-hqSymbolyId_ :: Ord v => P v (L.Token HQ.HashQualified)
+hqSymbolyId_ :: Ord v => P v (L.Token (HQ.HashQualified Name))
 hqSymbolyId_ = queryToken $ \case
   L.SymbolyId "" (Just h) -> Just $ HQ.HashOnly h
   L.SymbolyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
   L.SymbolyId s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
   _ -> Nothing
 
-hqBacktickedId_ :: Ord v => P v (L.Token HQ.HashQualified)
+hqBacktickedId_ :: Ord v => P v (L.Token (HQ.HashQualified Name))
 hqBacktickedId_ = queryToken $ \case
   L.Backticks "" (Just h) -> Just $ HQ.HashOnly h
   L.Backticks s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h

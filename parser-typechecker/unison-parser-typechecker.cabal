@@ -55,6 +55,7 @@ library
   exposed-modules:
     Unison.Builtin
     Unison.Builtin.Decls
+    Unison.Builtin.Terms
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase.Branch
@@ -66,7 +67,7 @@ library
     Unison.Codebase.CodeLookup
     Unison.Codebase.Editor.AuthorInfo
     Unison.Codebase.Editor.Command
-    Unison.Codebase.Editor.DisplayThing
+    Unison.Codebase.Editor.DisplayObject
     Unison.Codebase.Editor.Git
     Unison.Codebase.Editor.HandleInput
     Unison.Codebase.Editor.HandleCommand
@@ -75,7 +76,6 @@ library
     Unison.Codebase.Editor.Output.BranchDiff
     Unison.Codebase.Editor.Propagate
     Unison.Codebase.Editor.RemoteRepo
-    Unison.Codebase.Editor.SearchResult'
     Unison.Codebase.Editor.SlurpResult
     Unison.Codebase.Editor.SlurpComponent
     Unison.Codebase.Editor.TodoOutput
@@ -91,7 +91,6 @@ library
     Unison.Codebase.Patch
     Unison.Codebase.Reflog
     Unison.Codebase.Runtime
-    Unison.Codebase.SearchResult
     Unison.Codebase.Serialization
     Unison.Codebase.Serialization.PutT
     Unison.Codebase.Serialization.V1
@@ -140,6 +139,16 @@ library
     Unison.Runtime.Vector
     Unison.Runtime.SparseVector
     Unison.Runtime.Stack
+    Unison.Server.Backend
+    Unison.Server.CodebaseServer
+    Unison.Server.Endpoints.GetDefinitions 
+    Unison.Server.Endpoints.ListNamespace
+    Unison.Server.Errors
+    Unison.Server.QueryResult
+    Unison.Server.SearchResult
+    Unison.Server.SearchResult'
+    Unison.Server.Syntax
+    Unison.Server.Types
     Unison.TermParser
     Unison.TermPrinter
     Unison.TypeParser
@@ -177,10 +186,12 @@ library
     Unison.Util.CyclicOrd
 
   build-depends:
+    aeson,
     ansi-terminal,
     async,
     base,
     base16 >= 0.2.1.0,
+    base64-bytestring,
     basement,
     bifunctors,
     bytes,
@@ -209,6 +220,7 @@ library
     hashable,
     hashtables,
     haskeline,
+    http-types,
     io-streams,
     lens,
     ListLike,
@@ -222,14 +234,19 @@ library
     network,
     network-simple,
     nonempty-containers,
+    openapi3,
     pem,
     process,
     primitive,
-    random,
+    random >= 1.2.0,
     raw-strings-qq,
     regex-base,
     regex-tdfa,
     safe,
+    servant,
+    servant-docs,
+    servant-openapi3,
+    servant-server,
     shellmet,
     split,
     stm,
@@ -243,8 +260,12 @@ library
     transformers,
     unison-core,
     unliftio,
+    unliftio-core,
     util,
+    unicode-show,
     vector,
+    wai,
+    warp,
     unicode-show,
     x509,
     x509-store,
@@ -268,6 +289,7 @@ executable unison
     Version
   build-depends:
     base,
+    bytestring,
     containers,
     configurator,
     directory,
@@ -280,7 +302,8 @@ executable unison
     temporary,
     text,
     unison-core,
-    unison-parser-typechecker
+    unison-parser-typechecker,
+    uri-encode
   if !os(windows)
     build-depends:
       unix
@@ -383,6 +406,7 @@ executable transcripts
     unison-parser-typechecker
 
 benchmark runtime
+  import: unison-common
   type: exitcode-stdio-1.0
   main-is: Main.hs
   ghc-options: -O2

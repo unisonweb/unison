@@ -137,7 +137,7 @@ reset :: Var v => v -> v
 reset v = typed (typeOf v)
 
 unqualifiedName :: Var v => v -> Text
-unqualifiedName = last . Name.segments' . name
+unqualifiedName = fromMaybe "" . lastMay . Name.segments' . name
 
 unqualified :: Var v => v -> v
 unqualified v = case typeOf v of

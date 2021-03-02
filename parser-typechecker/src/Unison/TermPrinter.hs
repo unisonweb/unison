@@ -47,11 +47,13 @@ import Unison.Builtin.Decls (pattern TuplePattern, pattern TupleTerm')
 import qualified Unison.ConstructorType as CT
 
 pretty :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
-pretty env tm = PP.syntaxToColor $ pretty0 env (ac (-1) Normal Map.empty MaybeDoc) (printAnnotate env tm)
+pretty env = PP.syntaxToColor . pretty0 env emptyAc . printAnnotate env
 
 pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> Term v a -> ColorText
-pretty' (Just width) n t = PP.render width $ PP.syntaxToColor $ pretty0 n (ac (-1) Normal Map.empty MaybeDoc) (printAnnotate n t)
-pretty' Nothing      n t = PP.renderUnbroken $ PP.syntaxToColor $ pretty0 n (ac (-1) Normal Map.empty MaybeDoc) (printAnnotate n t)
+pretty' (Just width) n t =
+  PP.render width $ PP.syntaxToColor $ pretty0 n emptyAc (printAnnotate n t)
+pretty' Nothing n t =
+  PP.renderUnbroken $ PP.syntaxToColor $ pretty0 n emptyAc (printAnnotate n t)
 
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
@@ -516,20 +518,26 @@ a + b = ...
 prettyBinding
   :: Var v
   => PrettyPrintEnv
-  -> HQ.HashQualified
+  -> HQ.HashQualified Name
   -> Term2 v at ap v a
   -> Pretty SyntaxText
 prettyBinding n = prettyBinding0 n $ ac (-1) Block Map.empty MaybeDoc
 
-prettyBinding' ::
-  Var v => Int -> PrettyPrintEnv -> HQ.HashQualified -> Term v a -> ColorText
-prettyBinding' width n v t = PP.render width $ PP.syntaxToColor $ prettyBinding n v t
+prettyBinding'
+  :: Var v
+  => Int
+  -> PrettyPrintEnv
+  -> HQ.HashQualified Name
+  -> Term v a
+  -> ColorText
+prettyBinding' width n v t =
+  PP.render width $ PP.syntaxToColor $ prettyBinding n v t
 
 prettyBinding0
   :: Var v
   => PrettyPrintEnv
   -> AmbientContext
-  -> HQ.HashQualified
+  -> HQ.HashQualified Name
   -> Term2 v at ap v a
   -> Pretty SyntaxText
 prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = go
@@ -632,14 +640,16 @@ paren True  s = PP.group $ fmt S.Parenthesis "(" <> s <> fmt S.Parenthesis ")"
 paren False s = PP.group s
 
 parenIfInfix
-  :: HQ.HashQualified -> InfixContext -> (Pretty SyntaxText -> Pretty SyntaxText)
+  :: HQ.HashQualified Name
+  -> InfixContext
+  -> (Pretty SyntaxText -> Pretty SyntaxText)
 parenIfInfix name ic =
   if isSymbolic name && ic == NonInfix then paren True else id
 
 l :: IsString s => String -> Pretty s
 l = fromString
 
-isSymbolic :: HQ.HashQualified -> Bool
+isSymbolic :: HQ.HashQualified Name -> Bool
 isSymbolic (HQ.NameOnly name) = isSymbolic' name
 isSymbolic (HQ.HashQualified name _) = isSymbolic' name
 isSymbolic (HQ.HashOnly _) = False
@@ -653,10 +663,13 @@ isBlank :: String -> Bool
 isBlank ('_' : rest) | (isJust ((readMaybe rest) :: Maybe Int)) = True
 isBlank _ = False
 
+emptyAc :: AmbientContext
+emptyAc = ac (-1) Normal Map.empty MaybeDoc
+
 ac :: Int -> BlockContext -> Imports -> DocLiteralContext -> AmbientContext
 ac prec bc im doc = AmbientContext prec bc NonInfix im doc
 
-fmt :: S.Element -> Pretty S.SyntaxText -> Pretty S.SyntaxText
+fmt :: (S.Element r) -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = PP.withSyntax
 
 {-
@@ -847,7 +860,7 @@ countPatternUsages n p = Pattern.foldMap' f p where
       if noImportRefs r then mempty
       else countHQ $ PrettyPrintEnv.patternName n r i
 
-countHQ :: HQ.HashQualified -> PrintAnnotation
+countHQ :: HQ.HashQualified Name -> PrintAnnotation
 countHQ hq = fold $ fmap countName (HQ.toName $ hq)
 
 countName :: Name -> PrintAnnotation

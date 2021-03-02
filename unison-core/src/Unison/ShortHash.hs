@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -12,7 +13,7 @@ import qualified Data.Text as Text
 data ShortHash
   = Builtin Text
   | ShortHash { prefix :: Text, cycle :: Maybe Text, cid :: Maybe Text }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 -- currently unused
 isConstructor :: ShortHash -> Bool

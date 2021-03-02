@@ -1,5 +1,4 @@
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -37,7 +36,7 @@ execute codebase runtime mainName =
     root <- Codebase.getRootBranch codebase >>= \case
       Right r -> pure r
       Left Codebase.NoRootBranch ->
-        die ("Couldn't identify a root namespace.")
+        die "Couldn't identify a root namespace."
       Left (Codebase.CouldntLoadRootBranch h) ->
         die ("Couldn't load root branch " ++ show h)
       Left (Codebase.CouldntParseRootBranch h) ->
@@ -49,7 +48,7 @@ execute codebase runtime mainName =
     case mt of
       MainTerm.NotAFunctionName s -> die ("Not a function name: " ++ s)
       MainTerm.NotFound s -> die ("Not found: " ++ s)
-      MainTerm.BadType s -> die (s ++ " is not of type '{IO} ()")
+      MainTerm.BadType s _ -> die (s ++ " is not of type '{IO} ()")
       MainTerm.Success _ tm _ -> do
         let codeLookup = Codebase.toCodeLookup codebase
             ppe = PPE.PrettyPrintEnv (const Nothing) (const Nothing)
