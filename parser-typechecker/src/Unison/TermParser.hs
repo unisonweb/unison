@@ -442,6 +442,7 @@ doc2Block =
       "syntax.doc.docs" -> variadic
       "syntax.doc.paragraph" -> variadic
       "syntax.doc.signature" -> variadic
+      "syntax.doc.source" -> variadic
       "syntax.doc.bulletedList" -> variadic
       "syntax.doc.numberedList" -> do
         nitems@((n,_):_) <- P.some nitem <* closeBlock
@@ -456,9 +457,6 @@ doc2Block =
             pure (n, child)
       "syntax.doc.section" -> sectionLike
       -- @source{ type Blah, foo, type Bar }
-      "syntax.doc.source" -> do
-        cs <- P.sepBy1 elem (reserved ",")
-        closeBlock $> Term.apps' f [Term.seq (ann cs) cs]
       "syntax.doc.embedTermLink" -> do
         tm <- addDelay <$> hashQualifiedPrefixTerm
         closeBlock $> Term.apps' f [tm]

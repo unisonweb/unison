@@ -1,4 +1,15 @@
 {-
+syntax.doc.docs _ = ()
+syntax.doc.paragraph _ = ()
+syntax.doc.source _ = ()
+syntax.doc.embedTypeLink _ = ()
+syntax.doc.embedTermLink _ = ()
+
+x = {{ @source{ id, id } }}
+-- x = {{ @source{ type Optional, id } }}
+-}
+
+{-
 - [ ] Debug the lexer/parser combination
 - [ ] Implement display logic for new doc type in DisplayValues
 - [ ] Write illustrative transcript (and possibly separate tests)
@@ -62,7 +73,7 @@ syntax.doc.strikethrough = Strikethrough
 syntax.doc.paragraph = Paragraph
 syntax.doc.embedTermLink any = 
   guid = "b7a4fb87e34569319591130bf3ec6e24"
-  Right any
+  Right (Any any)
 syntax.doc.embedTypeLink tl = 
   guid = "b7a4fb87e34569319591130bf3ec6e24"
   Left tl 
@@ -268,9 +279,9 @@ id 99
 @source{ type Optional, id }
 '''
 
-Renders as: TODO
+Renders as:
 
-''@source{ type Optional, id }''
+@source{ type Optional, id }
 
 You can also render just the signatures of a collection of terms: 
 
