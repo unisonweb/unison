@@ -8,46 +8,45 @@
 
 module U.Codebase.Sqlite.Sync22 where
 
-import qualified Control.Lens as Lens
-import Control.Monad (filterM, foldM, join, (<=<))
+import Control.Monad (filterM, foldM, join)
 import Control.Monad.Except (ExceptT, MonadError (throwError))
 import Control.Monad.Extra (ifM)
-import Control.Monad.RWS (MonadIO, MonadReader (reader))
+import Control.Monad.RWS (MonadIO, MonadReader)
 import Control.Monad.Reader (ReaderT)
 import Control.Monad.Trans (lift)
-import Control.Monad.Trans.Except (throwE, withExceptT)
 import qualified Control.Monad.Writer as Writer
+import Data.Bitraversable (bitraverse)
 import Data.ByteString (ByteString)
-import Data.Bytes.Get (MonadGet, getByteString, getWord8, runGetS)
+import Data.Bytes.Get (getWord8, runGetS)
 import Data.Bytes.Put (putWord8, runPutS)
-import Data.Foldable (toList, traverse_, for_)
+import Data.Foldable (for_, toList, traverse_)
 import Data.Functor ((<&>))
 import Data.List.Extra (nubOrd)
-import Data.Maybe (catMaybes, fromJust, isJust, fromMaybe)
+import Data.Maybe (catMaybes, fromJust, fromMaybe, isJust)
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import Data.Traversable (for)
-import Data.Word (Word64)
 import Database.SQLite.Simple (Connection)
+import qualified U.Codebase.Reference as Reference
+import qualified U.Codebase.Referent as Referent
 import U.Codebase.Sqlite.DbId
 import qualified U.Codebase.Sqlite.LocalIds as L
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Queries as Q
+import qualified U.Codebase.Sqlite.Reference as Sqlite
+import qualified U.Codebase.Sqlite.Reference as Sqlite.Reference
 import qualified U.Codebase.Sqlite.Serialization as S
 import U.Codebase.Sync
 import qualified U.Codebase.Sync as Sync
+import qualified U.Codebase.WatchKind as WK
 import U.Util.Cache (Cache)
 import qualified U.Util.Cache as Cache
-import qualified U.Util.Serialization as S
-import qualified U.Codebase.Sqlite.Reference as Sqlite.Reference
-import qualified U.Codebase.Reference as Reference
-import qualified U.Codebase.Sqlite.Reference as Sqlite
 
 data Entity = O ObjectId | C CausalHashId
 
 data DbTag = SrcDb | DestDb
 
-data DecodeError = ErrTermComponent | ErrDeclComponent
+data DecodeError = ErrTermComponent | ErrDeclComponent | ErrWatchResult
 
 type ErrString = String
 
@@ -143,10 +142,7 @@ trySync tCache hCache oCache gc = \case
         hId' <- syncHashLiteral hId
         result <- case objType of
           OT.TermComponent -> do
-            -- (fmt, termComponent) <-
-            --   either (throwError . DecodeError SrcDb ErrTermComponent bytes) pure -- 🤪
-            --     . flip runGetS bytes
-            --     $ (,) <$> getWord8 <*> S.decomposeTermComponent
+            -- split up the localIds (parsed), term, and type blobs
             (fmt, unzip3 -> (localIds, termBytes, typeBytes)) <-
               case flip runGetS bytes do
                 tag <- getWord8
@@ -154,27 +150,49 @@ trySync tCache hCache oCache gc = \case
                 pure (tag, component) of
                 Right x -> pure x
                 Left s -> throwError $ DecodeError SrcDb ErrTermComponent bytes s
+            -- iterate through the local ids looking for missing deps;
+            -- then either enqueue the missing deps, or proceed to move the object
             foldM foldLocalIds (Right mempty) localIds >>= \case
               Left missingDeps -> pure $ Left missingDeps
               Right (toList -> localIds') -> do
+                -- reassemble and save the reindexed term
                 let bytes' =
                       runPutS $
                         putWord8 fmt
                           >> S.recomposeTermComponent (zip3 localIds' termBytes typeBytes)
                 oId' <- runDest $ Q.saveObject hId' objType bytes'
-                -- "todo: optionally copy watch cache entry"
-
-                -- sync dependency index
+                -- copy reference-specific stuff
                 for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
-                  indexDependencies <- runSrc $ Q.getDependenciesForDependent (Reference.Id oId idx)
+                  let ref = Reference.Id oId idx
+                      ref' = Reference.Id oId' idx
+                  -- sync watch results
+                  for_ [WK.RegularWatch, WK.TestWatch] \wk -> do
+                    let refH = Reference.Id hId idx
+                        refH' = Reference.Id hId' idx
+                    runSrc (Q.loadWatch wk refH) >>= traverse_ \blob -> do
+                      (L.LocalIds tIds hIds, termBytes) <-
+                        case runGetS S.decomposeWatchResult blob of
+                          Right x -> pure x
+                          Left s -> throwError $ DecodeError SrcDb ErrWatchResult blob s
+                      tIds' <- traverse syncTextLiteral tIds
+                      hIds' <- traverse syncHashLiteral hIds
+                      let blob' = runPutS (S.recomposeWatchResult (L.LocalIds tIds' hIds', termBytes))
+                      runDest (Q.saveWatch wk refH' blob')
+                  -- sync dependencies index
                   let fromJust' = fromMaybe (error "missing objects should've been caught by `foldLocalIds` above")
-                  indexDependencies' <- traverse (fmap fromJust' . isSyncedObjectReference) indexDependencies
-                  runDest $ traverse_ (flip Q.addToDependentsIndex (Reference.Id oId' idx)) indexDependencies'
-
-                -- sync type index rows
-                error "todo: sync type index rows"
-                -- sync type mentions index rows
-                error "todo: sync type mentions index rows"
+                  runSrc (Q.getDependenciesForDependent ref)
+                    >>= traverse (fmap fromJust' . isSyncedObjectReference)
+                    >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
+                  -- sync type index
+                  let reft = Referent.RefId ref
+                      reft' = Referent.RefId ref'
+                  runSrc (Q.getTypeReferenceForReference ref)
+                    >>= syncHashReference
+                    >>= runDest . flip Q.addToTypeIndex reft'
+                  -- sync type mentions index
+                  runSrc (Q.getTypeMentionsByReferent reft)
+                    >>= traverse syncHashReference
+                    >>= runDest . traverse (flip Q.addToTypeMentionsIndex reft')
                 pure $ Right oId'
           OT.DeclComponent -> error "todo"
           OT.Namespace -> error "todo"
@@ -226,12 +244,15 @@ trySync tCache hCache oCache gc = \case
     isSyncedObjectReference = \case
       Reference.ReferenceBuiltin t ->
         Just . Reference.ReferenceBuiltin <$> syncTextLiteral t
-      Reference.ReferenceBuiltin id ->
-        Reference.ReferenceBuiltin <$> isSyncedObjectReferenceId id
+      Reference.ReferenceDerived id ->
+        fmap Reference.ReferenceDerived <$> isSyncedObjectReferenceId id
 
     isSyncedObjectReferenceId :: Sqlite.Reference.Id -> m (Maybe Sqlite.Reference.Id)
     isSyncedObjectReferenceId (Reference.Id oId idx) =
       isSyncedObject oId <&> fmap (\oId' -> Reference.Id oId' idx)
+
+    syncHashReference :: Sqlite.ReferenceH -> m Sqlite.ReferenceH
+    syncHashReference = bitraverse syncTextLiteral syncHashLiteral
 
     syncCausalHash :: CausalHashId -> m CausalHashId
     syncCausalHash = fmap CausalHashId . syncHashLiteral . unCausalHashId

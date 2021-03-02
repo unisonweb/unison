@@ -27,7 +27,7 @@ import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.ByteString (ByteString)
 import Data.Bytes.Get (runGetS)
 import qualified Data.Bytes.Get as Get
-import Data.Foldable (traverse_, for_)
+import Data.Foldable (for_, traverse_)
 import qualified Data.Foldable as Foldable
 import Data.Functor (void, (<&>))
 import Data.Functor.Identity (Identity)
@@ -76,7 +76,8 @@ import U.Codebase.Sqlite.LocalIds
     LocalIds' (..),
     LocalPatchObjectId (..),
     LocalTextId (..),
-    )
+    WatchLocalIds,
+  )
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Patch.Diff as S
@@ -454,11 +455,11 @@ saveTermComponent h terms = do
                       (fmap getTermSRef tmRefs ++ fmap getSTermLink tmLinks)
                       ++ fmap getTypeSRef (tpRefs ++ tpRefs')
                       ++ fmap getSTypeLink tpLinks
-         in Set.map (, self) dependencies
+         in Set.map (,self) dependencies
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
 
   -- populate type indexes
-  for_ (terms `zip` [0..]) \((_tm, tp), i) -> do
+  for_ (terms `zip` [0 ..]) \((_tm, tp), i) -> do
     let self = C.Referent.RefId (C.Reference.Id oId i)
         typeForIndexing = TypeUtil.removeAllEffectVars tp
         typeMentionsForIndexing = TypeUtil.toReferenceMentions typeForIndexing
@@ -701,8 +702,8 @@ loadWatch :: EDB m => WatchKind -> C.Reference.Id -> MaybeT m (C.Term Symbol)
 loadWatch k r =
   C.Reference.idH Q.saveHashHash r
     >>= MaybeT . Q.loadWatch k
-    >>= getFromBytesOr (ErrWatch k r) (S.getPair S.getLocalIds S.getTerm)
-    >>= uncurry s2cTerm
+    >>= getFromBytesOr (ErrWatch k r) (S.getPair S.getWatchLocalIds S.getTerm)
+    >>= uncurry w2cTerm
 
 saveWatch :: EDB m => WatchKind -> C.Reference.Id -> C.Term Symbol -> m ()
 saveWatch w r t = do
@@ -711,12 +712,12 @@ saveWatch w r t = do
   let bytes = S.putBytes (S.putPair S.putLocalIds S.putTerm) wterm
   Q.saveWatch w rs bytes
 
-c2wTerm :: EDB m => C.Term Symbol -> m (LocalIds, S.Term.Term)
-c2wTerm tm = c2xTerm Q.saveText primaryHashToExistingObjectId tm Nothing <&> \(w, tm, _) -> (w, tm)
+c2wTerm :: EDB m => C.Term Symbol -> m (WatchLocalIds, S.Term.Term)
+c2wTerm tm = c2xTerm Q.saveText Q.saveHashHash tm Nothing <&> \(w, tm, _) -> (w, tm)
 
-w2cTerm :: EDB m => LocalIds -> S.Term.Term -> m (C.Term Symbol)
+w2cTerm :: EDB m => WatchLocalIds -> S.Term.Term -> m (C.Term Symbol)
 w2cTerm ids tm = do
-  (substText, substHash) <- localIdsToLookups loadTextById loadHashByObjectId ids
+  (substText, substHash) <- localIdsToLookups loadTextById loadHashByHashId ids
   pure $ x2cTerm substText substHash tm
 
 -- ** Saving & loading type decls
@@ -743,8 +744,10 @@ saveDeclComponent h decls = do
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
 
   -- populate type indexes
-  for_ (zip decls [0..])
-    \(C.DataDeclaration _ _ _ ctorTypes, i) -> for_ (zip ctorTypes [0..])
+  for_
+    (zip decls [0 ..])
+    \(C.DataDeclaration _ _ _ ctorTypes, i) -> for_
+      (zip ctorTypes [0 ..])
       \(tp, j) -> do
         let self = C.Referent.ConId (C.Reference.Id oId i) j
             typeForIndexing :: C.Type.TypeT Symbol = TypeUtil.removeAllEffectVars (C.Type.typeD2T h tp)

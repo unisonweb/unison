@@ -62,18 +62,6 @@ CREATE TABLE causal (
 CREATE INDEX causal_value_hash_id ON causal(value_hash_id);
 CREATE INDEX causal_gc_generation ON causal(gc_generation);
 
--- proposed:
--- CREATE TABLE causal (
---   causal_id INTEGER PRIMARY KEY NOT NULL,
---   self_hash_id INTEGER NOT NULL CONSTRAINT causal_fk1 REFERENCES hash(id),
---   value_hash_id INTEGER NOT NULL CONSTRAINT causal_fk1 REFERENCES hash(id),
---   gc_generation INTEGER NOT NULL DEFAULT 0
--- );
--- CREATE INDEX causal_self_hash_id ON causal(self_hash_id);
--- CREATE INDEX causal_value_hash_id ON causal(value_hash_id);
--- CREATE INDEX causal_gc_generation ON causal(gc_generation);
-
-
 -- valueHash : Hash = hash(value)
 -- db.saveValue(valueHash, value)
 -- causalHash : Hash = hash(new Causal(valueHash, parentCausalHashes))

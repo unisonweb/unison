@@ -32,7 +32,7 @@ import qualified U.Codebase.Referent as Referent
 import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
 import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
-import U.Codebase.Sqlite.DbId (BranchObjectId, HashId, ObjectId, PatchObjectId, TextId, unBranchObjectId, unPatchObjectId)
+import U.Codebase.Sqlite.DbId (BranchObjectId, PatchObjectId, unBranchObjectId, unPatchObjectId)
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId, WatchLocalIds)
 import qualified U.Codebase.Sqlite.Patch.Diff as PatchDiff
@@ -139,10 +139,10 @@ putLocalIds LocalIds {..} = do
   putFoldable putVarInt defnLookup
 
 getLocalIds :: MonadGet m => m LocalIds
-getLocalIds =
-  LocalIds
-    <$> getVector getVarInt
-    <*> getVector getVarInt
+getLocalIds = LocalIds <$> getVector getVarInt <*> getVector getVarInt
+
+getWatchLocalIds :: MonadGet m => m WatchLocalIds
+getWatchLocalIds = LocalIds <$> getVector getVarInt <*> getVector getVarInt
 
 putUnit :: Applicative m => () -> m ()
 putUnit _ = pure ()
@@ -680,8 +680,8 @@ recomposeTermComponent :: MonadPut m => [(LocalIds, BS.ByteString, BS.ByteString
 recomposeTermComponent =
   putFramedArray \(localIds, termBytes, typeBytes) -> do
     putLocalIds localIds
-    putFramed putByteString termBytes
-    putFramed putByteString typeBytes
+    putFramedByteString termBytes
+    putFramedByteString typeBytes
 
 decomposeComponent :: (MonadGet m, Monoid a) => Get a -> m a
 decomposeComponent split = do
@@ -691,6 +691,12 @@ decomposeComponent split = do
         let bytes = BS.drop start $ BS.take end componentBytes
         either fail pure $ runGetS split bytes
   Monoid.foldMapM get1 (zip offsets (tail offsets))
+
+decomposeWatchResult :: MonadGet m => m (WatchLocalIds, BS.ByteString)
+decomposeWatchResult = (,) <$> getWatchLocalIds <*> getFramedByteString
+
+recomposeWatchResult :: MonadPut m => (WatchLocalIds, BS.ByteString) -> m ()
+recomposeWatchResult (wli, bs) = putLocalIds wli >> putFramedByteString bs
 
 -- the same implementation currently works for term component and type component
 getComponentSyncEntities :: MonadGet m => m SE.SyncEntitySeq

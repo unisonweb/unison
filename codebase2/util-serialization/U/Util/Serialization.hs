@@ -185,6 +185,11 @@ getFramed :: MonadGet m => Get a -> m a
 getFramed get =
   getFramedByteString >>= either fail pure . runGetS get
 
+putFramedByteString :: MonadPut m => ByteString -> m ()
+putFramedByteString bs = do
+  putVarInt (BS.length bs)
+  putByteString bs
+
 putFramed :: MonadPut m => Put a -> a -> m ()
 putFramed put a = do
   -- 1. figure out the length `len` of serialized `a`

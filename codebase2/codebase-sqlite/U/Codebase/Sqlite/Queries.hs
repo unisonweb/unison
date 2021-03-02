@@ -470,6 +470,18 @@ getReferentsByTypeMention r = query sql r where sql = [here|
     AND type_reference_component_index IS ?
 |]
 
+getTypeMentionsByReferent :: DB m => Referent.Id -> m [TypeHashReference]
+getTypeMentionsByReferent r = query sql r where sql = [here|
+  SELECT
+    type_reference_builtin,
+    type_reference_hash_id,
+    type_reference_component_index
+  FROM find_type_mentions_index
+  WHERE term_referent_object_id IS ?
+    AND term_referent_component_index IS ?
+    AND term_referent_constructor_index IS ?
+|]
+
 addToDependentsIndex :: DB m => Reference.Reference -> Reference.Id -> m ()
 addToDependentsIndex dependency dependent = execute sql (dependency :. dependent)
   where sql = [here|
