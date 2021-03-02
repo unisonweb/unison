@@ -4,14 +4,14 @@
 
 module U.Codebase.Sqlite.Reference where
 
+import Control.Applicative (liftA3)
 import Database.SQLite.Simple (Only (..), SQLData (..), ToRow (toRow))
 import Database.SQLite.Simple.FromField (FromField)
-import Database.SQLite.Simple.FromRow (FromRow (fromRow), field)
+import Database.SQLite.Simple.FromRow (FromRow (fromRow), RowParser, field)
 import Database.SQLite.Simple.ToField (ToField)
 import U.Codebase.Reference (Id' (Id), Reference' (ReferenceBuiltin, ReferenceDerived))
 import U.Codebase.Sqlite.DbId (HashId, ObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalHashId, LocalTextId)
-import Control.Applicative (liftA3)
 
 type Reference = Reference' TextId ObjectId
 
@@ -35,15 +35,22 @@ instance ToRow (Reference' TextId HashId) where
     ReferenceDerived (Id h i) -> SQLNull : toRow (Only h) ++ toRow (Only i)
 
 instance FromRow (Reference' TextId HashId) where
-  fromRow = liftA3 mkRef field field field
-    where
-      mkRef (Just t) Nothing Nothing =
-        ReferenceBuiltin t
-      mkRef Nothing (Just hashId) (Just componentIdx) =
-        ReferenceDerived (Id hashId componentIdx)
-      mkRef t h i =
-        error $ "invalid find_type_index type reference: " ++ str
-        where str = "(" ++ show t ++ ", " ++ show h ++ ", " ++ show i ++ ")"
+  fromRow = referenceFromRow'
+
+instance FromRow (Reference' TextId ObjectId) where
+  fromRow = referenceFromRow'
+
+referenceFromRow' :: (FromField t, FromField h, Show t, Show h) => RowParser (Reference' t h)
+referenceFromRow' = liftA3 mkRef field field field
+  where
+    mkRef (Just t) Nothing Nothing =
+      ReferenceBuiltin t
+    mkRef Nothing (Just h) (Just componentIdx) =
+      ReferenceDerived (Id h componentIdx)
+    mkRef t h i =
+      error $ "invalid find_type_index type reference: " ++ str
+      where
+        str = "(" ++ show t ++ ", " ++ show h ++ ", " ++ show i ++ ")"
 
 instance ToRow (Reference' TextId ObjectId) where
   toRow = \case

@@ -20,10 +20,10 @@ import qualified Control.Monad.Writer as Writer
 import Data.ByteString (ByteString)
 import Data.Bytes.Get (MonadGet, getByteString, getWord8, runGetS)
 import Data.Bytes.Put (putWord8, runPutS)
-import Data.Foldable (toList, traverse_)
+import Data.Foldable (toList, traverse_, for_)
 import Data.Functor ((<&>))
 import Data.List.Extra (nubOrd)
-import Data.Maybe (catMaybes, fromJust, isJust)
+import Data.Maybe (catMaybes, fromJust, isJust, fromMaybe)
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import Data.Traversable (for)
@@ -39,6 +39,9 @@ import qualified U.Codebase.Sync as Sync
 import U.Util.Cache (Cache)
 import qualified U.Util.Cache as Cache
 import qualified U.Util.Serialization as S
+import qualified U.Codebase.Sqlite.Reference as Sqlite.Reference
+import qualified U.Codebase.Reference as Reference
+import qualified U.Codebase.Sqlite.Reference as Sqlite
 
 data Entity = O ObjectId | C CausalHashId
 
@@ -151,8 +154,6 @@ trySync tCache hCache oCache gc = \case
                 pure (tag, component) of
                 Right x -> pure x
                 Left s -> throwError $ DecodeError SrcDb ErrTermComponent bytes s
-            -- termComponent' <-
-            -- S.decomposeTermComponent >>= traverse . Lens.mapMOf Lens._1 do
             foldM foldLocalIds (Right mempty) localIds >>= \case
               Left missingDeps -> pure $ Left missingDeps
               Right (toList -> localIds') -> do
@@ -161,10 +162,19 @@ trySync tCache hCache oCache gc = \case
                         putWord8 fmt
                           >> S.recomposeTermComponent (zip3 localIds' termBytes typeBytes)
                 oId' <- runDest $ Q.saveObject hId' objType bytes'
-                error "todo: optionally copy watch cache entry"
-                error "todo: sync dependency index rows"
-                error "todo: sync type/mentions index rows"
-                error "todo"
+                -- "todo: optionally copy watch cache entry"
+
+                -- sync dependency index
+                for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
+                  indexDependencies <- runSrc $ Q.getDependenciesForDependent (Reference.Id oId idx)
+                  let fromJust' = fromMaybe (error "missing objects should've been caught by `foldLocalIds` above")
+                  indexDependencies' <- traverse (fmap fromJust' . isSyncedObjectReference) indexDependencies
+                  runDest $ traverse_ (flip Q.addToDependentsIndex (Reference.Id oId' idx)) indexDependencies'
+
+                -- sync type index rows
+                error "todo: sync type index rows"
+                -- sync type mentions index rows
+                error "todo: sync type mentions index rows"
                 pure $ Right oId'
           OT.DeclComponent -> error "todo"
           OT.Namespace -> error "todo"
@@ -211,6 +221,17 @@ trySync tCache hCache oCache gc = \case
     syncHashLiteral = Cache.apply hCache \hId -> do
       b32hex <- runSrc $ Q.loadHashById hId
       runDest $ Q.saveHash b32hex
+
+    isSyncedObjectReference :: Sqlite.Reference -> m (Maybe Sqlite.Reference)
+    isSyncedObjectReference = \case
+      Reference.ReferenceBuiltin t ->
+        Just . Reference.ReferenceBuiltin <$> syncTextLiteral t
+      Reference.ReferenceBuiltin id ->
+        Reference.ReferenceBuiltin <$> isSyncedObjectReferenceId id
+
+    isSyncedObjectReferenceId :: Sqlite.Reference.Id -> m (Maybe Sqlite.Reference.Id)
+    isSyncedObjectReferenceId (Reference.Id oId idx) =
+      isSyncedObject oId <&> fmap (\oId' -> Reference.Id oId' idx)
 
     syncCausalHash :: CausalHashId -> m CausalHashId
     syncCausalHash = fmap CausalHashId . syncHashLiteral . unCausalHashId

@@ -492,6 +492,14 @@ getDependentsForDependency dependency = query sql dependency where sql = [here|
     AND dependency_component_index IS ?
 |]
 
+getDependenciesForDependent :: DB m => Reference.Id -> m [Reference.Reference]
+getDependenciesForDependent dependent = query sql dependent where sql = [here|
+  SELECT dependency_builtin, dependency_object_id, dependency_component_index
+  FROM dependents_index
+  WHERE dependent_object_id IS ?
+    AND dependent_component_index IS ?
+|]
+
 getDependencyIdsForDependent :: DB m => Reference.Id -> m [Reference.Id]
 getDependencyIdsForDependent dependent = query sql dependent where sql = [here|
   SELECT dependency_object_id, dependency_component_index
