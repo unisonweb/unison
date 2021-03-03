@@ -11,7 +11,7 @@ module U.Codebase.Sqlite.Serialization where
 import Data.Bits (Bits)
 import qualified Data.ByteString as BS
 import Data.Bytes.Get (MonadGet, getByteString, getWord8, runGetS)
-import Data.Bytes.Put (MonadPut (putByteString), putWord8)
+import Data.Bytes.Put (MonadPut, putWord8)
 import Data.Bytes.Serial (SerialEndian (serializeBE), deserialize, deserializeBE, serialize)
 import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
 import Data.Int (Int64)
@@ -682,6 +682,11 @@ recomposeTermComponent =
     putLocalIds localIds
     putFramedByteString termBytes
     putFramedByteString typeBytes
+
+recomposeDeclComponent :: MonadPut m => [(LocalIds, BS.ByteString)] -> m ()
+recomposeDeclComponent = putFramedArray \(localIds, declBytes) -> do
+  putLocalIds localIds
+  putFramedByteString declBytes
 
 decomposeComponent :: (MonadGet m, Monoid a) => Get a -> m a
 decomposeComponent split = do

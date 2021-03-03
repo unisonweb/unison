@@ -39,7 +39,6 @@ import Database.SQLite.Simple.ToField (ToField (..))
 import Debug.Trace (trace, traceM)
 import U.Codebase.HashTags (BranchHash, CausalHash, unBranchHash, unCausalHash)
 import U.Codebase.Reference (Reference')
-import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.DbId (BranchHashId (..), BranchObjectId (..), CausalHashId (..), CausalOldHashId, Generation (..), HashId (..), ObjectId (..), TextId)
 import U.Codebase.Sqlite.ObjectType (ObjectType)
 import qualified U.Codebase.Sqlite.Reference as Reference
@@ -431,8 +430,8 @@ getReferentsByType r = query sql r where sql = [here|
     AND type_reference_component_index IS ?
 |]
 
-getTypeReferenceForReference :: EDB m => Reference.Id -> m (Reference' TextId HashId)
-getTypeReferenceForReference (C.Referent.RefId -> r) =
+getTypeReferenceForReferent :: EDB m => Referent.Id -> m (Reference' TextId HashId)
+getTypeReferenceForReferent r =
   queryMaybe sql r >>= orError (NoTypeIndexForTerm r)
   where sql = [here|
   SELECT
@@ -444,6 +443,21 @@ getTypeReferenceForReference (C.Referent.RefId -> r) =
     AND term_referent_component_index = ?
     AND term_referent_constructor_index = ?
 |]
+
+-- todo: error if no results
+getTypeReferencesForComponent :: EDB m => ObjectId -> m [(Reference' TextId HashId, Referent.Id)]
+getTypeReferencesForComponent oId =
+  query sql (Only oId) <&> map fixupTypeIndexRow where sql = [here|
+    SELECT
+      type_reference_builtin,
+      type_reference_hash_id,
+      type_reference_component_index,
+      term_referent_object_id,
+      term_referent_component_index,
+      term_referent_constructor_index
+    FROM find_type_index
+    WHERE term_referent_object_id = ?
+  |]
 
 addToTypeMentionsIndex :: DB m => Reference' TextId HashId -> Referent.Id -> m ()
 addToTypeMentionsIndex tp tm = execute sql (tp :. tm) where sql = [here|
@@ -470,17 +484,23 @@ getReferentsByTypeMention r = query sql r where sql = [here|
     AND type_reference_component_index IS ?
 |]
 
-getTypeMentionsByReferent :: DB m => Referent.Id -> m [TypeHashReference]
-getTypeMentionsByReferent r = query sql r where sql = [here|
-  SELECT
-    type_reference_builtin,
-    type_reference_hash_id,
-    type_reference_component_index
-  FROM find_type_mentions_index
-  WHERE term_referent_object_id IS ?
-    AND term_referent_component_index IS ?
-    AND term_referent_constructor_index IS ?
-|]
+-- todo: error if no results
+getTypeMentionsReferencesForComponent :: EDB m => ObjectId -> m [(Reference' TextId HashId, Referent.Id)]
+getTypeMentionsReferencesForComponent r =
+  query sql (Only r) <&> map fixupTypeIndexRow where sql = [here|
+    SELECT
+      type_reference_builtin,
+      type_reference_hash_id,
+      type_reference_component_index,
+      term_referent_object_id,
+      term_referent_component_index,
+      term_referent_constructor_index
+    FROM find_type_mentions_index
+    WHERE term_referent_object_id IS ?
+  |]
+
+fixupTypeIndexRow :: Reference' TextId HashId :. Referent.Id -> (Reference' TextId HashId, Referent.Id)
+fixupTypeIndexRow (rh :. ri) = (rh, ri)
 
 addToDependentsIndex :: DB m => Reference.Reference -> Reference.Id -> m ()
 addToDependentsIndex dependency dependent = execute sql (dependency :. dependent)

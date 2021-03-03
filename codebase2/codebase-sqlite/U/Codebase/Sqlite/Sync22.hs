@@ -15,6 +15,7 @@ import Control.Monad.RWS (MonadIO, MonadReader)
 import Control.Monad.Reader (ReaderT)
 import Control.Monad.Trans (lift)
 import qualified Control.Monad.Writer as Writer
+import Data.Bifunctor (bimap)
 import Data.Bitraversable (bitraverse)
 import Data.ByteString (ByteString)
 import Data.Bytes.Get (getWord8, runGetS)
@@ -28,13 +29,13 @@ import qualified Data.Sequence as Seq
 import Data.Traversable (for)
 import Database.SQLite.Simple (Connection)
 import qualified U.Codebase.Reference as Reference
-import qualified U.Codebase.Referent as Referent
 import U.Codebase.Sqlite.DbId
 import qualified U.Codebase.Sqlite.LocalIds as L
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Reference as Sqlite
 import qualified U.Codebase.Sqlite.Reference as Sqlite.Reference
+import qualified U.Codebase.Sqlite.Referent as Sqlite.Referent
 import qualified U.Codebase.Sqlite.Serialization as S
 import U.Codebase.Sync
 import qualified U.Codebase.Sync as Sync
@@ -52,7 +53,7 @@ type ErrString = String
 
 data Error
   = DbIntegrity Q.Integrity
-  | DecodeError DbTag DecodeError ByteString ErrString
+  | DecodeError DecodeError ByteString ErrString
   | -- | hashes corresponding to a single object in source codebase
     --  correspond to multiple objects in destination codebase
     HashObjectCorrespondence ObjectId [HashId] [ObjectId]
@@ -149,7 +150,7 @@ trySync tCache hCache oCache gc = \case
                 component <- S.decomposeTermComponent
                 pure (tag, component) of
                 Right x -> pure x
-                Left s -> throwError $ DecodeError SrcDb ErrTermComponent bytes s
+                Left s -> throwError $ DecodeError ErrTermComponent bytes s
             -- iterate through the local ids looking for missing deps;
             -- then either enqueue the missing deps, or proceed to move the object
             foldM foldLocalIds (Right mempty) localIds >>= \case
@@ -163,8 +164,6 @@ trySync tCache hCache oCache gc = \case
                 oId' <- runDest $ Q.saveObject hId' objType bytes'
                 -- copy reference-specific stuff
                 for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
-                  let ref = Reference.Id oId idx
-                      ref' = Reference.Id oId' idx
                   -- sync watch results
                   for_ [WK.RegularWatch, WK.TestWatch] \wk -> do
                     let refH = Reference.Id hId idx
@@ -173,28 +172,65 @@ trySync tCache hCache oCache gc = \case
                       (L.LocalIds tIds hIds, termBytes) <-
                         case runGetS S.decomposeWatchResult blob of
                           Right x -> pure x
-                          Left s -> throwError $ DecodeError SrcDb ErrWatchResult blob s
+                          Left s -> throwError $ DecodeError ErrWatchResult blob s
                       tIds' <- traverse syncTextLiteral tIds
                       hIds' <- traverse syncHashLiteral hIds
                       let blob' = runPutS (S.recomposeWatchResult (L.LocalIds tIds' hIds', termBytes))
                       runDest (Q.saveWatch wk refH' blob')
                   -- sync dependencies index
+                  let ref = Reference.Id oId idx
+                      ref' = Reference.Id oId' idx
                   let fromJust' = fromMaybe (error "missing objects should've been caught by `foldLocalIds` above")
                   runSrc (Q.getDependenciesForDependent ref)
                     >>= traverse (fmap fromJust' . isSyncedObjectReference)
                     >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
                   -- sync type index
-                  let reft = Referent.RefId ref
-                      reft' = Referent.RefId ref'
-                  runSrc (Q.getTypeReferenceForReference ref)
-                    >>= syncHashReference
-                    >>= runDest . flip Q.addToTypeIndex reft'
+                  runSrc (Q.getTypeReferencesForComponent oId)
+                    >>= traverse (syncTypeIndexRow oId')
+                    >>= traverse_ (runDest . uncurry Q.addToTypeIndex)
                   -- sync type mentions index
-                  runSrc (Q.getTypeMentionsByReferent reft)
-                    >>= traverse syncHashReference
-                    >>= runDest . traverse (flip Q.addToTypeMentionsIndex reft')
+                  runSrc (Q.getTypeMentionsReferencesForComponent oId)
+                    >>= traverse (syncTypeIndexRow oId')
+                    >>= traverse_ (runDest . uncurry Q.addToTypeMentionsIndex)
                 pure $ Right oId'
-          OT.DeclComponent -> error "todo"
+          OT.DeclComponent -> do
+            -- split up the localIds (parsed), decl blobs
+            (fmt, unzip -> (localIds, declBytes)) <-
+              case flip runGetS bytes do
+                tag <- getWord8
+                component <- S.decomposeDeclComponent
+                pure (tag, component) of
+                Right x -> pure x
+                Left s -> throwError $ DecodeError ErrDeclComponent bytes s
+            -- iterate through the local ids looking for missing deps;
+            -- then either enqueue the missing deps, or proceed to move the object
+            foldM foldLocalIds (Right mempty) localIds >>= \case
+              Left missingDeps -> pure $ Left missingDeps
+              Right (toList -> localIds') -> do
+                -- reassemble and save the reindexed term
+                let bytes' =
+                      runPutS $
+                        putWord8 fmt
+                          >> S.recomposeDeclComponent (zip localIds' declBytes)
+                oId' <- runDest $ Q.saveObject hId' objType bytes'
+                -- copy per-element-of-the-component stuff
+                for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
+                  -- sync dependencies index
+                  let ref = Reference.Id oId idx
+                      ref' = Reference.Id oId' idx
+                  let fromJust' = fromMaybe (error "missing objects should've been caught by `foldLocalIds` above")
+                  runSrc (Q.getDependenciesForDependent ref)
+                    >>= traverse (fmap fromJust' . isSyncedObjectReference)
+                    >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
+                  -- sync type index
+                  runSrc (Q.getTypeReferencesForComponent oId)
+                    >>= traverse (syncTypeIndexRow oId')
+                    >>= traverse_ (runDest . uncurry Q.addToTypeIndex)
+                  -- sync type mentions index
+                  runSrc (Q.getTypeMentionsReferencesForComponent oId)
+                    >>= traverse (syncTypeIndexRow oId')
+                    >>= traverse_ (runDest . uncurry Q.addToTypeMentionsIndex)
+                pure $ Right oId'
           OT.Namespace -> error "todo"
           OT.Patch -> error "todo"
         case result of
@@ -229,6 +265,10 @@ trySync tCache hCache oCache gc = \case
       if null missing
         then pure $ Right mayOIds'
         else pure $ Left missing
+
+    syncTypeIndexRow oId' = bitraverse syncHashReference (pure . rewriteTypeIndexReferent oId')
+    rewriteTypeIndexReferent :: ObjectId -> Sqlite.Referent.Id -> Sqlite.Referent.Id
+    rewriteTypeIndexReferent oId' = bimap (const oId') (const oId')
 
     syncTextLiteral :: TextId -> m TextId
     syncTextLiteral = Cache.apply tCache \tId -> do
