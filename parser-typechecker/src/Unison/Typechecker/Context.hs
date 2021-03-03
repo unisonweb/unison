@@ -525,6 +525,16 @@ replaceContext elem replacement =
         "Extending context with a variable that is not reserved by the typechecking environment." <>
         " That means `freshenVar` is allowed to return it as a fresh variable, which would be wrong."
 
+skimContext :: Var v => v -> M v loc ()
+skimContext v = modifyContext $ \ctx0@(Context ctx) ->
+  case focusAt p ctx of
+    Just (r, _, l) -> Context l `extendN` map fst r
+    Nothing -> pure ctx0
+  where
+  p (Handled u _, _) = u == v
+  p (Wanted u _, _) = u == v
+  p _ = False
+
 varOf :: Element v loc -> v
 varOf (Var tv) = TypeVar.underlying tv
 varOf (Solved _ v _) = v
@@ -793,14 +803,24 @@ loc :: ABT.Term f v loc -> loc
 loc = ABT.annotation
 
 -- Prepends the provided abilities onto the existing ambient for duration of `m`
-withEffects :: [Type v loc] -> M v loc a -> M v loc a
-withEffects abilities' m =
-  MT (\menv -> runM m (menv { abilities = abilities' ++ abilities menv }))
+withEffects :: Var v => [Type v loc] -> M v loc a -> M v loc a
+withEffects abils m0 = do
+  v <- freshenVar (Var.named "handler-hint")
+  extendContext (Handled v abils)
+  m <* skimContext v
+  where
+  m = MT (\menv -> runM m0 (menv { abilities = abils ++ abilities menv }))
 
 -- Replaces the ambient abilities with the provided for duration of `m`
-withEffects0 :: [Type v loc] -> M v loc a -> M v loc a
-withEffects0 abilities' m =
-  MT (\menv -> runM m (menv { abilities = abilities' }))
+withEffects0 :: Var v => [Type v loc] -> M v loc a -> M v loc a
+withEffects0 abils m0 = do
+  ve <- freshenVar (Var.named "effect-scope-hint")
+  vh <- freshenVar (Var.named "handler-hint")
+  extendContext (Wanted ve [])
+  extendContext (Handled vh abils)
+  m <* skimContext vh <* skimContext ve
+  where
+  m = MT (\menv -> runM m0 (menv { abilities = abils }))
 
 
 synthesizeApps :: (Foldable f, Var v, Ord loc) => Type v loc -> f (Term v loc) -> M v loc (Type v loc)
