@@ -1,15 +1,4 @@
 {-
-syntax.doc.docs _ = ()
-syntax.doc.paragraph _ = ()
-syntax.doc.source _ = ()
-syntax.doc.embedTypeLink _ = ()
-syntax.doc.embedTermLink _ = ()
-
-x = {{ @source{ id, id } }}
--- x = {{ @source{ type Optional, id } }}
--}
-
-{-
 - [ ] Debug the lexer/parser combination
 - [ ] Implement display logic for new doc type in DisplayValues
 - [ ] Write illustrative transcript (and possibly separate tests)
@@ -98,9 +87,6 @@ syntax.doc.namedLink = NamedLink
 syntax.doc.bulletedList = BulletedList
 syntax.doc.numberedList = NumberedList
 syntax.doc.section = Section
-
-name = {{ Alice }}
-baseUrl = {{ https://www.unisonweb.org }}
 
 doc1 = {{
 
@@ -359,3 +345,7 @@ def reverse[A](xs: List[A]) =
   xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
 ```
 }}
+
+name = {{ Alice }}
+baseUrl = {{ https://www.unisonweb.org }}
+

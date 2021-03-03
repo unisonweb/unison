@@ -430,10 +430,7 @@ lexemes' eof = P.optional space >> do
             fence <$ guard b
           CP.space *>
             local (\env -> env { inLayout = True, opening = Just "doc.evalBlock" })
-                  (lexemes' (end fence))
-          where end fence = do
-                  (start,_,end) <- positioned (lit fence)
-                  pure [Token Close start end]
+                  (lexemes' ([] <$ lit fence))
 
         other = wrap "syntax.doc.codeBlock" $ do
           fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
