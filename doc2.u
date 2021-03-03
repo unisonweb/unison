@@ -1,5 +1,5 @@
 {-
-- [ ] Debug the lexer/parser combination
+- [x] Debug the lexer/parser combination
 - [ ] Implement display logic for new doc type in DisplayValues
 - [ ] Write illustrative transcript (and possibly separate tests)
 - [ ] Pretty-printer should reverse the syntax
@@ -8,6 +8,7 @@
 - [ ] (Later) Top level types should allow anon doc blocks
 - [ ] (Later) Remove backticks syntax
 - [ ] (Later) Instant docs preview
+- [ ] (Later) Remove old doc, rename Doc2 to Doc
 -}
 
 unique[b7a4fb87e34569319591130bf3ec6e24c9955b6ae06b5f6895e908d58c3f6113] type Doc2
@@ -33,7 +34,7 @@ unique[b7a4fb87e34569319591130bf3ec6e24c9955b6ae06b5f6895e908d58c3f6113] type Do
   | Section Doc2 [Doc2] 
   | Source [Either Link.Type Any]
   | NamedLink Doc2 Doc2
-  | Link [Either Link.Type Any]
+  | Link (Either Link.Type Any)
   | Signature [Any]
   | Example Nat Any 
   | InlineSignature Any

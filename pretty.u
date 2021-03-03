@@ -1,0 +1,135 @@
+
+unique[ecf75311027ef922e3e50d358b1d7bc93c84035e] type Width
+    -- | The number of columns.
+  = SingleLine Nat 
+    -- | The number of columns in the first, last, and longest lines.
+  | MultiLine Nat Nat Nat
+
+Width.empty = SingleLine 0
+Width.append = cases
+  SingleLine c, SingleLine c2 -> SingleLine (c + c2)
+  SingleLine c, MultiLine fc lc mc -> 
+    fc' = c + fc
+    MultiLine fc' lc (max fc' mc)
+  MultiLine fc lc mc, SingleLine c ->
+    lc' = lc + c
+    MultiLine fc lc' (max lc' mc)
+  MultiLine fc lc mc, MultiLine fc2 lc2 mc2 ->
+    MultiLine fc lc2 (max mc (max mc2 (lc + fc2)))
+
+Width.maxColumn : Width -> Nat
+Width.maxColumn = cases
+  SingleLine c -> c
+  MultiLine _ _ c -> c
+
+Width.toNat : Width -> Nat
+Width.toNat = cases
+  SingleLine c -> c
+  MultiLine _ c _ -> c
+
+Width.fromChar : Char -> Width
+Width.fromChar = cases
+  ?\n -> MultiLine 0 0 0
+  _ -> SingleLine 1
+
+Width.snocChar : Width -> Char -> Width
+Width.snocChar w ch = match ch with
+  ?\n -> append w (fromChar ch) 
+  _ -> match w with 
+    SingleLine c -> SingleLine (c + 1)
+    MultiLine fc lc mc ->
+      lc' = lc + 1
+      MultiLine fc lc' (max lc' mc)
+
+Width.fromText : Text -> Width
+Width.fromText txt = 
+  foldLeft snocChar empty (Text.toCharList txt) 
+
+unique[d7b2ced8c08b2c6e54050d1f5acedef3395f293d] type Pretty txt
+  = Empty
+    -- | A group adds a level of breaking. Layout tries not to break a group
+    -- unless needed to fit in available width. Breaking is done "outside in".
+    --
+    --   (a | b) <> (c | d) will try (a <> c), then (b <> d)
+    --
+    --   (a | b) <> group (c | d) will try (a <> c), then (b <> c), then (b <> d)
+  | Group Width (Pretty txt)
+  | Lit Width txt
+  | Wrap Width [Pretty txt]
+  | OrElse Width (Pretty txt) (Pretty txt)
+  | Append Width [Pretty txt]
+
+Pretty.children : Pretty s -> [Pretty s]
+Pretty.children _ = todo "implement"
+
+Pretty.preferredWidth : Pretty s -> Nat
+Pretty.preferredWidth = cases
+  Empty -> 0
+  Group w _ -> Width.toNat w
+  Lit w _ -> Width.toNat w
+  Wrap w _ -> Width.toNat w
+  OrElse w _ _ -> Width.toNat w
+  Append w _ -> Width.toNat w
+
+Pretty.layout : Nat -> Pretty txt -> [txt]
+Pretty.layout availableWidth p =
+  go = cases
+    _, [] -> [] 
+    cur, p +: rest -> match p with 
+      Right p -> -- `p` might fit, let's try it!
+        if p `fits` cur then flow p <> go (cur <> delta p) rest
+        else go cur (Left p : rest) -- nope, switch to breaking mode
+      Left p -> match p with -- `p` requires breaking
+        Append _ ps  -> go cur (List.map Left (children ps) ++ rest)
+        Empty        -> go cur rest
+        Group _ p    -> go cur (Right p +: rest)
+        -- Note: literals can't be broken further so they're
+        -- added to output unconditionally
+        Lit w l      -> l +: go (cur `append` w) rest
+        OrElse _ p   -> go cur (Right p +: rest)
+        Wrap _ ps    -> go cur (List.map Right (children ps) ++ rest)
+
+    flow p = match p with
+      Append _ ps -> foldMap flow ps
+      Empty -> []
+      Group _ p -> flow p
+      Lit _ s -> s
+      OrElse _ p _ -> flow p
+      Wrap _ ps -> foldMap flow ps
+
+    fits p cur =
+      -- Surgically modify 'cur' to pretend it has not exceeded availableWidth.
+      -- This is necessary because sometimes things cannot be split and *must*
+      -- exceed availableWidth; in this case, we do not want to entirely "blame"
+      -- the new proposed (cur <> delta p) for this overflow.
+      --
+      -- For example, when appending
+      --
+      --       availableWidth
+      --       |
+      --   xxx |
+      --   yyyyyy
+      --   zz  |
+      --
+      -- with
+      --
+      --   aa  |
+      --   bb  |
+      --
+      -- we want to end up with
+      --
+      --   xxx |
+      --   yyyyyy
+      --   zzaa|
+      --   bb  |
+      --
+      surgery = cases
+        SingleLine c -> SingleLine (min c (availableWidth-1))
+        MultiLine fc lc mc -> MultiLine fc lc (min mc (availableWidth-1))
+      maxCol (surgery cur <> delta p) < availableWidth
+ 
+  go 0 [Right p]
+---
+
+preferredWidth :: Pretty s -> Width
+preferredWidth p = lastCol (delta p)

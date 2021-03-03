@@ -130,7 +130,17 @@ illegalOperationId = mkErrorType "io.ErrorType.IllegalOperation"
 permissionDeniedId = mkErrorType "io.ErrorType.PermissionDenied"
 userErrorId = mkErrorType "io.ErrorType.UserError"
 
+doc2Reference :: R.Reference
+doc2Reference = typeNamed "Doc2"
 
+pattern Doc2Reference <- ((== doc2Reference) -> True)
+-- pattern Doc2
+-- hmm, it would be so much easier to write the display logic
+-- in unison, like if you could just write a function -
+--
+-- display : Doc2 -> Pretty
+-- and then ucm knows what to do with Pretty values when displayed
+-- where does ucm come up with this function, though???
 
 constructorNamed :: R.Reference -> Text -> DD.ConstructorId
 constructorNamed ref name =
@@ -562,6 +572,82 @@ io.bracket acquire release what = io.rethrow (io.IO.bracket_ acquire release wha
   --            x -> x
   --   handle k in c
 
+unique[b7a4fb87e34569319591130bf3ec6e24c9955b6ae06b5f6895e908d58c3f6113] type Doc2
+  = Word Text
+  | Code Doc2
+  | CodeBlock Text Doc2
+  | Bold Doc2
+  | Italic Doc2
+  | Strikethrough Doc2
+  -- style {{ myclass }} mydoc
+  | Style Doc2 Doc2
+  | Blockquote Doc2
+  | Embed Any
+  | Blankline
+  | SectionBreak
+  | Aside (Optional Doc2) Doc2
+  -- callout icon content
+  | Callout (Optional Doc2) Doc2
+  | Folded Boolean Doc2 Doc2
+  | Paragraph [Doc2]
+  | BulletedList [Doc2]
+  | NumberedList Nat [Doc2]
+  | Section Doc2 [Doc2]
+  | Source [Either Link.Type Any]
+  | NamedLink Doc2 Doc2
+  | Link (Either Link.Type Any)
+  | Signature [Any]
+  | Example Nat Any
+  | InlineSignature Any
+  | InlineEval Doc2.Evaluation
+  | Eval Doc2.Evaluation
+  | Trace Any
+  | Docs [Doc2]
 
+unique type Doc2.Evaluation = Evaluation Any Any
+
+Doc2.evaluate : 'a -> Evaluation
+Doc2.evaluate a = Doc2.Evaluation.Evaluation (Any a) (Any !a)
+
+Doc2.Evaluation.source : Evaluation -> Any
+Doc2.Evaluation.source = cases Evaluation src _ -> src
+
+Doc2.Evaluation.result : Evaluation -> Any
+Doc2.Evaluation.result = cases Evaluation _ result -> result
+
+syntax.doc.docs = cases [d] -> d
+                        ds -> Docs ds
+syntax.doc.word = Word
+syntax.doc.bold = Bold
+syntax.doc.italic = Italic
+syntax.doc.strikethrough = Strikethrough
+syntax.doc.paragraph = Paragraph
+syntax.doc.embedTermLink any =
+  guid = "b7a4fb87e34569319591130bf3ec6e24"
+  Right (Any any)
+syntax.doc.embedTypeLink tl =
+  guid = "b7a4fb87e34569319591130bf3ec6e24"
+  Left tl
+syntax.doc.source = Source
+syntax.doc.signature = Signature
+syntax.doc.inlineSignature = InlineSignature
+syntax.doc.inlineEval e = InlineEval (evaluate e)
+syntax.doc.embedSignatureLink tm =
+  guid = "d9a4fb87e34569319591130bf3ec6e24"
+  Any tm
+syntax.doc.code c = Code c
+syntax.doc.codeBlock typ c = CodeBlock typ (word c)
+syntax.doc.verbatim c = CodeBlock "raw" c
+syntax.doc.evalBlock d = Eval (evaluate d)
+syntax.doc.eval a = InlineEval (evaluate a)
+syntax.doc.example n a = Example n (Any a)
+syntax.doc.link = Link
+syntax.doc.transclude d =
+  guid = "b7a4fb87e34569319591130bf3ec6e24"
+  d
+syntax.doc.namedLink = NamedLink
+syntax.doc.bulletedList = BulletedList
+syntax.doc.numberedList = NumberedList
+syntax.doc.section = Section
 
 |]
