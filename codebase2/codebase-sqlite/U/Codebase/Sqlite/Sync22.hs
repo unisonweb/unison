@@ -11,10 +11,12 @@ module U.Codebase.Sqlite.Sync22 where
 
 import Control.Monad (filterM, join)
 import Control.Monad.Except (ExceptT, MonadError (throwError))
+import qualified Control.Monad.Except as Except
 import Control.Monad.Extra (ifM)
-import Control.Monad.RWS (MonadIO, MonadReader)
-import Control.Monad.Reader (ReaderT, MonadReader (reader))
-import Control.Monad.Validate (runValidateT, ValidateT)
+import Control.Monad.RWS (MonadIO, MonadReader, lift)
+import Control.Monad.Reader (ReaderT)
+import qualified Control.Monad.Reader as Reader
+import Control.Monad.Validate (ValidateT, runValidateT)
 import qualified Control.Monad.Validate as Validate
 import Data.Bifunctor (bimap)
 import Data.Bitraversable (bitraverse)
@@ -46,7 +48,6 @@ import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
 import U.Util.Cache (Cache)
 import qualified U.Util.Cache as Cache
-import Control.Monad.Trans (lift)
 
 data Entity = O ObjectId | C CausalHashId deriving (Eq, Ord, Show)
 
@@ -173,8 +174,9 @@ trySync tCache hCache oCache gc = \case
             -- then either enqueue the missing deps, or proceed to move the object
             localIds' <- traverse syncLocalIds localIds
             -- reassemble and save the reindexed term
-            let bytes' = runPutS $
-                  putWord8 fmt >> S.recomposeComponent (zip localIds' bytes)
+            let bytes' =
+                  runPutS $
+                    putWord8 fmt >> S.recomposeComponent (zip localIds' bytes)
             oId' <- runDest $ Q.saveObject hId' objType bytes'
             -- copy reference-specific stuff
             lift $ for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
@@ -388,18 +390,20 @@ trySync tCache hCache oCache gc = \case
           [] -> pure $ Nothing
           oIds' -> throwError (HashObjectCorrespondence oId hIds oIds')
 
-runSrc ::
-  (MonadError Error m, MonadReader Env m) =>
-  ReaderT Connection (ExceptT Q.Integrity m) a ->
-  m a
-runSrc = error "todo" -- withExceptT SrcDB do
+runSrc,
+  runDest ::
+    (MonadError Error m, MonadReader Env m) =>
+    ReaderT Connection (ExceptT Q.Integrity m) a ->
+    m a
+runSrc ma = Reader.reader srcDB >>= flip runDB ma
+runDest ma = Reader.reader destDB >>= flip runDB ma
 
-
-runDest ::
-  (MonadError Error m, MonadReader Env m) =>
-  ReaderT Connection (ExceptT Q.Integrity m) a ->
-  m a
-runDest = error "todo" -- withExceptT SrcDB . (reader fst >>=)
+runDB ::
+  MonadError Error m => Connection -> ReaderT Connection (ExceptT Q.Integrity m) a -> m a
+runDB conn action =
+  Except.runExceptT (Reader.runReaderT action conn) >>= \case
+    Left e -> throwError (DbIntegrity e)
+    Right a -> pure a
 
 -- syncs coming from git:
 --  - pull a specified remote causal (Maybe CausalHash) into the local database
