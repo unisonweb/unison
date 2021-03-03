@@ -365,7 +365,6 @@ scope p (MT m) = MT (mapErrors (scope' p) . m)
 -- | The typechecking environment
 data MEnv v loc = MEnv {
   env :: Env v loc,                    -- The typechecking state
-  abilities :: [Type v loc],           -- Allowed ambient abilities
   dataDecls :: DataDeclarations v loc, -- Data declarations in scope
   effectDecls :: EffectDeclarations v loc -- Effect declarations in scope
 }
@@ -693,7 +692,12 @@ getEffectDeclarations :: M v loc (EffectDeclarations v loc)
 getEffectDeclarations = fromMEnv effectDecls
 
 getAbilities :: M v loc [Type v loc]
-getAbilities = fromMEnv abilities
+getAbilities = foldr aggregate [] . project <$> getContext
+  where
+  project (Context c) = fst <$> c
+  aggregate (Handled _ as) bs = as ++ bs
+  aggregate (Wanted _ _) _ = []
+  aggregate _ bs = bs
 
 compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = liftResult $ compilerBug bug
@@ -804,23 +808,19 @@ loc = ABT.annotation
 
 -- Prepends the provided abilities onto the existing ambient for duration of `m`
 withEffects :: Var v => [Type v loc] -> M v loc a -> M v loc a
-withEffects abils m0 = do
+withEffects abils m = do
   v <- freshenVar (Var.named "handler-hint")
   extendContext (Handled v abils)
   m <* skimContext v
-  where
-  m = MT (\menv -> runM m0 (menv { abilities = abils ++ abilities menv }))
 
 -- Replaces the ambient abilities with the provided for duration of `m`
 withEffects0 :: Var v => [Type v loc] -> M v loc a -> M v loc a
-withEffects0 abils m0 = do
+withEffects0 abils m = do
   ve <- freshenVar (Var.named "effect-scope-hint")
   vh <- freshenVar (Var.named "handler-hint")
   extendContext (Wanted ve [])
   extendContext (Handled vh abils)
   m <* skimContext vh <* skimContext ve
-  where
-  m = MT (\menv -> runM m0 (menv { abilities = abils }))
 
 
 synthesizeApps :: (Foldable f, Var v, Ord loc) => Type v loc -> f (Term v loc) -> M v loc (Type v loc)
@@ -1927,8 +1927,11 @@ run
   -> f a
 run ambient datas effects m =
   fmap fst
-    . runM m
-    $ MEnv (Env 1 context0) ambient datas effects
+    . runM m 
+    $ MEnv (Env 2 ctx) datas effects
+  where
+  v = Var.freshenId 1 (Var.named "global-abilities")
+  Right ctx = extend' (Handled v ambient) context0
 
 synthesizeClosed' :: (Var v, Ord loc)
                   => [Type v loc]
