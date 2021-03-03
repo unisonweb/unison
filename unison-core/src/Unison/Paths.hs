@@ -96,9 +96,9 @@ focus1 e = ABT.Path go'
     )
   go Bound (Type (T.ForallNamed' v body)) = Just
     (Var v, \v -> Type <$> (T.forall () <$> asVar v <*> pure (wt body)), [])
-  go (Index i) (Term (E.Sequence' vs)) | i < Sequence.length vs && i >= 0 = Just
+  go (Index i) (Term (E.List' vs)) | i < Sequence.length vs && i >= 0 = Just
     ( Term (vs `Sequence.index` i)
-    , \e -> (\e -> Term $ E.seq' () $ Sequence.update i e (fmap w vs)) <$> asTerm e
+    , \e -> (\e -> Term $ E.list' () $ Sequence.update i e (fmap w vs)) <$> asTerm e
     , []
     )
   go (Binding i) (Term (E.Let1NamedTop' top v b body)) | i <= 0 = Just
@@ -164,9 +164,9 @@ insertTerm at ctx = do
   let at' = init at
   (parent,set,_) <- focus at' (Term ctx)
   case parent of
-    Term (E.Sequence' vs) -> do
+    Term (E.List' vs) -> do
       i <- listToMaybe [i | Index i <- toList (lastMay at)]
-      let v2 = E.seq'() ((E.vmap ABT.Bound <$> Sequence.take (i+1) vs) `mappend`
+      let v2 = E.list'() ((E.vmap ABT.Bound <$> Sequence.take (i+1) vs) `mappend`
                           pure (E.blank ()) `mappend`
                           (E.vmap ABT.Bound <$> Sequence.drop (i+1) vs))
       asTerm =<< set (Term v2)

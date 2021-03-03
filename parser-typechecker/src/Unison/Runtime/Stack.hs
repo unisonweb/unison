@@ -189,8 +189,8 @@ universalCompare frn = cmpc False
    <> cmpl compare us1 us2
    <> cmpl (cmpc True) bs1 bs2
   cmpc tyEq (Foreign fl) (Foreign fr)
-    | Just sl <- maybeUnwrapForeign Ty.vectorRef fl
-    , Just sr <- maybeUnwrapForeign Ty.vectorRef fr
+    | Just sl <- maybeUnwrapForeign Ty.listRef fl
+    , Just sr <- maybeUnwrapForeign Ty.listRef fr
     = comparing Sq.length sl sr <> fold (Sq.zipWith (cmpc tyEq) sl sr)
     | otherwise = frn fl fr
   cmpc _ c d = comparing closureNum c d
@@ -502,11 +502,11 @@ peekOffS bstk i =
 {-# inline peekOffS #-}
 
 pokeS :: Stack 'BX -> Seq Closure -> IO ()
-pokeS bstk s = poke bstk (Foreign $ Wrap Ty.vectorRef s)
+pokeS bstk s = poke bstk (Foreign $ Wrap Ty.listRef s)
 {-# inline pokeS #-}
 
 pokeOffS :: Stack 'BX -> Int -> Seq Closure -> IO ()
-pokeOffS bstk i s = pokeOff bstk i (Foreign $ Wrap Ty.vectorRef s)
+pokeOffS bstk i s = pokeOff bstk i (Foreign $ Wrap Ty.listRef s)
 {-# inline pokeOffS #-}
 
 unull :: Seg 'UN

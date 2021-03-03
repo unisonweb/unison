@@ -75,7 +75,7 @@ builtinMain a =
 
 -- [Result]
 resultArr :: Ord v => a -> Type.Type v a
-resultArr a = Type.app a (Type.ref a Type.vectorRef) (Type.ref a DD.testResultRef)
+resultArr a = Type.app a (Type.ref a Type.listRef) (Type.ref a DD.testResultRef)
 
 -- {IO} [Result]
 ioResultArr :: Ord v => a -> Type.Type v a

@@ -512,7 +512,7 @@ compile0 env bound t =
         msg = "The program being compiled referenced this definition " <>
                show r <> "\nbut the compilation environment has no compiled form for this reference."
       Just ir -> ir
-    Term.Sequence' vs -> MakeSequence . toList . fmap (toZ "sequence" t) $ vs
+    Term.List' vs -> MakeSequence . toList . fmap (toZ "sequence" t) $ vs
     _ -> error $ "TODO - don't know how to compile this term:\n"
               <> (CT.toPlain . P.render 80 . TP.pretty mempty $ void t)
     where
@@ -616,13 +616,13 @@ decompileImpl v = case v of
   T t -> pure $ Term.text () t
   C c -> pure $ Term.char () c
   Bs bs -> pure $ Term.builtin() "Bytes.fromList" `Term.apps'` [bsv] where
-    bsv = Term.seq'() . Sequence.fromList $
+    bsv = Term.list'() . Sequence.fromList $
             [ Term.nat() (fromIntegral w8) | w8 <- Bytes.toWord8s bs ]
   Lam _ f _ -> decompileUnderapplied f
   Data r cid args ->
     Term.apps' <$> pure (Term.constructor() r cid)
                <*> traverse decompileImpl (toList args)
-  Sequence vs -> Term.seq' () <$> traverse decompileImpl vs
+  Sequence vs -> Term.list' () <$> traverse decompileImpl vs
   Ref id symbol ioref -> do
     seen <- gets snd
     symbol <- pure $ Var.freshenId (fromIntegral id) symbol
@@ -809,7 +809,7 @@ decompileIR stack = \case
     body' <- decompileIR stack' body
     pure $ Term.letRec' False bs' body'
   MakeSequence args ->
-    Term.seq() <$> traverse decompileZ args
+    Term.list() <$> traverse decompileZ args
   Apply lam args ->
     Term.apps' <$> decompileIR stack lam <*> traverse decompileZ args
   Construct r cid args ->
