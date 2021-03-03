@@ -15,7 +15,7 @@ import Data.ByteString (ByteString, readFile, writeFile)
 import qualified Data.ByteString as BS
 import Data.ByteString.Short (ShortByteString)
 import qualified Data.ByteString.Short as BSS
-import Data.Bytes.Get (MonadGet, getByteString, getBytes, getWord8, runGetS, skip)
+import Data.Bytes.Get (MonadGet, getByteString, getBytes, getWord8, runGetS, skip, remaining)
 import Data.Bytes.Put (MonadPut, putByteString, putWord8, runPutS)
 import Data.Bytes.VarInt (VarInt (VarInt))
 import Data.Foldable (Foldable (toList), traverse_)
@@ -180,6 +180,9 @@ getMap getA getB = addToExistingMap getA getB mempty
 
 getFramedByteString :: MonadGet m => m ByteString
 getFramedByteString = getVarInt >>= getByteString
+
+getRemainingByteString :: MonadGet m => m ByteString
+getRemainingByteString = fromIntegral <$> remaining >>= getByteString
 
 getFramed :: MonadGet m => Get a -> m a
 getFramed get =

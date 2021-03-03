@@ -47,6 +47,8 @@ import qualified U.Codebase.WatchKind as WK
 import U.Util.Cache (Cache)
 import qualified U.Util.Cache as Cache
 import qualified U.Util.Serialization as S
+import qualified Data.Bytes.Get as Get
+import qualified Data.Bytes.Put as Put
 
 data Entity = O ObjectId | C CausalHashId
 
@@ -161,10 +163,10 @@ trySync tCache hCache oCache gc = \case
             -- revisited when there are more formats.
             -- (or maybe i'll learn something by implementing sync for patches and namespaces,
             -- which have two formats already)
-            (fmt, unzip3 -> (localIds, termBytes, typeBytes)) <-
+            (fmt, unzip -> (localIds, bytes)) <-
               case flip runGetS bytes do
                 tag <- getWord8
-                component <- S.decomposeTermComponent
+                component <- S.decomposeComponent
                 pure (tag, component) of
                 Right x -> pure x
                 Left s -> throwError $ DecodeError ErrTermComponent bytes s
@@ -177,7 +179,7 @@ trySync tCache hCache oCache gc = \case
                 let bytes' =
                       runPutS $
                         putWord8 fmt
-                          >> S.recomposeTermComponent (zip3 localIds' termBytes typeBytes)
+                          >> S.recomposeComponent (zip localIds' bytes)
                 oId' <- runDest $ Q.saveObject hId' objType bytes'
                 -- copy reference-specific stuff
                 for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
@@ -215,7 +217,7 @@ trySync tCache hCache oCache gc = \case
             (fmt, unzip -> (localIds, declBytes)) <-
               case flip runGetS bytes do
                 tag <- getWord8
-                component <- S.decomposeDeclComponent
+                component <- S.decomposeComponent
                 pure (tag, component) of
                 Right x -> pure x
                 Left s -> throwError $ DecodeError ErrDeclComponent bytes s
@@ -228,7 +230,7 @@ trySync tCache hCache oCache gc = \case
                 let bytes' =
                       runPutS $
                         putWord8 fmt
-                          >> S.recomposeDeclComponent (zip localIds' declBytes)
+                          >> S.recomposeComponent (zip localIds' declBytes)
                 oId' <- runDest $ Q.saveObject hId' objType bytes'
                 -- copy per-element-of-the-component stuff
                 for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
@@ -257,7 +259,7 @@ trySync tCache hCache oCache gc = \case
             Just (fmt@0, bytes) -> do
               (ids, blob) <- case flip runGetS bytes do
                 ids <- S.getPatchLocalIds
-                blob <- S.getFramedByteString
+                blob <- S.getRemainingByteString
                 pure (ids, blob) of
                 Right x -> pure x
                 Left s -> throwError $ DecodeError (ErrPatchBody 0) bytes s
@@ -267,14 +269,14 @@ trySync tCache hCache oCache gc = \case
                   let bytes' = runPutS do
                         putWord8 fmt
                         S.putPatchLocalIds ids'
-                        S.putFramedByteString blob
+                        Put.putByteString blob
                   oId' <- runDest $ Q.saveObject hId' objType bytes'
                   pure $ Right oId'
             Just (fmt@1, bytes) -> do
               (poId, ids, blob) <- case flip runGetS bytes do
                 poId <- S.getVarInt
                 ids <- S.getPatchLocalIds
-                blob <- S.getFramedByteString
+                blob <- S.getRemainingByteString
                 pure (poId, ids, blob) of
                 Right x -> pure x
                 Left s -> throwError $ DecodeError (ErrPatchBody 0) bytes s
@@ -289,7 +291,7 @@ trySync tCache hCache oCache gc = \case
                         putWord8 fmt
                         S.putVarInt poId'
                         S.putPatchLocalIds ids'
-                        S.putFramedByteString blob
+                        Put.putByteString blob
                   oId' <- runDest $ Q.saveObject hId' objType bytes'
                   pure $ Right oId'
             Just (tag, _) -> throwError $ DecodeError ErrBranchFormat bytes ("unrecognized patch format tag: " ++ show tag)
