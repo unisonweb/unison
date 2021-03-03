@@ -9,15 +9,17 @@
 module U.Codebase.Sqlite.Sync22 where
 
 import Control.Monad (filterM, foldM, join)
-import Control.Monad.Except (ExceptT, MonadError (throwError))
+import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
 import Control.Monad.Extra (ifM)
 import Control.Monad.RWS (MonadIO, MonadReader)
 import Control.Monad.Reader (ReaderT)
 import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Except (ExceptT (ExceptT))
 import qualified Control.Monad.Writer as Writer
 import Data.Bifunctor (bimap)
 import Data.Bitraversable (bitraverse)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import Data.Bytes.Get (getWord8, runGetS)
 import Data.Bytes.Put (putWord8, runPutS)
 import Data.Foldable (for_, toList, traverse_)
@@ -27,11 +29,13 @@ import Data.Maybe (catMaybes, fromJust, fromMaybe, isJust)
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import Data.Traversable (for)
+import Data.Word (Word8)
 import Database.SQLite.Simple (Connection)
 import qualified U.Codebase.Reference as Reference
 import U.Codebase.Sqlite.DbId
 import qualified U.Codebase.Sqlite.LocalIds as L
 import qualified U.Codebase.Sqlite.ObjectType as OT
+import qualified U.Codebase.Sqlite.Patch.Format as PL
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Reference as Sqlite
 import qualified U.Codebase.Sqlite.Reference as Sqlite.Reference
@@ -42,12 +46,21 @@ import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
 import U.Util.Cache (Cache)
 import qualified U.Util.Cache as Cache
+import qualified U.Util.Serialization as S
 
 data Entity = O ObjectId | C CausalHashId
 
 data DbTag = SrcDb | DestDb
 
-data DecodeError = ErrTermComponent | ErrDeclComponent | ErrWatchResult
+data DecodeError
+  = ErrTermComponent
+  | ErrDeclComponent
+  | -- | ErrTermFormat
+    -- | ErrDeclFormat
+    ErrBranchFormat
+  | ErrPatchFormat
+  | ErrPatchBody Word8
+  | ErrWatchResult
 
 type ErrString = String
 
@@ -144,6 +157,10 @@ trySync tCache hCache oCache gc = \case
         result <- case objType of
           OT.TermComponent -> do
             -- split up the localIds (parsed), term, and type blobs
+            -- note: this whole business with `fmt` is pretty weird, and will need to be
+            -- revisited when there are more formats.
+            -- (or maybe i'll learn something by implementing sync for patches and namespaces,
+            -- which have two formats already)
             (fmt, unzip3 -> (localIds, termBytes, typeBytes)) <-
               case flip runGetS bytes do
                 tag <- getWord8
@@ -231,8 +248,52 @@ trySync tCache hCache oCache gc = \case
                     >>= traverse (syncTypeIndexRow oId')
                     >>= traverse_ (runDest . uncurry Q.addToTypeMentionsIndex)
                 pure $ Right oId'
-          OT.Namespace -> error "todo"
-          OT.Patch -> error "todo"
+          OT.Namespace -> case BS.uncons bytes of
+            Just (0, bytes) -> error "todo"
+            Just (1, bytes) -> error "todo"
+            Just (tag, _) -> throwError $ DecodeError ErrBranchFormat bytes ("unrecognized branch format tag: " ++ show tag)
+            Nothing -> throwError $ DecodeError ErrBranchFormat bytes "zero-byte branch object"
+          OT.Patch -> case BS.uncons bytes of
+            Just (fmt@0, bytes) -> do
+              (ids, blob) <- case flip runGetS bytes do
+                ids <- S.getPatchLocalIds
+                blob <- S.getFramedByteString
+                pure (ids, blob) of
+                Right x -> pure x
+                Left s -> throwError $ DecodeError (ErrPatchBody 0) bytes s
+              syncPatchLocalIds ids >>= \case
+                Left missingDeps -> pure $ Left missingDeps
+                Right ids' -> do
+                  let bytes' = runPutS do
+                        putWord8 fmt
+                        S.putPatchLocalIds ids'
+                        S.putFramedByteString blob
+                  oId' <- runDest $ Q.saveObject hId' objType bytes'
+                  pure $ Right oId'
+            Just (fmt@1, bytes) -> do
+              (poId, ids, blob) <- case flip runGetS bytes do
+                poId <- S.getVarInt
+                ids <- S.getPatchLocalIds
+                blob <- S.getFramedByteString
+                pure (poId, ids, blob) of
+                Right x -> pure x
+                Left s -> throwError $ DecodeError (ErrPatchBody 0) bytes s
+              mayPoId' <- isSyncedObject poId
+              eitherIds' <- syncPatchLocalIds ids
+              case (mayPoId', eitherIds') of
+                (Nothing, Left missingDeps) -> pure $ Left (O poId Seq.<| missingDeps)
+                (Nothing, Right {}) -> pure $ Left (Seq.singleton (O poId))
+                (Just {}, Left missingDeps) -> pure $ Left missingDeps
+                (Just poId', Right ids') -> do
+                  let bytes' = runPutS do
+                        putWord8 fmt
+                        S.putVarInt poId'
+                        S.putPatchLocalIds ids'
+                        S.putFramedByteString blob
+                  oId' <- runDest $ Q.saveObject hId' objType bytes'
+                  pure $ Right oId'
+            Just (tag, _) -> throwError $ DecodeError ErrBranchFormat bytes ("unrecognized patch format tag: " ++ show tag)
+            Nothing -> throwError $ DecodeError ErrPatchFormat bytes "zero-byte patch object"
         case result of
           Left deps -> pure . Sync.Missing $ toList deps
           Right oId' -> do
@@ -265,6 +326,14 @@ trySync tCache hCache oCache gc = \case
       if null missing
         then pure $ Right mayOIds'
         else pure $ Left missing
+
+
+    syncPatchLocalIds :: PL.PatchLocalIds -> m (Either (Seq Entity) PL.PatchLocalIds)
+    syncPatchLocalIds (PL.LocalIds tIds hIds oIds) = runExceptT do
+      oIds' <- ExceptT $ syncLocalObjectIds oIds
+      tIds' <- lift $ traverse syncTextLiteral tIds
+      hIds' <- lift $ traverse syncHashLiteral hIds
+      pure $ PL.LocalIds tIds' hIds' oIds'
 
     syncTypeIndexRow oId' = bitraverse syncHashReference (pure . rewriteTypeIndexReferent oId')
     rewriteTypeIndexReferent :: ObjectId -> Sqlite.Referent.Id -> Sqlite.Referent.Id

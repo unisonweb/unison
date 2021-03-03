@@ -22,6 +22,7 @@ import qualified Data.Set as Set
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import Data.Word (Word64)
+import Debug.Trace (trace)
 import qualified U.Codebase.Decl as Decl
 import U.Codebase.Kind (Kind)
 import qualified U.Codebase.Kind as Kind
@@ -49,7 +50,6 @@ import qualified U.Core.ABT as ABT
 import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization hiding (debug)
 import Prelude hiding (getChar, putChar)
-import Debug.Trace (trace)
 
 debug :: Bool
 debug = False
@@ -490,8 +490,8 @@ putPatchFormat = \case
 getPatchFormat :: MonadGet m => m PatchFormat.PatchFormat
 getPatchFormat =
   getWord8 >>= \case
-    0 -> PatchFormat.Full <$> getPatchLocalIds <*> getPatchFull
-    1 -> PatchFormat.Diff <$> getVarInt <*> getPatchLocalIds <*> getPatchDiff
+    0 -> PatchFormat.Full <$> getPatchLocalIds <*> getFramed getPatchFull
+    1 -> PatchFormat.Diff <$> getVarInt <*> getPatchLocalIds <*> getFramed getPatchDiff
     x -> unknownTag "getPatchFormat" x
   where
     getPatchFull :: MonadGet m => m PatchFull.LocalPatch
