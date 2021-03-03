@@ -50,6 +50,7 @@ library
       extra,
       here,
       lens,
+      monad-validate,
       mtl,
       sqlite-simple,
       text,

@@ -1,3 +1,4 @@
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
@@ -8,14 +9,13 @@
 
 module U.Codebase.Sqlite.Sync22 where
 
-import Control.Monad (filterM, foldM, join)
-import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
+import Control.Monad (filterM, join)
+import Control.Monad.Except (ExceptT, MonadError (throwError))
 import Control.Monad.Extra (ifM)
 import Control.Monad.RWS (MonadIO, MonadReader)
-import Control.Monad.Reader (ReaderT)
-import Control.Monad.Trans (lift)
-import Control.Monad.Trans.Except (ExceptT (ExceptT))
-import qualified Control.Monad.Writer as Writer
+import Control.Monad.Reader (ReaderT, MonadReader (reader))
+import Control.Monad.Validate (runValidateT, ValidateT)
+import qualified Control.Monad.Validate as Validate
 import Data.Bifunctor (bimap)
 import Data.Bitraversable (bitraverse)
 import Data.ByteString (ByteString)
@@ -26,12 +26,12 @@ import Data.Foldable (for_, toList, traverse_)
 import Data.Functor ((<&>))
 import Data.List.Extra (nubOrd)
 import Data.Maybe (catMaybes, fromJust, fromMaybe, isJust)
-import Data.Sequence (Seq)
-import qualified Data.Sequence as Seq
-import Data.Traversable (for)
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Word (Word8)
 import Database.SQLite.Simple (Connection)
 import qualified U.Codebase.Reference as Reference
+import qualified U.Codebase.Sqlite.Branch.Format as BL
 import U.Codebase.Sqlite.DbId
 import qualified U.Codebase.Sqlite.LocalIds as L
 import qualified U.Codebase.Sqlite.ObjectType as OT
@@ -46,11 +46,9 @@ import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
 import U.Util.Cache (Cache)
 import qualified U.Util.Cache as Cache
-import qualified U.Util.Serialization as S
-import qualified Data.Bytes.Get as Get
-import qualified Data.Bytes.Put as Put
+import Control.Monad.Trans (lift)
 
-data Entity = O ObjectId | C CausalHashId
+data Entity = O ObjectId | C CausalHashId deriving (Eq, Ord, Show)
 
 data DbTag = SrcDb | DestDb
 
@@ -61,6 +59,7 @@ data DecodeError
     -- | ErrDeclFormat
     ErrBranchFormat
   | ErrPatchFormat
+  | ErrBranchBody Word8
   | ErrPatchBody Word8
   | ErrWatchResult
 
@@ -156,7 +155,7 @@ trySync tCache hCache oCache gc = \case
       Nothing -> do
         (hId, objType, bytes) <- runSrc $ Q.loadObjectWithHashIdAndTypeById oId
         hId' <- syncHashLiteral hId
-        result <- case objType of
+        result <- runValidateT @(Set Entity) @m @ObjectId case objType of
           OT.TermComponent -> do
             -- split up the localIds (parsed), term, and type blobs
             -- note: this whole business with `fmt` is pretty weird, and will need to be
@@ -164,7 +163,7 @@ trySync tCache hCache oCache gc = \case
             -- (or maybe i'll learn something by implementing sync for patches and namespaces,
             -- which have two formats already)
             (fmt, unzip -> (localIds, bytes)) <-
-              case flip runGetS bytes do
+              lift case flip runGetS bytes do
                 tag <- getWord8
                 component <- S.decomposeComponent
                 pure (tag, component) of
@@ -172,46 +171,42 @@ trySync tCache hCache oCache gc = \case
                 Left s -> throwError $ DecodeError ErrTermComponent bytes s
             -- iterate through the local ids looking for missing deps;
             -- then either enqueue the missing deps, or proceed to move the object
-            foldM foldLocalIds (Right mempty) localIds >>= \case
-              Left missingDeps -> pure $ Left missingDeps
-              Right (toList -> localIds') -> do
-                -- reassemble and save the reindexed term
-                let bytes' =
-                      runPutS $
-                        putWord8 fmt
-                          >> S.recomposeComponent (zip localIds' bytes)
-                oId' <- runDest $ Q.saveObject hId' objType bytes'
-                -- copy reference-specific stuff
-                for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
-                  -- sync watch results
-                  for_ [WK.RegularWatch, WK.TestWatch] \wk -> do
-                    let refH = Reference.Id hId idx
-                        refH' = Reference.Id hId' idx
-                    runSrc (Q.loadWatch wk refH) >>= traverse_ \blob -> do
-                      (L.LocalIds tIds hIds, termBytes) <-
-                        case runGetS S.decomposeWatchResult blob of
-                          Right x -> pure x
-                          Left s -> throwError $ DecodeError ErrWatchResult blob s
-                      tIds' <- traverse syncTextLiteral tIds
-                      hIds' <- traverse syncHashLiteral hIds
-                      let blob' = runPutS (S.recomposeWatchResult (L.LocalIds tIds' hIds', termBytes))
-                      runDest (Q.saveWatch wk refH' blob')
-                  -- sync dependencies index
-                  let ref = Reference.Id oId idx
-                      ref' = Reference.Id oId' idx
-                  let fromJust' = fromMaybe (error "missing objects should've been caught by `foldLocalIds` above")
-                  runSrc (Q.getDependenciesForDependent ref)
-                    >>= traverse (fmap fromJust' . isSyncedObjectReference)
-                    >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
-                  -- sync type index
-                  runSrc (Q.getTypeReferencesForComponent oId)
-                    >>= traverse (syncTypeIndexRow oId')
-                    >>= traverse_ (runDest . uncurry Q.addToTypeIndex)
-                  -- sync type mentions index
-                  runSrc (Q.getTypeMentionsReferencesForComponent oId)
-                    >>= traverse (syncTypeIndexRow oId')
-                    >>= traverse_ (runDest . uncurry Q.addToTypeMentionsIndex)
-                pure $ Right oId'
+            localIds' <- traverse syncLocalIds localIds
+            -- reassemble and save the reindexed term
+            let bytes' = runPutS $
+                  putWord8 fmt >> S.recomposeComponent (zip localIds' bytes)
+            oId' <- runDest $ Q.saveObject hId' objType bytes'
+            -- copy reference-specific stuff
+            lift $ for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
+              -- sync watch results
+              for_ [WK.RegularWatch, WK.TestWatch] \wk -> do
+                let refH = Reference.Id hId idx
+                    refH' = Reference.Id hId' idx
+                runSrc (Q.loadWatch wk refH) >>= traverse_ \blob -> do
+                  (L.LocalIds tIds hIds, termBytes) <-
+                    case runGetS S.decomposeWatchResult blob of
+                      Right x -> pure x
+                      Left s -> throwError $ DecodeError ErrWatchResult blob s
+                  tIds' <- traverse syncTextLiteral tIds
+                  hIds' <- traverse syncHashLiteral hIds
+                  let blob' = runPutS (S.recomposeWatchResult (L.LocalIds tIds' hIds', termBytes))
+                  runDest (Q.saveWatch wk refH' blob')
+              -- sync dependencies index
+              let ref = Reference.Id oId idx
+                  ref' = Reference.Id oId' idx
+              let fromJust' = fromMaybe (error "missing objects should've been caught by `foldLocalIds` above")
+              runSrc (Q.getDependenciesForDependent ref)
+                >>= traverse (fmap fromJust' . isSyncedObjectReference)
+                >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
+              -- sync type index
+              runSrc (Q.getTypeReferencesForComponent oId)
+                >>= traverse (syncTypeIndexRow oId')
+                >>= traverse_ (runDest . uncurry Q.addToTypeIndex)
+              -- sync type mentions index
+              runSrc (Q.getTypeMentionsReferencesForComponent oId)
+                >>= traverse (syncTypeIndexRow oId')
+                >>= traverse_ (runDest . uncurry Q.addToTypeMentionsIndex)
+            pure oId'
           OT.DeclComponent -> do
             -- split up the localIds (parsed), decl blobs
             (fmt, unzip -> (localIds, declBytes)) <-
@@ -223,77 +218,75 @@ trySync tCache hCache oCache gc = \case
                 Left s -> throwError $ DecodeError ErrDeclComponent bytes s
             -- iterate through the local ids looking for missing deps;
             -- then either enqueue the missing deps, or proceed to move the object
-            foldM foldLocalIds (Right mempty) localIds >>= \case
-              Left missingDeps -> pure $ Left missingDeps
-              Right (toList -> localIds') -> do
-                -- reassemble and save the reindexed term
-                let bytes' =
-                      runPutS $
-                        putWord8 fmt
-                          >> S.recomposeComponent (zip localIds' declBytes)
-                oId' <- runDest $ Q.saveObject hId' objType bytes'
-                -- copy per-element-of-the-component stuff
-                for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
-                  -- sync dependencies index
-                  let ref = Reference.Id oId idx
-                      ref' = Reference.Id oId' idx
-                  let fromJust' = fromMaybe (error "missing objects should've been caught by `foldLocalIds` above")
-                  runSrc (Q.getDependenciesForDependent ref)
-                    >>= traverse (fmap fromJust' . isSyncedObjectReference)
-                    >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
-                  -- sync type index
-                  runSrc (Q.getTypeReferencesForComponent oId)
-                    >>= traverse (syncTypeIndexRow oId')
-                    >>= traverse_ (runDest . uncurry Q.addToTypeIndex)
-                  -- sync type mentions index
-                  runSrc (Q.getTypeMentionsReferencesForComponent oId)
-                    >>= traverse (syncTypeIndexRow oId')
-                    >>= traverse_ (runDest . uncurry Q.addToTypeMentionsIndex)
-                pure $ Right oId'
+            localIds' <- traverse syncLocalIds localIds
+            -- reassemble and save the reindexed term
+            let bytes' =
+                  runPutS $
+                    putWord8 fmt
+                      >> S.recomposeComponent (zip localIds' declBytes)
+            oId' <- runDest $ Q.saveObject hId' objType bytes'
+            -- copy per-element-of-the-component stuff
+            lift $ for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
+              -- sync dependencies index
+              let ref = Reference.Id oId idx
+                  ref' = Reference.Id oId' idx
+              let fromJust' = fromMaybe (error "missing objects should've been caught by `foldLocalIds` above")
+              runSrc (Q.getDependenciesForDependent ref)
+                >>= traverse (fmap fromJust' . isSyncedObjectReference)
+                >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
+              -- sync type index
+              runSrc (Q.getTypeReferencesForComponent oId)
+                >>= traverse (syncTypeIndexRow oId')
+                >>= traverse_ (runDest . uncurry Q.addToTypeIndex)
+              -- sync type mentions index
+              runSrc (Q.getTypeMentionsReferencesForComponent oId)
+                >>= traverse (syncTypeIndexRow oId')
+                >>= traverse_ (runDest . uncurry Q.addToTypeMentionsIndex)
+            pure oId'
           OT.Namespace -> case BS.uncons bytes of
-            Just (0, bytes) -> error "todo"
-            Just (1, bytes) -> error "todo"
+            -- full branch case
+            Just (fmt@0, bytes) -> do
+              (ids, body) <- case flip runGetS bytes S.decomposeBranchFull of
+                Right x -> pure x
+                Left s -> throwError $ DecodeError (ErrBranchBody fmt) bytes s
+              ids' <- syncBranchLocalIds ids
+              let bytes' = runPutS $ putWord8 0 *> S.recomposeBranchFull ids' body
+              oId' <- runDest $ Q.saveObject hId' objType bytes'
+              pure oId'
+            -- branch diff case
+            Just (fmt@1, bytes) -> do
+              (boId, ids, body) <- case flip runGetS bytes S.decomposeBranchDiff of
+                Right x -> pure x
+                Left s -> throwError $ DecodeError (ErrBranchBody fmt) bytes s
+              boId' <- syncLocalObjectId boId
+              ids' <- syncBranchLocalIds ids
+              let bytes' = runPutS $ putWord8 1 *> S.recomposeBranchDiff boId' ids' body
+              oId' <- runDest $ Q.saveObject hId' objType bytes'
+              pure oId'
+            -- unrecognized tag case
             Just (tag, _) -> throwError $ DecodeError ErrBranchFormat bytes ("unrecognized branch format tag: " ++ show tag)
             Nothing -> throwError $ DecodeError ErrBranchFormat bytes "zero-byte branch object"
           OT.Patch -> case BS.uncons bytes of
+            -- full branch case
             Just (fmt@0, bytes) -> do
-              (ids, blob) <- case flip runGetS bytes do
-                ids <- S.getPatchLocalIds
-                blob <- S.getRemainingByteString
-                pure (ids, blob) of
+              (ids, body) <- case flip runGetS bytes S.decomposePatchFull of
                 Right x -> pure x
-                Left s -> throwError $ DecodeError (ErrPatchBody 0) bytes s
-              syncPatchLocalIds ids >>= \case
-                Left missingDeps -> pure $ Left missingDeps
-                Right ids' -> do
-                  let bytes' = runPutS do
-                        putWord8 fmt
-                        S.putPatchLocalIds ids'
-                        Put.putByteString blob
-                  oId' <- runDest $ Q.saveObject hId' objType bytes'
-                  pure $ Right oId'
+                Left s -> throwError $ DecodeError (ErrPatchBody fmt) bytes s
+              ids' <- syncPatchLocalIds ids
+              let bytes' = runPutS $ putWord8 0 *> S.recomposePatchFull ids' body
+              oId' <- runDest $ Q.saveObject hId' objType bytes'
+              pure oId'
+            -- branch diff case
             Just (fmt@1, bytes) -> do
-              (poId, ids, blob) <- case flip runGetS bytes do
-                poId <- S.getVarInt
-                ids <- S.getPatchLocalIds
-                blob <- S.getRemainingByteString
-                pure (poId, ids, blob) of
+              (poId, ids, body) <- case flip runGetS bytes S.decomposePatchDiff of
                 Right x -> pure x
-                Left s -> throwError $ DecodeError (ErrPatchBody 0) bytes s
-              mayPoId' <- isSyncedObject poId
-              eitherIds' <- syncPatchLocalIds ids
-              case (mayPoId', eitherIds') of
-                (Nothing, Left missingDeps) -> pure $ Left (O poId Seq.<| missingDeps)
-                (Nothing, Right {}) -> pure $ Left (Seq.singleton (O poId))
-                (Just {}, Left missingDeps) -> pure $ Left missingDeps
-                (Just poId', Right ids') -> do
-                  let bytes' = runPutS do
-                        putWord8 fmt
-                        S.putVarInt poId'
-                        S.putPatchLocalIds ids'
-                        Put.putByteString blob
-                  oId' <- runDest $ Q.saveObject hId' objType bytes'
-                  pure $ Right oId'
+                Left s -> throwError $ DecodeError (ErrPatchBody fmt) bytes s
+              poId' <- syncLocalObjectId poId
+              ids' <- syncPatchLocalIds ids
+              let bytes' = runPutS $ putWord8 1 *> S.recomposePatchDiff poId' ids' body
+              oId' <- runDest $ Q.saveObject hId' objType bytes'
+              pure oId'
+            -- error gases
             Just (tag, _) -> throwError $ DecodeError ErrBranchFormat bytes ("unrecognized patch format tag: " ++ show tag)
             Nothing -> throwError $ DecodeError ErrPatchFormat bytes "zero-byte patch object"
         case result of
@@ -303,39 +296,35 @@ trySync tCache hCache oCache gc = \case
             Cache.insert oCache oId oId'
             pure Sync.Done
   where
-    foldLocalIds :: Either (Seq Entity) (Seq L.LocalIds) -> L.LocalIds -> m (Either (Seq Entity) (Seq L.LocalIds))
-    foldLocalIds (Left missing) (L.LocalIds _tIds oIds) =
-      syncLocalObjectIds oIds <&> \case
-        Left missing2 -> Left (missing <> missing2)
-        Right _oIds' -> Left missing
-    foldLocalIds (Right localIdss') (L.LocalIds tIds oIds) =
-      syncLocalObjectIds oIds >>= \case
-        Left missing -> pure $ Left missing
-        Right oIds' -> do
-          tIds' <- traverse syncTextLiteral tIds
-          pure $ Right (localIdss' Seq.|> L.LocalIds tIds' oIds')
+    syncLocalObjectId :: ObjectId -> ValidateT (Set Entity) m ObjectId
+    syncLocalObjectId oId =
+      lift (isSyncedObject oId) >>= \case
+        Just oId' -> pure oId'
+        Nothing -> Validate.refute . Set.singleton $ O oId
 
-    -- I want to collect all the failures, rather than short-circuiting after the first
-    syncLocalObjectIds :: Traversable t => t ObjectId -> m (Either (Seq Entity) (t ObjectId))
-    syncLocalObjectIds oIds = do
-      (mayOIds', missing) <- Writer.runWriterT do
-        for oIds \oId ->
-          lift (isSyncedObject oId) >>= \case
-            Just oId' -> pure oId'
-            Nothing -> do
-              Writer.tell . Seq.singleton $ O oId
-              pure $ error "Arya didn't think this would get eval'ed."
-      if null missing
-        then pure $ Right mayOIds'
-        else pure $ Left missing
+    syncBranchObjectId :: BranchObjectId -> ValidateT (Set Entity) m BranchObjectId
+    syncBranchObjectId = fmap BranchObjectId . syncLocalObjectId . unBranchObjectId
 
+    syncLocalIds :: L.LocalIds -> ValidateT (Set Entity) m L.LocalIds
+    syncLocalIds (L.LocalIds tIds oIds) = do
+      oIds' <- traverse syncLocalObjectId oIds
+      tIds' <- lift $ traverse syncTextLiteral tIds
+      pure $ L.LocalIds tIds' oIds'
 
-    syncPatchLocalIds :: PL.PatchLocalIds -> m (Either (Seq Entity) PL.PatchLocalIds)
-    syncPatchLocalIds (PL.LocalIds tIds hIds oIds) = runExceptT do
-      oIds' <- ExceptT $ syncLocalObjectIds oIds
+    syncPatchLocalIds :: PL.PatchLocalIds -> ValidateT (Set Entity) m PL.PatchLocalIds
+    syncPatchLocalIds (PL.LocalIds tIds hIds oIds) = do
+      oIds' <- traverse syncLocalObjectId oIds
       tIds' <- lift $ traverse syncTextLiteral tIds
       hIds' <- lift $ traverse syncHashLiteral hIds
       pure $ PL.LocalIds tIds' hIds' oIds'
+
+    syncBranchLocalIds :: BL.BranchLocalIds -> ValidateT (Set Entity) m BL.BranchLocalIds
+    syncBranchLocalIds (BL.LocalIds tIds oIds poIds chboIds) = do
+      oIds' <- traverse syncLocalObjectId oIds
+      poIds' <- traverse (fmap PatchObjectId . syncLocalObjectId . unPatchObjectId) poIds
+      chboIds' <- traverse (bitraverse syncBranchObjectId (lift . syncCausalHash)) chboIds
+      tIds' <- lift $ traverse syncTextLiteral tIds
+      pure $ BL.LocalIds tIds' oIds' poIds' chboIds'
 
     syncTypeIndexRow oId' = bitraverse syncHashReference (pure . rewriteTypeIndexReferent oId')
     rewriteTypeIndexReferent :: ObjectId -> Sqlite.Referent.Id -> Sqlite.Referent.Id
@@ -399,25 +388,18 @@ trySync tCache hCache oCache gc = \case
           [] -> pure $ Nothing
           oIds' -> throwError (HashObjectCorrespondence oId hIds oIds')
 
--- syncCausal chId = do
---   value
-
--- Q: Do we want to cache corresponding ID mappings?
--- A: Yes, but not yet
-
 runSrc ::
   (MonadError Error m, MonadReader Env m) =>
   ReaderT Connection (ExceptT Q.Integrity m) a ->
   m a
-runSrc = error "todo" -- withExceptT SrcDB . (reader fst >>=)
+runSrc = error "todo" -- withExceptT SrcDB do
+
 
 runDest ::
   (MonadError Error m, MonadReader Env m) =>
   ReaderT Connection (ExceptT Q.Integrity m) a ->
   m a
 runDest = error "todo" -- withExceptT SrcDB . (reader fst >>=)
-
--- applyDefined
 
 -- syncs coming from git:
 --  - pull a specified remote causal (Maybe CausalHash) into the local database

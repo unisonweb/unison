@@ -702,14 +702,14 @@ loadWatch :: EDB m => WatchKind -> C.Reference.Id -> MaybeT m (C.Term Symbol)
 loadWatch k r =
   C.Reference.idH Q.saveHashHash r
     >>= MaybeT . Q.loadWatch k
-    >>= getFromBytesOr (ErrWatch k r) (S.getPair S.getWatchLocalIds (S.getFramed S.getTerm))
+    >>= getFromBytesOr (ErrWatch k r) (S.getPair S.getWatchLocalIds S.getTerm)
     >>= uncurry w2cTerm
 
 saveWatch :: EDB m => WatchKind -> C.Reference.Id -> C.Term Symbol -> m ()
 saveWatch w r t = do
   rs <- C.Reference.idH Q.saveHashHash r
   wterm <- c2wTerm t
-  let bytes = S.putBytes (S.putPair S.putLocalIds (S.putFramed S.putTerm)) wterm
+  let bytes = S.putBytes (S.putPair S.putLocalIds S.putTerm) wterm
   Q.saveWatch w rs bytes
 
 c2wTerm :: EDB m => C.Term Symbol -> m (WatchLocalIds, S.Term.Term)

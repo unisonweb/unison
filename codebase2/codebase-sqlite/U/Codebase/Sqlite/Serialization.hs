@@ -11,7 +11,7 @@ module U.Codebase.Sqlite.Serialization where
 import Data.Bits (Bits)
 import qualified Data.ByteString as BS
 import Data.Bytes.Get (MonadGet, getByteString, getWord8, runGetS)
-import Data.Bytes.Put (MonadPut, putWord8, putByteString)
+import Data.Bytes.Put (MonadPut, putByteString, putWord8)
 import Data.Bytes.Serial (SerialEndian (serializeBE), deserialize, deserializeBE, serialize)
 import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
 import Data.Int (Int64)
@@ -31,12 +31,14 @@ import qualified U.Codebase.Reference as Reference
 import U.Codebase.Referent (Referent')
 import qualified U.Codebase.Referent as Referent
 import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
+import U.Codebase.Sqlite.Branch.Format (BranchLocalIds)
 import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
-import U.Codebase.Sqlite.DbId (BranchObjectId, PatchObjectId, unBranchObjectId, unPatchObjectId)
+import U.Codebase.Sqlite.DbId (BranchObjectId, ObjectId, PatchObjectId, unBranchObjectId, unPatchObjectId)
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId, WatchLocalIds)
 import qualified U.Codebase.Sqlite.Patch.Diff as PatchDiff
+import U.Codebase.Sqlite.Patch.Format (PatchLocalIds)
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import qualified U.Codebase.Sqlite.Patch.Full as PatchFull
 import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
@@ -453,11 +455,6 @@ putBranchFormat b = case b of
     putBranchLocalIds li
     putBranchDiff d
   where
-    putBranchLocalIds (BranchFormat.LocalIds ts os ps cs) = do
-      putFoldable putVarInt ts
-      putFoldable putVarInt os
-      putFoldable putVarInt ps
-      putFoldable (putPair putVarInt putVarInt) cs
     putBranchFull (BranchFull.Branch terms types patches children) = do
       putMap putVarInt (putMap putReferent putMetadataSetFormat) terms
       putMap putVarInt (putMap putReference putMetadataSetFormat) types
@@ -486,6 +483,13 @@ putBranchFormat b = case b of
         putChildOp = \case
           BranchDiff.ChildRemove -> putWord8 0
           BranchDiff.ChildAddReplace b -> putWord8 1 *> putVarInt b
+
+putBranchLocalIds :: MonadPut m => BranchFormat.BranchLocalIds -> m ()
+putBranchLocalIds (BranchFormat.LocalIds ts os ps cs) = do
+  putFoldable putVarInt ts
+  putFoldable putVarInt os
+  putFoldable putVarInt ps
+  putFoldable (putPair putVarInt putVarInt) cs
 
 putPatchFormat :: MonadPut m => PatchFormat.PatchFormat -> m ()
 putPatchFormat = \case
@@ -698,6 +702,30 @@ decomposeWatchResult = (,) <$> getWatchLocalIds <*> getRemainingByteString
 
 recomposeWatchResult :: MonadPut m => (WatchLocalIds, BS.ByteString) -> m ()
 recomposeWatchResult (wli, bs) = putLocalIds wli >> putByteString bs
+
+decomposePatchFull :: MonadGet m => m (PatchLocalIds, BS.ByteString)
+decomposePatchFull = (,) <$> getPatchLocalIds <*> getRemainingByteString
+
+decomposePatchDiff :: MonadGet m => m (ObjectId, PatchLocalIds, BS.ByteString)
+decomposePatchDiff = (,,) <$> getVarInt <*> getPatchLocalIds <*> getRemainingByteString
+
+decomposeBranchFull :: MonadGet m => m (BranchLocalIds, BS.ByteString)
+decomposeBranchFull = (,) <$> getBranchLocalIds <*> getRemainingByteString
+
+decomposeBranchDiff :: MonadGet m => m (ObjectId, BranchLocalIds, BS.ByteString)
+decomposeBranchDiff = (,,) <$> getVarInt <*> getBranchLocalIds <*> getRemainingByteString
+
+recomposePatchFull :: MonadPut m => PatchLocalIds -> BS.ByteString -> m ()
+recomposePatchFull li bs = putPatchLocalIds li *> putByteString bs
+
+recomposePatchDiff :: MonadPut m => ObjectId -> PatchLocalIds -> BS.ByteString -> m ()
+recomposePatchDiff id li bs = putVarInt id *> putPatchLocalIds li *> putByteString bs
+
+recomposeBranchFull :: MonadPut m => BranchLocalIds -> BS.ByteString -> m ()
+recomposeBranchFull li bs = putBranchLocalIds li *> putByteString bs
+
+recomposeBranchDiff :: MonadPut m => ObjectId -> BranchLocalIds -> BS.ByteString -> m ()
+recomposeBranchDiff id li bs = putVarInt id *> putBranchLocalIds li *> putByteString bs
 
 -- the same implementation currently works for term component and type component
 getComponentSyncEntities :: MonadGet m => m SE.SyncEntitySeq
