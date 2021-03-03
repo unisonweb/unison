@@ -104,10 +104,20 @@ universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
 
 -- | Elements of an ordered algorithmic context
 data Element v loc
-  = Var (TypeVar v loc)                    -- A variable declaration
-  | Solved (B.Blank loc) v (Monotype v loc)  -- `v` is solved to some monotype
-  | Ann v (Type v loc)                     -- `v` has type `a`, maybe quantified
-  | Marker v                               -- used for scoping
+  -- | A variable declaration
+  = Var (TypeVar v loc) 
+  -- | `v` is solved to some monotype
+  | Solved (B.Blank loc) v (Monotype v loc)
+  -- | `v` has type `a`, maybe quantified
+  | Ann v (Type v loc)
+  -- | used for scoping
+  | Marker v
+  -- | Collection of wanted abilities in a scope, accumulated over
+  -- multiple checks
+  | Wanted v [(loc, Type v loc)]
+  -- | Handler for some particular abilities around the current scope.
+  | Handled v [Type v loc]
+
 
 instance (Ord loc, Var v) => Eq (Element v loc) where
   Var v == Var v2                = v == v2
@@ -520,6 +530,8 @@ varOf (Var tv) = TypeVar.underlying tv
 varOf (Solved _ v _) = v
 varOf (Ann v _) = v
 varOf (Marker v) = v
+varOf (Wanted v _) = v
+varOf (Handled v _) = v
 
 isReserved :: Var v => v -> M v loc Bool
 isReserved v = fromMEnv $ (v `isReservedIn`) . env
@@ -626,6 +638,18 @@ extend' e c@(Context ctx) = Context . (:ctx) . (e,) <$> i' where
     Marker v -> if Set.notMember v vs
       then pure $ Info es ses us uas (Set.insert v vs) pvs
       else crash $ "marker variable " <> show v <> " already defined in the context"
+    Wanted v _
+      | Set.notMember v vs
+     -> pure $ Info es ses us uas (Set.insert v vs) pvs
+      | otherwise
+     -> crash $ "'wanted' marker variable "
+                  <> show v <> " already defined in the context"
+    Handled v _
+      | Set.notMember v vs
+     -> pure $ Info es ses us uas (Set.insert v vs) pvs
+      | otherwise
+     -> crash $ "'handled' marker variable "
+                  <> show v <> " already defined in the context"
   crash reason = Left $ IllegalContextExtension c e reason
 
 extend :: Var v => Element v loc -> Context v loc -> M v loc (Context v loc)
@@ -1966,6 +1990,10 @@ instance (Var v) => Show (Element v loc) where
   show (Ann v t) = Text.unpack (Var.name v) ++ " : " ++
                    TP.pretty' Nothing mempty t
   show (Marker v) = "|"++Text.unpack (Var.name v)++"|"
+  show (Wanted _ ts)
+    = "want {" ++ intercalate "," (show . snd <$> ts) ++ "}"
+  show (Handled _ ts)
+    = "handled {" ++ intercalate "," (show <$> ts) ++ "}"
 
 instance (Ord loc, Var v) => Show (Context v loc) where
   show ctx@(Context es) = "Γ\n  " ++ (intercalate "\n  " . map (showElem ctx . fst)) (reverse es)
@@ -1976,6 +2004,14 @@ instance (Ord loc, Var v) => Show (Context v loc) where
     showElem ctx (Solved _ v (Type.Monotype t)) = "'"++Text.unpack (Var.name v)++" = "++ TP.pretty' Nothing mempty (apply ctx t)
     showElem ctx (Ann v t) = Text.unpack (Var.name v) ++ " : " ++ TP.pretty' Nothing mempty (apply ctx t)
     showElem _ (Marker v) = "|"++Text.unpack (Var.name v)++"|"
+    showElem _ (Wanted _ ts)
+      = "want {"
+        ++ (intercalate "," $ TP.pretty' Nothing mempty . snd <$> ts)
+        ++ "}"
+    showElem _ (Handled _ ts)
+      = "handled {"
+        ++ (intercalate "," $ TP.pretty' Nothing mempty <$> ts)
+        ++ "}"
 
 -- MEnv v loc -> (Seq (ErrorNote v loc), (a, Env v loc))
 instance Monad f => Monad (MT v loc f) where
