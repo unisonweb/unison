@@ -286,7 +286,7 @@ trySync tCache hCache oCache gc = \case
               let bytes' = runPutS $ putWord8 1 *> S.recomposePatchDiff poId' ids' body
               oId' <- runDest $ Q.saveObject hId' objType bytes'
               pure oId'
-            -- error gases
+            -- error cases
             Just (tag, _) -> throwError $ DecodeError ErrBranchFormat bytes ("unrecognized patch format tag: " ++ show tag)
             Nothing -> throwError $ DecodeError ErrPatchFormat bytes "zero-byte patch object"
         case result of
