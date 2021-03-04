@@ -101,7 +101,7 @@ syntax.doc.verbatim c = CodeBlock "raw" c
 syntax.doc.evalBlock d = Special (Eval (evaluate d))
 syntax.doc.eval a = Special (InlineEval (evaluate a))
 syntax.doc.example n a = Special (Example n (Any a))
-syntax.doc.link = Link
+syntax.doc.link t = Special (Link t)
 syntax.doc.transclude d = 
   guid = "b7a4fb87e34569319591130bf3ec6e24"
   d
@@ -146,6 +146,8 @@ _italics_ or *italics*
 ''some code''
 
 [The Unison website](https://unisonweb.org)
+
+A link to a term: {Some}. A link to a type {type List}.
 '''
 
 Renders as:
@@ -159,6 +161,8 @@ _italics_ or *italics*
 ''some code''
 
 [The Unison website](https://unisonweb.org)
+
+A link to a term: {Some}. A link to a type {type List}.
 
 ### Escaping formatting
 
@@ -336,8 +340,6 @@ An inline signature @signature{id}.
 '''
 
 "And what is the use of a book," thought {{name}}, "without pictures or conversations?"
-
-TODO why do we have to declare ''name'' earlier in the file?
 
 ## Non-unison code blocks 
 
