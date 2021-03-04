@@ -45,7 +45,21 @@ Width.fromText : Text -> Width
 Width.fromText txt = 
   foldLeft snocChar empty (Text.toCharList txt) 
 
-unique[d7b2ced8c08b2c6e54050d1f5acedef3395f293d] type Pretty txt
+-- Surgically modify the given width to pretend it has not exceeded availableWidth.
+Width.forceFit : Nat -> Width -> Width
+Width.forceFit availableWidth = cases
+  SingleLine c -> SingleLine (min c (drop availableWidth 1))
+  MultiLine fc lc mc -> MultiLine fc lc (min mc (drop availableWidth 1))
+
+Width.fits : Nat -> Width -> Width -> Boolean
+Width.fits availableWidth w1 w2 = 
+  toNat (append w1 w2) <= availableWidth
+
+Width.forceFits : Nat -> Width -> Width -> Boolean
+Width.forceFits availableWidth w1 w2 = 
+  toNat (append (forceFit availableWidth w1) w2) <= availableWidth
+
+unique[d7b2ced8c08b2c6e54050d1f5acedef3395f293d] type Pretty.Annotated w txt
   = Empty
     -- | A group adds a level of breaking. Layout tries not to break a group
     -- unless needed to fit in available width. Breaking is done "outside in".
@@ -53,83 +67,92 @@ unique[d7b2ced8c08b2c6e54050d1f5acedef3395f293d] type Pretty txt
     --   (a | b) <> (c | d) will try (a <> c), then (b <> d)
     --
     --   (a | b) <> group (c | d) will try (a <> c), then (b <> c), then (b <> d)
-  | Group Width (Pretty txt)
-  | Lit Width txt
-  | Wrap Width [Pretty txt]
-  | OrElse Width (Pretty txt) (Pretty txt)
-  | Append Width [Pretty txt]
+  | Group w (Pretty.Annotated w txt)
+  | Lit w txt
+  | Wrap w [Pretty.Annotated w txt]
+  | OrElse w (Pretty.Annotated w txt) (Pretty.Annotated w txt)
+  | Append w [Pretty.Annotated w txt]
 
-Pretty.children : Pretty s -> [Pretty s]
-Pretty.children _ = todo "implement"
+type Pretty txt = Pretty (Pretty.Annotated () txt)
 
-Pretty.preferredWidth : Pretty s -> Nat
-Pretty.preferredWidth = cases
-  Empty -> 0
-  Group w _ -> Width.toNat w
-  Lit w _ -> Width.toNat w
-  Wrap w _ -> Width.toNat w
-  OrElse w _ _ -> Width.toNat w
-  Append w _ -> Width.toNat w
+Pretty.get = cases Pretty p -> p
 
-Pretty.layout : Nat -> Pretty txt -> [txt]
-Pretty.layout availableWidth p =
+Pretty.annotate : (txt -> Width) -> Pretty txt -> Pretty.Annotated Width txt 
+Pretty.annotate w p =
   go = cases
-    _, [] -> [] 
-    cur, p +: rest -> match p with 
+    Empty -> Empty
+    Group _ p -> 
+      p' = go p
+      Group (preferredWidth p') p'
+    Lit _ txt -> Lit (w txt) txt
+    Wrap _ ps -> 
+      ps' = List.map go ps
+      preferred = foldLeft (acc p -> append acc (preferredWidth p)) empty ps'
+      Wrap preferred ps' 
+    OrElse _ p1 p2 -> 
+      p1' = go p1
+      p2' = go p2
+      OrElse (append (preferredWidth p1') (preferredWidth p2')) p1' p2'
+    Append _ ps ->
+      ps' = List.map go ps
+      preferred = foldLeft (acc p -> append acc (preferredWidth p)) empty ps'
+      Append preferred ps' 
+
+  go (Pretty.get p)
+
+Pretty.preferredWidth : Pretty.Annotated Width s -> Width
+Pretty.preferredWidth = cases
+  Empty -> Width.empty
+  Group w _ -> w
+  Lit w _ -> w
+  Wrap w _ -> w
+  OrElse w _ _ -> w
+  Append w _ -> w
+
+List.for! : [a] -> (a ->{g} ()) ->{g} ()
+List.for! as f = match as with 
+  [] -> ()
+  a +: as -> f a
+             for! as f
+
+Pretty.layout : (txt -> Width) -> Nat -> Pretty txt ->{Stream txt} ()
+Pretty.layout width available p = layout' available (annotate width p)
+
+Pretty.layout' : Nat -> Pretty.Annotated Width txt ->{Stream txt} ()
+Pretty.layout' availableWidth p =
+  -- `go currentWidth rem`, where `currentWidth` is the width of
+  -- elements to the left of the current position, and the list is
+  -- elements we need to append. Elements wrapped in Left in this 
+  -- list are scheduled to be "broken"; elements wrapped in Right
+  -- we will attempt to fit inline, and break only if necessary.
+  go : Width 
+    -> [Either (Pretty.Annotated Width txt) (Pretty.Annotated Width txt)] 
+    -> {Stream txt} ()
+  go = cases
+    _, [] -> ()
+    cur, p +: rest -> match p with
       Right p -> -- `p` might fit, let's try it!
-        if p `fits` cur then flow p <> go (cur <> delta p) rest
-        else go cur (Left p : rest) -- nope, switch to breaking mode
+        if forceFits availableWidth cur (preferredWidth p) then 
+          flow p
+          go (append cur (preferredWidth p)) rest
+        else 
+          go cur (Left p +: rest) -- nope, switch to breaking mode
       Left p -> match p with -- `p` requires breaking
-        Append _ ps  -> go cur (List.map Left (children ps) ++ rest)
-        Empty        -> go cur rest
-        Group _ p    -> go cur (Right p +: rest)
+        Empty -> go cur rest
+        Append _ ps -> go cur (List.map Left ps ++ rest)
+        Group _ p -> go cur (Right p +: rest)
         -- Note: literals can't be broken further so they're
         -- added to output unconditionally
-        Lit w l      -> l +: go (cur `append` w) rest
-        OrElse _ p   -> go cur (Right p +: rest)
-        Wrap _ ps    -> go cur (List.map Right (children ps) ++ rest)
+        Lit preferred l -> emit l; go (append cur preferred) rest
+        OrElse _ _ p -> go cur (Right p +: rest)
+        Wrap _ ps -> go cur (List.map Right ps ++ rest)
 
-    flow p = match p with
-      Append _ ps -> foldMap flow ps
-      Empty -> []
-      Group _ p -> flow p
-      Lit _ s -> s
-      OrElse _ p _ -> flow p
-      Wrap _ ps -> foldMap flow ps
+  flow p = match p with
+    Append _ ps -> for! ps flow
+    Empty -> ()
+    Group _ p -> flow p
+    Lit _ s -> emit s
+    OrElse _ p _ -> flow p
+    Wrap _ ps -> for! ps flow
 
-    fits p cur =
-      -- Surgically modify 'cur' to pretend it has not exceeded availableWidth.
-      -- This is necessary because sometimes things cannot be split and *must*
-      -- exceed availableWidth; in this case, we do not want to entirely "blame"
-      -- the new proposed (cur <> delta p) for this overflow.
-      --
-      -- For example, when appending
-      --
-      --       availableWidth
-      --       |
-      --   xxx |
-      --   yyyyyy
-      --   zz  |
-      --
-      -- with
-      --
-      --   aa  |
-      --   bb  |
-      --
-      -- we want to end up with
-      --
-      --   xxx |
-      --   yyyyyy
-      --   zzaa|
-      --   bb  |
-      --
-      surgery = cases
-        SingleLine c -> SingleLine (min c (availableWidth-1))
-        MultiLine fc lc mc -> MultiLine fc lc (min mc (availableWidth-1))
-      maxCol (surgery cur <> delta p) < availableWidth
- 
-  go 0 [Right p]
----
-
-preferredWidth :: Pretty s -> Width
-preferredWidth p = lastCol (delta p)
+  go Width.empty [Right p]
