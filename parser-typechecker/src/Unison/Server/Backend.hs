@@ -175,63 +175,68 @@ findShallow
   -> Backend m [ShallowListEntry v Ann]
 findShallow codebase path' = do
   let path = Path.unabsolute path'
-  root       <- getRootBranch codebase
+  root <- getRootBranch codebase
   let mayb = Branch.getAt path root
   case mayb of
     Nothing -> pure []
-    Just b0 -> do
-      let hqTerm b0 ns r =
-            let refs = Star3.lookupD1 ns . Branch._terms $ b0
-            in  case length refs of
-                  1 -> HQ'.fromName ns
-                  _ -> HQ'.take hashLength $ HQ'.fromNamedReferent ns r
-          hqType b0 ns r =
-            let refs = Star3.lookupD1 ns . Branch._types $ b0
-            in  case length refs of
-                  1 -> HQ'.fromName ns
-                  _ -> HQ'.take hashLength $ HQ'.fromNamedReference ns r
-          defnCount b =
-            (R.size . Branch.deepTerms $ Branch.head b)
-              + (R.size . Branch.deepTypes $ Branch.head b)
-      termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) ->
-        do
-          ot <- lift $ loadReferentType codebase r
-          let
-            isDoc = case ot of
-              Just t  -> Typechecker.isSubtype t $ Type.ref mempty Decls.docRef
-              Nothing -> False
-            isTest = Metadata.hasMetadataWithType r (Decls.isTestRef)
-              $ Branch._terms b0
-            tag =
-              if isDoc then Just Doc else if isTest then Just Test else Nothing
-          pure $ ShallowTermEntry r (hqTerm b0 ns r) ot tag
-      typeEntries <-
-          for (R.toList . Star3.d1 $ Branch._types b0) $ \(r, ns) -> do
-            tag <- case Reference.toId r of
-              Just r -> do
-                decl <- lift $ Codebase.getTypeDeclaration codebase r
-                pure $ case decl of
-                  Just (Left _) -> Ability
-                  _ -> Data
-              _ -> pure Data
-            pure $ ShallowTypeEntry r (hqType b0 ns r) tag
-      let
-        branchEntries =
-          [ ShallowBranchEntry ns
-                               (SBH.fullFromHash $ Branch.headHash b)
-                               (defnCount b)
-          | (ns, b) <- Map.toList $ Branch._children b0
-          ]
-        patchEntries =
-          [ ShallowPatchEntry ns
-          | (ns, (_h, _mp)) <- Map.toList $ Branch._edits b0
-          ]
-      pure
-        .  List.sortOn listEntryName
-        $  termEntries
-        ++ typeEntries
-        ++ branchEntries
-        ++ patchEntries
+    Just b  -> findShallowInBranch codebase b
+
+findShallowInBranch
+  :: (Monad m, Var v)
+  => Codebase m v Ann
+  -> Branch m
+  -> Backend m [ShallowListEntry v Ann]
+findShallowInBranch codebase b = do
+  hashLength <- lift $ Codebase.hashLength codebase
+  let hqTerm b0 ns r =
+        let refs = Star3.lookupD1 ns . Branch._terms $ b0
+        in  case length refs of
+              1 -> HQ'.fromName ns
+              _ -> HQ'.take hashLength $ HQ'.fromNamedReferent ns r
+      hqType b0 ns r =
+        let refs = Star3.lookupD1 ns . Branch._types $ b0
+        in  case length refs of
+              1 -> HQ'.fromName ns
+              _ -> HQ'.take hashLength $ HQ'.fromNamedReference ns r
+      defnCount b =
+        (R.size . Branch.deepTerms $ Branch.head b)
+          + (R.size . Branch.deepTypes $ Branch.head b)
+      b0 = Branch.head b
+  termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) -> do
+    ot <- lift $ loadReferentType codebase r
+    let isDoc = case ot of
+          Just t  -> Typechecker.isSubtype t $ Type.ref mempty Decls.docRef
+          Nothing -> False
+        isTest =
+          Metadata.hasMetadataWithType r (Decls.isTestRef) $ Branch._terms b0
+        tag = if isDoc then Just Doc else if isTest then Just Test else Nothing
+    pure $ ShallowTermEntry r (hqTerm b0 ns r) ot tag
+  typeEntries <- for (R.toList . Star3.d1 $ Branch._types b0) $ \(r, ns) -> do
+    tag <- case Reference.toId r of
+      Just r -> do
+        decl <- lift $ Codebase.getTypeDeclaration codebase r
+        pure $ case decl of
+          Just (Left _) -> Ability
+          _             -> Data
+      _ -> pure Data
+    pure $ ShallowTypeEntry r (hqType b0 ns r) tag
+  let
+    branchEntries =
+      [ ShallowBranchEntry ns
+                           (SBH.fullFromHash $ Branch.headHash b)
+                           (defnCount b)
+      | (ns, b) <- Map.toList $ Branch._children b0
+      ]
+    patchEntries =
+      [ ShallowPatchEntry ns
+      | (ns, (_h, _mp)) <- Map.toList $ Branch._edits b0
+      ]
+  pure
+    .  List.sortOn listEntryName
+    $  termEntries
+    ++ typeEntries
+    ++ branchEntries
+    ++ patchEntries
 
 termReferencesByShortHash
   :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
