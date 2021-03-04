@@ -175,11 +175,11 @@ findShallow
   -> Backend m [ShallowListEntry v Ann]
 findShallow codebase path' = do
   let path = Path.unabsolute path'
-  hashLength <- lift $ Codebase.hashLength codebase
   root       <- getRootBranch codebase
-  let mayb0 = Branch.head <$> Branch.getAt path root
-  case mayb0 of
+  let mayb = Branch.getAt path root
+  case mayb of
     Nothing -> pure []
+<<<<<<< HEAD
     Just b0 -> do
       let hqTerm b0 ns r =
             let refs = Star3.lookupD1 ns . Branch._terms $ b0

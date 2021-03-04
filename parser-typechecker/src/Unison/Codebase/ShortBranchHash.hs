@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 module Unison.Codebase.ShortBranchHash where
@@ -29,8 +30,9 @@ fullFromHash = ShortBranchHash . Hash.base32Hex . Causal.unRawHash
 -- abc -> SBH abc
 -- #abc -> SBH abc
 fromText :: Text -> Maybe ShortBranchHash
-fromText t | Text.all (`Set.member` Hash.validBase32HexChars) t =
-  Just . ShortBranchHash . Text.dropWhile (=='#') $ t
+fromText (Text.dropWhile (=='#') -> t)
+  | Text.all (`Set.member` Hash.validBase32HexChars) t = Just
+  $ ShortBranchHash t
 fromText _ = Nothing
 
 instance Show ShortBranchHash where
