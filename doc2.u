@@ -46,7 +46,25 @@ unique[b7a4fb87e34569319591130bf3ec6e24c9955b6a] type Doc2
   | Special Doc2.SpecialForm
   | Docs [Doc2]
 
-unique type Doc2.Evaluation = Evaluation Any Any 
+unique[fb488e55e66e2492c2946388e4e846450701db04] type Doc2.Evaluation = Evaluation Any Any 
+
+unique[d7b2ced8c08b2c6e54050d1f5acedef3395f293d] type Pretty.Annotated w txt
+  = Empty
+    -- | A group adds a level of breaking. Layout tries not to break a group
+    -- unless needed to fit in available width. Breaking is done "outside in".
+    --
+    --   (a | b) <> (c | d) will try (a <> c), then (b <> d)
+    --
+    --   (a | b) <> group (c | d) will try (a <> c), then (b <> c), then (b <> d)
+  | Group w (Pretty.Annotated w txt)
+  | Lit w txt
+  | Wrap w [Pretty.Annotated w txt]
+  | OrElse w (Pretty.Annotated w txt) (Pretty.Annotated w txt)
+  | Append w [Pretty.Annotated w txt]
+
+type Pretty txt = Pretty (Pretty.Annotated () txt)
+
+Pretty.get = cases Pretty p -> p
 
 Doc2.evaluate : 'a -> Evaluation
 Doc2.evaluate a = Doc2.Evaluation.Evaluation (Any a) (Any !a) 
@@ -60,7 +78,7 @@ Doc2.Evaluation.result = cases Evaluation _ result -> result
 syntax.doc.docs = cases [d] -> d
                         ds -> Docs ds
 syntax.doc.word = Word
-syntax.doc.bold = Bold
+syntax.doc.bold = Doc2.Bold
 syntax.doc.italic = Italic
 syntax.doc.strikethrough = Strikethrough
 syntax.doc.paragraph = Paragraph
@@ -91,6 +109,22 @@ syntax.doc.namedLink = NamedLink
 syntax.doc.bulletedList = BulletedList
 syntax.doc.numberedList = NumberedList
 syntax.doc.section = Section
+
+syntax.doc.renderToConsole : Doc2 -> Pretty (Either SpecialForm ConsoleText) 
+syntax.doc.renderToConsole d = todo "implement me"
+
+unique[e25bc44d251ae0301517ad0bd02cbd294161dc89] type ConsoleText
+  = Plain Text
+  | Foreground ANSI.Color ConsoleText 
+  | Background ANSI.Color ConsoleText
+  | Bold ConsoleText
+  | Underline ConsoleText
+  | Invert ConsoleText
+
+unique[de2e0ee924578939213c950dfd8e0ba1047703ae] type ANSI.Color
+  = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White
+  | BrightBlack | BrightRed | BrightGreen | BrightYellow | BrightBlue 
+  | BrightMagenta | BrightCyan | BrightWhite
 
 doc1 = {{
 
