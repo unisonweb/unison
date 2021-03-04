@@ -36,6 +36,7 @@ import qualified Unison.Test.Var as Var
 import qualified Unison.Test.ANF as ANF
 import qualified Unison.Test.MCode as MCode
 import qualified Unison.Test.VersionParser as VersionParser
+import qualified Unison.Test.Git as Git
 
 test :: Bool -> Test ()
 test rt = tests
@@ -65,6 +66,7 @@ test rt = tests
   , Typechecker.test
   , UriParser.test
   , Context.test
+  , Git.test
   , TestIO.test
   , Name.test
   , VersionParser.test
