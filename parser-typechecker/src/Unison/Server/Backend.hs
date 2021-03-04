@@ -179,7 +179,6 @@ findShallow codebase path' = do
   let mayb = Branch.getAt path root
   case mayb of
     Nothing -> pure []
-<<<<<<< HEAD
     Just b0 -> do
       let hqTerm b0 ns r =
             let refs = Star3.lookupD1 ns . Branch._terms $ b0
