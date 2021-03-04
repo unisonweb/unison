@@ -204,14 +204,17 @@ findShallowInBranch codebase b = do
       b0 = Branch.head b
   termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) -> do
     ot <- lift $ loadReferentType codebase r
+    -- A term is a doc if its type conforms to the `Doc` type.
     let isDoc = case ot of
           Just t  -> Typechecker.isSubtype t $ Type.ref mempty Decls.docRef
           Nothing -> False
+        -- A term is a test if it has a link of type `IsTest`.
         isTest =
           Metadata.hasMetadataWithType r (Decls.isTestRef) $ Branch._terms b0
         tag = if isDoc then Just Doc else if isTest then Just Test else Nothing
     pure $ ShallowTermEntry r (hqTerm b0 ns r) ot tag
   typeEntries <- for (R.toList . Star3.d1 $ Branch._types b0) $ \(r, ns) -> do
+    -- The tag indicates whether the type is a data declaration or an ability.
     tag <- case Reference.toId r of
       Just r -> do
         decl <- lift $ Codebase.getTypeDeclaration codebase r
