@@ -1156,10 +1156,10 @@ loop = do
               entryToHQString :: ShallowListEntry v Ann -> String
               entryToHQString e =
                 fixup $ case e of
-                  ShallowTypeEntry _ hq     -> HQ'.toString hq
-                  ShallowTermEntry _ hq _   -> HQ'.toString hq
-                  ShallowBranchEntry ns _ _ -> NameSegment.toString ns
-                  ShallowPatchEntry ns      -> NameSegment.toString ns
+                  ShallowTypeEntry _ hq _    -> HQ'.toString hq
+                  ShallowTermEntry _ hq _ _  -> HQ'.toString hq
+                  ShallowBranchEntry ns _ _  -> NameSegment.toString ns
+                  ShallowPatchEntry ns       -> NameSegment.toString ns
                where
                 fixup s = case pathArgStr of
                            "" -> s
