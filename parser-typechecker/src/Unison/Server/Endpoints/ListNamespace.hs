@@ -120,6 +120,7 @@ data NamedTerm = NamedTerm
   { termName :: HashQualifiedName
   , termHash :: UnisonHash
   , termType :: Maybe SyntaxText
+  , termTag :: Maybe Backend.TermTag
   }
   deriving (Generic, Show)
 
@@ -128,8 +129,9 @@ instance ToJSON NamedTerm
 deriving instance ToSchema NamedTerm
 
 data NamedType = NamedType
-  { typeName :: HashQualifiedName,
-    typeHash :: UnisonHash
+  { typeName :: HashQualifiedName
+  , typeHash :: UnisonHash
+  , typeTag :: Backend.TypeTag
   }
   deriving (Generic, Show)
 
@@ -151,6 +153,14 @@ instance ToJSON KindExpression
 
 deriving instance ToSchema KindExpression
 
+instance ToJSON Backend.TermTag
+
+deriving instance ToSchema Backend.TermTag
+
+instance ToJSON Backend.TypeTag
+
+deriving instance ToSchema Backend.TypeTag
+
 backendListEntryToNamespaceObject
   :: Var v
   => PPE.PrettyPrintEnv
@@ -158,13 +168,17 @@ backendListEntryToNamespaceObject
   -> Backend.ShallowListEntry v a
   -> NamespaceObject
 backendListEntryToNamespaceObject ppe typeWidth = \case
-  Backend.ShallowTermEntry r name mayType -> TermObject $ NamedTerm
+  Backend.ShallowTermEntry r name mayType tag -> TermObject $ NamedTerm
     { termName = HQ'.toText name
     , termHash = Referent.toText r
     , termType = formatType ppe (mayDefault typeWidth) <$> mayType
+    , termTag  = tag
     }
-  Backend.ShallowTypeEntry r name -> TypeObject
-    $ NamedType { typeName = HQ'.toText name, typeHash = Reference.toText r }
+  Backend.ShallowTypeEntry r name tag -> TypeObject $ NamedType
+    { typeName = HQ'.toText name
+    , typeHash = Reference.toText r
+    , typeTag  = tag
+    }
   Backend.ShallowBranchEntry name hash size -> Subnamespace $ NamedNamespace
     { namespaceName = NameSegment.toText name
     , namespaceHash = "#" <> SBH.toText hash

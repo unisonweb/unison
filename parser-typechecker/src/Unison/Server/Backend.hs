@@ -5,7 +5,7 @@
 
 module Unison.Server.Backend where
 
-import           Control.Error.Util
+import           Control.Error.Util             ( (??) )
 import           Control.Monad.Except           ( ExceptT(..)
                                                 , throwError
                                                 )
@@ -15,12 +15,14 @@ import qualified Data.List                     as List
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Unison.Builtin                as B
+import qualified Unison.Builtin.Decls          as Decls
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.Path           ( Path )
 import           Unison.Codebase.Editor.DisplayObject
+import qualified Unison.Codebase.Metadata      as Metadata
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.Server.SearchResult    as SR
@@ -51,6 +53,7 @@ import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
+import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.Util.Relation          as R
 import qualified Unison.Util.Star3             as Star3
 import           Unison.Var                     ( Var )
@@ -71,9 +74,15 @@ import           Unison.Util.Pretty             ( Width )
 import qualified Data.Text                     as Text
 import qualified Unison.Server.Syntax          as Syntax
 
+data TermTag = Doc | Test
+  deriving (Eq, Ord, Show, Generic)
+
+data TypeTag = Ability | Data
+  deriving (Eq, Ord, Show, Generic)
+
 data ShallowListEntry v a
-  = ShallowTermEntry Referent HQ'.HQSegment (Maybe (Type v a))
-  | ShallowTypeEntry Reference HQ'.HQSegment
+  = ShallowTermEntry Referent HQ'.HQSegment (Maybe (Type v a)) (Maybe TermTag)
+  | ShallowTypeEntry Reference HQ'.HQSegment TypeTag
   -- The integer here represents the number of children
   | ShallowBranchEntry NameSegment ShortBranchHash Int
   | ShallowPatchEntry NameSegment
@@ -81,8 +90,8 @@ data ShallowListEntry v a
 
 listEntryName :: ShallowListEntry v a -> Text
 listEntryName = \case
-  ShallowTermEntry _ s _   -> HQ'.toText s
-  ShallowTypeEntry _ s     -> HQ'.toText s
+  ShallowTermEntry _ s _ _ -> HQ'.toText s
+  ShallowTypeEntry   _ s _ -> HQ'.toText s
   ShallowBranchEntry n _ _ -> NameSegment.toText n
   ShallowPatchEntry n      -> NameSegment.toText n
 
@@ -188,12 +197,26 @@ findShallow codebase path' = do
       termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) ->
         do
           ot <- lift $ loadReferentType codebase r
-          pure $ ShallowTermEntry r (hqTerm b0 ns r) ot
+          let
+            isDoc = case ot of
+              Just t  -> Typechecker.isSubtype t $ Type.ref mempty Decls.docRef
+              Nothing -> False
+            isTest = Metadata.hasMetadataWithType r (Decls.isTestRef)
+              $ Branch._terms b0
+            tag =
+              if isDoc then Just Doc else if isTest then Just Test else Nothing
+          pure $ ShallowTermEntry r (hqTerm b0 ns r) ot tag
+      typeEntries <-
+          for (R.toList . Star3.d1 $ Branch._types b0) $ \(r, ns) -> do
+            tag <- case Reference.toId r of
+              Just r -> do
+                decl <- lift $ Codebase.getTypeDeclaration codebase r
+                pure $ case decl of
+                  Just (Left _) -> Ability
+                  _ -> Data
+              _ -> pure Data
+            pure $ ShallowTypeEntry r (hqType b0 ns r) tag
       let
-        typeEntries =
-          [ ShallowTypeEntry r (hqType b0 ns r)
-          | (r, ns) <- R.toList . Star3.d1 $ Branch._types b0
-          ]
         branchEntries =
           [ ShallowBranchEntry ns
                                (SBH.fullFromHash $ Branch.headHash b)

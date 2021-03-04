@@ -32,6 +32,9 @@ starToR4 = R4.fromList . fmap (\(r,n,_,(t,v)) -> (r,n,t,v)) . Star3.toList
 hasMetadata :: Ord a => a -> Type -> Value -> Star a n -> Bool
 hasMetadata a t v = Set.member (t, v) . R.lookupDom a . Star3.d3
 
+hasMetadataWithType :: Ord a => a -> Type -> Star a n -> Bool
+hasMetadataWithType a t = any (\(t', _) -> t' == t) . R.lookupDom a . Star3.d3
+
 inserts :: (Ord a, Ord n) => [(a, Type, Value)] -> Star a n -> Star a n
 inserts tups s = foldl' (flip insert) s tups
 
