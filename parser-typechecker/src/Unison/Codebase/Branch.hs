@@ -158,6 +158,8 @@ import Unison.HashQualified (HashQualified)
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 
+-- | A node in the Unison namespace hierarchy
+-- along with its history.
 newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
   deriving (Eq, Ord)
 
@@ -167,10 +169,19 @@ type EditHash = Hash.Hash
 -- Star3 r n Metadata.Type (Metadata.Type, Metadata.Value)
 type Star r n = Metadata.Star r n
 
+-- | A node in the Unison namespace hierarchy.
+--
+-- '_terms' and '_types' are the declarations at this level.
+-- '_children' are the nodes one level below us.
+-- '_edits' are the 'Patch's stored at this node in the code.
+--
+-- The @deep*@ fields are derived from the four above.
 data Branch0 m = Branch0
   { _terms :: Star Referent NameSegment
   , _types :: Star Reference NameSegment
   , _children :: Map NameSegment (Branch m)
+    -- ^ Note the 'Branch' here, not 'Branch0'.
+    -- Every level in the tree has a history.
   , _edits :: Map NameSegment (EditHash, m Patch)
   -- names and metadata for this branch and its children
   -- (ref, (name, value)) iff ref has metadata `value` at name `name`
