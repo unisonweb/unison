@@ -39,6 +39,11 @@ import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import Data.Char (isDigit)
 
+-- | Either a builtin or a user defined (hashed) top-level declaration.
+--
+-- Used for both terms and types. Doesn't distinguish between them.
+--
+-- Other used defined things like local variables don't get @Reference@s.
 data Reference
   = Builtin Text.Text
   -- `Derived` can be part of a strongly connected component.
@@ -52,7 +57,7 @@ pattern Derived h i n = DerivedId (Id h i n)
 -- A good idea, but causes a weird problem with view patterns in PatternP.hs in ghc 8.4.3
 --{-# COMPLETE Builtin, Derived #-}
 
--- Pos is a position into a cycle of size Size, as cycles are hashed together.
+-- | @Pos@ is a position into a cycle of size @Size@, as cycles are hashed together.
 data Id = Id H.Hash Pos Size deriving (Eq,Ord,Generic)
 
 unsafeId :: Reference -> Id
