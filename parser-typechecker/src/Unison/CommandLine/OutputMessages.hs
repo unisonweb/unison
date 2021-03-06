@@ -1902,7 +1902,7 @@ watchPrinter src ppe ann kind term isHit =
         P.lines
           [ fromString (show lineNum) <> " | " <> P.text line
           , case (kind, term) of
-            (UF.TestWatch, Term.Sequence' tests) -> foldMap renderTest tests
+            (UF.TestWatch, Term.List' tests) -> foldMap renderTest tests
             _ -> P.lines
               [ fromString (replicate lineNumWidth ' ')
               <> fromString extra
@@ -2020,7 +2020,7 @@ prettyRepoBranch (RemoteRepo.GitRepo url treeish) =
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of
-  Term.Sequence' ts -> all isSuccess ts where
+  Term.List' ts -> all isSuccess ts where
     isSuccess (Term.App' (Term.Constructor' ref cid) _) =
       cid == DD.okConstructorId &&
       ref == DD.testResultRef

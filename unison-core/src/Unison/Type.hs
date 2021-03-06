@@ -206,14 +206,14 @@ derivedBase32Hex r a = ref a r
 -- derivedBase58' :: Text -> Reference
 -- derivedBase58' base58 = Reference.derivedBase58 base58 0 1
 
-intRef, natRef, floatRef, booleanRef, textRef, charRef, vectorRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: Reference
+intRef, natRef, floatRef, booleanRef, textRef, charRef, listRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: Reference
 intRef = Reference.Builtin "Int"
 natRef = Reference.Builtin "Nat"
 floatRef = Reference.Builtin "Float"
 booleanRef = Reference.Builtin "Boolean"
 textRef = Reference.Builtin "Text"
 charRef = Reference.Builtin "Char"
-vectorRef = Reference.Builtin "Sequence"
+listRef = Reference.Builtin "Sequence"
 bytesRef = Reference.Builtin "Bytes"
 effectRef = Reference.Builtin "Effect"
 termLinkRef = Reference.Builtin "Link.Term"
@@ -300,8 +300,8 @@ builtinIO a = ref a builtinIORef
 socket :: Ord v => a -> Type v a
 socket a = ref a socketRef
 
-vector :: Ord v => a -> Type v a
-vector a = ref a vectorRef
+list :: Ord v => a -> Type v a
+list a = ref a listRef
 
 bytes :: Ord v => a -> Type v a
 bytes a = ref a bytesRef

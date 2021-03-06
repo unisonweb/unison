@@ -218,7 +218,7 @@ pretty0
       paren (p >= 11) $ (fmt S.DelayForceChar $ l "!") <> pretty0 n (ac 11 Normal im doc) x
     LamNamed' v x | (Var.name v) == "()" ->
       paren (p >= 11) $ (fmt S.DelayForceChar $ l "'") <> pretty0 n (ac 11 Normal im doc) x
-    Sequence' xs -> PP.group $
+    List' xs -> PP.group $
       (fmt S.DelimiterChar $ l "[") <> optSpace
           <> intercalateMap ((fmt S.DelimiterChar $ l ",") <> PP.softbreak <> optSpace <> optSpace)
                             (pretty0 n (ac 0 Normal im doc))
@@ -828,7 +828,7 @@ suffixCounterTerm n = \case
 suffixCounterType :: Var v => PrettyPrintEnv -> Type v a -> PrintAnnotation
 suffixCounterType n = \case
     Type.Var' v -> countHQ $ HQ.unsafeFromVar v
-    Type.Ref' r | noImportRefs r || r == Type.vectorRef -> mempty
+    Type.Ref' r | noImportRefs r || r == Type.listRef -> mempty
     Type.Ref' r -> countHQ $ PrettyPrintEnv.typeName n r
     _ -> mempty
 
@@ -1196,7 +1196,7 @@ unLamsMatch' t = case unLamsUntilDelay' t of
 pattern Bytes' bs <- (toBytes -> Just bs)
 
 toBytes :: Term3 v PrintAnnotation -> Maybe [Word64]
-toBytes (App' (Builtin' "Bytes.fromList") (Sequence' bs)) =
+toBytes (App' (Builtin' "Bytes.fromList") (List' bs)) =
   toList <$> traverse go bs
   where go (Nat' n) = Just n
         go _ = Nothing

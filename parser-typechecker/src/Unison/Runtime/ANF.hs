@@ -80,7 +80,7 @@ import Data.Functor.Compose (Compose(..))
 import Data.List hiding (and,or)
 import Prelude hiding (abs,and,or,seq)
 import qualified Prelude
-import Unison.Term hiding (resolve, fresh, float, Text, Ref)
+import Unison.Term hiding (resolve, fresh, float, Text, Ref, List)
 import Unison.Var (Var, typed)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Bytes (Bytes)
@@ -469,9 +469,9 @@ fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
   go (Let1Named' v b e) = let1' False [(v, go b)] (go e)
   -- top = False because we don't care to emit typechecker notes about TLDs
   go (LetRecNamed' bs e) = letRec' False (fmap (second go) bs) (go e)
-  go e@(Sequence' vs) =
+  go e@(List' vs) =
     if all isLeaf vs then e
-    else fixup (ABT.freeVars e) (seq (ann e)) (toList vs)
+    else fixup (ABT.freeVars e) (list (ann e)) (toList vs)
   go e@(Ann' tm typ) = Term.ann (ann e) (go tm) typ
   go e = error $ "ANF.term: I thought we got all of these\n" <> show e
 
@@ -1162,7 +1162,7 @@ anfBlock (Blank' _) = do
        , pure $ TPrm EROR [ev])
 anfBlock (TermLink' r) = pure (mempty, pure . TLit $ LM r)
 anfBlock (TypeLink' r) = pure (mempty, pure . TLit $ LY r)
-anfBlock (Sequence' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms
+anfBlock (List' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms
   where
   tms = toList as
 anfBlock t = error $ "anf: unhandled term: " ++ show t

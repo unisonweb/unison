@@ -1469,12 +1469,12 @@ loop = do
           testRefs = Set.fromList [ r | Referent.Ref r <- toList testTerms ]
           oks results =
             [ (r, msg)
-            | (r, Term.Sequence' ts) <- Map.toList results
+            | (r, Term.List' ts) <- Map.toList results
             , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
             , cid == DD.okConstructorId && ref == DD.testResultRef ]
           fails results =
             [ (r, msg)
-            | (r, Term.Sequence' ts) <- Map.toList results
+            | (r, Term.List' ts) <- Map.toList results
             , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
             , cid == DD.failConstructorId && ref == DD.testResultRef ]
         cachedTests <- fmap Map.fromList . eval $ LoadWatches UF.TestWatch testRefs
@@ -1556,12 +1556,12 @@ loop = do
 
             oks results =
               [ (r, msg)
-              | (r, Term.Sequence' ts) <- results
+              | (r, Term.List' ts) <- results
               , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
               , cid == DD.okConstructorId && ref == DD.testResultRef ]
             fails results =
               [ (r, msg)
-              | (r, Term.Sequence' ts) <- results
+              | (r, Term.List' ts) <- results
               , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
               , cid == DD.failConstructorId && ref == DD.testResultRef ]
 

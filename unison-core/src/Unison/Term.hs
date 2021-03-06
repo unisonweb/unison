@@ -72,7 +72,7 @@ data F typeVar typeAnn patternAnn a
   | Handle a a
   | App a a
   | Ann a (Type typeVar typeAnn)
-  | Sequence (Seq a)
+  | List (Seq a)
   | If a a a
   | And a a
   | Or a a
@@ -246,7 +246,7 @@ extraMap vtf atf apf = \case
   Handle x y -> Handle x y
   App x y -> App x y
   Ann tm x -> Ann tm (ABT.amap atf (ABT.vmap vtf x))
-  Sequence x -> Sequence x
+  List x -> List x
   If x y z -> If x y z
   And x y -> And x y
   Or x y -> Or x y
@@ -434,7 +434,7 @@ pattern BinaryApps' apps lastArg <- (unBinaryApps -> Just (apps, lastArg))
 pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg))
 -- end pretty-printer helper patterns
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
-pattern Sequence' xs <- (ABT.out -> ABT.Tm (Sequence xs))
+pattern List' xs <- (ABT.out -> ABT.Tm (List xs))
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
@@ -540,11 +540,11 @@ and a x y = ABT.tm' a (And x y)
 or :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 or a x y = ABT.tm' a (Or x y)
 
-seq :: Ord v => a -> [Term2 vt at ap v a] -> Term2 vt at ap v a
-seq a es = seq' a (Sequence.fromList es)
+list :: Ord v => a -> [Term2 vt at ap v a] -> Term2 vt at ap v a
+list a es = list' a (Sequence.fromList es)
 
-seq' :: Ord v => a -> Seq (Term2 vt at ap v a) -> Term2 vt at ap v a
-seq' a es = ABT.tm' a (Sequence es)
+list' :: Ord v => a -> Seq (Term2 vt at ap v a) -> Term2 vt at ap v a
+list' a es = ABT.tm' a (List es)
 
 apps
   :: Ord v
@@ -866,7 +866,7 @@ generalizedDependencies termRef typeRef literalType dataConstructor dataType eff
   f t@(Float    _) = Writer.tell [literalType Type.floatRef] $> t
   f t@(Boolean  _) = Writer.tell [literalType Type.booleanRef] $> t
   f t@(Text     _) = Writer.tell [literalType Type.textRef] $> t
-  f t@(Sequence _) = Writer.tell [literalType Type.vectorRef] $> t
+  f t@(List _) = Writer.tell [literalType Type.listRef] $> t
   f t@(Constructor r cid) =
     Writer.tell [dataType r, dataConstructor r cid] $> t
   f t@(Request r cid) =
@@ -1016,7 +1016,7 @@ instance Var v => Hashable1 (F v a p) where
                     error "handled above, but GHC can't figure this out"
                   App a a2  -> [tag 3, hashed (hash a), hashed (hash a2)]
                   Ann a t   -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
-                  Sequence as -> tag 5 : varint (Sequence.length as) : map
+                  List as -> tag 5 : varint (Sequence.length as) : map
                     (hashed . hash)
                     (toList as)
                   Lam a         -> [tag 6, hashed (hash a)]
@@ -1067,7 +1067,7 @@ instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Handle h b == Handle h2 b2 = h == h2 && b == b2
   App f a == App f2 a2 = f == f2 && a == a2
   Ann e t == Ann e2 t2 = e == e2 && t == t2
-  Sequence v == Sequence v2 = v == v2
+  List v == List v2 = v == v2
   If a b c == If a2 b2 c2 = a == a2 && b == b2 && c == c2
   And a b == And a2 b2 = a == a2 && b == b2
   Or a b == Or a2 b2 = a == a2 && b == b2
@@ -1091,7 +1091,7 @@ instance (Show v, Show a) => Show (F v a0 p a) where
     go p (Ann t k) = showParen (p > 1) $ shows t <> s ":" <> shows k
     go p (App f x) = showParen (p > 9) $ showsPrec 9 f <> s " " <> showsPrec 10 x
     go _ (Lam    body  ) = showParen True (s "λ " <> shows body)
-    go _ (Sequence vs    ) = showListWith shows (toList vs)
+    go _ (List vs    ) = showListWith shows (toList vs)
     go _ (Blank  b     ) = case b of
       B.Blank                        -> s "_"
       B.Recorded (B.Placeholder _ r) -> s ("_" ++ r)

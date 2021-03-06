@@ -6,17 +6,16 @@
 module Unison.Runtime.Decompile
   ( decompile ) where
 
-import Prelude hiding (seq)
 import Unison.Prelude
 
 import Unison.ABT (absChain, substs, pattern AbsN')
 import Unison.Term
   ( Term
   , nat, int, char, float, boolean, constructor, app, apps', text, ref
-  , seq, seq', builtin, termLink, typeLink
+  , list, list', builtin, termLink, typeLink
   )
 import Unison.Type
-  ( natRef, intRef, charRef, floatRef, booleanRef, vectorRef
+  ( natRef, intRef, charRef, floatRef, booleanRef, listRef
   , termLinkRef, typeLinkRef, anyRef
   )
 import Unison.Var (Var)
@@ -110,16 +109,16 @@ decompileForeign topTerms f
   | Just l <- maybeUnwrapForeign typeLinkRef f
   = Right $ typeLink () l
   | Just s <- unwrapSeq f
-  = seq' () <$> traverse (decompile topTerms) s
+  = list' () <$> traverse (decompile topTerms) s
 decompileForeign _ _ = err "cannot decompile Foreign"
 
 decompileBytes :: Var v => By.Bytes -> Term v ()
 decompileBytes
   = app () (builtin () $ fromString "Bytes.fromList")
-  . seq () . fmap (nat () . fromIntegral) . By.toWord8s
+  . list () . fmap (nat () . fromIntegral) . By.toWord8s
 
 decompileHashAlgorithm :: Var v => HashAlgorithm -> Term v ()
 decompileHashAlgorithm (HashAlgorithm r _) = ref () r
 
 unwrapSeq :: Foreign -> Maybe (Seq Closure)
-unwrapSeq = maybeUnwrapForeign vectorRef
+unwrapSeq = maybeUnwrapForeign listRef
