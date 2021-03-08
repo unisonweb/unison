@@ -1,0 +1,100 @@
+
+-- memoization of `forkAt` seems really useful, lets you incrementally recompute batch jobs
+-- it would be cool if you could memoize to either ephemeral or durable storage
+-- you could have memoization be a global decision made by the handler, but this is not enough control - you don't want to memoize everything
+-- also want to be able to race computations and whichever finished first you use its result
+
+ability Remote t g where
+  -- forkAt : Location -> '{g} a -> () -- no 
+  forkAt : Location -> '{g} a -> t a 
+  fail : Failure -> x
+  here : Location
+
+  -- could split this up into r/w x ephemeral/durable
+  -- await/ephemeral could be in read-only
+  -- put could be in write
+  ephemeral : Location -> id a -> t a
+  durable : Location -> id a -> t a
+  lexical : Location -> id a -> t a
+  finished : t a -> Boolean
+  await : t a -> a
+  put : a -> t a -> () 
+
+forkAt alice 'let
+  ..
+  put
+
+---
+
+  -- where Mode
+  forkAt : Location -> '{g} a -> t a
+  -- issue with this is you want to check the cache before
+  -- launching the task!
+  cache : Mode -> t a -> t
+  
+  -- IVar Ephemeral a
+  ephemeral : Location -> id a -> IVar Ephemeral a
+  -- IVar Durable a
+  durable : Location -> id a -> IVar Durable a
+  finished : IVar s a -> Boolean
+  await : IVar a -> s a
+  put : a -> IVar a -> () 
+
+'{Remote t {IVars}} Nat
+
+memoAt : Location -> '{g} a ->{Remote t g} (IVar a)
+memoAt loc c = 
+  ivar = IVars.new c
+  if finished ivar then 
+    await ivar
+  else
+    forkAt loc 'let
+      t = forkAt loc c  
+      a = await t
+      IVars.put a ivar
+    ivar
+
+-- 
+-- {Remote t {IVars}} x
+ability IVars where
+  -- IVar Ephemeral a
+  ephemeral : Location -> id a -> IVar Ephemeral a
+  -- IVar Durable a
+  durable : Location -> id a -> IVar Durable a
+  finished : IVar s a -> Boolean
+  await : IVar a -> s a
+  put : a -> IVar a -> () 
+
+ability IVars.R where
+  -- IVar Ephemeral a
+  -- ephemeral : Location -> id a -> IVar Ephemeral a
+  -- IVar Durable a
+  -- durable : Location -> id a -> IVar Durable a
+  finished : IVar s a -> Boolean
+  await : IVar a -> s a
+  -- put : a -> IVar a -> () 
+
+ability IVars.Durable.W where
+  -- IVar Ephemeral a
+  ephemeral : Location -> id a -> IVar Ephemeral a
+  -- IVar Durable a
+  durable : Location -> id a -> IVar Durable a
+  put : a -> IVar a -> () 
+
+  -- ask for the hash that was used to compute it
+  -- cancel :  
+
+
+---
+
+ability IVar where
+   
+ask the IVar for the hash of what was used to compute it
+areWeThereYetMom - to tell us if it’s still being computed
+read: IVar a -> Optional a
+if this has already been computed, give me a reference to where this data has been put
+
+ask the IVar for the hash of what was used to compute it
+areWeThereYetMom - to tell us if it’s still being computed
+read: IVar a -> Optional a
+if this has already been computed, give me a reference to where this data has been put
