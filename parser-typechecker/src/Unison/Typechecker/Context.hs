@@ -837,15 +837,17 @@ synthesizeApps ft args =
 synthesizeApp :: (Var v, Ord loc) => Type v loc -> (Term v loc, Int) -> M v loc (Type v loc)
 synthesizeApp ft arg | debugEnabled && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
 synthesizeApp (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argNum) =
-  scope (InSynthesizeApp ft arg argNum) $ abilityCheck es >> go ft
+  scope (InSynthesizeApp ft arg argNum)
+    $ wantAbilities (loc arg) es >> abilityCheck es >> go ft
   where
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
     appendContext [existential v]
     let ft2 = ABT.bindInheritAnnotation body (existential' () B.Blank v)
     synthesizeApp ft2 argp
-  go (Type.Arrow' i o) = do -- ->App
-    let (es, _) = Type.stripEffect o
+  go (Type.Arrow' i o0) = do -- ->App
+    let (es, o) = Type.stripEffect o0
+    wantAbilities (loc o0) es
     abilityCheck es
     o <$ check arg i
   -- todo: reviewme should we use polarity info here?
@@ -915,6 +917,7 @@ synthesize e = scope (InSynthesize e) $
     Left es -> failWith (DuplicateDefinitions es)
     Right e -> do
       Type.Effect'' es t <- go e
+      wantAbilities (loc e) es
       abilityCheck es
       pure t
   where
@@ -1027,16 +1030,23 @@ synthesize e = scope (InSynthesize e) $
         withEffects es $ check body i
         o <- applyM o
         let (oes, o') = Type.stripEffect o
+        wantAbilities (loc h) oes
         abilityCheck oes
         pure o'
       -- degenerate case, like `handle x -> 10 in ...`
       -- todo: reviewme - I think just generate a type error in this case
       --       reviewme - if keeping this, should we use polarity info?
+      -- Currently assuming no effects are handled.
       Type.Arrow' (i@(Type.Var' (TypeVar.Existential _ v@(lookupSolved ctx -> Nothing) _))) o -> do
-        e <- extendExistential v
-        withEffects [existentialp (loc i) e] $ check body i
+        r <- extendExistential v
+        let rt = existentialp (loc i) r
+            e0 = Type.apps (Type.ref (loc i) Type.effectRef)
+                   [(loc i, Type.effects (loc i) []), (loc i, rt)]
+        subtype i e0
+        check body i
         o <- applyM o
         let (oes, o') = Type.stripEffect o
+        wantAbilities (loc h) oes
         abilityCheck oes
         pure o'
       _ -> failWith $ HandlerOfUnexpectedType (loc h) ht
@@ -1516,8 +1526,11 @@ check e0 t0 = scope (InCheck e0 t0) $ do
       if wellformedType ctx t0
         then case t of
              -- expand existentials before checking
-          t@(Type.Var' (TypeVar.Existential _ _ _)) -> abilityCheck es >> go e (apply ctx t)
-          t                         -> go e (Type.stripIntroOuters t)
+          t@(Type.Var' (TypeVar.Existential _ _ _))
+            -> wantAbilities (loc t0) es
+            >> abilityCheck es
+            >> go e (apply ctx t)
+          t -> go e (Type.stripIntroOuters t)
         else failWith $ IllFormedType ctx
  where
   go :: Term v loc -> Type v loc -> M v loc ()
@@ -1865,6 +1878,25 @@ abilityCheck requested = do
   ctx <- getContext
   abilityCheck' (apply ctx <$> ambient >>= Type.flattenEffects)
                 (apply ctx <$> requested >>= Type.flattenEffects)
+
+wantAbilities :: (Var v, Ord loc) => loc -> [Type v loc] -> M v loc ()
+wantAbilities l as0 = getContext >>= walk >>= setContext
+  where
+  walk (Context ctx) = Context <$> walk' ctx as0
+  walk' ctx [] = pure ctx
+  walk' [] _ = pure []
+  walk' (p@(Handled _ ts,_) : ctx) as
+    = sieve ts as >>= fmap (p:) . walk' ctx
+  walk' ((Wanted v bs, i) : ctx) as
+    = pure $ (Wanted v (map (l,) as ++ bs), i) : ctx
+  walk' (p:ctx) as = (p:) <$> walk' ctx as
+
+  sieve ts = filterM (p ts)
+
+  p ts a
+    | Just t <- find (headMatch a) ts
+    = False <$ subtype t a
+    | otherwise = pure True
 
 verifyDataDeclarations :: (Var v, Ord loc) => DataDeclarations v loc -> Result v loc ()
 verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
