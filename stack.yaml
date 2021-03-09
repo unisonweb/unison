@@ -13,6 +13,7 @@ packages:
 - codebase1/codebase
 - codebase2/codebase
 - codebase2/codebase-sqlite
+- codebase2/codebase-sync
 - codebase2/core
 - codebase2/language
 - codebase2/runtime
@@ -47,6 +48,7 @@ extra-deps:
 - binary-0.8.8.0
 - parsec-3.1.14.0
 - Cabal-3.2.1.0
+- monad-validate-1.2.0.0@sha256:9850f408431098b28806dd464b6825a88a0b56c84f380d7fe0454c1df9d6f881,3505
 
 ghc-options:
  # All packages
