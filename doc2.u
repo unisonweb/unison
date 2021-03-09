@@ -67,6 +67,18 @@ type Pretty txt = Pretty (Pretty.Annotated () txt)
 
 Pretty.get = cases Pretty p -> p
 
+Pretty.map : (txt ->{g} txt2) ->{} Pretty txt ->{g} Pretty txt2
+Pretty.map f p = 
+  go = cases
+    Empty -> Empty
+    Group _ p -> Group () (go p) 
+    Lit _ t -> Lit () (f t)
+    Wrap _ p -> Wrap () (go p)
+    OrElse _ p1 p2 -> OrElse () (go p1) (go p2)
+    Indent _ i0 iN p -> Indent () (go i0) (go iN) (go p)
+    Append _ ps -> Append () (List.map go ps)
+  Pretty (go (Pretty.get p))
+
 Pretty.empty : Pretty txt
 Pretty.empty = Pretty Empty
 
@@ -178,12 +190,17 @@ List.map f as =
     h +: t -> go (acc :+ f h) t
   go [] as
 
+Either.mapRight : (a -> b) -> Either e a -> Either e b
+Either.mapRight f = cases
+  Right a -> Right (f a)
+  Left e -> Left e
+
 syntax.doc.renderToConsole : Doc2 -> Pretty (Either SpecialForm ConsoleText) 
 syntax.doc.renderToConsole d =  
   lit t = Pretty.lit (Right (Plain t))
   p1 <> p2 = Pretty.append p1 p2
   nl = lit "\n"
-  map f = todo "map over console text" 
+  map f p = Pretty.map (mapRight f) p
   go = cases
     Word t -> lit t 
     Code d -> lit "`" <> go d <> lit "`"
@@ -226,15 +243,6 @@ syntax.doc.renderToConsole d =
     NamedLink name _target -> map ConsoleText.Underline (go name) 
     Special sf -> Pretty.lit (Left sf) 
   go d
-
-  {-
-  = Word Text | Code Doc2 | CodeBlock Text Doc2 | Bold Doc2 | Italic Doc2
-  | Strikethrough Doc2 -- style {{ myclass }} mydoc | Style Doc2 Doc2 | Blockquote Doc2
-  | Blankline | SectionBreak | Aside (Optional Doc2) Doc2 -- callout icon content
-  | Callout (Optional Doc2) Doc2 | Folded Boolean Doc2 Doc2 | Paragraph [Doc2]
-  | BulletedList [Doc2] | NumberedList Nat [Doc2] | Section Doc2 [Doc2] 
-  | NamedLink Doc2 Doc2 | Special Doc2.SpecialForm | Docs [Doc2]
-  -}
 
 Text.leftPad : Nat -> Text -> Text
 Text.leftPad n t = 
