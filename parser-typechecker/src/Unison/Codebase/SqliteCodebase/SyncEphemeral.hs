@@ -1,0 +1,142 @@
+module Unison.Codebase.SqliteCodebase.SyncEphemeral where
+
+-- syncToDirectory :: forall m v a
+--   . MonadIO m
+--   => Var v
+--   => S.Format v
+--   -> S.Format a
+--   -> CodebasePath
+--   -> CodebasePath
+--   -> SyncMode
+--   -> Branch m
+--   -> m ()
+-- syncToDirectory fmtV fmtA = do
+--   sync <- Sync22.sync22
+--   where
+--   -- Use State and Lens to do some specified thing at most once, to create a file.
+--   ifNeedsSyncing :: forall m s h. (MonadIO m, MonadState s m, Ord h)
+--                  => h
+--                  -> CodebasePath
+--                  -> (CodebasePath -> h -> FilePath) -- done if this filepath exists
+--                  -> SimpleLens s (Set h) -- lens to track if `h` is already done
+--                  -> (h -> m ()) -- do!
+--                  -> m ()        -- don't
+--                  -> m ()
+--   ifNeedsSyncing h destPath getFilename l doSync dontSync =
+--     ifM (use (l . to (Set.member h))) dontSync $ do
+--       l %= Set.insert h
+--       if mode == SyncMode.Complete then doSync h
+--       else ifM (doesFileExist (getFilename destPath h)) dontSync (doSync h)
+--   processBranches :: forall m
+--      . MonadIO m
+--     => MonadState SyncedEntities m
+--     => MonadWriter (BD.Dependencies, Set Error) m
+--     => [(Branch.Hash, Maybe (m (Branch m)))]
+--     -> m ()
+--   processBranches [] = pure ()
+--   -- for each branch,
+--   processBranches ((h, mmb) : rest) =
+--     let tellError = Writer.tell . (mempty,) . Set.singleton
+--         tellDependencies = Writer.tell . (,mempty) in
+--     -- if hash exists at the destination, skip it, mark it done
+--     ifNeedsSyncing h destPath branchPath syncedBranches
+--       (\h ->
+--       -- else if hash exists at the source, enqueue its dependencies, copy it, mark it done
+--         ifM (doesFileExist (branchPath srcPath h))
+--             (do
+--               (branches, deps) <- BD.fromRawCausal <$>
+--                 (deserializeRawBranchDependencies tellError srcPath h)
+--               copyFileWithParents (branchPath srcPath h) (branchPath destPath h)
+--               tellDependencies deps
+--               processBranches (branches ++ rest))
+--         -- else if it's in memory, enqueue its dependencies, write it, mark it done
+--             case mmb of
+--               Just mb -> do
+--                 b <- mb
+--                 let (branches, deps) = BD.fromBranch b
+--                 let causalRaw = Branch.toCausalRaw b
+--                 serializeRawBranch destPath h causalRaw
+--                 tellDependencies deps
+--                 processBranches (branches ++ rest)
+--         -- else -- error?
+--               Nothing -> do
+--                 tellError (MissingBranch h)
+--                 processBranches rest
+--       )
+--       (processBranches rest)
+
+--   -- syncToDirectory' (S.get fmtV) (S.get fmtA)
+
+-- -- data Error = Error ()
+--   -- = MissingBranch Branch.Hash
+--   -- | MissingPatch Branch.EditHash
+--   -- | MissingTerm Reference.Id
+--   -- | MissingTypeOfTerm Reference.Id
+--   -- | MissingDecl Reference.Id
+--   -- | InvalidBranch Branch.Hash
+--   -- | InvalidTerm Reference.Id
+--   -- | InvalidTypeOfTerm Reference.Id
+--   -- | InvalidDecl Reference.Id
+--   -- deriving (Eq, Ord, Show)
+
+-- syncToDirectory' :: forall m v a
+--   . MonadIO m
+--   => Var v
+--   => S.Get v
+--   -> S.Get a
+--   -> CodebasePath
+--   -> CodebasePath
+--   -> SyncMode
+--   -> Branch m
+--   -> m ()
+-- syncToDirectory' getV getA srcPath destPath mode newRoot =
+--   let warnMissingEntities = False in
+--   flip evalStateT mempty $ do -- MonadState s m
+--     (deps, errors) <- time "Sync Branches" $ execWriterT $
+--       processBranches [(Branch.headHash newRoot
+--                        ,Just . pure . Branch.transform (lift . lift) $ newRoot)]
+--     errors' <- time "Sync Definitions" $
+--       execWriterT $ processDependencies (BD.to' deps)
+--     time "Write indices" $ do
+--       lift . writeDependentsIndex   =<< use dependentsIndex
+--       lift . writeTypeIndex         =<< use typeIndex
+--       lift . writeTypeMentionsIndex =<< use typeMentionsIndex
+--     when (warnMissingEntities) $ for_ (errors <> errors') traceShowM
+
+--   processBranches :: forall m
+--      . MonadIO m
+--     => MonadState SyncedEntities m
+--     => MonadWriter (BD.Dependencies, Set Error) m
+--     => [(Branch.Hash, Maybe (m (Branch m)))]
+--     -> m ()
+--   processBranches [] = pure ()
+--   -- for each branch,
+--   processBranches ((h, mmb) : rest) =
+--     let tellError = Writer.tell . (mempty,) . Set.singleton
+--         tellDependencies = Writer.tell . (,mempty) in
+--     -- if hash exists at the destination, skip it, mark it done
+--     ifNeedsSyncing h destPath branchPath syncedBranches
+--       (\h ->
+--       -- else if hash exists at the source, enqueue its dependencies, copy it, mark it done
+--         ifM (doesFileExist (branchPath srcPath h))
+--             (do
+--               (branches, deps) <- BD.fromRawCausal <$>
+--                 (deserializeRawBranchDependencies tellError srcPath h)
+--               copyFileWithParents (branchPath srcPath h) (branchPath destPath h)
+--               tellDependencies deps
+--               processBranches (branches ++ rest))
+--         -- else if it's in memory, enqueue its dependencies, write it, mark it done
+--             case mmb of
+--               Just mb -> do
+--                 b <- mb
+--                 let (branches, deps) = BD.fromBranch b
+--                 let causalRaw = Branch.toCausalRaw b
+--                 serializeRawBranch destPath h causalRaw
+--                 tellDependencies deps
+--                 processBranches (branches ++ rest)
+--         -- else -- error?
+--               Nothing -> do
+--                 tellError (MissingBranch h)
+--                 processBranches rest
+--       )
+--       (processBranches rest)

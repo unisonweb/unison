@@ -84,6 +84,7 @@ library
     Unison.Codebase.Editor.VersionParser
     Unison.Codebase.FileCodebase
     Unison.Codebase.FileCodebase.Common
+    Unison.Codebase.FileCodebase.Git
     Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
@@ -99,6 +100,8 @@ library
     Unison.Codebase.ShortBranchHash
     Unison.Codebase.SqliteCodebase
     Unison.Codebase.SqliteCodebase.Conversions
+    Unison.Codebase.SqliteCodebase.Git
+    Unison.Codebase.SqliteCodebase.SyncEphemeral
     Unison.Codebase.SyncMode
     Unison.Codebase.TermEdit
     Unison.Codebase.TranscriptParser
@@ -247,6 +250,7 @@ library
     unison-core1,
     unliftio,
     util,
+    validation,
     vector,
     unicode-show,
     x509,

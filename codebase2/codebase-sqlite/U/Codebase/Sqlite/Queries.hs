@@ -14,6 +14,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
+{-# LANGUAGE TypeOperators #-}
 module U.Codebase.Sqlite.Queries where
 
 import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)

@@ -41,7 +41,8 @@ newtype TermId = TermCycleId ObjectId deriving Show deriving (FromField, ToField
 newtype DeclId = DeclCycleId ObjectId deriving Show deriving (FromField, ToField) via ObjectId
 
 -- |For generational garbage-collection; 0 is the oldest generation.
-newtype Generation = Generation { unGeneration :: Word64 } deriving (Eq, Ord, Show)
+newtype Generation = Generation { unGeneration :: Word64 }
+  deriving (Eq, Ord, Show)
   deriving (Enum, FromField, ToField) via Word64
 
 instance Show PatchObjectId where

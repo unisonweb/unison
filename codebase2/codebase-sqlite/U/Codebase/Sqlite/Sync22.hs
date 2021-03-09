@@ -43,7 +43,7 @@ import qualified U.Codebase.Sqlite.Reference as Sqlite
 import qualified U.Codebase.Sqlite.Reference as Sqlite.Reference
 import qualified U.Codebase.Sqlite.Referent as Sqlite.Referent
 import qualified U.Codebase.Sqlite.Serialization as S
-import U.Codebase.Sync
+import U.Codebase.Sync (Sync (Sync), TrySyncResult (Missing))
 import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
 import U.Util.Cache (Cache)
@@ -75,26 +75,27 @@ data Error
 
 data Env = Env
   { srcDB :: Connection,
-    destDB :: Connection
+    destDB :: Connection,
+    -- | there are three caches of this size
+    idCacheSize :: Word
   }
 
 -- data Mappings
-
--- We load an object from the source; it has a bunch of dependencies.
--- Some of these dependencies exist at the defination, some don't.
--- For the ones that do, look up their ids, and update the thingie as you write it
--- For the ones that don't, copy them (then you will know their ids), and update the thingie.
--- If you want, you can try to cache that lookup.
-
--- sync22 ::
---   ( MonadIO m,
---     MonadError Error m,
---     MonadReader TwoConnections m
---   ) =>
---   Sync m Entity
--- sync22 = Sync roots trySync
---   where
---     roots = runSrc $ fmap (\h -> [C h]) Q.loadNamespaceRoot
+sync22 ::
+  ( MonadIO m,
+    MonadError Error m,
+    MonadReader Env m
+  ) =>
+  m (Sync m Entity)
+sync22 = do
+  size <- Reader.reader idCacheSize
+  tCache <- Cache.semispaceCache size
+  hCache <- Cache.semispaceCache size
+  oCache <- Cache.semispaceCache size
+  gc <- runSrc $ Q.getNurseryGeneration
+  pure $ Sync roots (trySync tCache hCache oCache (succ gc))
+  where
+    roots = runSrc $ fmap (\h -> [C h]) Q.loadNamespaceRoot
 
 trySync ::
   forall m.
@@ -364,9 +365,7 @@ trySync tCache hCache oCache gc = \case
 
     findMissingParents :: CausalHashId -> m [Entity]
     findMissingParents chId = do
-      runSrc (Q.loadCausalParents chId)
-        >>= filterM isMissing
-        <&> fmap C
+      runSrc (Q.loadCausalParents chId) >>= filterM isMissing <&> fmap C
       where
         isMissing p =
           syncCausalHash p

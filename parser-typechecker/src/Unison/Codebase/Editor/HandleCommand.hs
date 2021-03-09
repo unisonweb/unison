@@ -27,7 +27,7 @@ import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
-import qualified Unison.Codebase.Editor.Git    as Git
+import qualified Unison.Codebase.FileCodebase.Git as Git
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.Parsers                as Parsers

@@ -19,5 +19,6 @@ data GitError = NoGit
               | RemoteNamespaceHashAmbiguous RemoteRepo ShortBranchHash (Set Branch.Hash)
               | CouldntLoadRootBranch RemoteRepo Branch.Hash
               | CouldntParseRootBranch RemoteRepo String
+              | CouldntOpenCodebase RemoteRepo CodebasePath
               | SomeOtherError String
               deriving Show

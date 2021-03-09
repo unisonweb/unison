@@ -106,7 +106,8 @@ library
     text,
     transformers,
     util,
-    vector
+    vector,
+    unison-core
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
