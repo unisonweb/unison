@@ -461,7 +461,7 @@ runtime = Runtime terminate eval (nullaryMain External) (nullaryTest External) T
   terminate :: IO ()
   terminate = pure ()
   eval cl' ppe term = do
-    let cl = void (hoist (pure . runIdentity) IOSrc.codeLookup) <> cl'
+    let cl = cl' <> void (hoist (pure . runIdentity) IOSrc.codeLookup)
     -- traceM $ Pretty.render 80 (pretty mempty term)
     cenv <- RT.compilationEnv cl term -- in `m`
     mmap <- newMVar $ IOState
