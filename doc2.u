@@ -60,7 +60,7 @@ unique[d7b2ced8c08b2c6e54050d1f5acedef3395f293d] type Pretty.Annotated w txt
   | Lit w txt
   | Wrap w (Pretty.Annotated w txt)
   | OrElse w (Pretty.Annotated w txt) (Pretty.Annotated w txt)
-  | IndentBy w (Pretty.Annotated w txt) (Pretty.Annotated w txt)
+  | Indent w (Pretty.Annotated w txt) (Pretty.Annotated w txt) (Pretty.Annotated w txt)
   | Append w [Pretty.Annotated w txt]
 
 type Pretty txt = Pretty (Pretty.Annotated () txt)
@@ -82,15 +82,37 @@ Pretty.wrap p = Pretty (Group () (Pretty.get p))
 Pretty.orElse : Pretty txt -> Pretty txt -> Pretty txt
 Pretty.orElse p1 p2 = Pretty (OrElse () (Pretty.get p1) (Pretty.get p2))
 
-Pretty.indentBy : Pretty txt -> Pretty txt -> Pretty txt
-Pretty.indentBy p1 p2 = Pretty (IndentBy () (Pretty.get p1) (Pretty.get p2))
+Pretty.indent : Pretty txt -> Pretty txt -> Pretty txt
+Pretty.indent by p = Pretty (Indent () (Pretty.get by) (Pretty.get by) (Pretty.get p))
+
+Pretty.indent' : Pretty txt -> Pretty txt -> Pretty txt -> Pretty txt
+Pretty.indent' initialIndent indentAfterNewline p = 
+  Pretty (Indent () (Pretty.get initialIndent) 
+                    (Pretty.get indentAfterNewline)
+                    (Pretty.get p))
 
 Pretty.append : Pretty txt -> Pretty txt -> Pretty txt
 Pretty.append p1 p2 = match (Pretty.get p1, Pretty.get p2) with
+  (_, Empty) -> p1
+  (Empty, _) -> p2 
   (Append _ ps1, Append _ ps2) -> Pretty (Append () (ps1 ++ ps2))
   (Append _ ps1, p2) -> Pretty (Append () (ps1 :+ p2))
   (p1, Append _ ps2) -> Pretty (Append () (p1 +: ps2))
   (p1,p2) -> Pretty (Append () [p1,p2])
+
+Pretty.join : [Pretty txt] -> Pretty txt
+Pretty.join = 
+  go acc = cases [] -> acc
+                 h +: t -> go (append acc h) t
+  go Pretty.empty
+
+Pretty.sepBy : Pretty txt -> [Pretty txt] -> Pretty txt
+Pretty.sepBy sep ps = 
+  go acc insertSep = cases
+    [] -> acc
+    ps | insertSep -> go (append acc sep) false ps 
+    h +: t -> go (append acc h) true t
+  go Pretty.empty false ps 
 
 Doc2.evaluate : 'a -> Evaluation
 Doc2.evaluate a = Doc2.Evaluation.Evaluation (Any a) (Any !a) 
@@ -149,6 +171,13 @@ unique[de2e0ee924578939213c950dfd8e0ba1047703ae] type ANSI.Color
   | BrightBlack | BrightRed | BrightGreen | BrightYellow | BrightBlue 
   | BrightMagenta | BrightCyan | BrightWhite
 
+List.map : (a ->{g} b) ->{} [a] ->{g} [b]
+List.map f as = 
+  go acc = cases
+    [] -> acc
+    h +: t -> go (acc :+ f h) t
+  go [] as
+
 syntax.doc.renderToConsole : Doc2 -> Pretty (Either SpecialForm ConsoleText) 
 syntax.doc.renderToConsole d =  
   lit t = Pretty.lit (Right (Plain t))
@@ -166,32 +195,36 @@ syntax.doc.renderToConsole d =
     Strikethrough d -> lit "~~" <> go d <> lit "~~"
     Doc2.Bold d -> map ConsoleText.Bold (go d)
     Style _ d -> go d
-    Blockquote d -> Pretty.indentBy (lit "> ") (go d) 
+    Blockquote d -> Pretty.indent (lit "> ") (go d) 
     Blankline -> lit "\n\n"
     SectionBreak -> lit "܍" 
-    Aside None d -> Pretty.indentBy (lit "  | ") (go d)
+    Aside None d -> Pretty.indent (lit "  | ") (go d)
     Aside (Some title) d -> 
-      Pretty.indentBy (lit "  | ") (go (Bold title) <> nl <> nl <> go d)
+      Pretty.indent (lit "  | ") (go (Bold title) <> nl <> nl <> go d)
     Callout icon d -> go (Aside icon d) -- 
     Folded _ _closed open -> go open
-    Paragraph ds -> 
-      loop acc = cases 
-        [] -> acc
-        d +: ds -> loop (acc <> go d) ds
-      Pretty.wrap (loop Pretty.empty ds)
+    Paragraph ds -> Pretty.wrap (Pretty.join (List.map go ds))
     BulletedList ds -> 
-      loop acc = cases 
-        [] -> acc
-        d +: ds -> loop (acc <> Pretty.indentBy (lit "* ") (go d) <> lit "\n") ds
-      loop Pretty.empty ds
+      item d = Pretty.indent' (lit "* ") (lit "  ") (go d) 
+      items = List.map item ds
+      Pretty.sepBy nl items
     NumberedList n ds -> 
-      num n = lit (Nat.toText n ++ ". ") 
-      loop n acc = cases 
-        [] -> acc
-        d +: ds -> loop (n+1) (acc <> Pretty.indentBy (num n) (go d) <> lit "\n") ds
-      loop n Pretty.empty ds
+      dot = ". "
+      w = Text.size (Nat.toText (n + List.size ds)) + size dot
+      num n = lit (Text.leftPad w (Nat.toText n ++ dot))
+      indent = lit (Text.fill w ?\s)
+      item : Nat -> Doc2 -> Pretty (Either SpecialForm ConsoleText) 
+      item n d = Pretty.indent' (num n) indent (go d)
+      items n acc = cases [] -> acc
+                          d +: ds -> items (n+1) (acc :+ item n d) ds
+      Pretty.sepBy nl (items n [] ds)
+    Section title ds -> 
+      t = Pretty.indent' (lit "# ") (lit "  ") (go (Doc2.Bold title))
+      subs = List.map (d -> Pretty.indent (lit "  ") (go d)) ds
+      Pretty.sepBy (nl <> nl) (t +: subs)
+    Docs ds -> Pretty.join (List.map go ds)
+    NamedLink name _target -> map ConsoleText.Underline (go name) 
     Special sf -> Pretty.lit (Left sf) 
-    _ -> todo "hmm"
   go d
 
   {-
@@ -202,6 +235,21 @@ syntax.doc.renderToConsole d =
   | BulletedList [Doc2] | NumberedList Nat [Doc2] | Section Doc2 [Doc2] 
   | NamedLink Doc2 Doc2 | Special Doc2.SpecialForm | Docs [Doc2]
   -}
+
+Text.leftPad : Nat -> Text -> Text
+Text.leftPad n t = 
+  if size t < n then Text.fill (drop n (size t)) ?\s ++ t
+  else t
+
+List.fill : Nat -> a -> [a]
+List.fill n a = 
+  go acc n = 
+    if n == 0 then acc
+    else go (acc :+ a) (drop n 1) 
+  go [] n
+
+Text.fill : Nat -> Char -> Text
+Text.fill n ch = Text.fromCharList (List.fill n ch)
 
 doc1 = {{
 
