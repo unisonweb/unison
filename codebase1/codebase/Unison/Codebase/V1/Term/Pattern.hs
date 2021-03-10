@@ -82,8 +82,8 @@ generalizedDependencies literalType dataConstructor dataType effectConstructor e
           EffectPure _ -> [effectType Type.effectRef]
           EffectBind r cid _ _ ->
             [effectType Type.effectRef, effectType r, effectConstructor r cid]
-          SequenceLiteral _ -> [literalType Type.vectorRef]
-          SequenceOp {} -> [literalType Type.vectorRef]
+          SequenceLiteral _ -> [literalType Type.listRef]
+          SequenceOp {} -> [literalType Type.listRef]
           Boolean _ -> [literalType Type.booleanRef]
           Int _ -> [literalType Type.intRef]
           Nat _ -> [literalType Type.natRef]

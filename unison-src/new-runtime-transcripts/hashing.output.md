@@ -2,10 +2,6 @@
 
 Unison has cryptographic builtins for hashing and computing [HMACs](https://en.wikipedia.org/wiki/HMAC) (hash-based message authentication codes). This transcript shows their usage and has some test cases.
 
-## Setup
-
-You can skip this section, which is just needed to make the transcript self-contained. In order to print out and test these hashes we will be using some builtins for base16 (aka hexidecimal) encoding and decoding.
-
 ```ucm
 .builtin> ls Bytes
 
@@ -30,47 +26,6 @@ You can skip this section, which is just needed to make the transcript self-cont
 ```
 Notice the `fromBase16` and `toBase16` functions. Here's some convenience functions for converting `Bytes` to and from base-16 `Text`.
 
-```unison
-a |> f = f a
-
-hex : Bytes -> Text
-hex b =
-  match Bytes.toBase16 b |> fromUtf8
-  with Left e -> bug e
-       Right t -> t
-
-ascii : Text -> Bytes
-ascii = toUtf8
-
-fromHex : Text -> Bytes
-fromHex txt =
-  match toUtf8 txt |> Bytes.fromBase16
-  with Left e -> bug e
-       Right bs -> bs
-
-check : Boolean -> [Result]
-check b = if b then [Result.Ok "Passed."]
-          else [Result.Fail "Failed."]
-
-test> hex.tests.ex1 = check let
-         s = "3984af9b"
-         hex (fromHex s) == s
-```
-
-The test shows that `hex (fromHex str) == str` as expected.
-
-```ucm
-.scratch> test
-
-  Cached test results (`help testcache` to learn more)
-  
-  ◉ hex.tests.ex1   Passed.
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view hex.tests.ex1 to view the source of a test.
-
-```
 ## API overview
 
 Here's a few usage examples:
@@ -88,7 +43,7 @@ mysecret : Bytes
 mysecret = fromHex "237be2"
 
 ex3 = fromHex "50d3ab"
-        |> crypto.hmacBytes Sha2_256 mysecret
+        |> (crypto.hmacBytes Sha2_256 mysecret)
         |> hex
 
 f x = x
@@ -176,9 +131,7 @@ Note that the universal versions of `hash` and `hmac` are currently unimplemente
 Here are some test vectors (taken from [here](https://www.di-mgt.com.au/sha_testvectors.html) and [here](https://en.wikipedia.org/wiki/BLAKE_(hash_function))) for the various hashing algorithms:
 
 ```unison
-ex alg input expected = check let
-  hashBytes alg (ascii input) ==
-  fromHex expected
+ex alg input expected = checks [hashBytes alg (ascii input) == fromHex expected]
 
 test> sha3_512.tests.ex1 =
   ex Sha3_512
@@ -286,29 +239,28 @@ test> blake2b_512.tests.ex3 =
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ blake2b_512.tests.ex1   Passed.
-  ◉ blake2b_512.tests.ex2   Passed.
-  ◉ blake2b_512.tests.ex3   Passed.
-  ◉ blake2s_256.tests.ex1   Passed.
-  ◉ hex.tests.ex1           Passed.
-  ◉ sha2_256.tests.ex1      Passed.
-  ◉ sha2_256.tests.ex2      Passed.
-  ◉ sha2_256.tests.ex3      Passed.
-  ◉ sha2_256.tests.ex4      Passed.
-  ◉ sha2_512.tests.ex1      Passed.
-  ◉ sha2_512.tests.ex2      Passed.
-  ◉ sha2_512.tests.ex3      Passed.
-  ◉ sha2_512.tests.ex4      Passed.
-  ◉ sha3_256.tests.ex1      Passed.
-  ◉ sha3_256.tests.ex2      Passed.
-  ◉ sha3_256.tests.ex3      Passed.
-  ◉ sha3_256.tests.ex4      Passed.
-  ◉ sha3_512.tests.ex1      Passed.
-  ◉ sha3_512.tests.ex2      Passed.
-  ◉ sha3_512.tests.ex3      Passed.
-  ◉ sha3_512.tests.ex4      Passed.
+  ◉ blake2b_512.tests.ex1   Passed
+  ◉ blake2b_512.tests.ex2   Passed
+  ◉ blake2b_512.tests.ex3   Passed
+  ◉ blake2s_256.tests.ex1   Passed
+  ◉ sha2_256.tests.ex1      Passed
+  ◉ sha2_256.tests.ex2      Passed
+  ◉ sha2_256.tests.ex3      Passed
+  ◉ sha2_256.tests.ex4      Passed
+  ◉ sha2_512.tests.ex1      Passed
+  ◉ sha2_512.tests.ex2      Passed
+  ◉ sha2_512.tests.ex3      Passed
+  ◉ sha2_512.tests.ex4      Passed
+  ◉ sha3_256.tests.ex1      Passed
+  ◉ sha3_256.tests.ex2      Passed
+  ◉ sha3_256.tests.ex3      Passed
+  ◉ sha3_256.tests.ex4      Passed
+  ◉ sha3_512.tests.ex1      Passed
+  ◉ sha3_512.tests.ex2      Passed
+  ◉ sha3_512.tests.ex3      Passed
+  ◉ sha3_512.tests.ex4      Passed
   
-  ✅ 21 test(s) passing
+  ✅ 20 test(s) passing
   
   Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.
@@ -319,16 +271,13 @@ test> blake2b_512.tests.ex3 =
 These test vectors are taken from [RFC 4231](https://tools.ietf.org/html/rfc4231#section-4.3).
 
 ```unison
-ex' alg secret msg expected = check let
-  hmacBytes alg (fromHex secret) (ascii msg) ==
-  fromHex expected
+ex' alg secret msg expected = checks [hmacBytes alg (fromHex secret) (ascii msg) == fromHex expected]
 
 test> hmac_sha2_256.tests.ex1 =
-  ex' Sha2_256
-    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
-    "Hi There"
+  ex' Sha2_256 
+    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b" 
+    "Hi There" 
     "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
-
 test> hmac_sha2_512.tests.ex1 =
   ex' Sha2_512
     "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
@@ -369,21 +318,21 @@ test> hmac_sha2_512.tests.ex2 =
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    6 |   ex' Sha2_256
+    4 |   ex' Sha2_256 
     
-    ✅ Passed Passed.
+    ✅ Passed Passed
   
-    12 |   ex' Sha2_512
+    9 |   ex' Sha2_512
     
-    ✅ Passed Passed.
+    ✅ Passed Passed
   
-    18 |   ex' Sha2_256
+    15 |   ex' Sha2_256
     
-    ✅ Passed Passed.
+    ✅ Passed Passed
   
-    24 |   ex' Sha2_512
+    21 |   ex' Sha2_512
     
-    ✅ Passed Passed.
+    ✅ Passed Passed
 
 ```
 ```ucm
@@ -391,33 +340,32 @@ test> hmac_sha2_512.tests.ex2 =
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ blake2b_512.tests.ex1     Passed.
-  ◉ blake2b_512.tests.ex2     Passed.
-  ◉ blake2b_512.tests.ex3     Passed.
-  ◉ blake2s_256.tests.ex1     Passed.
-  ◉ hex.tests.ex1             Passed.
-  ◉ hmac_sha2_256.tests.ex1   Passed.
-  ◉ hmac_sha2_256.tests.ex2   Passed.
-  ◉ hmac_sha2_512.tests.ex1   Passed.
-  ◉ hmac_sha2_512.tests.ex2   Passed.
-  ◉ sha2_256.tests.ex1        Passed.
-  ◉ sha2_256.tests.ex2        Passed.
-  ◉ sha2_256.tests.ex3        Passed.
-  ◉ sha2_256.tests.ex4        Passed.
-  ◉ sha2_512.tests.ex1        Passed.
-  ◉ sha2_512.tests.ex2        Passed.
-  ◉ sha2_512.tests.ex3        Passed.
-  ◉ sha2_512.tests.ex4        Passed.
-  ◉ sha3_256.tests.ex1        Passed.
-  ◉ sha3_256.tests.ex2        Passed.
-  ◉ sha3_256.tests.ex3        Passed.
-  ◉ sha3_256.tests.ex4        Passed.
-  ◉ sha3_512.tests.ex1        Passed.
-  ◉ sha3_512.tests.ex2        Passed.
-  ◉ sha3_512.tests.ex3        Passed.
-  ◉ sha3_512.tests.ex4        Passed.
+  ◉ blake2b_512.tests.ex1     Passed
+  ◉ blake2b_512.tests.ex2     Passed
+  ◉ blake2b_512.tests.ex3     Passed
+  ◉ blake2s_256.tests.ex1     Passed
+  ◉ hmac_sha2_256.tests.ex1   Passed
+  ◉ hmac_sha2_256.tests.ex2   Passed
+  ◉ hmac_sha2_512.tests.ex1   Passed
+  ◉ hmac_sha2_512.tests.ex2   Passed
+  ◉ sha2_256.tests.ex1        Passed
+  ◉ sha2_256.tests.ex2        Passed
+  ◉ sha2_256.tests.ex3        Passed
+  ◉ sha2_256.tests.ex4        Passed
+  ◉ sha2_512.tests.ex1        Passed
+  ◉ sha2_512.tests.ex2        Passed
+  ◉ sha2_512.tests.ex3        Passed
+  ◉ sha2_512.tests.ex4        Passed
+  ◉ sha3_256.tests.ex1        Passed
+  ◉ sha3_256.tests.ex2        Passed
+  ◉ sha3_256.tests.ex3        Passed
+  ◉ sha3_256.tests.ex4        Passed
+  ◉ sha3_512.tests.ex1        Passed
+  ◉ sha3_512.tests.ex2        Passed
+  ◉ sha3_512.tests.ex3        Passed
+  ◉ sha3_512.tests.ex4        Passed
   
-  ✅ 25 test(s) passing
+  ✅ 24 test(s) passing
   
   Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.

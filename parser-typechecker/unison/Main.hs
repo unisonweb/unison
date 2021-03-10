@@ -9,8 +9,12 @@ import Unison.Prelude
 import           Control.Concurrent             ( mkWeakThreadId, myThreadId )
 import           Control.Error.Safe             (rightMay)
 import           Control.Exception              ( throwTo, AsyncException(UserInterrupt) )
+import           Data.ByteString.Char8          ( unpack )
 import           Data.Configurator.Types        ( Config )
-import           System.Directory               ( getCurrentDirectory, removeDirectoryRecursive )
+import qualified Network.URI.Encode            as URI
+import           System.Directory               ( getCurrentDirectory
+                                                , removeDirectoryRecursive
+                                                )
 import           System.Environment             ( getArgs, getProgName )
 import           System.Mem.Weak                ( deRefWeak )
 import qualified Unison.Codebase.Editor.VersionParser as VP
@@ -24,6 +28,7 @@ import qualified Unison.Runtime.Rt1IO          as Rt1
 import qualified Unison.Runtime.Interface      as RTI
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Codebase.Path          as Path
+import qualified Unison.Server.CodebaseServer as Server
 import qualified Version
 import qualified Unison.Codebase.TranscriptParser as TR
 import qualified System.Path as Path
@@ -146,6 +151,10 @@ main = do
   case restargs of
     [] -> do
       (closeCodebase, theCodebase) <- SqliteCodebase.getCodebaseOrExit mcodepath
+      Server.start theCodebase $ \token port -> do
+        PT.putPrettyLn . P.string $ "I've started a codebase API server at "
+        PT.putPrettyLn . P.string $ "http://127.0.0.1:"
+          <> show port <> "?" <> URI.encode (unpack token)
       launch currentDir mNewRun config theCodebase []
       closeCodebase
     [version] | isFlag "version" version ->

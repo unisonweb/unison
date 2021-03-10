@@ -225,65 +225,63 @@ inside.y = c + c
   io $ removeDirectoryRecursive tmp
 
   where
-  gitShouldHave = userShouldHave ++ userShouldNotHave ++
-    [ ".unison/v1/paths/p8ahoj90hkdjpvlcu60f6ks7q2is1uqbn1e74k5qn4jt1qmrhk0a62e9b2gamm6qmjdii478la2fha5pnnuvhit2b1mp439od7mrqmg.ub"
+  gitShouldHave = userShouldHave ++ userShouldNotHave
+  userShouldHave = inside ++ a ++ c ++ x ++ y
+  userShouldNotHave = b ++ d
+  inside = -- namespace inside
+    [ ".unison/v1/paths/kalf383ujq26o2bs9elgbjhhasfs6aka22dpblh530rjd2le1h6207j3t40hc9uihkdddhjrtjsqepilbjt7jgh1uq3fiobh3j1s8n0.ub" ]
+  a = -- unique type outside.A = A Nat
+    [ ".unison/v1/types/#00k3c9bp6mch2nfkvqsp8td9eoh4mks7m1ae0mmtuv7k93c6tar0o7rn82of1n7hrovtobmfbebee9lmg3mpcn9mpd2admp6pnq0to8/compiled.ub"
+    , ".unison/v1/dependents/_builtin/Nat/#00k3c9bp6mch2nfkvqsp8td9eoh4mks7m1ae0mmtuv7k93c6tar0o7rn82of1n7hrovtobmfbebee9lmg3mpcn9mpd2admp6pnq0to8"
+    , ".unison/v1/dependents/#00k3c9bp6mch2nfkvqsp8td9eoh4mks7m1ae0mmtuv7k93c6tar0o7rn82of1n7hrovtobmfbebee9lmg3mpcn9mpd2admp6pnq0to8/#i07oo6cpc7r4jl0kkor6rp8mv9g0tacggs61738v3ti6idvcbc53tb42g4q34dl4eu16thq7mto5otodfdg9es8e4a9f3rijelbk0dg"
+    , ".unison/v1/type-index/#d1sq2h5uh94ev9t6eobc2u7mbfpd0so7be8lhj091oge90t4mfsi2052k28j62lhucm32ukrg5f9v57qbalk6h4uva4gj9f732qqdv0/#00k3c9bp6mch2nfkvqsp8td9eoh4mks7m1ae0mmtuv7k93c6tar0o7rn82of1n7hrovtobmfbebee9lmg3mpcn9mpd2admp6pnq0to8#d0"
+    , ".unison/v1/type-mentions-index/_builtin/Nat/#00k3c9bp6mch2nfkvqsp8td9eoh4mks7m1ae0mmtuv7k93c6tar0o7rn82of1n7hrovtobmfbebee9lmg3mpcn9mpd2admp6pnq0to8#d0"
+    , ".unison/v1/type-mentions-index/#00k3c9bp6mch2nfkvqsp8td9eoh4mks7m1ae0mmtuv7k93c6tar0o7rn82of1n7hrovtobmfbebee9lmg3mpcn9mpd2admp6pnq0to8/#i07oo6cpc7r4jl0kkor6rp8mv9g0tacggs61738v3ti6idvcbc53tb42g4q34dl4eu16thq7mto5otodfdg9es8e4a9f3rijelbk0dg#d0"
+    , ".unison/v1/type-mentions-index/#00k3c9bp6mch2nfkvqsp8td9eoh4mks7m1ae0mmtuv7k93c6tar0o7rn82of1n7hrovtobmfbebee9lmg3mpcn9mpd2admp6pnq0to8/#00k3c9bp6mch2nfkvqsp8td9eoh4mks7m1ae0mmtuv7k93c6tar0o7rn82of1n7hrovtobmfbebee9lmg3mpcn9mpd2admp6pnq0to8#d0"
+    , ".unison/v1/type-mentions-index/#d1sq2h5uh94ev9t6eobc2u7mbfpd0so7be8lhj091oge90t4mfsi2052k28j62lhucm32ukrg5f9v57qbalk6h4uva4gj9f732qqdv0/#00k3c9bp6mch2nfkvqsp8td9eoh4mks7m1ae0mmtuv7k93c6tar0o7rn82of1n7hrovtobmfbebee9lmg3mpcn9mpd2admp6pnq0to8#d0"
     ]
-  userShouldHave =
-    [ ".unison/v1/type-mentions-index/_builtin/Nat/#omqnfettvjqrjmpl2mn7s30g94gogjjoi6hd3ob6394r71mkidbg0kqtgtbkjkmhbqvipqed9ql4b0o7kp68c560e3onb0v3lbv6bjg"
+  b = -- unique type outside.B = B Nat Nat
+    [ ".unison/v1/types/#l7h31hucoljkfa4ihprjo6qobpa0jseheqe5qgid19vjf7o2kjm66h709dggri6l4nqkulo2gm3nc107t3o3s2vsphglofum4smut90/compiled.ub"
+    , ".unison/v1/dependents/_builtin/Nat/#l7h31hucoljkfa4ihprjo6qobpa0jseheqe5qgid19vjf7o2kjm66h709dggri6l4nqkulo2gm3nc107t3o3s2vsphglofum4smut90"
+    , ".unison/v1/type-index/#4lc2ufmnjmvdhlh94rt8ipit4n84d4hsns0f2nmg4bpiv5r717enq669s6vnc5238oolb2ed4jerlqrc1fneus33p7bbhqom4dsdrb0/#l7h31hucoljkfa4ihprjo6qobpa0jseheqe5qgid19vjf7o2kjm66h709dggri6l4nqkulo2gm3nc107t3o3s2vsphglofum4smut90#d0"
+    , ".unison/v1/type-mentions-index/_builtin/Nat/#l7h31hucoljkfa4ihprjo6qobpa0jseheqe5qgid19vjf7o2kjm66h709dggri6l4nqkulo2gm3nc107t3o3s2vsphglofum4smut90#d0"
+    , ".unison/v1/type-mentions-index/#4lc2ufmnjmvdhlh94rt8ipit4n84d4hsns0f2nmg4bpiv5r717enq669s6vnc5238oolb2ed4jerlqrc1fneus33p7bbhqom4dsdrb0/#l7h31hucoljkfa4ihprjo6qobpa0jseheqe5qgid19vjf7o2kjm66h709dggri6l4nqkulo2gm3nc107t3o3s2vsphglofum4smut90#d0"
+    , ".unison/v1/type-mentions-index/#e3th74omhu8ejhcgq3panjn5iuubjb7d15p64paaro73epa8c4o8mktuicrvglttrna4920n4ub7somkorqdh3msr1vpscp3r5rmjho/#l7h31hucoljkfa4ihprjo6qobpa0jseheqe5qgid19vjf7o2kjm66h709dggri6l4nqkulo2gm3nc107t3o3s2vsphglofum4smut90#d0"
+    , ".unison/v1/type-mentions-index/#l7h31hucoljkfa4ihprjo6qobpa0jseheqe5qgid19vjf7o2kjm66h709dggri6l4nqkulo2gm3nc107t3o3s2vsphglofum4smut90/#l7h31hucoljkfa4ihprjo6qobpa0jseheqe5qgid19vjf7o2kjm66h709dggri6l4nqkulo2gm3nc107t3o3s2vsphglofum4smut90#d0"
+    ]
+  c = -- outside.c = 3
+    [ ".unison/v1/terms/#msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo/compiled.ub"
+    , ".unison/v1/terms/#msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo/type.ub"
+    , ".unison/v1/dependents/#msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo/#omqnfettvjqrjmpl2mn7s30g94gogjjoi6hd3ob6394r71mkidbg0kqtgtbkjkmhbqvipqed9ql4b0o7kp68c560e3onb0v3lbv6bjg"
+    , ".unison/v1/dependents/_builtin/Nat/#msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo"
+    , ".unison/v1/type-index/_builtin/Nat/#msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo"
     , ".unison/v1/type-mentions-index/_builtin/Nat/#msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo"
-    , ".unison/v1/type-mentions-index/_builtin/Nat/#19lkp9i61r793nmuup58b7g3ssmdip8e76ko3n1r0pjk4ld71euh2prdidhnllkt5lsk0tnpn8lv44t7h7q04eeaqvvh75dg4gi77h0#d0"
-    , ".unison/v1/type-mentions-index/#19lkp9i61r793nmuup58b7g3ssmdip8e76ko3n1r0pjk4ld71euh2prdidhnllkt5lsk0tnpn8lv44t7h7q04eeaqvvh75dg4gi77h0/#p8f8gc2lehvr6ddq6ggittuo3t330q2pkou9gr1408r7o7r33is5cffstl5p916rbui2sa53iqnppsgsuskgodvd5003550roflmvn0#d0"
-    , ".unison/v1/type-mentions-index/#19lkp9i61r793nmuup58b7g3ssmdip8e76ko3n1r0pjk4ld71euh2prdidhnllkt5lsk0tnpn8lv44t7h7q04eeaqvvh75dg4gi77h0/#19lkp9i61r793nmuup58b7g3ssmdip8e76ko3n1r0pjk4ld71euh2prdidhnllkt5lsk0tnpn8lv44t7h7q04eeaqvvh75dg4gi77h0#d0"
-    , ".unison/v1/type-mentions-index/#2po5mnhi28fbs9fecf4ceq4q9htbfcgkl3ljnkhmhq30ec7m5h77fpl1ec96it21690ju6gnhkj8sqr2entn0cu1gfvl8rfddohk6ug/#p8f8gc2lehvr6ddq6ggittuo3t330q2pkou9gr1408r7o7r33is5cffstl5p916rbui2sa53iqnppsgsuskgodvd5003550roflmvn0#d0"
-    , ".unison/v1/type-mentions-index/#p8f8gc2lehvr6ddq6ggittuo3t330q2pkou9gr1408r7o7r33is5cffstl5p916rbui2sa53iqnppsgsuskgodvd5003550roflmvn0/#p8f8gc2lehvr6ddq6ggittuo3t330q2pkou9gr1408r7o7r33is5cffstl5p916rbui2sa53iqnppsgsuskgodvd5003550roflmvn0#d0"
-    , ".unison/v1/type-mentions-index/#k1lik85h1sgcpqura4riuipjq3mtkkuu5slida6q2lkg028fd7jn12kufrk2sqrtbftq3snteeh8l9o984mhnurmo3arr5j4d7hg5oo/#19lkp9i61r793nmuup58b7g3ssmdip8e76ko3n1r0pjk4ld71euh2prdidhnllkt5lsk0tnpn8lv44t7h7q04eeaqvvh75dg4gi77h0#d0"
-    , ".unison/v1/types/#19lkp9i61r793nmuup58b7g3ssmdip8e76ko3n1r0pjk4ld71euh2prdidhnllkt5lsk0tnpn8lv44t7h7q04eeaqvvh75dg4gi77h0/compiled.ub"
-    , ".unison/v1/types/#p8f8gc2lehvr6ddq6ggittuo3t330q2pkou9gr1408r7o7r33is5cffstl5p916rbui2sa53iqnppsgsuskgodvd5003550roflmvn0/compiled.ub"
+    ]
+  d = -- outside.d = 4
+    [ ".unison/v1/terms/#52addbrohuv4kimiv8n6v00vsv46g3pig4imoor34lojgla9bo2tdcumh07pasuo4lmfnab53s1ulj9toai7963spt2jkk5h1qfdnlg/compiled.ub"
+    , ".unison/v1/terms/#52addbrohuv4kimiv8n6v00vsv46g3pig4imoor34lojgla9bo2tdcumh07pasuo4lmfnab53s1ulj9toai7963spt2jkk5h1qfdnlg/type.ub"
+    , ".unison/v1/dependents/_builtin/Nat/#52addbrohuv4kimiv8n6v00vsv46g3pig4imoor34lojgla9bo2tdcumh07pasuo4lmfnab53s1ulj9toai7963spt2jkk5h1qfdnlg"
+    , ".unison/v1/type-index/_builtin/Nat/#52addbrohuv4kimiv8n6v00vsv46g3pig4imoor34lojgla9bo2tdcumh07pasuo4lmfnab53s1ulj9toai7963spt2jkk5h1qfdnlg"
+    , ".unison/v1/type-mentions-index/_builtin/Nat/#52addbrohuv4kimiv8n6v00vsv46g3pig4imoor34lojgla9bo2tdcumh07pasuo4lmfnab53s1ulj9toai7963spt2jkk5h1qfdnlg"
+    ]
+  x = -- unique type inside.X = X outside.A
+    [ ".unison/v1/paths/g22oce42kf9db9oqtaicc5d83pohp9ubqul9c1tsa871a6m7aelke4ja2sslq4d3f46hg1nu1qtlo8sbd0nerl5f295smddiadc8900.ub"
+    , ".unison/v1/types/#i07oo6cpc7r4jl0kkor6rp8mv9g0tacggs61738v3ti6idvcbc53tb42g4q34dl4eu16thq7mto5otodfdg9es8e4a9f3rijelbk0dg/compiled.ub"
+    , ".unison/v1/dependents/#00k3c9bp6mch2nfkvqsp8td9eoh4mks7m1ae0mmtuv7k93c6tar0o7rn82of1n7hrovtobmfbebee9lmg3mpcn9mpd2admp6pnq0to8/#i07oo6cpc7r4jl0kkor6rp8mv9g0tacggs61738v3ti6idvcbc53tb42g4q34dl4eu16thq7mto5otodfdg9es8e4a9f3rijelbk0dg"
+    , ".unison/v1/type-index/#rpge3m646i2893acp393dhl1qe9jmvsoe3hpiu3qinrnknf75evuqua3nh4maofvuvn4d3llt418u5ah6sqkok1qc2qvgfrmt92klq8/#i07oo6cpc7r4jl0kkor6rp8mv9g0tacggs61738v3ti6idvcbc53tb42g4q34dl4eu16thq7mto5otodfdg9es8e4a9f3rijelbk0dg#d0"
+    , ".unison/v1/type-mentions-index/#00k3c9bp6mch2nfkvqsp8td9eoh4mks7m1ae0mmtuv7k93c6tar0o7rn82of1n7hrovtobmfbebee9lmg3mpcn9mpd2admp6pnq0to8/#i07oo6cpc7r4jl0kkor6rp8mv9g0tacggs61738v3ti6idvcbc53tb42g4q34dl4eu16thq7mto5otodfdg9es8e4a9f3rijelbk0dg#d0"
+    , ".unison/v1/type-mentions-index/#i07oo6cpc7r4jl0kkor6rp8mv9g0tacggs61738v3ti6idvcbc53tb42g4q34dl4eu16thq7mto5otodfdg9es8e4a9f3rijelbk0dg/#i07oo6cpc7r4jl0kkor6rp8mv9g0tacggs61738v3ti6idvcbc53tb42g4q34dl4eu16thq7mto5otodfdg9es8e4a9f3rijelbk0dg#d0"
+    , ".unison/v1/type-mentions-index/#rpge3m646i2893acp393dhl1qe9jmvsoe3hpiu3qinrnknf75evuqua3nh4maofvuvn4d3llt418u5ah6sqkok1qc2qvgfrmt92klq8/#i07oo6cpc7r4jl0kkor6rp8mv9g0tacggs61738v3ti6idvcbc53tb42g4q34dl4eu16thq7mto5otodfdg9es8e4a9f3rijelbk0dg#d0"
+    ]
+  y = -- inside.y = c + c
+    [ ".unison/v1/terms/#omqnfettvjqrjmpl2mn7s30g94gogjjoi6hd3ob6394r71mkidbg0kqtgtbkjkmhbqvipqed9ql4b0o7kp68c560e3onb0v3lbv6bjg/compiled.ub"
+    , ".unison/v1/terms/#omqnfettvjqrjmpl2mn7s30g94gogjjoi6hd3ob6394r71mkidbg0kqtgtbkjkmhbqvipqed9ql4b0o7kp68c560e3onb0v3lbv6bjg/type.ub"
+    , ".unison/v1/dependents/#msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo/#omqnfettvjqrjmpl2mn7s30g94gogjjoi6hd3ob6394r71mkidbg0kqtgtbkjkmhbqvipqed9ql4b0o7kp68c560e3onb0v3lbv6bjg"
     , ".unison/v1/dependents/_builtin/Nat.+/#omqnfettvjqrjmpl2mn7s30g94gogjjoi6hd3ob6394r71mkidbg0kqtgtbkjkmhbqvipqed9ql4b0o7kp68c560e3onb0v3lbv6bjg"
     , ".unison/v1/dependents/_builtin/Nat/#omqnfettvjqrjmpl2mn7s30g94gogjjoi6hd3ob6394r71mkidbg0kqtgtbkjkmhbqvipqed9ql4b0o7kp68c560e3onb0v3lbv6bjg"
-    , ".unison/v1/dependents/_builtin/Nat/#19lkp9i61r793nmuup58b7g3ssmdip8e76ko3n1r0pjk4ld71euh2prdidhnllkt5lsk0tnpn8lv44t7h7q04eeaqvvh75dg4gi77h0"
-    , ".unison/v1/dependents/_builtin/Nat/#msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo"
-    , ".unison/v1/dependents/#19lkp9i61r793nmuup58b7g3ssmdip8e76ko3n1r0pjk4ld71euh2prdidhnllkt5lsk0tnpn8lv44t7h7q04eeaqvvh75dg4gi77h0/#p8f8gc2lehvr6ddq6ggittuo3t330q2pkou9gr1408r7o7r33is5cffstl5p916rbui2sa53iqnppsgsuskgodvd5003550roflmvn0"
-    , ".unison/v1/dependents/#msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo/#omqnfettvjqrjmpl2mn7s30g94gogjjoi6hd3ob6394r71mkidbg0kqtgtbkjkmhbqvipqed9ql4b0o7kp68c560e3onb0v3lbv6bjg"
-    , ".unison/v1/terms/#omqnfettvjqrjmpl2mn7s30g94gogjjoi6hd3ob6394r71mkidbg0kqtgtbkjkmhbqvipqed9ql4b0o7kp68c560e3onb0v3lbv6bjg/type.ub"
-    , ".unison/v1/terms/#omqnfettvjqrjmpl2mn7s30g94gogjjoi6hd3ob6394r71mkidbg0kqtgtbkjkmhbqvipqed9ql4b0o7kp68c560e3onb0v3lbv6bjg/compiled.ub"
-    , ".unison/v1/terms/#msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo/type.ub"
-    , ".unison/v1/terms/#msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo/compiled.ub"
     , ".unison/v1/type-index/_builtin/Nat/#omqnfettvjqrjmpl2mn7s30g94gogjjoi6hd3ob6394r71mkidbg0kqtgtbkjkmhbqvipqed9ql4b0o7kp68c560e3onb0v3lbv6bjg"
-    , ".unison/v1/type-index/_builtin/Nat/#msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo"
-    , ".unison/v1/type-index/#2po5mnhi28fbs9fecf4ceq4q9htbfcgkl3ljnkhmhq30ec7m5h77fpl1ec96it21690ju6gnhkj8sqr2entn0cu1gfvl8rfddohk6ug/#p8f8gc2lehvr6ddq6ggittuo3t330q2pkou9gr1408r7o7r33is5cffstl5p916rbui2sa53iqnppsgsuskgodvd5003550roflmvn0#d0"
-    , ".unison/v1/type-index/#k1lik85h1sgcpqura4riuipjq3mtkkuu5slida6q2lkg028fd7jn12kufrk2sqrtbftq3snteeh8l9o984mhnurmo3arr5j4d7hg5oo/#19lkp9i61r793nmuup58b7g3ssmdip8e76ko3n1r0pjk4ld71euh2prdidhnllkt5lsk0tnpn8lv44t7h7q04eeaqvvh75dg4gi77h0#d0"
-    , ".unison/v1/paths/esvotl1kr2aqo4tkq7p6lp2chkepmg7n3im1t6hqgd93slk97kops8idp7fj7i57pakvg6lhk0efsco6s2vvtql0jffomm8tvngogd0.ub"
-    , ".unison/v1/paths/ucnhqspklepn3ihu1o3ph2or9hsrhcpoav93v4gi1v97ttoc2vuup173mcophp8r90r0j3k5mg2knlqr85gdq1dseh8mt5t94c4am4o.ub"
+    , ".unison/v1/type-mentions-index/_builtin/Nat/#omqnfettvjqrjmpl2mn7s30g94gogjjoi6hd3ob6394r71mkidbg0kqtgtbkjkmhbqvipqed9ql4b0o7kp68c560e3onb0v3lbv6bjg"
     ]
-  userShouldNotHave =
-    [ ".unison/v1/type-mentions-index/_builtin/Nat/#aocoefu4taepnvd3gsbtgo5rc6a5oa109e0mfqjfg91m422he1m6nugnq1hb4nedvh32r244v6t0a7jq8k30nt92109466udv78cf58#d0"
-    , ".unison/v1/type-mentions-index/_builtin/Nat/#52addbrohuv4kimiv8n6v00vsv46g3pig4imoor34lojgla9bo2tdcumh07pasuo4lmfnab53s1ulj9toai7963spt2jkk5h1qfdnlg"
-    , ".unison/v1/type-mentions-index/#ap7kd0rc80kp7vjosb0im9j365kgbqhqhj3fv4ufs7bv5b3ed0d4jleqqulu74lj60fuht1oqr117u17jnp1ql8te67vjit95p7k80o/#aocoefu4taepnvd3gsbtgo5rc6a5oa109e0mfqjfg91m422he1m6nugnq1hb4nedvh32r244v6t0a7jq8k30nt92109466udv78cf58#d0"
-    , ".unison/v1/type-mentions-index/#7krpfrn5gm7m3beiho9jmar3dojnj7mrksnjbmh8i0p9hbmekqv21kqrtsr5lq4rr4n0sako6e7lmt8k2a39senua9efjfo7214s3q8/#aocoefu4taepnvd3gsbtgo5rc6a5oa109e0mfqjfg91m422he1m6nugnq1hb4nedvh32r244v6t0a7jq8k30nt92109466udv78cf58#d0"
-    , ".unison/v1/type-mentions-index/#aocoefu4taepnvd3gsbtgo5rc6a5oa109e0mfqjfg91m422he1m6nugnq1hb4nedvh32r244v6t0a7jq8k30nt92109466udv78cf58/#aocoefu4taepnvd3gsbtgo5rc6a5oa109e0mfqjfg91m422he1m6nugnq1hb4nedvh32r244v6t0a7jq8k30nt92109466udv78cf58#d0"
-    , ".unison/v1/types/#aocoefu4taepnvd3gsbtgo5rc6a5oa109e0mfqjfg91m422he1m6nugnq1hb4nedvh32r244v6t0a7jq8k30nt92109466udv78cf58/compiled.ub"
-    , ".unison/v1/dependents/_builtin/Nat/#52addbrohuv4kimiv8n6v00vsv46g3pig4imoor34lojgla9bo2tdcumh07pasuo4lmfnab53s1ulj9toai7963spt2jkk5h1qfdnlg"
-    , ".unison/v1/dependents/_builtin/Nat/#aocoefu4taepnvd3gsbtgo5rc6a5oa109e0mfqjfg91m422he1m6nugnq1hb4nedvh32r244v6t0a7jq8k30nt92109466udv78cf58"
-    , ".unison/v1/terms/#52addbrohuv4kimiv8n6v00vsv46g3pig4imoor34lojgla9bo2tdcumh07pasuo4lmfnab53s1ulj9toai7963spt2jkk5h1qfdnlg/type.ub"
-    , ".unison/v1/terms/#52addbrohuv4kimiv8n6v00vsv46g3pig4imoor34lojgla9bo2tdcumh07pasuo4lmfnab53s1ulj9toai7963spt2jkk5h1qfdnlg/compiled.ub"
-    , ".unison/v1/type-index/_builtin/Nat/#52addbrohuv4kimiv8n6v00vsv46g3pig4imoor34lojgla9bo2tdcumh07pasuo4lmfnab53s1ulj9toai7963spt2jkk5h1qfdnlg"
-    , ".unison/v1/type-index/#ap7kd0rc80kp7vjosb0im9j365kgbqhqhj3fv4ufs7bv5b3ed0d4jleqqulu74lj60fuht1oqr117u17jnp1ql8te67vjit95p7k80o/#aocoefu4taepnvd3gsbtgo5rc6a5oa109e0mfqjfg91m422he1m6nugnq1hb4nedvh32r244v6t0a7jq8k30nt92109466udv78cf58#d0"
-    , ".unison/v1/paths/000fqlrbs84nui3o3sp04s32vsbq39iv9foqvs4c38ajki3re86v72s0j5deqtcdqqml9r8e50lcmld2j8ncj7a1fqnqb4pvcaphcu0.ub"
-    , ".unison/v1/paths/d8ercjm1ol1htu82nmr37ejru1lt7lrl03d5j0u0dp0g2a98nl6n8abdjpf2jkvjuoq4u2qrhn99ps6fiqqn60b0tni7nkp7o593sr0.ub"
-    , ".unison/v1/paths/bih5ebeug86npp1n0mp51vi7a902ma6m1r3s1ehhfhpc0m71le2fdge8nftte5fuambfo2r753bjnguq5e3p6mip7incmghkho643pg.ub"
-    ]
--- path "[inside]." esvotl1kr2aqo4tkq7p6lp2chkepmg7n3im1t6hqgd93slk97kops8idp7fj7i57pakvg6lhk0efsco6s2vvtql0jffomm8tvngogd0
--- path "[inside].X" ucnhqspklepn3ihu1o3ph2or9hsrhcpoav93v4gi1v97ttoc2vuup173mcophp8r90r0j3k5mg2knlqr85gdq1dseh8mt5t94c4am4o.ub
--- type outside.A  #19lkp9i61r793nmuup58b7g3ssmdip8e76ko3n1r0pjk4ld71euh2prdidhnllkt5lsk0tnpn8lv44t7h7q04eeaqvvh75dg4gi77h0
--- type outside.B  #aocoefu4taepnvd3gsbtgo5rc6a5oa109e0mfqjfg91m422he1m6nugnq1hb4nedvh32r244v6t0a7jq8k30nt92109466udv78cf58
--- outside.c       #msp7bv40rvjd2o8022ti44497ft2hohrg347pu0pfn75vt1s0qh2v8n9ttmmpv23s90fo2v2qpr8o5nl2jelt0cev6pi1sls79kgdoo
--- outside.d       #52addbrohuv4kimiv8n6v00vsv46g3pig4imoor34lojgla9bo2tdcumh07pasuo4lmfnab53s1ulj9toai7963spt2jkk5h1qfdnlg
--- type inside.X   #p8f8gc2lehvr6ddq6ggittuo3t330q2pkou9gr1408r7o7r33is5cffstl5p916rbui2sa53iqnppsgsuskgodvd5003550roflmvn0
--- inside.y        #omqnfettvjqrjmpl2mn7s30g94gogjjoi6hd3ob6394r71mkidbg0kqtgtbkjkmhbqvipqed9ql4b0o7kp68c560e3onb0v3lbv6bjg
--- paths: esvot|ucnhq
--- want: A, c, X, y: 19lkp|msp7b|p8f8g|omqnf
--- no:  B, d: aocoe|52add|
 
 -- initialize a fresh codebase
 initCodebaseDir :: FilePath -> String -> IO CodebasePath

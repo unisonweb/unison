@@ -109,7 +109,7 @@ term1to2 h =
       V1.Term.Handle b h -> V2.Term.Handle b h
       V1.Term.App f a -> V2.Term.App f a
       V1.Term.Ann e t -> V2.Term.Ann e (ttype1to2 t)
-      V1.Term.Sequence as -> V2.Term.Sequence as
+      V1.Term.List as -> V2.Term.List as
       V1.Term.If c t f -> V2.Term.If c t f
       V1.Term.And a b -> V2.Term.And a b
       V1.Term.Or a b -> V2.Term.Or a b
@@ -172,7 +172,7 @@ term2to1 h lookupSize lookupCT tm =
           V2.Term.Handle a a4 -> pure $ V1.Term.Handle a a4
           V2.Term.App a a4 -> pure $ V1.Term.App a a4
           V2.Term.Ann a t2 -> V1.Term.Ann a <$> ttype2to1 lookupSize t2
-          V2.Term.Sequence sa -> pure $ V1.Term.Sequence sa
+          V2.Term.List sa -> pure $ V1.Term.List sa
           V2.Term.If a a4 a5 -> pure $ V1.Term.If a a4 a5
           V2.Term.And a a4 -> pure $ V1.Term.And a a4
           V2.Term.Or a a4 -> pure $ V1.Term.Or a a4

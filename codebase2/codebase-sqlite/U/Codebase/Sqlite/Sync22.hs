@@ -106,7 +106,7 @@ trySync ::
   Generation ->
   Entity ->
   m (TrySyncResult Entity)
-trySync tCache hCache oCache gc = \case
+trySync tCache hCache oCache _gc = \case
   -- for causals, we need to get the value_hash_id of the thingo
   -- - maybe enqueue their parents
   -- - enqueue the self_ and value_ hashes

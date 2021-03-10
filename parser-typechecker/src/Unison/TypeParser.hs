@@ -67,7 +67,7 @@ type2 = do
   tl <- many (effectList <|> valueTypeLeaf)
   pure $ foldl' (\a b -> Type.app (ann a <> ann b) a b) hd tl
 
--- ex : {State Text, IO} (Sequence Int)
+-- ex : {State Text, IO} (List Int)
 effect :: Var v => TypeP v
 effect = do
  es <- effectList
@@ -87,7 +87,7 @@ sequenceTyp = do
   t <- valueType
   close <- reserved "]"
   let a = ann open <> ann close
-  pure $ Type.app a (Type.vector a) t
+  pure $ Type.app a (Type.list a) t
 
 tupleOrParenthesizedType :: Var v => TypeP v -> TypeP v
 tupleOrParenthesizedType rec = tupleOrParenthesized rec DD.unitType pair

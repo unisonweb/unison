@@ -202,7 +202,7 @@ putTerm t = putABT putSymbol putUnit putF t
         putWord8 9 *> putChild f *> putChild arg
       Term.Ann e t ->
         putWord8 10 *> putChild e *> putTType t
-      Term.Sequence vs ->
+      Term.List vs ->
         putWord8 11 *> putFoldable putChild vs
       Term.If cond t f ->
         putWord8 12 *> putChild cond *> putChild t *> putChild f
@@ -284,7 +284,7 @@ getTerm = getABT getSymbol getUnit getF
         8 -> Term.Handle <$> getChild <*> getChild
         9 -> Term.App <$> getChild <*> getChild
         10 -> Term.Ann <$> getChild <*> getType getReference
-        11 -> Term.Sequence <$> getSequence getChild
+        11 -> Term.List <$> getSequence getChild
         12 -> Term.If <$> getChild <*> getChild <*> getChild
         13 -> Term.And <$> getChild <*> getChild
         14 -> Term.Or <$> getChild <*> getChild

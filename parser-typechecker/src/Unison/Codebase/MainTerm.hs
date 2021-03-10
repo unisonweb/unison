@@ -17,6 +17,7 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.Referent               as Referent
+import           Unison.Name                    ( Name )
 import qualified Unison.Names3                 as Names3
 import           Unison.Reference               ( Reference )
 import qualified Unison.Type                   as Type
@@ -27,8 +28,8 @@ import           Unison.Runtime.IOSource        ( ioReference )
 data MainTerm v
   = NotAFunctionName String
   | NotFound String
-  | BadType String
-  | Success HQ.HashQualified (Term v Ann) (Type v Ann)
+  | BadType String (Maybe (Type v Ann))
+  | Success (HQ.HashQualified Name) (Term v Ann) (Type v Ann)
 
 getMainTerm
   :: (Monad m, Var v)
@@ -49,10 +50,12 @@ getMainTerm loadTypeOfTerm parseNames0 mainName mainType =
           typ <- loadTypeOfTerm ref
           traceShowM typ
           case typ of
-            Just typ | Typechecker.isSubtype mainType typ -> do
-              let tm = DD.forceTerm a a (Term.ref a ref)
-              return (Success hq tm typ)
-            _ -> pure (BadType mainName)
+            Just typ ->
+              if Typechecker.isSubtype mainType typ then do
+                let tm = DD.forceTerm a a (Term.ref a ref)
+                return (Success hq tm typ)
+              else pure (BadType mainName $ Just typ)
+            _ -> pure (BadType mainName Nothing)
         _ -> pure (NotFound mainName)
 
 -- forall a. '{IO} a
@@ -72,7 +75,7 @@ builtinMain a =
 
 -- [Result]
 resultArr :: Ord v => a -> Type.Type v a
-resultArr a = Type.app a (Type.ref a Type.vectorRef) (Type.ref a DD.testResultRef)
+resultArr a = Type.app a (Type.ref a Type.listRef) (Type.ref a DD.testResultRef)
 
 -- {IO} [Result]
 ioResultArr :: Ord v => a -> Type.Type v a

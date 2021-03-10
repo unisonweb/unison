@@ -70,7 +70,7 @@ data Names' n = Names
   , types :: Relation n Reference
   } deriving (Eq,Ord)
 
-type Names = Names' HashQualified
+type Names = Names' (HashQualified Name)
 type Names0 = Names' Name
 
 names0ToNames :: Names0 -> Names
@@ -219,7 +219,7 @@ addTerm n r = (<> fromTerms [(n, r)])
 --
 -- We want to append the hash regardless of whether or not one is a term and the
 -- other is a type.
-hqName :: Ord n => Names' n -> n -> Either Reference Referent -> HQ.HashQualified' n
+hqName :: Ord n => Names' n -> n -> Either Reference Referent -> HQ.HashQualified n
 hqName b n = \case
   Left r  -> if ambiguous then _hqTypeName' b n r else HQ.fromName n
   Right r -> if ambiguous then _hqTermName' b n r else HQ.fromName n
@@ -228,48 +228,48 @@ hqName b n = \case
 
 -- Conditionally apply hash qualifier to term name.
 -- Should be the same as the input name if the Names0 is unconflicted.
-hqTermName :: Ord n => Int -> Names' n -> n -> Referent -> HQ.HashQualified' n
+hqTermName :: Ord n => Int -> Names' n -> n -> Referent -> HQ.HashQualified n
 hqTermName hqLen b n r = if Set.size (termsNamed b n) > 1
   then hqTermName' hqLen n r
   else HQ.fromName n
 
-hqTypeName :: Ord n => Int -> Names' n -> n -> Reference -> HQ.HashQualified' n
+hqTypeName :: Ord n => Int -> Names' n -> n -> Reference -> HQ.HashQualified n
 hqTypeName hqLen b n r = if Set.size (typesNamed b n) > 1
   then hqTypeName' hqLen n r
   else HQ.fromName n
 
-_hqTermName :: Ord n => Names' n -> n -> Referent -> HQ.HashQualified' n
+_hqTermName :: Ord n => Names' n -> n -> Referent -> HQ.HashQualified n
 _hqTermName b n r = if Set.size (termsNamed b n) > 1
   then _hqTermName' b n r
   else HQ.fromName n
 
-_hqTypeName :: Ord n => Names' n -> n -> Reference -> HQ.HashQualified' n
+_hqTypeName :: Ord n => Names' n -> n -> Reference -> HQ.HashQualified n
 _hqTypeName b n r = if Set.size (typesNamed b n) > 1
   then _hqTypeName' b n r
   else HQ.fromName n
 
 _hqTypeAliases ::
-  Ord n => Names' n -> n -> Reference -> Set (HQ.HashQualified' n)
+  Ord n => Names' n -> n -> Reference -> Set (HQ.HashQualified n)
 _hqTypeAliases b n r = Set.map (flip (_hqTypeName b) r) (typeAliases b n r)
 
-_hqTermAliases :: Ord n => Names' n -> n -> Referent -> Set (HQ.HashQualified' n)
+_hqTermAliases :: Ord n => Names' n -> n -> Referent -> Set (HQ.HashQualified n)
 _hqTermAliases b n r = Set.map (flip (_hqTermName b) r) (termAliases b n r)
 
 -- Unconditionally apply hash qualifier long enough to distinguish all the
 -- References in this Names0.
-hqTermName' :: Int -> n -> Referent -> HQ.HashQualified' n
+hqTermName' :: Int -> n -> Referent -> HQ.HashQualified n
 hqTermName' hqLen n r =
   HQ.take hqLen $ HQ.fromNamedReferent n r
 
-hqTypeName' :: Int -> n -> Reference -> HQ.HashQualified' n
+hqTypeName' :: Int -> n -> Reference -> HQ.HashQualified n
 hqTypeName' hqLen n r =
   HQ.take hqLen $ HQ.fromNamedReference n r
 
-_hqTermName' :: Names' n -> n -> Referent -> HQ.HashQualified' n
+_hqTermName' :: Names' n -> n -> Referent -> HQ.HashQualified n
 _hqTermName' b n r =
   HQ.take (numHashChars b) $ HQ.fromNamedReferent n r
 
-_hqTypeName' :: Names' n -> n -> Reference -> HQ.HashQualified' n
+_hqTypeName' :: Names' n -> n -> Reference -> HQ.HashQualified n
 _hqTypeName' b n r =
   HQ.take (numHashChars b) $ HQ.fromNamedReference n r
 
@@ -288,7 +288,7 @@ filter :: Ord n => (n -> Bool) -> Names' n -> Names' n
 filter f (Names terms types) = Names (R.filterDom f terms) (R.filterDom f types)
 
 -- currently used for filtering before a conditional `add`
-filterByHQs :: Set HashQualified -> Names0 -> Names0
+filterByHQs :: Set (HashQualified Name) -> Names0 -> Names0
 filterByHQs hqs Names{..} = Names terms' types' where
   terms' = R.filter f terms
   types' = R.filter g types

@@ -15,7 +15,6 @@ import qualified Unison.Test.Codebase.Path as Path
 import qualified Unison.Test.ColorText as ColorText
 import qualified Unison.Test.DataDeclaration as DataDeclaration
 import qualified Unison.Test.FileParser as FileParser
-import qualified Unison.Test.Git as Git
 import qualified Unison.Test.Lexer as Lexer
 import qualified Unison.Test.IO as TestIO
 import qualified Unison.Test.Range as Range
@@ -37,6 +36,7 @@ import qualified Unison.Test.Var as Var
 import qualified Unison.Test.ANF as ANF
 import qualified Unison.Test.MCode as MCode
 import qualified Unison.Test.VersionParser as VersionParser
+import qualified Unison.Test.Git as Git
 
 test :: Bool -> Test ()
 test rt = tests

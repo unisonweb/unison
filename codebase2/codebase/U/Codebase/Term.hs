@@ -75,7 +75,7 @@ data F' text termRef typeRef termLink typeLink vt a
   | Handle a a
   | App a a
   | Ann a (TypeR typeRef vt)
-  | Sequence (Seq a)
+  | List (Seq a)
   | If a a a
   | And a a
   | Or a a
@@ -169,7 +169,7 @@ extraMap ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go'
       Handle e h -> Handle e h
       App f a -> App f a
       Ann a typ -> Ann a (Type.rmap ftypeRef $ ABT.vmap fvt typ)
-      Sequence s -> Sequence s
+      List s -> List s
       If c t f -> If c t f
       And p q -> And p q
       Or p q -> Or p q
@@ -292,7 +292,7 @@ instance (Eq v, Show v) => H.Hashable1 (F v) where
                   error "handled above, but GHC can't figure this out"
                 App a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
                 Ann a t -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
-                Sequence as ->
+                List as ->
                   tag 5 :
                   varint (fromIntegral (length as)) :
                   map

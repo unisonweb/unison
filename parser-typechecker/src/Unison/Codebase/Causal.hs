@@ -1,4 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DeriveGeneric #-}
+
 module Unison.Codebase.Causal where
 
 import Unison.Prelude
@@ -39,7 +41,7 @@ import qualified Data.Set                      as Set
 -}
 
 newtype RawHash a = RawHash { unRawHash :: Hash }
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Generic)
 
 instance Show (RawHash a) where
   show = show . unRawHash

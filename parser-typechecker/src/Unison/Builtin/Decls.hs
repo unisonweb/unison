@@ -271,7 +271,7 @@ builtinDataDecls = rs1 ++ rs
     , ((), v "Doc.Signature", Type.termLink () `arr` var "Doc")
     , ((), v "Doc.Source", Type.refId () linkRef `arr` var "Doc")
     , ((), v "Doc.Evaluate", Type.termLink () `arr` var "Doc")
-    , ((), v "Doc.Join", Type.app () (Type.vector()) (var "Doc") `arr` var "Doc")
+    , ((), v "Doc.Join", Type.app () (Type.list()) (var "Doc") `arr` var "Doc")
     ]
   link = DataDeclaration
     (Unique "a5803524366ead2d7f3780871d48771e8142a3b48802f34a96120e230939c46bd5e182fcbe1fa64e9bff9bf741f3c04")
@@ -293,7 +293,7 @@ pattern TuplePattern ps <- (unTuplePattern -> Just ps)
 
 -- some pattern synonyms to make pattern matching on some of these constants more pleasant
 pattern DocRef <- ((== docRef) -> True)
-pattern DocJoin segs <- Term.App' (Term.Constructor' DocRef DocJoinId) (Term.Sequence' segs)
+pattern DocJoin segs <- Term.App' (Term.Constructor' DocRef DocJoinId) (Term.List' segs)
 pattern DocBlob txt <- Term.App' (Term.Constructor' DocRef DocBlobId) (Term.Text' txt)
 pattern DocLink link <- Term.App' (Term.Constructor' DocRef DocLinkId) link
 pattern DocSource link <- Term.App' (Term.Constructor' DocRef DocSourceId) link
@@ -318,7 +318,7 @@ unitType, pairType, optionalType, testResultType,
     :: Ord v => a -> Type v a
 unitType a = Type.ref a unitRef
 pairType a = Type.ref a pairRef
-testResultType a = Type.app a (Type.vector a) (Type.ref a testResultRef)
+testResultType a = Type.app a (Type.list a) (Type.ref a testResultRef)
 optionalType a = Type.ref a optionalRef
 eitherType a = Type.ref a eitherRef
 ioErrorType a = Type.ref a ioErrorRef

@@ -41,14 +41,14 @@ dependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
     f t@(Ref r) = Writer.tell [r] $> t
     f t = pure t
 
-intRef, natRef, floatRef, booleanRef, textRef, charRef, vectorRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: Reference
+intRef, natRef, floatRef, booleanRef, textRef, charRef, listRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: Reference
 intRef = Reference.Builtin "Int"
 natRef = Reference.Builtin "Nat"
 floatRef = Reference.Builtin "Float"
 booleanRef = Reference.Builtin "Boolean"
 textRef = Reference.Builtin "Text"
 charRef = Reference.Builtin "Char"
-vectorRef = Reference.Builtin "Sequence"
+listRef = Reference.Builtin "Sequence"
 bytesRef = Reference.Builtin "Bytes"
 effectRef = Reference.Builtin "Effect"
 termLinkRef = Reference.Builtin "Link.Term"

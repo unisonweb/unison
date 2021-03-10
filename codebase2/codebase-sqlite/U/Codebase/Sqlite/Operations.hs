@@ -14,8 +14,8 @@ module U.Codebase.Sqlite.Operations where
 
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
-import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
 import Control.Monad (MonadPlus (mzero), join, when, (<=<))
+import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
 import Control.Monad.State (MonadState, StateT, evalStateT)
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
@@ -46,6 +46,7 @@ import Data.Tuple.Extra (uncurry3)
 import qualified Data.Vector as Vector
 import Data.Word (Word64)
 import Debug.Trace
+import GHC.Stack (HasCallStack)
 import qualified U.Codebase.Branch as C.Branch
 import qualified U.Codebase.Causal as C
 import U.Codebase.Decl (ConstructorId)
@@ -121,7 +122,6 @@ import qualified U.Util.Type as TypeUtil
 
 -- * Error handling
 
-type Err m = MonadError Error m
 debug :: Bool
 debug = False
 
@@ -498,7 +498,7 @@ c2xTerm saveText saveDefn tm tp =
       C.Term.Handle a a2 -> pure $ C.Term.Handle a a2
       C.Term.App a a2 -> pure $ C.Term.App a a2
       C.Term.Ann a typ -> C.Term.Ann a <$> ABT.transformM goType typ
-      C.Term.Sequence as -> pure $ C.Term.Sequence as
+      C.Term.List as -> pure $ C.Term.List as
       C.Term.If c t f -> pure $ C.Term.If c t f
       C.Term.And a a2 -> pure $ C.Term.And a a2
       C.Term.Or a a2 -> pure $ C.Term.Or a a2

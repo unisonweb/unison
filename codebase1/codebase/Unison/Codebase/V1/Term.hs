@@ -56,7 +56,7 @@ data F typeVar typeAnn a
   | Handle a a
   | App a a
   | Ann a (Type typeVar typeAnn)
-  | Sequence (Seq a)
+  | List (Seq a)
   | If a a a
   | And a a
   | Or a a
@@ -137,7 +137,7 @@ generalizedDependencies termRef typeRef literalType dataConstructor dataType eff
     f t@(Float _) = Writer.tell [literalType Type.floatRef] $> t
     f t@(Boolean _) = Writer.tell [literalType Type.booleanRef] $> t
     f t@(Text _) = Writer.tell [literalType Type.textRef] $> t
-    f t@(Sequence _) = Writer.tell [literalType Type.vectorRef] $> t
+    f t@(List _) = Writer.tell [literalType Type.listRef] $> t
     f t@(Constructor r cid) =
       Writer.tell [dataType r, dataConstructor r cid] $> t
     f t@(Request r cid) =

@@ -1508,7 +1508,7 @@ reflectValue rty = goV
     = pure (ANF.Text t)
     | Just b <- maybeUnwrapBuiltin f
     = pure (ANF.Bytes b)
-    | Just s <- maybeUnwrapForeign Rf.vectorRef f
+    | Just s <- maybeUnwrapForeign Rf.listRef f
     = ANF.List <$> traverse goV s
     | Just l <- maybeUnwrapForeign Rf.termLinkRef f
     = pure (ANF.TmLink l)
@@ -1569,7 +1569,7 @@ reifyValue0 (rty, rtm) = goV
         <$> (goIx gr) <*> goK k
 
   goL (ANF.Text t) = pure . Foreign $ Wrap Rf.textRef t
-  goL (ANF.List l) = Foreign . Wrap Rf.vectorRef <$> traverse goV l
+  goL (ANF.List l) = Foreign . Wrap Rf.listRef <$> traverse goV l
   goL (ANF.TmLink r) = pure . Foreign $ Wrap Rf.termLinkRef r
   goL (ANF.TyLink r) = pure . Foreign $ Wrap Rf.typeLinkRef r
   goL (ANF.Bytes b) = pure . Foreign $ Wrap Rf.bytesRef b

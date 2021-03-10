@@ -58,10 +58,11 @@ module Unison.Codebase.Branch
   , stepManyAtM
   , modifyAtM
 
-    -- * Branch terms/types
-    -- ** Term/type lenses
+    -- * Branch terms/types/edits
+    -- ** Term/type/edits lenses
   , terms
   , types
+  , edits
     -- ** Term/type queries
   , deepReferents
   , deepTypeReferences
@@ -158,6 +159,8 @@ import Unison.HashQualified (HashQualified)
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 
+-- | A node in the Unison namespace hierarchy
+-- along with its history.
 newtype Branch m = Branch { _history :: UnwrappedBranch m }
   deriving (Eq, Ord)
 type UnwrappedBranch m = Causal m Raw (Branch0 m)
@@ -168,10 +171,19 @@ type EditHash = Hash.Hash
 -- Star3 r n Metadata.Type (Metadata.Type, Metadata.Value)
 type Star r n = Metadata.Star r n
 
+-- | A node in the Unison namespace hierarchy.
+--
+-- '_terms' and '_types' are the declarations at this level.
+-- '_children' are the nodes one level below us.
+-- '_edits' are the 'Patch's stored at this node in the code.
+--
+-- The @deep*@ fields are derived from the four above.
 data Branch0 m = Branch0
   { _terms :: Star Referent NameSegment
   , _types :: Star Reference NameSegment
   , _children :: Map NameSegment (Branch m)
+    -- ^ Note the 'Branch' here, not 'Branch0'.
+    -- Every level in the tree has a history.
   , _edits :: Map NameSegment (EditHash, m Patch)
   -- names and metadata for this branch and its children
   -- (ref, (name, value)) iff ref has metadata `value` at name `name`
@@ -235,9 +247,9 @@ findHistoricalSHs = findInHistory
 -- This stops searching for a given HashQualified once it encounters
 -- any term or type in any Branch0 that satisfies that HashQualified.
 findHistoricalHQs :: Monad m
-                  => Set HashQualified
+                  => Set (HashQualified Name)
                   -> Branch m
-                  -> m (Set HashQualified, Names0)
+                  -> m (Set (HashQualified Name), Names0)
 findHistoricalHQs = findInHistory
   (\hq r n -> HQ.matchesNamedReferent n r hq)
   (\hq r n -> HQ.matchesNamedReference n r hq)

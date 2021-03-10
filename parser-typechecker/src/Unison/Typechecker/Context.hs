@@ -831,7 +831,7 @@ vectorConstructorOfArity :: (Var v, Ord loc) => loc -> Int -> M v loc (Type v lo
 vectorConstructorOfArity loc arity = do
   let elementVar = Var.named "elem"
       args = replicate arity (loc, Type.var loc elementVar)
-      resultType = Type.app loc (Type.vector loc) (Type.var loc elementVar)
+      resultType = Type.app loc (Type.list loc) (Type.var loc elementVar)
       vt = Type.forall loc elementVar (Type.arrows args resultType)
   pure vt
 
@@ -912,7 +912,7 @@ synthesize e = scope (InSynthesize e) $
     ctx <- getContext
     (vs, ft) <- ungeneralize' ft
     scope (InFunctionCall vs f ft args) $ synthesizeApps (apply ctx ft) args
-  go (Term.Sequence' v) = do
+  go (Term.List' v) = do
     ft <- vectorConstructorOfArity (loc e) (Foldable.length v)
     case Foldable.toList v of
       [] -> pure ft
@@ -1095,7 +1095,7 @@ checkPattern scrutineeType0 p =
         let vt = existentialp loc v
         appendContext [existential v]
         -- ['a] <: scrutineeType, where 'a is fresh existential
-        subtype (Type.app loc (Type.vector loc) vt) scrutineeType
+        subtype (Type.app loc (Type.list loc) vt) scrutineeType
         applyM vt
       join <$> traverse (checkPattern vt) ps
     Pattern.SequenceOp loc l op r -> do
@@ -1104,20 +1104,20 @@ checkPattern scrutineeType0 p =
         v <- freshenVar Var.inferOther
         let vt = existentialp loc v
         appendContext [existential v]
-        -- todo: `Type.vector loc` is super-probably wrong;
+        -- todo: `Type.list loc` is super-probably wrong;
         -- I'm thinking it should be Ann.Intrinsic, but we don't
         -- have access to that here.
-        subtype (Type.app loc (Type.vector loc) vt) scrutineeType
+        subtype (Type.app loc (Type.list loc) vt) scrutineeType
         applyM vt
       case op of
         Pattern.Cons -> do
           lvs <- checkPattern vt l
-          -- todo: same `Type.vector loc` thing
-          rvs <- checkPattern (Type.app locR (Type.vector locR) vt) r
+          -- todo: same `Type.list loc` thing
+          rvs <- checkPattern (Type.app locR (Type.list locR) vt) r
           pure $ lvs ++ rvs
         Pattern.Snoc -> do
-          -- todo: same `Type.vector loc` thing
-          lvs <- checkPattern (Type.app locL (Type.vector locL) vt) l
+          -- todo: same `Type.list loc` thing
+          lvs <- checkPattern (Type.app locL (Type.list locL) vt) l
           rvs <- checkPattern vt r
           pure $ lvs ++ rvs
         Pattern.Concat ->
@@ -1125,11 +1125,11 @@ checkPattern scrutineeType0 p =
             (p, _) | isConstLen p -> f
             (_, p) | isConstLen p -> f
             (_, _) -> lift . failWith $
-              ConcatPatternWithoutConstantLength loc (Type.app loc (Type.vector loc) vt)
+              ConcatPatternWithoutConstantLength loc (Type.app loc (Type.list loc) vt)
           where
             f = liftA2 (++) (g locL l) (g locR r)
-            -- todo: same `Type.vector loc` thing
-            g l p = checkPattern (Type.app l (Type.vector l) vt) p
+            -- todo: same `Type.list loc` thing
+            g l p = checkPattern (Type.app l (Type.list l) vt) p
 
             -- Only pertains to sequences, returns False if not a sequence
             isConstLen :: Pattern loc -> Bool
@@ -1738,6 +1738,10 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
       Just amb -> do
         subtype amb r `orElse` die r
         go ambient rs
+      -- Corner case where a unification caused `r` to expand to a
+      -- list of effects. This whole function should be restructured
+      -- such that this can go in a better spot.
+      Nothing | Type.Effects' es <- r -> go ambient (es ++ rs)
       -- 2b. If no:
       Nothing -> case r of
         -- It's an unsolved existential, instantiate it to all of ambient
