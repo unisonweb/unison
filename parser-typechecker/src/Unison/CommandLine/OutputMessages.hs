@@ -662,6 +662,9 @@ notifyUser dir o = case o of
 
   TodoOutput names todo -> pure (todoOutput names todo)
   GitError input e -> pure $ case e of
+    CouldntOpenCodebase repo localPath -> P.wrap $ "I couldn't open the repository at"
+      <> prettyRepoBranch repo <> "in the cache directory at"
+      <> P.backticked' (P.string localPath) "."
     CouldntParseRootBranch repo s -> P.wrap $ "I couldn't parse the string"
       <> P.red (P.string s) <> "into a namespace hash, when opening the repository at"
       <> P.group (prettyRepoBranch repo <> ".")
