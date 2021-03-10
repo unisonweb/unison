@@ -17,8 +17,9 @@
 {-# LANGUAGE TypeOperators #-}
 module U.Codebase.Sqlite.Queries where
 
-import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
 import Control.Monad (filterM, when)
+import Control.Monad.Except (ExceptT, MonadError, runExceptT)
+import qualified Control.Monad.Except as Except
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader (MonadReader (ask))
 import Control.Monad.Trans (MonadIO (liftIO))
@@ -38,6 +39,7 @@ import qualified Database.SQLite.Simple as SQLite
 import Database.SQLite.Simple.FromField (FromField)
 import Database.SQLite.Simple.ToField (ToField (..))
 import Debug.Trace (trace, traceM)
+import GHC.Stack (HasCallStack)
 import U.Codebase.HashTags (BranchHash, CausalHash, unBranchHash, unCausalHash)
 import U.Codebase.Reference (Reference')
 import U.Codebase.Sqlite.DbId (BranchHashId (..), BranchObjectId (..), CausalHashId (..), CausalOldHashId, Generation (..), HashId (..), ObjectId (..), TextId)
@@ -55,7 +57,13 @@ import UnliftIO (MonadUnliftIO, throwIO, try, withRunInIO)
 
 type DB m = (MonadIO m, MonadReader Connection m)
 
-type EDB m = (DB m, MonadError Integrity m)
+type EDB m = (DB m, MonadError Integrity m, HasCallStack)
+
+crashOnError :: Bool
+crashOnError = True
+
+throwError :: EDB m => Integrity -> m c
+throwError = if crashOnError then error . show else Except.throwError
 
 data Integrity
   = UnknownHashId HashId
@@ -78,7 +86,7 @@ noExcept a =
     Right a -> pure a
     Left e -> error $ "unexpected error: " ++ show e
 
-orError :: MonadError e m => e -> Maybe b -> m b
+orError :: MonadError Integrity m => Integrity -> Maybe b -> m b
 orError e = maybe (throwError e) pure
 
 type TypeHashReference = Reference' TextId HashId

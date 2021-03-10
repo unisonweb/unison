@@ -15,7 +15,8 @@ module U.Codebase.Sqlite.Operations where
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
 import Control.Monad (MonadPlus (mzero), join, when, (<=<))
-import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
+import Control.Monad.Except (ExceptT, MonadError, runExceptT)
+import qualified Control.Monad.Except as Except
 import Control.Monad.State (MonadState, StateT, evalStateT)
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
@@ -122,8 +123,12 @@ import qualified U.Util.Type as TypeUtil
 
 -- * Error handling
 
-debug :: Bool
+throwError :: Err m => Error -> m a
+throwError = if crashOnError then error . show else Except.throwError
+
+debug, crashOnError :: Bool
 debug = False
+crashOnError = False
 
 type Err m = (MonadError Error m, HasCallStack)
 
@@ -988,11 +993,13 @@ saveRootBranch (C.Causal hc he parents me) = do
     lookupChild = lookup_ Lens._4 Lens._4 LocalBranchChildId
     startState = mempty @BranchSavingState
     saveBranchObject :: DB m => Db.BranchHashId -> BranchLocalIds -> S.Branch.Full.LocalBranch -> m Db.BranchObjectId
+    saveBranchObject id li lBranch | debug && trace ("saveBranchObject\n\tid = " ++ show id ++ "\n\tli = " ++ show li ++ "\n\tlBranch = " ++ show lBranch) False = undefined
     saveBranchObject (Db.unBranchHashId -> hashId) li lBranch = do
       let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full li lBranch
       oId <- Q.saveObject hashId OT.Namespace bytes
       pure $ Db.BranchObjectId oId
-    done :: EDB m => (a, BranchSavingWriter) -> m (BranchLocalIds, a)
+    done :: (EDB m, Show a) => (a, BranchSavingWriter) -> m (BranchLocalIds, a)
+    done (lBranch, written) | debug && trace ("saveRootBranch.done\n\tlBranch = " ++ show lBranch ++ "\n\twritten = " ++ show written) False = undefined
     done (lBranch, (textValues, defnHashes, patchObjectIds, branchCausalIds)) = do
       textIds <- liftQ $ traverse Q.saveText textValues
       defnObjectIds <- traverse primaryHashToExistingObjectId defnHashes
