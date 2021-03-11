@@ -8,16 +8,15 @@ In a scratch file, we'll define two terms.
 - `badtype`: an improperly typed term that cannot be `run`
 
 ```unison scratch.u
+runnable : '{builtin.io.IO} ()
 runnable = '(printLine "hello!")
+
+badtype : Text ->{builtin.io.IO} ()
 badtype = 'printLine "hello!"
 ```
 
-We'll see when we `run` the `runnable` term, we get the successful "hello!" we expect:
-
-**There is a bug here! https://github.com/unisonweb/unison/issues/1800**
-(this should not error)
-
-```ucm:error
+Since `runnable` is properly typed, Unison will successfully `run` it (the "hello" output does not show up in this transcript):
+```ucm
 .> run runnable
 ```
 
@@ -42,9 +41,7 @@ Now let's add these terms to the codebase and clear our scratchfile, to show tha
 ```unison scratch.u
 ```
 
-**(The bug again!)**
-
-```ucm:error
+```ucm
 .> run runnable
 ```
 
