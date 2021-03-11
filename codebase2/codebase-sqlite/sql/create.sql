@@ -62,11 +62,6 @@ CREATE TABLE causal (
 CREATE INDEX causal_value_hash_id ON causal(value_hash_id);
 CREATE INDEX causal_gc_generation ON causal(gc_generation);
 
--- valueHash : Hash = hash(value)
--- db.saveValue(valueHash, value)
--- causalHash : Hash = hash(new Causal(valueHash, parentCausalHashes))
--- db.saveCausal(selfHash = causalHash, valueHash, parentCausalHashes)
-
 CREATE TABLE namespace_root (
   -- a dummy pk because
   -- id INTEGER PRIMARY KEY NOT NULL,

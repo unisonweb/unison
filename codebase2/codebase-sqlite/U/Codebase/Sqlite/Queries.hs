@@ -57,12 +57,14 @@ import UnliftIO (MonadUnliftIO, throwIO, try, withRunInIO)
 
 type DB m = (MonadIO m, MonadReader Connection m)
 
-type EDB m = (DB m, MonadError Integrity m, HasCallStack)
+type EDB m = (DB m, Err m)
+
+type Err m = (MonadError Integrity m, HasCallStack)
 
 crashOnError :: Bool
 crashOnError = True
 
-throwError :: EDB m => Integrity -> m c
+throwError :: Err m => Integrity -> m c
 throwError = if crashOnError then error . show else Except.throwError
 
 data Integrity

@@ -85,8 +85,10 @@ import Unison.Codebase.FileCodebase.Common
   , putDecl
   , putTerm
   , putRootBranch
+  , putBranch
   , putWatch
   ---
+  , hashExists
   , branchFromFiles
   , branchHashesByPrefix
   , termReferencesByPrefix
@@ -186,6 +188,8 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
           (putRootBranch path)
           (branchHeadUpdates path)
           (branchFromFiles branchCache path)
+          (putBranch path)
+          (hashExists path)
           dependents
           (flip (syncToDirectory fmtV fmtA) path)
           (syncToDirectory fmtV fmtA path)

@@ -280,6 +280,7 @@ library
     unison-core,
     unison-codebase,
     unison-codebase-sqlite,
+    unison-codebase-sync,
     unison-util,
     unison-util-serialization
 

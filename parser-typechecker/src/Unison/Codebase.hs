@@ -59,6 +59,8 @@ data Codebase m v a =
            , putRootBranch      :: Branch m -> m ()
            , rootBranchUpdates  :: m (m (), m (Set Branch.Hash))
            , getBranchForHash   :: Branch.Hash -> m (Maybe (Branch m))
+           , putBranch          :: Branch m -> m ()
+           , branchExists       :: Branch.Hash -> m Bool
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
            -- This copies all the dependencies of `b` from the specified

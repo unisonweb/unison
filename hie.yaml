@@ -1,8 +1,5 @@
 cradle:
   stack:
-    - path: "codebase-convert-2to2/lib"
-      component: "unison-codebase-sync-2to2:lib"
-
     - path: "codebase1/codebase/."
       component: "unison-codebase1:lib"
 
@@ -11,6 +8,9 @@ cradle:
 
     - path: "codebase2/codebase-sqlite/."
       component: "unison-codebase-sqlite:lib"
+
+    - path: "codebase2/codebase-sync/."
+      component: "unison-codebase-sync:lib"
 
     - path: "codebase2/core/."
       component: "unison-core:lib"

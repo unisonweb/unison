@@ -63,6 +63,7 @@ data DecodeError
   | ErrBranchBody Word8
   | ErrPatchBody Word8
   | ErrWatchResult
+  deriving (Show)
 
 type ErrString = String
 
@@ -72,6 +73,7 @@ data Error
   | -- | hashes corresponding to a single object in source codebase
     --  correspond to multiple objects in destination codebase
     HashObjectCorrespondence ObjectId [HashId] [ObjectId]
+  deriving (Show)
 
 data Env = Env
   { srcDB :: Connection,
@@ -93,9 +95,7 @@ sync22 = do
   hCache <- Cache.semispaceCache size
   oCache <- Cache.semispaceCache size
   gc <- runSrc $ Q.getNurseryGeneration
-  pure $ Sync roots (trySync tCache hCache oCache (succ gc))
-  where
-    roots = runSrc $ fmap (\h -> [C h]) Q.loadNamespaceRoot
+  pure $ Sync (trySync tCache hCache oCache (succ gc))
 
 trySync ::
   forall m.

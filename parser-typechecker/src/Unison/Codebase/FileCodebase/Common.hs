@@ -43,6 +43,7 @@ module Unison.Codebase.FileCodebase.Common
   , deserializeEdits
   , serializeRawBranch
   , branchFromFiles
+  , putBranch
   , branchHashesByPrefix
   , termReferencesByPrefix
   , termReferentsByPrefix
@@ -331,14 +332,18 @@ getRootBranch cache root = time "FileCodebase.Common.getRootBranch" $
     Just (Branch.Hash -> h) -> branchFromFiles cache root h <&>
                                 maybeToEither (Codebase.CouldntLoadRootBranch h)
 
--- |only syncs branches and edits -- no dependencies
 putRootBranch :: MonadIO m => CodebasePath -> Branch m -> m ()
 putRootBranch root b = do
+  putBranch root b
+  updateCausalHead (branchHeadDir root) (Branch._history b)
+
+-- |only syncs branches and edits -- no dependencies
+putBranch :: MonadIO m => CodebasePath -> Branch m -> m ()
+putBranch root b =
   Branch.sync (hashExists root)
               (serializeRawBranch root)
               (serializeEdits root)
               b
-  updateCausalHead (branchHeadDir root) (Branch._history b)
 
 hashExists :: MonadIO m => CodebasePath -> Branch.Hash -> m Bool
 hashExists root h = doesFileExist (branchPath root h)

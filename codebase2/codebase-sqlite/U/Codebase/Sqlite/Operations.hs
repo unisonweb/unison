@@ -891,8 +891,15 @@ type BranchSavingConstraint m = (MonadState BranchSavingState m, MonadWriter Bra
 type BranchSavingMonad m = StateT BranchSavingState (WriterT BranchSavingWriter m)
 
 saveRootBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
-saveRootBranch (C.Causal hc he parents me) = do
-  when debug $ traceM $ "\nsaveRootBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
+saveRootBranch c = do
+  when debug $ traceM "saveRootBranch"
+  (boId, chId) <- saveBranch c
+  Q.setNamespaceRoot chId
+  pure (boId, chId)
+
+saveBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
+saveBranch (C.Causal hc he parents me) = do
+  when debug $ traceM $ "\nsaveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
   -- check if we can skip the whole thing, by checking if there are causal parents for hc
   chId <- liftQ (Q.saveCausalHash hc)
   parentCausalHashIds <-
@@ -906,7 +913,7 @@ saveRootBranch (C.Causal hc he parents me) = do
           parentChId <- liftQ (Q.saveCausalHash causalHash)
           -- test if the parent has been saved previously:
           liftQ (Q.loadCausalParents parentChId) >>= \case
-            [] -> do c <- mcausal; snd <$> saveRootBranch c
+            [] -> do c <- mcausal; snd <$> saveBranch c
             _grandParents -> pure parentChId
       parentCausalHashIds -> pure parentCausalHashIds
 
@@ -922,7 +929,6 @@ saveRootBranch (C.Causal hc he parents me) = do
         liftQ (Q.saveCausalParents chId parentCausalHashIds)
         pure boId
 
-  Q.setNamespaceRoot chId
   pure (boId, chId)
   where
     c2lBranch :: EDB m => C.Branch.Branch m -> m (BranchLocalIds, S.Branch.Full.LocalBranch)
@@ -950,7 +956,7 @@ saveRootBranch (C.Causal hc he parents me) = do
           Nothing -> savePatch h =<< (lift . lift) mp
       lookupPatch patchOID
     saveChild :: EDB m => C.Branch.Causal m -> BranchSavingMonad m LocalBranchChildId
-    saveChild c = (lift . lift) (saveRootBranch c) >>= lookupChild
+    saveChild c = (lift . lift) (saveBranch c) >>= lookupChild
     lookupText ::
       ( MonadState s m,
         MonadWriter w m,
@@ -999,7 +1005,7 @@ saveRootBranch (C.Causal hc he parents me) = do
       oId <- Q.saveObject hashId OT.Namespace bytes
       pure $ Db.BranchObjectId oId
     done :: (EDB m, Show a) => (a, BranchSavingWriter) -> m (BranchLocalIds, a)
-    done (lBranch, written) | debug && trace ("saveRootBranch.done\n\tlBranch = " ++ show lBranch ++ "\n\twritten = " ++ show written) False = undefined
+    done (lBranch, written) | debug && trace ("saveBranch.done\n\tlBranch = " ++ show lBranch ++ "\n\twritten = " ++ show written) False = undefined
     done (lBranch, (textValues, defnHashes, patchObjectIds, branchCausalIds)) = do
       textIds <- liftQ $ traverse Q.saveText textValues
       defnObjectIds <- traverse primaryHashToExistingObjectId defnHashes

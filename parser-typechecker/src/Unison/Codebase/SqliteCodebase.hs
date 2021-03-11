@@ -1,10 +1,10 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.SqliteCodebase where
 
@@ -12,6 +12,7 @@ module Unison.Codebase.SqliteCodebase where
 
 -- import qualified U.Codebase.Sqlite.Operations' as Ops
 
+import qualified Control.Concurrent
 import qualified Control.Exception
 import Control.Monad (filterM, (>=>))
 import Control.Monad.Except (ExceptT, runExceptT)
@@ -24,6 +25,7 @@ import Data.Bifunctor (Bifunctor (first), second)
 import qualified Data.Either.Combinators as Either
 import Data.Foldable (Foldable (toList), traverse_)
 import Data.Functor (void)
+import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
@@ -35,9 +37,9 @@ import qualified Data.Text.IO as TextIO
 import Data.Word (Word64)
 import Database.SQLite.Simple (Connection)
 import qualified Database.SQLite.Simple as Sqlite
-import UnliftIO.Directory (canonicalizePath)
 import qualified System.Exit as SysExit
 import System.FilePath ((</>))
+import qualified System.FilePath as FilePath
 import U.Codebase.HashTags (CausalHash (unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Sqlite.ObjectType as OT
@@ -78,12 +80,9 @@ import qualified Unison.Type as Type
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
 import UnliftIO (MonadIO, catchIO, liftIO)
-import UnliftIO.Directory (createDirectoryIfMissing, getHomeDirectory)
+import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, getHomeDirectory)
 import qualified UnliftIO.Environment as SysEnv
 import UnliftIO.STM
-import qualified System.FilePath as FilePath
-import qualified Control.Concurrent
-import qualified Data.List as List
 
 debug :: Bool
 debug = False
@@ -141,21 +140,24 @@ initCodebase path = do
       $ "It looks like " <> prettyDir <> " already exists."
     SysExit.exitFailure
 
-  liftIO $ PT.putPrettyLn'
-    . P.wrap
-    $ "Initializing a new codebase in: "
-      <> prettyDir
+  liftIO $
+    PT.putPrettyLn'
+      . P.wrap
+      $ "Initializing a new codebase in: "
+        <> prettyDir
 
   -- run sql create scripts
   createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
-  liftIO $ Control.Exception.bracket
-    (unsafeGetConnection path)
-    Sqlite.close
-    (runReaderT Q.createSchema)
+  liftIO $
+    Control.Exception.bracket
+      (unsafeGetConnection path)
+      Sqlite.close
+      (runReaderT Q.createSchema)
 
-  (closeCodebase, theCodebase) <- sqliteCodebase path >>= \case
-    Right x -> pure x
-    Left x -> error $ show x ++ " :) "
+  (closeCodebase, theCodebase) <-
+    sqliteCodebase path >>= \case
+      Right x -> pure x
+      Left x -> error $ show x ++ " :) "
   Codebase1.initializeCodebase theCodebase
   pure (closeCodebase, theCodebase)
 
@@ -167,9 +169,10 @@ codebaseExists :: MonadIO m => CodebasePath -> m Bool
 codebaseExists root = liftIO do
   Monad.when debug $ traceM $ "codebaseExists " ++ root
   Control.Exception.catch @Sqlite.SQLError
-    (sqliteCodebase root >>= \case
-      Left _ -> pure False
-      Right (close, _codebase) -> close >> pure True)
+    ( sqliteCodebase root >>= \case
+        Left _ -> pure False
+        Right (close, _codebase) -> close >> pure True
+    )
     (const $ pure False)
 
 -- and <$> traverse doesDirectoryExist (minimalCodebaseStructure root)
@@ -194,16 +197,27 @@ data BufferEntry a = BufferEntry
   deriving (Eq, Show)
 
 prettyBufferEntry :: Show a => Hash -> BufferEntry a -> String
-prettyBufferEntry (h :: Hash) BufferEntry{..} =
+prettyBufferEntry (h :: Hash) BufferEntry {..} =
   "BufferEntry " ++ show h ++ "\n"
-    ++ "  { beComponentTargetSize = " ++ show beComponentTargetSize ++ "\n"
+    ++ "  { beComponentTargetSize = "
+    ++ show beComponentTargetSize
+    ++ "\n"
     ++ "  , beComponent = "
-    ++ if Map.size beComponent < 2 then show $ Map.toList beComponent else mkString (Map.toList beComponent) (Just "\n      [ ") "      , " (Just "]\n")
-    ++ "  , beMissingDependencies ="
-    ++ if Set.size beMissingDependencies < 2 then show $ Set.toList beMissingDependencies else mkString (Set.toList beMissingDependencies) (Just "\n      [ ") "      , " (Just "]\n")
-    ++ "  , beWaitingDependents ="
-    ++ if Set.size beWaitingDependents < 2 then show $ Set.toList beWaitingDependents else mkString (Set.toList beWaitingDependents) (Just "\n      [ ") "      , " (Just "]\n")
-    ++ "  }"
+    ++ if Map.size beComponent < 2
+      then show $ Map.toList beComponent
+      else
+        mkString (Map.toList beComponent) (Just "\n      [ ") "      , " (Just "]\n")
+          ++ "  , beMissingDependencies ="
+          ++ if Set.size beMissingDependencies < 2
+            then show $ Set.toList beMissingDependencies
+            else
+              mkString (Set.toList beMissingDependencies) (Just "\n      [ ") "      , " (Just "]\n")
+                ++ "  , beWaitingDependents ="
+                ++ if Set.size beWaitingDependents < 2
+                  then show $ Set.toList beWaitingDependents
+                  else
+                    mkString (Set.toList beWaitingDependents) (Just "\n      [ ") "      , " (Just "]\n")
+                      ++ "  }"
   where
     mkString :: (Foldable f, Show a) => f a -> Maybe String -> String -> Maybe String -> String
     mkString as start middle end = fromMaybe "" start ++ List.intercalate middle (show <$> toList as) ++ fromMaybe "" end
@@ -275,8 +289,9 @@ sqliteCodebase root = do
                     let size' = Just n'
                     -- if size was previously set, it's expected to match size'.
                     case size of
-                      Just n | n /= n' ->
-                        error $ "targetSize for term " ++ show h ++ " was " ++ show size ++ ", but now " ++ show size'
+                      Just n
+                        | n /= n' ->
+                          error $ "targetSize for term " ++ show h ++ " was " ++ show size ++ ", but now " ++ show size'
                       _ -> pure ()
                     let comp' = Map.insert i (tm, tp) comp
                     -- for the component element that's been passed in, add its dependencies to missing'
@@ -319,7 +334,6 @@ sqliteCodebase root = do
             atomically $ modifyTVar tv (Map.delete h)
             Monad.when debug $ readTVarIO tv >>= \tv -> traceM $ "after delete: " ++ show tv
 
-
           addBufferDependent :: (MonadIO m, Show a) => Hash -> TVar (Map Hash (BufferEntry a)) -> Hash -> m ()
           addBufferDependent dependent tv dependency = withBuffer tv dependency \be -> do
             putBuffer tv dependency be {beWaitingDependents = Set.insert dependent $ beWaitingDependents be}
@@ -352,9 +366,11 @@ sqliteCodebase root = do
                       Monad.when debug $ traceM $ "tryFlushBuffer.notify waiting " ++ show waiting
                       traverse_ tryWaiting waiting
                     else -- update
+
                       putBuffer buf h $
                         BufferEntry (Just size) comp (Set.fromList missing') waiting
-                Nothing -> -- it's never even been added, so there's nothing to do.
+                Nothing ->
+                  -- it's never even been added, so there's nothing to do.
                   pure ()
 
           tryFlushTermBuffer :: EDB m => Hash -> m ()
@@ -386,8 +402,9 @@ sqliteCodebase root = do
                 ( withBuffer declBuffer h \(BufferEntry size comp missing waiting) -> do
                     let size' = Just n'
                     case size of
-                      Just n | n /= n' ->
-                        error $ "targetSize for type " ++ show h ++ " was " ++ show size ++ ", but now " ++ show size'
+                      Just n
+                        | n /= n' ->
+                          error $ "targetSize for type " ++ show h ++ " was " ++ show size ++ ", but now " ++ show size'
                       _ -> pure ()
                     let comp' = Map.insert i decl comp
                     moreMissing <-
@@ -444,6 +461,21 @@ sqliteCodebase root = do
                   =<< Cv.causalbranch2to1 getCycleLen getDeclType b
               Nothing -> pure Nothing
 
+          putBranch :: MonadIO m => Branch m -> m ()
+          putBranch branch1 =
+            runDB conn
+              . void
+              . Ops.saveBranch
+              . Cv.causalbranch1to2
+              $ Branch.transform (lift . lift) branch1
+
+          isCausalHash :: MonadIO m => Branch.Hash -> m Bool
+          isCausalHash (Causal.RawHash h) =
+            runDB conn $
+              Q.loadHashIdByHash (Cv.hash1to2 h) >>= \case
+                Nothing -> pure False
+                Just hId -> Q.isCausalHash hId
+
           dependentsImpl :: MonadIO m => Reference -> m (Set Reference.Id)
           dependentsImpl r =
             runDB conn $
@@ -463,32 +495,35 @@ sqliteCodebase root = do
                 >>= traverse (Cv.referenceid2to1 getCycleLen)
 
           getWatch :: MonadIO m => UF.WatchKind -> Reference.Id -> m (Maybe (Term Symbol Ann))
-          getWatch k r@(Reference.Id h _i _n) | elem k standardWatchKinds =
-            runDB' conn $
-              Ops.loadWatch (Cv.watchKind1to2 k) (Cv.referenceid1to2 r)
-                >>= Cv.term2to1 h getCycleLen getDeclType
+          getWatch k r@(Reference.Id h _i _n)
+            | elem k standardWatchKinds =
+              runDB' conn $
+                Ops.loadWatch (Cv.watchKind1to2 k) (Cv.referenceid1to2 r)
+                  >>= Cv.term2to1 h getCycleLen getDeclType
           getWatch _unknownKind _ = pure Nothing
 
           standardWatchKinds = [UF.RegularWatch, UF.TestWatch]
 
           putWatch :: MonadIO m => UF.WatchKind -> Reference.Id -> Term Symbol Ann -> m ()
-          putWatch k r@(Reference.Id h _i _n) tm | elem k standardWatchKinds =
-            runDB conn $
-              Ops.saveWatch
-                (Cv.watchKind1to2 k)
-                (Cv.referenceid1to2 r)
-                (Cv.term1to2 h tm)
+          putWatch k r@(Reference.Id h _i _n) tm
+            | elem k standardWatchKinds =
+              runDB conn $
+                Ops.saveWatch
+                  (Cv.watchKind1to2 k)
+                  (Cv.referenceid1to2 r)
+                  (Cv.term1to2 h tm)
           putWatch _unknownKind _ _ = pure ()
 
           getReflog :: MonadIO m => m [Reflog.Entry]
-          getReflog = liftIO $
-            ( do
-                contents <- TextIO.readFile (reflogPath root)
-                let lines = Text.lines contents
-                let entries = parseEntry <$> lines
-                pure entries
-            )
-              `catchIO` const (pure [])
+          getReflog =
+            liftIO $
+              ( do
+                  contents <- TextIO.readFile (reflogPath root)
+                  let lines = Text.lines contents
+                  let entries = parseEntry <$> lines
+                  pure entries
+              )
+                `catchIO` const (pure [])
             where
               parseEntry t = fromMaybe (err t) (Reflog.fromText t)
               err t =
@@ -570,16 +605,16 @@ sqliteCodebase root = do
       -- primarily with commit hashes.
       -- Arya leaning towards doing the same for Unison.
 
-      let
-          finalizer :: MonadIO m => m ()
+      let finalizer :: MonadIO m => m ()
           finalizer = do
             liftIO $ Sqlite.close conn
             decls <- readTVarIO declBuffer
             terms <- readTVarIO termBuffer
             let printBuffer header b =
-                  liftIO if b /= mempty
-                    then putStrLn header >> putStrLn "" >> print b
-                    else pure ()
+                  liftIO
+                    if b /= mempty
+                      then putStrLn header >> putStrLn "" >> print b
+                      else pure ()
             printBuffer "Decls:" decls
             printBuffer "Terms:" terms
 
@@ -595,6 +630,8 @@ sqliteCodebase root = do
             putRootBranch
             rootBranchUpdates
             getBranchForHash
+            putBranch
+            isCausalHash
             dependentsImpl
             syncFromDirectory
             syncToDirectory
