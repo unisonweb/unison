@@ -9,6 +9,7 @@ import Unison.Prelude
 import Control.Concurrent.STM (atomically)
 import Control.Exception (finally, catch, AsyncException(UserInterrupt), asyncExceptionFromException)
 import Control.Monad.State (runStateT)
+import Control.Monad.Catch (MonadMask)
 import Data.Configurator.Types (Config)
 import Data.IORef
 import Data.Tuple.Extra (uncurry3)
@@ -67,7 +68,7 @@ expandNumber numberedArgs s =
           _ -> Nothing
 
 getUserInput
-  :: (MonadIO m, Line.MonadException m)
+  :: (MonadIO m, MonadMask m)
   => Map String InputPattern
   -> Codebase m v a
   -> Branch m

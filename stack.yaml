@@ -18,8 +18,6 @@ resolver: nightly-2021-01-02
 extra-deps:
 - github: unisonweb/configurator
   commit: e47e9e9fe1f576f8c835183b9def52d73c01327a
-- github: unisonweb/haskeline
-  commit: 2944b11d19ee034c48276edc991736105c9d6143
 - github: unisonweb/megaparsec
   commit: c4463124c578e8d1074c04518779b5ce5957af6b
 - github: biocad/openapi3
@@ -38,6 +36,7 @@ extra-deps:
 - servant-docs-0.11.6
 - ListLike-4.7.3
 - random-1.2.0
+- haskeline-0.8.1.1
 # remove these when stackage upgrades containers
 - containers-0.6.4.1
 - text-1.2.4.1
