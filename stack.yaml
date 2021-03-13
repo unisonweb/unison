@@ -13,7 +13,7 @@ packages:
 - unison-core
 
 #compiler-check: match-exact
-resolver: nightly-2021-01-02
+resolver: lts-17.5
 
 extra-deps:
 - github: unisonweb/configurator
@@ -36,7 +36,7 @@ extra-deps:
 - servant-0.18@sha256:2b5c81089540c208b1945b5ca0c3551c862138d71b224a39fa275a62852a5c75,5068
 - servant-server-0.18
 - servant-docs-0.11.6
-- ListLike-4.7.3
+- ListLike-4.7.4
 - random-1.2.0
 # remove these when stackage upgrades containers
 - containers-0.6.4.1
