@@ -1156,10 +1156,10 @@ loop = do
               entryToHQString :: ShallowListEntry v Ann -> String
               entryToHQString e =
                 fixup $ case e of
-                  ShallowTypeEntry _ hq     -> HQ'.toString hq
-                  ShallowTermEntry _ hq _   -> HQ'.toString hq
-                  ShallowBranchEntry ns _ _ -> NameSegment.toString ns
-                  ShallowPatchEntry ns      -> NameSegment.toString ns
+                  ShallowTypeEntry _ hq _    -> HQ'.toString hq
+                  ShallowTermEntry _ hq _ _  -> HQ'.toString hq
+                  ShallowBranchEntry ns _ _  -> NameSegment.toString ns
+                  ShallowPatchEntry ns       -> NameSegment.toString ns
                where
                 fixup s = case pathArgStr of
                            "" -> s
@@ -1469,12 +1469,12 @@ loop = do
           testRefs = Set.fromList [ r | Referent.Ref r <- toList testTerms ]
           oks results =
             [ (r, msg)
-            | (r, Term.Sequence' ts) <- Map.toList results
+            | (r, Term.List' ts) <- Map.toList results
             , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
             , cid == DD.okConstructorId && ref == DD.testResultRef ]
           fails results =
             [ (r, msg)
-            | (r, Term.Sequence' ts) <- Map.toList results
+            | (r, Term.List' ts) <- Map.toList results
             , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
             , cid == DD.failConstructorId && ref == DD.testResultRef ]
         cachedTests <- fmap Map.fromList . eval $ LoadWatches UF.TestWatch testRefs
@@ -1556,12 +1556,12 @@ loop = do
 
             oks results =
               [ (r, msg)
-              | (r, Term.Sequence' ts) <- results
+              | (r, Term.List' ts) <- results
               , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
               , cid == DD.okConstructorId && ref == DD.testResultRef ]
             fails results =
               [ (r, msg)
-              | (r, Term.Sequence' ts) <- results
+              | (r, Term.List' ts) <- results
               , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
               , cid == DD.failConstructorId && ref == DD.testResultRef ]
 

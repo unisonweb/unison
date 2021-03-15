@@ -624,7 +624,7 @@ app :: Ord v => Type v -> Type v -> Type v
 app = Type.app ()
 
 list :: Ord v => Type v -> Type v
-list arg = Type.vector () `app` arg
+list arg = Type.list () `app` arg
 
 optionalt :: Ord v => Type v -> Type v
 optionalt arg = DD.optionalType () `app` arg

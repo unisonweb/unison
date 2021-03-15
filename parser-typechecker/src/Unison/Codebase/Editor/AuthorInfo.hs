@@ -31,7 +31,7 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
         (Term.constructor a guidTypeRef 0)
         (Term.app a
           (Term.builtin a "Bytes.fromList")
-          (Term.seq a (map (Term.nat a . fromIntegral) bytes)))
+          (Term.list a (map (Term.nat a . fromIntegral) bytes)))
 
     [(authorRef, authorTerm)] = hashAndWrangle "author" $
       Term.apps

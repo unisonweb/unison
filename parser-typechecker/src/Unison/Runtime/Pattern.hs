@@ -431,7 +431,7 @@ splitMatrixSeq v (PM rs)
   ms = decideSeqPat $ take 1 . dropWhile ((/=v).loc) . matches =<< rs
   hint m vrs
     | m `elem` [E,C,S] = vrs
-    | otherwise = (fmap.fmap) (const $ PData Rf.vectorRef) vrs
+    | otherwise = (fmap.fmap) (const $ PData Rf.listRef) vrs
   cases = ms <&> \m ->
     let frs = rs >>= splitRowSeq v m
         (vrs, pm) = buildMatrix frs
@@ -569,7 +569,7 @@ compile spec ctx m@(PM (r:rs))
       Nothing -> body r
       Just g -> iff mempty g (body r) $ compile spec ctx (PM rs)
   | PData rf <- ty
-  , rf == Rf.vectorRef
+  , rf == Rf.listRef
   = match () (var () v)
       $ buildCaseBuiltin spec ctx
      <$> splitMatrixSeq v m
@@ -716,8 +716,8 @@ determineType = foldMap f
   f P.Boolean{} = PData Rf.booleanRef
   f P.Text{} = PData Rf.textRef
   f P.Char{} = PData Rf.charRef
-  f P.SequenceLiteral{} = PData Rf.vectorRef
-  f P.SequenceOp{} = PData Rf.vectorRef
+  f P.SequenceLiteral{} = PData Rf.listRef
+  f P.SequenceOp{} = PData Rf.listRef
   f (P.Constructor _ r _ _) = PData r
   f (P.EffectBind _ r _ _ _) = PReq $ Set.singleton r
   f P.EffectPure{} = PReq mempty

@@ -44,6 +44,9 @@ type EffectDeclaration v a = DD.EffectDeclaration v a
 -- | this FileCodebase detail lives here, because the interface depends on it 🙃
 type CodebasePath = FilePath
 
+-- | Abstract interface to a user's codebase.
+--
+-- One implementation is 'Unison.Codebase.FileCodebase' which uses the filesystem.
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
            , getTypeOfTermImpl  :: Reference.Id -> m (Maybe (Type v a))

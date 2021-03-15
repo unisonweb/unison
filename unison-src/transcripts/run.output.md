@@ -6,7 +6,10 @@ In a scratch file, we'll define two terms.
 ---
 title: scratch.u
 ---
+runnable : '{builtin.io.IO} ()
 runnable = '(printLine "hello!")
+
+badtype : Text ->{builtin.io.IO} ()
 badtype = 'printLine "hello!"
 
 ```
@@ -24,23 +27,9 @@ badtype = 'printLine "hello!"
       runnable : '{io.IO} ()
 
 ```
-We'll see when we `run` the `runnable` term, we get the successful "hello!" we expect:
-
-**There is a bug here! https://github.com/unisonweb/unison/issues/1800**
-(this should not error)
-
+Since `runnable` is properly typed, Unison will successfully `run` it (the "hello" output does not show up in this transcript):
 ```ucm
 .> run runnable
-
-  😶
-  
-  I found this function:
-  
-    runnable : '{builtin.io.IO} ()
-  
-  but in order for me to `run` it it needs to have the type:
-  
-    runnable : '{builtin.io.IO} a
 
 ```
 When we run the term with the bad type, we get an error message that lets us know that Unison found the term, but the type is not `run`able:
@@ -97,20 +86,8 @@ title: scratch.u
   I loaded scratch.u and didn't find anything.
 
 ```
-**(The bug again!)**
-
 ```ucm
 .> run runnable
-
-  😶
-  
-  I found this function:
-  
-    runnable : '{builtin.io.IO} ()
-  
-  but in order for me to `run` it it needs to have the type:
-  
-    runnable : '{builtin.io.IO} a
 
 ```
 ```ucm

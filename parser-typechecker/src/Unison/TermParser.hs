@@ -323,8 +323,8 @@ boolean :: Var v => TermP v
 boolean = ((\t -> Term.boolean (ann t) True) <$> reserved "true") <|>
           ((\t -> Term.boolean (ann t) False) <$> reserved "false")
 
-seq :: Var v => TermP v -> TermP v
-seq = Parser.seq Term.seq
+list :: Var v => TermP v -> TermP v
+list = Parser.seq Term.list
 
 hashQualifiedPrefixTerm :: Var v => TermP v
 hashQualifiedPrefixTerm = resolveHashQualified =<< hqPrefixId
@@ -357,7 +357,7 @@ termLeaf =
     , link
     , tupleOrParenthesizedTerm
     , keywordBlock
-    , seq term
+    , list term
     , delayQuote
     , bang
     , docBlock
@@ -489,7 +489,7 @@ docBlock = do
   segs <- many segment
   closeTok <- closeBlock
   let a = ann openTok <> ann closeTok
-  pure . docNormalize $ Term.app a (Term.constructor a DD.docRef DD.docJoinId) (Term.seq a segs)
+  pure . docNormalize $ Term.app a (Term.constructor a DD.docRef DD.docJoinId) (Term.list a segs)
   where
   segment = blob <|> linky
   blob = do
@@ -579,7 +579,7 @@ docNormalize :: (Ord v, Show v) => Term v a -> Term v a
 docNormalize tm = case tm of
   -- This pattern is just `DD.DocJoin seqs`, but exploded in order to grab
   -- the annotations.  The aim is just to map `normalize` over it.
-  a@(Term.App' c@(Term.Constructor' DD.DocRef DD.DocJoinId) s@(Term.Sequence' seqs))
+  a@(Term.App' c@(Term.Constructor' DD.DocRef DD.DocJoinId) s@(Term.List' seqs))
     -> join (ABT.annotation a)
             (ABT.annotation c)
             (ABT.annotation s)
@@ -777,7 +777,7 @@ docNormalize tm = case tm of
   blob aa ac at txt =
     Term.app aa (Term.constructor ac DD.docRef DD.docBlobId) (Term.text at txt)
   join aa ac as segs =
-    Term.app aa (Term.constructor ac DD.docRef DD.docJoinId) (Term.seq' as segs)
+    Term.app aa (Term.constructor ac DD.docRef DD.docJoinId) (Term.list' as segs)
   mapBlob :: Ord v => (Text -> Text) -> Term v a -> Term v a
   -- this pattern is just `DD.DocBlob txt` but exploded to capture the annotations as well
   mapBlob f (aa@(Term.App' ac@(Term.Constructor' DD.DocRef DD.DocBlobId) at@(Term.Text' txt)))
@@ -1033,7 +1033,7 @@ bytes = do
   b <- bytesToken
   let a = ann b
   pure $ Term.app a (Term.builtin a "Bytes.fromList")
-                    (Term.seq a $ Term.nat a . fromIntegral <$> Bytes.toWord8s (L.payload b))
+                    (Term.list a $ Term.nat a . fromIntegral <$> Bytes.toWord8s (L.payload b))
 
 number'
   :: Ord v

@@ -541,10 +541,10 @@ notifyUser dir o = case o of
       f (i, (p1, p2)) = (P.hiBlack . fromString $ show i <> ".", p1, p2)
     formatEntry :: ShallowListEntry v a -> (P.Pretty P.ColorText, P.Pretty P.ColorText)
     formatEntry = \case
-      ShallowTermEntry _r hq ot ->
+      ShallowTermEntry _r hq ot _ ->
         (P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq
         , P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) ot <> P.lit ")" )
-      ShallowTypeEntry r hq ->
+      ShallowTypeEntry r hq _ ->
         (P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq
         ,isBuiltin r)
       ShallowBranchEntry ns _ count ->
@@ -1902,7 +1902,7 @@ watchPrinter src ppe ann kind term isHit =
         P.lines
           [ fromString (show lineNum) <> " | " <> P.text line
           , case (kind, term) of
-            (UF.TestWatch, Term.Sequence' tests) -> foldMap renderTest tests
+            (UF.TestWatch, Term.List' tests) -> foldMap renderTest tests
             _ -> P.lines
               [ fromString (replicate lineNumWidth ' ')
               <> fromString extra
@@ -2020,7 +2020,7 @@ prettyRepoBranch (RemoteRepo.GitRepo url treeish) =
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of
-  Term.Sequence' ts -> all isSuccess ts where
+  Term.List' ts -> all isSuccess ts where
     isSuccess (Term.App' (Term.Constructor' ref cid) _) =
       cid == DD.okConstructorId &&
       ref == DD.testResultRef
