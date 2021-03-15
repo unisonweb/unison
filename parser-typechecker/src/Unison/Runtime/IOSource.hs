@@ -683,6 +683,8 @@ unique[d7b2ced8c08b2c6e54050d1f5acedef3395f293d] type Pretty.Annotated w txt
   | Lit w txt
   | Wrap w (Pretty.Annotated w txt)
   | OrElse w (Pretty.Annotated w txt) (Pretty.Annotated w txt)
+  -- Indent _ initialIndent indentAfterNewline p prefixes the first
+  -- line of `p` with `initialIndent`, and subsequent lines by `indentAfterNewline`.
   | Indent w (Pretty.Annotated w txt) (Pretty.Annotated w txt) (Pretty.Annotated w txt)
   | Append w [Pretty.Annotated w txt]
 

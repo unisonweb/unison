@@ -40,6 +40,38 @@ displayTerm pped terms typeOf eval types tm = case tm of
     Just tm -> displayDoc pped terms typeOf eval types tm
   _ -> displayDoc pped terms typeOf eval types tm
 
+-- assume this is given a
+-- Pretty.Annotated ann (Either SpecialForm ConsoleText)
+displayPretty :: forall v m a. (Var v, Monad m)
+              => PPE.PrettyPrintEnvDecl
+              -> (Reference -> m (Maybe (Term v a)))
+              -> (Referent  -> m (Maybe (Type v a)))
+              -> (Reference -> m (Maybe (Term v a)))
+              -> (Reference -> m (Maybe (DD.Decl v a)))
+              -> Term v a
+              -> m Pretty
+displayPretty pped terms typeOf eval types tm = go tm
+  where
+  go = \case
+    PrettyEmpty _ -> pure mempty
+    PrettyGroup _ p -> P.group <$> go p
+    PrettyLit _ (UnisonLeft special) -> goSpecial special
+    PrettyLit _ (UnisonRight consoleTxt) -> goConsole consoleTxt
+    PrettyWrap _ p -> P.wrap <$> go p
+    PrettyOrElse _ p1 p2 -> P.orElse <$> go p1 <*> go p2
+    PrettyIndent _ initial afterNl p -> do
+      initial <- go initial
+      afterNl <- go afterNl
+      p <- go p
+      pure $ initial <> P.indentAfterNewline afterNl p
+    PrettyAppend _ (Term.List' ps) -> mconcat <$> traverse go ps
+  goSpecial = undefined -- \case
+  goConsole = undefined --
+    -- SpecialSource (Unison
+
+-- pattern PrettyEmpty = Term.Constructor'
+-- pattern DocBlob txt <- Term.App' (Term.Constructor' DocRef DocBlobId) (Term.Text' txt)
+
 displayDoc :: forall v m a. (Var v, Monad m)
            => PPE.PrettyPrintEnvDecl
            -> (Reference -> m (Maybe (Term v a)))
