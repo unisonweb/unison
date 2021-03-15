@@ -2,6 +2,7 @@
 {-# Language PatternSynonyms #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# Language QuasiQuotes #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 module Unison.Runtime.IOSource where
 
@@ -130,17 +131,75 @@ illegalOperationId = mkErrorType "io.ErrorType.IllegalOperation"
 permissionDeniedId = mkErrorType "io.ErrorType.PermissionDenied"
 userErrorId = mkErrorType "io.ErrorType.UserError"
 
-doc2Reference :: R.Reference
-doc2Reference = typeNamed "Doc2"
+doc2Ref :: R.Reference
+doc2Ref = typeNamed "Doc2"
+doc2SpecialFormRef = typeNamed "Doc2.SpecialForm"
+doc2EvaluationRef = typeNamed "Doc2.Evaluation"
+prettyRef = typeNamed "Pretty"
+prettyAnnotatedRef = typeNamed "Pretty.Annotated"
+ansiColorRef = typeNamed "ANSI.Color"
+consoleTextRef = typeNamed "ConsoleText"
 
-pattern Doc2Reference <- ((== doc2Reference) -> True)
--- pattern Doc2
--- hmm, it would be so much easier to write the display logic
--- in unison, like if you could just write a function -
---
--- display : Doc2 -> Pretty
--- and then ucm knows what to do with Pretty values when displayed
--- where does ucm come up with this function, though???
+pattern Doc2SpecialFormRef <- ((== doc2SpecialFormRef) -> True)
+doc2SpecialFormSourceId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Source"
+doc2SpecialFormExampleId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Example"
+doc2SpecialFormLinkId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Link"
+doc2SpecialFormSignatureId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Signature"
+doc2SpecialFormInlineSignatureId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.InlineSignature"
+doc2SpecialFormEmbedId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Embed"
+doc2SpecialFormInlineEmbedId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.InlineEmbed"
+
+pattern Doc2Ref <- ((== doc2Ref) -> True)
+doc2WordId = constructorNamed doc2Ref "Doc2.Word"
+doc2CodeId = constructorNamed doc2Ref "Doc2.Code"
+doc2CodeBlockId = constructorNamed doc2Ref "Doc2.CodeBlock"
+doc2BoldId = constructorNamed doc2Ref "Doc2.Bold"
+doc2ItalicId = constructorNamed doc2Ref "Doc2.Italic"
+doc2StrikethroughId = constructorNamed doc2Ref "Doc2.Strikethrough"
+doc2StyleId = constructorNamed doc2Ref "Doc2.Style"
+doc2BlockquoteId = constructorNamed doc2Ref "Doc2.Blockquote"
+doc2BlanklineId = constructorNamed doc2Ref "Doc2.Blankline"
+doc2SectionBreakId = constructorNamed doc2Ref "Doc2.SectionBreak"
+doc2AsideId = constructorNamed doc2Ref "Doc2.Aside"
+doc2CalloutId = constructorNamed doc2Ref "Doc2.Callout"
+doc2FoldedId = constructorNamed doc2Ref "Doc2.Folded"
+doc2PargraphId = constructorNamed doc2Ref "Doc2.Pargraph"
+doc2BulletedListId = constructorNamed doc2Ref "Doc2.BulletedList"
+doc2NumberedListId = constructorNamed doc2Ref "Doc2.NumberedList"
+doc2SectionId = constructorNamed doc2Ref "Doc2.Section"
+doc2SpecialId = constructorNamed doc2Ref "Doc2.Special"
+doc2DocsId = constructorNamed doc2Ref "Doc2.Docs"
+
+pattern Doc2EvaluationRef <- ((== doc2EvaluationRef) -> True)
+
+pattern PrettyAnnotatedRef <- ((== prettyAnnotatedRef) -> True)
+prettyEmptyId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Empty"
+prettyGroupId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Group"
+prettyLitId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Lit"
+prettyWrapId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Wrap"
+prettyOrElseId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.OrElse"
+prettyIndentId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Indent"
+prettyAppendId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Append"
+
+pattern PrettyRef <- ((== prettyRef) -> True)
+
+pattern AnsiColorRef  <- ((== ansiColorRef) -> True)
+[ ansiBlackId, ansiColorRedId, ansiColorGreenId, ansiColorYellowId
+  , ansiColorBlueId, ansiColorMagentaId, ansiColorCyanId, ansiColorWhite
+  , ansiBrightBlackId, ansiColorBrightRedId, ansiColorBrightGreenId, ansiColorBrightYellowId
+  , ansiColorBrightBlue, ansiBrightMagentaId, ansiColorBrightCyanId, ansiColorBrightWhite ]
+ = map ct [
+  "Black", "Red", "Green", "Yellow", "Blue", "Magenta", "Cyan", "White",
+  "BrightBlack", "BrightRed", "BrightGreen", "BrightYellow", "BrightBlue",
+  "BrightMagenta", "BrightCyan", "BrightWhite" ]
+  where ct n = constructorNamed ansiColorRef ("ANSI.Color." <> n)
+
+pattern ConsoleTextRef  <- ((== consoleTextRef) -> True)
+consoleTextPlainId = constructorNamed consoleTextRef "ConsoleText.Plain"
+consoleTextForegroundId = constructorNamed consoleTextRef "ConsoleText.Foreground"
+consoleTextBackgroundId = constructorNamed consoleTextRef "ConsoleText.Background"
+consoleTextBoldId = constructorNamed consoleTextRef "ConsoleText.Bold"
+consoleTextUnderlineId = constructorNamed consoleTextRef "ConsoleText.Underline"
 
 constructorNamed :: R.Reference -> Text -> DD.ConstructorId
 constructorNamed ref name =
