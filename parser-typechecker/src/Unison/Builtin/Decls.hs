@@ -1,6 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 module Unison.Builtin.Decls where
 
@@ -70,7 +71,7 @@ constructorId ref name = do
   elemIndex name $ DD.constructorNames dd
 
 okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId :: ConstructorId
-isPropagatedConstructorId, isTestConstructorId :: ConstructorId 
+isPropagatedConstructorId, isTestConstructorId :: ConstructorId
 Just isPropagatedConstructorId = constructorId isPropagatedRef "IsPropagated.IsPropagated"
 Just isTestConstructorId = constructorId isTestRef "IsTest.IsTest"
 Just okConstructorId = constructorId testResultRef "Test.Result.Ok"
@@ -285,10 +286,27 @@ builtinEffectDecls = []
 
 pattern UnitRef <- (unUnitRef -> True)
 pattern PairRef <- (unPairRef -> True)
+pattern EitherRef <- ((==) eitherRef -> True)
 pattern OptionalRef <- (unOptionalRef -> True)
 pattern TupleType' ts <- (unTupleType -> Just ts)
 pattern TupleTerm' xs <- (unTupleTerm -> Just xs)
 pattern TuplePattern ps <- (unTuplePattern -> Just ps)
+pattern EitherLeft' tm <- (unLeftTerm -> Just tm)
+pattern EitherRight' tm <- (unRightTerm -> Just tm)
+pattern EitherLeftId <- ((==) eitherLeftId -> True)
+pattern EitherRightId <- ((==) eitherRightId -> True)
+
+unLeftTerm, unRightTerm
+  :: Term.Term2 vt at ap v a
+  -> Maybe (Term.Term2 vt at ap v a)
+unRightTerm t = case t of
+  Term.App' (Term.Constructor' EitherRef EitherRightId) tm ->
+    Just tm
+  _                           -> Nothing
+unLeftTerm t = case t of
+  Term.App' (Term.Constructor' EitherRef EitherLeftId) tm ->
+    Just tm
+  _                           -> Nothing
 
 -- some pattern synonyms to make pattern matching on some of these constants more pleasant
 pattern DocRef <- ((== docRef) -> True)

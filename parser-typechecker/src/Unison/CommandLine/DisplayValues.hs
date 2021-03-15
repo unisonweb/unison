@@ -1,15 +1,17 @@
 {-# Language PatternSynonyms #-}
 {-# Language OverloadedStrings #-}
+{-# Language ViewPatterns #-}
 
 module Unison.CommandLine.DisplayValues where
 
-import Data.Foldable ( fold )
+import Data.Foldable ( fold, toList )
 
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Var (Var)
+import qualified Unison.Runtime.IOSource as DD
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DP
@@ -55,8 +57,8 @@ displayPretty pped terms typeOf eval types tm = go tm
   go = \case
     PrettyEmpty _ -> pure mempty
     PrettyGroup _ p -> P.group <$> go p
-    PrettyLit _ (UnisonLeft special) -> goSpecial special
-    PrettyLit _ (UnisonRight consoleTxt) -> goConsole consoleTxt
+    PrettyLit _ (DD.EitherLeft' special) -> goSpecial special
+    PrettyLit _ (DD.EitherRight' consoleTxt) -> goConsole consoleTxt
     PrettyWrap _ p -> P.wrap <$> go p
     PrettyOrElse _ p1 p2 -> P.orElse <$> go p1 <*> go p2
     PrettyIndent _ initial afterNl p -> do
@@ -64,12 +66,20 @@ displayPretty pped terms typeOf eval types tm = go tm
       afterNl <- go afterNl
       p <- go p
       pure $ initial <> P.indentAfterNewline afterNl p
-    PrettyAppend _ (Term.List' ps) -> mconcat <$> traverse go ps
+    PrettyAppend _ ps -> mconcat . toList <$> traverse go ps
+    tm -> displayTerm pped terms typeOf eval types tm
   goSpecial = undefined -- \case
   goConsole = undefined --
     -- SpecialSource (Unison
 
--- pattern PrettyEmpty = Term.Constructor'
+pattern PrettyEmpty ann <- Term.App' (Term.Constructor' DD.PrettyRef ((==) DD.prettyEmptyId -> True)) ann
+pattern PrettyGroup ann tm <- Term.Apps' (Term.Constructor' DD.PrettyRef ((==) DD.prettyGroupId -> True)) [ann, tm]
+pattern PrettyLit ann tm <- Term.Apps' (Term.Constructor' DD.PrettyRef ((==) DD.prettyLitId -> True)) [ann, tm]
+pattern PrettyWrap ann tm <- Term.Apps' (Term.Constructor' DD.PrettyRef ((==) DD.prettyWrapId -> True)) [ann, tm]
+pattern PrettyIndent ann i0 i1 tm <- Term.Apps' (Term.Constructor' DD.PrettyRef ((==) DD.prettyIndentId -> True)) [ann, i0, i1, tm]
+pattern PrettyOrElse ann p1 p2 <- Term.Apps' (Term.Constructor' DD.PrettyRef ((==) DD.prettyOrElseId -> True)) [ann, p1, p2]
+pattern PrettyAppend ann tms <- Term.Apps' (Term.Constructor' DD.PrettyRef ((==) DD.prettyAppendId -> True)) [ann, Term.List' tms]
+
 -- pattern DocBlob txt <- Term.App' (Term.Constructor' DocRef DocBlobId) (Term.Text' txt)
 
 displayDoc :: forall v m a. (Var v, Monad m)
