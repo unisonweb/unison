@@ -421,13 +421,13 @@ doc2Block =
       variadic = variadic' f
       variadic' f = do
         cs <- P.many elem <* closeBlock
-        pure $ Term.apps' f [Term.seq (ann cs) cs]
+        pure $ Term.apps' f [Term.list (ann cs) cs]
 
       -- sectionLike is parsed into: `f tm [child1, child2, ...]`
       sectionLike = do
         arg1 <- elem
         cs <- P.many elem <* closeBlock
-        pure $ Term.apps' f [arg1, Term.seq (ann cs) cs]
+        pure $ Term.apps' f [arg1, Term.list (ann cs) cs]
 
       evalLike wrap = do
         tm <- term <* closeBlock
@@ -450,7 +450,7 @@ doc2Block =
       "syntax.doc.numberedList" -> do
         nitems@((n,_):_) <- P.some nitem <* closeBlock
         let items = snd <$> nitems
-        pure $ Term.apps' f [n, Term.seq (ann items) items]
+        pure $ Term.apps' f [n, Term.list (ann items) items]
         where
           nitem = do
             n <- number
