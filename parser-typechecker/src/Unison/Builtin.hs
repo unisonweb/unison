@@ -381,6 +381,10 @@ builtinsSrc =
   , B "Text.take" $ nat --> text --> text
   , B "Text.drop" $ nat --> text --> text
   , B "Text.size" $ text --> nat
+  , B "Text.repeat" $ nat --> text --> text
+  , B "Text.alignLeftWith" $ nat --> char --> text --> text
+  , B "Text.alignRightWith" $ nat --> char --> text --> text
+  , B "Text.alignCenterWith" $ nat --> char --> text --> text
   , B "Text.==" $ text --> text --> boolean
   , D "Text.!=" $ text --> text --> boolean
   , B "Text.<=" $ text --> text --> boolean

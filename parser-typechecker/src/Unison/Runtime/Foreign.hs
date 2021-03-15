@@ -85,6 +85,7 @@ maybeUnwrapForeign rt (Wrap r e)
 class BuiltinForeign f where
   foreignRef :: Tagged f Reference
 
+instance BuiltinForeign Char where foreignRef = Tagged Ty.charRef
 instance BuiltinForeign Text where foreignRef = Tagged Ty.textRef
 instance BuiltinForeign Bytes where foreignRef = Tagged Ty.bytesRef
 instance BuiltinForeign Handle where foreignRef = Tagged Ty.fileHandleRef

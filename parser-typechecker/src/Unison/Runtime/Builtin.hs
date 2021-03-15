@@ -45,6 +45,7 @@ import Unison.Util.EnumContainers as EC
 import Data.Default (def)
 import Data.ByteString (hGet, hPut)
 import Data.Text as Text (pack, unpack)
+import qualified Data.Text as Text
 import Data.Text.Encoding ( decodeUtf8', decodeUtf8' )
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString.Lazy as L
@@ -1467,6 +1468,21 @@ declareForeigns = do
   declareForeign "MVar.tryRead.impl.v3" boxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> tryReadMVar mv
 
+  declareForeign "Text.repeat" boxBoxDirect . mkForeign $
+    \(n :: Word64, txt :: Text) -> pure (Text.replicate (fromIntegral n) txt)
+
+  declareForeign "Text.alignLeftWith" boxBoxBoxDirect . mkForeign $
+    \(n :: Word64, padChar :: Char, txt :: Text) ->
+      pure (Text.justifyLeft (fromIntegral n) padChar txt)
+
+  declareForeign "Text.alignRightWith" boxBoxBoxDirect . mkForeign $
+    \(n :: Word64, padChar :: Char, txt :: Text) ->
+      pure (Text.justifyRight (fromIntegral n) padChar txt)
+
+  declareForeign "Text.alignCenterWith" boxBoxBoxDirect . mkForeign $
+    \(n :: Word64, padChar :: Char, txt :: Text) ->
+      pure (Text.center (fromIntegral n) padChar txt)
+
   declareForeign "Text.toUtf8" boxDirect . mkForeign
     $ pure . Bytes.fromArray . encodeUtf8
 
@@ -1480,7 +1496,7 @@ declareForeigns = do
                  TLS.clientSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong },
                  TLS.clientShared = def { TLS.sharedCAStore = store }
                  }) X.getSystemCertificateStore
-  
+
   declareForeign "Tls.ServerConfig.default" boxBoxDirect $ mkForeign
     $ \(certs :: [X.SignedCertificate], key :: X.PrivKey) ->
         pure $ (def :: TLS.ServerParams) { TLS.serverSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
@@ -1567,7 +1583,7 @@ declareForeigns = do
 
   declareForeign "Tls.encodePrivateKey" boxDirect . mkForeign $
     \(privateKey :: X.PrivKey) -> pure $ pack $ show privateKey
-  
+
   declareForeign "Tls.receive.impl.v3" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> do
       bs <- TLS.recvData tls

@@ -572,7 +572,18 @@ io.bracket acquire release what = io.rethrow (io.IO.bracket_ acquire release wha
   --            x -> x
   --   handle k in c
 
-unique[b7a4fb87e34569319591130bf3ec6e24c9955b6ae06b5f6895e908d58c3f6113] type Doc2
+unique[da70bff6431da17fa515f3d18ded11852b6a745f] type Doc2.SpecialForm
+  = Source [Either Link.Type Any]
+  | Example Nat Any
+  | Link (Either Link.Type Any)
+  | Signature [Any]
+  | InlineSignature Any
+  | Eval Doc2.Evaluation
+  | InlineEval Doc2.Evaluation
+  | Embed Any
+  | InlineEmbed Any
+
+unique[b7a4fb87e34569319591130bf3ec6e24c9955b6a] type Doc2
   = Word Text
   | Code Doc2
   | CodeBlock Text Doc2
@@ -582,7 +593,6 @@ unique[b7a4fb87e34569319591130bf3ec6e24c9955b6ae06b5f6895e908d58c3f6113] type Do
   -- style {{ myclass }} mydoc
   | Style Doc2 Doc2
   | Blockquote Doc2
-  | Embed Any
   | Blankline
   | SectionBreak
   | Aside (Optional Doc2) Doc2
@@ -593,18 +603,11 @@ unique[b7a4fb87e34569319591130bf3ec6e24c9955b6ae06b5f6895e908d58c3f6113] type Do
   | BulletedList [Doc2]
   | NumberedList Nat [Doc2]
   | Section Doc2 [Doc2]
-  | Source [Either Link.Type Any]
   | NamedLink Doc2 Doc2
-  | Link (Either Link.Type Any)
-  | Signature [Any]
-  | Example Nat Any
-  | InlineSignature Any
-  | InlineEval Doc2.Evaluation
-  | Eval Doc2.Evaluation
-  | Trace Any
+  | Special Doc2.SpecialForm
   | Docs [Doc2]
 
-unique type Doc2.Evaluation = Evaluation Any Any
+unique[fb488e55e66e2492c2946388e4e846450701db04] type Doc2.Evaluation = Evaluation Any Any
 
 Doc2.evaluate : 'a -> Evaluation
 Doc2.evaluate a = Doc2.Evaluation.Evaluation (Any a) (Any !a)
@@ -615,33 +618,128 @@ Doc2.Evaluation.source = cases Evaluation src _ -> src
 Doc2.Evaluation.result : Evaluation -> Any
 Doc2.Evaluation.result = cases Evaluation _ result -> result
 
+unique[d7b2ced8c08b2c6e54050d1f5acedef3395f293d] type Pretty.Annotated w txt
+  = Empty
+  | Group w (Pretty.Annotated w txt)
+  | Lit w txt
+  | Wrap w (Pretty.Annotated w txt)
+  | OrElse w (Pretty.Annotated w txt) (Pretty.Annotated w txt)
+  | Indent w (Pretty.Annotated w txt) (Pretty.Annotated w txt) (Pretty.Annotated w txt)
+  | Append w [Pretty.Annotated w txt]
+
+type Pretty txt = Pretty (Pretty.Annotated () txt)
+
+Pretty.get = cases Pretty p -> p
+
+Pretty.map : (txt ->{g} txt2) ->{} Pretty txt ->{g} Pretty txt2
+Pretty.map f p =
+  go = cases
+    Empty -> Empty
+    Group _ p -> Group () (go p)
+    Lit _ t -> Lit () (f t)
+    Wrap _ p -> Wrap () (go p)
+    OrElse _ p1 p2 -> OrElse () (go p1) (go p2)
+    Indent _ i0 iN p -> Indent () (go i0) (go iN) (go p)
+    -- Append _ ps -> Append () (List.map go ps)
+  Pretty (go (Pretty.get p))
+
+Pretty.empty : Pretty txt
+Pretty.empty = Pretty Empty
+
+{- A group adds a level of breaking. Layout tries not to break a group
+   unless needed to fit in available width. Breaking is done "outside in".
+
+   (a | b) <> (c | d) will try (a <> c)
+                          then (b <> d)
+
+   (a | b) <> group (c | d) will try (a <> c)
+                                then (b <> c)
+                                then (b <> d)
+-}
+Pretty.group : Pretty txt -> Pretty txt
+Pretty.group p = Pretty (Group () (Pretty.get p))
+
+-- Create a leaf-level `Pretty` that cannot be broken.
+Pretty.lit : txt -> Pretty txt
+Pretty.lit txt = Pretty (Lit () txt)
+
+-- Turn on wrapping for `p`, which means that it inserts
+-- softbreaks (either a space or a newline) between each
+-- subgroup or leaf.
+-- wrap (lit a <> lit b <> group c) ==
+-- wrap (lit a <> group (orElse (lit " ") (lit "\n")
+Pretty.wrap : Pretty txt -> Pretty txt
+Pretty.wrap p = Pretty (Wrap () (Pretty.get p))
+
+-- If `p1` fits on the current line at its preferred width,
+-- it will be chosen, otherwise `p2` is chosen.
+Pretty.orElse : Pretty txt -> Pretty txt -> Pretty txt
+Pretty.orElse p1 p2 = Pretty (OrElse () (Pretty.get p1) (Pretty.get p2))
+
+-- Prefixes all lines of `p` by `by`.
+Pretty.indent : Pretty txt -> Pretty txt -> Pretty txt
+Pretty.indent by p = Pretty (Indent () (Pretty.get by) (Pretty.get by) (Pretty.get p))
+
+-- Prefixes the first line of `p` with `initialIndent`, and
+-- subsequent lines by `indentAfterNewline`.
+Pretty.indent' : Pretty txt -> Pretty txt -> Pretty txt -> Pretty txt
+Pretty.indent' initialIndent indentAfterNewline p =
+  Pretty (Indent () (Pretty.get initialIndent)
+                    (Pretty.get indentAfterNewline)
+                    (Pretty.get p))
+
+Pretty.append : Pretty txt -> Pretty txt -> Pretty txt
+Pretty.append p1 p2 =
+  use Pretty.Annotated Empty Append
+  match (Pretty.get p1, Pretty.get p2) with
+    (_, Empty) -> p1
+    (Empty, _) -> p2
+    (Append _ ps1, Append _ ps2) -> Pretty (Append () (ps1 List.++ ps2))
+    (Append _ ps1, p2) -> Pretty (Append () (ps1 :+ p2))
+    (p1, Append _ ps2) -> Pretty (Append () (p1 +: ps2))
+    (p1,p2) -> Pretty (Append () [p1,p2])
+
+Pretty.join : [Pretty txt] -> Pretty txt
+Pretty.join =
+  go acc = cases [] -> acc
+                 h +: t -> go (append acc h) t
+  go Pretty.empty
+
+Pretty.sepBy : Pretty txt -> [Pretty txt] -> Pretty txt
+Pretty.sepBy sep ps =
+  go acc insertSep = cases
+    [] -> acc
+    ps | insertSep -> go (append acc sep) false ps
+    h +: t -> go (append acc h) true t
+  go Pretty.empty false ps
+
 syntax.doc.docs = cases [d] -> d
                         ds -> Docs ds
 syntax.doc.word = Word
-syntax.doc.bold = Bold
+syntax.doc.bold = Doc2.Bold
 syntax.doc.italic = Italic
 syntax.doc.strikethrough = Strikethrough
 syntax.doc.paragraph = Paragraph
-syntax.doc.embedTermLink any =
+syntax.doc.embedTermLink tm =
   guid = "b7a4fb87e34569319591130bf3ec6e24"
-  Right (Any any)
-syntax.doc.embedTypeLink tl =
+  Right (Any tm)
+syntax.doc.embedTypeLink typ =
   guid = "b7a4fb87e34569319591130bf3ec6e24"
-  Left tl
-syntax.doc.source = Source
-syntax.doc.signature = Signature
-syntax.doc.inlineSignature = InlineSignature
-syntax.doc.inlineEval e = InlineEval (evaluate e)
+  Left typ
+syntax.doc.source t = Special (Source t)
+syntax.doc.signature t = Special (Signature t)
+syntax.doc.inlineSignature t = Special (InlineSignature t)
+syntax.doc.inlineEval e = Special (InlineEval (evaluate e))
 syntax.doc.embedSignatureLink tm =
   guid = "d9a4fb87e34569319591130bf3ec6e24"
   Any tm
 syntax.doc.code c = Code c
 syntax.doc.codeBlock typ c = CodeBlock typ (word c)
 syntax.doc.verbatim c = CodeBlock "raw" c
-syntax.doc.evalBlock d = Eval (evaluate d)
-syntax.doc.eval a = InlineEval (evaluate a)
-syntax.doc.example n a = Example n (Any a)
-syntax.doc.link = Link
+syntax.doc.evalBlock d = Special (Eval (evaluate d))
+syntax.doc.eval a = Special (InlineEval (evaluate a))
+syntax.doc.example n a = Special (Example n (Any a))
+syntax.doc.link t = Special (Link t)
 syntax.doc.transclude d =
   guid = "b7a4fb87e34569319591130bf3ec6e24"
   d
@@ -650,4 +748,77 @@ syntax.doc.bulletedList = BulletedList
 syntax.doc.numberedList = NumberedList
 syntax.doc.section = Section
 
+unique[e25bc44d251ae0301517ad0bd02cbd294161dc89] type ConsoleText
+  = Plain Text
+  | Foreground ANSI.Color ConsoleText
+  | Background ANSI.Color ConsoleText
+  | Bold ConsoleText
+  | Underline ConsoleText
+  | Invert ConsoleText
+
+unique[de2e0ee924578939213c950dfd8e0ba1047703ae] type ANSI.Color
+  = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White
+  | BrightBlack | BrightRed | BrightGreen | BrightYellow | BrightBlue
+  | BrightMagenta | BrightCyan | BrightWhite
+
+List.map : (a ->{g} b) ->{} [a] ->{g} [b]
+List.map f as =
+  go acc = cases
+    [] -> acc
+    h +: t -> go (acc :+ f h) t
+  go [] as
+
+Either.mapRight : (a -> b) -> Either e a -> Either e b
+Either.mapRight f = cases
+  Right a -> Right (f a)
+  Left e -> Left e
+
+syntax.doc.formatConsole : Doc2 -> Pretty (Either SpecialForm ConsoleText)
+syntax.doc.formatConsole d =
+  lit t = Pretty.lit (Right (Plain t))
+  p1 <> p2 = Pretty.append p1 p2
+  nl = lit "\n"
+  map f p = Pretty.map (mapRight f) p
+  go = cases
+    Word t -> lit t
+    Code d -> lit "`" <> go d <> lit "`"
+    CodeBlock typ d ->
+      lit "``` " <> lit typ <> nl <>
+      go d <> nl <>
+      lit "```"
+    Italic d -> lit "*" <> go d <> lit "*"
+    Strikethrough d -> lit "~~" <> go d <> lit "~~"
+    Doc2.Bold d -> map ConsoleText.Bold (go d)
+    Style _ d -> go d
+    Blockquote d -> Pretty.indent (lit "> ") (go d)
+    Blankline -> lit "\n\n"
+    SectionBreak -> lit "܍"
+    Aside None d -> Pretty.indent (lit "  | ") (go d)
+    Aside (Some title) d ->
+      Pretty.indent (lit "  | ") (go (Doc2.Bold title) <> nl <> nl <> go d)
+    Callout icon d -> go (Aside icon d) --
+    Folded _ _closed open -> go open
+    Paragraph ds -> Pretty.wrap (Pretty.join (List.map go ds))
+    BulletedList ds ->
+      item d = Pretty.indent' (lit "* ") (lit "  ") (go d)
+      items = List.map item ds
+      Pretty.sepBy nl items
+    NumberedList n ds ->
+      dot = ". "
+      w = Text.size (Nat.toText (n + List.size ds)) + size dot
+      num n = lit (Text.alignRightWith w ?\s (Nat.toText n Text.++ dot))
+      indent = lit (Text.repeat w " ")
+      item : Nat -> Doc2 -> Pretty (Either SpecialForm ConsoleText)
+      item n d = Pretty.indent' (num n) indent (go d)
+      items n acc = cases [] -> acc
+                          d +: ds -> items (n+1) (acc :+ item n d) ds
+      Pretty.sepBy nl (items n [] ds)
+    Section title ds ->
+      t = Pretty.indent' (lit "# ") (lit "  ") (go (Doc2.Bold title))
+      subs = List.map (d -> Pretty.indent (lit "  ") (go d)) ds
+      Pretty.sepBy (nl <> nl) (t +: subs)
+    Docs ds -> Pretty.join (List.map go ds)
+    NamedLink name _target -> map ConsoleText.Underline (go name)
+    Special sf -> Pretty.lit (Left sf)
+  go d
 |]
