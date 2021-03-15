@@ -16,9 +16,12 @@ import qualified Control.Concurrent
 import qualified Control.Exception
 import Control.Monad (filterM, (>=>))
 import Control.Monad.Except (ExceptT, runExceptT)
-import Control.Monad.Extra (unlessM)
+import qualified Control.Monad.Except as Except
+import Control.Monad.Extra (ifM, unlessM)
 import qualified Control.Monad.Extra as Monad
 import Control.Monad.Reader (ReaderT (runReaderT))
+import Control.Monad.State (MonadState)
+import qualified Control.Monad.State as State
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT)
 import Data.Bifunctor (Bifunctor (first), second)
@@ -34,30 +37,34 @@ import Data.String (IsString (fromString))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
+import qualified Data.Validation as Validation
 import Data.Word (Word64)
 import Database.SQLite.Simple (Connection)
 import qualified Database.SQLite.Simple as Sqlite
 import qualified System.Exit as SysExit
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
-import U.Codebase.HashTags (CausalHash (unCausalHash))
+import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import U.Codebase.Sqlite.Operations (EDB)
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
+import qualified U.Codebase.Sqlite.Sync22 as Sync22
+import qualified U.Codebase.Sync as Sync
 import qualified U.Util.Hash as H2
 import qualified U.Util.Monoid as Monoid
 import qualified U.Util.Set as Set
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase (CodebasePath)
 import qualified Unison.Codebase as Codebase1
-import Unison.Codebase.Branch (Branch)
+import Unison.Codebase.Branch (Branch (..), Branch0)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
@@ -483,10 +490,16 @@ sqliteCodebase root = do
                 =<< Ops.dependents (Cv.reference1to2 r)
 
           syncFromDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
-          syncFromDirectory = error "todo"
+          syncFromDirectory srcRoot syncMode b =
+            flip State.evalStateT emptySyncProgressState $
+              syncToDirectory' syncProgress srcRoot root syncMode $
+                Branch.transform lift b
 
           syncToDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
-          syncToDirectory = error "todo"
+          syncToDirectory destRoot syncMode b =
+            flip State.evalStateT emptySyncProgressState $
+              syncToDirectory' syncProgress root destRoot syncMode $
+                Branch.transform lift b
 
           watches :: MonadIO m => UF.WatchKind -> m [Reference.Id]
           watches w =
@@ -598,6 +611,90 @@ sqliteCodebase root = do
             cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
             pure $ Set.map (Causal.RawHash . Cv.hash2to1 . unCausalHash) cs
 
+          -- does destPath need to be a codebase?
+          syncToDirectory' ::
+            forall m.
+            MonadIO m =>
+            Sync.Progress m Sync22.Entity ->
+            CodebasePath ->
+            CodebasePath ->
+            SyncMode ->
+            Branch m ->
+            m ()
+          syncToDirectory' progress srcPath destPath _mode newRoot = do
+            result <- runExceptT do
+              syncEnv@(Sync22.Env srcConn _ _) <-
+                Sync22.Env
+                  <$> unsafeGetConnection srcPath
+                  <*> unsafeGetConnection destPath
+                  <*> pure (16 * 1024 * 1024)
+              (closeSrc, src) <-
+                lift (sqliteCodebase srcPath)
+                  >>= Except.liftEither . Either.mapLeft SyncEphemeral.SrcMissingSchema
+              (closeDest, dest) <-
+                lift (sqliteCodebase destPath)
+                  >>= Except.liftEither . Either.mapLeft SyncEphemeral.DestMissingSchema
+              -- we want to use sync22 wherever possible
+              -- so for each branch, we'll check if it exists in the destination branch
+              -- or if it exists in the source branch, then we can sync22 it
+              -- oh god but we have to figure out the dbid
+              -- if it doesn't exist in the dest or source branch,
+              -- then just use putBranch to the dest
+              let branchDeps :: forall m. Applicative m => Branch0 m -> [(Branch.Hash, m (Branch m))]
+                  branchDeps =
+                    map (\b -> (Branch.headHash b, pure b))
+                      . Map.elems
+                      . Branch._children
+                  causalDeps :: forall m. Applicative m => Branch m -> [(Branch.Hash, m (Branch m))]
+                  causalDeps (Branch.Branch c) = case c of
+                    Causal.One _h b -> branchDeps b
+                    Causal.Cons _h b tail -> processTails [tail] b
+                    Causal.Merge _h b tails -> processTails (Map.toList tails) b
+                    where
+                      processTails tails b =
+                        let tails' = fmap (\(ht, mt) -> (ht, fmap Branch mt)) tails
+                            deps = branchDeps b
+                         in tails' ++ deps
+              let se :: forall m a. Functor m => (ExceptT Sync22.Error m a -> ExceptT SyncEphemeral.Error m a)
+                  se = Except.withExceptT SyncEphemeral.Sync22Error
+              let r :: forall m a. (ReaderT Sync22.Env m a -> m a)
+                  r = flip runReaderT syncEnv
+                  processBranches ::
+                    forall m v a.
+                    MonadIO m =>
+                    Sync.Sync (ReaderT Sync22.Env (ExceptT Sync22.Error m)) Sync22.Entity ->
+                    Sync.Progress (ReaderT Sync22.Env (ExceptT Sync22.Error m)) Sync22.Entity ->
+                    Codebase1.Codebase m v a ->
+                    Codebase1.Codebase m v a ->
+                    [(Branch.Hash, m (Branch m))] ->
+                    ExceptT SyncEphemeral.Error m ()
+                  processBranches _ _ _ _ [] = pure ()
+                  processBranches sync progress src dest ((h, mb) : rest) = do
+                    ifM @(ExceptT SyncEphemeral.Error m)
+                      (lift $ Codebase1.branchExists dest h)
+                      (processBranches sync progress src dest rest)
+                      ( ifM
+                          (lift $ Codebase1.branchExists src h)
+                          ( let h2 = CausalHash . Cv.hash1to2 $ Causal.unRawHash h
+                             in lift (flip runReaderT srcConn (Q.loadCausalHashIdByCausalHash h2))
+                                  >>= \case
+                                    Nothing -> Except.throwError $ SyncEphemeral.DisappearingBranch h2
+                                    Just chId -> se . r $ Sync.sync sync progress [Sync22.C chId]
+                          )
+                          ( lift mb >>= \b -> do
+                              let deps = causalDeps b
+                              if (null deps)
+                                then lift $ Codebase1.putBranch dest b
+                                else processBranches @m sync progress src dest (deps ++ (h, mb) : rest)
+                          )
+                      )
+              sync <- se . r $ Sync22.sync22
+              let progress' = Sync.transformProgress (lift . lift) progress
+              processBranches sync progress' src dest [(Branch.headHash newRoot, pure newRoot)]
+              lift closeSrc
+              lift closeDest
+            pure $ Validation.valueOr (error . show) result
+
       -- Do we want to include causal hashes here or just namespace hashes?
       -- Could we expose just one or the other of them to the user?
       -- Git uses commit hashes and tree hashes (analogous to causal hashes
@@ -658,3 +755,50 @@ runDB :: MonadIO m => Connection -> ReaderT Connection (ExceptT Ops.Error m) a -
 runDB conn = (runExceptT >=> err) . flip runReaderT conn
   where
     err = \case Left err -> error $ show err; Right a -> pure a
+
+data SyncProgressState = SyncProgressState
+  { needEntities :: Maybe (Set Sync22.Entity),
+    doneEntities :: Either Int (Set Sync22.Entity)
+  }
+
+emptySyncProgressState :: SyncProgressState
+emptySyncProgressState = SyncProgressState (Just mempty) (Right mempty)
+
+syncProgress :: MonadState SyncProgressState m => MonadIO m => Sync.Progress m Sync22.Entity
+syncProgress = Sync.Progress need done allDone
+  where
+    maxTrackedHashCount = 1024 * 1024
+    need, done :: (MonadState SyncProgressState m, MonadIO m) => Sync22.Entity -> m ()
+    need h = do
+      State.get >>= \case
+        SyncProgressState Nothing Left {} -> pure ()
+        SyncProgressState (Just need) (Right done) ->
+          if Set.size need + Set.size done > maxTrackedHashCount
+            then State.put $ SyncProgressState Nothing (Left $ Set.size done)
+            else
+              if Set.member h done
+                then pure ()
+                else State.put $ SyncProgressState (Just $ Set.insert h need) (Right done)
+        SyncProgressState _ _ -> undefined
+      State.get >>= liftIO . putStrLn . renderState
+
+    done h = do
+      State.get >>= \case
+        SyncProgressState Nothing (Left count) ->
+          State.put $ SyncProgressState Nothing (Left (count + 1))
+        SyncProgressState (Just need) (Right done) ->
+          State.put $ SyncProgressState (Just $ Set.delete h need) (Right $ Set.insert h done)
+        SyncProgressState _ _ -> undefined
+      State.get >>= liftIO . putStrLn . renderState
+
+    allDone = liftIO $ putStrLn "\rSync complete."
+
+    renderState = \case
+      SyncProgressState Nothing (Left doneCount) ->
+        "Synced " ++ show doneCount ++ " entities"
+      SyncProgressState (Just need) (Right done) ->
+        "Synced " ++ show (Set.size done) ++ "/" ++ show (Set.size done + Set.size need)
+      SyncProgressState Nothing Right {} ->
+        "invalid SyncProgressState Nothing Right{}"
+      SyncProgressState Just {} Left {} ->
+        "invalid SyncProgressState Just{} Left{}"
