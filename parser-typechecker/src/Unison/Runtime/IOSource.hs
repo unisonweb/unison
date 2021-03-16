@@ -631,14 +631,19 @@ io.bracket acquire release what = io.rethrow (io.IO.bracket_ acquire release wha
   --            x -> x
   --   handle k in c
 
+unique[fb488e55e66e2492c2946388e4e846450701db04] type Doc2.Term = Term Any
+
+Doc2.term : 'a -> Doc2.Term
+Doc2.term a = Doc2.Term.Term (Any a)
+
 unique[da70bff6431da17fa515f3d18ded11852b6a745f] type Doc2.SpecialForm
-  = Source [Either Link.Type Any]
-  | Example Nat Any
-  | Link (Either Link.Type Any)
-  | Signature [Any]
-  | InlineSignature Any
-  | Eval Doc2.Evaluation
-  | InlineEval Doc2.Evaluation
+  = Source [Either Link.Type Doc2.Term]
+  | Example Nat Doc2.Term
+  | Link (Either Link.Type Doc2.Term)
+  | Signature [Doc2.Term]
+  | InlineSignature Doc2.Term
+  | Eval Doc2.Term
+  | InlineEval Doc2.Term
   | Embed Any
   | InlineEmbed Any
 
@@ -665,17 +670,6 @@ unique[b7a4fb87e34569319591130bf3ec6e24c9955b6a] type Doc2
   | NamedLink Doc2 Doc2
   | Special Doc2.SpecialForm
   | Docs [Doc2]
-
-unique[fb488e55e66e2492c2946388e4e846450701db04] type Doc2.Evaluation = Evaluation Any Any
-
-Doc2.evaluate : 'a -> Evaluation
-Doc2.evaluate a = Doc2.Evaluation.Evaluation (Any a) (Any !a)
-
-Doc2.Evaluation.source : Evaluation -> Any
-Doc2.Evaluation.source = cases Evaluation src _ -> src
-
-Doc2.Evaluation.result : Evaluation -> Any
-Doc2.Evaluation.result = cases Evaluation _ result -> result
 
 unique[d7b2ced8c08b2c6e54050d1f5acedef3395f293d] type Pretty.Annotated w txt
   = Empty
@@ -783,23 +777,23 @@ syntax.doc.strikethrough = Strikethrough
 syntax.doc.paragraph = Paragraph
 syntax.doc.embedTermLink tm =
   guid = "b7a4fb87e34569319591130bf3ec6e24"
-  Right (Any tm)
+  Right (Doc2.term tm)
 syntax.doc.embedTypeLink typ =
   guid = "b7a4fb87e34569319591130bf3ec6e24"
   Left typ
 syntax.doc.source t = Special (Source t)
-syntax.doc.signature t = Special (Signature t)
+syntax.doc.signature ts = Special (Signature ts)
 syntax.doc.inlineSignature t = Special (InlineSignature t)
-syntax.doc.inlineEval e = Special (InlineEval (evaluate e))
+syntax.doc.inlineEval e = Special (InlineEval (Doc2.term e))
 syntax.doc.embedSignatureLink tm =
   guid = "d9a4fb87e34569319591130bf3ec6e24"
-  Any tm
+  Doc2.term tm
 syntax.doc.code c = Code c
 syntax.doc.codeBlock typ c = CodeBlock typ (word c)
 syntax.doc.verbatim c = CodeBlock "raw" c
-syntax.doc.evalBlock d = Special (Eval (evaluate d))
-syntax.doc.eval a = Special (InlineEval (evaluate a))
-syntax.doc.example n a = Special (Example n (Any a))
+syntax.doc.evalBlock d = Special (Eval (Doc2.term d))
+syntax.doc.eval a = Special (InlineEval (Doc2.term a))
+syntax.doc.example n a = Special (Example n (Doc2.term a))
 syntax.doc.link t = Special (Link t)
 syntax.doc.transclude d =
   guid = "b7a4fb87e34569319591130bf3ec6e24"

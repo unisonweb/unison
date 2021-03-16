@@ -84,6 +84,8 @@ Just docEvaluateId = constructorId docRef "Doc.Evaluate"
 Just docJoinId = constructorId docRef "Doc.Join"
 Just linkTermId = constructorId linkRef "Link.Term"
 Just linkTypeId = constructorId linkRef "Link.Type"
+Just eitherRightId = constructorId eitherRef "Either.Right"
+Just eitherLeftId = constructorId eitherRef "Either.Left"
 
 okConstructorReferent, failConstructorReferent :: Referent.Referent
 okConstructorReferent = Referent.Con testResultRef okConstructorId CT.Data
