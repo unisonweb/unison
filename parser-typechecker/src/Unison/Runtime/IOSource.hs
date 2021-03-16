@@ -135,7 +135,7 @@ userErrorId = mkErrorType "io.ErrorType.UserError"
 doc2Ref :: R.Reference
 doc2Ref = typeNamed "Doc2"
 doc2SpecialFormRef = typeNamed "Doc2.SpecialForm"
-doc2EvaluationRef = typeNamed "Doc2.Evaluation"
+doc2TermRef = typeNamed "Doc2.Term"
 prettyRef = typeNamed "Pretty"
 prettyAnnotatedRef = typeNamed "Pretty.Annotated"
 ansiColorRef = typeNamed "ANSI.Color"
@@ -183,7 +183,7 @@ doc2SectionId = constructorNamed doc2Ref "Doc2.Section"
 doc2SpecialId = constructorNamed doc2Ref "Doc2.Special"
 doc2DocsId = constructorNamed doc2Ref "Doc2.Docs"
 
-pattern Doc2EvaluationRef <- ((== doc2EvaluationRef) -> True)
+pattern Doc2TermRef <- ((== doc2TermRef) -> True)
 
 pattern PrettyAnnotatedRef <- ((== prettyAnnotatedRef) -> True)
 prettyEmptyId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Empty"
