@@ -55,30 +55,45 @@ displayPretty :: forall v m a. (Var v, Monad m)
 displayPretty pped terms typeOf eval types tm = go tm
   where
   go = \case
-    PrettyEmpty _ -> pure mempty
-    PrettyGroup _ p -> P.group <$> go p
-    PrettyLit _ (DD.EitherLeft' special) -> goSpecial special
-    PrettyLit _ (DD.EitherRight' consoleTxt) -> goConsole consoleTxt
-    PrettyWrap _ p -> P.wrap <$> go p
-    PrettyOrElse _ p1 p2 -> P.orElse <$> go p1 <*> go p2
-    PrettyIndent _ initial afterNl p -> do
+    DD.PrettyEmpty _ -> pure mempty
+    DD.PrettyGroup _ p -> P.group <$> go p
+    DD.PrettyLit _ (DD.EitherLeft' special) -> goSpecial special
+    DD.PrettyLit _ (DD.EitherRight' consoleTxt) -> goConsole consoleTxt
+    DD.PrettyWrap _ p -> P.wrap <$> go p
+    DD.PrettyOrElse _ p1 p2 -> P.orElse <$> go p1 <*> go p2
+    DD.PrettyIndent _ initial afterNl p -> do
       initial <- go initial
       afterNl <- go afterNl
       p <- go p
       pure $ initial <> P.indentAfterNewline afterNl p
-    PrettyAppend _ ps -> mconcat . toList <$> traverse go ps
+    DD.PrettyAppend _ ps -> mconcat . toList <$> traverse go ps
     tm -> displayTerm pped terms typeOf eval types tm
-  goSpecial = undefined -- \case
-  goConsole = undefined --
-    -- SpecialSource (Unison
 
-pattern PrettyEmpty ann <- Term.App' (Term.Constructor' DD.PrettyRef ((==) DD.prettyEmptyId -> True)) ann
-pattern PrettyGroup ann tm <- Term.Apps' (Term.Constructor' DD.PrettyRef ((==) DD.prettyGroupId -> True)) [ann, tm]
-pattern PrettyLit ann tm <- Term.Apps' (Term.Constructor' DD.PrettyRef ((==) DD.prettyLitId -> True)) [ann, tm]
-pattern PrettyWrap ann tm <- Term.Apps' (Term.Constructor' DD.PrettyRef ((==) DD.prettyWrapId -> True)) [ann, tm]
-pattern PrettyIndent ann i0 i1 tm <- Term.Apps' (Term.Constructor' DD.PrettyRef ((==) DD.prettyIndentId -> True)) [ann, i0, i1, tm]
-pattern PrettyOrElse ann p1 p2 <- Term.Apps' (Term.Constructor' DD.PrettyRef ((==) DD.prettyOrElseId -> True)) [ann, p1, p2]
-pattern PrettyAppend ann tms <- Term.Apps' (Term.Constructor' DD.PrettyRef ((==) DD.prettyAppendId -> True)) [ann, Term.List' tms]
+  goSpecial = undefined -- \case
+
+  goColor c = case c of
+    DD.AnsiColorBlack -> P.black
+    DD.AnsiColorRed -> P.red
+    DD.AnsiColorGreen -> P.green
+    DD.AnsiColorYellow -> P.yellow
+    DD.AnsiColorBlue -> P.blue
+    DD.AnsiColorMagenta -> P.purple
+    DD.AnsiColorCyan -> P.cyan
+    DD.AnsiColorWhite -> P.white
+    DD.AnsiColorBrightBlack -> P.hiBlack
+    DD.AnsiColorBrightRed -> P.hiRed
+    DD.AnsiColorBrightGreen -> P.hiGreen
+    DD.AnsiColorBrightYellow -> P.hiYellow
+    DD.AnsiColorBrightBlue -> P.hiBlue
+    DD.AnsiColorBrightMagenta -> P.hiPurple
+    DD.AnsiColorBrightCyan -> P.hiCyan
+    DD.AnsiColorBrightWhite -> P.hiWhite
+    _ -> id
+
+  goConsole = \case
+    DD.ConsoleTextPlain (Term.Text' txt) -> pure $ P.text txt
+    DD.ConsoleTextForeground color txt -> goColor color <$> goConsole txt
+    DD.ConsoleTextBackground color txt -> goColor color <$> goConsole txt
 
 -- pattern DocBlob txt <- Term.App' (Term.Constructor' DocRef DocBlobId) (Term.Text' txt)
 
