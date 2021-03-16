@@ -3,8 +3,10 @@
 
 module Unison.Test.GitSimple where
 
+import Control.Lens (view, _1)
 import Data.String.Here (iTrim)
 import qualified Data.Text as Text
+import Data.Typeable (Typeable)
 import EasyTest
 import Shellmet ()
 import System.Directory (removeDirectoryRecursive)
@@ -16,7 +18,6 @@ import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Parser (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol)
-import Data.Typeable (Typeable)
 
 test :: Test ()
 test = scope "git-simple" . tests $ [testPull]
@@ -80,8 +81,8 @@ testPull = scope "pull" $ do
   tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "git-pull"
 
   -- initialize author and user codebases
-  authorCodebase <- io $ snd <$> initCodebase tmp "author"
-  (_userDir, userCodebase) <- io $ initCodebase tmp "user"
+  (_authorDir, closeAuthor, authorCodebase) <- io $ initCodebase tmp "author"
+  (_userDir, closeUser, userCodebase) <- io $ initCodebase tmp "user"
 
   -- initialize git repo
   let repo = tmp </> "repo.git"
@@ -96,7 +97,10 @@ testPull = scope "pull" $ do
   -- run user/pull transcript
   userOutput <- runTranscript tmp userCodebase (userTranscript repo)
 
-  io $
+  io do
+    closeAuthor
+    closeUser
+
     writeFile
       "unison-src/transcripts/GitSimple.hs.output.md"
       (authorOutput <> "\n-------\n" <> userOutput)
@@ -110,17 +114,17 @@ testPull = scope "pull" $ do
   --     scope (makeTitle path) $ io (doesFileExist $ userDir </> path) >>= expect . not
 
   -- if we haven't crashed, clean up!
-  io $ removeDirectoryRecursive tmp
+    removeDirectoryRecursive tmp
 
 -- initialize a fresh codebase
 initCodebaseDir :: FilePath -> String -> IO CodebasePath
-initCodebaseDir tmpDir name = fst <$> initCodebase tmpDir name
+initCodebaseDir tmpDir name = view _1 <$> initCodebase tmpDir name
 
-initCodebase :: FilePath -> String -> IO (CodebasePath, Codebase IO Symbol Ann)
+initCodebase :: FilePath -> String -> IO (CodebasePath, IO (), Codebase IO Symbol Ann)
 initCodebase tmpDir name = do
   let codebaseDir = tmpDir </> name
-  c <- FC.initCodebase codebaseDir
-  pure (codebaseDir, c)
+  (close, c) <- FC.initCodebase codebaseDir
+  pure (codebaseDir, close, c)
 
 -- run a transcript on an existing codebase
 runTranscript :: MonadIO m => FilePath -> Codebase IO Symbol Ann -> String -> m String

@@ -26,7 +26,7 @@ import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
-import qualified Unison.Codebase.FileCodebase.Git as Git
+import qualified Unison.Codebase.SqliteCodebase.Git as Git
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.Parsers                as Parsers
@@ -120,11 +120,11 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       setBranchRef branch
       Codebase.putRootBranch codebase branch
     ViewRemoteBranch ns ->
-      lift $ runExceptT $ Git.viewRemoteBranch undefined ns
+      lift $ runExceptT $ Git.viewRemoteBranch ns
     ImportRemoteBranch ns syncMode ->
-      lift $ runExceptT $ Git.importRemoteBranch codebase undefined ns syncMode
+      lift $ runExceptT $ Git.importRemoteBranch codebase ns syncMode
     SyncRemoteRootBranch repo branch syncMode ->
-      lift $ runExceptT $ Git.pushGitRootBranch codebase undefined branch repo syncMode
+      lift $ runExceptT $ Git.pushGitRootBranch codebase branch repo syncMode
     LoadTerm r -> lift $ Codebase.getTerm codebase r
     LoadType r -> lift $ Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> lift $ Codebase.getTypeOfTerm codebase r

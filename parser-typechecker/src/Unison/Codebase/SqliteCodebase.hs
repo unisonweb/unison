@@ -8,10 +8,6 @@
 
 module Unison.Codebase.SqliteCodebase where
 
--- initCodebase :: Branch.Cache IO -> FilePath -> IO (Codebase IO Symbol Ann)
-
--- import qualified U.Codebase.Sqlite.Operations' as Ops
-
 import qualified Control.Concurrent
 import qualified Control.Exception
 import Control.Monad (filterM, (>=>))
@@ -87,7 +83,7 @@ import qualified Unison.Type as Type
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
 import UnliftIO (MonadIO, catchIO, liftIO)
-import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, getHomeDirectory)
+import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesFileExist, getHomeDirectory)
 import qualified UnliftIO.Environment as SysEnv
 import UnliftIO.STM
 
@@ -134,6 +130,15 @@ initCodebaseAndExit mdir = do
   (closeCodebase, _codebase) <- initCodebase dir
   closeCodebase
   liftIO SysExit.exitSuccess
+
+initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
+initSchemaIfNotExist path = liftIO $
+  unlessM (doesFileExist $ path </> FilePath.takeDirectory codebasePath) do
+    createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
+    Control.Exception.bracket
+      (unsafeGetConnection path)
+      Sqlite.close
+      (runReaderT Q.createSchema)
 
 -- initializes a new codebase here (i.e. `ucm -codebase dir init`)
 initCodebase :: MonadIO m => FilePath -> m (m (), Codebase1.Codebase m Symbol Ann)
@@ -623,7 +628,8 @@ sqliteCodebase root = do
             m ()
           syncToDirectory' progress srcPath destPath _mode newRoot = do
             result <- runExceptT do
-              syncEnv@(Sync22.Env srcConn _ _) <-
+              initSchemaIfNotExist destPath
+              syncEnv@(Sync22.Env srcConn destConn _) <-
                 Sync22.Env
                   <$> unsafeGetConnection srcPath
                   <*> unsafeGetConnection destPath
@@ -690,7 +696,15 @@ sqliteCodebase root = do
                       )
               sync <- se . r $ Sync22.sync22
               let progress' = Sync.transformProgress (lift . lift) progress
-              processBranches sync progress' src dest [(Branch.headHash newRoot, pure newRoot)]
+                  newRootHash = Branch.headHash newRoot
+                  newRootHash2 = Cv.causalHash1to2 newRootHash
+              processBranches sync progress' src dest [(newRootHash, pure newRoot)]
+              -- set the root namespace
+              flip runReaderT destConn $ do
+                chId <- (Q.loadCausalHashIdByCausalHash newRootHash2) >>= \case
+                  Nothing -> Except.throwError $ SyncEphemeral.DisappearingBranch newRootHash2
+                  Just chId -> pure chId
+                Q.setNamespaceRoot chId
               lift closeSrc
               lift closeDest
             pure $ Validation.valueOr (error . show) result
@@ -780,7 +794,7 @@ syncProgress = Sync.Progress need done allDone
                 then pure ()
                 else State.put $ SyncProgressState (Just $ Set.insert h need) (Right done)
         SyncProgressState _ _ -> undefined
-      State.get >>= liftIO . putStrLn . renderState
+      State.get >>= liftIO . putStr . ("\r"<>) . renderState
 
     done h = do
       State.get >>= \case
@@ -797,7 +811,7 @@ syncProgress = Sync.Progress need done allDone
       SyncProgressState Nothing (Left doneCount) ->
         "Synced " ++ show doneCount ++ " entities"
       SyncProgressState (Just need) (Right done) ->
-        "Synced " ++ show (Set.size done) ++ "/" ++ show (Set.size done + Set.size need)
+        "Synced " ++ show (Set.size done) ++ "/" ++ show (Set.size done + Set.size need) ++ " entities"
       SyncProgressState Nothing Right {} ->
         "invalid SyncProgressState Nothing Right{}"
       SyncProgressState Just {} Left {} ->

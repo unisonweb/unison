@@ -32,7 +32,6 @@ import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.SyncMode       ( SyncMode )
 import           Unison.Util.Timing             (time)
 import qualified Unison.Codebase.Branch        as Branch
-import Unison.Codebase.FileCodebase.Common (updateCausalHead, branchHeadDir)
 
 -- | Sync elements as needed from a remote codebase into the local one.
 -- If `sbh` is supplied, we try to load the specified branch hash;
@@ -109,7 +108,6 @@ pushGitRootBranch codebase branch repo syncMode = do
     let repoString = Text.unpack $ printRepo repo
     withStatus ("Staging files for upload to " ++ repoString ++ " ...") $
       lift (Codebase.syncToDirectory codebase remotePath syncMode branch)
-    updateCausalHead (branchHeadDir remotePath) (Branch._history branch)
     -- push staging area to remote
     withStatus ("Uploading to " ++ repoString ++ " ...") $
       unlessM

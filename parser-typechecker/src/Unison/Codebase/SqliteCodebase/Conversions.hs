@@ -349,6 +349,9 @@ hash2to1 (V2.Hash.Hash sbs) = V1.Hash (SBS.fromShort sbs)
 causalHash2to1 :: V2.CausalHash -> V1.Causal.RawHash V1.Branch.Raw
 causalHash2to1 = V1.Causal.RawHash . hash2to1 . V2.unCausalHash
 
+causalHash1to2 :: V1.Causal.RawHash V1.Branch.Raw -> V2.CausalHash
+causalHash1to2 =  V2.CausalHash . hash1to2 . V1.Causal.unRawHash
+
 ttype2to1 :: Monad m => (Hash -> m V1.Reference.Size) -> V2.Term.Type V2.Symbol -> m (V1.Type.Type V1.Symbol Ann)
 ttype2to1 lookupSize = type2to1' (reference2to1 lookupSize)
 

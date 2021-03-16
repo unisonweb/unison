@@ -120,6 +120,7 @@ import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
 import qualified U.Util.Term as TermUtil
 import qualified U.Util.Type as TypeUtil
+import Control.Monad.Extra (ifM)
 
 -- * Error handling
 
@@ -912,9 +913,9 @@ saveBranch (C.Causal hc he parents me) = do
           -- by checking if there are causal parents associated with hc
           parentChId <- liftQ (Q.saveCausalHash causalHash)
           -- test if the parent has been saved previously:
-          liftQ (Q.loadCausalParents parentChId) >>= \case
-            [] -> do c <- mcausal; snd <$> saveBranch c
-            _grandParents -> pure parentChId
+          ifM (liftQ . Q.isCausalHash $ Db.unCausalHashId parentChId)
+            (pure parentChId)
+            (do mcausal >>= fmap snd . saveBranch)
       parentCausalHashIds -> pure parentCausalHashIds
 
   boId <-

@@ -61,6 +61,9 @@ type EDB m = (DB m, Err m)
 
 type Err m = (MonadError Integrity m, HasCallStack)
 
+debugQuery :: Bool
+debugQuery = False
+
 crashOnError :: Bool
 crashOnError = True
 
@@ -597,9 +600,6 @@ queryOne = fmap fromJust
 -- | composite input, Boolean output
 queryExists :: (DB m, ToRow q, Show q) => SQLite.Query -> q -> m Bool
 queryExists q r = not . null . map (id @SQLData) <$> queryAtoms q r
-
-debugQuery :: Bool
-debugQuery = False
 
 -- | composite input, composite List output
 query :: (DB m, ToRow q, FromRow r, Show q, Show r) => SQLite.Query -> q -> m [r]

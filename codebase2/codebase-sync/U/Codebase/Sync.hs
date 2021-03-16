@@ -31,6 +31,7 @@ module U.Codebase.Sync where
 import Data.Foldable (traverse_)
 
 data TrySyncResult h = Missing [h] | Done | PreviouslyDone
+  deriving Show
 
 data Sync m h = Sync { trySync :: h -> m (TrySyncResult h) }
 
