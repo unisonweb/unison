@@ -61,29 +61,33 @@ viewRemoteBranch' :: forall m. MonadIO m
 viewRemoteBranch' (repo, sbh, path) = do
   -- set up the cache dir
   remotePath <- time "Git fetch" $ pullBranch repo
-  (closeCodebase, codebase) <- lift (FC.sqliteCodebase remotePath) >>=
-    Validation.valueOr (\_missingSchema -> throwError $ GitError.CouldntOpenCodebase repo remotePath) . fmap pure
-  -- try to load the requested branch from it
-  branch <- time "Git fetch (sbh)" $ case sbh of
-    -- load the root branch
-    Nothing -> lift (Codebase.getRootBranch codebase) >>= \case
-      Left Codebase.NoRootBranch -> pure Branch.empty
-      Left (Codebase.CouldntLoadRootBranch h) ->
-        throwError $ GitError.CouldntLoadRootBranch repo h
-      Left (Codebase.CouldntParseRootBranch s) ->
-        throwError $ GitError.CouldntParseRootBranch repo s
-      Right b -> pure b
-    -- load from a specific `ShortBranchHash`
-    Just sbh -> do
-      branchCompletions <- lift $ Codebase.branchHashesByPrefix codebase sbh
-      case toList branchCompletions of
-        [] -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
-        [h] -> (lift $ Codebase.getBranchForHash codebase h) >>= \case
-          Just b -> pure b
-          Nothing -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
-        _ -> throwError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
-  lift closeCodebase
-  pure (Branch.getAt' path branch, remotePath)
+  ifM (FC.codebaseExists remotePath)
+    (do
+      (closeCodebase, codebase) <- lift (FC.sqliteCodebase remotePath) >>=
+        Validation.valueOr (\_missingSchema -> throwError $ GitError.CouldntOpenCodebase repo remotePath) . fmap pure
+      -- try to load the requested branch from it
+      branch <- time "Git fetch (sbh)" $ case sbh of
+        -- load the root branch
+        Nothing -> lift (Codebase.getRootBranch codebase) >>= \case
+          Left Codebase.NoRootBranch -> pure Branch.empty
+          Left (Codebase.CouldntLoadRootBranch h) ->
+            throwError $ GitError.CouldntLoadRootBranch repo h
+          Left (Codebase.CouldntParseRootBranch s) ->
+            throwError $ GitError.CouldntParseRootBranch repo s
+          Right b -> pure b
+        -- load from a specific `ShortBranchHash`
+        Just sbh -> do
+          branchCompletions <- lift $ Codebase.branchHashesByPrefix codebase sbh
+          case toList branchCompletions of
+            [] -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
+            [h] -> (lift $ Codebase.getBranchForHash codebase h) >>= \case
+              Just b -> pure b
+              Nothing -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
+            _ -> throwError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
+      lift closeCodebase
+      pure (Branch.getAt' path branch, remotePath))
+    -- else there's no initialized codebase at this repo; we pretend there's an empty one.
+    (pure (Branch.empty, remotePath))
 
 -- Given a branch that is "after" the existing root of a given git repo,
 -- stage and push the branch (as the new root) + dependencies to the repo.

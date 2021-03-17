@@ -59,7 +59,6 @@ library
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase.Branch
-    Unison.Codebase.Branch.Dependencies
     Unison.Codebase.BranchDiff
     Unison.Codebase.BranchUtil
     Unison.Codebase.Causal
@@ -82,6 +81,7 @@ library
     Unison.Codebase.Editor.UriParser
     Unison.Codebase.Editor.VersionParser
     Unison.Codebase.FileCodebase
+    Unison.Codebase.FileCodebase.Branch.Dependencies
     Unison.Codebase.FileCodebase.Common
     Unison.Codebase.FileCodebase.Git
     Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex
@@ -97,6 +97,7 @@ library
     Unison.Codebase.Serialization.V1
     Unison.Codebase.ShortBranchHash
     Unison.Codebase.SqliteCodebase
+    Unison.Codebase.SqliteCodebase.Branch.Dependencies
     Unison.Codebase.SqliteCodebase.Conversions
     Unison.Codebase.SqliteCodebase.Git
     Unison.Codebase.SqliteCodebase.SyncEphemeral

@@ -54,8 +54,9 @@ import qualified U.Util.Set as Set
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase (CodebasePath)
 import qualified Unison.Codebase as Codebase1
-import Unison.Codebase.Branch (Branch (..), Branch0)
+import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -83,7 +84,7 @@ import qualified Unison.Type as Type
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
 import UnliftIO (MonadIO, catchIO, liftIO)
-import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesFileExist, getHomeDirectory)
+import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, getHomeDirectory)
 import qualified UnliftIO.Environment as SysEnv
 import UnliftIO.STM
 
@@ -132,9 +133,10 @@ initCodebaseAndExit mdir = do
   liftIO SysExit.exitSuccess
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
-initSchemaIfNotExist path = liftIO $
-  unlessM (doesFileExist $ path </> FilePath.takeDirectory codebasePath) do
+initSchemaIfNotExist path = liftIO do
+  unlessM (doesDirectoryExist $ path </> FilePath.takeDirectory codebasePath) $
     createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
+  unlessM (doesFileExist $ path </> codebasePath) $
     Control.Exception.bracket
       (unsafeGetConnection path)
       Sqlite.close
@@ -160,11 +162,7 @@ initCodebase path = do
 
   -- run sql create scripts
   createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
-  liftIO $
-    Control.Exception.bracket
-      (unsafeGetConnection path)
-      Sqlite.close
-      (runReaderT Q.createSchema)
+  initSchemaIfNotExist path
 
   (closeCodebase, theCodebase) <-
     sqliteCodebase path >>= \case
@@ -646,21 +644,6 @@ sqliteCodebase root = do
               -- oh god but we have to figure out the dbid
               -- if it doesn't exist in the dest or source branch,
               -- then just use putBranch to the dest
-              let branchDeps :: forall m. Applicative m => Branch0 m -> [(Branch.Hash, m (Branch m))]
-                  branchDeps =
-                    map (\b -> (Branch.headHash b, pure b))
-                      . Map.elems
-                      . Branch._children
-                  causalDeps :: forall m. Applicative m => Branch m -> [(Branch.Hash, m (Branch m))]
-                  causalDeps (Branch.Branch c) = case c of
-                    Causal.One _h b -> branchDeps b
-                    Causal.Cons _h b tail -> processTails [tail] b
-                    Causal.Merge _h b tails -> processTails (Map.toList tails) b
-                    where
-                      processTails tails b =
-                        let tails' = fmap (\(ht, mt) -> (ht, fmap Branch mt)) tails
-                            deps = branchDeps b
-                         in tails' ++ deps
               let se :: forall m a. Functor m => (ExceptT Sync22.Error m a -> ExceptT SyncEphemeral.Error m a)
                   se = Except.withExceptT SyncEphemeral.Sync22Error
               let r :: forall m a. (ReaderT Sync22.Env m a -> m a)
@@ -672,38 +655,50 @@ sqliteCodebase root = do
                     Sync.Progress (ReaderT Sync22.Env (ExceptT Sync22.Error m)) Sync22.Entity ->
                     Codebase1.Codebase m v a ->
                     Codebase1.Codebase m v a ->
-                    [(Branch.Hash, m (Branch m))] ->
+                    [Entity m] ->
                     ExceptT SyncEphemeral.Error m ()
                   processBranches _ _ _ _ [] = pure ()
-                  processBranches sync progress src dest ((h, mb) : rest) = do
+                  processBranches sync progress src dest (B h mb : rest) = do
                     ifM @(ExceptT SyncEphemeral.Error m)
                       (lift $ Codebase1.branchExists dest h)
                       (processBranches sync progress src dest rest)
                       ( ifM
                           (lift $ Codebase1.branchExists src h)
                           ( let h2 = CausalHash . Cv.hash1to2 $ Causal.unRawHash h
-                             in lift (flip runReaderT srcConn (Q.loadCausalHashIdByCausalHash h2))
-                                  >>= \case
-                                    Nothing -> Except.throwError $ SyncEphemeral.DisappearingBranch h2
-                                    Just chId -> se . r $ Sync.sync sync progress [Sync22.C chId]
+                             in do
+                                  lift (flip runReaderT srcConn (Q.loadCausalHashIdByCausalHash h2))
+                                    >>= \case
+                                      Nothing -> Except.throwError $ SyncEphemeral.DisappearingBranch h2
+                                      Just chId -> se . r $ Sync.sync sync progress [Sync22.C chId]
+                                  processBranches sync progress src dest rest
                           )
                           ( lift mb >>= \b -> do
-                              let deps = causalDeps b
-                              if (null deps)
+                              let (branchDeps, BD.to' -> BD.Dependencies' es ts ds) = BD.fromBranch b
+                              if null branchDeps && null es && null ts && null ds
                                 then lift $ Codebase1.putBranch dest b
-                                else processBranches @m sync progress src dest (deps ++ (h, mb) : rest)
+                                else let
+                                  bs = map (uncurry B) branchDeps
+                                  os = map O $ es <> ts <> ds
+                                  in processBranches @m sync progress src dest (os ++ bs ++ B h mb : rest)
                           )
                       )
+                  processBranches sync progress src dest (O h : rest) = do
+                    (runExceptT $ flip runReaderT srcConn (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)) >>= \case
+                      Left e -> error $ show e
+                      Right oId -> do
+                        se . r $ Sync.sync sync progress [Sync22.O oId]
+                        processBranches sync progress src dest rest
               sync <- se . r $ Sync22.sync22
               let progress' = Sync.transformProgress (lift . lift) progress
                   newRootHash = Branch.headHash newRoot
                   newRootHash2 = Cv.causalHash1to2 newRootHash
-              processBranches sync progress' src dest [(newRootHash, pure newRoot)]
+              processBranches sync progress' src dest [B newRootHash (pure newRoot)]
               -- set the root namespace
               flip runReaderT destConn $ do
-                chId <- (Q.loadCausalHashIdByCausalHash newRootHash2) >>= \case
-                  Nothing -> Except.throwError $ SyncEphemeral.DisappearingBranch newRootHash2
-                  Just chId -> pure chId
+                chId <-
+                  (Q.loadCausalHashIdByCausalHash newRootHash2) >>= \case
+                    Nothing -> Except.throwError $ SyncEphemeral.DisappearingBranch newRootHash2
+                    Just chId -> pure chId
                 Q.setNamespaceRoot chId
               lift closeSrc
               lift closeDest
@@ -769,6 +764,10 @@ runDB :: MonadIO m => Connection -> ReaderT Connection (ExceptT Ops.Error m) a -
 runDB conn = (runExceptT >=> err) . flip runReaderT conn
   where
     err = \case Left err -> error $ show err; Right a -> pure a
+
+data Entity m
+  = B Branch.Hash (m (Branch m))
+  | O Hash
 
 data SyncProgressState = SyncProgressState
   { needEntities :: Maybe (Set Sync22.Entity),
