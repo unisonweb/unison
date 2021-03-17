@@ -793,7 +793,7 @@ syncProgress = Sync.Progress need done allDone
                 then pure ()
                 else State.put $ SyncProgressState (Just $ Set.insert h need) (Right done)
         SyncProgressState _ _ -> undefined
-      State.get >>= liftIO . putStr . ("\r"<>) . renderState
+      State.get >>= liftIO . putStrLn . (\s -> "Synced " <> s <> " entities.") . renderState
 
     done h = do
       State.get >>= \case
@@ -802,16 +802,14 @@ syncProgress = Sync.Progress need done allDone
         SyncProgressState (Just need) (Right done) ->
           State.put $ SyncProgressState (Just $ Set.delete h need) (Right $ Set.insert h done)
         SyncProgressState _ _ -> undefined
-      State.get >>= liftIO . putStrLn . renderState
+      State.get >>= liftIO . putStrLn . (\s -> "Synced " <> s <> " entities.") . renderState
 
-    allDone = liftIO $ putStrLn "\rSync complete."
+    allDone =
+      liftIO . putStrLn . (\s -> "Done syncing " <> s <> " entities.") . renderState =<< State.get
+
 
     renderState = \case
-      SyncProgressState Nothing (Left doneCount) ->
-        "Synced " ++ show doneCount ++ " entities"
-      SyncProgressState (Just need) (Right done) ->
-        "Synced " ++ show (Set.size done) ++ "/" ++ show (Set.size done + Set.size need) ++ " entities"
-      SyncProgressState Nothing Right {} ->
-        "invalid SyncProgressState Nothing Right{}"
-      SyncProgressState Just {} Left {} ->
-        "invalid SyncProgressState Just{} Left{}"
+      SyncProgressState Nothing (Left doneCount) -> show doneCount
+      SyncProgressState (Just need) (Right done) -> show (Set.size done) ++ "/" ++ show (Set.size done + Set.size need)
+      SyncProgressState Nothing Right {} -> "(invalid SyncProgressState Nothing Right{})"
+      SyncProgressState Just {} Left {} -> "(invalid SyncProgressState Just{} Left{})"
