@@ -127,19 +127,21 @@ trySync tCache hCache oCache _gc = \case
               unBranchHashId bhId
           mayBoId' <- join <$> traverse (isSyncedObject) mayBoId
 
-          findMissingParents chId >>= \case
-            [] ->
+          findParents chId >>= \case
+            Right parents ->
               -- if branch object is present at src and dest,
               -- or absent from both src and dest
               -- then we are done
               if isJust mayBoId == isJust mayBoId'
                 then do
                   runDest $ Q.saveCausal chId' bhId'
+                  parents' <- traverse syncCausalHash parents
+                  runDest $ Q.saveCausalParents chId' parents'
                   pure Sync.Done
                 else -- else it's present at src but not at dest.,
                 -- so request it be copied, and revisit later
                   pure $ Missing [O $ fromJust mayBoId]
-            missingParents ->
+            Left missingParents ->
               -- if branch object is present at src and dest,
               -- or absent from both src and dest
               -- but there are parents missing,
@@ -363,9 +365,12 @@ trySync tCache hCache oCache _gc = \case
     syncBranchHashId :: BranchHashId -> m BranchHashId
     syncBranchHashId = fmap BranchHashId . syncHashLiteral . unBranchHashId
 
-    findMissingParents :: CausalHashId -> m [Entity]
-    findMissingParents chId = do
-      runSrc (Q.loadCausalParents chId) >>= filterM isMissing <&> fmap C
+    -- returns Left if parents are missing
+    findParents :: CausalHashId -> m (Either [Entity] [CausalHashId])
+    findParents chId = do
+      srcParents <- runSrc (Q.loadCausalParents chId)
+      missingSrcParents <- map C <$> filterM isMissing srcParents
+      pure if null missingSrcParents then Right srcParents else Left missingSrcParents
       where
         isMissing p =
           syncCausalHash p
