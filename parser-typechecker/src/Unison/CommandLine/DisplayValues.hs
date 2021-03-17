@@ -93,7 +93,14 @@ displayPretty pped terms typeOf eval types tm = go tm
   goConsole = \case
     DD.ConsoleTextPlain (Term.Text' txt) -> pure $ P.text txt
     DD.ConsoleTextForeground color txt -> goColor color <$> goConsole txt
-    DD.ConsoleTextBackground color txt -> goColor color <$> goConsole txt
+    DD.ConsoleTextBackground color txt -> do
+      txt <- goConsole txt
+      color <- pure $ goColor color
+      pure $ P.background color txt
+    DD.ConsoleTextBold txt -> P.bold <$> goConsole txt
+    DD.ConsoleTextUnderline txt -> P.underline <$> goConsole txt
+    DD.ConsoleTextInvert txt -> P.invert <$> goConsole txt
+    _ -> displayTerm pped terms typeOf eval types tm
 
 -- pattern DocBlob txt <- Term.App' (Term.Constructor' DocRef DocBlobId) (Term.Text' txt)
 

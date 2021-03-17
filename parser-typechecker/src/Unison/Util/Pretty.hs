@@ -8,6 +8,7 @@ module Unison.Util.Pretty (
    align,
    align',
    alternations,
+   background,
    backticked,
    backticked',
    boxForkLeft,
@@ -50,6 +51,7 @@ module Unison.Util.Pretty (
    indentN,
    indentNonEmptyN,
    indentNAfterNewline,
+   invert,
    isMultiLine,
    leftPad,
    lines,
@@ -114,6 +116,7 @@ import           Data.Char                      ( isSpace )
 import           Data.List                      ( intersperse )
 import           Prelude                 hiding ( lines , map )
 import           Unison.Util.AnnotatedText      ( annotateMaybe )
+import qualified Unison.Util.AnnotatedText     as AT
 import qualified Unison.Util.ColorText         as CT
 import qualified Unison.Util.SyntaxText        as ST
 import           Unison.Util.Monoid             ( intercalateMap )
@@ -773,6 +776,18 @@ hiCyan = map CT.hiCyan
 hiWhite = map CT.hiWhite
 bold = map CT.bold
 underline = map CT.underline
+
+-- invert the foreground and background colors
+invert :: Pretty CT.ColorText -> Pretty CT.ColorText
+invert = map CT.invert
+
+-- set the background color, ex: `background hiBlue`, `background yellow`
+background :: (Pretty CT.ColorText -> Pretty CT.ColorText) -> Pretty CT.ColorText -> Pretty CT.ColorText
+background f p =
+  -- hack: discover the color of `f` by calling it on a dummy string
+  case f (Pretty mempty (Lit "-")) of
+    Pretty _ (Lit (AT.AnnotatedText (toList -> [AT.Segment _ (Just c)]))) -> map (CT.background c) p
+    _ -> p
 
 plural :: Foldable f
        => f a -> Pretty ColorText -> Pretty ColorText
