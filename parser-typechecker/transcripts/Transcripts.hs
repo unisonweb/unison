@@ -71,7 +71,7 @@ buildTests testBuilder dir = do
       . sort
       . filter (\f -> takeExtensions f == ".md") $ files
 
-  ucm <- io $ unpack <$> "cabal" $| ["exec", "--", "which", "unison"] -- todo: what is it in windows?
+  ucm <- io $ unpack <$> "stack" $| ["exec", "--", "which", "unison"] -- todo: what is it in windows?
   tests (testBuilder ucm dir prelude <$> transcripts)
 
 -- Transcripts that exit successfully get cleaned-up by the transcript parser.
