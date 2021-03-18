@@ -69,7 +69,33 @@ displayPretty pped terms typeOf eval types tm = go tm
     DD.PrettyAppend _ ps -> mconcat . toList <$> traverse go ps
     tm -> displayTerm pped terms typeOf eval types tm
 
-  goSpecial = undefined -- \case
+  goSpecial = \case
+--   = Source [Either Link.Type Doc2.Term]
+    DD.Doc2SpecialFormSource (Term.List' es) -> undefined -- \case
+
+--   | Example Nat Doc2.Term
+    DD.Doc2SpecialFormExample n tm -> undefined -- \case
+
+--   | Link (Either Link.Type Doc2.Term)
+    DD.Doc2SpecialFormLink e -> undefined -- \case
+
+--   | Signature [Doc2.Term]
+    DD.Doc2SpecialFormSignature e -> undefined -- \case
+
+--   | InlineSignature Doc2.Term
+    DD.Doc2SpecialFormInlineSignature e -> undefined -- \case
+
+--   | Eval Doc2.Term
+    DD.Doc2SpecialFormEval e -> undefined -- \case
+
+--   | InlineEval Doc2.Term
+    DD.Doc2SpecialFormInlineEval e -> undefined -- \case
+
+--   | Embed Any
+    DD.Doc2SpecialFormEmbed any -> undefined -- \case
+
+--   | InlineEmbed Any
+    DD.Doc2SpecialFormInlineEmbed any -> undefined -- \case
 
   goColor c = case c of
     DD.AnsiColorBlack -> P.black
