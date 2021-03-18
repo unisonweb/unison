@@ -18,32 +18,30 @@ import           Data.Text                      ( pack
                                                 )
 import           Data.List
 
+import System.Environment (getArgs)
+
 type TestBuilder = FilePath -> FilePath -> [String] -> String -> Test ()
 
-testBuilder :: FilePath -> FilePath -> [String] -> String -> Test ()
-testBuilder ucm dir prelude transcript = scope transcript $ do
+testBuilder
+  :: Bool -> FilePath -> FilePath -> [String] -> String -> Test ()
+testBuilder new ucm dir prelude transcript = scope transcript $ do
   io $ fromString ucm args
   ok
   where
     files = fmap (pack . (dir </>)) (prelude ++ [transcript])
-    args = ["transcript"] ++ files
+    args | new = ["--new-runtime", "transcript"] ++ files
+         | otherwise = ["transcript"] ++ files
 
-testBuilderNewRuntime :: FilePath -> FilePath -> [String] -> String -> Test ()
-testBuilderNewRuntime ucm dir prelude transcript = scope transcript $ do
-  io $ fromString ucm args
-  ok
-  where
-    files = fmap (pack . (dir </>)) (prelude ++ [transcript])
-    args = ["--new-runtime", "transcript"] ++ files
-
-testBuilder' :: FilePath -> FilePath -> [String] -> String -> Test ()
-testBuilder' ucm dir prelude transcript = scope transcript $ do
+testBuilder'
+  :: Bool -> FilePath -> FilePath -> [String] -> String -> Test ()
+testBuilder' new ucm dir prelude transcript = scope transcript $ do
   let output = dir </> takeBaseName transcript <> ".output.md"
   io $ runAndCaptureError ucm args output
   ok
   where
     files = fmap (pack . (dir </>)) (prelude ++ [transcript])
-    args = ["transcript"] ++ files
+    args | new = ["--new-runtime", "transcript"] ++ files
+         | otherwise = ["transcript"] ++ files
     -- Given a command and arguments, run it and capture the standard error to a file
     -- regardless of success or failure.
     runAndCaptureError :: FilePath -> [Text] -> FilePath -> IO ()
@@ -73,7 +71,7 @@ buildTests testBuilder dir = do
       . sort
       . filter (\f -> takeExtensions f == ".md") $ files
 
-  ucm <- io $ unpack <$> "stack" $| ["exec", "--", "which", "unison"] -- todo: what is it in windows?
+  ucm <- io $ unpack <$> "cabal" $| ["exec", "--", "which", "unison"] -- todo: what is it in windows?
   tests (testBuilder ucm dir prelude <$> transcripts)
 
 -- Transcripts that exit successfully get cleaned-up by the transcript parser.
@@ -96,12 +94,17 @@ cleanup = do
         , "the `test-output` directory. Feel free to delete it."
         ]
 
-test :: Test ()
-test = do
-  buildTests testBuilder $ "unison-src" </> "transcripts"
-  buildTests testBuilderNewRuntime $ "unison-src" </> "new-runtime-transcripts"
-  buildTests testBuilder' $"unison-src" </> "transcripts" </> "errors"
+test :: Bool -> Test ()
+test new = do
+  buildTests (testBuilder new) $ "unison-src" </> "transcripts"
+  buildTests (testBuilder True)
+    $ "unison-src" </> "new-runtime-transcripts"
+  buildTests (testBuilder' new)
+    $ "unison-src" </> "transcripts" </> "errors"
   cleanup
 
 main :: IO ()
-main = run test
+main =
+  getArgs >>= \case
+    "--new-runtime" : _ -> run (test True)
+    _ -> run (test False)
