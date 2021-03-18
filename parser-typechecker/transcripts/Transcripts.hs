@@ -99,6 +99,8 @@ test new = do
   buildTests (testBuilder new) $ "unison-src" </> "transcripts"
   buildTests (testBuilder True)
     $ "unison-src" </> "new-runtime-transcripts"
+  buildTests (testBuilder False)
+    $ "unison-src" </> "old-runtime-transcripts"
   buildTests (testBuilder' new)
     $ "unison-src" </> "transcripts" </> "errors"
   cleanup
