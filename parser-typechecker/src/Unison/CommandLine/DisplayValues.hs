@@ -4,13 +4,15 @@
 
 module Unison.CommandLine.DisplayValues where
 
-import Data.Foldable ( fold, toList )
+import Unison.Prelude
 
+import Data.Foldable ( fold, toList )
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Var (Var)
+import qualified Unison.ABT as ABT
 import qualified Unison.Runtime.IOSource as DD
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.DataDeclaration as DD
@@ -24,6 +26,7 @@ import qualified Unison.TermPrinter as TP
 import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.SyntaxText as S
+import qualified Unison.ConstructorType as CT
 
 type Pretty = P.Pretty P.ColorText
 
@@ -70,32 +73,56 @@ displayPretty pped terms typeOf eval types tm = go tm
     tm -> displayTerm pped terms typeOf eval types tm
 
   goSpecial = \case
---   = Source [Either Link.Type Doc2.Term]
+    -- Source [Either Link.Type Doc2.Term]
     DD.Doc2SpecialFormSource (Term.List' es) -> undefined -- \case
 
---   | Example Nat Doc2.Term
-    DD.Doc2SpecialFormExample n tm -> undefined -- \case
+    -- Example Nat Doc2.Term
+    -- Examples like `foo x y` are encoded as `Example 2 (_ x y -> foo)`, where
+    -- 2 is the number of variables that should be dropped from the rendering.
+    -- So this will render as `foo x y`.
+    DD.Doc2SpecialFormExample n (DD.Doc2Example vs body) ->
+      P.backticked <$> displayTerm pped terms typeOf eval types ex
+      where ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
 
---   | Link (Either Link.Type Doc2.Term)
+    -- Link (Either Link.Type Doc2.Term)
     DD.Doc2SpecialFormLink e -> undefined -- \case
 
---   | Signature [Doc2.Term]
-    DD.Doc2SpecialFormSignature e -> undefined -- \case
+    -- Signature [Doc2.Term]
+    DD.Doc2SpecialFormSignature (Term.List' tms) ->
+      let referents = [ r | DD.Doc2Term (toReferent -> Just r) <- toList tms ]
+      in P.indentN 2 . P.sep "\n\n" <$> traverse goSignature referents
 
---   | InlineSignature Doc2.Term
-    DD.Doc2SpecialFormInlineSignature e -> undefined -- \case
+    -- InlineSignature Doc2.Term
+    DD.Doc2SpecialFormInlineSignature (DD.Doc2Term tm) -> P.backticked <$> case toReferent tm of
+      Just r -> goSignature r
+      _ -> displayTerm pped terms typeOf eval types tm
 
---   | Eval Doc2.Term
+    -- Eval Doc2.Term
     DD.Doc2SpecialFormEval e -> undefined -- \case
 
---   | InlineEval Doc2.Term
+    -- InlineEval Doc2.Term
     DD.Doc2SpecialFormInlineEval e -> undefined -- \case
 
---   | Embed Any
-    DD.Doc2SpecialFormEmbed any -> undefined -- \case
+    -- Embed Any
+    DD.Doc2SpecialFormEmbed (Term.App' _ any) ->
+      displayTerm pped terms typeOf eval types any <&> \p ->
+        "{{ embed {{" <> p <> "}} }}"
 
---   | InlineEmbed Any
+    -- InlineEmbed Any
     DD.Doc2SpecialFormInlineEmbed any -> undefined -- \case
+
+  toReferent tm = case tm of
+    Term.Ref' r -> Just (Referent.Ref r)
+    Term.Constructor' r cid -> Just (Referent.Con r cid CT.Data)
+    Term.Request' r cid -> Just (Referent.Con r cid CT.Effect)
+    _ -> Nothing
+
+  goSignature r = typeOf r >>= \case
+    Nothing -> pure $ termName (PPE.unsuffixifiedPPE pped) r
+    Just typ -> pure . P.group $
+      TypePrinter.prettySignatures
+        (PPE.suffixifiedPPE pped)
+        [(PPE.termName (PPE.unsuffixifiedPPE pped) r, typ)]
 
   goColor c = case c of
     DD.AnsiColorBlack -> P.black

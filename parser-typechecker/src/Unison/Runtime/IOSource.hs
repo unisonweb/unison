@@ -162,6 +162,9 @@ pattern Doc2SpecialFormInlineEval tm <- Term.App' (Term.Constructor' Doc2Special
 pattern Doc2SpecialFormEmbed any <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormEmbedId -> True)) any
 pattern Doc2SpecialFormInlineEmbed any <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormInlineEmbedId -> True)) any
 
+pattern Doc2Example vs body <- Term.App' _term (Term.App' _any (Term.LamNamed' _ (Term.LamsNamedOpt' vs body)))
+pattern Doc2Term body <- Term.App' _term (Term.App' _any (Term.LamNamed' _ body))
+
 pattern Doc2Ref <- ((== doc2Ref) -> True)
 doc2WordId = constructorNamed doc2Ref "Doc2.Word"
 doc2CodeId = constructorNamed doc2Ref "Doc2.Code"
