@@ -117,16 +117,16 @@ splitData (DataU2 r t i j) = Just (r, t, [i,j], [])
 splitData (DataB1 r t x) = Just (r, t, [], [x])
 splitData (DataB2 r t x y) = Just (r, t, [], [x,y])
 splitData (DataUB r t i y) = Just (r, t, [i], [y])
-splitData (DataG r t us bs) = Just (r, t, ints us, F.toList bs)
+splitData (DataG r t us bs) = Just (r, t, ints us, reverse $ F.toList bs)
 splitData _ = Nothing
 
 ints :: ByteArray -> [Int]
-ints ba = fmap (indexByteArray ba) [0..n-1]
+ints ba = fmap (indexByteArray ba) [n-1,n-2..0]
   where
   n = sizeofByteArray ba `div` 8
 
 useg :: [Int] -> Seg 'UN
-useg ws = case L.fromList ws of
+useg ws = case L.fromList $ reverse ws of
   PrimArray ba -> ByteArray ba
 
 formData :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
