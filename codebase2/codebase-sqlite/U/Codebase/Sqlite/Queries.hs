@@ -64,8 +64,11 @@ type Err m = (MonadError Integrity m, HasCallStack)
 debugQuery :: Bool
 debugQuery = False
 
+alwaysTraceOnCrash :: Bool
+alwaysTraceOnCrash = True
+
 crashOnError :: Bool
-crashOnError = True
+crashOnError = False
 
 throwError :: Err m => Integrity -> m c
 throwError = if crashOnError then error . show else Except.throwError
@@ -264,7 +267,7 @@ loadPrimaryHashByObjectId oId = queryAtom sql (Only oId) >>= orError (UnknownObj
 objectAndPrimaryHashByAnyHash :: EDB m => Base32Hex -> m (Maybe (Base32Hex, ObjectId))
 objectAndPrimaryHashByAnyHash h = runMaybeT do
   hashId <- MaybeT $ loadHashId h -- hash may not exist
-  oId <- MaybeT $ maybeObjectIdForAnyHashId hashId -- hash may not correspond to object
+  oId <- MaybeT $ maybeObjectIdForAnyHashId hashId -- hash may not correspond to any object
   base32 <- loadPrimaryHashByObjectId oId
   pure (base32, oId)
 
@@ -615,11 +618,11 @@ query_ q = do
 
 queryTrace :: (MonadUnliftIO m, Show q, Show a) => String -> SQLite.Query -> q -> m a -> m a
 queryTrace title query input m =
-  if debugQuery
+  if debugQuery || alwaysTraceOnCrash
     then
       try @_ @SQLite.SQLError m >>= \case
         Right a -> do
-          traceM $ title ++ " " ++ show query ++ "\n  input: " ++ show input ++ "\n output: " ++ show a
+          when debugQuery . traceM $ title ++ " " ++ show query ++ "\n  input: " ++ show input ++ "\n output: " ++ show a
           pure a
         Left e -> do
           traceM $ title ++ " " ++ show query ++ "\n  input: " ++ show input ++ "\n(and crashed)\n"
@@ -628,11 +631,11 @@ queryTrace title query input m =
 
 queryTrace_ :: (MonadUnliftIO m, Show a) => String -> SQLite.Query -> m a -> m a
 queryTrace_ title query m =
-  if debugQuery
+  if debugQuery || alwaysTraceOnCrash
     then
       try @_ @SQLite.SQLError m >>= \case
         Right a -> do
-          traceM $ title ++ " " ++ show query ++ "\n output: " ++ show a
+          when debugQuery . traceM $ title ++ " " ++ show query ++ "\n output: " ++ show a
           pure a
         Left e -> do
           traceM $ title ++ " " ++ show query ++ "\n(and crashed)\n"
@@ -668,3 +671,4 @@ instance ToField WatchKind where
   toField = \case
     WatchKind.RegularWatch -> SQLite.SQLInteger 0
     WatchKind.TestWatch -> SQLite.SQLInteger 1
+

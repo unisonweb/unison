@@ -56,10 +56,10 @@ import Unison.Codebase (CodebasePath)
 import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
@@ -656,43 +656,38 @@ sqliteCodebase root = do
                     Codebase1.Codebase m v a ->
                     Codebase1.Codebase m v a ->
                     [Entity m] ->
-                    ExceptT SyncEphemeral.Error m ()
+                    ExceptT Sync22.Error m ()
                   processBranches _ _ _ _ [] = pure ()
                   processBranches sync progress src dest (B h mb : rest) = do
-                    ifM @(ExceptT SyncEphemeral.Error m)
+                    ifM @(ExceptT Sync22.Error m)
                       (lift $ Codebase1.branchExists dest h)
                       (processBranches sync progress src dest rest)
-                      ( ifM
-                          (lift $ Codebase1.branchExists src h)
-                          ( let h2 = CausalHash . Cv.hash1to2 $ Causal.unRawHash h
-                             in do
-                                  lift (flip runReaderT srcConn (Q.loadCausalHashIdByCausalHash h2))
-                                    >>= \case
-                                      Nothing -> Except.throwError $ SyncEphemeral.DisappearingBranch h2
-                                      Just chId -> se . r $ Sync.sync sync progress [Sync22.C chId]
-                                  processBranches sync progress src dest rest
-                          )
-                          ( lift mb >>= \b -> do
+                      ( do
+                          let h2 = CausalHash . Cv.hash1to2 $ Causal.unRawHash h
+                          lift (flip runReaderT srcConn (Q.loadCausalHashIdByCausalHash h2)) >>= \case
+                            Just chId -> do
+                              r $ Sync.sync sync progress [Sync22.C chId]
+                              processBranches sync progress src dest rest
+                            Nothing -> lift mb >>= \b -> do
                               let (branchDeps, BD.to' -> BD.Dependencies' es ts ds) = BD.fromBranch b
                               if null branchDeps && null es && null ts && null ds
                                 then lift $ Codebase1.putBranch dest b
-                                else let
-                                  bs = map (uncurry B) branchDeps
-                                  os = map O $ es <> ts <> ds
-                                  in processBranches @m sync progress src dest (os ++ bs ++ B h mb : rest)
-                          )
+                                else
+                                  let bs = map (uncurry B) branchDeps
+                                      os = map O (es <> ts <> ds)
+                                   in processBranches @m sync progress src dest (os ++ bs ++ B h mb : rest)
                       )
                   processBranches sync progress src dest (O h : rest) = do
                     (runExceptT $ flip runReaderT srcConn (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)) >>= \case
                       Left e -> error $ show e
                       Right oId -> do
-                        se . r $ Sync.sync sync progress [Sync22.O oId]
+                        r $ Sync.sync sync progress [Sync22.O oId]
                         processBranches sync progress src dest rest
               sync <- se . r $ Sync22.sync22
               let progress' = Sync.transformProgress (lift . lift) progress
                   newRootHash = Branch.headHash newRoot
                   newRootHash2 = Cv.causalHash1to2 newRootHash
-              processBranches sync progress' src dest [B newRootHash (pure newRoot)]
+              se $ processBranches sync progress' src dest [B newRootHash (pure newRoot)]
               -- set the root namespace
               flip runReaderT destConn $ do
                 chId <-
@@ -806,7 +801,6 @@ syncProgress = Sync.Progress need done allDone
 
     allDone =
       liftIO . putStrLn . (\s -> "Done syncing " <> s <> " entities.") . renderState =<< State.get
-
 
     renderState = \case
       SyncProgressState Nothing (Left doneCount) -> show doneCount

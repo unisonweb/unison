@@ -72,7 +72,8 @@ data Error
   | DecodeError DecodeError ByteString ErrString
   | -- | hashes corresponding to a single object in source codebase
     --  correspond to multiple objects in destination codebase
-    HashObjectCorrespondence ObjectId [HashId] [ObjectId]
+    HashObjectCorrespondence ObjectId [HashId] [HashId] [ObjectId]
+  | SourceDbNotExist
   deriving (Show)
 
 data Env = Env
@@ -374,7 +375,7 @@ trySync tCache hCache oCache _gc = \case
       where
         isMissing p =
           syncCausalHash p
-            >>= runDest . Q.isCausalHash . unCausalHashId
+            >>= runDest . fmap not . Q.isCausalHash . unCausalHashId
 
     syncSecondaryHashes oId oId' =
       runSrc (Q.hashIdWithVersionForObject oId) >>= traverse_ (go oId')
@@ -386,13 +387,15 @@ trySync tCache hCache oCache _gc = \case
     isSyncedObject :: ObjectId -> m (Maybe ObjectId)
     isSyncedObject = Cache.applyDefined oCache \oId -> do
       hIds <- toList <$> runSrc (Q.hashIdsForObject oId)
+      hIds' <- traverse syncHashLiteral hIds
       ( nubOrd . catMaybes
-          <$> traverse (runDest . Q.maybeObjectIdForAnyHashId) hIds
+          <$> traverse (runDest . Q.maybeObjectIdForAnyHashId) hIds'
         )
         >>= \case
-          [oId'] -> pure $ Just oId'
+          [oId'] -> do
+            pure $ Just oId'
           [] -> pure $ Nothing
-          oIds' -> throwError (HashObjectCorrespondence oId hIds oIds')
+          oIds' -> throwError (HashObjectCorrespondence oId hIds hIds' oIds')
 
 runSrc,
   runDest ::
