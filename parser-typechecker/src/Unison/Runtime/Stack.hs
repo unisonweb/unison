@@ -136,7 +136,7 @@ formData r t [i,j] [] = DataU2 r t i j
 formData r t [] [x] = DataB1 r t x
 formData r t [] [x,y] = DataB2 r t x y
 formData r t [i] [x] = DataUB r t i x
-formData r t us bs = DataG r t (useg us) (L.fromList bs)
+formData r t us bs = DataG r t (useg us) (L.fromList $ reverse bs)
 
 pattern DataC :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
 pattern DataC rf ct us bs <- (splitData -> Just (rf, ct, us, bs))
