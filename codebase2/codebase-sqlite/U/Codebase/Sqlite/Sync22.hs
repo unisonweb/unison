@@ -9,7 +9,6 @@
 
 module U.Codebase.Sqlite.Sync22 where
 
-import Control.Monad (filterM, join)
 import Control.Monad.Except (ExceptT, MonadError (throwError))
 import qualified Control.Monad.Except as Except
 import Control.Monad.Extra (ifM)
@@ -27,7 +26,7 @@ import Data.Bytes.Put (putWord8, runPutS)
 import Data.Foldable (for_, toList, traverse_)
 import Data.Functor ((<&>))
 import Data.List.Extra (nubOrd)
-import Data.Maybe (catMaybes, fromJust, fromMaybe, isJust)
+import Data.Maybe (catMaybes, fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Word (Word8)
@@ -43,7 +42,7 @@ import qualified U.Codebase.Sqlite.Reference as Sqlite
 import qualified U.Codebase.Sqlite.Reference as Sqlite.Reference
 import qualified U.Codebase.Sqlite.Referent as Sqlite.Referent
 import qualified U.Codebase.Sqlite.Serialization as S
-import U.Codebase.Sync (Sync (Sync), TrySyncResult (Missing))
+import U.Codebase.Sync (Sync (Sync), TrySyncResult)
 import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
 import U.Util.Cache (Cache)
@@ -95,8 +94,9 @@ sync22 = do
   tCache <- Cache.semispaceCache size
   hCache <- Cache.semispaceCache size
   oCache <- Cache.semispaceCache size
+  cCache <- Cache.semispaceCache size
   gc <- runSrc $ Q.getNurseryGeneration
-  pure $ Sync (trySync tCache hCache oCache (succ gc))
+  pure $ Sync (trySync tCache hCache oCache cCache (succ gc))
 
 trySync ::
   forall m.
@@ -104,54 +104,51 @@ trySync ::
   Cache m TextId TextId ->
   Cache m HashId HashId ->
   Cache m ObjectId ObjectId ->
+  Cache m CausalHashId CausalHashId ->
   Generation ->
   Entity ->
   m (TrySyncResult Entity)
-trySync tCache hCache oCache _gc = \case
+trySync t h o c _gc e = do
+  -- traceM $ "trySync " ++ show e ++ "..."
+  result <- trySync' t h o c _gc e
+  -- traceM $ "trySync " ++ show e ++ " = " ++ show result
+  pure result
+
+trySync' ::
+  forall m.
+  (MonadIO m, MonadError Error m, MonadReader Env m) =>
+  Cache m TextId TextId ->
+  Cache m HashId HashId ->
+  Cache m ObjectId ObjectId ->
+  Cache m CausalHashId CausalHashId ->
+  Generation ->
+  Entity ->
+  m (TrySyncResult Entity)
+trySync' tCache hCache oCache cCache _gc e = case e of
   -- for causals, we need to get the value_hash_id of the thingo
   -- - maybe enqueue their parents
   -- - enqueue the self_ and value_ hashes
   -- - enqueue the namespace object, if present
-  C chId -> do
-    chId' <- syncCausalHash chId
-    -- we're going to assume that if the dest has this in its
-    -- causal table, then it's safe to short-circuit
-    ifM
-      (runDest $ Q.isCausalHash $ unCausalHashId chId')
-      (pure Sync.PreviouslyDone)
-      ( do
+  C chId ->
+    isSyncedCausal chId >>= \case
+      Just {} -> pure Sync.PreviouslyDone
+      Nothing -> do
+        result <- runValidateT @(Set Entity) @m @() do
           bhId <- runSrc $ Q.loadCausalValueHashId chId
-          bhId' <- syncBranchHashId bhId
+          mayBoId <- runSrc . Q.maybeObjectIdForAnyHashId $ unBranchHashId bhId
+          traverse_ syncLocalObjectId mayBoId
 
-          mayBoId <-
-            runSrc . Q.maybeObjectIdForAnyHashId $
-              unBranchHashId bhId
-          mayBoId' <- join <$> traverse (isSyncedObject) mayBoId
+          parents' :: [CausalHashId] <- findParents' chId
+          bhId' <- lift $ syncBranchHashId bhId
+          chId' <- lift $ syncCausalHashId chId
+          runDest do
+            Q.saveCausal chId' bhId'
+            Q.saveCausalParents chId' parents'
 
-          findParents chId >>= \case
-            Right parents ->
-              -- if branch object is present at src and dest,
-              -- or absent from both src and dest
-              -- then we are done
-              if isJust mayBoId == isJust mayBoId'
-                then do
-                  runDest $ Q.saveCausal chId' bhId'
-                  parents' <- traverse syncCausalHash parents
-                  runDest $ Q.saveCausalParents chId' parents'
-                  pure Sync.Done
-                else -- else it's present at src but not at dest.,
-                -- so request it be copied, and revisit later
-                  pure $ Missing [O $ fromJust mayBoId]
-            Left missingParents ->
-              -- if branch object is present at src and dest,
-              -- or absent from both src and dest
-              -- but there are parents missing,
-              -- then request the parents be copied, and revisit later
-              if isJust mayBoId == isJust mayBoId'
-                then pure $ Missing missingParents
-                else -- otherwise request the branch and the parents be copied
-                  pure $ Missing $ (O $ fromJust mayBoId) : missingParents
-      )
+        case result of
+          Left deps -> pure . Sync.Missing $ toList deps
+          Right () -> pure Sync.Done
+
   -- objects are the hairiest. obviously, if they
   -- exist, we're done; otherwise we do some fancy stuff
   O oId ->
@@ -311,6 +308,12 @@ trySync tCache hCache oCache _gc = \case
     syncBranchObjectId :: BranchObjectId -> ValidateT (Set Entity) m BranchObjectId
     syncBranchObjectId = fmap BranchObjectId . syncLocalObjectId . unBranchObjectId
 
+    syncCausal :: CausalHashId -> ValidateT (Set Entity) m CausalHashId
+    syncCausal chId =
+      lift (isSyncedCausal chId) >>= \case
+        Just chId' -> pure chId'
+        Nothing -> Validate.refute . Set.singleton $ C chId
+
     syncLocalIds :: L.LocalIds -> ValidateT (Set Entity) m L.LocalIds
     syncLocalIds (L.LocalIds tIds oIds) = do
       oIds' <- traverse syncLocalObjectId oIds
@@ -328,7 +331,7 @@ trySync tCache hCache oCache _gc = \case
     syncBranchLocalIds (BL.LocalIds tIds oIds poIds chboIds) = do
       oIds' <- traverse syncLocalObjectId oIds
       poIds' <- traverse (fmap PatchObjectId . syncLocalObjectId . unPatchObjectId) poIds
-      chboIds' <- traverse (bitraverse syncBranchObjectId (lift . syncCausalHash)) chboIds
+      chboIds' <- traverse (bitraverse syncBranchObjectId syncCausal) chboIds
       tIds' <- lift $ traverse syncTextLiteral tIds
       pure $ BL.LocalIds tIds' oIds' poIds' chboIds'
 
@@ -360,22 +363,17 @@ trySync tCache hCache oCache _gc = \case
     syncHashReference :: Sqlite.ReferenceH -> m Sqlite.ReferenceH
     syncHashReference = bitraverse syncTextLiteral syncHashLiteral
 
-    syncCausalHash :: CausalHashId -> m CausalHashId
-    syncCausalHash = fmap CausalHashId . syncHashLiteral . unCausalHashId
+    syncCausalHashId :: CausalHashId -> m CausalHashId
+    syncCausalHashId = fmap CausalHashId . syncHashLiteral . unCausalHashId
 
     syncBranchHashId :: BranchHashId -> m BranchHashId
     syncBranchHashId = fmap BranchHashId . syncHashLiteral . unBranchHashId
 
-    -- returns Left if parents are missing
-    findParents :: CausalHashId -> m (Either [Entity] [CausalHashId])
-    findParents chId = do
-      srcParents <- runSrc (Q.loadCausalParents chId)
-      missingSrcParents <- map C <$> filterM isMissing srcParents
-      pure if null missingSrcParents then Right srcParents else Left missingSrcParents
-      where
-        isMissing p =
-          syncCausalHash p
-            >>= runDest . fmap not . Q.isCausalHash . unCausalHashId
+    findParents' :: CausalHashId -> ValidateT (Set Entity) m [CausalHashId]
+    findParents' chId = do
+      srcParents <- runSrc $ Q.loadCausalParents chId
+      traverse syncCausal srcParents
+
 
     syncSecondaryHashes oId oId' =
       runSrc (Q.hashIdWithVersionForObject oId) >>= traverse_ (go oId')
@@ -396,6 +394,15 @@ trySync tCache hCache oCache _gc = \case
             pure $ Just oId'
           [] -> pure $ Nothing
           oIds' -> throwError (HashObjectCorrespondence oId hIds hIds' oIds')
+
+    isSyncedCausal :: CausalHashId -> m (Maybe CausalHashId)
+    isSyncedCausal = Cache.applyDefined cCache \chId -> do
+      let hId = unCausalHashId chId
+      hId' <- syncHashLiteral hId
+      ifM
+        (runDest $ Q.isCausalHash hId')
+        (pure . Just $ CausalHashId hId')
+        (pure Nothing)
 
 runSrc,
   runDest ::

@@ -893,7 +893,7 @@ type BranchSavingMonad m = StateT BranchSavingState (WriterT BranchSavingWriter 
 
 saveRootBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
 saveRootBranch c = do
-  when debug $ traceM "saveRootBranch"
+  when debug $ traceM $ "saveRootBranch " ++ show (C.causalHash c)
   (boId, chId) <- saveBranch c
   Q.setNamespaceRoot chId
   pure (boId, chId)

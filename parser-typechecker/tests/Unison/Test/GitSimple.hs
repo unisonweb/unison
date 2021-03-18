@@ -19,66 +19,135 @@ import Unison.Parser (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol)
 
-test :: Test ()
-test = scope "git-simple" . tests $ [testPull]
-
--- [ testPull
--- , testPush
--- , syncComplete
--- , syncTestResults
--- ]
-
 traceTranscriptOutput :: Bool
 traceTranscriptOutput = False
 
-authorTranscript :: (Semigroup a1, IsString a1, Show a2, Typeable a2, Typeable a1) => a2 -> a1
-authorTranscript repo =
-  [iTrim|
-```ucm:hide
-.builtin> alias.type ##Nat Nat
-.builtin> alias.term ##Nat.+ Nat.+
+test :: Test ()
+test = scope "git-simple" . tests $ [
+
+  pushPullTest "one-term"
+-- simplest-author
+    (\repo -> [iTrim|
+```unison
+c = 3
+```
+```ucm
+.> debug.file
+.> add
+.> push ${repo}
+```
+|])
+-- simplest-user
+    (\repo -> [iTrim|
+```ucm
+.> pull ${repo}
+.> alias.term ##Nat.+ +
 ```
 ```unison
-unique type outside.A = A Nat
-unique type outside.B = B Nat Nat
-outside.c = 3
-outside.d = 4
-
-unique type inside.X = X outside.A
-inside.y = c + c
+> #msp7bv40rv + 1
+```
+|])
+  ,
+  pushPullTest "one-term2"
+-- simplest-author
+    (\repo -> [iTrim|
+```unison
+c = 3
+```
+```ucm
+.> debug.file
+.myLib> add
+.myLib> push ${repo}
+```
+|])
+-- simplest-user
+    (\repo -> [iTrim|
+```ucm
+.yourLib> pull ${repo}
+```
+```unison
+> c
+```
+|])
+  ,
+  pushPullTest "one-type"
+-- simplest-author
+    (\repo -> [iTrim|
+```unison
+type Foo = Foo
 ```
 ```ucm
 .myLib> debug.file
 .myLib> add
 .myLib> push ${repo}
 ```
-|]
-
-userTranscript :: (Semigroup a1, IsString a1, Show a2, Typeable a2, Typeable a1) => a2 -> a1
-userTranscript repo =
-  [iTrim|
-```ucm:hide
-.builtin> alias.type ##Nat Nat
-.builtin> alias.term ##Nat.+ Nat.+
-```
+|])
+-- simplest-user
+    (\repo -> [iTrim|
 ```ucm
-.yourLib> pull ${repo}:.inside
+.yourLib> pull ${repo}
 ```
 ```unison
-> y + #msp7bv40rv + 1
+> Foo.Foo
 ```
-|]
+|])
+-- ,
 
--- goal of this test is to make sure that pull doesn't grab a ton of unneeded
--- dependencies
-testPull :: Test ()
-testPull = scope "pull" $ do
-  -- let's push a broader set of stuff, pull a narrower one (to a fresh codebase)
-  -- and verify that we have the definitions we expected and don't have some of
-  -- the ones we didn't expect.
+--   pushPullTest "regular"
+--     (\repo -> [iTrim|
+-- ```ucm:hide
+-- .builtin> alias.type ##Nat Nat
+-- .builtin> alias.term ##Nat.+ Nat.+
+-- ```
+-- ```unison
+-- unique type outside.A = A Nat
+-- unique type outside.B = B Nat Nat
+-- outside.c = 3
+-- outside.d = 4
 
+-- unique type inside.X = X outside.A
+-- inside.y = c + c
+-- ```
+-- ```ucm
+-- .myLib> debug.file
+-- .myLib> add
+-- .myLib> push ${repo}
+-- ```|])
+
+--     (\repo -> [iTrim|
+-- ```ucm:hide
+-- .builtin> alias.type ##Nat Nat
+-- .builtin> alias.term ##Nat.+ Nat.+
+-- ```
+-- ```ucm
+-- .yourLib> pull ${repo}:.inside
+-- ```
+-- ```unison
+-- > y + #msp7bv40rv + 1
+-- ```
+--  |])
+
+  ]
+
+
+-- type inside.X#skinr6rvg7
+-- type outside.A#l2fmn9sdbk
+-- type outside.B#nsgsq4ot5u
+-- inside.y#omqnfettvj
+-- outside.c#msp7bv40rv
+-- outside.d#52addbrohu
+-- .myLib> #6l0nd3i15e
+-- .myLib.inside> #5regvciils
+-- .myLib.inside.X> #kvcjrmgki6
+-- .myLib.outside> #uq1mkkhlf1
+-- .myLib.outside.A> #0e3g041m56
+-- .myLib.outside.B> #j57m94daqi
+
+
+pushPullTest :: String -> (FilePath -> String) -> (FilePath -> String) -> Test ()
+pushPullTest name authorScript userScript = scope name $ do
   -- put all our junk into here
-  tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "git-pull"
+  tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory ("git-simple-" ++ name)
 
   -- initialize author and user codebases
   (_authorDir, closeAuthor, authorCodebase) <- io $ initCodebase tmp "author"
@@ -89,32 +158,26 @@ testPull = scope "pull" $ do
   io $ "git" ["init", "--bare", Text.pack repo]
 
   -- run author/push transcript
-  authorOutput <- runTranscript tmp authorCodebase (authorTranscript repo)
+  authorOutput <- runTranscript tmp authorCodebase (authorScript repo)
 
-  -- -- check out the resulting repo so we can inspect it
-  -- io $ "git" ["clone", Text.pack repo, Text.pack $ tmp </> "repo" ]
+  -- check out the resulting repo so we can inspect it
+  io $ "git" ["clone", Text.pack repo, Text.pack $ tmp </> "repo" ]
 
   -- run user/pull transcript
-  userOutput <- runTranscript tmp userCodebase (userTranscript repo)
+  userOutput <- runTranscript tmp userCodebase (userScript repo)
 
   io do
     closeAuthor
     closeUser
 
     writeFile
-      "unison-src/transcripts/GitSimple.hs.output.md"
+      ("unison-src"</>"transcripts"</>("GitSimple." ++ name ++ ".output.md"))
       (authorOutput <> "\n-------\n" <> userOutput)
 
-  -- -- inspect user codebase
-  -- scope "user-should-have" $
-  --   for userShouldHave $ \path ->
-  --     scope (makeTitle path) $ io (doesFileExist $ userDir </> path) >>= expect
-  -- scope "user-should-not-have" $ -- this definitely won't pass with current implementation
-  --   for userShouldNotHave $ \path ->
-  --     scope (makeTitle path) $ io (doesFileExist $ userDir </> path) >>= expect . not
-
-  -- if we haven't crashed, clean up!
+    -- if we haven't crashed, clean up!
+    removeDirectoryRecursive repo
     removeDirectoryRecursive tmp
+  ok
 
 -- initialize a fresh codebase
 initCodebaseDir :: FilePath -> String -> IO CodebasePath

@@ -56,7 +56,7 @@ CREATE INDEX object_type_id ON object(type_id);
 -- to not lose their identities.
 CREATE TABLE causal (
   self_hash_id INTEGER PRIMARY KEY NOT NULL CONSTRAINT causal_fk1 REFERENCES hash(id),
-  value_hash_id INTEGER NOT NULL CONSTRAINT causal_fk1 REFERENCES hash(id),
+  value_hash_id INTEGER NOT NULL CONSTRAINT causal_fk2 REFERENCES hash(id),
   gc_generation INTEGER NOT NULL
 );
 CREATE INDEX causal_value_hash_id ON causal(value_hash_id);
@@ -69,10 +69,9 @@ CREATE TABLE namespace_root (
 );
 
 CREATE TABLE causal_parent (
-  id INTEGER PRIMARY KEY NOT NULL,
   causal_id INTEGER NOT NULL CONSTRAINT causal_parent_fk1 REFERENCES causal(self_hash_id),
   parent_id INTEGER NOT NULL CONSTRAINT causal_parent_fk2 REFERENCES causal(self_hash_id),
-  UNIQUE(causal_id, parent_id)
+  UNIQUE (causal_id, parent_id)
 );
 CREATE INDEX causal_parent_causal_id ON causal_parent(causal_id);
 CREATE INDEX causal_parent_parent_id ON causal_parent(parent_id);

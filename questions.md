@@ -11,11 +11,15 @@ next steps:
 - [x] Writing a branch
   - [x] `SqliteCodebase.Conversions.causalbranch1to2`
   - [x] `SqliteCodebase.putRootBranch`
-- [ ] Syncing a remote codebase
-  - [ ] `SqliteCodebase.syncFromDirectory`
-  - [ ] `SqliteCodebase.syncToDirectory`
+- [x] Syncing a remote codebase
+  - [x] `SqliteCodebase.syncFromDirectory`
+  - [x] `SqliteCodebase.syncToDirectory`
+    - [ ] do I need to initialize a sqlite codebase in the destination?
 - [ ] Managing external edit events?
   - [ ] `SqliteCodebase.rootBranchUpdates` Is there some Sqlite function for detecting external changes?
+  - https://www.sqlite.org/pragma.html#pragma_data_version
+  - https://user-images.githubusercontent.com/538571/111105100-8f0b4a80-8528-11eb-95f6-12bb906f315e.png
+- [ ] consider using `causal` table to detect if a causal exists, instead of causal_parent?
 
 
 what even are these:
