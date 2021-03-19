@@ -786,8 +786,15 @@ syncProgress :: MonadState SyncProgressState m => MonadIO m => Sync.Progress m S
 syncProgress = Sync.Progress need done allDone
   where
     maxTrackedHashCount = 1024 * 1024
+    size :: SyncProgressState -> Int
+    size = \case
+      SyncProgressState Nothing (Left i) -> i
+      SyncProgressState (Just need) (Right done) -> Set.size need + Set.size done
+      SyncProgressState _ _ -> undefined
+
     need, done :: (MonadState SyncProgressState m, MonadIO m) => Sync22.Entity -> m ()
     need h = do
+      Monad.whenM (fmap (>0) $ State.gets size) $ liftIO $ putStr "\n"
       State.get >>= \case
         SyncProgressState Nothing Left {} -> pure ()
         SyncProgressState (Just need) (Right done) ->
@@ -798,19 +805,20 @@ syncProgress = Sync.Progress need done allDone
                 then pure ()
                 else State.put $ SyncProgressState (Just $ Set.insert h need) (Right done)
         SyncProgressState _ _ -> undefined
-      State.get >>= liftIO . putStrLn . (\s -> "Synced " <> s <> " entities.") . renderState
+      State.get >>= liftIO . putStr . (\s -> "\rSynced " <> s <> " entities.") . renderState
 
     done h = do
+      Monad.whenM (fmap (>0) $ State.gets size) $ liftIO $ putStr "\n"
       State.get >>= \case
         SyncProgressState Nothing (Left count) ->
           State.put $ SyncProgressState Nothing (Left (count + 1))
         SyncProgressState (Just need) (Right done) ->
           State.put $ SyncProgressState (Just $ Set.delete h need) (Right $ Set.insert h done)
         SyncProgressState _ _ -> undefined
-      State.get >>= liftIO . putStrLn . (\s -> "Synced " <> s <> " entities.") . renderState
+      State.get >>= liftIO . putStr . (\s -> "\rSynced " <> s <> " entities.") . renderState
 
     allDone =
-      liftIO . putStrLn . (\s -> "Done syncing " <> s <> " entities.") . renderState =<< State.get
+      State.get >>= liftIO . putStrLn . (\s -> "\rDone syncing " <> s <> " entities.") . renderState
 
     renderState = \case
       SyncProgressState Nothing (Left doneCount) -> show doneCount

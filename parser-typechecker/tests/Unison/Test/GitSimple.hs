@@ -6,7 +6,6 @@ module Unison.Test.GitSimple where
 import Control.Lens (view, _1)
 import Data.String.Here (iTrim)
 import qualified Data.Text as Text
-import Data.Typeable (Typeable)
 import EasyTest
 import Shellmet ()
 import System.Directory (removeDirectoryRecursive)

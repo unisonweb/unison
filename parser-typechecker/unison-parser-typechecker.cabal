@@ -64,6 +64,8 @@ library
     Unison.Codebase.Causal
     Unison.Codebase.Classes
     Unison.Codebase.CodeLookup
+    Unison.Codebase.Conversion.Sync12
+    Unison.Codebase.Conversion.Sync12BranchDependencies
     Unison.Codebase.Editor.AuthorInfo
     Unison.Codebase.Editor.Command
     Unison.Codebase.Editor.DisplayObject
@@ -233,6 +235,7 @@ library
     memory,
     mmorph,
     monad-loops,
+    monad-validate,
     mtl,
     murmur-hash,
     mutable-containers,
