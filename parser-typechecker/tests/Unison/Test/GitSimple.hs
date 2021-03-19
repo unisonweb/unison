@@ -19,8 +19,8 @@ import Unison.Parser (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol)
 
-traceTranscriptOutput :: Bool
-traceTranscriptOutput = False
+writeTranscriptOutput :: Bool
+writeTranscriptOutput = False
 
 test :: Test ()
 test = scope "git-simple" . tests $ [
@@ -170,7 +170,7 @@ pushPullTest name authorScript userScript = scope name $ do
     closeAuthor
     closeUser
 
-    writeFile
+    when writeTranscriptOutput $ writeFile
       ("unison-src"</>"transcripts"</>("GitSimple." ++ name ++ ".output.md"))
       (authorOutput <> "\n-------\n" <> userOutput)
 

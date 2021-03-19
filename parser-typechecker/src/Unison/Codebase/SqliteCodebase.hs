@@ -10,7 +10,7 @@ module Unison.Codebase.SqliteCodebase where
 
 import qualified Control.Concurrent
 import qualified Control.Exception
-import Control.Monad (filterM, (>=>))
+import Control.Monad (filterM, when, (>=>))
 import Control.Monad.Except (ExceptT, runExceptT)
 import qualified Control.Monad.Except as Except
 import Control.Monad.Extra (ifM, unlessM)
@@ -88,8 +88,9 @@ import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirec
 import qualified UnliftIO.Environment as SysEnv
 import UnliftIO.STM
 
-debug :: Bool
+debug, debugProcessBranches :: Bool
 debug = False
+debugProcessBranches = False
 
 codebasePath :: FilePath
 codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
@@ -659,25 +660,34 @@ sqliteCodebase root = do
                     ExceptT Sync22.Error m ()
                   processBranches _ _ _ _ [] = pure ()
                   processBranches sync progress src dest (B h mb : rest) = do
+                    when debugProcessBranches $ traceM $ "processBranches B " ++ take 10 (show h)
                     ifM @(ExceptT Sync22.Error m)
                       (lift $ Codebase1.branchExists dest h)
-                      (processBranches sync progress src dest rest)
                       ( do
+                          when debugProcessBranches $ traceM "  already exists in dest db"
+                          processBranches sync progress src dest rest
+                      )
+                      ( do
+                          when debugProcessBranches $ traceM "  doesn't exist in dest db"
                           let h2 = CausalHash . Cv.hash1to2 $ Causal.unRawHash h
                           lift (flip runReaderT srcConn (Q.loadCausalHashIdByCausalHash h2)) >>= \case
                             Just chId -> do
+                              when debugProcessBranches $ traceM $ "  exists in source db, so delegating to direct sync"
                               r $ Sync.sync sync progress [Sync22.C chId]
                               processBranches sync progress src dest rest
-                            Nothing -> lift mb >>= \b -> do
-                              let (branchDeps, BD.to' -> BD.Dependencies' es ts ds) = BD.fromBranch b
-                              if null branchDeps && null es && null ts && null ds
-                                then lift $ Codebase1.putBranch dest b
-                                else
-                                  let bs = map (uncurry B) branchDeps
-                                      os = map O (es <> ts <> ds)
-                                   in processBranches @m sync progress src dest (os ++ bs ++ B h mb : rest)
+                            Nothing ->
+                              lift mb >>= \b -> do
+                                when debugProcessBranches $ traceM $ "  doesn't exist in either db, so delegating to Codebase.putBranch"
+                                let (branchDeps, BD.to' -> BD.Dependencies' es ts ds) = BD.fromBranch b
+                                if null branchDeps && null es && null ts && null ds
+                                  then lift $ Codebase1.putBranch dest b
+                                  else
+                                    let bs = map (uncurry B) branchDeps
+                                        os = map O (es <> ts <> ds)
+                                     in processBranches @m sync progress src dest (os ++ bs ++ B h mb : rest)
                       )
                   processBranches sync progress src dest (O h : rest) = do
+                    when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)
                     (runExceptT $ flip runReaderT srcConn (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)) >>= \case
                       Left e -> error $ show e
                       Right oId -> do

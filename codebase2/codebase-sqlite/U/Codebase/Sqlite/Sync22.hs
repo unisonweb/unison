@@ -9,6 +9,7 @@
 
 module U.Codebase.Sqlite.Sync22 where
 
+import Control.Monad (when)
 import Control.Monad.Except (ExceptT, MonadError (throwError))
 import qualified Control.Monad.Except as Except
 import Control.Monad.Extra (ifM)
@@ -31,6 +32,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Word (Word8)
 import Database.SQLite.Simple (Connection)
+import Debug.Trace (traceM)
 import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Sqlite.Branch.Format as BL
 import U.Codebase.Sqlite.DbId
@@ -81,6 +83,9 @@ data Env = Env
     -- | there are three caches of this size
     idCacheSize :: Word
   }
+
+debug :: Bool
+debug = False
 
 -- data Mappings
 sync22 ::
@@ -173,7 +178,9 @@ trySync' tCache hCache oCache cCache _gc e = case e of
                 Left s -> throwError $ DecodeError ErrTermComponent bytes s
             -- iterate through the local ids looking for missing deps;
             -- then either enqueue the missing deps, or proceed to move the object
+            when debug $ traceM $ "LocalIds for Source " ++ show oId ++ ": " ++ show localIds
             localIds' <- traverse syncLocalIds localIds
+            when debug $ traceM $ "LocalIds for Dest: " ++ show localIds'
             -- reassemble and save the reindexed term
             let bytes' =
                   runPutS $
@@ -192,6 +199,8 @@ trySync' tCache hCache oCache cCache _gc e = case e of
                       Left s -> throwError $ DecodeError ErrWatchResult blob s
                   tIds' <- traverse syncTextLiteral tIds
                   hIds' <- traverse syncHashLiteral hIds
+                  when debug $ traceM $ "LocalIds for Source watch result " ++ show refH ++ ": " ++ show (tIds, hIds)
+                  when debug $ traceM $ "LocalIds for Dest watch result " ++ show refH' ++ ": " ++ show (tIds', hIds')
                   let blob' = runPutS (S.recomposeWatchResult (L.LocalIds tIds' hIds', termBytes))
                   runDest (Q.saveWatch wk refH' blob')
               -- sync dependencies index
@@ -296,6 +305,7 @@ trySync' tCache hCache oCache cCache _gc e = case e of
           Left deps -> pure . Sync.Missing $ toList deps
           Right oId' -> do
             syncSecondaryHashes oId oId'
+            when debug $ traceM $ "Source " ++ show (hId, oId) ++ " becomes Dest " ++ show (hId', oId')
             Cache.insert oCache oId oId'
             pure Sync.Done
   where
@@ -342,12 +352,16 @@ trySync' tCache hCache oCache cCache _gc e = case e of
     syncTextLiteral :: TextId -> m TextId
     syncTextLiteral = Cache.apply tCache \tId -> do
       t <- runSrc $ Q.loadTextById tId
-      runDest $ Q.saveText t
+      tId' <- runDest $ Q.saveText t
+      when debug $ traceM $ "Source " ++ show tId ++ " is Dest " ++ show tId' ++ " (" ++ show t ++ ")"
+      pure tId'
 
     syncHashLiteral :: HashId -> m HashId
     syncHashLiteral = Cache.apply hCache \hId -> do
       b32hex <- runSrc $ Q.loadHashById hId
-      runDest $ Q.saveHash b32hex
+      hId' <- runDest $ Q.saveHash b32hex
+      when debug $ traceM $ "Source " ++ show hId ++ " is Dest " ++ show hId' ++ " (" ++ show b32hex ++ ")"
+      pure hId'
 
     isSyncedObjectReference :: Sqlite.Reference -> m (Maybe Sqlite.Reference)
     isSyncedObjectReference = \case
@@ -374,7 +388,6 @@ trySync' tCache hCache oCache cCache _gc e = case e of
       srcParents <- runSrc $ Q.loadCausalParents chId
       traverse syncCausal srcParents
 
-
     syncSecondaryHashes oId oId' =
       runSrc (Q.hashIdWithVersionForObject oId) >>= traverse_ (go oId')
       where
@@ -391,6 +404,7 @@ trySync' tCache hCache oCache cCache _gc e = case e of
         )
         >>= \case
           [oId'] -> do
+            when debug $ traceM $ "Source " ++ show oId ++ " is Dest " ++ show oId'
             pure $ Just oId'
           [] -> pure $ Nothing
           oIds' -> throwError (HashObjectCorrespondence oId hIds hIds' oIds')
