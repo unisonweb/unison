@@ -148,7 +148,7 @@ start
   :: Var v => Codebase IO v Ann -> (Strict.ByteString -> Port -> IO ()) -> IO ()
 start codebase k = do
   envToken <- lookupEnv "UCM_TOKEN"
-  envHost <- lookupEnv "UCM_BIND"
+  envHost <- lookupEnv "UCM_HOST"
   envPort <- (readMaybe =<<) <$> lookupEnv "UCM_PORT"
   token <- case envToken of
     Just t -> return $ C8.pack t
