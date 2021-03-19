@@ -19,7 +19,7 @@ import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.State (MonadState)
 import qualified Control.Monad.State as State
 import Control.Monad.Trans (MonadTrans (lift))
-import Control.Monad.Trans.Maybe (MaybeT)
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (first), second)
 import qualified Data.Either.Combinators as Either
 import Data.Foldable (Foldable (toList), traverse_)
@@ -57,6 +57,7 @@ import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
+import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
@@ -68,7 +69,7 @@ import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as Decl
 import Unison.Hash (Hash)
 import Unison.Parser (Ann)
-import Unison.Prelude (MaybeT (runMaybeT), fromMaybe, trace, traceM)
+import Unison.Prelude (MaybeT (runMaybeT), fromMaybe, trace, traceM, isJust)
 import qualified Unison.PrettyTerminal as PT
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -487,6 +488,20 @@ sqliteCodebase root = do
                 Nothing -> pure False
                 Just hId -> Q.isCausalHash hId
 
+          getPatch :: MonadIO m => Branch.EditHash -> m (Maybe Patch)
+          getPatch h = runDB conn . runMaybeT $
+            MaybeT (Ops.primaryHashToMaybePatchObjectId (Cv.patchHash1to2 h))
+              >>= Ops.loadPatchById
+              >>= Cv.patch2to1 getCycleLen
+
+          putPatch :: MonadIO m => Branch.EditHash -> Patch -> m ()
+          putPatch h p = runDB conn . void $
+            Ops.savePatch (Cv.patchHash1to2 h) (Cv.patch1to2 p)
+
+          patchExists :: MonadIO m => Branch.EditHash -> m Bool
+          patchExists h = runDB conn . fmap isJust $
+            Ops.primaryHashToMaybePatchObjectId (Cv.patchHash1to2 h)
+
           dependentsImpl :: MonadIO m => Reference -> m (Set Reference.Id)
           dependentsImpl r =
             runDB conn $
@@ -743,6 +758,9 @@ sqliteCodebase root = do
             getBranchForHash
             putBranch
             isCausalHash
+            getPatch
+            putPatch
+            patchExists
             dependentsImpl
             syncFromDirectory
             syncToDirectory
@@ -794,7 +812,7 @@ syncProgress = Sync.Progress need done allDone
 
     need, done :: (MonadState SyncProgressState m, MonadIO m) => Sync22.Entity -> m ()
     need h = do
-      Monad.whenM (fmap (>0) $ State.gets size) $ liftIO $ putStr "\n"
+      Monad.whenM (fmap (> 0) $ State.gets size) $ liftIO $ putStr "\n"
       State.get >>= \case
         SyncProgressState Nothing Left {} -> pure ()
         SyncProgressState (Just need) (Right done) ->
@@ -808,7 +826,7 @@ syncProgress = Sync.Progress need done allDone
       State.get >>= liftIO . putStr . (\s -> "\rSynced " <> s <> " entities.") . renderState
 
     done h = do
-      Monad.whenM (fmap (>0) $ State.gets size) $ liftIO $ putStr "\n"
+      Monad.whenM (fmap (> 0) $ State.gets size) $ liftIO $ putStr "\n"
       State.get >>= \case
         SyncProgressState Nothing (Left count) ->
           State.put $ SyncProgressState Nothing (Left (count + 1))

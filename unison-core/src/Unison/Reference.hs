@@ -54,6 +54,7 @@ data Reference
   -- Using an ugly name so no one tempted to use this
   | DerivedId Id deriving (Eq,Ord,Generic)
 
+pattern Derived :: H.Hash -> Pos -> Size -> Reference
 pattern Derived h i n = DerivedId (Id h i n)
 
 -- A good idea, but causes a weird problem with view patterns in PatternP.hs in ghc 8.4.3

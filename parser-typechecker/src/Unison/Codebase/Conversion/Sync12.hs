@@ -35,9 +35,11 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Conversion.Sync12BranchDependencies as BD
+import Unison.Codebase.Patch (Patch (..))
 import Unison.DataDeclaration (DataDeclaration, Decl)
 import qualified Unison.DataDeclaration as DD
 import Unison.Hash (Hash)
+import qualified Unison.Hashable as H
 import qualified Unison.LabeledDependency as LD
 import Unison.Prelude (Set, Word64, ifM, (<&>))
 import qualified Unison.Reference as Reference
@@ -46,6 +48,9 @@ import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
+import qualified Unison.Util.Relation as Relation
+import qualified Unison.Codebase.TermEdit as TermEdit
+import qualified Unison.Codebase.TypeEdit as TypeEdit
 
 data Env m = Env
   { srcCodebase :: Codebase m Symbol (),
@@ -79,6 +84,7 @@ instance Ord (Entity m) where compare x y = compare (toEntity' x) (toEntity' y)
 
 data BranchStatus
   = BranchOk
+  | BranchMissing
   | BranchReplaced Branch.Hash
 
 data TermStatus
@@ -95,7 +101,7 @@ data DeclStatus
 data PatchStatus
   = PatchOk
   | PatchMissing
-  | PatchMissingDependencies
+  | PatchReplaced Branch.EditHash
 
 data Status = Status
   { _branchStatus :: Map Branch.Hash BranchStatus,
@@ -135,7 +141,7 @@ trySync _gc e = do
         False -> do
           result <- runValidateT @(Set (Entity m)) @m @() do
             b <- lift mb
-            (h', b') <- repair b
+            (h', b') <- repairBranch b
             setBranchStatus h h'
             lift $ Codebase.putBranch dest b'
           case result of
@@ -176,19 +182,21 @@ trySync _gc e = do
           result <- runValidateT do
             runExceptT (checkPatch h) >>= \case
               Left status -> setPatchStatus h status
-              Right patch -> do
+              Right (h', patch) -> do
                 lift $ Codebase.putPatch dest h patch
-                setPatchStatus h patchOk
+                setPatchStatus h PatchOk
           case result of
-            Left deps -> pure . Sync.Missing $ foldable.toList deps
+            Left deps -> pure . Sync.Missing $ Foldable.toList deps
             Right () -> pure Sync.Done
   where
     isSyncedCausal :: Branch.Hash -> m Bool
     isSyncedCausal = undefined
     getTermStatus h = use (termStatus . at h)
     getDeclStatus h = use (declStatus . at h)
+    getPatchStatus h = use (patchStatus . at h)
     setTermStatus h s = termStatus . at h .= Just s
     setDeclStatus h s = declStatus . at h .= Just s
+    setPatchStatus h s = patchStatus . at h .= Just s
     setBranchStatus :: forall m. MonadState Status m => Branch.Hash -> Branch.Hash -> m ()
     setBranchStatus h h' =
       if h == h'
@@ -200,13 +208,15 @@ trySync _gc e = do
       (MonadState Status m, MonadReader (Env m) m) =>
       Hash ->
       Reference.Size ->
-      ExceptT TermStatus (ValidateT (Set (Entity m)) m) [(Term Symbol (), Type Symbol ())]
+      EVT TermStatus m [(Term Symbol (), Type Symbol ())]
     checkTermComponent h n = do
       Env src _ _ <- Reader.ask
       for [Reference.Id h i n | i <- [0 .. n -1]] \r -> do
         term <- lift . lift $ Codebase.getTerm src r
         typ <- lift . lift $ Codebase.getTypeOfTermImpl src r
         case (term, typ) of
+          (Nothing, _) -> Except.throwError TermMissing
+          (_, Nothing) -> Except.throwError TermMissingType
           (Just term, Just typ) -> do
             let termDeps = Term.labeledDependencies term
                 typeDeps = Type.dependencies typ
@@ -227,20 +237,19 @@ trySync _gc e = do
             traverse_ (bitraverse_ checkDecl checkTerm . LD.toReference) termDeps
             traverse_ checkDecl typeDeps
             pure (term, typ)
-          (Nothing, _) -> Except.throwError TermMissing
-          (_, Nothing) -> Except.throwError TermMissingType
 
     checkDeclComponent ::
       forall m.
       (MonadState Status m, MonadReader (Env m) m) =>
       Hash ->
       Reference.Size ->
-      ExceptT DeclStatus (ValidateT (Set (Entity m)) m) [Decl Symbol ()]
+      EVT DeclStatus m [Decl Symbol ()]
     checkDeclComponent h n = do
       Env src _ _ <- Reader.ask
       for [Reference.Id h i n | i <- [0 .. n -1]] \r -> do
         decl <- lift . lift $ Codebase.getTypeDeclaration src r
         case decl of
+          Nothing -> Except.throwError DeclMissing
           Just decl -> do
             let deps = DD.declDependencies decl
                 checkDecl = \case
@@ -252,11 +261,53 @@ trySync _gc e = do
                       Nothing -> Validate.dispute . Set.singleton $ D h' n'
             traverse_ checkDecl deps
             pure decl
-          Nothing -> Except.throwError DeclMissing
+
+    checkPatch ::
+      forall m.
+      (MonadState Status m, MonadReader (Env m) m) =>
+      Branch.EditHash ->
+      EVT PatchStatus m (Branch.EditHash, Patch)
+    checkPatch h = do
+      Env src _ _ <- Reader.ask
+      (lift . lift $ Codebase.getPatch src h) >>= \case
+        Nothing -> Except.throwError PatchMissing
+        Just patch -> do
+          (h', patch) <- lift $ repairPatch patch
+          if h == h'
+            then setPatchStatus h PatchOk
+            else setPatchStatus h (PatchReplaced h')
+          pure (h', patch)
 
 
-repair :: Branch m -> ValidateT (Set (Entity m)) m (Branch.Hash, Branch m)
-repair = error "not implemented"
+    repairBranch :: Branch m -> ValidateT (Set (Entity m)) m (Branch.Hash, Branch m)
+    repairBranch = error "not implemented"
+
+    repairPatch ::forall m. MonadState Status m =>
+      Patch -> ValidateT (Set (Entity m)) m (Branch.EditHash, Patch)
+    repairPatch (Patch termEdits typeEdits) = do
+      termEdits' <- Relation.filterM (uncurry filterTermEdit) termEdits
+      typeEdits' <- Relation.filterM (uncurry filterTypeEdit) typeEdits
+      let patch = Patch termEdits' typeEdits'
+      pure (H.accumulate' patch, patch)
+      where
+        filterTermEdit _ = \case
+          TermEdit.Deprecate -> pure True
+          TermEdit.Replace (Reference.Builtin _) _ -> pure True
+          TermEdit.Replace (Reference.DerivedId (Reference.Id h _ n)) _ ->
+            getTermStatus h >>= \case
+              Nothing -> Validate.refute (Set.singleton $ T h n)
+              Just TermOk -> pure True
+              Just _ -> pure False
+        filterTypeEdit _ = \case
+          TypeEdit.Deprecate -> pure True
+          TypeEdit.Replace (Reference.Builtin _) -> pure True
+          TypeEdit.Replace (Reference.DerivedId (Reference.Id h _ n)) ->
+            getDeclStatus h >>= \case
+              Nothing -> Validate.refute (Set.singleton $ D h n)
+              Just DeclOk -> pure True
+              Just _ -> pure False
+
+type EVT e m = ExceptT e (ValidateT (Set (Entity m)) m)
 
 runSrc, runDest :: MonadReader (Env m) m => (Codebase m Symbol () -> a) -> m a
 runSrc = (Reader.reader srcCodebase <&>)

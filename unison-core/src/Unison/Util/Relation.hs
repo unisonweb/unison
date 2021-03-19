@@ -4,12 +4,13 @@ module Unison.Util.Relation where
 import Unison.Prelude hiding (empty, toList)
 
 import           Prelude                 hiding ( null, map, filter )
-import           Data.Bifunctor                 ( first, second )
+import           Data.Bifunctor                 ( first, second, Bifunctor )
 import qualified Data.List                     as List
 import qualified Data.Map                      as M
 import qualified Data.Set                      as S
 import qualified Data.Map                      as Map
 import qualified Unison.Hashable               as H
+import qualified Control.Monad as Monad
 
 -- |
 -- This implementation avoids using @"Set (a,b)"@ because
@@ -231,6 +232,9 @@ filterRan f r = r |> S.filter f (ran r)
 
 filter :: (Ord a, Ord b) => ((a, b) -> Bool) -> Relation a b -> Relation a b
 filter f = fromList . List.filter f . toList
+
+filterM :: (Applicative m, Ord a, Ord b) => ((a, b) -> m Bool) -> Relation a b -> m (Relation a b)
+filterM f = fmap fromList . Monad.filterM f . toList
 
 -- | Restricts the relation to domain elements having multiple range elements
 filterManyDom :: (Ord a, Ord b) => Relation a b -> Relation a b
@@ -476,6 +480,10 @@ swap (Relation a b) = Relation b a
 bimap :: (Ord a, Ord b, Ord c, Ord d)
       => (a -> c) -> (b -> d) -> Relation a b -> Relation c d
 bimap f g = fromList . fmap (\(a,b) -> (f a, g b)) . toList
+
+bitraverse :: (Applicative f, Ord a, Ord b, Ord c, Ord d)
+   => (a -> f c) -> (b -> f d) -> Relation a b -> f (Relation c d)
+bitraverse f g = fmap fromList . traverse (\(a,b) -> (,) <$> f a <*> g b) . toList
 
 instance (Ord a, Ord b) => Monoid (Relation a b) where
   mempty = empty

@@ -37,6 +37,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.ShortHash (ShortHash)
+import Unison.Codebase.Patch (Patch)
 
 type DataDeclaration v a = DD.DataDeclaration v a
 type EffectDeclaration v a = DD.EffectDeclaration v a
@@ -61,6 +62,10 @@ data Codebase m v a =
            , getBranchForHash   :: Branch.Hash -> m (Maybe (Branch m))
            , putBranch          :: Branch m -> m ()
            , branchExists       :: Branch.Hash -> m Bool
+
+           , getPatch           :: Branch.EditHash -> m (Maybe Patch)
+           , putPatch           :: Branch.EditHash -> Patch -> m ()
+           , patchExists        :: Branch.EditHash -> m Bool
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
            -- This copies all the dependencies of `b` from the specified

@@ -96,7 +96,7 @@ import Unison.Codebase.FileCodebase.Common
   , typeReferencesByPrefix
   ---
   , failWith
-  , listDirectory
+  , listDirectory, getPatch, serializeEdits, patchExists
   )
 
 import qualified Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex as Sync
@@ -190,6 +190,9 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
           (branchFromFiles branchCache path)
           (putBranch path)
           (hashExists path)
+          (getPatch path)
+          (\h p -> serializeEdits path h (pure p))
+          (patchExists path)
           dependents
           (flip (syncToDirectory fmtV fmtA) path)
           (syncToDirectory fmtV fmtA path)

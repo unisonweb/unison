@@ -44,6 +44,8 @@ module Unison.Codebase.FileCodebase.Common
   , serializeRawBranch
   , branchFromFiles
   , putBranch
+  , getPatch
+  , patchExists
   , branchHashesByPrefix
   , termReferencesByPrefix
   , termReferentsByPrefix
@@ -310,6 +312,13 @@ deserializeEdits root h =
     Left  err   -> failWith $ InvalidEditsFile file err
     Right edits -> pure edits
 
+getPatch :: MonadIO m => CodebasePath -> Branch.EditHash -> m (Maybe Patch)
+getPatch root h =
+  let file = editsPath root h
+  in S.getFromFile' V1.getEdits file >>= \case
+    Left  _err   -> pure Nothing
+    Right edits -> pure (Just edits)
+
 getRootBranch :: forall m.
   MonadIO m => Branch.Cache m -> CodebasePath -> m (Either Codebase.GetRootBranchError (Branch m))
 getRootBranch cache root = time "FileCodebase.Common.getRootBranch" $
@@ -353,10 +362,13 @@ serializeRawBranch
 serializeRawBranch root h =
   S.putWithParentDirs (V1.putRawCausal V1.putRawBranch) (branchPath root h)
 
+patchExists :: MonadIO m => CodebasePath -> Branch.EditHash -> m Bool
+patchExists root h = doesFileExist (editsPath root h)
+
 serializeEdits
   :: MonadIO m => CodebasePath -> Branch.EditHash -> m Patch -> m ()
 serializeEdits root h medits =
-  unlessM (doesFileExist (editsPath root h)) $ do
+  unlessM (patchExists root h) $ do
     edits <- medits
     S.putWithParentDirs V1.putEdits (editsPath root h) edits
 
