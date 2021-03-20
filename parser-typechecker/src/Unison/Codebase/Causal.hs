@@ -295,8 +295,10 @@ one :: Hashable e => e -> Causal m h e
 one e = One (RawHash $ hash e) e
 
 cons :: (Applicative m, Hashable e) => e -> Causal m h e -> Causal m h e
-cons e tl =
-  Cons (RawHash $ hash [hash e, unRawHash . currentHash $ tl]) e (currentHash tl, pure tl)
+cons e tl = cons' e (currentHash tl) (pure tl)
+
+cons' :: Hashable e => e -> RawHash h -> m (Causal m h e) -> Causal m h e
+cons' e ht mt = Cons (RawHash $ hash [hash e, unRawHash ht]) e (ht, mt)
 
 consDistinct :: (Applicative m, Eq e, Hashable e) => e -> Causal m h e -> Causal m h e
 consDistinct e tl =

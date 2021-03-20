@@ -20,7 +20,7 @@ import Control.Monad.State (MonadState)
 import qualified Control.Monad.State as State
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
-import Data.Bifunctor (Bifunctor (first), second)
+import Data.Bifunctor (Bifunctor (first, bimap), second)
 import qualified Data.Either.Combinators as Either
 import Data.Foldable (Foldable (toList), traverse_)
 import Data.Functor (void)
@@ -794,52 +794,70 @@ data Entity m
 
 data SyncProgressState = SyncProgressState
   { needEntities :: Maybe (Set Sync22.Entity),
-    doneEntities :: Either Int (Set Sync22.Entity)
+    doneEntities :: Either Int (Set Sync22.Entity),
+    warnEntities :: Either Int (Set Sync22.Entity)
   }
 
 emptySyncProgressState :: SyncProgressState
-emptySyncProgressState = SyncProgressState (Just mempty) (Right mempty)
+emptySyncProgressState = SyncProgressState (Just mempty) (Right mempty) (Right mempty)
 
 syncProgress :: MonadState SyncProgressState m => MonadIO m => Sync.Progress m Sync22.Entity
-syncProgress = Sync.Progress need done allDone
+syncProgress = Sync.Progress need done warn allDone
   where
     maxTrackedHashCount = 1024 * 1024
     size :: SyncProgressState -> Int
     size = \case
-      SyncProgressState Nothing (Left i) -> i
-      SyncProgressState (Just need) (Right done) -> Set.size need + Set.size done
-      SyncProgressState _ _ -> undefined
+      SyncProgressState Nothing (Left i) (Left j) -> i + j
+      SyncProgressState (Just need) (Right done) (Right warn) -> Set.size need + Set.size done + Set.size warn
+      SyncProgressState _ _ _ -> undefined
 
-    need, done :: (MonadState SyncProgressState m, MonadIO m) => Sync22.Entity -> m ()
+    need, done, warn :: (MonadState SyncProgressState m, MonadIO m) => Sync22.Entity -> m ()
     need h = do
       Monad.whenM (fmap (> 0) $ State.gets size) $ liftIO $ putStr "\n"
       State.get >>= \case
-        SyncProgressState Nothing Left {} -> pure ()
-        SyncProgressState (Just need) (Right done) ->
-          if Set.size need + Set.size done > maxTrackedHashCount
-            then State.put $ SyncProgressState Nothing (Left $ Set.size done)
+        SyncProgressState Nothing Left {} Left {} -> pure ()
+        SyncProgressState (Just need) (Right done) (Right warn) ->
+          if Set.size need + Set.size done + Set.size warn > maxTrackedHashCount
+            then State.put $ SyncProgressState Nothing (Left $ Set.size done) (Left $ Set.size warn)
             else
-              if Set.member h done
+              if Set.member h done || Set.member h warn
                 then pure ()
-                else State.put $ SyncProgressState (Just $ Set.insert h need) (Right done)
-        SyncProgressState _ _ -> undefined
-      State.get >>= liftIO . putStr . (\s -> "\rSynced " <> s <> " entities.") . renderState
+                else State.put $ SyncProgressState (Just $ Set.insert h need) (Right done) (Right warn)
+        SyncProgressState _ _ _ -> undefined
+      State.get >>= liftIO . putStr . renderState ("Synced ")
 
     done h = do
       Monad.whenM (fmap (> 0) $ State.gets size) $ liftIO $ putStr "\n"
       State.get >>= \case
-        SyncProgressState Nothing (Left count) ->
-          State.put $ SyncProgressState Nothing (Left (count + 1))
-        SyncProgressState (Just need) (Right done) ->
-          State.put $ SyncProgressState (Just $ Set.delete h need) (Right $ Set.insert h done)
-        SyncProgressState _ _ -> undefined
-      State.get >>= liftIO . putStr . (\s -> "\rSynced " <> s <> " entities.") . renderState
+        SyncProgressState Nothing (Left done) warn ->
+          State.put $ SyncProgressState Nothing (Left (done + 1)) warn
+        SyncProgressState (Just need) (Right done) warn ->
+          State.put $ SyncProgressState (Just $ Set.delete h need) (Right $ Set.insert h done) warn
+        SyncProgressState _ _ _ -> undefined
+      State.get >>= liftIO . putStr . renderState ("Synced ")
+
+    warn h = do
+      Monad.whenM (fmap (> 0) $ State.gets size) $ liftIO $ putStr "\n"
+      State.get >>= \case
+        SyncProgressState Nothing done (Left warn) ->
+          State.put $ SyncProgressState Nothing done (Left $ warn + 1)
+        SyncProgressState (Just need) done (Right warn) ->
+          State.put $ SyncProgressState (Just $ Set.delete h need) done (Right $ Set.insert h warn)
+        SyncProgressState _ _ _ -> undefined
+      State.get >>= liftIO . putStr . renderState ("Synced ")
 
     allDone =
-      State.get >>= liftIO . putStrLn . (\s -> "\rDone syncing " <> s <> " entities.") . renderState
+      State.get >>= liftIO . putStr . renderState ("Done syncing ")
 
-    renderState = \case
-      SyncProgressState Nothing (Left doneCount) -> show doneCount
-      SyncProgressState (Just need) (Right done) -> show (Set.size done) ++ "/" ++ show (Set.size done + Set.size need)
-      SyncProgressState Nothing Right {} -> "(invalid SyncProgressState Nothing Right{})"
-      SyncProgressState Just {} Left {} -> "(invalid SyncProgressState Just{} Left{})"
+    renderState prefix = \case
+      SyncProgressState Nothing (Left done) (Left warn) ->
+        "\r" ++ prefix ++ show done ++ " entities" ++ if warn > 0 then " with " ++ show warn ++ " warnings." else "."
+      SyncProgressState (Just need) (Right done) (Right warn) ->
+        "\r" ++ prefix ++ show (Set.size done) ++ "/" ++ show (Set.size done + Set.size need + Set.size warn)
+          ++ " entities"
+          ++ if Set.size warn > 0
+            then " with " ++ show warn ++ " warnings."
+            else "."
+      SyncProgressState need done warn -> "invalid SyncProgressState " ++
+        show (fmap v need, bimap id v done, bimap id v warn)
+      where v = const ()
