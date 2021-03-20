@@ -5,28 +5,24 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ApplicativeDo #-}
 
 module Unison.Codebase.Conversion.Sync12 where
 
 import Control.Lens
 import Control.Monad.Except (MonadError, runExceptT)
 import qualified Control.Monad.Except as Except
-import Control.Monad.RWS (MonadRWS)
 import Control.Monad.Reader
 import qualified Control.Monad.Reader as Reader
 import Control.Monad.State (MonadState)
-import qualified Control.Monad.State as State
-import Control.Monad.Trans.Except (ExceptT)
-import Control.Monad.Validate (MonadValidate, ValidateT, runValidateT)
+import Control.Monad.Validate (MonadValidate, runValidateT)
 import qualified Control.Monad.Validate as Validate
-import Control.Monad.Writer
 import Control.Natural (type (~>))
 import Data.Bifoldable (bitraverse_)
 import Data.Foldable (traverse_)
 import qualified Data.Foldable as Foldable
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Sequence (Seq)
 import qualified Data.Set as Set
 import Data.Traversable (for)
 import Database.SQLite.Simple (Connection)
@@ -36,19 +32,18 @@ import U.Codebase.Sync (Sync (Sync), TrySyncResult)
 import qualified U.Codebase.Sync as Sync
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Branch (Branch, UnwrappedBranch)
+import Unison.Codebase.Branch (UnwrappedBranch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
-import qualified Unison.Codebase.Conversion.Sync12BranchDependencies as BD
 import Unison.Codebase.Patch (Patch (..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TypeEdit as TypeEdit
-import Unison.DataDeclaration (DataDeclaration, Decl)
+import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
 import Unison.Hash (Hash)
 import qualified Unison.Hashable as H
 import qualified Unison.LabeledDependency as LD
-import Unison.Prelude (Set, Word64, ifM, (<&>))
+import Unison.Prelude (Set)
 import qualified Unison.Reference as Reference
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
