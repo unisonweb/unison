@@ -20,27 +20,32 @@ import           Data.List
 
 import System.Environment (getArgs)
 
+data TestConfig = TestConfig
+  { useNewRuntime  :: Bool
+  , matchPrefix    :: Maybe String
+  } deriving Show
+
 type TestBuilder = FilePath -> FilePath -> [String] -> String -> Test ()
 
 testBuilder
-  :: Bool -> FilePath -> FilePath -> [String] -> String -> Test ()
-testBuilder new ucm dir prelude transcript = scope transcript $ do
+  :: TestConfig -> FilePath -> FilePath -> [String] -> String -> Test ()
+testBuilder config ucm dir prelude transcript = scope transcript $ do
   io $ fromString ucm args
   ok
   where
     files = fmap (pack . (dir </>)) (prelude ++ [transcript])
-    args | new = ["--new-runtime", "transcript"] ++ files
+    args | useNewRuntime config = ["--new-runtime", "transcript"] ++ files
          | otherwise = ["transcript"] ++ files
 
 testBuilder'
-  :: Bool -> FilePath -> FilePath -> [String] -> String -> Test ()
-testBuilder' new ucm dir prelude transcript = scope transcript $ do
+  :: TestConfig -> FilePath -> FilePath -> [String] -> String -> Test ()
+testBuilder' config ucm dir prelude transcript = scope transcript $ do
   let output = dir </> takeBaseName transcript <> ".output.md"
   io $ runAndCaptureError ucm args output
   ok
   where
     files = fmap (pack . (dir </>)) (prelude ++ [transcript])
-    args | new = ["--new-runtime", "transcript"] ++ files
+    args | useNewRuntime config = ["--new-runtime", "transcript"] ++ files
          | otherwise = ["transcript"] ++ files
     -- Given a command and arguments, run it and capture the standard error to a file
     -- regardless of success or failure.
@@ -55,8 +60,8 @@ testBuilder' new ucm dir prelude transcript = scope transcript $ do
     dropRunMessage = unlines . reverse . drop 3 . reverse . lines
 
 
-buildTests :: TestBuilder -> FilePath -> Test ()
-buildTests testBuilder dir = do
+buildTests :: TestConfig -> TestBuilder -> FilePath -> Test ()
+buildTests config testBuilder dir = do
   io
      . putStrLn
      . unlines
@@ -69,10 +74,17 @@ buildTests testBuilder dir = do
     (prelude, transcripts) =
       partition ((isPrefixOf "_") . snd . splitFileName)
       . sort
+        -- if there is a matchPrefix set, check for a prefix match - or return True
+      . filter (\f -> maybe True (`isPrefixOf` f) (matchPrefix config))
       . filter (\f -> takeExtensions f == ".md") $ files
 
   ucm <- io $ unpack <$> "stack" $| ["exec", "--", "which", "unison"] -- todo: what is it in windows?
-  tests (testBuilder ucm dir prelude <$> transcripts)
+  case length transcripts of
+    0 -> pure ()  -- EasyTest exits early with "no test results recorded"
+                  -- if you don't give it any tests, this keeps it going
+                  -- till the end so we can search all transcripts for
+                  -- prefix matches.
+    _ -> tests (testBuilder ucm dir prelude <$> transcripts)
 
 -- Transcripts that exit successfully get cleaned-up by the transcript parser.
 -- Any remaining folders matching "transcript-.*" are output directories
@@ -94,19 +106,30 @@ cleanup = do
         , "the `test-output` directory. Feel free to delete it."
         ]
 
-test :: Bool -> Test ()
-test new = do
-  buildTests (testBuilder new) $ "unison-src" </> "transcripts"
-  buildTests (testBuilder True)
+test :: TestConfig -> Test ()
+test config = do
+  buildTests config (testBuilder config)
+    $ "unison-src" </> "transcripts"
+  buildTests config (testBuilder (config { useNewRuntime = True }))
     $ "unison-src" </> "new-runtime-transcripts"
-  buildTests (testBuilder False)
+  buildTests config (testBuilder (config { useNewRuntime = False }))
     $ "unison-src" </> "old-runtime-transcripts"
-  buildTests (testBuilder' new)
+  buildTests config (testBuilder' config)
     $ "unison-src" </> "transcripts" </> "errors"
   cleanup
 
+handleArgs :: [String] -> TestConfig
+handleArgs args =
+  let
+    (useNewRuntime, remainingArgs) =
+      ("--new-runtime" `elem` args, delete "--new-runtime" args)
+    matchPrefix = case remainingArgs of
+      [prefix] -> Just prefix
+      _        -> Nothing
+  in
+    TestConfig useNewRuntime matchPrefix
+
 main :: IO ()
-main =
-  getArgs >>= \case
-    "--new-runtime" : _ -> run (test True)
-    _ -> run (test False)
+main = do
+  testConfig <- handleArgs <$> getArgs
+  run (test testConfig)

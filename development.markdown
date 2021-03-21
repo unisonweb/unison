@@ -11,8 +11,12 @@ To get cracking with Unison:
 * [Install `stack`](https://docs.haskellstack.org/en/stable/README/#how-to-install).
 * Build the project with `stack build`. This builds all executables.
 * After building, `stack exec unison` will fire up the codebase editor, create a codebase in the current directory, and watch for `.u` file changes.  If you want to run it in a different directory, just add `unison` to your `PATH`, after finding it with `find .stack-work -name unison -type f`.  (For me, this finds two, they both work, but have different contents.  ¯\\\_(ツ)\_/¯ )
+
+## Running Tests
+
 * `stack exec tests` runs the tests
 * `stack exec transcripts` runs all the integration tests, found in `unison-src/transcripts`. You can add more tests to this directory.
+* `stack exec tests -- prefix-of-test` and `stack exec transcripts -- prefix-of-test` only run tests with a matching prefix.
 
 ### What if you want a profiled build?
 
