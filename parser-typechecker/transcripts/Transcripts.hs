@@ -79,7 +79,12 @@ buildTests config testBuilder dir = do
       . filter (\f -> takeExtensions f == ".md") $ files
 
   ucm <- io $ unpack <$> "stack" $| ["exec", "--", "which", "unison"] -- todo: what is it in windows?
-  tests (testBuilder ucm dir prelude <$> transcripts)
+  case length transcripts of
+    0 -> pure ()  -- EasyTest exits early with "no test results recorded"
+                  -- if you don't give it any tests, this keeps it going
+                  -- till the end so we can search all transcripts for
+                  -- prefix matches.
+    _ -> tests (testBuilder ucm dir prelude <$> transcripts)
 
 -- Transcripts that exit successfully get cleaned-up by the transcript parser.
 -- Any remaining folders matching "transcript-.*" are output directories
