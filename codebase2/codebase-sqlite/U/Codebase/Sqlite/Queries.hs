@@ -30,7 +30,7 @@ import Data.Functor ((<&>))
 import qualified Data.List.Extra as List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
-import Data.Maybe (fromJust, isJust)
+import Data.Maybe (fromJust, isJust, fromMaybe)
 import Data.String (fromString)
 import Data.String.Here.Uninterpolated (here, hereFile)
 import Data.Text (Text)
@@ -51,7 +51,7 @@ import qualified U.Codebase.WatchKind as WatchKind
 import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
-import UnliftIO (MonadUnliftIO, throwIO, try, withRunInIO)
+import UnliftIO (MonadUnliftIO, throwIO, try, withRunInIO, tryAny)
 
 -- * types
 
@@ -312,7 +312,7 @@ saveCausal self value = execute sql (self, value, Generation 0) where sql = [her
 getNurseryGeneration :: DB m => m Generation
 getNurseryGeneration = query_ sql <&> \case
   [] -> Generation 0
-  [fromOnly -> g] -> Generation g
+  [fromOnly -> g] -> Generation $ fromMaybe 0 g
   (fmap fromOnly -> gs) ->
     error $ "How did I get multiple values out of a MAX()? " ++ show gs
   where sql = [here|
@@ -635,7 +635,7 @@ queryTrace_ :: (MonadUnliftIO m, Show a) => String -> SQLite.Query -> m a -> m a
 queryTrace_ title query m =
   if debugQuery || alwaysTraceOnCrash
     then
-      try @_ @SQLite.SQLError m >>= \case
+      tryAny @_ m >>= \case
         Right a -> do
           when debugQuery . traceM $ title ++ " " ++ show query ++ "\n output: " ++ show a
           pure a
