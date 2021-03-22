@@ -38,7 +38,7 @@ import Database.SQLite.Simple (Connection, FromRow, Only (..), SQLData, ToRow (.
 import qualified Database.SQLite.Simple as SQLite
 import Database.SQLite.Simple.FromField (FromField)
 import Database.SQLite.Simple.ToField (ToField (..))
-import Debug.Trace (trace, traceM)
+import Debug.Trace (trace, traceM, traceShowM)
 import GHC.Stack (HasCallStack)
 import U.Codebase.HashTags (BranchHash, CausalHash, unBranchHash, unCausalHash)
 import U.Codebase.Reference (Reference')
@@ -62,7 +62,7 @@ type EDB m = (DB m, Err m)
 type Err m = (MonadError Integrity m, HasCallStack)
 
 debugQuery :: Bool
-debugQuery = False
+debugQuery = True
 
 alwaysTraceOnCrash :: Bool
 alwaysTraceOnCrash = True
@@ -608,18 +608,20 @@ queryExists q r = not . null . map (id @SQLData) <$> queryAtoms q r
 query :: (DB m, ToRow q, FromRow r, Show q, Show r) => SQLite.Query -> q -> m [r]
 query q r = do
   c <- ask
-  liftIO . queryTrace "query" q r $ SQLite.query c q r
+  liftIO . queryTrace (show (SQLite.connectionHandle c) ++ " query") q r $ SQLite.query c q r
 
 -- | no input, composite List output
 query_ :: (DB m, FromRow r, Show r) => SQLite.Query -> m [r]
 query_ q = do
   c <- ask
-  liftIO . queryTrace_ "query" q $ SQLite.query_ c q
+  liftIO . queryTrace_ (show (SQLite.connectionHandle c) ++ " query") q $ SQLite.query_ c q
 
 queryTrace :: (MonadUnliftIO m, Show q, Show a) => String -> SQLite.Query -> q -> m a -> m a
 queryTrace title query input m =
   if debugQuery || alwaysTraceOnCrash
     then
+     do
+      traceShowM query
       try @_ @SQLite.SQLError m >>= \case
         Right a -> do
           when debugQuery . traceM $ title ++ " " ++ show query ++ "\n  input: " ++ show input ++ "\n output: " ++ show a
@@ -643,13 +645,13 @@ queryTrace_ title query m =
     else m
 
 execute :: (DB m, ToRow q, Show q) => SQLite.Query -> q -> m ()
-execute q r = do c <- ask; liftIO . queryTrace "execute" q r $ SQLite.execute c q r
+execute q r = do c <- ask; liftIO . queryTrace (show (SQLite.connectionHandle c) ++ " " ++ "execute") q r $ SQLite.execute c q r
 
 execute_ :: DB m => SQLite.Query -> m ()
-execute_ q = do c <- ask; liftIO . queryTrace "execute_" q "" $ SQLite.execute_ c q
+execute_ q = do c <- ask; liftIO . queryTrace (show (SQLite.connectionHandle c) ++ " " ++ "execute_") q "" $ SQLite.execute_ c q
 
 executeMany :: (DB m, ToRow q, Show q) => SQLite.Query -> [q] -> m ()
-executeMany q r = do c <- ask; liftIO . queryTrace "executeMany" q r $ SQLite.executeMany c q r
+executeMany q r = do c <- ask; liftIO . queryTrace (show (SQLite.connectionHandle c) ++ " " ++ "executeMany") q r $ SQLite.executeMany c q r
 
 -- | transaction that blocks
 withImmediateTransaction :: (DB m, MonadUnliftIO m) => m a -> m a
