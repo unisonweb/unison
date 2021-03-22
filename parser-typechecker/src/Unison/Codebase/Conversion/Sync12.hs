@@ -11,6 +11,7 @@ module Unison.Codebase.Conversion.Sync12 where
 
 import Control.Lens
 import Control.Monad.Except (MonadError, runExceptT)
+import Control.Monad.Extra ((&&^))
 import qualified Control.Monad.Except as Except
 import Control.Monad.Reader
 import qualified Control.Monad.Reader as Reader
@@ -45,7 +46,7 @@ import qualified Unison.DataDeclaration as DD
 import Unison.Hash (Hash)
 import qualified Unison.Hashable as H
 import qualified Unison.LabeledDependency as LD
-import Unison.NameSegment (NameSegment (NameSegment))
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude (Set)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -170,10 +171,10 @@ trySync ::
   Entity m ->
   n (TrySyncResult (Entity m))
 trySync t _gc e = do
-  Env src dest _ <- Reader.ask
+  Env _ dest _ <- Reader.ask
   case e of
     C h mc ->
-      isSyncedCausal h >>= \case
+      (t $ Codebase.branchExists dest h) >>= \case
         True -> pure Sync.PreviouslyDone
         False -> do
           c <- t mc
@@ -227,9 +228,6 @@ trySync t _gc e = do
               t $ Codebase.putPatch dest h' patch'
               setPatchStatus h PatchOk
               pure Sync.Done
-
-isSyncedCausal :: forall n. Branch.Hash -> n Bool
-isSyncedCausal = undefined
 
 getBranchStatus :: S m n => Branch.Hash -> n (Maybe (BranchStatus m))
 getBranchStatus h = use (branchStatus . at h)
@@ -404,23 +402,24 @@ repairPatch (Patch termEdits typeEdits) = do
           Just _ -> pure False
 
 filterBranchTermStar :: (S m n, V m n) => Metadata.Star Referent NameSegment -> n (Metadata.Star Referent NameSegment)
-filterBranchTermStar (Star3 _refs names _mdType mdTypeValues) = do
+filterBranchTermStar (Star3 _refs names _mdType md) = do
   names' <- filterTermNames names
-  mdTypeValues' <- filterMetadata mdTypeValues
   let refs' = Relation.dom names'
   let mdType' = error "Can I get away with not populating the mdType column?"
+  mdTypeValues' <- filterMetadata $ Relation.restrictDom refs' md
   pure $ Star3 refs' names' mdType' mdTypeValues'
 
 filterBranchTypeStar :: (S m n, V m n) => Metadata.Star Reference.Reference NameSegment -> n (Metadata.Star Reference.Reference NameSegment)
-filterBranchTypeStar (Star3 _refs names _mdType mdTypeValues) = do
+filterBranchTypeStar (Star3 _refs names _mdType md) = do
   names' <- filterTypeNames names
   let refs' = Relation.dom names'
-  mdTypeValues' <- filterMetadata mdTypeValues
   let mdType' = error "Can I get away with not populating the mdType column?"
+  mdTypeValues' <- filterMetadata $ Relation.restrictDom refs' md
   pure $ Star3 refs' names mdType' mdTypeValues'
 
-filterMetadata :: Relation r (Metadata.Type, Metadata.Value) -> n (Relation r (Metadata.Type, Metadata.Value))
-filterMetadata = error "not implemented"
+filterMetadata :: (S m n, V m n, Ord r) => Relation r (Metadata.Type, Metadata.Value) -> n (Relation r (Metadata.Type, Metadata.Value))
+filterMetadata = Relation.filterRanM \(t, v) ->
+    validateTypeReference t &&^ validateTermReference v
 
 filterTermNames :: (S m n, V m n) => Relation Referent NameSegment -> n (Relation Referent NameSegment)
 filterTermNames = Relation.filterDomM validateTermReferent
@@ -441,7 +440,7 @@ validateTermReference = \case
 
 validateTypeReference :: (S m n, V m n) => Reference.Reference -> n Bool
 validateTypeReference = \case
-  Reference.Builtin t -> pure True
+  Reference.Builtin {} -> pure True
   Reference.DerivedId (Reference.Id h _i n) ->
     getTermStatus h >>= \case
       Nothing -> Validate.refute . Set.singleton $ T h n

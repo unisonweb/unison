@@ -4,7 +4,7 @@ module Unison.Util.Relation where
 import Unison.Prelude hiding (empty, toList)
 
 import           Prelude                 hiding ( null, map, filter )
-import           Data.Bifunctor                 ( first, second, Bifunctor )
+import           Data.Bifunctor                 ( first, second )
 import qualified Data.List                     as List
 import qualified Data.Map                      as M
 import qualified Data.Set                      as S
@@ -232,6 +232,9 @@ filterRan f r = r |> S.filter f (ran r)
 
 filterDomM :: (Applicative m, Ord a, Ord b) => (a -> m Bool) -> Relation a b -> m (Relation a b)
 filterDomM f = fmap fromList . Monad.filterM (f . fst) . toList
+
+filterRanM :: (Applicative m, Ord a, Ord b) => (b -> m Bool) -> Relation a b -> m (Relation a b)
+filterRanM f = fmap fromList . Monad.filterM (f . snd) . toList
 
 filter :: (Ord a, Ord b) => ((a, b) -> Bool) -> Relation a b -> Relation a b
 filter f = fromList . List.filter f . toList

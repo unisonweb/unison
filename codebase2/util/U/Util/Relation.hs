@@ -241,6 +241,9 @@ filterM f = fmap fromList . Monad.filterM f . toList
 filterDomM :: (Applicative m, Ord a, Ord b) => (a -> m Bool) -> Relation a b -> m (Relation a b)
 filterDomM f = fmap fromList . Monad.filterM (f . fst) . toList
 
+filterRanM :: (Applicative m, Ord a, Ord b) => (b -> m Bool) -> Relation a b -> m (Relation a b)
+filterRanM f = fmap fromList . Monad.filterM (f . snd) . toList
+
 -- | Restricts the relation to domain elements having multiple range elements
 filterManyDom :: (Ord a, Ord b) => Relation a b -> Relation a b
 filterManyDom r = filterDom (`manyDom` r) r
