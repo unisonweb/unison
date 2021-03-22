@@ -187,7 +187,7 @@ trySync t _gc e = do
               t $ Codebase.putBranch dest (Branch.Branch c')
               pure Sync.Done
     T h n ->
-      getTermStatus @n @m h >>= \case
+      getTermStatus h >>= \case
         Just {} -> pure Sync.PreviouslyDone
         Nothing -> do
           runExceptT (runValidateT (checkTermComponent (lift . lift . t) h n)) >>= \case
@@ -202,7 +202,7 @@ trySync t _gc e = do
               setTermStatus h TermOk
               pure Sync.Done
     D h n ->
-      getDeclStatus @n @m h >>= \case
+      getDeclStatus h >>= \case
         Just {} -> pure Sync.PreviouslyDone
         Nothing ->
           runExceptT (runValidateT (checkDeclComponent (lift . lift . t) h n)) >>= \case
@@ -231,21 +231,25 @@ trySync t _gc e = do
 isSyncedCausal :: forall n. Branch.Hash -> n Bool
 isSyncedCausal = undefined
 
-getBranchStatus :: forall n m. S m n => Branch.Hash -> n (Maybe (BranchStatus m))
+getBranchStatus :: S m n => Branch.Hash -> n (Maybe (BranchStatus m))
 getBranchStatus h = use (branchStatus . at h)
 
-getTermStatus :: forall n m. S m n => Hash -> n (Maybe TermStatus)
+getTermStatus :: S m n => Hash -> n (Maybe TermStatus)
 getTermStatus h = use (termStatus . at h)
 
-getDeclStatus :: forall n m. S m n => Hash -> n (Maybe DeclStatus)
+getDeclStatus :: S m n => Hash -> n (Maybe DeclStatus)
 getDeclStatus h = use (declStatus . at h)
 
+getPatchStatus :: S m n => Hash -> n (Maybe PatchStatus)
 getPatchStatus h = use (patchStatus . at h)
 
+setTermStatus :: S m n => Hash -> TermStatus -> n ()
 setTermStatus h s = termStatus . at h .= Just s
 
+setDeclStatus :: S m n => Hash -> DeclStatus -> n ()
 setDeclStatus h s = declStatus . at h .= Just s
 
+setPatchStatus :: S m n => Hash -> PatchStatus -> n ()
 setPatchStatus h s = patchStatus . at h .= Just s
 
 setBranchStatus :: forall m n. S m n => Branch.Hash -> BranchStatus m -> n ()
@@ -339,7 +343,7 @@ repairBranch = \case
     e' <- repairBranch0 e
     pure $ Causal.one e'
   Causal.Cons _h e (ht, mt) -> do
-    getBranchStatus @n @m ht >>= \case
+    getBranchStatus ht >>= \case
       Nothing -> Validate.refute . Set.singleton $ C ht mt
       Just tailStatus -> do
         e' <- repairBranch0 e
@@ -349,7 +353,7 @@ repairBranch = \case
   Causal.Merge _h e (Map.toList -> tails) -> do
     tails' <-
       Map.fromList <$> for tails \(ht, mt) ->
-        getBranchStatus @n @m ht >>= \case
+        getBranchStatus ht >>= \case
           Nothing -> Validate.refute . Set.singleton $ C ht mt
           Just tailStatus ->
             pure case tailStatus of
