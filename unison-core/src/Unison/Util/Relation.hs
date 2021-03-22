@@ -230,6 +230,9 @@ filterDom f r = S.filter f (dom r) <| r
 filterRan :: (Ord a, Ord b) => (b -> Bool) -> Relation a b -> Relation a b
 filterRan f r = r |> S.filter f (ran r)
 
+filterDomM :: (Applicative m, Ord a, Ord b) => (a -> m Bool) -> Relation a b -> m (Relation a b)
+filterDomM f = fmap fromList . Monad.filterM (f . fst) . toList
+
 filter :: (Ord a, Ord b) => ((a, b) -> Bool) -> Relation a b -> Relation a b
 filter f = fromList . List.filter f . toList
 
