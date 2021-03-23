@@ -326,8 +326,6 @@ data BPrim1
   | VWLS | VWRS | SIZS -- viewl,viewr,size
   | PAKB | UPKB | SIZB -- pack,unpack,size
   | FLTB               -- flatten
-  -- general
-  | THRO               -- throw
   -- code
   | MISS | CACH | LKUP | LOAD -- isMissing,cache_,lookup,load
   | VALU                      -- value
@@ -345,6 +343,8 @@ data BPrim2
   | SPLL | SPLR        -- splitLeft,splitRight
   -- bytes
   | TAKB | DRPB | IDXB | CATB -- take,drop,index,append
+  -- general
+  | THRO               -- throw
   deriving (Show, Eq, Ord)
 
 data MLit
@@ -1058,7 +1058,7 @@ emitPOp ANF.LOAD = emitBP1 LOAD
 emitPOp ANF.VALU = emitBP1 VALU
 
 -- error call
-emitPOp ANF.EROR = emitBP1 THRO
+emitPOp ANF.EROR = emitBP2 THRO
 
 -- non-prim translations
 emitPOp ANF.BLDS = Seq
