@@ -92,8 +92,7 @@ fuzzyFind query names =
   flatten (a, (b, c)) = (a, b, c)
   fuzzyFinds :: (a -> String) -> [String] -> [a] -> [(FZF.Alignment, a)]
   fuzzyFinds f query d =
-    sortOn (FZF.score . fst)
-      $   d
+      d
       >>= (\s ->
             toList
               $   (, s)

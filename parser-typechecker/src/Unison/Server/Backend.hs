@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -178,8 +179,9 @@ data UnisonRef
   deriving (Eq, Ord, Show, Generic)
 
 unisonRefToText :: UnisonRef -> Text
-unisonRefToText (TypeRef r) = r
-unisonRefToText (TermRef r) = r
+unisonRefToText = \case
+  TypeRef r -> r
+  TermRef r -> r
 
 fuzzyFind
   :: Monad m
@@ -188,10 +190,9 @@ fuzzyFind
   -> String
   -> [(FZF.Alignment, UnisonName, [UnisonRef])]
 fuzzyFind path branch query =
-  fmap (fmap mkRef . toList)
-    .   (over _2 Name.toText)
-    <$> Names.fuzzyFind (words query) printNames
+  fmap (fmap mkRef . toList) . (over _2 Name.toText) <$> fzfNames
  where
+  fzfNames   = Names.fuzzyFind (words query) printNames
   printNames = basicPrettyPrintNames0 branch path
   mkRef (Left  r) = TermRef $ Referent.toText r
   mkRef (Right r) = TypeRef $ Reference.toText r

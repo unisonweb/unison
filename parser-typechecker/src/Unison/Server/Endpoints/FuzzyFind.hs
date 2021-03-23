@@ -10,7 +10,10 @@
 module Unison.Server.Endpoints.FuzzyFind where
 
 import           Control.Error                  ( runExceptT )
+import           Data.Function                  ( on )
 import           Data.Aeson                     ( ToJSON )
+import           Data.List                      ( sortBy )
+import           Data.Ord                       ( Down(..) )
 import           Data.OpenApi                   ( ToSchema )
 import           Servant                        ( Get
                                                 , JSON
@@ -96,14 +99,16 @@ serveFuzzyFind codebase mayRoot relativePath width limit query = do
     branch <- Backend.resolveBranchHash root codebase
     let
       alignments =
-        fmap
-            (\(a, _, c) ->
-              (a, HQ.unsafeFromText . Backend.unisonRefToText <$> c)
-            )
-          . take (fromMaybe 10 limit)
+        take (fromMaybe 10 limit)
+          . sortBy (compare `on` (Down . FZF.score . fst))
+          . fmap
+              (\(a, _, c) ->
+                (a, HQ.unsafeFromText . Backend.unisonRefToText <$> c)
+              )
           $ Backend.fuzzyFind (fromMaybe mempty rel) branch (fromMaybe "" query)
-    traverse (traverse $ Backend.prettyDefinitionsBySuffixes rel root width codebase)
-             alignments
+    traverse
+      (traverse $ Backend.prettyDefinitionsBySuffixes rel root width codebase)
+      alignments
   errFromEither backendError ea
  where
   parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
