@@ -61,6 +61,10 @@ import           Unison.Server.Endpoints.GetDefinitions
                                                 ( DefinitionsAPI
                                                 , serveDefinitions
                                                 )
+import           Unison.Server.Endpoints.FuzzyFind
+                                                ( FuzzyFindAPI
+                                                , serveFuzzyFind
+                                                )
 import           Unison.Server.Types            ( mungeString )
 import           Unison.Var                     ( Var )
 import           Servant.OpenApi                ( HasOpenApi(toOpenApi) )
@@ -86,7 +90,7 @@ type OpenApiJSON = "openapi.json"
 
 type DocAPI = AuthProtect "token-auth" :> (UnisonAPI :<|> OpenApiJSON :<|> Raw)
 
-type UnisonAPI = NamespaceAPI :<|> DefinitionsAPI
+type UnisonAPI = NamespaceAPI :<|> DefinitionsAPI :<|> FuzzyFindAPI
 
 type instance AuthServerData (AuthProtect "token-auth") = ()
 
@@ -160,7 +164,7 @@ start codebase k = do
 
 server :: Var v => Codebase IO v Ann -> Server DocAPI
 server codebase _ =
-  (serveNamespace codebase :<|> serveDefinitions codebase)
+  (serveNamespace codebase :<|> serveDefinitions codebase :<|> serveFuzzyFind codebase)
     :<|> addHeader "*"
     <$>  serveOpenAPI
     :<|> Tagged serveDocs
