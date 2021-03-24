@@ -8,5 +8,24 @@ lc = ?ひ
 lb = true
 sn = [1,2,3,4,5,6,ln]
 
+-- Allow redundant commas in lists #1841
+s = [,,,,,,]
+stn = [,,,(1,2),,,(3,4),(5,6),,,,]
+sc =
+  [
+    ,
+    -- ?d
+    ,
+    ?*
+    ,
+
+    ?1
+    ,
+    , ?§, ?°,
+    ?;,
+    ,
+    , ,
+  ]
+
 -- Make sure we can compile all literals
-> (ln, li, lf, lt, lc, lb, sn)
+> (ln, li, lf, lt, lc, lb, sn, s, stn, sc)
