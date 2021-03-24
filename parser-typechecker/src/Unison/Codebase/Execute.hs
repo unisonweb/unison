@@ -24,6 +24,7 @@ import qualified Unison.Names3                 as Names3
 import qualified Unison.Codebase.Branch        as Branch
 import           System.Exit (die)
 import           Control.Exception (finally)
+import qualified Unison.Term                   as Term
 
 execute
   :: Var v
@@ -50,6 +51,6 @@ execute codebase runtime mainName =
       MainTerm.NotFound s -> die ("Not found: " ++ s)
       MainTerm.BadType s _ -> die (s ++ " is not of type '{IO} ()")
       MainTerm.Success _ tm _ -> do
-        let codeLookup = Codebase.toCodeLookup codebase
+        let codeLookup = void $ Codebase.toCodeLookup codebase
             ppe = PPE.PrettyPrintEnv (const Nothing) (const Nothing)
-        void $ Runtime.evaluateTerm codeLookup ppe runtime tm
+        void $ Runtime.evaluateTerm codeLookup ppe runtime (Term.amap (const ()) tm)

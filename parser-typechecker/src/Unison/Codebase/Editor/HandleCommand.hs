@@ -114,7 +114,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       lift $ typecheck ambient codebase env sourceName source
     TypecheckFile file ambient     -> lift $ typecheck' ambient codebase file
     Evaluate ppe unisonFile        -> lift $ evalUnisonFile ppe unisonFile
-    Evaluate1 ppe term             -> lift $ eval1 ppe term
+    Evaluate1 ppe cacheResult term -> lift $ eval1 ppe cacheResult term
     LoadLocalRootBranch        -> lift $ either (const Branch.empty) id <$> Codebase.getRootBranch codebase
     LoadLocalBranch h          -> lift $ fromMaybe Branch.empty <$> Codebase.getBranchForHash codebase h
     SyncLocalRootBranch branch -> lift $ do
@@ -178,11 +178,17 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       lift . runExceptT $ Backend.definitionsBySuffixes mayPath branch codebase query
     FindShallow path -> lift . runExceptT $ Backend.findShallow codebase path
 
-  eval1 :: PPE.PrettyPrintEnv -> Term v Ann -> _
-  eval1 ppe tm = do
+  watchCache (Reference.DerivedId h) = do
+    m1 <- Codebase.getWatch codebase UF.RegularWatch h
+    m2 <- maybe (Codebase.getWatch codebase UF.TestWatch h) (pure . Just) m1
+    pure $ Term.amap (const ()) <$> m2
+  watchCache Reference.Builtin{} = pure Nothing
+
+  eval1 :: PPE.PrettyPrintEnv -> Bool -> Term v () -> _
+  eval1 ppe doCache tm = do
     let codeLookup = Codebase.toCodeLookup codebase
-    r <- Runtime.evaluateTerm codeLookup ppe rt tm
-    pure $ r <&> Term.amap (const Parser.External)
+        cache = if not doCache then Runtime.noCache else watchCache
+    Runtime.evaluateTerm' codeLookup (cache . Term.amap (const ())) ppe rt tm
 
   evalUnisonFile :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> _
   evalUnisonFile ppe (UF.discardTypes -> unisonFile) = do
@@ -191,11 +197,6 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       if Runtime.needsContainment rt
         then Codebase.makeSelfContained' codeLookup unisonFile
         else pure unisonFile
-    let watchCache (Reference.DerivedId h) = do
-          m1 <- Codebase.getWatch codebase UF.RegularWatch h
-          m2 <- maybe (Codebase.getWatch codebase UF.TestWatch h) (pure . Just) m1
-          pure $ Term.amap (const ()) <$> m2
-        watchCache Reference.Builtin{} = pure Nothing
     r <- Runtime.evaluateWatches codeLookup ppe watchCache rt evalFile
     case r of
       Left e -> pure (Left e)

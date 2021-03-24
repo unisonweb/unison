@@ -37,16 +37,14 @@ displayTerm :: (Var v, Monad m, Ord a)
            => PPE.PrettyPrintEnvDecl
            -> (Reference -> m (Maybe (Term v a)))
            -> (Referent -> m (Maybe (Type v a)))
-           -> (Reference -> m (Maybe (Term v a)))
+           -> (Term v () -> m (Maybe (Term v a)))
            -> (Reference -> m (Maybe (DD.Decl v a)))
            -> Term v a
            -> m Pretty
-displayTerm pped terms typeOf eval types tm = case tm of
+displayTerm pped terms typeOf eval types tm = do
   -- todo: can dispatch on other things with special rendering
-  Term.Ref' r -> eval r >>= \case
-    Nothing -> pure $ termName (PPE.suffixifiedPPE pped) (Referent.Ref r)
-    Just tm -> displayDoc pped terms typeOf eval types tm
-  _ -> displayDoc pped terms typeOf eval types tm
+  tm' <- eval (Term.amap (const ()) tm)
+  displayDoc pped terms typeOf eval types (fromMaybe tm tm')
 
 -- assume this is given a
 -- Pretty.Annotated ann (Either SpecialForm ConsoleText)
@@ -54,7 +52,7 @@ displayPretty :: forall v m a. (Var v, Monad m, Ord a)
               => PPE.PrettyPrintEnvDecl
               -> (Reference -> m (Maybe (Term v a)))
               -> (Referent  -> m (Maybe (Type v a)))
-              -> (Reference -> m (Maybe (Term v a)))
+              -> (Term v () -> m (Maybe (Term v a)))
               -> (Reference -> m (Maybe (DD.Decl v a)))
               -> Term v a
               -> m Pretty
@@ -133,10 +131,10 @@ displayPretty pped terms typeOf eval types tm = go tm
       _ -> displayTerm pped terms typeOf eval types tm
 
     -- Eval Doc2.Term
-    DD.Doc2SpecialFormEval e -> undefined -- \case
+    DD.Doc2SpecialFormEval e -> undefined e -- \case
 
     -- InlineEval Doc2.Term
-    DD.Doc2SpecialFormInlineEval e -> undefined -- \case
+    DD.Doc2SpecialFormInlineEval e -> undefined e -- \case
 
     -- Embed Any
     DD.Doc2SpecialFormEmbed (Term.App' _ any) ->
@@ -147,6 +145,9 @@ displayPretty pped terms typeOf eval types tm = go tm
     DD.Doc2SpecialFormInlineEmbed any ->
       displayTerm pped terms typeOf eval types any <&> \p ->
         "{{ embed {{" <> p <> "}} }}"
+
+    tm -> displayTerm pped terms typeOf eval types tm <&> \tm ->
+            "\n" <> P.indentN 4 tm <> "\n"
 
   toReferent tm = case tm of
     Term.Ref' r -> Just (Referent.Ref r)
@@ -198,7 +199,7 @@ displayDoc :: forall v m a. (Var v, Monad m)
            => PPE.PrettyPrintEnvDecl
            -> (Reference -> m (Maybe (Term v a)))
            -> (Referent  -> m (Maybe (Type v a)))
-           -> (Reference -> m (Maybe (Term v a)))
+           -> (Term v () -> m (Maybe (Term v a)))
            -> (Reference -> m (Maybe (DD.Decl v a)))
            -> Term v a
            -> m Pretty
@@ -213,7 +214,8 @@ displayDoc pped terms typeOf evaluated types = go
   go (DD.DocSource (DD.LinkTerm (Term.TermLink' r))) = prettyTerm terms r
   go (DD.DocSource (DD.LinkType (Term.TypeLink' r))) = prettyType r
   go (DD.DocSignature (Term.TermLink' r)) = prettySignature r
-  go (DD.DocEvaluate (Term.TermLink' r)) = prettyEval evaluated r
+  go (DD.DocEvaluate (Term.TermLink' r)) =
+    prettyEval (evaluated . Term.ref ()) r
   go tm = pure $ TP.pretty (PPE.suffixifiedPPE pped) tm
   prettySignature r = typeOf r >>= \case
     Nothing -> pure $ termName (PPE.unsuffixifiedPPE pped) r
