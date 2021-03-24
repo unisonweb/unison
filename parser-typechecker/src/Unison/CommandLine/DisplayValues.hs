@@ -6,12 +6,12 @@ module Unison.CommandLine.DisplayValues where
 
 import Unison.Prelude
 
-import Data.Foldable ( fold, toList )
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Var (Var)
+import qualified Data.Map as Map
 import qualified Unison.ABT as ABT
 import qualified Unison.Runtime.IOSource as DD
 import qualified Unison.Builtin.Decls as DD
@@ -21,16 +21,19 @@ import qualified Unison.NamePrinter as NP
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Referent as Referent
 import qualified Unison.Reference as Reference
+import qualified Unison.ShortHash as SH
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TP
 import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.SyntaxText as S
+import qualified Unison.Codebase.Editor.DisplayObject as DO
+import qualified Unison.CommandLine.OutputMessages as OutputMessages
 import qualified Unison.ConstructorType as CT
 
 type Pretty = P.Pretty P.ColorText
 
-displayTerm :: (Var v, Monad m)
+displayTerm :: (Var v, Monad m, Ord a)
            => PPE.PrettyPrintEnvDecl
            -> (Reference -> m (Maybe (Term v a)))
            -> (Referent -> m (Maybe (Type v a)))
@@ -47,7 +50,7 @@ displayTerm pped terms typeOf eval types tm = case tm of
 
 -- assume this is given a
 -- Pretty.Annotated ann (Either SpecialForm ConsoleText)
-displayPretty :: forall v m a. (Var v, Monad m)
+displayPretty :: forall v m a. (Var v, Monad m, Ord a)
               => PPE.PrettyPrintEnvDecl
               -> (Reference -> m (Maybe (Term v a)))
               -> (Referent  -> m (Maybe (Type v a)))
@@ -74,7 +77,29 @@ displayPretty pped terms typeOf eval types tm = go tm
 
   goSpecial = \case
     -- Source [Either Link.Type Doc2.Term]
-    DD.Doc2SpecialFormSource (Term.List' es) -> undefined -- \case
+    DD.Doc2SpecialFormSource (Term.List' es) -> do
+      let tys = [ ref | DD.EitherLeft' (Term.TypeLink' ref) <- toList es ]
+          toRef (Term.Ref' r) = Just r
+          toRef (Term.RequestOrCtor' r _) = Just r
+          toRef _ = Nothing
+          tms = [ ref | DD.EitherRight' (DD.Doc2Term (toRef -> Just ref)) <- toList es ]
+      typeMap <- let
+        -- todo: populate the variable names / kind once BuiltinObject supports that
+        go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject)
+        go ref = (ref,) <$> do
+          decl <- types ref
+          let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
+          pure $ maybe missing DO.UserObject decl
+        in Map.fromList <$> traverse go tys
+      termMap <- let
+        -- todo: populate the type signature once BuiltinObject supports that
+        go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject)
+        go ref = (ref,) <$> do
+          tm <- terms ref
+          let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
+          pure $ maybe missing DO.UserObject tm
+        in Map.fromList <$> traverse go tms
+      pure . P.indentN 4 $ OutputMessages.displayDefinitions' pped typeMap termMap
 
     -- Example Nat Doc2.Term
     -- Examples like `foo x y` are encoded as `Example 2 (_ x y -> foo)`, where
@@ -85,7 +110,17 @@ displayPretty pped terms typeOf eval types tm = go tm
       where ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
 
     -- Link (Either Link.Type Doc2.Term)
-    DD.Doc2SpecialFormLink e -> undefined -- \case
+    DD.Doc2SpecialFormLink e -> let
+      ppe = PPE.suffixifiedPPE pped
+      go = pure . P.underline . P.syntaxToColor . NP.prettyHashQualified
+      in case e of
+        DD.EitherLeft' (Term.TypeLink' ref) -> go $ PPE.typeName ppe ref
+        DD.EitherRight' (Term.Ref' ref) -> go $ PPE.termName ppe (Referent.Ref ref)
+        DD.EitherRight' (Term.Request' ref cid) ->
+          go $ PPE.termName ppe (Referent.Con ref cid CT.Effect)
+        DD.EitherRight' (Term.Constructor' ref cid) ->
+          go $ PPE.termName ppe (Referent.Con ref cid CT.Data)
+        _ -> P.red <$> displayTerm pped terms typeOf eval types e
 
     -- Signature [Doc2.Term]
     DD.Doc2SpecialFormSignature (Term.List' tms) ->
@@ -106,10 +141,12 @@ displayPretty pped terms typeOf eval types tm = go tm
     -- Embed Any
     DD.Doc2SpecialFormEmbed (Term.App' _ any) ->
       displayTerm pped terms typeOf eval types any <&> \p ->
-        "{{ embed {{" <> p <> "}} }}"
+        P.indentN 2 $ "\n" <> "{{ embed {{" <> p <> "}} }}" <> "\n"
 
     -- InlineEmbed Any
-    DD.Doc2SpecialFormInlineEmbed any -> undefined -- \case
+    DD.Doc2SpecialFormInlineEmbed any ->
+      displayTerm pped terms typeOf eval types any <&> \p ->
+        "{{ embed {{" <> p <> "}} }}"
 
   toReferent tm = case tm of
     Term.Ref' r -> Just (Referent.Ref r)

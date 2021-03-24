@@ -162,7 +162,11 @@ pattern Doc2SpecialFormInlineEval tm <- Term.App' (Term.Constructor' Doc2Special
 pattern Doc2SpecialFormEmbed any <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormEmbedId -> True)) any
 pattern Doc2SpecialFormInlineEmbed any <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormInlineEmbedId -> True)) any
 
+-- pulls out `vs body` in `Doc2.Term (Any '(vs -> body))`, where
+-- vs can be any number of parameters
 pattern Doc2Example vs body <- Term.App' _term (Term.App' _any (Term.LamNamed' _ (Term.LamsNamedOpt' vs body)))
+
+-- pulls out `body` in `Doc2.Term (Any 'body)`
 pattern Doc2Term body <- Term.App' _term (Term.App' _any (Term.LamNamed' _ body))
 
 pattern Doc2Ref <- ((== doc2Ref) -> True)
