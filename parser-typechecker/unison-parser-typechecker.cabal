@@ -85,7 +85,6 @@ library
     Unison.Codebase.FileCodebase
     Unison.Codebase.FileCodebase.Branch.Dependencies
     Unison.Codebase.FileCodebase.Common
-    Unison.Codebase.FileCodebase.Git
     Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
@@ -101,7 +100,6 @@ library
     Unison.Codebase.SqliteCodebase
     Unison.Codebase.SqliteCodebase.Branch.Dependencies
     Unison.Codebase.SqliteCodebase.Conversions
-    Unison.Codebase.SqliteCodebase.Git
     Unison.Codebase.SqliteCodebase.SyncEphemeral
     Unison.Codebase.SyncMode
     Unison.Codebase.TermEdit

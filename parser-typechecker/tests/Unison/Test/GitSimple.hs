@@ -3,7 +3,6 @@
 
 module Unison.Test.GitSimple where
 
-import Control.Lens (view, _1)
 import Data.String.Here (iTrim)
 import qualified Data.Text as Text
 import EasyTest
@@ -12,19 +11,22 @@ import System.Directory (removeDirectoryRecursive)
 import System.FilePath ((</>))
 import qualified System.IO.Temp as Temp
 import Unison.Codebase (Codebase, CodebasePath)
-import qualified Unison.Codebase.SqliteCodebase as FC
+import qualified Unison.Codebase.FileCodebase as FC
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Parser (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol)
+import qualified Unison.Parser as Parser
+import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.SqliteCodebase as SC
 
 writeTranscriptOutput :: Bool
-writeTranscriptOutput = False
+writeTranscriptOutput = True
 
 test :: Test ()
-test = scope "git-simple" . tests $ [
-
-  pushPullTest "one-term"
+test = scope "git-simple" . tests $ flip map [(FC.init, "fc")]--, (SC.init, "fc")]
+  \(cbInit, name) -> scope name $ tests [
+  pushPullTest cbInit "one-term"
 -- simplest-author
     (\repo -> [iTrim|
 ```unison
@@ -47,7 +49,7 @@ c = 3
 ```
 |])
   ,
-  pushPullTest "one-term2"
+  pushPullTest cbInit "one-term2"
 -- simplest-author
     (\repo -> [iTrim|
 ```unison
@@ -69,7 +71,7 @@ c = 3
 ```
 |])
   ,
-  pushPullTest "one-type"
+  pushPullTest cbInit "one-type"
 -- simplest-author
     (\repo -> [iTrim|
 ```unison
@@ -90,6 +92,53 @@ type Foo = Foo
 > Foo.Foo
 ```
 |])
+  ,
+  pushPullTest cbInit "patching"
+    (\repo -> [iTrim|
+```ucm
+.myLib> alias.term ##Nat.+ +
+```
+```unison
+improveNat x = x + 3
+```
+```ucm
+.myLib> add
+.myLib> ls
+.myLib> move.namespace .myLib .workaround1552.myLib.v1
+.workaround1552.myLib> ls
+.workaround1552.myLib> fork v1 v2
+.workaround1552.myLib.v2>
+```
+```unison
+improveNat x = x + 100
+```
+```ucm
+.workaround1552.myLib.v2> update
+.workaround1552.myLib> push ${repo}
+```
+    |])
+    (\repo -> [iTrim|
+```ucm
+.myApp> pull ${repo}:.v1 external.yourLib
+.myApp> alias.term ##Nat.* *
+````
+```unison
+> greatApp = improveNat 5 * improveNat 6
+```
+```ucm
+.myApp> add
+.myApp> pull ${repo}:.v2 external.yourLib
+```
+```unison
+> greatApp = improveNat 5 * improveNat 6
+```
+```ucm
+.myApp> patch external.yourLib.patch
+```
+```unison
+> greatApp = improveNat 5 * improveNat 6
+```
+    |])
 -- ,
 
 --   pushPullTest "regular"
@@ -143,14 +192,14 @@ type Foo = Foo
 -- .myLib.outside.B> #j57m94daqi
 
 
-pushPullTest :: String -> (FilePath -> String) -> (FilePath -> String) -> Test ()
-pushPullTest name authorScript userScript = scope name $ do
+pushPullTest :: Codebase.Init IO Symbol Parser.Ann -> String -> (FilePath -> String) -> (FilePath -> String) -> Test ()
+pushPullTest cbInit name authorScript userScript = scope name $ do
   -- put all our junk into here
   tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory ("git-simple-" ++ name)
 
   -- initialize author and user codebases
-  (_authorDir, closeAuthor, authorCodebase) <- io $ initCodebase tmp "author"
-  (_userDir, closeUser, userCodebase) <- io $ initCodebase tmp "user"
+  (_authorDir, closeAuthor, authorCodebase) <- io $ initCodebase cbInit tmp "author"
+  (_userDir, closeUser, userCodebase) <- io $ initCodebase cbInit tmp "user"
 
   -- initialize git repo
   let repo = tmp </> "repo.git"
@@ -179,13 +228,10 @@ pushPullTest name authorScript userScript = scope name $ do
   ok
 
 -- initialize a fresh codebase
-initCodebaseDir :: FilePath -> String -> IO CodebasePath
-initCodebaseDir tmpDir name = view _1 <$> initCodebase tmpDir name
-
-initCodebase :: FilePath -> String -> IO (CodebasePath, IO (), Codebase IO Symbol Ann)
-initCodebase tmpDir name = do
+initCodebase :: Monad m => Codebase.Init m v a -> FilePath -> String -> m (CodebasePath, m (), Codebase m v a)
+initCodebase cbInit tmpDir name = do
   let codebaseDir = tmpDir </> name
-  (close, c) <- FC.initCodebase codebaseDir
+  (close, c) <- Codebase.initCodebase cbInit codebaseDir
   pure (codebaseDir, close, c)
 
 -- run a transcript on an existing codebase

@@ -28,9 +28,10 @@ import Unison.Codebase.FileCodebase.Common (SyncToDir, formatAnn)
 import Unison.Parser (Ann)
 import Unison.Symbol (Symbol)
 import Unison.Var (Var)
+import qualified U.Util.Cache as Cache
 
 test :: Test ()
-test = scope "git" . tests $
+test = scope "git-fc" . tests $
   [ testPull
   , testPush
   , syncComplete
@@ -52,7 +53,7 @@ syncComplete = scope "syncComplete" $ do
     observe title expectation files = scope title . for_ files $ \path ->
       scope (makeTitle path) $ io (doesFileExist $ targetDir </> path) >>= expectation
 
-  codebase <- io $ snd <$> initCodebase tmp "codebase"
+  (_, cleanup, codebase) <- io $ initCodebase tmp "codebase"
 
   runTranscript_ tmp codebase [iTrim|
 ```ucm:hide
@@ -96,7 +97,9 @@ pushComplete.b.c.y = x + 1
   observe "complete" expect files
 
   -- if we haven't crashed, clean up!
-  io $ removeDirectoryRecursive tmp
+  io do
+    cleanup
+    removeDirectoryRecursive tmp
 
   where
   files =
@@ -111,7 +114,7 @@ syncTestResults = scope "syncTestResults" $ do
   tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "syncTestResults"
 
   targetDir <- io $ Temp.createTempDirectory tmp "target"
-  codebase <- io $ snd <$> initCodebase tmp "codebase"
+  (_, cleanup, codebase) <- io $ initCodebase tmp "codebase"
 
   runTranscript_ tmp codebase [iTrim|
 ```ucm
@@ -145,7 +148,9 @@ test> tests.x = [Ok "Great!"]
       scope (makeTitle path) $ io (doesFileExist $ targetDir </> path) >>= expect
 
   -- if we haven't crashed, clean up!
-  io $ removeDirectoryRecursive tmp
+  io do
+    cleanup
+    removeDirectoryRecursive tmp
   where
   targetShouldHave =
     [ ".unison/v1/paths/0bnfrk7cu44q0vvaj7a0osl90huv6nj01nkukplcsbgn3i09h6ggbthhrorm01gpqc088673nom2i491fh9rtbqcc6oud6iqq6oam88.ub"
@@ -166,8 +171,8 @@ testPull = scope "pull" $ do
   tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "git-pull"
 
   -- initialize author and user codebases
-  authorCodebase <- io $ snd <$> initCodebase tmp "author"
-  (userDir, userCodebase) <- io $ initCodebase tmp "user"
+  (_authorDir, cleanupAuthor, authorCodebase) <- io $ initCodebase tmp "author"
+  (userDir, cleanupUser, userCodebase) <- io $ initCodebase tmp "user"
 
   -- initialize git repo
   let repo = tmp </> "repo.git"
@@ -222,7 +227,10 @@ inside.y = c + c
       scope (makeTitle path) $ io (doesFileExist $ userDir </> path) >>= expect . not
 
   -- if we haven't crashed, clean up!
-  io $ removeDirectoryRecursive tmp
+  io $ do
+    cleanupAuthor
+    cleanupUser
+    removeDirectoryRecursive tmp
 
   where
   gitShouldHave = userShouldHave ++ userShouldNotHave
@@ -284,14 +292,11 @@ inside.y = c + c
     ]
 
 -- initialize a fresh codebase
-initCodebaseDir :: FilePath -> String -> IO CodebasePath
-initCodebaseDir tmpDir name = fst <$> initCodebase tmpDir name
-
-initCodebase :: FilePath -> String -> IO (CodebasePath, Codebase IO Symbol Ann)
+initCodebase :: FilePath -> String -> IO (CodebasePath, IO (), Codebase IO Symbol Ann)
 initCodebase tmpDir name = do
   let codebaseDir = tmpDir </> name
-  c <- FC.initCodebase undefined codebaseDir
-  pure (codebaseDir, c)
+  (cleanup, c) <- Codebase.initCodebase FC.init codebaseDir
+  pure (codebaseDir, cleanup, c)
 
 -- run a transcript on an existing codebase
 runTranscript_ :: MonadIO m => FilePath -> Codebase IO Symbol Ann -> String -> m ()
@@ -315,7 +320,7 @@ testPush = scope "push" $ do
   tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "git-push"
 
   -- initialize a fresh codebase named "c"
-  (codebasePath, c) <- io $ initCodebase tmp "c"
+  (codebasePath, cleanup, c) <- io $ initCodebase tmp "c"
 
   -- Run the "setup transcript" to do the adds and updates; everything short of
   -- pushing.
@@ -328,7 +333,7 @@ testPush = scope "push" $ do
     io $ "git" ["init", "--bare", Text.pack repoGit]
 
     -- push one way!
-    codebase <- io $ FC.codebase1' impl (error "todo") V1.formatSymbol formatAnn codebasePath
+    codebase <- io $ FC.codebase1' impl Cache.nullCache V1.formatSymbol formatAnn codebasePath
     runTranscript_ tmp codebase (pushTranscript repoGit)
 
     -- check out the resulting repo so we can inspect it
@@ -344,7 +349,9 @@ testPush = scope "push" $ do
         io (fmap not . doesFileExist $ tmp </> implName </> path) >>= expect
 
   -- if we haven't crashed, clean up!
-  io $ removeDirectoryRecursive tmp
+  io do
+    cleanup
+    removeDirectoryRecursive tmp
 
   where
   setupTranscript = [iTrim|

@@ -18,6 +18,8 @@ import qualified Unison.Codebase.SqliteCodebase as SqliteCodebase
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Parser (Ann)
 import Unison.Symbol (Symbol)
+import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.FileCodebase as FileCodebase
 
 -- * IO Tests
 
@@ -78,10 +80,10 @@ main = 'let
 
 -- * Utilities
 
-initCodebase :: FilePath -> String -> IO (CodebasePath, IO (), Codebase IO Symbol Ann)
-initCodebase tmpDir name = do
+initCodebase :: Codebase.Init IO Symbol Ann -> FilePath -> String -> IO (CodebasePath, IO (), Codebase IO Symbol Ann)
+initCodebase cbInit tmpDir name = do
   let codebaseDir = tmpDir </> name
-  (finalize, c) <- SqliteCodebase.initCodebase codebaseDir
+  (finalize, c) <- Codebase.initCodebase cbInit codebaseDir
   pure (codebaseDir, finalize, c)
 
 -- run a transcript on an existing codebase
@@ -105,8 +107,9 @@ runTranscript_ newRt tmpDir c transcript = do
 
 withScopeAndTempDir :: String -> (FilePath -> Codebase IO Symbol Ann -> Test ()) -> Test ()
 withScopeAndTempDir name body = scope name $ do
-  tmp <- io (Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory name)
-  (_, closeCodebase, codebase) <- io $ initCodebase tmp "user"
+  tmp <- liftIO $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory name
+  (_, closeCodebase, codebase) <- liftIO $ initCodebase FileCodebase.init tmp "user"
   body tmp codebase
-  io $ closeCodebase
-  io $ removeDirectoryRecursive tmp
+  liftIO do
+    closeCodebase
+    removeDirectoryRecursive tmp

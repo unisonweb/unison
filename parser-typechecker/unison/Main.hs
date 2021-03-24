@@ -1,47 +1,52 @@
-{-# Language OverloadedStrings #-}
-{-# Language PartialTypeSignatures #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module Main where
 
-import Unison.Prelude
-import           Control.Concurrent             ( mkWeakThreadId, myThreadId )
-import           Control.Error.Safe             (rightMay)
-import           Control.Exception              ( throwTo, AsyncException(UserInterrupt) )
-import           Data.ByteString.Char8          ( unpack )
-import           Data.Configurator.Types        ( Config )
-import qualified Network.URI.Encode            as URI
-import           System.Directory               ( getCurrentDirectory
-                                                , removeDirectoryRecursive
-                                                )
-import           System.Environment             ( getArgs, getProgName )
-import           System.Mem.Weak                ( deRefWeak )
-import qualified Unison.Codebase.Editor.VersionParser as VP
-import           Unison.Codebase.Execute        ( execute )
-import qualified Unison.Codebase.SqliteCodebase as SqliteCodebase
-import           Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
-import           Unison.Codebase.Runtime        ( Runtime )
-import           Unison.CommandLine             ( watchConfig )
-import qualified Unison.CommandLine.Main       as CommandLine
-import qualified Unison.Runtime.Rt1IO          as Rt1
-import qualified Unison.Runtime.Interface      as RTI
-import           Unison.Symbol                  ( Symbol )
-import qualified Unison.Codebase.Path          as Path
-import qualified Unison.Server.CodebaseServer as Server
-import qualified Version
-import qualified Unison.Codebase.TranscriptParser as TR
-import qualified System.Path as Path
-import qualified System.FilePath as FP
-import qualified System.IO.Temp as Temp
-import qualified System.Exit as Exit
-import System.IO.Error (catchIOError)
-import qualified Unison.Codebase.Editor.Input as Input
-import qualified Unison.Util.Pretty as P
-import qualified Unison.PrettyTerminal as PT
-import qualified Data.Text as Text
+import Control.Concurrent (mkWeakThreadId, myThreadId)
+import Control.Error.Safe (rightMay)
+import Control.Exception (AsyncException (UserInterrupt), throwTo)
+import Data.ByteString.Char8 (unpack)
 import qualified Data.Configurator as Config
+import Data.Configurator.Types (Config)
+import qualified Data.Text as Text
+import qualified Network.URI.Encode as URI
+import System.Directory
+  ( getCurrentDirectory,
+    removeDirectoryRecursive,
+  )
+import System.Environment (getArgs, getProgName)
+import qualified System.Exit as Exit
+import qualified System.FilePath as FP
+import System.IO.Error (catchIOError)
+import qualified System.IO.Temp as Temp
+import System.Mem.Weak (deRefWeak)
+import qualified System.Path as Path
 import Text.Megaparsec (runParser)
+import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.Editor.Input as Input
+import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
+import qualified Unison.Codebase.Editor.VersionParser as VP
+import Unison.Codebase.Execute (execute)
+import qualified Unison.Codebase.FileCodebase as FileCodebaseX
+import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Runtime (Runtime)
+import qualified Unison.Codebase.SqliteCodebase as SqliteCodebaseX
+import qualified Unison.Codebase.TranscriptParser as TR
+import Unison.CommandLine (watchConfig)
+import qualified Unison.CommandLine.Main as CommandLine
+import Unison.Parser (Ann)
+import Unison.Prelude
+import qualified Unison.PrettyTerminal as PT
+import qualified Unison.Runtime.Interface as RTI
+import qualified Unison.Runtime.Rt1IO as Rt1
+import qualified Unison.Server.CodebaseServer as Server
+import Unison.Symbol (Symbol)
+import qualified Unison.Util.Pretty as P
+import qualified Version
 
 #if defined(mingw32_HOST_OS)
 import qualified GHC.ConsoleHandler as WinSig
@@ -140,9 +145,14 @@ main = do
   let (mcodepath, restargs0) = case args of
            "-codebase" : codepath : restargs -> (Just codepath, restargs)
            _                                 -> (Nothing, args)
-      (mNewRun, restargs) = case restargs0 of
+      (mNewRun, restargs1) = case restargs0 of
            "--new-runtime" : rest -> (Just True, rest)
            _ -> (Nothing, restargs0)
+      (fromMaybe False -> mNewCodebase, restargs) = case restargs1 of
+           "--new-codebase" : rest -> (Just True, rest)
+           "--old-codebase" : rest -> (Just False, rest)
+           _ -> (Nothing, restargs1)
+      cbInit = if mNewCodebase then SqliteCodebaseX.init else FileCodebaseX.init
   currentDir <- getCurrentDirectory
   configFilePath <- getConfigFilePath mcodepath
   config <-
@@ -150,7 +160,7 @@ main = do
       Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
   case restargs of
     [] -> do
-      (closeCodebase, theCodebase) <- SqliteCodebase.getCodebaseOrExit mcodepath
+      (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
       Server.start theCodebase $ \token port -> do
         PT.putPrettyLn . P.string $ "I've started a codebase API server at "
         PT.putPrettyLn . P.string $ "http://127.0.0.1:"
@@ -160,9 +170,9 @@ main = do
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
-    ["init"] -> SqliteCodebase.initCodebaseAndExit mcodepath
+    ["init"] -> Codebase.initCodebaseAndExit cbInit mcodepath
     "run" : [mainName] -> do
-      (closeCodebase, theCodebase) <- SqliteCodebase.getCodebaseOrExit mcodepath
+      (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
       runtime <- join . getStartRuntime mNewRun $ fst config
       execute theCodebase runtime mainName
       closeCodebase
@@ -171,7 +181,7 @@ main = do
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
         Right contents -> do
-          (closeCodebase, theCodebase) <- SqliteCodebase.getCodebaseOrExit mcodepath
+          (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
           launch currentDir mNewRun config theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
           closeCodebase
@@ -180,7 +190,7 @@ main = do
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
-          (closeCodebase, theCodebase) <- SqliteCodebase.getCodebaseOrExit mcodepath
+          (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
             currentDir mNewRun config theCodebase
@@ -188,41 +198,42 @@ main = do
           closeCodebase
     "transcript" : args' ->
       case args' of
-      "-save-codebase" : transcripts -> runTranscripts mNewRun False True mcodepath transcripts
-      _                              -> runTranscripts mNewRun False False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts mNewRun cbInit False True mcodepath transcripts
+      _                              -> runTranscripts mNewRun cbInit False False mcodepath args'
     "transcript.fork" : args' ->
       case args' of
-      "-save-codebase" : transcripts -> runTranscripts mNewRun True True mcodepath transcripts
-      _                              -> runTranscripts mNewRun True False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts mNewRun cbInit True True mcodepath transcripts
+      _                              -> runTranscripts mNewRun cbInit True False mcodepath args'
     _ -> do
       PT.putPrettyLn (usage progName)
       Exit.exitWith (Exit.ExitFailure 1)
 
-prepareTranscriptDir :: Bool -> Maybe FilePath -> IO FilePath
-prepareTranscriptDir inFork mcodepath = do
+prepareTranscriptDir :: Codebase.Init IO v a -> Bool -> Maybe FilePath -> IO FilePath
+prepareTranscriptDir cbInit inFork mcodepath = do
   tmp <- Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
   unless inFork $ do
     PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-    _ <- SqliteCodebase.initCodebase tmp
+    _ <- Codebase.initCodebase cbInit tmp
     pure()
 
-  when inFork $ SqliteCodebase.getCodebaseOrExit mcodepath >> do
-    path <- SqliteCodebase.getCodebaseDir mcodepath
+  when inFork $ Codebase.getCodebaseOrExit cbInit mcodepath >> do
+    path <- Codebase.getCodebaseDir mcodepath
     PT.putPrettyLn $ P.lines [
       P.wrap "Transcript will be run on a copy of the codebase at: ", "",
       P.indentN 2 (P.string path)
       ]
-    Path.copyDir (path FP.</> SqliteCodebase.codebasePath) (tmp FP.</> SqliteCodebase.codebasePath)
+    Path.copyDir (Codebase.codebasePath cbInit path) (Codebase.codebasePath cbInit tmp)
 
   pure tmp
 
 runTranscripts'
   :: Maybe Bool
+  -> Codebase.Init IO Symbol Ann
   -> Maybe FilePath
   -> FilePath
   -> [String]
   -> IO Bool
-runTranscripts' mNewRun mcodepath transcriptDir args = do
+runTranscripts' mNewRun cbInit mcodepath transcriptDir args = do
   currentDir <- getCurrentDirectory
   case args of
     args@(_:_) -> do
@@ -237,7 +248,7 @@ runTranscripts' mNewRun mcodepath transcriptDir args = do
                   P.indentN 2 $ P.string err])
             Right stanzas -> do
               configFilePath <- getConfigFilePath mcodepath
-              (closeCodebase, theCodebase) <- SqliteCodebase.getCodebaseOrExit $ Just transcriptDir
+              (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit $ Just transcriptDir
               mdOut <- TR.run mNewRun transcriptDir configFilePath stanzas theCodebase
               closeCodebase
               let out = currentDir FP.</>
@@ -256,16 +267,17 @@ runTranscripts' mNewRun mcodepath transcriptDir args = do
 
 runTranscripts
   :: Maybe Bool
+  -> Codebase.Init IO Symbol Ann
   -> Bool
   -> Bool
   -> Maybe FilePath
   -> [String]
   -> IO ()
-runTranscripts mNewRun inFork keepTemp mcodepath args = do
+runTranscripts mNewRun cbInit inFork keepTemp mcodepath args = do
   progName <- getProgName
-  transcriptDir <- prepareTranscriptDir inFork mcodepath
+  transcriptDir <- prepareTranscriptDir cbInit inFork mcodepath
   completed <-
-    runTranscripts' mNewRun (Just transcriptDir) transcriptDir args
+    runTranscripts' mNewRun cbInit (Just transcriptDir) transcriptDir args
   when completed $ do
     unless keepTemp $ removeDirectoryRecursive transcriptDir
     when keepTemp $ PT.putPrettyLn $
@@ -316,7 +328,7 @@ isFlag :: String -> String -> Bool
 isFlag f arg = arg == f || arg == "-" ++ f || arg == "--" ++ f
 
 getConfigFilePath :: Maybe FilePath -> IO FilePath
-getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> SqliteCodebase.getCodebaseDir mcodepath
+getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> Codebase.getCodebaseDir mcodepath
 
 defaultBaseLib :: Maybe RemoteNamespace
 defaultBaseLib = rightMay $

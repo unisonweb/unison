@@ -10,14 +10,32 @@ import Control.Monad.Except (MonadError, throwError)
 import qualified Data.Text as Text
 import Shellmet (($?), ($^), ($|))
 import System.FilePath ((</>))
-import Unison.Codebase (CodebasePath)
 import Unison.Codebase.Editor.RemoteRepo (RemoteRepo (GitRepo))
-import Unison.Codebase.FileCodebase.Common (encodeFileName)
 import Unison.Codebase.GitError (GitError)
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Util.Exception as Ex
 import UnliftIO.Directory (XdgDirectory (XdgCache), doesDirectoryExist, findExecutable, getXdgDirectory, removeDirectoryRecursive)
 import UnliftIO.IO (hFlush, stdout)
+import qualified Data.ByteString.Base16 as ByteString
+import qualified Data.Char as Char
+
+type CodebasePath = FilePath
+
+-- https://superuser.com/questions/358855/what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
+encodeFileName :: String -> FilePath
+encodeFileName = let
+  go ('$' : rem) = "$$" <> go rem
+  go (c : rem) | elem @[] c "/\\:*?\"<>|" || not (Char.isPrint c && Char.isAscii c)
+                 = "$x" <> encodeHex [c] <> "$" <> go rem
+               | otherwise = c : go rem
+  go [] = []
+  encodeHex :: String -> String
+  encodeHex = Text.unpack . Text.toUpper . ByteString.encodeBase16 .
+              encodeUtf8 . Text.pack
+  in \case
+    "." -> "$dot$"
+    ".." -> "$dotdot$"
+    t -> go t
 
 tempGitDir :: MonadIO m => Text -> m FilePath
 tempGitDir url =

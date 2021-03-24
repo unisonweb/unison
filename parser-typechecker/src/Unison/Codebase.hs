@@ -1,49 +1,78 @@
-{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Codebase where
 
-import Unison.Prelude
-
-import           Control.Lens                   ( _1, _2, (%=) )
-import           Control.Monad.State            ( State, evalState, get )
-import           Data.Bifunctor                 ( bimap )
-import qualified Data.Map                      as Map
-import qualified Data.Set                      as Set
-import qualified Unison.ABT                    as ABT
-import qualified Unison.Builtin                as Builtin
-import qualified Unison.Builtin.Terms          as Builtin
-import           Unison.Codebase.Branch         ( Branch )
-import qualified Unison.Codebase.Branch        as Branch
-import qualified Unison.Codebase.CodeLookup    as CL
-import qualified Unison.Codebase.Reflog        as Reflog
-import           Unison.Codebase.SyncMode       ( SyncMode )
-import qualified Unison.DataDeclaration        as DD
-import           Unison.Reference               ( Reference )
-import qualified Unison.Reference              as Reference
-import qualified Unison.Referent as Referent
-import qualified Unison.Term                   as Term
-import qualified Unison.Type                   as Type
-import           Unison.Typechecker.TypeLookup  (TypeLookup(TypeLookup))
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.Parser                 as Parser
-import qualified Unison.UnisonFile             as UF
-import qualified Unison.Util.Relation          as Rel
-import qualified Unison.Util.Set               as Set
-import qualified Unison.Var                    as Var
-import           Unison.Var                     ( Var )
-import           Unison.Symbol                  ( Symbol )
-import Unison.DataDeclaration (Decl)
-import Unison.Term (Term)
-import Unison.Type (Type)
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import Unison.ShortHash (ShortHash)
+import Control.Lens ((%=), _1, _2)
+import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
+import Control.Monad.State (State, evalState, get)
+import Data.Bifunctor (bimap)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Unison.ABT as ABT
+import qualified Unison.Builtin as Builtin
+import qualified Unison.Builtin.Terms as Builtin
+import Unison.Codebase.Branch (Branch)
+import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.CodeLookup as CL
+import Unison.Codebase.Editor.Git (withStatus)
+import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, RemoteRepo)
+import Unison.Codebase.GitError (GitError)
 import Unison.Codebase.Patch (Patch)
+import qualified Unison.Codebase.Reflog as Reflog
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.SyncMode (SyncMode)
+import Unison.DataDeclaration (Decl)
+import qualified Unison.DataDeclaration as DD
+import qualified Unison.Parser as Parser
+import Unison.Prelude
+import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
+import qualified Unison.Referent as Referent
+import Unison.ShortHash (ShortHash)
+import Unison.Symbol (Symbol)
+import Unison.Term (Term)
+import qualified Unison.Term as Term
+import Unison.Type (Type)
+import qualified Unison.Type as Type
+import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
+import qualified Unison.Typechecker.TypeLookup as TL
+import qualified Unison.UnisonFile as UF
+import qualified Unison.Util.Relation as Rel
+import qualified Unison.Util.Set as Set
+import Unison.Util.Timing (time)
+import Unison.Var (Var)
+import qualified Unison.Var as Var
+import UnliftIO.Directory (getHomeDirectory)
 
 type DataDeclaration v a = DD.DataDeclaration v a
+
 type EffectDeclaration v a = DD.EffectDeclaration v a
 
 -- | this FileCodebase detail lives here, because the interface depends on it 🙃
 type CodebasePath = FilePath
+
+type SyncToDir m =
+  CodebasePath -> -- dest codebase
+  SyncMode ->
+  Branch m -> -- branch to sync to dest codebase
+  m ()
+
+-- | just collecting the abstraction we're currently using, not what we maybe should be using. -AI
+data Init m v a = Init
+  {
+    openCodebase :: CodebasePath -> m (Either String (m (), Codebase m v a)),
+    -- | load an existing codebase or exit.
+    -- seems like Maybe might be more useful idk
+    getCodebaseOrExit :: Maybe CodebasePath -> m (m (), Codebase m v a),
+    -- | initialize a codebase where none exists, or exit
+    -- seems again like the return type type could be more useful
+    initCodebase :: CodebasePath -> m (m (), Codebase m v a),
+    -- | try to init a codebase where none exists and then exit regardless
+    initCodebaseAndExit :: Maybe CodebasePath -> m (),
+    -- | given a codebase root, and given that the codebase root may have other junk in it,
+    -- give the path to the "actual" files; e.g. what a forked transcript should clone
+    codebasePath :: CodebasePath -> CodebasePath
+  }
 
 -- | Abstract interface to a user's codebase.
 --
@@ -74,6 +103,8 @@ data Codebase m v a =
            -- This copies all the dependencies of `b` from the this Codebase
            -- into the specified FileCodebase, and sets its _head to `b`
            , syncToDirectory    :: CodebasePath -> SyncMode -> Branch m -> m ()
+           , viewRemoteBranch' :: RemoteNamespace -> m (Either GitError (Branch m, CodebasePath))
+           , pushGitRootBranch :: Branch m -> RemoteRepo -> SyncMode -> m (Either GitError ())
 
            -- Watch expressions are part of the codebase, the `Reference.Id` is
            -- the hash of the source of the watch expression, and the `Term v a`
@@ -99,6 +130,7 @@ data Codebase m v a =
            , branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.Hash)
            }
 
+
 data GetRootBranchError
   = NoRootBranch
   | CouldntParseRootBranch String
@@ -109,6 +141,9 @@ debug :: Bool
 debug = False
 
 data SyncFileCodebaseResult = SyncOk | UnknownDestinationRootBranch Branch.Hash | NotFastForward
+
+getCodebaseDir :: MonadIO m => Maybe FilePath -> m FilePath
+getCodebaseDir = maybe getHomeDirectory pure
 
 -- | Write all of the builtins types into the codebase and create empty namespace
 initializeCodebase :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
@@ -306,3 +341,31 @@ class BuiltinAnnotation a where
 
 instance BuiltinAnnotation Parser.Ann where
   builtinAnnotation = Parser.Intrinsic
+
+-- * Git stuff
+
+-- | Sync elements as needed from a remote codebase into the local one.
+-- If `sbh` is supplied, we try to load the specified branch hash;
+-- otherwise we try to load the root branch.
+importRemoteBranch ::
+  forall m v a.
+  MonadIO m =>
+  Codebase m v a ->
+  RemoteNamespace ->
+  SyncMode ->
+  m (Either GitError (Branch m))
+importRemoteBranch codebase ns mode = runExceptT do
+  (branch, cacheDir) <- ExceptT $ viewRemoteBranch' codebase ns
+  withStatus "Importing downloaded files into local codebase..." $
+    time "SyncFromDirectory" $
+      lift $ syncFromDirectory codebase cacheDir mode branch
+  pure branch
+
+-- | Pull a git branch and view it from the cache, without syncing into the
+-- local codebase.
+viewRemoteBranch ::
+  MonadIO m =>
+  Codebase m v a ->
+  RemoteNamespace ->
+  m (Either GitError (Branch m))
+viewRemoteBranch cache = runExceptT . fmap fst . ExceptT . viewRemoteBranch' cache

@@ -27,8 +27,8 @@ cache = do
 
   pure $ Cache lookup insert
 
-nullCache :: (MonadIO m, Ord k) => m (Cache m k v)
-nullCache = pure $ Cache (const (pure Nothing)) (\_ _ -> pure ())
+nullCache :: Applicative m => Cache m k v
+nullCache = Cache (const (pure Nothing)) (\_ _ -> pure ())
 
 -- Create a cache of bounded size. Once the cache
 -- reaches a size of `maxSize`, older unused entries
@@ -36,7 +36,7 @@ nullCache = pure $ Cache (const (pure Nothing)) (\_ _ -> pure ())
 -- where cache hits require updating LRU info,
 -- cache hits here are read-only and contention free.
 semispaceCache :: (MonadIO m, Ord k) => Word -> m (Cache m k v)
-semispaceCache 0 = nullCache
+semispaceCache 0 = pure nullCache
 semispaceCache maxSize = do
   -- Analogous to semispace GC, keep 2 maps: gen0 and gen1
   -- `insert k v` is done in gen0

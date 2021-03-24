@@ -6,14 +6,14 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.SqliteCodebase where
+module Unison.Codebase.SqliteCodebase (Unison.Codebase.SqliteCodebase.init) where
 
 import qualified Control.Concurrent
 import qualified Control.Exception
 import Control.Monad (filterM, when, (>=>))
-import Control.Monad.Except (ExceptT, runExceptT)
+import Control.Monad.Except (ExceptT, runExceptT,MonadError (throwError))
 import qualified Control.Monad.Except as Except
-import Control.Monad.Extra (ifM, unlessM)
+import Control.Monad.Extra (ifM, unlessM, (||^))
 import qualified Control.Monad.Extra as Monad
 import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.State (MonadState)
@@ -85,13 +85,26 @@ import qualified Unison.Type as Type
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
 import UnliftIO (MonadIO, catchIO, liftIO)
-import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, getHomeDirectory)
+import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import qualified UnliftIO.Environment as SysEnv
 import UnliftIO.STM
+import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, RemoteRepo (GitRepo), printRepo)
+import Unison.Codebase.GitError (GitError)
+import qualified Unison.Codebase.GitError as GitError
+import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Editor.Git (withIOError, withStatus, gitTextIn, gitIn, pullBranch)
+import Unison.Util.Timing (time)
+import GHC.Stack (HasCallStack)
+import qualified Unison.Util.ColorText as ColorText
+import qualified Data.Bifunctor as Bifunctor
 
 debug, debugProcessBranches :: Bool
 debug = False
 debugProcessBranches = False
+
+init :: HasCallStack => MonadIO m => Codebase1.Init m Symbol Ann
+init = Codebase1.Init getCodebaseOrError getCodebaseOrExit initCodebase initCodebaseAndExit (</> codebasePath)
 
 codebasePath :: FilePath
 codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
@@ -99,7 +112,7 @@ codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
 -- get the codebase in dir, or in the home directory if not provided.
 getCodebaseOrExit :: MonadIO m => Maybe FilePath -> m (m (), Codebase1.Codebase m Symbol Ann)
 getCodebaseOrExit mdir = do
-  dir <- getCodebaseDir mdir
+  dir <- Codebase.getCodebaseDir mdir
   progName <- SysEnv.getProgName
   prettyDir <- P.string <$> canonicalizePath dir
   let errMsg = getNoCodebaseErrorMsg ((P.text . Text.pack) progName) prettyDir mdir
@@ -108,6 +121,17 @@ getCodebaseOrExit mdir = do
       PT.putPrettyLn' errMsg
       SysExit.exitFailure
     Right c -> pure c
+
+-- get the codebase in dir
+getCodebaseOrError :: forall m. MonadIO m => CodebasePath -> m (Either String (m (), Codebase.Codebase m Symbol Ann))
+getCodebaseOrError dir = do
+  prettyDir <- liftIO $ P.string <$> canonicalizePath dir
+  let prettyError :: [(Q.SchemaType, Q.SchemaName)] -> String
+      prettyError schema =
+        ColorText.toANSI . P.render 80 . (("Missing SqliteCodebase structure in " <> prettyDir <> ".") <>)
+          . P.column2Header "Schema Type" "Name"
+          $ map (Bifunctor.bimap P.string P.string) schema
+  fmap (Either.mapLeft prettyError) (sqliteCodebase dir)
 
 getNoCodebaseErrorMsg :: IsString s => P.Pretty s -> P.Pretty s -> Maybe FilePath -> P.Pretty s
 getNoCodebaseErrorMsg executable prettyDir mdir =
@@ -129,7 +153,7 @@ getNoCodebaseErrorMsg executable prettyDir mdir =
 
 initCodebaseAndExit :: MonadIO m => Maybe FilePath -> m ()
 initCodebaseAndExit mdir = do
-  dir <- getCodebaseDir mdir
+  dir <- Codebase.getCodebaseDir mdir
   (closeCodebase, _codebase) <- initCodebase dir
   closeCodebase
   liftIO SysExit.exitSuccess
@@ -172,9 +196,6 @@ initCodebase path = do
       Left x -> error $ show x ++ " :) "
   Codebase1.initializeCodebase theCodebase
   pure (closeCodebase, theCodebase)
-
-getCodebaseDir :: MonadIO m => Maybe FilePath -> m FilePath
-getCodebaseDir = maybe getHomeDirectory pure
 
 -- checks if a db exists at `path` with the minimum schema
 codebaseExists :: MonadIO m => CodebasePath -> m Bool
@@ -764,6 +785,8 @@ sqliteCodebase root = do
             dependentsImpl
             syncFromDirectory
             syncToDirectory
+            viewRemoteBranch'
+            (pushGitRootBranch syncToDirectory)
             watches
             getWatch
             putWatch
@@ -861,3 +884,87 @@ syncProgress = Sync.Progress need done warn allDone
       SyncProgressState need done warn -> "invalid SyncProgressState " ++
         show (fmap v need, bimap id v done, bimap id v warn)
       where v = const ()
+
+
+viewRemoteBranch' :: forall m. MonadIO m
+  => RemoteNamespace -> m (Either GitError (Branch m, CodebasePath))
+viewRemoteBranch' (repo, sbh, path) = runExceptT do
+  -- set up the cache dir
+  remotePath <- time "Git fetch" $ pullBranch repo
+  ifM (codebaseExists remotePath)
+    (do
+      (closeCodebase, codebase) <- lift (sqliteCodebase remotePath) >>=
+        Validation.valueOr (\_missingSchema -> throwError $ GitError.CouldntOpenCodebase repo remotePath) . fmap pure
+      -- try to load the requested branch from it
+      branch <- time "Git fetch (sbh)" $ case sbh of
+        -- load the root branch
+        Nothing -> lift (Codebase.getRootBranch codebase) >>= \case
+          Left Codebase.NoRootBranch -> pure Branch.empty
+          Left (Codebase.CouldntLoadRootBranch h) ->
+            throwError $ GitError.CouldntLoadRootBranch repo h
+          Left (Codebase.CouldntParseRootBranch s) ->
+            throwError $ GitError.CouldntParseRootBranch repo s
+          Right b -> pure b
+        -- load from a specific `ShortBranchHash`
+        Just sbh -> do
+          branchCompletions <- lift $ Codebase.branchHashesByPrefix codebase sbh
+          case toList branchCompletions of
+            [] -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
+            [h] -> (lift $ Codebase.getBranchForHash codebase h) >>= \case
+              Just b -> pure b
+              Nothing -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
+            _ -> throwError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
+      lift closeCodebase
+      pure (Branch.getAt' path branch, remotePath))
+    -- else there's no initialized codebase at this repo; we pretend there's an empty one.
+    (pure (Branch.empty, remotePath))
+
+-- Given a branch that is "after" the existing root of a given git repo,
+-- stage and push the branch (as the new root) + dependencies to the repo.
+pushGitRootBranch
+  :: MonadIO m
+  => Codebase.SyncToDir m
+  -> Branch m
+  -> RemoteRepo
+  -> SyncMode
+  -> m (Either GitError ())
+pushGitRootBranch syncToDirectory branch repo syncMode = runExceptT do
+  -- Pull the remote repo into a staging directory
+  (remoteRoot, remotePath) <- Except.ExceptT $ viewRemoteBranch' (repo, Nothing, Path.empty)
+  ifM (pure (remoteRoot == Branch.empty)
+        ||^ lift (remoteRoot `Branch.before` branch))
+    -- ours is newer 👍, meaning this is a fast-forward push,
+    -- so sync branch to staging area
+    (stageAndPush remotePath)
+    (throwError $ GitError.PushDestinationHasNewStuff repo)
+  where
+  stageAndPush remotePath = do
+    let repoString = Text.unpack $ printRepo repo
+    withStatus ("Staging files for upload to " ++ repoString ++ " ...") $
+      lift (syncToDirectory remotePath syncMode branch)
+    -- push staging area to remote
+    withStatus ("Uploading to " ++ repoString ++ " ...") $
+      unlessM
+        (push remotePath repo
+          `withIOError` (throwError . GitError.PushException repo . show))
+        (throwError $ GitError.PushNoOp repo)
+  -- Commit our changes
+  push :: CodebasePath -> RemoteRepo -> IO Bool -- withIOError needs IO
+  push remotePath (GitRepo url gitbranch) = do
+    -- has anything changed?
+    status <- gitTextIn remotePath ["status", "--short"]
+    if Text.null status then
+      pure False
+    else do
+      gitIn remotePath ["add", "--all", "."]
+      gitIn remotePath
+        ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ Branch.headHash branch)]
+      -- Push our changes to the repo
+      case gitbranch of
+        Nothing        -> gitIn remotePath ["push", "--quiet", url]
+        Just gitbranch -> error $
+          "Pushing to a specific branch isn't fully implemented or tested yet.\n"
+          ++ "InputPatterns.parseUri was expected to have prevented you "
+          ++ "from supplying the git treeish `" ++ Text.unpack gitbranch ++ "`!"
+          -- gitIn remotePath ["push", "--quiet", url, gitbranch]
+      pure True

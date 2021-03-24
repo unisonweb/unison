@@ -2,10 +2,11 @@ module Unison.Codebase.GitError where
 
 import Unison.Prelude
 
-import Unison.Codebase (CodebasePath)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.RemoteRepo (RemoteRepo)
+
+type CodebasePath = FilePath
 
 data GitError = NoGit
               | UnrecognizableCacheDir Text CodebasePath

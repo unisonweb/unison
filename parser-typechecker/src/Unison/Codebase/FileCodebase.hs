@@ -1,109 +1,109 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
+
 module Unison.Codebase.FileCodebase
-( getRootBranch        -- used by Git module
-, branchHashesByPrefix -- used by Git module
-, branchFromFiles      -- used by Git module
-, codebase1  -- used by Main
-, codebase1' -- used by Test/Git
-, codebaseExists     -- used by Main
-, initCodebaseAndExit
-, initCodebase
-, getCodebaseOrExit
-, getCodebaseDir
-) where
-
-import Unison.Prelude
-
-import           UnliftIO                       ( MonadUnliftIO )
-import           UnliftIO.Exception             ( catchIO )
-import           UnliftIO.Concurrent            ( forkIO
-                                                , killThread
-                                                )
-import           UnliftIO.STM                   ( atomically )
-import qualified Data.Set                      as Set
-import qualified Data.Text                     as Text
-import qualified Data.Text.IO                  as TextIO
-import           UnliftIO.Directory             ( createDirectoryIfMissing
-                                                , doesDirectoryExist
-                                                )
-import           System.FilePath                ( takeFileName
-                                                )
-import           System.Directory               ( getHomeDirectory
-                                                , canonicalizePath
-                                                )
-import           System.Environment             ( getProgName )
-import           System.Exit                    ( exitFailure, exitSuccess )
-import qualified Unison.Codebase               as Codebase
-import           Unison.Codebase                ( Codebase(Codebase)
-                                                , BuiltinAnnotation
-                                                , CodebasePath
-                                                )
-import           Unison.Codebase.Branch         ( Branch )
-import qualified Unison.Codebase.Branch        as Branch
-import qualified Unison.Codebase.Reflog        as Reflog
-import qualified Unison.Codebase.Serialization as S
-import qualified Unison.Codebase.Serialization.V1
-                                               as V1
-import qualified Unison.Codebase.Watch         as Watch
-import           Unison.Parser                  (Ann() )
-import           Unison.Reference               ( Reference )
-import qualified Unison.Reference              as Reference
-import qualified Unison.Referent               as Referent
-import qualified Unison.Util.TQueue            as TQueue
-import           Unison.Var                     ( Var )
-import qualified Unison.UnisonFile             as UF
-import qualified U.Util.Cache             as Cache
-import qualified Unison.Util.Pretty            as P
-import qualified Unison.PrettyTerminal         as PT
-import           Unison.Symbol                  ( Symbol )
-import qualified Unison.Codebase.FileCodebase.Common as Common
-import Unison.Codebase.FileCodebase.Common
-  ( Err(CantParseBranchHead)
-  , codebaseExists
-  ---
-  , branchHeadDir
-  , dependentsDir
-  , reflogPath
-  , typeIndexDir
-  , typeMentionsIndexDir
-  , watchesDir
-  ---
-  , componentIdFromString
-  , hashFromFilePath
-  , referentIdFromString
-  , decodeFileName
-  , formatAnn
-  , getRootBranch
-  , getDecl
-  , getTerm
-  , getTypeOfTerm
-  , getWatch
-  , putDecl
-  , putTerm
-  , putRootBranch
-  , putBranch
-  , putWatch
-  ---
-  , hashExists
-  , branchFromFiles
-  , branchHashesByPrefix
-  , termReferencesByPrefix
-  , termReferentsByPrefix
-  , typeReferencesByPrefix
-  ---
-  , failWith
-  , listDirectory, getPatch, serializeEdits, patchExists
+  (
+    codebase1', -- used by Test/Git
+    Unison.Codebase.FileCodebase.init,
   )
-
+where
+import Control.Monad.Except (ExceptT, runExceptT, throwError)
+import Control.Monad.Extra ((||^))
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
+import System.Directory (canonicalizePath)
+import System.Environment (getProgName)
+import System.Exit (exitFailure, exitSuccess)
+import System.FilePath (takeFileName, (</>))
+import qualified U.Util.Cache as Cache
+import Unison.Codebase (BuiltinAnnotation, Codebase (Codebase), CodebasePath)
+import qualified Unison.Codebase as Codebase
+import Unison.Codebase.Branch (Branch, headHash)
+import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Editor.Git (gitIn, gitTextIn, pullBranch, withIOError, withStatus)
+import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, RemoteRepo (GitRepo), printRepo)
+import Unison.Codebase.FileCodebase.Common
+  ( Err (CantParseBranchHead),
+    branchFromFiles,
+    branchHashesByPrefix,
+    branchHeadDir,
+    codebaseExists,
+    componentIdFromString,
+    decodeFileName,
+    dependentsDir,
+    failWith,
+    formatAnn,
+    getDecl,
+    getPatch,
+    getRootBranch,
+    getTerm,
+    getTypeOfTerm,
+    getWatch,
+    hashExists,
+    hashFromFilePath,
+    listDirectory,
+    patchExists,
+    putBranch,
+    putDecl,
+    putRootBranch,
+    putTerm,
+    putWatch,
+    referentIdFromString,
+    reflogPath,
+    serializeEdits,
+    termReferencesByPrefix,
+    termReferentsByPrefix,
+    typeIndexDir,
+    typeMentionsIndexDir,
+    typeReferencesByPrefix,
+    updateCausalHead,
+    watchesDir,
+  )
+import qualified Unison.Codebase.FileCodebase.Common as Common
 import qualified Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex as Sync
+import Unison.Codebase.GitError (GitError)
+import qualified Unison.Codebase.GitError as GitError
+import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Reflog as Reflog
+import qualified Unison.Codebase.Serialization as S
+import qualified Unison.Codebase.Serialization.V1 as V1
+import Unison.Codebase.SyncMode (SyncMode)
+import qualified Unison.Codebase.Watch as Watch
+import Unison.Parser (Ann ())
+import Unison.Prelude
+import qualified Unison.PrettyTerminal as PT
+import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
+import qualified Unison.Referent as Referent
+import Unison.Symbol (Symbol)
+import qualified Unison.UnisonFile as UF
+import qualified Unison.Util.Pretty as P
+import qualified Unison.Util.TQueue as TQueue
+import Unison.Util.Timing (time)
+import Unison.Var (Var)
+import UnliftIO (MonadUnliftIO)
+import UnliftIO.Concurrent (forkIO, killThread)
+import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist)
+import UnliftIO.Exception (catchIO)
+import UnliftIO.STM (atomically)
+
+init :: Codebase.Init IO Symbol Ann
+init = Codebase.Init
+  getCodebaseOrError
+  (fmap (pure (),) . getCodebaseOrExit Cache.nullCache)
+  (fmap (pure (),) . initCodebase Cache.nullCache)
+  initCodebaseAndExit
+  (</> Common.codebasePath)
 
 initCodebaseAndExit :: Maybe FilePath -> IO ()
 initCodebaseAndExit mdir = do
-  dir <- getCodebaseDir mdir
+  dir <- Codebase.getCodebaseDir mdir
   cache <- Cache.cache
   _ <- initCodebase cache dir
   exitSuccess
@@ -131,7 +131,7 @@ initCodebase cache path = do
 -- get the codebase in dir, or in the home directory if not provided.
 getCodebaseOrExit :: Branch.Cache IO -> Maybe FilePath -> IO (Codebase IO Symbol Ann)
 getCodebaseOrExit cache mdir = do
-  dir <- getCodebaseDir mdir
+  dir <- Codebase.getCodebaseDir mdir
   progName <- getProgName
   prettyDir <- P.string <$> canonicalizePath dir
   let errMsg = getNoCodebaseErrorMsg ((P.text . Text.pack) progName) prettyDir mdir
@@ -140,6 +140,15 @@ getCodebaseOrExit cache mdir = do
     PT.putPrettyLn' errMsg
     exitFailure
   theCodebase
+
+-- get the codebase in dir
+getCodebaseOrError :: forall m. MonadUnliftIO m => CodebasePath -> m (Either String (m (), Codebase m Symbol Ann))
+getCodebaseOrError dir = do
+  prettyDir <- liftIO $ P.string <$> canonicalizePath dir
+  let theCodebase = codebase1 @m @Symbol @Ann Cache.nullCache V1.formatSymbol formatAnn dir
+  ifM (codebaseExists dir)
+    (Right . (pure (),) <$> theCodebase)
+    (pure . Left . P.render @String 80 $ "No FileCodebase structure found at " <> prettyDir)
 
 getNoCodebaseErrorMsg :: IsString s => P.Pretty s -> P.Pretty s -> Maybe FilePath -> P.Pretty s
 getNoCodebaseErrorMsg executable prettyDir mdir =
@@ -154,9 +163,6 @@ getNoCodebaseErrorMsg executable prettyDir mdir =
     P.lines
         [ "No codebase exists in " <> prettyDir <> "."
         , secondLine ]
-
-getCodebaseDir :: Maybe FilePath -> IO FilePath
-getCodebaseDir = maybe getHomeDirectory pure
 
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`
 codebase1
@@ -196,6 +202,9 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
           dependents
           (flip (syncToDirectory fmtV fmtA) path)
           (syncToDirectory fmtV fmtA path)
+          (runExceptT . viewRemoteBranch' Cache.nullCache)
+          (\b r m -> runExceptT $
+            pushGitRootBranch (syncToDirectory fmtV fmtA path) Cache.nullCache b r m)
           watches
           (getWatch getV getA path)
           (putWatch putV putA path)
@@ -287,3 +296,83 @@ branchHeadUpdates root = do
     ( cancelWatch >> killThread watcher1
     , Set.fromList <$> Watch.collectUntilPause branchHeadChanges 400000
     )
+
+-- * Git stuff
+
+viewRemoteBranch' :: forall m. MonadIO m
+  => Branch.Cache m -> RemoteNamespace -> ExceptT GitError m (Branch m, CodebasePath)
+viewRemoteBranch' cache (repo, sbh, path) = do
+  -- set up the cache dir
+  remotePath <- time "Git fetch" $ pullBranch repo
+  -- try to load the requested branch from it
+  branch <- time "Git fetch (sbh)" $ case sbh of
+    -- load the root branch
+    Nothing -> lift (getRootBranch cache remotePath) >>= \case
+      Left Codebase.NoRootBranch -> pure Branch.empty
+      Left (Codebase.CouldntLoadRootBranch h) ->
+        throwError $ GitError.CouldntLoadRootBranch repo h
+      Left (Codebase.CouldntParseRootBranch s) ->
+        throwError $ GitError.CouldntParseRootBranch repo s
+      Right b -> pure b
+    -- load from a specific `ShortBranchHash`
+    Just sbh -> do
+      branchCompletions <- lift $ branchHashesByPrefix remotePath sbh
+      case toList branchCompletions of
+        [] -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
+        [h] -> (lift $ branchFromFiles cache remotePath h) >>= \case
+          Just b -> pure b
+          Nothing -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
+        _ -> throwError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
+  pure (Branch.getAt' path branch, remotePath)
+
+-- Given a branch that is "after" the existing root of a given git repo,
+-- stage and push the branch (as the new root) + dependencies to the repo.
+pushGitRootBranch
+  :: MonadIO m
+  => Codebase.SyncToDir m
+  -> Branch.Cache m
+  -> Branch m
+  -> RemoteRepo
+  -> SyncMode
+  -> ExceptT GitError m ()
+pushGitRootBranch syncToDirectory cache branch repo syncMode = do
+  -- Pull the remote repo into a staging directory
+  (remoteRoot, remotePath) <- viewRemoteBranch' cache (repo, Nothing, Path.empty)
+  ifM (pure (remoteRoot == Branch.empty)
+        ||^ lift (remoteRoot `Branch.before` branch))
+    -- ours is newer 👍, meaning this is a fast-forward push,
+    -- so sync branch to staging area
+    (stageAndPush remotePath)
+    (throwError $ GitError.PushDestinationHasNewStuff repo)
+  where
+  stageAndPush remotePath = do
+    let repoString = Text.unpack $ printRepo repo
+    withStatus ("Staging files for upload to " ++ repoString ++ " ...") $
+      lift (syncToDirectory remotePath syncMode branch)
+    updateCausalHead (branchHeadDir remotePath) (Branch._history branch)
+    -- push staging area to remote
+    withStatus ("Uploading to " ++ repoString ++ " ...") $
+      unlessM
+        (push remotePath repo
+          `withIOError` (throwError . GitError.PushException repo . show))
+        (throwError $ GitError.PushNoOp repo)
+  -- Commit our changes
+  push :: CodebasePath -> RemoteRepo -> IO Bool -- withIOError needs IO
+  push remotePath (GitRepo url gitbranch) = do
+    -- has anything changed?
+    status <- gitTextIn remotePath ["status", "--short"]
+    if Text.null status then
+      pure False
+    else do
+      gitIn remotePath ["add", "--all", "."]
+      gitIn remotePath
+        ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ headHash branch)]
+      -- Push our changes to the repo
+      case gitbranch of
+        Nothing        -> gitIn remotePath ["push", "--quiet", url]
+        Just gitbranch -> error $
+          "Pushing to a specific branch isn't fully implemented or tested yet.\n"
+          ++ "InputPatterns.parseUri was expected to have prevented you "
+          ++ "from supplying the git treeish `" ++ Text.unpack gitbranch ++ "`!"
+          -- gitIn remotePath ["push", "--quiet", url, gitbranch]
+      pure True

@@ -144,14 +144,14 @@ codebasePath = ".unison" </> "v1"
 formatAnn :: S.Format Ann
 formatAnn = S.Format (pure External) (\_ -> pure ())
 
--- Write Branch and its dependents to the dest codebase, and set it as the root.
+-- Write Branch and its dependents to the dest codebase
 type SyncToDir m v a
   = S.Format v
   -> S.Format a
   -> CodebasePath -- src codebase
   -> CodebasePath -- dest codebase
   -> SyncMode
-  -> Branch m -- new dest root branch
+  -> Branch m -- branch to sync to dest codebase
   -> m ()
 
 termsDir, typesDir, branchesDir, branchHeadDir, editsDir
