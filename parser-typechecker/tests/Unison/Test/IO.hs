@@ -14,7 +14,6 @@ import System.FilePath ((</>))
 import System.Directory (removeDirectoryRecursive)
 
 import Unison.Codebase (Codebase, CodebasePath)
-import qualified Unison.Codebase.SqliteCodebase as SqliteCodebase
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Parser (Ann)
 import Unison.Symbol (Symbol)

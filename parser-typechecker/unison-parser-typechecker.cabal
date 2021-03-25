@@ -311,7 +311,9 @@ executable unison
     directory,
     errors,
     filepath,
+    lens,
     megaparsec,
+    mtl,
     safe,
     shellmet,
     template-haskell,
@@ -319,6 +321,7 @@ executable unison
     text,
     unison-core1,
     unison-parser-typechecker,
+    unison-codebase-sync,
     uri-encode
   if !os(windows)
     build-depends:

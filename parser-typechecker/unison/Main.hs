@@ -2,22 +2,32 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ApplicativeDo #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module Main where
 
+#if defined(mingw32_HOST_OS)
+import qualified GHC.ConsoleHandler as WinSig
+#else
+import qualified System.Posix.Signals as Sig
+#endif
+
 import Control.Concurrent (mkWeakThreadId, myThreadId)
 import Control.Error.Safe (rightMay)
 import Control.Exception (AsyncException (UserInterrupt), throwTo)
+import Control.Lens (Lens', (&))
+import qualified Control.Lens as Lens
+import qualified Control.Monad.Reader as Reader
+import Control.Monad.State (StateT (StateT, runStateT))
+import qualified Control.Monad.State as State
 import Data.ByteString.Char8 (unpack)
 import qualified Data.Configurator as Config
 import Data.Configurator.Types (Config)
 import qualified Data.Text as Text
 import qualified Network.URI.Encode as URI
-import System.Directory
-  ( getCurrentDirectory,
-    removeDirectoryRecursive,
-  )
+import System.Directory (getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getArgs, getProgName)
 import qualified System.Exit as Exit
 import qualified System.FilePath as FP
@@ -26,15 +36,19 @@ import qualified System.IO.Temp as Temp
 import System.Mem.Weak (deRefWeak)
 import qualified System.Path as Path
 import Text.Megaparsec (runParser)
+import qualified U.Codebase.Sync as Sync
 import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Causal as Causal
+import qualified Unison.Codebase.Conversion.Sync12 as Sync12
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 import qualified Unison.Codebase.Editor.VersionParser as VP
 import Unison.Codebase.Execute (execute)
-import qualified Unison.Codebase.FileCodebase as FileCodebaseX
+import qualified Unison.Codebase.FileCodebase as FC
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Runtime (Runtime)
-import qualified Unison.Codebase.SqliteCodebase as SqliteCodebaseX
+import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.CommandLine (watchConfig)
 import qualified Unison.CommandLine.Main as CommandLine
@@ -47,12 +61,6 @@ import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import qualified Version
-
-#if defined(mingw32_HOST_OS)
-import qualified GHC.ConsoleHandler as WinSig
-#else
-import qualified System.Posix.Signals as Sig
-#endif
 
 usage :: String -> P.Pretty P.ColorText
 usage executableStr = P.callout "🌻" $ P.lines [
@@ -148,11 +156,11 @@ main = do
       (mNewRun, restargs1) = case restargs0 of
            "--new-runtime" : rest -> (Just True, rest)
            _ -> (Nothing, restargs0)
-      (fromMaybe False -> mNewCodebase, restargs) = case restargs1 of
+      (fromMaybe False -> newCodebase, restargs) = case restargs1 of
            "--new-codebase" : rest -> (Just True, rest)
            "--old-codebase" : rest -> (Just False, rest)
            _ -> (Nothing, restargs1)
-      cbInit = if mNewCodebase then SqliteCodebaseX.init else FileCodebaseX.init
+      cbInit = if newCodebase then SC.init else FC.init
   currentDir <- getCurrentDirectory
   configFilePath <- getConfigFilePath mcodepath
   config <-
@@ -204,9 +212,37 @@ main = do
       case args' of
       "-save-codebase" : transcripts -> runTranscripts mNewRun cbInit True True mcodepath transcripts
       _                              -> runTranscripts mNewRun cbInit True False mcodepath args'
+    ["upgrade-codebase"] -> upgradeCodebase mcodepath
     _ -> do
       PT.putPrettyLn (usage progName)
       Exit.exitWith (Exit.ExitFailure 1)
+
+upgradeCodebase :: Maybe Codebase.CodebasePath -> IO ()
+upgradeCodebase mcodepath = do
+  (cleanupSrc, srcCB) <- Codebase.getCodebaseOrExit FC.init mcodepath -- FC.init mcodepath
+  (cleanupDest, destCB) <- Codebase.getCodebaseOrExit SC.init mcodepath -- FC.init mcodepath
+  destDB <- SC.unsafeGetConnection =<< Codebase.getCodebaseDir mcodepath
+  let env = Sync12.Env srcCB destCB destDB
+  let initialState :: Sync12.ProgressState _ =
+        (Sync12.emptyDoneCount, Sync12.emptyErrorCount, Sync12.emptyStatus)
+  rootEntity <-
+    Codebase.getRootBranch srcCB >>= \case
+      Left e -> error $ "Error loading source codebase root branch: " ++ show e
+      Right (Branch.Branch c) -> pure $ Sync12.C (Causal.currentHash c) (pure c)
+  let progress = Sync12.simpleProgress @IO
+  flip Reader.runReaderT env . flip State.evalStateT initialState $ do
+    sync <- Sync12.sync12 (lift . lift)
+    Sync.sync @_ @(Sync12.Entity _)
+      (Sync.transformSync (lensStateT Lens._3) sync)
+      progress
+      [rootEntity]
+  cleanupSrc
+  cleanupDest
+  where
+    lensStateT :: Monad m => Lens' s2 s1 -> StateT s1 m a -> StateT s2 m a
+    lensStateT l m = StateT \s2 -> do
+      (a, s1') <- runStateT m (s2 Lens.^. l)
+      pure (a, s2 & l Lens..~ s1')
 
 prepareTranscriptDir :: Codebase.Init IO v a -> Bool -> Maybe FilePath -> IO FilePath
 prepareTranscriptDir cbInit inFork mcodepath = do

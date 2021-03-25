@@ -24,7 +24,7 @@ writeTranscriptOutput :: Bool
 writeTranscriptOutput = True
 
 test :: Test ()
-test = scope "git-simple" . tests $ flip map [(FC.init, "fc")]--, (SC.init, "fc")]
+test = scope "git-simple" . tests $ flip map [(FC.init, "fc"), (SC.init, "fc")]
   \(cbInit, name) -> scope name $ tests [
   pushPullTest cbInit "one-term"
 -- simplest-author

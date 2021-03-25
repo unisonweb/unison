@@ -20,13 +20,19 @@ import           Data.List
 
 type TestBuilder = FilePath -> FilePath -> [String] -> String -> Test ()
 
+data Codebase = CodebaseV1 | CodebaseV2 deriving (Eq, Ord, Show, Enum, Bounded)
+
 testBuilder :: FilePath -> FilePath -> [String] -> String -> Test ()
-testBuilder ucm dir prelude transcript = scope transcript $ do
-  io $ fromString ucm args
+testBuilder ucm dir prelude transcript = scope transcript . tests $
+  flip map [minBound .. maxBound] \cb -> cbScope cb do
+  io $ fromString ucm (args cb)
   ok
   where
     files = fmap (pack . (dir </>)) (prelude ++ [transcript])
-    args = ["transcript"] ++ files
+    cbScope CodebaseV1 = scope "FC"
+    cbScope CodebaseV2 = scope "SC"
+    args CodebaseV1 = "--old-codebase" : "transcript" : files
+    args CodebaseV2 = "--new-codebase" : "transcript" : files
 
 testBuilderNewRuntime :: FilePath -> FilePath -> [String] -> String -> Test ()
 testBuilderNewRuntime ucm dir prelude transcript = scope transcript $ do
@@ -66,7 +72,7 @@ buildTests testBuilder dir = do
        , "Searching for transcripts to run in: " ++ dir
        ]
   files <- io $ listDirectory dir
-  let 
+  let
     -- Any files that start with _ are treated as prelude
     (prelude, transcripts) =
       partition ((isPrefixOf "_") . snd . splitFileName)

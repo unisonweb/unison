@@ -621,7 +621,6 @@ queryTrace title query input m =
   if debugQuery || alwaysTraceOnCrash
     then
      do
-      traceShowM query
       try @_ @SQLite.SQLError m >>= \case
         Right a -> do
           when debugQuery . traceM $ title ++ " " ++ show query ++ "\n  input: " ++ show input ++ "\n output: " ++ show a

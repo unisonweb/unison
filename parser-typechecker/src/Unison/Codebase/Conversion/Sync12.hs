@@ -1,5 +1,7 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -10,18 +12,21 @@
 module Unison.Codebase.Conversion.Sync12 where
 
 import Control.Lens
+import qualified Control.Lens as Lens
 import Control.Monad.Except (MonadError, runExceptT)
-import Control.Monad.Extra ((&&^))
 import qualified Control.Monad.Except as Except
+import Control.Monad.Extra ((&&^))
 import Control.Monad.Reader
 import qualified Control.Monad.Reader as Reader
 import Control.Monad.State (MonadState)
+import qualified Control.Monad.State as State
 import Control.Monad.Validate (MonadValidate, runValidateT)
 import qualified Control.Monad.Validate as Validate
 import Control.Natural (type (~>))
 import Data.Bifoldable (bitraverse_)
 import Data.Foldable (traverse_)
 import qualified Data.Foldable as Foldable
+import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
@@ -32,6 +37,7 @@ import U.Codebase.Sqlite.DbId (Generation)
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Codebase.Sync (Sync (Sync), TrySyncResult)
 import qualified U.Codebase.Sync as Sync
+import qualified U.Util.Monoid as Monoid
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (UnwrappedBranch)
@@ -60,9 +66,9 @@ import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as Relation
 import Unison.Util.Star3 (Star3 (Star3))
 
-data Env m = Env
-  { srcCodebase :: Codebase m Symbol (),
-    destCodebase :: Codebase m Symbol (),
+data Env m a = Env
+  { srcCodebase :: Codebase m Symbol a,
+    destCodebase :: Codebase m Symbol a,
     destConnection :: Connection
   }
 
@@ -72,55 +78,19 @@ data Entity m
   | D Hash Reference.Size
   | P Branch.EditHash
 
-data Entity'
-  = C' Branch.Hash
-  | T' Hash
-  | D' Hash
-  | P' Branch.EditHash
-  deriving (Eq, Ord, Show)
-
-toEntity' :: Entity m -> Entity'
-toEntity' = \case
-  C h _ -> C' h
-  T h _ -> T' h
-  D h _ -> D' h
-  P h -> P' h
-
-instance Eq (Entity m) where
-  x == y = toEntity' x == toEntity' y
-
-instance Ord (Entity m) where
-  x `compare` y = toEntity' x `compare` toEntity' y
-
-data BranchStatus m
-  = BranchOk
-  | BranchReplaced Branch.Hash (UnwrappedBranch m)
-
-data BranchStatus'
-  = BranchOk'
-  | BranchReplaced' Branch.Hash
-  deriving (Eq, Ord)
-
-toBranchStatus' :: BranchStatus m -> BranchStatus'
-toBranchStatus' = \case
-  BranchOk -> BranchOk'
-  BranchReplaced h _ -> BranchReplaced' h
-
-instance Eq (BranchStatus m) where
-  x == y = toBranchStatus' x == toBranchStatus' y
-
-instance Ord (BranchStatus m) where
-  x `compare` y = toBranchStatus' x `compare` toBranchStatus' y
-
 type V m n = MonadValidate (Set (Entity m)) n
 
 type E e n = MonadError e n
 
 type S m n = MonadState (Status m) n
 
-type R m n = MonadReader (Env m) n
+type R m n a = MonadReader (Env m a) n
 
-type RS m n = (R m n, S m n)
+type RS m n a = (R m n a, S m n)
+
+data BranchStatus m
+  = BranchOk
+  | BranchReplaced Branch.Hash (UnwrappedBranch m)
 
 data TermStatus
   = TermOk
@@ -145,27 +115,22 @@ data Status m = Status
     _patchStatus :: Map Branch.EditHash PatchStatus
   }
 
+emptyStatus :: Status m
+emptyStatus = Status mempty mempty mempty mempty
+
 makeLenses ''Status
 
-instance Show (Entity m) where
-  show = \case
-    C h _ -> "C " ++ show h
-    T h len -> "T " ++ show h ++ " " ++ show len
-    D h len -> "D " ++ show h ++ " " ++ show len
-    P h -> "P " ++ show h
-
 sync12 ::
-  forall m n.
-  (MonadIO n, RS m n, Applicative m) =>
+  (MonadIO f, MonadReader (Env p x) f, RS m n a, Applicative m) =>
   (m ~> n) ->
-  n (Sync n (Entity m))
+  f (Sync n (Entity m))
 sync12 t = do
-  gc <- runDest' $ Q.getNurseryGeneration
+  gc <- runDest' Q.getNurseryGeneration
   pure $ Sync (trySync t (succ gc))
 
 trySync ::
-  forall m n.
-  (R m n, S m n, Applicative m) =>
+  forall m n a.
+  (R m n a, S m n, Applicative m) =>
   (m ~> n) ->
   Generation ->
   Entity m ->
@@ -254,12 +219,12 @@ setBranchStatus :: forall m n. S m n => Branch.Hash -> BranchStatus m -> n ()
 setBranchStatus h s = branchStatus . at h .= Just s
 
 checkTermComponent ::
-  forall m n.
-  (RS m n, V m n, E TermStatus n) =>
+  forall m n a.
+  (RS m n a, V m n, E TermStatus n) =>
   (m ~> n) ->
   Hash ->
   Reference.Size ->
-  n [(Term Symbol (), Type Symbol ())]
+  n [(Term Symbol a, Type Symbol a)]
 checkTermComponent t h n = do
   Env src _ _ <- Reader.ask
   for [Reference.Id h i n | i <- [0 .. n -1]] \r -> do
@@ -290,12 +255,12 @@ checkTermComponent t h n = do
         pure (term, typ)
 
 checkDeclComponent ::
-  forall m n.
-  (RS m n, E DeclStatus n, V m n) =>
+  forall m n a.
+  (RS m n a, E DeclStatus n, V m n) =>
   (m ~> n) ->
   Hash ->
   Reference.Size ->
-  n [Decl Symbol ()]
+  n [Decl Symbol a]
 checkDeclComponent t h n = do
   Env src _ _ <- Reader.ask
   for [Reference.Id h i n | i <- [0 .. n -1]] \r -> do
@@ -315,8 +280,8 @@ checkDeclComponent t h n = do
         pure decl
 
 checkPatch ::
-  forall m n.
-  (RS m n, E PatchStatus n, V m n) =>
+  forall m n a.
+  (RS m n a, E PatchStatus n, V m n) =>
   (m ~> n) ->
   Branch.EditHash ->
   n (Branch.EditHash, Patch)
@@ -419,7 +384,7 @@ filterBranchTypeStar (Star3 _refs names _mdType md) = do
 
 filterMetadata :: (S m n, V m n, Ord r) => Relation r (Metadata.Type, Metadata.Value) -> n (Relation r (Metadata.Type, Metadata.Value))
 filterMetadata = Relation.filterRanM \(t, v) ->
-    validateTypeReference t &&^ validateTermReference v
+  validateTypeReference t &&^ validateTermReference v
 
 filterTermNames :: (S m n, V m n) => Relation Referent NameSegment -> n (Relation Referent NameSegment)
 filterTermNames = Relation.filterDomM validateTermReferent
@@ -473,11 +438,11 @@ filterBranchEdits = fmap (Map.fromList . catMaybes) . traverse go . Map.toList
         rebuild h = pure $ Just (ns, (h, err h))
         err h = error $ "expected to short-circuit already-synced patch " ++ show h
 
-runSrc, runDest :: R m n => (Codebase m Symbol () -> a) -> n a
+runSrc, runDest :: R m n a => (Codebase m Symbol a -> x) -> n x
 runSrc = (Reader.reader srcCodebase <&>)
 runDest = (Reader.reader destCodebase <&>)
 
-runDest' :: R m n => ReaderT Connection n a -> n a
+runDest' :: R m n x => ReaderT Connection n a -> n a
 runDest' ma = Reader.reader destConnection >>= flip runDB ma
 
 runDB :: Connection -> ReaderT Connection m a -> m a
@@ -489,3 +454,125 @@ runDB conn action = Reader.runReaderT action conn
 -- (if so, note as validation)
 -- c) if any of its dependencies are missing from the source codebase
 -- (if so, then filter them if possible, otherwise give this entity an error Status)
+
+data DoneCount = DoneCount
+  { _doneBranches :: Int,
+    _doneTerms :: Int,
+    _doneDecls :: Int,
+    _donePatches :: Int
+  }
+
+data ErrorCount = ErrorCount
+  { _errorBranches :: Int,
+    _errorTerms :: Int,
+    _errorDecls :: Int,
+    _errorPatches :: Int
+  }
+
+emptyDoneCount :: DoneCount
+emptyDoneCount = DoneCount 0 0 0 0
+
+emptyErrorCount :: ErrorCount
+emptyErrorCount = ErrorCount 0 0 0 0
+
+makeLenses ''DoneCount
+makeLenses ''ErrorCount
+
+type ProgressState m = (DoneCount, ErrorCount, Status m)
+
+simpleProgress :: MonadState (ProgressState m) n => MonadIO n => Sync.Progress n (Entity m)
+simpleProgress = Sync.Progress need done error allDone
+  where
+    -- ignore need
+    need _ = pure ()
+    done e = do
+      case e of
+        C {} -> _1 . doneBranches += 1
+        T {} -> _1 . doneTerms += 1
+        D {} -> _1 . doneDecls += 1
+        P {} -> _1 . donePatches += 1
+      printProgress
+
+    error e = do
+      case e of
+        C {} -> _2 . errorBranches += 1
+        T {} -> _2 . errorTerms += 1
+        D {} -> _2 . errorDecls += 1
+        P {} -> _2 . errorPatches += 1
+      printProgress
+
+    allDone :: MonadState (DoneCount, ErrorCount, Status m) n => MonadIO n => n ()
+    allDone = do
+      Status branches terms decls patches <- Lens.use Lens._3
+      liftIO $ putStr "Finished."
+      Foldable.for_ (Map.toList decls) \(h, s) -> case s of
+        DeclOk -> pure ()
+        DeclMissing -> liftIO . putStrLn $ "I couldn't find the decl " ++ show h ++ ", so I filtered it out of the sync."
+        DeclMissingDependencies -> liftIO . putStrLn $ "One or more dependencies of decl " ++ show h ++ " were missing, so I filtered it out of the sync."
+      Foldable.for_ (Map.toList terms) \(h, s) -> case s of
+        TermOk -> pure ()
+        TermMissing -> liftIO . putStrLn $ "I couldn't find the  term " ++ show h ++ "so I filtered it out of the sync."
+        TermMissingType -> liftIO . putStrLn $ "The type of term " ++ show h ++ " was missing, so I filtered it out of the sync."
+        TermMissingDependencies -> liftIO . putStrLn $ "One or more dependencies of term " ++ show h ++ " were missing, so I filtered it out of the sync."
+      Foldable.for_ (Map.toList patches) \(h, s) -> case s of
+        PatchOk -> pure ()
+        PatchMissing -> liftIO . putStrLn $ "I couldn't find the patch " ++ show h ++ ", so I filtered it out of the sync."
+        PatchReplaced h' -> liftIO . putStrLn $ "I replaced the patch " ++ show h ++ " with the filtered version " ++ show h' ++ "."
+      Foldable.for_ (Map.toList branches) \(h, s) -> case s of
+        BranchOk -> pure ()
+        BranchReplaced h' _ -> liftIO . putStrLn $ "I replaced the branch " ++ show h ++ " with the filtered version " ++ show h' ++ "."
+
+    printProgress :: MonadState (ProgressState m) n => MonadIO n => n ()
+    printProgress = do
+      (DoneCount b t d p, ErrorCount b' t' d' p', _) <- State.get
+      let ways :: [Maybe String] =
+            [ Monoid.whenM (b > 0 || b' > 0) (Just $ show b ++ " branches" ++ Monoid.whenM (b' > 0) (" (" ++ show b' ++ "errors)")),
+              Monoid.whenM (t > 0 || t' > 0) (Just $ show t ++ " branches" ++ Monoid.whenM (t' > 0) (" (" ++ show t' ++ "errors)")),
+              Monoid.whenM (d > 0 || d' > 0) (Just $ show d ++ " branches" ++ Monoid.whenM (d' > 0) (" (" ++ show d' ++ "errors)")),
+              Monoid.whenM (p > 0 || p' > 0) (Just $ show p ++ " branches" ++ Monoid.whenM (p' > 0) (" (" ++ show p' ++ "errors)"))
+            ]
+      liftIO . putStr $ "\rSynced " ++ List.intercalate "," (catMaybes ways)
+
+
+instance Show (Entity m) where
+  show = \case
+    C h _ -> "C " ++ show h
+    T h len -> "T " ++ show h ++ " " ++ show len
+    D h len -> "D " ++ show h ++ " " ++ show len
+    P h -> "P " ++ show h
+
+data Entity'
+  = C' Branch.Hash
+  | T' Hash
+  | D' Hash
+  | P' Branch.EditHash
+  deriving (Eq, Ord, Show)
+
+toEntity' :: Entity m -> Entity'
+toEntity' = \case
+  C h _ -> C' h
+  T h _ -> T' h
+  D h _ -> D' h
+  P h -> P' h
+
+instance Eq (Entity m) where
+  x == y = toEntity' x == toEntity' y
+
+instance Ord (Entity m) where
+  x `compare` y = toEntity' x `compare` toEntity' y
+
+data BranchStatus'
+  = BranchOk'
+  | BranchReplaced' Branch.Hash
+  deriving (Eq, Ord)
+
+toBranchStatus' :: BranchStatus m -> BranchStatus'
+toBranchStatus' = \case
+  BranchOk -> BranchOk'
+  BranchReplaced h _ -> BranchReplaced' h
+
+instance Eq (BranchStatus m) where
+  x == y = toBranchStatus' x == toBranchStatus' y
+
+instance Ord (BranchStatus m) where
+  x `compare` y = toBranchStatus' x `compare` toBranchStatus' y

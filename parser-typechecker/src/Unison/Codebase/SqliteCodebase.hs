@@ -6,7 +6,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.SqliteCodebase (Unison.Codebase.SqliteCodebase.init) where
+module Unison.Codebase.SqliteCodebase (Unison.Codebase.SqliteCodebase.init, unsafeGetConnection) where
 
 import qualified Control.Concurrent
 import qualified Control.Exception
