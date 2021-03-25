@@ -1804,8 +1804,8 @@ doDisplay outputLoc names r = do
       FileLocation path  -> Just path
       LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
     useCache = True
-    evalTerm r = fmap ErrorUtil.hush . fmap (fmap Term.unannotate) . eval $
-      Evaluate1 (PPE.suffixifiedPPE ppe) useCache (Term.ref External r)
+    evalTerm tm = fmap ErrorUtil.hush . fmap (fmap Term.unannotate) . eval $
+      Evaluate1 (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
     loadTerm (Reference.DerivedId r) = fmap (fmap Term.unannotate) . eval $ LoadTerm r
     loadTerm _ = pure Nothing
     loadDecl (Reference.DerivedId r) = fmap (fmap $ DD.amap (const ())) . eval $ LoadType r

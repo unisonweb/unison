@@ -37,7 +37,7 @@ displayTerm :: (Var v, Monad m)
            => PPE.PrettyPrintEnvDecl
            -> (Reference -> m (Maybe (Term v ())))
            -> (Referent -> m (Maybe (Type v ())))
-           -> (Reference -> m (Maybe (Term v ())))
+           -> (Term v () -> m (Maybe (Term v ())))
            -> (Reference -> m (Maybe (DD.Decl v ())))
            -> Term v ()
            -> m Pretty
@@ -53,7 +53,7 @@ displayPretty :: forall v m . (Var v, Monad m)
               => PPE.PrettyPrintEnvDecl
               -> (Reference -> m (Maybe (Term v ())))
               -> (Referent  -> m (Maybe (Type v ())))
-              -> (Reference -> m (Maybe (Term v ())))
+              -> (Term v () -> m (Maybe (Term v ())))
               -> (Reference -> m (Maybe (DD.Decl v ())))
               -> Term v ()
               -> m Pretty
@@ -199,7 +199,7 @@ displayDoc :: forall v m . (Var v, Monad m)
            => PPE.PrettyPrintEnvDecl
            -> (Reference -> m (Maybe (Term v ())))
            -> (Referent  -> m (Maybe (Type v ())))
-           -> (Reference -> m (Maybe (Term v ())))
+           -> (Term v () -> m (Maybe (Term v ())))
            -> (Reference -> m (Maybe (DD.Decl v ())))
            -> Term v ()
            -> m Pretty
@@ -214,7 +214,7 @@ displayDoc pped terms typeOf evaluated types = go
   go (DD.DocSource (DD.LinkTerm (Term.TermLink' r))) = prettyTerm terms r
   go (DD.DocSource (DD.LinkType (Term.TypeLink' r))) = prettyType r
   go (DD.DocSignature (Term.TermLink' r)) = prettySignature r
-  go (DD.DocEvaluate (Term.TermLink' r)) = prettyEval evaluated r
+  go (DD.DocEvaluate (Term.TermLink' r)) = prettyEval (evaluated . Term.ref()) r
   go tm = pure $ TP.pretty (PPE.suffixifiedPPE pped) tm
   prettySignature r = typeOf r >>= \case
     Nothing -> pure $ termName (PPE.unsuffixifiedPPE pped) r
