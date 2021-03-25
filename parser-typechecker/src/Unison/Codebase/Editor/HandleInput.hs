@@ -1804,13 +1804,15 @@ doDisplay outputLoc names r = do
       FileLocation path  -> Just path
       LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
     useCache = True
-    evalTerm r = fmap ErrorUtil.hush . eval $
+    evalTerm r = fmap ErrorUtil.hush . fmap (fmap Term.unannotate) . eval $
       Evaluate1 (PPE.suffixifiedPPE ppe) useCache (Term.ref External r)
-    loadTerm (Reference.DerivedId r) = eval $ LoadTerm r
+    loadTerm (Reference.DerivedId r) = fmap (fmap Term.unannotate) . eval $ LoadTerm r
     loadTerm _ = pure Nothing
-    loadDecl (Reference.DerivedId r) = eval $ LoadType r
+    loadDecl (Reference.DerivedId r) = fmap (fmap $ DD.amap (const ())) . eval $ LoadType r
     loadDecl _ = pure Nothing
-  rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm evalTerm loadDecl tm
+    loadTypeOfTerm' = fmap (fmap void) . loadTypeOfTerm
+  rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm' evalTerm loadDecl
+            $ Term.unannotate tm
   respond $ DisplayRendered loc rendered
 
 getLinks :: (Var v, Monad m)

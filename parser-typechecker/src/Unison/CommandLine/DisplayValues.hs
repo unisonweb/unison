@@ -33,13 +33,13 @@ import qualified Unison.ConstructorType as CT
 
 type Pretty = P.Pretty P.ColorText
 
-displayTerm :: (Var v, Monad m, Ord a)
+displayTerm :: (Var v, Monad m)
            => PPE.PrettyPrintEnvDecl
-           -> (Reference -> m (Maybe (Term v a)))
-           -> (Referent -> m (Maybe (Type v a)))
-           -> (Reference -> m (Maybe (Term v a)))
-           -> (Reference -> m (Maybe (DD.Decl v a)))
-           -> Term v a
+           -> (Reference -> m (Maybe (Term v ())))
+           -> (Referent -> m (Maybe (Type v ())))
+           -> (Reference -> m (Maybe (Term v ())))
+           -> (Reference -> m (Maybe (DD.Decl v ())))
+           -> Term v ()
            -> m Pretty
 displayTerm pped terms typeOf eval types = \case
   tm@(Term.Apps' (Term.Constructor' typ _) _)
@@ -49,13 +49,13 @@ displayTerm pped terms typeOf eval types = \case
 
 -- assume this is given a
 -- Pretty.Annotated ann (Either SpecialForm ConsoleText)
-displayPretty :: forall v m a. (Var v, Monad m, Ord a)
+displayPretty :: forall v m . (Var v, Monad m)
               => PPE.PrettyPrintEnvDecl
-              -> (Reference -> m (Maybe (Term v a)))
-              -> (Referent  -> m (Maybe (Type v a)))
-              -> (Reference -> m (Maybe (Term v a)))
-              -> (Reference -> m (Maybe (DD.Decl v a)))
-              -> Term v a
+              -> (Reference -> m (Maybe (Term v ())))
+              -> (Referent  -> m (Maybe (Type v ())))
+              -> (Reference -> m (Maybe (Term v ())))
+              -> (Reference -> m (Maybe (DD.Decl v ())))
+              -> Term v ()
               -> m Pretty
 displayPretty pped terms typeOf eval types tm = go tm
   where
@@ -195,13 +195,13 @@ displayPretty pped terms typeOf eval types tm = go tm
 
 -- pattern DocBlob txt <- Term.App' (Term.Constructor' DocRef DocBlobId) (Term.Text' txt)
 
-displayDoc :: forall v m a. (Var v, Monad m)
+displayDoc :: forall v m . (Var v, Monad m)
            => PPE.PrettyPrintEnvDecl
-           -> (Reference -> m (Maybe (Term v a)))
-           -> (Referent  -> m (Maybe (Type v a)))
-           -> (Reference -> m (Maybe (Term v a)))
-           -> (Reference -> m (Maybe (DD.Decl v a)))
-           -> Term v a
+           -> (Reference -> m (Maybe (Term v ())))
+           -> (Referent  -> m (Maybe (Type v ())))
+           -> (Reference -> m (Maybe (Term v ())))
+           -> (Reference -> m (Maybe (DD.Decl v ())))
+           -> Term v ()
            -> m Pretty
 displayDoc pped terms typeOf evaluated types = go
   where
