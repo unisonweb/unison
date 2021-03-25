@@ -128,16 +128,21 @@ evaluateTerm'
   -> Term.Term v a
   -> IO (Either Error (Term v))
 evaluateTerm' codeLookup cache ppe rt tm = do
-  let uf = UF.UnisonFileId mempty mempty mempty
-             (Map.singleton UF.RegularWatch [(Var.nameds "result", tm)])
-  runnable <-
-    if needsContainment rt
-      then Codebase.makeSelfContained' codeLookup uf
-      else pure uf
-  r <- evaluateWatches codeLookup ppe cache rt runnable
-  pure $ r <&> \(_,map) ->
-    let [(_loc, _kind, _hash, _src, value, _isHit)] = Map.elems map
-    in value
+  let ref = Reference.DerivedId (Term.hashClosedTerm tm)
+  result <- cache ref
+  case result of
+    Just r -> pure (Right r)
+    Nothing -> do
+      let uf = UF.UnisonFileId mempty mempty mempty
+                 (Map.singleton UF.RegularWatch [(Var.nameds "result", tm)])
+      runnable <-
+        if needsContainment rt
+          then Codebase.makeSelfContained' codeLookup uf
+          else pure uf
+      r <- evaluateWatches codeLookup ppe cache rt runnable
+      pure $ r <&> \(_,map) ->
+        let [(_loc, _kind, _hash, _src, value, _isHit)] = Map.elems map
+        in value
 
 evaluateTerm
   :: (Var v, Monoid a)
