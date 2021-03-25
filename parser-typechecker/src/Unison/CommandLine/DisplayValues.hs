@@ -41,12 +41,11 @@ displayTerm :: (Var v, Monad m, Ord a)
            -> (Reference -> m (Maybe (DD.Decl v a)))
            -> Term v a
            -> m Pretty
-displayTerm pped terms typeOf eval types tm = case tm of
-  -- todo: can dispatch on other things with special rendering
-  Term.Ref' r -> eval r >>= \case
-    Nothing -> pure $ termName (PPE.suffixifiedPPE pped) (Referent.Ref r)
-    Just tm -> displayDoc pped terms typeOf eval types tm
-  _ -> displayDoc pped terms typeOf eval types tm
+displayTerm pped terms typeOf eval types = \case
+  tm@(Term.Apps' (Term.Constructor' typ _) _)
+    | typ == DD.docRef             -> displayDoc pped terms typeOf eval types tm
+    | typ == DD.prettyAnnotatedRef -> displayPretty pped terms typeOf eval types tm
+  tm -> pure $ TP.pretty (PPE.suffixifiedPPE pped) tm
 
 -- assume this is given a
 -- Pretty.Annotated ann (Either SpecialForm ConsoleText)
