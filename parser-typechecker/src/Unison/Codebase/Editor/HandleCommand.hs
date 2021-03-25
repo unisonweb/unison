@@ -189,6 +189,10 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     let codeLookup = Codebase.toCodeLookup codebase
         cache = if useCache then watchCache else Runtime.noCache
     r <- Runtime.evaluateTerm' codeLookup cache ppe rt tm
+    when useCache $ case r of
+      Right tmr -> Codebase.putWatch codebase UF.RegularWatch (Term.hashClosedTerm tm)
+                                     (Term.amap (const Parser.External) tmr)
+      Left _ -> pure ()
     pure $ r <&> Term.amap (const Parser.External)
 
   evalUnisonFile :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> _
