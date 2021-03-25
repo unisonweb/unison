@@ -9,6 +9,7 @@ module Unison.Codebase.Editor.Command (
   SourceName,
   TypecheckingResult,
   LoadSourceResult(..),
+  UseCache,
   commandName
   ) where
 
@@ -154,7 +155,7 @@ data Command m i v a where
                 (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit)))
 
   -- Evaluate a single closed definition
-  Evaluate1 :: PPE.PrettyPrintEnv -> Term v Ann -> Command m i v (Either Runtime.Error (Term v Ann))
+  Evaluate1 :: PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command m i v (Either Runtime.Error (Term v Ann))
 
   -- Add a cached watch to the codebase
   PutWatch :: UF.WatchKind -> Reference.Id -> Term v Ann -> Command m i v ()
@@ -223,6 +224,8 @@ data Command m i v a where
 
   RuntimeMain :: Command m i v (Type v Ann)
   RuntimeTest :: Command m i v (Type v Ann)
+
+type UseCache = Bool
 
 commandName :: Command m i v a -> String
 commandName = \case

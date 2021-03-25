@@ -133,10 +133,10 @@ displayPretty pped terms typeOf eval types tm = go tm
       _ -> displayTerm pped terms typeOf eval types tm
 
     -- Eval Doc2.Term
-    DD.Doc2SpecialFormEval e -> undefined -- \case
+    DD.Doc2SpecialFormEval e -> undefined e -- \case
 
     -- InlineEval Doc2.Term
-    DD.Doc2SpecialFormInlineEval e -> undefined -- \case
+    DD.Doc2SpecialFormInlineEval e -> undefined e -- \case
 
     -- Embed Any
     DD.Doc2SpecialFormEmbed (Term.App' _ any) ->
@@ -147,6 +147,8 @@ displayPretty pped terms typeOf eval types tm = go tm
     DD.Doc2SpecialFormInlineEmbed any ->
       displayTerm pped terms typeOf eval types any <&> \p ->
         "{{ embed {{" <> p <> "}} }}"
+
+    tm -> P.red <$> displayTerm pped terms typeOf eval types tm
 
   toReferent tm = case tm of
     Term.Ref' r -> Just (Referent.Ref r)

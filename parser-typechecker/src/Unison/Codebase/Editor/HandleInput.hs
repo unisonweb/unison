@@ -1496,7 +1496,7 @@ loop = do
                   Nothing -> [] <$ respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
                   Just tm -> do
                     respond $ TestIncrementalOutputStart ppe (n,total) r tm
-                    tm' <- eval $ Evaluate1 ppe tm
+                    tm' <- eval $ Evaluate1 ppe False tm
                     case tm' of
                       Left e -> respond (EvaluationFailure e) $> []
                       Right tm' -> do
@@ -1573,7 +1573,7 @@ loop = do
                    Just typ | Typechecker.isSubtype testType typ -> do
                      let a = ABT.annotation tm
                          tm = DD.forceTerm a a (Term.ref a ref) in do
-                         tm' <- eval $ Evaluate1 ppe tm
+                         tm' <- eval $ Evaluate1 ppe False tm
                          case tm' of
                            Left e -> respond (EvaluationFailure e)
                            Right tm' ->
@@ -1803,8 +1803,9 @@ doDisplay outputLoc names r = do
       ConsoleLocation    -> Nothing
       FileLocation path  -> Just path
       LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
+    useCache = True
     evalTerm r = fmap ErrorUtil.hush . eval $
-      Evaluate1 (PPE.suffixifiedPPE ppe) (Term.ref External r)
+      Evaluate1 (PPE.suffixifiedPPE ppe) useCache (Term.ref External r)
     loadTerm (Reference.DerivedId r) = eval $ LoadTerm r
     loadTerm _ = pure Nothing
     loadDecl (Reference.DerivedId r) = eval $ LoadType r
