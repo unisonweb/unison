@@ -132,10 +132,19 @@ displayPretty pped terms typeOf eval types tm = go tm
       _ -> displayTerm pped terms typeOf eval types tm
 
     -- Eval Doc2.Term
-    DD.Doc2SpecialFormEval e -> undefined e -- \case
+    DD.Doc2SpecialFormEval (DD.Doc2Term tm) -> eval tm >>= \case
+      Nothing -> do
+        p <- displayTerm pped terms typeOf eval types tm
+        pure . P.indentN 4 $ P.lines [p, "⧨", P.red "🆘  An error occured during evaluation"]
+      Just result -> do
+        p1 <- displayTerm pped terms typeOf eval types tm
+        p2 <- displayTerm pped terms typeOf eval types result
+        pure . P.indentN 4 $ P.lines [p1, "⧨", P.green p2]
 
     -- InlineEval Doc2.Term
-    DD.Doc2SpecialFormInlineEval e -> undefined e -- \case
+    DD.Doc2SpecialFormInlineEval (DD.Doc2Term tm) -> eval tm >>= \case
+      Nothing -> pure . P.backticked . P.red $ "🆘  An error occurred during evaluation"
+      Just result -> displayTerm pped terms typeOf eval types result
 
     -- Embed Any
     DD.Doc2SpecialFormEmbed (Term.App' _ any) ->
