@@ -44,8 +44,28 @@ displayTerm :: (Var v, Monad m)
 displayTerm pped terms typeOf eval types = \case
   tm@(Term.Apps' (Term.Constructor' typ _) _)
     | typ == DD.docRef             -> displayDoc pped terms typeOf eval types tm
+    | typ == DD.doc2Ref            -> do
+      -- Pretty.get (doc.formatConsole tm)
+      let tm' = Term.app() (Term.ref() DD.prettyGetRef)
+                           (Term.app() (Term.ref() DD.doc2FormatConsoleRef) tm)
+      tm <- eval tm'
+      case tm of
+        Nothing -> pure $ errMsg tm'
+        Just tm -> displayTerm pped terms typeOf eval types tm
     | typ == DD.prettyAnnotatedRef -> displayPretty pped terms typeOf eval types tm
-  tm -> pure $ TP.pretty (PPE.suffixifiedPPE pped) tm
+  tm -> pure $ src tm
+  where
+    errMsg tm = P.fatalCallout $ P.lines [
+      P.wrap $ "I couldn't render this document, because the"
+            <> "rendering function produced an error when"
+            <> "evaluating this expression:",
+      "",
+      P.indentN 2 $ src tm,
+      "",
+      P.wrap $ "Sadly, I don't know the error, but you can evaluate"
+            <> "the above expression in a scratch file to see it."
+      ]
+    src tm = TP.pretty (PPE.suffixifiedPPE pped) tm
 
 -- assume this is given a
 -- Pretty.Annotated ann (Either SpecialForm ConsoleText)

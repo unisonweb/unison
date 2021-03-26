@@ -211,6 +211,9 @@ pattern PrettyAppend ann tms <- Term.Apps' (Term.Constructor' PrettyAnnotatedRef
 
 pattern PrettyRef <- ((== prettyRef) -> True)
 
+prettyGetRef = termNamed "Pretty.get"
+doc2FormatConsoleRef = termNamed "syntax.doc.formatConsole"
+
 pattern AnsiColorRef  <- ((== ansiColorRef) -> True)
 [ ansiColorBlackId, ansiColorRedId, ansiColorGreenId, ansiColorYellowId
   , ansiColorBlueId, ansiColorMagentaId, ansiColorCyanId, ansiColorWhiteId
