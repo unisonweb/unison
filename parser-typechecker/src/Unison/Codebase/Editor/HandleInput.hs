@@ -1118,11 +1118,11 @@ loop = do
               case tm of
                 Left e -> respond (EvaluationFailure e)
                 Right tm -> doDisplay outputLoc parseNames0 (Term.unannotate tm)
-          Just unisonFile -> do
+          Just (toDisplay, unisonFile) -> do
             ppe <- executePPE unisonFile
             unlessError' EvaluationFailure do
               evalResult <- ExceptT . eval . Evaluate ppe $ unisonFile
-              case Command.lookupEvalResult (Var.named (HQ.toText hq)) evalResult of
+              case Command.lookupEvalResult toDisplay evalResult of
                 Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
                 Just tm -> lift do
                   ns <- displayNames unisonFile
@@ -2725,13 +2725,15 @@ data AddRunMainResult v
   | RunMainSuccess (TypecheckedUnisonFile  v Ann)
 
 -- Adds a watch expression of the given name to the file, if
--- it would resolve to a TLD in the file. Otherwise,
--- returns `Nothing`.
+-- it would resolve to a TLD in the file. Returns the freshened
+-- variable name and the new typechecked file.
+--
+-- Otherwise, returns `Nothing`.
 addWatch
   :: (Monad m, Var v)
   => String
   -> Maybe (TypecheckedUnisonFile v Ann)
-  -> Action' m v (Maybe (TypecheckedUnisonFile v Ann))
+  -> Action' m v (Maybe (v, TypecheckedUnisonFile v Ann))
 addWatch _watchName Nothing = pure Nothing
 addWatch watchName (Just uf) = do
   let components = join $ UF.topLevelComponents uf
@@ -2740,11 +2742,11 @@ addWatch watchName (Just uf) = do
     [(v, tm, ty)] -> pure . pure $ let
       v2 = Var.freshIn (Set.fromList [v]) v
       a = ABT.annotation tm
-      in UF.typecheckedUnisonFile
+      in (v2, UF.typecheckedUnisonFile
            (UF.dataDeclarationsId' uf)
            (UF.effectDeclarationsId' uf)
            (UF.topLevelComponents' uf)
-           (UF.watchComponents uf <> [(UF.RegularWatch, [(v2, Term.var a v, ty)])])
+           (UF.watchComponents uf <> [(UF.RegularWatch, [(v2, Term.var a v, ty)])]))
     _ -> addWatch watchName Nothing
 
 -- Given a typechecked file with a main function called `mainName`
