@@ -26,7 +26,7 @@ import qualified Unison.Server.Backend as Backend
 import Unison.Server.QueryResult
 import Unison.Server.Backend (ShallowListEntry(..))
 import qualified Unison.Codebase.MainTerm as MainTerm
-import Unison.Codebase.Editor.Command
+import Unison.Codebase.Editor.Command as Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.DisplayObject
@@ -157,10 +157,6 @@ data LoopState m v
       , _latestFile :: Maybe (FilePath, SkipNextUpdate)
       , _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile v Ann)
 
-      -- The latest successful evaluation result; allows for display of definitions
-      -- (such as docs) that are in the file but not the codebase
-      , _latestEvaluation :: Maybe (PPE.PrettyPrintEnvDecl, EvalResult v)
-
       -- The previous user input. Used to request confirmation of
       -- questionable user commands.
       , _lastInput :: Maybe Input
@@ -181,7 +177,7 @@ currentPath :: Getter (LoopState m v) Path.Absolute
 currentPath = currentPathStack . to Nel.head
 
 loopState0 :: Branch m -> Path.Absolute -> LoopState m v
-loopState0 b p = LoopState b b (pure p) Nothing Nothing Nothing Nothing []
+loopState0 b p = LoopState b b (pure p) Nothing Nothing Nothing []
 
 type Action' m v = Action m (Either Event Input) v
 
@@ -277,7 +273,6 @@ loop = do
         let parseNames = Backend.getCurrentParseNames currentPath'' root'
         latestFile .= Just (Text.unpack sourceName, False)
         latestTypecheckedFile .= Nothing
-        latestEvaluation .= Nothing
         Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
         case r of
           -- Parsing failed
@@ -297,9 +292,7 @@ loop = do
         let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
         withFile [] sourceName (text, lexed) $ \unisonFile -> do
           sr <- toSlurpResult currentPath' unisonFile <$> slurpResultNames0
-          names <- makeShadowedPrintNamesFromLabeled
-                      (UF.termSignatureExternalLabeledDependencies unisonFile)
-                      (UF.typecheckedToNames0 unisonFile)
+          names <- displayNames unisonFile
           pped <- prettyPrintEnvDecl names
           let ppe = PPE.suffixifiedPPE pped
           eval . Notify $ Typechecked sourceName ppe sr unisonFile
@@ -311,7 +304,6 @@ loop = do
               unless (null e') $
                 eval . Notify $ Evaluated text ppe bindings e'
               latestTypecheckedFile .= Just unisonFile
-              latestEvaluation .= Just (pped, (bindings, e))
 
   case e of
     Left (IncomingRootBranch hashes) ->
@@ -517,9 +509,7 @@ loop = do
           -- Say something
           success
         previewResponse sourceName sr uf = do
-          names <- makeShadowedPrintNamesFromLabeled
-                      (UF.termSignatureExternalLabeledDependencies uf)
-                      (UF.typecheckedToNames0 uf)
+          names <- displayNames uf
           ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
           respond $ Typechecked (Text.pack sourceName) ppe sr uf
 
@@ -1109,16 +1099,34 @@ loop = do
       DeleteTermI hq -> delete getHQ'Terms       (const Set.empty) hq
 
       DisplayI outputLoc hq -> do
-        let parseNames0 = (`Names3.Names` mempty) basicPrettyPrintNames0
-            -- use suffixed names for resolving the argument to display
-            parseNames = Names3.suffixify parseNames0
-            results = Names3.lookupHQTerm hq parseNames
-        if Set.null results then
-          respond $ SearchTermsNotFound [hq]
-        else if Set.size results > 1 then
-          respond $ TermAmbiguous hq results
-        -- ... but use the unsuffixed names for display
-        else doDisplay outputLoc parseNames0 (Term.referent() $ Set.findMin results)
+        uf <- use latestTypecheckedFile >>= addWatch (HQ.toString hq)
+        case uf of
+          Nothing -> do
+            let parseNames0 = (`Names3.Names` mempty) basicPrettyPrintNames0
+                -- use suffixed names for resolving the argument to display
+                parseNames = Names3.suffixify parseNames0
+                results = Names3.lookupHQTerm hq parseNames
+            if Set.null results then
+              respond $ SearchTermsNotFound [hq]
+            else if Set.size results > 1 then
+              respond $ TermAmbiguous hq results
+            -- ... but use the unsuffixed names for display
+            else do
+              let tm = Term.referent External $ Set.findMin results
+              pped <- prettyPrintEnvDecl parseNames0
+              tm <- eval $ Evaluate1 (PPE.suffixifiedPPE pped) True tm
+              case tm of
+                Left e -> respond (EvaluationFailure e)
+                Right tm -> doDisplay outputLoc parseNames0 (Term.unannotate tm)
+          Just unisonFile -> do
+            ppe <- executePPE unisonFile
+            unlessError' EvaluationFailure do
+              evalResult <- ExceptT . eval . Evaluate ppe $ unisonFile
+              case Command.lookupEvalResult (Var.named (HQ.toText hq)) evalResult of
+                Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
+                Just tm -> lift do
+                  ns <- displayNames unisonFile
+                  doDisplay outputLoc ns tm
 
       ShowDefinitionI outputLoc query -> do
         res <- eval $ GetDefinitionsBySuffixes (Just currentPath'') root' query
@@ -1345,10 +1353,7 @@ loop = do
             stepAtNoSync ( Path.unabsolute currentPath'
                    , doSlurpAdds adds uf)
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
-          ppe <- prettyPrintEnvDecl =<<
-            makeShadowedPrintNamesFromLabeled
-              (UF.termSignatureExternalLabeledDependencies uf)
-              (UF.typecheckedToNames0 uf)
+          ppe <- prettyPrintEnvDecl =<< displayNames uf
           respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
           addDefaultMetadata adds
           syncRoot
@@ -1451,10 +1456,7 @@ loop = do
                , pure . doSlurpAdds addsAndUpdates uf)
               ,( Path.unabsolute p, updatePatches )]
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
-          ppe <- prettyPrintEnvDecl =<<
-            makeShadowedPrintNamesFromLabeled
-              (UF.termSignatureExternalLabeledDependencies uf)
-              (UF.typecheckedToNames0 uf)
+          ppe <- prettyPrintEnvDecl =<< displayNames uf
           respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
           -- propagatePatch prints TodoOutput
           void $ propagatePatchNoSync (updatePatch ye'ol'Patch) currentPath'
@@ -2722,6 +2724,29 @@ data AddRunMainResult v
   | TermHasBadType (Type v Ann)
   | RunMainSuccess (TypecheckedUnisonFile  v Ann)
 
+-- Adds a watch expression of the given name to the file, if
+-- it would resolve to a TLD in the file. Otherwise,
+-- returns `Nothing`.
+addWatch
+  :: (Monad m, Var v)
+  => String
+  -> Maybe (TypecheckedUnisonFile v Ann)
+  -> Action' m v (Maybe (TypecheckedUnisonFile v Ann))
+addWatch _watchName Nothing = pure Nothing
+addWatch watchName (Just uf) = do
+  let components = join $ UF.topLevelComponents uf
+  let mainComponent = filter ((\v -> Var.nameStr v == watchName) . view _1) components
+  case mainComponent of
+    [(v, tm, ty)] -> pure . pure $ let
+      v2 = Var.freshIn (Set.fromList [v]) v
+      a = ABT.annotation tm
+      in UF.typecheckedUnisonFile
+           (UF.dataDeclarationsId' uf)
+           (UF.effectDeclarationsId' uf)
+           (UF.topLevelComponents' uf)
+           (UF.watchComponents uf <> [(UF.RegularWatch, [(v2, Term.var a v, ty)])])
+    _ -> addWatch watchName Nothing
+
 -- Given a typechecked file with a main function called `mainName`
 -- of the type `'{IO} ()`, adds an extra binding which
 -- forces the `main` function.
@@ -2770,11 +2795,16 @@ executePPE
   => TypecheckedUnisonFile v a
   -> Action' m v PPE.PrettyPrintEnv
 executePPE unisonFile =
+  prettyPrintEnv =<< displayNames unisonFile
+
+displayNames :: (Var v, Monad m)
+  => TypecheckedUnisonFile v a
+  -> Action' m v Names
+displayNames unisonFile =
   -- voodoo
-  prettyPrintEnv =<<
-    makeShadowedPrintNamesFromLabeled
-      (UF.termSignatureExternalLabeledDependencies unisonFile)
-      (UF.typecheckedToNames0 unisonFile)
+  makeShadowedPrintNamesFromLabeled
+    (UF.termSignatureExternalLabeledDependencies unisonFile)
+    (UF.typecheckedToNames0 unisonFile)
 
 diffHelper :: Monad m
   => Branch0 m

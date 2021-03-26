@@ -234,8 +234,8 @@ type EvalResult v =
   , Map v (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit)
   )
 
-lookupEvalResult :: Ord v => EvalResult v -> v -> Maybe (Term v ())
-lookupEvalResult (_, m) v = view _5 <$> Map.lookup v m
+lookupEvalResult :: Ord v => v -> EvalResult v -> Maybe (Term v ())
+lookupEvalResult v (_, m) = view _5 <$> Map.lookup v m
 
 commandName :: Command m i v a -> String
 commandName = \case
