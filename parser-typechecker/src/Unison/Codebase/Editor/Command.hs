@@ -10,17 +10,21 @@ module Unison.Codebase.Editor.Command (
   TypecheckingResult,
   LoadSourceResult(..),
   UseCache,
-  commandName
+  EvalResult,
+  commandName,
+  lookupEvalResult
   ) where
 
 import Unison.Prelude
 
+import Control.Lens (_5,view)
 -- TODO: Don't import backend, but move dependencies to own modules
 import           Unison.Server.Backend          ( DefinitionResults
                                                 , ShallowListEntry
                                                 , BackendError
                                                 )
 import           Data.Configurator.Types        ( Configured )
+import qualified Data.Map                      as Map
 
 import           Unison.Codebase.Editor.Output
 import           Unison.Codebase.Editor.RemoteRepo
@@ -150,9 +154,7 @@ data Command m i v a where
 
   Evaluate :: PPE.PrettyPrintEnv
            -> UF.TypecheckedUnisonFile v Ann
-           -> Command m i v (Either Runtime.Error
-                ([(v, Term v ())], Map v
-                (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit)))
+           -> Command m i v (Either Runtime.Error (EvalResult v))
 
   -- Evaluate a single closed definition
   Evaluate1 :: PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command m i v (Either Runtime.Error (Term v Ann))
@@ -226,6 +228,14 @@ data Command m i v a where
   RuntimeTest :: Command m i v (Type v Ann)
 
 type UseCache = Bool
+
+type EvalResult v =
+  ( [(v, Term v ())]
+  , Map v (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit)
+  )
+
+lookupEvalResult :: Ord v => EvalResult v -> v -> Maybe (Term v ())
+lookupEvalResult (_, m) v = view _5 <$> Map.lookup v m
 
 commandName :: Command m i v a -> String
 commandName = \case

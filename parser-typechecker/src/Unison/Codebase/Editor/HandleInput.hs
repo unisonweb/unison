@@ -156,6 +156,10 @@ data LoopState m v
       , _latestFile :: Maybe (FilePath, SkipNextUpdate)
       , _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile v Ann)
 
+      -- The latest successful evaluation result; allows for display of definitions
+      -- (such as docs) that are in the file but not the codebase
+      , _latestEvaluation :: Maybe (PPE.PrettyPrintEnvDecl, EvalResult v)
+
       -- The previous user input. Used to request confirmation of
       -- questionable user commands.
       , _lastInput :: Maybe Input
@@ -176,7 +180,7 @@ currentPath :: Getter (LoopState m v) Path.Absolute
 currentPath = currentPathStack . to Nel.head
 
 loopState0 :: Branch m -> Path.Absolute -> LoopState m v
-loopState0 b p = LoopState b b (pure p) Nothing Nothing Nothing []
+loopState0 b p = LoopState b b (pure p) Nothing Nothing Nothing Nothing []
 
 type Action' m v = Action m (Either Event Input) v
 
@@ -272,6 +276,7 @@ loop = do
         let parseNames = Backend.getCurrentParseNames currentPath'' root'
         latestFile .= Just (Text.unpack sourceName, False)
         latestTypecheckedFile .= Nothing
+        latestEvaluation .= Nothing
         Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
         case r of
           -- Parsing failed
@@ -294,7 +299,8 @@ loop = do
           names <- makeShadowedPrintNamesFromLabeled
                       (UF.termSignatureExternalLabeledDependencies unisonFile)
                       (UF.typecheckedToNames0 unisonFile)
-          ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
+          pped <- prettyPrintEnvDecl names
+          let ppe = PPE.suffixifiedPPE pped
           eval . Notify $ Typechecked sourceName ppe sr unisonFile
           unlessError' EvaluationFailure do
             (bindings, e) <- ExceptT . eval . Evaluate ppe $ unisonFile
@@ -304,6 +310,7 @@ loop = do
               unless (null e') $
                 eval . Notify $ Evaluated text ppe bindings e'
               latestTypecheckedFile .= Just unisonFile
+              latestEvaluation .= Just (pped, (bindings, e))
 
   case e of
     Left (IncomingRootBranch hashes) ->
