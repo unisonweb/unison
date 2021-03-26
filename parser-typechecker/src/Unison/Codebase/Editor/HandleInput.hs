@@ -89,6 +89,7 @@ import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import           Unison.Result                  ( pattern Result )
 import qualified Unison.ShortHash as SH
+import           Unison.Term                    (Term)
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Result                 as Result
@@ -1036,9 +1037,12 @@ loop = do
       DocsI src -> unlessError do
         (ppe, out) <- getLinks input src (Left $ Set.singleton DD.docRef)
         lift case out of
+          -- todo
+          [] -> undefined "consult latest typechecked file for a binding src.doc"
           [(_name, ref, _tm)] -> do
             let names = basicPrettyPrintNames0
-            doDisplay ConsoleLocation (Names3.Names names mempty) (Referent.Ref ref)
+            doDisplay ConsoleLocation (Names3.Names names mempty)
+                                      (Term.ref() ref)
           out -> do
             numberedArgs .= fmap (HQ.toString . view _1) out
             respond $ ListOfLinks ppe out
@@ -1114,7 +1118,7 @@ loop = do
         else if Set.size results > 1 then
           respond $ TermAmbiguous hq results
         -- ... but use the unsuffixed names for display
-        else doDisplay outputLoc parseNames0 (Set.findMin results)
+        else doDisplay outputLoc parseNames0 (Term.referent() $ Set.findMin results)
 
       ShowDefinitionI outputLoc query -> do
         res <- eval $ GetDefinitionsBySuffixes (Just currentPath'') root' query
@@ -1800,9 +1804,8 @@ resolveHQToLabeledDependencies = \case
     types <- eval $ TypeReferencesByShortHash sh
     pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
-doDisplay :: Var v => OutputLocation -> Names -> Referent -> Action' m v ()
-doDisplay outputLoc names r = do
-  let tm = Term.fromReferent External r
+doDisplay :: Var v => OutputLocation -> Names -> Term v () -> Action' m v ()
+doDisplay outputLoc names tm = do
   ppe <- prettyPrintEnvDecl names
   latestFile' <- use latestFile
   let
@@ -1818,8 +1821,7 @@ doDisplay outputLoc names r = do
     loadDecl (Reference.DerivedId r) = fmap (fmap $ DD.amap (const ())) . eval $ LoadType r
     loadDecl _ = pure Nothing
     loadTypeOfTerm' = fmap (fmap void) . loadTypeOfTerm
-  rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm' evalTerm loadDecl
-            $ Term.unannotate tm
+  rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm' evalTerm loadDecl tm
   respond $ DisplayRendered loc rendered
 
 getLinks :: (Var v, Monad m)

@@ -468,6 +468,12 @@ var' = var() . Var.named
 ref :: Ord v => a -> Reference -> Term2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
 
+referent :: Ord v => a -> Referent -> Term2 vt at ap v a
+referent a = \case
+  Referent.Ref r -> ref a r
+  Referent.Con r cid CT.Data -> constructor a r cid
+  Referent.Con r cid CT.Effect -> request a r cid
+
 refId :: Ord v => a -> Reference.Id -> Term2 vt at ap v a
 refId a = ref a . Reference.DerivedId
 
