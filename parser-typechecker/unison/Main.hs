@@ -1,4 +1,5 @@
 {-# Language OverloadedStrings #-}
+{-# Language NamedFieldPuns #-}
 {-# Language PartialTypeSignatures #-}
 {-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
@@ -134,72 +135,86 @@ installSignalHandlers = do
 
   return ()
 
+data UcmConfig = UcmConfig
+  { codepath :: Maybe String
+  , useNewRuntime :: Maybe Bool
+  , args :: [String]
+  }
+
+mkConfig :: [String] -> UcmConfig
+mkConfig str =
+  let
+    -- We need to know whether the program was invoked with -codebase for
+    -- certain messages. Therefore we keep a Maybe FilePath - mcodepath
+    -- rather than just deciding on whether to use the supplied path or
+    -- the home directory here and throwing away that bit of information
+    (codepath, restargs0) = case str of
+      "-codebase" : codepath : restargs -> (Just codepath, restargs)
+      _                                 -> (Nothing, str)
+    (useNewRuntime, restargs) = case restargs0 of
+      "--new-runtime" : rest -> (Just True, rest)
+      _                      -> (Nothing, restargs0)
+  in
+    UcmConfig { codepath=codepath, useNewRuntime=useNewRuntime, args=restargs }
+
 main :: IO ()
 main = do
-  args <- getArgs
+  ucmConfig@UcmConfig{ codepath } <- mkConfig <$> getArgs
   progName <- getProgName
   -- hSetBuffering stdout NoBuffering -- cool
 
   _ <- installSignalHandlers
-  -- We need to know whether the program was invoked with -codebase for
-  -- certain messages. Therefore we keep a Maybe FilePath - mcodepath
-  -- rather than just deciding on whether to use the supplied path or
-  -- the home directory here and throwing away that bit of information
-  let (mcodepath, restargs0) = case args of
-           "-codebase" : codepath : restargs -> (Just codepath, restargs)
-           _                                 -> (Nothing, args)
-      (mNewRun, restargs) = case restargs0 of
-           "--new-runtime" : rest -> (Just True, rest)
-           _ -> (Nothing, restargs0)
   currentDir <- getCurrentDirectory
-  configFilePath <- getConfigFilePath mcodepath
+  configFilePath <- getConfigFilePath codepath
+
   config@(config_, _cancelConfig) <-
     catchIOError (watchConfig configFilePath) $ \_ ->
       Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
+
   branchCacheSize :: Word <- Config.lookupDefault 4096 config_ "NamespaceCacheSize"
   branchCache <- Cache.semispaceCache branchCacheSize
-  case restargs of
+  case args ucmConfig of
     [] -> do
-      theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
+      theCodebase <- FileCodebase.getCodebaseOrExit branchCache codepath
       Server.start theCodebase $ \token port -> do
         PT.putPrettyLn . P.string $ "I've started a codebase API server at "
         PT.putPrettyLn . P.string $ "http://127.0.0.1:"
           <> show port <> "?" <> URI.encode (unpack token)
-        launch currentDir mNewRun config theCodebase branchCache []
+        launch ucmConfig currentDir config theCodebase branchCache []
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
-    ["init"] -> FileCodebase.initCodebaseAndExit mcodepath
+    ["init"] -> FileCodebase.initCodebaseAndExit codepath
     "run" : [mainName] -> do
-      theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
-      runtime <- join . getStartRuntime mNewRun $ fst config
+      theCodebase <- FileCodebase.getCodebaseOrExit branchCache codepath
+      runtime <- join . getStartRuntime (useNewRuntime ucmConfig) $ fst config
       execute theCodebase runtime mainName
     "run.file" : file : [mainName] | isDotU file -> do
       e <- safeReadUtf8 file
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
         Right contents -> do
-          theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
+          theCodebase <- FileCodebase.getCodebaseOrExit branchCache codepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-          launch currentDir mNewRun config theCodebase branchCache [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+          launch ucmConfig currentDir config theCodebase branchCache [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "run.pipe" : [mainName] -> do
       e <- safeReadUtf8StdIn
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
-          theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
+          theCodebase <- FileCodebase.getCodebaseOrExit branchCache codepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
-            currentDir mNewRun config theCodebase branchCache
+            ucmConfig currentDir config theCodebase branchCache
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "transcript" : args' ->
       case args' of
-      "-save-codebase" : transcripts -> runTranscripts mNewRun branchCache False True mcodepath transcripts
-      _                              -> runTranscripts mNewRun branchCache False False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts ucmConfig branchCache False True transcripts
+      _                              -> runTranscripts ucmConfig branchCache False False args'
     "transcript.fork" : args' ->
       case args' of
-      "-save-codebase" : transcripts -> runTranscripts mNewRun branchCache True True mcodepath transcripts
-      _                              -> runTranscripts mNewRun branchCache True False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts ucmConfig branchCache True True transcripts
+      _                              -> runTranscripts ucmConfig branchCache True False args'
     _ -> do
       PT.putPrettyLn (usage progName)
       Exit.exitWith (Exit.ExitFailure 1)
@@ -261,18 +276,17 @@ runTranscripts' mNewRun branchCache mcodepath transcriptDir args = do
       pure False
 
 runTranscripts
-  :: Maybe Bool
+  :: UcmConfig
   -> Branch.Cache IO
   -> Bool
   -> Bool
-  -> Maybe FilePath
   -> [String]
   -> IO ()
-runTranscripts mNewRun branchCache inFork keepTemp mcodepath args = do
+runTranscripts config branchCache inFork keepTemp args = do
   progName <- getProgName
-  transcriptDir <- prepareTranscriptDir branchCache inFork mcodepath
+  transcriptDir <- prepareTranscriptDir branchCache inFork (codepath config)
   completed <-
-    runTranscripts' mNewRun branchCache (Just transcriptDir) transcriptDir args
+    runTranscripts' (useNewRuntime config) branchCache (Just transcriptDir) transcriptDir args
   when completed $ do
     unless keepTemp $ removeDirectoryRecursive transcriptDir
     when keepTemp $ PT.putPrettyLn $
@@ -298,15 +312,15 @@ getStartRuntime newRun config = do
   pure $ if b then RTI.startRuntime else pure Rt1.runtime
 
 launch
-  :: FilePath
-  -> Maybe Bool
+  :: UcmConfig
+  -> FilePath
   -> (Config, IO ())
   -> _
   -> Branch.Cache IO
   -> [Either Input.Event Input.Input]
   -> IO ()
-launch dir newRun config code branchCache inputs = do
-  startRuntime <- getStartRuntime newRun $ fst config
+launch ucmConfig dir config code branchCache inputs = do
+  startRuntime <- getStartRuntime (useNewRuntime ucmConfig) $ fst config
   CommandLine.main dir defaultBaseLib initialPath config inputs startRuntime code branchCache Version.gitDescribe
 
 isMarkdown :: String -> Bool
