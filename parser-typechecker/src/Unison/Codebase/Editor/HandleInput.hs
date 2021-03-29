@@ -73,6 +73,7 @@ import qualified Unison.Server.SearchResult'  as SR'
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.SyncMode      as SyncMode
 import qualified Unison.Builtin.Decls          as DD
+import qualified Unison.Runtime.IOSource       as DD
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
@@ -628,6 +629,37 @@ loop = do
               diffHelper (Branch.head root') (Branch.head root'') >>=
                 respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
             else handleFailedDelete failed failedDependents
+
+        displayI outputLoc hq = do
+          uf <- use latestTypecheckedFile >>= addWatch (HQ.toString hq)
+          case uf of
+            Nothing -> do
+              let parseNames0 = (`Names3.Names` mempty) basicPrettyPrintNames0
+                  -- use suffixed names for resolving the argument to display
+                  parseNames = Names3.suffixify parseNames0
+                  results = Names3.lookupHQTerm hq parseNames
+              if Set.null results then
+                respond $ SearchTermsNotFound [hq]
+              else if Set.size results > 1 then
+                respond $ TermAmbiguous hq results
+              -- ... but use the unsuffixed names for display
+              else do
+                let tm = Term.referent External $ Set.findMin results
+                pped <- prettyPrintEnvDecl parseNames0
+                tm <- eval $ Evaluate1 (PPE.suffixifiedPPE pped) True tm
+                case tm of
+                  Left e -> respond (EvaluationFailure e)
+                  Right tm -> doDisplay outputLoc parseNames0 (Term.unannotate tm)
+            Just (toDisplay, unisonFile) -> do
+              ppe <- executePPE unisonFile
+              unlessError' EvaluationFailure do
+                evalResult <- ExceptT . eval . Evaluate ppe $ unisonFile
+                case Command.lookupEvalResult toDisplay evalResult of
+                  Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
+                  Just tm -> lift do
+                    ns <- displayNames unisonFile
+                    doDisplay outputLoc ns tm
+
       in case input of
       ShowReflogI -> do
         entries <- convertEntries Nothing [] <$> eval LoadReflog
@@ -1024,18 +1056,47 @@ loop = do
           numberedArgs .= fmap (HQ.toString . view _1) out
           respond $ ListOfLinks ppe out
 
-      DocsI src -> unlessError do
-        (ppe, out) <- getLinks input src (Left $ Set.singleton DD.docRef)
-        lift case out of
-          -- todo
-          [] -> undefined "consult latest typechecked file for a binding src.doc"
-          [(_name, ref, _tm)] -> do
-            let names = basicPrettyPrintNames0
-            doDisplay ConsoleLocation (Names3.Names names mempty)
-                                      (Term.ref() ref)
-          out -> do
-            numberedArgs .= fmap (HQ.toString . view _1) out
-            respond $ ListOfLinks ppe out
+      DocsI src -> fileByName where
+        {- Given `docs foo`, we look for docs in 3 places, in this order:
+           (fileByName) First check the file for `foo.doc`, and if found do `display foo.doc`
+           (codebaseByMetadata) Next check for doc metadata linked to `foo` in the codebase
+           (codebaseByName) Lastly check for `foo.doc` in the codebase and if found do `display foo.doc`
+        -}
+        hq :: HQ.HashQualified Name
+        hq = let
+          hq' :: HQ'.HashQualified Name
+          hq' = Name.convert @Path.Path' @Name <$> Name.convert src
+          in Name.convert hq'
+
+        dotDoc :: HQ.HashQualified Name
+        dotDoc = hq <&> \n -> Name.joinDot n "doc"
+
+        fileByName = do
+          ns <- maybe mempty UF.typecheckedToNames0 <$> use latestTypecheckedFile
+          fnames <- pure $ Names3.Names ns mempty
+          case Names3.lookupHQTerm dotDoc fnames of
+            s | Set.size s == 1 -> displayI ConsoleLocation dotDoc
+            _ -> codebaseByMetadata
+
+        codebaseByMetadata = unlessError do
+          (ppe, out) <- getLinks input src (Left $ Set.fromList [DD.docRef, DD.doc2Ref])
+          lift case out of
+            [] -> codebaseByName
+            [(_name, ref, _tm)] -> do
+              let names = basicPrettyPrintNames0
+              doDisplay ConsoleLocation (Names3.Names names mempty)
+                                        (Term.ref() ref)
+            out -> do
+              numberedArgs .= fmap (HQ.toString . view _1) out
+              respond $ ListOfLinks ppe out
+
+        codebaseByName = do
+          parseNames <- Names3.suffixify0 <$> basicParseNames0
+          case Names3.lookupHQTerm dotDoc (Names3.Names parseNames mempty) of
+            s | Set.size s == 1 -> displayI ConsoleLocation dotDoc
+              | Set.size s == 0 -> respond $ ListOfLinks mempty []
+              | otherwise       -> -- todo: return a list of links here too
+                respond $ ListOfLinks mempty []
 
       CreateAuthorI authorNameSegment authorFullName -> do
         initialBranch <- getAt currentPath'
@@ -1098,35 +1159,7 @@ loop = do
       DeleteTypeI hq -> delete (const Set.empty) getHQ'Types       hq
       DeleteTermI hq -> delete getHQ'Terms       (const Set.empty) hq
 
-      DisplayI outputLoc hq -> do
-        uf <- use latestTypecheckedFile >>= addWatch (HQ.toString hq)
-        case uf of
-          Nothing -> do
-            let parseNames0 = (`Names3.Names` mempty) basicPrettyPrintNames0
-                -- use suffixed names for resolving the argument to display
-                parseNames = Names3.suffixify parseNames0
-                results = Names3.lookupHQTerm hq parseNames
-            if Set.null results then
-              respond $ SearchTermsNotFound [hq]
-            else if Set.size results > 1 then
-              respond $ TermAmbiguous hq results
-            -- ... but use the unsuffixed names for display
-            else do
-              let tm = Term.referent External $ Set.findMin results
-              pped <- prettyPrintEnvDecl parseNames0
-              tm <- eval $ Evaluate1 (PPE.suffixifiedPPE pped) True tm
-              case tm of
-                Left e -> respond (EvaluationFailure e)
-                Right tm -> doDisplay outputLoc parseNames0 (Term.unannotate tm)
-          Just (toDisplay, unisonFile) -> do
-            ppe <- executePPE unisonFile
-            unlessError' EvaluationFailure do
-              evalResult <- ExceptT . eval . Evaluate ppe $ unisonFile
-              case Command.lookupEvalResult toDisplay evalResult of
-                Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
-                Just tm -> lift do
-                  ns <- displayNames unisonFile
-                  doDisplay outputLoc ns tm
+      DisplayI outputLoc hq -> displayI outputLoc hq
 
       ShowDefinitionI outputLoc query -> do
         res <- eval $ GetDefinitionsBySuffixes (Just currentPath'') root' query

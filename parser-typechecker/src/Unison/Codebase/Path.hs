@@ -16,7 +16,7 @@ import qualified Data.Foldable as Foldable
 import qualified Data.Text                     as Text
 import           Data.Sequence                  (Seq((:<|),(:|>) ))
 import qualified Data.Sequence                 as Seq
-import           Unison.Name                    ( Name )
+import           Unison.Name                    ( Name, Convert, Parse )
 import qualified Unison.Name                   as Name
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Lexer                  as Lexer
@@ -454,3 +454,12 @@ instance Resolve Absolute HQSplit HQSplitAbsolute where
 instance Resolve Absolute Path' Absolute where
   resolve _ (Path' (Left a)) = a
   resolve a (Path' (Right r)) = resolve a r
+
+instance Convert [NameSegment] Path where convert = fromList
+instance Convert Path [NameSegment] where convert = toList
+instance Convert HQSplit (HQ'.HashQualified Path) where convert = unsplitHQ
+instance Convert Path Name where convert = toName
+instance Convert Path' Name where convert = toName'
+instance Convert HQSplit' (HQ'.HashQualified Path') where convert = unsplitHQ'
+instance Parse Name HQSplit' where parse = hqSplitFromName'
+instance Parse Name Split where parse = splitFromName
