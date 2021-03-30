@@ -1,5 +1,6 @@
 {-# language DataKinds #-}
 {-# language PatternGuards #-}
+{-# language OverloadedStrings #-}
 {-# language ScopedTypeVariables #-}
 
 module Unison.Runtime.Interface
@@ -20,6 +21,7 @@ import Data.Foldable
 import Data.Set as Set
   (Set, (\\), singleton, map, notMember, filter, fromList)
 import Data.Traversable (for)
+import Data.Text (Text)
 import Data.Word (Word64)
 
 import qualified Data.Map.Strict as Map
@@ -40,6 +42,7 @@ import Unison.Codebase.MainTerm (builtinMain, builtinTest)
 
 import Unison.Parser (Ann(External))
 import Unison.PrettyPrintEnv
+import Unison.Util.Pretty as P
 import Unison.Symbol (Symbol)
 import Unison.TermPrinter
 
@@ -228,11 +231,29 @@ evalInContext ppe ctx w = do
   let hook = watchHook r
       decom = decompile (backReferenceTm crs (decompTm ctx))
       prettyError (PE p) = p
-      prettyError (BU c) = either id (pretty ppe) $ decom c
+      prettyError (BU nm c) = either id (bugMsg ppe nm) $ decom c
   result <- traverse (const $ readIORef r)
           . first prettyError
         <=< try $ apply0 (Just hook) (ccache ctx) w
   pure $ decom =<< result
+
+bugMsg :: PrettyPrintEnv -> Text -> Term Symbol -> Pretty ColorText
+bugMsg ppe name tm = P.callout icon . P.lines $
+  [ P.wrap ("I've encountered a call to" <> P.red (P.text name)
+      <> "with the following value:")
+  , ""
+  , P.indentN 2 $ pretty ppe tm
+  , ""
+  , sorryMsg
+  ]
+  where
+icon, sorryMsg  :: Pretty ColorText
+icon = "💔💥"
+sorryMsg
+  = P.wrap
+  $ "I'm sorry this message doesn't have more detail about"
+  <> "the location of the failure."
+  <> "My makers plan to fix this in a future release. 😢"
 
 startRuntime :: IO (Runtime Symbol)
 startRuntime = do

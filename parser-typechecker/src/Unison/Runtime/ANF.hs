@@ -286,27 +286,37 @@ lamFloater mv a vs bd
 
 floater
   :: (Var v, Monoid a)
-  => (Term v a -> FloatM v a (Term v a))
-  -> Term v a -> Maybe (FloatM v a (Term v a))
-floater rec (LetRecNamed' vbs e) = Just $ letFloater rec vbs e >>= rec
-floater rec (Let1Named' v b e)
+  => Bool
+  -> (Term v a -> FloatM v a (Term v a))
+  -> Term v a
+  -> Maybe (FloatM v a (Term v a))
+floater top rec (LetRecNamed' vbs e)
+  = Just $ letFloater rec vbs e >>= \case
+      lm@(LamsNamed' vs bd) | top -> lam' a vs <$> rec bd
+        where a = ABT.annotation lm
+      tm -> rec tm
+floater _   rec (Let1Named' v b e)
   | LamsNamed' vs bd <- b
   = Just $ rec bd
        >>= lamFloater (Just v) a vs
        >>= \lv -> rec $ ABT.changeVars (Map.singleton v lv) e
   where a = ABT.annotation b
-floater rec tm@(LamsNamed' vs bd) = Just $ do
-  bd <- rec bd
-  lv <- lamFloater Nothing a vs bd
-  pure $ var a lv
+
+floater top rec tm@(LamsNamed' vs bd)
+  | top = Just $ lam' a vs <$> rec bd
+  | otherwise = Just $ do
+    bd <- rec bd
+    lv <- lamFloater Nothing a vs bd
+    pure $ var a lv
   where a = ABT.annotation tm
-floater _ _ = Nothing
+floater _ _ _ = Nothing
 
 float :: (Var v, Monoid a) => Term v a -> Term v a
-float tm = case runState (go tm) (Set.empty, []) of
+float tm = case runState go0 (Set.empty, []) of
   (bd, (_, ctx)) -> letRec' True ctx bd
   where
-  go = ABT.visit $ floater go
+  go0 = fromMaybe (go tm) (floater True go tm)
+  go = ABT.visit $ floater False go
   -- tm | LetRecNamedTop' _ vbs e <- tm0
   --    , (pre, rec, post) <- reduceCycle vbs
   --    = let1' False pre . letRec' False rec . let1' False post $ e

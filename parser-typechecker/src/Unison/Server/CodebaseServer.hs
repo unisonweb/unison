@@ -9,6 +9,7 @@ module Unison.Server.CodebaseServer where
 import           Data.Aeson                     ( )
 import qualified Data.ByteString.Lazy          as Lazy
 import qualified Data.ByteString               as Strict
+import qualified Data.ByteString.Char8         as C8
 import           Data.OpenApi                   ( URL(..)
                                                 , Info(..)
                                                 , License(..)
@@ -21,8 +22,8 @@ import           Network.Wai                    ( responseLBS
                                                 , Request
                                                 , queryString
                                                 )
-import           Network.Wai.Handler.Warp       ( runSettings
-                                                , withApplicationSettings
+import           Network.Wai.Handler.Warp       ( withApplicationSettings
+                                                , runSettings
                                                 , defaultSettings
                                                 , Port
                                                 , setPort
@@ -74,12 +75,15 @@ import           Control.Lens                   ( (&)
                                                 )
 import           Data.OpenApi.Lens              ( info )
 import qualified Data.Text                     as Text
+import           Text.Read                      (readMaybe)
 import           Data.Foldable                  ( Foldable(toList) )
+import           System.Environment             (lookupEnv)
 import           System.Random.Stateful         ( getStdGen
                                                 , newAtomicGenM
                                                 , uniformByteStringM
                                                 )
 import qualified Data.ByteString.Base64        as Base64
+import           Data.String                    (fromString)
 
 type OpenApiJSON = "openapi.json"
   :> Get '[JSON] (Headers '[Header "Access-Control-Allow-Origin" String] OpenApi)
@@ -139,24 +143,28 @@ genToken = do
   g   <- newAtomicGenM gen
   Base64.encode <$> uniformByteStringM 24 g
 
--- Returns the auth token required for accessing the server.
--- It expects the token as a query parameter. E.g. if the token is "abc"
--- and `port` is 80, then the server can only be accessed at
--- http://127.0.0.1:80?abc
-startOnPort :: Var v => Codebase IO v Ann -> Port -> IO Strict.ByteString
-startOnPort codebase port = do
-  token <- genToken
-  let settings = setHost "127.0.0.1" $ setPort port defaultSettings
-  runSettings settings $ app codebase token
-  pure token
-
 -- The auth token required for accessing the server is passed to the function k
 start
   :: Var v => Codebase IO v Ann -> (Strict.ByteString -> Port -> IO ()) -> IO ()
 start codebase k = do
-  token <- genToken
-  let settings = setHost "127.0.0.1" defaultSettings
-  withApplicationSettings settings (pure $ app codebase token) (k token)
+  envToken <- lookupEnv "UCM_TOKEN"
+  envHost <- lookupEnv "UCM_HOST"
+  envPort <- (readMaybe =<<) <$> lookupEnv "UCM_PORT"
+  token <- case envToken of
+    Just t -> return $ C8.pack t
+    _ -> genToken
+
+  let settings = case envHost of
+        Just p -> setHost (fromString p) defaultSettings
+        _ -> defaultSettings
+      a = app codebase token
+
+  case envPort of
+    Just p -> do
+      (k token p)
+      runSettings (setPort p settings) a
+    Nothing ->
+      withApplicationSettings settings (pure a) (k token)
 
 server :: Var v => Codebase IO v Ann -> Server DocAPI
 server codebase _ =

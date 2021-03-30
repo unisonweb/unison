@@ -661,8 +661,11 @@ fork'comp
   where
   (act,unit,lz) = fresh3
 
-bug :: Var v => SuperNormal v
-bug = unop0 0 $ \[x] -> TPrm EROR [x]
+bug :: Var v => Text -> SuperNormal v
+bug name
+  = unop0 1 $ \[x, n]
+ -> TLetD n BX (TLit $ T name)
+  $ TPrm EROR [n, x]
 
 watch :: Var v => SuperNormal v
 watch
@@ -1261,8 +1264,8 @@ builtinLookup
   , ("Boolean.or", orb)
   , ("Boolean.and", andb)
 
-  , ("bug", bug)
-  , ("todo", bug)
+  , ("bug", bug "builtin.bug")
+  , ("todo", bug "builtin.todo")
   , ("Debug.watch", watch)
 
   , ("Char.toNat", cast Ty.charRef Ty.natRef)
