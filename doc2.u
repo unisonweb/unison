@@ -1,16 +1,17 @@
 {-
 - [x] Debug the lexer/parser combination
 - [x] Implement display logic for doc type (Unison side)
-- [ ] Add to IOSource
-- [ ] Implement display logic for new doc type in DisplayValues
+- [x] Add to IOSource
+- [x] Implement display logic for new doc type in DisplayValues
+- [x] (Later) docs command should look for foo.doc if nothing is linked, or just have it do: display foo.doc
+- [x] (Later) Instant docs preview
+- [x] Review with Simon, Rúnar, to see if we're missing any elements
+- [x] Add missing element types to syntax tree
 - [ ] Write illustrative transcript (and possibly separate tests)
-- [ ] Review with Simon, Rúnar, to see if we're missing any elements
 - [ ] PR writeup
 - [ ] (Later) Pretty-printer should reverse the syntax
-- [ ] (Later) docs command should look for foo.doc if nothing is linked, or just have it do: display foo.doc
 - [ ] (Later) Top level types should allow anon doc blocks
 - [ ] (Later) Remove backticks syntax
-- [ ] (Later) Instant docs preview
 - [ ] (Later) Remove old doc, rename Doc2 to Doc
 -}
 
@@ -283,7 +284,7 @@ _italics_ or *italics*
 
 [The Unison website](https://unisonweb.org)
 
-A link to a term: {Some}. A link to a type {type List}.
+A link to a term: {Some}. [A named link to the ''List'' type]({type List}).
 '''
 
 Renders as:

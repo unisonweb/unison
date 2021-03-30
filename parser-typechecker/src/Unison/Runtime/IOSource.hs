@@ -143,6 +143,7 @@ consoleTextRef = typeNamed "ConsoleText"
 
 pattern Doc2SpecialFormRef <- ((== doc2SpecialFormRef) -> True)
 doc2SpecialFormSourceId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Source"
+doc2SpecialFormFoldedSourceId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.FoldedSource"
 doc2SpecialFormExampleId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Example"
 doc2SpecialFormLinkId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Link"
 doc2SpecialFormSignatureId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Signature"
@@ -153,6 +154,7 @@ doc2SpecialFormEmbedId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.E
 doc2SpecialFormInlineEmbedId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.InlineEmbed"
 
 pattern Doc2SpecialFormSource tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormSourceId -> True)) tm
+pattern Doc2SpecialFormFoldedSource tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormFoldedSourceId -> True)) tm
 pattern Doc2SpecialFormExample n tm <- Term.Apps' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormExampleId -> True)) [Term.Nat' n, tm]
 pattern Doc2SpecialFormLink tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormLinkId -> True)) tm
 pattern Doc2SpecialFormSignature tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormSignatureId -> True)) tm
@@ -170,25 +172,6 @@ pattern Doc2Example vs body <- Term.App' _term (Term.App' _any (Term.LamNamed' _
 pattern Doc2Term body <- Term.App' _term (Term.App' _any (Term.LamNamed' _ body))
 
 pattern Doc2Ref <- ((== doc2Ref) -> True)
-doc2WordId = constructorNamed doc2Ref "Doc2.Word"
-doc2CodeId = constructorNamed doc2Ref "Doc2.Code"
-doc2CodeBlockId = constructorNamed doc2Ref "Doc2.CodeBlock"
-doc2BoldId = constructorNamed doc2Ref "Doc2.Bold"
-doc2ItalicId = constructorNamed doc2Ref "Doc2.Italic"
-doc2StrikethroughId = constructorNamed doc2Ref "Doc2.Strikethrough"
-doc2StyleId = constructorNamed doc2Ref "Doc2.Style"
-doc2BlockquoteId = constructorNamed doc2Ref "Doc2.Blockquote"
-doc2BlanklineId = constructorNamed doc2Ref "Doc2.Blankline"
-doc2SectionBreakId = constructorNamed doc2Ref "Doc2.SectionBreak"
-doc2AsideId = constructorNamed doc2Ref "Doc2.Aside"
-doc2CalloutId = constructorNamed doc2Ref "Doc2.Callout"
-doc2FoldedId = constructorNamed doc2Ref "Doc2.Folded"
-doc2PargraphId = constructorNamed doc2Ref "Doc2.Pargraph"
-doc2BulletedListId = constructorNamed doc2Ref "Doc2.BulletedList"
-doc2NumberedListId = constructorNamed doc2Ref "Doc2.NumberedList"
-doc2SectionId = constructorNamed doc2Ref "Doc2.Section"
-doc2SpecialId = constructorNamed doc2Ref "Doc2.Special"
-doc2DocsId = constructorNamed doc2Ref "Doc2.Docs"
 
 pattern Doc2TermRef <- ((== doc2TermRef) -> True)
 
@@ -200,6 +183,7 @@ prettyWrapId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Wrap"
 prettyOrElseId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.OrElse"
 prettyIndentId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Indent"
 prettyAppendId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Append"
+prettyTableId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Table"
 
 pattern PrettyEmpty ann <- Term.App' (Term.Constructor' PrettyAnnotatedRef ((==) prettyEmptyId -> True)) ann
 pattern PrettyGroup ann tm <- Term.Apps' (Term.Constructor' PrettyAnnotatedRef ((==) prettyGroupId -> True)) [ann, tm]
@@ -207,6 +191,7 @@ pattern PrettyLit ann tm <- Term.Apps' (Term.Constructor' PrettyAnnotatedRef ((=
 pattern PrettyWrap ann tm <- Term.Apps' (Term.Constructor' PrettyAnnotatedRef ((==) prettyWrapId -> True)) [ann, tm]
 pattern PrettyIndent ann i0 i1 tm <- Term.Apps' (Term.Constructor' PrettyAnnotatedRef ((==) prettyIndentId -> True)) [ann, i0, i1, tm]
 pattern PrettyOrElse ann p1 p2 <- Term.Apps' (Term.Constructor' PrettyAnnotatedRef ((==) prettyOrElseId -> True)) [ann, p1, p2]
+pattern PrettyTable ann rows <- Term.Apps' (Term.Constructor' PrettyAnnotatedRef ((==) prettyOrElseId -> True)) [ann, Term.List' rows]
 pattern PrettyAppend ann tms <- Term.Apps' (Term.Constructor' PrettyAnnotatedRef ((==) prettyAppendId -> True)) [ann, Term.List' tms]
 
 pattern PrettyRef <- ((== prettyRef) -> True)
@@ -694,6 +679,8 @@ Doc2.term a = Doc2.Term.Term (Any a)
 
 unique[da70bff6431da17fa515f3d18ded11852b6a745f] type Doc2.SpecialForm
   = Source [Either Link.Type Doc2.Term]
+  -- like Source, but starts out folded
+  | FoldedSource [Either Link.Type Doc2.Term]
   | Example Nat Doc2.Term
   | Link (Either Link.Type Doc2.Term)
   | Signature [Doc2.Term]
@@ -714,16 +701,25 @@ unique[b7a4fb87e34569319591130bf3ec6e24c9955b6a] type Doc2
   | Style Doc2 Doc2
   | Blockquote Doc2
   | Blankline
+  | Linebreak
   | SectionBreak
-  | Aside (Optional Doc2) Doc2
-  -- callout icon content
+  -- Tooltip inner tooltipContent
+  | Tooltip Doc2 Doc2
+  -- Aside asideContent
+  | Aside Doc2
+  -- Callout icon content
   | Callout (Optional Doc2) Doc2
+  -- Table rows
+  | Table [[Doc2]]
+  -- Folded isFolded summary details
   | Folded Boolean Doc2 Doc2
   | Paragraph [Doc2]
   | BulletedList [Doc2]
   | NumberedList Nat [Doc2]
   | Section Doc2 [Doc2]
   | NamedLink Doc2 Doc2
+  -- image alt text link caption
+  | Image Doc2 Doc2 (Optional Doc2)
   | Special Doc2.SpecialForm
   | Docs [Doc2]
 
@@ -733,6 +729,8 @@ unique[d7b2ced8c08b2c6e54050d1f5acedef3395f293d] type Pretty.Annotated w txt
   | Lit w txt
   | Wrap w (Pretty.Annotated w txt)
   | OrElse w (Pretty.Annotated w txt) (Pretty.Annotated w txt)
+  -- table rows
+  | Table w [[Pretty.Annotated w txt]]
   -- Indent _ initialIndent indentAfterNewline p prefixes the first
   -- line of `p` with `initialIndent`, and subsequent lines by `indentAfterNewline`.
   | Indent w (Pretty.Annotated w txt) (Pretty.Annotated w txt) (Pretty.Annotated w txt)
@@ -799,6 +797,9 @@ Pretty.indent' initialIndent indentAfterNewline p =
                     (Pretty.get indentAfterNewline)
                     (Pretty.get p))
 
+Pretty.table : [[Pretty txt]] -> Pretty txt
+Pretty.table rows = Pretty (Annotated.Table () (List.map (List.map Pretty.get) rows))
+
 Pretty.append : Pretty txt -> Pretty txt -> Pretty txt
 Pretty.append p1 p2 =
   use Pretty.Annotated Empty Append
@@ -838,6 +839,7 @@ syntax.doc.embedTypeLink typ =
   guid = "b7a4fb87e34569319591130bf3ec6e24"
   Left typ
 syntax.doc.source t = Special (Source t)
+syntax.doc.foldedSource t = Special (FoldedSource t)
 syntax.doc.signature ts = Special (Signature ts)
 syntax.doc.inlineSignature t = Special (InlineSignature t)
 syntax.doc.inlineEval e = Special (InlineEval (Doc2.term e))
@@ -903,12 +905,14 @@ syntax.doc.formatConsole d =
     Style _ d -> go d
     Blockquote d -> Pretty.indent (lit "> ") (go d)
     Blankline -> lit "\n\n"
+    Linebreak -> lit "\n"
     SectionBreak -> lit "܍"
-    Aside None d -> Pretty.indent (lit "  | ") (go d)
-    Aside (Some title) d ->
-      Pretty.indent (lit "  | ") (go (Doc2.Bold title) <> nl <> nl <> go d)
-    Callout icon d -> go (Aside icon d) --
-    Folded _ _closed open -> go open
+    Tooltip inner _ -> go inner
+    Aside d -> Pretty.indent (lit "  | ") (go d)
+    Callout None d -> go (Aside d)
+    Callout (Some icon) d -> go (Aside (Section icon [d]))
+    Doc2.Table rows -> Pretty.table (List.map (List.map go) rows)
+    Folded _ summary details -> go summary <> go details
     Paragraph ds -> Pretty.wrap (Pretty.join (List.map go ds))
     BulletedList ds ->
       item d = Pretty.indent' (lit "* ") (lit "  ") (go d)
@@ -930,6 +934,8 @@ syntax.doc.formatConsole d =
       Pretty.sepBy (nl <> nl) (t +: subs)
     Docs ds -> Pretty.join (List.map go ds)
     NamedLink name _target -> map ConsoleText.Underline (go name)
+    Image alt _link (Some caption) -> Pretty.sepBy nl [go alt, go (Italic caption)]
+    Image alt _link None -> go alt
     Special sf -> Pretty.lit (Left sf)
   go d
 |]

@@ -90,6 +90,7 @@ module Unison.Util.Pretty (
    string,
    surroundCommas,
    syntaxToColor,
+   table,
    text,
    toANSI,
    toAnsiUnbroken,
@@ -519,6 +520,20 @@ excerptColumn2 max cols = case max of
   Just max | len > max -> lines [column2 cols, "... " <> shown (len - max)]
   _                    -> column2 cols
   where len = length cols
+
+table :: (IsString s, LL.ListLike s Char) => [[Pretty s]] -> Pretty s
+table rows = lines (table' rows)
+
+table' :: (IsString s, LL.ListLike s Char) => [[Pretty s]] -> [Pretty s]
+table' [] = mempty
+table' rows = case maximum (Prelude.length <$> rows) of
+  1 -> rows >>= \case
+    [] -> [mempty]
+    hd : _ -> [hd]
+  _ -> let
+    colHd = [ h | (h:_) <- rows ]
+    colTl = [ t | (_:t) <- rows ]
+    in align (colHd `zip` table' colTl)
 
 column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s

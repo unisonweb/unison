@@ -6,6 +6,7 @@ module Unison.CommandLine.DisplayValues where
 
 import Unison.Prelude
 
+import Data.Foldable (foldrM)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Term (Term)
@@ -92,33 +93,43 @@ displayPretty pped terms typeOf eval types tm = go tm
       p <- go p
       pure $ initial <> P.indentAfterNewline afterNl p
     DD.PrettyAppend _ ps -> mconcat . toList <$> traverse go ps
+    DD.PrettyTable _ rows ->
+      let f :: Term v () -> [[Pretty]] -> m [[Pretty]]
+          f (Term.List' (toList -> row)) rows = (:) <$> traverse go row <*> pure rows
+          f _row rows = pure rows
+      in  P.table <$> foldrM f [] rows
     tm -> displayTerm pped terms typeOf eval types tm
 
+  goSrc es = do
+    let tys = [ ref | DD.EitherLeft' (Term.TypeLink' ref) <- toList es ]
+        toRef (Term.Ref' r) = Just r
+        toRef (Term.RequestOrCtor' r _) = Just r
+        toRef _ = Nothing
+        tms = [ ref | DD.EitherRight' (DD.Doc2Term (toRef -> Just ref)) <- toList es ]
+    typeMap <- let
+      -- todo: populate the variable names / kind once BuiltinObject supports that
+      go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject)
+      go ref = (ref,) <$> do
+        decl <- types ref
+        let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
+        pure $ maybe missing DO.UserObject decl
+      in Map.fromList <$> traverse go tys
+    termMap <- let
+      -- todo: populate the type signature once BuiltinObject supports that
+      go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject)
+      go ref = (ref,) <$> do
+        tm <- terms ref
+        let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
+        pure $ maybe missing DO.UserObject tm
+      in Map.fromList <$> traverse go tms
+    pure . P.indentN 4 $ OutputMessages.displayDefinitions' pped typeMap termMap
+
   goSpecial = \case
+
+    DD.Doc2SpecialFormFoldedSource (Term.List' es) -> goSrc es
+
     -- Source [Either Link.Type Doc2.Term]
-    DD.Doc2SpecialFormSource (Term.List' es) -> do
-      let tys = [ ref | DD.EitherLeft' (Term.TypeLink' ref) <- toList es ]
-          toRef (Term.Ref' r) = Just r
-          toRef (Term.RequestOrCtor' r _) = Just r
-          toRef _ = Nothing
-          tms = [ ref | DD.EitherRight' (DD.Doc2Term (toRef -> Just ref)) <- toList es ]
-      typeMap <- let
-        -- todo: populate the variable names / kind once BuiltinObject supports that
-        go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject)
-        go ref = (ref,) <$> do
-          decl <- types ref
-          let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
-          pure $ maybe missing DO.UserObject decl
-        in Map.fromList <$> traverse go tys
-      termMap <- let
-        -- todo: populate the type signature once BuiltinObject supports that
-        go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject)
-        go ref = (ref,) <$> do
-          tm <- terms ref
-          let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
-          pure $ maybe missing DO.UserObject tm
-        in Map.fromList <$> traverse go tms
-      pure . P.indentN 4 $ OutputMessages.displayDefinitions' pped typeMap termMap
+    DD.Doc2SpecialFormSource (Term.List' es) -> goSrc es
 
     -- Example Nat Doc2.Term
     -- Examples like `foo x y` are encoded as `Example 2 (_ x y -> foo)`, where

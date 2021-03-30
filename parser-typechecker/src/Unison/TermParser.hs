@@ -446,6 +446,7 @@ doc2Block =
       "syntax.doc.paragraph" -> variadic
       "syntax.doc.signature" -> variadic
       "syntax.doc.source" -> variadic
+      "syntax.doc.foldedSource" -> variadic
       "syntax.doc.bulletedList" -> variadic
       "syntax.doc.numberedList" -> do
         nitems@((n,_):_) <- P.some nitem <* closeBlock

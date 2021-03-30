@@ -326,8 +326,10 @@ lexemes' eof = P.optional space >> do
     atDoc = src <|> eval <|> signature <|> inlineSignature
       where
         comma = lit "," <* CP.space
-        src = wrap "syntax.doc.source" $ do
-          _ <- lit "@source" *> (lit " {" <|> lit "{") *> CP.space
+        src = src' "syntax.doc.source" "@source" <|>
+              src' "syntax.doc.foldedSource" "@foldedSource"
+        src' name atName = wrap name $ do
+          _ <- lit atName *> (lit " {" <|> lit "{") *> CP.space
           s <- join <$> P.sepBy1 (typeLink <|> termLink) comma
           _ <- lit "}"
           pure s
