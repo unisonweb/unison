@@ -42,7 +42,7 @@ err = Left . lit . fromString
 
 decompile
   :: Var v
-  => (Word64 -> Maybe (Term v ()))
+  => (Word64 -> Word64 -> Maybe (Term v ()))
   -> Closure
   -> Either Error (Term v ())
 decompile _ (DataC rf ct [] [])
@@ -54,11 +54,11 @@ decompile topTerms (DataC rf _ [] [b]) | rf == anyRef
   = app () (builtin() "Any.Any") <$> decompile topTerms b
 decompile topTerms (DataC rf ct [] bs)
   = apps' (con rf ct) <$> traverse (decompile topTerms) bs
-decompile _ (PApV (CIx _ _ n) _ _) | n > 0
-  = err "cannot decompile an application to a local recusive binding"
-decompile topTerms (PApV (CIx _ rt 0) [] bs)
-  | Just t <- topTerms rt
+decompile topTerms (PApV (CIx _ rt k) [] bs)
+  | Just t <- topTerms rt k
   = substitute t <$> traverse (decompile topTerms) bs
+  | k > 0
+  = err "cannot decompile an application to a local recusive binding"
   | otherwise
   = err "reference to unknown combinator"
 decompile _ cl@(PAp _ _ _)
@@ -97,7 +97,7 @@ decompileUnboxed r _ _
 
 decompileForeign
   :: Var v
-  => (Word64 -> Maybe (Term v ()))
+  => (Word64 -> Word64 -> Maybe (Term v ()))
   -> Foreign
   -> Either Error (Term v ())
 decompileForeign topTerms f
