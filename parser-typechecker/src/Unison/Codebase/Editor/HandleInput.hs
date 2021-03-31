@@ -280,7 +280,8 @@ loop = do
           Nothing -> respond $
             ParseErrors text [ err | Result.Parsing err <- toList notes ]
           Just (Left errNames) -> do
-            ppe <- prettyPrintEnv =<< makeShadowedPrintNamesFromHQ hqs errNames
+            ns <- makeShadowedPrintNamesFromHQ hqs errNames
+            ppe <- prettyPrintEnv (Names3.suffixify ns)
             let tes = [ err | Result.TypeError err <- toList notes ]
                 cbs = [ bug
                       | Result.CompilerBug (Result.TypecheckerBug bug)
