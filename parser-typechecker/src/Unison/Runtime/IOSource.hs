@@ -697,8 +697,9 @@ unique[b7a4fb87e34569319591130bf3ec6e24c9955b6a] type Doc2
   | Bold Doc2
   | Italic Doc2
   | Strikethrough Doc2
-  -- style {{ myclass }} mydoc
-  | Style Doc2 Doc2
+  -- style "myclass" mydoc
+  | Style Text Doc2
+  | Anchor Text Doc2
   | Blockquote Doc2
   | Blankline
   | Linebreak
@@ -860,6 +861,7 @@ syntax.doc.namedLink = NamedLink
 syntax.doc.bulletedList = BulletedList
 syntax.doc.numberedList = NumberedList
 syntax.doc.section = Section
+syntax.doc.table = Doc2.Table
 
 unique[e25bc44d251ae0301517ad0bd02cbd294161dc89] type ConsoleText
   = Plain Text
@@ -903,6 +905,7 @@ syntax.doc.formatConsole d =
     Strikethrough d -> lit "~~" <> go d <> lit "~~"
     Doc2.Bold d -> map ConsoleText.Bold (go d)
     Style _ d -> go d
+    Anchor _ d -> go d
     Blockquote d -> Pretty.indent (lit "> ") (go d)
     Blankline -> lit "\n\n"
     Linebreak -> lit "\n"
