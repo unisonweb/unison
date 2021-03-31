@@ -17,6 +17,7 @@ import System.Directory (doesFileExist, removeDirectoryRecursive, removeFile)
 
 import Unison.Codebase (BuiltinAnnotation, Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.FileCodebase as FC
 import qualified Unison.Codebase.Serialization.V1 as V1
@@ -295,7 +296,7 @@ inside.y = c + c
 initCodebase :: FilePath -> String -> IO (CodebasePath, IO (), Codebase IO Symbol Ann)
 initCodebase tmpDir name = do
   let codebaseDir = tmpDir </> name
-  (cleanup, c) <- Codebase.initCodebase FC.init codebaseDir
+  (cleanup, c) <- Codebase.openNewUcmCodebaseOrExit FC.init codebaseDir
   pure (codebaseDir, cleanup, c)
 
 -- run a transcript on an existing codebase

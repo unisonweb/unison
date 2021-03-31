@@ -87,6 +87,7 @@ library
     Unison.Codebase.FileCodebase.Common
     Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex
     Unison.Codebase.GitError
+    Unison.Codebase.Init
     Unison.Codebase.Metadata
     Unison.Codebase.NameEdit
     Unison.Codebase.Path

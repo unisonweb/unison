@@ -18,12 +18,11 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import System.Directory (canonicalizePath)
-import System.Environment (getProgName)
-import System.Exit (exitFailure, exitSuccess)
 import System.FilePath (takeFileName, (</>))
 import qualified U.Util.Cache as Cache
 import Unison.Codebase (BuiltinAnnotation, Codebase (Codebase), CodebasePath)
 import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.Init as Codebase
 import Unison.Codebase.Branch (Branch, headHash)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Git (gitIn, gitTextIn, pullBranch, withIOError, withStatus)
@@ -77,7 +76,6 @@ import Unison.Codebase.SyncMode (SyncMode)
 import qualified Unison.Codebase.Watch as Watch
 import Unison.Parser (Ann ())
 import Unison.Prelude
-import qualified Unison.PrettyTerminal as PT
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
@@ -93,76 +91,33 @@ import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist)
 import UnliftIO.Exception (catchIO)
 import UnliftIO.STM (atomically)
 
-init :: Codebase.Init IO Symbol Ann
+init :: MonadUnliftIO m => Codebase.Init m Symbol Ann
 init = Codebase.Init
-  getCodebaseOrError
-  (fmap (pure (),) . getCodebaseOrExit Cache.nullCache)
-  (fmap (pure (),) . initCodebase Cache.nullCache)
-  initCodebaseAndExit
+  openCodebase
+  createCodebase
   (</> Common.codebasePath)
 
-initCodebaseAndExit :: Maybe FilePath -> IO ()
-initCodebaseAndExit mdir = do
-  dir <- Codebase.getCodebaseDir mdir
-  cache <- Cache.cache
-  _ <- initCodebase cache dir
-  exitSuccess
-
--- initializes a new codebase here (i.e. `ucm -codebase dir init`)
-initCodebase :: Branch.Cache IO -> FilePath -> IO (Codebase IO Symbol Ann)
-initCodebase cache path = do
-  theCodebase <- codebase1 cache V1.formatSymbol Common.formatAnn path
-  prettyDir <- P.string <$> canonicalizePath path
-
-  whenM (codebaseExists path) $
-    do PT.putPrettyLn'
-         .  P.wrap
-         $  "It looks like there's already a codebase in: "
-         <> prettyDir
-       exitFailure
-
-  PT.putPrettyLn'
-    .  P.wrap
-    $  "Initializing a new codebase in: "
-    <> prettyDir
-  Codebase.initializeCodebase theCodebase
-  pure theCodebase
-
--- get the codebase in dir, or in the home directory if not provided.
-getCodebaseOrExit :: Branch.Cache IO -> Maybe FilePath -> IO (Codebase IO Symbol Ann)
-getCodebaseOrExit cache mdir = do
-  dir <- Codebase.getCodebaseDir mdir
-  progName <- getProgName
-  prettyDir <- P.string <$> canonicalizePath dir
-  let errMsg = getNoCodebaseErrorMsg ((P.text . Text.pack) progName) prettyDir mdir
-  let theCodebase = codebase1 cache V1.formatSymbol formatAnn dir
-  unlessM (codebaseExists dir) $ do
-    PT.putPrettyLn' errMsg
-    exitFailure
-  theCodebase
-
 -- get the codebase in dir
-getCodebaseOrError :: forall m. MonadUnliftIO m => CodebasePath -> m (Either String (m (), Codebase m Symbol Ann))
-getCodebaseOrError dir = do
+openCodebase :: forall m. MonadUnliftIO m => CodebasePath -> m (Either Codebase.Pretty (m (), Codebase m Symbol Ann))
+openCodebase dir = do
   prettyDir <- liftIO $ P.string <$> canonicalizePath dir
   let theCodebase = codebase1 @m @Symbol @Ann Cache.nullCache V1.formatSymbol formatAnn dir
   ifM (codebaseExists dir)
     (Right . (pure (),) <$> theCodebase)
-    (pure . Left . P.render @String 80 $ "No FileCodebase structure found at " <> prettyDir)
+    (pure . Left $ "No FileCodebase structure found at " <> prettyDir)
 
-getNoCodebaseErrorMsg :: IsString s => P.Pretty s -> P.Pretty s -> Maybe FilePath -> P.Pretty s
-getNoCodebaseErrorMsg executable prettyDir mdir =
-  let secondLine =
-        case mdir of
-          Just dir  -> "Run `" <> executable <> " -codebase " <> fromString dir
-                     <> " init` to create one, then try again!"
-          Nothing -> "Run `" <> executable <> " init` to create one there,"
-                     <> " then try again;"
-                     <> " or `" <> executable <> " -codebase <dir>` to load a codebase from someplace else!"
-  in
-    P.lines
-        [ "No codebase exists in " <> prettyDir <> "."
-        , secondLine ]
+createCodebase ::
+  forall m.
+  MonadUnliftIO m =>
+  CodebasePath ->
+  m (Either Codebase.CreateCodebaseError (m (), Codebase m Symbol Ann))
+createCodebase dir = ifM
+  (codebaseExists dir)
+  (pure $ Left Codebase.CreateCodebaseAlreadyExists)
+  (do
+    codebase <- codebase1 @m @Symbol @Ann Cache.nullCache V1.formatSymbol formatAnn dir
+    Codebase.installUcmDependencies codebase
+    pure $ Right (pure (), codebase))
 
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`
 codebase1

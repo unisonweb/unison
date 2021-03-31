@@ -18,6 +18,7 @@ import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Parser (Ann)
 import Unison.Symbol (Symbol)
 import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.FileCodebase as FileCodebase
 
 -- * IO Tests
@@ -82,7 +83,7 @@ main = 'let
 initCodebase :: Codebase.Init IO Symbol Ann -> FilePath -> String -> IO (CodebasePath, IO (), Codebase IO Symbol Ann)
 initCodebase cbInit tmpDir name = do
   let codebaseDir = tmpDir </> name
-  (finalize, c) <- Codebase.initCodebase cbInit codebaseDir
+  (finalize, c) <- Codebase.openNewUcmCodebaseOrExit cbInit codebaseDir
   pure (codebaseDir, finalize, c)
 
 -- run a transcript on an existing codebase

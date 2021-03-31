@@ -57,23 +57,6 @@ type SyncToDir m =
   Branch m -> -- branch to sync to dest codebase
   m ()
 
--- | just collecting the abstraction we're currently using, not what we maybe should be using. -AI
-data Init m v a = Init
-  {
-    openCodebase :: CodebasePath -> m (Either String (m (), Codebase m v a)),
-    -- | load an existing codebase or exit.
-    -- seems like Maybe might be more useful idk
-    getCodebaseOrExit :: Maybe CodebasePath -> m (m (), Codebase m v a),
-    -- | initialize a codebase where none exists, or exit
-    -- seems again like the return type type could be more useful
-    initCodebase :: CodebasePath -> m (m (), Codebase m v a),
-    -- | try to init a codebase where none exists and then exit regardless
-    initCodebaseAndExit :: Maybe CodebasePath -> m (),
-    -- | given a codebase root, and given that the codebase root may have other junk in it,
-    -- give the path to the "actual" files; e.g. what a forked transcript should clone
-    codebasePath :: CodebasePath -> CodebasePath
-  }
-
 -- | Abstract interface to a user's codebase.
 --
 -- One implementation is 'Unison.Codebase.FileCodebase' which uses the filesystem.
@@ -145,9 +128,9 @@ data SyncFileCodebaseResult = SyncOk | UnknownDestinationRootBranch Branch.Hash 
 getCodebaseDir :: MonadIO m => Maybe FilePath -> m FilePath
 getCodebaseDir = maybe getHomeDirectory pure
 
--- | Write all of the builtins types into the codebase and create empty namespace
-initializeCodebase :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
-initializeCodebase c = do
+-- | Write all of UCM's dependencies (builtins types and an empty namespace) into the codebase
+installUcmDependencies :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
+installUcmDependencies c = do
   let uf = (UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
                                      (Map.fromList Builtin.builtinEffectDecls)
                                      [Builtin.builtinTermsSrc Parser.Intrinsic]

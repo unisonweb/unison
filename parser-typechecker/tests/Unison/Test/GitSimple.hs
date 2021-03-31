@@ -18,6 +18,7 @@ import Unison.Prelude
 import Unison.Symbol (Symbol)
 import qualified Unison.Parser as Parser
 import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.SqliteCodebase as SC
 
 writeTranscriptOutput :: Bool
@@ -228,10 +229,10 @@ pushPullTest cbInit name authorScript userScript = scope name $ do
   ok
 
 -- initialize a fresh codebase
-initCodebase :: Monad m => Codebase.Init m v a -> FilePath -> String -> m (CodebasePath, m (), Codebase m v a)
+initCodebase :: MonadIO m => Codebase.Init m Symbol Ann -> FilePath -> String -> m (CodebasePath, m (), Codebase m Symbol Ann)
 initCodebase cbInit tmpDir name = do
   let codebaseDir = tmpDir </> name
-  (close, c) <- Codebase.initCodebase cbInit codebaseDir
+  (close, c) <- Codebase.openNewUcmCodebaseOrExit cbInit codebaseDir
   pure (codebaseDir, close, c)
 
 -- run a transcript on an existing codebase

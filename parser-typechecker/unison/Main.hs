@@ -38,6 +38,7 @@ import qualified System.Path as Path
 import Text.Megaparsec (runParser)
 import qualified U.Codebase.Sync as Sync
 import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Conversion.Sync12 as Sync12
@@ -244,12 +245,12 @@ upgradeCodebase mcodepath = do
       (a, s1') <- runStateT m (s2 Lens.^. l)
       pure (a, s2 & l Lens..~ s1')
 
-prepareTranscriptDir :: Codebase.Init IO v a -> Bool -> Maybe FilePath -> IO FilePath
+prepareTranscriptDir :: Codebase.Init IO Symbol Ann -> Bool -> Maybe FilePath -> IO FilePath
 prepareTranscriptDir cbInit inFork mcodepath = do
   tmp <- Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
   unless inFork $ do
     PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-    _ <- Codebase.initCodebase cbInit tmp
+    _ <- Codebase.openNewUcmCodebaseOrExit cbInit tmp
     pure()
 
   when inFork $ Codebase.getCodebaseOrExit cbInit mcodepath >> do

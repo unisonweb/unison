@@ -1,4 +1,6 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
 module U.Util.Cache where
 
 import Prelude hiding (lookup)
@@ -12,6 +14,9 @@ data Cache m k v =
   Cache { lookup :: k -> m (Maybe v)
         , insert :: k -> v -> m ()
         }
+
+transform :: (forall a. m a -> n a) -> Cache m k v -> Cache n k v
+transform f Cache {..} = Cache (f . lookup) ((f .) . insert)
 
 -- Create a cache of unbounded size.
 cache :: (MonadIO m, Ord k) => m (Cache m k v)

@@ -38,7 +38,7 @@ import Database.SQLite.Simple (Connection, FromRow, Only (..), SQLData, ToRow (.
 import qualified Database.SQLite.Simple as SQLite
 import Database.SQLite.Simple.FromField (FromField)
 import Database.SQLite.Simple.ToField (ToField (..))
-import Debug.Trace (trace, traceM, traceShowM)
+import Debug.Trace (trace, traceM)
 import GHC.Stack (HasCallStack)
 import U.Codebase.HashTags (BranchHash, CausalHash, unBranchHash, unCausalHash)
 import U.Codebase.Reference (Reference')
