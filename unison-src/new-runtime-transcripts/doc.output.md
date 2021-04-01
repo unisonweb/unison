@@ -21,20 +21,54 @@ d1 = {{ Hello there {{name}}! }}
 ImportantConstant = 41 + 1
 ```
 
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      ImportantConstant     : Nat
+      ImportantConstant.doc : Doc2
+      d1                    : Doc2
+      name                  : Doc2
+
+```
 Notice that an anonymous documentation block `{{ ... }}` before a definition `ImportantConstant` is just syntax sugar for `ImportantConstant.doc = {{ blah }}`.
 
 You can preview what docs will look like when rendered to the console using the `display` or `docs` commands:
 
 ```ucm
 .> display d1
-.> docs ImportantConstant
-```
 
+  Hello there Alice !
+
+.> docs ImportantConstant
+
+  An important constant, equal to 42
+
+```
 The `docs ImportantConstant` command will look for `ImportantConstant.doc` in the file or codebase. You can do this instead of explicitly linking docs to definitions.
 
 ## Syntax guide
 
 ```ucm
 .> load ./unison-src/new-runtime-transcripts/doc.md.files/syntax.u
+
+  I found and typechecked these definitions in
+  ./unison-src/new-runtime-transcripts/doc.md.files/syntax.u. If
+  you do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⊡ Previously added definitions will be ignored: id
+    
+    ⍟ These new definitions are ok to `add`:
+    
+      doc.guide : Doc2
+
 .> display doc.guide
+
+  id a = a
+
 ```

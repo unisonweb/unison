@@ -944,7 +944,7 @@ syntax.doc.formatConsole d =
       t = Pretty.indent' (lit "# ") (lit "  ") (go (Doc2.Bold title))
       subs = List.map (d -> Pretty.indent (lit "  ") (go d)) ds
       Pretty.sepBy (nl <> nl) (t +: subs)
-    Docs ds -> Pretty.join (List.map go ds)
+    Docs ds -> Pretty.group (Pretty.join (List.map go ds))
     NamedLink name _target -> map ConsoleText.Underline (go name)
     Image alt _link (Some caption) -> Pretty.sepBy nl [go alt, go (Italic caption)]
     Image alt _link None -> go alt
