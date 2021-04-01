@@ -25,6 +25,7 @@ library
     U.Util.Monoid
     U.Util.Relation
     U.Util.Set
+    U.Util.Text
   -- other-modules:
   -- other-extensions:
   build-depends:
@@ -36,6 +37,7 @@ library
     memory,
     text,
     unliftio,
+    safe,
     sandi
   hs-source-dirs:      .
   default-language:    Haskell2010
