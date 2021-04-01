@@ -80,6 +80,7 @@ import Data.Functor.Compose (Compose(..))
 import Data.List hiding (and,or)
 import Prelude hiding (abs,and,or,seq)
 import qualified Prelude
+import Unison.Blank (nameb)
 import Unison.Term hiding (resolve, fresh, float, Text, Ref, List)
 import Unison.Var (Var, typed)
 import Unison.Util.EnumContainers as EC
@@ -1126,10 +1127,10 @@ anfBlock (Match' scrut cas) = do
     AccumSeqSplit en n mdf bd -> do
         i <- fresh
         r <- fresh
-        t <- fresh
+        n <- fresh
         pure ( sctx <> cx <> directed [lit i, split i r]
              , pure . TMatch r . MatchSum $ mapFromList
-             [ (0, ([], df t))
+             [ (0, ([], df n))
              , (1, ([BX,BX], bd))
              ])
       where
@@ -1137,10 +1138,10 @@ anfBlock (Match' scrut cas) = do
          | otherwise = SPLR
       lit i = ST1 Direct i UN (TLit . N $ fromIntegral n)
       split i r = ST1 Direct r UN (TPrm op [i,v])
-      df t
+      df n
         = fromMaybe
-            ( TLet Direct t BX (TLit (T "non-exhaustive split"))
-            $ TPrm EROR [t])
+            ( TLet Direct n BX (TLit (T "pattern match failure"))
+            $ TPrm EROR [n, v])
             mdf
     AccumEmpty -> pure (sctx <> cx, pure $ TMatch v MatchEmpty)
 anfBlock (Let1Named' v b e)
@@ -1166,10 +1167,15 @@ anfBlock (Lit' l) = do
   pure ( directed [ST1 Direct lv UN $ TLit l]
        , pure $ TCon (litRef l) 0 [lv])
 anfBlock (Ref' r) = pure (mempty, (Indirect (), TCom r []))
-anfBlock (Blank' _) = do
+anfBlock (Blank' b) = do
+  nm <- fresh
   ev <- fresh
-  pure ( pure [ST1 Direct ev BX (TLit (T "Blank"))]
-       , pure $ TPrm EROR [ev])
+  pure ( pure [ ST1 Direct nm BX (TLit (T name))
+              , ST1 Direct ev BX (TLit (T $ Text.pack msg))]
+       , pure $ TPrm EROR [nm, ev])
+  where
+  name = "blank expression"
+  msg = fromMaybe "blank expression" $ nameb b
 anfBlock (TermLink' r) = pure (mempty, pure . TLit $ LM r)
 anfBlock (TypeLink' r) = pure (mempty, pure . TLit $ LY r)
 anfBlock (List' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms
