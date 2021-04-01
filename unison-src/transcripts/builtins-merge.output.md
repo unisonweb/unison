@@ -45,7 +45,7 @@ The `builtins.merge` command adds the known builtins to a `builtin` subnamespace
   34. SeqView/      (2 definitions)
   35. Test/         (3 definitions)
   36. Text          (builtin type)
-  37. Text/         (17 definitions)
+  37. Text/         (21 definitions)
   38. Tuple         (type)
   39. Tuple/        (1 definition)
   40. Unit          (type)

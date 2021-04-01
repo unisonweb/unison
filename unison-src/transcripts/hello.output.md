@@ -83,7 +83,7 @@ hmm = "Not, in fact, a number"
 
 ```ucm
 
-  I found a value of type builtin.Text where I expected to find one of type builtin.Nat:
+  I found a value of type Text where I expected to find one of type Nat:
   
       1 | hmm : .builtin.Nat
       2 | hmm = "Not, in fact, a number"

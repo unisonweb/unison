@@ -61,14 +61,12 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
   you do an `add` or `update`, here's how your codebase would
   change:
   
-    ⊡ Previously added definitions will be ignored: id
-    
     ⍟ These new definitions are ok to `add`:
     
       doc.guide : Doc2
 
 .> display doc.guide
 
-  id a = a
+  TODO - uncomment the below
 
 ```

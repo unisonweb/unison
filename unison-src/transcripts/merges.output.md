@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #ocf2qv3eiq
+  ⊙ #7nrjt5udro
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #m9bsfo72sb
+  ⊙ #js1k2kt6sg
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #kr6uveidib
+  ⊙ #vo41gk2trr
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #qbp32ttvld
+  ⊙ #llp0l646ob
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #omd5gcmiai
+  ⊙ #tjb9j25vp8
   
     + Adds / updates:
     
       x
   
-  ⊙ #7uh35q38sl
+  ⊙ #cagreovqu2
   
     + Adds / updates:
     
@@ -217,19 +217,22 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.SeqView.VEmpty builtin.Test.Result
       builtin.Test.Result.Fail builtin.Test.Result.Ok
       builtin.Text builtin.Text.!= builtin.Text.++
-      builtin.Text.drop builtin.Text.empty builtin.Text.eq
+      builtin.Text.alignCenterWith builtin.Text.alignLeftWith
+      builtin.Text.alignRightWith builtin.Text.drop
+      builtin.Text.empty builtin.Text.eq
       builtin.Text.fromCharList builtin.Text.fromUtf8.impl
       builtin.Text.gt builtin.Text.gteq builtin.Text.lt
-      builtin.Text.lteq builtin.Text.size builtin.Text.take
-      builtin.Text.toCharList builtin.Text.toUtf8
-      builtin.Text.uncons builtin.Text.unsnoc builtin.Tuple
-      builtin.Tuple.Cons builtin.Unit builtin.Unit.Unit
-      builtin.Universal.< builtin.Universal.<=
-      builtin.Universal.== builtin.Universal.>
-      builtin.Universal.>= builtin.Universal.compare
-      builtin.Value builtin.Value.dependencies
-      builtin.Value.deserialize builtin.Value.load
-      builtin.Value.serialize builtin.Value.value builtin.bug
+      builtin.Text.lteq builtin.Text.repeat builtin.Text.size
+      builtin.Text.take builtin.Text.toCharList
+      builtin.Text.toUtf8 builtin.Text.uncons
+      builtin.Text.unsnoc builtin.Tuple builtin.Tuple.Cons
+      builtin.Unit builtin.Unit.Unit builtin.Universal.<
+      builtin.Universal.<= builtin.Universal.==
+      builtin.Universal.> builtin.Universal.>=
+      builtin.Universal.compare builtin.Value
+      builtin.Value.dependencies builtin.Value.deserialize
+      builtin.Value.load builtin.Value.serialize
+      builtin.Value.value builtin.bug
       builtin.crypto.HashAlgorithm
       builtin.crypto.HashAlgorithm.Blake2b_256
       builtin.crypto.HashAlgorithm.Blake2b_512
