@@ -17,7 +17,6 @@ import Unison.Parser (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol)
 import qualified Unison.Parser as Parser
-import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.SqliteCodebase as SC
 
