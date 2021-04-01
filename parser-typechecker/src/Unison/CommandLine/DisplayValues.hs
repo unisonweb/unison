@@ -101,11 +101,13 @@ displayPretty pped terms typeOf eval types tm = go tm
     tm -> displayTerm pped terms typeOf eval types tm
 
   goSrc es = do
-    let tys = [ ref | DD.EitherLeft' (Term.TypeLink' ref) <- toList es ]
+    -- we ignore the annotations; but this could be extended later
+    -- to do some ascii art rendering
+    let tys = [ ref | DD.TupleTerm' [DD.EitherLeft' (Term.TypeLink' ref),_anns] <- toList es ]
         toRef (Term.Ref' r) = Just r
         toRef (Term.RequestOrCtor' r _) = Just r
         toRef _ = Nothing
-        tms = [ ref | DD.EitherRight' (DD.Doc2Term (toRef -> Just ref)) <- toList es ]
+        tms = [ ref | DD.TupleTerm' [DD.EitherRight' (DD.Doc2Term (toRef -> Just ref)),_anns] <- toList es ]
     typeMap <- let
       -- todo: populate the variable names / kind once BuiltinObject supports that
       go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject)

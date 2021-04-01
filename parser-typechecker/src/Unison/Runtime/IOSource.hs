@@ -678,9 +678,9 @@ Doc2.term : 'a -> Doc2.Term
 Doc2.term a = Doc2.Term.Term (Any a)
 
 unique[da70bff6431da17fa515f3d18ded11852b6a745f] type Doc2.SpecialForm
-  = Source [Either Link.Type Doc2.Term]
+  = Source [(Either Link.Type Doc2.Term, [Doc2.Term])]
   -- like Source, but starts out folded
-  | FoldedSource [Either Link.Type Doc2.Term]
+  | FoldedSource [(Either Link.Type Doc2.Term, [Doc2.Term])]
   | Example Nat Doc2.Term
   | Link (Either Link.Type Doc2.Term)
   | Signature [Doc2.Term]
@@ -834,16 +834,25 @@ syntax.doc.italic = Italic
 syntax.doc.strikethrough = Strikethrough
 syntax.doc.paragraph = Paragraph
 syntax.doc.embedTermLink tm =
-  guid = "b7a4fb87e34569319591130bf3ec6e24"
+  guid = "9d3927033a9589dda2d10406840af7ef3b4bf21e"
   Right (Doc2.term tm)
 syntax.doc.embedTypeLink typ =
-  guid = "b7a4fb87e34569319591130bf3ec6e24"
+  guid = "f9e80035f8c21ac80c98b6c2cc06fe004ae2eb2c"
   Left typ
 syntax.doc.source t = Special (Source t)
 syntax.doc.foldedSource t = Special (FoldedSource t)
 syntax.doc.signature ts = Special (Signature ts)
 syntax.doc.inlineSignature t = Special (InlineSignature t)
 syntax.doc.inlineEval e = Special (InlineEval (Doc2.term e))
+syntax.doc.sourceElement link annotations =
+  guid = "e56ece7785c34c1cc9a441b11da81cfa98d05985"
+  (link, annotations)
+syntax.doc.embedAnnotations tms =
+  guid = "11f21dc3bcb37652d8058d655e757560ac38f7b3"
+  tms
+syntax.doc.embedAnnotation tm =
+  guid = "8546106e53c88996c8d3eb785a2fca80df9c7b3b"
+  Doc2.Term.Term (Any tm)
 syntax.doc.embedSignatureLink tm =
   guid = "d9a4fb87e34569319591130bf3ec6e24"
   Doc2.term tm

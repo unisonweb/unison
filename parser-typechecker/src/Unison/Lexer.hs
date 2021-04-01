@@ -328,11 +328,19 @@ lexemes' eof = P.optional space >> do
         comma = lit "," <* CP.space
         src = src' "syntax.doc.source" "@source" <|>
               src' "syntax.doc.foldedSource" "@foldedSource"
+        srcElem = wrap "syntax.doc.sourceElement" $
+          (typeLink <|> termLink) <+>
+          (fmap (fromMaybe []) . P.optional $
+            (tok (Reserved <$> lit "@") <+> (CP.space *> annotations)))
+          where
+            annotation = tok (symbolyId <|> wordyId) <|> expr <* CP.space
+            annotations =
+              join <$> P.some (wrap "syntax.doc.embedAnnotation" annotation)
         src' name atName = wrap name $ do
           _ <- lit atName *> (lit " {" <|> lit "{") *> CP.space
-          s <- join <$> P.sepBy1 (typeLink <|> termLink) comma
+          s <- P.sepBy1 srcElem comma
           _ <- lit "}"
-          pure s
+          pure (join s)
         signature = wrap "syntax.doc.signature" $ do
           _ <- lit "@signatures" *> (lit " {" <|> lit "{") *> CP.space
           s <- join <$> P.sepBy1 signatureLink comma
@@ -343,10 +351,10 @@ lexemes' eof = P.optional space >> do
           s <- signatureLink
           _ <- lit "}"
           pure s
-        eval = P.dbg "@eval" $ wrap "syntax.doc.inlineEval" $ do
+        eval = wrap "syntax.doc.inlineEval" $ do
           _ <- lit "@eval" *> (lit " {" <|> lit "{") *> CP.space
           let inlineEvalClose  = [] <$ lit "}"
-          s <- P.dbg "Lexer.inlineEval" $ lexemes' inlineEvalClose
+          s <- lexemes' inlineEvalClose
           pure s
 
     typeLink = wrap "syntax.doc.embedTypeLink" $ do

@@ -448,6 +448,11 @@ doc2Block =
       "syntax.doc.source" -> variadic
       "syntax.doc.foldedSource" -> variadic
       "syntax.doc.bulletedList" -> variadic
+      "syntax.doc.sourceAnnotations" -> variadic
+      "syntax.doc.sourceElement" -> do
+        link <- elem
+        anns <- P.optional $ reserved "@" *> elem
+        closeBlock $> Term.apps' f [link, fromMaybe (Term.list (ann link) mempty) anns]
       "syntax.doc.numberedList" -> do
         nitems@((n,_):_) <- P.some nitem <* closeBlock
         let items = snd <$> nitems

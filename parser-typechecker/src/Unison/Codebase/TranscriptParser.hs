@@ -227,7 +227,8 @@ run newRt dir configFile stanzas codebase branchCache = do
           Just uf ->
             return (LoadSuccess uf)
           Nothing ->
-            return InvalidSourceNameError
+            let f = LoadSuccess <$> readUtf8 (Text.unpack name)
+            in f <|> pure InvalidSourceNameError
 
       cleanup = do Runtime.terminate runtime; cancelConfig
       print o = do

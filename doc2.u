@@ -9,6 +9,7 @@
 - [x] Add missing element types to syntax tree
 - [ ] Write illustrative transcript (and possibly separate tests)
 - [ ] PR writeup
+- [ ] (Later) `data DisplayObject b a = BuiltinObject b | MissingObject ShortHash | UserObject a`
 - [ ] (Later) Pretty-printer should reverse the syntax
 - [ ] (Later) Top level types should allow anon doc blocks
 - [ ] (Later) Remove backticks syntax
