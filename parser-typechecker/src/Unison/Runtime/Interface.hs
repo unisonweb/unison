@@ -1,5 +1,7 @@
 {-# language DataKinds #-}
 {-# language PatternGuards #-}
+{-# language NamedFieldPuns #-}
+{-# language ParallelListComp #-}
 {-# language OverloadedStrings #-}
 {-# language ScopedTypeVariables #-}
 
@@ -14,6 +16,7 @@ import Control.Concurrent.STM as STM
 import Control.Exception (try)
 import Control.Monad
 
+import Data.Bits (shiftL)
 import Data.Bifunctor (first,second)
 import Data.Functor ((<&>))
 import Data.IORef
@@ -45,6 +48,7 @@ import Unison.PrettyPrintEnv
 import Unison.Util.Pretty as P
 import Unison.Symbol (Symbol)
 import Unison.TermPrinter
+import Unison.Var as Var
 
 import Unison.Runtime.ANF
 import Unison.Runtime.Builtin
@@ -63,7 +67,7 @@ type Term v = Tm.Term v ()
 data EvalCtx
   = ECtx
   { dspec :: DataSpec
-  , decompTm :: Map.Map Reference (Term Symbol)
+  , decompTm :: Map.Map Reference (Map.Map Word64 (Term Symbol))
   , ccache :: CCache
   }
 
@@ -78,7 +82,7 @@ baseContext = baseCCache <&> \cc
      { dspec = builtinDataSpec
      , decompTm = Map.fromList $
          Map.keys builtinTermNumbering
-           <&> \r -> (r, Tm.ref () r)
+           <&> \r -> (r, Map.singleton 0 (Tm.ref () r))
      , ccache = cc
      }
 
@@ -157,6 +161,12 @@ collectDeps cl tm = do
       <$> getTypeDeclaration cl i
   getDecl r = pure (r,Right [])
 
+backrefAdd
+  :: Map.Map Reference (Map.Map Word64 (Term Symbol))
+  -> EvalCtx -> EvalCtx
+backrefAdd m ctx@ECtx{ decompTm }
+  = ctx { decompTm = m <> decompTm }
+
 loadDeps
   :: CodeLookup Symbol IO ()
   -> EvalCtx
@@ -174,29 +184,54 @@ loadDeps cl ctx tm = do
   ctx <- foldM (uncurry . allocType) ctx $ Prelude.filter p tyrs
   rtms <- traverse (\r -> (,) r <$> resolveTermRef cl r)
             $ Prelude.filter q tmrs
-  ctx <- pure $ ctx { decompTm = Map.fromList rtms <> decompTm ctx }
-  let rint = second (intermediateTerm ctx) <$> rtms
+  let (rgrp, rbkr) = intermediateTerms ctx rtms
       tyAdd = Set.fromList $ fst <$> tyrs
-  cacheAdd0 tyAdd rint (ccache ctx)
-  pure ctx
+  backrefAdd rbkr ctx <$ cacheAdd0 tyAdd rgrp (ccache ctx)
+
+backrefLifted :: Term Symbol -> Map.Map Word64 (Term Symbol)
+backrefLifted tm@(Tm.LetRecNamed' bs _)
+  = Map.fromList . ((0,tm):) $
+  [ (ix, b)
+  | ix <- ixs
+  | (v, b) <- bs
+  , Var.typeOf v == Float
+  ]
+  where
+  ixs = fmap (`shiftL` 16) [1..]
+backrefLifted tm = Map.singleton 0 tm
+
+intermediateTerms
+  :: HasCallStack
+  => EvalCtx
+  -> [(Reference, Term Symbol)]
+  -> ( [(Reference, SuperGroup Symbol)]
+     , Map.Map Reference (Map.Map Word64 (Term Symbol))
+     )
+intermediateTerms ctx rtms
+  = ((fmap.second) fst rint, Map.fromList $ (fmap.second) snd rint)
+  where rint = second (intermediateTerm ctx) <$> rtms
 
 intermediateTerm
-  :: HasCallStack => EvalCtx -> Term Symbol -> SuperGroup Symbol
+  :: HasCallStack
+  => EvalCtx
+  -> Term Symbol
+  -> (SuperGroup Symbol, Map.Map Word64 (Term Symbol))
 intermediateTerm ctx tm
-  = superNormalize
+  = final
   . lamLift
   . splitPatterns (dspec ctx)
   . saturate (uncurryDspec $ dspec ctx)
   $ tm
+  where
+  final ll = (superNormalize ll, backrefLifted ll)
 
 prepareEvaluation
   :: HasCallStack => Term Symbol -> EvalCtx -> IO (EvalCtx, Word64)
 prepareEvaluation tm ctx = do
-  ctx <- pure $ ctx { decompTm = Map.fromList rtms <> decompTm ctx }
-  missing <- cacheAdd rint (ccache ctx)
+  missing <- cacheAdd rgrp (ccache ctx)
   when (not . null $ missing) . fail $
     reportBug "E029347" $ "Error in prepareEvaluation, cache is missing: " <> show missing
-  (,) ctx <$> refNumTm (ccache ctx) rmn
+  (,) (backrefAdd rbkr ctx) <$> refNumTm (ccache ctx) rmn
   where
   (rmn, rtms)
     | Tm.LetRecNamed' bs mn0 <- tm
@@ -209,16 +244,19 @@ prepareEvaluation tm ctx = do
     | rmn <- RF.DerivedId $ Tm.hashClosedTerm tm
     = (rmn, [(rmn, tm)])
 
-  rint = second (intermediateTerm ctx) <$> rtms
+  (rgrp, rbkr) = intermediateTerms ctx rtms
 
 watchHook :: IORef Closure -> Stack 'UN -> Stack 'BX -> IO ()
 watchHook r _ bstk = peek bstk >>= writeIORef r
 
 backReferenceTm
   :: EnumMap Word64 Reference
-  -> Map.Map Reference (Term Symbol)
-  -> Word64 -> Maybe (Term Symbol)
-backReferenceTm ws rs = (`Map.lookup` rs) <=< (`EC.lookup` ws)
+  -> Map.Map Reference (Map.Map Word64 (Term Symbol))
+  -> Word64 -> Word64 -> Maybe (Term Symbol)
+backReferenceTm ws rs c i = do
+  r <- EC.lookup c ws
+  bs <- Map.lookup r rs
+  Map.lookup i bs
 
 evalInContext
   :: PrettyPrintEnv
