@@ -276,6 +276,26 @@ evalInContext ppe ctx w = do
   pure $ decom =<< result
 
 bugMsg :: PrettyPrintEnv -> Text -> Term Symbol -> Pretty ColorText
+
+bugMsg ppe name tm
+  | name == "blank expression" = P.callout icon . P.lines $
+  [ P.wrap ("I encountered a" <> P.red (P.text name)
+      <> "with the following name/message:")
+  , ""
+  , P.indentN 2 $ pretty ppe tm
+  , ""
+  , sorryMsg
+  ]
+  | name == "pattern match failure" = P.callout icon . P.lines $
+  [ P.wrap ("I've encountered a" <> P.red (P.text name)
+      <> "while scrutinizing:")
+  , ""
+  , P.indentN 2 $ pretty ppe tm
+  , ""
+  , "This happens when calling a function that doesn't handle all \
+    \possible inputs"
+  , sorryMsg
+  ]
 bugMsg ppe name tm = P.callout icon . P.lines $
   [ P.wrap ("I've encountered a call to" <> P.red (P.text name)
       <> "with the following value:")
