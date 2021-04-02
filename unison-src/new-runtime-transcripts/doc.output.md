@@ -67,6 +67,6 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
 
 .> display doc.guide
 
-  TODO - uncomment the below
+  testing
 
 ```

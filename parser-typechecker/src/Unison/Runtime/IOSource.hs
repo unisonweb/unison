@@ -750,7 +750,7 @@ Pretty.map f p =
     Wrap _ p -> Wrap () (go p)
     OrElse _ p1 p2 -> OrElse () (go p1) (go p2)
     Indent _ i0 iN p -> Indent () (go i0) (go iN) (go p)
-    -- Append _ ps -> Append () (List.map go ps)
+    Annotated.Append _ ps -> Annotated.Append () (List.map go ps)
   Pretty (go (Pretty.get p))
 
 Pretty.empty : Pretty txt
