@@ -233,7 +233,7 @@ displayPretty pped terms typeOf eval types tm = go tm
     DD.ConsoleTextBold txt -> P.bold <$> goConsole txt
     DD.ConsoleTextUnderline txt -> P.underline <$> goConsole txt
     DD.ConsoleTextInvert txt -> P.invert <$> goConsole txt
-    _ -> displayTerm pped terms typeOf eval types tm
+    tm -> displayTerm pped terms typeOf eval types tm
 
 -- pattern DocBlob txt <- Term.App' (Term.Constructor' DocRef DocBlobId) (Term.Text' txt)
 

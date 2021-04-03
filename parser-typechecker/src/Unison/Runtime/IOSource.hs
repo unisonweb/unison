@@ -238,7 +238,7 @@ consoleTextInvertId = constructorNamed consoleTextRef "ConsoleText.Invert"
 pattern ConsoleTextPlain txt <- Term.App' (Term.Constructor' ConsoleTextRef ((==) consoleTextPlainId -> True)) txt
 pattern ConsoleTextForeground color ct <- Term.Apps' (Term.Constructor' ConsoleTextRef ((==) consoleTextForegroundId -> True)) [color, ct]
 pattern ConsoleTextBackground color ct <- Term.Apps' (Term.Constructor' ConsoleTextRef ((==) consoleTextBackgroundId -> True)) [color, ct]
-pattern ConsoleTextBold ct <- Term.App' (Term.Constructor' ConsoleTextRef ((==) consoleTextBackgroundId -> True)) ct
+pattern ConsoleTextBold ct <- Term.App' (Term.Constructor' ConsoleTextRef ((==) consoleTextBoldId -> True)) ct
 pattern ConsoleTextUnderline ct <- Term.App' (Term.Constructor' ConsoleTextRef ((==) consoleTextUnderlineId -> True)) ct
 pattern ConsoleTextInvert ct <- Term.App' (Term.Constructor' ConsoleTextRef ((==) consoleTextInvertId -> True)) ct
 

@@ -1,12 +1,6 @@
 doc.guide = {{
-  testing
-}} ---
 
 # Unison documentation format
-
-The syntax tries to be close to markdown.
-
-
 
 ## Basic formatting
 
@@ -148,6 +142,8 @@ Numbered lists can be nested as well, and combined with bulleted lists:
   + In this nested list. 
 2. Take shower.  
 3. Get dressed.
+
+}} --- todo
 
 ## Evaluation 
 

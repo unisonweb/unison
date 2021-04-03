@@ -65,8 +65,123 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
     
       doc.guide : Doc2
 
+.> add
+
+  ⍟ I've added these definitions:
+  
+    doc.guide : Doc2
+
 .> display doc.guide
 
-  testing
+  # Unison documentation format
+  
+    # Basic formatting
+    
+      Paragraphs are separated by one or more blanklines.
+      There's syntax for bold, italics, and strikethrough text:
+    
+      ``` raw _italics_ or *italics* **bold text** or __moar
+      bold text__ ~~striken text~~ ''some code'' [The Unison
+      website](https://unisonweb.org) A link to a term: {Some}.
+      [A named link to the ''List'' type]({type List}). ```
+    
+      Renders as:
+    
+      * italics * or * italics *
+    
+      * * boldtext * * or moarboldtext
+    
+      ~~ strickentext ~~
+    
+      ` some code `
+    
+      The Unison website
+    
+      A link to a term:
+      Right (Term.Term (Any (_ _eta -> Some _eta))) . A link to
+      a type List .
+    
+      # Escaping formatting
+      
+        If you want the text.
+      
+        ``` raw {{ syntax.doc.word "__not bold__"}} ```
+      
+        Renders as:
+      
+        __not bold__
+      
+        If you have some inline text you want to leave unparsed
+        and have it render in a monospace font, do:
+      
+        ``` raw An example of bold text syntax: ''__some bold
+        text__'' ```
+      
+        Renders as:
+      
+        An example of bold text syntax: ` __some bold text__ `
+  
+    # Sections and subsections
+    
+      ``` raw # Section title! Sections consist of section
+      titles followed by zero or more paragraphs or other
+      section elements (such as subsections). ## Subsection
+      title * Item 1 * Item 2 ## An empty subsection! ###
+      Subsection 2.1 Some deeply nested content in subsection
+      2.1 ```
+    
+      Sections start with a title, then zero or more documents,
+      separated by blanklines. Sections whose title starts with
+      ` ## ` are subsections of sections whose title starts with
+      one `#`. Sections may be nested arbitrarily.
+  
+    # Lists
+    
+      # Bulleted lists
+      
+        Bulleted lists can use `+`, `-`, or ` * ` for the
+        bullets. They can be nested, to any depth:
+      
+        ``` raw + A + B + C - C1 * C2 ```
+      
+        Renders as:
+      
+        * A
+        * B
+        * C* C1
+          * C2
+    
+      # Numbered lists
+      
+        ``` raw 1. A 2. B 3. C ```
+      
+        Renders as:
+      
+        1. A
+        2. B
+        3. C
+      
+        The first number of the list determines the starting
+        number in the rendered output. The other numbers are
+        ignored:
+      
+        ``` raw 10. A 99. B 102. C ```
+      
+        Renders as:
+      
+        10. A
+        11. B
+        12. C
+      
+        Numbered lists can be nested as well, and combined with
+        bulleted lists:
+      
+        ``` raw 1. Wake up. + What am I doing here? + In this
+        nested list. 2. Take shower. 3. Get dressed. ```
+      
+        1. Wake up.* What am I doing here?
+           * In this nested list.
+        2. Take shower.
+        3. Get dressed.
 
 ```
