@@ -1,0 +1,40 @@
+name: unison-core
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2018 Unison Computing, PBC and contributors
+
+library:
+  source-dirs: src
+  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -funbox-strict-fields
+  dependencies:
+    - base
+    - bytestring
+    - containers >= 0.6.3
+    - cryptonite
+    - either
+    - extra
+    - lens
+    - prelude-extras
+    - memory
+    - mtl
+    - rfc5051
+    - safe
+    - sandi
+    - text
+    - transformers
+    - util
+    - vector
+
+default-extensions:
+  - ApplicativeDo
+  - BlockArguments
+  - DeriveFunctor
+  - DerivingStrategies
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - LambdaCase
+  - MultiParamTypeClasses
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+
