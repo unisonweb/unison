@@ -376,7 +376,7 @@ termLeaf =
 --
 -- the lexer will produce:
 --
--- [Open "syntax.doc.docs",
+-- [Open "syntax.doc.untitledSection",
 --    Open "syntax.doc.paragraph",
 --      Open "syntax.doc.word", Textual "Hi", Close,
 --      Open "syntax.doc.word", Textual "there!", Close,
@@ -388,7 +388,7 @@ termLeaf =
 --
 -- The parser will parse this into the Unison expression:
 --
---   syntax.doc.docs [
+--   syntax.doc.untitledSection [
 --     syntax.doc.paragraph [syntax.doc.word "Hi", syntax.doc.word "there!"],
 --     syntax.doc.paragraph [syntax.doc.word "goodbye"]
 --   ]
@@ -399,7 +399,7 @@ termLeaf =
 -- the names `syntax.doc.*` correspond to.
 doc2Block :: forall v . Var v => TermP v
 doc2Block =
-  P.lookAhead (openBlockWith "syntax.doc.docs") *> elem
+  P.lookAhead (openBlockWith "syntax.doc.untitledSection") *> elem
   where
   elem :: TermP v
   elem = text <|> do
@@ -443,6 +443,8 @@ doc2Block =
 
     case L.payload t of
       "syntax.doc.docs" -> variadic
+      "syntax.doc.untitledSection" -> variadic
+      "syntax.doc.column" -> variadic
       "syntax.doc.paragraph" -> variadic
       "syntax.doc.signature" -> variadic
       "syntax.doc.source" -> variadic
@@ -460,8 +462,8 @@ doc2Block =
         where
           nitem = do
             n <- number
-            t <- openBlockWith "syntax.doc.docs"
-            let f = f' ("syntax.doc.docs" <$ t)
+            t <- openBlockWith "syntax.doc.column"
+            let f = f' ("syntax.doc.column" <$ t)
             child <- variadic' f
             pure (n, child)
       "syntax.doc.section" -> sectionLike

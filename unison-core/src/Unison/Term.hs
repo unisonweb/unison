@@ -928,8 +928,9 @@ betaNormalForm (App' f a) = betaNormalForm (betaReduce (app() (betaNormalForm f)
 betaNormalForm e = e
 
 -- x -> f x => f
-etaNormalForm :: Eq v => Term0 v -> Term0 v
+etaNormalForm :: Ord v => Term0 v -> Term0 v
 etaNormalForm (LamNamed' v (App' f (Var' v'))) | v == v' = etaNormalForm f
+etaNormalForm t@(LamNamed' v body) = lam (ABT.annotation t) v (etaNormalForm body)
 etaNormalForm t = t
 
 -- This converts `Reference`s it finds that are in the input `Map`

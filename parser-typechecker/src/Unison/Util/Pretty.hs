@@ -100,6 +100,7 @@ module Unison.Util.Pretty (
    underline,
    withSyntax,
    wrap,
+   wrap',
    wrapColumn2,
    wrapString,
    black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold,
@@ -199,8 +200,8 @@ wrapString s = wrap (lit $ fromString s)
 paragraphyText :: (LL.ListLike s Char, IsString s) => Text -> Pretty s
 paragraphyText = sep "\n" . fmap (wrapPreserveSpaces . text) . Text.splitOn "\n"
 
-wrap :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
-wrap p = wrapImpl (toLeaves [p]) where
+wrap' :: IsString s => (s -> [Pretty s]) -> Pretty s -> Pretty s
+wrap' wordify p = wrapImpl (toLeaves [p]) where
   toLeaves [] = []
   toLeaves (hd:tl) = case out hd of
     Empty -> toLeaves tl
@@ -209,6 +210,10 @@ wrap p = wrapImpl (toLeaves [p]) where
     OrElse a _ -> toLeaves (a:tl)
     Wrap _ -> hd : toLeaves tl
     Append hds -> toLeaves (toList hds ++ tl)
+
+wrap :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
+wrap = wrap' wordify
+  where
   wordify s0 = let s = LL.dropWhile isSpace s0 in
     if LL.null s then []
     else case LL.break isSpace s of (word1, s) -> lit word1 : wordify s

@@ -723,6 +723,10 @@ unique[b7a4fb87e34569319591130bf3ec6e24c9955b6a] type Doc2
   | Image Doc2 Doc2 (Optional Doc2)
   | Special Doc2.SpecialForm
   | Docs [Doc2]
+  | UntitledSection [Doc2]
+  | Column [Doc2]
+  -- Avoid inserting line breaks if possible in grouped docs
+  | Group Doc2
 
 unique[d7b2ced8c08b2c6e54050d1f5acedef3395f293d] type Pretty.Annotated w txt
   = Empty
@@ -743,6 +747,7 @@ Pretty.get = cases Pretty p -> p
 
 Pretty.map : (txt ->{g} txt2) ->{} Pretty txt ->{g} Pretty txt2
 Pretty.map f p =
+  use Pretty.Annotated
   go = cases
     Empty -> Empty
     Group _ p -> Group () (go p)
@@ -828,6 +833,13 @@ Pretty.sepBy sep ps =
 
 syntax.doc.docs = cases [d] -> d
                         ds -> Docs ds
+syntax.doc.untitledSection = cases
+  [d] -> d
+  ds -> UntitledSection ds
+syntax.doc.column = cases
+  [d] -> d
+  ds -> Doc2.Column ds
+syntax.doc.group = Doc2.Group
 syntax.doc.word = Word
 syntax.doc.bold = Doc2.Bold
 syntax.doc.italic = Italic
@@ -905,13 +917,21 @@ syntax.doc.formatConsole d =
   map f p = Pretty.map (mapRight f) p
   go = cases
     Word t -> lit t
-    Code d -> lit "`" <> go d <> lit "`"
-    CodeBlock typ d ->
-      lit "``` " <> lit typ <> nl <>
+    Code d -> Pretty.group (lit "`" <> go d <> lit "`")
+    CodeBlock typ d -> Pretty.group (
+      lit "``` " <> Pretty.group (lit typ) <> nl <>
       go d <> nl <>
-      lit "```"
-    Italic d -> lit "*" <> go d <> lit "*"
-    Strikethrough d -> lit "~~" <> go d <> lit "~~"
+      lit "```")
+    Italic (Paragraph ([l] ++ mid ++ [r])) ->
+      Pretty.group (lit "*" <> go l) <>
+      Pretty.join (List.map go mid) <>
+      Pretty.group (go r <> lit "*")
+    Italic d -> Pretty.group (lit "*" <> go d <> lit "*")
+    Strikethrough (Paragraph ([l] ++ mid ++ [r])) ->
+      Pretty.group (lit "~~" <> go l) <>
+      Pretty.join (List.map go mid) <>
+      Pretty.group (go r <> lit "~~")
+    Strikethrough d -> Pretty.group (lit "~~" <> go d <> lit "~~")
     Doc2.Bold d -> map ConsoleText.Bold (go d)
     Style _ d -> go d
     Anchor _ d -> go d
@@ -944,7 +964,10 @@ syntax.doc.formatConsole d =
       t = Pretty.indent' (lit "# ") (lit "  ") (go (Doc2.Bold title))
       subs = List.map (d -> Pretty.indent (lit "  ") (go d)) ds
       Pretty.sepBy (nl <> nl) (t +: subs)
-    Docs ds -> Pretty.group (Pretty.join (List.map go ds))
+    UntitledSection ds -> Pretty.sepBy (nl <> nl) (List.map go ds)
+    Docs ds -> Pretty.join (List.map go ds)
+    Column ds -> Pretty.sepBy nl (List.map go ds)
+    Doc2.Group d -> Pretty.group (go d)
     NamedLink name _target -> map ConsoleText.Underline (go name)
     Image alt _link (Some caption) -> Pretty.sepBy nl [go alt, go (Italic caption)]
     Image alt _link None -> go alt

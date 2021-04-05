@@ -85,7 +85,7 @@ displayPretty pped terms typeOf eval types tm = go tm
     DD.PrettyGroup _ p -> P.group <$> go p
     DD.PrettyLit _ (DD.EitherLeft' special) -> goSpecial special
     DD.PrettyLit _ (DD.EitherRight' consoleTxt) -> goConsole consoleTxt
-    DD.PrettyWrap _ p -> P.wrap <$> go p
+    DD.PrettyWrap _ p -> P.wrap' (pure . P.lit) <$> go p
     DD.PrettyOrElse _ p1 p2 -> P.orElse <$> go p1 <*> go p2
     DD.PrettyIndent _ initial afterNl p -> do
       initial <- go initial
