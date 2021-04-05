@@ -177,7 +177,7 @@ displayPretty pped terms typeOf eval types tm = go tm
     -- InlineEval Doc2.Term
     DD.Doc2SpecialFormInlineEval (DD.Doc2Term tm) -> eval tm >>= \case
       Nothing -> pure . P.backticked . P.red $ "🆘  An error occurred during evaluation"
-      Just result -> displayTerm pped terms typeOf eval types result
+      Just result -> P.backticked <$> displayTerm pped terms typeOf eval types result
 
     -- Embed Any
     DD.Doc2SpecialFormEmbed (Term.App' _ any) ->

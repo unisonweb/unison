@@ -143,8 +143,6 @@ Numbered lists can be nested as well, and combined with bulleted lists:
 2. Take shower.  
 3. Get dressed.
 
-}} --- todo
-
 ## Evaluation 
 
 '''
@@ -156,6 +154,8 @@ Renders as:
 Expressions can be evaluated inline, for instance @eval{1 + 1}.
 
 Blocks of code can be evaluated as well, for instance:
+
+}} --- todo
 
 '''
 ```

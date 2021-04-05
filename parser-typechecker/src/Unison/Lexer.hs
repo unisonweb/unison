@@ -316,10 +316,11 @@ lexemes' eof = P.optional space >> do
       guard (not $ reserved pos word)
       pure word
 
-    leafy ok = groupy ok gs <|> atDoc <|> wordy ok
+    leafy ok = groupy ok gs
           where
           gs = link <|> externalLink <|> ticked <|> expr
            <|> boldOrItalicOrStrikethrough ok <|> verbatim
+           <|> atDoc <|> wordy ok
 
     leaf = leafy (const True)
 
