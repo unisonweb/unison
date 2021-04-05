@@ -147,10 +147,10 @@ displayPretty pped terms typeOf eval types tm = go tm
       go = pure . P.underline . P.syntaxToColor . NP.prettyHashQualified
       in case e of
         DD.EitherLeft' (Term.TypeLink' ref) -> go $ PPE.typeName ppe ref
-        DD.EitherRight' (Term.Ref' ref) -> go $ PPE.termName ppe (Referent.Ref ref)
-        DD.EitherRight' (Term.Request' ref cid) ->
+        DD.EitherRight' (DD.Doc2Term (Term.Ref' ref)) -> go $ PPE.termName ppe (Referent.Ref ref)
+        DD.EitherRight' (DD.Doc2Term (Term.Request' ref cid)) ->
           go $ PPE.termName ppe (Referent.Con ref cid CT.Effect)
-        DD.EitherRight' (Term.Constructor' ref cid) ->
+        DD.EitherRight' (DD.Doc2Term (Term.Constructor' ref cid)) ->
           go $ PPE.termName ppe (Referent.Con ref cid CT.Data)
         _ -> P.red <$> displayTerm pped terms typeOf eval types e
 
