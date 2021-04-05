@@ -4,13 +4,13 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a5bd96db227ad234a060c8f363dd5cc47376a71d164fc6405123907f3b4b537d
+-- hash: 87668300fadfc9e31396ec2b581e6deefb0e4cc2d8264f8c608a3eb0f53fd073
 
 name:           unison-parser-typechecker
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
-copyright:      Copyright (C) 2013-2018 Unison Computing, PBC and contributors
+copyright:      Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 license:        MIT
 license-file:   LICENSE
 build-type:     Simple
@@ -18,6 +18,10 @@ build-type:     Simple
 source-repository head
   type: git
   location: https://github.com/unisonweb/unison
+
+flag optimized
+  manual: True
+  default: False
 
 library
   exposed-modules:
@@ -157,7 +161,7 @@ library
   hs-source-dirs:
       src
   default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
-  ghc-options: -Wall -funbox-strict-fields -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       ListLike
     , aeson
@@ -242,6 +246,8 @@ library
     , x509
     , x509-store
     , x509-system
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -02
   default-language: Haskell2010
 
 executable prettyprintdemo
@@ -251,12 +257,14 @@ executable prettyprintdemo
   hs-source-dirs:
       prettyprintdemo
   default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
-  ghc-options: -Wall -funbox-strict-fields -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       base
     , safe
     , text
     , unison-parser-typechecker
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -02
   default-language: Haskell2010
 
 executable tests
@@ -300,7 +308,7 @@ executable tests
   hs-source-dirs:
       tests
   default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
-  ghc-options: -Wall -funbox-strict-fields -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
       async
     , base
@@ -326,6 +334,8 @@ executable tests
     , unison-core
     , unison-parser-typechecker
     , unliftio
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -02
   default-language: Haskell2010
 
 executable transcripts
@@ -335,7 +345,7 @@ executable transcripts
   hs-source-dirs:
       transcripts
   default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
-  ghc-options: -Wall -funbox-strict-fields -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
+  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
   build-depends:
       base
     , directory
@@ -346,6 +356,8 @@ executable transcripts
     , text
     , unison-core
     , unison-parser-typechecker
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -02
   default-language: Haskell2010
 
 executable unison
@@ -357,7 +369,7 @@ executable unison
   hs-source-dirs:
       unison
   default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
-  ghc-options: -Wall -funbox-strict-fields -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
+  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
   build-depends:
       base
     , bytestring
@@ -376,6 +388,8 @@ executable unison
     , unison-core
     , unison-parser-typechecker
     , uri-encode
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -02
   if !os(windows)
     build-depends:
         unix
@@ -389,11 +403,13 @@ benchmark runtime
   hs-source-dirs:
       benchmarks/runtime
   default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
-  ghc-options: -Wall -funbox-strict-fields -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       base
     , containers
     , criterion
     , unison-core
     , unison-parser-typechecker
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -02
   default-language: Haskell2010

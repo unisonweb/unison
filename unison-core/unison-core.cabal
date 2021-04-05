@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f9567863c52090b848072234aa1e89e9dafbe416cb27556e15a26f8f57cb56d0
+-- hash: d2e2ed6fd71e1577534326f1856abc09e370c160c02bcab3902feee2e2bd8f8e
 
 name:           unison-core
 version:        0.0.0
@@ -18,6 +18,10 @@ build-type:     Simple
 source-repository head
   type: git
   location: https://github.com/unisonweb/unison
+
+flag optimized
+  manual: True
+  default: False
 
 library
   exposed-modules:
@@ -80,4 +84,6 @@ library
     , transformers
     , util
     , vector
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields
   default-language: Haskell2010
