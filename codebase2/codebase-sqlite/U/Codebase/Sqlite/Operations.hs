@@ -703,19 +703,20 @@ c2sTerm tm tp = c2xTerm Q.saveText primaryHashToExistingObjectId tm (Just tp) <&
 listWatches :: EDB m => WatchKind -> m [C.Reference.Id]
 listWatches k = Q.loadWatchesByWatchKind k >>= traverse s2cReferenceId
 
--- | returns Nothing is the expression isn't cached.
+-- | returns Nothing if the expression isn't cached.
 loadWatch :: EDB m => WatchKind -> C.Reference.Id -> MaybeT m (C.Term Symbol)
 loadWatch k r =
   C.Reference.idH Q.saveHashHash r
     >>= MaybeT . Q.loadWatch k
-    >>= getFromBytesOr (ErrWatch k r) (S.getPair S.getWatchLocalIds S.getTerm)
-    >>= uncurry w2cTerm
+    >>= getFromBytesOr (ErrWatch k r) S.getWatchResultFormat
+    >>= \case
+      S.Term.WatchResult wlids t -> w2cTerm wlids t
 
 saveWatch :: EDB m => WatchKind -> C.Reference.Id -> C.Term Symbol -> m ()
 saveWatch w r t = do
   rs <- C.Reference.idH Q.saveHashHash r
   wterm <- c2wTerm t
-  let bytes = S.putBytes (S.putPair S.putLocalIds S.putTerm) wterm
+  let bytes = S.putBytes S.putWatchResultFormat (uncurry S.Term.WatchResult wterm)
   Q.saveWatch w rs bytes
 
 c2wTerm :: EDB m => C.Term Symbol -> m (WatchLocalIds, S.Term.Term)

@@ -152,6 +152,18 @@ putUnit _ = pure ()
 getUnit :: Applicative m => m ()
 getUnit = pure ()
 
+putWatchResultFormat :: MonadPut m => TermFormat.WatchResultFormat -> m ()
+putWatchResultFormat = \case
+  TermFormat.WatchResult ids t -> do
+    putWord8 0
+    putLocalIds ids
+    putTerm t
+
+getWatchResultFormat :: MonadGet m => m TermFormat.WatchResultFormat
+getWatchResultFormat = getWord8 >>= \case
+  0 -> TermFormat.WatchResult <$> getWatchLocalIds <*> getTerm
+  other -> unknownTag "getWatchResultFormat" other
+
 putTermFormat :: MonadPut m => TermFormat.TermFormat -> m ()
 putTermFormat = \case
   TermFormat.Term c -> putWord8 0 *> putTermComponent c

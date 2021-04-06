@@ -6,7 +6,7 @@ import Data.Vector (Vector)
 import U.Codebase.Reference (Reference')
 import U.Codebase.Referent (Referent')
 import U.Codebase.Sqlite.LocalIds
-    ( LocalIds', LocalTextId, LocalDefnId )
+    ( LocalIds', LocalTextId, LocalDefnId, WatchLocalIds )
 import U.Codebase.Sqlite.Symbol ( Symbol )
 import qualified U.Codebase.Term as Term
 import qualified U.Core.ABT as ABT
@@ -39,3 +39,6 @@ type TypeOfTerm = ABT.Term FTT Symbol ()
 
 data TermFormat
   = Term LocallyIndexedComponent
+
+data WatchResultFormat
+  = WatchResult WatchLocalIds Term

@@ -17,7 +17,6 @@ import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Parser (Ann)
 import Unison.Symbol (Symbol)
-import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.FileCodebase as FileCodebase
 
