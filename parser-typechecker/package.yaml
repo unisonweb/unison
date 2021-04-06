@@ -179,6 +179,7 @@ library:
     - regex-base
     - regex-tdfa
     - safe
+    - safe-exceptions
     - servant
     - servant-docs
     - servant-openapi3

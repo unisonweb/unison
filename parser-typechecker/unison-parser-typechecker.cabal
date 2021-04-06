@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 87668300fadfc9e31396ec2b581e6deefb0e4cc2d8264f8c608a3eb0f53fd073
+-- hash: 46d272236a5552cc0c59266cd704199831fab3f8e474ab92338f0322bb019d3f
 
 name:           unison-parser-typechecker
 version:        0.0.0
@@ -220,6 +220,7 @@ library
     , regex-base
     , regex-tdfa
     , safe
+    , safe-exceptions
     , servant
     , servant-docs
     , servant-openapi3
