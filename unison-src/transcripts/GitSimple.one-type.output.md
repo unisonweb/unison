@@ -26,7 +26,7 @@ type Foo = Foo
   
     type Foo
 
-.myLib> push /private/var/folders/gg/lqv4nxmx0nv3_35tg9_8c15r0000gn/T/git-simple-one-type-cc52d9c301e40738/repo.git
+.myLib> push /private/var/folders/gg/lqv4nxmx0nv3_35tg9_8c15r0000gn/T/git-simple-one-type-202b2f75069902c8/repo.git
 
   Done.
 
@@ -36,7 +36,7 @@ type Foo = Foo
 ```ucm
   ☝️  The namespace .yourLib is empty.
 
-.yourLib> pull /private/var/folders/gg/lqv4nxmx0nv3_35tg9_8c15r0000gn/T/git-simple-one-type-cc52d9c301e40738/repo.git
+.yourLib> pull /private/var/folders/gg/lqv4nxmx0nv3_35tg9_8c15r0000gn/T/git-simple-one-type-202b2f75069902c8/repo.git
 
   Here's what's changed in the current namespace after the
   merge:

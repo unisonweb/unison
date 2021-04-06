@@ -1,6 +1,6 @@
 next steps:
 
-- [ ] add format tag to watch cache expressions?
+- [x] add format tag to watch cache expressions?
 - [x] fix up `Operations.loadBranchByCausalHash`; currently it's getting a single namespace, but we need to somewhere get the causal history.
 	- [x] load a causal, allowing a missing value (C.Branch.Spine)
 	- [x] load a causal and require its value (C.Branch.Causal)

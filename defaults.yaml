@@ -1,0 +1,10 @@
+dependencies:
+  - base
+  - bytestring
+  - containers
+  - extra
+  - lens
+  - memory
+  - text
+  - unliftio
+  - safe
