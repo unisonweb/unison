@@ -216,7 +216,7 @@ pretty0
                     in uses $ [pretty0 n (ac 0 Block im' doc) tm]
     App' x (Constructor' DD.UnitRef 0) ->
       paren (p >= 11) $ (fmt S.DelayForceChar $ l "!") <> pretty0 n (ac 11 Normal im doc) x
-    LamNamed' v x | (Var.name v) == "()" ->
+    Delay' x  ->
       paren (p >= 11) $ (fmt S.DelayForceChar $ l "'") <> pretty0 n (ac 11 Normal im doc) x
     List' xs -> PP.group $
       (fmt S.DelimiterChar $ l "[") <> optSpace
@@ -1202,20 +1202,83 @@ toBytes (App' (Builtin' "Bytes.fromList") (List' bs)) =
         go _ = Nothing
 toBytes _ = Nothing
 
+toDocJoin :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
+toDocJoin ppe (App' (Ref' r) (List' tms))
+  | nameEndsWith ppe ".docJoin" r = Just (toList tms)
+toDocJoin _ _ = Nothing
+
+toDocUntitledSection :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
+toDocUntitledSection ppe (App' (Ref' r) (List' tms))
+  | nameEndsWith ppe ".docUntitledSection" r = Just (toList tms)
+toDocUntitledSection _ _ = Nothing
+
+toDocColumn :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
+toDocColumn ppe (App' (Ref' r) (List' tms))
+  | nameEndsWith ppe ".docColumn" r = Just (toList tms)
+toDocColumn _ _ = Nothing
+
+toDocGroup :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocGroup ppe (App' (Ref' r) doc)
+  | nameEndsWith ppe ".docGroup" r = Just doc
+toDocGroup _ _ = Nothing
+
 toDocWord :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe Text
 toDocWord ppe (App' (Ref' r) (Text' txt))
   | nameEndsWith ppe ".docWord" r = Just txt
 toDocWord _ _ = Nothing
 
-toDocItalic :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
-toDocItalic ppe (App' (Ref' r) doc)
-  | nameEndsWith ppe ".docItalic" r = Just doc
-toDocItalic _ _ = Nothing
-
 toDocBold :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
 toDocBold ppe (App' (Ref' r) doc)
   | nameEndsWith ppe ".docBold" r = Just doc
 toDocBold _ _ = Nothing
+
+toDocCode :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocCode ppe (App' (Ref' r) doc)
+  | nameEndsWith ppe ".docCode" r = Just doc
+toDocCode _ _ = Nothing
+
+toDocVerbatim :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe Text
+toDocVerbatim ppe (App' (Ref' r) (Text' txt))
+  | nameEndsWith ppe ".docVerbatim" r = Just txt
+toDocVerbatim _ _ = Nothing
+
+toDocEvalBlock :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocEvalBlock ppe (App' (Ref' r) (Delay' tm))
+  | nameEndsWith ppe ".docEvalBlock" r = Just tm
+toDocEvalBlock _ _ = Nothing
+
+toDocInlineEval :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocInlineEval ppe (App' (Ref' r) (Delay' tm))
+  | nameEndsWith ppe ".docInlineEval" r = Just tm
+toDocInlineEval _ _ = Nothing
+
+toDocExample :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocExample ppe (Apps' (Ref' r) [Nat' n, Delay' l@(LamsNamed' vs tm)])
+  | nameEndsWith ppe ".docExample" r = Just (lam' (ABT.annotation l) (drop (fromIntegral n) vs) tm)
+toDocExample _ _ = Nothing
+
+toDocTransclude :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocTransclude ppe (App' (Ref' r) tm)
+  | nameEndsWith ppe ".docTransclude" r = Just tm
+toDocTransclude _ _ = Nothing
+
+toDocLink :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Either Reference (Term3 v PrintAnnotation))
+toDocLink ppe (App' (Ref' r) tm)
+  | nameEndsWith ppe ".docLink" r = case tm of
+      (toDocEmbedTermLink ppe -> Just tm) -> Just (Right tm)
+      (toDocEmbedTypeLink ppe -> Just tm) -> Just (Left tm)
+      _ -> Nothing
+toDocLink _ _ = Nothing
+
+toDocNamedLink :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation, Term3 v PrintAnnotation)
+toDocNamedLink ppe (Apps' (Ref' r) [name, target])
+  | nameEndsWith ppe ".docNamedLink" r = Just (name, target)
+toDocNamedLink _ _ = Nothing
+
+toDocItalic :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocItalic ppe (App' (Ref' r) doc)
+  | nameEndsWith ppe ".docItalic" r = Just doc
+toDocItalic _ _ = Nothing
 
 toDocStrikethrough :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
 toDocStrikethrough ppe (App' (Ref' r) doc)
@@ -1227,10 +1290,58 @@ toDocParagraph ppe (App' (Ref' r) (List' tms))
   | nameEndsWith ppe ".docParagraph" r = Just (toList tms)
 toDocParagraph _ _ = Nothing
 
-toDocUntitledSection :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
-toDocUntitledSection ppe (App' (Ref' r) (List' tms))
-  | nameEndsWith ppe ".docUntitledSection" r = Just (toList tms)
-toDocUntitledSection _ _ = Nothing
+toDocEmbedTermLink :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocEmbedTermLink ppe (App' (Ref' r) (Delay' tm))
+  | nameEndsWith ppe ".docEmbedTermLink" r = Just tm
+toDocEmbedTermLink _ _ = Nothing
+
+toDocEmbedTypeLink :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe Reference
+toDocEmbedTypeLink ppe (App' (Ref' r) (TypeLink' typeref))
+  | nameEndsWith ppe ".docEmbedTypeLink" r = Just typeref
+toDocEmbedTypeLink _ _ = Nothing
+
+toDocSource :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
+toDocSource ppe (App' (Ref' r) (List' tms))
+  | nameEndsWith ppe ".docSource" r = Just (toList tms)
+toDocSource _ _ = Nothing
+
+toDocFoldedSource :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
+toDocFoldedSource ppe (App' (Ref' r) (List' tms))
+  | nameEndsWith ppe ".docFoldedSource" r = Just (toList tms)
+toDocFoldedSource _ _ = Nothing
+
+toDocInlineSignature :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocInlineSignature ppe (App' (Ref' r) (toDocEmbedSignatureLink ppe -> Just tm))
+  | nameEndsWith ppe ".docInlineSignature" r = Just tm
+toDocInlineSignature _ _ = Nothing
+
+toDocEmbedSignatureLink :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocEmbedSignatureLink ppe (App' (Ref' r) (Delay' tm))
+  | nameEndsWith ppe ".docEmbedSignatureLink" r = Just tm
+toDocEmbedSignatureLink _ _ = Nothing
+
+toDocEmbedAnnotation :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocEmbedAnnotation ppe (App' (Ref' r) tm)
+  | nameEndsWith ppe ".docEmbedAnnotation" r = Just tm
+toDocEmbedAnnotation _ _ = Nothing
+
+toDocEmbedAnnotations :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
+toDocEmbedAnnotations ppe (App' (Ref' r) (List' tms))
+  | nameEndsWith ppe ".docEmbedAnnotations" r =
+    case [ ann | Just ann <- toDocEmbedAnnotation ppe <$> toList tms ] of
+      tms' | length tms' == length tms -> Just tms'
+      _ -> Nothing
+toDocEmbedAnnotations _ _ = Nothing
+
+toDocSignature :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
+toDocSignature ppe (App' (Ref' r) (List' tms))
+  | nameEndsWith ppe ".docSignature" r =
+    case [ tm | Just tm <- ok <$> toList tms ] of
+      tms' | length tms' == length tms -> Just tms'
+      _ -> Nothing
+    where
+      ok tm = toDocEmbedTermLink ppe tm
+toDocSignature _ _ = Nothing
 
 toDocBulletedList :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
 toDocBulletedList ppe (App' (Ref' r) (List' tms))

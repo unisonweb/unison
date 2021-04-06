@@ -436,6 +436,15 @@ pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern List' xs <- (ABT.out -> ABT.Tm (List xs))
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
+
+pattern Delay' body <- (unDelay -> Just body)
+unDelay :: Ord v => Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
+unDelay tm = case ABT.out tm of
+  ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body)))
+    |  Set.notMember v (ABT.freeVars body)
+    -> Just body
+  _ -> Nothing
+
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
 pattern LamsNamedOpt' vs body <- (unLamsOpt' -> Just (vs, body))
