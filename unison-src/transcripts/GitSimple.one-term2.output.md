@@ -26,7 +26,7 @@ c = 3
   
     c : ##Nat
 
-.myLib> push /private/var/folders/gg/lqv4nxmx0nv3_35tg9_8c15r0000gn/T/git-simple-one-term2-0b775fa442535bdb/repo.git
+.myLib> push /private/var/folders/gg/lqv4nxmx0nv3_35tg9_8c15r0000gn/T/git-simple-one-term2-abd7ae5a095da0e1/repo.git
 
   Done.
 
@@ -36,7 +36,7 @@ c = 3
 ```ucm
   ☝️  The namespace .yourLib is empty.
 
-.yourLib> pull /private/var/folders/gg/lqv4nxmx0nv3_35tg9_8c15r0000gn/T/git-simple-one-term2-0b775fa442535bdb/repo.git
+.yourLib> pull /private/var/folders/gg/lqv4nxmx0nv3_35tg9_8c15r0000gn/T/git-simple-one-term2-abd7ae5a095da0e1/repo.git
 
   Here's what's changed in the current namespace after the
   merge:

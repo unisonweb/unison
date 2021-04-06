@@ -86,7 +86,7 @@ import qualified Unison.Util.TQueue as TQueue
 import Unison.Util.Timing (time)
 import Unison.Var (Var)
 import UnliftIO (MonadUnliftIO)
-import UnliftIO.Concurrent (forkIO, killThread)
+import Control.Concurrent (forkIO, killThread)
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist)
 import UnliftIO.Exception (catchIO)
 import UnliftIO.STM (atomically)
@@ -230,13 +230,13 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
 -- watches in `branchHeadDir root` for externally deposited heads;
 -- parse them, and return them
 branchHeadUpdates
-  :: MonadUnliftIO m => CodebasePath -> m (m (), m (Set Branch.Hash))
+  :: MonadIO m => CodebasePath -> m (IO (), IO (Set Branch.Hash))
 branchHeadUpdates root = do
   branchHeadChanges      <- TQueue.newIO
   (cancelWatch, watcher) <- Watch.watchDirectory' (branchHeadDir root)
 --  -- add .ubf file changes to intermediate queue
   watcher1               <-
-    forkIO
+    liftIO . forkIO
     $ forever
     $ do
       -- Q: what does watcher return on a file deletion?

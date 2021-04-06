@@ -30,6 +30,7 @@ import Unison.Parser (Ann)
 import Unison.Symbol (Symbol)
 import Unison.Var (Var)
 import qualified U.Util.Cache as Cache
+import U.Util.String (stripMargin)
 
 test :: Test ()
 test = scope "git-fc" . tests $
@@ -355,7 +356,7 @@ testPush = scope "push" $ do
     removeDirectoryRecursive tmp
 
   where
-  setupTranscript = [iTrim|
+  setupTranscript = stripMargin [iTrim|
     ```ucm
     .> builtins.merge
     ```
@@ -393,7 +394,8 @@ testPush = scope "push" $ do
     .foo.inside> update
     ```
   |]
-  pushTranscript repo = [iTrim|
+
+  pushTranscript repo = stripMargin [iTrim|
     ```ucm
     .foo.inside> push ${repo}
     ```

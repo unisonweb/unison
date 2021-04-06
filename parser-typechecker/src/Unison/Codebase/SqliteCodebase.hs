@@ -446,7 +446,7 @@ sqliteCodebase root = do
               . Cv.causalbranch1to2
               $ Branch.transform (lift . lift) branch1
 
-          rootBranchUpdates :: MonadIO m => m (m (), m (Set Branch.Hash))
+          rootBranchUpdates :: MonadIO m => m (IO (), IO (Set Branch.Hash))
           rootBranchUpdates = pure (cleanup, liftIO newRootsDiscovered)
             where
               newRootsDiscovered = do

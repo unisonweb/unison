@@ -62,6 +62,7 @@ import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import qualified Version
+import qualified Unison.Codebase.Conversion.Upgrade12 as Upgrade12
 
 usage :: String -> P.Pretty P.ColorText
 usage executableStr = P.callout "🌻" $ P.lines [
@@ -157,7 +158,7 @@ main = do
       (mNewRun, restargs1) = case restargs0 of
            "--new-runtime" : rest -> (Just True, rest)
            _ -> (Nothing, restargs0)
-      (fromMaybe False -> newCodebase, restargs) = case restargs1 of
+      (fromMaybe True -> newCodebase, restargs) = case restargs1 of
            "--new-codebase" : rest -> (Just True, rest)
            "--old-codebase" : rest -> (Just False, rest)
            _ -> (Nothing, restargs1)
@@ -219,31 +220,8 @@ main = do
       Exit.exitWith (Exit.ExitFailure 1)
 
 upgradeCodebase :: Maybe Codebase.CodebasePath -> IO ()
-upgradeCodebase mcodepath = do
-  (cleanupSrc, srcCB) <- Codebase.getCodebaseOrExit FC.init mcodepath -- FC.init mcodepath
-  (cleanupDest, destCB) <- Codebase.getCodebaseOrExit SC.init mcodepath -- FC.init mcodepath
-  destDB <- SC.unsafeGetConnection =<< Codebase.getCodebaseDir mcodepath
-  let env = Sync12.Env srcCB destCB destDB
-  let initialState :: Sync12.ProgressState _ =
-        (Sync12.emptyDoneCount, Sync12.emptyErrorCount, Sync12.emptyStatus)
-  rootEntity <-
-    Codebase.getRootBranch srcCB >>= \case
-      Left e -> error $ "Error loading source codebase root branch: " ++ show e
-      Right (Branch.Branch c) -> pure $ Sync12.C (Causal.currentHash c) (pure c)
-  let progress = Sync12.simpleProgress @IO
-  flip Reader.runReaderT env . flip State.evalStateT initialState $ do
-    sync <- Sync12.sync12 (lift . lift)
-    Sync.sync @_ @(Sync12.Entity _)
-      (Sync.transformSync (lensStateT Lens._3) sync)
-      progress
-      [rootEntity]
-  cleanupSrc
-  cleanupDest
-  where
-    lensStateT :: Monad m => Lens' s2 s1 -> StateT s1 m a -> StateT s2 m a
-    lensStateT l m = StateT \s2 -> do
-      (a, s1') <- runStateT m (s2 Lens.^. l)
-      pure (a, s2 & l Lens..~ s1')
+upgradeCodebase mcodepath =
+  Codebase.getCodebaseDir mcodepath >>= Upgrade12.upgradeCodebase
 
 prepareTranscriptDir :: Codebase.Init IO Symbol Ann -> Bool -> Maybe FilePath -> IO FilePath
 prepareTranscriptDir cbInit inFork mcodepath = do

@@ -24,7 +24,7 @@ c = 3
   
     c : ##Nat
 
-.> push /private/var/folders/gg/lqv4nxmx0nv3_35tg9_8c15r0000gn/T/git-simple-one-term-d431dff9390554a1/repo.git
+.> push /private/var/folders/gg/lqv4nxmx0nv3_35tg9_8c15r0000gn/T/git-simple-one-term-ca8a9c15aa27005c/repo.git
 
   Done.
 
@@ -32,7 +32,7 @@ c = 3
 
 -------
 ```ucm
-.> pull /private/var/folders/gg/lqv4nxmx0nv3_35tg9_8c15r0000gn/T/git-simple-one-term-d431dff9390554a1/repo.git
+.> pull /private/var/folders/gg/lqv4nxmx0nv3_35tg9_8c15r0000gn/T/git-simple-one-term-ca8a9c15aa27005c/repo.git
 
   Here's what's changed in the current namespace after the
   merge:

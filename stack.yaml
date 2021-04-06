@@ -64,7 +64,7 @@ extra-deps:
 
 ghc-options:
  # All packages
- "$locals": -Wall -Wno-name-shadowing -Werror -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms #-freverse-errors
+ "$locals": -Wall -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms #-freverse-errors
 
  # See https://github.com/haskell/haskell-language-server/issues/208
  "$everything": -haddock
