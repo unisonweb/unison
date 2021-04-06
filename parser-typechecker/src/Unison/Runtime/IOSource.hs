@@ -197,7 +197,7 @@ pattern PrettyAppend ann tms <- Term.Apps' (Term.Constructor' PrettyAnnotatedRef
 pattern PrettyRef <- ((== prettyRef) -> True)
 
 prettyGetRef = termNamed "Pretty.get"
-doc2FormatConsoleRef = termNamed "syntax.doc.formatConsole"
+doc2FormatConsoleRef = termNamed "syntax.docFormatConsole"
 
 pattern AnsiColorRef  <- ((== ansiColorRef) -> True)
 [ ansiColorBlackId, ansiColorRedId, ansiColorGreenId, ansiColorYellowId
@@ -722,7 +722,7 @@ unique[b7a4fb87e34569319591130bf3ec6e24c9955b6a] type Doc2
   -- image alt text link caption
   | Image Doc2 Doc2 (Optional Doc2)
   | Special Doc2.SpecialForm
-  | Docs [Doc2]
+  | Join [Doc2]
   | UntitledSection [Doc2]
   | Column [Doc2]
   -- Avoid inserting line breaks if possible in grouped docs
@@ -831,58 +831,58 @@ Pretty.sepBy sep ps =
     h +: t -> go (append acc h) true t
   go Pretty.empty false ps
 
-syntax.doc.docs = cases [d] -> d
-                        ds -> Docs ds
-syntax.doc.untitledSection = cases
+syntax.docJoin = cases [d] -> d
+                       ds  -> Doc2.Join ds
+syntax.docUntitledSection = cases
   [d] -> d
   ds -> UntitledSection ds
-syntax.doc.column = cases
+syntax.docColumn = cases
   [d] -> d
   ds -> Doc2.Column ds
-syntax.doc.group = Doc2.Group
-syntax.doc.word = Word
-syntax.doc.bold = Doc2.Bold
-syntax.doc.italic = Italic
-syntax.doc.strikethrough = Strikethrough
-syntax.doc.paragraph = Paragraph
-syntax.doc.embedTermLink tm =
+syntax.docGroup = Doc2.Group
+syntax.docWord = Word
+syntax.docBold = Doc2.Bold
+syntax.docItalic = Italic
+syntax.docStrikethrough = Strikethrough
+syntax.docParagraph = Paragraph
+syntax.docEmbedTermLink tm =
   guid = "9d3927033a9589dda2d10406840af7ef3b4bf21e"
   Right (Doc2.term tm)
-syntax.doc.embedTypeLink typ =
+syntax.docEmbedTypeLink typ =
   guid = "f9e80035f8c21ac80c98b6c2cc06fe004ae2eb2c"
   Left typ
-syntax.doc.source t = Special (Source t)
-syntax.doc.foldedSource t = Special (FoldedSource t)
-syntax.doc.signature ts = Special (Signature ts)
-syntax.doc.inlineSignature t = Special (InlineSignature t)
-syntax.doc.inlineEval e = Special (InlineEval (Doc2.term e))
-syntax.doc.sourceElement link annotations =
+syntax.docSource t = Special (Source t)
+syntax.docFoldedSource t = Special (FoldedSource t)
+syntax.docSignature ts = Special (Signature ts)
+syntax.docInlineSignature t = Special (InlineSignature t)
+syntax.docInlineEval e = Special (InlineEval (Doc2.term e))
+syntax.docSourceElement link annotations =
   guid = "e56ece7785c34c1cc9a441b11da81cfa98d05985"
   (link, annotations)
-syntax.doc.embedAnnotations tms =
+syntax.docEmbedAnnotations tms =
   guid = "11f21dc3bcb37652d8058d655e757560ac38f7b3"
   tms
-syntax.doc.embedAnnotation tm =
+syntax.docEmbedAnnotation tm =
   guid = "8546106e53c88996c8d3eb785a2fca80df9c7b3b"
   Doc2.Term.Term (Any tm)
-syntax.doc.embedSignatureLink tm =
+syntax.docEmbedSignatureLink tm =
   guid = "d9a4fb87e34569319591130bf3ec6e24"
   Doc2.term tm
-syntax.doc.code c = Code c
-syntax.doc.codeBlock typ c = CodeBlock typ (word c)
-syntax.doc.verbatim c = CodeBlock "raw" c
-syntax.doc.evalBlock d = Special (Eval (Doc2.term d))
-syntax.doc.eval a = Special (InlineEval (Doc2.term a))
-syntax.doc.example n a = Special (Example n (Doc2.term a))
-syntax.doc.link t = Special (Link t)
-syntax.doc.transclude d =
+syntax.docCode c = Code c
+syntax.docCodeBlock typ c = CodeBlock typ (docWord c)
+syntax.docVerbatim c = CodeBlock "raw" c
+syntax.docEvalBlock d = Special (Eval (Doc2.term d))
+syntax.docEval a = Special (InlineEval (Doc2.term a))
+syntax.docExample n a = Special (Example n (Doc2.term a))
+syntax.docLink t = Special (Link t)
+syntax.docTransclude d =
   guid = "b7a4fb87e34569319591130bf3ec6e24"
   d
-syntax.doc.namedLink = NamedLink
-syntax.doc.bulletedList = BulletedList
-syntax.doc.numberedList = NumberedList
-syntax.doc.section = Section
-syntax.doc.table = Doc2.Table
+syntax.docNamedLink = NamedLink
+syntax.docBulletedList = BulletedList
+syntax.docNumberedList = NumberedList
+syntax.docSection = Section
+syntax.docTable = Doc2.Table
 
 unique[e25bc44d251ae0301517ad0bd02cbd294161dc89] type ConsoleText
   = Plain Text
@@ -909,8 +909,9 @@ Either.mapRight f = cases
   Right a -> Right (f a)
   Left e -> Left e
 
-syntax.doc.formatConsole : Doc2 -> Pretty (Either SpecialForm ConsoleText)
-syntax.doc.formatConsole d =
+syntax.docFormatConsole : Doc2 -> Pretty (Either SpecialForm ConsoleText)
+syntax.docFormatConsole d =
+  use Doc2
   lit t = Pretty.lit (Right (Plain t))
   p1 <> p2 = Pretty.append p1 p2
   nl = lit "\n"
@@ -943,7 +944,7 @@ syntax.doc.formatConsole d =
     Aside d -> Pretty.indent (lit "  | ") (go d)
     Callout None d -> go (Aside d)
     Callout (Some icon) d -> go (Aside (Section icon [d]))
-    Doc2.Table rows -> Pretty.table (List.map (List.map go) rows)
+    Table rows -> Pretty.table (List.map (List.map go) rows)
     Folded _ summary details -> go summary <> go details
     Paragraph ds -> Pretty.wrap (Pretty.join (List.map go ds))
     BulletedList ds ->
@@ -965,9 +966,9 @@ syntax.doc.formatConsole d =
       subs = List.map (d -> Pretty.indent (lit "  ") (go d)) ds
       Pretty.sepBy (nl <> nl) (t +: subs)
     UntitledSection ds -> Pretty.sepBy (nl <> nl) (List.map go ds)
-    Docs ds -> Pretty.join (List.map go ds)
+    Join ds -> Pretty.join (List.map go ds)
     Column ds -> Pretty.sepBy nl (List.map go ds)
-    Doc2.Group d -> Pretty.group (go d)
+    Group d -> Pretty.group (go d)
     NamedLink name _target -> map ConsoleText.Underline (go name)
     Image alt _link (Some caption) -> Pretty.sepBy nl [go alt, go (Italic caption)]
     Image alt _link None -> go alt

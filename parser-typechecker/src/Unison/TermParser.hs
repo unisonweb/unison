@@ -376,37 +376,37 @@ termLeaf =
 --
 -- the lexer will produce:
 --
--- [Open "syntax.doc.untitledSection",
---    Open "syntax.doc.paragraph",
---      Open "syntax.doc.word", Textual "Hi", Close,
---      Open "syntax.doc.word", Textual "there!", Close,
+-- [Open "syntax.docUntitledSection",
+--    Open "syntax.docParagraph",
+--      Open "syntax.docWord", Textual "Hi", Close,
+--      Open "syntax.docWord", Textual "there!", Close,
 --    Close
---    Open "syntax.doc.paragraph",
---      Open "syntax.doc.word", Textual "goodbye", Close,
+--    Open "syntax.docParagraph",
+--      Open "syntax.docWord", Textual "goodbye", Close,
 --    Close
 --  Close]
 --
 -- The parser will parse this into the Unison expression:
 --
---   syntax.doc.untitledSection [
---     syntax.doc.paragraph [syntax.doc.word "Hi", syntax.doc.word "there!"],
---     syntax.doc.paragraph [syntax.doc.word "goodbye"]
+--   syntax.docUntitledSection [
+--     syntax.docParagraph [syntax.docWord "Hi", syntax.docWord "there!"],
+--     syntax.docParagraph [syntax.docWord "goodbye"]
 --   ]
 --
--- Where `syntax.doc.{elements,paragraph,...}` are all ordinary term variables
+-- Where `syntax.doc{elements,paragraph,...}` are all ordinary term variables
 -- that will be looked up in the environment like anything else. This means that
 -- the documentation syntax can have its meaning changed by overriding what functions
--- the names `syntax.doc.*` correspond to.
+-- the names `syntax.doc*` correspond to.
 doc2Block :: forall v . Var v => TermP v
 doc2Block =
-  P.lookAhead (openBlockWith "syntax.doc.untitledSection") *> elem
+  P.lookAhead (openBlockWith "syntax.docUntitledSection") *> elem
   where
   elem :: TermP v
   elem = text <|> do
     t <- openBlock
     let
-      -- here, `t` will be something like `Open "syntax.doc.word"`
-      -- so `f` will be a term var with the name "syntax.doc.word".
+      -- here, `t` will be something like `Open "syntax.docWord"`
+      -- so `f` will be a term var with the name "syntax.docWord".
       f = f' t
       f' t = Term.var (ann t) (Var.nameds (L.payload t))
 
@@ -442,52 +442,52 @@ doc2Block =
       addDelay tm = Term.delay (ann tm) tm
 
     case L.payload t of
-      "syntax.doc.docs" -> variadic
-      "syntax.doc.untitledSection" -> variadic
-      "syntax.doc.column" -> variadic
-      "syntax.doc.paragraph" -> variadic
-      "syntax.doc.signature" -> variadic
-      "syntax.doc.source" -> variadic
-      "syntax.doc.foldedSource" -> variadic
-      "syntax.doc.bulletedList" -> variadic
-      "syntax.doc.sourceAnnotations" -> variadic
-      "syntax.doc.sourceElement" -> do
+      "syntax.docJoin" -> variadic
+      "syntax.docUntitledSection" -> variadic
+      "syntax.docColumn" -> variadic
+      "syntax.docParagraph" -> variadic
+      "syntax.docSignature" -> variadic
+      "syntax.docSource" -> variadic
+      "syntax.docFoldedSource" -> variadic
+      "syntax.docBulletedList" -> variadic
+      "syntax.docSourceAnnotations" -> variadic
+      "syntax.docSourceElement" -> do
         link <- elem
         anns <- P.optional $ reserved "@" *> elem
         closeBlock $> Term.apps' f [link, fromMaybe (Term.list (ann link) mempty) anns]
-      "syntax.doc.numberedList" -> do
+      "syntax.docNumberedList" -> do
         nitems@((n,_):_) <- P.some nitem <* closeBlock
         let items = snd <$> nitems
         pure $ Term.apps' f [n, Term.list (ann items) items]
         where
           nitem = do
             n <- number
-            t <- openBlockWith "syntax.doc.column"
-            let f = f' ("syntax.doc.column" <$ t)
+            t <- openBlockWith "syntax.docColumn"
+            let f = f' ("syntax.docColumn" <$ t)
             child <- variadic' f
             pure (n, child)
-      "syntax.doc.section" -> sectionLike
+      "syntax.docSection" -> sectionLike
       -- @source{ type Blah, foo, type Bar }
-      "syntax.doc.embedTermLink" -> do
+      "syntax.docEmbedTermLink" -> do
         tm <- addDelay <$> hashQualifiedPrefixTerm
         closeBlock $> Term.apps' f [tm]
-      "syntax.doc.embedSignatureLink" -> do
+      "syntax.docEmbedSignatureLink" -> do
         tm <- addDelay <$> hashQualifiedPrefixTerm
         closeBlock $> Term.apps' f [tm]
-      "syntax.doc.embedTypeLink" -> do
+      "syntax.docEmbedTypeLink" -> do
         r <- typeLink'
         closeBlock $> Term.apps' f [Term.typeLink (ann r) (L.payload r)]
-      "syntax.doc.example" -> (term <* closeBlock) <&> \case
+      "syntax.docExample" -> (term <* closeBlock) <&> \case
         tm@(Term.Apps' f xs) ->
           let fvs = List.Extra.nubOrd $ concatMap (toList . Term.freeVars) xs
               n = Term.nat (ann tm) (1 + fromIntegral (length fvs))
               lam = addDelay $ Term.lam' (ann tm) fvs tm
           in  Term.apps' f [n, lam]
         tm -> Term.apps' f [Term.nat (ann tm) 1, addDelay tm]
-      "syntax.doc.transclude" -> evalLike id
-      "syntax.doc.inlineEval" -> evalLike addDelay
-      "syntax.doc.evalBlock" -> do
-        tm <- block' False "syntax.doc.evalBlock" (pure (void t)) closeBlock
+      "syntax.docTransclude" -> evalLike id
+      "syntax.docInlineEval" -> evalLike addDelay
+      "syntax.docEvalBlock" -> do
+        tm <- block' False "syntax.docEvalBlock" (pure (void t)) closeBlock
         pure $ Term.apps' f [addDelay tm]
       _ -> regular
 
