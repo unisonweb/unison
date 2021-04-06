@@ -1141,8 +1141,6 @@ bprim1 !ustk !bstk FLTB i = do
   bstk <- bump bstk
   pokeBi bstk $ By.flatten b
   pure (ustk, bstk)
-bprim1 !_    !bstk THRO i
-  = throwIO . BU =<< peekOff bstk i
 -- impossible
 bprim1 !ustk !bstk MISS _ = pure (ustk, bstk)
 bprim1 !ustk !bstk CACH _ = pure (ustk, bstk)
@@ -1299,6 +1297,10 @@ bprim2 !ustk !bstk CATB i j = do
   bstk <- bump bstk
   pokeBi bstk (l <> r :: By.Bytes)
   pure (ustk, bstk)
+bprim2 !_    !bstk THRO i j = do
+  name <- peekOffBi bstk i
+  x <- peekOff bstk j
+  throwIO (BU name x)
 bprim2 !ustk !bstk CMPU _ _ = pure (ustk, bstk) -- impossible
 {-# inline bprim2 #-}
 

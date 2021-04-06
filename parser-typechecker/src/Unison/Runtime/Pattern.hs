@@ -562,7 +562,7 @@ lookupAbil rf (Map.lookup rf -> Just econs)
 lookupAbil rf _ = Left $ "unknown ability reference: " ++ show rf
 
 compile :: Var v => DataSpec -> Ctx v -> PatternMatrix v -> Term v
-compile _ _ (PM []) = blank ()
+compile _ _ (PM []) = placeholder () "pattern match failure"
 compile spec ctx m@(PM (r:rs))
   | rowIrrefutable r
   = case guard r of

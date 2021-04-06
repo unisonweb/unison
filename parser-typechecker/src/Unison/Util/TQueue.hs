@@ -2,9 +2,8 @@ module Unison.Util.TQueue where
 
 import Unison.Prelude
 
-import UnliftIO (MonadUnliftIO)
 import UnliftIO.STM hiding (TQueue)
-import qualified UnliftIO.Async as Async
+import qualified Control.Concurrent.Async as Async
 
 import qualified Data.Sequence as S
 import Data.Sequence (Seq((:<|)), (|>))
@@ -64,8 +63,8 @@ enqueue (TQueue v count) a = do
   modifyTVar' v (|> a)
   modifyTVar' count (+1)
 
-raceIO :: MonadUnliftIO m => STM a -> STM b -> m (Either a b)
-raceIO a b = do
+raceIO :: MonadIO m => STM a -> STM b -> m (Either a b)
+raceIO a b = liftIO do
   aa <- Async.async $ atomically a
   ab <- Async.async $ atomically b
   Async.waitEitherCancel aa ab

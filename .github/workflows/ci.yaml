@@ -17,8 +17,7 @@ jobs:
           - ubuntu-20.04
           - ubuntu-18.04
           # - ubuntu-16.04
-          # this build fails with "can't load framework: Cocoa (not found)"
-          # - macOS-11.10
+          - macOS-11.0
           - macOS-10.15
     steps:
       - uses: actions/checkout@v2
@@ -26,16 +25,6 @@ jobs:
       # The random number towards the beginning of the cache keys below are meant to be bumped as a crude means to clear
       # a cache. GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
       # purge one manually.
-
-      # Cache ghc installed by ghcup
-      - uses: actions/cache@v2
-        name: cache ghc installed by ghcup
-        id: cache-ghc
-        with:
-          path: |
-            ~/.ghcup/bin/ghc-8.10.3
-            ~/.ghcup/ghc/8.10.3/bin/ghc
-          key: ghcup-0_${{matrix.os}}
 
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
       - uses: actions/cache@v2
@@ -57,24 +46,6 @@ jobs:
           key: stack-work-0_${{matrix.os}}-${{github.sha}}
           # ...but then fall back on the latest cache stored (on this branch)
           restore-keys: stack-work-0_${{matrix.os}}-
-
-      # Install ghcup on Linux only, because apparently it's pre-installed on the macOS runners.
-      - name: install ghcup (Linux)
-        if: runner.os == 'Linux' && steps.cache-ghc.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p "$HOME/.local/bin"
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-          curl -L https://downloads.haskell.org/~ghcup/x86_64-linux-ghcup > "$HOME/.local/bin/ghcup"
-          chmod +x "$HOME/.local/bin/ghcup"
-
-      # Install ghc 8.10.3 with ghcup
-      - name: install ghc 8.10.3
-        if: steps.cache-ghc.outputs.cache-hit != 'true'
-        run: ghcup install ghc 8.10.3
-
-      # Add ~/.ghcup/ghc/8.10.3/bin to path
-      - name: add ghc to path
-        run: echo "$HOME/.ghcup/ghc/8.10.3/bin" >> $GITHUB_PATH
 
       # Install stack by downloading the binary from GitHub. The installation process is different for Linux and macOS,
       # so this is split into two steps, only one of which will run on any particular build.
@@ -100,22 +71,22 @@ jobs:
       # Build deps, then build local code. Splitting it into two steps just allows us to see how much time each step
       # takes.
       - name: build dependencies
-        run: stack --no-terminal --system-ghc build --fast --only-dependencies
+        run: stack --no-terminal build --fast --only-dependencies
       - name: build
-        run: stack --no-terminal --system-ghc build --fast
+        run: stack --no-terminal build --fast
 
       # Run each test suite (tests and transcripts) on each runtime
       - name: tests
-        run: stack --no-terminal --system-ghc exec tests
+        run: stack --no-terminal exec tests
       - name: tests (new runtime)
-        run: stack --no-terminal --system-ghc exec tests -- --new-runtime
+        run: stack --no-terminal exec tests -- --new-runtime
       - name: transcripts
         run: |
-          stack --no-terminal --system-ghc exec transcripts
+          stack --no-terminal exec transcripts
           git diff
           x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi'
       - name: transcripts (new runtime)
         run: |
-          stack --no-terminal --system-ghc exec transcripts -- --new-runtime
+          stack --no-terminal exec transcripts -- --new-runtime
           git diff
           x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi'

@@ -4,6 +4,7 @@
 
 module Unison.Test.Ucm where
 
+import Control.Monad.Catch (MonadCatch)
 import Control.Monad.State (MonadState, StateT)
 import qualified Control.Monad.State as State
 import Control.Monad.Writer (MonadWriter, WriterT)
@@ -35,7 +36,7 @@ type TranscriptOutput = String
 
 type Cleanup m = Seq (m ())
 
-initCodebase :: (MonadUnliftIO m, MonadWriter (Cleanup m) m) => CodebaseFormat -> m Codebase
+initCodebase :: (MonadIO m, MonadCatch m, MonadWriter (Cleanup m) m) => CodebaseFormat -> m Codebase
 initCodebase fmt = do
   let cbInit = case fmt of CodebaseFormat1 -> FC.init; CodebaseFormat2 -> SC.init
   tmp <-

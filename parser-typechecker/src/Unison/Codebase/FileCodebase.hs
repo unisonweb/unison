@@ -5,13 +5,26 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
-
 module Unison.Codebase.FileCodebase
   (
     codebase1', -- used by Test/Git
     Unison.Codebase.FileCodebase.init,
   )
 where
+
+import Control.Concurrent (forkIO, killThread)
+import Control.Exception.Safe (MonadCatch, catchIO)
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
+import System.Directory (canonicalizePath, getHomeDirectory)
+import System.Environment (getProgName)
+import System.Exit (exitFailure, exitSuccess)
+import System.FilePath (takeFileName)
+import Unison.Codebase (BuiltinAnnotation, Codebase (Codebase), CodebasePath)
+import qualified Unison.Codebase as Codebase
+import Unison.Codebase.Branch (Branch)
+import qualified Unison.Codebase.Branch as Branch
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Extra ((||^))
 import qualified Data.Set as Set
@@ -88,17 +101,16 @@ import Unison.Var (Var)
 import UnliftIO (MonadUnliftIO)
 import Control.Concurrent (forkIO, killThread)
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist)
-import UnliftIO.Exception (catchIO)
 import UnliftIO.STM (atomically)
 
-init :: MonadUnliftIO m => Codebase.Init m Symbol Ann
+init :: (MonadIO m, MonadCatch m) => Codebase.Init m Symbol Ann
 init = Codebase.Init
   openCodebase
   createCodebase
   (</> Common.codebasePath)
 
 -- get the codebase in dir
-openCodebase :: forall m. MonadUnliftIO m => CodebasePath -> m (Either Codebase.Pretty (m (), Codebase m Symbol Ann))
+openCodebase :: forall m. (MonadIO m, MonadCatch m) => CodebasePath -> m (Either Codebase.Pretty (m (), Codebase m Symbol Ann))
 openCodebase dir = do
   prettyDir <- liftIO $ P.string <$> canonicalizePath dir
   let theCodebase = codebase1 @m @Symbol @Ann Cache.nullCache V1.formatSymbol formatAnn dir
@@ -108,7 +120,7 @@ openCodebase dir = do
 
 createCodebase ::
   forall m.
-  MonadUnliftIO m =>
+  (MonadIO m, MonadCatch m) =>
   CodebasePath ->
   m (Either Codebase.CreateCodebaseError (m (), Codebase m Symbol Ann))
 createCodebase dir = ifM
@@ -122,7 +134,8 @@ createCodebase dir = ifM
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`
 codebase1
   :: forall m v a
-   . MonadUnliftIO m
+   . MonadIO m
+  => MonadCatch m
   => Var v
   => BuiltinAnnotation a
   => Branch.Cache m -> S.Format v -> S.Format a -> CodebasePath -> m (Codebase m v a)
@@ -130,7 +143,8 @@ codebase1 = codebase1' Sync.syncToDirectory
 
 codebase1'
   :: forall m v a
-   . MonadUnliftIO m
+   . MonadIO m
+  => MonadCatch m
   => Var v
   => BuiltinAnnotation a
   => Common.SyncToDir m v a -> Branch.Cache m -> S.Format v -> S.Format a -> CodebasePath -> m (Codebase m v a)
@@ -213,8 +227,7 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
         (do contents <- TextIO.readFile (reflogPath path)
             let lines = Text.lines contents
             let entries = parseEntry <$> lines
-            pure entries) `catchIO`
-      const (pure [])
+            pure entries) `catchIO` const (pure [])
       where
         parseEntry t = fromMaybe (err t) (Reflog.fromText t)
         err t = error $

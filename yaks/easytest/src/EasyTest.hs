@@ -259,6 +259,7 @@ word8' = random'
 -- | Sample uniformly from the given list of possibilities
 pick :: [a] -> Test a
 pick as = let n = length as; ind = picker n as in do
+  _ <- if (n > 0) then ok else crash "pick called with empty list"
   i <- int' 0 (n - 1)
   Just a <- pure (ind i)
   pure a

@@ -4,13 +4,16 @@
 
 module Unison.Codebase.Conversion.Upgrade12 where
 
+import Control.Exception.Safe (MonadCatch)
 import Control.Lens (Lens', (&), (.~), (^.))
 import qualified Control.Lens as Lens
+import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import qualified Control.Monad.Reader as Reader
 import Control.Monad.State (StateT (StateT, runStateT))
 import qualified Control.Monad.State as State
 import Control.Monad.Trans (lift)
 import qualified U.Codebase.Sync as Sync
+import Unison.Codebase (CodebasePath)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch (Branch))
 import qualified Unison.Codebase.Causal as Causal
@@ -18,12 +21,10 @@ import qualified Unison.Codebase.Conversion.Sync12 as Sync12
 import qualified Unison.Codebase.FileCodebase as FC
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.SqliteCodebase as SC
-import Control.Monad.Except (ExceptT(ExceptT), runExceptT)
-import Unison.Codebase (CodebasePath)
-import UnliftIO (MonadUnliftIO, liftIO)
 import qualified Unison.PrettyTerminal as CT
+import UnliftIO (MonadIO, liftIO)
 
-upgradeCodebase :: forall m. MonadUnliftIO m => CodebasePath -> m ()
+upgradeCodebase :: forall m. (MonadIO m, MonadCatch m) => CodebasePath -> m ()
 upgradeCodebase root = do
   either (liftIO . CT.putPrettyLn) pure =<< runExceptT do
     (cleanupSrc, srcCB) <- ExceptT $ Codebase.openCodebase FC.init root

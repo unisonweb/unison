@@ -178,7 +178,7 @@ testPull = scope "pull" $ do
 
   -- initialize git repo
   let repo = tmp </> "repo.git"
-  io $ "git" ["init", "--bare", Text.pack repo]
+  io $ "git" ["init", "--bare", "--initial-branch=master", Text.pack repo]
 
   -- run author/push transcript
   runTranscript_ tmp authorCodebase [iTrim|
@@ -332,7 +332,7 @@ testPush = scope "push" $ do
   for_ pushImplementations $ \(implName, impl) -> scope implName $ do
     -- initialize git repo
     let repoGit = tmp </> (implName ++ ".git")
-    io $ "git" ["init", "--bare", Text.pack repoGit]
+    io $ "git" ["init", "--bare", "--initial-branch=master", Text.pack repoGit]
 
     -- push one way!
     codebase <- io $ FC.codebase1' impl Cache.nullCache V1.formatSymbol formatAnn codebasePath

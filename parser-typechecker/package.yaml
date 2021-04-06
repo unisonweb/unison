@@ -1,92 +1,31 @@
 name: unison-parser-typechecker
 github: unisonweb/unison
+copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
-executables:
-  unison:
-    source-dirs: unison
-    main: Main.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
-    dependencies:
-      - base
-      - bytestring
-      - containers
-      - configurator
-      - directory
-      - errors
-      - filepath
-      - lens
-      - megaparsec
-      - mtl
-      - safe
-      - shellmet
-      - template-haskell
-      - temporary
-      - text
-      - unison-core1
-      - unison-parser-typechecker
-      - unison-codebase-sync
-      - uri-encode
-    when:
-      - condition: '!os(windows)'
-        dependencies: unix
+default-extensions:
+  - ApplicativeDo
+  - BlockArguments
+  - DeriveFunctor
+  - DerivingStrategies
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - LambdaCase
+  - MultiParamTypeClasses
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
 
-  tests:
-    source-dirs: tests
-    main: Suite.hs
-    ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
-    dependencies:
-      - async
-      - base
-      - bytestring
-      - containers
-      - directory
-      - easytest
-      - errors
-      - extra
-      - filepath
-      - filemanip
-      - here
-      - lens
-      - megaparsec
-      - mtl
-      - raw-strings-qq
-      - stm
-      - shellmet
-      - split
-      - temporary
-      - text
-      - transformers
-      - unliftio
-      - unison-core1
-      - unison-parser-typechecker
-      - unison-util
+ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
+flags:
+  optimized:
+    manual: true
+    default: false
 
-  transcripts:
-    source-dirs: transcripts
-    main: Transcripts.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
-    dependencies:
-      - base
-      - directory
-      - easytest
-      - filepath
-      - shellmet
-      - process
-      - text
-      - unison-core1
-      - unison-parser-typechecker
-
-benchmarks:
-  runtime:
-    source-dirs: benchmarks/runtime
-    main: Main.hs
-    dependencies:
-      - base
-      - criterion
-      - containers
-      - unison-core1
-      - unison-parser-typechecker
+when:
+  - condition: flag(optimized)
+    ghc-options: -funbox-strict-fields -02
 
 library:
   source-dirs: src
@@ -150,6 +89,7 @@ library:
     - regex-base
     - regex-tdfa
     - safe
+    - safe-exceptions
     - servant
     - servant-docs
     - servant-openapi3
@@ -166,7 +106,6 @@ library:
     - time
     - tls
     - transformers
-    - unison-core1
     - unliftio
     - unliftio-core
     - util
@@ -179,25 +118,106 @@ library:
     - x509
     - x509-store
     - x509-system
-    - unison-core
     - unison-codebase
     - unison-codebase-sqlite
     - unison-codebase-sync
+    - unison-core
+    - unison-core1
     - unison-util
-    - unison-util-serialization
 
-default-extensions:
-  - ApplicativeDo
-  - BlockArguments
-  - DeriveFunctor
-  - DerivingStrategies
-  - DoAndIfThenElse
-  - FlexibleContexts
-  - FlexibleInstances
-  - LambdaCase
-  - MultiParamTypeClasses
-  - ScopedTypeVariables
-  - TupleSections
-  - TypeApplications
+executables:
+  unison:
+    source-dirs: unison
+    main: Main.hs
+    ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
+    dependencies:
+      - base
+      - bytestring
+      - containers
+      - configurator
+      - directory
+      - errors
+      - filepath
+      - lens
+      - megaparsec
+      - mtl
+      - safe
+      - shellmet
+      - template-haskell
+      - temporary
+      - text
+      - unison-core1
+      - unison-parser-typechecker
+      - unison-codebase-sync
+      - uri-encode
+    when:
+      - condition: '!os(windows)'
+        dependencies: unix
 
-ghc-options: -Wall -funbox-strict-fields -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  prettyprintdemo:
+    source-dirs: prettyprintdemo
+    main: Main.hs
+    dependencies:
+      - base
+      - safe
+      - text
+      - unison-parser-typechecker
+
+  tests:
+    source-dirs: tests
+    main: Suite.hs
+    ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+    dependencies:
+      - async
+      - base
+      - bytestring
+      - containers
+      - directory
+      - easytest
+      - errors
+      - exceptions
+      - extra
+      - filepath
+      - filemanip
+      - here
+      - lens
+      - megaparsec
+      - mtl
+      - raw-strings-qq
+      - stm
+      - shellmet
+      - split
+      - temporary
+      - text
+      - transformers
+      - unliftio
+      - unison-core1
+      - unison-parser-typechecker
+      - unison-util
+
+
+  transcripts:
+    source-dirs: transcripts
+    main: Transcripts.hs
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
+    dependencies:
+      - base
+      - directory
+      - easytest
+      - filepath
+      - shellmet
+      - process
+      - text
+      - unison-core1
+      - unison-parser-typechecker
+
+benchmarks:
+  runtime:
+    source-dirs: benchmarks/runtime
+    main: Main.hs
+    dependencies:
+      - base
+      - criterion
+      - containers
+      - unison-core1
+      - unison-parser-typechecker
