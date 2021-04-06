@@ -1201,3 +1201,57 @@ toBytes (App' (Builtin' "Bytes.fromList") (List' bs)) =
   where go (Nat' n) = Just n
         go _ = Nothing
 toBytes _ = Nothing
+
+toDocWord :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe Text
+toDocWord ppe (App' (Ref' r) (Text' txt))
+  | nameEndsWith ppe ".docWord" r = Just txt
+toDocWord _ _ = Nothing
+
+toDocItalic :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocItalic ppe (App' (Ref' r) doc)
+  | nameEndsWith ppe ".docItalic" r = Just doc
+toDocItalic _ _ = Nothing
+
+toDocBold :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocBold ppe (App' (Ref' r) doc)
+  | nameEndsWith ppe ".docBold" r = Just doc
+toDocBold _ _ = Nothing
+
+toDocStrikethrough :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocStrikethrough ppe (App' (Ref' r) doc)
+  | nameEndsWith ppe ".docStrikethrough" r = Just doc
+toDocStrikethrough _ _ = Nothing
+
+toDocParagraph :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
+toDocParagraph ppe (App' (Ref' r) (List' tms))
+  | nameEndsWith ppe ".docParagraph" r = Just (toList tms)
+toDocParagraph _ _ = Nothing
+
+toDocUntitledSection :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
+toDocUntitledSection ppe (App' (Ref' r) (List' tms))
+  | nameEndsWith ppe ".docUntitledSection" r = Just (toList tms)
+toDocUntitledSection _ _ = Nothing
+
+toDocBulletedList :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
+toDocBulletedList ppe (App' (Ref' r) (List' tms))
+  | nameEndsWith ppe ".docBulletedList" r = Just (toList tms)
+toDocBulletedList _ _ = Nothing
+
+toDocNumberedList :: PrettyPrintEnv -> Term3 v PrintAnnotation
+                  -> Maybe (Word64, [Term3 v PrintAnnotation])
+toDocNumberedList ppe (Apps' (Ref' r) [Nat' n, List' tms])
+  | nameEndsWith ppe ".docNumberedList" r = Just (n, toList tms)
+toDocNumberedList _ _ = Nothing
+
+toDocSection :: PrettyPrintEnv -> Term3 v PrintAnnotation
+            -> Maybe (Term3 v PrintAnnotation, [Term3 v PrintAnnotation])
+toDocSection ppe (Apps' (Ref' r) [title, List' tms])
+  | nameEndsWith ppe ".docSection" r = Just (title, toList tms)
+toDocSection _ _ = Nothing
+
+nameEndsWith :: PrettyPrintEnv -> Text -> Reference -> Bool
+nameEndsWith ppe suffix r = case PrettyPrintEnv.termName ppe (Referent.Ref r) of
+  HQ.NameOnly n ->
+    let tn = Name.toText n
+    in tn == Text.drop 1 suffix || Text.isSuffixOf suffix tn
+  _ -> False
