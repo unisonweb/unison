@@ -8,11 +8,11 @@ module Unison.Runtime.Decompile
 
 import Unison.Prelude
 
-import Unison.ABT (absChain, substs, pattern AbsN')
+import Unison.ABT (substs)
 import Unison.Term
   ( Term
   , nat, int, char, float, boolean, constructor, app, apps', text, ref
-  , list, list', builtin, termLink, typeLink
+  , list, list', builtin, termLink, typeLink, pattern LamNamed'
   )
 import Unison.Type
   ( natRef, intRef, charRef, floatRef, booleanRef, listRef
@@ -76,14 +76,12 @@ tag2bool 1 = Right True
 tag2bool _ = err "bad boolean tag"
 
 substitute :: Var v => Term v () -> [Term v ()] -> Term v ()
-substitute (AbsN' vs bd) ts = align [] vs ts
+substitute = align []
   where
-  align vts (v:vs) (t:ts) = align ((v,t):vts) vs ts
-  align vts vs [] = substs vts (absChain vs bd)
+  align vts (LamNamed' v bd) (t:ts) = align ((v,t):vts) bd ts
+  align vts tm [] = substs vts tm
   -- this should not happen
-  align vts [] ts = apps' (substs vts bd) ts
--- TODO: these aliases are not actually very conveniently written
-substitute _ _ = error "impossible"
+  align vts tm ts = apps' (substs vts tm) ts
 
 decompileUnboxed
   :: Var v => Reference -> Word64 -> Int -> Either Error (Term v ())
