@@ -57,7 +57,7 @@ data Codebase m v a =
 
            , getRootBranch      :: m (Either GetRootBranchError (Branch m))
            , putRootBranch      :: Branch m -> m ()
-           , rootBranchUpdates  :: m (m (), m (Set Branch.Hash))
+           , rootBranchUpdates  :: m (IO (), IO (Set Branch.Hash))
            , getBranchForHash   :: Branch.Hash -> m (Maybe (Branch m))
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
