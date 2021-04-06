@@ -1,0 +1,209 @@
+name: unison-parser-typechecker
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
+
+default-extensions:
+  - ApplicativeDo
+  - BlockArguments
+  - DeriveFunctor
+  - DerivingStrategies
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - LambdaCase
+  - MultiParamTypeClasses
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+
+ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+
+flags:
+  optimized:
+    manual: true
+    default: false
+
+when:
+  - condition: flag(optimized)
+    ghc-options: -funbox-strict-fields -02
+
+executables:
+  unison:
+    source-dirs: unison
+    main: Main.hs
+    ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
+    dependencies:
+      - base
+      - bytestring
+      - containers
+      - configurator
+      - directory
+      - errors
+      - filepath
+      - megaparsec
+      - mtl
+      - safe
+      - shellmet
+      - template-haskell
+      - temporary
+      - text
+      - unison-core
+      - unison-parser-typechecker
+      - uri-encode
+    when:
+      - condition: '!os(windows)'
+        dependencies: unix
+
+  prettyprintdemo:
+    source-dirs: prettyprintdemo
+    main: Main.hs
+    dependencies:
+      - base
+      - safe
+      - text
+      - unison-parser-typechecker
+
+  tests:
+    source-dirs: tests
+    main: Suite.hs
+    ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+    dependencies:
+      - async
+      - base
+      - bytestring
+      - containers
+      - directory
+      - easytest
+      - errors
+      - extra
+      - filepath
+      - filemanip
+      - here
+      - lens
+      - megaparsec
+      - mtl
+      - raw-strings-qq
+      - stm
+      - shellmet
+      - split
+      - temporary
+      - text
+      - transformers
+      - unliftio
+      - unison-core
+      - unison-parser-typechecker
+
+  transcripts:
+    source-dirs: transcripts
+    main: Transcripts.hs
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
+    dependencies:
+      - base
+      - directory
+      - easytest
+      - filepath
+      - shellmet
+      - process
+      - text
+      - unison-core
+      - unison-parser-typechecker
+
+benchmarks:
+  runtime:
+    source-dirs: benchmarks/runtime
+    main: Main.hs
+    dependencies:
+      - base
+      - criterion
+      - containers
+      - unison-core
+      - unison-parser-typechecker
+
+library:
+  source-dirs: src
+  dependencies:
+    - aeson
+    - ansi-terminal
+    - async
+    - base
+    - base16 >= 0.2.1.0
+    - base64-bytestring
+    - basement
+    - bifunctors
+    - bytes
+    - bytestring
+    - cereal
+    - containers >= 0.6.3
+    - comonad
+    - concurrent-supply
+    - configurator
+    - cryptonite
+    - data-default
+    - directory
+    - either
+    - guid
+    - data-memocombinators
+    - edit-distance
+    - errors
+    - exceptions
+    - extra
+    - filepath
+    - filepattern
+    - fingertree
+    - free
+    - fsnotify
+    - generic-monoid
+    - hashable
+    - hashtables
+    - haskeline
+    - http-types
+    - io-streams
+    - lens
+    - ListLike
+    - megaparsec >= 5.0.0 && < 7.0.0
+    - memory
+    - mmorph
+    - monad-loops
+    - mtl
+    - murmur-hash
+    - mutable-containers
+    - network
+    - network-simple
+    - nonempty-containers
+    - openapi3
+    - pem
+    - process
+    - primitive
+    - random >= 1.2.0
+    - raw-strings-qq
+    - regex-base
+    - regex-tdfa
+    - safe
+    - safe-exceptions
+    - servant
+    - servant-docs
+    - servant-openapi3
+    - servant-server
+    - shellmet
+    - split
+    - stm
+    - strings
+    - tagged
+    - temporary
+    - terminal-size
+    - text
+    - time
+    - tls
+    - transformers
+    - unison-core
+    - unliftio
+    - unliftio-core
+    - util
+    - unicode-show
+    - vector
+    - wai
+    - warp
+    - unicode-show
+    - x509
+    - x509-store
+    - x509-system
