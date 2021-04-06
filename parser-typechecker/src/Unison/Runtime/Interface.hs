@@ -196,7 +196,7 @@ backrefLifted tm@(Tm.LetRecNamed' bs _) dcmp
   = Map.fromList . ((0,tm):) $
   [ (ix, dc)
   | ix <- ixs
-  | (v, _) <- bs
+  | (v, _) <- reverse bs
   , dc <- maybeToList $ Prelude.lookup v dcmp
   ]
   where
