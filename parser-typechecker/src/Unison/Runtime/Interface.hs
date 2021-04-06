@@ -48,7 +48,6 @@ import Unison.PrettyPrintEnv
 import Unison.Util.Pretty as P
 import Unison.Symbol (Symbol)
 import Unison.TermPrinter
-import Unison.Var as Var
 
 import Unison.Runtime.ANF
 import Unison.Runtime.Builtin
