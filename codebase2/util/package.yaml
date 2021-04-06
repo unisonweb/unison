@@ -1,0 +1,12 @@
+name: unison-util
+github: unisonweb/unison
+
+library:
+  source-dirs: .
+
+defaults:
+  local: ../../defaults.yaml
+
+dependencies:
+  - cryptonite
+  - sandi
