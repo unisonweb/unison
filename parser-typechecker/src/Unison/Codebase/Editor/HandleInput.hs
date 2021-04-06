@@ -645,7 +645,7 @@ loop = do
                 respond $ TermAmbiguous hq results
               -- ... but use the unsuffixed names for display
               else do
-                let tm = Term.referent External $ Set.findMin results
+                let tm = Term.fromReferent External $ Set.findMin results
                 pped <- prettyPrintEnvDecl parseNames0
                 tm <- eval $ Evaluate1 (PPE.suffixifiedPPE pped) True tm
                 case tm of

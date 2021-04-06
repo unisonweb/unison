@@ -28,6 +28,7 @@ import qualified Unison.Pattern                as Pattern
 import           Unison.Pattern                 ( Pattern )
 import           Unison.Reference               ( Reference )
 import qualified Unison.Referent               as Referent
+import           Unison.Referent                ( Referent )
 import qualified Unison.Util.SyntaxText        as S
 import           Unison.Util.SyntaxText         ( SyntaxText )
 import           Unison.Term
@@ -1202,6 +1203,55 @@ toBytes (App' (Builtin' "Bytes.fromList") (List' bs)) =
         go _ = Nothing
 toBytes _ = Nothing
 
+prettyDoc2
+  :: forall v . Var v
+  => PrettyPrintEnv
+  -> AmbientContext
+  -> Term3 v PrintAnnotation
+  -> Pretty SyntaxText
+prettyDoc2 ppe ac tm = case tm of
+  -- these patterns can introduce a {{ .. }} block
+  (toDocUntitledSection ppe -> Just _) -> brace $ go 1 tm
+  (toDocSection ppe -> Just _) -> brace $ go 1 tm
+  (toDocParagraph ppe -> Just _) -> brace $ go 1 tm
+  _ -> pretty0 ppe ac tm
+  where
+    brace p = fmt S.DocDelimiter "{{" <> PP.softbreak <> p <> PP.softbreak <> fmt S.DocDelimiter "}}"
+    bail tm = brace (pretty0 ppe ac tm)
+    go :: Int -> Term3 v PrintAnnotation -> Pretty SyntaxText
+    go hdr = \case
+      (toDocUntitledSection ppe -> Just ds) ->
+        sepBlankline ds
+      (toDocSection ppe -> Just (title, ds)) ->
+        PP.lines [ PP.text (Text.replicate hdr "#") <> " " <> rec title
+                 , ""
+                 , sepBlankline ds ]
+      (toDocParagraph ppe -> Just ds) ->
+        PP.wrap (mconcat (rec <$> ds))
+      (toDocWord ppe -> Just t) ->
+        PP.text t
+      (toDocItalic ppe -> Just d) ->
+        PP.group $ "*" <> rec d <> "*"
+      (toDocBold ppe -> Just d) ->
+        PP.group $ "__" <> rec d <> "__"
+      (toDocStrikethrough ppe -> Just d) ->
+        PP.group $ "~~" <> rec d <> "~~"
+      (toDocGroup ppe -> Just d) ->
+        PP.group $ rec d
+      (toDocColumn ppe -> Just ds) ->
+        PP.lines $ rec <$> ds
+      (toDocNamedLink ppe -> Just (name,target)) ->
+        "[" <> rec name <> "](" <> rec target <> ")"
+      (toDocLink ppe -> Just e) -> case e of
+        Left r ->  "{type " <> tyName r <> "}"
+        Right r -> "{" <> tmName r <> "}"
+      tm -> bail tm
+      where
+        tyName r = styleHashQualified'' (fmt $ S.Reference r) (PrettyPrintEnv.typeName ppe r)
+        tmName r = styleHashQualified'' (fmt $ S.Referent r) (PrettyPrintEnv.termName ppe r)
+        rec = go hdr
+        sepBlankline = intercalateMap "\n\n" rec
+
 toDocJoin :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
 toDocJoin ppe (App' (Ref' r) (List' tms))
   | nameEndsWith ppe ".docJoin" r = Just (toList tms)
@@ -1262,7 +1312,7 @@ toDocTransclude ppe (App' (Ref' r) tm)
   | nameEndsWith ppe ".docTransclude" r = Just tm
 toDocTransclude _ _ = Nothing
 
-toDocLink :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Either Reference (Term3 v PrintAnnotation))
+toDocLink :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Either Reference Referent)
 toDocLink ppe (App' (Ref' r) tm)
   | nameEndsWith ppe ".docLink" r = case tm of
       (toDocEmbedTermLink ppe -> Just tm) -> Just (Right tm)
@@ -1290,8 +1340,8 @@ toDocParagraph ppe (App' (Ref' r) (List' tms))
   | nameEndsWith ppe ".docParagraph" r = Just (toList tms)
 toDocParagraph _ _ = Nothing
 
-toDocEmbedTermLink :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
-toDocEmbedTermLink ppe (App' (Ref' r) (Delay' tm))
+toDocEmbedTermLink :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe Referent
+toDocEmbedTermLink ppe (App' (Ref' r) (Delay' (Referent' tm)))
   | nameEndsWith ppe ".docEmbedTermLink" r = Just tm
 toDocEmbedTermLink _ _ = Nothing
 
@@ -1333,7 +1383,7 @@ toDocEmbedAnnotations ppe (App' (Ref' r) (List' tms))
       _ -> Nothing
 toDocEmbedAnnotations _ _ = Nothing
 
-toDocSignature :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
+toDocSignature :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Referent]
 toDocSignature ppe (App' (Ref' r) (List' tms))
   | nameEndsWith ppe ".docSignature" r =
     case [ tm | Just tm <- ok <$> toList tms ] of

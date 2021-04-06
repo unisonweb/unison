@@ -1,67 +1,41 @@
+
+basicFormatting = {{
+
+# Basic formatting
+
+  Paragraphs are separated by one or more blanklines. 
+  There's syntax for __bold__ **text**, *italics* _text_, 
+  ~~strikethrough~~ text, and ''monospaced text''.
+
+  Also [external links](https://unisonweb.org) and 
+  links to a term like {Some} or types like {type Optional}
+  and [named links to terms or types]({type List}).
+
+## Escaping formatting
+
+   You can use ''{{ .. }}'' to escape out to regular Unison syntax
+   for instance {{ docWord "__not bold__" }}.
+
+   If you have some inline text you want to leave unparsed and have it render 
+   in a monospace font, surround it in two single quotes: ''__some bold text__''
+
+## Sections and subsections
+     
+   Sections consist of section titles followed by zero or more paragraphs 
+   or other section elements (such as subsections). Sections can be empty.
+}}
+
+
 doc.guide = {{
 
 # Unison documentation format
 
-## Basic formatting
-
-Paragraphs are separated by one or more blanklines. There's syntax for bold, italics, and strikethrough text:
-
-'''
-_italics_ or *italics*
-
-**bold text** or __moar bold text__
-
-~~striken text~~
-
-''some code''
-
-[The Unison website](https://unisonweb.org)
-
-A link to a term: {Some}. [A named link to the ''List'' type]({type List}).
-'''
-
-Renders as:
-
-_italics_ or *italics*
-
-**bold text** or __moar bold text__
-
-~~stricken text~~
-
-''some code''
-
-[The Unison website](https://unisonweb.org)
-
-A link to a term: {Some}. A link to a type {type List}.
-
-### Escaping formatting
-
-If you want the text. 
-
-'''
-{{ syntax.doc.word "__not bold__"}}
-'''
-
-Renders as:
-
-{{ syntax.doc.word "__not bold__" }}
-
-If you have some inline text you want to leave unparsed and have it render in a monospace font, do:
-
-'''
-An example of bold text syntax: ''__some bold text__''
-'''
-
-Renders as:
-
-An example of bold text syntax: ''__some bold text__''
+{{ basicFormatting }}
 
 ## Sections and subsections
 
 '''
 # Section title! 
-
-Sections consist of section titles followed by zero or more paragraphs or other section elements (such as subsections). 
 
 ## Subsection title 
 
@@ -155,8 +129,6 @@ Expressions can be evaluated inline, for instance @eval{1 + 1}.
 
 Blocks of code can be evaluated as well, for instance:
 
-}} --- todo
-
 '''
 ```
 id x = x
@@ -172,6 +144,8 @@ id x = x
 
 id 99
 ``` 
+
+}} --- todo
 
 ## Including Unison source code
 

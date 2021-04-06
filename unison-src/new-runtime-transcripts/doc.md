@@ -41,5 +41,6 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
 ```ucm
 .> load ./unison-src/new-runtime-transcripts/doc.md.files/syntax.u
 .> add
-.> display doc.guide
+.> view basicFormatting
+.> display basicFormatting
 ```
