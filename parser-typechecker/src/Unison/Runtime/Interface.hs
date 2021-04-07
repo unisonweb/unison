@@ -11,7 +11,7 @@ module Unison.Runtime.Interface
 
 import GHC.Stack (HasCallStack)
 
-import Unison.Prelude (reportBug)
+import Unison.Prelude (reportBug, maybeToList)
 import Control.Concurrent.STM as STM
 import Control.Exception (try)
 import Control.Monad
@@ -48,7 +48,6 @@ import Unison.PrettyPrintEnv
 import Unison.Util.Pretty as P
 import Unison.Symbol (Symbol)
 import Unison.TermPrinter
-import Unison.Var as Var
 
 import Unison.Runtime.ANF
 import Unison.Runtime.Builtin
@@ -188,17 +187,20 @@ loadDeps cl ctx tm = do
       tyAdd = Set.fromList $ fst <$> tyrs
   backrefAdd rbkr ctx <$ cacheAdd0 tyAdd rgrp (ccache ctx)
 
-backrefLifted :: Term Symbol -> Map.Map Word64 (Term Symbol)
-backrefLifted tm@(Tm.LetRecNamed' bs _)
+backrefLifted
+  :: Term Symbol
+  -> [(Symbol, Term Symbol)]
+  -> Map.Map Word64 (Term Symbol)
+backrefLifted tm@(Tm.LetRecNamed' bs _) dcmp
   = Map.fromList . ((0,tm):) $
-  [ (ix, b)
+  [ (ix, dc)
   | ix <- ixs
-  | (v, b) <- bs
-  , Var.typeOf v == Float
+  | (v, _) <- reverse bs
+  , dc <- maybeToList $ Prelude.lookup v dcmp
   ]
   where
   ixs = fmap (`shiftL` 16) [1..]
-backrefLifted tm = Map.singleton 0 tm
+backrefLifted tm _ = Map.singleton 0 tm
 
 intermediateTerms
   :: HasCallStack
@@ -223,7 +225,7 @@ intermediateTerm ctx tm
   . saturate (uncurryDspec $ dspec ctx)
   $ tm
   where
-  final ll = (superNormalize ll, backrefLifted ll)
+  final (ll, dcmp) = (superNormalize ll, backrefLifted ll dcmp)
 
 prepareEvaluation
   :: HasCallStack => Term Symbol -> EvalCtx -> IO (EvalCtx, Word64)

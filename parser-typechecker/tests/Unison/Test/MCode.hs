@@ -94,6 +94,7 @@ testEval s = testEval0 (env aux) main
   aux
     = emitCombs numbering (bit 24)
     . superNormalize
+    . fst
     . lamLift
     . splitPatterns builtinDataSpec
     . unannotate
