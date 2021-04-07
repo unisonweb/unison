@@ -39,6 +39,7 @@ import qualified Unison.Test.MCode as MCode
 import qualified Unison.Test.VersionParser as VersionParser
 import qualified Unison.Test.Git as Git
 import qualified Unison.Test.GitSimple as GitSimple
+import qualified Unison.Test.Codebase.Upgrade12 as Upgrade12
 
 test :: Bool -> Test ()
 test rt = tests
@@ -69,6 +70,7 @@ test rt = tests
   , UriParser.test
   , Context.test
   -- , Git.test
+  , Upgrade12.test
   , GitSimple.test
   , TestIO.test
   , Name.test
